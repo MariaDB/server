@@ -1921,16 +1921,19 @@ static int prepare_create_stub_for_import(THD *thd, const char *name,
                                           HA_CREATE_INFO& create_info)
 {
   DBUG_ENTER("prepare_create_stub_for_import");
-  char norm_name[FN_REFLEN];
-  normalize_table_name(norm_name, name);
   FetchIndexRootPages fetchIndexRootPages(name);
   if (fil_tablespace_iterate(fil_path_to_mysql_datadir, name,
                              IO_BUFFER_SIZE(srv_page_size),
                              fetchIndexRootPages)
       != DB_SUCCESS)
   {
-    sql_print_error("InnoDB: failed to get row format from ibd for %s.\n",
-                    norm_name);
+    const char *ibd_path = fil_make_filepath(
+      fil_path_to_mysql_datadir, table_name_t(const_cast<char*>(name)), IBD,
+      fil_path_to_mysql_datadir != nullptr);
+    if (!ibd_path)
+      return(DB_OUT_OF_MEMORY);
+    sql_print_error("InnoDB: failed to get row format from %s.\n",
+                    ibd_path);
     DBUG_RETURN(ER_INNODB_IMPORT_ERROR);
   }
   create_info.init();
@@ -1952,9 +1955,11 @@ static int prepare_create_stub_for_import(THD *thd, const char *name,
            rec_format_from_cfg == REC_FORMAT_DYNAMIC) &&
           create_info.row_type == ROW_TYPE_NOT_USED))
     {
+      char norm_name[FN_REFLEN];
+      normalize_table_name(norm_name, name);
       sql_print_error(
-              "InnoDB: cfg and ibd disagree on row format for table %s.\n",
-              norm_name);
+        "InnoDB: cfg and ibd disagree on row format for table %s.\n",
+        norm_name);
       DBUG_RETURN(ER_INNODB_IMPORT_ERROR);
     }
     else
@@ -5928,10 +5933,9 @@ ha_innobase::open(const char* name, int, uint)
                                                             create_info))
                         DBUG_RETURN(err);
                 create(name, table, &create_info, true, nullptr);
-		DBUG_EXECUTE_IF("die_after_create_stub_for_import", ut_ad(0););
+                DEBUG_SYNC(thd, "ib_after_create_stub_for_import");
                 ib_table = open_dict_table(name, norm_name, is_part,
                                            DICT_ERR_IGNORE_FK_NOKEY);
-                DEBUG_SYNC(thd, "ib_open_after_create_stub_for_import");
         }
 
         if (NULL == ib_table) {
@@ -13230,9 +13234,12 @@ ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
     row_mysql_lock_data_dictionary(trx);
   }
 
+  const bool importing= thd_ddl_options(ha_thd())->import_tablespace();
   if (!error)
-    error= info.create_table(own_trx &&
-                             !thd_ddl_options(ha_thd())->import_tablespace());
+    /* We can't possibly have foreign key information when creating a
+    stub table for importing .frm / .cfg / .ibd because it is not
+    stored in any of these files. */
+    error= info.create_table(own_trx && !importing);
 
   if (own_trx || (info.flags2() & DICT_TF2_TEMPORARY))
   {
@@ -13254,7 +13261,10 @@ ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
 
       if (!error)
       {
-        if (!thd_ddl_options(ha_thd())->import_tablespace())
+        /* Skip stats update when creating a stub table for importing,
+        as it is not needed and would report error due to the table
+        not being readable yet. */
+        if (!importing)
           dict_stats_update(info.table(), DICT_STATS_EMPTY_TABLE);
         if (!info.table()->is_temporary())
           log_write_up_to(trx->commit_lsn, true);

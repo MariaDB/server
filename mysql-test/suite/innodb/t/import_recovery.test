@@ -1,16 +1,13 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
 
-let MYSQLD_DATADIR = `SELECT @@datadir`;
-let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
-let $MYSQLD_DATADIR = `SELECT @@datadir`;
---let $_server_id= `SELECT @@server_id`
---let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect
+--echo #
+--echo # MDEV-26137 ALTER TABLE IMPORT enhancement
+--echo #
 
-call mtr.add_suppression('.*Assertion.*failed.');
+let $MYSQLD_DATADIR = `SELECT @@datadir`;
+
 call mtr.add_suppression('InnoDB: Tablespace for table `test`.`t2` is set as discarded.');
-call mtr.add_suppression('InnoDB: ./test/t2.ibd: Page 0 at offset 0 looks corrupted.');
-call mtr.add_suppression("mariadbd: Index for table 't2' is corrupt; try to repair it");
 
 --echo # Recovery from crashes
 --echo ## Creation of stub succeeds; server crashes; second import attempt succeeds
@@ -21,13 +18,19 @@ FLUSH TABLES t1 FOR EXPORT;
 --copy_file $MYSQLD_DATADIR/test/t1.frm $MYSQLD_DATADIR/test/t2.frm
 --copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t2.ibd
 UNLOCK TABLES;
-SET DEBUG_DBUG='+d,die_after_create_stub_for_import';
-# Write file to make mysql-test-run.pl expect crash
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
---error 2013
+
+connect (hang,localhost,root);
+SET DEBUG_SYNC='ib_after_create_stub_for_import SIGNAL hung WAIT_FOR ever';
+send
+
 ALTER TABLE t2 IMPORT TABLESPACE;
---echo # Restart mysqld after the crash and reconnect.
---source include/start_mysqld.inc
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR hung';
+let $shutdown_timeout=0;
+--source include/restart_mysqld.inc
+disconnect hang;
+
 ALTER TABLE t2 IMPORT TABLESPACE;
 SELECT * FROM t2;
 DROP TABLE t1, t2;
@@ -40,16 +43,29 @@ FLUSH TABLES t1 FOR EXPORT;
 --copy_file $MYSQLD_DATADIR/test/t1.frm $MYSQLD_DATADIR/test/t2.frm
 --copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t2.ibd
 UNLOCK TABLES;
-SET DEBUG_DBUG='+d,die_after_create_stub_for_import';
-# Write file to make mysql-test-run.pl expect crash
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
---error 2013
+
+connect (hang,localhost,root);
+SET DEBUG_SYNC='ib_after_create_stub_for_import SIGNAL hung WAIT_FOR ever';
+send
+
 ALTER TABLE t2 IMPORT TABLESPACE;
---echo # Restart mysqld after the crash and reconnect.
---source include/start_mysqld.inc
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR hung';
+let $shutdown_timeout=0;
+--source include/restart_mysqld.inc
+disconnect hang;
+
 DROP TABLE t1, t2;
 
 --echo # Recovery from corruption
+
+let MYSQLD_DATADIR = `SELECT @@datadir`;
+let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
+
+call mtr.add_suppression('InnoDB: ./test/t2.ibd: Page 0 at offset 0 looks corrupted.');
+call mtr.add_suppression("mariadbd: Index for table 't2' is corrupt; try to repair it");
+
 --echo ## Recovery from corruption, with cfg
 CREATE TABLE t1 (a int) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(42);
@@ -117,11 +133,18 @@ FLUSH TABLES t1 FOR EXPORT;
 --copy_file $MYSQLD_DATADIR/test/t1.frm $MYSQLD_DATADIR/test/t2.frm
 --copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t2.ibd
 UNLOCK TABLES;
-SET DEBUG_DBUG='+d,die_after_create_stub_for_import';
-# Write file to make mysql-test-run.pl expect crash
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
---error 2013
+
+connect (hang,localhost,root);
+SET DEBUG_SYNC='ib_after_create_stub_for_import SIGNAL hung WAIT_FOR ever';
+send
+
 ALTER TABLE t2 IMPORT TABLESPACE;
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR hung';
+let $shutdown_timeout=0;
+--source include/shutdown_mysqld.inc
+disconnect hang;
 
 --echo # corrupting the 0th page
 perl;
@@ -154,11 +177,18 @@ FLUSH TABLES t1 FOR EXPORT;
 --copy_file $MYSQLD_DATADIR/test/t1.frm $MYSQLD_DATADIR/test/t2.frm
 --copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t2.ibd
 UNLOCK TABLES;
-SET DEBUG_DBUG='+d,die_after_create_stub_for_import';
-# Write file to make mysql-test-run.pl expect crash
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
---error 2013
+
+connect (hang,localhost,root);
+SET DEBUG_SYNC='ib_after_create_stub_for_import SIGNAL hung WAIT_FOR ever';
+send
+
 ALTER TABLE t2 IMPORT TABLESPACE;
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR hung';
+let $shutdown_timeout=0;
+--source include/shutdown_mysqld.inc
+disconnect hang;
 
 --echo # corrupting the 0th page
 perl;
@@ -182,4 +212,3 @@ EOF
 --error ER_TABLE_SCHEMA_MISMATCH
 ALTER TABLE t2 IMPORT TABLESPACE;
 DROP TABLE t1, t2;
-
