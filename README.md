@@ -1,8 +1,13 @@
 # Build and Debug from source (Ubuntu 22.04)
 
 ## Install Dependencies
+Firstly Create configuration file in this path '/etc/apt/sources.list.d/mariadb.list` using following command:
 
-Save the following repository configuration contents in the file `/etc/apt/sources.list.d/mariadb.list`. Note that the configuration is valid for the mariadb branch 11.0 and Ubuntu 22.04:
+```
+sudo gedit /etc/apt/sources.list.d/mariadb.list
+```
+
+then Save the following repository configuration contents in the file `/etc/apt/sources.list.d/mariadb.list`. Note that the configuration is valid for the mariadb branch 11.0 and Ubuntu 22.04:
 ```
 # Retrieved from: https://mariadb.org/download/?t=repo-config
 
@@ -14,10 +19,18 @@ deb https://mirror.its.dal.ca/mariadb/repo/11.0/ubuntu jammy main/debug
 ```
 
 Import the repository key and update apt. You should not get any error from the mariadb repository server:
+
 ```
 sudo curl -o /etc/apt/trusted.gpg.d/mariadb_release_signing_key.asc 'https://mariadb.org/mariadb_release_signing_key.asc'
 sudo apt-get update
 ```
+if Error Recieved: "sudo: curl command not found" then first run this command
+
+```
+sudo apt install curl
+```
+
+and import repository key again using above curl command.
 
 Install dependencies:
 ```
