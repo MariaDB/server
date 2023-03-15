@@ -1,18 +1,20 @@
-call mtr.add_suppression('.*Assertion.*failed.');
+#
+# MDEV-26137 ALTER TABLE IMPORT enhancement
+#
 call mtr.add_suppression('InnoDB: Tablespace for table `test`.`t2` is set as discarded.');
-call mtr.add_suppression('InnoDB: ./test/t2.ibd: Page 0 at offset 0 looks corrupted.');
-call mtr.add_suppression("mariadbd: Index for table 't2' is corrupt; try to repair it");
 # Recovery from crashes
 ## Creation of stub succeeds; server crashes; second import attempt succeeds
 CREATE TABLE t1 (a int) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(42);
 FLUSH TABLES t1 FOR EXPORT;
 UNLOCK TABLES;
-SET DEBUG_DBUG='+d,die_after_create_stub_for_import';
+connect  hang,localhost,root;
+SET DEBUG_SYNC='ib_after_create_stub_for_import SIGNAL hung WAIT_FOR ever';
 ALTER TABLE t2 IMPORT TABLESPACE;
-ERROR HY000: Lost connection to server during query
-# Restart mysqld after the crash and reconnect.
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR hung';
 # restart
+disconnect hang;
 ALTER TABLE t2 IMPORT TABLESPACE;
 SELECT * FROM t2;
 a
@@ -23,13 +25,18 @@ CREATE TABLE t1 (a int) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(42);
 FLUSH TABLES t1 FOR EXPORT;
 UNLOCK TABLES;
-SET DEBUG_DBUG='+d,die_after_create_stub_for_import';
+connect  hang,localhost,root;
+SET DEBUG_SYNC='ib_after_create_stub_for_import SIGNAL hung WAIT_FOR ever';
 ALTER TABLE t2 IMPORT TABLESPACE;
-ERROR HY000: Lost connection to server during query
-# Restart mysqld after the crash and reconnect.
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR hung';
 # restart
+disconnect hang;
 DROP TABLE t1, t2;
 # Recovery from corruption
+call mtr.add_suppression('InnoDB: ./test/t2.ibd: Page 0 at offset 0 looks corrupted.');
+call mtr.add_suppression("mariadbd.*: Index for table 't2' is corrupt; try to repair it");
+call mtr.add_suppression("InnoDB: Corrupted page \\[page id: space=.*, page number=0\\] of datafile './test/t2.ibd' could not be found in the doublewrite buffer.");
 ## Recovery from corruption, with cfg
 CREATE TABLE t1 (a int) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(42);
@@ -54,9 +61,12 @@ CREATE TABLE t1 (a int) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(42);
 FLUSH TABLES t1 FOR EXPORT;
 UNLOCK TABLES;
-SET DEBUG_DBUG='+d,die_after_create_stub_for_import';
+connect  hang,localhost,root;
+SET DEBUG_SYNC='ib_after_create_stub_for_import SIGNAL hung WAIT_FOR ever';
 ALTER TABLE t2 IMPORT TABLESPACE;
-ERROR HY000: Lost connection to server during query
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR hung';
+disconnect hang;
 # corrupting the 0th page
 # Restart mysqld after the crash and reconnect.
 # restart
@@ -68,9 +78,12 @@ CREATE TABLE t1 (a int) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(42);
 FLUSH TABLES t1 FOR EXPORT;
 UNLOCK TABLES;
-SET DEBUG_DBUG='+d,die_after_create_stub_for_import';
+connect  hang,localhost,root;
+SET DEBUG_SYNC='ib_after_create_stub_for_import SIGNAL hung WAIT_FOR ever';
 ALTER TABLE t2 IMPORT TABLESPACE;
-ERROR HY000: Lost connection to server during query
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR hung';
+disconnect hang;
 # corrupting the 0th page
 # Restart mysqld after the crash and reconnect.
 # restart

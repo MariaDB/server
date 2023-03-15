@@ -480,10 +480,10 @@ page, as we can't get that from the tablespace header flags alone.
 @retval DB_SUCCESS or error code. */
 dberr_t FetchIndexRootPages::operator()(buf_block_t* block) UNIV_NOTHROW
 {
-        /* m_table_name is non-null iff we are trying to create a (stub)
-        table, and there's no table to compare the fsp flags and row format
-        against. */
-        ut_ad(!m_table_name);
+        /* m_table is non-null iff we are trying to create a (stub)
+        table, and there's no table to compare the fsp flags and row
+        format against. */
+        ut_ad(m_table);
 
 	if (is_interrupted()) return DB_INTERRUPTED;
 
@@ -3165,11 +3165,15 @@ Read the row type from a .cfg file.
 dberr_t get_row_type_from_cfg(const char* dir_path, const char* name,
                               THD* thd, rec_format_enum& result)
 {
-  const table_name_t table_name(const_cast<char*>(name));
-  const char* filename = fil_make_filepath(dir_path, table_name, CFG,
-                                           dir_path != nullptr);
+  char* filename = fil_make_filepath(dir_path,
+                                     table_name_t(const_cast<char*>(name)),
+                                     CFG, dir_path != nullptr);
+  if (!filename)
+    return DB_OUT_OF_MEMORY;
   row_import cfg;
   dberr_t err = row_import_read_cfg_internal(filename, thd, cfg);
+  // ASAN
+  ut_free(filename);
   if (err == DB_SUCCESS)
     result = dict_tf_get_rec_format(cfg.m_flags);
   return err;
@@ -3515,10 +3519,10 @@ page_corrupted:
   /* m_table_name is non-null iff we are trying to create a (stub)
   table, in which case we want to get row format for the table
   creation. */
-  if (m_table_name)
-    m_row_format = get_row_format(block);
-  else
+  if (m_table)
     err= this->operator()(block);
+  else
+    m_row_format = get_row_format(block);
 func_exit:
   free(page_compress_buf);
   return err;

@@ -257,12 +257,12 @@ struct FetchIndexRootPages : public AbstractCallback {
   FetchIndexRootPages(const dict_table_t* table, trx_t* trx)
     :
     AbstractCallback(trx, UINT32_MAX),
-    m_table(table), m_table_name(nullptr), m_index(0, 0) UNIV_NOTHROW { }
+    m_table(table), m_index(0, 0) UNIV_NOTHROW { }
 
-  FetchIndexRootPages(const char* table_name)
+  FetchIndexRootPages()
     :
     AbstractCallback(nullptr, UINT32_MAX),
-    m_table(nullptr), m_table_name(table_name), m_index(0, 0) UNIV_NOTHROW { }
+    m_table(nullptr), m_index(0, 0) UNIV_NOTHROW { }
 
   /** Destructor */
   ~FetchIndexRootPages() UNIV_NOTHROW override = default;
@@ -306,17 +306,14 @@ struct FetchIndexRootPages : public AbstractCallback {
   the tablespace. */
   dberr_t build_row_import(row_import* cfg) const UNIV_NOTHROW;
 
-  /** Table definition in server. */
+  /** Table definition in server. When the table is being created,
+  there's no table yet so m_table is nullptr */
   const dict_table_t*   m_table;
 
   /** Table row format. Only used when a (stub) table is being created
   in which case m_table is null, for obtaining row format from the
   .ibd for the stub table. */
   enum row_type m_row_format;
-
-  /** When the table is being created, there's no table yet so m_table
-  is nullptr, but m_table_name should be supplied. */
-  const char* m_table_name;
 
   /** Index information */
   Index       m_index;
