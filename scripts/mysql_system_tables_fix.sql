@@ -746,8 +746,27 @@ if @have_innodb then
   delete from innodb_table_stats where length(table_name) > 64;
 
   # update table_name and timestamp fields in the innodb stat tables
+  #
+  # FIXME: after running the first alter table statement, the value of PRTYPE is
+  # checked against the PRTYPE value of a fresh installation. For some reason
+  # after migrating from MySQL 5.7 the PRTYPE is not being properly updated and
+  # the force flag is required to rebuild the table and force the update of the
+  # PRTYPE when this happens. More information available at MDEV-30483 and MDEV-30809
   alter table innodb_index_stats modify last_update timestamp not null default current_timestamp on update current_timestamp, modify table_name varchar(199);
+  set @prtype= (select b.PRTYPE != 526087
+                from information_schema.innodb_sys_tables a, information_schema.innodb_sys_columns b
+                where a.table_id=b.table_id and a.name = 'mysql/innodb_index_stats' and b.name = 'last_update');
+  if @prtype then
+    alter table innodb_index_stats modify last_update timestamp not null default current_timestamp on update current_timestamp, force;
+  end if;
+
   alter table innodb_table_stats modify last_update timestamp not null default current_timestamp on update current_timestamp, modify table_name varchar(199);
+   set @prtype= (select b.PRTYPE != 526087
+                 from information_schema.innodb_sys_tables a, information_schema.innodb_sys_columns b
+                 where a.table_id=b.table_id and a.name = 'mysql/innodb_table_stats' and b.name = 'last_update');
+  if @prtype then
+    alter table innodb_table_stats modify last_update timestamp not null default current_timestamp on update current_timestamp, force;
+  end if;
 
   alter table innodb_index_stats drop foreign key if exists innodb_index_stats_ibfk_1;
 end if //
