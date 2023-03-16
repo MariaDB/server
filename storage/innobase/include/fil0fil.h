@@ -958,11 +958,13 @@ public:
   @param purpose    tablespace purpose
   @param crypt_data encryption information
   @param mode       encryption mode
+  @param opened     true if space files are opened
   @return pointer to created tablespace, to be filled in with add()
   @retval nullptr on failure (such as when the same tablespace exists) */
   static fil_space_t *create(ulint id, ulint flags,
                              fil_type_t purpose, fil_space_crypt_t *crypt_data,
-                             fil_encryption_t mode= FIL_ENCRYPTION_DEFAULT);
+                             fil_encryption_t mode= FIL_ENCRYPTION_DEFAULT,
+                             bool opened= false);
 
   MY_ATTRIBUTE((warn_unused_result))
   /** Acquire a tablespace reference.
@@ -1447,6 +1449,11 @@ struct fil_system_t {
 
 private:
   bool m_initialised;
+
+  /** Points to the last opened space in space_list. Protected with
+  fil_system.mutex. */
+  fil_space_t *space_list_last_opened= nullptr;
+
 #ifdef __linux__
   /** available block devices that reside on non-rotational storage */
   std::vector<dev_t> ssd;
@@ -1492,8 +1499,10 @@ public:
   /** nonzero if fil_node_open_file_low() should avoid moving the tablespace
   to the end of space_list, for FIFO policy of try_to_close() */
   ulint freeze_space_list;
+  /** List of all file spaces, opened spaces should be at the top of the list
+  to optimize try_to_close() execution. Protected with fil_system.mutex. */
   ilist<fil_space_t, space_list_tag_t> space_list;
-					/*!< list of all file spaces */
+
   ilist<fil_space_t, named_spaces_tag_t> named_spaces;
 					/*!< list of all file spaces
 					for which a FILE_MODIFY
@@ -1508,6 +1517,49 @@ public:
 					/*!< whether fil_space_t::create()
 					has issued a warning about
 					potential space_id reuse */
+
+  /** Add the file to the end of opened spaces list in
+  fil_system.space_list, so that fil_space_t::try_to_close() should close
+  it as a last resort.
+  @param space space to add */
+  void add_opened_last_to_space_list(fil_space_t *space);
+
+  /** Move the file to the end of opened spaces list in
+  fil_system.space_list, so that fil_space_t::try_to_close() should close
+  it as a last resort.
+  @param space space to move */
+  inline void move_opened_last_to_space_list(fil_space_t *space)
+  {
+    /* In the case when several files of the same space are added in a
+    row, there is no need to remove and add a space to the same position
+    in space_list. It can be for system or temporary tablespaces. */
+    if (freeze_space_list || space_list_last_opened == space)
+      return;
+
+    space_list.erase(space_list_t::iterator(space));
+    add_opened_last_to_space_list(space);
+  }
+
+  /** Move closed file last in fil_system.space_list, so that
+  fil_space_t::try_to_close() iterates opened files first in FIFO order,
+  i.e. first opened, first closed.
+  @param space space to move */
+  void move_closed_last_to_space_list(fil_space_t *space)
+  {
+    if (UNIV_UNLIKELY(freeze_space_list))
+      return;
+
+    space_list_t::iterator s= space_list_t::iterator(space);
+
+    if (space_list_last_opened == space)
+    {
+      space_list_t::iterator prev= s;
+      space_list_last_opened= &*--prev;
+    }
+
+    space_list.erase(s);
+    space_list.push_back(*space);
+  }
 
   /** Return the next tablespace from default_encrypt_tables list.
   @param space   previous tablespace (nullptr to start from the start)
