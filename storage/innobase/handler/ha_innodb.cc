@@ -1923,7 +1923,7 @@ static int prepare_create_stub_for_import(THD *thd, const char *name,
     const char *ibd_path = fil_make_filepath(
       fil_path_to_mysql_datadir, table_name_t(const_cast<char*>(name)), IBD, true);
     if (!ibd_path)
-      return(DB_OUT_OF_MEMORY);
+      return(ER_ENGINE_OUT_OF_MEMORY);
     sql_print_error("InnoDB: failed to get row format from %s.\n",
                     ibd_path);
     DBUG_RETURN(ER_INNODB_IMPORT_ERROR);
