@@ -1401,8 +1401,10 @@ inline bool buf_pool_t::withdraw_blocks()
 				true);
 			mysql_mutex_unlock(&buf_pool.mutex);
 			buf_dblwr.flush_buffered_writes();
+			mysql_mutex_lock(&buf_pool.flush_list_mutex);
+			buf_flush_wait_LRU_batch_end();
+			mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 			mysql_mutex_lock(&buf_pool.mutex);
-			buf_flush_wait_batch_end(true);
 		}
 
 		/* relocate blocks/buddies in withdrawn area */
@@ -2265,13 +2267,15 @@ lookup:
   return bpage;
 
 must_read_page:
-  if (dberr_t err= buf_read_page(page_id, zip_size))
-  {
+  switch (dberr_t err= buf_read_page(page_id, zip_size)) {
+  case DB_SUCCESS:
+  case DB_SUCCESS_LOCKED_REC:
+    goto lookup;
+  default:
     ib::error() << "Reading compressed page " << page_id
                 << " failed with error: " << err;
     return nullptr;
   }
-  goto lookup;
 }
 
 /********************************************************************//**
@@ -2511,20 +2515,23 @@ loop:
 	corrupted, or if an encrypted page with a valid
 	checksum cannot be decypted. */
 
-	if (dberr_t local_err = buf_read_page(page_id, zip_size)) {
-		if (local_err != DB_CORRUPTION
-		    && mode != BUF_GET_POSSIBLY_FREED
+	switch (dberr_t local_err = buf_read_page(page_id, zip_size)) {
+	case DB_SUCCESS:
+	case DB_SUCCESS_LOCKED_REC:
+		buf_read_ahead_random(page_id, zip_size, ibuf_inside(mtr));
+		break;
+	default:
+		if (mode != BUF_GET_POSSIBLY_FREED
 		    && retries++ < BUF_PAGE_READ_MAX_RETRIES) {
 			DBUG_EXECUTE_IF("intermittent_read_failure",
 					retries = BUF_PAGE_READ_MAX_RETRIES;);
-		} else {
-			if (err) {
-				*err = local_err;
-			}
-			return nullptr;
 		}
-	} else {
-		buf_read_ahead_random(page_id, zip_size, ibuf_inside(mtr));
+		/* fall through */
+	case DB_PAGE_CORRUPTED:
+		if (err) {
+			*err = local_err;
+		}
+		return nullptr;
 	}
 
 	ut_d(if (!(++buf_dbg_counter % 5771)) buf_pool.validate());
@@ -3279,12 +3286,12 @@ retry:
     buf_unzip_LRU_add_block(reinterpret_cast<buf_block_t*>(bpage), FALSE);
   }
 
+  buf_pool.stat.n_pages_created++;
   mysql_mutex_unlock(&buf_pool.mutex);
 
   mtr->memo_push(reinterpret_cast<buf_block_t*>(bpage), MTR_MEMO_PAGE_X_FIX);
 
   bpage->set_accessed();
-  buf_pool.stat.n_pages_created++;
 
   /* Delete possible entries for the page from the insert buffer:
   such can exist if the page belonged to an index which was dropped */
@@ -3534,7 +3541,6 @@ dberr_t buf_page_t::read_complete(const fil_node_t &node)
 
   ut_d(auto n=) buf_pool.n_pend_reads--;
   ut_ad(n > 0);
-  buf_pool.stat.n_pages_read++;
 
   const byte *read_frame= zip.data ? zip.data : frame;
   ut_ad(read_frame);
@@ -3686,9 +3692,6 @@ void buf_pool_invalidate()
 {
 	mysql_mutex_lock(&buf_pool.mutex);
 
-	buf_flush_wait_batch_end(true);
-	buf_flush_wait_batch_end(false);
-
 	/* It is possible that a write batch that has been posted
 	earlier is still not complete. For buffer pool invalidation to
 	proceed we must ensure there is NO write activity happening. */
@@ -3839,8 +3842,8 @@ void buf_pool_t::print()
 		<< UT_LIST_GET_LEN(flush_list)
 		<< ", n pending decompressions=" << n_pend_unzip
 		<< ", n pending reads=" << n_pend_reads
-		<< ", n pending flush LRU=" << n_flush_LRU_
-		<< " list=" << n_flush_list_
+		<< ", n pending flush LRU=" << n_flush()
+		<< " list=" << buf_dblwr.pending_writes()
 		<< ", pages made young=" << stat.n_pages_made_young
 		<< ", not young=" << stat.n_pages_not_made_young
 		<< ", pages read=" << stat.n_pages_read
@@ -3952,13 +3955,13 @@ void buf_stats_get_pool_info(buf_pool_info_t *pool_info)
 	pool_info->flush_list_len = UT_LIST_GET_LEN(buf_pool.flush_list);
 
 	pool_info->n_pend_unzip = UT_LIST_GET_LEN(buf_pool.unzip_LRU);
-	mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
 	pool_info->n_pend_reads = buf_pool.n_pend_reads;
 
-	pool_info->n_pending_flush_lru = buf_pool.n_flush_LRU_;
+	pool_info->n_pending_flush_lru = buf_pool.n_flush();
 
-	pool_info->n_pending_flush_list = buf_pool.n_flush_list_;
+	pool_info->n_pending_flush_list = buf_dblwr.pending_writes();
+	mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
 	current_time = time(NULL);
 	time_elapsed = 0.001 + difftime(current_time,

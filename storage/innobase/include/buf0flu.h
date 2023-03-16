@@ -30,10 +30,8 @@ Created 11/5/1995 Heikki Tuuri
 #include "log0log.h"
 #include "buf0buf.h"
 
-/** Number of pages flushed. Protected by buf_pool.mutex. */
-extern ulint buf_flush_page_count;
 /** Number of pages flushed via LRU. Protected by buf_pool.mutex.
-Also included in buf_flush_page_count. */
+Also included in buf_pool.stat.n_pages_written. */
 extern ulint buf_lru_flush_page_count;
 /** Number of pages freed without flushing. Protected by buf_pool.mutex. */
 extern ulint buf_lru_freed_page_count;
@@ -96,9 +94,8 @@ after releasing buf_pool.mutex.
 @retval 0 if a buf_pool.LRU batch is already running */
 ulint buf_flush_LRU(ulint max_n, bool evict);
 
-/** Wait until a flush batch ends.
-@param lru    true=buf_pool.LRU; false=buf_pool.flush_list */
-void buf_flush_wait_batch_end(bool lru);
+/** Wait until a LRU flush batch ends. */
+void buf_flush_wait_LRU_batch_end();
 /** Wait until all persistent pages are flushed up to a limit.
 @param sync_lsn   buf_pool.get_oldest_modification(LSN_MAX) to wait for */
 ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn);

@@ -1997,7 +1997,7 @@ void innodb_shutdown()
 
 	ut_ad(dict_sys.is_initialised() || !srv_was_started);
 	ut_ad(trx_sys.is_initialised() || !srv_was_started);
-	ut_ad(buf_dblwr.is_initialised() || !srv_was_started
+	ut_ad(buf_dblwr.is_created() || !srv_was_started
 	      || srv_read_only_mode
 	      || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
 	ut_ad(lock_sys.is_initialised() || !srv_was_started);

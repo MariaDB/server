@@ -2975,6 +2975,8 @@ btr_page_split_and_insert(
 	ut_ad(*err == DB_SUCCESS);
 	ut_ad(dtuple_check_typed(tuple));
 
+	buf_pool.pages_split++;
+
 	if (cursor->index()->is_spatial()) {
 		/* Split rtree page and update parent */
 		return rtr_page_split_and_insert(flags, cursor, offsets, heap,
@@ -3370,8 +3372,6 @@ func_exit:
 		ibuf_update_free_bits_for_two_pages_low(
 			left_block, right_block, mtr);
 	}
-
-	MONITOR_INC(MONITOR_INDEX_SPLIT);
 
 	ut_ad(page_validate(buf_block_get_frame(left_block),
 			    page_cursor->index));

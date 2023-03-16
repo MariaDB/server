@@ -136,7 +136,6 @@ static void buf_LRU_block_free_hashed_page(buf_block_t *block)
 @param[in]	bpage		control block */
 static inline void incr_LRU_size_in_bytes(const buf_page_t* bpage)
 {
-	/* FIXME: use atomics, not mutex */
 	mysql_mutex_assert_owner(&buf_pool.mutex);
 
 	buf_pool.stat.LRU_bytes += bpage->physical_size();
@@ -400,6 +399,7 @@ buf_block_t *buf_LRU_get_free_block(bool have_mutex)
 	DBUG_EXECUTE_IF("recv_ran_out_of_buffer",
 			if (recv_recovery_is_on()
 			    && recv_sys.apply_log_recs) {
+				mysql_mutex_lock(&buf_pool.mutex);
 				goto flush_lru;
 			});
 get_mutex:
@@ -445,20 +445,32 @@ got_block:
 		if ((block = buf_LRU_get_free_only()) != nullptr) {
 			goto got_block;
 		}
-		if (!buf_pool.n_flush_LRU_) {
-			break;
+		mysql_mutex_unlock(&buf_pool.mutex);
+		mysql_mutex_lock(&buf_pool.flush_list_mutex);
+		const auto n_flush = buf_pool.n_flush();
+		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+		mysql_mutex_lock(&buf_pool.mutex);
+		if (!n_flush) {
+			goto not_found;
 		}
-		my_cond_wait(&buf_pool.done_free, &buf_pool.mutex.m_mutex);
+		if (!buf_pool.try_LRU_scan) {
+			mysql_mutex_lock(&buf_pool.flush_list_mutex);
+			buf_pool.page_cleaner_wakeup(true);
+			mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+			my_cond_wait(&buf_pool.done_free,
+				     &buf_pool.mutex.m_mutex);
+		}
 	}
 
-#ifndef DBUG_OFF
 not_found:
-#endif
-	mysql_mutex_unlock(&buf_pool.mutex);
+	if (n_iterations > 1) {
+		MONITOR_INC( MONITOR_LRU_GET_FREE_WAITS );
+	}
 
-	if (n_iterations > 20 && !buf_lru_free_blocks_error_printed
+	if (n_iterations == 21 && !buf_lru_free_blocks_error_printed
 	    && srv_buf_pool_old_size == srv_buf_pool_size) {
-
+		buf_lru_free_blocks_error_printed = true;
+		mysql_mutex_unlock(&buf_pool.mutex);
 		ib::warn() << "Difficult to find free blocks in the buffer pool"
 			" (" << n_iterations << " search iterations)! "
 			<< flush_failures << " failed attempts to"
@@ -472,12 +484,7 @@ not_found:
 			<< os_n_file_writes << " OS file writes, "
 			<< os_n_fsyncs
 			<< " OS fsyncs.";
-
-		buf_lru_free_blocks_error_printed = true;
-	}
-
-	if (n_iterations > 1) {
-		MONITOR_INC( MONITOR_LRU_GET_FREE_WAITS );
+		mysql_mutex_lock(&buf_pool.mutex);
 	}
 
 	/* No free block was found: try to flush the LRU list.
@@ -491,8 +498,6 @@ not_found:
 #ifndef DBUG_OFF
 flush_lru:
 #endif
-	mysql_mutex_lock(&buf_pool.mutex);
-
 	if (!buf_flush_LRU(innodb_lru_flush_size, true)) {
 		MONITOR_INC(MONITOR_LRU_SINGLE_FLUSH_FAILURE_COUNT);
 		++flush_failures;
@@ -1039,7 +1044,8 @@ buf_LRU_block_free_non_file_page(
 	} else {
 		UT_LIST_ADD_FIRST(buf_pool.free, &block->page);
 		ut_d(block->page.in_free_list = true);
-		pthread_cond_signal(&buf_pool.done_free);
+		buf_pool.try_LRU_scan= true;
+		pthread_cond_broadcast(&buf_pool.done_free);
 	}
 
 	MEM_NOACCESS(block->page.frame, srv_page_size);

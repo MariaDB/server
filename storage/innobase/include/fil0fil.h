@@ -1170,7 +1170,7 @@ private:
 inline bool fil_space_t::use_doublewrite() const
 {
   return !UT_LIST_GET_FIRST(chain)->atomic_write && srv_use_doublewrite_buf &&
-    buf_dblwr.is_initialised();
+    buf_dblwr.is_created();
 }
 
 inline void fil_space_t::set_imported()
