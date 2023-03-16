@@ -4438,8 +4438,6 @@ static void init_ssl()
     {
       sql_print_error("Failed to setup SSL");
       sql_print_error("SSL error: %s", sslGetErrString(error));
-      if (!opt_bootstrap)
-        unireg_abort(1);
       opt_use_ssl = 0;
       have_ssl= SHOW_OPTION_DISABLED;
     }
