@@ -104,7 +104,11 @@ static inline unsigned int encryption_key_version_exists(unsigned int id, unsign
   return encryption_key_get(id, version, NULL, &unused) != ENCRYPTION_KEY_VERSION_INVALID;
 }
 
-/* main entrypoint to perform encryption or decryption */
+/** main entrypoint to perform encryption or decryption
+ * @invariant `src` is valid for `slen`
+ * @invariant `dst` is valid for `*dlen`, `*dlen` is initialized
+ * @invariant `src` and `dst` do not overlap
+ */
 static inline int encryption_crypt(const unsigned char* src, unsigned int slen,
                                    unsigned char* dst, unsigned int* dlen,
                                    const unsigned char* key, unsigned int klen,
@@ -118,6 +122,11 @@ static inline int encryption_crypt(const unsigned char* src, unsigned int slen,
   // Verify dlen is initialized properly. See MDEV-30389
   assert(*dlen >= slen);
   assert((dst[*dlen - 1]= 1));
+  // Verify buffers do not overlap
+  if (src < dst)
+    assert(src + slen <= dst);
+  else
+    assert(dst + *dlen <= src);
 
   if ((res1= encryption_ctx_init(ctx, key, klen, iv, ivlen, flags, key_id, key_version)))
     return res1;

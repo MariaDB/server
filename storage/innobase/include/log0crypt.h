@@ -84,8 +84,8 @@ void log_decrypt_buf(const byte *iv, byte *buf, const byte *const end);
 
 /** Encrypt or decrypt a temporary file block.
 @param[in]	src		block to encrypt or decrypt
-@param[in]	size		size of the block
-@param[out]	dst		destination block, also of length `size`
+@param[in]	size		length of both src and dst in bytes
+@param[out]	dst		destination block
 @param[in]	offs		offset to block
 @param[in]	encrypt		true=encrypt; false=decrypt
 @return whether the operation succeeded */
@@ -99,7 +99,7 @@ bool log_tmp_block_encrypt(
 
 /** Decrypt a temporary file block.
 @param[in]	src		block to decrypt
-@param[in]	size		size of the block
+@param[in]	size		length of both src and dst in bytes
 @param[out]	dst		destination block
 @param[in]	offs		offset to block
 @return whether the operation succeeded */
