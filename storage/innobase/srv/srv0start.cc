@@ -922,9 +922,7 @@ static lsn_t srv_prepare_to_delete_redo_log_file(bool old_exists)
 {
   DBUG_ENTER("srv_prepare_to_delete_redo_log_file");
 
-  /* Disable checkpoints in the page cleaner. */
-  ut_ad(!recv_sys.recovery_on);
-  recv_sys.recovery_on= true;
+  ut_ad(recv_sys.recovery_on);
 
   /* Clean the buffer pool. */
   buf_flush_sync();
@@ -1606,10 +1604,10 @@ file_checked:
 			}
 		}
 
-		recv_sys.debug_free();
-
 		if (srv_operation == SRV_OPERATION_RESTORE
 		    || srv_operation == SRV_OPERATION_RESTORE_EXPORT) {
+			buf_flush_sync();
+			recv_sys.debug_free();
 			/* After applying the redo log from
 			SRV_OPERATION_BACKUP, flush the changes
 			to the data files and truncate or delete the log.
@@ -1701,6 +1699,8 @@ file_checked:
 				return(srv_init_abort(err));
 			}
 		}
+
+		recv_sys.debug_free();
 	}
 
 	ut_ad(err == DB_SUCCESS);
