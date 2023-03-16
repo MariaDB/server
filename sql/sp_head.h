@@ -330,7 +330,8 @@ protected:
 public:
   static void destroy(sp_head *sp);
   static sp_head *create(sp_package *parent, const Sp_handler *handler,
-                         enum_sp_aggregate_type agg_type);
+                         enum_sp_aggregate_type agg_type,
+                         MEM_ROOT *sp_mem_root);
 
   /// Initialize after we have reset mem_root
   void
@@ -632,6 +633,16 @@ public:
     DBUG_RETURN(false);
   }
 
+
+  /**
+    Delete all auxiliary LEX objects created on parsing a statement and
+    restore a value of the data member THD::lex to point on the LEX object
+    that was actual before parsing started.
+  */
+
+  void unwind_aux_lexes_and_restore_original_lex();
+
+
   /**
     Iterate through the LEX stack from the top (the newest) to the bottom
     (the oldest) and find the one that contains a non-zero spname.
@@ -792,6 +803,10 @@ public:
     m_definer.copy(mem_root, user_name, host_name);
   }
 
+  void set_definition_string(LEX_STRING &defstr)
+  {
+    m_definition_string= defstr;
+  }
   void reset_thd_mem_root(THD *thd);
 
   void restore_thd_mem_root(THD *thd);
@@ -937,6 +952,12 @@ protected:
   */
   HASH m_sptabs;
 
+  /**
+    Text of the query CREATE PROCEDURE/FUNCTION/TRIGGER/EVENT ...
+    used for DDL parsing.
+  */
+  LEX_STRING m_definition_string;
+
   bool
   execute(THD *thd, bool merge_da_on_success);
 
@@ -966,6 +987,15 @@ public:
     being opened is probably enough).
   */
   SQL_I_List<Item_trigger_field> m_trg_table_fields;
+
+  /**
+    The object of the Trigger class corresponding to this sp_head object.
+    This data member is set on table's triggers loading at the function
+    check_n_load and is used at the method sp_lex_instr::parse_expr
+    for accessing to the trigger's table after re-parsing of failed
+    trigger's instruction.
+  */
+  Trigger *m_trg= nullptr;
 }; // class sp_head : public Sql_alloc
 
 
