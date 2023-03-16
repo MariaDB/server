@@ -60,6 +60,10 @@ static inline int encryption_crypt(const unsigned char* src, unsigned int slen,
   unsigned int d1, d2= *dlen;
   assert(*dlen >= slen);
   assert((dst[*dlen - 1]= 1));
+  if (src < dst)
+    assert(src + slen <= dst);
+  else
+    assert(dst + *dlen <= src);
   if ((res1= encryption_handler.encryption_ctx_init_func((ctx),(key),(klen),(iv),(ivlen),(flags),(key_id),(key_version))))
     return res1;
   res1= encryption_handler.encryption_ctx_update_func((ctx),(src),(slen),(dst),(&d1));

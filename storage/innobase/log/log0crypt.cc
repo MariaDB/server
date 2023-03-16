@@ -429,8 +429,8 @@ ATTRIBUTE_COLD bool log_crypt_read_checkpoint_buf(const byte* buf)
 
 /** Encrypt or decrypt a temporary file block.
 @param[in]	src		block to encrypt or decrypt
-@param[in]	size		size of 'src' block
-@param[out]	dst		destination block, also of length 'size'
+@param[in]	size		length of both src and dst blocks in bytes
+@param[out]	dst		destination block
 @param[in]	offs		offset to block
 @param[in]	encrypt		true=encrypt; false=decrypt
 @return whether the operation succeeded */
@@ -441,7 +441,7 @@ bool log_tmp_block_encrypt(
 	uint64_t	offs,
 	bool		encrypt)
 {
-	uint dst_len = (uint) size;
+	uint dst_len = static_cast<uint>(size);
 	uint64_t iv[MY_AES_BLOCK_SIZE / sizeof(uint64_t)];
 	iv[0] = offs;
 	memcpy(iv + 1, tmp_iv, sizeof iv - sizeof *iv);
