@@ -402,6 +402,7 @@ buf_block_t *buf_LRU_get_free_block(bool have_mutex)
 			    && recv_sys.apply_log_recs) {
 				goto flush_lru;
 			});
+get_mutex:
 	mysql_mutex_lock(&buf_pool.mutex);
 got_mutex:
 	buf_LRU_check_size_of_non_data_objects();
@@ -490,15 +491,18 @@ not_found:
 #ifndef DBUG_OFF
 flush_lru:
 #endif
-	if (!buf_flush_LRU(innodb_lru_flush_size)) {
+	mysql_mutex_lock(&buf_pool.mutex);
+
+	if (!buf_flush_LRU(innodb_lru_flush_size, true)) {
 		MONITOR_INC(MONITOR_LRU_SINGLE_FLUSH_FAILURE_COUNT);
 		++flush_failures;
 	}
 
 	n_iterations++;
-	mysql_mutex_lock(&buf_pool.mutex);
 	buf_pool.stat.LRU_waits++;
-	goto got_mutex;
+	mysql_mutex_unlock(&buf_pool.mutex);
+	buf_dblwr.flush_buffered_writes();
+	goto get_mutex;
 }
 
 /** Move the LRU_old pointer so that the length of the old blocks list
@@ -807,50 +811,57 @@ bool buf_LRU_free_page(buf_page_t *bpage, bool zip)
 	/* We cannot use transactional_lock_guard here,
 	because buf_buddy_relocate() in buf_buddy_free() could get stuck. */
 	hash_lock.lock();
-	lsn_t oldest_modification = bpage->oldest_modification_acquire();
+	const lsn_t oldest_modification = bpage->oldest_modification_acquire();
 
 	if (UNIV_UNLIKELY(!bpage->can_relocate())) {
 		/* Do not free buffer fixed and I/O-fixed blocks. */
 		goto func_exit;
 	}
 
-	if (oldest_modification == 1) {
+	switch (oldest_modification) {
+	case 2:
+		ut_ad(id.space() == SRV_TMP_SPACE_ID);
+		ut_ad(!bpage->zip.data);
+		if (!bpage->is_freed()) {
+			goto func_exit;
+		}
+		bpage->clear_oldest_modification();
+		break;
+	case 1:
 		mysql_mutex_lock(&buf_pool.flush_list_mutex);
-		oldest_modification = bpage->oldest_modification();
-		if (oldest_modification) {
-			ut_ad(oldest_modification == 1);
+		if (const lsn_t om = bpage->oldest_modification()) {
+			ut_ad(om == 1);
 			buf_pool.delete_from_flush_list(bpage);
 		}
 		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 		ut_ad(!bpage->oldest_modification());
-		oldest_modification = 0;
-	}
-
-	if (zip || !bpage->zip.data) {
-		/* This would completely free the block. */
-		/* Do not completely free dirty blocks. */
-
-		if (oldest_modification) {
-			goto func_exit;
+		/* fall through */
+	case 0:
+		if (zip || !bpage->zip.data || !bpage->frame) {
+			break;
 		}
-	} else if (oldest_modification && !bpage->frame) {
-func_exit:
-		hash_lock.unlock();
-		return(false);
-
-	} else if (bpage->frame) {
+relocate_compressed:
 		b = static_cast<buf_page_t*>(ut_zalloc_nokey(sizeof *b));
 		ut_a(b);
 		mysql_mutex_lock(&buf_pool.flush_list_mutex);
 		new (b) buf_page_t(*bpage);
 		b->frame = nullptr;
 		b->set_state(buf_page_t::UNFIXED + 1);
+		break;
+	default:
+		if (zip || !bpage->zip.data || !bpage->frame) {
+			/* This would completely free the block. */
+			/* Do not completely free dirty blocks. */
+func_exit:
+			hash_lock.unlock();
+			return(false);
+		}
+		goto relocate_compressed;
 	}
 
 	mysql_mutex_assert_owner(&buf_pool.mutex);
 
-	DBUG_PRINT("ib_buf", ("free page %u:%u",
-			      id.space(), id.page_no()));
+	DBUG_PRINT("ib_buf", ("free page %u:%u", id.space(), id.page_no()));
 
 	ut_ad(bpage->can_relocate());
 

@@ -724,13 +724,14 @@ public:
     ut_ad(s < REINIT);
   }
 
-  void read_unfix(uint32_t s)
+  uint32_t read_unfix(uint32_t s)
   {
     ut_ad(lock.is_write_locked());
     ut_ad(s == UNFIXED + 1 || s == IBUF_EXIST + 1 || s == REINIT + 1);
-    ut_d(auto old_state=) zip.fix.fetch_add(s - READ_FIX);
+    uint32_t old_state= zip.fix.fetch_add(s - READ_FIX);
     ut_ad(old_state >= READ_FIX);
     ut_ad(old_state < WRITE_FIX);
+    return old_state + (s - READ_FIX);
   }
 
   void set_freed(uint32_t prev_state, uint32_t count= 0)
@@ -782,10 +783,10 @@ public:
   inline void write_complete(bool temporary);
 
   /** Write a flushable page to a file. buf_pool.mutex must be held.
-  @param lru         true=buf_pool.LRU; false=buf_pool.flush_list
+  @param evict       whether to evict the page on write completion
   @param space       tablespace
   @return whether the page was flushed and buf_pool.mutex was released */
-  inline bool flush(bool lru, fil_space_t *space);
+  inline bool flush(bool evict, fil_space_t *space);
 
   /** Notify that a page in a temporary tablespace has been modified. */
   void set_temp_modified()
@@ -1546,9 +1547,6 @@ public:
   /** broadcast when n_flush_list reaches 0; protected by mutex */
   pthread_cond_t done_flush_list;
 
-  TPOOL_SUPPRESS_TSAN ulint n_flush_LRU() const { return n_flush_LRU_; }
-  TPOOL_SUPPRESS_TSAN ulint n_flush_list() const { return n_flush_list_; }
-
 	/** @name General fields */
 	/* @{ */
 	ulint		curr_pool_size;	/*!< Current pool size in bytes */
@@ -1755,7 +1753,7 @@ public:
     last_activity_count= activity_count;
   }
 
-  // n_flush_LRU() + n_flush_list()
+  // n_flush_LRU_ + n_flush_list_
   // is approximately COUNT(is_write_fixed()) in flush_list
 
 	unsigned	freed_page_clock;/*!< a sequence number used
@@ -1785,7 +1783,8 @@ public:
 	UT_LIST_BASE_NODE_T(buf_page_t) free;
 					/*!< base node of the free
 					block list */
-  /** signaled each time when the free list grows; protected by mutex */
+  /** signaled each time when the free list grows and
+  broadcast each time try_LRU_scan is set; protected by mutex */
   pthread_cond_t done_free;
 
 	UT_LIST_BASE_NODE_T(buf_page_t) withdraw;
@@ -1851,9 +1850,9 @@ public:
     return any_pending;
   }
   /** @return total amount of pending I/O */
-  ulint io_pending() const
+  TPOOL_SUPPRESS_TSAN ulint io_pending() const
   {
-    return n_pend_reads + n_flush_LRU() + n_flush_list();
+    return n_pend_reads + n_flush_LRU_ + n_flush_list_;
   }
 
 private:
@@ -1886,34 +1885,12 @@ private:
     /** array of slots */
     buf_tmp_buffer_t *slots;
 
-    void create(ulint n_slots)
-    {
-      this->n_slots= n_slots;
-      slots= static_cast<buf_tmp_buffer_t*>
-        (ut_malloc_nokey(n_slots * sizeof *slots));
-      memset((void*) slots, 0, n_slots * sizeof *slots);
-    }
+    void create(ulint n_slots);
 
-    void close()
-    {
-      for (buf_tmp_buffer_t *s= slots, *e= slots + n_slots; s != e; s++)
-      {
-        aligned_free(s->crypt_buf);
-        aligned_free(s->comp_buf);
-      }
-      ut_free(slots);
-      slots= nullptr;
-      n_slots= 0;
-    }
+    void close();
 
     /** Reserve a buffer */
-    buf_tmp_buffer_t *reserve()
-    {
-      for (buf_tmp_buffer_t *s= slots, *e= slots + n_slots; s != e; s++)
-        if (s->acquire())
-          return s;
-      return nullptr;
-    }
+    buf_tmp_buffer_t *reserve();
   } io_buf;
 
   /** whether resize() is in the critical path */
@@ -2002,7 +1979,10 @@ inline void buf_page_t::set_oldest_modification(lsn_t lsn)
 /** Clear oldest_modification after removing from buf_pool.flush_list */
 inline void buf_page_t::clear_oldest_modification()
 {
-  mysql_mutex_assert_owner(&buf_pool.flush_list_mutex);
+#ifdef SAFE_MUTEX
+  if (oldest_modification() != 2)
+    mysql_mutex_assert_owner(&buf_pool.flush_list_mutex);
+#endif /* SAFE_MUTEX */
   ut_d(const auto s= state());
   ut_ad(s >= REMOVE_HASH);
   ut_ad(oldest_modification());
