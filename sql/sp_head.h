@@ -391,7 +391,8 @@ public:
   }
 
   bool
-  add_instr_freturn(THD *thd, sp_pcontext *spcont, Item *item, LEX *lex);
+  add_instr_freturn(THD *thd, sp_pcontext *spcont, Item *item,
+                    sp_expr_lex *lex);
 
   bool
   add_instr_preturn(THD *thd, sp_pcontext *spcont);
@@ -411,16 +412,19 @@ public:
   bool set_local_variable(THD *thd, sp_pcontext *spcont,
                           const Sp_rcontext_handler *rh,
                           sp_variable *spv, Item *val, LEX *lex,
-                          bool responsible_to_free_lex);
+                          bool responsible_to_free_lex,
+                          const LEX_CSTRING &value_query);
   bool set_local_variable_row_field(THD *thd, sp_pcontext *spcont,
                                     const Sp_rcontext_handler *rh,
                                     sp_variable *spv, uint field_idx,
-                                    Item *val, LEX *lex);
+                                    Item *val, LEX *lex,
+                                    const LEX_CSTRING &value_query);
   bool set_local_variable_row_field_by_name(THD *thd, sp_pcontext *spcont,
                                             const Sp_rcontext_handler *rh,
                                             sp_variable *spv,
                                             const LEX_CSTRING *field_name,
-                                            Item *val, LEX *lex);
+                                            Item *val, LEX *lex,
+                                            const LEX_CSTRING &value_query);
   bool check_package_routine_end_name(const LEX_CSTRING &end_name) const;
   bool check_standalone_routine_end_name(const sp_name *end_name) const;
   bool check_group_aggregate_instructions_function() const;
@@ -450,7 +454,8 @@ private:
     m_thd->free_list= prm->get_free_list();
     if (set_local_variable(thd, param_spcont,
                            &sp_rcontext_handler_local,
-                           spvar, prm->get_item(), prm, true))
+                           spvar, prm->get_item(), prm, true,
+                           prm->get_expr_str()))
       return true;
     /*
       Safety:

@@ -3077,11 +3077,11 @@ bool sp_head::add_instr_jump_forward_with_backpatch(THD *thd,
 
 
 bool sp_head::add_instr_freturn(THD *thd, sp_pcontext *spcont,
-                                Item *item, LEX *lex)
+                                Item *item, sp_expr_lex *lex)
 {
   sp_instr_freturn *i= new (thd->mem_root)
                        sp_instr_freturn(instructions(), spcont, item,
-                       m_return_field_def.type_handler(), lex);
+                                        m_return_field_def.type_handler(), lex);
   if (i == NULL || add_instr(i))
     return true;
   m_flags|= sp_head::HAS_RETURN;
@@ -3594,7 +3594,8 @@ bool
 sp_head::set_local_variable(THD *thd, sp_pcontext *spcont,
                             const Sp_rcontext_handler *rh,
                             sp_variable *spv, Item *val, LEX *lex,
-                            bool responsible_to_free_lex)
+                            bool responsible_to_free_lex,
+                            const LEX_CSTRING &value_query)
 {
   if (!(val= adjust_assignment_source(thd, val, spv->default_value)))
     return true;
@@ -3605,7 +3606,8 @@ sp_head::set_local_variable(THD *thd, sp_pcontext *spcont,
   sp_instr_set *sp_set= new (thd->mem_root)
                         sp_instr_set(instructions(), spcont, rh,
                                      spv->offset, val, lex,
-                                     responsible_to_free_lex);
+                                     responsible_to_free_lex,
+                                     value_query);
 
   return sp_set == NULL || add_instr(sp_set);
 }
@@ -3619,7 +3621,8 @@ bool
 sp_head::set_local_variable_row_field(THD *thd, sp_pcontext *spcont,
                                       const Sp_rcontext_handler *rh,
                                       sp_variable *spv, uint field_idx,
-                                      Item *val, LEX *lex)
+                                      Item *val, LEX *lex,
+                                      const LEX_CSTRING &value_query)
 {
   if (!(val= adjust_assignment_source(thd, val, NULL)))
     return true;
@@ -3629,7 +3632,8 @@ sp_head::set_local_variable_row_field(THD *thd, sp_pcontext *spcont,
                                                          spcont, rh,
                                                          spv->offset,
                                                          field_idx, val,
-                                                         lex, true);
+                                                         lex, true,
+                                                         value_query);
   return sp_set == NULL || add_instr(sp_set);
 }
 
@@ -3639,7 +3643,8 @@ sp_head::set_local_variable_row_field_by_name(THD *thd, sp_pcontext *spcont,
                                               const Sp_rcontext_handler *rh,
                                               sp_variable *spv,
                                               const LEX_CSTRING *field_name,
-                                              Item *val, LEX *lex)
+                                              Item *val, LEX *lex,
+                                              const LEX_CSTRING &value_query)
 {
   if (!(val= adjust_assignment_source(thd, val, NULL)))
     return true;
@@ -3650,7 +3655,8 @@ sp_head::set_local_variable_row_field_by_name(THD *thd, sp_pcontext *spcont,
                                                        spv->offset,
                                                        *field_name,
                                                        val,
-                                                       lex, true);
+                                                       lex, true,
+                                                       value_query);
   return sp_set == NULL || add_instr(sp_set);
 }
 
@@ -3729,7 +3735,8 @@ sp_head::add_set_for_loop_cursor_param_variables(THD *thd,
     if (set_local_variable(thd, param_spcont,
                            &sp_rcontext_handler_local,
                            spvar, parameters->arguments()[idx],
-                           param_lex, last))
+                           param_lex, last,
+                           param_lex->get_expr_str()))
       return true;
   }
   return false;
