@@ -48,6 +48,7 @@
 #define HA_OPEN_NO_PSI_CALL             1024U   /* Don't call/connect PSI */
 #define HA_OPEN_MERGE_TABLE		2048U
 #define HA_OPEN_FOR_CREATE              4096U
+#define HA_OPEN_FOR_DROP                (1U << 13) /* Open part of drop */
 
 /*
   Allow opening even if table is incompatible as this is for ALTER TABLE which
@@ -516,14 +517,15 @@ enum ha_base_keytype {
 #define HA_ERR_DISK_FULL          189
 #define HA_ERR_INCOMPATIBLE_DEFINITION 190
 #define HA_ERR_FTS_TOO_MANY_WORDS_IN_PHRASE 191 /* Too many words in a phrase */
-#define HA_ERR_DECRYPTION_FAILED  192 /* Table encrypted but decypt failed */
+#define HA_ERR_DECRYPTION_FAILED  192 /* Table encrypted but decrypt failed */
 #define HA_ERR_FK_DEPTH_EXCEEDED  193 /* FK cascade depth exceeded */
 #define HA_ERR_TABLESPACE_MISSING 194  /* Missing Tablespace */
 #define HA_ERR_SEQUENCE_INVALID_DATA 195
 #define HA_ERR_SEQUENCE_RUN_OUT   196
 #define HA_ERR_COMMIT_ERROR       197
 #define HA_ERR_PARTITION_LIST     198
-#define HA_ERR_LAST               198  /* Copy of last error nr * */
+#define HA_ERR_NO_ENCRYPTION      199
+#define HA_ERR_LAST               199  /* Copy of last error nr * */
 
 /* Number of different errors */
 #define HA_ERR_ERRORS            (HA_ERR_LAST - HA_ERR_FIRST + 1)
