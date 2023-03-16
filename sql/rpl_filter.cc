@@ -95,17 +95,23 @@ bool
 Rpl_filter::tables_ok(const char* db, TABLE_LIST* tables)
 {
   bool some_tables_updating= 0;
+  char hash_key[SAFE_NAME_LEN*2+2];
+  char *end;
+  uint len;
   DBUG_ENTER("Rpl_filter::tables_ok");
   
   for (; tables; tables= tables->next_global)
   {
-    char hash_key[SAFE_NAME_LEN*2+2];
-    char *end;
-    uint len;
-
     if (!tables->updating) 
       continue;
     some_tables_updating= 1;
+
+    if (!do_table_inited &&
+        !ignore_table_inited &&
+        !wild_do_table_inited &&
+        !wild_ignore_table_inited)
+      continue;
+
     end= strmov(hash_key, tables->db.str ? tables->db.str : db);
     *end++= '.';
     len= (uint) (strmov(end, tables->table_name.str) - hash_key);
