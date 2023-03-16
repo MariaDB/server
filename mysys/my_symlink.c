@@ -54,10 +54,8 @@ int my_readlink(char *to, const char *filename, myf MyFlags)
 
   if ((length=readlink(filename, to, FN_REFLEN-1)) < 0)
   {
-    if (my_thread_var)
-      my_errno= errno;
     /* Don't give an error if this wasn't a symlink */
-    if (errno == EINVAL)
+    if ((my_errno=errno) == EINVAL)
     {
       result= 1;
       strnmov(to, filename, FN_REFLEN);
