@@ -748,29 +748,34 @@ btr_cur_will_modify_tree(
 
 /** Detects whether the modifying record might need a opposite modification
 to the intention.
-@param[in]	page		page
-@param[in]	lock_intention	lock intention for the tree operation
-@param[in]	rec		record (current node_ptr)
+@param page		 page
+@param lock_intention	 lock intention for the tree operation
+@param node_ptr_max_size the maximum size of a node pointer
+@param compress_limit    BTR_CUR_PAGE_COMPRESS_LIMIT(index)
+@param rec		 record (current node_ptr)
 @return	true if tree modification is needed */
-static
-bool
-btr_cur_need_opposite_intention(
-	const page_t*	page,
-	btr_intention_t	lock_intention,
-	const rec_t*	rec)
+static bool btr_cur_need_opposite_intention(const page_t *page,
+                                            btr_intention_t lock_intention,
+                                            ulint node_ptr_max_size,
+                                            ulint compress_limit,
+                                            const rec_t *rec)
 {
-	switch (lock_intention) {
-	case BTR_INTENTION_DELETE:
-		return (page_has_prev(page) && page_rec_is_first(rec, page)) ||
-			(page_has_next(page) && page_rec_is_last(rec, page));
-	case BTR_INTENTION_INSERT:
-		return page_has_next(page) && page_rec_is_last(rec, page);
-	case BTR_INTENTION_BOTH:
-		return(false);
-	}
-
-	MY_ASSERT_UNREACHABLE();
-	return(false);
+  if (lock_intention != BTR_INTENTION_INSERT)
+  {
+    /* We compensate also for btr_cur_compress_recommendation() */
+    if (!page_has_siblings(page) ||
+        page_rec_is_first(rec, page) || page_rec_is_last(rec, page) ||
+        page_get_data_size(page) < node_ptr_max_size + compress_limit)
+      return true;
+    if (lock_intention == BTR_INTENTION_DELETE)
+      return false;
+  }
+  else if (page_has_next(page) && page_rec_is_last(rec, page))
+    return true;
+  LIMIT_OPTIMISTIC_INSERT_DEBUG(page_get_n_recs(page), return true);
+  const ulint max_size= page_get_max_insert_size_after_reorganize(page, 2);
+  return max_size < BTR_CUR_PAGE_REORGANIZE_LIMIT + node_ptr_max_size ||
+    max_size < node_ptr_max_size * 2;
 }
 
 /**
@@ -1038,7 +1043,7 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
 
   const ulint savepoint= mtr->get_savepoint();
 
-  ulint node_ptr_max_size= 0;
+  ulint node_ptr_max_size= 0, compress_limit= 0;
   rw_lock_type_t rw_latch= RW_S_LATCH;
 
   switch (latch_mode) {
@@ -1050,13 +1055,19 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
       ut_ad(mtr->memo_contains_flagged(&index()->lock, MTR_MEMO_X_LOCK));
       break;
     }
-    if (lock_intention == BTR_INTENTION_DELETE && buf_pool.n_pend_reads &&
-        trx_sys.history_size_approx() > BTR_CUR_FINE_HISTORY_LENGTH)
-      /* Most delete-intended operations are due to the purge of history.
-      Prioritize them when the history list is growing huge. */
-      mtr_x_lock_index(index(), mtr);
-    else
-      mtr_sx_lock_index(index(), mtr);
+    if (lock_intention == BTR_INTENTION_DELETE)
+    {
+      compress_limit= BTR_CUR_PAGE_COMPRESS_LIMIT(index());
+      if (buf_pool.n_pend_reads &&
+          trx_sys.history_size_approx() > BTR_CUR_FINE_HISTORY_LENGTH)
+      {
+        /* Most delete-intended operations are due to the purge of history.
+        Prioritize them when the history list is growing huge. */
+        mtr_x_lock_index(index(), mtr);
+        break;
+      }
+    }
+    mtr_sx_lock_index(index(), mtr);
     break;
 #ifdef UNIV_DEBUG
   case BTR_CONT_MODIFY_TREE:
@@ -1331,6 +1342,10 @@ release_tree:
           !btr_block_get(*index(), btr_page_get_next(block->page.frame),
                          RW_X_LATCH, false, mtr, &err))
         goto func_exit;
+      if (btr_cur_need_opposite_intention(block->page.frame, lock_intention,
+                                          node_ptr_max_size, compress_limit,
+                                          page_cur.rec))
+        goto need_opposite_intention;
     }
 
   reached_latched_leaf:
@@ -1384,6 +1399,7 @@ release_tree:
     break;
   case BTR_MODIFY_TREE:
     if (btr_cur_need_opposite_intention(block->page.frame, lock_intention,
+                                        node_ptr_max_size, compress_limit,
                                         page_cur.rec))
       /* If the rec is the first or last in the page for pessimistic
       delete intention, it might cause node_ptr insert for the upper
@@ -1536,6 +1552,17 @@ release_tree:
   goto search_loop;
 }
 
+ATTRIBUTE_COLD void mtr_t::index_lock_upgrade()
+{
+  auto &slot= m_memo[get_savepoint() - 1];
+  if (slot.type == MTR_MEMO_X_LOCK)
+    return;
+  ut_ad(slot.type == MTR_MEMO_SX_LOCK);
+  index_lock *lock= static_cast<index_lock*>(slot.object);
+  lock->u_x_upgrade(SRW_LOCK_CALL);
+  slot.type= MTR_MEMO_X_LOCK;
+}
+
 ATTRIBUTE_COLD
 dberr_t btr_cur_t::pessimistic_search_leaf(const dtuple_t *tuple,
                                            page_cur_mode_t mode, mtr_t *mtr)
@@ -1554,8 +1581,7 @@ dberr_t btr_cur_t::pessimistic_search_leaf(const dtuple_t *tuple,
   ut_ad(block->page.id().page_no() == index()->page);
   block->page.fix();
   mtr->rollback_to_savepoint(1);
-  ut_ad(mtr->memo_contains_flagged(&index()->lock,
-                                   MTR_MEMO_SX_LOCK | MTR_MEMO_X_LOCK));
+  mtr->index_lock_upgrade();
 
   const page_cur_mode_t page_mode{btr_cur_nonleaf_mode(mode)};
 
@@ -1785,7 +1811,6 @@ search_loop:
 dberr_t btr_cur_t::open_leaf(bool first, dict_index_t *index,
                              btr_latch_mode latch_mode, mtr_t *mtr)
 {
-  btr_intention_t lock_intention;
   ulint n_blocks= 0;
   mem_heap_t *heap= nullptr;
   rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
@@ -1797,7 +1822,7 @@ dberr_t btr_cur_t::open_leaf(bool first, dict_index_t *index,
   const bool latch_by_caller= latch_mode & BTR_ALREADY_S_LATCHED;
   latch_mode= btr_latch_mode(latch_mode & ~BTR_ALREADY_S_LATCHED);
 
-  lock_intention= btr_cur_get_and_clear_intention(&latch_mode);
+  btr_intention_t lock_intention= btr_cur_get_and_clear_intention(&latch_mode);
 
   /* Store the position of the tree latch we push to mtr so that we
   know how to release it when we have latched the leaf node */
@@ -1805,7 +1830,7 @@ dberr_t btr_cur_t::open_leaf(bool first, dict_index_t *index,
   auto savepoint= mtr->get_savepoint();
 
   rw_lock_type_t upper_rw_latch= RW_X_LATCH;
-  ulint node_ptr_max_size= 0;
+  ulint node_ptr_max_size= 0, compress_limit= 0;
 
   if (latch_mode == BTR_MODIFY_TREE)
   {
@@ -1814,12 +1839,18 @@ dberr_t btr_cur_t::open_leaf(bool first, dict_index_t *index,
     and read IO bandwidth should be prioritized for them, when the
     history list is growing huge. */
     savepoint++;
-    if (lock_intention == BTR_INTENTION_DELETE
-        && buf_pool.n_pend_reads
-        && trx_sys.history_size_approx() > BTR_CUR_FINE_HISTORY_LENGTH)
-      mtr_x_lock_index(index, mtr);
-    else
-      mtr_sx_lock_index(index, mtr);
+    if (lock_intention == BTR_INTENTION_DELETE)
+    {
+      compress_limit= BTR_CUR_PAGE_COMPRESS_LIMIT(index);
+
+      if (buf_pool.n_pend_reads &&
+          trx_sys.history_size_approx() > BTR_CUR_FINE_HISTORY_LENGTH)
+      {
+        mtr_x_lock_index(index, mtr);
+        goto index_locked;
+      }
+    }
+    mtr_sx_lock_index(index, mtr);
   }
   else
   {
@@ -1840,9 +1871,11 @@ dberr_t btr_cur_t::open_leaf(bool first, dict_index_t *index,
     }
   }
 
+index_locked:
   ut_ad(savepoint == mtr->get_savepoint());
 
-  const rw_lock_type_t root_leaf_rw_latch= rw_lock_type_t(latch_mode & ~12);
+  const rw_lock_type_t root_leaf_rw_latch=
+    rw_lock_type_t(latch_mode & (RW_S_LATCH | RW_X_LATCH));
 
   page_cur.index = index;
 
@@ -1913,15 +1946,28 @@ dberr_t btr_cur_t::open_leaf(bool first, dict_index_t *index,
               !btr_block_get(*index, btr_page_get_next(block->page.frame),
                              RW_X_LATCH, false, mtr, &err))
             break;
+
+          if (!index->lock.have_x() &&
+              btr_cur_need_opposite_intention(block->page.frame,
+                                              lock_intention,
+                                              node_ptr_max_size,
+                                              compress_limit, page_cur.rec))
+            goto need_opposite_intention;
         }
         else
         {
           if (rw_latch == RW_NO_LATCH)
             mtr->upgrade_buffer_fix(leaf_savepoint - 1,
-                                    rw_lock_type_t(latch_mode));
-          /* Release index->lock if needed, and the non-leaf pages. */
-          mtr->rollback_to_savepoint(savepoint - !latch_by_caller,
-                                     leaf_savepoint - 1);
+                                    rw_lock_type_t(latch_mode &
+                                                   (RW_X_LATCH | RW_S_LATCH)));
+          if (latch_mode != BTR_CONT_MODIFY_TREE)
+          {
+            ut_ad(latch_mode == BTR_MODIFY_LEAF ||
+                  latch_mode == BTR_SEARCH_LEAF);
+            /* Release index->lock if needed, and the non-leaf pages. */
+            mtr->rollback_to_savepoint(savepoint - !latch_by_caller,
+                                       leaf_savepoint - 1);
+          }
         }
         break;
       }
@@ -1943,22 +1989,25 @@ dberr_t btr_cur_t::open_leaf(bool first, dict_index_t *index,
         : !page_cur_move_to_prev(&page_cur))
       goto corrupted;
 
-    const rec_t *node_ptr= page_cur.rec;
-    offsets= rec_get_offsets(node_ptr, index, offsets, 0, ULINT_UNDEFINED,
+    offsets= rec_get_offsets(page_cur.rec, index, offsets, 0, ULINT_UNDEFINED,
                              &heap);
 
     ut_ad(latch_mode != BTR_MODIFY_TREE || upper_rw_latch == RW_X_LATCH);
 
     if (latch_mode != BTR_MODIFY_TREE);
-    else if (btr_cur_need_opposite_intention(block->page.frame,
-                                             lock_intention, node_ptr))
+    else if (btr_cur_need_opposite_intention(block->page.frame, lock_intention,
+                                             node_ptr_max_size, compress_limit,
+                                             page_cur.rec))
     {
+    need_opposite_intention:
       /* If the rec is the first or last in the page for pessimistic
       delete intention, it might cause node_ptr insert for the upper
       level. We should change the intention and retry. */
 
       mtr->rollback_to_savepoint(savepoint);
-      lock_intention= BTR_INTENTION_BOTH;
+      mtr->index_lock_upgrade();
+      /* X-latch all pages from now on */
+      latch_mode= BTR_CONT_MODIFY_TREE;
       page= index->page;
       height= ULINT_UNDEFINED;
       n_blocks= 0;
@@ -1967,7 +2016,7 @@ dberr_t btr_cur_t::open_leaf(bool first, dict_index_t *index,
     else
     {
       if (!btr_cur_will_modify_tree(index, block->page.frame,
-                                    lock_intention, node_ptr,
+                                    lock_intention, page_cur.rec,
                                     node_ptr_max_size, zip_size, mtr))
       {
         ut_ad(n_blocks);
@@ -1997,7 +2046,7 @@ dberr_t btr_cur_t::open_leaf(bool first, dict_index_t *index,
     }
 
     /* Go to the child node */
-    page= btr_node_ptr_get_child_page_no(node_ptr, offsets);
+    page= btr_node_ptr_get_child_page_no(page_cur.rec, offsets);
     n_blocks++;
   }
 
@@ -2307,8 +2356,7 @@ convert_big_rec:
 		return(DB_TOO_BIG_RECORD);
 	}
 
-	LIMIT_OPTIMISTIC_INSERT_DEBUG(page_get_n_recs(page),
-				      goto fail);
+	LIMIT_OPTIMISTIC_INSERT_DEBUG(page_get_n_recs(page), goto fail);
 
 	if (block->page.zip.data && leaf
 	    && (page_get_data_size(page) + rec_size
@@ -2322,7 +2370,7 @@ fail:
 
 		/* prefetch siblings of the leaf for the pessimistic
 		operation, if the page is leaf. */
-		if (page_is_leaf(page)) {
+		if (leaf) {
 			btr_cur_prefetch_siblings(block, index);
 		}
 fail_err:
@@ -2391,7 +2439,7 @@ fail_err:
 
 #ifdef UNIV_DEBUG
 		if (!(flags & BTR_CREATE_FLAG)
-		    && index->is_primary() && page_is_leaf(page)) {
+		    && leaf && index->is_primary()) {
 			const dfield_t* trx_id = dtuple_get_nth_field(
 				entry, dict_col_get_clust_pos(
 					dict_table_get_sys_col(index->table,
