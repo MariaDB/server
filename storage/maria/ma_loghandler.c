@@ -3403,6 +3403,7 @@ static uint16 translog_get_chunk_header_length(uchar *chunk)
     DBUG_ASSERT(0);
     DBUG_RETURN(0);                               /* Keep compiler happy */
   }
+  DBUG_RETURN(0);
 }
 
 
