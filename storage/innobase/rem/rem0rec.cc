@@ -217,14 +217,12 @@ rec_get_n_extern_new(
 			stored in one byte for 0..127.  The length
 			will be encoded in two bytes when it is 128 or
 			more, or when the field is stored externally. */
-			if (DATA_BIG_COL(col)) {
-				if (len & 0x80) {
-					/* 1exxxxxxx xxxxxxxx */
-					if (len & 0x40) {
-						n_extern++;
-					}
-					lens--;
+			if (UNIV_UNLIKELY(len & 0x80) && DATA_BIG_COL(col)) {
+				/* 1exxxxxxx xxxxxxxx */
+				if (len & 0x40) {
+					n_extern++;
 				}
+				lens--;
 			}
 		}
 	} while (++i < n);
@@ -244,6 +242,10 @@ enum rec_leaf_format {
 	REC_LEAF_INSTANT
 };
 
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 11
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wconversion" /* GCC 5 to 10 need this */
+#endif
 /** Determine the offset to each field in a leaf-page record
 in ROW_FORMAT=COMPACT,DYNAMIC,COMPRESSED.
 This is a special case of rec_init_offsets() and rec_get_offsets_func().
@@ -361,8 +363,7 @@ start:
 	do {
 		if (mblob) {
 			if (i == index->first_user_field()) {
-				offs = static_cast<rec_offs>(offs
-							     + FIELD_REF_SIZE);
+				offs += FIELD_REF_SIZE;
 				len = combine(offs, STORED_OFFPAGE);
 				any |= REC_OFFS_EXTERNAL;
 				field--;
@@ -433,27 +434,23 @@ start:
 			stored in one byte for 0..127.  The length
 			will be encoded in two bytes when it is 128 or
 			more, or when the field is stored externally. */
-			if ((len & 0x80) && DATA_BIG_COL(col)) {
+			if (UNIV_UNLIKELY(len & 0x80) && DATA_BIG_COL(col)) {
 				/* 1exxxxxxx xxxxxxxx */
-				len = static_cast<rec_offs>(len << 8
-							    | *lens--);
-				offs = static_cast<rec_offs>(offs
-							     + get_value(len));
-				if (UNIV_UNLIKELY(len & 0x4000)) {
-					ut_ad(index->is_primary());
-					any |= REC_OFFS_EXTERNAL;
-					len = combine(offs, STORED_OFFPAGE);
-				} else {
-					len = offs;
-				}
-
+				len <<= 8;
+				len |= *lens--;
+				static_assert(STORED_OFFPAGE == 0x4000, "");
+				static_assert(REC_OFFS_EXTERNAL == 0x4000, "");
+				const rec_offs ext = len & REC_OFFS_EXTERNAL;
+				offs += get_value(len);
+				len = offs | ext;
+				any |= ext;
+				ut_ad(!ext || index->is_primary());
 				continue;
 			}
 
-			len = offs = static_cast<rec_offs>(offs + len);
+			len = offs += len;
 		} else {
-			len = offs = static_cast<rec_offs>(offs
-							   + field->fixed_len);
+			len = offs += field->fixed_len;
 		}
 	} while (field++, rec_offs_base(offsets)[++i] = len,
 		 i < rec_offs_n_fields(offsets));
@@ -679,8 +676,7 @@ rec_init_offsets(
 		do {
 			rec_offs len;
 			if (UNIV_UNLIKELY(i == n_node_ptr_field)) {
-				len = offs = static_cast<rec_offs>(
-					offs + REC_NODE_PTR_SIZE);
+				len = offs += REC_NODE_PTR_SIZE;
 				goto resolved;
 			}
 
@@ -720,29 +716,25 @@ rec_init_offsets(
 				encoded in two bytes when it is 128 or
 				more, or when the field is stored
 				externally. */
-				if (DATA_BIG_COL(col)) {
-					if (len & 0x80) {
-						/* 1exxxxxxx xxxxxxxx */
-						len = static_cast<rec_offs>(
-							len << 8 | *lens--);
+				if (UNIV_UNLIKELY(len & 0x80)
+				    && DATA_BIG_COL(col)) {
+					/* 1exxxxxxx xxxxxxxx */
+					len <<= 8;
+					len |= *lens--;
 
-						/* B-tree node pointers
-						must not contain externally
-						stored columns.  Thus
-						the "e" flag must be 0. */
-						ut_a(!(len & 0x4000));
-						offs = static_cast<rec_offs>(
-							offs + get_value(len));
-						len = offs;
-
-						goto resolved;
-					}
+					/* B-tree node pointers
+					must not contain externally
+					stored columns.	 Thus
+					the "e" flag must be 0. */
+					ut_a(!(len & 0x4000));
+					offs += len & 0x3fff;
+					len = offs;
+					goto resolved;
 				}
 
-				len = offs = static_cast<rec_offs>(offs + len);
+				len = offs += len;
 			} else {
-				len = offs = static_cast<rec_offs>(
-					offs + field->fixed_len);
+				len = offs += field->fixed_len;
 			}
 resolved:
 			rec_offs_base(offsets)[i + 1] = len;
@@ -759,35 +751,30 @@ resolved:
 		rec_offs any;
 
 		if (rec_get_1byte_offs_flag(rec)) {
-			offs = static_cast<rec_offs>(offs + n_fields);
+			offs += static_cast<rec_offs>(n_fields);
 			any = offs;
 			/* Determine offsets to fields */
 			do {
 				offs = rec_1_get_field_end_info(rec, i);
 				if (offs & REC_1BYTE_SQL_NULL_MASK) {
-					offs &= static_cast<rec_offs>(
-						~REC_1BYTE_SQL_NULL_MASK);
-					set_type(offs, SQL_NULL);
+					offs ^= REC_1BYTE_SQL_NULL_MASK
+						| SQL_NULL;
 				}
 				rec_offs_base(offsets)[1 + i] = offs;
 			} while (++i < n);
 		} else {
-			offs = static_cast<rec_offs>(offs + 2 * n_fields);
+			offs += static_cast<rec_offs>(2 * n_fields);
 			any = offs;
 			/* Determine offsets to fields */
 			do {
 				offs = rec_2_get_field_end_info(rec, i);
-				if (offs & REC_2BYTE_SQL_NULL_MASK) {
-					offs &= static_cast<rec_offs>(
-						~REC_2BYTE_SQL_NULL_MASK);
-					set_type(offs, SQL_NULL);
-				}
-				if (offs & REC_2BYTE_EXTERN_MASK) {
-					offs &= static_cast<rec_offs>(
-						~REC_2BYTE_EXTERN_MASK);
-					set_type(offs, STORED_OFFPAGE);
-					any |= REC_OFFS_EXTERNAL;
-				}
+				static_assert(REC_2BYTE_SQL_NULL_MASK
+					      == SQL_NULL, "");
+				static_assert(REC_2BYTE_EXTERN_MASK
+					      == STORED_OFFPAGE, "");
+				static_assert(REC_OFFS_EXTERNAL
+					      == STORED_OFFPAGE, "");
+				any |= (offs & REC_OFFS_EXTERNAL);
 				rec_offs_base(offsets)[1 + i] = offs;
 			} while (++i < n);
 		}
@@ -999,8 +986,7 @@ rec_get_offsets_reverse(
 	do {
 		rec_offs len;
 		if (UNIV_UNLIKELY(i == n_node_ptr_field)) {
-			len = offs = static_cast<rec_offs>(
-				offs + REC_NODE_PTR_SIZE);
+			len = offs += REC_NODE_PTR_SIZE;
 			goto resolved;
 		}
 
@@ -1037,30 +1023,23 @@ rec_get_offsets_reverse(
 			stored in one byte for 0..127.  The length
 			will be encoded in two bytes when it is 128 or
 			more, or when the field is stored externally. */
-			if (DATA_BIG_COL(col)) {
-				if (len & 0x80) {
-					/* 1exxxxxxx xxxxxxxx */
-					len = static_cast<rec_offs>(
-						len << 8 | *lens++);
-
-					offs = static_cast<rec_offs>(
-						offs + get_value(len));
-					if (UNIV_UNLIKELY(len & 0x4000)) {
-						any_ext = REC_OFFS_EXTERNAL;
-						len = combine(offs,
-							      STORED_OFFPAGE);
-					} else {
-						len = offs;
-					}
-
-					goto resolved;
-				}
+			if (UNIV_UNLIKELY(len & 0x80) && DATA_BIG_COL(col)) {
+				/* 1exxxxxxx xxxxxxxx */
+				len &= 0x7f;
+				len <<= 8;
+				len |= *lens++;
+				static_assert(STORED_OFFPAGE == 0x4000, "");
+				static_assert(REC_OFFS_EXTERNAL == 0x4000, "");
+				rec_offs ext = len & REC_OFFS_EXTERNAL;
+				offs += get_value(len);
+				len = offs | ext;
+				any_ext |= ext;
+				goto resolved;
 			}
 
-			len = offs = static_cast<rec_offs>(offs + len);
+			len = offs += len;
 		} else {
-			len = offs = static_cast<rec_offs>(offs
-							   + field->fixed_len);
+			len = offs += field->fixed_len;
 		}
 resolved:
 		rec_offs_base(offsets)[i + 1] = len;
@@ -1100,7 +1079,7 @@ rec_get_nth_field_offs_old(
 			return(os);
 		}
 
-		next_os = next_os & ~REC_1BYTE_SQL_NULL_MASK;
+		next_os &= ~REC_1BYTE_SQL_NULL_MASK;
 	} else {
 		os = rec_2_get_field_start_offs(rec, n);
 
@@ -1112,8 +1091,7 @@ rec_get_nth_field_offs_old(
 			return(os);
 		}
 
-		next_os = next_os & ~(REC_2BYTE_SQL_NULL_MASK
-				      | REC_2BYTE_EXTERN_MASK);
+		next_os &= ~(REC_2BYTE_SQL_NULL_MASK | REC_2BYTE_EXTERN_MASK);
 	}
 
 	*len = next_os - os;
@@ -1266,7 +1244,8 @@ rec_get_converted_size_comp_prefix_low(
 		} else if (dfield_is_ext(dfield)) {
 			ut_ad(DATA_BIG_COL(field->col));
 			extra_size += 2;
-		} else if (len < 128 || !DATA_BIG_COL(field->col)) {
+		} else if (UNIV_LIKELY(len < 128)
+			   || !DATA_BIG_COL(field->col)) {
 			extra_size++;
 		} else {
 			/* For variable-length columns, we look up the
@@ -1617,14 +1596,7 @@ start:
 
 			/* set the null flag if necessary */
 			if (dfield_is_null(field)) {
-#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
-# pragma GCC diagnostic push
-# pragma GCC diagnostic ignored "-Wconversion" /* GCC 5 may need this here */
-#endif
 				*nulls |= static_cast<byte>(null_mask);
-#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
-# pragma GCC diagnostic pop
-#endif
 				null_mask <<= 1;
 				continue;
 			}
@@ -1733,6 +1705,9 @@ rec_convert_dtuple_to_rec_new(
 			    REC_INFO_BITS_MASK, REC_INFO_BITS_SHIFT);
 	return buf;
 }
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 11
+# pragma GCC diagnostic pop /* ignored "-Wconversion" */
+#endif
 
 /*********************************************************//**
 Builds a physical record out of a data tuple and
@@ -2095,14 +2070,12 @@ rec_copy_prefix_to_buf(
 			stored in one byte for 0..127.  The length
 			will be encoded in two bytes when it is 128 or
 			more, or when the column is stored externally. */
-			if (DATA_BIG_COL(col)) {
-				if (len & 0x80) {
-					/* 1exxxxxx */
-					len &= 0x3f;
-					len <<= 8;
-					len |= *lens--;
-					UNIV_PREFETCH_R(lens);
-				}
+			if (UNIV_UNLIKELY(len & 0x80) && DATA_BIG_COL(col)) {
+				/* 1exxxxxx */
+				len &= 0x3f;
+				len <<= 8;
+				len |= *lens--;
+				UNIV_PREFETCH_R(lens);
 			}
 			prefix_len += len;
 		}
