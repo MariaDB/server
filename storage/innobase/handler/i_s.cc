@@ -6436,8 +6436,13 @@ static int i_s_sys_tablespaces_fill(THD *thd, const fil_space_t &s, TABLE *t)
       OK(f->store(name.data(), name.size(), system_charset_info));
       f->set_notnull();
     }
-    else
-      f->set_notnull();
+    else if (srv_is_undo_tablespace(s.id))
+    {
+      char name[15];
+      snprintf(name, sizeof name, "innodb_undo%03zu",
+               (s.id - srv_undo_space_id_start + 1));
+      OK(f->store(name, strlen(name), system_charset_info));
+    } else f->set_notnull();
   }
 
   fields[SYS_TABLESPACES_NAME]->set_null();
