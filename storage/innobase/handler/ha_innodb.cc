@@ -4455,6 +4455,25 @@ innobase_commit_ordered(
 	DBUG_VOID_RETURN;
 }
 
+/** Mark the end of a statement.
+@param trx transaction
+@return whether an error occurred */
+static bool end_of_statement(trx_t *trx)
+{
+  trx_mark_sql_stat_end(trx);
+  if (UNIV_LIKELY(trx->error_state == DB_SUCCESS))
+    return false;
+
+  trx_savept_t savept;
+  savept.least_undo_no= 0;
+  trx->rollback(&savept);
+  /* MariaDB will roll back the entire transaction. */
+  trx->bulk_insert= false;
+  trx->last_sql_stat_start.least_undo_no= 0;
+  trx->savepoints_discard();
+  return true;
+}
+
 /*****************************************************************//**
 Commits a transaction in an InnoDB database or marks an SQL statement
 ended.
@@ -4531,10 +4550,7 @@ innobase_commit(
 		/* Store the current undo_no of the transaction so that we
 		know where to roll back if we have to roll back the next
 		SQL statement */
-
-		trx_mark_sql_stat_end(trx);
-		if (UNIV_UNLIKELY(trx->error_state != DB_SUCCESS)) {
-			trx_rollback_for_mysql(trx);
+		if (UNIV_UNLIKELY(end_of_statement(trx))) {
 			DBUG_RETURN(1);
 		}
 	}
@@ -16954,10 +16970,7 @@ innobase_xa_prepare(
 		/* Store the current undo_no of the transaction so that we
 		know where to roll back if we have to roll back the next
 		SQL statement */
-
-		trx_mark_sql_stat_end(trx);
-		if (UNIV_UNLIKELY(trx->error_state != DB_SUCCESS)) {
-			trx_rollback_for_mysql(trx);
+		if (UNIV_UNLIKELY(end_of_statement(trx))) {
 			return 1;
 		}
 	}
