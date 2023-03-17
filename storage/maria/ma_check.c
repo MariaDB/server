@@ -3903,6 +3903,16 @@ int maria_repair_by_sort(HA_CHECK *param, register MARIA_HA *info,
     {
       sort_param.key_read=  sort_key_read;
       sort_param.key_write= sort_key_write;
+
+      /*
+        Limit usage of sort memory
+        We assume we don't need more memory than data file length * 2
+        (There is a pointer overhead for each key, but this is hard to
+        estimae as we cannot be sure how many records we have in file to
+        be repaired).
+      */
+      set_if_smaller(param->sort_buffer_length, sort_info.filelength*2);
+      set_if_bigger(param->sort_buffer_length, MARIA_MIN_SORT_MEMORY);
     }
 
     if (sort_info.new_info->s->data_file_type == BLOCK_RECORD)
@@ -4506,6 +4516,16 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
                                   i, &sort_param[i].read_cache));
 
     /*
+      Limit usage of sort memory
+      We assume we don't need more memory than data file length * 2
+      (There is a pointer overhead for each key, but this is hard to
+      estimae as we cannot be sure how many records we have in file to
+      be repaired).
+     */
+    set_if_smaller(param->sort_buffer_length, sort_info.filelength*2);
+    set_if_bigger(param->sort_buffer_length, MARIA_MIN_SORT_MEMORY);
+
+    /*
       two approaches: the same amount of memory for each thread
       or the memory for the same number of keys for each thread...
       In the second one all the threads will fill their sort_buffers
@@ -4517,6 +4537,8 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
 #else
       param->sort_buffer_length*sort_param[i].key_length/total_key_length;
 #endif
+    set_if_bigger(sort_param[i].sortbuff_size, MARIA_MIN_SORT_MEMORY);
+
     if (mysql_thread_create(key_thread_find_all_keys,
                             &sort_param[i].thr, &thr_attr,
 	                    _ma_thr_find_all_keys, (void *) (sort_param+i)))
