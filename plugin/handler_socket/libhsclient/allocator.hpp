@@ -11,6 +11,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <my_alloca.h>
 
 #if 0
 extern "C" {

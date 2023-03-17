@@ -176,6 +176,12 @@ my_bool my_init(void)
   mysql_stdin= & instrumented_stdin;
 
   my_progname_short= "unknown";
+  /* Initialize our mutex handling */
+  my_mutex_init();
+
+  if (my_thread_global_init())
+    return 1;
+
   if (my_progname)
   {
     char link_name[FN_REFLEN];
@@ -197,12 +203,6 @@ my_bool my_init(void)
       my_error(EE_NAME_DEPRECATED, MYF(MY_WME), link_name);
     }
   }
-
-  /* Initialize our mutex handling */
-  my_mutex_init();
-
-  if (my_thread_global_init())
-    return 1;
 
 #if defined(SAFEMALLOC) && !defined(DBUG_OFF)
   dbug_sanity= sf_sanity;

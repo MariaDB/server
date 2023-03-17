@@ -47,6 +47,8 @@
 #include "sql_prepare.h"
 #include "sql_statistics.h"
 #include "sql_cte.h"
+#include "sql_update.h"  // class Sql_cmd_update
+#include "sql_delete.h"  // class Sql_cmd_delete
 #include <m_ctype.h>
 #include <my_dir.h>
 #include <hash.h>
@@ -1106,7 +1108,11 @@ TABLE_LIST* find_dup_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
     (table->table equal to 0) and right names is in current TABLE_LIST
     object.
   */
-  if (table->table)
+  if (table->table &&
+      thd->lex->sql_command != SQLCOM_UPDATE &&
+      thd->lex->sql_command != SQLCOM_UPDATE_MULTI &&
+      thd->lex->sql_command != SQLCOM_DELETE &&
+      thd->lex->sql_command != SQLCOM_DELETE_MULTI)
   {
     /* All MyISAMMRG children are plain MyISAM tables. */
     DBUG_ASSERT(table->table->file->ht->db_type != DB_TYPE_MRG_MYISAM);
@@ -1190,16 +1196,42 @@ retry:
       We come here for queries of type:
       INSERT INTO t1 (SELECT tmp.a FROM (select * FROM t1) as tmp);
 
-      Try to fix by materializing the derived table
+      Try to fix by materializing the derived table if one can't do without it.
     */
     TABLE_LIST *derived=  res->belong_to_derived;
     if (derived->is_merged_derived() && !derived->derived->is_excluded())
     {
-      DBUG_PRINT("info",
+      bool materialize= true;
+      if (thd->lex->sql_command == SQLCOM_UPDATE)
+      {
+        Sql_cmd_update *cmd= (Sql_cmd_update *) (thd->lex->m_sql_cmd);
+        if (cmd->is_multitable() || derived->derived->outer_select())
+          materialize= false;
+        else if (!cmd->processing_as_multitable_update_prohibited(thd))
+	{
+          cmd->set_as_multitable();
+          materialize= false;
+        }
+      }
+      else if (thd->lex->sql_command == SQLCOM_DELETE)
+     {
+        Sql_cmd_delete *cmd= (Sql_cmd_delete *) (thd->lex->m_sql_cmd);
+        if (cmd->is_multitable() || derived->derived->outer_select())
+          materialize= false;
+        else if (!cmd->processing_as_multitable_delete_prohibited(thd))
+	{
+          cmd->set_as_multitable();
+          materialize= false;
+        }
+      }
+      if (materialize)
+      {
+        DBUG_PRINT("info",
                  ("convert merged to materialization to resolve the conflict"));
-      derived->change_refs_to_fields();
-      derived->set_materialized_derived();
-      goto retry;
+        derived->change_refs_to_fields();
+        derived->set_materialized_derived();
+        goto retry;
+      }
     }
   }
   DBUG_RETURN(res);
@@ -4733,7 +4765,6 @@ restart:
     if (tbl->file->ha_table_flags() & HA_CAN_MULTISTEP_MERGE)
     {
       /* MERGE tables need to access parent and child TABLE_LISTs. */
-      DBUG_ASSERT(tbl->pos_in_table_list == tables);
       if (tbl->file->extra(HA_EXTRA_ATTACH_CHILDREN))
       {
         error= TRUE;
@@ -5695,6 +5726,28 @@ bool open_tables_only_view_structure(THD *thd, TABLE_LIST *table_list,
   */
   thd->lex->sql_command= save_sql_command;
   DBUG_RETURN(rc);
+}
+
+
+bool open_tables_for_query(THD *thd, TABLE_LIST *tables,
+                           uint *table_count, uint flags,
+                           DML_prelocking_strategy *prelocking_strategy)
+{
+  MDL_savepoint mdl_savepoint = thd->mdl_context.mdl_savepoint();
+
+  DBUG_ASSERT(tables == thd->lex->query_tables);
+
+  if (open_tables(thd, &tables, table_count,
+                  thd->stmt_arena->is_stmt_prepare() ? MYSQL_OPEN_FORCE_SHARED_MDL : 0,
+                  prelocking_strategy))
+  {
+    close_thread_tables(thd);
+    /* Don't keep locks for a failed statement. */
+    thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
+    return true;
+  }
+
+  return false;
 }
 
 
@@ -7841,6 +7894,9 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
   if (!(*with_wild))
      DBUG_RETURN(0);
 
+  if (!fields.elements)
+    DBUG_RETURN(0);
+
   /*
     Don't use arena if we are not in prepared statements or stored procedures
     For PS/SP we have to use arena to remember the changes
@@ -8111,7 +8167,7 @@ bool setup_table_attributes(THD *thd, TABLE_LIST *table_list,
                             uint &tablenr)
 {
   TABLE *table= table_list->table;
-  if (table)
+  if (table && !table->pos_in_table_list)
     table->pos_in_table_list= table_list;
   if (first_select_table && table_list->top_table() == first_select_table)
   {
@@ -8126,7 +8182,6 @@ bool setup_table_attributes(THD *thd, TABLE_LIST *table_list,
   }
   else if (table)
   {
-    table->pos_in_table_list= table_list;
     setup_table_map(table, table_list, tablenr);
 
     if (table_list->process_index_hints(table))

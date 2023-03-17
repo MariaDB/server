@@ -235,6 +235,20 @@ SELECT TABLE_ROWS, AVG_ROW_LENGTH>0 FROM INFORMATION_SCHEMA.TABLES
 WHERE TABLE_NAME='t1' AND TABLE_SCHEMA='test';
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-29975 InnoDB fails to release savepoint during bulk insert
+--echo #
+CREATE TABLE t (c INT KEY) ENGINE=InnoDB;
+begin;
+--error ER_WRONG_VALUE_COUNT_ON_ROW
+INSERT INTO t VALUES (0,0);
+SAVEPOINT a;
+--error ER_ERROR_DURING_COMMIT
+INSERT INTO t VALUES (0),(0);
+SAVEPOINT a;
+commit;
+SELECT * FROM t;
+DROP TABLE t;
 --echo # End of 10.6 tests
 
 --echo #

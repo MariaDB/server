@@ -11928,7 +11928,7 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
     Skip materialized derived table/view result table from MRR check as
     they aren't contain any data yet.
   */
-  if (param->table->pos_in_table_list->is_non_derived())
+  if (!param->table->pos_in_table_list->is_materialized_derived())
     rows= file->multi_range_read_info_const(keynr, &seq_if, (void*)&seq, 0,
                                             bufsize, mrr_flags, limit, cost);
   param->quick_rows[keynr]= rows;

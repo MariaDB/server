@@ -382,8 +382,8 @@ public:
     }
 
     bool Column_definition_prepare_stage1(THD *thd, MEM_ROOT *mem_root,
-                                          Column_definition *def, handler *file,
-                                          ulonglong table_flags,
+                                          Column_definition *def,
+                                          column_definition_type_t type,
                                           const Column_derived_attributes *derived_attr)
                                           const override
     {

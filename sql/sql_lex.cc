@@ -40,6 +40,8 @@
 #ifdef WITH_WSREP
 #include "mysql/service_wsrep.h"
 #endif
+#include "sql_update.h"                        // class Sql_cmd_update
+#include "sql_delete.h"                        // class Sql_cmd_delete
 
 void LEX::parse_error(uint err_number)
 {
@@ -1302,6 +1304,8 @@ void LEX::start(THD *thd_arg)
 
   wild= 0;
   exchange= 0;
+
+  table_count_update= 0;
 
   DBUG_VOID_RETURN;
 }
@@ -3031,6 +3035,7 @@ void st_select_lex::init_select()
   curr_tvc_name= 0;
   versioned_tables= 0;
   nest_flags= 0;
+  item_list_usage= MARK_COLUMNS_READ;
 }
 
 /*
@@ -3288,34 +3293,6 @@ void st_select_lex_unit::exclude_level()
 }
 
 
-#if 0
-/*
-  Exclude subtree of current unit from tree of SELECTs
-
-  SYNOPSYS
-    st_select_lex_unit::exclude_tree()
-*/
-void st_select_lex_unit::exclude_tree()
-{
-  for (SELECT_LEX *sl= first_select(); sl; sl= sl->next_select())
-  {
-    // unlink current level from global SELECTs list
-    if (sl->link_prev && (*sl->link_prev= sl->link_next))
-      sl->link_next->link_prev= sl->link_prev;
-
-    // unlink underlay levels
-    for (SELECT_LEX_UNIT *u= sl->first_inner_unit(); u; u= u->next_unit())
-    {
-      u->exclude_level();
-    }
-  }
-  // exclude currect unit from list of nodes
-  (*prev)= next;
-  if (next)
-    next->prev= prev;
-}
-#endif
-
 
 /*
   st_select_lex_node::mark_as_dependent mark all st_select_lex struct from 
@@ -3537,7 +3514,7 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
                        select_n_where_fields +
                        order_group_num +
                        hidden_bit_fields +
-                       fields_in_window_functions) * (size_t) 5;
+                       fields_in_window_functions + 1) * (size_t) 5;
   DBUG_ASSERT(n_elems % 5 == 0);
   if (!ref_pointer_array.is_null())
   {
@@ -4051,9 +4028,8 @@ bool LEX::can_use_merged()
   SYNOPSIS
     LEX::can_not_use_merged()
 
-  @param no_update_or_delete Set to 1 if we can't use merge with multiple-table
-                             updates, like when used from
-                             TALE_LIST::init_derived()
+  @param forced_no_merge_for_update_delete Set to 1 if we can't use merge with
+                                           multiple-table updates/deletes
 
   DESCRIPTION
     Temporary table algorithm will be used on all SELECT levels for queries
@@ -4064,7 +4040,7 @@ bool LEX::can_use_merged()
     TRUE  - VIEWs with MERGE algorithms can be used
 */
 
-bool LEX::can_not_use_merged(bool no_update_or_delete)
+bool LEX::can_not_use_merged(bool forced_no_merge_for_update_delete)
 {
   switch (sql_command) {
   case SQLCOM_CREATE_VIEW:
@@ -4078,10 +4054,28 @@ bool LEX::can_not_use_merged(bool no_update_or_delete)
     return TRUE;
 
   case SQLCOM_UPDATE_MULTI:
-  case SQLCOM_DELETE_MULTI:
-    if (no_update_or_delete)
+    if (forced_no_merge_for_update_delete)
       return TRUE;
     /* Fall through */
+
+  case SQLCOM_UPDATE:
+    if (forced_no_merge_for_update_delete &&
+        (((Sql_cmd_update *) m_sql_cmd)->is_multitable() ||
+         query_tables->is_multitable()))
+      return TRUE;
+    return FALSE;
+
+  case SQLCOM_DELETE_MULTI:
+    if (forced_no_merge_for_update_delete)
+      return TRUE;
+    /* Fall through */
+
+  case SQLCOM_DELETE:
+    if (forced_no_merge_for_update_delete &&
+        (((Sql_cmd_delete *) m_sql_cmd)->is_multitable() ||
+         query_tables->is_multitable()))
+      return TRUE;
+    return FALSE;
 
   default:
     return FALSE;

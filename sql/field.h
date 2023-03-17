@@ -5377,7 +5377,7 @@ public:
   bool sp_prepare_create_field(THD *thd, MEM_ROOT *mem_root);
 
   bool prepare_stage1(THD *thd, MEM_ROOT *mem_root,
-                      handler *file, ulonglong table_flags,
+                      column_definition_type_t type,
                       const Column_derived_attributes *derived_attr);
   void prepare_stage1_simple(CHARSET_INFO *cs)
   {
@@ -5385,11 +5385,9 @@ public:
     create_length_to_internal_length_simple();
   }
   bool prepare_stage1_typelib(THD *thd, MEM_ROOT *mem_root,
-                              handler *file, ulonglong table_flags);
-  bool prepare_stage1_string(THD *thd, MEM_ROOT *mem_root,
-                             handler *file, ulonglong table_flags);
-  bool prepare_stage1_bit(THD *thd, MEM_ROOT *mem_root,
-                          handler *file, ulonglong table_flags);
+                              column_definition_type_t deftype);
+  bool prepare_stage1_string(THD *thd, MEM_ROOT *mem_root);
+  bool prepare_stage1_bit(THD *thd, MEM_ROOT *mem_root);
 
   bool bulk_alter(const Column_derived_attributes *derived_attr,
                   const Column_bulk_alter_attributes *bulk_attr)

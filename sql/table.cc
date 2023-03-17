@@ -7213,7 +7213,8 @@ void Field_iterator_table_ref::set_field_iterator()
                        table_ref->alias.str));
   }
   /* This is a merge view, so use field_translation. */
-  else if (table_ref->field_translation)
+  else if (table_ref->field_translation &&
+           !table_ref->is_materialized_derived())
   {
     DBUG_ASSERT(table_ref->is_merged_derived());
     field_it= &view_field_it;
@@ -7223,7 +7224,7 @@ void Field_iterator_table_ref::set_field_iterator()
   /* This is a base table or stored view. */
   else
   {
-    DBUG_ASSERT(table_ref->table || table_ref->view);
+    DBUG_ASSERT(table_ref->table || table_ref->is_materialized_derived());
     field_it= &table_field_it;
     DBUG_PRINT("info", ("field_it for '%s' is Field_iterator_table",
                         table_ref->alias.str));
@@ -9788,13 +9789,16 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
       !derived_table_optimization_done(this))
   {
     /* A subquery might be forced to be materialized due to a side-effect. */
+    bool forced_no_merge_for_update_delete=
+           belong_to_view ? belong_to_view->updating :
+                           !unit->outer_select()->outer_select();
     if (!is_materialized_derived() && first_select->is_mergeable() &&
         (unit->outer_select() && !unit->outer_select()->with_rownum) &&
         (!thd->lex->with_rownum ||
          (!first_select->group_list.elements &&
           !first_select->order_list.elements)) &&
         optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_MERGE) &&
-        !thd->lex->can_not_use_merged(1) &&
+        !thd->lex->can_not_use_merged(forced_no_merge_for_update_delete) &&
         !is_recursive_with_table())
       set_merged_derived();
     else

@@ -2270,8 +2270,14 @@ static bool innodb_init()
   /* Check if the data files exist or not. */
   dberr_t err= srv_sys_space.check_file_spec(&create_new_db, 5U << 20);
 
+  if (create_new_db)
+  {
+    msg("mariadb-backup: InnoDB files do not exist");
+    return true;
+  }
+
   if (err == DB_SUCCESS)
-    err= srv_start(create_new_db);
+    err= srv_start(false);
 
   if (err != DB_SUCCESS)
   {
@@ -2282,6 +2288,7 @@ static bool innodb_init()
   ut_ad(srv_force_recovery <= SRV_FORCE_IGNORE_CORRUPT);
   ut_ad(recv_no_log_write);
   buf_flush_sync();
+  recv_sys.debug_free();
   DBUG_ASSERT(!buf_pool.any_io_pending());
   log_sys.close_file();
 
@@ -3497,7 +3504,9 @@ static void xb_load_single_table_tablespace(const char *dirname,
 	if (err == DB_SUCCESS && file->space_id() != SRV_TMP_SPACE_ID) {
 		space = fil_space_t::create(
 			file->space_id(), file->flags(),
-			FIL_TYPE_TABLESPACE, NULL/* TODO: crypt_data */);
+			FIL_TYPE_TABLESPACE, nullptr/* TODO: crypt_data */,
+			FIL_ENCRYPTION_DEFAULT,
+			file->handle() != OS_FILE_CLOSED);
 
 		ut_a(space != NULL);
 		fil_node_t* node= space->add(
@@ -5217,7 +5226,8 @@ exit:
 	ut_ad(fil_space_t::physical_size(flags) == info.page_size);
 
 	if (fil_space_t::create(info.space_id, flags,
-				FIL_TYPE_TABLESPACE, 0)) {
+				FIL_TYPE_TABLESPACE, 0, FIL_ENCRYPTION_DEFAULT,
+				true)) {
 		*success = xb_space_create_file(real_name, info.space_id,
 						flags, &file);
 	} else {

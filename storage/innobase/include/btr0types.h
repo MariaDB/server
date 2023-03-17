@@ -87,6 +87,9 @@ enum btr_latch_mode {
 	dict_index_t::lock is being held in non-exclusive mode. */
 	BTR_MODIFY_LEAF_ALREADY_LATCHED = BTR_MODIFY_LEAF
 	| BTR_ALREADY_S_LATCHED,
+	/** Attempt to modify records in an x-latched tree. */
+	BTR_MODIFY_TREE_ALREADY_LATCHED = BTR_MODIFY_TREE
+	| BTR_ALREADY_S_LATCHED,
 	/** U-latch root and X-latch a leaf page, assuming that
 	dict_index_t::lock is being held in U mode. */
 	BTR_MODIFY_ROOT_AND_LEAF_ALREADY_LATCHED = BTR_MODIFY_ROOT_AND_LEAF

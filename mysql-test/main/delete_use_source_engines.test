@@ -1,0 +1,42 @@
+--source include/have_innodb.inc
+
+set @save_default_engine=@@default_storage_engine;
+
+--echo #######################################
+--echo #                                     #
+--echo #            Engine InnoDB            #
+--echo #                                     #
+--echo #######################################
+set global innodb_stats_persistent=1;
+set default_storage_engine=InnoDB;
+--source include/delete_use_source_innodb.inc
+
+--echo #######################################
+--echo #                                     #
+--echo #            Engine Aria              #
+--echo #                                     #
+--echo #######################################
+set default_storage_engine=Aria;
+--source include/delete_use_source.inc
+
+--echo #######################################
+--echo #                                     #
+--echo #            Engine MyISAM            #
+--echo #                                     #
+--echo #######################################
+set default_storage_engine=MyISAM;
+--source include/delete_use_source.inc
+
+--echo #######################################
+--echo #                                     #
+--echo #            Engine MEMORY            #
+--echo #                                     #
+--echo #######################################
+set default_storage_engine=MEMORY;
+--source include/delete_use_source_memory.inc
+
+set @@default_storage_engine=@save_default_engine;
+
+--echo #
+--echo # End of 11.0 tests
+--echo #

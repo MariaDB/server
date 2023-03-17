@@ -5284,7 +5284,7 @@ private:
   bool use_temporary_table(TABLE *table, TABLE **out_table);
   void close_temporary_table(TABLE *table);
   bool log_events_and_free_tmp_shares();
-  void free_tmp_table_share(TMP_TABLE_SHARE *share, bool delete_table);
+  bool free_tmp_table_share(TMP_TABLE_SHARE *share, bool delete_table);
   void free_temporary_table(TABLE *table);
   bool lock_temporary_tables();
   void unlock_temporary_tables();
@@ -7133,6 +7133,7 @@ public:
 	       enum_duplicates handle_duplicates, bool ignore);
   ~multi_update();
   bool init(THD *thd);
+  bool init_for_single_table(THD *thd);
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
   int send_data(List<Item> &items);
   bool initialize_tables (JOIN *join);
@@ -7141,6 +7142,8 @@ public:
   bool send_eof();
   inline ha_rows num_found() const { return found; }
   inline ha_rows num_updated() const { return updated; }
+  inline void set_found (ha_rows n) { found= n; }
+  inline void set_updated (ha_rows n) { updated= n; }
   virtual void abort_result_set();
   void update_used_tables();
   void prepare_to_read_rows();
