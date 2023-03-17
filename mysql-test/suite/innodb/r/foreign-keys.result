@@ -247,3 +247,13 @@ INSERT INTO parent (a) VALUES (1);
 DELETE FROM parent;
 DROP TABLE child;
 DROP TABLE parent;
+# TBR-1731
+CREATE TABLE parentA (col1 INT PRIMARY KEY) ENGINE = InnoDB ;
+CREATE TABLE childA (col1 INT PRIMARY KEY, col2 INT,
+col1_g INT GENERATED ALWAYS AS (col1),
+FOREIGN KEY (col1) REFERENCES parentA (col1))
+ENGINE = InnoDB ;
+RENAME TABLE parentA TO test.parent, childA TO test.child;
+ALTER TABLE test.child CHANGE COLUMN col2 col2_other_name INT;
+DROP TABLE child;
+DROP TABLE parent;

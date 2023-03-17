@@ -1452,9 +1452,11 @@ public:
   inline void add(dict_table_t* table);
   /** Remove a table definition from the data dictionary cache.
   @param[in,out]	table	cached table definition to be evicted
-  @param[in]	lru	whether this is part of least-recently-used evictiono
-  @param[in]	keep	whether to keep (not free) the object */
-  template <bool drop=false>
+  @param[in]	lru	whether this is part of least-recently-used eviction
+  @param[in]	keep	whether to keep (not free) the object
+  @tparam drop_foreigns indicates whether dropping the foreign key metadata
+                        is being forced, or not */
+  template <bool drop_foreigns=false>
   void remove(dict_table_t* table, bool lru = false, bool keep = false);
 
 #ifdef UNIV_DEBUG

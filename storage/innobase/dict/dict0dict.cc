@@ -1819,8 +1819,10 @@ dict_table_change_id_in_cache(
 @param[in,out]	table	cached table definition to be evicted
 @param[in]	lru	whether this is part of least-recently-used eviction
 @param[in]	keep	whether to keep (not free) the object
-@tparam		drop	indicates whether the intention is to drop the table */
-template <bool drop>
+@tparam		drop_foreigns
+			indicates whether dropping the foreign key metadata
+			is being forced, or not */
+template <bool drop_foreigns>
 void dict_sys_t::remove(dict_table_t* table, bool lru, bool keep)
 {
 	dict_index_t*	index;
@@ -1832,7 +1834,7 @@ void dict_sys_t::remove(dict_table_t* table, bool lru, bool keep)
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 
 	/* Remove the foreign constraints from the cache */
-	if (drop) {
+	if (drop_foreigns) {
 		std::for_each(table->foreign_set.begin(),
 			      table->foreign_set.end(),
 			      dict_foreign_remove_partial());
