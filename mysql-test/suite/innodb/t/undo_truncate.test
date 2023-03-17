@@ -19,6 +19,9 @@ let $restart_parameters="--innodb_undo_tablespaces=2";
 SET GLOBAL innodb_undo_log_truncate = 0;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 
+LET $MYSQLD_DATADIR = `select @@datadir`;
+LET $INNODB_PAGE_SIZE = `select @@innodb_page_size`;
+--source suite/innodb/include/show_i_s_tablespaces.inc
 #-----------------------------------------------------------------------------
 #
 # Perform DML action using multiple clients and multiple undo tablespace.

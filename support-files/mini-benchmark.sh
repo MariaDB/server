@@ -106,16 +106,29 @@ then
   done | sort -u > mariadbd-dependencies.txt
   # shellcheck disable=SC2046
   debuginfo-install -y mariadb-server $(cat mariadbd-dependencies.txt)
-
-  echo "Using 'perf' to record performance counters in perf.data files"
-  PERF="perf record -g --freq=99 --output=perf.data --timestamp-filename --pid=$MARIADB_SERVER_PID --"
+  
+  if [ ! $(perf record echo "testing perf" > /dev/null 2>&1) ]
+  then
+    echo "perf does not have permission to run on this system. Skipping."
+    PERF=""
+  else
+    echo "Using 'perf' to record performance counters in perf.data files"
+    PERF="perf record -g --freq=99 --output=perf.data --timestamp-filename --pid=$MARIADB_SERVER_PID --"
+  fi
 
 elif [ -e /usr/bin/perf ]
 then
   # If flamegraphs were not requested, log normal perf counters if possible
-  echo "Using 'perf' to log basic performance counters for benchmark"
+
+  if [ ! $(perf stat echo "testing perf" > /dev/null 2>&1) ]
+  then
+    echo "perf does not have permission to run on this system. Skipping."
+    PERF=""
+  else
+    echo "Using 'perf' to log basic performance counters for benchmark"
+    PERF="perf stat -p $MARIADB_SERVER_PID --"
+  fi
 fi
-  PERF="perf stat -p $MARIADB_SERVER_PID --"
 
 # Run sysbench on another CPU if system has more than one available
 if [ "$(nproc)" -gt 1 ]
@@ -133,10 +146,10 @@ uname -a
 echo
 
 echo "Set highest priority for MariaDB Server process ID $MARIADB_SERVER_PID"
-renice --priority -20 --pid "$MARIADB_SERVER_PID"
+renice --priority -20 --pid "$MARIADB_SERVER_PID" || echo "renice failed. Not setting priority."
 
 echo "Set CPU affinity 0 for MariaDB Server process ID $MARIADB_SERVER_PID"
-taskset -cp 0 "$MARIADB_SERVER_PID"
+taskset -cp 0 "$MARIADB_SERVER_PID" || echo "taskset failed. Not setting cpu affinity."
 
 mariadb -e "
   CREATE DATABASE IF NOT EXISTS sbtest;

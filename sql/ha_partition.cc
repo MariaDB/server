@@ -10784,13 +10784,6 @@ int ha_partition::cmp_ref(const uchar *ref1, const uchar *ref2)
     DBUG_RETURN(0);
   }
 
-  /*
-    In Innodb we compare with either primary key value or global DB_ROW_ID so
-    it is not possible that the two references are equal and are in different
-    partitions, but in myisam it is possible since we are comparing offsets.
-    Remove this assert if DB_ROW_ID is changed to be per partition.
-  */
-  DBUG_ASSERT(!m_innodb);
   DBUG_RETURN(diff2 > diff1 ? -1 : 1);
 }
 

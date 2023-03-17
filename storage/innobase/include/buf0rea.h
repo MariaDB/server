@@ -36,6 +36,7 @@ released by the i/o-handler thread.
 @param zip_size   ROW_FORMAT=COMPRESSED page size, or 0
 @param chain      buf_pool.page_hash cell for page_id
 @retval DB_SUCCESS if the page was read and is not corrupted,
+@retval DB_SUCCESS_LOCKED_REC if the page was not read
 @retval DB_PAGE_CORRUPTED if page based on checksum check is corrupted,
 @retval DB_DECRYPTION_FAILED if page post encryption checksum matches but
 after decryption normal page checksum does not match.
