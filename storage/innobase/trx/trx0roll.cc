@@ -558,9 +558,13 @@ trx_release_savepoint_for_mysql(
 
 	if (savep != NULL) {
 		trx_roll_savepoint_free(trx, savep);
+		return DB_SUCCESS;
+	} else if (trx->last_sql_stat_start.least_undo_no == 0) {
+		/* Bulk insert could have discarded savepoints */
+		return DB_SUCCESS;
 	}
 
-	return(savep != NULL ? DB_SUCCESS : DB_NO_SAVEPOINT);
+	return DB_NO_SAVEPOINT;
 }
 
 /*******************************************************************//**
