@@ -1,5 +1,10 @@
 SET GLOBAL innodb_undo_log_truncate = 0;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+=== information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
+Space_Name	Page_Size	Zip_Size	Path
+innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
+innodb_undo002	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo002
+innodb_temporary	DEFAULT	DEFAULT	MYSQLD_DATADIR/ibtmp1
 create table t1(keyc int primary key, c char(100)) engine = innodb;
 create table t2(keyc int primary key, c char(100)) engine = innodb;
 connect  con1,localhost,root,,;
