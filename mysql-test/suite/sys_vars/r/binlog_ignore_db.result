@@ -1,0 +1,12 @@
+#
+# MDEV-30188 Show "--binlog_ignore_db" state in SYSTEM VARIABLES
+#
+SELECT @@binlog_ignore_db AS EXPECT_NULL;
+EXPECT_NULL
+
+SET @@GLOBAL.binlog_ignore_db='database1';
+ERROR HY000: Variable 'binlog_ignore_db' is a read only variable
+# restart: --binlog_ignore_db=database1 --binlog_ignore_db=database2
+SELECT @@binlog_ignore_db AS EXPECT_database1_database2;
+EXPECT_database1_database2
+database1,database2

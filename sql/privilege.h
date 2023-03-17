@@ -469,6 +469,9 @@ constexpr privilege_t PRIV_STMT_PURGE_BINLOG= BINLOG_ADMIN_ACL;
 // Was REPL_SLAVE_ACL prior to 10.5.2
 constexpr privilege_t PRIV_STMT_SHOW_BINLOG_EVENTS= BINLOG_MONITOR_ACL;
 
+constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_DO_DB = BINLOG_ADMIN_ACL | SUPER_ACL;
+
+constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_IGNORE_DB = BINLOG_ADMIN_ACL | SUPER_ACL;
 
 /*
   Privileges for replication related statements and commands

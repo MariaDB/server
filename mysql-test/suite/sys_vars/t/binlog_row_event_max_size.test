@@ -1,0 +1,16 @@
+--echo #
+--echo # MDEV-30188 Show "--binlog_row_event_max_size" state in SYSTEM VARIABLES
+--echo #
+
+SELECT @@binlog_row_event_max_size AS EXPECT_8192;
+
+# `READ ONLY` variables must not be able to be reset.
+--Error ER_INCORRECT_GLOBAL_LOCAL_VAR (1238): Variable 'binlog_row_event_max_size' is a read only variable
+SET @@GLOBAL.binlog_row_event_max_size=128;
+
+# Restart the server the server with "--binlog_row_event_max_size=4096" option
+--let $restart_parameters = "--binlog_row_event_max_size=4096"
+--source include/restart_mysqld.inc
+SELECT @@binlog_row_event_max_size AS EXPECT_4096;
+
+

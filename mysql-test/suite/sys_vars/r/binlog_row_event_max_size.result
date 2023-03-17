@@ -1,0 +1,12 @@
+#
+# MDEV-30188 Show "--binlog_row_event_max_size" state in SYSTEM VARIABLES
+#
+SELECT @@binlog_row_event_max_size AS EXPECT_8192;
+EXPECT_8192
+8192
+SET @@GLOBAL.binlog_row_event_max_size=128;
+ERROR HY000: Variable 'binlog_row_event_max_size' is a read only variable
+# restart: --binlog_row_event_max_size=4096
+SELECT @@binlog_row_event_max_size AS EXPECT_4096;
+EXPECT_4096
+4096

@@ -797,6 +797,56 @@ protected:
   bool set_filter_value(const char *value, Master_info *mi);
 };
 
+class Sys_var_binlog_filter: public sys_var
+{
+private:
+  int opt_id;
+  privilege_t m_access_global;
+
+public:
+  Sys_var_binlog_filter(const char *name, int getopt_id, const char *comment,
+                     privilege_t access_global)
+    : sys_var(&all_sys_vars, name, comment, sys_var::READONLY+sys_var::GLOBAL, 0, NO_GETOPT,
+              NO_ARG, SHOW_CHAR, 0, NULL, VARIABLE_NOT_IN_BINLOG,
+              NULL, NULL, NULL), opt_id(getopt_id),
+      m_access_global(access_global)
+  {
+    option.var_type|= GET_STR;
+  }
+
+  bool do_check(THD *thd, set_var *var) override
+  {
+    DBUG_ASSERT(FALSE);
+    return true;
+  }
+  void session_save_default(THD *, set_var *) override
+  { DBUG_ASSERT(FALSE); }
+
+  void global_save_default(THD *thd, set_var *var) override
+  { DBUG_ASSERT(FALSE); }
+
+  bool session_update(THD *, set_var *) override
+  {
+    DBUG_ASSERT(FALSE);
+    return true;
+  }
+
+  bool global_update(THD *thd, set_var *var) override
+  {
+    DBUG_ASSERT(FALSE);
+    return true;
+  }
+
+  bool on_check_access_global(THD *thd) const override
+  {
+    return check_global_access(thd, m_access_global);
+  }
+
+  protected:
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
+    const override;
+};
+
 /**
   The class for string variables. Useful for strings that aren't necessarily
   \0-terminated. Otherwise the same as Sys_var_charptr.
