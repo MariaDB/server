@@ -1,0 +1,16 @@
+--echo #
+--echo # MDEV-30188 Show "--binlog_ignore_db" state in SYSTEM VARIABLES
+--echo #
+
+# Confirm that "--binlog_ignore_db" option has the default value.
+SELECT @@binlog_ignore_db AS EXPECT_NULL;
+
+# `READ ONLY` variables must not be able to be reset.
+--Error ER_INCORRECT_GLOBAL_LOCAL_VAR (1238): Variable 'binlog_ignore_db' is a read only variable
+SET @@GLOBAL.binlog_ignore_db='database1';
+
+# Restart the server with "--binlog_ignore_db='database1' --binlog_ignore_db='database2'" option
+--let $restart_parameters = "--binlog_ignore_db='database1' --binlog_ignore_db='database2'"
+--source include/restart_mysqld.inc
+SELECT @@binlog_ignore_db AS EXPECT_database1_database2;
+

@@ -41,6 +41,7 @@
 #include <thr_alarm.h>
 #include "slave.h"
 #include "rpl_mi.h"
+#include "rpl_filter.h"
 #include "transaction.h"
 #include "mysqld.h"
 #include "lock.h"
@@ -3140,7 +3141,6 @@ static Sys_var_ulong Sys_query_prealloc_size(
        BLOCK_SIZE(1024), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_thd_mem_root));
 
-
 // this has to be NO_CMD_LINE as the command-line option has a different name
 static Sys_var_mybool Sys_skip_external_locking(
        "skip_external_locking", "Don't use system (external) locking",
@@ -5597,6 +5597,30 @@ Sys_var_rpl_filter::global_value_ptr(THD *thd,
   return ret;
 }
 
+const uchar *
+Sys_var_binlog_filter::global_value_ptr(THD *thd,
+                                        const LEX_CSTRING *base_name) const
+{
+  char buf[256];
+  String tmp(buf, sizeof(buf), &my_charset_bin);
+  uchar *ret;
+
+  tmp.length(0);
+
+  switch (opt_id) {
+  case OPT_BINLOG_DO_DB:
+    binlog_filter->get_do_db(&tmp);
+    break;
+  case OPT_BINLOG_IGNORE_DB:
+    binlog_filter->get_ignore_db(&tmp);
+    break;
+  }
+
+  ret= (uchar *) thd->strmake(tmp.ptr(), tmp.length());
+
+  return ret;
+}
+
 static Sys_var_rpl_filter Sys_replicate_do_db(
        "replicate_do_db", OPT_REPLICATE_DO_DB,
        "Tell the slave to restrict replication to updates of tables "
@@ -5606,6 +5630,12 @@ static Sys_var_rpl_filter Sys_replicate_do_db(
        "mentioned tables in the query. For row-based replication, the "
        "actual names of table(s) being updated are checked.",
        PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_DO_DB);
+
+static Sys_var_binlog_filter Sys_binlog_do_db(
+      "binlog_do_db", OPT_BINLOG_DO_DB,
+      "Tells the primary it should log updates for the specified database, "
+      "and exclude all others not explicitly mentioned.",
+      PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_DO_DB);
 
 static Sys_var_rpl_filter Sys_replicate_rewrite_db(
        "replicate_rewrite_db", OPT_REPLICATE_REWRITE_DB,
@@ -5629,6 +5659,11 @@ static Sys_var_rpl_filter Sys_replicate_ignore_db(
        "mentioned tables in the query. For row-based replication, the "
        "actual names of table(s) being updated are checked.",
        PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_IGNORE_DB);
+
+static Sys_var_binlog_filter Sys_binlog_ignore_db(
+      "binlog_ignore_db", OPT_BINLOG_IGNORE_DB,
+      "Tells the primary that updates to the given database should not be logged to the binary log.",
+      PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_IGNORE_DB);
 
 static Sys_var_rpl_filter Sys_replicate_ignore_table(
        "replicate_ignore_table", OPT_REPLICATE_IGNORE_TABLE,
@@ -5655,6 +5690,15 @@ static Sys_var_charptr_fscs Sys_slave_load_tmpdir(
        "its temporary files when replicating a LOAD DATA INFILE command",
        READ_ONLY GLOBAL_VAR(slave_load_tmpdir), CMD_LINE(REQUIRED_ARG),
        DEFAULT(0));
+
+static Sys_var_ulong Sys_opt_binlog_rows_event_max_size(
+      "binlog_row_event_max_size",
+      "The maximum size of a row-based binary log event in bytes. Rows will be "
+      "grouped into events smaller than this size if possible. "
+      "The value has to be a multiple of 256.",
+      READ_ONLY GLOBAL_VAR(opt_binlog_rows_event_max_size), CMD_LINE(REQUIRED_ARG),
+      VALID_RANGE(256, UINT_MAX32 - (UINT_MAX32 % 256)), DEFAULT(8192),
+      BLOCK_SIZE(256));
 
 static Sys_var_on_access_global<Sys_var_uint,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_NET_TIMEOUT>
