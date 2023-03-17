@@ -926,14 +926,19 @@ public:
   /**
     Determine if the specified transaction or any older one might be active.
 
-    @param caller_trx  used to get/set pins
+    @param trx         current transaction
     @param id          transaction identifier
     @return whether any transaction not newer than id might be active
   */
 
-  bool find_same_or_older(trx_t *caller_trx, trx_id_t id)
+  bool find_same_or_older(trx_t *trx, trx_id_t id)
   {
-    return rw_trx_hash.iterate(caller_trx, find_same_or_older_callback, &id);
+    if (trx->max_inactive_id >= id)
+      return false;
+    bool found= rw_trx_hash.iterate(trx, find_same_or_older_callback, &id);
+    if (!found)
+      trx->max_inactive_id= id;
+    return found;
   }
 
 

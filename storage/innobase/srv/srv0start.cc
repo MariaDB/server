@@ -689,7 +689,8 @@ err_exit:
   fil_set_max_space_id_if_bigger(space_id);
 
   fil_space_t *space= fil_space_t::create(space_id, fsp_flags,
-                                          FIL_TYPE_TABLESPACE, NULL);
+                                          FIL_TYPE_TABLESPACE, nullptr,
+                                          FIL_ENCRYPTION_DEFAULT, true);
   ut_a(fil_validate());
   ut_a(space);
 
@@ -1034,9 +1035,7 @@ static lsn_t srv_prepare_to_delete_redo_log_file()
 {
   DBUG_ENTER("srv_prepare_to_delete_redo_log_file");
 
-  /* Disable checkpoints in the page cleaner. */
-  ut_ad(!recv_sys.recovery_on);
-  recv_sys.recovery_on= true;
+  ut_ad(recv_sys.recovery_on);
 
   /* Clean the buffer pool. */
   buf_flush_sync();
@@ -1584,8 +1583,6 @@ dberr_t srv_start(bool create_new_db)
 			}
 		}
 
-		recv_sys.debug_free();
-
 		if (srv_operation != SRV_OPERATION_NORMAL) {
 			ut_ad(srv_operation == SRV_OPERATION_RESTORE_EXPORT
 			      || srv_operation == SRV_OPERATION_RESTORE);
@@ -1637,6 +1634,8 @@ dberr_t srv_start(bool create_new_db)
 				return(srv_init_abort(err));
 			}
 		}
+
+		recv_sys.debug_free();
 	}
 
 	ut_ad(err == DB_SUCCESS);
@@ -1967,12 +1966,12 @@ void innodb_shutdown()
 
 	ut_ad(dict_sys.is_initialised() || !srv_was_started);
 	ut_ad(trx_sys.is_initialised() || !srv_was_started);
-	ut_ad(buf_dblwr.is_initialised() || !srv_was_started
+	ut_ad(buf_dblwr.is_created() || !srv_was_started
 	      || srv_read_only_mode
 	      || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
 	ut_ad(lock_sys.is_initialised() || !srv_was_started);
 	ut_ad(log_sys.is_initialised() || !srv_was_started);
-	ut_ad(ibuf.index || !srv_was_started
+	ut_ad(ibuf.index || !innodb_change_buffering || !srv_was_started
 	      || srv_force_recovery >= SRV_FORCE_NO_DDL_UNDO);
 
 	dict_stats_deinit();

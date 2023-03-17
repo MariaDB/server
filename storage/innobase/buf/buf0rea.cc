@@ -226,6 +226,7 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
     buf_LRU_add_block(bpage, true/* to old blocks */);
   }
 
+  buf_pool.stat.n_pages_read++;
   mysql_mutex_unlock(&buf_pool.mutex);
   buf_pool.n_pend_reads++;
   goto func_exit_no_mutex;
@@ -245,20 +246,18 @@ buffer buf_pool if it is not already there, in which case does nothing.
 Sets the io_fix flag and sets an exclusive lock on the buffer frame. The
 flag is cleared and the x-lock released by an i/o-handler thread.
 
-@param[out] err		DB_SUCCESS or DB_TABLESPACE_DELETED
-			if we are trying
-			to read from a non-existent tablespace
 @param[in,out] space	tablespace
 @param[in] sync		true if synchronous aio is desired
 @param[in] mode		BUF_READ_IBUF_PAGES_ONLY, ...,
 @param[in] page_id	page id
 @param[in] zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in] unzip	true=request uncompressed page
-@return whether a read request was queued */
+@return error code
+@retval DB_SUCCESS if the page was read
+@retval DB_SUCCESS_LOCKED_REC if the page exists in the buffer pool already */
 static
-bool
+dberr_t
 buf_read_page_low(
-	dberr_t*		err,
 	fil_space_t*		space,
 	bool			sync,
 	ulint			mode,
@@ -268,15 +267,12 @@ buf_read_page_low(
 {
 	buf_page_t*	bpage;
 
-	*err = DB_SUCCESS;
-
 	if (buf_dblwr.is_inside(page_id)) {
 		ib::error() << "Trying to read doublewrite buffer page "
 			<< page_id;
 		ut_ad(0);
-nothing_read:
 		space->release();
-		return false;
+		return DB_PAGE_CORRUPTED;
 	}
 
 	if (sync) {
@@ -299,8 +295,9 @@ nothing_read:
 	completed */
 	bpage = buf_page_init_for_read(mode, page_id, zip_size, unzip);
 
-	if (bpage == NULL) {
-		goto nothing_read;
+	if (!bpage) {
+		space->release();
+		return DB_SUCCESS_LOCKED_REC;
 	}
 
 	ut_ad(bpage->in_file());
@@ -320,7 +317,6 @@ nothing_read:
 				       ? IORequest::READ_SYNC
 				       : IORequest::READ_ASYNC),
 			     page_id.page_no() * len, len, dst, bpage);
-	*err = fio.err;
 
 	if (UNIV_UNLIKELY(fio.err != DB_SUCCESS)) {
 		ut_d(auto n=) buf_pool.n_pend_reads--;
@@ -329,14 +325,14 @@ nothing_read:
 	} else if (sync) {
 		thd_wait_end(NULL);
 		/* The i/o was already completed in space->io() */
-		*err = bpage->read_complete(*fio.node);
+		fio.err = bpage->read_complete(*fio.node);
 		space->release();
-		if (*err == DB_FAIL) {
-			*err = DB_PAGE_CORRUPTED;
+		if (fio.err == DB_FAIL) {
+			fio.err = DB_PAGE_CORRUPTED;
 		}
 	}
 
-	return true;
+	return fio.err;
 }
 
 /** Applies a random read-ahead in buf_pool if there are at least a threshold
@@ -414,24 +410,26 @@ read_ahead:
       continue;
     if (space->is_stopping())
       break;
-    dberr_t err;
     space->reacquire();
-    if (buf_read_page_low(&err, space, false, ibuf_mode, i, zip_size, false))
+    if (buf_read_page_low(space, false, ibuf_mode, i, zip_size, false) ==
+        DB_SUCCESS)
       count++;
   }
 
   if (count)
+  {
     DBUG_PRINT("ib_buf", ("random read-ahead %zu pages from %s: %u",
 			  count, space->chain.start->name,
 			  low.page_no()));
+    mysql_mutex_lock(&buf_pool.mutex);
+    /* Read ahead is considered one I/O operation for the purpose of
+    LRU policy decision. */
+    buf_LRU_stat_inc_io();
+    buf_pool.stat.n_ra_pages_read_rnd+= count;
+    mysql_mutex_unlock(&buf_pool.mutex);
+  }
+
   space->release();
-
-  /* Read ahead is considered one I/O operation for the purpose of
-  LRU policy decision. */
-  buf_LRU_stat_inc_io();
-
-  buf_pool.stat.n_ra_pages_read_rnd+= count;
-  srv_stats.buf_pool_reads.add(count);
   return count;
 }
 
@@ -441,8 +439,9 @@ on the buffer frame. The flag is cleared and the x-lock
 released by the i/o-handler thread.
 @param[in]	page_id		page id
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
-@retval DB_SUCCESS if the page was read and is not corrupted,
-@retval DB_PAGE_CORRUPTED if page based on checksum check is corrupted,
+@retval DB_SUCCESS if the page was read and is not corrupted
+@retval DB_SUCCESS_LOCKED_REC if the page was not read
+@retval DB_PAGE_CORRUPTED if page based on checksum check is corrupted
 @retval DB_DECRYPTION_FAILED if page post encryption checksum matches but
 after decryption normal page checksum does not match.
 @retval DB_TABLESPACE_DELETED if tablespace .ibd file is missing */
@@ -456,13 +455,9 @@ dberr_t buf_read_page(const page_id_t page_id, ulint zip_size)
     return DB_TABLESPACE_DELETED;
   }
 
-  dberr_t err;
-  if (buf_read_page_low(&err, space, true, BUF_READ_ANY_PAGE,
-			page_id, zip_size, false))
-    srv_stats.buf_pool_reads.add(1);
-
-  buf_LRU_stat_inc_io();
-  return err;
+  buf_LRU_stat_inc_io(); /* NOT protected by buf_pool.mutex */
+  return buf_read_page_low(space, true, BUF_READ_ANY_PAGE,
+                           page_id, zip_size, false);
 }
 
 /** High-level function which reads a page asynchronously from a file to the
@@ -475,12 +470,8 @@ released by the i/o-handler thread.
 void buf_read_page_background(fil_space_t *space, const page_id_t page_id,
                               ulint zip_size)
 {
-	dberr_t		err;
-
-	if (buf_read_page_low(&err, space, false, BUF_READ_ANY_PAGE,
-			      page_id, zip_size, false)) {
-		srv_stats.buf_pool_reads.add(1);
-	}
+	buf_read_page_low(space, false, BUF_READ_ANY_PAGE,
+			  page_id, zip_size, false);
 
 	/* We do not increment number of I/O operations used for LRU policy
 	here (buf_LRU_stat_inc_io()). We use this in heuristics to decide
@@ -638,23 +629,26 @@ failed:
       continue;
     if (space->is_stopping())
       break;
-    dberr_t err;
     space->reacquire();
-    count+= buf_read_page_low(&err, space, false, ibuf_mode, new_low, zip_size,
-                              false);
+    if (buf_read_page_low(space, false, ibuf_mode, new_low, zip_size, false) ==
+        DB_SUCCESS)
+      count++;
   }
 
   if (count)
+  {
     DBUG_PRINT("ib_buf", ("random read-ahead %zu pages from %s: %u",
                           count, space->chain.start->name,
                           new_low.page_no()));
+    mysql_mutex_lock(&buf_pool.mutex);
+    /* Read ahead is considered one I/O operation for the purpose of
+    LRU policy decision. */
+    buf_LRU_stat_inc_io();
+    buf_pool.stat.n_ra_pages_read+= count;
+    mysql_mutex_unlock(&buf_pool.mutex);
+  }
+
   space->release();
-
-  /* Read ahead is considered one I/O operation for the purpose of
-  LRU policy decision. */
-  buf_LRU_stat_inc_io();
-
-  buf_pool.stat.n_ra_pages_read+= count;
   return count;
 }
 
@@ -707,13 +701,12 @@ void buf_read_recv_pages(uint32_t space_id, st_::span<uint32_t> page_nos)
 			}
 		}
 
-		dberr_t err;
 		space->reacquire();
-		buf_read_page_low(&err, space, false,
-				  BUF_READ_ANY_PAGE, cur_page_id, zip_size,
-				  true);
-
-		if (err != DB_SUCCESS) {
+		switch (buf_read_page_low(space, false, BUF_READ_ANY_PAGE,
+					  cur_page_id, zip_size, true)) {
+		case DB_SUCCESS: case DB_SUCCESS_LOCKED_REC:
+			break;
+		default:
 			sql_print_error("InnoDB: Recovery failed to read page "
 					UINT32PF " from %s",
 					cur_page_id.page_no(),
