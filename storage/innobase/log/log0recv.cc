@@ -3004,7 +3004,7 @@ set_start_lsn:
 		/* The following is adapted from
 		buf_pool_t::insert_into_flush_list() */
 		mysql_mutex_lock(&buf_pool.flush_list_mutex);
-		buf_pool.stat.flush_list_bytes+= block->physical_size();
+		buf_pool.flush_list_bytes+= block->physical_size();
 		block->page.set_oldest_modification(start_lsn);
 		UT_LIST_ADD_FIRST(buf_pool.flush_list, &block->page);
 		buf_pool.page_cleaner_wakeup();

@@ -3042,6 +3042,9 @@ row_log_apply_op_low(
 	mtr_start(&mtr);
 	index->set_modified(mtr);
 	cursor.page_cur.index = index;
+	if (has_index_lock) {
+		mtr_x_lock_index(index, &mtr);
+	}
 
 	/* We perform the pessimistic variant of the operations if we
 	already hold index->lock exclusively. First, search the
@@ -3049,7 +3052,8 @@ row_log_apply_op_low(
 	depending on when the row in the clustered index was
 	scanned. */
 	*error = cursor.search_leaf(entry, PAGE_CUR_LE, has_index_lock
-				    ? BTR_MODIFY_TREE : BTR_MODIFY_LEAF, &mtr);
+				    ? BTR_MODIFY_TREE_ALREADY_LATCHED
+				    : BTR_MODIFY_LEAF, &mtr);
 	if (UNIV_UNLIKELY(*error != DB_SUCCESS)) {
 		goto func_exit;
 	}

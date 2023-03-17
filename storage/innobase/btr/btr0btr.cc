@@ -251,7 +251,7 @@ Gets the root node of a tree and x- or s-latches it.
 buf_block_t*
 btr_root_block_get(
 /*===============*/
-	const dict_index_t*	index,	/*!< in: index tree */
+	dict_index_t*		index,	/*!< in: index tree */
 	rw_lock_type_t		mode,	/*!< in: either RW_S_LATCH
 					or RW_X_LATCH */
 	mtr_t*			mtr,	/*!< in: mtr */
@@ -263,18 +263,42 @@ btr_root_block_get(
     return nullptr;
   }
 
-  buf_block_t *block = btr_block_get(*index, index->page, mode, mtr, err);
-  if (block)
+  buf_block_t *block;
+#ifndef BTR_CUR_ADAPT
+  static constexpr buf_block_t *guess= nullptr;
+#else
+  buf_block_t *&guess= btr_search_get_info(index)->root_guess;
+  guess=
+#endif
+  block=
+    buf_page_get_gen(page_id_t{index->table->space->id, index->page},
+                     index->table->space->zip_size(), mode, guess, BUF_GET,
+                     mtr, err);
+  ut_ad(!block == (*err != DB_SUCCESS));
+
+  if (UNIV_LIKELY(block != nullptr))
   {
-    if (!btr_root_fseg_validate(FIL_PAGE_DATA + PAGE_BTR_SEG_LEAF,
-                                *block, *index->table->space) ||
-        !btr_root_fseg_validate(FIL_PAGE_DATA + PAGE_BTR_SEG_TOP,
-                                *block, *index->table->space))
+    if (!!page_is_comp(block->page.frame) != index->table->not_redundant() ||
+        btr_page_get_index_id(block->page.frame) != index->id ||
+        !fil_page_index_page_check(block->page.frame) ||
+        index->is_spatial() !=
+        (fil_page_get_type(block->page.frame) == FIL_PAGE_RTREE))
+    {
+      *err= DB_PAGE_CORRUPTED;
+      block= nullptr;
+    }
+    else if (!btr_root_fseg_validate(FIL_PAGE_DATA + PAGE_BTR_SEG_LEAF,
+                                     *block, *index->table->space) ||
+             !btr_root_fseg_validate(FIL_PAGE_DATA + PAGE_BTR_SEG_TOP,
+                                     *block, *index->table->space))
     {
       *err= DB_CORRUPTION;
       block= nullptr;
     }
   }
+  else if (*err == DB_DECRYPTION_FAILED)
+    btr_decryption_failed(*index);
+
   return block;
 }
 
@@ -285,7 +309,7 @@ static
 page_t*
 btr_root_get(
 /*=========*/
-	const dict_index_t*	index,	/*!< in: index tree */
+	dict_index_t*		index,	/*!< in: index tree */
 	mtr_t*			mtr,	/*!< in: mtr */
 	dberr_t*		err)	/*!< out: error code */
 {
@@ -497,9 +521,7 @@ btr_block_reget(mtr_t *mtr, const dict_index_t &index,
     return block;
   }
 
-#if 0 /* MDEV-29385 FIXME: Acquire the page latch upfront. */
   ut_ad(mtr->memo_contains_flagged(&index.lock, MTR_MEMO_X_LOCK));
-#endif
   return btr_block_get(index, id.page_no(), rw_latch, mtr, err);
 }
 
@@ -687,9 +709,7 @@ btr_page_get_father_node_ptr_for_validate(
 	const uint32_t page_no = btr_cur_get_block(cursor)->page.id().page_no();
 	dict_index_t* index = btr_cur_get_index(cursor);
 	ut_ad(!dict_index_is_spatial(index));
-
-	ut_ad(mtr->memo_contains_flagged(&index->lock, MTR_MEMO_X_LOCK
-					 | MTR_MEMO_SX_LOCK));
+	ut_ad(mtr->memo_contains(index->lock, MTR_MEMO_X_LOCK));
 	ut_ad(dict_index_get_page(index) != page_no);
 
 	const auto level = btr_page_get_level(btr_cur_get_page(cursor));
@@ -707,10 +727,6 @@ btr_page_get_father_node_ptr_for_validate(
 	}
 
 	const rec_t* node_ptr = btr_cur_get_rec(cursor);
-#if 0 /* MDEV-29835 FIXME */
-	ut_ad(!btr_cur_get_block(cursor)->page.lock.not_recursive()
-	      || mtr->memo_contains(index->lock, MTR_MEMO_X_LOCK));
-#endif
 
 	offsets = rec_get_offsets(node_ptr, index, offsets, 0,
 				  ULINT_UNDEFINED, &heap);
@@ -2288,11 +2304,10 @@ btr_insert_on_non_leaf_level(
 	}
 
 	ut_ad(cursor.flag == BTR_CUR_BINARY);
-#if 0 /* MDEV-29835 FIXME */
-	ut_ad(!btr_cur_get_block(&cursor)->page.lock.not_recursive()
+	ut_ad(btr_cur_get_block(&cursor)
+	      != mtr->at_savepoint(mtr->get_savepoint() - 1)
 	      || index->is_spatial()
 	      || mtr->memo_contains(index->lock, MTR_MEMO_X_LOCK));
-#endif
 
 	if (UNIV_LIKELY(err == DB_SUCCESS)) {
 		err = btr_cur_optimistic_insert(flags,
@@ -2400,10 +2415,8 @@ btr_attach_half_pages(
 		prev_block = mtr->get_already_latched(id, MTR_MEMO_PAGE_X_FIX);
 #if 1 /* MDEV-29835 FIXME: acquire page latches upfront */
 		if (!prev_block) {
-# if 0 /* MDEV-29835 FIXME */
 			ut_ad(mtr->memo_contains(index->lock,
 						 MTR_MEMO_X_LOCK));
-# endif
 			prev_block = btr_block_get(*index, prev_page_no,
 						   RW_X_LATCH, mtr);
 		}
@@ -2414,10 +2427,8 @@ btr_attach_half_pages(
 		next_block = mtr->get_already_latched(id, MTR_MEMO_PAGE_X_FIX);
 #if 1 /* MDEV-29835 FIXME: acquire page latches upfront */
 		if (!next_block) {
-# if 0 /* MDEV-29835 FIXME */
 			ut_ad(mtr->memo_contains(index->lock,
 						 MTR_MEMO_X_LOCK));
-# endif
 			next_block = btr_block_get(*index, next_page_no,
 						   RW_X_LATCH, mtr);
 		}
@@ -2757,6 +2768,8 @@ btr_page_split_and_insert(
 	ut_ad(*err == DB_SUCCESS);
 	ut_ad(dtuple_check_typed(tuple));
 	ut_ad(!cursor->index()->is_spatial());
+
+	buf_pool.pages_split++;
 
 	if (!*heap) {
 		*heap = mem_heap_create(1024);
@@ -3131,8 +3144,6 @@ insert_failed:
 	}
 
 func_exit:
-	MONITOR_INC(MONITOR_INDEX_SPLIT);
-
 	ut_ad(page_validate(buf_block_get_frame(left_block),
 			    page_cursor->index));
 	ut_ad(page_validate(buf_block_get_frame(right_block),
@@ -3167,9 +3178,7 @@ dberr_t btr_level_list_remove(const buf_block_t& block,
 #if 1 /* MDEV-29835 FIXME: acquire page latches upfront */
     if (!prev)
     {
-# if 0 /* MDEV-29835 FIXME */
       ut_ad(mtr->memo_contains(index.lock, MTR_MEMO_X_LOCK));
-# endif
       prev= btr_block_get(index, id.page_no(), RW_X_LATCH, mtr, &err);
       if (UNIV_UNLIKELY(!prev))
         return err;
@@ -3184,9 +3193,7 @@ dberr_t btr_level_list_remove(const buf_block_t& block,
 #if 1 /* MDEV-29835 FIXME: acquire page latches upfront */
     if (!next)
     {
-# if 0 /* MDEV-29835 FIXME */
       ut_ad(mtr->memo_contains(index.lock, MTR_MEMO_X_LOCK));
-# endif
       next= btr_block_get(index, id.page_no(), RW_X_LATCH, mtr, &err);
       if (UNIV_UNLIKELY(!next))
         return err;
@@ -4016,7 +4023,7 @@ btr_discard_page(
 		if (UNIV_UNLIKELY(!merge_block)) {
 			return err;
 		}
-#if 0 /* MDEV-29385 FIXME: Acquire the page latch upfront. */
+#if 1 /* MDEV-29835 FIXME: Acquire the page latch upfront. */
 		ut_ad(!memcmp_aligned<4>(merge_block->page.frame
 					 + FIL_PAGE_NEXT,
 					 block->page.frame + FIL_PAGE_OFFSET,
@@ -4042,7 +4049,7 @@ btr_discard_page(
 		if (UNIV_UNLIKELY(!merge_block)) {
 			return err;
 		}
-#if 0 /* MDEV-29385 FIXME: Acquire the page latch upfront. */
+#if 1 /* MDEV-29835 FIXME: Acquire the page latch upfront. */
 		ut_ad(!memcmp_aligned<4>(merge_block->page.frame
 					 + FIL_PAGE_PREV,
 					 block->page.frame + FIL_PAGE_OFFSET,
@@ -4613,8 +4620,7 @@ btr_validate_level(
 /*===============*/
 	dict_index_t*	index,	/*!< in: index tree */
 	const trx_t*	trx,	/*!< in: transaction or NULL */
-	ulint		level,	/*!< in: level number */
-	bool		lockout)/*!< in: true if X-latch index is intended */
+	ulint		level)	/*!< in: level number */
 {
 	buf_block_t*	block;
 	page_t*		page;
@@ -4633,18 +4639,10 @@ btr_validate_level(
 #ifdef UNIV_ZIP_DEBUG
 	page_zip_des_t*	page_zip;
 #endif /* UNIV_ZIP_DEBUG */
-	ulint		savepoint = 0;
-	uint32_t	parent_page_no = FIL_NULL;
-	uint32_t	parent_right_page_no = FIL_NULL;
-	bool		rightmost_child = false;
 
 	mtr.start();
 
-	if (lockout) {
-		mtr_x_lock_index(index, &mtr);
-	} else {
-		mtr_sx_lock_index(index, &mtr);
-	}
+	mtr_x_lock_index(index, &mtr);
 
 	dberr_t err;
 	block = btr_root_block_get(index, RW_SX_LATCH, &mtr, &err);
@@ -4739,11 +4737,7 @@ func_exit:
 	mem_heap_empty(heap);
 	offsets = offsets2 = NULL;
 
-	if (lockout) {
-		mtr_x_lock_index(index, &mtr);
-	} else {
-		mtr_sx_lock_index(index, &mtr);
-	}
+	mtr_x_lock_index(index, &mtr);
 
 	page = block->page.frame;
 
@@ -4787,7 +4781,6 @@ func_exit:
 
 	if (right_page_no != FIL_NULL) {
 		const rec_t*	right_rec;
-		savepoint = mtr.get_savepoint();
 
 		right_block = btr_block_get(*index, right_page_no, RW_SX_LATCH,
 					    &mtr, &err);
@@ -4890,11 +4883,6 @@ broken_links:
 		father_page = btr_cur_get_page(&node_cur);
 		node_ptr = btr_cur_get_rec(&node_cur);
 
-		parent_page_no = page_get_page_no(father_page);
-		parent_right_page_no = btr_page_get_next(father_page);
-		rightmost_child = page_rec_is_supremum(
-					page_rec_get_next(node_ptr));
-
 		rec = page_rec_get_prev(page_get_supremum_rec(page));
 		if (rec) {
 			btr_cur_position(index, rec, block, &node_cur);
@@ -4976,35 +4964,6 @@ broken_links:
 			}
 		} else if (const rec_t* right_node_ptr
 			   = page_rec_get_next(node_ptr)) {
-			if (!lockout && rightmost_child) {
-
-				/* To obey latch order of tree blocks,
-				we should release the right_block once to
-				obtain lock of the uncle block. */
-				ut_ad(right_block
-				      == mtr.at_savepoint(savepoint));
-				mtr.rollback_to_savepoint(savepoint,
-							  savepoint + 1);
-
-				if (parent_right_page_no != FIL_NULL) {
-					btr_block_get(*index,
-						      parent_right_page_no,
-						      RW_SX_LATCH, &mtr);
-				}
-
-				right_block = btr_block_get(*index,
-							    right_page_no,
-							    RW_SX_LATCH,
-							    &mtr, &err);
-				if (!right_block) {
-					btr_validate_report1(index, level,
-							     block);
-					fputs("InnoDB: broken FIL_PAGE_NEXT"
-					      " link\n", stderr);
-					goto invalid_page;
-				}
-			}
-
 			btr_cur_position(
 				index,
 				page_get_infimum_rec(right_block->page.frame),
@@ -5076,19 +5035,6 @@ node_ptr_fails:
 
 		mtr.start();
 
-		if (!lockout) {
-			if (rightmost_child) {
-				if (parent_right_page_no != FIL_NULL) {
-					btr_block_get(*index,
-						      parent_right_page_no,
-						      RW_SX_LATCH, &mtr);
-				}
-			} else if (parent_page_no != FIL_NULL) {
-				btr_block_get(*index, parent_page_no,
-					      RW_SX_LATCH, &mtr);
-			}
-		}
-
 		block = btr_block_get(*index, right_page_no, RW_SX_LATCH,
 				      &mtr, &err);
 		goto loop;
@@ -5106,21 +5052,16 @@ btr_validate_index(
 	dict_index_t*	index,	/*!< in: index */
 	const trx_t*	trx)	/*!< in: transaction or NULL */
 {
-  const bool lockout= index->is_spatial();
-
   mtr_t mtr;
   mtr.start();
 
-  if (lockout)
-    mtr_x_lock_index(index, &mtr);
-  else
-    mtr_sx_lock_index(index, &mtr);
+  mtr_x_lock_index(index, &mtr);
 
   dberr_t err;
   if (page_t *root= btr_root_get(index, &mtr, &err))
     for (auto level= btr_page_get_level(root);; level--)
     {
-      if (dberr_t err_level= btr_validate_level(index, trx, level, lockout))
+      if (dberr_t err_level= btr_validate_level(index, trx, level))
         err= err_level;
       if (!level)
         break;

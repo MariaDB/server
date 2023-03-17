@@ -37,6 +37,7 @@ SET(HEADERS
   ma_dyncol.h
   my_list.h
   my_alloc.h
+  my_alloca.h
   typelib.h 
   my_dbug.h 
   m_string.h
@@ -111,7 +112,9 @@ ${footer}
 ENDMACRO()
 
 INSTALL_COMPAT_HEADER(my_global.h "")
+INSTALL_COMPAT_HEADER(my_alloca.h "")
 INSTALL_COMPAT_HEADER(my_config.h "")
+INSTALL_COMPAT_HEADER(my_alloca.h "")
 INSTALL_COMPAT_HEADER(my_sys.h "")
 INSTALL_COMPAT_HEADER(mysql_version.h "
 #include <mariadb_version.h>
