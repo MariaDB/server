@@ -31,8 +31,10 @@ insert into t8 values (1, 'publicmessage');
 insert into t9 values (1, 'pugliccompressedaaaaaaaaabbbbbbbbbbbbbbccccccccccccccc');
 
 --echo # should list tables t1-t6
+--sorted_result
 SELECT NAME,ENCRYPTION_SCHEME,CURRENT_KEY_ID FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0 AND NAME LIKE 'enctests%';
 --echo # should list tables t7-t9
+--sorted_result
 SELECT NAME,ENCRYPTION_SCHEME,CURRENT_KEY_ID FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 and NAME LIKE 'enctests%';
 
 --let $MYSQLD_DATADIR=`select @@datadir`

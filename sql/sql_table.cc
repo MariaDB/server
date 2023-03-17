@@ -2395,17 +2395,16 @@ static void check_duplicate_key(THD *thd, const Key *key, const KEY *key_info,
 
 bool Column_definition::prepare_stage1_typelib(THD *thd,
                                                MEM_ROOT *mem_root,
-                                               handler *file,
-                                               ulonglong table_flags)
+                                               column_definition_type_t deftype)
 {
   /*
     Pass the last parameter to prepare_interval_field() as follows:
-    - If we are preparing for an SP variable (file is NULL), we pass "false",
+    - If we are preparing for an SP variable, we pass "false",
       to force allocation and full copying of TYPELIB values on the given
       mem_root, even if no character set conversion is needed. This is needed
       because a life cycle of an SP variable is longer than the current query.
 
-    - If we are preparing for a CREATE TABLE, (file != NULL), we pass "true".
+    - If we are preparing for a CREATE TABLE, we pass "true".
       This will create the typelib in runtime memory - we will free the
       occupied memory at the same time when we free this
       sql_field -- at the end of execution.
@@ -2413,11 +2412,11 @@ bool Column_definition::prepare_stage1_typelib(THD *thd,
       values in "interval" in cases when no character conversion is needed,
       to avoid extra copying.
   */
-  if (prepare_interval_field(mem_root, file != NULL))
+  if (prepare_interval_field(mem_root,
+                             deftype == COLUMN_DEFINITION_TABLE_FIELD))
     return true; // E.g. wrong values with commas: SET('a,b')
   create_length_to_internal_length_typelib();
 
-  DBUG_ASSERT(file || !default_value); // SP variables have no default_value
   if (default_value && default_value->expr->basic_const_item())
   {
     if ((charset != default_value->expr->collation.collation &&
@@ -2430,14 +2429,11 @@ bool Column_definition::prepare_stage1_typelib(THD *thd,
 
 
 bool Column_definition::prepare_stage1_string(THD *thd,
-                                              MEM_ROOT *mem_root,
-                                              handler *file,
-                                              ulonglong table_flags)
+                                              MEM_ROOT *mem_root)
 {
   create_length_to_internal_length_string();
   if (prepare_blob_field(thd))
     return true;
-  DBUG_ASSERT(file || !default_value); // SP variables have no default_value
   /*
     Convert the default value from client character
     set into the column character set if necessary.
@@ -2457,13 +2453,9 @@ bool Column_definition::prepare_stage1_string(THD *thd,
 
 
 bool Column_definition::prepare_stage1_bit(THD *thd,
-                                           MEM_ROOT *mem_root,
-                                           handler *file,
-                                           ulonglong table_flags)
+                                           MEM_ROOT *mem_root)
 {
   pack_flag= FIELDFLAG_NUMBER;
-  if (!(table_flags & HA_CAN_BIT_FIELD))
-    pack_flag|= FIELDFLAG_TREAT_BIT_AS_CHAR;
   create_length_to_internal_length_bit();
   return false;
 }
@@ -2471,14 +2463,15 @@ bool Column_definition::prepare_stage1_bit(THD *thd,
 
 bool Column_definition::prepare_stage1(THD *thd,
                                        MEM_ROOT *mem_root,
-                                       handler *file,
-                                       ulonglong table_flags,
+                                       column_definition_type_t deftype,
                                        const Column_derived_attributes
                                              *derived_attr)
 {
+  // SP variables have no default_value
+  DBUG_ASSERT(deftype == COLUMN_DEFINITION_TABLE_FIELD || !default_value);
+
   return type_handler()->Column_definition_prepare_stage1(thd, mem_root,
-                                                          this, file,
-                                                          table_flags,
+                                                          this, deftype,
                                                           derived_attr);
 }
 
@@ -2702,10 +2695,77 @@ key_add_part_check_null(const handler *file, KEY *key_info,
 
 
 /*
-  Preparation for table creation
+  Prepare for a table creation.
+  Stage 1: prepare the field list.
+*/
+static bool mysql_prepare_create_table_stage1(THD *thd,
+                                              HA_CREATE_INFO *create_info,
+                                              Alter_info *alter_info)
+{
+  DBUG_ENTER("mysql_prepare_create_table_stage1");
+  const Column_derived_attributes dattr(create_info->default_table_charset);
+  const Column_bulk_alter_attributes
+    battr(create_info->alter_table_convert_to_charset);
+  Create_field	*sql_field;
+  List_iterator_fast<Create_field> it(alter_info->create_list);
+
+  DBUG_EXECUTE_IF("test_pseudo_invisible",{
+          mysql_add_invisible_field(thd, &alter_info->create_list,
+                      "invisible", &type_handler_slong, INVISIBLE_SYSTEM,
+                      new (thd->mem_root)Item_int(thd, 9));
+          });
+  DBUG_EXECUTE_IF("test_completely_invisible",{
+          mysql_add_invisible_field(thd, &alter_info->create_list,
+                      "invisible", &type_handler_slong, INVISIBLE_FULL,
+                      new (thd->mem_root)Item_int(thd, 9));
+          });
+  DBUG_EXECUTE_IF("test_invisible_index",{
+          LEX_CSTRING temp;
+          temp.str= "invisible";
+          temp.length= strlen("invisible");
+          mysql_add_invisible_index(thd, &alter_info->key_list
+                  , &temp, Key::MULTIPLE);
+          });
+
+
+  for ( ; (sql_field=it++) ; )
+  {
+    /* Virtual fields are always NULL */
+    if (sql_field->vcol_info)
+      sql_field->flags&= ~NOT_NULL_FLAG;
+
+    /*
+      Initialize length from its original value (number of characters),
+      which was set in the parser. This is necessary if we're
+      executing a prepared statement for the second time.
+    */
+    sql_field->length= sql_field->char_length;
+
+    if (sql_field->bulk_alter(&dattr, &battr))
+      DBUG_RETURN(true);
+
+    if (sql_field->prepare_stage1(thd, thd->mem_root,
+                                  COLUMN_DEFINITION_TABLE_FIELD,
+                                  &dattr))
+      DBUG_RETURN(true);
+
+    DBUG_ASSERT(sql_field->charset);
+
+    if (check_column_name(sql_field->field_name.str))
+    {
+      my_error(ER_WRONG_COLUMN_NAME, MYF(0), sql_field->field_name.str);
+      DBUG_RETURN(TRUE);
+    }
+  }
+  DBUG_RETURN(false);
+}
+
+
+/*
+  Preparation for table creation, final stage.
 
   SYNOPSIS
-    mysql_prepare_create_table()
+    mysql_prepare_create_table_finalize()
       thd                       Thread object.
       create_info               Create information (like MAX_ROWS).
       alter_info                List of columns and indexes to create
@@ -2728,11 +2788,12 @@ key_add_part_check_null(const handler *file, KEY *key_info,
 */
 
 static int
-mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
-                           Alter_info *alter_info, uint *db_options,
-                           handler *file, KEY **key_info_buffer,
-                           uint *key_count, int create_table_mode,
-                           const LEX_CSTRING db, const LEX_CSTRING table_name)
+mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
+                                    Alter_info *alter_info, uint *db_options,
+                                    handler *file, KEY **key_info_buffer,
+                                    uint *key_count, int create_table_mode,
+                                    const LEX_CSTRING db,
+                                    const LEX_CSTRING table_name)
 {
   const char	*key_name;
   Create_field	*sql_field,*dup_field;
@@ -2748,28 +2809,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   bool tmp_table= create_table_mode == C_ALTER_TABLE;
   const bool create_simple= thd->lex->create_simple();
   bool is_hash_field_needed= false;
-  const Column_derived_attributes dattr(create_info->default_table_charset);
-  const Column_bulk_alter_attributes
-    battr(create_info->alter_table_convert_to_charset);
   DBUG_ENTER("mysql_prepare_create_table");
 
-  DBUG_EXECUTE_IF("test_pseudo_invisible",{
-          mysql_add_invisible_field(thd, &alter_info->create_list,
-                      "invisible", &type_handler_slong, INVISIBLE_SYSTEM,
-                      new (thd->mem_root)Item_int(thd, 9));
-          });
-  DBUG_EXECUTE_IF("test_completely_invisible",{
-          mysql_add_invisible_field(thd, &alter_info->create_list,
-                      "invisible", &type_handler_slong, INVISIBLE_FULL,
-                      new (thd->mem_root)Item_int(thd, 9));
-          });
-  DBUG_EXECUTE_IF("test_invisible_index",{
-          LEX_CSTRING temp;
-          temp.str= "invisible";
-          temp.length= strlen("invisible");
-          mysql_add_invisible_index(thd, &alter_info->key_list
-                  , &temp, Key::MULTIPLE);
-          });
   LEX_CSTRING* connect_string = &create_info->connect_string;
   if (connect_string->length != 0 &&
       connect_string->length > CONNECT_STRING_MAXLEN &&
@@ -2804,41 +2845,15 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       DBUG_RETURN(TRUE);
   }
 
+
   for (field_no=0; (sql_field=it++) ; field_no++)
   {
-    /* Virtual fields are always NULL */
-    if (sql_field->vcol_info)
-      sql_field->flags&= ~NOT_NULL_FLAG;
-
-    /*
-      Initialize length from its original value (number of characters),
-      which was set in the parser. This is necessary if we're
-      executing a prepared statement for the second time.
-    */
-    sql_field->length= sql_field->char_length;
-
-    if (sql_field->bulk_alter(&dattr, &battr))
-      DBUG_RETURN(true);
-
-    if (sql_field->prepare_stage1(thd, thd->mem_root,
-                                  file, file->ha_table_flags(),
-                                  &dattr))
-      DBUG_RETURN(true);
-
-    DBUG_ASSERT(sql_field->charset);
+    if (!(sql_field->flags & NOT_NULL_FLAG))
+      null_fields++;
 
     if (sql_field->real_field_type() == MYSQL_TYPE_BIT &&
         file->ha_table_flags() & HA_CAN_BIT_FIELD)
       total_uneven_bit_length+= sql_field->length & 7;
-
-    if (!(sql_field->flags & NOT_NULL_FLAG))
-      null_fields++;
-
-    if (check_column_name(sql_field->field_name.str))
-    {
-      my_error(ER_WRONG_COLUMN_NAME, MYF(0), sql_field->field_name.str);
-      DBUG_RETURN(TRUE);
-    }
 
     /* Check if we have used the same field name before */
     for (dup_no=0; (dup_field=it2++) != sql_field; dup_no++)
@@ -3827,6 +3842,49 @@ without_overlaps_err:
   DBUG_RETURN(FALSE);
 }
 
+
+/*
+  Preparation for table creation
+
+  SYNOPSIS
+    mysql_prepare_create_table()
+      thd                       Thread object.
+      create_info               Create information (like MAX_ROWS).
+      alter_info                List of columns and indexes to create
+      db_options          INOUT Table options (like HA_OPTION_PACK_RECORD).
+      file                      The handler for the new table.
+      key_info_buffer     OUT   An array of KEY structs for the indexes.
+      key_count           OUT   The number of elements in the array.
+      create_table_mode         C_ORDINARY_CREATE, C_ALTER_TABLE,
+                                C_CREATE_SELECT, C_ASSISTED_DISCOVERY
+
+  DESCRIPTION
+    Prepares the table and key structures for table creation.
+
+  NOTES
+    sets create_info->varchar if the table has a varchar
+
+  RETURN VALUES
+    FALSE    OK
+    TRUE     error
+*/
+
+static int
+mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
+                           Alter_info *alter_info, uint *db_options,
+                           handler *file, KEY **key_info_buffer,
+                           uint *key_count, int create_table_mode,
+                           const LEX_CSTRING db,
+                           const LEX_CSTRING table_name)
+{
+  return mysql_prepare_create_table_stage1(thd, create_info, alter_info) ||
+         mysql_prepare_create_table_finalize(thd, create_info, alter_info,
+                                             db_options, file, key_info_buffer,
+                                             key_count, create_table_mode,
+                                             db, table_name);
+}
+
+
 /**
   check comment length of table, column, index and partition
 
@@ -3955,7 +4013,8 @@ bool Column_definition::prepare_blob_field(THD *thd)
 bool Column_definition::sp_prepare_create_field(THD *thd, MEM_ROOT *mem_root)
 {
   const Column_derived_attributes dattr(thd->variables.collation_database);
-  return prepare_stage1(thd, mem_root, NULL, HA_CAN_GEOMETRY, &dattr) ||
+  return prepare_stage1(thd, mem_root,
+                        COLUMN_DEFINITION_ROUTINE_LOCAL, &dattr) ||
          prepare_stage2(NULL, HA_CAN_GEOMETRY);
 }
 
@@ -4049,6 +4108,9 @@ handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING &db,
     my_error(ER_TABLE_MUST_HAVE_COLUMNS, MYF(0));
     DBUG_RETURN(NULL);
   }
+
+  if (mysql_prepare_create_table_stage1(thd, create_info, alter_info))
+    DBUG_RETURN(NULL);
 
   db_options= create_info->table_options_with_row_type();
 
@@ -4266,9 +4328,10 @@ handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING &db,
   }
 #endif
 
-  if (mysql_prepare_create_table(thd, create_info, alter_info, &db_options,
-                                 file, key_info, key_count,
-                                 create_table_mode, db, table_name))
+  if (mysql_prepare_create_table_finalize(thd, create_info,
+                                          alter_info, &db_options,
+                                          file, key_info, key_count,
+                                          create_table_mode, db, table_name))
     goto err;
   create_info->table_options=db_options;
 
