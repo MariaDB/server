@@ -840,7 +840,7 @@ Description: Amazon S3 archival storage engine for MariaDB
  them accessible in MariaDB in read-only mode.
 
 Package: mariadb-plugin-rocksdb
-Architecture: amd64 arm64 mips64el ppc64el
+Architecture: amd64 arm64 mips64el ppc64el riscv64
 Depends: mariadb-server (= ${server:Version}),
          python3:any,
          rocksdb-tools,
