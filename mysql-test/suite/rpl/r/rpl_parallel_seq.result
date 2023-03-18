@@ -1,0 +1,46 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+# MDEV-29621 the sequence engine binlog_row_image-full events
+#            MDL-deadlock on the parallel slave.
+connection master;
+CREATE SEQUENCE s1;
+SET @@session.binlog_row_image=FULL;
+SET @@session.debug_dbug="+d,binlog_force_commit_id";
+SET @commit_id=7;
+SET @@gtid_seq_no=100;
+SELECT NEXT VALUE FOR s1;
+NEXT VALUE FOR s1
+1
+INSERT INTO s1 VALUES(2, 1, 10, 1, 2, 1, 1, 0);
+SET @@session.debug_dbug="";
+connection slave;
+SET @@global.slave_parallel_threads=2;
+SET @@global.slave_parallel_mode=optimistic;
+SET @@global.debug_dbug="+d,hold_worker_on_schedule";
+include/start_slave.inc
+SET DEBUG_SYNC = 'now SIGNAL continue_worker';
+connection master;
+DROP SEQUENCE s1;
+connection slave;
+include/stop_slave.inc
+# Simulate buggy 10.3.36 master to prove the parallel applier
+# does not deadlock now at replaying the above master load.
+connection master;
+include/rpl_stop_server.inc [server_number=1]
+include/rpl_start_server.inc [server_number=1]
+connection slave;
+RESET MASTER;
+SET @@global.gtid_slave_pos="";
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SERVER_MYPORT_1, master_user='root', master_use_gtid=slave_pos;
+START SLAVE UNTIL MASTER_GTID_POS='0-1-102';
+SET DEBUG_SYNC = 'now SIGNAL continue_worker';
+include/wait_for_slave_to_stop.inc
+SET debug_sync = RESET;
+SET @@global.slave_parallel_threads= 0;
+SET @@global.slave_parallel_mode= conservative;
+SET @@global.debug_dbug = "";
+include/start_slave.inc
+include/rpl_end.inc

@@ -235,8 +235,9 @@ int ha_sequence::write_row(uchar *buf)
         on master and slaves
       - Check that the new row is an accurate SEQUENCE object
     */
-
     THD *thd= table->in_use;
+    /* mark a full binlog image insert to force non-parallel slave */
+    thd->transaction.stmt.mark_trans_did_ddl();
     if (table->s->tmp_table == NO_TMP_TABLE &&
         thd->mdl_context.upgrade_shared_lock(table->mdl_ticket,
                                              MDL_EXCLUSIVE,
