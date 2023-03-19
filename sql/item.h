@@ -6371,6 +6371,7 @@ public:
 #include "item_jsonfunc.h"
 #include "item_create.h"
 #include "item_vers.h"
+#include "item_pfsfunc.h"
 #endif
 
 /**

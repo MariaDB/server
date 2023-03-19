@@ -761,6 +761,19 @@ protected:
 };
 
 
+class Create_func_format_pico_time : public Create_func_arg1
+{
+public:
+    virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+    static Create_func_format_pico_time s_singleton;
+
+protected:
+    Create_func_format_pico_time() = default;
+    virtual ~Create_func_format_pico_time() = default;
+};
+
+
 class Create_func_format : public Create_native_func
 {
 public:
@@ -3570,6 +3583,15 @@ Create_func_floor::create_1_arg(THD *thd, Item *arg1)
 }
 
 
+Create_func_format_pico_time Create_func_format_pico_time::s_singleton;
+
+Item*
+Create_func_format_pico_time::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_pfs_format_pico_time(thd, arg1);
+}
+
+
 Create_func_format Create_func_format::s_singleton;
 
 Item*
@@ -5762,6 +5784,7 @@ Native_func_registry func_array[] =
   { { STRING_WITH_LEN("FIELD") }, BUILDER(Create_func_field)},
   { { STRING_WITH_LEN("FIND_IN_SET") }, BUILDER(Create_func_find_in_set)},
   { { STRING_WITH_LEN("FLOOR") }, BUILDER(Create_func_floor)},
+  { { STRING_WITH_LEN("FORMAT_PICO_TIME") }, BUILDER(Create_func_format_pico_time)},
   { { STRING_WITH_LEN("FORMAT") }, BUILDER(Create_func_format)},
   { { STRING_WITH_LEN("FOUND_ROWS") }, BUILDER(Create_func_found_rows)},
   { { STRING_WITH_LEN("FROM_BASE64") }, BUILDER(Create_func_from_base64)},
