@@ -64,10 +64,13 @@ public:
   sequence_definition():
     min_value_from_parser(1, false),
     max_value_from_parser(LONGLONG_MAX-1, false), start_from_parser(1, false),
-    increment(1), cache(1000), round(0), restart_from_parser(0, false), cycle(0), used_fields(0),
-    // We use value type and is_unsigned instead of a handler because
-    // Type_handler is incomplete, which we cannot initialise here
-    // with &type_handler_slonglong.
+    increment(1), cache(1000), round(0), restart_from_parser(0, false),
+    cycle(0), used_fields(0),
+    /*
+      We use value type and is_unsigned instead of a handler because
+      Type_handler is incomplete, which we cannot initialise here with
+      &type_handler_slonglong.
+    */
     value_type(MYSQL_TYPE_LONGLONG), is_unsigned(false)
   {}
   longlong reserved_until;
@@ -80,7 +83,6 @@ public:
   longlong increment;
   longlong cache;
   ulonglong round;
-  // TODO: allow unsigned in restart
   longlong restart;              // alter sequence restart value
   Longlong_hybrid restart_from_parser;
   bool     cycle;
@@ -89,9 +91,9 @@ public:
   bool     is_unsigned;
 
   Type_handler const *value_type_handler();
-  // max value for the value type, e.g. 32767 for smallint.
+  /* max value for the value type, e.g. 32767 for smallint. */
   longlong value_type_max();
-  // min value for the value type, e.g. -32768 for smallint.
+  /* min value for the value type, e.g. -32768 for smallint. */
   longlong value_type_min();
   bool check_and_adjust(THD *thd, bool set_reserved_until);
   void store_fields(TABLE *table);
@@ -151,7 +153,28 @@ public:
   longlong next_value(TABLE *table, bool second_round, int *error);
   int set_value(TABLE *table, longlong next_value, ulonglong round_arg,
                 bool is_used);
-  bool within_bounds(const longlong value, const longlong upper, const longlong lower, bool increasing)
+
+  bool all_values_used;
+  seq_init initialized;
+
+private:
+  /**
+    Check that a value is within a relevant bound
+
+    If increasing sequence, check that the value is lower than an
+    upper bound, otherwise check that the value is higher than a lower
+    bound.
+
+    @param in value       The value to check
+    @param in upper       The upper bound
+    @param in lower       The lower bound
+    @param in increasing  Which bound to check
+
+    @retval   true        The value is within the bound.
+              false       The value is out of the bound.
+  */
+  bool within_bound(const longlong value, const longlong upper,
+                    const longlong lower, bool increasing)
   {
     return
       (is_unsigned && increasing && (ulonglong) value < (ulonglong) upper) ||
@@ -160,24 +183,39 @@ public:
       (!is_unsigned && !increasing && value > lower);
   }
 
+  /**
+    Increment a value, subject to truncation
+
+    Truncating to the nearer value between max_value + 1 and min_value
+    - 1
+
+    @param in value      The original value
+    @param in increment  The increment to add to the value
+
+    @return              The value after increment and possible truncation
+  */
   longlong increment_value(longlong value, const longlong increment)
   {
     if (is_unsigned)
     {
       if (increment > 0)
         {
-          // in case value + increment overflows
-          if ((ulonglong) value > (ulonglong) max_value - (ulonglong) increment ||
-              // in case max_value - increment underflows
-              (ulonglong) value + (ulonglong) increment > (ulonglong) max_value)
+          if (/* in case value + increment overflows */
+              (ulonglong) value >
+              (ulonglong) max_value - (ulonglong) increment ||
+              /* in case max_value - increment underflows */
+              (ulonglong) value + (ulonglong) increment >
+              (ulonglong) max_value)
             value= max_value + 1;
           else
             value+= increment;
         }
       else
       {
-        if ((ulonglong) value - (ulonglong) (-increment) < (ulonglong) min_value ||
-            (ulonglong) value < (ulonglong) min_value + (ulonglong) (- increment))
+        if ((ulonglong) value - (ulonglong) (-increment) <
+            (ulonglong) min_value ||
+            (ulonglong) value <
+            (ulonglong) min_value + (ulonglong) (-increment))
           value= min_value - 1;
         else
           value+= increment;
@@ -185,27 +223,20 @@ public:
     } else
       if (increment > 0)
       {
-        if (value > max_value - increment ||
-            value + increment > max_value)
+        if (value > max_value - increment || value + increment > max_value)
           value= max_value + 1;
         else
           value+= increment;
       }
       else
       {
-        if (value + increment < min_value ||
-            value < min_value - increment)
+        if (value + increment < min_value || value < min_value - increment)
           value= min_value - 1;
         else
           value+= increment;
       }
     return value;
   }
-
-  bool all_values_used;
-  seq_init initialized;
-
-private:
   mysql_rwlock_t mutex;
 };
 

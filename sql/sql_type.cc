@@ -43,7 +43,7 @@ Named_type_handler<Type_handler_short> type_handler_sshort("smallint");
 Named_type_handler<Type_handler_long> type_handler_slong("int");
 Named_type_handler<Type_handler_int24> type_handler_sint24("mediumint");
 Named_type_handler<Type_handler_longlong> type_handler_slonglong("bigint");
-Named_type_handler<Type_handler_utiny> type_handler_utiny("tiny unsigned");
+Named_type_handler<Type_handler_utiny> type_handler_utiny("tinyint unsigned");
 Named_type_handler<Type_handler_ushort> type_handler_ushort("smallint unsigned");
 Named_type_handler<Type_handler_ulong> type_handler_ulong("int unsigned");
 Named_type_handler<Type_handler_uint24> type_handler_uint24("mediumint unsigned");

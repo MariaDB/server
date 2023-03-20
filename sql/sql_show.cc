@@ -2694,10 +2694,14 @@ static int show_create_sequence(THD *thd, TABLE_LIST *table_list,
 
   packet->append(STRING_WITH_LEN("CREATE SEQUENCE "));
   append_identifier(thd, packet, &alias);
-  /* Do not show " as <type>" in oracle mode as it is not supported:
-     https://docs.oracle.com/en/database/oracle/oracle-database/21/sqlrf/CREATE-SEQUENCE.html
+  /*
+    Do not show " as <type>" in oracle mode as it is not supported:
+    https://docs.oracle.com/en/database/oracle/oracle-database/21/sqlrf/CREATE-SEQUENCE.html
+    Also, do not show this if the type is the default type,
+    i.e. slonglong, for backward compatibility.
   */
-  if (!(sql_mode & MODE_ORACLE))
+  if (!(sql_mode & MODE_ORACLE) &&
+      seq->value_type_handler() != &type_handler_slonglong)
   {
     packet->append(STRING_WITH_LEN(" as "));
     packet->append(seq->value_type_handler()->name().lex_cstring());
@@ -5530,9 +5534,9 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
 }
 
 static int get_schema_sequence_record(THD *thd, TABLE_LIST *tables,
-				    TABLE *table, bool res,
-				    const LEX_CSTRING *db_name,
-				    const LEX_CSTRING *table_name)
+                                      TABLE *table, bool res,
+                                      const LEX_CSTRING *db_name,
+                                      const LEX_CSTRING *table_name)
 {
   DBUG_ENTER("get_sequence_record");
   CHARSET_INFO *cs= system_charset_info;
@@ -9468,23 +9472,25 @@ ST_FIELD_INFO proc_fields_info[]=
 
 ST_FIELD_INFO sequence_fields_info[]=
 {
-  Column("SEQUENCE_CATALOG",            Catalog(),     NOT_NULL,                OPEN_FRM_ONLY),
-  Column("SEQUENCE_SCHEMA",             Name(),        NOT_NULL,                OPEN_FRM_ONLY),
-  Column("SEQUENCE_NAME",               Name(),        NOT_NULL, "Table",       OPEN_FRM_ONLY),
+  Column("SEQUENCE_CATALOG",            Catalog(),     NOT_NULL,
+         OPEN_FRM_ONLY),
+  Column("SEQUENCE_SCHEMA",             Name(),        NOT_NULL,
+         OPEN_FRM_ONLY),
+  Column("SEQUENCE_NAME",               Name(),        NOT_NULL, "Table",
+         OPEN_FRM_ONLY),
   Column("DATA_TYPE",                   Name(),        NOT_NULL),
   Column("NUMERIC_PRECISION",           SLong(21),     NOT_NULL),
   Column("NUMERIC_PRECISION_RADIX",     SLong(21),     NULLABLE),
   Column("NUMERIC_SCALE",               SLong(21),     NULLABLE),
-  // Decimal types for these values to incorporate possibly unsigned
-  // longlongs.
+  /*
+    Decimal types for these values to incorporate possibly unsigned
+    longlongs.
+  */
   Column("START_VALUE",                 Decimal(2100), NOT_NULL),
   Column("MINIMUM_VALUE",               Decimal(2100), NOT_NULL),
   Column("MAXIMUM_VALUE",               Decimal(2100), NOT_NULL),
   Column("INCREMENT",                   SLonglong(21), NOT_NULL),
-  Column("CYCLE_OPTION",                SLonglong(21), NOT_NULL),
-  Column("DECLARED_DATA_TYPE",          SLong(21),     NULLABLE),
-  Column("DECLARED_NUMERIC_PRECISION",  SLong(21),     NULLABLE),
-  Column("DECLARED_NUMERIC_SCALE",      SLong(21),     NULLABLE),
+  Column("CYCLE_OPTION",                Yes_or_empty(), NOT_NULL),
   CEnd()
 };
 

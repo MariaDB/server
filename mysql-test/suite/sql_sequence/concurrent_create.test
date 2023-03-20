@@ -47,6 +47,7 @@ PREPARE stmt FROM "CREATE TABLE s2 LIKE s1";
 execute stmt;
 drop table s2;
 execute stmt;
+show create sequence s2;
 drop table s2;
 execute stmt;
 select * from s2;

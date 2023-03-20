@@ -28,3 +28,17 @@ nextval(s)
 1997
 drop sequence s;
 set global auto_increment_increment= default, auto_increment_offset= default;
+#
+# MDEV-28152 Features for sequence
+#
+set global auto_increment_increment= 100;
+set global auto_increment_offset= 42;
+create sequence s as bigint unsigned start with 9223372036854775800 increment 0;
+select next value for s;
+next value for s
+9223372036854775842
+select next value for s;
+next value for s
+9223372036854775942
+drop sequence s;
+set global auto_increment_increment= default, auto_increment_offset= default;

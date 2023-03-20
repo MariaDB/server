@@ -12,7 +12,7 @@ select nextval(s1);
 ERROR 42000: INSERT command denied to user 'normal_1'@'localhost' for table `s_db`.`s1`
 show create sequence s1;
 Table	Create Table
-s1	CREATE SEQUENCE `s1` as bigint start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+s1	CREATE SEQUENCE `s1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
 alter sequence s1 restart 50;
 ERROR 42000: ALTER command denied to user 'normal_1'@'localhost' for table `s_db`.`s1`
 connection default;

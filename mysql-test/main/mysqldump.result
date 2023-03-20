@@ -6369,16 +6369,16 @@ NEXTVAL(d.s1)	NEXTVAL(d.s2)	NEXTVAL(d.s3)	NEXTVAL(d.s4)
 # Show create before dump
 show create sequence d.s1;
 Table	Create Table
-s1	CREATE SEQUENCE `s1` as bigint start with 100 minvalue 100 maxvalue 1100 increment by 10 cache 1000 cycle ENGINE=MyISAM
+s1	CREATE SEQUENCE `s1` start with 100 minvalue 100 maxvalue 1100 increment by 10 cache 1000 cycle ENGINE=MyISAM
 show create sequence d.s2;
 Table	Create Table
-s2	CREATE SEQUENCE `s2` as bigint start with 200 minvalue 200 maxvalue 1200 increment by 20 cache 1000 cycle ENGINE=MyISAM
+s2	CREATE SEQUENCE `s2` start with 200 minvalue 200 maxvalue 1200 increment by 20 cache 1000 cycle ENGINE=MyISAM
 show create sequence d.s3;
 Table	Create Table
-s3	CREATE SEQUENCE `s3` as bigint start with 300 minvalue 300 maxvalue 1300 increment by 30 cache 1000 cycle ENGINE=MyISAM
+s3	CREATE SEQUENCE `s3` start with 300 minvalue 300 maxvalue 1300 increment by 30 cache 1000 cycle ENGINE=MyISAM
 show create sequence d.s4;
 Table	Create Table
-s4	CREATE SEQUENCE `s4` as bigint start with 400 minvalue 400 maxvalue 1400 increment by 40 cache 1000 cycle ENGINE=MyISAM
+s4	CREATE SEQUENCE `s4` start with 400 minvalue 400 maxvalue 1400 increment by 40 cache 1000 cycle ENGINE=MyISAM
 # Dump sequence without `--no-data`
 # Restore from mysqldump
 SETVAL(`s1`, 1101, 0)
@@ -6392,16 +6392,16 @@ SETVAL(`s4`, 1401, 0)
 # Show create after restore
 show create sequence d.s1;
 Table	Create Table
-s1	CREATE SEQUENCE `s1` as bigint start with 100 minvalue 100 maxvalue 1100 increment by 10 cache 1000 cycle ENGINE=MyISAM
+s1	CREATE SEQUENCE `s1` start with 100 minvalue 100 maxvalue 1100 increment by 10 cache 1000 cycle ENGINE=MyISAM
 show create sequence d.s2;
 Table	Create Table
-s2	CREATE SEQUENCE `s2` as bigint start with 200 minvalue 200 maxvalue 1200 increment by 20 cache 1000 cycle ENGINE=MyISAM
+s2	CREATE SEQUENCE `s2` start with 200 minvalue 200 maxvalue 1200 increment by 20 cache 1000 cycle ENGINE=MyISAM
 show create sequence d.s3;
 Table	Create Table
-s3	CREATE SEQUENCE `s3` as bigint start with 300 minvalue 300 maxvalue 1300 increment by 30 cache 1000 cycle ENGINE=MyISAM
+s3	CREATE SEQUENCE `s3` start with 300 minvalue 300 maxvalue 1300 increment by 30 cache 1000 cycle ENGINE=MyISAM
 show create sequence d.s4;
 Table	Create Table
-s4	CREATE SEQUENCE `s4` as bigint start with 400 minvalue 400 maxvalue 1400 increment by 40 cache 1000 cycle ENGINE=MyISAM
+s4	CREATE SEQUENCE `s4` start with 400 minvalue 400 maxvalue 1400 increment by 40 cache 1000 cycle ENGINE=MyISAM
 SELECT NEXTVAL(d.s1),NEXTVAL(d.s2),NEXTVAL(d.s3), NEXTVAL(d.s4);
 NEXTVAL(d.s1)	NEXTVAL(d.s2)	NEXTVAL(d.s3)	NEXTVAL(d.s4)
 100	200	300	400
@@ -6418,16 +6418,16 @@ SETVAL(`s4`, 1401, 0)
 # Show create after restore `--no-data`
 show create sequence d.s1;
 Table	Create Table
-s1	CREATE SEQUENCE `s1` as bigint start with 100 minvalue 100 maxvalue 1100 increment by 10 cache 1000 cycle ENGINE=MyISAM
+s1	CREATE SEQUENCE `s1` start with 100 minvalue 100 maxvalue 1100 increment by 10 cache 1000 cycle ENGINE=MyISAM
 show create sequence d.s2;
 Table	Create Table
-s2	CREATE SEQUENCE `s2` as bigint start with 200 minvalue 200 maxvalue 1200 increment by 20 cache 1000 cycle ENGINE=MyISAM
+s2	CREATE SEQUENCE `s2` start with 200 minvalue 200 maxvalue 1200 increment by 20 cache 1000 cycle ENGINE=MyISAM
 show create sequence d.s3;
 Table	Create Table
-s3	CREATE SEQUENCE `s3` as bigint start with 300 minvalue 300 maxvalue 1300 increment by 30 cache 1000 cycle ENGINE=MyISAM
+s3	CREATE SEQUENCE `s3` start with 300 minvalue 300 maxvalue 1300 increment by 30 cache 1000 cycle ENGINE=MyISAM
 show create sequence d.s4;
 Table	Create Table
-s4	CREATE SEQUENCE `s4` as bigint start with 400 minvalue 400 maxvalue 1400 increment by 40 cache 1000 cycle ENGINE=MyISAM
+s4	CREATE SEQUENCE `s4` start with 400 minvalue 400 maxvalue 1400 increment by 40 cache 1000 cycle ENGINE=MyISAM
 SELECT NEXTVAL(d.s1),NEXTVAL(d.s2),NEXTVAL(d.s3), NEXTVAL(d.s4);
 NEXTVAL(d.s1)	NEXTVAL(d.s2)	NEXTVAL(d.s3)	NEXTVAL(d.s4)
 100	200	300	400
@@ -6443,7 +6443,7 @@ SETVAL(`s4`, 1401, 0)
 1401
 show create sequence d2.s1;
 Table	Create Table
-s1	CREATE SEQUENCE `s1` as bigint start with 100 minvalue 100 maxvalue 1100 increment by 10 cache 1000 cycle ENGINE=MyISAM
+s1	CREATE SEQUENCE `s1` start with 100 minvalue 100 maxvalue 1100 increment by 10 cache 1000 cycle ENGINE=MyISAM
 drop sequence d.s1, d.s2, d.s3, d.s4;
 drop database d;
 drop database d2;
