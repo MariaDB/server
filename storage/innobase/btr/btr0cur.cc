@@ -1673,7 +1673,7 @@ dberr_t btr_cur_t::pessimistic_search_leaf(const dtuple_t *tuple,
   mtr->upgrade_buffer_fix(block_savepoint, RW_X_LATCH);
 #ifdef UNIV_ZIP_DEBUG
   const page_zip_des_t *page_zip= buf_block_get_page_zip(block);
-  ut_a(!page_zip || page_zip_validate(page_zip, page, index()));
+  ut_a(!page_zip || page_zip_validate(page_zip, block->page.frame, index()));
 #endif /* UNIV_ZIP_DEBUG */
   if (page_has_next(block->page.frame) &&
       !btr_block_get(*index(), btr_page_get_next(block->page.frame),
