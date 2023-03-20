@@ -1771,17 +1771,15 @@ Sys_max_connect_errors(
        VALID_RANGE(1, UINT_MAX), DEFAULT(MAX_CONNECT_ERRORS),
        BLOCK_SIZE(1));
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
 static Sys_var_on_access_global<Sys_var_uint,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_PASSWORD_ERRORS>
-    Sys_password_errors_before_delay("password_errors_before_delay",
-                                     "If there is more than this number of failed connect attempts "
-                                     "due to invalid password, user will be delayed from further connections as increasing delay time , until FLUSH_PRIVILEGES.",
-                                     GLOBAL_VAR(password_errors_before_delay),
-                                     CMD_LINE(REQUIRED_ARG),
-                                     VALID_RANGE(0, UINT_MAX), DEFAULT(0),
-                                     BLOCK_SIZE(1));
-#endif
+Sys_password_errors_before_delay(
+        "password_errors_before_delay",
+        "If there is more than this number of failed connect attempts "
+        "due to invalid password, user will be delayed from further "
+        "connections as increasing delay time, until FLUSH_PRIVILEGES.",
+        GLOBAL_VAR(password_errors_before_delay), CMD_LINE(REQUIRED_ARG),
+        VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));
 
 static Sys_var_on_access_global<Sys_var_uint,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_PASSWORD_ERRORS>

@@ -52,15 +52,8 @@ extern mysql_mutex_t LOCK_global_user_client_stats;
 extern mysql_mutex_t LOCK_global_table_stats;
 extern mysql_mutex_t LOCK_global_index_stats;
 extern vio_keepalive_opts opt_vio_keepalive;
-
-/* Delay user failedlogin response mutex and lock */
-PSI_mutex_key key_connection_delay_mutex = PSI_NOT_INSTRUMENTED;
-PSI_cond_key key_connection_delay_wait = PSI_NOT_INSTRUMENTED;
 PSI_stage_info stage_waiting_in_login_failed_delay= {
     0, "Waiting in delay failed login response stage", 0};;
-extern uint max_password_errors;
-extern uint password_errors_before_delay;
-
 /*
   Get structure for logging connection data for the current user
 */
@@ -262,28 +255,28 @@ void time_out_user_resource_limits(THD *thd, USER_CONN *uc)
   DBUG_VOID_RETURN;
 }
 
-static uint64 get_connection_delay_time(uint32 count)
+static uint64 get_connection_delay_time(uint32 failed_count)
 {
   /*
-   * Based on that invalid password errors will cause user can't connect server
-  ever and server close connection if it got message from client after
-  wait_timeout
-   * so,
-   step = read_timeout/(max_password_errors - password_errors_before_delay)
+  Connect_timeout is designed to limit the connect time, every single network read and
+  write is limited by it. Thus we'll say here that the maximal delay is limited by the
+  connect_timeout too, and if it takes longer - the connection times out and the user
+  cannot connect at all. This means that the delay must reach the connect_timeout
+  when the count reaches max_password_errors. so,
+   step = connect_timeout/(max_password_errors - password_errors_before_delay)
   delay = step *(failed_count  -password_errors_before_delay)
 */
-  /* Time unit for delay step is seconds, convert to milliseconds*/
-  uint64 read_timeout= global_system_variables.net_read_timeout * 1000;
-  uint64 step=
-      read_timeout / (max_password_errors - password_errors_before_delay);
+  /* Time unit for delay step is seconds, convert to nanoseconds*/
+  uint64 timeout_nano= connect_timeout * 1000 * 1000000;
+  uint64 step= timeout_nano / (max_password_errors - password_errors_before_delay);
   /* If max_password_errors is large, step is very small which
    * influence nothing, so 1 second is minim delay step */
-  step= step > 1000 ? step : 1000;
+  step= MY_MAX(step, 1000 * 1000000);
   DBUG_PRINT("info",
-             ("The step for connection delay is %d milliseconds", step));
-  uint64 delay= step * (count - password_errors_before_delay);
-  /* Max delay time is read read_timeout*/
-  return delay < read_timeout ? delay : read_timeout;
+             ("The step for connection delay is %d nanoseconds", step));
+  uint64 delay= step * (failed_count - password_errors_before_delay);
+  /* Max delay time is connect_timeout*/
+  return MY_MIN(delay, timeout_nano);
 }
 
 /**
@@ -296,8 +289,8 @@ static void condition_wait(THD* thd, uint64 time)
 {
   /** mysql_cond_timedwait requires wait time in timespec format */
   struct timespec abstime;
-  /** Since we get wait_time in milliseconds, convert it to nanoseconds */
-  set_timespec_nsec(abstime, time * 1000000);
+  /** Since we get wait_time is nanoseconds, just use it */
+  set_timespec_nsec(abstime, time);
 
   /** PSI_stage_info for thd_enter_cond/thd_exit_cond */
   PSI_stage_info old_stage;
@@ -315,7 +308,7 @@ static void condition_wait(THD* thd, uint64 time)
     timeout. If admin issues KILL statement for this THD,
     there is no point keeping this thread in sleep mode only
     to wake up to be terminated. Hence, in case of KILL,
-    we will return control to server without worring about
+    we will return control to server without worrying about
     wait_time.
   */
   mysql_cond_timedwait(p_delay_wait_condition, p_delay_mutex, &abstime);
@@ -324,14 +317,13 @@ static void condition_wait(THD* thd, uint64 time)
    * @brief Exit_cond will release mutex
    *
    */
-  thd_exit_cond(thd, &stage_waiting_in_login_failed_delay, __func__,
-                __FILE__, __LINE__);
+  THD_EXIT_COND(thd, &stage_waiting_in_login_failed_delay);
 }
 
 static int delay_response(THD *thd, const char *user, const char *hostname,
-                          uint32 count)
+                          uint32 failed_count)
 {
-  uint64 wait_time= get_connection_delay_time(count);
+  uint64 wait_time= get_connection_delay_time(failed_count);
   DBUG_PRINT("info",
              ("%s@%s wait %u milliseconds", user, hostname, wait_time));
   if (!DBUG_IF("skip_connection_delay"))
@@ -346,8 +338,8 @@ static int delay_response(THD *thd, const char *user, const char *hostname,
  *
  * @return int
  */
-int connection_delay_for_user(THD *thd,
-                                    const char * user,const char * hostname, uint failed_count)
+int connection_delay_for_user(THD *thd, const char *user, const char *hostname,
+                              uint failed_count)
 {
   DBUG_ENTER("connection_delay_for_user");
   DBUG_PRINT("info", ("%s@%s have login failed %u times", user, hostname,
