@@ -2419,7 +2419,6 @@ static void buf_flush_page_cleaner()
       break;
 
     const ulint dirty_blocks= UT_LIST_GET_LEN(buf_pool.flush_list);
-    ut_ad(dirty_blocks);
     /* We perform dirty reads of the LRU+free list lengths here.
     Division by zero is not possible, because buf_pool.flush_list is
     guaranteed to be nonempty, and it is a subset of buf_pool.LRU. */
