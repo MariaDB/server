@@ -960,6 +960,8 @@ struct rpl_group_info
     if (!is_parallel_exec)
       rli->event_relay_log_pos= future_event_relay_log_pos;
   }
+
+  bool do_gco_wait(bool *did_enter_cond, PSI_stage_info *old_stage);
 };
 
 
