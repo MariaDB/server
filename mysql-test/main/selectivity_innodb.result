@@ -2329,7 +2329,7 @@ CREATE TABLE t1 (c INT KEY) ENGINE=InnoDB;
 SELECT * FROM (SELECT * FROM t1) a JOIN (SELECT * FROM (SELECT * FROM t1 GROUP BY c) d WHERE c>1) b ON a.c=b.c;
 c	c
 DROP TABLE t1;
-SET optimizer_use_condition_selectivity=1;
+SET optimizer_use_condition_selectivity=@tmp_oucs;
 #
 # End of 11.0 tests
 #
