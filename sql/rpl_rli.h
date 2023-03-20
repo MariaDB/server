@@ -1015,6 +1015,7 @@ struct rpl_group_info
     finish_event_group_called= value;
   }
 
+  bool do_gco_wait(bool *did_enter_cond, PSI_stage_info *old_stage);
 };
 
 

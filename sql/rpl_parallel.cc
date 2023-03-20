@@ -336,15 +336,13 @@ register_wait_for_prior_event_group_commit(rpl_group_info *rgi,
   Do not start parallel execution of this event group until all prior groups
   have reached the commit phase that are not safe to run in parallel with.
 */
-static bool
-do_gco_wait(rpl_group_info *rgi, group_commit_orderer *gco,
-            bool *did_enter_cond, PSI_stage_info *old_stage)
+bool
+rpl_group_info::do_gco_wait(bool *did_enter_cond, PSI_stage_info *old_stage)
 {
-  THD *thd= rgi->thd;
-  rpl_parallel_entry *entry= rgi->parallel_entry;
+  rpl_group_info *rgi= this;
   uint64 wait_count;
 
-  mysql_mutex_assert_owner(&entry->LOCK_parallel_entry);
+  mysql_mutex_assert_owner(&parallel_entry->LOCK_parallel_entry);
 
   if (!gco->installed)
   {
@@ -357,11 +355,11 @@ do_gco_wait(rpl_group_info *rgi, group_commit_orderer *gco,
     gco->installed= true;
   }
   wait_count= gco->wait_count;
-  if (wait_count > entry->count_committing_event_groups)
+  if (wait_count > parallel_entry->count_committing_event_groups)
   {
     DEBUG_SYNC(thd, "rpl_parallel_start_waiting_for_prior");
     thd->ENTER_COND(&gco->COND_group_commit_orderer,
-                    &entry->LOCK_parallel_entry,
+                    &parallel_entry->LOCK_parallel_entry,
                     &stage_waiting_for_prior_transaction_to_start_commit,
                     old_stage);
     *did_enter_cond= true;
@@ -385,11 +383,11 @@ do_gco_wait(rpl_group_info *rgi, group_commit_orderer *gco,
         */
       }
       mysql_cond_wait(&gco->COND_group_commit_orderer,
-                      &entry->LOCK_parallel_entry);
-    } while (wait_count > entry->count_committing_event_groups);
+                      &parallel_entry->LOCK_parallel_entry);
+    } while (wait_count > parallel_entry->count_committing_event_groups);
   }
 
-  if (entry->force_abort && wait_count > entry->stop_count)
+  if (parallel_entry->force_abort && wait_count > parallel_entry->stop_count)
   {
     /*
       We are stopping (STOP SLAVE), and this event group is beyond the point
@@ -1095,7 +1093,6 @@ handle_rpl_parallel_thread(void *arg)
   bool in_event_group= false;
   bool skip_event_group= false;
   rpl_group_info *group_rgi= NULL;
-  group_commit_orderer *gco;
   uint64 event_gtid_sub_id= 0;
   rpl_sql_thread_info sql_info(NULL);
   int err;
@@ -1226,7 +1223,6 @@ handle_rpl_parallel_thread(void *arg)
       DBUG_ASSERT(qev->typ==rpl_parallel_thread::queued_event::QUEUED_EVENT);
 
       thd->rgi_slave= rgi;
-      gco= rgi->gco;
       /* Handle a new event group, which will be initiated by a GTID event. */
       if ((event_type= qev->ev->get_type_code()) == GTID_EVENT)
       {
@@ -1287,7 +1283,7 @@ handle_rpl_parallel_thread(void *arg)
         rgi->thd= thd;
 
         mysql_mutex_lock(&entry->LOCK_parallel_entry);
-        skip_event_group= do_gco_wait(rgi, gco, &did_enter_cond, &old_stage);
+        skip_event_group= rgi->do_gco_wait(&did_enter_cond, &old_stage);
 
         if (unlikely(entry->stop_on_error_sub_id <= rgi->wait_commit_sub_id))
         {
