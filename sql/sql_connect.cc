@@ -260,23 +260,18 @@ static uint64 get_connection_delay_time(uint32 failed_count)
   /*
   Connect_timeout is designed to limit the connect time, every single network read and
   write is limited by it. Thus we'll say here that the maximal delay is limited by the
-  connect_timeout too, and if it takes longer - the connection times out and the user
-  cannot connect at all. This means that the delay must reach the connect_timeout
-  when the count reaches max_password_errors. so,
-   step = connect_timeout/(max_password_errors - password_errors_before_delay)
+  connect_timeout too. As a bonus it reduces the number of degrees of freedom, independent variables to
+  configure. So,
+  step = connect_timeout/(max_password_errors - password_errors_before_delay)
   delay = step *(failed_count  -password_errors_before_delay)
 */
   /* Time unit for delay step is seconds, convert to nanoseconds*/
   uint64 timeout_nano= connect_timeout * 1000 * 1000000;
   uint64 step= timeout_nano / (max_password_errors - password_errors_before_delay);
-  /* If max_password_errors is large, step is very small which
-   * influence nothing, so 1 second is minim delay step */
-  step= MY_MAX(step, 1000 * 1000000);
   DBUG_PRINT("info",
-             ("The step for connection delay is %d nanoseconds", step));
-  uint64 delay= step * (failed_count - password_errors_before_delay);
+             ("The step for connection delay is %llu nanoseconds", step));
   /* Max delay time is connect_timeout*/
-  return MY_MIN(delay, timeout_nano);
+  return MY_MIN(step * (failed_count - password_errors_before_delay), timeout_nano);
 }
 
 /**
@@ -325,7 +320,7 @@ static int delay_response(THD *thd, const char *user, const char *hostname,
 {
   uint64 wait_time= get_connection_delay_time(failed_count);
   DBUG_PRINT("info",
-             ("%s@%s wait %u milliseconds", user, hostname, wait_time));
+             ("%s@%s wait %llu nanoseconds", user, hostname, wait_time));
   if (!DBUG_IF("skip_connection_delay"))
   {
     condition_wait(thd, wait_time);
@@ -344,8 +339,7 @@ int connection_delay_for_user(THD *thd, const char *user, const char *hostname,
   DBUG_ENTER("connection_delay_for_user");
   DBUG_PRINT("info", ("%s@%s have login failed %u times", user, hostname,
                       failed_count));
-  if (password_errors_before_delay > 0 && user &&
-      hostname &&
+  if (password_errors_before_delay > 0 &&
       failed_count > password_errors_before_delay)
   {
     delay_response(thd, user, hostname, failed_count);

@@ -10,15 +10,15 @@ CREATE USER u3 IDENTIFIED BY 'abcd';
 # Save original values of connection_delay variables
 SET @saved_connections_threshold = @@global.password_errors_before_delay;
 SET @saved_max_password_errors = @@global.max_password_errors;
-SET @saved_read_timeout=@@global.net_read_timeout;
+SET @saved_timeout=@@global.connect_timeout;
 SET @old_debug=@@global.debug_dbug;
 # Set small values for connection_delay variables
 SET @@global.password_errors_before_delay = 3;
 SET @@global.debug_dbug="+d,skip_connection_delay";
 # Current max password errors and timeout config
-select @@global.net_read_timeout,@@global.max_password_errors,@@global.password_errors_before_delay;
-@@global.net_read_timeout	@@global.max_password_errors	@@global.password_errors_before_delay
-30	4294967295	3
+select @@global.connect_timeout,@@global.max_password_errors,@@global.password_errors_before_delay;
+@@global.connect_timeout	@@global.max_password_errors	@@global.password_errors_before_delay
+60	4294967295	3
 select @@debug_dbug;
 @@debug_dbug
 d,info,skip_connection_delay:f,connection_delay_for_user
@@ -48,44 +48,47 @@ connect fail_con_u3, localhost, u3,efgh,,,,;
 # Following attempts will experience delay in server response
 connection default;
 # Connection attempt should fail.
-FOUND 1 /u1@% wait 1000 milliseconds/ in mysqld.1.err
+FOUND 1 /The step for connection delay is 13 nanoseconds/ in mysqld.1.err
+FOUND 1 /u1@% wait 13 nanoseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should fail.
-FOUND 1 /u2@% wait 1000 milliseconds/ in mysqld.1.err
+FOUND 2 /The step for connection delay is 13 nanoseconds/ in mysqld.1.err
+FOUND 1 /u2@% wait 13 nanoseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should fail.
-FOUND 1 /u3@% wait 1000 milliseconds/ in mysqld.1.err
+FOUND 3 /The step for connection delay is 13 nanoseconds/ in mysqld.1.err
+FOUND 1 /u3@% wait 13 nanoseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should succeed.
-FOUND 1 /u3@% wait 1000 milliseconds/ in mysqld.1.err
+FOUND 1 /u3@% wait \d+ nanoseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should succeed.
-FOUND 1 /u2@% wait 1000 milliseconds/ in mysqld.1.err
+FOUND 1 /u2@% wait \d+ nanoseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should succeed.
-FOUND 1 /u1@% wait 1000 milliseconds/ in mysqld.1.err
+FOUND 1 /u1@% wait \d+ nanoseconds/ in mysqld.1.err
 
 # Following attempts will not experience any delay in server response
 # Failed login after a successful login
 connection default;
 # Connection attempt should fail.
-FOUND 1 /u1@% wait 1000 milliseconds/ in mysqld.1.err
+FOUND 1 /u1@% wait \d+ nanoseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should fail.
-FOUND 1 /u2@% wait 1000 milliseconds/ in mysqld.1.err
+FOUND 1 /u2@% wait \d+ nanoseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should fail.
-FOUND 1 /u3@% wait 1000 milliseconds/ in mysqld.1.err
+FOUND 1 /u3@% wait \d+ nanoseconds/ in mysqld.1.err
 # Successful login will not get delay response
 connection default;
 # Connection attempt should succeed.
-FOUND 1 /u1@% wait 1000 milliseconds/ in mysqld.1.err
+FOUND 1 /u1@% wait \d+ nanoseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should succeed.
-FOUND 1 /u2@% wait 1000 milliseconds/ in mysqld.1.err
+FOUND 1 /u2@% wait \d+ nanoseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should succeed.
-FOUND 1 /u3@% wait 1000 milliseconds/ in mysqld.1.err
+FOUND 1 /u3@% wait \d+ nanoseconds/ in mysqld.1.err
 
 # ----------------------------------------------------------------------
 
@@ -94,8 +97,8 @@ connection default;
 # Restore original values of connection delay variables
 SET @@global.password_errors_before_delay = @saved_connections_threshold;
 SET @@global.max_password_errors = @saved_max_password_errors;
-SET @@global.net_read_timeout = @saved_read_timeout;
-SET GLOBAL DEBUG_DBUG=@old_debug;
+SET @@global.connect_timeout = @saved_timeout;
+SET @@global.debug_dbug=@old_debug;
 # Remove user accounts created for the test
 DROP USER u1;
 DROP USER u2;

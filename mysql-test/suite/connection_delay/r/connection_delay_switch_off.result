@@ -8,7 +8,7 @@ CREATE USER u1@localhost IDENTIFIED BY 'abcd';
 # Save original values of connection_delay variables
 SET @saved_connections_threshold = @@global.password_errors_before_delay;
 SET @saved_max_password_errors = @@global.max_password_errors;
-SET @saved_read_timeout=@@global.net_read_timeout;
+SET @saved_timeout=@@global.connect_timeout;
 SET @old_debug=@@global.debug_dbug;
 SET @@global.password_errors_before_delay = 3;
 SET @@global.debug_dbug="+d,skip_connection_delay";
@@ -26,15 +26,16 @@ connect fail_con_u1, localhost, u1,haha,,,,;
 # Following attempts will not experience delay in server response
 connection default;
 # Connection attempt should fail.
-FOUND 1 /u1@localhost wait 1000 milliseconds/ in mysqld.1.err
+FOUND 1 /The step for connection delay is 13 nanoseconds/ in mysqld.1.err
+FOUND 1 /u1@localhost wait 13 nanoseconds/ in mysqld.1.err
 # ---------------------Disabled connection delay
 SET @@global.password_errors_before_delay = 0;
 connection default;
 # Connection attempt should fail.
-FOUND 1 /u1@localhost wait 1000 milliseconds/ in mysqld.1.err
+FOUND 1 /u1@localhost wait \d+ nanoseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should succeed.
-FOUND 1 /u1@localhost wait 1000 milliseconds/ in mysqld.1.err
+FOUND 1 /u1@localhost wait \d+ nanoseconds/ in mysqld.1.err
 
 # ----------------------------------------------------------------------
 
@@ -43,8 +44,8 @@ connection default;
 # Restore original values of connection delay variables
 SET @@global.password_errors_before_delay = @saved_connections_threshold;
 SET @@global.max_password_errors = @saved_max_password_errors;
-SET @@global.net_read_timeout = @saved_read_timeout;
-SET GLOBAL DEBUG_DBUG=@old_debug;
+SET @@global.connect_timeout = @saved_timeout;
+SET @@global.debug_dbug=@old_debug;
 # Remove user accounts created for the test
 DROP USER u1@localhost;
 

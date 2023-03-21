@@ -12,7 +12,7 @@
 --echo # Create user accounts for testing
 CREATE USER u1@localhost IDENTIFIED BY 'abcd';
 
-let $DELAY_MIN_RESPONSE_TIME= 1000;
+let $failed_count=0;
 --source ../inc/save_variables.inc
 # We don't need to use client side authentication plugin for this test.
 let $USE_AUTH_PLUGIN= 0;
@@ -43,37 +43,33 @@ enable_result_log;
 
 --echo
 --echo # Following attempts will not experience delay in server response
-
+let $failed_count=3;
 let $HOST=localhost;
 
 # Trying with invalid passwords
-
+inc $failed_count;
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-
---source ../inc/check_connection_delay.inc
-
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
---source ../inc/check_response_delay_time.inc
+--source ../inc/client_connection.inc
+--source ../inc/check_delay.inc
 
 --echo # ---------------------Disabled connection delay
 SET @@global.password_errors_before_delay = 0;
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
---source ../inc/check_connection_delay.inc
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
---source ../inc/check_response_delay_time.inc
+inc $failed_count;
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
 
 # Trying with valid passwords
+let $failed_count=0;
 let $USER=u1;
 let $PASSWORD=abcd;
 let $SUCCESS=1;
---source ../inc/check_connection_delay.inc
-
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
---source ../inc/check_response_delay_time.inc
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
 
 
 --echo

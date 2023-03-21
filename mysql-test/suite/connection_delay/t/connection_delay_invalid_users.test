@@ -16,58 +16,50 @@
 
 --echo # Set small values for connection_delay variables
 SET @@global.password_errors_before_delay = 3;
+let $failed_count=0;
 --source ../inc/skip_connection_delay.inc
 # We don't need to use client side authentication plugin for this test.
 let $USE_AUTH_PLUGIN= 0;
 let $HOST=localhost;
-let $DELAY_MIN_RESPONSE_TIME= 1000;
 --echo
 --echo # ----------------------------------------------------------------------
 --echo
 
 --echo # Following attempts will not experience any delay in server response
-
+inc $failed_count;
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
 
---source ../inc/check_connection_delay.inc
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
 
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
---source ../inc/check_response_delay_time.inc
-
-
+inc $failed_count;
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
---source ../inc/check_connection_delay.inc
-
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
---source ../inc/check_response_delay_time.inc
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
 
 
-
+inc $failed_count;
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
---source ../inc/check_connection_delay.inc
-
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
---source ../inc/check_response_delay_time.inc
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
 
 
 
 --echo
 --echo # Following attempts will not experience delay in server response too, because not found matched acl user
-
+inc $failed_count;
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
 
---source ../inc/check_connection_delay.inc
-
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
---source ../inc/check_response_delay_time.inc
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
 
 
 --echo

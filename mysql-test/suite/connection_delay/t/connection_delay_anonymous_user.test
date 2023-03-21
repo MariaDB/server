@@ -15,10 +15,9 @@
 CREATE USER ''@'localhost';
 --source ../inc/save_variables.inc
 --source ../inc/skip_connection_delay.inc
-let $DELAY_MIN_RESPONSE_TIME= 1000;
+let $failed_count=0;
 -- echo # Set small values for connection_delay variables
 SET @@global.password_errors_before_delay = 3;
-
 
 # We don't need to use client side authentication plugin for this test.
 let $USE_AUTH_PLUGIN= 0;
@@ -32,54 +31,42 @@ let $HOST=localhost;
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
---source ../inc/check_connection_delay.inc
-
+--source ../inc/client_connection.inc
 
 let $USER=u2;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
---source ../inc/check_connection_delay.inc
+--source ../inc/client_connection.inc
 
 let $USER=u3;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
---source ../inc/check_connection_delay.inc
+--source ../inc/client_connection.inc
 
 let $failed_count=3;
 --echo
 --echo # Following attempts will experience delay in server response
 
---let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
-
-
+inc $failed_count;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
+let $USER=u1;
+--source ../inc/client_connection.inc
+--source ../inc/check_delay_with_no_user.inc
 
---source ../inc/check_connection_delay.inc
 inc $failed_count;
-let $SERVER_RESPONSE_TIME= `SELECT FLOOR(($failed_count-@@global.password_errors_before_delay)*$DELAY_MIN_RESPONSE_TIME)`;
---let SEARCH_PATTERN=@$HOST wait $SERVER_RESPONSE_TIME milliseconds
---source include/search_pattern_in_file.inc
-
 let $USER=u2;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
---source ../inc/check_connection_delay.inc
+--source ../inc/client_connection.inc
+--source ../inc/check_delay_with_no_user.inc
+
 inc $failed_count;
-let $SERVER_RESPONSE_TIME= `SELECT FLOOR(($failed_count-@@global.password_errors_before_delay)*$DELAY_MIN_RESPONSE_TIME)`;
---let SEARCH_PATTERN=@$HOST wait $SERVER_RESPONSE_TIME milliseconds
---source include/search_pattern_in_file.inc
-
-
-
 let $USER=u3;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
---source ../inc/check_connection_delay.inc
-inc $failed_count;
-let $SERVER_RESPONSE_TIME= `SELECT FLOOR(($failed_count-@@global.password_errors_before_delay)*$DELAY_MIN_RESPONSE_TIME)`;
---let SEARCH_PATTERN=@$HOST wait $SERVER_RESPONSE_TIME milliseconds
---source include/search_pattern_in_file.inc
+--source ../inc/client_connection.inc
+--source ../inc/check_delay_with_no_user.inc
 
 --echo
 --echo # ----------------------------------------------------------------------

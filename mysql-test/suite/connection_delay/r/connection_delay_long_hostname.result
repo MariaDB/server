@@ -2,7 +2,7 @@
 # Save original values of connection_delay variables
 SET @saved_connections_threshold = @@global.password_errors_before_delay;
 SET @saved_max_password_errors = @@global.max_password_errors;
-SET @saved_read_timeout=@@global.net_read_timeout;
+SET @saved_timeout=@@global.connect_timeout;
 SET @old_debug=@@global.debug_dbug;
 SET @@global.debug_dbug="+d,skip_connection_delay";
 SET @@global.password_errors_before_delay = 3;
@@ -24,5 +24,5 @@ DROP USER u1;
 # Restore original values of connection delay variables
 SET @@global.password_errors_before_delay = @saved_connections_threshold;
 SET @@global.max_password_errors = @saved_max_password_errors;
-SET @@global.net_read_timeout = @saved_read_timeout;
-SET GLOBAL DEBUG_DBUG=@old_debug;
+SET @@global.connect_timeout = @saved_timeout;
+SET @@global.debug_dbug=@old_debug;

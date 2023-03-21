@@ -15,6 +15,7 @@ CREATE USER u2 IDENTIFIED BY 'abcd';
 CREATE USER u3 IDENTIFIED BY 'abcd';
 
 --echo # Declare config variables
+let $failed_count=0;
 let $timeout=30;
 let $max_password_errors=4294967295;
 let $password_errors_before_delay=3;
@@ -23,12 +24,11 @@ let $password_errors_before_delay=3;
 --echo # Set failed attempts to 3
 eval SET @@global.password_errors_before_delay = $password_errors_before_delay;
 --echo # Current max password errors and timeout config
-SELECT @@global.net_read_timeout,@@global.max_password_errors,@@global.password_errors_before_delay;
+SELECT @@global.connect_timeout,@@global.max_password_errors,@@global.password_errors_before_delay;
 SELECT @@debug_dbug;
 
 # We don't need to use client side authentication plugin for this test.
 let $USE_AUTH_PLUGIN= 0;
-
 
 --echo
 --echo # ----------------------------------------------------------------------
@@ -37,7 +37,6 @@ let $USE_AUTH_PLUGIN= 0;
 --echo # Make enough failed attempts to trigger delays
 
 disable_result_log;
-
 
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
@@ -53,93 +52,91 @@ connect(fail_con_u1, localhost, u1,haha,,,,);
 
 enable_result_log;
 
-let failed_count=3;
+let $failed_count=3;
 
 #-- echo # --------------Set timeout and max_password_errors to default value-----------------
-eval SET @@global.net_read_timeout=DEFAULT;
+eval SET @@global.connect_timeout=DEFAULT;
 eval SET @@global.max_password_errors=DEFAULT;
-
+inc $failed_count;
 let $HOST=%;
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
---source ../inc/check_connection_delay.inc
+--source ../inc/client_connection.inc
 --source ../inc/check_delay.inc
 
+inc $failed_count;
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
---source ../inc/check_connection_delay.inc
+--source ../inc/client_connection.inc
 --source ../inc/check_delay.inc
 
-
-
+inc $failed_count;
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
---source ../inc/check_connection_delay.inc
+--source ../inc/client_connection.inc
 --source ../inc/check_delay.inc
-
 
 -- echo # --------------Set timeout to default and max_password_errors to 100-----------------
 let $max_password_errors=100;
-eval SET @@global.net_read_timeout=DEFAULT;
+eval SET @@global.connect_timeout=DEFAULT;
 eval SET @@global.max_password_errors=$max_password_errors;
+
+inc $failed_count;
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
---source ../inc/check_connection_delay.inc
+--source ../inc/client_connection.inc
 --source ../inc/check_delay.inc
 
-
+inc $failed_count;
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
---source ../inc/check_connection_delay.inc
+--source ../inc/client_connection.inc
 --source ../inc/check_delay.inc
-
-
 
 -- echo # --------------Set timeout to 24h and max_password_errors to 100-----------------
 let $timeout=86400;
 let $max_password_errors=100;
-eval SET @@global.net_read_timeout=$timeout;
+eval SET @@global.connect_timeout=$timeout;
 eval SET @@global.max_password_errors=$max_password_errors;
+
+inc $failed_count;
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
---source ../inc/check_connection_delay.inc
+--source ../inc/client_connection.inc
 --source ../inc/check_delay.inc
 
-
-
+inc $failed_count;
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
---source ../inc/check_connection_delay.inc
+--source ../inc/client_connection.inc
 --source ../inc/check_delay.inc
-
 
 -- echo # --------------Set  timeout  to 60 second and max_password_errors to 100-----------------
 let $timeout=60;
 let $max_password_errors=100;
-eval SET @@global.net_read_timeout=$timeout;
+eval SET @@global.connect_timeout=$timeout;
 eval SET @@global.max_password_errors=$max_password_errors;
+
+inc $failed_count;
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
---source ../inc/check_connection_delay.inc
+--source ../inc/client_connection.inc
 --source ../inc/check_delay.inc
 
-
-
+inc $failed_count;
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
---source ../inc/check_connection_delay.inc
+--source ../inc/client_connection.inc
 --source ../inc/check_delay.inc
-
-
 
 --echo #-----------------------Reach max password errors , server reject connection
 eval SET @@global.max_password_errors=$failed_count;
@@ -159,7 +156,6 @@ connection default;
 DROP USER u1;
 DROP USER u2;
 DROP USER u3;
-
 
 # Wait till all disconnects are completed.
 --source include/wait_until_count_sessions.inc

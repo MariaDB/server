@@ -16,6 +16,7 @@ CREATE USER u3@localhost IDENTIFIED WITH cleartext_plugin_server AS 'abcd';
 
 # Set a small values for connection_delay variables
 SET @@global.password_errors_before_delay = 3;
+let $failed_count=0;
 --source ../inc/skip_connection_delay.inc
 # We will use client side authentication plugin for this test.
 let $USE_AUTH_PLUGIN= 1;
@@ -61,7 +62,7 @@ connect(fail_con_u2, localhost, u2,haha,,,,);
 
 
 enable_result_log;
-
+let $failed_count=3;
 let $HOST=localhost;
 let $DELAY_MIN_RESPONSE_TIME= 1000;
 
@@ -69,61 +70,50 @@ let $DELAY_MIN_RESPONSE_TIME= 1000;
 --echo
 --echo # u1@localhost will not experience delay in server response , because auth plugin for u1  return code is plugin error
 # Trying with invalid passwords
-
+inc $failed_count;
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
 
---source ../inc/check_connection_delay.inc
-
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
---source ../inc/check_response_delay_time.inc
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
 
 --echo # Following attempts will experience delay in server response, because auth plugin for u2 and u3 return code is bad credentials
 let $USER=u2;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
---source ../inc/check_connection_delay.inc
-
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
---source ../inc/check_response_delay_time.inc
+--source ../inc/client_connection.inc
+--source ../inc/check_delay.inc
 
 
 
 let $USER=u3;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
---source ../inc/check_connection_delay.inc
-
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
---source ../inc/check_response_delay_time.inc
+--source ../inc/client_connection.inc
+--source ../inc/check_delay.inc
 
 --echo #---------------------------Trying with valid passwords--------------------------------
+let $failed_count=0;
 let $USER=u3;
 let $PASSWORD=abcd;
 let $SUCCESS=1;
---source ../inc/check_connection_delay.inc
-
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
---source ../inc/check_response_delay_time.inc
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
 
 
 let $USER=u2;
 let $PASSWORD=abcd;
 let $SUCCESS=1;
---source ../inc/check_connection_delay.inc
-
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
---source ../inc/check_response_delay_time.inc
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
 
 
 let $USER=u1;
 let $PASSWORD=u1;
 let $SUCCESS=1;
---source ../inc/check_connection_delay.inc
-
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
---source ../inc/check_response_delay_time.inc
+--source ../inc/client_connection.inc
+--source ../inc/check_no_delay.inc
 
 
 

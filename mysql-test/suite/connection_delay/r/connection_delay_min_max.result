@@ -8,7 +8,7 @@ CREATE USER u1 IDENTIFIED BY 'abcd';
 # Save original values of connection_delay variables
 SET @saved_connections_threshold = @@global.password_errors_before_delay;
 SET @saved_max_password_errors = @@global.max_password_errors;
-SET @saved_read_timeout=@@global.net_read_timeout;
+SET @saved_timeout=@@global.connect_timeout;
 SET @old_debug=@@global.debug_dbug;
 SET @@global.debug_dbug="+d,skip_connection_delay";
 # Set max values for max_password_errors
@@ -21,20 +21,25 @@ connect(localhost,u1,haha,test,MASTER_PORT,MASTER_SOCKET);
 connect fail_con_u1, localhost, u1,haha,,,,;
 connect(localhost,u1,haha,test,MASTER_PORT,MASTER_SOCKET);
 connect fail_con_u1, localhost, u1,haha,,,,;
+NOT FOUND /The step for connection delay is 30 nanoseconds/ in mysqld.1.err
+NOT FOUND /u1@% wait 30 nanoseconds/ in mysqld.1.err
 
 # Following attempts will experience delay in server response
 connect(localhost,u1,haha,test,MASTER_PORT,MASTER_SOCKET);
 connect fail_con_u1, localhost, u1,haha,,,,;
 ERROR 28000: Access denied for user 'u1'@'localhost' (using password: YES)
-FOUND 1 /u1@% wait 1000 milliseconds/ in mysqld.1.err
+FOUND 1 /The step for connection delay is 30 nanoseconds/ in mysqld.1.err
+NOT FOUND /u1@% wait 60 nanoseconds/ in mysqld.1.err
 connect(localhost,u1,haha,test,MASTER_PORT,MASTER_SOCKET);
 connect fail_con_u1, localhost, u1,haha,,,,;
 ERROR 28000: Access denied for user 'u1'@'localhost' (using password: YES)
-FOUND 1 /u1@% wait 2000 milliseconds/ in mysqld.1.err
+FOUND 2 /The step for connection delay is 30 nanoseconds/ in mysqld.1.err
+NOT FOUND /u1@% wait 90 nanoseconds/ in mysqld.1.err
 connect(localhost,u1,haha,test,MASTER_PORT,MASTER_SOCKET);
 connect fail_con_u1, localhost, u1,haha,,,,;
 ERROR 28000: Access denied for user 'u1'@'localhost' (using password: YES)
-FOUND 1 /u1@% wait 3000 milliseconds/ in mysqld.1.err
+FOUND 3 /The step for connection delay is 30 nanoseconds/ in mysqld.1.err
+NOT FOUND /u1@% wait 120 nanoseconds/ in mysqld.1.err
 FLUSH PRIVILEGES;
 # Set small values for max_password_errors
 SET @@global.password_errors_before_delay = 3;
@@ -54,15 +59,18 @@ connect fail_con_u1, localhost, u1,haha,,,,;
 connect(localhost,u1,haha,test,MASTER_PORT,MASTER_SOCKET);
 connect fail_con_u1, localhost, u1,haha,,,,;
 ERROR 28000: Access denied for user 'u1'@'localhost' (using password: YES)
-FOUND 4 /u1@% wait \d+ milliseconds/ in mysqld.1.err
+FOUND 1 /The step for connection delay is 20000000000 nanoseconds/ in mysqld.1.err
+FOUND 1 /u1@% wait 20000000000 nanoseconds/ in mysqld.1.err
 connect(localhost,u1,haha,test,MASTER_PORT,MASTER_SOCKET);
 connect fail_con_u1, localhost, u1,haha,,,,;
 ERROR 28000: Access denied for user 'u1'@'localhost' (using password: YES)
-FOUND 5 /u1@% wait \d+ milliseconds/ in mysqld.1.err
+FOUND 2 /The step for connection delay is 20000000000 nanoseconds/ in mysqld.1.err
+FOUND 1 /u1@% wait 40000000000 nanoseconds/ in mysqld.1.err
 connect(localhost,u1,haha,test,MASTER_PORT,MASTER_SOCKET);
 connect fail_con_u1, localhost, u1,haha,,,,;
 ERROR 28000: Access denied for user 'u1'@'localhost' (using password: YES)
-FOUND 6 /u1@% wait \d+ milliseconds/ in mysqld.1.err
+FOUND 3 /The step for connection delay is 20000000000 nanoseconds/ in mysqld.1.err
+FOUND 1 /u1@% wait 60000000000 nanoseconds/ in mysqld.1.err
 #Failed login reach max password errors, this login would reject directly
 connect(localhost,u1,haha,test,MASTER_PORT,MASTER_SOCKET);
 connect fail_con_u1, localhost, u1,haha,,,,;
@@ -75,8 +83,8 @@ connection default;
 # Restore original values of connection delay variables
 SET @@global.password_errors_before_delay = @saved_connections_threshold;
 SET @@global.max_password_errors = @saved_max_password_errors;
-SET @@global.net_read_timeout = @saved_read_timeout;
-SET GLOBAL DEBUG_DBUG=@old_debug;
+SET @@global.connect_timeout = @saved_timeout;
+SET @@global.debug_dbug=@old_debug;
 # Remove user account created for the test
 DROP USER u1;
 
