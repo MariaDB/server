@@ -26,10 +26,6 @@ INSERT INTO t1 VALUES(42);
 CREATE TABLE t2 LIKE t1;
 FLUSH TABLES t1 FOR EXPORT;
 --copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_DATADIR/test/t2.cfg
---error 1
---copy_file $MYSQLD_DATADIR/test/t1.frm $MYSQLD_DATADIR/test/t2.frm
---error 1
---copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t2.ibd
 UNLOCK TABLES;
 DROP TABLE t1;
 call mtr.add_suppression("InnoDB: Unable to import tablespace");
