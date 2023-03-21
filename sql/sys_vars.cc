@@ -5218,7 +5218,7 @@ static Sys_var_mybool Sys_slave_ordered_thread(
        "slave_ordered_thread",
        "Per-domain dedicated thread on slave for processing ordered events",
        GLOBAL_VAR(opt_slave_ordered_thread),
-       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
 
 static Sys_var_mybool Sys_slave_ordered_dont_wait(
        "slave_ordered_dont_wait",
