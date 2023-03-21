@@ -685,7 +685,8 @@ struct FetchIndexRootPages : public AbstractCallback {
 	/** Constructor
 	@param trx covering (user) transaction
 	@param table table definition in server .*/
-	FetchIndexRootPages(const dict_table_t* table, trx_t* trx)
+	FetchIndexRootPages(const dict_table_t* table = nullptr,
+			    trx_t* trx = nullptr)
 		:
 		AbstractCallback(trx, UINT32_MAX),
 		m_table(table), m_index(0, 0) UNIV_NOTHROW { }
@@ -700,17 +701,45 @@ struct FetchIndexRootPages : public AbstractCallback {
 	dberr_t run(const fil_iterator_t& iter,
 		    buf_block_t* block) UNIV_NOTHROW override;
 
-	/** Called for each block as it is read from the file.
+	/** Check that fsp flags and row formats match.
 	@param block block to convert, it is not from the buffer pool.
 	@retval DB_SUCCESS or error code. */
 	dberr_t operator()(buf_block_t* block) UNIV_NOTHROW override;
+
+	/** Get row format from the header and the root index page. */
+	enum row_type get_row_format(const buf_block_t &block)
+	{
+		if (!page_is_comp(block.page.frame))
+			return ROW_TYPE_REDUNDANT;
+		/* With full_crc32 we cannot tell between dynamic or
+		compact, and return not_used. We cannot simply return
+		dynamic or compact, as the client of this function
+		will not be able to tell whether it is dynamic because
+		of this or the other branch below. Returning default
+		would also work if it is immediately handled, but is
+		still more ambiguous than not_used, which is not a
+		row_format at all. */
+		if (fil_space_t::full_crc32(m_space_flags))
+			return ROW_TYPE_NOT_USED;
+		if (!(m_space_flags & FSP_FLAGS_MASK_ATOMIC_BLOBS))
+			return ROW_TYPE_COMPACT;
+		if (FSP_FLAGS_GET_ZIP_SSIZE(m_space_flags))
+			return ROW_TYPE_COMPRESSED;
+		return ROW_TYPE_DYNAMIC;
+	}
 
 	/** Update the import configuration that will be used to import
 	the tablespace. */
 	dberr_t build_row_import(row_import* cfg) const UNIV_NOTHROW;
 
-	/** Table definition in server. */
+	/** Table definition in server. When the table is being
+	created, there's no table yet so m_table is nullptr */
 	const dict_table_t*	m_table;
+
+	/** Table row format. Only used when a (stub) table is being
+	created in which case m_table is null, for obtaining row
+	format from the .ibd for the stub table. */
+	enum row_type m_row_format;
 
 	/** Index information */
 	Index			m_index;
@@ -3338,6 +3367,35 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
 }
 
 /**
+Read the contents of a .cfg file.
+@param[in]  filename  Path to the cfg file
+@param[in]  thd       Connection
+@param[out] cfg   Contents of the .cfg file.
+@return DB_SUCCESS or error code. */
+static dberr_t row_import_read_cfg_internal(const char *filename, THD *thd,
+                                            row_import &cfg)
+{
+  FILE *file= fopen(filename, "rb");
+
+  cfg.m_missing= !file;
+
+  if (!file)
+  {
+    char msg[BUFSIZ];
+    snprintf(msg, sizeof(msg),
+             "Error opening '%s', will attempt to import"
+             " without schema verification", filename);
+    ib_senderrf(thd, IB_LOG_LEVEL_WARN, ER_IO_READ_ERROR,
+                (ulong) errno, strerror(errno), msg);
+    return DB_FAIL;
+  }
+
+  dberr_t err= row_import_read_meta_data(file, thd, cfg);
+  fclose(file);
+  return err;
+}
+
+/**
 Read the contents of the <tablename>.cfg file.
 @return DB_SUCCESS or error code. */
 static	MY_ATTRIBUTE((nonnull, warn_unused_result))
@@ -3348,38 +3406,60 @@ row_import_read_cfg(
 	THD*		thd,	/*!< in: session */
 	row_import&	cfg)	/*!< out: contents of the .cfg file */
 {
-	dberr_t		err;
 	char		name[OS_FILE_MAX_PATH];
 
 	cfg.m_table = table;
 
 	srv_get_meta_data_filename(table, name, sizeof(name));
 
-	FILE*	file = fopen(name, "rb");
+	return row_import_read_cfg_internal(name, thd, cfg);
+}
 
-	if (file == NULL) {
-		char	msg[BUFSIZ];
 
-		snprintf(msg, sizeof(msg),
-			 "Error opening '%s', will attempt to import"
-			 " without schema verification", name);
+/** Convert the InnoDB ROW_FORMAT from rec_format_enum to row_type.
+@param[in]  from  ROW_FORMAT as a rec_format_enum
+@return the row_type representation of ROW_FORMAT. */
+static enum row_type from_rec_format(const rec_format_enum from)
+{
+  switch (from) {
+  case REC_FORMAT_COMPACT:
+    return ROW_TYPE_COMPACT;
+  case REC_FORMAT_DYNAMIC:
+    return ROW_TYPE_DYNAMIC;
+  case REC_FORMAT_REDUNDANT:
+    return ROW_TYPE_REDUNDANT;
+  case REC_FORMAT_COMPRESSED:
+    return ROW_TYPE_COMPRESSED;
+  }
 
-		ib_senderrf(
-			thd, IB_LOG_LEVEL_WARN, ER_IO_READ_ERROR,
-			(ulong) errno, strerror(errno), msg);
+  ut_ad("invalid format" == 0);
+  return ROW_TYPE_NOT_USED;
+}
 
-		cfg.m_missing = true;
-
-		err = DB_FAIL;
-	} else {
-
-		cfg.m_missing = false;
-
-		err = row_import_read_meta_data(file, thd, cfg);
-		fclose(file);
-	}
-
-	return(err);
+/**
+Read the row type from a .cfg file.
+@param  dir_path  Path to the data directory containing the .cfg file
+@param  name      Name of the table
+@param  thd       Connection
+@retval ROW_TYPE_COMPACT    for ROW_FORMAT=COMPACT
+@retval ROW_TYPE_DYNAMIC    for ROW_FORMAT=DYNAMIC
+@retval ROW_TYPE_REDUNDANT  for ROW_FORMAT=REDUNDANT
+@retval ROW_TYPE_COMPRESSED for ROW_FORMAT=COMPRESSED
+@retval ROW_TYPE_NOT_USED to signal error */
+static enum row_type get_row_type_from_cfg(const char* dir_path,
+                                           const char* name, THD* thd)
+{
+  char* filename= fil_make_filepath(dir_path,
+                                    table_name_t(const_cast<char*>(name)),
+                                    CFG, dir_path != nullptr);
+  if (!filename)
+    return ROW_TYPE_NOT_USED;
+  row_import cfg;
+  dberr_t err= row_import_read_cfg_internal(filename, thd, cfg);
+  ut_free(filename);
+  if (err == DB_SUCCESS)
+    return from_rec_format(dict_tf_get_rec_format(cfg.m_flags));
+  return ROW_TYPE_NOT_USED;
 }
 
 /** Update the root page numbers and tablespace ID of a table.
@@ -3719,7 +3799,12 @@ page_corrupted:
            && buf_page_is_corrupted(false, readptr, m_space_flags))
     goto page_corrupted;
 
-  err= this->operator()(block);
+  /* m_table is null iff we are trying to create a (stub) table, in
+  which case we want to get row format for the table creation. */
+  if (m_table)
+    err= this->operator()(block);
+  else
+    m_row_format= get_row_format(*block);
 func_exit:
   free(page_compress_buf);
   return err;
@@ -4041,19 +4126,21 @@ func_exit:
 	return err;
 }
 
-/********************************************************************//**
-Iterate over all the pages in the tablespace.
-@param table - the table definiton in the server
-@param n_io_buffers - number of blocks to read and write together
-@param callback - functor that will do the page updates
+/**
+Iterate over all or some pages in the tablespace.
+@param dir_path      the path to data dir storing the tablespace
+@param name          the table name
+@param n_io_buffers  number of blocks to read and write together
+@param callback      functor that will do the page queries or updates
 @return	DB_SUCCESS or error code */
 static
 dberr_t
 fil_tablespace_iterate(
 /*===================*/
-	dict_table_t*		table,
-	ulint			n_io_buffers,
-	AbstractCallback&	callback)
+	const char *name,
+	ulint n_io_buffers,
+	AbstractCallback &callback,
+	const char *dir_path)
 {
 	dberr_t		err;
 	pfs_os_file_t	file;
@@ -4065,18 +4152,9 @@ fil_tablespace_iterate(
 	DBUG_EXECUTE_IF("ib_import_trigger_corruption_1",
 			return(DB_CORRUPTION););
 
-	/* Make sure the data_dir_path is set. */
-	dict_get_and_save_data_dir_path(table);
-
-	ut_ad(!DICT_TF_HAS_DATA_DIR(table->flags) || table->data_dir_path);
-
-	const char *data_dir_path = DICT_TF_HAS_DATA_DIR(table->flags)
-		? table->data_dir_path : nullptr;
-
-	filepath = fil_make_filepath(data_dir_path,
-				     {table->name.m_name,
-				      strlen(table->name.m_name)},
-				     IBD, data_dir_path != nullptr);
+	table_name_t table_name(const_cast<char*>(name));
+	filepath= fil_make_filepath(dir_path, table_name, IBD,
+				    dir_path != nullptr);
 	if (!filepath) {
 		return(DB_OUT_OF_MEMORY);
 	} else {
@@ -4089,9 +4167,9 @@ fil_tablespace_iterate(
 		if (!success) {
 			/* The following call prints an error message */
 			os_file_get_last_error(true);
-			ib::error() << "Trying to import a tablespace,"
-				" but could not open the tablespace file "
-				    << filepath;
+			sql_print_error("InnoDB: could not open the "
+					"tablespace file %s.\n",
+					filepath);
 			ut_free(filepath);
 			return DB_TABLESPACE_NOT_FOUND;
 		} else {
@@ -4201,6 +4279,24 @@ fil_tablespace_iterate(
 	ut_free(block);
 
 	return(err);
+}
+
+/**
+Iterate over all or some pages in the tablespace.
+@param table         the table definiton in the server
+@param n_io_buffers  number of blocks to read and write together
+@param callback      functor that will do the page queries or updates
+@return DB_SUCCESS or error code */
+static dberr_t fil_tablespace_iterate(dict_table_t *table, ulint n_io_buffers,
+                                      AbstractCallback &callback)
+{
+  /* Make sure the data_dir_path is set. */
+  dict_get_and_save_data_dir_path(table);
+  ut_ad(!DICT_TF_HAS_DATA_DIR(table->flags) || table->data_dir_path);
+  const char *data_dir_path= DICT_TF_HAS_DATA_DIR(table->flags)
+    ? table->data_dir_path : nullptr;
+  return fil_tablespace_iterate(table->name.m_name, n_io_buffers, callback,
+                                data_dir_path);
 }
 
 /*****************************************************************//**
@@ -4535,4 +4631,59 @@ row_import_for_mysql(
 	}
 
 	return row_import_cleanup(prebuilt, err);
+}
+
+/** Prepare the create info to create a new stub table for import.
+@param thd          Connection
+@param name         Table name, format: "db/table_name".
+@param create_info  The create info for creating a stub.
+@return ER_ error code
+@retval 0 on success */
+int prepare_create_stub_for_import(THD *thd, const char *name,
+                                   HA_CREATE_INFO& create_info)
+{
+  DBUG_ENTER("prepare_create_stub_for_import");
+  FetchIndexRootPages fetchIndexRootPages;
+  if (fil_tablespace_iterate(name, IO_BUFFER_SIZE(srv_page_size),
+                             fetchIndexRootPages, fil_path_to_mysql_datadir)
+      != DB_SUCCESS)
+  {
+    const char *ibd_path= fil_make_filepath(
+      fil_path_to_mysql_datadir, table_name_t(const_cast<char*>(name)), IBD,
+      true);
+    if (!ibd_path)
+      return(ER_ENGINE_OUT_OF_MEMORY);
+    sql_print_error("InnoDB: failed to get row format from %s.\n",
+                    ibd_path);
+    DBUG_RETURN(ER_INNODB_IMPORT_ERROR);
+  }
+  create_info.init();
+  /* get the row format from ibd. */
+  create_info.row_type= fetchIndexRootPages.m_row_format;
+  /* if .cfg exists, get the row format from cfg, and compare with
+  ibd, report error if different, except when cfg reports
+  compact/dynamic and ibd reports not_used (indicating either compact
+  or dynamic but not sure) */
+  const enum row_type row_type_from_cfg=
+    get_row_type_from_cfg(fil_path_to_mysql_datadir, name, thd);
+  if (row_type_from_cfg != ROW_TYPE_NOT_USED)
+  {
+    /* if ibd reports not_used but cfg reports compact or dynamic, go
+    with cfg. */
+    if (create_info.row_type != row_type_from_cfg &&
+        !((row_type_from_cfg == ROW_TYPE_COMPACT ||
+           row_type_from_cfg == ROW_TYPE_DYNAMIC) &&
+          create_info.row_type == ROW_TYPE_NOT_USED))
+    {
+      sql_print_error(
+        "InnoDB: cfg and ibd disagree on row format for table %s.\n",
+        name);
+      DBUG_RETURN(ER_INNODB_IMPORT_ERROR);
+    }
+    else
+      create_info.row_type= row_type_from_cfg;
+  }
+  else if (create_info.row_type == ROW_TYPE_NOT_USED)
+    create_info.row_type= ROW_TYPE_DYNAMIC;
+  DBUG_RETURN(0);
 }
