@@ -830,7 +830,7 @@ The following specify which files/extra groups are read (specified before remain
  --password-errors-before-delay=# 
  If there is more than this number of failed connect
  attempts due to invalid password, user will be delayed
- from further connections as increasing delay time , until
+ from further connections as increasing delay time, until
  FLUSH_PRIVILEGES.
  --performance-schema 
  Enable the performance schema.
