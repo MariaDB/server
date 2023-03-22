@@ -1149,6 +1149,9 @@ xa end 'xid';
 xa commit 'xid' one phase;
 
 # Cleanup
+--connection con1
+--reap
+--connection default
 drop table t;
 set debug_sync= reset;
 
@@ -1325,6 +1328,28 @@ drop table t;
 set debug_sync= reset;
 set debug_dbug= @old_debug;
 --connection default
+
+--echo #
+--echo # MDEV-30902 Server crash in LEX::first_lists_tables_same
+--echo #
+create table t1 engine=myisam select 1 as x ;
+create procedure p() alter table t1 engine=heap;
+
+set debug_sync= 'alter_table_copy_end signal ended wait_for end';
+send call p;
+
+--connection con1
+set debug_sync= 'now wait_for ended';
+insert into t1 values (2);
+set debug_sync= 'now signal end';
+
+--connection default
+--reap
+call p;
+
+drop table t1;
+drop procedure p;
+set debug_sync=reset;
 
 --echo #
 --echo # End of 10.10 tests

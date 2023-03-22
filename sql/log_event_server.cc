@@ -5219,8 +5219,13 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     goto err;
   }
 
-  /* remove trigger's tables */
-  restore_empty_query_table_list(thd->lex);
+  /*
+    Remove trigger's tables. In case of ONLINE ALTER TABLE, event doesn't own
+    the table (hence, no tables are locked), and therefore no cleanup should be
+    done after each event.
+  */
+  if (rgi->tables_to_lock_count)
+    restore_empty_query_table_list(thd->lex);
 
   if (WSREP(thd) && wsrep_thd_is_applying(thd))
     query_cache_invalidate_locked_for_write(thd, rgi->tables_to_lock);
@@ -5239,9 +5244,11 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
   DBUG_RETURN(error);
 
 err:
-  restore_empty_query_table_list(thd->lex);
   if (rgi->tables_to_lock_count)
+  {
+    restore_empty_query_table_list(thd->lex);
     rgi->slave_close_thread_tables(thd);
+  }
   thd->reset_query_timer();
   DBUG_RETURN(error);
 }
