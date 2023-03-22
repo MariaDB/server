@@ -4210,6 +4210,52 @@ out_of_space:
 	return(false);
 }
 
+/** Check if a ROW_FORMAT=COMPRESSED page can be updated in place
+@param cur     cursor pointing to ROW_FORMAT=COMPRESSED page
+@param offsets rec_get_offsets(btr_cur_get_rec(cur))
+@param update  index fields being updated
+@param mtr     mini-transaction
+@return the record in the ROW_FORMAT=COMPRESSED page
+@retval nullptr if the page cannot be updated in place */
+ATTRIBUTE_COLD static
+rec_t *btr_cur_update_in_place_zip_check(btr_cur_t *cur, rec_offs *offsets,
+                                         const upd_t& update, mtr_t *mtr)
+{
+  dict_index_t *index= cur->index;
+  ut_ad(!index->table->is_temporary());
+
+  switch (update.n_fields) {
+  case 0:
+    /* We are only changing the delete-mark flag. */
+    break;
+  case 1:
+    if (!index->is_clust() ||
+        update.fields[0].field_no != index->db_roll_ptr())
+      goto check_for_overflow;
+    /* We are only changing the delete-mark flag and DB_ROLL_PTR. */
+    break;
+  case 2:
+    if (!index->is_clust() ||
+        update.fields[0].field_no != index->db_trx_id() ||
+        update.fields[1].field_no != index->db_roll_ptr())
+      goto check_for_overflow;
+    /* We are only changing DB_TRX_ID, DB_ROLL_PTR, and the delete-mark.
+    They can be updated in place in the uncompressed part of the
+    ROW_FORMAT=COMPRESSED page. */
+    break;
+  check_for_overflow:
+  default:
+    if (!btr_cur_update_alloc_zip(btr_cur_get_page_zip(cur),
+                                  btr_cur_get_page_cur(cur),
+				  index,
+                                  offsets, rec_offs_size(offsets),
+                                  false, mtr))
+      return nullptr;
+  }
+
+  return btr_cur_get_rec(cur);
+}
+
 /*************************************************************//**
 Updates a record when the update causes no size changes in its fields.
 We assume here that the ordering fields of the record do not change.
@@ -4271,17 +4317,10 @@ btr_cur_update_in_place(
 	page_zip = buf_block_get_page_zip(block);
 
 	/* Check that enough space is available on the compressed page. */
-	if (page_zip) {
-		ut_ad(!index->table->is_temporary());
-
-		if (!btr_cur_update_alloc_zip(
-			    page_zip, btr_cur_get_page_cur(cursor),
-			    index, offsets, rec_offs_size(offsets),
-			    false, mtr)) {
-			return(DB_ZIP_OVERFLOW);
-		}
-
-		rec = btr_cur_get_rec(cursor);
+	if (UNIV_LIKELY_NULL(page_zip)
+	    && !(rec = btr_cur_update_in_place_zip_check(
+			 cursor, offsets, *update, mtr))) {
+		return DB_ZIP_OVERFLOW;
 	}
 
 	/* Do lock checking and undo logging */
@@ -5034,7 +5073,13 @@ btr_cur_pessimistic_update(
 
 		ut_ad(page_is_leaf(page));
 		ut_ad(dict_index_is_clust(index));
-		ut_ad(flags & BTR_KEEP_POS_FLAG);
+		if (UNIV_UNLIKELY(!(flags & BTR_KEEP_POS_FLAG))) {
+			ut_ad(page_zip != NULL);
+			dtuple_convert_back_big_rec(index, new_entry,
+						    big_rec_vec);
+			big_rec_vec = NULL;
+			n_ext = dtuple_get_n_ext(new_entry);
+		}
 	}
 
 	/* Do lock checking and undo logging */

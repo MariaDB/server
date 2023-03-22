@@ -692,9 +692,42 @@ row_upd_rec_in_place(
 				  dfield_get_len(new_val));
 	}
 
-	if (page_zip) {
-		page_zip_write_rec(page_zip, rec, index, offsets, 0);
+	if (UNIV_LIKELY(!page_zip)) {
+		return;
 	}
+
+	switch (update->n_fields) {
+	case 0:
+		/* We only changed the delete-mark flag. */
+	update_del_mark:
+		page_zip_rec_set_deleted(page_zip, rec,
+					 rec_get_deleted_flag(rec, true));
+		return;
+	case 1:
+		if (!index->is_clust()
+		    || update->fields[0].field_no != index->db_roll_ptr()) {
+			break;
+		}
+		goto update_sys;
+	case 2:
+		if (!index->is_clust()
+		    || update->fields[0].field_no != index->db_trx_id()
+		    || update->fields[1].field_no != index->db_roll_ptr()) {
+			break;
+		}
+	update_sys:
+		ulint len;
+		const byte* sys = rec_get_nth_field(rec, offsets,
+						    index->db_trx_id(), &len);
+		ut_ad(len == DATA_TRX_ID_LEN);
+		page_zip_write_trx_id_and_roll_ptr(
+			page_zip, rec, offsets, index->db_trx_id(),
+			trx_read_trx_id(sys),
+			trx_read_roll_ptr(sys + DATA_TRX_ID_LEN));
+		goto update_del_mark;
+	}
+
+	page_zip_write_rec(page_zip, rec, index, offsets, 0);
 }
 
 /*********************************************************************//**
