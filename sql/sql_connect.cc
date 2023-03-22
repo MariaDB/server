@@ -57,6 +57,7 @@ PSI_stage_info stage_waiting_in_login_failed_delay= {
 /*
   Get structure for logging connection data for the current user
 */
+
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 static HASH hash_user_connections;
 
