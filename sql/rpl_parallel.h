@@ -294,11 +294,17 @@ struct rpl_parallel_entry {
   rpl_parallel_thread **rpl_threads;
   uint32 rpl_thread_max;
   uint32 rpl_thread_idx;
+  bool ordered_thread;
   bool was_ordered;
 
   uint32 last_idx() const
   {
     return was_ordered ? rpl_thread_max - 1 : rpl_thread_idx;
+  }
+
+  uint32 parallel_threads() const
+  {
+    return opt_slave_ordered_thread ? rpl_thread_max - 1 : rpl_thread_max;
   }
 
   /*
@@ -356,8 +362,7 @@ struct rpl_parallel_entry {
 
   rpl_parallel_thread * choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
                                       PSI_stage_info *old_stage,
-                                      Gtid_log_event *gtid_ev,
-                                      bool ordered_thread);
+                                      Gtid_log_event *gtid_ev);
   int queue_master_restart(rpl_group_info *rgi,
                            Format_description_log_event *fdev);
 };

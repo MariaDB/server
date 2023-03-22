@@ -2127,8 +2127,7 @@ rpl_parallel_thread_pool::release_thread(rpl_parallel_thread *rpt)
 rpl_parallel_thread *
 rpl_parallel_entry::choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
                                   PSI_stage_info *old_stage,
-                                  Gtid_log_event *gtid_ev,
-                                  bool ordered_thread)
+                                  Gtid_log_event *gtid_ev)
 {
   uint32 idx;
   Relay_log_info *rli= rgi->rli;
@@ -2136,15 +2135,7 @@ rpl_parallel_entry::choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
 
   if (gtid_ev)
   {
-    if (!opt_slave_ordered_thread)
-    {
-      idx= rpl_thread_idx;
-      ++idx;
-      if (idx >= rpl_thread_max)
-        idx= 0;
-      rpl_thread_idx= idx;
-    }
-    else if (ordered_thread)
+    if (ordered_thread)
     {
       idx= rpl_thread_max - 1;
       was_ordered= true;
@@ -2154,7 +2145,7 @@ rpl_parallel_entry::choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
       was_ordered= false;
       idx= rpl_thread_idx;
       ++idx;
-      if (idx >= rpl_thread_max - 1)
+      if (idx >= parallel_threads())
         idx= 0;
       rpl_thread_idx= idx;
     }
@@ -2312,6 +2303,8 @@ rpl_parallel::find(uint32 domain_id)
   }
   else
     e->force_abort= false;
+
+  e->ordered_thread= false;
 
   return e;
 }
@@ -2606,7 +2599,6 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
   uchar gtid_flags;
   group_commit_orderer *gco;
   bool new_gco= true;
-  bool ordered_thread= false;
   uint8 force_switch_flag= 0;
 
 
@@ -2828,7 +2820,8 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
             speculation= rpl_group_info::SPECULATE_OPTIMISTIC;
           else
             speculation= rpl_group_info::SPECULATE_WAIT;
-          ordered_thread= true;
+          if (opt_slave_ordered_thread)
+            e->ordered_thread= true;
         }
         else
           speculation= rpl_group_info::SPECULATE_OPTIMISTIC;
@@ -2851,8 +2844,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
     instead re-use a thread that we queued for previously.
   */
   cur_thread=
-    e->choose_thread(serial_rgi, &did_enter_cond, &old_stage,
-                     gtid_ev, ordered_thread);
+    e->choose_thread(serial_rgi, &did_enter_cond, &old_stage, gtid_ev);
   if (!cur_thread)
   {
     /* This means we were killed. The error is already signalled. */
