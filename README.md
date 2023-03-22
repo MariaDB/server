@@ -18,27 +18,25 @@ deb-src https://mirror.its.dal.ca/mariadb/repo/11.0/ubuntu jammy main
 deb https://mirror.its.dal.ca/mariadb/repo/11.0/ubuntu jammy main/debug
 ```
 
+Install dependencies:
+```
+sudo apt-get install software-properties-common \
+      devscripts \
+      equivs \
+      curl \
+      git
+sudo apt-get build-dep mariadb-server
+```
+
 Import the repository key and update apt. You should not get any error from the mariadb repository server:
 
 ```
 sudo curl -o /etc/apt/trusted.gpg.d/mariadb_release_signing_key.asc 'https://mariadb.org/mariadb_release_signing_key.asc'
 sudo apt-get update
-```
-if Error Recieved: "sudo: curl command not found" then first run this command
 
 ```
-sudo apt install curl
-```
 
-and import repository key again using above curl command.
 
-Install dependencies:
-```
-sudo apt-get install software-properties-common \
-      devscripts \
-      equivs
-sudo apt-get build-dep mariadb-server
-```
 
 ## Build
 
