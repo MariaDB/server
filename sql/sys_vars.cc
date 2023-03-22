@@ -1774,8 +1774,7 @@ Sys_max_connect_errors(
 static bool check_password_errors_before_delay(sys_var *self, THD *thd,
                                                set_var *var)
 {
-  //TODO DEFAULT
-  if (var->value->val_int() > max_password_errors)
+  if (var->value && var->value->val_int() > max_password_errors)
   {
     return true;
   }
