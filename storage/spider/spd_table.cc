@@ -7157,8 +7157,11 @@ int spider_get_sts(
   if (need_to_get)
   {
     if (get_type == 0)
+      /* Copy table status from share to share->wide_share */
       spider_copy_sts_to_share(share, share->wide_share);
     else {
+      /* Executes a `show table status` query and store the results in
+      share->stat */
       error_num = spider_db_show_table_status(spider, link_idx, sts_mode, flag);
     }
   }

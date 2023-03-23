@@ -991,6 +991,16 @@ void spider_store_xa_member_info(
   DBUG_VOID_RETURN;
 }
 
+/**
+  Store the DB and table names in a table.
+
+  If `name` starts with "./", separate out db and table names from
+  `name`. Otherwise store empty strings as names.
+
+  @param table        The table to store the info
+  @param name         The name of the table
+  @param name_length  The length of the name
+*/
 void spider_store_tables_name(
   TABLE *table,
   const char *name,
@@ -1455,6 +1465,12 @@ void spider_store_binlog_pos_gtid(
   DBUG_VOID_RETURN;
 }
 
+/**
+   Store sts info in the spider sts table.
+
+   Stores all fields except the db name and table name, which are
+   stored in `spider_store_tables_name()`.
+*/
 void spider_store_table_sts_info(
   TABLE *table,
   ha_statistics *stat
@@ -1607,6 +1623,18 @@ int spider_insert_sys_table(
   DBUG_RETURN(error_num);
 }
 
+/**
+  Inserts or updates a row in the spider sts system table
+
+  @param table       The spider sts system table
+  @param name        The name of the spider table whose stat will be
+                     inserted / updated in the sts table
+  @param name_length Length of the name
+  @param stat        The stat of the spider table that will be
+                     inserted / updated in the sts table
+
+  @retval 0 or error
+*/
 int spider_insert_or_update_table_sts(
   TABLE *table,
   const char *name,
@@ -2728,6 +2756,14 @@ int spider_get_sys_tables_static_link_id(
   DBUG_RETURN(error_num);
 }
 
+/**
+  Reads the table status from the system sts table
+
+  The result is set into `stat`
+
+  @param table  The system sts table
+  @param stat   The stat to read the table status into
+*/
 void spider_get_sys_table_sts_info(
   TABLE *table,
   ha_statistics *stat
@@ -3226,6 +3262,16 @@ int spider_get_link_statuses(
   DBUG_RETURN(0);
 }
 
+/**
+  Insert or update status of a table into the system sts table
+
+  @param thd          Connection
+  @param name         Name of the table whose status will be stored
+  @param name_length  Length of `name`
+  @param stat         The table status that will be stored into the
+                      system sts table
+  @param need_lock    Unused (fixme)
+*/
 int spider_sys_insert_or_update_table_sts(
   THD *thd,
   const char *name,
@@ -3368,6 +3414,15 @@ error:
   DBUG_RETURN(error_num);
 }
 
+/**
+  Read table status of a table from the system sts table.
+
+  @param thd          Connection
+  @param name         The name of the table for which to read status of
+  @param name_length  The length `name`
+  @param stat         The struct to read the status into
+  @param need_lock    Unused (fixme)
+*/
 int spider_sys_get_table_sts(
   THD *thd,
   const char *name,
