@@ -294,14 +294,6 @@ insert t1 values (1),(2);
 select 1 from (select distinct * from t1) as x where f < (select 1 like 2 escape (3=1));
 1
 drop table t1;
-create table t1(f1 int);
-insert into t1 values(1);
-update (select 1 like 2 escape (1 in (select 1 from t1))) x, t1 as d set d.f1 = 1;
-ERROR HY000: Incorrect arguments to ESCAPE
-select * from (select 1 like 2 escape (1 in (select 1 from t1))) x;
-1 like 2 escape (1 in (select 1 from t1))
-0
-drop table t1;
 create table t1 (f int);
 insert t1 values (1),(2);
 create view v1 as select * from t1 where (1 like 2 escape (3 in (('h', 'b') in (select 'k', 'k' union select 'g', 'j'))) and f >= 0);

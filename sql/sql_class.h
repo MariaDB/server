@@ -3420,6 +3420,7 @@ public:
     changed or written.
   */
   ulonglong accessed_rows_and_keys;
+  ulonglong accessed_rows_and_keys_at_exec_start;
 
   /**
     Check if the number of rows accessed by a statement exceeded
@@ -3427,7 +3428,8 @@ public:
   */
   inline void check_limit_rows_examined()
   {
-    if (++accessed_rows_and_keys > lex->limit_rows_examined_cnt)
+    if ((++accessed_rows_and_keys - accessed_rows_and_keys_at_exec_start) >
+        lex->limit_rows_examined_cnt)
       set_killed(ABORT_QUERY);
   }
 

@@ -33,6 +33,8 @@
 #include "records.h"                          /* READ_RECORD */
 #include "opt_range.h"                /* SQL_SELECT, QUICK_SELECT_I */
 #include "filesort.h"
+#include "sql_base.h"
+#include "sql_cmd.h"
 
 typedef struct st_join_table JOIN_TAB;
 /* Values in optimize */
@@ -2629,4 +2631,39 @@ void propagate_new_equalities(THD *thd, Item *cond,
                               bool *is_simplifiable_cond);
 
 bool dbug_user_var_equals_str(THD *thd, const char *name, const char *value);
+
+
+class Sql_cmd_select : public Sql_cmd_dml
+{
+public:
+  explicit Sql_cmd_select(select_result *result_arg)
+    : Sql_cmd_dml(), save_protocol(NULL)
+  { result= result_arg; }
+
+  enum_sql_command sql_command_code() const override
+  {
+    return SQLCOM_SELECT;
+  }
+
+  DML_prelocking_strategy *get_dml_prelocking_strategy()
+  {
+    return &dml_prelocking_strategy;
+  }
+
+protected:
+
+  bool precheck(THD *thd) override;
+
+  bool prepare_inner(THD *thd) override;
+
+  bool execute_inner(THD *thd) override;
+
+private:
+  /* The prelocking strategy used when opening the used tables */
+  DML_prelocking_strategy dml_prelocking_strategy;
+
+  Protocol *save_protocol;
+};
+
+
 #endif /* SQL_SELECT_INCLUDED */

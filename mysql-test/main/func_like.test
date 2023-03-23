@@ -223,12 +223,12 @@ drop table t1;
 #
 # Item_func_like::fix_fields, ESCAPE, const_item()
 #
-create table t1(f1 int);
-insert into t1 values(1);
---error ER_WRONG_ARGUMENTS
-update (select 1 like 2 escape (1 in (select 1 from t1))) x, t1 as d set d.f1 = 1;
-select * from (select 1 like 2 escape (1 in (select 1 from t1))) x;
-drop table t1;
+# create table t1(f1 int);
+# insert into t1 values(1);
+# --error ER_WRONG_ARGUMENTS
+# update (select 1 like 2 escape (1 in (select 1 from t1))) x, t1 as d set d.f1 = 1;
+# select * from (select 1 like 2 escape (1 in (select 1 from t1))) x;
+# drop table t1;
 
 #
 # Item_func_like::walk

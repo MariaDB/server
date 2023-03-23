@@ -42,6 +42,8 @@
 #endif
 #include "sql_update.h"                        // class Sql_cmd_update
 #include "sql_delete.h"                        // class Sql_cmd_delete
+#include "sql_insert.h"                        // class Sql_cmd_insert
+
 
 void LEX::parse_error(uint err_number)
 {
@@ -10357,13 +10359,19 @@ SELECT_LEX *LEX::parsed_subselect(SELECT_LEX_UNIT *unit)
 
 bool LEX::parsed_insert_select(SELECT_LEX *first_select)
 {
+  bool is_insert_or_replace= false;
+  bool is_replace= false;
   if (sql_command == SQLCOM_INSERT ||
       sql_command == SQLCOM_REPLACE)
   {
+    is_insert_or_replace= true;
     if (sql_command == SQLCOM_INSERT)
       sql_command= SQLCOM_INSERT_SELECT;
     else
+    {
+      is_replace= true;
       sql_command= SQLCOM_REPLACE_SELECT;
+    }
   }
   insert_select_hack(first_select);
   if (check_main_unit_semantics())
@@ -10373,6 +10381,23 @@ bool LEX::parsed_insert_select(SELECT_LEX *first_select)
   SELECT_LEX *blt __attribute__((unused))= pop_select();
   DBUG_ASSERT(blt == &builtin_select);
   push_select(first_select);
+
+  if (is_insert_or_replace)
+  {
+    if (sql_command == SQLCOM_INSERT || sql_command == SQLCOM_REPLACE)
+    {
+      if (!(m_sql_cmd= new (thd->mem_root) Sql_cmd_insert_values(is_replace,
+                                                                 duplicates)))
+        return true;
+    }
+    else
+    {
+      if (!(m_sql_cmd= new (thd->mem_root) Sql_cmd_insert_select(is_replace,
+                                                                 duplicates)))
+        return true;
+    }
+  }
+
   return false;
 }
 
@@ -10454,6 +10479,8 @@ bool LEX::select_finalize(st_select_lex_unit *expr)
 {
   sql_command= SQLCOM_SELECT;
   selects_allow_procedure= TRUE;
+  if (!(m_sql_cmd= new (thd->mem_root) Sql_cmd_select(result)))
+    return true;
   if (set_main_unit(expr))
     return true;
   return check_main_unit_semantics();
@@ -11932,4 +11959,28 @@ bool SELECT_LEX_UNIT::is_derived_eliminated() const
   if (!derived->table)
     return true;
   return derived->table->map & outer_select()->join->eliminated_tables;
+}
+
+bool SELECT_LEX_UNIT::executed_at_prepare_phase()
+{
+  for (SELECT_LEX *sl= first_select(); sl; sl= sl->next_select())
+  {
+    if (!sl->executed_at_prepare_phase())
+      return false;
+  }
+  return true;
+}
+
+bool SELECT_LEX::executed_at_prepare_phase()
+{
+  if (table_list.elements || is_correlated)
+    return false;
+  for (st_select_lex_unit *unit= first_inner_unit();
+       unit;
+       unit= unit->next_unit())
+  {
+    if (!unit->executed_at_prepare_phase())
+      return false;
+  }
+  return true;
 }

@@ -62,6 +62,7 @@ select load_file(concat(@tmpdir,"/outfile-test.4"));
 #
 
 CREATE TABLE t1 (a INT);
+--error ER_OPTION_PREVENTS_STATEMENT
 EXPLAIN
   SELECT *
   INTO OUTFILE '/tmp/t1.txt'

@@ -91,11 +91,11 @@ root[root] @ localhost []	>> create definer=testuser@localhost view v1 as select
 root[root] @ localhost []	test.t2 : read
 root[root] @ localhost []	test.t2 : read
 root[root] @ localhost []	>> select * from v1
-root[root] @ localhost []	test.t2 : read
-root[root] @ localhost []	test.t2 : read
 root[root] @ localhost []	mysql.table_stats : read
 root[root] @ localhost []	mysql.column_stats : read
 root[root] @ localhost []	mysql.index_stats : read
+root[root] @ localhost []	test.t2 : read
+root[root] @ localhost []	test.t2 : read
 root[root] @ localhost []	>> drop view v1
 root[root] @ localhost []	>> create temporary table t2 (a date)
 root[root] @ localhost []	>> insert t2 values ('2020-10-09')

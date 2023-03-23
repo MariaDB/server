@@ -192,7 +192,7 @@ Variable_name	Value
 Qcache_hits	7
 show status like "Qcache_not_cached";
 Variable_name	Value
-Qcache_not_cached	4
+Qcache_not_cached	3
 connect  user4,localhost,mysqltest_1,,*NO-ONE*,$MASTER_MYPORT,$MASTER_MYSOCK;
 connection user4;
 select "user4";
@@ -225,7 +225,7 @@ Variable_name	Value
 Qcache_hits	8
 show status like "Qcache_not_cached";
 Variable_name	Value
-Qcache_not_cached	5
+Qcache_not_cached	4
 connection root;
 disconnect root;
 connection root2;

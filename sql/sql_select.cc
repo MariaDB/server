@@ -55,6 +55,9 @@
 #include "sql_cte.h"
 #include "sql_window.h"
 #include "tztime.h"
+#ifdef WITH_WSREP
+#include "wsrep_mysqld.h"
+#endif
 
 #include "debug_sync.h"          // DEBUG_SYNC
 #include <m_ctype.h>
@@ -4989,21 +4992,22 @@ void JOIN::cleanup_item_list(List<Item> &items) const
           0  otherwise
 */
 
-select_handler *find_select_handler(THD *thd,
-                                    SELECT_LEX* select_lex)
+select_handler *SELECT_LEX::find_select_handler(THD *thd)
 {
-  if (select_lex->next_select())
+  if (next_select())
     return 0;
-  if (select_lex->master_unit()->outer_select())
+  if (master_unit()->outer_select())
     return 0;
 
   TABLE_LIST *tbl= nullptr;
-  // For SQLCOM_INSERT_SELECT the server takes TABLE_LIST
-  // from thd->lex->query_tables and skips its first table
-  // b/c it is the target table for the INSERT..SELECT.
+  /*
+    For SQLCOM_INSERT_SELECT the server takes TABLE_LIST
+    from thd->lex->query_tables and skips its first table
+    b/c it is the target table for the INSERT..SELECT.
+  */
   if (thd->lex->sql_command != SQLCOM_INSERT_SELECT)
   {
-    tbl= select_lex->join->tables_list;
+    tbl= join->tables_list;
   }
   else if (thd->lex->query_tables &&
            thd->lex->query_tables->next_global)
@@ -5020,7 +5024,7 @@ select_handler *find_select_handler(THD *thd,
     handlerton *ht= tbl->table->file->partition_ht();
     if (!ht->create_select)
       continue;
-    select_handler *sh= ht->create_select(thd, select_lex);
+    select_handler *sh= ht->create_select(thd, this);
     return sh;
   }
   return 0;
@@ -5136,7 +5140,7 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
 
   thd->get_stmt_da()->reset_current_row_for_warning(1);
   /* Look for a table owned by an engine with the select_handler interface */
-  select_lex->pushdown_select= find_select_handler(thd, select_lex);
+  select_lex->pushdown_select= select_lex->find_select_handler(thd);
 
   if ((err= join->optimize()))
   {
@@ -12720,7 +12724,8 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
         (select thats very heavy) => is a constant here
         eg: (select avg(order_cost) from orders) => constant but expensive
       */
-      if (!keyuse->val->used_tables() && !thd->lex->describe)
+      if (keyuse->val->const_item() && !keyuse->val->is_expensive() &&
+          !thd->lex->describe)
       {					// Compare against constant
         store_key_item tmp(thd,
                            keyinfo->key_part[i].field,
@@ -32348,6 +32353,9 @@ static void MYSQL_DML_START(THD *thd)
 {
   switch (thd->lex->sql_command) {
 
+  case SQLCOM_SELECT:
+    MYSQL_INSERT_START(thd->query());
+    break;
   case SQLCOM_UPDATE:
     MYSQL_UPDATE_START(thd->query());
     break;
@@ -32370,6 +32378,9 @@ static void MYSQL_DML_DONE(THD *thd, int rc)
 {
   switch (thd->lex->sql_command) {
 
+  case SQLCOM_SELECT:
+    MYSQL_SELECT_DONE(rc, (rc ? 0 : (ulong) (thd->limit_found_rows)));
+    break;
   case SQLCOM_UPDATE:
     MYSQL_UPDATE_DONE(
     rc,
@@ -32437,8 +32448,6 @@ bool Sql_cmd_dml::prepare(THD *thd)
 
   MYSQL_DML_START(thd);
 
-  lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_DERIVED;
-
   if (open_tables_for_query(thd, lex->query_tables, &table_count, 0,
                             get_dml_prelocking_strategy()))
   {
@@ -32450,8 +32459,6 @@ bool Sql_cmd_dml::prepare(THD *thd)
 
   if (prepare_inner(thd))
     goto err;
-
-  lex->context_analysis_only&= ~CONTEXT_ANALYSIS_ONLY_DERIVED;
 
   set_prepared();
   unit->set_prepared();
@@ -32528,6 +32535,7 @@ bool Sql_cmd_dml::execute(THD *thd)
   {
     if (lock_tables(thd, lex->query_tables, table_count, 0))
       goto err;
+    query_cache_store_query(thd, thd->lex->query_tables);
   }
 
   unit->set_limit(select_lex);
@@ -32581,8 +32589,266 @@ err:
 bool Sql_cmd_dml::execute_inner(THD *thd)
 {
   SELECT_LEX_UNIT *unit = &lex->unit;
-  SELECT_LEX *select_lex= unit->first_select();
-  JOIN *join= select_lex->join;
+  DBUG_ENTER("Sql_cmd_dml::execute_inner");
+
+  if (unit->is_unit_op() || unit->fake_select_lex)
+  {
+    if (unit->exec())
+      DBUG_RETURN(true);
+  }
+#if 1
+  else
+  {
+    SELECT_LEX *select_lex= unit->first_select();
+    if (select_lex->exec(thd))
+      DBUG_RETURN(true);
+  }
+#endif
+
+  DBUG_RETURN(false);
+}
+
+
+bool Sql_cmd_select::precheck(THD *thd)
+{
+  bool rc= false;
+
+  privilege_t privileges_requested= SELECT_ACL;
+
+  if (lex->exchange)
+  {
+    /*
+      lex->exchange != NULL implies SELECT .. INTO OUTFILE and this
+      requires FILE_ACL access.
+    */
+    privileges_requested|= FILE_ACL;
+  }
+
+  TABLE_LIST *tables = thd->lex->query_tables;
+
+  if (tables)
+    rc= check_table_access(thd, privileges_requested,
+                           tables, false, UINT_MAX, false);
+  else
+    rc= check_access(thd, privileges_requested,
+                     any_db.str, NULL, NULL, false, false);
+
+#ifdef WITH_WSREP
+  if (lex->sql_command == SQLCOM_SELECT)
+  {
+    WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_READ);
+  }
+  else
+  {
+    WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
+# ifdef ENABLED_PROFILING
+    if (lex->sql_command == SQLCOM_SHOW_PROFILE)
+      thd->profiling.discard_current_query();
+# endif
+  }
+#endif /* WITH_WSREP */
+
+  if (!rc)
+    return false;
+
+#ifdef WITH_WSREP
+wsrep_error_label:
+#endif
+  return true;
+}
+
+
+
+bool Sql_cmd_select::prepare_inner(THD *thd)
+{
+  bool rc= false;
+  LEX *lex= thd->lex;
+  TABLE_LIST *tables= lex->query_tables;
+  SELECT_LEX_UNIT *const unit = &lex->unit;
+
+  DBUG_ENTER("Sql_cmd_select::prepare_inner");
+
+  if (!thd->stmt_arena->is_stmt_prepare())
+  (void) read_statistics_for_tables_if_needed(thd, tables);
+
+  {
+    if (mysql_handle_derived(lex, DT_INIT))
+      DBUG_RETURN(TRUE);
+  }
+
+  if (thd->stmt_arena->is_stmt_prepare())
+  {
+    if (!result)
+    {
+      Query_arena backup;
+      Query_arena *arena= thd->activate_stmt_arena_if_needed(&backup);
+      result= new (thd->mem_root) select_send(thd);
+      if (arena)
+        thd->restore_active_arena(arena, &backup);
+      thd->lex->result= result;
+    }
+    rc= unit->prepare(unit->derived, 0, 0);
+
+  }
+  else
+  {
+    if (lex->analyze_stmt)
+    {
+      if (result && result->result_interceptor())
+        result->result_interceptor()->disable_my_ok_calls();
+      else
+      {
+        DBUG_ASSERT(thd->protocol);
+        result= new (thd->mem_root) select_send_analyze(thd);
+        save_protocol= thd->protocol;
+        thd->protocol= new Protocol_discard(thd);
+      }
+    }
+    else if (!(result= lex->result))
+      result= new (thd->mem_root) select_send(thd);
+    if (!result)
+      DBUG_RETURN(TRUE);
+
+    SELECT_LEX *parameters = unit->global_parameters();
+    if (!parameters->limit_params.explicit_limit)
+    {
+      parameters->limit_params.select_limit =
+        new (thd->mem_root) Item_int(thd,
+                                     (ulonglong) thd->variables.select_limit);
+      if (parameters->limit_params.select_limit == NULL)
+        DBUG_RETURN(true); /* purecov: inspected */
+    }
+    ulonglong select_options= 0;
+    if (lex->describe)
+      select_options|= SELECT_DESCRIBE;
+    if (unit->is_unit_op() || unit->fake_select_lex)
+      select_options|= SELECT_NO_UNLOCK;
+    rc= unit->prepare(unit->derived, result, select_options);
+
+    if (rc && thd->lex->analyze_stmt && save_protocol)
+    {
+      delete thd->protocol;
+      thd->protocol= save_protocol;
+    }
+  }
+
+  DBUG_RETURN(rc);
+}
+
+
+bool Sql_cmd_select::execute_inner(THD *thd)
+{
+  DBUG_ENTER("Sql_cmd_select::execute_inner");
+
+  thd->status_var.last_query_cost= 0.0;
+
+  bool res= Sql_cmd_dml::execute_inner(thd);
+
+  res|= thd->is_error();
+  if (unlikely(res))
+    result->abort_result_set();
+
+  if (result != thd->lex->result)
+  {
+    delete result;
+    result= 0;
+  }
+
+  if (lex->analyze_stmt)
+  {
+    if (save_protocol)
+    {
+      delete thd->protocol;
+      thd->protocol= save_protocol;
+    }
+    if (!res)
+      res= thd->lex->explain->send_explain(thd);
+  }
+
+  if (thd->lex->describe)
+  {
+    if (!res)
+      res= thd->lex->explain->send_explain(thd);
+
+    if (!res && (thd->lex->describe & DESCRIBE_EXTENDED))
+    {
+      char buff[1024];
+      String str(buff,(uint32) sizeof(buff), system_charset_info);
+      str.length(0);
+      /*
+        The warnings system requires input in utf8, @see
+        mysqld_show_warnings().
+      */
+      lex->unit.print(&str, QT_EXPLAIN_EXTENDED);
+      push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
+                   ER_YES, str.c_ptr_safe());
+    }
+  }
+
+  if (unlikely(thd->killed == ABORT_QUERY && !thd->no_errors))
+  {
+    /*
+      If LIMIT ROWS EXAMINED interrupted query execution, issue a warning,
+      continue with normal processing and produce an incomplete query result.
+    */
+    bool saved_abort_on_warning= thd->abort_on_warning;
+    thd->abort_on_warning= false;
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT,
+                        ER_THD(thd, ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT),
+                        thd->accessed_rows_and_keys -
+                        thd->accessed_rows_and_keys_at_exec_start,
+                        thd->lex->limit_rows_examined->val_uint());
+    thd->abort_on_warning= saved_abort_on_warning;
+    thd->reset_killed();
+  }
+  /* Disable LIMIT ROWS EXAMINED after query execution. */
+  thd->lex->limit_rows_examined_cnt= ULONGLONG_MAX;
+
+  /* Count number of empty select queries */
+  if (!thd->get_sent_row_count() && !res)
+    status_var_increment(thd->status_var.empty_queries);
+  else
+    status_var_add(thd->status_var.rows_sent, thd->get_sent_row_count());
+
+  DBUG_RETURN(res);
+}
+
+
+bool st_select_lex::prepare(THD *thd, select_result *result)
+{
+  ulonglong select_options= options | thd->variables.option_bits;
+
+  DBUG_ENTER("st_select_lex::prepare");
+
+  if (thd->lex->describe)
+    select_options|= SELECT_DESCRIBE;
+
+  if (!(join= new (thd->mem_root) JOIN(thd, item_list,
+                                       select_options, result)))
+    DBUG_RETURN(true);
+
+  SELECT_LEX_UNIT *unit= master_unit();
+
+  thd->lex->used_tables=0;
+
+  if (join->prepare(table_list.first, where,
+                    order_list.elements + group_list.elements,
+                    order_list.first, false, group_list.first,
+                    having, thd->lex->proc_list.first,
+                    this, unit))
+    DBUG_RETURN(true);
+
+  DBUG_RETURN(false);
+}
+
+
+bool st_select_lex::exec(THD *thd)
+{
+  DBUG_ENTER("st_select_lex::exec");
+
+  /* Look for a table owned by an engine with the select_handler interface */
+  pushdown_select= find_select_handler(thd);
 
   if (join->optimize())
     goto err;
@@ -32596,19 +32862,29 @@ bool Sql_cmd_dml::execute_inner(THD *thd)
   if (unlikely(thd->is_error()))
     goto err;
 
+  thd->get_stmt_da()->reset_current_row_for_warning(1);
+
+  if (master_unit()->outer_select() == NULL)
+    thd->accessed_rows_and_keys_at_exec_start= thd->accessed_rows_and_keys;
+
   if (join->exec())
     goto err;
 
   if (thd->lex->describe & DESCRIBE_EXTENDED)
   {
-    select_lex->where= join->conds_history;
-    select_lex->having= join->having_history;
+    where= join->conds_history;
+    having= join->having_history;
   }
 
 err:
-  return join->error;
-}
+  if (pushdown_select)
+  {
+    delete pushdown_select;
+    pushdown_select= NULL;
+  }
 
+  DBUG_RETURN(join->error);
+}
 
 /**
   @} (end of group Query_Optimizer)
