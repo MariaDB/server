@@ -803,6 +803,7 @@ SPIDER_DB_ROW *spider_db_mbase_result::fetch_row_from_tmp_table(
   DBUG_RETURN((SPIDER_DB_ROW *) &row);
 }
 
+/* Fetches table status into `stat` */
 int spider_db_mbase_result::fetch_table_status(
   int mode,
   ha_statistics &stat
@@ -13445,6 +13446,9 @@ int spider_mbase_handler::sts_mode_exchange(
   DBUG_RETURN(sts_mode);
 }
 
+/**
+  Executes show table status query and stores results in share->stat
+*/
 int spider_mbase_handler::show_table_status(
   int link_idx,
   int sts_mode,
@@ -13475,7 +13479,7 @@ int spider_mbase_handler::show_table_status(
       share);
     if (
       (error_num = spider_db_set_names(spider, conn, link_idx)) ||
-      (
+      ( /* Executes the `show table status` query */
         spider_db_query(
           conn,
           mysql_share->show_table_status[0 + pos].ptr(),
@@ -13588,6 +13592,7 @@ int spider_mbase_handler::show_table_status(
     conn->mta_conn_mutex_unlock_later = FALSE;
     SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
     pthread_mutex_unlock(&conn->mta_conn_mutex);
+    /* Fetches query results into share->stat. */
     error_num = res->fetch_table_status(
       sts_mode,
       share->stat
