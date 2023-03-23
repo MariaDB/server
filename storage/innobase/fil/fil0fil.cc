@@ -2115,7 +2115,9 @@ func_exit:
 	the first server startup. The tables ought to be dropped by
 	drop_garbage_tables_after_restore() a little later. */
 
-	const bool strict = validate && !tablespaces_found
+	const bool strict = srv_operation != SRV_OPERATION_EXPORT_RESTORED
+		&& srv_operation != SRV_OPERATION_RESTORE_EXPORT
+		&& validate && !tablespaces_found
 		&& !(srv_operation == SRV_OPERATION_NORMAL
 		     && srv_start_after_restore
 		     && srv_force_recovery < SRV_FORCE_NO_BACKGROUND
@@ -2331,6 +2333,7 @@ fil_ibd_discover(
 		case SRV_OPERATION_RESTORE:
 			break;
 		case SRV_OPERATION_NORMAL:
+		case SRV_OPERATION_EXPORT_RESTORED:
 			size_t len= strlen(db);
 			if (len <= 4 || strcmp(db + len - 4, dot_ext[IBD])) {
 				break;

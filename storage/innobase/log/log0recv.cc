@@ -1241,7 +1241,7 @@ static void fil_name_process(const char *name, ulint len, uint32_t space_id,
 		return;
 	}
 
-	ut_ad(srv_operation == SRV_OPERATION_NORMAL
+	ut_ad(srv_operation <= SRV_OPERATION_EXPORT_RESTORED
 	      || srv_operation == SRV_OPERATION_RESTORE
 	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
 
@@ -3223,7 +3223,7 @@ static void log_sort_flush_list()
 @param last_batch     whether it is possible to write more redo log */
 void recv_sys_t::apply(bool last_batch)
 {
-  ut_ad(srv_operation == SRV_OPERATION_NORMAL ||
+  ut_ad(srv_operation <= SRV_OPERATION_EXPORT_RESTORED ||
         srv_operation == SRV_OPERATION_RESTORE ||
         srv_operation == SRV_OPERATION_RESTORE_EXPORT);
 
@@ -4104,7 +4104,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	byte*		buf;
 	dberr_t		err = DB_SUCCESS;
 
-	ut_ad(srv_operation == SRV_OPERATION_NORMAL
+	ut_ad(srv_operation <= SRV_OPERATION_EXPORT_RESTORED
 	      || srv_operation == SRV_OPERATION_RESTORE
 	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
 	ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
@@ -4315,7 +4315,7 @@ completed:
 
 		recv_sys.parse_start_lsn = checkpoint_lsn;
 
-		if (srv_operation == SRV_OPERATION_NORMAL) {
+		if (srv_operation <= SRV_OPERATION_EXPORT_RESTORED) {
 			deferred_spaces.deferred_dblwr();
 			buf_dblwr.recover();
 		}
@@ -4380,7 +4380,8 @@ completed:
 
 	log_sys.last_checkpoint_lsn = checkpoint_lsn;
 
-	if (!srv_read_only_mode && srv_operation == SRV_OPERATION_NORMAL
+	if (!srv_read_only_mode
+	    && srv_operation <= SRV_OPERATION_EXPORT_RESTORED
 	    && (~log_t::FORMAT_ENCRYPTED & log_sys.log.format)
 	    == log_t::FORMAT_10_5) {
 		/* Write a FILE_CHECKPOINT marker as the first thing,
@@ -4397,7 +4398,7 @@ completed:
 	recv_no_ibuf_operations = false;
 	ut_d(recv_no_log_write = srv_operation == SRV_OPERATION_RESTORE
 	     || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
-	if (srv_operation == SRV_OPERATION_NORMAL) {
+	if (srv_operation <= SRV_OPERATION_EXPORT_RESTORED) {
 		err = recv_rename_files();
 	}
 	mysql_mutex_unlock(&recv_sys.mutex);

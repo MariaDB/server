@@ -581,7 +581,7 @@ SysTablespace::read_lsn_and_check_flags(lsn_t* flushed_lsn)
 
 	ut_a(it->order() == 0);
 
-	if (srv_operation == SRV_OPERATION_NORMAL) {
+	if (srv_operation <= SRV_OPERATION_EXPORT_RESTORED) {
 		buf_dblwr.init_or_load_pages(it->handle(), it->filepath());
 	}
 

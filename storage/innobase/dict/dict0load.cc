@@ -953,7 +953,7 @@ void dict_check_tablespaces_and_store_max_id()
 				 space_id, dict_tf_to_fsp_flags(flags),
 				 name, filepath)) {
 		} else if (!not_dropped) {
-		} else if (srv_operation == SRV_OPERATION_NORMAL
+		} else if (srv_operation <= SRV_OPERATION_EXPORT_RESTORED
 			   && srv_start_after_restore
 			   && srv_force_recovery < SRV_FORCE_NO_BACKGROUND
 			   && dict_table_t::is_temporary_name(filepath)) {
