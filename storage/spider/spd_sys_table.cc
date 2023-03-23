@@ -235,7 +235,6 @@ TABLE *spider_open_sys_table(
   int table_name_length,
   bool write,
   SPIDER_Open_tables_backup *open_tables_backup,
-  bool need_lock,
   int *error_num
 ) {
   TABLE *table;
@@ -277,7 +276,7 @@ TABLE *spider_open_sys_table(
         DBUG_PRINT("info",("spider checking for SYS_XA"));
         if (table->s->fields != SPIDER_SYS_XA_COL_CNT)
         {
-          spider_close_sys_table(thd, table, open_tables_backup, need_lock);
+          spider_sys_close_table(thd, open_tables_backup);
           table = NULL;
           my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
             ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
@@ -296,7 +295,7 @@ TABLE *spider_open_sys_table(
         DBUG_PRINT("info",("spider checking for SYS_TABLES"));
         if (table->s->fields != SPIDER_SYS_TABLES_COL_CNT)
         {
-          spider_close_sys_table(thd, table, open_tables_backup, need_lock);
+          spider_sys_close_table(thd, open_tables_backup);
           table = NULL;
           my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
             ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
@@ -315,7 +314,7 @@ TABLE *spider_open_sys_table(
         DBUG_PRINT("info",("spider checking for SYS_XA_MEMBER"));
         if (table->s->fields != SPIDER_SYS_XA_MEMBER_COL_CNT)
         {
-          spider_close_sys_table(thd, table, open_tables_backup, need_lock);
+          spider_sys_close_table(thd, open_tables_backup);
           table = NULL;
           my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
             ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
@@ -331,7 +330,7 @@ TABLE *spider_open_sys_table(
         DBUG_PRINT("info",("spider checking for SYS_TABLE_STS"));
         if (table->s->fields != SPIDER_SYS_TABLE_STS_COL_CNT)
         {
-          spider_close_sys_table(thd, table, open_tables_backup, need_lock);
+          spider_sys_close_table(thd, open_tables_backup);
           table = NULL;
           my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
             ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
@@ -347,7 +346,7 @@ TABLE *spider_open_sys_table(
         DBUG_PRINT("info",("spider checking for SYS_TABLE_CRD"));
         if (table->s->fields != SPIDER_SYS_TABLE_CRD_COL_CNT)
         {
-          spider_close_sys_table(thd, table, open_tables_backup, need_lock);
+          spider_sys_close_table(thd, open_tables_backup);
           table = NULL;
           my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
             ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
@@ -366,7 +365,7 @@ TABLE *spider_open_sys_table(
         DBUG_PRINT("info",("spider checking for SYS_XA_FAILED"));
         if (table->s->fields != SPIDER_SYS_XA_FAILED_TABLE_COL_CNT)
         {
-          spider_close_sys_table(thd, table, open_tables_backup, need_lock);
+          spider_sys_close_table(thd, open_tables_backup);
           table = NULL;
           my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
             ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
@@ -385,7 +384,7 @@ TABLE *spider_open_sys_table(
         DBUG_PRINT("info",("spider checking for SYS_RW_TBLS"));
         if (table->s->fields != SPIDER_SYS_RW_TBLS_COL_CNT)
         {
-          spider_close_sys_table(thd, table, open_tables_backup, need_lock);
+          spider_sys_close_table(thd, open_tables_backup);
           table = NULL;
           my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
             ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
@@ -403,7 +402,7 @@ TABLE *spider_open_sys_table(
         DBUG_PRINT("info",("spider checking for SYS_LINK_FAILED"));
         if (table->s->fields != SPIDER_SYS_LINK_FAILED_TABLE_COL_CNT)
         {
-          spider_close_sys_table(thd, table, open_tables_backup, need_lock);
+          spider_sys_close_table(thd, open_tables_backup);
           table = NULL;
           my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
             ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
@@ -422,7 +421,7 @@ TABLE *spider_open_sys_table(
         DBUG_PRINT("info",("spider checking for SYS_LINK_MON"));
         if (table->s->fields != SPIDER_SYS_LINK_MON_TABLE_COL_CNT)
         {
-          spider_close_sys_table(thd, table, open_tables_backup, need_lock);
+          spider_sys_close_table(thd, open_tables_backup);
           table = NULL;
           my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
             ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
@@ -438,7 +437,7 @@ TABLE *spider_open_sys_table(
         DBUG_PRINT("info",("spider checking for SYS_RWN_TBLS"));
         if (table->s->fields != SPIDER_SYS_RWN_TBLS_COL_CNT)
         {
-          spider_close_sys_table(thd, table, open_tables_backup, need_lock);
+          spider_sys_close_table(thd, open_tables_backup);
           table = NULL;
           my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
             ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
@@ -457,7 +456,7 @@ TABLE *spider_open_sys_table(
         DBUG_PRINT("info",("spider checking for SYS_RW_TBL_TBLS"));
         if (table->s->fields != SPIDER_SYS_RW_TBL_TBLS_COL_CNT)
         {
-          spider_close_sys_table(thd, table, open_tables_backup, need_lock);
+          spider_sys_close_table(thd, open_tables_backup);
           table = NULL;
           my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
             ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
@@ -476,7 +475,7 @@ TABLE *spider_open_sys_table(
         DBUG_PRINT("info",("spider checking for SYS_RW_TBL_PTTS"));
         if (table->s->fields != SPIDER_SYS_RW_TBL_PTTS_COL_CNT)
         {
-          spider_close_sys_table(thd, table, open_tables_backup, need_lock);
+          spider_sys_close_table(thd, open_tables_backup);
           table = NULL;
           my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
             ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
@@ -495,7 +494,7 @@ TABLE *spider_open_sys_table(
         DBUG_PRINT("info",("spider checking for SYS_POS_FOR_RECOVERY"));
         if (table->s->fields != SPIDER_SYS_POS_FOR_RECOVERY_TABLE_COL_CNT)
         {
-          spider_close_sys_table(thd, table, open_tables_backup, need_lock);
+          spider_sys_close_table(thd, open_tables_backup);
           table = NULL;
           my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
             ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
@@ -511,7 +510,7 @@ TABLE *spider_open_sys_table(
         DBUG_PRINT("info",("spider checking for SYS_RW_TBL_SPTTS"));
         if (table->s->fields != SPIDER_SYS_RW_TBL_SPTTS_COL_CNT)
         {
-          spider_close_sys_table(thd, table, open_tables_backup, need_lock);
+          spider_sys_close_table(thd, open_tables_backup);
           table = NULL;
           my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
             ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
@@ -530,17 +529,6 @@ TABLE *spider_open_sys_table(
   DBUG_RETURN(table);
 error_col_num_chk:
   DBUG_RETURN(NULL);
-}
-
-void spider_close_sys_table(
-  THD *thd,
-  TABLE *table,
-  SPIDER_Open_tables_backup *open_tables_backup,
-  bool need_lock
-) {
-  DBUG_ENTER("spider_close_sys_table");
-  spider_sys_close_table(thd, open_tables_backup);
-  DBUG_VOID_RETURN;
 }
 
 bool spider_sys_open_and_lock_tables(
@@ -2791,8 +2779,7 @@ int spider_sys_update_tables_link_status(
   char *name,
   uint name_length,
   int link_idx,
-  long link_status,
-  bool need_lock
+  long link_status
 ) {
   int error_num;
   TABLE *table_tables = NULL;
@@ -2801,7 +2788,7 @@ int spider_sys_update_tables_link_status(
   if (
     !(table_tables = spider_open_sys_table(
       thd, SPIDER_SYS_TABLES_TABLE_NAME_STR,
-      SPIDER_SYS_TABLES_TABLE_NAME_LEN, TRUE, &open_tables_backup, need_lock,
+      SPIDER_SYS_TABLES_TABLE_NAME_LEN, TRUE, &open_tables_backup,
       &error_num))
   ) {
     goto error;
@@ -2809,15 +2796,13 @@ int spider_sys_update_tables_link_status(
   if ((error_num = spider_update_tables_link_status(table_tables,
     name, name_length, link_idx, link_status)))
     goto error;
-  spider_close_sys_table(thd, table_tables,
-    &open_tables_backup, need_lock);
+  spider_sys_close_table(thd, &open_tables_backup);
   table_tables = NULL;
   DBUG_RETURN(0);
 
 error:
   if (table_tables)
-    spider_close_sys_table(thd, table_tables,
-      &open_tables_backup, need_lock);
+    spider_sys_close_table(thd, &open_tables_backup);
   DBUG_RETURN(error_num);
 }
 
@@ -2825,8 +2810,7 @@ int spider_sys_log_tables_link_failed(
   THD *thd,
   char *name,
   uint name_length,
-  int link_idx,
-  bool need_lock
+  int link_idx
 ) {
   int error_num;
   TABLE *table_tables = NULL;
@@ -2836,7 +2820,7 @@ int spider_sys_log_tables_link_failed(
     !(table_tables = spider_open_sys_table(
       thd, SPIDER_SYS_LINK_FAILED_TABLE_NAME_STR,
       SPIDER_SYS_LINK_FAILED_TABLE_NAME_LEN, TRUE, &open_tables_backup,
-      need_lock, &error_num))
+      &error_num))
   ) {
     goto error;
   }
@@ -2844,15 +2828,13 @@ int spider_sys_log_tables_link_failed(
   if ((error_num = spider_log_tables_link_failed(table_tables,
     name, name_length, link_idx)))
     goto error;
-  spider_close_sys_table(thd, table_tables,
-    &open_tables_backup, need_lock);
+  spider_sys_close_table(thd, &open_tables_backup);
   table_tables = NULL;
   DBUG_RETURN(0);
 
 error:
   if (table_tables)
-    spider_close_sys_table(thd, table_tables,
-      &open_tables_backup, need_lock);
+    spider_sys_close_table(thd, &open_tables_backup);
   DBUG_RETURN(error_num);
 }
 
@@ -2860,8 +2842,7 @@ int spider_sys_log_xa_failed(
   THD *thd,
   XID *xid,
   SPIDER_CONN *conn,
-  const char *status,
-  bool need_lock
+  const char *status
 ) {
   int error_num;
   TABLE *table_tables = NULL;
@@ -2871,20 +2852,20 @@ int spider_sys_log_xa_failed(
     !(table_tables = spider_open_sys_table(
       thd, SPIDER_SYS_XA_FAILED_TABLE_NAME_STR,
       SPIDER_SYS_XA_FAILED_TABLE_NAME_LEN, TRUE, &open_tables_backup,
-      need_lock, &error_num))
+      &error_num))
   ) {
     goto error;
   }
   empty_record(table_tables);
   if ((error_num = spider_log_xa_failed(thd, table_tables, xid, conn, status)))
     goto error;
-  spider_close_sys_table(thd, table_tables, &open_tables_backup, need_lock);
+  spider_sys_close_table(thd, &open_tables_backup);
   table_tables = NULL;
   DBUG_RETURN(0);
 
 error:
   if (table_tables)
-    spider_close_sys_table(thd, table_tables, &open_tables_backup, need_lock);
+    spider_sys_close_table(thd, &open_tables_backup);
   DBUG_RETURN(error_num);
 }
 
@@ -3230,8 +3211,7 @@ int spider_sys_insert_or_update_table_sts(
   THD *thd,
   const char *name,
   uint name_length,
-  ha_statistics *stat,
-  bool need_lock
+  ha_statistics *stat
 ) {
   int error_num;
   TABLE *table_sts = NULL;
@@ -3241,7 +3221,7 @@ int spider_sys_insert_or_update_table_sts(
     !(table_sts = spider_open_sys_table(
       thd, SPIDER_SYS_TABLE_STS_TABLE_NAME_STR,
       SPIDER_SYS_TABLE_STS_TABLE_NAME_LEN, TRUE,
-      &open_tables_backup, need_lock, &error_num))
+      &open_tables_backup, &error_num))
   ) {
     goto error;
   }
@@ -3252,13 +3232,13 @@ int spider_sys_insert_or_update_table_sts(
     stat
   )))
     goto error;
-  spider_close_sys_table(thd, table_sts, &open_tables_backup, need_lock);
+  spider_sys_close_table(thd, &open_tables_backup);
   table_sts = NULL;
   DBUG_RETURN(0);
 
 error:
   if (table_sts)
-    spider_close_sys_table(thd, table_sts, &open_tables_backup, need_lock);
+    spider_sys_close_table(thd, &open_tables_backup);
   DBUG_RETURN(error_num);
 }
 
@@ -3267,8 +3247,7 @@ int spider_sys_insert_or_update_table_crd(
   const char *name,
   uint name_length,
   longlong *cardinality,
-  uint number_of_keys,
-  bool need_lock
+  uint number_of_keys
 ) {
   int error_num;
   TABLE *table_crd = NULL;
@@ -3278,7 +3257,7 @@ int spider_sys_insert_or_update_table_crd(
     !(table_crd = spider_open_sys_table(
       thd, SPIDER_SYS_TABLE_CRD_TABLE_NAME_STR,
       SPIDER_SYS_TABLE_CRD_TABLE_NAME_LEN, TRUE,
-      &open_tables_backup, need_lock, &error_num))
+      &open_tables_backup, &error_num))
   ) {
     goto error;
   }
@@ -3290,21 +3269,20 @@ int spider_sys_insert_or_update_table_crd(
     number_of_keys
   )))
     goto error;
-  spider_close_sys_table(thd, table_crd, &open_tables_backup, need_lock);
+  spider_sys_close_table(thd, &open_tables_backup);
   table_crd = NULL;
   DBUG_RETURN(0);
 
 error:
   if (table_crd)
-    spider_close_sys_table(thd, table_crd, &open_tables_backup, need_lock);
+    spider_sys_close_table(thd, &open_tables_backup);
   DBUG_RETURN(error_num);
 }
 
 int spider_sys_delete_table_sts(
   THD *thd,
   const char *name,
-  uint name_length,
-  bool need_lock
+  uint name_length
 ) {
   int error_num;
   TABLE *table_sts = NULL;
@@ -3314,7 +3292,7 @@ int spider_sys_delete_table_sts(
     !(table_sts = spider_open_sys_table(
       thd, SPIDER_SYS_TABLE_STS_TABLE_NAME_STR,
       SPIDER_SYS_TABLE_STS_TABLE_NAME_LEN, TRUE,
-      &open_tables_backup, need_lock, &error_num))
+      &open_tables_backup, &error_num))
   ) {
     goto error;
   }
@@ -3324,21 +3302,20 @@ int spider_sys_delete_table_sts(
     name_length
   )))
     goto error;
-  spider_close_sys_table(thd, table_sts, &open_tables_backup, need_lock);
+  spider_sys_close_table(thd, &open_tables_backup);
   table_sts = NULL;
   DBUG_RETURN(0);
 
 error:
   if (table_sts)
-    spider_close_sys_table(thd, table_sts, &open_tables_backup, need_lock);
+    spider_sys_close_table(thd, &open_tables_backup);
   DBUG_RETURN(error_num);
 }
 
 int spider_sys_delete_table_crd(
   THD *thd,
   const char *name,
-  uint name_length,
-  bool need_lock
+  uint name_length
 ) {
   int error_num;
   TABLE *table_crd = NULL;
@@ -3348,7 +3325,7 @@ int spider_sys_delete_table_crd(
     !(table_crd = spider_open_sys_table(
       thd, SPIDER_SYS_TABLE_CRD_TABLE_NAME_STR,
       SPIDER_SYS_TABLE_CRD_TABLE_NAME_LEN, TRUE,
-      &open_tables_backup, need_lock, &error_num))
+      &open_tables_backup, &error_num))
   ) {
     goto error;
   }
@@ -3358,13 +3335,13 @@ int spider_sys_delete_table_crd(
     name_length
   )))
     goto error;
-  spider_close_sys_table(thd, table_crd, &open_tables_backup, need_lock);
+  spider_sys_close_table(thd, &open_tables_backup);
   table_crd = NULL;
   DBUG_RETURN(0);
 
 error:
   if (table_crd)
-    spider_close_sys_table(thd, table_crd, &open_tables_backup, need_lock);
+    spider_sys_close_table(thd, &open_tables_backup);
   DBUG_RETURN(error_num);
 }
 
@@ -3372,8 +3349,7 @@ int spider_sys_get_table_sts(
   THD *thd,
   const char *name,
   uint name_length,
-  ha_statistics *stat,
-  bool need_lock
+  ha_statistics *stat
 ) {
   int error_num;
   char table_key[MAX_KEY_LENGTH];
@@ -3384,7 +3360,7 @@ int spider_sys_get_table_sts(
     !(table_sts = spider_open_sys_table(
       thd, SPIDER_SYS_TABLE_STS_TABLE_NAME_STR,
       SPIDER_SYS_TABLE_STS_TABLE_NAME_LEN, TRUE,
-      &open_tables_backup, need_lock, &error_num))
+      &open_tables_backup, &error_num))
   ) {
     goto error;
   }
@@ -3405,13 +3381,13 @@ int spider_sys_get_table_sts(
     );
   }
 
-  spider_close_sys_table(thd, table_sts, &open_tables_backup, need_lock);
+  spider_sys_close_table(thd, &open_tables_backup);
   table_sts = NULL;
   DBUG_RETURN(0);
 
 error:
   if (table_sts)
-    spider_close_sys_table(thd, table_sts, &open_tables_backup, need_lock);
+    spider_sys_close_table(thd, &open_tables_backup);
   DBUG_RETURN(error_num);
 }
 
@@ -3420,8 +3396,7 @@ int spider_sys_get_table_crd(
   const char *name,
   uint name_length,
   longlong *cardinality,
-  uint number_of_keys,
-  bool need_lock
+  uint number_of_keys
 ) {
   int error_num;
   char table_key[MAX_KEY_LENGTH];
@@ -3434,7 +3409,7 @@ int spider_sys_get_table_crd(
     !(table_crd = spider_open_sys_table(
       thd, SPIDER_SYS_TABLE_CRD_TABLE_NAME_STR,
       SPIDER_SYS_TABLE_CRD_TABLE_NAME_LEN, TRUE,
-      &open_tables_backup, need_lock, &error_num))
+      &open_tables_backup, &error_num))
   ) {
     goto error;
   }
@@ -3467,7 +3442,7 @@ int spider_sys_get_table_crd(
     goto error;
   }
 
-  spider_close_sys_table(thd, table_crd, &open_tables_backup, need_lock);
+  spider_sys_close_table(thd, &open_tables_backup);
   table_crd = NULL;
   DBUG_RETURN(0);
 
@@ -3476,7 +3451,7 @@ error:
     spider_sys_index_end(table_crd);
 
   if (table_crd)
-    spider_close_sys_table(thd, table_crd, &open_tables_backup, need_lock);
+    spider_sys_close_table(thd, &open_tables_backup);
   DBUG_RETURN(error_num);
 }
 

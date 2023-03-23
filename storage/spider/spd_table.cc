@@ -4688,7 +4688,7 @@ SPIDER_SHARE *spider_get_share(
             !(table_tables = spider_open_sys_table(
               thd, SPIDER_SYS_TABLES_TABLE_NAME_STR,
               SPIDER_SYS_TABLES_TABLE_NAME_LEN, FALSE, &open_tables_backup,
-              FALSE, error_num))
+              error_num))
           ) {
             for (roop_count = 0;
               roop_count < (int) spider_udf_table_mon_mutex_count;
@@ -4724,8 +4724,7 @@ SPIDER_SHARE *spider_get_share(
               share->init_error_time = (time_t) time((time_t*) 0);
               share->init = TRUE;
               spider_free_share(share);
-              spider_close_sys_table(thd, table_tables,
-                &open_tables_backup, FALSE);
+              spider_sys_close_table(thd, &open_tables_backup);
               table_tables = NULL;
               goto error_open_sys_table;
             }
@@ -4734,8 +4733,7 @@ SPIDER_SHARE *spider_get_share(
               sizeof(long) * share->all_link_count);
             share->link_status_init = TRUE;
           }
-          spider_close_sys_table(thd, table_tables,
-            &open_tables_backup, FALSE);
+          spider_sys_close_table(thd, &open_tables_backup);
           table_tables = NULL;
         }
         share->have_recovery_link = spider_conn_check_recovery_link(share);
@@ -5157,7 +5155,7 @@ SPIDER_SHARE *spider_get_share(
             !(table_tables = spider_open_sys_table(
               thd, SPIDER_SYS_TABLES_TABLE_NAME_STR,
               SPIDER_SYS_TABLES_TABLE_NAME_LEN, FALSE, &open_tables_backup,
-              FALSE, error_num))
+              error_num))
           ) {
             for (roop_count = 0;
               roop_count < (int) spider_udf_table_mon_mutex_count;
@@ -5187,8 +5185,7 @@ SPIDER_SHARE *spider_get_share(
               }
               pthread_mutex_unlock(&share->mutex);
               spider_free_share(share);
-              spider_close_sys_table(thd, table_tables,
-                &open_tables_backup, FALSE);
+              spider_sys_close_table(thd, &open_tables_backup);
               table_tables = NULL;
               goto error_open_sys_table;
             }
@@ -5197,8 +5194,7 @@ SPIDER_SHARE *spider_get_share(
               sizeof(long) * share->all_link_count);
             share->link_status_init = TRUE;
           }
-          spider_close_sys_table(thd, table_tables,
-            &open_tables_backup, FALSE);
+          spider_sys_close_table(thd, &open_tables_backup);
           table_tables = NULL;
         }
         share->have_recovery_link = spider_conn_check_recovery_link(share);
@@ -5620,8 +5616,7 @@ int spider_free_share(
         thd,
         share->lgtm_tblhnd_share->table_name,
         share->lgtm_tblhnd_share->table_name_length,
-        &share->stat,
-        FALSE
+        &share->stat
       );
     }
     if (
@@ -5642,8 +5637,7 @@ int spider_free_share(
         share->lgtm_tblhnd_share->table_name,
         share->lgtm_tblhnd_share->table_name_length,
         share->cardinality,
-        share->table_share->fields,
-        FALSE
+        share->table_share->fields
       );
     }
     spider_free_share_alloc(share);
@@ -5950,7 +5944,7 @@ int spider_open_all_tables(
   if (
     !(table_tables = spider_open_sys_table(
       thd, SPIDER_SYS_TABLES_TABLE_NAME_STR,
-      SPIDER_SYS_TABLES_TABLE_NAME_LEN, TRUE, &open_tables_backup, TRUE,
+      SPIDER_SYS_TABLES_TABLE_NAME_LEN, TRUE, &open_tables_backup,
       &error_num))
   )
     DBUG_RETURN(error_num);
@@ -5960,12 +5954,10 @@ int spider_open_all_tables(
     if (error_num != HA_ERR_KEY_NOT_FOUND && error_num != HA_ERR_END_OF_FILE)
     {
       table_tables->file->print_error(error_num, MYF(0));
-      spider_close_sys_table(thd, table_tables,
-        &open_tables_backup, TRUE);
+      spider_sys_close_table(thd, &open_tables_backup);
       DBUG_RETURN(error_num);
     } else {
-      spider_close_sys_table(thd, table_tables,
-        &open_tables_backup, TRUE);
+      spider_sys_close_table(thd, &open_tables_backup);
       DBUG_RETURN(0);
     }
   }
@@ -5996,8 +5988,7 @@ int spider_open_all_tables(
       ))
     ) {
       spider_sys_index_end(table_tables);
-      spider_close_sys_table(thd, table_tables,
-        &open_tables_backup, TRUE);
+      spider_sys_close_table(thd, &open_tables_backup);
       spider_free_tmp_share_alloc(&tmp_share);
       free_root(&mem_root, MYF(0));
       DBUG_RETURN(error_num);
@@ -6020,8 +6011,7 @@ int spider_open_all_tables(
       (error_num = spider_create_tmp_dbton_share(&tmp_share))
     ) {
       spider_sys_index_end(table_tables);
-      spider_close_sys_table(thd, table_tables,
-        &open_tables_backup, TRUE);
+      spider_sys_close_table(thd, &open_tables_backup);
       spider_free_tmp_share_alloc(&tmp_share);
       free_root(&mem_root, MYF(0));
       DBUG_RETURN(error_num);
@@ -6032,8 +6022,7 @@ int spider_open_all_tables(
                                 NULL, FALSE, FALSE, &error_num)))
     {
       spider_sys_index_end(table_tables);
-      spider_close_sys_table(thd, table_tables,
-        &open_tables_backup, TRUE);
+      spider_sys_close_table(thd, &open_tables_backup);
       spider_free_tmp_dbton_share(&tmp_share);
       spider_free_tmp_share_alloc(&tmp_share);
       free_root(&mem_root, MYF(0));
@@ -6058,8 +6047,7 @@ int spider_open_all_tables(
       SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
       pthread_mutex_unlock(&conn->mta_conn_mutex);
       spider_sys_index_end(table_tables);
-      spider_close_sys_table(thd, table_tables,
-        &open_tables_backup, TRUE);
+      spider_sys_close_table(thd, &open_tables_backup);
       spider_free_tmp_dbton_share(&tmp_share);
       spider_free_tmp_share_alloc(&tmp_share);
       free_root(&mem_root, MYF(0));
@@ -6077,8 +6065,7 @@ int spider_open_all_tables(
       if (!(spider = new ha_spider()))
       {
         spider_sys_index_end(table_tables);
-        spider_close_sys_table(thd, table_tables,
-          &open_tables_backup, TRUE);
+        spider_sys_close_table(thd, &open_tables_backup);
         spider_free_tmp_dbton_share(&tmp_share);
         spider_free_tmp_share_alloc(&tmp_share);
         free_root(&mem_root, MYF(0));
@@ -6104,8 +6091,7 @@ int spider_open_all_tables(
       ) {
         delete spider;
         spider_sys_index_end(table_tables);
-        spider_close_sys_table(thd, table_tables,
-          &open_tables_backup, TRUE);
+        spider_sys_close_table(thd, &open_tables_backup);
         spider_free_tmp_dbton_share(&tmp_share);
         spider_free_tmp_share_alloc(&tmp_share);
         free_root(&mem_root, MYF(0));
@@ -6132,8 +6118,7 @@ int spider_open_all_tables(
         spider_free(trx, share, MYF(0));
         delete spider;
         spider_sys_index_end(table_tables);
-        spider_close_sys_table(thd, table_tables,
-          &open_tables_backup, TRUE);
+        spider_sys_close_table(thd, &open_tables_backup);
         spider_free_tmp_dbton_share(&tmp_share);
         spider_free_tmp_share_alloc(&tmp_share);
         free_root(&mem_root, MYF(0));
@@ -6148,8 +6133,7 @@ int spider_open_all_tables(
         spider_free(trx, share, MYF(0));
         delete spider;
         spider_sys_index_end(table_tables);
-        spider_close_sys_table(thd, table_tables,
-          &open_tables_backup, TRUE);
+        spider_sys_close_table(thd, &open_tables_backup);
         spider_free_tmp_dbton_share(&tmp_share);
         spider_free_tmp_share_alloc(&tmp_share);
         free_root(&mem_root, MYF(0));
@@ -6175,8 +6159,7 @@ int spider_open_all_tables(
         spider_free(trx, share, MYF(0));
         delete spider;
         spider_sys_index_end(table_tables);
-        spider_close_sys_table(thd, table_tables,
-          &open_tables_backup, TRUE);
+        spider_sys_close_table(thd, &open_tables_backup);
         spider_free_tmp_dbton_share(&tmp_share);
         spider_free_tmp_share_alloc(&tmp_share);
         free_root(&mem_root, MYF(0));
@@ -6191,8 +6174,7 @@ int spider_open_all_tables(
   free_root(&mem_root, MYF(0));
 
   spider_sys_index_end(table_tables);
-  spider_close_sys_table(thd, table_tables,
-    &open_tables_backup, TRUE);
+  spider_sys_close_table(thd, &open_tables_backup);
   DBUG_RETURN(0);
 }
 
@@ -7144,8 +7126,7 @@ int spider_get_sts(
       current_thd,
       share->lgtm_tblhnd_share->table_name,
       share->lgtm_tblhnd_share->table_name_length,
-      &share->stat,
-      FALSE
+      &share->stat
     );
     if (
       !error_num ||
@@ -7279,8 +7260,7 @@ int spider_get_crd(
       share->lgtm_tblhnd_share->table_name,
       share->lgtm_tblhnd_share->table_name_length,
       share->cardinality,
-      table->s->fields,
-      FALSE
+      table->s->fields
     );
     if (
       !error_num ||
@@ -8521,7 +8501,7 @@ int spider_discover_table_structure(
       if (
         (table_tables = spider_open_sys_table(
           thd, SPIDER_SYS_TABLES_TABLE_NAME_STR,
-          SPIDER_SYS_TABLES_TABLE_NAME_LEN, TRUE, &open_tables_backup, FALSE,
+          SPIDER_SYS_TABLES_TABLE_NAME_LEN, TRUE, &open_tables_backup,
           &error_num))
       ) {
         if (thd->lex->create_info.or_replace())
@@ -8533,8 +8513,7 @@ int spider_discover_table_structure(
         {
           error_num = spider_insert_tables(table_tables, spider_share);
         }
-        spider_close_sys_table(thd, table_tables,
-          &open_tables_backup, FALSE);
+        spider_sys_close_table(thd, &open_tables_backup);
       }
     }
 
@@ -8607,7 +8586,7 @@ int spider_discover_table_structure(
       if (
         !(table_tables = spider_open_sys_table(
           thd, SPIDER_SYS_TABLES_TABLE_NAME_STR,
-          SPIDER_SYS_TABLES_TABLE_NAME_LEN, TRUE, &open_tables_backup, FALSE,
+          SPIDER_SYS_TABLES_TABLE_NAME_LEN, TRUE, &open_tables_backup,
           &error_num))
       ) {
         DBUG_RETURN(error_num);
@@ -8682,8 +8661,7 @@ int spider_discover_table_structure(
             break;
         }
       }
-      spider_close_sys_table(thd, table_tables,
-        &open_tables_backup, FALSE);
+      spider_sys_close_table(thd, &open_tables_backup);
     }
   }
 
