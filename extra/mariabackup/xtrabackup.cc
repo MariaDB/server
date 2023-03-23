@@ -6830,6 +6830,7 @@ int main(int argc, char **argv)
 		*/
 		if (strcmp(argv[1], "--mysqld") == 0)
 		{
+			srv_operation= SRV_OPERATION_EXPORT_RESTORED;
 			extern int mysqld_main(int argc, char **argv);
 			argc--;
 			argv++;

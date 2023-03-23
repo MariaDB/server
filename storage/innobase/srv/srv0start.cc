@@ -810,7 +810,7 @@ srv_undo_tablespaces_init(bool create_new_db)
 	srv_undo_tablespaces_open = 0;
 
 	ut_a(srv_undo_tablespaces <= TRX_SYS_N_RSEGS);
-	ut_a(!create_new_db || srv_operation == SRV_OPERATION_NORMAL);
+	ut_a(!create_new_db || srv_operation <= SRV_OPERATION_EXPORT_RESTORED);
 
 	if (srv_undo_tablespaces == 1) { /* 1 is not allowed, make it 0 */
 		srv_undo_tablespaces = 0;
@@ -876,6 +876,7 @@ srv_undo_tablespaces_init(bool create_new_db)
 		prev_space_id = srv_undo_space_id_start - 1;
 		break;
 	case SRV_OPERATION_NORMAL:
+	case SRV_OPERATION_EXPORT_RESTORED:
 	case SRV_OPERATION_RESTORE_ROLLBACK_XA:
 	case SRV_OPERATION_RESTORE:
 	case SRV_OPERATION_RESTORE_EXPORT:
@@ -1132,6 +1133,7 @@ srv_shutdown_all_bg_threads()
 		case SRV_OPERATION_RESTORE_DELTA:
 			break;
 		case SRV_OPERATION_NORMAL:
+		case SRV_OPERATION_EXPORT_RESTORED:
 		case SRV_OPERATION_RESTORE_ROLLBACK_XA:
 		case SRV_OPERATION_RESTORE:
 		case SRV_OPERATION_RESTORE_EXPORT:
@@ -1310,7 +1312,7 @@ dberr_t srv_start(bool create_new_db)
 	size_t		dirnamelen;
 	unsigned	i = 0;
 
-	ut_ad(srv_operation == SRV_OPERATION_NORMAL
+	ut_ad(srv_operation <= SRV_OPERATION_EXPORT_RESTORED
 	      || is_mariabackup_restore_or_export());
 
 
@@ -1894,6 +1896,7 @@ files_checked:
 
 		switch (srv_operation) {
 		case SRV_OPERATION_NORMAL:
+		case SRV_OPERATION_EXPORT_RESTORED:
 		case SRV_OPERATION_RESTORE_ROLLBACK_XA:
 		case SRV_OPERATION_RESTORE_EXPORT:
 			/* Initialize the change buffer. */
@@ -2304,7 +2307,8 @@ skip_monitors:
 		return(srv_init_abort(err));
 	}
 
-	if (!srv_read_only_mode && srv_operation == SRV_OPERATION_NORMAL) {
+	if (!srv_read_only_mode
+	    && srv_operation <= SRV_OPERATION_EXPORT_RESTORED) {
 		/* Initialize the innodb_temporary tablespace and keep
 		it open until shutdown. */
 		err = srv_open_tmp_tablespace(create_new_db);
@@ -2326,7 +2330,7 @@ skip_monitors:
 	}
 
 	if (!srv_read_only_mode
-	    && (srv_operation == SRV_OPERATION_NORMAL
+	    && (srv_operation <= SRV_OPERATION_EXPORT_RESTORED
 		|| srv_operation == SRV_OPERATION_RESTORE_ROLLBACK_XA)
 	    && srv_force_recovery < SRV_FORCE_NO_BACKGROUND) {
 
@@ -2465,6 +2469,7 @@ void innodb_shutdown()
 		fil_close_all_files();
 		break;
 	case SRV_OPERATION_NORMAL:
+	case SRV_OPERATION_EXPORT_RESTORED:
 		/* Shut down the persistent files. */
 		logs_empty_and_mark_files_at_shutdown();
 

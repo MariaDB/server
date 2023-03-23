@@ -469,6 +469,9 @@ extern my_bool	innodb_encrypt_temporary_tables;
 enum srv_operation_mode {
 	/** Normal mode (MariaDB Server) */
 	SRV_OPERATION_NORMAL,
+	/** Mariabackup is executing server to export already restored
+	tablespaces */
+	SRV_OPERATION_EXPORT_RESTORED,
 	/** Mariabackup taking a backup */
 	SRV_OPERATION_BACKUP,
 	/** Mariabackup restoring a backup for subsequent --copy-back */

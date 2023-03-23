@@ -406,7 +406,7 @@ fil_name_process(
 		return;
 	}
 
-	ut_ad(srv_operation == SRV_OPERATION_NORMAL
+	ut_ad(srv_operation <= SRV_OPERATION_EXPORT_RESTORED
 	      || is_mariabackup_restore_or_export());
 
 	/* We will also insert space=NULL into the map, so that
@@ -2286,7 +2286,7 @@ buf_block_t* recv_recovery_create_page_low(const page_id_t page_id)
 				performed as part of the operation */
 void recv_apply_hashed_log_recs(bool last_batch)
 {
-	ut_ad(srv_operation == SRV_OPERATION_NORMAL
+	ut_ad(srv_operation <= SRV_OPERATION_EXPORT_RESTORED
 	      || is_mariabackup_restore_or_export());
 
 	mutex_enter(&recv_sys.mutex);
@@ -3603,7 +3603,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	byte*		buf;
 	dberr_t		err = DB_SUCCESS;
 
-	ut_ad(srv_operation == SRV_OPERATION_NORMAL
+	ut_ad(srv_operation <= SRV_OPERATION_EXPORT_RESTORED
 	      || is_mariabackup_restore_or_export());
 
 	/* Initialize red-black tree for fast insertions into the
@@ -3797,7 +3797,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 
 		recv_sys.parse_start_lsn = checkpoint_lsn;
 
-		if (srv_operation == SRV_OPERATION_NORMAL) {
+		if (srv_operation <= SRV_OPERATION_EXPORT_RESTORED) {
 			buf_dblwr_process();
 		}
 
@@ -3862,7 +3862,8 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 
 	log_sys.last_checkpoint_lsn = checkpoint_lsn;
 
-	if (!srv_read_only_mode && srv_operation == SRV_OPERATION_NORMAL) {
+	if (!srv_read_only_mode
+	    && srv_operation <= SRV_OPERATION_EXPORT_RESTORED) {
 		/* Write a MLOG_CHECKPOINT marker as the first thing,
 		before generating any other redo log. This ensures
 		that subsequent crash recovery will be possible even
