@@ -3840,46 +3840,59 @@ void spider_reuse_trx_ha(
   DBUG_VOID_RETURN;
 }
 
+/**
+  Sets link indices for load balancing read connections
+
+  Assuming `spider->share->link_count` is the number of active servers
+  to use, this function updates `spider->conn_link_idx` with the first
+  server in the same "modulus group" whose link status is not
+  `SPIDER_LINK_STATUS_NG`, or if one cannot be found, use the
+  `link_idx`th server
+*/
 void spider_trx_set_link_idx_for_all(
   ha_spider *spider
 ) {
-  int roop_count, roop_count2;
   SPIDER_SHARE *share = spider->share;
   long *link_statuses = share->link_statuses;
   uint *conn_link_idx = spider->conn_link_idx;
-  int link_count = share->link_count;
-  int all_link_count = share->all_link_count;
+  uint link_count = share->link_count;
+  uint all_link_count = share->all_link_count;
   uchar *conn_can_fo = spider->conn_can_fo;
   DBUG_ENTER("spider_trx_set_link_idx_for_all");
   DBUG_PRINT("info",("spider set link_count=%d", link_count));
   DBUG_PRINT("info",("spider set all_link_count=%d", all_link_count));
   memset(conn_can_fo, 0, sizeof(uchar) * share->link_bitmap_size);
-  for (roop_count = 0; roop_count < link_count; roop_count++)
+  /* We change the name from roop_count and roop_count2 to link_idx
+  and all_link_idx because the latter are generally used in the
+  same context. */
+  for (uint link_idx = 0; link_idx < link_count; link_idx++)
   {
-    for (roop_count2 = roop_count; roop_count2 < all_link_count;
-      roop_count2 += link_count)
+    uint all_link_idx;
+    for (all_link_idx = link_idx; all_link_idx < all_link_count;
+         all_link_idx += link_count)
     {
-      if (link_statuses[roop_count2] <= SPIDER_LINK_STATUS_RECOVERY)
+      if (link_statuses[all_link_idx] <= SPIDER_LINK_STATUS_RECOVERY)
         break;
     }
-    if (roop_count2 < all_link_count)
+    if (all_link_idx < all_link_count)
     {
-      conn_link_idx[roop_count] = roop_count2;
-      if (roop_count2 + link_count < all_link_count)
-        spider_set_bit(conn_can_fo, roop_count);
+      conn_link_idx[link_idx] = all_link_idx;
+      if (all_link_idx + link_count < all_link_count)
+        spider_set_bit(conn_can_fo, link_idx);
       DBUG_PRINT("info",("spider set conn_link_idx[%d]=%d",
-        roop_count, roop_count2));
-    } else {
-      conn_link_idx[roop_count] = roop_count;
+        link_idx, all_link_idx));
+    } else
+    {
+      conn_link_idx[link_idx] = link_idx;
       DBUG_PRINT("info",("spider set2 conn_link_idx[%d]=%d",
-        roop_count, roop_count));
+        link_idx, link_idx));
     }
-    spider->conn_keys[roop_count] =
+    spider->conn_keys[link_idx] =
       ADD_TO_PTR(spider->conn_keys_first_ptr,
-        PTR_BYTE_DIFF(share->conn_keys[conn_link_idx[roop_count]],
+        PTR_BYTE_DIFF(share->conn_keys[conn_link_idx[link_idx]],
           share->conn_keys[0]), char*);
     DBUG_PRINT("info",("spider conn_keys[%d]=%s",
-      roop_count, spider->conn_keys[roop_count]));
+      link_idx, spider->conn_keys[link_idx]));
   }
   DBUG_VOID_RETURN;
 }
