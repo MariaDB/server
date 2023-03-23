@@ -8588,7 +8588,6 @@ int ha_spider::create(
   SPIDER_TRX *trx;
   TABLE *table_tables = NULL;
   SPIDER_Open_tables_backup open_tables_backup;
-  bool need_lock = FALSE;
   DBUG_ENTER("ha_spider::create");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider name=%s", name));
@@ -8666,7 +8665,7 @@ int ha_spider::create(
     if (
       !(table_tables = spider_open_sys_table(
         current_thd, SPIDER_SYS_TABLES_TABLE_NAME_STR,
-        SPIDER_SYS_TABLES_TABLE_NAME_LEN, TRUE, &open_tables_backup, FALSE,
+        SPIDER_SYS_TABLES_TABLE_NAME_LEN, TRUE, &open_tables_backup,
         &error_num))
     ) {
       goto error;
@@ -8683,8 +8682,7 @@ int ha_spider::create(
     ) {
       goto error;
     }
-    spider_close_sys_table(current_thd, table_tables,
-      &open_tables_backup, FALSE);
+    spider_sys_close_table(current_thd, &open_tables_backup);
     table_tables = NULL;
   } else if (
     sql_command == SQLCOM_ALTER_TABLE
@@ -8717,11 +8715,10 @@ int ha_spider::create(
       ) &&
       memcmp(name + strlen(name) - 5, "#TMP#", 5)
     ) {
-      need_lock = TRUE;
       if (
         !(table_tables = spider_open_sys_table(
           current_thd, SPIDER_SYS_TABLES_TABLE_NAME_STR,
-          SPIDER_SYS_TABLES_TABLE_NAME_LEN, TRUE, &open_tables_backup, TRUE,
+          SPIDER_SYS_TABLES_TABLE_NAME_LEN, TRUE, &open_tables_backup,
           &error_num))
       ) {
         goto error;
@@ -8731,8 +8728,7 @@ int ha_spider::create(
       ) {
         goto error;
       }
-      spider_close_sys_table(current_thd, table_tables,
-        &open_tables_backup, TRUE);
+      spider_sys_close_table(current_thd, &open_tables_backup);
       table_tables = NULL;
     }
   }
@@ -8761,8 +8757,7 @@ int ha_spider::create(
 
 error:
   if (table_tables)
-    spider_close_sys_table(current_thd, table_tables,
-      &open_tables_backup, need_lock);
+    spider_sys_close_table(current_thd, &open_tables_backup);
   if (tmp_share.lgtm_tblhnd_share)
     spider_free_lgtm_tblhnd_share_alloc(tmp_share.lgtm_tblhnd_share, FALSE);
   if (tmp_share.static_key_cardinality)
@@ -8834,7 +8829,6 @@ int ha_spider::rename_table(
   SPIDER_ALTER_TABLE *alter_table_from, *alter_table_to;
   SPIDER_LGTM_TBLHND_SHARE *from_lgtm_tblhnd_share, *to_lgtm_tblhnd_share;
   SPIDER_Open_tables_backup open_tables_backup;
-  bool need_lock = FALSE;
   DBUG_ENTER("ha_spider::rename_table");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider from=%s", from));
@@ -8867,7 +8861,7 @@ int ha_spider::rename_table(
     if (
       !(table_tables = spider_open_sys_table(
         current_thd, SPIDER_SYS_TABLES_TABLE_NAME_STR,
-        SPIDER_SYS_TABLES_TABLE_NAME_LEN, TRUE, &open_tables_backup, FALSE,
+        SPIDER_SYS_TABLES_TABLE_NAME_LEN, TRUE, &open_tables_backup,
         &error_num))
     ) {
       goto error;
@@ -8878,8 +8872,7 @@ int ha_spider::rename_table(
     ) {
       goto error;
     }
-    spider_close_sys_table(current_thd, table_tables,
-      &open_tables_backup, FALSE);
+    spider_sys_close_table(current_thd, &open_tables_backup);
     table_tables = NULL;
 
     /* release table mon list */
@@ -8922,20 +8915,9 @@ int ha_spider::rename_table(
       ("spider alter_info.flags: %llu  alter_info.partition_flags: %lu",
         thd->lex->alter_info.flags, thd->lex->alter_info.partition_flags));
     if (
-      (thd->lex->alter_info.partition_flags &
-        (
-          SPIDER_ALTER_PARTITION_ADD | SPIDER_ALTER_PARTITION_DROP |
-          SPIDER_ALTER_PARTITION_COALESCE | SPIDER_ALTER_PARTITION_REORGANIZE |
-          SPIDER_ALTER_PARTITION_TABLE_REORG | SPIDER_ALTER_PARTITION_REBUILD
-        )
-      )
-    )
-      need_lock = TRUE;
-
-    if (
       !(table_tables = spider_open_sys_table(
         current_thd, SPIDER_SYS_TABLES_TABLE_NAME_STR,
-        SPIDER_SYS_TABLES_TABLE_NAME_LEN, TRUE, &open_tables_backup, need_lock,
+        SPIDER_SYS_TABLES_TABLE_NAME_LEN, TRUE, &open_tables_backup,
         &error_num))
     ) {
       goto error;
@@ -8964,8 +8946,7 @@ int ha_spider::rename_table(
         goto error;
       }
     }
-    spider_close_sys_table(current_thd, table_tables,
-      &open_tables_backup, need_lock);
+    spider_sys_close_table(current_thd, &open_tables_backup);
     table_tables = NULL;
 
     if (!alter_table_from->now_create)
@@ -9023,8 +9004,7 @@ int ha_spider::rename_table(
 
 error:
   if (table_tables)
-    spider_close_sys_table(current_thd, table_tables,
-      &open_tables_backup, need_lock);
+    spider_sys_close_table(current_thd, &open_tables_backup);
   pthread_mutex_lock(&spider_lgtm_tblhnd_share_mutex);
   to_lgtm_tblhnd_share = spider_get_lgtm_tblhnd_share(
     to, to_len, to_hash_value, TRUE, FALSE, &tmp_error_num);
@@ -9044,7 +9024,6 @@ int ha_spider::delete_table(
   uint sql_command = thd_sql_command(thd);
   SPIDER_ALTER_TABLE *alter_table;
   SPIDER_Open_tables_backup open_tables_backup;
-  bool need_lock = FALSE;
   DBUG_ENTER("ha_spider::delete_table");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider name=%s", name));
@@ -9090,28 +9069,16 @@ int ha_spider::delete_table(
     DBUG_PRINT("info",
       ("spider alter_info.flags: %llu  alter_info.partition_flags: %lu",
         thd->lex->alter_info.flags, thd->lex->alter_info.partition_flags));
-    if (
-      sql_command == SQLCOM_ALTER_TABLE &&
-      (thd->lex->alter_info.partition_flags &
-        (
-          SPIDER_ALTER_PARTITION_ADD | SPIDER_ALTER_PARTITION_DROP |
-          SPIDER_ALTER_PARTITION_COALESCE | SPIDER_ALTER_PARTITION_REORGANIZE |
-          SPIDER_ALTER_PARTITION_TABLE_REORG | SPIDER_ALTER_PARTITION_REBUILD
-        )
-      )
-    )
-      need_lock = TRUE;
-
     if ((error_num = spider_sys_delete_table_sts(
-      current_thd, name, name_len, need_lock)))
+      current_thd, name, name_len)))
       goto error;
     if ((error_num = spider_sys_delete_table_crd(
-      current_thd, name, name_len, need_lock)))
+      current_thd, name, name_len)))
       goto error;
     if (
       !(table_tables = spider_open_sys_table(
         current_thd, SPIDER_SYS_TABLES_TABLE_NAME_STR,
-        SPIDER_SYS_TABLES_TABLE_NAME_LEN, TRUE, &open_tables_backup, need_lock,
+        SPIDER_SYS_TABLES_TABLE_NAME_LEN, TRUE, &open_tables_backup,
         &error_num))
     ) {
       goto error;
@@ -9122,8 +9089,7 @@ int ha_spider::delete_table(
     ) {
       goto error;
     }
-    spider_close_sys_table(current_thd, table_tables,
-      &open_tables_backup, need_lock);
+    spider_sys_close_table(current_thd, &open_tables_backup);
     table_tables = NULL;
 
     /* release table mon list */
@@ -9147,8 +9113,7 @@ int ha_spider::delete_table(
 
 error:
   if (table_tables)
-    spider_close_sys_table(current_thd, table_tables,
-      &open_tables_backup, need_lock);
+    spider_sys_close_table(current_thd, &open_tables_backup);
   DBUG_RETURN(error_num);
 }
 
