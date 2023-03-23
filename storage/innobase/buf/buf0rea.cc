@@ -341,8 +341,17 @@ read_ahead:
 
   /* Read all the suitable blocks within the area */
   buf_block_t *block= nullptr;
-  if (!zip_size && !(block= buf_read_acquire()))
-    goto no_read_ahead;
+  if (UNIV_LIKELY(!zip_size))
+  {
+  allocate_block:
+    if (UNIV_UNLIKELY(!(block= buf_read_acquire())))
+      goto no_read_ahead;
+  }
+  else if (recv_recovery_is_on())
+  {
+    zip_size|= 1;
+    goto allocate_block;
+  }
 
   for (page_id_t i= low; i < high; ++i)
   {
@@ -354,7 +363,8 @@ read_ahead:
     {
       count++;
       ut_ad(!block);
-      if (!zip_size && !(block= buf_read_acquire()))
+      if ((UNIV_LIKELY(!zip_size) || (zip_size & 1)) &&
+          UNIV_UNLIKELY(!(block= buf_read_acquire())))
         break;
     }
   }
@@ -406,10 +416,16 @@ dberr_t buf_read_page(const page_id_t page_id, ulint zip_size,
   buf_block_t *block= nullptr;
   if (UNIV_LIKELY(!zip_size))
   {
+  allocate_block:
     mysql_mutex_lock(&buf_pool.mutex);
     buf_LRU_stat_inc_io();
     block= buf_LRU_get_free_block(have_mutex);
     mysql_mutex_unlock(&buf_pool.mutex);
+  }
+  else if (recv_recovery_is_on())
+  {
+    zip_size|= 1;
+    goto allocate_block;
   }
 
   dberr_t err= buf_read_page_low(page_id, zip_size, chain, space, block, true);
@@ -436,8 +452,17 @@ void buf_read_page_background(fil_space_t *space, const page_id_t page_id,
   }
 
   buf_block_t *block= nullptr;
-  if (!zip_size && !(block= buf_read_acquire()))
-    goto skip;
+  if (UNIV_LIKELY(!zip_size))
+  {
+  allocate_block:
+    if (UNIV_UNLIKELY(!(block= buf_read_acquire())))
+      goto skip;
+  }
+  else if (recv_recovery_is_on())
+  {
+    zip_size|= 1;
+    goto allocate_block;
+  }
 
   if (buf_read_page_low(page_id, zip_size, chain, space, block) ==
       DB_SUCCESS)
@@ -584,8 +609,17 @@ failed:
 
   /* If we got this far, read-ahead can be sensible: do it */
   buf_block_t *block= nullptr;
-  if (!zip_size && !(block= buf_read_acquire()))
-    goto fail;
+  if (UNIV_LIKELY(!zip_size))
+  {
+  allocate_block:
+    if (UNIV_UNLIKELY(!(block= buf_read_acquire())))
+      goto fail;
+  }
+  else if (recv_recovery_is_on())
+  {
+    zip_size|= 1;
+    goto allocate_block;
+  }
 
   count= 0;
   for (; new_low != new_high_1; ++new_low)
@@ -599,7 +633,8 @@ failed:
     {
       count++;
       ut_ad(!block);
-      if (!zip_size && !(block= buf_read_acquire()))
+      if ((UNIV_LIKELY(!zip_size) || (zip_size & 1)) &&
+          UNIV_UNLIKELY(!(block= buf_read_acquire())))
         break;
     }
   }
