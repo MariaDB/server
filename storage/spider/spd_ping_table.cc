@@ -505,7 +505,7 @@ SPIDER_TABLE_MON_LIST *spider_get_ping_table_tgt(
     (*error_num = spider_get_sys_tables_connect_info(
       table_tables, tmp_share, 0, &mem_root)) ||
     (*error_num = spider_get_sys_tables_link_status(
-      table_tables, tmp_share, 0, &mem_root))
+      table_tables, tmp_share->link_statuses, &mem_root))
   ) {
     table_tables->file->print_error(*error_num, MYF(0));
     goto error;
