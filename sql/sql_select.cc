@@ -23786,13 +23786,13 @@ join_const_unlock_row(JOIN_TAB *tab)
 
   DESCRIPTION
     This is "read_fist" function for the "ref" access method.
-   
+
     The functon must leave the index initialized when it returns.
     ref_or_null access implementation depends on that.
 
   RETURN
     0  - Ok
-   -1  - Row not found 
+   -1  - Row not found
     1  - Error
 */
 
@@ -23801,17 +23801,6 @@ join_read_always_key(JOIN_TAB *tab)
 {
   int error;
   TABLE *table= tab->table;
-
-  /* Initialize the index first */
-  if (!table->file->inited)
-  {
-    if (unlikely((error= table->file->ha_index_init(tab->ref.key,
-                                                    tab->sorted))))
-    {
-      (void) report_error(table, error);
-      return 1;
-    }
-  }
 
   if (unlikely(cp_buffer_from_ref(tab->join->thd, table, &tab->ref)))
     return -1;
