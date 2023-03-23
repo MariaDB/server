@@ -2708,6 +2708,8 @@ struct TABLE_LIST
   }
   void print(THD *thd, table_map eliminated_tables, String *str, 
              enum_query_type query_type);
+  void print_leaf_tables(THD *thd, String *str,
+                         enum_query_type query_type);
   bool check_single_table(TABLE_LIST **table, table_map map,
                           TABLE_LIST *view);
   bool set_insert_values(MEM_ROOT *mem_root);

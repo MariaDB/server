@@ -780,6 +780,8 @@ void LEX::start(THD *thd_arg)
   frame_bottom_bound= NULL;
   win_spec= NULL;
 
+  upd_del_where= NULL;
+
   vers_conditions.empty();
   period_conditions.empty();
 

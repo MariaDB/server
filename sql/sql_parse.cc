@@ -4744,7 +4744,10 @@ mysql_execute_command(THD *thd)
       }
 
       if (!res && (explain || lex->analyze_stmt))
-        res= thd->lex->explain->send_explain(thd);
+      {
+        bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
+        res= thd->lex->explain->send_explain(thd, extended);
+      }
 
       /* revert changes for SP */
       MYSQL_INSERT_SELECT_DONE(res, (ulong) thd->get_row_count_func());
@@ -4813,7 +4816,10 @@ mysql_execute_command(THD *thd)
     if (thd->lex->analyze_stmt || thd->lex->describe)
     {
       if (!res)
-        res= thd->lex->explain->send_explain(thd);
+      {
+        bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
+        res= thd->lex->explain->send_explain(thd, extended);
+      }
     }
 
     delete sel_result;
@@ -4875,7 +4881,10 @@ mysql_execute_command(THD *thd)
         else
         {
           if (lex->describe || lex->analyze_stmt)
-            res= thd->lex->explain->send_explain(thd);
+	  {
+            bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
+            res= thd->lex->explain->send_explain(thd, extended);
+          }
         }
       multi_delete_error:
         delete result;
@@ -6463,7 +6472,10 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
           thd->protocol= save_protocol;
         }
         if (!res)
-          res= thd->lex->explain->send_explain(thd);
+	{
+          bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
+          res= thd->lex->explain->send_explain(thd, extended);
+        }
       }
     }
   }

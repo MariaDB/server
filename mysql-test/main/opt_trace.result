@@ -3766,7 +3766,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
         "select_id": 1,
         "steps": [
           {
-            "expanded_query": "select NULL AS `NULL` from t0 join t1 where t0.a = t1.a and t1.a < 3"
+            "expanded_query": "delete  from t0,t1 using t0 join t1 where t0.a = t1.a and t1.a < 3"
           }
         ]
       }
