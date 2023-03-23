@@ -644,8 +644,8 @@ ulong get_system_variable_hash_records(void)
 
 SHOW_VAR* enumerate_sys_vars(THD *thd, bool sorted, enum enum_var_type scope)
 {
-  int count= system_variable_hash.records, i;
-  int size= sizeof(SHOW_VAR) * (count + 1);
+  size_t count= system_variable_hash.records, i;
+  size_t size= sizeof(SHOW_VAR) * (count + 1);
   SHOW_VAR *result= (SHOW_VAR*) thd->alloc(size);
 
   if (result)
