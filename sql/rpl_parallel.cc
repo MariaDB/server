@@ -2312,14 +2312,16 @@ rpl_parallel::find(uint32 domain_id)
     e->domain_id= domain_id;
     e->stop_on_error_sub_id= (uint64)ULONGLONG_MAX;
     e->pause_sub_id= (uint64)ULONGLONG_MAX;
-    if (my_hash_insert(&domain_hash, (uchar *)e))
-    {
-      my_free(e);
-      return NULL;
-    }
     mysql_mutex_init(key_LOCK_parallel_entry, &e->LOCK_parallel_entry,
                      MY_MUTEX_INIT_FAST);
     mysql_cond_init(key_COND_parallel_entry, &e->COND_parallel_entry, NULL);
+    if (my_hash_insert(&domain_hash, (uchar *)e))
+    {
+      mysql_cond_destroy(&e->COND_parallel_entry);
+      mysql_mutex_destroy(&e->LOCK_parallel_entry);
+      my_free(e);
+      return NULL;
+    }
   }
   else
     e->force_abort= false;
