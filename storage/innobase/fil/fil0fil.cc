@@ -2577,10 +2577,15 @@ corrupted:
 		}
 	}
 
+	const bool operation_not_for_export =
+	  srv_operation != SRV_OPERATION_RESTORE_EXPORT
+	  && srv_operation != SRV_OPERATION_EXPORT_RESTORED;
+
 	/* Always look for a file at the default location. But don't log
 	an error if the tablespace is already open in remote or dict. */
 	ut_a(df_default.filepath());
-	const bool	strict = (tablespaces_found == 0);
+	const bool	strict = operation_not_for_export
+	  && (tablespaces_found == 0);
 	if (df_default.open_read_only(strict) == DB_SUCCESS) {
 		ut_ad(df_default.is_open());
 		++tablespaces_found;
@@ -2626,9 +2631,11 @@ corrupted:
 	/* Make sense of these three possible locations.
 	First, bail out if no tablespace files were found. */
 	if (valid_tablespaces_found == 0) {
-		os_file_get_last_error(true);
-		ib::error() << "Could not find a valid tablespace file for `"
-			<< tablename << "`. " << TROUBLESHOOT_DATADICT_MSG;
+		os_file_get_last_error(
+		    operation_not_for_export, !operation_not_for_export);
+		if (operation_not_for_export)
+		  ib::error() << "Could not find a valid tablespace file for `"
+		    << tablename << "`. " << TROUBLESHOOT_DATADICT_MSG;
 		goto corrupted;
 	}
 	if (!validate) {
@@ -2964,6 +2971,7 @@ fil_ibd_discover(
 		case SRV_OPERATION_RESTORE:
 			break;
 		case SRV_OPERATION_NORMAL:
+		case SRV_OPERATION_EXPORT_RESTORED:
 			df_rem_per.set_name(db);
 			if (df_rem_per.open_link_file() != DB_SUCCESS) {
 				break;

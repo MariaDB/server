@@ -791,7 +791,7 @@ fil_name_process(char* name, ulint len, ulint space_id, bool deleted)
 		return;
 	}
 
-	ut_ad(srv_operation == SRV_OPERATION_NORMAL
+	ut_ad(srv_operation <= SRV_OPERATION_EXPORT_RESTORED
 	      || srv_operation == SRV_OPERATION_RESTORE
 	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
 
@@ -2636,7 +2636,7 @@ static void log_sort_flush_list()
 @param last_batch     whether it is possible to write more redo log */
 void recv_sys_t::apply(bool last_batch)
 {
-  ut_ad(srv_operation == SRV_OPERATION_NORMAL ||
+  ut_ad(srv_operation <= SRV_OPERATION_EXPORT_RESTORED ||
         srv_operation == SRV_OPERATION_RESTORE ||
         srv_operation == SRV_OPERATION_RESTORE_EXPORT);
 
@@ -2796,7 +2796,7 @@ void recv_sys_t::apply(bool last_batch)
     mysql_mutex_lock(&log_sys.mutex);
   }
 #if 1 /* Mariabackup FIXME: Remove or adjust rename_table_in_prepare() */
-  else if (srv_operation != SRV_OPERATION_NORMAL);
+  else if (srv_operation > SRV_OPERATION_EXPORT_RESTORED);
 #endif
   else
   {
@@ -3421,7 +3421,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	byte*		buf;
 	dberr_t		err = DB_SUCCESS;
 
-	ut_ad(srv_operation == SRV_OPERATION_NORMAL
+	ut_ad(srv_operation <= SRV_OPERATION_EXPORT_RESTORED
 	      || srv_operation == SRV_OPERATION_RESTORE
 	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
 	ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
@@ -3632,7 +3632,7 @@ completed:
 
 		recv_sys.parse_start_lsn = checkpoint_lsn;
 
-		if (srv_operation == SRV_OPERATION_NORMAL) {
+		if (srv_operation <= SRV_OPERATION_EXPORT_RESTORED) {
 			buf_dblwr.recover();
 		}
 
@@ -3696,7 +3696,8 @@ completed:
 
 	log_sys.last_checkpoint_lsn = checkpoint_lsn;
 
-	if (!srv_read_only_mode && srv_operation == SRV_OPERATION_NORMAL
+	if (!srv_read_only_mode
+	    && srv_operation <= SRV_OPERATION_EXPORT_RESTORED
 	    && (~log_t::FORMAT_ENCRYPTED & log_sys.log.format)
 	    == log_t::FORMAT_10_5) {
 		/* Write a FILE_CHECKPOINT marker as the first thing,
