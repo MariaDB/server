@@ -19,12 +19,19 @@
 #define SPD_INIT_ALLOC_ROOT(A, B, C, D)                                       \
   init_alloc_root(PSI_INSTRUMENT_ME, A, B, C, D)
 
+/** Maximum possible number of `SPIDER_DBTON`s available to use */
 #define SPIDER_DBTON_SIZE 15
 
 #ifndef SIZEOF_STORED_DOUBLE
 #define SIZEOF_STORED_DOUBLE 8
 #endif
 
+/**
+  Possible wrapper values, e.g. for `SPIDER_DBTON::wrapper` and
+  `SPIDER_SHARE::tgt_wrappers`.
+
+  fixme: change this to enum
+*/
 #define SPIDER_DB_WRAPPER_MYSQL "mysql"
 #define SPIDER_DB_WRAPPER_MARIADB "mariadb"
 
@@ -683,6 +690,8 @@ struct st_spider_db_request_key
 class spider_db_util
 {
 public:
+  /** Same as the `SPIDER_DBTON::dbton_id` of the `SPIDER_DBTON`
+  containing this `spider_db_util` */
   uint dbton_id;
   spider_db_util() = default;
   virtual ~spider_db_util() = default;
@@ -1683,7 +1692,10 @@ static const LEX_CSTRING maturity_name[] =
 
 typedef struct st_spider_dbton
 {
+  /** The index of this dbton in `spider_dbton` */
   uint dbton_id;
+  /** The wrapper of this dbton, same possible values as each element
+  of `SPIDER_SHARE::tgt_wrappers` */
   const char *wrapper;
   enum spider_db_access_type db_access_type;
   int (*init)();

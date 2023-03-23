@@ -439,13 +439,6 @@ int spider_get_sys_tables_monitoring_binlog_pos_at_failing(
 
 int spider_get_sys_tables_link_status(
   TABLE *table,
-  SPIDER_SHARE *share,
-  int link_idx,
-  MEM_ROOT *mem_root
-);
-
-int spider_get_sys_tables_link_status(
-  TABLE *table,
   long *link_status,
   MEM_ROOT *mem_root
 );
