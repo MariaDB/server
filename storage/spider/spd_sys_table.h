@@ -92,15 +92,7 @@ TABLE *spider_open_sys_table(
   int table_name_length,
   bool write,
   SPIDER_Open_tables_backup *open_tables_backup,
-  bool need_lock,
   int *error_num
-);
-
-void spider_close_sys_table(
-  THD *thd,
-  TABLE *table,
-  SPIDER_Open_tables_backup *open_tables_backup,
-  bool need_lock
 );
 
 bool spider_sys_open_and_lock_tables(
@@ -487,24 +479,21 @@ int spider_sys_update_tables_link_status(
   char *name,
   uint name_length,
   int link_idx,
-  long link_status,
-  bool need_lock
+  long link_status
 );
 
 int spider_sys_log_tables_link_failed(
   THD *thd,
   char *name,
   uint name_length,
-  int link_idx,
-  bool need_lock
+  int link_idx
 );
 
 int spider_sys_log_xa_failed(
   THD *thd,
   XID *xid,
   SPIDER_CONN *conn,
-  const char *status,
-  bool need_lock
+  const char *status
 );
 
 int spider_get_sys_link_mon_key(
@@ -537,8 +526,7 @@ int spider_sys_insert_or_update_table_sts(
   THD *thd,
   const char *name,
   uint name_length,
-  ha_statistics *stat,
-  bool need_lock
+  ha_statistics *stat
 );
 
 int spider_sys_insert_or_update_table_crd(
@@ -546,30 +534,26 @@ int spider_sys_insert_or_update_table_crd(
   const char *name,
   uint name_length,
   longlong *cardinality,
-  uint number_of_keys,
-  bool need_lock
+  uint number_of_keys
 );
 
 int spider_sys_delete_table_sts(
   THD *thd,
   const char *name,
-  uint name_length,
-  bool need_lock
+  uint name_length
 );
 
 int spider_sys_delete_table_crd(
   THD *thd,
   const char *name,
-  uint name_length,
-  bool need_lock
+  uint name_length
 );
 
 int spider_sys_get_table_sts(
   THD *thd,
   const char *name,
   uint name_length,
-  ha_statistics *stat,
-  bool need_lock
+  ha_statistics *stat
 );
 
 int spider_sys_get_table_crd(
@@ -577,8 +561,7 @@ int spider_sys_get_table_crd(
   const char *name,
   uint name_length,
   longlong *cardinality,
-  uint number_of_keys,
-  bool need_lock
+  uint number_of_keys
 );
 
 int spider_sys_replace(
