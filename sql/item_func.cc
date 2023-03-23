@@ -4584,13 +4584,14 @@ longlong Item_func_sleep::val_int()
   mysql_cond_init(key_item_func_sleep_cond, &cond, NULL);
   mysql_mutex_lock(&LOCK_item_func_sleep);
 
+  DEBUG_SYNC(thd, "func_sleep_locked");
   THD_STAGE_INFO(thd, stage_user_sleep);
   thd->mysys_var->current_mutex= &LOCK_item_func_sleep;
   thd->mysys_var->current_cond=  &cond;
 
   error= 0;
   thd_wait_begin(thd, THD_WAIT_SLEEP);
-  while (!thd->killed)
+  while (!thd->check_killed(true))
   {
     error= timed_cond.wait(&cond, &LOCK_item_func_sleep);
     if (error == ETIMEDOUT || error == ETIME)

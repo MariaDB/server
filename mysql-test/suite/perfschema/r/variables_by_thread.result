@@ -147,6 +147,21 @@ WHERE variable_name = "time_zone";
 current	variable_value
 1	+02:00
 0	SYSTEM
+# Test sleep
+connect  con_sleep, localhost, root,,;
+set debug_sync= "func_sleep_locked SIGNAL lock WAIT_FOR goon";
+select sleep(3);
+connection default;
+set debug_sync= "now WAIT_FOR lock";
+set debug_sync= "apc_after_notify SIGNAL goon";
+SELECT thread_id = @def_thread_id as current, variable_value
+FROM performance_schema.variables_by_thread
+WHERE variable_name = "time_zone";
+current	variable_value
+1	+02:00
+0	SYSTEM
+0	SYSTEM
+disconnect con_sleep;
 # Cleanup
 connection default;
 set debug_sync= "reset";

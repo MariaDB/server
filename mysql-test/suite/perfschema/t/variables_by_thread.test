@@ -149,6 +149,19 @@ SELECT thread_id = @def_thread_id as current, variable_value
   FROM performance_schema.variables_by_thread
   WHERE variable_name = "time_zone";
 
+--echo # Test sleep
+
+--connect (con_sleep, localhost, root,,)
+set debug_sync= "func_sleep_locked SIGNAL lock WAIT_FOR goon";
+send select sleep(3);
+
+--connection default
+set debug_sync= "now WAIT_FOR lock";
+set debug_sync= "apc_after_notify SIGNAL goon";
+SELECT thread_id = @def_thread_id as current, variable_value
+  FROM performance_schema.variables_by_thread
+  WHERE variable_name = "time_zone";
+--disconnect con_sleep
 
 --echo # Cleanup
 --connection default
