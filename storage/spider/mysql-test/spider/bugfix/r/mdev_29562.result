@@ -1,3 +1,4 @@
+fail
 #
 # MDEV-29562 Spider table with charset utf32/utf16/ucs2 tries to set client charset to unsupported value
 #
