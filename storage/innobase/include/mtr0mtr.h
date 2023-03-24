@@ -333,6 +333,9 @@ public:
   /** Upgrade U locks on a block to X */
   void page_lock_upgrade(const buf_block_t &block);
 
+  /** Upgrade index U lock to X */
+  ATTRIBUTE_COLD void index_lock_upgrade();
+
   /** Check if we are holding tablespace latch
   @param space  tablespace to search for
   @return whether space.latch is being held */

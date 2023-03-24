@@ -890,6 +890,8 @@ rtr_page_split_and_insert(
 	int			first_rec_group = 1;
 	IF_DBUG(bool iterated = false,);
 
+	buf_pool.pages_split++;
+
 	if (!*heap) {
 		*heap = mem_heap_create(1024);
 	}
@@ -1197,8 +1199,6 @@ after_insert:
 
 	ut_ad(!rec || rec_offs_validate(rec, cursor->index(), *offsets));
 #endif
-	MONITOR_INC(MONITOR_INDEX_SPLIT);
-
 	return(rec);
 }
 

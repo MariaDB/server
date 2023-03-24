@@ -210,6 +210,9 @@ test/t7_restart#p#p1#sp#s2	test/t7_restart#p#p1#sp#s2	97	8	Dynamic	0
 test/t7_restart#p#p1#sp#s3	test/t7_restart#p#p1#sp#s3	97	8	Dynamic	0
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
+innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
+innodb_undo002	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo002
+innodb_undo003	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo003
 test/t1_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t1_restart.ibd
 test/t2_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t2_restart.ibd
 test/t3_restart	DEFAULT	2048	MYSQLD_DATADIR/test/t3_restart.ibd
@@ -393,6 +396,9 @@ test/t7_restart#p#p1#sp#s2	test/t7_restart#p#p1#sp#s2	97	8	Dynamic	0
 test/t7_restart#p#p1#sp#s3	test/t7_restart#p#p1#sp#s3	97	8	Dynamic	0
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
+innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
+innodb_undo002	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo002
+innodb_undo003	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo003
 test/t1_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t1_restart.ibd
 test/t2_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t2_restart.ibd
 test/t3_restart	DEFAULT	2048	MYSQLD_DATADIR/test/t3_restart.ibd
@@ -417,6 +423,9 @@ ALTER TABLE t6_restart TRUNCATE PARTITION p2;
 ALTER TABLE t7_restart TRUNCATE PARTITION p1;
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
+innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
+innodb_undo002	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo002
+innodb_undo003	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo003
 test/t4_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t4_restart.ibd
 test/t6_restart#p#p0	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p0.ibd
 test/t6_restart#p#p1	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p1.ibd
@@ -520,6 +529,9 @@ t7_restart#p#p1#sp#s3.ibd
 # restart
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
+innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
+innodb_undo002	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo002
+innodb_undo003	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo003
 test/t4_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t4_restart.ibd
 test/t6_restart#p#p0	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p0.ibd
 test/t6_restart#p#p1	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p1.ibd
@@ -622,6 +634,9 @@ RENAME TABLE t6_restart TO t66_restart;
 RENAME TABLE t7_restart TO t77_restart;
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
+innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
+innodb_undo002	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo002
+innodb_undo003	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo003
 test/t4_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t4_restart.ibd
 test/t66_restart#p#p0	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t66_restart#p#p0.ibd
 test/t66_restart#p#p1	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t66_restart#p#p1.ibd
@@ -718,6 +733,9 @@ t77_restart#p#p1#sp#s3.ibd
 # restart
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
+innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
+innodb_undo002	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo002
+innodb_undo003	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo003
 test/t4_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t4_restart.ibd
 test/t66_restart#p#p0	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t66_restart#p#p0.ibd
 test/t66_restart#p#p1	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t66_restart#p#p1.ibd
@@ -853,6 +871,9 @@ t77_restart#p#p1#sp#s3.ibd
 # restart
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
+innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
+innodb_undo002	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo002
+innodb_undo003	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo003
 test/t4_restart	DEFAULT	DEFAULT	MYSQL_TMP_DIR/new_dir/test/t4_restart.ibd
 test/t66_restart#p#p0	DEFAULT	2048	MYSQL_TMP_DIR/new_dir/test/t66_restart#p#p0.ibd
 test/t66_restart#p#p1	DEFAULT	2048	MYSQL_TMP_DIR/new_dir/test/t66_restart#p#p1.ibd
@@ -992,6 +1013,9 @@ t77_restart.par
 # restart
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
+innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
+innodb_undo002	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo002
+innodb_undo003	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo003
 test/t4_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t4_restart.ibd
 test/t66_restart#p#p0	DEFAULT	2048	MYSQLD_DATADIR/test/t66_restart#p#p0.ibd
 test/t66_restart#p#p1	DEFAULT	2048	MYSQLD_DATADIR/test/t66_restart#p#p1.ibd

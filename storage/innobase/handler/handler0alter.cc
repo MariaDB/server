@@ -6119,6 +6119,7 @@ func_exit:
 			id, MTR_MEMO_PAGE_SX_FIX);
 
 		if (UNIV_UNLIKELY(!root)) {
+			err = DB_CORRUPTION;
 			goto func_exit;
 		}
 

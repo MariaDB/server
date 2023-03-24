@@ -17,14 +17,13 @@
 
 # This scripts creates the MariaDB Server system tables
 #
-# All unrecognized arguments to this script are passed to mysqld.
+# All unrecognized arguments to this script are passed to mariadbd.
 
 basedir=""
 builddir=""
 ldata="@localstatedir@"
 langdir=""
 srcdir=""
-log_error=""
 
 args=""
 defaults=""
@@ -33,6 +32,7 @@ mysqld_opt=""
 user=""
 group=""
 silent_startup="--silent-startup"
+log_error=""
 
 force=0
 in_rpm=0
@@ -328,9 +328,9 @@ then
   exit 1
 fi
 
-# Now we can get arguments from the groups [mysqld] and [mysql_install_db]
+# Now we can get arguments from the groups [mariadbd] and [mysql_install_db]
 # in the my.cfg file, then re-run to merge with command line arguments.
-parse_arguments `"$print_defaults" $defaults $defaults_group_suffix --mysqld mysql_install_db mariadb-install-db`
+parse_arguments `"$print_defaults" $defaults $defaults_group_suffix --mariadbd mysql_install_db mariadb-install-db`
 
 parse_arguments PICK-ARGS-FROM-ARGV "$@"
 
@@ -533,7 +533,7 @@ then
   args="$args --user=$user"
 fi
 
-#To be enabled if/when we enable --group as an option to mysqld
+#To be enabled if/when we enable --group as an option to mariadbd
 #if test -n "$group"
 #then
 #  args="$args --group=$group"
@@ -556,7 +556,26 @@ else
   filter_cmd_line="cat"
 fi
 
-# Configure mysqld command line
+# Disable log error if the user don't have right to write/create the file
+# This is common when a user tries to install a personal mariadbd server and
+# the global config in /etc is using --log-error.
+# The server will internally change log-error to stderr to stderr if it cannot
+# write the the log file. This code only disables the error message from a not
+# writable log-error, which can be confusing.
+if test -n "$log_error"
+then
+    if test \( -e "$log_error" -a \! -w "$log_error" \) -o \( ! -e "$log_error" -a ! -w "`dirname "$log_error"`" \)
+    then
+        if test -n "$verbose"
+        then
+            echo "resetting log-error '$log_error' because no write access"
+        fi
+        log_error=""
+        args="$args --skip-log-error"
+    fi
+fi
+
+# Configure mariadbd command line
 mysqld_bootstrap="${MYSQLD_BOOTSTRAP-$mysqld}"
 mysqld_install_cmd_line()
 {
@@ -599,7 +618,7 @@ cat_sql()
   fi
 }
 
-# Create the system and help tables by passing them to "mysqld --bootstrap"
+# Create the system and help tables by passing them to "mariadbd --bootstrap"
 s_echo "Installing MariaDB/MySQL system tables in '$ldata' ..."
 if cat_sql | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
 then

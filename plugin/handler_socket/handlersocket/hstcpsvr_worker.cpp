@@ -6,7 +6,7 @@
  * See COPYRIGHT.txt for details.
  */
 
-#include <my_global.h>
+#include <my_alloca.h>
 #include <netinet/in.h>
 #include <errno.h>
 #include <poll.h>
@@ -16,9 +16,6 @@
 #include <list>
 #if __linux__
 #include <sys/epoll.h>
-#endif
-#ifdef HAVE_ALLOCA_H
-#include <alloca.h>
 #endif
 
 #include "hstcpsvr_worker.hpp"
