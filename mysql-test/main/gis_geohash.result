@@ -1,0 +1,112 @@
+#
+# MDEV-17398 Feature request: Support for ST_GeoHash()
+#
+#
+# Return ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT for incorrect number of parameters
+#
+SELECT ST_GeoHash();
+ERROR 42000: Incorrect parameter count in the call to native function 'ST_GeoHash'
+SELECT ST_GeoHash(NULL);
+ERROR 42000: Incorrect parameter count in the call to native function 'ST_GeoHash'
+SELECT ST_GeoHash(NULL, NULL, NULL, NULL);
+ERROR 42000: Incorrect parameter count in the call to native function 'ST_GeoHash'
+#
+# Return ER_GIS_INVALID_DATA for invalid geometry
+#
+SELECT ST_GeoHash(1, 1);
+ERROR 22023: Invalid GIS data provided to function ST_GeoHash.
+SELECT ST_GeoHash(ST_GEOMFROMTEXT('MULTIPOINT(1 1,2 2)'), 10);
+ERROR 22023: Invalid GIS data provided to function ST_GeoHash.
+#
+# Return ER_GIS_INVALID_DATA for invalid max_length
+#
+SELECT ST_GeoHash(1, 1, -1);
+ERROR 22023: Invalid GIS data provided to function ST_GeoHash.
+SELECT ST_GeoHash(ST_GEOMFROMTEXT('POINT(1 0)'), -1);
+ERROR 22023: Invalid GIS data provided to function ST_GeoHash.
+SELECT ST_GeoHash(1, 1, 101);
+ERROR 22023: Invalid GIS data provided to function ST_GeoHash.
+SELECT ST_GeoHash(ST_GEOMFROMTEXT('POINT(1 0)'), 101);
+ERROR 22023: Invalid GIS data provided to function ST_GeoHash.
+#
+# Longitude out of range [-180,180]
+#
+set @pt1 = ST_GeomFromText('POINT(190 -30)');
+set @pt2 = ST_GeomFromText('POINT(-190  50)');
+SELECT ST_GeoHash(@pt1, 10);
+ERROR HY000: Out of range error: Longitude should be [-180,180] in function ST_GeoHash.
+SELECT ST_GeoHash(@pt2, 10);
+ERROR HY000: Out of range error: Longitude should be [-180,180] in function ST_GeoHash.
+#
+# Latitude out of range [-90, 90]
+#
+set @pt1 = ST_GeomFromText('POINT(135 91)');
+set @pt2 = ST_GeomFromText('POINT(-30 -91)');
+SELECT ST_GeoHash(@pt1, 15);
+ERROR HY000: Out of range error: Latitude should be [-90,90] in function ST_GeoHash.
+SELECT ST_GeoHash(@pt2, 15);
+ERROR HY000: Out of range error: Latitude should be [-90,90] in function ST_GeoHash.
+#
+# Return NULL if any parameter is NULL
+#
+SELECT ST_GeoHash(NULL, 10);
+ST_GeoHash(NULL, 10)
+NULL
+SELECT ST_GeoHash(NULL, NULL);
+ST_GeoHash(NULL, NULL)
+NULL
+SELECT ST_GeoHash(NULL, NULL, 10);
+ST_GeoHash(NULL, NULL, 10)
+NULL
+SELECT ST_GeoHash(NULL, 1, 10);
+ST_GeoHash(NULL, 1, 10)
+NULL
+SELECT ST_GeoHash(1, NULL, 10);
+ST_GeoHash(1, NULL, 10)
+NULL
+SELECT ST_GeoHash(1, 1, NULL);
+ST_GeoHash(1, 1, NULL)
+NULL
+#
+# POINT in form (longitude[-180, 180] latitude[-90, 90])
+#
+set @pt1 = ST_GeomFromText('POINT(180 0)');
+set @pt2 = ST_GeomFromText('POINT(-180 -90)');
+set @pt3 = ST_GeomFromText('POINT(10.954984 50.8312806)');
+SELECT ST_GeoHash(@pt1, 10);
+ST_GeoHash(@pt1, 10)
+xbpbpbpbpb
+SELECT ST_GeoHash(@pt2, 15);
+ST_GeoHash(@pt2, 15)
+000000000000000
+SELECT ST_GeoHash(@pt3, 10);
+ST_GeoHash(@pt3, 10)
+u1pc1m91tt
+#
+# Logitude and Latitude can be integers or decimals within a range.
+#
+SELECT ST_GeoHash(180, 0, 10);
+ST_GeoHash(180, 0, 10)
+xbpbpbpbpb
+SELECT ST_GeoHash(-180, -90, 15);
+ST_GeoHash(-180, -90, 15)
+000000000000000
+SELECT ST_GeoHash(10.954984, 50.8312806, 10);
+ST_GeoHash(10.954984, 50.8312806, 10)
+u1pc1m91tt
+SELECT ST_GeoHash(11.954992, 51.831286, 9);
+ST_GeoHash(11.954992, 51.831286, 9)
+u30wb5975
+SELECT ST_GeoHash(11.954992, 51.831286, 38);
+ST_GeoHash(11.954992, 51.831286, 38)
+u30wb5975s00k2g7gv01x10bpbpbpbpbpbpbpb
+SELECT ST_GeoHash(51.36752179, 35.69425997, 100);
+ST_GeoHash(51.36752179, 35.69425997, 100)
+tnke0cuwnh26kp2u4q0ef35bpbpbpbpbpbpbpbpbpbpbpbpbpbpbpbpbpbpbpbpbpbpbpbpbpbpbpbpbpbpbpbpbpbpbpbpbpbpb
+#
+# Note, The returned string may be shorter than the specified max_length value 
+# because the algorithm has reached the most appropriate precision in advance.
+#
+SELECT ST_GeoHash(1, 2, 100);
+ST_GeoHash(1, 2, 100)
+s02equ04ven09qv80meqh1e1g
