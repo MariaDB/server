@@ -53,14 +53,14 @@ public:
     return orig_multitable ? SQLCOM_DELETE_MULTI : SQLCOM_DELETE;
   }
 
-  DML_prelocking_strategy *get_dml_prelocking_strategy()
+  DML_prelocking_strategy *get_dml_prelocking_strategy() override
   {
     return &dml_prelocking_strategy;
   }
 
   bool processing_as_multitable_delete_prohibited(THD *thd);
 
-  bool is_multitable() { return multitable; }
+  bool is_multitable() const { return multitable; }
 
   void set_as_multitable() { multitable= true; }
 
