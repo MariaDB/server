@@ -20,16 +20,18 @@ select
   date_add('2017-01-01', interval A.a*7 day)
 from t1 A, t0 B;
 
+analyze table t2;
+
 --echo #
 --echo # "YEAR(datetime_col) CMP year_value", basic checks
 --echo #
 let $q= select count(*) from t2 where year(a) < 2018;
 eval $q;
 select count(*) from t2 where a < '2018-01-01';
-explain format=json select * from t2 force index(a) where year(a) <  2018;
+eval explain format=json $q;
 --echo # Check rewrite for a prepared statement:
 execute immediate 
-  "explain format=json select * from t2 force index(a) where year(a) < ?"
+  "explain format=json select * from t2 where year(a) < ?"
   using 2018;
 eval prepare stmt from "$q";
 execute stmt;
@@ -47,9 +49,9 @@ execute stmt using 2017;
 let $q= select count(*) from t2 where year(a) <= 2018;
 eval $q;
 select count(*) from t2 where a < '2019-01-01';
-explain format=json select * from t2 force index(a) where year(a) <= 2018;
+eval explain format=json $q;
 execute immediate 
-  "explain format=json select * from t2 force index(a) where year(a) <= ?"
+  "explain format=json select * from t2 where year(a) <= ?"
   using 2018;
 eval prepare stmt from "$q";
 execute stmt;
@@ -67,9 +69,9 @@ execute stmt using 2017;
 let $q= select count(*) from t2 where year(a) > 2018;
 eval $q;
 select count(*) from t2 where a > '2018-12-31 23:59:59.999999';
-explain format=json select * from t2 force index(a) where year(a) >  2018;
+eval explain format=json $q;
 execute immediate 
-  "explain format=json select * from t2 force index(a) where year(a) > ?"
+  "explain format=json select * from t2 where year(a) > ?"
   using 2018;
 eval prepare stmt from "$q";
 execute stmt;
@@ -86,9 +88,9 @@ execute stmt using 2017;
 let $q= select count(*) from t2 where year(a) >= 2018;
 eval $q;
 select count(*) from t2 where a >= '2018-01-01';
-explain format=json select * from t2 force index(a) where year(a) >= 2018;
+eval explain format=json $q;
 execute immediate 
-  "explain format=json select * from t2 force index(a) where year(a) >= ?"
+  "explain format=json select * from t2 where year(a) >= ?"
   using 2018;
 eval prepare stmt from "$q";
 execute stmt;
@@ -105,9 +107,9 @@ execute stmt using 2019;
 let $q= select count(*) from t2 where year(a) = 2017;
 eval $q;
 select count(*) from t2 where a >= '2017-01-01' and a < '2018-01-01';
-explain format=json select * from t2 force index(a) where year(a) =  2017;
+eval explain format=json $q;
 execute immediate 
-  "explain format=json select * from t2 force index(a) where year(a) = ?"
+  "explain format=json select * from t2 where year(a) = ?"
   using 2017;
 eval prepare stmt from "$q";
 execute stmt;
@@ -127,9 +129,9 @@ execute stmt using 2019;
 let $q= select count(*) from t2 where 2017 < year(a);
 eval $q;
 select count(*) from t2 where a >= '2018-01-01';
-explain format=json select * from t2 force index(a) where 2017 <  year(a);
+eval explain format=json $q;
 execute immediate 
-  "explain format=json select * from t2 force index(a) where ? < year(a)"
+  "explain format=json select * from t2 where ? < year(a)"
   using 2017;
 eval prepare stmt from "$q";
 execute stmt;
@@ -145,9 +147,9 @@ execute stmt using 2018;
 
 let $q= select count(*) from t2 where 2018 <= year(a);
 select count(*) from t2 where a >= '2018-01-01';
-explain format=json select * from t2 force index(a) where 2018 <= year(a);
+eval explain format=json $q;
 execute immediate 
-  "explain format=json select * from t2 force index(a) where ? <= year(a)"
+  "explain format=json select * from t2 where ? <= year(a)"
   using 2018;
 eval prepare stmt from "$q";
 execute stmt;
@@ -164,9 +166,9 @@ execute stmt using 2019;
 let $q= select count(*) from t2 where 2018 > year(a);
 eval $q;
 select count(*) from t2 where a < '2018-01-01';
-explain format=json select * from t2 force index(a) where 2018 >  year(a);
+eval explain format=json $q;
 execute immediate 
-  "explain format=json select * from t2 force index(a) where ? > year(a)"
+  "explain format=json select * from t2 where ? > year(a)"
   using 2018;
 eval prepare stmt from "$q";
 execute stmt;
@@ -182,9 +184,9 @@ execute stmt using 2019;
 
 let $q= select count(*) from t2 where 2018 >= year(a);
 select count(*) from t2 where a < '2019-01-01';
-explain format=json select * from t2 force index(a) where 2018 >= year(a);
+eval explain format=json $q;
 execute immediate 
-  "explain format=json select * from t2 force index(a) where ? >= year(a)"
+  "explain format=json select * from t2 where ? >= year(a)"
   using 2018;
 eval prepare stmt from "$q";
 execute stmt;
@@ -201,9 +203,9 @@ execute stmt using 2019;
 let $q= select count(*) from t2 where 2018 =  year(a);
 eval $q;
 select count(*) from t2 where a >= '2018-01-01' and a < '2019-01-01';
-explain format=json select * from t2 force index(a) where 2018 =  year(a);
+eval explain format=json $q;
 execute immediate 
-  "explain format=json select * from t2 force index(a) where ? = year(a)"
+  "explain format=json select * from t2 where ? = year(a)"
   using 2018;
 eval prepare stmt from "$q";
 execute stmt;
@@ -223,9 +225,9 @@ execute stmt using 2019;
 let $q= select count(*) from t2 where date(a) < '2017-06-01';
 eval $q;
 select count(*) from t2 where a < '2017-06-01';
-explain format=json select * from t2 force index(a) where date(a)< '2017-06-01';
+eval explain format=json $q;
 execute immediate 
-  "explain format=json select * from t2 force index(a) where date(a) < ?"
+  "explain format=json select * from t2 where date(a) < ?"
   using '2017-06-01';
 eval prepare stmt from "$q";
 execute stmt;
@@ -242,9 +244,9 @@ execute stmt using '2017-06-05';
 let $q= select count(*) from t2 where date(a) <= '2017-06-03';
 eval $q;
 select count(*) from t2 where a < '2017-06-04';
-explain format=json select * from t2 force index(a) where date(a)<='2017-06-04';
+eval explain format=json $q;
 execute immediate 
-  "explain format=json select * from t2 force index(a) where date(a) <= ?"
+  "explain format=json select * from t2 where date(a) <= ?"
   using '2017-06-04';
 eval prepare stmt from "$q";
 execute stmt;
@@ -261,9 +263,9 @@ execute stmt using '2017-06-10';
 let $q= select count(*) from t2 where date(a) > '2018-06-01';
 eval $q;
 select count(*) from t2 where a >= '2018-06-02';
-explain format=json select * from t2 force index(a) where date(a)> '2018-06-01';
+eval explain format=json $q;
 execute immediate 
-  "explain format=json select * from t2 force index(a) where date(a) > ?"
+  "explain format=json select * from t2 where date(a) > ?"
   using '2018-06-01';
 eval prepare stmt from "$q";
 execute stmt;
@@ -280,9 +282,9 @@ execute stmt using '2018-06-05';
 let $q= select count(*) from t2 where date(a) >= '2018-06-01';
 eval $q;
 select count(*) from t2 where a >= '2018-06-01';
-explain format=json select * from t2 force index(a) where date(a)>='2018-06-01';
+eval explain format=json $q;
 execute immediate 
-  "explain format=json select * from t2 force index(a) where date(a) >= ?"
+  "explain format=json select * from t2 where date(a) >= ?"
   using '2018-06-01';
 eval prepare stmt from "$q";
 execute stmt;
@@ -299,9 +301,9 @@ execute stmt using '2018-06-10';
 let $q= select count(*) from t2 where date(a) = '2017-06-02';
 eval $q;
 select count(*) from t2 where a >= '2017-06-02' and a < '2017-06-03';
-explain format=json select * from t2 force index(a) where date(a)= '2017-06-02';
+eval explain format=json $q;
 execute immediate 
-  "explain format=json select * from t2 force index(a) where date(a) = ?"
+  "explain format=json select * from t2 where date(a) = ?"
   using '2017-06-02';
 eval prepare stmt from "$q";
 execute stmt;
@@ -321,9 +323,9 @@ execute stmt using '2017-06-05';
 let $q= select count(*) from t2 where '2017-06-01' > date(a);
 eval $q;
 select count(*) from t2 where '2017-06-01' > a;
-explain format=json select * from t2 force index(a) where '2017-06-01' > date(a);
+eval explain format=json $q;
 execute immediate 
-  "explain format=json select * from t2 force index(a) where ? > date(a)"
+  "explain format=json select * from t2 where ? > date(a)"
   using '2017-06-01';
 eval prepare stmt from "$q";
 execute stmt;
@@ -340,9 +342,9 @@ execute stmt using '2017-06-05';
 let $q= select count(*) from t2 where '2017-06-03' >= date(a);
 eval $q;
 select count(*) from t2 where '2017-06-03' >= a;
-explain format=json select * from t2 force index(a) where '2017-06-03' >= date(a);
+eval explain format=json $q;
 execute immediate 
-  "explain format=json select * from t2 force index(a) where ? >= date(a)"
+  "explain format=json select * from t2 where ? >= date(a)"
   using '2017-06-03';
 eval prepare stmt from "$q";
 execute stmt;
@@ -359,9 +361,9 @@ execute stmt using '2017-06-12';
 let $q= select count(*) from t2 where '2018-06-01' < date(a);
 eval $q;
 select count(*) from t2 where '2018-06-02' <= a;
-explain format=json select * from t2 force index(a) where '2018-06-01' < date(a);
+eval explain format=json $q;
 execute immediate 
-  "explain format=json select * from t2 force index(a) where ? < date(a)"
+  "explain format=json select * from t2 where ? < date(a)"
   using '2017-06-01';
 eval prepare stmt from "$q";
 execute stmt;
@@ -378,9 +380,9 @@ execute stmt using '2018-06-15';
 let $q= select count(*) from t2 where '2018-06-01' <= date(a);
 eval $q;
 select count(*) from t2 where '2018-06-01' <= a;
-explain format=json select * from t2 force index(a) where '2018-06-01' <= date(a);
+eval explain format=json $q;
 execute immediate 
-  "explain format=json select * from t2 force index(a) where ? <= date(a)"
+  "explain format=json select * from t2 where ? <= date(a)"
   using '2017-06-01';
 eval prepare stmt from "$q";
 execute stmt;
@@ -397,9 +399,9 @@ execute stmt using '2018-06-15';
 let $q= select count(*) from t2 where '2017-06-02' = date(a);
 eval $q;
 select count(*) from t2 where a >= '2017-06-02' and a < '2017-06-03';
-explain format=json select * from t2 force index(a) where '2017-06-02' = date(a);
+eval explain format=json $q;
 execute immediate 
-  "explain format=json select * from t2 force index(a) where ? = date(a)"
+  "explain format=json select * from t2 where ? = date(a)"
   using '2017-06-02';
 eval prepare stmt from "$q";
 execute stmt;
@@ -436,7 +438,7 @@ explain format=json select * from t2 where date(a) < '-1-01-01';
 let $q= select count(*) from t2 where date(b)< '2017-06-03';
 eval $q;
 select count(*) from t2 where b < '2017-06-03';
-explain format=json select * from t2 force index(b) where date(b)< '2017-06-03';
+eval explain format=json $q;
 eval prepare stmt from "$q";
 execute stmt;
 execute stmt;
@@ -449,10 +451,10 @@ prepare stmt from "select count(*) from t2 where date(b) < ?";
 execute stmt using '2017-06-03';
 execute stmt using '2017-06-10';
 
-let $q= select count(*) from t2 force index(b) where date(b)= '2017-06-04';
+let $q= select count(*) from t2 where date(b)= '2017-06-04';
 eval $q;
 select count(*) from t2 where b >= '2017-06-04' and b < '2017-06-05';
-explain format=json select * from t2 force index(b) where date(b)='2017-06-04';
+eval explain format=json $q;
 eval prepare stmt from "$q";
 execute stmt;
 execute stmt;
@@ -534,6 +536,45 @@ explain format=json select * from t2 where year(a) >= 10020;
 explain format=json select * from t2 where date(a) = '10000-01-01';
 explain format=json select * from t2 where date(a) < '-1-01-01';
 
-drop table t0,t1,t2,t3;
+--echo #
+--echo # Composite indexes
+--echo #
+create table t4 (a datetime, b int, key(a, b)) ;
+insert into t4 values ('2009-11-29 13:43:32', 2);
+insert into t4 values ('2009-10-15 12:15:11', 2);
+insert into t4 values ('2009-09-01 15:55:00', 3);
+insert into t4 values ('2009-08-23 12:07:47', 4);
+explain format=json select * from t4 where year(a) = 2009;
+explain format=json select * from t4 where year(a) >= 2009;
+explain format=json select * from t4 where year(a) < 2018;
+explain format=json select * from t4 where date(a) = '2009-12-01';
+explain format=json select * from t4 where b = 2 and year(a) = 2009;
+explain format=json select * from t4 where b = 10 and year(a) > 2001;
+explain format=json select * from t4 where b = 2 and date(a) = '2009-11-02';
+
+--echo # Reverse order of fields in the index
+create table t5 (a datetime, b int, c varchar(20), key(b, a));
+insert into t5 values ('2009-11-29 13:43:32', 2, 'abc');
+insert into t5 values ('2009-10-15 12:15:11', 2, 'def');
+insert into t5 values ('2009-09-01 15:55:00', 3, 'gfd');
+insert into t5 values ('2009-08-23 12:07:47', 4, 'xyz');
+explain format=json select * from t5 where year(a) = 2009;
+explain format=json select * from t4 where date(a) = '2009-12-01';
+explain format=json select * from t5 where b = 2 and year(a) = 2009;
+explain format=json select * from t5 where b = 10 and year(a) > 2001;
+explain format=json select * from t5 where b = 3 and date(a) > '2009-09-01';
+
+--echo #
+--echo # No rewrite for a non-indexed column
+--echo #
+create table t6 (a datetime);
+insert into t6 values ('2009-11-29 13:43:32');
+insert into t6 values ('2009-10-15 12:15:11');
+insert into t6 values ('2009-09-01 15:55:00');
+insert into t6 values ('2009-08-23 12:07:47');
+explain format=json select * from t6 where year(a) = 2009;
+explain format=json select * from t6 where date(a) = '2009-12-01';
+
+drop table t0,t1,t2,t3,t4,t5,t6;
 drop view v1;
 drop procedure sp;

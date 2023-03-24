@@ -195,14 +195,12 @@ Item_field *Date_cmp_func_rewriter::is_date_rounded_field(Item* item,
     if (arg->real_item()->type() == Item::FIELD_ITEM)
     {
       Item_field *item_field= (Item_field*)(arg->real_item());
-      const key_map * used_indexes=
-        &item_field->field->table->keys_in_use_for_query;
       enum_field_types field_type= item_field->field_type();
       if ((field_type == MYSQL_TYPE_DATE ||
            field_type == MYSQL_TYPE_DATETIME ||
            field_type == MYSQL_TYPE_NEWDATE ||
            field_type == MYSQL_TYPE_TIMESTAMP) &&
-          item_field->field->part_of_key.is_overlapping(*used_indexes))
+          item_field->field->flags & PART_KEY_FLAG)
       {
         *out_func_type= func_type;
         return item_field;
