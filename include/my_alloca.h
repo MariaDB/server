@@ -34,7 +34,10 @@
 #endif
 #endif
 
-#if defined(HAVE_ALLOCA)
+#if defined(_AIX) && !defined(__GNUC__) && !defined(_AIX43)
+#pragma alloca
+#endif /* _AIX */
+
 /*
   If the GCC/LLVM compiler from the MinGW is used,
   alloca may not be defined when using the MSVC CRT:
@@ -42,6 +45,5 @@
 #if defined(__GNUC__) && !defined(HAVE_ALLOCA_H) && !defined(alloca)
 #define alloca __builtin_alloca
 #endif /* GNUC */
-#endif
 
 #endif /* MY_ALLOCA_INCLUDED */
