@@ -155,12 +155,12 @@ blhc:
   EOF
   apt-get update -qq
 
-.test-install: &test-install |
+.test-install: &test-install
   # Install MariaDB built in this commit
-  apt-get install -y ./*.deb
+  - apt-get install -y ./*.deb
   # Verify installation of MariaDB built in this commit
-  dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
-  mariadb --version # Client version
+  - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
+  - mariadb --version # Client version
 
 .test-verify-final: &test-verify-final |
   mkdir -p debug # Ensure dir exists before using it
@@ -615,10 +615,7 @@ mariadb.org-10.5 to mariadb-10.6 upgrade:
     - apt-get update -qq
     - apt-get install -y mariadb-server-10.5
     - *test-verify-initial
-    # Install MariaDB built in this commit
-    # Verify installation of MariaDB built in this commit
-    - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
-    - mariadb --version # Client version
+    - *test-install
     - service mariadb status # There is no init.d/mysql in MariaDB 10.5+
     - *test-verify-final
   variables:
