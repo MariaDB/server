@@ -665,6 +665,8 @@ void print_best_access_for_table(THD *thd, POSITION *pos,
 
   Json_writer_object obj(thd, "chosen_access_method");
   obj.add("type", type == JT_ALL ? "scan" : join_type_str[type]);
+  if (pos->key && !is_hash_join_key_no(pos->key->key))
+    obj.add("index", pos->table->table->key_info[pos->key->key].name);
   obj.add("records", pos->records_read);
   obj.add("cost", pos->read_time);
   obj.add("uses_join_buffering", pos->use_join_buffer);

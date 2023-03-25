@@ -1045,6 +1045,7 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                       ],
                       "chosen_access_method": {
                         "type": "ref",
+                        "index": "a",
                         "records": 1,
                         "cost": 200,
                         "uses_join_buffering": false
@@ -1101,6 +1102,7 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                       ],
                       "chosen_access_method": {
                         "type": "ref",
+                        "index": "a",
                         "records": 1,
                         "cost": 200,
                         "uses_join_buffering": false
@@ -2170,6 +2172,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                   ],
                   "chosen_access_method": {
                     "type": "ref",
+                    "index": "a_b",
                     "records": 21,
                     "cost": 22,
                     "uses_join_buffering": false
@@ -2570,6 +2573,7 @@ explain select * from t1 left join t2 on t2.a=t1.a	{
                       ],
                       "chosen_access_method": {
                         "type": "eq_ref",
+                        "index": "PRIMARY",
                         "records": 1,
                         "cost": 4,
                         "uses_join_buffering": false
@@ -3408,6 +3412,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                   ],
                   "chosen_access_method": {
                     "type": "ref",
+                    "index": "pk_a_b",
                     "records": 1,
                     "cost": 1.0043,
                     "uses_join_buffering": false
@@ -4042,6 +4047,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                       ],
                       "chosen_access_method": {
                         "type": "ref",
+                        "index": "a",
                         "records": 1,
                         "cost": 3.007,
                         "uses_join_buffering": false
@@ -4098,6 +4104,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                       ],
                       "chosen_access_method": {
                         "type": "ref",
+                        "index": "a",
                         "records": 2,
                         "cost": 3.014,
                         "uses_join_buffering": false
@@ -8104,6 +8111,7 @@ JS
                         "chosen_access_method": 
                         {
                             "type": "ref",
+                            "index": "b",
                             "records": 1,
                             "cost": 20,
                             "uses_join_buffering": false
@@ -8307,6 +8315,7 @@ JS
                         "chosen_access_method": 
                         {
                             "type": "ref",
+                            "index": "a",
                             "records": 1,
                             "cost": 20,
                             "uses_join_buffering": false
