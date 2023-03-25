@@ -1352,5 +1352,24 @@ drop procedure p;
 set debug_sync=reset;
 
 --echo #
+--echo # MDEV-30902 Server crash in LEX::first_lists_tables_same
+--echo #
+create table t (id int, s date, e date, period for p(s,e),
+                unique(id, p without overlaps)) engine=aria;
+insert into t values (1,'1971-01-01','1971-01-02');
+
+set debug_sync= 'alter_table_online_before_lock signal lock wait_for goon';
+send alter table t force;
+
+--connection con1
+set debug_sync= 'now wait_for lock';
+delete from t;
+set debug_sync= 'now signal goon';
+
+--connection default
+--reap
+drop table t;
+
+--echo #
 --echo # End of 10.10 tests
 --echo #
