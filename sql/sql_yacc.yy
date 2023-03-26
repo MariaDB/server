@@ -444,6 +444,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> ASC                           /* SQL-2003-N */
 %token  <kwd> ASENSITIVE_SYM                /* FUTURE-USE */
 %token  <kwd> AS                            /* SQL-2003-R */
+%token  <kwd> BADFILE
 %token  <kwd> BEFORE_SYM                    /* SQL-2003-N */
 %token  <kwd> BETWEEN_SYM                   /* SQL-2003-R */
 %token  <kwd> BIGINT                        /* SQL-2003-R */
@@ -14592,13 +14593,14 @@ load:
                          sql_exchange($7.str, 0, $2))))
               MYSQL_YYABORT;
           }
+          opt_badfile
           opt_duplicate INTO TABLE_SYM table_ident opt_use_partition
           {
             LEX *lex=Lex;
-            if (unlikely(!Select->add_table_to_list(thd, $12, NULL,
+            if (unlikely(!Select->add_table_to_list(thd, $13, NULL,
                                                    TL_OPTION_UPDATING,
                                                    $4, MDL_SHARED_WRITE,
-                                                   NULL, $13)))
+                                                   NULL, $14)))
               MYSQL_YYABORT;
             lex->field_list.empty();
             lex->update_list.empty();
@@ -14606,7 +14608,7 @@ load:
             lex->many_values.empty();
           }
           opt_load_data_charset
-          { Lex->exchange->cs= $15; }
+          { Lex->exchange->cs= $16; }
           opt_xml_rows_identified_by
           opt_field_term opt_line_term opt_ignore_lines opt_field_or_var_spec
           opt_load_data_set_spec
@@ -14637,6 +14639,14 @@ load_data_lock:
             $$= (Lex->sphead ? TL_WRITE_DEFAULT : TL_WRITE_CONCURRENT_INSERT);
           }
         | LOW_PRIORITY { $$= TL_WRITE_LOW_PRIORITY; }
+        ;
+
+opt_badfile:
+          /* empty */
+        | BADFILE TEXT_STRING_filesystem
+          {
+            Lex->bad_file= $2.str;
+          }
         ;
 
 opt_duplicate:
@@ -16085,6 +16095,7 @@ reserved_keyword_udt_not_param_type:
         | AS
         | ASC
         | ASENSITIVE_SYM
+        | BADFILE
         | BEFORE_SYM
         | BETWEEN_SYM
         | BIT_AND

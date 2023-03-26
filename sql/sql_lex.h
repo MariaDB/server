@@ -3210,6 +3210,7 @@ public:
   String *wild; /* Wildcard in SHOW {something} LIKE 'wild'*/ 
   sql_exchange *exchange;
   select_result *result;
+  const char *bad_file;
   /**
     @c the two may also hold BINLOG arguments: either comment holds a
     base64-char string or both represent the BINLOG fragment user variables.
