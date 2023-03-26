@@ -6449,8 +6449,7 @@ online_alter_cache_data *online_alter_binlog_get_cache_data(THD *thd, TABLE *tab
       return &cache;
   }
 
-  MEM_ROOT *root= thd->in_multi_stmt_transaction_mode()
-                  ? &thd->transaction->mem_root : thd->mem_root;
+  MEM_ROOT *root= &thd->transaction->mem_root;
   auto *new_cache_data= binlog_setup_cache_data(root, table->s);
   list.push_back(*new_cache_data);
 
