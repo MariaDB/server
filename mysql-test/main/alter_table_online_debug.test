@@ -1371,5 +1371,33 @@ set debug_sync= 'now signal goon';
 drop table t;
 
 --echo #
+--echo # MDEV-30924 Server crashes in MYSQL_LOG::is_open upon ALTER vs FUNCTION
+--echo #
+create table t (a int);
+insert into t values (1),(2);
+
+--delimiter $
+create function f () returns int
+begin
+  update t set a = 10;
+  return 0;
+end $
+--delimiter ;
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goon';
+send alter table t force, algorithm=copy;
+
+--connection con1
+set debug_sync= 'now wait_for downgraded';
+select f();
+set debug_sync= 'now signal goon';
+
+--connection default
+--reap
+drop table t;
+drop function f;
+--disconnect con1
+
+--echo #
 --echo # End of 11.2 tests
 --echo #
