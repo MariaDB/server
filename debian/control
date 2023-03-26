@@ -87,7 +87,6 @@ Description: MariaDB database development files
 
 Package: libmariadb-dev-compat
 Architecture: any
-Multi-Arch: same
 Section: libdevel
 Depends: libmariadb-dev (= ${binary:Version}),
          ${misc:Depends}
@@ -950,7 +949,6 @@ Description: GSSAPI authentication plugin for MariaDB server
 
 Package: mariadb-plugin-gssapi-client
 Architecture: any
-Multi-Arch: same
 Depends: libgssapi-krb5-2,
          mariadb-client (= ${binary:Version}),
          ${misc:Depends},
