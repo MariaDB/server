@@ -386,7 +386,7 @@ delete_log_files(char* logfilename, size_t dirnamelen, uint n_files, uint i=0)
 {
 	/* Remove any old log files. */
 	for (; i < n_files; i++) {
-		sprintf(logfilename + dirnamelen, "ib_logfile%u", i);
+		snprintf(logfilename + dirnamelen, sizeof(logfilename + dirnamelen), "ib_logfile%u", i);
 
 		/* Ignore errors about non-existent files or files
 		that cannot be removed. The create_log_file() will
@@ -438,7 +438,8 @@ create_log_files(
 	DBUG_PRINT("ib_log", ("After innodb_log_abort_7"));
 
 	for (unsigned i = 0; i < srv_n_log_files; i++) {
-		sprintf(logfilename + dirnamelen,
+		snprintf(logfilename + dirnamelen,
+			sizeof(logfilename + dirnamelen),
 			"ib_logfile%u", i ? i : INIT_LOG_FILE0);
 
 		err = create_log_file(&files[i], logfilename);
@@ -454,7 +455,7 @@ create_log_files(
 	/* We did not create the first log file initially as
 	ib_logfile0, so that crash recovery cannot find it until it
 	has been completed and renamed. */
-	sprintf(logfilename + dirnamelen, "ib_logfile%u", INIT_LOG_FILE0);
+	snprintf(logfilename + dirnamelen, sizeof(logfilename + dirnamelen), "ib_logfile%u", INIT_LOG_FILE0);
 
 	fil_space_t*	log_space = fil_space_create(
 		"innodb_redo_log", SRV_LOG_SPACE_FIRST_ID, 0, FIL_TYPE_LOG,
@@ -471,7 +472,7 @@ create_log_files(
 
 	for (unsigned i = 1; i < srv_n_log_files; i++) {
 
-		sprintf(logfilename + dirnamelen, "ib_logfile%u", i);
+		snprintf(logfilename + dirnamelen, sizeof(logfilename + dirnamelen), "ib_logfile%u", i);
 
 		log_space->add(logfilename, OS_FILE_CLOSED, size,
 			       false, false);
@@ -550,7 +551,7 @@ create_log_files_rename(
 
 	/* Rename the first log file, now that a log
 	checkpoint has been created. */
-	sprintf(logfilename + dirnamelen, "ib_logfile%u", 0);
+	snprintf(logfilename + dirnamelen, sizeof(logfilename + dirnamelen), "ib_logfile%u", 0);
 
 	ib::info() << "Renaming log file " << logfile0 << " to "
 		<< logfilename;
@@ -768,7 +769,8 @@ srv_check_undo_redo_logs_exists()
 	memcpy(logfilename, srv_log_group_home_dir, dirnamelen);
 
 	for (unsigned i = 0; i < srv_n_log_files; i++) {
-		sprintf(logfilename + dirnamelen,
+		snprintf(logfilename + dirnamelen,
+			sizeof(logfilename) - dirnamelen,
 			"ib_logfile%u", i);
 
 		fh = os_file_create(
@@ -1429,7 +1431,8 @@ dberr_t srv_start(bool create_new_db)
 					strlen(fil_path_to_mysql_datadir)
 					+ 20 + sizeof "/innodb_status."));
 
-			sprintf(srv_monitor_file_name,
+			snprintf(srv_monitor_file_name,
+				sizeof(srv_monitor_file_name), 
 				"%s/innodb_status." ULINTPF,
 				fil_path_to_mysql_datadir,
 				os_proc_get_number());
@@ -1653,7 +1656,8 @@ dberr_t srv_start(bool create_new_db)
 		for (i = 0; i < SRV_N_LOG_FILES_MAX; i++) {
 			os_file_stat_t	stat_info;
 
-			sprintf(logfilename + dirnamelen,
+			snprintf(logfilename + dirnamelen,
+			sizeof(logfilename) - dirnamelen,
 				"ib_logfile%u", i);
 
 			err = os_file_get_status(
@@ -1759,7 +1763,7 @@ dberr_t srv_start(bool create_new_db)
 
 		/* Create the in-memory file space objects. */
 
-		sprintf(logfilename + dirnamelen, "ib_logfile%u", 0);
+		snprintf(logfilename + dirnamelen, sizeof(logfilename) - dirnamelen, "ib_logfile%u", 0);
 
 		/* Disable the doublewrite buffer for log files. */
 		fil_space_t*	log_space = fil_space_create(
@@ -1777,7 +1781,7 @@ dberr_t srv_start(bool create_new_db)
 					     >> srv_page_size_shift);
 
 		for (unsigned j = 0; j < srv_n_log_files_found; j++) {
-			sprintf(logfilename + dirnamelen, "ib_logfile%u", j);
+			snprintf(logfilename + dirnamelen, sizeof(logfilename) - dirnamelen, "ib_logfile%u", j);
 
 			log_space->add(logfilename, OS_FILE_CLOSED, size,
 				       false, false);

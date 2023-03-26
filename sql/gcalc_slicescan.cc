@@ -102,7 +102,7 @@ const char *gcalc_ev_name(int ev)
 
 static int gcalc_pi_str(char *str, const Gcalc_heap::Info *pi, const char *postfix)
 {
-  return sprintf(str, "%s %d %d | %s %d %d%s",
+  return snprintf(str, sizeof(str), "%s %d %d | %s %d %d%s",
                      GCALC_SIGN(pi->node.shape.ix[0]) ? "-":"", FIRST_DIGIT(pi->node.shape.ix[0]),pi->node.shape.ix[1],
                      GCALC_SIGN(pi->node.shape.iy[0]) ? "-":"", FIRST_DIGIT(pi->node.shape.iy[0]),pi->node.shape.iy[1],
                      postfix);
@@ -148,12 +148,11 @@ static void GCALC_DBUG_PRINT_SLICE(const char *header,
   for (; slice; slice= slice->get_next())
   {
     size_t lnbuf= nbuf;
-    lnbuf+= sprintf(buf + lnbuf, "%d\t", slice->thread);
-    lnbuf+= sprintf(buf + lnbuf, "%s\t", gcalc_ev_name(slice->event));
+    lnbuf+= snprintf(buf + lnbuf, sizeof(buf) - lnbuf, "%d\t%s\t", slice->thread, gcalc_ev_name(slice->event));
 
     lnbuf+= gcalc_pi_str(buf + lnbuf, slice->pi, "\t");
     if (slice->is_bottom())
-      lnbuf+= sprintf(buf+lnbuf, "bt\t");
+      lnbuf+= snprintf(buf+lnbuf, sizeof(buf) - lnbuf, "bt\t");
     else
       lnbuf+= gcalc_pi_str(buf+lnbuf, slice->next_pi, "\t");
     buf[lnbuf]= 0;

@@ -50,14 +50,14 @@ fts_write_object_id(
 	/* Use this to construct old(5.6.14 and 5.7.3) windows
 	ambiguous aux table names */
 	DBUG_EXECUTE_IF("innodb_test_wrong_windows_fts_aux_table_name",
-			return(sprintf(str, "%016llu", (ulonglong) id)););
+			return(snprintf(str, sizeof(str), "%016llu", (ulonglong) id)););
 
 	DBUG_EXECUTE_IF("innodb_test_wrong_fts_aux_table_name",
-			return(sprintf(str, "%016llx", (ulonglong) id)););
+			return(snprintf(str, sizeof(str), "%016llx", (ulonglong) id)););
 
 #endif /* _WIN32 */
 
-	return(sprintf(str, "%016llx", (ulonglong) id));
+	return(snprintf(str, sizeof(str), "%016llx", (ulonglong) id));
 }
 
 /******************************************************************//**

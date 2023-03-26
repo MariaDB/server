@@ -18,7 +18,8 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335  USA
+*/
 
 #ifndef PFS_TABLE_HELPER_H
 #define PFS_TABLE_HELPER_H
@@ -31,15 +32,15 @@
 #include "pfs_digest.h"
 
 /*
-  Write MD5 hash value in a string to be used 
+  Write MD5 hash value in a string to be used
   as DIGEST for the statement.
 */
-#define MD5_HASH_TO_STRING(_hash, _str)                    \
-  sprintf(_str, "%02x%02x%02x%02x%02x%02x%02x%02x"         \
-                "%02x%02x%02x%02x%02x%02x%02x%02x",        \
-          _hash[0], _hash[1], _hash[2], _hash[3],          \
-          _hash[4], _hash[5], _hash[6], _hash[7],          \
-          _hash[8], _hash[9], _hash[10], _hash[11],        \
+#define MD5_HASH_TO_STRING(_hash, _str)                                       \
+  snprintf(_str, sizeof(_str),                                                 \
+          "%02x%02x%02x%02x%02x%02x%02x%02x"                                  \
+          "%02x%02x%02x%02x%02x%02x%02x%02x",                                 \
+          _hash[0], _hash[1], _hash[2], _hash[3], _hash[4], _hash[5],         \
+          _hash[6], _hash[7], _hash[8], _hash[9], _hash[10], _hash[11],       \
           _hash[12], _hash[13], _hash[14], _hash[15])
 
 #define MD5_HASH_TO_STRING_LENGTH 32
@@ -193,7 +194,8 @@ struct PFS_object_row
   void set_field(uint index, Field *f);
 };
 
-/** Row fragment for columns OBJECT_TYPE, SCHEMA_NAME, OBJECT_NAME, INDEX_NAME. */
+/** Row fragment for columns OBJECT_TYPE, SCHEMA_NAME, OBJECT_NAME, INDEX_NAME.
+ */
 struct PFS_index_row
 {
   PFS_object_row m_object_row;
@@ -248,32 +250,33 @@ struct PFS_stat_row
   {
     switch (index)
     {
-      case 0: /* COUNT */
-        PFS_engine_table::set_field_ulonglong(f, m_count);
-        break;
-      case 1: /* SUM */
-        PFS_engine_table::set_field_ulonglong(f, m_sum);
-        break;
-      case 2: /* MIN */
-        PFS_engine_table::set_field_ulonglong(f, m_min);
-        break;
-      case 3: /* AVG */
-        PFS_engine_table::set_field_ulonglong(f, m_avg);
-        break;
-      case 4: /* MAX */
-        PFS_engine_table::set_field_ulonglong(f, m_max);
-        break;
-      default:
-        DBUG_ASSERT(false);
+    case 0: /* COUNT */
+      PFS_engine_table::set_field_ulonglong(f, m_count);
+      break;
+    case 1: /* SUM */
+      PFS_engine_table::set_field_ulonglong(f, m_sum);
+      break;
+    case 2: /* MIN */
+      PFS_engine_table::set_field_ulonglong(f, m_min);
+      break;
+    case 3: /* AVG */
+      PFS_engine_table::set_field_ulonglong(f, m_avg);
+      break;
+    case 4: /* MAX */
+      PFS_engine_table::set_field_ulonglong(f, m_max);
+      break;
+    default:
+      DBUG_ASSERT(false);
     }
   }
 };
 
-/** Row fragment for timer and byte count stats. Corresponds to PFS_byte_stat */
+/** Row fragment for timer and byte count stats. Corresponds to PFS_byte_stat
+ */
 struct PFS_byte_stat_row
 {
   PFS_stat_row m_waits;
-  ulonglong    m_bytes;
+  ulonglong m_bytes;
 
   /** Build a row with timer and byte count fields from a memory buffer. */
   inline void set(time_normalizer *normalizer, const PFS_byte_stat *stat)
@@ -301,24 +304,24 @@ struct PFS_table_io_stat_row
     PFS_single_stat all_write;
     PFS_single_stat all;
 
-    m_fetch.set(normalizer, & stat->m_fetch);
+    m_fetch.set(normalizer, &stat->m_fetch);
 
-    all_read.aggregate(& stat->m_fetch);
+    all_read.aggregate(&stat->m_fetch);
 
-    m_insert.set(normalizer, & stat->m_insert);
-    m_update.set(normalizer, & stat->m_update);
-    m_delete.set(normalizer, & stat->m_delete);
+    m_insert.set(normalizer, &stat->m_insert);
+    m_update.set(normalizer, &stat->m_update);
+    m_delete.set(normalizer, &stat->m_delete);
 
-    all_write.aggregate(& stat->m_insert);
-    all_write.aggregate(& stat->m_update);
-    all_write.aggregate(& stat->m_delete);
+    all_write.aggregate(&stat->m_insert);
+    all_write.aggregate(&stat->m_update);
+    all_write.aggregate(&stat->m_delete);
 
-    all.aggregate(& all_read);
-    all.aggregate(& all_write);
+    all.aggregate(&all_read);
+    all.aggregate(&all_write);
 
-    m_all_read.set(normalizer, & all_read);
-    m_all_write.set(normalizer, & all_write);
-    m_all.set(normalizer, & all);
+    m_all_read.set(normalizer, &all_read);
+    m_all_write.set(normalizer, &all_write);
+    m_all.set(normalizer, &all);
   }
 };
 
@@ -347,38 +350,43 @@ struct PFS_table_lock_stat_row
     PFS_single_stat all_write;
     PFS_single_stat all;
 
-    m_read_normal.set(normalizer, & stat->m_stat[PFS_TL_READ]);
-    m_read_with_shared_locks.set(normalizer, & stat->m_stat[PFS_TL_READ_WITH_SHARED_LOCKS]);
-    m_read_high_priority.set(normalizer, & stat->m_stat[PFS_TL_READ_HIGH_PRIORITY]);
-    m_read_no_insert.set(normalizer, & stat->m_stat[PFS_TL_READ_NO_INSERT]);
-    m_read_external.set(normalizer, & stat->m_stat[PFS_TL_READ_EXTERNAL]);
+    m_read_normal.set(normalizer, &stat->m_stat[PFS_TL_READ]);
+    m_read_with_shared_locks.set(normalizer,
+                                 &stat->m_stat[PFS_TL_READ_WITH_SHARED_LOCKS]);
+    m_read_high_priority.set(normalizer,
+                             &stat->m_stat[PFS_TL_READ_HIGH_PRIORITY]);
+    m_read_no_insert.set(normalizer, &stat->m_stat[PFS_TL_READ_NO_INSERT]);
+    m_read_external.set(normalizer, &stat->m_stat[PFS_TL_READ_EXTERNAL]);
 
-    all_read.aggregate(& stat->m_stat[PFS_TL_READ]);
-    all_read.aggregate(& stat->m_stat[PFS_TL_READ_WITH_SHARED_LOCKS]);
-    all_read.aggregate(& stat->m_stat[PFS_TL_READ_HIGH_PRIORITY]);
-    all_read.aggregate(& stat->m_stat[PFS_TL_READ_NO_INSERT]);
-    all_read.aggregate(& stat->m_stat[PFS_TL_READ_EXTERNAL]);
+    all_read.aggregate(&stat->m_stat[PFS_TL_READ]);
+    all_read.aggregate(&stat->m_stat[PFS_TL_READ_WITH_SHARED_LOCKS]);
+    all_read.aggregate(&stat->m_stat[PFS_TL_READ_HIGH_PRIORITY]);
+    all_read.aggregate(&stat->m_stat[PFS_TL_READ_NO_INSERT]);
+    all_read.aggregate(&stat->m_stat[PFS_TL_READ_EXTERNAL]);
 
-    m_write_allow_write.set(normalizer, & stat->m_stat[PFS_TL_WRITE_ALLOW_WRITE]);
-    m_write_concurrent_insert.set(normalizer, & stat->m_stat[PFS_TL_WRITE_CONCURRENT_INSERT]);
-    m_write_delayed.set(normalizer, & stat->m_stat[PFS_TL_WRITE_DELAYED]);
-    m_write_low_priority.set(normalizer, & stat->m_stat[PFS_TL_WRITE_LOW_PRIORITY]);
-    m_write_normal.set(normalizer, & stat->m_stat[PFS_TL_WRITE]);
-    m_write_external.set(normalizer, & stat->m_stat[PFS_TL_WRITE_EXTERNAL]);
+    m_write_allow_write.set(normalizer,
+                            &stat->m_stat[PFS_TL_WRITE_ALLOW_WRITE]);
+    m_write_concurrent_insert.set(
+        normalizer, &stat->m_stat[PFS_TL_WRITE_CONCURRENT_INSERT]);
+    m_write_delayed.set(normalizer, &stat->m_stat[PFS_TL_WRITE_DELAYED]);
+    m_write_low_priority.set(normalizer,
+                             &stat->m_stat[PFS_TL_WRITE_LOW_PRIORITY]);
+    m_write_normal.set(normalizer, &stat->m_stat[PFS_TL_WRITE]);
+    m_write_external.set(normalizer, &stat->m_stat[PFS_TL_WRITE_EXTERNAL]);
 
-    all_write.aggregate(& stat->m_stat[PFS_TL_WRITE_ALLOW_WRITE]);
-    all_write.aggregate(& stat->m_stat[PFS_TL_WRITE_CONCURRENT_INSERT]);
-    all_write.aggregate(& stat->m_stat[PFS_TL_WRITE_DELAYED]);
-    all_write.aggregate(& stat->m_stat[PFS_TL_WRITE_LOW_PRIORITY]);
-    all_write.aggregate(& stat->m_stat[PFS_TL_WRITE]);
-    all_write.aggregate(& stat->m_stat[PFS_TL_WRITE_EXTERNAL]);
+    all_write.aggregate(&stat->m_stat[PFS_TL_WRITE_ALLOW_WRITE]);
+    all_write.aggregate(&stat->m_stat[PFS_TL_WRITE_CONCURRENT_INSERT]);
+    all_write.aggregate(&stat->m_stat[PFS_TL_WRITE_DELAYED]);
+    all_write.aggregate(&stat->m_stat[PFS_TL_WRITE_LOW_PRIORITY]);
+    all_write.aggregate(&stat->m_stat[PFS_TL_WRITE]);
+    all_write.aggregate(&stat->m_stat[PFS_TL_WRITE_EXTERNAL]);
 
-    all.aggregate(& all_read);
-    all.aggregate(& all_write);
+    all.aggregate(&all_read);
+    all.aggregate(&all_write);
 
-    m_all_read.set(normalizer, & all_read);
-    m_all_write.set(normalizer, & all_write);
-    m_all.set(normalizer, & all);
+    m_all_read.set(normalizer, &all_read);
+    m_all_write.set(normalizer, &all_write);
+    m_all.set(normalizer, &all);
   }
 };
 
@@ -390,14 +398,11 @@ struct PFS_stage_stat_row
   /** Build a row from a memory buffer. */
   inline void set(time_normalizer *normalizer, const PFS_stage_stat *stat)
   {
-    m_timer1_row.set(normalizer, & stat->m_timer1_stat);
+    m_timer1_row.set(normalizer, &stat->m_timer1_stat);
   }
 
   /** Set a table field from the row. */
-  void set_field(uint index, Field *f)
-  {
-     m_timer1_row.set_field(index, f);
-  }
+  void set_field(uint index, Field *f) { m_timer1_row.set_field(index, f); }
 };
 
 /** Row fragment for statement statistics columns. */
@@ -427,7 +432,7 @@ struct PFS_statement_stat_row
   /** Build a row from a memory buffer. */
   inline void set(time_normalizer *normalizer, const PFS_statement_stat *stat)
   {
-    m_timer1_row.set(normalizer, & stat->m_timer1_stat);
+    m_timer1_row.set(normalizer, &stat->m_timer1_stat);
 
     m_error_count= stat->m_error_count;
     m_warning_count= stat->m_warning_count;
@@ -478,7 +483,7 @@ struct PFS_socket_io_stat_row
   PFS_byte_stat_row m_write;
   PFS_byte_stat_row m_misc;
   PFS_byte_stat_row m_all;
-  
+
   inline void set(time_normalizer *normalizer, const PFS_socket_io_stat *stat)
   {
     PFS_byte_stat all;
@@ -486,7 +491,7 @@ struct PFS_socket_io_stat_row
     m_read.set(normalizer, &stat->m_read);
     m_write.set(normalizer, &stat->m_write);
     m_misc.set(normalizer, &stat->m_misc);
-    
+
     /* Combine stats for all operations */
     all.aggregate(&stat->m_read);
     all.aggregate(&stat->m_write);
@@ -503,7 +508,7 @@ struct PFS_file_io_stat_row
   PFS_byte_stat_row m_write;
   PFS_byte_stat_row m_misc;
   PFS_byte_stat_row m_all;
-  
+
   inline void set(time_normalizer *normalizer, const PFS_file_io_stat *stat)
   {
     PFS_byte_stat all;
@@ -511,7 +516,7 @@ struct PFS_file_io_stat_row
     m_read.set(normalizer, &stat->m_read);
     m_write.set(normalizer, &stat->m_write);
     m_misc.set(normalizer, &stat->m_misc);
-    
+
     /* Combine stats for all operations */
     all.aggregate(&stat->m_read);
     all.aggregate(&stat->m_write);
@@ -524,4 +529,3 @@ struct PFS_file_io_stat_row
 /** @} */
 
 #endif
-
