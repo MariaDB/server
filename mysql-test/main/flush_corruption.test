@@ -1,5 +1,5 @@
 #
-# Test of MERGE tables with multisession and many waits.
+# Test of MyISAM tables with multisession and many waits.
 #
 # This test takes rather long time so let us run it only in --big-test mode
 --source include/big_test.inc
