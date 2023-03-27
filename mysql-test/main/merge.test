@@ -2923,5 +2923,15 @@ SELECT DISTINCT f FROM tm WHERE f IN (47, 126, 97, 48, 73, 0);
 DROP TABLE tm, t1, t2;
 
 --echo #
+--echo # MDEV-30786 SIGFPE in cost_group_min_max on EXP
+--echo #
+SET use_stat_tables='preferably';
+CREATE TABLE t1 (a INT,b INT,KEY i1 (a),KEY i2 (b)) ENGINE=MRG_MyISAM;
+ANALYZE LOCAL TABLE t1;
+EXPLAIN SELECT DISTINCT a FROM t1;
+drop table t1;
+set use_stat_tables=default;
+
+--echo #
 --echo # End of 11.0 tests
 --echo #

@@ -3965,5 +3965,19 @@ SELECT DISTINCT f FROM tm WHERE f IN (47, 126, 97, 48, 73, 0);
 f
 DROP TABLE tm, t1, t2;
 #
+# MDEV-30786 SIGFPE in cost_group_min_max on EXP
+#
+SET use_stat_tables='preferably';
+CREATE TABLE t1 (a INT,b INT,KEY i1 (a),KEY i2 (b)) ENGINE=MRG_MyISAM;
+ANALYZE LOCAL TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	note	The storage engine for the table doesn't support analyze
+EXPLAIN SELECT DISTINCT a FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	i1	5	NULL	1	Using index for group-by
+drop table t1;
+set use_stat_tables=default;
+#
 # End of 11.0 tests
 #
