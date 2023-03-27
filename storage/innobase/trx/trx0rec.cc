@@ -1868,26 +1868,28 @@ trx_undo_report_row_operation(
 	}
 
 	mtr_t		mtr;
+	dberr_t		err;
 	mtr.start();
 	trx_undo_t**	pundo;
 	trx_rseg_t*	rseg;
 	const bool	is_temp	= index->table->is_temporary();
+	buf_block_t*	undo_block;
 
 	if (is_temp) {
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
-
 		rseg = trx->get_temp_rseg();
 		pundo = &trx->rsegs.m_noredo.undo;
+		undo_block = trx_undo_assign_low<true>(trx, rseg, pundo,
+						       &mtr, &err);
 	} else {
 		ut_ad(!trx->read_only);
 		ut_ad(trx->id);
 		pundo = &trx->rsegs.m_redo.undo;
 		rseg = trx->rsegs.m_redo.rseg;
+		undo_block = trx_undo_assign_low<false>(trx, rseg, pundo,
+							&mtr, &err);
 	}
 
-	dberr_t		err;
-	buf_block_t*	undo_block = trx_undo_assign_low(trx, rseg, pundo,
-							 &err, &mtr);
 	trx_undo_t*	undo	= *pundo;
 	ut_ad((err == DB_SUCCESS) == (undo_block != NULL));
 	if (UNIV_UNLIKELY(undo_block == NULL)) {
