@@ -3588,7 +3588,7 @@ Create_func_format_pico_time Create_func_format_pico_time::s_singleton;
 Item*
 Create_func_format_pico_time::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_pfs_format_pico_time(thd, arg1);
+  return new (thd->mem_root) Item_func_format_pico_time(thd, arg1);
 }
 
 

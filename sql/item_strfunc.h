@@ -2220,6 +2220,33 @@ public:
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_temptable_rowid>(thd, this); }
 };
+
+class Item_func_format_pico_time : public Item_str_ascii_func
+{
+  /* Format is 'AAAA.BB UUU' = 11 characters or 'AAA ps' = 6 characters. */
+  char m_value_buffer[12];
+  String m_value;
+
+public:
+  Item_func_format_pico_time(THD *thd, Item *a): Item_str_ascii_func(thd, a) {}
+  String *val_str_ascii(String *) override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("format_pico_time")};
+    return name;
+  }
+  bool fix_length_and_dec(THD *thd) override
+  {
+    m_value.set(m_value_buffer, sizeof(m_value_buffer), default_charset());
+    fix_length_and_charset(sizeof(m_value_buffer), default_charset());
+    return false;
+  }
+  Item *get_copy(THD *thd) override
+  {
+    return get_item_copy<Item_func_format_pico_time>(thd, this);
+  }
+};
+
 #ifdef WITH_WSREP
 
 #include "wsrep_api.h"
