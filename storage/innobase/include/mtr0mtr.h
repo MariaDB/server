@@ -337,7 +337,7 @@ public:
   {
     mtr_memo_slot_t &slot= m_memo[savepoint];
     ut_ad(slot.type <= MTR_MEMO_BUF_FIX);
-    ut_ad(type <= MTR_MEMO_BUF_FIX);
+    ut_ad(type < MTR_MEMO_S_LOCK);
     slot.type= type;
   }
 
