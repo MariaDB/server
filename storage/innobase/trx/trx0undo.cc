@@ -535,8 +535,6 @@ trx_undo_seg_create(fil_space_t *space, buf_block_t *rseg_hdr, ulint *id,
 		      + slot_no * TRX_RSEG_SLOT_SIZE + rseg_hdr->page.frame,
 		      block->page.id().page_no());
 
-	MONITOR_INC(MONITOR_NUM_UNDO_SLOT_USED);
-
 	*err = DB_SUCCESS;
 	return block;
 }
@@ -996,7 +994,6 @@ static void trx_undo_seg_free(const trx_undo_t *undo)
         static_assert(FIL_NULL == 0xffffffff, "compatibility");
         mtr.memset(rseg_header, TRX_RSEG + TRX_RSEG_UNDO_SLOTS +
                    undo->id * TRX_RSEG_SLOT_SIZE, 4, 0xff);
-        MONITOR_DEC(MONITOR_NUM_UNDO_SLOT_USED);
       }
     }
 
@@ -1155,7 +1152,6 @@ corrupted_type:
 		UT_LIST_ADD_LAST(rseg->undo_list, undo);
 	} else {
 		UT_LIST_ADD_LAST(rseg->undo_cached, undo);
-		MONITOR_INC(MONITOR_NUM_UNDO_SLOT_CACHED);
 	}
 
 	mtr.commit();
@@ -1333,7 +1329,6 @@ trx_undo_reuse_cached(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** pundo,
 	}
 
 	UT_LIST_REMOVE(rseg->undo_cached, undo);
-	MONITOR_DEC(MONITOR_NUM_UNDO_SLOT_CACHED);
 
 	*pundo = undo;
 
@@ -1546,7 +1541,6 @@ void trx_undo_commit_cleanup(trx_undo_t *undo)
 
 	if (undo->state == TRX_UNDO_CACHED) {
 		UT_LIST_ADD_FIRST(rseg->undo_cached, undo);
-		MONITOR_INC(MONITOR_NUM_UNDO_SLOT_CACHED);
 		undo = nullptr;
 	} else {
 		ut_ad(undo->state == TRX_UNDO_TO_PURGE);

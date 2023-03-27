@@ -164,8 +164,8 @@ trx_commits_insert_update	transaction	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NUL
 trx_rollbacks	transaction	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of transactions rolled back
 trx_rollbacks_savepoint	transaction	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of transactions rolled back to savepoint
 trx_rseg_history_len	transaction	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	Length of the TRX_RSEG_HISTORY list
-trx_undo_slots_used	transaction	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of undo slots used
-trx_undo_slots_cached	transaction	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of undo slots cached
+trx_undo_slots_used	transaction	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	Number of undo slots used
+trx_undo_slots_cached	transaction	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	Number of undo slots cached
 trx_rseg_current_size	transaction	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	Current rollback segment size in pages
 purge_del_mark_records	purge	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of delete-marked rows purged
 purge_upd_exist_or_extern_records	purge	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of purges on updates of existing records and updates on delete marked record with externally stored field
