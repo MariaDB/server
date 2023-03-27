@@ -23,7 +23,7 @@ The MariaDB server is started with the options:
 - InnoDB is a clustered engine where secondary indexes has to use
   the clustered index to find a row (not a common case among storage engines).
 
-The old assumption in the optimzer has 'always' been that
+The old assumption in the optimizer has 'always' been that
 1 cost = 1 seek = 1 index = 1 row lookup = 0.10ms.
 However 1 seek != 1 index or row look and this has not been reflected in
 most other cost.
@@ -135,7 +135,7 @@ MariaDB [test]> select 885402302809000-884884140290000;
 As seen above, the above gives the total statement time not the time
 spent to access the tables.
 
-In the end, I dediced to use analyze to find out the cost of the table
+In the end, I decided to use analyze to find out the cost of the table
 actions:
 
 For example: Finding out table scan timing (and thus costs):
@@ -147,7 +147,7 @@ r_table_time_ms": 1189.239022
 Calculating 'optimizer_where_cost'
 ==================================
 
-To make the WHERE cost reasonble (not too low) we are assuming there is
+To make the WHERE cost reasonable (not too low) we are assuming there is
 2 simple conditions in the default 'WHERE clause'
 
 MariaDB [test]> select benchmark(100000000,l_commitDate >= '2000-01-01' and l_tax >= 0.0) from test.check_costs limit 1;
@@ -300,7 +300,7 @@ r_table_time_ms: 12.47830611
 Note that for sequence index and table scan is the same thing.
 We need to have a row_copy/key_copy cost as this is used when doing
 an key lookup for sequence. Setting these to 50% of the full cost
-should be sufficent for now.
+should be sufficient for now.
 
 Calculation sequence_scan_cost:
 
@@ -982,7 +982,7 @@ MyRocks Range scan
 select sum(l_orderkey) from test.check_costs_rocksdb force index(l_suppkey) where l_suppkey >= 0 and l_partkey >=0 and l_discount>=0.0
 
 The MyRocks engine estimates the number of rows both for the table and
-for the to be about 2M, double the real ammount.
+for the to be about 2M, double the real amount.
 
 The timing and costs from check_costs.pl are:
 
@@ -1014,7 +1014,7 @@ is heap with binary-tree indexes.
 Ideas of how to fix this:
 
 - Change KEY_LOOKUP_COST, INDEX_BLOCK_COPY_COST and ROW_LOOKUP_COST
- (for clustered index) to take into account the hight of the B tree.
+ (for clustered index) to take into account the height of the B tree.
 
 
 Observations
@@ -1022,7 +1022,7 @@ Observations
 
 Ratio between table scan and range scan
 
-Quereyies used:
+Queries used:
 select sum(l_quantity) from check_costs_aria;
 select sum(l_orderkey) from test.check_costs_aria force index(l_suppkey) where l_suppkey >= 0 and l_partkey >=0 and l_discount>=0.0;
 
@@ -1086,7 +1086,7 @@ Call graph
 
 -> KEY_COPY_COST = 1.33/1.96 = 0.6785 parts of the index_read_next
 
-Total cost increase from 2 -> 4 key parts = 1.96 / 1.40 = 40%
+Total cost increases from 2 -> 4 key parts = 1.96 / 1.40 = 40%
 This includes the additional work in having more key pages, more work in
 finding next key (if key parts are packed or possible null) ,and copying
 the key parts to the record
