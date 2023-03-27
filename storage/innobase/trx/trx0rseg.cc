@@ -394,7 +394,6 @@ void trx_rseg_t::reinit(uint32_t page)
   {
     next= UT_LIST_GET_NEXT(undo_list, undo);
     UT_LIST_REMOVE(undo_cached, undo);
-    MONITOR_DEC(MONITOR_NUM_UNDO_SLOT_CACHED);
     ut_free(undo);
   }
 
@@ -424,7 +423,6 @@ static dberr_t trx_undo_lists_init(trx_rseg_t *rseg,
       if (!undo)
         return DB_CORRUPTION;
       rseg->curr_size+= undo->size;
-      MONITOR_INC(MONITOR_NUM_UNDO_SLOT_USED);
     }
   }
 

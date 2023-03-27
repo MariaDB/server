@@ -280,8 +280,6 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 			    TRX_RSEG + TRX_RSEG_UNDO_SLOTS
 			    + undo->id * TRX_RSEG_SLOT_SIZE, 4, 0xff);
 
-		MONITOR_DEC(MONITOR_NUM_UNDO_SLOT_USED);
-
 		uint32_t hist_size = mach_read_from_4(
 			TRX_RSEG_HISTORY_SIZE + TRX_RSEG
 			+ rseg_header->page.frame);
@@ -363,7 +361,6 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 
 	if (undo->state == TRX_UNDO_CACHED) {
 		UT_LIST_ADD_FIRST(rseg->undo_cached, undo);
-		MONITOR_INC(MONITOR_NUM_UNDO_SLOT_CACHED);
 	} else {
 		ut_ad(undo->state == TRX_UNDO_TO_PURGE);
 		ut_free(undo);
@@ -515,8 +512,6 @@ loop:
       mtr.write<8,mtr_t::MAYBE_NOP>(*rseg_hdr, TRX_RSEG + TRX_RSEG_MAX_TRX_ID +
                                     rseg_hdr->page.frame,
                                     trx_sys.get_max_trx_id() - 1);
-      MONITOR_DEC(MONITOR_NUM_UNDO_SLOT_CACHED);
-      MONITOR_DEC(MONITOR_NUM_UNDO_SLOT_USED);
       goto free_segment;
     }
   }
