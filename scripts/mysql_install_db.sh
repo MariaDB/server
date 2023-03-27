@@ -476,7 +476,7 @@ fi
 
 if test "$ip_only" -eq 1
 then
-  hostname=`echo "$resolved" | awk '/ /{print $6}'`
+  hostname=`echo "$resolved" | while read a; do echo ${a##* }; done`
 fi
 
 # Create database directories
