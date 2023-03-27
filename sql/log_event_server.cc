@@ -5586,7 +5586,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       to avoid query cache being polluted with stale entries,
     */
 # ifdef WITH_WSREP
-    if (!WSREP(thd) && !wsrep_thd_is_applying(thd))
+    /* Query cache is not invalidated on wsrep applier here */
+    if (!(WSREP(thd) && wsrep_thd_is_applying(thd)))
 # endif /* WITH_WSREP */
       query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
 #endif /* HAVE_QUERY_CACHE */
