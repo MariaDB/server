@@ -1290,27 +1290,25 @@ trx_undo_create(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo,
 @param[in,out]	rseg	rollback segment
 @param[out]	pundo	the undo log memory object
 @param[in,out]	mtr	mini-transaction
+@param[out]	err	error code
 @return	the undo log block
 @retval	NULL	if none cached */
 static
 buf_block_t*
 trx_undo_reuse_cached(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** pundo,
-		      mtr_t* mtr)
+		      mtr_t* mtr, dberr_t *err)
 {
-	if (rseg->is_persistent()) {
-		ut_ad(rseg->is_referenced());
-		if (rseg->needs_purge <= trx->id) {
-			/* trx_purge_truncate_history() compares
-			rseg->needs_purge <= head.trx_no
-			so we need to compensate for that.
-			The rseg->needs_purge after crash
-			recovery would be at least trx->id + 1,
-			because that is the minimum possible value
-			assigned by trx_serialise() on commit. */
-			rseg->needs_purge = trx->id + 1;
-		}
-	} else {
-		ut_ad(!rseg->is_referenced());
+	ut_ad(rseg->is_persistent());
+	ut_ad(rseg->is_referenced());
+	if (rseg->needs_purge <= trx->id) {
+		/* trx_purge_truncate_history() compares
+		rseg->needs_purge <= head.trx_no
+		so we need to compensate for that.
+		The rseg->needs_purge after crash
+		recovery would be at least trx->id + 1,
+		because that is the minimum possible value
+		assigned by trx_serialise() on commit. */
+		rseg->needs_purge = trx->id + 1;
 	}
 
 	trx_undo_t* undo = UT_LIST_GET_FIRST(rseg->undo_cached);
@@ -1321,9 +1319,10 @@ trx_undo_reuse_cached(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** pundo,
 	ut_ad(undo->size == 1);
 	ut_ad(undo->id < TRX_RSEG_N_SLOTS);
 
-	buf_block_t*	block = buf_page_get(page_id_t(undo->rseg->space->id,
-						       undo->hdr_page_no),
-					     0, RW_X_LATCH, mtr);
+	buf_block_t* block = buf_page_get_gen(page_id_t(undo->rseg->space->id,
+							undo->hdr_page_no),
+					      0, RW_X_LATCH, nullptr, BUF_GET,
+					      mtr, err);
 	if (!block) {
 		return NULL;
 	}
@@ -1374,11 +1373,12 @@ trx_undo_assign(trx_t* trx, dberr_t* err, mtr_t* mtr)
 			BUF_GET, mtr, err);
 	}
 
+	*err = DB_SUCCESS;
 	trx_rseg_t* rseg = trx->rsegs.m_redo.rseg;
 
 	rseg->latch.wr_lock(SRW_LOCK_CALL);
 	buf_block_t* block = trx_undo_reuse_cached(
-		trx, rseg, &trx->rsegs.m_redo.undo, mtr);
+		trx, rseg, &trx->rsegs.m_redo.undo, mtr, err);
 
 	if (!block) {
 		block = trx_undo_create(trx, rseg, &trx->rsegs.m_redo.undo,
@@ -1387,8 +1387,6 @@ trx_undo_assign(trx_t* trx, dberr_t* err, mtr_t* mtr)
 		if (!block) {
 			goto func_exit;
 		}
-	} else {
-		*err = DB_SUCCESS;
 	}
 
 	UT_LIST_ADD_FIRST(rseg->undo_list, trx->rsegs.m_redo.undo);
@@ -1400,18 +1398,20 @@ func_exit:
 
 /** Assign an undo log for a transaction.
 A new undo log is created or a cached undo log reused.
+@tparam is_temp  whether this is temporary undo log
 @param[in,out]	trx	transaction
 @param[in]	rseg	rollback segment
 @param[out]	undo	the undo log
-@param[out]	err	error code
 @param[in,out]	mtr	mini-transaction
+@param[out]	err	error code
 @return	the undo log block
-@retval	NULL	on error */
+@retval	nullptr	on error */
+template<bool is_temp>
 buf_block_t*
-trx_undo_assign_low(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo,
-		    dberr_t* err, mtr_t* mtr)
+trx_undo_assign_low(trx_t *trx, trx_rseg_t *rseg, trx_undo_t **undo,
+                    mtr_t *mtr, dberr_t *err)
 {
-	ut_d(const bool is_temp = rseg == trx->rsegs.m_noredo.rseg);
+	ut_ad(is_temp == (rseg == trx->rsegs.m_noredo.rseg));
 	ut_ad(is_temp || rseg == trx->rsegs.m_redo.rseg);
 	ut_ad(undo == (is_temp
 		       ? &trx->rsegs.m_noredo.undo
@@ -1431,25 +1431,37 @@ trx_undo_assign_low(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo,
 		*err = DB_TOO_MANY_CONCURRENT_TRXS; return NULL;
 	);
 
+	*err = DB_SUCCESS;
 	rseg->latch.wr_lock(SRW_LOCK_CALL);
-	buf_block_t* block = trx_undo_reuse_cached(trx, rseg, undo, mtr);
-
-	if (!block) {
-		block = trx_undo_create(trx, rseg, undo, err, mtr);
-		ut_ad(!block == (*err != DB_SUCCESS));
-		if (!block) {
-			goto func_exit;
-		}
+	buf_block_t* block;
+	if (is_temp) {
+		ut_ad(!UT_LIST_GET_LEN(rseg->undo_cached));
 	} else {
-		*err = DB_SUCCESS;
+		block = trx_undo_reuse_cached(trx, rseg, undo, mtr, err);
+		if (block) {
+			goto got_block;
+		}
+	}
+	block = trx_undo_create(trx, rseg, undo, err, mtr);
+	ut_ad(!block == (*err != DB_SUCCESS));
+	if (!block) {
+		goto func_exit;
 	}
 
+got_block:
 	UT_LIST_ADD_FIRST(rseg->undo_list, *undo);
 
 func_exit:
 	rseg->latch.wr_unlock();
 	return block;
 }
+
+template buf_block_t*
+trx_undo_assign_low<false>(trx_t *trx, trx_rseg_t *rseg, trx_undo_t **undo,
+                           mtr_t *mtr, dberr_t *err);
+template buf_block_t*
+trx_undo_assign_low<true>(trx_t *trx, trx_rseg_t *rseg, trx_undo_t **undo,
+                          mtr_t *mtr, dberr_t *err);
 
 /******************************************************************//**
 Sets the state of the undo log segment at a transaction finish.
@@ -1461,6 +1473,7 @@ trx_undo_set_state_at_finish(
 	mtr_t*		mtr)	/*!< in: mtr */
 {
   ut_ad(undo->id < TRX_RSEG_N_SLOTS);
+  ut_ad(undo->rseg->is_persistent());
 
   buf_block_t *block=
     buf_page_get(page_id_t(undo->rseg->space->id, undo->hdr_page_no), 0,
@@ -1532,28 +1545,19 @@ the data can be discarded.
 @param undo     temporary undo log */
 void trx_undo_commit_cleanup(trx_undo_t *undo)
 {
-	trx_rseg_t*	rseg	= undo->rseg;
-	ut_ad(rseg->space == fil_system.temp_space);
+  trx_rseg_t *rseg= undo->rseg;
+  ut_ad(rseg->space == fil_system.temp_space);
+  rseg->latch.wr_lock(SRW_LOCK_CALL);
 
-	rseg->latch.wr_lock(SRW_LOCK_CALL);
+  UT_LIST_REMOVE(rseg->undo_list, undo);
+  ut_ad(undo->state == TRX_UNDO_TO_PURGE);
+  /* Delete first the undo log segment in the file */
+  trx_undo_seg_free(undo);
+  ut_ad(rseg->curr_size > undo->size);
+  rseg->curr_size-= undo->size;
 
-	UT_LIST_REMOVE(rseg->undo_list, undo);
-
-	if (undo->state == TRX_UNDO_CACHED) {
-		UT_LIST_ADD_FIRST(rseg->undo_cached, undo);
-		undo = nullptr;
-	} else {
-		ut_ad(undo->state == TRX_UNDO_TO_PURGE);
-
-		/* Delete first the undo log segment in the file */
-		trx_undo_seg_free(undo);
-
-		ut_ad(rseg->curr_size > undo->size);
-		rseg->curr_size -= undo->size;
-	}
-
-	rseg->latch.wr_unlock();
-	ut_free(undo);
+  rseg->latch.wr_unlock();
+  ut_free(undo);
 }
 
 /** At shutdown, frees the undo logs of a transaction. */
