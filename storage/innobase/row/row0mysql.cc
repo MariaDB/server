@@ -3225,8 +3225,8 @@ row_drop_ancillary_fts_tables(
 		/* fts_que_graph_free_check_lock would try to acquire
 		dict mutex lock */
 		table->fts->dict_locked = true;
-
-		fts_free(table);
+		table->fts->~fts_t();
+		table->fts = nullptr;
 	}
 
 	return(DB_SUCCESS);

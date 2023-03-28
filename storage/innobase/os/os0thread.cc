@@ -86,7 +86,7 @@ os_thread_t os_thread_create(os_thread_func_t func, void *arg)
 }
 
 /** Detach and terminate the current thread. */
-ATTRIBUTE_NORETURN void os_thread_exit()
+os_thread_ret_t os_thread_exit()
 {
 #ifdef UNIV_DEBUG_THREAD_CREATION
 	ib::info() << "Thread exits, id " << os_thread_get_curr_id();
@@ -100,8 +100,8 @@ ATTRIBUTE_NORETURN void os_thread_exit()
 	ExitThread(0);
 #else
 	pthread_detach(pthread_self());
-	pthread_exit(NULL);
 #endif
+	OS_THREAD_DUMMY_RETURN;
 }
 
 /*****************************************************************//**

@@ -12622,7 +12622,8 @@ int create_table_info_t::create_table(bool create_fk)
 					    m_table->name.m_name);
 
 			if (m_table->fts) {
-				fts_free(m_table);
+				m_table->fts->~fts_t();
+				m_table->fts = nullptr;
 			}
 
 			my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0),
