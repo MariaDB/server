@@ -826,7 +826,8 @@ void fts_clear_all(dict_table_t *table)
 
   fts_optimize_remove_table(table);
 
-  fts_free(table);
+  table->fts->~fts_t();
+  table->fts= nullptr;
   DICT_TF2_FLAG_UNSET(table, DICT_TF2_FTS);
 }
 
@@ -5154,14 +5155,14 @@ fts_t::~fts_t()
 {
 	ut_ad(add_wq == NULL);
 
-	if (cache != NULL) {
+	if (cache) {
 		fts_cache_clear(cache);
 		fts_cache_destroy(cache);
-		cache = NULL;
 	}
 
 	/* There is no need to call ib_vector_free() on this->indexes
 	because it is stored in this->fts_heap. */
+	mem_heap_free(fts_heap);
 }
 
 /*********************************************************************//**
@@ -5182,22 +5183,6 @@ fts_create(
 	new(fts) fts_t(table, heap);
 
 	return(fts);
-}
-
-/*********************************************************************//**
-Free the FTS resources. */
-void
-fts_free(
-/*=====*/
-	dict_table_t*	table)	/*!< in/out: table with FTS indexes */
-{
-	fts_t*	fts = table->fts;
-
-	fts->~fts_t();
-
-	mem_heap_free(fts->fts_heap);
-
-	table->fts = NULL;
 }
 
 /*********************************************************************//**
