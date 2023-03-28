@@ -339,6 +339,7 @@ struct fil_space_t final
 #endif
 {
 #ifndef UNIV_INNOCHECKSUM
+  ~fil_space_t() { ut_free(name); }
   friend fil_node_t;
 	ulint		id;	/*!< space id */
 	hash_node_t	hash;	/*!< hash chain node */

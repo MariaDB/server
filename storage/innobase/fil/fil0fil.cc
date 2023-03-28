@@ -873,7 +873,6 @@ fil_space_free_low(
 	fil_space_destroy_crypt_data(&space->crypt_data);
 
 	space->~fil_space_t();
-	ut_free(space->name);
 	ut_free(space);
 }
 
@@ -998,7 +997,6 @@ fil_space_t *fil_space_t::create(const char *name, ulint id, ulint flags,
 		mutex_exit(&fil_system.mutex);
 		rw_lock_free(&space->latch);
 		space->~fil_space_t();
-		ut_free(space->name);
 		ut_free(space);
 		return(NULL);
 	}
