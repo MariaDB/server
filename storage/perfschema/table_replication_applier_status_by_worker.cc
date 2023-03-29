@@ -100,72 +100,67 @@ ha_rows table_replication_applier_status_by_worker::get_row_count()
 int table_replication_applier_status_by_worker::rnd_next(void)
 {
   rpl_parallel_thread_pool *pool= &global_rpl_thread_pool;
-  if (pool->inited && pool->count)
+  struct pool_bkp_for_pfs *bkp_pool= &pool->pfs_bkp;
+  mysql_mutex_lock(&pool->LOCK_rpl_thread_pool);
+  if (bkp_pool->inited && bkp_pool->count && bkp_pool->is_valid)
   {
-    mysql_mutex_lock(&pool->LOCK_rpl_thread_pool);
-    uint worker_count= pool->count;
     for (m_pos.set_at(&m_next_pos);
-        m_pos.has_more_workers(worker_count);
+        m_pos.has_more_workers(bkp_pool->count);
         m_pos.next_worker())
     {
-      rpl_parallel_thread *rpt= pool->threads[m_pos.m_index];
+      rpl_parallel_thread *rpt= bkp_pool->rpl_thread_arr[m_pos.m_index];
       make_row(rpt);
       m_next_pos.set_after(&m_pos);
       mysql_mutex_unlock(&pool->LOCK_rpl_thread_pool);
       return 0;
     }
-    mysql_mutex_unlock(&pool->LOCK_rpl_thread_pool);
   }
   else
   {
-    mysql_mutex_lock(&pool->LOCK_rpl_thread_pool);
-    struct pool_bkp_for_pfs *bkp_pool= &pool->pfs_bkp;
-    if (bkp_pool->inited && bkp_pool->count)
+    if (pool->inited && pool->count)
     {
+      uint worker_count= pool->count;
       for (m_pos.set_at(&m_next_pos);
-           m_pos.has_more_workers(bkp_pool->count);
-           m_pos.next_worker())
+          m_pos.has_more_workers(worker_count);
+          m_pos.next_worker())
       {
-        rpl_parallel_thread *rpt= bkp_pool->rpl_thread_arr[m_pos.m_index];
+        rpl_parallel_thread *rpt= pool->threads[m_pos.m_index];
         make_row(rpt);
         m_next_pos.set_after(&m_pos);
         mysql_mutex_unlock(&pool->LOCK_rpl_thread_pool);
         return 0;
       }
     }
-    mysql_mutex_unlock(&pool->LOCK_rpl_thread_pool);
   }
+  mysql_mutex_unlock(&pool->LOCK_rpl_thread_pool);
   return HA_ERR_END_OF_FILE;
 }
 
 int table_replication_applier_status_by_worker::rnd_pos(const void *pos)
 {
   int res= HA_ERR_RECORD_DELETED;
+  rpl_parallel_thread_pool *pool= &global_rpl_thread_pool;
+  struct pool_bkp_for_pfs *bkp_pool= &pool->pfs_bkp;
 
   set_position(pos);
-
-  if (global_rpl_thread_pool.inited && global_rpl_thread_pool.count)
+  mysql_mutex_lock(&pool->LOCK_rpl_thread_pool);
+  if (bkp_pool->inited && bkp_pool->count && bkp_pool->is_valid
+      && m_pos.m_index < bkp_pool->count)
   {
-    rpl_parallel_thread_pool *pool= &global_rpl_thread_pool;
-    mysql_mutex_lock(&pool->LOCK_rpl_thread_pool);
-    if(m_pos.m_index < pool->count)
-    {
-      rpl_parallel_thread *rpt= pool->threads[m_pos.m_index];
-      make_row(rpt);
-      mysql_mutex_unlock(&pool->LOCK_rpl_thread_pool);
-      res= 0;
-    }
+    rpl_parallel_thread *rpt= bkp_pool->rpl_thread_arr[m_pos.m_index];
+    make_row(rpt);
+    res= 0;
   }
   else
   {
-    struct pool_bkp_for_pfs *bkp_pool= &global_rpl_thread_pool.pfs_bkp;
-    if (bkp_pool->inited && bkp_pool->count && m_pos.m_index < bkp_pool->count)
+    if (pool->inited && pool->count && m_pos.m_index < pool->count)
     {
-      rpl_parallel_thread *rpt= bkp_pool->rpl_thread_arr[m_pos.m_index];
+      rpl_parallel_thread *rpt= pool->threads[m_pos.m_index];
       make_row(rpt);
       res= 0;
     }
   }
+  mysql_mutex_unlock(&pool->LOCK_rpl_thread_pool);
   return res;
 }
 

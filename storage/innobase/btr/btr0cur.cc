@@ -1674,7 +1674,7 @@ dberr_t btr_cur_t::pessimistic_search_leaf(const dtuple_t *tuple,
   mtr->upgrade_buffer_fix(block_savepoint, RW_X_LATCH);
 #ifdef UNIV_ZIP_DEBUG
   const page_zip_des_t *page_zip= buf_block_get_page_zip(block);
-  ut_a(!page_zip || page_zip_validate(page_zip, page, index()));
+  ut_a(!page_zip || page_zip_validate(page_zip, block->page.frame, index()));
 #endif /* UNIV_ZIP_DEBUG */
   if (page_has_next(block->page.frame) &&
       !btr_block_get(*index(), btr_page_get_next(block->page.frame),
@@ -3115,9 +3115,84 @@ void btr_cur_upd_rec_in_place(rec_t *rec, const dict_index_t *index,
 		}
 	}
 
-	if (UNIV_LIKELY_NULL(block->page.zip.data)) {
-		page_zip_write_rec(block, rec, index, offsets, 0, mtr);
+	if (UNIV_LIKELY(!block->page.zip.data)) {
+		return;
 	}
+
+	switch (update->n_fields) {
+	case 0:
+		/* We only changed the delete-mark flag. */
+		return;
+	case 1:
+		if (!index->is_clust()
+		    || update->fields[0].field_no != index->db_roll_ptr()) {
+			break;
+		}
+		goto update_sys;
+	case 2:
+		if (!index->is_clust()
+		    || update->fields[0].field_no != index->db_trx_id()
+		    || update->fields[1].field_no != index->db_roll_ptr()) {
+			break;
+		}
+	update_sys:
+		ulint len;
+		const byte* sys = rec_get_nth_field(rec, offsets,
+						    index->db_trx_id(), &len);
+		ut_ad(len == DATA_TRX_ID_LEN);
+		page_zip_write_trx_id_and_roll_ptr(
+			block, rec, offsets, index->db_trx_id(),
+			trx_read_trx_id(sys),
+			trx_read_roll_ptr(sys + DATA_TRX_ID_LEN), mtr);
+		return;
+	}
+
+	page_zip_write_rec(block, rec, index, offsets, 0, mtr);
+}
+
+/** Check if a ROW_FORMAT=COMPRESSED page can be updated in place
+@param cur     cursor pointing to ROW_FORMAT=COMPRESSED page
+@param offsets rec_get_offsets(btr_cur_get_rec(cur))
+@param update  index fields being updated
+@param mtr     mini-transaction
+@return the record in the ROW_FORMAT=COMPRESSED page
+@retval nullptr if the page cannot be updated in place */
+ATTRIBUTE_COLD static
+rec_t *btr_cur_update_in_place_zip_check(btr_cur_t *cur, rec_offs *offsets,
+                                         const upd_t& update, mtr_t *mtr)
+{
+  dict_index_t *index= cur->index();
+  ut_ad(!index->table->is_temporary());
+
+  switch (update.n_fields) {
+  case 0:
+    /* We are only changing the delete-mark flag. */
+    break;
+  case 1:
+    if (!index->is_clust() ||
+        update.fields[0].field_no != index->db_roll_ptr())
+      goto check_for_overflow;
+    /* We are only changing the delete-mark flag and DB_ROLL_PTR. */
+    break;
+  case 2:
+    if (!index->is_clust() ||
+        update.fields[0].field_no != index->db_trx_id() ||
+        update.fields[1].field_no != index->db_roll_ptr())
+      goto check_for_overflow;
+    /* We are only changing DB_TRX_ID, DB_ROLL_PTR, and the delete-mark.
+    They can be updated in place in the uncompressed part of the
+    ROW_FORMAT=COMPRESSED page. */
+    break;
+  check_for_overflow:
+  default:
+    if (!btr_cur_update_alloc_zip(btr_cur_get_page_zip(cur),
+                                  btr_cur_get_page_cur(cur),
+                                  offsets, rec_offs_size(offsets),
+                                  false, mtr))
+      return nullptr;
+  }
+
+  return btr_cur_get_rec(cur);
 }
 
 /*************************************************************//**
@@ -3180,17 +3255,10 @@ btr_cur_update_in_place(
 	page_zip_des_t*	page_zip = buf_block_get_page_zip(block);
 
 	/* Check that enough space is available on the compressed page. */
-	if (UNIV_LIKELY_NULL(page_zip)) {
-		ut_ad(!index->table->is_temporary());
-
-		if (!btr_cur_update_alloc_zip(
-			    page_zip, btr_cur_get_page_cur(cursor),
-			    offsets, rec_offs_size(offsets),
-			    false, mtr)) {
-			return(DB_ZIP_OVERFLOW);
-		}
-
-		rec = btr_cur_get_rec(cursor);
+	if (UNIV_LIKELY_NULL(page_zip)
+	    && !(rec = btr_cur_update_in_place_zip_check(
+			 cursor, offsets, *update, mtr))) {
+		return DB_ZIP_OVERFLOW;
 	}
 
 	/* Do lock checking and undo logging */
@@ -3961,7 +4029,13 @@ btr_cur_pessimistic_update(
 
 		ut_ad(page_is_leaf(block->page.frame));
 		ut_ad(dict_index_is_clust(index));
-		ut_ad(flags & BTR_KEEP_POS_FLAG);
+		if (UNIV_UNLIKELY(!(flags & BTR_KEEP_POS_FLAG))) {
+			ut_ad(page_zip != NULL);
+			dtuple_convert_back_big_rec(index, new_entry,
+						    big_rec_vec);
+			big_rec_vec = NULL;
+			n_ext = dtuple_get_n_ext(new_entry);
+		}
 	}
 
 	/* Do lock checking and undo logging */

@@ -1,1 +1,1 @@
---source suite/rpl/include/rpl_parallel_wrong_exec_master_pos.inc
+--source suite/rpl/t/rpl_parallel_wrong_exec_master_pos.test
