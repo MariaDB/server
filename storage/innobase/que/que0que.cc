@@ -236,9 +236,9 @@ que_graph_free_stat_list(
 	que_node_t*	node)	/*!< in: first query graph node in the list */
 {
 	while (node) {
+		que_node_t* next = que_node_get_next(node);
 		que_graph_free_recursive(node);
-
-		node = que_node_get_next(node);
+		node = next;
 	}
 }
 
@@ -297,19 +297,10 @@ que_graph_free_recursive(
 
 		break;
 	case QUE_NODE_INSERT:
-
 		ins = static_cast<ins_node_t*>(node);
 
 		que_graph_free_recursive(ins->select);
-		ins->select = NULL;
-
 		ins->~ins_node_t();
-
-		if (ins->entry_sys_heap != NULL) {
-			mem_heap_free(ins->entry_sys_heap);
-			ins->entry_sys_heap = NULL;
-		}
-
 		break;
 	case QUE_NODE_PURGE:
 		purge = static_cast<purge_node_t*>(node);

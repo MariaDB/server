@@ -2517,7 +2517,8 @@ corrupted:
 			/* the table->fts could be created in dict_load_column
 			when a user defined FTS_DOC_ID is present, but no
 			FTS */
-			fts_free(table);
+			table->fts->~fts_t();
+			table->fts = nullptr;
 		} else if (fts_optimize_wq) {
 			fts_optimize_add_table(table);
 		} else if (table->can_be_evicted) {

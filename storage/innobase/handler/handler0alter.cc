@@ -1180,7 +1180,8 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 				old_v_cols[i].~dict_v_col_t();
 			}
 			if (instant_table->fts) {
-				fts_free(instant_table);
+				instant_table->fts->~fts_t();
+				instant_table->fts = nullptr;
 			}
 			dict_mem_table_free(instant_table);
 		}
@@ -8909,7 +8910,8 @@ innobase_rollback_sec_index(
 	    && !DICT_TF2_FLAG_IS_SET(user_table,
 				     DICT_TF2_FTS_HAS_DOC_ID)
 	    && !innobase_fulltext_exist(table)) {
-		fts_free(user_table);
+		user_table->fts->~fts_t();
+		user_table->fts = nullptr;
 	}
 }
 

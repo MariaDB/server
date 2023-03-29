@@ -336,7 +336,7 @@ bool RESTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 
   // Do make the table/view definition
   if (Tdp && Tdp->Define(g, Cat, Name, Schema, "REST"))
-    Tdp = NULL; // Error occured
+    Tdp = NULL; // Error occurred
 
   if (xt)
     htrc("Tdp defined\n", rc);
