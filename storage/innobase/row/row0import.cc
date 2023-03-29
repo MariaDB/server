@@ -3088,10 +3088,8 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
   }
 
   if (!cfg.m_missing)
-  {
     if (dberr_t err= cfg.match_flags(current_thd))
       return err;
-  }
 
   const unsigned zip_size= fil_space_t::zip_size(space_flags);
   const unsigned physical_size= zip_size ? zip_size : unsigned(srv_page_size);
@@ -3285,10 +3283,7 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
     rec_offs *offsets= rec_get_offsets(
         rec, index, nullptr, index->n_core_fields, ULINT_UNDEFINED, &heap);
     if (rec_offs_any_default(offsets))
-    {
-    inconsistent:
       goto incompatible;
-    }
 
     /* In fact, because we only ever append fields to the metadata
     record, it is also OK to perform READ UNCOMMITTED and
@@ -3298,7 +3293,7 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
             ulint(index->n_fields) + !!index->table->instant &&
         !trx_sys.is_registered(current_trx(),
                                row_get_rec_trx_id(rec, index, offsets)))
-      goto inconsistent;
+      goto incompatible;
 
     for (unsigned i= index->n_core_fields; i < index->n_fields; i++)
     {
@@ -3322,15 +3317,10 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
       else if (len < BTR_EXTERN_FIELD_REF_SIZE ||
                !memcmp(data + len - BTR_EXTERN_FIELD_REF_SIZE, field_ref_zero,
                        BTR_EXTERN_FIELD_REF_SIZE))
-      {
-        col->def_val.len= UNIV_SQL_DEFAULT;
-        goto inconsistent;
-      }
+        goto incompatible;
       else
-      {
         col->def_val.data= btr_copy_externally_stored_field(
             &col->def_val.len, data, srv_page_size, len, index->table->heap);
-      }
     }
   }
 
