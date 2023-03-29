@@ -1932,8 +1932,8 @@ void dict_sys_t::remove(dict_table_t* table, bool lru, bool keep)
 #ifdef BTR_CUR_HASH_ADAPT
 	if (table->fts) {
 		fts_optimize_remove_table(table);
-		fts_free(table);
-		table->fts = NULL;
+		table->fts->~fts_t();
+		table->fts = nullptr;
 	}
 
 	table->autoinc_mutex.wr_lock();

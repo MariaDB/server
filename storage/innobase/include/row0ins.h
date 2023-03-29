@@ -177,6 +177,7 @@ struct ins_node_t
 		trx_id(0), entry_sys_heap(mem_heap_create(128))
 	{
 	}
+	~ins_node_t() { mem_heap_free(entry_sys_heap); }
 	que_common_t common;	 /*!< node type: QUE_NODE_INSERT */
 	ulint		ins_type;/* INS_VALUES, INS_SEARCHED, or INS_DIRECT */
 	dtuple_t*	row;	/*!< row to insert */

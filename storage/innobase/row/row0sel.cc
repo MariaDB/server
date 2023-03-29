@@ -4891,7 +4891,11 @@ page_corrupted:
 	if (trx->isolation_level == TRX_ISO_READ_UNCOMMITTED
 	    || !trx->read_view.is_open()) {
 	} else if (trx_id_t bulk_trx_id = index->table->bulk_trx_id) {
-		if (!trx->read_view.changes_visible(bulk_trx_id)) {
+		/* InnoDB should allow the transaction to read all
+		the rows when InnoDB intends to do any locking
+		on the record */
+		if (prebuilt->select_lock_type == LOCK_NONE
+		    && !trx->read_view.changes_visible(bulk_trx_id)) {
 			trx->op_info = "";
 			err = DB_END_OF_INDEX;
 			goto normal_return;
