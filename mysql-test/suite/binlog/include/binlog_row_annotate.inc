@@ -125,7 +125,7 @@ if (!$use_remote_mysqlbinlog)
     --echo # - DELETE xtest1.xt1, test2.t2 FROM <...> (with one subsequent Table map)
     --echo #####################################################################################
 
-    --replace_regex /server id [0-9]*/server id #/ /server v [^ ]*/server v #.##.##/ /exec_time=[0-9]*/exec_time=#/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/ /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/ /xid=\d*/xid=<xid>/
+    --replace_regex /server id [0-9]*/server id #/ /server v [^ ]*/server v #.##.##/ /exec_time=[0-9]*/exec_time=#/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/ /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/ /xid=\d*/xid=<xid>/
     --exec $MYSQL_BINLOG --base64-output=decode-rows -v -v $datadir/master-bin.000001
 
     --echo #
@@ -135,7 +135,7 @@ if (!$use_remote_mysqlbinlog)
     --echo # - DELETE test1.t1, test2.t2 FROM <...>
     --echo #####################################################################################
 
-    --replace_regex /server id [0-9]*/server id #/ /server v [^ ]*/server v #.##.##/ /exec_time=[0-9]*/exec_time=#/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/ /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/ /xid=\d*/xid=<xid>/
+    --replace_regex /server id [0-9]*/server id #/ /server v [^ ]*/server v #.##.##/ /exec_time=[0-9]*/exec_time=#/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/ /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/ /xid=\d*/xid=<xid>/
     --exec $MYSQL_BINLOG --base64-output=decode-rows --database=test1 -v -v $datadir/master-bin.000001
 
     --echo #
@@ -144,7 +144,7 @@ if (!$use_remote_mysqlbinlog)
     --echo # No Annotates should appear in this output
     --echo #####################################################################################
 
-    --replace_regex /server id [0-9]*/server id #/ /server v [^ ]*/server v #.##.##/ /exec_time=[0-9]*/exec_time=#/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/ /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/ /xid=\d*/xid=<xid>/
+    --replace_regex /server id [0-9]*/server id #/ /server v [^ ]*/server v #.##.##/ /exec_time=[0-9]*/exec_time=#/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/ /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/ /xid=\d*/xid=<xid>/
     --exec $MYSQL_BINLOG --base64-output=decode-rows --skip-annotate-row-events -v -v $datadir/master-bin.000001
 
     --let use_remote_mysqlbinlog= 0
@@ -161,7 +161,7 @@ if (!$use_remote_mysqlbinlog)
 --echo # - DELETE xtest1.xt1, test2.t2 FROM <...> (with one subsequent Table map)
 --echo #####################################################################################
 
---replace_regex /server id [0-9]*/server id #/ /server v [^ ]*/server v #.##.##/ /exec_time=[0-9]*/exec_time=#/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/ /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/ /xid=\d*/xid=<xid>/
+--replace_regex /server id [0-9]*/server id #/ /server v [^ ]*/server v #.##.##/ /exec_time=[0-9]*/exec_time=#/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/ /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/ /xid=\d*/xid=<xid>/
 --exec $MYSQL_BINLOG --base64-output=decode-rows -v -v --read-from-remote-server --user=root --host=localhost --port=$MASTER_MYPORT master-bin.000001
 
 --echo #
@@ -171,7 +171,7 @@ if (!$use_remote_mysqlbinlog)
 --echo # - DELETE test1.t1, test2.t2 FROM <...>
 --echo #####################################################################################
 
---replace_regex /server id [0-9]*/server id #/ /server v [^ ]*/server v #.##.##/ /exec_time=[0-9]*/exec_time=#/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/ /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/ /xid=\d*/xid=<xid>/
+--replace_regex /server id [0-9]*/server id #/ /server v [^ ]*/server v #.##.##/ /exec_time=[0-9]*/exec_time=#/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/ /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/ /xid=\d*/xid=<xid>/
 --exec $MYSQL_BINLOG --base64-output=decode-rows --database=test1 -v -v --read-from-remote-server --user=root --host=localhost --port=$MASTER_MYPORT master-bin.000001
 
 --echo #
@@ -180,7 +180,7 @@ if (!$use_remote_mysqlbinlog)
 --echo # No Annotates should appear in this output
 --echo #####################################################################################
 
---replace_regex /server id [0-9]*/server id #/ /server v [^ ]*/server v #.##.##/ /exec_time=[0-9]*/exec_time=#/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/ /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/ /xid=\d*/xid=<xid>/
+--replace_regex /server id [0-9]*/server id #/ /server v [^ ]*/server v #.##.##/ /exec_time=[0-9]*/exec_time=#/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/ /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/ /xid=\d*/xid=<xid>/
 --exec $MYSQL_BINLOG --base64-output=decode-rows --skip-annotate-row-events -v -v --read-from-remote-server --user=root --host=localhost --port=$MASTER_MYPORT master-bin.000001
 
 # Clean-up

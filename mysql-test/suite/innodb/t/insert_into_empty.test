@@ -249,6 +249,28 @@ SAVEPOINT a;
 commit;
 SELECT * FROM t;
 DROP TABLE t;
+
+--echo #
+--echo #  MDEV-29545  InnoDB: Can't find record during replace stmt
+--echo #
+CREATE TABLE t1(c1 INT PRIMARY KEY)ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t1 VALUES(3331);
+
+connect(con1,localhost,root,,,);
+BEGIN;
+SELECT c1 FROM t1;
+
+connection default;
+COMMIT;
+
+connection con1;
+REPLACE INTO t1 VALUES(1984), (1984);
+COMMIT;
+connection default;
+disconnect con1;
+SELECT * FROM t1;
+DROP TABLE t1;
 --echo # End of 10.6 tests
 
 --echo #

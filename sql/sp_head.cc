@@ -1356,7 +1356,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   /*
     Cursors will use thd->packet, so they may corrupt data which was prepared
     for sending by upper level. OTOH cursors in the same routine can share this
-    buffer safely so let use use routine-local packet instead of having own
+    buffer safely so let use routine-local packet instead of having own
     packet buffer for each cursor.
 
     It is probably safe to use same thd->convert_buff everywhere.

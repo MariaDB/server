@@ -93,13 +93,13 @@ public:
       localtime_r(&skr, &tm_tmp);
       start=&tm_tmp;
 
-      sprintf(timestamp, "%02d%02d%02d %02d:%02d:%02d",
-              start->tm_year % 100,
-              start->tm_mon+1,
-              start->tm_mday,
-              start->tm_hour,
-              start->tm_min,
-              start->tm_sec);
+      snprintf(timestamp, sizeof(timestamp), "%02d%02d%02d %02d:%02d:%02d",
+               start->tm_year % 100,
+               start->tm_mon+1,
+               start->tm_mday,
+               start->tm_hour,
+               start->tm_min,
+               start->tm_sec);
       timestamp[15]= '\0';
     }
 
