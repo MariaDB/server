@@ -53,6 +53,7 @@ void buf_dblwr_t::init()
     active_slot= &slots[0];
     mysql_mutex_init(buf_dblwr_mutex_key, &mutex, nullptr);
     pthread_cond_init(&cond, nullptr);
+    pthread_cond_init(&write_cond, nullptr);
   }
 }
 
@@ -466,6 +467,7 @@ void buf_dblwr_t::close()
   ut_ad(!batch_running);
 
   pthread_cond_destroy(&cond);
+  pthread_cond_destroy(&write_cond);
   for (int i= 0; i < 2; i++)
   {
     aligned_free(slots[i].write_buf);

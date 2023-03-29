@@ -1,1 +1,1 @@
---source suite/rpl/include/rpl_parallel_gco_wait_kill.inc
+--source suite/rpl/t/rpl_parallel_gco_wait_kill.test
