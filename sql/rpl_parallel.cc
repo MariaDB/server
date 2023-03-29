@@ -1815,6 +1815,7 @@ rpl_parallel_activate_pool(rpl_parallel_thread_pool *pool)
         }
         else
           bkp->init(pool->count);
+        bkp->is_valid= false; // Mark backup as stale during pool init
       }
     }
 
@@ -2100,7 +2101,7 @@ rpl_parallel_thread::rpl_parallel_thread()
 
 rpl_parallel_thread_pool::rpl_parallel_thread_pool()
   : threads(0), free_list(0), count(0), inited(false),current_start_alters(0), busy(false),
-    pfs_bkp{0, false, NULL}
+    pfs_bkp{0, false, false, NULL}
 {
 }
 
@@ -2229,6 +2230,7 @@ rpl_parallel_thread_pool::copy_pool_for_pfs(Relay_log_info *rli)
       pfs_rpt->worker_idle_time= rpt->get_worker_idle_time();
       pfs_rpt->last_trans_retry_count= rpt->last_trans_retry_count;
     }
+    pfs_bkp.is_valid= true;
   }
 }
 
