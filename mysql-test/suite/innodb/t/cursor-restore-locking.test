@@ -3,8 +3,11 @@
 source include/have_debug.inc;
 source include/have_debug_sync.inc;
 
+SET @save_freq=@@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 CREATE TABLE t (a int PRIMARY KEY, b int NOT NULL UNIQUE) engine = InnoDB;
 
+--source include/wait_all_purged.inc
 --connect(prevent_purge,localhost,root,,)
 start transaction with consistent snapshot;
 
@@ -27,6 +30,10 @@ SET DEBUG_SYNC = 'ib_after_row_insert SIGNAL first_ins_row_inserted WAIT_FOR fir
 --send INSERT INTO t VALUES(10, 20)
 
 --connect(con_del_2,localhost,root,,)
+# After MDEV-30225 is fixed, the following DELETE creates next-key lock for
+# unqique search for RR, and the above INSERT kills it as deadlock victim.
+# But it still requests not-gap lock for RC.
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
 SET DEBUG_SYNC = 'now WAIT_FOR first_ins_locked';
 SET DEBUG_SYNC = 'lock_wait_suspend_thread_enter SIGNAL second_del_locked';
 ###############################################################################
@@ -76,4 +83,5 @@ INSERT INTO t VALUES(30, 20);
 
 SET DEBUG_SYNC = 'RESET';
 DROP TABLE t;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_freq;
 --source include/wait_until_count_sessions.inc

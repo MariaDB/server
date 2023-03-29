@@ -1,0 +1,15 @@
+!include ../galera_2nodes.cnf
+
+[mysqld]
+log-bin
+log-slave-updates
+
+[mysqld.1]
+log_bin
+log_slave_updates
+max-binlog-size=4096
+expire-logs-days=1
+
+
+[mysqld.2]
+

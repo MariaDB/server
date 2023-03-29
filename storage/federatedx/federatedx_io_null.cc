@@ -118,9 +118,7 @@ federatedx_io_null::federatedx_io_null(FEDERATEDX_SERVER *aserver)
 }
 
 
-federatedx_io_null::~federatedx_io_null()
-{
-}
+federatedx_io_null::~federatedx_io_null() = default;
 
 
 void federatedx_io_null::reset()

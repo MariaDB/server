@@ -2732,7 +2732,9 @@ drop table t1;
 --echo # MDEV-24019: query with recursive CTE when no default database is set
 --echo #
 
-drop database test;
+create database dummy;
+use dummy;
+drop database dummy;
 
 let $q=
 with recursive a as
@@ -2760,7 +2762,6 @@ deallocate prepare stmt;
 
 drop database db1;
 
-create database test;
 use test;
 
 --echo #
@@ -3872,6 +3873,129 @@ select * from cte;
 
 
 drop table t1,t2,t3,x;
+
+--echo #
+--echo # MDEV-30248: Embedded non-recursive CTE referring to base table 'x'
+--echo #             within a CTE with name 'x' used in a subquery from
+--echo #             select list of another CTE
+--echo #
+
+CREATE TABLE x (a int) ENGINE=MyISAM;
+INSERT INTO x VALUES (3),(7),(1);
+CREATE TABLE t1 (b int) ENGINE=MYISAM;
+INSERT INTO t1 VALUES (1);
+
+let $q1=
+WITH cte AS
+(
+  SELECT
+    (
+      WITH x AS
+      (WITH x AS (SELECT a FROM x AS t) SELECT 1 AS b)
+      SELECT b FROM x AS r
+    ) AS c
+)
+SELECT cte.c FROM cte;
+eval $q1;
+
+let $q2=
+WITH cte AS
+(
+  SELECT
+    (
+      WITH x AS
+      (WITH x AS (SELECT a FROM x AS t) SELECT b FROM t1)
+      SELECT b FROM x AS r
+    ) AS c
+)
+SELECT cte.c FROM cte;
+eval $q2;
+
+let $q3=
+WITH cte AS
+(
+  SELECT
+    (
+      WITH x AS
+      (WITH y AS (SELECT a FROM x AS t) SELECT b FROM t1)
+      SELECT b FROM x AS r
+    ) AS c
+)
+SELECT cte.c FROM cte;
+eval $q3;
+
+
+let $q4=
+WITH cte AS
+(
+  SELECT
+    (
+      WITH x AS
+      (WITH y(b) AS (SELECT a FROM x AS t LIMIT 1) SELECT b FROM y)
+      SELECT b FROM x AS r
+    ) AS c
+)
+SELECT cte.c FROM cte;
+eval $q4;
+
+let $q5=
+WITH cte AS
+(
+  SELECT
+    (
+      WITH x AS
+      (WITH x(b) AS (SELECT a FROM x AS t LIMIT 1) SELECT b FROM x)
+      SELECT b FROM x AS r
+    ) AS c
+)
+SELECT cte.c FROM cte;
+eval $q5;
+
+let $q6=
+WITH x AS
+(
+  SELECT
+    (
+      WITH x AS
+      (WITH x AS (SELECT a FROM x AS t) SELECT 1 AS b)
+      SELECT b FROM x AS r
+    ) AS c
+)
+SELECT x.c from x;
+eval $q6;
+
+let $q7=
+WITH cte AS
+(
+  SELECT
+    (
+      WITH x AS
+      (WITH x AS (SELECT a FROM x AS t) SELECT 2 AS b)
+      SELECT r1.b FROM x AS r1, x AS r2 WHERE r1.b=r2.b
+    ) AS c
+)
+SELECT cte.c from cte;
+eval $q7;
+
+
+DROP TABLE x;
+
+--ERROR ER_NO_SUCH_TABLE
+eval $q1;
+--ERROR ER_NO_SUCH_TABLE
+eval $q2;
+--ERROR ER_NO_SUCH_TABLE
+eval $q3;
+--ERROR ER_NO_SUCH_TABLE
+eval $q4;
+--ERROR ER_NO_SUCH_TABLE
+eval $q5;
+--ERROR ER_NO_SUCH_TABLE
+eval $q6;
+--ERROR ER_NO_SUCH_TABLE
+eval $q7;
+
+DROP TABLE t1;
 
 --echo #
 --echo # End of 10.3 tests

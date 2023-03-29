@@ -12,6 +12,9 @@
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE = innodb;
 
 --sync_slave_with_master
+call mtr.add_suppression("Deadlock found when trying to get lock");
+call mtr.add_suppression("Commit failed due to failure of an earlier commit");
+
 --source include/stop_slave.inc
 SET @old_parallel_threads= @@GLOBAL.slave_parallel_threads;
 SET @old_parallel_mode   = @@GLOBAL.slave_parallel_mode;
@@ -60,6 +63,32 @@ BACKUP STAGE END;
 
 --let $diff_tables= master:t1,slave:t1
 --source include/diff_tables.inc
+
+#
+--echo # MDEV-30423: dealock XA COMMIT vs BACKUP
+# Prove XA "COMPLETE" 'xid' does not dealock similary to the normal trx case.
+# The slave binlog group commit leader is blocked by a local trx like in
+# the above normal trx case.
+# [Notice a reuse of t1,aux_conn from above.]
+#
+--let $complete = COMMIT
+--source parallel_backup_xa.inc
+--let $complete = ROLLBACK
+--source parallel_backup_xa.inc
+
+--let $slave_ooo_error = 1
+--let $complete = COMMIT
+--source parallel_backup_xa.inc
+--connection slave
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+
+--let $slave_ooo_error = 1
+--let $complete = ROLLBACK
+--source parallel_backup_xa.inc
+--connection slave
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
 
 
 # Clean up.

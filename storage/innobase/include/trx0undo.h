@@ -258,12 +258,10 @@ trx_undo_free_at_shutdown(trx_t *trx);
 @param[in,out]	rseg		rollback segment
 @param[in]	id		rollback segment slot
 @param[in]	page_no		undo log segment page number
-@param[in,out]	max_trx_id	the largest observed transaction ID
 @return	the undo log
 @retval nullptr on error */
 trx_undo_t *
-trx_undo_mem_create_at_db_start(trx_rseg_t *rseg, ulint id, uint32_t page_no,
-                                trx_id_t &max_trx_id);
+trx_undo_mem_create_at_db_start(trx_rseg_t *rseg, ulint id, uint32_t page_no);
 
 #endif /* !UNIV_INNOCHECKSUM */
 
@@ -406,6 +404,8 @@ or 0 if the transaction has not been committed */
 #define	TRX_UNDO_TRX_NO		8
 /** Before MariaDB 10.3.1, when purge did not reset DB_TRX_ID of
 surviving user records, this used to be called TRX_UNDO_DEL_MARKS.
+
+This field is redundant; it is only being read by some debug assertions.
 
 The value 1 indicates that purge needs to process the undo log segment.
 The value 0 indicates that all of it has been processed, and

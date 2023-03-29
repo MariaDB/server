@@ -971,6 +971,8 @@ DROP TABLE t1;
 --echo # TODO: enable them after MDEV-16417 is finished
 create or replace table t1 (a int primary key) engine=innodb;
 --error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create or replace table t2 (a int, constraint foo check(a > 0), foreign key(a) references t1(a) on update cascade) engine=innodb;
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create or replace table t2 (a int, check(a > 0), foreign key(a) references t1(a) on update cascade) engine=innodb;
 
 create or replace table t1 (f1 int, f2 date, f3 date, key(f1,f3,f2)) engine=innodb;

@@ -28,9 +28,7 @@ C_MODE_START
 #include <m_ctype.h>                    /* for CHARSET_INFO */
 #include <stdarg.h>
 #include <typelib.h>
-#ifdef _WIN32
-#include <malloc.h> /*for alloca*/
-#endif
+#include <my_alloca.h>
 #include <mysql/plugin.h>
 #include <mysql/service_my_print_error.h>
 
@@ -185,16 +183,6 @@ my_bool my_test_if_atomic_write(File handle, int pagesize);
 extern my_bool my_may_have_atomic_write;
 
 #if defined(HAVE_ALLOCA) && !defined(HAVE_valgrind)
-#if defined(_AIX) && !defined(__GNUC__) && !defined(_AIX43)
-#pragma alloca
-#endif /* _AIX */
-#if defined(__MWERKS__)
-#undef alloca
-#define alloca _alloca
-#endif /* __MWERKS__ */
-#if defined(__GNUC__) && !defined(HAVE_ALLOCA_H) && ! defined(alloca)
-#define alloca __builtin_alloca
-#endif /* GNUC */
 #define my_alloca(SZ) alloca((size_t) (SZ))
 #define my_afree(PTR) ((void)0)
 #define MAX_ALLOCA_SZ 4096
@@ -423,7 +411,7 @@ typedef struct st_io_cache		/* Used when caching files */
   /*
     A caller will use my_b_read() macro to read from the cache
     if the data is already in cache, it will be simply copied with
-    memcpy() and internal variables will be accordinging updated with
+    memcpy() and internal variables will be accordingly updated with
     no functions invoked. However, if the data is not fully in the cache,
     my_b_read() will call read_function to fetch the data. read_function
     must never be invoked directly.
@@ -467,7 +455,7 @@ typedef struct st_io_cache		/* Used when caching files */
   myf	myflags;			/* Flags used to my_read/my_write */
   /*
     alloced_buffer is set to the size of the buffer allocated for the IO_CACHE.
-    Includes the overhead(storing key to ecnrypt and decrypt) for encryption.
+    Includes the overhead(storing key to encrypt and decrypt) for encryption.
     Set to 0 if nothing is allocated.
     Currently READ_NET is the only one that will use a buffer allocated
     somewhere else
@@ -984,7 +972,7 @@ static inline my_hrtime_t make_hr_time(my_time_t time, ulong time_sec_part)
 #define my_munmap(a,b)          munmap((a),(b))
 
 #else
-/* not a complete set of mmap() flags, but only those that nesessary */
+/* not a complete set of mmap() flags, but only those that necessary */
 #define PROT_READ        1
 #define PROT_WRITE       2
 #define MAP_NORESERVE    0

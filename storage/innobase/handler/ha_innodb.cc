@@ -4,7 +4,7 @@ Copyright (c) 2000, 2020, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2022, MariaDB Corporation.
+Copyright (c) 2013, 2023, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -2582,10 +2582,8 @@ ha_innobase::ha_innobase(
 /*********************************************************************//**
 Destruct ha_innobase handler. */
 
-ha_innobase::~ha_innobase()
+ha_innobase::~ha_innobase() = default;
 /*======================*/
-{
-}
 
 /*********************************************************************//**
 Updates the user_thd field in a handle and also allocates a new InnoDB
@@ -8458,13 +8456,19 @@ ha_innobase::update_row(
 		const bool vers_ins_row = vers_set_fields
 			&& thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE;
 
+                TABLE_LIST *tl= table->pos_in_table_list;
+                uint8 op_map= tl->trg_event_map | tl->slave_fk_event_map;
 		/* This is not a delete */
 		m_prebuilt->upd_node->is_delete =
 			(vers_set_fields && !vers_ins_row) ||
-			(thd_sql_command(m_user_thd) == SQLCOM_DELETE &&
+			(op_map & trg2bit(TRG_EVENT_DELETE) &&
 				table->versioned(VERS_TIMESTAMP))
 			? VERSIONED_DELETE
 			: NO_DELETE;
+
+		if (m_prebuilt->upd_node->is_delete) {
+			trx->fts_next_doc_id = 0;
+		}
 
 		error = row_update_for_mysql(m_prebuilt);
 
@@ -8579,6 +8583,7 @@ ha_innobase::delete_row(
 		&& trx->id != table->vers_start_id()
 		? VERSIONED_DELETE
 		: PLAIN_DELETE;
+	trx->fts_next_doc_id = 0;
 
 	error = row_update_for_mysql(m_prebuilt);
 
@@ -9533,9 +9538,12 @@ ha_innobase::ft_init_ext(
 /*****************************************************************//**
 Set up search tuple for a query through FTS_DOC_ID_INDEX on
 supplied Doc ID. This is used by MySQL to retrieve the documents
-once the search result (Doc IDs) is available */
+once the search result (Doc IDs) is available
+
+@return DB_SUCCESS or DB_INDEX_CORRUPT
+*/
 static
-void
+dberr_t
 innobase_fts_create_doc_id_key(
 /*===========================*/
 	dtuple_t*	tuple,		/* in/out: m_prebuilt->search_tuple */
@@ -9547,8 +9555,10 @@ innobase_fts_create_doc_id_key(
 {
 	doc_id_t	temp_doc_id;
 	dfield_t*	dfield = dtuple_get_nth_field(tuple, 0);
+	const ulint	n_uniq = index->table->fts_n_uniq();
 
-	ut_a(dict_index_get_n_unique(index) == 1);
+	if (dict_index_get_n_unique(index) != n_uniq)
+		return DB_INDEX_CORRUPT;
 
 	dtuple_set_n_fields(tuple, index->n_fields);
 	dict_index_copy_types(tuple, index, index->n_fields);
@@ -9566,12 +9576,25 @@ innobase_fts_create_doc_id_key(
 	*doc_id = temp_doc_id;
 	dfield_set_data(dfield, doc_id, sizeof(*doc_id));
 
-        dtuple_set_n_fields_cmp(tuple, 1);
+	if (n_uniq == 2) {
+		ut_ad(index->table->versioned());
+		dfield = dtuple_get_nth_field(tuple, 1);
+		if (index->table->versioned_by_id()) {
+			dfield_set_data(dfield, trx_id_max_bytes,
+					sizeof(trx_id_max_bytes));
+		} else {
+			dfield_set_data(dfield, timestamp_max_bytes,
+					sizeof(timestamp_max_bytes));
+		}
+	}
 
-	for (ulint i = 1; i < index->n_fields; i++) {
+	dtuple_set_n_fields_cmp(tuple, n_uniq);
+
+	for (ulint i = n_uniq; i < index->n_fields; i++) {
 		dfield = dtuple_get_nth_field(tuple, i);
 		dfield_set_null(dfield);
 	}
+	return DB_SUCCESS;
 }
 
 /**********************************************************************//**
@@ -9653,13 +9676,18 @@ next_record:
 		/* We pass a pointer of search_doc_id because it will be
 		converted to storage byte order used in the search
 		tuple. */
-		innobase_fts_create_doc_id_key(tuple, index, &search_doc_id);
+		dberr_t ret = innobase_fts_create_doc_id_key(
+			tuple, index, &search_doc_id);
+
+		if (ret == DB_SUCCESS) {
+			ret = row_search_for_mysql(
+				buf, PAGE_CUR_GE, m_prebuilt,
+				ROW_SEL_EXACT, 0);
+		}
 
 		int	error;
 
-		switch (dberr_t ret = row_search_for_mysql(buf, PAGE_CUR_GE,
-							   m_prebuilt,
-							   ROW_SEL_EXACT, 0)) {
+		switch (ret) {
 		case DB_SUCCESS:
 			error = 0;
 			table->status = 0;
@@ -12594,7 +12622,8 @@ int create_table_info_t::create_table(bool create_fk)
 					    m_table->name.m_name);
 
 			if (m_table->fts) {
-				fts_free(m_table);
+				m_table->fts->~fts_t();
+				m_table->fts = nullptr;
 			}
 
 			my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0),
@@ -16038,7 +16067,7 @@ struct ShowStatus {
 	};
 
 	/** Constructor */
-	ShowStatus() { }
+	ShowStatus() = default;
 
 	/** Callback for collecting the stats
 	@param[in]	latch_meta		Latch meta data
@@ -17369,7 +17398,7 @@ innodb_stopword_table_validate(
 	/* Validate the stopword table's (if supplied) existence and
 	of the right format */
 	int ret = stopword_table_name && !fts_valid_stopword_table(
-		stopword_table_name);
+		stopword_table_name, NULL);
 
 	row_mysql_unlock_data_dictionary(trx);
 
@@ -18748,6 +18777,16 @@ wsrep_kill_victim(
       lock_cancel_waiting_and_release(wait_lock);
     }
   }
+  else
+  {
+    wsrep_thd_LOCK(thd);
+    victim_trx->lock.was_chosen_as_wsrep_victim= false;
+    wsrep_thd_set_wsrep_aborter(NULL, thd);
+    wsrep_thd_UNLOCK(thd);
+
+    WSREP_DEBUG("wsrep_thd_bf_abort has failed, victim %lu will survive",
+                thd_get_thread_id(thd));
+  }
 
   DBUG_VOID_RETURN;
 }
@@ -19681,10 +19720,22 @@ static MYSQL_SYSVAR_BOOL(numa_interleave, srv_numa_interleave,
   NULL, NULL, FALSE);
 #endif /* HAVE_LIBNUMA */
 
+static void innodb_change_buffering_update(THD *thd, struct st_mysql_sys_var*,
+                                           void*, const void *save)
+{
+  ulong i= *static_cast<const ulong*>(save);
+  if (i != IBUF_USE_NONE && !ibuf.index)
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_NOT_KEYFILE,
+                 "InnoDB: The change buffer is corrupted.");
+  else
+    innodb_change_buffering= i;
+}
+
 static MYSQL_SYSVAR_ENUM(change_buffering, innodb_change_buffering,
   PLUGIN_VAR_RQCMDARG,
   "Buffer changes to secondary indexes.",
-  NULL, NULL, IBUF_USE_NONE, &innodb_change_buffering_typelib);
+  nullptr, innodb_change_buffering_update,
+  IBUF_USE_NONE, &innodb_change_buffering_typelib);
 
 static MYSQL_SYSVAR_UINT(change_buffer_max_size,
   srv_change_buffer_max_size,

@@ -146,6 +146,5 @@ delete from t1;
 select f1, f3, check_row_ts(row_start, row_end) from t1 for system_time all;
 f1	f3	check_row_ts(row_start, row_end)
 1	1	HISTORICAL ROW
-1	NULL	ERROR: row_end == row_start
 1	1	HISTORICAL ROW
 drop table t1;

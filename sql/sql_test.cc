@@ -623,6 +623,10 @@ Next alarm time: %lu\n",
 #elif defined(HAVE_MALLINFO)
   struct mallinfo info= mallinfo();
 #endif
+#if __has_feature(memory_sanitizer)
+  /* Work around missing MSAN instrumentation */
+  MEM_MAKE_DEFINED(&info, sizeof info);
+#endif
 #if defined(HAVE_MALLINFO) || defined(HAVE_MALLINFO2)
   char llbuff[10][22];
   printf("\nMemory status:\n\

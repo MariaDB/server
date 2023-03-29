@@ -459,6 +459,7 @@ class Item_func_left :public Item_str_func
   String tmp_value;
 public:
   Item_func_left(THD *thd, Item *a, Item *b): Item_str_func(thd, a, b) {}
+  bool hash_not_null(Hasher *hasher);
   String *val_str(String *);
   bool fix_length_and_dec();
   const char *func_name() const { return "left"; }

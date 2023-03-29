@@ -4,6 +4,7 @@
 
 # Embedded server tests do not support restarting
 --source include/not_embedded.inc
+--source include/maybe_versioning.inc
 
 SELECT @@innodb_ft_server_stopword_table;
 SELECT @@innodb_ft_enable_stopword;

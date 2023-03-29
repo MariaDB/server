@@ -81,8 +81,7 @@ protected:
   table_events_waits_summary_by_instance();
 
 public:
-  ~table_events_waits_summary_by_instance()
-  {}
+  ~table_events_waits_summary_by_instance() = default;
 
 private:
   /** Table share lock. */

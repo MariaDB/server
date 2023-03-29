@@ -1585,8 +1585,7 @@ static void *worker_main(void *param)
 }
 
 
-TP_pool_generic::TP_pool_generic()
-{}
+TP_pool_generic::TP_pool_generic() = default;
 
 int TP_pool_generic::init()
 {

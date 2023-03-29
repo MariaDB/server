@@ -179,8 +179,8 @@ IF(WIN32)
   OPTION(SIGNCODE "Sign executables and dlls with digital certificate" OFF)
   MARK_AS_ADVANCED(SIGNCODE)
   IF(SIGNCODE)
-   SET(SIGNTOOL_PARAMETERS
-     /a /t http://timestamp.globalsign.com/?signature=sha2
+   SET(SIGNTOOL_PARAMETERS 
+     /a /fd SHA256 /t http://timestamp.globalsign.com/?signature=sha2
      CACHE STRING "parameters for signtool (list)")
     IF(NOT SIGNTOOL_EXECUTABLE)
       FILE(GLOB path_list
@@ -266,7 +266,7 @@ SET(DEBUGBUILDDIR "${BINARY_PARENTDIR}/debug" CACHE INTERNAL "Directory of debug
 FUNCTION(INSTALL_MYSQL_TEST from to)
   IF(INSTALL_MYSQLTESTDIR)
     IF(NOT WITH_WSREP)
-      SET(EXCL_GALERA "(suite/(galera|wsrep|sys_vars/[rt]/(sysvars_)?wsrep).*|include/((w.*)?wsrep.*|.*galera.*)\\.inc|std_data/(galera|wsrep).*)")
+      SET(EXCL_GALERA "(suite/(galera|wsrep|sys_vars/[rt]/(sysvars_)?wsrep).*|std_data/(galera|wsrep).*)")
     ELSE()
       SET(EXCL_GALERA "^DOES_NOT_EXIST$")
     ENDIF()

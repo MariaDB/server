@@ -130,7 +130,7 @@ enum ha_extra_function {
   HA_EXTRA_NO_USER_CHANGE=9,		/* No user is allowed to write */
   HA_EXTRA_KEY_CACHE=10,
   HA_EXTRA_NO_KEY_CACHE=11,
-  HA_EXTRA_WAIT_LOCK=12,		/* Wait until file is avalably (def) */
+  HA_EXTRA_WAIT_LOCK=12,		/* Wait until file is available (def) */
   HA_EXTRA_NO_WAIT_LOCK=13,		/* If file is locked, return quickly */
   HA_EXTRA_WRITE_CACHE=14,		/* Use write cache in ha_write() */
   HA_EXTRA_FLUSH_CACHE=15,		/* flush write_record_cache */
@@ -291,7 +291,7 @@ enum ha_base_keytype {
   This flag can be calculated -- it's based on key lengths comparison.
 */
 #define HA_KEY_HAS_PART_KEY_SEG 65536
-/* Internal Flag Can be calcaluted */
+/* Internal Flag Can be calculated */
 #define HA_INVISIBLE_KEY 2<<18
 	/* Automatic bits in key-flag */
 
@@ -438,9 +438,9 @@ enum ha_base_keytype {
 #define HA_ERR_FIRST            120     /* Copy of first error nr.*/
 
 #define HA_ERR_KEY_NOT_FOUND	120	/* Didn't find key on read or update */
-#define HA_ERR_FOUND_DUPP_KEY	121	/* Dupplicate key on write */
+#define HA_ERR_FOUND_DUPP_KEY	121	/* Duplicate key on write */
 #define HA_ERR_INTERNAL_ERROR   122     /* Internal error */
-#define HA_ERR_RECORD_CHANGED	123	/* Uppdate with is recoverable */
+#define HA_ERR_RECORD_CHANGED	123	/* Update with is recoverable */
 #define HA_ERR_WRONG_INDEX	124	/* Wrong index given to function */
 #define HA_ERR_CRASHED		126	/* Indexfile is crashed */
 #define HA_ERR_WRONG_IN_RECORD	127	/* Record-file is crashed */
@@ -456,7 +456,7 @@ enum ha_base_keytype {
 #define HA_ERR_UNSUPPORTED	138	/* unsupported extension used */
 #define HA_ERR_TO_BIG_ROW	139	/* Too big row */
 #define HA_WRONG_CREATE_OPTION	140	/* Wrong create option */
-#define HA_ERR_FOUND_DUPP_UNIQUE 141	/* Dupplicate unique on write */
+#define HA_ERR_FOUND_DUPP_UNIQUE 141	/* Duplicate unique on write */
 #define HA_ERR_UNKNOWN_CHARSET	 142	/* Can't open charset */
 #define HA_ERR_WRONG_MRG_TABLE_DEF 143  /* conflicting tables in MERGE */
 #define HA_ERR_CRASHED_ON_REPAIR 144	/* Last (automatic?) repair failed */
@@ -500,7 +500,7 @@ enum ha_base_keytype {
                                             illegal data being read */
 #define HA_ERR_NEW_FILE	          172	 /* New file format */
 #define HA_ERR_ROWS_EVENT_APPLY   173    /* The event could not be processed
-                                            no other hanlder error happened */
+                                            no other handler error happened */
 #define HA_ERR_INITIALIZATION     174    /* Error during initialization */
 #define HA_ERR_FILE_TOO_SHORT	  175	 /* File too short */
 #define HA_ERR_WRONG_CRC	  176	 /* Wrong CRC on page */

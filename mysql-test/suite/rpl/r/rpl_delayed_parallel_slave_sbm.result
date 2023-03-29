@@ -1,0 +1,72 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+change master to master_delay=3, master_use_gtid=Slave_Pos;
+set @@GLOBAL.slave_parallel_threads=2;
+include/start_slave.inc
+connection master;
+create table t1 (a int);
+include/sync_slave_sql_with_master.inc
+#
+# Pt 1) Ensure SBM is updated immediately upon arrival of the next event
+# Lock t1 on slave so the first received transaction does not complete/commit
+connection slave;
+LOCK TABLES t1 WRITE;
+connection master;
+# Sleep 2 to allow a buffer between events for SBM check
+insert into t1 values (0);
+include/save_master_gtid.inc
+connection slave;
+# Waiting for transaction to arrive on slave and begin SQL Delay..
+# Validating SBM is updated on event arrival..
+# ..done
+connection slave;
+UNLOCK TABLES;
+include/sync_with_master_gtid.inc
+#
+# Pt 2) If the SQL thread has not entered an idle state, ensure
+# following events do not update SBM
+# Stop slave IO thread so it receives both events together on restart
+connection slave;
+include/stop_slave_io.inc
+connection master;
+# Sleep 2 to allow a buffer between events for SBM check
+insert into t1 values (1);
+# Sleep 3 to create gap between events
+insert into t1 values (2);
+include/save_master_pos.inc
+connection slave;
+LOCK TABLES t1 WRITE;
+SET @@global.debug_dbug="+d,pause_sql_thread_on_next_event";
+START SLAVE IO_THREAD;
+# Before we start processing the events, we ensure both transactions
+# were written into the relay log. Otherwise, if the IO thread takes too
+# long to queue the events, the sql thread can think it has caught up
+# too quickly.
+SET DEBUG_SYNC='now WAIT_FOR paused_on_event';
+include/sync_io_with_master.inc
+SET @@global.debug_dbug="-d,pause_sql_thread_on_next_event";
+SET DEBUG_SYNC='now SIGNAL sql_thread_continue';
+# Wait for first transaction to complete SQL delay and begin execution..
+# Validate SBM calculation doesn't use the second transaction because SQL thread shouldn't have gone idle..
+# ..and that SBM wasn't calculated using prior committed transactions
+# ..done
+connection slave;
+UNLOCK TABLES;
+#
+# Cleanup
+# Reset master_delay
+include/stop_slave.inc
+CHANGE MASTER TO master_delay=0;
+set @@GLOBAL.slave_parallel_threads=4;
+SET @@global.debug_dbug="";
+SET DEBUG_SYNC='RESET';
+include/start_slave.inc
+connection master;
+DROP TABLE t1;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/rpl_end.inc
+# End of rpl_delayed_parallel_slave_sbm.test

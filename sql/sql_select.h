@@ -730,7 +730,7 @@ public:
 
   virtual void mark_used() = 0;
 
-  virtual ~Semi_join_strategy_picker() {} 
+  virtual ~Semi_join_strategy_picker() = default;
 };
 
 
@@ -1238,6 +1238,8 @@ public:
   table_map outer_join;
   /* Bitmap of tables used in the select list items */
   table_map select_list_used_tables;
+  /* Tables that has HA_NON_COMPARABLE_ROWID (does not support rowid) set */
+  table_map not_usable_rowid_map;
   ha_rows  send_records,found_records,join_examined_rows;
 
   /*
@@ -1432,12 +1434,30 @@ public:
     (set in make_join_statistics())
   */
   bool impossible_where; 
-  List<Item> all_fields; ///< to store all fields that used in query
+
+  /*
+    All fields used in the query processing.
+
+    Initially this is a list of fields from the query's SQL text.
+
+    Then, ORDER/GROUP BY and Window Function code add columns that need to
+    be saved to be available in the post-group-by context. These extra columns
+    are added to the front, because this->all_fields points to the suffix of
+    this list.
+  */
+  List<Item> all_fields;
   ///Above list changed to use temporary table
   List<Item> tmp_all_fields1, tmp_all_fields2, tmp_all_fields3;
   ///Part, shared with list above, emulate following list
   List<Item> tmp_fields_list1, tmp_fields_list2, tmp_fields_list3;
-  List<Item> &fields_list; ///< hold field list passed to mysql_select
+
+  /*
+    The original field list as it was passed to mysql_select(). This refers
+    to select_lex->item_list.
+    CAUTION: this list is a suffix of this->all_fields list, that is, it shares
+    elements with that list!
+  */
+  List<Item> &fields_list;
   List<Item> procedure_fields_list;
   int error;
 
@@ -1550,7 +1570,7 @@ public:
     table_count= 0;
     top_join_tab_count= 0;
     const_tables= 0;
-    const_table_map= found_const_table_map= 0;
+    const_table_map= found_const_table_map= not_usable_rowid_map= 0;
     aggr_tables= 0;
     eliminated_tables= 0;
     join_list= 0;
@@ -1912,7 +1932,7 @@ public:
              null_ptr(arg.null_ptr), err(arg.err)
 
   {}
-  virtual ~store_key() {}			/** Not actually needed */
+  virtual ~store_key() = default;			/** Not actually needed */
   virtual enum Type type() const=0;
   virtual const char *name() const=0;
   virtual bool store_key_is_const() { return false; }
@@ -1926,11 +1946,7 @@ public:
   enum store_key_result copy()
   {
     enum store_key_result result;
-    THD *thd= to_field->table->in_use;
-    Check_level_instant_set check_level_save(thd, CHECK_FIELD_IGNORE);
-    Sql_mode_save sql_mode(thd);
-    thd->variables.sql_mode&= ~(MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE);
-    thd->variables.sql_mode|= MODE_INVALID_DATES;
+    Use_relaxed_field_copy urfc(to_field->table->in_use);
     result= copy_inner();
     return result;
   }

@@ -247,6 +247,10 @@ long innobase_file_io_threads = 4;
 ulong innobase_read_io_threads = 4;
 ulong innobase_write_io_threads = 4;
 
+/** Store the failed read of undo tablespace ids. Protected by
+backup mutex */
+static std::set<uint32_t> fail_undo_ids;
+
 longlong innobase_page_size = (1LL << 14); /* 16KB */
 char*	innobase_buffer_pool_filename = NULL;
 
@@ -365,6 +369,10 @@ struct ddl_tracker_t {
 };
 
 static ddl_tracker_t ddl_tracker;
+
+/** Store the space ids of truncated undo log tablespaces. Protected
+by recv_sys.mutex */
+static std::set<uint32_t> undo_trunc_ids;
 
 // Convert non-null terminated filename to space name
 std::string filename_to_spacename(const byte *filename, size_t len);
@@ -874,6 +882,10 @@ static void backup_file_op_fail(ulint space_id, bool create,
 	}
 }
 
+static void backup_undo_trunc(uint32_t space_id)
+{
+  undo_trunc_ids.insert(space_id);
+}
 
 /*
   Retrieve default data directory, to be used with --copy-back.
@@ -1230,7 +1242,7 @@ struct my_option xb_client_options[]= {
 
     {"rsync", OPT_RSYNC,
      "Uses the rsync utility to optimize local file "
-     "transfers. When this option is specified, innobackupex uses rsync "
+     "transfers. When this option is specified, " XB_TOOL_NAME " uses rsync "
      "to copy all non-InnoDB files instead of spawning a separate cp for "
      "each file, which can be much faster for servers with a large number "
      "of databases or tables.  This option cannot be used together with "
@@ -1338,7 +1350,7 @@ struct my_option xb_client_options[]= {
 
     {"ftwrl-wait-query-type", OPT_LOCK_WAIT_QUERY_TYPE,
      "This option specifies which types of queries are allowed to complete "
-     "before innobackupex will issue the global lock. Default is all.",
+     "before " XB_TOOL_NAME " will issue the global lock. Default is all.",
      (uchar *) &opt_lock_wait_query_type, (uchar *) &opt_lock_wait_query_type,
      &query_type_typelib, GET_ENUM, REQUIRED_ARG, QUERY_TYPE_ALL, 0, 0, 0, 0,
      0},
@@ -1358,26 +1370,26 @@ struct my_option xb_client_options[]= {
      NULL, NULL, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 
     {"kill-long-queries-timeout", OPT_KILL_LONG_QUERIES_TIMEOUT,
-     "This option specifies the number of seconds innobackupex waits "
+     "This option specifies the number of seconds " XB_TOOL_NAME " waits "
      "between starting FLUSH TABLES WITH READ LOCK and killing those "
      "queries that block it. Default is 0 seconds, which means "
-     "innobackupex will not attempt to kill any queries.",
+     XB_TOOL_NAME " will not attempt to kill any queries.",
      (uchar *) &opt_kill_long_queries_timeout,
      (uchar *) &opt_kill_long_queries_timeout, 0, GET_UINT, REQUIRED_ARG, 0, 0,
      0, 0, 0, 0},
 
     {"ftwrl-wait-timeout", OPT_LOCK_WAIT_TIMEOUT,
-     "This option specifies time in seconds that innobackupex should wait "
+     "This option specifies time in seconds that " XB_TOOL_NAME " should wait "
      "for queries that would block FTWRL before running it. If there are "
-     "still such queries when the timeout expires, innobackupex terminates "
-     "with an error. Default is 0, in which case innobackupex does not "
+     "still such queries when the timeout expires, " XB_TOOL_NAME " terminates "
+     "with an error. Default is 0, in which case " XB_TOOL_NAME " does not "
      "wait for queries to complete and starts FTWRL immediately.",
      (uchar *) &opt_lock_wait_timeout, (uchar *) &opt_lock_wait_timeout, 0,
      GET_UINT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 
     {"ftwrl-wait-threshold", OPT_LOCK_WAIT_THRESHOLD,
      "This option specifies the query run time threshold which is used by "
-     "innobackupex to detect long-running queries with a non-zero value "
+     XB_TOOL_NAME " to detect long-running queries with a non-zero value "
      "of --ftwrl-wait-timeout. FTWRL is not started until such "
      "long-running queries exist. This option has no effect if "
      "--ftwrl-wait-timeout is 0. Default value is 60 seconds.",
@@ -1852,6 +1864,17 @@ xb_get_one_option(const struct my_option *opt,
     break;
 
   case OPT_INNODB_FLUSH_METHOD:
+#ifdef _WIN32
+    /* From: storage/innobase/handler/ha_innodb.cc:innodb_init_params */
+    switch (srv_file_flush_method) {
+    case SRV_ALL_O_DIRECT_FSYNC + 1 /* "async_unbuffered"="unbuffered" */:
+      srv_file_flush_method= SRV_ALL_O_DIRECT_FSYNC;
+      break;
+    case SRV_ALL_O_DIRECT_FSYNC + 2 /* "normal"="fsync" */:
+      srv_file_flush_method= SRV_FSYNC;
+      break;
+    }
+#endif
     ut_a(srv_file_flush_method
 	 <= IF_WIN(SRV_ALL_O_DIRECT_FSYNC, SRV_O_DIRECT_NO_FSYNC));
     ADD_PRINT_PARAM_OPT(innodb_flush_method_names[srv_file_flush_method]);
@@ -2780,15 +2803,27 @@ static my_bool xtrabackup_copy_datafile(fil_node_t *node, uint thread_n,
 	}
 
 	/* The main copy loop */
-	while ((res = xb_fil_cur_read(&cursor, corrupted_pages)) ==
-		XB_FIL_CUR_SUCCESS) {
+	while (1) {
+		res = xb_fil_cur_read(&cursor, corrupted_pages);
+		if (res == XB_FIL_CUR_ERROR) {
+		       goto error;
+		}
+
+		if (res == XB_FIL_CUR_EOF) {
+			break;
+		}
+
 		if (!write_filter.process(&write_filt_ctxt, dstfile)) {
 			goto error;
 		}
-	}
 
-	if (res == XB_FIL_CUR_ERROR) {
-		goto error;
+		if (res == XB_FIL_CUR_SKIP) {
+			pthread_mutex_lock(&backup_mutex);
+			fail_undo_ids.insert(
+				static_cast<uint32_t>(cursor.space_id));
+			pthread_mutex_unlock(&backup_mutex);
+			break;
+		}
 	}
 
 	if (write_filter.finalize
@@ -2975,7 +3010,9 @@ static bool xtrabackup_copy_logfile(bool last = false)
 
 	ut_ad(start_lsn == log_sys.log.scanned_lsn);
 
-	msg(">> log scanned up to (" LSN_PF ")", start_lsn);
+	if (verbose) {
+		msg(">> log scanned up to (" LSN_PF ")", start_lsn);
+	}
 
 	/* update global variable*/
 	pthread_mutex_lock(&backup_mutex);
@@ -3324,7 +3361,9 @@ static void xb_load_single_table_tablespace(const char *dirname,
 	if (err == DB_SUCCESS && file->space_id() != SRV_TMP_SPACE_ID) {
 		space = fil_space_t::create(
 			name, file->space_id(), file->flags(),
-			FIL_TYPE_TABLESPACE, NULL/* TODO: crypt_data */);
+			FIL_TYPE_TABLESPACE, NULL/* TODO: crypt_data */,
+			FIL_ENCRYPTION_DEFAULT,
+			file->handle() != OS_FILE_CLOSED);
 
 		ut_a(space != NULL);
 		space->add(file->filepath(),
@@ -4368,11 +4407,30 @@ static bool xtrabackup_backup_low()
 
 	dst_log_file = NULL;
 
-	if(!xtrabackup_incremental) {
-		strcpy(metadata_type, "full-backuped");
+	std::vector<uint32_t> failed_ids;
+	std::set_difference(
+		fail_undo_ids.begin(), fail_undo_ids.end(),
+		undo_trunc_ids.begin(), undo_trunc_ids.end(),
+		std::inserter(failed_ids, failed_ids.begin()));
+
+	for (uint32_t id : failed_ids) {
+		msg("mariabackup: Failed to read undo log "
+		    "tablespace space id %d and there is no undo "
+		    "tablespace truncation redo record.",
+		    id);
+	}
+
+	if (failed_ids.size() > 0) {
+		return false;
+	}
+
+	if (!xtrabackup_incremental) {
+		safe_strcpy(metadata_type, sizeof(metadata_type),
+			    "full-backuped");
 		metadata_from_lsn = 0;
 	} else {
-		strcpy(metadata_type, "incremental");
+		safe_strcpy(metadata_type, sizeof(metadata_type),
+			    "incremental");
 		metadata_from_lsn = incremental_lsn;
 	}
 	metadata_last_lsn = log_copy_scanned_lsn;
@@ -4442,6 +4500,7 @@ static bool xtrabackup_backup_func()
 
 	srv_operation = SRV_OPERATION_BACKUP;
 	log_file_op = backup_file_op;
+	undo_space_trunc = backup_undo_trunc;
 	metadata_to_lsn = 0;
 
 	/* initialize components */
@@ -4450,6 +4509,7 @@ fail:
 		metadata_to_lsn = log_copying_running;
 		stop_backup_threads();
 		log_file_op = NULL;
+		undo_space_trunc = NULL;
 		if (dst_log_file) {
 			ds_close(dst_log_file);
 			dst_log_file = NULL;
@@ -4741,6 +4801,7 @@ fail_before_log_copying_thread_start:
 
 	innodb_shutdown();
 	log_file_op = NULL;
+	undo_space_trunc = NULL;
 	pthread_mutex_destroy(&backup_mutex);
 	pthread_cond_destroy(&scanned_lsn_cond);
 	if (!corrupted_pages.empty()) {
@@ -5183,7 +5244,8 @@ exit:
 	ut_ad(fil_space_t::physical_size(flags) == info.page_size);
 
 	if (fil_space_t::create(dest_space_name, info.space_id, flags,
-				FIL_TYPE_TABLESPACE, 0)) {
+				FIL_TYPE_TABLESPACE, 0, FIL_ENCRYPTION_DEFAULT,
+				true)) {
 		*success = xb_space_create_file(real_name, info.space_id,
 						flags, &file);
 	} else {
@@ -6030,7 +6092,8 @@ static bool xtrabackup_prepare_func(char** argv)
 	if (ok) {
 		char	filename[FN_REFLEN];
 
-		strcpy(metadata_type, "log-applied");
+		safe_strcpy(metadata_type, sizeof(metadata_type),
+			    "log-applied");
 
 		if(xtrabackup_incremental
 		   && metadata_to_lsn < incremental_to_lsn)

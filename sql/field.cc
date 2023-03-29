@@ -1869,17 +1869,11 @@ Field::Field(uchar *ptr_arg,uint32 length_arg,uchar *null_ptr_arg,
 }
 
 
-void Field::hash(ulong *nr, ulong *nr2)
+void Field::hash_not_null(Hasher *hasher)
 {
-  if (is_null())
-  {
-    *nr^= (*nr << 1) | 1;
-  }
-  else
-  {
-    uint len= pack_length();
-    sort_charset()->hash_sort(ptr, len, nr, nr2);
-  }
+  DBUG_ASSERT(marked_for_read());
+  DBUG_ASSERT(!is_null());
+  hasher->add(sort_charset(), ptr, pack_length());
 }
 
 size_t
@@ -8268,17 +8262,12 @@ bool Field_varstring::is_equal(const Column_definition &new_field) const
 }
 
 
-void Field_varstring::hash(ulong *nr, ulong *nr2)
+void Field_varstring::hash_not_null(Hasher *hasher)
 {
-  if (is_null())
-  {
-    *nr^= (*nr << 1) | 1;
-  }
-  else
-  {
-    uint len=  length_bytes == 1 ? (uint) *ptr : uint2korr(ptr);
-    charset()->hash_sort(ptr + length_bytes, len, nr, nr2);
-  }
+  DBUG_ASSERT(marked_for_read());
+  DBUG_ASSERT(!is_null());
+  uint len=  length_bytes == 1 ? (uint) *ptr : uint2korr(ptr);
+  hasher->add(charset(), ptr + length_bytes, len);
 }
 
 
@@ -8650,6 +8639,17 @@ oom_error:
   /* Fatal OOM error */
   bzero(ptr,Field_blob::pack_length());
   return -1; 
+}
+
+
+void Field_blob::hash_not_null(Hasher *hasher)
+{
+  DBUG_ASSERT(marked_for_read());
+  DBUG_ASSERT(!is_null());
+  char *blob;
+  memcpy(&blob, ptr + packlength, sizeof(char*));
+  if (blob)
+    hasher->add(Field_blob::charset(), blob, get_length(ptr));
 }
 
 
@@ -9726,20 +9726,27 @@ const DTCollation & Field_bit::dtcollation() const
 }
 
 
-void Field_bit::hash(ulong *nr, ulong *nr2)
+/*
+  This method always calculates hash over 8 bytes.
+  This is different from how the HEAP engine calculate hash:
+  HEAP takes into account the actual octet size, so say for BIT(18)
+  it calculates hash over three bytes only:
+  - the incomplete byte with bits 16..17
+  - the two full bytes with bits 0..15
+  See hp_rec_hashnr(), hp_hashnr() for details.
+
+  The HEAP way is more efficient, especially for short lengths.
+  Let's consider fixing Field_bit eventually to do it in the HEAP way,
+  with proper measures to upgrade partitioned tables easy.
+*/
+void Field_bit::hash_not_null(Hasher *hasher)
 {
-  if (is_null())
-  {
-    *nr^= (*nr << 1) | 1;
-  }
-  else
-  {
-    CHARSET_INFO *cs= &my_charset_bin;
-    longlong value= Field_bit::val_int();
-    uchar tmp[8];
-    mi_int8store(tmp,value);
-    cs->hash_sort(tmp, 8, nr, nr2);
-  }
+  DBUG_ASSERT(marked_for_read());
+  DBUG_ASSERT(!is_null());
+  longlong value= Field_bit::val_int();
+  uchar tmp[8];
+  mi_int8store(tmp,value);
+  hasher->add(&my_charset_bin, tmp, 8);
 }
 
 
@@ -10956,7 +10963,7 @@ Create_field *Create_field::clone(MEM_ROOT *mem_root) const
 }
 
 /**
-   Return true if default is an expression that must be saved explicitely
+   Return true if default is an expression that must be saved explicitly
 
    This is:
      - Not basic constants

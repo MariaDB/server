@@ -16,7 +16,7 @@ source include/show_binlog_events.inc;
 # escaped).
 flush logs;
 let $MYSQLD_DATADIR= `select @@datadir`;
---replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form $MYSQLD_DATADIR/master-bin.000001 
 drop table t2;
 
@@ -54,7 +54,7 @@ SELECT * FROM t1;
 DROP TABLE t1;
 FLUSH LOGS;
 let $MYSQLD_DATADIR= `select @@datadir`;
---replace_regex /TIMESTAMP=[0-9]*/TIMESTAMP=XXX/ /# at [0-9]*/# at #/ /(exec_time=|end_log_pos |Xid = |thread_id=|server id |table id |mapped to number )[0-9]+/\1#/  /server v [^ ]*/server v #.##.##/  /CRC32 0x[0-9a-f]*/CRC32 XXX/ /GTID [0-9]+-[0-9]+-[0-9]+/GTID #-#-#/ /Gtid list [[][0-9]+-[0-9]+-[0-9]+[\]]/Gtid list [#-#-#]/ /session[.](gtid_domain_id|server_id|gtid_seq_no)=[0-9]+/session.\1=#/ /(^#|created )[0-9]{6} [ 12][0-9]:[0-9]{2}:[0-9]{2}/\1YYMMDD HH:MM:SS/ /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--replace_regex /TIMESTAMP=[0-9]*/TIMESTAMP=XXX/ /# at [0-9]*/# at #/ /(exec_time=|end_log_pos |Xid = |thread_id=|server id |table id |mapped to number )[0-9]+/\1#/  /server v [^ ]*/server v #.##.##/  /CRC32 0x[0-9a-f]*/CRC32 XXX/ /GTID [0-9]+-[0-9]+-[0-9]+/GTID #-#-#/ /Gtid list [[][0-9]+-[0-9]+-[0-9]+[\]]/Gtid list [#-#-#]/ /session[.](gtid_domain_id|server_id|gtid_seq_no)=[0-9]+/session.\1=#/ /(^#|created )[0-9]{6} [ 12][0-9]:[0-9]{2}:[0-9]{2}/\1YYMMDD HH:MM:SS/ /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --base64-output=decode-rows -vv $MYSQLD_DATADIR/master-bin.000003
 
 SET TIMESTAMP=DEFAULT;

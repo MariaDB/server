@@ -23,6 +23,11 @@
 #undef EXTRA_DEBUG
 #define EXTRA_DEBUG
 
+#ifndef DBUG_OFF
+/* Put a protected barrier after every element when using multi_alloc_root() */
+#define ALLOC_BARRIER
+#endif
+
 /* data packed in MEM_ROOT -> min_malloc */
 
 #define MALLOC_FLAG(A) ((A & 1) ? MY_THREAD_SPECIFIC : 0)
@@ -34,8 +39,8 @@
 
   SYNOPSIS
     init_alloc_root()
+      key            - key to register instrumented memory
       mem_root       - memory root to initialize
-      name           - name of memroot (for debugging)
       block_size     - size of chunks (blocks) used for memory allocation
                        (It is external size of chunk i.e. it should include
                         memory required for internal structures, thus it
@@ -311,6 +316,9 @@ void *multi_alloc_root(MEM_ROOT *root, ...)
   {
     length= va_arg(args, uint);
     tot_length+= ALIGN_SIZE(length);
+#ifdef ALLOC_BARRIER
+    tot_length+= ALIGN_SIZE(1);
+#endif
   }
   va_end(args);
 
@@ -324,6 +332,10 @@ void *multi_alloc_root(MEM_ROOT *root, ...)
     *ptr= res;
     length= va_arg(args, uint);
     res+= ALIGN_SIZE(length);
+#ifdef ALLOC_BARRIER
+    TRASH_FREE(res, ALIGN_SIZE(1));
+    res+= ALIGN_SIZE(1);
+#endif
   }
   va_end(args);
   DBUG_RETURN((void*) start);

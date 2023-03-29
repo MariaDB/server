@@ -8,6 +8,8 @@ CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 BLOB) ENGINE=InnoDB;
 
 # Introduce inconsistency
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1'
+--source include/wait_condition.inc
 SET SESSION wsrep_on=OFF;
 --eval INSERT INTO t1 VALUES ($inconsistent_fragment, 'X')
 SET SESSION wsrep_on=ON;

@@ -13,8 +13,6 @@
 
 galera_2_cluster : MDEV-29877 Galera test failure on galera_2_cluster
 galera_gtid_2_cluster : MDEV-29877 Galera test failure on galera_2_cluster
-galera_parallel_apply_3nodes : MDEV-29368 DEBUG_SYNC timeout
-galera_parallel_apply_3nodes : MDEV-29774 Galera test galera_parallel_apply_3nodes is unstable
 galera_vote_rejoin_mysqldump : MDEV-24481: galera_3nodes.galera_vote_rejoin_mysqldump MTR failed: mysql_shutdown failed
 galera_2_cluster : MDEV-29877 Galera test failure on galera_2_cluster
 galera_gtid_2_cluster : MDEV-29877 Galera test failure on galera_2_cluster

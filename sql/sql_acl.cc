@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2022, MariaDB
+   Copyright (c) 2009, 2023, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -200,7 +200,7 @@ class ACL_USER :public ACL_USER_BASE,
 {
 public:
 
-  ACL_USER() { }
+  ACL_USER() = default;
   ACL_USER(THD *thd, const LEX_USER &combo,
            const Account_options &options,
            const privilege_t privileges);
@@ -338,7 +338,7 @@ class ACL_PROXY_USER :public ACL_ACCESS
     MYSQL_PROXIES_PRIV_GRANTOR,
     MYSQL_PROXIES_PRIV_TIMESTAMP } proxy_table_fields;
 public:
-  ACL_PROXY_USER () {};
+  ACL_PROXY_USER () = default;
 
   void init(const char *host_arg, const char *user_arg,
        const char *proxied_host_arg, const char *proxied_user_arg,
@@ -383,9 +383,9 @@ public:
     update_hostname(&host, safe_strdup_root(mem, host_arg));
   }
 
-  bool check_validity(bool check_no_resolve)
+  bool check_validity()
   {
-    if (check_no_resolve &&
+    if (opt_skip_name_resolve &&
         (hostname_requires_resolving(host.hostname) ||
          hostname_requires_resolving(proxied_host.hostname)))
     {
@@ -929,7 +929,7 @@ class User_table: public Grant_table_base
   virtual longlong get_password_lifetime () const = 0;
   virtual int set_password_lifetime (longlong x) const = 0;
 
-  virtual ~User_table() {}
+  virtual ~User_table() = default;
  private:
   friend class Grant_tables;
   virtual int setup_sysvars() const = 0;
@@ -1278,7 +1278,7 @@ class User_table_tabular: public User_table
     return 1;
   }
 
-  virtual ~User_table_tabular() {}
+  virtual ~User_table_tabular() = default;
  private:
   friend class Grant_tables;
 
@@ -1689,7 +1689,7 @@ class User_table_json: public User_table
   int set_password_expired (bool x) const
   { return x ? set_password_last_changed(0) : 0; }
 
-  ~User_table_json() {}
+  ~User_table_json() = default;
  private:
   friend class Grant_tables;
   static const uint JSON_SIZE=1024;
@@ -2526,7 +2526,6 @@ static void push_new_user(const ACL_USER &user)
 static bool acl_load(THD *thd, const Grant_tables& tables)
 {
   READ_RECORD read_record_info;
-  bool check_no_resolve= specialflag & SPECIAL_NO_RESOLVE;
   char tmp_name[SAFE_NAME_LEN+1];
   Sql_mode_save old_mode_save(thd);
   DBUG_ENTER("acl_load");
@@ -2569,7 +2568,8 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
       host.access= host_table.get_access();
       host.access= fix_rights_for_db(host.access);
       host.sort= get_magic_sort("hd", host.host.hostname, host.db);
-      if (check_no_resolve && hostname_requires_resolving(host.host.hostname))
+      if (opt_skip_name_resolve &&
+          hostname_requires_resolving(host.host.hostname))
       {
         sql_print_warning("'host' entry '%s|%s' "
                         "ignored in --skip-name-resolve mode.",
@@ -2640,7 +2640,8 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
     }
     else
     {
-      if (check_no_resolve && hostname_requires_resolving(user.host.hostname))
+      if (opt_skip_name_resolve &&
+          hostname_requires_resolving(user.host.hostname))
       {
         sql_print_warning("'user' entry '%s@%s' "
                           "ignored in --skip-name-resolve mode.", user.user.str,
@@ -2698,7 +2699,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
       sql_print_warning("Found an entry in the 'db' table with empty database name; Skipped");
       continue;
     }
-    if (check_no_resolve && hostname_requires_resolving(db.host.hostname))
+    if (opt_skip_name_resolve && hostname_requires_resolving(db.host.hostname))
     {
       sql_print_warning("'db' entry '%s %s@%s' "
                         "ignored in --skip-name-resolve mode.",
@@ -2753,7 +2754,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
     {
       ACL_PROXY_USER proxy;
       proxy.init(proxies_priv_table, &acl_memroot);
-      if (proxy.check_validity(check_no_resolve))
+      if (proxy.check_validity())
         continue;
       if (push_dynamic(&acl_proxy_users, (uchar*) &proxy))
         DBUG_RETURN(TRUE);
@@ -5317,7 +5318,7 @@ public:
   GRANT_NAME(const char *h, const char *d,const char *u,
              const char *t, privilege_t p, bool is_routine);
   GRANT_NAME (TABLE *form, bool is_routine);
-  virtual ~GRANT_NAME() {};
+  virtual ~GRANT_NAME() = default;
   virtual bool ok() { return privs != NO_ACL; }
   void set_user_details(const char *h, const char *d,
                         const char *u, const char *t,
@@ -7924,7 +7925,6 @@ static bool grant_load(THD *thd,
 {
   bool return_val= 1;
   TABLE *t_table, *c_table, *p_table;
-  bool check_no_resolve= specialflag & SPECIAL_NO_RESOLVE;
   MEM_ROOT *save_mem_root= thd->mem_root;
   DBUG_ENTER("grant_load");
 
@@ -7971,7 +7971,7 @@ static bool grant_load(THD *thd,
 	goto end_unlock;
       }
 
-      if (check_no_resolve)
+      if (opt_skip_name_resolve)
       {
 	if (hostname_requires_resolving(mem_check->host.hostname))
 	{
@@ -8015,7 +8015,7 @@ static bool grant_load(THD *thd,
           goto end_unlock_p;
         }
 
-        if (check_no_resolve)
+        if (opt_skip_name_resolve)
         {
           if (hostname_requires_resolving(mem_check->host.hostname))
           {
@@ -11602,8 +11602,7 @@ public:
     : is_grave(FALSE)
   {}
 
-  virtual ~Silence_routine_definer_errors()
-  {}
+  virtual ~Silence_routine_definer_errors() = default;
 
   virtual bool handle_condition(THD *thd,
                                 uint sql_errno,
@@ -12074,8 +12073,7 @@ void Sql_cmd_grant::warn_hostname_requires_resolving(THD *thd,
   List_iterator <LEX_USER> it(users);
   while ((user= it++))
   {
-    if (specialflag & SPECIAL_NO_RESOLVE &&
-        hostname_requires_resolving(user->host.str))
+    if (opt_skip_name_resolve && hostname_requires_resolving(user->host.str))
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_WARN_HOSTNAME_WONT_WORK,
                           ER_THD(thd, ER_WARN_HOSTNAME_WONT_WORK));

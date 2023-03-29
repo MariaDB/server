@@ -607,14 +607,6 @@ fts_create(
 	dict_table_t*	table);			/*!< out: table with FTS
 						indexes */
 
-/**********************************************************************//**
-Free the FTS resources. */
-void
-fts_free(
-/*=====*/
-	dict_table_t*   table);			/*!< in/out: table with
-						FTS indexes */
-
 /*********************************************************************//**
 Run OPTIMIZE on the given table.
 @return DB_SUCCESS if all OK */
@@ -833,15 +825,14 @@ fts_get_max_doc_id(
 /*===============*/
 	dict_table_t*	table);			/*!< in: user table */
 
-/******************************************************************//**
-Check whether user supplied stopword table exists and is of
-the right format.
-@return the stopword column charset if qualifies */
-CHARSET_INFO*
-fts_valid_stopword_table(
-/*=====================*/
-	const char*	stopword_table_name);	/*!< in: Stopword table
-						name */
+/** Check whether a stopword table is in the right format.
+@param stopword_table_name   table name
+@param row_end   name of the system-versioning end column, or "value"
+@return the stopword column charset
+@retval NULL if the table does not exist or qualify */
+CHARSET_INFO *fts_valid_stopword_table(const char *stopword_table_name,
+                                       const char **row_end= NULL);
+
 /****************************************************************//**
 This function loads specified stopword into FTS cache
 @return true if success */

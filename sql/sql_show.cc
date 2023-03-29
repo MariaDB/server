@@ -2423,7 +2423,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
     add_table_options(thd, table, create_info_arg,
                       table_list->schema_table != 0, 0, packet);
 
-  if (table->versioned())
+  if (DBUG_EVALUATE_IF("sysvers_hide", 0, table->versioned()))
     packet->append(STRING_WITH_LEN(" WITH SYSTEM VERSIONING"));
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -8216,28 +8216,34 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
   TABLE *table;
   ST_SCHEMA_TABLE *schema_table= table_list->schema_table;
   ST_FIELD_INFO *fields= schema_table->fields_info;
-  bool need_all_fieds= table_list->schema_table_reformed || // SHOW command
+  bool need_all_fields= table_list->schema_table_reformed || // SHOW command
                        thd->lex->only_view_structure(); // need table structure
+  bool keep_row_order;
+  TMP_TABLE_PARAM *tmp_table_param;
+  SELECT_LEX *select_lex;
+  my_bitmap_map *bitmaps;
   DBUG_ENTER("create_schema_table");
 
   for (; !fields->end_marker(); fields++)
     field_count++;
 
-  TMP_TABLE_PARAM *tmp_table_param = new (thd->mem_root) TMP_TABLE_PARAM;
+  tmp_table_param = new (thd->mem_root) TMP_TABLE_PARAM;
   tmp_table_param->init();
   tmp_table_param->table_charset= system_charset_info;
   tmp_table_param->field_count= field_count;
   tmp_table_param->schema_table= 1;
-  SELECT_LEX *select_lex= table_list->select_lex;
-  bool keep_row_order= is_show_command(thd);
-  if (!(table= create_tmp_table_for_schema(thd, tmp_table_param, *schema_table,
-                 (select_lex->options | thd->variables.option_bits | TMP_TABLE_ALL_COLUMNS),
-                  table_list->alias, !need_all_fieds, keep_row_order)))
+  select_lex= table_list->select_lex;
+  keep_row_order= is_show_command(thd);
+  if (!(table=
+        create_tmp_table_for_schema(thd, tmp_table_param, *schema_table,
+                                    (select_lex->options |
+                                     thd->variables.option_bits |
+                                     TMP_TABLE_ALL_COLUMNS),
+                                    table_list->alias, !need_all_fields,
+                                    keep_row_order)))
     DBUG_RETURN(0);
-  my_bitmap_map* bitmaps=
-    (my_bitmap_map*) thd->alloc(bitmap_buffer_size(field_count));
-  my_bitmap_init(&table->def_read_set, (my_bitmap_map*) bitmaps, field_count,
-              FALSE);
+  bitmaps= (my_bitmap_map*) thd->alloc(bitmap_buffer_size(field_count));
+  my_bitmap_init(&table->def_read_set, bitmaps, field_count, FALSE);
   table->read_set= &table->def_read_set;
   bitmap_clear_all(table->read_set);
   table_list->schema_table_param= tmp_table_param;
@@ -10144,11 +10150,9 @@ exit:
 class IS_internal_schema_access : public ACL_internal_schema_access
 {
 public:
-  IS_internal_schema_access()
-  {}
+  IS_internal_schema_access() = default;
 
-  ~IS_internal_schema_access()
-  {}
+  ~IS_internal_schema_access() = default;
 
   ACL_internal_access_result check(privilege_t want_access,
                                    privilege_t *save_priv) const;

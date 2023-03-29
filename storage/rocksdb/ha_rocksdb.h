@@ -406,7 +406,7 @@ class ha_rocksdb : public my_core::handler {
   void free_key_buffers();
 
   // the buffer size should be at least 2*Rdb_key_def::INDEX_NUMBER_SIZE
-  rocksdb::Range get_range(const int i, uchar buf[]) const;
+  rocksdb::Range get_range(const int i, uchar buf[2 * 4]) const;
 
   /*
     Perf timers for data reads
@@ -1046,7 +1046,7 @@ struct Rdb_inplace_alter_ctx : public my_core::inplace_alter_handler_ctx {
         m_n_dropped_keys(n_dropped_keys),
         m_max_auto_incr(max_auto_incr) {}
 
-  ~Rdb_inplace_alter_ctx() {}
+  ~Rdb_inplace_alter_ctx() = default;
 
  private:
   /* Disable Copying */

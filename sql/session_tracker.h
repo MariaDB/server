@@ -78,7 +78,7 @@ private:
   bool m_changed;
 
 public:
-  virtual ~State_tracker() {}
+  virtual ~State_tracker() = default;
 
   /** Getters */
   bool is_enabled() const

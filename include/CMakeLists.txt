@@ -25,6 +25,7 @@ SET(HEADERS
   mysql.h 
   mysql_com.h
   mysql_com_server.h
+  mariadb_capi_rename.h
   pack.h
   my_byteorder.h
   byte_order_generic.h
@@ -36,6 +37,7 @@ SET(HEADERS
   ma_dyncol.h
   my_list.h
   my_alloc.h
+  my_alloca.h
   typelib.h 
   my_dbug.h 
   m_string.h
@@ -76,7 +78,6 @@ FOREACH(f ${HEADERS_GEN_CONFIGURE})
 ENDFOREACH(f)
 IF(NOT WITH_WSREP)
   SET(EXCL_SERVICE_WSREP "service_wsrep.h")
-  SET(EXCL_WSREP "wsrep.h")
 ENDIF()
 INSTALL(DIRECTORY mysql/
         DESTINATION ${INSTALL_INCLUDEDIR}/server/mysql COMPONENT Development
@@ -93,7 +94,6 @@ MACRO(INSTALL_PRIVATE DIR)
     FILES_MATCHING PATTERN "*.h"
     PATTERN CMakeFiles EXCLUDE
     PATTERN mysql EXCLUDE
-    PATTERN "${EXCL_WSREP}" EXCLUDE
     REGEX "\\./(${EXCL_RE}$)" EXCLUDE)
 ENDMACRO()
 
@@ -112,7 +112,9 @@ ${footer}
 ENDMACRO()
 
 INSTALL_COMPAT_HEADER(my_global.h "")
+INSTALL_COMPAT_HEADER(my_alloca.h "")
 INSTALL_COMPAT_HEADER(my_config.h "")
+INSTALL_COMPAT_HEADER(my_alloca.h "")
 INSTALL_COMPAT_HEADER(my_sys.h "")
 INSTALL_COMPAT_HEADER(mysql_version.h "
 #include <mariadb_version.h>

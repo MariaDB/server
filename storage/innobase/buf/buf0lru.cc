@@ -408,6 +408,11 @@ buf_block_t *buf_LRU_get_free_block(bool have_mutex)
 		mysql_mutex_assert_owner(&buf_pool.mutex);
 		goto got_mutex;
 	}
+	DBUG_EXECUTE_IF("recv_ran_out_of_buffer",
+			if (recv_recovery_is_on()
+			    && recv_sys.apply_log_recs) {
+				goto flush_lru;
+			});
 	mysql_mutex_lock(&buf_pool.mutex);
 got_mutex:
 	buf_LRU_check_size_of_non_data_objects();
@@ -493,7 +498,9 @@ not_found:
 	removing the block from buf_pool.page_hash and buf_pool.LRU is fairly
 	involved (particularly in case of ROW_FORMAT=COMPRESSED pages). We
 	can do that in a separate patch sometime in future. */
-
+#ifndef DBUG_OFF
+flush_lru:
+#endif
 	if (!buf_flush_LRU(innodb_lru_flush_size)) {
 		MONITOR_INC(MONITOR_LRU_SINGLE_FLUSH_FAILURE_COUNT);
 		++flush_failures;

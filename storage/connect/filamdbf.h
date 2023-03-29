@@ -35,7 +35,7 @@ class DllExport DBFBASE {
 
  protected:
   // Default constructor, not to be used
-  DBFBASE(void) {}
+  DBFBASE(void) = default;
 
   // Members
   int  Records;                     /*  records in the file                 */

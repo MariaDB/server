@@ -1097,6 +1097,18 @@ static void mysql57_calculate_null_position(TABLE_SHARE *share,
   }
 }
 
+
+Item_func_hash *TABLE_SHARE::make_long_hash_func(THD *thd,
+                                                 MEM_ROOT *mem_root,
+                                                 List<Item> *field_list)
+                                                 const
+{
+  if (old_long_hash_function())
+    return new (mem_root) Item_func_hash_mariadb_100403(thd, *field_list);
+  return new (mem_root) Item_func_hash(thd, *field_list);
+}
+
+
 /** Parse TABLE_SHARE::vcol_defs
 
   unpack_vcol_info_from_frm
@@ -1308,7 +1320,10 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
           list_item= new (mem_root) Item_field(thd, keypart->field);
         field_list->push_back(list_item, mem_root);
       }
-      Item_func_hash *hash_item= new(mem_root)Item_func_hash(thd, *field_list);
+
+      Item_func_hash *hash_item= table->s->make_long_hash_func(thd, mem_root,
+                                                               field_list);
+
       Virtual_column_info *v= new (mem_root) Virtual_column_info();
       field->vcol_info= v;
       field->vcol_info->expr= hash_item;
@@ -3566,7 +3581,7 @@ class Vcol_expr_context
   bool inited;
   THD *thd;
   TABLE *table;
-  Query_arena backup_arena;
+  Query_arena backup_arena, *stmt_arena;
   table_map old_map;
   Security_context *save_security_ctx;
   sql_mode_t save_sql_mode;
@@ -3576,6 +3591,7 @@ public:
     inited(false),
     thd(_thd),
     table(_table),
+    stmt_arena(thd->stmt_arena),
     old_map(table->map),
     save_security_ctx(thd->security_ctx),
     save_sql_mode(thd->variables.sql_mode) {}
@@ -3596,6 +3612,7 @@ bool Vcol_expr_context::init()
     thd->security_ctx= tl->security_ctx;
 
   thd->set_n_backup_active_arena(table->expr_arena, &backup_arena);
+  thd->stmt_arena= thd;
 
   inited= true;
   return false;
@@ -3609,6 +3626,7 @@ Vcol_expr_context::~Vcol_expr_context()
   thd->security_ctx= save_security_ctx;
   thd->restore_active_arena(table->expr_arena, &backup_arena);
   thd->variables.sql_mode= save_sql_mode;
+  thd->stmt_arena= stmt_arena;
 }
 
 
@@ -8625,7 +8643,7 @@ bool is_simple_order(ORDER *order)
 class Turn_errors_to_warnings_handler : public Internal_error_handler
 {
 public:
-  Turn_errors_to_warnings_handler() {}
+  Turn_errors_to_warnings_handler() = default;
   bool handle_condition(THD *thd,
                         uint sql_errno,
                         const char* sqlstate,

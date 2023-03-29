@@ -1497,7 +1497,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
                                wsrep_current_error_status(thd));
           thd->wsrep_cs().reset_error();
           /* Reset also thd->killed if it has been set during BF abort. */
-          if (thd->killed == KILL_QUERY)
+          if (killed_mask_hard(thd->killed) == KILL_QUERY)
             thd->killed= NOT_KILLED;
           /* if failed transaction was not replayed, must return with error from here */
           if (!must_replay) err_status = 1;
@@ -2411,7 +2411,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
     Disable slow log if:
     - Slow logging is enabled (no change needed)
     - This is a normal SP (not event log)
-    - If we have not explicitely disabled logging of SP
+    - If we have not explicitly disabled logging of SP
   */
   if (save_enable_slow_log &&
       ((!(m_flags & LOG_SLOW_STATEMENTS) &&
@@ -2425,7 +2425,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
     Disable general log if:
     - If general log is enabled (no change needed)
     - This is a normal SP (not event log)
-    - If we have not explicitely disabled logging of SP
+    - If we have not explicitly disabled logging of SP
   */
   if (!(thd->variables.option_bits & OPTION_LOG_OFF) &&
       (!(m_flags & LOG_GENERAL_LOG) &&

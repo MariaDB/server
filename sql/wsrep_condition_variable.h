@@ -29,8 +29,7 @@ public:
   Wsrep_condition_variable(mysql_cond_t* cond)
     : m_cond(cond)
   { }
-  ~Wsrep_condition_variable()
-  { }
+  ~Wsrep_condition_variable() = default;
 
   void notify_one()
   {

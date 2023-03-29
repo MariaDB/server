@@ -1533,9 +1533,7 @@ exit:
 }
 
 
-Item_func_spatial_operation::~Item_func_spatial_operation()
-{
-}
+Item_func_spatial_operation::~Item_func_spatial_operation() = default;
 
 
 String *Item_func_spatial_operation::val_str(String *str_value)
@@ -2791,8 +2789,8 @@ public:
   static Create_func_area s_singleton;
 
 protected:
-  Create_func_area() {}
-  virtual ~Create_func_area() {}
+  Create_func_area() = default;
+  virtual ~Create_func_area() = default;
 };
 
 
@@ -2807,8 +2805,8 @@ public:
   static Create_func_as_wkb s_singleton;
 
 protected:
-  Create_func_as_wkb() {}
-  virtual ~Create_func_as_wkb() {}
+  Create_func_as_wkb() = default;
+  virtual ~Create_func_as_wkb() = default;
 };
 
 
@@ -2823,8 +2821,8 @@ public:
   static Create_func_as_wkt s_singleton;
 
 protected:
-  Create_func_as_wkt() {}
-  virtual ~Create_func_as_wkt() {}
+  Create_func_as_wkt() = default;
+  virtual ~Create_func_as_wkt() = default;
 };
 
 
@@ -2840,8 +2838,8 @@ public:
   static Create_func_centroid s_singleton;
 
 protected:
-  Create_func_centroid() {}
-  virtual ~Create_func_centroid() {}
+  Create_func_centroid() = default;
+  virtual ~Create_func_centroid() = default;
 };
 
 
@@ -2856,8 +2854,8 @@ public:
   static Create_func_convexhull s_singleton;
 
 protected:
-  Create_func_convexhull() {}
-  virtual ~Create_func_convexhull() {}
+  Create_func_convexhull() = default;
+  virtual ~Create_func_convexhull() = default;
 };
 
 
@@ -2872,8 +2870,8 @@ public:
   static Create_func_pointonsurface s_singleton;
 
 protected:
-  Create_func_pointonsurface() {}
-  virtual ~Create_func_pointonsurface() {}
+  Create_func_pointonsurface() = default;
+  virtual ~Create_func_pointonsurface() = default;
 };
 
 
@@ -2889,8 +2887,8 @@ public:
   static Create_func_mbr_contains s_singleton;
 
 protected:
-  Create_func_mbr_contains() {}
-  virtual ~Create_func_mbr_contains() {}
+  Create_func_mbr_contains() = default;
+  virtual ~Create_func_mbr_contains() = default;
 };
 
 
@@ -2905,8 +2903,8 @@ public:
   static Create_func_contains s_singleton;
 
 protected:
-  Create_func_contains() {}
-  virtual ~Create_func_contains() {}
+  Create_func_contains() = default;
+  virtual ~Create_func_contains() = default;
 };
 
 
@@ -2921,8 +2919,8 @@ public:
   static Create_func_crosses s_singleton;
 
 protected:
-  Create_func_crosses() {}
-  virtual ~Create_func_crosses() {}
+  Create_func_crosses() = default;
+  virtual ~Create_func_crosses() = default;
 };
 
 
@@ -2937,8 +2935,8 @@ public:
   static Create_func_dimension s_singleton;
 
 protected:
-  Create_func_dimension() {}
-  virtual ~Create_func_dimension() {}
+  Create_func_dimension() = default;
+  virtual ~Create_func_dimension() = default;
 };
 
 
@@ -2954,8 +2952,8 @@ public:
   static Create_func_mbr_disjoint s_singleton;
 
 protected:
-  Create_func_mbr_disjoint() {}
-  virtual ~Create_func_mbr_disjoint() {}
+  Create_func_mbr_disjoint() = default;
+  virtual ~Create_func_mbr_disjoint() = default;
 };
 
 
@@ -2970,8 +2968,8 @@ public:
   static Create_func_disjoint s_singleton;
 
 protected:
-  Create_func_disjoint() {}
-  virtual ~Create_func_disjoint() {}
+  Create_func_disjoint() = default;
+  virtual ~Create_func_disjoint() = default;
 };
 
 
@@ -2986,8 +2984,8 @@ public:
   static Create_func_distance s_singleton;
 
 protected:
-  Create_func_distance() {}
-  virtual ~Create_func_distance() {}
+  Create_func_distance() = default;
+  virtual ~Create_func_distance() = default;
 };
 
 
@@ -2999,8 +2997,8 @@ public:
   static Create_func_distance_sphere s_singleton;
 
 protected:
-  Create_func_distance_sphere() {}
-  virtual ~Create_func_distance_sphere() {}
+  Create_func_distance_sphere() = default;
+  virtual ~Create_func_distance_sphere() = default;
 };
 
 
@@ -3034,8 +3032,8 @@ public:
   static Create_func_endpoint s_singleton;
 
 protected:
-  Create_func_endpoint() {}
-  virtual ~Create_func_endpoint() {}
+  Create_func_endpoint() = default;
+  virtual ~Create_func_endpoint() = default;
 };
 
 
@@ -3050,8 +3048,8 @@ public:
   static Create_func_envelope s_singleton;
 
 protected:
-  Create_func_envelope() {}
-  virtual ~Create_func_envelope() {}
+  Create_func_envelope() = default;
+  virtual ~Create_func_envelope() = default;
 };
 
 class Create_func_boundary : public Create_func_arg1
@@ -3065,8 +3063,8 @@ public:
   static Create_func_boundary s_singleton;
 
 protected:
-  Create_func_boundary() {}
-  virtual ~Create_func_boundary() {}
+  Create_func_boundary() = default;
+  virtual ~Create_func_boundary() = default;
 };
 
 
@@ -3082,8 +3080,8 @@ public:
   static Create_func_mbr_equals s_singleton;
 
 protected:
-  Create_func_mbr_equals() {}
-  virtual ~Create_func_mbr_equals() {}
+  Create_func_mbr_equals() = default;
+  virtual ~Create_func_mbr_equals() = default;
 };
 
 
@@ -3099,8 +3097,8 @@ public:
   static Create_func_equals s_singleton;
 
 protected:
-  Create_func_equals() {}
-  virtual ~Create_func_equals() {}
+  Create_func_equals() = default;
+  virtual ~Create_func_equals() = default;
 };
 
 
@@ -3116,8 +3114,8 @@ public:
   static Create_func_exteriorring s_singleton;
 
 protected:
-  Create_func_exteriorring() {}
-  virtual ~Create_func_exteriorring() {}
+  Create_func_exteriorring() = default;
+  virtual ~Create_func_exteriorring() = default;
 };
 
 
@@ -3131,8 +3129,8 @@ public:
   static Create_func_geometry_from_text s_singleton;
 
 protected:
-  Create_func_geometry_from_text() {}
-  virtual ~Create_func_geometry_from_text() {}
+  Create_func_geometry_from_text() = default;
+  virtual ~Create_func_geometry_from_text() = default;
 };
 
 
@@ -3182,8 +3180,8 @@ public:
   static Create_func_geometry_from_wkb s_singleton;
 
 protected:
-  Create_func_geometry_from_wkb() {}
-  virtual ~Create_func_geometry_from_wkb() {}
+  Create_func_geometry_from_wkb() = default;
+  virtual ~Create_func_geometry_from_wkb() = default;
 };
 
 
@@ -3232,8 +3230,8 @@ public:
   static Create_func_geometry_from_json s_singleton;
 
 protected:
-  Create_func_geometry_from_json() {}
-  virtual ~Create_func_geometry_from_json() {}
+  Create_func_geometry_from_json() = default;
+  virtual ~Create_func_geometry_from_json() = default;
 };
 
 
@@ -3292,8 +3290,8 @@ public:
   static Create_func_as_geojson s_singleton;
 
 protected:
-  Create_func_as_geojson() {}
-  virtual ~Create_func_as_geojson() {}
+  Create_func_as_geojson() = default;
+  virtual ~Create_func_as_geojson() = default;
 };
 
 
@@ -3352,8 +3350,8 @@ public:
   static Create_func_geometry_type s_singleton;
 
 protected:
-  Create_func_geometry_type() {}
-  virtual ~Create_func_geometry_type() {}
+  Create_func_geometry_type() = default;
+  virtual ~Create_func_geometry_type() = default;
 };
 
 
@@ -3369,8 +3367,8 @@ public:
   static Create_func_geometryn s_singleton;
 
 protected:
-  Create_func_geometryn() {}
-  virtual ~Create_func_geometryn() {}
+  Create_func_geometryn() = default;
+  virtual ~Create_func_geometryn() = default;
 };
 
 
@@ -3386,8 +3384,8 @@ public:
   static Create_func_gis_debug s_singleton;
 
 protected:
-  Create_func_gis_debug() {}
-  virtual ~Create_func_gis_debug() {}
+  Create_func_gis_debug() = default;
+  virtual ~Create_func_gis_debug() = default;
 };
 #endif
 
@@ -3403,8 +3401,8 @@ public:
   static Create_func_glength s_singleton;
 
 protected:
-  Create_func_glength() {}
-  virtual ~Create_func_glength() {}
+  Create_func_glength() = default;
+  virtual ~Create_func_glength() = default;
 };
 
 
@@ -3420,8 +3418,8 @@ public:
   static Create_func_interiorringn s_singleton;
 
 protected:
-  Create_func_interiorringn() {}
-  virtual ~Create_func_interiorringn() {}
+  Create_func_interiorringn() = default;
+  virtual ~Create_func_interiorringn() = default;
 };
 
 
@@ -3436,8 +3434,8 @@ public:
   static Create_func_relate s_singleton;
 
 protected:
-  Create_func_relate() {}
-  virtual ~Create_func_relate() {}
+  Create_func_relate() = default;
+  virtual ~Create_func_relate() = default;
 };
 
 
@@ -3453,8 +3451,8 @@ public:
   static Create_func_mbr_intersects s_singleton;
 
 protected:
-  Create_func_mbr_intersects() {}
-  virtual ~Create_func_mbr_intersects() {}
+  Create_func_mbr_intersects() = default;
+  virtual ~Create_func_mbr_intersects() = default;
 };
 
 
@@ -3470,8 +3468,8 @@ public:
   static Create_func_intersects s_singleton;
 
 protected:
-  Create_func_intersects() {}
-  virtual ~Create_func_intersects() {}
+  Create_func_intersects() = default;
+  virtual ~Create_func_intersects() = default;
 };
 
 
@@ -3487,8 +3485,8 @@ public:
   static Create_func_intersection s_singleton;
 
 protected:
-  Create_func_intersection() {}
-  virtual ~Create_func_intersection() {}
+  Create_func_intersection() = default;
+  virtual ~Create_func_intersection() = default;
 };
 
 
@@ -3504,8 +3502,8 @@ public:
   static Create_func_difference s_singleton;
 
 protected:
-  Create_func_difference() {}
-  virtual ~Create_func_difference() {}
+  Create_func_difference() = default;
+  virtual ~Create_func_difference() = default;
 };
 
 
@@ -3521,8 +3519,8 @@ public:
   static Create_func_union s_singleton;
 
 protected:
-  Create_func_union() {}
-  virtual ~Create_func_union() {}
+  Create_func_union() = default;
+  virtual ~Create_func_union() = default;
 };
 
 
@@ -3538,8 +3536,8 @@ public:
   static Create_func_symdifference s_singleton;
 
 protected:
-  Create_func_symdifference() {}
-  virtual ~Create_func_symdifference() {}
+  Create_func_symdifference() = default;
+  virtual ~Create_func_symdifference() = default;
 };
 
 
@@ -3554,8 +3552,8 @@ public:
   static Create_func_buffer s_singleton;
 
 protected:
-  Create_func_buffer() {}
-  virtual ~Create_func_buffer() {}
+  Create_func_buffer() = default;
+  virtual ~Create_func_buffer() = default;
 };
 
 
@@ -3570,8 +3568,8 @@ public:
   static Create_func_isclosed s_singleton;
 
 protected:
-  Create_func_isclosed() {}
-  virtual ~Create_func_isclosed() {}
+  Create_func_isclosed() = default;
+  virtual ~Create_func_isclosed() = default;
 };
 
 
@@ -3586,8 +3584,8 @@ public:
   static Create_func_isring s_singleton;
 
 protected:
-  Create_func_isring() {}
-  virtual ~Create_func_isring() {}
+  Create_func_isring() = default;
+  virtual ~Create_func_isring() = default;
 };
 
 
@@ -3602,8 +3600,8 @@ public:
   static Create_func_isempty s_singleton;
 
 protected:
-  Create_func_isempty() {}
-  virtual ~Create_func_isempty() {}
+  Create_func_isempty() = default;
+  virtual ~Create_func_isempty() = default;
 };
 
 
@@ -3618,8 +3616,8 @@ public:
   static Create_func_issimple s_singleton;
 
 protected:
-  Create_func_issimple() {}
-  virtual ~Create_func_issimple() {}
+  Create_func_issimple() = default;
+  virtual ~Create_func_issimple() = default;
 };
 
 
@@ -3635,8 +3633,8 @@ public:
   static Create_func_numgeometries s_singleton;
 
 protected:
-  Create_func_numgeometries() {}
-  virtual ~Create_func_numgeometries() {}
+  Create_func_numgeometries() = default;
+  virtual ~Create_func_numgeometries() = default;
 };
 
 
@@ -3651,8 +3649,8 @@ public:
   static Create_func_numinteriorring s_singleton;
 
 protected:
-  Create_func_numinteriorring() {}
-  virtual ~Create_func_numinteriorring() {}
+  Create_func_numinteriorring() = default;
+  virtual ~Create_func_numinteriorring() = default;
 };
 
 
@@ -3667,8 +3665,8 @@ public:
   static Create_func_numpoints s_singleton;
 
 protected:
-  Create_func_numpoints() {}
-  virtual ~Create_func_numpoints() {}
+  Create_func_numpoints() = default;
+  virtual ~Create_func_numpoints() = default;
 };
 
 
@@ -3684,8 +3682,8 @@ public:
   static Create_func_mbr_overlaps s_singleton;
 
 protected:
-  Create_func_mbr_overlaps() {}
-  virtual ~Create_func_mbr_overlaps() {}
+  Create_func_mbr_overlaps() = default;
+  virtual ~Create_func_mbr_overlaps() = default;
 };
 
 
@@ -3701,8 +3699,8 @@ public:
   static Create_func_overlaps s_singleton;
 
 protected:
-  Create_func_overlaps() {}
-  virtual ~Create_func_overlaps() {}
+  Create_func_overlaps() = default;
+  virtual ~Create_func_overlaps() = default;
 };
 
 
@@ -3720,8 +3718,8 @@ public:
   static Create_func_pointn s_singleton;
 
 protected:
-  Create_func_pointn() {}
-  virtual ~Create_func_pointn() {}
+  Create_func_pointn() = default;
+  virtual ~Create_func_pointn() = default;
 };
 
 
@@ -3738,8 +3736,8 @@ public:
   static Create_func_srid s_singleton;
 
 protected:
-  Create_func_srid() {}
-  virtual ~Create_func_srid() {}
+  Create_func_srid() = default;
+  virtual ~Create_func_srid() = default;
 };
 
 
@@ -3755,8 +3753,8 @@ public:
   static Create_func_startpoint s_singleton;
 
 protected:
-  Create_func_startpoint() {}
-  virtual ~Create_func_startpoint() {}
+  Create_func_startpoint() = default;
+  virtual ~Create_func_startpoint() = default;
 };
 
 
@@ -3773,8 +3771,8 @@ public:
   static Create_func_touches s_singleton;
 
 protected:
-  Create_func_touches() {}
-  virtual ~Create_func_touches() {}
+  Create_func_touches() = default;
+  virtual ~Create_func_touches() = default;
 };
 
 
@@ -3790,8 +3788,8 @@ public:
   static Create_func_mbr_within s_singleton;
 
 protected:
-  Create_func_mbr_within() {}
-  virtual ~Create_func_mbr_within() {}
+  Create_func_mbr_within() = default;
+  virtual ~Create_func_mbr_within() = default;
 };
 
 
@@ -3807,8 +3805,8 @@ public:
   static Create_func_within s_singleton;
 
 protected:
-  Create_func_within() {}
-  virtual ~Create_func_within() {}
+  Create_func_within() = default;
+  virtual ~Create_func_within() = default;
 };
 
 
@@ -3823,8 +3821,8 @@ public:
   static Create_func_x s_singleton;
 
 protected:
-  Create_func_x() {}
-  virtual ~Create_func_x() {}
+  Create_func_x() = default;
+  virtual ~Create_func_x() = default;
 };
 
 
@@ -3839,8 +3837,8 @@ public:
   static Create_func_y s_singleton;
 
 protected:
-  Create_func_y() {}
-  virtual ~Create_func_y() {}
+  Create_func_y() = default;
+  virtual ~Create_func_y() = default;
 };
 
 

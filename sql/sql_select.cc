@@ -2309,7 +2309,7 @@ JOIN::optimize_inner()
   /*
     We have to remove constants and duplicates from group_list before
     calling make_join_statistics() as this may call get_best_group_min_max()
-    which needs a simplfied group_list.
+    which needs a simplified group_list.
   */
   if (group_list && table_count == 1)
   {
@@ -3325,7 +3325,9 @@ bool JOIN::make_aggr_tables_info()
 
       if (gbh)
       {
-        if (!(pushdown_query= new (thd->mem_root) Pushdown_query(select_lex, gbh)))
+        TABLE *table;
+        if (!(pushdown_query= new (thd->mem_root) Pushdown_query(select_lex,
+                                                                 gbh)))
           DBUG_RETURN(1);
         /*
           We must store rows in the tmp table if we need to do an ORDER BY
@@ -3345,13 +3347,13 @@ bool JOIN::make_aggr_tables_info()
 
         if (!(curr_tab->tmp_table_param= new TMP_TABLE_PARAM(tmp_table_param)))
           DBUG_RETURN(1);
-        TABLE* table= create_tmp_table(thd, curr_tab->tmp_table_param,
-                                       all_fields,
-                                       NULL, query.distinct,
-                                       TRUE, select_options, HA_POS_ERROR,
-                                       &empty_clex_str, !need_tmp,
-                                       query.order_by || query.group_by);
-        if (!table)
+        curr_tab->tmp_table_param->func_count= all_fields.elements;
+        if (!(table= create_tmp_table(thd, curr_tab->tmp_table_param,
+                                      all_fields,
+                                      NULL, query.distinct,
+                                      TRUE, select_options, HA_POS_ERROR,
+                                      &empty_clex_str, !need_tmp,
+                                      query.order_by || query.group_by)))
           DBUG_RETURN(1);
 
         if (!(curr_tab->aggr= new (thd->mem_root) AGGR_OP(curr_tab)))
@@ -3539,15 +3541,26 @@ bool JOIN::make_aggr_tables_info()
 
     /*
       If we have different sort & group then we must sort the data by group
-      and copy it to another tmp table
+      and copy it to another tmp table.
+
       This code is also used if we are using distinct something
       we haven't been able to store in the temporary table yet
       like SEC_TO_TIME(SUM(...)).
+
+      3. Also, this is used when
+      - the query has Window functions,
+      - the GROUP BY operation is done with OrderedGroupBy algorithm.
+      In this case, the first temptable will contain pre-GROUP-BY data. Force
+      the creation of the second temporary table. Post-GROUP-BY dataset will be
+      written there, and then Window Function processing code will be able to
+      process it.
     */
     if ((group_list &&
          (!test_if_subpart(group_list, order) || select_distinct)) ||
-        (select_distinct && tmp_table_param.using_outer_summary_function))
-    {					/* Must copy to another table */
+        (select_distinct && tmp_table_param.using_outer_summary_function) ||
+        (group_list && !tmp_table_param.quick_group &&  // (3)
+         select_lex->have_window_funcs())) // (3)
+   {					/* Must copy to another table */
       DBUG_PRINT("info",("Creating group table"));
 
       calc_group_buffer(this, group_list);
@@ -5639,7 +5652,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
             caller to abort with a zero row result.
           */
           TABLE_LIST *emb= s->table->pos_in_table_list->embedding;
-          if (emb && !emb->sj_on_expr)
+          if (emb && !emb->sj_on_expr && !*s->on_expr_ref)
           {
             /* Mark all tables in a multi-table join nest as const */
             mark_join_nest_as_const(join, emb, &found_const_table_map,
@@ -7646,6 +7659,7 @@ best_access_path(JOIN      *join,
         rec= MATCHING_ROWS_IN_OTHER_TABLE;      // Fix for small tables
 
       Json_writer_object trace_access_idx(thd);
+      double eq_ref_rows= 0.0, eq_ref_cost= 0.0;
       /*
         full text keys require special treatment
       */
@@ -7690,7 +7704,10 @@ best_access_path(JOIN      *join,
               tmp= adjust_quick_cost(table->opt_range[key].cost, 1);
             else
               tmp= table->file->avg_io_cost();
-            tmp*= prev_record_reads(join_positions, idx, found_ref);
+            eq_ref_rows= prev_record_reads(join_positions, idx,
+                                           found_ref);
+            tmp*= eq_ref_rows;
+            eq_ref_cost= tmp;
             records=1.0;
           }
           else
@@ -7988,9 +8005,31 @@ best_access_path(JOIN      *join,
       } /* not ft_key */
 
       if (records < DBL_MAX &&
-	  (found_part & 1))   // start_key->key can be used for index access
+	  (found_part & 1) &&   // start_key->key can be used for index access
+          (table->file->index_flags(start_key->key,0,1) &
+           HA_DO_RANGE_FILTER_PUSHDOWN))
       {
-        double rows= record_count * records;
+        double rows;
+        if (type == JT_EQ_REF)
+        {
+          /*
+            Treat EQ_REF access in a special way:
+            1. We have no cost for index-only read. Assume its cost is 50% of
+               the cost of the full read.
+
+            2. A regular ref access will do #record_count lookups, but eq_ref
+               has "lookup cache" which reduces the number of lookups made.
+               The estimation code uses prev_record_reads() call to estimate:
+
+                tmp = prev_record_reads(join_positions, idx, found_ref);
+
+               Set the effective number of rows from "tmp" here.
+          */
+          keyread_tmp= COST_ADD(eq_ref_cost / 2, s->startup_cost);
+          rows= eq_ref_rows;
+        }
+        else
+          rows= record_count * records;
 
         /*
           If we use filter F with selectivity s the the cost of fetching data
@@ -8013,23 +8052,46 @@ best_access_path(JOIN      *join,
              cost_of_fetching_1_row = tmp/rows
              cost_of_fetching_1_key_tuple = keyread_tmp/rows
 
-          Note that access_cost_factor may be greater than 1.0. In this case
-          we still can expect a gain of using rowid filter due to smaller number
-          of checks for conditions pushed to the joined table.
+          access_cost_factor is the gain we expect for using rowid filter.
+          An access_cost_factor of 1.0 means that keyread_tmp is 0
+          (using key read is infinitely fast) and the gain for each row when
+          using filter is great.
+          An access_cost_factor if 0.0 means that using keyread has the
+          same cost as reading rows, so there is no gain to get with
+          filter.
+          access_cost_factor should never be bigger than 1.0 (if all
+          calculations are correct) as the cost of keyread should always be
+          smaller than the cost of fetching the same number of keys + rows.
+          access_cost_factor should also never be smaller than 0.0.
+          The one exception is if number of records is 1 (eq_ref), then
+          because we are comparing rows to cost of keyread_tmp, keyread_tmp
+          is higher by 1.0. This is a big that will be fixed in a later
+          version.
+
+          If we have limited the cost (=tmp) of reading rows with 'worst_seek'
+          we cannot use filters as the cost calculation below would cause
+          tmp to become negative.  The future resultion is to not limit
+          cost with worst_seek.
 	*/
-        double rows_access_cost= MY_MIN(rows, s->worst_seeks);
-        double access_cost_factor= MY_MIN((rows_access_cost - keyread_tmp) /
-                                           rows, 1.0);
-        filter=
-          table->best_range_rowid_filter_for_partial_join(start_key->key, rows,
-                                                          access_cost_factor);
-        if (filter)
-	{
-          filter->get_cmp_gain(rows);
-          tmp-= filter->get_adjusted_gain(rows) - filter->get_cmp_gain(rows);
-          DBUG_ASSERT(tmp >= 0);
-          trace_access_idx.add("rowid_filter_key",
-                               table->key_info[filter->key_no].name);
+        double access_cost_factor= MY_MIN((rows - keyread_tmp) / rows, 1.0);
+        if (!(records < s->worst_seeks &&
+              records <= thd->variables.max_seeks_for_key))
+          trace_access_idx.add("rowid_filter_skipped", "worst/max seeks clipping");
+        else if (access_cost_factor <= 0.0)
+          trace_access_idx.add("rowid_filter_skipped", "cost_factor <= 0");
+        else
+        {
+          filter=
+            table->best_range_rowid_filter_for_partial_join(start_key->key,
+                                                            rows,
+                                                            access_cost_factor);
+          if (filter)
+          {
+            tmp-= filter->get_adjusted_gain(rows) - filter->get_cmp_gain(rows);
+            DBUG_ASSERT(tmp >= 0);
+            trace_access_idx.add("rowid_filter_key",
+                                 table->key_info[filter->key_no].name);
+          }
         }
       }
       trace_access_idx.add("rows", records).add("cost", tmp);
@@ -8171,7 +8233,7 @@ best_access_path(JOIN      *join,
         access (see first else-branch below), but we don't take it into 
         account here for range/index_merge access. Find out why this is so.
       */
-      double cmp_time= (s->found_records - rnd_records)/TIME_FOR_COMPARE;
+      double cmp_time= (s->found_records - rnd_records) / TIME_FOR_COMPARE;
       tmp= COST_MULT(record_count,
                      COST_ADD(s->quick->read_time, cmp_time));
 
@@ -8182,16 +8244,24 @@ best_access_path(JOIN      *join,
         uint key_no= s->quick->index;
 
         /* See the comment concerning using rowid filter for with ref access */
-        keyread_tmp= s->table->opt_range[key_no].index_only_cost;
+        keyread_tmp= s->table->opt_range[key_no].index_only_cost *
+          record_count;
         access_cost_factor= MY_MIN((rows - keyread_tmp) / rows, 1.0);
-        filter=
-        s->table->best_range_rowid_filter_for_partial_join(key_no, rows,
-                                                           access_cost_factor);
-        if (filter)
+        if (access_cost_factor > 0.0)
         {
-          tmp-= filter->get_adjusted_gain(rows);
-          DBUG_ASSERT(tmp >= 0);
+          filter=
+            s->table->
+            best_range_rowid_filter_for_partial_join(key_no, rows,
+                                                     access_cost_factor);
+          if (filter)
+          {
+            tmp-= filter->get_adjusted_gain(rows);
+            DBUG_ASSERT(tmp >= 0);
+          }
         }
+        else
+          trace_access_scan.add("rowid_filter_skipped", "cost_factor <= 0");
+
         type= JT_RANGE;
       }
       else
@@ -18301,7 +18371,8 @@ Field *Item_field::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
   src->set_field(field);
   if (!(result= create_tmp_field_from_item_field(root, table, NULL, param)))
     return NULL;
-  if (field->eq_def(result))
+  if (!(field->flags & NO_DEFAULT_VALUE_FLAG) &&
+      field->eq_def(result))
     src->set_default_field(field);
   return result;
 }
@@ -18736,6 +18807,7 @@ TABLE *Create_tmp_table::start(THD *thd,
   */
   if (param->precomputed_group_by)
     copy_func_count+= param->sum_func_count;
+  param->copy_func_count= copy_func_count;
   
   init_sql_alloc(key_memory_TABLE, &own_root, TABLE_ALLOC_BLOCK_SIZE, 0,
                  MYF(MY_THREAD_SPECIFIC));
@@ -18941,8 +19013,9 @@ bool Create_tmp_table::add_fields(THD *thd,
         We here distinguish between UNION and multi-table-updates by the fact
         that in the later case group is set to the row pointer.
 
-        The test for item->marker == 4 is ensure we don't create a group-by
-        key over a bit field as heap tables can't handle that.
+        The test for item->marker == MARKER_NULL_KEY is ensure we
+        don't create a group-by key over a bit field as heap tables
+        can't handle that.
       */
       DBUG_ASSERT(!param->schema_table);
       Field *new_field=
@@ -19007,6 +19080,7 @@ bool Create_tmp_table::add_fields(THD *thd,
         new_field->flags|= FIELD_PART_OF_TMP_UNIQUE;
     }
   }
+
   DBUG_ASSERT(fieldnr == m_field_count[other] + m_field_count[distinct]);
   DBUG_ASSERT(m_blob_count == m_blobs_count[other] + m_blobs_count[distinct]);
   share->fields= fieldnr;
@@ -19015,6 +19089,8 @@ bool Create_tmp_table::add_fields(THD *thd,
   share->blob_field[m_blob_count]= 0;           // End marker
   copy_func[0]= 0;                              // End marker
   param->func_count= (uint) (copy_func - param->items_to_copy);
+  DBUG_ASSERT(param->func_count <= param->copy_func_count);
+
   share->column_bitmap_size= bitmap_buffer_size(share->fields);
 
   thd->mem_root= mem_root_save;
@@ -19202,8 +19278,10 @@ bool Create_tmp_table::finalize(THD *thd,
       {
         /*
           Copy default value. We have to use field_conv() for copy, instead of
-          memcpy(), because bit_fields may be stored differently
+          memcpy(), because bit_fields may be stored differently.
+          But otherwise we copy as is, in particular, ignore NO_ZERO_DATE, etc
         */
+        Use_relaxed_field_copy urfc(thd);
         my_ptrdiff_t ptr_diff= (orig_field->table->s->default_values -
                                 orig_field->table->record[0]);
         field->set_notnull();
@@ -22340,11 +22418,17 @@ end_send(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 
 /*
   @brief
-    Perform a GROUP BY operation over a stream of rows ordered by their group.
-    The result is sent into join->result.
+    Perform OrderedGroupBy operation and write the output into join->result.
 
   @detail
-    Also applies HAVING, etc.
+    The input stream is ordered by the GROUP BY expression, so groups come
+    one after another. We only need to accumulate the aggregate value, when
+    a GROUP BY group ends, check the HAVING and send the group.
+
+    Note that the output comes in the GROUP BY order, which is required by
+    the MySQL's GROUP BY semantics. No further sorting is needed.
+
+  @seealso end_write_group() also implements SortAndGroup
 */
 
 enum_nested_loop_state
@@ -22534,13 +22618,26 @@ end:
 
 /*
   @brief
-    Perform a GROUP BY operation over rows coming in arbitrary order. 
-    
-    This is done by looking up the group in a temp.table and updating group
-    values.
+    Perform GROUP BY operation over rows coming in arbitrary order: use
+    TemporaryTableWithPartialSums algorithm.
+
+  @detail
+    The TemporaryTableWithPartialSums algorithm is:
+
+    CREATE TEMPORARY TABLE tmp (
+      group_by_columns PRIMARY KEY,
+      partial_sum
+    );
+
+    for each row R in join output {
+      INSERT INTO tmp (R.group_by_columns, R.sum_value)
+        ON DUPLICATE KEY UPDATE partial_sum=partial_sum + R.sum_value;
+    }
 
   @detail
     Also applies HAVING, etc.
+
+  @seealso end_unique_update()
 */
 
 static enum_nested_loop_state
@@ -22690,13 +22787,15 @@ end_unique_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 
 /*
   @brief
-    Perform a GROUP BY operation over a stream of rows ordered by their group.
-    Write the result into a temporary table.
+    Perform OrderedGroupBy operation and write the output into the temporary
+    table (join_tab->table).
 
   @detail
-    Also applies HAVING, etc.
+    The input stream is ordered by the GROUP BY expression, so groups come
+    one after another. We only need to accumulate the aggregate value, when
+    a GROUP BY group ends, check the HAVING and write the group.
 
-    The rows are written into temptable so e.g. filesort can read them.
+  @seealso end_send_group() also implements OrderedGroupBy
 */
 
 enum_nested_loop_state
@@ -25834,7 +25933,6 @@ bool JOIN::alloc_func_list()
   @param field_list        All items
   @param send_result_set_metadata       Items in select list
   @param before_group_by   Set to 1 if this is called before GROUP BY handling
-  @param recompute         Set to TRUE if sum_funcs must be recomputed
 
   @retval
     0  ok
@@ -26370,6 +26468,11 @@ bool JOIN::rollup_init()
   Item **ref_array;
 
   tmp_table_param.quick_group= 0;	// Can't create groups in tmp table
+  /*
+    Each group can potentially be replaced with Item_func_rollup_const() which
+    needs a copy_func placeholder.
+  */
+  tmp_table_param.func_count+= send_group_parts;
   rollup.state= ROLLUP::STATE_INITED;
 
   /*
@@ -26393,7 +26496,6 @@ bool JOIN::rollup_init()
     return true;
 
   ref_array= (Item**) (rollup.ref_pointer_arrays+send_group_parts);
-
 
   /*
     Prepare space for field list for the different levels
@@ -26558,7 +26660,6 @@ bool JOIN::rollup_make_fields(List<Item> &fields_arg, List<Item> &sel_fields,
 
     /* Point to first hidden field */
     uint ref_array_ix= fields_arg.elements-1;
-
 
     /* Remember where the sum functions ends for the previous level */
     sum_funcs_end[pos+1]= *func;
@@ -28509,20 +28610,20 @@ JOIN::reoptimize(Item *added_where, table_map join_tables,
 
 void JOIN::cache_const_exprs()
 {
-  bool cache_flag= FALSE;
-  bool *analyzer_arg= &cache_flag;
+  uchar cache_flag= FALSE;
+  uchar *analyzer_arg= &cache_flag;
 
   /* No need in cache if all tables are constant. */
   if (const_tables == table_count)
     return;
 
   if (conds)
-    conds->compile(thd, &Item::cache_const_expr_analyzer, (uchar **)&analyzer_arg,
-                  &Item::cache_const_expr_transformer, (uchar *)&cache_flag);
+    conds->top_level_compile(thd, &Item::cache_const_expr_analyzer, &analyzer_arg,
+                              &Item::cache_const_expr_transformer, &cache_flag);
   cache_flag= FALSE;
   if (having)
-    having->compile(thd, &Item::cache_const_expr_analyzer, (uchar **)&analyzer_arg,
-                    &Item::cache_const_expr_transformer, (uchar *)&cache_flag);
+    having->top_level_compile(thd, &Item::cache_const_expr_analyzer,
+                &analyzer_arg, &Item::cache_const_expr_transformer, &cache_flag);
 
   for (JOIN_TAB *tab= first_depth_first_tab(this); tab;
        tab= next_depth_first_tab(this, tab))
@@ -28530,10 +28631,8 @@ void JOIN::cache_const_exprs()
     if (*tab->on_expr_ref)
     {
       cache_flag= FALSE;
-      (*tab->on_expr_ref)->compile(thd, &Item::cache_const_expr_analyzer,
-                                 (uchar **)&analyzer_arg,
-                                 &Item::cache_const_expr_transformer,
-                                 (uchar *)&cache_flag);
+      (*tab->on_expr_ref)->top_level_compile(thd, &Item::cache_const_expr_analyzer,
+                &analyzer_arg, &Item::cache_const_expr_transformer, &cache_flag);
     }
   }
 }
@@ -29594,7 +29693,6 @@ void JOIN::make_notnull_conds_for_range_scans()
 {
   DBUG_ENTER("JOIN::make_notnull_conds_for_range_scans");
 
-
   if (impossible_where ||
       !optimizer_flag(thd, OPTIMIZER_SWITCH_NOT_NULL_RANGE_SCAN))
   {
@@ -29680,7 +29778,6 @@ bool build_notnull_conds_for_range_scans(JOIN *join, Item *cond,
                                          table_map allowed)
 {
   THD *thd= join->thd;
-
   DBUG_ENTER("build_notnull_conds_for_range_scans");
 
   for (JOIN_TAB *s= join->join_tab;
@@ -29688,13 +29785,13 @@ bool build_notnull_conds_for_range_scans(JOIN *join, Item *cond,
   {
     /* Clear all needed bitmaps to mark found fields */
     if ((allowed & s->table->map) &&
-        !(s->table->map && join->const_table_map))
+        !(s->table->map & join->const_table_map))
       bitmap_clear_all(&s->table->tmp_set);
   }
 
   /*
     Find all null-rejected fields assuming that cond is null-rejected and
-    only  formulas over tables from 'allowed' are to be taken into account
+    only formulas over tables from 'allowed' are to be taken into account
   */
   if (cond->find_not_null_fields(allowed))
     DBUG_RETURN(true);
@@ -29913,7 +30010,6 @@ void JOIN::init_join_cache_and_keyread()
       tab->remove_redundant_bnl_scan_conds();
   }
 }
-
 
 
 /**

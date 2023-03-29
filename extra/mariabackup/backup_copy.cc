@@ -57,6 +57,9 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include "backup_copy.h"
 #include "backup_mysql.h"
 #include <btr0btr.h>
+#ifdef _WIN32
+#include <direct.h> /* rmdir */
+#endif
 
 #define ROCKSDB_BACKUP_DIR "#rocksdb"
 
@@ -1539,8 +1542,6 @@ bool backup_start(CorruptedPages &corrupted_pages)
 		if (!write_galera_info(mysql_connection)) {
 			return(false);
 		}
-                // copied from xtrabackup. what is it needed for here?
-		write_current_binlog_file(mysql_connection);
 	}
 
 	if (opt_binlog_info == BINLOG_INFO_ON) {
@@ -1620,7 +1621,49 @@ bool backup_finish()
 	return(true);
 }
 
-bool
+
+/*
+  Drop all empty database directories in the base backup
+  that do not exists in the icremental backup.
+
+  This effectively re-plays all DROP DATABASE statements happened
+  in between base backup and incremental backup creation time.
+
+  Note, only checking if base_dir/db/ is empty is not enough,
+  because inc_dir/db/db.opt might have been dropped for some reasons,
+  which may also result into empty base_dir/db/.
+
+  Only the fact that at the same time:
+  - base_dir/db/ exists
+  - inc_dir/db/ does not exist
+  means that DROP DATABASE happened.
+*/
+static void
+ibx_incremental_drop_databases(const char *base_dir,
+                               const char *inc_dir)
+{
+	datadir_node_t node;
+	datadir_node_init(&node);
+	datadir_iter_t *it = datadir_iter_new(base_dir);
+
+	while (datadir_iter_next(it, &node)) {
+		if (node.is_empty_dir) {
+			char path[FN_REFLEN];
+			snprintf(path, sizeof(path), "%s/%s",
+				 inc_dir, node.filepath_rel);
+			if (!directory_exists(path, false)) {
+				msg("Removing %s", node.filepath);
+				rmdir(node.filepath);
+			}
+		}
+
+	}
+	datadir_iter_free(it);
+	datadir_node_free(&node);
+}
+
+
+static bool
 ibx_copy_incremental_over_full()
 {
 	const char *ext_list[] = {"frm", "isl", "MYD", "MYI", "MAD", "MAI",
@@ -1703,6 +1746,8 @@ ibx_copy_incremental_over_full()
 			}
 			copy_or_move_dir(path, ROCKSDB_BACKUP_DIR, true, true);
 		}
+		ibx_incremental_drop_databases(xtrabackup_target_dir,
+					       xtrabackup_incremental_dir);
 	}
 
 

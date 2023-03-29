@@ -1723,3 +1723,20 @@ EXPLAIN
 SELECT DISTINCT owner_id FROM t1 WHERE foo = true GROUP BY owner_id HAVING (COUNT(*) = 1);
 SELECT DISTINCT owner_id FROM t1 WHERE foo = true GROUP BY owner_id HAVING (COUNT(*) = 1);
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-30240 Wrong result upon aggregate function with SQL_BUFFER_RESULT
+--echo #
+
+drop table if exists t1,t2;
+CREATE TABLE t1 (pk INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (a INT);
+INSERT INTO t2 VALUES (1),(2);
+SELECT SQL_BUFFER_RESULT MIN(pk) FROM t1, t2;
+SELECT MIN(pk) FROM t1, t2;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

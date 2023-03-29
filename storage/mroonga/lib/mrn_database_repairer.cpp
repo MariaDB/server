@@ -57,8 +57,7 @@ namespace mrn {
       mrn_db_file_suffix_length_(strlen(MRN_DB_FILE_SUFFIX)) {
   }
 
-  DatabaseRepairer::~DatabaseRepairer() {
-  }
+  DatabaseRepairer::~DatabaseRepairer() = default;
 
   bool DatabaseRepairer::is_crashed(void) {
     MRN_DBUG_ENTER_METHOD();

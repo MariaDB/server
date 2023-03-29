@@ -1893,6 +1893,19 @@ CREATE TABLE t1 ( id1 INT, id2 INT, CONSTRAINT `foo` PRIMARY KEY (id1), CONSTRAI
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-30342 Wrong "Truncated incorrect DECIMAL value" warning/error
+--echo #
+
+create table t1(c1 varchar(1));
+insert into t1(c1) values('#');
+
+select @@sql_mode like '%strict_all_tables%';
+--error ER_TRUNCATED_WRONG_VALUE
+create table t2 as select if(c1 = '#', c1 = 0, c1) as c1 from t1;
+
+drop table t1;
+
+--echo #
 --echo # End of 10.3 tests
 --echo #
 

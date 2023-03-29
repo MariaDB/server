@@ -845,9 +845,7 @@ DECLARE_THREAD(trx_rollback_all_recovered)(void*)
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
 
-	os_thread_exit();
-
-	OS_THREAD_DUMMY_RETURN;
+	return os_thread_exit();
 }
 
 /****************************************************************//**

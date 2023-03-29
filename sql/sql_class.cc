@@ -4057,9 +4057,7 @@ void THD::restore_active_arena(Query_arena *set, Query_arena *backup)
   DBUG_VOID_RETURN;
 }
 
-Statement::~Statement()
-{
-}
+Statement::~Statement() = default;
 
 C_MODE_START
 
@@ -4312,6 +4310,7 @@ create_result_table(THD *thd_arg, List<Item> *column_types,
 {
   DBUG_ASSERT(table == 0);
   tmp_table_param.field_count= column_types->elements;
+  tmp_table_param.func_count= tmp_table_param.field_count;
   tmp_table_param.bit_fields_as_long= bit_fields_as_long;
 
   if (! (table= create_tmp_table(thd_arg, &tmp_table_param, *column_types,
@@ -5414,8 +5413,7 @@ thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd)
      (e.g. InnoDB does it by keeping lock_sys.mutex locked)
   */
   if (WSREP_ON &&
-      wsrep_thd_is_BF(const_cast<THD *>(thd), false) &&
-      wsrep_thd_is_BF(const_cast<THD *>(other_thd), false))
+      wsrep_thd_order_before(thd, other_thd))
     return 0;
 #endif /* WITH_WSREP */
   rgi= thd->rgi_slave;
@@ -8276,6 +8274,20 @@ bool THD::timestamp_to_TIME(MYSQL_TIME *ltime, my_time_t ts,
   }
   return 0;
 }
+
+
+void THD::my_ok_with_recreate_info(const Recreate_info &info,
+                                   ulong warn_count)
+{
+  char buf[80];
+  my_snprintf(buf, sizeof(buf),
+              ER_THD(this, ER_INSERT_INFO),
+              (ulong) info.records_processed(),
+              (ulong) info.records_duplicate(),
+              warn_count);
+  my_ok(this, info.records_processed(), 0L, buf);
+}
+
 
 THD_list_iterator *THD_list_iterator::iterator()
 {

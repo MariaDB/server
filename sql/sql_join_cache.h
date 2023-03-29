@@ -675,7 +675,7 @@ public:
 
   THD *thd();
 
-  virtual ~JOIN_CACHE() {}
+  virtual ~JOIN_CACHE() = default;
   void reset_join(JOIN *j) { join= j; }
   void free()
   { 
@@ -1072,7 +1072,7 @@ public:
     cache= join_tab->cache;
   }
 
-  virtual ~JOIN_TAB_SCAN() {}
+  virtual ~JOIN_TAB_SCAN() = default;
  
   /* 
     Shall calculate the increment of the auxiliary buffer for a record

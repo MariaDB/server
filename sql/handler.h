@@ -2,7 +2,7 @@
 #define HANDLER_INCLUDED
 /*
    Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2022, MariaDB
+   Copyright (c) 2009, 2023, MariaDB
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -356,9 +356,9 @@ enum chf_create_flags {
   Rowid's are not comparable. This is set if the rowid is unique to the
   current open handler, like it is with federated where the rowid is a
   pointer to a local result set buffer. The effect of having this set is
-  that the optimizer will not consirer the following optimizations for
+  that the optimizer will not consider the following optimizations for
   the table:
-  ror scans or filtering
+  ror scans, filtering or duplicate weedout
 */
 #define HA_NON_COMPARABLE_ROWID (1ULL << 60)
 
@@ -877,7 +877,7 @@ struct xid_t {
   long bqual_length;
   char data[XIDDATASIZE];  // not \0-terminated !
 
-  xid_t() {}                                /* Remove gcc warning */
+  xid_t() = default;                                /* Remove gcc warning */
   bool eq(struct xid_t *xid) const
   { return !xid->is_null() && eq(xid->gtrid_length, xid->bqual_length, xid->data); }
   bool eq(long g, long b, const char *d) const
@@ -1561,7 +1561,7 @@ struct handlerton
      public:
      virtual bool add_table(const char *tname, size_t tlen) = 0;
      virtual bool add_file(const char *fname) = 0;
-     protected: virtual ~discovered_list() {}
+     protected: virtual ~discovered_list() = default;
    };
 
    /*
@@ -1794,7 +1794,7 @@ struct THD_TRANS
     m_unsafe_rollback_flags= 0;
   }
   bool is_empty() const { return ha_list == NULL; }
-  THD_TRANS() {}                        /* Remove gcc warning */
+  THD_TRANS() = default;                        /* Remove gcc warning */
 
   unsigned int m_unsafe_rollback_flags;
  /*
@@ -2035,7 +2035,7 @@ struct Table_period_info: Sql_alloc
 
   struct start_end_t
   {
-    start_end_t() {};
+    start_end_t() = default;
     start_end_t(const LEX_CSTRING& _start, const LEX_CSTRING& _end) :
       start(_start),
       end(_end) {}
@@ -2066,7 +2066,8 @@ struct Vers_parse_info: public Table_period_info
   Vers_parse_info() :
     Table_period_info(STRING_WITH_LEN("SYSTEM_TIME")),
     versioned_fields(false),
-    unversioned_fields(false)
+    unversioned_fields(false),
+    can_native(-1)
   {}
 
   Table_period_info::start_end_t as_row;
@@ -2095,6 +2096,9 @@ protected:
   bool need_check(const Alter_info *alter_info) const;
   bool check_conditions(const Lex_table_name &table_name,
                         const Lex_table_name &db) const;
+  bool create_sys_field(THD *thd, const char *field_name,
+                        Alter_info *alter_info, int flags);
+
 public:
   static const Lex_ident default_start;
   static const Lex_ident default_end;
@@ -2112,6 +2116,7 @@ public:
   */
   bool versioned_fields : 1;
   bool unversioned_fields : 1;
+  int can_native;
 };
 
 /**
@@ -2228,6 +2233,7 @@ struct Table_scope_and_contents_source_st:
                     int select_count= 0);
   bool check_period_fields(THD *thd, Alter_info *alter_info);
 
+  void vers_check_native();
   bool vers_fix_system_fields(THD *thd, Alter_info *alter_info,
                               const TABLE_LIST &create_table);
 
@@ -2235,7 +2241,6 @@ struct Table_scope_and_contents_source_st:
                                 const Lex_table_name &table_name,
                                 const Lex_table_name &db,
                                 int select_count= 0);
-
 };
 
 
@@ -2343,9 +2348,9 @@ struct Table_specification_st: public HA_CREATE_INFO,
 class inplace_alter_handler_ctx : public Sql_alloc
 {
 public:
-  inplace_alter_handler_ctx() {}
+  inplace_alter_handler_ctx() = default;
 
-  virtual ~inplace_alter_handler_ctx() {}
+  virtual ~inplace_alter_handler_ctx() = default;
   virtual void set_shared_data(const inplace_alter_handler_ctx& ctx) {}
 };
 
@@ -2571,8 +2576,8 @@ typedef struct st_key_create_information
 class TABLEOP_HOOKS
 {
 public:
-  TABLEOP_HOOKS() {}
-  virtual ~TABLEOP_HOOKS() {}
+  TABLEOP_HOOKS() = default;
+  virtual ~TABLEOP_HOOKS() = default;
 
   inline void prelock(TABLE **tables, uint count)
   {
@@ -2613,7 +2618,7 @@ typedef class Item COND;
 
 typedef struct st_ha_check_opt
 {
-  st_ha_check_opt() {}                        /* Remove gcc warning */
+  st_ha_check_opt() = default;                        /* Remove gcc warning */
   uint flags;       /* isam layer flags (e.g. for myisamchk) */
   uint sql_flags;   /* sql layer flags - for something myisamchk cannot do */
   time_t start_time;   /* When check/repair starts */
@@ -2992,8 +2997,8 @@ uint calculate_key_len(TABLE *, uint, const uchar *, key_part_map);
 class Handler_share
 {
 public:
-  Handler_share() {}
-  virtual ~Handler_share() {}
+  Handler_share() = default;
+  virtual ~Handler_share() = default;
 };
 
 enum class Compare_keys : uint32_t
@@ -3411,6 +3416,7 @@ public:
   }
 
   int check_collation_compatibility();
+  int check_long_hash_compatibility() const;
   int ha_check_for_upgrade(HA_CHECK_OPT *check_opt);
   /** to be actually called to get 'check()' functionality*/
   int ha_check(THD *thd, HA_CHECK_OPT *check_opt);
@@ -5128,7 +5134,7 @@ public:
                         const LEX_CSTRING *wild_arg);
   Discovered_table_list(THD *thd_arg, Dynamic_array<LEX_CSTRING*> *tables_arg)
     : thd(thd_arg), wild(NULL), with_temps(true), tables(tables_arg) {}
-  ~Discovered_table_list() {}
+  ~Discovered_table_list() = default;
 
   bool add_table(const char *tname, size_t tlen);
   bool add_file(const char *fname);

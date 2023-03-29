@@ -1,0 +1,76 @@
+include/master-slave.inc
+[connection master]
+# Initialize
+connection slave;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+# Setup data
+connection master;
+CREATE TABLE t1 (a int PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE ta (a int);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+connection master;
+SET sql_log_bin=0;
+CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
+RETURNS INT DETERMINISTIC
+BEGIN
+RETURN x;
+END
+||
+SET sql_log_bin=1;
+connection slave;
+SET sql_log_bin=0;
+CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
+RETURNS INT DETERMINISTIC
+BEGIN
+IF d1 != '' THEN
+SET debug_sync = d1;
+END IF;
+IF d2 != '' THEN
+SET debug_sync = d2;
+END IF;
+RETURN x;
+END
+||
+SET sql_log_bin=1;
+include/stop_slave.inc
+SET @old_parallel_threads  =@@GLOBAL.slave_parallel_threads;
+SET @old_parallel_mode     =@@GLOBAL.slave_parallel_mode;
+SET @old_gtid_strict_mode  =@@GLOBAL.gtid_strict_mode;
+SET GLOBAL slave_parallel_threads=10;
+SET GLOBAL slave_parallel_mode=conservative;
+SET GLOBAL gtid_strict_mode=ON;
+include/start_slave.inc
+connection master;
+SET @old_format= @@SESSION.binlog_format;
+SET binlog_format=statement;
+INSERT INTO t1 VALUES (foo(1, 'rpl_parallel_after_mark_start_commit WAIT_FOR sig_go', ''));
+ANALYZE TABLE ta;
+Table	Op	Msg_type	Msg_text
+test.ta	analyze	status	Engine-independent statistics collected
+test.ta	analyze	status	Table is already up to date
+include/save_master_gtid.inc
+connection slave;
+SELECT info FROM information_schema.processlist WHERE state = "Waiting for prior transaction to commit";
+info
+ANALYZE TABLE ta
+set @@debug_sync="now signal sig_go";
+include/sync_with_master_gtid.inc
+# Cleanup
+connection master;
+DROP TABLE t1,ta;
+connection slave;
+SET DEBUG_SYNC='RESET';
+connection master;
+SET DEBUG_SYNC='RESET';
+DROP FUNCTION foo;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET @@GLOBAL.slave_parallel_threads=@old_parallel_threads;
+SET @@GLOBAL.slave_parallel_mode   =@old_parallel_mode;
+SET @@GLOBAL.gtid_strict_mode      =@old_gtid_strict_mode;
+include/start_slave.inc
+include/rpl_end.inc

@@ -1890,7 +1890,7 @@ SEL_ARG::SEL_ARG(SEL_ARG &arg) :Sql_alloc()
   next= 0;
   if (next_key_part)
   {
-    ++next_key_part->use_count;
+    next_key_part->increment_use_count(1);
     weight += next_key_part->weight;
   }
 }
@@ -2227,7 +2227,7 @@ public:
   { return (void*) alloc_root(mem_root, (uint) size); }
   static void operator delete(void *ptr,size_t size) { TRASH_FREE(ptr, size); }
   static void operator delete(void *ptr, MEM_ROOT *mem_root) { /* Never called */ }
-  virtual ~TABLE_READ_PLAN() {}               /* Remove gcc warning */
+  virtual ~TABLE_READ_PLAN() = default;               /* Remove gcc warning */
   /**
      Add basic info for this TABLE_READ_PLAN to the optimizer trace.
 
@@ -2262,7 +2262,7 @@ public:
   TRP_RANGE(SEL_ARG *key_arg, uint idx_arg, uint mrr_flags_arg)
    : key(key_arg), key_idx(idx_arg), mrr_flags(mrr_flags_arg)
   {}
-  virtual ~TRP_RANGE() {}                     /* Remove gcc warning */
+  virtual ~TRP_RANGE() = default;                     /* Remove gcc warning */
 
   QUICK_SELECT_I *make_quick(PARAM *param, bool retrieve_full_rows,
                              MEM_ROOT *parent_alloc)
@@ -2309,8 +2309,8 @@ void TRP_RANGE::trace_basic_info(PARAM *param,
 class TRP_ROR_INTERSECT : public TABLE_READ_PLAN
 {
 public:
-  TRP_ROR_INTERSECT() {}                      /* Remove gcc warning */
-  virtual ~TRP_ROR_INTERSECT() {}             /* Remove gcc warning */
+  TRP_ROR_INTERSECT() = default;                      /* Remove gcc warning */
+  virtual ~TRP_ROR_INTERSECT() = default;             /* Remove gcc warning */
   QUICK_SELECT_I *make_quick(PARAM *param, bool retrieve_full_rows,
                              MEM_ROOT *parent_alloc);
 
@@ -2335,8 +2335,8 @@ public:
 class TRP_ROR_UNION : public TABLE_READ_PLAN
 {
 public:
-  TRP_ROR_UNION() {}                          /* Remove gcc warning */
-  virtual ~TRP_ROR_UNION() {}                 /* Remove gcc warning */
+  TRP_ROR_UNION() = default;                          /* Remove gcc warning */
+  virtual ~TRP_ROR_UNION() = default;                 /* Remove gcc warning */
   QUICK_SELECT_I *make_quick(PARAM *param, bool retrieve_full_rows,
                              MEM_ROOT *parent_alloc);
   TABLE_READ_PLAN **first_ror; /* array of ptrs to plans for merged scans */
@@ -2368,8 +2368,8 @@ void TRP_ROR_UNION::trace_basic_info(PARAM *param,
 class TRP_INDEX_INTERSECT : public TABLE_READ_PLAN
 {
 public:
-  TRP_INDEX_INTERSECT() {}                        /* Remove gcc warning */
-  virtual ~TRP_INDEX_INTERSECT() {}               /* Remove gcc warning */
+  TRP_INDEX_INTERSECT() = default;                     /* Remove gcc warning */
+  virtual ~TRP_INDEX_INTERSECT() = default;            /* Remove gcc warning */
   QUICK_SELECT_I *make_quick(PARAM *param, bool retrieve_full_rows,
                              MEM_ROOT *parent_alloc);
   TRP_RANGE **range_scans; /* array of ptrs to plans of intersected scans */
@@ -2405,8 +2405,8 @@ void TRP_INDEX_INTERSECT::trace_basic_info(PARAM *param,
 class TRP_INDEX_MERGE : public TABLE_READ_PLAN
 {
 public:
-  TRP_INDEX_MERGE() {}                        /* Remove gcc warning */
-  virtual ~TRP_INDEX_MERGE() {}               /* Remove gcc warning */
+  TRP_INDEX_MERGE() = default;                        /* Remove gcc warning */
+  virtual ~TRP_INDEX_MERGE() = default;               /* Remove gcc warning */
   QUICK_SELECT_I *make_quick(PARAM *param, bool retrieve_full_rows,
                              MEM_ROOT *parent_alloc);
   TRP_RANGE **range_scans; /* array of ptrs to plans of merged scans */
@@ -2474,7 +2474,7 @@ public:
       if (key_infix_len)
         memcpy(this->key_infix, key_infix_arg, key_infix_len);
     }
-  virtual ~TRP_GROUP_MIN_MAX() {}             /* Remove gcc warning */
+  virtual ~TRP_GROUP_MIN_MAX() = default;             /* Remove gcc warning */
 
   QUICK_SELECT_I *make_quick(PARAM *param, bool retrieve_full_rows,
                              MEM_ROOT *parent_alloc);
@@ -9714,7 +9714,6 @@ tree_or(RANGE_OPT_PARAM *param,SEL_TREE *tree1,SEL_TREE *tree2)
     DBUG_RETURN(tree2);
 
   SEL_TREE *result= NULL;
-  key_map result_keys;
   key_map ored_keys;
   SEL_TREE *rtree[2]= {NULL,NULL};
   SEL_IMERGE *imerge[2]= {NULL, NULL};
@@ -10607,8 +10606,7 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
             Move on to next range in key2
           */
           key2->increment_use_count(-1); // Free not used tree
-          key2=key2_next;
-          continue;
+          key2= key2_next;
         }
         else
         {
@@ -10622,8 +10620,9 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
             tmp:     [---------]
           */
           key2->copy_max_to_min(tmp);
-          continue;
+          key2->next= key2_next;                // In case of key2_shared
         }
+        continue;
       }
 
       /*

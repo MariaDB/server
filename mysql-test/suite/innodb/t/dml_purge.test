@@ -14,6 +14,7 @@ SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 
 CREATE TABLE t1(a INT PRIMARY KEY, b INT NOT NULL)
 ROW_FORMAT=REDUNDANT ENGINE=InnoDB;
+--source include/wait_all_purged.inc
 
 --connect (prevent_purge,localhost,root)
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
@@ -33,7 +34,12 @@ UPDATE t1 SET b=4 WHERE a=3;
 # Initiate a full purge, which should reset the DB_TRX_ID except for a=3.
 --source include/wait_all_purged.inc
 # Initiate a ROLLBACK of the update, which should reset the DB_TRX_ID for a=3.
+--connection con1
+ROLLBACK;
 --disconnect con1
+--connection default
+# Reset the DB_TRX_ID for the hidden ADD COLUMN metadata record.
+--source include/wait_all_purged.inc
 
 FLUSH TABLE t1 FOR EXPORT;
 # The following is based on innodb.table_flags:

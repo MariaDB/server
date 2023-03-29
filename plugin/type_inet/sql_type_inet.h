@@ -67,8 +67,8 @@ protected:
     memcpy(m_buffer, str, length);
     return false;
   }
-  // Non-initializing constructor
-  Inet4() { }
+
+  Inet4() = default;
 public:
   void to_binary(char *dst, size_t dstsize) const
   {
@@ -161,7 +161,7 @@ protected:
     return false;
   }
 
-  Inet6() { }
+  Inet6() = default;
 
 public:
   static uint binary_length() { return IN6_ADDR_SIZE; }
