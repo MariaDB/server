@@ -8619,13 +8619,13 @@ Type_handler_timestamp_common::Item_val_native_with_conversion(THD *thd,
                                                                Item *item,
                                                                Native *to) const
 {
-  MYSQL_TIME ltime;
   if (item->type_handler()->type_handler_for_native_format() ==
       &type_handler_timestamp2)
     return item->val_native(thd, to);
+  Datetime dt(thd, item, Datetime::Options(TIME_NO_ZERO_IN_DATE, thd));
   return
-    item->get_date(thd, &ltime, Datetime::Options(TIME_NO_ZERO_IN_DATE, thd)) ||
-    TIME_to_native(thd, &ltime, to, item->datetime_precision(thd));
+    !dt.is_valid_datetime() ||
+    TIME_to_native(thd, dt.get_mysql_time(), to, item->datetime_precision(thd));
 }
 
 bool Type_handler_null::union_element_finalize(Item_type_holder *item) const
