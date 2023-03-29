@@ -7,6 +7,7 @@
 #        * <old-preinst> abort-upgrade <new-version>
 #
 
+# shellcheck source=/dev/null
 . /usr/share/debconf/confmodule
 
 # Automatically set version to ease maintenance of this file
@@ -40,7 +41,7 @@ stop_server() {
   set -e
 
   # systemctl could emit exit code 100=no init script (fresh install)
-  if [ "$errno" != 0 -a "$errno" != 100 ]; then
+  if [ "$errno" != 0 ] && [ "$errno" != 100 ]; then
     echo "Attempt to stop MariaDB/MySQL server returned exitcode $errno" 1>&2
     echo "There is a MariaDB/MySQL server running, but we failed in our attempts to stop it." 1>&2
     echo "Stop it yourself and try again!" 1>&2
@@ -57,7 +58,7 @@ max_upgradeable_version=5.7
 # Check if a flag file is found that indicates a previous MariaDB or MySQL
 # version was installed. If multiple flags are found, check which one was
 # the biggest version number.
-for flag in $mysql_datadir/debian-*.flag
+for flag in "$mysql_datadir"/debian-*.flag
 do
 
   # The for loop leaves $flag as the query string if there are no results,
@@ -92,7 +93,7 @@ done
 # Downgrade is detected if the flag version is bigger than $this_version
 # (e.g. 10.1 > 10.0) or the flag version is smaller than 10.0 but bigger
 # than $max_upgradeable_version.
-if [ ! -z "$found_version" ]
+if [ -n "$found_version" ]
 then
 
   # MySQL 8.0 in Ubuntu has a bug in packaging and the file is name wrongly
@@ -134,7 +135,7 @@ fi
 
 # Don't abort dpkg if downgrade is detected (as was done previously).
 # Instead simply move the old datadir and create a new for this_version.
-if [ ! -z "$downgrade_detected" ]
+if [ -n "$downgrade_detected" ]
 then
   db_input critical "mariadb-server-$MAJOR_VER/old_data_directory_saved" || true
   db_go

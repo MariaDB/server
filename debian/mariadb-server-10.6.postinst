@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 
+# shellcheck source=/dev/null
 . /usr/share/debconf/confmodule
 
 # Automatically set version to ease maintenance of this file
@@ -112,8 +113,10 @@ EOF
     # This direct update is needed to enable an authentication mechanism to
     # perform mariadb-upgrade, (MDEV-22678).  To keep the impact minimal, we
     # skip innodb and set key-buffer-size to 0 as it isn't reused.
-    if [ -f "$mysql_datadir"/auto.cnf ] && [ -f "$mysql_datadir"/mysql/user.MYD ] &&
-    [ ! lsof -nt "$mysql_datadir"/mysql/user.MYD > /dev/null ] && [ ! -f "$mysql_datadir"/undo_001 ]; then
+    lsof -nt "$mysql_datadir"/mysql/user.MYD > /dev/null
+    lsof_rtn_code=$?
+    if [ -f "$mysql_datadir/auto.cnf" ] && [ -f "$mysql_datadir/mysql/user.MYD" ] &&
+    [ ! ${lsof_rtn_code} ] && [ ! -f "$mysql_datadir/undo_001" ]; then
       echo "UPDATE mysql.user SET plugin='unix_socket' WHERE plugin='auth_socket';" |
       mariadbd --skip-innodb --key_buffer_size=0  --default-storage-engine=MyISAM --bootstrap 2> /dev/null
     fi
@@ -189,20 +192,22 @@ EOF
     fi
     if [ ! -e "$dc" ]; then
       cat /dev/null > $dc
-      echo "# THIS FILE IS OBSOLETE. STOP USING IT IF POSSIBLE."       >>$dc
-      echo "# This file exists only for backwards compatibility for"   >>$dc
-      echo "# tools that run '--defaults-file=/etc/mysql/debian.cnf'"  >>$dc
-      echo "# and have root level access to the local filesystem."     >>$dc
-      echo "# With those permissions one can run 'mariadb' directly"   >>$dc
-      echo "# anyway thanks to unix socket authentication and hence"   >>$dc
-      echo "# this file is useless. See package README for more info." >>$dc
-      echo "[client]"                                                  >>$dc
-      echo "host     = localhost"                                      >>$dc
-      echo "user     = root"                                           >>$dc
-      echo "[mysql_upgrade]"                                           >>$dc
-      echo "host     = localhost"                                      >>$dc
-      echo "user     = root"                                           >>$dc
-      echo "# THIS FILE WILL BE REMOVED IN A FUTURE DEBIAN RELEASE."   >>$dc
+      {
+        echo "# THIS FILE IS OBSOLETE. STOP USING IT IF POSSIBLE.";
+        echo "# This file exists only for backwards compatibility for";
+        echo "# tools that run '--defaults-file=/etc/mysql/debian.cnf'";
+        echo "# and have root level access to the local filesystem.";
+        echo "# With those permissions one can run 'mariadb' directly";
+        echo "# anyway thanks to unix socket authentication and hence";
+        echo "# this file is useless. See package README for more info.";
+        echo "[client]";
+        echo "host     = localhost";
+        echo "user     = root";
+        echo "[mysql_upgrade]";
+        echo "host     = localhost";
+        echo "user     = root";
+        echo "# THIS FILE WILL BE REMOVED IN A FUTURE DEBIAN RELEASE.";
+      } >> $dc
     fi
     # Keep it only root-readable, as it always was
     chown 0:0 $dc
