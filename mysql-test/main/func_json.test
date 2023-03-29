@@ -1076,6 +1076,18 @@ SELECT JSON_OBJECTAGG('\"', 1);
 SELECT JSON_OBJECTAGG('\\', 1);
 
 --echo #
+--echo # MDEV-30646 View created via JSON_ARRAYAGG returns incorrect json object
+--echo #
+
+CREATE VIEW v1 AS SELECT JSON_OBJECT(_LATIN1 'plugin', _LATIN1'unix_socket') as v1_json;
+SELECT JSON_ARRAYAGG(v1_json) FROM v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS SELECT JSON_OBJECT('plugin','unix_socket') as v1_json;
+SELECT JSON_ARRAYAGG(v1_json) FROM v1;
+DROP VIEW v1;
+
+--echo #
 --echo # End of 10.5 tests
 --echo #
 
