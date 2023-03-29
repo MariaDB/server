@@ -2853,6 +2853,13 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         Json_writer_array trace_range_summary(thd,
                                               "setup_range_conditions");
         tree= cond->get_mm_tree(&param, &cond);
+        if (thd->trace_started() && 
+            param.alloced_sel_args >= SEL_ARG::MAX_SEL_ARGS)
+        {
+          Json_writer_object wrapper(thd);
+          Json_writer_object obj(thd, "sel_arg_alloc_limit_hit");
+          obj.add("alloced_sel_args", param.alloced_sel_args);
+        }
       }
       if (tree)
       {

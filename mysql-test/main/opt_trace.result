@@ -8522,5 +8522,46 @@ SELECT a FROM t1 WHERE (a,b) in (SELECT @c,@d);
 a
 DROP TABLE t1;
 #
+# MDEV-30964: MAX_SEL_ARG memory exhaustion is not visible in the optimizer trace
+#
+create table t1 (
+c1 int,
+c2 int,
+c3 int,
+c4 int,
+c5 int,
+c6 int,
+c7 int,
+c8 int,
+key(c1,c2,c3,c4,c5,c6,c7,c8)
+);
+insert into t1 () values (),(),();
+explain select *
+from t1
+where
+(c1 in (1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16) and c2=1) and
+c3 in (1,2,3,4,5,6,7,8,9,10) and
+c4 in (1,2,3,4,5,6,7,8,9,10) and
+c5 in (1,2,3,4,5,6,7,8,9,10) and
+c6 in (1,2,3,4);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	c1	c1	40	NULL	3	Using where; Using index
+select
+json_detailed(json_extract(trace, '$**.setup_range_conditions'))
+from
+information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.setup_range_conditions'))
+[
+    [
+        {
+            "sel_arg_alloc_limit_hit": 
+            {
+                "alloced_sel_args": 16001
+            }
+        }
+    ]
+]
+drop table t1;
+#
 # End of 10.4 tests
 #
