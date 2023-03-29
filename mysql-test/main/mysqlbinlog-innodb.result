@@ -33,7 +33,7 @@ SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.uniq
 SET @@session.sql_mode=#/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;
-SET @@session.character_set_client=8,@@session.collation_connection=8,@@session.collation_server=#/*!*/;
+SET @@session.character_set_client=latin1,@@session.collation_connection=8,@@session.collation_server=#/*!*/;
 SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 INSERT INTO t1 VALUES (1)
@@ -64,7 +64,7 @@ SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.uniq
 SET @@session.sql_mode=#/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;
-SET @@session.character_set_client=8,@@session.collation_connection=8,@@session.collation_server=#/*!*/;
+SET @@session.character_set_client=latin1,@@session.collation_connection=8,@@session.collation_server=#/*!*/;
 SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 INSERT INTO t1 VALUES (1)

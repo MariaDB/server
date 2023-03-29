@@ -1,0 +1,24 @@
+--source include/windows.inc
+
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+
+--echo #
+--echo # MDEV-30492 Crash when use mariabackup.exe with config 'innodb_flush_method=async_unbuffered'
+--echo #
+
+echo # xtrabackup backup;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --innodb_flush_method=normal --backup --target-dir=$targetdir;
+--enable_result_log
+
+echo # xtrabackup prepare;
+--disable_result_log
+exec $XTRABACKUP  --prepare --innodb-flush-method=async_unbuffered --target-dir=$targetdir;
+-- source include/restart_and_restore.inc
+--enable_result_log
+
+rmdir $targetdir;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

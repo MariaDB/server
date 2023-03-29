@@ -128,15 +128,19 @@ struct trx_rseg_t {
   /** trx_t::no | last_offset << 48 */
   uint64_t last_commit_and_offset;
 
-	/** Whether the log segment needs purge */
-	bool				needs_purge;
+  /** Last known transaction that has not been purged yet,
+  or 0 if everything has been purged. */
+  trx_id_t needs_purge;
 
-	/** Reference counter to track rseg allocated transactions. */
-	ulint				trx_ref_count;
+  /** Number of active (non-committed) transactions associated with a
+  an is_persistent() rollback segment. Needed for protecting
+  trx->rsegs.m_redo.rseg assignments
+  before trx->rsegs.m_redo.undo has been assigned. */
+  ulint trx_ref_count;
 
-	/** If true, then skip allocating this rseg as it reside in
-	UNDO-tablespace marked for truncate. */
-	bool				skip_allocation;
+  /** whether undo log truncation was initiated, and transactions
+  cannot be allocated in this is_persistent() rollback segment */
+  bool skip_allocation;
 
   /** @return the commit ID of the last committed transaction */
   trx_id_t last_trx_no() const

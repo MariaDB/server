@@ -55,6 +55,7 @@ class Item;				/* Needed by ORDER */
 typedef Item (*Item_ptr);
 class Item_subselect;
 class Item_field;
+class Item_func_hash;
 class GRANT_TABLE;
 class st_select_lex_unit;
 class st_select_lex;
@@ -134,14 +135,13 @@ public:
   void restore_env(THD *thd, Object_creation_ctx *backup_ctx);
 
 protected:
-  Object_creation_ctx() {}
+  Object_creation_ctx() = default;
   virtual Object_creation_ctx *create_backup_ctx(THD *thd) const = 0;
 
   virtual void change_env(THD *thd) const = 0;
 
 public:
-  virtual ~Object_creation_ctx()
-  { }
+  virtual ~Object_creation_ctx() = default;
 };
 
 /*************************************************************************/
@@ -548,7 +548,7 @@ protected:
 
 public:
   Table_check_intact(bool keys= false) : has_keys(keys) {}
-  virtual ~Table_check_intact() {}
+  virtual ~Table_check_intact() = default;
 
   /** Checks whether a table is intact. */
   bool check(TABLE *table, const TABLE_FIELD_DEF *table_def);
@@ -720,7 +720,7 @@ public:
 
 struct TABLE_SHARE
 {
-  TABLE_SHARE() {}                    /* Remove gcc warning */
+  TABLE_SHARE() = default;                    /* Remove gcc warning */
 
   /** Category of this table. */
   TABLE_CATEGORY table_category;
@@ -1165,6 +1165,21 @@ struct TABLE_SHARE
   void free_frm_image(const uchar *frm);
 
   void set_overlapped_keys();
+
+  bool old_long_hash_function() const
+  {
+    return mysql_version < 100428 ||
+           (mysql_version >= 100500 && mysql_version < 100519) ||
+           (mysql_version >= 100600 && mysql_version < 100612) ||
+           (mysql_version >= 100700 && mysql_version < 100708) ||
+           (mysql_version >= 100800 && mysql_version < 100807) ||
+           (mysql_version >= 100900 && mysql_version < 100905) ||
+           (mysql_version >= 101000 && mysql_version < 101003) ||
+           (mysql_version >= 101100 && mysql_version < 101102);
+  }
+  Item_func_hash *make_long_hash_func(THD *thd,
+                                      MEM_ROOT *mem_root,
+                                      List<Item> *field_list) const;
 };
 
 /* not NULL, but cannot be dereferenced */
@@ -1241,7 +1256,7 @@ struct vers_select_conds_t;
 
 struct TABLE
 {
-  TABLE() {}                               /* Remove gcc warning */
+  TABLE() = default;                               /* Remove gcc warning */
 
   TABLE_SHARE	*s;
   handler	*file;
@@ -2157,7 +2172,7 @@ class Index_hint;
 
 struct TABLE_CHAIN
 {
-  TABLE_CHAIN() {}
+  TABLE_CHAIN() = default;
 
   TABLE_LIST **start_pos;
   TABLE_LIST ** end_pos;
@@ -2168,7 +2183,7 @@ struct TABLE_CHAIN
 
 struct TABLE_LIST
 {
-  TABLE_LIST() {}                          /* Remove gcc warning */
+  TABLE_LIST() = default;                          /* Remove gcc warning */
 
   enum prelocking_types
   {
@@ -2930,8 +2945,8 @@ class Item;
 class Field_iterator: public Sql_alloc
 {
 public:
-  Field_iterator() {}                         /* Remove gcc warning */
-  virtual ~Field_iterator() {}
+  Field_iterator() = default;                         /* Remove gcc warning */
+  virtual ~Field_iterator() = default;
   virtual void set(TABLE_LIST *)= 0;
   virtual void next()= 0;
   virtual bool end_of_fields()= 0;              /* Return 1 at end of list */
@@ -2992,7 +3007,7 @@ class Field_iterator_natural_join: public Field_iterator
   Natural_join_column *cur_column_ref;
 public:
   Field_iterator_natural_join() :cur_column_ref(NULL) {}
-  ~Field_iterator_natural_join() {}
+  ~Field_iterator_natural_join() = default;
   void set(TABLE_LIST *table);
   void next();
   bool end_of_fields() { return !cur_column_ref; }

@@ -40,8 +40,7 @@ namespace mrn {
       is_storage_mode_(is_storage_mode) {
   }
 
-  CountSkipChecker::~CountSkipChecker() {
-  }
+  CountSkipChecker::~CountSkipChecker() = default;
 
   bool CountSkipChecker::check() {
     MRN_DBUG_ENTER_METHOD();

@@ -1116,6 +1116,7 @@ public:
     group_list_ptrs, and re-establish the original list before each execution.
   */
   SQL_I_List<ORDER>       group_list;
+  SQL_I_List<ORDER>       save_group_list;
   Group_list_ptrs        *group_list_ptrs;
 
   List<Item>          item_list;  /* list of fields & expressions */
@@ -1181,6 +1182,7 @@ public:
   const char *type;               /* type of select for EXPLAIN          */
 
   SQL_I_List<ORDER> order_list;   /* ORDER clause */
+  SQL_I_List<ORDER> save_order_list;
   SQL_I_List<ORDER> gorder_list;
   Item *select_limit, *offset_limit;  /* LIMIT clause parameters */
   bool is_set_query_expr_tail;
@@ -1741,8 +1743,8 @@ public:
     These constructor and destructor serve for creation/destruction
     of Query_tables_list instances which are used as backup storage.
   */
-  Query_tables_list() {}
-  ~Query_tables_list() {}
+  Query_tables_list() = default;
+  ~Query_tables_list() = default;
 
   /* Initializes (or resets) Query_tables_list object for "real" use. */
   void reset_query_tables_list(bool init);
@@ -2400,13 +2402,9 @@ class Lex_input_stream
                   const char *str, const char *end, int sep);
   my_charset_conv_wc_mb get_escape_func(THD *thd, my_wc_t sep) const;
 public:
-  Lex_input_stream()
-  {
-  }
+  Lex_input_stream() = default;
 
-  ~Lex_input_stream()
-  {
-  }
+  ~Lex_input_stream() = default;
 
   /**
      Object initializer. Must be called before usage.
@@ -2989,7 +2987,7 @@ public:
 protected:
   bool save_explain_data_intern(MEM_ROOT *mem_root, Explain_update *eu, bool is_analyze);
 public:
-  virtual ~Update_plan() {}
+  virtual ~Update_plan() = default;
 
   Update_plan(MEM_ROOT *mem_root_arg) : 
     impossible_where(false), no_partitions(false), 
@@ -3043,7 +3041,7 @@ enum password_exp_type
 
 struct Account_options: public USER_RESOURCES
 {
-  Account_options() { }
+  Account_options() = default;
 
   void reset()
   {
@@ -3537,8 +3535,6 @@ public:
   }
 
 
-  SQL_I_List<ORDER> save_group_list;
-  SQL_I_List<ORDER> save_order_list;
   LEX_CSTRING *win_ref;
   Window_frame *win_frame;
   Window_frame_bound *frame_top_bound;
@@ -4375,7 +4371,7 @@ public:
                       bool if_not_exists)
   {
     constr->name= name;
-    constr->flags= if_not_exists ? VCOL_CHECK_CONSTRAINT_IF_NOT_EXISTS : 0;
+    constr->if_not_exists= if_not_exists;
     alter_info.check_constraint_list.push_back(constr);
     return false;
   }
@@ -4778,12 +4774,11 @@ public:
                               const LEX_CSTRING *constraint_name,
                               Table_ident *ref_table_name,
                               DDL_options ddl_options);
+
   bool check_dependencies_in_with_clauses();
-  bool resolve_references_to_cte_in_hanging_cte();
   bool check_cte_dependencies_and_resolve_references();
   bool resolve_references_to_cte(TABLE_LIST *tables,
                                  TABLE_LIST **tables_last);
-
 };
 
 
@@ -4796,14 +4791,13 @@ class Set_signal_information
 {
 public:
   /** Empty default constructor, use clear() */
- Set_signal_information() {} 
+ Set_signal_information() = default; 
 
   /** Copy constructor. */
   Set_signal_information(const Set_signal_information& set);
 
   /** Destructor. */
-  ~Set_signal_information()
-  {}
+  ~Set_signal_information() = default;
 
   /** Clear all items. */
   void clear();
@@ -4926,8 +4920,7 @@ public:
     return m_lip.init(thd, buff, length);
   }
 
-  ~Parser_state()
-  {}
+  ~Parser_state() = default;
 
   Lex_input_stream m_lip;
   Yacc_state m_yacc;

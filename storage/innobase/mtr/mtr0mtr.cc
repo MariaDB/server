@@ -579,26 +579,9 @@ void mtr_t::commit_shrink(fil_space_t &space)
   /* Durably write the reduced FSP_SIZE before truncating the data file. */
   log_write_and_flush();
 
-  if (m_freed_pages)
-  {
-    ut_ad(!m_freed_pages->empty());
-    ut_ad(m_freed_space == &space);
-    ut_ad(memo_contains(*m_freed_space));
-    ut_ad(is_named_space(m_freed_space));
-    m_freed_space->update_last_freed_lsn(m_commit_lsn);
+  ut_ad(!m_freed_pages);
 
-    if (!is_trim_pages())
-      for (const auto &range : *m_freed_pages)
-        m_freed_space->add_free_range(range);
-    else
-      m_freed_space->clear_freed_ranges();
-    delete m_freed_pages;
-    m_freed_pages= nullptr;
-    m_freed_space= nullptr;
-    /* mtr_t::start() will reset m_trim_pages */
-  }
-  else
-    ut_ad(!m_freed_space);
+  space.clear_freed_ranges();
 
   m_memo.for_each_block_in_reverse(CIterate<Shrink>{space});
 

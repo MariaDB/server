@@ -105,8 +105,7 @@ protected:
   table_esgs_by_account_by_event_name();
 
 public:
-  ~table_esgs_by_account_by_event_name()
-  {}
+  ~table_esgs_by_account_by_event_name() = default;
 
 protected:
   void make_row(PFS_account *account, PFS_stage_class *klass);

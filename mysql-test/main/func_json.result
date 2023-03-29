@@ -1611,5 +1611,29 @@ SELECT json_object('a', coalesce(json_object('b', 'c')));
 json_object('a', coalesce(json_object('b', 'c')))
 {"a": {"b": "c"}}
 #
+# MDEV-26392: Crash with json_get_path_next and 10.5.12
+#
+CREATE TABLE arrNestTest (
+id VARCHAR(80) AS (JSON_COMPACT(JSON_EXTRACT(doc, "$._id"))) UNIQUE KEY,
+doc JSON, 
+CONSTRAINT id_not_null CHECK(id IS NOT NULL));
+INSERT INTO test.arrNestTest (doc) VALUES ('{ "_id" : { "$oid" : "611c0a463b150154132f6636" }, "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : 1.0 } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] }');
+SELECT * FROM arrNestTest;
+id	doc
+{"$oid":"611c0a463b150154132f6636"}	{ "_id" : { "$oid" : "611c0a463b150154132f6636" }, "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : 1.0 } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] }
+DROP TABLE arrNestTest;
+#
+# MDEV-30412 JSON_OBJECTAGG doesn't escape double quote in key
+#
+SELECT JSON_OBJECTAGG('"', 1);
+JSON_OBJECTAGG('"', 1)
+{"\"":1}
+SELECT JSON_OBJECTAGG('\"', 1);
+JSON_OBJECTAGG('\"', 1)
+{"\"":1}
+SELECT JSON_OBJECTAGG('\\', 1);
+JSON_OBJECTAGG('\\', 1)
+{"\\":1}
+#
 # End of 10.5 tests
 #

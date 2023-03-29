@@ -11383,6 +11383,181 @@ a
 # End of 10.3 tests
 #
 #
+# Start of 10.4 tests
+#
+#
+# MDEV-27653 long uniques don't work with unicode collations
+#
+SET NAMES utf8mb3;
+CREATE TABLE t1 (
+a CHAR(30) COLLATE utf8mb3_general_ci,
+UNIQUE KEY(a) USING HASH
+);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(30) CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
+  UNIQUE KEY `a` (`a`) USING HASH
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 VALUES ('a');
+INSERT INTO t1 VALUES ('ä');
+ERROR 23000: Duplicate entry 'ä' for key 'a'
+SELECT * FROM t1;
+a
+a
+DROP TABLE t1;
+CREATE TABLE t1 (
+a CHAR(30) COLLATE utf8mb3_general_ci,
+UNIQUE KEY(a(10)) USING HASH
+);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(30) CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
+  UNIQUE KEY `a` (`a`(10)) USING HASH
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 VALUES ('a');
+INSERT INTO t1 VALUES ('ä');
+ERROR 23000: Duplicate entry 'ä' for key 'a'
+SELECT * FROM t1;
+a
+a
+DROP TABLE t1;
+CREATE TABLE t1 (
+a VARCHAR(30) COLLATE utf8mb3_general_ci,
+UNIQUE KEY(a) USING HASH
+);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(30) CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
+  UNIQUE KEY `a` (`a`) USING HASH
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 VALUES ('a');
+INSERT INTO t1 VALUES ('ä');
+ERROR 23000: Duplicate entry 'ä' for key 'a'
+SELECT * FROM t1;
+a
+a
+DROP TABLE t1;
+CREATE TABLE t1 (
+a VARCHAR(30) COLLATE utf8mb3_general_ci,
+UNIQUE KEY(a(10)) USING HASH
+);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(30) CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
+  UNIQUE KEY `a` (`a`(10)) USING HASH
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 VALUES ('a');
+INSERT INTO t1 VALUES ('ä');
+ERROR 23000: Duplicate entry 'ä' for key 'a'
+SELECT * FROM t1;
+a
+a
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT COLLATE utf8mb3_general_ci UNIQUE);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
+  UNIQUE KEY `a` (`a`) USING HASH
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 VALUES ('a');
+INSERT INTO t1 VALUES ('ä');
+ERROR 23000: Duplicate entry 'ä' for key 'a'
+SELECT * FROM t1;
+a
+a
+DROP TABLE t1;
+CREATE TABLE t1 (
+a LONGTEXT COLLATE utf8mb3_general_ci,
+UNIQUE KEY(a(10)) USING HASH
+);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` longtext CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
+  UNIQUE KEY `a` (`a`(10)) USING HASH
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 VALUES ('a');
+INSERT INTO t1 VALUES ('ä');
+ERROR 23000: Duplicate entry 'ä' for key 'a'
+SELECT * FROM t1;
+a
+a
+DROP TABLE t1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
+  UNIQUE KEY `a` (`a`) USING HASH
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT a, OCTET_LENGTH(a) FROM t1 ORDER BY BINARY a;
+a	OCTET_LENGTH(a)
+a	1
+ä	2
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	error	Upgrade required. Please do "REPAIR TABLE `t1`" or dump/reload to fix it!
+INSERT INTO t1 VALUES ('A');
+ERROR 23000: Duplicate entry 'A' for key 'a'
+INSERT INTO t1 VALUES ('Ä');
+ERROR 23000: Duplicate entry 'Ä' for key 'a'
+INSERT INTO t1 VALUES ('Ấ');
+SELECT a, OCTET_LENGTH(a) FROM t1 ORDER BY BINARY a;
+a	OCTET_LENGTH(a)
+a	1
+ä	2
+Ấ	3
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	error	Upgrade required. Please do "REPAIR TABLE `t1`" or dump/reload to fix it!
+ALTER TABLE t1 FORCE;
+ERROR 23000: Duplicate entry 'ä' for key 'a'
+DELETE FROM t1 WHERE OCTET_LENGTH(a)>1;
+ALTER TABLE t1 FORCE;
+INSERT INTO t1 VALUES ('ä');
+ERROR 23000: Duplicate entry 'ä' for key 'a'
+DROP TABLE t1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
+  UNIQUE KEY `a` (`a`) USING HASH
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT a, OCTET_LENGTH(a) FROM t1 ORDER BY BINARY a;
+a	OCTET_LENGTH(a)
+a	1
+ä	2
+ALTER IGNORE TABLE t1 FORCE;
+SELECT a, OCTET_LENGTH(a) FROM t1 ORDER BY BINARY a;
+a	OCTET_LENGTH(a)
+a	1
+DROP TABLE t1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
+  UNIQUE KEY `a` (`a`) USING HASH
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT a, OCTET_LENGTH(a) FROM t1 ORDER BY BINARY a;
+a	OCTET_LENGTH(a)
+a	1
+ä	2
+REPAIR TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	Warning	Number of rows changed from 2 to 1
+test.t1	repair	status	OK
+SELECT a, OCTET_LENGTH(a) FROM t1 ORDER BY BINARY a;
+a	OCTET_LENGTH(a)
+a	1
+DROP TABLE t1;
+#
+# End of 10.4 tests
+#
+#
 # Start of 10.5 tests
 #
 #

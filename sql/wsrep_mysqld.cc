@@ -364,10 +364,12 @@ static void wsrep_log_cb(wsrep::log::level level,
 void wsrep_init_gtid()
 {
   wsrep_server_gtid_t stored_gtid= wsrep_get_SE_checkpoint<wsrep_server_gtid_t>();
+  // Domain id may have changed, use the one
+  // received during state transfer.
+  stored_gtid.domain_id= wsrep_gtid_server.domain_id;
   if (stored_gtid.server_id == 0)
   {
     rpl_gtid wsrep_last_gtid;
-    stored_gtid.domain_id= wsrep_gtid_server.domain_id;
     if (mysql_bin_log.is_open() &&
         mysql_bin_log.lookup_domain_in_binlog_state(stored_gtid.domain_id,
                                                     &wsrep_last_gtid))
@@ -993,13 +995,19 @@ void wsrep_init_startup (bool sst_first)
     With mysqldump SST (!sst_first) wait until the server reaches
     joiner state and procedd to accepting connections.
   */
+  int err= 0;
   if (sst_first)
   {
-    server_state.wait_until_state(Wsrep_server_state::s_initializing);
+    err= server_state.wait_until_state(Wsrep_server_state::s_initializing);
   }
   else
   {
-    server_state.wait_until_state(Wsrep_server_state::s_joiner);
+    err= server_state.wait_until_state(Wsrep_server_state::s_joiner);
+  }
+  if (err)
+  {
+    WSREP_ERROR("Wsrep startup was interrupted");
+    unireg_abort(1);
   }
 }
 
@@ -1105,7 +1113,11 @@ void wsrep_stop_replication(THD *thd)
   {
     WSREP_DEBUG("Disconnect provider");
     Wsrep_server_state::instance().disconnect();
-    Wsrep_server_state::instance().wait_until_state(Wsrep_server_state::s_disconnected);
+    if (Wsrep_server_state::instance().wait_until_state(
+            Wsrep_server_state::s_disconnected))
+    {
+      WSREP_WARN("Wsrep interrupted while waiting for disconnected state");
+    }
   }
 
   /* my connection, should not terminate with wsrep_close_client_connection(),
@@ -1127,7 +1139,11 @@ void wsrep_shutdown_replication()
   {
     WSREP_DEBUG("Disconnect provider");
     Wsrep_server_state::instance().disconnect();
-    Wsrep_server_state::instance().wait_until_state(Wsrep_server_state::s_disconnected);
+    if (Wsrep_server_state::instance().wait_until_state(
+            Wsrep_server_state::s_disconnected))
+    {
+      WSREP_WARN("Wsrep interrupted while waiting for disconnected state");
+    }
   }
 
   wsrep_close_client_connections(TRUE);
@@ -2793,7 +2809,9 @@ static my_bool have_client_connections(THD *thd, void*)
 {
   DBUG_PRINT("quit",("Informing thread %lld that it's time to die",
                      (longlong) thd->thread_id));
-  if (is_client_connection(thd) && thd->killed == KILL_CONNECTION)
+  if (is_client_connection(thd) &&
+      (thd->killed == KILL_CONNECTION ||
+       thd->killed == KILL_CONNECTION_HARD))
   {
     WSREP_DEBUG("Informing thread %lld that it's time to die",
                 thd->thread_id);
@@ -2805,7 +2823,7 @@ static my_bool have_client_connections(THD *thd, void*)
 
 static void wsrep_close_thread(THD *thd)
 {
-  thd->set_killed(KILL_CONNECTION);
+  thd->set_killed(KILL_CONNECTION_HARD);
   MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (thd));
   mysql_mutex_lock(&thd->LOCK_thd_kill);
   thd->abort_current_cond_wait(true);
@@ -2841,13 +2859,13 @@ static my_bool kill_all_threads(THD *thd, THD *caller_thd)
   if (is_client_connection(thd) && thd != caller_thd)
   {
     if (is_replaying_connection(thd))
-      thd->set_killed(KILL_CONNECTION);
+      thd->set_killed(KILL_CONNECTION_HARD);
     else if (!abort_replicated(thd))
     {
       /* replicated transactions must be skipped */
       WSREP_DEBUG("closing connection %lld", (longlong) thd->thread_id);
       /* instead of wsrep_close_thread() we do now  soft kill by THD::awake */
-      thd->awake(KILL_CONNECTION);
+      thd->awake(KILL_CONNECTION_HARD);
     }
   }
   return 0;

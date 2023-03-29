@@ -55,7 +55,7 @@ Trie::Trie()
       entries_(),
       key_buf_() {}
 
-Trie::~Trie() {}
+Trie::~Trie() = default;
 
 void Trie::create(const char *file_name,
                   UInt64 file_size,

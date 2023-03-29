@@ -73,6 +73,7 @@
 #      before CHANGE MASTER and START SLAVE.  RESET MASTER and RESET
 #      SLAVE are suppressed if $rpl_skip_reset_master_and_slave is
 #      set.
+#      Also see $rpl_server_skip_log_bin.
 #
 #    $rpl_skip_change_master
 #      By default, this script issues CHANGE MASTER so that all slaves
@@ -94,6 +95,10 @@
 #      Timeout used when waiting for the slave threads to start.
 #      See include/wait_for_slave_param.inc
 #
+#    $rpl_server_skip_log_bin
+#      When $rpl_skip_reset_master_and_slave is not set
+#      RESET MASTER does not report ER_FLUSH_MASTER_BINLOG_CLOSED
+#      on any server.
 #
 # ==== Side effects ====
 #
@@ -161,7 +166,16 @@ while ($_rpl_server)
   USE test;
   if (!$rpl_skip_reset_master_and_slave)
   {
-    RESET MASTER;
+    if (!$rpl_server_skip_log_bin)
+    {
+     --error 0
+       RESET MASTER;
+    }
+    if ($rpl_server_skip_log_bin)
+    {
+     --error 0,ER_FLUSH_MASTER_BINLOG_CLOSED
+       RESET MASTER;
+    }
     SET GLOBAL gtid_slave_pos= "";
     RESET SLAVE;
   }

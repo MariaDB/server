@@ -1965,11 +1965,11 @@ bool Query_log_event::print_query_header(IO_CACHE* file,
         goto err;
     }
     if (my_b_printf(file,"SET "
-                    "@@session.character_set_client=%d,"
+                    "@@session.character_set_client=%s,"
                     "@@session.collation_connection=%d,"
                     "@@session.collation_server=%d"
                     "%s\n",
-                    uint2korr(charset),
+                    cs_info->csname,
                     uint2korr(charset+2),
                     uint2korr(charset+4),
                     print_event_info->delimiter))

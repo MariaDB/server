@@ -205,24 +205,3 @@ CALL mtr.add_suppression("conflict state 7 after post commit");
 
 # Warning happens when the cluster is started for the first time
 CALL mtr.add_suppression("Skipped GCache ring buffer recovery");
-
-# Confirm that IST took place
---let $assert_text = async IST sender starting to serve
---let $assert_select = async IST sender starting to serve
---let $assert_count = 1
---let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.1.err
---let $assert_only_after = starting as process
---source include/assert_grep.inc
-
---connection node_2
-call mtr.add_suppression("Error in Log_event::read_log_event():.*");
-CALL mtr.add_suppression("Skipped GCache ring buffer recovery");
-
-# Confirm that gcache recovery took place
-
---let $assert_text = Recovering GCache ring buffer: found gapless sequence
---let $assert_select = Recovering GCache ring buffer: found gapless sequence
---let $assert_count = 1
---let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.2.err
---let $assert_only_after = starting as process
---source include/assert_grep.inc

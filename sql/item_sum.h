@@ -59,7 +59,7 @@ protected:
 
 public:
   Aggregator (Item_sum *arg): item_sum(arg) {}
-  virtual ~Aggregator () {}                   /* Keep gcc happy */
+  virtual ~Aggregator () = default;                   /* Keep gcc happy */
 
   enum Aggregator_type { SIMPLE_AGGREGATOR, DISTINCT_AGGREGATOR };
   virtual Aggregator_type Aggrtype() = 0;
@@ -367,7 +367,14 @@ public:
   int8 aggr_level;        /* nesting level of the aggregating subquery       */
   int8 max_arg_level;     /* max level of unbound column references          */
   int8 max_sum_func_level;/* max level of aggregation for embedded functions */
-  bool quick_group;			/* If incremental update of fields */
+
+  /*
+    true  (the default value) means this aggregate function can be computed
+          with TemporaryTableWithPartialSums algorithm (see end_update()).
+    false means this aggregate function needs OrderedGroupBy algorithm (see
+          end_write_group()).
+  */
+  bool quick_group;
   /*
     This list is used by the check for mixing non aggregated fields and
     sum functions in the ONLY_FULL_GROUP_BY_MODE. We save all outer fields

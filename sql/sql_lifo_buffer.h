@@ -138,7 +138,7 @@ public:
 
   virtual void remove_unused_space(uchar **unused_start, uchar **unused_end)=0;
   virtual uchar *used_area() = 0; 
-  virtual ~Lifo_buffer() {};
+  virtual ~Lifo_buffer() = default;
 };
 
 

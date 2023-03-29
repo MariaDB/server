@@ -670,7 +670,7 @@ bool THD::drop_temporary_table(TABLE *table, bool *is_trans, bool delete_table)
   temporary_tables->remove(share);
 
   /* Free the TABLE_SHARE and/or delete the files. */
-  free_tmp_table_share(share, delete_table);
+  result= free_tmp_table_share(share, delete_table);
 
 end:
   if (locked)
@@ -912,9 +912,8 @@ bool THD::has_temporary_tables()
 uint THD::create_tmp_table_def_key(char *key, const char *db,
                                     const char *table_name)
 {
-  DBUG_ENTER("THD::create_tmp_table_def_key");
-
   uint key_length;
+  DBUG_ENTER("THD::create_tmp_table_def_key");
 
   key_length= tdc_create_key(key, db, table_name);
   int4store(key + key_length, variables.server_id);
@@ -1163,11 +1162,10 @@ TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
 */
 bool THD::find_and_use_tmp_table(const TABLE_LIST *tl, TABLE **out_table)
 {
-  DBUG_ENTER("THD::find_and_use_tmp_table");
-
   char key[MAX_DBKEY_LENGTH];
   uint key_length;
   bool result;
+  DBUG_ENTER("THD::find_and_use_tmp_table");
 
   key_length= create_tmp_table_def_key(key, tl->get_db_name(),
                                         tl->get_table_name());
@@ -1457,20 +1455,21 @@ bool THD::log_events_and_free_tmp_shares()
   @param share [IN]                   TABLE_SHARE to free
   @param delete_table [IN]            Whether to delete the table files?
 
-  @return void
+  @return false                       Success
+          true                        Error
 */
-void THD::free_tmp_table_share(TMP_TABLE_SHARE *share, bool delete_table)
+bool THD::free_tmp_table_share(TMP_TABLE_SHARE *share, bool delete_table)
 {
+  bool error= false;
   DBUG_ENTER("THD::free_tmp_table_share");
 
   if (delete_table)
   {
-    rm_temporary_table(share->db_type(), share->path.str);
+    error= rm_temporary_table(share->db_type(), share->path.str);
   }
   free_table_share(share);
   my_free(share);
-
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(error);
 }
 
 

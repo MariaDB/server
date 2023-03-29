@@ -35,7 +35,7 @@ PredictiveCursor::PredictiveCursor()
       end_(0),
       min_length_(0) {}
 
-PredictiveCursor::~PredictiveCursor() {}
+PredictiveCursor::~PredictiveCursor() = default;
 
 void PredictiveCursor::open(const Trie &trie,
                             const String &str,

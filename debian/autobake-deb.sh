@@ -65,12 +65,6 @@ then
     LSBID="unknown"
 fi
 case "${LSBNAME}" in
-  stretch)
-    # MDEV-16525 libzstd-dev-1.1.3 minimum version
-    sed -e '/libzstd-dev/d' \
-        -e 's/libcurl4/libcurl3/g' -i debian/control
-    remove_rocksdb_tools
-    ;&
   buster)
     ;&
   bullseye|bookworm)

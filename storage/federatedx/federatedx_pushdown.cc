@@ -144,7 +144,7 @@ ha_federatedx_derived_handler::ha_federatedx_derived_handler(THD *thd,
   derived= dt;
 }
 
-ha_federatedx_derived_handler::~ha_federatedx_derived_handler() {}
+ha_federatedx_derived_handler::~ha_federatedx_derived_handler() = default;
 
 int ha_federatedx_derived_handler::init_scan()
 {
@@ -281,7 +281,7 @@ ha_federatedx_select_handler::ha_federatedx_select_handler(THD *thd,
   select= sel;
 }
 
-ha_federatedx_select_handler::~ha_federatedx_select_handler() {}
+ha_federatedx_select_handler::~ha_federatedx_select_handler() = default;
 
 int ha_federatedx_select_handler::init_scan()
 {

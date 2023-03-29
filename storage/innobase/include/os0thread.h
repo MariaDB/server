@@ -86,7 +86,7 @@ We do not return an error code because if there is one, we crash here. */
 os_thread_t os_thread_create(os_thread_func_t func, void *arg= nullptr);
 
 /** Detach and terminate the current thread. */
-ATTRIBUTE_NORETURN void os_thread_exit();
+os_thread_ret_t os_thread_exit();
 
 /*****************************************************************//**
 The thread sleeps at least the time given in microseconds. */

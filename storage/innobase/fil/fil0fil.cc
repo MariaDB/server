@@ -119,6 +119,9 @@ bool fil_space_t::try_to_close(bool print_info)
     }
 
     node->close();
+
+    fil_system.move_closed_last_to_space_list(node->space);
+
     return true;
   }
 
@@ -409,13 +412,7 @@ static bool fil_node_open_file_low(fil_node_t *node)
 
   ut_ad(node->is_open());
 
-  if (UNIV_LIKELY(!fil_system.freeze_space_list))
-  {
-    /* Move the file last in fil_system.space_list, so that
-    fil_space_t::try_to_close() should close it as a last resort. */
-    UT_LIST_REMOVE(fil_system.space_list, node->space);
-    UT_LIST_ADD_LAST(fil_system.space_list, node->space);
-  }
+  fil_system.move_opened_last_to_space_list(node->space);
 
   fil_system.n_open++;
   return true;
@@ -809,6 +806,8 @@ std::vector<pfs_os_file_t> fil_system_t::detach(fil_space_t *space,
     space->is_in_default_encrypt= false;
     default_encrypt_tables.remove(*space);
   }
+  if (space_list_last_opened == space)
+    space_list_last_opened = UT_LIST_GET_PREV(space_list, space);
   UT_LIST_REMOVE(space_list, space);
   if (space == sys_space)
     sys_space= nullptr;
@@ -874,7 +873,6 @@ fil_space_free_low(
 	fil_space_destroy_crypt_data(&space->crypt_data);
 
 	space->~fil_space_t();
-	ut_free(space->name);
 	ut_free(space);
 }
 
@@ -933,12 +931,14 @@ fil_space_free(
 @param purpose    tablespace purpose
 @param crypt_data encryption information
 @param mode       encryption mode
+@param opened     true if space files are opened
 @return pointer to created tablespace, to be filled in with add()
 @retval nullptr on failure (such as when the same tablespace exists) */
 fil_space_t *fil_space_t::create(const char *name, ulint id, ulint flags,
                                  fil_type_t purpose,
 				 fil_space_crypt_t *crypt_data,
-				 fil_encryption_t mode)
+				 fil_encryption_t mode,
+				 bool opened)
 {
 	fil_space_t*	space;
 
@@ -997,14 +997,16 @@ fil_space_t *fil_space_t::create(const char *name, ulint id, ulint flags,
 		mutex_exit(&fil_system.mutex);
 		rw_lock_free(&space->latch);
 		space->~fil_space_t();
-		ut_free(space->name);
 		ut_free(space);
 		return(NULL);
 	}
 
 	HASH_INSERT(fil_space_t, hash, &fil_system.spaces, id, space);
 
-	UT_LIST_ADD_LAST(fil_system.space_list, space);
+	if (opened)
+	  fil_system.add_opened_last_to_space_list(space);
+	else
+	  UT_LIST_ADD_LAST(fil_system.space_list, space);
 
 	switch (id) {
 	case 0:
@@ -1332,6 +1334,15 @@ void fil_system_t::close()
   ssd.clear();
   ssd.shrink_to_fit();
 #endif /* __linux__ */
+}
+
+void fil_system_t::add_opened_last_to_space_list(fil_space_t *space)
+{
+  if (UNIV_LIKELY(space_list_last_opened != nullptr))
+    UT_LIST_INSERT_AFTER(space_list, space_list_last_opened, space);
+  else
+    UT_LIST_ADD_FIRST(space_list, space);
+  space_list_last_opened= space;
 }
 
 /** Extend all open data files to the recovered size */
@@ -2412,7 +2423,7 @@ err_exit:
 
 	if (fil_space_t* space = fil_space_t::create(name, space_id, flags,
 						     FIL_TYPE_TABLESPACE,
-						     crypt_data, mode)) {
+						     crypt_data, mode, true)) {
 		space->punch_hole = punch_hole;
 		fil_node_t* node = space->add(path, file, size, false, true);
 		mtr_t mtr;

@@ -31,7 +31,7 @@ class DllExport BLOCKFILTER : public BLOCK {           /* Block Filter */
   virtual void Prints(PGLOBAL g, char *ps, uint z);
 
  protected:
-  BLOCKFILTER(void) {}       // Standard constructor not to be used
+  BLOCKFILTER(void) = default;       // Standard constructor not to be used
 
   // Members
   PTDBDOS Tdbp;         // Owner TDB
@@ -54,7 +54,7 @@ class DllExport BLKFILLOG : public BLOCKFILTER { /* Logical Op Block Filter */
   virtual int  BlockEval(PGLOBAL g);
 
  protected:
-  BLKFILLOG(void) {}       // Standard constructor not to be used
+  BLKFILLOG(void) = default;       // Standard constructor not to be used
 
   // Members
   PBF *Fil;                // Points to Block filter args
@@ -75,7 +75,7 @@ class DllExport BLKFILARI : public BLOCKFILTER { /* Arithm. Op Block Filter */
   virtual void MakeValueBitmap(void) {}
 
  protected:
-  BLKFILARI(void) {}       // Standard constructor not to be used
+  BLKFILARI(void) = default;       // Standard constructor not to be used
 
   // Members
   PDOSCOL Colp;            // Points to column argument
@@ -97,7 +97,7 @@ class DllExport BLKFILAR2 : public BLKFILARI { /* Arithm. Op Block Filter */
   virtual void MakeValueBitmap(void);
 
  protected:
-  BLKFILAR2(void) {}       // Standard constructor not to be used
+  BLKFILAR2(void) = default;       // Standard constructor not to be used
 
   // Members
   uint Bmp;                // The value bitmap used to test blocks
@@ -118,7 +118,7 @@ class DllExport BLKFILMR2 : public BLKFILARI { /* Arithm. Op Block Filter */
   virtual void MakeValueBitmap(void);
 
  protected:
-  BLKFILMR2(void) {}       // Standard constructor not to be used
+  BLKFILMR2(void) = default;       // Standard constructor not to be used
 
   // Members
   int    Nbm;              // The number of ULONG bitmaps
@@ -141,7 +141,7 @@ class DllExport BLKSPCARI : public BLOCKFILTER { /* Arithm. Op Block Filter */
   virtual int  BlockEval(PGLOBAL g);
 
  protected:
-  BLKSPCARI(void) {}       // Standard constructor not to be used
+  BLKSPCARI(void) = default;       // Standard constructor not to be used
 
   // Members
   PCOL    Cpx;             // Point to subquery "constant" column

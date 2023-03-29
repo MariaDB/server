@@ -13,7 +13,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-#include <my_global.h>
+#include <my_alloca.h>
 #include <mysql/plugin_password_validation.h>
 #include <crack.h>
 #include <string.h>

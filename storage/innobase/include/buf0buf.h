@@ -1236,7 +1236,7 @@ even after we release the buffer pool mutex. */
 class HazardPointer
 {
 public:
-  virtual ~HazardPointer() {}
+  virtual ~HazardPointer() = default;
 
   /** @return current value */
   buf_page_t *get() const { mysql_mutex_assert_owner(m_mutex); return m_hp; }
@@ -1275,16 +1275,15 @@ protected:
 class FlushHp : public HazardPointer
 {
 public:
-  ~FlushHp() override {}
+  ~FlushHp() override = default;
 
   /** Adjust the value of hp. This happens when some
   other thread working on the same list attempts to
   remove the hp from the list.
   @param bpage  buffer block to be compared */
+  MY_ATTRIBUTE((nonnull))
   void adjust(const buf_page_t *bpage) override
   {
-    ut_ad(bpage != NULL);
-
     /* We only support reverse traversal for now. */
     if (is_hp(bpage))
       m_hp= UT_LIST_GET_PREV(list, m_hp);
@@ -1296,15 +1295,15 @@ public:
 /** Class implementing buf_pool.LRU hazard pointer */
 class LRUHp : public HazardPointer {
 public:
-  ~LRUHp() override {}
+  ~LRUHp() override = default;
 
   /** Adjust the value of hp. This happens when some
   other thread working on the same list attempts to
   remove the hp from the list.
   @param bpage  buffer block to be compared */
+  MY_ATTRIBUTE((nonnull))
   void adjust(const buf_page_t *bpage) override
   {
-    ut_ad(bpage);
     /** We only support reverse traversal for now. */
     if (is_hp(bpage))
       m_hp= UT_LIST_GET_PREV(LRU, m_hp);
@@ -1319,8 +1318,7 @@ itr in that position and the other thread can start scan from
 there */
 class LRUItr : public LRUHp {
 public:
-  LRUItr() : LRUHp() {}
-  ~LRUItr() override {}
+  ~LRUItr() override = default;
 
   /** Select from where to start a scan. If we have scanned
   too deep into the LRU list it resets the value to the tail

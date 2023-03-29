@@ -101,8 +101,7 @@ protected:
   table_tiws_by_index_usage();
 
 public:
-  ~table_tiws_by_index_usage()
-  {}
+  ~table_tiws_by_index_usage() = default;
 
 protected:
   void make_row(PFS_table_share *table_share, uint index);

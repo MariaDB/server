@@ -183,7 +183,9 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP PROCEDURE sp;
 DROP TABLE t1;
+#
 # End of 10.2 tests
+#
 create table t1 (a int check (a>10)) select 100 as 'a';
 show create table t1;
 Table	Create Table
@@ -200,4 +202,36 @@ select * from t1;
 a
 19
 ccc
+drop table t1;
+create table t1 (a int, b int);
+create procedure sp() alter table t1 add constraint if not exists foo check (b > 0);
+call sp;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  CONSTRAINT `foo` CHECK (`b` > 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+call sp;
+Warnings:
+Note	1826	Duplicate CHECK constraint name 'foo'
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  CONSTRAINT `foo` CHECK (`b` > 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+call sp;
+Warnings:
+Note	1826	Duplicate CHECK constraint name 'foo'
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  CONSTRAINT `foo` CHECK (`b` > 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+drop procedure sp;
 drop table t1;

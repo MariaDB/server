@@ -2582,10 +2582,8 @@ ha_innobase::ha_innobase(
 /*********************************************************************//**
 Destruct ha_innobase handler. */
 
-ha_innobase::~ha_innobase()
+ha_innobase::~ha_innobase() = default;
 /*======================*/
-{
-}
 
 /*********************************************************************//**
 Updates the user_thd field in a handle and also allocates a new InnoDB
@@ -12624,7 +12622,8 @@ int create_table_info_t::create_table(bool create_fk)
 					    m_table->name.m_name);
 
 			if (m_table->fts) {
-				fts_free(m_table);
+				m_table->fts->~fts_t();
+				m_table->fts = nullptr;
 			}
 
 			my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0),
@@ -16068,7 +16067,7 @@ struct ShowStatus {
 	};
 
 	/** Constructor */
-	ShowStatus() { }
+	ShowStatus() = default;
 
 	/** Callback for collecting the stats
 	@param[in]	latch_meta		Latch meta data
@@ -19721,10 +19720,22 @@ static MYSQL_SYSVAR_BOOL(numa_interleave, srv_numa_interleave,
   NULL, NULL, FALSE);
 #endif /* HAVE_LIBNUMA */
 
+static void innodb_change_buffering_update(THD *thd, struct st_mysql_sys_var*,
+                                           void*, const void *save)
+{
+  ulong i= *static_cast<const ulong*>(save);
+  if (i != IBUF_USE_NONE && !ibuf.index)
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_NOT_KEYFILE,
+                 "InnoDB: The change buffer is corrupted.");
+  else
+    innodb_change_buffering= i;
+}
+
 static MYSQL_SYSVAR_ENUM(change_buffering, innodb_change_buffering,
   PLUGIN_VAR_RQCMDARG,
   "Buffer changes to secondary indexes.",
-  NULL, NULL, IBUF_USE_NONE, &innodb_change_buffering_typelib);
+  nullptr, innodb_change_buffering_update,
+  IBUF_USE_NONE, &innodb_change_buffering_typelib);
 
 static MYSQL_SYSVAR_UINT(change_buffer_max_size,
   srv_change_buffer_max_size,

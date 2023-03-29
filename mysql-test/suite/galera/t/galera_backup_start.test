@@ -1,0 +1,6 @@
+--source include/galera_cluster.inc
+
+BACKUP STAGE START;
+START TRANSACTION;
+COMMIT;
+BACKUP STAGE END;

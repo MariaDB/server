@@ -189,9 +189,7 @@ database::database(const config& c)
 {
 }
 
-database::~database()
-{
-}
+database::~database() = default;
 
 dbcontext_ptr
 database::create_context(bool for_write) volatile
@@ -226,9 +224,7 @@ dbcontext::dbcontext(volatile database *d, bool for_write)
   user_level_lock_timeout = d->get_conf().get_int("wrlock_timeout", 12);
 }
 
-dbcontext::~dbcontext()
-{
-}
+dbcontext::~dbcontext() = default;
 
 namespace {
 

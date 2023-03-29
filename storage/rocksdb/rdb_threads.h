@@ -125,7 +125,7 @@ class Rdb_thread {
 
   void uninit();
 
-  virtual ~Rdb_thread() {}
+  virtual ~Rdb_thread() = default;
 
  private:
   static void *thread_func(void *const thread_ptr);
