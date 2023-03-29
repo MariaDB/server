@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 
+# shellcheck source=/dev/null
 . /usr/share/debconf/confmodule
 
 # Automatically set version to ease maintenance of this file
@@ -26,7 +27,7 @@ stop_server() {
   set -e
 
   # systemctl could emit exit code 100=no init script (fresh install)
-  if [ "$errno" != 0 -a "$errno" != 100 ]; then
+  if [ "$errno" != 0 ] && [ "$errno" != 100 ]; then
     echo "Attempt to stop MariaDB/MySQL server returned exitcode $errno" 1>&2
     echo "There is a MariaDB/MySQL server running, but we failed in our attempts to stop it." 1>&2
     echo "Stop it yourself and try again!" 1>&2
@@ -38,7 +39,7 @@ stop_server() {
 
 case "$1" in
   purge|remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
-    if [ -n "`$MYADMIN ping 2>/dev/null`" ]; then
+    if [ -n "$($MYADMIN ping 2>/dev/null)" ]; then
       stop_server
       sleep 2
     fi
