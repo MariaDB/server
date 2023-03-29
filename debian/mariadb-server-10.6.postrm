@@ -15,24 +15,24 @@ MYADMIN="/usr/bin/mysqladmin --defaults-file=/etc/mysql/debian.cnf"
 # do it himself. No database directories should be removed while the server
 # is running! Another mariadbd in e.g. a different chroot is fine for us.
 stop_server() {
-    # Return immediately if there are no mysqld processes running
-    # as there is no point in trying to shutdown in that case.
-    if ! pgrep -x --nslist pid --ns $$ "mysqld|mariadbd" > /dev/null; then return; fi
+  # Return immediately if there are no mysqld processes running
+  # as there is no point in trying to shutdown in that case.
+  if ! pgrep -x --nslist pid --ns $$ "mysqld|mariadbd" > /dev/null; then return; fi
 
-    set +e
-    invoke-rc.d mariadb stop
-    invoke-rc.d mysql stop # Backwards compatibility
-    errno=$?
-    set -e
+  set +e
+  invoke-rc.d mariadb stop
+  invoke-rc.d mysql stop # Backwards compatibility
+  errno=$?
+  set -e
 
-    # systemctl could emit exit code 100=no init script (fresh install)
-    if [ "$errno" != 0 -a "$errno" != 100 ]; then
-      echo "Attempt to stop MariaDB/MySQL server returned exitcode $errno" 1>&2
-      echo "There is a MariaDB/MySQL server running, but we failed in our attempts to stop it." 1>&2
-      echo "Stop it yourself and try again!" 1>&2
-      db_stop
-      exit 1
-    fi
+  # systemctl could emit exit code 100=no init script (fresh install)
+  if [ "$errno" != 0 -a "$errno" != 100 ]; then
+    echo "Attempt to stop MariaDB/MySQL server returned exitcode $errno" 1>&2
+    echo "There is a MariaDB/MySQL server running, but we failed in our attempts to stop it." 1>&2
+    echo "Stop it yourself and try again!" 1>&2
+    db_stop
+    exit 1
+  fi
 }
 
 
@@ -42,11 +42,11 @@ case "$1" in
       stop_server
       sleep 2
     fi
-  ;;
+    ;;
   *)
     echo "postrm called with unknown argument '$1'" 1>&2
     exit 1
-  ;;
+    ;;
 esac
 
 #
@@ -75,9 +75,9 @@ if [ "$1" = "purge" ] && [ -f "/var/lib/mysql/debian-$MAJOR_VER.flag" ]; then
     if [ -d /var/lib/mysql ]
     then
       find /var/lib/mysql -mindepth 1 \
-           -not -path '*/lost+found/*'     -not -name 'lost+found' \
-           -not -path '*/lost@002bfound/*' -not -name 'lost@002bfound' \
-           -delete
+        -not -path '*/lost+found/*'     -not -name 'lost+found' \
+        -not -path '*/lost@002bfound/*' -not -name 'lost@002bfound' \
+        -delete
 
       # "|| true" still needed as rmdir still exits with non-zero if
       # /var/lib/mysql is a mount point
@@ -93,5 +93,5 @@ fi
 
 # Modified dh_systemd_start snippet that's not added automatically
 if [ -d /run/systemd/system ]; then
-	systemctl --system daemon-reload >/dev/null || true
+  systemctl --system daemon-reload >/dev/null || true
 fi
