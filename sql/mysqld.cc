@@ -2430,7 +2430,7 @@ static MYSQL_SOCKET activate_tcp_port(uint port)
   if (ret < 0)
   {
     char buff[100];
-    sprintf(buff, "Can't start server: Bind on TCP/IP port. Got error: %d",
+    snprintf(buff, sizeof(buff), "Can't start server: Bind on TCP/IP port. Got error: %d",
             (int) socket_errno);
     sql_perror(buff);
     sql_print_error("Do you already have another mysqld server running on "
