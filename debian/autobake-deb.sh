@@ -201,7 +201,11 @@ then
   for package in *.deb
   do
     echo "$package" | cut -d '_' -f 1
-    dpkg-deb -c "$package" | awk '{print $1 " " $2 " " $6 " " $7 " " $8}' | sort -k 3
+    # shellcheck disable=SC2034
+    dpkg-deb -c "$package" | while IFS=" " read -r col1 col2 col3 col4 col5 col6 col7 col8
+    do
+        echo "$col1 $col2 $col6 $col7 $col8" | sort -k 3
+    done
     echo "------------------------------------------------"
   done
 fi

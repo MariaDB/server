@@ -3105,7 +3105,7 @@ insert_empty:
 
 		ut_a(!insert_page_zip
 		     || page_zip_validate(insert_page_zip, insert_page,
-					  cursor->index));
+					  cursor->index()));
 	}
 #endif /* UNIV_ZIP_DEBUG */
 
@@ -4104,7 +4104,7 @@ btr_discard_page(
 
 #ifdef UNIV_ZIP_DEBUG
 	if (page_zip_des_t* merge_page_zip
-	    = buf_block_get_page_zip(merge_block));
+	    = buf_block_get_page_zip(merge_block))
 		ut_a(page_zip_validate(merge_page_zip,
 				       merge_block->page.frame, index));
 #endif /* UNIV_ZIP_DEBUG */

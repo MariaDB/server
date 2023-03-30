@@ -4441,7 +4441,7 @@ void get_partition_set(const TABLE *table, uchar *buf, const uint index,
 
    RETURN VALUE
      TRUE                          Error
-     FALSE                         Sucess
+     FALSE                         Success
 
    DESCRIPTION
      Read the partition syntax from the current position in the frm file.

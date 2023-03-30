@@ -1,1 +1,1 @@
---source suite/rpl/include/rpl_parallel_single_grpcmt.inc
+--source suite/rpl/t/rpl_parallel_single_grpcmt.test

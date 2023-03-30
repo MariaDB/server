@@ -118,6 +118,23 @@ if (!condition)
 return success;
 ```
 
+#### Functions
+
+Consecutive functions should be separated with 2 empty lines in between
+
+```cpp
+void my_function_1()
+{
+  <logic>  
+}
+
+
+void my_function_2()
+{
+  <logic>  
+}
+```
+
 ### File names
 
 File names should be lower case with underscore word separators.
@@ -218,9 +235,26 @@ Variables should be declared at the start of it's context (start of function, in
 The benefits of this:
 - Code lines gets shorter
 - It is easier to see the stack space used by a function.
-- It is easer to find the declaration of the variable.
+- It is easier to find the declaration of the variable.
 - If one has to add an 'if (error) goto end' construct, one can do
   that without having to move variable declarations around.
+
+
+### Variable initializations
+Variables can be initialized using assignment operator or initializer and expression list.
+For Example:
+
+```cpp
+int milliseconds= 1000;
+char type= 't';
+```
+
+Or
+
+```cpp
+int milliseconds{1000};
+char type{'t'};
+```
 
 
 ### Constant integers

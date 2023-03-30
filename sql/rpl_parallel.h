@@ -272,7 +272,7 @@ struct rpl_parallel_thread {
 
 struct pool_bkp_for_pfs{
   uint32 count;
-  bool inited;
+  bool inited, is_valid;
   struct rpl_parallel_thread **rpl_thread_arr;
   void init(uint32 thd_count)
   {
@@ -299,6 +299,7 @@ struct pool_bkp_for_pfs{
       my_free(rpl_thread_arr);
       rpl_thread_arr= NULL;
     }
+    inited= false;
   }
 };
 
