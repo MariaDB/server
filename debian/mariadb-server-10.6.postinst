@@ -7,7 +7,12 @@ set -e
 # Automatically set version to ease maintenance of this file
 MAJOR_VER="${DPKG_MAINTSCRIPT_PACKAGE#mariadb-server-}"
 
-if [ -n "$DEBIAN_SCRIPT_DEBUG" ]; then set -v -x; DEBIAN_SCRIPT_TRACE=1; fi
+if [ -n "$DEBIAN_SCRIPT_DEBUG" ]
+then
+  set -v -x
+  DEBIAN_SCRIPT_TRACE=1
+fi
+
 ${DEBIAN_SCRIPT_TRACE:+ echo "#42#DEBUG# RUNNING $0 $*" 1>&2 }
 
 export PATH=$PATH:/sbin:/usr/sbin:/bin:/usr/bin
@@ -25,7 +30,9 @@ case "$1" in
     # and because changed configuration options should take effect immediately.
     # In case the server wasn't running at all it should be ok if the stop
     # script fails. I can't tell at this point because of the cleaned /run.
-    set +e; invoke-rc.d mariadb stop; set -e
+    set +e
+    invoke-rc.d mariadb stop
+    set -e
 
     # An existing /etc/init.d/mysql might be on the system if there was a
     # previous MySQL or MariaDB installation, since /etc/init.d files are
@@ -65,21 +72,26 @@ case "$1" in
     # If the following symlink exists, it is a preserved copy the old data dir
     # created by the preinst script during a upgrade that would have otherwise
     # been replaced by an empty mysql dir.  This should restore it.
-    for dir in DATADIR LOGDIR; do
+    for dir in DATADIR LOGDIR
+    do
 
-      if [ "$dir" = "DATADIR" ]; then
+      if [ "$dir" = "DATADIR" ]
+      then
         targetdir=$mysql_datadir
       else
         targetdir=$mysql_logdir
       fi
 
       savelink="$mysql_upgradedir/$dir.link"
-      if [ -L "$savelink" ]; then
+      if [ -L "$savelink" ]
+      then
         # If the targetdir was a symlink before we upgraded it is supposed
         # to be either still be present or not existing anymore now.
-        if [ -L "$targetdir" ]; then
+        if [ -L "$targetdir" ]
+        then
           rm "$savelink"
-        elif [ ! -d "$targetdir" ]; then
+        elif [ ! -d "$targetdir" ]
+        then
           mv "$savelink" "$targetdir"
         else
           # this should never even happen, but just in case...
@@ -116,16 +128,26 @@ EOF
     lsof -nt "$mysql_datadir"/mysql/user.MYD > /dev/null
     lsof_rtn_code=$?
     if [ -f "$mysql_datadir/auto.cnf" ] && [ -f "$mysql_datadir/mysql/user.MYD" ] &&
-    [ ! ${lsof_rtn_code} ] && [ ! -f "$mysql_datadir/undo_001" ]; then
+    [ ! ${lsof_rtn_code} ] && [ ! -f "$mysql_datadir/undo_001" ]
+    then
       echo "UPDATE mysql.user SET plugin='unix_socket' WHERE plugin='auth_socket';" |
       mariadbd --skip-innodb --key_buffer_size=0  --default-storage-engine=MyISAM --bootstrap 2> /dev/null
     fi
 
     # Ensure the existence and right permissions for the database and
     # log files. Use mkdir option 'Z' to create with correct SELinux context.
-    if [ ! -d "$mysql_statedir" ] && [ ! -L "$mysql_statedir" ]; then mkdir -Z "$mysql_statedir"; fi
-    if [ ! -d "$mysql_datadir"  ] && [ ! -L "$mysql_datadir" ]; then mkdir -Z "$mysql_datadir" ; fi
-    if [ ! -d "$mysql_logdir"   ] && [ ! -L "$mysql_logdir"  ]; then mkdir -Z "$mysql_logdir"  ; fi
+    if [ ! -d "$mysql_statedir" ] && [ ! -L "$mysql_statedir" ]
+    then
+      mkdir -Z "$mysql_statedir"
+    fi
+    if [ ! -d "$mysql_datadir"  ] && [ ! -L "$mysql_datadir" ]
+    then
+      mkdir -Z "$mysql_datadir"
+    fi
+    if [ ! -d "$mysql_logdir"   ] && [ ! -L "$mysql_logdir"  ]
+    then
+      mkdir -Z "$mysql_logdir"
+    fi
     # When creating an ext3 jounal on an already mounted filesystem like e.g.
     # /var/lib/mysql, you get a .journal file that is not modifiable by chown.
     # The mysql_statedir must not be writable by the mysql user under any
@@ -186,11 +208,13 @@ EOF
     # --defaults-file option for tools (for the sake of upgrades)
     # and thus need /etc/mysql/debian.cnf to exist, even if it's empty.
     # In the long run the goal is to obsolete this file.
-    dc=$mysql_cfgdir/debian.cnf;
-    if [ ! -d "$mysql_cfgdir" ]; then
+    dc="$mysql_cfgdir/debian.cnf"
+    if [ ! -d "$mysql_cfgdir" ]
+    then
       install -o 0 -g 0 -m 0755 -d $mysql_cfgdir
     fi
-    if [ ! -e "$dc" ]; then
+    if [ ! -e "$dc" ]
+    then
       cat /dev/null > $dc
       {
         echo "# THIS FILE IS OBSOLETE. STOP USING IT IF POSSIBLE.";
@@ -220,8 +244,10 @@ EOF
     # on by default) to work both to disable a default profile, and to keep
     # any profile installed and maintained by users themselves.
     profile="/etc/apparmor.d/usr.sbin.mariadbd"
-    if [ -f "$profile" ] && aa-status --enabled 2>/dev/null; then
-      if grep -q /usr/sbin/mariadbd "$profile" 2>/dev/null ; then
+    if [ -f "$profile" ] && aa-status --enabled 2>/dev/null
+    then
+      if grep -q /usr/sbin/mariadbd "$profile" 2>/dev/null
+      then
         apparmor_parser -r "$profile" || true
       else
         echo "/usr/sbin/mariadbd { }" | apparmor_parser --remove 2>/dev/null || true
@@ -233,14 +259,14 @@ EOF
     # Note that file cannot be empty, otherwise systemd version in Ubuntu Bionic
     # will think the service is masked
     echo "# empty placeholder" > /etc/systemd/system/mariadb.service.d/migrated-from-my.cnf-settings.conf
-
     ;;
 
   abort-upgrade|abort-remove|abort-configure)
     ;;
 
   triggered)
-    if [ -d /run/systemd/system ]; then
+    if [ -d /run/systemd/system ]
+    then
       systemctl --system daemon-reload
     else
       invoke-rc.d mariadb restart
@@ -260,19 +286,23 @@ db_stop # in case invoke fails
 # systemctl. If we upgrade from MySQL mysql.service may be masked, which also
 # means init.d script is disabled. Unmask mysql service explicitly.
 # Check first that the command exists, to avoid emitting any warning messages.
-if [ -x "$(command -v deb-systemd-helper)" ]; then
+if [ -x "$(command -v deb-systemd-helper)" ]
+then
   deb-systemd-helper unmask mysql.service > /dev/null
 fi
 
 #DEBHELPER#
 
 # Modified dh_systemd_start snippet that's not added automatically
-if [ -d /run/systemd/system ]; then
+if [ -d /run/systemd/system ]
+then
   systemctl --system daemon-reload >/dev/null || true
   deb-systemd-invoke start mariadb.service >/dev/null || true
   # Modified dh_installinit snippet to only run with sysvinit
-elif [ -x "/etc/init.d/mariadb" ]; then
-  if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ]; then
+elif [ -x "/etc/init.d/mariadb" ]
+then
+  if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ]
+  then
     invoke-rc.d mariadb start || exit $?
   fi
 fi
