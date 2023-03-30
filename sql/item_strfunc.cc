@@ -1348,13 +1348,13 @@ bool Item_func_sformat::fix_length_and_dec()
 
   for (uint i=0 ; i < arg_count ; i++)
   {
-    char_length+= args[i]->max_char_length();
     if (args[i]->result_type() == STRING_RESULT &&
         Type_std_attributes::agg_item_set_converter(c, func_name_cstring(),
                                                     args+i, 1, flags, 1))
       return TRUE;
   }
 
+  char_length= MAX_BLOB_WIDTH;
   fix_char_length_ulonglong(char_length);
   return FALSE;
 }
