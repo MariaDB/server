@@ -610,14 +610,6 @@ fts_create(
 	dict_table_t*	table);			/*!< out: table with FTS
 						indexes */
 
-/**********************************************************************//**
-Free the FTS resources. */
-void
-fts_free(
-/*=====*/
-	dict_table_t*   table);			/*!< in/out: table with
-						FTS indexes */
-
 /*********************************************************************//**
 Run OPTIMIZE on the given table.
 @return DB_SUCCESS if all OK */
