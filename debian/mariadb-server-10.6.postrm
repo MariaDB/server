@@ -7,7 +7,12 @@ set -e
 # Automatically set version to ease maintenance of this file
 MAJOR_VER="${DPKG_MAINTSCRIPT_PACKAGE#mariadb-server-}"
 
-if [ -n "$DEBIAN_SCRIPT_DEBUG" ]; then set -v -x; DEBIAN_SCRIPT_TRACE=1; fi
+if [ -n "$DEBIAN_SCRIPT_DEBUG" ]
+then
+  set -v -x
+  DEBIAN_SCRIPT_TRACE=1
+fi
+
 ${DEBIAN_SCRIPT_TRACE:+ echo "#42#DEBUG# RUNNING $0 $*" 1>&2 }
 
 MYADMIN="/usr/bin/mysqladmin --defaults-file=/etc/mysql/debian.cnf"
@@ -18,7 +23,10 @@ MYADMIN="/usr/bin/mysqladmin --defaults-file=/etc/mysql/debian.cnf"
 stop_server() {
   # Return immediately if there are no mysqld processes running
   # as there is no point in trying to shutdown in that case.
-  if ! pgrep -x --nslist pid --ns $$ "mysqld|mariadbd" > /dev/null; then return; fi
+  if ! pgrep -x --nslist pid --ns $$ "mysqld|mariadbd" > /dev/null
+  then
+    return
+  fi
 
   set +e
   invoke-rc.d mariadb stop
@@ -27,7 +35,8 @@ stop_server() {
   set -e
 
   # systemctl could emit exit code 100=no init script (fresh install)
-  if [ "$errno" != 0 ] && [ "$errno" != 100 ]; then
+  if [ "$errno" != 0 ] && [ "$errno" != 100 ]
+  then
     echo "Attempt to stop MariaDB/MySQL server returned exitcode $errno" 1>&2
     echo "There is a MariaDB/MySQL server running, but we failed in our attempts to stop it." 1>&2
     echo "Stop it yourself and try again!" 1>&2
@@ -39,7 +48,8 @@ stop_server() {
 
 case "$1" in
   purge|remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
-    if [ -n "$($MYADMIN ping 2>/dev/null)" ]; then
+    if [ -n "$($MYADMIN ping 2>/dev/null)" ]
+    then
       stop_server
       sleep 2
     fi
@@ -55,7 +65,8 @@ esac
 # - Remove the mysql user only after all his owned files are purged.
 # - Cleanup the initscripts only if this was the last provider of them
 #
-if [ "$1" = "purge" ] && [ -f "/var/lib/mysql/debian-$MAJOR_VER.flag" ]; then
+if [ "$1" = "purge" ] && [ -f "/var/lib/mysql/debian-$MAJOR_VER.flag" ]
+then
   # we remove the mysql user only after all his owned files are purged
   rm -f /var/log/mysql.{log,err}{,.0,.[1234567].gz}
   rm -rf /var/log/mysql
@@ -63,7 +74,8 @@ if [ "$1" = "purge" ] && [ -f "/var/lib/mysql/debian-$MAJOR_VER.flag" ]; then
   db_input high "mariadb-server-$MAJOR_VER/postrm_remove_databases" || true
   db_go || true
   db_get "mariadb-server-$MAJOR_VER/postrm_remove_databases" || true
-  if [ "$RET" = "true" ]; then
+  if [ "$RET" = "true" ]
+  then
     # never remove the debian.cnf when the databases are still existing
     # else we ran into big trouble on the next install!
     rm -f /etc/mysql/debian.cnf
@@ -93,6 +105,7 @@ fi
 #DEBHELPER#
 
 # Modified dh_systemd_start snippet that's not added automatically
-if [ -d /run/systemd/system ]; then
+if [ -d /run/systemd/system ]
+then
   systemctl --system daemon-reload >/dev/null || true
 fi
