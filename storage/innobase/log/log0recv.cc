@@ -3723,7 +3723,19 @@ static bool recv_scan_log(bool last_phase)
       while ((r= recv_sys.parse_pmem<false>(false)) == recv_sys_t::OK);
     else
       while ((r= recv_sys.parse_pmem<true>(last_phase)) == recv_sys_t::OK)
-        if (!recv_sys.is_memory_exhausted());
+        if (!recv_sys.is_memory_exhausted())
+        {
+          if (recv_sys.report(time(nullptr)))
+          {
+            const size_t n= recv_sys.pages.size();
+            sql_print_information("InnoDB: Parsed redo log up to LSN=" LSN_PF
+                                  "; to recover: %zu pages", recv_sys.lsn, n);
+            service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+                                           "Parsed redo log up to LSN=" LSN_PF
+                                           "; to recover: %zu pages",
+                                           recv_sys.lsn, n);
+          }
+        }
         else if (last_phase)
           recv_sys.apply(false);
         else
