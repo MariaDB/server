@@ -2794,7 +2794,34 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse(source &l, bool if_exists)
 
   l+= log_sys.is_encrypted() ? 4U + 8U : 4U;
   ut_ad(l == el);
-  return OK;
+  if (!store)
+    return OK;
+
+  if (UNIV_LIKELY(UT_LIST_GET_LEN(blocks) * 3 <
+                  (srv_buf_pool_old_size >> srv_page_size_shift)))
+  {
+    if (report(time(nullptr)))
+    {
+      const size_t n= pages.size();
+      sql_print_information("InnoDB: Parsed redo log up to LSN=" LSN_PF
+                            "; to recover: %zu pages", lsn, n);
+      service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+                                     "Parsed redo log up to LSN=" LSN_PF
+                                     "; to recover: %zu pages", lsn, n);
+    }
+    return OK;
+  }
+
+  DBUG_PRINT("ib_log",("Ran out of memory and last stored lsn " LSN_PF
+                       " last stored offset %zu\n", lsn, offset));
+  if (if_exists)
+  {
+    apply(false);
+    return OK;
+  }
+
+  last_stored_lsn= lsn;
+  return GOT_OOM;
 }
 
 template<bool store>
@@ -3570,18 +3597,6 @@ next_free_block:
   clear();
 }
 
-/** Check whether the number of read redo log blocks exceeds the maximum.
-@return whether the memory is exhausted */
-inline bool recv_sys_t::is_memory_exhausted()
-{
-  if (UT_LIST_GET_LEN(blocks) * 3 <
-      (srv_buf_pool_old_size >> srv_page_size_shift))
-    return false;
-  DBUG_PRINT("ib_log",("Ran out of memory and last stored lsn " LSN_PF
-                       " last stored offset %zu\n", lsn, offset));
-  return true;
-}
-
 /** Scan log_t::FORMAT_10_8 log store records to the parsing buffer.
 @param last_phase     whether changes can be applied to the tablespaces
 @return whether rescan is needed (not everything was stored) */
@@ -3674,7 +3689,8 @@ static bool recv_scan_log(bool last_phase)
           switch (r) {
           case recv_sys_t::PREMATURE_EOF:
             goto read_more;
-          case recv_sys_t::GOT_EOF:
+          default:
+            ut_ad(r == recv_sys_t::GOT_EOF);
             break;
           case recv_sys_t::OK:
             if (b == FILE_CHECKPOINT + 2 + 8 || (b & 0xf0) == FILE_MODIFY)
@@ -3704,7 +3720,8 @@ static bool recv_scan_log(bool last_phase)
           goto read_more;
         case recv_sys_t::GOT_EOF:
           break;
-        case recv_sys_t::OK:
+        default:
+          ut_ad(r == recv_sys_t::OK);
           recv_needed_recovery= true;
           if (srv_read_only_mode)
           {
@@ -3722,28 +3739,14 @@ static bool recv_scan_log(bool last_phase)
     skip_the_rest:
       while ((r= recv_sys.parse_pmem<false>(false)) == recv_sys_t::OK);
     else
-      while ((r= recv_sys.parse_pmem<true>(last_phase)) == recv_sys_t::OK)
-        if (!recv_sys.is_memory_exhausted())
-        {
-          if (recv_sys.report(time(nullptr)))
-          {
-            const size_t n= recv_sys.pages.size();
-            sql_print_information("InnoDB: Parsed redo log up to LSN=" LSN_PF
-                                  "; to recover: %zu pages", recv_sys.lsn, n);
-            service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
-                                           "Parsed redo log up to LSN=" LSN_PF
-                                           "; to recover: %zu pages",
-                                           recv_sys.lsn, n);
-          }
-        }
-        else if (last_phase)
-          recv_sys.apply(false);
-        else
-        {
-          recv_sys.last_stored_lsn= recv_sys.lsn;
-          store= false;
-          goto skip_the_rest;
-        }
+    {
+      while ((r= recv_sys.parse_pmem<true>(last_phase)) == recv_sys_t::OK);
+      if (r == recv_sys_t::GOT_OOM)
+      {
+        store= false;
+        goto skip_the_rest;
+      }
+    }
 
     if (r != recv_sys_t::PREMATURE_EOF)
     {

@@ -282,9 +282,6 @@ private:
   List elements are linked via buf_block_t::unzip_LRU. */
   UT_LIST_BASE_NODE_T(buf_block_t) blocks;
 public:
-  /** Check whether the number of read redo log blocks exceeds the maximum.
-  @return whether the memory is exhausted */
-  inline bool is_memory_exhausted();
   /** Apply buffered log to persistent data pages.
   @param last_batch     whether it is possible to write more redo log */
   void apply(bool last_batch);
@@ -317,7 +314,17 @@ public:
   inline void add(map::iterator it, lsn_t start_lsn, lsn_t lsn,
                   const byte *l, size_t len);
 
-  enum parse_mtr_result { OK, PREMATURE_EOF, GOT_EOF };
+  /** Parsing result */
+  enum parse_mtr_result {
+    /** a record was successfully parsed */
+    OK,
+    /** the log ended prematurely (need to read more) */
+    PREMATURE_EOF,
+    /** the end of the log was reached */
+    GOT_EOF,
+    /** we ran out of memory (store=true, if_exists=false) */
+    GOT_OOM
+  };
 
 private:
   /** Parse and register one log_t::FORMAT_10_8 mini-transaction.
