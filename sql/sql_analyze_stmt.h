@@ -63,14 +63,19 @@ protected:
     if (my_gap_tracker)
       attach_gap_time_tracker(thd, my_gap_tracker, end);
   }
+
+  /*
+    The time spent after stop_tracking() call on this object and any
+    subsequent time tracking call will be billed to this tracker.
+  */
+  Gap_time_tracker *my_gap_tracker;
 public:
   Exec_time_tracker() : count(0), cycles(0), my_gap_tracker(NULL) {}
 
-  /*
-    The time spent between stop_tracking() call on this object and any
-    other time measurement will be billed to this tracker.
-  */
-  Gap_time_tracker *my_gap_tracker;
+  void set_gap_tracker(Gap_time_tracker *gap_tracker)
+  {
+    my_gap_tracker= gap_tracker;
+  }
 
   // interface for collecting time
   void start_tracking(THD *thd)

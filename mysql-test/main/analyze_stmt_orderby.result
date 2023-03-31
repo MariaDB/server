@@ -444,6 +444,7 @@ ANALYZE
           "r_loops": 10,
           "r_filtered": 10,
           "r_unpack_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
           "r_effective_rows": 10
         }
       }
@@ -522,6 +523,7 @@ ANALYZE
               "r_loops": 4,
               "r_filtered": 21.42857143,
               "r_unpack_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
               "r_effective_rows": 7
             }
           }

@@ -27402,7 +27402,9 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
   if (thd->lex->analyze_stmt)
   {
     table->file->set_time_tracker(&eta->op_tracker);
-    eta->op_tracker.my_gap_tracker = &eta->extra_time_tracker;
+    eta->op_tracker.set_gap_tracker(&eta->extra_time_tracker);
+
+    eta->jbuf_unpack_tracker.set_gap_tracker(&eta->jbuf_extra_time_tracker);
   }
   /* No need to save id and select_type here, they are kept in Explain_select */
 

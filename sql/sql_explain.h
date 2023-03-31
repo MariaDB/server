@@ -846,10 +846,15 @@ public:
   /* When using join buffer: Track the reads from join buffer */
   Table_access_tracker jbuf_tracker;
 
-  /*
-    Track the time to unpack rows from the join buffer.
-  */
+  /* When using join buffer: time spent unpacking rows from the join buffer */
   Time_and_counter_tracker jbuf_unpack_tracker;
+
+  /*
+    When using join buffer: time spent after unpacking rows from the join
+    buffer. This will capture the time spent checking the Join Condition:
+    the condition that depends on this table and preceding tables.
+  */
+  Gap_time_tracker jbuf_extra_time_tracker;
 
   /* When using join buffer: Track the number of incoming record combinations */
   Counter_tracker jbuf_loops_tracker;
