@@ -311,6 +311,7 @@ aria_encrypt_tables	#
 aria_force_start_after_recovery_failures	#
 aria_group_commit	#
 aria_group_commit_interval	#
+aria_log_dir_path	#
 aria_log_file_size	#
 aria_log_purge_type	#
 aria_max_sort_file_size	#

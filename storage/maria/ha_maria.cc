@@ -188,7 +188,7 @@ static MYSQL_SYSVAR_BOOL(page_checksum, maria_page_checksums, 0,
 
 /* It is only command line argument */
 static MYSQL_SYSVAR_STR(log_dir_path, maria_data_root,
-       PLUGIN_VAR_NOSYSVAR | PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+       PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
        "Path to the directory where to store transactional log",
        NULL, NULL, mysql_real_data_home);
 
