@@ -1316,6 +1316,7 @@ inline void recv_sys_t::clear()
   apply_batch_on= false;
   ut_ad(!after_apply || found_corrupt_fs || !UT_LIST_GET_LAST(blocks));
   pages.clear();
+  pages_it= pages.end();
 
   for (buf_block_t *block= UT_LIST_GET_LAST(blocks); block; )
   {
@@ -1339,6 +1340,7 @@ void recv_sys_t::debug_free()
 
   recovery_on= false;
   pages.clear();
+  pages_it= pages.end();
 
   mysql_mutex_unlock(&mutex);
 }
@@ -1595,6 +1597,9 @@ dberr_t recv_sys_t::find_checkpoint()
 {
   bool wrong_size= false;
   byte *buf;
+
+  ut_ad(pages.empty());
+  pages_it= pages.end();
 
   if (files.empty())
   {
@@ -2215,7 +2220,8 @@ struct recv_ring : public recv_buf
 @param store   whether to store the records
 @param l       log data source */
 template<typename source>
-inline recv_sys_t::parse_mtr_result recv_sys_t::parse(store_t store, source &l)
+inline
+recv_sys_t::parse_mtr_result recv_sys_t::parse(store_t store, source &l)
   noexcept
 {
 #ifndef SUX_LOCK_GENERIC
@@ -2231,7 +2237,6 @@ inline recv_sys_t::parse_mtr_result recv_sys_t::parse(store_t store, source &l)
   byte *decrypt_buf= static_cast<byte*>(alloca(srv_page_size));
 
   const lsn_t start_lsn{lsn};
-  map::iterator cached_pages_it{pages.end()};
 
   /* Check that the entire mini-transaction is included within the buffer */
   if (l.is_eof(0))
@@ -2628,10 +2633,9 @@ inline recv_sys_t::parse_mtr_result recv_sys_t::parse(store_t store, source &l)
       case STORE_YES:
         if (!mlog_init.will_avoid_read(id, start_lsn))
         {
-          if (cached_pages_it == pages.end() ||
-              cached_pages_it->first != id)
-            cached_pages_it= pages.emplace(id, page_recv_t{}).first;
-          add(cached_pages_it, start_lsn, lsn,
+          if (pages_it == pages.end() || pages_it->first != id)
+            pages_it= pages.emplace(id, page_recv_t{}).first;
+          add(pages_it, start_lsn, lsn,
               l.get_buf(cl, recs, decrypt_buf), l - recs + rlen);
         }
         continue;
@@ -2639,11 +2643,14 @@ inline recv_sys_t::parse_mtr_result recv_sys_t::parse(store_t store, source &l)
         if (!is_init)
           continue;
         mlog_init.add(id, start_lsn);
-        map::iterator i= pages.find(id);
-        if (i == pages.end())
-          continue;
-        i->second.log.clear();
-        pages.erase(i);
+        if (pages_it == pages.end() || pages_it->first != id)
+        {
+          pages_it= pages.find(id);
+          if (pages_it == pages.end())
+            continue;
+        }
+        pages_it->second.log.clear();
+        pages.erase(pages_it++);
       }
     }
     else if (rlen)
@@ -2775,7 +2782,6 @@ inline recv_sys_t::parse_mtr_result recv_sys_t::parse(store_t store, source &l)
   return OK;
 }
 
-ATTRIBUTE_NOINLINE
 recv_sys_t::parse_mtr_result recv_sys_t::parse_mtr(store_t store) noexcept
 {
   recv_buf s{&log_sys.buf[recv_sys.offset]};
@@ -2786,7 +2792,7 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse_mtr(store_t store) noexcept
 recv_sys_t::parse_mtr_result recv_sys_t::parse_pmem(store_t store) noexcept
 {
   recv_sys_t::parse_mtr_result r{parse_mtr(store)};
-  if (r != PREMATURE_EOF || !log_sys.is_pmem())
+  if (UNIV_LIKELY(r != PREMATURE_EOF) || !log_sys.is_pmem())
     return r;
   ut_ad(recv_sys.len == log_sys.file_size);
   ut_ad(recv_sys.offset >= log_sys.START_OFFSET);
@@ -3547,7 +3553,8 @@ next_free_block:
 @return whether the memory is exhausted */
 inline bool recv_sys_t::is_memory_exhausted()
 {
-  if (UT_LIST_GET_LEN(blocks) * 3 < buf_pool.get_n_pages())
+  if (UT_LIST_GET_LEN(blocks) * 3 <
+      (srv_buf_pool_old_size >> srv_page_size_shift))
     return false;
   DBUG_PRINT("ib_log",("Ran out of memory and last stored lsn " LSN_PF
                        " last stored offset %zu\n", lsn, offset));
@@ -3638,23 +3645,22 @@ static bool recv_scan_log(bool last_phase)
       ut_ad(store == (recv_sys.file_checkpoint ? STORE_YES : STORE_NO));
       ut_ad(recv_sys.lsn >= log_sys.next_checkpoint_lsn);
 
-      for (;;)
+      if (store == STORE_NO)
       {
-        const byte& b{log_sys.buf[recv_sys.offset]};
-        r= recv_sys.parse_pmem(store);
-        if (r == recv_sys_t::OK)
+        for (;;)
         {
-          if (store == STORE_NO &&
-              (b == FILE_CHECKPOINT + 2 + 8 || (b & 0xf0) == FILE_MODIFY))
-            continue;
-        }
-        else if (r == recv_sys_t::PREMATURE_EOF)
-          goto read_more;
-        else if (store != STORE_NO)
-          break;
+          const byte& b{log_sys.buf[recv_sys.offset]};
+          r= recv_sys.parse_pmem(store);
+          switch (r) {
+          case recv_sys_t::PREMATURE_EOF:
+            goto read_more;
+          case recv_sys_t::GOT_EOF:
+            break;
+          case recv_sys_t::OK:
+            if (b == FILE_CHECKPOINT + 2 + 8 || (b & 0xf0) == FILE_MODIFY)
+              continue;
+          }
 
-        if (store == STORE_NO)
-        {
           const lsn_t end{recv_sys.file_checkpoint};
           mysql_mutex_unlock(&recv_sys.mutex);
 
@@ -3669,36 +3675,54 @@ static bool recv_scan_log(bool last_phase)
             ut_ad(end == recv_sys.lsn);
           DBUG_RETURN(true);
         }
-
-        recv_needed_recovery= true;
-        if (srv_read_only_mode)
-        {
-          mysql_mutex_unlock(&recv_sys.mutex);
-          DBUG_RETURN(false);
+      }
+      else
+      {
+        switch ((r= recv_sys.parse_pmem(store))) {
+        case recv_sys_t::PREMATURE_EOF:
+          goto read_more;
+        case recv_sys_t::GOT_EOF:
+          break;
+        case recv_sys_t::OK:
+          recv_needed_recovery= true;
+          if (srv_read_only_mode)
+          {
+            mysql_mutex_unlock(&recv_sys.mutex);
+            DBUG_RETURN(false);
+          }
+          sql_print_information("InnoDB: Starting crash recovery from"
+                                " checkpoint LSN="  LSN_PF,
+                                log_sys.next_checkpoint_lsn);
         }
-        sql_print_information("InnoDB: Starting crash recovery from"
-                              " checkpoint LSN="  LSN_PF,
-                              log_sys.next_checkpoint_lsn);
-        break;
       }
     }
 
-    while ((r= recv_sys.parse_pmem(store)) == recv_sys_t::OK)
-    {
-      if (store != STORE_NO && recv_sys.is_memory_exhausted())
+    switch (store) {
+    case STORE_IF_EXISTS:
+      while ((r= recv_sys.parse_pmem(store)) == recv_sys_t::OK)
       {
-        ut_ad(last_phase == (store == STORE_IF_EXISTS));
-        if (store == STORE_YES)
+        if (recv_sys.is_memory_exhausted())
         {
-          store= STORE_NO;
-          recv_sys.last_stored_lsn= recv_sys.lsn;
-        }
-        else
-        {
-          ut_ad(store == STORE_IF_EXISTS);
+          ut_ad(last_phase);
           recv_sys.apply(false);
         }
       }
+      break;
+    case STORE_YES:
+      while ((r= recv_sys.parse_pmem(store)) == recv_sys_t::OK)
+      {
+        if (recv_sys.is_memory_exhausted())
+        {
+          ut_ad(!last_phase);
+          recv_sys.last_stored_lsn= recv_sys.lsn;
+          store= STORE_NO;
+          goto skip_the_rest;
+        }
+      }
+      break;
+    skip_the_rest:
+    case STORE_NO:
+      while ((r= recv_sys.parse_pmem(store)) == recv_sys_t::OK);
     }
 
     if (r != recv_sys_t::PREMATURE_EOF)

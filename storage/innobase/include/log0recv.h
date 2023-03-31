@@ -238,6 +238,9 @@ public:
   map pages;
 
 private:
+  /** iterator to parse, used by parse() */
+  map::iterator pages_it;
+
   /** Process a record that indicates that a tablespace size is being shrunk.
   @param page_id first page that is not in the file
   @param lsn     log sequence number of the shrink operation */
@@ -332,7 +335,7 @@ private:
   @param store   whether to store the records
   @param l       log data source */
   template<typename source>
-  inline parse_mtr_result parse(store_t store, source& l) noexcept;
+  inline parse_mtr_result parse(store_t store, source &l) noexcept;
 public:
   /** Parse and register one log_t::FORMAT_10_8 mini-transaction,
   handling log_sys.is_pmem() buffer wrap-around.
