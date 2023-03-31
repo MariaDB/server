@@ -761,3 +761,151 @@ DROP TABLE case_folding;
 #
 # End of 10.3 tests
 #
+#
+# Start of 10.4 tests
+#
+SET STORAGE_ENGINE=MyISAM;
+SET NAMES utf8mb3 COLLATE utf8mb3_unicode_nopad_ci;
+#
+# MDEV-30034 UNIQUE USING HASH accepts duplicate entries for tricky collations
+#
+EXECUTE IMMEDIATE REPLACE(
+'CREATE TABLE t1 ( '
+  ' a TEXT COLLATE <COLLATION>,'
+  'UNIQUE(a(3)))',
+'<COLLATION>', @@collation_connection);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text CHARACTER SET utf8 COLLATE utf8_unicode_nopad_ci DEFAULT NULL,
+  UNIQUE KEY `a` (`a`(3))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 VALUES ('ss ');
+INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
+ERROR 23000: Duplicate entry 'ß ' for key 'a'
+DROP TABLE t1;
+EXECUTE IMMEDIATE REPLACE(
+'CREATE TABLE t1 ( '
+  ' a TEXT COLLATE <COLLATION>,'
+  'UNIQUE(a(3)) USING HASH)',
+'<COLLATION>', @@collation_connection);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text CHARACTER SET utf8 COLLATE utf8_unicode_nopad_ci DEFAULT NULL,
+  UNIQUE KEY `a` (`a`(3)) USING HASH
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 VALUES ('ss ');
+INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
+ERROR 23000: Duplicate entry 'ß ' for key 'a'
+DROP TABLE t1;
+EXECUTE IMMEDIATE REPLACE(
+'CREATE TABLE t1 ( '
+  ' a VARCHAR(2000) COLLATE <COLLATION>,'
+  'UNIQUE(a(3)))',
+'<COLLATION>', @@collation_connection);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(2000) CHARACTER SET utf8 COLLATE utf8_unicode_nopad_ci DEFAULT NULL,
+  UNIQUE KEY `a` (`a`(3))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 VALUES ('ss ');
+INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
+ERROR 23000: Duplicate entry 'ß ' for key 'a'
+DROP TABLE t1;
+EXECUTE IMMEDIATE REPLACE(
+'CREATE TABLE t1 ( '
+  ' a VARCHAR(2000) COLLATE <COLLATION>,'
+  'UNIQUE(a(3)) USING HASH)',
+'<COLLATION>', @@collation_connection);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(2000) CHARACTER SET utf8 COLLATE utf8_unicode_nopad_ci DEFAULT NULL,
+  UNIQUE KEY `a` (`a`(3)) USING HASH
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 VALUES ('ss ');
+INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
+ERROR 23000: Duplicate entry 'ß ' for key 'a'
+DROP TABLE t1;
+EXECUTE IMMEDIATE REPLACE(
+'CREATE TABLE t1 ( '
+  ' a CHAR(20) COLLATE <COLLATION>,'
+  'UNIQUE(a(3)) USING HASH)',
+'<COLLATION>', @@collation_connection);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(20) CHARACTER SET utf8 COLLATE utf8_unicode_nopad_ci DEFAULT NULL,
+  UNIQUE KEY `a` (`a`(3)) USING HASH
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 VALUES ('ss ');
+INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
+DROP TABLE t1;
+SET STORAGE_ENGINE=HEAP;
+#
+# MDEV-30034 UNIQUE USING HASH accepts duplicate entries for tricky collations
+#
+EXECUTE IMMEDIATE REPLACE(
+'CREATE TABLE t1 ( '
+  ' a VARCHAR(2000) COLLATE <COLLATION>,'
+  'UNIQUE(a(3)))',
+'<COLLATION>', @@collation_connection);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(2000) CHARACTER SET utf8 COLLATE utf8_unicode_nopad_ci DEFAULT NULL,
+  UNIQUE KEY `a` (`a`(3))
+) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 VALUES ('ss ');
+INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
+ERROR 23000: Duplicate entry 'ß ' for key 'a'
+DROP TABLE t1;
+EXECUTE IMMEDIATE REPLACE(
+'CREATE TABLE t1 ( '
+  ' a VARCHAR(2000) COLLATE <COLLATION>,'
+  'UNIQUE(a(3)) USING HASH)',
+'<COLLATION>', @@collation_connection);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(2000) CHARACTER SET utf8 COLLATE utf8_unicode_nopad_ci DEFAULT NULL,
+  UNIQUE KEY `a` (`a`(3)) USING HASH
+) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 VALUES ('ss ');
+INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
+ERROR 23000: Duplicate entry 'ß ' for key 'a'
+DROP TABLE t1;
+EXECUTE IMMEDIATE REPLACE(
+'CREATE TABLE t1 ( '
+  ' a CHAR(20) COLLATE <COLLATION>,'
+  'UNIQUE(a(3)))',
+'<COLLATION>', @@collation_connection);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(20) CHARACTER SET utf8 COLLATE utf8_unicode_nopad_ci DEFAULT NULL,
+  UNIQUE KEY `a` (`a`(3))
+) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 VALUES ('ss ');
+INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
+DROP TABLE t1;
+EXECUTE IMMEDIATE REPLACE(
+'CREATE TABLE t1 ( '
+  ' a CHAR(20) COLLATE <COLLATION>,'
+  'UNIQUE(a(3)) USING HASH)',
+'<COLLATION>', @@collation_connection);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(20) CHARACTER SET utf8 COLLATE utf8_unicode_nopad_ci DEFAULT NULL,
+  UNIQUE KEY `a` (`a`(3)) USING HASH
+) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 VALUES ('ss ');
+INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
+DROP TABLE t1;
+SET STORAGE_ENGINE=DEFAULT;
+#
+# End of 10.4 tests
+#

@@ -327,7 +327,8 @@ static int cmp_whole_field(ulint mtype, ulint prtype,
     if (CHARSET_INFO *cs= get_charset(dtype_get_charset_coll(prtype),
                                       MYF(MY_WME)))
       return cs->coll->strnncollsp_nchars(cs, a, a_length, b, b_length,
-                                          std::max(a_length, b_length));
+                                          std::max(a_length, b_length),
+                 MY_STRNNCOLLSP_NCHARS_EMULATE_TRIMMED_TRAILING_SPACES);
   }
 
   ib::fatal() << "Unable to find charset-collation for " << prtype;

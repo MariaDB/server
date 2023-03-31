@@ -7435,7 +7435,8 @@ int Field_string::cmp(const uchar *a_ptr, const uchar *b_ptr)
   return field_charset->coll->strnncollsp_nchars(field_charset,
                                                  a_ptr, field_length,
                                                  b_ptr, field_length,
-                                                 Field_string::char_length());
+                                                 Field_string::char_length(),
+                       MY_STRNNCOLLSP_NCHARS_EMULATE_TRIMMED_TRAILING_SPACES);
 }
 
 
@@ -7835,10 +7836,11 @@ int Field_varstring::cmp(const uchar *a_ptr, const uchar *b_ptr)
 
 
 int Field_varstring::cmp_prefix(const uchar *a_ptr, const uchar *b_ptr,
-                                size_t prefix_len)
+                                size_t prefix_char_len)
 {
-  /* avoid expensive well_formed_char_length if possible */
-  if (prefix_len == table->field[field_index]->field_length)
+  /* avoid more expensive strnncollsp_nchars() if possible */
+  if (prefix_char_len * field_charset->mbmaxlen ==
+      table->field[field_index]->field_length)
     return Field_varstring::cmp(a_ptr, b_ptr);
 
   size_t a_length, b_length;
@@ -7858,7 +7860,8 @@ int Field_varstring::cmp_prefix(const uchar *a_ptr, const uchar *b_ptr,
                                                  a_length,
                                                  b_ptr + length_bytes,
                                                  b_length,
-                                                 prefix_len / field_charset->mbmaxlen);
+                                                 prefix_char_len,
+                                                 0);
 }
 
 
@@ -8635,7 +8638,7 @@ int Field_blob::cmp(const uchar *a_ptr, const uchar *b_ptr)
 
 
 int Field_blob::cmp_prefix(const uchar *a_ptr, const uchar *b_ptr,
-                           size_t prefix_len)
+                           size_t prefix_char_len)
 {
   uchar *blob1,*blob2;
   memcpy(&blob1, a_ptr+packlength, sizeof(char*));
@@ -8644,7 +8647,8 @@ int Field_blob::cmp_prefix(const uchar *a_ptr, const uchar *b_ptr,
   return field_charset->coll->strnncollsp_nchars(field_charset,
                                                  blob1, a_len,
                                                  blob2, b_len,
-                                                 prefix_len / field_charset->mbmaxlen);
+                                                 prefix_char_len,
+                                                 0);
 }
 
 
@@ -10114,7 +10118,8 @@ my_decimal *Field_bit::val_decimal(my_decimal *deciaml_value)
     The a and b pointer must be pointers to the field in a record
     (not the table->record[0] necessarily)
 */
-int Field_bit::cmp_prefix(const uchar *a, const uchar *b, size_t prefix_len)
+int Field_bit::cmp_prefix(const uchar *a, const uchar *b,
+                          size_t prefix_char_len)
 {
   my_ptrdiff_t a_diff= a - ptr;
   my_ptrdiff_t b_diff= b - ptr;

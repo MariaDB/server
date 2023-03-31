@@ -589,7 +589,8 @@ static int
 my_strnncollsp_nchars_tis620(CHARSET_INFO * cs,
                              const uchar *a, size_t a_length,
                              const uchar *b, size_t b_length,
-                             size_t nchars)
+                             size_t nchars,
+                             uint flags)
 {
   set_if_smaller(a_length, nchars);
   set_if_smaller(b_length, nchars);
