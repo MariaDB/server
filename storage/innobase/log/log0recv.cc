@@ -1025,7 +1025,14 @@ private:
 	/** Map of page initialization operations.
 	FIXME: Merge this to recv_sys.pages! */
 	map inits;
+
+	/** Iterator to the last add() or will_avoid_read(), for speeding up
+	will_avoid_read(). */
+	map::iterator i;
 public:
+	/** Constructor */
+	mlog_init_t() : i(inits.end()) {}
+
 	/** Record that a page will be initialized by the redo log.
 	@param[in]	page_id		page identifier
 	@param[in]	lsn		log sequence number
@@ -1038,6 +1045,7 @@ public:
 		if (p.second) return true;
 		if (p.first->second >= lsn) return false;
 		p.first->second = lsn;
+		i = p.first;
 		return true;
 	}
 
@@ -1057,15 +1065,18 @@ public:
 	@param page_id      page identifier
 	@param lsn          log sequence number
 	@return whether page_id will be freed or initialized after lsn */
-	bool will_avoid_read(page_id_t page_id, lsn_t lsn) const
+	bool will_avoid_read(page_id_t page_id, lsn_t lsn)
 	{
 		mysql_mutex_assert_owner(&recv_sys.mutex);
-		auto i= inits.find(page_id);
-		return i != inits.end() && i->second > lsn;
+		if (i != inits.end() && i->first == page_id)
+			return i->second > lsn;
+		i = inits.lower_bound(page_id);
+		return i != inits.end() && i->first == page_id
+			&& i->second > lsn;
 	}
 
 	/** Clear the data structure */
-	void clear() { inits.clear(); }
+	void clear() { inits.clear(); i = inits.end(); }
 };
 
 static mlog_init_t mlog_init;
@@ -1411,8 +1422,11 @@ inline void recv_sys_t::free(const void *data)
     ut_ad(block->page.state() == buf_page_t::MEMORY);
     ut_ad(static_cast<uint16_t>(block->page.access_time - 1) <
           srv_page_size);
-    ut_ad(block->page.access_time >= 1U << 16);
-    if (!((block->page.access_time -= 1U << 16) >> 16))
+    unsigned a= block->page.access_time;
+    ut_ad(a >= 1U << 16);
+    a-= 1U << 16;
+    block->page.access_time= a;
+    if (!(a >> 16))
     {
       UT_LIST_REMOVE(blocks, block);
       MEM_MAKE_ADDRESSABLE(block->page.frame, srv_page_size);
