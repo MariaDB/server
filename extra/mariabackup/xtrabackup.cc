@@ -3090,7 +3090,7 @@ static bool xtrabackup_copy_logfile()
       if (log_sys.buf[recv_sys.offset] <= 1)
         break;
 
-      if (recv_sys.parse_mtr(STORE_NO) == recv_sys_t::OK)
+      if (recv_sys.parse_mtr<false>(false) == recv_sys_t::OK)
       {
         do
         {
@@ -3100,7 +3100,7 @@ static bool xtrabackup_copy_logfile()
                                                  sequence_offset));
           *seq= 1;
         }
-        while ((r= recv_sys.parse_mtr(STORE_NO)) == recv_sys_t::OK);
+        while ((r= recv_sys.parse_mtr<false>(false)) == recv_sys_t::OK);
 
         if (ds_write(dst_log_file, log_sys.buf + start_offset,
                      recv_sys.offset - start_offset))

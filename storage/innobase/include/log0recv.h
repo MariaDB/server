@@ -49,17 +49,6 @@ of first system tablespace page
 @return error code or DB_SUCCESS */
 dberr_t recv_recovery_from_checkpoint_start();
 
-/** Whether to store redo log records in recv_sys.pages */
-enum store_t {
-	/** Do not store redo log records. */
-	STORE_NO,
-	/** Store redo log records. */
-	STORE_YES,
-	/** Store redo log records if the tablespace exists. */
-	STORE_IF_EXISTS
-};
-
-
 /** Report an operation to create, delete, or rename a file during backup.
 @param[in]	space_id	tablespace identifier
 @param[in]	type		file operation redo log type
@@ -332,24 +321,29 @@ public:
 
 private:
   /** Parse and register one log_t::FORMAT_10_8 mini-transaction.
-  @param store   whether to store the records
-  @param l       log data source */
-  template<typename source>
-  inline parse_mtr_result parse(store_t store, source &l) noexcept;
+  @tparam store     whether to store the records
+  @param  l         log data source
+  @param  if_exists if store: whether to check if the tablespace exists */
+  template<typename source,bool store>
+  inline parse_mtr_result parse(source &l, bool if_exists) noexcept;
 public:
   /** Parse and register one log_t::FORMAT_10_8 mini-transaction,
   handling log_sys.is_pmem() buffer wrap-around.
-  @param store           whether to store the records */
-  static parse_mtr_result parse_mtr(store_t store) noexcept;
+  @tparam store     whether to store the records
+  @param  if_exists if store: whether to check if the tablespace exists */
+  template<bool store>
+  static parse_mtr_result parse_mtr(bool if_exists) noexcept;
 
   /** Parse and register one log_t::FORMAT_10_8 mini-transaction,
   handling log_sys.is_pmem() buffer wrap-around.
-  @param store   whether to store the records */
-  static parse_mtr_result parse_pmem(store_t store) noexcept
+  @tparam store     whether to store the records
+  @param  if_exists if store: whether to check if the tablespace exists */
+  template<bool store>
+  static parse_mtr_result parse_pmem(bool if_exists) noexcept
 #ifdef HAVE_PMEM
     ;
 #else
-  { return parse_mtr(store); }
+  { return parse_mtr<store>(if_exists); }
 #endif
 
   /** Clear a fully processed set of stored redo log records. */

@@ -1111,9 +1111,9 @@ inline size_t recv_sys_t::files_size()
 @param[in]	space_id	the tablespace ID
 @param[in]	ftype		FILE_MODIFY, FILE_DELETE, or FILE_RENAME
 @param[in]	lsn		lsn of the redo log
-@param[in]	store		whether the redo log has to be stored */
+@param[in]	if_exists	whether to check if the tablespace exists */
 static void fil_name_process(const char *name, ulint len, uint32_t space_id,
-                             mfile_type_t ftype, lsn_t lsn, store_t store)
+                             mfile_type_t ftype, lsn_t lsn, bool if_exists)
 {
 	if (srv_operation == SRV_OPERATION_BACKUP
 	    || srv_operation == SRV_OPERATION_BACKUP_NO_DEFER) {
@@ -1230,7 +1230,7 @@ same_space:
 		case FIL_LOAD_DEFER:
 			/** Skip the deferred spaces
 			when lsn is already processed */
-			if (store != store_t::STORE_IF_EXISTS) {
+			if (!if_exists) {
 				deferred_spaces.add(
 					space_id, fname.name.c_str(), lsn);
 			}
@@ -2217,11 +2217,12 @@ struct recv_ring : public recv_buf
 #endif
 
 /** Parse and register one log_t::FORMAT_10_8 mini-transaction.
-@param store   whether to store the records
-@param l       log data source */
-template<typename source>
+@tparam store     whether to store the records
+@param  l         log data source
+@param  if_exists if store: whether to check if the tablespace exists */
+template<typename source,bool store>
 inline
-recv_sys_t::parse_mtr_result recv_sys_t::parse(store_t store, source &l)
+recv_sys_t::parse_mtr_result recv_sys_t::parse(source &l, bool if_exists)
   noexcept
 {
 #ifndef SUX_LOCK_GENERIC
@@ -2232,6 +2233,7 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse(store_t store, source &l)
   mysql_mutex_assert_owner(&mutex);
   ut_ad(log_sys.next_checkpoint_lsn);
   ut_ad(log_sys.is_latest());
+  ut_ad(store || !if_exists);
 
   alignas(8) byte iv[MY_AES_BLOCK_SIZE];
   byte *decrypt_buf= static_cast<byte*>(alloca(srv_page_size));
@@ -2617,20 +2619,20 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse(store_t store, source &l)
         ut_ad(modified.emplace(id).second || (b & 0x70) != INIT_PAGE);
       }
 #endif
-      const bool is_init= (b & 0x70) <= INIT_PAGE;
-      switch (store) {
-      case STORE_IF_EXISTS:
-        if (fil_space_t *space= fil_space_t::get(space_id))
+      if (store)
+      {
+        if (if_exists)
         {
-          const auto size= space->get_size();
-          space->release();
-          if (!size)
+          if (fil_space_t *space= fil_space_t::get(space_id))
+          {
+            const auto size= space->get_size();
+            space->release();
+            if (!size)
+              continue;
+          }
+          else if (!deferred_spaces.find(space_id))
             continue;
         }
-        else if (!deferred_spaces.find(space_id))
-          continue;
-        /* fall through */
-      case STORE_YES:
         if (!mlog_init.will_avoid_read(id, start_lsn))
         {
           if (pages_it == pages.end() || pages_it->first != id)
@@ -2638,10 +2640,9 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse(store_t store, source &l)
           add(pages_it, start_lsn, lsn,
               l.get_buf(cl, recs, decrypt_buf), l - recs + rlen);
         }
-        continue;
-      case STORE_NO:
-        if (!is_init)
-          continue;
+      }
+      else if ((b & 0x70) <= INIT_PAGE)
+      {
         mlog_init.add(id, start_lsn);
         if (pages_it == pages.end() || pages_it->first != id)
         {
@@ -2746,7 +2747,7 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse(store_t store, source &l)
 
         fil_name_process(fn, fnend - fn, space_id,
                          (b & 0xf0) == FILE_DELETE ? FILE_DELETE : FILE_MODIFY,
-                         start_lsn, store);
+                         start_lsn, if_exists);
 
         if ((b & 0xf0) < FILE_CHECKPOINT && log_file_op)
           log_file_op(space_id, b & 0xf0,
@@ -2758,7 +2759,7 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse(store_t store, source &l)
         if (fn2)
         {
           fil_name_process(fn2, fn2end - fn2, space_id,
-                           FILE_RENAME, start_lsn, store);
+                           FILE_RENAME, start_lsn, if_exists);
           if (file_checkpoint)
           {
             const size_t len= fn2end - fn2;
@@ -2782,16 +2783,22 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse(store_t store, source &l)
   return OK;
 }
 
-recv_sys_t::parse_mtr_result recv_sys_t::parse_mtr(store_t store) noexcept
+template<bool store>
+recv_sys_t::parse_mtr_result recv_sys_t::parse_mtr(bool if_exists) noexcept
 {
   recv_buf s{&log_sys.buf[recv_sys.offset]};
-  return recv_sys.parse(store, s);
+  return recv_sys.parse<recv_buf,store>(s, if_exists);
 }
 
+/** for mariadb-backup; @see xtrabackup_copy_logfile() */
+template
+recv_sys_t::parse_mtr_result recv_sys_t::parse_mtr<false>(bool) noexcept;
+
 #ifdef HAVE_PMEM
-recv_sys_t::parse_mtr_result recv_sys_t::parse_pmem(store_t store) noexcept
+template<bool store>
+recv_sys_t::parse_mtr_result recv_sys_t::parse_pmem(bool if_exists) noexcept
 {
-  recv_sys_t::parse_mtr_result r{parse_mtr(store)};
+  recv_sys_t::parse_mtr_result r{parse_mtr<store>(if_exists)};
   if (UNIV_LIKELY(r != PREMATURE_EOF) || !log_sys.is_pmem())
     return r;
   ut_ad(recv_sys.len == log_sys.file_size);
@@ -2801,7 +2808,7 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse_pmem(store_t store) noexcept
     {recv_sys.offset == recv_sys.len
      ? &log_sys.buf[log_sys.START_OFFSET]
      : &log_sys.buf[recv_sys.offset]};
-  return recv_sys.parse(store, s);
+  return recv_sys.parse<recv_ring,store>(s, if_exists);
 }
 #endif
 
@@ -3567,7 +3574,6 @@ inline bool recv_sys_t::is_memory_exhausted()
 static bool recv_scan_log(bool last_phase)
 {
   DBUG_ENTER("recv_scan_log");
-  DBUG_ASSERT(!last_phase || recv_sys.file_checkpoint);
 
   ut_ad(log_sys.is_latest());
   const size_t block_size_1{log_sys.get_block_size() - 1};
@@ -3577,8 +3583,7 @@ static bool recv_scan_log(bool last_phase)
   ut_d(recv_sys.after_apply= last_phase);
   ut_ad(!last_phase || recv_sys.file_checkpoint);
 
-  store_t store= last_phase
-    ? STORE_IF_EXISTS : recv_sys.file_checkpoint ? STORE_YES : STORE_NO;
+  bool store{recv_sys.file_checkpoint != 0};
   size_t buf_size= log_sys.buf_size;
 #ifdef HAVE_PMEM
   if (log_sys.is_pmem())
@@ -3642,15 +3647,16 @@ static bool recv_scan_log(bool last_phase)
 
     if (UNIV_UNLIKELY(!recv_needed_recovery))
     {
-      ut_ad(store == (recv_sys.file_checkpoint ? STORE_YES : STORE_NO));
+      ut_ad(!last_phase);
       ut_ad(recv_sys.lsn >= log_sys.next_checkpoint_lsn);
 
-      if (store == STORE_NO)
+      if (!store)
       {
+        ut_ad(!recv_sys.file_checkpoint);
         for (;;)
         {
           const byte& b{log_sys.buf[recv_sys.offset]};
-          r= recv_sys.parse_pmem(store);
+          r= recv_sys.parse_pmem<false>(false);
           switch (r) {
           case recv_sys_t::PREMATURE_EOF:
             goto read_more;
@@ -3678,7 +3684,8 @@ static bool recv_scan_log(bool last_phase)
       }
       else
       {
-        switch ((r= recv_sys.parse_pmem(store))) {
+        ut_ad(recv_sys.file_checkpoint != 0);
+        switch ((r= recv_sys.parse_pmem<true>(last_phase))) {
         case recv_sys_t::PREMATURE_EOF:
           goto read_more;
         case recv_sys_t::GOT_EOF:
@@ -3697,33 +3704,20 @@ static bool recv_scan_log(bool last_phase)
       }
     }
 
-    switch (store) {
-    case STORE_IF_EXISTS:
-      while ((r= recv_sys.parse_pmem(store)) == recv_sys_t::OK)
-      {
-        if (recv_sys.is_memory_exhausted())
-        {
-          ut_ad(last_phase);
+    if (!store)
+    skip_the_rest:
+      while ((r= recv_sys.parse_pmem<false>(false)) == recv_sys_t::OK);
+    else
+      while ((r= recv_sys.parse_pmem<true>(last_phase)) == recv_sys_t::OK)
+        if (!recv_sys.is_memory_exhausted());
+        else if (last_phase)
           recv_sys.apply(false);
-        }
-      }
-      break;
-    case STORE_YES:
-      while ((r= recv_sys.parse_pmem(store)) == recv_sys_t::OK)
-      {
-        if (recv_sys.is_memory_exhausted())
+        else
         {
-          ut_ad(!last_phase);
           recv_sys.last_stored_lsn= recv_sys.lsn;
-          store= STORE_NO;
+          store= false;
           goto skip_the_rest;
         }
-      }
-      break;
-    skip_the_rest:
-    case STORE_NO:
-      while ((r= recv_sys.parse_pmem(store)) == recv_sys_t::OK);
-    }
 
     if (r != recv_sys_t::PREMATURE_EOF)
     {
@@ -3767,7 +3761,7 @@ static bool recv_scan_log(bool last_phase)
               recv_sys.lsn));
   ut_ad(!last_phase || recv_sys.lsn >= recv_sys.file_checkpoint);
 
-  DBUG_RETURN(store == STORE_NO);
+  DBUG_RETURN(!store);
 }
 
 /** Report a missing tablespace for which page-redo log exists.
