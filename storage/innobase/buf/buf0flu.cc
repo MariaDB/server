@@ -2325,7 +2325,7 @@ unemployed:
 
       if (!recv_recovery_is_on() &&
           !srv_startup_is_before_trx_rollback_phase &&
-          srv_operation == SRV_OPERATION_NORMAL)
+          srv_operation <= SRV_OPERATION_EXPORT_RESTORED)
         log_checkpoint();
 
       mysql_mutex_lock(&buf_pool.flush_list_mutex);
@@ -2405,7 +2405,8 @@ do_checkpoint:
         DBUG_EXECUTE_IF("ib_log_checkpoint_avoid", goto next;);
         DBUG_EXECUTE_IF("ib_log_checkpoint_avoid_hard", goto next;);
 
-        if (!recv_recovery_is_on() && srv_operation == SRV_OPERATION_NORMAL)
+        if (!recv_recovery_is_on()
+            && srv_operation <= SRV_OPERATION_EXPORT_RESTORED)
           log_checkpoint();
       }
     }
@@ -2472,7 +2473,7 @@ next:
 ATTRIBUTE_COLD void buf_flush_page_cleaner_init()
 {
   ut_ad(!buf_page_cleaner_is_active);
-  ut_ad(srv_operation == SRV_OPERATION_NORMAL ||
+  ut_ad(srv_operation <= SRV_OPERATION_EXPORT_RESTORED ||
         srv_operation == SRV_OPERATION_RESTORE ||
         srv_operation == SRV_OPERATION_RESTORE_EXPORT);
   buf_flush_async_lsn= 0;

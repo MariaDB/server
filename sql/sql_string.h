@@ -197,6 +197,83 @@ public:
   {
     return m_charset != &my_charset_bin;
   }
+
+  /*
+    The MariaDB version when the last collation change happened,
+    e.g. due to a bug fix. See functions below.
+  */
+  static ulong latest_mariadb_version_with_collation_change()
+  {
+    return 110002;
+  }
+
+  /*
+    Check if the collation with the given ID changed its order
+    since the given MariaDB version.
+  */
+  static bool collation_changed_order(ulong mysql_version, uint cs_number)
+  {
+    if ((mysql_version < 50048 &&
+           (cs_number == 11 || /* ascii_general_ci - bug #29499, bug #27562 */
+            cs_number == 41 || /* latin7_general_ci - bug #29461 */
+            cs_number == 42 || /* latin7_general_cs - bug #29461 */
+            cs_number == 20 || /* latin7_estonian_cs - bug #29461 */
+            cs_number == 21 || /* latin2_hungarian_ci - bug #29461 */
+            cs_number == 22 || /* koi8u_general_ci - bug #29461 */
+            cs_number == 23 || /* cp1251_ukrainian_ci - bug #29461 */
+            cs_number == 26)) || /* cp1250_general_ci - bug #29461 */
+           (mysql_version < 50124 &&
+           (cs_number == 33 || /* utf8mb3_general_ci - bug #27877 */
+            cs_number == 35))) /* ucs2_general_ci - bug #27877 */
+        return true;
+
+    if (cs_number == 159 && /* ucs2_general_mysql500_ci - MDEV-30746 */
+        ((mysql_version >= 100400 && mysql_version < 100429) ||
+         (mysql_version >= 100500 && mysql_version < 100520) ||
+         (mysql_version >= 100600 && mysql_version < 100613) ||
+         (mysql_version >= 100700 && mysql_version < 100708) ||
+         (mysql_version >= 100800 && mysql_version < 100808) ||
+         (mysql_version >= 100900 && mysql_version < 100906) ||
+         (mysql_version >= 101000 && mysql_version < 101004) ||
+         (mysql_version >= 101100 && mysql_version < 101103) ||
+         (mysql_version >= 110000 && mysql_version < 110002)))
+      return true;
+    return false;
+  }
+
+  /**
+     Check if a collation has changed ID since the given version.
+     Return the new ID.
+
+     @param mysql_version
+     @param cs_number     - collation ID
+
+     @retval the new collation ID (or cs_number, if no change)
+  */
+
+  static uint upgrade_collation_id(ulong mysql_version, uint cs_number)
+  {
+    if (mysql_version >= 50300 && mysql_version <= 50399)
+    {
+      switch (cs_number) {
+      case 149: return MY_PAGE2_COLLATION_ID_UCS2;   // ucs2_crotian_ci
+      case 213: return MY_PAGE2_COLLATION_ID_UTF8;   // utf8_crotian_ci
+      }
+    }
+    if ((mysql_version >= 50500 && mysql_version <= 50599) ||
+        (mysql_version >= 100000 && mysql_version <= 100005))
+    {
+      switch (cs_number) {
+      case 149: return MY_PAGE2_COLLATION_ID_UCS2;   // ucs2_crotian_ci
+      case 213: return MY_PAGE2_COLLATION_ID_UTF8;   // utf8_crotian_ci
+      case 214: return MY_PAGE2_COLLATION_ID_UTF32;  // utf32_croatian_ci
+      case 215: return MY_PAGE2_COLLATION_ID_UTF16;  // utf16_croatian_ci
+      case 245: return MY_PAGE2_COLLATION_ID_UTF8MB4;// utf8mb4_croatian_ci
+      }
+    }
+    return cs_number;
+  }
+
 };
 
 

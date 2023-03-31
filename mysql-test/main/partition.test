@@ -3019,7 +3019,44 @@ INSERT INTO t2 VALUES (1),(2);
 UPDATE t1 SET a = 7 WHERE a = ( SELECT b FROM t2 ) ORDER BY a LIMIT 6;
 
 DROP TABLE t1,t2;
-
 --echo #
 --echo # End of 10.1 tests
 --echo #
+
+--echo #
+--echo # MDEV-30596: Assertion 'pushed_rowid_filter != __null ...' failed
+--echo #
+--source include/have_sequence.inc
+create table t1 (a int);
+insert into t1 values (NULL),(1),(2);
+create table t2 (a int);
+insert into t2 select seq from seq_1_to_1000;
+
+create table t3 (
+  a1 int,
+  a2 int,
+  b int,
+  c int,
+  filler1 char(200),
+  filler2 char(200),
+  key(a1,a2),
+  key(b)
+) partition by hash(a1) partitions 2;
+insert into t3 select seq/100, seq/100, seq, seq, seq, seq from seq_1_to_10000;
+analyze table t3 persistent for all;
+
+set @tmp_os= @@optimizer_switch;
+set optimizer_switch='materialization=off';
+
+--echo # Must not show "Using rowid filter":
+explain
+select *
+from t1
+where
+  t1.a not in (select straight_join t3.a1
+               from t2, t3
+               where t3.b < 3000 and t3.a2=t2.a);
+set optimizer_switch=@tmp_os;
+
+drop table t1,t2,t3;
+

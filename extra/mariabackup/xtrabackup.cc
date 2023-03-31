@@ -1058,7 +1058,8 @@ struct my_option xb_client_options[]= {
      (G_PTR *) &xtrabackup_print_param, (G_PTR *) &xtrabackup_print_param, 0,
      GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
     {"use-memory", OPT_XTRA_USE_MEMORY,
-     "The value is used instead of buffer_pool_size",
+     "The value is used in place of innodb_buffer_pool_size. "
+     "This option is only relevant when the --prepare option is specified.",
      (G_PTR *) &xtrabackup_use_memory, (G_PTR *) &xtrabackup_use_memory, 0,
      GET_LL, REQUIRED_ARG, 100 * 1024 * 1024L, 1024 * 1024L, LONGLONG_MAX, 0,
      1024 * 1024L, 0},
@@ -1785,6 +1786,12 @@ static void print_version(void)
       my_progname, MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE);
 }
 
+static void concatenate_default_groups(std::vector<const char*> &backup_load_groups, const char **default_groups)
+{
+  for ( ; *default_groups ; default_groups++)
+    backup_load_groups.push_back(*default_groups);
+}
+
 static void usage(void)
 {
   puts("Open source backup tool for InnoDB and XtraDB\n\
@@ -1805,7 +1812,11 @@ GNU General Public License for more details.\n\
 You can download full text of the license on http://www.gnu.org/licenses/gpl-2.0.txt\n");
 
   printf("Usage: %s [--defaults-file=#] [--backup | --prepare | --copy-back | --move-back] [OPTIONS]\n",my_progname);
-  print_defaults("my", load_default_groups);
+  std::vector<const char*> backup_load_default_groups;
+  concatenate_default_groups(backup_load_default_groups, backup_default_groups);
+  concatenate_default_groups(backup_load_default_groups, load_default_groups);
+  backup_load_default_groups.push_back(nullptr);
+  print_defaults("my", &backup_load_default_groups[0]);
   my_print_help(xb_client_options);
   my_print_help(xb_server_options);
   my_print_variables(xb_server_options);
@@ -6694,6 +6705,7 @@ int main(int argc, char **argv)
 		*/
 		if (strcmp(argv[1], "--mysqld") == 0)
 		{
+			srv_operation= SRV_OPERATION_EXPORT_RESTORED;
 			extern int mysqld_main(int argc, char **argv);
 			argc--;
 			argv++;

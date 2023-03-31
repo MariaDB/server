@@ -1449,6 +1449,13 @@ JSON_LOOSE(JSON_EXTRACT(a, '$**.analyzing_range_alternatives'))
 [{"range_scan_alternatives": [{"index": "a_b", "ranges": ["2 <= a <= 2 AND 4 <= b <= 4", "123"], "rowid_ordered": true, "using_mrr": false, "index_only": true, "rows": 1, "cost": 1.1752, "chosen": true}], "analyzing_roworder_intersect": {"cause": "too few roworder scans"}, "analyzing_index_merge_union": [], "test_one_line_array": ["123"]}]
 drop table t200;
 #
+# MDEV-24538: JSON_LENGTH does not return error upon wrong number of parameters
+#
+SELECT JSON_LENGTH('{"a":"b"}','$','$', 'foo');
+ERROR 42000: Incorrect parameter count in the call to native function 'json_length'
+SELECT JSON_LENGTH();
+ERROR 42000: Incorrect parameter count in the call to native function 'JSON_LENGTH'
+#
 # End of 10.4 tests
 #
 #

@@ -181,3 +181,27 @@ t3	CREATE TABLE `t3` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1,t2,t3;
 db.opt
+#
+#  MDEV-26198 Assertion `0' failed in row_log_table_apply_op during
+#		ADD PRIMARY KEY or OPTIMIZE TABLE
+#
+CREATE TABLE t1(f1 year default null, f2 year default null,
+f3 text, f4 year default null, f5 year default null,
+f6 year default null, f7 year default null,
+f8 year default null)ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 VALUES(1, 1, 1, 1, 1, 1, 1, 1);
+ALTER TABLE t1 ADD COLUMN f9 year default null, ALGORITHM=INPLACE;
+set DEBUG_SYNC="row_log_table_apply1_before SIGNAL con1_insert WAIT_FOR con1_finish";
+ALTER TABLE t1 ROW_FORMAT=REDUNDANT, ADD COLUMN f10 YEAR DEFAULT NULL, ALGORITHM=INPLACE;
+connect con1,localhost,root,,,;
+SET DEBUG_SYNC="now WAIT_FOR con1_insert";
+INSERT IGNORE INTO t1 (f3) VALUES ( 'b' );
+INSERT IGNORE INTO t1 (f3) VALUES ( 'l' );
+SET DEBUG_SYNC="now SIGNAL con1_finish";
+connection default;
+disconnect con1;
+SET DEBUG_SYNC=RESET;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;

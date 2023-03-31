@@ -1443,7 +1443,7 @@ void Type_handler_inet6::Item_param_setup_conversion(THD *thd,
 
 void Type_handler_inet6::make_sort_key_part(uchar *to, Item *item,
                                             const SORT_FIELD_ATTR *sort_field,
-                                            Sort_param *param) const
+                                            String *tmp_str) const
 {
   DBUG_ASSERT(item->type_handler() == this);
   NativeBufferInet6 tmp;
@@ -1466,7 +1466,7 @@ void Type_handler_inet6::make_sort_key_part(uchar *to, Item *item,
 uint
 Type_handler_inet6::make_packed_sort_key_part(uchar *to, Item *item,
                                             const SORT_FIELD_ATTR *sort_field,
-                                            Sort_param *param) const
+                                            String *tmp_str) const
 {
   DBUG_ASSERT(item->type_handler() == this);
   NativeBufferInet6 tmp;

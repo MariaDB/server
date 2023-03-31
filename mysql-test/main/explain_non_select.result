@@ -157,9 +157,13 @@ id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 explain extended update t2 set b=3 where a in (3,4);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	update `test`.`t2` set `test`.`t2`.`b` = 3 where `test`.`t2`.`a` in (3,4)
 explain extended delete from t2 where a in (3,4);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	delete  from `test`.`t2` where `test`.`t2`.`a` in (3,4)
 drop table t1,t2;
 #
 #  Check the special case where partition pruning removed all partitions

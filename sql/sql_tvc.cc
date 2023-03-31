@@ -705,6 +705,7 @@ st_select_lex *wrap_tvc(THD *thd, st_select_lex *tvc_sl,
   wrapper_sl->parent_lex= lex; /* Used in init_query. */
   wrapper_sl->init_query();
   wrapper_sl->init_select();
+  wrapper_sl->is_tvc_wrapper= true;
 
   wrapper_sl->nest_level= tvc_sl->nest_level;
   wrapper_sl->parsing_place= tvc_sl->parsing_place;

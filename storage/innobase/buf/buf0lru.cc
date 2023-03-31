@@ -1119,17 +1119,8 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 				break;
 			case FIL_PAGE_TYPE_ZBLOB:
 			case FIL_PAGE_TYPE_ZBLOB2:
-				break;
 			case FIL_PAGE_INDEX:
 			case FIL_PAGE_RTREE:
-#if defined UNIV_ZIP_DEBUG && defined BTR_CUR_HASH_ADAPT
-				/* During recovery, we only update the
-				compressed page, not the uncompressed one. */
-				ut_a(recv_recovery_is_on()
-				     || page_zip_validate(
-					     &bpage->zip, page,
-					     ((buf_block_t*) bpage)->index));
-#endif /* UNIV_ZIP_DEBUG && BTR_CUR_HASH_ADAPT */
 				break;
 			default:
 				ib::error() << "The compressed page to be"

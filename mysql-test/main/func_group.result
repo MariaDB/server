@@ -1443,16 +1443,11 @@ FROM derived1 AS X
 WHERE 
 X.int_nokey < 61 
 GROUP BY pk 
-LIMIT 1) 
+LIMIT 1) AS m
 FROM D AS X 
 WHERE X.int_key < 13  
 GROUP BY int_nokey LIMIT 1;
-(SELECT COUNT( int_nokey ) 
-FROM derived1 AS X 
-WHERE 
-X.int_nokey < 61 
-GROUP BY pk 
-LIMIT 1)
+m
 1
 DROP TABLE derived1;
 DROP TABLE D;

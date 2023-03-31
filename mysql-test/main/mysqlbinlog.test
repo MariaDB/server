@@ -534,7 +534,7 @@ remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn;
 --echo # MYSQL_BINLOG  std_data/master-bin.000001 --base64-output 2>&1
 # The error produces the absolute path of the mysqlbinlog executable, remove it.
 --replace_regex /.*mariadb-binlog.*:/mariadb-binlog:/i
---error 1
+--error 5
 --exec $MYSQL_BINLOG std_data/master-bin.000001 --base64-output 2>&1
 
 --echo #

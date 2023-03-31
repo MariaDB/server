@@ -5242,6 +5242,15 @@ DROP TABLE t1;
 # Start of 10.4 tests
 #
 #
+# MDEV-30351 crash in Item_func_left::val_str
+#
+SELECT WEIGHT_STRING('aa') IN (LEFT(WEIGHT_STRING('aaa'),4),'bbb') as expect_1;
+expect_1
+1
+SELECT UNHEX('0032') in (LEFT(UNHEX('003200'), 2),'dog') as expect_1;
+expect_1
+1
+#
 # MDEV-21841 CONV() function truncates the result type to 21 symbol.
 #
 CREATE TABLE t1(i BIGINT);
