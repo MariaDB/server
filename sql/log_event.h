@@ -726,7 +726,7 @@ enum Log_event_type
 
 
 /*
-  Bit flags for what has been writting to cache. Used to
+  Bit flags for what has been writing to cache. Used to
   discard logs with table map events but not row events and
   nothing else important. This is stored by cache.
 */
