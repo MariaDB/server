@@ -1750,7 +1750,7 @@ dict_foreign_def_get(
 				tbname, strlen(tbname), trx->mysql_thd);
 	tablebuf[bufend - tablebuf] = '\0';
 
-	snprintf(fk_def, sizeof(fk_def), 
+	sprintf(fk_def,
 		(char *)"CONSTRAINT %s FOREIGN KEY (", (char *)tablebuf);
 
 	for(i = 0; i < foreign->n_fields; i++) {
