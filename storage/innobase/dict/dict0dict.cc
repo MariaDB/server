@@ -1564,8 +1564,7 @@ dict_table_rename_in_cache(
 					strcat(foreign->id,
 					       old_id + ut_strlen(old_name));
 				} else {
-					snprintf(strchr(foreign->id, '/') + 1,
-						sizeof(strchr(foreign->id, '/') + 1),
+					sprintf(strchr(foreign->id, '/') + 1,
 						"%s%s",
 						strchr(table_name, '/') +1,
 						strstr(old_id, "_ibfk_") );
