@@ -1862,7 +1862,7 @@ skip_monitors:
 				      "%s"
 #endif
 				      "; transaction id " TRX_ID_FMT,
-				      recv_sys.lsn,
+				      recv_sys.lsn > 1 ? recv_sys.lsn : 0,
 #ifdef HAVE_PMEM
 				      log_sys.is_pmem()
 				      ? " (memory-mapped)" : "",

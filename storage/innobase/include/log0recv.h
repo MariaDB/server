@@ -151,6 +151,9 @@ struct page_recv_t
         head= recs;
       tail= recs;
     }
+    /** Remove the last records for the page
+    @param start_lsn   start of the removed log */
+    ATTRIBUTE_COLD void rewind(lsn_t start_lsn);
 
     /** @return the last log snippet */
     const log_rec_t* last() const { return tail; }
@@ -169,7 +172,7 @@ struct page_recv_t
     iterator begin() { return head; }
     iterator end() { return NULL; }
     bool empty() const { ut_ad(!head == !tail); return !head; }
-    /** Clear and free the records; @see recv_sys_t::alloc() */
+    /** Clear and free the records; @see recv_sys_t::add() */
     inline void clear();
   } log;
 
@@ -245,12 +248,10 @@ private:
     unsigned pages;
   } truncated_undo_spaces[127];
 
+
 public:
   /** The contents of the doublewrite buffer */
   recv_dblwr_t dblwr;
-
-  /** Last added LSN to pages, before switching to STORE_NO */
-  lsn_t last_stored_lsn= 0;
 
   inline void read(os_offset_t offset, span<byte> buf);
   inline size_t files_size();
@@ -299,7 +300,7 @@ public:
   /** Clean up after create() */
   void close();
 
-  bool is_initialised() const { return last_stored_lsn != 0; }
+  bool is_initialised() const { return lsn != 0; }
 
   /** Find the latest checkpoint.
   @return error code or DB_SUCCESS */
@@ -310,9 +311,10 @@ public:
   @param start_lsn start LSN of the mini-transaction
   @param lsn      @see mtr_t::commit_lsn()
   @param l        redo log snippet
-  @param len      length of l, in bytes */
-  inline void add(map::iterator it, lsn_t start_lsn, lsn_t lsn,
-                  const byte *l, size_t len);
+  @param len      length of l, in bytes
+  @return whether we ran out of memory */
+  bool add(map::iterator it, lsn_t start_lsn, lsn_t lsn,
+           const byte *l, size_t len);
 
   /** Parsing result */
   enum parse_mtr_result {
@@ -322,7 +324,7 @@ public:
     PREMATURE_EOF,
     /** the end of the log was reached */
     GOT_EOF,
-    /** we ran out of memory (store=true, if_exists=false) */
+    /** parse<true>(l, false) ran out of memory */
     GOT_OOM
   };
 
@@ -333,6 +335,12 @@ private:
   @param  if_exists if store: whether to check if the tablespace exists */
   template<typename source,bool store>
   inline parse_mtr_result parse(source &l, bool if_exists) noexcept;
+
+  /** Rewind a mini-transaction when parse() runs out of memory.
+  @param  l         log data source
+  @param  begin     start of the mini-transaction */
+  template<typename source>
+  ATTRIBUTE_COLD void rewind(source &l, source &begin) noexcept;
 public:
   /** Parse and register one log_t::FORMAT_10_8 mini-transaction,
   handling log_sys.is_pmem() buffer wrap-around.
@@ -372,13 +380,8 @@ public:
   /** The alloc() memory alignment, in bytes */
   static constexpr size_t ALIGNMENT= sizeof(size_t);
 
-  /** Allocate memory for log_rec_t
-  @param len  allocation size, in bytes
-  @return pointer to len bytes of memory (never NULL) */
-  inline void *alloc(size_t len);
-
   /** Free a redo log snippet.
-  @param data buffer returned by alloc() */
+  @param data buffer allocated in add() */
   inline void free(const void *data);
 
   /** Remove records for a corrupted page.

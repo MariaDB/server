@@ -1126,11 +1126,6 @@ inline size_t recv_sys_t::files_size()
 static void fil_name_process(const char *name, ulint len, uint32_t space_id,
                              mfile_type_t ftype, lsn_t lsn, bool if_exists)
 {
-	if (srv_operation == SRV_OPERATION_BACKUP
-	    || srv_operation == SRV_OPERATION_BACKUP_NO_DEFER) {
-		return;
-	}
-
 	ut_ad(srv_operation == SRV_OPERATION_NORMAL
 	      || srv_operation == SRV_OPERATION_RESTORE
 	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
@@ -1282,7 +1277,7 @@ void recv_sys_t::close()
     deferred_spaces.clear();
     ut_d(mysql_mutex_unlock(&mutex));
 
-    last_stored_lsn= 0;
+    lsn= 0;
     mysql_mutex_destroy(&mutex);
     pthread_cond_destroy(&cond);
   }
@@ -1306,7 +1301,7 @@ void recv_sys_t::create()
 
 	len = 0;
 	offset = 0;
-	lsn = 0;
+	lsn = 1;
 	found_corrupt_log = false;
 	found_corrupt_fs = false;
 	file_checkpoint = 0;
@@ -1315,7 +1310,6 @@ void recv_sys_t::create()
 	recv_max_page_lsn = 0;
 
 	memset(truncated_undo_spaces, 0, sizeof truncated_undo_spaces);
-	last_stored_lsn = 1;
 	UT_LIST_INIT(blocks, &buf_block_t::unzip_LRU);
 }
 
@@ -1356,48 +1350,9 @@ void recv_sys_t::debug_free()
   mysql_mutex_unlock(&mutex);
 }
 
-inline void *recv_sys_t::alloc(size_t len)
-{
-  mysql_mutex_assert_owner(&mutex);
-  ut_ad(len);
-  ut_ad(len <= srv_page_size);
-
-  buf_block_t *block= UT_LIST_GET_FIRST(blocks);
-  if (UNIV_UNLIKELY(!block))
-  {
-create_block:
-    block= buf_block_alloc();
-    block->page.access_time= 1U << 16 |
-      ut_calc_align<uint16_t>(static_cast<uint16_t>(len), ALIGNMENT);
-    static_assert(ut_is_2pow(ALIGNMENT), "ALIGNMENT must be a power of 2");
-    UT_LIST_ADD_FIRST(blocks, block);
-    MEM_MAKE_ADDRESSABLE(block->page.frame, len);
-    MEM_NOACCESS(block->page.frame + len, srv_page_size - len);
-    return my_assume_aligned<ALIGNMENT>(block->page.frame);
-  }
-
-  size_t free_offset= static_cast<uint16_t>(block->page.access_time);
-  ut_ad(!ut_2pow_remainder(free_offset, ALIGNMENT));
-  if (UNIV_UNLIKELY(!free_offset))
-  {
-    ut_ad(srv_page_size == 65536);
-    goto create_block;
-  }
-  ut_ad(free_offset <= srv_page_size);
-  free_offset+= len;
-
-  if (free_offset > srv_page_size)
-    goto create_block;
-
-  block->page.access_time= ((block->page.access_time >> 16) + 1) << 16 |
-    ut_calc_align<uint16_t>(static_cast<uint16_t>(free_offset), ALIGNMENT);
-  MEM_MAKE_ADDRESSABLE(block->page.frame + free_offset - len, len);
-  return my_assume_aligned<ALIGNMENT>(block->page.frame + free_offset - len);
-}
-
 
 /** Free a redo log snippet.
-@param data buffer returned by alloc() */
+@param data buffer allocated in add() */
 inline void recv_sys_t::free(const void *data)
 {
   ut_ad(!ut_align_offset(data, ALIGNMENT));
@@ -1891,6 +1846,30 @@ inline bool page_recv_t::trim(lsn_t start_lsn)
 }
 
 
+void page_recv_t::recs_t::rewind(lsn_t start_lsn)
+{
+  mysql_mutex_assert_owner(&recv_sys.mutex);
+  log_phys_t *trim= static_cast<log_phys_t*>(head);
+  ut_ad(trim);
+  while (log_phys_t *next= static_cast<log_phys_t*>(trim->next))
+  {
+    ut_ad(trim->start_lsn < start_lsn);
+    if (next->start_lsn == start_lsn)
+      break;
+    trim= next;
+  }
+  tail= trim;
+  log_rec_t *l= tail->next;
+  tail->next= nullptr;
+  while (l)
+  {
+    log_rec_t *next= l->next;
+    recv_sys.free(l);
+    l= next;
+  }
+}
+
+
 inline void page_recv_t::recs_t::clear()
 {
   mysql_mutex_assert_owner(&recv_sys.mutex);
@@ -1918,18 +1897,20 @@ inline void page_recv_t::will_not_read()
 @param start_lsn start LSN of the mini-transaction
 @param lsn      @see mtr_t::commit_lsn()
 @param l        redo log snippet
-@param len      length of l, in bytes */
-inline void recv_sys_t::add(map::iterator it, lsn_t start_lsn, lsn_t lsn,
-                            const byte *l, size_t len)
+@param len      length of l, in bytes
+@return whether we ran out of memory */
+ATTRIBUTE_NOINLINE
+bool recv_sys_t::add(map::iterator it, lsn_t start_lsn, lsn_t lsn,
+                     const byte *l, size_t len)
 {
   mysql_mutex_assert_owner(&mutex);
-  page_id_t page_id = it->first;
   page_recv_t &recs= it->second;
+  buf_block_t *block;
 
   switch (*l & 0x70) {
   case FREE_PAGE: case INIT_PAGE:
     recs.will_not_read();
-    mlog_init.add(page_id, start_lsn); /* FIXME: remove this! */
+    mlog_init.add(it->first, start_lsn); /* FIXME: remove this! */
     /* fall through */
   default:
     log_phys_t *tail= static_cast<log_phys_t*>(recs.log.last());
@@ -1938,7 +1919,7 @@ inline void recv_sys_t::add(map::iterator it, lsn_t start_lsn, lsn_t lsn,
     if (tail->start_lsn != start_lsn)
       break;
     ut_ad(tail->lsn == lsn);
-    buf_block_t *block= UT_LIST_GET_LAST(blocks);
+    block= UT_LIST_GET_LAST(blocks);
     ut_ad(block);
     const size_t used= static_cast<uint16_t>(block->page.access_time - 1) + 1;
     ut_ad(used >= ALIGNMENT);
@@ -1951,7 +1932,7 @@ append:
       MEM_MAKE_ADDRESSABLE(end + 1, len);
       /* Append to the preceding record for the page */
       tail->append(l, len);
-      return;
+      return false;
     }
     if (end <= &block->page.frame[used - ALIGNMENT] ||
         &block->page.frame[used] >= end)
@@ -1965,8 +1946,59 @@ append:
       ut_calc_align<uint16_t>(static_cast<uint16_t>(new_used), ALIGNMENT);
     goto append;
   }
-  recs.log.append(new (alloc(log_phys_t::alloc_size(len)))
+
+  const size_t size{log_phys_t::alloc_size(len)};
+  ut_ad(size <= srv_page_size);
+  void *buf;
+  block= UT_LIST_GET_FIRST(blocks);
+  if (UNIV_UNLIKELY(!block))
+  {
+  create_block:
+    const auto rs= UT_LIST_GET_LEN(blocks) * 2;
+    mysql_mutex_lock(&buf_pool.mutex);
+    const auto bs=
+      UT_LIST_GET_LEN(buf_pool.free) + UT_LIST_GET_LEN(buf_pool.LRU);
+    if (bs <= BUF_LRU_MIN_LEN && rs >= bs)
+    {
+      /* out of memory: redo log occupies more than 1/3 of buf_pool
+      and there are fewer than BUF_LRU_MIN_LEN pages left */
+      mysql_mutex_unlock(&buf_pool.mutex);
+      return true;
+    }
+    block= buf_LRU_get_free_block(have_mutex);
+    mysql_mutex_unlock(&buf_pool.mutex);
+    block->page.access_time= 1U << 16 |
+      ut_calc_align<uint16_t>(static_cast<uint16_t>(size), ALIGNMENT);
+    static_assert(ut_is_2pow(ALIGNMENT), "ALIGNMENT must be a power of 2");
+    UT_LIST_ADD_FIRST(blocks, block);
+    MEM_MAKE_ADDRESSABLE(block->page.frame, size);
+    MEM_NOACCESS(block->page.frame + size, srv_page_size - size);
+    buf= block->page.frame;
+  }
+  else
+  {
+    size_t free_offset= static_cast<uint16_t>(block->page.access_time);
+    ut_ad(!ut_2pow_remainder(free_offset, ALIGNMENT));
+    if (UNIV_UNLIKELY(!free_offset))
+    {
+      ut_ad(srv_page_size == 65536);
+      goto create_block;
+    }
+    ut_ad(free_offset <= srv_page_size);
+    free_offset+= size;
+
+    if (free_offset > srv_page_size)
+      goto create_block;
+
+    block->page.access_time= ((block->page.access_time >> 16) + 1) << 16 |
+      ut_calc_align<uint16_t>(static_cast<uint16_t>(free_offset), ALIGNMENT);
+    MEM_MAKE_ADDRESSABLE(block->page.frame + free_offset - size, size);
+    buf= block->page.frame + free_offset - size;
+  }
+
+  recs.log.append(new (my_assume_aligned<ALIGNMENT>(buf))
                   log_phys_t{start_lsn, lsn, l, len});
+  return false;
 }
 
 /** Store/remove the freed pages in fil_name_t of recv_spaces.
@@ -2230,6 +2262,79 @@ struct recv_ring : public recv_buf
 };
 #endif
 
+template<typename source>
+void recv_sys_t::rewind(source &l, source &begin) noexcept
+{
+  ut_ad(srv_operation != SRV_OPERATION_BACKUP);
+  mysql_mutex_assert_owner(&mutex);
+  pages_it= pages.end();
+
+  const source end= l;
+  uint32_t rlen;
+  for (l= begin; !(l == end); l+= rlen)
+  {
+    const source recs{l};
+    ++l;
+    const byte b= *recs;
+
+    ut_ad(b > 1);
+    ut_ad(UNIV_LIKELY((b & 0x70) != RESERVED) || srv_force_recovery);
+
+    rlen= b & 0xf;
+    if (!rlen)
+    {
+      const uint32_t lenlen= mlog_decode_varint_length(*l);
+      const uint32_t addlen= mlog_decode_varint(l);
+      ut_ad(addlen != MLOG_DECODE_ERROR);
+      rlen= addlen + 15 - lenlen;
+      l+= lenlen;
+    }
+    ut_ad(!l.is_eof(rlen));
+    if (b & 0x80)
+      continue;
+
+    uint32_t idlen= mlog_decode_varint_length(*l);
+    if (UNIV_UNLIKELY(idlen > 5 || idlen >= rlen))
+      continue;
+    const uint32_t space_id= mlog_decode_varint(l);
+    if (UNIV_UNLIKELY(space_id == MLOG_DECODE_ERROR))
+      continue;
+    l+= idlen;
+    rlen-= idlen;
+    idlen= mlog_decode_varint_length(*l);
+    if (UNIV_UNLIKELY(idlen > 5 || idlen > rlen))
+      continue;
+    const uint32_t page_no= mlog_decode_varint(l);
+    if (UNIV_UNLIKELY(page_no == MLOG_DECODE_ERROR))
+      continue;
+    const page_id_t id{space_id, page_no};
+    if (pages_it == pages.end() || pages_it->first != id)
+    {
+      pages_it= pages.find(id);
+      if (pages_it != pages.end())
+      {
+        const log_phys_t *head=
+          static_cast<log_phys_t*>(*pages_it->second.log.begin());
+        if (!head)
+        {
+        erase:
+          pages.erase(pages_it);
+          pages_it= pages.end();
+        }
+        else if (head->start_lsn == lsn)
+        {
+          pages_it->second.log.clear();
+          goto erase;
+        }
+        else
+          pages_it->second.log.rewind(lsn);
+      }
+    }
+  }
+
+  l= begin;
+}
+
 /** Parse and register one log_t::FORMAT_10_8 mini-transaction.
 @tparam store     whether to store the records
 @param  l         log data source
@@ -2239,6 +2344,7 @@ inline
 recv_sys_t::parse_mtr_result recv_sys_t::parse(source &l, bool if_exists)
   noexcept
 {
+ restart:
 #ifndef SUX_LOCK_GENERIC
   ut_ad(log_sys.latch.is_write_locked() ||
         srv_operation == SRV_OPERATION_BACKUP ||
@@ -2248,6 +2354,9 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse(source &l, bool if_exists)
   ut_ad(log_sys.next_checkpoint_lsn);
   ut_ad(log_sys.is_latest());
   ut_ad(store || !if_exists);
+  ut_ad(store ||
+        srv_operation != SRV_OPERATION_BACKUP ||
+        srv_operation != SRV_OPERATION_BACKUP_NO_DEFER);
 
   alignas(8) byte iv[MY_AES_BLOCK_SIZE];
   byte *decrypt_buf= static_cast<byte*>(alloca(srv_page_size));
@@ -2261,7 +2370,7 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse(source &l, bool if_exists)
   if (*l <= 1)
     return GOT_EOF; /* We should never write an empty mini-transaction. */
 
-  const source begin{l};
+  source begin{l};
   uint32_t rlen;
   for (uint32_t total_len= 0; !l.is_eof(); l+= rlen, total_len+= rlen)
   {
@@ -2438,7 +2547,7 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse(source &l, bool if_exists)
     mach_write_to_4(iv + 12, page_no);
     got_page_op= !(b & 0x80);
     if (!got_page_op);
-    else if (srv_operation == SRV_OPERATION_BACKUP)
+    else if (!store && srv_operation == SRV_OPERATION_BACKUP)
     {
       if (page_no == 0 && first_page_init && (b & 0x10))
         first_page_init(space_id);
@@ -2513,7 +2622,7 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse(source &l, bool if_exists)
           trim({space_id, 0}, lsn);
           truncated_undo_spaces[space_id - srv_undo_space_id_start]=
             { lsn, page_no };
-          if (undo_space_trunc)
+          if (!store && undo_space_trunc)
             undo_space_trunc(space_id);
 #endif
           last_offset= 1; /* the next record must not be same_page  */
@@ -2651,8 +2760,23 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse(source &l, bool if_exists)
         {
           if (pages_it == pages.end() || pages_it->first != id)
             pages_it= pages.emplace(id, page_recv_t{}).first;
-          add(pages_it, start_lsn, lsn,
-              l.get_buf(cl, recs, decrypt_buf), l - recs + rlen);
+          if (UNIV_UNLIKELY(add(pages_it, start_lsn, lsn,
+                                l.get_buf(cl, recs, decrypt_buf),
+                                l - recs + rlen)))
+          {
+            lsn= start_lsn;
+            l+= rlen;
+            rewind(l, begin);
+            if (if_exists)
+            {
+              apply(false);
+              goto restart;
+            }
+            DBUG_PRINT("ib_log",
+                       ("Ran out of memory and last stored lsn " LSN_PF
+                        " last stored offset %zu\n", lsn, offset));
+            return GOT_OOM;
+          }
         }
       }
       else if ((b & 0x70) <= INIT_PAGE)
@@ -2759,16 +2883,22 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse(source &l, bool if_exists)
         if (UNIV_UNLIKELY(!recv_needed_recovery && srv_read_only_mode))
           continue;
 
+        if (!store &&
+            (srv_operation == SRV_OPERATION_BACKUP ||
+             srv_operation == SRV_OPERATION_BACKUP_NO_DEFER))
+        {
+          if ((b & 0xf0) < FILE_CHECKPOINT && log_file_op)
+            log_file_op(space_id, b & 0xf0,
+                        reinterpret_cast<const byte*>(fn),
+                        static_cast<ulint>(fnend - fn),
+                        reinterpret_cast<const byte*>(fn2),
+                        fn2 ? static_cast<ulint>(fn2end - fn2) : 0);
+          continue;
+        }
+
         fil_name_process(fn, fnend - fn, space_id,
                          (b & 0xf0) == FILE_DELETE ? FILE_DELETE : FILE_MODIFY,
                          start_lsn, if_exists);
-
-        if ((b & 0xf0) < FILE_CHECKPOINT && log_file_op)
-          log_file_op(space_id, b & 0xf0,
-                      reinterpret_cast<const byte*>(fn),
-                      static_cast<ulint>(fnend - fn),
-                      reinterpret_cast<const byte*>(fn2),
-                      fn2 ? static_cast<ulint>(fn2end - fn2) : 0);
 
         if (fn2)
         {
@@ -2794,34 +2924,7 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse(source &l, bool if_exists)
 
   l+= log_sys.is_encrypted() ? 4U + 8U : 4U;
   ut_ad(l == el);
-  if (!store)
-    return OK;
-
-  if (UNIV_LIKELY(UT_LIST_GET_LEN(blocks) * 3 <
-                  (srv_buf_pool_old_size >> srv_page_size_shift)))
-  {
-    if (report(time(nullptr)))
-    {
-      const size_t n= pages.size();
-      sql_print_information("InnoDB: Parsed redo log up to LSN=" LSN_PF
-                            "; to recover: %zu pages", lsn, n);
-      service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
-                                     "Parsed redo log up to LSN=" LSN_PF
-                                     "; to recover: %zu pages", lsn, n);
-    }
-    return OK;
-  }
-
-  DBUG_PRINT("ib_log",("Ran out of memory and last stored lsn " LSN_PF
-                       " last stored offset %zu\n", lsn, offset));
-  if (if_exists)
-  {
-    apply(false);
-    return OK;
-  }
-
-  last_stored_lsn= lsn;
-  return GOT_OOM;
+  return OK;
 }
 
 template<bool store>
@@ -3740,7 +3843,17 @@ static bool recv_scan_log(bool last_phase)
       while ((r= recv_sys.parse_pmem<false>(false)) == recv_sys_t::OK);
     else
     {
-      while ((r= recv_sys.parse_pmem<true>(last_phase)) == recv_sys_t::OK);
+      while ((r= recv_sys.parse_pmem<true>(last_phase)) == recv_sys_t::OK)
+        if (recv_sys.report(time(nullptr)))
+        {
+          const size_t n= recv_sys.pages.size();
+          sql_print_information("InnoDB: Parsed redo log up to LSN=" LSN_PF
+                                "; to recover: %zu pages", recv_sys.lsn, n);
+          service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+                                         "Parsed redo log up to LSN=" LSN_PF
+                                         "; to recover: %zu pages",
+                                         recv_sys.lsn, n);
+        }
       if (r == recv_sys_t::GOT_OOM)
       {
         store= false;
@@ -4180,11 +4293,6 @@ read_only_recovery:
 		ut_ad(rescan || !missing_tablespace);
 
 		while (missing_tablespace) {
-			recv_sys.lsn = recv_sys.last_stored_lsn;
-			DBUG_PRINT("ib_log", ("Rescan of redo log to validate "
-					      "the missing tablespace. Scan "
-					      "from last stored LSN " LSN_PF,
-					      recv_sys.lsn));
 			rescan = recv_scan_log(false);
 			ut_ad(!recv_sys.is_corrupt_fs());
 

@@ -1,0 +1,2 @@
+innodb-index : FIXME broken recovery
+undo_truncate_recover : FIXME broken recovery
