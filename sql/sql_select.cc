@@ -28263,19 +28263,19 @@ enum explainable_cmd_type
 };
 
 static
-const char * const explainable_cmd_name []=
+const LEX_CSTRING explainable_cmd_name []=
 {
-  "select ",
-  "insert ",
-  "replace ",
-  "update ",
-  "delete ",
+  {STRING_WITH_LEN("select ")},
+  {STRING_WITH_LEN("insert ")},
+  {STRING_WITH_LEN("replace ")},
+  {STRING_WITH_LEN("update ")},
+  {STRING_WITH_LEN("delete ")},
 };
 
 static
-char const *get_explainable_cmd_name(enum explainable_cmd_type cmd)
+const LEX_CSTRING* get_explainable_cmd_name(enum explainable_cmd_type cmd)
 {
-  return explainable_cmd_name[cmd];
+  return explainable_cmd_name + cmd;
 }
 
 static
@@ -28577,7 +28577,7 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
                  query_type);
     }
     if (sel_type == UPDATE_CMD || sel_type == DELETE_CMD)
-      str->append(STRING_WITH_LEN(get_explainable_cmd_name(sel_type)));
+      str->append(get_explainable_cmd_name(sel_type));
     if (sel_type == DELETE_CMD)
     {
       str->append(STRING_WITH_LEN(" from "));
