@@ -11722,6 +11722,16 @@ UPDATE t, v SET t.b = t.a, t.a = v.c WHERE v.c < t.a	{
     },
     {
       "join_preparation": {
+        "select_id": "fake",
+        "steps": [
+          {
+            "expanded_query": "select c AS c from dual"
+          }
+        ]
+      }
+    },
+    {
+      "join_preparation": {
         "select_id": 1,
         "steps": [
           {
@@ -11965,16 +11975,6 @@ UPDATE t, v SET t.b = t.a, t.a = v.c WHERE v.c < t.a	{
             "join_execution": {
               "select_id": 3,
               "steps": []
-            }
-          },
-          {
-            "join_preparation": {
-              "select_id": "fake",
-              "steps": [
-                {
-                  "expanded_query": "select c AS c from dual"
-                }
-              ]
             }
           },
           {
