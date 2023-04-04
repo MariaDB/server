@@ -3398,6 +3398,27 @@ SET @schema_required='{"type":"object","required":[1,"str1", "str1"]}';
 --error ER_JSON_INVALID_VALUE_FOR_KEYWORD
 SELECT JSON_SCHEMA_VALID(@schema_required,'{"num1":1, "str1":"abc", "arr1":[1,2,3]}');
 
+--echo #
+--echo # MDEV-30977: Additional key values are not validating properly when using
+--echo # unevaluatedProperties with properties declared in subschemas
+--echo #
+
+SET @unevaluatedProperties_schema= '{
+  "allOf": [
+    {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" }
+      }
+    }
+  ],
+  "properties": {
+    "type": { "enum": ["residential", "business"] }
+  },
+  "required": ["type"],
+  "unevaluatedProperties": false
+}';
+SELECT JSON_SCHEMA_VALID(@unevaluatedProperties_schema, '{"name": "joe", "type": "business", "dummy" : "hello" }');
 
 --echo #
 --echo # MDEV-30995: JSON_SCHEMA_VALID is not validating case sensitive when using regex

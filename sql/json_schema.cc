@@ -1883,6 +1883,13 @@ bool Json_schema_properties::validate_as_alternate(const json_engine_t *je,
         return true;
     }
   }
+  else
+  {
+    if (alternate_schema && alternate_schema->validate_as_alternate(je, k_start, k_end))
+    {
+      return true;
+    }
+  }
   return false;
 }
 
@@ -1892,6 +1899,8 @@ Json_schema_additional_and_unevaluated::
                                                      const uchar* k_start,
                                                      const uchar* k_end)
 {
+  if (!allowed)
+    return true;
   return validate_schema_items(je, &schema_list);
 }
 

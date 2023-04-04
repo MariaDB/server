@@ -4497,6 +4497,28 @@ SET @schema_required='{"type":"object","required":[1,"str1", "str1"]}';
 SELECT JSON_SCHEMA_VALID(@schema_required,'{"num1":1, "str1":"abc", "arr1":[1,2,3]}');
 ERROR HY000: Invalid value for keyword required
 #
+# MDEV-30977: Additional key values are not validating properly when using
+# unevaluatedProperties with properties declared in subschemas
+#
+SET @unevaluatedProperties_schema= '{
+  "allOf": [
+    {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" }
+      }
+    }
+  ],
+  "properties": {
+    "type": { "enum": ["residential", "business"] }
+  },
+  "required": ["type"],
+  "unevaluatedProperties": false
+}';
+SELECT JSON_SCHEMA_VALID(@unevaluatedProperties_schema, '{"name": "joe", "type": "business", "dummy" : "hello" }');
+JSON_SCHEMA_VALID(@unevaluatedProperties_schema, '{"name": "joe", "type": "business", "dummy" : "hello" }')
+0
+#
 # MDEV-30995: JSON_SCHEMA_VALID is not validating case sensitive when using regex
 #
 SET @schema_pattern='{
