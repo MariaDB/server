@@ -2553,7 +2553,7 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse(source &l, bool if_exists)
         first_page_init(space_id);
       continue;
     }
-    else if (file_checkpoint && !is_predefined_tablespace(space_id))
+    else if (store && file_checkpoint && !is_predefined_tablespace(space_id))
     {
       recv_spaces_t::iterator i= recv_spaces.lower_bound(space_id);
       if (i != recv_spaces.end() && i->first == space_id);
@@ -2663,7 +2663,7 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse(source &l, bool if_exists)
         {
           if (UNIV_UNLIKELY(rlen + last_offset > srv_page_size))
             goto record_corrupted;
-          if (UNIV_UNLIKELY(!page_no) && file_checkpoint)
+          if (store && UNIV_UNLIKELY(!page_no) && file_checkpoint)
           {
             const bool has_size= last_offset <= FSP_HEADER_OFFSET + FSP_SIZE &&
               last_offset + rlen >= FSP_HEADER_OFFSET + FSP_SIZE + 4;
@@ -2765,7 +2765,9 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse(source &l, bool if_exists)
                                 l - recs + rlen)))
           {
             lsn= start_lsn;
+            log_sys.set_recovered_lsn(start_lsn);
             l+= rlen;
+            offset= begin.ptr - log_sys.buf;
             rewind(l, begin);
             if (if_exists)
             {
@@ -2801,6 +2803,11 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse(source &l, bool if_exists)
         {
           if (rlen < UNIV_PAGE_SIZE_MAX && !l.is_zero(rlen))
             continue;
+        }
+        else if (store)
+        {
+          ut_ad(file_checkpoint);
+          continue;
         }
         else if (const lsn_t c= l.read8())
         {
@@ -3732,6 +3739,7 @@ static bool recv_scan_log(bool last_phase)
     recv_sys.len= 0;
   }
 
+  lsn_t rewound_lsn= 0;
   for (ut_d(lsn_t source_offset= 0);;)
   {
 #ifndef SUX_LOCK_GENERIC
@@ -3801,6 +3809,7 @@ static bool recv_scan_log(bool last_phase)
           }
 
           const lsn_t end{recv_sys.file_checkpoint};
+          ut_ad(!end || end == recv_sys.lsn);
           mysql_mutex_unlock(&recv_sys.mutex);
 
           if (!end)
@@ -3810,15 +3819,13 @@ static bool recv_scan_log(bool last_phase)
                             ") at " LSN_PF, log_sys.next_checkpoint_lsn,
                             recv_sys.lsn);
           }
-          else
-            ut_ad(end == recv_sys.lsn);
           DBUG_RETURN(true);
         }
       }
       else
       {
         ut_ad(recv_sys.file_checkpoint != 0);
-        switch ((r= recv_sys.parse_pmem<true>(last_phase))) {
+        switch ((r= recv_sys.parse_pmem<true>(false))) {
         case recv_sys_t::PREMATURE_EOF:
           goto read_more;
         case recv_sys_t::GOT_EOF:
@@ -3856,6 +3863,8 @@ static bool recv_scan_log(bool last_phase)
         }
       if (r == recv_sys_t::GOT_OOM)
       {
+        ut_ad(!last_phase);
+        rewound_lsn= recv_sys.lsn;
         store= false;
         goto skip_the_rest;
       }
@@ -3889,20 +3898,20 @@ static bool recv_scan_log(bool last_phase)
     }
   }
 
-  const bool corrupt= recv_sys.is_corrupt_log() || recv_sys.is_corrupt_fs();
   recv_sys.maybe_finish_batch();
   if (last_phase)
+  {
+    ut_ad(!rewound_lsn);
+    ut_ad(recv_sys.lsn >= recv_sys.file_checkpoint);
     log_sys.set_recovered_lsn(recv_sys.lsn);
+  }
+  else if (rewound_lsn)
+  {
+    ut_ad(!store);
+    ut_ad(recv_sys.file_checkpoint);
+    recv_sys.lsn= rewound_lsn;
+  }
   mysql_mutex_unlock(&recv_sys.mutex);
-
-  if (corrupt)
-    DBUG_RETURN(false);
-
-  DBUG_PRINT("ib_log",
-             ("%s " LSN_PF " completed", last_phase ? "rescan" : "scan",
-              recv_sys.lsn));
-  ut_ad(!last_phase || recv_sys.lsn >= recv_sys.file_checkpoint);
-
   DBUG_RETURN(!store);
 }
 
