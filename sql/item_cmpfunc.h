@@ -3051,6 +3051,7 @@ public:
   bool is_const() const { return m_is_const; }
   void set_const(bool arg) { m_is_const= arg; }
   CHARSET_INFO * library_charset() const { return m_library_charset; }
+  void unset_flag(int flag) { m_library_flags&= ~flag; }
 };
 
 

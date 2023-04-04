@@ -3399,4 +3399,33 @@ SET @schema_required='{"type":"object","required":[1,"str1", "str1"]}';
 SELECT JSON_SCHEMA_VALID(@schema_required,'{"num1":1, "str1":"abc", "arr1":[1,2,3]}');
 
 
+--echo #
+--echo # MDEV-30995: JSON_SCHEMA_VALID is not validating case sensitive when using regex
+--echo #
+
+SET @schema_pattern='{
+        "type": "string",
+        "pattern": "[A-Z]"
+     }';
+SELECT JSON_SCHEMA_VALID(@schema_pattern, '"a"');
+
+SET @schema_property_names='{
+                       "PropertyNames":{
+                                          "pattern": "^I_"
+                                       }
+                    }';
+SELECT JSON_SCHEMA_VALID(@schema_property_names, '{"I_num":4}');
+SELECT JSON_SCHEMA_VALID(@schema_property_names, '{"i_num":4}');
+
+SET @schema_pattern_properties= '{
+                             "patternProperties": {
+                                                    "^I_": {"type":"number", "maximum":100},
+                                                    "^S_" : {"type":"string", "maxLength":4}
+                                                  }
+                          }';
+SELECT JSON_SCHEMA_VALID(@schema_pattern_properties, '{"I_": 50}');
+SELECT JSON_SCHEMA_VALID(@schema_pattern_properties, '{"I_": 150}');
+SELECT JSON_SCHEMA_VALID(@schema_pattern_properties, '{"i_": 50}');
+SELECT JSON_SCHEMA_VALID(@schema_pattern_properties, '{"i_": 150}');
+
 --echo # End of 11.1 test

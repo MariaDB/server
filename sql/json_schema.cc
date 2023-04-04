@@ -20,7 +20,7 @@
 #include <m_string.h>
 #include "json_schema.h"
 #include "json_schema_helper.h"
-
+#include "pcre2.h"
 static HASH all_keywords_hash;
 
 static Json_schema_keyword *create_json_schema_keyword(THD *thd)
@@ -917,6 +917,7 @@ bool Json_schema_pattern::handle_keyword(THD *thd, json_engine_t *je,
   str= (Item_string*)current_thd->make_string_literal((const char*)"",
                                                0, repertoire);
   re.init(je->s.cs, 0);
+  re.unset_flag(PCRE2_CASELESS);
 
   return false;
 }
@@ -2219,7 +2220,7 @@ bool Json_schema_pattern_properties::handle_keyword(THD *thd,
     return true;
   }
 
-  str= (Item_string*)current_thd->make_string_literal((const char*)"",
+  str= (Item_string*)thd->make_string_literal((const char*)"",
                                                       0,
                                                       my_charset_repertoire(je->s.cs));
 
@@ -2250,6 +2251,7 @@ bool Json_schema_pattern_properties::handle_keyword(THD *thd,
                                              (size_t)(k_end-k_start),
                                              repertoire);
           curr_pattern_to_property->re.init(je->s.cs, 0);
+          curr_pattern_to_property->re.unset_flag(PCRE2_CASELESS);
           curr_pattern_to_property->curr_schema=
                        new (thd->mem_root) List<Json_schema_keyword>;
 

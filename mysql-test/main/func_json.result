@@ -4496,4 +4496,43 @@ ERROR HY000: Invalid value for keyword minContains
 SET @schema_required='{"type":"object","required":[1,"str1", "str1"]}';
 SELECT JSON_SCHEMA_VALID(@schema_required,'{"num1":1, "str1":"abc", "arr1":[1,2,3]}');
 ERROR HY000: Invalid value for keyword required
+#
+# MDEV-30995: JSON_SCHEMA_VALID is not validating case sensitive when using regex
+#
+SET @schema_pattern='{
+        "type": "string",
+        "pattern": "[A-Z]"
+     }';
+SELECT JSON_SCHEMA_VALID(@schema_pattern, '"a"');
+JSON_SCHEMA_VALID(@schema_pattern, '"a"')
+0
+SET @schema_property_names='{
+                       "PropertyNames":{
+                                          "pattern": "^I_"
+                                       }
+                    }';
+SELECT JSON_SCHEMA_VALID(@schema_property_names, '{"I_num":4}');
+JSON_SCHEMA_VALID(@schema_property_names, '{"I_num":4}')
+1
+SELECT JSON_SCHEMA_VALID(@schema_property_names, '{"i_num":4}');
+JSON_SCHEMA_VALID(@schema_property_names, '{"i_num":4}')
+0
+SET @schema_pattern_properties= '{
+                             "patternProperties": {
+                                                    "^I_": {"type":"number", "maximum":100},
+                                                    "^S_" : {"type":"string", "maxLength":4}
+                                                  }
+                          }';
+SELECT JSON_SCHEMA_VALID(@schema_pattern_properties, '{"I_": 50}');
+JSON_SCHEMA_VALID(@schema_pattern_properties, '{"I_": 50}')
+1
+SELECT JSON_SCHEMA_VALID(@schema_pattern_properties, '{"I_": 150}');
+JSON_SCHEMA_VALID(@schema_pattern_properties, '{"I_": 150}')
+0
+SELECT JSON_SCHEMA_VALID(@schema_pattern_properties, '{"i_": 50}');
+JSON_SCHEMA_VALID(@schema_pattern_properties, '{"i_": 50}')
+1
+SELECT JSON_SCHEMA_VALID(@schema_pattern_properties, '{"i_": 150}');
+JSON_SCHEMA_VALID(@schema_pattern_properties, '{"i_": 150}')
+1
 # End of 11.1 test
