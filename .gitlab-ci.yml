@@ -40,7 +40,7 @@ default:
 # submodules (a commit in this repo does not affect their builds anyway) and
 # many components that are otherwise slow to build.
 variables:
-  CMAKE_FLAGS: "-DWITH_SSL=system -DPLUGIN_COLUMNSTORE=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_S3=NO -DPLUGIN_MROONGA=NO -DPLUGIN_CONNECT=NO -DPLUGIN_MROONGA=NO -DPLUGIN_TOKUDB=NO -DPLUGIN_PERFSCHEMA=NO -DWITH_WSREP=OFF"
+  CMAKE_FLAGS: "-DWITH_SSL=system -DPLUGIN_COLUMNSTORE=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_S3=NO -DPLUGIN_MROONGA=NO -DPLUGIN_CONNECT=NO -DPLUGIN_TOKUDB=NO -DWITH_WSREP=OFF"
   # Major version dictates which branches share the same ccache. E.g. 10.6-abc
   # and 10.6-xyz will have the same cache.
   MARIADB_MAJOR_VERSION: "11.1"
@@ -580,6 +580,43 @@ flawfinder:
       - flawfinder-all-vulnerabilities.html
       - flawfinder-min-level5.json
       
+fedora upgrade-from:
+  stage: test
+  image: fedora:latest
+  variables:
+    GIT_STRATEGY: pull
+  dependencies:
+    - fedora
+  needs:
+    - fedora
+  parallel:
+    matrix:
+      # Get latest versions of all major versions
+      - UPGRADE_PATH: 
+        - "10.6>11.0"
+        - "10.3"
+        - "10.4"
+        - "10.4.8" # Test unexpected table rebuilds as in https://jira.mariadb.org/browse/MDEV-28727
+        - "10.5"
+        - "10.6"
+        - "10.11"
+        - "11.0"
+  script:
+    - |
+      if [[ $UPGRADE_PATH == *">"* ]]; then
+        SOURCE=$(echo "$UPGRADE_PATH" | cut -d'>' -f1)
+        TARGET=$(echo "$UPGRADE_PATH" | cut -d'>' -f2)
+      else
+        SOURCE=$(echo "$UPGRADE_PATH")
+      fi
+
+    # Test upgrade from earlier minor version
+    - ./tests/upgrade_from/test_upgrade.sh $SOURCE $TARGET
+  artifacts:
+    paths:
+      - "*.sql"
+      - "test_upgrade*.log"
+
 # Once all RPM builds and tests have passed, also run the DEB builds and tests
 # @NOTE: This is likely to work well only on salsa.debian.org as the Gitlab.com
 # runners are too small for everything this stage does.
