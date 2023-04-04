@@ -7094,7 +7094,8 @@ static bool record_compare(TABLE *table, bool vers_from_plain= false)
         goto record_compare_differ;
     }
 
-    if (!f->is_null() && f->cmp_binary_offset(table->s->rec_buff_length))
+    if (!f->is_null() && !f->vcol_info &&
+        f->cmp_binary_offset(table->s->rec_buff_length))
       goto record_compare_differ;
   }
 

@@ -14,4 +14,14 @@ insert into t2(c) values (null);
 connection slave;
 connection master;
 drop table t1, t2;
+#
+# MDEV-30985 Replica stops with error on ALTER ONLINE with Geometry Types
+#
+create table t(geo geometrycollection default st_geomfromtext('point(1 1)'),
+vc point as (geo));
+insert into t () values (),(),();
+delete from t;
+connection slave;
+connection master;
+drop table t;
 include/rpl_end.inc
