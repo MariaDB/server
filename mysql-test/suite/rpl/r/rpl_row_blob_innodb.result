@@ -160,4 +160,19 @@ connection master;
 DROP TABLE IF EXISTS test.t1;
 DROP TABLE IF EXISTS test.t2;
 connection slave;
+#
+# MDEV-30985 Replica stops with error on ALTER ONLINE with Geometry Types
+#
+connection master;
+CREATE TABLE t(txt TEXT DEFAULT '111111111', blb LONGBLOB AS (txt));
+INSERT INTO t () VALUES (),(),();
+DELETE FROM t;
+DROP TABLE t;
+connection slave;
+connection master;
+CREATE TABLE t(txt TEXT DEFAULT '111111111', blb LONGBLOB AS (txt) STORED);
+INSERT INTO t () VALUES (),(),();
+DELETE FROM t;
+DROP TABLE t;
+connection slave;
 include/rpl_end.inc
