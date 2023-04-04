@@ -10067,7 +10067,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   table= table_list->table;
   bool is_reg_table= table->s->tmp_table == NO_TMP_TABLE;
   
-  online= online && !table->s->tmp_table;
+  online= online && !table->s->tmp_table && !table->versioned(VERS_TRX_ID);
 
   List<FOREIGN_KEY_INFO> fk_list;
   table->file->get_foreign_key_list(thd, &fk_list);
