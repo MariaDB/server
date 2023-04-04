@@ -18603,6 +18603,15 @@ innodb_encrypt_tables_update(THD*, st_mysql_sys_var*, void*, const void* save)
 	mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
+static
+void
+innodb_fulltext_threads_update(THD*, st_mysql_sys_var*, void*, const void* save)
+{
+	mysql_mutex_unlock(&LOCK_global_system_variables);
+	fts_bg_set_thread_cnt(*static_cast<const uint*>(save));
+	mysql_mutex_lock(&LOCK_global_system_variables);
+}
+
 static SHOW_VAR innodb_status_variables_export[]= {
 	SHOW_FUNC_ENTRY("Innodb", &show_innodb_vars),
 	{NullS, NullS, SHOW_LONG}
@@ -19747,6 +19756,14 @@ static MYSQL_SYSVAR_BOOL(encrypt_temporary_tables, innodb_encrypt_temporary_tabl
   "Enrypt the temporary table data.",
   NULL, NULL, false);
 
+static MYSQL_SYSVAR_UINT(fulltext_bg_threads, srv_n_fts_threads,
+			 PLUGIN_VAR_RQCMDARG,
+			 "Number of threads performing background "
+			 "fulltext message process and optimization ",
+			 NULL,
+			 innodb_fulltext_threads_update,
+			 2, 1, 255, 0);
+
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(autoextend_increment),
   MYSQL_SYSVAR(buffer_pool_size),
@@ -19913,6 +19930,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(buf_dump_status_frequency),
   MYSQL_SYSVAR(background_thread),
   MYSQL_SYSVAR(encrypt_temporary_tables),
+  MYSQL_SYSVAR(fulltext_bg_threads),
 
   NULL
 };

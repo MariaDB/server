@@ -332,13 +332,25 @@ public:
 	/** Vector of FTS indexes, this is mainly for caching purposes. */
 	ib_vector_t*	indexes;
 
-	/** Whether the table exists in fts_optimize_wq;
+	/** Whether the addition of new table message in fts_optimize_wq;
 	protected by fts_optimize_wq mutex */
-	bool		in_queue;
+	bool		wait_in_queue;
 
 	/** Whether the sync message exists in fts_optimize_wq;
 	protected by fts_optimize_wq mutex */
 	bool		sync_message;
+
+	/** Whether the table is in fts_slots
+	protected by fts_optimize_wq mutex */
+	bool		in_queue;
+
+	/** Whether the table is picked by fts_bg_threads
+	protected by fts_optimize_wq mutex */
+	bool		in_process;
+
+	/** Condition variable to wake up the background thread
+	when table is in fts queue */
+	pthread_cond_t	fts_queue_cond;
 
 	/** Heap for fts_t allocation. */
 	mem_heap_t*	fts_heap;
@@ -648,6 +660,12 @@ fts_optimize_remove_table(
 void
 fts_optimize_shutdown();
 
+/** Send sync fts cache for the table.
+@param[in]	table	table to sync */
+void
+fts_optimize_request_sync_table(
+	dict_table_t*	table);
+
 /**********************************************************************//**
 Take a FTS savepoint. */
 void
@@ -702,8 +720,9 @@ fts_savepoint_rollback_last_stmt(
 /** Run SYNC on the table, i.e., write out data from the cache to the
 FTS auxiliary INDEX table and clear the cache at the end.
 @param[in,out]	table		fts table
+@param[in]	wait		whether to wait for existing sync to finish
 @return DB_SUCCESS on success, error code on failure. */
-dberr_t fts_sync_table(dict_table_t* table);
+dberr_t fts_sync_table(dict_table_t* table, bool wait = true);
 
 /****************************************************************//**
 Create an FTS index cache. */
@@ -938,3 +957,5 @@ fts_update_sync_doc_id(const dict_table_t *table,
 /** Sync the table during commit phase
 @param[in]	table	table to be synced */
 void fts_sync_during_ddl(dict_table_t* table);
+
+void fts_bg_set_thread_cnt(const uint new_cnt);

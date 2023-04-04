@@ -1,0 +1,45 @@
+# Variable name: innodb_fulltext_bg_threads
+# Scope: Global
+# Access type: Dynamic
+# Data type: numeric
+
+--source include/have_innodb.inc
+
+SET @start_global_value = @@global.innodb_fulltext_bg_threads;
+
+#
+# exists as global only
+#
+select @@global.innodb_fulltext_bg_threads;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+select @@session.innodb_fulltext_bg_threads;
+show global variables like 'innodb_fulltext_bg_threads';
+show session variables like 'innodb_fulltext_bg_threads';
+select * from information_schema.global_variables
+where variable_name='innodb_fulltext_bg_threads';
+select * from information_schema.session_variables
+where variable_name='innodb_fulltext_bg_threads';
+
+#
+# show that it's writable
+#
+set global innodb_fulltext_bg_threads=5;
+select @@global.innodb_fulltext_bg_threads;
+set global innodb_fulltext_bg_threads=2;
+select @@global.innodb_fulltext_bg_threads;
+--error ER_GLOBAL_VARIABLE
+set session innodb_fulltext_bg_threads=1;
+
+#
+# incorrect types
+#
+--error ER_WRONG_TYPE_FOR_VAR
+set global innodb_fulltext_bg_threads=1.1;
+--error ER_WRONG_TYPE_FOR_VAR
+set global innodb_fulltext_bg_threads=1e1;
+--error ER_WRONG_TYPE_FOR_VAR
+set global innodb_fulltext_bg_threads="foo";
+set global innodb_fulltext_bg_threads=0;
+select @@global.innodb_fulltext_bg_threads;
+
+SET @@global.innodb_fulltext_bg_threads = @start_global_value;
