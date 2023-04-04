@@ -2,6 +2,7 @@
 --source include/not_embedded.inc
 --source include/binlog_combinations.inc
 --source include/have_innodb.inc
+--source include/have_partition.inc
 set default_storage_engine= innodb;
 
 --connect (con2, localhost, root,,)
@@ -1396,8 +1397,28 @@ set debug_sync= 'now signal goon';
 --reap
 drop table t;
 drop function f;
---disconnect con1
 
+--echo # Partitioning
+create or replace table t1 (a serial);
+insert t1 values (5), (6), (7);
+
+set debug_sync= 'alter_table_online_downgraded SIGNAL downgraded wait_for goon';
+send alter table t1 ENGINE=InnoDB, ALGORITHM=COPY, LOCK=NONE
+                    PARTITION BY HASH(a) PARTITIONS 5;
+
+--connection con1
+set debug_sync= 'now WAIT_FOR downgraded';
+insert into t1 values (123), (456), (789);
+update t1 set a= a+100;
+set debug_sync= 'now SIGNAL goon';
+
+--connection default
+--reap
+select * from t1;
+
+drop table t1;
+
+--disconnect con1
 --echo #
 --echo # End of 10.10 tests
 --echo #
