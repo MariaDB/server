@@ -94,4 +94,4 @@ ulint buf_read_ahead_linear(const page_id_t page_id, ulint zip_size);
 /** Issue read requests for pages that need to be recovered.
 @param space_id	tablespace identifier
 @param page_nos	page numbers to read, in ascending order */
-void buf_read_recv_pages(uint32_t space_id, st_::span<uint32_t> page_nos);
+void buf_read_recv_pages(uint32_t space_id, st_::span<uint64_t> page_nos);

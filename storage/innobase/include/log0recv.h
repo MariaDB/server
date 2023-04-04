@@ -124,6 +124,8 @@ struct page_recv_t
     RECV_NOT_PROCESSED,
     /** not processed; the page will be reinitialized */
     RECV_WILL_NOT_READ,
+    /** page is being fake read */
+    RECV_BEING_FAKE_READ,
     /** page is being read */
     RECV_BEING_READ,
     /** log records are being applied on the page */

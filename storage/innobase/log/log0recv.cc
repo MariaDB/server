@@ -3269,43 +3269,62 @@ ATTRIBUTE_COLD void recv_sys_t::set_corrupt_fs()
 @return whether the page was recovered correctly */
 bool recv_recover_page(fil_space_t* space, buf_page_t* bpage)
 {
-	mtr_t mtr;
-	mtr.start();
-	mtr.set_log_mode(MTR_LOG_NO_REDO);
+  mtr_t mtr;
+  mtr.start();
+  mtr.set_log_mode(MTR_LOG_NO_REDO);
 
-	ut_ad(bpage->frame);
-	/* Move the ownership of the x-latch on the page to
-	this OS thread, so that we can acquire a second
-	x-latch on it.  This is needed for the operations to
-	the page to pass the debug checks. */
-	bpage->lock.claim_ownership();
-	bpage->lock.x_lock_recursive();
-	bpage->fix_on_recovery();
-	mtr.memo_push(reinterpret_cast<buf_block_t*>(bpage),
-		      MTR_MEMO_PAGE_X_FIX);
+  ut_ad(bpage->frame);
+  /* Move the ownership of the x-latch on the page to this OS thread,
+  so that we can acquire a second x-latch on it. This is needed for
+  the operations to the page to pass the debug checks. */
+  bpage->lock.claim_ownership();
+  bpage->lock.x_lock_recursive();
+  bpage->fix_on_recovery();
+  mtr.memo_push(reinterpret_cast<buf_block_t*>(bpage), MTR_MEMO_PAGE_X_FIX);
 
-	buf_block_t* success = reinterpret_cast<buf_block_t*>(bpage);
+  buf_block_t *success= reinterpret_cast<buf_block_t*>(bpage);
 
-	mysql_mutex_lock(&recv_sys.mutex);
-	if (recv_sys.apply_log_recs) {
-		recv_sys_t::map::iterator p = recv_sys.pages.find(bpage->id());
-		if (p != recv_sys.pages.end()
-		    && !p->second.is_being_processed()) {
-			success = recv_recover_page(success, mtr, p, space);
-			if (UNIV_LIKELY(!!success)) {
-				p->second.log.clear();
-				recv_sys.pages.erase(p);
-			}
-			recv_sys.maybe_finish_batch();
-			goto func_exit;
-		}
-	}
+  mysql_mutex_lock(&recv_sys.mutex);
+  if (recv_sys.apply_log_recs)
+  {
+    const page_id_t id{bpage->id()};
+    recv_sys_t::map::iterator p= recv_sys.pages.find(id);
+    if (p != recv_sys.pages.end() && !p->second.is_being_processed())
+    {
+      success= recv_recover_page(success, mtr, p, space, p->second.state ==
+                                 page_recv_t::RECV_BEING_FAKE_READ);
+      if (UNIV_LIKELY(!!success))
+      {
+        p->second.log.clear();
+        recv_sys.pages.erase(p);
+      }
+      recv_sys.maybe_finish_batch();
+      goto func_exit;
+    }
+  }
 
-	mtr.commit();
+  mtr.commit();
 func_exit:
-	mysql_mutex_unlock(&recv_sys.mutex);
-	ut_ad(mtr.has_committed());
-	return success;
+  mysql_mutex_unlock(&recv_sys.mutex);
+  ut_ad(mtr.has_committed());
+  return success;
+}
+
+void IORequest::fake_read_complete() const
+{
+  ut_ad(node);
+  ut_ad(is_read());
+  ut_ad(bpage);
+  ut_ad(bpage->frame);
+  ut_ad(recv_recovery_is_on());
+
+  ut_d(auto n=) buf_pool.n_pend_reads--;
+  ut_ad(n > 0);
+
+  if (recv_recover_page(node->space, bpage))
+    bpage->lock.x_unlock(true);
+
+  node->space->release();
 }
 
 /** Read pages for which log needs to be applied.
@@ -3316,18 +3335,26 @@ TRANSACTIONAL_TARGET
 static void recv_read_in_area(page_id_t page_id, recv_sys_t::map::iterator i,
                               bool last_batch)
 {
-  uint32_t page_nos[32];
+  static constexpr uint32_t read_area= 32;
+
+  uint64_t page_nos[read_area];
   ut_ad(page_id == i->first);
-  page_id.set_page_no(ut_2pow_round(page_id.page_no(), 32U));
-  const page_id_t up_limit{page_id + 31};
-  uint32_t* p= page_nos;
+  page_id.set_page_no(ut_2pow_round(page_id.page_no(), read_area));
+  const page_id_t up_limit{page_id + (read_area - 1)};
+  uint64_t *p= page_nos;
 
   for (; i != recv_sys.pages.end() && i->first <= up_limit; i++)
   {
-    if (i->second.state == page_recv_t::RECV_NOT_PROCESSED)
-    {
-      i->second.state= page_recv_t::RECV_BEING_READ;
-      *p++= i->first.page_no();
+    switch (auto &state= i->second.state) {
+    default:
+      continue;
+    case page_recv_t::RECV_WILL_NOT_READ:
+      state= page_recv_t::RECV_BEING_FAKE_READ;
+      *p++= 1ULL << 63 | i->first.page_no();
+      break;
+    case page_recv_t::RECV_NOT_PROCESSED:
+      state= page_recv_t::RECV_BEING_READ;
+      *p++= i->first.raw();
     }
   }
 
@@ -3599,20 +3626,7 @@ erase_for_space:
         else
           deferred_spaces.defers.erase(d);
         if (!free_block)
-          goto next_free_block;
-        p= pages.lower_bound(page_id);
-        continue;
-      }
-
-      switch (p->second.state) {
-      case page_recv_t::RECV_BEING_READ:
-      case page_recv_t::RECV_BEING_PROCESSED:
-        p++;
-        continue;
-      case page_recv_t::RECV_WILL_NOT_READ:
-        if (UNIV_LIKELY(!!recover_low(page_id, p, mtr, free_block)))
         {
-next_free_block:
           mysql_mutex_unlock(&mutex);
           if (!last_batch)
             log_sys.latch.wr_unlock();
@@ -3620,17 +3634,25 @@ next_free_block:
           if (!last_batch)
             log_sys.latch.wr_lock(SRW_LOCK_CALL);
           mysql_mutex_lock(&mutex);
-          break;
         }
         ut_ad(p == pages.end() || p->first > page_id);
         continue;
+      }
+
+      switch (p->second.state) {
+      case page_recv_t::RECV_BEING_FAKE_READ:
+      case page_recv_t::RECV_BEING_READ:
+      case page_recv_t::RECV_BEING_PROCESSED:
+        p++;
+        continue;
+      case page_recv_t::RECV_WILL_NOT_READ:
       case page_recv_t::RECV_NOT_PROCESSED:
         recv_read_in_area(page_id, p, last_batch);
       }
       p= pages.lower_bound(page_id);
       /* Ensure that progress will be made. */
       ut_ad(p == pages.end() || p->first > page_id ||
-            p->second.state >= page_recv_t::RECV_BEING_READ);
+            p->second.state >= page_recv_t::RECV_BEING_FAKE_READ);
     }
 
     buf_pool.free_block(free_block);

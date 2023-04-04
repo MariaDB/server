@@ -116,8 +116,9 @@ public:
 };
 enum class aio_opcode
 {
+  AIO_NOOP,
   AIO_PREAD,
-  AIO_PWRITE
+  AIO_PWRITE,
 };
 constexpr size_t MAX_AIO_USERDATA_LEN= 4 * sizeof(void*);
 

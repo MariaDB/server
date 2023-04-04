@@ -105,12 +105,18 @@ public:
     std::lock_guard<std::mutex> _(mutex_);
 
     io_uring_sqe *sqe= io_uring_get_sqe(&uring_);
-    if (cb->m_opcode == tpool::aio_opcode::AIO_PREAD)
+    switch (cb->m_opcode) {
+    case tpool::aio_opcode::AIO_NOOP:
+      io_uring_prep_rw(IORING_OP_NOP, sqe, cb->m_fh, cb, 0, 0);
+      break;
+    case tpool::aio_opcode::AIO_PREAD:
       io_uring_prep_readv(sqe, cb->m_fh, static_cast<struct iovec *>(cb), 1,
                           cb->m_offset);
-    else
+      break;
+    case tpool::aio_opcode::AIO_PWRITE:
       io_uring_prep_writev(sqe, cb->m_fh, static_cast<struct iovec *>(cb), 1,
                            cb->m_offset);
+    }
     io_uring_sqe_set_data(sqe, cb);
 
     return io_uring_submit(&uring_) == 1 ? 0 : -1;

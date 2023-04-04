@@ -212,6 +212,10 @@ public:
   bool is_LRU() const { return (type & (WRITE_LRU ^ WRITE_ASYNC)) != 0; }
   bool is_async() const { return (type & (READ_SYNC ^ READ_ASYNC)) != 0; }
 
+  void write_complete() const;
+  void read_complete() const;
+  void fake_read_complete() const;
+
   /** If requested, free storage space associated with a section of the file.
   @param off   byte offset from the start (SEEK_SET)
   @param len   size of the hole in bytes
@@ -1038,6 +1042,12 @@ int os_aio_init();
 /**
 Frees the asynchronous io system. */
 void os_aio_free();
+
+/** Submit a fake read request during crash recovery.
+@param type  fake read request
+@retval DB_SUCCESS if request was queued successfully
+@retval DB_IO_ERROR on I/O error */
+dberr_t os_fake_read(const IORequest &type);
 
 /** Request a read or write.
 @param type		I/O request
