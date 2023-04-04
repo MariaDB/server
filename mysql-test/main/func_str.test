@@ -2414,3 +2414,21 @@ select "a" in ("abc", (convert(random_bytes(8) ,binary(2))));
 --echo #
 --echo # End of 10.10 tests
 --echo #
+
+--echo #
+--echo # Start of 11.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-30879 Add conversion to based 62 for CONV function
+--echo #
+
+SELECT CONV('1z', 62, 10);
+SELECT CONV('1z', -62, 10);
+SELECT CONV('1z', 62, -10);
+SELECT CONV('1z', -62, -10);
+
+SELECT CONV('1Z', 62, 10);
+SELECT CONV('1Z', -62, 10);
+SELECT CONV('1Z', 62, -10);
+SELECT CONV('1Z', -62, -10);

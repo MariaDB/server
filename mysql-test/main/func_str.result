@@ -5439,3 +5439,33 @@ Warning	1292	Truncated incorrect BINARY(2) value: '...random bytes...'
 #
 # End of 10.10 tests
 #
+#
+# Start of 11.1 tests
+#
+#
+# MDEV-30879 Add conversion to based 62 for CONV function
+#
+SELECT CONV('1z', 62, 10);
+CONV('1z', 62, 10)
+97
+SELECT CONV('1z', -62, 10);
+CONV('1z', -62, 10)
+97
+SELECT CONV('1z', 62, -10);
+CONV('1z', 62, -10)
+97
+SELECT CONV('1z', -62, -10);
+CONV('1z', -62, -10)
+97
+SELECT CONV('1Z', 62, 10);
+CONV('1Z', 62, 10)
+123
+SELECT CONV('1Z', -62, 10);
+CONV('1Z', -62, 10)
+123
+SELECT CONV('1Z', 62, -10);
+CONV('1Z', 62, -10)
+123
+SELECT CONV('1Z', -62, -10);
+CONV('1Z', -62, -10)
+123

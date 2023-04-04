@@ -3712,6 +3712,202 @@ err:
   return 0;
 }
 
+/*
+  This is a helper function for converting a string based on the number between 32 and 62
+  to unsigned long long in Item_func_conv::val_str
+*/
+inline longlong convert_str_to_ull(CHARSET_INFO *cs,
+                             const char *nptr, size_t l, int base,
+                             char **endptr, int *err, bool* null_value)
+{
+  int negative;
+  ulonglong cutoff;
+  uint cutlim;
+  ulonglong i;
+  const char *s, *e;
+  const char *save;
+  int overflow;
+
+  *err= 0;				/* Initialize error indicator */
+
+  s = nptr;
+  e = nptr+l;
+
+  for(; s<e && my_isspace(cs,*s); s++);
+
+  if (s == e)
+  {
+    goto noconv;
+  }
+
+  if (*s == '-')
+  {
+    negative = 1;
+    ++s;
+  }
+  else if (*s == '+')
+  {
+    negative = 0;
+    ++s;
+  }
+  else
+    negative = 0;
+
+  save = s;
+
+  cutoff = (~(ulonglong) 0) / (unsigned long int) base;
+  cutlim = (uint) ((~(ulonglong) 0) % (unsigned long int) base);
+
+  overflow = 0;
+  i = 0;
+  for ( ; s != e; s++)
+  {
+    uchar c= *s;
+
+    if (c>='0' && c<='9')
+      c -= '0';
+    else if (c>='A' && c<='Z')
+      c = c - 'A' + 10 + 26;
+    else if (c>='a' && c<='z')
+      c = c - 'a' + 10;
+    else
+      break;
+    if (c >= base)
+    {
+      *null_value= 1;
+      break;
+    }
+    if (i > cutoff || (i == cutoff && c > cutlim))
+      overflow = 1;
+    else
+    {
+      i *= (ulonglong) base;
+      i += c;
+    }
+  }
+
+  if (s == save)
+    goto noconv;
+
+  if (endptr != NULL)
+    *endptr = (char *) s;
+
+  if (overflow)
+  {
+    err[0]= ERANGE;
+    return (~(ulonglong) 0);
+  }
+
+  return (negative ? -((longlong) i) : (longlong) i);
+
+noconv:
+  err[0]= EDOM;
+  if (endptr != NULL)
+    *endptr = (char *) nptr;
+  return 0L;
+}
+
+/*
+  This is a helper function for converting a string based on the number between 32 and 62
+  to long long in Item_func_conv::val_str
+*/
+inline longlong convert_str_to_ll(CHARSET_INFO *cs __attribute__((unused)),
+			  const char *nptr, size_t l, int base,
+			  char **endptr, int *err, bool* null_value)
+{
+  int negative;
+  ulonglong cutoff;
+  uint cutlim;
+  ulonglong i;
+  const char *s, *e;
+  const char *save;
+  int overflow;
+
+  *err= 0;				/* Initialize error indicator */
+
+  s = nptr;
+  e = nptr+l;
+
+  for(; s<e && my_isspace(cs,*s); s++);
+
+  if (s == e)
+  {
+    goto noconv;
+  }
+
+  if (*s == '-')
+  {
+    negative = 1;
+    ++s;
+  }
+  else if (*s == '+')
+  {
+    negative = 0;
+    ++s;
+  }
+  else
+    negative = 0;
+
+  save = s;
+
+  cutoff = (~(ulonglong) 0) / (unsigned long int) base;
+  cutlim = (uint) ((~(ulonglong) 0) % (unsigned long int) base);
+
+  overflow = 0;
+  i = 0;
+  for ( ; s != e; s++)
+  {
+    uchar c= *s;
+    if (c>='0' && c<='9')
+      c -= '0';
+    else if (c>='A' && c<='Z')
+      c = c - 'A' + 10 + 26;
+    else if (c>='a' && c<='z')
+      c = c - 'a' + 10;
+    else
+      break;
+    if (c >= base)
+    {
+      *null_value= 1;
+      break;
+    }
+    if (i > cutoff || (i == cutoff && c > cutlim))
+      overflow = 1;
+    else
+    {
+      i *= (ulonglong) base;
+      i += c;
+    }
+  }
+
+  if (s == save)
+    goto noconv;
+
+  if (endptr != NULL)
+    *endptr = (char *) s;
+
+  if (negative)
+  {
+    if (i  > (ulonglong) LONGLONG_MIN)
+      overflow = 1;
+  }
+  else if (i > (ulonglong) LONGLONG_MAX)
+    overflow = 1;
+
+  if (overflow)
+  {
+    err[0]= ERANGE;
+    return negative ? LONGLONG_MIN : LONGLONG_MAX;
+  }
+
+  return (negative ? -((longlong) i) : (longlong) i);
+
+noconv:
+  err[0]= EDOM;
+  if (endptr != NULL)
+    *endptr = (char *) nptr;
+  return 0L;
+}
 
 String *Item_func_conv::val_str(String *str)
 {
@@ -3726,8 +3922,8 @@ String *Item_func_conv::val_str(String *str)
   // Note that abs(INT_MIN) is undefined.
   if (args[0]->null_value || args[1]->null_value || args[2]->null_value ||
       from_base == INT_MIN || to_base == INT_MIN ||
-      abs(to_base) > 36 || abs(to_base) < 2 ||
-      abs(from_base) > 36 || abs(from_base) < 2 || !(res->length()))
+      abs(to_base) > 62 || abs(to_base) < 2 ||
+      abs(from_base) > 62 || abs(from_base) < 2 || !(res->length()))
   {
     null_value= 1;
     return NULL;
@@ -3737,14 +3933,14 @@ String *Item_func_conv::val_str(String *str)
 
   if (args[0]->field_type() == MYSQL_TYPE_BIT) 
   {
-    /* 
+    /*
      Special case: The string representation of BIT doesn't resemble the
      decimal representation, so we shouldn't change it to string and then to
-     decimal. 
+     decimal.
     */
     dec= args[0]->val_int();
   }
-  else
+  else if (abs(from_base) <= 36)
   {
     if (from_base < 0)
       dec= res->charset()->strntoll(res->ptr(), res->length(),
@@ -3753,8 +3949,19 @@ String *Item_func_conv::val_str(String *str)
       dec= (longlong) res->charset()->strntoull(res->ptr(), res->length(),
                                                 from_base, &endptr, &err);
   }
+  else
+  {
+    if (from_base < 0)
+      dec= convert_str_to_ll(res->charset(), res->ptr(),
+                              res->length(), -from_base,
+                              &endptr, &err, &null_value);
+    else
+      dec= (longlong) convert_str_to_ull(res->charset(), res->ptr(),
+                                         res->length(), from_base,
+                                         &endptr, &err, &null_value);
+  }
 
-  if (!(ptr= longlong2str(dec, ans, to_base)) ||
+  if (null_value || !(ptr= longlong2str(dec, ans, to_base)) ||
       str->copy(ans, (uint32) (ptr - ans), default_charset()))
   {
     null_value= 1;
