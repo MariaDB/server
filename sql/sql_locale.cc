@@ -3320,7 +3320,21 @@ MY_LOCALE my_locale_rm_CH
 
 /***** LOCALE BEGIN ka_GE: Georgian - Georgia *****/
 static const char *my_locale_month_names_ka_GE[13] =
- {"იანვარი","თებერვალი","მარტი","აპრილი","მაისი","ივნისი","ივლისი","სექტემბერი","ოქტომბერი","ნოემბერი","დეკემბერი", NullS };
+{
+  "იანვარი",    // January
+  "თებერვალი",  // February
+  "მარტი",      // March
+  "აპრილი",     // April
+  "მაისი",      // May
+  "ივნისი",     // June
+  "ივლისი",     // July
+  "აგვისტო",    // August
+  "სექტემბერი", // September
+  "ოქტომბერი",  // October
+  "ნოემბერი",   // November
+  "დეკემბერი",  // December
+  NullS
+};
 
 static const char *my_locale_ab_month_names_ka_GE[13] =
  {"იან","თებ","მარ","აპრ","მაი","ივნ","ივლ","აგვ","სექტ","ოქტ","ნოე","დეკ", NullS };
