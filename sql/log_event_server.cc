@@ -7970,7 +7970,7 @@ uint8 Write_rows_log_event::get_trg_event_map()
 
   Returns TRUE if different.
 */
-static bool record_compare(TABLE *table)
+static bool record_compare(TABLE *table, bool vers_from_plain= false)
 {
   bool result= FALSE;
   /**
@@ -8003,10 +8003,19 @@ static bool record_compare(TABLE *table)
   /* Compare fields */
   for (Field **ptr=table->field ; *ptr ; ptr++)
   {
-    if (table->versioned() && (*ptr)->vers_sys_field())
-    {
+    /*
+      If the table is versioned, don't compare using the version if there is a
+      primary key. If there isn't a primary key, we need the version to
+      identify the correct record if there are duplicate rows in the data set.
+      However, if the primary server is unversioned (vers_from_plain is true),
+      then we implicitly use row_end as the primary key on our side. This is
+      because the implicit row_end value will be set to the maximum value for
+      the latest row update (which is what we care about).
+    */
+    if (table->versioned() && (*ptr)->vers_sys_field() &&
+        (table->s->primary_key < MAX_KEY ||
+         (vers_from_plain && table->vers_start_field() == (*ptr))))
       continue;
-    }
     /**
       We only compare field contents that are not null.
       NULL fields (i.e., their null bits) were compared 
@@ -8400,7 +8409,7 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
     /* We use this to test that the correct key is used in test cases. */
     DBUG_EXECUTE_IF("slave_crash_if_index_scan", abort(););
 
-    while (record_compare(table))
+    while (record_compare(table, m_vers_from_plain))
     {
       while ((error= table->file->ha_index_next(table->record[0])))
       {
@@ -8453,7 +8462,7 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
         goto end;
       }
     }
-    while (record_compare(table));
+    while (record_compare(table, m_vers_from_plain));
     
     /* 
       Note: above record_compare will take into accout all record fields 
