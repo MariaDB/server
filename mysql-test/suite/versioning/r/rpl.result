@@ -164,4 +164,13 @@ update t1 set i = 0;
 connection slave;
 connection master;
 drop table t1;
+connection master;
+create table t1 (a INT) with system versioning;
+insert into t1 values (1);
+insert into t1 values (1);
+delete from t1;
+connection slave;
+include/diff_tables.inc [master:test.t1,slave:test.t1]
+connection master;
+drop table t1;
 include/rpl_end.inc

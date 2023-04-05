@@ -133,4 +133,20 @@ sync_slave_with_master;
 connection master;
 drop table t1;
 
+
+#
+#   MDEV-30430: Enabling system versioning on tables without primary key breaks replication
+#
+connection master;
+create table t1 (a INT) with system versioning;
+insert into t1 values (1);
+insert into t1 values (1);
+delete from t1;
+sync_slave_with_master;
+--let $diff_tables= master:test.t1,slave:test.t1
+--source include/diff_tables.inc
+
+connection master;
+drop table t1;
+
 --source include/rpl_end.inc
