@@ -113,6 +113,12 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 #define MB_CORRUPTED_PAGES_FILE "innodb_corrupted_pages"
 
+// disable server's systemd notification code
+extern "C" {
+int sd_notify() { return 0; }
+int sd_notifyf() { return 0; }
+}
+
 int sys_var_init();
 
 /* === xtrabackup specific options === */
