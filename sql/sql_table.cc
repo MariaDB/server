@@ -703,11 +703,6 @@ uint build_table_shadow_filename(char *buff, size_t bufflen,
       WFRM_INITIAL_WRITE        If set we need to prepare table before
                                 creating the frm file
       WFRM_INSTALL_SHADOW       If set we should install the new frm
-      WFRM_KEEP_SHARE           If set we know that the share is to be
-                                retained and thus we should ensure share
-                                object is correct, if not set we don't
-                                set the new partition syntax string since
-                                we know the share object is destroyed.
       WFRM_PACK_FRM             If set we should pack the frm file and delete
                                 the frm file
 
@@ -934,37 +929,6 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
       error= 1;
       goto err;
     }
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-    if (part_info && (flags & WFRM_KEEP_SHARE))
-    {
-      TABLE_SHARE *share= lpt->table->s;
-      char *tmp_part_syntax_str;
-      part_syntax_buf= generate_partition_syntax_for_frm(lpt->thd,
-                   part_info, &syntax_len, lpt->create_info, lpt->alter_info);
-      if (!part_syntax_buf)
-      {
-        error= 1;
-        goto err;
-      }
-      if (share->partition_info_buffer_size < syntax_len + 1)
-      {
-        share->partition_info_buffer_size= syntax_len+1;
-        if (!(tmp_part_syntax_str= (char*) strmake_root(&share->mem_root,
-                                                        part_syntax_buf,
-                                                        syntax_len)))
-        {
-          error= 1;
-          goto err;
-        }
-        share->partition_info_str= tmp_part_syntax_str;
-      }
-      else
-        memcpy((char*) share->partition_info_str, part_syntax_buf,
-               syntax_len + 1);
-      share->partition_info_str_len= part_info->part_info_len= syntax_len;
-      part_info->part_info_string= part_syntax_buf;
-    }
-#endif
 
 err:
 #ifdef WITH_PARTITION_STORAGE_ENGINE
