@@ -10283,6 +10283,8 @@ void *spider_table_bg_sts_action(
       thd->mysys_var->current_cond = &thread->cond;
       thd->mysys_var->current_mutex = &thread->mutex;
     }
+    bool spd_wsrep_on = thd->variables.wsrep_on;
+    thd->variables.wsrep_on = false;
     while (spider_init_queries[i].length && !thd->killed && !thread->killed &&
       thread->init_command)
     {
@@ -10296,6 +10298,7 @@ void *spider_table_bg_sts_action(
       }
       ++i;
     }
+    thd->variables.wsrep_on = spd_wsrep_on;
     thd->mysys_var->current_cond = &thread->cond;
     thd->mysys_var->current_mutex = &thread->mutex;
     thd->client_capabilities -= CLIENT_MULTI_RESULTS;

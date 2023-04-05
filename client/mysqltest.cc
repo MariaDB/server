@@ -3815,9 +3815,21 @@ void do_move_file(struct st_command *command)
                      sizeof(move_file_args)/sizeof(struct command_arg),
                      ' ');
 
-  if (bad_path(ds_to_file.str))
-    DBUG_VOID_RETURN;
+  size_t from_plen = strlen(ds_from_file.str);
+  size_t to_plen = strlen(ds_to_file.str);
+  const char *vardir= getenv("MYSQLTEST_VARDIR");
+  const char *tmpdir= getenv("MYSQL_TMP_DIR");
 
+  if (!((is_sub_path(ds_from_file.str, from_plen, vardir) && 
+        is_sub_path(ds_to_file.str, to_plen, vardir)) || 
+        (is_sub_path(ds_from_file.str, from_plen, tmpdir) && 
+        is_sub_path(ds_to_file.str, to_plen, tmpdir)))) {
+        report_or_die("Paths '%s' and '%s' are not both under MYSQLTEST_VARDIR '%s'"
+                "or both under MYSQL_TMP_DIR '%s'",
+                ds_from_file, ds_to_file, vardir, tmpdir);
+        DBUG_VOID_RETURN;
+  }
+  
   DBUG_PRINT("info", ("Move %s to %s", ds_from_file.str, ds_to_file.str));
   error= (my_rename(ds_from_file.str, ds_to_file.str,
                     MYF(disable_warnings ? 0 : MY_WME)) != 0);

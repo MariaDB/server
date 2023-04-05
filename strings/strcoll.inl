@@ -305,7 +305,8 @@ static int
 MY_FUNCTION_NAME(strnncollsp_nchars)(CHARSET_INFO *cs __attribute__((unused)),
                                      const uchar *a, size_t a_length,
                                      const uchar *b, size_t b_length,
-                                     size_t nchars)
+                                     size_t nchars,
+                                     uint flags)
 {
   const uchar *a_end= a + a_length;
   const uchar *b_end= b + b_length;

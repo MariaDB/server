@@ -9013,7 +9013,7 @@ bool TABLE::check_period_overlaps(const KEY &key,
         return false;
     uint kp_len= key.key_part[part_nr].length;
     if (f->cmp_prefix(f->ptr_in_record(lhs), f->ptr_in_record(rhs),
-                      kp_len) != 0)
+                      kp_len / f->charset()->mbmaxlen) != 0)
       return false;
   }
 

@@ -1294,7 +1294,7 @@ public:
     Currently it's only used in partitioning.
   */
   virtual int cmp_prefix(const uchar *a, const uchar *b,
-                         size_t prefix_len) const
+                         size_t prefix_char_len) const
   { return cmp(a, b); }
   virtual int cmp(const uchar *,const uchar *) const=0;
   virtual int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0U) const
@@ -4176,7 +4176,7 @@ public:
   my_decimal *val_decimal(my_decimal *) override;
   bool send(Protocol *protocol) override;
   int cmp(const uchar *a,const uchar *b) const override;
-  int cmp_prefix(const uchar *a, const uchar *b, size_t prefix_len) const
+  int cmp_prefix(const uchar *a, const uchar *b, size_t prefix_char_len) const
     override;
   void sort_string(uchar *buff,uint length) override;
   uint get_key_image(uchar *buff, uint length,
@@ -4469,7 +4469,7 @@ public:
   String *val_str(String *, String *) override;
   my_decimal *val_decimal(my_decimal *) override;
   int cmp(const uchar *a, const uchar *b) const override;
-  int cmp_prefix(const uchar *a, const uchar *b, size_t prefix_len) const
+  int cmp_prefix(const uchar *a, const uchar *b, size_t prefix_char_len) const
     override;
   int cmp(const uchar *a, uint32 a_length, const uchar *b, uint32 b_length)
     const;
@@ -4954,7 +4954,7 @@ public:
   int cmp_binary_offset(uint row_offset) override
   { return cmp_offset(row_offset); }
   int cmp_prefix(const uchar *a, const uchar *b,
-                 size_t  max_length) const override;
+                 size_t  prefix_char_length) const override;
   int key_cmp(const uchar *a, const uchar *b) const override
   { return cmp_binary((uchar *) a, (uchar *) b); }
   int key_cmp(const uchar *str, uint length) const override;
