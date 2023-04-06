@@ -2289,7 +2289,12 @@ static bool innodb_init()
   ut_ad(recv_no_log_write);
   buf_flush_sync();
   recv_sys.debug_free();
-  DBUG_ASSERT(!buf_pool.any_io_pending());
+  ut_ad(!os_aio_pending_reads());
+  ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
+  ut_ad(!buf_pool.get_oldest_modification(0));
+  ut_ad(buf_pool.page_cleaner_idle());
+  ut_ad(!buf_dblwr.pending_writes());
+  ut_d(mysql_mutex_unlock(&buf_pool.flush_list_mutex));
   log_sys.close_file();
 
   if (xtrabackup_incremental)

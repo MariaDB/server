@@ -232,7 +232,6 @@ buf_read_page_low(
 		return DB_SUCCESS_LOCKED_REC;
 	}
 
-	buf_pool.n_pend_reads++;
 	ut_ad(bpage->in_file());
 
 	if (sync) {
@@ -252,8 +251,6 @@ buf_read_page_low(
 			     page_id.page_no() * len, len, dst, bpage);
 
 	if (UNIV_UNLIKELY(fio.err != DB_SUCCESS)) {
-		ut_d(auto n=) buf_pool.n_pend_reads--;
-		ut_ad(n > 0);
 		buf_pool.corrupted_evict(bpage, buf_page_t::READ_FIX);
 	} else if (sync) {
 		thd_wait_end(NULL);
@@ -305,7 +302,7 @@ ulint buf_read_ahead_random(const page_id_t page_id, ulint zip_size)
     /* No read-ahead to avoid thread deadlocks */
     return 0;
 
-  if (buf_pool.n_pend_reads > buf_pool.curr_size / BUF_READ_AHEAD_PEND_LIMIT)
+  if (os_aio_pending_reads() > buf_pool.curr_size / BUF_READ_AHEAD_PEND_LIMIT)
     return 0;
 
   fil_space_t* space= fil_space_t::get(page_id.space());
@@ -511,7 +508,7 @@ ulint buf_read_ahead_linear(const page_id_t page_id, ulint zip_size)
     /* No read-ahead to avoid thread deadlocks */
     return 0;
 
-  if (buf_pool.n_pend_reads > buf_pool.curr_size / BUF_READ_AHEAD_PEND_LIMIT)
+  if (os_aio_pending_reads() > buf_pool.curr_size / BUF_READ_AHEAD_PEND_LIMIT)
     return 0;
 
   const uint32_t buf_read_ahead_area= buf_pool.read_ahead_area;
@@ -659,34 +656,39 @@ failed:
 
 /** Schedule a page for recovery.
 @param space    tablespace
-@param id       page identifier
-@param no_read  whether the page can be recovered without reading it */
-void buf_read_recover(fil_space_t *space, const page_id_t id, bool no_read)
+@param page_id  page identifier
+@param recs     log records
+@param init_lsn page initialization LSN, or 0 if the page needs to be read */
+void buf_read_recover(fil_space_t *space, const page_id_t page_id,
+                      page_recv_t &recs, lsn_t init_lsn)
 {
-  ut_ad(space->id == id.space());
+  ut_ad(space->id == page_id.space());
   space->reacquire();
   const ulint zip_size= space->zip_size() | 1;
 
-  buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(id.fold());
+  buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(page_id.fold());
 
   buf_block_t *block= buf_LRU_get_free_block(have_no_mutex);
 
-  if (no_read)
+  if (init_lsn)
   {
-    if (buf_page_t *bpage= buf_page_init_for_read(id, zip_size, chain, block))
+    if (buf_page_t *bpage=
+        buf_page_init_for_read(page_id, zip_size, chain, block))
     {
       ut_ad(bpage->in_file());
-      os_fake_read(IORequest{bpage, nullptr, UT_LIST_GET_FIRST(space->chain),
-                             IORequest::READ_ASYNC});
+      os_fake_read(IORequest{bpage, (buf_tmp_buffer_t*) &recs,
+                             UT_LIST_GET_FIRST(space->chain),
+                             IORequest::READ_ASYNC}, init_lsn);
       return;
     }
   }
-  else if (dberr_t err= buf_read_page_low(id, zip_size, chain, space, block))
+  else if (dberr_t err=
+           buf_read_page_low(page_id, zip_size, chain, space, block))
   {
     if (err != DB_SUCCESS_LOCKED_REC)
       sql_print_error("InnoDB: Recovery failed to read page "
                       UINT32PF " from %s",
-                      id.page_no(), space->chain.start->name);
+                      page_id.page_no(), space->chain.start->name);
   }
   else
   {

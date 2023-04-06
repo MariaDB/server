@@ -3018,15 +3018,14 @@ lsn of a log record.
 @return the recovered page
 @retval nullptr on failure */
 static buf_block_t *recv_recover_page(buf_block_t *block, mtr_t &mtr,
-                                      const recv_sys_t::map::iterator &p,
+                                      page_recv_t &recs,
                                       fil_space_t *space= nullptr,
                                       lsn_t init_lsn= 0)
 {
 	mysql_mutex_assert_not_owner(&recv_sys.mutex);
 	ut_ad(recv_sys.apply_log_recs);
 	ut_ad(recv_needed_recovery);
-	ut_ad(block->page.id() == p->first);
-	ut_ad(p->second.being_processed == 1);
+	ut_ad(recs.being_processed == 1);
 	ut_ad(!space || space->id == block->page.id().space());
 	ut_ad(log_sys.is_latest());
 
@@ -3050,7 +3049,7 @@ static buf_block_t *recv_recover_page(buf_block_t *block, mtr_t &mtr,
 
 	bool skipped_after_init = false;
 
-	for (const log_rec_t* recv : p->second.log) {
+	for (const log_rec_t* recv : recs.log) {
 		const log_phys_t* l = static_cast<const log_phys_t*>(recv);
 		ut_ad(l->lsn);
 		ut_ad(end_lsn <= l->lsn);
@@ -3108,8 +3107,7 @@ static buf_block_t *recv_recover_page(buf_block_t *block, mtr_t &mtr,
 				      block->page.id().space(),
 				      block->page.id().page_no()));
 
-		log_phys_t::apply_status a= l->apply(*block,
-						     p->second.last_offset);
+		log_phys_t::apply_status a= l->apply(*block, recs.last_offset);
 
 		switch (a) {
 		case log_phys_t::APPLIED_NO:
@@ -3311,7 +3309,7 @@ bool recv_recover_page(fil_space_t* space, buf_page_t* bpage)
       p->second.being_processed= 1;
       const lsn_t init_lsn= p->second.skip_read ? mlog_init.last(id) : 0;
       mysql_mutex_unlock(&recv_sys.mutex);
-      success= recv_recover_page(success, mtr, p, space, init_lsn);
+      success= recv_recover_page(success, mtr, p->second, space, init_lsn);
       p->second.being_processed= -1;
       goto func_exit;
     }
@@ -3324,16 +3322,36 @@ func_exit:
   return success;
 }
 
-void IORequest::fake_read_complete() const
+void IORequest::fake_read_complete(os_offset_t offset) const
 {
   ut_ad(node);
   ut_ad(is_read());
   ut_ad(bpage);
   ut_ad(bpage->frame);
   ut_ad(recv_recovery_is_on());
+  ut_ad(offset > 1);
 
-  if (recv_recover_page(node->space, bpage))
+  mtr_t mtr;
+  mtr.start();
+  mtr.set_log_mode(MTR_LOG_NO_REDO);
+
+  ut_ad(bpage->frame);
+  /* Move the ownership of the x-latch on the page to this OS thread,
+  so that we can acquire a second x-latch on it. This is needed for
+  the operations to the page to pass the debug checks. */
+  bpage->lock.claim_ownership();
+  bpage->lock.x_lock_recursive();
+  bpage->fix_on_recovery();
+  mtr.memo_push(reinterpret_cast<buf_block_t*>(bpage), MTR_MEMO_PAGE_X_FIX);
+
+  page_recv_t &recs= *reinterpret_cast<page_recv_t*>(slot);
+  ut_ad(recs.being_processed == 1);
+
+  if (recv_recover_page(reinterpret_cast<buf_block_t*>(bpage),
+                        mtr, recs, node->space, offset))
     bpage->lock.x_unlock(true);
+  recs.being_processed= -1;
+  ut_ad(mtr.has_committed());
 
   node->space->release();
 }
@@ -3483,10 +3501,16 @@ bool recv_sys_t::apply_batch(uint32_t space_id, fil_space_t *&space,
       }
       if (!space || space->is_freed(id.page_no()))
         goto discard_again;
+      else
+      {
+        page_recv_t &recs= pages_it->second;
+        ut_ad(!recs.log.empty());
+        recs.being_processed= 1;
+        const lsn_t init_lsn= recs.skip_read ? mlog_init.last(id) : 0;
+        mysql_mutex_unlock(&mutex);
+        buf_read_recover(space, id, recs, init_lsn);
+      }
 
-      pages_it->second.being_processed= 1;
-      mysql_mutex_unlock(&mutex);
-      buf_read_recover(space, id, pages_it->second.skip_read);
       if (!--n)
       {
         if (last_batch)
@@ -3578,7 +3602,7 @@ inline buf_block_t *recv_sys_t::recover_low(const map::iterator &p, mtr_t &mtr,
   ut_d(mysql_mutex_lock(&mutex));
   ut_ad(&recs == &pages.find(p->first)->second);
   ut_d(mysql_mutex_unlock(&mutex));
-  block= recv_recover_page(block, mtr, p, space, init_lsn);
+  block= recv_recover_page(block, mtr, recs, space, init_lsn);
   ut_ad(mtr.has_committed());
 
   if (space)

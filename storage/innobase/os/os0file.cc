@@ -3439,10 +3439,9 @@ static void io_callback_errorcheck(const tpool::aiocb *cb)
 static void fake_io_callback(void *c)
 {
   tpool::aiocb *cb= static_cast<tpool::aiocb*>(c);
-  ut_ad(cb->m_opcode == tpool::aio_opcode::AIO_NOOP);
   ut_ad(read_slots->contains(cb));
-  static_cast<const IORequest*>
-    (static_cast<const void*>(cb->m_userdata))->fake_read_complete();
+  static_cast<const IORequest*>(static_cast<const void*>(cb->m_userdata))->
+    fake_read_complete(cb->m_offset);
   read_slots->release(cb);
 }
 
@@ -3722,6 +3721,19 @@ void os_aio_wait_until_no_pending_writes()
   buf_dblwr.wait_flush_buffered_writes();
 }
 
+/** @return number of pending reads */
+size_t os_aio_pending_reads()
+{
+  std::unique_lock<std::mutex> lk(read_slots->mutex());
+  return read_slots->pending_io_count();
+}
+
+/** @return approximate number of pending reads */
+size_t os_aio_pending_reads_approx()
+{
+  return read_slots->pending_io_count();
+}
+
 /** Wait until all pending asynchronous reads have completed. */
 void os_aio_wait_until_no_pending_reads()
 {
@@ -3738,30 +3750,23 @@ void os_aio_wait_until_no_pending_reads()
 
 /** Submit a fake read request during crash recovery.
 @param type  fake read request
-@retval DB_SUCCESS if request was queued successfully
-@retval DB_IO_ERROR on I/O error */
-dberr_t os_fake_read(const IORequest &type)
+@param offset additional context */
+void os_fake_read(const IORequest &type, os_offset_t offset)
 {
   tpool::aiocb *cb= read_slots->acquire();
 
-  cb->m_buffer= nullptr;
-  cb->m_callback= fake_io_callback;
   cb->m_group= read_slots->get_task_group();
   cb->m_fh= type.node->handle.m_file;
+  cb->m_buffer= nullptr;
   cb->m_len= 0;
-  cb->m_offset= 0;
-  cb->m_opcode= tpool::aio_opcode::AIO_NOOP;
+  cb->m_offset= offset;
+  cb->m_opcode= tpool::aio_opcode::AIO_PREAD;
   new (cb->m_userdata) IORequest{type};
+  cb->m_internal_task.m_func= fake_io_callback;
+  cb->m_internal_task.m_arg= cb;
+  cb->m_internal_task.m_group= cb->m_group;
 
-  if (srv_thread_pool->submit_io(cb))
-  {
-    read_slots->release(cb);
-    os_file_handle_error(type.node->name, "fake read");
-    type.node->space->release();
-    return DB_IO_ERROR;
-  }
-
-  return DB_SUCCESS;
+  srv_thread_pool->submit_task(&cb->m_internal_task);
 }
 
 

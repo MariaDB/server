@@ -2437,7 +2437,7 @@ static void buf_flush_page_cleaner()
         last_activity_count= activity_count;
         goto maybe_unemployed;
       }
-      else if (buf_pool.page_cleaner_idle() && buf_pool.n_pend_reads == 0)
+      else if (buf_pool.page_cleaner_idle() && !os_aio_pending_reads())
       {
         /* reaching here means 3 things:
            - last_activity_count == activity_count: suggesting server is idle
@@ -2551,6 +2551,7 @@ ATTRIBUTE_COLD void buf_flush_page_cleaner_init()
 /** Flush the buffer pool on shutdown. */
 ATTRIBUTE_COLD void buf_flush_buffer_pool()
 {
+  ut_ad(!os_aio_pending_reads());
   ut_ad(!buf_page_cleaner_is_active);
   ut_ad(!buf_flush_sync_lsn);
 
@@ -2578,8 +2579,9 @@ ATTRIBUTE_COLD void buf_flush_buffer_pool()
                                    UT_LIST_GET_LEN(buf_pool.flush_list));
   }
 
+  ut_ad(!buf_dblwr.pending_writes());
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-  ut_ad(!buf_pool.any_io_pending());
+  ut_ad(!os_aio_pending_reads());
 }
 
 /** Synchronously flush dirty blocks during recv_sys_t::apply().

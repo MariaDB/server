@@ -214,7 +214,7 @@ public:
 
   void write_complete() const;
   void read_complete() const;
-  void fake_read_complete() const;
+  void fake_read_complete(os_offset_t offset) const;
 
   /** If requested, free storage space associated with a section of the file.
   @param off   byte offset from the start (SEEK_SET)
@@ -1044,10 +1044,9 @@ Frees the asynchronous io system. */
 void os_aio_free();
 
 /** Submit a fake read request during crash recovery.
-@param type  fake read request
-@retval DB_SUCCESS if request was queued successfully
-@retval DB_IO_ERROR on I/O error */
-dberr_t os_fake_read(const IORequest &type);
+@param type   fake read request
+@param offset additional context */
+void os_fake_read(const IORequest &type, os_offset_t offset);
 
 /** Request a read or write.
 @param type		I/O request
@@ -1057,6 +1056,11 @@ dberr_t os_fake_read(const IORequest &type);
 @retval DB_SUCCESS if request was queued successfully
 @retval DB_IO_ERROR on I/O error */
 dberr_t os_aio(const IORequest &type, void *buf, os_offset_t offset, size_t n);
+
+/** @return number of pending reads */
+size_t os_aio_pending_reads();
+/** @return approximate number of pending reads */
+size_t os_aio_pending_reads_approx();
 
 /** Wait until there are no pending asynchronous writes. */
 void os_aio_wait_until_no_pending_writes();

@@ -111,9 +111,11 @@ public:
     cb->Offset = uli.LowPart;
     cb->OffsetHigh = uli.HighPart;
 
-    BOOL ok = cb->m_opcode != aio_opcode::AIO_PWRITE
-      ? ReadFile(cb->m_fh.m_handle, cb->m_buffer, cb->m_len, 0, cb)
-      : WriteFile(cb->m_fh.m_handle, cb->m_buffer, cb->m_len, 0, cb);
+    BOOL ok;
+    if (cb->m_opcode == aio_opcode::AIO_PREAD)
+      ok = ReadFile(cb->m_fh.m_handle, cb->m_buffer, cb->m_len, 0, cb);
+    else
+      ok = WriteFile(cb->m_fh.m_handle, cb->m_buffer, cb->m_len, 0, cb);
 
     if (ok || (GetLastError() == ERROR_IO_PENDING))
       return 0;

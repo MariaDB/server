@@ -93,6 +93,8 @@ ulint buf_read_ahead_linear(const page_id_t page_id, ulint zip_size);
 
 /** Schedule a page for recovery.
 @param space    tablespace
-@param id       page identifier
-@param no_read  whether the page can be recovered without reading it */
-void buf_read_recover(fil_space_t *space, const page_id_t id, bool no_read);
+@param page_id  page identifier
+@param recs     log records
+@param init_lsn page initialization LSN, or 0 if the page needs to be read */
+void buf_read_recover(fil_space_t *space, const page_id_t page_id,
+                      page_recv_t &recs, lsn_t init_lsn);

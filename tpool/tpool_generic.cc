@@ -63,21 +63,17 @@ void aio::synchronous(aiocb *cb)
   ssize_t ret_len;
 #endif
   int err= 0;
-  do
+  switch (cb->m_opcode)
   {
-    switch (cb->m_opcode) {
-    case aio_opcode::AIO_PREAD:
-      ret_len= pread(cb->m_fh, cb->m_buffer, cb->m_len, cb->m_offset);
-      continue;
-    case aio_opcode::AIO_PWRITE:
-      ret_len= pwrite(cb->m_fh, cb->m_buffer, cb->m_len, cb->m_offset);
-      continue;
-    case aio_opcode::AIO_NOOP:
-      goto done;
-    }
+  case aio_opcode::AIO_PREAD:
+    ret_len= pread(cb->m_fh, cb->m_buffer, cb->m_len, cb->m_offset);
+    break;
+  case aio_opcode::AIO_PWRITE:
+    ret_len= pwrite(cb->m_fh, cb->m_buffer, cb->m_len, cb->m_offset);
+    break;
+  default:
     abort();
   }
-  while (false);
 #ifdef _WIN32
   if (static_cast<int>(ret_len) < 0)
     err= GetLastError();
@@ -91,7 +87,6 @@ void aio::synchronous(aiocb *cb)
   cb->m_ret_len = ret_len;
   cb->m_err = err;
   if (ret_len)
-  done:
     finish_synchronous(cb);
 }
 

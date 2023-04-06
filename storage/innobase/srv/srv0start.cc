@@ -188,7 +188,11 @@ static dberr_t create_log_file(bool create_new_db, lsn_t lsn)
 	ib_logfile0 in log_t::rename_resized(). */
 	delete_log_files();
 
-	DBUG_ASSERT(!buf_pool.any_io_pending());
+	ut_ad(!os_aio_pending_reads());
+	ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
+	ut_ad(!buf_pool.get_oldest_modification(0));
+	ut_ad(!buf_dblwr.pending_writes());
+	ut_d(mysql_mutex_unlock(&buf_pool.flush_list_mutex));
 
 	log_sys.latch.wr_lock(SRW_LOCK_CALL);
 	log_sys.set_capacity();
@@ -1092,7 +1096,11 @@ same_size:
   log_write_up_to(flushed_lsn, false);
 
   ut_ad(flushed_lsn == log_sys.get_lsn());
-  ut_ad(!buf_pool.any_io_pending());
+  ut_ad(!os_aio_pending_reads());
+  ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
+  ut_ad(!buf_pool.get_oldest_modification(0));
+  ut_ad(!buf_dblwr.pending_writes());
+  ut_d(mysql_mutex_unlock(&buf_pool.flush_list_mutex));
 
   DBUG_RETURN(flushed_lsn);
 }
@@ -1108,7 +1116,11 @@ ATTRIBUTE_COLD static dberr_t srv_log_rebuild()
   /* Prohibit redo log writes from any other threads until creating a
   log checkpoint at the end of create_log_file(). */
   ut_d(recv_no_log_write= true);
-  DBUG_ASSERT(!buf_pool.any_io_pending());
+  ut_ad(!os_aio_pending_reads());
+  ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
+  ut_ad(!buf_pool.get_oldest_modification(0));
+  ut_ad(!buf_dblwr.pending_writes());
+  ut_d(mysql_mutex_unlock(&buf_pool.flush_list_mutex));
 
   /* Close the redo log file, so that we can replace it */
   log_sys.close_file();

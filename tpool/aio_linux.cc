@@ -159,15 +159,8 @@ public:
   {
     io_prep_pread(static_cast<iocb*>(cb), cb->m_fh, cb->m_buffer, cb->m_len,
                   cb->m_offset);
-    switch (cb->m_opcode) {
-    case aio_opcode::AIO_PREAD:
-      break;
-    case aio_opcode::AIO_NOOP:
-      cb->aio_lio_opcode= IO_CMD_NOOP;
-      break;
-    case aio_opcode::AIO_PWRITE:
+    if (cb->m_opcode != aio_opcode::AIO_PREAD)
       cb->aio_lio_opcode= IO_CMD_PWRITE;
-    }
     iocb *icb= static_cast<iocb*>(cb);
     int ret= io_submit(m_io_ctx, 1, &icb);
     if (ret == 1)
