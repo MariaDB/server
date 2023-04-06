@@ -803,8 +803,17 @@ pfs_os_file_t fil_system_t::detach(fil_space_t *space, bool detach_handle)
     space_list_t::iterator s= space_list_t::iterator(space);
     if (space_list_last_opened == space)
     {
-      space_list_t::iterator prev= s;
-      space_list_last_opened= &*--prev;
+      if (s == space_list.begin())
+      {
+        ut_ad(srv_operation > SRV_OPERATION_EXPORT_RESTORED ||
+              srv_shutdown_state > SRV_SHUTDOWN_NONE);
+        space_list_last_opened= nullptr;
+      }
+      else
+      {
+        space_list_t::iterator prev= s;
+        space_list_last_opened= &*--prev;
+      }
     }
     space_list.erase(s);
   }
@@ -1317,9 +1326,9 @@ void fil_system_t::close()
 void fil_system_t::add_opened_last_to_space_list(fil_space_t *space)
 {
   if (UNIV_LIKELY(space_list_last_opened != nullptr))
-    space_list.insert(space_list_t::iterator(space_list_last_opened), *space);
+    space_list.insert(++space_list_t::iterator(space_list_last_opened), *space);
   else
-    space_list.push_back(*space);
+    space_list.push_front(*space);
   space_list_last_opened= space;
 }
 
