@@ -91,7 +91,8 @@ latches!
 @return number of page read requests issued */
 ulint buf_read_ahead_linear(const page_id_t page_id, ulint zip_size);
 
-/** Issue read requests for pages that need to be recovered.
-@param space_id	tablespace identifier
-@param page_nos	page numbers to read, in ascending order */
-void buf_read_recv_pages(uint32_t space_id, st_::span<uint64_t> page_nos);
+/** Schedule a page for recovery.
+@param space    tablespace
+@param id       page identifier
+@param no_read  whether the page can be recovered without reading it */
+void buf_read_recover(fil_space_t *space, const page_id_t id, bool no_read);

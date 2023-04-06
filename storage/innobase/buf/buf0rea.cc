@@ -188,7 +188,6 @@ page_exists:
 
   buf_pool.stat.n_pages_read++;
   mysql_mutex_unlock(&buf_pool.mutex);
-  buf_pool.n_pend_reads++;
   return bpage;
 func_exit:
   mysql_mutex_unlock(&buf_pool.mutex);
@@ -233,6 +232,7 @@ buf_read_page_low(
 		return DB_SUCCESS_LOCKED_REC;
 	}
 
+	buf_pool.n_pend_reads++;
 	ut_ad(bpage->in_file());
 
 	if (sync) {
@@ -657,82 +657,42 @@ failed:
   return count;
 }
 
-/** @return whether a page has been freed */
-inline bool fil_space_t::is_freed(uint32_t page)
+/** Schedule a page for recovery.
+@param space    tablespace
+@param id       page identifier
+@param no_read  whether the page can be recovered without reading it */
+void buf_read_recover(fil_space_t *space, const page_id_t id, bool no_read)
 {
-  std::lock_guard<std::mutex> freed_lock(freed_range_mutex);
-  return freed_ranges.contains(page);
-}
-
-/** Issues read requests for pages which recovery wants to read in.
-@param space_id	tablespace identifier
-@param page_nos	page numbers to read, in ascending order */
-void buf_read_recv_pages(uint32_t space_id, st_::span<uint64_t> page_nos)
-{
-  fil_space_t *space= fil_space_t::get(space_id);
-
-  if (!space)
-    /* The tablespace is missing or unreadable: do nothing */
-    return;
-
+  ut_ad(space->id == id.space());
+  space->reacquire();
   const ulint zip_size= space->zip_size() | 1;
-  mysql_mutex_lock(&buf_pool.mutex);
-  if (UT_LIST_GET_LEN(buf_pool.free) < page_nos.size())
+
+  buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(id.fold());
+
+  buf_block_t *block= buf_LRU_get_free_block(have_no_mutex);
+
+  if (no_read)
   {
-    mysql_mutex_unlock(&buf_pool.mutex);
-    os_aio_wait_until_no_pending_reads();
-    mysql_mutex_lock(&buf_pool.mutex);
-  }
-  buf_block_t* block= buf_LRU_get_free_block(have_mutex);
-  mysql_mutex_unlock(&buf_pool.mutex);
-
-  for (ulint i= 0; i < page_nos.size(); i++)
-  {
-    /* Ignore if the page already present in freed ranges. */
-    const uint32_t page_no= static_cast<uint32_t>(page_nos[i]);
-
-    if (space->is_freed(page_no))
-      continue;
-
-    const page_id_t id{space_id, page_no};
-    ut_ad(!buf_dblwr.is_inside(id));
-
-    buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(id.fold());
-
-    if (page_nos[i] >> 63)
+    if (buf_page_t *bpage= buf_page_init_for_read(id, zip_size, chain, block))
     {
-      buf_page_t *bpage= buf_page_init_for_read(id, zip_size, chain, block);
-      if (!bpage)
-      {
-        ut_ad(block);
-        continue;
-      }
       ut_ad(bpage->in_file());
-      space->reacquire();
       os_fake_read(IORequest{bpage, nullptr, UT_LIST_GET_FIRST(space->chain),
                              IORequest::READ_ASYNC});
-      goto allocate;
+      return;
     }
-
-    space->reacquire();
-
-    switch (buf_read_page_low(id, zip_size, chain, space, block)) {
-    case DB_SUCCESS:
-    allocate:
-      ut_ad(!block);
-      block= buf_LRU_get_free_block(have_no_mutex);
-      break;
-    case DB_SUCCESS_LOCKED_REC:
-      break;
-    default:
+  }
+  else if (dberr_t err= buf_read_page_low(id, zip_size, chain, space, block))
+  {
+    if (err != DB_SUCCESS_LOCKED_REC)
       sql_print_error("InnoDB: Recovery failed to read page "
-                      UINT32PF " from %s", page_no, space->chain.start->name);
-    }
-    ut_ad(block);
+                      UINT32PF " from %s",
+                      id.page_no(), space->chain.start->name);
+  }
+  else
+  {
+    ut_ad(!block);
+    return;
   }
 
-  DBUG_PRINT("ib_buf", ("recovery read (%zu pages) for %s",
-                        page_nos.size(), space->chain.start->name));
-  space->release();
-  buf_read_release(block);
+  buf_LRU_block_free_non_file_page(block);
 }

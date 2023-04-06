@@ -1233,6 +1233,7 @@ void buf_pool_t::corrupted_evict(buf_page_t *bpage, uint32_t state)
   buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(id.fold());
   page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
 
+  recv_sys.free_corrupted_page(id);
   mysql_mutex_lock(&mutex);
   hash_lock.lock();
 
@@ -1257,8 +1258,6 @@ void buf_pool_t::corrupted_evict(buf_page_t *bpage, uint32_t state)
     buf_LRU_block_free_hashed_page(reinterpret_cast<buf_block_t*>(bpage));
 
   mysql_mutex_unlock(&mutex);
-
-  recv_sys.free_corrupted_page(id);
 }
 
 /** Update buf_pool.LRU_old_ratio.
