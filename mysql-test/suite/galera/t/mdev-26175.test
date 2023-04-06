@@ -1,0 +1,26 @@
+--source include/galera_cluster.inc
+
+#
+# MDEV-26175 : Assertion `! thd->in_sub_stmt' failed in bool trans_rollback_stmt(THD*)
+#
+--connection node_1
+SET sql_mode="no_zero_date";
+SET GLOBAL wsrep_max_ws_rows=1;
+CREATE TABLE t2 (a INT);
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+CREATE TRIGGER tgr BEFORE INSERT ON t1 FOR EACH ROW INSERT INTO t2 VALUES (0);
+
+--error ER_ERROR_DURING_COMMIT
+INSERT INTO t1 VALUES (0),(1);
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+--connection node_2
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+--connection node_1
+SET sql_mode=DEFAULT;
+SET GLOBAL wsrep_max_ws_rows=DEFAULT;
+DROP TRIGGER tgr;
+DROP TABLE t1, t2;
