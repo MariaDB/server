@@ -3587,7 +3587,7 @@ void buf_stats_get_pool_info(buf_pool_info_t *pool_info)
 
 	pool_info->n_pend_unzip = UT_LIST_GET_LEN(buf_pool.unzip_LRU);
 
-	pool_info->n_pend_reads = os_aio_pending_reads();
+	pool_info->n_pend_reads = os_aio_pending_reads_approx();
 
 	pool_info->n_pending_flush_lru = buf_pool.n_flush();
 
