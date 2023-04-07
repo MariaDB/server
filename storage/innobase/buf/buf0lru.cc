@@ -1093,7 +1093,11 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 
 			ut_a(!zip || !bpage->oldest_modification());
 			ut_ad(bpage->zip_size());
-
+			/* Skip consistency checks if the page was freed.
+			In recovery, we could get a sole FREE_PAGE record
+			and nothing else, for a ROW_FORMAT=COMPRESSED page.
+			Its contents would be garbage. */
+			if (!bpage->is_freed())
 			switch (fil_page_get_type(page)) {
 			case FIL_PAGE_TYPE_ALLOCATED:
 			case FIL_PAGE_INODE:

@@ -3349,7 +3349,10 @@ void IORequest::fake_read_complete(os_offset_t offset) const
 
   if (recv_recover_page(reinterpret_cast<buf_block_t*>(bpage),
                         mtr, recs, node->space, offset))
+  {
+    ut_ad(bpage->oldest_modification() || bpage->is_freed());
     bpage->lock.x_unlock(true);
+  }
   recs.being_processed= -1;
   ut_ad(mtr.has_committed());
 
