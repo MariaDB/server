@@ -3734,6 +3734,13 @@ size_t os_aio_pending_reads_approx()
   return read_slots->pending_io_count();
 }
 
+/** @return number of pending writes */
+size_t os_aio_pending_writes()
+{
+  std::unique_lock<std::mutex> lk(write_slots->mutex());
+  return write_slots->pending_io_count();
+}
+
 /** Wait until all pending asynchronous reads have completed. */
 void os_aio_wait_until_no_pending_reads()
 {

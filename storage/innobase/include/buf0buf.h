@@ -1617,7 +1617,7 @@ public:
   /** flush_list size in bytes; protected by flush_list_mutex */
   ulint flush_list_bytes;
   /** possibly modified persistent pages (a subset of LRU);
-  buf_dblwr.pending_writes() is approximately COUNT(is_write_fixed()) */
+  os_aio_pending_writes() is approximately COUNT(is_write_fixed()) */
   UT_LIST_BASE_NODE_T(buf_page_t) flush_list;
   /** number of blocks ever added to flush_list;
   sometimes protected by flush_list_mutex */

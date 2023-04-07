@@ -3474,7 +3474,7 @@ void buf_pool_t::print()
 		<< UT_LIST_GET_LEN(flush_list)
 		<< ", n pending decompressions=" << n_pend_unzip
 		<< ", n pending flush LRU=" << n_flush()
-		<< " list=" << buf_dblwr.pending_writes()
+		<< " list=" << os_aio_pending_writes()
 		<< ", pages made young=" << stat.n_pages_made_young
 		<< ", not young=" << stat.n_pages_not_made_young
 		<< ", pages read=" << stat.n_pages_read
@@ -3591,7 +3591,7 @@ void buf_stats_get_pool_info(buf_pool_info_t *pool_info)
 
 	pool_info->n_pending_flush_lru = buf_pool.n_flush();
 
-	pool_info->n_pending_flush_list = buf_dblwr.pending_writes();
+	pool_info->n_pending_flush_list = os_aio_pending_writes();
 	mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
 	current_time = time(NULL);
