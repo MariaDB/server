@@ -1980,8 +1980,6 @@ ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn)
   if (buf_pool.get_oldest_modification(sync_lsn) < sync_lsn)
   {
     MONITOR_INC(MONITOR_FLUSH_SYNC_WAITS);
-    thd_wait_begin(nullptr, THD_WAIT_DISKIO);
-    tpool::tpool_wait_begin();
 
 #if 1 /* FIXME: remove this, and guarantee that the page cleaner serves us */
     if (UNIV_UNLIKELY(!buf_page_cleaner_is_active))
@@ -2005,7 +2003,6 @@ ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn)
 #endif
       buf_flush_wait(sync_lsn);
 
-    tpool::tpool_wait_end();
     thd_wait_end(nullptr);
   }
 
@@ -2577,13 +2574,10 @@ ATTRIBUTE_COLD void buf_flush_buffer_pool()
 NOTE: The calling thread is not allowed to hold any buffer page latches! */
 void buf_flush_sync_batch(lsn_t lsn)
 {
-  thd_wait_begin(nullptr, THD_WAIT_DISKIO);
-  tpool::tpool_wait_begin();
+  lsn= std::max(lsn, log_sys.get_lsn());
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
   buf_flush_wait(lsn);
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-  tpool::tpool_wait_end();
-  thd_wait_end(nullptr);
 }
 
 /** Synchronously flush dirty blocks.
