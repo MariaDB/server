@@ -244,6 +244,21 @@ public:
   inline size_t files_size();
   void close_files() { files.clear(); files.shrink_to_fit(); }
 
+  /** Advance pages_it if it matches the iterator */
+  void pages_it_invalidate(const map::iterator &p)
+  {
+    mysql_mutex_assert_owner(&mutex);
+    if (pages_it == p)
+      pages_it++;
+  }
+  /** Invalidate pages_it if it points to the given tablespace */
+  void pages_it_invalidate(uint32_t space_id)
+  {
+    mysql_mutex_assert_owner(&mutex);
+    if (pages_it != pages.end() && pages_it->first.space() == space_id)
+      pages_it= pages.end();
+  }
+
 private:
   /** Attempt to initialize a page based on redo log records.
   @param p        iterator

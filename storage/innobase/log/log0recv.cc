@@ -743,6 +743,7 @@ retry:
         there were no buffered records. Either way, we must create a
         dummy tablespace with the latest known name,
         for dict_drop_index_tree(). */
+        recv_sys.pages_it_invalidate(space_id);
         while (p != recv_sys.pages.end() && p->first.space() == space_id)
         {
           ut_ad(!p->second.being_processed);
@@ -1091,20 +1092,23 @@ being shrunk in size.
 @param lsn	log sequence number of the shrink operation */
 inline void recv_sys_t::trim(const page_id_t page_id, lsn_t lsn)
 {
-	DBUG_ENTER("recv_sys_t::trim");
-	DBUG_LOG("ib_log",
-		 "discarding log beyond end of tablespace "
-		 << page_id << " before LSN " << lsn);
-	mysql_mutex_assert_owner(&mutex);
-	for (recv_sys_t::map::iterator p = pages.lower_bound(page_id);
-	     p != pages.end() && p->first.space() == page_id.space();) {
-		recv_sys_t::map::iterator r = p++;
-		if (r->second.trim(lsn)) {
-			ut_ad(!r->second.being_processed);
-			pages.erase(r);
-		}
-	}
-	DBUG_VOID_RETURN;
+  DBUG_ENTER("recv_sys_t::trim");
+  DBUG_LOG("ib_log", "discarding log beyond end of tablespace "
+           << page_id << " before LSN " << lsn);
+  mysql_mutex_assert_owner(&mutex);
+  if (pages_it != pages.end() && pages_it->first.space() == page_id.space())
+    pages_it= pages.end();
+  for (recv_sys_t::map::iterator p = pages.lower_bound(page_id);
+       p != pages.end() && p->first.space() == page_id.space();)
+  {
+    recv_sys_t::map::iterator r = p++;
+    if (r->second.trim(lsn))
+    {
+      ut_ad(!r->second.being_processed);
+      pages.erase(r);
+    }
+  }
+  DBUG_VOID_RETURN;
 }
 
 inline void recv_sys_t::read(os_offset_t total_offset, span<byte> buf)
@@ -1901,6 +1905,9 @@ void recv_sys_t::garbage_collect()
 {
   mysql_mutex_assert_owner(&mutex);
 
+  if (pages_it != pages.end() && pages_it->second.being_processed < 0)
+    pages_it= pages.end();
+
   for (map::iterator p= pages.begin(); p != pages.end(); )
   {
     if (p->second.being_processed < 0)
@@ -1934,8 +1941,6 @@ ATTRIBUTE_COLD buf_block_t *recv_sys_t::add_block()
     if (freed)
       return nullptr;
     freed= true;
-    if (pages_it != pages.end() && pages_it->second.being_processed < 0)
-      pages_it= pages.end();
     garbage_collect();
   }
 }
@@ -3303,7 +3308,10 @@ bool recv_recover_page(fil_space_t* space, buf_page_t* bpage)
     recv_sys_t::map::iterator p= recv_sys.pages.find(id);
     if (p == recv_sys.pages.end());
     else if (p->second.being_processed < 0)
+    {
+      recv_sys.pages_it_invalidate(p);
       recv_sys.erase(p);
+    }
     else
     {
       p->second.being_processed= 1;
@@ -3394,7 +3402,8 @@ bool recv_sys_t::apply_batch(uint32_t space_id, fil_space_t *&space,
                                        UT_LIST_GET_LEN(buf_pool.free));
   mysql_mutex_unlock(&buf_pool.mutex);
 
-  map::iterator begin{pages_it};
+  map::iterator begin= pages.end();
+  page_id_t begin_id{~0ULL};
 
   while (pages_it != pages.end() && n < max_n)
   {
@@ -3438,7 +3447,10 @@ bool recv_sys_t::apply_batch(uint32_t space_id, fil_space_t *&space,
       if (!space || space->is_freed(pages_it->first.page_no()))
         goto discard;
       if (!n++)
+      {
         begin= pages_it;
+        begin_id= pages_it->first;
+      }
     }
     pages_it++;
   }
@@ -3447,7 +3459,6 @@ bool recv_sys_t::apply_batch(uint32_t space_id, fil_space_t *&space,
     log_sys.latch.wr_unlock();
 
   pages_it= begin;
-  const page_id_t begin_id{pages_it->first};
 
   if (report(time(nullptr)))
   {
@@ -3688,8 +3699,6 @@ void recv_sys_t::apply(bool last_batch)
 
   mysql_mutex_assert_owner(&mutex);
 
-  if (pages_it != pages.end() && pages_it->second.being_processed < 0)
-    pages_it= pages.end();
   garbage_collect();
 
   if (!pages.empty())
@@ -4107,6 +4116,7 @@ next:
 			/* fall through */
 		case file_name_t::DELETED:
 			recv_sys_t::map::iterator r = p++;
+			recv_sys.pages_it_invalidate(r);
 			recv_sys.erase(r);
 			continue;
 		}
