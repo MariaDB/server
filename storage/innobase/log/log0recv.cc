@@ -776,7 +776,8 @@ processed:
       defers.erase(e);
       if (!space)
         break;
-      space->release();
+      if (space != fil_system.sys_space)
+        space->release();
       if (free_block)
         continue;
       mysql_mutex_unlock(&recv_sys.mutex);
@@ -2823,9 +2824,11 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse(source &l, bool if_exists)
             if (if_exists)
             {
               apply(false);
+              if (is_corrupt_fs())
+                return GOT_EOF;
               goto restart;
             }
-            sql_print_information("InnoDB recovery ran out of memory at LSN "
+            sql_print_information("InnoDB: Recovery ran out of memory at LSN "
                                   LSN_PF, lsn);
             return GOT_OOM;
           }
@@ -3383,6 +3386,29 @@ bool recv_sys_t::report(time_t time)
   return true;
 }
 
+ATTRIBUTE_COLD
+void recv_sys_t::report_progress() const
+{
+  mysql_mutex_assert_owner(&mutex);
+  const size_t n{pages.size()};
+  if (recv_sys.end_lsn == recv_sys.lsn)
+  {
+    sql_print_information("InnoDB: To recover: %zu pages", n);
+    service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+                                   "To recover: %zu pages", n);
+  }
+  else
+  {
+    sql_print_information("InnoDB: To recover: LSN " LSN_PF
+                          "/" LSN_PF "; %zu pages",
+                          recv_sys.lsn, recv_sys.end_lsn, n);
+    service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+                                   "To recover: LSN " LSN_PF
+                                   "/" LSN_PF "; %zu pages",
+                                   recv_sys.lsn, recv_sys.end_lsn, n);
+  }
+}
+
 /** Apply a recovery batch.
 @param space_id       current tablespace identifier
 @param space          current tablespace
@@ -3408,16 +3434,7 @@ bool recv_sys_t::apply_batch(uint32_t space_id, fil_space_t *&space,
   while (pages_it != pages.end() && n < max_n)
   {
     ut_ad(!buf_dblwr.is_inside(pages_it->first));
-    const auto being_processed= pages_it->second.being_processed;
-
-    if (being_processed < 0)
-    {
-    discard:
-      map::iterator p{pages_it++};
-      erase(p);
-      continue;
-    }
-    else if (!being_processed)
+    if (!pages_it->second.being_processed)
     {
       if (space_id != pages_it->first.space())
       {
@@ -3445,8 +3462,8 @@ bool recv_sys_t::apply_batch(uint32_t space_id, fil_space_t *&space,
         }
       }
       if (!space || space->is_freed(pages_it->first.page_no()))
-        goto discard;
-      if (!n++)
+        pages_it->second.being_processed= -1;
+      else if (!n++)
       {
         begin= pages_it;
         begin_id= pages_it->first;
@@ -3461,20 +3478,12 @@ bool recv_sys_t::apply_batch(uint32_t space_id, fil_space_t *&space,
   pages_it= begin;
 
   if (report(time(nullptr)))
-  {
-    const size_t n= pages.size();
-    sql_print_information("InnoDB: To recover: %zu pages from log", n);
-    service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
-                                   "To recover: %zu pages from log", n);
-  }
+    report_progress();
 
   if (!n)
     goto wait;
 
   mysql_mutex_lock(&buf_pool.mutex);
-  if (free_block)
-    buf_LRU_block_free_non_file_page(free_block);
-  free_block= nullptr;
 
   if (UNIV_UNLIKELY(UT_LIST_GET_LEN(buf_pool.free) < n))
   {
@@ -3495,14 +3504,7 @@ bool recv_sys_t::apply_batch(uint32_t space_id, fil_space_t *&space,
   while (pages_it != pages.end())
   {
     ut_ad(!buf_dblwr.is_inside(pages_it->first));
-    const auto being_processed= pages_it->second.being_processed;
-    if (being_processed < 0)
-    {
-    discard_again:
-      map::iterator p{pages_it++};
-      erase(p);
-    }
-    else if (!being_processed)
+    if (!pages_it->second.being_processed)
     {
       const page_id_t id{pages_it->first};
 
@@ -3514,7 +3516,10 @@ bool recv_sys_t::apply_batch(uint32_t space_id, fil_space_t *&space,
         space= fil_space_t::get(space_id);
       }
       if (!space || space->is_freed(id.page_no()))
-        goto discard_again;
+      {
+        pages_it->second.being_processed= -1;
+        goto next;
+      }
       else
       {
         page_recv_t &recs= pages_it->second;
@@ -3535,6 +3540,7 @@ bool recv_sys_t::apply_batch(uint32_t space_id, fil_space_t *&space,
       pages_it= pages.lower_bound(id);
     }
     else
+    next:
       pages_it++;
   }
 
@@ -3703,13 +3709,9 @@ void recv_sys_t::apply(bool last_batch)
 
   if (!pages.empty())
   {
-    mtr_t mtr;
-    const char *msg= last_batch
-      ? "Starting final batch to recover"
-      : "Starting a batch to recover";
-    const size_t n= pages.size();
-    sql_print_information("InnoDB: %s %zu pages from redo log.", msg, n);
-    sd_notifyf(0, "STATUS=%s %zu pages from redo log", msg, n);
+    ut_ad(!last_batch || recv_sys.lsn == recv_sys.end_lsn);
+    progress_time= time(nullptr);
+    report_progress();
 
     apply_log_recs= true;
 
@@ -3739,17 +3741,13 @@ void recv_sys_t::apply(bool last_batch)
 
     fil_space_t *space= nullptr;
     uint32_t space_id= ~0;
+    buf_block_t *free_block= nullptr;
 
     for (pages_it= pages.begin(); pages_it != pages.end();
          pages_it= pages.begin())
     {
-      mysql_mutex_lock(&buf_pool.mutex);
-      buf_block_t *free_block= pages_it == pages.begin()
-        ? nullptr
-        : buf_LRU_get_free_only();
       if (!free_block)
       {
-        mysql_mutex_unlock(&buf_pool.mutex);
         if (!last_batch)
           log_sys.latch.wr_unlock();
         wait_for_pool(1);
@@ -3766,8 +3764,6 @@ void recv_sys_t::apply(bool last_batch)
         mysql_mutex_lock(&mutex);
         pages_it= pages.begin();
       }
-      else
-        mysql_mutex_unlock(&buf_pool.mutex);
 
       while (pages_it != pages.end())
       {
@@ -3775,20 +3771,33 @@ void recv_sys_t::apply(bool last_batch)
         {
           if (space)
             space->release();
+          if (free_block)
+          {
+            mysql_mutex_unlock(&mutex);
+            mysql_mutex_lock(&buf_pool.mutex);
+            buf_LRU_block_free_non_file_page(free_block);
+            mysql_mutex_unlock(&buf_pool.mutex);
+            mysql_mutex_lock(&mutex);
+          }
           return;
         }
         if (apply_batch(space_id, space, free_block, last_batch))
           break;
       }
-
-      garbage_collect();
     }
 
     if (space)
       space->release();
+    mysql_mutex_unlock(&mutex);
+    if (free_block)
+    {
+      mysql_mutex_lock(&buf_pool.mutex);
+      buf_LRU_block_free_non_file_page(free_block);
+      mysql_mutex_unlock(&buf_pool.mutex);
+    }
   }
-
-  mysql_mutex_unlock(&mutex);
+  else
+    mysql_mutex_unlock(&mutex);
 
   if (!last_batch)
   {
@@ -3827,9 +3836,11 @@ static bool recv_scan_log(bool last_phase)
   const size_t block_size_1{log_sys.get_block_size() - 1};
 
   mysql_mutex_lock(&recv_sys.mutex);
-  recv_sys.clear();
   ut_d(recv_sys.after_apply= last_phase);
-  ut_ad(!last_phase || recv_sys.file_checkpoint);
+  if (!last_phase)
+    recv_sys.clear();
+  else
+    ut_ad(recv_sys.file_checkpoint);
 
   bool store{recv_sys.file_checkpoint != 0};
   size_t buf_size= log_sys.buf_size;
@@ -3959,8 +3970,9 @@ static bool recv_scan_log(bool last_phase)
       while ((r= recv_sys.parse_pmem<false>(false)) == recv_sys_t::OK);
     else
     {
+      uint16_t count= 0;
       while ((r= recv_sys.parse_pmem<true>(last_phase)) == recv_sys_t::OK)
-        if (recv_sys.report(time(nullptr)))
+        if (!++count && recv_sys.report(time(nullptr)))
         {
           const size_t n= recv_sys.pages.size();
           sql_print_information("InnoDB: Parsed redo log up to LSN=" LSN_PF
@@ -3975,13 +3987,23 @@ static bool recv_scan_log(bool last_phase)
         ut_ad(!last_phase);
         rewound_lsn= recv_sys.lsn;
         store= false;
-        goto skip_the_rest;
+        if (!recv_sys.end_lsn)
+          goto skip_the_rest;
+        ut_ad(recv_sys.file_checkpoint);
+        goto func_exit;
       }
     }
 
     if (r != recv_sys_t::PREMATURE_EOF)
     {
       ut_ad(r == recv_sys_t::GOT_EOF);
+      if (recv_sys.end_lsn)
+      {
+        ut_ad(recv_sys.end_lsn == recv_sys.lsn);
+        break;
+      }
+      recv_sys.end_lsn= recv_sys.lsn;
+      sql_print_information("InnoDB: End of log at LSN=" LSN_PF, recv_sys.lsn);
       break;
     }
 
@@ -4019,6 +4041,7 @@ static bool recv_scan_log(bool last_phase)
     ut_ad(recv_sys.file_checkpoint);
     recv_sys.lsn= rewound_lsn;
   }
+func_exit:
   mysql_mutex_unlock(&recv_sys.mutex);
   DBUG_RETURN(!store);
 }
@@ -4141,8 +4164,6 @@ func_exit:
 			continue;
 		}
 
-		missing_tablespace = true;
-
 		if (srv_force_recovery) {
 			sql_print_warning("InnoDB: Tablespace " UINT32PF
 					  " was not found at %.*s,"
@@ -4162,14 +4183,11 @@ func_exit:
 					      rs.first,
 					      int(rs.second.name.size()),
 					      rs.second.name.data());
+		} else {
+			missing_tablespace = true;
 		}
 	}
 
-	if (!rescan || srv_force_recovery > 0) {
-		missing_tablespace = false;
-	}
-
-	err = DB_SUCCESS;
 	goto func_exit;
 }
 
@@ -4403,30 +4421,41 @@ read_only_recovery:
 			goto early_exit;
 		}
 
-		/* If there is any missing tablespace and rescan is needed
-		then there is a possiblity that hash table will not contain
-		all space ids redo logs. Rescan the remaining unstored
-		redo logs for the validation of missing tablespace. */
-		ut_ad(rescan || !missing_tablespace);
+		if (missing_tablespace) {
+			ut_ad(rescan);
+			/* If any tablespaces seem to be missing,
+			validate the remaining log records. */
 
-		while (missing_tablespace) {
-			rescan = recv_scan_log(false);
-			ut_ad(!recv_sys.is_corrupt_fs());
+			do {
+				rescan = recv_scan_log(false);
+				ut_ad(!recv_sys.is_corrupt_fs());
 
-			missing_tablespace = false;
+				if (recv_sys.is_corrupt_log()) {
+					goto err_exit;
+				}
 
-			if (recv_sys.is_corrupt_log()) {
-				goto err_exit;
-			}
+				missing_tablespace = false;
 
-			err = recv_validate_tablespace(
-				rescan, missing_tablespace);
+				err = recv_validate_tablespace(
+					rescan, missing_tablespace);
 
-			if (err != DB_SUCCESS) {
-				goto early_exit;
-			}
+				if (err != DB_SUCCESS) {
+					goto early_exit;
+				}
+			} while (missing_tablespace);
 
 			rescan = true;
+			/* Because in the loop above we overwrote the
+			initially stored recv_sys.pages, we must
+			restart parsing the log from the very beginning. */
+
+			/* FIXME: Use a separate loop for checking for
+			tablespaces (not individual pages), while retaining
+			the initial recv_sys.pages. */
+			mysql_mutex_lock(&recv_sys.mutex);
+			recv_sys.clear();
+			recv_sys.lsn = log_sys.next_checkpoint_lsn;
+			mysql_mutex_unlock(&recv_sys.mutex);
 		}
 
 		if (srv_operation == SRV_OPERATION_NORMAL) {
@@ -4437,8 +4466,7 @@ read_only_recovery:
 		ut_ad(srv_force_recovery <= SRV_FORCE_NO_UNDO_LOG_SCAN);
 
 		if (rescan) {
-			recv_sys.lsn = log_sys.next_checkpoint_lsn;
-			rescan = recv_scan_log(true);
+			recv_scan_log(true);
 			if ((recv_sys.is_corrupt_log()
 			     && !srv_force_recovery)
 			    || recv_sys.is_corrupt_fs()) {

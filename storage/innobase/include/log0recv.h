@@ -205,6 +205,8 @@ public:
   size_t offset;
   /** log sequence number of the first non-parsed record */
   lsn_t lsn;
+  /** log sequence number of the last parsed mini-transaction */
+  lsn_t end_lsn;
   /** log sequence number at the end of the FILE_CHECKPOINT record, or 0 */
   lsn_t file_checkpoint;
   /** the time when progress was last reported */
@@ -234,7 +236,6 @@ private:
     /** truncated size of the tablespace, or 0 if not truncated */
     unsigned pages;
   } truncated_undo_spaces[127];
-
 
 public:
   /** The contents of the doublewrite buffer */
@@ -363,6 +364,9 @@ private:
   @param  begin     start of the mini-transaction */
   template<typename source>
   ATTRIBUTE_COLD void rewind(source &l, source &begin) noexcept;
+
+  /** Report progress in terms of LSN or pages remaining */
+  ATTRIBUTE_COLD void report_progress() const;
 public:
   /** Parse and register one log_t::FORMAT_10_8 mini-transaction,
   handling log_sys.is_pmem() buffer wrap-around.
