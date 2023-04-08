@@ -33,6 +33,10 @@ BEGIN
 RETURN 1;
 END;
 END
+Warnings:
+Level	Note
+Code	1585
+Message	This function 'format_bytes' has the same name as a native function
 DROP PACKAGE pkg1;
 SET sql_mode=ORACLE;
 CREATE OR REPLACE PACKAGE pkg1 AS
@@ -69,6 +73,10 @@ BEGIN
 SET @a=10;
 SET @a=f1();
 END
+Warnings:
+Level	Note
+Code	1585
+Message	This function 'format_bytes' has the same name as a native function
 DROP PACKAGE pkg1;
 #
 # End of 10.5 tests
