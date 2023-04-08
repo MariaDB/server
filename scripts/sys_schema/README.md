@@ -3538,7 +3538,7 @@ TEXT
 
 ##### Example
 ```SQL
-mariadb> SELECT sys.format_bytes(2348723492723746) AS size;
+mariadb> SELECT format_bytes(2348723492723746) AS size;
 +----------+
 | size     |
 +----------+
@@ -3546,7 +3546,7 @@ mariadb> SELECT sys.format_bytes(2348723492723746) AS size;
 +----------+
 1 row in set (0.00 sec)
 
-mariadb> SELECT sys.format_bytes(2348723492723) AS size;
+mariadb> SELECT format_bytes(2348723492723) AS size;
 +----------+
 | size     |
 +----------+
@@ -3554,7 +3554,7 @@ mariadb> SELECT sys.format_bytes(2348723492723) AS size;
 +----------+
 1 row in set (0.00 sec)
 
-mariadb> SELECT sys.format_bytes(23487234) AS size;
+mariadb> SELECT format_bytes(23487234) AS size;
 +-----------+
 | size      |
 +-----------+

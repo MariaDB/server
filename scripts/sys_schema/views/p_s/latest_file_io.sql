@@ -48,7 +48,7 @@ SELECT IF(id IS NULL,
        sys.format_path(object_name) file, 
        format_pico_time(timer_wait) AS latency,
        operation, 
-       sys.format_bytes(number_of_bytes) AS requested
+       format_bytes(number_of_bytes) AS requested
   FROM performance_schema.events_waits_history_long 
   JOIN performance_schema.threads USING (thread_id)
   LEFT JOIN information_schema.processlist ON processlist_id = id

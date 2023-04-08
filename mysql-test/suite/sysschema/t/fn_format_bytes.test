@@ -2,6 +2,13 @@
 # Tests for sys schema
 # Verify the sys.format_bytes() function perfoms as expected
 
+# Various protocols display ER_NATIVE_FCT_NAME_COLLISION very differently.
+# Disable all of them.
+
+--disable_ps_protocol
+--disable_cursor_protocol
+--disable_view_protocol
+
 # Passing NULL/nothing should return NULL
 SELECT sys.format_bytes(NULL);
 
