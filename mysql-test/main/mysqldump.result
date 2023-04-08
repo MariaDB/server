@@ -5501,6 +5501,8 @@ WHERE ROUTINE_SCHEMA='bug25717383' AND ROUTINE_TYPE= 'PROCEDURE'
 ROUTINE_NAME
 proc
 one
+Warnings:
+Note	1585	This function 'format_bytes' has the same name as a native function
 SHOW TABLES FROM bug25717383;
 Tables_in_bug25717383
 tab
@@ -5522,6 +5524,8 @@ WHERE ROUTINE_SCHEMA='bug25717383' AND ROUTINE_TYPE= 'PROCEDURE'
 ROUTINE_NAME
 proc
 one
+Warnings:
+Note	1585	This function 'format_bytes' has the same name as a native function
 DROP DATABASE bug25717383;
 mariadb-dump: Got error: 2005: "Unknown server host 'unknownhost'" when trying to connect
 mariadb-dump: Couldn't execute 'SHOW SLAVE STATUS': Server has gone away (2006)

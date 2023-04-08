@@ -764,15 +764,26 @@ protected:
 class Create_func_format_pico_time : public Create_func_arg1
 {
 public:
-    virtual Item *create_1_arg(THD *thd, Item *arg1);
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
 
-    static Create_func_format_pico_time s_singleton;
+  static Create_func_format_pico_time s_singleton;
 
 protected:
-    Create_func_format_pico_time() = default;
-    virtual ~Create_func_format_pico_time() = default;
+  Create_func_format_pico_time() = default;
+  virtual ~Create_func_format_pico_time() = default;
 };
 
+class Create_func_format_bytes : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+  static Create_func_format_bytes s_singleton;
+
+protected:
+  Create_func_format_bytes() = default;
+  virtual ~Create_func_format_bytes() = default;
+};
 
 class Create_func_format : public Create_native_func
 {
@@ -3592,6 +3603,15 @@ Create_func_format_pico_time::create_1_arg(THD *thd, Item *arg1)
 }
 
 
+Create_func_format_bytes Create_func_format_bytes::s_singleton;
+
+Item*
+Create_func_format_bytes::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_format_bytes(thd, arg1);
+}
+
+
 Create_func_format Create_func_format::s_singleton;
 
 Item*
@@ -5785,6 +5805,7 @@ Native_func_registry func_array[] =
   { { STRING_WITH_LEN("FIND_IN_SET") }, BUILDER(Create_func_find_in_set)},
   { { STRING_WITH_LEN("FLOOR") }, BUILDER(Create_func_floor)},
   { { STRING_WITH_LEN("FORMAT_PICO_TIME") }, BUILDER(Create_func_format_pico_time)},
+  { { STRING_WITH_LEN("FORMAT_BYTES") }, BUILDER(Create_func_format_bytes)},
   { { STRING_WITH_LEN("FORMAT") }, BUILDER(Create_func_format)},
   { { STRING_WITH_LEN("FOUND_ROWS") }, BUILDER(Create_func_found_rows)},
   { { STRING_WITH_LEN("FROM_BASE64") }, BUILDER(Create_func_from_base64)},

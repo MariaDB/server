@@ -5826,6 +5826,7 @@ bool Item_func_natural_sort_key::check_vcol_func_processor(void *arg)
                                    VCOL_NON_DETERMINISTIC);
 }
 
+
 String *Item_func_format_pico_time::val_str_ascii(String *)
 {
   double time_val= args[0]->val_real();
@@ -5899,6 +5900,78 @@ String *Item_func_format_pico_time::val_str_ascii(String *)
       len= snprintf(m_value_buffer, sizeof(m_value_buffer), "%4.2e %s", value, unit);
     else
       len= my_snprintf(m_value_buffer, sizeof(m_value_buffer), "%4.2f %s", value, unit);
+  }
+  m_value.length(len);
+  return &m_value;
+}
+
+
+String *Item_func_format_bytes::val_str_ascii(String *)
+{
+  double bytes= args[0]->val_real();
+
+  null_value = args[0]->null_value;
+  if (null_value)
+    return 0;
+
+  double bytes_abs= fabs(bytes);
+
+  constexpr uint64_t kib{1024};
+  constexpr uint64_t mib{1024 * kib};
+  constexpr uint64_t gib{1024 * mib};
+  constexpr uint64_t tib{1024 * gib};
+  constexpr uint64_t pib{1024 * tib};
+  constexpr uint64_t eib{1024 * pib};
+
+  uint64_t divisor;
+  size_t len;
+  const char *unit;
+
+  if (bytes_abs >= eib)
+  {
+    divisor= eib;
+    unit= "EiB";
+  }
+  else if (bytes_abs >= pib)
+  {
+    divisor= pib;
+    unit= "PiB";
+  }
+  else if (bytes_abs >= tib)
+  {
+    divisor= tib;
+    unit= "TiB";
+  }
+  else if (bytes_abs >= gib)
+  {
+    divisor= gib;
+    unit= "GiB";
+  }
+  else if (bytes_abs >= mib)
+  {
+    divisor= mib;
+    unit= "MiB";
+  }
+  else if (bytes_abs >= kib)
+  {
+    divisor= kib;
+    unit= "KiB";
+  }
+  else
+  {
+    divisor= 1;
+    unit= "bytes";
+  }
+
+  if (divisor == 1)
+    len= snprintf(m_value_buffer, sizeof(m_value_buffer), "%4d %s", (int)bytes, unit);
+  else
+  {
+    double value= bytes / divisor;
+    if (fabs(value) >= 100000.0)
+      len= snprintf(m_value_buffer, sizeof(m_value_buffer), "%4.2e %s", value, unit);
+    else
+      len= snprintf(m_value_buffer, sizeof(m_value_buffer), "%4.2f %s", value, unit);
   }
   m_value.length(len);
   return &m_value;

@@ -203,6 +203,8 @@ AddGeometryColumn	def	mysql	AddGeometryColumn	PROCEDURE		NULL	NULL	NULL	NULL	NUL
   set @qwe= concat('ALTER TABLE ', t_schema, '.', t_name, ' ADD ', geometry_column,' GEOMETRY REF_SYSTEM_ID=', t_srid); PREPARE ls from @qwe; execute ls; deallocate prepare ls; end	NULL	NULL	SQL	NO	CONTAINS SQL	NULL	INVOKER	YYYY-MM-DD hh:mm:ss	YYYY-MM-DD hh:mm:ss			mariadb.sys@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
 DropGeometryColumn	def	mysql	DropGeometryColumn	PROCEDURE		NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	SQL	begin
   set @qwe= concat('ALTER TABLE ', t_schema, '.', t_name, ' DROP ', geometry_column); PREPARE ls from @qwe; execute ls; deallocate prepare ls; end	NULL	NULL	SQL	NO	CONTAINS SQL	NULL	INVOKER	YYYY-MM-DD hh:mm:ss	YYYY-MM-DD hh:mm:ss			mariadb.sys@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+Warnings:
+Note	1585	This function 'format_bytes' has the same name as a native function
 connect  testuser2, localhost, testuser2, , db_datadict;
 SELECT * FROM information_schema.routines where routine_schema <> 'sys';
 SPECIFIC_NAME	ROUTINE_CATALOG	ROUTINE_SCHEMA	ROUTINE_NAME	ROUTINE_TYPE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	DTD_IDENTIFIER	ROUTINE_BODY	ROUTINE_DEFINITION	EXTERNAL_NAME	EXTERNAL_LANGUAGE	PARAMETER_STYLE	IS_DETERMINISTIC	SQL_DATA_ACCESS	SQL_PATH	SECURITY_TYPE	CREATED	LAST_ALTERED	SQL_MODE	ROUTINE_COMMENT	DEFINER	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
@@ -219,6 +221,8 @@ AddGeometryColumn	def	mysql	AddGeometryColumn	PROCEDURE		NULL	NULL	NULL	NULL	NUL
   set @qwe= concat('ALTER TABLE ', t_schema, '.', t_name, ' ADD ', geometry_column,' GEOMETRY REF_SYSTEM_ID=', t_srid); PREPARE ls from @qwe; execute ls; deallocate prepare ls; end	NULL	NULL	SQL	NO	CONTAINS SQL	NULL	INVOKER	YYYY-MM-DD hh:mm:ss	YYYY-MM-DD hh:mm:ss			mariadb.sys@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
 DropGeometryColumn	def	mysql	DropGeometryColumn	PROCEDURE		NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	SQL	begin
   set @qwe= concat('ALTER TABLE ', t_schema, '.', t_name, ' DROP ', geometry_column); PREPARE ls from @qwe; execute ls; deallocate prepare ls; end	NULL	NULL	SQL	NO	CONTAINS SQL	NULL	INVOKER	YYYY-MM-DD hh:mm:ss	YYYY-MM-DD hh:mm:ss			mariadb.sys@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+Warnings:
+Note	1585	This function 'format_bytes' has the same name as a native function
 connect  testuser3, localhost, testuser3, , "*NO-ONE*";
 SELECT * FROM information_schema.routines where routine_schema <> 'sys';
 SPECIFIC_NAME	ROUTINE_CATALOG	ROUTINE_SCHEMA	ROUTINE_NAME	ROUTINE_TYPE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	DTD_IDENTIFIER	ROUTINE_BODY	ROUTINE_DEFINITION	EXTERNAL_NAME	EXTERNAL_LANGUAGE	PARAMETER_STYLE	IS_DETERMINISTIC	SQL_DATA_ACCESS	SQL_PATH	SECURITY_TYPE	CREATED	LAST_ALTERED	SQL_MODE	ROUTINE_COMMENT	DEFINER	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
@@ -235,6 +239,8 @@ AddGeometryColumn	def	mysql	AddGeometryColumn	PROCEDURE		NULL	NULL	NULL	NULL	NUL
   set @qwe= concat('ALTER TABLE ', t_schema, '.', t_name, ' ADD ', geometry_column,' GEOMETRY REF_SYSTEM_ID=', t_srid); PREPARE ls from @qwe; execute ls; deallocate prepare ls; end	NULL	NULL	SQL	NO	CONTAINS SQL	NULL	INVOKER	YYYY-MM-DD hh:mm:ss	YYYY-MM-DD hh:mm:ss			mariadb.sys@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
 DropGeometryColumn	def	mysql	DropGeometryColumn	PROCEDURE		NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	SQL	begin
   set @qwe= concat('ALTER TABLE ', t_schema, '.', t_name, ' DROP ', geometry_column); PREPARE ls from @qwe; execute ls; deallocate prepare ls; end	NULL	NULL	SQL	NO	CONTAINS SQL	NULL	INVOKER	YYYY-MM-DD hh:mm:ss	YYYY-MM-DD hh:mm:ss			mariadb.sys@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+Warnings:
+Note	1585	This function 'format_bytes' has the same name as a native function
 connection default;
 disconnect testuser1;
 disconnect testuser2;
@@ -319,6 +325,10 @@ DEFINER	root@localhost
 CHARACTER_SET_CLIENT	latin1
 COLLATION_CONNECTION	latin1_swedish_ci
 DATABASE_COLLATION	latin1_swedish_ci
+Warnings:
+Level	Note
+Code	1585
+Message	This function 'format_bytes' has the same name as a native function
 ALTER PROCEDURE sp_for_routines SQL SECURITY INVOKER;
 ALTER FUNCTION function_for_routines COMMENT 'updated comments';
 SELECT * FROM information_schema.routines WHERE routine_schema = 'db_datadict'
@@ -385,6 +395,10 @@ DEFINER	root@localhost
 CHARACTER_SET_CLIENT	latin1
 COLLATION_CONNECTION	latin1_swedish_ci
 DATABASE_COLLATION	latin1_swedish_ci
+Warnings:
+Level	Note
+Code	1585
+Message	This function 'format_bytes' has the same name as a native function
 DROP PROCEDURE sp_for_routines;
 DROP FUNCTION function_for_routines;
 SELECT * FROM information_schema.routines WHERE routine_schema = 'db_datadict';
@@ -455,6 +469,10 @@ DEFINER	root@localhost
 CHARACTER_SET_CLIENT	latin1
 COLLATION_CONNECTION	latin1_swedish_ci
 DATABASE_COLLATION	latin1_swedish_ci
+Warnings:
+Level	Note
+Code	1585
+Message	This function 'format_bytes' has the same name as a native function
 use test;
 DROP DATABASE db_datadict;
 SELECT * FROM information_schema.routines WHERE routine_schema = 'db_datadict';

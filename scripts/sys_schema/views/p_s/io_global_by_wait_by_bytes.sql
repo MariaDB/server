@@ -67,12 +67,12 @@ SELECT SUBSTRING_INDEX(event_name, '/', -2) event_name,
        format_pico_time(avg_timer_wait) AS avg_latency,
        format_pico_time(max_timer_wait) AS max_latency,
        count_read,
-       sys.format_bytes(sum_number_of_bytes_read) AS total_read,
-       sys.format_bytes(IFNULL(sum_number_of_bytes_read / NULLIF(count_read, 0), 0)) AS avg_read,
+       format_bytes(sum_number_of_bytes_read) AS total_read,
+       format_bytes(IFNULL(sum_number_of_bytes_read / NULLIF(count_read, 0), 0)) AS avg_read,
        count_write,
-       sys.format_bytes(sum_number_of_bytes_write) AS total_written,
-       sys.format_bytes(IFNULL(sum_number_of_bytes_write / NULLIF(count_write, 0), 0)) AS avg_written,
-       sys.format_bytes(sum_number_of_bytes_write + sum_number_of_bytes_read) AS total_requested
+       format_bytes(sum_number_of_bytes_write) AS total_written,
+       format_bytes(IFNULL(sum_number_of_bytes_write / NULLIF(count_write, 0), 0)) AS avg_written,
+       format_bytes(sum_number_of_bytes_write + sum_number_of_bytes_read) AS total_requested
   FROM performance_schema.file_summary_by_event_name
  WHERE event_name LIKE 'wait/io/file/%' 
    AND count_star > 0

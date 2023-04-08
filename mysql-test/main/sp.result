@@ -1228,10 +1228,14 @@ drop table t3|
 show function status where name like '%f%' and Db <> 'sys'|
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
 test	fac	FUNCTION	root@localhost	0000-00-00 00:00:00	0000-00-00 00:00:00	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+Warnings:
+Note	1585	This function 'format_bytes' has the same name as a native function
 drop procedure ifac|
 drop function fac|
 show function status where name like '%f%' and Db <> 'sys'|
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+Warnings:
+Note	1585	This function 'format_bytes' has the same name as a native function
 drop table if exists t3|
 create table t3 (
 i int unsigned not null primary key,
@@ -4782,6 +4786,8 @@ bug18344_0123456789012
 select routine_name,routine_schema from information_schema.routines where
 routine_schema like 'bug18344%'|
 routine_name	routine_schema
+Note	1585	This function 'format_bytes' has the same name as a native function
+Warnings:
 bug18344	bug18344_012345678901
 bug18344	bug18344_0123456789012
 bug18344_2	bug18344_012345678901
@@ -4794,6 +4800,8 @@ schema_name
 select routine_name,routine_schema from information_schema.routines where
 routine_schema like 'bug18344%'|
 routine_name	routine_schema
+Warnings:
+Note	1585	This function 'format_bytes' has the same name as a native function
 drop function if exists bug12472|
 create function bug12472() returns int return (select count(*) from t1)|
 create table t3 as select bug12472() as i|

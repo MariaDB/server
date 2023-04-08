@@ -19,7 +19,7 @@ tmp_disk_tables	bigint(20) unsigned	YES		NULL
 full_scan	varchar(3)	YES		NULL	
 last_statement	longtext	YES		NULL	
 last_statement_latency	varchar(12)	YES		NULL	
-current_memory	text	YES		NULL	
+current_memory	varchar(14)	YES		NULL	
 last_wait	varchar(128)	YES		NULL	
 last_wait_latency	varchar(13)	YES		NULL	
 source	varchar(64)	YES		NULL	
