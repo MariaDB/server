@@ -2959,15 +2959,12 @@ Rows_log_event::Rows_log_event(const uchar *buf, uint event_len,
   uint8 const common_header_len= description_event->common_header_len;
   Log_event_type event_type= (Log_event_type)(uchar)buf[EVENT_TYPE_OFFSET];
   m_type= event_type;
-  m_cols_ai.bitmap= 0;
+  m_cols_ai.bitmap= 0; // Set to invalid, so it can be processed in is_valid().
 
   uint8 const post_header_len= description_event->post_header_len[event_type-1];
 
   if (event_len < (uint)(common_header_len + post_header_len))
-  {
-    m_cols.bitmap= 0;
     DBUG_VOID_RETURN;
-  }
 
   DBUG_PRINT("enter",("event_len: %u  common_header_len: %d  "
 		      "post_header_len: %d",
@@ -3076,8 +3073,6 @@ Rows_log_event::Rows_log_event(const uchar *buf, uint event_len,
     DBUG_VOID_RETURN;
   }
 
-  m_cols_ai.bitmap= m_cols.bitmap; /* See explanation in is_valid() */
-
   if (LOG_EVENT_IS_UPDATE_ROW(event_type))
   {
     DBUG_PRINT("debug", ("Reading from %p", ptr_after_width));
@@ -3096,10 +3091,20 @@ Rows_log_event::Rows_log_event(const uchar *buf, uint event_len,
     }
     else
     {
-      // Needed because my_bitmap_init() does not set it to null on failure
-      m_cols_ai.bitmap= 0;
+      DBUG_ASSERT(m_cols_ai.bitmap == NULL);
       DBUG_VOID_RETURN;
     }
+  }
+  else
+  {
+    m_cols_ai= m_cols; /* Safety */
+#ifdef DBUG_OFF
+    /*
+      m_cols_ai should only be usable for update events. Make sure nobody
+      successfully manipulates it in debug builds.
+    */
+    m_cols_ai.bitmap= (my_bitmap_map*)1;
+#endif
   }
 
   const uchar* const ptr_rows_data= (const uchar*) ptr_after_width;
