@@ -5206,7 +5206,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
                         const_cast<Relay_log_info*>(rli)->abort_slave= 1;);
     }
 
-    if (unlikely(error= do_after_row_operations(rli, error)) &&
+    if (unlikely(error= do_after_row_operations(error)) &&
         ignored_error_code(convert_handler_error(error, thd, table)))
     {
 
@@ -6538,8 +6538,7 @@ Write_rows_log_event::do_before_row_operations(const rpl_group_info *)
 }
 
 int 
-Write_rows_log_event::do_after_row_operations(const Slave_reporting_capability *const,
-                                              int error)
+Write_rows_log_event::do_after_row_operations(int error)
 {
   int local_error= 0;
 
@@ -7016,7 +7015,7 @@ Write_rows_log_event::do_exec_row(rpl_group_info *rgi)
 
 
 #if defined(HAVE_REPLICATION)
-uint8 Write_rows_log_event::get_trg_event_map()
+uint8 Write_rows_log_event::get_trg_event_map() const
 {
   return trg2bit(TRG_EVENT_INSERT) | trg2bit(TRG_EVENT_UPDATE) |
          trg2bit(TRG_EVENT_DELETE);
@@ -7735,8 +7734,7 @@ Delete_rows_log_event::do_before_row_operations(const rpl_group_info *rgi)
 }
 
 int 
-Delete_rows_log_event::do_after_row_operations(const Slave_reporting_capability *const, 
-                                               int error)
+Delete_rows_log_event::do_after_row_operations(int error)
 {
   m_table->file->ha_index_or_rnd_end();
   my_free(m_key);
@@ -7821,7 +7819,7 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
 #endif /* defined(HAVE_REPLICATION) */
 
 #if defined(HAVE_REPLICATION)
-uint8 Delete_rows_log_event::get_trg_event_map()
+uint8 Delete_rows_log_event::get_trg_event_map() const
 {
   return trg2bit(TRG_EVENT_DELETE);
 }
@@ -7895,8 +7893,7 @@ Update_rows_log_event::do_before_row_operations(const rpl_group_info *rgi)
 }
 
 int 
-Update_rows_log_event::do_after_row_operations(const Slave_reporting_capability *const, 
-                                               int error)
+Update_rows_log_event::do_after_row_operations(int error)
 {
   /*error= ToDo:find out what this should really be, this triggers close_scan in nbd, returning error?*/
   m_table->file->ha_index_or_rnd_end();
@@ -8038,7 +8035,7 @@ err:
 
 
 #if defined(HAVE_REPLICATION)
-uint8 Update_rows_log_event::get_trg_event_map()
+uint8 Update_rows_log_event::get_trg_event_map() const
 {
   return trg2bit(TRG_EVENT_UPDATE);
 }
