@@ -4553,7 +4553,7 @@ public:
 
   Log_event_type get_type_code() { return m_type; } /* Specific type (_V1 etc) */
   enum_logged_status logged_status() { return LOGGED_ROW_EVENT; }
-  virtual Log_event_type get_general_type_code() = 0; /* General rows op type, no version */
+  virtual Log_event_type get_general_type_code() const = 0; /* General rows op type, no version */
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual void pack_info(Protocol *protocol);
@@ -4664,7 +4664,7 @@ public:
   const uchar* get_extra_row_data() const   { return m_extra_row_data; }
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual uint8 get_trg_event_map()= 0;
+  virtual uint8 get_trg_event_map() const = 0;
 
   inline bool do_invoke_trigger()
   {
@@ -4842,8 +4842,8 @@ private:
   virtual int do_update_pos(rpl_group_info *rgi);
   virtual enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 
-  /*
-    Primitive to prepare for a sequence of row executions.
+  /**
+    @brief Primitive to prepare for a sequence of row executions.
 
     DESCRIPTION
 
@@ -4853,16 +4853,15 @@ private:
       space for any buffers that are needed for the two member
       functions mentioned above.
 
-    RETURN VALUE
-
+    @return
       The member function will return 0 if all went OK, or a non-zero
       error code otherwise.
   */
   virtual
   int do_before_row_operations(const rpl_group_info *) = 0;
 
-  /*
-    Primitive to clean up after a sequence of row executions.
+  /**
+    @brief Primitive to clean up after a sequence of row executions.
 
     DESCRIPTION
     
@@ -4875,11 +4874,10 @@ private:
       function is successful, it should return the error code given in the argument.
   */
   virtual 
-  int do_after_row_operations(const Slave_reporting_capability *const log,
-                              int error) = 0;
+  int do_after_row_operations(int error) = 0;
 
-  /*
-    Primitive to do the actual execution necessary for a row.
+  /**
+    @brief Primitive to do the actual execution necessary for a row.
 
     DESCRIPTION
       The member function will do the actual execution needed to handle a row.
@@ -4887,7 +4885,7 @@ private:
       m_curr_row_end should point at the next row (one byte after the end
       of the current row).    
 
-    RETURN VALUE
+    @return
       0 if execution succeeded, 1 if execution failed.
       
   */
@@ -4907,11 +4905,8 @@ private:
 class Write_rows_log_event : public Rows_log_event
 {
 public:
-  enum 
-  {
-    /* Support interface to THD::binlog_prepare_pending_rows_event */
-    TYPE_CODE = WRITE_ROWS_EVENT
-  };
+  /* Support interface to THD::binlog_prepare_pending_rows_event */
+  static constexpr Log_event_type TYPE_CODE = WRITE_ROWS_EVENT;
 
 #if defined(MYSQL_SERVER)
   Write_rows_log_event(THD*, TABLE*, ulong table_id,
@@ -4937,20 +4932,20 @@ public:
 #endif
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  uint8 get_trg_event_map();
+  uint8 get_trg_event_map() const override;
 #endif
 
 private:
-  virtual Log_event_type get_general_type_code() { return (Log_event_type)TYPE_CODE; }
+  Log_event_type get_general_type_code() const override { return TYPE_CODE; }
 
 #ifdef MYSQL_CLIENT
-  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info) override;
 #endif
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_before_row_operations(const rpl_group_info *);
-  virtual int do_after_row_operations(const Slave_reporting_capability *const,int);
-  virtual int do_exec_row(rpl_group_info *);
+  int do_before_row_operations(const rpl_group_info *) override;
+  int do_after_row_operations(int) override;
+  int do_exec_row(rpl_group_info *) override;
 #endif
 };
 
@@ -4968,7 +4963,7 @@ public:
 #endif
 private:
 #if defined(MYSQL_CLIENT)
-  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info) override;
 #endif
 };
 
@@ -4987,11 +4982,8 @@ private:
 class Update_rows_log_event : public Rows_log_event
 {
 public:
-  enum 
-  {
-    /* Support interface to THD::binlog_prepare_pending_rows_event */
-    TYPE_CODE = UPDATE_ROWS_EVENT
-  };
+  /* Support interface to THD::binlog_prepare_pending_rows_event */
+  static constexpr Log_event_type TYPE_CODE = UPDATE_ROWS_EVENT;
 
 #ifdef MYSQL_SERVER
   Update_rows_log_event(THD*, TABLE*, ulong table_id,
@@ -5000,7 +4992,7 @@ public:
   void init(MY_BITMAP const *cols);
 #endif
 
-  virtual ~Update_rows_log_event();
+  ~Update_rows_log_event() override;
 
 #ifdef HAVE_REPLICATION
   Update_rows_log_event(const uchar *buf, uint event_len,
@@ -5021,26 +5013,26 @@ public:
   }
 #endif
 
-  virtual bool is_valid() const
+  bool is_valid() const override
   {
     return Rows_log_event::is_valid() && m_cols_ai.bitmap;
   }
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  uint8 get_trg_event_map();
+  uint8 get_trg_event_map() const override;
 #endif
 
 protected:
-  virtual Log_event_type get_general_type_code() { return (Log_event_type)TYPE_CODE; }
+  Log_event_type get_general_type_code() const override { return TYPE_CODE; }
 
 #ifdef MYSQL_CLIENT
-  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info) override;
 #endif
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_before_row_operations(const rpl_group_info *);
-  virtual int do_after_row_operations(const Slave_reporting_capability *const,int);
-  virtual int do_exec_row(rpl_group_info *);
+  int do_before_row_operations(const rpl_group_info *) override;
+  int do_after_row_operations(int) override;
+  int do_exec_row(rpl_group_info *) override;
 #endif /* defined(MYSQL_SERVER) && defined(HAVE_REPLICATION) */
 };
 
@@ -5058,7 +5050,7 @@ public:
 #endif
 private:
 #if defined(MYSQL_CLIENT)
-  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info) override;
 #endif
 };
 
@@ -5085,11 +5077,8 @@ private:
 class Delete_rows_log_event : public Rows_log_event
 {
 public:
-  enum 
-  {
-    /* Support interface to THD::binlog_prepare_pending_rows_event */
-    TYPE_CODE = DELETE_ROWS_EVENT
-  };
+  /* Support interface to THD::binlog_prepare_pending_rows_event */
+  static constexpr Log_event_type TYPE_CODE = DELETE_ROWS_EVENT;
 
 #ifdef MYSQL_SERVER
   Delete_rows_log_event(THD*, TABLE*, ulong, bool is_transactional);
@@ -5114,20 +5103,20 @@ public:
 #endif
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  uint8 get_trg_event_map();
+  uint8 get_trg_event_map() const override;
 #endif
 
 protected:
-  virtual Log_event_type get_general_type_code() { return (Log_event_type)TYPE_CODE; }
+  Log_event_type get_general_type_code() const override { return TYPE_CODE; }
 
 #ifdef MYSQL_CLIENT
-  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info) override;
 #endif
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_before_row_operations(const rpl_group_info *const);
-  virtual int do_after_row_operations(const Slave_reporting_capability *const,int);
-  virtual int do_exec_row(rpl_group_info *);
+  int do_before_row_operations(const rpl_group_info *const) override;
+  int do_after_row_operations(int) override;
+  int do_exec_row(rpl_group_info *) override;
 #endif
 };
 
@@ -5144,7 +5133,7 @@ public:
 #endif
 private:
 #if defined(MYSQL_CLIENT)
-  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info) override;
 #endif
 };
 
