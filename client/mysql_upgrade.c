@@ -18,6 +18,9 @@
 
 #include "client_priv.h"
 #include <sslopt-vars.h>
+#include <my_dir.h>
+#include <m_ctype.h>
+#include "../include/mysql/psi/mysql_file.h"
 #include <../scripts/mysql_fix_privilege_tables_sql.c>
 
 #include <welcome_copyright_notice.h> /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
@@ -35,6 +38,8 @@
 #  define WEXITSTATUS(stat_val) ((unsigned)(stat_val) >> 8)
 # endif
 #endif
+
+extern PSI_file_key key_file_misc;
 
 static int phase = 0;
 static int info_file= -1;
@@ -75,6 +80,8 @@ static my_bool not_used; /* Can't use GET_BOOL without a value pointer */
 char upgrade_from_version[sizeof("10.20.456-MariaDB")+30];
 
 static my_bool opt_write_binlog;
+
+CHARSET_INFO* system_charset_info= &my_charset_utf8mb3_general_ci;
 
 #define OPT_SILENT OPT_MAX_CLIENT_OPTION
 
@@ -183,6 +190,8 @@ static const char *load_default_groups[]=
   "client-mariadb",  /* Read mariadb unique client settings */
   0
 };
+
+extern my_bool rm_dir_w_symlink(const char *org_path, my_bool send_error);
 
 static void free_used_memory(void)
 {
@@ -1401,6 +1410,114 @@ static int check_version_match(void)
 }
 
 
+/*
+  Remove .frm archives from directory
+
+  SYNOPSIS
+    dirp      list of files in archive directory
+    db        data base name
+    org_path  path of archive directory
+
+  RETURN
+    > 0 number of removed files
+    -1  error
+
+  NOTE
+    A support of "arc" directories is obsolete, however this
+    function should exist to remove existent "arc" directories.
+*/
+long mysql_rm_arc_files(MY_DIR *dirp, const char *org_path)
+{
+  long deleted= 0;
+  ulong found_other_files= 0;
+  char filePath[FN_REFLEN];
+  DBUG_ENTER("mysql_rm_arc_files");
+  DBUG_PRINT("enter", ("path: %s", org_path));
+
+  for (size_t i=0; i < dirp->number_of_files; i++)
+  {
+    FILEINFO *file=dirp->dir_entry+i;
+    char *extension, *revision;
+    DBUG_PRINT("info",("Examining: %s", file->name));
+
+    extension= fn_ext(file->name);
+    if (extension[0] != '.' ||
+        extension[1] != 'f' || extension[2] != 'r' ||
+        extension[3] != 'm' || extension[4] != '-')
+    {
+      found_other_files++;
+      continue;
+    }
+    revision= extension+5;
+    while (*revision && my_isdigit(system_charset_info, *revision))
+      revision++;
+    if (*revision)
+    {
+      found_other_files++;
+      continue;
+    }
+    strxmov(filePath, org_path, "/", file->name, NullS);
+    if (mysql_file_delete_with_symlink(key_file_misc, filePath, "", MYF(MY_WME)))
+    {
+      goto err;
+    }
+    deleted++;
+  }
+
+  my_dirend(dirp);
+
+  /*
+    If the directory is a symbolic link, remove the link first, then
+    remove the directory the symbolic link pointed at
+  */
+  if (!found_other_files &&
+      rm_dir_w_symlink(org_path, 0))
+    DBUG_RETURN(-1);
+  DBUG_RETURN(deleted);
+
+err:
+  my_dirend(dirp);
+  DBUG_RETURN(-1);
+}
+
+
+static my_bool remove_obsolete_arc_files(const char *org_path)
+{
+  MY_DIR *dirp;
+  DBUG_ENTER("remove_obsolete_arc_files");
+  if (!(dirp = my_dir(org_path, MYF(MY_DONT_SORT))))
+  {
+    /* Could not open directory */
+    fprintf(stderr, "Unable to open data-dir for removing arc files.\n");
+    DBUG_RETURN(1);
+  }
+
+  for (size_t i=0 ; i < dirp->number_of_files; i++)
+  {
+    FILEINFO *file= dirp->dir_entry+i;
+    DBUG_PRINT("info",("Removing: %s", file->name));
+
+    if (file->name[0] == 'a' && file->name[1] == 'r' &&
+             file->name[2] == 'c' && file->name[3] == '\0')
+    {
+      char newpath[FN_REFLEN];
+      MY_DIR *new_dirp;
+      strxmov(newpath, org_path, "/", "arc", NullS);
+      (void) unpack_filename(newpath, newpath);
+      if ((new_dirp = my_dir(newpath, MYF(MY_DONT_SORT))))
+      {
+	DBUG_PRINT("my",("Archive subdir found: %s", newpath));
+	if ((mysql_rm_arc_files(new_dirp, newpath)) < 0)
+	  DBUG_RETURN(0);
+      }
+      continue;
+    }
+  }
+
+  DBUG_RETURN(0);
+}
+
+
 int main(int argc, char **argv)
 {
   char self_name[FN_REFLEN + 1];
@@ -1488,6 +1605,8 @@ int main(int argc, char **argv)
       run_mysqlcheck_upgrade(FALSE) ||
       check_slave_repositories())
     die("Upgrade failed" );
+
+  remove_obsolete_arc_files(defaults_file);
 
   uninstall_plugins();
   verbose("Phase %d/%d: Running 'FLUSH PRIVILEGES'", ++phase, phases_total);

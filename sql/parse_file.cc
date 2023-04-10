@@ -30,9 +30,6 @@
 #include <m_ctype.h>
 #include <my_dir.h>
 
-/* from sql_db.cc */
-extern long mysql_rm_arc_files(THD *thd, MY_DIR *dirp, const char *org_path);
-
 
 /**
   Write string with escaping.
