@@ -5085,7 +5085,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     else
     {
       bitmap_intersect(table->read_set,&m_cols);
-      bitmap_intersect(table->write_set, &m_cols_ai);
+      if (get_general_type_code() == UPDATE_ROWS_EVENT)
+        bitmap_intersect(table->write_set, &m_cols_ai);
       table->mark_columns_per_binlog_row_image();
       if (table->vfield)
         table->mark_virtual_columns_for_write(0);
