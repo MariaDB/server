@@ -6945,7 +6945,7 @@ Write_rows_log_event::do_exec_row(rpl_group_info *rgi)
 
 
 #if defined(HAVE_REPLICATION)
-uint8 Write_rows_log_event::get_trg_event_map()
+uint8 Write_rows_log_event::get_trg_event_map() const
 {
   return trg2bit(TRG_EVENT_INSERT) | trg2bit(TRG_EVENT_UPDATE) |
          trg2bit(TRG_EVENT_DELETE);
@@ -7737,7 +7737,7 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
 #endif /* defined(HAVE_REPLICATION) */
 
 #if defined(HAVE_REPLICATION)
-uint8 Delete_rows_log_event::get_trg_event_map()
+uint8 Delete_rows_log_event::get_trg_event_map() const
 {
   return trg2bit(TRG_EVENT_DELETE);
 }
@@ -7952,7 +7952,7 @@ err:
 
 
 #if defined(HAVE_REPLICATION)
-uint8 Update_rows_log_event::get_trg_event_map()
+uint8 Update_rows_log_event::get_trg_event_map() const
 {
   return trg2bit(TRG_EVENT_UPDATE);
 }
