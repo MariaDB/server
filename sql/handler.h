@@ -3502,6 +3502,10 @@ public:
     return extra(HA_EXTRA_NO_KEYREAD);
   }
 
+protected:
+  bool is_root_handler() const;
+
+public:
   int check_collation_compatibility();
   int check_long_hash_compatibility() const;
   int ha_check_for_upgrade(HA_CHECK_OPT *check_opt);
