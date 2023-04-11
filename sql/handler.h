@@ -3536,6 +3536,11 @@ public:
     if (org_keyread != MAX_KEY)
       ha_start_keyread(org_keyread);
   }
+
+protected:
+  bool is_root_handler() const;
+
+public:
   int check_collation_compatibility();
   int check_long_hash_compatibility() const;
   int ha_check_for_upgrade(HA_CHECK_OPT *check_opt);
