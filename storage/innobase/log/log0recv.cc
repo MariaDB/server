@@ -3709,7 +3709,7 @@ void recv_sys_t::apply(bool last_batch)
 
   if (!pages.empty())
   {
-    ut_ad(!last_batch || recv_sys.lsn == recv_sys.end_lsn);
+    ut_ad(!last_batch || lsn == end_lsn);
     progress_time= time(nullptr);
     report_progress();
 
@@ -3997,6 +3997,7 @@ static bool recv_scan_log(bool last_phase)
     if (r != recv_sys_t::PREMATURE_EOF)
     {
       ut_ad(r == recv_sys_t::GOT_EOF);
+    got_eof:
       if (recv_sys.end_lsn)
       {
         ut_ad(recv_sys.end_lsn == recv_sys.lsn);
@@ -4016,7 +4017,7 @@ static bool recv_scan_log(bool last_phase)
       break;
 
     if (recv_sys.offset < log_sys.get_block_size())
-      break;
+      goto got_eof;
 
     if (recv_sys.offset > buf_size / 4 ||
         (recv_sys.offset > block_size_1 &&
