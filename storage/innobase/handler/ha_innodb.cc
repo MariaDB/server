@@ -7750,6 +7750,8 @@ ha_innobase::write_row(
 
 	DBUG_ENTER("ha_innobase::write_row");
 
+	DBUG_ASSERT(is_root_handler() || table->file->ht != innodb_hton_ptr);
+
 	trx_t*		trx = thd_to_trx(m_user_thd);
 
 	/* Validation checks before we commence write_row operation. */
@@ -8479,6 +8481,8 @@ ha_innobase::update_row(
 
 	DBUG_ENTER("ha_innobase::update_row");
 
+	DBUG_ASSERT(is_root_handler() || table->file->ht != innodb_hton_ptr);
+
 	if (is_read_only()) {
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
 	} else if (!trx_is_started(trx)) {
@@ -8652,6 +8656,8 @@ ha_innobase::delete_row(
 	trx_t*		trx = thd_to_trx(m_user_thd);
 
 	DBUG_ENTER("ha_innobase::delete_row");
+
+	DBUG_ASSERT(is_root_handler() || table->file->ht != innodb_hton_ptr);
 
 	if (is_read_only()) {
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);

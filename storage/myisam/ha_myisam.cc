@@ -983,6 +983,7 @@ int ha_myisam::close(void)
 
 int ha_myisam::write_row(const uchar *buf)
 {
+  DBUG_ASSERT(is_root_handler() || table->file->ht != ht);
   /*
     If we have an auto_increment column and we are writing a changed row
     or a new row, then update the auto_increment value in the record.
@@ -1957,11 +1958,13 @@ bool ha_myisam::is_crashed() const
 
 int ha_myisam::update_row(const uchar *old_data, const uchar *new_data)
 {
+  DBUG_ASSERT(is_root_handler() || table->file->ht != ht);
   return mi_update(file,old_data,new_data);
 }
 
 int ha_myisam::delete_row(const uchar *buf)
 {
+  DBUG_ASSERT(is_root_handler() || table->file->ht != ht);
   return mi_delete(file,buf);
 }
 
