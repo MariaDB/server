@@ -197,5 +197,16 @@ drop role admin;
 drop database crm;
 
 --echo #
+--echo # MDEV-30526 Assertion `rights == merged->cols' failed in update_role_columns
+--echo #
+create table t1 ( pk int, i int);
+create role a;
+grant select (i), update (pk) on t1 to a;
+revoke  update (pk) on t1 from a;
+show grants for a;
+drop role a;
+drop table t1;
+
+--echo #
 --echo # End of 10.3 tests
 --echo #

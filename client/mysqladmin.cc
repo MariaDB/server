@@ -1599,7 +1599,8 @@ static void print_relative_row_vert(MYSQL_RES *result __attribute__((unused)),
 	 llstr((tmp - last_values[row]), buff));
 
   /* Find the minimum row length needed to output the relative value */
-  if ((length=(uint) strlen(buff) > ex_val_max_len[row]) && ex_status_printed)
+  length=(uint) strlen(buff);
+  if (length > ex_val_max_len[row] && ex_status_printed)
     ex_val_max_len[row] = length;
   last_values[row] = tmp;
 }

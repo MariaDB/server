@@ -7,8 +7,8 @@ SET @@global.rocksdb_rate_limiter_bytes_per_sec = 10000;
 
 # Write file to make mysql-test-run.pl expect the "crash", but don't restart the
 # server until it is told to
---let $_server_id= `SELECT @@server_id`
---let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect
+--let $_expect_file_name= `select regexp_replace(@@tmpdir, '^.*/','')`
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/$_expect_file_name.expect
 --exec echo "wait" >$_expect_file_name
 
 # Send shutdown to the connected server and give it 10 seconds to die before

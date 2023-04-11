@@ -161,7 +161,7 @@ void Explain_query::query_plan_ready()
   Send EXPLAIN output to the client.
 */
 
-int Explain_query::send_explain(THD *thd)
+int Explain_query::send_explain(THD *thd, bool extended)
 {
   select_result *result;
   LEX *lex= thd->lex;
@@ -174,8 +174,22 @@ int Explain_query::send_explain(THD *thd)
   if (thd->lex->explain_json)
     print_explain_json(result, thd->lex->analyze_stmt);
   else
+  {
     res= print_explain(result, lex->describe, thd->lex->analyze_stmt);
-
+    if (extended)
+    {
+      char buff[1024];
+      String str(buff,(uint32) sizeof(buff), system_charset_info);
+                 str.length(0);
+     /*
+       The warnings system requires input in utf8, @see
+        mysqld_show_warnings().
+     */
+     lex->unit.print(&str, QT_EXPLAIN_EXTENDED);
+                     push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
+                     ER_YES, str.c_ptr_safe());
+    }
+  }
   if (res)
     result->abort_result_set();
   else
@@ -183,6 +197,7 @@ int Explain_query::send_explain(THD *thd)
 
   return res;
 }
+
 
 
 /*

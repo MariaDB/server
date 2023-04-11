@@ -261,6 +261,12 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
                               STRING_WITH_LEN("now WAIT_FOR proceed_by_1000"));
       }
     });
+  DBUG_EXECUTE_IF("hold_worker2_favor_worker3", {
+      if (rgi->current_gtid.seq_no == 2001) {
+        DBUG_ASSERT(!rgi->worker_error || entry->stop_on_error_sub_id == sub_id);
+        debug_sync_set_action(thd, STRING_WITH_LEN("now SIGNAL cont_worker3"));
+      }
+    });
 #endif
 
   if (rgi->killed_for_retry == rpl_group_info::RETRY_KILL_PENDING)
@@ -284,6 +290,11 @@ signal_error_to_sql_driver_thread(THD *thd, rpl_group_info *rgi, int err)
     In case we get an error during commit, inform following transactions that
     we aborted our commit.
   */
+  DBUG_EXECUTE_IF("hold_worker2_favor_worker3", {
+      if (rgi->current_gtid.seq_no == 2002) {
+        debug_sync_set_action(thd, STRING_WITH_LEN("now WAIT_FOR cont_worker2"));
+      }});
+
   rgi->unmark_start_commit();
   rgi->cleanup_context(thd, true);
   rgi->rli->abort_slave= true;
@@ -790,7 +801,14 @@ do_retry:
   thd->reset_killed();
   thd->clear_error();
   rgi->killed_for_retry = rpl_group_info::RETRY_KILL_NONE;
-
+#ifdef ENABLED_DEBUG_SYNC
+    DBUG_EXECUTE_IF("hold_worker2_favor_worker3", {
+      if (rgi->current_gtid.seq_no == 2003) {
+        debug_sync_set_action(thd,
+                              STRING_WITH_LEN("now WAIT_FOR cont_worker3"));
+      }
+    });
+#endif
   /*
     If we retry due to a deadlock kill that occurred during the commit step, we
     might have already updated (but not committed) an update of table
@@ -809,15 +827,12 @@ do_retry:
   for (;;)
   {
     mysql_mutex_lock(&entry->LOCK_parallel_entry);
-    if (entry->stop_on_error_sub_id == (uint64) ULONGLONG_MAX ||
+    register_wait_for_prior_event_group_commit(rgi, entry);
+    if (!(entry->stop_on_error_sub_id == (uint64) ULONGLONG_MAX ||
 #ifndef DBUG_OFF
-        (DBUG_EVALUATE_IF("simulate_mdev_12746", 1, 0)) ||
+          (DBUG_EVALUATE_IF("simulate_mdev_12746", 1, 0)) ||
 #endif
-        rgi->gtid_sub_id < entry->stop_on_error_sub_id)
-    {
-      register_wait_for_prior_event_group_commit(rgi, entry);
-    }
-    else
+          rgi->gtid_sub_id < entry->stop_on_error_sub_id))
     {
       /*
         A failure of a preceding "parent" transaction may not be
@@ -2027,6 +2042,9 @@ rpl_parallel_thread::get_gco(uint64 wait_count, group_commit_orderer *prev,
   gco->prior_sub_id= prior_sub_id;
   gco->installed= false;
   gco->flags= 0;
+#ifndef DBUG_OFF
+  gco->gc_done= false;
+#endif
   return gco;
 }
 
@@ -2034,6 +2052,10 @@ rpl_parallel_thread::get_gco(uint64 wait_count, group_commit_orderer *prev,
 void
 rpl_parallel_thread::loc_free_gco(group_commit_orderer *gco)
 {
+#ifndef DBUG_OFF
+  DBUG_ASSERT(!gco->gc_done);
+  gco->gc_done= true;
+#endif
   if (!loc_gco_list)
     loc_gco_last_ptr_ptr= &gco->next_gco;
   else

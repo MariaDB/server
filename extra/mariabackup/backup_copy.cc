@@ -1759,6 +1759,20 @@ apply_log_finish()
 	return(true);
 }
 
+class Copy_back_dst_dir
+{
+  std::string buf;
+
+public:
+  const char *make(const char *path)
+  {
+    if (!path || !path[0])
+      return mysql_data_home;
+    if (is_absolute_path(path))
+      return path;
+    return buf.assign(mysql_data_home).append(path).c_str();
+  }
+};
 
 bool
 copy_back()
@@ -1766,7 +1780,7 @@ copy_back()
 	bool ret = false;
 	datadir_iter_t *it = NULL;
 	datadir_node_t node;
-	char *dst_dir;
+	const char *dst_dir;
 
 	memset(&node, 0, sizeof(node));
 
@@ -1830,9 +1844,9 @@ copy_back()
 
 	/* copy undo tablespaces */
 
+	Copy_back_dst_dir dst_dir_buf;
 
-	dst_dir = (srv_undo_dir && *srv_undo_dir)
-			? srv_undo_dir : mysql_data_home;
+	dst_dir = dst_dir_buf.make(srv_undo_dir);
 
 	ds_data = ds_create(dst_dir, DS_TYPE_LOCAL);
 
@@ -1853,8 +1867,7 @@ copy_back()
 
 	/* copy redo logs */
 
-	dst_dir = (srv_log_group_home_dir && *srv_log_group_home_dir)
-		? srv_log_group_home_dir : mysql_data_home;
+	dst_dir = dst_dir_buf.make(srv_log_group_home_dir);
 
 	/* --backup generates a single LOG_FILE_NAME, which we must copy
 	if it exists. */
@@ -1882,8 +1895,7 @@ copy_back()
 
 	/* copy innodb system tablespace(s) */
 
-	dst_dir = (innobase_data_home_dir && *innobase_data_home_dir)
-				? innobase_data_home_dir : mysql_data_home;
+	dst_dir = dst_dir_buf.make(innobase_data_home_dir);
 
 	ds_data = ds_create(dst_dir, DS_TYPE_LOCAL);
 
