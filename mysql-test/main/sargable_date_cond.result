@@ -20,6 +20,7 @@ test.t2	analyze	status	Table is already up to date
 select count(*) from t2 where year(a) < 2018;
 count(*)
 460
+# Compare the results, they must be equal:
 select count(*) from t2 where a < '2018-01-01';
 count(*)
 460
@@ -132,55 +133,6 @@ EXPLAIN
     ]
   }
 }
-execute immediate 
-"explain format=json select * from t2 where year(a) <= ?"
-  using 2018;
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "cost": 0.1671618,
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t2",
-          "access_type": "ALL",
-          "possible_keys": ["a"],
-          "loops": 1,
-          "rows": 1000,
-          "cost": 0.1671618,
-          "filtered": 90.30000305,
-          "attached_condition": "t2.a <= '2018-12-31 23:59:59'"
-        }
-      }
-    ]
-  }
-}
-prepare stmt from "select count(*) from t2 where year(a) <= 2018";
-execute stmt;
-count(*)
-920
-execute stmt;
-count(*)
-920
-create or replace view v1 as select count(*) from t2 where year(a) <= 2018;
-select * from v1;
-count(*)
-920
-create or replace procedure sp() select count(*) from t2 where year(a) <= 2018;
-call sp();
-count(*)
-920
-call sp();
-count(*)
-920
-prepare stmt from "select count(*) from t2 where year(a) <= ?";
-execute stmt using 2018;
-count(*)
-920
-execute stmt using 2017;
-count(*)
-460
 select count(*) from t2 where year(a) > 2018;
 count(*)
 80
@@ -213,58 +165,6 @@ EXPLAIN
     ]
   }
 }
-execute immediate 
-"explain format=json select * from t2 where year(a) > ?"
-  using 2018;
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "cost": 0.121025977,
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t2",
-          "access_type": "range",
-          "possible_keys": ["a"],
-          "key": "a",
-          "key_length": "6",
-          "used_key_parts": ["a"],
-          "loops": 1,
-          "rows": 97,
-          "cost": 0.121025977,
-          "filtered": 100,
-          "index_condition": "t2.a > '2018-12-31 23:59:59'"
-        }
-      }
-    ]
-  }
-}
-prepare stmt from "select count(*) from t2 where year(a) > 2018";
-execute stmt;
-count(*)
-80
-execute stmt;
-count(*)
-80
-create or replace view v1 as select count(*) from t2 where year(a) > 2018;
-select * from v1;
-count(*)
-80
-create or replace procedure sp() select count(*) from t2 where year(a) > 2018;
-call sp();
-count(*)
-80
-call sp();
-count(*)
-80
-prepare stmt from "select count(*) from t2 where year(a) > ?";
-execute stmt using 2018;
-count(*)
-80
-execute stmt using 2017;
-count(*)
-540
 select count(*) from t2 where year(a) >= 2018;
 count(*)
 540
@@ -297,55 +197,6 @@ EXPLAIN
     ]
   }
 }
-execute immediate 
-"explain format=json select * from t2 where year(a) >= ?"
-  using 2018;
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "cost": 0.1671618,
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t2",
-          "access_type": "ALL",
-          "possible_keys": ["a"],
-          "loops": 1,
-          "rows": 1000,
-          "cost": 0.1671618,
-          "filtered": 54.90000153,
-          "attached_condition": "t2.a >= '2018-01-01 00:00:00'"
-        }
-      }
-    ]
-  }
-}
-prepare stmt from "select count(*) from t2 where year(a) >= 2018";
-execute stmt;
-count(*)
-540
-execute stmt;
-count(*)
-540
-create or replace view v1 as select count(*) from t2 where year(a) >= 2018;
-select * from v1;
-count(*)
-540
-create or replace procedure sp() select count(*) from t2 where year(a) >= 2018;
-call sp();
-count(*)
-540
-call sp();
-count(*)
-540
-prepare stmt from "select count(*) from t2 where year(a) >= ?";
-execute stmt using 2018;
-count(*)
-540
-execute stmt using 2019;
-count(*)
-80
 select count(*) from t2 where year(a) = 2017;
 count(*)
 460
@@ -378,55 +229,6 @@ EXPLAIN
     ]
   }
 }
-execute immediate 
-"explain format=json select * from t2 where year(a) = ?"
-  using 2017;
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "cost": 0.1671618,
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t2",
-          "access_type": "ALL",
-          "possible_keys": ["a"],
-          "loops": 1,
-          "rows": 1000,
-          "cost": 0.1671618,
-          "filtered": 45.09999847,
-          "attached_condition": "t2.a between '2017-01-01 00:00:00' and '2017-12-31 23:59:59'"
-        }
-      }
-    ]
-  }
-}
-prepare stmt from "select count(*) from t2 where year(a) = 2017";
-execute stmt;
-count(*)
-460
-execute stmt;
-count(*)
-460
-create or replace view v1 as select count(*) from t2 where year(a) = 2017;
-select * from v1;
-count(*)
-460
-create or replace procedure sp() select count(*) from t2 where year(a) = 2017;
-call sp();
-count(*)
-460
-call sp();
-count(*)
-460
-prepare stmt from "select count(*) from t2 where year(a) = ?";
-execute stmt using 2017;
-count(*)
-460
-execute stmt using 2019;
-count(*)
-80
 #
 # "YEAR(datetime_col) CMP year_value", reverse argument order
 #
@@ -462,55 +264,6 @@ EXPLAIN
     ]
   }
 }
-execute immediate 
-"explain format=json select * from t2 where ? < year(a)"
-  using 2017;
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "cost": 0.1671618,
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t2",
-          "access_type": "ALL",
-          "possible_keys": ["a"],
-          "loops": 1,
-          "rows": 1000,
-          "cost": 0.1671618,
-          "filtered": 54.90000153,
-          "attached_condition": "t2.a > '2017-12-31 23:59:59'"
-        }
-      }
-    ]
-  }
-}
-prepare stmt from "select count(*) from t2 where 2017 < year(a)";
-execute stmt;
-count(*)
-540
-execute stmt;
-count(*)
-540
-create or replace view v1 as select count(*) from t2 where 2017 < year(a);
-select * from v1;
-count(*)
-540
-create or replace procedure sp() select count(*) from t2 where 2017 < year(a);
-call sp();
-count(*)
-540
-call sp();
-count(*)
-540
-prepare stmt from "select count(*) from t2 where ? < year(a)";
-execute stmt using 2017;
-count(*)
-540
-execute stmt using 2018;
-count(*)
-80
 select count(*) from t2 where a >= '2018-01-01';
 count(*)
 540
@@ -540,55 +293,6 @@ EXPLAIN
     ]
   }
 }
-execute immediate 
-"explain format=json select * from t2 where ? <= year(a)"
-  using 2018;
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "cost": 0.1671618,
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t2",
-          "access_type": "ALL",
-          "possible_keys": ["a"],
-          "loops": 1,
-          "rows": 1000,
-          "cost": 0.1671618,
-          "filtered": 54.90000153,
-          "attached_condition": "t2.a >= '2018-01-01 00:00:00'"
-        }
-      }
-    ]
-  }
-}
-prepare stmt from "select count(*) from t2 where 2018 <= year(a)";
-execute stmt;
-count(*)
-540
-execute stmt;
-count(*)
-540
-create or replace view v1 as select count(*) from t2 where 2018 <= year(a);
-select * from v1;
-count(*)
-540
-create or replace procedure sp() select count(*) from t2 where 2018 <= year(a);
-call sp();
-count(*)
-540
-call sp();
-count(*)
-540
-prepare stmt from "select count(*) from t2 where ? <= year(a)";
-execute stmt using 2018;
-count(*)
-540
-execute stmt using 2019;
-count(*)
-80
 select count(*) from t2 where 2018 > year(a);
 count(*)
 460
@@ -621,55 +325,6 @@ EXPLAIN
     ]
   }
 }
-execute immediate 
-"explain format=json select * from t2 where ? > year(a)"
-  using 2018;
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "cost": 0.1671618,
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t2",
-          "access_type": "ALL",
-          "possible_keys": ["a"],
-          "loops": 1,
-          "rows": 1000,
-          "cost": 0.1671618,
-          "filtered": 45.09999847,
-          "attached_condition": "t2.a < '2018-01-01 00:00:00'"
-        }
-      }
-    ]
-  }
-}
-prepare stmt from "select count(*) from t2 where 2018 > year(a)";
-execute stmt;
-count(*)
-460
-execute stmt;
-count(*)
-460
-create or replace view v1 as select count(*) from t2 where 2018 > year(a);
-select * from v1;
-count(*)
-460
-create or replace procedure sp() select count(*) from t2 where 2018 > year(a);
-call sp();
-count(*)
-460
-call sp();
-count(*)
-460
-prepare stmt from "select count(*) from t2 where ? > year(a)";
-execute stmt using 2018;
-count(*)
-460
-execute stmt using 2019;
-count(*)
-920
 select count(*) from t2 where a < '2019-01-01';
 count(*)
 920
@@ -699,55 +354,6 @@ EXPLAIN
     ]
   }
 }
-execute immediate 
-"explain format=json select * from t2 where ? >= year(a)"
-  using 2018;
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "cost": 0.1671618,
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t2",
-          "access_type": "ALL",
-          "possible_keys": ["a"],
-          "loops": 1,
-          "rows": 1000,
-          "cost": 0.1671618,
-          "filtered": 90.30000305,
-          "attached_condition": "t2.a <= '2018-12-31 23:59:59'"
-        }
-      }
-    ]
-  }
-}
-prepare stmt from "select count(*) from t2 where 2018 >= year(a)";
-execute stmt;
-count(*)
-920
-execute stmt;
-count(*)
-920
-create or replace view v1 as select count(*) from t2 where 2018 >= year(a);
-select * from v1;
-count(*)
-920
-create or replace procedure sp() select count(*) from t2 where 2018 >= year(a);
-call sp();
-count(*)
-920
-call sp();
-count(*)
-920
-prepare stmt from "select count(*) from t2 where ? >= year(a)";
-execute stmt using 2018;
-count(*)
-920
-execute stmt using 2019;
-count(*)
-1000
 select count(*) from t2 where 2018 =  year(a);
 count(*)
 460
@@ -780,55 +386,6 @@ EXPLAIN
     ]
   }
 }
-execute immediate 
-"explain format=json select * from t2 where ? = year(a)"
-  using 2018;
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "cost": 0.1671618,
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t2",
-          "access_type": "ALL",
-          "possible_keys": ["a"],
-          "loops": 1,
-          "rows": 1000,
-          "cost": 0.1671618,
-          "filtered": 45.20000076,
-          "attached_condition": "t2.a between '2018-01-01 00:00:00' and '2018-12-31 23:59:59'"
-        }
-      }
-    ]
-  }
-}
-prepare stmt from "select count(*) from t2 where 2018 =  year(a)";
-execute stmt;
-count(*)
-460
-execute stmt;
-count(*)
-460
-create or replace view v1 as select count(*) from t2 where 2018 =  year(a);
-select * from v1;
-count(*)
-460
-create or replace procedure sp() select count(*) from t2 where 2018 =  year(a);
-call sp();
-count(*)
-460
-call sp();
-count(*)
-460
-prepare stmt from "select count(*) from t2 where ? = year(a)";
-execute stmt using 2018;
-count(*)
-460
-execute stmt using 2019;
-count(*)
-80
 #
 # "DATE(datetime_col) CMP date_value", basic checks
 #
@@ -864,55 +421,6 @@ EXPLAIN
     ]
   }
 }
-execute immediate 
-"explain format=json select * from t2 where date(a) < ?"
-  using '2017-06-01';
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "cost": 0.1671618,
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t2",
-          "access_type": "ALL",
-          "possible_keys": ["a"],
-          "loops": 1,
-          "rows": 1000,
-          "cost": 0.1671618,
-          "filtered": 18.60000038,
-          "attached_condition": "t2.a < '2017-06-01 00:00:00'"
-        }
-      }
-    ]
-  }
-}
-prepare stmt from "select count(*) from t2 where date(a) < '2017-06-01'";
-execute stmt;
-count(*)
-190
-execute stmt;
-count(*)
-190
-create or replace view v1 as select count(*) from t2 where date(a) < '2017-06-01';
-select * from v1;
-count(*)
-190
-create or replace procedure sp() select count(*) from t2 where date(a) < '2017-06-01';
-call sp();
-count(*)
-190
-call sp();
-count(*)
-190
-prepare stmt from "select count(*) from t2 where date(a) < ?";
-execute stmt using '2017-06-01';
-count(*)
-190
-execute stmt using '2017-06-05';
-count(*)
-200
 select count(*) from t2 where date(a) <= '2017-06-03';
 count(*)
 200
@@ -945,55 +453,6 @@ EXPLAIN
     ]
   }
 }
-execute immediate 
-"explain format=json select * from t2 where date(a) <= ?"
-  using '2017-06-04';
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "cost": 0.1671618,
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t2",
-          "access_type": "ALL",
-          "possible_keys": ["a"],
-          "loops": 1,
-          "rows": 1000,
-          "cost": 0.1671618,
-          "filtered": 19.60000038,
-          "attached_condition": "t2.a <= '2017-06-04 23:59:59'"
-        }
-      }
-    ]
-  }
-}
-prepare stmt from "select count(*) from t2 where date(a) <= '2017-06-03'";
-execute stmt;
-count(*)
-200
-execute stmt;
-count(*)
-200
-create or replace view v1 as select count(*) from t2 where date(a) <= '2017-06-03';
-select * from v1;
-count(*)
-200
-create or replace procedure sp() select count(*) from t2 where date(a) <= '2017-06-03';
-call sp();
-count(*)
-200
-call sp();
-count(*)
-200
-prepare stmt from "select count(*) from t2 where date(a) <= ?";
-execute stmt using '2017-06-03';
-count(*)
-200
-execute stmt using '2017-06-10';
-count(*)
-210
 select count(*) from t2 where date(a) > '2018-06-01';
 count(*)
 350
@@ -1026,55 +485,6 @@ EXPLAIN
     ]
   }
 }
-execute immediate 
-"explain format=json select * from t2 where date(a) > ?"
-  using '2018-06-01';
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "cost": 0.1671618,
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t2",
-          "access_type": "ALL",
-          "possible_keys": ["a"],
-          "loops": 1,
-          "rows": 1000,
-          "cost": 0.1671618,
-          "filtered": 36.29999924,
-          "attached_condition": "t2.a > '2018-06-01 23:59:59'"
-        }
-      }
-    ]
-  }
-}
-prepare stmt from "select count(*) from t2 where date(a) > '2018-06-01'";
-execute stmt;
-count(*)
-350
-execute stmt;
-count(*)
-350
-create or replace view v1 as select count(*) from t2 where date(a) > '2018-06-01';
-select * from v1;
-count(*)
-350
-create or replace procedure sp() select count(*) from t2 where date(a) > '2018-06-01';
-call sp();
-count(*)
-350
-call sp();
-count(*)
-350
-prepare stmt from "select count(*) from t2 where date(a) > ?";
-execute stmt using '2018-06-01';
-count(*)
-350
-execute stmt using '2018-06-05';
-count(*)
-340
 select count(*) from t2 where date(a) >= '2018-06-01';
 count(*)
 350
@@ -1107,55 +517,6 @@ EXPLAIN
     ]
   }
 }
-execute immediate 
-"explain format=json select * from t2 where date(a) >= ?"
-  using '2018-06-01';
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "cost": 0.1671618,
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t2",
-          "access_type": "ALL",
-          "possible_keys": ["a"],
-          "loops": 1,
-          "rows": 1000,
-          "cost": 0.1671618,
-          "filtered": 36.29999924,
-          "attached_condition": "t2.a >= '2018-06-01 00:00:00'"
-        }
-      }
-    ]
-  }
-}
-prepare stmt from "select count(*) from t2 where date(a) >= '2018-06-01'";
-execute stmt;
-count(*)
-350
-execute stmt;
-count(*)
-350
-create or replace view v1 as select count(*) from t2 where date(a) >= '2018-06-01';
-select * from v1;
-count(*)
-350
-create or replace procedure sp() select count(*) from t2 where date(a) >= '2018-06-01';
-call sp();
-count(*)
-350
-call sp();
-count(*)
-350
-prepare stmt from "select count(*) from t2 where date(a) >= ?";
-execute stmt using '2018-06-01';
-count(*)
-350
-execute stmt using '2018-06-10';
-count(*)
-340
 select count(*) from t2 where date(a) = '2017-06-02';
 count(*)
 10
@@ -1188,58 +549,6 @@ EXPLAIN
     ]
   }
 }
-execute immediate 
-"explain format=json select * from t2 where date(a) = ?"
-  using '2017-06-02';
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "cost": 0.013679374,
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t2",
-          "access_type": "range",
-          "possible_keys": ["a"],
-          "key": "a",
-          "key_length": "6",
-          "used_key_parts": ["a"],
-          "loops": 1,
-          "rows": 10,
-          "cost": 0.013679374,
-          "filtered": 100,
-          "index_condition": "t2.a between '2017-06-02 00:00:00' and '2017-06-02 23:59:59'"
-        }
-      }
-    ]
-  }
-}
-prepare stmt from "select count(*) from t2 where date(a) = '2017-06-02'";
-execute stmt;
-count(*)
-10
-execute stmt;
-count(*)
-10
-create or replace view v1 as select count(*) from t2 where date(a) = '2017-06-02';
-select * from v1;
-count(*)
-10
-create or replace procedure sp() select count(*) from t2 where date(a) = '2017-06-02';
-call sp();
-count(*)
-10
-call sp();
-count(*)
-10
-prepare stmt from "select count(*) from t2 where date(a) = ?";
-execute stmt using '2017-06-02';
-count(*)
-10
-execute stmt using '2017-06-05';
-count(*)
-0
 #
 # "DATE(datetime_col) CMP date_value", reverse order
 #
@@ -1275,55 +584,6 @@ EXPLAIN
     ]
   }
 }
-execute immediate 
-"explain format=json select * from t2 where ? > date(a)"
-  using '2017-06-01';
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "cost": 0.1671618,
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t2",
-          "access_type": "ALL",
-          "possible_keys": ["a"],
-          "loops": 1,
-          "rows": 1000,
-          "cost": 0.1671618,
-          "filtered": 18.60000038,
-          "attached_condition": "t2.a < '2017-06-01 00:00:00'"
-        }
-      }
-    ]
-  }
-}
-prepare stmt from "select count(*) from t2 where '2017-06-01' > date(a)";
-execute stmt;
-count(*)
-190
-execute stmt;
-count(*)
-190
-create or replace view v1 as select count(*) from t2 where '2017-06-01' > date(a);
-select * from v1;
-count(*)
-190
-create or replace procedure sp() select count(*) from t2 where '2017-06-01' > date(a);
-call sp();
-count(*)
-190
-call sp();
-count(*)
-190
-prepare stmt from "select count(*) from t2 where ? > date(a)";
-execute stmt using '2017-06-01';
-count(*)
-190
-execute stmt using '2017-06-05';
-count(*)
-200
 select count(*) from t2 where '2017-06-03' >= date(a);
 count(*)
 200
@@ -1356,55 +616,6 @@ EXPLAIN
     ]
   }
 }
-execute immediate 
-"explain format=json select * from t2 where ? >= date(a)"
-  using '2017-06-03';
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "cost": 0.1671618,
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t2",
-          "access_type": "ALL",
-          "possible_keys": ["a"],
-          "loops": 1,
-          "rows": 1000,
-          "cost": 0.1671618,
-          "filtered": 19.60000038,
-          "attached_condition": "t2.a <= '2017-06-03 23:59:59'"
-        }
-      }
-    ]
-  }
-}
-prepare stmt from "select count(*) from t2 where '2017-06-03' >= date(a)";
-execute stmt;
-count(*)
-200
-execute stmt;
-count(*)
-200
-create or replace view v1 as select count(*) from t2 where '2017-06-03' >= date(a);
-select * from v1;
-count(*)
-200
-create or replace procedure sp() select count(*) from t2 where '2017-06-03' >= date(a);
-call sp();
-count(*)
-200
-call sp();
-count(*)
-200
-prepare stmt from "select count(*) from t2 where ? >= date(a)";
-execute stmt using '2017-06-03';
-count(*)
-200
-execute stmt using '2017-06-12';
-count(*)
-210
 select count(*) from t2 where '2018-06-01' < date(a);
 count(*)
 350
@@ -1437,55 +648,6 @@ EXPLAIN
     ]
   }
 }
-execute immediate 
-"explain format=json select * from t2 where ? < date(a)"
-  using '2017-06-01';
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "cost": 0.1671618,
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t2",
-          "access_type": "ALL",
-          "possible_keys": ["a"],
-          "loops": 1,
-          "rows": 1000,
-          "cost": 0.1671618,
-          "filtered": 81.40000153,
-          "attached_condition": "t2.a > '2017-06-01 23:59:59'"
-        }
-      }
-    ]
-  }
-}
-prepare stmt from "select count(*) from t2 where '2018-06-01' < date(a)";
-execute stmt;
-count(*)
-350
-execute stmt;
-count(*)
-350
-create or replace view v1 as select count(*) from t2 where '2018-06-01' < date(a);
-select * from v1;
-count(*)
-350
-create or replace procedure sp() select count(*) from t2 where '2018-06-01' < date(a);
-call sp();
-count(*)
-350
-call sp();
-count(*)
-350
-prepare stmt from "select count(*) from t2 where ? < date(a)";
-execute stmt using '2018-06-02';
-count(*)
-350
-execute stmt using '2018-06-15';
-count(*)
-330
 select count(*) from t2 where '2018-06-01' <= date(a);
 count(*)
 350
@@ -1518,55 +680,6 @@ EXPLAIN
     ]
   }
 }
-execute immediate 
-"explain format=json select * from t2 where ? <= date(a)"
-  using '2017-06-01';
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "cost": 0.1671618,
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t2",
-          "access_type": "ALL",
-          "possible_keys": ["a"],
-          "loops": 1,
-          "rows": 1000,
-          "cost": 0.1671618,
-          "filtered": 81.40000153,
-          "attached_condition": "t2.a >= '2017-06-01 00:00:00'"
-        }
-      }
-    ]
-  }
-}
-prepare stmt from "select count(*) from t2 where '2018-06-01' <= date(a)";
-execute stmt;
-count(*)
-350
-execute stmt;
-count(*)
-350
-create or replace view v1 as select count(*) from t2 where '2018-06-01' <= date(a);
-select * from v1;
-count(*)
-350
-create or replace procedure sp() select count(*) from t2 where '2018-06-01' <= date(a);
-call sp();
-count(*)
-350
-call sp();
-count(*)
-350
-prepare stmt from "select count(*) from t2 where ? <= date(a)";
-execute stmt using '2018-06-01';
-count(*)
-350
-execute stmt using '2018-06-15';
-count(*)
-330
 select count(*) from t2 where '2017-06-02' = date(a);
 count(*)
 10
@@ -1599,58 +712,6 @@ EXPLAIN
     ]
   }
 }
-execute immediate 
-"explain format=json select * from t2 where ? = date(a)"
-  using '2017-06-02';
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "cost": 0.013679374,
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t2",
-          "access_type": "range",
-          "possible_keys": ["a"],
-          "key": "a",
-          "key_length": "6",
-          "used_key_parts": ["a"],
-          "loops": 1,
-          "rows": 10,
-          "cost": 0.013679374,
-          "filtered": 100,
-          "index_condition": "t2.a between '2017-06-02 00:00:00' and '2017-06-02 23:59:59'"
-        }
-      }
-    ]
-  }
-}
-prepare stmt from "select count(*) from t2 where '2017-06-02' = date(a)";
-execute stmt;
-count(*)
-10
-execute stmt;
-count(*)
-10
-create or replace view v1 as select count(*) from t2 where '2017-06-02' = date(a);
-select * from v1;
-count(*)
-10
-create or replace procedure sp() select count(*) from t2 where '2017-06-02' = date(a);
-call sp();
-count(*)
-10
-call sp();
-count(*)
-10
-prepare stmt from "select count(*) from t2 where ? = date(a)";
-execute stmt using '2017-06-03';
-count(*)
-0
-execute stmt using '2017-06-10';
-count(*)
-10
 # Check rewrite of a more complicated query
 explain format=json select * from t2 as t21 force index(a),
 t2 as t22 force index(a)
@@ -1892,31 +953,6 @@ EXPLAIN
     ]
   }
 }
-prepare stmt from "select count(*) from t2 where date(b)< '2017-06-03'";
-execute stmt;
-count(*)
-220
-execute stmt;
-count(*)
-220
-create or replace view v1 as select count(*) from t2 where date(b)< '2017-06-03';
-select * from v1;
-count(*)
-220
-create or replace procedure sp() select count(*) from t2 where date(b)< '2017-06-03';
-call sp();
-count(*)
-220
-call sp();
-count(*)
-220
-prepare stmt from "select count(*) from t2 where date(b) < ?";
-execute stmt using '2017-06-03';
-count(*)
-220
-execute stmt using '2017-06-10';
-count(*)
-230
 select count(*) from t2 where date(b)= '2017-06-04';
 count(*)
 10
@@ -1949,31 +985,6 @@ EXPLAIN
     ]
   }
 }
-prepare stmt from "select count(*) from t2 where date(b)= '2017-06-04'";
-execute stmt;
-count(*)
-10
-execute stmt;
-count(*)
-10
-create or replace view v1 as select count(*) from t2 where date(b)= '2017-06-04';
-select * from v1;
-count(*)
-10
-create or replace procedure sp() select count(*) from t2 where date(b)= '2017-06-04';
-call sp();
-count(*)
-10
-call sp();
-count(*)
-10
-prepare stmt from "select count(*) from t2 where date(b) = ?";
-execute stmt using '2017-06-04';
-count(*)
-10
-execute stmt using '2017-06-10';
-count(*)
-0
 #
 # Check actual query results
 #
@@ -2047,6 +1058,8 @@ pk	a	b
 # Test the TIMESTAMP column
 #
 create table t3 (a timestamp, b date, key(a));
+# Insert data starting from 2016 since that year had a leap second
+# (https://en.wikipedia.org/wiki/Leap_second)
 set time_zone="UTC";
 insert into t3
 select
@@ -2089,60 +1102,6 @@ EXPLAIN
     ]
   }
 }
-# Check rewrite for a prepared statement:
-execute immediate
-"explain format=json select * from t3 force index(a) where year(a) < ?"
-  using 2017;
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "cost": 0.562991479,
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t3",
-          "access_type": "range",
-          "possible_keys": ["a"],
-          "key": "a",
-          "key_length": "5",
-          "used_key_parts": ["a"],
-          "loops": 1,
-          "rows": 455,
-          "cost": 0.562991479,
-          "filtered": 100,
-          "index_condition": "t3.a < '2017-01-01 00:00:00'"
-        }
-      }
-    ]
-  }
-}
-prepare stmt from "select count(*) from t3 force index(a) where year(a)= 2016";
-execute stmt;
-count(*)
-460
-execute stmt;
-count(*)
-460
-create or replace view v1 as select count(*) from t3 force index(a) where year(a)= 2016;
-select * from v1;
-count(*)
-460
-create or replace procedure sp() select count(*) from t3 force index(a) where year(a)= 2016;
-call sp();
-count(*)
-460
-call sp();
-count(*)
-460
-# Prepared statement with a placeholder
-prepare stmt from "select count(*) from t3 where year(a) < ?";
-execute stmt using 2017;
-count(*)
-460
-execute stmt using 2018;
-count(*)
-920
 set time_zone= @@global.time_zone;
 #
 # Incorrect const values processing (no rewrite is possible)
@@ -2669,3 +1628,380 @@ EXPLAIN
 drop table t0,t1,t2,t3,t4,t5,t6;
 drop view v1;
 drop procedure sp;
+#
+# MDEV-30946 Index usage for DATE(datetime_column) = const
+#            does not work for DELETE and UPDATE
+#
+create table t1 (pk int primary key, a datetime, c int, key(a));
+insert into t1 (pk,a,c) values (1,'2009-11-29 13:43:32', 2);
+insert into t1 (pk,a,c) values (2,'2009-11-29 03:23:32', 2);
+insert into t1 (pk,a,c) values (3,'2009-10-16 05:56:32', 2);
+insert into t1 (pk,a,c) values (4,'2010-11-29 13:43:32', 2);
+insert into t1 (pk,a,c) values (5,'2010-10-16 05:56:32', 2);
+insert into t1 (pk,a,c) values (6,'2011-11-29 13:43:32', 2);
+insert into t1 (pk,a,c) values (7,'2012-10-16 05:56:32', 2);
+# YEAR() conditions, UPDATE
+explain format=json update t1 set c = 0 where year(a) = 2010;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "update": 1,
+      "table_name": "t1",
+      "access_type": "range",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "6",
+      "used_key_parts": ["a"],
+      "rows": 2,
+      "attached_condition": "t1.a between '2010-01-01 00:00:00' and '2010-12-31 23:59:59'"
+    }
+  }
+}
+update t1 set c = 0 where year(a) = 2010;
+select * from t1;
+pk	a	c
+1	2009-11-29 13:43:32	2
+2	2009-11-29 03:23:32	2
+3	2009-10-16 05:56:32	2
+4	2010-11-29 13:43:32	0
+5	2010-10-16 05:56:32	0
+6	2011-11-29 13:43:32	2
+7	2012-10-16 05:56:32	2
+explain format=json update t1 set c = 1
+where c < (select count(*) from t1 where year(a) = 2010);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.011130435,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 7,
+          "cost": 0.011130435,
+          "filtered": 100,
+          "attached_condition": "t1.c < (subquery#2)"
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "cost": 0.001617224,
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t1",
+                "access_type": "range",
+                "possible_keys": ["a"],
+                "key": "a",
+                "key_length": "6",
+                "used_key_parts": ["a"],
+                "loops": 1,
+                "rows": 2,
+                "cost": 0.001617224,
+                "filtered": 100,
+                "attached_condition": "t1.a between '2010-01-01 00:00:00' and '2010-12-31 23:59:59'",
+                "using_index": true
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+explain format=json update t1 set c = 0
+where year(a) = 2010 and c < (select count(*) from t1 where year(a) = 2010);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.003808422,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 2,
+          "cost": 0.003808422,
+          "filtered": 100,
+          "index_condition": "t1.a between '2010-01-01 00:00:00' and '2010-12-31 23:59:59'",
+          "attached_condition": "t1.c < (subquery#2)"
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "cost": 0.001617224,
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t1",
+                "access_type": "range",
+                "possible_keys": ["a"],
+                "key": "a",
+                "key_length": "6",
+                "used_key_parts": ["a"],
+                "loops": 1,
+                "rows": 2,
+                "cost": 0.001617224,
+                "filtered": 100,
+                "attached_condition": "t1.a between '2010-01-01 00:00:00' and '2010-12-31 23:59:59'",
+                "using_index": true
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+# Multi-table update
+create table t2 (a int);
+insert into t2 values (4),(5),(6);
+explain format=json update t1, t2 set c = 0
+where year(t1.a) = 2010 and t1.c = t2.a;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.014992165,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 2,
+          "cost": 0.003808422,
+          "filtered": 100,
+          "attached_condition": "t1.a between '2010-01-01 00:00:00' and '2010-12-31 23:59:59'"
+        }
+      },
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "loops": 2,
+          "rows": 3,
+          "cost": 0.011183743,
+          "filtered": 100,
+          "attached_condition": "t2.a = t1.c"
+        }
+      }
+    ]
+  }
+}
+prepare stmt from "update t1 set c = 0 where year(a) = 2010";
+execute stmt;
+execute stmt;
+# YEAR() conditions, DELETE
+explain format=json delete from t1 where year(a) = 2010;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "delete": 1,
+      "table_name": "t1",
+      "access_type": "range",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "6",
+      "used_key_parts": ["a"],
+      "rows": 2,
+      "attached_condition": "t1.a between '2010-01-01 00:00:00' and '2010-12-31 23:59:59'"
+    }
+  }
+}
+delete from t1 where year(a) = 2010;
+select * from t1;
+pk	a	c
+1	2009-11-29 13:43:32	2
+2	2009-11-29 03:23:32	2
+3	2009-10-16 05:56:32	2
+6	2011-11-29 13:43:32	2
+7	2012-10-16 05:56:32	2
+explain format=json delete from t1
+where c < (select count(*) from t1 where year(a) = 2010);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.010817625,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 5,
+          "cost": 0.010817625,
+          "filtered": 100,
+          "attached_condition": "t1.c < (subquery#2)"
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "cost": 0.001478954,
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t1",
+                "access_type": "range",
+                "possible_keys": ["a"],
+                "key": "a",
+                "key_length": "6",
+                "used_key_parts": ["a"],
+                "loops": 1,
+                "rows": 1,
+                "cost": 0.001478954,
+                "filtered": 100,
+                "attached_condition": "t1.a between '2010-01-01 00:00:00' and '2010-12-31 23:59:59'",
+                "using_index": true
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+delete from t1 where c < (select count(*) from t1 where year(a) = 2010);
+prepare stmt from "delete from t1 where year(a) = 2009";
+execute stmt;
+execute stmt;
+select * from t1;
+pk	a	c
+6	2011-11-29 13:43:32	2
+7	2012-10-16 05:56:32	2
+# DATE() conditions, UPDATE
+explain format=json update t1 set c = 0 where date(a) = '2010-10-16';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "update": 1,
+      "table_name": "t1",
+      "access_type": "range",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "6",
+      "used_key_parts": ["a"],
+      "rows": 1,
+      "attached_condition": "t1.a between '2010-10-16 00:00:00' and '2010-10-16 23:59:59'"
+    }
+  }
+}
+explain format=json update t1 set c = 0 where date(a) <= '2011-10-16';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "update": 1,
+      "table_name": "t1",
+      "access_type": "range",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "6",
+      "used_key_parts": ["a"],
+      "rows": 1,
+      "attached_condition": "t1.a <= '2011-10-16 23:59:59'"
+    }
+  }
+}
+prepare stmt from "update t1 set c = 3 where date(a) = '2011-11-29'";
+execute stmt;
+execute stmt;
+select * from t1;
+pk	a	c
+6	2011-11-29 13:43:32	3
+7	2012-10-16 05:56:32	2
+# DATE() conditions, DELETE
+explain format=json delete from t1 where date(a) = '2010-10-16';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "delete": 1,
+      "table_name": "t1",
+      "access_type": "range",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "6",
+      "used_key_parts": ["a"],
+      "rows": 1,
+      "attached_condition": "t1.a between '2010-10-16 00:00:00' and '2010-10-16 23:59:59'"
+    }
+  }
+}
+explain format=json delete from t1 where date(a) <= '2011-10-16';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "delete": 1,
+      "table_name": "t1",
+      "access_type": "range",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "6",
+      "used_key_parts": ["a"],
+      "rows": 1,
+      "attached_condition": "t1.a <= '2011-10-16 23:59:59'"
+    }
+  }
+}
+prepare stmt from "delete from t1 where date(a) <= '2012-01-01'";
+execute stmt;
+execute stmt;
+select * from t1;
+pk	a	c
+7	2012-10-16 05:56:32	2
+# Test partition pruning
+create table t3 (
+a datetime,
+key(a)
+) partition by range(year(a)) (
+partition p0 values less than (2022),
+partition p1 values less than (MAXVALUE)
+);
+insert into t3
+select date_add('2020-01-01', interval seq*10 day)
+from seq_1_to_100;
+# Must be only "p0" partition
+explain partitions select * from t3 where year(a) = 2020;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	p0	range	a	a	6	NULL	36	Using where; Using index
+explain partitions delete from t3 where year(a) = 2020;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	p0	ALL	a	NULL	NULL	NULL	73	Using where
+explain partitions update t3 set a = a + 1 where year(a) = 2020;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	p0	ALL	a	NULL	NULL	NULL	73	Using where; Using buffer
+drop tables t1,t2,t3;
