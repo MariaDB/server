@@ -7290,7 +7290,7 @@ int handler::binlog_log_row(const uchar *before_record,
                                     log_func, row_logging_has_trans);
 
 #ifdef HAVE_REPLICATION
-  if (unlikely(!error && table->s->online_alter_binlog))
+  if (unlikely(!error && table->s->online_alter_binlog && is_root_handler()))
     error= binlog_log_row_online_alter(table, before_record, after_record,
                                        log_func);
 #endif // HAVE_REPLICATION
@@ -7815,18 +7815,7 @@ int handler::ha_write_row(const uchar *buf)
   if ((error= ha_check_overlaps(NULL, buf)))
     DBUG_RETURN(error);
 
-  /*
-    NOTE: this != table->file is true in 3 cases:
-
-    1. under copy_partitions() (REORGANIZE PARTITION): that does not
-       require long unique check as it does not introduce new rows or new index.
-    2. under partition's ha_write_row() (INSERT): check_duplicate_long_entries()
-       was already done by ha_partition::ha_write_row(), no need to check it
-       again for each single partition.
-    3. under ha_mroonga::wrapper_write_row()
-  */
-
-  if (table->s->long_unique_table && this == table->file)
+  if (table->s->long_unique_table && is_root_handler())
   {
     DBUG_ASSERT(inited == NONE || lookup_handler != this);
     if ((error= check_duplicate_long_entries(buf)))
@@ -7877,14 +7866,7 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
   uint saved_status= table->status;
   error= ha_check_overlaps(old_data, new_data);
 
-  /*
-    NOTE: this != table->file is true under partition's ha_update_row():
-    check_duplicate_long_entries_update() was already done by
-    ha_partition::ha_update_row(), no need to check it again for each single
-    partition. Same applies to ha_mroonga wrapper.
-  */
-
-  if (!error && table->s->long_unique_table && this == table->file)
+  if (!error && table->s->long_unique_table && is_root_handler())
     error= check_duplicate_long_entries_update(new_data);
   table->status= saved_status;
 
