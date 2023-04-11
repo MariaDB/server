@@ -7560,6 +7560,22 @@ inline bool handler::has_long_unique()
   return table->s->long_unique_table;
 }
 
+/**
+  Return whether the handler is root.
+  @return false if table is maintained by different handlerton, true otherwise.
+  @note The implementation supposes that the same handler can't be found as both
+  root and non-root.
+
+  There are two known cases when it's non-root:
+  1. under partition's ha_write_row() (also true for copy_partitions())
+  2. under ha_mroonga::wrapper_write_row();
+  same applies for ha_delete_row/ha_update_row.
+*/
+inline bool handler::is_root_handler() const
+{
+  return ht == table->file->ht;
+}
+
 extern pthread_attr_t *get_connection_attrib(void);
 
 /**
