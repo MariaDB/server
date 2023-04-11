@@ -1122,13 +1122,11 @@ static ulint buf_flush_try_neighbors(fil_space_t *space,
     mysql_mutex_unlock(&buf_pool.mutex);
   }
 
-  ut_ad(!bpage);
-
-  if (auto n= count - 1)
+  if (count > 1)
   {
     MONITOR_INC_VALUE_CUMULATIVE(MONITOR_FLUSH_NEIGHBOR_TOTAL_PAGE,
                                  MONITOR_FLUSH_NEIGHBOR_COUNT,
-                                 MONITOR_FLUSH_NEIGHBOR_PAGES, n);
+                                 MONITOR_FLUSH_NEIGHBOR_PAGES, count - 1);
   }
 
   return count;
