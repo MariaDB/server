@@ -1,0 +1,91 @@
+--source include/have_debug.inc
+--source include/have_innodb.inc
+--source include/have_binlog_format_statement.inc
+--let $rpl_topology=1->2
+--source include/rpl_init.inc
+
+--connection server_2
+set @old_parallel_threads= @@global.slave_parallel_threads;
+set @old_parallel_mode= @@global.slave_parallel_mode;
+--source include/stop_slave.inc
+change master to master_use_gtid= slave_pos;
+set global slave_parallel_threads= 10;
+set global slave_parallel_mode= optimistic;
+--source include/start_slave.inc
+set global innodb_print_all_deadlocks= on;
+
+--connection server_1
+create table `tu`(`id` int(11), `a` int(11) default null, `b` varchar(10) default null, `c` varchar(10) default null, primary key(`id`), unique key `u`(`a`,`b`)) engine=innodb default charset=latin1 stats_persistent=0;
+
+
+--save_master_pos
+--connection server_2
+--sync_with_master
+insert into tu values(1,1,'a','a'),(2,9999,'xxxx','x'),(3,10000,'b','b'),(4,4,'c','c');
+
+--connection server_1
+--connect (m1,localhost,root,,test)
+--connect (m2,localhost,root,,test)
+--connect (m3,localhost,root,,test)
+--connect (m4,localhost,root,,test)
+--connect (m5,localhost,root,,test)
+--connect (m6,localhost,root,,test)
+
+--connection m1
+set @@session.gtid_domain_id= 1;
+send delete from tu where a = 9999 and b = 'xxxx';
+--connection m2
+set @@session.gtid_domain_id= 2;
+send delete from tu where a = 9999 and b = 'xxxx';
+--connection m3
+set @@session.gtid_domain_id= 3;
+send delete from tu where a = 9999 and b = 'xxxx';
+--connection m4
+set @@session.gtid_domain_id= 4;
+send delete from tu where a = 9999 and b = 'xxxx';
+--connection m5
+set @@session.gtid_domain_id= 5;
+send delete from tu where a = 9999 and b = 'xxxx';
+--connection m6
+set @@session.gtid_domain_id= 6;
+send delete from tu where a = 9999 and b = 'xxxx';
+
+--connection m1
+reap;
+--connection m2
+reap;
+--connection m3
+reap;
+--connection m4
+reap;
+--connection m5
+reap;
+--connection m6
+reap;
+
+--save_master_pos
+--connection server_2
+--sync_with_master
+
+# Cleanup
+--source include/stop_slave.inc
+set global slave_parallel_threads= @old_parallel_threads;
+set global slave_parallel_mode= @old_parallel_mode;
+--source include/start_slave.inc
+set global innodb_print_all_deadlocks= default;
+
+--disconnect m1
+--disconnect m2
+--disconnect m3
+--disconnect m4
+--disconnect m5
+--disconnect m6
+
+--connection server_1
+drop table tu;
+
+call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
+call mtr.add_suppression("Sort aborted.*");
+set global innodb_print_all_deadlocks= default;
+
+--source include/rpl_end.inc
