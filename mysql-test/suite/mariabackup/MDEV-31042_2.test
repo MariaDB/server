@@ -1,0 +1,52 @@
+# First online alter on a non-empty table, then optimize table on the same table while incremental backup is going.
+--source include/have_file_key_management.inc
+
+let $basedir=$MYSQLTEST_VARDIR/tmp/backup;
+let $incremental_dir=$MYSQLTEST_VARDIR/tmp/backup_inc1;
+
+# create an empty table
+CREATE TABLE t1 (
+  `word` int(11) NOT NULL DEFAULT 0,
+  `document_number` int(11) NOT NULL DEFAULT 0,
+  `total_weight` int(11) DEFAULT NULL,
+  `positions` mediumtext DEFAULT NULL,
+  PRIMARY KEY (`word`,`document_number`),
+  KEY `h685533653_index_ts_c_docume` (`document_number`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 encrypted=yes;
+
+echo # Create full backup , modify table, then create incremental/differential backup;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$basedir;
+--enable_result_log
+
+INSERT INTO t1 VALUES (1,24596,4,'hJWXmQdfsdf==');
+
+#online alter ...
+CREATE TABLE tmp_u1332929658s LIKE t1;
+ALTER TABLE tmp_u1332929658s ADD `u_other_end_port` VARCHAR(40);
+RENAME TABLE t1 TO z_tmp_u1332929658s, tmp_u1332929658s TO t1;
+
+# Execute optimize table on t1 while the backup is in-progress, so that it creates a t1.new file
+--let after_copy_test_t1=optimize table test.t1;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$incremental_dir --incremental-basedir=$basedir --dbug=+d,mariabackup_events;
+
+#--disable_result_log
+#echo # Prepare full backup, apply incremental one;
+exec $XTRABACKUP --apply-log-only --prepare --target-dir=$basedir;
+exec $XTRABACKUP --prepare --target-dir=$basedir --incremental-dir=$incremental_dir ;
+
+#echo # Restore and check results;
+let $targetdir=$basedir;
+--source include/restart_and_restore.inc
+--enable_result_log
+
+create database ztest;
+RENAME TABLE test.z_tmp_u1332929658s TO ztest.z_tmp_u1332929658s;
+select count(*) from ztest.z_tmp_u1332929658s;
+
+#Cleanup ...
+drop table t1;
+drop database ztest;
+
+rmdir $basedir;
+rmdir $incremental_dir;
