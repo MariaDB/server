@@ -1,0 +1,24 @@
+CREATE TABLE t1 (
+`word` int(11) NOT NULL DEFAULT 0,
+`document_number` int(11) NOT NULL DEFAULT 0,
+`total_weight` int(11) DEFAULT NULL,
+`positions` mediumtext DEFAULT NULL,
+PRIMARY KEY (`word`,`document_number`),
+KEY `h685533653_index_ts_c_docume` (`document_number`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 encrypted=yes;
+# Create full backup , modify table, then create incremental/differential backup
+INSERT INTO t1 VALUES (1,24596,4,'hJWXmQdfsdf==');
+CREATE TABLE tmp_u1332929658s LIKE t1;
+ALTER TABLE tmp_u1332929658s ADD `u_other_end_port` VARCHAR(40);
+RENAME TABLE t1 TO z_tmp_u1332929658s, tmp_u1332929658s TO t1;
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart server
+create database ztest;
+RENAME TABLE test.z_tmp_u1332929658s TO ztest.z_tmp_u1332929658s;
+select count(*) from ztest.z_tmp_u1332929658s;
+count(*)
+1
+drop table t1;
+drop database ztest;
