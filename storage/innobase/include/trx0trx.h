@@ -734,14 +734,33 @@ public:
 	Transitions to COMMITTED are protected by trx_t::mutex. */
 	trx_state_t	state;
 #ifdef WITH_WSREP
-	/** whether wsrep_on(mysql_thd) held at the start of transaction */
-	bool		wsrep;
+	/** wsrep_on(mysql_thd) held at the start of transaction */
+	static constexpr byte WSREP = byte{1};
+	/** wsrep_thd_is_BF(mysql_thd) held at start of transaction */
+	static constexpr byte WSREP_BF = byte{2};
+	/** BF thread is performing unique secondary index scan */
+	static constexpr byte WSREP_UK_SCAN = byte{4};
+	/** combination of the flags WSREP, WSREP_BF, WSREP_UK_SCAN. **/
+	byte		wsrep;
+	/** true, if thread has wsrep_on  */
 	bool is_wsrep() const { return UNIV_UNLIKELY(wsrep); }
+	/** true, if thread is high priority brute force (BF)  */
+	bool is_wsrep_BF() const { return UNIV_UNLIKELY(wsrep & trx_t::WSREP_BF); }
 	/** true, if BF thread is performing unique secondary index scanning */
-	bool wsrep_UK_scan;
-	bool is_wsrep_UK_scan() const { return UNIV_UNLIKELY(wsrep_UK_scan); }
+	bool is_wsrep_UK_scan() const { return UNIV_UNLIKELY(wsrep & trx_t::WSREP_UK_SCAN); }
+	/** begin unique secondary index scan in wsrep BF thread */
+	void wsrep_begin_UK_scan()
+	{
+		if (is_wsrep_BF())
+			wsrep |= trx_t::WSREP_UK_SCAN;
+	}
+	/** end unique secondary index scan in wsrep BF thread */
+	void wsrep_end_UK_scan() {wsrep &= static_cast<byte>(~(trx_t::WSREP_UK_SCAN)); }
 #else /* WITH_WSREP */
 	bool is_wsrep() const { return false; }
+	bool is_wsrep_BF() const {return false; }
+	void wsrep_begin_UK_scan() const {}
+	void wsrep_end_UK_scan() const {}
 #endif /* WITH_WSREP */
 
 	ReadView	read_view;	/*!< consistent read view used in the
@@ -952,10 +971,6 @@ private:
 	during bulk create index */
 	FlushObserver*	flush_observer;
 public:
-#ifdef WITH_WSREP
-	os_event_t	wsrep_event;	/* event waited for in srv_conc_slot */
-#endif /* WITH_WSREP */
-
 	rw_trx_hash_element_t *rw_trx_hash_element;
 	LF_PINS *rw_trx_hash_pins;
 	ulint		magic_n;
