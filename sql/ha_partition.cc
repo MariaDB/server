@@ -10283,7 +10283,7 @@ void ha_partition::print_error(int error, myf errflag)
   /*
     We choose a main handler's print_error if:
     * m_file has not been initialized, like in bug#42438
-    * lookup_errkey is set, which means that an error has occured in the
+    * lookup_errkey is set, which means that an error has occurred in the
       main handler, not in individual partitions
   */
   if (m_file && lookup_errkey == (uint)-1)

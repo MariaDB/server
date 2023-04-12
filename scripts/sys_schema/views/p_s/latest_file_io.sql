@@ -46,7 +46,7 @@ SELECT IF(id IS NULL,
              CONCAT(user, '@', host, ':', id)
           ) thread, 
        sys.format_path(object_name) file, 
-       sys.format_time(timer_wait) AS latency, 
+       format_pico_time(timer_wait) AS latency,
        operation, 
        sys.format_bytes(number_of_bytes) AS requested
   FROM performance_schema.events_waits_history_long 

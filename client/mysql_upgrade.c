@@ -18,7 +18,7 @@
 
 #include "client_priv.h"
 #include <sslopt-vars.h>
-#include <../scripts/mysql_fix_privilege_tables_sql.c>
+#include <../scripts/mariadb_fix_privilege_tables_sql.c>
 
 #define VER "2.0"
 #include <welcome_copyright_notice.h> /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
@@ -1327,7 +1327,7 @@ static int run_sql_fix_privilege_tables(void)
     a forked mysql client, because the script uses session variables
     and prepared statements.
   */
-  for ( query_ptr= &mysql_fix_privilege_tables[0];
+  for ( query_ptr= &mariadb_fix_privilege_tables[0];
         *query_ptr != NULL;
         query_ptr++
       )

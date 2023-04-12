@@ -2078,7 +2078,7 @@ Sys_gtid_strict_mode(
        "stops with an error if it encounters an event that would cause it to "
        "generate an out-of-order binlog if executed. "
        "When ON the same server-id semisync-replicated transactions that "
-       "duplicate exising ones in binlog are ignored without error "
+       "duplicate existing ones in binlog are ignored without error "
        "and slave interruption.",
        GLOBAL_VAR(opt_gtid_strict_mode),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE));
@@ -2843,7 +2843,7 @@ static Sys_var_ulong Sys_optimizer_search_depth(
 static Sys_var_ulong Sys_optimizer_extra_pruning_depth(
        "optimizer_extra_pruning_depth",
        "If the optimizer needs to enumerate join prefix of this size or "
-       "larger, then it will try agressively prune away the search space.",
+       "larger, then it will try aggressively prune away the search space.",
        SESSION_VAR(optimizer_extra_pruning_depth), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, MAX_TABLES+1), DEFAULT(8), BLOCK_SIZE(1));
 

@@ -120,8 +120,8 @@ scripts/mysql_config.pl
 scripts/mysql_convert_table_format
 scripts/mysql_find_rows
 scripts/mysql_fix_extensions
-scripts/mysql_fix_privilege_tables.sql
-scripts/mysql_fix_privilege_tables_sql.c
+scripts/mariadb_fix_privilege_tables.sql
+scripts/mariadb_fix_privilege_tables_sql.c
 scripts/mysql_install_db
 scripts/mysql_secure_installation
 scripts/mysql_setpermission

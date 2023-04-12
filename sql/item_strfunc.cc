@@ -5824,6 +5824,84 @@ bool Item_func_natural_sort_key::check_vcol_func_processor(void *arg)
                                    VCOL_NON_DETERMINISTIC);
 }
 
+String *Item_func_format_pico_time::val_str_ascii(String *)
+{
+  double time_val= args[0]->val_real();
+
+  null_value= args[0]->null_value;
+  if (null_value)
+    return 0;
+
+  constexpr ulonglong nano{1000};
+  constexpr ulonglong micro{1000 * nano};
+  constexpr ulonglong milli{1000 * micro};
+  constexpr ulonglong sec{1000 * milli};
+  constexpr ulonglong min{60 * sec};
+  constexpr ulonglong hour{60 * min};
+  constexpr ulonglong day{24 * hour};
+
+  double time_abs= fabs(time_val);
+
+  ulonglong divisor;
+  size_t len;
+  const char *unit;
+
+  /* SI-approved time units. */
+  if (time_abs >= day)
+  {
+    divisor= day;
+    unit= "d";
+  }
+  else if (time_abs >= hour)
+  {
+    divisor= hour;
+    unit= "h";
+  }
+  else if (time_abs >= min)
+  {
+    divisor= min;
+    unit= "min";
+  }
+  else if (time_abs >= sec)
+  {
+    divisor= sec;
+    unit= "s";
+  }
+  else if (time_abs >= milli)
+  {
+    divisor= milli;
+    unit= "ms";
+  }
+  else if (time_abs >= micro)
+  {
+    divisor= micro;
+    unit= "us";
+  }
+  else if (time_abs >= nano)
+  {
+    divisor= nano;
+    unit= "ns";
+  }
+  else
+  {
+    divisor= 1;
+    unit= "ps";
+  }
+
+  if (divisor == 1)
+    len= my_snprintf(m_value_buffer, sizeof(m_value_buffer), "%3d %s", (int)time_val, unit);
+  else
+  {
+    double value= time_val / divisor;
+    if (fabs(value) >= 100000.0)
+      len= snprintf(m_value_buffer, sizeof(m_value_buffer), "%4.2e %s", value, unit);
+    else
+      len= my_snprintf(m_value_buffer, sizeof(m_value_buffer), "%4.2f %s", value, unit);
+  }
+  m_value.length(len);
+  return &m_value;
+}
+
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
 #include "wsrep_server_state.h"

@@ -2315,7 +2315,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_EXTRA_PRUNING_DEPTH
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	If the optimizer needs to enumerate join prefix of this size or larger, then it will try agressively prune away the search space.
+VARIABLE_COMMENT	If the optimizer needs to enumerate join prefix of this size or larger, then it will try aggressively prune away the search space.
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	62
 NUMERIC_BLOCK_SIZE	1
