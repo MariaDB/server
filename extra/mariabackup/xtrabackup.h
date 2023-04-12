@@ -46,10 +46,12 @@ public:
   bool contains(ulint space_id, ulint page_no) const;
   void drop_space(ulint space_id);
   void rename_space(ulint space_id, const std::string &new_name);
-  bool print_to_file(const char *file_name) const;
+  bool print_to_file(ds_ctxt *ds_data, const char *file_name) const;
   void read_from_file(const char *file_name);
   bool empty() const;
   void zero_out_free_pages();
+
+  void backup_fix_ddl(ds_ctxt *ds_data, ds_ctxt *ds_meta);
 
 private:
   void add_page_no_lock(const char *space_name, ulint space_id, ulint page_no,
@@ -62,6 +64,7 @@ private:
   mutable pthread_mutex_t m_mutex;
   container_t m_spaces;
 };
+
 
 /* value of the --incremental option */
 extern lsn_t incremental_lsn;
@@ -76,8 +79,6 @@ extern char		*xb_rocksdb_datadir;
 extern my_bool	xb_backup_rocksdb;
 
 extern uint		opt_protocol;
-extern ds_ctxt_t	*ds_meta;
-extern ds_ctxt_t	*ds_data;
 
 /* The last checkpoint LSN at the backup startup time */
 extern lsn_t checkpoint_lsn_start;
@@ -177,7 +178,8 @@ extern ulong opt_binlog_info;
 extern ulong xtrabackup_innodb_force_recovery;
 
 void xtrabackup_io_throttling(void);
-my_bool xb_write_delta_metadata(const char *filename,
+my_bool xb_write_delta_metadata(ds_ctxt *ds_meta,
+                                const char *filename,
 				const xb_delta_info_t *info);
 
 /************************************************************************

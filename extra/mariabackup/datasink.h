@@ -37,6 +37,35 @@ typedef struct ds_ctxt {
 	char 		*root;
 	void		*ptr;
 	struct ds_ctxt	*pipe_ctxt;
+	/*
+          Copy file for backup/restore.
+          @return true in case of success.
+        */
+        bool copy_file(const char *src_file_path,
+                       const char *dst_file_path,
+                       uint thread_n);
+
+        bool move_file(const char *src_file_path,
+                       const char *dst_file_path,
+                       const char *dst_dir,
+                       uint thread_n);
+
+        bool make_hardlink(const char *from_path, const char *to_path);
+
+        void copy_or_move_dir(const char *from, const char *to,
+                              bool do_copy, bool allow_hardlinks);
+
+        bool backup_file_vprintf(const char *filename,
+                                 const char *fmt, va_list ap);
+
+        bool backup_file_print_buf(const char *filename,
+                                   const char *buf,
+                                   int buf_len);
+
+        bool backup_file_printf(const char *filename,
+                                const char *fmt, ...)
+                                ATTRIBUTE_FORMAT(printf, 2, 0);
+
 } ds_ctxt_t;
 
 typedef struct {
