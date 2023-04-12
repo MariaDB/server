@@ -3572,7 +3572,6 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   char *sql_copy;
   handler *file;
   LEX *old_lex;
-  Query_arena *arena, backup;
   LEX tmp_lex;
   KEY *unused1;
   uint unused2;
@@ -3581,12 +3580,6 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   LEX_CSTRING db_backup= thd->db;
   DBUG_ENTER("TABLE_SHARE::init_from_sql_statement_string");
 
-  /*
-    Ouch. Parser may *change* the string it's working on.
-    Currently (2013-02-26) it is used to permanently disable
-    conditional comments.
-    Anyway, let's copy the caller's string...
-  */
   if (!(sql_copy= thd->strmake(sql, sql_length)))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
@@ -3599,11 +3592,6 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   old_lex= thd->lex;
   thd->lex= &tmp_lex;
 
-  arena= thd->stmt_arena;
-  if (arena->is_conventional())
-    arena= 0;
-  else
-    thd->set_n_backup_active_arena(arena, &backup);
 
   /*
     THD::reset_db() does not set THD::db_charset,
@@ -3655,8 +3643,6 @@ ret:
   lex_end(thd->lex);
   thd->reset_db(&db_backup);
   thd->lex= old_lex;
-  if (arena)
-    thd->restore_active_arena(arena, &backup);
   reenable_binlog(thd);
   thd->variables.character_set_client= old_cs;
   if (unlikely(thd->is_error() || error))
