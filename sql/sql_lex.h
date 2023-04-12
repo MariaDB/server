@@ -1038,6 +1038,8 @@ public:
 
   bool set_lock_to_the_last_select(Lex_select_lock l);
 
+  bool can_be_merged();
+
   friend class st_select_lex;
 };
 
@@ -1295,6 +1297,8 @@ public:
     st_select_lex.
   */
   uint curr_tvc_name;
+  /* true <=> select has been created a TVC wrapper */
+  bool is_tvc_wrapper;
   uint fields_in_window_functions;
   uint insert_tables;
   enum_parsing_place parsing_place; /* where we are parsing expression */
@@ -1465,6 +1469,10 @@ public:
   }
   bool setup_ref_array(THD *thd, uint order_group_num);
   void print(THD *thd, String *str, enum_query_type query_type);
+  void print_item_list(THD *thd, String *str, enum_query_type query_type);
+  void print_set_clause(THD *thd, String *str, enum_query_type query_type);
+  void print_on_duplicate_key_clause(THD *thd, String *str,
+                                     enum_query_type query_type);
   static void print_order(String *str,
                           ORDER *order,
                           enum_query_type query_type);
@@ -3559,6 +3567,8 @@ public:
   Window_frame_bound *frame_top_bound;
   Window_frame_bound *frame_bottom_bound;
   Window_spec *win_spec;
+
+  Item *upd_del_where;
 
   /* System Versioning */
   vers_select_conds_t vers_conditions;

@@ -2060,6 +2060,10 @@ func_exit:
 		must_validate = true;
 	}
 
+	const bool operation_not_for_export =
+	  srv_operation != SRV_OPERATION_RESTORE_EXPORT
+	  && srv_operation != SRV_OPERATION_EXPORT_RESTORED;
+
 	/* Always look for a file at the default location. But don't log
 	an error if the tablespace is already open in remote or dict. */
 	ut_a(df_default.filepath());
@@ -2070,6 +2074,7 @@ func_exit:
 	drop_garbage_tables_after_restore() a little later. */
 
 	const bool strict = validate && !tablespaces_found
+		&& operation_not_for_export
 		&& !(srv_operation == SRV_OPERATION_NORMAL
 		     && srv_start_after_restore
 		     && srv_force_recovery < SRV_FORCE_NO_BACKGROUND
@@ -2118,7 +2123,11 @@ func_exit:
 			goto corrupted;
 		}
 
-		os_file_get_last_error(true);
+		os_file_get_last_error(operation_not_for_export,
+				       !operation_not_for_export);
+		if (!operation_not_for_export) {
+			goto corrupted;
+		}
 		sql_print_error("InnoDB: Could not find a valid tablespace"
 				" file for %.*s. %s",
 				static_cast<int>(name.size()), name.data(),
@@ -2285,6 +2294,7 @@ fil_ibd_discover(
 		case SRV_OPERATION_RESTORE:
 			break;
 		case SRV_OPERATION_NORMAL:
+		case SRV_OPERATION_EXPORT_RESTORED:
 			size_t len= strlen(db);
 			if (len <= 4 || strcmp(db + len - 4, dot_ext[IBD])) {
 				break;

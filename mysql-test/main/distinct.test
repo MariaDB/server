@@ -4,6 +4,7 @@
 #
 
 --source include/default_optimizer_switch.inc
+--source include/have_sequence.inc
 --disable_warnings
 drop table if exists t1,t2,t3;
 --enable_warnings
@@ -818,6 +819,28 @@ UNION
 drop table t1;
 
 --echo End of 5.5 tests
+
+--echo #
+--echo # MDEV-20057 Distinct SUM on CROSS JOIN and grouped returns wrong result
+--echo #
+
+create table t1 (c int, d int);
+insert into t1 values (5, 1), (0, 3);
+select distinct sum(distinct 1), sum(t1.d) > 2 from (t1 e join t1) group by t1.c;
+select distinct sum(distinct 1), sum(t1.d) > 2, t1.c from (t1 e join t1) group by t1.c;
+
+insert into t1 values (6,6);
+select distinct sum(distinct 1), sum(t1.d) > 5 from (t1 e join t1) group by t1.c;
+select distinct sum(distinct 1), sum(t1.d) > 5, t1.c from (t1 e join t1) group by t1.c;
+
+# Force usage of remove_dup_with_compare() algorithm
+set @@sort_buffer_size=1024;
+insert into t1 select -seq,-seq from seq_1_to_100;
+select distinct sum(distinct 1), sum(t1.d) > 2, length(group_concat(t1.d)) > 1000 from (t1 e join t1) group by t1.c having t1.c > -2 ;
+select distinct sum(distinct 1), sum(t1.d) > 2, length(group_concat(t1.d)) > 1000,t1.c from (t1 e join t1) group by t1.c having t1.c > -2;
+drop table t1;
+
+--echo # End of 10.4 tests
 
 --echo #
 --echo # MDEV-27382: OFFSET is ignored when it is combined with the DISTINCT, IN() and JOIN

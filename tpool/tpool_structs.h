@@ -130,9 +130,12 @@ public:
     return m_cache[m_pos++];
   }
 
-	/**
-   Put back an item to cache.
-   @param item - item to put back
+
+  std::mutex &mutex() { return m_mtx; }
+
+  /**
+   Put back an element to cache.
+   @param ele element to put back
   */
   void put(T *ele)
   {

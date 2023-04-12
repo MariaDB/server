@@ -615,7 +615,8 @@ int key_rec_cmp(void *key_p, uchar *first_rec, uchar *second_rec)
         that take the max length into account.
       */
       if ((result= field->cmp_prefix(field->ptr+first_diff, field->ptr+sec_diff,
-                                     key_part->length)))
+                                     key_part->length /
+                                     field->charset()->mbmaxlen)))
         DBUG_RETURN(result * GREATER);
 next_loop:
       key_part++;

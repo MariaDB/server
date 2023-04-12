@@ -124,6 +124,11 @@ public:
 	{
 		wait();
 	}
+
+	std::mutex& mutex()
+	{
+		return m_cache.mutex();
+	}
 };
 
 static io_slots *read_slots;
@@ -727,22 +732,16 @@ os_file_punch_hole_posix(
 	return(DB_IO_NO_PUNCH_HOLE);
 }
 
-
-
 /** Retrieves the last error number if an error occurs in a file io function.
 The number should be retrieved before any other OS calls (because they may
 overwrite the error number). If the number is not known to this program,
 the OS error number + 100 is returned.
 @param[in]	report_all_errors	true if we want an error message
-					printed of all errors
+                                        printed of all errors
 @param[in]	on_error_silent		true then don't print any diagnostic
 					to the log
 @return error number, or OS error number + 100 */
-static
-ulint
-os_file_get_last_error_low(
-	bool	report_all_errors,
-	bool	on_error_silent)
+ulint os_file_get_last_error(bool report_all_errors, bool on_error_silent)
 {
 	int	err = errno;
 
@@ -1803,16 +1802,13 @@ bool os_file_flush_func(os_file_t file)
 The number should be retrieved before any other OS calls (because they may
 overwrite the error number). If the number is not known to this program,
 then OS error number + OS_FILE_ERROR_MAX is returned.
-@param[in]	report_all_errors	true if we want an error message printed
-					of all errors
+@param[in]	report_all_errors	true if we want an error message
+printed of all errors
 @param[in]	on_error_silent		true then don't print any diagnostic
 					to the log
 @return error number, or OS error number + OS_FILE_ERROR_MAX */
-static
-ulint
-os_file_get_last_error_low(
-	bool	report_all_errors,
-	bool	on_error_silent)
+ulint os_file_get_last_error(bool report_all_errors, bool on_error_silent)
+
 {
 	ulint	err = (ulint) GetLastError();
 
@@ -2936,20 +2932,6 @@ os_file_read_func(
   return err ? err : DB_IO_ERROR;
 }
 
-/** Retrieves the last error number if an error occurs in a file io function.
-The number should be retrieved before any other OS calls (because they may
-overwrite the error number). If the number is not known to this program,
-the OS error number + 100 is returned.
-@param[in]	report_all_errors	true if we want an error printed
-					for all errors
-@return error number, or OS error number + 100 */
-ulint
-os_file_get_last_error(
-	bool	report_all_errors)
-{
-	return(os_file_get_last_error_low(report_all_errors, false));
-}
-
 /** Handle errors for file operations.
 @param[in]	name		name of a file or NULL
 @param[in]	operation	operation
@@ -2966,7 +2948,7 @@ os_file_handle_error_cond_exit(
 {
 	ulint	err;
 
-	err = os_file_get_last_error_low(false, on_error_silent);
+	err = os_file_get_last_error(false, on_error_silent);
 
 	switch (err) {
 	case OS_FILE_DISK_FULL:
@@ -3661,6 +3643,26 @@ void os_aio_wait_until_no_pending_writes()
 {
   os_aio_wait_until_no_pending_writes_low();
   buf_dblwr.wait_flush_buffered_writes();
+}
+
+/** @return number of pending reads */
+size_t os_aio_pending_reads()
+{
+  std::unique_lock<std::mutex> lk(read_slots->mutex());
+  return read_slots->pending_io_count();
+}
+
+/** @return approximate number of pending reads */
+size_t os_aio_pending_reads_approx()
+{
+  return read_slots->pending_io_count();
+}
+
+/** @return number of pending writes */
+size_t os_aio_pending_writes()
+{
+  std::unique_lock<std::mutex> lk(write_slots->mutex());
+  return write_slots->pending_io_count();
 }
 
 /** Wait until all pending asynchronous reads have completed. */
