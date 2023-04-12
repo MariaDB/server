@@ -3518,7 +3518,10 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
         }          
         else
         {
+          enum_check_fields save_count_cuted_fields= thd->count_cuted_fields;
+          thd->count_cuted_fields= CHECK_FIELD_IGNORE;
           rows= records_in_column_ranges(&param, idx, key);
+          thd->count_cuted_fields= save_count_cuted_fields;
           if (rows != DBL_MAX)
           {
             key->field->cond_selectivity= rows/table_records;
