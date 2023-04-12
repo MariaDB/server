@@ -324,7 +324,6 @@ public:
 
   lsn_t get_lsn(std::memory_order order= std::memory_order_relaxed) const
   { return lsn.load(order); }
-  void set_lsn(lsn_t lsn) { this->lsn.store(lsn, std::memory_order_release); }
 
   lsn_t get_flushed_lsn(std::memory_order order= std::memory_order_acquire)
     const noexcept
