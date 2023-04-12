@@ -49,6 +49,7 @@ Created 5/7/1996 Heikki Tuuri
 #include <debug_sync.h>
 
 #include <set>
+#include <stdio.h>
 
 #ifdef WITH_WSREP
 #include <mysql/service_wsrep.h>
@@ -333,8 +334,10 @@ static bool lock_rec_validate_page(const buf_block_t *block, bool latched)
 /* The lock system */
 lock_sys_t lock_sys;
 
+static FILE *deadlock_file= NULL;
 /** Only created if !srv_read_only_mode. Protected by lock_sys.latch. */
 static FILE *lock_latest_err_file;
+BufferStream lock_latest_err_buf(lock_latest_err_file);
 
 /*********************************************************************//**
 Reports that a transaction id is insensible, i.e., in the future. */
@@ -415,8 +418,10 @@ void lock_sys_t::create(ulint n_cells)
 
   if (!srv_read_only_mode)
   {
-    lock_latest_err_file= os_file_create_tmpfile();
-    ut_a(lock_latest_err_file);
+    lock_latest_err_buf.init();
+#ifdef HAVE_REPLICATION
+    deadlock_file= slave_retries_file;
+#endif
   }
 }
 
@@ -4722,7 +4727,7 @@ lock_print_info_summary(
 		      "------------------------\n", file);
 
 		if (!srv_read_only_mode) {
-			ut_copy_file(file, lock_latest_err_file);
+			lock_latest_err_buf.copy_to(file);
 		}
 	}
 
@@ -6431,7 +6436,10 @@ namespace Deadlock
     lock_sys.assert_locked();
 
     rewind(lock_latest_err_file);
-    ut_print_timestamp(lock_latest_err_file);
+    if (srv_print_all_deadlocks)
+      ut_print_timestamp(lock_latest_err_file);
+    if (deadlock_file)
+      ut_print_timestamp(deadlock_file);
 
     if (srv_print_all_deadlocks)
       ib::info() << "Transactions deadlock detected,"
@@ -6443,6 +6451,8 @@ namespace Deadlock
   static void print(const char *msg)
   {
     fputs(msg, lock_latest_err_file);
+    if (deadlock_file)
+      fputs(msg, deadlock_file);
     if (srv_print_all_deadlocks)
       ib::info() << msg;
   }
@@ -6460,6 +6470,8 @@ namespace Deadlock
     trx_print_low(lock_latest_err_file, &trx, 3000,
                   n_rec_locks, n_trx_locks, heap_size);
 
+    if (deadlock_file)
+      trx_print_low(deadlock_file, &trx, 3000, n_rec_locks, n_trx_locks, heap_size);
     if (srv_print_all_deadlocks)
       trx_print_low(stderr, &trx, 3000, n_rec_locks, n_trx_locks, heap_size);
   }
@@ -6475,6 +6487,8 @@ namespace Deadlock
       mtr_t mtr;
       lock_rec_print(lock_latest_err_file, &lock, mtr);
 
+      if (deadlock_file)
+        lock_rec_print(deadlock_file, &lock, mtr);
       if (srv_print_all_deadlocks)
         lock_rec_print(stderr, &lock, mtr);
     }
@@ -6482,6 +6496,8 @@ namespace Deadlock
     {
       lock_table_print(lock_latest_err_file, &lock);
 
+      if (deadlock_file)
+        lock_table_print(deadlock_file, &lock);
       if (srv_print_all_deadlocks)
         lock_table_print(stderr, &lock);
     }

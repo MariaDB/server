@@ -1,0 +1,124 @@
+--source include/have_debug.inc
+--source include/have_innodb.inc
+--source include/have_binlog_format_statement.inc
+--let $rpl_topology=1->2
+--source include/rpl_init.inc
+
+--echo #
+--echo # MDEV-30973 Enhance output of innodb deadlocks (SAMU-124, SAMU-131)
+--echo #
+--connection server_2
+SET @old_dbug= @@global.debug_dbug;
+set @old_parallel_threads= @@global.slave_parallel_threads;
+set @old_domain_parallel_threads= @@global.slave_domain_parallel_threads;
+set @old_parallel_mode= @@global.slave_parallel_mode;
+set @old_slave_transaction_retries= @@global.slave_transaction_retries;
+set @old_innodb_lock_wait_timeout= @@global.innodb_lock_wait_timeout;
+set @old_log_slave_retries_max= @@global.log_slave_retries_max;
+--source include/stop_slave.inc
+change master to master_use_gtid= slave_pos;
+set global slave_parallel_threads= 10;
+set global slave_domain_parallel_threads= 1;
+set global slave_parallel_mode= optimistic;
+set global slave_transaction_retries= 4;
+set global innodb_lock_wait_timeout= 1;
+set global log_slave_retries_max= 2;
+--source include/start_slave.inc
+set global innodb_print_all_deadlocks= on;
+
+--connection server_1
+
+--delimiter ~~
+create function foo(x int, d1 varchar(500), d2 varchar(500))
+returns int deterministic
+begin
+  return x;
+end
+~~
+--delimiter ;
+
+create table t1 (a int unique) engine innodb;
+create table t2 (x int) engine innodb;
+
+--save_master_pos
+--connection server_2
+--sync_with_master
+insert into t1 values (1);
+
+--delimiter ~~
+create or replace function foo(x int, d1 varchar(500), d2 varchar(500))
+returns int deterministic
+begin
+  if d1 != '' then
+    set debug_sync= d1;
+  end if;
+  if d2 != '' then
+    set debug_sync= d2;
+  end if;
+  return x;
+end
+~~
+--delimiter ;
+
+--connect (m1,localhost,root,,test)
+--connect (m2,localhost,root,,test)
+
+--connection m1
+set @@session.gtid_domain_id= 1;
+insert into t2 values (foo(1,
+  'after_lock_clust_rec_read_check_and_lock wait_for clust_locked', ''));
+delete from t1;
+--connection m2
+set @@session.gtid_domain_id= 2;
+insert into t2 values (foo(2,
+  'after_lock_clust_rec_read_check_and_lock signal clust_locked', ''));
+delete from t1 where a = 1;
+
+--save_master_pos
+--connection server_2
+--sync_with_master
+
+# show engine innodb status;
+set debug_sync="ha_commit_one_phase wait_for retries_at_max";
+set global debug_dbug= "d,rpl_parallel_retries_at_max";
+--send select * from t2 for update
+
+--connection server_1
+update t2 set x= 6;
+
+--save_master_pos
+--connection server_2
+--sync_with_master
+reap;
+set global debug_dbug= @old_dbug;
+
+let $retries_log= `SELECT @@GLOBAL.log_slave_retries`;
+let grep_file= $retries_log;
+let grep_regex= WAITING|GTID|event;
+--replace_regex /\d+/x/
+--source include/grep.inc
+
+# Cleanup
+--source include/stop_slave.inc
+set global slave_parallel_threads= @old_parallel_threads;
+set global slave_domain_parallel_threads= @old_domain_parallel_threads;
+set global slave_parallel_mode= @old_parallel_mode;
+set global slave_transaction_retries= @old_slave_transaction_retries;
+set global innodb_lock_wait_timeout= @old_innodb_lock_wait_timeout;
+set global log_slave_retries_max= @old_log_slave_retries_max;
+--source include/start_slave.inc
+set global innodb_print_all_deadlocks= default;
+set debug_sync= reset;
+
+--disconnect m1
+--disconnect m2
+
+--connection server_1
+drop tables t1, t2;
+drop function foo;
+
+call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
+call mtr.add_suppression("Sort aborted.*");
+set global innodb_print_all_deadlocks= default;
+
+--source include/rpl_end.inc
