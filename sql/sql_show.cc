@@ -66,6 +66,7 @@
 #include "transaction.h"
 #include "opt_trace.h"
 #include "my_cpu.h"
+#include "rpl_rli.h"
 #include "key.h"
 
 #include "lex_symbol.h"
@@ -10879,6 +10880,15 @@ char *thd_get_error_context_description(THD *thd, char *buffer,
   /* Don't wait if LOCK_thd_data is used as this could cause a deadlock */
   if (!mysql_mutex_trylock(&thd->LOCK_thd_data))
   {
+    if (thd->rgi_slave)
+    {
+      rpl_group_info *rgi= thd->rgi_slave;
+      len= my_snprintf(header, sizeof(header),
+                       ", GTID %u-%u-%llu", rgi->current_gtid.domain_id,
+                       rgi->current_gtid.server_id, rgi->current_gtid.seq_no);
+      str.append(header, len);
+    }
+
     if (const char *info= thread_state_info(thd))
     {
       str.append(' ');
