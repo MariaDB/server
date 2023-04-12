@@ -1364,7 +1364,7 @@ TRANSACTIONAL_INLINE inline void trx_t::commit_in_memory(const mtr_t *mtr)
   order critical section. */
   if (wsrep)
   {
-    wsrep= false;
+    wsrep= 0;
     wsrep_commit_ordered(mysql_thd);
   }
 #endif /* WITH_WSREP */

@@ -715,12 +715,33 @@ public:
   alignas(CPU_LEVEL1_DCACHE_LINESIZE) trx_lock_t lock;
 
 #ifdef WITH_WSREP
-  /** whether wsrep_on(mysql_thd) held at the start of transaction */
-  byte wsrep;
+  /** wsrep_on(mysql_thd) held at the start of transaction */
+  static constexpr byte WSREP = byte{1};
+  /** wsrep_thd_is_BF(mysql_thd) held at start of transaction */
+  static constexpr byte WSREP_BF = byte{2};
+  /** BF thread is performing unique secondary index scan */
+  static constexpr byte WSREP_UK_SCAN = byte{4};
+  /** combination of the flags WSREP, WSREP_BF, WSREP_UK_SCAN.**/
+  byte		wsrep;
+  /** true, if thread has wsrep_on  */
   bool is_wsrep() const { return UNIV_UNLIKELY(wsrep); }
-  bool is_wsrep_UK_scan() const { return UNIV_UNLIKELY(wsrep & 2); }
+  /** true, if thread is high priority brute force (BF)  */
+  bool is_wsrep_BF() const { return UNIV_UNLIKELY(wsrep & trx_t::WSREP_BF); }
+  /** true, if BF thread is performing unique secondary index scanning */
+  bool is_wsrep_UK_scan() const { return UNIV_UNLIKELY(wsrep & trx_t::WSREP_UK_SCAN); }
+  /** begin unique secondary index scan in wsrep BF thread */
+  void wsrep_begin_UK_scan()
+  {
+    if (is_wsrep_BF())
+      wsrep |= trx_t::WSREP_UK_SCAN;
+  }
+  /** end unique secondary index scan in wsrep BF thread */
+  void wsrep_end_UK_scan() {wsrep &= static_cast<byte>(~(trx_t::WSREP_UK_SCAN)); }
 #else /* WITH_WSREP */
   bool is_wsrep() const { return false; }
+  bool is_wsrep_BF() const { return false; }
+  void wsrep_begin_UK_scan() const {}
+  void wsrep_end_UK_scan() const {}
 #endif /* WITH_WSREP */
 
   /** Consistent read view of the transaction */

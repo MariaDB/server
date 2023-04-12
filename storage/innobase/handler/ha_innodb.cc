@@ -2872,7 +2872,13 @@ innobase_trx_init(
 	trx->check_unique_secondary = !thd_test_options(
 		thd, OPTION_RELAXED_UNIQUE_CHECKS);
 #ifdef WITH_WSREP
-	trx->wsrep = wsrep_on(thd);
+	/* Note that we can't lock THD::LOCK_thd_data here because e.g.
+	   in ::trx_group_commit_leader we call run_commit_ordered
+	   holding it and if InnoDB transaction for some reason has not
+	   yet created we arrive here. */
+	trx->wsrep = wsrep_on(thd) ?
+	  (wsrep_thd_is_BF(thd, false) ? (trx_t::WSREP_BF | trx_t::WSREP )
+				       : trx_t::WSREP) : 0;
 #endif
 
 	DBUG_VOID_RETURN;
@@ -4384,7 +4390,7 @@ innobase_commit_low(
 	} else {
 		trx->will_lock = false;
 #ifdef WITH_WSREP
-		trx->wsrep = false;
+		trx->wsrep = 0;
 #endif /* WITH_WSREP */
 	}
 
@@ -18656,7 +18662,7 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
           WSREP_DEBUG("Victim %s trx_id: " TRX_ID_FMT " thread: %ld "
                       "seqno: %lld client_state: %s "
                       "client_mode: %s transaction_mode: %s query: %s",
-                      wsrep_thd_is_BF(vthd, false) ? "BF" : "normal",
+                      vtrx->is_wsrep_BF() ? "BF" : "normal",
                       vtrx->id,
                       thd_get_thread_id(vthd),
                       wsrep_thd_trx_seqno(vthd),
