@@ -192,8 +192,8 @@ wsrep_is_BF_lock_timeout(
 	const trx_t*	trx)
 {
 	bool long_wait= (trx->error_state != DB_DEADLOCK &&
-			 srv_monitor_timer && trx->is_wsrep() &&
-			 wsrep_thd_is_BF(trx->mysql_thd, false));
+			 srv_monitor_timer &&
+			 trx->is_wsrep_BF());
 	bool was_wait= true;
 
 	DBUG_EXECUTE_IF("wsrep_instrument_BF_lock_wait",
