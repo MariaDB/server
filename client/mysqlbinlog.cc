@@ -1423,13 +1423,13 @@ static struct my_option my_options[] =
     /* 'unspec' is not mentioned because it is just a placeholder. */
    "Determine when the output statements should be base64-encoded BINLOG "
    "statements: "
-   "‘never’ neither prints base64 encodings nor verbose event data, and "
+   "'never' neither prints base64 encodings nor verbose event data, and "
    "will exit on error if a row-based event is found. "
    "'decode-rows' decodes row events into commented SQL statements if the "
    "--verbose option is also given. "
-   "‘auto’ outputs base64 encoded entries for row-based and format "
+   "'auto' outputs base64 encoded entries for row-based and format "
    "description events. "
-   "If no option is given at all, the default is ‘auto', and is "
+   "If no option is given at all, the default is 'auto', and is "
    "consequently the only option that should be used when row-format events "
    "are processed for re-execution.",
    &opt_base64_output_mode_str, &opt_base64_output_mode_str,
