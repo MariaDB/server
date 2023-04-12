@@ -178,6 +178,12 @@ extern char *opt_backup_history_logname, *opt_backup_progress_logname,
 extern const char *log_output_str;
 extern const char *log_backup_output_str;
 
+#ifdef HAVE_REPLICATION
+extern char *opt_slave_retries_log;
+extern FILE *slave_retries_file;
+extern uint opt_slave_retries_max_log;
+#endif
+
 /* System Versioning begin */
 enum vers_system_time_t
 {
@@ -822,6 +828,7 @@ enum options_mysqld
   OPT_KEY_CACHE_CHANGED_BLOCKS_HASH_SIZE,
   OPT_LOG_BASENAME,
   OPT_LOG_ERROR,
+  OPT_SLAVE_RETRIES_LOG,
   OPT_LOWER_CASE_TABLE_NAMES,
   OPT_PLUGIN_LOAD,
   OPT_PLUGIN_LOAD_ADD,

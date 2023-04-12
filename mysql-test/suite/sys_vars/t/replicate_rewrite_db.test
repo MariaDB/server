@@ -73,7 +73,7 @@ SELECT @@GLOBAL.replicate_rewrite_db;
 --let $args="--replicate_rewrite_db=x-" --log-warnings=1 --silent-startup --help --verbose 
 --error 1
 --exec $MYSQLD_CMD $args > $MYSQL_TMP_DIR/mysqld--replicate.txt 2> $MYSQL_TMP_DIR/mysqld--replicate.err
---replace_regex /mysqld/mariadbd/ /\d\d\d\d-\d*-\d* *\d*:\d*:\d* \d* //
+--replace_regex /mysqld/mariadbd/ /\d\d\d\d-\d*-\d* *\d*:\d*:\d* \[T\d+\] //
 --cat_file $MYSQL_TMP_DIR/mysqld--replicate.err
 # Restart the server with the default options
 --let $restart_parameters = ""

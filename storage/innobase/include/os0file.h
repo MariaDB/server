@@ -1183,6 +1183,45 @@ inline bool is_absolute_path(const char *path)
   return false;
 }
 
+#ifndef _WIN32
+class BufferStream
+{
+  FILE **file;
+  char *buf;
+  size_t len;
+
+public:
+  BufferStream(FILE *&file) : file{&file} {}
+  void init()
+  {
+    *file= open_memstream(&buf, &len);
+    ut_a(*file);
+  }
+
+  void copy_to(FILE *to)
+  {
+    fflush(*file);
+    ut_ad(len > 0);
+    fputs(buf, to);
+  }
+};
+#else  /* _WIN32 */
+class BufferStream
+{
+  FILE **file;
+
+public:
+  BufferStream(FILE *&file) : file{&file} {}
+  void init()
+  {
+    *file= os_file_create_tmpfile();
+    ut_a(*file);
+  }
+
+  void copy_to(FILE *to) { ut_copy_file(to, *file); }
+};
+#endif /* _WIN32 */
+
 #include "os0file.inl"
 
 #endif /* os0file_h */

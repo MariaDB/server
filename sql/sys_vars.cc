@@ -5862,6 +5862,18 @@ Sys_slave_trans_retry_interval(
        "slave_transaction_retry_errors",
        GLOBAL_VAR(slave_trans_retry_interval), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 3600), DEFAULT(0), BLOCK_SIZE(1));
+
+static Sys_var_charptr Sys_slave_retries_log_path(
+       "log_slave_retries", "Log file path for transaction retries",
+       READ_ONLY GLOBAL_VAR(opt_slave_retries_log),
+       CMD_LINE(OPT_ARG, OPT_SLAVE_RETRIES_LOG), DEFAULT(""));
+
+
+static Sys_var_uint Sys_slave_retries_log_max(
+       "log_slave_retries_max", "Log max N transaction retries "
+       "(default 0 means infinity)",
+       GLOBAL_VAR(opt_slave_retries_max_log), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));
 #endif
 
 static bool check_locale(sys_var *self, THD *thd, set_var *var)

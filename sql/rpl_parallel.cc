@@ -830,15 +830,16 @@ is_group_ending(Log_event *ev, Log_event_type event_type)
 
 static int
 retry_event_group(rpl_group_info *rgi, rpl_parallel_thread *rpt,
-                  rpl_parallel_thread::queued_event *orig_qev)
+                  rpl_parallel_thread::queued_event *orig_qev,
+                  my_off_t log_pos)
 {
   IO_CACHE rlog;
   LOG_INFO linfo;
   File fd= (File)-1;
-  const char *errmsg;
+  const char *errmsg= NULL;
   inuse_relaylog *ir= rgi->relay_log;
   uint64 event_count;
-  uint64 events_to_execute= rgi->retry_event_count;
+  uint64 events_to_execute= event_count= rgi->retry_event_count;
   Relay_log_info *rli= rgi->rli;
   int err;
   ulonglong cur_offset, old_offset;
@@ -849,6 +850,23 @@ retry_event_group(rpl_group_info *rgi, rpl_parallel_thread *rpt,
   Format_description_log_event *description_event= NULL;
 
 do_retry:
+  if (slave_retries_file &&
+      (!opt_slave_retries_max_log || retries < opt_slave_retries_max_log || errmsg))
+    slave_retries_print("[R%lu] event: %lu of %lu  log_pos: %lu  GTID: %u-%u-%llu  query_id: %ld  reason: %u%s%s",
+                        retries + 1, event_count, events_to_execute,
+                        log_pos,
+                        rgi->current_gtid.domain_id, rgi->current_gtid.server_id,
+                        rgi->current_gtid.seq_no,
+                        thd->query_id,
+                        (thd->is_error() ? thd->get_stmt_da()->sql_errno() : 0),
+                        (errmsg ? "  binlog error: " : ""),
+                        (errmsg ? errmsg : ""));
+
+  DBUG_EXECUTE_IF("rpl_parallel_retries_at_max", {
+    if (retries == slave_trans_retries - 1)
+      debug_sync_set_action(thd, STRING_WITH_LEN("now SIGNAL retries_at_max"));
+  });
+
   event_count= 0;
   err= 0;
   errmsg= NULL;
@@ -1040,7 +1058,7 @@ do_retry:
       }
       if (unlikely(rlog.error > 0))
       {
-        sql_print_error("Slave SQL thread: I/O error reading "
+        sql_print_error2("Slave SQL thread: I/O error reading "
                         "event(errno: %d  cur_log->error: %d)",
                         my_errno, rlog.error);
         errmsg= "Aborting slave SQL thread because of partial event read";
@@ -1057,7 +1075,7 @@ do_retry:
          (err= rli->relay_log.find_next_log(&linfo, 1)))
       {
         char buff[22];
-        sql_print_error("next log error: %d  offset: %s  log: %s",
+        sql_print_error2("next log error: %d  offset: %s  log: %s",
                         err,
                         llstr(linfo.index_file_offset, buff),
                         log_name);
@@ -1087,6 +1105,7 @@ do_retry:
       /* Loop to try again on the new log file. */
     }
 
+    log_pos= ev->log_pos;
     event_type= ev->get_type_code();
     if (event_type == FORMAT_DESCRIPTION_EVENT)
     {
@@ -1162,6 +1181,15 @@ check_retry:
   } while (event_count < events_to_execute);
 
 err:
+  if (slave_retries_file)
+    slave_retries_print("[R%lu] %s event: %lu of %lu  log_pos: %lu  GTID: %u-%u-%llu  query_id: %ld  result: %u%s%s",
+                        (err ? retries : retries + 1), (err ? "[FAILURE]" : "[SUCCESS]"),
+                        event_count, events_to_execute, log_pos,
+                        rgi->current_gtid.domain_id, rgi->current_gtid.server_id,
+                        rgi->current_gtid.seq_no, thd->query_id,
+                        (thd->is_error() ? thd->get_stmt_da()->sql_errno() : 0),
+                        (errmsg ? "  binlog error: " : ""),
+                        (errmsg ? errmsg : ""));
 
   if (description_event)
     delete description_event;
@@ -1510,6 +1538,7 @@ handle_rpl_parallel_thread(void *arg)
           else
             err= rpt_handle_event(qev, rpt);
         }
+        my_off_t log_pos= qev->ev->log_pos;
         delete_or_keep_event_post_apply(rgi, event_type, qev->ev);
         DBUG_EXECUTE_IF("rpl_parallel_simulate_temp_err_gtid_0_x_100",
                         err= dbug_simulate_tmp_error(rgi, thd););
@@ -1522,7 +1551,7 @@ handle_rpl_parallel_thread(void *arg)
                             max_retries= 0;
                           );
           if (has_temporary_error(thd) && max_retries > 0)
-            err= retry_event_group(rgi, rpt, qev);
+            err= retry_event_group(rgi, rpt, qev, log_pos);
         }
       }
       else
