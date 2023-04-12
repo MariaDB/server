@@ -1059,6 +1059,13 @@ void os_aio_free();
 @retval DB_IO_ERROR on I/O error */
 dberr_t os_aio(const IORequest &type, void *buf, os_offset_t offset, size_t n);
 
+/** @return number of pending reads */
+size_t os_aio_pending_reads();
+/** @return approximate number of pending reads */
+size_t os_aio_pending_reads_approx();
+/** @return number of pending writes */
+size_t os_aio_pending_writes();
+
 /** Wait until there are no pending asynchronous writes. */
 void os_aio_wait_until_no_pending_writes();
 

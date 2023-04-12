@@ -227,12 +227,9 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
   }
 
   buf_pool.stat.n_pages_read++;
-  mysql_mutex_unlock(&buf_pool.mutex);
-  buf_pool.n_pend_reads++;
-  goto func_exit_no_mutex;
 func_exit:
   mysql_mutex_unlock(&buf_pool.mutex);
-func_exit_no_mutex:
+
   if (mode == BUF_READ_IBUF_PAGES_ONLY)
     ibuf_mtr_commit(&mtr);
 
@@ -319,8 +316,6 @@ buf_read_page_low(
 			     page_id.page_no() * len, len, dst, bpage);
 
 	if (UNIV_UNLIKELY(fio.err != DB_SUCCESS)) {
-		ut_d(auto n=) buf_pool.n_pend_reads--;
-		ut_ad(n > 0);
 		buf_pool.corrupted_evict(bpage, buf_page_t::READ_FIX);
 	} else if (sync) {
 		thd_wait_end(NULL);
@@ -367,7 +362,8 @@ buf_read_ahead_random(const page_id_t page_id, ulint zip_size, bool ibuf)
     read-ahead, as that could break the ibuf page access order */
     return 0;
 
-  if (buf_pool.n_pend_reads > buf_pool.curr_size / BUF_READ_AHEAD_PEND_LIMIT)
+  if (os_aio_pending_reads_approx() >
+      buf_pool.curr_size / BUF_READ_AHEAD_PEND_LIMIT)
     return 0;
 
   fil_space_t* space= fil_space_t::get(page_id.space());
@@ -519,7 +515,8 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
     /* No read-ahead to avoid thread deadlocks */
     return 0;
 
-  if (buf_pool.n_pend_reads > buf_pool.curr_size / BUF_READ_AHEAD_PEND_LIMIT)
+  if (os_aio_pending_reads_approx() >
+      buf_pool.curr_size / BUF_READ_AHEAD_PEND_LIMIT)
     return 0;
 
   const uint32_t buf_read_ahead_area= buf_pool.read_ahead_area;
@@ -689,18 +686,8 @@ void buf_read_recv_pages(ulint space_id, const uint32_t* page_nos, ulint n)
 			limit += buf_pool.chunks[j].size / 2;
 		}
 
-		for (ulint count = 0; buf_pool.n_pend_reads >= limit; ) {
-			std::this_thread::sleep_for(
-				std::chrono::milliseconds(10));
-
-			if (!(++count % 1000)) {
-
-				ib::error()
-					<< "Waited for " << count / 100
-					<< " seconds for "
-					<< buf_pool.n_pend_reads
-					<< " pending reads";
-			}
+		if (os_aio_pending_reads() >= limit) {
+			os_aio_wait_until_no_pending_reads();
 		}
 
 		space->reacquire();

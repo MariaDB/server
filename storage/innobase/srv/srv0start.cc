@@ -249,7 +249,11 @@ static dberr_t create_log_file(bool create_new_db, lsn_t lsn,
 	}
 
 	DBUG_PRINT("ib_log", ("After innodb_log_abort_6"));
-	DBUG_ASSERT(!buf_pool.any_io_pending());
+	ut_ad(!os_aio_pending_reads());
+	ut_ad(!os_aio_pending_writes());
+	ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
+	ut_ad(!buf_pool.get_oldest_modification(0));
+	ut_d(mysql_mutex_unlock(&buf_pool.flush_list_mutex));
 
 	DBUG_EXECUTE_IF("innodb_log_abort_7", return DB_ERROR;);
 	DBUG_PRINT("ib_log", ("After innodb_log_abort_7"));
@@ -967,7 +971,11 @@ same_size:
   }
 
   ut_ad(flushed_lsn == log_sys.get_lsn());
-  ut_ad(!buf_pool.any_io_pending());
+  ut_ad(!os_aio_pending_reads());
+  ut_ad(!os_aio_pending_writes());
+  ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
+  ut_ad(!buf_pool.get_oldest_modification(0));
+  ut_d(mysql_mutex_unlock(&buf_pool.flush_list_mutex));
 
   DBUG_RETURN(flushed_lsn);
 }
@@ -1601,7 +1609,11 @@ file_checked:
 			ut_ad(srv_force_recovery <= SRV_FORCE_IGNORE_CORRUPT);
 			ut_ad(recv_no_log_write);
 			err = fil_write_flushed_lsn(log_sys.get_lsn());
-			DBUG_ASSERT(!buf_pool.any_io_pending());
+			ut_ad(!os_aio_pending_reads());
+			ut_ad(!os_aio_pending_writes());
+			ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
+			ut_ad(!buf_pool.get_oldest_modification(0));
+			ut_d(mysql_mutex_unlock(&buf_pool.flush_list_mutex));
 			log_sys.log.close_file();
 			if (err == DB_SUCCESS) {
 				bool trunc = srv_operation
@@ -1645,7 +1657,11 @@ file_checked:
 			threads until creating a log checkpoint at the
 			end of create_log_file(). */
 			ut_d(recv_no_log_write = true);
-			DBUG_ASSERT(!buf_pool.any_io_pending());
+			ut_ad(!os_aio_pending_reads());
+			ut_ad(!os_aio_pending_writes());
+			ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
+			ut_ad(!buf_pool.get_oldest_modification(0));
+			ut_d(mysql_mutex_unlock(&buf_pool.flush_list_mutex));
 
 			DBUG_EXECUTE_IF("innodb_log_abort_3",
 					return(srv_init_abort(DB_ERROR)););

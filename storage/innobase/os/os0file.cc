@@ -131,6 +131,11 @@ public:
 	{
 		wait();
 	}
+
+	std::mutex& mutex()
+	{
+		return m_cache.mutex();
+	}
 };
 
 static io_slots *read_slots;
@@ -3658,6 +3663,26 @@ void os_aio_wait_until_no_pending_writes()
 {
   os_aio_wait_until_no_pending_writes_low();
   buf_dblwr.wait_flush_buffered_writes();
+}
+
+/** @return number of pending reads */
+size_t os_aio_pending_reads()
+{
+  std::unique_lock<std::mutex> lk(read_slots->mutex());
+  return read_slots->pending_io_count();
+}
+
+/** @return approximate number of pending reads */
+size_t os_aio_pending_reads_approx()
+{
+  return read_slots->pending_io_count();
+}
+
+/** @return number of pending writes */
+size_t os_aio_pending_writes()
+{
+  std::unique_lock<std::mutex> lk(write_slots->mutex());
+  return write_slots->pending_io_count();
 }
 
 /** Wait until all pending asynchronous reads have completed. */

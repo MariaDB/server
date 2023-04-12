@@ -246,7 +246,7 @@ void buf_flush_remove_pages(ulint id)
     if (!deferred)
       break;
 
-    buf_dblwr.wait_for_page_writes();
+    os_aio_wait_until_no_pending_writes();
   }
 }
 
@@ -376,9 +376,9 @@ void buf_page_write_complete(const IORequest &request)
   if (request.is_LRU())
   {
     const bool temp= bpage->oldest_modification() == 2;
-    if (!temp)
-      buf_dblwr.write_completed(state < buf_page_t::WRITE_FIX_REINIT &&
-                                request.node->space->use_doublewrite());
+    if (!temp && state < buf_page_t::WRITE_FIX_REINIT &&
+        request.node->space->use_doublewrite())
+      buf_dblwr.write_completed();
     /* We must hold buf_pool.mutex while releasing the block, so that
     no other thread can access it before we have freed it. */
     mysql_mutex_lock(&buf_pool.mutex);
@@ -390,8 +390,9 @@ void buf_page_write_complete(const IORequest &request)
   }
   else
   {
-    buf_dblwr.write_completed(state < buf_page_t::WRITE_FIX_REINIT &&
-                              request.node->space->use_doublewrite());
+    if (state < buf_page_t::WRITE_FIX_REINIT &&
+        request.node->space->use_doublewrite())
+      buf_dblwr.write_completed();
     bpage->write_complete(false);
   }
 }
@@ -886,8 +887,6 @@ bool buf_page_t::flush(bool evict, fil_space_t *space)
       if (lsn > log_sys.get_flushed_lsn())
         log_write_up_to(lsn, true);
     }
-    if (UNIV_LIKELY(space->purpose != FIL_TYPE_TEMPORARY))
-      buf_dblwr.add_unbuffered();
     space->io(IORequest{type, this, slot}, physical_offset(), size,
               write_frame, this);
   }
@@ -1853,7 +1852,7 @@ static void buf_flush_wait(lsn_t lsn)
         break;
     }
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-    buf_dblwr.wait_for_page_writes();
+    os_aio_wait_until_no_pending_writes();
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
   }
 }
@@ -1875,8 +1874,6 @@ ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn)
   if (buf_pool.get_oldest_modification(sync_lsn) < sync_lsn)
   {
     MONITOR_INC(MONITOR_FLUSH_SYNC_WAITS);
-    thd_wait_begin(nullptr, THD_WAIT_DISKIO);
-    tpool::tpool_wait_begin();
 
 #if 1 /* FIXME: remove this, and guarantee that the page cleaner serves us */
     if (UNIV_UNLIKELY(!buf_page_cleaner_is_active))
@@ -1891,7 +1888,7 @@ ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn)
                                        MONITOR_FLUSH_SYNC_COUNT,
                                        MONITOR_FLUSH_SYNC_PAGES, n_pages);
         }
-        buf_dblwr.wait_for_page_writes();
+        os_aio_wait_until_no_pending_writes();
         mysql_mutex_lock(&buf_pool.flush_list_mutex);
       }
       while (buf_pool.get_oldest_modification(sync_lsn) < sync_lsn);
@@ -1900,7 +1897,6 @@ ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn)
 #endif
       buf_flush_wait(sync_lsn);
 
-    tpool::tpool_wait_end();
     thd_wait_end(nullptr);
   }
 
@@ -2335,7 +2331,7 @@ static void buf_flush_page_cleaner()
         last_activity_count= activity_count;
         goto maybe_unemployed;
       }
-      else if (buf_pool.page_cleaner_idle() && buf_pool.n_pend_reads == 0)
+      else if (buf_pool.page_cleaner_idle() && !os_aio_pending_reads())
       {
         /* reaching here means 3 things:
            - last_activity_count == activity_count: suggesting server is idle
@@ -2411,7 +2407,7 @@ static void buf_flush_page_cleaner()
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
     buf_flush_wait_LRU_batch_end();
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-    buf_dblwr.wait_for_page_writes();
+    os_aio_wait_until_no_pending_writes();
   }
 
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
@@ -2461,15 +2457,7 @@ ATTRIBUTE_COLD void buf_flush_buffer_pool()
   {
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
     buf_flush_list(srv_max_io_capacity);
-    if (const size_t pending= buf_dblwr.pending_writes())
-    {
-      timespec abstime;
-      service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
-                                     "Waiting to write %zu pages", pending);
-      set_timespec(abstime, INNODB_EXTEND_TIMEOUT_INTERVAL / 2);
-      buf_dblwr.wait_for_page_writes(abstime);
-    }
-
+    os_aio_wait_until_no_pending_writes();
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
     service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
                                    "Waiting to flush " ULINTPF " pages",
@@ -2477,20 +2465,18 @@ ATTRIBUTE_COLD void buf_flush_buffer_pool()
   }
 
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-  ut_ad(!buf_pool.any_io_pending());
+  ut_ad(!os_aio_pending_writes());
+  ut_ad(!os_aio_pending_reads());
 }
 
 /** Synchronously flush dirty blocks during recv_sys_t::apply().
 NOTE: The calling thread is not allowed to hold any buffer page latches! */
 void buf_flush_sync_batch(lsn_t lsn)
 {
-  thd_wait_begin(nullptr, THD_WAIT_DISKIO);
-  tpool::tpool_wait_begin();
+  lsn= std::max(lsn, log_sys.get_lsn());
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
   buf_flush_wait(lsn);
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-  tpool::tpool_wait_end();
-  thd_wait_end(nullptr);
 }
 
 /** Synchronously flush dirty blocks.

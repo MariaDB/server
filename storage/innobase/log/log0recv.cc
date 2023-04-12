@@ -3384,7 +3384,7 @@ next_free_block:
     for (;;)
     {
       const bool empty= pages.empty();
-      if (empty && !buf_pool.n_pend_reads)
+      if (empty && !os_aio_pending_reads())
         break;
 
       if (!is_corrupt_fs() && !is_corrupt_log())
@@ -3398,7 +3398,6 @@ next_free_block:
           {
             mysql_mutex_unlock(&mutex);
             os_aio_wait_until_no_pending_reads();
-            ut_ad(!buf_pool.n_pend_reads);
             mysql_mutex_lock(&mutex);
             ut_ad(pages.empty());
           }
