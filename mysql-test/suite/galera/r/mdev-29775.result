@@ -1,0 +1,44 @@
+connection node_2;
+connection node_1;
+SET GLOBAL wsrep_replicate_myisam=ON;
+CREATE TABLE t (f0 CHAR(0)) ENGINE=MyISAM;
+INSERT INTO t VALUES();
+SELECT * FROM t;
+f0
+NULL
+connection node_2;
+SELECT * FROM t;
+f0
+NULL
+DROP TABLE t;
+connection node_1;
+SET GLOBAL wsrep_replicate_myisam=ON;
+SET GLOBAL wsrep_forced_binlog_format=ROW;
+CREATE TABLE t (f0 CHAR(0)) ENGINE=MyISAM;
+INSERT INTO t VALUES();
+SELECT * FROM t;
+f0
+NULL
+connection node_2;
+SELECT * FROM t;
+f0
+NULL
+DROP TABLE t;
+connection node_1;
+SET GLOBAL wsrep_forced_binlog_format=DEFAULT;
+SET GLOBAL wsrep_replicate_myisam=OFF;
+SET GLOBAL wsrep_forced_binlog_format=MIXED;
+SET GLOBAL wsrep_replicate_myisam=ON;
+ERROR HY000: wsrep_replicate_myisam=ON can't be enabled if wsrep_forced_binlog != [NONE|ROW]
+SET GLOBAL wsrep_forced_binlog_format=STATEMENT;
+SET GLOBAL wsrep_replicate_myisam=ON;
+ERROR HY000: wsrep_replicate_myisam=ON can't be enabled if wsrep_forced_binlog != [NONE|ROW]
+SET GLOBAL wsrep_forced_binlog_format=NONE;
+SET GLOBAL wsrep_replicate_myisam=OFF;
+SET GLOBAL wsrep_replicate_myisam=ON;
+SET GLOBAL wsrep_forced_binlog_format=MIXED;
+ERROR HY000: wsrep_forced_binlog_format=[MIXED|STATEMENT] can't be set if wsrep_replicate_myisam=ON
+SET GLOBAL wsrep_forced_binlog_format=STATEMENT;
+ERROR HY000: wsrep_forced_binlog_format=[MIXED|STATEMENT] can't be set if wsrep_replicate_myisam=ON
+SET GLOBAL wsrep_forced_binlog_format=NONE;
+SET GLOBAL wsrep_replicate_myisam=OFF;
