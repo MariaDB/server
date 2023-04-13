@@ -493,28 +493,6 @@ int spider_free_wide_share(
   SPIDER_WIDE_SHARE *wide_share
 );
 
-void spider_copy_sts_to_wide_share(
-  SPIDER_WIDE_SHARE *wide_share,
-  SPIDER_SHARE *share
-);
-
-void spider_copy_sts_to_share(
-  SPIDER_SHARE *share,
-  SPIDER_WIDE_SHARE *wide_share
-);
-
-void spider_copy_crd_to_wide_share(
-  SPIDER_WIDE_SHARE *wide_share,
-  SPIDER_SHARE *share,
-  int fields
-);
-
-void spider_copy_crd_to_share(
-  SPIDER_SHARE *share,
-  SPIDER_WIDE_SHARE *wide_share,
-  int fields
-);
-
 int spider_open_all_tables(
   SPIDER_TRX *trx,
   bool lock

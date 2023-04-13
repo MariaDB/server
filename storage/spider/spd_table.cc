@@ -122,6 +122,7 @@ static pthread_mutex_t *spd_LOCK_server_started;
 static pthread_cond_t *spd_COND_server_started;
 extern long spider_conn_mutex_id;
 handlerton *spider_hton_ptr;
+/** All `SPIDER_DBTON`s */
 SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
 extern SPIDER_DBTON spider_dbton_mysql;
 extern SPIDER_DBTON spider_dbton_mariadb;
@@ -267,6 +268,20 @@ ha_create_table_option spider_table_option_list[]= {
     HA_TOPTION_STRING("REMOTE_DATABASE", remote_database),
     HA_TOPTION_STRING("REMOTE_TABLE", remote_table), HA_TOPTION_END};
 
+/**
+  Determines how to populate sts (stat) / crd (cardinality) of a
+  spider share
+*/
+enum ha_sts_crd_get_type
+{
+  HA_GET_COPY = 0,              /* Get by copying from wide_share */
+  HA_GET_FETCH = 1,             /* Get by executing a sql query */
+  HA_GET_AFTER_LOCK = 2,        /* Get by executing a sql query after
+                                locking wide_share->sts_mutex. */
+  HA_GET_AFTER_TRYLOCK = 3      /* Get by executing a sql query after
+                                trylocking wide_share->sts_mutex. */
+};
+
 extern HASH spider_open_connections;
 extern HASH spider_ipport_conns;
 extern uint spider_open_connections_id;
@@ -295,6 +310,7 @@ const char *spider_open_tables_func_name;
 const char *spider_open_tables_file_name;
 ulong spider_open_tables_line_no;
 pthread_mutex_t spider_tbl_mutex;
+/** All the `SPIDER_INIT_ERROR_TABLE`s */
 HASH spider_init_error_tables;
 uint spider_init_error_tables_id;
 const char *spider_init_error_tables_func_name;
@@ -342,6 +358,11 @@ extern ulonglong  spider_free_mem_count[SPIDER_MEM_CALC_LIST_NUM];
 static char spider_wild_many = '%', spider_wild_one = '_',
   spider_wild_prefix='\\';
 
+/**
+ `spider_unique_id` is used for identifying a spider table. It is set
+ to be a concatenation of the MAC address and the PID, give or take
+ some separators.
+*/
 static char spider_unique_id_buf[1 + 12 + 1 + (16 * 2) + 1 + 1];
 LEX_CSTRING spider_unique_id;
 
@@ -4094,7 +4115,7 @@ void spider_print_keys(
 int spider_create_conn_keys(
   SPIDER_SHARE *share
 ) {
-  int roop_count, roop_count2;
+  int roop_count;
   char *tmp_name, port_str[6];
   uint length_base = sizeof(uint) * share->all_link_count;
   uint *conn_keys_lengths;
@@ -4112,70 +4133,79 @@ int spider_create_conn_keys(
   sql_dbton_ids = (uint *) ptr;
 
   share->conn_keys_charlen = 0;
-  for (roop_count = 0; roop_count < (int) share->all_link_count; roop_count++)
+  for (int all_link_idx = 0; all_link_idx < (int) share->all_link_count; all_link_idx++)
   {
     bool get_sql_id = FALSE;
-    for (roop_count2 = 0; roop_count2 < SPIDER_DBTON_SIZE; roop_count2++)
+    /**
+      Find all `SPIDER_DBTON`s with the same wrapper as the target
+      server and set the bitmap. Stop at the first `SPIDER_DBTON` whose
+      db_access_type is sql
+
+      fixme: the logic may be more complicated than the intended
+      one. For one thing, ALL `SPIDER_DBTON`s have sql access
+      type. Consider removing everything to do with the db access
+      type.
+    */
+    for (int dbton_idx = 0; dbton_idx < SPIDER_DBTON_SIZE; dbton_idx++)
     {
-      DBUG_PRINT("info",("spider share->tgt_wrappers[%d]=%s", roop_count,
-        share->tgt_wrappers[roop_count]));
-      DBUG_PRINT("info",("spider spider_dbton[%d].wrapper=%s", roop_count2,
-        spider_dbton[roop_count2].wrapper ?
-          spider_dbton[roop_count2].wrapper : "NULL"));
+      DBUG_PRINT("info",("spider share->tgt_wrappers[%d]=%s", all_link_idx,
+        share->tgt_wrappers[all_link_idx]));
+      DBUG_PRINT("info",("spider spider_dbton[%d].wrapper=%s", dbton_idx,
+        spider_dbton[dbton_idx].wrapper ?
+          spider_dbton[dbton_idx].wrapper : "NULL"));
       if (
-        spider_dbton[roop_count2].wrapper &&
-        !strcmp(share->tgt_wrappers[roop_count],
-          spider_dbton[roop_count2].wrapper)
+        spider_dbton[dbton_idx].wrapper &&
+        !strcmp(share->tgt_wrappers[all_link_idx],
+          spider_dbton[dbton_idx].wrapper)
       ) {
-        spider_set_bit(share->dbton_bitmap, roop_count2);
+        spider_set_bit(share->dbton_bitmap, dbton_idx);
         if (
           !get_sql_id &&
-          spider_dbton[roop_count2].db_access_type == SPIDER_DB_ACCESS_TYPE_SQL
+          spider_dbton[dbton_idx].db_access_type == SPIDER_DB_ACCESS_TYPE_SQL
         ) {
-          sql_dbton_ids[roop_count] = roop_count2;
+          sql_dbton_ids[all_link_idx] = dbton_idx;
           get_sql_id = TRUE;
             break;
         }
       }
     }
     if (!get_sql_id)
-      sql_dbton_ids[roop_count] = SPIDER_DBTON_SIZE;
+      sql_dbton_ids[all_link_idx] = SPIDER_DBTON_SIZE;
 
     bool tables_on_different_db_are_joinable;
     if (get_sql_id)
     {
       tables_on_different_db_are_joinable =
-        spider_dbton[sql_dbton_ids[roop_count]].db_util->
+        spider_dbton[sql_dbton_ids[all_link_idx]].db_util->
           tables_on_different_db_are_joinable();
     } else {
       tables_on_different_db_are_joinable = TRUE;
     }
-    conn_keys_lengths[roop_count]
+    conn_keys_lengths[all_link_idx]
       = 1
-      + share->tgt_wrappers_lengths[roop_count] + 1
-      + share->tgt_hosts_lengths[roop_count] + 1
+      + share->tgt_wrappers_lengths[all_link_idx] + 1
+      + share->tgt_hosts_lengths[all_link_idx] + 1
       + 5 + 1
-      + share->tgt_sockets_lengths[roop_count] + 1
+      + share->tgt_sockets_lengths[all_link_idx] + 1
       + (tables_on_different_db_are_joinable ?
-        0 : share->tgt_dbs_lengths[roop_count] + 1)
-      + share->tgt_usernames_lengths[roop_count] + 1
-      + share->tgt_passwords_lengths[roop_count] + 1
-      + share->tgt_ssl_cas_lengths[roop_count] + 1
-      + share->tgt_ssl_capaths_lengths[roop_count] + 1
-      + share->tgt_ssl_certs_lengths[roop_count] + 1
-      + share->tgt_ssl_ciphers_lengths[roop_count] + 1
-      + share->tgt_ssl_keys_lengths[roop_count] + 1
+        0 : share->tgt_dbs_lengths[all_link_idx] + 1)
+      + share->tgt_usernames_lengths[all_link_idx] + 1
+      + share->tgt_passwords_lengths[all_link_idx] + 1
+      + share->tgt_ssl_cas_lengths[all_link_idx] + 1
+      + share->tgt_ssl_capaths_lengths[all_link_idx] + 1
+      + share->tgt_ssl_certs_lengths[all_link_idx] + 1
+      + share->tgt_ssl_ciphers_lengths[all_link_idx] + 1
+      + share->tgt_ssl_keys_lengths[all_link_idx] + 1
       + 1 + 1
-      + share->tgt_default_files_lengths[roop_count] + 1
-      + share->tgt_default_groups_lengths[roop_count] + 1
-      + share->tgt_dsns_lengths[roop_count] + 1
-      + share->tgt_filedsns_lengths[roop_count] + 1
-      + share->tgt_drivers_lengths[roop_count];
-    share->conn_keys_charlen += conn_keys_lengths[roop_count] + 2;
+      + share->tgt_default_files_lengths[all_link_idx] + 1
+      + share->tgt_default_groups_lengths[all_link_idx] + 1
+      + share->tgt_dsns_lengths[all_link_idx] + 1
+      + share->tgt_filedsns_lengths[all_link_idx] + 1
+      + share->tgt_drivers_lengths[all_link_idx];
+    share->conn_keys_charlen += conn_keys_lengths[all_link_idx] + 2;
   }
   if (!(share->conn_keys = (char **)
-    spider_bulk_alloc_mem(spider_current_trx, 45,
-      __func__, __FILE__, __LINE__, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, 45, MYF(MY_WME | MY_ZEROFILL),
       &share->conn_keys, sizeof(char *) * share->all_link_count,
       &share->conn_keys_lengths, length_base,
       &share->conn_keys_hash_value,
@@ -4331,15 +4361,15 @@ int spider_create_conn_keys(
       &spider_open_connections, (uchar*) share->conn_keys[roop_count],
       share->conn_keys_lengths[roop_count]);
   }
-  for (roop_count2 = 0; roop_count2 < SPIDER_DBTON_SIZE; roop_count2++)
+  for (int dbton_idx = 0; dbton_idx < SPIDER_DBTON_SIZE; dbton_idx++)
   {
-    if (spider_bit_is_set(share->dbton_bitmap, roop_count2))
+    if (spider_bit_is_set(share->dbton_bitmap, dbton_idx))
     {
-        share->use_sql_dbton_ids[share->use_dbton_count] = roop_count2;
-        share->sql_dbton_id_to_seq[roop_count2] = share->use_dbton_count;
-        share->use_sql_dbton_count++;
-      share->use_dbton_ids[share->use_dbton_count] = roop_count2;
-      share->dbton_id_to_seq[roop_count2] = share->use_dbton_count;
+      share->use_sql_dbton_ids[share->use_dbton_count] = dbton_idx;
+      share->sql_dbton_id_to_seq[dbton_idx] = share->use_dbton_count;
+      share->use_sql_dbton_count++;
+      share->use_dbton_ids[share->use_dbton_count] = dbton_idx;
+      share->dbton_id_to_seq[dbton_idx] = share->use_dbton_count;
       share->use_dbton_count++;
     }
   }
@@ -4539,6 +4569,652 @@ error_alloc_share:
   DBUG_RETURN(NULL);
 }
 
+/**
+  Check for spider table self-reference.
+
+  Get the user variable value (source) and compare it with the user
+  variable name (target). If the target is a substring of the source,
+  then there is a self-reference.
+
+  @param thd    Connection.
+  @param share  The table share
+  @retval 0 for success, or else the error number.
+*/
+int spider_check_for_self_reference(THD *thd, const TABLE_SHARE *share)
+{
+  String target(0);
+  LEX_CSTRING key;
+  DBUG_ENTER("spider_check_for_self_reference");
+
+  target.append(STRING_WITH_LEN(SPIDER_SQL_LOP_CHK_PRM_PRF_STR));
+  target.append(share->path);
+  DBUG_PRINT("info",("spider loop check param name=%s", target.c_ptr()));
+  key = target.to_lex_cstring();
+  const user_var_entry *loop_check= get_variable(&thd->user_vars, &key, FALSE);
+  if (loop_check && loop_check->type == STRING_RESULT)
+  {
+    String expected(0);
+    expected.append(spider_unique_id);
+    expected.append(share->path);
+    expected.append(STRING_WITH_LEN("-"));
+    DBUG_PRINT("info",("spider loop check expected=%s", expected.c_ptr()));
+    DBUG_PRINT("info",("spider loop check param value=%s",
+                       loop_check->value));
+    if (unlikely(strstr(loop_check->value, expected.c_ptr())))
+    {
+      const int error_num = ER_SPIDER_INFINITE_LOOP_NUM;
+      my_printf_error(error_num, ER_SPIDER_INFINITE_LOOP_STR, MYF(0),
+                      share->db.str, share->table_name.str);
+      DBUG_RETURN(error_num);
+    }
+  }
+  DBUG_RETURN(0);
+}
+
+/** Populate the init_errors and init of share and/or free it. */
+void spider_share_init_error_free(
+  SPIDER_SHARE *share,
+  const bool init,
+  const bool free_share
+)
+{
+  share->init_error= TRUE;
+  share->init_error_time= (time_t) time((time_t *) 0);
+  share->init= TRUE;
+  if (free_share)
+    spider_free_share(share);
+}
+
+/** fixme: docstring */
+void spider_lock_udf_table_mon_mutexes(SPIDER_SHARE *share)
+{
+  pthread_mutex_lock(&share->mutex);
+  for (int roop_count = 0;
+       roop_count < (int) spider_udf_table_mon_mutex_count;
+       roop_count++)
+    {
+      if (spider_bit_is_set(share->table_mon_mutex_bitmap, roop_count))
+        pthread_mutex_lock(&spider_udf_table_mon_mutexes[roop_count]);
+    }
+}
+
+/** fixme: docstring */
+void spider_unlock_udf_table_mon_mutexes(SPIDER_SHARE *share)
+{
+  for (int roop_count = 0;
+       roop_count < (int) spider_udf_table_mon_mutex_count;
+       roop_count++)
+    {
+      if (spider_bit_is_set(share->table_mon_mutex_bitmap, roop_count))
+        pthread_mutex_unlock(&spider_udf_table_mon_mutexes[roop_count]);
+    }
+  pthread_mutex_unlock(&share->mutex);
+}
+
+/**
+  Initialise the link_statuses of a spider share
+
+  Open the spider_tables system table, read the link_statuses and
+  update the spider share, and close the table. Frees share if
+  failure.
+
+  @param thd          Connection
+  @param share        The spider share to populate the link_statuses of
+  @param table_share  fixme
+  @param sql_command  The sql command of the thread
+  @param error_num    The error number
+  @retval true        Failure
+          false       Success
+*/
+bool spider_share_init_link_statuses(
+  THD *thd,
+  SPIDER_SHARE *share,
+  TABLE_SHARE *table_share,
+  const int sql_command,
+  const bool init_share,
+  int *error_num
+)
+{
+  MEM_ROOT mem_root;
+  bool init_mem_root= FALSE;
+  TABLE *table_tables;
+  SPIDER_Open_tables_backup open_tables_backup;
+  DBUG_ENTER("spider_share_init_link_statuses");
+  /*
+    The link statuses need to be refreshed from the spider_tables table
+    if the operation:
+    - Is not a DROP TABLE on a permanent table; or
+    - Is an ALTER TABLE.
+
+    Note that SHOW CREATE TABLE is not excluded, because the commands
+    that follow it require up-to-date link statuses.
+  */
+  if ((table_share->tmp_table == NO_TMP_TABLE &&
+       sql_command != SQLCOM_DROP_TABLE) ||
+      /* for alter change link status */
+      sql_command == SQLCOM_ALTER_TABLE)
+  {
+    SPD_INIT_ALLOC_ROOT(&mem_root, 4096, 0, MYF(MY_WME));
+    init_mem_root = TRUE;
+
+    if (!(table_tables =
+          spider_open_sys_table(thd, SPIDER_SYS_TABLES_TABLE_NAME_STR,
+                                SPIDER_SYS_TABLES_TABLE_NAME_LEN, FALSE,
+                                &open_tables_backup, error_num)))
+    {
+      spider_unlock_udf_table_mon_mutexes(share);
+      spider_share_init_error_free(share, true, true);
+      free_root(&mem_root, MYF(0));
+      DBUG_RETURN(TRUE);
+    }
+    if ((*error_num= spider_get_link_statuses(table_tables, share,
+                                              &mem_root)))
+    {
+      if (*error_num != HA_ERR_KEY_NOT_FOUND &&
+          *error_num != HA_ERR_END_OF_FILE)
+      {
+        spider_unlock_udf_table_mon_mutexes(share);
+        spider_share_init_error_free(share, init_share, true);
+        spider_sys_close_table(thd, &open_tables_backup);
+        free_root(&mem_root, MYF(0));
+        DBUG_RETURN(TRUE);
+      }
+    } else
+    {
+      memcpy(share->alter_table.tmp_link_statuses, share->link_statuses,
+             sizeof(long) * share->all_link_count);
+      share->link_status_init = TRUE;
+    }
+    spider_sys_close_table(thd, &open_tables_backup);
+  }
+  share->have_recovery_link = spider_conn_check_recovery_link(share);
+
+  if (init_mem_root)
+    free_root(&mem_root, MYF(0));
+  DBUG_RETURN(FALSE);
+}
+
+/** Creates an `ha_spider` for the sts thread of the spider share. */
+int spider_share_init_sts(
+  const char* table_name,
+  ha_spider *spider,
+  SPIDER_SHARE *share,
+  const bool init_share
+)
+{
+  DBUG_ENTER("spider_share_init_sts");
+  if (int error_num = spider_create_spider_object_for_share(
+        spider->wide_handler->trx, share, &share->sts_spider))
+    {
+      pthread_mutex_unlock(&share->mutex);
+      spider_share_init_error_free(share, init_share, true);
+      DBUG_RETURN(error_num);
+    }
+  share->sts_thread =
+    &spider_table_sts_threads[my_calc_hash(&spider_open_tables,
+                                           (uchar *) table_name,
+                                           (uint) strlen(table_name)) %
+                              spider_param_table_sts_thread_count()];
+  share->sts_spider_init = TRUE;
+  DBUG_RETURN(0);
+}
+
+/** Creates an `ha_spider` for the crd thread of the spider share. */
+int spider_share_init_crd(
+  const char* table_name,
+  ha_spider *spider,
+  SPIDER_SHARE *share,
+  const bool init_share
+)
+{
+  DBUG_ENTER("spider_share_init_crd");
+  if (int error_num = spider_create_spider_object_for_share(
+        spider->wide_handler->trx, share, &share->crd_spider))
+    {
+      pthread_mutex_unlock(&share->mutex);
+      spider_share_init_error_free(share, init_share, true);
+      DBUG_RETURN(error_num);
+    }
+  share->crd_thread =
+    &spider_table_crd_threads[my_calc_hash(&spider_open_tables,
+                                           (uchar *) table_name,
+                                           (uint) strlen(table_name)) %
+                              spider_param_table_crd_thread_count()];
+  share->crd_spider_init = TRUE;
+  DBUG_RETURN(0);
+}
+
+/** fixme: maybe better name; and docstring */
+void *spider_share_malloc_for_spider(
+  ha_spider *spider,
+  SPIDER_SHARE *share,
+  const uint id,
+  char** tmp_name,
+  SPIDER_RESULT_LIST* result_list
+)
+{
+  return spider_bulk_malloc(
+    spider_current_trx, id, MYF(MY_WME | MY_ZEROFILL),
+    &spider->conn_keys, sizeof(char *) * share->link_count,
+    tmp_name, sizeof(char) * share->conn_keys_charlen,
+    &spider->conns, sizeof(SPIDER_CONN *) * share->link_count,
+    &spider->conn_link_idx, sizeof(uint) * share->link_count,
+    &spider->conn_can_fo, sizeof(uchar) * share->link_bitmap_size,
+    &spider->connection_ids, sizeof(ulonglong) * share->link_count,
+    &spider->db_request_id, sizeof(ulonglong) * share->link_count,
+    &spider->db_request_phase, sizeof(uchar) * share->link_bitmap_size,
+    &spider->need_mons, sizeof(int) * share->link_count,
+    &spider->quick_targets, sizeof(void *) * share->link_count,
+    &result_list->upd_tmp_tbls, sizeof(TABLE *) * share->link_count,
+    &result_list->upd_tmp_tbl_prms,
+    sizeof(TMP_TABLE_PARAM) * share->link_count,
+    &result_list->tmp_table_join_first,
+    sizeof(uchar) * share->link_bitmap_size,
+    &result_list->tmp_table_created,
+    sizeof(uchar) * share->link_bitmap_size,
+    &result_list->casual_read, sizeof(int) * share->link_count,
+    &spider->dbton_handler,
+    sizeof(spider_db_handler *) * SPIDER_DBTON_SIZE,
+    NullS);
+}
+
+/**
+  Initialise dbton_handlers of a spider.
+*/
+int spider_share_init_spider_dbton_handlers(ha_spider *spider, SPIDER_SHARE *share)
+{
+  int roop_count, error_num= 0;
+  for (roop_count = 0; roop_count < (int) share->use_dbton_count;
+       roop_count++)
+  {
+    uint dbton_id = share->use_dbton_ids[roop_count];
+    if (!(spider->dbton_handler[dbton_id]=
+          spider_dbton[dbton_id].create_db_handler(spider,
+            share->dbton_share[dbton_id])))
+    {
+      error_num = HA_ERR_OUT_OF_MEM;
+      break;
+    }
+    if ((error_num = spider->dbton_handler[dbton_id]->init()))
+      break;
+  }
+  /* Failure: rollback */
+  if (roop_count < (int) share->use_dbton_count)
+  {
+    for (; roop_count >= 0; roop_count--)
+    {
+      uint dbton_id = share->use_dbton_ids[roop_count];
+      if (spider->dbton_handler[dbton_id])
+      {
+        delete spider->dbton_handler[dbton_id];
+        spider->dbton_handler[dbton_id]= NULL;
+      }
+    }
+  }
+  return error_num;
+}
+
+/** Get or create connections to all active servers */
+bool spider_share_get_conns(ha_spider *spider, SPIDER_SHARE *share,
+                            int *error_num)
+{
+  DBUG_ENTER("spider_share_get_conns");
+  for (int roop_count = spider_conn_link_idx_next(
+         share->link_statuses, spider->conn_link_idx, -1,
+         share->link_count, SPIDER_LINK_STATUS_RECOVERY);
+       roop_count < (int) share->link_count;
+       roop_count = spider_conn_link_idx_next(
+         share->link_statuses, spider->conn_link_idx, roop_count,
+         share->link_count, SPIDER_LINK_STATUS_RECOVERY))
+  {
+    if (!(spider->conns[roop_count] =
+          spider_get_conn(share, roop_count, spider->conn_keys[roop_count],
+                          spider->wide_handler->trx, spider, FALSE, TRUE,
+                          error_num)))
+    {
+      if (share->monitoring_kind[roop_count] && spider->need_mons[roop_count])
+      {
+        *error_num = spider_ping_table_mon_from_table(
+          spider->wide_handler->trx,
+          spider->wide_handler->trx->thd,
+          share,
+          roop_count,
+          (uint32) share->monitoring_sid[roop_count],
+          share->table_name,
+          share->table_name_length,
+          spider->conn_link_idx[roop_count],
+          NULL,
+          0,
+          share->monitoring_kind[roop_count],
+          share->monitoring_limit[roop_count],
+          share->monitoring_flag[roop_count],
+          FALSE
+        );
+      }
+      DBUG_RETURN(TRUE);
+    }
+    spider->conns[roop_count]->error_mode &= spider->error_mode;
+  }
+  DBUG_RETURN(FALSE);
+}
+
+/**
+  Handle a failed search for usable servers.
+
+  @param share          The spider share to update its init error
+  @param table_share    The table share
+  @param search_result  The search result, either -1 (no usable server) or
+                        -2 (out of memory)
+  @return Error code associated with the failure
+*/
+int spider_share_handle_search_link_failure(
+  SPIDER_SHARE* share,
+  TABLE_SHARE* table_share,
+  const int search_result,
+  const bool init_share
+)
+{
+  DBUG_ENTER("spider_share_handle_search_link_failure");
+  if (likely(search_result == -1))  /* No available servers. */
+  {
+    char *db = (char *) my_alloca(
+      table_share->db.length + 1 + table_share->table_name.length + 1);
+    if (unlikely(!db))
+    {
+      spider_share_init_error_free(share, init_share, false);
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    char *table_name = db + table_share->db.length + 1;
+    memcpy(db, table_share->db.str, table_share->db.length);
+    db[table_share->db.length] = '\0';
+    memcpy(table_name, table_share->table_name.str,
+           table_share->table_name.length);
+    table_name[table_share->table_name.length] = '\0';
+    my_printf_error(ER_SPIDER_ALL_LINKS_FAILED_NUM,
+                    ER_SPIDER_ALL_LINKS_FAILED_STR, MYF(0), db, table_name);
+    my_afree(db);
+    spider_share_init_error_free(share, init_share, false);
+    DBUG_RETURN(ER_SPIDER_ALL_LINKS_FAILED_NUM);
+  }
+  spider_share_init_error_free(share, init_share, false);
+  DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+}
+
+/* Get sts and crd for spider_get_share. */
+bool spider_share_get_sts_crd(
+  THD *thd,
+  ha_spider *spider,
+  SPIDER_SHARE *share,
+  TABLE *table,
+  const bool init_share,
+  /* fixme: do we need this? */
+  const bool has_lock,
+  int *error_num
+)
+{
+  const bool same_server_link = spider_param_same_server_link(thd);
+  const int load_sts_at_startup =
+    spider_param_load_sts_at_startup(share->load_sts_at_startup);
+  const int load_crd_at_startup =
+    spider_param_load_crd_at_startup(share->load_crd_at_startup);
+  DBUG_ENTER("spider_share_get_sts_crd");
+  if (!spider->error_mode &&
+      (!same_server_link || load_sts_at_startup || load_crd_at_startup))
+  {
+    const int sts_interval = spider_param_sts_interval(thd, share->sts_interval);
+    const int sts_mode = spider_param_sts_mode(thd, share->sts_mode);
+    const int auto_increment_mode = spider_param_auto_increment_mode(
+      thd, share->auto_increment_mode);
+    /* fixme: why it depends on auto_increment_mode */
+    const int sts_sync = auto_increment_mode == 1 ? 0 :
+      spider_param_sts_sync(thd, share->sts_sync);
+    const int crd_interval = spider_param_crd_interval(thd, share->crd_interval);
+    int crd_mode = spider_param_crd_mode(thd, share->crd_mode);
+    /* fixme: why? */
+    if (crd_mode == 3)
+      crd_mode = 1;
+    const int crd_sync = spider_param_crd_sync(thd, share->crd_sync);
+
+    const time_t tmp_time = (time_t) time((time_t*) 0);
+    if (!has_lock)
+    {
+      pthread_mutex_lock(&share->sts_mutex);
+      pthread_mutex_lock(&share->crd_mutex);
+    }
+    /* If not enough time has passed since the last init error, abort */
+    if (const SPIDER_INIT_ERROR_TABLE *spider_init_error_table =
+        spider_get_init_error_table(spider->wide_handler->trx, share, FALSE))
+    {
+      DBUG_PRINT("info",("spider diff1=%f",
+                         difftime(tmp_time, spider_init_error_table->init_error_time)));
+      if (difftime(tmp_time,
+                   spider_init_error_table->init_error_time) <
+          spider_param_table_init_error_interval())
+      {
+        *error_num = spider_init_error_table->init_error;
+        if (spider_init_error_table->init_error_with_message)
+          my_message(spider_init_error_table->init_error,
+                     spider_init_error_table->init_error_msg, MYF(0));
+        spider_share_init_error_free(share, init_share, false);
+        pthread_mutex_unlock(&share->crd_mutex);
+        pthread_mutex_unlock(&share->sts_mutex);
+        DBUG_RETURN(TRUE);
+      }
+    }
+
+    if ((!same_server_link || load_sts_at_startup) &&
+        (*error_num = spider_get_sts(share, spider->search_link_idx, tmp_time,
+                                     spider, sts_interval, sts_mode, sts_sync,
+                                     1, HA_STATUS_VARIABLE | HA_STATUS_CONST | HA_STATUS_AUTO))
+    ) {
+      if (*error_num != ER_SPIDER_SYS_TABLE_VERSION_NUM)
+        thd->clear_error();
+      else
+      {
+        pthread_mutex_unlock(&share->crd_mutex);
+        pthread_mutex_unlock(&share->sts_mutex);
+        spider_share_init_error_free(share, init_share, false);
+        DBUG_RETURN(TRUE);
+      }
+    }
+
+    if ((!same_server_link || load_crd_at_startup) &&
+        (*error_num = spider_get_crd(share, spider->search_link_idx, tmp_time,
+                                     spider, table, crd_interval, crd_mode,
+                                     crd_sync,
+                                     1)))
+    {
+      if (*error_num != ER_SPIDER_SYS_TABLE_VERSION_NUM)
+        thd->clear_error();
+      else
+      {
+        pthread_mutex_unlock(&share->crd_mutex);
+        pthread_mutex_unlock(&share->sts_mutex);
+        spider_share_init_error_free(share, init_share, false);
+        DBUG_RETURN(TRUE);
+      }
+    }
+    if (!has_lock)
+    {
+      pthread_mutex_unlock(&share->crd_mutex);
+      pthread_mutex_unlock(&share->sts_mutex);
+    }
+  }
+  DBUG_RETURN(FALSE);
+}
+
+/** Initialise a `SPIDER_SHARE` */
+bool spider_init_share(
+  const char *table_name,
+  TABLE *table,
+  THD *thd,
+  ha_spider *spider,
+  int *error_num,
+  SPIDER_SHARE *share,
+  TABLE_SHARE *table_share,
+  const bool new_share
+)
+{
+  char first_byte;
+  char *tmp_name;
+  SPIDER_RESULT_LIST *result_list = &spider->result_list;
+  int search_link_idx;
+  const uint sql_command = thd_sql_command(thd);
+  const bool continue_with_sql_command =
+    sql_command != SQLCOM_DROP_TABLE &&
+    sql_command != SQLCOM_ALTER_TABLE &&
+    sql_command != SQLCOM_SHOW_CREATE;
+  DBUG_ENTER("spider_init_share");
+  if (!share->link_status_init)
+  {
+    spider_lock_udf_table_mon_mutexes(share);
+    if (!share->link_status_init &&
+        spider_share_init_link_statuses(thd, share, table_share,
+                                        sql_command, new_share, error_num))
+      DBUG_RETURN(TRUE);
+    spider_unlock_udf_table_mon_mutexes(share);
+  }
+
+  const int semi_table_lock_conn =
+    spider_param_semi_table_lock_connection(thd, share->semi_table_lock_conn);
+  if (semi_table_lock_conn)
+    first_byte = '0' +
+      spider_param_semi_table_lock(thd, share->semi_table_lock);
+  else
+    first_byte = '0';
+
+  /* fixme: do we need to assign spider->share at different places
+  depending on new_share? */
+  if (!new_share)
+    spider->share = share;
+
+  if (!(spider->wide_handler->trx = spider_get_trx(thd, TRUE, error_num)))
+  {
+    spider_share_init_error_free(share, new_share, true);
+    DBUG_RETURN(TRUE);
+  }
+  spider->set_error_mode();
+
+  if (!share->sts_spider_init)
+  {
+    pthread_mutex_lock(&share->mutex);
+    if (!share->sts_spider_init &&
+        (*error_num= spider_share_init_sts(table_name, spider, share, new_share)))
+      DBUG_RETURN(TRUE);
+    pthread_mutex_unlock(&share->mutex);
+  }
+
+  if (!share->crd_spider_init)
+  {
+    pthread_mutex_lock(&share->mutex);
+    if (!share->crd_spider_init &&
+        (*error_num= spider_share_init_crd(table_name, spider, share, new_share)))
+      DBUG_RETURN(TRUE);
+    pthread_mutex_unlock(&share->mutex);
+  }
+
+  if (continue_with_sql_command &&
+      (*error_num = spider_create_mon_threads(spider->wide_handler->trx,
+                                              share)))
+  {
+    spider_share_init_error_free(share, new_share, true);
+    DBUG_RETURN(TRUE);
+  }
+
+  /* PATCH_COMMENT_TO_REMOVE_AFTER_REVIEW: Here I cannot change to 47
+  or 45 depends on new_share because that would cause assertion error
+  `!trx->alloc_line_no[id] || trx->alloc_line_no[id] == line_no` */
+  if (!(spider_share_malloc_for_spider(spider, share, 47, &tmp_name,
+                                       result_list)))
+  {
+    spider_share_init_error_free(share, new_share, true);
+    DBUG_RETURN(TRUE);
+  }
+  memcpy(tmp_name, share->conn_keys[0], share->conn_keys_charlen);
+
+  /* fixme: what is this part doing? */
+  spider->conn_keys_first_ptr = tmp_name;
+  for (int link_idx = 0; link_idx < (int) share->link_count; link_idx++)
+  {
+    spider->conn_keys[link_idx] = tmp_name;
+    *tmp_name = first_byte;
+    tmp_name += share->conn_keys_lengths[link_idx] + 1;
+    result_list->upd_tmp_tbl_prms[link_idx].init();
+    result_list->upd_tmp_tbl_prms[link_idx].field_count = 1;
+  }
+  spider_trx_set_link_idx_for_all(spider);
+
+  if ((*error_num= spider_share_init_spider_dbton_handlers(spider, share)))
+  {
+    spider_share_init_error_free(share, new_share, false);
+    goto error_after_alloc_conn_keys;
+  }
+
+  if (continue_with_sql_command &&
+      spider_share_get_conns(spider, share, error_num))
+  {
+    spider_share_init_error_free(share, new_share, false);
+    goto error_after_alloc_dbton_handler;
+  }
+
+  search_link_idx =
+    spider_conn_first_link_idx(thd, share->link_statuses,
+                               share->access_balances,
+                               spider->conn_link_idx, share->link_count,
+                               SPIDER_LINK_STATUS_OK);
+  if (search_link_idx < 0)
+  {
+    *error_num= spider_share_handle_search_link_failure(
+      share, table_share, search_link_idx, new_share);
+    goto error_after_alloc_dbton_handler;
+  }
+  spider->search_link_idx= search_link_idx;
+
+  if (new_share)
+  {
+    if (continue_with_sql_command &&
+        spider_share_get_sts_crd(thd, spider, share, table, true, false,
+                                 error_num))
+      goto error_after_alloc_dbton_handler;
+  } else if (share->init_error)
+  {
+    /* fixme: can we move the locking and unlocking into
+       spider_share_get_sts_crd()? */
+    pthread_mutex_lock(&share->sts_mutex);
+    pthread_mutex_lock(&share->crd_mutex);
+    if (share->init_error)
+    {
+      if (continue_with_sql_command &&
+          spider_share_get_sts_crd(thd, spider, share, table, FALSE, TRUE,
+                                   error_num))
+        goto error_after_alloc_dbton_handler;
+      share->init_error= FALSE;
+    }
+    pthread_mutex_unlock(&share->crd_mutex);
+    pthread_mutex_unlock(&share->sts_mutex);
+  }
+  DBUG_RETURN(FALSE);
+
+error_after_alloc_dbton_handler:
+  for (int roop_count = 0; roop_count < (int) share->use_dbton_count; ++roop_count)
+  {
+    uint dbton_id = share->use_dbton_ids[roop_count];
+    if (spider->dbton_handler[dbton_id])
+    {
+      delete spider->dbton_handler[dbton_id];
+      spider->dbton_handler[dbton_id] = NULL;
+    }
+  }
+error_after_alloc_conn_keys:
+  spider_free(spider_current_trx, spider->conn_keys, MYF(0));
+  spider->conn_keys = NULL;
+  spider_free_share(share);
+  DBUG_RETURN(TRUE);
+}
+
+/**
+  Get or create a spider share, then initialise it.
+*/
 SPIDER_SHARE *spider_get_share(
   const char *table_name,
   TABLE *table,
@@ -4548,92 +5224,24 @@ SPIDER_SHARE *spider_get_share(
 ) {
   SPIDER_SHARE *share;
   TABLE_SHARE *table_share = table->s;
-  SPIDER_RESULT_LIST *result_list = &spider->result_list;
-  uint length, tmp_conn_link_idx = 0, buf_sz;
-  char *tmp_name;
-  int roop_count;
-  double sts_interval;
-  int sts_mode;
-  int sts_sync;
-  int auto_increment_mode;
-  double crd_interval;
-  int crd_mode;
-  int crd_sync;
-  char first_byte;
-  int semi_table_lock_conn;
-  int search_link_idx;
-  uint sql_command = thd_sql_command(thd);
-  SPIDER_Open_tables_backup open_tables_backup;
-  MEM_ROOT mem_root;
-  TABLE *table_tables = NULL;
-  bool init_mem_root = FALSE;
-  bool same_server_link;
-  int load_sts_at_startup;
-  int load_crd_at_startup;
-  user_var_entry *loop_check;
-  char *loop_check_buf;
-  TABLE_SHARE *top_share;
-  LEX_CSTRING lex_str;
   DBUG_ENTER("spider_get_share");
-  top_share = spider->wide_handler->top_share;
-  length = (uint) strlen(table_name);
-  my_hash_value_type hash_value = my_calc_hash(&spider_open_tables,
-    (uchar*) table_name, length);
-  if (top_share)
-  {
-    lex_str.length = top_share->path.length + SPIDER_SQL_LOP_CHK_PRM_PRF_LEN;
-    buf_sz = spider_unique_id.length > SPIDER_SQL_LOP_CHK_PRM_PRF_LEN ?
-      top_share->path.length + spider_unique_id.length + 2 :
-      lex_str.length + 2;
-    loop_check_buf = (char *) my_alloca(buf_sz);
-    if (unlikely(!loop_check_buf))
-    {
-      *error_num = HA_ERR_OUT_OF_MEM;
-      DBUG_RETURN(NULL);
-    }
-    lex_str.str = loop_check_buf + buf_sz - lex_str.length - 2;
-    memcpy((void *) lex_str.str,
-      SPIDER_SQL_LOP_CHK_PRM_PRF_STR, SPIDER_SQL_LOP_CHK_PRM_PRF_LEN);
-    memcpy((void *) (lex_str.str + SPIDER_SQL_LOP_CHK_PRM_PRF_LEN),
-      top_share->path.str, top_share->path.length);
-    ((char *) lex_str.str)[lex_str.length] = '\0';
-    DBUG_PRINT("info",("spider loop check param name=%s", lex_str.str));
-    loop_check = get_variable(&thd->user_vars, &lex_str, FALSE);
-    if (loop_check && loop_check->type == STRING_RESULT)
-    {
-      lex_str.length = top_share->path.length + spider_unique_id.length + 1;
-      lex_str.str = loop_check_buf + buf_sz - top_share->path.length -
-        spider_unique_id.length - 2;
-      memcpy((void *) lex_str.str, spider_unique_id.str,
-        spider_unique_id.length);
-      ((char *) lex_str.str)[lex_str.length - 1] = '-';
-      ((char *) lex_str.str)[lex_str.length] = '\0';
-      DBUG_PRINT("info",("spider loop check key=%s", lex_str.str));
-      DBUG_PRINT("info",("spider loop check param value=%s",
-        loop_check->value));
-      if (unlikely(strstr(loop_check->value, lex_str.str)))
-      {
-        *error_num = ER_SPIDER_INFINITE_LOOP_NUM;
-        my_printf_error(*error_num, ER_SPIDER_INFINITE_LOOP_STR, MYF(0),
-          top_share->db.str, top_share->table_name.str);
-        my_afree(loop_check_buf);
-        DBUG_RETURN(NULL);
-      }
-    }
-    my_afree(loop_check_buf);
-  }
+
+  const TABLE_SHARE *top_share = spider->wide_handler->top_share;
+  if (top_share &&
+      (*error_num = spider_check_for_self_reference(thd, top_share)))
+    DBUG_RETURN(NULL);
+
+  const uint length = (uint) strlen(table_name);
+  const my_hash_value_type hash_value =
+    my_calc_hash(&spider_open_tables, (uchar*) table_name, length);
   pthread_mutex_lock(&spider_tbl_mutex);
   if (!(share = (SPIDER_SHARE*) my_hash_search_using_hash_value(
     &spider_open_tables, hash_value, (uchar*) table_name, length)))
   {
-    if (!(share = spider_create_share(
-      table_name, table_share,
-      table->part_info,
-      hash_value,
-      error_num
-    ))) {
+    if (!(share = spider_create_share(table_name, table_share,
+                                      table->part_info, hash_value,
+                                      error_num)))
       goto error_alloc_share;
-    }
 
     uint old_elements = spider_open_tables.array.max_element;
     if (my_hash_insert(&spider_open_tables, (uchar*) share))
@@ -4650,455 +5258,19 @@ SPIDER_SHARE *spider_get_share(
     }
 
     spider->share = share;
+    uint tmp_conn_link_idx= 0;
     spider->conn_link_idx = &tmp_conn_link_idx;
 
     share->use_count++;
     pthread_mutex_unlock(&spider_tbl_mutex);
 
-    if (!share->link_status_init)
-    {
-      pthread_mutex_lock(&share->mutex);
-      for (roop_count = 0;
-        roop_count < (int) spider_udf_table_mon_mutex_count;
-        roop_count++
-      ) {
-        if (spider_bit_is_set(share->table_mon_mutex_bitmap, roop_count))
-          pthread_mutex_lock(&spider_udf_table_mon_mutexes[roop_count]);
-      }
-      if (!share->link_status_init)
-      {
-        /*
-          The link statuses need to be refreshed from the spider_tables table
-          if the operation:
-          - Is not a DROP TABLE on a permanent table; or
-          - Is an ALTER TABLE.
-
-          Note that SHOW CREATE TABLE is not excluded, because the commands
-          that follow it require up-to-date link statuses.
-        */
-        if ((table_share->tmp_table == NO_TMP_TABLE &&
-             sql_command != SQLCOM_DROP_TABLE) ||
-            /* for alter change link status */
-            sql_command == SQLCOM_ALTER_TABLE)
-        {
-          SPD_INIT_ALLOC_ROOT(&mem_root, 4096, 0, MYF(MY_WME));
-          init_mem_root = TRUE;
-
-          if (
-            !(table_tables = spider_open_sys_table(
-              thd, SPIDER_SYS_TABLES_TABLE_NAME_STR,
-              SPIDER_SYS_TABLES_TABLE_NAME_LEN, FALSE, &open_tables_backup,
-              error_num))
-          ) {
-            for (roop_count = 0;
-              roop_count < (int) spider_udf_table_mon_mutex_count;
-              roop_count++
-            ) {
-              if (spider_bit_is_set(share->table_mon_mutex_bitmap, roop_count))
-                pthread_mutex_unlock(&spider_udf_table_mon_mutexes[roop_count]);
-            }
-            pthread_mutex_unlock(&share->mutex);
-            share->init_error = TRUE;
-            share->init_error_time = (time_t) time((time_t*) 0);
-            share->init = TRUE;
-            spider_free_share(share);
-            goto error_open_sys_table;
-          }
-          *error_num = spider_get_link_statuses(table_tables, share,
-            &mem_root);
-          if (*error_num)
-          {
-            if (
-              *error_num != HA_ERR_KEY_NOT_FOUND &&
-              *error_num != HA_ERR_END_OF_FILE
-            ) {
-              for (roop_count = 0;
-                roop_count < (int) spider_udf_table_mon_mutex_count;
-                roop_count++
-              ) {
-                if (spider_bit_is_set(share->table_mon_mutex_bitmap, roop_count))
-                  pthread_mutex_unlock(&spider_udf_table_mon_mutexes[roop_count]);
-              }
-              pthread_mutex_unlock(&share->mutex);
-              share->init_error = TRUE;
-              share->init_error_time = (time_t) time((time_t*) 0);
-              share->init = TRUE;
-              spider_free_share(share);
-              spider_sys_close_table(thd, &open_tables_backup);
-              table_tables = NULL;
-              goto error_open_sys_table;
-            }
-          } else {
-            memcpy(share->alter_table.tmp_link_statuses, share->link_statuses,
-              sizeof(long) * share->all_link_count);
-            share->link_status_init = TRUE;
-          }
-          spider_sys_close_table(thd, &open_tables_backup);
-          table_tables = NULL;
-        }
-        share->have_recovery_link = spider_conn_check_recovery_link(share);
-        if (init_mem_root)
-        {
-          free_root(&mem_root, MYF(0));
-          init_mem_root = FALSE;
-        }
-      }
-      for (roop_count = 0;
-        roop_count < (int) spider_udf_table_mon_mutex_count;
-        roop_count++
-      ) {
-        if (spider_bit_is_set(share->table_mon_mutex_bitmap, roop_count))
-          pthread_mutex_unlock(&spider_udf_table_mon_mutexes[roop_count]);
-      }
-      pthread_mutex_unlock(&share->mutex);
-    }
-
-    semi_table_lock_conn = spider_param_semi_table_lock_connection(thd,
-      share->semi_table_lock_conn);
-    if (semi_table_lock_conn)
-      first_byte = '0' +
-        spider_param_semi_table_lock(thd, share->semi_table_lock);
-    else
-      first_byte = '0';
-
-    if (!(spider->wide_handler->trx = spider_get_trx(thd, TRUE, error_num)))
-    {
-      share->init_error = TRUE;
-      share->init_error_time = (time_t) time((time_t*) 0);
-      share->init = TRUE;
-      spider_free_share(share);
-      goto error_but_no_delete;
-    }
-    spider->set_error_mode();
-
-    if (!share->sts_spider_init)
-    {
-      pthread_mutex_lock(&share->mutex);
-      if (!share->sts_spider_init)
-      {
-        if ((*error_num = spider_create_spider_object_for_share(
-          spider->wide_handler->trx, share, &share->sts_spider)))
-        {
-          pthread_mutex_unlock(&share->mutex);
-          share->init_error = TRUE;
-          share->init_error_time = (time_t) time((time_t*) 0);
-          share->init = TRUE;
-          spider_free_share(share);
-          goto error_sts_spider_init;
-        }
-        share->sts_thread = &spider_table_sts_threads[
-          my_calc_hash(&spider_open_tables, (uchar*) table_name, length) %
-          spider_param_table_sts_thread_count()];
-        share->sts_spider_init = TRUE;
-      }
-      pthread_mutex_unlock(&share->mutex);
-    }
-
-    if (!share->crd_spider_init)
-    {
-      pthread_mutex_lock(&share->mutex);
-      if (!share->crd_spider_init)
-      {
-        if ((*error_num = spider_create_spider_object_for_share(
-          spider->wide_handler->trx, share, &share->crd_spider)))
-        {
-          pthread_mutex_unlock(&share->mutex);
-          share->init_error = TRUE;
-          share->init_error_time = (time_t) time((time_t*) 0);
-          share->init = TRUE;
-          spider_free_share(share);
-          goto error_crd_spider_init;
-        }
-        share->crd_thread = &spider_table_crd_threads[
-          my_calc_hash(&spider_open_tables, (uchar*) table_name, length) %
-          spider_param_table_crd_thread_count()];
-        share->crd_spider_init = TRUE;
-      }
-      pthread_mutex_unlock(&share->mutex);
-    }
-
-    if (
-      sql_command != SQLCOM_DROP_TABLE &&
-      sql_command != SQLCOM_ALTER_TABLE &&
-      sql_command != SQLCOM_SHOW_CREATE &&
-      (*error_num = spider_create_mon_threads(spider->wide_handler->trx,
-        share))
-    ) {
-      share->init_error = TRUE;
-      share->init_error_time = (time_t) time((time_t*) 0);
-      share->init = TRUE;
-      spider_free_share(share);
-      goto error_but_no_delete;
-    }
-
-    if (!(spider->conn_keys = (char **)
-      spider_bulk_alloc_mem(spider_current_trx, 47,
-        __func__, __FILE__, __LINE__, MYF(MY_WME | MY_ZEROFILL),
-        &spider->conn_keys, sizeof(char *) * share->link_count,
-        &tmp_name, sizeof(char) * share->conn_keys_charlen,
-        &spider->conns, sizeof(SPIDER_CONN *) * share->link_count,
-        &spider->conn_link_idx, sizeof(uint) * share->link_count,
-        &spider->conn_can_fo, sizeof(uchar) * share->link_bitmap_size,
-        &spider->connection_ids, sizeof(ulonglong) * share->link_count,
-        &spider->db_request_id, sizeof(ulonglong) * share->link_count,
-        &spider->db_request_phase, sizeof(uchar) * share->link_bitmap_size,
-        &spider->need_mons, sizeof(int) * share->link_count,
-        &spider->quick_targets, sizeof(void *) * share->link_count,
-        &result_list->upd_tmp_tbls, sizeof(TABLE *) * share->link_count,
-        &result_list->upd_tmp_tbl_prms,
-          sizeof(TMP_TABLE_PARAM) * share->link_count,
-        &result_list->tmp_table_join_first,
-          sizeof(uchar) * share->link_bitmap_size,
-        &result_list->tmp_table_created,
-          sizeof(uchar) * share->link_bitmap_size,
-        &result_list->casual_read, sizeof(int) * share->link_count,
-        &spider->dbton_handler,
-          sizeof(spider_db_handler *) * SPIDER_DBTON_SIZE,
-        NullS))
-    ) {
-      share->init_error = TRUE;
-      share->init_error_time = (time_t) time((time_t*) 0);
-      share->init = TRUE;
-      spider_free_share(share);
-      goto error_but_no_delete;
-    }
-    memcpy(tmp_name, share->conn_keys[0], share->conn_keys_charlen);
-
-    spider->conn_keys_first_ptr = tmp_name;
-    for (roop_count = 0; roop_count < (int) share->link_count; roop_count++)
-    {
-      spider->conn_keys[roop_count] = tmp_name;
-      *tmp_name = first_byte;
-      tmp_name += share->conn_keys_lengths[roop_count] + 1;
-      result_list->upd_tmp_tbl_prms[roop_count].init();
-      result_list->upd_tmp_tbl_prms[roop_count].field_count = 1;
-    }
-    spider_trx_set_link_idx_for_all(spider);
-
-    for (roop_count = 0; roop_count < (int) share->use_dbton_count;
-      roop_count++)
-    {
-      uint dbton_id = share->use_dbton_ids[roop_count];
-      if (!(spider->dbton_handler[dbton_id] =
-        spider_dbton[dbton_id].create_db_handler(spider,
-        share->dbton_share[dbton_id])))
-      {
-        *error_num = HA_ERR_OUT_OF_MEM;
-        break;
-      }
-      if ((*error_num = spider->dbton_handler[dbton_id]->init()))
-      {
-        break;
-      }
-    }
-    if (roop_count < (int) share->use_dbton_count)
-    {
-      for (; roop_count >= 0; roop_count--)
-      {
-        uint dbton_id = share->use_dbton_ids[roop_count];
-        if (spider->dbton_handler[dbton_id])
-        {
-          delete spider->dbton_handler[dbton_id];
-          spider->dbton_handler[dbton_id] = NULL;
-        }
-      }
-      share->init_error = TRUE;
-      share->init_error_time = (time_t) time((time_t*) 0);
-      share->init = TRUE;
-      goto error_after_alloc_conn_keys;
-    }
-
-    if (
-      sql_command != SQLCOM_DROP_TABLE &&
-      sql_command != SQLCOM_ALTER_TABLE &&
-      sql_command != SQLCOM_SHOW_CREATE
-    ) {
-      for (
-        roop_count = spider_conn_link_idx_next(share->link_statuses,
-          spider->conn_link_idx, -1, share->link_count,
-          SPIDER_LINK_STATUS_RECOVERY);
-        roop_count < (int) share->link_count;
-        roop_count = spider_conn_link_idx_next(share->link_statuses,
-          spider->conn_link_idx, roop_count, share->link_count,
-          SPIDER_LINK_STATUS_RECOVERY)
-      ) {
-        if (
-          !(spider->conns[roop_count] =
-            spider_get_conn(share, roop_count, spider->conn_keys[roop_count],
-              spider->wide_handler->trx, spider, FALSE, TRUE,
-              error_num))
-        ) {
-          if (
-            share->monitoring_kind[roop_count] &&
-            spider->need_mons[roop_count]
-          ) {
-            *error_num = spider_ping_table_mon_from_table(
-                spider->wide_handler->trx,
-                spider->wide_handler->trx->thd,
-                share,
-                roop_count,
-                (uint32) share->monitoring_sid[roop_count],
-                share->table_name,
-                share->table_name_length,
-                spider->conn_link_idx[roop_count],
-                NULL,
-                0,
-                share->monitoring_kind[roop_count],
-                share->monitoring_limit[roop_count],
-                share->monitoring_flag[roop_count],
-                FALSE
-              );
-          }
-          share->init_error = TRUE;
-          share->init_error_time = (time_t) time((time_t*) 0);
-          share->init = TRUE;
-          goto error_after_alloc_dbton_handler;
-        }
-        spider->conns[roop_count]->error_mode &= spider->error_mode;
-      }
-    }
-    search_link_idx = spider_conn_first_link_idx(thd,
-      share->link_statuses, share->access_balances, spider->conn_link_idx,
-      share->link_count, SPIDER_LINK_STATUS_OK);
-    if (search_link_idx == -1)
-    {
-      char *db = (char *) my_alloca(
-        table_share->db.length + 1 + table_share->table_name.length + 1);
-      if (!db)
-      {
-        *error_num = HA_ERR_OUT_OF_MEM;
-        share->init_error = TRUE;
-        share->init_error_time = (time_t) time((time_t*) 0);
-        share->init = TRUE;
-        goto error_after_alloc_dbton_handler;
-      }
-      char *table_name = db + table_share->db.length + 1;
-      memcpy(db, table_share->db.str, table_share->db.length);
-      db[table_share->db.length] = '\0';
-      memcpy(table_name, table_share->table_name.str,
-        table_share->table_name.length);
-      table_name[table_share->table_name.length] = '\0';
-      my_printf_error(ER_SPIDER_ALL_LINKS_FAILED_NUM,
-        ER_SPIDER_ALL_LINKS_FAILED_STR, MYF(0), db, table_name);
-      my_afree(db);
-      *error_num = ER_SPIDER_ALL_LINKS_FAILED_NUM;
-      share->init_error = TRUE;
-      share->init_error_time = (time_t) time((time_t*) 0);
-      share->init = TRUE;
-      goto error_after_alloc_dbton_handler;
-    } else if (search_link_idx == -2)
-    {
-      *error_num = HA_ERR_OUT_OF_MEM;
-      share->init_error = TRUE;
-      share->init_error_time = (time_t) time((time_t*) 0);
-      share->init = TRUE;
-      goto error_after_alloc_dbton_handler;
-    }
-    spider->search_link_idx = search_link_idx;
-
-    same_server_link = spider_param_same_server_link(thd);
-    load_sts_at_startup =
-      spider_param_load_sts_at_startup(share->load_sts_at_startup);
-    load_crd_at_startup =
-      spider_param_load_crd_at_startup(share->load_crd_at_startup);
-    if (
-      sql_command != SQLCOM_DROP_TABLE &&
-      sql_command != SQLCOM_ALTER_TABLE &&
-      sql_command != SQLCOM_SHOW_CREATE &&
-      !spider->error_mode &&
-      (
-        !same_server_link ||
-        load_sts_at_startup ||
-        load_crd_at_startup
-      )
-    ) {
-      SPIDER_INIT_ERROR_TABLE *spider_init_error_table;
-      sts_interval = spider_param_sts_interval(thd, share->sts_interval);
-      sts_mode = spider_param_sts_mode(thd, share->sts_mode);
-      sts_sync = spider_param_sts_sync(thd, share->sts_sync);
-      auto_increment_mode = spider_param_auto_increment_mode(thd,
-        share->auto_increment_mode);
-      if (auto_increment_mode == 1)
-        sts_sync = 0;
-      crd_interval = spider_param_crd_interval(thd, share->crd_interval);
-      crd_mode = spider_param_crd_mode(thd, share->crd_mode);
-      if (crd_mode == 3)
-        crd_mode = 1;
-      crd_sync = spider_param_crd_sync(thd, share->crd_sync);
-      time_t tmp_time = (time_t) time((time_t*) 0);
-      pthread_mutex_lock(&share->sts_mutex);
-      pthread_mutex_lock(&share->crd_mutex);
-      if ((spider_init_error_table =
-        spider_get_init_error_table(spider->wide_handler->trx, share, FALSE)))
-      {
-        DBUG_PRINT("info",("spider diff1=%f",
-          difftime(tmp_time, spider_init_error_table->init_error_time)));
-        if (difftime(tmp_time,
-          spider_init_error_table->init_error_time) <
-          spider_param_table_init_error_interval())
-        {
-          *error_num = spider_init_error_table->init_error;
-          if (spider_init_error_table->init_error_with_message)
-            my_message(spider_init_error_table->init_error,
-              spider_init_error_table->init_error_msg, MYF(0));
-          share->init_error = TRUE;
-          share->init = TRUE;
-          pthread_mutex_unlock(&share->crd_mutex);
-          pthread_mutex_unlock(&share->sts_mutex);
-          goto error_after_alloc_dbton_handler;
-        }
-      }
-
-      if (
-        (
-          !same_server_link ||
-          load_sts_at_startup
-        ) &&
-        (*error_num = spider_get_sts(share, spider->search_link_idx, tmp_time,
-          spider, sts_interval, sts_mode,
-          sts_sync,
-          1, HA_STATUS_VARIABLE | HA_STATUS_CONST | HA_STATUS_AUTO))
-      ) {
-        if (*error_num != ER_SPIDER_SYS_TABLE_VERSION_NUM)
-        {
-          thd->clear_error();
-        } else {
-          pthread_mutex_unlock(&share->crd_mutex);
-          pthread_mutex_unlock(&share->sts_mutex);
-          share->init_error = TRUE;
-          share->init_error_time = (time_t) time((time_t*) 0);
-          share->init = TRUE;
-          goto error_after_alloc_dbton_handler;
-        }
-      }
-      if (
-        (
-          !same_server_link ||
-          load_crd_at_startup
-        ) &&
-        (*error_num = spider_get_crd(share, spider->search_link_idx, tmp_time,
-          spider, table, crd_interval, crd_mode,
-          crd_sync,
-          1))
-      ) {
-        if (*error_num != ER_SPIDER_SYS_TABLE_VERSION_NUM)
-        {
-          thd->clear_error();
-        } else {
-          pthread_mutex_unlock(&share->crd_mutex);
-          pthread_mutex_unlock(&share->sts_mutex);
-          share->init_error = TRUE;
-          share->init_error_time = (time_t) time((time_t*) 0);
-          share->init = TRUE;
-          goto error_after_alloc_dbton_handler;
-        }
-      }
-      pthread_mutex_unlock(&share->crd_mutex);
-      pthread_mutex_unlock(&share->sts_mutex);
-    }
+    if (spider_init_share(table_name, table, thd, spider, error_num, share,
+                          table_share, TRUE))
+      DBUG_RETURN(NULL);
 
     share->init = TRUE;
-  } else {
+  } else
+  {
     share->use_count++;
     pthread_mutex_unlock(&spider_tbl_mutex);
 
@@ -5116,452 +5288,23 @@ SPIDER_SHARE *spider_get_share(
           ER_SPIDER_TABLE_OPEN_TIMEOUT_STR, MYF(0),
           table_share->db.str, table_share->table_name.str);
         spider_free_share(share);
-        goto error_but_no_delete;
+        DBUG_RETURN(NULL);
       }
       my_sleep(10000); // wait 10 ms
     }
 
-    if (!share->link_status_init)
-    {
-      pthread_mutex_lock(&share->mutex);
-      for (roop_count = 0;
-        roop_count < (int) spider_udf_table_mon_mutex_count;
-        roop_count++
-      ) {
-        if (spider_bit_is_set(share->table_mon_mutex_bitmap, roop_count))
-          pthread_mutex_lock(&spider_udf_table_mon_mutexes[roop_count]);
-      }
-      if (!share->link_status_init)
-      {
-        DBUG_ASSERT(!table_tables);
-        /*
-          The link statuses need to be refreshed from the spider_tables table
-          if the operation:
-          - Is not a DROP TABLE on a permanent table; or
-          - Is an ALTER TABLE.
-
-          Note that SHOW CREATE TABLE is not excluded, because the commands
-          that follow it require up-to-date link statuses.
-        */
-        if ((table_share->tmp_table == NO_TMP_TABLE &&
-             sql_command != SQLCOM_DROP_TABLE) ||
-            /* for alter change link status */
-            sql_command == SQLCOM_ALTER_TABLE)
-        {
-          SPD_INIT_ALLOC_ROOT(&mem_root, 4096, 0, MYF(MY_WME));
-          init_mem_root = TRUE;
-
-          if (
-            !(table_tables = spider_open_sys_table(
-              thd, SPIDER_SYS_TABLES_TABLE_NAME_STR,
-              SPIDER_SYS_TABLES_TABLE_NAME_LEN, FALSE, &open_tables_backup,
-              error_num))
-          ) {
-            for (roop_count = 0;
-              roop_count < (int) spider_udf_table_mon_mutex_count;
-              roop_count++
-            ) {
-              if (spider_bit_is_set(share->table_mon_mutex_bitmap, roop_count))
-                pthread_mutex_unlock(&spider_udf_table_mon_mutexes[roop_count]);
-            }
-            pthread_mutex_unlock(&share->mutex);
-            spider_free_share(share);
-            goto error_open_sys_table;
-          }
-          *error_num = spider_get_link_statuses(table_tables, share,
-            &mem_root);
-          if (*error_num)
-          {
-            if (
-              *error_num != HA_ERR_KEY_NOT_FOUND &&
-              *error_num != HA_ERR_END_OF_FILE
-            ) {
-              for (roop_count = 0;
-                roop_count < (int) spider_udf_table_mon_mutex_count;
-                roop_count++
-              ) {
-                if (spider_bit_is_set(share->table_mon_mutex_bitmap, roop_count))
-                  pthread_mutex_unlock(&spider_udf_table_mon_mutexes[roop_count]);
-              }
-              pthread_mutex_unlock(&share->mutex);
-              spider_free_share(share);
-              spider_sys_close_table(thd, &open_tables_backup);
-              table_tables = NULL;
-              goto error_open_sys_table;
-            }
-          } else {
-            memcpy(share->alter_table.tmp_link_statuses, share->link_statuses,
-              sizeof(long) * share->all_link_count);
-            share->link_status_init = TRUE;
-          }
-          spider_sys_close_table(thd, &open_tables_backup);
-          table_tables = NULL;
-        }
-        share->have_recovery_link = spider_conn_check_recovery_link(share);
-        if (init_mem_root)
-        {
-          free_root(&mem_root, MYF(0));
-          init_mem_root = FALSE;
-        }
-      }
-      for (roop_count = 0;
-        roop_count < (int) spider_udf_table_mon_mutex_count;
-        roop_count++
-      ) {
-        if (spider_bit_is_set(share->table_mon_mutex_bitmap, roop_count))
-          pthread_mutex_unlock(&spider_udf_table_mon_mutexes[roop_count]);
-      }
-      pthread_mutex_unlock(&share->mutex);
-    }
-
-    semi_table_lock_conn = spider_param_semi_table_lock_connection(thd,
-      share->semi_table_lock_conn);
-    if (semi_table_lock_conn)
-      first_byte = '0' +
-        spider_param_semi_table_lock(thd, share->semi_table_lock);
-    else
-      first_byte = '0';
-
-    spider->share = share;
-    if (!(spider->wide_handler->trx = spider_get_trx(thd, TRUE, error_num)))
-    {
-      spider_free_share(share);
-      goto error_but_no_delete;
-    }
-    spider->set_error_mode();
-
-    if (!share->sts_spider_init)
-    {
-      pthread_mutex_lock(&share->mutex);
-      if (!share->sts_spider_init)
-      {
-        if ((*error_num = spider_create_spider_object_for_share(
-          spider->wide_handler->trx, share, &share->sts_spider)))
-        {
-          pthread_mutex_unlock(&share->mutex);
-          spider_free_share(share);
-          goto error_sts_spider_init;
-        }
-        share->sts_thread = &spider_table_sts_threads[
-          my_calc_hash(&spider_open_tables, (uchar*) table_name, length) %
-          spider_param_table_sts_thread_count()];
-        share->sts_spider_init = TRUE;
-      }
-      pthread_mutex_unlock(&share->mutex);
-    }
-
-    if (!share->crd_spider_init)
-    {
-      pthread_mutex_lock(&share->mutex);
-      if (!share->crd_spider_init)
-      {
-        if ((*error_num = spider_create_spider_object_for_share(
-          spider->wide_handler->trx, share, &share->crd_spider)))
-        {
-          pthread_mutex_unlock(&share->mutex);
-          spider_free_share(share);
-          goto error_crd_spider_init;
-        }
-        share->crd_thread = &spider_table_crd_threads[
-          my_calc_hash(&spider_open_tables, (uchar*) table_name, length) %
-          spider_param_table_crd_thread_count()];
-        share->crd_spider_init = TRUE;
-      }
-      pthread_mutex_unlock(&share->mutex);
-    }
-
-    if (
-      sql_command != SQLCOM_DROP_TABLE &&
-      sql_command != SQLCOM_ALTER_TABLE &&
-      sql_command != SQLCOM_SHOW_CREATE &&
-      (*error_num = spider_create_mon_threads(spider->wide_handler->trx,
-        share))
-    ) {
-      spider_free_share(share);
-      goto error_but_no_delete;
-    }
-
-    if (!(spider->conn_keys = (char **)
-      spider_bulk_alloc_mem(spider_current_trx, 49,
-        __func__, __FILE__, __LINE__, MYF(MY_WME | MY_ZEROFILL),
-        &spider->conn_keys, sizeof(char *) * share->link_count,
-        &tmp_name, sizeof(char) * share->conn_keys_charlen,
-        &spider->conns, sizeof(SPIDER_CONN *) * share->link_count,
-        &spider->conn_link_idx, sizeof(uint) * share->link_count,
-        &spider->conn_can_fo, sizeof(uchar) * share->link_bitmap_size,
-        &spider->connection_ids, sizeof(ulonglong) * share->link_count,
-        &spider->db_request_id, sizeof(ulonglong) * share->link_count,
-        &spider->db_request_phase, sizeof(uchar) * share->link_bitmap_size,
-        &spider->need_mons, sizeof(int) * share->link_count,
-        &spider->quick_targets, sizeof(void *) * share->link_count,
-        &result_list->upd_tmp_tbls, sizeof(TABLE *) * share->link_count,
-        &result_list->upd_tmp_tbl_prms,
-          sizeof(TMP_TABLE_PARAM) * share->link_count,
-        &result_list->tmp_table_join_first,
-          sizeof(uchar) * share->link_bitmap_size,
-        &result_list->tmp_table_created,
-          sizeof(uchar) * share->link_bitmap_size,
-        &result_list->casual_read, sizeof(int) * share->link_count,
-        &spider->dbton_handler,
-          sizeof(spider_db_handler *) * SPIDER_DBTON_SIZE,
-        NullS))
-    ) {
-      spider_free_share(share);
-      goto error_but_no_delete;
-    }
-    memcpy(tmp_name, share->conn_keys[0], share->conn_keys_charlen);
-
-    spider->conn_keys_first_ptr = tmp_name;
-    for (roop_count = 0; roop_count < (int) share->link_count; roop_count++)
-    {
-      spider->conn_keys[roop_count] = tmp_name;
-      *tmp_name = first_byte;
-      tmp_name += share->conn_keys_lengths[roop_count] + 1;
-      result_list->upd_tmp_tbl_prms[roop_count].init();
-      result_list->upd_tmp_tbl_prms[roop_count].field_count = 1;
-    }
-    spider_trx_set_link_idx_for_all(spider);
-
-    for (roop_count = 0; roop_count < (int) share->use_dbton_count;
-      roop_count++)
-    {
-      uint dbton_id = share->use_dbton_ids[roop_count];
-      if (!(spider->dbton_handler[dbton_id] =
-        spider_dbton[dbton_id].create_db_handler(spider,
-        share->dbton_share[dbton_id])))
-      {
-        *error_num = HA_ERR_OUT_OF_MEM;
-        break;
-      }
-      if ((*error_num = spider->dbton_handler[dbton_id]->init()))
-      {
-        break;
-      }
-    }
-    if (roop_count < (int) share->use_dbton_count)
-    {
-      for (; roop_count >= 0; roop_count--)
-      {
-        uint dbton_id = share->use_dbton_ids[roop_count];
-        if (spider->dbton_handler[dbton_id])
-        {
-          delete spider->dbton_handler[dbton_id];
-          spider->dbton_handler[dbton_id] = NULL;
-        }
-      }
-      goto error_after_alloc_conn_keys;
-    }
-
-    if (
-      sql_command != SQLCOM_DROP_TABLE &&
-      sql_command != SQLCOM_ALTER_TABLE &&
-      sql_command != SQLCOM_SHOW_CREATE
-    ) {
-      for (
-        roop_count = spider_conn_link_idx_next(share->link_statuses,
-          spider->conn_link_idx, -1, share->link_count,
-          SPIDER_LINK_STATUS_RECOVERY);
-        roop_count < (int) share->link_count;
-        roop_count = spider_conn_link_idx_next(share->link_statuses,
-          spider->conn_link_idx, roop_count, share->link_count,
-          SPIDER_LINK_STATUS_RECOVERY)
-      ) {
-        if (
-          !(spider->conns[roop_count] =
-            spider_get_conn(share, roop_count, spider->conn_keys[roop_count],
-              spider->wide_handler->trx, spider, FALSE, TRUE,
-              error_num))
-        ) {
-          if (
-            share->monitoring_kind[roop_count] &&
-            spider->need_mons[roop_count]
-          ) {
-            *error_num = spider_ping_table_mon_from_table(
-                spider->wide_handler->trx,
-                spider->wide_handler->trx->thd,
-                share,
-                roop_count,
-                (uint32) share->monitoring_sid[roop_count],
-                share->table_name,
-                share->table_name_length,
-                spider->conn_link_idx[roop_count],
-                NULL,
-                0,
-                share->monitoring_kind[roop_count],
-                share->monitoring_limit[roop_count],
-                share->monitoring_flag[roop_count],
-                FALSE
-              );
-          }
-          goto error_after_alloc_dbton_handler;
-        }
-        spider->conns[roop_count]->error_mode &= spider->error_mode;
-      }
-    }
-    search_link_idx = spider_conn_first_link_idx(thd,
-      share->link_statuses, share->access_balances, spider->conn_link_idx,
-      share->link_count, SPIDER_LINK_STATUS_OK);
-    if (search_link_idx == -1)
-    {
-      char *db = (char *) my_alloca(
-        table_share->db.length + 1 + table_share->table_name.length + 1);
-      if (!db)
-      {
-        *error_num = HA_ERR_OUT_OF_MEM;
-        goto error_after_alloc_dbton_handler;
-      }
-      char *table_name = db + table_share->db.length + 1;
-      memcpy(db, table_share->db.str, table_share->db.length);
-      db[table_share->db.length] = '\0';
-      memcpy(table_name, table_share->table_name.str,
-        table_share->table_name.length);
-      table_name[table_share->table_name.length] = '\0';
-      my_printf_error(ER_SPIDER_ALL_LINKS_FAILED_NUM,
-        ER_SPIDER_ALL_LINKS_FAILED_STR, MYF(0), db, table_name);
-      my_afree(db);
-      *error_num = ER_SPIDER_ALL_LINKS_FAILED_NUM;
-      goto error_after_alloc_dbton_handler;
-    } else if (search_link_idx == -2)
-    {
-      *error_num = HA_ERR_OUT_OF_MEM;
-      goto error_after_alloc_dbton_handler;
-    }
-    spider->search_link_idx = search_link_idx;
-
-    if (share->init_error)
-    {
-      pthread_mutex_lock(&share->sts_mutex);
-      pthread_mutex_lock(&share->crd_mutex);
-      if (share->init_error)
-      {
-        same_server_link = spider_param_same_server_link(thd);
-        load_sts_at_startup =
-          spider_param_load_sts_at_startup(share->load_sts_at_startup);
-        load_crd_at_startup =
-          spider_param_load_crd_at_startup(share->load_crd_at_startup);
-        if (
-          sql_command != SQLCOM_DROP_TABLE &&
-          sql_command != SQLCOM_ALTER_TABLE &&
-          sql_command != SQLCOM_SHOW_CREATE &&
-          !spider->error_mode &&
-          (
-            !same_server_link ||
-            load_sts_at_startup ||
-            load_crd_at_startup
-          )
-        ) {
-          SPIDER_INIT_ERROR_TABLE *spider_init_error_table;
-          sts_interval = spider_param_sts_interval(thd, share->sts_interval);
-          sts_mode = spider_param_sts_mode(thd, share->sts_mode);
-          sts_sync = spider_param_sts_sync(thd, share->sts_sync);
-          auto_increment_mode = spider_param_auto_increment_mode(thd,
-            share->auto_increment_mode);
-          if (auto_increment_mode == 1)
-            sts_sync = 0;
-          crd_interval = spider_param_crd_interval(thd, share->crd_interval);
-          crd_mode = spider_param_crd_mode(thd, share->crd_mode);
-          if (crd_mode == 3)
-            crd_mode = 1;
-          crd_sync = spider_param_crd_sync(thd, share->crd_sync);
-          time_t tmp_time = (time_t) time((time_t*) 0);
-          if ((spider_init_error_table =
-            spider_get_init_error_table(spider->wide_handler->trx, share,
-              FALSE)))
-          {
-            DBUG_PRINT("info",("spider diff2=%f",
-              difftime(tmp_time, spider_init_error_table->init_error_time)));
-            if (difftime(tmp_time,
-              spider_init_error_table->init_error_time) <
-              spider_param_table_init_error_interval())
-            {
-              *error_num = spider_init_error_table->init_error;
-              if (spider_init_error_table->init_error_with_message)
-                my_message(spider_init_error_table->init_error,
-                  spider_init_error_table->init_error_msg, MYF(0));
-              pthread_mutex_unlock(&share->crd_mutex);
-              pthread_mutex_unlock(&share->sts_mutex);
-              goto error_after_alloc_dbton_handler;
-            }
-          }
-
-          if (
-            (
-              !same_server_link ||
-              load_sts_at_startup
-            ) &&
-            (*error_num = spider_get_sts(share, spider->search_link_idx,
-              tmp_time, spider, sts_interval, sts_mode,
-              sts_sync,
-              1, HA_STATUS_VARIABLE | HA_STATUS_CONST | HA_STATUS_AUTO))
-          ) {
-            if (*error_num != ER_SPIDER_SYS_TABLE_VERSION_NUM)
-            {
-              thd->clear_error();
-            } else {
-              pthread_mutex_unlock(&share->crd_mutex);
-              pthread_mutex_unlock(&share->sts_mutex);
-              goto error_after_alloc_dbton_handler;
-            }
-          }
-          if (
-            (
-              !same_server_link ||
-              load_crd_at_startup
-            ) &&
-            (*error_num = spider_get_crd(share, spider->search_link_idx,
-              tmp_time, spider, table, crd_interval, crd_mode,
-              crd_sync,
-              1))
-          ) {
-            if (*error_num != ER_SPIDER_SYS_TABLE_VERSION_NUM)
-            {
-              thd->clear_error();
-            } else {
-              pthread_mutex_unlock(&share->crd_mutex);
-              pthread_mutex_unlock(&share->sts_mutex);
-              goto error_after_alloc_dbton_handler;
-            }
-          }
-        }
-        share->init_error = FALSE;
-      }
-      pthread_mutex_unlock(&share->crd_mutex);
-      pthread_mutex_unlock(&share->sts_mutex);
-    }
+    if (spider_init_share(table_name, table, thd, spider, error_num, share,
+                          table_share, FALSE))
+      DBUG_RETURN(NULL);
   }
 
   DBUG_PRINT("info",("spider share=%p", share));
   DBUG_RETURN(share);
 
-error_after_alloc_dbton_handler:
-  for (roop_count = 0; roop_count < (int) share->use_dbton_count; ++roop_count)
-  {
-    uint dbton_id = share->use_dbton_ids[roop_count];
-    if (spider->dbton_handler[dbton_id])
-    {
-      delete spider->dbton_handler[dbton_id];
-      spider->dbton_handler[dbton_id] = NULL;
-    }
-  }
-error_after_alloc_conn_keys:
-  spider_free(spider_current_trx, spider->conn_keys, MYF(0));
-  spider->conn_keys = NULL;
-  spider_free_share(share);
-  goto error_but_no_delete;
-
 error_hash_insert:
   spider_free_share_resource_only(share);
 error_alloc_share:
   pthread_mutex_unlock(&spider_tbl_mutex);
-error_open_sys_table:
-error_crd_spider_init:
-error_sts_spider_init:
-  if (init_mem_root)
-  {
-    free_root(&mem_root, MYF(0));
-    init_mem_root = FALSE;
-  }
-error_but_no_delete:
   DBUG_RETURN(NULL);
 }
 
@@ -5875,46 +5618,6 @@ int spider_free_wide_share(
   }
   pthread_mutex_unlock(&spider_wide_share_mutex);
   DBUG_RETURN(0);
-}
-
-void spider_copy_sts_to_wide_share(
-  SPIDER_WIDE_SHARE *wide_share,
-  SPIDER_SHARE *share
-) {
-  DBUG_ENTER("spider_copy_sts_to_pt_share");
-  wide_share->stat = share->stat;
-  DBUG_VOID_RETURN;
-}
-
-void spider_copy_sts_to_share(
-  SPIDER_SHARE *share,
-  SPIDER_WIDE_SHARE *wide_share
-) {
-  DBUG_ENTER("spider_copy_sts_to_share");
-  share->stat = wide_share->stat;
-  DBUG_VOID_RETURN;
-}
-
-void spider_copy_crd_to_wide_share(
-  SPIDER_WIDE_SHARE *wide_share,
-  SPIDER_SHARE *share,
-  int fields
-) {
-  DBUG_ENTER("spider_copy_crd_to_wide_share");
-  memcpy(wide_share->cardinality, share->cardinality,
-    sizeof(longlong) * fields);
-  DBUG_VOID_RETURN;
-}
-
-void spider_copy_crd_to_share(
-  SPIDER_SHARE *share,
-  SPIDER_WIDE_SHARE *wide_share,
-  int fields
-) {
-  DBUG_ENTER("spider_copy_crd_to_share");
-  memcpy(share->cardinality, wide_share->cardinality,
-    sizeof(longlong) * fields);
-  DBUG_VOID_RETURN;
 }
 
 int spider_open_all_tables(
@@ -6515,7 +6218,7 @@ int spider_db_init(
   void *p
 ) {
   int error_num = HA_ERR_OUT_OF_MEM, roop_count;
-  uint dbton_id = 0;
+  uint dbton_id;
   uchar addr[6];
   handlerton *spider_hton = (handlerton *)p;
   DBUG_ENTER("spider_db_init");
@@ -6795,6 +6498,8 @@ int spider_db_init(
     }
   }
 
+  /** Populate `spider_dbton` with available `SPIDER_DBTON`s */
+  dbton_id = 0;
   spider_dbton_mysql.dbton_id = dbton_id;
   spider_dbton_mysql.db_util->dbton_id = dbton_id;
   spider_dbton[dbton_id] = spider_dbton_mysql;
@@ -6803,15 +6508,11 @@ int spider_db_init(
   spider_dbton_mariadb.db_util->dbton_id = dbton_id;
   spider_dbton[dbton_id] = spider_dbton_mariadb;
   ++dbton_id;
-  for (roop_count = 0; roop_count < SPIDER_DBTON_SIZE; roop_count++)
+  for (roop_count = 0; roop_count < (int) dbton_id; roop_count++)
   {
-    if (spider_dbton[roop_count].init)
-    {
-      if ((error_num = spider_dbton[roop_count].init()))
-      {
+    if (spider_dbton[roop_count].init &&
+        (error_num = spider_dbton[roop_count].init()))
         goto error_init_dbton;
-      }
-    }
   }
   DBUG_RETURN(0);
 
@@ -6819,9 +6520,7 @@ error_init_dbton:
   for (roop_count--; roop_count >= 0; roop_count--)
   {
     if (spider_dbton[roop_count].deinit)
-    {
       spider_dbton[roop_count].deinit();
-    }
   }
   roop_count = spider_param_table_crd_thread_count() - 1;
 error_init_table_crd_threads:
@@ -7067,6 +6766,33 @@ void spider_get_partition_info(
   DBUG_VOID_RETURN;
 }
 
+/** Determine the get type for spider_get_sts() */
+enum ha_sts_crd_get_type spider_get_sts_type(
+  SPIDER_SHARE *share,
+  double sts_interval,
+  int sts_sync
+) {
+  if (sts_sync == 0)
+    return HA_GET_FETCH;
+  if (!share->wide_share->sts_init)
+  {
+    pthread_mutex_lock(&share->wide_share->sts_mutex);
+    if (!share->wide_share->sts_init)
+      return HA_GET_AFTER_LOCK;
+    pthread_mutex_unlock(&share->wide_share->sts_mutex);
+    return HA_GET_COPY;
+  }
+  if (difftime(share->sts_get_time, share->wide_share->sts_get_time) <
+      sts_interval)
+    return HA_GET_COPY;
+  if (!pthread_mutex_trylock(&share->wide_share->sts_mutex))
+    return HA_GET_AFTER_TRYLOCK;
+  return HA_GET_COPY;
+}
+
+/**
+  Populates share->stat or share->wide_share->stat with table status.
+*/
 int spider_get_sts(
   SPIDER_SHARE *share,
   int link_idx,
@@ -7078,88 +6804,50 @@ int spider_get_sts(
   int sts_sync_level,
   uint flag
 ) {
-  int get_type;
   int error_num = 0;
   bool need_to_get = TRUE;
   DBUG_ENTER("spider_get_sts");
 
-  if (
-    sts_sync == 0
-  ) {
-    /* get */
-    get_type = 1;
-  } else if (
-    !share->wide_share->sts_init
-  ) {
-    pthread_mutex_lock(&share->wide_share->sts_mutex);
-    if (!share->wide_share->sts_init)
-    {
-      /* get after mutex_lock */
-      get_type = 2;
-    } else {
-      pthread_mutex_unlock(&share->wide_share->sts_mutex);
-      /* copy */
-      get_type = 0;
-    }
-  } else if (
-    difftime(share->sts_get_time, share->wide_share->sts_get_time) <
-      sts_interval
-  ) {
-    /* copy */
-    get_type = 0;
-  } else if (
-    !pthread_mutex_trylock(&share->wide_share->sts_mutex)
-  ) {
-    /* get after mutex_trylock */
-    get_type = 3;
-  } else {
-    /* copy */
-    get_type = 0;
-  }
-  if (
-    !share->sts_init &&
-    share->table_share->tmp_table == NO_TMP_TABLE &&
-    spider_param_load_sts_at_startup(share->load_sts_at_startup) &&
-    (!share->init || share->init_error)
-  ) {
+  enum ha_sts_crd_get_type get_type =
+    spider_get_sts_type(share, sts_interval, sts_sync);
+  if (!share->sts_init &&
+      share->table_share->tmp_table == NO_TMP_TABLE &&
+      spider_param_load_sts_at_startup(share->load_sts_at_startup) &&
+      (!share->init || share->init_error))
+  {
     error_num = spider_sys_get_table_sts(
       current_thd,
       share->lgtm_tblhnd_share->table_name,
       share->lgtm_tblhnd_share->table_name_length,
-      &share->stat
-    );
-    if (
-      !error_num ||
-      (error_num != HA_ERR_KEY_NOT_FOUND && error_num != HA_ERR_END_OF_FILE)
-    )
+      &share->stat);
+    if (!error_num ||
+        (error_num != HA_ERR_KEY_NOT_FOUND && error_num != HA_ERR_END_OF_FILE))
     need_to_get = FALSE;
   }
 
   if (need_to_get)
   {
-    if (get_type == 0)
-      /* Copy table status from share to share->wide_share */
-      spider_copy_sts_to_share(share, share->wide_share);
-    else {
+    if (get_type == HA_GET_COPY)
+      share->stat = share->wide_share->stat;
+    else
       /* Executes a `show table status` query and store the results in
       share->stat */
       error_num = spider_db_show_table_status(spider, link_idx, sts_mode, flag);
-    }
   }
-  if (get_type >= 2)
+  if (get_type >= HA_GET_AFTER_LOCK)
     pthread_mutex_unlock(&share->wide_share->sts_mutex);
+
   if (error_num)
   {
     SPIDER_PARTITION_HANDLER *partition_handler =
       spider->partition_handler;
-    if (
-      !share->wide_share->sts_init &&
-      sts_sync >= sts_sync_level &&
-      get_type > 1 &&
-      partition_handler &&
-      partition_handler->handlers &&
-      partition_handler->handlers[0] == spider
-    ) {
+    if (!share->wide_share->sts_init &&
+        sts_sync >= sts_sync_level &&
+        get_type > HA_GET_FETCH &&
+        partition_handler &&
+        partition_handler->handlers &&
+        partition_handler->handlers[0] == spider)
+    {
       int roop_count;
       ha_spider *tmp_spider;
       SPIDER_SHARE *tmp_share;
@@ -7168,24 +6856,23 @@ int spider_get_sts(
       int tmp_sts_sync;
       THD *thd = spider->wide_handler->trx->thd;
       for (roop_count = 1;
-        roop_count < (int) partition_handler->no_parts;
-        roop_count++)
+           roop_count < (int) partition_handler->no_parts;
+           roop_count++)
       {
-        tmp_spider =
-          (ha_spider *) partition_handler->handlers[roop_count];
+        tmp_spider = (ha_spider *) partition_handler->handlers[roop_count];
         tmp_share = tmp_spider->share;
         tmp_sts_interval = spider_param_sts_interval(thd, share->sts_interval);
         tmp_sts_mode = spider_param_sts_mode(thd, share->sts_mode);
         tmp_sts_sync = spider_param_sts_sync(thd, share->sts_sync);
-        spider_get_sts(tmp_share, tmp_spider->search_link_idx,
-          tmp_time, tmp_spider, tmp_sts_interval, tmp_sts_mode, tmp_sts_sync,
-          1, flag);
+        spider_get_sts(tmp_share, tmp_spider->search_link_idx, tmp_time,
+                       tmp_spider, tmp_sts_interval, tmp_sts_mode,
+                       tmp_sts_sync, 1, flag);
         if (share->wide_share->sts_init)
         {
           error_num = 0;
           thd->clear_error();
-          get_type = 0;
-          spider_copy_sts_to_share(share, share->wide_share);
+          get_type = HA_GET_COPY;
+          share->stat = share->wide_share->stat;
           break;
         }
       }
@@ -7193,9 +6880,10 @@ int spider_get_sts(
     if (error_num)
       DBUG_RETURN(error_num);
   }
-  if (sts_sync >= sts_sync_level && get_type > 0)
+
+  if (sts_sync >= sts_sync_level && get_type > HA_GET_COPY)
   {
-    spider_copy_sts_to_wide_share(share->wide_share, share);
+    share->wide_share->stat = share->stat;
     share->wide_share->sts_get_time = tmp_time;
     share->wide_share->sts_init = TRUE;
   }
@@ -7204,6 +6892,34 @@ int spider_get_sts(
   DBUG_RETURN(0);
 }
 
+/** Determine the get type for spider_get_crd() */
+enum ha_sts_crd_get_type spider_get_crd_type(
+  SPIDER_SHARE *share,
+  double crd_interval,
+  int crd_sync
+) {
+  if (crd_sync == 0)
+    return HA_GET_FETCH;
+  if (!share->wide_share->crd_init)
+  {
+    pthread_mutex_lock(&share->wide_share->crd_mutex);
+    if (!share->wide_share->crd_init)
+      return HA_GET_AFTER_LOCK;
+    pthread_mutex_unlock(&share->wide_share->crd_mutex);
+    return HA_GET_COPY;
+  }
+  if (difftime(share->crd_get_time, share->wide_share->crd_get_time) <
+      crd_interval)
+    return HA_GET_COPY;
+  if (!pthread_mutex_trylock(&share->wide_share->crd_mutex))
+    return HA_GET_AFTER_TRYLOCK;
+  return HA_GET_COPY;
+}
+
+/**
+  Populates share->cardinality or share->wide_share->cardinality with
+  table index
+*/
 int spider_get_crd(
   SPIDER_SHARE *share,
   int link_idx,
@@ -7215,86 +6931,47 @@ int spider_get_crd(
   int crd_sync,
   int crd_sync_level
 ) {
-  int get_type;
   int error_num = 0;
   bool need_to_get = TRUE;
   DBUG_ENTER("spider_get_crd");
 
-  if (
-    crd_sync == 0
-  ) {
-    /* get */
-    get_type = 1;
-  } else if (
-    !share->wide_share->crd_init
-  ) {
-    pthread_mutex_lock(&share->wide_share->crd_mutex);
-    if (!share->wide_share->crd_init)
-    {
-      /* get after mutex_lock */
-      get_type = 2;
-    } else {
-      pthread_mutex_unlock(&share->wide_share->crd_mutex);
-      /* copy */
-      get_type = 0;
-    }
-  } else if (
-    difftime(share->crd_get_time, share->wide_share->crd_get_time) <
-      crd_interval
-  ) {
-    /* copy */
-    get_type = 0;
-  } else if (
-    !pthread_mutex_trylock(&share->wide_share->crd_mutex)
-  ) {
-    /* get after mutex_trylock */
-    get_type = 3;
-  } else {
-    /* copy */
-    get_type = 0;
-  }
-  if (
-    !share->crd_init &&
-    share->table_share->tmp_table == NO_TMP_TABLE &&
-    spider_param_load_sts_at_startup(share->load_crd_at_startup)
-  ) {
+  enum ha_sts_crd_get_type get_type =
+    spider_get_crd_type(share, crd_interval, crd_sync);
+  if (!share->crd_init &&
+      share->table_share->tmp_table == NO_TMP_TABLE &&
+      spider_param_load_sts_at_startup(share->load_crd_at_startup))
+  {
     error_num = spider_sys_get_table_crd(
       current_thd,
       share->lgtm_tblhnd_share->table_name,
       share->lgtm_tblhnd_share->table_name_length,
       share->cardinality,
-      table->s->fields
-    );
-    if (
-      !error_num ||
-      (error_num != HA_ERR_KEY_NOT_FOUND && error_num != HA_ERR_END_OF_FILE)
-    )
+      table->s->fields);
+    if (!error_num ||
+        (error_num != HA_ERR_KEY_NOT_FOUND && error_num != HA_ERR_END_OF_FILE))
     need_to_get = FALSE;
   }
 
   if (need_to_get)
   {
-    if (get_type == 0)
-      spider_copy_crd_to_share(share, share->wide_share,
-        table->s->fields);
-    else {
+    if (get_type == HA_GET_COPY)
+      memcpy(share->cardinality, share->wide_share->cardinality,
+             sizeof(longlong) * table->s->fields);
+    else
       error_num = spider_db_show_index(spider, link_idx, table, crd_mode);
-    }
   }
-  if (get_type >= 2)
+  if (get_type >= HA_GET_AFTER_LOCK)
     pthread_mutex_unlock(&share->wide_share->crd_mutex);
   if (error_num)
   {
-    SPIDER_PARTITION_HANDLER *partition_handler =
-      spider->partition_handler;
-    if (
-      !share->wide_share->crd_init &&
-      crd_sync >= crd_sync_level &&
-      get_type > 1 &&
-      partition_handler &&
-      partition_handler->handlers &&
-      partition_handler->handlers[0] == spider
-    ) {
+    SPIDER_PARTITION_HANDLER *partition_handler = spider->partition_handler;
+    if (!share->wide_share->crd_init &&
+        crd_sync >= crd_sync_level &&
+        get_type > HA_GET_FETCH &&
+        partition_handler &&
+        partition_handler->handlers &&
+        partition_handler->handlers[0] == spider)
+    {
       int roop_count;
       ha_spider *tmp_spider;
       SPIDER_SHARE *tmp_share;
@@ -7303,25 +6980,24 @@ int spider_get_crd(
       int tmp_crd_sync;
       THD *thd = spider->wide_handler->trx->thd;
       for (roop_count = 1;
-        roop_count < (int) partition_handler->no_parts;
-        roop_count++)
+           roop_count < (int) partition_handler->no_parts;
+           roop_count++)
       {
-        tmp_spider =
-          (ha_spider *) partition_handler->handlers[roop_count];
+        tmp_spider = (ha_spider *) partition_handler->handlers[roop_count];
         tmp_share = tmp_spider->share;
         tmp_crd_interval = spider_param_crd_interval(thd, share->crd_interval);
         tmp_crd_mode = spider_param_crd_mode(thd, share->crd_mode);
         tmp_crd_sync = spider_param_crd_sync(thd, share->crd_sync);
-        spider_get_crd(tmp_share, tmp_spider->search_link_idx,
-          tmp_time, tmp_spider, table, tmp_crd_interval, tmp_crd_mode,
-          tmp_crd_sync, 1);
+        spider_get_crd(tmp_share, tmp_spider->search_link_idx, tmp_time,
+                       tmp_spider, table, tmp_crd_interval, tmp_crd_mode,
+                       tmp_crd_sync, 1);
         if (share->wide_share->crd_init)
         {
           error_num = 0;
           thd->clear_error();
-          get_type = 0;
-          spider_copy_crd_to_share(share, share->wide_share,
-            table->s->fields);
+          get_type = HA_GET_COPY;
+          memcpy(share->cardinality, share->wide_share->cardinality,
+                 sizeof(longlong) * table->s->fields);
           break;
         }
       }
@@ -7329,10 +7005,10 @@ int spider_get_crd(
     if (error_num)
       DBUG_RETURN(error_num);
   }
-  if (crd_sync >= crd_sync_level && get_type > 0)
+  if (crd_sync >= crd_sync_level && get_type > HA_GET_COPY)
   {
-    spider_copy_crd_to_wide_share(share->wide_share, share,
-      table->s->fields);
+    memcpy(share->wide_share->cardinality, share->cardinality,
+           sizeof(longlong) * table->s->fields);
     share->wide_share->crd_get_time = tmp_time;
     share->wide_share->crd_init = TRUE;
   }
@@ -7377,6 +7053,17 @@ void spider_set_result_list_param(
   DBUG_VOID_RETURN;
 }
 
+/**
+  Get or create a `SPIDER_INIT_ERROR_TABLE` with the table name from a given `SPIDER_SHARE`.
+
+  When creating, also add the newly created object to
+  `spider_init_error_tables`.
+
+  @param trx     Transaction
+  @param share   The spider share providing the table name
+  @param create  Whether to create a new `SPIDER_INIT_ERROR_TABLE` if one wi                 th the required table name does not exist yet
+  @return A `SPIDER_INIT_ERROR_TABLE` or NULL if failure
+*/
 SPIDER_INIT_ERROR_TABLE *spider_get_init_error_table(
   SPIDER_TRX *trx,
   SPIDER_SHARE *share,
@@ -7396,11 +7083,10 @@ SPIDER_INIT_ERROR_TABLE *spider_get_init_error_table(
       pthread_mutex_unlock(&spider_init_error_tbl_mutex);
       DBUG_RETURN(NULL);
     }
-    if (!(spider_init_error_table = (SPIDER_INIT_ERROR_TABLE *)
-      spider_bulk_malloc(spider_current_trx, 54, MYF(MY_WME | MY_ZEROFILL),
+    if (!spider_bulk_malloc(spider_current_trx, 54, MYF(MY_WME | MY_ZEROFILL),
         &spider_init_error_table, (uint) (sizeof(*spider_init_error_table)),
         &tmp_name, (uint) (share->table_name_length + 1),
-        NullS))
+        NullS)
     ) {
       pthread_mutex_unlock(&spider_init_error_tbl_mutex);
       DBUG_RETURN(NULL);
@@ -8407,6 +8093,7 @@ ulong spider_calc_for_sort(
   DBUG_RETURN(sort);
 }
 
+/** Generate a random number between 0 and 1 */
 double spider_rand(
   uint32 rand_source
 ) {

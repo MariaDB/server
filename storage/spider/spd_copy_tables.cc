@@ -398,7 +398,8 @@ int spider_udf_get_copy_tgt_tables(
       (error_num = spider_get_sys_tables_connect_info(
         table_tables, tmp_share, 0, mem_root)) ||
       (error_num = spider_get_sys_tables_link_status(
-        table_tables, tmp_share, 0, mem_root)) ||
+        table_tables, tmp_share->link_statuses, mem_root)) ||
+      // fixme: should &table_conn->link_idx be something else?
       (error_num = spider_get_sys_tables_link_idx(
         table_tables, &table_conn->link_idx, mem_root))
     ) {
