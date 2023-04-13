@@ -1,4 +1,4 @@
-/* Copyright 2008-2022 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2023 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1122,5 +1122,49 @@ bool wsrep_gtid_domain_id_update(sys_var* self, THD *thd, enum_var_type)
   WSREP_DEBUG("wsrep_gtid_domain_id_update: %llu",
               wsrep_gtid_domain_id);
   wsrep_gtid_server.domain_id= wsrep_gtid_domain_id;
+  return false;
+}
+
+bool wsrep_replicate_myisam_check(sys_var *self, THD* thd, set_var* var)
+{
+  bool new_replicate_myisam= (bool)var->save_result.ulonglong_value;
+
+  if (new_replicate_myisam && !WSREP_ON_)
+  {
+    my_message(ER_WRONG_ARGUMENTS, "wsrep_replicate_myisam=ON can't be enabled "
+               "if wsrep_on=OFF", MYF(0));
+    return true;
+  }
+  if (new_replicate_myisam &&
+      !(wsrep_forced_binlog_format == BINLOG_FORMAT_UNSPEC ||
+        wsrep_forced_binlog_format == BINLOG_FORMAT_ROW))
+  {
+    my_message(ER_WRONG_ARGUMENTS, "wsrep_replicate_myisam=ON can't be enabled "
+               "if wsrep_forced_binlog != [NONE|ROW]", MYF(0));
+    return true;
+  }
+  return false;
+}
+
+bool wsrep_forced_binlog_format_check(sys_var *self, THD* thd, set_var* var)
+{
+  ulonglong new_forced_binlog_format= var->save_result.ulonglong_value;
+  if (new_forced_binlog_format != BINLOG_FORMAT_UNSPEC && !WSREP_ON)
+  {
+    my_message(ER_WRONG_ARGUMENTS, "wsrep_forced_binlog_format can't be set "
+               "if wsrep_on=OFF", MYF(0));
+    return true;
+  }
+  if (!(new_forced_binlog_format == BINLOG_FORMAT_UNSPEC ||
+        new_forced_binlog_format == BINLOG_FORMAT_ROW))
+  {
+    if (wsrep_replicate_myisam)
+    {
+      my_message(ER_WRONG_ARGUMENTS, "wsrep_forced_binlog_format=[MIXED|STATEMENT] can't be set "
+                 "if wsrep_replicate_myisam=ON", MYF(0));
+      return true;
+    }
+  }
+
   return false;
 }
