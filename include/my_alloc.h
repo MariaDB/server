@@ -52,6 +52,9 @@ typedef struct st_mem_root
   */
   unsigned short first_block_usage;
   unsigned short flags;
+#ifndef DBUG_OFF
+  my_bool read_only;
+#endif
 
   void (*error_handler)(void);
 
