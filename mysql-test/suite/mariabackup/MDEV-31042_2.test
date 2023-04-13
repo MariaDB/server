@@ -1,5 +1,6 @@
 # First online alter on a non-empty table, then optimize table on the same table while incremental backup is going.
 --source include/have_file_key_management.inc
+--source include/have_debug.inc
 
 let $basedir=$MYSQLTEST_VARDIR/tmp/backup;
 let $incremental_dir=$MYSQLTEST_VARDIR/tmp/backup_inc1;

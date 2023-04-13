@@ -1,6 +1,7 @@
 # This is to make sure that the xtrabackup_tmp_#<tablespace_id> is removed when not utilized.
 
 --source include/have_file_key_management.inc
+--source include/have_debug.inc
 
 let $basedir=$MYSQLTEST_VARDIR/tmp/backup;
 let $incremental_dir=$MYSQLTEST_VARDIR/tmp/backup_inc1;
