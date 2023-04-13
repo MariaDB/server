@@ -324,6 +324,9 @@ struct Name_resolution_context: Sql_alloc
             outer_context->select_lex :
             NULL);
   }
+
+  Item* resolve_in_tables(Item_ident_placeholder *ident);
+  Item* resolve_in_select_list(Item_ident_placeholder *ident);
 };
 
 
