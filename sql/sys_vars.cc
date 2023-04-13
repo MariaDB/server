@@ -6063,7 +6063,9 @@ static const char *wsrep_binlog_format_names[]=
 static Sys_var_enum Sys_wsrep_forced_binlog_format(
        "wsrep_forced_binlog_format", "binlog format to take effect over user's choice",
        GLOBAL_VAR(wsrep_forced_binlog_format), CMD_LINE(REQUIRED_ARG),
-       wsrep_binlog_format_names, DEFAULT(BINLOG_FORMAT_UNSPEC));
+       wsrep_binlog_format_names, DEFAULT(BINLOG_FORMAT_UNSPEC),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(wsrep_forced_binlog_format_check));
 
 static Sys_var_mybool Sys_wsrep_recover_datadir(
        "wsrep_recover", "Recover database state after crash and exit",
@@ -6073,7 +6075,8 @@ static Sys_var_mybool Sys_wsrep_recover_datadir(
 static Sys_var_mybool Sys_wsrep_replicate_myisam(
        "wsrep_replicate_myisam", "To enable myisam replication",
        GLOBAL_VAR(wsrep_replicate_myisam), CMD_LINE(OPT_ARG), DEFAULT(FALSE),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(wsrep_replicate_myisam_check),
        ON_UPDATE(wsrep_replicate_myisam_update),
        DEPRECATED("'@@wsrep_mode=REPLICATE_MYISAM'")); // since 10.6.0
 
