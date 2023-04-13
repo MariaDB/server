@@ -5635,7 +5635,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       to avoid query cache being polluted with stale entries,
     */
 # ifdef WITH_WSREP
-    if (!WSREP(thd) && !wsrep_thd_is_applying(thd))
+    /* Query cache is not invalidated on wsrep applier here */
+    if (!(WSREP(thd) && wsrep_thd_is_applying(thd)))
 # endif /* WITH_WSREP */
       query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
 #endif /* HAVE_QUERY_CACHE */
@@ -7551,19 +7552,21 @@ Write_rows_log_event::do_exec_row(rpl_group_info *rgi)
   const char *tmp= thd->get_proc_info();
   LEX_CSTRING tmp_db= thd->db;
   char *message, msg[128];
-  const char *table_name= m_table->s->table_name.str;
-  char quote_char= get_quote_char_for_identifier(thd, STRING_WITH_LEN(table_name));
-  my_snprintf(msg, sizeof(msg),"Write_rows_log_event::write_row() on table %c%s%c",
-                   quote_char, table_name, quote_char);
+  const LEX_CSTRING &table_name= m_table->s->table_name;
+  const char quote_char=
+    get_quote_char_for_identifier(thd, table_name.str, table_name.length);
+  my_snprintf(msg, sizeof msg,
+              "Write_rows_log_event::write_row() on table %c%.*s%c",
+              quote_char, int(table_name.length), table_name.str, quote_char);
   thd->reset_db(&m_table->s->db);
   message= msg;
   int error;
 
 #ifdef WSREP_PROC_INFO
   my_snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
-              "Write_rows_log_event::write_row(%lld) on table %c%s%c",
-              (long long) wsrep_thd_trx_seqno(thd), quote_char, table_name,
-              quote_char);
+              "Write_rows_log_event::write_row(%lld) on table %c%.*s%c",
+              (long long) wsrep_thd_trx_seqno(thd), quote_char,
+              int(table_name.length), table_name.str, quote_char);
   message= thd->wsrep_info;
 #endif /* WSREP_PROC_INFO */
 
@@ -8176,10 +8179,12 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
   const char *tmp= thd->get_proc_info();
   LEX_CSTRING tmp_db= thd->db;
   char *message, msg[128];
-  const char *table_name= m_table->s->table_name.str;
-  char quote_char= get_quote_char_for_identifier(thd, STRING_WITH_LEN(table_name));
-  my_snprintf(msg, sizeof(msg),"Delete_rows_log_event::find_row() on table %c%s%c",
-                   quote_char, table_name, quote_char);
+  const LEX_CSTRING &table_name= m_table->s->table_name;
+  const char quote_char=
+    get_quote_char_for_identifier(thd, table_name.str, table_name.length);
+  my_snprintf(msg, sizeof msg,
+              "Delete_rows_log_event::find_row() on table %c%.*s%c",
+              quote_char, int(table_name.length), table_name.str, quote_char);
   thd->reset_db(&m_table->s->db);
   message= msg;
   const bool invoke_triggers= (m_table->triggers && do_invoke_trigger());
@@ -8187,26 +8192,29 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
 
 #ifdef WSREP_PROC_INFO
   my_snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
-              "Delete_rows_log_event::find_row(%lld) on table %c%s%c",
-              (long long) wsrep_thd_trx_seqno(thd), quote_char, table_name,
+              "Delete_rows_log_event::find_row(%lld) on table %c%.*s%c",
+              (long long) wsrep_thd_trx_seqno(thd), quote_char,
+              int(table_name.length), table_name.str,
               quote_char);
   message= thd->wsrep_info;
 #endif /* WSREP_PROC_INFO */
 
   thd_proc_info(thd, message);
   if (likely(!(error= find_row(rgi))))
-  { 
+  {
     /*
       Delete the record found, located in record[0]
     */
-    my_snprintf(msg, sizeof(msg),"Delete_rows_log_event::ha_delete_row() on table %c%s%c",
-                   quote_char, table_name, quote_char);
+    my_snprintf(msg, sizeof msg,
+                "Delete_rows_log_event::ha_delete_row() on table %c%.*s%c",
+                quote_char, int(table_name.length), table_name.str,
+                quote_char);
     message= msg;
 #ifdef WSREP_PROC_INFO
     snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
-             "Delete_rows_log_event::ha_delete_row(%lld) on table %c%s%c",
-              (long long) wsrep_thd_trx_seqno(thd), quote_char, table_name,
-              quote_char);
+             "Delete_rows_log_event::ha_delete_row(%lld) on table %c%.*s%c",
+             (long long) wsrep_thd_trx_seqno(thd), quote_char,
+             int(table_name.length), table_name.str, quote_char);
     message= thd->wsrep_info;
 #endif
     thd_proc_info(thd, message);
@@ -8340,17 +8348,20 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   DBUG_ASSERT(m_table != NULL);
   LEX_CSTRING tmp_db= thd->db;
   char *message, msg[128];
-  const char *table_name= m_table->s->table_name.str;
-  char quote_char= get_quote_char_for_identifier(thd, STRING_WITH_LEN(table_name));
-  my_snprintf(msg, sizeof(msg),"Update_rows_log_event::find_row() on table %c%s%c",
-                   quote_char, table_name, quote_char);
+  const LEX_CSTRING &table_name= m_table->s->table_name;
+  const char quote_char=
+    get_quote_char_for_identifier(thd, table_name.str, table_name.length);
+  my_snprintf(msg, sizeof msg,
+              "Update_rows_log_event::find_row() on table %c%.*s%c",
+              quote_char, int(table_name.length), table_name.str, quote_char);
   thd->reset_db(&m_table->s->db);
   message= msg;
 
 #ifdef WSREP_PROC_INFO
   my_snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
-              "Update_rows_log_event::find_row(%lld) on table %c%s%c",
-              (long long) wsrep_thd_trx_seqno(thd), quote_char, table_name,
+              "Update_rows_log_event::find_row(%lld) on table %c%.*s%c",
+              (long long) wsrep_thd_trx_seqno(thd), quote_char,
+              int(table_name.length), table_name.str,
               quote_char);
   message= thd->wsrep_info;
 #endif /* WSREP_PROC_INFO */
@@ -8390,14 +8401,15 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   store_record(m_table,record[1]);
 
   m_curr_row= m_curr_row_end;
-  my_snprintf(msg, sizeof(msg),"Update_rows_log_event::unpack_current_row() on table %c%s%c",
-                   quote_char, table_name, quote_char);
+  my_snprintf(msg, sizeof msg,
+              "Update_rows_log_event::unpack_current_row() on table %c%.*s%c",
+              quote_char, int(table_name.length), table_name.str, quote_char);
   message= msg;
 #ifdef WSREP_PROC_INFO
   my_snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
-              "Update_rows_log_event::unpack_current_row(%lld) on table %c%s%c",
-              (long long) wsrep_thd_trx_seqno(thd), quote_char, table_name,
-              quote_char);
+              "Update_rows_log_event::unpack_current_row(%lld) on table %c%.*s%c",
+              (long long) wsrep_thd_trx_seqno(thd), quote_char,
+              int(table_name.length), table_name.str, quote_char);
   message= thd->wsrep_info;
 #endif /* WSREP_PROC_INFO */
 
@@ -8420,13 +8432,15 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   DBUG_DUMP("new values", m_table->record[0], m_table->s->reclength);
 #endif
 
-  my_snprintf(msg, sizeof(msg),"Update_rows_log_event::ha_update_row() on table %c%s%c",
-              quote_char, table_name, quote_char);
+  my_snprintf(msg, sizeof msg,
+              "Update_rows_log_event::ha_update_row() on table %c%.*s%c",
+              quote_char, int(table_name.length), table_name.str, quote_char);
   message= msg;
 #ifdef WSREP_PROC_INFO
   my_snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
-              "Update_rows_log_event::ha_update_row(%lld) on table %c%s%c",
-              (long long) wsrep_thd_trx_seqno(thd), quote_char, table_name, quote_char);
+              "Update_rows_log_event::ha_update_row(%lld) on table %c%.*s%c",
+              (long long) wsrep_thd_trx_seqno(thd), quote_char,
+              int(table_name.length), table_name.str, quote_char);
   message= thd->wsrep_info;
 #endif /* WSREP_PROC_INFO */
 

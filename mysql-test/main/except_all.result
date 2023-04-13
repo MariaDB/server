@@ -453,7 +453,11 @@ ANALYZE
               "buffer_type": "flat",
               "buffer_size": "119",
               "join_type": "BNL",
-              "r_filtered": 100
+              "r_loops": 3,
+              "r_filtered": 100,
+              "r_unpack_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "r_effective_rows": 3
             }
           }
         },
@@ -489,7 +493,11 @@ ANALYZE
               "buffer_type": "flat",
               "buffer_size": "119",
               "join_type": "BNL",
-              "r_filtered": 100
+              "r_loops": 2,
+              "r_filtered": 100,
+              "r_unpack_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "r_effective_rows": 3
             }
           }
         }
@@ -553,7 +561,11 @@ ANALYZE
                     "buffer_type": "flat",
                     "buffer_size": "119",
                     "join_type": "BNL",
-                    "r_filtered": 100
+                    "r_loops": 3,
+                    "r_filtered": 100,
+                    "r_unpack_time_ms": "REPLACED",
+                    "r_other_time_ms": "REPLACED",
+                    "r_effective_rows": 3
                   }
                 }
               },
@@ -589,7 +601,11 @@ ANALYZE
                     "buffer_type": "flat",
                     "buffer_size": "119",
                     "join_type": "BNL",
-                    "r_filtered": 100
+                    "r_loops": 2,
+                    "r_filtered": 100,
+                    "r_unpack_time_ms": "REPLACED",
+                    "r_other_time_ms": "REPLACED",
+                    "r_effective_rows": 3
                   }
                 }
               }

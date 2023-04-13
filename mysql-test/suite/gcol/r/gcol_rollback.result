@@ -79,10 +79,29 @@ a	b	c	d
 ROLLBACK;
 SET DEBUG_SYNC = 'now SIGNAL dml_done';
 connection con1;
-disconnect con1;
 connection default;
 SELECT * FROM t;
 a	b	d
 9	10	29
 DROP TABLE t;
 SET DEBUG_SYNC = 'RESET';
+#
+#  MDEV-30597 Assertion `flag == 1' failed in
+#	row_build_index_entry_low
+#
+CREATE TABLE t1 (
+col1 INT PRIMARY KEY, col_text TEXT,
+col_text_g TEXT GENERATED ALWAYS AS (SUBSTR(col_text,1,499))
+) ENGINE = InnoDB ROW_FORMAT = Compact;
+connection con1;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+INSERT INTO t1 (col1) VALUES (1) ;
+DELETE FROM t1 WHERE col1 = 1;
+ALTER TABLE t1 ADD UNIQUE INDEX (col_text_g(9));
+BEGIN;
+INSERT INTO t1 (col1) VALUES (1);
+ROLLBACK;
+disconnect con1;
+DROP TABLE t1;
+# End of 10.4 tests

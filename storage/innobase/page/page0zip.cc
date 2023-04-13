@@ -3372,7 +3372,7 @@ page_zip_validate_low(
 				differed.  Let us ignore it. */
 				page_zip_fail(("page_zip_validate:"
 					       " min_rec_flag"
-					       " (%s" ULINTPF "," ULINTPF
+					       " (%s" UINT32PF "," UINT32PF
 					       ",0x%02x)\n",
 					       sloppy ? "ignored, " : "",
 					       page_get_space_id(page),
@@ -3417,7 +3417,8 @@ page_zip_validate_low(
 			page + PAGE_NEW_INFIMUM, TRUE);
 		trec = page_rec_get_next_low(
 			temp_page + PAGE_NEW_INFIMUM, TRUE);
-		const ulint n_core = page_is_leaf(page) ? index->n_fields : 0;
+		const ulint n_core = (index && page_is_leaf(page))
+			? index->n_fields : 0;
 
 		do {
 			if (page_offset(rec) != page_offset(trec)) {

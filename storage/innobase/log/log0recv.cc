@@ -1241,7 +1241,7 @@ static void fil_name_process(const char *name, ulint len, uint32_t space_id,
 		return;
 	}
 
-	ut_ad(srv_operation == SRV_OPERATION_NORMAL
+	ut_ad(srv_operation <= SRV_OPERATION_EXPORT_RESTORED
 	      || srv_operation == SRV_OPERATION_RESTORE
 	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
 
@@ -1307,7 +1307,8 @@ same_space:
 			} else {
 				ib::error() << "Tablespace " << space_id
 					<< " has been found in two places: '"
-					<< f.name << "' and '" << name << "'."
+					<< f.name << "' and '"
+					<< fname.name << "'."
 					" You must delete one of them.";
 				recv_sys.set_corrupt_fs();
 			}
@@ -1333,7 +1334,8 @@ same_space:
 
 				ib::info()
 					<< "At LSN: " << recv_sys.recovered_lsn
-					<< ": unable to open file " << name
+					<< ": unable to open file "
+					<< fname.name
 					<< " for tablespace " << space_id;
 			}
 			break;
@@ -1350,8 +1352,9 @@ same_space:
 			ut_ad(space == NULL);
 			if (srv_force_recovery == 0) {
 				sql_print_error("InnoDB: Recovery cannot access"
-						" file %s (tablespace "
-						UINT32PF ")", name, space_id);
+						" file %.*s (tablespace "
+						UINT32PF ")", int(len), name,
+						space_id);
 				sql_print_information("InnoDB: You may set "
 						      "innodb_force_recovery=1"
 						      " to ignore this and"
@@ -1362,9 +1365,10 @@ same_space:
 			}
 
 			sql_print_warning("InnoDB: Ignoring changes to"
-					  " file %s (tablespace " UINT32PF ")"
+					  " file %.*s (tablespace "
+					  UINT32PF ")"
 					  " due to innodb_force_recovery",
-					  name, space_id);
+					  int(len), name, space_id);
 		}
 	}
 }
@@ -3223,7 +3227,7 @@ static void log_sort_flush_list()
 @param last_batch     whether it is possible to write more redo log */
 void recv_sys_t::apply(bool last_batch)
 {
-  ut_ad(srv_operation == SRV_OPERATION_NORMAL ||
+  ut_ad(srv_operation <= SRV_OPERATION_EXPORT_RESTORED ||
         srv_operation == SRV_OPERATION_RESTORE ||
         srv_operation == SRV_OPERATION_RESTORE_EXPORT);
 
@@ -3384,7 +3388,7 @@ next_free_block:
     for (;;)
     {
       const bool empty= pages.empty();
-      if (empty && !buf_pool.n_pend_reads)
+      if (empty && !os_aio_pending_reads())
         break;
 
       if (!is_corrupt_fs() && !is_corrupt_log())
@@ -3398,7 +3402,6 @@ next_free_block:
           {
             mysql_mutex_unlock(&mutex);
             os_aio_wait_until_no_pending_reads();
-            ut_ad(!buf_pool.n_pend_reads);
             mysql_mutex_lock(&mutex);
             ut_ad(pages.empty());
           }
@@ -4104,7 +4107,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	byte*		buf;
 	dberr_t		err = DB_SUCCESS;
 
-	ut_ad(srv_operation == SRV_OPERATION_NORMAL
+	ut_ad(srv_operation <= SRV_OPERATION_EXPORT_RESTORED
 	      || srv_operation == SRV_OPERATION_RESTORE
 	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
 	ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
@@ -4315,7 +4318,7 @@ completed:
 
 		recv_sys.parse_start_lsn = checkpoint_lsn;
 
-		if (srv_operation == SRV_OPERATION_NORMAL) {
+		if (srv_operation <= SRV_OPERATION_EXPORT_RESTORED) {
 			deferred_spaces.deferred_dblwr();
 			buf_dblwr.recover();
 		}
@@ -4380,7 +4383,8 @@ completed:
 
 	log_sys.last_checkpoint_lsn = checkpoint_lsn;
 
-	if (!srv_read_only_mode && srv_operation == SRV_OPERATION_NORMAL
+	if (!srv_read_only_mode
+            && srv_operation <= SRV_OPERATION_EXPORT_RESTORED
 	    && (~log_t::FORMAT_ENCRYPTED & log_sys.log.format)
 	    == log_t::FORMAT_10_5) {
 		/* Write a FILE_CHECKPOINT marker as the first thing,

@@ -103,7 +103,6 @@ SET DEBUG_SYNC = 'now SIGNAL dml_done';
 
 connection con1;
 reap;
-disconnect con1;
 connection default;
 
 SELECT * FROM t;
@@ -111,5 +110,27 @@ SELECT * FROM t;
 DROP TABLE t;
 SET DEBUG_SYNC = 'RESET';
 
+--echo #
+--echo #  MDEV-30597 Assertion `flag == 1' failed in
+--echo #	row_build_index_entry_low
+--echo #
+CREATE TABLE t1 (
+col1 INT PRIMARY KEY, col_text TEXT,
+col_text_g TEXT GENERATED ALWAYS AS (SUBSTR(col_text,1,499))
+) ENGINE = InnoDB ROW_FORMAT = Compact;
+connection con1;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+INSERT INTO t1 (col1) VALUES (1) ;
+DELETE FROM t1 WHERE col1 = 1;
+ALTER TABLE t1 ADD UNIQUE INDEX (col_text_g(9));
+BEGIN;
+INSERT INTO t1 (col1) VALUES (1);
+ROLLBACK;
+disconnect con1;
+DROP TABLE t1;
+
 # Wait till all disconnects are completed
 --source include/wait_until_count_sessions.inc
+
+--echo # End of 10.4 tests

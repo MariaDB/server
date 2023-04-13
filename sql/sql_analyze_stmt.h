@@ -63,14 +63,19 @@ protected:
     if (my_gap_tracker)
       attach_gap_time_tracker(thd, my_gap_tracker, end);
   }
+
+  /*
+    The time spent after stop_tracking() call on this object and any
+    subsequent time tracking call will be billed to this tracker.
+  */
+  Gap_time_tracker *my_gap_tracker;
 public:
   Exec_time_tracker() : count(0), cycles(0), my_gap_tracker(NULL) {}
 
-  /*
-    The time spent between stop_tracking() call on this object and any
-    other time measurement will be billed to this tracker.
-  */
-  Gap_time_tracker *my_gap_tracker;
+  void set_gap_tracker(Gap_time_tracker *gap_tracker)
+  {
+    my_gap_tracker= gap_tracker;
+  }
 
   // interface for collecting time
   void start_tracking(THD *thd)
@@ -158,6 +163,25 @@ public:
   if (unlikely((tracker)->timed)) \
   { (tracker)->stop_tracking(thd); }
 
+
+/*
+  Just a counter to increment one value. Wrapped in a class to be uniform
+  with other counters used by ANALYZE.
+*/
+
+class Counter_tracker
+{
+public:
+  Counter_tracker() : r_scans(0) {}
+  ha_rows r_scans;
+
+  inline void on_scan_init() { r_scans++; }
+
+  bool has_scans() const { return (r_scans != 0); }
+  ha_rows get_loops() const { return r_scans; }
+};
+
+
 /*
   A class for collecting read statistics.
   
@@ -168,20 +192,16 @@ public:
    It can be used to track reading from files, buffers, etc).
 */
 
-class Table_access_tracker 
+class Table_access_tracker
 {
 public:
-  Table_access_tracker() :
-    r_scans(0), r_rows(0), /*r_rows_after_table_cond(0),*/
-    r_rows_after_where(0)
+  Table_access_tracker() : r_scans(0), r_rows(0), r_rows_after_where(0)
   {}
 
-  ha_rows r_scans; /* How many scans were ran on this join_tab */
+  ha_rows r_scans; /* how many scans were ran on this join_tab */
   ha_rows r_rows; /* How many rows we've got after that */
   ha_rows r_rows_after_where; /* Rows after applying attached part of WHERE */
 
-  bool has_scans() const { return (r_scans != 0); }
-  ha_rows get_loops() const { return r_scans; }
   double get_avg_rows() const
   {
     return r_scans
@@ -200,6 +220,9 @@ public:
   inline void on_scan_init() { r_scans++; }
   inline void on_record_read() { r_rows++; }
   inline void on_record_after_where() { r_rows_after_where++; }
+
+  bool has_scans() const { return (r_scans != 0); }
+  ha_rows get_loops() const { return r_scans; }
 };
 
 

@@ -1,0 +1,35 @@
+--source include/have_maria.inc
+
+SELECT COUNT(@@GLOBAL.aria_log_dir_path);
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@GLOBAL.aria_log_dir_path=1;
+
+SELECT COUNT(@@GLOBAL.aria_log_dir_path);
+
+
+SELECT @@GLOBAL.aria_log_dir_path = VARIABLE_VALUE
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
+WHERE VARIABLE_NAME='aria_log_dir_path';
+
+SELECT COUNT(@@GLOBAL.aria_log_dir_path);
+
+SELECT COUNT(VARIABLE_VALUE)
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
+WHERE VARIABLE_NAME='aria_log_dir_path';
+
+
+SELECT @@aria_log_dir_path = @@GLOBAL.aria_log_dir_path;
+
+
+SELECT COUNT(@@aria_log_dir_path);
+
+--Error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT COUNT(@@local.aria_log_dir_path);
+
+--Error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT COUNT(@@SESSION.aria_log_dir_path);
+
+SELECT COUNT(@@GLOBAL.aria_log_dir_path);
+
+--Error ER_BAD_FIELD_ERROR
+SELECT aria_log_dir_path = @@SESSION.aria_log_dir_path;

@@ -289,7 +289,8 @@ static int cmp_data(ulint mtype, ulint prtype, const byte *data1, ulint len1,
     DBUG_ASSERT(is_strnncoll_compatible(prtype & DATA_MYSQL_TYPE_MASK));
     if (CHARSET_INFO *cs= all_charsets[dtype_get_charset_coll(prtype)])
       return cs->coll->strnncollsp_nchars(cs, data1, len1, data2, len2,
-                                          std::max(len1, len2));
+                                          std::max(len1, len2),
+	         MY_STRNNCOLLSP_NCHARS_EMULATE_TRIMMED_TRAILING_SPACES);
     goto no_collation;
   case DATA_VARCHAR:
   case DATA_CHAR:

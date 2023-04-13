@@ -891,6 +891,8 @@ enum enum_query_type
   // it evaluates to. Should be used for error messages, so that they
   // don't reveal values.
   QT_NO_DATA_EXPANSION= (1 << 9),
+  // Remove wrappers added for TVC when creating or showing view
+  QT_NO_WRAPPERS_FOR_TVC_IN_VIEW= (1 << 12),
 };
 
 
