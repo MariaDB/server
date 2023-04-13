@@ -316,7 +316,6 @@ my_bool spider_param_index_hint_pushdown(
 );
 uint spider_param_max_connections();
 uint spider_param_conn_wait_timeout();
-uint spider_param_internal_lock_wait_timeout();
 uint spider_param_log_result_errors();
 uint spider_param_log_result_error_with_sql();
 uint spider_param_internal_xa_id_type(
