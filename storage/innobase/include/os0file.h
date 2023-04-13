@@ -1567,7 +1567,11 @@ is_absolute_path(
 	}
 
 #ifdef _WIN32
-	if (path[1] == ':' && path[2] == OS_PATH_SEPARATOR) {
+	// This will conflict during a 10.5->10.6 merge.
+	// Choose the 10.6 version as is.
+	if (path[1] == ':' &&
+	    (path[2] == OS_PATH_SEPARATOR ||
+	     path[2] == OS_PATH_SEPARATOR_ALT)) {
 		return(true);
 	}
 #endif /* _WIN32 */

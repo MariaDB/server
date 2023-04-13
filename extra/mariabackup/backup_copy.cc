@@ -130,7 +130,9 @@ struct datadir_thread_ctxt_t {
 	bool			ret;
 };
 
-static bool backup_files_from_datadir(ds_ctxt *ds_data, const char *dir_path);
+static bool backup_files_from_datadir(ds_ctxt_t *ds_data,
+                                      const char *dir_path,
+                                      const char *prefix);
 
 /************************************************************************
 Retirn true if character if file separator */
@@ -1499,7 +1501,11 @@ bool backup_start(ds_ctxt *ds_data, ds_ctxt *ds_meta,
 		return(false);
 	}
 
-	if (!backup_files_from_datadir(ds_data, fil_path_to_mysql_datadir)) {
+        if (!backup_files_from_datadir(ds_data, fil_path_to_mysql_datadir,
+	                               "aws-kms-key") ||
+            !backup_files_from_datadir(ds_data,
+                                       aria_log_dir_path,
+                                       "aria_log")) {
 		return false;
 	}
 
@@ -1714,7 +1720,12 @@ ibx_copy_incremental_over_full()
 			}
 		}
 
-		if (!(ret = backup_files_from_datadir(ds_data, xtrabackup_incremental_dir)))
+		if (!(ret = backup_files_from_datadir(ds_data,
+						      xtrabackup_incremental_dir,
+						      "aws-kms-key")) ||
+		    !(ret = backup_files_from_datadir(ds_data,
+						      xtrabackup_incremental_dir,
+						      "aria_log")))
 			goto cleanup;
 
 		/* copy supplementary files */
@@ -1829,6 +1840,41 @@ public:
   }
 };
 
+
+static inline bool
+is_aria_log_dir_file(const datadir_node_t &node)
+{
+  return starts_with(node.filepath_rel, "aria_log");
+}
+
+
+bool
+copy_back_aria_logs()
+{
+  Copy_back_dst_dir dst_dir_buf;
+  const char *dstdir= dst_dir_buf.make(aria_log_dir_path);
+  std::unique_ptr<ds_ctxt_t, void (&)(ds_ctxt_t*)>
+    ds_ctxt_aria_log_dir_path(ds_create(dstdir, DS_TYPE_LOCAL), ds_destroy);
+
+  datadir_node_t node;
+  datadir_node_init(&node);
+  datadir_iter_t *it = datadir_iter_new(".", false);
+
+  while (datadir_iter_next(it, &node))
+  {
+    if (!is_aria_log_dir_file(node))
+      continue;
+    if (!copy_or_move_file(ds_ctxt_aria_log_dir_path.get(),
+                           node.filepath, node.filepath_rel,
+                           dstdir, 1))
+      return false;
+  }
+  datadir_node_free(&node);
+  datadir_iter_free(it);
+  return true;
+}
+
+
 bool
 copy_back()
 {
@@ -1861,6 +1907,10 @@ copy_back()
 		&& !directory_exists(srv_log_group_home_dir, true)) {
 			return(false);
 	}
+	if (aria_log_dir_path && *aria_log_dir_path
+		&& !directory_exists(aria_log_dir_path, true)) {
+			return false;
+	}
 
 	/* cd to backup directory */
 	if (my_setwd(xtrabackup_target_dir, MYF(MY_WME)))
@@ -1868,6 +1918,9 @@ copy_back()
 		msg("Can't my_setwd %s", xtrabackup_target_dir);
 		return(false);
 	}
+
+	if (!copy_back_aria_logs())
+		return false;
 
 	/* parse data file path */
 
@@ -1972,6 +2025,10 @@ copy_back()
 		char c_tmp;
 		int i_tmp;
 		bool is_ibdata_file;
+
+		/* Skip aria log files */
+		if (is_aria_log_dir_file(node))
+			continue;
 
 		if (strstr(node.filepath,"/" ROCKSDB_BACKUP_DIR "/")
 #ifdef _WIN32
@@ -2209,7 +2266,9 @@ decrypt_decompress()
   Do not copy the Innodb files (ibdata1, redo log files),
   as this is done in a separate step.
 */
-static bool backup_files_from_datadir(ds_ctxt *ds_data, const char *dir_path)
+static bool backup_files_from_datadir(ds_ctxt_t *ds_data,
+                                      const char *dir_path,
+                                      const char *prefix)
 {
 	os_file_dir_t dir = os_file_opendir(dir_path);
 	if (dir == IF_WIN(INVALID_HANDLE_VALUE, nullptr)) return false;
@@ -2225,8 +2284,7 @@ static bool backup_files_from_datadir(ds_ctxt *ds_data, const char *dir_path)
 		if (!pname)
 			pname = info.name;
 
-		if (!starts_with(pname, "aws-kms-key") &&
-			!starts_with(pname, "aria_log"))
+		if (!starts_with(pname, prefix))
 			/* For ES exchange the above line with the following code:
 			(!xtrabackup_prepare || !xtrabackup_incremental_dir ||
 				!starts_with(pname, "aria_log")))

@@ -266,6 +266,8 @@ my_bool innobase_locks_unsafe_for_binlog;
 my_bool innobase_rollback_on_timeout;
 my_bool innobase_create_status_file;
 
+char *aria_log_dir_path;
+
 /* The following counter is used to convey information to InnoDB
 about server activity: in selects it is not sensible to call
 srv_active_wake_master_thread after each fetch or search, we only do
@@ -1105,7 +1107,8 @@ enum options_xtrabackup
   OPT_XTRA_CHECK_PRIVILEGES,
   OPT_XTRA_MYSQLD_ARGS,
   OPT_XB_IGNORE_INNODB_PAGE_CORRUPTION,
-  OPT_INNODB_FORCE_RECOVERY
+  OPT_INNODB_FORCE_RECOVERY,
+  OPT_ARIA_LOG_DIR_PATH
 };
 
 struct my_option xb_client_options[]= {
@@ -1696,6 +1699,11 @@ struct my_option xb_server_options[] =
    &innodb_log_checksums, &innodb_log_checksums,
    0, GET_BOOL, REQUIRED_ARG, 1, 0, 0, 0, 0, 0 },
 
+  {"aria_log_dir_path", OPT_ARIA_LOG_DIR_PATH,
+   "Path to individual files and their sizes.",
+   &aria_log_dir_path, &aria_log_dir_path,
+   0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+
   {"open_files_limit", OPT_OPEN_FILES_LIMIT, "the maximum number of file "
    "descriptors to reserve with setrlimit().",
    (G_PTR*) &xb_open_files_limit, (G_PTR*) &xb_open_files_limit, 0, GET_ULONG,
@@ -2010,6 +2018,10 @@ xb_get_one_option(int optid,
     if (srv_force_recovery) {
         ADD_PRINT_PARAM_OPT(srv_force_recovery);
     }
+    break;
+
+  case OPT_ARIA_LOG_DIR_PATH:
+    ADD_PRINT_PARAM_OPT(aria_log_dir_path);
     break;
 
   case OPT_XTRA_TARGET_DIR:

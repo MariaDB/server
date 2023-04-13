@@ -367,6 +367,7 @@ bool get_mysql_vars(MYSQL *connection)
   char *innodb_undo_directory_var= NULL;
   char *innodb_page_size_var= NULL;
   char *innodb_undo_tablespaces_var= NULL;
+  char *aria_log_dir_path_var= NULL;
   char *page_zip_level_var= NULL;
   char *ignore_db_dirs= NULL;
   char *endptr;
@@ -397,6 +398,7 @@ bool get_mysql_vars(MYSQL *connection)
       {"innodb_undo_tablespaces", &innodb_undo_tablespaces_var},
       {"innodb_compression_level", &page_zip_level_var},
       {"ignore_db_dirs", &ignore_db_dirs},
+      {"aria_log_dir_path", &aria_log_dir_path_var},
       {NULL, NULL}};
 
   read_mysql_variables(connection, "SHOW VARIABLES", mysql_vars, true);
@@ -536,6 +538,11 @@ bool get_mysql_vars(MYSQL *connection)
   {
     srv_undo_tablespaces= strtoul(innodb_undo_tablespaces_var, &endptr, 10);
     ut_ad(*endptr == 0);
+  }
+
+  if (aria_log_dir_path_var)
+  {
+    aria_log_dir_path= my_strdup(aria_log_dir_path_var, MYF(MY_FAE));
   }
 
   if (page_zip_level_var != NULL)
