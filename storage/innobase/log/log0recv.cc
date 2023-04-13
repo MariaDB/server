@@ -1287,7 +1287,7 @@ void recv_sys_t::close()
     deferred_spaces.clear();
     ut_d(mysql_mutex_unlock(&mutex));
 
-    lsn= 0;
+    end_lsn= 0;
     mysql_mutex_destroy(&mutex);
   }
 
@@ -1308,7 +1308,8 @@ void recv_sys_t::create()
 
 	len = 0;
 	offset = 0;
-	lsn = 1;
+	lsn = 0;
+	end_lsn = 1;
 	found_corrupt_log = false;
 	found_corrupt_fs = false;
 	file_checkpoint = 0;
@@ -3987,7 +3988,7 @@ static bool recv_scan_log(bool last_phase)
         ut_ad(!last_phase);
         rewound_lsn= recv_sys.lsn;
         store= false;
-        if (!recv_sys.end_lsn)
+        if (recv_sys.end_lsn <= 1)
           goto skip_the_rest;
         ut_ad(recv_sys.file_checkpoint);
         goto func_exit;
@@ -3998,7 +3999,8 @@ static bool recv_scan_log(bool last_phase)
     {
       ut_ad(r == recv_sys_t::GOT_EOF);
     got_eof:
-      if (recv_sys.end_lsn)
+      ut_ad(recv_sys.is_initialised());
+      if (recv_sys.end_lsn > 1)
       {
         ut_ad(recv_sys.end_lsn == recv_sys.lsn);
         break;

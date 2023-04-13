@@ -323,7 +323,7 @@ public:
   /** Clean up after create() */
   void close();
 
-  bool is_initialised() const { return lsn != 0; }
+  bool is_initialised() const { return end_lsn != 0; }
 
   /** Find the latest checkpoint.
   @return error code or DB_SUCCESS */
