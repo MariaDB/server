@@ -242,9 +242,9 @@ enum rec_leaf_format {
 	REC_LEAF_INSTANT
 };
 
-#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 11
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 12
 # pragma GCC diagnostic push
-# pragma GCC diagnostic ignored "-Wconversion" /* GCC 5 to 10 need this */
+# pragma GCC diagnostic ignored "-Wconversion" /* GCC 5 to 11 need this */
 #endif
 /** Determine the offset to each field in a leaf-page record
 in ROW_FORMAT=COMPACT,DYNAMIC,COMPRESSED.
