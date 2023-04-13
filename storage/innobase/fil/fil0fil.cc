@@ -1676,9 +1676,7 @@ pfs_os_file_t fil_delete_tablespace(ulint id)
     mtr_t mtr;
     mtr.start();
     mtr.log_file_op(FILE_DELETE, id, space->chain.start->name);
-    handle= space->chain.start->handle;
-    mtr.commit_file(*space, nullptr);
-
+    mtr.commit_file(*space, nullptr, &handle);
     fil_space_free_low(space);
   }
 
