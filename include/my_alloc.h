@@ -50,6 +50,9 @@ typedef struct st_mem_root
      MAX_BLOCK_USAGE_BEFORE_DROP block will be dropped in 'used' list)
   */
   unsigned int first_block_usage;
+#ifndef DBUG_OFF
+  my_bool read_only;
+#endif
 
   void (*error_handler)(void);
   const char *name;

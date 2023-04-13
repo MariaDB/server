@@ -167,6 +167,9 @@ public:
   Server_side_cursor *cursor;
   uchar *packet;
   uchar *packet_end;
+#ifndef DBUG_OFF
+  ulong executed_counter;
+#endif
   uint param_count;
   uint last_errno;
   uint flags;
@@ -3965,6 +3968,9 @@ Prepared_statement::Prepared_statement(THD *thd_arg)
   cursor(0),
   packet(0),
   packet_end(0),
+#ifndef DBUG_OFF
+  executed_counter(0),
+#endif
   param_count(0),
   last_errno(0),
   flags((uint) IS_IN_USE),
@@ -4040,8 +4046,8 @@ void Prepared_statement::setup_set_params()
 Prepared_statement::~Prepared_statement()
 {
   DBUG_ENTER("Prepared_statement::~Prepared_statement");
-  DBUG_PRINT("enter",("stmt: %p  cursor: %p",
-                      this, cursor));
+  DBUG_PRINT("enter",("stmt: %p  cursor: %p, executed: %lu",
+                      this, cursor, executed_counter));
   delete cursor;
   /*
     We have to call free on the items even if cleanup is called as some items,
@@ -4197,6 +4203,9 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
           init_param_array(this));
 
   lex->set_trg_event_type_for_tables();
+#ifndef DBUG_OFF
+  executed_counter= 0;
+#endif
 
   /*
     While doing context analysis of the query (in check_prepared_statement)
@@ -4494,9 +4503,30 @@ reexecute:
     error= reprepare();
 
     if (likely(!error))                         /* Success */
+    {
+      // The was reprepare so counter ot runs should be reset
+      executed_counter= 0;
+      mem_root->read_only= 0;
       goto reexecute;
+    }
   }
   reset_stmt_params(this);
+#ifndef DBUG_OFF
+  if (!error)
+  {
+    if (++executed_counter >= 2)
+    {
+      mem_root->read_only= 1;
+    }
+    DBUG_PRINT("info", ("execute counter: %lu", executed_counter));
+  }
+  else
+  {
+    // Error cal not be count as normal run
+    executed_counter= 0;
+    mem_root->read_only= 0;
+  }
+#endif
 
   return error;
 }
