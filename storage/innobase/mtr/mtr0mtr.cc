@@ -333,8 +333,14 @@ void mtr_t::commit_shrink(fil_space_t &space)
 /** Commit a mini-transaction that is deleting or renaming a file.
 @param space   tablespace that is being renamed or deleted
 @param name    new file name (nullptr=the file will be deleted)
+@param detached_handle if detached_handle != nullptr and if space is detached
+                       during the function execution the file handle if its
+                       node will be set to OS_FILE_CLOSED, and the previous
+                       value of the file handle will be assigned to the
+                       address, pointed by detached_handle.
 @return whether the operation succeeded */
-bool mtr_t::commit_file(fil_space_t &space, const char *name)
+bool mtr_t::commit_file(fil_space_t &space, const char *name,
+    pfs_os_file_t *detached_handle)
 {
   ut_ad(is_active());
   ut_ad(!is_inside_ibuf());
@@ -402,7 +408,9 @@ bool mtr_t::commit_file(fil_space_t &space, const char *name)
     ut_ad(!space.referenced());
     ut_ad(space.is_stopping());
 
-    fil_system.detach(&space, true);
+    pfs_os_file_t handle = fil_system.detach(&space, true);
+    if (detached_handle)
+      *detached_handle = handle;
     mysql_mutex_unlock(&fil_system.mutex);
 
     success= true;
