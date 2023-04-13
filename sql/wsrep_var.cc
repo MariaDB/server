@@ -984,6 +984,28 @@ bool wsrep_max_ws_size_update(sys_var *self, THD *thd, enum_var_type)
 
 bool wsrep_mode_check(sys_var *self, THD* thd, set_var* var)
 {
+  ulonglong new_wsrep_mode= var->save_result.ulonglong_value;
+  if (new_wsrep_mode && !WSREP_ON)
+  {
+    my_message(ER_WRONG_ARGUMENTS, "wsrep_mode can't be set "
+               "if wsrep_on=OFF", MYF(0));
+    return true;
+  }
+  ulonglong old_wsrep_mode= wsrep_mode;
+  wsrep_mode= new_wsrep_mode;
+  if (wsrep_check_mode(WSREP_MODE_REPLICATE_MYISAM) ||
+      wsrep_check_mode(WSREP_MODE_REPLICATE_ARIA))
+  {
+    if (!(wsrep_forced_binlog_format == BINLOG_FORMAT_UNSPEC ||
+          wsrep_forced_binlog_format == BINLOG_FORMAT_ROW))
+    {
+      my_message(ER_WRONG_ARGUMENTS, "wsrep_mode=[REPLICATE_MYISAM|REPLICATE_ARIA] "
+                 "can't be enabled if wsrep_forced_binlog != [NONE|ROW]", MYF(0));
+      wsrep_mode= old_wsrep_mode;
+      return true;
+    }
+  }
+  wsrep_mode= old_wsrep_mode;
   return false;
 }
 
@@ -1157,7 +1179,7 @@ bool wsrep_replicate_myisam_check(sys_var *self, THD* thd, set_var* var)
       !(wsrep_forced_binlog_format == BINLOG_FORMAT_UNSPEC ||
         wsrep_forced_binlog_format == BINLOG_FORMAT_ROW))
   {
-    my_message(ER_WRONG_ARGUMENTS, "wsrep_replicate_myisam=ON can't be enabled "
+    my_message(ER_WRONG_ARGUMENTS, "wsrep_mode=REPLICATE_MYISAM can't be enabled "
                "if wsrep_forced_binlog != [NONE|ROW]", MYF(0));
     return true;
   }
@@ -1167,13 +1189,22 @@ bool wsrep_replicate_myisam_check(sys_var *self, THD* thd, set_var* var)
 bool wsrep_forced_binlog_format_check(sys_var *self, THD* thd, set_var* var)
 {
   ulonglong new_forced_binlog_format= var->save_result.ulonglong_value;
+
   if (!(new_forced_binlog_format == BINLOG_FORMAT_UNSPEC ||
         new_forced_binlog_format == BINLOG_FORMAT_ROW))
   {
-    if (wsrep_replicate_myisam)
+    if (wsrep_check_mode(WSREP_MODE_BINLOG_ROW_FORMAT_ONLY))
     {
       my_message(ER_WRONG_ARGUMENTS, "wsrep_forced_binlog_format=[MIXED|STATEMENT] can't be set "
-                 "if wsrep_replicate_myisam=ON", MYF(0));
+                 "if wsrep_mode=BINLOG_ROW_FORMAT_ONLY", MYF(0));
+      return true;
+    }
+
+    if (wsrep_check_mode(WSREP_MODE_REPLICATE_MYISAM) ||
+        wsrep_check_mode(WSREP_MODE_REPLICATE_ARIA))
+    {
+      my_message(ER_WRONG_ARGUMENTS, "wsrep_forced_binlog_format=[MIXED|STATEMENT] can't be set "
+                 "if wsrep_mode=[REPLICATE_MYISAM|REPLICATE_ARIA]", MYF(0));
       return true;
     }
   }
