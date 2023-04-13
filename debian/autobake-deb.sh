@@ -58,8 +58,8 @@ remove_rocksdb_tools()
 replace_uring_with_aio()
 {
   sed 's/liburing-dev/libaio-dev/g' -i debian/control
-  sed -e '/-DIGNORE_AIO_CHECK=YES/d' \
-      -e '/-DWITH_URING=YES/d' -i debian/rules
+  sed -e '/-DIGNORE_AIO_CHECK=ON/d' \
+      -e '/-DWITH_URING=ON/d' -i debian/rules
 }
 
 disable_pmem()
