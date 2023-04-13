@@ -162,7 +162,7 @@ then
   # On Gitlab the output log must stay under 4MB so make the
   # build less verbose
   sed '/Add support for verbose builds/,/^$/d' -i debian/rules
-elif [[ -d storage/columnstore/columnstore/debian ]]
+elif [[ -d storage/columnstore/columnstore/debian ]] && [[ "$LSBNAME" = !(buster|bionic) ]]
 then
   # ColumnStore is explicitly disabled in the native Debian build. Enable it
   # now when build is triggered by autobake-deb.sh (MariaDB.org) and when the
