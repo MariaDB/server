@@ -64,7 +64,7 @@ replace_uring_with_aio()
 disable_pmem()
 {
   sed '/libpmem-dev/d' -i debian/control
-  sed '/-DWITH_PMEM=YES/d' -i debian/rules
+  sed '/-DWITH_PMEM=ON/d' -i debian/rules
 }
 
 architecture=$(dpkg-architecture -q DEB_BUILD_ARCH)
