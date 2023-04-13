@@ -97,7 +97,13 @@ bool fil_space_t::try_to_close(bool print_info)
     if (!node->is_open())
       continue;
 
-    if (const auto n= space.set_closing())
+    /* Other thread is trying to do fil_delete_tablespace()
+    concurrently for the same tablespace. So ignore this
+    tablespace and try to close the other one */
+    const auto n= space.set_closing();
+    if (n & STOPPING)
+      continue;
+    if (n & (PENDING | NEEDS_FSYNC))
     {
       if (!print_info)
         continue;
@@ -1370,7 +1376,10 @@ void fil_space_t::close_all()
 
       for (ulint count= 10000; count--;)
       {
-        if (!space.set_closing())
+        const auto n= space.set_closing();
+        if (n & STOPPING)
+          goto next;
+        if (!(n & (PENDING | NEEDS_FSYNC)))
         {
           node->close();
           goto next;
