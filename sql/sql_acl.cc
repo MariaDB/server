@@ -59,7 +59,8 @@
 #include "wsrep_mysqld.h"
 
 #define MAX_SCRAMBLE_LENGTH 1024
-
+#define MAX_OBSERVE_NONEXISTENT_USERS 50
+std::map<std::string,uint64> nonexistent_user_failed_login_map;
 bool mysql_user_table_is_in_short_password_format= false;
 bool using_global_priv_table= true;
 
@@ -14526,6 +14527,37 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
     inc_host_errors(mpvio.auth_info.thd->security_ctx->ip, &errors);
     if (!thd->is_error())
       login_failed_error(thd);
+    if (mpvio.make_it_fail)
+    {
+      std::string key= std::string(sctx->user) + std::string(sctx->host);
+      mysql_mutex_assert_not_owner(&acl_cache->lock);
+      mysql_mutex_lock(&acl_cache->lock);
+      auto it= nonexistent_user_failed_login_map.find(key);
+      uint failed_count= 1;
+      /*Check if exists in map */
+      if (it != nonexistent_user_failed_login_map.end())
+      {
+        failed_count+= it->second;
+        /*Increment failed count */
+        it->second= failed_count;
+      }
+      else
+      {
+        nonexistent_user_failed_login_map.insert(
+            std::make_pair(key, failed_count));
+        /*Limit map growth , just erase minim key*/
+        if (nonexistent_user_failed_login_map.size() >
+            MAX_OBSERVE_NONEXISTENT_USERS)
+        {
+          nonexistent_user_failed_login_map.erase(
+              nonexistent_user_failed_login_map.begin());
+        }
+      }
+      mysql_mutex_unlock(&acl_cache->lock);
+      //TODO FLUSH PRILEVEGES 清除
+      connection_delay_for_user(thd, sctx->user, sctx->host, failed_count);
+      my_printf_error(ERR_R_MISSING_ASN1_EOS,"login map size %d ",MYF(ME_ERROR_LOG),nonexistent_user_failed_login_map.size());
+    }
     DBUG_RETURN(1);
   }
 
@@ -14761,7 +14793,6 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
   /* Ready to handle queries */
   DBUG_RETURN(0);
 }
-
 /**
   MySQL Server Password Authentication Plugin
 
