@@ -64,16 +64,24 @@ a	b	c
 # Done restarting server
 # List before t1 DISCARD
 db.opt
+t1.cfg.sav
 t1.frm
 t1.ibd
+t1.ibd.sav
+t2.cfg.sav
 t2.frm
 t2.ibd
+t2.ibd.sav
 ALTER TABLE t1 DISCARD TABLESPACE;
 # List after t1 DISCARD
 db.opt
+t1.cfg.sav
 t1.frm
+t1.ibd.sav
+t2.cfg.sav
 t2.frm
 t2.ibd
+t2.ibd.sav
 ALTER TABLE t1 IMPORT TABLESPACE;
 ALTER TABLE t1 ENGINE InnoDB;
 SELECT COUNT(*) FROM t1;
@@ -91,10 +99,14 @@ a	b	c
 638	Cavalry	..asdasdfaeraf
 db.opt
 t1.cfg
+t1.cfg.sav
 t1.frm
 t1.ibd
+t1.ibd.sav
+t2.cfg.sav
 t2.frm
 t2.ibd
+t2.ibd.sav
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 640
@@ -113,7 +125,9 @@ ALTER TABLE t2 ROW_FORMAT=DYNAMIC;
 ALTER TABLE t2 DISCARD TABLESPACE;
 # List after t2 DISCARD
 db.opt
+t2.cfg.sav
 t2.frm
+t2.ibd.sav
 ALTER TABLE t2 IMPORT TABLESPACE;
 ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x21 and the meta-data file has 0x1; .cfg file uses ROW_FORMAT=COMPACT)
 ALTER TABLE t2 IMPORT TABLESPACE;

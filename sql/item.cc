@@ -5772,7 +5772,8 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
             max_arg_level for the function if it's needed.
           */
           if (thd->lex->in_sum_func &&
-              thd->lex == context->select_lex->parent_lex &&
+              last_checked_context->select_lex->parent_lex ==
+              context->select_lex->parent_lex &&
               thd->lex->in_sum_func->nest_level >= select->nest_level)
           {
             Item::Type ref_type= (*reference)->type();
@@ -5798,7 +5799,8 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
                              (Item_ident*) (*reference) :
                              0), false);
           if (thd->lex->in_sum_func &&
-              thd->lex == context->select_lex->parent_lex &&
+              last_checked_context->select_lex->parent_lex ==
+              context->select_lex->parent_lex &&
               thd->lex->in_sum_func->nest_level >= select->nest_level)
           {
             set_if_bigger(thd->lex->in_sum_func->max_arg_level,
@@ -6147,10 +6149,8 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
         goto mark_non_agg_field;
     }
 
-    if (!thd->lex->current_select->no_wrap_view_item &&
+    if (select && !thd->lex->current_select->no_wrap_view_item &&
         thd->lex->in_sum_func &&
-        select &&
-        thd->lex == select->parent_lex &&
         thd->lex->in_sum_func->nest_level == 
         select->nest_level)
       set_if_bigger(thd->lex->in_sum_func->max_arg_level,
@@ -8188,7 +8188,8 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
           max_arg_level for the function if it's needed.
         */
         if (thd->lex->in_sum_func &&
-            thd->lex == context->select_lex->parent_lex &&
+            last_checked_context->select_lex->parent_lex ==
+            context->select_lex->parent_lex &&
             thd->lex->in_sum_func->nest_level >= 
             last_checked_context->select_lex->nest_level)
           set_if_bigger(thd->lex->in_sum_func->max_arg_level,
@@ -8212,7 +8213,8 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
         max_arg_level for the function if it's needed.
       */
       if (thd->lex->in_sum_func &&
-          thd->lex == context->select_lex->parent_lex &&
+          last_checked_context->select_lex->parent_lex ==
+          context->select_lex->parent_lex &&
           thd->lex->in_sum_func->nest_level >= 
           last_checked_context->select_lex->nest_level)
         set_if_bigger(thd->lex->in_sum_func->max_arg_level,
@@ -8227,7 +8229,8 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
       1. outer reference (will be fixed later by the fix_inner_refs function);
       2. an unnamed reference inside an aggregate function.
   */
-  if (!((*ref)->type() == REF_ITEM &&
+  if (!set_properties_only && 
+      !((*ref)->type() == REF_ITEM &&
        ((Item_ref *)(*ref))->ref_type() == OUTER_REF) &&
       (((*ref)->with_sum_func() && name.str &&
         !(current_sel->get_linkage() != GLOBAL_OPTIONS_TYPE &&

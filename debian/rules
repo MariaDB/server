@@ -1,10 +1,7 @@
 #!/usr/bin/make -f
 
-export DH_VERBOSE=1
-export DEB_BUILD_HARDENING=1
-
-# enable Debian Hardening
-# see: https://wiki.debian.org/Hardening
+# Enable Debian Hardening
+# https://wiki.debian.org/Hardening
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
 # Disable LTO on Ubuntu, see LP: #1970634 and https://jira.mariadb.org/browse/MDEV-25633
@@ -66,8 +63,8 @@ endif
 
 # Only attempt to build with PMEM on archs that have package libpmem-dev available
 # See https://packages.debian.org/search?searchon=names&keywords=libpmem-dev
-ifneq (,$(filter $(DEB_HOST_ARCH_CPU),amd64 arm64 ppc64el riscv64))
-    CMAKEFLAGS += -DWITH_PMEM=YES
+ifneq (,$(filter $(DEB_HOST_ARCH),amd64 arm64 ppc64el riscv64))
+    CMAKEFLAGS += -DWITH_PMEM=ON
 endif
 
 # Add support for verbose builds
@@ -99,6 +96,9 @@ endif
 	# quality standards in Debian. Also building it requires an extra 4 GB of disk
 	# space which makes native Debian builds fail as the total disk space needed
 	# for MariaDB becomes over 10 GB. Only build CS via autobake-deb.sh.
+	#
+	# Note: Don't use '-DWITH_URING=ON' as some Buildbot builders are missing it
+	# and would fail permanently.
 	PATH=$${MYSQL_BUILD_PATH:-"/usr/lib/ccache:/usr/local/bin:/usr/bin:/bin"} \
 	    NO_UPDATE_BUILD_VERSION=1 \
 	    dh_auto_configure --builddirectory=$(BUILDDIR) -- \
@@ -113,8 +113,7 @@ endif
 	    -DCONC_DEFAULT_CHARSET=utf8mb4 \
 	    -DPLUGIN_AWS_KEY_MANAGEMENT=NO \
 	    -DPLUGIN_COLUMNSTORE=NO \
-	    -DIGNORE_AIO_CHECK=YES \
-	    -DWITH_URING=YES \
+	    -DIGNORE_AIO_CHECK=ON \
 	    -DDEB=$(DEB_VENDOR)
 
 # This is needed, otherwise 'make test' will run before binaries have been built
@@ -129,6 +128,7 @@ override_dh_auto_test:
 	dh_testdir
 	# Ensure at least an empty file exists
 	touch mysql-test/unstable-tests
+	# Skip unstable tests if such are defined for arch
 	[ ! -f debian/unstable-tests.$(DEB_HOST_ARCH) ] || cat debian/unstable-tests.$(DEB_HOST_ARCH) >> mysql-test/unstable-tests
 	# Run testsuite
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))

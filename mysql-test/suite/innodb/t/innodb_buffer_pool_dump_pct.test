@@ -15,7 +15,6 @@ col2 VARCHAR(25), col3 varchar(25)) ENGINE=InnoDB;
 CREATE INDEX idx1 ON tab5(col2(10));
 CREATE INDEX idx2 ON tab5(col3(10));
 
-SET GLOBAL innodb_buffer_pool_filename=ib_buffer_pool100;
 SET GLOBAL innodb_buffer_pool_dump_pct=100;
 
 #***********************************************************
@@ -58,8 +57,7 @@ AND variable_value != @IBPDS
 AND variable_value like 'Buffer pool(s) dump completed at%';
 --source include/wait_condition.inc
 
---file_exists $MYSQLD_DATADIR/ib_buffer_pool100
-SET GLOBAL innodb_buffer_pool_filename=ib_buffer_pool1;
+--move_file $MYSQLD_DATADIR/ib_buffer_pool $MYSQLD_DATADIR/ib_buffer_pool100
 SET GLOBAL innodb_buffer_pool_dump_pct=1;
 SELECT @@global.innodb_buffer_pool_dump_pct;
 
@@ -83,17 +81,15 @@ AND variable_value != @IBPDS
 AND variable_value like 'Buffer pool(s) dump completed at%';
 --source include/wait_condition.inc
 
---file_exists $MYSQLD_DATADIR/ib_buffer_pool1
+--file_exists $MYSQLD_DATADIR/ib_buffer_pool
 
 perl;
-my $size1 = -s "$ENV{MYSQLD_DATADIR}/ib_buffer_pool1";
+my $size1 = -s "$ENV{MYSQLD_DATADIR}/ib_buffer_pool";
 my $size100 = -s "$ENV{MYSQLD_DATADIR}/ib_buffer_pool100";
 die "$size100<=$size1\n" unless $size100 > $size1;
 EOF
 
 SET GLOBAL innodb_buffer_pool_dump_pct=DEFAULT;
-SET GLOBAL innodb_buffer_pool_filename=DEFAULT;
 
 --remove_file $MYSQLD_DATADIR/ib_buffer_pool100
---remove_file $MYSQLD_DATADIR/ib_buffer_pool1
 DROP TABLE tab5;

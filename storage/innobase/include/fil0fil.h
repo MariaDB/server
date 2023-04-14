@@ -626,8 +626,7 @@ private:
   @return number of pending operations, possibly with NEEDS_FSYNC flag */
   uint32_t set_closing()
   {
-    return n_pending.fetch_or(CLOSING, std::memory_order_acquire) &
-      (PENDING | NEEDS_FSYNC);
+    return n_pending.fetch_or(CLOSING, std::memory_order_acquire);
   }
 
 public:

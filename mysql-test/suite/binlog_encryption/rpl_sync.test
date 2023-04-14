@@ -1,1 +1,1 @@
---source suite/rpl/include/rpl_sync_test.inc
+--source suite/rpl/t/rpl_sync.test

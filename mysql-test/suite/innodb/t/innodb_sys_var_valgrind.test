@@ -25,24 +25,6 @@ select @@innodb_ft_server_stopword_table;
 
 drop table user_stopword_1, user_stopword_2;
 
-#Test innodb_buffer_pool_filename (global variable)
-
-select @@innodb_buffer_pool_filename;
-
-set @blah='hello';
-set global innodb_buffer_pool_filename = @blah;
-select @@innodb_buffer_pool_filename;
-
-set global innodb_buffer_pool_filename="bye";
-select @@innodb_buffer_pool_filename;
-
---error ER_WRONG_VALUE_FOR_VAR
-set global innodb_buffer_pool_filename=NULL;
-select @@innodb_buffer_pool_filename;
-
-set global innodb_buffer_pool_filename=default;
-select @@innodb_buffer_pool_filename;
-
 #Test innodb_ft_aux_table (global variable)
 CREATE TABLE t1 ( id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
 opening_line TEXT(500), author VARCHAR(200), title VARCHAR(200), FULLTEXT idx
