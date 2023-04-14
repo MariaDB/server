@@ -1251,8 +1251,54 @@ a
 2
 1
 drop table t;
+#
+# MDEV-31043 ER_KEY_NOT_FOUND upon concurrent ALTER and transaction
+#
+create table t (a int, b int) engine=myisam;
+insert into t values (1,10),(2,20);
+set debug_sync= 'alter_table_online_before_lock signal burnit wait_for goforit';
+alter table t add c int, algorithm=copy, lock=none;
+connection con1;
+set debug_sync= 'now wait_for burnit';
+update t set b = 100;
+start transaction;
+update t set b = 200;
+connection con2;
+delete from t order by a limit 1;
+delete from t order by a limit 1;
+select * from t;
+a	b
+connection con1;
+commit;
+set debug_sync= 'now signal goforit';
+connection default;
+select * from t;
+a	b	c
+drop table t;
+create table t (a int, b int) engine=aria;
+insert into t values (1,10),(2,20);
+set debug_sync= 'alter_table_online_before_lock signal burnit wait_for goforit';
+alter table t add c int, algorithm=copy, lock=none;
+connection con1;
+set debug_sync= 'now wait_for burnit';
+update t set b = 100;
+start transaction;
+update t set b = 200;
+connection con2;
+delete from t order by a limit 1;
+delete from t order by a limit 1;
+select * from t;
+a	b
+connection con1;
+commit;
+set debug_sync= 'now signal goforit';
+connection default;
+select * from t;
+a	b	c
+drop table t;
 set debug_sync= reset;
 disconnect con1;
+disconnect con2;
 #
 # End of 10.10 tests
 #
