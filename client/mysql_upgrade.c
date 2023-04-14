@@ -75,6 +75,8 @@ char upgrade_from_version[1024];
 
 static my_bool opt_write_binlog;
 
+static void print_conn_args(const char *tool_name);
+
 #define OPT_SILENT OPT_MAX_CLIENT_OPTION
 
 static struct my_option my_long_options[]=
@@ -154,7 +156,10 @@ static struct my_option my_long_options[]=
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"user", 'u', "User for login.", &opt_user,
    &opt_user, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"verbose", 'v', "Display more output about the process; Using it twice will print connection argument; Using it 3 times will print out all CHECK, RENAME and ALTER TABLE during the check phase.",
+  {"verbose", 'v', "Display more output about the process; Using it twice will print connection argument;"
+  "Using it 3 times will print out all CHECK, RENAME and ALTER TABLE during the check phase;"
+  "Using it 4 times (added in MariaDB 10.0.14) will also write out all mariadb-check commands used;"
+  "Using it 5 times will print all the mariadb commands used and their results while running mysql_fix_privilege_tables script.",
    &opt_not_used, &opt_not_used, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
   {"version", 'V', "Output version information and exit.", 0, 0, 0,
    GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -209,6 +214,7 @@ static void die(const char *fmt, ...)
   DBUG_ENTER("die");
 
   /* Print the error message */
+  print_conn_args("mariadb-check");
   fflush(stdout);
   va_start(args, fmt);
   if (fmt)
@@ -638,6 +644,7 @@ static int run_query(const char *query, DYNAMIC_STRING *ds_res,
                 "--database=mysql",
                 "--batch", /* Turns off pager etc. */
                 force ? "--force": "--skip-force",
+                opt_verbose >= 5 ? "--verbose" : "",
                 ds_res || opt_silent ? "--silent": "",
                 "<",
                 query_file_path,
@@ -873,8 +880,7 @@ static int upgrade_already_done(int silent)
             "There is no need to run mariadb-upgrade again for %s.",
             upgrade_from_version, version);
     if (!opt_check_upgrade)
-      verbose("You can use --force if you still want to run mariadb-upgrade",
-              upgrade_from_version, version);
+      verbose("You can use --force if you still want to run mariadb-upgrade");
   }
   return 0;
 }
@@ -1336,9 +1342,7 @@ static int run_sql_fix_privilege_tables(void)
       dynstr_append(&ds_script, *query_ptr);
   }
 
-  run_query(ds_script.str,
-            &ds_result, /* Collect result */
-            TRUE);
+  run_query(ds_script.str, (opt_verbose >= 5) ? NULL : &ds_result, TRUE);
 
   {
     /*
@@ -1509,6 +1513,7 @@ int main(int argc, char **argv)
   DBUG_ASSERT(phase == phases_total);
 
 end:
+  print_conn_args("mariadb-check");
   free_used_memory();
   my_end(my_end_arg);
   exit(0);

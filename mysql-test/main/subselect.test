@@ -79,13 +79,13 @@ SELECT ROW(1,2,3) > (SELECT 1,2,1);
 #enable after fix MDEV-28585
 --disable_view_protocol
 SELECT ROW(1,2,3) = (SELECT 1,2,NULL);
-SELECT (SELECT 1.5,2,'a') = ROW(1.5,2,'a');
-SELECT (SELECT 1.5,2,'a') = ROW(1.5,2,'b');
-SELECT (SELECT 1.5,2,'a') = ROW('1.5b',2,'b');
-SELECT (SELECT 'b',2,'a') = ROW(1.5,2,'a');
-SELECT (SELECT 1.5,2,'a') = ROW(1.5,'2','a');
-SELECT (SELECT 1.5,'c','a') = ROW(1.5,2,'a');
 --enable_view_protocol
+SELECT (SELECT 1.5,2,'a') = ROW(1.5,2,'a') AS m;
+SELECT (SELECT 1.5,2,'a') = ROW(1.5,2,'b') AS m;
+SELECT (SELECT 1.5,2,'a') = ROW('1.5b',2,'b') AS m;
+SELECT (SELECT 'b',2,'a') = ROW(1.5,2,'a') AS m;
+SELECT (SELECT 1.5,2,'a') = ROW(1.5,'2','a') AS m;
+SELECT (SELECT 1.5,'c','a') = ROW(1.5,2,'a') AS m;
 
 -- error ER_OPERAND_COLUMNS
 SELECT (SELECT * FROM (SELECT 'test' a,'test' b) a);
@@ -123,11 +123,15 @@ set optimizer_switch=@tmp_optimizer_switch;
 select * from t1 where t1.a=(select t2.a from t2 where t2.b=(select max(a) from t3) order by 1 desc limit 1);
 select * from t1 where t1.a=(select t2.a from t2 where t2.b=(select max(a) from t3 where t3.a > t1.a) order by 1 desc limit 1);
 select * from t1 where t1.a=(select t2.a from t2 where t2.b=(select max(a) from t3 where t3.a < t1.a) order by 1 desc limit 1);
-#enable afte fix MDEV-27871
---disable_view_protocol
-select b,(select avg(t2.a+(select min(t3.a) from t3 where t3.a >= t4.a)) from t2) from t4;
-explain extended select b,(select avg(t2.a+(select min(t3.a) from t3 where t3.a >= t4.a)) from t2) from t4;
---enable_view_protocol
+select
+  b,
+  (select avg(t2.a+(select min(t3.a) from t3 where t3.a >= t4.a)) from t2) as m
+from t4;
+explain extended
+select
+  b,
+  (select avg(t2.a+(select min(t3.a) from t3 where t3.a >= t4.a)) from t2) as m
+from t4;
 select * from t3 where exists (select * from t2 where t2.b=t3.a);
 select * from t3 where not exists (select * from t2 where t2.b=t3.a);
 select * from t3 where a in (select b from t2);
@@ -160,16 +164,25 @@ delete from t2 where a=2 and b=10;
 select b,max(a) as ma from t4 group by b having b >= (select max(t2.a) from t2 where t2.b=t4.b);
 create table t5 (a int);
 
-#enable afte fix MDEV-27871
---disable_view_protocol
-
-select (select a from t1 where t1.a=t2.a union select a from t5 where t5.a=t2.a), a from t2;
+select
+ (select a from t1 where t1.a=t2.a union select a from t5 where t5.a=t2.a) as m,
+ a
+from t2;
 insert into t5 values (5);
-select (select a from t1 where t1.a=t2.a union select a from t5 where t5.a=t2.a), a from t2;
+select
+  (select a from t1 where t1.a=t2.a union select a from t5 where t5.a=t2.a) as m,
+  a
+from t2;
 insert into t5 values (2);
-select (select a from t1 where t1.a=t2.a union select a from t5 where t5.a=t2.a), a from t2;
-explain extended select (select a from t1 where t1.a=t2.a union select a from t5 where t5.a=t2.a), a from t2;
---enable_view_protocol
+select
+  (select a from t1 where t1.a=t2.a union select a from t5 where t5.a=t2.a) as m,
+  a
+from t2;
+explain extended
+select
+  (select a from t1 where t1.a=t2.a union select a from t5 where t5.a=t2.a) as m,
+  a
+from t2;
 
 -- error ER_SUBQUERY_NO_1_ROW
 select (select a from t1 where t1.a=t2.a union all select a from t5 where t5.a=t2.a), a from t2;
@@ -274,19 +287,19 @@ SELECT * from t2 where topic = any (SELECT topic FROM t2 GROUP BY topic HAVING t
 SELECT * from t2 where topic = any (SELECT SUM(topic) FROM t1);
 SELECT * from t2 where topic = all (SELECT topic FROM t2 GROUP BY topic);
 SELECT * from t2 where topic = all (SELECT topic FROM t2 GROUP BY topic HAVING topic < 4100);
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT *, topic = all (SELECT topic FROM t2 GROUP BY topic HAVING topic < 4100) from t2;
---enable_view_protocol
+SELECT
+  *,
+  topic = all (SELECT topic FROM t2 GROUP BY topic HAVING topic < 4100) AS m
+FROM t2;
 SELECT * from t2 where topic = all (SELECT SUM(topic) FROM t2);
 SELECT * from t2 where topic <> any (SELECT SUM(topic) FROM t2);
 SELECT * from t2 where topic IN (SELECT topic FROM t2 GROUP BY topic HAVING topic < 41000);
 SELECT * from t2 where topic = any (SELECT topic FROM t2 GROUP BY topic HAVING topic < 41000);
 SELECT * from t2 where topic = all (SELECT topic FROM t2 GROUP BY topic HAVING topic < 41000);
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT *, topic = all (SELECT topic FROM t2 GROUP BY topic HAVING topic < 41000) from t2;
---enable_view_protocol
+SELECT
+ *,
+ topic = all (SELECT topic FROM t2 GROUP BY topic HAVING topic < 41000) AS m
+FROM t2;
 drop table t1,t2;
 
 #forumconthardwarefr7
@@ -530,13 +543,22 @@ select 10.5 IN (SELECT * from t1);
 select 1.5 > ALL (SELECT * from t1);
 select 10.5 > ALL (SELECT * from t1);
 select 1.5 > ANY (SELECT * from t1);
+update t1 set a=NULL where a=2.5;
+select 1.5 IN (SELECT * from t1);
+select 3.5 IN (SELECT * from t1);
+select 10.5 IN (SELECT * from t1);
+select 1.5 > ALL (SELECT * from t1);
+select 10.5 > ALL (SELECT * from t1);
+select 1.5 > ANY (SELECT * from t1);
 select 10.5 > ANY (SELECT * from t1);
 --enable_prepare_warnings
+--enable_view_protocol
+explain extended select (select a+1) from t1;
+explain extended select (select a+1) from t1;
 explain extended select (select a+1) from t1;
 --disable_prepare_warnings
 select (select a+1) from t1;
 drop table t1;
---enable_view_protocol
 
 --echo #
 --echo # Null with keys
@@ -956,10 +978,7 @@ create table t3 (a int, b int);
 insert into t1 values (0,100),(1,2), (1,3), (2,2), (2,7), (2,-1), (3,10);
 insert into t2 values (0,0), (1,1), (2,1), (3,1), (4,1);
 insert into t3 values (3,3), (2,2), (1,1);
-#enable after fix MDEV-27871
---disable_view_protocol
-select a,(select count(distinct t1.b) as sum from t1,t2 where t1.a=t2.a and t2.b > 0 and t1.a <= t3.b group by t1.a order by sum limit 1) from t3;
---enable_view_protocol
+select a,(select count(distinct t1.b) as sum from t1,t2 where t1.a=t2.a and t2.b > 0 and t1.a <= t3.b group by t1.a order by sum limit 1) as m from t3;
 drop table t1,t2,t3;
 
 #
@@ -1078,10 +1097,7 @@ CREATE TABLE `t3` (`taskgenid` mediumint(9) NOT NULL auto_increment,`dbid` int(1
 INSERT INTO `t3` (`taskgenid`, `dbid`, `taskid`, `mon`, `tues`,`wed`, `thur`, `fri`, `sat`, `sun`, `how_often`, `userid`, `active`) VALUES (1,-1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 1);
 CREATE TABLE `t4` (`task_id` smallint(6) NOT NULL default '0',`description` varchar(200) NOT NULL default '') ENGINE=MyISAM CHARSET=latin1;
 INSERT INTO `t4` (`task_id`, `description`) VALUES (1, 'Daily Check List'),(2, 'Weekly Status');
-#enable after fix MDEV-27871
---disable_view_protocol
-select  dbid, name, (date_format(now() , '%Y-%m-%d') - INTERVAL how_often DAY) >= ifnull((SELECT date_format(max(create_date),'%Y-%m-%d') FROM t1 WHERE dbid = b.db_id AND taskid = a.taskgenid), '1950-01-01') from t3 a, t2 b, t4  WHERE dbid = - 1 AND primary_uid = '1' AND t4.task_id = taskid;
---enable_view_protocol
+select  dbid, name, (date_format(now() , '%Y-%m-%d') - INTERVAL how_often DAY) >= ifnull((SELECT date_format(max(create_date),'%Y-%m-%d') as m FROM t1 WHERE dbid = b.db_id AND taskid = a.taskgenid), '1950-01-01') as m from t3 a, t2 b, t4  WHERE dbid = - 1 AND primary_uid = '1' AND t4.task_id = taskid;
 SELECT dbid, name FROM t3 a, t2 b, t4 WHERE dbid = - 1 AND primary_uid = '1' AND ((date_format(now() , '%Y-%m-%d') - INTERVAL how_often DAY) >= ifnull((SELECT date_format(max(create_date),'%Y-%m-%d') FROM t1 WHERE dbid = b.db_id AND taskid = a.taskgenid), '1950-01-01')) AND t4.task_id = taskid;
 drop table t1,t2,t3,t4;
 
@@ -2401,9 +2417,6 @@ SELECT a, MAX(b), MIN(b) FROM t1 GROUP BY a;
 SELECT * FROM t2;
 SELECT * FROM t3;
 
-#enable after fix MDEV-28570
---disable_view_protocol
- 
 SELECT a FROM t1 GROUP BY a
   HAVING a IN (SELECT c FROM t2 WHERE MAX(b)>20);
 SELECT a FROM t1 GROUP BY a
@@ -2467,8 +2480,6 @@ SELECT t1.a FROM t1 GROUP BY t1.a
 SELECT t1.a, SUM(b) AS sum  FROM t1 GROUP BY t1.a
   HAVING t1.a IN (SELECT t2.c FROM t2 GROUP BY t2.c
                     HAVING t2.c+sum > 20);
-
---enable_view_protocol
 
 DROP TABLE t1,t2,t3;
 
@@ -2700,19 +2711,17 @@ DROP TABLE t1;
 # Bug#21540 Subqueries with no from and aggregate functions return
 #           wrong results
 
-#enable after fix MDEV-27871, MDEV-28573
---disable_view_protocol
-
 CREATE TABLE t1 (a INT, b INT);
 CREATE TABLE t2 (a INT);
 INSERT INTO t2 values (1);
 INSERT INTO t1 VALUES (1,1),(1,2),(2,3),(3,4);
 SELECT (SELECT COUNT(DISTINCT t1.b) from t2) FROM t1 GROUP BY t1.a;
-SELECT (SELECT COUNT(DISTINCT t1.b) from t2 union select 1 from t2 where 12 < 3)
+SELECT
+ (SELECT COUNT(DISTINCT t1.b) from t2 union select 1 from t2 where 12 < 3) AS m
   FROM t1 GROUP BY t1.a;
 SELECT COUNT(DISTINCT t1.b), (SELECT COUNT(DISTINCT t1.b)) FROM t1 GROUP BY t1.a;
 SELECT COUNT(DISTINCT t1.b),
-       (SELECT COUNT(DISTINCT t1.b) union select 1 from DUAL where 12 < 3)
+       (SELECT COUNT(DISTINCT t1.b) union select 1 from DUAL where 12 < 3) AS m
   FROM t1 GROUP BY t1.a;
 SELECT (
     SELECT (
@@ -2726,11 +2735,10 @@ SELECT (
         SELECT COUNT(DISTINCT t1.b)
       )
   )
-  FROM t1 GROUP BY t1.a LIMIT 1)
+  FROM t1 GROUP BY t1.a LIMIT 1) AS m
 FROM t1 t2
 GROUP BY t2.a;
 DROP TABLE t1,t2;
---enable_view_protocol
 
 #
 # Bug#21727 Correlated subquery that requires filesort:
@@ -2965,8 +2973,6 @@ DROP TABLE t1,t2;
 # Bug#27229 GROUP_CONCAT in subselect with COUNT() as an argument
 #
 
-#enable after fix MDEV-28571
---disable_view_protocol
 CREATE TABLE t1 (a int, b int);
 CREATE TABLE t2 (m int, n int);
 INSERT INTO t1 VALUES (2,2), (2,2), (3,3), (3,3), (3,3), (4,4);
@@ -2981,7 +2987,6 @@ SELECT COUNT(*) c, a,
   FROM t1 GROUP BY a;
 
 DROP table t1,t2;
---enable_view_protocol
 
 #
 # Bug#27321 Wrong subquery result in a grouping select
@@ -3012,14 +3017,11 @@ SELECT tt.a,
   FROM t1 WHERE t1.a=tt.a GROUP BY a LIMIT 1) as test
   FROM t1 as tt GROUP BY tt.a;
 
-#enable after fix MDEV-28571
---disable_view_protocol
 SELECT tt.a, MAX(
  (SELECT (SELECT t.c FROM t1 AS t WHERE t1.a=t.a AND t.d=MAX(t1.b + tt.a)
   LIMIT 1)
   FROM t1 WHERE t1.a=tt.a GROUP BY a LIMIT 1)) as test
   FROM t1 as tt GROUP BY tt.a;
---enable_view_protocol
 
 DROP TABLE t1;
 
@@ -3175,8 +3177,6 @@ CREATE TABLE t2 (x INTEGER);
 INSERT INTO t1 VALUES (1,11), (2,22), (2,22);
 INSERT INTO t2 VALUES (1), (2);
 
-#enable after fix MDEV-28573
---disable_view_protocol
 # wasn't failing, but should
 --error ER_SUBQUERY_NO_1_ROW
 SELECT a, COUNT(b), (SELECT COUNT(b) FROM t2) FROM t1 GROUP BY a;
@@ -3186,7 +3186,6 @@ SELECT a, COUNT(b), (SELECT COUNT(b) FROM t2) FROM t1 GROUP BY a;
 SELECT a, COUNT(b), (SELECT COUNT(b)+0 FROM t2) FROM t1 GROUP BY a;
 
 SELECT (SELECT SUM(t1.a)/AVG(t2.x) FROM t2) FROM t1;
---enable_view_protocol
 
 DROP TABLE t1,t2;
 
@@ -3201,8 +3200,6 @@ GROUP BY a1.a;
 DROP TABLE t1;
 
 #test cases from 29297
-#enable after fix MDEV-28573
---disable_view_protocol
 CREATE TABLE t1 (a INT);
 CREATE TABLE t2 (a INT);
 INSERT INTO t1 VALUES (1),(2);
@@ -3212,7 +3209,6 @@ SELECT (SELECT SUM(t1.a) FROM t2 WHERE a=0) FROM t1;
 SELECT (SELECT SUM(t1.a) FROM t2 WHERE a!=0) FROM t1;
 SELECT (SELECT SUM(t1.a) FROM t2 WHERE a=1) FROM t1;
 DROP TABLE t1,t2;
---enable_view_protocol
 
 #
 # Bug#31884 Assertion + crash in subquery in the SELECT clause.
@@ -5415,14 +5411,11 @@ INSERT INTO t2 VALUES (10,7,0), (0,7,0);
 CREATE TABLE t3 (a int, b int);
 INSERT INTO t3 VALUES (10,7), (0,7);
 
-#enable after fix MDEV-27871
---disable_view_protocol
 SELECT SUM(DISTINCT b),
        (SELECT t2.a FROM t1 JOIN t2 ON t2.c != 0
-          WHERE t.a != 0 AND t2.a != 0)
+          WHERE t.a != 0 AND t2.a != 0) AS m
   FROM (SELECT * FROM t3) AS t
 GROUP BY 2;
---enable_view_protocol
 
 SELECT SUM(DISTINCT b), 
        (SELECT t2.a FROM t1,t2 WHERE t.a != 0 or 1=2 LIMIT 1)
@@ -5580,29 +5573,53 @@ INSERT INTO t3 VALUES (1,1),(2,2);
 set @old_optimizer_switch = @@session.optimizer_switch;
 set @@optimizer_switch='materialization=on,partial_match_rowid_merge=on,partial_match_table_scan=off,subquery_cache=off,semijoin=off';
 
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT (SELECT f3a FROM t3 where f3a > 3) NOT IN (SELECT f1a FROM t1) FROM t2;
-SELECT (SELECT f3a,f3a  FROM t3 where f3a > 3) NOT IN (SELECT f1a,f1a FROM t1) FROM t2;
-SELECT (SELECT f3a, f3b FROM t3 where f3a > 3) NOT IN (SELECT f1a, f1b FROM t1) FROM t2;
-SELECT (SELECT f3a, f3b FROM t3 where f3a > 3) NOT IN (SELECT f1a, f1b FROM t1);
-SELECT (SELECT f3a FROM t3 where f3a > 3) IN (SELECT f1a FROM t1) FROM t2;
-SELECT (SELECT f3a,f3a  FROM t3 where f3a > 3) IN (SELECT f1a,f1a FROM t1) FROM t2;
-SELECT (SELECT f3a, f3b FROM t3 where f3a > 3) IN (SELECT f1a, f1b FROM t1) FROM t2;
-SELECT (SELECT f3a, f3b FROM t3 where f3a > 3) IN (SELECT f1a, f1b FROM t1);
+SELECT
+ (SELECT f3a FROM t3 where f3a > 3) NOT IN (SELECT f1a FROM t1) AS m
+FROM t2;
+SELECT
+  (SELECT f3a,f3a  FROM t3 where f3a > 3) NOT IN (SELECT f1a,f1a FROM t1) AS m
+ FROM t2;
+SELECT
+  (SELECT f3a, f3b FROM t3 where f3a > 3) NOT IN (SELECT f1a, f1b FROM t1) AS m
+FROM t2;
+SELECT
+  (SELECT f3a, f3b FROM t3 where f3a > 3) NOT IN (SELECT f1a, f1b FROM t1) AS m;
+SELECT
+  (SELECT f3a FROM t3 where f3a > 3) IN (SELECT f1a FROM t1) AS m
+FROM t2;
+SELECT
+  (SELECT f3a,f3a  FROM t3 where f3a > 3) IN (SELECT f1a,f1a FROM t1) AS m
+FROM t2;
+SELECT
+  (SELECT f3a, f3b FROM t3 where f3a > 3) IN (SELECT f1a, f1b FROM t1) AS m
+FROM t2;
+SELECT
+  (SELECT f3a, f3b FROM t3 where f3a > 3) IN (SELECT f1a, f1b FROM t1) AS m;
 
 set @@session.optimizer_switch=@old_optimizer_switch;
 
 # check different IN with default switches
-SELECT (SELECT f3a FROM t3 where f3a > 3) NOT IN (SELECT f1a FROM t1) FROM t2;
-SELECT (SELECT f3a,f3a  FROM t3 where f3a > 3) NOT IN (SELECT f1a,f1a FROM t1) FROM t2;
-SELECT (SELECT f3a, f3b FROM t3 where f3a > 3) NOT IN (SELECT f1a, f1b FROM t1) FROM t2;
-SELECT (SELECT f3a, f3b FROM t3 where f3a > 3) NOT IN (SELECT f1a, f1b FROM t1);
-SELECT (SELECT f3a FROM t3 where f3a > 3) IN (SELECT f1a FROM t1) FROM t2;
-SELECT (SELECT f3a,f3a  FROM t3 where f3a > 3) IN (SELECT f1a,f1a FROM t1) FROM t2;
-SELECT (SELECT f3a, f3b FROM t3 where f3a > 3) IN (SELECT f1a, f1b FROM t1) FROM t2;
-SELECT (SELECT f3a, f3b FROM t3 where f3a > 3) IN (SELECT f1a, f1b FROM t1);
---enable_view_protocol
+SELECT
+  (SELECT f3a FROM t3 where f3a > 3) NOT IN (SELECT f1a FROM t1) AS m
+FROM t2;
+SELECT
+  (SELECT f3a,f3a  FROM t3 where f3a > 3) NOT IN (SELECT f1a,f1a FROM t1) AS m
+FROM t2;
+SELECT
+  (SELECT f3a, f3b FROM t3 where f3a > 3) NOT IN (SELECT f1a, f1b FROM t1) AS m
+FROM t2;
+SELECT
+  (SELECT f3a, f3b FROM t3 where f3a > 3) NOT IN (SELECT f1a, f1b FROM t1) AS m;
+SELECT
+  (SELECT f3a FROM t3 where f3a > 3) IN (SELECT f1a FROM t1) FROM t2 AS m;
+SELECT
+  (SELECT f3a,f3a  FROM t3 where f3a > 3) IN (SELECT f1a,f1a FROM t1) AS m
+FROM t2;
+SELECT
+  (SELECT f3a, f3b FROM t3 where f3a > 3) IN (SELECT f1a, f1b FROM t1) AS m
+FROM t2;
+SELECT
+  (SELECT f3a, f3b FROM t3 where f3a > 3) IN (SELECT f1a, f1b FROM t1) AS m;
 
 # other row operation with NULL single row subquery also should work
 select (null, null) = (null, null);
@@ -5642,10 +5659,9 @@ INSERT INTO t3 VALUES (4),(5);
 
 SET optimizer_switch='subquery_cache=off';
 
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT ( SELECT b FROM t2 WHERE b = a OR EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
---enable_view_protocol
+SELECT
+  ( SELECT b FROM t2 WHERE b = a OR EXISTS ( SELECT c FROM t3 WHERE c = b ) ) AS m
+FROM t1;
 
 # This query just for example, it should return the same as above (1 and NULL)
 SELECT ( SELECT b FROM t2 WHERE b = a OR b * 0) FROM t1;
@@ -5834,15 +5850,17 @@ INSERT INTO t3 VALUES (8),(3);
 
 set @@expensive_subquery_limit= 0;
 
-#enable after fix MDEV-27871
---disable_view_protocol
 EXPLAIN
-SELECT (SELECT MIN(b) FROM t1, t2 WHERE b = a AND (b = alias1.b OR EXISTS (SELECT * FROM t3)))
+SELECT
+  (SELECT MIN(b) FROM t1, t2
+     WHERE b = a AND (b = alias1.b OR EXISTS (SELECT * FROM t3))) AS m
 FROM t2 alias1, t1 alias2, t1 alias3;
 
 flush status;
 
-SELECT (SELECT MIN(b) FROM t1, t2 WHERE b = a AND (b = alias1.b OR EXISTS (SELECT * FROM t3)))
+SELECT
+  (SELECT MIN(b) FROM t1, t2
+     WHERE b = a AND (b = alias1.b OR EXISTS (SELECT * FROM t3))) AS m
 FROM t2 alias1, t1 alias2, t1 alias3;
 
 show status like "subquery_cache%";
@@ -5851,17 +5869,20 @@ show status like '%Handler_read%';
 set @@expensive_subquery_limit= default;
 
 EXPLAIN
-SELECT (SELECT MIN(b) FROM t1, t2 WHERE b = a AND (b = alias1.b OR EXISTS (SELECT * FROM t3)))
+SELECT
+  (SELECT MIN(b) FROM t1, t2
+     WHERE b = a AND (b = alias1.b OR EXISTS (SELECT * FROM t3))) AS m
 FROM t2 alias1, t1 alias2, t1 alias3;
 
 flush status;
 
-SELECT (SELECT MIN(b) FROM t1, t2 WHERE b = a AND (b = alias1.b OR EXISTS (SELECT * FROM t3)))
+SELECT
+  (SELECT MIN(b) FROM t1, t2
+     WHERE b = a AND (b = alias1.b OR EXISTS (SELECT * FROM t3))) AS m
 FROM t2 alias1, t1 alias2, t1 alias3;
 
 show status like "subquery_cache%";
 show status like '%Handler_read%';
---enable_view_protocol
 
 drop table t1, t2, t3;
 
@@ -6115,22 +6136,16 @@ INSERT INTO t1 VALUES (1),(2);
 CREATE TABLE t2 (f2 int);
 
 INSERT INTO t2 VALUES (3);
-#enable after fix MDEV-29224
---disable_view_protocol
 SELECT ( SELECT MAX(f1) FROM t2 ) FROM t1;
 
 SELECT ( SELECT MAX(f1) FROM t2 ) FROM v1;
---enable_view_protocol
 
 INSERT INTO t2 VALUES (4);
 
-#enable after fix MDEV-28573
---disable_view_protocol
 --error ER_SUBQUERY_NO_1_ROW
 SELECT ( SELECT MAX(f1) FROM t2 ) FROM v1;
 --error ER_SUBQUERY_NO_1_ROW
 SELECT ( SELECT MAX(f1) FROM t2 ) FROM t1;
---enable_view_protocol
 
 drop view v1;
 drop table t1,t2;

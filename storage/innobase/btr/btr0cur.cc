@@ -1017,7 +1017,7 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
     if (lock_intention == BTR_INTENTION_DELETE)
     {
       compress_limit= BTR_CUR_PAGE_COMPRESS_LIMIT(index());
-      if (buf_pool.n_pend_reads &&
+      if (os_aio_pending_reads_approx() &&
           trx_sys.history_size_approx() > BTR_CUR_FINE_HISTORY_LENGTH)
       {
         /* Most delete-intended operations are due to the purge of history.
@@ -1723,7 +1723,7 @@ dberr_t btr_cur_t::open_leaf(bool first, dict_index_t *index,
     {
       compress_limit= BTR_CUR_PAGE_COMPRESS_LIMIT(index);
 
-      if (buf_pool.n_pend_reads &&
+      if (os_aio_pending_reads_approx() &&
           trx_sys.history_size_approx() > BTR_CUR_FINE_HISTORY_LENGTH)
       {
         mtr_x_lock_index(index, mtr);

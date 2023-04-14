@@ -1,0 +1,199 @@
+#
+# MDEV-30830: ANALYZE FORMAT=JSON: r_unpack_time_ms is empty for the hashed joins
+#
+#
+# First, check a regular BNL-join
+#
+create table t1 (
+a int,
+b int
+);
+insert into t1 select seq, seq/3 from seq_0_to_99;
+create table t2 (
+a int,
+b int
+);
+insert into t2 select seq, seq/5 from seq_0_to_99;
+set @js='$out';
+set @out=(select json_extract(@js,'$**.block-nl-join.r_unpack_time_ms'));
+select cast(json_extract(@out,'$[0]') as DOUBLE) > 0;
+cast(json_extract(@out,'$[0]') as DOUBLE) > 0
+1
+drop table t1,t2;
+#
+# Now, check the hashed, BNL-H join
+#
+create table t1 (
+a int,
+b int
+);
+insert into t1 select seq, seq/3 from seq_0_to_499;
+create table t2 (
+a int,
+b int
+);
+insert into t2 select seq, seq/5 from seq_0_to_499;
+set @tmp=@@join_cache_level, join_cache_level=6;
+select '$out' as X;
+X
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 500,
+          "r_rows": 500,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100,
+          "attached_condition": "t1.a < 700 and t1.b is not null"
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t2",
+            "access_type": "hash_ALL",
+            "key": "#hash#$hj",
+            "key_length": "5",
+            "used_key_parts": ["b"],
+            "ref": ["test.t1.b"],
+            "loops": 500,
+            "r_loops": 1,
+            "rows": 500,
+            "r_rows": 500,
+            "cost": "REPLACED",
+            "r_table_time_ms": "REPLACED",
+            "r_other_time_ms": "REPLACED",
+            "filtered": 100,
+            "r_filtered": 20,
+            "attached_condition": "t2.a < 100"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "18Kb",
+          "join_type": "BNLH",
+          "attached_condition": "t2.b = t1.b",
+          "r_loops": 500,
+          "r_filtered": 100,
+          "r_unpack_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_effective_rows": 0.594
+        }
+      }
+    ]
+  }
+}
+set @out=(select json_extract(@js,'$**.block-nl-join.r_unpack_time_ms'));
+select cast(json_extract(@out,'$[0]') as DOUBLE) > 0;
+cast(json_extract(@out,'$[0]') as DOUBLE) > 0
+1
+set join_cache_level=@tmp;
+drop table t1, t2;
+#
+# MDEV-30972: ANALYZE FORMAT=JSON: some time is unaccounted-for in BNL-H join
+#
+create table t1 (
+a int,
+col1 varchar(100),
+col2 varchar(100),
+col3 varchar(100)
+);
+insert into t1 select
+seq/100,
+concat('col1-', seq),
+concat('col1-', seq),
+concat('col1-', seq)
+from seq_1_to_1000;
+create table t2 (
+a int,
+col1 varchar(100),
+col2 varchar(100),
+col3 varchar(100)
+);
+insert into t2 select
+seq/100,
+concat('col1-', seq),
+concat('col1-', seq),
+concat('col1-', seq)
+from seq_1_to_2000;
+set @tmp=@@join_cache_level, join_cache_level=6;
+select '$out' as X;
+X
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 1000,
+          "r_rows": 1000,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100,
+          "attached_condition": "t1.a is not null"
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t2",
+            "access_type": "hash_ALL",
+            "key": "#hash#$hj",
+            "key_length": "5",
+            "used_key_parts": ["a"],
+            "ref": ["test.t1.a"],
+            "loops": 1000,
+            "r_loops": 1,
+            "rows": 2000,
+            "r_rows": 2000,
+            "cost": "REPLACED",
+            "r_table_time_ms": "REPLACED",
+            "r_other_time_ms": "REPLACED",
+            "filtered": 100,
+            "r_filtered": 100
+          },
+          "buffer_type": "flat",
+          "buffer_size": "256Kb",
+          "join_type": "BNLH",
+          "attached_condition": "t2.a = t1.a and concat(t1.col1,t1.col2,t1.col3) = concat(t2.col1,t2.col2,t2.col3)",
+          "r_loops": 1000,
+          "r_filtered": 1.025630506,
+          "r_unpack_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_effective_rows": 97.501
+        }
+      }
+    ]
+  }
+}
+set @out=(select json_extract(@js,'$**.block-nl-join.r_other_time_ms'));
+select cast(json_extract(@out,'$[0]') as DOUBLE) > 0;
+cast(json_extract(@out,'$[0]') as DOUBLE) > 0
+1
+set join_cache_level=@tmp;
+drop table t1, t2;

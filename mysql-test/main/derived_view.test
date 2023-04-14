@@ -2463,3 +2463,300 @@ drop view v, v2;
 drop table t1,t2;
 
 --echo # End of 10.2 tests
+
+--echo #
+--echo # MDEV-30706: view defined as select with implicit grouping and
+--echo #             a set function used in a subquery
+--echo #
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT);
+INSERT INTO t1 VALUES (1,1), (2,2);
+CREATE TABLE t2 (a INT PRIMARY KEY, b INT);
+INSERT INTO t2 VALUES (1,1), (3,3);
+CREATE TABLE t3 (a INT PRIMARY KEY, b INT);
+INSERT INTO t3 VALUES (2,2), (4,4), (7,7);
+CREATE TABLE t4 (a INT PRIMARY KEY, b INT);
+INSERT INTO t4 VALUES (2,2), (5,5), (7,7);
+
+let $q=
+SELECT
+  (SELECT SUM(t4.b) FROM t1, t2 WHERE t1.a = t2.b GROUP BY t1.a) AS m
+FROM t3, t4
+  WHERE t3.a = t4.b;
+
+eval CREATE VIEW v AS $q;
+
+eval $q;
+SELECT * FROM v;
+eval WITH cte AS ( $q ) SELECT * FROM cte;
+
+eval EXPLAIN $q;
+EXPLAIN SELECT * FROM v;
+eval EXPLAIN WITH cte AS ( $q ) SELECT * FROM cte;
+
+eval PREPARE stmt FROM "$q";
+execute stmt;
+execute stmt;
+DEALLOCATE PREPARE stmt;
+
+eval PREPARE stmt FROM "SELECT * FROM v";
+execute stmt;
+execute stmt;
+DEALLOCATE PREPARE stmt;
+
+eval PREPARE stmt FROM "WITH cte AS ( $q ) SELECT * FROM cte";
+execute stmt;
+execute stmt;
+DEALLOCATE PREPARE stmt;
+
+DROP VIEW v;
+DROP TABLE t1,t2,t3,t4;
+
+--echo #
+--echo # MDEV-29224: view defined as select with implicit grouping and
+--echo #             a set function used in a subquery
+--echo #
+
+CREATE TABLE t1 (f1 INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (f2 int);
+INSERT INTO t2 VALUES (3);
+
+let $q=
+SELECT ( SELECT MAX(f1) FROM t2 ) FROM t1;
+
+eval CREATE VIEW v AS $q;
+
+eval $q;
+SELECT * FROM v;
+eval WITH cte AS ( $q ) SELECT * FROM cte;
+
+eval EXPLAIN $q;
+EXPLAIN SELECT * FROM v;
+eval EXPLAIN WITH cte AS ( $q ) SELECT * FROM cte;
+
+eval PREPARE stmt FROM "$q";
+execute stmt;
+execute stmt;
+DEALLOCATE PREPARE stmt;
+
+eval PREPARE stmt FROM "SELECT * FROM v";
+execute stmt;
+execute stmt;
+DEALLOCATE PREPARE stmt;
+
+eval PREPARE stmt FROM "WITH cte AS ( $q ) SELECT * FROM cte";
+execute stmt;
+execute stmt;
+DEALLOCATE PREPARE stmt;
+
+DROP VIEW v;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-28573: view defined as select with implicit grouping and
+--echo #             a set function used in a subquery
+--echo #
+
+CREATE TABLE t1 (a INTEGER, b INTEGER);
+CREATE TABLE t2 (c INTEGER);
+INSERT INTO t1 VALUES (1,11), (2,22), (2,22);
+INSERT INTO t2 VALUES (1), (2);
+
+let $q1=
+SELECT (SELECT COUNT(b) FROM t2) FROM t1;
+let $q2=
+SELECT (SELECT COUNT(b) FROM t2 WHERE c > 1) FROM t1;
+
+eval CREATE VIEW v1 AS $q1;
+eval CREATE VIEW v2 AS $q2;
+
+--error ER_SUBQUERY_NO_1_ROW
+eval $q1;
+--error ER_SUBQUERY_NO_1_ROW
+SELECT * FROM v1;
+--error ER_SUBQUERY_NO_1_ROW
+eval WITH cte AS ( $q1 ) SELECT * FROM cte;
+eval $q2;
+SELECT * FROM v2;
+eval WITH cte AS ( $q2 ) SELECT * FROM cte;
+
+eval EXPLAIN $q1;
+EXPLAIN SELECT * FROM v1;
+eval EXPLAIN WITH cte AS ( $q1 ) SELECT * FROM cte;
+
+eval PREPARE stmt FROM "$q1";
+--error ER_SUBQUERY_NO_1_ROW
+execute stmt;
+--error ER_SUBQUERY_NO_1_ROW
+execute stmt;
+DEALLOCATE PREPARE stmt;
+
+eval PREPARE stmt FROM "SELECT * FROM v1";
+--error ER_SUBQUERY_NO_1_ROW
+execute stmt;
+--error ER_SUBQUERY_NO_1_ROW
+execute stmt;
+DEALLOCATE PREPARE stmt;
+
+eval PREPARE stmt FROM "WITH cte AS ( $q1 ) SELECT * FROM cte";
+--error ER_SUBQUERY_NO_1_ROW
+execute stmt;
+--error ER_SUBQUERY_NO_1_ROW
+execute stmt;
+DEALLOCATE PREPARE stmt;
+
+eval PREPARE stmt FROM "$q2";
+execute stmt;
+execute stmt;
+DEALLOCATE PREPARE stmt;
+
+eval PREPARE stmt FROM "SELECT * FROM v2";
+execute stmt;
+execute stmt;
+DEALLOCATE PREPARE stmt;
+
+eval PREPARE stmt FROM "WITH cte AS ( $q2 ) SELECT * FROM cte";
+execute stmt;
+execute stmt;
+DEALLOCATE PREPARE stmt;
+
+DROP VIEW v1,v2;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-28570: VIEW with WHERE containing subquery
+--echo #             with set function aggregated in query
+--echo #
+
+CREATE TABLE t1 (a int, b int);
+CREATE TABLE t2 (c int, d int);
+
+INSERT INTO t1 VALUES
+  (1,10), (2,10), (1,20), (2,20), (3,20), (2,30), (4,40);
+INSERT INTO t2 VALUES
+  (2,10), (2,20), (4,10), (5,10), (3,20), (2,40);
+
+let $q=
+SELECT a FROM t1 GROUP BY a
+  HAVING a IN (SELECT c FROM t2 WHERE MAX(b)>20);
+
+eval CREATE VIEW v AS $q;
+
+eval $q;
+SELECT * FROM v;
+eval WITH cte AS ( $q ) SELECT * FROM cte;
+
+eval EXPLAIN $q;
+EXPLAIN SELECT * FROM v;
+eval EXPLAIN WITH cte AS ( $q ) SELECT * FROM cte;
+
+eval PREPARE stmt FROM "$q";
+execute stmt;
+execute stmt;
+DEALLOCATE PREPARE stmt;
+
+eval PREPARE stmt FROM "SELECT * FROM v";
+execute stmt;
+execute stmt;
+DEALLOCATE PREPARE stmt;
+
+eval PREPARE stmt FROM "WITH cte AS ( $q ) SELECT * FROM cte";
+execute stmt;
+execute stmt;
+DEALLOCATE PREPARE stmt;
+
+DROP VIEW v;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-28571: VIEW with select list containing subquery
+--echo #             with set function aggregated in query
+--echo #
+
+CREATE TABLE t1 (a int, b int);
+CREATE TABLE t2 (m int, n int);
+INSERT INTO t1 VALUES (2,2), (2,2), (3,3), (3,3), (3,3), (4,4);
+INSERT INTO t2 VALUES (1,11), (2,22), (3,32), (4,44), (4,44);
+
+let $q=
+SELECT (SELECT GROUP_CONCAT(COUNT(a)) FROM t2 WHERE m = a) AS c
+FROM t1
+GROUP BY a;
+
+eval CREATE VIEW v AS $q;
+
+eval $q;
+SELECT * FROM v;
+eval WITH cte AS ( $q ) SELECT * FROM cte;
+
+eval EXPLAIN $q;
+EXPLAIN SELECT * FROM v;
+eval EXPLAIN WITH cte AS ( $q ) SELECT * FROM cte;
+
+eval PREPARE stmt FROM "$q";
+execute stmt;
+execute stmt;
+DEALLOCATE PREPARE stmt;
+
+eval PREPARE stmt FROM "SELECT * FROM v";
+execute stmt;
+execute stmt;
+DEALLOCATE PREPARE stmt;
+
+eval PREPARE stmt FROM "WITH cte AS ( $q ) SELECT * FROM cte";
+execute stmt;
+execute stmt;
+DEALLOCATE PREPARE stmt;
+
+DROP VIEW v;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-30668: VIEW with WHERE containing nested subquery
+--echo #             with set function aggregated in outer subquery
+--echo #
+
+create table t1 (a int);
+insert into t1 values (3), (7), (1);
+
+create table t2 (b int);
+insert into t2 values (2), (1), (4), (7);
+
+create table t3 (a int, b int);
+insert into t3 values (2,10), (7,30), (2,30), (1,10), (7,40);
+
+let $q=
+select * from t1
+  where t1.a in (select t3.a from t3 group by t3.a
+                   having t3.a > any (select t2.b from t2
+                                        where t2.b*10 < sum(t3.b)));
+eval create view v as $q;
+
+eval $q;
+eval select * from v;
+eval with cte as ( $q ) select * from cte;
+
+eval explain $q;
+eval explain select * from v;
+eval explain with cte as ( $q ) select * from cte;
+
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+eval prepare stmt from "select * from v";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+eval prepare stmt from "with cte as ( $q ) select * from cte";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+drop view v;
+drop table t1,t2,t3;
+
+--echo # End of 10.4 tests

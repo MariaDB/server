@@ -310,6 +310,7 @@ typedef struct st_join_table {
 
   Table_access_tracker *jbuf_tracker;
   Time_and_counter_tracker *jbuf_unpack_tracker;
+  Counter_tracker  *jbuf_loops_tracker;
 
   //  READ_RECORD::Setup_func materialize_table;
   READ_RECORD::Setup_func read_first_record;

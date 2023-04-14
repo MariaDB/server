@@ -3185,9 +3185,6 @@ dberr_t buf_page_t::read_complete(const fil_node_t &node)
   ut_ad(zip_size() == node.space->zip_size());
   ut_ad(!!zip.ssize == !!zip.data);
 
-  ut_d(auto n=) buf_pool.n_pend_reads--;
-  ut_ad(n > 0);
-
   const byte *read_frame= zip.data ? zip.data : frame;
   ut_ad(read_frame);
 
@@ -3476,9 +3473,8 @@ void buf_pool_t::print()
 		<< ", modified database pages="
 		<< UT_LIST_GET_LEN(flush_list)
 		<< ", n pending decompressions=" << n_pend_unzip
-		<< ", n pending reads=" << n_pend_reads
 		<< ", n pending flush LRU=" << n_flush()
-		<< " list=" << buf_dblwr.pending_writes()
+		<< " list=" << os_aio_pending_writes()
 		<< ", pages made young=" << stat.n_pages_made_young
 		<< ", not young=" << stat.n_pages_not_made_young
 		<< ", pages read=" << stat.n_pages_read
@@ -3591,11 +3587,11 @@ void buf_stats_get_pool_info(buf_pool_info_t *pool_info)
 
 	pool_info->n_pend_unzip = UT_LIST_GET_LEN(buf_pool.unzip_LRU);
 
-	pool_info->n_pend_reads = buf_pool.n_pend_reads;
+	pool_info->n_pend_reads = os_aio_pending_reads_approx();
 
 	pool_info->n_pending_flush_lru = buf_pool.n_flush();
 
-	pool_info->n_pending_flush_list = buf_dblwr.pending_writes();
+	pool_info->n_pending_flush_list = os_aio_pending_writes();
 	mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
 	current_time = time(NULL);

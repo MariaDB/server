@@ -2953,7 +2953,8 @@ my_bool STDCALL mysql_stmt_bind_param(MYSQL_STMT *stmt, MYSQL_BIND *my_bind)
       break;
     default:
       strmov(stmt->sqlstate, unknown_sqlstate);
-      sprintf(stmt->last_error,
+      snprintf(stmt->last_error,
+        sizeof(stmt->last_error),
 	      ER(stmt->last_errno= CR_UNSUPPORTED_PARAM_TYPE),
 	      param->buffer_type, count);
       DBUG_RETURN(1);
@@ -3040,7 +3041,9 @@ mysql_stmt_send_long_data(MYSQL_STMT *stmt, uint param_number,
   {
     /* Long data handling should be used only for string/binary types */
     strmov(stmt->sqlstate, unknown_sqlstate);
-    sprintf(stmt->last_error, ER(stmt->last_errno= CR_INVALID_BUFFER_USE),
+    snprintf(stmt->last_error,
+      sizeof(stmt->last_error),
+      ER(stmt->last_errno= CR_INVALID_BUFFER_USE),
 	    param->param_number);
     DBUG_RETURN(1);
   }
@@ -4171,7 +4174,8 @@ my_bool STDCALL mysql_stmt_bind_result(MYSQL_STMT *stmt, MYSQL_BIND *my_bind)
     if (setup_one_fetch_function(param, field))
     {
       strmov(stmt->sqlstate, unknown_sqlstate);
-      sprintf(stmt->last_error,
+      snprintf(stmt->last_error,
+              sizeof(stmt->last_error),
               ER(stmt->last_errno= CR_UNSUPPORTED_PARAM_TYPE),
               field->type, param_count);
       DBUG_RETURN(1);

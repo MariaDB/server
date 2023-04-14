@@ -72,10 +72,6 @@ class buf_dblwr_t
   ulint writes_completed;
   /** number of pages written by flush_buffered_writes_completed() */
   ulint pages_written;
-  /** condition variable for !writes_pending */
-  pthread_cond_t write_cond;
-  /** number of pending page writes */
-  size_t writes_pending;
 
   slot slots[2];
   slot *active_slot;
@@ -124,7 +120,7 @@ public:
   void recover();
 
   /** Update the doublewrite buffer on data page write completion. */
-  void write_completed(bool with_doublewrite);
+  void write_completed();
   /** Flush possible buffered writes to persistent storage.
   It is very important to call this function after a batch of writes has been
   posted, and also when we may have to wait for a page latch!
@@ -165,40 +161,6 @@ public:
     mysql_mutex_lock(&mutex);
     while (batch_running)
       my_cond_wait(&cond, &mutex.m_mutex);
-    mysql_mutex_unlock(&mutex);
-  }
-
-  /** Register an unbuffered page write */
-  void add_unbuffered()
-  {
-    mysql_mutex_lock(&mutex);
-    writes_pending++;
-    mysql_mutex_unlock(&mutex);
-  }
-
-  size_t pending_writes()
-  {
-    mysql_mutex_lock(&mutex);
-    const size_t pending{writes_pending};
-    mysql_mutex_unlock(&mutex);
-    return pending;
-  }
-
-  /** Wait for writes_pending to reach 0 */
-  void wait_for_page_writes()
-  {
-    mysql_mutex_lock(&mutex);
-    while (writes_pending)
-      my_cond_wait(&write_cond, &mutex.m_mutex);
-    mysql_mutex_unlock(&mutex);
-  }
-
-  /** Wait for writes_pending to reach 0 */
-  void wait_for_page_writes(const timespec &abstime)
-  {
-    mysql_mutex_lock(&mutex);
-    while (writes_pending)
-      my_cond_timedwait(&write_cond, &mutex.m_mutex, &abstime);
     mysql_mutex_unlock(&mutex);
   }
 };
