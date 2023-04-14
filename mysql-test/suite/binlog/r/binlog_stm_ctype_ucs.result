@@ -7,7 +7,7 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	User var	#	#	@`v`=_ucs2 X'006100620063' COLLATE ucs2_general_ci
-master-bin.000001	#	Query	#	#	use `test`; insert into t2 values (@v)
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t2 values (@v)
 master-bin.000001	#	Query	#	#	COMMIT
 flush logs;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
@@ -19,6 +19,7 @@ START TRANSACTION
 /*!*/;
 SET @`v`:=_ucs2 X'006100620063' COLLATE `ucs2_general_ci`/*!*/;
 use `test`/*!*/;
+/*!110600 SET CATALOG `def` *//*!*/;
 SET TIMESTAMP=10000/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=1, @@session.system_versioning_insert_history=0/*!*/;
@@ -92,6 +93,7 @@ DELIMITER /*!*/;
 # at #
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 use `test`/*!*/;
+/*!110600 SET CATALOG `def` *//*!*/;
 SET TIMESTAMP=XXX/*!*/;
 SET @@session.pseudo_thread_id=#/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=1, @@session.system_versioning_insert_history=0/*!*/;

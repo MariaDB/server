@@ -78,10 +78,10 @@ mysqld-relay-bin-master1.000002	#	Query	#	#	drop database if exists db1
 mysqld-relay-bin-master1.000002	#	Gtid	#	#	GTID #-#-#
 mysqld-relay-bin-master1.000002	#	Query	#	#	create database db1
 mysqld-relay-bin-master1.000002	#	Gtid	#	#	GTID #-#-#
-mysqld-relay-bin-master1.000002	#	Query	#	#	use `db1`; create table t1 (i int auto_increment, f1 varchar(16), primary key pk (i,f1)) engine=MyISAM
+mysqld-relay-bin-master1.000002	#	Query	#	#	set CATALOG `def`; use `db1`; create table t1 (i int auto_increment, f1 varchar(16), primary key pk (i,f1)) engine=MyISAM
 mysqld-relay-bin-master1.000002	#	Gtid	#	#	BEGIN GTID #-#-#
 mysqld-relay-bin-master1.000002	#	Intvar	#	#	INSERT_ID=1
-mysqld-relay-bin-master1.000002	#	Query	#	#	use `db1`; insert into t1 (f1) values ('one'),('two')
+mysqld-relay-bin-master1.000002	#	Query	#	#	set CATALOG `def`; use `db1`; insert into t1 (f1) values ('one'),('two')
 mysqld-relay-bin-master1.000002	#	Query	#	#	COMMIT
 change master to
 master_port=MYPORT_2,
@@ -226,10 +226,10 @@ mysqld-relay-bin.000002	#	Query	#	#	drop database if exists db2
 mysqld-relay-bin.000002	#	Gtid	#	#	GTID #-#-#
 mysqld-relay-bin.000002	#	Query	#	#	create database db2
 mysqld-relay-bin.000002	#	Gtid	#	#	GTID #-#-#
-mysqld-relay-bin.000002	#	Query	#	#	use `db2`; create table t1 (pk int auto_increment primary key, f1 int) engine=InnoDB
+mysqld-relay-bin.000002	#	Query	#	#	set CATALOG `def`; use `db2`; create table t1 (pk int auto_increment primary key, f1 int) engine=InnoDB
 mysqld-relay-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
 mysqld-relay-bin.000002	#	Intvar	#	#	INSERT_ID=1
-mysqld-relay-bin.000002	#	Query	#	#	use `db2`; insert into t1 (f1) values (1),(2)
+mysqld-relay-bin.000002	#	Query	#	#	set CATALOG `def`; use `db2`; insert into t1 (f1) values (1),(2)
 mysqld-relay-bin.000002	#	Xid	#	#	COMMIT /* XID */
 disconnect slave;
 connect  slave,127.0.0.1,root,,,$SERVER_MYPORT_3;

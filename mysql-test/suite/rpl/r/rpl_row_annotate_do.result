@@ -83,15 +83,15 @@ slave-bin.000001	#	Query	1	#	DROP DATABASE IF EXISTS test1
 slave-bin.000001	#	Gtid	1	#	GTID 0-1-2
 slave-bin.000001	#	Query	1	#	CREATE DATABASE test1
 slave-bin.000001	#	Gtid	1	#	GTID 0-1-3
-slave-bin.000001	#	Query	1	#	use `test1`; CREATE TABLE t1(a int primary key, b int)
+slave-bin.000001	#	Query	1	#	set CATALOG `def`; use `test1`; CREATE TABLE t1(a int primary key, b int)
 slave-bin.000001	#	Gtid	1	#	GTID 0-1-4
-slave-bin.000001	#	Query	1	#	use `test1`; CREATE TABLE t2(a int, b int)
+slave-bin.000001	#	Query	1	#	set CATALOG `def`; use `test1`; CREATE TABLE t2(a int, b int)
 slave-bin.000001	#	Gtid	1	#	GTID 0-1-5
-slave-bin.000001	#	Query	1	#	use `test1`; CREATE TABLE t3(a int, b int)
+slave-bin.000001	#	Query	1	#	set CATALOG `def`; use `test1`; CREATE TABLE t3(a int, b int)
 slave-bin.000001	#	Gtid	1	#	GTID 0-1-6
-slave-bin.000001	#	Query	1	#	use `test1`; CREATE TABLE t4(a int, b int)
+slave-bin.000001	#	Query	1	#	set CATALOG `def`; use `test1`; CREATE TABLE t4(a int, b int)
 slave-bin.000001	#	Gtid	1	#	GTID 0-1-9
-slave-bin.000001	#	Query	1	#	use `test1`; CREATE TABLE t5 (
+slave-bin.000001	#	Query	1	#	set CATALOG `def`; use `test1`; CREATE TABLE t5 (
 a INT PRIMARY KEY AUTO_INCREMENT,
 b VARCHAR(10) CHARACTER SET utf8 COLLATE utf8_bin
 )

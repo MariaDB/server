@@ -20,6 +20,7 @@ flush logs;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
 use `test`/*!*/;
+/*!110600 SET CATALOG `def` *//*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=1, @@session.system_versioning_insert_history=0/*!*/;
@@ -100,6 +101,7 @@ DELIMITER /*!*/;
 START TRANSACTION
 /*!*/;
 use `test`/*!*/;
+/*!110600 SET CATALOG `def` *//*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=1, @@session.system_versioning_insert_history=0/*!*/;
@@ -136,6 +138,7 @@ DELIMITER /*!*/;
 ROLLBACK/*!*/;
 START TRANSACTION
 /*!*/;
+/*!110600 SET CATALOG `def` *//*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=1, @@session.system_versioning_insert_history=0/*!*/;
@@ -187,6 +190,7 @@ DELIMITER /*!*/;
 START TRANSACTION
 /*!*/;
 use `test`/*!*/;
+/*!110600 SET CATALOG `def` *//*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=1, @@session.system_versioning_insert_history=0/*!*/;
@@ -214,6 +218,7 @@ ROLLBACK /* added by mysqlbinlog */;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
 use `test`/*!*/;
+/*!110600 SET CATALOG `def` *//*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=1, @@session.system_versioning_insert_history=0/*!*/;
@@ -294,6 +299,7 @@ DELIMITER /*!*/;
 START TRANSACTION
 /*!*/;
 use `test`/*!*/;
+/*!110600 SET CATALOG `def` *//*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=1, @@session.system_versioning_insert_history=0/*!*/;
@@ -330,6 +336,7 @@ DELIMITER /*!*/;
 ROLLBACK/*!*/;
 START TRANSACTION
 /*!*/;
+/*!110600 SET CATALOG `def` *//*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=1, @@session.system_versioning_insert_history=0/*!*/;
@@ -381,6 +388,7 @@ DELIMITER /*!*/;
 START TRANSACTION
 /*!*/;
 use `test`/*!*/;
+/*!110600 SET CATALOG `def` *//*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=1, @@session.system_versioning_insert_history=0/*!*/;
@@ -408,6 +416,7 @@ ROLLBACK /* added by mysqlbinlog */;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
 use `test`/*!*/;
+/*!110600 SET CATALOG `def` *//*!*/;
 SET TIMESTAMP=1140641973/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.system_versioning_insert_history=0/*!*/;
@@ -439,6 +448,7 @@ ROLLBACK /* added by mysqlbinlog */;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
 use `test`/*!*/;
+/*!110600 SET CATALOG `def` *//*!*/;
 SET TIMESTAMP=1140642018/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.system_versioning_insert_history=0/*!*/;
@@ -505,6 +515,7 @@ ERROR 42000: PROCEDURE test.p1 does not exist
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 use `test`/*!*/;
+/*!110600 SET CATALOG `def` *//*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=1, @@session.system_versioning_insert_history=0/*!*/;
@@ -557,6 +568,7 @@ flush logs;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 use `test`/*!*/;
+/*!110600 SET CATALOG `def` *//*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=1, @@session.system_versioning_insert_history=0/*!*/;
@@ -642,7 +654,7 @@ INSERT INTO t1 VALUES ('0123456789');
 FLUSH LOGS;
 DROP TABLE t1;
 Warnings:
-Warning	1262	Row 98 was truncated; it contained more data than there were input columns
+Warning	1262	Row 99 was truncated; it contained more data than there were input columns
 We expect this value to be 2 (one for the INSERT, one for COMMIT).
 The bug being tested was that 'Query' lines were not preceded by '#'
 If the line is in the table, it had to have been preceded by a '#'
@@ -739,6 +751,7 @@ FLUSH LOGS;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
 use `test`/*!*/;
+/*!110600 SET CATALOG `def` *//*!*/;
 SET TIMESTAMP=1253783037/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.system_versioning_insert_history=0/*!*/;
@@ -793,6 +806,7 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
+/*!110600 SET CATALOG `def` *//*!*/;
 SET TIMESTAMP=1253783037/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.system_versioning_insert_history=0/*!*/;
@@ -828,6 +842,7 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!40019 SET @@session.max_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
+/*!110600 SET CATALOG `def` *//*!*/;
 SET TIMESTAMP=1266652094/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.system_versioning_insert_history=0/*!*/;
@@ -870,6 +885,7 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!40019 SET @@session.max_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
+/*!110600 SET CATALOG `def` *//*!*/;
 SET TIMESTAMP=1266652094/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.system_versioning_insert_history=0/*!*/;
@@ -925,15 +941,15 @@ master-bin.000002	#	Binlog_checkpoint	#	#	master-bin.000002
 master-bin.000002	#	Gtid	#	#	GTID #-#-#
 master-bin.000002	#	Query	#	#	CREATE DATABASE test1
 master-bin.000002	#	Gtid	#	#	GTID #-#-#
-master-bin.000002	#	Query	#	#	use `test1`; CREATE TABLE t1(id int)
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test1`; CREATE TABLE t1(id int)
 master-bin.000002	#	Gtid	#	#	GTID #-#-#
 master-bin.000002	#	Query	#	#	DROP DATABASE test1
 master-bin.000002	#	Gtid	#	#	GTID #-#-#
 master-bin.000002	#	Query	#	#	CREATE DATABASE test1
 master-bin.000002	#	Gtid	#	#	GTID #-#-#
-master-bin.000002	#	Query	#	#	use `test1`; CREATE TABLE t1(id int)
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test1`; CREATE TABLE t1(id int)
 master-bin.000002	#	Gtid	#	#	GTID #-#-#
-master-bin.000002	#	Query	#	#	use `test1`; DROP TABLE `t1` /* generated by server */
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test1`; DROP TABLE `t1` /* generated by server */
 master-bin.000002	#	Gtid	#	#	GTID #-#-#
 master-bin.000002	#	Query	#	#	DROP DATABASE test1
 RESET MASTER;
@@ -988,6 +1004,7 @@ AAAAAAAAAAAAAAAAAAAgrgJSFzgNAAgAEgAEBAQEEgAAUwAEGggAAAAICAgC
 #       c1  20 69 6e 74 20 6e 6f 74  20 6e 75 6c 6c 29        | int not null)|
 #
 # Event: 	Query	thread_id=1	exec_time=0	error_code=0	xid=0
+/*!110600 SET CATALOG `def` *//*!*/;
 SET TIMESTAMP=1375907364/*!*/;
 SET @@session.pseudo_thread_id=1/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.system_versioning_insert_history=0/*!*/;
@@ -1071,6 +1088,7 @@ AAAAAAAAAAAAAAAAAAA/rQJSGzgNAAgAEgAEBAQEEgAAUwAEGggAAAAICAgC
 #       c5  20 69 6e 74 20 6e 6f 74  20 6e 75 6c 6c 29        | int not null)|
 #
 # Event: 	Query	thread_id=1	exec_time=1	error_code=0	xid=0
+/*!110600 SET CATALOG `def` *//*!*/;
 SET TIMESTAMP=1375907141/*!*/;
 SET @@session.pseudo_thread_id=1/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.system_versioning_insert_history=0/*!*/;
@@ -1154,6 +1172,7 @@ AAAAAAAAAAAAAAAAAAAnrAJSHzgNAAgAEgAEBAQEEgAAUwAEGggAAAAICAgC
 #       c9  20 69 6e 74 20 6e 6f 74  20 6e 75 6c 6c 29        | int not null)|
 #
 # Event: 	Query	thread_id=1	exec_time=0	error_code=0	xid=0
+/*!110600 SET CATALOG `def` *//*!*/;
 SET TIMESTAMP=1375906879/*!*/;
 SET @@session.pseudo_thread_id=1/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.system_versioning_insert_history=0/*!*/;
@@ -1237,6 +1256,7 @@ AAAAAAAAAAAAAAAAAABbsAJSEzgNAAgAEgAEBAQEEgAAUwAEGggAAAAICAgC
 #       bd  20 69 6e 74 20 6e 6f 74  20 6e 75 6c 6c 29        | int not null)|
 #
 # Event: 	Query	thread_id=1	exec_time=0	error_code=0	xid=0
+/*!110600 SET CATALOG `def` *//*!*/;
 SET TIMESTAMP=1375907933/*!*/;
 SET @@session.pseudo_thread_id=1/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.system_versioning_insert_history=0/*!*/;

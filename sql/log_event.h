@@ -838,6 +838,7 @@ typedef struct st_print_event_info
     them if they are unchanged.
   */
   char db[FN_REFLEN+1]; // TODO: make this a LEX_STRING when thd->db is
+  char catalog[FN_REFLEN+1];
   char charset[6]; // 3 variables, each of them storable in 2 bytes
   char time_zone_str[MAX_TIME_ZONE_NAME_LENGTH];
   char delimiter[16];
@@ -1931,7 +1932,7 @@ protected:
     </td>
     <td>Stores the client's current catalog.  Every database belongs
     to a catalog, the same way that every table belongs to a
-    database.  Currently, there is only one catalog, "std".
+    database.  Currently, there is only one catalog, "def".
 
     This field is written if the length of the catalog is > 0;
     otherwise it is not written.

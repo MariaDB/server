@@ -764,7 +764,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   scheduler= thread_scheduler;                 // Will be fixed later
   event_scheduler.data= 0;
   skip_wait_timeout= false;
-  catalog= (char*)"std"; // the only catalog we have for now
+  catalog= (char*)"def"; // the only catalog we have for now
   main_security_ctx.init();
   security_ctx= &main_security_ctx;
   no_errors= 0;

@@ -1,5 +1,5 @@
---- alter_partition.result
-+++ alter_partition,innodb.reject
+--- suite/atomic/alter_partition.result
++++ suite/atomic/alter_partition,innodb.reject
 @@ -17,12 +17,9 @@
  end $
  # QUERY: ALTER TABLE t1 CONVERT PARTITION p1 TO TABLE tp1
@@ -192,7 +192,7 @@
 -tp1.MYI
  tp1.frm
 +tp1.ibd
- master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE t1 CONVERT PARTITION p1 TO TABLE tp1
+ master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 CONVERT PARTITION p1 TO TABLE tp1
  Table	Create Table
  t1	CREATE TABLE `t1` (
 @@ -275,15 +239,12 @@
@@ -211,7 +211,7 @@
 -tp1.MYI
  tp1.frm
 +tp1.ibd
- master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE t1 CONVERT PARTITION p1 TO TABLE tp1
+ master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 CONVERT PARTITION p1 TO TABLE tp1
  Table	Create Table
  t1	CREATE TABLE `t1` (
 @@ -302,15 +263,12 @@
@@ -230,7 +230,7 @@
 -tp1.MYI
  tp1.frm
 +tp1.ibd
- master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE t1 CONVERT PARTITION p1 TO TABLE tp1
+ master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 CONVERT PARTITION p1 TO TABLE tp1
  Table	Create Table
  t1	CREATE TABLE `t1` (
 @@ -330,14 +288,10 @@
@@ -251,7 +251,7 @@
 +t1#P#pn.ibd
  t1.frm
  t1.par
- master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE t1 CONVERT TABLE tp2 TO PARTITION p2 values less than (40)
+ master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 CONVERT TABLE tp2 TO PARTITION p2 values less than (40)
 @@ -357,14 +311,10 @@
  32
  39
@@ -270,7 +270,7 @@
 +t1#P#pn.ibd
  t1.frm
  t1.par
- master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE t1 CONVERT TABLE tp2 TO PARTITION p2 values less than (40)
+ master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 CONVERT TABLE tp2 TO PARTITION p2 values less than (40)
 @@ -384,14 +334,10 @@
  32
  39
@@ -289,7 +289,7 @@
 +t1#P#pn.ibd
  t1.frm
  t1.par
- master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE t1 CONVERT TABLE tp2 TO PARTITION p2 values less than (40)
+ master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 CONVERT TABLE tp2 TO PARTITION p2 values less than (40)
 @@ -411,17 +357,13 @@
  32
  39
@@ -484,7 +484,7 @@
 +t1#P#pn.ibd
  t1.frm
  t1.par
- master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE t1 CONVERT TABLE tp2 TO PARTITION p2 values less than (40)
+ master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 CONVERT TABLE tp2 TO PARTITION p2 values less than (40)
 @@ -686,14 +596,10 @@
  32
  39
@@ -503,7 +503,7 @@
 +t1#P#pn.ibd
  t1.frm
  t1.par
- master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE t1 CONVERT TABLE tp2 TO PARTITION p2 values less than (40)
+ master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 CONVERT TABLE tp2 TO PARTITION p2 values less than (40)
 @@ -713,14 +619,10 @@
  32
  39
@@ -522,4 +522,4 @@
 +t1#P#pn.ibd
  t1.frm
  t1.par
- master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE t1 CONVERT TABLE tp2 TO PARTITION p2 values less than (40)
+ master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 CONVERT TABLE tp2 TO PARTITION p2 values less than (40)

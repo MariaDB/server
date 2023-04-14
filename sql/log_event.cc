@@ -1373,7 +1373,7 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
                                  const Format_description_log_event
                                  *description_event,
                                  Log_event_type event_type)
-  :Log_event(buf, description_event), data_buf(0), query(NullS),
+  :Log_event(buf, description_event), data_buf(0), query(NullS), catalog(NullS),
    db(NullS), catalog_len(0), status_vars_len(0),
    flags2_inited(0), sql_mode_inited(0), charset_inited(0), flags2(0),
    auto_increment_increment(1), auto_increment_offset(1),
@@ -1632,7 +1632,20 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
       DBUG_VOID_RETURN;
   if (catalog_len)                                  // If catalog is given
   {
-    /**
+    /*
+      Ensure we can support old replication clients that are using 'std'
+      as catalog name.
+      This is also needed to support old mtr test that uses copies of
+      old replication logs that still are using the old catalog name
+      'std'.
+    */
+    if (catalog_len == 3 and memcmp(catalog, "std", 3) == 0)
+    {
+      catalog_nz= 1;
+      catalog= "def";
+    }
+
+  /**
       @todo we should clean up and do only copy_str_and_move; it
       works for both cases.  Then we can remove the catalog_nz
       flag. /sven
@@ -1646,6 +1659,7 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
       start+= catalog_len+1;
     }
   }
+
   if (time_zone_len)
     copy_str_and_move(&time_zone_str, &start, time_zone_len);
 

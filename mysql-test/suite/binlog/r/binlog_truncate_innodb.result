@@ -10,9 +10,9 @@ TRUNCATE TABLE t2;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE t1
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; TRUNCATE TABLE t1
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE t2
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; TRUNCATE TABLE t2
 DROP TABLE t1,t2;
 #
 # Bug#42643: InnoDB does not support replication of TRUNCATE TABLE
@@ -50,7 +50,7 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE t1
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; TRUNCATE TABLE t1
 disconnect truncate;
 DROP TABLE t1,t2;
 # Even though the isolation level might be permissive, truncate
@@ -67,9 +67,9 @@ TRUNCATE TABLE t2;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE t1
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; TRUNCATE TABLE t1
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE t2
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; TRUNCATE TABLE t2
 DROP TABLE t1,t2;
 #
 # Bug#42643: InnoDB does not support replication of TRUNCATE TABLE
@@ -108,7 +108,7 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE t1
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; TRUNCATE TABLE t1
 disconnect truncate;
 DROP TABLE t1,t2;
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
@@ -122,9 +122,9 @@ TRUNCATE TABLE t2;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE t1
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; TRUNCATE TABLE t1
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE t2
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; TRUNCATE TABLE t2
 DROP TABLE t1,t2;
 #
 # Bug#42643: InnoDB does not support replication of TRUNCATE TABLE
@@ -163,7 +163,7 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE t1
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; TRUNCATE TABLE t1
 disconnect truncate;
 DROP TABLE t1,t2;
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
@@ -177,9 +177,9 @@ TRUNCATE TABLE t2;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE t1
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; TRUNCATE TABLE t1
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE t2
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; TRUNCATE TABLE t2
 DROP TABLE t1,t2;
 #
 # Bug#42643: InnoDB does not support replication of TRUNCATE TABLE
@@ -218,7 +218,7 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE t1
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; TRUNCATE TABLE t1
 disconnect truncate;
 DROP TABLE t1,t2;
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
@@ -232,9 +232,9 @@ TRUNCATE TABLE t2;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE t1
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; TRUNCATE TABLE t1
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE t2
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; TRUNCATE TABLE t2
 DROP TABLE t1,t2;
 #
 # Bug#42643: InnoDB does not support replication of TRUNCATE TABLE
@@ -273,7 +273,7 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE t1
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; TRUNCATE TABLE t1
 disconnect truncate;
 DROP TABLE t1,t2;
 SET BINLOG_FORMAT=STATEMENT;
@@ -289,9 +289,9 @@ TRUNCATE TABLE t2;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE t1
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; TRUNCATE TABLE t1
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE t2
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; TRUNCATE TABLE t2
 DROP TABLE t1,t2;
 #
 # Bug#42643: InnoDB does not support replication of TRUNCATE TABLE
@@ -322,11 +322,11 @@ connection default;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t2 SELECT * FROM t1
-master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t2 SELECT * FROM t1
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t2 SELECT * FROM t1
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t2 SELECT * FROM t1
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE t1
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; TRUNCATE TABLE t1
 disconnect truncate;
 DROP TABLE t1,t2;
 # Truncate is not supported for SBR if the isolation level is
@@ -343,9 +343,9 @@ TRUNCATE TABLE t2;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE t1
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; TRUNCATE TABLE t1
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE t2
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; TRUNCATE TABLE t2
 DROP TABLE t1,t2;
 #
 # Bug#42643: InnoDB does not support replication of TRUNCATE TABLE
@@ -376,11 +376,11 @@ connection default;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t2 SELECT * FROM t1
-master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t2 SELECT * FROM t1
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t2 SELECT * FROM t1
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t2 SELECT * FROM t1
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE t1
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; TRUNCATE TABLE t1
 disconnect truncate;
 DROP TABLE t1,t2;
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
@@ -394,9 +394,9 @@ TRUNCATE TABLE t2;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE t1
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; TRUNCATE TABLE t1
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE t2
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; TRUNCATE TABLE t2
 DROP TABLE t1,t2;
 #
 # Bug#42643: InnoDB does not support replication of TRUNCATE TABLE
@@ -427,11 +427,11 @@ connection default;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t2 SELECT * FROM t1
-master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t2 SELECT * FROM t1
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t2 SELECT * FROM t1
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t2 SELECT * FROM t1
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE t1
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; TRUNCATE TABLE t1
 disconnect truncate;
 DROP TABLE t1,t2;
 SET @@global.binlog_format = @old_binlog_format;

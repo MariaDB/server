@@ -50,7 +50,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
 crash point: ddl_log_alter_after_rename_to_backup
 t1.frm
 Table	Create Table
@@ -62,7 +62,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
 crash point: ddl_log_alter_after_rename_to_backup_log
 t1.frm
 Table	Create Table
@@ -74,7 +74,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
 crash point: ddl_log_alter_rename_frm
 "No crash!"
 crash point: ddl_log_alter_after_rename_to_original
@@ -88,7 +88,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
 crash point: ddl_log_alter_before_rename_triggers
 "No crash!"
 crash point: ddl_log_alter_after_rename_triggers
@@ -104,7 +104,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
 crash point: ddl_log_alter_after_drop_original_table
 t1.frm
 Table	Create Table
@@ -116,7 +116,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
 
 query: ALTER TABLE t1 COMMENT "new"
 
@@ -162,7 +162,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 COMMENT "new"
 crash point: ddl_log_alter_after_rename_to_backup
 t1.frm
 Table	Create Table
@@ -173,7 +173,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 COMMENT "new"
 crash point: ddl_log_alter_after_rename_to_backup_log
 t1.frm
 Table	Create Table
@@ -184,7 +184,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 COMMENT "new"
 crash point: ddl_log_alter_rename_frm
 "No crash!"
 crash point: ddl_log_alter_after_rename_to_original
@@ -197,7 +197,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 COMMENT "new"
 crash point: ddl_log_alter_before_rename_triggers
 "No crash!"
 crash point: ddl_log_alter_after_rename_triggers
@@ -212,7 +212,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 COMMENT "new"
 crash point: ddl_log_alter_after_drop_original_table
 t1.frm
 Table	Create Table
@@ -223,7 +223,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 COMMENT "new"
 
 query: ALTER TABLE t1 change column a c int COMMENT "new"
 
@@ -269,7 +269,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 change column a c int COMMENT "new"
 crash point: ddl_log_alter_after_rename_to_backup
 t1.frm
 Table	Create Table
@@ -280,7 +280,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 change column a c int COMMENT "new"
 crash point: ddl_log_alter_after_rename_to_backup_log
 t1.frm
 Table	Create Table
@@ -291,7 +291,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 change column a c int COMMENT "new"
 crash point: ddl_log_alter_rename_frm
 "No crash!"
 crash point: ddl_log_alter_after_rename_to_original
@@ -304,7 +304,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 change column a c int COMMENT "new"
 crash point: ddl_log_alter_before_rename_triggers
 "No crash!"
 crash point: ddl_log_alter_after_rename_triggers
@@ -319,7 +319,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 change column a c int COMMENT "new"
 crash point: ddl_log_alter_after_drop_original_table
 t1.frm
 Table	Create Table
@@ -330,7 +330,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 change column a c int COMMENT "new"
 
 query: ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
 
@@ -377,7 +377,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
 crash point: ddl_log_alter_after_rename_to_backup
 t2.frm
 Table	Create Table
@@ -389,7 +389,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
 crash point: ddl_log_alter_after_rename_to_backup_log
 t2.frm
 Table	Create Table
@@ -401,7 +401,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
 crash point: ddl_log_alter_rename_frm
 "No crash!"
 crash point: ddl_log_alter_after_rename_to_original
@@ -415,7 +415,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
 crash point: ddl_log_alter_before_rename_triggers
 t2.frm
 Table	Create Table
@@ -427,7 +427,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
 crash point: ddl_log_alter_after_rename_triggers
 t2.frm
 Table	Create Table
@@ -439,7 +439,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
 crash point: ddl_log_alter_after_delete_backup
 t2.frm
 Table	Create Table
@@ -451,7 +451,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
 crash point: ddl_log_alter_after_drop_original_table
 t2.frm
 Table	Create Table
@@ -463,7 +463,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
 
 query: ALTER TABLE t1 disable keys
 
@@ -565,7 +565,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
 crash point: ddl_log_alter_after_rename_to_backup
 t1.frm
 Table	Create Table
@@ -577,7 +577,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
 crash point: ddl_log_alter_after_rename_to_backup_log
 t1.frm
 Table	Create Table
@@ -589,7 +589,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
 crash point: ddl_log_alter_rename_frm
 "No crash!"
 crash point: ddl_log_alter_after_rename_to_original
@@ -603,7 +603,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
 crash point: ddl_log_alter_before_rename_triggers
 "No crash!"
 crash point: ddl_log_alter_after_rename_triggers
@@ -619,7 +619,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
 crash point: ddl_log_alter_after_drop_original_table
 t1.frm
 Table	Create Table
@@ -631,7 +631,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
 
 query: ALTER TABLE t1 rename t2
 
@@ -722,7 +722,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 COMMENT "new", rename t2
 crash point: ddl_log_alter_after_rename_to_backup
 t2.frm
 Table	Create Table
@@ -733,7 +733,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 COMMENT "new", rename t2
 crash point: ddl_log_alter_after_rename_to_backup_log
 t2.frm
 Table	Create Table
@@ -744,7 +744,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 COMMENT "new", rename t2
 crash point: ddl_log_alter_rename_frm
 "No crash!"
 crash point: ddl_log_alter_after_rename_to_original
@@ -757,7 +757,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 COMMENT "new", rename t2
 crash point: ddl_log_alter_before_rename_triggers
 t2.frm
 Table	Create Table
@@ -768,7 +768,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 COMMENT "new", rename t2
 crash point: ddl_log_alter_after_rename_triggers
 t2.frm
 Table	Create Table
@@ -779,7 +779,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 COMMENT "new", rename t2
 crash point: ddl_log_alter_after_delete_backup
 t2.frm
 Table	Create Table
@@ -790,7 +790,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 COMMENT "new", rename t2
 crash point: ddl_log_alter_after_drop_original_table
 t2.frm
 Table	Create Table
@@ -801,7 +801,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 COMMENT "new", rename t2
 
 query: ALTER TABLE t1 change column a c int COMMENT "new", rename t2
 
@@ -847,7 +847,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
 crash point: ddl_log_alter_after_rename_to_backup
 t2.frm
 Table	Create Table
@@ -858,7 +858,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
 crash point: ddl_log_alter_after_rename_to_backup_log
 t2.frm
 Table	Create Table
@@ -869,7 +869,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
 crash point: ddl_log_alter_rename_frm
 "No crash!"
 crash point: ddl_log_alter_after_rename_to_original
@@ -882,7 +882,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
 crash point: ddl_log_alter_before_rename_triggers
 t2.frm
 Table	Create Table
@@ -893,7 +893,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
 crash point: ddl_log_alter_after_rename_triggers
 t2.frm
 Table	Create Table
@@ -904,7 +904,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
 crash point: ddl_log_alter_after_delete_backup
 t2.frm
 Table	Create Table
@@ -915,7 +915,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
 crash point: ddl_log_alter_after_drop_original_table
 t2.frm
 Table	Create Table
@@ -926,7 +926,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
 
 query: ALTER TABLE t1 ENGINE=aria, COMMENT "new"
 
@@ -974,7 +974,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=aria, COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ENGINE=aria, COMMENT "new"
 crash point: ddl_log_alter_after_rename_to_backup
 t1.MAD
 t1.MAI
@@ -987,7 +987,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=aria, COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ENGINE=aria, COMMENT "new"
 crash point: ddl_log_alter_after_rename_to_backup_log
 t1.MAD
 t1.MAI
@@ -1000,7 +1000,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=aria, COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ENGINE=aria, COMMENT "new"
 crash point: ddl_log_alter_rename_frm
 "No crash!"
 crash point: ddl_log_alter_after_rename_to_original
@@ -1015,7 +1015,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=aria, COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ENGINE=aria, COMMENT "new"
 crash point: ddl_log_alter_before_rename_triggers
 "No crash!"
 crash point: ddl_log_alter_after_rename_triggers
@@ -1032,7 +1032,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=aria, COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ENGINE=aria, COMMENT "new"
 crash point: ddl_log_alter_after_drop_original_table
 t1.MAD
 t1.MAI
@@ -1045,7 +1045,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=aria, COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ENGINE=aria, COMMENT "new"
 
 query: ALTER TABLE t1 change column a c int COMMENT "new", engine=aria
 
@@ -1093,7 +1093,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=aria
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=aria
 crash point: ddl_log_alter_after_rename_to_backup
 t1.MAD
 t1.MAI
@@ -1106,7 +1106,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=aria
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=aria
 crash point: ddl_log_alter_after_rename_to_backup_log
 t1.MAD
 t1.MAI
@@ -1119,7 +1119,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=aria
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=aria
 crash point: ddl_log_alter_rename_frm
 "No crash!"
 crash point: ddl_log_alter_after_rename_to_original
@@ -1134,7 +1134,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=aria
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=aria
 crash point: ddl_log_alter_before_rename_triggers
 "No crash!"
 crash point: ddl_log_alter_after_rename_triggers
@@ -1151,7 +1151,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=aria
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=aria
 crash point: ddl_log_alter_after_drop_original_table
 t1.MAD
 t1.MAI
@@ -1164,7 +1164,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=aria
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=aria
 
 query: ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
 
@@ -1213,7 +1213,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
 crash point: ddl_log_alter_after_rename_to_backup
 t2.MAD
 t2.MAI
@@ -1227,7 +1227,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
 crash point: ddl_log_alter_after_rename_to_backup_log
 t2.MAD
 t2.MAI
@@ -1241,7 +1241,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
 crash point: ddl_log_alter_rename_frm
 "No crash!"
 crash point: ddl_log_alter_after_rename_to_original
@@ -1257,7 +1257,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
 crash point: ddl_log_alter_before_rename_triggers
 t2.MAD
 t2.MAI
@@ -1271,7 +1271,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
 crash point: ddl_log_alter_after_rename_triggers
 t2.MAD
 t2.MAI
@@ -1285,7 +1285,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
 crash point: ddl_log_alter_after_delete_backup
 t2.MAD
 t2.MAI
@@ -1299,7 +1299,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
 crash point: ddl_log_alter_after_drop_original_table
 t2.MAD
 t2.MAI
@@ -1313,7 +1313,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
 
 query: ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
 
@@ -1361,7 +1361,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
 crash point: ddl_log_alter_after_rename_to_backup
 t2.frm
 "Table is in test2"
@@ -1374,7 +1374,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
 crash point: ddl_log_alter_after_rename_to_backup_log
 t2.frm
 "Table is in test2"
@@ -1387,7 +1387,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
 crash point: ddl_log_alter_rename_frm
 "No crash!"
 crash point: ddl_log_alter_after_rename_to_original
@@ -1402,7 +1402,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
 crash point: ddl_log_alter_before_rename_triggers
 t2.frm
 "Table is in test2"
@@ -1415,7 +1415,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
 crash point: ddl_log_alter_after_rename_triggers
 t2.frm
 "Table is in test2"
@@ -1428,7 +1428,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
 crash point: ddl_log_alter_after_delete_backup
 t2.frm
 "Table is in test2"
@@ -1441,7 +1441,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
 crash point: ddl_log_alter_after_drop_original_table
 t2.frm
 "Table is in test2"
@@ -1454,7 +1454,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
 
 query: ALTER TABLE t1 COMMENT "new", rename test2.t2
 
@@ -1501,7 +1501,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
 crash point: ddl_log_alter_after_rename_to_backup
 t2.frm
 "Table is in test2"
@@ -1513,7 +1513,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
 crash point: ddl_log_alter_after_rename_to_backup_log
 t2.frm
 "Table is in test2"
@@ -1525,7 +1525,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
 crash point: ddl_log_alter_rename_frm
 "No crash!"
 crash point: ddl_log_alter_after_rename_to_original
@@ -1539,7 +1539,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
 crash point: ddl_log_alter_before_rename_triggers
 t2.frm
 "Table is in test2"
@@ -1551,7 +1551,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
 crash point: ddl_log_alter_after_rename_triggers
 t2.frm
 "Table is in test2"
@@ -1563,7 +1563,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
 crash point: ddl_log_alter_after_delete_backup
 t2.frm
 "Table is in test2"
@@ -1575,7 +1575,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
 crash point: ddl_log_alter_after_drop_original_table
 t2.frm
 "Table is in test2"
@@ -1587,7 +1587,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
 
 query: ALTER TABLE t1 ADD key(b), COMMENT "new"
 
@@ -1634,7 +1634,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
 crash point: ddl_log_alter_after_rename_to_backup
 t1.frm
 Table	Create Table
@@ -1646,7 +1646,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
 crash point: ddl_log_alter_after_rename_to_backup_log
 t1.frm
 Table	Create Table
@@ -1658,7 +1658,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
 crash point: ddl_log_alter_rename_frm
 "No crash!"
 crash point: ddl_log_alter_after_rename_to_original
@@ -1672,7 +1672,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
 crash point: ddl_log_alter_before_rename_triggers
 "No crash!"
 crash point: ddl_log_alter_after_rename_triggers
@@ -1688,7 +1688,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
 crash point: ddl_log_alter_after_drop_original_table
 t1.frm
 Table	Create Table
@@ -1700,7 +1700,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
 
 query: ALTER TABLE t1 DROP INDEX a
 
@@ -1745,7 +1745,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
+master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE t1 DROP INDEX a
 crash point: ddl_log_alter_after_rename_to_backup
 "No crash!"
 crash point: ddl_log_alter_after_rename_to_backup_log

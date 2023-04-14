@@ -10,7 +10,7 @@ if isnull(new.a) then
 set new.a:= 1000;
 end if;
 end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
-master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
 begin
 if isnull(new.a) then
 set new.a:= 1000;
@@ -34,13 +34,13 @@ if isnull(new.b) then
 set new.b:= 2000;
 end if;
 end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
-master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
 begin
 if isnull(new.a) then
 set new.a:= 1000;
 end if;
 end
-master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
 begin
 if isnull(new.b) then
 set new.b:= 2000;
@@ -57,7 +57,7 @@ if isnull(new.a) then
 set new.a:= 1000;
 end if;
 end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
-master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
 begin
 if isnull(new.a) then
 set new.a:= 1000;
@@ -81,13 +81,13 @@ if isnull(new.b) then
 set new.b:= 2000;
 end if;
 end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
-master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
 begin
 if isnull(new.a) then
 set new.a:= 1000;
 end if;
 end
-master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
 begin
 if isnull(new.b) then
 set new.b:= 2000;
@@ -105,7 +105,7 @@ if isnull(new.a) then
 set new.a:= 1000;
 end if;
 end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
-master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
 begin
 if isnull(new.a) then
 set new.a:= 1000;
@@ -122,7 +122,7 @@ if isnull(new.a) then
 set new.a:= 1000;
 end if;
 end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
-master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
 begin
 if isnull(new.a) then
 set new.a:= 1000;
@@ -146,13 +146,13 @@ if isnull(new.b) then
 set new.b:= 2000;
 end if;
 end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
-master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
 begin
 if isnull(new.a) then
 set new.a:= 1000;
 end if;
 end
-master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
 begin
 if isnull(new.b) then
 set new.b:= 2000;
@@ -168,7 +168,7 @@ if isnull(new.a) then
 set new.a:= 1000;
 end if;
 end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
-master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
 begin
 if isnull(new.a) then
 set new.a:= 1000;
@@ -192,13 +192,13 @@ if isnull(new.b) then
 set new.b:= 2000;
 end if;
 end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
-master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
 begin
 if isnull(new.a) then
 set new.a:= 1000;
 end if;
 end
-master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
 begin
 if isnull(new.b) then
 set new.b:= 2000;
@@ -222,19 +222,19 @@ if isnull(new.b) then
 set new.b:= 3000;
 end if;
 end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
-master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
 begin
 if isnull(new.a) then
 set new.a:= 1000;
 end if;
 end
-master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
 begin
 if isnull(new.b) then
 set new.b:= 2000;
 end if;
 end
-master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
 begin
 if isnull(new.b) then
 set new.b:= 3000;
@@ -250,7 +250,7 @@ if isnull(new.a) then
 set new.a:= 1000;
 end if;
 end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
-master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
 begin
 if isnull(new.a) then
 set new.a:= 1000;
@@ -274,13 +274,13 @@ if isnull(new.b) then
 set new.b:= 2000;
 end if;
 end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
-master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
 begin
 if isnull(new.a) then
 set new.a:= 1000;
 end if;
 end
-master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
 begin
 if isnull(new.b) then
 set new.b:= 2000;
@@ -304,19 +304,19 @@ if isnull(new.b) then
 set new.b:= 3000;
 end if;
 end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
-master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
 begin
 if isnull(new.a) then
 set new.a:= 1000;
 end if;
 end
-master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
 begin
 if isnull(new.b) then
 set new.b:= 2000;
 end if;
 end
-master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
 begin
 if isnull(new.b) then
 set new.b:= 3000;

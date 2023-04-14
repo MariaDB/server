@@ -1819,9 +1819,7 @@ bool Log_event::print_timestamp(IO_CACHE* file, time_t* ts)
 bool Query_log_event::print_query_header(IO_CACHE* file,
 					 PRINT_EVENT_INFO* print_event_info)
 {
-  // TODO: print the catalog ??
   char buff[64], *end;				// Enough for SET TIMESTAMP
-  bool different_db= 1;
   uint32 tmp;
 
   if (!print_event_info->short_form)
@@ -1842,12 +1840,22 @@ bool Query_log_event::print_query_header(IO_CACHE* file,
   }
   else if (db)
   {
-    different_db= memcmp(print_event_info->db, db, db_len + 1);
-    if (different_db)
+    bool different= memcmp(print_event_info->db, db, db_len + 1);
+    if (different)
+    {
       memcpy(print_event_info->db, db, db_len + 1);
-    if (db[0] && different_db) 
-      if (my_b_printf(file, "use %`s%s\n", db, print_event_info->delimiter))
-        goto err;
+      if (db[0])
+        if (my_b_printf(file, "use %`s%s\n", db, print_event_info->delimiter))
+          goto err;
+    }
+  }
+  if (!catalog_len)
+    catalog= (char*) "def";
+  if (strcmp(print_event_info->catalog, catalog))
+  {
+    strmov(print_event_info->catalog, catalog);
+    if (my_b_printf(file, "/*!110600 SET CATALOG `%s` */%s\n", catalog, print_event_info->delimiter))
+      goto err;
   }
 
   end=int10_to_str((long) when, strmov(buff,"SET TIMESTAMP="),10);
@@ -3628,6 +3636,7 @@ st_print_event_info::st_print_event_info()
   bzero(db, sizeof(db));
   bzero(charset, sizeof(charset));
   bzero(time_zone_str, sizeof(time_zone_str));
+  bzero(catalog,sizeof(catalog));
   delimiter[0]= ';';
   delimiter[1]= 0;
   flags2_inited= 0;

@@ -32,7 +32,7 @@ slave-relay-bin.000002	#	Gtid_list	#	#	[]
 slave-relay-bin.000002	#	Binlog_checkpoint	#	#	master-bin.000001
 slave-relay-bin.000002	#	Gtid	#	#	GTID #-#-#
 slave-relay-bin.000002	#	Gtid_list	#	#	[#-#-#]
-slave-relay-bin.000002	#	Query	#	#	use `test`; create table t2 (a int)
+slave-relay-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; create table t2 (a int)
 #
 # Ensure the DDL was executed on the replica
 #

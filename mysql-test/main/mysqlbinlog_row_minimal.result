@@ -29,6 +29,7 @@ ROLLBACK/*!*/;
 # at 371
 #<date> server id 1  end_log_pos 564 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0	xid=<xid>
 use `test`/*!*/;
+/*!110600 SET CATALOG `def` *//*!*/;
 SET TIMESTAMP=X/*!*/;
 SET @@session.pseudo_thread_id=5/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=1, @@session.system_versioning_insert_history=0/*!*/;
@@ -395,6 +396,7 @@ START TRANSACTION
 # Number of rows: 1
 # at POS
 #<date> server id 1  end_log_pos END_LOG_POS CRC32 XXX 	Query	thread_id=TID	exec_time=x	error_code=0	xid=<xid>
+/*!110600 SET CATALOG `def` *//*!*/;
 SET TIMESTAMP=X/*!*/;
 SET @@session.pseudo_thread_id=TID/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=1, @@session.system_versioning_insert_history=0/*!*/;

@@ -989,22 +989,27 @@ Log_event::continue_group(rpl_group_info *rgi)
   print SET @@session_var=. But this is not urgent, as SHOW BINLOG EVENTS is
   only an information, it does not produce suitable queries to replay (for
   example it does not print LOAD DATA INFILE).
-  @todo
-    show the catalog ??
 */
 
 void Query_log_event::pack_info(Protocol *protocol)
 {
-  // TODO: show the catalog ??
   char buf_mem[1024];
   String buf(buf_mem, sizeof(buf_mem), system_charset_info);
-  buf.real_alloc(9 + db_len + q_len);
-  if (!(flags & LOG_EVENT_SUPPRESS_USE_F)
-      && db && db_len)
+  buf.real_alloc(30 + (catalog_len + db_len)*2 + q_len);
+  if (!(flags & LOG_EVENT_SUPPRESS_USE_F))
   {
-    buf.append(STRING_WITH_LEN("use "));
-    append_identifier(protocol->thd, &buf, db, db_len);
-    buf.append(STRING_WITH_LEN("; "));
+    if (catalog_len)
+    {
+      buf.append(STRING_WITH_LEN("set CATALOG "));
+      append_identifier(protocol->thd, &buf, catalog, catalog_len);
+      buf.append(STRING_WITH_LEN("; "));
+    }
+    if (db && db_len)
+    {
+      buf.append(STRING_WITH_LEN("use "));
+      append_identifier(protocol->thd, &buf, db, db_len);
+      buf.append(STRING_WITH_LEN("; "));
+    }
   }
 
   DBUG_ASSERT(!flags2 || flags2_inited);

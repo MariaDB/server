@@ -28,6 +28,7 @@ flush binary logs;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
 use `test`/*!*/;
+/*!110600 SET CATALOG `def` *//*!*/;
 SET TIMESTAMP=1656940000/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=0, @@session.system_versioning_insert_history=0/*!*/;

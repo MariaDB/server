@@ -12,15 +12,15 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	DROP DATABASE IF EXISTS mysqltest
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE TEMPORARY TABLE IF NOT EXISTS tmp(c1 int)
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TEMPORARY TABLE IF NOT EXISTS tmp(c1 int)
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE TEMPORARY TABLE IF NOT EXISTS tmp(c1 int)
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TEMPORARY TABLE IF NOT EXISTS tmp(c1 int)
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE TEMPORARY TABLE IF NOT EXISTS tmp1 LIKE tmp
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TEMPORARY TABLE IF NOT EXISTS tmp1 LIKE tmp
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE TEMPORARY TABLE IF NOT EXISTS tmp1 LIKE tmp
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TEMPORARY TABLE IF NOT EXISTS tmp1 LIKE tmp
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE TEMPORARY TABLE IF NOT EXISTS tmp2 SELECT * FROM tmp
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TEMPORARY TABLE IF NOT EXISTS tmp2 SELECT * FROM tmp
 DROP TEMPORARY TABLE tmp;
 DROP TEMPORARY TABLE tmp1;
 DROP TEMPORARY TABLE tmp2;

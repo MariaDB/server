@@ -20,13 +20,13 @@ INSERT INTO t1 VALUES (1);
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=INNODB
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=INNODB
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t2 (f1 INTEGER PRIMARY KEY) ENGINE=INNODB
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t2 (f1 INTEGER PRIMARY KEY) ENGINE=INNODB
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t3 (f1 INTEGER PRIMARY KEY) ENGINE=INNODB
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t3 (f1 INTEGER PRIMARY KEY) ENGINE=INNODB
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW
 BEGIN
 DECLARE EXIT HANDLER FOR SQLEXCEPTION
 BEGIN
@@ -79,13 +79,13 @@ INSERT INTO t1 VALUES (1);
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=INNODB
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=INNODB
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t2 (f1 INTEGER PRIMARY KEY) ENGINE=INNODB
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t2 (f1 INTEGER PRIMARY KEY) ENGINE=INNODB
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t3 (f1 INTEGER PRIMARY KEY) ENGINE=INNODB
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t3 (f1 INTEGER PRIMARY KEY) ENGINE=INNODB
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW
 BEGIN
 DECLARE EXIT HANDLER FOR SQLEXCEPTION
 BEGIN
@@ -115,7 +115,7 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.t3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; DROP TRIGGER tr1
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DROP TRIGGER tr1
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
@@ -132,7 +132,7 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.t3)
 master-bin.000001	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`()
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`()
 BEGIN
 DECLARE EXIT HANDLER FOR SQLEXCEPTION
 BEGIN
@@ -144,7 +144,7 @@ INSERT INTO t2 VALUES (1);
 RELEASE SAVEPOINT event_logging_2;
 END
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW CALL p1()
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW CALL p1()
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t2 VALUES (1)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
@@ -183,9 +183,9 @@ INSERT INTO t VALUES (3);
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t (f1 int(10) unsigned NOT NULL, PRIMARY KEY (f1)) ENGINE=InnoDB
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t (f1 int(10) unsigned NOT NULL, PRIMARY KEY (f1)) ENGINE=InnoDB
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t_insert_trig AFTER INSERT ON t FOR EACH ROW
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t_insert_trig AFTER INSERT ON t FOR EACH ROW
 BEGIN
 SAVEPOINT savepoint_1;
 ROLLBACK TO savepoint_1;
@@ -228,11 +228,11 @@ INSERT INTO t1 VALUES (30);
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t (f1 int(10) unsigned NOT NULL) ENGINE=InnoDB
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t (f1 int(10) unsigned NOT NULL) ENGINE=InnoDB
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (f1 int(10) unsigned NOT NULL) ENGINE=InnoDB
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t1 (f1 int(10) unsigned NOT NULL) ENGINE=InnoDB
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t_insert_trig BEFORE INSERT ON t FOR EACH ROW
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t_insert_trig BEFORE INSERT ON t FOR EACH ROW
 BEGIN
 SAVEPOINT savepoint_1;
 INSERT INTO t1 VALUES (5);
@@ -292,11 +292,11 @@ INSERT INTO t1 VALUES (30);
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t (f1 int(10) unsigned NOT NULL) ENGINE=InnoDB
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t (f1 int(10) unsigned NOT NULL) ENGINE=InnoDB
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (f1 int(10) unsigned NOT NULL) ENGINE=InnoDB
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t1 (f1 int(10) unsigned NOT NULL) ENGINE=InnoDB
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t_insert_trig BEFORE INSERT ON t
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t_insert_trig BEFORE INSERT ON t
 FOR EACH ROW
 BEGIN
 SAVEPOINT savepoint_1;
@@ -352,11 +352,11 @@ INSERT INTO t2 VALUES (10);
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (f1 INTEGER ) ENGINE=INNODB
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t1 (f1 INTEGER ) ENGINE=INNODB
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t2 (f1 INTEGER ) ENGINE=INNODB
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t2 (f1 INTEGER ) ENGINE=INNODB
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS int(11)
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS int(11)
 BEGIN
 SAVEPOINT event_logging_2;
 INSERT INTO t1 VALUES (1);
@@ -421,11 +421,11 @@ INSERT INTO t2 VALUES (10);
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (f1 INTEGER ) ENGINE=INNODB
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t1 (f1 INTEGER ) ENGINE=INNODB
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t2 (f1 INTEGER ) ENGINE=INNODB
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t2 (f1 INTEGER ) ENGINE=INNODB
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS int(11)
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS int(11)
 BEGIN
 SAVEPOINT event_logging_2;
 INSERT INTO t1 VALUES (1);
@@ -490,9 +490,9 @@ INSERT INTO t1 VALUES (10);
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (f1 INTEGER ) ENGINE=INNODB
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t1 (f1 INTEGER ) ENGINE=INNODB
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS int(11)
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS int(11)
 BEGIN
 SAVEPOINT event_logging_2;
 RETURN 0;

@@ -259,9 +259,9 @@ set sql_log_bin=0;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; REPAIR VIEW v1,v2
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; REPAIR VIEW v1,v2
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; REPAIR VIEW v1badcheck
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; REPAIR VIEW v1badcheck
 LOAD DATA INFILE 'MYSQLD_DATADIR/test/v1.frm' REPLACE INTO TABLE kv FIELDS TERMINATED BY '=';
 SELECT k,v from kv where k in ('md5','algorithm');
 k	v
@@ -521,21 +521,21 @@ test.v4                                            OK
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; REPAIR VIEW v1,v2
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; REPAIR VIEW v1,v2
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; REPAIR VIEW v1badcheck
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; REPAIR VIEW v1badcheck
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; REPAIR TABLE `kv`  USE_FRM
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; REPAIR TABLE `kv`  USE_FRM
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; REPAIR TABLE `t1`  USE_FRM
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; REPAIR TABLE `t1`  USE_FRM
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; REPAIR VIEW `v1`  FROM MYSQL
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; REPAIR VIEW `v1`  FROM MYSQL
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; REPAIR VIEW `v2`  FROM MYSQL
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; REPAIR VIEW `v2`  FROM MYSQL
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; REPAIR VIEW `v3`  FROM MYSQL
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; REPAIR VIEW `v3`  FROM MYSQL
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; REPAIR VIEW `v4`  FROM MYSQL
+master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; REPAIR VIEW `v4`  FROM MYSQL
 drop table if exists kv;
 drop view v1,v2,v3,v4;
 rename table mysql.event to mysql.ev_bk;
