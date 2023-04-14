@@ -344,3 +344,113 @@ create or replace table t (id int, s date, e date, period for p(s,e),
 update t set id = 1;
 
 drop table t, t1;
+
+--echo #
+--echo # MDEV-30415 PERIOD false positive overlap wtih utf8mb4_unicode_nopad_ci
+--echo #
+
+# The originally reported script with a TEXT column (slightly modified)
+CREATE TABLE t1 (
+  datetime_column_name_1 DATETIME(6) NOT NULL,
+  datetime_column_name_2 DATETIME(6) NOT NULL,
+  text_column_name TEXT COLLATE utf8mb4_unicode_nopad_ci NOT NULL,
+  PERIOD FOR period_name (datetime_column_name_1, datetime_column_name_2),
+  UNIQUE KEY index_name (text_column_name(191),period_name WITHOUT OVERLAPS)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_nopad_ci;
+INSERT INTO t1 (datetime_column_name_1, datetime_column_name_2, text_column_name)
+VALUES
+  ('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc'),
+  ('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc ');
+TRUNCATE TABLE t1;
+INSERT INTO t1 (datetime_column_name_1, datetime_column_name_2, text_column_name)
+VALUES
+  ('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc '),
+  ('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc');
+DROP TABLE t1;
+
+
+# The script reported by Alice with a TEXT column
+CREATE TABLE `t1` (
+  datetime_column_name_1 DATETIME(6) NOT NULL,
+  datetime_column_name_2 DATETIME(6) NOT NULL,
+  text_column_name TEXT COLLATE utf8mb4_unicode_nopad_ci NOT NULL,
+  PERIOD FOR period_name (datetime_column_name_1, datetime_column_name_2),
+  UNIQUE KEY index_name (text_column_name(191),period_name WITHOUT OVERLAPS)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_nopad_ci;
+INSERT INTO t1 VALUES
+  ('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'def '),
+  ('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'def');
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES
+  ('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'def'),
+  ('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'def '),
+  ('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'def  ');
+--sorted_result
+SELECT *, LENGTH(text_column_name) FROM t1;
+DROP TABLE t1;
+
+
+# A TEXT column with a short prefix
+CREATE TABLE t1 (
+  datetime_column_name_1 DATETIME(6) NOT NULL,
+  datetime_column_name_2 DATETIME(6) NOT NULL,
+  text_column_name TEXT COLLATE utf8mb4_unicode_nopad_ci NOT NULL,
+  PERIOD FOR period_name (datetime_column_name_1, datetime_column_name_2),
+  UNIQUE KEY index_name (text_column_name(3),period_name WITHOUT OVERLAPS)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_nopad_ci;
+--error ER_DUP_ENTRY
+INSERT INTO t1 (datetime_column_name_1, datetime_column_name_2, text_column_name)
+VALUES
+  ('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc'),
+  ('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc ');
+TRUNCATE TABLE t1;
+--error ER_DUP_ENTRY
+INSERT INTO t1 (datetime_column_name_1, datetime_column_name_2, text_column_name)
+VALUES
+  ('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc '),
+  ('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc');
+DROP TABLE t1;
+
+
+# A CHAR with a long prefix
+CREATE TABLE t1 (
+  datetime_column_name_1 DATETIME(6) NOT NULL,
+  datetime_column_name_2 DATETIME(6) NOT NULL,
+  char_column_name CHAR(255) COLLATE utf8mb4_unicode_nopad_ci NOT NULL,
+  PERIOD FOR period_name (datetime_column_name_1, datetime_column_name_2),
+  UNIQUE KEY index_name (char_column_name(191),period_name WITHOUT OVERLAPS)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_nopad_ci;
+--error ER_DUP_ENTRY
+INSERT INTO t1 (datetime_column_name_1, datetime_column_name_2, char_column_name)
+VALUES
+  ('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc'),
+  ('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc ');
+TRUNCATE TABLE t1;
+--error ER_DUP_ENTRY
+INSERT INTO t1 (datetime_column_name_1, datetime_column_name_2, char_column_name)
+VALUES
+  ('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc '),
+  ('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc');
+DROP TABLE t1;
+
+
+# A CHAR column with a short prefix
+CREATE TABLE t1 (
+  datetime_column_name_1 DATETIME(6) NOT NULL,
+  datetime_column_name_2 DATETIME(6) NOT NULL,
+  char_column_name CHAR(255) COLLATE utf8mb4_unicode_nopad_ci NOT NULL,
+  PERIOD FOR period_name (datetime_column_name_1, datetime_column_name_2),
+  UNIQUE KEY index_name (char_column_name(3),period_name WITHOUT OVERLAPS)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_nopad_ci;
+--error ER_DUP_ENTRY
+INSERT INTO t1 (datetime_column_name_1, datetime_column_name_2, char_column_name)
+VALUES
+  ('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc'),
+  ('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc ');
+TRUNCATE TABLE t1;
+--error ER_DUP_ENTRY
+INSERT INTO t1 (datetime_column_name_1, datetime_column_name_2, char_column_name)
+VALUES
+  ('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc '),
+  ('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc');
+DROP TABLE t1;

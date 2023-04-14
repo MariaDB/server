@@ -756,7 +756,7 @@ the double write buffer.
 bool
 Datafile::restore_from_doublewrite()
 {
-	if (srv_operation != SRV_OPERATION_NORMAL) {
+	if (srv_operation > SRV_OPERATION_EXPORT_RESTORED) {
 		return true;
 	}
 

@@ -3970,6 +3970,7 @@ String *Item_func_weight_string::val_str(String *str)
                            weigth_flags);
   DBUG_ASSERT(frm_length <= tmp_length);
 
+  str->set_charset(&my_charset_bin);
   str->length(frm_length);
   null_value= 0;
   return str;
@@ -4049,6 +4050,7 @@ String *Item_func_unhex::val_str(String *str)
 
   from= res->ptr();
   null_value= 0;
+  str->set_charset(&my_charset_bin);
   str->length(length);
   to= (char*) str->ptr();
   if (res->length() % 2)

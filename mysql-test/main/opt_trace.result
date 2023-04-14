@@ -1107,7 +1107,6 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                               "index": "a",
                               "used_range_estimates": false,
                               "reason": "not available",
-                              "rowid_filter_skipped": "cost_factor <= 0",
                               "rows": 1,
                               "cost": 200.0585794,
                               "chosen": true
@@ -1155,7 +1154,6 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                               "index": "a",
                               "used_range_estimates": false,
                               "reason": "not available",
-                              "rowid_filter_skipped": "cost_factor <= 0",
                               "rows": 1,
                               "cost": 200.0585794,
                               "chosen": true
@@ -4025,7 +4023,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
         "select_id": 1,
         "steps": [
           {
-            "expanded_query": "select NULL AS `NULL` from t0 join t1 where t0.a = t1.a and t1.a < 3"
+            "expanded_query": "delete  from t0,t1 using t0 join t1 where t0.a = t1.a and t1.a < 3"
           }
         ]
       }
@@ -4285,7 +4283,6 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                               "index": "a",
                               "used_range_estimates": false,
                               "reason": "not better than ref estimates",
-                              "rowid_filter_skipped": "cost_factor <= 0",
                               "rows": 1,
                               "cost": 3.001757383,
                               "chosen": true
@@ -4426,7 +4423,7 @@ explain select * from (select rand() from t1)q	{
             "derived": {
               "table": "q",
               "select_id": 2,
-              "algorithm": "merged"
+              "algorithm": "materialized"
             }
           },
           {
@@ -4440,7 +4437,7 @@ explain select * from (select rand() from t1)q	{
             }
           },
           {
-            "expanded_query": "/* select#1 */ select rand() AS `rand()` from (/* select#2 */ select rand() AS `rand()` from t1) q"
+            "expanded_query": "/* select#1 */ select q.`rand()` AS `rand()` from (/* select#2 */ select rand() AS `rand()` from t1) q"
           }
         ]
       }
@@ -4449,14 +4446,6 @@ explain select * from (select rand() from t1)q	{
       "join_optimization": {
         "select_id": 1,
         "steps": [
-          {
-            "derived": {
-              "table": "q",
-              "select_id": 2,
-              "algorithm": "materialized",
-              "cause": "Random function in the select"
-            }
-          },
           {
             "join_optimization": {
               "select_id": 2,
@@ -9486,7 +9475,6 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                                         "index": "b",
                                         "used_range_estimates": false,
                                         "reason": "not available",
-                                        "rowid_filter_skipped": "cost_factor <= 0",
                                         "rows": 1,
                                         "cost": 20.00585794,
                                         "chosen": true
@@ -9715,7 +9703,6 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                                         "index": "a",
                                         "used_range_estimates": false,
                                         "reason": "not available",
-                                        "rowid_filter_skipped": "cost_factor <= 0",
                                         "rows": 1,
                                         "cost": 20.00585794,
                                         "chosen": true
@@ -9772,7 +9759,6 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                                         "index": "a",
                                         "used_range_estimates": false,
                                         "reason": "not available",
-                                        "rowid_filter_skipped": "cost_factor <= 0",
                                         "rows": 1,
                                         "cost": 200.0585794,
                                         "chosen": true

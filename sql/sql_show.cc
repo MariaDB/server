@@ -2661,7 +2661,8 @@ static int show_create_view(THD *thd, TABLE_LIST *table, String *buff)
     a different syntax, like when ANSI_QUOTES is defined.
   */
   table->view->unit.print(buff, enum_query_type(QT_VIEW_INTERNAL |
-                                                QT_ITEM_ORIGINAL_FUNC_NULLIF));
+                                                QT_ITEM_ORIGINAL_FUNC_NULLIF |
+                                                QT_NO_WRAPPERS_FOR_TVC_IN_VIEW));
 
   if (table->with_check != VIEW_CHECK_NONE)
   {

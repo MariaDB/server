@@ -251,10 +251,12 @@ static bool find_field_in_item_list (Field *field, void *data);
 static bool find_field_in_order_list (Field *field, void *data);
 int create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort);
 static int remove_dup_with_compare(THD *thd, TABLE *entry, Field **field,
-				   Item *having);
+                                   SORT_FIELD *sortorder, ulong keylength,
+                                   Item *having);
 static int remove_dup_with_hash_index(THD *thd,TABLE *table,
-				      uint field_count, Field **first_field,
-				      ulong key_length,Item *having);
+                                      uint field_count, Field **first_field,
+                                      SORT_FIELD *sortorder,
+                                      ulong key_length,Item *having);
 static bool cmp_buffer_with_ref(THD *thd, TABLE *table, TABLE_REF *tab_ref);
 static bool setup_new_fields(THD *thd, List<Item> &fields,
 			     List<Item> &all_fields, ORDER *new_order);
@@ -312,6 +314,9 @@ void set_postjoin_aggr_write_func(JOIN_TAB *tab);
 static Item **get_sargable_cond(JOIN *join, TABLE *table);
 
 bool is_eq_cond_injected_for_split_opt(Item_func_eq *eq_item);
+
+void print_list_item(String *str, List_item *list,
+		     enum_query_type query_type);
 
 static
 bool build_notnull_conds_for_range_scans(JOIN *join, COND *cond,
@@ -8018,7 +8023,6 @@ best_access_path(JOIN      *join,
         rec= MATCHING_ROWS_IN_OTHER_TABLE;      // Fix for small tables
 
       Json_writer_object trace_access_idx(thd);
-      double eq_ref_rows= 0.0, eq_ref_cost= 0.0;
       /*
         full text keys require special treatment
       */
@@ -8060,14 +8064,13 @@ best_access_path(JOIN      *join,
             type= JT_EQ_REF;
             trace_access_idx.add("access_type", join_type_str[type])
                             .add("index", keyinfo->name);
+
             if (!found_ref && table->opt_range_keys.is_set(key))
               tmp= adjust_quick_cost(table->opt_range[key].cost, 1);
             else
               tmp= table->file->avg_io_cost();
-            eq_ref_rows= prev_record_reads(join_positions, idx,
+            tmp*= prev_record_reads(join_positions, idx,
                                            found_ref);
-            tmp*= eq_ref_rows;
-            eq_ref_cost= tmp;
             records=1.0;
           }
           else
@@ -8365,28 +8368,7 @@ best_access_path(JOIN      *join,
           (table->file->index_flags(start_key->key,0,1) &
            HA_DO_RANGE_FILTER_PUSHDOWN))
       {
-        double rows;
-        if (type == JT_EQ_REF)
-        {
-          /*
-            Treat EQ_REF access in a special way:
-            1. We have no cost for index-only read. Assume its cost is 50% of
-               the cost of the full read.
-
-            2. A regular ref access will do #record_count lookups, but eq_ref
-               has "lookup cache" which reduces the number of lookups made.
-               The estimation code uses prev_record_reads() call to estimate:
-
-                tmp = prev_record_reads(join_positions, idx, found_ref);
-
-               Set the effective number of rows from "tmp" here.
-          */
-          keyread_tmp= COST_ADD(eq_ref_cost / 2, s->startup_cost);
-          rows= eq_ref_rows;
-        }
-        else
-          rows= record_count * records;
-
+        double rows= record_count * records;
         /*
           If we use filter F with selectivity s the the cost of fetching data
           by key using this filter will be
@@ -8408,46 +8390,63 @@ best_access_path(JOIN      *join,
              cost_of_fetching_1_row = tmp/rows
              cost_of_fetching_1_key_tuple = keyread_tmp/rows
 
-          access_cost_factor is the gain we expect for using rowid filter.
-          An access_cost_factor of 1.0 means that keyread_tmp is 0
-          (using key read is infinitely fast) and the gain for each row when
-          using filter is great.
-          An access_cost_factor if 0.0 means that using keyread has the
-          same cost as reading rows, so there is no gain to get with
-          filter.
-          access_cost_factor should never be bigger than 1.0 (if all
-          calculations are correct) as the cost of keyread should always be
-          smaller than the cost of fetching the same number of keys + rows.
-          access_cost_factor should also never be smaller than 0.0.
-          The one exception is if number of records is 1 (eq_ref), then
-          because we are comparing rows to cost of keyread_tmp, keyread_tmp
-          is higher by 1.0. This is a big that will be fixed in a later
-          version.
+          Here's a more detailed explanation that uses the formulas behind
+          the function the call filter->get_adjusted_gain(). The function
+          takes as a parameter the number of probes/look-ups into the filter
+          that is equal to the number of fetched key entries that is equal to
+          the number of row fetches when no filter is used (assuming no
+          index condition pushdown is employed for the used key access).
+          Let this number be N. Then the total gain from using the filter is
+          N*a_adj - b where b is the cost of building the filter and
+          a_adj is calcilated as follows:
+          a - (1-access_cost_factor)*(1-s) =
+          (1+1_cond_eval_cost)*(1-s)-1_probe_cost - (1-access_cost_factor)*(1-s)
+          =  (1-s)*(1_cond_eval_cost+access_cost_factor) - 1_probe_cost.
+          Here ((1-s)*(1_cond_eval_cost) * N is the gain from checking less
+          conditions pushed into the table, 1_probe_cost*N is the cost of the
+          probes and (1*s) * access_cost_factor * N must be the gain from
+          accessing less rows.
+          It does not matter how we calculate the cost of N full row fetches
+            cost_of_fetching_N_rows or
+          how we calculate the cost of fetching N key entries
+            cost_of_fetching_N_key_entries
+          the gain from less row fetches will be
+          (cost_of_fetching_N_rows - cost_of_fetching_N_key_entries) * (1-s)
+          and this should be equal to (1*s) * access_cost_factor * N.
+          Thus access_cost_factor must be calculated as
+          (cost_of_fetching_N_rows - cost_of_fetching_N_key_entries) / N.
 
-          If we have limited the cost (=tmp) of reading rows with 'worst_seek'
-          we cannot use filters as the cost calculation below would cause
-          tmp to become negative.  The future resultion is to not limit
-          cost with worst_seek.
+          For safety we clip cost_of_fetching_N_key_entries by the value
+          of cost_of_fetching_N_row though formally it's not necessary.
 	*/
-        double access_cost_factor= MY_MIN((rows - keyread_tmp) / rows, 1.0);
+        /*
+          For eq_ref access we assume that the cost of fetching N key entries
+          is equal to the half of fetching N rows
+	*/
+        double key_access_cost=
+	       type == JT_EQ_REF ? 0.5 * tmp : MY_MIN(tmp, keyread_tmp);
+        double access_cost_factor= MY_MIN((tmp - key_access_cost) / rows, 1.0);
+
         if (!(records < s->worst_seeks &&
               records <= thd->variables.max_seeks_for_key))
+        {
+          // Don't use rowid filter
           trace_access_idx.add("rowid_filter_skipped", "worst/max seeks clipping");
-        else if (access_cost_factor <= 0.0)
-          trace_access_idx.add("rowid_filter_skipped", "cost_factor <= 0");
+          filter= NULL;
+        }
         else
         {
           filter=
             table->best_range_rowid_filter_for_partial_join(start_key->key,
                                                             rows,
                                                             access_cost_factor);
-          if (filter)
-          {
-            tmp-= filter->get_adjusted_gain(rows) - filter->get_cmp_gain(rows);
-            DBUG_ASSERT(tmp >= 0);
-            trace_access_idx.add("rowid_filter_key",
-                                 table->key_info[filter->key_no].name);
-          }
+        }
+        if (filter)
+        {
+          tmp-= filter->get_adjusted_gain(rows) - filter->get_cmp_gain(rows);
+          DBUG_ASSERT(tmp >= 0);
+          trace_access_idx.add("rowid_filter_key",
+                               table->key_info[filter->key_no].name);
         }
       }
       trace_access_idx.add("rows", records).add("cost", tmp);
@@ -8623,27 +8622,23 @@ best_access_path(JOIN      *join,
       if ( s->quick->get_type() == QUICK_SELECT_I::QS_TYPE_RANGE)
       {
         double rows= record_count * s->found_records;
-        double access_cost_factor= MY_MIN(tmp / rows, 1.0);
         uint key_no= s->quick->index;
 
         /* See the comment concerning using rowid filter for with ref access */
-        keyread_tmp= s->table->opt_range[key_no].index_only_cost *
-          record_count;
-        access_cost_factor= MY_MIN((rows - keyread_tmp) / rows, 1.0);
-        if (access_cost_factor > 0.0)
+        double row_access_cost= s->quick->read_time * record_count;
+        double key_access_cost=
+	  MY_MIN(row_access_cost,
+                 s->table->opt_range[key_no].index_only_cost * record_count);
+        double access_cost_factor= MY_MIN((row_access_cost - key_access_cost) /
+                                          rows, 1.0);
+        filter=
+         s->table->best_range_rowid_filter_for_partial_join(key_no, rows,
+                                                            access_cost_factor);
+        if (filter)
         {
-          filter=
-            s->table->
-            best_range_rowid_filter_for_partial_join(key_no, rows,
-                                                     access_cost_factor);
-          if (filter)
-          {
-            tmp-= filter->get_adjusted_gain(rows);
-            DBUG_ASSERT(tmp >= 0);
-          }
+          tmp-= filter->get_adjusted_gain(rows);
+          DBUG_ASSERT(tmp >= 0);
         }
-        else
-          trace_access_scan.add("rowid_filter_skipped", "cost_factor <= 0");
 
         type= JT_RANGE;
       }
@@ -21703,6 +21698,8 @@ sub_select_cache(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
     /* The user has aborted the execution of the query */
     DBUG_RETURN(NESTED_LOOP_KILLED);
   }
+  join_tab->jbuf_loops_tracker->on_scan_init();
+
   if (!test_if_use_dynamic_range_scan(join_tab))
   {
     if (!cache->put_record())
@@ -25367,39 +25364,71 @@ JOIN_TAB::remove_duplicates()
 
 {
   bool error;
-  ulong keylength= 0;
-  uint field_count;
+  ulong keylength= 0, sort_field_keylength= 0;
+  uint field_count, item_count;
   List<Item> *fields= (this-1)->fields;
+  Item *item;
   THD *thd= join->thd;
-
+  SORT_FIELD *sortorder, *sorder;
   DBUG_ENTER("remove_duplicates");
 
   DBUG_ASSERT(join->aggr_tables > 0 && table->s->tmp_table != NO_TMP_TABLE);
   THD_STAGE_INFO(join->thd, stage_removing_duplicates);
 
-  //join->explain->ops_tracker.report_duplicate_removal();
-
-  table->reginfo.lock_type=TL_WRITE;
+  if (!(sortorder= (SORT_FIELD*) my_malloc(PSI_INSTRUMENT_ME,
+                                           (fields->elements+1) *
+                                           sizeof(SORT_FIELD),
+                                           MYF(MY_WME))))
+    DBUG_RETURN(TRUE);
 
   /* Calculate how many saved fields there is in list */
-  field_count=0;
-  List_iterator<Item> it(*fields);
-  Item *item;
-  while ((item=it++))
-  {
-    if (item->get_tmp_table_field() && ! item->const_item())
-      field_count++;
-  }
+  field_count= item_count= 0;
 
-  if (!field_count && !(join->select_options & OPTION_FOUND_ROWS) && !having) 
-  {                    // only const items with no OPTION_FOUND_ROWS
+  List_iterator<Item> it(*fields);
+  for (sorder= sortorder ; (item=it++) ;)
+  {
+    if (!item->const_item())
+    {
+      if (item->get_tmp_table_field())
+      {
+        /* Field is stored in temporary table, skipp */
+        field_count++;
+      }
+      else
+      {
+        /* Item is not stored in temporary table, remember it */
+        sorder->field= 0;                       // Safety, not used
+        sorder->item= item;
+        /* Calculate sorder->length */
+        item->type_handler()->sort_length(thd, item, sorder);
+        sorder++;
+        item_count++;
+      }
+    }
+  }
+  sorder->item= 0;                                 // End marker
+
+  if ((field_count + item_count == 0) && ! having &&
+      !(join->select_options & OPTION_FOUND_ROWS))
+  {
+    // only const items with no OPTION_FOUND_ROWS
     join->unit->lim.set_single_row();		// Only send first row
+    my_free(sortorder);
     DBUG_RETURN(false);
   }
+
+  /*
+    The table contains first fields that will be in the output, then
+    temporary results pointed to by the fields list.
+    Example: SELECT DISTINCT sum(a), sum(d) > 2 FROM ...
+    In this case the temporary table contains sum(a), sum(d).
+  */
 
   Field **first_field=table->field+table->s->fields - field_count;
   for (Field **ptr=first_field; *ptr; ptr++)
     keylength+= (*ptr)->sort_length() + (*ptr)->maybe_null();
+  for (SORT_FIELD *ptr= sortorder ; ptr->item ; ptr++)
+    sort_field_keylength+= ptr->length + (ptr->item->maybe_null() ? 1 : 0);
 
   /*
     Disable LIMIT ROWS EXAMINED in order to avoid interrupting prematurely
@@ -25410,29 +25439,79 @@ JOIN_TAB::remove_duplicates()
     thd->reset_killed();
 
   table->file->info(HA_STATUS_VARIABLE);
+  table->reginfo.lock_type=TL_WRITE;
+
   if (table->s->db_type() == heap_hton ||
       (!table->s->blob_fields &&
        ((ALIGN_SIZE(keylength) + HASH_OVERHEAD) * table->file->stats.records <
 	thd->variables.sortbuff_size)))
-    error=remove_dup_with_hash_index(join->thd, table, field_count, first_field,
-				     keylength, having);
+    error= remove_dup_with_hash_index(join->thd, table, field_count,
+                                      first_field, sortorder,
+                                      keylength + sort_field_keylength, having);
   else
-    error=remove_dup_with_compare(join->thd, table, first_field, having);
+    error=remove_dup_with_compare(join->thd, table, first_field, sortorder,
+                                  sort_field_keylength, having);
 
   if (join->select_lex != join->select_lex->master_unit()->fake_select_lex)
     thd->lex->set_limit_rows_examined();
   free_blobs(first_field);
+  my_free(sortorder);
   DBUG_RETURN(error);
 }
 
 
+/*
+  Create a sort/compare key from items
+
+  Key is of fixed length and binary comparable
+*/
+
+static uchar *make_sort_key(SORT_FIELD *sortorder, uchar *key_buffer,
+                            String *tmp_value)
+{
+  for (SORT_FIELD *ptr= sortorder ; ptr->item ; ptr++)
+  {
+    ptr->item->type_handler()->make_sort_key_part(key_buffer,
+                                                  ptr->item,
+                                                  ptr, tmp_value);
+    key_buffer+= (ptr->item->maybe_null() ? 1 : 0) + ptr->length;
+  }
+  return key_buffer;
+}
+
+
+/*
+  Remove duplicates by comparing all rows with all other rows
+
+   @param thd          THD
+   @param table        Temporary table
+   @param first_field  Pointer to fields in temporary table that are part of
+                       distinct, ends with null pointer
+   @param sortorder    An array of Items part of distsinct. Terminated with an
+                       element N with sortorder[N]->item=NULL.
+   @param keylength    Length of key produced by sortorder
+   @param having       Having expression (NULL if no having)
+*/
+
 static int remove_dup_with_compare(THD *thd, TABLE *table, Field **first_field,
+                                   SORT_FIELD *sortorder, ulong keylength,
 				   Item *having)
 {
   handler *file=table->file;
-  uchar *record=table->record[0];
+  uchar *record=table->record[0], *key_buffer, *key_buffer2;
+  char *tmp_buffer;
   int error;
+  String tmp_value;
   DBUG_ENTER("remove_dup_with_compare");
+
+  if (unlikely(!my_multi_malloc(PSI_INSTRUMENT_ME,
+                                MYF(MY_WME),
+                                &key_buffer, keylength,
+                                &key_buffer2, keylength,
+                                &tmp_buffer, keylength+1,
+                                NullS)))
+    DBUG_RETURN(1);
+  tmp_value.set(tmp_buffer, keylength, &my_charset_bin);
 
   if (unlikely(file->ha_rnd_init_with_error(1)))
     DBUG_RETURN(1);
@@ -25442,8 +25521,8 @@ static int remove_dup_with_compare(THD *thd, TABLE *table, Field **first_field,
   {
     if (unlikely(thd->check_killed()))
     {
-      error=0;
-      goto err;
+      error= 1;
+      goto end;
     }
     if (unlikely(error))
     {
@@ -25462,9 +25541,10 @@ static int remove_dup_with_compare(THD *thd, TABLE *table, Field **first_field,
     {
       my_message(ER_OUTOFMEMORY, ER_THD(thd,ER_OUTOFMEMORY),
                  MYF(ME_FATAL));
-      error=0;
-      goto err;
+      error= 1;
+      goto end;
     }
+    make_sort_key(sortorder, key_buffer, &tmp_value);
     store_record(table,record[1]);
 
     /* Read through rest of file and mark duplicated rows deleted */
@@ -25477,7 +25557,10 @@ static int remove_dup_with_compare(THD *thd, TABLE *table, Field **first_field,
 	  break;
 	goto err;
       }
-      if (compare_record(table, first_field) == 0)
+      make_sort_key(sortorder, key_buffer2, &tmp_value);
+      if (compare_record(table, first_field) == 0 &&
+          (!keylength ||
+           memcmp(key_buffer, key_buffer2, keylength) == 0))
       {
 	if (unlikely((error= file->ha_delete_row(record))))
 	  goto err;
@@ -25496,38 +25579,52 @@ static int remove_dup_with_compare(THD *thd, TABLE *table, Field **first_field,
       goto err;
   }
 
+  error= 0;
+end:
+  my_free(key_buffer);
   file->extra(HA_EXTRA_NO_CACHE);
   (void) file->ha_rnd_end();
-  DBUG_RETURN(0);
+  DBUG_RETURN(error);
+
 err:
-  file->extra(HA_EXTRA_NO_CACHE);
-  (void) file->ha_rnd_end();
-  if (error)
-    file->print_error(error,MYF(0));
-  DBUG_RETURN(1);
+  DBUG_ASSERT(error);
+  file->print_error(error,MYF(0));
+  goto end;
 }
 
 
 /**
-  Generate a hash index for each row to quickly find duplicate rows.
+   Generate a hash index for each row to quickly find duplicate rows.
 
-  @note
-    Note that this will not work on tables with blobs!
+   @param thd          THD
+   @param table        Temporary table
+   @param field_count  Number of fields part of distinct
+   @param first_field  Pointer to fields in temporary table that are part of
+                       distinct, ends with null pointer
+   @param sortorder    An array of Items part of distsinct. Terminated with an
+                       element N with sortorder[N]->item=NULL.
+   @param keylength    Length of hash key
+   @param having       Having expression (NULL if no having)
+
+   @note
+   Note that this will not work on tables with blobs!
 */
 
 static int remove_dup_with_hash_index(THD *thd, TABLE *table,
 				      uint field_count,
 				      Field **first_field,
+                                      SORT_FIELD *sortorder,
 				      ulong key_length,
 				      Item *having)
 {
   uchar *key_buffer, *key_pos, *record=table->record[0];
+  char *tmp_buffer;
   int error;
   handler *file= table->file;
   ulong extra_length= ALIGN_SIZE(key_length)-key_length;
   uint *field_lengths, *field_length;
   HASH hash;
-  Field **ptr;
+  String tmp_value;
   DBUG_ENTER("remove_dup_with_hash_index");
 
   if (!my_multi_malloc(key_memory_hash_index_key_buffer, MYF(MY_WME),
@@ -25536,10 +25633,13 @@ static int remove_dup_with_hash_index(THD *thd, TABLE *table,
                                (long) file->stats.records),
                        &field_lengths,
                        (uint) (field_count*sizeof(*field_lengths)),
+                       &tmp_buffer, key_length+1,
                        NullS))
     DBUG_RETURN(1);
 
-  for (ptr= first_field, field_length=field_lengths ; *ptr ; ptr++)
+  tmp_value.set(tmp_buffer, key_length, &my_charset_bin);
+  field_length= field_lengths;
+  for (Field **ptr= first_field ; *ptr ; ptr++)
     (*field_length++)= (*ptr)->sort_length();
 
   if (my_hash_init(key_memory_hash_index_key_buffer, &hash, &my_charset_bin,
@@ -25553,7 +25653,7 @@ static int remove_dup_with_hash_index(THD *thd, TABLE *table,
   if (unlikely((error= file->ha_rnd_init(1))))
     goto err;
 
-  key_pos=key_buffer;
+  key_pos= key_buffer;
   for (;;)
   {
     uchar *org_key_pos;
@@ -25578,11 +25678,14 @@ static int remove_dup_with_hash_index(THD *thd, TABLE *table,
     /* copy fields to key buffer */
     org_key_pos= key_pos;
     field_length=field_lengths;
-    for (ptr= first_field ; *ptr ; ptr++)
+    for (Field **ptr= first_field ; *ptr ; ptr++)
     {
       (*ptr)->make_sort_key_part(key_pos, *field_length);
       key_pos+= (*ptr)->maybe_null() + *field_length++;
     }
+    /* Copy result fields not stored in table to key buffer */
+    key_pos= make_sort_key(sortorder, key_pos, &tmp_value);
+
     /* Check if it exists before */
     if (my_hash_search(&hash, org_key_pos, key_length))
     {
@@ -27873,12 +27976,16 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
   // psergey-todo: data for filtering!
   tracker= &eta->tracker;
   jbuf_tracker= &eta->jbuf_tracker;
+  jbuf_loops_tracker= &eta->jbuf_loops_tracker;
+  jbuf_unpack_tracker= &eta->jbuf_unpack_tracker;
 
   /* Enable the table access time tracker only for "ANALYZE stmt" */
   if (thd->lex->analyze_stmt)
   {
     table->file->set_time_tracker(&eta->op_tracker);
-    eta->op_tracker.my_gap_tracker = &eta->extra_time_tracker;
+    eta->op_tracker.set_gap_tracker(&eta->extra_time_tracker);
+
+    eta->jbuf_unpack_tracker.set_gap_tracker(&eta->jbuf_extra_time_tracker);
   }
   /* No need to save id and select_type here, they are kept in Explain_select */
 
@@ -28506,7 +28613,8 @@ int JOIN::save_explain_data_intern(Explain_query *output,
 
 
       Explain_table_access *eta= (new (output->mem_root)
-                                  Explain_table_access(output->mem_root));
+                                  Explain_table_access(output->mem_root,
+                                                       thd->lex->analyze_stmt));
 
       if (!eta)
         DBUG_RETURN(1);
@@ -29045,6 +29153,162 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
   }
 }
 
+enum explainable_cmd_type
+{
+  SELECT_CMD, INSERT_CMD, REPLACE_CMD, UPDATE_CMD, DELETE_CMD, NO_CMD
+};
+
+static
+const LEX_CSTRING explainable_cmd_name []=
+{
+  {STRING_WITH_LEN("select ")},
+  {STRING_WITH_LEN("insert ")},
+  {STRING_WITH_LEN("replace ")},
+  {STRING_WITH_LEN("update ")},
+  {STRING_WITH_LEN("delete ")},
+};
+
+static
+const LEX_CSTRING* get_explainable_cmd_name(enum explainable_cmd_type cmd)
+{
+  return explainable_cmd_name + cmd;
+}
+
+static
+enum explainable_cmd_type get_explainable_cmd_type(THD *thd)
+{
+  switch (thd->lex->sql_command) {
+  case SQLCOM_SELECT:
+    return SELECT_CMD;
+  case SQLCOM_INSERT:
+  case SQLCOM_INSERT_SELECT:
+    return INSERT_CMD;
+  case SQLCOM_REPLACE:
+  case SQLCOM_REPLACE_SELECT:
+    return REPLACE_CMD;
+  case SQLCOM_UPDATE:
+  case SQLCOM_UPDATE_MULTI:
+    return UPDATE_CMD;
+  case SQLCOM_DELETE:
+  case SQLCOM_DELETE_MULTI:
+    return DELETE_CMD;
+  default:
+    return SELECT_CMD;
+  }
+}
+
+
+void TABLE_LIST::print_leaf_tables(THD *thd, String *str,
+                              enum_query_type query_type)
+{
+  if (merge_underlying_list)
+  {
+    for (TABLE_LIST *tbl= merge_underlying_list; tbl; tbl= tbl->next_local)
+      tbl->print_leaf_tables(thd, str, query_type);
+  }
+  else
+    print(thd, 0, str, query_type);
+}
+
+
+void st_select_lex::print_item_list(THD *thd, String *str,
+                                    enum_query_type query_type)
+{
+  bool first= 1;
+  /*
+    outer_select() can not be used here because it is for name resolution
+    and will return NULL at any end of name resolution chain (view/derived)
+  */
+  bool top_level= (get_master()->get_master() == 0);
+  List_iterator_fast<Item> it(item_list);
+  Item *item;
+  while ((item= it++))
+  {
+    if (first)
+      first= 0;
+    else
+      str->append(',');
+
+    if ((is_subquery_function() && !item->is_explicit_name()) ||
+        !item->name.str)
+    {
+      /*
+        Do not print auto-generated aliases in subqueries. It has no purpose
+        in a view definition or other contexts where the query is printed.
+      */
+      item->print(str, query_type);
+    }
+    else
+    {
+      /*
+        Do not print illegal names (if it is not top level SELECT).
+        Top level view checked (and correct name are assigned),
+        other cases of top level SELECT are not important, because
+        it is not "table field".
+      */
+      if (top_level ||
+          item->is_explicit_name() ||
+          !check_column_name(item->name.str))
+        item->print_item_w_name(str, query_type);
+      else
+        item->print(str, query_type);
+    }
+  }
+}
+
+
+void st_select_lex::print_set_clause(THD *thd, String *str,
+                                     enum_query_type query_type)
+{
+  bool first= 1;
+  /*
+    outer_select() can not be used here because it is for name resolution
+    and will return NULL at any end of name resolution chain (view/derived)
+  */
+  List_iterator_fast<Item> it(item_list);
+  List_iterator_fast<Item> vt(thd->lex->value_list);
+  Item *item;
+  Item *val;
+  while ((item= it++, val= vt++ ))
+  {
+    if (first)
+    {
+      str->append(STRING_WITH_LEN(" set "));
+      first= 0;
+    }
+    else
+      str->append(',');
+
+    item->print(str, query_type);
+    str->append(STRING_WITH_LEN(" = "));
+    val->print(str, query_type);
+  }
+}
+
+
+void st_select_lex::print_on_duplicate_key_clause(THD *thd, String *str,
+                                                  enum_query_type query_type)
+{
+  bool first= 1;
+  List_iterator_fast<Item> it(thd->lex->update_list);
+  List_iterator_fast<Item> vt(thd->lex->value_list);
+  Item *item;
+  Item *val;
+  while ((item= it++, val= vt++ ))
+  {
+    if (first)
+    {
+      str->append(STRING_WITH_LEN(" on duplicate key update "));
+      first= 0;
+    }
+    else
+      str->append(',');
+
+    item->print(str, query_type);
+    str->append(STRING_WITH_LEN(" = "));
+    val->print(str, query_type);
+  }
+}
 
 void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
 {
@@ -29054,6 +29318,67 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
   {
     tvc->print(thd, str, query_type);
     return;
+  }
+
+  if (is_tvc_wrapper && (query_type & QT_NO_WRAPPERS_FOR_TVC_IN_VIEW))
+  {
+    first_inner_unit()->first_select()->print(thd, str, query_type);
+    return;
+  }
+
+  bool top_level= (get_master()->get_master() == 0);
+  enum explainable_cmd_type sel_type= SELECT_CMD;
+  if (top_level)
+    sel_type= get_explainable_cmd_type(thd);
+
+  if (sel_type == INSERT_CMD || sel_type == REPLACE_CMD)
+  {
+    str->append(get_explainable_cmd_name(sel_type));
+    str->append(STRING_WITH_LEN("into "));
+    TABLE_LIST *tbl= thd->lex->query_tables;
+    while (tbl->merge_underlying_list)
+      tbl= tbl->merge_underlying_list;
+    tbl->print(thd, 0, str, query_type);
+    if (thd->lex->field_list.elements)
+    {
+      str->append ('(');
+      List_iterator_fast<Item> it(thd->lex->field_list);
+      Item *item;
+      bool first= true;
+      while ((item= it++))
+      {
+        if (first)
+          first= false;
+        else
+          str->append(',');
+	str->append(item->name);
+      }
+      str->append(')');
+    }
+
+    str->append(' ');
+
+    if (thd->lex->sql_command == SQLCOM_INSERT ||
+        thd->lex->sql_command == SQLCOM_REPLACE)
+    {
+      str->append(STRING_WITH_LEN("values "));
+      bool is_first_elem= true;
+      List_iterator_fast<List_item> li(thd->lex->many_values);
+      List_item *list;
+
+      while ((list= li++))
+      {
+        if (is_first_elem)
+          is_first_elem= false;
+        else
+          str->append(',');
+
+        print_list_item(str, list, query_type);
+      }
+      if (thd->lex->update_list.elements)
+        print_on_duplicate_key_clause(thd, str, query_type);
+      return;
+    }
   }
 
   if ((query_type & QT_SHOW_SELECT_NUMBER) &&
@@ -29078,7 +29403,10 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
     str->append(STRING_WITH_LEN(" */ "));
   }
 
-  str->append(STRING_WITH_LEN("select "));
+  if (sel_type == SELECT_CMD ||
+      sel_type == INSERT_CMD ||
+      sel_type == REPLACE_CMD)
+    str->append(STRING_WITH_LEN("select "));
 
   if (join && join->cleaned)
   {
@@ -29124,56 +29452,65 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
   }
 
   //Item List
-  bool first= 1;
-  /*
-    outer_select() can not be used here because it is for name resolution
-    and will return NULL at any end of name resolution chain (view/derived)
-  */
-  bool top_level= (get_master()->get_master() == 0);
-  List_iterator_fast<Item> it(item_list);
-  Item *item;
-  while ((item= it++))
-  {
-    if (first)
-      first= 0;
-    else
-      str->append(',');
-
-    if ((is_subquery_function() && !item->is_explicit_name()) ||
-        !item->name.str)
-    {
-      /*
-        Do not print auto-generated aliases in subqueries. It has no purpose
-        in a view definition or other contexts where the query is printed.
-      */
-      item->print(str, query_type);
-    }
-    else
-    {
-      /*
-        Do not print illegal names (if it is not top level SELECT).
-        Top level view checked (and correct name are assigned),
-        other cases of top level SELECT are not important, because
-        it is not "table field".
-      */
-      if (top_level ||
-          item->is_explicit_name() ||
-          !check_column_name(item->name.str))
-        item->print_item_w_name(str, query_type);
-      else
-        item->print(str, query_type);
-    }
-  }
-
+  if (sel_type == SELECT_CMD ||
+      sel_type == INSERT_CMD ||
+      sel_type == REPLACE_CMD)
+    print_item_list(thd, str, query_type);
   /*
     from clause
     TODO: support USING/FORCE/IGNORE index
   */
   if (table_list.elements)
   {
-    str->append(STRING_WITH_LEN(" from "));
-    /* go through join tree */
-    print_join(thd, join? join->eliminated_tables: 0, str, &top_join_list, query_type);
+    if (sel_type == SELECT_CMD ||
+        sel_type == INSERT_CMD ||
+        sel_type == REPLACE_CMD)
+    {
+      str->append(STRING_WITH_LEN(" from "));
+      /* go through join tree */
+      print_join(thd, join? join->eliminated_tables: 0, str, &top_join_list,
+                 query_type);
+    }
+    if (sel_type == UPDATE_CMD || sel_type == DELETE_CMD)
+      str->append(get_explainable_cmd_name(sel_type));
+    if (sel_type == DELETE_CMD)
+    {
+      str->append(STRING_WITH_LEN(" from "));
+      bool first= true;
+      for (TABLE_LIST *target_tbl= thd->lex->auxiliary_table_list.first;
+           target_tbl;
+           target_tbl= target_tbl->next_local)
+      {
+        if (first)
+          first= false;
+        else
+          str->append(',');
+        target_tbl->correspondent_table->print_leaf_tables(thd, str,
+                                                           query_type);
+      }
+
+      if (!first)
+        str->append(STRING_WITH_LEN(" using "));
+    }
+    if (sel_type == UPDATE_CMD || sel_type == DELETE_CMD)
+    {
+      if (join)
+        print_join(thd, 0, str, &top_join_list, query_type);
+      else
+      {
+        bool first= true;
+        List_iterator_fast<TABLE_LIST> li(leaf_tables);
+        TABLE_LIST *tbl;
+        while ((tbl= li++))
+        {
+          if (first)
+            first= false;
+          else
+            str->append(',');
+          tbl->print(thd, 0, str, query_type);
+        }
+      }
+    }
   }
   else if (where)
   {
@@ -29184,10 +29521,15 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
     str->append(STRING_WITH_LEN(" from DUAL "));
   }
 
+  if (sel_type == UPDATE_CMD)
+    print_set_clause(thd, str, query_type);
+
   // Where
   Item *cur_where= where;
   if (join)
     cur_where= join->conds;
+  else if (sel_type == UPDATE_CMD || sel_type == DELETE_CMD)
+    cur_where= thd->lex->upd_del_where;
   if (cur_where || cond_value != Item::COND_UNDEF)
   {
     str->append(STRING_WITH_LEN(" where "));
@@ -29246,6 +29588,15 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
   if (unlikely(skip_locked))
     str->append(STRING_WITH_LEN(" skip locked"));
 
+  if ((sel_type == INSERT_CMD || sel_type == REPLACE_CMD) &&
+      thd->lex->update_list.elements)
+    print_on_duplicate_key_clause(thd, str, query_type);
+
+  // returning clause
+  if (sel_type == DELETE_CMD && !item_list.elements)
+  {
+    print_item_list(thd, str, query_type);
+  }
   // PROCEDURE unsupported here
 }
 

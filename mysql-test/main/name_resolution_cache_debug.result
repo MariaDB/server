@@ -1,0 +1,25 @@
+connect con1,localhost,root;
+create table t1 (a int, b int);
+create table t2 (c int, d int);
+create view v1 as select c+1 as e, d+1 as f from t2;
+SET DEBUG_SYNC= 'table_field_cached SIGNAL in_sync WAIT_FOR go';
+prepare stmt1 from "select a from t1";
+execute stmt1;
+connection default;
+SET DEBUG_SYNC= 'now WAIT_FOR in_sync';
+SET DEBUG_SYNC= 'now SIGNAL go';
+connection con1;
+a
+SET DEBUG_SYNC= 'table_field_cached SIGNAL in_sync WAIT_FOR go';
+prepare stmt1 from "select e from v1";
+execute stmt1;
+connection default;
+SET DEBUG_SYNC= 'now WAIT_FOR in_sync';
+SET DEBUG_SYNC= 'now SIGNAL go';
+connection con1;
+e
+connection default;
+disconnect con1;
+SET DEBUG_SYNC = 'RESET';
+drop view v1;
+drop table t1,t2;

@@ -351,3 +351,101 @@ primary key(id, p without overlaps)
 ) engine=heap partition by hash(id);
 update t set id = 1;
 drop table t, t1;
+#
+# MDEV-30415 PERIOD false positive overlap wtih utf8mb4_unicode_nopad_ci
+#
+CREATE TABLE t1 (
+datetime_column_name_1 DATETIME(6) NOT NULL,
+datetime_column_name_2 DATETIME(6) NOT NULL,
+text_column_name TEXT COLLATE utf8mb4_unicode_nopad_ci NOT NULL,
+PERIOD FOR period_name (datetime_column_name_1, datetime_column_name_2),
+UNIQUE KEY index_name (text_column_name(191),period_name WITHOUT OVERLAPS)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_nopad_ci;
+INSERT INTO t1 (datetime_column_name_1, datetime_column_name_2, text_column_name)
+VALUES
+('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc'),
+('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc ');
+TRUNCATE TABLE t1;
+INSERT INTO t1 (datetime_column_name_1, datetime_column_name_2, text_column_name)
+VALUES
+('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc '),
+('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc');
+DROP TABLE t1;
+CREATE TABLE `t1` (
+datetime_column_name_1 DATETIME(6) NOT NULL,
+datetime_column_name_2 DATETIME(6) NOT NULL,
+text_column_name TEXT COLLATE utf8mb4_unicode_nopad_ci NOT NULL,
+PERIOD FOR period_name (datetime_column_name_1, datetime_column_name_2),
+UNIQUE KEY index_name (text_column_name(191),period_name WITHOUT OVERLAPS)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_nopad_ci;
+INSERT INTO t1 VALUES
+('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'def '),
+('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'def');
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES
+('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'def'),
+('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'def '),
+('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'def  ');
+SELECT *, LENGTH(text_column_name) FROM t1;
+datetime_column_name_1	datetime_column_name_2	text_column_name	LENGTH(text_column_name)
+2000-01-01 00:00:00.000000	2001-01-01 00:00:00.000000	def	3
+2000-01-01 00:00:00.000000	2001-01-01 00:00:00.000000	def 	4
+2000-01-01 00:00:00.000000	2001-01-01 00:00:00.000000	def  	5
+DROP TABLE t1;
+CREATE TABLE t1 (
+datetime_column_name_1 DATETIME(6) NOT NULL,
+datetime_column_name_2 DATETIME(6) NOT NULL,
+text_column_name TEXT COLLATE utf8mb4_unicode_nopad_ci NOT NULL,
+PERIOD FOR period_name (datetime_column_name_1, datetime_column_name_2),
+UNIQUE KEY index_name (text_column_name(3),period_name WITHOUT OVERLAPS)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_nopad_ci;
+INSERT INTO t1 (datetime_column_name_1, datetime_column_name_2, text_column_name)
+VALUES
+('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc'),
+('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc ');
+ERROR 23000: Duplicate entry 'abc-2001-01-01 00:00:00.000000-2000-01-01 00:00:00.000000' for key 'index_name'
+TRUNCATE TABLE t1;
+INSERT INTO t1 (datetime_column_name_1, datetime_column_name_2, text_column_name)
+VALUES
+('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc '),
+('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc');
+ERROR 23000: Duplicate entry 'abc-2001-01-01 00:00:00.000000-2000-01-01 00:00:00.000000' for key 'index_name'
+DROP TABLE t1;
+CREATE TABLE t1 (
+datetime_column_name_1 DATETIME(6) NOT NULL,
+datetime_column_name_2 DATETIME(6) NOT NULL,
+char_column_name CHAR(255) COLLATE utf8mb4_unicode_nopad_ci NOT NULL,
+PERIOD FOR period_name (datetime_column_name_1, datetime_column_name_2),
+UNIQUE KEY index_name (char_column_name(191),period_name WITHOUT OVERLAPS)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_nopad_ci;
+INSERT INTO t1 (datetime_column_name_1, datetime_column_name_2, char_column_name)
+VALUES
+('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc'),
+('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc ');
+ERROR 23000: Duplicate entry 'abc-2001-01-01 00:00:00.000000-2000-01-01 00:00:00.000000' for key 'index_name'
+TRUNCATE TABLE t1;
+INSERT INTO t1 (datetime_column_name_1, datetime_column_name_2, char_column_name)
+VALUES
+('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc '),
+('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc');
+ERROR 23000: Duplicate entry 'abc-2001-01-01 00:00:00.000000-2000-01-01 00:00:00.000000' for key 'index_name'
+DROP TABLE t1;
+CREATE TABLE t1 (
+datetime_column_name_1 DATETIME(6) NOT NULL,
+datetime_column_name_2 DATETIME(6) NOT NULL,
+char_column_name CHAR(255) COLLATE utf8mb4_unicode_nopad_ci NOT NULL,
+PERIOD FOR period_name (datetime_column_name_1, datetime_column_name_2),
+UNIQUE KEY index_name (char_column_name(3),period_name WITHOUT OVERLAPS)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_nopad_ci;
+INSERT INTO t1 (datetime_column_name_1, datetime_column_name_2, char_column_name)
+VALUES
+('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc'),
+('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc ');
+ERROR 23000: Duplicate entry 'abc-2001-01-01 00:00:00.000000-2000-01-01 00:00:00.000000' for key 'index_name'
+TRUNCATE TABLE t1;
+INSERT INTO t1 (datetime_column_name_1, datetime_column_name_2, char_column_name)
+VALUES
+('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc '),
+('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc');
+ERROR 23000: Duplicate entry 'abc-2001-01-01 00:00:00.000000-2000-01-01 00:00:00.000000' for key 'index_name'
+DROP TABLE t1;

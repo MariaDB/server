@@ -166,14 +166,14 @@ show create table servers;
 Table	Create Table
 servers	CREATE TABLE `servers` (
   `Server_name` char(64) NOT NULL DEFAULT '',
-  `Host` char(64) NOT NULL DEFAULT '',
+  `Host` varchar(2048) NOT NULL DEFAULT '',
   `Db` char(64) NOT NULL DEFAULT '',
   `Username` char(128) NOT NULL DEFAULT '',
   `Password` char(64) NOT NULL DEFAULT '',
   `Port` int(4) NOT NULL DEFAULT 0,
   `Socket` char(64) NOT NULL DEFAULT '',
   `Wrapper` char(64) NOT NULL DEFAULT '',
-  `Owner` char(64) NOT NULL DEFAULT '',
+  `Owner` varchar(512) NOT NULL DEFAULT '',
   PRIMARY KEY (`Server_name`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='MySQL Foreign Servers table'
 show create table proc;
