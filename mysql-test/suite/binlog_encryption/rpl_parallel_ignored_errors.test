@@ -1,1 +1,1 @@
---source suite/rpl/include/rpl_parallel_ignored_errors.inc
+--source suite/rpl/t/rpl_parallel_ignored_errors.test

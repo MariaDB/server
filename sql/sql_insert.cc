@@ -870,7 +870,8 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   save_insert_query_plan(thd, table_list);
   if (thd->lex->describe)
   {
-    retval= thd->lex->explain->send_explain(thd);
+    bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
+    retval= thd->lex->explain->send_explain(thd, extended);
     goto abort;
   }
 

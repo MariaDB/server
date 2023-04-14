@@ -2283,15 +2283,21 @@ CREATE TABLE crash_test_2 (
 --echo # Cleanup
 DROP TABLE t1;
 
-
 --echo #
 --echo # End of 10.3 tests
 --echo #
 
-
 --echo #
 --echo # Start of 10.4 tests
 --echo #
+
+--echo #
+--echo # MDEV-30351 crash in Item_func_left::val_str
+--echo #
+
+SELECT WEIGHT_STRING('aa') IN (LEFT(WEIGHT_STRING('aaa'),4),'bbb') as expect_1;
+
+SELECT UNHEX('0032') in (LEFT(UNHEX('003200'), 2),'dog') as expect_1;
 
 --echo #
 --echo # MDEV-21841 CONV() function truncates the result type to 21 symbol.

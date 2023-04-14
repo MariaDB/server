@@ -320,13 +320,17 @@ Breaks: mariadb-server-10.0,
         mariadb-server-core-10.6,
         mariadb-server-core-10.7,
         mariadb-server-core-10.8,
+        mysql-cluster-community-client-plugins,
         mysql-server-core-5.5,
         mysql-server-core-5.6,
         mysql-server-core-5.7,
         mysql-server-core-8.0,
         percona-server-server-5.6,
+        percona-server-server-5.7,
+        percona-server-server-8.0,
         percona-xtradb-cluster-server-5.6,
-        percona-xtradb-cluster-server-5.7
+        percona-xtradb-cluster-server-5.7,
+        percona-xtradb-cluster-server-8.0
 Replaces: mariadb-client (<< ${source:Version}),
           mariadb-client-10.0,
           mariadb-client-10.1,
@@ -377,13 +381,17 @@ Replaces: mariadb-client (<< ${source:Version}),
           mysql-client-core-5.6,
           mysql-client-core-5.7,
           mysql-client-core-8.0,
+          mysql-cluster-community-client-plugins,
           mysql-server-core-5.5,
           mysql-server-core-5.6,
           mysql-server-core-5.7,
           mysql-server-core-8.0,
           percona-server-server-5.6,
+          percona-server-server-5.7,
+          percona-server-server-8.0,
           percona-xtradb-cluster-server-5.6,
           percona-xtradb-cluster-server-5.7,
+          percona-xtradb-cluster-server-8.0,
           virtual-mysql-client-core
 Provides: default-mysql-client-core,
           mariadb-client-core-10.9,
@@ -608,6 +616,7 @@ Breaks: mariadb-client (<< ${source:Version}),
         mariadb-server (<< ${source:Version}),
         mariadb-server-10.0,
         mariadb-server-10.1,
+        mariadb-server-10.2,
         mariadb-server-10.3,
         mariadb-server-10.4,
         mariadb-server-10.5,
@@ -637,6 +646,7 @@ Replaces: mariadb-client (<< ${source:Version}),
           mariadb-server (<< ${source:Version}),
           mariadb-server-10.0,
           mariadb-server-10.1,
+          mariadb-server-10.2,
           mariadb-server-10.3,
           mariadb-server-10.4,
           mariadb-server-10.5,
@@ -801,9 +811,11 @@ Package: mariadb-backup
 Architecture: any
 Breaks: mariadb-backup-10.1,
         mariadb-backup-10.2,
+        mariadb-backup-10.3,
         mariadb-client-10.1
 Replaces: mariadb-backup-10.1,
           mariadb-backup-10.2,
+          mariadb-backup-10.3,
           mariadb-client-10.1
 Depends: mariadb-client-core (= ${binary:Version}),
          ${misc:Depends},
@@ -826,12 +838,16 @@ Breaks: mariadb-connect-engine-10.0,
         mariadb-connect-engine-10.1,
         mariadb-connect-engine-10.2,
         mariadb-connect-engine-10.3,
-        mariadb-connect-engine-10.4
+        mariadb-connect-engine-10.4,
+        mariadb-server-10.0,
+        mariadb-server-10.1
 Replaces: mariadb-connect-engine-10.0,
           mariadb-connect-engine-10.1,
           mariadb-connect-engine-10.2,
           mariadb-connect-engine-10.3,
-          mariadb-connect-engine-10.4
+          mariadb-connect-engine-10.4,
+          mariadb-server-10.0,
+          mariadb-server-10.1
 Description: Connect storage engine for MariaDB
  Connect engine supports a number of file formats (dbf, xml, txt, bin, etc),
  connections to ODBC tables and remote MySQL tables, as well as a number of
@@ -852,7 +868,7 @@ Description: Amazon S3 archival storage engine for MariaDB
 Package: mariadb-plugin-rocksdb
 Architecture: amd64 arm64 mips64el ppc64el
 Depends: mariadb-server (= ${server:Version}),
-         python3,
+         python3:any,
          rocksdb-tools,
          ${misc:Depends},
          ${shlibs:Depends}
@@ -878,12 +894,16 @@ Breaks: mariadb-oqgraph-engine-10.0,
         mariadb-oqgraph-engine-10.1,
         mariadb-oqgraph-engine-10.2,
         mariadb-oqgraph-engine-10.3,
-        mariadb-oqgraph-engine-10.4
+        mariadb-oqgraph-engine-10.4,
+        mariadb-server-10.0,
+        mariadb-server-10.1
 Replaces: mariadb-oqgraph-engine-10.0,
           mariadb-oqgraph-engine-10.1,
           mariadb-oqgraph-engine-10.2,
           mariadb-oqgraph-engine-10.3,
-          mariadb-oqgraph-engine-10.4
+          mariadb-oqgraph-engine-10.4,
+          mariadb-server-10.0,
+          mariadb-server-10.1
 Description: OQGraph storage engine for MariaDB
  The OQGraph engine is a computation engine plugin for handling hierarchies
  (trees) and graphs (friend-of-a-friend, etc) cleanly through standard SQL.
@@ -939,11 +959,15 @@ Depends: libgssapi-krb5-2,
 Breaks: mariadb-gssapi-server-10.1,
         mariadb-gssapi-server-10.2,
         mariadb-gssapi-server-10.3,
-        mariadb-gssapi-server-10.4
+        mariadb-gssapi-server-10.4,
+        mariadb-server-10.0,
+        mariadb-server-10.1
 Replaces: mariadb-gssapi-server-10.1,
           mariadb-gssapi-server-10.2,
           mariadb-gssapi-server-10.3,
-          mariadb-gssapi-server-10.4
+          mariadb-gssapi-server-10.4,
+          mariadb-server-10.0,
+          mariadb-server-10.1
 Description: GSSAPI authentication plugin for MariaDB server
  This plugin includes support for Kerberos on Unix, but can also be used for
  Windows authentication with or without domain environment.
@@ -1102,6 +1126,8 @@ Replaces: mariadb-test-10.0,
           mariadb-test-5.5,
           mysql-client-5.5,
           mysql-server-5.5,
+          mysql-server-5.7,
+          mysql-server-core-8.0,
           mysql-testsuite,
           mysql-testsuite-5.5,
           mysql-testsuite-5.6,

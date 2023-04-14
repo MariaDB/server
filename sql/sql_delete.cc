@@ -1096,6 +1096,8 @@ int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list, Item **conds,
     DBUG_RETURN(TRUE);
 
   select_lex->fix_prepare_information(thd, conds, &fake_conds);
+  if (!thd->lex->upd_del_where)
+    thd->lex->upd_del_where= *conds;
   DBUG_RETURN(FALSE);
 }
 

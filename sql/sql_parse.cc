@@ -4574,7 +4574,10 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       thd->protocol= save_protocol;
     }
     if (!res && thd->lex->analyze_stmt)
-      res= thd->lex->explain->send_explain(thd);
+    {
+      bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
+      res= thd->lex->explain->send_explain(thd, extended);
+    }
     delete sel_result;
     MYSQL_INSERT_DONE(res, (ulong) thd->get_row_count_func());
     /*
@@ -4754,7 +4757,10 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
         thd->protocol= save_protocol;
       }
       if (!res && (explain || lex->analyze_stmt))
-        res= thd->lex->explain->send_explain(thd);
+      {
+        bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
+        res= thd->lex->explain->send_explain(thd, extended);
+      }
 
       /* revert changes for SP */
       MYSQL_INSERT_SELECT_DONE(res, (ulong) thd->get_row_count_func());
@@ -4821,7 +4827,10 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     if (thd->lex->analyze_stmt || thd->lex->describe)
     {
       if (!res)
-        res= thd->lex->explain->send_explain(thd);
+      {
+        bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
+        res= thd->lex->explain->send_explain(thd, extended);
+      }
     }
 
     delete sel_result;
@@ -4882,7 +4891,10 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
         else
         {
           if (lex->describe || lex->analyze_stmt)
-            res= thd->lex->explain->send_explain(thd);
+	  {
+            bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
+            res= thd->lex->explain->send_explain(thd, extended);
+          }
         }
       multi_delete_error:
         delete result;
@@ -6275,7 +6287,10 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
           thd->protocol= save_protocol;
         }
         if (!res)
-          res= thd->lex->explain->send_explain(thd);
+	{
+          bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
+          res= thd->lex->explain->send_explain(thd, extended);
+        }
       }
     }
   }
@@ -9309,7 +9324,9 @@ static my_bool kill_threads_callback(THD *thd, kill_threads_callback_arg *arg)
       if (!(arg->thd->security_ctx->master_access &
             PRIV_KILL_OTHER_USER_PROCESS) &&
           !arg->thd->security_ctx->user_matches(thd->security_ctx))
-        return 1;
+      {
+        return MY_TEST(arg->thd->security_ctx->master_access & PROCESS_ACL);
+      }
       if (!arg->threads_to_kill.push_back(thd, arg->thd->mem_root))
       {
         mysql_mutex_lock(&thd->LOCK_thd_kill); // Lock from delete
@@ -9429,7 +9446,10 @@ sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
     my_ok(thd, rows);
     break;
   case ER_KILL_DENIED_ERROR:
-    my_error(error, MYF(0), (long long) thd->thread_id);
+    char buf[DEFINER_LENGTH+1];
+    strxnmov(buf, sizeof(buf), user->user.str, "@", user->host.str, NULL);
+    my_printf_error(ER_KILL_DENIED_ERROR, ER_THD(thd, ER_CANNOT_USER), MYF(0),
+                    "KILL USER", buf);
     break;
   case ER_OUT_OF_RESOURCES:
   default:

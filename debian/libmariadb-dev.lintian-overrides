@@ -1,1 +1,2 @@
+# This is how upstream does it, wont' fix
 arch-dependent-file-not-in-arch-specific-directory usr/bin/mariadb_config

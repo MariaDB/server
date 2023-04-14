@@ -4060,14 +4060,14 @@ public:
   */
   virtual void make_sort_key_part(uchar *to, Item *item,
                                   const SORT_FIELD_ATTR *sort_field,
-                                  Sort_param *param) const= 0;
+                                  String *tmp) const= 0;
 
   /*
     create a compact size key part for a sort key
   */
   virtual uint make_packed_sort_key_part(uchar *to, Item *item,
                                          const SORT_FIELD_ATTR *sort_field,
-                                         Sort_param *param) const=0;
+                                         String *tmp) const=0;
 
   virtual void sort_length(THD *thd,
                           const Type_std_attributes *item,
@@ -4473,12 +4473,12 @@ public:
                                    uint32 flags) const override;
   void make_sort_key_part(uchar *to, Item *item,
                           const SORT_FIELD_ATTR *sort_field,
-                          Sort_param *param) const override
+                          String *tmp) const override
   {
     MY_ASSERT_UNREACHABLE();
   }
   uint make_packed_sort_key_part(uchar *, Item *, const SORT_FIELD_ATTR *,
-                                 Sort_param *) const override
+                                 String *) const override
   {
     MY_ASSERT_UNREACHABLE();
     return 0;
@@ -4818,10 +4818,10 @@ public:
                                             const override;
   void make_sort_key_part(uchar *to, Item *item,
                           const SORT_FIELD_ATTR *sort_field,
-                          Sort_param *param) const override;
+                          String *tmp) const override;
   uint make_packed_sort_key_part(uchar *to, Item *item,
                                  const SORT_FIELD_ATTR *sort_field,
-                                 Sort_param *param) const override;
+                                 String *tmp) const override;
   void sort_length(THD *thd,
                    const Type_std_attributes *item,
                    SORT_FIELD_ATTR *attr) const override;
@@ -4930,10 +4930,10 @@ public:
     const override;
   void make_sort_key_part(uchar *to, Item *item,
                           const SORT_FIELD_ATTR *sort_field,
-                          Sort_param *param) const override;
+                          String *tmp) const override;
   uint make_packed_sort_key_part(uchar *to, Item *item,
                                  const SORT_FIELD_ATTR *sort_field,
-                                 Sort_param *param) const override;
+                                 String *tmp) const override;
   void
   Column_definition_attributes_frm_pack(const Column_definition_attributes *at,
                                         uchar *buff) const override;
@@ -5186,10 +5186,10 @@ public:
                           TABLE_SHARE *share) const override;
   void make_sort_key_part(uchar *to, Item *item,
                           const SORT_FIELD_ATTR *sort_field,
-                          Sort_param *param) const override;
+                          String *tmp) const override;
   uint make_packed_sort_key_part(uchar *to, Item *item,
                                  const SORT_FIELD_ATTR *sort_field,
-                                 Sort_param *param) const override;
+                                 String *tmp) const override;
   void
   Column_definition_attributes_frm_pack(const Column_definition_attributes *at,
                                         uchar *buff) const override;
@@ -5297,10 +5297,10 @@ public:
                                         uchar *buff) const override;
   void make_sort_key_part(uchar *to, Item *item,
                           const SORT_FIELD_ATTR *sort_field,
-                          Sort_param *param) const override;
+                          String *tmp) const override;
   uint make_packed_sort_key_part(uchar *to, Item *item,
                                  const SORT_FIELD_ATTR *sort_field,
-                                 Sort_param *param) const override;
+                                 String *tmp) const override;
   void sort_length(THD *thd,
                    const Type_std_attributes *item,
                    SORT_FIELD_ATTR *attr) const override;
@@ -5397,10 +5397,10 @@ public:
                                             CHARSET_INFO *cs) const override;
   void make_sort_key_part(uchar *to, Item *item,
                           const SORT_FIELD_ATTR *sort_field,
-                          Sort_param *param) const override;
+                          String *tmp) const override;
   uint make_packed_sort_key_part(uchar *to, Item *item,
                                  const SORT_FIELD_ATTR *sort_field,
-                                 Sort_param *param) const override;
+                                 String *tmp) const override;
   void sort_length(THD *thd,
                    const Type_std_attributes *item,
                    SORT_FIELD_ATTR *attr) const override;
@@ -6620,10 +6620,10 @@ public:
                             const override;
   void make_sort_key_part(uchar *to, Item *item,
                           const SORT_FIELD_ATTR *sort_field,
-                          Sort_param *param) const override;
+                          String *tmp) const override;
   uint make_packed_sort_key_part(uchar *to, Item *item,
                                  const SORT_FIELD_ATTR *sort_field,
-                                 Sort_param *param) const override;
+                                 String *tmp) const override;
   void sort_length(THD *thd,
                    const Type_std_attributes *item,
                    SORT_FIELD_ATTR *attr) const override;

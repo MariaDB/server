@@ -1391,7 +1391,8 @@ produce_explain_and_leave:
     goto err;
 
 emit_explain_and_leave:
-  int err2= thd->lex->explain->send_explain(thd);
+  bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
+  int err2= thd->lex->explain->send_explain(thd, extended);
 
   delete select;
   free_underlaid_joins(thd, select_lex);
@@ -1465,6 +1466,8 @@ bool mysql_prepare_update(THD *thd, TABLE_LIST *table_list,
 
 
   select_lex->fix_prepare_information(thd, conds, &fake_conds);
+  if (!thd->lex->upd_del_where)
+    thd->lex->upd_del_where= *conds;
   DBUG_RETURN(FALSE);
 }
 
@@ -1992,7 +1995,10 @@ bool mysql_multi_update(THD *thd, TABLE_LIST *table_list, List<Item> *fields,
   else
   {
     if (thd->lex->describe || thd->lex->analyze_stmt)
-      res= thd->lex->explain->send_explain(thd);
+    {
+      bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
+      res= thd->lex->explain->send_explain(thd, extended);
+    }
   }
   thd->abort_on_warning= 0;
   DBUG_RETURN(res);

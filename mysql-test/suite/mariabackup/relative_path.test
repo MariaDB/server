@@ -1,0 +1,35 @@
+--source include/have_innodb.inc
+
+CREATE TABLE t(i INT) ENGINE INNODB;
+INSERT INTO t VALUES(1);
+
+echo # xtrabackup backup;
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+--let $backup_log=$MYSQLTEST_VARDIR/tmp/backup.log
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir > $backup_log 2>&1;
+--enable_result_log
+
+echo # xtrabackup prepare;
+--disable_result_log
+exec $XTRABACKUP  --prepare --target-dir=$targetdir;
+
+# If MDEV-28187 is not fixed, the following tries to copy backup to data
+# directory will fail, because their destination path will be the same as
+# their source path
+
+--let $backup_opts=--innodb_undo_directory=./
+--source include/restart_and_restore.inc
+
+--let $backup_opts=--innodb_log_group_home_dir=./
+--source include/restart_and_restore.inc
+
+--let $backup_opts=--innodb_data_home_dir=./
+--source include/restart_and_restore.inc
+
+--enable_result_log
+
+SELECT * FROM t;
+DROP TABLE t;
+rmdir $targetdir;
