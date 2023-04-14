@@ -1440,8 +1440,44 @@ select * from t;
 
 drop table t;
 
+--echo #
+--echo # MDEV-31043 ER_KEY_NOT_FOUND upon concurrent ALTER and transaction
+--echo #
+let $i=2;
+let local_engine=myisam;
+while ($i) {
+eval create table t (a int, b int) engine=$local_engine;
+insert into t values (1,10),(2,20);
+set debug_sync= 'alter_table_online_before_lock signal burnit wait_for goforit';
+--send
+alter table t add c int, algorithm=copy, lock=none;
+
+--connection con1
+
+set debug_sync= 'now wait_for burnit';
+update t set b = 100;
+start transaction;
+update t set b = 200;
+
+--connection con2
+delete from t order by a limit 1;
+delete from t order by a limit 1;
+select * from t;
+--connection con1
+commit;
+set debug_sync= 'now signal goforit';
+
+--connection default
+--reap
+select * from t;
+drop table t;
+dec $i;
+let local_engine=aria;
+}
+
 set debug_sync= reset;
 --disconnect con1
+--disconnect con2
 --echo #
 --echo # End of 11.2 tests
 --echo #
