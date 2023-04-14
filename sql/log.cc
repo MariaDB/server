@@ -489,7 +489,8 @@ private:
       delete pending();
       set_pending(0);
     }
-    reinit_io_cache(&cache_log, WRITE_CACHE, pos, 0, reset_cache);
+    my_bool res= reinit_io_cache(&cache_log, WRITE_CACHE, pos, 0, reset_cache);
+    DBUG_ASSERT(res == 0);
     cache_log.end_of_file= saved_max_binlog_cache_size;
   }
 
@@ -7700,24 +7701,41 @@ static int binlog_online_alter_end_trans(THD *thd, bool all, bool commit)
   {
     auto *binlog= cache.sink_log;
     DBUG_ASSERT(binlog);
+    bool non_trans= cache.hton->flags & HTON_NO_ROLLBACK // Aria
+                    || !cache.hton->rollback;
+    bool do_commit= (commit && is_ending_transaction) || non_trans;
 
-    bool do_commit= commit || !cache.hton->rollback ||
-                    cache.hton->flags & HTON_NO_ROLLBACK; // Aria
+    if (commit || non_trans)
+    {
+      // Do not set STMT_END for last event to leave table open in altering thd
+      error= binlog_flush_pending_rows_event(thd, false, true, binlog, &cache);
+    }
+
     if (do_commit)
     {
-      // do not set STMT_END for last event to leave table open in altering thd
-      error= binlog_flush_pending_rows_event(thd, false, true, binlog, &cache);
-      if (is_ending_transaction)
+      /*
+        If the cache wasn't reinited to write, then it remains empty after
+        the last write.
+      */
+      if (my_b_bytes_in_cache(&cache.cache_log) && likely(!error))
       {
+        DBUG_ASSERT(cache.cache_log.type != READ_CACHE);
         mysql_mutex_lock(binlog->get_log_lock());
         error= binlog->write_cache(thd, &cache.cache_log);
         mysql_mutex_unlock(binlog->get_log_lock());
       }
-      else
-        cache.store_prev_position();
     }
-    else if (!is_ending_transaction)
+    else if (!commit) // rollback
+    {
+      DBUG_ASSERT(!non_trans);
       cache.restore_prev_position();
+    }
+    else
+    {
+      DBUG_ASSERT(!is_ending_transaction);
+      cache.store_prev_position();
+    }
+
 
     if (error)
     {
