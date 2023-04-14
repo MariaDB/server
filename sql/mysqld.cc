@@ -8963,16 +8963,18 @@ bool is_secure_file_path(char *path)
 {
   char buff1[FN_REFLEN], buff2[FN_REFLEN];
   size_t opt_secure_file_priv_len;
+  DBUG_ENTER("is_secure_file_path");
+
   /*
     All paths are secure if opt_secure_file_path is 0
   */
   if (!opt_secure_file_priv)
-    return TRUE;
+    DBUG_RETURN(TRUE);
 
   opt_secure_file_priv_len= strlen(opt_secure_file_priv);
 
   if (strlen(path) >= FN_REFLEN)
-    return FALSE;
+    DBUG_RETURN(FALSE);
 
   if (my_realpath(buff1, path, 0))
   {
@@ -8983,13 +8985,13 @@ bool is_secure_file_path(char *path)
     memcpy(buff2, path, length);
     buff2[length]= '\0';
     if (length == 0 || my_realpath(buff1, buff2, 0))
-      return FALSE;
+      DBUG_RETURN(FALSE);
   }
   convert_dirname(buff2, buff1, NullS);
   if (!lower_case_file_system)
   {
     if (strncmp(opt_secure_file_priv, buff2, opt_secure_file_priv_len))
-      return FALSE;
+      DBUG_RETURN(FALSE);
   }
   else
   {
@@ -8997,9 +8999,9 @@ bool is_secure_file_path(char *path)
                                       opt_secure_file_priv,
                                       opt_secure_file_priv_len,
                                       TRUE))
-      return FALSE;
+      DBUG_RETURN(FALSE);
   }
-  return TRUE;
+  DBUG_RETURN(TRUE);
 }
 
 

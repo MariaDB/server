@@ -774,8 +774,10 @@ Event_scheduler::unlock_data(const char *func, uint line)
 */
 
 void
-Event_scheduler::cond_wait(THD *thd, struct timespec *abstime, const PSI_stage_info *stage,
-                           const char *src_func, const char *src_file, uint src_line)
+Event_scheduler::cond_wait(THD *thd, struct timespec *abstime,
+                           const PSI_stage_info *stage,
+                           const char *src_func, const char *src_file,
+                           uint src_line)
 {
   DBUG_ENTER("Event_scheduler::cond_wait");
   waiting_on_cond= TRUE;

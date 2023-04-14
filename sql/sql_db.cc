@@ -735,7 +735,7 @@ mysql_create_db_internal(THD *thd, const LEX_CSTRING *db,
   char	 path[FN_REFLEN+16];
   MY_STAT stat_info;
   uint path_len;
-  DBUG_ENTER("mysql_create_db");
+  DBUG_ENTER("mysql_create_db_internal");
 
   /* do not create 'information_schema' db */
   if (is_infoschema_db(db))
@@ -1751,7 +1751,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
   new_db_file_name.length= new_db_name->length;
 
   if (new_db_file_name.str == NULL)
-    DBUG_RETURN(ER_OUT_OF_RESOURCES);                             /* the error is set */
+    DBUG_RETURN(ER_OUT_OF_RESOURCES);           /* the error is set */
 
   /*
     NOTE: if check_db_name() fails, we should throw an error in any case,

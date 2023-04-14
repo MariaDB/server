@@ -24,7 +24,7 @@
 
 int my_mkdir(const char *dir, int Flags, myf MyFlags)
 {
-  DBUG_ENTER("my_dir");
+  DBUG_ENTER("my_mkdir");
   DBUG_PRINT("enter",("dir: %s",dir));
 #ifdef _WIN32
   LPSECURITY_ATTRIBUTES attr =

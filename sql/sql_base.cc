@@ -4492,6 +4492,7 @@ bool open_tables(THD *thd, const DDL_options_st &options,
 
   /* Data access in XA transaction is only allowed when it is active. */
   for (TABLE_LIST *table= *start; table; table= table->next_global)
+  {
     if (!table->schema_table)
     {
       if (thd->transaction->xid_state.check_has_uncommitted_xa())
@@ -4502,7 +4503,7 @@ bool open_tables(THD *thd, const DDL_options_st &options,
       else
         break;
     }
-
+  }
   thd->current_tablenr= 0;
 
 restart:

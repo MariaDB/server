@@ -198,7 +198,7 @@ int save_restore_context_apply_event(Log_event *ev, rpl_group_info *rgi)
   }
 
   sql_digest_state *m_digest= thd->m_digest;
-  PSI_statement_locker *m_statement_psi= thd->m_statement_psi;;
+  PSI_statement_locker *m_statement_psi= thd->m_statement_psi;
   LEX_CSTRING save_db= thd->db;
   my_thread_id m_thread_id= thd->variables.pseudo_thread_id;
 

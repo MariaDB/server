@@ -279,7 +279,7 @@ static int l_delete(LF_SLIST **head, CHARSET_INFO *cs, uint32 hashnr,
 
 /*
   DESCRIPTION
-    searches for a node as identified by hashnr/keey/keylen in the list
+    searches for a node as identified by hashnr/key/keylen in the list
     that starts from 'head'
 
   RETURN

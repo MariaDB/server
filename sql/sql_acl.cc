@@ -2489,10 +2489,11 @@ bool acl_init(bool dont_read_acl_tables)
   bool return_val;
   DBUG_ENTER("acl_init");
 
-  acl_cache= new Hash_filo<acl_entry>(key_memory_acl_cache, ACL_CACHE_SIZE, 0, 0,
-                           (my_hash_get_key) acl_entry_get_key,
-                           (my_hash_free_key) my_free,
-                           &my_charset_utf8mb3_bin);
+  acl_cache= new Hash_filo<acl_entry>(key_memory_acl_cache, ACL_CACHE_SIZE, 0,
+                                      0,
+                                      (my_hash_get_key) acl_entry_get_key,
+                                      (my_hash_free_key) my_free,
+                                      &my_charset_utf8mb3_bin);
 
   /*
     cache built-in native authentication plugins,
@@ -2568,7 +2569,8 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
 
   const Host_table& host_table= tables.host_table();
   init_sql_alloc(key_memory_acl_mem, &acl_memroot, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
-  if (host_table.table_exists()) // "host" table may not exist (e.g. in MySQL 5.6.7+)
+  /* "host" table may not exist (e.g. in MySQL 5.6.7+ or MariaDB 10.3+ */
+  if (host_table.table_exists())
   {
     if (host_table.init_read_record(&read_record_info))
       DBUG_RETURN(true);
@@ -3125,20 +3127,25 @@ static bool match_db(ACL_DB *acl_db, const char *db, my_bool db_is_pattern)
 
 
 /*
-  Lookup in the acl_users or acl_dbs for the best matching entry corresponding to
-  given user, host and ip parameters (also db, in case of ACL_DB)
+  Lookup in the acl_users or acl_dbs for the best matching entry
+  corresponding to given user, host and ip parameters (also db, in
+  case of ACL_DB)
 
   Historical note:
 
   In the past, both arrays were sorted just by ACL_ENTRY::sort field and were
   searched linearly, until the first match of (username,host) pair was found.
 
-  This function uses optimizations (binary search by username), yet preserves the
-  historical behavior, i.e the returns a match with highest ACL_ENTRY::sort.
+  This function uses optimizations (binary search by username), yet
+  preserves the historical behavior, i.e the returns a match with
+  highest ACL_ENTRY::sort.
 */
-template <typename T> T* find_by_username_or_anon(T* arr, size_t len, const char *user,
+
+template <typename T> T* find_by_username_or_anon(T* arr, size_t len,
+  const char *user,
   const char *host, const char *ip,
-  const char *db, my_bool db_is_pattern, bool (*match_db_func)(T*,const char *,my_bool))
+  const char *db, my_bool db_is_pattern,
+  bool (*match_db_func)(T*,const char *,my_bool))
 {
   size_t i;
   T *ret = NULL;
@@ -7974,7 +7981,8 @@ void  grant_free(void)
 
 /**
   @brief Initialize structures responsible for table/column-level privilege
-   checking and load information for them from tables in the 'mysql' database.
+   checking and load information for them from tables in the
+   'current_catalog.mysql' database.
 
   @return Error status
     @retval 0 OK
@@ -11892,7 +11900,7 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
   mysql_mutex_unlock(&acl_cache->lock);
   DBUG_RETURN(TRUE);
 
- found_acl:
+found_acl:
   mysql_mutex_unlock(&acl_cache->lock);
 
   bzero((char*)tables, sizeof(TABLE_LIST));
@@ -12326,7 +12334,8 @@ bool Sql_cmd_grant_sp::execute(THD *thd)
 
   if (!table) // e.g: GRANT EXECUTE ON PROCEDURE *.*
   {
-    my_message(ER_ILLEGAL_GRANT_FOR_TABLE, ER_THD(thd, ER_ILLEGAL_GRANT_FOR_TABLE),
+    my_message(ER_ILLEGAL_GRANT_FOR_TABLE,
+               ER_THD(thd, ER_ILLEGAL_GRANT_FOR_TABLE),
                MYF(0));
     return true;
   }
@@ -13057,7 +13066,7 @@ static uint m_registry_array_size= 0;
   @param access the schema ACL specific rules
 */
 void ACL_internal_schema_registry::register_schema
-  (const LEX_CSTRING *name, const ACL_internal_schema_access *access)
+(const LEX_CSTRING *name, const ACL_internal_schema_access *access)
 {
   DBUG_ASSERT(m_registry_array_size < array_elements(registry_array));
 
@@ -13996,11 +14005,11 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
       return packet_error;
 
     passwd_len= my_net_read(&thd->net);
-    passwd= (char*)thd->net.read_pos;
+    passwd= (char*) thd->net.read_pos;
   }
 
   *buff= (uchar*) passwd;
-  return (ulong)passwd_len;
+  return (ulong) passwd_len;
 #else
   return 0;
 #endif
@@ -14453,7 +14462,6 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
       with a user name, and performs the authentication if everyone has used
       the correct plugin.
     */
-
     res= do_auth_once(thd, default_auth_plugin_name, &mpvio);
   }
 
@@ -14631,7 +14639,6 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
       strmake_buf(sctx->priv_host, acl_user->host.hostname);
     else
       *sctx->priv_host= 0;
-
 
     /*
       Don't allow the user to connect if he has done too many queries.

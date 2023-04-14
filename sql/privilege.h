@@ -309,7 +309,8 @@ constexpr privilege_t PRIV_DEFINER_CLAUSE= SET_USER_ACL;
   If a VIEW has a `definer=invoker@host` clause and
   the specified definer does not exists, then
   - The invoker with REVEAL_MISSING_DEFINER_ACL gets:
-    ERROR: The user specified as a definer ('definer1'@'localhost') doesn't exist
+    ERROR: The user specified as a definer ('definer1'@'localhost') doesn't
+    exist.
   - The invoker without MISSING_DEFINER_ACL gets a generic access error,
     without revealing details that the definer does not exists.
 

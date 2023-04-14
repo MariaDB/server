@@ -6335,6 +6335,13 @@ int ha_discover_table(THD *thd, TABLE_SHARE *share)
   DBUG_RETURN(share->error != OPEN_FRM_OK);
 }
 
+
+/*
+  Check if file exists
+
+  @return 1 if exists
+*/
+
 static my_bool file_ext_exists(char *path, size_t path_len, const char *ext)
 {
   strmake(path + path_len, ext, FN_REFLEN - path_len);
