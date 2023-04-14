@@ -2429,9 +2429,9 @@ print_tz_as_sql(const char* tz_name, const TIME_ZONE_INFO *sp)
 
 
 #define SAVE_ENGINE(e) \
-  "\"select ENGINE into @" e "_engine" \
+  "'select ENGINE into @" e "_engine" \
   " from information_schema.TABLES" \
-  " where TABLE_SCHEMA=DATABASE() and TABLE_NAME='" e "'\""
+  " where TABLE_SCHEMA=DATABASE() and TABLE_NAME=''" e "'''"
 
 /*
   Print info about leap seconds in time zone as SQL statements
