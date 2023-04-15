@@ -6,83 +6,85 @@
 
 --connection server_2
 set @old_parallel_threads= @@global.slave_parallel_threads;
+set @old_domain_parallel_threads= @@global.slave_domain_parallel_threads;
 set @old_parallel_mode= @@global.slave_parallel_mode;
 --source include/stop_slave.inc
 change master to master_use_gtid= slave_pos;
 set global slave_parallel_threads= 10;
+set global slave_domain_parallel_threads= 1;
 set global slave_parallel_mode= optimistic;
 --source include/start_slave.inc
 set global innodb_print_all_deadlocks= on;
 
 --connection server_1
-create table `tu`(`id` int(11), `a` int(11) default null, `b` varchar(10) default null, `c` varchar(10) default null, primary key(`id`), unique key `u`(`a`,`b`)) engine=innodb default charset=latin1 stats_persistent=0;
 
+--delimiter ~~
+create function foo(x int, d1 varchar(500), d2 varchar(500))
+returns int deterministic
+begin
+  return x;
+end
+~~
+--delimiter ;
+
+create table t1 (a int unique) engine innodb;
+create table t2 (x int);
 
 --save_master_pos
 --connection server_2
 --sync_with_master
-insert into tu values(1,1,'a','a'),(2,9999,'xxxx','x'),(3,10000,'b','b'),(4,4,'c','c');
+insert into t1 values (1);
 
---connection server_1
+--delimiter ~~
+create or replace function foo(x int, d1 varchar(500), d2 varchar(500))
+returns int deterministic
+begin
+  if d1 != '' then
+    set debug_sync= d1;
+  end if;
+  if d2 != '' then
+    set debug_sync= d2;
+  end if;
+  return x;
+end
+~~
+--delimiter ;
+
 --connect (m1,localhost,root,,test)
 --connect (m2,localhost,root,,test)
---connect (m3,localhost,root,,test)
---connect (m4,localhost,root,,test)
---connect (m5,localhost,root,,test)
---connect (m6,localhost,root,,test)
 
 --connection m1
 set @@session.gtid_domain_id= 1;
-send delete from tu where a = 9999 and b = 'xxxx';
+insert into t2 values (foo(1,
+  'after_lock_clust_rec_read_check_and_lock wait_for clust_locked', ''));
+delete from t1;
 --connection m2
 set @@session.gtid_domain_id= 2;
-send delete from tu where a = 9999 and b = 'xxxx';
---connection m3
-set @@session.gtid_domain_id= 3;
-send delete from tu where a = 9999 and b = 'xxxx';
---connection m4
-set @@session.gtid_domain_id= 4;
-send delete from tu where a = 9999 and b = 'xxxx';
---connection m5
-set @@session.gtid_domain_id= 5;
-send delete from tu where a = 9999 and b = 'xxxx';
---connection m6
-set @@session.gtid_domain_id= 6;
-send delete from tu where a = 9999 and b = 'xxxx';
-
---connection m1
-reap;
---connection m2
-reap;
---connection m3
-reap;
---connection m4
-reap;
---connection m5
-reap;
---connection m6
-reap;
+insert into t2 values (foo(1,
+  'after_lock_clust_rec_read_check_and_lock signal clust_locked', ''));
+delete from t1 where a = 1;
 
 --save_master_pos
 --connection server_2
 --sync_with_master
+
+show engine innodb status;
 
 # Cleanup
 --source include/stop_slave.inc
 set global slave_parallel_threads= @old_parallel_threads;
+set global slave_domain_parallel_threads= @old_domain_parallel_threads;
 set global slave_parallel_mode= @old_parallel_mode;
 --source include/start_slave.inc
 set global innodb_print_all_deadlocks= default;
+set debug_sync= reset;
 
 --disconnect m1
 --disconnect m2
---disconnect m3
---disconnect m4
---disconnect m5
---disconnect m6
 
 --connection server_1
-drop table tu;
+drop tables t1, t2;
+drop function foo;
 
 call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
 call mtr.add_suppression("Sort aborted.*");
