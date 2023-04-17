@@ -252,6 +252,11 @@ static inline int wsrep_before_prepare(THD* thd, bool all)
     wsrep_xid_init(&thd->wsrep_xid,
                      thd->wsrep_trx().ws_meta().gtid());
   }
+
+  mysql_mutex_lock(&thd->LOCK_thd_kill);
+  if (thd->killed) wsrep_backup_kill_for_commit(thd);
+  mysql_mutex_unlock(&thd->LOCK_thd_kill);
+
   DBUG_RETURN(ret);
 }
 
@@ -294,6 +299,11 @@ static inline int wsrep_before_commit(THD* thd, bool all)
                    thd->wsrep_trx().ws_meta().gtid());
     wsrep_register_for_group_commit(thd);
   }
+
+  mysql_mutex_lock(&thd->LOCK_thd_kill);
+  if (thd->killed) wsrep_backup_kill_for_commit(thd);
+  mysql_mutex_unlock(&thd->LOCK_thd_kill);
+
   DBUG_RETURN(ret);
 }
 
@@ -314,7 +324,8 @@ static inline int wsrep_ordered_commit(THD* thd,
                                       const wsrep_apply_error&)
 {
   DBUG_ENTER("wsrep_ordered_commit");
-  WSREP_DEBUG("wsrep_ordered_commit: %d", wsrep_is_real(thd, all));
+  WSREP_DEBUG("wsrep_ordered_commit: %d %lld", wsrep_is_real(thd, all),
+              (long long) wsrep_thd_trx_seqno(thd));
   DBUG_ASSERT(wsrep_run_commit_hook(thd, all));
   DBUG_RETURN(thd->wsrep_cs().ordered_commit());
 }
@@ -420,9 +431,16 @@ int wsrep_after_statement(THD* thd)
               wsrep::to_c_string(thd->wsrep_cs().mode()),
               wsrep::to_c_string(thd->wsrep_cs().transaction().state()),
               wsrep_thd_query(thd));
-  DBUG_RETURN((thd->wsrep_cs().state() != wsrep::client_state::s_none &&
-	       thd->wsrep_cs().mode() == Wsrep_client_state::m_local) ?
-              thd->wsrep_cs().after_statement() : 0);
+  int ret= ((thd->wsrep_cs().state() != wsrep::client_state::s_none &&
+             thd->wsrep_cs().mode() == Wsrep_client_state::m_local) ?
+             thd->wsrep_cs().after_statement() : 0);
+  if (wsrep_is_active(thd))
+  {
+    mysql_mutex_lock(&thd->LOCK_thd_kill);
+    wsrep_restore_kill_after_commit(thd);
+    mysql_mutex_unlock(&thd->LOCK_thd_kill);
+  }
+  DBUG_RETURN(ret);
 }
 
 static inline void wsrep_after_apply(THD* thd)

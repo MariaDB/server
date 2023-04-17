@@ -1279,6 +1279,11 @@ void THD::init()
   m_wsrep_next_trx_id     = WSREP_UNDEFINED_TRX_ID;
   wsrep_replicate_GTID    = false;
   wsrep_aborter           = 0;
+  wsrep_abort_by_kill     = NOT_KILLED;
+  wsrep_abort_by_kill_err = 0;
+#ifndef DBUG_OFF
+  wsrep_killed_state      = 0;
+#endif /* DBUG_OFF */
   wsrep_desynced_backup_stage= false;
 #endif /* WITH_WSREP */
 
@@ -1637,6 +1642,13 @@ void THD::reset_for_reuse()
 #endif
 #ifdef WITH_WSREP
   wsrep_free_status(this);
+  wsrep_cs().reset_error();
+  wsrep_aborter= 0;
+  wsrep_abort_by_kill= NOT_KILLED;
+  wsrep_abort_by_kill_err= 0;
+#ifndef DBUG_OFF
+  wsrep_killed_state= 0;
+#endif /* DBUG_OFF */
 #endif /* WITH_WSREP */
 }
 
@@ -1886,7 +1898,9 @@ void THD::awake_no_mutex(killed_state state_to_set)
   }
 
   /* Interrupt target waiting inside a storage engine. */
-  if (state_to_set != NOT_KILLED  && !wsrep_is_bf_aborted(this))
+  if (state_to_set != NOT_KILLED &&
+      IF_WSREP(!wsrep_is_bf_aborted(this) && wsrep_abort_by_kill == NOT_KILLED,
+               true))
     ha_kill_query(this, thd_kill_level(this));
 
   abort_current_cond_wait(false);
@@ -2128,6 +2142,17 @@ void THD::reset_killed()
     mysql_mutex_unlock(&LOCK_thd_kill);
   }
 #ifdef WITH_WSREP
+  if (WSREP_NNULL(this))
+  {
+    if (wsrep_abort_by_kill != NOT_KILLED)
+    {
+      mysql_mutex_assert_not_owner(&LOCK_thd_kill);
+      mysql_mutex_lock(&LOCK_thd_kill);
+      wsrep_abort_by_kill= NOT_KILLED;
+      wsrep_abort_by_kill_err= 0;
+      mysql_mutex_unlock(&LOCK_thd_kill);
+    }
+  }
   mysql_mutex_assert_not_owner(&LOCK_thd_data);
   mysql_mutex_lock(&LOCK_thd_data);
   wsrep_aborter= 0;
