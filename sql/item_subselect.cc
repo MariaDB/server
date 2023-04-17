@@ -1963,7 +1963,7 @@ Item_in_subselect::single_value_transformer(JOIN *join)
     thd->lex->current_select= current;
 
     /* We will refer to upper level cache array => we have to save it for SP */
-    optimizer->keep_top_level_cache();
+    DBUG_ASSERT(optimizer->get_cache()[0]->is_array_kept());
 
     /*
       As far as  Item_in_optimizer does not substitute itself on fix_fields
@@ -2360,7 +2360,7 @@ Item_in_subselect::row_value_transformer(JOIN *join)
     }
 
     // we will refer to upper level cache array => we have to save it in PS
-    optimizer->keep_top_level_cache();
+    DBUG_ASSERT(optimizer->get_cache()[0]->is_array_kept());
 
     thd->lex->current_select= current;
     /*
