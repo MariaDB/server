@@ -37,6 +37,7 @@ class Event_db_repository;
 class Event_queue_element_for_exec;
 class Events;
 class THD;
+class SQL_CATALOG;
 
 void
 pre_init_event_thread(THD* thd);
@@ -71,7 +72,7 @@ private:
 class Event_scheduler
 {
 public:
-  Event_scheduler(Event_queue *event_queue_arg);
+  Event_scheduler(const SQL_CATALOG *catalog, Event_queue *event_queue_arg);
   ~Event_scheduler();
 
 
@@ -130,6 +131,8 @@ private:
   enum enum_state state;
 
   THD *scheduler_thd;
+
+  const SQL_CATALOG *catalog;
 
   mysql_cond_t COND_state;
 

@@ -18,11 +18,11 @@ INSERT INTO t1 VALUES (1);
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (1)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (1)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 SET server_id= 3;
 SET gtid_seq_no= 3;
@@ -50,14 +50,14 @@ a
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (1)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (1)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (4)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (4)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 *** Test non-transactional GTID error (cannot be rolled back). ***
 SET server_id= 3;
@@ -89,19 +89,19 @@ a
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (1)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (1)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (4)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (4)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=MyISAM
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=MyISAM
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t2 VALUES (2)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t2 VALUES (2)
 master-bin.000001	#	Query	#	#	COMMIT
 *** Test that slave stops if it tries to apply a GTID that would create out-of-order binlog GTID sequence numbers. ***
 connection server_2;

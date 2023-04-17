@@ -51,6 +51,7 @@
 #include "backup.h"
 #include "xa.h"
 #include "ddl_log.h"                            /* DDL_LOG_STATE */
+#include "catalog.h"
 
 extern "C"
 void set_thd_stage_info(void *thd,
@@ -1363,7 +1364,6 @@ public:
   */
   String base_query;
 
-
   inline char *query() const { return query_string.str(); }
   inline uint32 query_length() const
   {
@@ -2631,6 +2631,7 @@ private:
 
 public:
   MDL_context mdl_context;
+  SQL_CATALOG *catalog;
 
   /* Used to execute base64 coded binlog events in MySQL server */
   Relay_log_info* rli_fake;
@@ -2727,11 +2728,6 @@ public:
     which is called first in the thread for handling a client
   */
   char	  *thread_stack;
-
-  /**
-    Currently selected catalog.
-  */
-  char *catalog;
 
   /**
     @note

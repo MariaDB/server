@@ -1408,6 +1408,7 @@ void do_handle_one_connection(CONNECT *connect, bool put_in_cache)
       create_user= FALSE;
       goto end_thread;
     }      
+    DBUG_ASSERT(thd->catalog);
 
     while (thd_is_connection_alive(thd))
     {

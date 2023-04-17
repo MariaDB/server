@@ -76,7 +76,8 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sp_cache.cc ../sql/sp.cc ../sql/sp_head.cc 
            ../sql/sp_pcontext.cc ../sql/sp_rcontext.cc ../sql/sql_acl.cc 
            ../sql/sql_analyse.cc ../sql/sql_base.cc ../sql/sql_cache.cc 
-           ../sql/sql_class.cc ../sql/sql_crypt.cc ../sql/sql_cursor.cc 
+           ../sql/sql_class.cc ../sql/catalog.cc ../sql/sql_crypt.cc
+           ../sql/sql_cursor.cc 
            ../sql/sql_db.cc ../sql/sql_delete.cc ../sql/sql_derived.cc 
            ../sql/sql_do.cc ../sql/sql_error.cc ../sql/sql_handler.cc
             ../sql/sql_get_diagnostics.cc

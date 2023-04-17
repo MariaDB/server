@@ -47,6 +47,7 @@ class Event_queue;
 class Event_scheduler;
 struct TABLE_LIST;
 class THD;
+class SQL_CATALOG;
 typedef class Item COND;
 
 int
@@ -96,7 +97,7 @@ public:
   static Event_db_repository *
   get_db_repository() { return db_repository; }
 
-  static bool init(THD *thd, bool opt_noacl);
+  static bool init(THD *thd, const SQL_CATALOG *catalog, bool opt_noacl);
 
   static void
   deinit();

@@ -846,7 +846,7 @@ bool Protocol_text::store_field_metadata(const THD * thd,
 
   if (thd->client_capabilities & CLIENT_PROTOCOL_41)
   {
-    const LEX_CSTRING def= {STRING_WITH_LEN("def")};
+    const LEX_CSTRING def= {default_catalog_name};
     if (store_ident(def) ||
         store_ident(field.db_name) ||
         store_ident(field.table_name) ||

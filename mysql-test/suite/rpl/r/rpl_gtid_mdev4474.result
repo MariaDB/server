@@ -29,17 +29,17 @@ insert into t2 values (1);
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 slave-bin.000001	#	Gtid	#	#	GTID #-#-#
-slave-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; create table t1 (i int) engine=InnoDB
+slave-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; create table t1 (i int) engine=InnoDB
 slave-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-slave-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t1 values (1)
+slave-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t1 values (1)
 slave-bin.000001	#	Xid	#	#	COMMIT /* XID */
 slave-bin.000001	#	Gtid	#	#	GTID #-#-#
-slave-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; create table t2 (i int) engine=InnoDB
+slave-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; create table t2 (i int) engine=InnoDB
 slave-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-slave-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t1 values (2)
+slave-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t1 values (2)
 slave-bin.000001	#	Xid	#	#	COMMIT /* XID */
 slave-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-slave-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t2 values (1)
+slave-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t2 values (1)
 slave-bin.000001	#	Xid	#	#	COMMIT /* XID */
 # 
 # Server 1

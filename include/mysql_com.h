@@ -288,6 +288,9 @@ enum enum_indicator_type
 /* Do not resend metadata for prepared statements, since 10.6*/
 #define MARIADB_CLIENT_CACHE_METADATA (1ULL << 36)
 
+/* Client supports catalogs, since 11.# */
+#define MARIADB_CLIENT_CONNECT_CATALOG (1ULL << 37)
+
 #ifdef HAVE_COMPRESS
 #define CAN_CLIENT_COMPRESS CLIENT_COMPRESS
 #else
@@ -329,6 +332,7 @@ enum enum_indicator_type
                            MARIADB_CLIENT_STMT_BULK_OPERATIONS |\
                            MARIADB_CLIENT_EXTENDED_METADATA|\
                            MARIADB_CLIENT_CACHE_METADATA |\
+                           MARIADB_CLIENT_CONNECT_CATALOG |\
                            CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS)
 /*
   Switch off the flags that are optional and depending on build flags

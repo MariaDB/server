@@ -15,16 +15,16 @@ Note	1592	Unsafe statement written to the binary log using statement format sinc
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; create table t1 (a int)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; create table t1 (a int)
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	User var	#	#	@`a`=98
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t1 values (@a),(98)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t1 values (@a),(98)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t1 values (99)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t1 values (99)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t1 select 100 limit 100
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t1 select 100 limit 100
 master-bin.000001	#	Query	#	#	COMMIT
 drop table t1;
 #
@@ -64,42 +64,42 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000002	#	Binlog_checkpoint	#	#	master-bin.000002
 master-bin.000002	#	Gtid	#	#	GTID #-#-#
-master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t1 (a DECIMAL(30,8))
+master-bin.000002	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TABLE t1 (a DECIMAL(30,8))
 master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (10)
+master-bin.000002	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (10)
 master-bin.000002	#	Query	#	#	COMMIT
 master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (11)
+master-bin.000002	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (11)
 master-bin.000002	#	Query	#	#	COMMIT
 master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (12.1)
+master-bin.000002	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (12.1)
 master-bin.000002	#	Query	#	#	COMMIT
 master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES ('13')
+master-bin.000002	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES ('13')
 master-bin.000002	#	Query	#	#	COMMIT
 master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (DATE'2001-01-02')
+master-bin.000002	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (DATE'2001-01-02')
 master-bin.000002	#	Query	#	#	COMMIT
 master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (TIME'10:20:30')
+master-bin.000002	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (TIME'10:20:30')
 master-bin.000002	#	Query	#	#	COMMIT
 master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (TIME'10:20:30')
+master-bin.000002	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (TIME'10:20:30')
 master-bin.000002	#	Query	#	#	COMMIT
 master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (TIME'10:20:30.123')
+master-bin.000002	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (TIME'10:20:30.123')
 master-bin.000002	#	Query	#	#	COMMIT
 master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (TIME'10:20:30.123456')
+master-bin.000002	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (TIME'10:20:30.123456')
 master-bin.000002	#	Query	#	#	COMMIT
 master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (TIMESTAMP'2001-01-02 10:20:30')
+master-bin.000002	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (TIMESTAMP'2001-01-02 10:20:30')
 master-bin.000002	#	Query	#	#	COMMIT
 master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (TIMESTAMP'2001-01-02 10:20:30.123')
+master-bin.000002	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (TIMESTAMP'2001-01-02 10:20:30.123')
 master-bin.000002	#	Query	#	#	COMMIT
 master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (TIMESTAMP'2001-01-02 10:20:30.123456')
+master-bin.000002	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (TIMESTAMP'2001-01-02 10:20:30.123456')
 master-bin.000002	#	Query	#	#	COMMIT
 DROP TABLE t1;
 SET TIMESTAMP=DEFAULT;
@@ -118,15 +118,15 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000003	#	Binlog_checkpoint	#	#	master-bin.000003
 master-bin.000003	#	Gtid	#	#	GTID #-#-#
-master-bin.000003	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t1 (a INT)
+master-bin.000003	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TABLE t1 (a INT)
 master-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000003	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (101)
+master-bin.000003	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (101)
 master-bin.000003	#	Query	#	#	COMMIT
 master-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000003	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (102)
+master-bin.000003	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (102)
 master-bin.000003	#	Query	#	#	COMMIT
 master-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000003	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (103)
+master-bin.000003	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (103)
 master-bin.000003	#	Query	#	#	COMMIT
 DROP TABLE t1;
 #
@@ -160,15 +160,15 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000004	#	Binlog_checkpoint	#	#	master-bin.000004
 master-bin.000004	#	Gtid	#	#	GTID #-#-#
-master-bin.000004	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t1 (a INT DEFAULT 10)
+master-bin.000004	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TABLE t1 (a INT DEFAULT 10)
 master-bin.000004	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000004	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (Default)
+master-bin.000004	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (Default)
 master-bin.000004	#	Query	#	#	COMMIT
 master-bin.000004	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000004	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (DEFAULT)
+master-bin.000004	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (DEFAULT)
 master-bin.000004	#	Query	#	#	COMMIT
 master-bin.000004	#	Gtid	#	#	GTID #-#-#
-master-bin.000004	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`()
+master-bin.000004	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`()
 BEGIN
 INSERT INTO t1 VALUES (Default);
 # EXPLAIN should not be logged
@@ -176,15 +176,15 @@ EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT ?' USING Default;
 EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?)' USING Default;
 END
 master-bin.000004	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000004	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (Default)
+master-bin.000004	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (Default)
 master-bin.000004	#	Query	#	#	COMMIT
 master-bin.000004	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000004	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (DEFAULT)
+master-bin.000004	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (DEFAULT)
 master-bin.000004	#	Query	#	#	COMMIT
 master-bin.000004	#	Gtid	#	#	GTID #-#-#
-master-bin.000004	#	Query	#	#	set CATALOG `def`; use `test`; DROP PROCEDURE p1
+master-bin.000004	#	Query	#	#	SET CATALOG `def`; use `test`; DROP PROCEDURE p1
 master-bin.000004	#	Gtid	#	#	GTID #-#-#
-master-bin.000004	#	Query	#	#	set CATALOG `def`; use `test`; DROP TABLE `t1` /* generated by server */
+master-bin.000004	#	Query	#	#	SET CATALOG `def`; use `test`; DROP TABLE `t1` /* generated by server */
 #
 #MDEV-14467 Item_param: replace {INT|DECIMAL|REAL|STRING|TIME}_VALUE with Type_handler
 #
@@ -210,21 +210,21 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000005	#	Binlog_checkpoint	#	#	master-bin.000005
 master-bin.000005	#	Gtid	#	#	GTID #-#-#
-master-bin.000005	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t1 (a INT)
+master-bin.000005	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TABLE t1 (a INT)
 master-bin.000005	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000005	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 SELECT 1 LIMIT 10
+master-bin.000005	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 SELECT 1 LIMIT 10
 master-bin.000005	#	Query	#	#	COMMIT
 master-bin.000005	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000005	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 SELECT 1 LIMIT 10
+master-bin.000005	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 SELECT 1 LIMIT 10
 master-bin.000005	#	Query	#	#	COMMIT
 master-bin.000005	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000005	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 SELECT 1 LIMIT 10
+master-bin.000005	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 SELECT 1 LIMIT 10
 master-bin.000005	#	Query	#	#	COMMIT
 master-bin.000005	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000005	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 SELECT 1 LIMIT 10
+master-bin.000005	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 SELECT 1 LIMIT 10
 master-bin.000005	#	Query	#	#	COMMIT
 master-bin.000005	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000005	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 SELECT 1 LIMIT 101010
+master-bin.000005	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 SELECT 1 LIMIT 101010
 master-bin.000005	#	Query	#	#	COMMIT
 master-bin.000005	#	Gtid	#	#	GTID #-#-#
-master-bin.000005	#	Query	#	#	set CATALOG `def`; use `test`; DROP TABLE `t1` /* generated by server */
+master-bin.000005	#	Query	#	#	SET CATALOG `def`; use `test`; DROP TABLE `t1` /* generated by server */

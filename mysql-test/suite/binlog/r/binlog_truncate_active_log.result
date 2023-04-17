@@ -46,18 +46,18 @@ Pre-crash binlog file content:
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t (f INT) ENGINE=INNODB
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TABLE t (f INT) ENGINE=INNODB
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t2 (f INT) ENGINE=INNODB
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TABLE t2 (f INT) ENGINE=INNODB
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t4 (f INT) ENGINE=INNODB
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TABLE t4 (f INT) ENGINE=INNODB
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE tm (f INT) ENGINE=Aria
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TABLE tm (f INT) ENGINE=Aria
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t  VALUES (10)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t  VALUES (10)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tm VALUES (10)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tm VALUES (10)
 master-bin.000001	#	Query	#	#	COMMIT
 SELECT @@global.gtid_binlog_pos as 'After the crash';
 After the crash
@@ -110,16 +110,16 @@ Pre-crash binlog file content:
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; DELETE FROM t
+master-bin.000002	#	Query	#	#	SET CATALOG `def`; use `test`; DELETE FROM t
 master-bin.000002	#	Xid	#	#	COMMIT /* XID */
 master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t  VALUES (10)
+master-bin.000002	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t  VALUES (10)
 master-bin.000002	#	Xid	#	#	COMMIT /* XID */
 master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tm VALUES (10)
+master-bin.000002	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tm VALUES (10)
 master-bin.000002	#	Query	#	#	COMMIT
 master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; DELETE FROM t2 WHERE f = 0
+master-bin.000002	#	Query	#	#	SET CATALOG `def`; use `test`; DELETE FROM t2 WHERE f = 0
 master-bin.000002	#	Query	#	#	COMMIT
 SELECT @@global.gtid_binlog_pos as 'After the crash';
 After the crash
@@ -179,10 +179,10 @@ Pre-crash binlog file content:
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000003	#	Query	#	#	set CATALOG `def`; use `test`; DELETE FROM t
+master-bin.000003	#	Query	#	#	SET CATALOG `def`; use `test`; DELETE FROM t
 master-bin.000003	#	Xid	#	#	COMMIT /* XID */
 master-bin.000003	#	Gtid	#	#	GTID #-#-#
-master-bin.000003	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` PROCEDURE `sp_blank_xa`()
+master-bin.000003	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` PROCEDURE `sp_blank_xa`()
 BEGIN
 XA START   'blank';
 DELETE FROM t2 WHERE f = 0 /* no such record */;
@@ -190,10 +190,10 @@ XA END     'blank';
 XA PREPARE 'blank';
 END
 master-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000003	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t  VALUES (10)
+master-bin.000003	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t  VALUES (10)
 master-bin.000003	#	Xid	#	#	COMMIT /* XID */
 master-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000003	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tm VALUES (10)
+master-bin.000003	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tm VALUES (10)
 master-bin.000003	#	Query	#	#	COMMIT
 SELECT @@global.gtid_binlog_pos as 'After the crash';
 After the crash
@@ -254,12 +254,12 @@ Pre-crash binlog file content:
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000004	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000004	#	Query	#	#	set CATALOG `def`; use `test`; DELETE FROM t
+master-bin.000004	#	Query	#	#	SET CATALOG `def`; use `test`; DELETE FROM t
 master-bin.000004	#	Xid	#	#	COMMIT /* XID */
 master-bin.000004	#	Gtid	#	#	GTID #-#-#
-master-bin.000004	#	Query	#	#	set CATALOG `def`; use `test`; DROP PROCEDURE sp_blank_xa
+master-bin.000004	#	Query	#	#	SET CATALOG `def`; use `test`; DROP PROCEDURE sp_blank_xa
 master-bin.000004	#	Gtid	#	#	GTID #-#-#
-master-bin.000004	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` PROCEDURE `sp_xa`()
+master-bin.000004	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` PROCEDURE `sp_xa`()
 BEGIN
 XA START   'xid';
 DELETE FROM t WHERE f = 10;
@@ -267,13 +267,13 @@ XA END     'xid';
 XA PREPARE 'xid';
 END
 master-bin.000004	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000004	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t  VALUES (10)
+master-bin.000004	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t  VALUES (10)
 master-bin.000004	#	Xid	#	#	COMMIT /* XID */
 master-bin.000004	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000004	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tm VALUES (10)
+master-bin.000004	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tm VALUES (10)
 master-bin.000004	#	Query	#	#	COMMIT
 master-bin.000004	#	Gtid	#	#	XA START X'786964',X'',1 GTID #-#-#
-master-bin.000004	#	Query	#	#	set CATALOG `def`; use `test`; DELETE FROM t WHERE f = 10
+master-bin.000004	#	Query	#	#	SET CATALOG `def`; use `test`; DELETE FROM t WHERE f = 10
 master-bin.000004	#	Query	#	#	XA END X'786964',X'',1
 master-bin.000004	#	XA_prepare	#	#	XA PREPARE X'786964',X'',1
 SELECT @@global.gtid_binlog_pos as 'After the crash';

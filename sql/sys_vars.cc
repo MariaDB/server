@@ -1177,7 +1177,8 @@ static bool event_scheduler_update(sys_var *self, THD *thd, enum_var_type type)
     try to init it again. This is needed for mysql_upgrade to work properly if
     the event tables where upgraded.
   */
-  if (!Events::inited && (Events::init(thd, 0) || !Events::inited))
+  if (!Events::inited && (Events::init(thd, thd->catalog, 0) ||
+                          !Events::inited))
     ret= 1;
   else
     ret= opt_event_scheduler_value == Events::EVENTS_ON ?

@@ -1005,6 +1005,7 @@ int bootstrap(MYSQL_FILE *file)
   thd->client_capabilities|= CLIENT_MULTI_RESULTS;
 
   thd->init_for_queries();
+  thd->catalog= default_catalog();
 
   for ( ; ; )
   {
@@ -1750,6 +1751,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
     net->read_pos= (uchar*)packet;
 
     LEX_CSTRING save_db= thd->db;
+    SQL_CATALOG *save_catalog= thd->catalog;
     USER_CONN *save_user_connect= thd->user_connect;
     Security_context save_security_ctx= *thd->security_ctx;
     CHARSET_INFO *save_character_set_client=
@@ -1785,6 +1787,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
       if (thd->user_connect)
 	decrease_user_connections(thd->user_connect);
       thd->user_connect= save_user_connect;
+      thd->catalog= save_catalog;
       thd->reset_db(&save_db);
       thd->update_charset(save_character_set_client, save_collation_connection,
                           save_character_set_results);

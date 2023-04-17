@@ -28,13 +28,13 @@ a
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (4)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (4)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (5)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (5)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (6)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (6)
 master-bin.000001	#	Query	#	#	COMMIT
 DROP TABLE t1|
 CREATE DATABASE mysqltest1|
@@ -146,11 +146,11 @@ execute stmt using @a, @b, @c|
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; SELECT `test`.`fn`(9)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; SELECT `test`.`fn`(9)
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; SELECT `test`.`fn`(1)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; SELECT `test`.`fn`(1)
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert t1 values( NAME_CONST('a',4)+3)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert t1 values( NAME_CONST('a',4)+3)
 master-bin.000001	#	Query	#	#	COMMIT
 drop function fn|
 drop table t1|

@@ -338,6 +338,7 @@ gtid_pos_table_creation(THD *thd, plugin_ref engine, LEX_CSTRING *table_name)
     return 1;
   }
 
+  thd->catalog= default_catalog();
   thd->set_db(&MYSQL_SCHEMA_NAME);
   thd->clear_error();
   ulonglong thd_saved_option= thd->variables.option_bits;

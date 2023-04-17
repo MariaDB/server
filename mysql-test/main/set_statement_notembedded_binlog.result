@@ -12,10 +12,10 @@ set statement gtid_domain_id = 20 for insert into t1 values (3),(4);
 show binlog events limit 5,5;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 x	x	x	x	x	BEGIN GTID 10-1-1
-x	x	x	x	x	set CATALOG `def`; use `test`; insert into t1 values (1),(2)
+x	x	x	x	x	SET CATALOG `def`; use `test`; insert into t1 values (1),(2)
 x	x	x	x	x	COMMIT
 x	x	x	x	x	BEGIN GTID 20-1-1
-x	x	x	x	x	set CATALOG `def`; use `test`; set statement gtid_domain_id = 20 for insert into t1 values (3),(4)
+x	x	x	x	x	SET CATALOG `def`; use `test`; set statement gtid_domain_id = 20 for insert into t1 values (3),(4)
 drop table t1;
 reset master;
 SET @a=11;
@@ -45,12 +45,12 @@ x	x	x	x	x	LAST_INSERT_ID=0
 x	x	x	x	x	INSERT_ID=1
 x	x	x	x	x	@`a`=11
 x	x	x	x	x	@`a`=11
-x	x	x	x	x	set CATALOG `def`; use `test`; SELECT `test`.`f1`()
+x	x	x	x	x	SET CATALOG `def`; use `test`; SELECT `test`.`f1`()
 x	x	x	x	x	LAST_INSERT_ID=0
 x	x	x	x	x	INSERT_ID=2
 x	x	x	x	x	@`a`=1113
 x	x	x	x	x	@`a`=1113
-x	x	x	x	x	set CATALOG `def`; use `test`; SELECT `test`.`f1`()
+x	x	x	x	x	SET CATALOG `def`; use `test`; SELECT `test`.`f1`()
 x	x	x	x	x	COMMIT
 select * from t1;
 a	c	d
@@ -87,12 +87,12 @@ x	x	x	x	x	LAST_INSERT_ID=0
 x	x	x	x	x	INSERT_ID=1
 x	x	x	x	x	@`a`=11
 x	x	x	x	x	@`save`=0
-x	x	x	x	x	set CATALOG `def`; use `test`; SELECT `test`.`f1`()
+x	x	x	x	x	SET CATALOG `def`; use `test`; SELECT `test`.`f1`()
 x	x	x	x	x	LAST_INSERT_ID=0
 x	x	x	x	x	INSERT_ID=2
 x	x	x	x	x	@`a`=1113
 x	x	x	x	x	@`save`=0
-x	x	x	x	x	set CATALOG `def`; use `test`; SELECT `test`.`f1`()
+x	x	x	x	x	SET CATALOG `def`; use `test`; SELECT `test`.`f1`()
 x	x	x	x	x	COMMIT
 select * from t1;
 a	c	d

@@ -838,7 +838,7 @@ typedef struct st_print_event_info
     them if they are unchanged.
   */
   char db[FN_REFLEN+1]; // TODO: make this a LEX_STRING when thd->db is
-  char catalog[FN_REFLEN+1];
+  const SQL_CATALOG *catalog;
   char charset[6]; // 3 variables, each of them storable in 2 bytes
   char time_zone_str[MAX_TIME_ZONE_NAME_LENGTH];
   char delimiter[16];
@@ -849,6 +849,7 @@ typedef struct st_print_event_info
   uint lc_time_names_number;
   uint charset_database_number;
   uint verbose;
+  size_t catalog_length;
   uint32 flags2;
   uint32 server_id;
   uint32 domain_id;
@@ -898,8 +899,6 @@ typedef struct st_print_event_info
   IO_CACHE review_sql_cache;
 #endif
   FILE *file;
-
-
 
   /*
     Used to include the events within a GTID start/stop boundary
@@ -2077,9 +2076,10 @@ class Query_log_event: public Log_event
 protected:
   Log_event::Byte* data_buf;
 public:
-  const char* query;
-  const char* catalog;
-  const char* db;
+  const SQL_CATALOG *catalog;
+  LEX_CSTRING catalog_name;
+  const char *db;
+  const char *query;
   /*
     If we already know the length of the query string
     we pass it with q_len, so we would not have to call strlen()
@@ -2100,8 +2100,6 @@ public:
     Binlog format 3 and 4 start to differ (as far as class members are
     concerned) from here.
   */
-
-  uint catalog_len;			// <= 255 char; 0 means uninited
 
   /*
     We want to be able to store a variable number of N-bit status vars:

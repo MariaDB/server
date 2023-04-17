@@ -54,7 +54,6 @@
 #include "sql_array.h"
 #include "sql_hset.h"
 #include "password.h"
-
 #include "sql_plugin_compat.h"
 #include "wsrep_mysqld.h"
 
@@ -12574,7 +12573,7 @@ static bool update_schema_privilege(THD *thd, TABLE *table, const char *buff,
   CHARSET_INFO *cs= system_charset_info;
   restore_record(table, s->default_values);
   table->field[0]->store(buff, (uint) strlen(buff), cs);
-  table->field[1]->store(STRING_WITH_LEN("def"), cs);
+  table->field[1]->store(default_catalog_name, cs);
   if (db)
     table->field[i++]->store(db, (uint) strlen(db), cs);
   if (t_name)
@@ -13174,6 +13173,7 @@ struct MPVIO_EXT :public MYSQL_PLUGIN_VIO
   ACL_USER *acl_user;       ///< a copy, independent from acl_users array
   plugin_ref plugin;        ///< what plugin we're under
   LEX_CSTRING db;           ///< db name from the handshake packet
+  LEX_CSTRING catalog;      ///< catalog name from the handshake packet
   /** when restarting a plugin this caches the last client reply */
   struct {
     const char *plugin;
@@ -13189,7 +13189,7 @@ struct MPVIO_EXT :public MYSQL_PLUGIN_VIO
   int packets_read, packets_written; ///< counters for send/received packets
   bool make_it_fail;
   /** when plugin returns a failure this tells us what really happened */
-  enum { SUCCESS, FAILURE, RESTART } status;
+  enum { SUCCESS, FAILURE, RESTART, ABORT} status;
 };
 
 /**
@@ -13555,16 +13555,16 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
 }
 
 static bool
-read_client_connect_attrs(char **ptr, char *end, CHARSET_INFO *from_cs)
+read_client_connect_attrs(uchar **ptr, uchar *end, CHARSET_INFO *from_cs)
 {
   ulonglong length;
-  char *ptr_save= *ptr;
+  uchar *ptr_save= *ptr;
 
   /* not enough bytes to hold the length */
   if (ptr_save >= end)
     return true;
 
-  length= safe_net_field_length_ll((uchar **) ptr, end - ptr_save);
+  length= safe_net_field_length_ll(ptr, end - ptr_save);
 
   /* cannot even read the length */
   if (*ptr == NULL)
@@ -13578,16 +13578,74 @@ read_client_connect_attrs(char **ptr, char *end, CHARSET_INFO *from_cs)
   if (length > 65535)
     return true;
 
-  if (PSI_CALL_set_thread_connect_attrs(*ptr, (uint)length, from_cs) &&
+  if (PSI_CALL_set_thread_connect_attrs((char*) *ptr, (uint)length, from_cs) &&
       current_thd->variables.log_warnings)
     sql_print_warning("Connection attributes of length %llu were truncated",
                       length);
+  *ptr+= length;
   return false;
 }
 
-#endif
+#endif /* NO_EMBEDDED_ACCESS_CHECKS */
+
+
+/*
+  Read the catalog name from the client package
+
+  @param thd         thread
+  @param next_field  Next character in the package. Will be updated.
+  @param end         End of package
+  @param db          Database, as read from package
+  @param cs          client character set
+  @param catalog     Read catalog
+  @param catalog_cs  character set for catalog
+
+  @return 0  ok
+  @return 1  Wrong information in package
+*/
+
+bool get_client_catalog(THD *thd, uchar **next_field, uchar *end,
+                        LEX_CSTRING *db, CHARSET_INFO *cs,
+                        LEX_CSTRING *catalog, CHARSET_INFO **catalog_cs)
+{
+  *catalog_cs= cs;
+  if (thd->client_capabilities & MARIADB_CLIENT_CONNECT_CATALOG)
+  {
+    /* Catalog name section */
+    if (*next_field >= end || *next_field + next_field[0][0] > end)
+      return 1;
+    catalog->length= (uint) (uchar) next_field[0][0];
+    catalog->str= (char*) *next_field+1;
+    (*next_field)+= catalog->length;
+  }
+  else
+  {
+    /* Check if catalog name is supplied as part of database name */
+    char tmp[5];
+    uint tmp_len;
+    my_match_t match;
+    tmp_len= cs->wc_mb('.', (uchar*) tmp, (uchar*) tmp + sizeof(tmp));
+    if ((cs->instr)(db->str, db->length, tmp, tmp_len, &match, 1))
+    {
+      catalog->str=    db->str;
+      catalog->length= match.mb_len;
+      db->str+=        catalog->length + tmp_len;
+      db->length-=     catalog->length + tmp_len;
+    }
+    else
+    {
+      /* No catalog name given, use default catalog name */
+      *catalog= default_catalog_name;
+      *catalog_cs= system_charset_info;
+    }
+  }
+  return 0;
+}
+
+
 
 /* the packet format is described in send_change_user_packet() */
+
 static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
 {
   THD *thd= mpvio->auth_info.thd;
@@ -13599,10 +13657,17 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
   /* Safe because there is always a trailing \0 at the end of the packet */
   char *passwd= strend(user) + 1;
   uint user_len= (uint)(passwd - user - 1);
-  char *db= passwd;
   char db_buff[SAFE_NAME_LEN + 1];            // buffer to store db in utf8
   char user_buff[USERNAME_LENGTH + 1];	      // buffer to store user in utf8
-  uint dummy_errors;
+  char *next_field;
+  uint dummy_errors, passwd_len;
+  LEX_CSTRING db;
+  CHARSET_INFO *cs;
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  LEX_CSTRING catalog;
+  char catalog_buff[SAFE_NAME_LEN+1];
+  CHARSET_INFO *catalog_cs;
+#endif
   DBUG_ENTER ("parse_com_change_user_packet");
 
   if (passwd >= end)
@@ -13622,24 +13687,26 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
     Cast *passwd to an unsigned char, so that it doesn't extend the sign for
     *passwd > 127 and become 2**32-127+ after casting to uint.
   */
-  uint passwd_len= (thd->client_capabilities & CLIENT_SECURE_CONNECTION ?
+  next_field= passwd;
+  passwd_len= (thd->client_capabilities & CLIENT_SECURE_CONNECTION ?
                     (uchar) (*passwd++) : (uint)strlen(passwd));
 
-  db+= passwd_len + 1;
+  next_field+= passwd_len + 1;
   /*
     Database name is always NUL-terminated, so in case of empty database
     the packet must contain at least the trailing '\0'.
   */
-  if (db >= end)
+  if (next_field >= end)
   {
     my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
                MYF(0));
     DBUG_RETURN (1);
   }
 
-  size_t db_len= strlen(db);
+  db.str=    next_field;
+  db.length= strlen(next_field);
 
-  char *next_field= db + db_len + 1;
+  next_field+= db.length + 1;
 
   if (next_field + 1 < end)
   {
@@ -13648,13 +13715,11 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
     next_field+= 2;
   }
 
-  /* Convert database and user names to utf8 */
-  db_len= copy_and_convert(db_buff, sizeof(db_buff) - 1, system_charset_info,
-                           db, db_len, thd->charset(), &dummy_errors);
-
+  cs= thd->charset();
+  /* Convert user names to utf8 and copy to sctx */
   user_len= copy_and_convert(user_buff, sizeof(user_buff) - 1,
                              system_charset_info, user, user_len,
-                             thd->charset(), &dummy_errors);
+                             cs, &dummy_errors);
 
   if (!(sctx->user= my_strndup(key_memory_MPVIO_EXT_auth_info, user_buff,
                                user_len, MYF(MY_WME))))
@@ -13664,9 +13729,6 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
   thd->user_connect= 0;
   strmake_buf(sctx->priv_user, sctx->user);
 
-  if (thd->make_lex_string(&mpvio->db, db_buff, db_len) == 0)
-    DBUG_RETURN(1); /* The error is set by make_lex_string(). */
-
   /*
     Clear thd->db as it points to something, that will be freed when
     connection is closed. We don't want to accidentally free a wrong
@@ -13674,18 +13736,7 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
   */
   thd->reset_db(&null_clex_str);
 
-  if (!initialized)
-  {
-    // if mysqld's been started with --skip-grant-tables option
-    mpvio->status= MPVIO_EXT::SUCCESS;
-    DBUG_RETURN(0);
-  }
-
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  thd->password= passwd_len > 0;
-  if (find_mpvio_user(mpvio))
-    DBUG_RETURN(1);
-
   const char *client_plugin;
   if (thd->client_capabilities & CLIENT_PLUGIN_AUTH)
   {
@@ -13715,11 +13766,63 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
   }
 
   if ((thd->client_capabilities & CLIENT_CONNECT_ATTRS) &&
-      read_client_connect_attrs(&next_field, end, thd->charset()))
+      read_client_connect_attrs((uchar**) &next_field, (uchar*) end,
+                                cs))
   {
     my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
                MYF(0));
     DBUG_RETURN(1);
+  }
+
+  if (get_client_catalog(thd, (uchar**) &next_field, (uchar*) end, &db, cs,
+                         &catalog, &catalog_cs))
+  {
+    my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
+               MYF(0));
+    DBUG_RETURN(1);
+  }
+
+  catalog.length= copy_and_convert(catalog_buff, sizeof(catalog_buff) - 1,
+                                   system_charset_info,
+                                   catalog.str, catalog.length,
+                                   catalog_cs, &dummy_errors);
+  catalog.str= catalog_buff;
+  if (thd->make_lex_string(&mpvio->catalog, catalog.str, catalog.length) == 0)
+    DBUG_RETURN(1); /* The error is set by make_lex_string(). */
+#endif /* NO_EMBEDDED_ACCESS_CHECKS */
+
+  db.length= copy_and_convert(db_buff, sizeof(db_buff) - 1, system_charset_info,
+                              db.str, db.length, cs, &dummy_errors);
+  db.str= db_buff;
+
+  if (thd->make_lex_string(&mpvio->db, db.str, db.length) == 0)
+    DBUG_RETURN(1); /* The error is set by make_lex_string(). */
+
+  if (!(thd->catalog= get_catalog(&mpvio->catalog)))
+  {
+    my_error(ER_ACCESS_NO_SUCH_CATALOG, MYF(ME_ERROR_LOG),
+             user, thd->security_ctx->host_or_ip,
+             mpvio->catalog.length, mpvio->catalog.str);
+    /*
+      Do not retry with other authentication methods.
+      This avoids getting the above error multiple times
+    */
+    mpvio->status= MPVIO_EXT::ABORT;
+    DBUG_RETURN(1);
+  }
+
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  if (initialized)
+  {
+    thd->password= passwd_len > 0;
+    if (find_mpvio_user(mpvio))
+      DBUG_RETURN(1);
+  }
+  else
+  {
+    // if mysqld's been started with --skip-grant-tables option
+    mpvio->status= MPVIO_EXT::SUCCESS;
+    DBUG_RETURN(0);
   }
 
   DBUG_PRINT("info", ("client_plugin=%s, restart", client_plugin));
@@ -13731,7 +13834,7 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
   mpvio->cached_client_reply.pkt_len= passwd_len;
   mpvio->cached_client_reply.plugin= client_plugin;
   mpvio->status= MPVIO_EXT::RESTART;
-#endif
+#endif /* NO_EMBEDDED_ACCESS_CHECKS */
 
   DBUG_RETURN (0);
 }
@@ -13744,7 +13847,11 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
 #ifndef EMBEDDED_LIBRARY
   THD *thd= mpvio->auth_info.thd;
   NET *net= &thd->net;
-  char *end;
+  char *user;
+  uchar *next_field, *pkt_end;
+  CHARSET_INFO *cs, *catalog_cs;
+  LEX_CSTRING catalog;
+  LEX_CSTRING db= {0,0};
   DBUG_ASSERT(mpvio->status == MPVIO_EXT::FAILURE);
 
   if (pkt_len < MIN_HANDSHAKE_SIZE)
@@ -13791,7 +13898,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     mysql_rwlock_unlock(&LOCK_ssl_refresh);
     ssl_acceptor_stats_update(ssl_ret);
 
-    if(ssl_ret)
+    if (ssl_ret)
     {
       DBUG_PRINT("error", ("Failed to accept new SSL connection"));
       return packet_error;
@@ -13806,6 +13913,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
       return packet_error;
     }
   }
+  pkt_end= net->read_pos + pkt_len;
 
   if (client_capabilities & CLIENT_PROTOCOL_41)
   {
@@ -13813,37 +13921,38 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     DBUG_PRINT("info", ("client_character_set: %d", (uint) net->read_pos[8]));
     if (thd_init_client_charset(thd, (uint) net->read_pos[8]))
       return packet_error;
-    end= (char*) net->read_pos+32;
+    next_field= net->read_pos+32;
   }
   else
   {
     if (pkt_len < 5)
       return packet_error;
     thd->max_client_packet_length= uint3korr(net->read_pos+2);
-    end= (char*) net->read_pos+5;
+    next_field= net->read_pos+5;
   }
 
-  if (end >= (char*) net->read_pos+ pkt_len +2)
+  if (next_field >= pkt_end +2)
     return packet_error;
 
   if (thd->client_capabilities & CLIENT_IGNORE_SPACE)
     thd->variables.sql_mode|= MODE_IGNORE_SPACE;
   if (thd->client_capabilities & CLIENT_INTERACTIVE)
     thd->variables.net_wait_timeout= thd->variables.net_interactive_timeout;
-
-  if (end >= (char*) net->read_pos+ pkt_len +2)
-    return packet_error;
-
   if ((thd->client_capabilities & CLIENT_TRANSACTIONS) &&
       opt_using_transactions)
     net->return_status= &thd->server_status;
 
-  char *user= end;
-  char *passwd= strend(user)+1;
-  size_t user_len= (size_t)(passwd - user - 1), db_len;
-  char *db= passwd;
+  user= (char*) next_field;
+  next_field= (uchar*) strend(user)+1;
+  cs= thd->charset();
+
+  size_t user_len= (size_t)( (char*) next_field - user - 1);
+  size_t passwd_len;
+  char *passwd;
   char user_buff[USERNAME_LENGTH + 1];	// buffer to store user in utf8
   uint dummy_errors;
+  const char *client_plugin;
+  ulonglong len;
 
   /*
     Old clients send null-terminated string as password; new clients send
@@ -13852,50 +13961,43 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
 
     This strlen() can't be easily deleted without changing protocol.
 
-    Cast *passwd to an unsigned char, so that it doesn't extend the sign for
-    *passwd > 127 and become 2**32-127+ after casting to uint.
+    Cast *next_field to an unsigned char, so that it doesn't extend the sign for
+    *next_field > 127 and become 2**32-127+ after casting to uint.
   */
-  ulonglong len;
-  size_t passwd_len;
 
   if (!(thd->client_capabilities & CLIENT_SECURE_CONNECTION))
-    len= strlen(passwd);
+    len= strlen((char*) next_field);
   else if (!(thd->client_capabilities & CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA))
-    len= (uchar)(*passwd++);
+    len= (*next_field++);
   else
   {
-    len= safe_net_field_length_ll((uchar**)&passwd,
-                                      net->read_pos + pkt_len - (uchar*)passwd);
-    if (len > pkt_len)
+    len= safe_net_field_length_ll(&next_field, pkt_end - next_field);
+    if (!next_field)
       return packet_error;
   }
-
-  passwd_len= (size_t)len;
-  db= thd->client_capabilities & CLIENT_CONNECT_WITH_DB ?
-    db + passwd_len + 1 : 0;
-
-  if (passwd == NULL ||
-      passwd + passwd_len + MY_TEST(db) > (char*) net->read_pos + pkt_len)
+  if (next_field > pkt_end)
     return packet_error;
 
-  /* strlen() can't be easily deleted without changing protocol */
-  db_len= safe_strlen(db);
+  passwd= (char*) next_field;
+  passwd_len= len;
+  next_field+= len;
 
-  char *next_field;
-  const char *client_plugin= next_field= passwd + passwd_len + (db ? db_len + 1 : 0);
+  if (thd->client_capabilities & CLIENT_CONNECT_WITH_DB)
+  {
+    db.str= (char*) next_field;
+    /* strlen() can't be easily deleted without changing protocol */
+    db.length= strlen(db.str);
+    next_field= next_field + db.length + 1;
+  }
 
-  /*
-    Since 4.1 all database names are stored in utf8
-    The cast is ok as copy_with_error will create a new area for db
-  */
-  if (unlikely(thd->copy_with_error(system_charset_info,
-                                    (LEX_STRING*) &mpvio->db,
-                                    thd->charset(), db, db_len)))
+  if (next_field > pkt_end)
     return packet_error;
+
+  client_plugin= (char*) next_field;
 
   user_len= copy_and_convert(user_buff, sizeof(user_buff) - 1,
                              system_charset_info, user, user_len,
-                             thd->charset(), &dummy_errors);
+                             cs, &dummy_errors);
   user= user_buff;
 
   /* If username starts and ends in "'", chop them off */
@@ -13917,7 +14019,8 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   Security_context *sctx= thd->security_ctx;
 
   my_free(const_cast<char*>(sctx->user));
-  if (!(sctx->user= my_strndup(key_memory_MPVIO_EXT_auth_info, user, user_len, MYF(MY_WME))))
+  if (!(sctx->user= my_strndup(key_memory_MPVIO_EXT_auth_info, user, user_len,
+                               MYF(MY_WME))))
     return packet_error; /* The error is set by my_strdup(). */
 
 
@@ -13928,21 +14031,10 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   */
   thd->reset_db(&null_clex_str);
 
-  if (!initialized)
-  {
-    // if mysqld's been started with --skip-grant-tables option
-    mpvio->status= MPVIO_EXT::SUCCESS;
-    return packet_error;
-  }
-
-  thd->password= passwd_len > 0;
-  if (find_mpvio_user(mpvio))
-    return packet_error;
-
   if ((thd->client_capabilities & CLIENT_PLUGIN_AUTH) &&
-      (client_plugin < (char *)net->read_pos + pkt_len))
+      (client_plugin < (char *) pkt_end))
   {
-    next_field+= strlen(next_field) + 1;
+    next_field+= strlen((char*) next_field) + 1;
   }
   else
   {
@@ -13964,8 +14056,50 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   }
 
   if ((thd->client_capabilities & CLIENT_CONNECT_ATTRS) &&
-      read_client_connect_attrs(&next_field, ((char *)net->read_pos) + pkt_len,
-                                mpvio->auth_info.thd->charset()))
+      read_client_connect_attrs(&next_field, pkt_end,
+                                cs))
+    return packet_error;
+
+  if (get_client_catalog(thd, &next_field, pkt_end, &db, cs,
+                         &catalog, &catalog_cs))
+    return packet_error;
+
+  /*
+    Since 4.1 all database names are stored in utf8
+    The cast is ok as copy_with_error will create a new area for db
+  */
+  if (unlikely(thd->copy_with_error(system_charset_info,
+                                    (LEX_STRING*) &mpvio->db,
+                                    cs, db.str, db.length)) ||
+      unlikely(thd->copy_with_error(system_charset_info,
+                                    (LEX_STRING*) &mpvio->catalog,
+                                    catalog_cs, catalog.str,
+                                    catalog.length)))
+    return packet_error;
+
+  if (!(thd->catalog= get_catalog(&mpvio->catalog)))
+  {
+    my_error(ER_ACCESS_NO_SUCH_CATALOG, MYF(ME_ERROR_LOG),
+             user, thd->security_ctx->host_or_ip,
+             mpvio->catalog.length, mpvio->catalog.str);
+    /*
+      Do not retry with other authentication methods.
+      This avoids getting the above error multiple times
+    */
+    mpvio->status= MPVIO_EXT::ABORT;
+    return packet_error;
+  }
+
+  if (!initialized)
+  {
+    // if mysqld's been started with --skip-grant-tables option
+    mpvio->status= MPVIO_EXT::SUCCESS;
+    return packet_error;
+  }
+
+  thd->password= passwd_len > 0;
+
+  if (find_mpvio_user(mpvio))
     return packet_error;
 
   /*
@@ -13977,7 +14111,8 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     restarted and a server auth plugin will read the data that the client
     has just send. Cache them to return in the next server_mpvio_read_packet().
   */
-  if (!lex_string_eq(&mpvio->acl_user->auth->plugin, plugin_name(mpvio->plugin)))
+  if (!lex_string_eq(&mpvio->acl_user->auth->plugin,
+                     plugin_name(mpvio->plugin)))
   {
     mpvio->cached_client_reply.pkt= passwd;
     mpvio->cached_client_reply.pkt_len= (uint)passwd_len;
@@ -14165,6 +14300,7 @@ err:
   }
   DBUG_RETURN(-1);
 }
+
 
 /**
   fills MYSQL_PLUGIN_VIO_INFO structure with the information about the
@@ -14472,7 +14608,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
   if (!acl_user)
     statistic_increment(aborted_connects_preauth, &LOCK_status);
 
-  if (acl_user)
+  if (acl_user && mpvio.status != MPVIO_EXT::ABORT)
   {
     /*
       retry the authentication with curr_auth==0 if after receiving the user
@@ -14504,9 +14640,10 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
   */
   if (sctx->user)
   {
-    general_log_print(thd, command, (char*) "%s@%s on %s using %s",
+    general_log_print(thd, command, (char*) "%s@%s on %s.%s using %s",
                       sctx->user, sctx->host_or_ip,
-                      safe_str(mpvio.db.str), safe_vio_type_name(thd->net.vio));
+                      safe_str(mpvio.catalog.str), safe_str(mpvio.db.str),
+                      safe_vio_type_name(thd->net.vio));
   }
 
   if (res > CR_OK && mpvio.status != MPVIO_EXT::SUCCESS)

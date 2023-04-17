@@ -121,211 +121,211 @@ DROP DATABASE IF EXISTS db;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE tt_1 (ddl_case INT, PRIMARY KEY(ddl_case)) ENGINE = Innodb
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TABLE tt_1 (ddl_case INT, PRIMARY KEY(ddl_case)) ENGINE = Innodb
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE tt_2 (ddl_case INT, PRIMARY KEY(ddl_case)) ENGINE = Innodb
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TABLE tt_2 (ddl_case INT, PRIMARY KEY(ddl_case)) ENGINE = Innodb
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE nt_1 (ddl_case INT, PRIMARY KEY(ddl_case)) ENGINE = MyIsam
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TABLE nt_1 (ddl_case INT, PRIMARY KEY(ddl_case)) ENGINE = MyIsam
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES(0)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES(0)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_2(ddl_case) VALUES(0)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_2(ddl_case) VALUES(0)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (43)
-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
-master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE FUNCTION myfunc_int RETURNS INTEGER SONAME "LIB"
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (42)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (43)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DROP FUNCTION myfunc_int
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE FUNCTION myfunc_int RETURNS INTEGER SONAME "LIB"
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (41)
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (40)
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (39)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (42)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; ANALYZE TABLE nt_1
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; DROP FUNCTION myfunc_int
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (38)
-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (37)
-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
-master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; OPTIMIZE TABLE nt_1
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (36)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (41)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (40)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (39)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; REPAIR TABLE nt_1
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; ANALYZE TABLE nt_1
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (35)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (38)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (34)
-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (33)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (37)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE USER 'user'@'localhost'
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; OPTIMIZE TABLE nt_1
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (32)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (36)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; GRANT ALL ON *.* TO 'user'@'localhost'
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; REPAIR TABLE nt_1
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (31)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (35)
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (34)
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (33)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; SET PASSWORD FOR 'user'@'localhost'='*D8DECEC305209EEFEC43008E1D420E1AA06B19E0'
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE USER 'user'@'localhost'
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (30)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (32)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'user'@'localhost'
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; GRANT ALL ON *.* TO 'user'@'localhost'
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (29)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (31)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; RENAME USER 'user'@'localhost' TO 'user_new'@'localhost'
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; SET PASSWORD FOR 'user'@'localhost'='*D8DECEC305209EEFEC43008E1D420E1AA06B19E0'
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (28)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (30)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DROP USER 'user_new'@'localhost'
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'user'@'localhost'
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (27)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (29)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` EVENT evt ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 HOUR DO SELECT * FROM tt_1
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; RENAME USER 'user'@'localhost' TO 'user_new'@'localhost'
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (26)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (28)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; ALTER EVENT evt COMMENT 'evt'
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; DROP USER 'user_new'@'localhost'
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (25)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (27)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DROP EVENT evt
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` EVENT evt ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 HOUR DO SELECT * FROM tt_1
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (24)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (26)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER tr AFTER INSERT ON tt_1 FOR EACH ROW UPDATE tt_2 SET ddl_case = ddl_case WHERE ddl_case= NEW.ddl_case
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; ALTER EVENT evt COMMENT 'evt'
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (23)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (25)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DROP TRIGGER tr
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; DROP EVENT evt
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (22)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (24)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` FUNCTION `fc`() RETURNS varchar(64) CHARSET latin1 COLLATE latin1_swedish_ci
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER tr AFTER INSERT ON tt_1 FOR EACH ROW UPDATE tt_2 SET ddl_case = ddl_case WHERE ddl_case= NEW.ddl_case
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (23)
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; DROP TRIGGER tr
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (22)
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` FUNCTION `fc`() RETURNS varchar(64) CHARSET latin1 COLLATE latin1_swedish_ci
 RETURN "fc"
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (21)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (21)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; ALTER FUNCTION fc COMMENT 'fc'
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; ALTER FUNCTION fc COMMENT 'fc'
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (20)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (20)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DROP FUNCTION fc
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; DROP FUNCTION fc
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (19)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (19)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` PROCEDURE `pc`()
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` PROCEDURE `pc`()
 UPDATE tt_2 SET ddl_case = ddl_case WHERE ddl_case= NEW.ddl_case
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (18)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (18)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; ALTER PROCEDURE pc COMMENT 'pc'
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; ALTER PROCEDURE pc COMMENT 'pc'
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (17)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (17)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DROP PROCEDURE pc
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; DROP PROCEDURE pc
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (16)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (16)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS SELECT * FROM tt_1
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS SELECT * FROM tt_1
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (15)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (15)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; ALTER ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS SELECT * FROM tt_1
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; ALTER ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS SELECT * FROM tt_1
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (14)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (14)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DROP VIEW v
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; DROP VIEW v
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (13)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (13)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE INDEX ix ON tt_1(ddl_case)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE INDEX ix ON tt_1(ddl_case)
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (12)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (12)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DROP INDEX ix ON tt_1
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; DROP INDEX ix ON tt_1
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (11)
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TEMPORARY TABLE tt_xx (a int)
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (10)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (11)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TEMPORARY TABLE tt_xx (a int)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (10)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE tt_xx ADD COLUMN (b int)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; ALTER TABLE tt_xx ADD COLUMN (b int)
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (9)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (9)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE tt_xx RENAME new_tt_xx
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; ALTER TABLE tt_xx RENAME new_tt_xx
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (8)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (8)
 master-bin.000001	#	Query	#	#	DROP TEMPORARY TABLE IF EXISTS `test`.`new_tt_xx` /* generated by server */
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (7)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (7)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE tt_xx (a int)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TABLE tt_xx (a int)
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (6)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (6)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; ALTER TABLE tt_xx ADD COLUMN (b int)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; ALTER TABLE tt_xx ADD COLUMN (b int)
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (5)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (5)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; RENAME TABLE tt_xx TO new_tt_xx
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; RENAME TABLE tt_xx TO new_tt_xx
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (4)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (4)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; TRUNCATE TABLE new_tt_xx
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; TRUNCATE TABLE new_tt_xx
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (3)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (3)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DROP TABLE IF EXISTS `tt_xx`,`new_tt_xx` /* generated by server */
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; DROP TABLE IF EXISTS `tt_xx`,`new_tt_xx` /* generated by server */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (2)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (2)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	CREATE DATABASE db
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (1)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO tt_1(ddl_case) VALUES (1)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	DROP DATABASE IF EXISTS db

@@ -1849,12 +1849,12 @@ bool Query_log_event::print_query_header(IO_CACHE* file,
           goto err;
     }
   }
-  if (!catalog_len)
-    catalog= (char*) "def";
-  if (strcmp(print_event_info->catalog, catalog))
+  if (print_event_info->catalog != catalog)
   {
-    strmov(print_event_info->catalog, catalog);
-    if (my_b_printf(file, "/*!110600 SET CATALOG `%s` */%s\n", catalog, print_event_info->delimiter))
+    print_event_info->catalog= catalog;
+    if (my_b_printf(file, "/*!110600 SET CATALOG `%.*s` */%s\n",
+                    catalog_name.length, catalog_name.str,
+                    print_event_info->delimiter))
       goto err;
   }
 
@@ -3636,7 +3636,8 @@ st_print_event_info::st_print_event_info()
   bzero(db, sizeof(db));
   bzero(charset, sizeof(charset));
   bzero(time_zone_str, sizeof(time_zone_str));
-  bzero(catalog,sizeof(catalog));
+  // Set catalog to impossible value to ensure that catalog is updated later!
+  catalog= (SQL_CATALOG *) 1;
   delimiter[0]= ';';
   delimiter[1]= 0;
   flags2_inited= 0;

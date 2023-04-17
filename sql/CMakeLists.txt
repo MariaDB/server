@@ -118,7 +118,7 @@ SET (SQL_SOURCE
                set_var.cc
                slave.cc sp.cc sp_cache.cc sp_head.cc sp_pcontext.cc
                sp_rcontext.cc spatial.cc sql_acl.cc sql_analyse.cc sql_base.cc
-               sql_cache.cc sql_class.cc sql_client.cc sql_crypt.cc
+               sql_cache.cc sql_class.cc catalog.cc sql_client.cc sql_crypt.cc
                sql_cursor.cc sql_db.cc sql_delete.cc sql_derived.cc
                sql_digest.cc sql_do.cc
                sql_error.cc sql_handler.cc sql_get_diagnostics.cc

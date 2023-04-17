@@ -256,13 +256,13 @@ connection master;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t1 (a INT, b INT)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TABLE t1 (a INT, b INT)
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	User var	#	#	@`var1`=0
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (@var1, 0), (@var1, 0)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (@var1, 0), (@var1, 0)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`()
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`()
 BEGIN
 DECLARE count INT;
 UPDATE t1 SET b = 2 WHERE a = 0;
@@ -270,10 +270,10 @@ GET DIAGNOSTICS count = ROW_COUNT;
 INSERT INTO t1 VALUES (1, count);
 END
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; UPDATE t1 SET b = 2 WHERE a = 0
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; UPDATE t1 SET b = 2 WHERE a = 0
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (1,  NAME_CONST('count',2))
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (1,  NAME_CONST('count',2))
 master-bin.000001	#	Query	#	#	COMMIT
 DROP TABLE t1;
 DROP PROCEDURE p1;

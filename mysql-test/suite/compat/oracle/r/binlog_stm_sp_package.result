@@ -136,17 +136,17 @@ DROP TABLE t1;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER="root"@"localhost" PACKAGE "p1" AS
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE DEFINER="root"@"localhost" PACKAGE "p1" AS
 PROCEDURE p1;
 FUNCTION f1 RETURN INT;
 END
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER="root"@"localhost" PACKAGE IF NOT EXISTS "p1" AS
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE DEFINER="root"@"localhost" PACKAGE IF NOT EXISTS "p1" AS
 PROCEDURE p1;
 FUNCTION f1 RETURN INT;
 END
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER="root"@"localhost" PACKAGE BODY "p1" AS
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE DEFINER="root"@"localhost" PACKAGE BODY "p1" AS
 PROCEDURE p1 AS
 BEGIN
 NULL;
@@ -157,18 +157,18 @@ RETURN 10;
 END;
 END
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DROP PACKAGE BODY p1
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; DROP PACKAGE BODY p1
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DROP PACKAGE p1
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; DROP PACKAGE p1
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DROP PACKAGE IF EXISTS p1
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; DROP PACKAGE IF EXISTS p1
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER="root"@"localhost" PACKAGE "p1"    COMMENT 'package-p1-comment'
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE DEFINER="root"@"localhost" PACKAGE "p1"    COMMENT 'package-p1-comment'
  AS
 PROCEDURE p1;
 END
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER="root"@"localhost" PACKAGE BODY "p1"    COMMENT 'package-body-p1-comment'
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE DEFINER="root"@"localhost" PACKAGE BODY "p1"    COMMENT 'package-body-p1-comment'
  AS
 PROCEDURE p1 AS
 BEGIN
@@ -176,27 +176,27 @@ NULL;
 END;
 END
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DROP PACKAGE p1
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; DROP PACKAGE p1
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER="xxx"@"localhost" PACKAGE "p1" AS
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE DEFINER="xxx"@"localhost" PACKAGE "p1" AS
 PROCEDURE p1;
 END
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER="xxx"@"localhost" PACKAGE BODY "p1" AS
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE DEFINER="xxx"@"localhost" PACKAGE BODY "p1" AS
 PROCEDURE p1 AS
 BEGIN
 NULL;
 END;
 END
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DROP PACKAGE p1
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; DROP PACKAGE p1
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER="xxx"@"localhost" PACKAGE "p1"    SQL SECURITY INVOKER
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE DEFINER="xxx"@"localhost" PACKAGE "p1"    SQL SECURITY INVOKER
  AS
 PROCEDURE p1;
 END
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER="xxx"@"localhost" PACKAGE BODY "p1"    SQL SECURITY INVOKER
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE DEFINER="xxx"@"localhost" PACKAGE BODY "p1"    SQL SECURITY INVOKER
  AS
 PROCEDURE p1 AS
 BEGIN
@@ -204,35 +204,35 @@ NULL;
 END;
 END
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DROP PACKAGE p1
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; DROP PACKAGE p1
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	CREATE DATABASE test2
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER="root"@"localhost" PACKAGE "test2"."test2"    COMMENT 'package-test2-comment'
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE DEFINER="root"@"localhost" PACKAGE "test2"."test2"    COMMENT 'package-test2-comment'
  AS
 FUNCTION f1 RETURN INT;
 PROCEDURE p1;
 END
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER="root"@"localhost" PACKAGE BODY "test2"."test2"    COMMENT 'package-body-test2-comment'
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE DEFINER="root"@"localhost" PACKAGE BODY "test2"."test2"    COMMENT 'package-body-test2-comment'
  AS
 FUNCTION f1 RETURN INT AS BEGIN RETURN 10; END;
 PROCEDURE p1 AS BEGIN SELECT f1(); END;
 END
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DROP PACKAGE BODY test2.test2
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; DROP PACKAGE BODY test2.test2
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DROP PACKAGE test2.test2
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; DROP PACKAGE test2.test2
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	DROP DATABASE test2
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t1 (a INT)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TABLE t1 (a INT)
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER="root"@"localhost" PACKAGE "p1" AS
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE DEFINER="root"@"localhost" PACKAGE "p1" AS
 PROCEDURE p1;
 END
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER="root"@"localhost" PACKAGE BODY "p1" AS
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE DEFINER="root"@"localhost" PACKAGE BODY "p1" AS
 a INT:=0;
 PROCEDURE p1 AS
 BEGIN
@@ -243,26 +243,26 @@ BEGIN
 a:=10;
 END
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES ( NAME_CONST('a',10))
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES ( NAME_CONST('a',10))
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES ( NAME_CONST('a',11))
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES ( NAME_CONST('a',11))
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER="root"@"localhost" FUNCTION "dummy"() RETURN int(11)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE DEFINER="root"@"localhost" FUNCTION "dummy"() RETURN int(11)
 AS
 BEGIN
 RETURN 1;
 END
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DROP FUNCTION dummy
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; DROP FUNCTION dummy
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES ( NAME_CONST('a',10))
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES ( NAME_CONST('a',10))
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES ( NAME_CONST('a',11))
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES ( NAME_CONST('a',11))
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DROP PACKAGE p1
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; DROP PACKAGE p1
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DROP TABLE "t1" /* generated by server */
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; DROP TABLE "t1" /* generated by server */

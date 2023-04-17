@@ -345,9 +345,11 @@ end:
 }
 
 
-Event_scheduler::Event_scheduler(Event_queue *queue_arg)
+Event_scheduler::Event_scheduler(const SQL_CATALOG *catalog_arg,
+                                 Event_queue *queue_arg)
   :state(INITIALIZED),
   scheduler_thd(NULL),
+  catalog(catalog_arg),
   queue(queue_arg),
   mutex_last_locked_at_line(0),
   mutex_last_unlocked_at_line(0),
@@ -411,6 +413,7 @@ Event_scheduler::start(int *err_no)
   pre_init_event_thread(new_thd);
   new_thd->system_thread= SYSTEM_THREAD_EVENT_SCHEDULER;
   new_thd->set_command(COM_DAEMON);
+  new_thd->catalog= const_cast<SQL_CATALOG*>(catalog);
 
   /*
     We should run the event scheduler thread under the super-user privileges.
@@ -476,6 +479,7 @@ Event_scheduler::run(THD *thd)
   int res= FALSE;
   DBUG_ENTER("Event_scheduler::run");
 
+  DBUG_ASSERT(catalog == thd->catalog);
   sql_print_information("Event Scheduler: scheduler thread started with id %lu",
                         (ulong) thd->thread_id);
   /*
@@ -550,6 +554,7 @@ Event_scheduler::execute_top(Event_queue_element_for_exec *event_name)
     goto error;
 
   pre_init_event_thread(new_thd);
+  new_thd->catalog= const_cast<SQL_CATALOG*>(catalog);
   new_thd->system_thread= SYSTEM_THREAD_EVENT_WORKER;
   event_name->thd= new_thd;
   DBUG_PRINT("info", ("Event %s@%s ready for start",

@@ -995,13 +995,13 @@ void Query_log_event::pack_info(Protocol *protocol)
 {
   char buf_mem[1024];
   String buf(buf_mem, sizeof(buf_mem), system_charset_info);
-  buf.real_alloc(30 + (catalog_len + db_len)*2 + q_len);
+  buf.real_alloc(30 + ((catalog ? catalog->name.length : 0 )+ db_len)*2 + q_len);
   if (!(flags & LOG_EVENT_SUPPRESS_USE_F))
   {
-    if (catalog_len)
+    if (catalog)
     {
-      buf.append(STRING_WITH_LEN("set CATALOG "));
-      append_identifier(protocol->thd, &buf, catalog, catalog_len);
+      buf.append(STRING_WITH_LEN("SET CATALOG "));
+      append_identifier(protocol->thd, &buf, catalog->name.str, catalog->name.length);
       buf.append(STRING_WITH_LEN("; "));
     }
     if (db && db_len)
@@ -1139,29 +1139,27 @@ bool Query_log_event::write()
     int8store(start, (ulonglong)sql_mode);
     start+= 8;
   }
-  if (catalog_len) // i.e. this var is inited (false for 4.0 events)
-  {
-    store_str_with_code_and_len(&start,
-                                catalog, catalog_len, Q_CATALOG_NZ_CODE);
-    /*
-      In 5.0.x where x<4 masters we used to store the end zero here. This was
-      a waste of one byte so we don't do it in x>=4 masters. We change code to
-      Q_CATALOG_NZ_CODE, because re-using the old code would make x<4 slaves
-      of this x>=4 master segfault (expecting a zero when there is
-      none). Remaining compatibility problems are: the older slave will not
-      find the catalog; but it is will not crash, and it's not an issue
-      that it does not find the catalog as catalogs were not used in these
-      older MySQL versions (we store it in binlog and read it from relay log
-      but do nothing useful with it). What is an issue is that the older slave
-      will stop processing the Q_* blocks (and jumps to the db/query) as soon
-      as it sees unknown Q_CATALOG_NZ_CODE; so it will not be able to read
-      Q_AUTO_INCREMENT*, Q_CHARSET and so replication will fail silently in
-      various ways. Documented that you should not mix alpha/beta versions if
-      they are not exactly the same version, with example of 5.0.3->5.0.2 and
-      5.0.4->5.0.3. If replication is from older to new, the new will
-      recognize Q_CATALOG_CODE and have no problem.
-    */
-  }
+  store_str_with_code_and_len(&start, catalog->name.str, catalog->name.length,
+                              (uint) Q_CATALOG_NZ_CODE);
+  /*
+    In 5.0.x where x<4 masters we used to store the end zero here. This was
+    a waste of one byte so we don't do it in x>=4 masters. We change code to
+    Q_CATALOG_NZ_CODE, because re-using the old code would make x<4 slaves
+    of this x>=4 master segfault (expecting a zero when there is
+    none). Remaining compatibility problems are: the older slave will not
+    find the catalog; but it is will not crash, and it's not an issue
+    that it does not find the catalog as catalogs were not used in these
+    older MySQL versions (we store it in binlog and read it from relay log
+    but do nothing useful with it). What is an issue is that the older slave
+    will stop processing the Q_* blocks (and jumps to the db/query) as soon
+    as it sees unknown Q_CATALOG_NZ_CODE; so it will not be able to read
+    Q_AUTO_INCREMENT*, Q_CHARSET and so replication will fail silently in
+    various ways. Documented that you should not mix alpha/beta versions if
+    they are not exactly the same version, with example of 5.0.3->5.0.2 and
+    5.0.4->5.0.3. If replication is from older to new, the new will
+    recognize Q_CATALOG_CODE and have no problem.
+  */
+
   if (auto_increment_increment != 1 || auto_increment_offset != 1)
   {
     *start++= Q_AUTO_INCREMENT;
@@ -1385,7 +1383,7 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
               ? LOG_EVENT_THREAD_SPECIFIC_F : 0) |
              (suppress_use ? LOG_EVENT_SUPPRESS_USE_F : 0),
 	     using_trans),
-   data_buf(0), query(query_arg), catalog(thd_arg->catalog),
+   data_buf(0),  catalog(thd_arg->catalog), query(query_arg),
    q_len((uint32) query_length),
    thread_id(thd_arg->thread_id),
    /* save the original thread id; we already know the server id */
@@ -1424,11 +1422,6 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
 
   end_time= my_time(0);
   exec_time = (ulong) (end_time  - thd_arg->start_time);
-  /**
-    @todo this means that if we have no catalog, then it is replicated
-    as an existing catalog of length zero. is that safe? /sven
-  */
-  catalog_len = (catalog) ? (uint32) strlen(catalog) : 0;
 
   if (!(db= thd->db.str))
     db= "";
@@ -1862,14 +1855,8 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
   bool skip_error_check= false;
   DBUG_ENTER("Query_log_event::do_apply_event");
 
-  /*
-    Colleagues: please never free(thd->catalog) in MySQL. This would
-    lead to bugs as here thd->catalog is a part of an alloced block,
-    not an entire alloced block (see
-    Query_log_event::do_apply_event()). Same for thd->db.  Thank
-    you.
-  */
-  thd->catalog= catalog_len ? (char *) catalog : (char *)"";
+  DBUG_ASSERT(catalog);
+  thd->catalog= const_cast<SQL_CATALOG*>(catalog);
   rgi->start_alter_ev= this;
 
   size_t valid_len= Well_formed_prefix(system_charset_info,
@@ -2319,7 +2306,7 @@ end:
     rpl_global_gtid_slave_state->update_state_hash(sub_id, &gtid, hton, rgi);
 
   /*
-    Probably we have set thd->query, thd->db, thd->catalog to point to places
+    Probably we have set thd->query and thd->db to point to places
     in the data_buf of this event. Now the event is going to be deleted
     probably, so data_buf will be freed, so the thd->... listed above will be
     pointers to freed memory.
@@ -2328,7 +2315,6 @@ end:
     don't suffer from these assignments to 0 as DROP TEMPORARY
     TABLE uses the db.table syntax.
   */
-  thd->catalog= 0;
   thd->set_db(&null_clex_str);    /* will free the current database */
   thd->reset_query();
   DBUG_PRINT("info", ("end: query= 0"));
@@ -2360,6 +2346,10 @@ Query_log_event::do_shall_skip(rpl_group_info *rgi)
   DBUG_PRINT("debug", ("query: '%s'  q_len: %d", query, q_len));
   DBUG_ASSERT(query && q_len > 0);
   DBUG_ASSERT(thd == rgi->thd);
+
+  /* Set thd to point to the current catalog */
+  DBUG_ASSERT(catalog);
+  thd->catalog= const_cast<SQL_CATALOG*>(catalog);
 
   /*
     An event skipped due to @@skip_replication must not be counted towards the

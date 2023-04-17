@@ -633,6 +633,7 @@ extern "C" void thd_kill_timeout(THD* thd)
 THD::THD(my_thread_id id, bool is_wsrep_applier)
   :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
              /* statement id */ 0),
+   catalog(0),
    rli_fake(0), rgi_fake(0), rgi_slave(NULL),
    protocol_text(this), protocol_binary(this), initial_status_var(0),
    m_current_stage_key(0), m_psi(0),
@@ -764,7 +765,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   scheduler= thread_scheduler;                 // Will be fixed later
   event_scheduler.data= 0;
   skip_wait_timeout= false;
-  catalog= (char*)"def"; // the only catalog we have for now
   main_security_ctx.init();
   security_ctx= &main_security_ctx;
   no_errors= 0;
@@ -1406,15 +1406,19 @@ void THD::init_for_queries()
     Reset all resources that are connection specific
 */
 
-
 void THD::change_user(void)
 {
   if (!status_in_global)                        // Reset in init()
     add_status_to_global();
 
   if (!cleanup_done)
+  {
+    SQL_CATALOG *org_catalog= catalog;    // Don't change catalog
     cleanup();
-  cleanup_done= 0;
+    catalog= org_catalog;
+  }
+  cleanup_done= 0;                            // THD is reused
+
   reset_killed();
   /* Clear errors from the previous THD */
   my_errno= 0;
@@ -1576,6 +1580,7 @@ void THD::cleanup(void)
 #ifdef HAVE_REPLICATION
   unregister_slave();
 #endif
+  catalog= 0;
   cleanup_done=1;
   DBUG_VOID_RETURN;
 }
@@ -1625,7 +1630,8 @@ void THD::free_connection()
 void THD::reset_for_reuse()
 {
   mysql_audit_init_thd(this);
-  change_user();                                // Calls cleanup() & init()
+  change_user();                  // Calls cleanup() & init()
+  catalog= 0;                     // change_user() do not reset catalog
   get_stmt_da()->reset_diagnostics_area();
   main_security_ctx.init();  
   failed_com_change_user= 0;

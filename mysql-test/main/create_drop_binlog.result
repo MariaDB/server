@@ -45,23 +45,23 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 #	#	Gtid_list	1	#	[]
 #	#	Binlog_checkpoint	1	#	master-bin.000001
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS int(11)
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS int(11)
 RETURN 1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS int(11)
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS int(11)
 RETURN 1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; DROP FUNCTION f1
+#	#	Query	1	#	SET CATALOG `def`; use `test`; DROP FUNCTION f1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` FUNCTION IF NOT EXISTS `f1`() RETURNS int(11)
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` FUNCTION IF NOT EXISTS `f1`() RETURNS int(11)
 RETURN 1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` FUNCTION IF NOT EXISTS `f1`() RETURNS int(11)
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` FUNCTION IF NOT EXISTS `f1`() RETURNS int(11)
 RETURN 1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; DROP FUNCTION IF EXISTS f1
+#	#	Query	1	#	SET CATALOG `def`; use `test`; DROP FUNCTION IF EXISTS f1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; DROP FUNCTION IF EXISTS f1
+#	#	Query	1	#	SET CATALOG `def`; use `test`; DROP FUNCTION IF EXISTS f1
 RESET MASTER;
 CREATE TABLE t1 (a DATETIME);
 CREATE OR REPLACE PROCEDURE p1() DELETE FROM t1;
@@ -81,25 +81,25 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 #	#	Gtid_list	1	#	[]
 #	#	Binlog_checkpoint	1	#	master-bin.000001
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE TABLE t1 (a DATETIME)
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE TABLE t1 (a DATETIME)
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` PROCEDURE `p1`()
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` PROCEDURE `p1`()
 DELETE FROM t1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` PROCEDURE `p1`()
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` PROCEDURE `p1`()
 DELETE FROM t1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; DROP PROCEDURE p1
+#	#	Query	1	#	SET CATALOG `def`; use `test`; DROP PROCEDURE p1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` PROCEDURE IF NOT EXISTS `p1`()
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` PROCEDURE IF NOT EXISTS `p1`()
 DELETE FROM t1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` PROCEDURE IF NOT EXISTS `p1`()
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` PROCEDURE IF NOT EXISTS `p1`()
 DELETE FROM t1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; DROP PROCEDURE IF EXISTS p1
+#	#	Query	1	#	SET CATALOG `def`; use `test`; DROP PROCEDURE IF EXISTS p1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; DROP PROCEDURE IF EXISTS p1
+#	#	Query	1	#	SET CATALOG `def`; use `test`; DROP PROCEDURE IF EXISTS p1
 DROP TABLE t1;
 RESET MASTER;
 CREATE OR REPLACE FUNCTION metaphon RETURNS STRING SONAME 'UDF_EXAMPLE_LIB';
@@ -119,19 +119,19 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 #	#	Gtid_list	1	#	[]
 #	#	Binlog_checkpoint	1	#	master-bin.000001
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE OR REPLACE FUNCTION metaphon RETURNS STRING SONAME 'UDM_EXAMPLE_LIB'
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE OR REPLACE FUNCTION metaphon RETURNS STRING SONAME 'UDM_EXAMPLE_LIB'
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE OR REPLACE FUNCTION metaphon RETURNS STRING SONAME 'UDM_EXAMPLE_LIB'
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE OR REPLACE FUNCTION metaphon RETURNS STRING SONAME 'UDM_EXAMPLE_LIB'
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; DROP FUNCTION metaphon
+#	#	Query	1	#	SET CATALOG `def`; use `test`; DROP FUNCTION metaphon
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE FUNCTION IF NOT EXISTS metaphon RETURNS STRING SONAME 'UDM_EXAMPLE_LIB'
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE FUNCTION IF NOT EXISTS metaphon RETURNS STRING SONAME 'UDM_EXAMPLE_LIB'
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE FUNCTION IF NOT EXISTS metaphon RETURNS STRING SONAME 'UDM_EXAMPLE_LIB'
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE FUNCTION IF NOT EXISTS metaphon RETURNS STRING SONAME 'UDM_EXAMPLE_LIB'
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; DROP FUNCTION IF EXISTS metaphon
+#	#	Query	1	#	SET CATALOG `def`; use `test`; DROP FUNCTION IF EXISTS metaphon
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; DROP FUNCTION IF EXISTS metaphon
+#	#	Query	1	#	SET CATALOG `def`; use `test`; DROP FUNCTION IF EXISTS metaphon
 RESET MASTER;
 #
 # CREATE SERVER is not logged
@@ -168,19 +168,19 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 #	#	Gtid_list	1	#	[]
 #	#	Binlog_checkpoint	1	#	master-bin.000001
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE OR REPLACE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS SELECT 1
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE OR REPLACE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS SELECT 1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE OR REPLACE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS SELECT 1
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE OR REPLACE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS SELECT 1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; DROP VIEW v1
+#	#	Query	1	#	SET CATALOG `def`; use `test`; DROP VIEW v1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW IF NOT EXISTS `v1` AS SELECT 1
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW IF NOT EXISTS `v1` AS SELECT 1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW IF NOT EXISTS `v1` AS SELECT 1
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW IF NOT EXISTS `v1` AS SELECT 1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; DROP VIEW IF EXISTS v1
+#	#	Query	1	#	SET CATALOG `def`; use `test`; DROP VIEW IF EXISTS v1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; DROP VIEW IF EXISTS v1
+#	#	Query	1	#	SET CATALOG `def`; use `test`; DROP VIEW IF EXISTS v1
 RESET MASTER;
 CREATE OR REPLACE ROLE r1;
 CREATE OR REPLACE ROLE r1;
@@ -199,19 +199,19 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 #	#	Gtid_list	1	#	[]
 #	#	Binlog_checkpoint	1	#	master-bin.000001
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE OR REPLACE ROLE r1
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE OR REPLACE ROLE r1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE OR REPLACE ROLE r1
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE OR REPLACE ROLE r1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; DROP ROLE r1
+#	#	Query	1	#	SET CATALOG `def`; use `test`; DROP ROLE r1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE ROLE IF NOT EXISTS r1
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE ROLE IF NOT EXISTS r1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE ROLE IF NOT EXISTS r1
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE ROLE IF NOT EXISTS r1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; DROP ROLE IF EXISTS r1
+#	#	Query	1	#	SET CATALOG `def`; use `test`; DROP ROLE IF EXISTS r1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; DROP ROLE IF EXISTS r1
+#	#	Query	1	#	SET CATALOG `def`; use `test`; DROP ROLE IF EXISTS r1
 RESET MASTER;
 CREATE OR REPLACE USER u1@localhost;
 CREATE OR REPLACE USER u1@localhost;
@@ -230,19 +230,19 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 #	#	Gtid_list	1	#	[]
 #	#	Binlog_checkpoint	1	#	master-bin.000001
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE OR REPLACE USER u1@localhost
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE OR REPLACE USER u1@localhost
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE OR REPLACE USER u1@localhost
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE OR REPLACE USER u1@localhost
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; DROP USER u1@localhost
+#	#	Query	1	#	SET CATALOG `def`; use `test`; DROP USER u1@localhost
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE USER IF NOT EXISTS u1@localhost
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE USER IF NOT EXISTS u1@localhost
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE USER IF NOT EXISTS u1@localhost
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE USER IF NOT EXISTS u1@localhost
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; DROP USER IF EXISTS u1@localhost
+#	#	Query	1	#	SET CATALOG `def`; use `test`; DROP USER IF EXISTS u1@localhost
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; DROP USER IF EXISTS u1@localhost
+#	#	Query	1	#	SET CATALOG `def`; use `test`; DROP USER IF EXISTS u1@localhost
 RESET MASTER;
 SET timestamp=UNIX_TIMESTAMP('2014-11-01 10:20:30');
 CREATE OR REPLACE EVENT ev1 ON SCHEDULE EVERY 1 SECOND DO DROP TABLE IF EXISTS t1;
@@ -264,13 +264,13 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 #	#	Gtid_list	1	#	[]
 #	#	Binlog_checkpoint	1	#	master-bin.000001
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` EVENT ev1 ON SCHEDULE EVERY 1 SECOND DO DROP TABLE IF EXISTS t1
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` EVENT ev1 ON SCHEDULE EVERY 1 SECOND DO DROP TABLE IF EXISTS t1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` EVENT ev1 ON SCHEDULE EVERY 1 SECOND DO DROP TABLE IF EXISTS t2
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` EVENT ev1 ON SCHEDULE EVERY 1 SECOND DO DROP TABLE IF EXISTS t2
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; DROP EVENT ev1
+#	#	Query	1	#	SET CATALOG `def`; use `test`; DROP EVENT ev1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; DROP EVENT IF EXISTS ev1
+#	#	Query	1	#	SET CATALOG `def`; use `test`; DROP EVENT IF EXISTS ev1
 RESET MASTER;
 CREATE TABLE t1 (a INT);
 CREATE OR REPLACE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.a=10;
@@ -291,23 +291,23 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 #	#	Gtid_list	1	#	[]
 #	#	Binlog_checkpoint	1	#	master-bin.000001
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE TABLE t1 (a INT)
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE TABLE t1 (a INT)
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.a=10
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.a=10
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.a=11
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.a=11
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; DROP TRIGGER tr1
+#	#	Query	1	#	SET CATALOG `def`; use `test`; DROP TRIGGER tr1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER IF NOT EXISTS tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.a=20
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER IF NOT EXISTS tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.a=20
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER IF NOT EXISTS tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.a=21
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER IF NOT EXISTS tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.a=21
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; DROP TRIGGER IF EXISTS tr1
+#	#	Query	1	#	SET CATALOG `def`; use `test`; DROP TRIGGER IF EXISTS tr1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; DROP TRIGGER IF EXISTS tr1
+#	#	Query	1	#	SET CATALOG `def`; use `test`; DROP TRIGGER IF EXISTS tr1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; DROP TABLE `t1` /* generated by server */
+#	#	Query	1	#	SET CATALOG `def`; use `test`; DROP TABLE `t1` /* generated by server */
 RESET MASTER;
 CREATE TABLE t1(a INT, b INT);
 CREATE TABLE IF NOT EXISTS t1(a INT, b INT);
@@ -324,17 +324,17 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 #	#	Gtid_list	1	#	[]
 #	#	Binlog_checkpoint	1	#	master-bin.000001
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE TABLE t1(a INT, b INT)
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE TABLE t1(a INT, b INT)
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE OR REPLACE INDEX i1 ON t1(a)
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE OR REPLACE INDEX i1 ON t1(a)
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE OR REPLACE INDEX i1 ON t1(a)
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE OR REPLACE INDEX i1 ON t1(a)
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE OR REPLACE INDEX i1 ON t1(a,b)
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE OR REPLACE INDEX i1 ON t1(a,b)
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE OR REPLACE INDEX i1 ON t1(a,b)
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE OR REPLACE INDEX i1 ON t1(a,b)
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; DROP TABLE `t1` /* generated by server */
+#	#	Query	1	#	SET CATALOG `def`; use `test`; DROP TABLE `t1` /* generated by server */
 RESET MASTER;
 RESET MASTER;
 SHOW MASTER STATUS;
@@ -377,17 +377,17 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 #	#	Gtid_list	1	#	[]
 #	#	Binlog_checkpoint	1	#	master-bin.000001
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE TABLE t1(a INT, b INT)
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE TABLE t1(a INT, b INT)
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE INDEX IF NOT EXISTS i1 ON t1(a)
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE INDEX IF NOT EXISTS i1 ON t1(a)
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; CREATE INDEX IF NOT EXISTS i1 ON t1(a)
+#	#	Query	1	#	SET CATALOG `def`; use `test`; CREATE INDEX IF NOT EXISTS i1 ON t1(a)
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; DROP INDEX IF EXISTS i1 ON t1
+#	#	Query	1	#	SET CATALOG `def`; use `test`; DROP INDEX IF EXISTS i1 ON t1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; DROP INDEX IF EXISTS i1 ON t1
+#	#	Query	1	#	SET CATALOG `def`; use `test`; DROP INDEX IF EXISTS i1 ON t1
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; DROP TABLE `t1` /* generated by server */
+#	#	Query	1	#	SET CATALOG `def`; use `test`; DROP TABLE `t1` /* generated by server */
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	set CATALOG `def`; use `test`; DROP TABLE IF EXISTS `t1` /* generated by server */
+#	#	Query	1	#	SET CATALOG `def`; use `test`; DROP TABLE IF EXISTS `t1` /* generated by server */
 RESET MASTER;

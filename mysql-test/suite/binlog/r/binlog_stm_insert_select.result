@@ -9,7 +9,7 @@ ERROR 23000: Duplicate entry '2' for key 'a'
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t1 select * from t2
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t1 select * from t2
 master-bin.000001	#	Query	#	#	COMMIT
 select * from t1;
 a

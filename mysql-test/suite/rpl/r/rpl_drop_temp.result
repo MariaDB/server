@@ -56,10 +56,10 @@ connection master;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t1 ( i INT )
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TABLE t1 ( i INT )
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TEMPORARY TABLE ttmp1 ( i INT )
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TEMPORARY TABLE ttmp1 ( i INT )
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DROP /*!40005 TEMPORARY */ TABLE IF EXISTS `ttmp1`
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; DROP /*!40005 TEMPORARY */ TABLE IF EXISTS `ttmp1`
 DROP TABLE t1;
 include/rpl_end.inc

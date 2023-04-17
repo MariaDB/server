@@ -112,7 +112,7 @@ drop table tmp4,tmp5;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE `t2` (
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL
 )
 master-bin.000001	#	Annotate_rows	#	#	create table t2 select * from tmp4

@@ -5344,7 +5344,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
               (!plan->lookup_field_vals.table_value.length ||
                plan->lookup_field_vals.wild_table_value))
           {
-            table->field[0]->store(STRING_WITH_LEN("def"), system_charset_info);
+            table->field[0]->store(default_catalog_name, system_charset_info);
             if (schema_table_store_record(thd, table))
               goto err;      /* Out of space in temporary table */
             continue;
@@ -5420,7 +5420,7 @@ bool store_schema_schemata(THD* thd, TABLE *table, LEX_CSTRING *db_name,
                            CHARSET_INFO *cs, LEX_CSTRING *schema_comment= NULL)
 {
   restore_record(table, s->default_values);
-  table->field[0]->store(STRING_WITH_LEN("def"), system_charset_info);
+  table->field[0]->store(default_catalog_name, system_charset_info);
   table->field[1]->store(db_name, system_charset_info);
   table->field[2]->store(&cs->cs_name, system_charset_info);
   table->field[3]->store(&cs->coll_name, system_charset_info);
@@ -5527,7 +5527,7 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
   DBUG_ENTER("get_schema_tables_record");
 
   restore_record(table, s->default_values);
-  table->field[0]->store(STRING_WITH_LEN("def"), cs);
+  table->field[0]->store(default_catalog_name, cs);
   table->field[1]->store(db_name->str, db_name->length, cs);
   table->field[2]->store(table_name->str, table_name->length, cs);
 
@@ -6139,7 +6139,7 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     table->field[18]->store(tmp+1,end == tmp ? 0 : (uint) (end-tmp-1), cs);
 
 #endif
-    table->field[0]->store(STRING_WITH_LEN("def"), cs);
+    table->field[0]->store(default_catalog_name, cs);
     table->field[1]->store(db_name->str, db_name->length, cs);
     table->field[2]->store(table_name->str, table_name->length, cs);
     table->field[3]->store(field->field_name.str, field->field_name.length,
@@ -6585,7 +6585,7 @@ int store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
     if (sph->type() == SP_TYPE_FUNCTION)
     {
       restore_record(table, s->default_values);
-      table->field[0]->store(STRING_WITH_LEN("def"), cs);
+      table->field[0]->store(default_catalog_name, cs);
       table->field[1]->store(db, cs);
       table->field[2]->store(name, cs);
       table->field[3]->store((longlong) 0, TRUE);
@@ -6628,7 +6628,7 @@ int store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
       }  
 
       restore_record(table, s->default_values);
-      table->field[0]->store(STRING_WITH_LEN("def"), cs);
+      table->field[0]->store(default_catalog_name, cs);
       table->field[1]->store(db, cs);
       table->field[2]->store(name, cs);
       table->field[3]->store((longlong) i + 1, TRUE);
@@ -6698,7 +6698,7 @@ int store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
 
       copy_field_as_string(table->field[0],
                            proc_table->field[MYSQL_PROC_FIELD_SPECIFIC_NAME]);
-      table->field[1]->store(STRING_WITH_LEN("def"), cs);
+      table->field[1]->store(default_catalog_name, cs);
       table->field[2]->store(db, cs);
       copy_field_as_string(table->field[4],
                            proc_table->field[MYSQL_PROC_MYSQL_TYPE]);
@@ -6943,7 +6943,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
           continue;
         }
         restore_record(table, s->default_values);
-        table->field[0]->store(STRING_WITH_LEN("def"), cs);
+        table->field[0]->store(default_catalog_name, cs);
         table->field[1]->store(db_name->str, db_name->length, cs);
         table->field[2]->store(table_name->str, table_name->length, cs);
         table->field[3]->store((longlong) ((key_info->flags &
@@ -7064,7 +7064,7 @@ static int get_schema_views_record(THD *thd, TABLE_LIST *tables,
 #endif
     }
     restore_record(table, s->default_values);
-    table->field[0]->store(STRING_WITH_LEN("def"), cs);
+    table->field[0]->store(default_catalog_name, cs);
     table->field[1]->store(db_name->str, db_name->length, cs);
     table->field[2]->store(table_name->str, table_name->length, cs);
 
@@ -7168,7 +7168,7 @@ store_constraints(THD *thd, TABLE *table, const LEX_CSTRING *db_name,
 {
   CHARSET_INFO *cs= system_charset_info;
   restore_record(table, s->default_values);
-  table->field[0]->store(STRING_WITH_LEN("def"), cs);
+  table->field[0]->store(default_catalog_name, cs);
   table->field[1]->store(db_name->str, db_name->length, cs);
   table->field[2]->store(key_name, key_len, cs);
   table->field[3]->store(db_name->str, db_name->length, cs);
@@ -7211,7 +7211,7 @@ static int get_check_constraints_record(THD *thd, TABLE_LIST *tables,
     for (uint i= 0; i < tables->table->s->table_check_constraints; i++)
     {
       Virtual_column_info *check= tables->table->check_constraints[i];
-      table->field[0]->store(STRING_WITH_LEN("def"), system_charset_info);
+      table->field[0]->store(default_catalog_name, system_charset_info);
       table->field[3]->store(check->name.str, check->name.length,
                              system_charset_info);
       const char *tmp_buff;
@@ -7318,12 +7318,12 @@ static bool store_trigger(THD *thd, Trigger *trigger,
   trigger->get_trigger_info(&trigger_stmt, &trigger_body, &definer_buffer);
 
   restore_record(table, s->default_values);
-  table->field[0]->store(STRING_WITH_LEN("def"), cs);
+  table->field[0]->store(default_catalog_name, cs);
   table->field[1]->store(db_name->str, db_name->length, cs);
   table->field[2]->store(trigger->name.str, trigger->name.length, cs);
   table->field[3]->store(trg_event_type_names[trigger->event].str,
                          trg_event_type_names[trigger->event].length, cs);
-  table->field[4]->store(STRING_WITH_LEN("def"), cs);
+  table->field[4]->store(default_catalog_name, cs);
   table->field[5]->store(db_name->str, db_name->length, cs);
   table->field[6]->store(table_name->str, table_name->length, cs);
   table->field[7]->store(trigger->action_order);
@@ -7412,10 +7412,10 @@ store_key_column_usage(TABLE *table, const LEX_CSTRING *db_name,
                        longlong idx)
 {
   CHARSET_INFO *cs= system_charset_info;
-  table->field[0]->store(STRING_WITH_LEN("def"), cs);
+  table->field[0]->store(default_catalog_name, cs);
   table->field[1]->store(db_name->str, db_name->length, cs);
   table->field[2]->store(key_name, key_len, cs);
-  table->field[3]->store(STRING_WITH_LEN("def"), cs);
+  table->field[3]->store(default_catalog_name, cs);
   table->field[4]->store(db_name->str, db_name->length, cs);
   table->field[5]->store(table_name->str, table_name->length, cs);
   table->field[6]->store(con_type, con_len, cs);
@@ -7543,7 +7543,7 @@ static void store_schema_partitions_record(THD *thd, TABLE *schema_table,
   PARTITION_STATS stat_info;
   MYSQL_TIME time;
   file->get_dynamic_partition_info(&stat_info, part_id);
-  table->field[0]->store(STRING_WITH_LEN("def"), cs);
+  table->field[0]->store(default_catalog_name, cs);
   table->field[12]->store((longlong) stat_info.records, TRUE);
   table->field[13]->store((longlong) stat_info.mean_rec_length, TRUE);
   table->field[14]->store((longlong) stat_info.data_file_length, TRUE);
@@ -7666,7 +7666,7 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
     uint part_pos= 0, part_id= 0;
 
     restore_record(table, s->default_values);
-    table->field[0]->store(STRING_WITH_LEN("def"), cs);
+    table->field[0]->store(default_catalog_name, cs);
     table->field[1]->store(db_name->str, db_name->length, cs);
     table->field[2]->store(table_name->str, table_name->length, cs);
 
@@ -7920,7 +7920,7 @@ copy_event_to_schema_table(THD *thd, TABLE *sch_table, TABLE *event_table)
       check_access(thd, EVENT_ACL, et.dbname.str, NULL, NULL, 0, 1))
     DBUG_RETURN(0);
 
-  sch_table->field[ISE_EVENT_CATALOG]->store(STRING_WITH_LEN("def"), scs);
+  sch_table->field[ISE_EVENT_CATALOG]->store(default_catalog_name, scs);
   sch_table->field[ISE_EVENT_SCHEMA]->
                                 store(et.dbname.str, et.dbname.length,scs);
   sch_table->field[ISE_EVENT_NAME]->
@@ -8263,12 +8263,12 @@ get_referential_constraints_record(THD *thd, TABLE_LIST *tables,
     while ((f_key_info= it++))
     {
       restore_record(table, s->default_values);
-      table->field[0]->store(STRING_WITH_LEN("def"), cs);
+      table->field[0]->store(default_catalog_name, cs);
       table->field[1]->store(db_name->str, db_name->length, cs);
       table->field[9]->store(table_name->str, table_name->length, cs);
       table->field[2]->store(f_key_info->foreign_id->str,
                              f_key_info->foreign_id->length, cs);
-      table->field[3]->store(STRING_WITH_LEN("def"), cs);
+      table->field[3]->store(default_catalog_name, cs);
       table->field[4]->store(f_key_info->referenced_db->str, 
                              f_key_info->referenced_db->length, cs);
       table->field[10]->store(f_key_info->referenced_table->str,

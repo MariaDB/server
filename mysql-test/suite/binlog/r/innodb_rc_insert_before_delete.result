@@ -32,10 +32,10 @@ COMMIT;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DELETE FROM t WHERE sk=100
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; DELETE FROM t WHERE sk=100
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t VALUES (5, 100) # trx 1
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t VALUES (5, 100) # trx 1
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t VALUES (11, 101)

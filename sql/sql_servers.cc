@@ -218,7 +218,7 @@ static bool close_cached_connection_tables(THD *thd, LEX_CSTRING *connection)
     1	Could not initialize servers
 */
 
-bool servers_init(bool dont_read_servers_table)
+bool servers_init(const SQL_CATALOG *catalog, bool dont_read_servers_table)
 {
   THD  *thd;
   bool return_val= FALSE;
@@ -233,8 +233,8 @@ bool servers_init(bool dont_read_servers_table)
     DBUG_RETURN(TRUE);
 
   /* initialise our servers cache */
-  if (my_hash_init(key_memory_servers, &servers_cache, system_charset_info, 32, 0, 0,
-                   (my_hash_get_key) servers_cache_get_key, 0, 0))
+  if (my_hash_init(key_memory_servers, &servers_cache, system_charset_info, 32,
+                   0, 0, (my_hash_get_key) servers_cache_get_key, 0, 0))
   {
     return_val= TRUE; /* we failed, out of memory? */
     goto end;
@@ -256,6 +256,7 @@ bool servers_init(bool dont_read_servers_table)
   thd->store_globals();
   thd->set_query_inner((char*) STRING_WITH_LEN("intern:servers_init"),
                        default_charset_info);
+  thd->catalog= const_cast<SQL_CATALOG*>(catalog);
   /*
     It is safe to call servers_reload() since servers_* arrays and hashes which
     will be freed there are global static objects and thus are initialized

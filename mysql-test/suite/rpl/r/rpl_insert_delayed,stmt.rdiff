@@ -34,8 +34,8 @@
  INSERT DELAYED IGNORE INTO t1 VALUES(1);
  INSERT DELAYED IGNORE INTO t1 VALUES(1);
  flush table t1;
-+set CATALOG `def`; use `test`; INSERT  IGNORE INTO t1 VALUES(1)
-+set CATALOG `def`; use `test`; INSERT  IGNORE INTO t1 VALUES(1)
++SET CATALOG `def`; use `test`; INSERT  IGNORE INTO t1 VALUES(1)
++SET CATALOG `def`; use `test`; INSERT  IGNORE INTO t1 VALUES(1)
  select * from t1;
  a
  1
@@ -44,10 +44,10 @@
 +include/show_binlog_events.inc
 +Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 +slave-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
-+slave-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; INSERT  IGNORE INTO t1 VALUES(1)
++slave-bin.000002	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT  IGNORE INTO t1 VALUES(1)
 +slave-bin.000002	#	Query	#	#	COMMIT
 +slave-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
-+slave-bin.000002	#	Query	#	#	set CATALOG `def`; use `test`; INSERT  IGNORE INTO t1 VALUES(1)
++slave-bin.000002	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT  IGNORE INTO t1 VALUES(1)
 +slave-bin.000002	#	Query	#	#	COMMIT
  select * from t1;
  a

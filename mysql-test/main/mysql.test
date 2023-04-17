@@ -1,9 +1,13 @@
 -- source include/have_working_dns.inc
-# This test should work in embedded server after we fix mysqltest
+# Part of this test should work in embedded server after we fix mysqltest and
+# move catalog test to another test file
 -- source include/not_embedded.inc
 #
 # Testing the MySQL command line client(mysql)
 #
+
+call mtr.add_suppression("tried to connect to not existing catalog");
+
 set GLOBAL sql_mode="";
 set LOCAL sql_mode="";
 
@@ -231,6 +235,10 @@ drop table t17583;
 --exec $MYSQL test -e "\r test localhost" 2>&1
 --exec $MYSQL test -e "connect test localhost" 2>&1
 
+--echo Test connect with dbname + hostname + catalog
+--exec $MYSQL test -e "\r test localhost def" 2>&1
+--exec $MYSQL test -e "connect test localhost def" 2>&1
+
 --echo Test connect with dbname + _invalid_ hostname
 # Mask the errno of the error message
 --replace_regex /\([0-9|-]*\)/(errno)/
@@ -243,11 +251,11 @@ drop table t17583;
 --echo The commands reported in the bug report
 --replace_regex /\([0-9|-]*\)/(errno)/
 --error 1
---exec $MYSQL test -e "\r\r\n\r\n cyril\ has\ found\ a\ bug\ :)XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" 2>&1
+--exec $MYSQL test -e "\r\r\n\r\n cyril\ has\ found\ a\ bug\ :)XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX def" 2>&1
 
 #--replace_regex /\([0-9|-]*\)/(errno)/
 #--error 1
-#--exec echo '\r\r\n\r\n cyril\ has\ found\ a\ bug\ :)XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX' | $MYSQL 2>&1
+#--exec echo '\r\r\n\r\n cyril\ has\ found\ a\ bug\ :)XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX def' | $MYSQL 2>&1
 
 --echo Too long dbname
 --error 1
@@ -258,6 +266,10 @@ drop table t17583;
 --error 1
 --exec $MYSQL test -e "\r  test cyrils_superlonghostnameXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" 2>&1
 
+--echo Too long catalog name
+--replace_regex /\([0-9|-]*\)/(errno)/
+--error 1
+--exec $MYSQL test -e "\r  test localhost cyrils_superlongcatalognameXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" 2>&1
 
 #
 # Bug #21412: mysql cmdline client allows backslash(es) 
@@ -725,3 +737,13 @@ drop table t1;
 --exec $MYSQL --show-query-costs --port=$MASTER_MYPORT -e "show tables in mysql like 'foo'"
 --enable_result_log
 --enable_query_log
+
+--echo #
+--echo # Check connection with catalog
+--echo #
+
+--exec $MYSQL --catalog=def test -e "select 1";
+--exec $MYSQL def.test -e "select 2";
+--replace_regex /\([0-9|-]*\)/(errno)/
+--error 1
+--exec $MYSQL --catalog=unknown test -e "select 3";

@@ -39,14 +39,14 @@ Warning	1196	Some non-transactional changed tables couldn't be rolled back
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO n VALUES (now(),"brown")
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO n VALUES (now(),"brown")
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; UPDATE t SET f = 'yellow 2' WHERE i = 3
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; UPDATE t SET f = 'yellow 2' WHERE i = 3
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; UPDATE IGNORE t SET f = 'magenta 2' WHERE f = 'red'
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t VALUES (5 + (2 * 10),"brown")
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; UPDATE IGNORE t SET f = 'magenta 2' WHERE f = 'red'
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t VALUES (5 + (2 * 10),"brown")
 master-bin.000001	#	Query	#	#	ROLLBACK
 connection conn1;
 SET AUTOCOMMIT = 1;
@@ -68,14 +68,14 @@ COMMIT;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO n VALUES (now(),"brown")
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO n VALUES (now(),"brown")
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; UPDATE t SET f = 'gray 2' WHERE i = 3
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; UPDATE t SET f = 'gray 2' WHERE i = 3
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; UPDATE IGNORE t SET f = 'dark blue 2' WHERE f = 'red'
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t VALUES (6 + (2 * 10),"brown")
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; UPDATE IGNORE t SET f = 'dark blue 2' WHERE f = 'red'
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t VALUES (6 + (2 * 10),"brown")
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 connection conn1;
 SET AUTOCOMMIT = 0;
@@ -97,14 +97,14 @@ Warning	1196	Some non-transactional changed tables couldn't be rolled back
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO n VALUES (now(),"brown")
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO n VALUES (now(),"brown")
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; UPDATE t SET f = 'yellow 1' WHERE i = 3
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; UPDATE t SET f = 'yellow 1' WHERE i = 3
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; UPDATE IGNORE t SET f = 'magenta 1' WHERE f = 'red'
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t VALUES (5 + (1 * 10),"brown")
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; UPDATE IGNORE t SET f = 'magenta 1' WHERE f = 'red'
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t VALUES (5 + (1 * 10),"brown")
 master-bin.000001	#	Query	#	#	ROLLBACK
 connection conn1;
 SET AUTOCOMMIT = 0;
@@ -124,14 +124,14 @@ COMMIT;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO n VALUES (now(),"brown")
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO n VALUES (now(),"brown")
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; UPDATE t SET f = 'gray 1' WHERE i = 3
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; UPDATE t SET f = 'gray 1' WHERE i = 3
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; UPDATE IGNORE t SET f = 'dark blue 1' WHERE f = 'red'
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t VALUES (6 + (1 * 10),"brown")
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; UPDATE IGNORE t SET f = 'dark blue 1' WHERE f = 'red'
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t VALUES (6 + (1 * 10),"brown")
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 connection master;
 connection slave;

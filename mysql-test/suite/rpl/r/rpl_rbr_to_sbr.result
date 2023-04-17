@@ -6,9 +6,9 @@ INSERT INTO t1 VALUES (3,UUID()), (4,UUID());
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t1 (a INT, b LONG)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TABLE t1 (a INT, b LONG)
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (1,1), (2,2)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (1,1), (2,2)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (3,UUID()), (4,UUID())
@@ -19,9 +19,9 @@ connection slave;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 slave-bin.000001	#	Gtid	#	#	GTID #-#-#
-slave-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t1 (a INT, b LONG)
+slave-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TABLE t1 (a INT, b LONG)
 slave-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-slave-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (1,1), (2,2)
+slave-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (1,1), (2,2)
 slave-bin.000001	#	Query	#	#	COMMIT
 slave-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 slave-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (3,UUID()), (4,UUID())

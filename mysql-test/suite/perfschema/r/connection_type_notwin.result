@@ -56,18 +56,18 @@ select user_host, command_type, argument from mysql.general_log
 where command_type = "Connect";
 user_host	[root] @ localhost []
 command_type	Connect
-argument	root@localhost on test using Socket
+argument	root@localhost on def.test using Socket
 user_host	[root] @ santa.claus.ipv4.example.com [192.0.2.4]
 command_type	Connect
-argument	root@santa.claus.ipv4.example.com on test using TCP/IP
+argument	root@santa.claus.ipv4.example.com on def.test using TCP/IP
 user_host	[rootssl] @ santa.claus.ipv4.example.com [192.0.2.4]
 command_type	Connect
-argument	rootssl@santa.claus.ipv4.example.com on test using SSL/TLS
+argument	rootssl@santa.claus.ipv4.example.com on def.test using SSL/TLS
 select substring(argument, locate("Connect", argument)) from test_log
-where argument like "%Connect%on test%";
-substring(argument, locate("Connect", argument))	Connect	root@localhost on test using Socket
-substring(argument, locate("Connect", argument))	Connect	root@santa.claus.ipv4.example.com on test using TCP/IP
-substring(argument, locate("Connect", argument))	Connect	rootssl@santa.claus.ipv4.example.com on test using SSL/TLS
+where argument like "%Connect%on %test%";
+substring(argument, locate("Connect", argument))	Connect	root@localhost on def.test using Socket
+substring(argument, locate("Connect", argument))	Connect	root@santa.claus.ipv4.example.com on def.test using TCP/IP
+substring(argument, locate("Connect", argument))	Connect	rootssl@santa.claus.ipv4.example.com on def.test using SSL/TLS
 DROP TABLE test_log;
 SET GLOBAL general_log_file=  @old_general_log_file;
 SET GLOBAL general_log=       @old_general_log;

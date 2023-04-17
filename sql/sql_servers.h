@@ -19,6 +19,7 @@
 #include "slave.h" // for tables_ok(), rpl_filter
 
 class THD;
+class SQL_CATALOG;
 typedef struct st_lex_server_options LEX_SERVER_OPTIONS;
 typedef struct st_mem_root MEM_ROOT;
 
@@ -32,7 +33,7 @@ typedef struct st_federated_server
 } FOREIGN_SERVER;
 
 /* cache handlers */
-bool servers_init(bool dont_read_server_table);
+bool servers_init(const SQL_CATALOG *catalog, bool dont_read_server_table);
 bool servers_reload(THD *thd);
 void servers_free(bool end=0);
 

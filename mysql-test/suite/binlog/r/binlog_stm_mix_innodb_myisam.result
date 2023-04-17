@@ -16,8 +16,8 @@ commit;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t1 values(1)
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t2 select * from t1
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t1 values(1)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t2 select * from t1
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 delete from t1;
 delete from t2;
@@ -33,8 +33,8 @@ Warning	1196	Some non-transactional changed tables couldn't be rolled back
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t1 values(2)
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t2 select * from t1
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t1 values(2)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t2 select * from t1
 master-bin.000001	#	Query	#	#	ROLLBACK
 delete from t1;
 delete from t2;
@@ -53,10 +53,10 @@ commit;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t1 values(3)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t1 values(3)
 master-bin.000001	#	Query	#	#	SAVEPOINT `my_savepoint`
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t1 values(4)
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t2 select * from t1
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t1 values(4)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t2 select * from t1
 master-bin.000001	#	Query	#	#	ROLLBACK TO `my_savepoint`
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 delete from t1;
@@ -81,12 +81,12 @@ a
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t1 values(5)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t1 values(5)
 master-bin.000001	#	Query	#	#	SAVEPOINT `my_savepoint`
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t1 values(6)
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t2 select * from t1
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t1 values(6)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t2 select * from t1
 master-bin.000001	#	Query	#	#	ROLLBACK TO `my_savepoint`
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t1 values(7)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t1 values(7)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 delete from t1;
 delete from t2;
@@ -107,8 +107,8 @@ get_lock("a",10)
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t1 values(8)
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t2 select * from t1
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t1 values(8)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t2 select * from t1
 master-bin.000001	#	Query	#	#	ROLLBACK
 delete from t1;
 delete from t2;
@@ -118,10 +118,10 @@ insert into t2 select * from t1;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t1 values(9)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t1 values(9)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t2 select * from t1
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t2 select * from t1
 master-bin.000001	#	Query	#	#	COMMIT
 delete from t1;
 delete from t2;
@@ -132,23 +132,23 @@ insert into t2 select * from t1;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t1 values(10)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t1 values(10)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t2 select * from t1
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t2 select * from t1
 master-bin.000001	#	Query	#	#	COMMIT
 insert into t1 values(11);
 commit;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t1 values(10)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t1 values(10)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t2 select * from t1
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t2 select * from t1
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t1 values(11)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t1 values(11)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 alter table t2 engine=INNODB;
 delete from t1;
@@ -161,8 +161,8 @@ commit;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t1 values(12)
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t2 select * from t1
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t1 values(12)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t2 select * from t1
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 delete from t1;
 delete from t2;
@@ -185,7 +185,7 @@ commit;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t1 values(14)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t1 values(14)
 master-bin.000001	#	Query	#	#	SAVEPOINT `my_savepoint`
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 delete from t1;
@@ -206,9 +206,9 @@ a
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t1 values(16)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t1 values(16)
 master-bin.000001	#	Query	#	#	SAVEPOINT `my_savepoint`
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t1 values(18)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t1 values(18)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 connect  con3,localhost,root,,;
 connection con3;
@@ -270,50 +270,50 @@ get_lock("lock1",60)
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t1 values(16)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t1 values(16)
 master-bin.000001	#	Query	#	#	SAVEPOINT `my_savepoint`
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t1 values(18)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t1 values(18)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; delete from t1
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; delete from t1
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; delete from t2
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; delete from t2
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; alter table t2 engine=MyISAM
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; alter table t2 engine=MyISAM
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t1 values (1)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t1 values (1)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t2 values (20)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t2 values (20)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DROP TABLE `t1`,`t2` /* generated by server */
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; DROP TABLE `t1`,`t2` /* generated by server */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; create temporary table ti (a int) engine=innodb
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; create temporary table ti (a int) engine=innodb
 master-bin.000001	#	Query	#	#	ROLLBACK
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into ti values(1)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into ti values(1)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; create temporary table t1 (a int) engine=myisam
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; create temporary table t1 (a int) engine=myisam
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert t1 values (1)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert t1 values (1)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; create table t0 (n int)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; create table t0 (n int)
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert t0 select * from t1
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert t0 select * from t1
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t0 select GET_LOCK("lock1",0)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t0 select GET_LOCK("lock1",0)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; create table t2 (n int) engine=innodb
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; create table t2 (n int) engine=innodb
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DROP /*!40005 TEMPORARY */ TABLE IF EXISTS `t1`,`ti`
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; DROP /*!40005 TEMPORARY */ TABLE IF EXISTS `t1`,`ti`
 do release_lock("lock1");
 drop table t0,t2;
 set autocommit=0;
@@ -403,52 +403,52 @@ DROP TABLE t1,t2;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 values (1,1),(1,2)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 values (1,1),(1,2)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DROP TABLE IF EXISTS `t2` /* generated by server */
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; DROP TABLE IF EXISTS `t2` /* generated by server */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 values (3,3)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 values (3,3)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DROP TABLE IF EXISTS `t2` /* generated by server */
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; DROP TABLE IF EXISTS `t2` /* generated by server */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE t2 (a int, b int, primary key (a)) engine=innodb
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TABLE t2 (a int, b int, primary key (a)) engine=innodb
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (4,4)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (4,4)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; TRUNCATE table t2
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; TRUNCATE table t2
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 VALUES (5,5)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (5,5)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DROP TABLE `t2` /* generated by server */
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; DROP TABLE `t2` /* generated by server */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 values (6,6)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 values (6,6)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TEMPORARY TABLE t2 (a int, b int, primary key (a)) engine=innodb
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 values (7,7)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TEMPORARY TABLE t2 (a int, b int, primary key (a)) engine=innodb
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 values (7,7)
 master-bin.000001	#	Query	#	#	ROLLBACK
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 values (8,8)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 values (8,8)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 values (9,9)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 values (9,9)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; TRUNCATE table t2
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; TRUNCATE table t2
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t1 values (10,10)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 values (10,10)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t2 values (100,100)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t2 values (100,100)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DROP TEMPORARY TABLE `t2` /* generated by server */
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; DROP TEMPORARY TABLE `t2` /* generated by server */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DROP TABLE `t1` /* generated by server */
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; DROP TABLE `t1` /* generated by server */
 connect  con4,localhost,root,,;
 connection con3;
 reset master;
@@ -498,9 +498,9 @@ count(*)
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into ti values (1)
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into ti values (2)
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into tt select * from ti
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into ti values (1)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into ti values (2)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into tt select * from ti
 master-bin.000001	#	Query	#	#	ROLLBACK
 select count(*) from ti /* zero */;
 count(*)
@@ -524,9 +524,9 @@ Warning	1196	Some non-transactional changed tables couldn't be rolled back
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into ti values (1)
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into ti values (2) /* to make the dup error in the following */
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into tt select * from ti /* one affected and error */
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into ti values (1)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into ti values (2) /* to make the dup error in the following */
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into tt select * from ti /* one affected and error */
 master-bin.000001	#	Query	#	#	ROLLBACK
 select count(*) from ti /* zero */;
 count(*)
@@ -561,7 +561,7 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Intvar	#	#	INSERT_ID=3
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t2 values (bug27417(2))
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t2 values (bug27417(2))
 master-bin.000001	#	Query	#	#	COMMIT
 /* only (!) with fixes for #23333 will show there is the query */;
 select count(*) from t1 /* must be 3 */;
@@ -581,7 +581,7 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Intvar	#	#	INSERT_ID=4
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; delete from t2 where a=bug27417(3)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; delete from t2 where a=bug27417(3)
 master-bin.000001	#	Query	#	#	COMMIT
 /* the query must be in regardless of #23333 */;
 select count(*) from t1 /* must be 5 */;
@@ -608,7 +608,7 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Intvar	#	#	INSERT_ID=1
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t2 values (bug27417(1))
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t2 values (bug27417(1))
 master-bin.000001	#	Query	#	#	ROLLBACK
 /* the output must denote there is the query */;
 select count(*) from t1 /* must be 1 */;
@@ -624,7 +624,7 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Intvar	#	#	INSERT_ID=2
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t2 select bug27417(1) union select bug27417(2)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t2 select bug27417(1) union select bug27417(2)
 master-bin.000001	#	Query	#	#	ROLLBACK
 /* the output must denote there is the query */;
 select count(*) from t1 /* must be 2 */;
@@ -639,7 +639,7 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Intvar	#	#	INSERT_ID=4
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; update t3 set b=b+bug27417(1)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; update t3 set b=b+bug27417(1)
 master-bin.000001	#	Query	#	#	COMMIT
 /* the output must denote there is the query */;
 select count(*) from t1 /* must be 2 */;
@@ -656,7 +656,7 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Intvar	#	#	INSERT_ID=6
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; UPDATE t4,t3 SET t4.a=t3.a + bug27417(1) /* top level non-ta table */
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; UPDATE t4,t3 SET t4.a=t3.a + bug27417(1) /* top level non-ta table */
 master-bin.000001	#	Query	#	#	ROLLBACK
 /* the output must denote there is the query */;
 select count(*) from t1 /* must be 4 */;
@@ -688,7 +688,7 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Intvar	#	#	INSERT_ID=9
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; delete from t2
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; delete from t2
 master-bin.000001	#	Query	#	#	ROLLBACK
 /* the output must denote there is the query */;
 select count(*) from t1 /* must be 1 */;
@@ -708,7 +708,7 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; delete t2.* from t2,t5 where t2.a=t5.a + 1
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; delete t2.* from t2,t5 where t2.a=t5.a + 1
 master-bin.000001	#	Query	#	#	ROLLBACK
 /* the output must denote there is the query */;
 select count(*) from t1 /* must be 1 */;
@@ -756,9 +756,9 @@ count(*)
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into ti values (1)
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into ti values (2)
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into tt select * from ti
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into ti values (1)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into ti values (2)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into tt select * from ti
 master-bin.000001	#	Query	#	#	ROLLBACK
 select count(*) from ti /* zero */;
 count(*)
@@ -782,9 +782,9 @@ Warning	1196	Some non-transactional changed tables couldn't be rolled back
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into ti values (1)
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into ti values (2) /* to make the dup error in the following */
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into tt select * from ti /* one affected and error */
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into ti values (1)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into ti values (2) /* to make the dup error in the following */
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into tt select * from ti /* one affected and error */
 master-bin.000001	#	Query	#	#	ROLLBACK
 select count(*) from ti /* zero */;
 count(*)
@@ -819,7 +819,7 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Intvar	#	#	INSERT_ID=3
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t2 values (bug27417(2))
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t2 values (bug27417(2))
 master-bin.000001	#	Query	#	#	COMMIT
 select count(*) from t1 /* must be 3 */;
 count(*)
@@ -838,7 +838,7 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Intvar	#	#	INSERT_ID=4
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; delete from t2 where a=bug27417(3)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; delete from t2 where a=bug27417(3)
 master-bin.000001	#	Query	#	#	COMMIT
 select count(*) from t1 /* must be 5 */;
 count(*)
@@ -864,7 +864,7 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Intvar	#	#	INSERT_ID=1
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t2 values (bug27417(1))
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t2 values (bug27417(1))
 master-bin.000001	#	Query	#	#	ROLLBACK
 select count(*) from t1 /* must be 1 */;
 count(*)
@@ -879,7 +879,7 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Intvar	#	#	INSERT_ID=2
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; insert into t2 select bug27417(1) union select bug27417(2)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert into t2 select bug27417(1) union select bug27417(2)
 master-bin.000001	#	Query	#	#	ROLLBACK
 select count(*) from t1 /* must be 2 */;
 count(*)
@@ -893,7 +893,7 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Intvar	#	#	INSERT_ID=4
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; update t3 set b=b+bug27417(1)
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; update t3 set b=b+bug27417(1)
 master-bin.000001	#	Query	#	#	COMMIT
 select count(*) from t1 /* must be 2 */;
 count(*)
@@ -909,7 +909,7 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Intvar	#	#	INSERT_ID=6
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; UPDATE t4,t3 SET t4.a=t3.a + bug27417(1) /* top level non-ta table */
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; UPDATE t4,t3 SET t4.a=t3.a + bug27417(1) /* top level non-ta table */
 master-bin.000001	#	Query	#	#	ROLLBACK
 select count(*) from t1 /* must be 4 */;
 count(*)
@@ -940,7 +940,7 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Intvar	#	#	INSERT_ID=9
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; delete from t2
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; delete from t2
 master-bin.000001	#	Query	#	#	ROLLBACK
 select count(*) from t1 /* must be 1 */;
 count(*)
@@ -959,7 +959,7 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; delete t2.* from t2,t5 where t2.a=t5.a + 1
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; delete t2.* from t2,t5 where t2.a=t5.a + 1
 master-bin.000001	#	Query	#	#	ROLLBACK
 select count(*) from t1 /* must be 1 */;
 count(*)

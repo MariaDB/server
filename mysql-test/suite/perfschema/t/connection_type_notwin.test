@@ -71,7 +71,7 @@ select user_host, command_type, argument from mysql.general_log
   where command_type = "Connect";
 
 select substring(argument, locate("Connect", argument)) from test_log
-  where argument like "%Connect%on test%";
+  where argument like "%Connect%on %test%";
 
 
 DROP TABLE test_log;

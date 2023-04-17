@@ -16,7 +16,7 @@ CALL testproc();
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` PROCEDURE `testproc`()
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE DEFINER=`root`@`localhost` PROCEDURE `testproc`()
 BEGIN
 DROP TEMPORARY TABLE IF EXISTS t1_tmp;
 DROP TEMPORARY TABLE IF EXISTS t2_tmp;

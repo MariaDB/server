@@ -718,6 +718,7 @@ void *create_embedded_thd(ulong client_flag)
   thd->real_id= pthread_self();
 
   thd->db= null_clex_str;
+  thd->catalog= default_catalog();
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   thd->security_ctx->db_access= DB_ACLS;
   thd->security_ctx->master_access= ALL_KNOWN_ACL;

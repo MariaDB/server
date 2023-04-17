@@ -43,6 +43,7 @@
 #include "sql_priv.h"
 #include "sql_basic_types.h"
 #include <atomic>
+#include "catalog.h"
 #include "log_event.h"
 #include "compat56.h"
 #include "sql_common.h"

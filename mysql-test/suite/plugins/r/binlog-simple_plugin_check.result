@@ -13,7 +13,7 @@ DROP USER user1@localhost;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE USER user1@localhost IDENTIFIED BY 'BsG9#9.cem#!85'
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE USER user1@localhost IDENTIFIED BY 'BsG9#9.cem#!85'
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; DROP USER user1@localhost
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; DROP USER user1@localhost
 UNINSTALL PLUGIN simple_password_check;

@@ -1,3 +1,4 @@
+call mtr.add_suppression("tried to connect to not existing catalog");
 set GLOBAL sql_mode="";
 set LOCAL sql_mode="";
 drop table if exists t1,t2,t3;
@@ -171,6 +172,7 @@ Test connect with _invalid_ dbname only => new invalid dbname, old hostname
 ERROR 1049 (42000) at line 1: Unknown database 'invalid'
 ERROR 1049 (42000) at line 1: Unknown database 'invalid'
 Test connect with dbname + hostname
+Test connect with dbname + hostname + catalog
 Test connect with dbname + _invalid_ hostname
 ERROR 2005 (HY000) at line 1: Unknown server host 'invalid_hostname' (errno)
 ERROR 2005 (HY000) at line 1: Unknown server host 'invalid_hostname' (errno)
@@ -180,6 +182,8 @@ Too long dbname
 ERROR 1102 (42000) at line 1: Incorrect database name 'test_really_long_dbnamexxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...'
 Too long hostname
 ERROR 2005 (HY000) at line 1: Unknown server host 'cyrils_superlonghostnameXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX' (errno)
+Too long catalog name
+ERROR 4193 (HY000) at line 1: User 'root'@'localhost' tried to connect to not existing catalog 'cyrils_superlongcatalognameXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
 1
 1
 ERROR at line 1: DELIMITER cannot contain a backslash character
@@ -640,3 +644,10 @@ WARNING: option '--enable-cleartext-plugin' is obsolete.
 #
 # MDEV-30327 Client crashes in print_last_query_cost
 #
+#
+# Check connection with catalog
+#
+1
+1
+2
+2

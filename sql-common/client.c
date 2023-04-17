@@ -60,6 +60,10 @@ my_bool	net_flush(NET *net);
 #define CLI_MYSQL_REAL_CONNECT STDCALL mysql_real_connect
 #endif /*EMBEDDED_LIBRARY*/
 
+#ifdef MYSQL_SERVER
+extern my_bool using_catalogs;
+#endif
+
 #include <my_sys.h>
 #include <mysys_err.h>
 #include <m_string.h>
@@ -3032,6 +3036,25 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
                       unknown_sqlstate);        /* purecov: inspected */
       goto error;
     }
+#ifdef MYSQL_SERVER
+    {
+      ulonglong extended_server_capabilities= uint4korr(end+14);
+      if (!((extended_server_capabilities << 32) &
+            MARIADB_CLIENT_CONNECT_CATALOG) && using_catalogs && db)
+      {
+        /*
+          We are connecting from inside a MariaDB server that supports
+          catalogs, which means that the db string contains the catalog.
+          However the server we are connecting to does not understand
+          catalogs, which means we have to remove the catalog from
+          the db to be able to connect.
+        */
+        const char *pos= strchr(db, '.');
+        if (pos)
+          db= pos+1;
+      }
+    }
+#endif /* MYSQL_SERVER */
   }
   end+= 18;
 

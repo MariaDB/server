@@ -8,10 +8,10 @@ COMMIT;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO ta SET f = 1
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO ta SET f = 1
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; INSERT INTO t  SET f = 1
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t  SET f = 1
 master-bin.000001	#	Query	#	#	COMMIT
 # Prove that binlog is resettable. Under the bug condition it was not.
 RESET MASTER;
@@ -20,7 +20,7 @@ CREATE TABLE ta2 ENGINE = Aria SELECT * from t;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	set CATALOG `def`; use `test`; CREATE TABLE `ta2` (
+master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TABLE `ta2` (
   `f` int(11) DEFAULT NULL
 ) ENGINE=Aria PAGE_CHECKSUM=1
 master-bin.000001	#	Annotate_rows	#	#	CREATE TABLE ta2 ENGINE = Aria SELECT * from t

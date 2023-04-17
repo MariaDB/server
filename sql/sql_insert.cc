@@ -2555,6 +2555,7 @@ bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
       */
       di->thd.variables.binlog_annotate_row_events= 0;
 
+      di->thd.catalog= thd->catalog;
       di->thd.set_db(&table_list->db);
       di->thd.set_query(my_strndup(PSI_INSTRUMENT_ME,
                                    table_list->table_name.str,

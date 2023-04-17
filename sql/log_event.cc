@@ -55,6 +55,7 @@
 #include "rpl_constants.h"
 #include "sql_digest.h"
 #include "zlib.h"
+#include "catalog.h"
 #include "myisampack.h"
 #include <algorithm>
 
@@ -1373,8 +1374,9 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
                                  const Format_description_log_event
                                  *description_event,
                                  Log_event_type event_type)
-  :Log_event(buf, description_event), data_buf(0), query(NullS), catalog(NullS),
-   db(NullS), catalog_len(0), status_vars_len(0),
+  :Log_event(buf, description_event), data_buf(0),
+   catalog(0), db(NullS), query(NullS),
+   status_vars_len(0),
    flags2_inited(0), sql_mode_inited(0), charset_inited(0), flags2(0),
    auto_increment_increment(1), auto_increment_offset(1),
    time_zone_len(0), lc_time_names_number(0), charset_database_number(0),
@@ -1385,11 +1387,12 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
   uint8 common_header_len, post_header_len;
   Log_event::Byte *start;
   const Log_event::Byte *end;
-  bool catalog_nz= 1;
   DBUG_ENTER("Query_log_event::Query_log_event(char*,...)");
 
   memset(&user, 0, sizeof(user));
   memset(&host, 0, sizeof(host));
+  catalog_name.str= 0;
+  catalog_name.length= 0;
   common_header_len= description_event->common_header_len;
   post_header_len= description_event->post_header_len[event_type-1];
   DBUG_PRINT("info",("event_len: %u  common_header_len: %d  post_header_len: %d",
@@ -1457,15 +1460,19 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
       break;
     }
     case Q_CATALOG_NZ_CODE:
+    {
+      uint length;
       DBUG_PRINT("info", ("case Q_CATALOG_NZ_CODE; pos:%p; end:%p",
                           pos, end));
-      if (get_str_len_and_pointer(&pos, &catalog, &catalog_len, end))
+      if (get_str_len_and_pointer(&pos, &catalog_name.str, &length, end))
       {
-        DBUG_PRINT("info", ("query= 0"));
         query= 0;
         DBUG_VOID_RETURN;
       }
+      catalog_name.length= length;
       break;
+    }
+    break;
     case Q_AUTO_INCREMENT:
       CHECK_SPACE(pos, end, 4);
       auto_increment_increment= uint2korr(pos);
@@ -1491,13 +1498,14 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
       break;
     }
     case Q_CATALOG_CODE: /* for 5.0.x where 0<=x<=3 masters */
+    {
       CHECK_SPACE(pos, end, 1);
-      if ((catalog_len= *pos))
-        catalog= (char*) pos+1;                           // Will be copied later
-      CHECK_SPACE(pos, end, catalog_len + 2);
-      pos+= catalog_len+2; // leap over end 0
-      catalog_nz= 0; // catalog has end 0 in event
-      break;
+      if ((catalog_name.length= *pos))
+        catalog_name.str= (char*) pos+1;    // Will be copied later
+      CHECK_SPACE(pos, end, catalog_name.length + 2);
+      pos+= catalog_name.length+2;          // leap over end 0
+    }
+    break;
     case Q_LC_TIME_NAMES_CODE:
       CHECK_SPACE(pos, end, 2);
       lc_time_names_number= uint2korr(pos);
@@ -1610,7 +1618,7 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_QUERY_CACHE)
   if (!(start= data_buf= (Log_event::Byte*) my_malloc(PSI_INSTRUMENT_ME,
-                                                       catalog_len + 1
+                                                       catalog_name.length + 1
                                                     +  time_zone_len + 1
                                                     +  user.length + 1
                                                     +  host.length + 1
@@ -1622,7 +1630,7 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
                                                        MYF(MY_WME))))
 #else
   if (!(start= data_buf= (Log_event::Byte*) my_malloc(PSI_INSTRUMENT_ME,
-                                                       catalog_len + 1
+                                                       catalog_name.length + 1
                                                     +  time_zone_len + 1
                                                     +  user.length + 1
                                                     +  host.length + 1
@@ -1630,35 +1638,35 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
                                                        MYF(MY_WME))))
 #endif
       DBUG_VOID_RETURN;
-  if (catalog_len)                                  // If catalog is given
-  {
-    /*
-      Ensure we can support old replication clients that are using 'std'
-      as catalog name.
-      This is also needed to support old mtr test that uses copies of
-      old replication logs that still are using the old catalog name
-      'std'.
-    */
-    if (catalog_len == 3 and memcmp(catalog, "std", 3) == 0)
-    {
-      catalog_nz= 1;
-      catalog= "def";
-    }
 
-  /**
-      @todo we should clean up and do only copy_str_and_move; it
-      works for both cases.  Then we can remove the catalog_nz
-      flag. /sven
-    */
-    if (likely(catalog_nz)) // true except if event comes from 5.0.0|1|2|3.
-      copy_str_and_move(&catalog, &start, catalog_len);
-    else
+  /*
+    Ensure we can support old replication clients that are using 'std' as catalog name
+    This is also needed to support old mtr test that uses copies of old replication logs that
+    still are using 'std'.
+   */
+  if (catalog_name.length == 3 and memcmp(catalog_name.str, "std", 3) == 0)
+    catalog_name.str= "def";
+
+#ifndef MYSQL_CLIENT
+  if (catalog_name.length)                      // If catalog was given
+  {
+    if (!(catalog= get_catalog(&catalog_name)))
     {
-      memcpy(start, catalog, catalog_len+1); // copy end 0
-      catalog= (const char *)start;
-      start+= catalog_len+1;
+      if (!user.str)
+        user.str= "";
+      if (!host.str)
+        host.str= "";
+      my_error(ER_ACCESS_NO_SUCH_CATALOG, MYF(ME_ERROR_LOG),
+               user.str, host.str, catalog_name.length, catalog_name.str);
+      query= 0;
+      DBUG_VOID_RETURN;
     }
   }
+  else
+    catalog= default_catalog();
+#endif
+
+  copy_str_and_move(&catalog_name.str, &start, catalog_name.length);
 
   if (time_zone_len)
     copy_str_and_move(&time_zone_str, &start, time_zone_len);

@@ -46,7 +46,7 @@
 #include <locale.h>
 #endif
 
-const char *VER= "15.2";
+const char *VER= "16.0";
 
 /* Don't try to make a nice table if the data is too big */
 #define MAX_COLUMN_LENGTH	     1024
@@ -264,7 +264,7 @@ static int interrupted_query= 0;
 static char *current_host,*current_db,*current_user=0,*opt_password=0,
             *current_prompt=0, *delimiter_str= 0,
             *default_charset= (char*) MYSQL_AUTODETECT_CHARSET_NAME,
-            *opt_init_command= 0;
+            *opt_init_command= 0, *current_catalog= 0;
 static char *histfile;
 static char *histfile_tmp;
 static String glob_buffer,old_buffer;
@@ -330,8 +330,8 @@ static int com_nopager(String *str, char*), com_pager(String *str, char*),
 #endif
 
 static int read_and_execute(bool interactive);
-static int sql_connect(char *host,char *database,char *user,char *password,
-		       uint silent);
+static int sql_connect(char *host,char *catalog, char *database,char *user,
+                       char *password, uint silent);
 static const char *server_version_string(MYSQL *mysql);
 static int put_info(const char *str,INFO_TYPE info,uint error=0,
 		    const char *sql_state=0);
@@ -344,7 +344,7 @@ static void init_tee(const char *);
 static void end_tee();
 static const char* construct_prompt();
 enum get_arg_mode { CHECK, GET, GET_NEXT};
-static char *get_arg(char *line, get_arg_mode mode);
+static char *get_arg(char **line, get_arg_mode mode);
 static void init_username();
 static void add_int_to_prompt(int toadd);
 static int get_result_width(MYSQL_RES *res);
@@ -372,7 +372,7 @@ static COMMANDS commands[] = {
   { "?",      '?', com_help,   1, "Synonym for `help'." },
   { "clear",  'c', com_clear,  0, "Clear the current input statement."},
   { "connect",'r', com_connect,1,
-    "Reconnect to the server. Optional arguments are db and host." },
+    "Reconnect to the server. Optional arguments are db, host and catalog." },
   { "delimiter", 'd', com_delimiter,    1,
     "Set statement delimiter." },
 #ifdef USE_POPEN
@@ -1292,8 +1292,8 @@ int main(int argc,char *argv[])
   glob_buffer.realloc(512);
   completion_hash_init(&ht, 128);
   init_alloc_root(PSI_NOT_INSTRUMENTED, &hash_mem_root, 16384, 0, MYF(0));
-  if (sql_connect(current_host,current_db,current_user,opt_password,
-		  opt_silent))
+  if (sql_connect(current_host,current_catalog, current_db,current_user,
+                  opt_password, opt_silent))
   {
     quick= 1;					// Avoid history
     status.exit_status= 1;
@@ -1440,6 +1440,7 @@ sig_handler mysql_end(int sig)
   my_free(part_username);
   my_free(default_prompt);
   my_free(current_prompt);
+  my_free(current_catalog);
   while (embedded_server_arg_count > 1)
     my_free(embedded_server_args[--embedded_server_arg_count]);
   mysql_server_end();
@@ -1492,8 +1493,11 @@ static void maybe_convert_charset(const char **user, const char **password,
   set connection-specific options and call mysql_real_connect
 */
 static bool do_connect(MYSQL *mysql, const char *host, const char *user,
-                       const char *password, const char *database, ulong flags)
+                       const char *password, const char *catalog,
+                       const char *database, ulong flags)
 {
+  char catalog_db[SAFE_NAME_LEN*2+3];
+
   if (opt_secure_auth)
     mysql_options(mysql, MYSQL_SECURE_AUTH, (char *) &opt_secure_auth);
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
@@ -1518,11 +1522,22 @@ static bool do_connect(MYSQL *mysql, const char *host, const char *user,
 
   mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
-                 "program_name", "mysql");
+                 "program_name", "mariadb");
 #ifdef _WIN32
   maybe_convert_charset(&user, &password, &database,default_charset);
 #endif
 
+  if (catalog)
+  {
+#ifdef MARIADB_OPT_CATALOG
+    /* using new MariaDB client protocol for catalogs */
+    mysql_optionsv(mysql, MYSQL_OPT_CATALOG, catalog);
+#else
+    /* Using old catalog protocol */
+    strxnmov(catalog_db, sizeof(catalog_db)-1, catalog, ".", database, NullS);
+    database= catalog_db;
+#endif
+  }
   return mysql_real_connect(mysql, host, user, password, database,
                             opt_mysql_port, opt_mysql_unix_port, flags);
 }
@@ -1548,7 +1563,8 @@ sig_handler handle_sigint(int sig)
   }
 
   kill_mysql= mysql_init(kill_mysql);
-  if (!do_connect(kill_mysql,current_host, current_user, opt_password, "", 0))
+  if (!do_connect(kill_mysql,current_host, current_catalog, current_user,
+                  opt_password, "", 0))
   {
     tee_fprintf(stdout, "Ctrl-C -- sorry, cannot connect to server to kill query, giving up ...\n");
     goto err;
@@ -1632,6 +1648,8 @@ static struct my_option my_long_options[] =
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"binary-as-hex", 0, "Print binary data as hex", &opt_binhex, &opt_binhex,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"catalog", OPT_CONNECT_CATALOG, "Catalog to use.", &current_catalog,
+   &current_catalog, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"character-sets-dir", OPT_CHARSETS_DIR,
    "Directory for character set files.", &charsets_dir,
    &charsets_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -2413,7 +2431,7 @@ static COMMANDS *find_command(char *name)
       if (!my_charset_latin1.strnncoll((uchar*) name, len,
                                        (uchar*) commands[i].name, len) &&
           (commands[i].name[len] == '\0') &&
-          (!end || (commands[i].takes_params && get_arg(name, CHECK))))
+          (!end || (commands[i].takes_params && get_arg(&name, CHECK))))
       {
         index= i;
         break;
@@ -3353,10 +3371,12 @@ static void adjust_console_codepage(const char *name __attribute__((unused)))
 static int
 com_charset(String *buffer __attribute__((unused)), char *line)
 {
-  char buff[256], *param;
+  char buff[256], *param, *ptr;
   CHARSET_INFO * new_cs;
+
   strmake_buf(buff, line);
-  param= get_arg(buff, GET);
+  ptr= buff;
+  param= get_arg(&ptr, GET);
   if (!param || !*param)
   {
     return put_info("Usage: \\C charset_name | charset charset_name", 
@@ -4523,7 +4543,7 @@ com_print(String *buffer,char *line __attribute__((unused)))
 static int
 com_connect(String *buffer, char *line)
 {
-  char *tmp, buff[256];
+  char *tmp, buff[256], *ptr= buff;
   my_bool save_rehash= opt_rehash;
   int error;
 
@@ -4538,16 +4558,20 @@ com_connect(String *buffer, char *line)
 #ifdef EXTRA_DEBUG
     tmp[1]= 0;
 #endif
-    tmp= get_arg(buff, GET);
+    tmp= get_arg(&ptr, GET);
     if (tmp && *tmp)
     {
       my_free(current_db);
       current_db= my_strdup(PSI_NOT_INSTRUMENTED, tmp, MYF(MY_WME));
-      tmp= get_arg(buff, GET_NEXT);
-      if (tmp)
+      if ((tmp= get_arg(&ptr, GET_NEXT)))
       {
-	my_free(current_host);
-	current_host=my_strdup(PSI_NOT_INSTRUMENTED, tmp,MYF(MY_WME));
+        my_free(current_host);
+        current_host= my_strdup(PSI_NOT_INSTRUMENTED, tmp, MYF(MY_WME));
+        if ((tmp= get_arg(&ptr, GET_NEXT)))
+        {
+          my_free(current_catalog);
+          current_catalog= my_strdup(PSI_NOT_INSTRUMENTED, tmp, MYF(MY_WME));
+        }
       }
     }
     else
@@ -4559,7 +4583,8 @@ com_connect(String *buffer, char *line)
   }
   else
     opt_rehash= 0;
-  error=sql_connect(current_host,current_db,current_user,opt_password,0);
+  error=sql_connect(current_host, current_catalog, current_db, current_user,
+                    opt_password,0);
   opt_rehash= save_rehash;
 
   if (connected)
@@ -4643,10 +4668,10 @@ static int com_source(String *buffer __attribute__((unused)),
 static int
 com_delimiter(String *buffer __attribute__((unused)), char *line)
 {
-  char buff[256], *tmp;
+  char buff[256], *tmp, *ptr= buff;
 
   strmake_buf(buff, line);
-  tmp= get_arg(buff, GET);
+  tmp= get_arg(&ptr, GET);
 
   if (!tmp || !*tmp)
   {
@@ -4672,12 +4697,12 @@ com_delimiter(String *buffer __attribute__((unused)), char *line)
 static int
 com_use(String *buffer __attribute__((unused)), char *line)
 {
-  char *tmp, buff[FN_REFLEN + 1];
+  char buff[FN_REFLEN + 1], *tmp, *ptr= buff;
   int select_db;
 
   bzero(buff, sizeof(buff));
   strmake_buf(buff, line);
-  tmp= get_arg(buff, GET);
+  tmp= get_arg(&ptr, GET);
   if (!tmp || !*tmp)
   {
     put_info("USE must be followed by a database name", INFO_ERROR);
@@ -4782,22 +4807,16 @@ com_query_cost(String *buffer __attribute__((unused)),
   remember to initialize all items in the array to zero first.
 */
 
-static char *get_arg(char *line, get_arg_mode mode)
+static char *get_arg(char **line, get_arg_mode mode)
 {
   char *ptr, *start;
   bool short_cmd= false;
   char qtype= 0;
 
-  ptr= line;
-  if (mode == GET_NEXT)
+  ptr= *line;
+  if (mode != GET_NEXT)
   {
-    for (; *ptr; ptr++) ;
-    if (*(ptr + 1))
-      ptr++;
-  }
-  else
-  {
-    /* skip leading white spaces */
+    /* skip leading white spaces && command */
     while (my_isspace(charset_info, *ptr))
       ptr++;
     if ((short_cmd= *ptr == '\\')) // short command was used
@@ -4806,10 +4825,10 @@ static char *get_arg(char *line, get_arg_mode mode)
       while (*ptr &&!my_isspace(charset_info, *ptr)) // skip command
         ptr++;
   }
-  if (!*ptr)
-    return NullS;
   while (my_isspace(charset_info, *ptr))
     ptr++;
+  if (!*ptr)
+    return NullS;
   if (*ptr == '\'' || *ptr == '\"' || *ptr == '`')
   {
     qtype= *ptr;
@@ -4834,9 +4853,13 @@ static char *get_arg(char *line, get_arg_mode mode)
       qtype= 0;
       if (mode != CHECK)
         *ptr= 0;
-      break;
+      *line= ptr+1;
+      goto end;
     }
   }
+  *line= ptr;                                   // End of line
+
+end:
   return ptr != start && !qtype ? start : NullS;
 }
 
@@ -4897,8 +4920,8 @@ char *mysql_authentication_dialog_ask(MYSQL *mysql, int type,
 }
 
 static int
-sql_real_connect(char *host,char *database,char *user,char *password,
-		 uint silent)
+sql_real_connect(char *host, char *catalog, char *database, char *user,
+                 char *password, uint silent)
 {
   const char *charset_name;
 
@@ -4935,7 +4958,7 @@ sql_real_connect(char *host,char *database,char *user,char *password,
   my_bool can_handle_expired= opt_connect_expired_password || !status.batch;
   mysql_options(&mysql, MYSQL_OPT_CAN_HANDLE_EXPIRED_PASSWORDS, &can_handle_expired);
 
-  if (!do_connect(&mysql, host, user, password, database,
+  if (!do_connect(&mysql, host, user, password, catalog, database,
                   connect_flag | CLIENT_MULTI_STATEMENTS))
   {
     if (!silent ||
@@ -4985,14 +5008,16 @@ sql_real_connect(char *host,char *database,char *user,char *password,
 
 
 static int
-sql_connect(char *host,char *database,char *user,char *password,uint silent)
+sql_connect(char *host,char *catalog, char *database,char *user,char *password,
+            uint silent)
 {
   bool message=0;
   uint count=0;
   int error;
   for (;;)
   {
-    if ((error=sql_real_connect(host,database,user,password,wait_flag)) >= 0)
+    if ((error=sql_real_connect(host,catalog, database,user,password,
+                                wait_flag)) >= 0)
     {
       if (count)
       {

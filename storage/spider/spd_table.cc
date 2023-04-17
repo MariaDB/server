@@ -82,6 +82,7 @@ inline MYSQL_THD spider_create_sys_thd(SPIDER_THREAD *thread)
     SPIDER_set_next_thread_id(thd);
     thd->mysys_var->current_cond = &thread->cond;
     thd->mysys_var->current_mutex = &thread->mutex;
+    thd->catalog= default_catalog();            // To be fixed later
   }
   return thd;
 }
@@ -102,6 +103,7 @@ inline MYSQL_THD spider_create_thd()
 #endif
     thd->thread_stack = (char *) &thd;
     thd->store_globals();
+    thd->catalog= default_catalog();            // To be fixed later
   }
   return thd;
 }

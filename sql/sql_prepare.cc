@@ -6246,6 +6246,7 @@ loc_advanced_command(MYSQL *mysql, enum enum_server_command command,
     set_current_thd(p->thd);
     p->thd->thread_stack= (char*) &result;
     p->thd->set_time();
+    p->thd->catalog= thd_orig->catalog;
     result= execute_server_code(p->thd, (const char *)arg, arg_length);
     p->thd->cleanup_after_query();
     mysql_audit_release(p->thd);

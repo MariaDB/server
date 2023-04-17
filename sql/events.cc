@@ -874,7 +874,7 @@ Events::fill_schema_events(THD *thd, TABLE_LIST *tables, COND * /* cond */)
 */
 
 bool
-Events::init(THD *thd, bool opt_noacl_or_bootstrap)
+Events::init(THD *thd, const SQL_CATALOG *catalog, bool opt_noacl_or_bootstrap)
 {
   int err_no;
   bool res= FALSE;
@@ -918,6 +918,7 @@ Events::init(THD *thd, bool opt_noacl_or_bootstrap)
       to true if event was expired.
     */
     thd->set_time();
+    thd->catalog= const_cast<SQL_CATALOG*>(catalog);
   }
 
   /*
@@ -957,7 +958,7 @@ Events::init(THD *thd, bool opt_noacl_or_bootstrap)
               opt_event_scheduler == Events::EVENTS_OFF);
 
   if (!(event_queue= new Event_queue) ||
-      !(scheduler= new Event_scheduler(event_queue)))
+      !(scheduler= new Event_scheduler(catalog, event_queue)))
   {
     res= TRUE; /* fatal error: request unireg_abort */
     goto end;

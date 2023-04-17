@@ -5575,7 +5575,7 @@ static int init_server_components()
   init_global_user_stats();
   init_global_client_stats();
   if (!opt_bootstrap)
-    servers_init(0);
+    servers_init(default_catalog(), 0);
   init_status_vars();
   Item_false= new (&read_only_root) Item_bool_static("FALSE", 0);
   Item_true=  new (&read_only_root) Item_bool_static("TRUE", 1);
@@ -5916,7 +5916,7 @@ int mysqld_main(int argc, char **argv)
     Events::opt_event_scheduler= Events::EVENTS_OFF;
 
   Events::set_original_state(Events::opt_event_scheduler);
-  if (Events::init((THD*) 0, opt_noacl || opt_bootstrap))
+  if (Events::init((THD*) 0, default_catalog(), opt_noacl || opt_bootstrap))
     unireg_abort(1);
 
 #ifdef WITH_WSREP
