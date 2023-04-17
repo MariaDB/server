@@ -21797,7 +21797,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
                                ulonglong options)
 {
   int error;
-  MARIA_KEYDEF keydef;
+  MARIA_KEYDEF *keydef= nullptr;
   MARIA_UNIQUEDEF uniquedef;
   TABLE_SHARE *share= table->s;
   MARIA_CREATE_INFO create_info;
@@ -21812,6 +21812,16 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
       goto err;
 
     bzero(seg, sizeof(*seg) * keyinfo->user_defined_key_parts);
+
+    keydef= (MARIA_KEYDEF*) alloc_root(&table->mem_root,
+                                       sizeof(*keydef) * share->keys);
+
+    if (!seg)
+      goto err;
+
+    bzero(keydef, sizeof(*keydef) * share->keys);
+
+
     /*
        Note that a similar check is performed during
        subquery_types_allow_materialization. See MDEV-7122 for more details as
@@ -21853,10 +21863,9 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
     else
     {
       /* Create a key */
-      bzero((char*) &keydef,sizeof(keydef));
-      keydef.flag= keyinfo->flags & HA_NOSAME;
-      keydef.keysegs=  keyinfo->user_defined_key_parts;
-      keydef.seg= seg;
+      keydef->flag= keyinfo->flags & HA_NOSAME;
+      keydef->keysegs=  keyinfo->user_defined_key_parts;
+      keydef->seg= seg;
     }
     for (uint i=0; i < keyinfo->user_defined_key_parts ; i++,seg++)
     {
@@ -21893,7 +21902,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
 	  on INSERT be regarded at the same value
 	*/
 	if (!using_unique_constraint)
-	  keydef.flag|= HA_NULL_ARE_EQUAL;
+	  keydef->flag|= HA_NULL_ARE_EQUAL;
       }
     }
     if (share->keys)
@@ -21943,7 +21952,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
     }
 
     if (unlikely((error= maria_create(share->path.str, file_type, share->keys,
-                                      &keydef, (uint) (*recinfo-start_recinfo),
+                                      keydef, (uint) (*recinfo-start_recinfo),
                                       start_recinfo, share->uniques, &uniquedef,
                                       &create_info, create_flags))))
     {
