@@ -175,6 +175,8 @@ struct fts_node_t {
 	ulint		ilist_size_alloc;
 					/*!< Allocated size of ilist in
 					bytes */
+	bool		synced;		/*!< flag whether the node is
+synced */
 };
 
 /** A tokenizer word. Contains information about one word. */
