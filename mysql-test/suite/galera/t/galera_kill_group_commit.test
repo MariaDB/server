@@ -1,0 +1,69 @@
+#
+# Verify that transaction which has reached group commit queue
+# cannot be killed. If the kill succeeds, assertion for
+# wsrep transaction state will fail.
+#
+# If the bug is present, i.e. wsrep transaction gets killed during
+# group commit wait, this test is enough to reproduce the crash
+# most of the time.
+#
+
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/galera_cluster.inc
+
+# Connection for KILL commands
+--connect node_1_kill, 127.0.0.1, root, , test, $NODE_MYPORT_1
+# Connection for sync point control
+--connect node_1_ctrl, 127.0.0.1, root, , test, $NODE_MYPORT_1
+SET SESSION wsrep_sync_wait = 0;
+# Connection for group commit follower
+--connect node_1_follower, 127.0.0.1, root, , test, $NODE_MYPORT_1
+# Need to disable sync wait to reach commit queue when leader
+# is blocked.
+SET SESSION wsrep_sync_wait = 0;
+--let $follower_id = `SELECT CONNECTION_ID()`
+
+--connection node_1
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+
+SET SESSION DEBUG_SYNC = "commit_before_enqueue SIGNAL leader_before_enqueue_reached WAIT_FOR leader_before_enqueue_continue";
+--send INSERT INTO t1 VALUES (1)
+
+--connection node_1_ctrl
+SET DEBUG_SYNC = "now WAIT_FOR leader_before_enqueue_reached";
+
+--connection node_1_follower
+# SET SESSION DEBUG_SYNC = "group_commit_waiting_for_prior SIGNAL follower_waiting_for_prior_reached WAIT_FOR follower_waiting_for_prior_continue";
+--send INSERT INTO t1 VALUES (2);
+
+--connection node_1_ctrl
+# TODO: Is it possible to use sync points to enforce group commit to happen?
+# The leader will hold commit monitor in commit_before_enqueue sync point,
+# which prevents the follower to reach the group commit wait state.
+# We now sleep and expect the follower to reach group commit, but this
+# may cause false negatives.
+--sleep 1
+
+--connection node_1_kill
+--echo # Execute KILL QUERY for group commit follower
+--disable_query_log
+--disable_result_log
+# Because it is currently impossible to verify that the
+# follower has reached group commit queue, the KILL may
+# sometimes return success.
+--error 0,ER_KILL_DENIED_ERROR
+--eval KILL QUERY $follower_id
+--enable_result_log
+--enable_query_log
+
+SET DEBUG_SYNC = "now SIGNAL leader_before_enqueue_continue";
+--connection node_1_follower
+--reap
+
+--connection node_1
+--reap
+SELECT * FROM t1;
+
+SET DEBUG_SYNC = "RESET";
+DROP TABLE t1;

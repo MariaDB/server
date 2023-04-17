@@ -82,6 +82,7 @@ connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 LOCK TABLE t2 WRITE;
 connection node_1;
 CREATE TABLE t1 AS SELECT * FROM t2;;
+connection node_1a;
 connection node_2;
 SELECT COUNT(*) = 5 FROM t2;
 COUNT(*) = 5
