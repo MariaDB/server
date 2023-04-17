@@ -60,7 +60,7 @@
 
 #define MAX_SCRAMBLE_LENGTH 1024
 #define MAX_OBSERVE_NONEXISTENT_USERS 50
-std::map<std::string,uint64> nonexistent_user_failed_login_map;
+static std::map<std::string,uint64> nonexistent_user_failed_login_map;
 bool mysql_user_table_is_in_short_password_format= false;
 bool using_global_priv_table= true;
 
@@ -2938,6 +2938,8 @@ bool acl_reload(THD *thd)
   old_acl_roles_mappings= acl_roles_mappings;
   old_acl_proxy_users= acl_proxy_users;
   old_acl_dbs= acl_dbs;
+  /* Clear nonexistent user data, protect by acl_cache->lock */
+  nonexistent_user_failed_login_map.clear();
   my_init_dynamic_array(key_memory_acl_mem, &acl_hosts, sizeof(ACL_HOST), 20, 50, MYF(0));
   my_init_dynamic_array(key_memory_acl_mem, &acl_users, sizeof(ACL_USER), 50, 100, MYF(0));
   acl_dbs.init(key_memory_acl_mem, 50, 100);
@@ -14397,6 +14399,37 @@ static bool check_password_lifetime(THD *thd, const ACL_USER &acl_user)
   return false;
 }
 
+static int handle_nonexistent_user_login_failed(THD* thd, const Security_context * sctx){
+  std::string key= std::string(sctx->user) + std::string(sctx->host);
+  mysql_mutex_assert_not_owner(&acl_cache->lock);
+  mysql_mutex_lock(&acl_cache->lock);
+  auto it= nonexistent_user_failed_login_map.find(key);
+  uint failed_count= 1;
+  /*Check if exists in map */
+  if (it != nonexistent_user_failed_login_map.end())
+  {
+    failed_count+= it->second;
+    /*Increment failed count */
+    it->second= failed_count;
+  }
+  else
+  {
+    nonexistent_user_failed_login_map.insert(
+        std::make_pair(key, failed_count));
+    /*Limit map growth , just erase minim key*/
+    if (nonexistent_user_failed_login_map.size() >
+        MAX_OBSERVE_NONEXISTENT_USERS)
+    {
+      nonexistent_user_failed_login_map.erase(
+          nonexistent_user_failed_login_map.begin());
+    }
+  }
+  mysql_mutex_unlock(&acl_cache->lock);
+  connection_delay_for_user(thd, sctx->user, sctx->host, failed_count);
+  DBUG_PRINT(("debug"),("login map size %d ",nonexistent_user_failed_login_map.size()));
+  return 0;
+}
+
 /**
   Perform the handshake, authorize the client and update thd sctx variables.
 
@@ -14529,34 +14562,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
       login_failed_error(thd);
     if (mpvio.make_it_fail)
     {
-      std::string key= std::string(sctx->user) + std::string(sctx->host);
-      mysql_mutex_assert_not_owner(&acl_cache->lock);
-      mysql_mutex_lock(&acl_cache->lock);
-      auto it= nonexistent_user_failed_login_map.find(key);
-      uint failed_count= 1;
-      /*Check if exists in map */
-      if (it != nonexistent_user_failed_login_map.end())
-      {
-        failed_count+= it->second;
-        /*Increment failed count */
-        it->second= failed_count;
-      }
-      else
-      {
-        nonexistent_user_failed_login_map.insert(
-            std::make_pair(key, failed_count));
-        /*Limit map growth , just erase minim key*/
-        if (nonexistent_user_failed_login_map.size() >
-            MAX_OBSERVE_NONEXISTENT_USERS)
-        {
-          nonexistent_user_failed_login_map.erase(
-              nonexistent_user_failed_login_map.begin());
-        }
-      }
-      mysql_mutex_unlock(&acl_cache->lock);
-      //TODO FLUSH PRILEVEGES 清除
-      connection_delay_for_user(thd, sctx->user, sctx->host, failed_count);
-      my_printf_error(ERR_R_MISSING_ASN1_EOS,"login map size %d ",MYF(ME_ERROR_LOG),nonexistent_user_failed_login_map.size());
+      handle_nonexistent_user_login_failed(thd,sctx);
     }
     DBUG_RETURN(1);
   }
