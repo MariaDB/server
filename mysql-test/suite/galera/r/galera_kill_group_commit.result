@@ -1,0 +1,27 @@
+connection node_2;
+connection node_1;
+connect node_1_kill, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connect node_1_ctrl, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET SESSION wsrep_sync_wait = 0;
+connect node_1_follower, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET SESSION wsrep_sync_wait = 0;
+connection node_1;
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+SET SESSION DEBUG_SYNC = "commit_before_enqueue SIGNAL leader_before_enqueue_reached WAIT_FOR leader_before_enqueue_continue";
+INSERT INTO t1 VALUES (1);
+connection node_1_ctrl;
+SET DEBUG_SYNC = "now WAIT_FOR leader_before_enqueue_reached";
+connection node_1_follower;
+INSERT INTO t1 VALUES (2);;
+connection node_1_ctrl;
+connection node_1_kill;
+# Execute KILL QUERY for group commit follower
+SET DEBUG_SYNC = "now SIGNAL leader_before_enqueue_continue";
+connection node_1_follower;
+connection node_1;
+SELECT * FROM t1;
+f1
+1
+2
+SET DEBUG_SYNC = "RESET";
+DROP TABLE t1;

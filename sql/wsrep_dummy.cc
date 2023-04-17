@@ -56,6 +56,11 @@ my_bool wsrep_on(const THD *)
 void wsrep_thd_LOCK(const THD *)
 { }
 
+int wsrep_thd_TRYLOCK(const THD *)
+{
+  return 0;
+}
+
 void wsrep_thd_UNLOCK(const THD *)
 { }
 
@@ -139,9 +144,6 @@ void wsrep_log(void (*)(const char *, ...), const char *, ...)
 }
 
 my_bool wsrep_thd_is_applying(const THD*)
-{ return 0;}
-
-bool wsrep_thd_set_wsrep_aborter(THD*, THD*)
 { return 0;}
 
 void wsrep_report_bf_lock_wait(const THD*,

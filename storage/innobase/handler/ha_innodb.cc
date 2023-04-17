@@ -18678,50 +18678,6 @@ static struct st_mysql_storage_engine innobase_storage_engine=
 
 #ifdef WITH_WSREP
 
-static
-void
-wsrep_kill_victim(
-	MYSQL_THD const bf_thd,
-	MYSQL_THD thd,
-	trx_t* victim_trx,
-	my_bool signal)
-{
-  DBUG_ENTER("wsrep_kill_victim");
-
-  /* Mark transaction as a victim for Galera abort */
-  victim_trx->lock.was_chosen_as_wsrep_victim= true;
-  if (wsrep_thd_set_wsrep_aborter(bf_thd, thd))
-  {
-    WSREP_DEBUG("innodb kill transaction skipped due to wsrep_aborter set");
-    wsrep_thd_UNLOCK(thd);
-    DBUG_VOID_RETURN;
-  }
-
-  if (wsrep_thd_bf_abort(bf_thd, thd, signal))
-  {
-    lock_t*  wait_lock= victim_trx->lock.wait_lock;
-    if (wait_lock)
-    {
-      DBUG_ASSERT(victim_trx->is_wsrep());
-      WSREP_DEBUG("victim has wait flag: %lu", thd_get_thread_id(thd));
-      victim_trx->lock.was_chosen_as_deadlock_victim= TRUE;
-      lock_cancel_waiting_and_release(wait_lock);
-    }
-  }
-  else
-  {
-    wsrep_thd_LOCK(thd);
-    victim_trx->lock.was_chosen_as_wsrep_victim= false;
-    wsrep_thd_set_wsrep_aborter(NULL, thd);
-    wsrep_thd_UNLOCK(thd);
-
-    WSREP_DEBUG("wsrep_thd_bf_abort has failed, victim %lu will survive",
-                thd_get_thread_id(thd));
-  }
-
-  DBUG_VOID_RETURN;
-}
-
 /** This function is used to kill one transaction.
 
 This transaction was open on this node (not-yet-committed), and a
@@ -18768,10 +18724,45 @@ wsrep_innobase_kill_one_trx(
     DBUG_VOID_RETURN;
   }
 
-  /* Here we need to lock THD::LOCK_thd_data to protect from
-  concurrent usage or disconnect or delete. */
+  /* Grab reference to victim_trx before releasing the mutex, this will
+     prevent victim to release locks or commit while the mutex is
+     unlocked. The state may change to TRX_STATE_COMMITTED_IN_MEMORY.
+     See skip_lock_inheritance_n_ref in trx0trx.h. */
+  const trx_id_t victim_trx_id= victim_trx->id;
+retry_lock:
+  victim_trx->reference();
+  trx_mutex_exit(victim_trx);
+
   DEBUG_SYNC(bf_thd, "wsrep_before_BF_victim_lock");
-  wsrep_thd_LOCK(thd);
+  wsrep_thd_kill_LOCK(thd);
+  /*
+    There is now a cycle
+
+       trx reference
+         -> LOCK_commit_order
+         -> LOCK_thd_data
+         -> trx reference
+
+     which may prevent the transaction committing because reference was grabbed
+     above. Try to lock LOCK_thd_data, and if not successul, enter the
+     trx mutex again to release the reference and try again.
+  */
+  if (wsrep_thd_TRYLOCK(thd))
+  {
+    wsrep_thd_kill_UNLOCK(thd);
+    trx_mutex_enter(victim_trx);
+    victim_trx->release_reference();
+    if (victim_trx_id != victim_trx->id ||
+        victim_trx->state == TRX_STATE_COMMITTED_IN_MEMORY ||
+        victim_trx->state == TRX_STATE_NOT_STARTED)
+    {
+      WSREP_DEBUG("wsrep_innobase_kill_one_trx: Victim committed in memory");
+      DBUG_VOID_RETURN;
+    }
+    goto retry_lock;
+  }
+
+
   DEBUG_SYNC(bf_thd, "wsrep_after_BF_victim_lock");
 
   WSREP_LOG_CONFLICT(bf_thd, thd, TRUE);
@@ -18802,7 +18793,31 @@ wsrep_innobase_kill_one_trx(
 	      wsrep_thd_transaction_state_str(thd),
 	      wsrep_thd_query(thd));
 
-  wsrep_kill_victim(bf_thd, thd, victim_trx, signal);
+  const bool success= wsrep_thd_bf_abort(bf_thd, thd, signal);
+
+  wsrep_thd_UNLOCK(thd);
+  wsrep_thd_kill_UNLOCK(thd);
+  trx_mutex_enter(victim_trx);
+
+  if (success && victim_trx->state == TRX_STATE_ACTIVE)
+  {
+    lock_t*  wait_lock= victim_trx->lock.wait_lock;
+    if (wait_lock)
+    {
+      victim_trx->lock.was_chosen_as_deadlock_victim= TRUE;
+      DBUG_ASSERT(victim_trx->is_wsrep());
+      WSREP_DEBUG("victim has wait flag: %lu", thd_get_thread_id(thd));
+      lock_cancel_waiting_and_release(wait_lock);
+    }
+  }
+  else
+  {
+    victim_trx->lock.was_chosen_as_wsrep_victim= false;
+    WSREP_DEBUG("wsrep_thd_bf_abort has failed, victim %lu will survive",
+                thd_get_thread_id(thd));
+  }
+  victim_trx->release_reference();
+
   DBUG_VOID_RETURN;
 }
 
@@ -18823,43 +18838,61 @@ wsrep_abort_transaction(
 	THD *victim_thd,
 	my_bool signal)
 {
-  /* Note that victim thd is protected with
-  THD::LOCK_thd_data and THD::LOCK_thd_kill here. */
+  /* Unlock LOCK_thd_kill and LOCK_thd_data temporarily to grab mutexes
+     in the right order:
+     lock_sys.mutex
+     LOCK_thd_kill
+     LOCK_thd_data
+     trx.mutex
+  */
   trx_t* victim_trx= thd_to_trx(victim_thd);
-  trx_t* bf_trx= thd_to_trx(bf_thd);
-  WSREP_DEBUG("wsrep_abort_transaction: BF:"
-	      " thread %ld client_state %s client_mode %s"
-	      " trans_state %s query %s trx " TRX_ID_FMT,
-	      thd_get_thread_id(bf_thd),
-	      wsrep_thd_client_state_str(bf_thd),
-	      wsrep_thd_client_mode_str(bf_thd),
-	      wsrep_thd_transaction_state_str(bf_thd),
-	      wsrep_thd_query(bf_thd),
-	      bf_trx ? bf_trx->id : 0);
+  trx_id_t victim_trx_id= victim_trx ? victim_trx->id : 0;
+  wsrep_thd_UNLOCK(victim_thd);
+  wsrep_thd_kill_UNLOCK(victim_thd);
+  /* After this point must use find_thread_by_id() if victim_thd
+     is needed again. */
 
-  WSREP_DEBUG("wsrep_abort_transaction: victim:"
-	      " thread %ld client_state %s client_mode %s"
-	      " trans_state %s query %s trx " TRX_ID_FMT,
-	      thd_get_thread_id(victim_thd),
-	      wsrep_thd_client_state_str(victim_thd),
-	      wsrep_thd_client_mode_str(victim_thd),
-	      wsrep_thd_transaction_state_str(victim_thd),
-	      wsrep_thd_query(victim_thd),
-	      victim_trx ? victim_trx->id : 0);
-
-  if (victim_trx)
+  /* Victim didn't have active RW transaction. Note that tere is a possible
+     race when the victim transaction is just starting write operation
+     as is still read only. This however will be resolved eventually since
+     all the possible blocking transactions are also BF aborted,
+     and the victim will find that it was BF aborted on server level after
+     the write operation in InnoDB completes. */
+  if (!victim_trx_id)
   {
-    lock_mutex_enter();
-    trx_mutex_enter(victim_trx);
-    wsrep_kill_victim(bf_thd, victim_thd, victim_trx, signal);
+#ifdef ENABLED_DEBUG_SYNC
+    DBUG_EXECUTE_IF(
+        "sync.wsrep_abort_transaction_read_only",
+        {const char act[]=
+             "now "
+             "SIGNAL sync.wsrep_abort_transaction_read_only_reached "
+             "WAIT_FOR signal.wsrep_abort_transaction_read_only";
+          DBUG_ASSERT(!debug_sync_set_action(bf_thd, STRING_WITH_LEN(act)));
+        };);
+#endif /* ENABLED_DEBUG_SYNC*/
+    return;
+  }
+  lock_mutex_enter();
+
+  /* Check if victim trx still exists. */
+  /* Note based on comment on trx0sys.h only ACTIVE or PREPARED trx
+     objects may participate in hash. However, transaction may get committed
+     before this method returns. */
+  if(!(victim_trx= trx_sys.find(nullptr, victim_trx_id, true))) {
+    WSREP_DEBUG("wsrep_abort_transaction: Victim trx does not exist anymore");
     lock_mutex_exit();
-    trx_mutex_exit(victim_trx);
-    wsrep_srv_conc_cancel_wait(victim_trx);
+    return;
   }
-  else
-  {
-    wsrep_thd_bf_abort(bf_thd, victim_thd, signal);
+  trx_mutex_enter(victim_trx);
+
+  if (victim_trx->state == TRX_STATE_ACTIVE && victim_trx->lock.wait_lock) {
+    victim_trx->lock.was_chosen_as_deadlock_victim= TRUE;
+    lock_cancel_waiting_and_release(victim_trx->lock.wait_lock);
   }
+
+  trx_mutex_exit(victim_trx);
+  victim_trx->release_reference();
+  lock_mutex_exit();
 }
 
 static

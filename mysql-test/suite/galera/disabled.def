@@ -19,3 +19,4 @@ galera_var_notify_ssl_ipv6 : MDEV-29861 Galera test case hangs
 galera_var_notify_cmd: MDEV-29861 Galera test case hangs
 galera_var_node_address : MDEV-20485 Galera test failure
 MDEV-26575 : MDEV-29878 Galera test failure on MDEV-26575
+galera_bf_abort_group_commit : MDEV-30855 PR to remove the test exists
