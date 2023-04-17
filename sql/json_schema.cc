@@ -416,7 +416,7 @@ bool Json_schema_const::validate(const json_engine_t *je,
   json_engine_t temp_je= *je;
   json_engine_t temp_je_2;
   String a_res("", 0, curr_je.s.cs);
-  int err;
+  int err= 0;
 
   if (type != curr_je.value_type)
    return true;
@@ -774,20 +774,8 @@ bool Json_schema_multiple_of::validate(const json_engine_t *je,
   if (je->num_flags & JSON_NUM_FRAC_PART)
     return true;
 
-<<<<<<< HEAD
-  double val= je->s.cs->strntod((char *) je->value,
-                                  je->value_len, &end, &err);
-  double temp= val / multiple_of;
-  bool res= (temp - (long long int)temp) == 0;
-||||||| parent of 628ce9d4f44... MDEV-30705: JSON_SCHEMA_VALID: schema with multipleOf for big value
-  double val= je->s.cs->strntod((char *) je->value,
-                                  je->value_len, &end, &err);
-  double temp= val / this->value;
-  bool res= (temp - (long long int)temp) == 0;
-=======
   longlong val= je->s.cs->strntoll((char *) je->value,
                                   je->value_len, 10, &end, &err);
->>>>>>> 628ce9d4f44... MDEV-30705: JSON_SCHEMA_VALID: schema with multipleOf for big value
 
   return val % multiple_of;
 }
@@ -881,17 +869,9 @@ bool Json_schema_min_len::handle_keyword(THD *thd, json_engine_t *je,
   if (val < 0)
   {
     my_error(ER_JSON_INVALID_VALUE_FOR_KEYWORD, MYF(0), "minLength");
-<<<<<<< HEAD
-    return true;
-  }
-  value= val;
-||||||| parent of 203f63d7bf1... MDEV-30704: JSON_SCHEMA_VALID: multipleOf must be greater than zero
-  value= val;
-=======
     return true;
   }
   value= (int)val;
->>>>>>> 203f63d7bf1... MDEV-30704: JSON_SCHEMA_VALID: multipleOf must be greater than zero
 
   return false;
 }
@@ -949,8 +929,7 @@ bool Json_schema_pattern::handle_keyword(THD *thd, json_engine_t *je,
   my_repertoire_t repertoire= my_charset_repertoire(je->s.cs);
   pattern= thd->make_string_literal((const char*)je->value,
                                              je->value_len, repertoire);
-  str= (Item_string*)current_thd->make_string_literal((const char*)"",
-                                               0, repertoire);
+  str= new (thd->mem_root) Item_string(thd, "", (uint) 0, je->s.cs);
   re.init(je->s.cs, 0);
   re.unset_flag(PCRE2_CASELESS);
 
@@ -2272,9 +2251,7 @@ bool Json_schema_pattern_properties::handle_keyword(THD *thd,
     return true;
   }
 
-  str= (Item_string*)thd->make_string_literal((const char*)"",
-                                                      0,
-                                                      my_charset_repertoire(je->s.cs));
+  str= new (thd->mem_root) Item_string(thd, "", (uint) 0, je->s.cs);
 
   int level= je->stack_p;
   while (json_scan_next(je)==0 && level <= je->stack_p)

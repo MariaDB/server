@@ -362,7 +362,7 @@ class Json_schema_contains : public Json_schema_keyword
                         const char* key_start,
                         const char* key_end,
                         List<Json_schema_keyword> *all_keywords) override;
-    void set_dependents(Json_schema_keyword *min, Json_schema_keyword *max)
+    void set_dependents(Json_schema_keyword *min, Json_schema_keyword *max) override
     {
       min_contains= min;
       max_contains= max;

@@ -61,8 +61,8 @@ uchar* get_key_name(const char *key_name, size_t *length,
 void json_get_normalized_string(json_engine_t *je, String *res,
                                 int *error)
 {
-  char *val_begin= (char*)je->value, *val_end;
-  String val;
+  char *val_begin= (char*)je->value, *val_end= NULL;
+  String val("",0,je->s.cs);
   DYNAMIC_STRING a_res;
 
   if (init_dynamic_string(&a_res, NULL, 0, 0))

@@ -4649,4 +4649,23 @@ JSON_SCHEMA_VALID(@schema, '9007900000000060')
 SELECT JSON_SCHEMA_VALID(@schema, '9007900000000061');
 JSON_SCHEMA_VALID(@schema, '9007900000000061')
 0
+#
+# MDEV-31032: UBSAN|downcast of address X which does not point to an object of type 
+#             Item_string' in sql/json_schema.cc
+#
+SET @old_sql_mode= @@sql_mode;
+SET @schema='{ "type":"object","patternProperties": { "^I_": {"type":"number"},"^S_" : {"type":"string"} } }';
+SET SESSION sql_mode='empty_string_is_null';
+SELECT JSON_SCHEMA_VALID (@schema,'{"key1":"val0","key2":0,"I_int":0,"S_":"abc","prop0":"str0"}');
+JSON_SCHEMA_VALID (@schema,'{"key1":"val0","key2":0,"I_int":0,"S_":"abc","prop0":"str0"}')
+1
+SET @@sql_mode= @old_sql_mode;
+SET @property_names='{ "PropertyNames":{ "pattern": "^I_" } }';
+SET GLOBAL sql_mode=17179869183;
+SET @@sql_mode=DEFAULT;
+SELECT JSON_SCHEMA_VALID(@property_names, '{"I_int1":3, "I_ob1":{"key1":"val1"}}');
+JSON_SCHEMA_VALID(@property_names, '{"I_int1":3, "I_ob1":{"key1":"val1"}}')
+1
+SET @@sql_mode= @old_sql_mode;
+set global sql_mode=default;
 # End of 11.1 test
