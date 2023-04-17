@@ -749,6 +749,11 @@ char *opt_relay_logname = 0, *opt_relaylog_index_name=0;
 char *opt_logname, *opt_slow_logname, *opt_bin_logname;
 char *opt_binlog_index_name=0;
 
+#ifdef HAVE_REPLICATION
+char *opt_slave_retries_log= NULL;
+FILE *slave_retries_file= NULL;
+#endif
+
 /* Static variables */
 
 my_bool opt_stack_trace;
@@ -1389,7 +1394,7 @@ static void charset_error_reporter(enum loglevel level,
 {
   va_list args;
   va_start(args, format);
-  vprint_msg_to_log(level, format, args);
+  vprint_msg_to_log(stderr, level, format, args);
   va_end(args);                      
 }
 C_MODE_END
@@ -2034,6 +2039,9 @@ static void clean_up(bool print_message)
 #endif
   free_list(opt_plugin_load_list_ptr);
   destroy_proxy_protocol_networks();
+
+  if (slave_retries_file)
+    fclose(slave_retries_file);
 
   /*
     The following lines may never be executed as the main thread may have
@@ -5020,6 +5028,17 @@ static int init_server_components()
                         "--log-slave-updates would lead to infinite loops in "
                         "this server. However this will be ignored as the "
                         "--log-bin option is not defined.");
+  }
+
+  if (opt_slave_retries_log)
+  {
+    slave_retries_file= fopen(opt_slave_retries_log, "a");
+    if (!slave_retries_file)
+    {
+      sql_print_error("Open of log_slave_retries '%s' failed: %s (%d)",
+                      opt_slave_retries_log, strerror(errno), errno);
+      unireg_abort(1);
+    }
   }
 #endif
 
@@ -8761,7 +8780,7 @@ static void option_error_reporter(enum loglevel level, const char *format, ...)
   if (level == ERROR_LEVEL || !opt_bootstrap ||
       global_system_variables.log_warnings)
   {
-    vprint_msg_to_log(level, format, args);
+    vprint_msg_to_log(stderr, level, format, args);
   }
   va_end(args);
 }

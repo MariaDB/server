@@ -315,6 +315,7 @@ static bool	lock_deadlock_found = false;
 
 /** Only created if !srv_read_only_mode */
 static FILE*		lock_latest_err_file;
+static FILE*		lock_slave_retry_log = NULL;
 
 /*********************************************************************//**
 Reports that a transaction id is insensible, i.e., in the future. */
@@ -6567,6 +6568,11 @@ DeadlockChecker::print(const trx_t* trx, ulint max_query_len)
 
 	if (srv_print_all_deadlocks) {
 		trx_print_low(stderr, trx, max_query_len,
+			      n_rec_locks, n_trx_locks, heap_size);
+	}
+
+	if (lock_slave_retry_log) {
+		trx_print_low(lock_slave_retry_log, trx, max_query_len,
 			      n_rec_locks, n_trx_locks, heap_size);
 	}
 }
