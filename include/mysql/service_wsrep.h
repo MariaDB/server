@@ -57,6 +57,7 @@ extern struct wsrep_service_st {
   my_bool                     (*wsrep_on_func)(const MYSQL_THD thd);
   bool                        (*wsrep_prepare_key_for_innodb_func)(MYSQL_THD thd, const unsigned char*, size_t, const unsigned char*, size_t, struct wsrep_buf*, size_t*);
   void                        (*wsrep_thd_LOCK_func)(const MYSQL_THD thd);
+  int                         (*wsrep_thd_TRYLOCK_func)(const MYSQL_THD thd);
   void                        (*wsrep_thd_UNLOCK_func)(const MYSQL_THD thd);
   const char *                (*wsrep_thd_query_func)(const MYSQL_THD thd);
   int                         (*wsrep_thd_retry_counter_func)(const MYSQL_THD thd);
@@ -86,7 +87,6 @@ extern struct wsrep_service_st {
   ulong                       (*wsrep_OSU_method_get_func)(const MYSQL_THD thd);
   my_bool                     (*wsrep_thd_has_ignored_error_func)(const MYSQL_THD thd);
   void                        (*wsrep_thd_set_ignored_error_func)(MYSQL_THD thd, my_bool val);
-  bool                        (*wsrep_thd_set_wsrep_aborter_func)(MYSQL_THD bf_thd, MYSQL_THD thd);
   void                        (*wsrep_report_bf_lock_wait_func)(const MYSQL_THD thd,
                                                                 unsigned long long trx_id);
   void                        (*wsrep_thd_kill_LOCK_func)(const MYSQL_THD thd);
@@ -108,6 +108,7 @@ extern struct wsrep_service_st {
 #define wsrep_on(thd) (thd) && WSREP_ON && wsrep_service->wsrep_on_func(thd)
 #define wsrep_prepare_key_for_innodb(A,B,C,D,E,F,G) wsrep_service->wsrep_prepare_key_for_innodb_func(A,B,C,D,E,F,G)
 #define wsrep_thd_LOCK(T) wsrep_service->wsrep_thd_LOCK_func(T)
+#define wsrep_thd_TRYLOCK(T) wsrep_service->wsrep_thd_TRYLOCK_func(T)
 #define wsrep_thd_UNLOCK(T) wsrep_service->wsrep_thd_UNLOCK_func(T)
 #define wsrep_thd_kill_LOCK(T) wsrep_service->wsrep_thd_kill_LOCK_func(T)
 #define wsrep_thd_kill_UNLOCK(T) wsrep_service->wsrep_thd_kill_UNLOCK_func(T)
@@ -136,7 +137,6 @@ extern struct wsrep_service_st {
 #define wsrep_OSU_method_get(T) wsrep_service->wsrep_OSU_method_get_func(T)
 #define wsrep_thd_has_ignored_error(T) wsrep_service->wsrep_thd_has_ignored_error_func(T)
 #define wsrep_thd_set_ignored_error(T,V) wsrep_service->wsrep_thd_set_ignored_error_func(T,V)
-#define wsrep_thd_set_wsrep_aborter(T) wsrep_service->wsrep_thd_set_wsrep_aborter_func(T1, T2)
 #define wsrep_report_bf_lock_wait(T,I) wsrep_service->wsrep_report_bf_lock_wait(T,I)
 #define wsrep_thd_set_PA_unsafe(T) wsrep_service->wsrep_thd_set_PA_unsafe_func(T)
 #else
@@ -170,6 +170,8 @@ void wsrep_set_data_home_dir(const char *data_dir);
 extern "C" my_bool wsrep_on(const MYSQL_THD thd);
 /* Lock thd wsrep lock */
 extern "C" void wsrep_thd_LOCK(const MYSQL_THD thd);
+/* Try thd wsrep lock. Return non-zero if lock could not be taken. */
+extern "C" int wsrep_thd_TRYLOCK(const MYSQL_THD thd);
 /* Unlock thd wsrep lock */
 extern "C" void wsrep_thd_UNLOCK(const MYSQL_THD thd);
 
@@ -192,8 +194,6 @@ extern "C" my_bool wsrep_thd_is_local(const MYSQL_THD thd);
 /* Return true if thd is in high priority mode */
 /* todo: rename to is_high_priority() */
 extern "C" my_bool wsrep_thd_is_applying(const MYSQL_THD thd);
-/* set wsrep_aborter for the target THD */
-extern "C" bool wsrep_thd_set_wsrep_aborter(MYSQL_THD bf_thd, MYSQL_THD victim_thd);
 /* Return true if thd is in TOI mode */
 extern "C" my_bool wsrep_thd_is_toi(const MYSQL_THD thd);
 /* Return true if thd is in replicating TOI mode */
@@ -237,7 +237,6 @@ extern "C" my_bool wsrep_thd_is_applying(const MYSQL_THD thd);
 extern "C" ulong wsrep_OSU_method_get(const MYSQL_THD thd);
 extern "C" my_bool wsrep_thd_has_ignored_error(const MYSQL_THD thd);
 extern "C" void wsrep_thd_set_ignored_error(MYSQL_THD thd, my_bool val);
-extern "C" bool wsrep_thd_set_wsrep_aborter(MYSQL_THD bf_thd, MYSQL_THD victim_thd);
 extern "C" void wsrep_report_bf_lock_wait(const THD *thd,
                                           unsigned long long trx_id);
 /* declare parallel applying unsafety for the THD */
