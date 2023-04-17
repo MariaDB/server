@@ -512,7 +512,8 @@ public:
 private:
   void cleanup()
   {
-    end_io_cache(&alt_buf);
+    close_cached_file(&log_file);
+    close_cached_file(&alt_buf);
     Event_log::cleanup();
   }
 };

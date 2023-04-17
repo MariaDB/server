@@ -1475,6 +1475,30 @@ dec $i;
 let local_engine=aria;
 }
 
+--echo #
+--echo # MDEV-30949 Direct leak in binlog_online_alter_end_trans
+--echo #
+create table t (f longblob default null) engine=myisam;
+insert into t values (null);
+
+set debug_sync= "alter_table_copy_end signal copy wait_for goon";
+set debug_sync= "alter_table_online_before_lock signal lock wait_for end";
+
+send alter table t force, algorithm=copy;
+
+--connection con1
+set debug_sync= "now wait_for copy";
+insert into t select repeat('a',130000);
+set debug_sync= "now signal goon wait_for lock";
+insert into t select repeat('a',130000);
+set debug_sync= "now signal end";
+
+
+--connection default
+--reap
+drop table t;
+
+
 set debug_sync= reset;
 --disconnect con1
 --disconnect con2
