@@ -4539,7 +4539,7 @@ void subselect_uniquesubquery_engine::print(String *str,
   str->append(STRING_WITH_LEN("<primary_index_lookup>("));
   tab->ref.items[0]->print(str, query_type);
   str->append(STRING_WITH_LEN(" in "));
-  if (tab->table->s->table_category == TABLE_CATEGORY_TEMPORARY)
+  if (tab->tab_list->table->s->table_category == TABLE_CATEGORY_TEMPORARY)
   {
     /*
       Temporary tables' names change across runs, so they can't be used for
@@ -4548,8 +4548,8 @@ void subselect_uniquesubquery_engine::print(String *str,
     str->append(STRING_WITH_LEN("<temporary table>"));
   }
   else
-    str->append(&tab->table->s->table_name);
-  KEY *key_info= tab->table->key_info+ tab->ref.key;
+    str->append(&tab->tab_list->table->s->table_name);
+  KEY *key_info= tab->tab_list->table->key_info+ tab->ref.key;
   str->append(STRING_WITH_LEN(" on "));
   str->append(&key_info->name);
   if (cond)
@@ -4590,8 +4590,9 @@ void subselect_indexsubquery_engine::print(String *str,
   str->append(STRING_WITH_LEN("<index_lookup>("));
   tab->ref.items[0]->print(str, query_type);
   str->append(STRING_WITH_LEN(" in "));
-  str->append(tab->table->s->table_name.str, tab->table->s->table_name.length);
-  KEY *key_info= tab->table->key_info+ tab->ref.key;
+  str->append(tab->tab_list->table->s->table_name.str,
+              tab->tab_list->table->s->table_name.length);
+  KEY *key_info= tab->tab_list->table->key_info+ tab->ref.key;
   str->append(STRING_WITH_LEN(" on "));
   str->append(&key_info->name);
   if (check_null)
@@ -5266,11 +5267,15 @@ subselect_hash_sj_engine::make_unique_engine()
     - this JOIN_TAB has no corresponding JOIN (and doesn't need one), and
     - here we initialize only those members that are used by
       subselect_uniquesubquery_engine, so these objects are incomplete.
+    tab->tab_list is used in ::print, it needs initialization too.
   */
-  if (!(tab= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB))))
+  if (!(tab= (JOIN_TAB*) thd->calloc(sizeof(JOIN_TAB))))
     DBUG_RETURN(NULL);
 
-  tab->table= tmp_table;
+  if (!(tab->tab_list= (TABLE_LIST *)thd->calloc(sizeof(TABLE_LIST))))
+    DBUG_RETURN(NULL);
+
+  tab->table= tab->tab_list->table= tmp_table;
   tab->preread_init_done= FALSE;
   tab->ref.tmp_table_index_lookup_init(thd, tmp_key, it, FALSE);
 

@@ -8505,5 +8505,52 @@ SELECT a FROM t1 WHERE (a,b) in (SELECT @c,@d);
 a
 DROP TABLE t1;
 #
+# MDEV-23384: Server crashes in subselect_indexsubquery_engine::print with optimizer trace enabled
+#
+# test subselect_indexsubquery_engine::print
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (3),(4);
+CREATE TABLE t3 (c INT);
+CREATE TABLE t4 (d INT);
+INSERT INTO t4 VALUES (5),(6);
+SET SESSION optimizer_trace= 'enabled=on';
+UPDATE t1, t2 SET t2.b = 1 WHERE
+(
+WITH cte1 AS 
+(
+SELECT MAX(c) FROM t3 WHERE c = 0 OR c IN 
+(
+WITH cte2 AS 
+(
+SELECT d FROM t4
+) 
+SELECT * FROM cte2
+)
+)
+SELECT * FROM cte1
+) IS NULL;
+# test subselect_uniquesubquery_engine::print
+CREATE TABLE t10 (a int, b int) ENGINE=myisam;
+CREATE TABLE t11 (a int, b int, unique(a));
+INSERT INTO t11 SELECT seq, seq FROM seq_1_to_10;
+CREATE TABLE t12 (a int, key(a));
+INSERT INTO t12 SELECT seq FROM seq_1_to_1000;
+SET SESSION optimizer_trace= 'enabled=on';
+SELECT * FROM t12 WHERE t12.a <
+(
+SELECT b FROM
+(
+SELECT b FROM t10 WHERE a <3 or a in
+(
+SELECT a FROM t11 WHERE t11.b<t10.b
+)
+LIMIT 2
+) T
+);
+a
+DROP TABLE t1, t2, t3, t4, t10, t11, t12;
+#
 # End of 10.4 tests
 #
