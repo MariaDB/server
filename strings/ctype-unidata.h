@@ -24,6 +24,62 @@ extern MY_UNICASE_CHARACTER *my_unicase_default_pages[256];
 extern MY_UNICASE_CHARACTER my_unicase_mysql500_page00[256];
 extern MY_UNICASE_CHARACTER *my_unicase_mysql500_pages[256];
 
+
+static inline my_wc_t my_u300_tolower_7bit(uchar ch)
+{
+  return my_unicase_default_page00[ch].tolower;
+}
+
+static inline my_wc_t my_u300_toupper_7bit(uchar ch)
+{
+  return my_unicase_default_page00[ch].toupper;
+}
+
+
+static inline void
+my_tolower_unicode_bmp(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
+{
+  const MY_UNICASE_CHARACTER *page;
+  DBUG_ASSERT(*wc <= uni_plane->maxchar);
+  if ((page= uni_plane->page[*wc >> 8]))
+    *wc= page[*wc & 0xFF].tolower;
+}
+
+
+static inline void
+my_toupper_unicode_bmp(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
+{
+  const MY_UNICASE_CHARACTER *page;
+  DBUG_ASSERT(*wc <= uni_plane->maxchar);
+  if ((page= uni_plane->page[*wc >> 8]))
+    *wc= page[*wc & 0xFF].toupper;
+}
+
+
+static inline void
+my_tolower_unicode(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
+{
+  if (*wc <= uni_plane->maxchar)
+  {
+    const MY_UNICASE_CHARACTER *page;
+    if ((page= uni_plane->page[(*wc >> 8)]))
+      *wc= page[*wc & 0xFF].tolower;
+  }
+}
+
+
+static inline void
+my_toupper_unicode(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
+{
+  if (*wc <= uni_plane->maxchar)
+  {
+    const MY_UNICASE_CHARACTER *page;
+    if ((page= uni_plane->page[(*wc >> 8)]))
+      *wc= page[*wc & 0xFF].toupper;
+  }
+}
+
+
 size_t my_strxfrm_pad_nweights_unicode(uchar *str, uchar *strend, size_t nweights);
 size_t my_strxfrm_pad_unicode(uchar *str, uchar *strend);
 

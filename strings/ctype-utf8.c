@@ -5207,24 +5207,6 @@ static int my_uni_utf8mb3_no_range(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-static inline void
-my_tolower_utf8mb3(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
-{
-  MY_UNICASE_CHARACTER *page;
-  if ((page= uni_plane->page[(*wc >> 8) & 0xFF]))
-    *wc= page[*wc & 0xFF].tolower;
-}
-
-
-static inline void
-my_toupper_utf8mb3(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
-{
-  MY_UNICASE_CHARACTER *page;
-  if ((page= uni_plane->page[(*wc >> 8) & 0xFF]))
-    *wc= page[*wc & 0xFF].toupper;
-}
-
-
 static size_t my_caseup_utf8mb3(CHARSET_INFO *cs,
                                 const char *src, size_t srclen,
                                 char *dst, size_t dstlen)
@@ -5239,7 +5221,7 @@ static size_t my_caseup_utf8mb3(CHARSET_INFO *cs,
   while ((src < srcend) &&
          (srcres= my_utf8mb3_uni(cs, &wc, (uchar *) src, (uchar*) srcend)) > 0)
   {
-    my_toupper_utf8mb3(uni_plane, &wc);
+    my_toupper_unicode_bmp(uni_plane, &wc);
     if ((dstres= my_uni_utf8mb3(cs, wc, (uchar*) dst, (uchar*) dstend)) <= 0)
       break;
     src+= srcres;
@@ -5292,7 +5274,7 @@ static size_t my_caseup_str_utf8mb3(CHARSET_INFO *cs, char *src)
   while (*src &&
          (srcres= my_utf8mb3_uni_no_range(cs, &wc, (uchar *) src)) > 0)
   {
-    my_toupper_utf8mb3(uni_plane, &wc);
+    my_toupper_unicode_bmp(uni_plane, &wc);
     if ((dstres= my_uni_utf8mb3_no_range(cs, wc, (uchar*) dst)) <= 0)
       break;
     src+= srcres;
@@ -5317,7 +5299,7 @@ static size_t my_casedn_utf8mb3(CHARSET_INFO *cs,
   while ((src < srcend) &&
          (srcres= my_utf8mb3_uni(cs, &wc, (uchar*) src, (uchar*)srcend)) > 0)
   {
-    my_tolower_utf8mb3(uni_plane, &wc);
+    my_tolower_unicode_bmp(uni_plane, &wc);
     if ((dstres= my_uni_utf8mb3(cs, wc, (uchar*) dst, (uchar*) dstend)) <= 0)
       break;
     src+= srcres;
@@ -5338,7 +5320,7 @@ static size_t my_casedn_str_utf8mb3(CHARSET_INFO *cs, char *src)
   while (*src &&
          (srcres= my_utf8mb3_uni_no_range(cs, &wc, (uchar *) src)) > 0)
   {
-    my_tolower_utf8mb3(uni_plane, &wc);
+    my_tolower_unicode_bmp(uni_plane, &wc);
     if ((dstres= my_uni_utf8mb3_no_range(cs, wc, (uchar*) dst)) <= 0)
       break;
     src+= srcres;
@@ -5397,7 +5379,7 @@ int my_strcasecmp_utf8mb3(CHARSET_INFO *cs, const char *s, const char *t)
         It represents a single byte character.
         Convert it into weight according to collation.
       */
-      s_wc= my_unicase_default_page00[(uchar) s[0]].tolower;
+      s_wc= my_u300_tolower_7bit((uchar) s[0]);
       s++;
     }
     else
@@ -5430,7 +5412,7 @@ int my_strcasecmp_utf8mb3(CHARSET_INFO *cs, const char *s, const char *t)
       s+= res;
       
       /* Convert Unicode code into weight according to collation */
-      my_tolower_utf8mb3(uni_plane, &s_wc);
+      my_tolower_unicode_bmp(uni_plane, &s_wc);
     }
     
     
@@ -5439,7 +5421,7 @@ int my_strcasecmp_utf8mb3(CHARSET_INFO *cs, const char *s, const char *t)
     if ((uchar) t[0] < 128)
     {
       /* Convert single byte character into weight */
-      t_wc= my_unicase_default_page00[(uchar) t[0]].tolower;
+      t_wc= my_u300_tolower_7bit((uchar) t[0]);
       t++;
     }
     else
@@ -5450,7 +5432,7 @@ int my_strcasecmp_utf8mb3(CHARSET_INFO *cs, const char *s, const char *t)
       t+= res;
       
       /* Convert code into weight */
-      my_tolower_utf8mb3(uni_plane, &t_wc);
+      my_tolower_unicode_bmp(uni_plane, &t_wc);
     }
     
     /* Now we have two weights, let's compare them */
@@ -7678,30 +7660,6 @@ my_wc_mb_utf8mb4_no_range(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-static inline void
-my_tolower_utf8mb4(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
-{
-  if (*wc <= uni_plane->maxchar)
-  {
-    MY_UNICASE_CHARACTER *page;
-    if ((page= uni_plane->page[(*wc >> 8)]))
-      *wc= page[*wc & 0xFF].tolower;
-  }
-}
-
-
-static inline void
-my_toupper_utf8mb4(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
-{
-  if (*wc <= uni_plane->maxchar)
-  {
-    MY_UNICASE_CHARACTER *page;
-    if ((page= uni_plane->page[(*wc >> 8)]))
-      *wc= page[*wc & 0xFF].toupper;
-  }
-}
-
-
 static size_t
 my_caseup_utf8mb4(CHARSET_INFO *cs, const char *src, size_t srclen,
                   char *dst, size_t dstlen)
@@ -7717,7 +7675,7 @@ my_caseup_utf8mb4(CHARSET_INFO *cs, const char *src, size_t srclen,
          (srcres= my_mb_wc_utf8mb4(cs, &wc,
                                    (uchar *) src, (uchar*) srcend)) > 0)
   {
-    my_toupper_utf8mb4(uni_plane, &wc);
+    my_toupper_unicode(uni_plane, &wc);
     if ((dstres= my_wc_mb_utf8mb4(cs, wc, (uchar*) dst, (uchar*) dstend)) <= 0)
       break;
     src+= srcres;
@@ -7784,7 +7742,7 @@ my_caseup_str_utf8mb4(CHARSET_INFO *cs, char *src)
   while (*src &&
          (srcres= my_mb_wc_utf8mb4_no_range(cs, &wc, (uchar *) src)) > 0)
   {
-    my_toupper_utf8mb4(uni_plane, &wc);
+    my_toupper_unicode(uni_plane, &wc);
     if ((dstres= my_wc_mb_utf8mb4_no_range(cs, wc, (uchar*) dst)) <= 0)
       break;
     src+= srcres;
@@ -7811,7 +7769,7 @@ my_casedn_utf8mb4(CHARSET_INFO *cs,
          (srcres= my_mb_wc_utf8mb4(cs, &wc,
                                    (uchar*) src, (uchar*) srcend)) > 0)
   {
-    my_tolower_utf8mb4(uni_plane, &wc);
+    my_tolower_unicode(uni_plane, &wc);
     if ((dstres= my_wc_mb_utf8mb4(cs, wc, (uchar*) dst, (uchar*) dstend)) <= 0)
       break;
     src+= srcres;
@@ -7833,7 +7791,7 @@ my_casedn_str_utf8mb4(CHARSET_INFO *cs, char *src)
   while (*src &&
          (srcres= my_mb_wc_utf8mb4_no_range(cs, &wc, (uchar *) src)) > 0)
   {
-    my_tolower_utf8mb4(uni_plane, &wc);
+    my_tolower_unicode(uni_plane, &wc);
     if ((dstres= my_wc_mb_utf8mb4_no_range(cs, wc, (uchar*) dst)) <= 0)
       break;
     src+= srcres;
@@ -7888,7 +7846,7 @@ my_strcasecmp_utf8mb4(CHARSET_INFO *cs, const char *s, const char *t)
         It represents a single byte character.
         Convert it into weight according to collation.
       */
-      s_wc= my_unicase_default_page00[(uchar) s[0]].tolower;
+      s_wc= my_u300_tolower_7bit((uchar) s[0]);
       s++;
     }
     else
@@ -7903,7 +7861,7 @@ my_strcasecmp_utf8mb4(CHARSET_INFO *cs, const char *s, const char *t)
         return strcmp(s, t);
       s+= res;
       
-      my_tolower_utf8mb4(uni_plane, &s_wc);
+      my_tolower_unicode(uni_plane, &s_wc);
     }
     
     
@@ -7912,7 +7870,7 @@ my_strcasecmp_utf8mb4(CHARSET_INFO *cs, const char *s, const char *t)
     if ((uchar) t[0] < 128)
     {
       /* Convert single byte character into weight */
-      t_wc= my_unicase_default_page00[(uchar) t[0]].tolower;
+      t_wc= my_u300_tolower_7bit((uchar) t[0]);
       t++;
     }
     else
@@ -7922,7 +7880,7 @@ my_strcasecmp_utf8mb4(CHARSET_INFO *cs, const char *s, const char *t)
         return strcmp(s, t);
       t+= res;
       
-      my_tolower_utf8mb4(uni_plane, &t_wc);
+      my_tolower_unicode(uni_plane, &t_wc);
     }
     
     /* Now we have two weights, let's compare them */

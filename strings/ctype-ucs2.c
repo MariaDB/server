@@ -1285,24 +1285,6 @@ const char charset_name_utf16le[]= "utf16le";
 #define charset_name_utf16le_length (sizeof(charset_name_utf16le)-1)
 
 static inline void
-my_tolower_utf16(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
-{
-  MY_UNICASE_CHARACTER *page;
-  if ((*wc <= uni_plane->maxchar) && (page= uni_plane->page[*wc >> 8]))
-    *wc= page[*wc & 0xFF].tolower;
-}
-
-
-static inline void
-my_toupper_utf16(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
-{
-  MY_UNICASE_CHARACTER *page;
-  if ((*wc <= uni_plane->maxchar) && (page= uni_plane->page[*wc >> 8]))
-    *wc= page[*wc & 0xFF].toupper;
-}
-
-
-static inline void
 my_tosort_utf16(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
 {
   if (*wc <= uni_plane->maxchar)
@@ -1335,7 +1317,7 @@ my_caseup_utf16(CHARSET_INFO *cs, const char *src, size_t srclen,
   while ((src < srcend) &&
          (res= mb_wc(cs, &wc, (uchar *) src, (uchar *) srcend)) > 0)
   {
-    my_toupper_utf16(uni_plane, &wc);
+    my_toupper_unicode(uni_plane, &wc);
     if (res != wc_mb(cs, wc, (uchar *) dst, (uchar *) dstend))
       break;
     src+= res;
@@ -1393,7 +1375,7 @@ my_casedn_utf16(CHARSET_INFO *cs, const char *src, size_t srclen,
   while ((src < srcend) &&
          (res= mb_wc(cs, &wc, (uchar *) src, (uchar *) srcend)) > 0)
   {
-    my_tolower_utf16(uni_plane, &wc);
+    my_tolower_unicode(uni_plane, &wc);
     if (res != wc_mb(cs, wc, (uchar *) dst, (uchar *) dstend))
       break;
     src+= res;
@@ -2197,24 +2179,6 @@ my_uni_utf32(CHARSET_INFO *cs __attribute__((unused)),
 
 
 static inline void
-my_tolower_utf32(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
-{
-  MY_UNICASE_CHARACTER *page;
-  if ((*wc <= uni_plane->maxchar) && (page= uni_plane->page[*wc >> 8]))
-    *wc= page[*wc & 0xFF].tolower;
-}
-
-
-static inline void
-my_toupper_utf32(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
-{
-  MY_UNICASE_CHARACTER *page;
-  if ((*wc <= uni_plane->maxchar) && (page= uni_plane->page[*wc >> 8]))
-    *wc= page[*wc & 0xFF].toupper;
-}
-
-
-static inline void
 my_tosort_utf32(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
 {
   if (*wc <= uni_plane->maxchar)
@@ -2256,7 +2220,7 @@ my_caseup_utf32(CHARSET_INFO *cs, const char *src, size_t srclen,
   while ((src < srcend) &&
          (res= my_utf32_uni(cs, &wc, (uchar *)src, (uchar*) srcend)) > 0)
   {
-    my_toupper_utf32(uni_plane, &wc);
+    my_toupper_unicode(uni_plane, &wc);
     if (res != my_uni_utf32(cs, wc, (uchar*) dst, (uchar*) dstend))
       break;
     src+= res;
@@ -2312,7 +2276,7 @@ my_casedn_utf32(CHARSET_INFO *cs, const char *src, size_t srclen,
 
   while ((res= my_utf32_uni(cs, &wc, (uchar*) src, (uchar*) srcend)) > 0)
   {
-    my_tolower_utf32(uni_plane,&wc);
+    my_tolower_unicode(uni_plane,&wc);
     if (res != my_uni_utf32(cs, wc, (uchar*) dst, (uchar*) dstend))
       break;
     src+= res;
@@ -3119,24 +3083,6 @@ static int my_uni_ucs2(CHARSET_INFO *cs __attribute__((unused)) ,
 
 
 static inline void
-my_tolower_ucs2(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
-{
-  MY_UNICASE_CHARACTER *page;
-  if ((page= uni_plane->page[(*wc >> 8) & 0xFF]))
-    *wc= page[*wc & 0xFF].tolower;
-}
-
-
-static inline void
-my_toupper_ucs2(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
-{
-  MY_UNICASE_CHARACTER *page;
-  if ((page= uni_plane->page[(*wc >> 8) & 0xFF]))
-    *wc= page[*wc & 0xFF].toupper;
-}
-
-
-static inline void
 my_tosort_ucs2(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
 {
   MY_UNICASE_CHARACTER *page;
@@ -3157,7 +3103,7 @@ static size_t my_caseup_ucs2(CHARSET_INFO *cs, const char *src, size_t srclen,
   while ((src < srcend) &&
          (res= my_ucs2_uni(cs, &wc, (uchar *)src, (uchar*) srcend)) > 0)
   {
-    my_toupper_ucs2(uni_plane, &wc);
+    my_toupper_unicode_bmp(uni_plane, &wc);
     if (res != my_uni_ucs2(cs, wc, (uchar*) dst, (uchar*) dstend))
       break;
     src+= res;
@@ -3208,7 +3154,7 @@ static size_t my_casedn_ucs2(CHARSET_INFO *cs, const char *src, size_t srclen,
   while ((src < srcend) &&
          (res= my_ucs2_uni(cs, &wc, (uchar*) src, (uchar*) srcend)) > 0)
   {
-    my_tolower_ucs2(uni_plane, &wc);
+    my_tolower_unicode_bmp(uni_plane, &wc);
     if (res != my_uni_ucs2(cs, wc, (uchar*) dst, (uchar*) dstend))
       break;
     src+= res;
