@@ -36,12 +36,12 @@ test.t2	analyze	status	OK
 # The following two must have the same in 'Extra' column:
 explain extended select * from t2 where col1 IN (20, 180);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1100	1.35	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1100	1.08	Using where
 Warnings:
 Note	1003	select `test`.`t2`.`col1` AS `col1` from `test`.`t2` where `test`.`t2`.`col1` in (20,180)
 explain extended select * from t2 where col1 IN (180, 20);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1100	1.35	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1100	1.08	Using where
 Warnings:
 Note	1003	select `test`.`t2`.`col1` AS `col1` from `test`.`t2` where `test`.`t2`.`col1` in (180,20)
 drop table t1, t2;
@@ -102,7 +102,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 explain extended select * from t1 where col1 in (1,2,3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10000	3.37	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10000	2.82	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`col1` AS `col1` from `test`.`t1` where `test`.`t1`.`col1` in (1,2,3)
 # Must not cause fp division by zero, or produce nonsense numbers:

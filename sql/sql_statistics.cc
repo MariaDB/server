@@ -3932,7 +3932,8 @@ double Histogram::point_selectivity(double pos, double avg_sel)
     /*
       So:
       - each bucket has the same #rows 
-      - values are unformly distributed across the [min_value,max_value] domain.
+      - We assume that values are unformly distributed across the
+        [min_value,max_value] domain.
 
       If a bucket has value range that's N times bigger then average, than
       each value will have to have N times fewer rows than average.
@@ -3940,11 +3941,13 @@ double Histogram::point_selectivity(double pos, double avg_sel)
     sel= avg_sel * avg_bucket_width / current_bucket_width;
 
     /*
-      (Q: if we just follow this proportion we may end up in a situation
-      where number of different values we expect to find in this bucket
-      exceeds the number of rows that this histogram has in a bucket. Are 
-      we ok with this or we would want to have certain caps?)
+      Note that this adjustment is just a (brave?) heuristic. What we know for
+      certain is that the searched value fits into one histogram bucket. Do not
+      return an estimate larger than that.
     */
+    double bucket_sel= 1.0/(get_width() + 1);
+    if (sel >= bucket_sel)
+      sel= bucket_sel;
   }
   return sel;
 }
