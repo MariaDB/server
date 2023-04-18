@@ -2162,8 +2162,11 @@ int ha_rollback_trans(THD *thd, bool all)
       rollback without signalling following transactions. And in release
       builds, we explicitly do the signalling before rolling back.
     */
-    DBUG_ASSERT(!(thd->rgi_slave && thd->rgi_slave->did_mark_start_commit) ||
-                thd->transaction->xid_state.is_explicit_XA());
+    DBUG_ASSERT(
+        !(thd->rgi_slave && thd->rgi_slave->did_mark_start_commit) ||
+        (thd->transaction->xid_state.is_explicit_XA() ||
+         (thd->rgi_slave->gtid_ev_flags2 & Gtid_log_event::FL_PREPARED_XA)));
+
     if (thd->rgi_slave && thd->rgi_slave->did_mark_start_commit)
       thd->rgi_slave->unmark_start_commit();
   }
