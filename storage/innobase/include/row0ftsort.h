@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2019, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -65,7 +65,7 @@ struct fts_psort_common_t {
 	ulint			old_zip_size;
 	trx_t*			trx;		/*!< transaction */
 	fts_psort_t*		all_info;	/*!< all parallel sort info */
-	os_event_t		sort_event;	/*!< sort event */
+	pthread_cond_t		sort_cond;	/*!< sort completion */
 	ibool			opt_doc_id_size;/*!< whether to use 4 bytes
 						instead of 8 bytes integer to
 						store Doc ID during sort, if
@@ -90,7 +90,7 @@ struct fts_psort_t {
 	tpool::waitable_task*	task;	/*!< threadpool task */
 	dberr_t			error;		/*!< db error during psort */
 	ulint			memory_used;	/*!< memory used by fts_doc_list */
-	ib_mutex_t		mutex;		/*!< mutex for fts_doc_list */
+	mysql_mutex_t		mutex;		/*!< mutex for fts_doc_list */
 };
 
 /** Row fts token for plugin parser */
@@ -152,7 +152,6 @@ typedef struct fts_psort_insert	fts_psort_insert_t;
 #define FTS_PARENT_COMPLETE	1
 #define FTS_PARENT_EXITING	2
 #define FTS_CHILD_COMPLETE	1
-#define FTS_CHILD_EXITING	2
 
 /** Print some debug information */
 #define	FTSORT_PRINT

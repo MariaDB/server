@@ -77,7 +77,7 @@ log_reserve_and_write_fast(
 Checks if there is need for a log buffer flush or a new checkpoint, and does
 this if yes. Any database operation should call this when it has modified
 more than about 4 pages. NOTE that this function may only be called when the
-OS thread owns no synchronization objects except the dictionary mutex. */
+OS thread owns no synchronization objects except dict_sys.latch. */
 UNIV_INLINE
 void
 log_free_check(void);
@@ -97,15 +97,21 @@ bool
 log_set_capacity(ulonglong file_size)
 	MY_ATTRIBUTE((warn_unused_result));
 
-/** Ensure that the log has been written to the log file up to a given
+/**
+Ensure that the log has been written to the log file up to a given
 log entry (such as that of a transaction commit). Start a new write, or
 wait and check if an already running write is covering the request.
 @param[in]	lsn		log sequence number that should be
 included in the redo log file write
 @param[in]	flush_to_disk	whether the written log should also
 be flushed to the file system
-@param[in]	rotate_key	whether to rotate the encryption key */
-void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key = false);
+@param[in]	rotate_key	whether to rotate the encryption key
+@param[in]  cb completion callback. If not NULL, the callback will be called
+  whenever lsn is written or flushed.
+*/
+struct completion_callback;
+void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key = false,
+  const completion_callback* cb=nullptr);
 
 /** Write to the log file up to the last log entry.
 @param sync  whether to wait for a durable write to complete */
@@ -445,7 +451,7 @@ struct log_t{
 
 private:
   /** The log sequence number of the last change of durable InnoDB files */
-  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE)
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE)
   std::atomic<lsn_t> lsn;
   /** the first guaranteed-durable log sequence number */
   std::atomic<lsn_t> flushed_to_disk_lsn;
@@ -455,7 +461,7 @@ private:
   std::atomic<bool> check_flush_or_checkpoint_;
 public:
   /** mutex protecting the log */
-  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t mutex;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t mutex;
   /** first free offset within the log buffer in use */
   size_t buf_free;
   /** recommended maximum size of buf, after which the buffer is flushed */
@@ -469,7 +475,7 @@ public:
   dirty blocks in the list. The idea behind this mutex is to be able
   to release log_sys.mutex during mtr_commit and still ensure that
   insertions in the flush_list happen in the LSN order. */
-  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t flush_order_mutex;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t flush_order_mutex;
   /** log_buffer, append data here */
   byte *buf;
   /** log_buffer, writing data to file from this buffer.

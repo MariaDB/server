@@ -32,7 +32,7 @@
 #include <time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#ifndef __WIN__
+#ifndef _WIN32
 # include <unistd.h>
 #endif
 #include <my_getopt.h>
@@ -74,7 +74,6 @@ static bool			do_one_page;
 static my_bool do_leaf;
 static my_bool per_page_details;
 static ulint n_merge;
-extern ulong			srv_checksum_algorithm;
 static ulint physical_page_size;  /* Page size in bytes on disk. */
 ulong srv_page_size;
 ulong srv_page_size_shift;
@@ -84,8 +83,6 @@ uint32_t		cur_page_num;
 uint32_t		cur_space;
 /* Skip the checksum verification. */
 static bool			no_check;
-/* Enabled for strict checksum verification. */
-bool				strict_verify = 0;
 /* Enabled for rewrite checksum. */
 static bool			do_write;
 /* Mismatches count allowed (0 by default). */
@@ -110,11 +107,6 @@ const byte *field_ref_zero = field_ref_zero_buf;
 /* advisory lock for non-window system. */
 struct flock			lk;
 #endif /* _WIN32 */
-
-/* Strict check algorithm name. */
-static ulong			strict_check;
-/* Rewrite checksum algorithm name. */
-static ulong			write_check;
 
 /* Innodb page type. */
 struct innodb_page_type {
@@ -141,24 +133,6 @@ struct innodb_page_type {
 	int n_fil_page_type_page_compressed;
 	int n_fil_page_type_page_compressed_encrypted;
 } page_type;
-
-/* Possible values for "--strict-check" for strictly verify checksum
-and "--write" for rewrite checksum. */
-static const char *innochecksum_algorithms[] = {
-	"crc32",
-	"crc32",
-	"innodb",
-	"innodb",
-	"none",
-	"none",
-	NullS
-};
-
-/* Used to define an enumerate type of the "innochecksum algorithm". */
-static TYPELIB innochecksum_algorithms_typelib = {
-	array_elements(innochecksum_algorithms)-1,"",
-	innochecksum_algorithms, NULL
-};
 
 #define SIZE_RANGES_FOR_PAGE 10
 #define NUM_RETRIES 3
@@ -653,10 +627,9 @@ static bool update_checksum(byte* page, ulint flags)
 	}
 
 	if (iscompressed) {
-		/* page is compressed */
-		checksum = page_zip_calc_checksum(
-			page, physical_page_size,
-			static_cast<srv_checksum_algorithm_t>(write_check));
+		/* ROW_FORMAT=COMPRESSED */
+		checksum = page_zip_calc_checksum(page, physical_page_size,
+						  false);
 
 		mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM, checksum);
 		if (is_log_enabled) {
@@ -680,50 +653,17 @@ static bool update_checksum(byte* page, ulint flags)
 		/* page is uncompressed. */
 
 		/* Store the new formula checksum */
-		switch ((srv_checksum_algorithm_t) write_check) {
-
-		case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
-		case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
-		case SRV_CHECKSUM_ALGORITHM_CRC32:
-		case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
-			checksum = buf_calc_page_crc32(page);
-			break;
-
-		case SRV_CHECKSUM_ALGORITHM_INNODB:
-		case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
-			checksum = (ib_uint32_t)
-					buf_calc_page_new_checksum(page);
-			break;
-
-		case SRV_CHECKSUM_ALGORITHM_NONE:
-		case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
-			checksum = BUF_NO_CHECKSUM_MAGIC;
-			break;
-
-		/* no default so the compiler will emit a warning if new
-		enum is added and not handled here */
-		}
+		checksum = buf_calc_page_crc32(page);
 
 		mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM, checksum);
 		if (is_log_enabled) {
-			fprintf(log_file, "page::" UINT32PF "; Updated checksum field1"
-				" = " UINT32PF "\n", cur_page_num, checksum);
-		}
-
-		if (write_check == SRV_CHECKSUM_ALGORITHM_STRICT_INNODB
-		    || write_check == SRV_CHECKSUM_ALGORITHM_INNODB) {
-			checksum = (ib_uint32_t)
-					buf_calc_page_old_checksum(page);
+			fprintf(log_file, "page::" UINT32PF
+				"; Updated checksum = " UINT32PF "\n",
+				cur_page_num, checksum);
 		}
 
 		mach_write_to_4(page + physical_page_size -
 				FIL_PAGE_END_LSN_OLD_CHKSUM,checksum);
-
-		if (is_log_enabled) {
-			fprintf(log_file, "page::" UINT32PF "; Updated checksum "
-				"field2 = " UINT32PF "\n", cur_page_num, checksum);
-		}
-
 	}
 
 func_exit:
@@ -1245,17 +1185,13 @@ static struct my_option innochecksum_options[] = {
   {"page", 'p', "Check only this page (0 based).",
     &do_page, &do_page, 0, GET_UINT, REQUIRED_ARG,
     0, 0, FIL_NULL, 0, 1, 0},
-  {"strict-check", 'C', "Specify the strict checksum algorithm by the user.",
-    &strict_check, &strict_check, &innochecksum_algorithms_typelib,
-    GET_ENUM, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"no-check", 'n', "Ignore the checksum verification.",
     &no_check, &no_check, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"allow-mismatches", 'a', "Maximum checksum mismatch allowed.",
     &allow_mismatches, &allow_mismatches, 0,
     GET_ULL, REQUIRED_ARG, 0, 0, ULLONG_MAX, 0, 1, 0},
-  {"write", 'w', "Rewrite the checksum algorithm by the user.",
-    &write_check, &write_check, &innochecksum_algorithms_typelib,
-    GET_ENUM, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"write", 'w', "Rewrite the checksum.",
+    &do_write, &do_write, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"page-type-summary", 'S', "Display a count of each page type "
    "in a tablespace.", &page_type_summary, &page_type_summary, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -1296,7 +1232,7 @@ static void usage(void)
 	printf("InnoDB offline file checksum utility.\n");
 	printf("Usage: %s [-c] [-s <start page>] [-e <end page>] "
 		"[-p <page>] [-i] [-v]  [-a <allow mismatches>] [-n] "
-		"[-C <strict-check>] [-w <write>] [-S] [-D <page type dump>] "
+		"[-S] [-D <page type dump>] "
 		"[-l <log>] [-l] [-m <merge pages>] <filename or [-]>\n", my_progname);
 	printf("See https://mariadb.com/kb/en/library/innochecksum/"
 	       " for usage hints.\n");
@@ -1332,38 +1268,6 @@ innochecksum_get_one_option(
 		print_version();
 		my_end(0);
 		exit(EXIT_SUCCESS);
-		break;
-	case 'C':
-		strict_verify = true;
-		switch ((srv_checksum_algorithm_t) strict_check) {
-
-		case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
-		case SRV_CHECKSUM_ALGORITHM_CRC32:
-			srv_checksum_algorithm =
-				SRV_CHECKSUM_ALGORITHM_STRICT_CRC32;
-			break;
-
-		case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
-		case SRV_CHECKSUM_ALGORITHM_INNODB:
-			srv_checksum_algorithm =
-				SRV_CHECKSUM_ALGORITHM_STRICT_INNODB;
-			break;
-
-		case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
-		case SRV_CHECKSUM_ALGORITHM_NONE:
-			srv_checksum_algorithm =
-				SRV_CHECKSUM_ALGORITHM_STRICT_NONE;
-			break;
-
-		case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
-		case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
-			srv_checksum_algorithm =
-				SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32;
-			break;
-
-		default:
-			return(true);
-		}
 		break;
 	case 'n':
 		no_check = true;
@@ -1563,13 +1467,6 @@ int main(
 	DBUG_PROCESS(argv[0]);
 
 	if (get_options(&argc,&argv)) {
-		exit_status = 1;
-		goto my_exit;
-	}
-
-	if (strict_verify && no_check) {
-		fprintf(stderr, "Error: --strict-check option cannot be used "
-			"together with --no-check option.\n");
 		exit_status = 1;
 		goto my_exit;
 	}

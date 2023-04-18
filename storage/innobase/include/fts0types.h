@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -28,7 +28,6 @@ Created 2007-03-27 Sunny Bains
 #define INNOBASE_FTS0TYPES_H
 
 #include "fts0fts.h"
-#include "fut0fut.h"
 #include "pars0pars.h"
 #include "que0types.h"
 #include "ut0byte.h"
@@ -76,7 +75,6 @@ struct fts_index_cache_t {
 
 	que_t**		ins_graph;	/*!< Insert query graphs */
 
-	que_t**		sel_graph;	/*!< Select query graphs */
 	CHARSET_INFO*	charset;	/*!< charset */
 };
 
@@ -88,52 +86,23 @@ struct fts_stopword_t {
 	CHARSET_INFO*	charset;	/*!< charset for stopword */
 };
 
-/** The SYNC state of the cache. There is one instance of this struct
-associated with each ADD thread. */
-struct fts_sync_t {
-	trx_t*		trx;		/*!< The transaction used for SYNCing
-					the cache to disk */
-	dict_table_t*	table;		/*!< Table with FTS index(es) */
-	ulint		max_cache_size;	/*!< Max size in bytes of the cache */
-	ibool		cache_full;	/*!< flag, when true it indicates that
-					we need to sync the cache to disk */
-	ulint		lower_index;	/*!< the start index of the doc id
-					vector from where to start adding
-					documents to the FTS cache */
-	ulint		upper_index;	/*!< max index of the doc id vector to
-					add to the FTS cache */
-	ibool		interrupted;	/*!< TRUE if SYNC was interrupted */
-	doc_id_t	min_doc_id;	/*!< The smallest doc id added to the
-					cache. It should equal to
-					doc_ids[lower_index] */
-	doc_id_t	max_doc_id;	/*!< The doc id at which the cache was
-					noted as being full, we use this to
-					set the upper_limit field */
-	time_t		start_time;	/*!< SYNC start time; only used if
-					fts_enable_diag_print */
-	bool		in_progress;	/*!< flag whether sync is in progress.*/
-	bool		unlock_cache;	/*!< flag whether unlock cache when
-					write fts node */
-	os_event_t	event;		/*!< sync finish event;
-					only os_event_set() and os_event_wait()
-					are used */
-};
+struct fts_sync_t;
 
 /** The cache for the FTS system. It is a memory-based inverted index
 that new entries are added to, until it grows over the configured maximum
 size, at which time its contents are written to the INDEX table. */
-struct fts_cache_t {
-	rw_lock_t	lock;		/*!< lock protecting all access to the
-					memory buffer. FIXME: this needs to
-					be our new upgrade-capable rw-lock */
+struct fts_cache_t
+{
+  /** lock protecting all access to the memory buffer */
+  mysql_mutex_t lock;
+  /** cache initialization */
+  mysql_mutex_t init_lock;
 
-	rw_lock_t	init_lock;	/*!< lock used for the cache
-					intialization, it has different
-					SYNC level as above cache lock */
+  /** protection for deleted_doc_ids */
+  mysql_mutex_t deleted_lock;
 
-	ib_mutex_t	deleted_lock;	/*!< Lock covering deleted_doc_ids */
-
-	ib_mutex_t	doc_id_lock;	/*!< Lock covering Doc ID */
+  /** protection for DOC_ID */
+  mysql_mutex_t	doc_id_lock;
 
 	ib_vector_t*	deleted_doc_ids;/*!< Array of deleted doc ids, each
 					element is of type fts_update_t */
@@ -206,7 +175,6 @@ struct fts_node_t {
 	ulint		ilist_size_alloc;
 					/*!< Allocated size of ilist in
 					bytes */
-	bool		synced;		/*!< flag whether the node is synced */
 };
 
 /** A tokenizer word. Contains information about one word. */

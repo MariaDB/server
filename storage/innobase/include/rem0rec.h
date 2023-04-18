@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -141,28 +141,7 @@ constexpr rec_offs REC_OFFS_EXTERNAL= REC_OFFS_COMPACT >> 1;
 /** Default value flag in offsets returned by rec_get_offsets() */
 constexpr rec_offs REC_OFFS_DEFAULT= REC_OFFS_COMPACT >> 2;
 constexpr rec_offs REC_OFFS_MASK= REC_OFFS_DEFAULT - 1;
-/******************************************************//**
-The following function is used to get the pointer of the next chained record
-on the same page.
-@return pointer to the next chained record, or NULL if none */
-UNIV_INLINE
-const rec_t*
-rec_get_next_ptr_const(
-/*===================*/
-	const rec_t*	rec,	/*!< in: physical record */
-	ulint		comp)	/*!< in: nonzero=compact page format */
-	MY_ATTRIBUTE((warn_unused_result));
-/******************************************************//**
-The following function is used to get the pointer of the next chained record
-on the same page.
-@return pointer to the next chained record, or NULL if none */
-UNIV_INLINE
-rec_t*
-rec_get_next_ptr(
-/*=============*/
-	rec_t*	rec,	/*!< in: physical record */
-	ulint	comp)	/*!< in: nonzero=compact page format */
-	MY_ATTRIBUTE((warn_unused_result));
+
 /******************************************************//**
 The following function is used to get the offset of the
 next chained record on the same page.
@@ -727,11 +706,9 @@ in the clustered index for instant ADD COLUMN or ALTER TABLE.
 @param[in]	rec	leaf page record
 @param[in]	index	index of the record
 @return	whether the record is the metadata pseudo-record */
-inline bool rec_is_metadata(const rec_t* rec, const dict_index_t& index)
+inline bool rec_is_metadata(const rec_t *rec, const dict_index_t &index)
 {
-	bool is = rec_is_metadata(rec, dict_table_is_comp(index.table));
-	ut_ad(!is || index.is_instant());
-	return is;
+  return rec_is_metadata(rec, index.table->not_redundant());
 }
 
 /** Determine if the record is the metadata pseudo-record

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2022, MariaDB Corporation.
+Copyright (c) 2013, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,11 +24,12 @@ Mini-transaction buffer
 Created 11/26/1995 Heikki Tuuri
 *******************************************************/
 
-#ifndef mtr0mtr_h
-#define mtr0mtr_h
+#pragma once
 
 #include "fil0fil.h"
 #include "dyn0buf.h"
+#include "buf0buf.h"
+#include "small_vector.h"
 
 /** Start a mini-transaction. */
 #define mtr_start(m)		(m)->start()
@@ -36,72 +37,72 @@ Created 11/26/1995 Heikki Tuuri
 /** Commit a mini-transaction. */
 #define mtr_commit(m)		(m)->commit()
 
-/** Set and return a savepoint in mtr.
-@return	savepoint */
-#define mtr_set_savepoint(m)	(m)->get_savepoint()
-
-/** Release the (index tree) s-latch stored in an mtr memo after a
-savepoint. */
-#define mtr_release_s_latch_at_savepoint(m, s, l)			\
-				(m)->release_s_latch_at_savepoint((s), (l))
-
 /** Change the logging mode of a mini-transaction.
 @return	old mode */
 #define mtr_set_log_mode(m, d)	(m)->set_log_mode((d))
 
-/** Release an object in the memo stack.
-@return true if released */
-#define mtr_memo_release(m, o, t)					\
-				(m)->memo_release((o), (t))
-
-/** Push an object to an mtr memo stack. */
-#define mtr_memo_push(m, o, t)	(m)->memo_push(o, t)
-
-#define mtr_x_lock_space(s, m)	(m)->x_lock_space((s), __FILE__, __LINE__)
-#define mtr_sx_lock_space(s, m) (m)->sx_lock_space((s), __FILE__, __LINE__)
-
-#define mtr_s_lock_index(i, m)	(m)->s_lock(&(i)->lock, __FILE__, __LINE__)
-#define mtr_x_lock_index(i, m)	(m)->x_lock(&(i)->lock, __FILE__, __LINE__)
-#define mtr_sx_lock_index(i, m)	(m)->sx_lock(&(i)->lock, __FILE__, __LINE__)
-
-#define mtr_release_block_at_savepoint(m, s, b)				\
-				(m)->release_block_at_savepoint((s), (b))
-
-#define mtr_block_sx_latch_at_savepoint(m, s, b)			\
-				(m)->sx_latch_at_savepoint((s), (b))
-
-#define mtr_block_x_latch_at_savepoint(m, s, b)				\
-				(m)->x_latch_at_savepoint((s), (b))
+#ifdef UNIV_PFS_RWLOCK
+# define mtr_s_lock_index(i,m)	(m)->s_lock(__FILE__, __LINE__, &(i)->lock)
+# define mtr_x_lock_index(i,m)	(m)->x_lock(__FILE__, __LINE__, &(i)->lock)
+# define mtr_sx_lock_index(i,m)	(m)->u_lock(__FILE__, __LINE__, &(i)->lock)
+#else
+# define mtr_s_lock_index(i,m)	(m)->s_lock(&(i)->lock)
+# define mtr_x_lock_index(i,m)	(m)->x_lock(&(i)->lock)
+# define mtr_sx_lock_index(i,m)	(m)->u_lock(&(i)->lock)
+#endif
 
 /** Mini-transaction memo stack slot. */
-struct mtr_memo_slot_t {
-	/** pointer to the object */
-	void*		object;
+struct mtr_memo_slot_t
+{
+  /** pointer to the object */
+  void *object;
+  /** type of the stored object */
+  mtr_memo_type_t type;
 
-	/** type of the stored object */
-	mtr_memo_type_t	type;
+  /** Release the object */
+  void release() const;
 };
 
 /** Mini-transaction handle and buffer */
 struct mtr_t {
+  mtr_t();
+  ~mtr_t();
+
   /** Start a mini-transaction. */
   void start();
 
   /** Commit the mini-transaction. */
   void commit();
 
-  /** Release latches till savepoint. To simplify the code only
-  MTR_MEMO_S_LOCK and MTR_MEMO_PAGE_S_FIX slot types are allowed to be
-  released, otherwise it would be neccesary to add one more argument in the
-  function to point out what slot types are allowed for rollback, and this
-  would be overengineering as currently the function is used only in one place
-  in the code.
-  @param savepoint   savepoint, can be obtained with get_savepoint */
-  void rollback_to_savepoint(ulint savepoint);
+  /** Release latches of unmodified buffer pages.
+  @param begin   first slot to release
+  @param end     last slot to release, or get_savepoint() */
+  void rollback_to_savepoint(ulint begin, ulint end);
+
+  /** Release latches of unmodified buffer pages.
+  @param begin   first slot to release */
+  void rollback_to_savepoint(ulint begin)
+  { rollback_to_savepoint(begin, m_memo.size()); }
+
+  /** Release the last acquired buffer page latch. */
+  void release_last_page()
+  { auto s= m_memo.size(); rollback_to_savepoint(s - 1, s); }
 
   /** Commit a mini-transaction that is shrinking a tablespace.
   @param space   tablespace that is being shrunk */
   ATTRIBUTE_COLD void commit_shrink(fil_space_t &space);
+
+  /** Commit a mini-transaction that is deleting or renaming a file.
+  @param space           tablespace that is being renamed or deleted
+  @param name            new file name (nullptr=the file will be deleted)
+  @param detached_handle if detached_handle != nullptr and if space is detached
+                         during the function execution the file handle if its
+                         node will be set to OS_FILE_CLOSED, and the previous
+                         value of the file handle will be assigned to the
+                         address, pointed by detached_handle.
+  @return whether the operation succeeded */
+  ATTRIBUTE_COLD bool commit_file(fil_space_t &space, const char *name,
+      pfs_os_file_t *detached_handle= nullptr);
 
   /** Commit a mini-transaction that did not modify any pages,
   but generated some redo log on a higher level, such as
@@ -112,33 +113,57 @@ struct mtr_t {
   void commit_files(lsn_t checkpoint_lsn= 0);
 
   /** @return mini-transaction savepoint (current size of m_memo) */
-  ulint get_savepoint() const { ut_ad(is_active()); return m_memo.size(); }
+  ulint get_savepoint() const
+  {
+    ut_ad(is_active());
+    return m_memo.size();
+  }
 
-	/** Release the (index tree) s-latch stored in an mtr memo after a
-	savepoint.
-	@param savepoint	value returned by @see set_savepoint.
-	@param lock		latch to release */
-	inline void release_s_latch_at_savepoint(
-		ulint		savepoint,
-		rw_lock_t*	lock);
+  /** Get the block at a savepoint */
+  buf_block_t *at_savepoint(ulint savepoint) const
+  {
+    ut_ad(is_active());
+    const mtr_memo_slot_t &slot= m_memo[savepoint];
+    ut_ad(slot.type < MTR_MEMO_S_LOCK);
+    ut_ad(slot.object);
+    return static_cast<buf_block_t*>(slot.object);
+  }
 
-	/** Release the block in an mtr memo after a savepoint. */
-	inline void release_block_at_savepoint(
-		ulint		savepoint,
-		buf_block_t*	block);
+  /** Try to get a block at a savepoint.
+  @param savepoint the savepoint right before the block was acquired
+  @return the block at the savepoint
+  @retval nullptr  if no buffer block was registered at that savepoint */
+  buf_block_t *block_at_savepoint(ulint savepoint) const
+  {
+    ut_ad(is_active());
+    const mtr_memo_slot_t &slot= m_memo[savepoint];
+    return slot.type < MTR_MEMO_S_LOCK
+      ? static_cast<buf_block_t*>(slot.object)
+      : nullptr;
+  }
 
-	/** SX-latch a not yet latched block after a savepoint. */
-	inline void sx_latch_at_savepoint(ulint savepoint, buf_block_t* block);
-
-	/** X-latch a not yet latched block after a savepoint. */
-	inline void x_latch_at_savepoint(ulint savepoint, buf_block_t*	block);
+  /** Retrieve a page that has already been latched.
+  @param id    page identifier
+  @param type  page latch type
+  @return block
+  @retval nullptr if the block had not been latched yet */
+  buf_block_t *get_already_latched(const page_id_t id, mtr_memo_type_t type)
+    const;
 
   /** @return the logging mode */
   mtr_log_t get_log_mode() const
   {
     static_assert(MTR_LOG_ALL == 0, "efficiency");
-    ut_ad(m_log_mode <= MTR_LOG_NO_REDO);
     return static_cast<mtr_log_t>(m_log_mode);
+  }
+
+  /** @return whether log is to be written for changes */
+  bool is_logged() const
+  {
+    static_assert(MTR_LOG_ALL == 0, "efficiency");
+    static_assert(MTR_LOG_NONE & MTR_LOG_NO_REDO, "efficiency");
+    static_assert(!(MTR_LOG_NONE & MTR_LOG_SUB), "efficiency");
+    return !(m_log_mode & MTR_LOG_NONE);
   }
 
   /** Change the logging mode.
@@ -151,9 +176,22 @@ struct mtr_t {
     return old_mode;
   }
 
+  /** Set the log mode of a sub-minitransaction
+  @param mtr  parent mini-transaction */
+  void set_log_mode_sub(const mtr_t &mtr)
+  {
+    ut_ad(mtr.m_log_mode == MTR_LOG_ALL || mtr.m_log_mode == MTR_LOG_NO_REDO);
+    m_log_mode= mtr.m_log_mode | MTR_LOG_SUB;
+    static_assert((MTR_LOG_SUB | MTR_LOG_NO_REDO) == MTR_LOG_NO_REDO, "");
+  }
+
   /** Check if we are holding a block latch in exclusive mode
   @param block  buffer pool block to search for */
   bool have_x_latch(const buf_block_t &block) const;
+
+  /** Check if we are holding a block latch in S or U mode
+  @param block  buffer pool block to search for */
+  bool have_u_or_x_latch(const buf_block_t &block) const;
 
 	/** Copy the tablespaces associated with the mini-transaction
 	(needed for generating FILE_MODIFY records)
@@ -214,89 +252,61 @@ struct mtr_t {
 
 	/** Acquire a tablespace X-latch.
 	@param[in]	space_id	tablespace ID
-	@param[in]	file		file name from where called
-	@param[in]	line		line number in file
 	@return the tablespace object (never NULL) */
-	fil_space_t* x_lock_space(
-		ulint		space_id,
-		const char*	file,
-		unsigned	line);
+	fil_space_t* x_lock_space(ulint space_id);
 
-	/** Acquire a shared rw-latch.
-	@param[in]	lock	rw-latch
-	@param[in]	file	file name from where called
-	@param[in]	line	line number in file */
-	void s_lock(rw_lock_t* lock, const char* file, unsigned line)
-	{
-		rw_lock_s_lock_inline(lock, 0, file, line);
-		memo_push(lock, MTR_MEMO_S_LOCK);
-	}
+  /** Acquire a shared rw-latch. */
+  void s_lock(
+#ifdef UNIV_PFS_RWLOCK
+    const char *file, unsigned line,
+#endif
+    index_lock *lock)
+  {
+    lock->s_lock(SRW_LOCK_ARGS(file, line));
+    memo_push(lock, MTR_MEMO_S_LOCK);
+  }
 
-	/** Acquire an exclusive rw-latch.
-	@param[in]	lock	rw-latch
-	@param[in]	file	file name from where called
-	@param[in]	line	line number in file */
-	void x_lock(rw_lock_t* lock, const char* file, unsigned line)
-	{
-		rw_lock_x_lock_inline(lock, 0, file, line);
-		memo_push(lock, MTR_MEMO_X_LOCK);
-	}
+  /** Acquire an exclusive rw-latch. */
+  void x_lock(
+#ifdef UNIV_PFS_RWLOCK
+    const char *file, unsigned line,
+#endif
+    index_lock *lock)
+  {
+    lock->x_lock(SRW_LOCK_ARGS(file, line));
+    memo_push(lock, MTR_MEMO_X_LOCK);
+  }
 
-	/** Acquire an shared/exclusive rw-latch.
-	@param[in]	lock	rw-latch
-	@param[in]	file	file name from where called
-	@param[in]	line	line number in file */
-	void sx_lock(rw_lock_t* lock, const char* file, unsigned line)
-	{
-		rw_lock_sx_lock_inline(lock, 0, file, line);
-		memo_push(lock, MTR_MEMO_SX_LOCK);
-	}
+  /** Acquire an update latch. */
+  void u_lock(
+#ifdef UNIV_PFS_RWLOCK
+    const char *file, unsigned line,
+#endif
+    index_lock *lock)
+  {
+    lock->u_lock(SRW_LOCK_ARGS(file, line));
+    memo_push(lock, MTR_MEMO_SX_LOCK);
+  }
 
-	/** Acquire a tablespace X-latch.
-	@param[in]	space	tablespace
-	@param[in]	file	file name from where called
-	@param[in]	line	line number in file */
-	void x_lock_space(fil_space_t* space, const char* file, unsigned line)
-	{
-		ut_ad(space->purpose == FIL_TYPE_TEMPORARY
-		      || space->purpose == FIL_TYPE_IMPORT
-		      || space->purpose == FIL_TYPE_TABLESPACE);
-		memo_push(space, MTR_MEMO_SPACE_X_LOCK);
-		rw_lock_x_lock_inline(&space->latch, 0, file, line);
-	}
+  /** Acquire an exclusive tablespace latch.
+  @param space  tablespace */
+  void x_lock_space(fil_space_t *space);
 
- /** Acquire a tablespace SX-latch.
- @param[in]	space	tablespace
- @param[in]	file	file name from where called
- @param[in]	line	line number in file */
- void sx_lock_space(fil_space_t *space, const char *file, unsigned line)
- {
-   ut_ad(space->purpose == FIL_TYPE_TEMPORARY
-         || space->purpose == FIL_TYPE_IMPORT
-	 || space->purpose == FIL_TYPE_TABLESPACE);
-   sx_lock(&space->latch, file, line);
- }
-
-	/** Release an object in the memo stack.
-	@param object	object
-	@param type	object type
-	@return bool if lock released */
-	bool memo_release(const void* object, ulint type);
-
+  /** Release an index latch. */
+  void release(const index_lock &lock) { release(&lock); }
+  /** Release a latch to an unmodified page. */
+  void release(const buf_block_t &block) { release(&block); }
 private:
-  /** Note that the mini-transaction will modify data. */
-  void flag_modified() { m_modifications = true; }
+  /** Release an unmodified object. */
+  void release(const void *object);
+public:
   /** Mark the given latched page as modified.
   @param block   page that will be modified */
-  void modify(const buf_block_t& block);
-public:
-  /** Note that the mini-transaction will modify a block. */
-  void set_modified(const buf_block_t &block)
-  { flag_modified(); if (m_log_mode != MTR_LOG_NONE) modify(block); }
+  void set_modified(const buf_block_t &block);
 
   /** Set the state to not-modified. This will not log the changes.
   This is only used during redo log apply, to avoid logging the changes. */
-  void discard_modifications() { m_modifications = false; }
+  void discard_modifications() { m_modifications= false; }
 
   /** Get the LSN of commit().
   @return the commit LSN
@@ -318,59 +328,127 @@ public:
   /** @return true if pages has been trimed */
   bool is_trim_pages() { return m_trim_pages; }
 
+  /** Latch a buffer pool block.
+  @param block    block to be latched
+  @param rw_latch RW_S_LATCH, RW_SX_LATCH, RW_X_LATCH, RW_NO_LATCH */
+  void page_lock(buf_block_t *block, ulint rw_latch);
+
+  /** Acquire a latch on a buffer-fixed buffer pool block.
+  @param savepoint   savepoint location of the buffer-fixed block
+  @param rw_latch    latch to acquire */
+  void upgrade_buffer_fix(ulint savepoint, rw_lock_type_t rw_latch);
+
+  /** Register a change to the page latch state. */
+  void lock_register(ulint savepoint, mtr_memo_type_t type)
+  {
+    mtr_memo_slot_t &slot= m_memo[savepoint];
+    ut_ad(slot.type <= MTR_MEMO_BUF_FIX);
+    ut_ad(type <= MTR_MEMO_BUF_FIX);
+    slot.type= type;
+  }
+
+  /** Upgrade U locks on a block to X */
+  void page_lock_upgrade(const buf_block_t &block);
+
+  /** Upgrade index U lock to X */
+  ATTRIBUTE_COLD void index_lock_upgrade();
+
+  /** Check if we are holding tablespace latch
+  @param space  tablespace to search for
+  @return whether space.latch is being held */
+  bool memo_contains(const fil_space_t& space) const
+    MY_ATTRIBUTE((warn_unused_result));
 #ifdef UNIV_DEBUG
   /** Check if we are holding an rw-latch in this mini-transaction
   @param lock   latch to search for
   @param type   held latch type
   @return whether (lock,type) is contained */
-  bool memo_contains(const rw_lock_t &lock, mtr_memo_type_t type)
-    MY_ATTRIBUTE((warn_unused_result));
-  /** Check if we are holding exclusive tablespace latch
-  @param space  tablespace to search for
-  @return whether space.latch is being held */
-  bool memo_contains(const fil_space_t& space)
+  bool memo_contains(const index_lock &lock, mtr_memo_type_t type) const
     MY_ATTRIBUTE((warn_unused_result));
 
+  /** Check if memo contains an index or buffer block latch.
+  @param object    object to search
+  @param flags     specify types of object latches
+  @return true if contains */
+  bool memo_contains_flagged(const void *object, ulint flags) const
+    MY_ATTRIBUTE((warn_unused_result, nonnull));
 
-	/** Check if memo contains the given item.
-	@param object		object to search
-	@param flags		specify types of object (can be ORred) of
-				MTR_MEMO_PAGE_S_FIX ... values
-	@return true if contains */
-	bool memo_contains_flagged(const void* ptr, ulint flags) const;
+  /** Check if memo contains the given page.
+  @param ptr   pointer to within page frame
+  @param flags types latch to look for
+  @return the block
+  @retval nullptr    if not found */
+  buf_block_t *memo_contains_page_flagged(const byte *ptr, ulint flags) const;
 
-	/** Check if memo contains the given page.
-	@param[in]	ptr	pointer to within buffer frame
-	@param[in]	flags	specify types of object with OR of
-				MTR_MEMO_PAGE_S_FIX... values
-	@return	the block
-	@retval	NULL	if not found */
-	buf_block_t* memo_contains_page_flagged(
-		const byte*	ptr,
-		ulint		flags) const;
-
-	/** @return true if mini-transaction contains modifications. */
-	bool has_modifications() const { return m_modifications; }
+  /** @return whether this mini-transaction modifies persistent data */
+  bool has_modifications() const { return m_modifications; }
 #endif /* UNIV_DEBUG */
 
-	/** @return true if a record was added to the mini-transaction */
-	bool is_dirty() const { return m_made_dirty; }
+  /** Push a buffer page to an the memo.
+  @param block  buffer block
+  @param type	object type: MTR_MEMO_S_LOCK, ... */
+  void memo_push(buf_block_t *block, mtr_memo_type_t type)
+    __attribute__((nonnull))
+  {
+    ut_ad(is_active());
+    ut_ad(type <= MTR_MEMO_PAGE_SX_MODIFY);
+    ut_ad(block->page.buf_fix_count());
+    ut_ad(block->page.in_file());
+#ifdef UNIV_DEBUG
+    switch (type) {
+    case MTR_MEMO_PAGE_S_FIX:
+      ut_ad(block->page.lock.have_s());
+      break;
+    case MTR_MEMO_PAGE_X_FIX: case MTR_MEMO_PAGE_X_MODIFY:
+      ut_ad(block->page.lock.have_x());
+      break;
+    case MTR_MEMO_PAGE_SX_FIX: case MTR_MEMO_PAGE_SX_MODIFY:
+      ut_ad(block->page.lock.have_u_or_x());
+      break;
+    case MTR_MEMO_BUF_FIX:
+      break;
+    case MTR_MEMO_MODIFY:
+    case MTR_MEMO_S_LOCK: case MTR_MEMO_X_LOCK: case MTR_MEMO_SX_LOCK:
+    case MTR_MEMO_SPACE_X_LOCK:
+      ut_ad("invalid type" == 0);
+    }
+#endif
+    if (!(type & MTR_MEMO_MODIFY));
+    else if (block->page.id().space() >= SRV_TMP_SPACE_ID)
+    {
+      block->page.set_temp_modified();
+      type= mtr_memo_type_t(type & ~MTR_MEMO_MODIFY);
+    }
+    else
+    {
+      m_modifications= true;
+      if (!m_made_dirty)
+        /* If we are going to modify a previously clean persistent page,
+        we must set m_made_dirty, so that commit() will acquire
+        log_sys.flush_order_mutex and insert the block into
+        buf_pool.flush_list. */
+        m_made_dirty= block->page.oldest_modification() <= 1;
+    }
+    m_memo.emplace_back(mtr_memo_slot_t{block, type});
+  }
 
-	/** Push an object to an mtr memo stack.
-	@param object	object
-	@param type	object type: MTR_MEMO_S_LOCK, ... */
-	inline void memo_push(void* object, mtr_memo_type_t type);
-
-	/** Check if this mini-transaction is dirtying a clean page.
-	@param block	block being x-fixed
-	@return true if the mtr is dirtying a clean page. */
-	static inline bool is_block_dirtied(const buf_block_t* block)
-		MY_ATTRIBUTE((warn_unused_result));
+  /** Push an index lock or tablespace latch to the memo.
+  @param object index lock or tablespace latch
+  @param type	object type: MTR_MEMO_S_LOCK, ... */
+  void memo_push(void *object, mtr_memo_type_t type) __attribute__((nonnull))
+  {
+    ut_ad(is_active());
+    ut_ad(type >= MTR_MEMO_S_LOCK);
+    m_memo.emplace_back(mtr_memo_slot_t{object, type});
+  }
 
   /** @return the size of the log is empty */
   size_t get_log_size() const { return m_log.size(); }
   /** @return whether the log and memo are empty */
-  bool is_empty() const { return m_memo.size() == 0 && m_log.size() == 0; }
+  bool is_empty() const { return !get_savepoint() && !get_log_size(); }
+
+  /** Write an OPT_PAGE_CHECKSUM record. */
+  inline void page_checksum(const buf_page_t &bpage);
 
   /** Write request types */
   enum write_type
@@ -470,9 +548,9 @@ public:
   @param[in,out]        b       buffer page */
   void init(buf_block_t *b);
   /** Free a page.
-  @param[in]      space   tablespace contains page to be freed
-  @param[in]      offset  page offset to be freed */
-  inline void free(fil_space_t &space, uint32_t offset);
+  @param space   tablespace
+  @param offset  offset of the page to be freed */
+  void free(const fil_space_t &space, uint32_t offset);
   /** Write log for partly initializing a B-tree or R-tree page.
   @param block    B-tree or R-tree page
   @param comp     false=ROW_FORMAT=REDUNDANT, true=COMPACT or DYNAMIC */
@@ -618,6 +696,8 @@ private:
   @return {start_lsn,flush_ahead} */
   inline std::pair<lsn_t,page_flush_ahead> finish_write(ulint len);
 
+  /** Release all latches. */
+  void release();
   /** Release the resources */
   inline void release_resources();
 
@@ -628,11 +708,17 @@ public:
   { ut_ad(!m_commit || m_start); return m_start && !m_commit; }
   /** @return whether the mini-transaction has been committed */
   bool has_committed() const { ut_ad(!m_commit || m_start); return m_commit; }
+  /** @return whether the mini-transaction is freeing an index tree */
+  bool is_freeing_tree() const { return m_freeing_tree; }
+  /** Notify that the mini-transaction is freeing an index tree */
+  void freeing_tree() { m_freeing_tree= true; }
 private:
   /** whether start() has been called */
   bool m_start= false;
   /** whether commit() has been called */
   bool m_commit= false;
+  /** whether freeing_tree() has been called */
+  bool m_freeing_tree= false;
 #endif
 
   /** The page of the most recent m_log record written, or NULL */
@@ -643,7 +729,7 @@ private:
   /** specifies which operations should be logged; default MTR_LOG_ALL */
   uint16_t m_log_mode:2;
 
-  /** whether at least one buffer pool page was written to */
+  /** whether at least one persistent page was written to */
   uint16_t m_modifications:1;
 
   /** whether at least one previously clean buffer pool page was written to */
@@ -663,7 +749,7 @@ private:
 #endif /* UNIV_DEBUG */
 
   /** acquired dict_index_t::lock, fil_space_t::latch, buf_block_t */
-  mtr_buf_t m_memo;
+  small_vector<mtr_memo_slot_t, 16> m_memo;
 
   /** mini-transaction log */
   mtr_buf_t m_log;
@@ -679,7 +765,3 @@ private:
   /** set of freed page ids */
   range_set *m_freed_pages= nullptr;
 };
-
-#include "mtr0mtr.inl"
-
-#endif /* mtr0mtr_h */

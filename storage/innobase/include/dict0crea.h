@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -41,14 +41,14 @@ tab_create_graph_create(
 /*====================*/
 	dict_table_t*	table,		/*!< in: table to create, built as
 					a memory data structure */
-	mem_heap_t*	heap,		/*!< in: heap where created */
-	fil_encryption_t mode,		/*!< in: encryption mode */
-	uint32_t	key_id);	/*!< in: encryption key_id */
+	mem_heap_t*	heap);		/*!< in: heap where created */
 
 /** Creates an index create graph.
 @param[in]	index	index to create, built as a memory data structure
 @param[in]	table	table name
 @param[in,out]	heap	heap where created
+@param[in]	mode	encryption mode (for creating a table)
+@param[in]	key_id	encryption key identifier (for creating a table)
 @param[in]	add_v	new virtual columns added in the same clause with
 			add index
 @return own: index create node */
@@ -57,6 +57,8 @@ ind_create_graph_create(
 	dict_index_t*		index,
 	const char*		table,
 	mem_heap_t*		heap,
+	fil_encryption_t	mode,
+	uint32_t		key_id,
 	const dict_add_v_col_t*	add_v = NULL);
 
 /***********************************************************//**
@@ -99,28 +101,21 @@ dict_create_index_tree(
 /** Drop the index tree associated with a row in SYS_INDEXES table.
 @param[in,out]	pcur	persistent cursor on rec
 @param[in,out]	trx	dictionary transaction
-@param[in,out]	mtr	mini-transaction */
-void dict_drop_index_tree(btr_pcur_t* pcur, trx_t* trx, mtr_t* mtr)
-	MY_ATTRIBUTE((nonnull));
+@param[in,out]	mtr	mini-transaction
+@return tablespace ID to drop (if this is the clustered index)
+@retval 0 if no tablespace is to be dropped */
+uint32_t dict_drop_index_tree(btr_pcur_t *pcur, trx_t *trx, mtr_t *mtr)
+  MY_ATTRIBUTE((nonnull(1,3), warn_unused_result));
 
 /***************************************************************//**
 Creates an index tree for the index if it is not a member of a cluster.
 Don't update SYSTEM TABLES.
-@return	DB_SUCCESS or DB_OUT_OF_FILE_SPACE */
+@return	error code */
 dberr_t
 dict_create_index_tree_in_mem(
 /*==========================*/
 	dict_index_t*	index,		/*!< in/out: index */
 	const trx_t*	trx);		/*!< in: InnoDB transaction handle */
-
-/****************************************************************//**
-Creates the foreign key constraints system tables inside InnoDB
-at server bootstrap or server start if they are not found or are
-not of the right form.
-@return DB_SUCCESS or error code */
-dberr_t
-dict_create_or_check_foreign_constraint_tables(void);
-/*================================================*/
 
 /********************************************************************//**
 Generate a foreign key constraint name when it was not named by the user.
@@ -167,37 +162,6 @@ dict_foreigns_has_s_base_col(
 	const dict_foreign_set&	local_fk_set,
 	const dict_table_t*	table);
 
-/****************************************************************//**
-Creates the tablespaces and datafiles system tables inside InnoDB
-at server bootstrap or server start if they are not found or are
-not of the right form.
-@return DB_SUCCESS or error code */
-dberr_t
-dict_create_or_check_sys_tablespace(void);
-/*=====================================*/
-/** Creates the virtual column system tables inside InnoDB
-at server bootstrap or server start if they are not found or are
-not of the right form.
-@return DB_SUCCESS or error code */
-dberr_t
-dict_create_or_check_sys_virtual();
-
-/** Put a tablespace definition into the data dictionary,
-replacing what was there previously.
-@param[in]	space	Tablespace id
-@param[in]	name	Tablespace name
-@param[in]	flags	Tablespace flags
-@param[in]	path	Tablespace path
-@param[in]	trx	Transaction
-@return error code or DB_SUCCESS */
-dberr_t
-dict_replace_tablespace_in_dictionary(
-	ulint		space_id,
-	const char*	name,
-	ulint		flags,
-	const char*	path,
-	trx_t*		trx);
-
 /********************************************************************//**
 Add a foreign key definition to the data dictionary tables.
 @return error code or DB_SUCCESS */
@@ -208,16 +172,6 @@ dict_create_add_foreign_to_dictionary(
 	const dict_foreign_t*	foreign,/*!< in: foreign key */
 	trx_t*			trx)	/*!< in/out: dictionary transaction */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-/********************************************************************//**
-Construct foreign key constraint defintion from data dictionary information.
-*/
-UNIV_INTERN
-char*
-dict_foreign_def_get(
-/*=================*/
-	dict_foreign_t*	foreign,/*!< in: foreign */
-	trx_t*		trx);	/*!< in: trx */
 
 /* Table create node structure */
 struct tab_node_t{
@@ -240,8 +194,6 @@ struct tab_node_t{
 	/* Local storage for this graph node */
 	ulint		state;		/*!< node execution state */
 	ulint		col_no;		/*!< next column definition to insert */
-	uint		key_id;	/*!< encryption key_id */
-	fil_encryption_t mode;	/*!< encryption mode */
 	ulint		base_col_no;	/*!< next base column to insert */
 	mem_heap_t*	heap;		/*!< memory heap used as auxiliary
 					storage */
@@ -273,11 +225,12 @@ struct ind_node_t{
 	/* Local storage for this graph node */
 	ulint		state;		/*!< node execution state */
 	uint32_t	page_no;	/* root page number of the index */
-	dict_table_t*	table;		/*!< table which owns the index */
 	dtuple_t*	ind_row;	/* index definition row built */
 	ulint		field_no;	/* next field definition to insert */
 	mem_heap_t*	heap;		/*!< memory heap used as auxiliary
 					storage */
+	uint		key_id;		/*!< encryption key_id */
+	fil_encryption_t mode;		/*!< encryption mode */
 	const dict_add_v_col_t*
 			add_v;		/*!< new virtual columns that being
 					added along with an add index call */

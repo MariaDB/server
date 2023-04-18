@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2020, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2020, MariaDB Corporation.
+Copyright (c) 2020, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License, version 2.0, as published by the
@@ -28,6 +28,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "buf0block_hint.h"
 namespace buf {
 
+TRANSACTIONAL_TARGET
 void Block_hint::buffer_fix_block_if_still_valid()
 {
   /* To check if m_block belongs to the current buf_pool, we must
@@ -42,18 +43,17 @@ void Block_hint::buffer_fix_block_if_still_valid()
   different page, and that slice of buf_pool.page_hash could be protected
   by another hash_lock that we are not holding.)
 
-  Finally, assuming that we have correct hash bucket latched, we must
-  validate m_block->state() to ensure that the block is not being freed. */
+  Finally, we must ensure that the block is not being freed. */
   if (m_block)
   {
-    const ulint fold= m_page_id.fold();
-    page_hash_latch *hash_lock= buf_pool.page_hash.lock<false>(fold);
+    auto &cell= buf_pool.page_hash.cell_get(m_page_id.fold());
+    transactional_shared_lock_guard<page_hash_latch> g
+      {buf_pool.page_hash.lock_get(cell)};
     if (buf_pool.is_uncompressed(m_block) && m_page_id == m_block->page.id() &&
-        m_block->page.state() == BUF_BLOCK_FILE_PAGE)
-      buf_block_buf_fix_inc(m_block, __FILE__, __LINE__);
+        m_block->page.frame && m_block->page.in_file())
+      m_block->page.fix();
     else
       clear();
-    hash_lock->read_unlock();
   }
 }
 }  // namespace buf

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2009, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -29,9 +29,6 @@ Created Jan 06, 2010 Vasil Dimov
 
 #include "dict0types.h"
 #include "trx0types.h"
-
-#define TABLE_STATS_NAME        "mysql/innodb_table_stats"
-#define INDEX_STATS_NAME        "mysql/innodb_index_stats"
 
 enum dict_stats_upd_option_t {
 	DICT_STATS_RECALC_PERSISTENT,/* (re) calculate the
@@ -140,40 +137,33 @@ dict_stats_update(
 					the stats or to fetch them from
 					the persistent storage */
 
-/** Remove the information for a particular index's stats from the persistent
-storage if it exists and if there is data stored for this index.
-This function creates its own trx and commits it.
-
-We must modify system tables in a separate transaction in order to
-adhere to the InnoDB design constraint that dict_sys.latch prevents
-lock waits on system tables. If we modified system and user tables in
-the same transaction, we should exclusively hold dict_sys.latch until
-the transaction is committed, and effectively block other transactions
-that will attempt to open any InnoDB tables. Because we have no
-guarantee that user transactions will be committed fast, we cannot
-afford to keep the system tables locked in a user transaction.
+/** Execute DELETE FROM mysql.innodb_table_stats
+@param database_name  database name
+@param table_name     table name
+@param trx            transaction
 @return DB_SUCCESS or error code */
-dberr_t
-dict_stats_drop_index(
-/*==================*/
-	const char*	tname,	/*!< in: table name */
-	const char*	iname,	/*!< in: index name */
-	char*		errstr, /*!< out: error message if != DB_SUCCESS
-				is returned */
-	ulint		errstr_sz);/*!< in: size of the errstr buffer */
-
-/*********************************************************************//**
-Removes the statistics for a table and all of its indexes from the
-persistent storage if it exists and if there is data stored for the table.
-This function creates its own transaction and commits it.
+dberr_t dict_stats_delete_from_table_stats(const char *database_name,
+                                           const char *table_name,
+                                           trx_t *trx)
+  MY_ATTRIBUTE((nonnull));
+/** Execute DELETE FROM mysql.innodb_index_stats
+@param database_name  database name
+@param table_name     table name
+@param trx            transaction
 @return DB_SUCCESS or error code */
-dberr_t
-dict_stats_drop_table(
-/*==================*/
-	const char*	table_name,	/*!< in: table name */
-	char*		errstr,		/*!< out: error message
-					if != DB_SUCCESS is returned */
-	ulint		errstr_sz);	/*!< in: size of errstr buffer */
+dberr_t dict_stats_delete_from_index_stats(const char *database_name,
+                                           const char *table_name,
+                                           trx_t *trx)
+  MY_ATTRIBUTE((nonnull));
+/** Execute DELETE FROM mysql.innodb_index_stats
+@param database_name  database name
+@param table_name     table name
+@param index_name     name of the index
+@param trx            transaction (nullptr=start and commit a new one)
+@return DB_SUCCESS or error code */
+dberr_t dict_stats_delete_from_index_stats(const char *database_name,
+                                           const char *table_name,
+                                           const char *index_name, trx_t *trx);
 
 /*********************************************************************//**
 Fetches or calculates new estimates for index statistics. */
@@ -183,31 +173,29 @@ dict_stats_update_for_index(
 	dict_index_t*	index)	/*!< in/out: index */
 	MY_ATTRIBUTE((nonnull));
 
-/*********************************************************************//**
-Renames a table in InnoDB persistent stats storage.
-This function creates its own transaction and commits it.
+/** Rename a table in InnoDB persistent stats storage.
+@param old_name  old table name
+@param new_name  new table name
+@param trx       transaction
 @return DB_SUCCESS or error code */
-dberr_t
-dict_stats_rename_table(
-/*====================*/
-	const char*	old_name,	/*!< in: old table name */
-	const char*	new_name,	/*!< in: new table name */
-	char*		errstr,		/*!< out: error string if != DB_SUCCESS
-					is returned */
-	size_t		errstr_sz);	/*!< in: errstr size */
-/*********************************************************************//**
-Renames an index in InnoDB persistent stats storage.
-This function creates its own transaction and commits it.
-@return DB_SUCCESS or error code. DB_STATS_DO_NOT_EXIST will be returned
-if the persistent stats do not exist. */
-dberr_t
-dict_stats_rename_index(
-/*====================*/
-	const dict_table_t*	table,		/*!< in: table whose index
-						is renamed */
-	const char*		old_index_name,	/*!< in: old index name */
-	const char*		new_index_name)	/*!< in: new index name */
-	__attribute__((warn_unused_result));
+dberr_t dict_stats_rename_table(const char *old_name, const char *new_name,
+                                trx_t *trx);
+/** Rename an index in InnoDB persistent statistics.
+@param db         database name
+@param table      table name
+@param old_name   old table name
+@param new_name   new table name
+@param trx        transaction
+@return DB_SUCCESS or error code */
+dberr_t dict_stats_rename_index(const char *db, const char *table,
+                                const char *old_name, const char *new_name,
+                                trx_t *trx);
+
+/** Delete all persistent statistics for a database.
+@param db    database name
+@param trx   transaction
+@return DB_SUCCESS or error code */
+dberr_t dict_stats_delete(const char *db, trx_t *trx);
 
 /** Save an individual index's statistic into the persistent statistics
 storage.
@@ -217,9 +205,7 @@ storage.
 @param[in]	stat_value		value of the stat
 @param[in]	sample_size		n pages sampled or NULL
 @param[in]	stat_description	description of the stat
-@param[in,out]	trx			in case of NULL the function will
-allocate and free the trx object. If it is not NULL then it will be
-rolled back only in the case of error, but not freed.
+@param[in,out]	trx			transaction
 @return DB_SUCCESS or error code */
 dberr_t
 dict_stats_save_index_stat(
@@ -229,7 +215,8 @@ dict_stats_save_index_stat(
 	ib_uint64_t	stat_value,
 	ib_uint64_t*	sample_size,
 	const char*	stat_description,
-	trx_t*		trx);
+	trx_t*		trx)
+	MY_ATTRIBUTE((nonnull(1, 3, 6, 7)));
 
 /** Report an error if updating table statistics failed because
 .ibd file is missing, table decryption failed or table is corrupted.

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -35,10 +35,8 @@ Created April 08, 2011 Vasil Dimov
 #include "buf0dump.h"
 #include "dict0dict.h"
 #include "os0file.h"
-#include "os0thread.h"
 #include "srv0srv.h"
 #include "srv0start.h"
-#include "sync0rw.h"
 #include "ut0byte.h"
 
 #include <algorithm>
@@ -182,8 +180,8 @@ static void buf_dump_generate_path(char *path, size_t path_size)
 	char	buf[FN_REFLEN];
 
 	mysql_mutex_lock(&LOCK_global_system_variables);
-	snprintf(buf, sizeof(buf), "%s%c%s", get_buf_dump_dir(),
-		 OS_PATH_SEPARATOR, srv_buf_dump_filename);
+	snprintf(buf, sizeof buf, "%s/%s", get_buf_dump_dir(),
+		 srv_buf_dump_filename);
 	mysql_mutex_unlock(&LOCK_global_system_variables);
 
 	os_file_type_t	type;
@@ -206,21 +204,24 @@ static void buf_dump_generate_path(char *path, size_t path_size)
 		char	srv_data_home_full[FN_REFLEN];
 
 		my_realpath(srv_data_home_full, get_buf_dump_dir(), 0);
+		const char *format;
 
-		if (srv_data_home_full[strlen(srv_data_home_full) - 1]
-		    == OS_PATH_SEPARATOR) {
-
-			snprintf(path, path_size, "%s%s",
-				 srv_data_home_full,
-				 srv_buf_dump_filename);
-		} else {
-			snprintf(path, path_size, "%s%c%s",
-				 srv_data_home_full,
-				 OS_PATH_SEPARATOR,
-				 srv_buf_dump_filename);
+		switch (srv_data_home_full[strlen(srv_data_home_full) - 1]) {
+#ifdef _WIN32
+		case '\\':
+#endif
+		case '/':
+			format = "%s%s";
+			break;
+		default:
+			format = "%s/%s";
 		}
+
+		snprintf(path, path_size, format,
+			 srv_data_home_full, srv_buf_dump_filename);
 	}
 }
+
 
 /*****************************************************************//**
 Perform a buffer pool dump into the file specified by
@@ -251,7 +252,10 @@ buf_dump(
 	buf_dump_status(STATUS_INFO, "Dumping buffer pool(s) to %s",
 			full_filename);
 
-#if defined(__GLIBC__) || defined(__WIN__) || O_CLOEXEC == 0
+#ifdef _WIN32
+	/* use my_fopen() for correct permissions during bootstrap*/
+	f = my_fopen(tmp_filename, O_RDWR|O_TRUNC|O_CREAT, 0);
+#elif defined(__GLIBC__) || O_CLOEXEC == 0
 	f = fopen(tmp_filename, "w" STR_O_CLOEXEC);
 #else
 	{
@@ -323,16 +327,15 @@ buf_dump(
 	for (bpage = UT_LIST_GET_FIRST(buf_pool.LRU), j = 0;
 	     bpage != NULL && j < n_pages;
 	     bpage = UT_LIST_GET_NEXT(LRU, bpage)) {
-
-		ut_a(bpage->in_file());
-		const page_id_t id(bpage->id());
+		const auto status = bpage->state();
+		if (status < buf_page_t::UNFIXED) {
+			ut_a(status >= buf_page_t::FREED);
+			continue;
+		}
+		const page_id_t id{bpage->id()};
 
 		if (id.space() == SRV_TMP_SPACE_ID) {
 			/* Ignore the innodb_temporary tablespace. */
-			continue;
-		}
-
-		if (bpage->status == buf_page_t::FREED) {
 			continue;
 		}
 
@@ -367,7 +370,7 @@ buf_dump(
 	ut_free(dump);
 
 done:
-	ret = fclose(f);
+	ret = IF_WIN(my_fclose(f,0),fclose(f));
 	if (ret != 0) {
 		buf_dump_status(STATUS_ERR,
 				"Cannot close '%s': %s",

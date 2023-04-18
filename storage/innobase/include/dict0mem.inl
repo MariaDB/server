@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -64,10 +64,5 @@ dict_mem_fill_index_struct(
 	/* The '1 +' above prevents allocation
 	of an empty mem block */
 	index->nulls_equal = false;
-#ifdef BTR_CUR_HASH_ADAPT
-#ifdef MYSQL_INDEX_DISABLE_AHI
-	index->disable_ahi = false;
-#endif
-#endif /* BTR_CUR_HASH_ADAPT */
 	ut_d(index->magic_n = DICT_INDEX_MAGIC_N);
 }

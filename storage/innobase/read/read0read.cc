@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2021, MariaDB Corporation.
+Copyright (c) 2018, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -173,9 +173,22 @@ For details see: row_vers_old_has_index_entry() and row_purge_poss_sec()
 inline void ReadViewBase::snapshot(trx_t *trx)
 {
   trx_sys.snapshot_ids(trx, &m_ids, &m_low_limit_id, &m_low_limit_no);
+  if (m_ids.empty())
+  {
+    m_up_limit_id= m_low_limit_id;
+    return;
+  }
+
   std::sort(m_ids.begin(), m_ids.end());
-  m_up_limit_id= m_ids.empty() ? m_low_limit_id : m_ids.front();
+  m_up_limit_id= m_ids.front();
   ut_ad(m_up_limit_id <= m_low_limit_id);
+
+  if (m_low_limit_no == m_low_limit_id &&
+      m_low_limit_id == m_up_limit_id + m_ids.size())
+  {
+    m_ids.clear();
+    m_low_limit_id= m_low_limit_no= m_up_limit_id;
+  }
 }
 
 
@@ -226,10 +239,10 @@ void ReadView::open(trx_t *trx)
       m_open.store(true, std::memory_order_relaxed);
     else
     {
-      mutex_enter(&m_mutex);
+      m_mutex.wr_lock();
       snapshot(trx);
       m_open.store(true, std::memory_order_relaxed);
-      mutex_exit(&m_mutex);
+      m_mutex.wr_unlock();
     }
   }
 }

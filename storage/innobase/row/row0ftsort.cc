@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2021, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -216,7 +216,7 @@ row_fts_psort_info_init(
 	common_info->old_zip_size = old_zip_size;
 	common_info->trx = trx;
 	common_info->all_info = psort_info;
-	common_info->sort_event = os_event_create(0);
+	pthread_cond_init(&common_info->sort_cond, nullptr);
 	common_info->opt_doc_id_size = opt_doc_id_size;
 
 	if (log_tmp_is_encrypted()) {
@@ -285,7 +285,7 @@ row_fts_psort_info_init(
 		psort_info[j].psort_common = common_info;
 		psort_info[j].error = DB_SUCCESS;
 		psort_info[j].memory_used = 0;
-		mutex_create(LATCH_ID_FTS_PLL_TOKENIZE, &psort_info[j].mutex);
+		mysql_mutex_init(0, &psort_info[j].mutex, nullptr);
 	}
 
 	/* Initialize merge_info structures parallel merge and insert
@@ -332,10 +332,10 @@ row_fts_psort_info_destroy(
 				aligned_free(psort_info[j].crypt_block[i]);
 			}
 
-			mutex_free(&psort_info[j].mutex);
+			mysql_mutex_destroy(&psort_info[j].mutex);
 		}
 
-		os_event_destroy(merge_info[0].psort_common->sort_event);
+		pthread_cond_destroy(&merge_info[0].psort_common->sort_cond);
 		ut_free(merge_info[0].psort_common->dup);
 		ut_free(merge_info[0].psort_common);
 		ut_free(psort_info);
@@ -721,7 +721,7 @@ row_merge_fts_get_next_doc_item(
 		ut_free(*doc_item);
 	}
 
-	mutex_enter(&psort_info->mutex);
+	mysql_mutex_lock(&psort_info->mutex);
 
 	*doc_item = UT_LIST_GET_FIRST(psort_info->fts_doc_list);
 	if (*doc_item != NULL) {
@@ -733,7 +733,7 @@ row_merge_fts_get_next_doc_item(
 			+ (*doc_item)->field->len;
 	}
 
-	mutex_exit(&psort_info->mutex);
+	mysql_mutex_unlock(&psort_info->mutex);
 }
 
 /*********************************************************************//**
@@ -917,7 +917,7 @@ loop:
 	}
 
 	if (doc_item == NULL) {
-		os_thread_yield();
+		std::this_thread::yield();
 	}
 
 	row_merge_fts_get_next_doc_item(psort_info, &doc_item);
@@ -1032,9 +1032,9 @@ func_exit:
 
 	mem_heap_free(blob_heap);
 
-	mutex_enter(&psort_info->mutex);
+	mysql_mutex_lock(&psort_info->mutex);
 	psort_info->error = error;
-	mutex_exit(&psort_info->mutex);
+	mysql_mutex_unlock(&psort_info->mutex);
 
 	if (UT_LIST_GET_LEN(psort_info->fts_doc_list) > 0) {
 		/* child can exit either with error or told by parent. */
@@ -1047,9 +1047,10 @@ func_exit:
 		row_merge_fts_get_next_doc_item(psort_info, &doc_item);
 	} while (doc_item != NULL);
 
+	mysql_mutex_lock(&psort_info->mutex);
 	psort_info->child_status = FTS_CHILD_COMPLETE;
-	os_event_set(psort_info->psort_common->sort_event);
-	psort_info->child_status = FTS_CHILD_EXITING;
+	pthread_cond_signal(&psort_info->psort_common->sort_cond);
+	mysql_mutex_unlock(&psort_info->mutex);
 }
 
 /*********************************************************************//**
@@ -1632,7 +1633,7 @@ row_fts_merge_insert(
 
 	/* Get aux index */
 	fts_get_table_name(&fts_table, aux_table_name);
-	aux_table = dict_table_open_on_name(aux_table_name, FALSE, FALSE,
+	aux_table = dict_table_open_on_name(aux_table_name, false,
 					    DICT_ERR_IGNORE_NONE);
 	ut_ad(aux_table != NULL);
 	aux_index = dict_table_get_first_index(aux_table);
@@ -1768,7 +1769,7 @@ exit:
 	error = ins_ctx.btr_bulk->finish(error);
 	UT_DELETE(ins_ctx.btr_bulk);
 
-	dict_table_close(aux_table, FALSE, FALSE);
+	aux_table->release();
 
 	trx->free();
 

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,30 +24,21 @@ File-based list utilities
 Created 11/28/1995 Heikki Tuuri
 ***********************************************************************/
 
-#ifndef fut0lst_h
-#define fut0lst_h
-
-#ifdef UNIV_INNOCHECKSUM
-# include "fil0fil.h"
-#else
-#include "fut0fut.h"
-#include "mtr0log.h"
-
-/* The C 'types' of base node and list node: these should be used to
-write self-documenting code. Of course, the sizeof macro cannot be
-applied to these types! */
-
-typedef	byte	flst_base_node_t;
-typedef	byte	flst_node_t;
-
-#endif /* !UNIV_INNOCHECKSUM */
+#pragma once
 
 /* The physical size of a list base node in bytes */
 #define	FLST_BASE_NODE_SIZE	(4 + 2 * FIL_ADDR_SIZE)
 /* The physical size of a list node in bytes */
 #define	FLST_NODE_SIZE		(2 * FIL_ADDR_SIZE)
 
-#ifndef UNIV_INNOCHECKSUM
+#ifdef UNIV_INNOCHECKSUM
+# include "fil0fil.h"
+#else
+# include "mtr0log.h"
+
+typedef	byte	flst_base_node_t;
+typedef	byte	flst_node_t;
+
 /* We define the field offsets of a node for the list */
 #define FLST_PREV	0	/* 6-byte address of the previous list element;
 				the page part of address is FIL_NULL, if no
@@ -70,9 +61,10 @@ typedef	byte	flst_node_t;
 @param[in,out]	mtr	mini-transaction */
 inline void flst_init(const buf_block_t* block, uint16_t ofs, mtr_t* mtr)
 {
-  ut_ad(!mach_read_from_2(FLST_LEN + ofs + block->frame));
-  ut_ad(!mach_read_from_2(FLST_FIRST + FIL_ADDR_BYTE + ofs + block->frame));
-  ut_ad(!mach_read_from_2(FLST_LAST + FIL_ADDR_BYTE + ofs + block->frame));
+  ut_d(const page_t *page= block->page.frame);
+  ut_ad(!mach_read_from_2(FLST_LEN + ofs + page));
+  ut_ad(!mach_read_from_2(FLST_FIRST + FIL_ADDR_BYTE + ofs + page));
+  ut_ad(!mach_read_from_2(FLST_LAST + FIL_ADDR_BYTE + ofs + page));
   compile_time_assert(FIL_NULL == 0xffU * 0x1010101U);
   mtr->memset(block, FLST_FIRST + FIL_ADDR_PAGE + ofs, 4, 0xff);
   mtr->memset(block, FLST_LAST + FIL_ADDR_PAGE + ofs, 4, 0xff);
@@ -82,7 +74,7 @@ inline void flst_init(const buf_block_t* block, uint16_t ofs, mtr_t* mtr)
 @param[in]      block   file page
 @param[in,out]  base    base node
 @param[in,out]  mtr     mini-transaction */
-void flst_init(const buf_block_t& block, byte *base, mtr_t *mtr)
+void flst_init(const buf_block_t &block, byte *base, mtr_t *mtr)
   MY_ATTRIBUTE((nonnull));
 
 /** Append a file list node to a list.
@@ -90,28 +82,31 @@ void flst_init(const buf_block_t& block, byte *base, mtr_t *mtr)
 @param[in]      boffset byte offset of the base node
 @param[in,out]  add     block to be added
 @param[in]      aoffset byte offset of the node to be added
-@param[in,outr] mtr     mini-transaction */
-void flst_add_last(buf_block_t *base, uint16_t boffset,
-                   buf_block_t *add, uint16_t aoffset, mtr_t *mtr)
-  MY_ATTRIBUTE((nonnull));
+@param[in,out]  mtr     mini-transaction
+@return error code */
+dberr_t flst_add_last(buf_block_t *base, uint16_t boffset,
+                      buf_block_t *add, uint16_t aoffset, mtr_t *mtr)
+  MY_ATTRIBUTE((nonnull, warn_unused_result));
 /** Prepend a file list node to a list.
 @param[in,out]  base    base node block
 @param[in]      boffset byte offset of the base node
 @param[in,out]  add     block to be added
 @param[in]      aoffset byte offset of the node to be added
-@param[in,outr] mtr     mini-transaction */
-void flst_add_first(buf_block_t *base, uint16_t boffset,
+@param[in,out]  mtr     mini-transaction
+@return error code */
+dberr_t flst_add_first(buf_block_t *base, uint16_t boffset,
                     buf_block_t *add, uint16_t aoffset, mtr_t *mtr)
-  MY_ATTRIBUTE((nonnull));
+  MY_ATTRIBUTE((nonnull, warn_unused_result));
 /** Remove a file list node.
 @param[in,out]  base    base node block
 @param[in]      boffset byte offset of the base node
 @param[in,out]  cur     block to be removed
 @param[in]      coffset byte offset of the current record to be removed
-@param[in,outr] mtr     mini-transaction */
-void flst_remove(buf_block_t *base, uint16_t boffset,
-                 buf_block_t *cur, uint16_t coffset, mtr_t *mtr)
-  MY_ATTRIBUTE((nonnull));
+@param[in,out]  mtr     mini-transaction
+@return error code */
+dberr_t flst_remove(buf_block_t *base, uint16_t boffset,
+                    buf_block_t *cur, uint16_t coffset, mtr_t *mtr)
+  MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** @return the length of a list */
 inline uint32_t flst_get_len(const flst_base_node_t *base)
@@ -153,11 +148,9 @@ inline fil_addr_t flst_get_prev_addr(const flst_node_t *node)
   return flst_read_addr(node + FLST_PREV);
 }
 
-#ifdef UNIV_DEBUG
+# ifdef UNIV_DEBUG
 /** Validate a file-based list. */
 void flst_validate(const buf_block_t *base, uint16_t boffset, mtr_t *mtr);
-#endif
+# endif
 
 #endif /* !UNIV_INNOCHECKSUM */
-
-#endif

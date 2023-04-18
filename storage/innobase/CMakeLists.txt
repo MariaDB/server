@@ -54,16 +54,7 @@ ENDIF()
 # OS tests
 IF(UNIX)
   IF(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-
     ADD_DEFINITIONS("-D_GNU_SOURCE=1")
-
-    CHECK_INCLUDE_FILES (libaio.h HAVE_LIBAIO_H)
-    CHECK_LIBRARY_EXISTS(aio io_queue_init "" HAVE_LIBAIO)
-
-    IF(HAVE_LIBAIO_H AND HAVE_LIBAIO)
-      ADD_DEFINITIONS(-DLINUX_NATIVE_AIO=1)
-      LINK_LIBRARIES(aio)
-    ENDIF()
     IF(HAVE_LIBNUMA)
       LINK_LIBRARIES(numa)
     ENDIF()
@@ -94,11 +85,6 @@ IF(WITH_INNODB_EXTRA_DEBUG)
 ENDIF()
 ADD_FEATURE_INFO(INNODB_EXTRA_DEBUG WITH_INNODB_EXTRA_DEBUG "Extra InnoDB debug checks")
 
-CHECK_FUNCTION_EXISTS(nanosleep HAVE_NANOSLEEP)
-IF(HAVE_NANOSLEEP)
- ADD_DEFINITIONS(-DHAVE_NANOSLEEP=1)
-ENDIF()
-
 IF(HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE)
  ADD_DEFINITIONS(-DHAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE=1)
 ENDIF()
@@ -119,17 +105,6 @@ IF(NOT MSVC)
 ENDIF(NOT MSVC)
 
 CHECK_FUNCTION_EXISTS(vasprintf  HAVE_VASPRINTF)
-
-SET(MUTEXTYPE "event" CACHE STRING "Mutex type: event, sys or futex")
-
-IF(MUTEXTYPE MATCHES "event")
-  ADD_DEFINITIONS(-DMUTEX_EVENT)
-ELSEIF(MUTEXTYPE MATCHES "futex" AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  ADD_DEFINITIONS(-DMUTEX_FUTEX)
-ELSE()
-   ADD_DEFINITIONS(-DMUTEX_SYS)
-ENDIF()
-
 
 # Include directories under innobase
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/innobase/include
@@ -187,6 +162,7 @@ SET(INNOBASE_SOURCES
 	dict/dict0stats.cc
 	dict/dict0stats_bg.cc
 	dict/dict0defrag_bg.cc
+	dict/drop.cc
 	eval/eval0eval.cc
 	eval/eval0proc.cc
 	fil/fil0fil.cc
@@ -233,7 +209,6 @@ SET(INNOBASE_SOURCES
 	include/buf0dblwr.h
 	include/buf0dump.h
 	include/buf0flu.h
-	include/buf0flu.inl
 	include/buf0lru.h
 	include/buf0rea.h
 	include/buf0types.h
@@ -244,7 +219,6 @@ SET(INNOBASE_SOURCES
 	include/data0types.h
 	include/db0err.h
 	include/dict0boot.h
-	include/dict0boot.inl
 	include/dict0crea.h
 	include/dict0crea.inl
 	include/dict0defrag_bg.h
@@ -255,8 +229,6 @@ SET(INNOBASE_SOURCES
 	include/dict0mem.inl
 	include/dict0pagecompress.h
 	include/dict0pagecompress.inl
-	include/dict0priv.h
-	include/dict0priv.inl
 	include/dict0stats.h
 	include/dict0stats.inl
 	include/dict0stats_bg.h
@@ -270,7 +242,6 @@ SET(INNOBASE_SOURCES
 	include/fil0crypt.h
 	include/fil0crypt.inl
 	include/fil0fil.h
-	include/fil0fil.inl
 	include/fil0pagecompress.h
 	include/fsp0file.h
 	include/fsp0fsp.h
@@ -290,7 +261,6 @@ SET(INNOBASE_SOURCES
 	include/fts0types.h
 	include/fts0types.inl
 	include/fts0vlc.h
-	include/fut0fut.h
 	include/fut0lst.h
 	include/gis0geo.h
 	include/gis0rtree.h
@@ -303,7 +273,6 @@ SET(INNOBASE_SOURCES
 	include/ha0storage.inl
 	include/handler0alter.h
 	include/hash0hash.h
-	include/ib0mutex.h
 	include/ibuf0ibuf.h
 	include/ibuf0ibuf.inl
 	include/lock0iter.h
@@ -324,12 +293,9 @@ SET(INNOBASE_SOURCES
 	include/mem0mem.inl
 	include/mtr0log.h
 	include/mtr0mtr.h
-	include/mtr0mtr.inl
 	include/mtr0types.h
-	include/os0event.h
 	include/os0file.h
 	include/os0file.inl
-	include/os0thread.h
 	include/page0cur.h
 	include/page0cur.inl
 	include/page0page.h
@@ -357,7 +323,6 @@ SET(INNOBASE_SOURCES
 	include/row0import.h
 	include/row0ins.h
 	include/row0log.h
-	include/row0log.inl
 	include/row0merge.h
 	include/row0mysql.h
 	include/row0purge.h
@@ -365,7 +330,6 @@ SET(INNOBASE_SOURCES
 	include/row0row.h
 	include/row0row.inl
 	include/row0sel.h
-	include/row0sel.inl
 	include/row0types.h
 	include/row0uins.h
 	include/row0umod.h
@@ -373,25 +337,20 @@ SET(INNOBASE_SOURCES
 	include/row0upd.h
 	include/row0upd.inl
 	include/row0vers.h
+	include/rw_lock.h
+	include/small_vector.h
 	include/srv0mon.h
 	include/srv0mon.inl
 	include/srv0srv.h
 	include/srv0start.h
-	include/sync0arr.h
-	include/sync0arr.inl
-	include/sync0debug.h
-	include/sync0policy.h
-	include/sync0rw.h
-	include/sync0rw.inl
-	include/sync0sync.h
-	include/sync0types.h
+	include/srw_lock.h
+	include/sux_lock.h
+	include/transactional_lock_guard.h
 	include/trx0i_s.h
 	include/trx0purge.h
 	include/trx0rec.h
-	include/trx0rec.inl
 	include/trx0roll.h
 	include/trx0rseg.h
-	include/trx0rseg.inl
 	include/trx0sys.h
 	include/trx0trx.h
 	include/trx0trx.inl
@@ -409,7 +368,6 @@ SET(INNOBASE_SOURCES
 	include/ut0lst.h
 	include/ut0mem.h
 	include/ut0mem.inl
-	include/ut0mutex.h
 	include/ut0new.h
 	include/ut0pool.h
 	include/ut0rbt.h
@@ -425,7 +383,6 @@ SET(INNOBASE_SOURCES
 	lock/lock0iter.cc
 	lock/lock0prdt.cc
 	lock/lock0lock.cc
-	lock/lock0wait.cc
 	log/log0log.cc
 	log/log0recv.cc
 	log/log0crypt.cc
@@ -433,8 +390,6 @@ SET(INNOBASE_SOURCES
 	mem/mem0mem.cc
 	mtr/mtr0mtr.cc
 	os/os0file.cc
-	os/os0event.cc
-	os/os0thread.cc
 	page/page0cur.cc
 	page/page0page.cc
 	page/page0zip.cc
@@ -466,10 +421,7 @@ SET(INNOBASE_SOURCES
 	srv/srv0mon.cc
 	srv/srv0srv.cc
 	srv/srv0start.cc
-	sync/sync0arr.cc
-	sync/sync0rw.cc
-	sync/sync0debug.cc
-	sync/sync0sync.cc
+	sync/srw_lock.cc
 	trx/trx0i_s.cc
 	trx/trx0purge.cc
 	trx/trx0rec.cc
@@ -488,21 +440,33 @@ SET(INNOBASE_SOURCES
 	ut/ut0vec.cc
 	ut/ut0wqueue.cc)
 
+OPTION(WITH_PMEM "Support redo log in persistent memory" OFF)
+FIND_PACKAGE(PMEM)
+IF(PMEM_FOUND)
+  INCLUDE_DIRECTORIES(${PMEM_INCLUDES})
+  ADD_COMPILE_FLAGS(log/log0log.cc COMPILE_FLAGS "-DHAVE_PMEM")
+  SET(PMEM_LIBRARY ${PMEM_LIBRARIES})
+ELSE()
+  IF(WITH_PMEM)
+    MESSAGE(FATAL_ERROR "WITH_PMEM=ON cannot be satisfied")
+  ENDIF()
+ENDIF()
+
 MYSQL_ADD_PLUGIN(innobase ${INNOBASE_SOURCES} STORAGE_ENGINE
   MODULE_OUTPUT_NAME ha_innodb
   DEFAULT RECOMPILE_FOR_EMBEDDED
   LINK_LIBRARIES
 	${ZLIB_LIBRARY}
+	${PMEM_LIBRARY}
 	${NUMA_LIBRARY}
 	${LIBSYSTEMD}
-	${LINKER_SCRIPT}
-	${LIBPMEM})
+	${LINKER_SCRIPT})
 
 IF(NOT TARGET innobase)
   RETURN()
 ENDIF()
 
-ADD_DEFINITIONS(${SSL_DEFINES})
+ADD_DEFINITIONS(${SSL_DEFINES} ${TPOOL_DEFINES})
 
 # A GCC bug causes crash when compiling these files on ARM64 with -O1+
 # Compile them with -O0 as a workaround.
@@ -520,6 +484,20 @@ IF(CMAKE_COMPILER_IS_GNUCXX AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64"
       row/row0mysql.cc
       srv/srv0srv.cc
       COMPILE_FLAGS "-O0"
+      )
+ENDIF()
+
+# Older gcc version insist on -mhtm flag for including the
+# htmxlintrin.h header. This is also true for new gcc versions
+# like 11.2.0 in Debian Sid
+# s390x because of the way it defines the high level intrinsics
+# as not-inline in the header file can only be included by one
+# source file that has -mhtm enabled.
+IF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64|powerpc64|s390x"
+   OR CMAKE_SYSTEM_NAME MATCHES "AIX")
+  ADD_COMPILE_FLAGS(
+      sync/srw_lock.cc
+      COMPILE_FLAGS "-mhtm"
       )
 ENDIF()
 IF(MSVC)

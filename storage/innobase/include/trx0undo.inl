@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -95,35 +95,6 @@ trx_undo_trx_id_is_insert(
 	return bool(trx_id[DATA_TRX_ID_LEN] >> 7);
 }
 
-/** Gets an undo log page and x-latches it.
-@param[in]	page_id		page id
-@param[in,out]	mtr		mini-transaction
-@return pointer to page x-latched */
-UNIV_INLINE
-buf_block_t*
-trx_undo_page_get(const page_id_t page_id, mtr_t* mtr)
-{
-	buf_block_t*	block = buf_page_get(page_id, 0, RW_X_LATCH, mtr);
-
-	buf_block_dbg_add_level(block, SYNC_TRX_UNDO_PAGE);
-	return block;
-}
-
-/** Gets an undo log page and s-latches it.
-@param[in]	page_id		page id
-@param[in,out]	mtr		mini-transaction
-@return pointer to page s-latched */
-UNIV_INLINE
-buf_block_t*
-trx_undo_page_get_s_latched(const page_id_t page_id, mtr_t* mtr)
-{
-	buf_block_t*	block = buf_page_get(page_id, 0, RW_S_LATCH, mtr);
-
-	buf_block_dbg_add_level(block, SYNC_TRX_UNDO_PAGE);
-
-	return block;
-}
-
 /** Determine the end offset of undo log records of an undo log page.
 @param[in]	undo_page	undo log page
 @param[in]	page_no		undo log header page number
@@ -135,11 +106,11 @@ uint16_t trx_undo_page_get_end(const buf_block_t *undo_page, uint32_t page_no,
 {
   if (page_no == undo_page->page.id().page_no())
     if (uint16_t end = mach_read_from_2(TRX_UNDO_NEXT_LOG + offset +
-					undo_page->frame))
+					undo_page->page.frame))
       return end;
 
   return mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE +
-			  undo_page->frame);
+			  undo_page->page.frame);
 }
 
 /** Get the next record in an undo log.
@@ -153,6 +124,6 @@ trx_undo_page_get_next_rec(const buf_block_t *undo_page, uint16_t rec,
                            uint32_t page_no, uint16_t offset)
 {
   uint16_t end= trx_undo_page_get_end(undo_page, page_no, offset);
-  uint16_t next= mach_read_from_2(undo_page->frame + rec);
-  return next == end ? nullptr : undo_page->frame + next;
+  uint16_t next= mach_read_from_2(undo_page->page.frame + rec);
+  return next == end ? nullptr : undo_page->page.frame + next;
 }

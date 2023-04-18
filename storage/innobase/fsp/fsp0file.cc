@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -31,29 +31,12 @@ Created 2013-7-26 by Kevin Lewis
 #include "srv0start.h"
 #include "log.h"
 
-/** Initialize the name, size and order of this datafile
-@param[in]	name	tablespace name, will be copied
-@param[in]	flags	tablespace flags */
-void
-Datafile::init(
-	const char*	name,
-	ulint		flags)
-{
-	ut_ad(m_name == NULL);
-	ut_ad(name != NULL);
-
-	m_name = mem_strdup(name);
-	m_flags = flags;
-}
-
 /** Release the resources. */
 void
 Datafile::shutdown()
 {
 	close();
 
-	ut_free(m_name);
-	m_name = NULL;
 	free_filepath();
 	free_first_page();
 }
@@ -120,13 +103,12 @@ Datafile::open_read_only(bool strict)
 
 /** Open a data file in read-write mode during start-up so that
 doublewrite pages can be restored and then it can be validated.*
-@param[in]	read_only_mode	if true, then readonly mode checks are enforced.
 @return DB_SUCCESS or error code */
-dberr_t
-Datafile::open_read_write(bool read_only_mode)
+inline dberr_t Datafile::open_read_write()
 {
 	bool	success = false;
 	ut_ad(m_handle == OS_FILE_CLOSED);
+	ut_ad(!srv_read_only_mode);
 
 	/* This function can be called for file objects that do not need
 	to be opened, which is the case when the m_filepath is NULL */
@@ -137,7 +119,7 @@ Datafile::open_read_write(bool read_only_mode)
 	set_open_flags(OS_FILE_OPEN);
 	m_handle = os_file_create_simple_no_error_handling(
 		innodb_data_file_key, m_filepath, m_open_flags,
-		OS_FILE_READ_WRITE, read_only_mode, &success);
+		OS_FILE_READ_WRITE, false, &success);
 
 	if (!success) {
 		m_last_os_error = os_file_get_last_error(true);
@@ -183,24 +165,17 @@ Datafile::close()
 Prepend the dirpath to filename using the extension given.
 If dirpath is NULL, prepend the default datadir to filepath.
 Store the result in m_filepath.
-@param[in]	dirpath		directory path
-@param[in]	filename	filename or filepath
-@param[in]	ext		filename extension */
-void
-Datafile::make_filepath(
-	const char*	dirpath,
-	const char*	filename,
-	ib_extention	ext)
+@param dirpath  directory path
+@param name     tablespace (table) name
+@param ext      filename extension */
+void Datafile::make_filepath(const char *dirpath, fil_space_t::name_type name,
+                             ib_extention ext)
 {
-	ut_ad(dirpath != NULL || filename != NULL);
-
-	free_filepath();
-
-	m_filepath = fil_make_filepath(dirpath, filename, ext, false);
-
-	ut_ad(m_filepath != NULL);
-
-	set_filename();
+  ut_ad(dirpath || name.size());
+  free_filepath();
+  m_filepath= fil_make_filepath(dirpath, name, ext, false);
+  ut_ad(m_filepath);
+  set_filename();
 }
 
 /** Set the filepath by duplicating the filepath sent in. This is the
@@ -259,23 +234,6 @@ Datafile::same_as(
 #endif /* WIN32 */
 }
 
-/** Allocate and set the datafile or tablespace name in m_name.
-If a name is provided, use it; else extract a file-per-table
-tablespace name from m_filepath. The value of m_name
-will be freed in the destructor.
-@param[in]	name	tablespace name if known, NULL if not */
-void
-Datafile::set_name(const char*	name)
-{
-	ut_free(m_name);
-
-	if (name != NULL) {
-		m_name = mem_strdup(name);
-	} else {
-		m_name = fil_path_to_space_name(m_filepath);
-	}
-}
-
 /** Reads a few significant fields from the first page of the first
 datafile.  The Datafile must already be open.
 @param[in]	read_only_mode	If true, then readonly mode checks are enforced.
@@ -306,28 +264,24 @@ Datafile::read_first_page(bool read_only_mode)
 
 		ulint	n_read = 0;
 
-		err = os_file_read_no_error_handling(
+		err = os_file_read(
 			IORequestReadPartial, m_handle, m_first_page, 0,
 			page_size, &n_read);
 
-		if (err == DB_IO_ERROR && n_read >= UNIV_PAGE_SIZE_MIN) {
-
-			page_size >>= 1;
-
-		} else if (err == DB_SUCCESS) {
-
-			ut_a(n_read == page_size);
-
+		if (err == DB_SUCCESS) {
 			break;
+		}
 
+		if (err == DB_IO_ERROR && n_read == 0) {
+			break;
+		}
+		if (err == DB_IO_ERROR && n_read >= UNIV_PAGE_SIZE_MIN) {
+			page_size >>= 1;
 		} else if (srv_operation == SRV_OPERATION_BACKUP) {
 			break;
 		} else {
-
-			ib::error()
-				<< "Cannot read first page of '"
-				<< m_filepath << "' "
-				<< err;
+			ib::info() << "Cannot read first page of '"
+				<< m_filepath << "': " << err;
 			break;
 		}
 	}
@@ -459,39 +413,51 @@ Datafile::validate_for_recovery()
 	err = validate_first_page(0);
 
 	switch (err) {
-	case DB_SUCCESS:
 	case DB_TABLESPACE_EXISTS:
 		break;
-
+	case DB_SUCCESS:
+		if (!m_defer || !m_space_id) {
+			break;
+		}
+		/* InnoDB should check whether the deferred
+		tablespace page0 can be recovered from
+		double write buffer. InnoDB should try
+	        to recover only if m_space_id exists because
+		dblwr pages can be searched via {space_id, 0}.
+		m_space_id is set in read_first_page(). */
+		/* fall through */
 	default:
 		/* Re-open the file in read-write mode  Attempt to restore
 		page 0 from doublewrite and read the space ID from a survey
 		of the first few pages. */
 		close();
-		err = open_read_write(srv_read_only_mode);
+		err = open_read_write();
 		if (err != DB_SUCCESS) {
 			return(err);
 		}
 
-		err = find_space_id();
-		if (err != DB_SUCCESS || m_space_id == 0) {
-			ib::error() << "Datafile '" << m_filepath << "' is"
-				" corrupted. Cannot determine the space ID from"
-				" the first 64 pages.";
-			return(err);
+		if (!m_defer) {
+			err = find_space_id();
+			if (err != DB_SUCCESS || m_space_id == 0) {
+				ib::error() << "Datafile '" << m_filepath
+					<< "' is corrupted. Cannot determine "
+					"the space ID from the first 64 pages.";
+				return(err);
+			}
+		}
+
+		if (m_space_id == ULINT_UNDEFINED) {
+			return DB_SUCCESS; /* empty file */
 		}
 
 		if (restore_from_doublewrite()) {
-			return(DB_CORRUPTION);
+			return m_defer ? err : DB_CORRUPTION;
 		}
 
 		/* Free the previously read first page and then re-validate. */
 		free_first_page();
+		m_defer = false;
 		err = validate_first_page(0);
-	}
-
-	if (err == DB_SUCCESS) {
-		set_name(NULL);
 	}
 
 	return(err);
@@ -505,11 +471,8 @@ m_is_valid is set true on success, else false.
 @retval DB_SUCCESS on if the datafile is valid
 @retval DB_CORRUPTION if the datafile is not readable
 @retval DB_TABLESPACE_EXISTS if there is a duplicate space_id */
-dberr_t
-Datafile::validate_first_page(lsn_t* flush_lsn)
+dberr_t Datafile::validate_first_page(lsn_t *flush_lsn)
 {
-	char*		prev_name;
-	char*		prev_filepath;
 	const char*	error_txt = NULL;
 
 	m_is_valid = true;
@@ -530,11 +493,18 @@ Datafile::validate_first_page(lsn_t* flush_lsn)
 
 	if (error_txt != NULL) {
 err_exit:
+		free_first_page();
+
+		if (recv_recovery_is_on()
+		    || srv_operation == SRV_OPERATION_BACKUP) {
+			m_defer= true;
+			return DB_SUCCESS;
+		}
+
 		ib::info() << error_txt << " in datafile: " << m_filepath
 			<< ", Space ID:" << m_space_id  << ", Flags: "
 			<< m_flags;
 		m_is_valid = false;
-		free_first_page();
 		return(DB_CORRUPTION);
 	}
 
@@ -563,13 +533,18 @@ err_exit:
 	ulint logical_size = fil_space_t::logical_size(m_flags);
 
 	if (srv_page_size != logical_size) {
+		free_first_page();
+		if (recv_recovery_is_on()
+		    || srv_operation == SRV_OPERATION_BACKUP) {
+			m_defer= true;
+			return DB_SUCCESS;
+		}
 		/* Logical size must be innodb_page_size. */
 		ib::error()
 			<< "Data file '" << m_filepath << "' uses page size "
 			<< logical_size << ", but the innodb_page_size"
 			" start-up parameter is "
 			<< srv_page_size;
-		free_first_page();
 		return(DB_ERROR);
 	}
 
@@ -590,26 +565,38 @@ err_exit:
 		goto err_exit;
 	}
 
-	if (fil_space_read_name_and_filepath(
-		m_space_id, &prev_name, &prev_filepath)) {
+	mysql_mutex_lock(&fil_system.mutex);
 
-		if (0 == strcmp(m_filepath, prev_filepath)) {
-			ut_free(prev_name);
-			ut_free(prev_filepath);
-			return(DB_SUCCESS);
+	fil_space_t* space = fil_space_get_by_id(m_space_id);
+
+	if (space) {
+		fil_node_t* node = UT_LIST_GET_FIRST(space->chain);
+
+		if (node && !strcmp(m_filepath, node->name)) {
+ok_exit:
+			mysql_mutex_unlock(&fil_system.mutex);
+			return DB_SUCCESS;
+		}
+
+		if (!m_space_id
+		    && (recv_recovery_is_on()
+			|| srv_operation == SRV_OPERATION_BACKUP)) {
+			m_defer= true;
+			goto ok_exit;
 		}
 
 		/* Make sure the space_id has not already been opened. */
 		ib::error() << "Attempted to open a previously opened"
-			" tablespace. Previous tablespace " << prev_name
-			<< " at filepath: " << prev_filepath
-			<< " uses space ID: " << m_space_id
-			<< ". Cannot open filepath: " << m_filepath
-			<< " which uses the same space ID.";
+			" tablespace. Previous tablespace: "
+			    << (node ? node->name : "(unknown)")
+			    << " uses space ID: " << m_space_id
+			    << ". Cannot open filepath: " << m_filepath
+			    << " which uses the same space ID.";
+	}
 
-		ut_free(prev_name);
-		ut_free(prev_filepath);
+	mysql_mutex_unlock(&fil_system.mutex);
 
+	if (space) {
 		m_is_valid = false;
 
 		free_first_page();
@@ -633,6 +620,10 @@ Datafile::find_space_id()
 	ut_ad(m_handle != OS_FILE_CLOSED);
 
 	file_size = os_file_get_size(m_handle);
+
+	if (!file_size) {
+		return DB_SUCCESS;
+	}
 
 	if (file_size == (os_offset_t) -1) {
 		ib::error() << "Could not get file size of datafile '"
@@ -686,7 +677,7 @@ Datafile::find_space_id()
 
 		for (ulint j = 0; j < page_count; ++j) {
 			if (os_file_read(IORequestRead, m_handle, page,
-					 j * page_size, page_size)) {
+					 j * page_size, page_size, nullptr)) {
 				ib::info()
 					<< "READ FAIL: page_no:" << j;
 				continue;
@@ -792,7 +783,6 @@ Datafile::restore_from_doublewrite()
 			<< "Corrupted page " << page_id
 			<< " of datafile '" << m_filepath
 			<< "' could not be found in the doublewrite buffer.";
-
 		return(true);
 	}
 
@@ -823,68 +813,63 @@ Datafile::restore_from_doublewrite()
 	       != DB_SUCCESS);
 }
 
-/** Create a link filename based on the contents of m_name,
+/** Read an InnoDB Symbolic Link (ISL) file by name.
+@param link_filepath   filepath of the ISL file
+@return data file name (must be freed by the caller)
+@retval nullptr  on error */
+static char *read_link_file(const char *link_filepath)
+{
+  if (FILE* file= fopen(link_filepath, "r+b" STR_O_CLOEXEC))
+  {
+    char *filepath= static_cast<char*>(ut_malloc_nokey(OS_FILE_MAX_PATH));
+
+    os_file_read_string(file, filepath, OS_FILE_MAX_PATH);
+    fclose(file);
+
+    if (size_t len= strlen(filepath))
+    {
+      /* Trim whitespace from end of filepath */
+      len--;
+      while (static_cast<byte>(filepath[len]) <= 0x20)
+      {
+        if (!len)
+          return nullptr;
+        filepath[len--]= 0;
+      }
+      /* Ensure that the last 2 path separators are forward slashes,
+      because elsewhere we are assuming that tablespace file names end
+      in "/databasename/tablename.ibd". */
+      unsigned trailing_slashes= 0;
+      for (; len; len--)
+      {
+        switch (filepath[len]) {
+#ifdef _WIN32
+        case '\\':
+          filepath[len]= '/';
+          /* fall through */
+#endif
+        case '/':
+          if (++trailing_slashes >= 2)
+            return filepath;
+        }
+      }
+    }
+  }
+
+  return nullptr;
+}
+
+/** Create a link filename,
 open that file, and read the contents into m_filepath.
-@retval DB_SUCCESS if remote linked tablespace file is opened and read.
-@retval DB_CANNOT_OPEN_FILE if the link file does not exist. */
-dberr_t
-RemoteDatafile::open_link_file()
+@param name   table name
+@return filepath()
+@retval nullptr  if the .isl file does not exist or cannot be read */
+const char *RemoteDatafile::open_link_file(const fil_space_t::name_type name)
 {
-	if (m_link_filepath == NULL) {
-		m_link_filepath = fil_make_filepath(NULL, name(), ISL, false);
-	}
-
-	m_filepath = read_link_file(m_link_filepath);
-
-	return(m_filepath == NULL ? DB_CANNOT_OPEN_FILE : DB_SUCCESS);
-}
-
-/** Opens a handle to the file linked to in an InnoDB Symbolic Link file
-in read-only mode so that it can be validated.
-@param[in]	strict	whether to issue error messages
-@return DB_SUCCESS if remote linked tablespace file is found and opened. */
-dberr_t
-RemoteDatafile::open_read_only(bool strict)
-{
-	if (m_filepath == NULL && open_link_file() == DB_CANNOT_OPEN_FILE) {
-		return(DB_ERROR);
-	}
-
-	dberr_t err = Datafile::open_read_only(strict);
-
-	if (err != DB_SUCCESS && strict) {
-		/* The following call prints an error message */
-		os_file_get_last_error(true);
-		ib::error() << "A link file was found named '"
-			<< m_link_filepath << "' but the linked tablespace '"
-			<< m_filepath << "' could not be opened read-only.";
-	}
-
-	return(err);
-}
-
-/** Opens a handle to the file linked to in an InnoDB Symbolic Link file
-in read-write mode so that it can be restored from doublewrite and validated.
-@param[in]	read_only_mode	If true, then readonly mode checks are enforced.
-@return DB_SUCCESS if remote linked tablespace file is found and opened. */
-dberr_t
-RemoteDatafile::open_read_write(bool read_only_mode)
-{
-	if (m_filepath == NULL && open_link_file() == DB_CANNOT_OPEN_FILE) {
-		return(DB_ERROR);
-	}
-
-	dberr_t err = Datafile::open_read_write(read_only_mode);
-
-	if (err != DB_SUCCESS) {
-		/* The following call prints an error message */
-		m_last_os_error = os_file_get_last_error(true);
-		ib::error() << "A link file was found named '"
-			<< m_link_filepath << "' but the linked data file '"
-			<< m_filepath << "' could not be opened for writing.";
-	}
-
-	return(err);
+  if (!m_link_filepath)
+    m_link_filepath= fil_make_filepath(nullptr, name, ISL, false);
+  m_filepath= read_link_file(m_link_filepath);
+  return m_filepath;
 }
 
 /** Release the resources. */
@@ -899,16 +884,12 @@ RemoteDatafile::shutdown()
 	}
 }
 
-/** Creates a new InnoDB Symbolic Link (ISL) file.  It is always created
-under the 'datadir' of MySQL. The datadir is the directory of a
-running mysqld program. We can refer to it by simply using the path ".".
-@param[in]	name		tablespace name
-@param[in]	filepath	remote filepath of tablespace datafile
+/** Create InnoDB Symbolic Link (ISL) file.
+@param name     tablespace name
+@param filepath full file name
 @return DB_SUCCESS or error code */
-dberr_t
-RemoteDatafile::create_link_file(
-	const char*	name,
-	const char*	filepath)
+dberr_t RemoteDatafile::create_link_file(fil_space_t::name_type name,
+                                         const char *filepath)
 {
 	bool		success;
 	dberr_t		err = DB_SUCCESS;
@@ -916,7 +897,6 @@ RemoteDatafile::create_link_file(
 	char*		prev_filepath = NULL;
 
 	ut_ad(!srv_read_only_mode);
-	ut_ad(0 == strcmp(&filepath[strlen(filepath) - 4], DOT_IBD));
 
 	link_filepath = fil_make_filepath(NULL, name, ISL, false);
 
@@ -929,7 +909,8 @@ RemoteDatafile::create_link_file(
 		/* Truncate (starting with MySQL 5.6, probably no
 		longer since MariaDB Server 10.2.19) used to call this
 		with an existing link file which contains the same filepath. */
-		bool same = !strcmp(prev_filepath, filepath);
+		bool same = !strncmp(prev_filepath, name.data(), name.size())
+			&& !strcmp(prev_filepath + name.size(), DOT_IBD);
 		ut_free(prev_filepath);
 		if (same) {
 			ut_free(link_filepath);
@@ -977,9 +958,8 @@ RemoteDatafile::create_link_file(
 		return(err);
 	}
 
-	ulint rbytes = fwrite(filepath, 1, strlen(filepath), file);
-
-	if (rbytes != strlen(filepath)) {
+	const size_t len = strlen(filepath);
+	if (fwrite(filepath, 1, len, file) != len) {
 		error = os_file_get_last_error(true);
 		ib::error() <<
 			"Cannot write link file: "
@@ -1008,50 +988,12 @@ RemoteDatafile::delete_link_file(void)
 }
 
 /** Delete an InnoDB Symbolic Link (ISL) file by name.
-@param[in]	name	tablespace name */
-void
-RemoteDatafile::delete_link_file(
-	const char*	name)
+@param name	tablespace name */
+void RemoteDatafile::delete_link_file(fil_space_t::name_type name)
 {
-	char* link_filepath = fil_make_filepath(NULL, name, ISL, false);
-
-	if (link_filepath != NULL) {
-		os_file_delete_if_exists(
-			innodb_data_file_key, link_filepath, NULL);
-
-		ut_free(link_filepath);
-	}
-}
-
-/** Read an InnoDB Symbolic Link (ISL) file by name.
-It is always created under the datadir of MySQL.
-For file-per-table tablespaces, the isl file is expected to be
-in a 'database' directory and called 'tablename.isl'.
-The caller must free the memory returned if it is not null.
-@param[in]	link_filepath	filepath of the ISL file
-@return Filepath of the IBD file read from the ISL file */
-char*
-RemoteDatafile::read_link_file(
-	const char*	link_filepath)
-{
-	FILE* file = fopen(link_filepath, "r+b" STR_O_CLOEXEC);
-	if (file == NULL) {
-		return(NULL);
-	}
-
-	char* filepath = static_cast<char*>(ut_malloc_nokey(OS_FILE_MAX_PATH));
-
-	os_file_read_string(file, filepath, OS_FILE_MAX_PATH);
-	fclose(file);
-
-	if (filepath[0] != '\0') {
-		/* Trim whitespace from end of filepath */
-		ulint last_ch = strlen(filepath) - 1;
-		while (last_ch > 4 && filepath[last_ch] <= 0x20) {
-			filepath[last_ch--] = 0x00;
-		}
-		os_normalize_path(filepath);
-	}
-
-	return(filepath);
+  if (char *link_filepath= fil_make_filepath(NULL, name, ISL, false))
+  {
+    os_file_delete_if_exists(innodb_data_file_key, link_filepath, nullptr);
+    ut_free(link_filepath);
+  }
 }

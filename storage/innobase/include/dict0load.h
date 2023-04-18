@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -39,30 +39,12 @@ Created 4/24/1996 Heikki Tuuri
 /** A stack of table names related through foreign key constraints */
 typedef std::deque<const char*, ut_allocator<const char*> >	dict_names_t;
 
-/** enum that defines all system table IDs. @see SYSTEM_TABLE_NAME[] */
-enum dict_system_id_t {
-	SYS_TABLES = 0,
-	SYS_INDEXES,
-	SYS_COLUMNS,
-	SYS_FIELDS,
-	SYS_FOREIGN,
-	SYS_FOREIGN_COLS,
-	SYS_TABLESPACES,
-	SYS_DATAFILES,
-	SYS_VIRTUAL,
-
-	/* This must be last item. Defines the number of system tables. */
-	SYS_NUM_SYSTEM_TABLES
-};
-
 /** Check each tablespace found in the data dictionary.
-Look at each table defined in SYS_TABLES that has a space_id > 0.
-If the tablespace is not yet in the fil_system cache, look up the
-tablespace in SYS_DATAFILES to ensure the correct path.
+Then look at each table defined in SYS_TABLES that has a space_id > 0
+to find all the file-per-table tablespaces.
 
 In a crash recovery we already have some tablespace objects created from
-processing the REDO log.  Any other tablespace in SYS_TABLESPACES not
-previously used in recovery will be opened here.  We will compare the
+processing the REDO log. We will compare the
 space_id information in the data dictionary to what we find in the
 tablespace file. In addition, more validation will be done if recovery
 was needed and force_recovery is not set.
@@ -70,35 +52,9 @@ was needed and force_recovery is not set.
 We also scan the biggest space id, and store it to fil_system. */
 void dict_check_tablespaces_and_store_max_id();
 
-/********************************************************************//**
-Finds the first table name in the given database.
-@return own: table name, NULL if does not exist; the caller must free
-the memory in the string! */
-char*
-dict_get_first_table_name_in_db(
-/*============================*/
-	const char*	name);	/*!< in: database name which ends to '/' */
-
 /** Make sure the data_file_name is saved in dict_table_t if needed.
-Try to read it from the fil_system first, then from SYS_DATAFILES.
-@param[in]	table		Table object
-@param[in]	dict_mutex_own	true if dict_sys.mutex is owned already */
-void
-dict_get_and_save_data_dir_path(
-	dict_table_t*	table,
-	bool		dict_mutex_own);
-
-/** Loads a table definition and also all its index definitions, and also
-the cluster definition if the table is a member in a cluster. Also loads
-all foreign key constraints where the foreign key is in the table or where
-a foreign key references columns in this table.
-@param[in]	name		Table name in the dbname/tablename format
-@param[in]	ignore_err	Error to be ignored when loading
-				table and its index definition
-@return table, NULL if does not exist; if the table is stored in an
-.ibd file, but the file does not exist, then we set the file_unreadable
-flag in the table object we return. */
-dict_table_t* dict_load_table(const char* name, dict_err_ignore_t ignore_err);
+@param[in,out]	table		Table object */
+void dict_get_and_save_data_dir_path(dict_table_t* table);
 
 /***********************************************************************//**
 Loads a table object based on the table id.
@@ -133,7 +89,8 @@ dict_load_foreigns(
 	const char*		table_name,	/*!< in: table name */
 	const char**		col_names,	/*!< in: column names, or NULL
 						to use table->col_names */
-	bool			check_recursive,/*!< in: Whether to check
+	trx_id_t		trx_id,		/*!< in: DDL transaction id,
+						or 0 to check
 						recursive load of tables
 						chained by FK */
 	bool			check_charsets,	/*!< in: whether to check
@@ -143,7 +100,7 @@ dict_load_foreigns(
 						which must be loaded
 						subsequently to load all the
 						foreign key constraints. */
-	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
+	MY_ATTRIBUTE((nonnull(1)));
 
 /********************************************************************//**
 This function opens a system table, and return the first record.
@@ -154,7 +111,7 @@ dict_startscan_system(
 	btr_pcur_t*	pcur,		/*!< out: persistent cursor to
 					the record */
 	mtr_t*		mtr,		/*!< in: the mini-transaction */
-	dict_system_id_t system_id);	/*!< in: which system table to open */
+	dict_table_t*	table);		/*!< in: system table */
 /********************************************************************//**
 This function get the next system table record as we scan the table.
 @return the record if found, NULL if end of scan. */
@@ -164,19 +121,19 @@ dict_getnext_system(
 	btr_pcur_t*	pcur,		/*!< in/out: persistent cursor
 					to the record */
 	mtr_t*		mtr);		/*!< in: the mini-transaction */
-/********************************************************************//**
-This function processes one SYS_TABLES record and populate the dict_table_t
-struct for the table.
-@return error message, or NULL on success */
-const char*
-dict_process_sys_tables_rec_and_mtr_commit(
-/*=======================================*/
-	mem_heap_t*	heap,		/*!< in: temporary memory heap */
-	const rec_t*	rec,		/*!< in: SYS_TABLES record */
-	dict_table_t**	table,		/*!< out: dict_table_t to fill */
-	bool		cached,		/*!< in: whether to load from cache */
-	mtr_t*		mtr);		/*!< in/out: mini-transaction,
-					will be committed */
+
+/** Load a table definition from a SYS_TABLES record to dict_table_t.
+Do not load any columns or indexes.
+@param[in,out]	mtr		mini-transaction
+@param[in]	uncommitted	whether to use READ UNCOMMITTED isolation level
+@param[in]	rec		SYS_TABLES record
+@param[out,own]	table		table, or nullptr
+@return	error message
+@retval	nullptr on success */
+const char *dict_load_table_low(mtr_t *mtr, bool uncommitted,
+                                const rec_t *rec, dict_table_t **table)
+  MY_ATTRIBUTE((nonnull, warn_unused_result));
+
 /********************************************************************//**
 This function parses a SYS_INDEXES record and populate a dict_index_t
 structure with the information from the record. For detail information
@@ -259,51 +216,5 @@ dict_process_sys_foreign_col_rec(
 	const char**	ref_col_name,	/*!< out: referenced column name
 					in referenced table */
 	ulint*		pos);		/*!< out: column position */
-/********************************************************************//**
-This function parses a SYS_TABLESPACES record, extracts necessary
-information from the record and returns to caller.
-@return error message, or NULL on success */
-const char*
-dict_process_sys_tablespaces(
-/*=========================*/
-	mem_heap_t*	heap,		/*!< in/out: heap memory */
-	const rec_t*	rec,		/*!< in: current SYS_TABLESPACES rec */
-	uint32_t*	space,		/*!< out: tablespace identifier */
-	const char**	name,		/*!< out: tablespace name */
-	ulint*		flags);		/*!< out: tablespace flags */
-/********************************************************************//**
-This function parses a SYS_DATAFILES record, extracts necessary
-information from the record and returns to caller.
-@return error message, or NULL on success */
-const char*
-dict_process_sys_datafiles(
-/*=======================*/
-	mem_heap_t*	heap,		/*!< in/out: heap memory */
-	const rec_t*	rec,		/*!< in: current SYS_DATAFILES rec */
-	uint32_t*	space,		/*!< out: tablespace identifier */
-	const char**	path);		/*!< out: datafile path */
-
-/** Update the record for space_id in SYS_TABLESPACES to this filepath.
-@param[in]	space_id	Tablespace ID
-@param[in]	filepath	Tablespace filepath
-@return DB_SUCCESS if OK, dberr_t if the insert failed */
-dberr_t
-dict_update_filepath(
-	ulint		space_id,
-	const char*	filepath);
-
-/** Replace records in SYS_TABLESPACES and SYS_DATAFILES associated with
-the given space_id using an independent transaction.
-@param[in]	space_id	Tablespace ID
-@param[in]	name		Tablespace name
-@param[in]	filepath	First filepath
-@param[in]	fsp_flags	Tablespace flags
-@return DB_SUCCESS if OK, dberr_t if the insert failed */
-dberr_t
-dict_replace_tablespace_and_filepath(
-	ulint		space_id,
-	const char*	name,
-	const char*	filepath,
-	ulint		fsp_flags);
 
 #endif

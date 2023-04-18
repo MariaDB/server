@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -32,12 +32,24 @@ Created 3/26/1996 Heikki Tuuri
 #include "srv0mon.h"
 
 #ifdef WITH_WSREP
-#include <mysql/service_wsrep.h>
+# include <mysql/service_wsrep.h>
 
-#ifdef UNIV_DEBUG
+/** The offset to WSREP XID headers, after TRX_RSEG */
+# define TRX_RSEG_WSREP_XID_INFO      TRX_RSEG_MAX_TRX_ID + 16 + 512
+
+/** WSREP XID format (1 if present and valid, 0 if not present) */
+# define TRX_RSEG_WSREP_XID_FORMAT    TRX_RSEG_WSREP_XID_INFO
+/** WSREP XID GTRID length */
+# define TRX_RSEG_WSREP_XID_GTRID_LEN TRX_RSEG_WSREP_XID_INFO + 4
+/** WSREP XID bqual length */
+# define TRX_RSEG_WSREP_XID_BQUAL_LEN TRX_RSEG_WSREP_XID_INFO + 8
+/** WSREP XID data (XIDDATASIZE bytes) */
+# define TRX_RSEG_WSREP_XID_DATA      TRX_RSEG_WSREP_XID_INFO + 12
+
+# ifdef UNIV_DEBUG
 /** The latest known WSREP XID sequence number */
 static long long wsrep_seqno = -1;
-#endif /* UNIV_DEBUG */
+# endif /* UNIV_DEBUG */
 /** The latest known WSREP XID UUID */
 static unsigned char wsrep_uuid[16];
 
@@ -57,28 +69,28 @@ trx_rseg_write_wsrep_checkpoint(
 
 	mtr->write<4,mtr_t::MAYBE_NOP>(*rseg_header,
 				       TRX_RSEG + TRX_RSEG_WSREP_XID_FORMAT
-				       + rseg_header->frame,
+				       + rseg_header->page.frame,
 				       uint32_t(xid->formatID));
 
 	mtr->write<4,mtr_t::MAYBE_NOP>(*rseg_header,
 				       TRX_RSEG + TRX_RSEG_WSREP_XID_GTRID_LEN
-				       + rseg_header->frame,
+				       + rseg_header->page.frame,
 				       uint32_t(xid->gtrid_length));
 
 	mtr->write<4,mtr_t::MAYBE_NOP>(*rseg_header,
 				       TRX_RSEG + TRX_RSEG_WSREP_XID_BQUAL_LEN
-				       + rseg_header->frame,
+				       + rseg_header->page.frame,
 				       uint32_t(xid->bqual_length));
 
 	const ulint xid_length = static_cast<ulint>(xid->gtrid_length
 						    + xid->bqual_length);
 	mtr->memcpy<mtr_t::MAYBE_NOP>(*rseg_header,
 				      TRX_RSEG + TRX_RSEG_WSREP_XID_DATA
-				      + rseg_header->frame,
+				      + rseg_header->page.frame,
 				      xid->data, xid_length);
 	if (xid_length < XIDDATASIZE
 	    && memcmp(TRX_RSEG + TRX_RSEG_WSREP_XID_DATA
-		      + rseg_header->frame, field_ref_zero,
+		      + rseg_header->page.frame, field_ref_zero,
 		      XIDDATASIZE - xid_length)) {
 		mtr->memset(rseg_header,
 			    TRX_RSEG + TRX_RSEG_WSREP_XID_DATA + xid_length,
@@ -114,52 +126,37 @@ trx_rseg_update_wsrep_checkpoint(
 	trx_rseg_write_wsrep_checkpoint(rseg_header, xid, mtr);
 }
 
-/** Clear the WSREP XID information from rollback segment header.
-@param[in,out]	block	rollback segment header
-@param[in,out]	mtr 	mini-transaction */
-static void trx_rseg_clear_wsrep_checkpoint(buf_block_t *block, mtr_t *mtr)
+static dberr_t trx_rseg_update_wsrep_checkpoint(const XID* xid, mtr_t* mtr)
 {
-  mtr->memset(block, TRX_RSEG + TRX_RSEG_WSREP_XID_INFO,
-              TRX_RSEG_WSREP_XID_DATA + XIDDATASIZE - TRX_RSEG_WSREP_XID_INFO,
-              0);
-}
+  dberr_t err;
+  buf_block_t *rseg_header = trx_sys.rseg_array[0].get(mtr, &err);
 
-static void
-trx_rseg_update_wsrep_checkpoint(const XID* xid, mtr_t* mtr)
-{
-	const byte* xid_uuid = wsrep_xid_uuid(xid);
-	/* We must make check against wsrep_uuid here, the
-	trx_rseg_update_wsrep_checkpoint() writes over wsrep_uuid with
-	xid contents in debug mode and the memcmp() will never give nonzero
-	result. */
-	const bool must_clear_rsegs = memcmp(wsrep_uuid, xid_uuid,
-					     sizeof wsrep_uuid);
-	const trx_rseg_t* rseg = trx_sys.rseg_array[0];
+  if (UNIV_UNLIKELY(!rseg_header))
+    return err;
 
-	buf_block_t* rseg_header = trx_rsegf_get(rseg->space, rseg->page_no,
-						 mtr);
-	if (UNIV_UNLIKELY(mach_read_from_4(TRX_RSEG + TRX_RSEG_FORMAT
-					   + rseg_header->frame))) {
-		trx_rseg_format_upgrade(rseg_header, mtr);
-	}
+  /* We must make check against wsrep_uuid here, the
+  trx_rseg_update_wsrep_checkpoint() writes over wsrep_uuid with xid
+  contents in debug mode and the memcmp() will never give nonzero
+  result. */
+  const bool must_clear_rsegs=
+    memcmp(wsrep_uuid, wsrep_xid_uuid(xid), sizeof wsrep_uuid);
 
-	trx_rseg_update_wsrep_checkpoint(rseg_header, xid, mtr);
+  if (UNIV_UNLIKELY(mach_read_from_4(TRX_RSEG + TRX_RSEG_FORMAT +
+                                     rseg_header->page.frame)))
+    trx_rseg_format_upgrade(rseg_header, mtr);
 
-	if (must_clear_rsegs) {
-		/* Because the UUID part of the WSREP XID differed
-		from current_xid_uuid, the WSREP group UUID was
-		changed, and we must reset the XID in all rollback
-		segment headers. */
-		for (ulint rseg_id = 1; rseg_id < TRX_SYS_N_RSEGS; ++rseg_id) {
-			if (const trx_rseg_t* rseg =
-			    trx_sys.rseg_array[rseg_id]) {
-				trx_rseg_clear_wsrep_checkpoint(
-					trx_rsegf_get(rseg->space,
-						      rseg->page_no, mtr),
-				        mtr);
-			}
-		}
-	}
+  trx_rseg_update_wsrep_checkpoint(rseg_header, xid, mtr);
+
+  if (must_clear_rsegs)
+    /* Because the UUID part of the WSREP XID differed from
+    current_xid_uuid, the WSREP group UUID was changed, and we must
+    reset the XID in all rollback segment headers. */
+    for (ulint rseg_id= 1; rseg_id < TRX_SYS_N_RSEGS; ++rseg_id)
+      if (buf_block_t* block= trx_sys.rseg_array[rseg_id].get(mtr, &err))
+        mtr->memset(block, TRX_RSEG + TRX_RSEG_WSREP_XID_INFO,
+                    TRX_RSEG_WSREP_XID_DATA + XIDDATASIZE -
+                    TRX_RSEG_WSREP_XID_INFO, 0);
+  return err;
 }
 
 /** Update WSREP checkpoint XID in first rollback segment header
@@ -186,7 +183,7 @@ bool trx_rseg_read_wsrep_checkpoint(const buf_block_t *rseg_header, XID &xid)
 {
 	int formatID = static_cast<int>(
 		mach_read_from_4(TRX_RSEG + TRX_RSEG_WSREP_XID_FORMAT
-				 + rseg_header->frame));
+				 + rseg_header->page.frame));
 	if (formatID == 0) {
 		return false;
 	}
@@ -194,14 +191,14 @@ bool trx_rseg_read_wsrep_checkpoint(const buf_block_t *rseg_header, XID &xid)
 	xid.formatID = formatID;
 	xid.gtrid_length = static_cast<int>(
 		mach_read_from_4(TRX_RSEG + TRX_RSEG_WSREP_XID_GTRID_LEN
-				 + rseg_header->frame));
+				 + rseg_header->page.frame));
 
 	xid.bqual_length = static_cast<int>(
 		mach_read_from_4(TRX_RSEG + TRX_RSEG_WSREP_XID_BQUAL_LEN
-				 + rseg_header->frame));
+				 + rseg_header->page.frame));
 
 	memcpy(xid.data, TRX_RSEG + TRX_RSEG_WSREP_XID_DATA
-	       + rseg_header->frame, XIDDATASIZE);
+	       + rseg_header->page.frame, XIDDATASIZE);
 
 	return true;
 }
@@ -250,6 +247,9 @@ bool trx_rseg_read_wsrep_checkpoint(XID& xid)
 	     rseg_id++, mtr.commit()) {
 		mtr.start();
 		const buf_block_t* sys = trx_sysf_get(&mtr, false);
+		if (UNIV_UNLIKELY(!sys)) {
+			continue;
+		}
 		const uint32_t page_no = trx_sysf_rseg_get_page_no(
 			sys, rseg_id);
 
@@ -257,11 +257,17 @@ bool trx_rseg_read_wsrep_checkpoint(XID& xid)
 			continue;
 		}
 
-		const buf_block_t* rseg_header = trx_rsegf_get_new(
-			trx_sysf_rseg_get_space(sys, rseg_id), page_no, &mtr);
+		const buf_block_t* rseg_header = buf_page_get_gen(
+			page_id_t(trx_sysf_rseg_get_space(sys, rseg_id),
+				  page_no),
+			0, RW_S_LATCH, nullptr, BUF_GET, &mtr);
+
+		if (!rseg_header) {
+			continue;
+		}
 
 		if (mach_read_from_4(TRX_RSEG + TRX_RSEG_FORMAT
-				     + rseg_header->frame)) {
+				     + rseg_header->page.frame)) {
 			continue;
 		}
 
@@ -282,6 +288,17 @@ bool trx_rseg_read_wsrep_checkpoint(XID& xid)
 }
 #endif /* WITH_WSREP */
 
+buf_block_t *trx_rseg_t::get(mtr_t *mtr, dberr_t *err) const
+{
+  if (!space)
+  {
+    if (err) *err= DB_TABLESPACE_NOT_FOUND;
+    return nullptr;
+  }
+  return buf_page_get_gen(page_id(), 0, RW_X_LATCH, nullptr,
+                          BUF_GET, mtr, err);
+}
+
 /** Upgrade a rollback segment header page to MariaDB 10.3 format.
 @param[in,out]	rseg_header	rollback segment header page
 @param[in,out]	mtr		mini-transaction */
@@ -297,126 +314,96 @@ void trx_rseg_format_upgrade(buf_block_t *rseg_header, mtr_t *mtr)
 }
 
 /** Create a rollback segment header.
-@param[in,out]	space		system, undo, or temporary tablespace
-@param[in]	rseg_id		rollback segment identifier
-@param[in]	max_trx_id	new value of TRX_RSEG_MAX_TRX_ID
-@param[in,out]	sys_header	the TRX_SYS page (NULL for temporary rseg)
-@param[in,out]	mtr		mini-transaction
+@param[in,out]  space           system, undo, or temporary tablespace
+@param[in]      rseg_id         rollback segment identifier
+@param[in]      max_trx_id      new value of TRX_RSEG_MAX_TRX_ID
+@param[in,out]  mtr             mini-transaction
+@param[out]     err             error code
 @return the created rollback segment
-@retval	NULL	on failure */
-buf_block_t*
-trx_rseg_header_create(
-	fil_space_t*	space,
-	ulint		rseg_id,
-	trx_id_t	max_trx_id,
-	buf_block_t*	sys_header,
-	mtr_t*		mtr)
+@retval nullptr on failure */
+buf_block_t *trx_rseg_header_create(fil_space_t *space, ulint rseg_id,
+                                    trx_id_t max_trx_id, mtr_t *mtr,
+                                    dberr_t *err)
 {
-	buf_block_t*	block;
+  ut_ad(mtr->memo_contains(*space));
+  buf_block_t *block=
+    fseg_create(space, TRX_RSEG + TRX_RSEG_FSEG_HEADER, mtr, err);
+  if (block)
+  {
+    ut_ad(0 == mach_read_from_4(TRX_RSEG_FORMAT + TRX_RSEG +
+                                block->page.frame));
+    ut_ad(0 == mach_read_from_4(TRX_RSEG_HISTORY_SIZE + TRX_RSEG +
+                                block->page.frame));
+    ut_ad(0 == mach_read_from_4(TRX_RSEG_MAX_TRX_ID + TRX_RSEG +
+                                block->page.frame));
 
-	ut_ad(mtr->memo_contains(*space));
-	ut_ad(!sys_header == (space == fil_system.temp_space));
+    /* Initialize the history list */
+    flst_init(block, TRX_RSEG_HISTORY + TRX_RSEG, mtr);
 
-	/* Allocate a new file segment for the rollback segment */
-	block = fseg_create(space, TRX_RSEG + TRX_RSEG_FSEG_HEADER, mtr);
+    mtr->write<8,mtr_t::MAYBE_NOP>(*block, TRX_RSEG + TRX_RSEG_MAX_TRX_ID +
+                                   block->page.frame, max_trx_id);
 
-	if (block == NULL) {
-		/* No space left */
-		return block;
-	}
-
-	buf_block_dbg_add_level(block, SYNC_RSEG_HEADER_NEW);
-
-	ut_ad(0 == mach_read_from_4(TRX_RSEG_FORMAT + TRX_RSEG
-				    + block->frame));
-	ut_ad(0 == mach_read_from_4(TRX_RSEG_HISTORY_SIZE + TRX_RSEG
-				    + block->frame));
-	ut_ad(0 == mach_read_from_4(TRX_RSEG_MAX_TRX_ID + TRX_RSEG
-				    + block->frame));
-
-	/* Initialize the history list */
-	flst_init(block, TRX_RSEG_HISTORY + TRX_RSEG, mtr);
-
-	mtr->write<8,mtr_t::MAYBE_NOP>(*block,
-				       TRX_RSEG + TRX_RSEG_MAX_TRX_ID
-				       + block->frame, max_trx_id);
-
-	/* Reset the undo log slots */
-	mtr->memset(block, TRX_RSEG_UNDO_SLOTS + TRX_RSEG,
-		    TRX_RSEG_N_SLOTS * 4, 0xff);
-
-	if (sys_header) {
-		/* Add the rollback segment info to the free slot in
-		the trx system header */
-
-		mtr->write<4,mtr_t::MAYBE_NOP>(
-			*sys_header,
-			TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_SPACE
-			+ rseg_id * TRX_SYS_RSEG_SLOT_SIZE
-			+ sys_header->frame, space->id);
-		mtr->write<4,mtr_t::MAYBE_NOP>(
-			*sys_header,
-			TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_PAGE_NO
-			+ rseg_id * TRX_SYS_RSEG_SLOT_SIZE
-			+ sys_header->frame, block->page.id().page_no());
-	}
-
-	return block;
+    /* Reset the undo log slots */
+    mtr->memset(block, TRX_RSEG_UNDO_SLOTS + TRX_RSEG, TRX_RSEG_N_SLOTS * 4,
+                0xff);
+  }
+  return block;
 }
 
-/** Free a rollback segment in memory. */
-void
-trx_rseg_mem_free(trx_rseg_t* rseg)
+void trx_rseg_t::destroy()
 {
-	trx_undo_t*	undo;
-	trx_undo_t*	next_undo;
+  latch.destroy();
 
-	mutex_free(&rseg->mutex);
+  /* There can't be any active transactions. */
+  ut_a(!UT_LIST_GET_LEN(undo_list));
 
-	/* There can't be any active transactions. */
-	ut_a(UT_LIST_GET_LEN(rseg->undo_list) == 0);
-
-	for (undo = UT_LIST_GET_FIRST(rseg->undo_cached);
-	     undo != NULL;
-	     undo = next_undo) {
-
-		next_undo = UT_LIST_GET_NEXT(undo_list, undo);
-
-		UT_LIST_REMOVE(rseg->undo_cached, undo);
-
-		MONITOR_DEC(MONITOR_NUM_UNDO_SLOT_CACHED);
-
-		ut_free(undo);
-	}
-
-	ut_free(rseg);
+  for (trx_undo_t *next, *undo= UT_LIST_GET_FIRST(undo_cached); undo;
+       undo= next)
+  {
+    next= UT_LIST_GET_NEXT(undo_list, undo);
+    UT_LIST_REMOVE(undo_cached, undo);
+    ut_free(undo);
+  }
 }
 
-/** Create a rollback segment object.
-@param[in]	id		rollback segment id
-@param[in]	space		space where the segment is placed
-@param[in]	page_no		page number of the segment header */
-static
-trx_rseg_t*
-trx_rseg_mem_create(ulint id, fil_space_t* space, uint32_t page_no)
+void trx_rseg_t::init(fil_space_t *space, uint32_t page)
 {
-	trx_rseg_t* rseg = static_cast<trx_rseg_t*>(
-		ut_zalloc_nokey(sizeof *rseg));
+  latch.SRW_LOCK_INIT(trx_rseg_latch_key);
+  ut_ad(!this->space);
+  this->space= space;
+  page_no= page;
+  last_page_no= FIL_NULL;
+  curr_size= 1;
 
-	rseg->id = id;
-	rseg->space = space;
-	rseg->page_no = page_no;
-	rseg->last_page_no = FIL_NULL;
-	rseg->curr_size = 1;
+  UT_LIST_INIT(undo_list, &trx_undo_t::undo_list);
+  UT_LIST_INIT(undo_cached, &trx_undo_t::undo_list);
+}
 
-	mutex_create(rseg->is_persistent()
-		     ? LATCH_ID_REDO_RSEG : LATCH_ID_NOREDO_RSEG,
-		     &rseg->mutex);
+void trx_rseg_t::reinit(uint32_t page)
+{
+  ut_ad(is_persistent());
+  ut_ad(page_no == page);
+  ut_a(!UT_LIST_GET_LEN(undo_list));
+  ut_ad(!history_size || UT_LIST_GET_FIRST(undo_cached));
 
-	UT_LIST_INIT(rseg->undo_list, &trx_undo_t::undo_list);
-	UT_LIST_INIT(rseg->undo_cached, &trx_undo_t::undo_list);
+  history_size= 0;
+  page_no= page;
 
-	return(rseg);
+  for (trx_undo_t *next, *undo= UT_LIST_GET_FIRST(undo_cached); undo;
+       undo= next)
+  {
+    next= UT_LIST_GET_NEXT(undo_list, undo);
+    UT_LIST_REMOVE(undo_cached, undo);
+    MONITOR_DEC(MONITOR_NUM_UNDO_SLOT_CACHED);
+    ut_free(undo);
+  }
+
+  ut_ad(!is_referenced());
+  needs_purge= 0;
+  last_commit_and_offset= 0;
+  last_page_no= FIL_NULL;
+  curr_size= 1;
+  ref.store(0, std::memory_order_release);
 }
 
 /** Read the undo log lists.
@@ -451,99 +438,96 @@ static dberr_t trx_undo_lists_init(trx_rseg_t *rseg,
 @return error code */
 static dberr_t trx_rseg_mem_restore(trx_rseg_t *rseg, mtr_t *mtr)
 {
-	buf_block_t* rseg_hdr = trx_rsegf_get_new(
-		rseg->space->id, rseg->page_no, mtr);
+  if (!rseg->space)
+    return DB_TABLESPACE_NOT_FOUND;
+  dberr_t err;
+  const buf_block_t *rseg_hdr=
+    buf_page_get_gen(rseg->page_id(), 0, RW_S_LATCH, nullptr, BUF_GET, mtr,
+                     &err);
+  if (!rseg_hdr)
+    return err;
 
-	if (!mach_read_from_4(TRX_RSEG + TRX_RSEG_FORMAT + rseg_hdr->frame)) {
-		trx_id_t id = mach_read_from_8(TRX_RSEG + TRX_RSEG_MAX_TRX_ID
-					       + rseg_hdr->frame);
-		if (id > rseg->needs_purge) {
-			rseg->needs_purge = id;
-		}
+  if (!mach_read_from_4(TRX_RSEG + TRX_RSEG_FORMAT + rseg_hdr->page.frame))
+  {
+    trx_id_t id= mach_read_from_8(TRX_RSEG + TRX_RSEG_MAX_TRX_ID +
+                                  rseg_hdr->page.frame);
 
-		const byte* binlog_name = TRX_RSEG + TRX_RSEG_BINLOG_NAME
-			+ rseg_hdr->frame;
-		if (*binlog_name) {
-			lsn_t lsn = mach_read_from_8(my_assume_aligned<8>(
-							     FIL_PAGE_LSN
-							     + rseg_hdr
-							     ->frame));
-			compile_time_assert(TRX_RSEG_BINLOG_NAME_LEN == sizeof
-					    trx_sys.recovered_binlog_filename);
-			if (lsn > trx_sys.recovered_binlog_lsn) {
-				trx_sys.recovered_binlog_lsn = lsn;
-				trx_sys.recovered_binlog_offset
-					= mach_read_from_8(
-						TRX_RSEG
-						+ TRX_RSEG_BINLOG_OFFSET
-						+ rseg_hdr->frame);
-				memcpy(trx_sys.recovered_binlog_filename,
-				       binlog_name,
-				       TRX_RSEG_BINLOG_NAME_LEN);
-			}
+    if (id > rseg->needs_purge)
+      rseg->needs_purge= id;
+
+    const byte *binlog_name=
+      TRX_RSEG + TRX_RSEG_BINLOG_NAME + rseg_hdr->page.frame;
+    if (*binlog_name)
+    {
+      lsn_t lsn= mach_read_from_8(my_assume_aligned<8>
+                                  (FIL_PAGE_LSN + rseg_hdr->page.frame));
+      static_assert(TRX_RSEG_BINLOG_NAME_LEN ==
+                    sizeof trx_sys.recovered_binlog_filename, "compatibility");
+      if (lsn > trx_sys.recovered_binlog_lsn)
+      {
+        trx_sys.recovered_binlog_lsn= lsn;
+        trx_sys.recovered_binlog_offset=
+          mach_read_from_8(TRX_RSEG + TRX_RSEG_BINLOG_OFFSET +
+                           rseg_hdr->page.frame);
+        memcpy(trx_sys.recovered_binlog_filename, binlog_name,
+               TRX_RSEG_BINLOG_NAME_LEN);
+      }
 
 #ifdef WITH_WSREP
-			trx_rseg_read_wsrep_checkpoint(
-				rseg_hdr, trx_sys.recovered_wsrep_xid);
+      trx_rseg_read_wsrep_checkpoint(rseg_hdr, trx_sys.recovered_wsrep_xid);
 #endif
-		}
-	}
+    }
+  }
 
-	if (srv_operation == SRV_OPERATION_RESTORE) {
-		/* mariabackup --prepare only deals with
-		the redo log and the data files, not with
-		transactions or the data dictionary. */
-		return DB_SUCCESS;
-	}
+  if (srv_operation == SRV_OPERATION_RESTORE)
+    /* mariabackup --prepare only deals with
+    the redo log and the data files, not with
+    transactions or the data dictionary. */
+    return DB_SUCCESS;
 
-	/* Initialize the undo log lists according to the rseg header */
+  /* Initialize the undo log lists according to the rseg header */
 
-	rseg->curr_size = mach_read_from_4(TRX_RSEG + TRX_RSEG_HISTORY_SIZE
-					   + rseg_hdr->frame)
-		+ 1;
-	if (dberr_t err = trx_undo_lists_init(rseg, rseg_hdr)) {
-		return err;
-	}
+  rseg->curr_size = mach_read_from_4(TRX_RSEG + TRX_RSEG_HISTORY_SIZE +
+                                     rseg_hdr->page.frame) + 1;
+  err= trx_undo_lists_init(rseg, rseg_hdr);
+  if (err != DB_SUCCESS);
+  else if (auto len= flst_get_len(TRX_RSEG + TRX_RSEG_HISTORY +
+                                  rseg_hdr->page.frame))
+  {
+    rseg->history_size+= len;
 
-	if (auto len = flst_get_len(TRX_RSEG + TRX_RSEG_HISTORY
-				    + rseg_hdr->frame)) {
-		trx_sys.rseg_history_len += len;
+    fil_addr_t node_addr= flst_get_last(TRX_RSEG + TRX_RSEG_HISTORY +
+                                        rseg_hdr->page.frame);
+    node_addr.boffset= static_cast<uint16_t>(node_addr.boffset -
+                                             TRX_UNDO_HISTORY_NODE);
+    rseg->last_page_no= node_addr.page;
 
-		fil_addr_t node_addr = flst_get_last(TRX_RSEG
-						     + TRX_RSEG_HISTORY
-						     + rseg_hdr->frame);
-		node_addr.boffset = static_cast<uint16_t>(
-			node_addr.boffset - TRX_UNDO_HISTORY_NODE);
+    const buf_block_t* block=
+      buf_page_get_gen(page_id_t(rseg->space->id, node_addr.page),
+                       0, RW_S_LATCH, nullptr, BUF_GET, mtr, &err);
+    if (!block)
+      return err;
 
-		rseg->last_page_no = node_addr.page;
+    trx_id_t id= mach_read_from_8(block->page.frame + node_addr.boffset +
+                                  TRX_UNDO_TRX_ID);
+    if (id > rseg->needs_purge)
+      rseg->needs_purge= id;
+    id= mach_read_from_8(block->page.frame + node_addr.boffset +
+                         TRX_UNDO_TRX_NO);
+    if (id > rseg->needs_purge)
+      rseg->needs_purge= id;
 
-		const buf_block_t* block = trx_undo_page_get(
-			page_id_t(rseg->space->id, node_addr.page), mtr);
+    rseg->set_last_commit(node_addr.boffset, id);
+    ut_ad(mach_read_from_2(block->page.frame + node_addr.boffset +
+                           TRX_UNDO_NEEDS_PURGE) <= 1);
 
-		trx_id_t trx_id, id;
-		trx_id = mach_read_from_8(block->frame + node_addr.boffset
-					  + TRX_UNDO_TRX_ID);
-		id = mach_read_from_8(block->frame + node_addr.boffset
-				      + TRX_UNDO_TRX_NO);
-		trx_id = std::max(trx_id, id);
+    if (rseg->last_page_no != FIL_NULL)
+      /* There is no need to cover this operation by the purge
+      mutex because we are still bootstrapping. */
+      purge_sys.purge_queue.push(*rseg);
+  }
 
-		if (trx_id > rseg->needs_purge) {
-			rseg->needs_purge = trx_id;
-		}
-
-		rseg->set_last_commit(node_addr.boffset, id);
-		ut_ad(mach_read_from_2(block->frame + node_addr.boffset
-				       + TRX_UNDO_NEEDS_PURGE) <= 1);
-
-		if (rseg->last_page_no != FIL_NULL) {
-
-			/* There is no need to cover this operation by the purge
-			mutex because we are still bootstrapping. */
-			purge_sys.purge_queue.push(*rseg);
-		}
-	}
-
-	return DB_SUCCESS;
+  return err;
 }
 
 /** Read binlog metadata from the TRX_SYS page, in case we are upgrading
@@ -592,8 +576,8 @@ dberr_t trx_rseg_array_init()
 				information from the TRX_SYS page. */
 				max_trx_id = mach_read_from_8(
 					TRX_SYS + TRX_SYS_TRX_ID_STORE
-					+ sys->frame);
-				trx_rseg_init_binlog_info(sys->frame);
+					+ sys->page.frame);
+				trx_rseg_init_binlog_info(sys->page.frame);
 #ifdef WITH_WSREP
 				wsrep_sys_xid.set(&trx_sys.recovered_wsrep_xid);
 #endif
@@ -602,20 +586,16 @@ dberr_t trx_rseg_array_init()
 			const uint32_t	page_no = trx_sysf_rseg_get_page_no(
 				sys, rseg_id);
 			if (page_no != FIL_NULL) {
-				trx_rseg_t* rseg = trx_rseg_mem_create(
-					rseg_id,
-					fil_space_get(trx_sysf_rseg_get_space(
-							      sys, rseg_id)),
-					page_no);
-				ut_ad(rseg->is_persistent());
-				ut_ad(rseg->id == rseg_id);
-				ut_ad(!trx_sys.rseg_array[rseg_id]);
-				trx_sys.rseg_array[rseg_id] = rseg;
-				err = trx_rseg_mem_restore(rseg, &mtr);
-				if (rseg->needs_purge > max_trx_id) {
-					max_trx_id = rseg->needs_purge;
+				trx_rseg_t& rseg = trx_sys.rseg_array[rseg_id];
+				rseg.init(fil_space_get(
+						  trx_sysf_rseg_get_space(
+							  sys, rseg_id)),
+					  page_no);
+				ut_ad(rseg.is_persistent());
+				err = trx_rseg_mem_restore(&rseg, &mtr);
+				if (rseg.needs_purge > max_trx_id) {
+					max_trx_id = rseg.needs_purge;
 				}
-
 				if (err != DB_SUCCESS) {
 					mtr.commit();
 					break;
@@ -640,15 +620,10 @@ dberr_t trx_rseg_array_init()
 	}
 
 	if (err != DB_SUCCESS) {
-		for (ulint rseg_id = 0; rseg_id < TRX_SYS_N_RSEGS; rseg_id++) {
-			if (trx_rseg_t*& rseg = trx_sys.rseg_array[rseg_id]) {
-				while (trx_undo_t* u= UT_LIST_GET_FIRST(
-					     rseg->undo_list)) {
-					UT_LIST_REMOVE(rseg->undo_list, u);
-					ut_free(u);
-				}
-				trx_rseg_mem_free(rseg);
-				rseg = NULL;
+		for (auto& rseg : trx_sys.rseg_array) {
+			while (auto u = UT_LIST_GET_FIRST(rseg.undo_list)) {
+				UT_LIST_REMOVE(rseg.undo_list, u);
+				ut_free(u);
 			}
 		}
 		return err;
@@ -679,64 +654,27 @@ dberr_t trx_rseg_array_init()
 	return DB_SUCCESS;
 }
 
-/** Create a persistent rollback segment.
-@param[in]	space_id	system or undo tablespace id
-@return pointer to new rollback segment
-@retval	NULL	on failure */
-trx_rseg_t*
-trx_rseg_create(ulint space_id)
-{
-	trx_rseg_t*		rseg = NULL;
-	mtr_t			mtr;
-
-	mtr.start();
-
-	fil_space_t*	space = mtr_x_lock_space(space_id, &mtr);
-	ut_ad(space->purpose == FIL_TYPE_TABLESPACE);
-
-	if (buf_block_t* sys_header = trx_sysf_get(&mtr)) {
-		ulint	rseg_id = trx_sys_rseg_find_free(sys_header);
-		if (buf_block_t* rblock = rseg_id == ULINT_UNDEFINED
-		    ? NULL
-		    : trx_rseg_header_create(space, rseg_id, 0, sys_header,
-					     &mtr)) {
-			ut_ad(trx_sysf_rseg_get_space(sys_header, rseg_id)
-			      == space_id);
-			rseg = trx_rseg_mem_create(rseg_id, space,
-						   rblock->page.id().
-						   page_no());
-			ut_ad(rseg->id == rseg_id);
-			ut_ad(rseg->is_persistent());
-			ut_ad(!trx_sys.rseg_array[rseg->id]);
-			trx_sys.rseg_array[rseg->id] = rseg;
-		}
-	}
-
-	mtr.commit();
-
-	return(rseg);
-}
-
 /** Create the temporary rollback segments. */
-void
-trx_temp_rseg_create()
+dberr_t trx_temp_rseg_create(mtr_t *mtr)
 {
-	mtr_t		mtr;
-
-	for (ulong i = 0; i < TRX_SYS_N_RSEGS; i++) {
-		mtr.start();
-		mtr.set_log_mode(MTR_LOG_NO_REDO);
-		mtr_x_lock_space(fil_system.temp_space, &mtr);
-
-		buf_block_t* rblock = trx_rseg_header_create(
-			fil_system.temp_space, i, 0, NULL, &mtr);
-		trx_rseg_t* rseg = trx_rseg_mem_create(
-			i, fil_system.temp_space, rblock->page.id().page_no());
-		ut_ad(!rseg->is_persistent());
-		ut_ad(!trx_sys.temp_rsegs[i]);
-		trx_sys.temp_rsegs[i] = rseg;
-		mtr.commit();
-	}
+  for (ulong i= 0; i < array_elements(trx_sys.temp_rsegs); i++)
+  {
+    mtr->start();
+    mtr->set_log_mode(MTR_LOG_NO_REDO);
+    mtr->x_lock_space(fil_system.temp_space);
+    dberr_t err;
+    buf_block_t *rblock=
+      trx_rseg_header_create(fil_system.temp_space, i, 0, mtr, &err);
+    if (UNIV_UNLIKELY(!rblock))
+    {
+      mtr->commit();
+      return err;
+    }
+    trx_sys.temp_rsegs[i].init(fil_system.temp_space,
+                               rblock->page.id().page_no());
+    mtr->commit();
+  }
+  return DB_SUCCESS;
 }
 
 /** Update the offset information about the end of the binlog entry
@@ -761,10 +699,10 @@ void trx_rseg_update_binlog_offset(buf_block_t *rseg_header, const trx_t *trx,
 
 	mtr->write<8,mtr_t::MAYBE_NOP>(*rseg_header,
 				       TRX_RSEG + TRX_RSEG_BINLOG_OFFSET
-				       + rseg_header->frame,
+				       + rseg_header->page.frame,
 				       trx->mysql_log_offset);
 
-	void* name = TRX_RSEG + TRX_RSEG_BINLOG_NAME + rseg_header->frame;
+	void* name = TRX_RSEG + TRX_RSEG_BINLOG_NAME + rseg_header->page.frame;
 
 	if (memcmp(trx->mysql_log_file_name, name, len)) {
 		mtr->memcpy(*rseg_header, name, trx->mysql_log_file_name, len);

@@ -499,8 +499,6 @@ row_quiesce_table_has_fts_index(
 {
 	bool			exists = false;
 
-	dict_mutex_enter_for_mysql();
-
 	for (const dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
 	     index != 0;
 	     index = UT_LIST_GET_NEXT(indexes, index)) {
@@ -510,8 +508,6 @@ row_quiesce_table_has_fts_index(
 			break;
 		}
 	}
-
-	dict_mutex_exit_for_mysql();
 
 	return(exists);
 }
@@ -600,8 +596,7 @@ row_quiesce_table_complete(
 				<< " to complete";
 		}
 
-		/* Sleep for a second. */
-		os_thread_sleep(1000000);
+		std::this_thread::sleep_for(std::chrono::seconds(1));
 
 		++count;
 	}
@@ -685,15 +680,13 @@ row_quiesce_set_state(
 
 	dict_index_t* clust_index = dict_table_get_first_index(table);
 
-	row_mysql_lock_data_dictionary(trx);
-
 	for (dict_index_t* index = dict_table_get_next_index(clust_index);
 	     index != NULL;
 	     index = dict_table_get_next_index(index)) {
-		rw_lock_x_lock(&index->lock);
+		index->lock.x_lock(SRW_LOCK_CALL);
 	}
 
-	rw_lock_x_lock(&clust_index->lock);
+	clust_index->lock.x_lock(SRW_LOCK_CALL);
 
 	switch (state) {
 	case QUIESCE_START:
@@ -713,10 +706,8 @@ row_quiesce_set_state(
 	for (dict_index_t* index = dict_table_get_first_index(table);
 	     index != NULL;
 	     index = dict_table_get_next_index(index)) {
-		rw_lock_x_unlock(&index->lock);
+		index->lock.x_unlock();
 	}
-
-	row_mysql_unlock_data_dictionary(trx);
 
 	return(DB_SUCCESS);
 }

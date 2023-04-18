@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -26,12 +26,47 @@ Created 5/20/1997 Heikki Tuuri
 
 #pragma once
 #include "ut0rnd.h"
+#include "ut0new.h"
 
 struct hash_table_t;
-struct hash_cell_t{
-	void*	node;	/*!< hash chain node, NULL if none */
+struct hash_cell_t
+{
+  /** singly-linked, nullptr terminated list of hash buckets */
+  void *node;
+
+  /** Append an element.
+  @tparam T      type of the element
+  @param insert  the being-inserted element
+  @param next    the next-element pointer in T */
+  template<typename T>
+  void append(T &insert, T *T::*next)
+  {
+    void **after;
+    for (after= &node; *after;
+         after= reinterpret_cast<void**>(&(static_cast<T*>(*after)->*next)));
+    insert.*next= nullptr;
+    *after= &insert;
+  }
+
+  /** Insert an element after another.
+  @tparam T  type of the element
+  @param after   the element after which to insert
+  @param insert  the being-inserted element
+  @param next    the next-element pointer in T */
+  template<typename T>
+  void insert_after(T &after, T &insert, T *T::*next)
+  {
+#ifdef UNIV_DEBUG
+    for (const T *c= static_cast<const T*>(node); c; c= c->*next)
+      if (c == &after)
+        goto found;
+    ut_error;
+  found:
+#endif
+    insert.*next= after.*next;
+    after.*next= &insert;
+  }
 };
-typedef void*	hash_node_t;
 
 /*******************************************************************//**
 Inserts a struct to a hash table. */
@@ -59,29 +94,6 @@ do {\
 	}\
 } while (0)
 
-/*******************************************************************//**
-Inserts a struct to the head of hash table. */
-
-#define HASH_PREPEND(TYPE, NAME, TABLE, FOLD, DATA)	\
-do {							\
-	hash_cell_t*	cell3333;			\
-	TYPE*		struct3333;			\
-							\
-	(DATA)->NAME = NULL;				\
-							\
-	cell3333 = &(TABLE)->array[(TABLE)->calc_hash(FOLD)];	\
-							\
-	if (cell3333->node == NULL) {			\
-		cell3333->node = DATA;			\
-		DATA->NAME = NULL;			\
-	} else {					\
-		struct3333 = (TYPE*) cell3333->node;	\
-							\
-		DATA->NAME = struct3333;		\
-							\
-		cell3333->node = DATA;			\
-	}						\
-} while (0)
 #ifdef UNIV_HASH_DEBUG
 # define HASH_ASSERT_VALID(DATA) ut_a((void*) (DATA) != (void*) -1)
 # define HASH_INVALIDATE(DATA, NAME) *(void**) (&DATA->NAME) = (void*) -1
@@ -117,18 +129,6 @@ do {\
 	HASH_INVALIDATE(DATA, NAME);\
 } while (0)
 
-#define HASH_REPLACE(TYPE, NAME, TABLE, FOLD, DATA_OLD, DATA_NEW)             \
-	do {                                                                  \
-		(DATA_NEW)->NAME = (DATA_OLD)->NAME;                          \
-                                                                              \
-		hash_cell_t& cell3333                                         \
-			= (TABLE)->array[(TABLE)->calc_hash(FOLD)]; \
-		TYPE** struct3333 = (TYPE**)&cell3333.node;                   \
-		while (*struct3333 != DATA_OLD) {                             \
-			struct3333 = &((*struct3333)->NAME);                  \
-		}                                                             \
-		*struct3333 = DATA_NEW;                                       \
-	} while (0)
 /*******************************************************************//**
 Gets the first struct in a hash chain, NULL if none. */
 
@@ -181,33 +181,6 @@ do {									\
 			break;						\
 		}							\
 	}								\
-} while (0)
-
-/****************************************************************//**
-Move all hash table entries from OLD_TABLE to NEW_TABLE. */
-
-#define HASH_MIGRATE(OLD_TABLE, NEW_TABLE, NODE_TYPE, PTR_NAME, FOLD_FUNC) \
-do {\
-	ulint		i2222;\
-	ulint		cell_count2222;\
-\
-	cell_count2222 = (OLD_TABLE)->n_cells;	\
-\
-	for (i2222 = 0; i2222 < cell_count2222; i2222++) {\
-		NODE_TYPE*	node2222 = static_cast<NODE_TYPE*>(\
-			HASH_GET_FIRST((OLD_TABLE), i2222));\
-\
-		while (node2222) {\
-			NODE_TYPE*	next2222 = static_cast<NODE_TYPE*>(\
-				node2222->PTR_NAME);\
-			ulint		fold2222 = FOLD_FUNC(node2222);\
-\
-			HASH_INSERT(NODE_TYPE, PTR_NAME, (NEW_TABLE),\
-				fold2222, node2222);\
-\
-			node2222 = next2222;\
-		}\
-	}\
 } while (0)
 
 /** Hash table with singly-linked overflow lists */

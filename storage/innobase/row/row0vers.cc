@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -77,7 +77,7 @@ index record.
 @param[in]	offsets		rec_get_offsets(rec, index)
 @param[in,out]	mtr		mini-transaction
 @return	the active transaction; state must be rechecked after
-trx_mutex_enter(), and trx->release_reference() must be invoked
+acquiring trx->mutex, and trx->release_reference() must be invoked
 @retval	NULL if the record was committed */
 UNIV_INLINE
 trx_t*
@@ -104,6 +104,9 @@ row_vers_impl_x_locked_low(
 	DBUG_ENTER("row_vers_impl_x_locked_low");
 
 	ut_ad(rec_offs_validate(rec, index, offsets));
+	ut_ad(mtr->memo_contains_page_flagged(clust_rec,
+					      MTR_MEMO_PAGE_S_FIX
+					      | MTR_MEMO_PAGE_X_FIX));
 
 	if (ulint trx_id_offset = clust_index->trx_id_offset) {
 		trx_id = mach_read_from_6(clust_rec + trx_id_offset);
@@ -190,14 +193,14 @@ row_vers_impl_x_locked_low(
 		heap = mem_heap_create(1024);
 
 		trx_undo_prev_version_build(
-			clust_rec, mtr, version, clust_index, clust_offsets,
+			version, clust_index, clust_offsets,
 			heap, &prev_version, NULL,
 			dict_index_has_virtual(index) ? &vrow : NULL, 0);
 
-		trx_mutex_enter(trx);
+		ut_d(trx->mutex_lock());
 		const bool committed = trx_state_eq(
 			trx, TRX_STATE_COMMITTED_IN_MEMORY);
-		trx_mutex_exit(trx);
+		ut_d(trx->mutex_unlock());
 
 		/* The oldest visible clustered index version must not be
 		delete-marked, because we never start a transaction by
@@ -383,7 +386,7 @@ index record.
 @param[in]	index	secondary index
 @param[in]	offsets	rec_get_offsets(rec, index)
 @return	the active transaction; state must be rechecked after
-trx_mutex_enter(), and trx->release_reference() must be invoked
+acquiring trx->mutex, and trx->release_reference() must be invoked
 @retval	NULL if the record was committed */
 trx_t*
 row_vers_impl_x_locked(
@@ -397,7 +400,7 @@ row_vers_impl_x_locked(
 	const rec_t*	clust_rec;
 	dict_index_t*	clust_index;
 
-	ut_ad(!lock_mutex_own());
+	lock_sys.assert_unlocked();
 
 	mtr_start(&mtr);
 
@@ -527,6 +530,10 @@ row_vers_build_cur_vrow_low(
 			 = DATA_MISSING;
 	}
 
+	ut_ad(mtr->memo_contains_page_flagged(rec,
+					      MTR_MEMO_PAGE_S_FIX
+					      | MTR_MEMO_PAGE_X_FIX));
+
 	version = rec;
 
 	/* If this is called by purge thread, set TRX_UNDO_PREV_IN_PURGE
@@ -543,7 +550,7 @@ row_vers_build_cur_vrow_low(
 			version, clust_index, clust_offsets);
 
 		trx_undo_prev_version_build(
-			rec, mtr, version, clust_index, clust_offsets,
+			version, clust_index, clust_offsets,
 			heap, &prev_version, NULL, vrow, status);
 
 		if (heap2) {
@@ -643,6 +650,10 @@ row_vers_vc_matches_cluster(
 	/* First compare non-virtual columns (primary keys) */
 	ut_ad(index->n_fields == n_fields);
 	ut_ad(n_fields == dtuple_get_n_fields(icentry));
+	ut_ad(mtr->memo_contains_page_flagged(rec,
+					      MTR_MEMO_PAGE_S_FIX
+					      | MTR_MEMO_PAGE_X_FIX));
+
 	{
 		const dfield_t* a = ientry->fields;
 		const dfield_t* b = icentry->fields;
@@ -684,7 +695,7 @@ row_vers_vc_matches_cluster(
 		ut_ad(roll_ptr != 0);
 
 		trx_undo_prev_version_build(
-			rec, mtr, version, clust_index, clust_offsets,
+			version, clust_index, clust_offsets,
 			heap, &prev_version, NULL, vrow,
 			TRX_UNDO_PREV_IN_PURGE | TRX_UNDO_GET_OLD_V_VALUE);
 
@@ -858,7 +869,7 @@ static bool dtuple_vcol_data_missing(const dtuple_t &tuple,
 }
 
 /** Finds out if a version of the record, where the version >= the current
-purge view, should have ientry as its secondary index entry. We check
+purge_sys.view, should have ientry as its secondary index entry. We check
 if there is any not delete marked version of the record where the trx
 id >= purge view, and the secondary index entry == ientry; exactly in
 this case we return TRUE.
@@ -1040,11 +1051,12 @@ unsafe_to_purge:
 		heap = mem_heap_create(1024);
 		vrow = NULL;
 
-		trx_undo_prev_version_build(rec, mtr, version,
+		trx_undo_prev_version_build(version,
 					    clust_index, clust_offsets,
-					    heap, &prev_version, NULL,
+					    heap, &prev_version, nullptr,
 					    dict_index_has_virtual(index)
-						? &vrow : NULL, 0);
+					    ? &vrow : nullptr,
+					    TRX_UNDO_CHECK_PURGEABILITY);
 		mem_heap_free(heap2); /* free version and clust_offsets */
 
 		if (!prev_version) {
@@ -1127,7 +1139,9 @@ nochange_index:
 Constructs the version of a clustered index record which a consistent
 read should see. We assume that the trx id stored in rec is such that
 the consistent read should not see rec in its present version.
-@return DB_SUCCESS or DB_MISSING_HISTORY */
+@return error code
+@retval DB_SUCCESS if a previous version was fetched
+@retval DB_MISSING_HISTORY if the history is missing (a sign of corruption) */
 dberr_t
 row_vers_build_for_consistent_read(
 /*===============================*/
@@ -1162,13 +1176,12 @@ row_vers_build_for_consistent_read(
 	ut_ad(index->is_primary());
 	ut_ad(mtr->memo_contains_page_flagged(rec, MTR_MEMO_PAGE_X_FIX
 					      | MTR_MEMO_PAGE_S_FIX));
-	ut_ad(!rw_lock_own(&(purge_sys.latch), RW_LOCK_S));
 
 	ut_ad(rec_offs_validate(rec, index, *offsets));
 
 	trx_id = row_get_rec_trx_id(rec, index, *offsets);
 
-	ut_ad(!view->changes_visible(trx_id, index->table->name));
+	ut_ad(!view->changes_visible(trx_id));
 
 	ut_ad(!vrow || !(*vrow));
 
@@ -1186,11 +1199,9 @@ row_vers_build_for_consistent_read(
 		/* If purge can't see the record then we can't rely on
 		the UNDO log record. */
 
-		bool	purge_sees = trx_undo_prev_version_build(
-			rec, mtr, version, index, *offsets, heap,
+		err = trx_undo_prev_version_build(
+			version, index, *offsets, heap,
 			&prev_version, NULL, vrow, 0);
-
-		err  = (purge_sees) ? DB_SUCCESS : DB_MISSING_HISTORY;
 
 		if (prev_heap != NULL) {
 			mem_heap_free(prev_heap);
@@ -1213,7 +1224,7 @@ row_vers_build_for_consistent_read(
 
 		trx_id = row_get_rec_trx_id(prev_version, index, *offsets);
 
-		if (view->changes_visible(trx_id, index->table->name)) {
+		if (view->changes_visible(trx_id)) {
 
 			/* The view already sees this version: we can copy
 			it to in_heap and return */
@@ -1230,8 +1241,11 @@ row_vers_build_for_consistent_read(
 				dtuple_dup_v_fld(*vrow, in_heap);
 			}
 			break;
+		} else if (trx_id >= view->low_limit_id()
+			   && trx_id >= trx_sys.get_max_trx_id()) {
+			err = DB_CORRUPTION;
+			break;
 		}
-
 		version = prev_version;
 	}
 
@@ -1240,6 +1254,10 @@ row_vers_build_for_consistent_read(
 	return(err);
 }
 
+#if defined __aarch64__&&defined __GNUC__&&__GNUC__==4&&!defined __clang__
+/* Avoid GCC 4.8.5 internal compiler error "could not split insn". */
+# pragma GCC optimize ("O0")
+#endif
 /*****************************************************************//**
 Constructs the last committed version of a clustered index record,
 which should be seen by a semi-consistent read. */
@@ -1275,7 +1293,6 @@ row_vers_build_for_semi_consistent_read(
 	ut_ad(index->is_primary());
 	ut_ad(mtr->memo_contains_page_flagged(rec, MTR_MEMO_PAGE_X_FIX
 					      | MTR_MEMO_PAGE_S_FIX));
-	ut_ad(!rw_lock_own(&(purge_sys.latch), RW_LOCK_S));
 
 	ut_ad(rec_offs_validate(rec, index, *offsets));
 
@@ -1345,10 +1362,9 @@ committed_version_trx:
 		heap2 = heap;
 		heap = mem_heap_create(1024);
 
-		if (!trx_undo_prev_version_build(rec, mtr, version, index,
-						 *offsets, heap,
-						 &prev_version,
-						 in_heap, vrow, 0)) {
+		if (trx_undo_prev_version_build(version, index, *offsets, heap,
+						&prev_version, in_heap, vrow,
+						0) != DB_SUCCESS) {
 			mem_heap_free(heap);
 			heap = heap2;
 			heap2 = NULL;

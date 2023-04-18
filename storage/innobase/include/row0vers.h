@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -45,7 +45,7 @@ index record.
 @param[in]	index	secondary index
 @param[in]	offsets	rec_get_offsets(rec, index)
 @return	the active transaction; state must be rechecked after
-trx_mutex_enter(), and trx->release_reference() must be invoked
+acquiring trx->mutex, and trx->release_reference() must be invoked
 @retval	NULL if the record was committed */
 trx_t*
 row_vers_impl_x_locked(
@@ -55,7 +55,7 @@ row_vers_impl_x_locked(
 	const rec_offs*	offsets);
 
 /** Finds out if a version of the record, where the version >= the current
-purge view, should have ientry as its secondary index entry. We check
+purge_sys.view, should have ientry as its secondary index entry. We check
 if there is any not delete marked version of the record where the trx
 id >= purge view, and the secondary index entry == ientry; exactly in
 this case we return TRUE.
@@ -85,7 +85,9 @@ row_vers_old_has_index_entry(
 Constructs the version of a clustered index record which a consistent
 read should see. We assume that the trx id stored in rec is such that
 the consistent read should not see rec in its present version.
-@return DB_SUCCESS or DB_MISSING_HISTORY */
+@return error code
+@retval DB_SUCCESS if a previous version was fetched
+@retval DB_MISSING_HISTORY if the history is missing (a sign of corruption) */
 dberr_t
 row_vers_build_for_consistent_read(
 /*===============================*/

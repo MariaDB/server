@@ -48,6 +48,7 @@ public:
   operator Type() const { return m.load(); }
   Type operator=(const Type i) { store(i); return i; }
   Type operator=(const Atomic_relaxed<Type> &rhs) { return *this= Type{rhs}; }
+  Type operator+=(const Type i) { return fetch_add(i); }
   Type fetch_add(const Type i, std::memory_order o= std::memory_order_relaxed)
   { return m.fetch_add(i, o); }
   Type fetch_sub(const Type i, std::memory_order o= std::memory_order_relaxed)

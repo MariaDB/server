@@ -30,7 +30,11 @@ Created 2/17/1996 Heikki Tuuri
 #include "dict0dict.h"
 #ifdef BTR_CUR_HASH_ADAPT
 #include "ha0ha.h"
-#include "sync0sync.h"
+#include "srw_lock.h"
+
+#ifdef UNIV_PFS_RWLOCK
+extern mysql_pfs_key_t btr_search_latch_key;
+#endif /* UNIV_PFS_RWLOCK */
 
 #define btr_search_sys_create() btr_search_sys.create()
 #define btr_search_sys_free() btr_search_sys.free()
@@ -59,15 +63,9 @@ both have sensible values.
 @param[in,out]	info		index search info
 @param[in]	tuple		logical record
 @param[in]	mode		PAGE_CUR_L, ....
-@param[in]	latch_mode	BTR_SEARCH_LEAF, ...;
-				NOTE that only if has_search_latch is 0, we will
-				have a latch set on the cursor page, otherwise
-				we assume the caller uses his search latch
-				to protect the record!
+@param[in]	latch_mode	BTR_SEARCH_LEAF, ...
 @param[out]	cursor		tree cursor
-@param[in]	ahi_latch	the adaptive hash index latch being held,
-				or NULL
-@param[in]	mtr		mini transaction
+@param[in]	mtr		mini-transaction
 @return whether the search succeeded */
 bool
 btr_search_guess_on_hash(
@@ -111,8 +109,8 @@ void btr_search_drop_page_hash_when_freed(const page_id_t page_id);
 			using btr_cur_search_, and the new record has been
 			inserted next to the cursor.
 @param[in]	ahi_latch	the adaptive hash index latch */
-void
-btr_search_update_hash_node_on_insert(btr_cur_t* cursor, rw_lock_t* ahi_latch);
+void btr_search_update_hash_node_on_insert(btr_cur_t *cursor,
+                                           srw_spin_lock *ahi_latch);
 
 /** Updates the page hash index when a single record is inserted on a page.
 @param[in,out]	cursor		cursor which was positioned to the
@@ -120,13 +118,13 @@ btr_search_update_hash_node_on_insert(btr_cur_t* cursor, rw_lock_t* ahi_latch);
 				and the new record has been inserted next
 				to the cursor
 @param[in]	ahi_latch	the adaptive hash index latch */
-void
-btr_search_update_hash_on_insert(btr_cur_t* cursor, rw_lock_t* ahi_latch);
+void btr_search_update_hash_on_insert(btr_cur_t *cursor,
+                                      srw_spin_lock *ahi_latch);
 
 /** Updates the page hash index when a single record is deleted from a page.
 @param[in]	cursor	cursor which was positioned on the record to delete
 			using btr_cur_search_, the record is not yet deleted.*/
-void btr_search_update_hash_on_delete(btr_cur_t* cursor);
+void btr_search_update_hash_on_delete(btr_cur_t *cursor);
 
 /** Validates the search system.
 @return true if ok */
@@ -141,28 +139,13 @@ static inline void btr_search_x_unlock_all();
 /** Lock all search latches in shared mode. */
 static inline void btr_search_s_lock_all();
 
-#ifdef UNIV_DEBUG
-/** Check if thread owns all the search latches.
-@param[in]	mode	lock mode check
-@retval true if owns all of them
-@retval false if does not own some of them */
-static inline bool btr_search_own_all(ulint mode);
-
-/** Check if thread owns any of the search latches.
-@param[in]	mode	lock mode check
-@retval true if owns any of them
-@retval false if owns no search latch */
-static inline bool btr_search_own_any(ulint mode);
-
-/** @return whether this thread holds any of the search latches */
-static inline bool btr_search_own_any();
-
-/** @return if the index is marked as freed */
-bool btr_search_check_marked_free_index(const buf_block_t *block);
-#endif /* UNIV_DEBUG */
-
 /** Unlock all search latches from shared mode. */
 static inline void btr_search_s_unlock_all();
+
+# ifdef UNIV_DEBUG
+/** @return if the index is marked as freed */
+bool btr_search_check_marked_free_index(const buf_block_t *block);
+# endif /* UNIV_DEBUG */
 #else /* BTR_CUR_HASH_ADAPT */
 # define btr_search_sys_create()
 # define btr_search_sys_free()
@@ -257,20 +240,30 @@ struct btr_search_sys_t
   struct partition
   {
     /** latches protecting hash_table */
-    rw_lock_t latch;
+    srw_spin_lock latch;
     /** mapping of dtuple_fold() to rec_t* in buf_block_t::frame */
     hash_table_t table;
     /** memory heap for table */
     mem_heap_t *heap;
 
-    char pad[(CPU_LEVEL1_DCACHE_LINESIZE - sizeof(rw_lock_t) -
-              sizeof(hash_table_t) - sizeof(mem_heap_t)) &
+#ifdef _MSC_VER
+#pragma warning(push)
+// nonstandard extension - zero sized array, if perfschema is not compiled
+#pragma warning(disable : 4200)
+#endif
+
+    char pad[(CPU_LEVEL1_DCACHE_LINESIZE - sizeof latch -
+              sizeof table - sizeof heap) &
              (CPU_LEVEL1_DCACHE_LINESIZE - 1)];
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
     void init()
     {
       memset((void*) this, 0, sizeof *this);
-      rw_lock_create(btr_search_latch_key, &latch, SYNC_SEARCH_SYS);
+      latch.SRW_LOCK_INIT(btr_search_latch_key);
     }
 
     void alloc(ulint hash_size)
@@ -292,7 +285,7 @@ struct btr_search_sys_t
 
     void free()
     {
-      rw_lock_free(&latch);
+      latch.destroy();
       if (heap)
         clear();
     }
@@ -316,7 +309,7 @@ struct btr_search_sys_t
   }
 
   /** Get the search latch for the adaptive hash index partition */
-  rw_lock_t *get_latch(const dict_index_t &index) const
+  srw_spin_lock *get_latch(const dict_index_t &index) const
   { return &get_part(index)->latch; }
 
   /** Create and initialize at startup */
@@ -357,14 +350,24 @@ struct btr_search_sys_t
 extern btr_search_sys_t btr_search_sys;
 
 /** @return number of leaf pages pointed to by the adaptive hash index */
-inline ulint dict_index_t::n_ahi_pages() const
+TRANSACTIONAL_INLINE inline ulint dict_index_t::n_ahi_pages() const
 {
   if (!btr_search_enabled)
     return 0;
-  rw_lock_t *latch = &btr_search_sys.get_part(*this)->latch;
-  rw_lock_s_lock(latch);
+  srw_spin_lock *latch= &btr_search_sys.get_part(*this)->latch;
+#if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
+  if (xbegin())
+  {
+    if (latch->is_locked())
+      xabort();
+    ulint ref_count= search_info->ref_count;
+    xend();
+    return ref_count;
+  }
+#endif
+  latch->rd_lock(SRW_LOCK_CALL);
   ulint ref_count= search_info->ref_count;
-  rw_lock_s_unlock(latch);
+  latch->rd_unlock();
   return ref_count;
 }
 

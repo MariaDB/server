@@ -27,8 +27,11 @@ Created 1/8/1996 Heikki Tuuri
 #ifndef dict0types_h
 #define dict0types_h
 
-#include <ut0mutex.h>
+#include "univ.i"
+#include "span.h"
 #include <rem0types.h>
+
+using st_::span;
 
 struct dict_col_t;
 struct dict_field_t;
@@ -68,18 +71,20 @@ enum dict_err_ignore_t {
 	DICT_ERR_IGNORE_NONE = 0,	/*!< no error to ignore */
 	DICT_ERR_IGNORE_FK_NOKEY = 1,	/*!< ignore error if any foreign
 					key is missing */
-	DICT_ERR_IGNORE_INDEX_ROOT = 2,	/*!< ignore error if index root
-					page is FIL_NULL or incorrect value */
-	DICT_ERR_IGNORE_CORRUPT = 4,	/*!< skip corrupted indexes */
-	DICT_ERR_IGNORE_RECOVER_LOCK = 8 | DICT_ERR_IGNORE_FK_NOKEY,
+	DICT_ERR_IGNORE_INDEX = 2,	/*!< ignore corrupted indexes */
+	DICT_ERR_IGNORE_RECOVER_LOCK = 4 | DICT_ERR_IGNORE_FK_NOKEY,
 					/*!< Used when recovering table locks
 					for resurrected transactions.
 					Silently load a missing
 					tablespace, and do not load
 					incomplete index definitions. */
 	/** ignore all errors above */
-	DICT_ERR_IGNORE_ALL = 15,
-	/** prepare to drop the table; do not attempt to load tablespace */
+	DICT_ERR_IGNORE_ALL = 7,
+	/** prepare some DDL operation;
+	do not attempt to load tablespace */
+	DICT_ERR_IGNORE_TABLESPACE = 15,
+	/** prepare to drop the table; do not attempt to load tablespace
+	or the metadata */
 	DICT_ERR_IGNORE_DROP = 31
 };
 
@@ -90,17 +95,8 @@ enum ib_quiesce_t {
 	QUIESCE_COMPLETE		/*!< All done */
 };
 
-#ifndef UNIV_INNOCHECKSUM
-typedef ib_mutex_t DictSysMutex;
-#endif /* !UNIV_INNOCHECKSUM */
-
-/** Prefix for tmp tables, adopted from sql/table.h */
-#define TEMP_FILE_PREFIX		"#sql"
-#define TEMP_FILE_PREFIX_LENGTH		4
+/** Prefix for InnoDB internal tables, adopted from sql/table.h */
 #define TEMP_FILE_PREFIX_INNODB		"#sql-ib"
-
-#define TEMP_TABLE_PREFIX                "#sql"
-#define TEMP_TABLE_PATH_PREFIX           "/" TEMP_TABLE_PREFIX
 
 /** Table name wrapper for pretty-printing */
 struct table_name_t
@@ -173,5 +169,8 @@ enum spatial_status_t {
 	/** Only used in spatial index. */
 	SPATIAL_ONLY	= 3
 };
+
+#define TABLE_STATS_NAME "mysql/innodb_table_stats"
+#define INDEX_STATS_NAME "mysql/innodb_index_stats"
 
 #endif

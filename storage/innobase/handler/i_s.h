@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2019, MariaDB Corporation.
+Copyright (c) 2014, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -59,11 +59,8 @@ extern struct st_maria_plugin	i_s_innodb_sys_fields;
 extern struct st_maria_plugin	i_s_innodb_sys_foreign;
 extern struct st_maria_plugin	i_s_innodb_sys_foreign_cols;
 extern struct st_maria_plugin	i_s_innodb_sys_tablespaces;
-extern struct st_maria_plugin	i_s_innodb_sys_datafiles;
-extern struct st_maria_plugin	i_s_innodb_mutexes;
 extern struct st_maria_plugin	i_s_innodb_sys_virtual;
 extern struct st_maria_plugin	i_s_innodb_tablespaces_encryption;
-extern struct st_maria_plugin	i_s_innodb_sys_semaphore_waits;
 
 /** The latest successfully looked up innodb_fts_aux_table */
 extern table_id_t innodb_ft_aux_table_id;
@@ -90,41 +87,5 @@ do {									\
 		DBUG_RETURN(0);						\
 	}								\
 } while (0)
-
-/* Don't use a static const variable here, as some C++ compilers (notably
-HPUX aCC: HP ANSI C++ B3910B A.03.65) can't handle it. */
-#define END_OF_ST_FIELD_INFO {NULL,0,MYSQL_TYPE_NULL,0,0,"",SKIP_OPEN_TABLE}
-
-/** Fields on INFORMATION_SCHEMA.SYS_SEMAMPHORE_WAITS table */
-#define SYS_SEMAPHORE_WAITS_THREAD_ID	0
-#define SYS_SEMAPHORE_WAITS_OBJECT_NAME 1
-#define SYS_SEMAPHORE_WAITS_FILE	2
-#define SYS_SEMAPHORE_WAITS_LINE	3
-#define SYS_SEMAPHORE_WAITS_WAIT_TIME	4
-#define SYS_SEMAPHORE_WAITS_WAIT_OBJECT	5
-#define SYS_SEMAPHORE_WAITS_WAIT_TYPE	6
-#define SYS_SEMAPHORE_WAITS_HOLDER_THREAD_ID 7
-#define SYS_SEMAPHORE_WAITS_HOLDER_FILE 8
-#define SYS_SEMAPHORE_WAITS_HOLDER_LINE 9
-#define SYS_SEMAPHORE_WAITS_CREATED_FILE 10
-#define SYS_SEMAPHORE_WAITS_CREATED_LINE 11
-#define SYS_SEMAPHORE_WAITS_WRITER_THREAD 12
-#define SYS_SEMAPHORE_WAITS_RESERVATION_MODE 13
-#define SYS_SEMAPHORE_WAITS_READERS	14
-#define SYS_SEMAPHORE_WAITS_WAITERS_FLAG 15
-#define SYS_SEMAPHORE_WAITS_LOCK_WORD	16
-#define SYS_SEMAPHORE_WAITS_LAST_WRITER_FILE 17
-#define SYS_SEMAPHORE_WAITS_LAST_WRITER_LINE 18
-#define SYS_SEMAPHORE_WAITS_OS_WAIT_COUNT 19
-
-/*******************************************************************//**
-Auxiliary function to store char* value in MYSQL_TYPE_STRING field.
-@return	0 on success */
-int
-field_store_string(
-/*===============*/
-	Field*		field,	/*!< in/out: target field for storage */
-	const char*	str);	/*!< in: NUL-terminated utf-8 string,
-				or NULL */
 
 #endif /* i_s_h */

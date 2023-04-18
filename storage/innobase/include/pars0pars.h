@@ -367,19 +367,8 @@ pars_procedure_definition(
 					table */
 	que_node_t*	stat_list);	/*!< in: statement list */
 
-/*************************************************************//**
-Parses a stored procedure call, when this is not within another stored
-procedure, that is, the client issues a procedure call directly.
-In MySQL/InnoDB, stored InnoDB procedures are invoked via the
-parsed procedure tree, not via InnoDB SQL, so this function is not used.
-@return query graph */
-que_fork_t*
-pars_stored_procedure_call(
-/*=======================*/
-	sym_node_t*	sym_node);	/*!< in: stored procedure name */
 /** Completes a query graph by adding query thread and fork nodes
-above it and prepares the graph for running. The fork created is of
-type QUE_FORK_MYSQL_INTERFACE.
+above it and prepares the graph for running.
 @param[in]	node		root node for an incomplete query
 				graph, or NULL for dummy graph
 @param[in]	trx		transaction handle
@@ -400,13 +389,6 @@ Create parser info struct.
 pars_info_t*
 pars_info_create(void);
 /*==================*/
-
-/****************************************************************//**
-Free info struct and everything it contains. */
-void
-pars_info_free(
-/*===========*/
-	pars_info_t*	info);	/*!< in, own: info struct */
 
 /****************************************************************//**
 Add bound literal. */
@@ -570,10 +552,9 @@ struct pars_info_t {
 					(pars_bound_lit_t*) */
 	ib_vector_t*	bound_ids;	/*!< bound ids, or NULL
 					(pars_bound_id_t*) */
-
-	ibool		graph_owns_us;	/*!< if TRUE (which is the default),
-					que_graph_free() will free us */
 };
+
+inline void pars_info_free(pars_info_t *info) { mem_heap_free(info->heap); }
 
 /** User-supplied function and argument. */
 struct pars_user_func_t {

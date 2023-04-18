@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -47,8 +47,7 @@ static inline btr_search_t* btr_search_info_create(mem_heap_t* heap)
 /** Updates the search info.
 @param[in,out]	info	search info
 @param[in,out]	cursor	cursor which was just positioned */
-void
-btr_search_info_update_slow(btr_search_t* info, btr_cur_t* cursor);
+void btr_search_info_update_slow(btr_search_t *info, btr_cur_t *cursor);
 
 /*********************************************************************//**
 Updates the search info. */
@@ -59,10 +58,10 @@ btr_search_info_update(
 	dict_index_t*	index,	/*!< in: index of the cursor */
 	btr_cur_t*	cursor)	/*!< in: cursor which was just positioned */
 {
-	ut_ad(!btr_search_own_any(RW_LOCK_S));
-	ut_ad(!btr_search_own_any(RW_LOCK_X));
+	ut_ad(!index->is_spatial());
+	ut_ad(!index->table->is_temporary());
 
-	if (dict_index_is_spatial(index) || !btr_search_enabled) {
+	if (!btr_search_enabled) {
 		return;
 	}
 
@@ -88,7 +87,7 @@ btr_search_info_update(
 static inline void btr_search_x_lock_all()
 {
 	for (ulint i = 0; i < btr_ahi_parts; ++i) {
-		rw_lock_x_lock(&btr_search_sys.parts[i].latch);
+		btr_search_sys.parts[i].latch.wr_lock(SRW_LOCK_CALL);
 	}
 }
 
@@ -96,7 +95,7 @@ static inline void btr_search_x_lock_all()
 static inline void btr_search_x_unlock_all()
 {
 	for (ulint i = 0; i < btr_ahi_parts; ++i) {
-		rw_lock_x_unlock(&btr_search_sys.parts[i].latch);
+		btr_search_sys.parts[i].latch.wr_unlock();
 	}
 }
 
@@ -104,7 +103,7 @@ static inline void btr_search_x_unlock_all()
 static inline void btr_search_s_lock_all()
 {
 	for (ulint i = 0; i < btr_ahi_parts; ++i) {
-		rw_lock_s_lock(&btr_search_sys.parts[i].latch);
+		btr_search_sys.parts[i].latch.rd_lock(SRW_LOCK_CALL);
 	}
 }
 
@@ -112,49 +111,7 @@ static inline void btr_search_s_lock_all()
 static inline void btr_search_s_unlock_all()
 {
 	for (ulint i = 0; i < btr_ahi_parts; ++i) {
-		rw_lock_s_unlock(&btr_search_sys.parts[i].latch);
+		btr_search_sys.parts[i].latch.rd_unlock();
 	}
 }
-
-#ifdef UNIV_DEBUG
-/** Check if thread owns all the search latches.
-@param[in]	mode	lock mode check
-@retval true if owns all of them
-@retval false if does not own some of them */
-static inline bool btr_search_own_all(ulint mode)
-{
-	for (ulint i = 0; i < btr_ahi_parts; ++i) {
-		if (!rw_lock_own(&btr_search_sys.parts[i].latch, mode)) {
-			return(false);
-		}
-	}
-	return(true);
-}
-
-/** Check if thread owns any of the search latches.
-@param[in]	mode	lock mode check
-@retval true if owns any of them
-@retval false if owns no search latch */
-static inline bool btr_search_own_any(ulint mode)
-{
-	for (ulint i = 0; i < btr_ahi_parts; ++i) {
-		if (rw_lock_own(&btr_search_sys.parts[i].latch, mode)) {
-			return(true);
-		}
-	}
-	return(false);
-}
-
-/** @return whether this thread holds any of the search latches */
-static inline bool btr_search_own_any()
-{
-	for (ulint i = btr_ahi_parts; i--; ) {
-		if (rw_lock_own_flagged(&btr_search_sys.parts[i].latch,
-					RW_LOCK_FLAG_X | RW_LOCK_FLAG_S)) {
-			return true;
-		}
-	}
-	return false;
-}
-#endif /* UNIV_DEBUG */
 #endif /* BTR_CUR_HASH_ADAPT */

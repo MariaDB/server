@@ -50,7 +50,6 @@ Created 12/9/1995 Heikki Tuuri
 #include "trx0trx.h"
 #include "trx0roll.h"
 #include "srv0mon.h"
-#include "sync0sync.h"
 #include "buf0dump.h"
 #include "log0sync.h"
 #include "log.h"
@@ -148,9 +147,7 @@ log_set_capacity(ulonglong file_size)
 	free = LOG_CHECKPOINT_FREE_PER_THREAD * 10
 		+ LOG_CHECKPOINT_EXTRA_FREE;
 	if (free >= smallest_capacity / 2) {
-		ib::error() << "Cannot continue operation because log file is "
-			       "too small. Increase innodb_log_file_size "
-			       "or decrease innodb_thread_concurrency. "
+		ib::error() << "innodb_log_file_size is too small. "
 			    << INNODB_PARAMETERS_MSG;
 		return false;
 	}
@@ -177,8 +174,14 @@ void log_t::create()
   ut_ad(!is_initialised());
   m_initialised= true;
 
+#if defined(__aarch64__)
+  mysql_mutex_init(log_sys_mutex_key, &mutex, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(
+    log_flush_order_mutex_key, &flush_order_mutex, MY_MUTEX_INIT_FAST);
+#else
   mysql_mutex_init(log_sys_mutex_key, &mutex, nullptr);
   mysql_mutex_init(log_flush_order_mutex_key, &flush_order_mutex, nullptr);
+#endif
 
   /* Start the lsn from one log block from zero: this way every
   log record has a non-zero start lsn, a fact which we will use */
@@ -272,7 +275,8 @@ dberr_t file_os_io::close() noexcept
 
 dberr_t file_os_io::read(os_offset_t offset, span<byte> buf) noexcept
 {
-  return os_file_read(IORequestRead, m_fd, buf.data(), offset, buf.size());
+  return os_file_read(IORequestRead, m_fd, buf.data(), offset, buf.size(),
+                      nullptr);
 }
 
 dberr_t file_os_io::write(const char *path, os_offset_t offset,
@@ -794,6 +798,7 @@ bool log_write_lock_own()
 }
 #endif
 
+
 /** Ensure that the log has been written to the log file up to a given
 log entry (such as that of a transaction commit). Start a new write, or
 wait and check if an already running write is covering the request.
@@ -802,7 +807,8 @@ included in the redo log file write
 @param[in]	flush_to_disk	whether the written log should also
 be flushed to the file system
 @param[in]	rotate_key	whether to rotate the encryption key */
-void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key)
+void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key,
+                     const completion_callback *callback)
 {
   ut_ad(!srv_read_only_mode);
   ut_ad(!rotate_key || flush_to_disk);
@@ -812,39 +818,57 @@ void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key)
   {
     /* Recovery is running and no operations on the log files are
     allowed yet (the variable name .._no_ibuf_.. is misleading) */
+    ut_a(!callback);
     return;
   }
 
-  if (flush_to_disk &&
-    flush_lock.acquire(lsn) != group_commit_lock::ACQUIRED)
+repeat:
+  lsn_t ret_lsn1= 0, ret_lsn2= 0;
+
+  if (flush_to_disk)
   {
-    return;
+    if (flush_lock.acquire(lsn, callback) != group_commit_lock::ACQUIRED)
+      return;
+    flush_lock.set_pending(log_sys.get_lsn());
   }
 
-  if (write_lock.acquire(lsn) == group_commit_lock::ACQUIRED)
+  if (write_lock.acquire(lsn, flush_to_disk ? nullptr : callback) ==
+      group_commit_lock::ACQUIRED)
   {
     mysql_mutex_lock(&log_sys.mutex);
     lsn_t write_lsn= log_sys.get_lsn();
     write_lock.set_pending(write_lsn);
-
+    if (flush_to_disk)
+      flush_lock.set_pending(write_lsn);
     log_write(rotate_key);
 
     ut_a(log_sys.write_lsn == write_lsn);
-    write_lock.release(write_lsn);
+    ret_lsn1= write_lock.release(write_lsn);
   }
 
-  if (!flush_to_disk)
+  if (flush_to_disk)
   {
-    return;
+    /* Flush the highest written lsn.*/
+    auto flush_lsn = write_lock.value();
+    flush_lock.set_pending(flush_lsn);
+    log_write_flush_to_disk_low(flush_lsn);
+    ret_lsn2= flush_lock.release(flush_lsn);
+
+    log_flush_notify(flush_lsn);
+    DBUG_EXECUTE_IF("crash_after_log_write_upto", DBUG_SUICIDE(););
   }
 
-  /* Flush the highest written lsn.*/
-  auto flush_lsn = write_lock.value();
-  flush_lock.set_pending(flush_lsn);
-  log_write_flush_to_disk_low(flush_lsn);
-  flush_lock.release(flush_lsn);
-
-  log_flush_notify(flush_lsn);
+  if (ret_lsn1 || ret_lsn2)
+  {
+    /*
+     There is no new group commit lead, some async waiters could stall.
+     Rerun log_write_up_to(), to prevent that.
+    */
+    lsn= std::max(ret_lsn1, ret_lsn2);
+    static const completion_callback dummy{[](void *) {},nullptr};
+    callback= &dummy;
+    goto repeat;
+  }
 }
 
 /** Write to the log file up to the last log entry.
@@ -860,9 +884,9 @@ ATTRIBUTE_COLD void log_write_and_flush_prepare()
 {
   mysql_mutex_assert_not_owner(&log_sys.mutex);
 
-  while (flush_lock.acquire(log_sys.get_lsn() + 1) !=
+  while (flush_lock.acquire(log_sys.get_lsn() + 1, nullptr) !=
          group_commit_lock::ACQUIRED);
-  while (write_lock.acquire(log_sys.get_lsn() + 1) !=
+  while (write_lock.acquire(log_sys.get_lsn() + 1, nullptr) !=
          group_commit_lock::ACQUIRED);
 }
 
@@ -1020,7 +1044,8 @@ func_exit:
 
     /* We must wait to prevent the tail of the log overwriting the head. */
     buf_flush_wait_flushed(std::min(sync_lsn, checkpoint + (1U << 20)));
-    os_thread_sleep(10000); /* Sleep 10ms to avoid a thundering herd */
+    /* Sleep to avoid a thundering herd */
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 }
 
@@ -1070,7 +1095,7 @@ ATTRIBUTE_COLD void logs_empty_and_mark_files_at_shutdown()
 		buf_dump_start();
 	}
 	srv_monitor_timer.reset();
-	lock_sys.timeout_timer.reset();
+
 	if (do_srv_shutdown) {
 		srv_shutdown(srv_fast_shutdown == 0);
 	}
@@ -1083,7 +1108,7 @@ loop:
 
 #define COUNT_INTERVAL 600U
 #define CHECK_INTERVAL 100000U
-	os_thread_sleep(CHECK_INTERVAL);
+	std::this_thread::sleep_for(std::chrono::microseconds(CHECK_INTERVAL));
 
 	count++;
 
@@ -1133,7 +1158,7 @@ wait_suspend_loop:
 
 	ut_ad(!srv_any_background_activity());
 	if (srv_n_fil_crypt_threads_started) {
-		os_event_set(fil_crypt_threads_event);
+		fil_crypt_threads_signal(true);
 		thread_name = "fil_crypt_thread";
 		goto wait_suspend_loop;
 	}
@@ -1148,14 +1173,6 @@ wait_suspend_loop:
 
 	if (!buf_pool.is_initialised()) {
 		ut_ad(!srv_was_started);
-	} else if (ulint pending_io = buf_pool.io_pending()) {
-		if (srv_print_verbose_log && count > 600) {
-			ib::info() << "Waiting for " << pending_io << " buffer"
-				" page I/Os to complete";
-			count = 0;
-		}
-
-		goto loop;
 	} else {
 		buf_flush_buffer_pool();
 	}
@@ -1181,11 +1198,8 @@ wait_suspend_loop:
 	if (srv_fast_shutdown == 2 || !srv_was_started) {
 		if (!srv_read_only_mode && srv_was_started) {
 			sql_print_information(
-				"InnoDB: Executing innodb_fast_shutdown=2 "
-				"(without flushing the InnoDB buffer pool"
-				" to data files)."
-				" The next mariadbd"
-				" invocation will perform crash recovery!");
+				"InnoDB: Executing innodb_fast_shutdown=2."
+				" Next startup will execute crash recovery!");
 
 			/* In this fastest shutdown we do not flush the
 			buffer pool:
@@ -1193,10 +1207,7 @@ wait_suspend_loop:
 			it is essentially a 'crash' of the InnoDB server.
 			Make sure that the log is all flushed to disk, so
 			that we can recover all committed transactions in
-			a crash recovery. We must not write the lsn stamps
-			to the data files, since at a startup InnoDB deduces
-			from the stamps if the previous shutdown was clean. */
-
+			a crash recovery. */
 			log_buffer_flush_to_disk();
 		}
 
@@ -1358,11 +1369,15 @@ std::string get_log_file_path(const char *filename)
   path.reserve(size);
   path.assign(srv_log_group_home_dir);
 
-  std::replace(path.begin(), path.end(), OS_PATH_SEPARATOR_ALT,
-	       OS_PATH_SEPARATOR);
-
-  if (path.back() != OS_PATH_SEPARATOR)
-    path.push_back(OS_PATH_SEPARATOR);
+  switch (path.back()) {
+#ifdef _WIN32
+  case '\\':
+#endif
+  case '/':
+    break;
+  default:
+    path.push_back('/');
+  }
   path.append(filename);
 
   return path;

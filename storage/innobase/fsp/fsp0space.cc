@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -131,7 +131,7 @@ Tablespace::open_or_create(bool is_temp)
 			}
 
 			space = fil_space_t::create(
-				m_name, m_space_id, fsp_flags,
+				m_space_id, fsp_flags,
 				is_temp
 				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE,
 				NULL);
@@ -178,7 +178,7 @@ Tablespace::delete_files()
 
 		if (success && file_pre_exists) {
 			ib::info() << "Removed temporary tablespace data"
-				" file: \"" << it->m_name << "\"";
+				" file: \"" << it->m_filepath << "\"";
 		}
 	}
 }
@@ -191,17 +191,12 @@ must end with the extension .ibd and have a basename of at least 1 byte.
 
 Set tablespace m_path member and add a Datafile with the filename.
 @param[in]	datafile_path	full path of the tablespace file. */
-dberr_t
-Tablespace::add_datafile(
-	const char*	datafile_added)
+dberr_t Tablespace::add_datafile(const char *filepath)
 {
 	/* The path provided ends in ".ibd".  This was assured by
 	validate_create_tablespace_info() */
-	ut_d(const char* dot = strrchr(datafile_added, '.'));
+	ut_d(const char* dot = strrchr(filepath, '.'));
 	ut_ad(dot != NULL && 0 == strcmp(dot, DOT_IBD));
-
-	char* filepath = mem_strdup(datafile_added);
-	os_normalize_path(filepath);
 
 	/* If the path is an absolute path, separate it onto m_path and a
 	basename. For relative paths, make the whole thing a basename so that
@@ -219,12 +214,9 @@ Tablespace::add_datafile(
 
 	/* Now add a new Datafile and set the filepath
 	using the m_path created above. */
-	m_files.push_back(Datafile(m_name, m_flags,
-				   FIL_IBD_FILE_INITIAL_SIZE, 0));
-	Datafile* datafile = &m_files.back();
-	datafile->make_filepath(m_path, basename, IBD);
-
-	ut_free(filepath);
+	m_files.push_back(Datafile(m_flags, FIL_IBD_FILE_INITIAL_SIZE, 0));
+	m_files.back().make_filepath(m_path, {basename, strlen(basename) - 4},
+				     IBD);
 
 	return(DB_SUCCESS);
 }

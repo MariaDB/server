@@ -294,7 +294,7 @@ log_reserve_and_write_fast(
 Checks if there is need for a log buffer flush or a new checkpoint, and does
 this if yes. Any database operation should call this when it has modified
 more than about 4 pages. NOTE that this function may only be called when the
-OS thread owns no synchronization objects except the dictionary mutex. */
+OS thread owns no synchronization objects except dict_sys.latch. */
 UNIV_INLINE
 void
 log_free_check(void)
@@ -303,22 +303,6 @@ log_free_check(void)
 	/* During row_log_table_apply(), this function will be called while we
 	are holding some latches. This is OK, as long as we are not holding
 	any latches on buffer blocks. */
-
-#ifdef UNIV_DEBUG
-	static const latch_level_t latches[] = {
-		SYNC_REDO_RSEG,		/* trx_purge_free_segment() */
-		SYNC_DICT,		/* dict_sys.mutex during
-					commit_try_rebuild() */
-		SYNC_DICT_OPERATION,	/* dict_sys.latch X-latch during
-					commit_try_rebuild() */
-		SYNC_FTS_CACHE,		/* fts_cache_t::lock */
-		SYNC_INDEX_TREE		/* index->lock */
-	};
-#endif /* UNIV_DEBUG */
-
-	ut_ad(!sync_check_iterate(
-		      sync_allowed_latches(latches,
-					   latches + UT_ARR_SIZE(latches))));
 
 	if (log_sys.check_flush_or_checkpoint()) {
 

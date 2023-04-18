@@ -347,9 +347,7 @@ found:
 
 /** Add the encryption information to a redo log checkpoint buffer.
 @param[in,out]	buf	checkpoint buffer */
-UNIV_INTERN
-void
-log_crypt_write_checkpoint_buf(byte* buf)
+void log_crypt_write_checkpoint_buf(byte *buf)
 {
 	ut_ad(info.key_version);
 	compile_time_assert(16 == sizeof info.crypt_msg);
@@ -397,9 +395,7 @@ bool log_crypt_read_checkpoint_buf(const byte* buf)
 @param[in]	offs		offset to block
 @param[in]	encrypt		true=encrypt; false=decrypt
 @return whether the operation succeeded */
-UNIV_INTERN
-bool
-log_tmp_block_encrypt(
+bool log_tmp_block_encrypt(
 	const byte*	src,
 	ulint		size,
 	byte*		dst,

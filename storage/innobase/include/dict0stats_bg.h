@@ -28,65 +28,15 @@ Created Apr 26, 2012 Vasil Dimov
 #define dict0stats_bg_h
 
 #include "dict0types.h"
-#include "os0thread.h"
 
 #ifdef HAVE_PSI_INTERFACE
-extern mysql_pfs_key_t	dict_stats_recalc_pool_mutex_key;
+extern mysql_pfs_key_t	recalc_pool_mutex_key;
 #endif /* HAVE_PSI_INTERFACE */
 
-/*****************************************************************//**
-Delete a given table from the auto recalc pool.
-dict_stats_recalc_pool_del() */
-void
-dict_stats_recalc_pool_del(
-/*=======================*/
-	const dict_table_t*	table);	/*!< in: table to remove */
+/** Delete a table from the auto recalc pool, and ensure that
+no statistics are being updated on it. */
+void dict_stats_recalc_pool_del(table_id_t id, bool have_mdl_exclusive);
 
-/** Yield the data dictionary latch when waiting
-for the background thread to stop accessing a table.
-@param trx	transaction holding the data dictionary locks */
-#define DICT_BG_YIELD(trx)	do {	\
-	row_mysql_unlock_data_dictionary(trx);	\
-	os_thread_sleep(250000);		\
-	row_mysql_lock_data_dictionary(trx);	\
-} while (0)
-
-/*****************************************************************//**
-Request the background collection of statistics to stop for a table.
-@retval true when no background process is active
-@retval false when it is not safe to modify the table definition */
-UNIV_INLINE
-bool
-dict_stats_stop_bg(
-/*===============*/
-	dict_table_t*	table)	/*!< in/out: table */
-{
-	ut_ad(!srv_read_only_mode);
-	ut_ad(mutex_own(&dict_sys.mutex));
-
-	if (!(table->stats_bg_flag & BG_STAT_IN_PROGRESS)) {
-		return(true);
-	}
-
-	table->stats_bg_flag |= BG_STAT_SHOULD_QUIT;
-	return(false);
-}
-
-/*****************************************************************//**
-Wait until background stats thread has stopped using the specified table.
-The caller must have locked the data dictionary using
-row_mysql_lock_data_dictionary() and this function may unlock it temporarily
-and restore the lock before it exits.
-The background stats thread is guaranteed not to start using the specified
-table after this function returns and before the caller unlocks the data
-dictionary because it sets the BG_STAT_IN_PROGRESS bit in table->stats_bg_flag
-under dict_sys.mutex. */
-void
-dict_stats_wait_bg_to_stop_using_table(
-/*===================================*/
-	dict_table_t*	table,	/*!< in/out: table */
-	trx_t*		trx);	/*!< in/out: transaction to use for
-				unlocking/locking the data dict */
 /*****************************************************************//**
 Initialize global variables needed for the operation of dict_stats_thread().
 Must be called before dict_stats task is started. */

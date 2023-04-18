@@ -51,6 +51,8 @@ extern bool	os_has_said_disk_full;
 /** File offset in bytes */
 typedef ib_uint64_t os_offset_t;
 
+class buf_tmp_buffer_t;
+
 #ifdef _WIN32
 
 /** We define always WIN_ASYNC_IO, and check at run-time whether
@@ -206,11 +208,13 @@ public:
     PUNCH_RANGE= WRITE_SYNC | 128,
   };
 
-  constexpr IORequest(buf_page_t *bpage, fil_node_t *node, Type type) :
-    bpage(bpage), node(node), type(type) {}
+  constexpr IORequest(buf_page_t *bpage, buf_tmp_buffer_t *slot,
+                      fil_node_t *node, Type type) :
+    bpage(bpage), slot(slot), node(node), type(type) {}
 
-  constexpr IORequest(Type type= READ_SYNC, buf_page_t *bpage= nullptr) :
-    bpage(bpage), type(type) {}
+  constexpr IORequest(Type type= READ_SYNC, buf_page_t *bpage= nullptr,
+                      buf_tmp_buffer_t *slot= nullptr) :
+    bpage(bpage), slot(slot), type(type) {}
 
   bool is_read() const { return (type & READ_SYNC) != 0; }
   bool is_write() const { return (type & WRITE_SYNC) != 0; }
@@ -237,7 +241,10 @@ private:
 
 public:
   /** Page to be written on write operation */
-  buf_page_t* const bpage= nullptr;
+  buf_page_t *const bpage= nullptr;
+
+  /** Memory to be used for encrypted or page_compressed pages */
+  buf_tmp_buffer_t *const slot= nullptr;
 
   /** File descriptor */
   fil_node_t *const node= nullptr;
@@ -263,8 +270,8 @@ struct os_file_size_t {
 constexpr ulint OS_AIO_N_PENDING_IOS_PER_THREAD= 256;
 
 extern Atomic_counter<ulint> os_n_file_reads;
-extern ulint	os_n_file_writes;
-extern ulint	os_n_fsyncs;
+extern Atomic_counter<size_t> os_n_file_writes;
+extern Atomic_counter<size_t> os_n_fsyncs;
 
 /* File types for directory entry data type */
 
@@ -575,12 +582,8 @@ The wrapper functions have the prefix of "innodb_". */
 # define os_file_close(file)						\
 	pfs_os_file_close_func(file, __FILE__, __LINE__)
 
-# define os_file_read(type, file, buf, offset, n)			\
-	pfs_os_file_read_func(type, file, buf, offset, n, __FILE__, __LINE__)
-
-# define os_file_read_no_error_handling(type, file, buf, offset, n, o)	\
-	pfs_os_file_read_no_error_handling_func(			\
-		type, file, buf, offset, n, o, __FILE__, __LINE__)
+# define os_file_read(type, file, buf, offset, n, o)			\
+	pfs_os_file_read_func(type, file, buf, offset, n,o, __FILE__, __LINE__)
 
 # define os_file_write(type, name, file, buf, offset, n)	\
 	pfs_os_file_write_func(type, name, file, buf, offset,	\
@@ -725,31 +728,6 @@ pfs_os_file_read_func(
 	void*			buf,
 	os_offset_t		offset,
 	ulint			n,
-	const char*		src_file,
-	uint			src_line);
-
-/** NOTE! Please use the corresponding macro os_file_read_no_error_handling(),
-not directly this function!
-This is the performance schema instrumented wrapper function for
-os_file_read_no_error_handling_func() which requests a synchronous
-read operation.
-@param[in]	type		IO request context
-@param[in]	file		Open file handle
-@param[out]	buf		buffer where to read
-@param[in]	offset		file offset where to read
-@param[in]	n		number of bytes to read
-@param[out]	o		number of bytes actually read
-@param[in]	src_file	file name where func invoked
-@param[in]	src_line	line where the func invoked
-@return DB_SUCCESS if request was successful */
-UNIV_INLINE
-dberr_t
-pfs_os_file_read_no_error_handling_func(
-	const IORequest&	type,
-	pfs_os_file_t		file,
-	void*			buf,
-	os_offset_t		offset,
-	ulint			n,
 	ulint*			o,
 	const char*		src_file,
 	uint			src_line);
@@ -875,11 +853,8 @@ to original un-instrumented file I/O APIs */
 
 # define os_file_close(file)	os_file_close_func(file)
 
-# define os_file_read(type, file, buf, offset, n)			\
-	os_file_read_func(type, file, buf, offset, n)
-
-# define os_file_read_no_error_handling(type, file, buf, offset, n, o)	\
-	os_file_read_no_error_handling_func(type, file, buf, offset, n, o)
+# define os_file_read(type, file, buf, offset, n, o)		\
+	os_file_read_func(type, file, buf, offset, n, o)
 
 # define os_file_write(type, name, file, buf, offset, n)	\
 	os_file_write_func(type, name, file, buf, offset, n)
@@ -985,6 +960,7 @@ Requests a synchronous read operation.
 @param[out]	buf		buffer where to read
 @param[in]	offset		file offset where to read
 @param[in]	n		number of bytes to read
+@param[out]	o		number of bytes actually read
 @return DB_SUCCESS if request was successful */
 dberr_t
 os_file_read_func(
@@ -992,7 +968,8 @@ os_file_read_func(
 	os_file_t		file,
 	void*			buf,
 	os_offset_t		offset,
-	ulint			n)
+	ulint			n,
+	ulint*			o)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Rewind file to its start, read at most size - 1 bytes from it to str, and
@@ -1006,27 +983,6 @@ os_file_read_string(
 	FILE*		file,
 	char*		str,
 	ulint		size);
-
-/** NOTE! Use the corresponding macro os_file_read_no_error_handling(),
-not directly this function!
-Requests a synchronous positioned read operation. This function does not do
-any error handling. In case of error it returns FALSE.
-@param[in]	type		IO request context
-@param[in]	file		Open file handle
-@param[out]	buf		buffer where to read
-@param[in]	offset		file offset where to read
-@param[in]	n		number of bytes to read
-@param[out]	o		number of bytes actually read
-@return DB_SUCCESS or error code */
-dberr_t
-os_file_read_no_error_handling_func(
-	const IORequest&	type,
-	os_file_t		file,
-	void*			buf,
-	os_offset_t		offset,
-	ulint			n,
-	ulint*			o)
-	MY_ATTRIBUTE((warn_unused_result));
 
 /** NOTE! Use the corresponding macro os_file_write(), not directly this
 function!
@@ -1057,23 +1013,6 @@ os_file_status(
 	const char*	path,
 	bool*		exists,
 	os_file_type_t* type);
-
-/** This function returns a new path name after replacing the basename
-in an old path with a new basename.  The old_path is a full path
-name including the extension.  The tablename is in the normal
-form "databasename/tablename".  The new base name is found after
-the forward slash.  Both input strings are null terminated.
-
-This function allocates memory to be returned.  It is the callers
-responsibility to free the return value after it is no longer needed.
-
-@param[in]	old_path		pathname
-@param[in]	new_name		new file name
-@return own: new full pathname */
-char*
-os_file_make_new_pathname(
-	const char*	old_path,
-	const char*	new_name);
 
 /** This function reduces a null-terminated full remote path name into
 the path that is sent by MySQL for DATA DIRECTORY clause.  It replaces
@@ -1120,13 +1059,18 @@ void os_aio_free();
 @retval DB_IO_ERROR on I/O error */
 dberr_t os_aio(const IORequest &type, void *buf, os_offset_t offset, size_t n);
 
+/** @return number of pending reads */
+size_t os_aio_pending_reads();
+/** @return approximate number of pending reads */
+size_t os_aio_pending_reads_approx();
+/** @return number of pending writes */
+size_t os_aio_pending_writes();
+
 /** Wait until there are no pending asynchronous writes. */
 void os_aio_wait_until_no_pending_writes();
 
-
-/** Wait until there are no pending asynchronous reads. */
+/** Wait until all pending asynchronous reads have completed. */
 void os_aio_wait_until_no_pending_reads();
-
 
 /** Prints info of the aio arrays.
 @param[in/out]	file		file where to print */
@@ -1208,31 +1152,34 @@ os_file_punch_hole(
 	os_offset_t	len)
 	MY_ATTRIBUTE((warn_unused_result));
 
-/** Normalizes a directory path for the current OS:
-On Windows, we convert '/' to '\', else we convert '\' to '/'.
-@param[in,out] str A null-terminated directory and file path */
-void os_normalize_path(char*	str);
-
 /* Determine if a path is an absolute path or not.
 @param[in]	OS directory or file path to evaluate
 @retval true if an absolute path
 @retval false if a relative path */
-UNIV_INLINE
-bool
-is_absolute_path(
-	const char*	path)
+inline bool is_absolute_path(const char *path)
 {
-	if (path[0] == OS_PATH_SEPARATOR) {
-		return(true);
-	}
+  switch (path[0]) {
+#ifdef _WIN32
+  case '\0':
+    return false;
+  case '\\':
+#endif
+  case '/':
+    return true;
+  }
 
 #ifdef _WIN32
-	if (path[1] == ':' && path[2] == OS_PATH_SEPARATOR) {
-		return(true);
-	}
+  if (path[1] == ':')
+  {
+    switch (path[2]) {
+    case '/':
+    case '\\':
+      return true;
+    }
+  }
 #endif /* _WIN32 */
 
-	return(false);
+  return false;
 }
 
 #include "os0file.inl"

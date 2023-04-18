@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -35,7 +35,6 @@ Created 2/25/1997 Heikki Tuuri
 #include "mach0data.h"
 #include "row0undo.h"
 #include "row0vers.h"
-#include "row0log.h"
 #include "trx0trx.h"
 #include "trx0rec.h"
 #include "row0row.h"
@@ -44,6 +43,7 @@ Created 2/25/1997 Heikki Tuuri
 #include "ibuf0ibuf.h"
 #include "log0log.h"
 #include "fil0fil.h"
+#include <mysql/service_thd_mdl.h>
 
 /*************************************************************************
 IMPORTANT NOTE: Any operation that generates redo MUST check that there
@@ -68,8 +68,18 @@ row_undo_ins_remove_clust_rec(
 	dberr_t		err;
 	ulint		n_tries	= 0;
 	mtr_t		mtr;
-	dict_index_t*	index	= node->pcur.btr_cur.index;
-	bool		online;
+	dict_index_t*	index	= node->pcur.index();
+	table_id_t table_id = 0;
+	const bool dict_locked = node->trx->dict_operation_lock_mode;
+restart:
+	MDL_ticket* mdl_ticket = nullptr;
+	ut_ad(!table_id || dict_locked
+	      || !node->trx->dict_operation_lock_mode);
+	dict_table_t *table = table_id
+		? dict_table_open_on_id(table_id, dict_locked,
+					DICT_TABLE_OP_OPEN_ONLY_IF_CACHED,
+					node->trx->mysql_thd, &mdl_ticket)
+		: nullptr;
 
 	ut_ad(index->is_primary());
 	ut_ad(node->trx->in_rollback);
@@ -78,21 +88,10 @@ row_undo_ins_remove_clust_rec(
 	if (index->table->is_temporary()) {
 		ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
-		ut_ad(!dict_index_is_online_ddl(index));
 		ut_ad(index->table->id >= DICT_HDR_FIRST_ID);
-		online = false;
 	} else {
 		index->set_modified(mtr);
 		ut_ad(lock_table_has_locks(index->table));
-		online = dict_index_is_online_ddl(index);
-		if (online) {
-			ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
-			ut_ad(node->trx->dict_operation_lock_mode
-			      != RW_X_LATCH);
-			ut_ad(node->table->id != DICT_INDEXES_ID);
-			ut_ad(node->table->id != DICT_COLUMNS_ID);
-			mtr_s_lock_index(index, &mtr);
-		}
 	}
 
 	/* This is similar to row_undo_mod_clust(). The DDL thread may
@@ -100,13 +99,11 @@ row_undo_ins_remove_clust_rec(
 	We must log the removal, so that the row will be correctly
 	purged. However, we can log the removal out of sync with the
 	B-tree modification. */
-	ut_a(btr_pcur_restore_position(
-	      online ? BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED
-	      : (node->rec_type == TRX_UNDO_INSERT_METADATA)
-		  ? BTR_MODIFY_TREE
-		  : BTR_MODIFY_LEAF,
-	      &node->pcur, &mtr) == btr_pcur_t::SAME_ALL);
-
+	ut_a(node->pcur.restore_position(
+	      (node->rec_type == TRX_UNDO_INSERT_METADATA)
+		? BTR_MODIFY_TREE
+		: BTR_MODIFY_LEAF,
+	      &mtr) == btr_pcur_t::SAME_ALL);
 	rec_t* rec = btr_pcur_get_rec(&node->pcur);
 
 	ut_ad(rec_get_trx_id(rec, index) == node->trx->id
@@ -116,55 +113,88 @@ row_undo_ins_remove_clust_rec(
 	ut_ad(rec_is_metadata(rec, index->table->not_redundant())
 	      == (node->rec_type == TRX_UNDO_INSERT_METADATA));
 
-	if (online && dict_index_is_online_ddl(index)) {
-		mem_heap_t*	heap	= NULL;
-		const rec_offs*	offsets	= rec_get_offsets(
-			rec, index, NULL, index->n_core_fields,
-			ULINT_UNDEFINED, &heap);
-		row_log_table_delete(rec, index, offsets, NULL);
-		mem_heap_free(heap);
-	} else {
-		switch (node->table->id) {
-		case DICT_INDEXES_ID:
-			ut_ad(!online);
-			ut_ad(node->trx->dict_operation_lock_mode
-			      == RW_X_LATCH);
-			ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
-
-			dict_drop_index_tree(&node->pcur, node->trx, &mtr);
-			mtr.commit();
-
-			mtr.start();
-			ut_a(btr_pcur_restore_position(BTR_MODIFY_LEAF,
-			      &node->pcur, &mtr)== btr_pcur_t::SAME_ALL);
+	switch (node->table->id) {
+	case DICT_COLUMNS_ID:
+		/* This is rolling back an INSERT into SYS_COLUMNS.
+		If it was part of an instant ALTER TABLE operation, we
+		must evict the table definition, so that it can be
+		reloaded after the dictionary operation has been
+		completed. At this point, any corresponding operation
+		to the metadata record will have been rolled back. */
+		ut_ad(node->trx->dict_operation_lock_mode);
+		ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
+		if (rec_get_n_fields_old(rec)
+		    != DICT_NUM_FIELDS__SYS_COLUMNS
+		    || (rec_get_1byte_offs_flag(rec)
+			? rec_1_get_field_end_info(rec, 0) != 8
+			: rec_2_get_field_end_info(rec, 0) != 8)) {
 			break;
-		case DICT_COLUMNS_ID:
-			/* This is rolling back an INSERT into SYS_COLUMNS.
-			If it was part of an instant ALTER TABLE operation, we
-			must evict the table definition, so that it can be
-			reloaded after the dictionary operation has been
-			completed. At this point, any corresponding operation
-			to the metadata record will have been rolled back. */
-			ut_ad(!online);
-			ut_ad(node->trx->dict_operation_lock_mode
-			      == RW_X_LATCH);
-			ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
-			if (rec_get_n_fields_old(rec)
-			    != DICT_NUM_FIELDS__SYS_COLUMNS) {
-				break;
-			}
-			ulint len;
-			const byte* data = rec_get_nth_field_old(
-				rec, DICT_FLD__SYS_COLUMNS__TABLE_ID, &len);
-			if (len != 8) {
-				break;
-			}
-			node->trx->evict_table(mach_read_from_8(data));
 		}
+		static_assert(!DICT_FLD__SYS_COLUMNS__TABLE_ID, "");
+		node->trx->evict_table(mach_read_from_8(rec));
+		break;
+	case DICT_INDEXES_ID:
+		ut_ad(node->trx->dict_operation_lock_mode);
+		ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
+		if (!table_id) {
+			table_id = mach_read_from_8(rec);
+			if (table_id) {
+				mtr.commit();
+				goto restart;
+			}
+			ut_ad("corrupted SYS_INDEXES record" == 0);
+		}
+
+		pfs_os_file_t d = OS_FILE_CLOSED;
+
+		if (const uint32_t space_id = dict_drop_index_tree(
+			    &node->pcur, node->trx, &mtr)) {
+			if (table) {
+				lock_release_on_rollback(node->trx,
+							 table);
+				if (!dict_locked) {
+					dict_sys.lock(SRW_LOCK_CALL);
+				}
+				if (table->release()) {
+					dict_sys.remove(table);
+				} else if (table->space_id
+					   == space_id) {
+					table->space = nullptr;
+					table->file_unreadable = true;
+				}
+				if (!dict_locked) {
+					dict_sys.unlock();
+				}
+				table = nullptr;
+				if (!mdl_ticket);
+				else if (MDL_context* mdl_context =
+					 static_cast<MDL_context*>(
+						 thd_mdl_context(
+							 node->trx->
+							 mysql_thd))) {
+					mdl_context->release_lock(
+						mdl_ticket);
+					mdl_ticket = nullptr;
+				}
+			}
+
+			d = fil_delete_tablespace(space_id);
+		}
+
+		mtr.commit();
+
+		if (d != OS_FILE_CLOSED) {
+			os_file_close(d);
+		}
+
+		mtr.start();
+		ut_a(node->pcur.restore_position(
+			BTR_MODIFY_LEAF, &mtr) == btr_pcur_t::SAME_ALL);
 	}
 
-	if (btr_cur_optimistic_delete(&node->pcur.btr_cur, 0, &mtr)) {
-		err = DB_SUCCESS;
+	err = btr_cur_optimistic_delete(&node->pcur.btr_cur, 0, &mtr);
+
+	if (err != DB_FAIL) {
 		goto func_exit;
 	}
 
@@ -177,8 +207,8 @@ retry:
 	} else {
 		index->set_modified(mtr);
 	}
-	ut_a(btr_pcur_restore_position(BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
-	      &node->pcur, &mtr) == btr_pcur_t::SAME_ALL);
+	ut_a(node->pcur.restore_position(BTR_PURGE_TREE, &mtr)
+	     == btr_pcur_t::SAME_ALL);
 
 	btr_cur_pessimistic_delete(&err, FALSE, &node->pcur.btr_cur, 0, true,
 				   &mtr);
@@ -194,7 +224,7 @@ retry:
 
 		n_tries++;
 
-		os_thread_sleep(BTR_CUR_RETRY_SLEEP_TIME);
+		std::this_thread::sleep_for(BTR_CUR_RETRY_SLEEP_TIME);
 
 		goto retry;
 	}
@@ -207,6 +237,12 @@ func_exit:
 	}
 
 	btr_pcur_commit_specify_mtr(&node->pcur, &mtr);
+
+	if (UNIV_LIKELY_NULL(table)) {
+		dict_table_close(table, dict_locked,
+				 node->trx->mysql_thd, mdl_ticket);
+	}
+
 	return(err);
 }
 
@@ -217,7 +253,7 @@ static MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 row_undo_ins_remove_sec_low(
 /*========================*/
-	ulint		mode,	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE,
+	btr_latch_mode	mode,	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE,
 				depending on whether we wish optimistic or
 				pessimistic descent down the index tree */
 	dict_index_t*	index,	/*!< in: index */
@@ -229,29 +265,38 @@ row_undo_ins_remove_sec_low(
 	mtr_t			mtr;
 	const bool		modify_leaf = mode == BTR_MODIFY_LEAF;
 
+	pcur.btr_cur.page_cur.index = index;
 	row_mtr_start(&mtr, index, !modify_leaf);
 
-	if (modify_leaf) {
-		mode = BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED;
+	if (index->is_spatial()) {
+		mode = modify_leaf
+			? btr_latch_mode(BTR_MODIFY_LEAF
+					 | BTR_RTREE_DELETE_MARK
+					 | BTR_RTREE_UNDO_INS)
+			: btr_latch_mode(BTR_PURGE_TREE | BTR_RTREE_UNDO_INS);
+		btr_pcur_get_btr_cur(&pcur)->thr = thr;
+		if (rtr_search(entry, mode, &pcur, &mtr)) {
+			goto func_exit;
+		}
+
+		if (rec_get_deleted_flag(
+			    btr_pcur_get_rec(&pcur),
+			    dict_table_is_comp(index->table))) {
+			ib::error() << "Record found in index " << index->name
+				<< " is deleted marked on insert rollback.";
+			ut_ad(0);
+		}
+		goto found;
+	} else if (modify_leaf) {
+		mode = BTR_MODIFY_LEAF_ALREADY_LATCHED;
 		mtr_s_lock_index(index, &mtr);
 	} else {
-		ut_ad(mode == (BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE));
-		mtr_sx_lock_index(index, &mtr);
+		ut_ad(mode == BTR_PURGE_TREE);
+		mode = BTR_PURGE_TREE_ALREADY_LATCHED;
+		mtr_x_lock_index(index, &mtr);
 	}
 
-	if (row_log_online_op_try(index, entry, 0)) {
-		goto func_exit_no_pcur;
-	}
-
-	if (dict_index_is_spatial(index)) {
-		if (modify_leaf) {
-			mode |= BTR_RTREE_DELETE_MARK;
-		}
-		btr_pcur_get_btr_cur(&pcur)->thr = thr;
-		mode |= BTR_RTREE_UNDO_INS;
-	}
-
-	switch (row_search_index_entry(index, entry, mode, &pcur, &mtr)) {
+	switch (row_search_index_entry(entry, mode, &pcur, &mtr)) {
 	case ROW_BUFFERED:
 	case ROW_NOT_DELETED_REF:
 		/* These are invalid outcomes, because the mode passed
@@ -261,20 +306,11 @@ row_undo_ins_remove_sec_low(
 	case ROW_NOT_FOUND:
 		break;
 	case ROW_FOUND:
-		if (dict_index_is_spatial(index)
-		    && rec_get_deleted_flag(
-			    btr_pcur_get_rec(&pcur),
-			    dict_table_is_comp(index->table))) {
-			ib::error() << "Record found in index " << index->name
-				<< " is deleted marked on insert rollback.";
-			ut_ad(0);
-		}
-
+        found:
 		btr_cur_t* btr_cur = btr_pcur_get_btr_cur(&pcur);
 
 		if (modify_leaf) {
-			err = btr_cur_optimistic_delete(btr_cur, 0, &mtr)
-				? DB_SUCCESS : DB_FAIL;
+			err = btr_cur_optimistic_delete(btr_cur, 0, &mtr);
 		} else {
 			/* Passing rollback=false here, because we are
 			deleting a secondary index record: the distinction
@@ -285,8 +321,8 @@ row_undo_ins_remove_sec_low(
 		}
 	}
 
+func_exit:
 	btr_pcur_close(&pcur);
-func_exit_no_pcur:
 	mtr_commit(&mtr);
 
 	return(err);
@@ -318,9 +354,7 @@ row_undo_ins_remove_sec(
 
 	/* Try then pessimistic descent to the B-tree */
 retry:
-	err = row_undo_ins_remove_sec_low(
-		BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
-		index, entry, thr);
+	err = row_undo_ins_remove_sec_low(BTR_PURGE_TREE, index, entry, thr);
 
 	/* The delete operation may fail if we have little
 	file space left: TODO: easiest to crash the database
@@ -330,7 +364,7 @@ retry:
 
 		n_tries++;
 
-		os_thread_sleep(BTR_CUR_RETRY_SLEEP_TIME);
+		std::this_thread::sleep_for(BTR_CUR_RETRY_SLEEP_TIME);
 
 		goto retry;
 	}
@@ -344,7 +378,7 @@ retry:
 static bool row_undo_ins_parse_undo_rec(undo_node_t* node, bool dict_locked)
 {
 	dict_index_t*	clust_index;
-	byte*		ptr;
+	const byte*	ptr;
 	undo_no_t	undo_no;
 	table_id_t	table_id;
 	ulint		dummy;
@@ -363,11 +397,11 @@ static bool row_undo_ins_parse_undo_rec(undo_node_t* node, bool dict_locked)
 		node->table = dict_table_open_on_id(table_id, dict_locked,
 						    DICT_TABLE_OP_NORMAL);
 	} else if (!dict_locked) {
-		mutex_enter(&dict_sys.mutex);
-		node->table = dict_sys.get_temporary_table(table_id);
-		mutex_exit(&dict_sys.mutex);
+		dict_sys.freeze(SRW_LOCK_CALL);
+		node->table = dict_sys.acquire_temporary_table(table_id);
+		dict_sys.unfreeze();
 	} else {
-		node->table = dict_sys.get_temporary_table(table_id);
+		node->table = dict_sys.acquire_temporary_table(table_id);
 	}
 
 	if (!node->table) {
@@ -380,19 +414,26 @@ static bool row_undo_ins_parse_undo_rec(undo_node_t* node, bool dict_locked)
 		goto close_table;
 	case TRX_UNDO_INSERT_METADATA:
 	case TRX_UNDO_INSERT_REC:
+	case TRX_UNDO_EMPTY:
 		break;
 	case TRX_UNDO_RENAME_TABLE:
 		dict_table_t* table = node->table;
 		ut_ad(!table->is_temporary());
-		ut_ad(dict_table_is_file_per_table(table)
+		ut_ad(table->file_unreadable
+		      || dict_table_is_file_per_table(table)
 		      == !is_system_tablespace(table->space_id));
 		size_t len = mach_read_from_2(node->undo_rec)
 			+ size_t(node->undo_rec - ptr) - 2;
-		ptr[len] = 0;
-		const char* name = reinterpret_cast<char*>(ptr);
-		if (strcmp(table->name.m_name, name)) {
-			dict_table_rename_in_cache(table, name, false,
-						   table_id != 0);
+		const span<const char> name(reinterpret_cast<const char*>(ptr),
+					    len);
+		if (strlen(table->name.m_name) != len
+		    || memcmp(table->name.m_name, ptr, len)) {
+			dict_table_rename_in_cache(table, name, true);
+		} else if (table->space && table->space->id) {
+			const auto s = table->space->name();
+			if (len != s.size() || memcmp(ptr, s.data(), len)) {
+				table->rename_tablespace(name, true);
+			}
 		}
 		goto close_table;
 	}
@@ -408,7 +449,7 @@ close_table:
 		would probably be better to just drop all temporary
 		tables (and temporary undo log records) of the current
 		connection, instead of doing this rollback. */
-		dict_table_close(node->table, dict_locked, FALSE);
+		dict_table_close(node->table, dict_locked);
 		node->table = NULL;
 		return false;
 	} else {
@@ -416,11 +457,16 @@ close_table:
 		clust_index = dict_table_get_first_index(node->table);
 
 		if (clust_index != NULL) {
-			if (node->rec_type == TRX_UNDO_INSERT_REC) {
+			switch (node->rec_type) {
+			case TRX_UNDO_INSERT_REC:
 				ptr = trx_undo_rec_get_row_ref(
 					ptr, clust_index, &node->ref,
 					node->heap);
-			} else {
+				break;
+			case TRX_UNDO_EMPTY:
+				node->ref = nullptr;
+				return true;
+			default:
 				node->ref = &trx_undo_metadata;
 				if (!row_undo_search_clust_to_pcur(node)) {
 					/* An error probably occurred during
@@ -464,16 +510,15 @@ row_undo_ins_remove_sec_rec(
 	que_thr_t*	thr)	/*!< in: query thread */
 {
 	dberr_t		err	= DB_SUCCESS;
-	dict_index_t*	index	= node->index;
+	dict_index_t*	index;
 	mem_heap_t*	heap;
 
 	heap = mem_heap_create(1024);
 
-	while (index != NULL) {
-		dtuple_t*	entry;
-
-		if (index->type & DICT_FTS) {
-			dict_table_next_uncorrupted_index(index);
+	for (index = node->index; index;
+             index = dict_table_get_next_index(index)) {
+		if (index->type & (DICT_FTS | DICT_CORRUPT)
+		    || !index->is_committed()) {
 			continue;
 		}
 
@@ -481,7 +526,7 @@ row_undo_ins_remove_sec_rec(
 		always contain all fields of the index. It does not
 		matter if any indexes were created afterwards; all
 		index entries can be reconstructed from the row. */
-		entry = row_build_index_entry(
+		dtuple_t* entry = row_build_index_entry(
 			node->row, node->ext, index, heap);
 		if (UNIV_UNLIKELY(!entry)) {
 			/* The database must have crashed after
@@ -504,7 +549,6 @@ row_undo_ins_remove_sec_rec(
 		}
 
 		mem_heap_empty(heap);
-		dict_table_next_uncorrupted_index(index);
 	}
 
 func_exit:
@@ -527,11 +571,14 @@ row_undo_ins(
 	que_thr_t*	thr)	/*!< in: query thread */
 {
 	dberr_t	err;
-	bool dict_locked = node->trx->dict_operation_lock_mode == RW_X_LATCH;
+	const bool dict_locked = node->trx->dict_operation_lock_mode;
 
 	if (!row_undo_ins_parse_undo_rec(node, dict_locked)) {
 		return DB_SUCCESS;
 	}
+
+	ut_ad(node->table->is_temporary()
+	      || lock_table_has_locks(node->table));
 
 	/* Iterate over all the indexes and undo the insert.*/
 
@@ -546,8 +593,6 @@ row_undo_ins(
 		/* Skip the clustered index (the first index) */
 		node->index = dict_table_get_next_index(node->index);
 
-		dict_table_skip_corrupt_index(node->index);
-
 		err = row_undo_ins_remove_sec_rec(node, thr);
 
 		if (err != DB_SUCCESS) {
@@ -556,21 +601,19 @@ row_undo_ins(
 
 		log_free_check();
 
-		if (node->table->id == DICT_INDEXES_ID) {
-			ut_ad(!node->table->is_temporary());
-			if (!dict_locked) {
-				mutex_enter(&dict_sys.mutex);
-			}
+		if (!dict_locked && node->table->id == DICT_INDEXES_ID) {
+			dict_sys.lock(SRW_LOCK_CALL);
 			err = row_undo_ins_remove_clust_rec(node);
-			if (!dict_locked) {
-				mutex_exit(&dict_sys.mutex);
-			}
+			dict_sys.unlock();
 		} else {
+			ut_ad(node->table->id != DICT_INDEXES_ID
+			      || !node->table->is_temporary());
 			err = row_undo_ins_remove_clust_rec(node);
 		}
 
 		if (err == DB_SUCCESS && node->table->stat_initialized) {
-			/* Not protected by dict_sys.mutex for
+			/* Not protected by dict_sys.latch
+			or table->stats_mutex_lock() for
 			performance reasons, we would rather get garbage
 			in stat_n_rows (which is just an estimate anyway)
 			than protecting the following code with a latch. */
@@ -579,7 +622,7 @@ row_undo_ins(
 			/* Do not attempt to update statistics when
 			executing ROLLBACK in the InnoDB SQL
 			interpreter, because in that case we would
-			already be holding dict_sys.mutex, which
+			already be holding dict_sys.latch, which
 			would be acquired when updating statistics. */
 			if (!dict_locked) {
 				dict_stats_update_if_needed(node->table,
@@ -592,9 +635,13 @@ row_undo_ins(
 		log_free_check();
 		ut_ad(!node->table->is_temporary());
 		err = row_undo_ins_remove_clust_rec(node);
+		break;
+	case TRX_UNDO_EMPTY:
+		err = node->table->clear(thr);
+		break;
 	}
 
-	dict_table_close(node->table, dict_locked, FALSE);
+	dict_table_close(node->table, dict_locked);
 
 	node->table = NULL;
 

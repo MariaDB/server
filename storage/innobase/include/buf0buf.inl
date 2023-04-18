@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2014, 2020, MariaDB Corporation.
+Copyright (c) 2014, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -36,42 +36,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "buf0lru.h"
 #include "buf0rea.h"
 #include "fsp0types.h"
-
-/*********************************************************************//**
-Gets the current size of buffer buf_pool in bytes.
-@return size in bytes */
-UNIV_INLINE
-ulint
-buf_pool_get_curr_size(void)
-/*========================*/
-{
-	return(srv_buf_pool_curr_size);
-}
-
-/********************************************************************//**
-Reads the freed_page_clock of a buffer block.
-@return freed_page_clock */
-UNIV_INLINE
-unsigned
-buf_page_get_freed_page_clock(
-/*==========================*/
-	const buf_page_t*	bpage)	/*!< in: block */
-{
-	/* This is sometimes read without holding buf_pool.mutex. */
-	return(bpage->freed_page_clock);
-}
-
-/********************************************************************//**
-Reads the freed_page_clock of a buffer block.
-@return freed_page_clock */
-UNIV_INLINE
-unsigned
-buf_block_get_freed_page_clock(
-/*===========================*/
-	const buf_block_t*	block)	/*!< in: block */
-{
-	return(buf_page_get_freed_page_clock(&block->page));
-}
 
 /** Determine if a block is still close enough to the MRU end of the LRU list
 meaning that it is not in danger of getting evicted and also implying
@@ -122,67 +86,6 @@ inline bool buf_page_peek_if_too_old(const buf_page_t *bpage)
 	}
 }
 
-#ifdef UNIV_DEBUG
-/*********************************************************************//**
-Gets a pointer to the memory frame of a block.
-@return pointer to the frame */
-UNIV_INLINE
-buf_frame_t*
-buf_block_get_frame(
-/*================*/
-	const buf_block_t*	block)	/*!< in: pointer to the control block */
-{
-	if (!block) {
-		return NULL;
-	}
-
-	switch (block->page.state()) {
-	case BUF_BLOCK_ZIP_PAGE:
-	case BUF_BLOCK_NOT_USED:
-		ut_error;
-		break;
-	case BUF_BLOCK_FILE_PAGE:
-		ut_a(block->page.buf_fix_count());
-		/* fall through */
-	case BUF_BLOCK_MEMORY:
-	case BUF_BLOCK_REMOVE_HASH:
-		goto ok;
-	}
-	ut_error;
-ok:
-	return((buf_frame_t*) block->frame);
-}
-#endif /* UNIV_DEBUG */
-
-/********************************************************************//**
-Allocates a buf_page_t descriptor. This function must succeed. In case
-of failure we assert in this function.
-@return: the allocated descriptor. */
-UNIV_INLINE
-buf_page_t*
-buf_page_alloc_descriptor(void)
-/*===========================*/
-{
-	buf_page_t*	bpage;
-
-	bpage = (buf_page_t*) ut_zalloc_nokey(sizeof *bpage);
-	ut_ad(bpage);
-	MEM_UNDEFINED(bpage, sizeof *bpage);
-
-	return(bpage);
-}
-
-/********************************************************************//**
-Free a buf_page_t descriptor. */
-UNIV_INLINE
-void
-buf_page_free_descriptor(
-/*=====================*/
-	buf_page_t*	bpage)	/*!< in: bpage descriptor to free. */
-{
-	ut_free(bpage);
-}
-
 /** Allocate a buffer block.
 @return own: the allocated block, in state BUF_BLOCK_MEMORY */
 inline buf_block_t *buf_block_alloc()
@@ -214,18 +117,11 @@ buf_block_modify_clock_inc(
 	buf_block_t*	block)	/*!< in: block */
 {
 #ifdef SAFE_MUTEX
-	/* No latch is acquired for the shared temporary tablespace. */
-	ut_ad(fsp_is_system_temporary(block->page.id().space())
-	      || (mysql_mutex_is_owner(&buf_pool.mutex)
-		  && !block->page.buf_fix_count())
-	      || rw_lock_own_flagged(&block->lock,
-				     RW_LOCK_FLAG_X | RW_LOCK_FLAG_SX));
+	ut_ad((mysql_mutex_is_owner(&buf_pool.mutex)
+	       && !block->page.buf_fix_count())
+	      || block->page.lock.have_u_or_x());
 #else /* SAFE_MUTEX */
-	/* No latch is acquired for the shared temporary tablespace. */
-	ut_ad(fsp_is_system_temporary(block->page.id().space())
-	      || !block->page.buf_fix_count()
-	      || rw_lock_own_flagged(&block->lock,
-				     RW_LOCK_FLAG_X | RW_LOCK_FLAG_SX));
+	ut_ad(!block->page.buf_fix_count() || block->page.lock.have_u_or_x());
 #endif /* SAFE_MUTEX */
 	assert_block_ahi_valid(block);
 
@@ -242,162 +138,7 @@ buf_block_get_modify_clock(
 /*=======================*/
 	buf_block_t*	block)	/*!< in: block */
 {
-#ifdef UNIV_DEBUG
-	/* No latch is acquired for the shared temporary tablespace. */
-	if (!fsp_is_system_temporary(block->page.id().space())) {
-		ut_ad(rw_lock_own(&(block->lock), RW_LOCK_S)
-		      || rw_lock_own(&(block->lock), RW_LOCK_X)
-		      || rw_lock_own(&(block->lock), RW_LOCK_SX));
-	}
-#endif /* UNIV_DEBUG */
-
+	ut_ad(block->page.lock.have_any());
 	return(block->modify_clock);
 }
 
-/*******************************************************************//**
-Increments the bufferfix count. */
-UNIV_INLINE
-void
-buf_block_buf_fix_inc_func(
-/*=======================*/
-#ifdef UNIV_DEBUG
-	const char*	file,	/*!< in: file name */
-	unsigned	line,	/*!< in: line */
-#endif /* UNIV_DEBUG */
-	buf_block_t*	block)	/*!< in/out: block to bufferfix */
-{
-#ifdef UNIV_DEBUG
-	/* No debug latch is acquired if block belongs to system temporary.
-	Debug latch is not of much help if access to block is single
-	threaded. */
-	if (!fsp_is_system_temporary(block->page.id().space())) {
-		ibool   ret;
-		ret = rw_lock_s_lock_nowait(block->debug_latch, file, line);
-		ut_a(ret);
-	}
-#endif /* UNIV_DEBUG */
-
-	block->fix();
-}
-
-/*******************************************************************//**
-Decrements the bufferfix count. */
-UNIV_INLINE
-void
-buf_block_buf_fix_dec(
-/*==================*/
-	buf_block_t*	block)	/*!< in/out: block to bufferunfix */
-{
-#ifdef UNIV_DEBUG
-	/* No debug latch is acquired if block belongs to system temporary.
-	Debug latch is not of much help if access to block is single
-	threaded. */
-	if (!fsp_is_system_temporary(block->page.id().space())) {
-		rw_lock_s_unlock(block->debug_latch);
-	}
-#endif /* UNIV_DEBUG */
-
-	block->unfix();
-}
-
-/********************************************************************//**
-Releases a compressed-only page acquired with buf_page_get_zip(). */
-UNIV_INLINE
-void
-buf_page_release_zip(
-/*=================*/
-	buf_page_t*	bpage)		/*!< in: buffer block */
-{
-	ut_ad(bpage);
-	ut_a(bpage->buf_fix_count());
-
-	switch (bpage->state()) {
-	case BUF_BLOCK_FILE_PAGE:
-#ifdef UNIV_DEBUG
-	{
-		/* No debug latch is acquired if block belongs to system
-		temporary. Debug latch is not of much help if access to block
-		is single threaded. */
-		buf_block_t*	block = reinterpret_cast<buf_block_t*>(bpage);
-		if (!fsp_is_system_temporary(block->page.id().space())) {
-			rw_lock_s_unlock(block->debug_latch);
-		}
-	}
-#endif /* UNIV_DEBUG */
-		/* Fall through */
-	case BUF_BLOCK_ZIP_PAGE:
-		reinterpret_cast<buf_block_t*>(bpage)->unfix();
-		return;
-
-	case BUF_BLOCK_NOT_USED:
-	case BUF_BLOCK_MEMORY:
-	case BUF_BLOCK_REMOVE_HASH:
-		break;
-	}
-
-	ut_error;
-}
-
-/********************************************************************//**
-Releases a latch, if specified. */
-UNIV_INLINE
-void
-buf_page_release_latch(
-/*===================*/
-	buf_block_t*	block,		/*!< in: buffer block */
-	ulint		rw_latch)	/*!< in: RW_S_LATCH, RW_X_LATCH,
-					RW_NO_LATCH */
-{
-#ifdef UNIV_DEBUG
-	/* No debug latch is acquired if block belongs to system
-	temporary. Debug latch is not of much help if access to block
-	is single threaded. */
-	if (!fsp_is_system_temporary(block->page.id().space())) {
-		rw_lock_s_unlock(block->debug_latch);
-	}
-#endif /* UNIV_DEBUG */
-
-	if (rw_latch == RW_S_LATCH) {
-		rw_lock_s_unlock(&block->lock);
-	} else if (rw_latch == RW_SX_LATCH) {
-		rw_lock_sx_unlock(&block->lock);
-	} else if (rw_latch == RW_X_LATCH) {
-		rw_lock_x_unlock(&block->lock);
-	}
-}
-
-#ifdef UNIV_DEBUG
-/*********************************************************************//**
-Adds latch level info for the rw-lock protecting the buffer frame. This
-should be called in the debug version after a successful latching of a
-page if we know the latching order level of the acquired latch. */
-UNIV_INLINE
-void
-buf_block_dbg_add_level(
-/*====================*/
-	buf_block_t*	block,	/*!< in: buffer page
-				where we have acquired latch */
-	latch_level_t	level)	/*!< in: latching order level */
-{
-	sync_check_lock(&block->lock, level);
-}
-#endif /* UNIV_DEBUG */
-
-/********************************************************************//**
-Get buf frame. */
-UNIV_INLINE
-void *
-buf_page_get_frame(
-/*===============*/
-	const buf_page_t*	bpage) /*!< in: buffer pool page */
-{
-	/* In encryption/compression buffer pool page may contain extra
-	buffer where result is stored. */
-	if (bpage->slot && bpage->slot->out_buf) {
-		return bpage->slot->out_buf;
-	} else if (bpage->zip.data) {
-		return bpage->zip.data;
-	} else {
-		return ((buf_block_t*) bpage)->frame;
-	}
-}

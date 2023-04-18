@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2020, MariaDB Corporation.
+Copyright (c) 2020, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -243,51 +243,3 @@ que_node_get_parent(
 {
 	return(((que_common_t*) node)->parent);
 }
-
-/**********************************************************************//**
-Checks if graph, trx, or session is in a state where the query thread should
-be stopped.
-@return TRUE if should be stopped; NOTE that if the peek is made
-without reserving the trx mutex, then another peek with the mutex
-reserved is necessary before deciding the actual stopping */
-UNIV_INLINE
-ibool
-que_thr_peek_stop(
-/*==============*/
-	que_thr_t*	thr)	/*!< in: query thread */
-{
-	trx_t*	trx;
-	que_t*	graph;
-
-	graph = thr->graph;
-	trx = graph->trx;
-
-	if (graph->state != QUE_FORK_ACTIVE
-	    || trx->lock.que_state == TRX_QUE_LOCK_WAIT
-	    || (trx->lock.que_state != TRX_QUE_ROLLING_BACK
-		&& trx->lock.que_state != TRX_QUE_RUNNING)) {
-
-		return(TRUE);
-	}
-
-	return(FALSE);
-}
-
-/***********************************************************************//**
-Returns TRUE if the query graph is for a SELECT statement.
-@return TRUE if a select */
-UNIV_INLINE
-ibool
-que_graph_is_select(
-/*================*/
-	que_t*		graph)		/*!< in: graph */
-{
-	if (graph->fork_type == QUE_FORK_SELECT_SCROLL
-	    || graph->fork_type == QUE_FORK_SELECT_NON_SCROLL) {
-
-		return(TRUE);
-	}
-
-	return(FALSE);
-}
-

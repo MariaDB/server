@@ -29,12 +29,11 @@ Created 25/08/2016 Jan Lindström
 #include "dict0defrag_bg.h"
 #include "btr0btr.h"
 #include "srv0start.h"
+#include "trx0trx.h"
+#include "lock0lock.h"
+#include "row0mysql.h"
 
-static ib_mutex_t		defrag_pool_mutex;
-
-#ifdef MYSQL_PFS
-static mysql_pfs_key_t		defrag_pool_mutex_key;
-#endif
+static mysql_mutex_t defrag_pool_mutex;
 
 /** Iterator type for iterating over the elements of objects of type
 defrag_pool_t. */
@@ -52,9 +51,7 @@ dict_defrag_pool_init(void)
 /*=======================*/
 {
 	ut_ad(!srv_read_only_mode);
-
-	/* We choose SYNC_STATS_DEFRAG to be below SYNC_FSP_PAGE. */
-	mutex_create(LATCH_ID_DEFRAGMENT_MUTEX, &defrag_pool_mutex);
+	mysql_mutex_init(0, &defrag_pool_mutex, nullptr);
 }
 
 /*****************************************************************//**
@@ -66,7 +63,7 @@ dict_defrag_pool_deinit(void)
 {
 	ut_ad(!srv_read_only_mode);
 
-	mutex_free(&defrag_pool_mutex);
+	mysql_mutex_destroy(&defrag_pool_mutex);
 }
 
 /*****************************************************************//**
@@ -84,10 +81,10 @@ dict_stats_defrag_pool_get(
 {
 	ut_ad(!srv_read_only_mode);
 
-	mutex_enter(&defrag_pool_mutex);
+	mysql_mutex_lock(&defrag_pool_mutex);
 
 	if (defrag_pool.empty()) {
-		mutex_exit(&defrag_pool_mutex);
+		mysql_mutex_unlock(&defrag_pool_mutex);
 		return(false);
 	}
 
@@ -97,7 +94,7 @@ dict_stats_defrag_pool_get(
 
 	defrag_pool.pop_back();
 
-	mutex_exit(&defrag_pool_mutex);
+	mysql_mutex_unlock(&defrag_pool_mutex);
 
 	return(true);
 }
@@ -117,7 +114,7 @@ dict_stats_defrag_pool_add(
 
 	ut_ad(!srv_read_only_mode);
 
-	mutex_enter(&defrag_pool_mutex);
+	mysql_mutex_lock(&defrag_pool_mutex);
 
 	/* quit if already in the list */
 	for (defrag_pool_iterator_t iter = defrag_pool.begin();
@@ -125,7 +122,7 @@ dict_stats_defrag_pool_add(
 	     ++iter) {
 		if ((*iter).table_id == index->table->id
 		    && (*iter).index_id == index->id) {
-			mutex_exit(&defrag_pool_mutex);
+			mysql_mutex_unlock(&defrag_pool_mutex);
 			return;
 		}
 	}
@@ -137,7 +134,7 @@ dict_stats_defrag_pool_add(
 		/* Kick off dict stats optimizer work */
 		dict_stats_schedule_now();
 	}
-	mutex_exit(&defrag_pool_mutex);
+	mysql_mutex_unlock(&defrag_pool_mutex);
 }
 
 /*****************************************************************//**
@@ -151,9 +148,9 @@ dict_stats_defrag_pool_del(
 {
 	ut_a((table && !index) || (!table && index));
 	ut_ad(!srv_read_only_mode);
-	ut_ad(mutex_own(&dict_sys.mutex));
+	ut_ad(dict_sys.frozen());
 
-	mutex_enter(&defrag_pool_mutex);
+	mysql_mutex_lock(&defrag_pool_mutex);
 
 	defrag_pool_iterator_t iter = defrag_pool.begin();
 	while (iter != defrag_pool.end()) {
@@ -170,91 +167,165 @@ dict_stats_defrag_pool_del(
 		}
 	}
 
-	mutex_exit(&defrag_pool_mutex);
+	mysql_mutex_unlock(&defrag_pool_mutex);
 }
 
 /*****************************************************************//**
 Get the first index that has been added for updating persistent defrag
 stats and eventually save its stats. */
-static
-void
-dict_stats_process_entry_from_defrag_pool()
+static void dict_stats_process_entry_from_defrag_pool(THD *thd)
 {
-	table_id_t	table_id;
-	index_id_t	index_id;
+  table_id_t table_id;
+  index_id_t index_id;
 
-	ut_ad(!srv_read_only_mode);
+  ut_ad(!srv_read_only_mode);
 
-	/* pop the first index from the auto defrag pool */
-	if (!dict_stats_defrag_pool_get(&table_id, &index_id)) {
-		/* no index in defrag pool */
-		return;
-	}
+  /* pop the first index from the auto defrag pool */
+  if (!dict_stats_defrag_pool_get(&table_id, &index_id))
+    /* no index in defrag pool */
+    return;
 
-	dict_table_t*	table;
-
-	mutex_enter(&dict_sys.mutex);
-
-	/* If the table is no longer cached, we've already lost the in
-	memory stats so there's nothing really to write to disk. */
-	table = dict_table_open_on_id(table_id, TRUE,
-				      DICT_TABLE_OP_OPEN_ONLY_IF_CACHED);
-
-	dict_index_t* index = table && !table->corrupted
-		? dict_table_find_index_on_id(table, index_id)
-		: NULL;
-
-	if (!index || index->is_corrupted()) {
-		if (table) {
-			dict_table_close(table, TRUE, FALSE);
-		}
-		mutex_exit(&dict_sys.mutex);
-		return;
-	}
-
-	mutex_exit(&dict_sys.mutex);
-	dict_stats_save_defrag_stats(index);
-	dict_table_close(table, FALSE, FALSE);
+  /* If the table is no longer cached, we've already lost the in
+  memory stats so there's nothing really to write to disk. */
+  MDL_ticket *mdl= nullptr;
+  if (dict_table_t *table=
+      dict_table_open_on_id(table_id, false, DICT_TABLE_OP_OPEN_ONLY_IF_CACHED,
+                            thd, &mdl))
+  {
+    if (dict_index_t *index= !table->corrupted
+        ? dict_table_find_index_on_id(table, index_id) : nullptr)
+      if (index->is_btree())
+        dict_stats_save_defrag_stats(index);
+    dict_table_close(table, false, thd, mdl);
+  }
 }
 
-/*****************************************************************//**
+/**
 Get the first index that has been added for updating persistent defrag
 stats and eventually save its stats. */
-void
-dict_defrag_process_entries_from_defrag_pool()
-/*==========================================*/
+void dict_defrag_process_entries_from_defrag_pool(THD *thd)
 {
-	while (defrag_pool.size()) {
-		dict_stats_process_entry_from_defrag_pool();
-	}
+  while (!defrag_pool.empty())
+    dict_stats_process_entry_from_defrag_pool(thd);
 }
 
 /*********************************************************************//**
 Save defragmentation result.
 @return DB_SUCCESS or error code */
-dberr_t
-dict_stats_save_defrag_summary(
-/*============================*/
-	dict_index_t*	index)	/*!< in: index */
+dberr_t dict_stats_save_defrag_summary(dict_index_t *index, THD *thd)
 {
-	dberr_t	ret=DB_SUCCESS;
+  if (index->is_ibuf())
+    return DB_SUCCESS;
 
-	if (dict_index_is_ibuf(index)) {
-		return DB_SUCCESS;
+  MDL_ticket *mdl_table= nullptr, *mdl_index= nullptr;
+  dict_table_t *table_stats= dict_table_open_on_name(TABLE_STATS_NAME, false,
+                                                     DICT_ERR_IGNORE_NONE);
+  if (table_stats)
+  {
+    dict_sys.freeze(SRW_LOCK_CALL);
+    table_stats= dict_acquire_mdl_shared<false>(table_stats, thd, &mdl_table);
+    dict_sys.unfreeze();
+  }
+  if (!table_stats || strcmp(table_stats->name.m_name, TABLE_STATS_NAME))
+  {
+release_and_exit:
+    if (table_stats)
+      dict_table_close(table_stats, false, thd, mdl_table);
+    return DB_STATS_DO_NOT_EXIST;
+  }
+
+  dict_table_t *index_stats= dict_table_open_on_name(INDEX_STATS_NAME, false,
+                                                     DICT_ERR_IGNORE_NONE);
+  if (index_stats)
+  {
+    dict_sys.freeze(SRW_LOCK_CALL);
+    index_stats= dict_acquire_mdl_shared<false>(index_stats, thd, &mdl_index);
+    dict_sys.unfreeze();
+  }
+  if (!index_stats)
+    goto release_and_exit;
+  if (strcmp(index_stats->name.m_name, INDEX_STATS_NAME))
+  {
+    dict_table_close(index_stats, false, thd, mdl_index);
+    goto release_and_exit;
+  }
+
+  trx_t *trx= trx_create();
+  trx->mysql_thd= thd;
+  trx_start_internal(trx);
+  dberr_t ret= trx->read_only
+    ? DB_READ_ONLY
+    : lock_table_for_trx(table_stats, trx, LOCK_X);
+  if (ret == DB_SUCCESS)
+    ret= lock_table_for_trx(index_stats, trx, LOCK_X);
+  row_mysql_lock_data_dictionary(trx);
+  if (ret == DB_SUCCESS)
+    ret= dict_stats_save_index_stat(index, time(nullptr), "n_pages_freed",
+                                    index->stat_defrag_n_pages_freed,
+                                    nullptr,
+                                    "Number of pages freed during"
+                                    " last defragmentation run.",
+                                    trx);
+  if (ret == DB_SUCCESS)
+    trx->commit();
+  else
+    trx->rollback();
+
+  if (table_stats)
+    dict_table_close(table_stats, true, thd, mdl_table);
+  if (index_stats)
+    dict_table_close(index_stats, true, thd, mdl_index);
+
+  row_mysql_unlock_data_dictionary(trx);
+  trx->free();
+
+  return ret;
+}
+
+/**************************************************************//**
+Gets the number of reserved and used pages in a B-tree.
+@return	number of pages reserved, or ULINT_UNDEFINED if the index
+is unavailable */
+static
+ulint
+btr_get_size_and_reserved(
+	dict_index_t*	index,	/*!< in: index */
+	ulint		flag,	/*!< in: BTR_N_LEAF_PAGES or BTR_TOTAL_SIZE */
+	ulint*		used,	/*!< out: number of pages used (<= reserved) */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction where index
+				is s-latched */
+{
+	ulint		dummy;
+
+	ut_ad(mtr->memo_contains(index->lock, MTR_MEMO_SX_LOCK));
+	ut_a(flag == BTR_N_LEAF_PAGES || flag == BTR_TOTAL_SIZE);
+
+	if (index->page == FIL_NULL
+	    || dict_index_is_online_ddl(index)
+	    || !index->is_committed()
+	    || !index->table->space) {
+		return(ULINT_UNDEFINED);
 	}
 
-	dict_sys_lock();
+	dberr_t err;
+	buf_block_t* root = btr_root_block_get(index, RW_SX_LATCH, mtr, &err);
+	*used = 0;
+	if (!root) {
+		return ULINT_UNDEFINED;
+	}
 
-	ret = dict_stats_save_index_stat(index, time(NULL), "n_pages_freed",
-					 index->stat_defrag_n_pages_freed,
-					 NULL,
-					 "Number of pages freed during"
-					 " last defragmentation run.",
-					 NULL);
+	mtr->x_lock_space(index->table->space);
 
-	dict_sys_unlock();
+	ulint n = fseg_n_reserved_pages(*root, PAGE_HEADER + PAGE_BTR_SEG_LEAF
+					+ root->page.frame, used, mtr);
+	if (flag == BTR_TOTAL_SIZE) {
+		n += fseg_n_reserved_pages(*root,
+					   PAGE_HEADER + PAGE_BTR_SEG_TOP
+					   + root->page.frame, &dummy, mtr);
+		*used += dummy;
+	}
 
-	return (ret);
+	return(n);
 }
 
 /*********************************************************************//**
@@ -265,63 +336,99 @@ dict_stats_save_defrag_stats(
 /*============================*/
 	dict_index_t*	index)	/*!< in: index */
 {
-	dberr_t	ret;
+  if (index->is_ibuf())
+    return DB_SUCCESS;
+  if (!index->is_readable())
+    return dict_stats_report_error(index->table, true);
 
-	if (dict_index_is_ibuf(index)) {
-		return DB_SUCCESS;
-	}
+  const time_t now= time(nullptr);
+  mtr_t mtr;
+  ulint n_leaf_pages;
+  mtr.start();
+  mtr_sx_lock_index(index, &mtr);
+  ulint n_leaf_reserved= btr_get_size_and_reserved(index, BTR_N_LEAF_PAGES,
+                                                   &n_leaf_pages, &mtr);
+  mtr.commit();
 
-	if (!index->is_readable()) {
-		return dict_stats_report_error(index->table, true);
-	}
+  if (n_leaf_reserved == ULINT_UNDEFINED)
+    return DB_SUCCESS;
 
-	const time_t now = time(NULL);
-	mtr_t	mtr;
-	ulint	n_leaf_pages;
-	ulint	n_leaf_reserved;
-	mtr.start();
-	mtr_sx_lock_index(index, &mtr);
-	n_leaf_reserved = btr_get_size_and_reserved(index, BTR_N_LEAF_PAGES,
-						    &n_leaf_pages, &mtr);
-	mtr.commit();
+  THD *thd= current_thd;
+  MDL_ticket *mdl_table= nullptr, *mdl_index= nullptr;
+  dict_table_t* table_stats= dict_table_open_on_name(TABLE_STATS_NAME, false,
+                                                     DICT_ERR_IGNORE_NONE);
+  if (table_stats)
+  {
+    dict_sys.freeze(SRW_LOCK_CALL);
+    table_stats= dict_acquire_mdl_shared<false>(table_stats, thd, &mdl_table);
+    dict_sys.unfreeze();
+  }
+  if (!table_stats || strcmp(table_stats->name.m_name, TABLE_STATS_NAME))
+  {
+release_and_exit:
+    if (table_stats)
+      dict_table_close(table_stats, false, thd, mdl_table);
+    return DB_STATS_DO_NOT_EXIST;
+  }
 
-	if (n_leaf_reserved == ULINT_UNDEFINED) {
-		// The index name is different during fast index creation,
-		// so the stats won't be associated with the right index
-		// for later use. We just return without saving.
-		return DB_SUCCESS;
-	}
+  dict_table_t *index_stats= dict_table_open_on_name(INDEX_STATS_NAME, false,
+                                                     DICT_ERR_IGNORE_NONE);
+  if (index_stats)
+  {
+    dict_sys.freeze(SRW_LOCK_CALL);
+    index_stats= dict_acquire_mdl_shared<false>(index_stats, thd, &mdl_index);
+    dict_sys.unfreeze();
+  }
+  if (!index_stats)
+    goto release_and_exit;
 
-	dict_sys_lock();
-	ret = dict_stats_save_index_stat(index, now, "n_page_split",
-					 index->stat_defrag_n_page_split,
-					 NULL,
-					 "Number of new page splits on leaves"
-					 " since last defragmentation.",
-					 NULL);
-	if (ret != DB_SUCCESS) {
-		goto end;
-	}
+  if (strcmp(index_stats->name.m_name, INDEX_STATS_NAME))
+  {
+    dict_table_close(index_stats, false, thd, mdl_index);
+    goto release_and_exit;
+  }
 
-	ret = dict_stats_save_index_stat(
-		index, now, "n_leaf_pages_defrag",
-		n_leaf_pages,
-		NULL,
-		"Number of leaf pages when this stat is saved to disk",
-		NULL);
-	if (ret != DB_SUCCESS) {
-		goto end;
-	}
+  trx_t *trx= trx_create();
+  trx->mysql_thd= thd;
+  trx_start_internal(trx);
+  dberr_t ret= trx->read_only
+    ? DB_READ_ONLY
+    : lock_table_for_trx(table_stats, trx, LOCK_X);
+  if (ret == DB_SUCCESS)
+    ret= lock_table_for_trx(index_stats, trx, LOCK_X);
 
-	ret = dict_stats_save_index_stat(
-		index, now, "n_leaf_pages_reserved",
-		n_leaf_reserved,
-		NULL,
-		"Number of pages reserved for this index leaves when this stat "
-		"is saved to disk",
-		NULL);
+  row_mysql_lock_data_dictionary(trx);
 
-end:
-	dict_sys_unlock();
-	return ret;
+  if (ret == DB_SUCCESS)
+    ret= dict_stats_save_index_stat(index, now, "n_page_split",
+                                    index->stat_defrag_n_page_split, nullptr,
+                                    "Number of new page splits on leaves"
+                                    " since last defragmentation.", trx);
+
+  if (ret == DB_SUCCESS)
+    ret= dict_stats_save_index_stat(index, now, "n_leaf_pages_defrag",
+                                    n_leaf_pages, nullptr,
+                                    "Number of leaf pages when"
+                                    " this stat is saved to disk", trx);
+
+  if (ret == DB_SUCCESS)
+    ret= dict_stats_save_index_stat(index, now, "n_leaf_pages_reserved",
+                                    n_leaf_reserved, nullptr,
+                                    "Number of pages reserved for"
+                                    " this index leaves"
+                                    " when this stat is saved to disk", trx);
+
+  if (ret == DB_SUCCESS)
+    trx->commit();
+  else
+    trx->rollback();
+
+  if (table_stats)
+    dict_table_close(table_stats, true, thd, mdl_table);
+  if (index_stats)
+    dict_table_close(index_stats, true, thd, mdl_index);
+  row_mysql_unlock_data_dictionary(trx);
+  trx->free();
+
+  return ret;
 }

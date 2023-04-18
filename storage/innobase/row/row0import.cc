@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2022, MariaDB Corporation.
+Copyright (c) 2015, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -32,15 +32,15 @@ Created 2012-02-08 by Sunny Bains.
 #include "que0que.h"
 #include "dict0boot.h"
 #include "dict0load.h"
-#include "ibuf0ibuf.h"
 #include "pars0pars.h"
+#include "row0row.h"
 #include "row0sel.h"
 #include "row0mysql.h"
 #include "srv0start.h"
 #include "row0quiesce.h"
 #include "fil0pagecompress.h"
 #include "trx0undo.h"
-#include "row0row.h"
+#include "lock0lock.h"
 #ifdef HAVE_LZO
 #include "lzo/lzo1x.h"
 #endif
@@ -258,19 +258,18 @@ public:
 	}
 
 	/** Position the cursor on the first user record. */
-	void	open(buf_block_t* block) UNIV_NOTHROW
+	rec_t* open(buf_block_t* block, const dict_index_t* index) noexcept
+		MY_ATTRIBUTE((warn_unused_result))
 	{
+		m_cur.index = const_cast<dict_index_t*>(index);
 		page_cur_set_before_first(block, &m_cur);
-
-		if (!end()) {
-			next();
-		}
+		return next();
 	}
 
 	/** Move to the next record. */
-	void	next() UNIV_NOTHROW
+	rec_t* next() noexcept MY_ATTRIBUTE((warn_unused_result))
 	{
-		page_cur_move_to_next(&m_cur);
+		return page_cur_move_to_next(&m_cur);
 	}
 
 	/**
@@ -292,37 +291,36 @@ public:
 
 	/** Remove the current record
 	@return true on success */
-	bool remove(
-		const dict_index_t*	index,
-		rec_offs*		offsets) UNIV_NOTHROW
+	bool remove(rec_offs* offsets) UNIV_NOTHROW
 	{
-		ut_ad(page_is_leaf(m_cur.block->frame));
+		const dict_index_t* const index = m_cur.index;
+		ut_ad(page_is_leaf(m_cur.block->page.frame));
 		/* We can't end up with an empty page unless it is root. */
-		if (page_get_n_recs(m_cur.block->frame) <= 1) {
+		if (page_get_n_recs(m_cur.block->page.frame) <= 1) {
 			return(false);
 		}
 
 		if (!rec_offs_any_extern(offsets)
 		    && m_cur.block->page.id().page_no() != index->page
-		    && ((page_get_data_size(m_cur.block->frame)
+		    && ((page_get_data_size(m_cur.block->page.frame)
 			 - rec_offs_size(offsets)
 			 < BTR_CUR_PAGE_COMPRESS_LIMIT(index))
-			|| !page_has_siblings(m_cur.block->frame)
-			|| (page_get_n_recs(m_cur.block->frame) < 2))) {
+			|| !page_has_siblings(m_cur.block->page.frame)
+			|| (page_get_n_recs(m_cur.block->page.frame) < 2))) {
 			return false;
 		}
 
 #ifdef UNIV_ZIP_DEBUG
 		page_zip_des_t* page_zip = buf_block_get_page_zip(m_cur.block);
 		ut_a(!page_zip || page_zip_validate(
-			     page_zip, m_cur.block->frame, index));
+			     page_zip, m_cur.block->page.frame, index));
 #endif /* UNIV_ZIP_DEBUG */
 
-		page_cur_delete_rec(&m_cur, index, offsets, &m_mtr);
+		page_cur_delete_rec(&m_cur, offsets, &m_mtr);
 
 #ifdef UNIV_ZIP_DEBUG
 		ut_a(!page_zip || page_zip_validate(
-			     page_zip, m_cur.block->frame, index));
+			     page_zip, m_cur.block->page.frame, index));
 #endif /* UNIV_ZIP_DEBUG */
 
 		return true;
@@ -370,24 +368,23 @@ public:
 	}
 
 private:
-	/** Begin import, position the cursor on the first record. */
-	void	open() UNIV_NOTHROW;
+  /** Begin import, position the cursor on the first record. */
+  inline bool open() noexcept;
 
-	/** Close the persistent curosr and commit the mini-transaction. */
-	void	close() UNIV_NOTHROW;
+  /** Close the persistent cursor and commit the mini-transaction. */
+  void close() noexcept { m_mtr.commit(); btr_pcur_close(&m_pcur); }
 
-	/** Position the cursor on the next record.
-	@return DB_SUCCESS or error code */
-	dberr_t	next() UNIV_NOTHROW;
+  /** Position the cursor on the next record.
+  @return DB_SUCCESS or error code */
+  dberr_t next() noexcept;
 
-	/** Store the persistent cursor position and reopen the
-	B-tree cursor in BTR_MODIFY_TREE mode, because the
-	tree structure may be changed during a pessimistic delete. */
-	void	purge_pessimistic_delete() UNIV_NOTHROW;
+  /** Store the persistent cursor position and reopen the
+  B-tree cursor in BTR_MODIFY_TREE mode, because the
+  tree structure may be changed during a pessimistic delete. */
+  inline dberr_t purge_pessimistic_delete() noexcept;
 
-	/** Purge delete-marked records.
-	@param offsets current row offsets. */
-	void	purge() UNIV_NOTHROW;
+  /** Purge a delete-marked record. */
+  dberr_t purge() noexcept;
 
 protected:
 	// Disable copying
@@ -468,7 +465,7 @@ public:
 	Called for every page in the tablespace. If the page was not
 	updated then its state must be set to BUF_PAGE_NOT_USED. For
 	compressed tables the page descriptor memory will be at offset:
-		block->frame + srv_page_size;
+		block->page.frame + srv_page_size;
 	@param block block read from file, note it is not from the buffer pool
 	@retval DB_SUCCESS or error code. */
 	virtual dberr_t operator()(buf_block_t* block) UNIV_NOTHROW = 0;
@@ -485,7 +482,7 @@ public:
 	static byte* get_frame(const buf_block_t* block)
 	{
 		return block->page.zip.data
-			? block->page.zip.data : block->frame;
+			? block->page.zip.data : block->page.frame;
 	}
 
 	/** Invoke the functionality for the callback */
@@ -618,7 +615,7 @@ AbstractCallback::init(
 	os_offset_t		file_size,
 	const buf_block_t*	block) UNIV_NOTHROW
 {
-	const page_t*		page = block->frame;
+	const page_t*		page = block->page.frame;
 
 	m_space_flags = fsp_header_get_flags(page);
 	if (!fil_space_t::is_valid_flags(m_space_flags, true)) {
@@ -757,7 +754,7 @@ dberr_t FetchIndexRootPages::operator()(buf_block_t* block) UNIV_NOTHROW
 		return(DB_CORRUPTION);
 	}
 
-	if (!page_is_comp(block->frame) !=
+	if (!page_is_comp(block->page.frame) !=
 	    !dict_table_is_comp(m_table)) {
 		ib_errf(m_trx->mysql_thd, IB_LOG_LEVEL_ERROR,
 			ER_TABLE_SCHEMA_MISMATCH,
@@ -1458,8 +1455,6 @@ row_import::set_root_by_heuristic() UNIV_NOTHROW
 			" the tablespace has " << m_n_indexes << " indexes";
 	}
 
-	dict_mutex_enter_for_mysql();
-
 	ulint	i = 0;
 	dberr_t	err = DB_SUCCESS;
 
@@ -1499,8 +1494,6 @@ row_import::set_root_by_heuristic() UNIV_NOTHROW
 		}
 	}
 
-	dict_mutex_exit_for_mysql();
-
 	return(err);
 }
 
@@ -1510,14 +1503,13 @@ Purge delete marked records.
 dberr_t
 IndexPurge::garbage_collect() UNIV_NOTHROW
 {
-	dberr_t	err;
 	ibool	comp = dict_table_is_comp(m_index->table);
 
 	/* Open the persistent cursor and start the mini-transaction. */
 
-	open();
+	dberr_t err = open() ? next() : DB_CORRUPTION;
 
-	while ((err = next()) == DB_SUCCESS) {
+	for (; err == DB_SUCCESS; err = next()) {
 
 		rec_t*	rec = btr_pcur_get_rec(&m_pcur);
 		ibool	deleted = rec_get_deleted_flag(rec, comp);
@@ -1525,7 +1517,10 @@ IndexPurge::garbage_collect() UNIV_NOTHROW
 		if (!deleted) {
 			++m_n_rows;
 		} else {
-			purge();
+			err = purge();
+			if (err != DB_SUCCESS) {
+				break;
+			}
 		}
 	}
 
@@ -1538,40 +1533,33 @@ IndexPurge::garbage_collect() UNIV_NOTHROW
 
 /**
 Begin import, position the cursor on the first record. */
-void
-IndexPurge::open() UNIV_NOTHROW
+inline bool IndexPurge::open() noexcept
 {
-	mtr_start(&m_mtr);
+  m_mtr.start();
+  m_mtr.set_log_mode(MTR_LOG_NO_REDO);
 
-	mtr_set_log_mode(&m_mtr, MTR_LOG_NO_REDO);
+  btr_pcur_init(&m_pcur);
 
-	btr_pcur_open_at_index_side(
-		true, m_index, BTR_MODIFY_LEAF, &m_pcur, true, 0, &m_mtr);
-	btr_pcur_move_to_next_user_rec(&m_pcur, &m_mtr);
-	if (rec_is_metadata(btr_pcur_get_rec(&m_pcur), *m_index)) {
-		ut_ad(btr_pcur_is_on_user_rec(&m_pcur));
-		/* Skip the metadata pseudo-record. */
-	} else {
-		btr_pcur_move_to_prev_on_page(&m_pcur);
-	}
-}
+  if (m_pcur.open_leaf(true, m_index, BTR_MODIFY_LEAF, &m_mtr) != DB_SUCCESS)
+    return false;
 
-/**
-Close the persistent curosr and commit the mini-transaction. */
-void
-IndexPurge::close() UNIV_NOTHROW
-{
-	btr_pcur_close(&m_pcur);
-	mtr_commit(&m_mtr);
+  rec_t *rec= page_rec_get_next(btr_pcur_get_rec(&m_pcur));
+  if (!rec)
+    return false;
+  if (rec_is_metadata(rec, *m_index))
+    /* Skip the metadata pseudo-record. */
+    btr_pcur_get_page_cur(&m_pcur)->rec= rec;
+  return true;
 }
 
 /**
 Position the cursor on the next record.
 @return DB_SUCCESS or error code */
-dberr_t
-IndexPurge::next() UNIV_NOTHROW
+dberr_t IndexPurge::next() noexcept
 {
-	btr_pcur_move_to_next_on_page(&m_pcur);
+	if (UNIV_UNLIKELY(!btr_pcur_move_to_next_on_page(&m_pcur))) {
+		return DB_CORRUPTION;
+	}
 
 	/* When switching pages, commit the mini-transaction
 	in order to release the latch on the old page. */
@@ -1592,9 +1580,12 @@ IndexPurge::next() UNIV_NOTHROW
 
 	mtr_set_log_mode(&m_mtr, MTR_LOG_NO_REDO);
 
-	btr_pcur_restore_position(BTR_MODIFY_LEAF, &m_pcur, &m_mtr);
+	if (m_pcur.restore_position(BTR_MODIFY_LEAF, &m_mtr)
+	    == btr_pcur_t::CORRUPTED) {
+		return DB_CORRUPTION;
+	}
 	/* The following is based on btr_pcur_move_to_next_user_rec(). */
-	m_pcur.old_stored = false;
+	m_pcur.old_rec = nullptr;
 	ut_ad(m_pcur.latch_mode == BTR_MODIFY_LEAF);
 	do {
 		if (btr_pcur_is_after_last_on_page(&m_pcur)) {
@@ -1602,56 +1593,12 @@ IndexPurge::next() UNIV_NOTHROW
 				return DB_END_OF_INDEX;
 			}
 
-			buf_block_t* block = btr_pcur_get_block(&m_pcur);
-			uint32_t next_page = btr_page_get_next(block->frame);
-
-			/* MDEV-13542 FIXME: Make these checks part of
-			btr_pcur_move_to_next_page(), and introduce a
-			return status that will be checked in all callers! */
-			switch (next_page) {
-			default:
-				if (next_page != block->page.id().page_no()) {
-					break;
-				}
-				/* MDEV-20931 FIXME: Check that
-				next_page is within the tablespace
-				bounds! Also check that it is not a
-				change buffer bitmap page. */
-				/* fall through */
-			case 0:
-			case 1:
-			case FIL_NULL:
-				return DB_CORRUPTION;
+			if (dberr_t err = btr_pcur_move_to_next_page(&m_pcur,
+								     &m_mtr)) {
+				return err;
 			}
-
-			dict_index_t* index = m_pcur.btr_cur.index;
-			buf_block_t* next_block = btr_block_get(
-				*index, next_page, BTR_MODIFY_LEAF, false,
-				&m_mtr);
-
-			if (UNIV_UNLIKELY(!next_block
-					  || !fil_page_index_page_check(
-						  next_block->frame)
-					  || !!dict_index_is_spatial(index)
-					  != (fil_page_get_type(
-						      next_block->frame)
-					      == FIL_PAGE_RTREE)
-					  || page_is_comp(next_block->frame)
-					  != page_is_comp(block->frame)
-					  || btr_page_get_prev(
-						  next_block->frame)
-					  != block->page.id().page_no())) {
-				return DB_CORRUPTION;
-			}
-
-			btr_leaf_page_release(block, BTR_MODIFY_LEAF, &m_mtr);
-
-			page_cur_set_before_first(next_block,
-						  &m_pcur.btr_cur.page_cur);
-
-			ut_d(page_check_dir(next_block->frame));
-		} else {
-			btr_pcur_move_to_next_on_page(&m_pcur);
+		} else if (!btr_pcur_move_to_next_on_page(&m_pcur)) {
+			return DB_CORRUPTION;
 		}
 	} while (!btr_pcur_is_on_user_rec(&m_pcur));
 
@@ -1662,41 +1609,38 @@ IndexPurge::next() UNIV_NOTHROW
 Store the persistent cursor position and reopen the
 B-tree cursor in BTR_MODIFY_TREE mode, because the
 tree structure may be changed during a pessimistic delete. */
-void
-IndexPurge::purge_pessimistic_delete() UNIV_NOTHROW
+inline dberr_t IndexPurge::purge_pessimistic_delete() noexcept
 {
-	dberr_t	err;
+  dberr_t err;
+  if (m_pcur.restore_position(BTR_PURGE_TREE, &m_mtr) != btr_pcur_t::CORRUPTED)
+  {
+    ut_ad(rec_get_deleted_flag(btr_pcur_get_rec(&m_pcur),
+                               m_index->table->not_redundant()));
+    btr_cur_pessimistic_delete(&err, FALSE, btr_pcur_get_btr_cur(&m_pcur), 0,
+                               false, &m_mtr);
+  }
+  else
+    err= DB_CORRUPTION;
 
-	btr_pcur_restore_position(BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
-				  &m_pcur, &m_mtr);
-
-	ut_ad(rec_get_deleted_flag(
-			btr_pcur_get_rec(&m_pcur),
-			dict_table_is_comp(m_index->table)));
-
-	btr_cur_pessimistic_delete(
-		&err, FALSE, btr_pcur_get_btr_cur(&m_pcur), 0, false, &m_mtr);
-
-	ut_a(err == DB_SUCCESS);
-
-	/* Reopen the B-tree cursor in BTR_MODIFY_LEAF mode */
-	mtr_commit(&m_mtr);
+  m_mtr.commit();
+  return err;
 }
 
-/**
-Purge delete-marked records. */
-void
-IndexPurge::purge() UNIV_NOTHROW
+dberr_t IndexPurge::purge() noexcept
 {
-	btr_pcur_store_position(&m_pcur, &m_mtr);
+  btr_pcur_store_position(&m_pcur, &m_mtr);
+  m_mtr.commit();
+  m_mtr.start();
+  m_mtr.set_log_mode(MTR_LOG_NO_REDO);
+  dberr_t err= purge_pessimistic_delete();
 
-	purge_pessimistic_delete();
-
-	mtr_start(&m_mtr);
-
-	mtr_set_log_mode(&m_mtr, MTR_LOG_NO_REDO);
-
-	btr_pcur_restore_position(BTR_MODIFY_LEAF, &m_pcur, &m_mtr);
+  m_mtr.start();
+  m_mtr.set_log_mode(MTR_LOG_NO_REDO);
+  if (err == DB_SUCCESS)
+    err= (m_pcur.restore_position(BTR_MODIFY_LEAF, &m_mtr) ==
+          btr_pcur_t::CORRUPTED)
+      ? DB_CORRUPTION : DB_SUCCESS;
+  return err;
 }
 
 /** Adjust the BLOB reference for a single column that is externally stored
@@ -1806,10 +1750,8 @@ re-organising the B+tree.
 @return true if purge succeeded */
 inline bool PageConverter::purge() UNIV_NOTHROW
 {
-	const dict_index_t*	index = m_index->m_srv_index;
-
 	/* We can't have a page that is empty and not root. */
-	if (m_rec_iter.remove(index, m_offsets)) {
+	if (m_rec_iter.remove(m_offsets)) {
 
 		++m_index->m_stats.m_n_purged;
 
@@ -1873,7 +1815,9 @@ PageConverter::update_records(
 
 	/* This will also position the cursor on the first user record. */
 
-	m_rec_iter.open(block);
+	if (!m_rec_iter.open(block, m_index->m_srv_index)) {
+		return DB_CORRUPTION;
+	}
 
 	while (!m_rec_iter.end()) {
 		rec_t*	rec = m_rec_iter.current();
@@ -1904,17 +1848,19 @@ PageConverter::update_records(
 		optimistic delete. */
 
 		if (deleted) {
+			++m_index->m_stats.m_n_deleted;
 			/* A successful purge will move the cursor to the
 			next record. */
 
-			if (!purge()) {
-				m_rec_iter.next();
+			if (purge()) {
+				continue;
 			}
-
-			++m_index->m_stats.m_n_deleted;
 		} else {
 			++m_index->m_stats.m_n_rows;
-			m_rec_iter.next();
+		}
+
+		if (!m_rec_iter.next()) {
+			return DB_CORRUPTION;
 		}
 	}
 
@@ -1934,7 +1880,7 @@ PageConverter::update_index_page(
 		return(DB_SUCCESS);
 	}
 
-	buf_frame_t* page = block->frame;
+	buf_frame_t* page = block->page.frame;
 	const index_id_t id = btr_page_get_index_id(page);
 
 	if (id != m_index->m_id) {
@@ -1985,7 +1931,7 @@ PageConverter::update_index_page(
 			m_index->m_srv_index->id);
 	if (UNIV_LIKELY_NULL(block->page.zip.data)) {
 		memcpy(&block->page.zip.data[PAGE_HEADER + PAGE_INDEX_ID],
-		       &block->frame[PAGE_HEADER + PAGE_INDEX_ID], 8);
+		       &block->page.frame[PAGE_HEADER + PAGE_INDEX_ID], 8);
 	}
 
 	if (m_index->m_srv_index->is_clust()) {
@@ -1994,12 +1940,12 @@ PageConverter::update_index_page(
 		}
 	} else if (page_is_leaf(page)) {
 		/* Set PAGE_MAX_TRX_ID on secondary index leaf pages. */
-		mach_write_to_8(&block->frame[PAGE_HEADER + PAGE_MAX_TRX_ID],
-				m_trx->id);
+		mach_write_to_8(&block->page.frame
+				[PAGE_HEADER + PAGE_MAX_TRX_ID], m_trx->id);
 		if (UNIV_LIKELY_NULL(block->page.zip.data)) {
 			memcpy_aligned<8>(&block->page.zip.data
 					  [PAGE_HEADER + PAGE_MAX_TRX_ID],
-					  &block->frame
+					  &block->page.frame
 					  [PAGE_HEADER + PAGE_MAX_TRX_ID], 8);
 		}
 	} else {
@@ -2009,7 +1955,8 @@ clear_page_max_trx_id:
 		in MySQL 5.6, 5.7 and MariaDB 10.0 and 10.1
 		would set the field to the transaction ID even
 		on clustered index pages. */
-		memset_aligned<8>(&block->frame[PAGE_HEADER + PAGE_MAX_TRX_ID],
+		memset_aligned<8>(&block->page.frame
+				  [PAGE_HEADER + PAGE_MAX_TRX_ID],
 				  0, 8);
 		if (UNIV_LIKELY_NULL(block->page.zip.data)) {
 			memset_aligned<8>(&block->page.zip.data
@@ -2031,7 +1978,9 @@ clear_page_max_trx_id:
 		return(DB_SUCCESS);
 	}
 
-	return page_is_leaf(block->frame) ? update_records(block) : DB_SUCCESS;
+	return page_is_leaf(block->page.frame)
+		? update_records(block)
+		: DB_SUCCESS;
 }
 
 /** Validate the space flags and update tablespace header page.
@@ -2078,8 +2027,8 @@ PageConverter::update_page(buf_block_t* block, uint16_t& page_type)
 
 	case FIL_PAGE_INDEX:
 	case FIL_PAGE_RTREE:
-		/* We need to decompress the contents into block->frame
-		before we can do any thing with Btree pages. */
+		/* We need to decompress the contents
+		before we can do anything. */
 
 		if (is_compressed_table() && !buf_zip_decompress(block, TRUE)) {
 			return(DB_CORRUPTION);
@@ -2135,9 +2084,9 @@ dberr_t PageConverter::operator()(buf_block_t* block) UNIV_NOTHROW
 	/* If we already had an old page with matching number
 	in the buffer pool, evict it now, because
 	we no longer evict the pages on DISCARD TABLESPACE. */
-	buf_page_get_gen(block->page.id(), get_zip_size(),
-			 RW_NO_LATCH, NULL, BUF_EVICT_IF_IN_POOL,
-			 __FILE__, __LINE__, NULL, NULL);
+	buf_page_get_low(block->page.id(), get_zip_size(), RW_NO_LATCH,
+			 nullptr, BUF_PEEK_IF_IN_POOL,
+			 nullptr, nullptr, false);
 
 	uint16_t page_type;
 
@@ -2151,7 +2100,7 @@ dberr_t PageConverter::operator()(buf_block_t* block) UNIV_NOTHROW
 
 	if (!block->page.zip.data) {
 		buf_flush_init_for_writing(
-			NULL, block->frame, NULL, full_crc32);
+			NULL, block->page.frame, NULL, full_crc32);
 	} else if (fil_page_type_is_index(page_type)) {
 		buf_flush_init_for_writing(
 			NULL, block->page.zip.data, &block->page.zip,
@@ -2173,11 +2122,8 @@ dberr_t
 row_import_cleanup(
 /*===============*/
 	row_prebuilt_t*	prebuilt,	/*!< in/out: prebuilt from handler */
-	trx_t*		trx,		/*!< in/out: transaction for import */
 	dberr_t		err)		/*!< in: error code */
 {
-	ut_a(prebuilt->trx != trx);
-
 	if (err != DB_SUCCESS) {
 		dict_table_t* table = prebuilt->table;
 		table->file_unreadable = true;
@@ -2191,10 +2137,6 @@ row_import_cleanup(
 		ib::info() << "Discarding tablespace of table "
 			   << table->name << ": " << err;
 
-		if (!trx->dict_operation_lock_mode) {
-			row_mysql_lock_data_dictionary(trx);
-		}
-
 		for (dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
 		     index;
 		     index = UT_LIST_GET_NEXT(indexes, index)) {
@@ -2202,15 +2144,13 @@ row_import_cleanup(
 		}
 	}
 
-	ut_a(trx->dict_operation_lock_mode == RW_X_LATCH);
-
 	DBUG_EXECUTE_IF("ib_import_before_commit_crash", DBUG_SUICIDE(););
 
-	trx_commit_for_mysql(trx);
+	prebuilt->trx->commit();
 
-	row_mysql_unlock_data_dictionary(trx);
-
-	trx->free();
+	if (prebuilt->trx->dict_operation_lock_mode) {
+		row_mysql_unlock_data_dictionary(prebuilt->trx);
+	}
 
 	prebuilt->trx->op_info = "";
 
@@ -2226,10 +2166,9 @@ dberr_t
 row_import_error(
 /*=============*/
 	row_prebuilt_t*	prebuilt,	/*!< in/out: prebuilt from handler */
-	trx_t*		trx,		/*!< in/out: transaction for import */
 	dberr_t		err)		/*!< in: error code */
 {
-	if (!trx_is_interrupted(trx)) {
+	if (!trx_is_interrupted(prebuilt->trx)) {
 		char	table_name[MAX_FULL_NAME_LEN + 1];
 
 		innobase_format_name(
@@ -2237,12 +2176,12 @@ row_import_error(
 			prebuilt->table->name.m_name);
 
 		ib_senderrf(
-			trx->mysql_thd, IB_LOG_LEVEL_WARN,
+			prebuilt->trx->mysql_thd, IB_LOG_LEVEL_WARN,
 			ER_INNODB_IMPORT_ERROR,
 			table_name, (ulong) err, ut_strerr(err));
 	}
 
-	return(row_import_cleanup(prebuilt, trx, err));
+	return row_import_cleanup(prebuilt, err);
 }
 
 /*****************************************************************//**
@@ -2376,43 +2315,28 @@ row_import_set_sys_max_row_id(
 
 	mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
 
-	btr_pcur_open_at_index_side(
-		false,		// High end
-		index,
-		BTR_SEARCH_LEAF,
-		&pcur,
-		true,		// Init cursor
-		0,		// Leaf level
-		&mtr);
+	if (pcur.open_leaf(false, index, BTR_SEARCH_LEAF, &mtr)
+	    == DB_SUCCESS) {
+		rec = btr_pcur_move_to_prev_on_page(&pcur);
 
-	btr_pcur_move_to_prev_on_page(&pcur);
-	rec = btr_pcur_get_rec(&pcur);
-
-	/* Check for empty table. */
-	if (page_rec_is_infimum(rec)) {
-		/* The table is empty. */
-	} else if (rec_is_metadata(rec, *index)) {
-		/* The clustered index contains the metadata record only,
-		that is, the table is empty. */
-	} else {
-		row_id = mach_read_from_6(rec);
+		if (!rec) {
+			/* The table is corrupted. */
+		} else if (page_rec_is_infimum(rec)) {
+			/* The table is empty. */
+		} else if (rec_is_metadata(rec, *index)) {
+			/* The clustered index contains the metadata
+			record only, that is, the table is empty. */
+		} else {
+			row_id = mach_read_from_6(rec);
+		}
 	}
 
-	btr_pcur_close(&pcur);
 	mtr_commit(&mtr);
 
 	if (row_id) {
 		/* Update the system row id if the imported index row id is
 		greater than the max system row id. */
-
-		mutex_enter(&dict_sys.mutex);
-
-		if (row_id >= dict_sys.row_id) {
-			dict_sys.row_id = row_id + 1;
-			dict_hdr_flush_row_id();
-		}
-
-		mutex_exit(&dict_sys.mutex);
+		dict_sys.update_row_id(row_id);
 	}
 }
 
@@ -3161,18 +3085,16 @@ and apply it to dict_table_t
 static dberr_t handle_instant_metadata(dict_table_t *table,
                                        const row_import &cfg)
 {
-  dict_get_and_save_data_dir_path(table, false);
+  dict_get_and_save_data_dir_path(table);
 
   char *filepath;
   if (DICT_TF_HAS_DATA_DIR(table->flags))
   {
     ut_a(table->data_dir_path);
-
-    filepath=
-        fil_make_filepath(table->data_dir_path, table->name.m_name, IBD, true);
+    filepath= fil_make_filepath(table->data_dir_path, table->name, IBD, true);
   }
   else
-    filepath= fil_make_filepath(nullptr, table->name.m_name, IBD, false);
+    filepath= fil_make_filepath(nullptr, table->name, IBD, false);
 
   if (!filepath)
     return DB_OUT_OF_MEMORY;
@@ -3195,9 +3117,8 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
       static_cast<byte *>(aligned_malloc(srv_page_size, srv_page_size)),
       &aligned_free);
 
-  if (dberr_t err= os_file_read_no_error_handling(IORequestReadPartial,
-                                                  file, first_page.get(), 0,
-                                                  srv_page_size, nullptr))
+  if (dberr_t err= os_file_read(IORequestReadPartial, file, first_page.get(),
+                                0, srv_page_size, nullptr))
     return err;
 
   auto space_flags= fsp_header_get_flags(first_page.get());
@@ -3232,7 +3153,7 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
           aligned_malloc(UNIV_PAGE_SIZE_MAX, UNIV_PAGE_SIZE_MAX)),
       &aligned_free);
 
-  if (dberr_t err= os_file_read_no_error_handling(
+  if (dberr_t err= os_file_read(
           IORequestReadPartial, file, page.get(), 3 * physical_size,
           physical_size, nullptr))
     return err;
@@ -3249,14 +3170,6 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
   {
     dict_index_t *index= dict_table_get_first_index(table);
 
-    auto tmp1= table->space_id;
-    table->space_id= page_get_space_id(page.get());
-    SCOPE_EXIT([tmp1, table]() { table->space_id= tmp1; });
-
-    auto tmp2= index->page;
-    index->page= page_get_page_no(page.get());
-    SCOPE_EXIT([tmp2, index]() { index->page= tmp2; });
-
     if (!page_is_comp(page.get()) != !dict_table_is_comp(table))
     {
       ib_errf(current_thd, IB_LOG_LEVEL_ERROR, ER_TABLE_SCHEMA_MISMATCH,
@@ -3265,7 +3178,7 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
     }
 
     if (btr_cur_instant_root_init(index, page.get()))
-      return DB_ERROR;
+      return DB_CORRUPTION;
 
     ut_ad(index->n_core_null_bytes != dict_index_t::NO_CORE_NULL_BYTES);
 
@@ -3284,6 +3197,8 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
     while (btr_page_get_level(page.get()) != 0)
     {
       const rec_t *rec= page_rec_get_next(page_get_infimum_rec(page.get()));
+      if (!rec)
+        return DB_CORRUPTION;
 
       /* Relax the assertion in rec_init_offsets(). */
       ut_ad(!index->in_instant_init);
@@ -3295,10 +3210,8 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
       uint64_t child_page_no= btr_node_ptr_get_child_page_no(rec, offsets);
 
       if (dberr_t err=
-          os_file_read_no_error_handling(IORequestReadPartial, file,
-                                         page.get(),
-                                         child_page_no * physical_size,
-                                         physical_size, nullptr))
+          os_file_read(IORequestReadPartial, file, page.get(),
+                       child_page_no * physical_size, physical_size, nullptr))
         return err;
 
       if (dberr_t err= decrypt_decompress(space_crypt, space_flags,
@@ -3308,17 +3221,21 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
         return err;
     }
 
-    const auto *rec= page_rec_get_next(page_get_infimum_rec(page.get()));
+    const auto *rec= page_rec_get_next_const(page_get_infimum_rec(page.get()));
     const auto comp= dict_table_is_comp(index->table);
-    const auto info_bits= rec_get_info_bits(rec, comp);
 
-    if (page_rec_is_supremum(rec) || !(info_bits & REC_INFO_MIN_REC_FLAG))
+    if (!rec || page_rec_is_supremum(rec))
     {
+    corrupted_metadata:
       ib::error() << "Table " << index->table->name
                   << " is missing instant ALTER metadata";
       index->table->corrupted= true;
       return DB_CORRUPTION;
     }
+
+    const auto info_bits= rec_get_info_bits(rec, comp);
+    if (!(info_bits & REC_INFO_MIN_REC_FLAG))
+      goto corrupted_metadata;
 
     if ((info_bits & ~REC_INFO_DELETED_FLAG) != REC_INFO_MIN_REC_FLAG ||
         (comp && rec_get_status(rec) != REC_STATUS_INSTANT))
@@ -3373,11 +3290,10 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
                     &aligned_free);
 
       if (dberr_t err=
-          os_file_read_no_error_handling(IORequestReadPartial, file,
-                                         second_page.get(), physical_size *
-                                         mach_read_from_4(ptr +
-                                                          BTR_EXTERN_PAGE_NO),
-                                         srv_page_size, nullptr))
+          os_file_read(IORequestReadPartial, file, second_page.get(),
+                       physical_size *
+                       mach_read_from_4(ptr + BTR_EXTERN_PAGE_NO),
+                       physical_size, nullptr))
         return err;
 
       if (dberr_t err= decrypt_decompress(space_crypt, space_flags,
@@ -3585,8 +3501,6 @@ row_import_update_index_root(trx_t* trx, dict_table_t* table, bool reset)
 
 		que_thr_t*	thr;
 
-		graph->fork_type = QUE_FORK_MYSQL_INTERFACE;
-
 		ut_a(thr = que_fork_start_command(graph));
 
 		que_run_threads(thr);
@@ -3703,7 +3617,7 @@ dberr_t row_import_update_discarded_flag(trx_t* trx, table_id_t table_id,
 	pars_info_bind_function(
 		info, "my_func", row_import_set_discarded, &discard);
 
-	dberr_t	err = que_eval_sql(info, sql, false, trx);
+	dberr_t	err = que_eval_sql(info, sql, trx);
 
 	ut_a(discard.n_recs == 1);
 	ut_a(discard.flags2 != ULINT32_UNDEFINED);
@@ -3784,15 +3698,15 @@ dberr_t FetchIndexRootPages::run(const fil_iterator_t& iter,
   const bool encrypted= iter.crypt_data != NULL &&
     iter.crypt_data->should_encrypt();
   byte* const readptr= iter.io_buffer;
-  block->frame= readptr;
+  block->page.frame= readptr;
 
   if (block->page.zip.data)
     block->page.zip.data= readptr;
 
   bool page_compressed= false;
 
-  dberr_t err= os_file_read_no_error_handling(
-    IORequestReadPartial, iter.file, readptr, 3 * size, size, 0);
+  dberr_t err= os_file_read(IORequestReadPartial, iter.file, readptr,
+                            3 * size, size, nullptr);
   if (err != DB_SUCCESS)
   {
     ib::error() << iter.filepath << ": os_file_read() failed";
@@ -3884,7 +3798,7 @@ static dberr_t fil_iterate(
 	required by buf_zip_decompress() */
 	dberr_t		err = DB_SUCCESS;
 	bool		page_compressed = false;
-	bool		punch_hole = true;
+	bool		punch_hole = !my_test_if_thinly_provisioned(iter.file);
 
 	for (offset = iter.start; offset < iter.end; offset += n_bytes) {
 		if (callback.is_interrupted()) {
@@ -3893,7 +3807,7 @@ static dberr_t fil_iterate(
 		}
 
 		byte*		io_buffer = iter.io_buffer;
-		block->frame = io_buffer;
+		block->page.frame = io_buffer;
 
 		if (block->page.zip.data) {
 			/* Zip IO is done in the compressed page buffer. */
@@ -3916,9 +3830,8 @@ static dberr_t fil_iterate(
 			? iter.crypt_io_buffer : io_buffer;
 		byte* const writeptr = readptr;
 
-		err = os_file_read_no_error_handling(
-			IORequestReadPartial,
-			iter.file, readptr, offset, n_bytes, 0);
+		err = os_file_read(IORequestReadPartial, iter.file, readptr,
+				   offset, n_bytes, nullptr);
 		if (err != DB_SUCCESS) {
 			ib::error() << iter.filepath
 				    << ": os_file_read() failed";
@@ -3933,7 +3846,7 @@ static dberr_t fil_iterate(
 
 		for (ulint i = 0; i < n_pages_read;
 		     ++block->page.id_,
-		     ++i, page_off += size, block->frame += size) {
+		     ++i, page_off += size, block->page.frame += size) {
 			byte*	src = readptr + i * size;
 			const ulint page_no = page_get_page_no(src);
 			if (!page_no && block->page.id().page_no()) {
@@ -3990,7 +3903,7 @@ page_corrupted:
 				} else if (!page_compressed
 					   && type != FIL_PAGE_TYPE_XDES
 					   && !block->page.zip.data) {
-					block->frame = src;
+					block->page.frame = src;
 					frame_changed = true;
 				} else {
 					ut_ad(dst != src);
@@ -4042,8 +3955,7 @@ page_corrupted:
 			if ((err = callback(block)) != DB_SUCCESS) {
 				goto func_exit;
 			} else if (!updated) {
-				updated = block->page.state()
-					== BUF_BLOCK_FILE_PAGE;
+				updated = !!block->page.frame;
 			}
 
 			/* If tablespace is encrypted we use additional
@@ -4051,10 +3963,10 @@ page_corrupted:
 			for decrypting readptr == crypt_io_buffer != io_buffer.
 
 			Destination for decryption is a buffer pool block
-			block->frame == dst == io_buffer that is updated.
+			block->page.frame == dst == io_buffer that is updated.
 			Pages that did not require decryption even when
 			tablespace is marked as encrypted are not copied
-			instead block->frame is set to src == readptr.
+			instead block->page.frame is set to src == readptr.
 
 			For encryption we again use temporary scratch area
 			writeptr != io_buffer == dst
@@ -4087,7 +3999,7 @@ page_corrupted:
 				if (block->page.zip.data) {
 					block->page.zip.data = dst;
 				} else {
-					block->frame = dst;
+					block->page.frame = dst;
 				}
 			}
 
@@ -4203,18 +4115,17 @@ fil_tablespace_iterate(
 			return(DB_CORRUPTION););
 
 	/* Make sure the data_dir_path is set. */
-	dict_get_and_save_data_dir_path(table, false);
+	dict_get_and_save_data_dir_path(table);
 
-	if (DICT_TF_HAS_DATA_DIR(table->flags)) {
-		ut_a(table->data_dir_path);
+	ut_ad(!DICT_TF_HAS_DATA_DIR(table->flags) || table->data_dir_path);
 
-		filepath = fil_make_filepath(
-			table->data_dir_path, table->name.m_name, IBD, true);
-	} else {
-		filepath = fil_make_filepath(
-			NULL, table->name.m_name, IBD, false);
-	}
+	const char *data_dir_path = DICT_TF_HAS_DATA_DIR(table->flags)
+		? table->data_dir_path : nullptr;
 
+	filepath = fil_make_filepath(data_dir_path,
+				     {table->name.m_name,
+				      strlen(table->name.m_name)},
+				     IBD, data_dir_path != nullptr);
 	if (!filepath) {
 		return(DB_OUT_OF_MEMORY);
 	} else {
@@ -4251,13 +4162,13 @@ fil_tablespace_iterate(
 
 	buf_block_t* block = reinterpret_cast<buf_block_t*>
 		(ut_zalloc_nokey(sizeof *block));
-	block->frame = page;
-        block->page.init(BUF_BLOCK_FILE_PAGE, page_id_t(~0ULL), 1);
+	block->page.frame = page;
+	block->page.init(buf_page_t::UNFIXED + 1, page_id_t{~0ULL});
 
-	/* Read the first page and determine the page and zip size. */
+	/* Read the first page and determine the page size. */
 
-	err = os_file_read_no_error_handling(IORequestReadPartial,
-					     file, page, 0, srv_page_size, 0);
+	err = os_file_read(IORequestReadPartial, file, page, 0, srv_page_size,
+			   nullptr);
 
 	if (err == DB_SUCCESS) {
 		err = callback.init(file_size, block);
@@ -4306,8 +4217,9 @@ fil_tablespace_iterate(
 
 		if (block->page.zip.ssize) {
 			ut_ad(iter.n_io_buffers == 1);
-			block->frame = iter.io_buffer;
-			block->page.zip.data = block->frame + srv_page_size;
+			block->page.frame = iter.io_buffer;
+			block->page.zip.data = block->page.frame
+				+ srv_page_size;
 		}
 
 		err = callback.run(iter, block);
@@ -4351,9 +4263,9 @@ row_import_for_mysql(
 	row_prebuilt_t*	prebuilt)	/*!< in: prebuilt struct in MySQL */
 {
 	dberr_t		err;
-	trx_t*		trx;
 	ib_uint64_t	autoinc = 0;
 	char*		filepath = NULL;
+	trx_t*		trx = prebuilt->trx;
 
 	/* The caller assured that this is not read_only_mode and that no
 	temorary tablespace is being imported. */
@@ -4362,27 +4274,11 @@ row_import_for_mysql(
 
 	ut_ad(table->space_id);
 	ut_ad(table->space_id < SRV_SPACE_ID_UPPER_BOUND);
-	ut_ad(prebuilt->trx);
+	ut_ad(trx);
+	ut_ad(trx->state == TRX_STATE_ACTIVE);
 	ut_ad(!table->is_readable());
 
 	ibuf_delete_for_discarded_space(table->space_id);
-
-	trx_start_if_not_started(prebuilt->trx, true);
-
-	trx = trx_create();
-
-	/* So that the table is not DROPped during recovery. */
-	trx_set_dict_operation(trx, TRX_DICT_OP_INDEX);
-
-	trx_start_if_not_started(trx, true);
-
-	/* So that we can send error messages to the user. */
-	trx->mysql_thd = prebuilt->trx->mysql_thd;
-
-	/* Ensure that the table will be dropped by trx_rollback_active()
-	in case of a crash. */
-
-	trx->table_id = table->id;
 
 	/* Assign an undo segment for the transaction, so that the
 	transaction will be recovered after a crash. */
@@ -4398,25 +4294,19 @@ row_import_for_mysql(
 	DBUG_EXECUTE_IF("ib_import_undo_assign_failure",
 			err = DB_TOO_MANY_CONCURRENT_TRXS;);
 
-	if (err != DB_SUCCESS) {
-
-		return(row_import_cleanup(prebuilt, trx, err));
-
-	} else if (trx->rsegs.m_redo.undo == 0) {
-
+	if (err == DB_SUCCESS && !trx->has_logged_persistent()) {
 		err = DB_TOO_MANY_CONCURRENT_TRXS;
-		return(row_import_cleanup(prebuilt, trx, err));
+	}
+	if (err != DB_SUCCESS) {
+		return row_import_cleanup(prebuilt, err);
 	}
 
-	prebuilt->trx->op_info = "read meta-data file";
-
-	/* Prevent DDL operations while we are checking. */
-
-	rw_lock_s_lock(&dict_sys.latch);
+	trx->op_info = "read meta-data file";
 
 	row_import	cfg;
+	THD* thd = trx->mysql_thd;
 
-	err = row_import_read_cfg(table, trx->mysql_thd, cfg);
+	err = row_import_read_cfg(table, thd, cfg);
 
 	/* Check if the table column definitions match the contents
 	of the config file. */
@@ -4424,14 +4314,13 @@ row_import_for_mysql(
 	if (err == DB_SUCCESS) {
 
 		if (dberr_t err = handle_instant_metadata(table, cfg)) {
-			rw_lock_s_unlock(&dict_sys.latch);
-			return row_import_error(prebuilt, trx, err);
+			return row_import_error(prebuilt, err);
 		}
 
 		/* We have a schema file, try and match it with our
 		data dictionary. */
 
-		err = cfg.match_schema(trx->mysql_thd);
+		err = cfg.match_schema(thd);
 
 		/* Update index->page and SYS_INDEXES.PAGE_NO to match the
 		B-tree root page numbers in the tablespace. Use the index
@@ -4442,15 +4331,10 @@ row_import_for_mysql(
 			autoinc = cfg.m_autoinc;
 		}
 
-		rw_lock_s_unlock(&dict_sys.latch);
-
 		DBUG_EXECUTE_IF("ib_import_set_index_root_failure",
 				err = DB_TOO_MANY_CONCURRENT_TRXS;);
 
 	} else if (cfg.m_missing) {
-
-		rw_lock_s_unlock(&dict_sys.latch);
-
 		/* We don't have a schema file, we will have to discover
 		the index root pages from the .ibd file and skip the schema
 		matching step. */
@@ -4460,13 +4344,13 @@ row_import_for_mysql(
 		cfg.m_zip_size = 0;
 
 		if (UT_LIST_GET_LEN(table->indexes) > 1) {
-			ib_errf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
+			ib_errf(thd, IB_LOG_LEVEL_ERROR,
 				ER_INTERNAL_ERROR,
 				"Drop all secondary indexes before importing "
 				"table %s when .cfg file is missing.",
 				table->name.m_name);
 			err = DB_ERROR;
-			return row_import_error(prebuilt, trx, err);
+			return row_import_error(prebuilt, err);
 		}
 
 		FetchIndexRootPages	fetchIndexRootPages(table, trx);
@@ -4487,24 +4371,18 @@ row_import_for_mysql(
 				err = cfg.set_root_by_heuristic();
 
 				if (err == DB_SUCCESS) {
-					if (dberr_t err =
-					    handle_instant_metadata(table,
-								    cfg)) {
-						return row_import_error(
-							prebuilt, trx, err);
-					}
+					err = handle_instant_metadata(table,
+								      cfg);
 				}
 			}
 		}
-	} else {
-		rw_lock_s_unlock(&dict_sys.latch);
 	}
 
 	if (err != DB_SUCCESS) {
-		return(row_import_error(prebuilt, trx, err));
+		return row_import_error(prebuilt, err);
 	}
 
-	prebuilt->trx->op_info = "importing tablespace";
+	trx->op_info = "importing tablespace";
 
 	ib::info() << "Phase I - Update all pages";
 
@@ -4546,31 +4424,28 @@ row_import_for_mysql(
 
 		if (err != DB_DECRYPTION_FAILED) {
 
-			ib_errf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
+			ib_errf(thd, IB_LOG_LEVEL_ERROR,
 				ER_INTERNAL_ERROR,
 			"Error importing tablespace for table %s : %s",
 				table_name, ut_strerr(err));
 		}
 
-		return(row_import_cleanup(prebuilt, trx, err));
+		return row_import_cleanup(prebuilt, err);
 	}
-
-	row_mysql_lock_data_dictionary(trx);
 
 	/* If the table is stored in a remote tablespace, we need to
 	determine that filepath from the link file and system tables.
 	Find the space ID in SYS_TABLES since this is an ALTER TABLE. */
-	dict_get_and_save_data_dir_path(table, true);
+	dict_get_and_save_data_dir_path(table);
 
-	if (DICT_TF_HAS_DATA_DIR(table->flags)) {
-		ut_a(table->data_dir_path);
+	ut_ad(!DICT_TF_HAS_DATA_DIR(table->flags) || table->data_dir_path);
+	const char *data_dir_path = DICT_TF_HAS_DATA_DIR(table->flags)
+		? table->data_dir_path : nullptr;
+	fil_space_t::name_type name{
+		table->name.m_name, strlen(table->name.m_name)};
 
-		filepath = fil_make_filepath(
-			table->data_dir_path, table->name.m_name, IBD, true);
-	} else {
-		filepath = fil_make_filepath(
-			NULL, table->name.m_name, IBD, false);
-	}
+	filepath = fil_make_filepath(data_dir_path, name, IBD,
+				     data_dir_path != nullptr);
 
 	DBUG_EXECUTE_IF(
 		"ib_import_OOM_15",
@@ -4579,13 +4454,10 @@ row_import_for_mysql(
 	);
 
 	if (filepath == NULL) {
-		row_mysql_unlock_data_dictionary(trx);
-		return(row_import_cleanup(prebuilt, trx, DB_OUT_OF_MEMORY));
+		return row_import_cleanup(prebuilt, DB_OUT_OF_MEMORY);
 	}
 
 	/* Open the tablespace so that we can access via the buffer pool.
-	We set the 2nd param (fix_dict = true) here because we already
-	have an x-lock on dict_sys.latch and dict_sys.mutex.
 	The tablespace is initially opened as a temporary one, because
 	we will not be writing any redo log for it before we have invoked
 	fil_space_t::set_imported() to declare it a persistent tablespace. */
@@ -4593,35 +4465,29 @@ row_import_for_mysql(
 	ulint	fsp_flags = dict_tf_to_fsp_flags(table->flags);
 
 	table->space = fil_ibd_open(
-		true, true, FIL_TYPE_IMPORT, table->space_id,
-		fsp_flags, table->name, filepath, &err);
+		2, FIL_TYPE_IMPORT, table->space_id,
+		fsp_flags, name, filepath, &err);
 
 	ut_ad((table->space == NULL) == (err != DB_SUCCESS));
 	DBUG_EXECUTE_IF("ib_import_open_tablespace_failure",
 			err = DB_TABLESPACE_NOT_FOUND; table->space = NULL;);
 
 	if (!table->space) {
-		row_mysql_unlock_data_dictionary(trx);
-
-		ib_senderrf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
+		ib_senderrf(thd, IB_LOG_LEVEL_ERROR,
 			ER_GET_ERRMSG,
 			err, ut_strerr(err), filepath);
-
-		ut_free(filepath);
-
-		return(row_import_cleanup(prebuilt, trx, err));
 	}
-
-	row_mysql_unlock_data_dictionary(trx);
 
 	ut_free(filepath);
 
-	err = ibuf_check_bitmap_on_import(trx, table->space);
+	if (err == DB_SUCCESS) {
+		err = ibuf_check_bitmap_on_import(trx, table->space);
+	}
 
 	DBUG_EXECUTE_IF("ib_import_check_bitmap_failure", err = DB_CORRUPTION;);
 
 	if (err != DB_SUCCESS) {
-		return(row_import_cleanup(prebuilt, trx, err));
+		return row_import_cleanup(prebuilt, err);
 	}
 
 	/* The first index must always be the clustered index. */
@@ -4629,7 +4495,7 @@ row_import_for_mysql(
 	dict_index_t*	index = dict_table_get_first_index(table);
 
 	if (!dict_index_is_clust(index)) {
-		return(row_import_error(prebuilt, trx, DB_CORRUPTION));
+		return row_import_error(prebuilt, DB_CORRUPTION);
 	}
 
 	/* Update the Btree segment headers for index node and
@@ -4641,7 +4507,7 @@ row_import_for_mysql(
 			err = DB_CORRUPTION;);
 
 	if (err != DB_SUCCESS) {
-		return(row_import_error(prebuilt, trx, err));
+		return row_import_error(prebuilt, err);
 	} else if (cfg.requires_purge(index->name)) {
 
 		/* Purge any delete-marked records that couldn't be
@@ -4660,7 +4526,7 @@ row_import_for_mysql(
 	DBUG_EXECUTE_IF("ib_import_cluster_failure", err = DB_CORRUPTION;);
 
 	if (err != DB_SUCCESS) {
-		return(row_import_error(prebuilt, trx, err));
+		return row_import_error(prebuilt, err);
 	}
 
 	/* For secondary indexes, purge any records that couldn't be purged
@@ -4673,7 +4539,7 @@ row_import_for_mysql(
 			err = DB_CORRUPTION;);
 
 	if (err != DB_SUCCESS) {
-		return(row_import_error(prebuilt, trx, err));
+		return row_import_error(prebuilt, err);
 	}
 
 	/* Ensure that the next available DB_ROW_ID is not smaller than
@@ -4697,7 +4563,7 @@ row_import_for_mysql(
 			ib::warn() << "Waiting for flush to complete on "
 				   << prebuilt->table->name;
 		}
-		os_thread_sleep(20000);
+		std::this_thread::sleep_for(std::chrono::milliseconds(20));
 	}
 
 	ib::info() << "Phase IV - Flush complete";
@@ -4712,13 +4578,13 @@ row_import_for_mysql(
 	err = row_import_update_index_root(trx, table, false);
 
 	if (err != DB_SUCCESS) {
-		return(row_import_error(prebuilt, trx, err));
+		return row_import_error(prebuilt, err);
 	}
 
 	err = row_import_update_discarded_flag(trx, table->id, false);
 
 	if (err != DB_SUCCESS) {
-		return(row_import_error(prebuilt, trx, err));
+		return row_import_error(prebuilt, err);
 	}
 
 	table->file_unreadable = false;
@@ -4734,5 +4600,5 @@ row_import_for_mysql(
 		btr_write_autoinc(dict_table_get_first_index(table), autoinc);
 	}
 
-	return(row_import_cleanup(prebuilt, trx, err));
+	return row_import_cleanup(prebuilt, err);
 }

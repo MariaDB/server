@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,13 +24,12 @@ Cursor read
 Created 2/16/1997 Heikki Tuuri
 *******************************************************/
 
-#ifndef read0types_h
-#define read0types_h
+#pragma once
 
 #include "dict0mem.h"
 #include "trx0types.h"
+#include "srw_lock.h"
 #include <algorithm>
-
 
 /**
   Read view lists the trx ids of those transactions for which a consistent read
@@ -42,7 +41,7 @@ class ReadViewBase
     The read should not see any transaction with trx id >= this value.
     In other words, this is the "high water mark".
   */
-  trx_id_t m_low_limit_id;
+  trx_id_t m_low_limit_id= 0;
 
   /**
     The read should see all trx ids which are strictly
@@ -68,9 +67,6 @@ protected:
   trx_id_t up_limit_id() const { return m_up_limit_id; }
 
 public:
-  ReadViewBase(): m_low_limit_id(0) {}
-
-
   /**
     Append state from another view.
 
@@ -126,38 +122,19 @@ loop:
 
 
   /**
-    Check whether transaction id is valid.
-    @param[in] id transaction id to check
-    @param[in] name table name
-
-    @todo changes_visible() was an unfortunate choice for this check.
-    It should be moved towards the functions that load trx id like
-    trx_read_trx_id(). No need to issue a warning, error log message should
-    be enough. Although statement should ideally fail if it sees corrupt
-    data.
-  */
-  static void check_trx_id_sanity(trx_id_t id, const table_name_t &name);
-
-
-  /**
     Check whether the changes by id are visible.
     @param[in] id transaction id to check against the view
-    @param[in] name table name
     @return whether the view sees the modifications of id.
   */
-  bool changes_visible(trx_id_t id, const table_name_t &name) const
+  bool changes_visible(trx_id_t id) const
   MY_ATTRIBUTE((warn_unused_result))
   {
     if (id >= m_low_limit_id)
-    {
-      check_trx_id_sanity(id, name);
       return false;
-    }
     return id < m_up_limit_id ||
            m_ids.empty() ||
            !std::binary_search(m_ids.begin(), m_ids.end(), id);
   }
-
 
   /**
     @param id transaction to check
@@ -170,6 +147,13 @@ loop:
 
   /** @return the low limit id */
   trx_id_t low_limit_id() const { return m_low_limit_id; }
+
+  /** Clamp the low limit id for purge_sys.end_view */
+  void clamp_low_limit_id(trx_id_t limit)
+  {
+    if (m_low_limit_id > limit)
+      m_low_limit_id= limit;
+  }
 };
 
 
@@ -190,7 +174,7 @@ class ReadView: public ReadViewBase
   std::atomic<bool> m_open;
 
   /** For synchronisation with purge coordinator. */
-  mutable ib_mutex_t m_mutex;
+  mutable srw_mutex m_mutex;
 
   /**
     trx id of creating transaction.
@@ -199,8 +183,12 @@ class ReadView: public ReadViewBase
   trx_id_t m_creator_trx_id;
 
 public:
-  ReadView(): m_open(false) { mutex_create(LATCH_ID_READ_VIEW, &m_mutex); }
-  ~ReadView() { mutex_free(&m_mutex); }
+  ReadView()
+  {
+    memset(reinterpret_cast<void*>(this), 0, sizeof *this);
+    m_mutex.init();
+  }
+  ~ReadView() { m_mutex.destroy(); }
 
 
   /**
@@ -236,7 +224,6 @@ public:
   */
   void set_creator_trx_id(trx_id_t id)
   {
-    ut_ad(id > 0);
     ut_ad(m_creator_trx_id == 0);
     m_creator_trx_id= id;
   }
@@ -248,12 +235,12 @@ public:
   */
   void print_limits(FILE *file) const
   {
-    mutex_enter(&m_mutex);
+    m_mutex.wr_lock();
     if (is_open())
       fprintf(file, "Trx read view will not see trx with"
                     " id >= " TRX_ID_FMT ", sees < " TRX_ID_FMT "\n",
                     low_limit_id(), up_limit_id());
-    mutex_exit(&m_mutex);
+    m_mutex.wr_unlock();
   }
 
 
@@ -261,9 +248,8 @@ public:
     A wrapper around ReadViewBase::changes_visible().
     Intended to be called by the ReadView owner thread.
   */
-  bool changes_visible(trx_id_t id, const table_name_t &name) const
-  { return id == m_creator_trx_id || ReadViewBase::changes_visible(id, name); }
-
+  bool changes_visible(trx_id_t id) const
+  { return id == m_creator_trx_id || ReadViewBase::changes_visible(id); }
 
   /**
     A wrapper around ReadViewBase::append().
@@ -271,23 +257,19 @@ public:
   */
   void append_to(ReadViewBase *to) const
   {
-    mutex_enter(&m_mutex);
+    m_mutex.wr_lock();
     if (is_open())
       to->append(*this);
-    mutex_exit(&m_mutex);
+    m_mutex.wr_unlock();
   }
-
 
   /**
     Declare the object mostly unaccessible.
-    innodb_monitor_set_option is operating also on freed transaction objects.
   */
   void mem_noaccess() const
   {
     MEM_NOACCESS(&m_open, sizeof m_open);
-    /* m_mutex is accessed by innodb_show_mutex_status()
-    and innodb_monitor_update() even after trx_t::free() */
+    /* m_mutex is accessed via trx_sys.rw_trx_hash */
     MEM_NOACCESS(&m_creator_trx_id, sizeof m_creator_trx_id);
   }
 };
-#endif

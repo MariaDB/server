@@ -275,10 +275,10 @@ SysTablespace::parse_params(
 			}
 		}
 
-		m_files.push_back(Datafile(filepath, flags(), uint32_t(size),
-					   order));
-		Datafile* datafile = &m_files.back();
-		datafile->make_filepath(path(), filepath, NO_EXT);
+		m_files.push_back(Datafile(flags(), uint32_t(size), order));
+		m_files.back().make_filepath(path(),
+					     {filepath, strlen(filepath)},
+					     NO_EXT);
 
 		if (::strlen(str) >= 6
 		    && *str == 'n'
@@ -361,13 +361,12 @@ SysTablespace::check_size(
 		if (file.m_size > rounded_size_pages
 		    || (m_last_file_size_max > 0
 			&& m_last_file_size_max < rounded_size_pages)) {
-			ib::error() << "The Auto-extending " << name()
-				<< " data file '" << file.filepath() << "' is"
-				" of a different size " << rounded_size_pages
-				<< " pages than specified"
-				" in the .cnf file: initial " << file.m_size
-				<< " pages, max " << m_last_file_size_max
-				<< " (relevant if non-zero) pages!";
+			ib::error() << "The Auto-extending data file '"
+				    << file.filepath()
+				    << "' is of a different size "
+				    << rounded_size_pages
+				    << " pages than specified"
+				" by innodb_data_file_path";
 			return(DB_ERROR);
 		}
 
@@ -375,11 +374,11 @@ SysTablespace::check_size(
 	}
 
 	if (rounded_size_pages != file.m_size) {
-		ib::error() << "The " << name() << " data file '"
+		ib::error() << "The data file '"
 			<< file.filepath() << "' is of a different size "
 			<< rounded_size_pages << " pages"
-			" than the " << file.m_size << " pages specified in"
-			" the .cnf file!";
+			" than the " << file.m_size << " pages specified by"
+			" innodb_data_file_path";
 		return(DB_ERROR);
 	}
 
@@ -607,7 +606,7 @@ SysTablespace::read_lsn_and_check_flags(lsn_t* flushed_lsn)
 	if (space_id() != it->m_space_id) {
 
 		ib::error()
-			<< "The " << name() << " data file '" << it->name()
+			<< "The data file '" << it->filepath()
 			<< "' has the wrong space ID. It should be "
 			<< space_id() << ", but " << it->m_space_id
 			<< " was found";
@@ -651,20 +650,16 @@ SysTablespace::check_file_status(
 		break;
 
 	case DB_SUCCESS:
-
 		/* Note: stat.rw_perm is only valid for "regular" files */
 
 		if (stat.type == OS_FILE_TYPE_FILE) {
-
 			if (!stat.rw_perm) {
-				const char	*p = (!srv_read_only_mode
-						      || m_ignore_read_only)
-						     ? "writable"
-						     : "readable";
-
-				ib::error() << "The " << name() << " data file"
-					<< " '" << file.name() << "' must be "
-					<< p;
+				ib::error() << "The data file"
+					    << " '" << file.filepath()
+					    << ((!srv_read_only_mode
+						 || m_ignore_read_only)
+						? "' must be writable"
+						: "' must be readable");
 
 				err = DB_ERROR;
 				reason = FILE_STATUS_READ_WRITE_ERROR;
@@ -672,9 +667,8 @@ SysTablespace::check_file_status(
 
 		} else {
 			/* Not a regular file, bail out. */
-			ib::error() << "The " << name() << " data file '"
-				<< file.name() << "' is not a regular"
-				" InnoDB data file.";
+			ib::error() << "The data file '" << file.filepath()
+				    << "' is not a regular file.";
 
 			err = DB_ERROR;
 			reason = FILE_STATUS_NOT_REGULAR_FILE_ERROR;
@@ -720,14 +714,14 @@ SysTablespace::file_not_found(
 		*create_new_db = TRUE;
 
 		if (space_id() == TRX_SYS_SPACE) {
-			ib::info() << "The first " << name() << " data file '"
-				<< file.name() << "' did not exist."
+			ib::info() << "The first data file '"
+				<< file.filepath() << "' did not exist."
 				" A new tablespace will be created!";
 		}
 
 	} else {
-		ib::info() << "Need to create a new " << name()
-			<< " data file '" << file.name() << "'.";
+		ib::info() << "Need to create a new data file '"
+			   << file.filepath() << "'.";
 	}
 
 	/* Set the file create mode. */
@@ -786,8 +780,8 @@ SysTablespace::check_file_spec(
 	*create_new_db = FALSE;
 
 	if (m_files.size() >= 1000) {
-		ib::error() << "There must be < 1000 data files in "
-			<< name() << " but " << m_files.size() << " have been"
+		ib::error() << "There must be < 1000 data files "
+			" but " << m_files.size() << " have been"
 			" defined.";
 
 		return(DB_ERROR);
@@ -826,22 +820,23 @@ SysTablespace::check_file_spec(
 
 		} else if (err != DB_SUCCESS) {
 			if (reason_if_failed == FILE_STATUS_READ_WRITE_ERROR) {
-				const char*	p = (!srv_read_only_mode
-						     || m_ignore_read_only)
-						    ? "writable" : "readable";
-				ib::error() << "The " << name() << " data file"
-					<< " '" << it->name() << "' must be "
-					<< p;
+				ib::error() << "The data file '"
+					    << it->filepath()
+					    << ((!srv_read_only_mode
+						 || m_ignore_read_only)
+						? "' must be writable"
+						: "' must be readable");
 			}
 
 			ut_a(err != DB_FAIL);
 			break;
 
 		} else if (*create_new_db) {
-			ib::error() << "The " << name() << " data file '"
-				<< begin->m_name << "' was not found but"
-				" one of the other data files '" << it->m_name
-				<< "' exists.";
+			ib::error() << "The data file '"
+				    << begin->filepath()
+				    << "' was not found but"
+				" one of the other data files '"
+				    << it->filepath() << "' exists.";
 
 			err = DB_ERROR;
 			break;
@@ -935,7 +930,7 @@ SysTablespace::open_or_create(
 		} else if (is_temp) {
 			ut_ad(space_id() == SRV_TMP_SPACE_ID);
 			space = fil_space_t::create(
-				name(), SRV_TMP_SPACE_ID, flags(),
+				SRV_TMP_SPACE_ID, flags(),
 				FIL_TYPE_TEMPORARY, NULL);
 			ut_ad(space == fil_system.temp_space);
 			if (!space) {
@@ -946,7 +941,7 @@ SysTablespace::open_or_create(
 		} else {
 			ut_ad(space_id() == TRX_SYS_SPACE);
 			space = fil_space_t::create(
-				name(), TRX_SYS_SPACE, it->flags(),
+				TRX_SYS_SPACE, it->flags(),
 				FIL_TYPE_TABLESPACE, NULL);
 			ut_ad(space == fil_system.sys_space);
 			if (!space) {
@@ -993,8 +988,7 @@ uint32_t SysTablespace::get_increment() const
 
   if (!is_valid_size())
   {
-     ib::error() << "The last data file in " << name()
-                 << " has a size of " << last_file_size()
+     ib::error() << "The last data file has a size of " << last_file_size()
                  << " but the max size allowed is "
                  << m_last_file_size_max;
   }

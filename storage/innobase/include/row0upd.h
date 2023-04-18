@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -118,14 +118,6 @@ row_upd_changes_field_size_or_external(
 	dict_index_t*	index,	/*!< in: index */
 	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec, index) */
 	const upd_t*	update);/*!< in: update vector */
-/***********************************************************//**
-Returns true if row update contains disowned external fields.
-@return true if the update contains disowned external fields. */
-bool
-row_upd_changes_disowned_external(
-/*==============================*/
-	const upd_t*	update)	/*!< in: update vector */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /***************************************************************//**
 Builds an update vector from those fields which in a secondary index entry

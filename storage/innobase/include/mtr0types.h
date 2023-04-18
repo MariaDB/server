@@ -24,14 +24,11 @@ Mini-transaction buffer global types
 Created 11/26/1995 Heikki Tuuri
 *******************************************************/
 
-#ifndef mtr0types_h
-#define mtr0types_h
+#pragma once
 
-#ifndef UNIV_INNOCHECKSUM
-#include "sync0rw.h"
-#else
-#include "univ.i"
-#endif /* UNIV_INNOCHECKSUM */
+#include "buf0types.h"
+
+#include "ut0byte.h"
 
 struct mtr_t;
 
@@ -43,6 +40,11 @@ enum mtr_log_t {
 	/** Log no operations and dirty pages are not added to the flush list.
 	Set for attempting modification of a ROW_FORMAT=COMPRESSED page. */
 	MTR_LOG_NONE,
+
+	/** Log all operations, but do not write any OPT_PAGE_CHECKSUM
+	records because some of the modified pages were also modified
+	by another mini-transaction that did not write its log yet. */
+	MTR_LOG_SUB,
 
 	/** Don't generate REDO log but add dirty pages to flush list */
 	MTR_LOG_NO_REDO
@@ -80,12 +82,8 @@ type. The following record types refer to data pages:
     RESERVED (6): reserved for future use; a subtype code
     (encoded immediately after the length) would be written
     to reserve code space for further extensions
-    OPTION (7): optional record that may be ignored; a subtype code
-    (encoded immediately after the length) would distinguish actual
-    usage, such as:
-     * MDEV-18976 page checksum record
-     * binlog record
-     * SQL statement (at the start of statement)
+    OPTION (7): optional record that may be ignored; a subtype @see mrec_opt
+    (encoded immediately after the length) would distinguish actual usage
 
 Bits 3..0 indicate the redo log record length, excluding the first
 byte, but including additional length bytes and any other bytes,
@@ -232,9 +230,7 @@ enum mrec_type_t
   /** Reserved for future use. */
   RESERVED= 0x60,
   /** Optional record that may be ignored in crash recovery.
-  A subtype code will be encoded immediately after the length.
-  Possible subtypes would include a MDEV-18976 page checksum record,
-  a binlog record, or an SQL statement. */
+  A subtype (@see mrec_opt) will be encoded after the page identifier. */
   OPTION= 0x70
 };
 
@@ -286,6 +282,15 @@ enum mrec_ext_t
 };
 
 
+/** Recognized OPTION record subtypes. */
+enum mrec_opt
+{
+  /** page checksum at the end of the mini-transaction */
+  OPT_PAGE_CHECKSUM= 0
+  /* Other possible subtypes: a binlog record, or an SQL statement. */
+};
+
+
 /** Redo log record types for file-level operations. These bit
 patterns will be written to redo log files, so the existing codes or
 their interpretation on crash recovery must not be changed. */
@@ -331,9 +336,7 @@ enum mtr_memo_type_t {
 
 	MTR_MEMO_SX_LOCK = RW_SX_LATCH << 5,
 
-	/** acquire X-latch on fil_space_t::latch */
+	/** wr_lock() on fil_space_t::latch */
 	MTR_MEMO_SPACE_X_LOCK = MTR_MEMO_SX_LOCK << 1
 };
-#endif /* !UNIV_CHECKSUM */
-
-#endif /* mtr0types_h */
+#endif /* !UNIV_INNOCHECKSUM */

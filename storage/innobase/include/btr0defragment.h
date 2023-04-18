@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2013, 2014 Facebook, Inc. All Rights Reserved.
-Copyright (C) 2014, 2020, MariaDB Corporation.
+Copyright (C) 2014, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -43,13 +43,11 @@ Check whether the given index is in btr_defragment_wq. */
 bool
 btr_defragment_find_index(
 	dict_index_t*	index);	/*!< Index to find. */
-/******************************************************************//**
-Add an index to btr_defragment_wq. Return a pointer to os_event if this
-is a synchronized defragmentation. */
-os_event_t
-btr_defragment_add_index(
-	dict_index_t*	index,	/*!< index to be added  */
-	dberr_t*	err);	/*!< out: error code */
+/** Defragment an index.
+@param pcur      persistent cursor
+@param thd       current session, for checking thd_killed()
+@return whether the operation was interrupted */
+bool btr_defragment_add_index(btr_pcur_t *pcur, THD *thd);
 /******************************************************************//**
 When table is dropped, this function is called to mark a table as removed in
 btr_efragment_wq. The difference between this function and the remove_index
@@ -57,17 +55,9 @@ function is this will not NULL the event. */
 void
 btr_defragment_remove_table(
 	dict_table_t*	table);	/*!< Index to be removed. */
-/******************************************************************//**
-Mark an index as removed from btr_defragment_wq. */
-void
-btr_defragment_remove_index(
-	dict_index_t*	index);	/*!< Index to be removed. */
 /*********************************************************************//**
 Check whether we should save defragmentation statistics to persistent storage.*/
-UNIV_INTERN
-void
-btr_defragment_save_defrag_stats_if_needed(
-	dict_index_t*	index);	/*!< in: index */
+void btr_defragment_save_defrag_stats_if_needed(dict_index_t *index);
 
 /* Stop defragmentation.*/
 void btr_defragment_end();

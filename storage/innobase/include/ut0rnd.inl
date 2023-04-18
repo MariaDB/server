@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -59,28 +59,6 @@ ut_fold_ull(
 	return(ut_fold_ulint_pair((ulint) d & ULINT32_MASK,
 				  (ulint) (d >> 32)));
 }
-
-/*************************************************************//**
-Folds a character string ending in the null character.
-@return folded value */
-UNIV_INLINE
-ulint
-ut_fold_string(
-/*===========*/
-	const char*	str)	/*!< in: null-terminated string */
-{
-	ulint	fold = 0;
-
-	ut_ad(str);
-
-	while (*str != '\0') {
-		fold = ut_fold_ulint_pair(fold, (ulint)(*str));
-		str++;
-	}
-
-	return(fold);
-}
-
 #endif /* !UNIV_INNOCHECKSUM */
 
 /*************************************************************//**

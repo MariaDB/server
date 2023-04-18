@@ -49,6 +49,18 @@ protected:
     lock.fetch_or(WRITER_WAITING, std::memory_order_relaxed);
 #endif
   }
+  /** Start waiting for an exclusive lock.
+  @return current value of the lock word */
+  uint32_t write_lock_wait_start_read()
+  { return lock.fetch_or(WRITER_WAITING, std::memory_order_relaxed); }
+  /** Wait for an exclusive lock.
+  @param l the value of the lock word
+  @return whether the exclusive lock was acquired */
+  bool write_lock_wait_try(uint32_t &l)
+  {
+    return lock.compare_exchange_strong(l, WRITER, std::memory_order_acquire,
+                                        std::memory_order_relaxed);
+  }
   /** Try to acquire a shared lock.
   @param l the value of the lock word
   @return whether the lock was acquired */
@@ -64,36 +76,46 @@ protected:
     }
     return true;
   }
+
   /** Wait for an exclusive lock.
   @return whether the exclusive lock was acquired */
   bool write_lock_poll()
   {
     auto l= WRITER_WAITING;
-    if (lock.compare_exchange_strong(l, WRITER, std::memory_order_acquire,
-                                     std::memory_order_relaxed))
+    if (write_lock_wait_try(l))
       return true;
     if (!(l & WRITER_WAITING))
       /* write_lock() must have succeeded for another thread */
       write_lock_wait_start();
     return false;
   }
+  /** @return the lock word value */
+  uint32_t value() const { return lock.load(std::memory_order_acquire); }
 
 public:
   /** Default constructor */
   rw_lock() : lock(UNLOCKED) {}
 
-  /** Release a shared lock */
-  void read_unlock()
+  /** Release a shared lock.
+  @return whether any writers may have to be woken up */
+  bool read_unlock()
   {
-    IF_DBUG_ASSERT(auto l=,) lock.fetch_sub(1, std::memory_order_release);
-    DBUG_ASSERT(l & ~WRITER_PENDING); /* at least one read lock */
+    auto l= lock.fetch_sub(1, std::memory_order_release);
     DBUG_ASSERT(!(l & WRITER)); /* no write lock must have existed */
+    DBUG_ASSERT(~(WRITER_PENDING) & l); /* at least one read lock */
+    return (~WRITER_PENDING & l) == 1;
   }
   /** Release an exclusive lock */
   void write_unlock()
   {
+    /* Below, we use fetch_sub(WRITER) instead of fetch_and(~WRITER).
+    The reason is that on IA-32 and AMD64 it translates into the 80486
+    instruction LOCK XADD, while fetch_and() translates into a loop
+    around LOCK CMPXCHG. For other ISA either form should be fine. */
+    static_assert(WRITER == 1U << 31, "compatibility");
     IF_DBUG_ASSERT(auto l=,) lock.fetch_sub(WRITER, std::memory_order_release);
-    DBUG_ASSERT(l & WRITER); /* the write lock must have existed */
+    /* the write lock must have existed */
+    DBUG_ASSERT(l & WRITER);
   }
   /** Try to acquire a shared lock.
   @return whether the lock was acquired */
@@ -108,15 +130,9 @@ public:
   }
 
   /** @return whether an exclusive lock is being held by any thread */
-  bool is_write_locked() const
-  { return !!(lock.load(std::memory_order_relaxed) & WRITER); }
-  /** @return whether a shared lock is being held by any thread */
-  bool is_read_locked() const
-  {
-    auto l= lock.load(std::memory_order_relaxed);
-    return (l & ~WRITER_PENDING) && !(l & WRITER);
-  }
+  bool is_write_locked() const { return !!(value() & WRITER); }
+  /** @return whether any lock is being held or waited for by any thread */
+  bool is_locked_or_waiting() const { return value() != 0; }
   /** @return whether any lock is being held by any thread */
-  bool is_locked() const
-  { return (lock.load(std::memory_order_relaxed) & ~WRITER_WAITING) != 0; }
+  bool is_locked() const { return (value() & ~WRITER_WAITING) != 0; }
 };

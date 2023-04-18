@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2021, MariaDB Corporation.
+Copyright (c) 2018, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -531,7 +531,11 @@ row_build_low(
 			continue;
 		}
 
-		ut_ad(ind_field < &index->fields[index->n_fields]);
+		if (UNIV_UNLIKELY(ind_field
+				  >= &index->fields[index->n_fields])) {
+			ut_ad(rec_is_metadata(rec, *index));
+			continue;
+		}
 
 		const dict_col_t* col = dict_field_get_col(ind_field);
 
@@ -745,11 +749,15 @@ row_rec_to_index_entry_impl(
 	if (mblob == 2) {
 		ut_ad(info_bits == REC_INFO_METADATA_ALTER
 		      || info_bits == REC_INFO_METADATA_ADD);
-		ut_ad(rec_len <= ulint(index->n_fields + got));
 		if (pad) {
+			ut_ad(rec_len <= ulint(index->n_fields + got));
 			rec_len = ulint(index->n_fields)
 				+ (info_bits == REC_INFO_METADATA_ALTER);
-		} else if (!got && info_bits == REC_INFO_METADATA_ALTER) {
+		} else if (got) {
+			rec_len = std::min(rec_len,
+					   ulint(index->n_fields + got));
+		} else if (info_bits == REC_INFO_METADATA_ALTER) {
+			ut_ad(rec_len <= index->n_fields);
 			rec_len++;
 		}
 	} else {
@@ -1175,32 +1183,28 @@ row_build_row_ref_in_tuple(
 /***************************************************************//**
 Searches the clustered index record for a row, if we have the row reference.
 @return TRUE if found */
-ibool
+bool
 row_search_on_row_ref(
 /*==================*/
 	btr_pcur_t*		pcur,	/*!< out: persistent cursor, which must
 					be closed by the caller */
-	ulint			mode,	/*!< in: BTR_MODIFY_LEAF, ... */
+	btr_latch_mode		mode,	/*!< in: BTR_MODIFY_LEAF, ... */
 	const dict_table_t*	table,	/*!< in: table */
 	const dtuple_t*		ref,	/*!< in: row reference */
 	mtr_t*			mtr)	/*!< in/out: mtr */
 {
-	ulint		low_match;
-	rec_t*		rec;
-	dict_index_t*	index;
-
 	ut_ad(dtuple_check_typed(ref));
 
-	index = dict_table_get_first_index(table);
+	dict_index_t *index = dict_table_get_first_index(table);
+	btr_pcur_init(pcur);
+	pcur->btr_cur.page_cur.index = index;
 
 	if (UNIV_UNLIKELY(ref->info_bits != 0)) {
 		ut_ad(ref->is_metadata());
 		ut_ad(ref->n_fields <= index->n_uniq);
-		if (btr_pcur_open_at_index_side(
-			    true, index, mode, pcur, true, 0, mtr)
-		    != DB_SUCCESS
+		if (pcur->open_leaf(true, index, mode, mtr) != DB_SUCCESS
 		    || !btr_pcur_move_to_next_user_rec(pcur, mtr)) {
-			return FALSE;
+			return false;
 		}
 		/* We do not necessarily have index->is_instant() here,
 		because we could be executing a rollback of an
@@ -1212,27 +1216,14 @@ row_search_on_row_ref(
 			& REC_INFO_MIN_REC_FLAG;
 	} else {
 		ut_a(ref->n_fields == index->n_uniq);
-		if (btr_pcur_open(index, ref, PAGE_CUR_LE, mode, pcur, mtr)
+		if (btr_pcur_open(ref, PAGE_CUR_LE, mode, pcur, mtr)
 		    != DB_SUCCESS) {
-			return FALSE;
+			return false;
 		}
 	}
 
-	low_match = btr_pcur_get_low_match(pcur);
-
-	rec = btr_pcur_get_rec(pcur);
-
-	if (page_rec_is_infimum(rec)) {
-
-		return(FALSE);
-	}
-
-	if (low_match != dtuple_get_n_fields(ref)) {
-
-		return(FALSE);
-	}
-
-	return(TRUE);
+	return !page_rec_is_infimum(btr_pcur_get_rec(pcur))
+		&& btr_pcur_get_low_match(pcur) == dtuple_get_n_fields(ref);
 }
 
 /*********************************************************************//**
@@ -1242,7 +1233,7 @@ on the secondary index record are preserved.
 rec_t*
 row_get_clust_rec(
 /*==============*/
-	ulint		mode,	/*!< in: BTR_MODIFY_LEAF, ... */
+	btr_latch_mode	mode,	/*!< in: BTR_MODIFY_LEAF, ... */
 	const rec_t*	rec,	/*!< in: record in a secondary index */
 	dict_index_t*	index,	/*!< in: secondary index */
 	dict_index_t**	clust_index,/*!< out: clustered index */
@@ -1252,8 +1243,6 @@ row_get_clust_rec(
 	dtuple_t*	ref;
 	dict_table_t*	table;
 	btr_pcur_t	pcur;
-	ibool		found;
-	rec_t*		clust_rec;
 
 	ut_ad(!dict_index_is_clust(index));
 
@@ -1263,17 +1252,12 @@ row_get_clust_rec(
 
 	ref = row_build_row_ref(ROW_COPY_POINTERS, index, rec, heap);
 
-	found = row_search_on_row_ref(&pcur, mode, table, ref, mtr);
-
-	clust_rec = found ? btr_pcur_get_rec(&pcur) : NULL;
+	auto found = row_search_on_row_ref(&pcur, mode, table, ref, mtr);
 
 	mem_heap_free(heap);
 
-	btr_pcur_close(&pcur);
-
 	*clust_index = dict_table_get_first_index(table);
-
-	return(clust_rec);
+	return found ? btr_pcur_get_rec(&pcur) : nullptr;
 }
 
 /***************************************************************//**
@@ -1282,9 +1266,8 @@ Searches an index record.
 enum row_search_result
 row_search_index_entry(
 /*===================*/
-	dict_index_t*	index,	/*!< in: index */
 	const dtuple_t*	entry,	/*!< in: index entry */
-	ulint		mode,	/*!< in: BTR_MODIFY_LEAF, ... */
+	btr_latch_mode	mode,	/*!< in: BTR_MODIFY_LEAF, ... */
 	btr_pcur_t*	pcur,	/*!< in/out: persistent cursor, which must
 				be closed by the caller */
 	mtr_t*		mtr)	/*!< in: mtr */
@@ -1295,17 +1278,13 @@ row_search_index_entry(
 
 	ut_ad(dtuple_check_typed(entry));
 
-	if (dict_index_is_spatial(index)) {
-		ut_ad(mode & BTR_MODIFY_LEAF || mode & BTR_MODIFY_TREE);
-		rtr_pcur_open(index, entry, PAGE_CUR_RTREE_LOCATE,
-			      mode, pcur, mtr);
-	} else {
-		btr_pcur_open(index, entry, PAGE_CUR_LE, mode, pcur, mtr);
+	if (btr_pcur_open(entry, PAGE_CUR_LE, mode, pcur, mtr) != DB_SUCCESS) {
+		return ROW_NOT_FOUND;
 	}
 
 	switch (btr_pcur_get_btr_cur(pcur)->flag) {
 	case BTR_CUR_DELETE_REF:
-		ut_a(mode & BTR_DELETE && !dict_index_is_spatial(index));
+		ut_ad(!(~mode & BTR_DELETE));
 		return(ROW_NOT_DELETED_REF);
 
 	case BTR_CUR_DEL_MARK_IBUF:

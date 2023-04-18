@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2015, Oracle and/or its affiliates. All rights reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -75,7 +75,7 @@ dict_stats_is_persistent_enabled(const dict_table_t* table)
 	+ dict_stats_update(DICT_STATS_RECALC_TRANSIENT) on a table that has
 	  just been PS-enabled.
 	This is acceptable. Avoiding this would mean that we would have to
-	protect the stat_persistent with dict_sys.mutex like the
+	hold dict_sys.latch or stats_mutex_lock() like for accessing the
 	other ::stat_ members which would be too big performance penalty,
 	especially when this function is called from
 	dict_stats_update_if_needed(). */
@@ -148,7 +148,7 @@ dict_stats_init(
 /*============*/
 	dict_table_t*	table)	/*!< in/out: table */
 {
-	ut_ad(!mutex_own(&dict_sys.mutex));
+	ut_ad(!table->stats_mutex_is_owner());
 
 	if (table->stat_initialized) {
 		return;
@@ -174,17 +174,14 @@ dict_stats_deinit(
 /*==============*/
 	dict_table_t*	table)	/*!< in/out: table */
 {
-	ut_ad(mutex_own(&dict_sys.mutex));
+	ut_ad(table->stats_mutex_is_owner());
+	ut_ad(table->get_ref_count() == 0);
 
-	ut_a(table->get_ref_count() == 0);
-
+#ifdef HAVE_valgrind
 	if (!table->stat_initialized) {
 		return;
 	}
 
-	table->stat_initialized = FALSE;
-
-#ifdef HAVE_valgrind
 	MEM_UNDEFINED(&table->stat_n_rows, sizeof table->stat_n_rows);
 	MEM_UNDEFINED(&table->stat_clustered_index_size,
 		      sizeof table->stat_clustered_index_size);
@@ -218,4 +215,5 @@ dict_stats_deinit(
 			sizeof(index->stat_n_leaf_pages));
 	}
 #endif /* HAVE_valgrind */
+	table->stat_initialized = FALSE;
 }

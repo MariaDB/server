@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -126,8 +126,6 @@ a predicate record.
 dberr_t
 lock_prdt_insert_check_and_lock(
 /*============================*/
-	ulint		flags,	/*!< in: if BTR_NO_LOCKING_FLAG bit is
-				set, does nothing */
 	const rec_t*	rec,	/*!< in: record after which to insert */
 	buf_block_t*	block,	/*!< in/out: buffer block of rec */
 	dict_index_t*	index,	/*!< in: index */
@@ -183,22 +181,12 @@ lock_prdt_rec_move(
 /*===============*/
 	const buf_block_t*	receiver,	/*!< in: buffer block containing
 						the receiving record */
-	const buf_block_t*	donator);	/*!< in: buffer block containing
-						the donating record */
+	const page_id_t		donator);	/*!< in: target page */
 
 /** Check whether there are R-tree Page lock on a page
 @param[in]	trx	trx to test the lock
 @param[in]	page_id	page identifier
 @return	true if there is none */
 bool lock_test_prdt_page_lock(const trx_t *trx, const page_id_t page_id);
-
-/** Removes predicate lock objects set on an index page which is discarded.
-@param[in]	block		page to be discarded
-@param[in]	lock_hash	lock hash */
-void
-lock_prdt_page_free_from_discard(
-/*=============================*/
-	const buf_block_t*	block,
-	hash_table_t*		lock_hash);
 
 #endif

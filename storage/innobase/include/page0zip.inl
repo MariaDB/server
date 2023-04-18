@@ -304,18 +304,6 @@ page_zip_available(
 }
 
 /**********************************************************************//**
-Initialize a compressed page descriptor. */
-UNIV_INLINE
-void
-page_zip_des_init(
-/*==============*/
-	page_zip_des_t*	page_zip)	/*!< in/out: compressed page
-					descriptor */
-{
-	memset(page_zip, 0, sizeof *page_zip);
-}
-
-/**********************************************************************//**
 Reset the counters used for filling
 INFORMATION_SCHEMA.innodb_cmp_per_index. */
 UNIV_INLINE
@@ -323,11 +311,7 @@ void
 page_zip_reset_stat_per_index()
 /*===========================*/
 {
-	mutex_enter(&page_zip_stat_per_index_mutex);
-
-	page_zip_stat_per_index.erase(
-		page_zip_stat_per_index.begin(),
-		page_zip_stat_per_index.end());
-
-	mutex_exit(&page_zip_stat_per_index_mutex);
+	mysql_mutex_lock(&page_zip_stat_per_index_mutex);
+	page_zip_stat_per_index.clear();
+	mysql_mutex_unlock(&page_zip_stat_per_index_mutex);
 }

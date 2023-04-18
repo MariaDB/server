@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -120,9 +120,8 @@ InnoDB:
 #ifndef ut0new_h
 #define ut0new_h
 
-#include <algorithm> /* std::min() */
 #include <limits> /* std::numeric_limits */
-#include <map> /* std::map */
+#include <thread>
 
 #include <stddef.h>
 #include <stdlib.h> /* malloc() */
@@ -136,8 +135,7 @@ InnoDB:
 
 #include "mysql/psi/psi_memory.h" /* PSI_memory_key, PSI_memory_info */
 
-#include "os0thread.h" /* os_thread_sleep() */
-#include "ut0ut.h" /* ut_strcmp_functor, ut_basename_noext() */
+#include "ut0ut.h" /* ut_strcmp_functor */
 
 #define	OUT_OF_MEMORY_MSG \
 	"Check if you should increase the swap file or ulimits of your" \
@@ -381,7 +379,7 @@ public:
 				break;
 			}
 
-			os_thread_sleep(1000000 /* 1 second */);
+			std::this_thread::sleep_for(std::chrono::seconds(1));
 		}
 
 		if (ptr == NULL) {
@@ -516,7 +514,7 @@ public:
 				break;
 			}
 
-			os_thread_sleep(1000000 /* 1 second */);
+			std::this_thread::sleep_for(std::chrono::seconds(1));
 		}
 
 		if (pfx_new == NULL) {
@@ -843,6 +841,8 @@ constexpr const char* const auto_event_names[] =
   "buf0buf",
   "buf0dblwr",
   "buf0dump",
+  "buf0lru",
+  "buf0rea",
   "dict0dict",
   "dict0mem",
   "dict0stats",
@@ -868,7 +868,6 @@ constexpr const char* const auto_event_names[] =
   "lexyy",
   "lock0lock",
   "mem0mem",
-  "os0event",
   "os0file",
   "pars0lex",
   "rem0rec",
@@ -879,11 +878,6 @@ constexpr const char* const auto_event_names[] =
   "row0mysql",
   "row0sel",
   "srv0start",
-  "sync0arr",
-  "sync0debug",
-  "sync0rw",
-  "sync0start",
-  "sync0types",
   "trx0i_s",
   "trx0i_s",
   "trx0roll",

@@ -114,8 +114,7 @@ struct i_s_locks_row_t {
 /** This structure represents INFORMATION_SCHEMA.innodb_trx row */
 struct i_s_trx_row_t {
 	trx_id_t		trx_id;		/*!< transaction identifier */
-	const char*		trx_state;	/*!< transaction state from
-						trx_get_que_state_str() */
+	const char*		trx_state;
 	time_t			trx_started;	/*!< trx_t::start_time */
 	const i_s_locks_row_t*	requested_lock_row;
 					/*!< pointer to a row
@@ -138,7 +137,7 @@ struct i_s_trx_row_t {
 	ulint		trx_lock_memory_bytes;
 					/*!< mem_heap_get_size(
 					trx->lock_heap) */
-	ulint		trx_rows_locked;/*!< lock_number_of_rows_locked() */
+	ulint		trx_rows_locked;/*!< trx_lock_t::n_rec_locks */
 	uintmax_t	trx_rows_modified;/*!< trx_t::undo_no */
 	uint		trx_isolation_level;
 					/*!< trx_t::isolation_level */

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -29,7 +29,6 @@ Created 2011/12/19
 #include "buf0checksum.h"
 #include "srv0start.h"
 #include "srv0srv.h"
-#include "sync0sync.h"
 #include "page0zip.h"
 #include "trx0sys.h"
 #include "fil0crypt.h"
@@ -43,13 +42,21 @@ buf_dblwr_t buf_dblwr;
 /** @return the TRX_SYS page */
 inline buf_block_t *buf_dblwr_trx_sys_get(mtr_t *mtr)
 {
-  buf_block_t *block= buf_page_get(page_id_t(TRX_SYS_SPACE, TRX_SYS_PAGE_NO),
-                                   0, RW_X_LATCH, mtr);
-  buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
-  return block;
+  return buf_page_get(page_id_t(TRX_SYS_SPACE, TRX_SYS_PAGE_NO),
+                      0, RW_X_LATCH, mtr);
 }
 
-/** Initialize the doublewrite buffer data structure.
+void buf_dblwr_t::init()
+{
+  if (!active_slot)
+  {
+    active_slot= &slots[0];
+    mysql_mutex_init(buf_dblwr_mutex_key, &mutex, nullptr);
+    pthread_cond_init(&cond, nullptr);
+  }
+}
+
+/** Initialise the persistent storage of the doublewrite buffer.
 @param header   doublewrite page header in the TRX_SYS page */
 inline void buf_dblwr_t::init(const byte *header)
 {
@@ -57,8 +64,6 @@ inline void buf_dblwr_t::init(const byte *header)
   ut_ad(!active_slot->reserved);
   ut_ad(!batch_running);
 
-  mysql_mutex_init(buf_dblwr_mutex_key, &mutex, nullptr);
-  pthread_cond_init(&cond, nullptr);
   block1= page_id_t(0, mach_read_from_4(header + TRX_SYS_DOUBLEWRITE_BLOCK1));
   block2= page_id_t(0, mach_read_from_4(header + TRX_SYS_DOUBLEWRITE_BLOCK2));
 
@@ -77,7 +82,7 @@ inline void buf_dblwr_t::init(const byte *header)
 @return whether the operation succeeded */
 bool buf_dblwr_t::create()
 {
-  if (is_initialised())
+  if (is_created())
     return true;
 
   mtr_t mtr;
@@ -86,24 +91,31 @@ bool buf_dblwr_t::create()
 start_again:
   mtr.start();
 
+  dberr_t err;
   buf_block_t *trx_sys_block= buf_dblwr_trx_sys_get(&mtr);
+  if (!trx_sys_block)
+  {
+    mtr.commit();
+    return false;
+  }
 
   if (mach_read_from_4(TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_MAGIC +
-                       trx_sys_block->frame) == TRX_SYS_DOUBLEWRITE_MAGIC_N)
+                       trx_sys_block->page.frame) ==
+      TRX_SYS_DOUBLEWRITE_MAGIC_N)
   {
     /* The doublewrite buffer has already been created: just read in
     some numbers */
-    init(TRX_SYS_DOUBLEWRITE + trx_sys_block->frame);
+    init(TRX_SYS_DOUBLEWRITE + trx_sys_block->page.frame);
     mtr.commit();
     return true;
   }
 
   if (UT_LIST_GET_FIRST(fil_system.sys_space->chain)->size < 3 * size)
   {
-too_small:
     ib::error() << "Cannot create doublewrite buffer: "
                    "the first file in innodb_data_file_path must be at least "
                 << (3 * (size >> (20U - srv_page_size_shift))) << "M.";
+fail:
     mtr.commit();
     return false;
   }
@@ -111,9 +123,13 @@ too_small:
   {
     buf_block_t *b= fseg_create(fil_system.sys_space,
                                 TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_FSEG,
-                                &mtr, false, trx_sys_block);
+                                &mtr, &err, false, trx_sys_block);
     if (!b)
-      goto too_small;
+    {
+      ib::error() << "Cannot create doublewrite buffer: " << err;
+      goto fail;
+    }
+
     ib::info() << "Doublewrite buffer not found: creating new";
 
     /* FIXME: After this point, the doublewrite buffer creation
@@ -121,19 +137,16 @@ too_small:
     the InnoDB system tablespace file in the first place.
     It could be located in separate optional file(s) in a
     user-specified location. */
-
-    /* fseg_create acquires a second latch on the page,
-    therefore we must declare it: */
-    buf_block_dbg_add_level(b, SYNC_NO_ORDER_CHECK);
   }
 
   byte *fseg_header= TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_FSEG +
-    trx_sys_block->frame;
+    trx_sys_block->page.frame;
   for (uint32_t prev_page_no= 0, i= 0, extent_size= FSP_EXTENT_SIZE;
        i < 2 * size + extent_size / 2; i++)
   {
-    buf_block_t *new_block= fseg_alloc_free_page(fseg_header, prev_page_no + 1,
-                                                 FSP_UP, &mtr);
+    buf_block_t *new_block=
+      fseg_alloc_free_page_general(fseg_header, prev_page_no + 1, FSP_UP,
+                                   false, &mtr, &mtr, &err);
     if (!new_block)
     {
       ib::error() << "Cannot create doublewrite buffer: "
@@ -156,12 +169,12 @@ too_small:
     tablespace, then the page has not been written to in
     doublewrite. */
 
-    ut_ad(rw_lock_get_x_lock_count(&new_block->lock) == 1);
+    ut_ad(new_block->page.lock.not_recursive());
     const page_id_t id= new_block->page.id();
     /* We only do this in the debug build, to ensure that the check in
     buf_flush_init_for_writing() will see a valid page type. The
     flushes of new_block are actually unnecessary here.  */
-    ut_d(mtr.write<2>(*new_block, FIL_PAGE_TYPE + new_block->frame,
+    ut_d(mtr.write<2>(*new_block, FIL_PAGE_TYPE + new_block->page.frame,
                       FIL_PAGE_TYPE_SYS));
 
     if (i == size / 2)
@@ -169,10 +182,10 @@ too_small:
       ut_a(id.page_no() == size);
       mtr.write<4>(*trx_sys_block,
                    TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_BLOCK1 +
-                   trx_sys_block->frame, id.page_no());
+                   trx_sys_block->page.frame, id.page_no());
       mtr.write<4>(*trx_sys_block,
                    TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_REPEAT +
-                   TRX_SYS_DOUBLEWRITE_BLOCK1 + trx_sys_block->frame,
+                   TRX_SYS_DOUBLEWRITE_BLOCK1 + trx_sys_block->page.frame,
                    id.page_no());
     }
     else if (i == size / 2 + size)
@@ -180,10 +193,10 @@ too_small:
       ut_a(id.page_no() == 2 * size);
       mtr.write<4>(*trx_sys_block,
                    TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_BLOCK2 +
-                   trx_sys_block->frame, id.page_no());
+                   trx_sys_block->page.frame, id.page_no());
       mtr.write<4>(*trx_sys_block,
                    TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_REPEAT +
-                   TRX_SYS_DOUBLEWRITE_BLOCK2 + trx_sys_block->frame,
+                   TRX_SYS_DOUBLEWRITE_BLOCK2 + trx_sys_block->page.frame,
                    id.page_no());
     }
     else if (i > size / 2)
@@ -200,7 +213,7 @@ too_small:
       mtr.start();
       trx_sys_block= buf_dblwr_trx_sys_get(&mtr);
       fseg_header= TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_FSEG +
-        trx_sys_block->frame;
+        trx_sys_block->page.frame;
     }
 
     prev_page_no= id.page_no();
@@ -208,15 +221,16 @@ too_small:
 
   mtr.write<4>(*trx_sys_block,
                TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_MAGIC +
-               trx_sys_block->frame, TRX_SYS_DOUBLEWRITE_MAGIC_N);
+               trx_sys_block->page.frame, TRX_SYS_DOUBLEWRITE_MAGIC_N);
   mtr.write<4>(*trx_sys_block,
                TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_MAGIC +
-               TRX_SYS_DOUBLEWRITE_REPEAT + trx_sys_block->frame,
+               TRX_SYS_DOUBLEWRITE_REPEAT + trx_sys_block->page.frame,
                TRX_SYS_DOUBLEWRITE_MAGIC_N);
 
   mtr.write<4>(*trx_sys_block,
                TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED +
-               trx_sys_block->frame, TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED_N);
+               trx_sys_block->page.frame,
+               TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED_N);
   mtr.commit();
 
   buf_flush_wait_flushed(mtr.commit_lsn());
@@ -247,7 +261,7 @@ dberr_t buf_dblwr_t::init_or_load_pages(pfs_os_file_t file, const char *path)
   /* Read the TRX_SYS header to check if we are using the doublewrite buffer */
   dberr_t err= os_file_read(IORequestRead, file, read_buf,
                             TRX_SYS_PAGE_NO << srv_page_size_shift,
-                            srv_page_size);
+                            srv_page_size, nullptr);
 
   if (err != DB_SUCCESS)
   {
@@ -279,7 +293,7 @@ func_exit:
   /* Read the pages from the doublewrite buffer to memory */
   err= os_file_read(IORequestRead, file, write_buf,
                     block1.page_no() << srv_page_size_shift,
-                    size << srv_page_size_shift);
+                    size << srv_page_size_shift, nullptr);
 
   if (err != DB_SUCCESS)
   {
@@ -290,7 +304,7 @@ func_exit:
   err= os_file_read(IORequestRead, file,
                     write_buf + (size << srv_page_size_shift),
                     block2.page_no() << srv_page_size_shift,
-                    size << srv_page_size_shift);
+                    size << srv_page_size_shift, nullptr);
   if (err != DB_SUCCESS)
   {
     ib::error() << "Failed to read the second double write buffer extent";
@@ -306,7 +320,7 @@ func_exit:
     for (ulint i= 0; i < size * 2; i++, page += srv_page_size)
     {
       memset(page + FIL_PAGE_SPACE_ID, 0, 4);
-      /* For innodb_checksum_algorithm=innodb, we do not need to
+      /* For pre-MySQL-4.1 innodb_checksum_algorithm=innodb, we do not need to
       calculate new checksums for the pages because the field
       .._SPACE_ID does not affect them. Write the page back to where
       we read it from. */
@@ -337,7 +351,7 @@ func_exit:
 void buf_dblwr_t::recover()
 {
   ut_ad(recv_sys.parse_start_lsn);
-  if (!is_initialised())
+  if (!is_created())
     return;
 
   uint32_t page_no_dblwr= 0;
@@ -380,7 +394,7 @@ void buf_dblwr_t::recover()
       if (!srv_is_undo_tablespace(space_id))
         ib::warn() << "A copy of page " << page_no
                    << " in the doublewrite buffer slot " << page_no_dblwr
-                   << " is beyond the end of tablespace " << space->name
+                   << " is beyond the end of " << space->chain.start->name
                    << " (" << space->size << " pages)";
 next_page:
       space->release();
@@ -400,9 +414,12 @@ next_page:
                             physical_size, read_buf);
 
     if (UNIV_UNLIKELY(fio.err != DB_SUCCESS))
+    {
        ib::warn() << "Double write buffer recovery: " << page_id
-                  << " (tablespace '" << space->name
+                  << " ('" << space->chain.start->name
                   << "') read failed with error: " << fio.err;
+       continue;
+    }
 
     if (buf_is_zeroes(span<const byte>(read_buf, physical_size)))
     {
@@ -443,10 +460,9 @@ next_page:
 /** Free the doublewrite buffer. */
 void buf_dblwr_t::close()
 {
-  if (!is_initialised())
+  if (!active_slot)
     return;
 
-  /* Free the double write data structures. */
   ut_ad(!active_slot->reserved);
   ut_ad(!active_slot->first_free);
   ut_ad(!batch_running);
@@ -460,19 +476,18 @@ void buf_dblwr_t::close()
   mysql_mutex_destroy(&mutex);
 
   memset((void*) this, 0, sizeof *this);
-  active_slot= &slots[0];
 }
 
 /** Update the doublewrite buffer on write completion. */
 void buf_dblwr_t::write_completed()
 {
   ut_ad(this == &buf_dblwr);
-  ut_ad(srv_use_doublewrite_buf);
-  ut_ad(is_initialised());
   ut_ad(!srv_read_only_mode);
 
   mysql_mutex_lock(&mutex);
 
+  ut_ad(is_created());
+  ut_ad(srv_use_doublewrite_buf);
   ut_ad(batch_running);
   slot *flush_slot= active_slot == &slots[0] ? &slots[1] : &slots[0];
   ut_ad(flush_slot->reserved);
@@ -525,8 +540,9 @@ static void buf_dblwr_check_page_lsn(const buf_page_t &b, const byte *page)
 /** Check the LSN values on the page with which this block is associated. */
 static void buf_dblwr_check_block(const buf_page_t *bpage)
 {
-  ut_ad(bpage->state() == BUF_BLOCK_FILE_PAGE);
-  const page_t *page= reinterpret_cast<const buf_block_t*>(bpage)->frame;
+  ut_ad(bpage->in_file());
+  const page_t *page= bpage->frame;
+  ut_ad(page);
 
   switch (fil_page_get_type(page)) {
   case FIL_PAGE_INDEX:
@@ -600,8 +616,8 @@ bool buf_dblwr_t::flush_buffered_writes(const ulint size)
     ut_d(buf_dblwr_check_page_lsn(*bpage, write_buf + len2));
   }
 #endif /* UNIV_DEBUG */
-  const IORequest request(nullptr, fil_system.sys_space->chain.start,
-                          IORequest::DBLWR_BATCH);
+  const IORequest request{nullptr, nullptr, fil_system.sys_space->chain.start,
+                          IORequest::DBLWR_BATCH};
   ut_a(fil_system.sys_space->acquire());
   if (multi_batch)
   {
@@ -620,11 +636,19 @@ bool buf_dblwr_t::flush_buffered_writes(const ulint size)
   return true;
 }
 
+static void *get_frame(const IORequest &request)
+{
+  if (request.slot)
+    return request.slot->out_buf;
+  const buf_page_t *bpage= request.bpage;
+  return bpage->zip.data ? bpage->zip.data : bpage->frame;
+}
+
 void buf_dblwr_t::flush_buffered_writes_completed(const IORequest &request)
 {
   ut_ad(this == &buf_dblwr);
   ut_ad(srv_use_doublewrite_buf);
-  ut_ad(is_initialised());
+  ut_ad(is_created());
   ut_ad(!srv_read_only_mode);
   ut_ad(!request.bpage);
   ut_ad(request.node == fil_system.sys_space->chain.start);
@@ -657,9 +681,8 @@ void buf_dblwr_t::flush_buffered_writes_completed(const IORequest &request)
     buf_page_t* bpage= e.request.bpage;
     ut_ad(bpage->in_file());
 
-    /* We request frame here to get correct buffer in case of
-    encryption and/or page compression */
-    void *frame= buf_page_get_frame(bpage);
+    void *frame= get_frame(e.request);
+    ut_ad(frame);
 
     auto e_size= e.size;
 
@@ -670,7 +693,6 @@ void buf_dblwr_t::flush_buffered_writes_completed(const IORequest &request)
     }
     else
     {
-      ut_ad(bpage->state() == BUF_BLOCK_FILE_PAGE);
       ut_ad(!bpage->zip_size());
       ut_d(buf_dblwr_check_page_lsn(*bpage, static_cast<const byte*>(frame)));
     }
@@ -692,7 +714,7 @@ posted, and also when we may have to wait for a page latch!
 Otherwise a deadlock of threads can occur. */
 void buf_dblwr_t::flush_buffered_writes()
 {
-  if (!is_initialised() || !srv_use_doublewrite_buf)
+  if (!is_created() || !srv_use_doublewrite_buf)
   {
     fil_flush_file_spaces();
     return;
@@ -717,6 +739,7 @@ void buf_dblwr_t::add_to_batch(const IORequest &request, size_t size)
   ut_ad(request.bpage);
   ut_ad(request.bpage->in_file());
   ut_ad(request.node);
+  ut_ad(request.node->space->purpose == FIL_TYPE_TABLESPACE);
   ut_ad(request.node->space->id == request.bpage->id().space());
   ut_ad(request.node->space->referenced());
   ut_ad(!srv_read_only_mode);
@@ -737,13 +760,9 @@ void buf_dblwr_t::add_to_batch(const IORequest &request, size_t size)
 
   byte *p= active_slot->write_buf + srv_page_size * active_slot->first_free;
 
-  /* We request frame here to get correct buffer in case of
-  encryption and/or page compression */
-  void *frame= buf_page_get_frame(request.bpage);
-
   /* "frame" is at least 1024-byte aligned for ROW_FORMAT=COMPRESSED pages,
   and at least srv_page_size (4096-byte) for everything else. */
-  memcpy_aligned<UNIV_ZIP_SIZE_MIN>(p, frame, size);
+  memcpy_aligned<UNIV_ZIP_SIZE_MIN>(p, get_frame(request), size);
   /* fil_page_compress() for page_compressed guarantees 256-byte alignment */
   memset_aligned<256>(p + size, 0, srv_page_size - size);
   /* FIXME: Inform the compiler that "size" and "srv_page_size - size"

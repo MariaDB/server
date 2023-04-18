@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -36,11 +36,6 @@ Created 9/17/2000 Heikki Tuuri
 #include "fil0fil.h"
 #include "fts0fts.h"
 #include "gis0type.h"
-
-#include "sql_list.h"
-#include "sql_cmd.h"
-
-extern ibool row_rollback_on_timeout;
 
 struct row_prebuilt_t;
 class ha_innobase;
@@ -187,13 +182,8 @@ row_create_prebuilt(
 	dict_table_t*	table,		/*!< in: Innobase table handle */
 	ulint		mysql_row_len);	/*!< in: length in bytes of a row in
 					the MySQL format */
-/********************************************************************//**
-Free a prebuilt struct for a MySQL table handle. */
-void
-row_prebuilt_free(
-/*==============*/
-	row_prebuilt_t*	prebuilt,	/*!< in, own: prebuilt struct */
-	ibool		dict_locked);	/*!< in: TRUE=data dictionary locked */
+/** Free a prebuilt struct for a TABLE handle. */
+void row_prebuilt_free(row_prebuilt_t *prebuilt);
 /*********************************************************************//**
 Updates the transaction pointers in query graphs stored in the prebuilt
 struct. */
@@ -273,7 +263,7 @@ row_update_for_mysql(
 
 /** This can only be used when the current transaction is at
 READ COMMITTED or READ UNCOMMITTED isolation level.
-Before calling this function row_search_for_mysql() must have
+Before calling this function row_search_mvcc() must have
 initialized prebuilt->new_rec_locks to store the information which new
 record locks really were set. This function removes a newly set
 clustered index record lock under prebuilt->pcur or
@@ -310,40 +300,24 @@ row_update_cascade_for_mysql(
                                 or set null operation */
         dict_table_t*   table)  /*!< in: table where we do the operation */
         MY_ATTRIBUTE((nonnull, warn_unused_result));
-/*********************************************************************//**
-Locks the data dictionary exclusively for performing a table create or other
-data dictionary modification operation. */
-void
-row_mysql_lock_data_dictionary_func(
-/*================================*/
-	trx_t*		trx,	/*!< in/out: transaction */
-	const char*	file,	/*!< in: file name */
-	unsigned	line);	/*!< in: line number */
-#define row_mysql_lock_data_dictionary(trx)				\
-	row_mysql_lock_data_dictionary_func(trx, __FILE__, __LINE__)
-/*********************************************************************//**
-Unlocks the data dictionary exclusive lock. */
-void
-row_mysql_unlock_data_dictionary(
-/*=============================*/
-	trx_t*	trx);	/*!< in/out: transaction */
-/*********************************************************************//**
-Locks the data dictionary in shared mode from modifications, for performing
-foreign key check, rollback, or other operation invisible to MySQL. */
-void
-row_mysql_freeze_data_dictionary_func(
-/*==================================*/
-	trx_t*		trx,	/*!< in/out: transaction */
-	const char*	file,	/*!< in: file name */
-	unsigned	line);	/*!< in: line number */
-#define row_mysql_freeze_data_dictionary(trx)				\
-	row_mysql_freeze_data_dictionary_func(trx, __FILE__, __LINE__)
-/*********************************************************************//**
-Unlocks the data dictionary shared lock. */
-void
-row_mysql_unfreeze_data_dictionary(
-/*===============================*/
-	trx_t*	trx);	/*!< in/out: transaction */
+
+/** Lock the data dictionary cache exclusively. */
+#define row_mysql_lock_data_dictionary(trx)			\
+	do {							\
+		ut_ad(!trx->dict_operation_lock_mode);		\
+		dict_sys.lock(SRW_LOCK_CALL);			\
+		trx->dict_operation_lock_mode = true;		\
+	} while (0)
+
+/** Unlock the data dictionary. */
+#define row_mysql_unlock_data_dictionary(trx)			\
+	do {							\
+		ut_ad(!lock_trx_has_sys_table_locks(trx));	\
+		ut_ad(trx->dict_operation_lock_mode);		\
+		trx->dict_operation_lock_mode = false;		\
+		dict_sys.unlock();				\
+	} while (0)
+
 /*********************************************************************//**
 Creates a table for MySQL. On failure the transaction will be rolled back
 and the 'table' object will be freed.
@@ -354,9 +328,7 @@ row_create_table_for_mysql(
 	dict_table_t*	table,	/*!< in, own: table definition
 				(will be freed, or on DB_SUCCESS
 				added to the data dictionary cache) */
-	trx_t*		trx,	/*!< in/out: transaction */
-	fil_encryption_t mode,	/*!< in: encryption mode */
-	uint32_t	key_id)	/*!< in: encryption key_id */
+	trx_t*		trx)	/*!< in/out: transaction */
 	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************//**
@@ -369,78 +341,22 @@ row_create_index_for_mysql(
 	dict_index_t*	index,		/*!< in, own: index definition
 					(will be freed) */
 	trx_t*		trx,		/*!< in: transaction handle */
-	const ulint*	field_lengths)	/*!< in: if not NULL, must contain
+	const ulint*	field_lengths,	/*!< in: if not NULL, must contain
 					dict_index_get_n_fields(index)
 					actual field lengths for the
 					index columns, which are
 					then checked for not being too
 					large. */
+	fil_encryption_t mode,	/*!< in: encryption mode */
+	uint32_t	key_id)	/*!< in: encryption key_id */
 	MY_ATTRIBUTE((warn_unused_result));
-/*********************************************************************//**
-The master thread in srv0srv.cc calls this regularly to drop tables which
-we must drop in background after queries to them have ended. Such lazy
-dropping of tables is needed in ALTER TABLE on Unix.
-@return how many tables dropped + remaining tables in list */
-ulint
-row_drop_tables_for_mysql_in_background(void);
-/*=========================================*/
-/*********************************************************************//**
-Get the background drop list length. NOTE: the caller must own the kernel
-mutex!
-@return how many tables in list */
-ulint
-row_get_background_drop_list_len_low(void);
-/*======================================*/
-
-/** Drop garbage tables during recovery. */
-void
-row_mysql_drop_garbage_tables();
-
-/*********************************************************************//**
-Sets an exclusive lock on a table.
-@return error code or DB_SUCCESS */
-dberr_t
-row_mysql_lock_table(
-/*=================*/
-	trx_t*		trx,		/*!< in/out: transaction */
-	dict_table_t*	table,		/*!< in: table to lock */
-	enum lock_mode	mode,		/*!< in: LOCK_X or LOCK_S */
-	const char*	op_info)	/*!< in: string for trx->op_info */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-/** Drop a table.
-If the data dictionary was not already locked by the transaction,
-the transaction will be committed.  Otherwise, the data dictionary
-will remain locked.
-@param[in]	name		Table name
-@param[in,out]	trx		Transaction handle
-@param[in]	sqlcom		type of SQL operation
-@param[in]	create_failed	true=create table failed
-				because e.g. foreign key column
-@param[in]	nonatomic	Whether it is permitted to release
-				and reacquire dict_sys.latch
-@return error code */
-dberr_t
-row_drop_table_for_mysql(
-	const char*		name,
-	trx_t*			trx,
-	enum_sql_command	sqlcom,
-	bool			create_failed = false,
-	bool			nonatomic = true);
-
-/** Drop a table after failed CREATE TABLE. */
-dberr_t row_drop_table_after_create_fail(const char* name, trx_t* trx);
 
 /*********************************************************************//**
 Discards the tablespace of a table which stored in an .ibd file. Discarding
 means that this function deletes the .ibd file and assigns a new table id for
 the table. Also the file_unreadable flag is set.
 @return error code or DB_SUCCESS */
-dberr_t
-row_discard_tablespace_for_mysql(
-/*=============================*/
-	const char*	name,	/*!< in: table name */
-	trx_t*		trx)	/*!< in: transaction handle */
+dberr_t row_discard_tablespace_for_mysql(dict_table_t *table, trx_t *trx)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /*****************************************************************//**
 Imports a tablespace. The space id in the .ibd file must match the space id
@@ -453,17 +369,6 @@ row_import_tablespace_for_mysql(
 	row_prebuilt_t*	prebuilt)	/*!< in: prebuilt struct in MySQL */
         MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/** Drop a database for MySQL.
-@param[in]	name	database name which ends at '/'
-@param[in]	trx	transaction handle
-@param[out]	found	number of dropped tables/partitions
-@return error code or DB_SUCCESS */
-dberr_t
-row_drop_database_for_mysql(
-	const char*	name,
-	trx_t*		trx,
-	ulint*		found);
-
 /*********************************************************************//**
 Renames a table for MySQL.
 @return error code or DB_SUCCESS */
@@ -473,37 +378,9 @@ row_rename_table_for_mysql(
 	const char*	old_name,	/*!< in: old table name */
 	const char*	new_name,	/*!< in: new table name */
 	trx_t*		trx,		/*!< in/out: transaction */
-	bool		commit,		/*!< in: whether to commit trx */
 	bool		use_fk)		/*!< in: whether to parse and enforce
 					FOREIGN KEY constraints */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-/*********************************************************************//**
-Scans an index for either COOUNT(*) or CHECK TABLE.
-If CHECK TABLE; Checks that the index contains entries in an ascending order,
-unique constraint is not broken, and calculates the number of index entries
-in the read view of the current transaction.
-@return DB_SUCCESS or other error */
-dberr_t
-row_scan_index_for_mysql(
-/*=====================*/
-	row_prebuilt_t*		prebuilt,	/*!< in: prebuilt struct
-						in MySQL handle */
-	const dict_index_t*	index,		/*!< in: index */
-	ulint*			n_rows)		/*!< out: number of entries
-						seen in the consistent read */
-	MY_ATTRIBUTE((warn_unused_result));
-/*********************************************************************//**
-Initialize this module */
-void
-row_mysql_init(void);
-/*================*/
-
-/*********************************************************************//**
-Close this module */
-void
-row_mysql_close(void);
-/*=================*/
 
 /* A struct describing a place for an individual column in the MySQL
 row format which is presented to the table handler in ha_innobase.
@@ -686,6 +563,7 @@ struct row_prebuilt_t {
 	dtuple_t*	clust_ref;	/*!< prebuilt dtuple used in
 					sel/upd/del */
 	lock_mode	select_lock_type;/*!< LOCK_NONE, LOCK_S, or LOCK_X */
+	bool		skip_locked;	/*!< TL_{READ,WRITE}_SKIP_LOCKED */
 	lock_mode	stored_select_lock_type;/*!< this field is used to
 					remember the original select_lock_type
 					that was decided in ha_innodb.cc,
@@ -712,7 +590,7 @@ struct row_prebuilt_t {
 					ROW_READ_TRY_SEMI_CONSISTENT and
 					to simply skip the row.	 If
 					the row matches, the next call to
-					row_search_for_mysql() will lock
+					row_search_mvcc() will lock
 					the row.
 					This eliminates lock waits in some
 					cases; note that this breaks
@@ -721,7 +599,7 @@ struct row_prebuilt_t {
 					the session is using READ
 					COMMITTED or READ UNCOMMITTED
 					isolation level, set in
-					row_search_for_mysql() if we set a new
+					row_search_mvcc() if we set a new
 					record lock on the secondary
 					or clustered index; this is
 					used in row_unlock_for_mysql()
@@ -861,9 +739,8 @@ struct VCOL_STORAGE
 @return		TRUE  malloc failure
 */
 
-bool innobase_allocate_row_for_vcol(
-				    THD *	  thd,
-				    dict_index_t* index,
+bool innobase_allocate_row_for_vcol(THD *thd,
+				    const dict_index_t* index,
 				    mem_heap_t**  heap,
 				    TABLE**	  table,
 				    VCOL_STORAGE* storage);
@@ -879,17 +756,13 @@ public:
 
   ib_vcol_row(mem_heap_t *heap) : heap(heap) {}
 
-  byte *record(THD *thd, dict_index_t *index, TABLE **table)
+  byte *record(THD *thd, const dict_index_t *index, TABLE **table)
   {
-    if (!storage.innobase_record)
-    {
-      bool ok = innobase_allocate_row_for_vcol(thd, index, &heap, table,
-                                               &storage);
-      if (!ok)
-        return NULL;
-    }
+    if (!storage.innobase_record &&
+        !innobase_allocate_row_for_vcol(thd, index, &heap, table, &storage))
+      return nullptr;
     return storage.innobase_record;
-  };
+  }
 
   ~ib_vcol_row()
   {
@@ -958,7 +831,7 @@ innobase_rename_vc_templ(
 #define ROW_MYSQL_REC_FIELDS	1
 #define ROW_MYSQL_NO_TEMPLATE	2
 #define ROW_MYSQL_DUMMY_TEMPLATE 3	/* dummy template used in
-					row_scan_and_check_index */
+					row_check_index() */
 
 /* Values for hint_need_to_fetch_extra_cols */
 #define ROW_RETRIEVE_PRIMARY_KEY	1
@@ -968,11 +841,5 @@ innobase_rename_vc_templ(
 #define ROW_READ_WITH_LOCKS		0
 #define ROW_READ_TRY_SEMI_CONSISTENT	1
 #define ROW_READ_DID_SEMI_CONSISTENT	2
-
-#ifdef UNIV_DEBUG
-/** Wait for the background drop list to become empty. */
-void
-row_wait_for_background_drop_list_empty();
-#endif /* UNIV_DEBUG */
 
 #endif /* row0mysql.h */

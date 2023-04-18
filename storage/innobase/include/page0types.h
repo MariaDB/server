@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, 2020, MariaDB Corporation.
+Copyright (c) 2019, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -30,6 +30,7 @@ Created 2/2/1994 Heikki Tuuri
 #include "dict0types.h"
 #include "mtr0types.h"
 #include "rem0types.h"
+#include "ut0new.h"
 
 #include <map>
 
@@ -87,26 +88,52 @@ enum page_cur_mode_t {
 	PAGE_CUR_RTREE_GET_FATHER	= 14
 };
 
+class buf_pool_t;
+class buf_page_t;
+
 /** Compressed page descriptor */
 struct page_zip_des_t
 {
 	page_zip_t*	data;		/*!< compressed page data */
 
-#ifdef UNIV_DEBUG
-	unsigned	m_start:16;	/*!< start offset of modification log */
-	bool		m_external;	/*!< Allocated externally, not from the
-					buffer pool */
-#endif /* UNIV_DEBUG */
-	unsigned	m_end:16;	/*!< end offset of modification log */
-	unsigned	m_nonempty:1;	/*!< TRUE if the modification log
+	uint32_t	m_end:16;	/*!< end offset of modification log */
+	uint32_t	m_nonempty:1;	/*!< TRUE if the modification log
 					is not empty */
-	unsigned	n_blobs:12;	/*!< number of externally stored
+	uint32_t	n_blobs:12;	/*!< number of externally stored
 					columns on the page; the maximum
 					is 744 on a 16 KiB page */
-	unsigned	ssize:PAGE_ZIP_SSIZE_BITS;
+	uint32_t	ssize:PAGE_ZIP_SSIZE_BITS;
 					/*!< 0 or compressed page shift size;
 					the size in bytes is
 					(UNIV_ZIP_SIZE_MIN >> 1) << ssize. */
+#ifdef UNIV_DEBUG
+	uint16_t	m_start;	/*!< start offset of modification log */
+	bool		m_external;	/*!< Allocated externally, not from the
+					buffer pool */
+#endif /* UNIV_DEBUG */
+
+	void clear() {
+		/* Clear everything except the member "fix". */
+		memset((void*) this, 0,
+		       reinterpret_cast<char*>(&fix)
+		       - reinterpret_cast<char*>(this));
+	}
+
+	page_zip_des_t() = default;
+	page_zip_des_t(const page_zip_des_t&) = default;
+
+	/* Initialize everything except the member "fix". */
+	page_zip_des_t(const page_zip_des_t& old, bool) {
+		memcpy((void*) this, (void*) &old,
+		       reinterpret_cast<char*>(&fix)
+		       - reinterpret_cast<char*>(this));
+	}
+
+private:
+	friend buf_pool_t;
+	friend buf_page_t;
+	/** fix count and state used in buf_page_t */
+	Atomic_relaxed<uint32_t> fix;
 };
 
 /** Compression statistics for a given page size */

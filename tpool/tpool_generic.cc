@@ -1,4 +1,4 @@
-/* Copyright (C) 2019, 2020, MariaDB Corporation.
+/* Copyright (C) 2019, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute itand /or modify
 it under the terms of the GNU General Public License as published by
@@ -33,12 +33,17 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 #include <my_dbug.h>
 #include <thr_timer.h>
 #include <stdlib.h>
+#include "aligned.h"
 
 namespace tpool
 {
 
 #ifdef __linux__
+#if defined(HAVE_URING) || defined(LINUX_NATIVE_AIO)
   extern aio* create_linux_aio(thread_pool* tp, int max_io);
+#else
+  aio *create_linux_aio(thread_pool *, int) { return nullptr; };
+#endif
 #endif
 #ifdef _WIN32
   extern aio* create_win_aio(thread_pool* tp, int max_io);
@@ -81,23 +86,10 @@ void aio::synchronous(aiocb *cb)
 #endif
   cb->m_ret_len = ret_len;
   cb->m_err = err;
-  if (!err && cb->m_ret_len != cb->m_len)
+  if (ret_len)
     finish_synchronous(cb);
 }
 
-
-/**
-  A partial read/write has occured, continue synchronously.
-*/
-void aio::finish_synchronous(aiocb *cb)
-{
-  assert(cb->m_ret_len != (unsigned int) cb->m_len && !cb->m_err);
-  /* partial read/write */
-  cb->m_buffer= (char *) cb->m_buffer + cb->m_ret_len;
-  cb->m_len-= (unsigned int) cb->m_ret_len;
-  cb->m_offset+= cb->m_ret_len;
-  synchronous(cb);
-}
 
 /**
   Implementation of generic threadpool.
@@ -137,7 +129,7 @@ enum worker_wake_reason
 
 
 /* A per-worker  thread structure.*/
-struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE)  worker_data
+struct alignas(CPU_LEVEL1_DCACHE_LINESIZE)  worker_data
 {
   /** Condition variable to wakeup this worker.*/
   std::condition_variable m_cv;
@@ -189,23 +181,13 @@ struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE)  worker_data
   {}
 
   /*Define custom new/delete because of overaligned structure. */
-  void* operator new(size_t size)
+  static void *operator new(size_t size)
   {
-#ifdef _WIN32
-    return _aligned_malloc(size, CPU_LEVEL1_DCACHE_LINESIZE);
-#else
-    void* ptr;
-    int ret = posix_memalign(&ptr, CPU_LEVEL1_DCACHE_LINESIZE, size);
-    return ret ? 0 : ptr;
-#endif
+    return aligned_malloc(size, CPU_LEVEL1_DCACHE_LINESIZE);
   }
-  void operator delete(void* p)
+  static void operator delete(void* p)
   {
-#ifdef _WIN32
-    _aligned_free(p);
-#else
-    free(p);
-#endif
+    aligned_free(p);
   }
 };
 
@@ -359,7 +341,6 @@ public:
       do
       {
         m_callback(m_data);
-        dbug_execute_after_task_callback();
       }
       while (m_running.fetch_sub(1, std::memory_order_release) != 1);
 

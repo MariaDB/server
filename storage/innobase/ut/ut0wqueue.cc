@@ -38,10 +38,7 @@ ib_wqueue_create(void)
 	ib_wqueue_t*	wq = static_cast<ib_wqueue_t*>(
 		ut_malloc_nokey(sizeof(*wq)));
 
-	/* Function ib_wqueue_create() has not been used anywhere,
-	not necessary to instrument this mutex */
-
-	mutex_create(LATCH_ID_WORK_QUEUE, &wq->mutex);
+	mysql_mutex_init(0, &wq->mutex, nullptr);
 
 	wq->items = ib_list_create();
 	wq->length = 0;
@@ -56,7 +53,7 @@ ib_wqueue_free(
 /*===========*/
 	ib_wqueue_t*	wq)	/*!< in: work queue */
 {
-	mutex_free(&wq->mutex);
+	mysql_mutex_destroy(&wq->mutex);
 	ib_list_free(wq->items);
 
 	ut_free(wq);
@@ -71,7 +68,7 @@ void
 ib_wqueue_add(ib_wqueue_t* wq, void* item, mem_heap_t* heap, bool wq_locked)
 {
 	if (!wq_locked) {
-		mutex_enter(&wq->mutex);
+		mysql_mutex_lock(&wq->mutex);
 	}
 
 	ib_list_add_last(wq->items, item, heap);
@@ -79,7 +76,7 @@ ib_wqueue_add(ib_wqueue_t* wq, void* item, mem_heap_t* heap, bool wq_locked)
 	ut_ad(wq->length == ib_list_len(wq->items));
 
 	if (!wq_locked) {
-		mutex_exit(&wq->mutex);
+		mysql_mutex_unlock(&wq->mutex);
 	}
 }
 
@@ -93,7 +90,7 @@ ib_wqueue_nowait(
 {
 	ib_list_node_t*	node = NULL;
 
-	mutex_enter(&wq->mutex);
+	mysql_mutex_lock(&wq->mutex);
 
 	if(!ib_list_is_empty(wq->items)) {
 		node = ib_list_get_first(wq->items);
@@ -105,7 +102,7 @@ ib_wqueue_nowait(
 		}
 	}
 
-	mutex_exit(&wq->mutex);
+	mysql_mutex_unlock(&wq->mutex);
 
 	return (node ? node->data : NULL);
 }
@@ -114,8 +111,8 @@ ib_wqueue_nowait(
 @return whether the queue is empty */
 bool ib_wqueue_is_empty(ib_wqueue_t* wq)
 {
-	mutex_enter(&wq->mutex);
+	mysql_mutex_lock(&wq->mutex);
 	bool is_empty = ib_list_is_empty(wq->items);
-	mutex_exit(&wq->mutex);
+	mysql_mutex_unlock(&wq->mutex);
 	return is_empty;
 }

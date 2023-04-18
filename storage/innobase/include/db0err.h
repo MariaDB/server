@@ -49,9 +49,6 @@ enum dberr_t {
 					rollback segment */
 	DB_CLUSTER_NOT_FOUND = 30,
 	DB_TABLE_NOT_FOUND,
-	DB_MUST_GET_MORE_FILE_SPACE,	/*!< the database has to be stopped
-					and restarted with more file space */
-	DB_TABLE_IS_BEING_USED,
 	DB_TOO_BIG_RECORD,		/*!< a record in an index would not fit
 					on a compressed page, or it would
 					become bigger than 1/2 free space in
@@ -121,8 +118,6 @@ enum dberr_t {
 	DB_READ_ONLY,			/*!< Update operation attempted in
 					a read-only transaction */
 	DB_FTS_INVALID_DOCID,		/* FTS Doc ID cannot be zero */
-	DB_TABLE_IN_FK_CHECK,		/* table is being used in foreign
-					key check */
 	DB_ONLINE_LOG_TOO_BIG,		/*!< Modification log grew too big
 					during online index creation */
 

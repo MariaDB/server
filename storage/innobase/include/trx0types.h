@@ -24,11 +24,9 @@ Transaction system global type definitions
 Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
-#ifndef trx0types_h
-#define trx0types_h
-
-#include "ut0byte.h"
-#include "ut0mutex.h"
+#pragma once
+#include "univ.i"
+#include "ut0new.h"
 
 #include <vector>
 
@@ -50,15 +48,6 @@ static const ulint TRX_MAGIC_N = 91118598;
 
 constexpr uint innodb_purge_threads_MAX= 32;
 
-/** Transaction execution states when trx->state == TRX_STATE_ACTIVE */
-enum trx_que_t {
-	TRX_QUE_RUNNING,		/*!< transaction is running */
-	TRX_QUE_LOCK_WAIT,		/*!< transaction is waiting for
-					a lock */
-	TRX_QUE_ROLLING_BACK,		/*!< transaction is rolling back */
-	TRX_QUE_COMMITTING		/*!< transaction is committing */
-};
-
 /** Transaction states (trx_t::state) */
 enum trx_state_t {
 	TRX_STATE_NOT_STARTED,
@@ -70,21 +59,6 @@ enum trx_state_t {
 	/** XA PREPARE transaction that was returned to ha_recover() */
 	TRX_STATE_PREPARED_RECOVERED,
 	TRX_STATE_COMMITTED_IN_MEMORY
-};
-
-/** Type of data dictionary operation */
-enum trx_dict_op_t {
-	/** The transaction is not modifying the data dictionary. */
-	TRX_DICT_OP_NONE = 0,
-	/** The transaction is creating a table or an index, or
-	dropping a table.  The table must be dropped in crash
-	recovery.  This and TRX_DICT_OP_NONE are the only possible
-	operation modes in crash recovery. */
-	TRX_DICT_OP_TABLE = 1,
-	/** The transaction is creating or dropping an index in an
-	existing table.  In crash recovery, the data dictionary
-	must be locked, but the table must not be dropped. */
-	TRX_DICT_OP_INDEX = 2
 };
 
 /** Memory objects */
@@ -133,10 +107,10 @@ typedef	byte	trx_undo_rec_t;
 
 /* @} */
 
-typedef ib_mutex_t RsegMutex;
-typedef ib_mutex_t TrxMutex;
-typedef ib_mutex_t PQMutex;
-typedef ib_mutex_t TrxSysMutex;
-
 typedef std::vector<trx_id_t, ut_allocator<trx_id_t> >	trx_ids_t;
-#endif /* trx0types_h */
+
+/** The number of rollback segments; rollback segment id must fit in
+the 7 bits reserved for it in DB_ROLL_PTR. */
+static constexpr unsigned TRX_SYS_N_RSEGS= 128;
+/** Maximum number of undo tablespaces (not counting the system tablespace) */
+static constexpr unsigned TRX_SYS_MAX_UNDO_SPACES= TRX_SYS_N_RSEGS - 1;

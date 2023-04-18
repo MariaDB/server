@@ -256,21 +256,6 @@ func_exit:
 	return(found);
 }
 
-/** Try to truncate the undo logs.
-@param[in,out]	trx	transaction */
-static void row_undo_try_truncate(trx_t* trx)
-{
-	if (trx_undo_t*	undo = trx->rsegs.m_redo.undo) {
-		ut_ad(undo->rseg == trx->rsegs.m_redo.rseg);
-		trx_undo_truncate_end(*undo, trx->undo_no, false);
-	}
-
-	if (trx_undo_t* undo = trx->rsegs.m_noredo.undo) {
-		ut_ad(undo->rseg == trx->rsegs.m_noredo.rseg);
-		trx_undo_truncate_end(*undo, trx->undo_no, true);
-	}
-}
-
 /** Get the latest undo log record for rollback.
 @param[in,out]	node		rollback context
 @return	whether an undo log record was fetched */
@@ -280,13 +265,14 @@ static bool row_undo_rec_get(undo_node_t* node)
 
 	if (trx->pages_undone) {
 		trx->pages_undone = 0;
-		row_undo_try_truncate(trx);
+		trx_undo_try_truncate(*trx);
 	}
 
 	trx_undo_t*	undo	= NULL;
 	trx_undo_t*	update	= trx->rsegs.m_redo.undo;
 	trx_undo_t*	temp	= trx->rsegs.m_noredo.undo;
 	const undo_no_t	limit	= trx->roll_limit;
+	bool		is_temp = false;
 
 	ut_ad(!update || !temp || update->empty() || temp->empty()
 	      || update->top_undo_no != temp->top_undo_no);
@@ -300,15 +286,14 @@ static bool row_undo_rec_get(undo_node_t* node)
 	}
 
 	if (temp && !temp->empty() && temp->top_undo_no >= limit) {
-		if (!undo) {
+		if (!undo || undo->top_undo_no < temp->top_undo_no) {
 			undo = temp;
-		} else if (undo->top_undo_no < temp->top_undo_no) {
-			undo = temp;
+			is_temp = true;
 		}
 	}
 
 	if (undo == NULL) {
-		row_undo_try_truncate(trx);
+		trx_undo_try_truncate(*trx);
 		/* Mark any ROLLBACK TO SAVEPOINT completed, so that
 		if the transaction object is committed and reused
 		later, we will default to a full ROLLBACK. */
@@ -321,13 +306,18 @@ static bool row_undo_rec_get(undo_node_t* node)
 	ut_ad(limit <= undo->top_undo_no);
 
 	node->roll_ptr = trx_undo_build_roll_ptr(
-		false, undo->rseg->id, undo->top_page_no, undo->top_offset);
+		false, trx_sys.rseg_id(undo->rseg, !is_temp),
+		undo->top_page_no, undo->top_offset);
 
 	mtr_t	mtr;
 	mtr.start();
 
-	buf_block_t* undo_page = trx_undo_page_get_s_latched(
-		page_id_t(undo->rseg->space->id, undo->top_page_no), &mtr);
+	buf_block_t* undo_page = buf_page_get(
+		page_id_t(undo->rseg->space->id, undo->top_page_no),
+		0, RW_S_LATCH, &mtr);
+	if (!undo_page) {
+		return false;
+	}
 
 	uint16_t offset = undo->top_offset;
 
@@ -348,11 +338,15 @@ static bool row_undo_rec_get(undo_node_t* node)
 		ut_ad(undo->empty());
 	}
 
-	node->undo_rec = trx_undo_rec_copy(undo_page->frame + offset,
+	node->undo_rec = trx_undo_rec_copy(undo_page->page.frame + offset,
 					   node->heap);
 	mtr.commit();
 
-	switch (trx_undo_rec_get_type(node->undo_rec)) {
+	if (UNIV_UNLIKELY(!node->undo_rec)) {
+		return false;
+	}
+
+	switch (node->undo_rec[2] & (TRX_UNDO_CMPL_INFO_MULT - 1)) {
 	case TRX_UNDO_INSERT_METADATA:
 		/* This record type was introduced in MDEV-11369
 		instant ADD COLUMN, which was implemented after
@@ -364,14 +358,14 @@ static bool row_undo_rec_get(undo_node_t* node)
 		ut_ad(undo == update);
 		/* fall through */
 	case TRX_UNDO_INSERT_REC:
+	case TRX_UNDO_EMPTY:
 		node->roll_ptr |= 1ULL << ROLL_PTR_INSERT_FLAG_POS;
-		node->state = undo == temp
+		node->state = is_temp
 			? UNDO_INSERT_TEMPORARY : UNDO_INSERT_PERSISTENT;
 		break;
 	default:
-		node->state = undo == temp
+		node->state = is_temp
 			? UNDO_UPDATE_TEMPORARY : UNDO_UPDATE_PERSISTENT;
-		break;
 	}
 
 	trx->undo_no = node->undo_no = trx_undo_rec_get_undo_no(
@@ -399,19 +393,6 @@ row_undo(
 		return DB_SUCCESS;
 	}
 
-	/* Prevent prepare_inplace_alter_table_dict() from adding
-	dict_table_t::indexes while we are processing the record.
-	Recovered transactions are not protected by MDL, and the
-	secondary index creation is not protected by table locks
-	for online operation. (A table lock would only be acquired
-	when committing the ALTER TABLE operation.) */
-	trx_t* trx = node->trx;
-	const bool locked_data_dict = !trx->dict_operation_lock_mode;
-
-	if (UNIV_UNLIKELY(locked_data_dict)) {
-		row_mysql_freeze_data_dictionary(trx);
-	}
-
 	dberr_t err;
 
 	switch (node->state) {
@@ -426,11 +407,6 @@ row_undo(
 	default:
 		ut_ad("wrong state" == 0);
 		err = DB_CORRUPTION;
-	}
-
-	if (locked_data_dict) {
-
-		row_mysql_unfreeze_data_dictionary(trx);
 	}
 
 	node->state = UNDO_NODE_FETCH_NEXT;
@@ -460,7 +436,7 @@ row_undo_step(
 
 	ut_ad(que_node_get_type(node) == QUE_NODE_UNDO);
 
-	if (UNIV_UNLIKELY(trx_get_dict_operation(trx) == TRX_DICT_OP_NONE
+	if (UNIV_UNLIKELY(!trx->dict_operation
 			  && !srv_undo_sources
 			  && srv_shutdown_state != SRV_SHUTDOWN_NONE)
 	    && (srv_fast_shutdown == 3 || trx == trx_roll_crash_recv_trx)) {

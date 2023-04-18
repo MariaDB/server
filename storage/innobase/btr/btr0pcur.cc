@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2021, MariaDB Corporation.
+Copyright (c) 2016, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -30,25 +30,6 @@ Created 2/23/1996 Heikki Tuuri
 #include "trx0trx.h"
 
 /**************************************************************//**
-Allocates memory for a persistent cursor object and initializes the cursor.
-@return own: persistent cursor */
-btr_pcur_t*
-btr_pcur_create_for_mysql(void)
-/*============================*/
-{
-	btr_pcur_t*	pcur;
-	DBUG_ENTER("btr_pcur_create_for_mysql");
-
-	pcur = (btr_pcur_t*) ut_malloc_nokey(sizeof(btr_pcur_t));
-
-	pcur->btr_cur.index = NULL;
-	btr_pcur_init(pcur);
-
-	DBUG_PRINT("btr_pcur_create_for_mysql", ("pcur: %p", pcur));
-	DBUG_RETURN(pcur);
-}
-
-/**************************************************************//**
 Resets a persistent cursor object, freeing ::old_rec_buf if it is
 allocated and resetting the other members to their initial values. */
 void
@@ -56,32 +37,15 @@ btr_pcur_reset(
 /*===========*/
 	btr_pcur_t*	cursor)	/*!< in, out: persistent cursor */
 {
-	btr_pcur_free(cursor);
+	ut_free(cursor->old_rec_buf);
+	memset(&cursor->btr_cur.page_cur, 0, sizeof(page_cur_t));
 	cursor->old_rec_buf = NULL;
-	cursor->btr_cur.index = NULL;
-	cursor->btr_cur.page_cur.rec = NULL;
 	cursor->old_rec = NULL;
 	cursor->old_n_core_fields = 0;
 	cursor->old_n_fields = 0;
-	cursor->old_stored = false;
 
 	cursor->latch_mode = BTR_NO_LATCHES;
 	cursor->pos_state = BTR_PCUR_NOT_POSITIONED;
-}
-
-/**************************************************************//**
-Frees the memory for a persistent cursor object. */
-void
-btr_pcur_free_for_mysql(
-/*====================*/
-	btr_pcur_t*	cursor)	/*!< in, own: persistent cursor */
-{
-	DBUG_ENTER("btr_pcur_free_for_mysql");
-	DBUG_PRINT("btr_pcur_free_for_mysql", ("pcur: %p", cursor));
-
-	btr_pcur_free(cursor);
-	ut_free(cursor);
-	DBUG_VOID_RETURN;
 }
 
 /**************************************************************//**
@@ -112,8 +76,9 @@ btr_pcur_store_position(
 	page_cursor = btr_pcur_get_page_cur(cursor);
 
 	rec = page_cur_get_rec(page_cursor);
-	offs = rec - block->frame;
-	ut_ad(block->page.id().page_no() == page_get_page_no(block->frame));
+	offs = rec - block->page.frame;
+	ut_ad(block->page.id().page_no()
+	      == page_get_page_no(block->page.frame));
 	ut_ad(block->page.buf_fix_count());
 	/* For spatial index, when we do positioning on parent
 	buffer if necessary, it might not hold latches, but the
@@ -124,15 +89,13 @@ btr_pcur_store_position(
 		  && mtr->memo_contains_flagged(&index->lock, MTR_MEMO_X_LOCK
 						| MTR_MEMO_SX_LOCK)));
 
-	cursor->old_stored = true;
-
-	if (page_is_empty(block->frame)) {
+	if (page_is_empty(block->page.frame)) {
 		/* It must be an empty index tree; NOTE that in this case
 		we do not store the modify_clock, but always do a search
 		if we restore the cursor position */
 
-		ut_a(!page_has_siblings(block->frame));
-		ut_ad(page_is_leaf(block->frame));
+		ut_a(!page_has_siblings(block->page.frame));
+		ut_ad(page_is_leaf(block->page.frame));
 		ut_ad(block->page.id().page_no() == index->page);
 
 		if (page_rec_is_supremum_low(offs)) {
@@ -147,6 +110,11 @@ before_first:
 
 	if (page_rec_is_supremum_low(offs)) {
 		rec = page_rec_get_prev(rec);
+		if (UNIV_UNLIKELY(!rec || page_rec_is_infimum(rec))) {
+			ut_ad("corrupted index" == 0);
+			cursor->rel_pos = BTR_PCUR_AFTER_LAST_IN_TREE;
+			return;
+		}
 
 		ut_ad(!page_rec_is_infimum(rec));
 		if (UNIV_UNLIKELY(rec_is_metadata(rec, *index))) {
@@ -159,9 +127,9 @@ before_first:
 #endif
 			ut_ad(index->is_instant()
 			      || block->page.id().page_no() != index->page);
-			ut_ad(page_get_n_recs(block->frame) == 1);
-			ut_ad(page_is_leaf(block->frame));
-			ut_ad(!page_has_prev(block->frame));
+			ut_ad(page_get_n_recs(block->page.frame) == 1);
+			ut_ad(page_is_leaf(block->page.frame));
+			ut_ad(!page_has_prev(block->page.frame));
 			cursor->rel_pos = BTR_PCUR_AFTER_LAST_IN_TREE;
 			return;
 		}
@@ -170,10 +138,16 @@ before_first:
 	} else if (page_rec_is_infimum_low(offs)) {
 		rec = page_rec_get_next(rec);
 
+		if (UNIV_UNLIKELY(!rec)) {
+			ut_ad("corrupted page" == 0);
+			goto before_first;
+		}
+
 		if (rec_is_metadata(rec, *index)) {
-			ut_ad(!page_has_prev(block->frame));
+			ut_ad(!page_has_prev(block->page.frame));
 			rec = page_rec_get_next(rec);
-			if (page_rec_is_supremum(rec)) {
+			ut_ad(rec);
+			if (!rec || page_rec_is_supremum(rec)) {
 				goto before_first;
 			}
 		}
@@ -238,23 +212,98 @@ btr_pcur_copy_stored_position(
 	pcur_receive->old_n_fields = pcur_donate->old_n_fields;
 }
 
+/** Optimistically latches the leaf page or pages requested.
+@param[in]	block		guessed buffer block
+@param[in,out]	pcur		cursor
+@param[in,out]	latch_mode	BTR_SEARCH_LEAF, ...
+@param[in,out]	mtr		mini-transaction
+@return true if success */
+TRANSACTIONAL_TARGET
+static bool btr_pcur_optimistic_latch_leaves(buf_block_t *block,
+                                             btr_pcur_t *pcur,
+                                             btr_latch_mode *latch_mode,
+                                             mtr_t *mtr)
+{
+  ut_ad(block->page.buf_fix_count());
+  ut_ad(block->page.in_file());
+  ut_ad(block->page.frame);
+
+  static_assert(BTR_SEARCH_PREV & BTR_SEARCH_LEAF, "");
+  static_assert(BTR_MODIFY_PREV & BTR_MODIFY_LEAF, "");
+  static_assert((BTR_SEARCH_PREV ^ BTR_MODIFY_PREV) ==
+                (RW_S_LATCH ^ RW_X_LATCH), "");
+
+  const rw_lock_type_t mode=
+    rw_lock_type_t(*latch_mode & (RW_X_LATCH | RW_S_LATCH));
+
+  switch (*latch_mode) {
+  default:
+    ut_ad(*latch_mode == BTR_SEARCH_LEAF || *latch_mode == BTR_MODIFY_LEAF);
+    return buf_page_optimistic_get(mode, block, pcur->modify_clock, mtr);
+  case BTR_SEARCH_PREV:
+  case BTR_MODIFY_PREV:
+    page_id_t id{0};
+    uint32_t left_page_no;
+    ulint zip_size;
+    buf_block_t *left_block= nullptr;
+    {
+      transactional_shared_lock_guard<block_lock> g{block->page.lock};
+      if (block->modify_clock != pcur->modify_clock)
+        return false;
+      id= block->page.id();
+      zip_size= block->zip_size();
+      left_page_no= btr_page_get_prev(block->page.frame);
+    }
+
+    if (left_page_no != FIL_NULL)
+    {
+      left_block=
+        buf_page_get_gen(page_id_t(id.space(), left_page_no), zip_size,
+                         mode, nullptr, BUF_GET_POSSIBLY_FREED, mtr);
+
+      if (left_block &&
+          btr_page_get_next(left_block->page.frame) != id.page_no())
+      {
+release_left_block:
+        mtr->release_last_page();
+        return false;
+      }
+    }
+
+    if (buf_page_optimistic_get(mode, block, pcur->modify_clock, mtr))
+    {
+      if (btr_page_get_prev(block->page.frame) == left_page_no)
+      {
+        /* block was already buffer-fixed while entering the function and
+        buf_page_optimistic_get() buffer-fixes it again. */
+        ut_ad(2 <= block->page.buf_fix_count());
+        *latch_mode= btr_latch_mode(mode);
+        return true;
+      }
+
+      mtr->release_last_page();
+    }
+
+    ut_ad(block->page.buf_fix_count());
+    if (left_block)
+      goto release_left_block;
+    return false;
+  }
+}
+
 /** Structure acts as functor to do the latching of leaf pages.
 It returns true if latching of leaf pages succeeded and false
 otherwise. */
 struct optimistic_latch_leaves
 {
   btr_pcur_t *const cursor;
-  ulint *latch_mode;
+  btr_latch_mode *const latch_mode;
   mtr_t *const mtr;
 
-  optimistic_latch_leaves(btr_pcur_t *cursor, ulint *latch_mode, mtr_t *mtr)
-  :cursor(cursor), latch_mode(latch_mode), mtr(mtr) {}
-
-  bool operator() (buf_block_t *hint) const
+  bool operator()(buf_block_t *hint) const
   {
-    return hint && btr_cur_optimistic_latch_leaves(
-             hint, cursor->modify_clock, latch_mode,
-             btr_pcur_get_btr_cur(cursor), __FILE__, __LINE__, mtr);
+    return hint &&
+      btr_pcur_optimistic_latch_leaves(hint, cursor, latch_mode, mtr);
   }
 };
 
@@ -271,10 +320,8 @@ record GREATER than the user record which was the predecessor of the
 supremum.
 (4) cursor was positioned before the first or after the last in an
 empty tree: restores to before first or after the last in the tree.
-@param latch_mode BTR_SEARCH_LEAF, ...
-@param file file name
-@param line line where called
-@param mtr mtr
+@param latch_mode  BTR_SEARCH_LEAF, ...
+@param mtr         mini-transaction
 @return btr_pcur_t::SAME_ALL cursor position on user rec and points on
 the record with the same field values as in the stored record,
 btr_pcur_t::SAME_UNIQ cursor position is on user rec and points on the
@@ -282,8 +329,7 @@ record with the same unique field values as in the stored record,
 btr_pcur_t::NOT_SAME cursor position is not on user rec or points on
 the record with not the samebuniq field values as in the stored */
 btr_pcur_t::restore_status
-btr_pcur_t::restore_position(ulint restore_latch_mode, const char *file,
-                             unsigned line, mtr_t *mtr)
+btr_pcur_t::restore_position(btr_latch_mode restore_latch_mode, mtr_t *mtr)
 {
 	dict_index_t*	index;
 	dtuple_t*	tuple;
@@ -292,7 +338,6 @@ btr_pcur_t::restore_position(ulint restore_latch_mode, const char *file,
 	mem_heap_t*	heap;
 
 	ut_ad(mtr->is_active());
-	//ut_ad(cursor->old_stored);
 	ut_ad(pos_state == BTR_PCUR_WAS_POSITIONED
 	      || pos_state == BTR_PCUR_IS_POSITIONED);
 
@@ -301,23 +346,13 @@ btr_pcur_t::restore_position(ulint restore_latch_mode, const char *file,
 	if (UNIV_UNLIKELY
 	    (rel_pos == BTR_PCUR_AFTER_LAST_IN_TREE
 	     || rel_pos == BTR_PCUR_BEFORE_FIRST_IN_TREE)) {
-		dberr_t err = DB_SUCCESS;
-
 		/* In these cases we do not try an optimistic restoration,
 		but always do a search */
 
-		err = btr_cur_open_at_index_side(
-			rel_pos == BTR_PCUR_BEFORE_FIRST_IN_TREE,
-			index, restore_latch_mode,
-			&btr_cur, 0, mtr);
-
-		if (err != DB_SUCCESS) {
-			ib::warn() << " Error code: " << err
-				   << " btr_pcur_t::restore_position "
-				   << " called from file: "
-				   << file << " line: " << line
-				   << " table: " << index->table->name
-				   << " index: " << index->name;
+		if (btr_cur.open_leaf(rel_pos == BTR_PCUR_BEFORE_FIRST_IN_TREE,
+				      index, restore_latch_mode, mtr)
+		    != DB_SUCCESS) {
+			return restore_status::CORRUPTED;
 		}
 
 		latch_mode =
@@ -333,23 +368,18 @@ btr_pcur_t::restore_position(ulint restore_latch_mode, const char *file,
 	ut_a(old_n_core_fields <= index->n_core_fields);
 	ut_a(old_n_fields);
 
-	switch (restore_latch_mode) {
-	case BTR_SEARCH_LEAF:
-	case BTR_MODIFY_LEAF:
+	static_assert(BTR_SEARCH_PREV == (4 | BTR_SEARCH_LEAF), "");
+	static_assert(BTR_MODIFY_PREV == (4 | BTR_MODIFY_LEAF), "");
+
+	switch (restore_latch_mode | 4) {
 	case BTR_SEARCH_PREV:
 	case BTR_MODIFY_PREV:
 		/* Try optimistic restoration. */
-
 		if (block_when_stored.run_with_hint(
-			optimistic_latch_leaves(this, &restore_latch_mode,
-						mtr))) {
+			optimistic_latch_leaves{this, &restore_latch_mode,
+						mtr})) {
 			pos_state = BTR_PCUR_IS_POSITIONED;
 			latch_mode = restore_latch_mode;
-
-			buf_block_dbg_add_level(
-				btr_pcur_get_block(this),
-				dict_index_is_ibuf(index)
-				? SYNC_IBUF_TREE_NODE : SYNC_TREE_NODE);
 
 			if (rel_pos == BTR_PCUR_ON) {
 #ifdef UNIV_DEBUG
@@ -421,12 +451,15 @@ btr_pcur_t::restore_position(ulint restore_latch_mode, const char *file,
 		mode = PAGE_CUR_L;
 		break;
 	default:
-		ut_error;
+		MY_ASSERT_UNREACHABLE();
 		mode = PAGE_CUR_UNSUPP;
 	}
 
-	btr_pcur_open_with_no_init_func(index, tuple, mode, restore_latch_mode,
-					this, file, line, mtr);
+	if (btr_pcur_open_with_no_init(tuple, mode, restore_latch_mode,
+				       this, mtr) != DB_SUCCESS) {
+		mem_heap_free(heap);
+		return restore_status::CORRUPTED;
+        }
 
 	/* Restore the old search mode */
 	search_mode = old_mode;
@@ -452,7 +485,6 @@ btr_pcur_t::restore_position(ulint restore_latch_mode, const char *file,
 			block_when_stored.store(btr_pcur_get_block(this));
 			modify_clock= buf_block_get_modify_clock(
 			    block_when_stored.block());
-			old_stored= true;
 
 			mem_heap_free(heap);
 
@@ -478,7 +510,7 @@ Moves the persistent cursor to the first record on the next page. Releases the
 latch on the current page, and bufferunfixes it. Note that there must not be
 modifications on the current page, as then the x-latch can be released only in
 mtr_commit. */
-void
+dberr_t
 btr_pcur_move_to_next_page(
 /*=======================*/
 	btr_pcur_t*	cursor,	/*!< in: persistent cursor; must be on the
@@ -489,49 +521,49 @@ btr_pcur_move_to_next_page(
 	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
 	ut_ad(btr_pcur_is_after_last_on_page(cursor));
 
-	cursor->old_stored = false;
+	cursor->old_rec = nullptr;
 
 	const page_t* page = btr_pcur_get_page(cursor);
-
-	if (UNIV_UNLIKELY(!page)) {
-		return;
-	}
-
 	const uint32_t next_page_no = btr_page_get_next(page);
 
-	ut_ad(next_page_no != FIL_NULL);
-
-	ulint mode = cursor->latch_mode;
-	switch (mode) {
-	case BTR_SEARCH_TREE:
-		mode = BTR_SEARCH_LEAF;
-		break;
-	case BTR_MODIFY_TREE:
-		mode = BTR_MODIFY_LEAF;
+	switch (next_page_no) {
+	case 0:
+	case 1:
+	case FIL_NULL:
+		return DB_CORRUPTION;
 	}
 
+	if (UNIV_UNLIKELY(next_page_no == btr_pcur_get_block(cursor)
+			  ->page.id().page_no())) {
+		return DB_CORRUPTION;
+	}
+
+	dberr_t err;
 	buf_block_t* next_block = btr_block_get(
-		*btr_pcur_get_btr_cur(cursor)->index, next_page_no, mode,
-		page_is_leaf(page), mtr);
+		*cursor->index(), next_page_no, cursor->latch_mode & ~12,
+		page_is_leaf(page), mtr, &err);
 
 	if (UNIV_UNLIKELY(!next_block)) {
-		return;
+		return err;
 	}
 
 	const page_t* next_page = buf_block_get_frame(next_block);
-#ifdef UNIV_BTR_DEBUG
-	ut_a(page_is_comp(next_page) == page_is_comp(page));
-	ut_a(btr_page_get_prev(next_page)
-	     == btr_pcur_get_block(cursor)->page.id().page_no());
-#endif /* UNIV_BTR_DEBUG */
 
-	btr_leaf_page_release(btr_pcur_get_block(cursor), mode, mtr);
+	if (UNIV_UNLIKELY(memcmp_aligned<4>(next_page + FIL_PAGE_PREV,
+					    page + FIL_PAGE_OFFSET, 4))) {
+		return DB_CORRUPTION;
+	}
 
 	page_cur_set_before_first(next_block, btr_pcur_get_page_cur(cursor));
 
 	ut_d(page_check_dir(next_page));
+
+	const auto s = mtr->get_savepoint();
+	mtr->rollback_to_savepoint(s - 2, s - 1);
+	return DB_SUCCESS;
 }
 
+MY_ATTRIBUTE((nonnull,warn_unused_result))
 /*********************************************************//**
 Moves the persistent cursor backward if it is on the first record of the page.
 Commits mtr. Note that to prevent a possible deadlock, the operation
@@ -542,36 +574,18 @@ return, but it may happen that the cursor is not positioned on the last
 record of any page, because the structure of the tree may have changed
 during the time when the cursor had no latches. */
 static
-void
+bool
 btr_pcur_move_backward_from_page(
 /*=============================*/
 	btr_pcur_t*	cursor,	/*!< in: persistent cursor, must be on the first
 				record of the current page */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
-	ulint		prev_page_no;
-	page_t*		page;
-	buf_block_t*	prev_block;
-	ulint		latch_mode;
-	ulint		latch_mode2;
-
-	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
 	ut_ad(btr_pcur_is_before_first_on_page(cursor));
 	ut_ad(!btr_pcur_is_before_first_in_tree(cursor));
 
-	latch_mode = cursor->latch_mode;
-
-	if (latch_mode == BTR_SEARCH_LEAF) {
-
-		latch_mode2 = BTR_SEARCH_PREV;
-
-	} else if (latch_mode == BTR_MODIFY_LEAF) {
-
-		latch_mode2 = BTR_MODIFY_PREV;
-	} else {
-		latch_mode2 = 0; /* To eliminate compiler warning */
-		ut_error;
-	}
+	const auto latch_mode = cursor->latch_mode;
+	ut_ad(latch_mode == BTR_SEARCH_LEAF || latch_mode == BTR_MODIFY_LEAF);
 
 	btr_pcur_store_position(cursor, mtr);
 
@@ -579,43 +593,59 @@ btr_pcur_move_backward_from_page(
 
 	mtr_start(mtr);
 
-	btr_pcur_restore_position(latch_mode2, cursor, mtr);
+	static_assert(BTR_SEARCH_PREV == (4 | BTR_SEARCH_LEAF), "");
+	static_assert(BTR_MODIFY_PREV == (4 | BTR_MODIFY_LEAF), "");
 
-	page = btr_pcur_get_page(cursor);
+	if (UNIV_UNLIKELY(cursor->restore_position(
+				  btr_latch_mode(4 | latch_mode), mtr)
+			  == btr_pcur_t::CORRUPTED)) {
+		return true;
+	}
 
-	prev_page_no = btr_page_get_prev(page);
+	buf_block_t* block = btr_pcur_get_block(cursor);
 
-	if (prev_page_no == FIL_NULL) {
-	} else if (btr_pcur_is_before_first_on_page(cursor)) {
-
-		prev_block = btr_pcur_get_btr_cur(cursor)->left_block;
-
-		btr_leaf_page_release(btr_pcur_get_block(cursor),
-				      latch_mode, mtr);
-
-		page_cur_set_after_last(prev_block,
-					btr_pcur_get_page_cur(cursor));
-	} else {
-
-		/* The repositioned cursor did not end on an infimum
-		record on a page. Cursor repositioning acquired a latch
-		also on the previous page, but we do not need the latch:
-		release it. */
-
-		prev_block = btr_pcur_get_btr_cur(cursor)->left_block;
-
-		btr_leaf_page_release(prev_block, latch_mode, mtr);
+	if (page_has_prev(block->page.frame)) {
+		buf_block_t* left_block
+			= mtr->at_savepoint(mtr->get_savepoint() - 1);
+		const page_t* const left = left_block->page.frame;
+		if (memcmp_aligned<4>(left + FIL_PAGE_NEXT,
+				      block->page.frame
+				      + FIL_PAGE_OFFSET, 4)) {
+			/* This should be the right sibling page, or
+			if there is none, the current block. */
+			ut_ad(left_block == block
+			      || !memcmp_aligned<4>(left + FIL_PAGE_PREV,
+						    block->page.frame
+						    + FIL_PAGE_OFFSET, 4));
+			/* The previous one must be the left sibling. */
+			left_block
+				= mtr->at_savepoint(mtr->get_savepoint() - 2);
+			ut_ad(!memcmp_aligned<4>(left_block->page.frame
+						 + FIL_PAGE_NEXT,
+						 block->page.frame
+						 + FIL_PAGE_OFFSET, 4));
+		}
+		if (btr_pcur_is_before_first_on_page(cursor)) {
+			page_cur_set_after_last(left_block,
+						&cursor->btr_cur.page_cur);
+			/* Release the right sibling. */
+		} else {
+			/* Release the left sibling. */
+			block = left_block;
+		}
+		mtr->release(*block);
 	}
 
 	cursor->latch_mode = latch_mode;
-	cursor->old_stored = false;
+	cursor->old_rec = nullptr;
+	return false;
 }
 
 /*********************************************************//**
 Moves the persistent cursor to the previous record in the tree. If no records
 are left, the cursor stays 'before first in tree'.
 @return TRUE if the cursor was not before first in tree */
-ibool
+bool
 btr_pcur_move_to_prev(
 /*==================*/
 	btr_pcur_t*	cursor,	/*!< in: persistent cursor; NOTE that the
@@ -625,60 +655,12 @@ btr_pcur_move_to_prev(
 	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
 	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
 
-	cursor->old_stored = false;
+	cursor->old_rec = nullptr;
 
 	if (btr_pcur_is_before_first_on_page(cursor)) {
-
-		if (btr_pcur_is_before_first_in_tree(cursor)) {
-
-			return(FALSE);
-		}
-
-		btr_pcur_move_backward_from_page(cursor, mtr);
-
-		return(TRUE);
+		return (!btr_pcur_is_before_first_in_tree(cursor)
+			&& !btr_pcur_move_backward_from_page(cursor, mtr));
 	}
 
-	btr_pcur_move_to_prev_on_page(cursor);
-
-	return(TRUE);
-}
-
-/**************************************************************//**
-If mode is PAGE_CUR_G or PAGE_CUR_GE, opens a persistent cursor on the first
-user record satisfying the search condition, in the case PAGE_CUR_L or
-PAGE_CUR_LE, on the last user record. If no such user record exists, then
-in the first case sets the cursor after last in tree, and in the latter case
-before first in tree. The latching mode must be BTR_SEARCH_LEAF or
-BTR_MODIFY_LEAF. */
-void
-btr_pcur_open_on_user_rec_func(
-/*===========================*/
-	dict_index_t*	index,		/*!< in: index */
-	const dtuple_t*	tuple,		/*!< in: tuple on which search done */
-	page_cur_mode_t	mode,		/*!< in: PAGE_CUR_L, ... */
-	ulint		latch_mode,	/*!< in: BTR_SEARCH_LEAF or
-					BTR_MODIFY_LEAF */
-	btr_pcur_t*	cursor,		/*!< in: memory buffer for persistent
-					cursor */
-	const char*	file,		/*!< in: file name */
-	unsigned	line,		/*!< in: line where called */
-	mtr_t*		mtr)		/*!< in: mtr */
-{
-	btr_pcur_open_low(index, 0, tuple, mode, latch_mode, cursor,
-			  file, line, 0, mtr);
-
-	if ((mode == PAGE_CUR_GE) || (mode == PAGE_CUR_G)) {
-
-		if (btr_pcur_is_after_last_on_page(cursor)) {
-
-			btr_pcur_move_to_next_user_rec(cursor, mtr);
-		}
-	} else {
-		ut_ad((mode == PAGE_CUR_LE) || (mode == PAGE_CUR_L));
-
-		/* Not implemented yet */
-
-		ut_error;
-	}
+	return btr_pcur_move_to_prev_on_page(cursor) != nullptr;
 }

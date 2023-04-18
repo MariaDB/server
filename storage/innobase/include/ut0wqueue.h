@@ -30,8 +30,7 @@ wait for work items to be available and take them off the queue for
 processing.
 ************************************************************************/
 
-#ifndef IB_WORK_QUEUE_H
-#define IB_WORK_QUEUE_H
+#pragma once
 
 #include "ut0list.h"
 #include "mem0mem.h"
@@ -42,12 +41,12 @@ struct ib_list_t;
 /** Work queue */
 struct ib_wqueue_t
 {
-	/** Mutex protecting everything */
-	ib_mutex_t	mutex;
-	/** Work item list */
-	ib_list_t*	items;
-	/** ib_list_len(*items) */
-	size_t		length;
+  /** Mutex protecting everything */
+  mysql_mutex_t mutex;
+  /** Work item list */
+  ib_list_t *items;
+  /** ib_list_len(*items) */
+  size_t length;
 };
 
 /****************************************************************//**
@@ -85,5 +84,3 @@ void*
 ib_wqueue_nowait(
 /*=============*/
 	ib_wqueue_t*	wq);		/*<! in: work queue */
-
-#endif /* IB_WORK_QUEUE_H */

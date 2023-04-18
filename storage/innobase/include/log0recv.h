@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -26,12 +26,13 @@ Created 9/20/1997 Heikki Tuuri
 
 #pragma once
 
-#include "ut0byte.h"
+#include "ut0new.h"
 #include "buf0types.h"
 #include "log0log.h"
 #include "mtr0types.h"
 
 #include <deque>
+#include <map>
 
 /** @return whether recovery is currently running. */
 #define recv_recovery_is_on() UNIV_UNLIKELY(recv_sys.recovery_on)
@@ -43,11 +44,12 @@ dberr_t
 recv_find_max_checkpoint(ulint* max_field)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
+ATTRIBUTE_COLD MY_ATTRIBUTE((nonnull, warn_unused_result))
 /** Apply any buffered redo log to a page that was just read from a data file.
 @param[in,out]	space	tablespace
-@param[in,out]	bpage	buffer pool page */
-ATTRIBUTE_COLD void recv_recover_page(fil_space_t* space, buf_page_t* bpage)
-	MY_ATTRIBUTE((nonnull));
+@param[in,out]	bpage	buffer pool page
+@return whether the page was recovered correctly */
+bool recv_recover_page(fil_space_t* space, buf_page_t* bpage);
 
 /** Start recovering from a redo log checkpoint.
 @param[in]	flush_lsn	FIL_PAGE_FILE_FLUSH_LSN
@@ -81,12 +83,12 @@ void recv_sys_justify_left_parsing_buf();
 
 /** Report an operation to create, delete, or rename a file during backup.
 @param[in]	space_id	tablespace identifier
-@param[in]	create		whether the file is being created
+@param[in]	type		file operation redo log type
 @param[in]	name		file name (not NUL-terminated)
 @param[in]	len		length of name, in bytes
 @param[in]	new_name	new file name (NULL if not rename)
 @param[in]	new_len		length of new_name, in bytes (0 if NULL) */
-extern void (*log_file_op)(ulint space_id, bool create,
+extern void (*log_file_op)(ulint space_id, int type,
 			   const byte* name, ulint len,
 			   const byte* new_name, ulint new_len);
 
@@ -94,6 +96,10 @@ extern void (*log_file_op)(ulint space_id, bool create,
 during backup
 @param	space_id	undo tablespace identifier */
 extern void (*undo_space_trunc)(uint32_t space_id);
+
+/** Report an operation which does INIT_PAGE for page0 during backup.
+@param	space_id	tablespace identifier */
+extern void (*first_page_init)(ulint space_id);
 
 /** Stored redo log record */
 struct log_rec_t
@@ -213,14 +219,25 @@ struct page_recv_t
 struct recv_sys_t
 {
   /** mutex protecting apply_log_recs and page_recv_t::state */
-  ib_mutex_t mutex;
+  mysql_mutex_t mutex;
+private:
+  /** condition variable for
+  !apply_batch_on || pages.empty() || found_corrupt_log || found_corrupt_fs */
+  pthread_cond_t cond;
+  /** whether recv_apply_hashed_log_recs() is running */
+  bool apply_batch_on;
+  /** set when finding a corrupt log block or record, or there is a
+  log parsing buffer overflow */
+  bool found_corrupt_log;
+  /** set when an inconsistency with the file system contents is detected
+  during log scan or apply */
+  bool found_corrupt_fs;
+public:
   /** whether we are applying redo log records during crash recovery */
   bool recovery_on;
-  /** whether recv_recover_page(), invoked from buf_page_read_complete(),
+  /** whether recv_recover_page(), invoked from buf_page_t::read_complete(),
   should apply log records*/
   bool apply_log_recs;
-  /** whether apply() is running */
-  bool apply_batch_on;
 	byte*		buf;	/*!< buffer for parsing log records */
 	ulint		len;	/*!< amount of data in buf */
 	lsn_t		parse_start_lsn;
@@ -240,14 +257,6 @@ struct recv_sys_t
 	lsn_t		recovered_lsn;
 				/*!< the log records have been parsed up to
 				this lsn */
-	bool		found_corrupt_log;
-				/*!< set when finding a corrupt log
-				block or record, or there is a log
-				parsing buffer overflow */
-	bool		found_corrupt_fs;
-				/*!< set when an inconsistency with
-				the file system contents is detected
-				during log scan or apply */
 	lsn_t		mlog_checkpoint_lsn;
 				/*!< the LSN of a FILE_CHECKPOINT
 				record, or 0 if none was parsed */
@@ -293,13 +302,16 @@ private:
   @param p        iterator pointing to page_id
   @param mtr      mini-transaction
   @param b        pre-allocated buffer pool block
-  @return whether the page was successfully initialized */
+  @return the recovered block
+  @retval nullptr if the page cannot be initialized based on log records
+  @retval -1      if the page cannot be recovered due to corruption */
   inline buf_block_t *recover_low(const page_id_t page_id, map::iterator &p,
                                   mtr_t &mtr, buf_block_t *b);
   /** Attempt to initialize a page based on redo log records.
   @param page_id  page identifier
   @return the recovered block
-  @retval nullptr if the page cannot be initialized based on log records */
+  @retval nullptr if the page cannot be initialized based on log records
+  @retval -1      if the page cannot be recovered due to corruption */
   buf_block_t *recover_low(const page_id_t page_id);
 
   /** All found log files (multiple ones are possible if we are upgrading
@@ -386,14 +398,36 @@ public:
   @param page_id  corrupted page identifier */
   ATTRIBUTE_COLD void free_corrupted_page(page_id_t page_id);
 
+  /** Flag data file corruption during recovery. */
+  ATTRIBUTE_COLD void set_corrupt_fs();
+  /** Flag log file corruption during recovery. */
+  ATTRIBUTE_COLD void set_corrupt_log();
+  /** Possibly finish a recovery batch. */
+  inline void maybe_finish_batch();
+
+  /** @return whether data file corruption was found */
+  bool is_corrupt_fs() const { return UNIV_UNLIKELY(found_corrupt_fs); }
+  /** @return whether log file corruption was found */
+  bool is_corrupt_log() const { return UNIV_UNLIKELY(found_corrupt_log); }
+
   /** Attempt to initialize a page based on redo log records.
   @param page_id  page identifier
   @return the recovered block
-  @retval nullptr if the page cannot be initialized based on log records */
+  @retval nullptr if the page cannot be initialized based on log records
+  @retval -1      if the page cannot be recovered due to corruption */
   buf_block_t *recover(const page_id_t page_id)
   {
     return UNIV_UNLIKELY(recovery_on) ? recover_low(page_id) : nullptr;
   }
+
+  /** Try to recover a tablespace that was not readable earlier
+  @param p          iterator, initially pointing to page_id_t{space_id,0};
+                    the records will be freed and the iterator advanced
+  @param name       tablespace file name
+  @param free_block spare buffer block
+  @return whether recovery failed */
+  bool recover_deferred(map::iterator &p, const std::string &name,
+                        buf_block_t *&free_block);
 };
 
 /** The recovery system */

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -59,6 +59,44 @@ Created 2013/03/27 Jimmy Yang and Allen Lai
 
 /* Geometry data header */
 #define	GEO_DATA_HEADER_SIZE	4
+
+/** Search for a spatial index leaf page record.
+@param cur         cursor
+@param tuple       search tuple
+@param latch_mode  latching mode
+@param mtr         mini-transaction
+@param mode        search mode */
+dberr_t rtr_search_leaf(btr_cur_t *cur, const dtuple_t *tuple,
+                        btr_latch_mode latch_mode, mtr_t *mtr,
+                        page_cur_mode_t mode= PAGE_CUR_RTREE_LOCATE)
+  MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+/** Search for inserting a spatial index leaf page record.
+@param cur         cursor
+@param tuple       search tuple
+@param latch_mode  latching mode
+@param mtr         mini-transaction */
+inline dberr_t rtr_insert_leaf(btr_cur_t *cur, const dtuple_t *tuple,
+                               btr_latch_mode latch_mode, mtr_t *mtr)
+{
+  return rtr_search_leaf(cur, tuple, latch_mode, mtr, PAGE_CUR_RTREE_INSERT);
+}
+
+/** Search for a spatial index leaf page record.
+@param pcur         cursor
+@param tuple       search tuple
+@param mode        search mode
+@param mtr         mini-transaction */
+dberr_t rtr_search_leaf(btr_pcur_t *pcur, const dtuple_t *tuple,
+                        page_cur_mode_t mode, mtr_t *mtr)
+  MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
+                                page_cur_mode_t mode,
+                                btr_latch_mode latch_mode,
+                                btr_cur_t *cur, mtr_t *mtr)
+  MY_ATTRIBUTE((nonnull, warn_unused_result));
+
 /**********************************************************************//**
 Builds a Rtree node pointer out of a physical record and a page number.
 @return own: node pointer */
@@ -93,7 +131,8 @@ rtr_page_split_and_insert(
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap, or NULL */
 	const dtuple_t*	tuple,	/*!< in: tuple to insert */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
-	mtr_t*		mtr);	/*!< in: mtr */
+	mtr_t*		mtr,	/*!< in: mtr */
+	dberr_t*	err);	/*!< out: error code */
 
 /**************************************************************//**
 Sets the child node mbr in a node pointer. */
@@ -123,7 +162,8 @@ rtr_pcur_move_to_next(
 				function may release the page latch */
 	ulint		cur_level,
 				/*!< in: current level */
-	mtr_t*		mtr);	/*!< in: mtr */
+	mtr_t*		mtr)	/*!< in: mtr */
+	MY_ATTRIBUTE((warn_unused_result));
 
 /****************************************************************//**
 Searches the right position in rtree for a page cursor. */
@@ -254,21 +294,14 @@ rtr_get_mbr_from_tuple(
 	rtr_mbr*	mbr);	/*!< out: mbr to fill */
 
 /* Get the rtree page father.
-@param[in]	offsets		work area for the return value
-@param[in]	index		rtree index
-@param[in]	block		child page in the index
-@param[in]	mtr		mtr
+@param[in,out]	mtr		mtr
 @param[in]	sea_cur		search cursor, contains information
 				about parent nodes in search
-@param[in]	cursor		cursor on node pointer record,
-				its page x-latched */
-void
-rtr_page_get_father(
-	dict_index_t*	index,
-	buf_block_t*	block,
-	mtr_t*		mtr,
-	btr_cur_t*	sea_cur,
-	btr_cur_t*	cursor);
+@param[in,out]	cursor		cursor on node pointer record,
+				its page x-latched
+@return whether the cursor was successfully positioned */
+bool rtr_page_get_father(mtr_t *mtr, btr_cur_t *sea_cur, btr_cur_t *cursor)
+  MY_ATTRIBUTE((nonnull(1,3), warn_unused_result));
 
 /************************************************************//**
 Returns the father block to a page. It is assumed that mtr holds
@@ -279,8 +312,6 @@ rtr_page_get_father_block(
 /*======================*/
 	rec_offs*	offsets,/*!< in: work area for the return value */
 	mem_heap_t*	heap,	/*!< in: memory heap to use */
-	dict_index_t*	index,	/*!< in: b-tree index */
-	buf_block_t*	block,	/*!< in: child page in the index */
 	mtr_t*		mtr,	/*!< in: mtr */
 	btr_cur_t*	sea_cur,/*!< in: search cursor, contains information
 				about parent nodes in search */
@@ -294,7 +325,7 @@ rtr_store_parent_path(
 /*==================*/
 	const buf_block_t*	block,	/*!< in: block of the page */
 	btr_cur_t*		btr_cur,/*!< in/out: persistent cursor */
-	ulint			latch_mode,
+	btr_latch_mode		latch_mode,
 					/*!< in: latch_mode */
 	ulint			level,	/*!< in: index level */
 	mtr_t*			mtr);	/*!< in: mtr */
@@ -302,28 +333,12 @@ rtr_store_parent_path(
 /**************************************************************//**
 Initializes and opens a persistent cursor to an index tree. It should be
 closed with btr_pcur_close. */
-void
-rtr_pcur_open_low(
-/*==============*/
-	dict_index_t*	index,	/*!< in: index */
-	ulint		level,	/*!< in: level in the btree */
+bool rtr_search(
 	const dtuple_t*	tuple,	/*!< in: tuple on which search done */
-	page_cur_mode_t	mode,	/*!< in: PAGE_CUR_L, ...;
-				NOTE that if the search is made using a unique
-				prefix of a record, mode should be
-				PAGE_CUR_LE, not PAGE_CUR_GE, as the latter
-				may end up on the previous page from the
-				record! */
-	ulint		latch_mode,/*!< in: BTR_SEARCH_LEAF, ... */
+	btr_latch_mode	latch_mode,/*!< in: BTR_MODIFY_LEAF, ... */
 	btr_pcur_t*	cursor,	/*!< in: memory buffer for persistent cursor */
-	const char*	file,	/*!< in: file name */
-	unsigned	line,	/*!< in: line where called */
-	mtr_t*		mtr);	/*!< in: mtr */
-
-#define rtr_pcur_open(i,t,md,l,c,m)			\
-	rtr_pcur_open_low(i,0,t,md,l,c,__FILE__,__LINE__,m)
-
-struct btr_cur_t;
+	mtr_t*		mtr)	/*!< in: mtr */
+	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************//**
 Returns the R-Tree node stored in the parent search path
@@ -347,9 +362,12 @@ rtr_get_parent_cursor(
 	ulint		level,		/*!< in: index level of buffer page */
 	ulint		is_insert);	/*!< in: whether insert operation */
 
+MY_ATTRIBUTE((warn_unused_result))
 /*************************************************************//**
-Copy recs from a page to new_block of rtree. */
-void
+Copy recs from a page to new_block of rtree.
+
+@return error code */
+dberr_t
 rtr_page_copy_rec_list_end_no_locks(
 /*================================*/
 	buf_block_t*	new_block,	/*!< in: index page to copy to */
@@ -362,9 +380,12 @@ rtr_page_copy_rec_list_end_no_locks(
 	ulint*		num_moved,	/*!< out: num of rec to move */
 	mtr_t*		mtr);		/*!< in: mtr */
 
+MY_ATTRIBUTE((warn_unused_result))
 /*************************************************************//**
-Copy recs till a specified rec from a page to new_block of rtree. */
-void
+Copy recs till a specified rec from a page to new_block of rtree.
+
+@return error code */
+dberr_t
 rtr_page_copy_rec_list_start_no_locks(
 /*==================================*/
 	buf_block_t*	new_block,	/*!< in: index page to copy to */
@@ -436,7 +457,6 @@ rtr_check_same_block(
 	btr_cur_t*	cur,	/*!< in/out: position at the parent entry
 				pointing to the child if successful */
 	buf_block_t*	parentb,/*!< in: parent page to check */
-	buf_block_t*	childb, /*!< in: child Page */
 	mem_heap_t*	heap);	/*!< in: memory heap */
 
 /*********************************************************************//**

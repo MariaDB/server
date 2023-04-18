@@ -16,7 +16,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 #include "tpool_structs.h"
 #include "tpool.h"
 
-#ifdef LINUX_NATIVE_AIO
 # include <thread>
 # include <atomic>
 # include <cstdio>
@@ -70,7 +69,6 @@ static int my_getevents(io_context_t ctx, long min_nr, long nr, io_event *ev)
   }
   return ret;
 }
-#endif
 
 
 /*
@@ -85,7 +83,6 @@ static int my_getevents(io_context_t ctx, long min_nr, long nr, io_event *ev)
 */
 namespace tpool
 {
-#ifdef LINUX_NATIVE_AIO
 
 class aio_linux final : public aio
 {
@@ -132,8 +129,7 @@ class aio_linux final : public aio
           {
             iocb->m_ret_len= event.res;
             iocb->m_err= 0;
-            if (iocb->m_ret_len != iocb->m_len)
-              finish_synchronous(iocb);
+            finish_synchronous(iocb);
           }
           iocb->m_internal_task.m_func= iocb->m_callback;
           iocb->m_internal_task.m_arg= iocb;
@@ -190,7 +186,4 @@ aio *create_linux_aio(thread_pool *pool, int max_io)
   }
   return new aio_linux(ctx, pool);
 }
-#else
-aio *create_linux_aio(thread_pool*, int) { return nullptr; }
-#endif
 }

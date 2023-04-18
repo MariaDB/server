@@ -36,12 +36,14 @@ Created 10/21/1995 Heikki Tuuri
 #ifndef UNIV_INNOCHECKSUM
 #include "os0file.h"
 #include "sql_const.h"
+#include "log.h"
 
 #ifdef __linux__
 # include <sys/types.h>
 # include <sys/stat.h>
 #endif
 
+#include "srv0mon.h"
 #include "srv0srv.h"
 #include "srv0start.h"
 #include "fil0fil.h"
@@ -49,10 +51,8 @@ Created 10/21/1995 Heikki Tuuri
 #ifdef HAVE_LINUX_UNISTD_H
 #include "unistd.h"
 #endif
-#include "os0event.h"
-#include "os0thread.h"
+#include "buf0dblwr.h"
 
-#include <vector>
 #include <tpool_structs.h>
 
 #ifdef LINUX_NATIVE_AIO
@@ -73,12 +73,10 @@ Created 10/21/1995 Heikki Tuuri
 
 #ifdef _WIN32
 #include <winioctl.h>
-#else
-// my_test_if_atomic_write()
-#include <my_sys.h>
 #endif
 
-#include "buf0dblwr.h"
+// my_test_if_atomic_write() , my_win_secattr()
+#include <my_sys.h>
 
 #include <thread>
 #include <chrono>
@@ -133,6 +131,11 @@ public:
 	{
 		wait();
 	}
+
+	mysql_mutex_t& mutex()
+	{
+		return m_cache.mutex();
+	}
 };
 
 static io_slots *read_slots;
@@ -155,8 +158,8 @@ static ulint	os_innodb_umask	= 0;
 
 Atomic_counter<ulint> os_n_file_reads;
 static ulint	os_bytes_read_since_printout;
-ulint	os_n_file_writes;
-ulint	os_n_fsyncs;
+Atomic_counter<size_t> os_n_file_writes;
+Atomic_counter<size_t> os_n_fsyncs;
 static ulint	os_n_file_reads_old;
 static ulint	os_n_file_writes_old;
 static ulint	os_n_fsyncs_old;
@@ -180,7 +183,7 @@ mysql_pfs_key_t  innodb_temp_file_key;
 @param[in]	should_abort	whether to abort on an unknown error
 @param[in]	on_error_silent	whether to suppress reports of non-fatal errors
 @return true if we should retry the operation */
-static MY_ATTRIBUTE((warn_unused_result))
+static
 bool
 os_file_handle_error_cond_exit(
 	const char*	name,
@@ -341,7 +344,7 @@ int os_file_lock(int fd, const char *name)
 
 			ib::info()
 				<< "Check that you do not already have"
-				" another mysqld process using the"
+				" another mariadbd process using the"
 				" same InnoDB data or log files.";
 		}
 
@@ -402,50 +405,6 @@ os_file_read_string(
 	}
 }
 
-/** This function returns a new path name after replacing the basename
-in an old path with a new basename.  The old_path is a full path
-name including the extension.  The tablename is in the normal
-form "databasename/tablename".  The new base name is found after
-the forward slash.  Both input strings are null terminated.
-
-This function allocates memory to be returned.  It is the callers
-responsibility to free the return value after it is no longer needed.
-
-@param[in]	old_path		Pathname
-@param[in]	tablename		Contains new base name
-@return own: new full pathname */
-char*
-os_file_make_new_pathname(
-	const char*	old_path,
-	const char*	tablename)
-{
-	ulint		dir_len;
-	char*		last_slash;
-	char*		base_name;
-	char*		new_path;
-	ulint		new_path_len;
-
-	/* Split the tablename into its database and table name components.
-	They are separated by a '/'. */
-	last_slash = strrchr((char*) tablename, '/');
-	base_name = last_slash ? last_slash + 1 : (char*) tablename;
-
-	/* Find the offset of the last slash. We will strip off the
-	old basename.ibd which starts after that slash. */
-	last_slash = strrchr((char*) old_path, OS_PATH_SEPARATOR);
-	dir_len = last_slash ? ulint(last_slash - old_path) : strlen(old_path);
-
-	/* allocate a new path and move the old directory path to it. */
-	new_path_len = dir_len + strlen(base_name) + sizeof "/.ibd";
-	new_path = static_cast<char*>(ut_malloc_nokey(new_path_len));
-	memcpy(new_path, old_path, dir_len);
-
-	snprintf(new_path + dir_len, new_path_len - dir_len,
-		 "%c%s.ibd", OS_PATH_SEPARATOR, base_name);
-
-	return(new_path);
-}
-
 /** This function reduces a null-terminated full remote path name into
 the path that is sent by MySQL for DATA DIRECTORY clause.  It replaces
 the 'databasename/tablename.ibd' found at the end of the path with just
@@ -463,7 +422,7 @@ os_file_make_data_dir_path(
 	char*	data_dir_path)
 {
 	/* Replace the period before the extension with a null byte. */
-	char*	ptr = strrchr((char*) data_dir_path, '.');
+	char*	ptr = strrchr(data_dir_path, '.');
 
 	if (ptr == NULL) {
 		return;
@@ -472,7 +431,8 @@ os_file_make_data_dir_path(
 	ptr[0] = '\0';
 
 	/* The tablename starts after the last slash. */
-	ptr = strrchr((char*) data_dir_path, OS_PATH_SEPARATOR);
+	ptr = strrchr(data_dir_path, '/');
+
 
 	if (ptr == NULL) {
 		return;
@@ -483,7 +443,14 @@ os_file_make_data_dir_path(
 	char*	tablename = ptr + 1;
 
 	/* The databasename starts after the next to last slash. */
-	ptr = strrchr((char*) data_dir_path, OS_PATH_SEPARATOR);
+	ptr = strrchr(data_dir_path, '/');
+#ifdef _WIN32
+	if (char *aptr = strrchr(data_dir_path, '\\')) {
+		if (aptr > ptr) {
+			ptr = aptr;
+		}
+	}
+#endif
 
 	if (ptr == NULL) {
 		return;
@@ -530,10 +497,16 @@ char*
 os_file_get_parent_dir(
 	const char*	path)
 {
-	bool	has_trailing_slash = false;
-
 	/* Find the offset of the last slash */
-	const char* last_slash = strrchr(path, OS_PATH_SEPARATOR);
+	const char* last_slash = strrchr(path, '/');
+
+#ifdef _WIN32
+	if (const char *last = strrchr(path, '\\')) {
+		if (last > last_slash) {
+			last_slash = last;
+		}
+	}
+#endif
 
 	if (!last_slash) {
 		/* No slash in the path, return NULL */
@@ -541,13 +514,11 @@ os_file_get_parent_dir(
 	}
 
 	/* Ok, there is a slash. Is there anything after it? */
-	if (static_cast<size_t>(last_slash - path + 1) == strlen(path)) {
-		has_trailing_slash = true;
-	}
+	const bool has_trailing_slash = last_slash[1] == '\0';
 
-	/* Reduce repetative slashes. */
+	/* Reduce repetitive slashes. */
 	while (last_slash > path
-		&& last_slash[-1] == OS_PATH_SEPARATOR) {
+	       && (IF_WIN(last_slash[-1] == '\\' ||,) last_slash[-1] == '/')) {
 		last_slash--;
 	}
 
@@ -562,13 +533,15 @@ os_file_get_parent_dir(
 		/* Back up to the previous slash. */
 		last_slash--;
 		while (last_slash > path
-		       && last_slash[0] != OS_PATH_SEPARATOR) {
+		       && (IF_WIN(last_slash[0] != '\\' &&,)
+			   last_slash[0] != '/')) {
 			last_slash--;
 		}
 
-		/* Reduce repetative slashes. */
+		/* Reduce repetitive slashes. */
 		while (last_slash > path
-			&& last_slash[-1] == OS_PATH_SEPARATOR) {
+		       && (IF_WIN(last_slash[-1] == '\\' ||,)
+			   last_slash[-1] == '/')) {
 			last_slash--;
 		}
 	}
@@ -599,11 +572,6 @@ test_os_file_get_parent_dir(
 	char* child = mem_strdup(child_dir);
 	char* expected = expected_dir == NULL ? NULL
 			 : mem_strdup(expected_dir);
-
-	/* os_file_get_parent_dir() assumes that separators are
-	converted to OS_PATH_SEPARATOR. */
-	os_normalize_path(child);
-	os_normalize_path(expected);
 
 	char* parent = os_file_get_parent_dir(child);
 
@@ -798,23 +766,13 @@ ulint os_file_get_last_error(bool report_all_errors, bool on_error_silent)
 			<< " in a file operation.";
 
 		if (err == ENOENT) {
-
 			ib::error()
 				<< "The error means the system"
 				" cannot find the path specified.";
-
-			if (srv_is_being_started) {
-
-				ib::error()
-					<< "If you are installing InnoDB,"
-					" remember that you must create"
-					" directories yourself, InnoDB"
-					" does not create them.";
-			}
 		} else if (err == EACCES) {
 
 			ib::error()
-				<< "The error means mysqld does not have"
+				<< "The error means mariadbd does not have"
 				" the access rights to the directory.";
 
 		} else {
@@ -1091,12 +1049,8 @@ os_file_create_simple_func(
 	/* This function is always called for data files, we should disable
 	OS caching (O_DIRECT) here as we do in os_file_create_func(), so
 	we open the same file in the same mode, see man page of open(2). */
-       if (!srv_read_only_mode
-	   && *success
-	   && (srv_file_flush_method == SRV_O_DIRECT
-	       || srv_file_flush_method == SRV_O_DIRECT_NO_FSYNC)) {
-
-	       os_file_set_nocache(file, name, mode_str);
+	if (!srv_read_only_mode && *success) {
+		os_file_set_nocache(file, name, mode_str);
 	}
 
 #ifndef _WIN32
@@ -1274,11 +1228,8 @@ os_file_create_func(
 	if (!read_only
 	    && *success
 	    && type != OS_LOG_FILE
-	    && type != OS_DATA_FILE_NO_O_DIRECT
-	    && (srv_file_flush_method == SRV_O_DIRECT
-		|| srv_file_flush_method == SRV_O_DIRECT_NO_FSYNC)) {
-
-	       os_file_set_nocache(file, name, mode_str);
+	    && type != OS_DATA_FILE_NO_O_DIRECT) {
+		os_file_set_nocache(file, name, mode_str);
 	}
 
 #ifndef _WIN32
@@ -1294,7 +1245,8 @@ os_file_create_func(
 				<< "Retrying to lock the first data file";
 
 			for (int i = 0; i < 100; i++) {
-				os_thread_sleep(1000000);
+				std::this_thread::sleep_for(
+					std::chrono::seconds(1));
 
 				if (!os_file_lock(file, name)) {
 					*success = true;
@@ -1815,18 +1767,10 @@ ulint os_file_get_last_error(bool report_all_errors, bool on_error_silent)
 				<< "The error means the system"
 				" cannot find the path specified.";
 
-			if (srv_is_being_started) {
-				ib::error()
-					<< "If you are installing InnoDB,"
-					" remember that you must create"
-					" directories yourself, InnoDB"
-					" does not create them.";
-			}
-
 		} else if (err == ERROR_ACCESS_DENIED) {
 
 			ib::error()
-				<< "The error means mysqld does not have"
+				<< "The error means mariadbd does not have"
 				" the access rights to"
 				" the directory. It may also be"
 				" you have created a subdirectory"
@@ -1840,7 +1784,7 @@ ulint os_file_get_last_error(bool report_all_errors, bool on_error_silent)
 				" is using InnoDB's files."
 				" This might be a backup or antivirus"
 				" software or another instance"
-				" of MySQL."
+				" of MariaDB."
 				" Please close it to get rid of this error.";
 
 		} else if (err == ERROR_WORKING_SET_QUOTA
@@ -1859,6 +1803,10 @@ ulint os_file_get_last_error(bool report_all_errors, bool on_error_silent)
 				" because of either a thread exit"
 				" or an application request."
 				" Retry attempt is made.";
+		} else if (err == ERROR_PATH_NOT_FOUND) {
+			ib::error()
+				<< "This error means that directory did not exist"
+				" during file creation.";
 		} else {
 
 			ib::info() << OPERATING_SYSTEM_ERROR_MSG;
@@ -1991,7 +1939,7 @@ os_file_create_simple_func(
 		file = CreateFile(
 			(LPCTSTR) name, access,
 			FILE_SHARE_READ | FILE_SHARE_DELETE,
-			NULL, create_flag, attributes, NULL);
+			my_win_file_secattr(), create_flag, attributes, NULL);
 
 		if (file == INVALID_HANDLE_VALUE) {
 
@@ -2247,7 +2195,7 @@ os_file_create_func(
 
 		/* Use default security attributes and no template file. */
 		file = CreateFile(
-			name, access, share_mode, NULL,
+			name, access, share_mode, my_win_file_secattr(),
 			create_flag, attributes, NULL);
 
 		/* If FILE_FLAG_NO_BUFFERING was set, check if this can work at all,
@@ -2301,6 +2249,7 @@ A simple function to open or create a file.
 @param[out]	success		true if succeeded
 @return own: handle to the file, not defined if error, error number
 	can be retrieved with os_file_get_last_error */
+
 pfs_os_file_t
 os_file_create_simple_no_error_handling_func(
 	const char*	name,
@@ -2382,7 +2331,7 @@ os_file_create_simple_no_error_handling_func(
 	file = CreateFile((LPCTSTR) name,
 			  access,
 			  share_mode,
-			  NULL,			// Security attributes
+			  my_win_file_secattr(),
 			  create_flag,
 			  attributes,
 			  NULL);		// No template file
@@ -2441,8 +2390,7 @@ os_file_delete_if_exists_func(
 			ib::warn() << "Delete of file '" << name << "' failed.";
 		}
 
-		/* Sleep for a second */
-		os_thread_sleep(1000000);
+		std::this_thread::sleep_for(std::chrono::seconds(1));
 
 		if (count > 2000) {
 
@@ -2490,8 +2438,7 @@ os_file_delete_func(
 				<< "another program accessing it?";
 		}
 
-		/* sleep for a second */
-		os_thread_sleep(1000000);
+		std::this_thread::sleep_for(std::chrono::seconds(1));
 
 		if (count > 2000) {
 
@@ -2528,7 +2475,7 @@ os_file_rename_func(
 	ut_ad(exists);
 #endif /* UNIV_DEBUG */
 
-	if (MoveFile((LPCTSTR) oldpath, (LPCTSTR) newpath)) {
+	if (MoveFileEx(oldpath, newpath, MOVEFILE_REPLACE_EXISTING)) {
 		return(true);
 	}
 
@@ -2672,7 +2619,7 @@ os_file_get_status_win32(
 				access,
 				FILE_SHARE_READ | FILE_SHARE_WRITE
 				| FILE_SHARE_DELETE,	// Full sharing
-				NULL,			// Default security
+				my_win_file_secattr(),
 				OPEN_EXISTING,		// Existing file only
 				FILE_ATTRIBUTE_NORMAL,	// Normal file
 				NULL);			// No attr. template
@@ -2818,15 +2765,15 @@ os_file_io(
 		bytes_returned += n_bytes;
 
 		if (type.type != IORequest::READ_MAYBE_PARTIAL) {
-			const char*	op = type.is_read()
-				? "read" : "written";
-
-			ib::warn()
-				<< n
-				<< " bytes should have been " << op << ". Only "
-				<< bytes_returned
-				<< " bytes " << op << ". Retrying"
-				<< " for the remaining bytes.";
+			sql_print_warning("InnoDB: %zu bytes should have been"
+					  " %s at %llu from %s,"
+					  " but got only %zd."
+					  " Retrying.",
+					  n, type.is_read()
+					  ? "read" : "written", offset,
+					  type.node
+					  ? type.node->name
+					  : "(unknown file)", bytes_returned);
 		}
 
 		/* Advance the offset and buffer by n_bytes */
@@ -2967,52 +2914,38 @@ os_file_pread(
 @param[in]	offset		file offset from the start where to read
 @param[in]	n		number of bytes to read, starting from offset
 @param[out]	o		number of bytes actually read
-@param[in]	exit_on_err	if true then exit on error
 @return DB_SUCCESS or error code */
-static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
-os_file_read_page(
+os_file_read_func(
 	const IORequest&	type,
 	os_file_t	file,
 	void*			buf,
 	os_offset_t		offset,
 	ulint			n,
-	ulint*			o,
-	bool			exit_on_err)
+	ulint*			o)
 {
-	dberr_t		err;
+  ut_ad(!type.node || type.node->handle == file);
+  ut_ad(n);
 
-	os_bytes_read_since_printout += n;
+  os_bytes_read_since_printout+= n;
 
-	ut_ad(n > 0);
+  dberr_t err;
+  ssize_t n_bytes= os_file_pread(type, file, buf, n, offset, &err);
 
-	ssize_t	n_bytes = os_file_pread(type, file, buf, n, offset, &err);
+  if (o)
+    *o= ulint(n_bytes);
 
-	if (o) {
-		*o = n_bytes;
-	}
+  if (ulint(n_bytes) == n || err != DB_SUCCESS)
+    return err;
 
-	if (ulint(n_bytes) == n || (err != DB_SUCCESS && !exit_on_err)) {
-		return err;
-	}
-	int os_err = IF_WIN((int)GetLastError(), errno);
+  os_file_handle_error_cond_exit(type.node ? type.node->name : nullptr, "read",
+                                 false, false);
+  sql_print_error("InnoDB: Tried to read %zu bytes at offset %llu"
+                  " of file %s, but was only able to read %zd",
+                  n, offset, type.node ? type.node->name : "(unknown)",
+                  n_bytes);
 
-	if (!os_file_handle_error_cond_exit(
-		    NULL, "read", exit_on_err, false)) {
-		ib::fatal()
-			<< "Tried to read " << n << " bytes at offset "
-			<< offset << ", but was only able to read " << n_bytes
-			<< ".Cannot read from file. OS error number "
-			<< os_err << ".";
-	} else {
-		ib::error() << "Tried to read " << n << " bytes at offset "
-		<< offset << ", but was only able to read " << n_bytes;
-	}
-	if (err == DB_SUCCESS) {
-		err = DB_IO_ERROR;
-	}
-
-	return err;
+  return err ? err : DB_IO_ERROR;
 }
 
 /** Handle errors for file operations.
@@ -3072,13 +3005,13 @@ os_file_handle_error_cond_exit(
 
 	case OS_FILE_SHARING_VIOLATION:
 
-		os_thread_sleep(10000000);	/* 10 sec */
+		std::this_thread::sleep_for(std::chrono::seconds(10));
 		return(true);
 
 	case OS_FILE_OPERATION_ABORTED:
 	case OS_FILE_INSUFFICIENT_RESOURCE:
 
-		os_thread_sleep(100000);	/* 100 ms */
+		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 		return(true);
 
 	default:
@@ -3116,6 +3049,15 @@ os_file_set_nocache(
 	const char*	file_name	MY_ATTRIBUTE((unused)),
 	const char*	operation_name	MY_ATTRIBUTE((unused)))
 {
+	const auto innodb_flush_method = srv_file_flush_method;
+	switch (innodb_flush_method) {
+	case SRV_O_DIRECT:
+	case SRV_O_DIRECT_NO_FSYNC:
+		break;
+	default:
+		return;
+	}
+
 	/* some versions of Solaris may not have DIRECTIO_ON */
 #if defined(__sun__) && defined(DIRECTIO_ON)
 	if (directio(fd, DIRECTIO_ON) == -1) {
@@ -3134,23 +3076,11 @@ os_file_set_nocache(
 		if (errno_save == EINVAL) {
 			if (!warning_message_printed) {
 				warning_message_printed = true;
-# ifdef __linux__
-				ib::warn()
-					<< "Failed to set O_DIRECT on file"
-					<< file_name << "; " << operation_name
-					<< ": " << strerror(errno_save) << ", "
-					"continuing anyway. O_DIRECT is "
-					"known to result in 'Invalid argument' "
-					"on Linux on tmpfs, "
-					"see MySQL Bug#26662.";
-# else /* __linux__ */
-				goto short_warning;
-# endif /* __linux__ */
+				ib::info()
+					<< "Setting O_DIRECT on file "
+					<< file_name << " failed";
 			}
 		} else {
-# ifndef __linux__
-short_warning:
-# endif
 			ib::warn()
 				<< "Failed to set O_DIRECT on file "
 				<< file_name << "; " << operation_name
@@ -3166,7 +3096,7 @@ short_warning:
 /** Check if the file system supports sparse files.
 @param fh	file handle
 @return true if the file system supports sparse files */
-IF_WIN(static,) bool os_is_sparse_file_supported(os_file_t fh)
+static bool os_is_sparse_file_supported(os_file_t fh)
 {
 #ifdef _WIN32
 	FILE_ATTRIBUTE_TAG_INFO info;
@@ -3361,51 +3291,6 @@ os_file_truncate(
 #endif /* _WIN32 */
 }
 
-/** NOTE! Use the corresponding macro os_file_read(), not directly this
-function!
-Requests a synchronous positioned read operation.
-@return DB_SUCCESS if request was successful, DB_IO_ERROR on failure
-@param[in]	type		IO flags
-@param[in]	file		handle to an open file
-@param[out]	buf		buffer where to read
-@param[in]	offset		file offset from the start where to read
-@param[in]	n		number of bytes to read, starting from offset
-@return error code
-@retval	DB_SUCCESS	if the operation succeeded */
-dberr_t
-os_file_read_func(
-	const IORequest&	type,
-	os_file_t		file,
-	void*			buf,
-	os_offset_t		offset,
-	ulint			n)
-{
-	return(os_file_read_page(type, file, buf, offset, n, NULL, true));
-}
-
-/** NOTE! Use the corresponding macro os_file_read_no_error_handling(),
-not directly this function!
-Requests a synchronous positioned read operation.
-@return DB_SUCCESS if request was successful, DB_IO_ERROR on failure
-@param[in]	type		IO flags
-@param[in]	file		handle to an open file
-@param[out]	buf		buffer where to read
-@param[in]	offset		file offset from the start where to read
-@param[in]	n		number of bytes to read, starting from offset
-@param[out]	o		number of bytes actually read
-@return DB_SUCCESS or error code */
-dberr_t
-os_file_read_no_error_handling_func(
-	const IORequest&	type,
-	os_file_t	file,
-	void*			buf,
-	os_offset_t		offset,
-	ulint			n,
-	ulint*			o)
-{
-	return(os_file_read_page(type, file, buf, offset, n, o, false));
-}
-
 /** Check the existence and type of the given file.
 @param[in]	path		path name of file
 @param[out]	exists		true if the file exists
@@ -3458,24 +3343,23 @@ dberr_t IORequest::punch_hole(os_offset_t off, ulint len) const
 
 	/* Check does file system support punching holes for this
 	tablespace. */
-	if (!node->space->punch_hole) {
+	if (!node->punch_hole) {
 		return DB_IO_NO_PUNCH_HOLE;
 	}
 
 	dberr_t err = os_file_punch_hole(node->handle, off, trim_len);
 
-	if (err == DB_SUCCESS) {
+	switch (err) {
+	case DB_SUCCESS:
 		srv_stats.page_compressed_trim_op.inc();
-	} else {
-		/* If punch hole is not supported,
-		set space so that it is not used. */
-		if (err == DB_IO_NO_PUNCH_HOLE) {
-			node->space->punch_hole = false;
-			err = DB_SUCCESS;
-		}
+		return err;
+	case DB_IO_NO_PUNCH_HOLE:
+		node->punch_hole = false;
+		err = DB_SUCCESS;
+		/* fall through */
+	default:
+		return err;
 	}
-
-	return (err);
 }
 
 /*
@@ -3550,10 +3434,10 @@ os_file_get_status(
 
 extern void fil_aio_callback(const IORequest &request);
 
-static void io_callback(tpool::aiocb* cb)
+static void io_callback(tpool::aiocb *cb)
 {
-  const IORequest request(*static_cast<const IORequest*>
-                          (static_cast<const void*>(cb->m_userdata)));
+  const IORequest &request= *static_cast<const IORequest*>
+    (static_cast<const void*>(cb->m_userdata));
   if (cb->m_err != DB_SUCCESS)
   {
     ib::fatal() << "IO Error: " << cb->m_err << " during " <<
@@ -3567,15 +3451,16 @@ static void io_callback(tpool::aiocb* cb)
   if (cb->m_opcode == tpool::aio_opcode::AIO_PREAD)
   {
     ut_ad(read_slots->contains(cb));
+    fil_aio_callback(request);
     read_slots->release(cb);
   }
   else
   {
     ut_ad(write_slots->contains(cb));
+    const IORequest req{request};
     write_slots->release(cb);
+    fil_aio_callback(req);
   }
-
-  fil_aio_callback(request);
 }
 
 #ifdef LINUX_NATIVE_AIO
@@ -3730,6 +3615,17 @@ disable:
   }
 #endif
 
+#ifdef HAVE_URING
+  if (ret)
+  {
+    ut_ad(srv_use_native_aio);
+    ib::warn()
+	    << "liburing disabled: falling back to innodb_use_native_aio=OFF";
+    srv_use_native_aio= false;
+    ret= srv_thread_pool->configure_aio(false, max_events);
+  }
+#endif
+
   if (!ret)
   {
     read_slots= new io_slots(max_read_events, srv_n_read_io_threads);
@@ -3769,7 +3665,31 @@ void os_aio_wait_until_no_pending_writes()
   buf_dblwr.wait_flush_buffered_writes();
 }
 
-/** Wait until there are no pending asynchronous reads. */
+/** @return number of pending reads */
+size_t os_aio_pending_reads()
+{
+  mysql_mutex_lock(&read_slots->mutex());
+  size_t pending= read_slots->pending_io_count();
+  mysql_mutex_unlock(&read_slots->mutex());
+  return pending;
+}
+
+/** @return approximate number of pending reads */
+size_t os_aio_pending_reads_approx()
+{
+  return read_slots->pending_io_count();
+}
+
+/** @return number of pending writes */
+size_t os_aio_pending_writes()
+{
+  mysql_mutex_lock(&write_slots->mutex());
+  size_t pending= write_slots->pending_io_count();
+  mysql_mutex_unlock(&write_slots->mutex());
+  return pending;
+}
+
+/** Wait until all pending asynchronous reads have completed. */
 void os_aio_wait_until_no_pending_reads()
 {
   const auto notify_wait= read_slots->pending_io_count();
@@ -3816,7 +3736,7 @@ dberr_t os_aio(const IORequest &type, void *buf, os_offset_t offset, size_t n)
 	if (!type.is_async()) {
 		err = type.is_read()
 			? os_file_read_func(type, type.node->handle,
-					    buf, offset, n)
+					    buf, offset, n, nullptr)
 			: os_file_write_func(type, type.node->name,
 					     type.node->handle,
 					     buf, offset, n);
@@ -3875,14 +3795,12 @@ os_aio_print(FILE*	file)
 	fprintf(file,
 		"Pending flushes (fsync) log: " ULINTPF
 		"; buffer pool: " ULINTPF "\n"
-		ULINTPF " OS file reads, "
-		ULINTPF " OS file writes, "
-		ULINTPF " OS fsyncs\n",
+		ULINTPF " OS file reads, %zu OS file writes, %zu OS fsyncs\n",
 		log_sys.get_pending_flushes(),
 		ulint{fil_n_pending_tablespace_flushes},
 		ulint{os_n_file_reads},
-		os_n_file_writes,
-		os_n_fsyncs);
+		static_cast<size_t>(os_n_file_writes),
+		static_cast<size_t>(os_n_fsyncs));
 
 	const ulint n_reads = ulint(MONITOR_VALUE(MONITOR_OS_PENDING_READS));
 	const ulint n_writes = ulint(MONITOR_VALUE(MONITOR_OS_PENDING_WRITES));
@@ -4095,212 +4013,167 @@ static bool is_file_on_ssd(char *file_path)
 
 #endif
 
-/** Determine some file metadata when creating or reading the file.
-@param	file	the file that is being created, or OS_FILE_CLOSED */
 void fil_node_t::find_metadata(os_file_t file
 #ifndef _WIN32
-			       , struct stat* statbuf
+                               , bool create, struct stat *statbuf
 #endif
-			       )
+                               )
 {
-	if (file == OS_FILE_CLOSED) {
-		file = handle;
-		ut_ad(is_open());
-	}
+  if (!is_open())
+  {
+    handle= file;
+    ut_ad(is_open());
+  }
 
-#ifdef _WIN32 /* FIXME: make this unconditional */
-	if (space->punch_hole) {
-		space->punch_hole = os_is_sparse_file_supported(file);
-	}
-#endif
+  if (!space->is_compressed())
+    punch_hole= 0;
+  else if (my_test_if_thinly_provisioned(file))
+    punch_hole= 2;
+  else
+    punch_hole= IF_WIN(, !create ||) os_is_sparse_file_supported(file);
 
-	/*
-	For the temporary tablespace and during the
-	non-redo-logged adjustments in
-	IMPORT TABLESPACE, we do not care about
-	the atomicity of writes.
-
-	Atomic writes is supported if the file can be used
-	with atomic_writes (not log file), O_DIRECT is
-	used (tested in ha_innodb.cc) and the file is
-	device and file system that supports atomic writes
-	for the given block size.
-	*/
-	space->atomic_write_supported = space->purpose == FIL_TYPE_TEMPORARY
-		|| space->purpose == FIL_TYPE_IMPORT;
 #ifdef _WIN32
-	on_ssd = is_file_on_ssd(name);
-	FILE_STORAGE_INFO info;
-	if (GetFileInformationByHandleEx(
-		file, FileStorageInfo, &info, sizeof(info))) {
-		block_size = info.PhysicalBytesPerSectorForAtomicity;
-	} else {
-		block_size = 512;
-	}
+  on_ssd= is_file_on_ssd(name);
+  FILE_STORAGE_INFO info;
+  if (GetFileInformationByHandleEx(file, FileStorageInfo, &info, sizeof info))
+    block_size= info.PhysicalBytesPerSectorForAtomicity;
+  else
+    block_size= 512;
 #else
-	struct stat sbuf;
-	if (!statbuf && !fstat(file, &sbuf)) {
-		MSAN_STAT_WORKAROUND(&sbuf);
-		statbuf = &sbuf;
-	}
-	if (statbuf) {
-		block_size = statbuf->st_blksize;
-	}
-	on_ssd = space->atomic_write_supported
+  struct stat sbuf;
+  if (!statbuf && !fstat(file, &sbuf))
+  {
+    MSAN_STAT_WORKAROUND(&sbuf);
+    statbuf= &sbuf;
+  }
+  if (statbuf)
+    block_size= statbuf->st_blksize;
 # ifdef __linux__
-		|| (statbuf && fil_system.is_ssd(statbuf->st_dev))
+  on_ssd= statbuf && fil_system.is_ssd(statbuf->st_dev);
 # endif
-		;
 #endif
-	if (!space->atomic_write_supported) {
-		space->atomic_write_supported = atomic_write
-			&& srv_use_atomic_writes
-#ifndef _WIN32
-			&& my_test_if_atomic_write(file,
-						   space->physical_size())
-#else
-			/* On Windows, all single sector writes are atomic,
-			as per WriteFile() documentation on MSDN.
-			We also require SSD for atomic writes, eventhough
-			technically it is not necessary- the reason is that
-			on hard disks, we still want the benefit from
-			(non-atomic) neighbor page flushing in the buffer
-			pool code. */
-			&& srv_page_size == block_size
-			&& on_ssd
-#endif
-			;
-	}
+
+  if (space->purpose != FIL_TYPE_TABLESPACE)
+  {
+    /* For temporary tablespace or during IMPORT TABLESPACE, we
+    disable neighbour flushing and do not care about atomicity. */
+    on_ssd= true;
+    atomic_write= true;
+  }
+  else
+    /* On Windows, all single sector writes are atomic, as per
+    WriteFile() documentation on MSDN. */
+    atomic_write= srv_use_atomic_writes &&
+      IF_WIN(srv_page_size == block_size,
+	     my_test_if_atomic_write(file, space->physical_size()));
 }
 
 /** Read the first page of a data file.
 @return	whether the page was found valid */
 bool fil_node_t::read_page0()
 {
-	ut_ad(mutex_own(&fil_system.mutex));
-	const unsigned psize = space->physical_size();
+  mysql_mutex_assert_owner(&fil_system.mutex);
+  const unsigned psize= space->physical_size();
 #ifndef _WIN32
-	struct stat statbuf;
-	if (fstat(handle, &statbuf)) {
-		return false;
-	}
-	MSAN_STAT_WORKAROUND(&statbuf);
-	os_offset_t size_bytes = statbuf.st_size;
+  struct stat statbuf;
+  if (fstat(handle, &statbuf))
+    return false;
+  MSAN_STAT_WORKAROUND(&statbuf);
+  os_offset_t size_bytes= statbuf.st_size;
 #else
-	os_offset_t size_bytes = os_file_get_size(handle);
-	ut_a(size_bytes != (os_offset_t) -1);
+  os_offset_t size_bytes= os_file_get_size(handle);
+  ut_a(size_bytes != (os_offset_t) -1);
 #endif
-	const uint32_t min_size = FIL_IBD_FILE_INITIAL_SIZE * psize;
+  const uint32_t min_size= FIL_IBD_FILE_INITIAL_SIZE * psize;
 
-	if (size_bytes < min_size) {
-		ib::error() << "The size of the file " << name
-			    << " is only " << size_bytes
-			    << " bytes, should be at least " << min_size;
-		return false;
-	}
+  if (size_bytes < min_size)
+  {
+    ib::error() << "The size of the file " << name
+      << " is only " << size_bytes
+      << " bytes, should be at least " << min_size;
+    return false;
+  }
 
-	page_t *page= static_cast<byte*>(aligned_malloc(psize, psize));
-	if (os_file_read(IORequestRead, handle, page, 0, psize)
-	    != DB_SUCCESS) {
-		ib::error() << "Unable to read first page of file " << name;
+  if (!deferred)
+  {
+    page_t *page= static_cast<byte*>(aligned_malloc(psize, psize));
+    if (os_file_read(IORequestRead, handle, page, 0, psize, nullptr)
+        != DB_SUCCESS)
+    {
+      sql_print_error("InnoDB: Unable to read first page of file %s", name);
 corrupted:
-		aligned_free(page);
-		return false;
-	}
+      aligned_free(page);
+      return false;
+    }
 
-	const ulint space_id = memcmp_aligned<2>(
-		FIL_PAGE_SPACE_ID + page,
-		FSP_HEADER_OFFSET + FSP_SPACE_ID + page, 4)
-		? ULINT_UNDEFINED
-		: mach_read_from_4(FIL_PAGE_SPACE_ID + page);
-	ulint flags = fsp_header_get_flags(page);
-	const uint32_t size = fsp_header_get_field(page, FSP_SIZE);
-	const uint32_t free_limit = fsp_header_get_field(page, FSP_FREE_LIMIT);
-	const uint32_t free_len = flst_get_len(FSP_HEADER_OFFSET + FSP_FREE
-					       + page);
-	if (!fil_space_t::is_valid_flags(flags, space->id)) {
-		ulint cflags = fsp_flags_convert_from_101(flags);
-		if (cflags == ULINT_UNDEFINED) {
+    const ulint space_id= memcmp_aligned<2>
+      (FIL_PAGE_SPACE_ID + page,
+       FSP_HEADER_OFFSET + FSP_SPACE_ID + page, 4)
+      ? ULINT_UNDEFINED
+      : mach_read_from_4(FIL_PAGE_SPACE_ID + page);
+    ulint flags= fsp_header_get_flags(page);
+    const uint32_t size= fsp_header_get_field(page, FSP_SIZE);
+    const uint32_t free_limit= fsp_header_get_field(page, FSP_FREE_LIMIT);
+    const uint32_t free_len= flst_get_len(FSP_HEADER_OFFSET + FSP_FREE + page);
+    if (!fil_space_t::is_valid_flags(flags, space->id))
+    {
+      ulint cflags= fsp_flags_convert_from_101(flags);
+      if (cflags == ULINT_UNDEFINED)
+      {
 invalid:
-			ib::error()
-				<< "Expected tablespace flags "
-				<< ib::hex(space->flags)
-				<< " but found " << ib::hex(flags)
-				<< " in the file " << name;
-			goto corrupted;
-		}
+        ib::error() << "Expected tablespace flags "
+          << ib::hex(space->flags)
+          << " but found " << ib::hex(flags)
+          << " in the file " << name;
+        goto corrupted;
+      }
 
-		ulint cf = cflags & ~FSP_FLAGS_MEM_MASK;
-		ulint sf = space->flags & ~FSP_FLAGS_MEM_MASK;
+      ulint cf= cflags & ~FSP_FLAGS_MEM_MASK;
+      ulint sf= space->flags & ~FSP_FLAGS_MEM_MASK;
 
-		if (!fil_space_t::is_flags_equal(cf, sf)
-		    && !fil_space_t::is_flags_equal(sf, cf)) {
-			goto invalid;
-		}
+      if (!fil_space_t::is_flags_equal(cf, sf) &&
+          !fil_space_t::is_flags_equal(sf, cf))
+        goto invalid;
+      flags= cflags;
+    }
 
-		flags = cflags;
-	}
+    ut_ad(!(flags & FSP_FLAGS_MEM_MASK));
 
-	ut_ad(!(flags & FSP_FLAGS_MEM_MASK));
+    /* Try to read crypt_data from page 0 if it is not yet read. */
+    if (!space->crypt_data)
+      space->crypt_data= fil_space_read_crypt_data(
+        fil_space_t::zip_size(flags), page);
+    aligned_free(page);
 
-	/* Try to read crypt_data from page 0 if it is not yet read. */
-	if (!space->crypt_data) {
-		space->crypt_data = fil_space_read_crypt_data(
-			fil_space_t::zip_size(flags), page);
-	}
-	aligned_free(page);
+    if (UNIV_UNLIKELY(space_id != space->id))
+    {
+      ib::error() << "Expected tablespace id " << space->id
+        << " but found " << space_id
+        << " in the file " << name;
+      return false;
+    }
 
-	if (UNIV_UNLIKELY(space_id != space->id)) {
-		ib::error() << "Expected tablespace id " << space->id
-			<< " but found " << space_id
-			<< " in the file " << name;
-		return false;
-	}
+    space->flags= (space->flags & FSP_FLAGS_MEM_MASK) | flags;
+    ut_ad(space->free_limit == 0 || space->free_limit == free_limit);
+    ut_ad(space->free_len == 0 || space->free_len == free_len);
+    space->size_in_header= size;
+    space->free_limit= free_limit;
+    space->free_len= free_len;
+  }
 
-#ifdef __linux__
-	find_metadata(handle, &statbuf);
-#else
-	find_metadata();
-#endif
-	/* Truncate the size to a multiple of extent size. */
-	ulint	mask = psize * FSP_EXTENT_SIZE - 1;
+  IF_WIN(find_metadata(), find_metadata(handle, false, &statbuf));
+  /* Truncate the size to a multiple of extent size. */
+  ulint	mask= psize * FSP_EXTENT_SIZE - 1;
 
-	if (size_bytes <= mask) {
-		/* .ibd files start smaller than an
-		extent size. Do not truncate valid data. */
-	} else {
-		size_bytes &= ~os_offset_t(mask);
-	}
+  if (size_bytes <= mask);
+    /* .ibd files start smaller than an
+    extent size. Do not truncate valid data. */
+  else
+    size_bytes&= ~os_offset_t(mask);
 
-	space->flags = (space->flags & FSP_FLAGS_MEM_MASK) | flags;
-
-	space->punch_hole = space->is_compressed();
-	this->size = uint32_t(size_bytes / psize);
-	space->set_sizes(this->size);
-	ut_ad(space->free_limit == 0 || space->free_limit == free_limit);
-	ut_ad(space->free_len == 0 || space->free_len == free_len);
-	space->size_in_header = size;
-	space->free_limit = free_limit;
-	space->free_len = free_len;
-	return true;
+  this->size= uint32_t(size_bytes / psize);
+  space->set_sizes(this->size);
+  return true;
 }
 
-#else
-#include "univ.i"
 #endif /* !UNIV_INNOCHECKSUM */
-
-/** Normalizes a directory path for the current OS:
-On Windows, we convert '/' to '\', else we convert '\' to '/'.
-@param[in,out] str A null-terminated directory and file path */
-void
-os_normalize_path(
-	char*	str)
-{
-	if (str != NULL) {
-		for (; *str; str++) {
-			if (*str == OS_PATH_SEPARATOR_ALT) {
-				*str = OS_PATH_SEPARATOR;
-			}
-		}
-	}
-}

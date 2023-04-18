@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2020, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -145,28 +145,6 @@ row_merge_dup_report(
 	const dfield_t*		entry)	/*!< in: duplicate index entry */
 	MY_ATTRIBUTE((nonnull));
 
-/*********************************************************************//**
-Sets an exclusive lock on a table, for the duration of creating indexes.
-@return error code or DB_SUCCESS */
-dberr_t
-row_merge_lock_table(
-/*=================*/
-	trx_t*		trx,		/*!< in/out: transaction */
-	dict_table_t*	table,		/*!< in: table to lock */
-	enum lock_mode	mode)		/*!< in: LOCK_X or LOCK_S */
-	MY_ATTRIBUTE((nonnull(1,2), warn_unused_result));
-
-/*********************************************************************//**
-Drop indexes that were created before an error occurred.
-The data dictionary must have been locked exclusively by the caller,
-because the transaction will not be committed. */
-void
-row_merge_drop_indexes_dict(
-/*========================*/
-	trx_t*		trx,	/*!< in/out: dictionary transaction */
-	table_id_t	table_id)/*!< in: table identifier */
-	MY_ATTRIBUTE((nonnull));
-
 /** Drop indexes that were created before an error occurred.
 The data dictionary must have been locked exclusively by the caller,
 because the transaction will not be committed.
@@ -182,11 +160,9 @@ row_merge_drop_indexes(
         bool            locked,
         const trx_t*    alter_trx=NULL);
 
-/*********************************************************************//**
-Drop all partially created indexes during crash recovery. */
-void
-row_merge_drop_temp_indexes(void);
-/*=============================*/
+/** During recovery, drop recovered index stubs that were created in
+prepare_inplace_alter_table_dict(). */
+void row_merge_drop_temp_indexes();
 
 /** Create temporary merge files in the given paramater path, and if
 UNIV_PFS_IO defined, register the file descriptor with Performance Schema.
@@ -217,19 +193,6 @@ row_merge_rename_index_to_add(
 	index_id_t	index_id)	/*!< in: index identifier */
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 
-/*********************************************************************//**
-Rename an index in the dictionary that is to be dropped. The data
-dictionary must have been locked exclusively by the caller, because
-the transaction will not be committed.
-@return DB_SUCCESS if all OK */
-dberr_t
-row_merge_rename_index_to_drop(
-/*===========================*/
-	trx_t*		trx,		/*!< in/out: transaction */
-	table_id_t	table_id,	/*!< in: table identifier */
-	index_id_t	index_id)	/*!< in: index identifier */
-	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
-
 /** Create the index and load in to the dictionary.
 @param[in,out]	table		the index is on this table
 @param[in]	index_def	the index definition
@@ -253,18 +216,10 @@ row_merge_is_index_usable(
 	const dict_index_t*	index)	/*!< in: index to check */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/*********************************************************************//**
-Drop a table. The caller must have ensured that the background stats
-thread is not processing the table. This can be done by calling
-dict_stats_wait_bg_to_stop_using_table() after locking the dictionary and
-before calling this function.
-@return DB_SUCCESS or error code */
-dberr_t
-row_merge_drop_table(
-/*=================*/
-	trx_t*		trx,		/*!< in: transaction */
-	dict_table_t*	table)		/*!< in: table instance to drop */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+/** Map from column numbers to column definitions that include
+changes to the collation, when the encoding is compatible with
+the original column and no table rebuild is needed */
+typedef std::map<unsigned, dict_col_t*> col_collations;
 
 /** Build indexes on a table by reading a clustered index, creating a temporary
 file containing index entries, merge sorting these index entries and inserting
@@ -294,6 +249,7 @@ this function and it will be passed to other functions for further accounting.
 @param[in]	eval_table	mysql table used to evaluate virtual column
 				value, see innobase_get_computed_value().
 @param[in]	allow_non_null	allow the conversion from null to not-null
+@param[in]	col_collate	columns whose collations changed, or nullptr
 @return DB_SUCCESS or error code */
 dberr_t
 row_merge_build_indexes(
@@ -313,7 +269,8 @@ row_merge_build_indexes(
 	ut_stage_alter_t*	stage,
 	const dict_add_v_col_t*	add_v,
 	struct TABLE*		eval_table,
-	bool			allow_non_null)
+	bool			allow_non_null,
+	const col_collations*	col_collate)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /********************************************************************//**
@@ -341,10 +298,8 @@ Write a merge block to the file system.
 @return whether the request was completed successfully
 @retval	false	on error
 @retval	true	on success */
-UNIV_INTERN
 bool
 row_merge_write(
-/*============*/
 	const pfs_os_file_t&	fd,	/*!< in: file descriptor */
 	ulint		offset,	/*!< in: offset where to write,
 				in number of row_merge_block_t elements */

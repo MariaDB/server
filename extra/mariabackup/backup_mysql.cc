@@ -76,9 +76,10 @@ bool have_multi_threaded_slave = false;
 bool have_gtid_slave = false;
 
 /* Kill long selects */
-os_event_t	kill_query_thread_started;
-os_event_t	kill_query_thread_stopped;
-os_event_t	kill_query_thread_stop;
+static mysql_mutex_t kill_query_thread_mutex;
+static bool kill_query_thread_running, kill_query_thread_stopping;
+static mysql_cond_t kill_query_thread_stopped;
+static mysql_cond_t kill_query_thread_stop;
 
 bool sql_thread_started = false;
 char *mysql_slave_position = NULL;
@@ -103,7 +104,7 @@ xb_mysql_connect()
 	sprintf(mysql_port_str, "%d", opt_port);
 
 	if (connection == NULL) {
-		msg("Failed to init MySQL struct: %s.",
+		msg("Failed to init MariaDB struct: %s.",
 			mysql_error(connection));
 		return(NULL);
 	}
@@ -126,7 +127,7 @@ xb_mysql_connect()
 	mysql_options(connection, MYSQL_OPT_PROTOCOL, &opt_protocol);
 	mysql_options(connection,MYSQL_SET_CHARSET_NAME, "utf8");
 
-	msg("Connecting to server host: %s, user: %s, password: %s, "
+	msg("Connecting to MariaDB server host: %s, user: %s, password: %s, "
 	       "port: %s, socket: %s", opt_host ? opt_host : "localhost",
 	       opt_user ? opt_user : "not set",
 	       opt_password ? "set" : "not set",
@@ -153,7 +154,7 @@ xb_mysql_connect()
 				opt_password,
 				"" /*database*/, opt_port,
 				opt_socket, 0)) {
-		msg("Failed to connect to server: %s.", mysql_error(connection));
+		msg("Failed to connect to MariaDB server: %s.", mysql_error(connection));
 		mysql_close(connection);
 		return(NULL);
 	}
@@ -471,7 +472,7 @@ bool get_mysql_vars(MYSQL *connection)
     }
     if (!directory_exists(datadir_var, false))
     {
-      msg("Warning: MySQL variable 'datadir' points to "
+      msg("Warning: MariaDB variable 'datadir' points to "
           "nonexistent directory '%s'",
           datadir_var);
     }
@@ -808,7 +809,7 @@ wait_for_no_updates(MYSQL *connection, uint timeout, uint threshold)
 		if (!have_queries_to_wait_for(connection, threshold)) {
 			return(true);
 		}
-		os_thread_sleep(1000000);
+		std::this_thread::sleep_for(std::chrono::seconds(1));
 	}
 
 	msg("Unable to obtain lock. Please try again later.");
@@ -816,74 +817,70 @@ wait_for_no_updates(MYSQL *connection, uint timeout, uint threshold)
 	return(false);
 }
 
-static
-os_thread_ret_t
-DECLARE_THREAD(kill_query_thread)(
-/*===============*/
-	void *arg __attribute__((unused)))
+static void kill_query_thread()
 {
-	MYSQL	*mysql;
-	time_t	start_time;
+  mysql_mutex_lock(&kill_query_thread_mutex);
 
-	start_time = time(NULL);
+  msg("Kill query timeout %d seconds.", opt_kill_long_queries_timeout);
 
-	os_event_set(kill_query_thread_started);
+  time_t start_time= time(nullptr);
+  timespec abstime;
+  set_timespec(abstime, opt_kill_long_queries_timeout);
 
-	msg("Kill query timeout %d seconds.",
-	       opt_kill_long_queries_timeout);
+  while (!kill_query_thread_stopping)
+    if (!mysql_cond_timedwait(&kill_query_thread_stop,
+                              &kill_query_thread_mutex, &abstime))
+      goto func_exit;
 
-	while (time(NULL) - start_time <
-				(time_t)opt_kill_long_queries_timeout) {
-		if (os_event_wait_time(kill_query_thread_stop, 1000) !=
-		    OS_SYNC_TIME_EXCEEDED) {
-			goto stop_thread;
-		}
-	}
+  if (MYSQL *mysql= xb_mysql_connect())
+  {
+    do
+    {
+      kill_long_queries(mysql, time(nullptr) - start_time);
+      set_timespec(abstime, 1);
+    }
+    while (mysql_cond_timedwait(&kill_query_thread_stop,
+                                &kill_query_thread_mutex, &abstime) &&
+	   !kill_query_thread_stopping);
+    mysql_close(mysql);
+  }
+  else
+    msg("Error: kill query thread failed");
 
-	if ((mysql = xb_mysql_connect()) == NULL) {
-		msg("Error: kill query thread failed");
-		goto stop_thread;
-	}
+func_exit:
+  msg("Kill query thread stopped");
 
-	while (true) {
-		kill_long_queries(mysql, time(NULL) - start_time);
-		if (os_event_wait_time(kill_query_thread_stop, 1000) !=
-		    OS_SYNC_TIME_EXCEEDED) {
-			break;
-		}
-	}
-
-	mysql_close(mysql);
-
-stop_thread:
-	msg("Kill query thread stopped");
-
-	os_event_set(kill_query_thread_stopped);
-
-	os_thread_exit();
-	OS_THREAD_DUMMY_RETURN;
+  kill_query_thread_running= false;
+  mysql_cond_signal(&kill_query_thread_stopped);
+  mysql_mutex_unlock(&kill_query_thread_mutex);
 }
 
 
-static
-void
-start_query_killer()
+static void start_query_killer()
 {
-	kill_query_thread_stop		= os_event_create(0);
-	kill_query_thread_started	= os_event_create(0);
-	kill_query_thread_stopped	= os_event_create(0);
-
-	os_thread_create(kill_query_thread);
-
-	os_event_wait(kill_query_thread_started);
+  ut_ad(!kill_query_thread_running);
+  kill_query_thread_running= true;
+  kill_query_thread_stopping= false;
+  mysql_mutex_init(0, &kill_query_thread_mutex, nullptr);
+  mysql_cond_init(0, &kill_query_thread_stop, nullptr);
+  mysql_cond_init(0, &kill_query_thread_stopped, nullptr);
+  std::thread(kill_query_thread).detach();
 }
 
-static
-void
-stop_query_killer()
+static void stop_query_killer()
 {
-	os_event_set(kill_query_thread_stop);
-	os_event_wait_time(kill_query_thread_stopped, 60000);
+  mysql_mutex_lock(&kill_query_thread_mutex);
+  kill_query_thread_stopping= true;
+  mysql_cond_signal(&kill_query_thread_stop);
+
+  do
+    mysql_cond_wait(&kill_query_thread_stopped, &kill_query_thread_mutex);
+  while (kill_query_thread_running);
+
+  mysql_cond_destroy(&kill_query_thread_stop);
+  mysql_cond_destroy(&kill_query_thread_stopped);
+  mysql_mutex_unlock(&kill_query_thread_mutex);
+  mysql_mutex_destroy(&kill_query_thread_mutex);
 }
 
 
@@ -934,7 +931,9 @@ bool lock_tables(MYSQL *connection)
   }
 
   xb_mysql_query(connection, "BACKUP STAGE START", true);
+  DBUG_MARIABACKUP_EVENT("after_backup_stage_start", {});
   xb_mysql_query(connection, "BACKUP STAGE BLOCK_COMMIT", true);
+  DBUG_MARIABACKUP_EVENT("after_backup_stage_block_commit", {});
   /* Set the maximum supported session value for
   lock_wait_timeout to prevent unnecessary timeouts when the
   global value is changed from the default */
@@ -979,8 +978,9 @@ unlock_all(MYSQL *connection)
 	if (opt_debug_sleep_before_unlock) {
 		msg("Debug sleep for %u seconds",
 		       opt_debug_sleep_before_unlock);
-		os_thread_sleep(opt_debug_sleep_before_unlock * 1000);
-	}
+                std::this_thread::sleep_for(
+                    std::chrono::milliseconds(opt_debug_sleep_before_unlock));
+        }
 
 	msg("Executing BACKUP STAGE END");
 	xb_mysql_query(connection, "BACKUP STAGE END", false);
@@ -1058,7 +1058,7 @@ wait_for_safe_slave(MYSQL *connection)
 		       "remaining)...", sleep_time, n_attempts);
 
 		xb_mysql_query(connection, "START SLAVE SQL_THREAD", false);
-		os_thread_sleep(sleep_time * 1000000);
+		std::this_thread::sleep_for(std::chrono::seconds(sleep_time));
 		xb_mysql_query(connection, "STOP SLAVE SQL_THREAD", false);
 
 		open_temp_tables = get_open_temp_tables(connection);
@@ -1151,22 +1151,23 @@ public:
   bool print(String *to) const
   {
     ut_ad(m_value);
-    return to->append(m_value);
+    return to->append(m_value, strlen(m_value));
   }
   bool print_quoted(String *to) const
   {
     ut_ad(m_value);
-    return to->append("'") || to->append(m_value) || to->append("'");
+    return to->append('\'') || to->append(m_value, strlen(m_value)) ||
+           to->append('\'');
   }
   bool print_set_global(String *to) const
   {
     ut_ad(m_value);
     return
-      to->append("SET GLOBAL ") ||
-      to->append(m_name) ||
-      to->append(" = '") ||
-      to->append(m_value) ||
-      to->append("';\n");
+      to->append(STRING_WITH_LEN("SET GLOBAL ")) ||
+      to->append(m_name, strlen(m_name)) ||
+      to->append(STRING_WITH_LEN(" = '")) ||
+      to->append(m_value, strlen(m_value)) ||
+      to->append(STRING_WITH_LEN("';\n"));
   }
 };
 
@@ -1219,7 +1220,7 @@ public:
 
   static bool start_comment_chunk(String *to)
   {
-    return to->length() ? to->append("; ") : false;
+    return to->length() ? to->append(STRING_WITH_LEN("; ")) : false;
   }
 
   bool print_connection_name_if_set(String *to) const
@@ -1231,24 +1232,28 @@ public:
 
   bool print_comment_master_identity(String *comment) const
   {
-    if (comment->append("master "))
+    if (comment->append(STRING_WITH_LEN("master ")))
       return true;
     if (!m_mariadb_connection_name.is_null_or_empty())
       return m_mariadb_connection_name.print_quoted(comment);
-    return comment->append("''"); // Default not named master
+    return comment->append(STRING_WITH_LEN("''")); // Default not named master
   }
 
   bool print_using_master_log_pos(String *sql, String *comment) const
   {
     return
-      sql->append("CHANGE MASTER ") ||
+      sql->append(STRING_WITH_LEN("CHANGE MASTER ")) ||
       print_connection_name_if_set(sql) ||
-      sql->append("TO MASTER_LOG_FILE=") || m_filename.print_quoted(sql) ||
-      sql->append(", MASTER_LOG_POS=")   || m_position.print(sql) ||
-      sql->append(";\n") ||
+      sql->append(STRING_WITH_LEN("TO MASTER_LOG_FILE=")) ||
+      m_filename.print_quoted(sql) ||
+      sql->append(STRING_WITH_LEN(", MASTER_LOG_POS=")) ||
+      m_position.print(sql) ||
+      sql->append(STRING_WITH_LEN(";\n")) ||
       print_comment_master_identity(comment) ||
-      comment->append(" filename ")  || m_filename.print_quoted(comment) ||
-      comment->append(" position ")  || m_position.print_quoted(comment);
+      comment->append(STRING_WITH_LEN(" filename ")) ||
+      m_filename.print_quoted(comment) ||
+      comment->append(STRING_WITH_LEN(" position ")) ||
+      m_position.print_quoted(comment);
   }
 
   bool print_mysql56(String *sql, String *comment) const
@@ -1259,23 +1264,23 @@ public:
       CHANGE MASTER TO MASTER_AUTO_POSITION=1;
     */
     return
-      sql->append("SET GLOBAL gtid_purged=") ||
+      sql->append(STRING_WITH_LEN("SET GLOBAL gtid_purged=")) ||
       m_mysql_gtid_executed.print_quoted(sql) ||
-      sql->append(";\n") ||
-      sql->append("CHANGE MASTER TO MASTER_AUTO_POSITION=1;\n") ||
+      sql->append(STRING_WITH_LEN(";\n")) ||
+      sql->append(STRING_WITH_LEN("CHANGE MASTER TO MASTER_AUTO_POSITION=1;\n")) ||
       print_comment_master_identity(comment) ||
-      comment->append(" purge list ") ||
+      comment->append(STRING_WITH_LEN(" purge list ")) ||
       m_mysql_gtid_executed.print_quoted(comment);
   }
 
   bool print_mariadb10_using_gtid(String *sql, String *comment) const
   {
     return
-      sql->append("CHANGE MASTER ") ||
+      sql->append(STRING_WITH_LEN("CHANGE MASTER ")) ||
       print_connection_name_if_set(sql) ||
-      sql->append("TO master_use_gtid = slave_pos;\n") ||
+      sql->append(STRING_WITH_LEN("TO master_use_gtid = slave_pos;\n")) ||
       print_comment_master_identity(comment) ||
-      comment->append(" master_use_gtid = slave_pos");
+      comment->append(STRING_WITH_LEN(" master_use_gtid = slave_pos"));
   }
 
   bool print(String *sql, String *comment, const Var &gtid_slave_pos) const
@@ -1314,7 +1319,7 @@ public:
         if (status.is_mariadb_using_gtid())
         {
           if (gtid_slave_pos.print_set_global(sql) ||
-              comment->append("gtid_slave_pos ") ||
+              comment->append(STRING_WITH_LEN("gtid_slave_pos ")) ||
               gtid_slave_pos.print_quoted(comment))
             return true; // Error
           break;

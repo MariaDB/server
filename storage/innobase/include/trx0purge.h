@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,17 +24,13 @@ Purge old versions
 Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
-#ifndef trx0purge_h
-#define trx0purge_h
+#pragma once
 
-#include "trx0rseg.h"
+#include "trx0sys.h"
 #include "que0types.h"
+#include "srw_lock.h"
 
 #include <queue>
-
-/** A dummy undo record used as a return value when we have a whole undo log
-which needs no purge */
-extern trx_undo_rec_t	trx_purge_dummy_rec;
 
 /** Prepend the history list with an undo log.
 Remove the undo log segment from the rseg slot if it is too big for reuse.
@@ -123,17 +119,26 @@ private:
 class purge_sys_t
 {
 public:
-	/** latch protecting view, m_enabled */
-	MY_ALIGNED(CACHE_LINE_SIZE)
-	mutable rw_lock_t		latch;
+  /** latch protecting view, m_enabled */
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) mutable srw_spin_lock latch;
 private:
-	/** The purge will not remove undo logs which are >= this view */
-	MY_ALIGNED(CACHE_LINE_SIZE)
-	ReadViewBase	view;
-	/** whether purge is enabled; protected by latch and std::atomic */
-	std::atomic<bool>		m_enabled;
-	/** number of pending stop() calls without resume() */
-	Atomic_counter<int32_t>		m_paused;
+  /** Read view at the start of a purge batch. Any encountered index records
+  that are older than view will be removed. */
+  ReadViewBase view;
+  /** whether purge is enabled; protected by latch and std::atomic */
+  std::atomic<bool> m_enabled;
+  /** number of pending stop() calls without resume() */
+  Atomic_counter<uint32_t> m_paused;
+  /** number of stop_SYS() calls without resume_SYS() */
+  Atomic_counter<uint32_t> m_SYS_paused;
+  /** number of stop_FTS() calls without resume_FTS() */
+  Atomic_counter<uint32_t> m_FTS_paused;
+
+  /** latch protecting end_view */
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) srw_spin_lock_low end_latch;
+  /** Read view at the end of a purge batch (copied from view). Any undo pages
+  containing records older than end_view may be freed. */
+  ReadViewBase end_view;
 public:
 	que_t*		query;		/*!< The query graph which will do the
 					parallelized purge operation */
@@ -184,7 +189,7 @@ public:
 	purge_pq_t	purge_queue;	/*!< Binary min-heap, ordered on
 					TrxUndoRsegs::trx_no. It is protected
 					by the pq_mutex */
-	PQMutex		pq_mutex;	/*!< Mutex protecting purge_queue */
+	mysql_mutex_t	pq_mutex;	/*!< Mutex protecting purge_queue */
 
 	/** Undo tablespace file truncation (only accessed by the
 	srv_purge_coordinator_thread) */
@@ -235,34 +240,108 @@ public:
 
   /** @return whether the purge tasks are active */
   bool running() const;
-  /** Stop purge during FLUSH TABLES FOR EXPORT */
+  /** Stop purge during FLUSH TABLES FOR EXPORT. */
   void stop();
   /** Resume purge at UNLOCK TABLES after FLUSH TABLES FOR EXPORT */
   void resume();
-  /** A wrapper around ReadView::changes_visible(). */
-  bool changes_visible(trx_id_t id, const table_name_t &name) const
-  {
-    ut_ad(rw_lock_own(&latch, RW_LOCK_S));
-    return view.changes_visible(id, name);
-  }
+
+private:
+  void wait_SYS();
+  void wait_FTS();
+public:
+  /** Suspend purge in data dictionary tables */
+  void stop_SYS();
+  /** Resume purge in data dictionary tables */
+  static void resume_SYS(void *);
+  /** @return whether stop_SYS() is in effect */
+  bool must_wait_SYS() const { return m_SYS_paused; }
+  /** check stop_SYS() */
+  void check_stop_SYS() { if (must_wait_SYS()) wait_SYS(); }
+
+  /** Pause purge during a DDL operation that could drop FTS_ tables. */
+  void stop_FTS() { m_FTS_paused++; }
+  /** Resume purge after stop_FTS(). */
+  void resume_FTS() { ut_d(const auto p=) m_FTS_paused--; ut_ad(p); }
+  /** @return whether stop_SYS() is in effect */
+  bool must_wait_FTS() const { return m_FTS_paused; }
+  /** check stop_SYS() */
+  void check_stop_FTS() { if (must_wait_FTS()) wait_FTS(); }
+
+  /** Determine if the history of a transaction is purgeable.
+  @param trx_id  transaction identifier
+  @return whether the history is purgeable */
+  TRANSACTIONAL_TARGET bool is_purgeable(trx_id_t trx_id) const;
+
   /** A wrapper around ReadView::low_limit_no(). */
   trx_id_t low_limit_no() const
   {
-#if 0 /* Unfortunately we don't hold this assertion, see MDEV-22718. */
-    ut_ad(rw_lock_own(&latch, RW_LOCK_S));
-#endif
+    /* This function may only be called by purge_coordinator_callback().
+
+    The purge coordinator task may call this without holding any latch,
+    because it is the only thread that may modify purge_sys.view.
+
+    Any other threads that access purge_sys.view must hold purge_sys.latch,
+    typically via purge_sys_t::view_guard. */
     return view.low_limit_no();
   }
   /** A wrapper around trx_sys_t::clone_oldest_view(). */
+  template<bool also_end_view= false>
   void clone_oldest_view()
   {
-    rw_lock_x_lock(&latch);
+    latch.wr_lock(SRW_LOCK_CALL);
     trx_sys.clone_oldest_view(&view);
-    rw_lock_x_unlock(&latch);
+    if (also_end_view)
+      (end_view= view).
+        clamp_low_limit_id(head.trx_no ? head.trx_no : tail.trx_no);
+    latch.wr_unlock();
   }
+
+  /** Update end_view at the end of a purge batch. */
+  inline void clone_end_view();
+
+  struct view_guard
+  {
+    inline view_guard();
+    inline ~view_guard();
+
+    /** @return purge_sys.view */
+    inline const ReadViewBase &view() const;
+  };
+
+  struct end_view_guard
+  {
+    inline end_view_guard();
+    inline ~end_view_guard();
+
+    /** @return purge_sys.end_view */
+    inline const ReadViewBase &view() const;
+  };
+
+  /** Stop the purge thread and check n_ref_count of all auxiliary
+  and common table associated with the fts table.
+  @param	table		parent FTS table
+  @param	already_stopped	True indicates purge threads were
+				already stopped */
+  void stop_FTS(const dict_table_t &table, bool already_stopped=false);
 };
 
 /** The global data structure coordinating a purge */
 extern purge_sys_t	purge_sys;
 
-#endif /* trx0purge_h */
+purge_sys_t::view_guard::view_guard()
+{ purge_sys.latch.rd_lock(SRW_LOCK_CALL); }
+
+purge_sys_t::view_guard::~view_guard()
+{ purge_sys.latch.rd_unlock(); }
+
+const ReadViewBase &purge_sys_t::view_guard::view() const
+{ return purge_sys.view; }
+
+purge_sys_t::end_view_guard::end_view_guard()
+{ purge_sys.end_latch.rd_lock(); }
+
+purge_sys_t::end_view_guard::~end_view_guard()
+{ purge_sys.end_latch.rd_unlock(); }
+
+const ReadViewBase &purge_sys_t::end_view_guard::view() const
+{ return purge_sys.end_view; }

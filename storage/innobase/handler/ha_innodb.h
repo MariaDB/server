@@ -63,8 +63,6 @@ public:
 	ROW_TYPE_NOT_USED, the information in HA_CREATE_INFO should be used. */
         enum row_type get_row_type() const override;
 
-        const char* table_type() const;
-
 	const char* index_type(uint key_number) override;
 
 	Table_flags table_flags() const override;
@@ -186,26 +184,24 @@ public:
 
 	void update_create_info(HA_CREATE_INFO* create_info) override;
 
-	inline int create(
+	int create(
 		const char*		name,
 		TABLE*			form,
 		HA_CREATE_INFO*		create_info,
 		bool			file_per_table,
-		trx_t*			trx = NULL);
+		trx_t*			trx);
 
 	int create(
 		const char*		name,
 		TABLE*			form,
 		HA_CREATE_INFO*		create_info) override;
 
-	inline int delete_table(const char* name, enum_sql_command sqlcom);
-
 	int truncate() override;
 
 	int delete_table(const char *name) override;
 
 	int rename_table(const char* from, const char* to) override;
-	inline int defragment_table(const char* name);
+	inline int defragment_table();
 	int check(THD* thd, HA_CHECK_OPT* check_opt) override;
 
 	inline void reload_statistics();
@@ -223,7 +219,7 @@ public:
 
 	uint referenced_by_foreign_key() override;
 
-	void free_foreign_key_create_info(char* str) override;
+	void free_foreign_key_create_info(char* str) override { my_free(str); }
 
 	uint lock_count(void) const override;
 
@@ -456,6 +452,9 @@ protected:
 	@see build_template() */
 	void reset_template();
 
+	/** @return whether the table is read-only */
+	bool is_read_only(bool altering_to_supported= false) const;
+
 	inline void update_thd(THD* thd);
 	void update_thd();
 
@@ -529,25 +528,11 @@ the definitions are bracketed with #ifdef INNODB_COMPATIBILITY_HOOKS */
 
 extern "C" {
 
-/** Check if a user thread is a replication slave thread
-@param thd user thread
-@retval 0 the user thread is not a replication slave thread
-@retval 1 the user thread is a replication slave thread */
-int thd_slave_thread(const MYSQL_THD thd);
-
 /** Check if a user thread is running a non-transactional update
 @param thd user thread
 @retval 0 the user thread is not running a non-transactional update
 @retval 1 the user thread is running a non-transactional update */
 int thd_non_transactional_update(const MYSQL_THD thd);
-
-/** Get high resolution timestamp for the current query start time.
-The timestamp is not anchored to any specific point in time,
-but can be used for comparison.
-@param thd user thread
-@retval timestamp in microseconds precision
-*/
-unsigned long long thd_start_utime(const MYSQL_THD thd);
 
 /** Get the user thread's binary logging format
 @param thd user thread
@@ -652,8 +637,9 @@ public:
 	@param create_fk	whether to add FOREIGN KEY constraints */
 	int create_table(bool create_fk = true);
 
-	/** Update the internal data dictionary. */
-	int create_table_update_dict();
+  static void create_table_update_dict(dict_table_t* table, THD* thd,
+                                       const HA_CREATE_INFO& info,
+                                       const TABLE& t);
 
 	/** Validates the create options. Checks that the options
 	KEY_BLOCK_SIZE, ROW_FORMAT, DATA DIRECTORY, TEMPORARY & TABLESPACE
@@ -713,29 +699,13 @@ public:
 	trx_t* trx() const
 	{ return(m_trx); }
 
-	/** Return table name. */
-	const char* table_name() const
-	{ return(m_table_name); }
+	/** @return table name */
+	const char* table_name() const { return(m_table_name); }
 
-	/** @return whether the table needs to be dropped on rollback */
-	bool drop_before_rollback() const { return m_drop_before_rollback; }
+	/** @return the created table */
+	dict_table_t *table() const { return m_table; }
 
-	THD* thd() const
-	{ return(m_thd); }
-
-	/** Normalizes a table name string.
-	A normalized name consists of the database name catenated to '/' and
-	table name. An example: test/mytable. On Windows normalization puts
-	both the database name and the table name always to lower case if
-	"set_lower_case" is set to true.
-	@param[in,out]	norm_name	Buffer to return the normalized name in.
-	@param[in]	name		Table name string.
-	@param[in]	set_lower_case	True if we want to set name to lower
-					case. */
-	static void normalize_table_name_low(
-		char*           norm_name,
-		const char*     name,
-		ibool           set_lower_case);
+	THD* thd() const { return(m_thd); }
 
 private:
 	/** Parses the table name into normal name and either temp path or
@@ -766,8 +736,6 @@ private:
 	char*		m_table_name;
 	/** Table */
 	dict_table_t*	m_table;
-	/** Whether the table needs to be dropped before rollback */
-	bool		m_drop_before_rollback;
 
 	/** Remote path (DATA DIRECTORY) or zero length-string */
 	char*		m_remote_path;
@@ -870,15 +838,6 @@ innodb_base_col_setup_for_stored(
 /** whether this is a stored generated column */
 #define innobase_is_s_fld(field) ((field)->vcol_info && (field)->stored_in_db())
 
-/** Always normalize table name to lower case on Windows */
-#ifdef _WIN32
-#define normalize_table_name(norm_name, name)           \
-	create_table_info_t::normalize_table_name_low(norm_name, name, TRUE)
-#else
-#define normalize_table_name(norm_name, name)           \
-	create_table_info_t::normalize_table_name_low(norm_name, name, FALSE)
-#endif /* _WIN32 */
-
 /** Converts a search mode flag understood by MySQL to a flag understood
 by InnoDB.
 @param[in]	find_flag	MySQL search mode flag.
@@ -947,10 +906,8 @@ innodb_col_no(const Field* field)
 /********************************************************************//**
 Helper function to push frm mismatch error to error log and
 if needed to sql-layer. */
-UNIV_INTERN
 void
 ib_push_frm_error(
-/*==============*/
 	THD*		thd,		/*!< in: MySQL thd */
 	dict_table_t*	ib_table,	/*!< in: InnoDB table */
 	TABLE*		table,		/*!< in: MySQL table */

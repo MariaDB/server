@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -37,7 +37,7 @@ lock_get_min_heap_no(
 /*=================*/
 	const buf_block_t*	block)	/*!< in: buffer block */
 {
-	const page_t*	page	= block->frame;
+	const page_t*	page	= block->page.frame;
 
 	if (page_is_comp(page)) {
 		return(rec_get_heap_no_new(
@@ -52,23 +52,6 @@ lock_get_min_heap_no(
 	}
 }
 
-/*************************************************************//**
-Get the lock hash table */
-UNIV_INLINE
-hash_table_t*
-lock_hash_get(
-/*==========*/
-	ulint	mode)	/*!< in: lock mode */
-{
-	if (mode & LOCK_PREDICATE) {
-		return &lock_sys.prdt_hash;
-	} else if (mode & LOCK_PRDT_PAGE) {
-		return &lock_sys.prdt_page_hash;
-	} else {
-		return &lock_sys.rec_hash;
-	}
-}
-
 /*********************************************************************//**
 Creates a new record lock and inserts it to the lock queue. Does NOT check
 for deadlocks or lock compatibility!
@@ -77,13 +60,8 @@ UNIV_INLINE
 lock_t*
 lock_rec_create(
 /*============*/
-#ifdef WITH_WSREP
 	lock_t*			c_lock,	/*!< conflicting lock */
-	que_thr_t*		thr,	/*!< thread owning trx */
-#endif
-	unsigned		type_mode,/*!< in: lock mode and wait
-					flag, type is ignored and
-					replaced by LOCK_REC */
+	unsigned		type_mode,/*!< in: lock mode and wait flag */
 	const buf_block_t*	block,	/*!< in: buffer block containing
 					the record */
 	ulint			heap_no,/*!< in: heap number of the record */
@@ -93,11 +71,8 @@ lock_rec_create(
 					/*!< in: TRUE if caller owns
 					trx mutex */
 {
-	btr_assert_not_corrupted(block, index);
 	return lock_rec_create_low(
-#ifdef WITH_WSREP
-		c_lock, thr,
-#endif
-		type_mode, block->page.id(), block->frame, heap_no,
+		c_lock,
+		type_mode, block->page.id(), block->page.frame, heap_no,
 		index, trx, caller_owns_trx_mutex);
 }

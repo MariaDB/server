@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2022, MariaDB Corporation.
+Copyright (c) 2013, 2023, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -45,16 +45,40 @@ Created 10/10/1995 Heikki Tuuri
 #include "que0types.h"
 #include "trx0types.h"
 #include "fil0fil.h"
+#include "ut0counter.h"
 
 #include "mysql/psi/mysql_stage.h"
 #include "mysql/psi/psi.h"
 #include <tpool.h>
 #include <memory>
 
+/** Simple non-atomic counter
+@tparam	Type  the integer type of the counter */
+template <typename Type>
+struct alignas(CPU_LEVEL1_DCACHE_LINESIZE) simple_counter
+{
+  /** Increment the counter */
+  Type inc() { return add(1); }
+  /** Decrement the counter */
+  Type dec() { return add(Type(~0)); }
+
+  /** Add to the counter
+  @param i  amount to be added
+  @return the value of the counter after adding */
+  Type add(Type i) { return m_counter += i; }
+
+  /** @return the value of the counter */
+  operator Type() const { return m_counter; }
+
+private:
+  /** The counter */
+  Type m_counter;
+};
+
 /** Global counters used inside InnoDB. */
 struct srv_stats_t
 {
-	typedef ib_counter_t<ulint, 64> ulint_ctr_64_t;
+	typedef ib_counter_t<ulint> ulint_ctr_n_t;
 	typedef simple_counter<lsn_t> lsn_ctr_1_t;
 	typedef simple_counter<ulint> ulint_ctr_1_t;
 	typedef simple_counter<int64_t> int64_ctr_1_t;
@@ -84,91 +108,74 @@ struct srv_stats_t
 	/** Store the number of write requests issued */
 	ulint_ctr_1_t		buf_pool_write_requests;
 
-	/** Number of buffer pool reads that led to the reading of
-	a disk page */
-	ulint_ctr_1_t		buf_pool_reads;
-
 	/** Number of bytes saved by page compression */
-	ulint_ctr_64_t          page_compression_saved;
+	ulint_ctr_n_t          page_compression_saved;
 	/* Number of pages compressed with page compression */
-        ulint_ctr_64_t          pages_page_compressed;
+        ulint_ctr_n_t          pages_page_compressed;
 	/* Number of TRIM operations induced by page compression */
-        ulint_ctr_64_t          page_compressed_trim_op;
+        ulint_ctr_n_t          page_compressed_trim_op;
 	/* Number of pages decompressed with page compression */
-        ulint_ctr_64_t          pages_page_decompressed;
+        ulint_ctr_n_t          pages_page_decompressed;
 	/* Number of page compression errors */
-	ulint_ctr_64_t          pages_page_compression_error;
+	ulint_ctr_n_t          pages_page_compression_error;
 	/* Number of pages encrypted */
-	ulint_ctr_64_t          pages_encrypted;
+	ulint_ctr_n_t          pages_encrypted;
    	/* Number of pages decrypted */
-	ulint_ctr_64_t          pages_decrypted;
+	ulint_ctr_n_t          pages_decrypted;
 	/* Number of merge blocks encrypted */
-	ulint_ctr_64_t          n_merge_blocks_encrypted;
+	ulint_ctr_n_t          n_merge_blocks_encrypted;
 	/* Number of merge blocks decrypted */
-	ulint_ctr_64_t          n_merge_blocks_decrypted;
+	ulint_ctr_n_t          n_merge_blocks_decrypted;
 	/* Number of row log blocks encrypted */
-	ulint_ctr_64_t          n_rowlog_blocks_encrypted;
+	ulint_ctr_n_t          n_rowlog_blocks_encrypted;
 	/* Number of row log blocks decrypted */
-	ulint_ctr_64_t          n_rowlog_blocks_decrypted;
+	ulint_ctr_n_t          n_rowlog_blocks_decrypted;
 
 	/** Number of data read in total (in bytes) */
 	ulint_ctr_1_t		data_read;
 
-	/** Wait time of database locks */
-	int64_ctr_1_t		n_lock_wait_time;
-
-	/** Number of database lock waits */
-	ulint_ctr_1_t		n_lock_wait_count;
-
-	/** Number of threads currently waiting on database locks */
-	MY_ALIGNED(CACHE_LINE_SIZE) Atomic_counter<ulint>
-				n_lock_wait_current_count;
-
 	/** Number of rows read. */
-	ulint_ctr_64_t		n_rows_read;
+	ulint_ctr_n_t		n_rows_read;
 
 	/** Number of rows updated */
-	ulint_ctr_64_t		n_rows_updated;
+	ulint_ctr_n_t		n_rows_updated;
 
 	/** Number of rows deleted */
-	ulint_ctr_64_t		n_rows_deleted;
+	ulint_ctr_n_t		n_rows_deleted;
 
 	/** Number of rows inserted */
-	ulint_ctr_64_t		n_rows_inserted;
+	ulint_ctr_n_t		n_rows_inserted;
 
 	/** Number of system rows read. */
-	ulint_ctr_64_t		n_system_rows_read;
+	ulint_ctr_n_t		n_system_rows_read;
 
 	/** Number of system rows updated */
-	ulint_ctr_64_t		n_system_rows_updated;
+	ulint_ctr_n_t		n_system_rows_updated;
 
 	/** Number of system rows deleted */
-	ulint_ctr_64_t		n_system_rows_deleted;
+	ulint_ctr_n_t		n_system_rows_deleted;
 
 	/** Number of system rows inserted */
-	ulint_ctr_64_t		n_system_rows_inserted;
+	ulint_ctr_n_t		n_system_rows_inserted;
 
 	/** Number of times secondary index lookup triggered cluster lookup */
-	ulint_ctr_64_t		n_sec_rec_cluster_reads;
+	ulint_ctr_n_t		n_sec_rec_cluster_reads;
 
 	/** Number of times prefix optimization avoided triggering cluster lookup */
-	ulint_ctr_64_t		n_sec_rec_cluster_reads_avoided;
+	ulint_ctr_n_t		n_sec_rec_cluster_reads_avoided;
 
 	/** Number of encryption_get_latest_key_version calls */
-	ulint_ctr_64_t		n_key_requests;
+	ulint_ctr_n_t		n_key_requests;
 
 	/** Number of temporary tablespace blocks encrypted */
-	ulint_ctr_64_t		n_temp_blocks_encrypted;
+	ulint_ctr_n_t		n_temp_blocks_encrypted;
 
 	/** Number of temporary tablespace blocks decrypted */
-	ulint_ctr_64_t		n_temp_blocks_decrypted;
-
-	/** Number of lock deadlocks */
-	ulint_ctr_1_t		lock_deadlock_count;
+	ulint_ctr_n_t		n_temp_blocks_decrypted;
 };
 
 /** We are prepared for a situation that we have this many threads waiting for
-a semaphore inside InnoDB. srv_start() sets the value. */
+a transactional lock inside InnoDB. srv_start() sets the value. */
 extern ulint srv_max_n_threads;
 
 extern const char*	srv_main_thread_op_info;
@@ -193,15 +200,13 @@ at a time */
 #define SRV_AUTO_EXTEND_INCREMENT (srv_sys_space.get_autoextend_increment())
 
 /** Mutex protecting page_zip_stat_per_index */
-extern ib_mutex_t	page_zip_stat_per_index_mutex;
-/* Mutex for locking srv_monitor_file. Not created if srv_read_only_mode */
-extern ib_mutex_t	srv_monitor_file_mutex;
+extern mysql_mutex_t page_zip_stat_per_index_mutex;
+/** Mutex for locking srv_monitor_file */
+extern mysql_mutex_t srv_monitor_file_mutex;
 /* Temporary file for innodb monitor output */
 extern FILE*	srv_monitor_file;
-/* Mutex for locking srv_misc_tmpfile. Only created if !srv_read_only_mode.
-This mutex has a very low rank; threads reserving it should not
-acquire any further latches or sleep before releasing this one. */
-extern ib_mutex_t	srv_misc_tmpfile_mutex;
+/** Mutex for locking srv_misc_tmpfile */
+extern mysql_mutex_t srv_misc_tmpfile_mutex;
 /* Temporary file for miscellanous diagnostic output */
 extern FILE*	srv_misc_tmpfile;
 
@@ -284,11 +289,6 @@ extern ulong	srv_log_write_ahead_size;
 extern my_bool	srv_adaptive_flushing;
 extern my_bool	srv_flush_sync;
 
-/* If this flag is TRUE, then we will load the indexes' (and tables') metadata
-even if they are marked as "corrupted". Mostly it is for DBA to process
-corrupted index and table */
-extern my_bool	srv_load_corrupted;
-
 /** Requested size in bytes */
 extern ulint		srv_buf_pool_size;
 /** Requested buffer pool chunk size. Each buffer pool instance consists
@@ -313,6 +313,8 @@ extern ulong srv_buf_pool_load_pages_abort;
 /** Lock table size in bytes */
 extern ulint	srv_lock_table_size;
 
+/** the value of innodb_checksum_algorithm */
+extern ulong	srv_checksum_algorithm;
 extern my_bool	srv_random_read_ahead;
 extern ulong	srv_read_ahead_threshold;
 extern uint	srv_n_read_io_threads;
@@ -397,11 +399,17 @@ enum srv_operation_mode {
 	/** Mariabackup restoring the incremental part of a backup */
 	SRV_OPERATION_RESTORE_DELTA,
 	/** Mariabackup restoring a backup for subsequent --export */
-	SRV_OPERATION_RESTORE_EXPORT
+	SRV_OPERATION_RESTORE_EXPORT,
+	/** Mariabackup taking a backup and avoid deferring
+	any tablespace */
+	SRV_OPERATION_BACKUP_NO_DEFER
 };
 
 /** Current mode of operation */
 extern enum srv_operation_mode srv_operation;
+
+/** whether this is the server's first start after mariabackup --prepare */
+extern bool srv_start_after_restore;
 
 extern my_bool	srv_print_innodb_monitor;
 extern my_bool	srv_print_innodb_lock_monitor;
@@ -425,7 +433,6 @@ extern ulint	srv_log_writes_and_flush;
 
 #ifdef UNIV_DEBUG
 extern my_bool	innodb_evict_tables_on_commit_debug;
-extern my_bool	srv_sync_debug;
 extern my_bool	srv_purge_view_update_only_debug;
 
 /** InnoDB system tablespace to set during recovery */
@@ -441,9 +448,6 @@ extern uint srv_n_purge_threads;
 
 /* the number of pages to purge in one batch */
 extern ulong srv_purge_batch_size;
-
-/* the number of sync wait arrays */
-extern ulong srv_sync_array_size;
 
 /* print all user-level transactions deadlocks to mysqld stderr */
 extern my_bool srv_print_all_deadlocks;
@@ -532,11 +536,9 @@ enum {
 	SRV_FORCE_NO_BACKGROUND	= 2,	/*!< prevent the main thread from
 					running: if a crash would occur
 					in purge, this prevents it */
-	SRV_FORCE_NO_TRX_UNDO = 3,	/*!< do not run trx rollback after
+	SRV_FORCE_NO_TRX_UNDO = 3,	/*!< do not run DML rollback after
 					recovery */
-	SRV_FORCE_NO_IBUF_MERGE = 4,	/*!< prevent also ibuf operations:
-					if they would cause a crash, better
-					not do them */
+	SRV_FORCE_NO_DDL_UNDO = 4,	/*!< prevent also DDL rollback */
 	SRV_FORCE_NO_UNDO_LOG_SCAN = 5,	/*!< do not look at undo logs when
 					starting the database: InnoDB will
 					treat even incomplete transactions
@@ -580,8 +582,7 @@ ibool
 srv_printf_innodb_monitor(
 /*======================*/
 	FILE*	file,		/*!< in: output stream */
-	ibool	nowait,		/*!< in: whether to wait for the
-				lock_sys_t::mutex */
+	ibool	nowait,		/*!< in: whether to wait for lock_sys.latch */
 	ulint*	trx_start,	/*!< out: file position of the start of
 				the list of active transactions */
 	ulint*	trx_end);	/*!< out: file position of the end of
@@ -659,29 +660,21 @@ void srv_init_purge_tasks();
 
 /** Status variables to be passed to MySQL */
 struct export_var_t{
+#ifdef BTR_CUR_HASH_ADAPT
+	ulint innodb_ahi_hit;
+	ulint innodb_ahi_miss;
+#endif /* BTR_CUR_HASH_ADAPT */
 	char  innodb_buffer_pool_dump_status[OS_FILE_MAX_PATH + 128];/*!< Buf pool dump status */
 	char  innodb_buffer_pool_load_status[OS_FILE_MAX_PATH + 128];/*!< Buf pool load status */
 	char  innodb_buffer_pool_resize_status[512];/*!< Buf pool resize status */
 	my_bool innodb_buffer_pool_load_incomplete;/*!< Buf pool load incomplete */
 	ulint innodb_buffer_pool_pages_total;	/*!< Buffer pool size */
-	ulint innodb_buffer_pool_pages_data;	/*!< Data pages */
 	ulint innodb_buffer_pool_bytes_data;	/*!< File bytes used */
-	ulint innodb_buffer_pool_pages_dirty;	/*!< Dirty data pages */
-	ulint innodb_buffer_pool_bytes_dirty;	/*!< File bytes modified */
 	ulint innodb_buffer_pool_pages_misc;	/*!< Miscellanous pages */
-	ulint innodb_buffer_pool_pages_free;	/*!< Free pages */
 #ifdef UNIV_DEBUG
 	ulint innodb_buffer_pool_pages_latched;	/*!< Latched pages */
 #endif /* UNIV_DEBUG */
-	ulint innodb_buffer_pool_pages_made_not_young;
-	ulint innodb_buffer_pool_pages_made_young;
-	ulint innodb_buffer_pool_pages_old;
-	ulint innodb_buffer_pool_read_requests;	/*!< buf_pool.stat.n_page_gets */
-	ulint innodb_buffer_pool_reads;		/*!< srv_buf_pool_reads */
 	ulint innodb_buffer_pool_write_requests;/*!< srv_stats.buf_pool_write_requests */
-	ulint innodb_buffer_pool_read_ahead_rnd;/*!< srv_read_ahead_rnd */
-	ulint innodb_buffer_pool_read_ahead;	/*!< srv_read_ahead */
-	ulint innodb_buffer_pool_read_ahead_evicted;/*!< srv_read_ahead evicted*/
 	ulint innodb_checkpoint_age;
 	ulint innodb_checkpoint_max_age;
 	ulint innodb_data_pending_reads;	/*!< Pending reads */
@@ -789,30 +782,6 @@ struct export_var_t{
 	ulint innodb_encryption_rotation_pages_flushed;
 	ulint innodb_encryption_rotation_estimated_iops;
 	int64_t innodb_encryption_key_requests;
-};
-
-/** Thread slot in the thread table.  */
-struct srv_slot_t{
-	ibool		in_use;			/*!< TRUE if this slot
-						is in use */
- 	/** time(NULL) when the thread was suspended.
- 	FIXME: Use my_interval_timer() or similar, to avoid bogus
- 	timeouts in lock_wait_check_and_cancel() or lock_wait_suspend_thread()
-	when the system time is adjusted to the past!
-
-	FIXME: This is duplicating trx_lock_t::wait_started,
-	which is being used for diagnostic purposes only. */
-	time_t		suspend_time;
-	ulong		wait_timeout;		/*!< wait time that if exceeded
-						the thread will be timed out.
-						Initialized by
-						lock_wait_table_reserve_slot()
-						for lock wait */
-	os_event_t	event;			/*!< event used in suspending
-						the thread when it has nothing
-						to do */
-	que_thr_t*	thr;			/*!< suspended query thread
-						(only used for user threads) */
 };
 
 extern tpool::thread_pool *srv_thread_pool;

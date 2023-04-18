@@ -2,7 +2,7 @@
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -109,12 +109,7 @@ page_zip_is_too_big(
 
 /**********************************************************************//**
 Initialize a compressed page descriptor. */
-UNIV_INLINE
-void
-page_zip_des_init(
-/*==============*/
-	page_zip_des_t*	page_zip);	/*!< in/out: compressed page
-					descriptor */
+#define page_zip_des_init(page_zip) (page_zip)->clear()
 
 /**********************************************************************//**
 Configure the zlib allocator to use the given memory heap. */
@@ -332,9 +327,9 @@ IMPORTANT: if page_zip_reorganize() is invoked on a leaf page of a
 non-clustered index, the caller must update the insert buffer free
 bits in the same mini-transaction in such a way that the modification
 will be redo-logged.
-@retval true on success
-@retval false on failure; the block_zip will be left intact */
-bool
+@return error code
+@retval DB_FAIL on overflow; the block_zip will be left intact */
+dberr_t
 page_zip_reorganize(
 	buf_block_t*	block,	/*!< in/out: page with compressed page;
 				on the compressed page, in: size;
@@ -344,7 +339,7 @@ page_zip_reorganize(
 	ulint		z_level,/*!< in: compression level */
 	mtr_t*		mtr,	/*!< in: mini-transaction */
 	bool		restore = false)/*!< whether to restore on failure */
-	MY_ATTRIBUTE((nonnull));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /**********************************************************************//**
 Copy the records of a page byte for byte.  Do not copy the page header
@@ -361,15 +356,11 @@ page_zip_copy_recs(
 #endif /* !UNIV_INNOCHECKSUM */
 
 /** Calculate the compressed page checksum.
-@param[in]	data			compressed page
-@param[in]	size			size of compressed page
-@param[in]	algo			algorithm to use
+@param data		compressed page
+@param size		size of compressed page
+@param use_adler	whether to use Adler32 instead of a XOR of 3 CRC-32C
 @return page checksum */
-uint32_t
-page_zip_calc_checksum(
-	const void*			data,
-	ulint				size,
-	srv_checksum_algorithm_t	algo);
+uint32_t page_zip_calc_checksum(const void *data, size_t size, bool use_adler);
 
 /** Validate the checksum on a ROW_FORMAT=COMPRESSED page.
 @param data    ROW_FORMAT=COMPRESSED page

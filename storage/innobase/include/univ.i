@@ -31,8 +31,8 @@ Version control for database, common definitions, and include files
 Created 1/20/1994 Heikki Tuuri
 ****************************************************************************/
 
-#ifndef univ_i
-#define univ_i
+#pragma once
+#define my_test_if_thinly_provisioned(f) 0
 
 /* aux macros to convert M into "123" (string) if M is defined like
 #define M 123 */
@@ -57,16 +57,6 @@ component, i.e. we show M.N.P as M.N */
 (time in seconds) */
 #define INNODB_EXTEND_TIMEOUT_INTERVAL 30
 
-#ifdef MYSQL_DYNAMIC_PLUGIN
-/* In the dynamic plugin, redefine some externally visible symbols
-in order not to conflict with the symbols of a builtin InnoDB. */
-
-/* Rename all C++ classes that contain virtual functions, because we
-have not figured out how to apply the visibility=hidden attribute to
-the virtual method table (vtable) in GCC 3. */
-# define ha_innobase ha_innodb
-#endif /* MYSQL_DYNAMIC_PLUGIN */
-
 #if defined(_WIN32)
 # include <windows.h>
 #endif /* _WIN32 */
@@ -78,16 +68,9 @@ support cross-platform development and expose comonly used SQL names. */
 
 #include <my_global.h>
 #include "my_counter.h"
+#include "aligned.h"
 #include <m_string.h>
-
-/* JAN: TODO: missing 5.7 header */
-#ifdef HAVE_MY_THREAD_H
-//# include <my_thread.h>
-#endif
-
-#ifndef UNIV_INNOCHECKSUM
-# include <mysqld_error.h>
-#endif /* !UNIV_INNOCHECKSUM */
+#include <mysqld_error.h>
 
 /* Include <sys/stat.h> to get S_I... macros defined for os0file.cc */
 #include <sys/stat.h>
@@ -118,15 +101,6 @@ HAVE_PSI_INTERFACE is defined. */
 # ifdef HAVE_PSI_MEMORY_INTERFACE
 #  define UNIV_PFS_MEMORY
 # endif /* HAVE_PSI_MEMORY_INTERFACE */
-
-/* There are mutexes/rwlocks that we want to exclude from
-instrumentation even if their corresponding performance schema
-define is set. And this PFS_NOT_INSTRUMENTED is used
-as the key value to identify those objects that would
-be excluded from instrumentation. */
-# define PFS_NOT_INSTRUMENTED		ULINT32_UNDEFINED
-
-# define PFS_IS_INSTRUMENTED(key)	((key) != PFS_NOT_INSTRUMENTED)
 
 #ifdef HAVE_PFS_THREAD_PROVIDER_H
 /* For PSI_MUTEX_CALL() and similar. */
@@ -194,8 +168,6 @@ using the call command. */
                                                 related stuff. */
 #define UNIV_SEARCH_PERF_STAT			/* statistics for the
 						adaptive hash index */
-#define UNIV_SRV_PRINT_LATCH_WAITS		/* enable diagnostic output
-						in sync0sync.cc */
 #define UNIV_BTR_PRINT				/* enable functions for
 						printing B-trees */
 #define UNIV_ZIP_DEBUG				/* extensive consistency checks
@@ -212,26 +184,7 @@ using the call command. */
                                                 info output */
 #endif
 
-#define UNIV_BTR_DEBUG				/* check B-tree links */
-#define UNIV_LIGHT_MEM_DEBUG			/* light memory debugging */
-
 // #define UNIV_SQL_DEBUG
-
-/* Linkage specifier for non-static InnoDB symbols (variables and functions)
-that are only referenced from within InnoDB, not from MySQL. We disable the
-GCC visibility directive on all Sun operating systems because there is no
-easy way to get it to work. See http://bugs.mysql.com/bug.php?id=52263. */
-#if defined(__GNUC__) && (__GNUC__ >= 4) && !defined(sun) || defined(__INTEL_COMPILER)
-# define UNIV_INTERN __attribute__((visibility ("hidden")))
-#else
-# define UNIV_INTERN
-#endif
-
-#if defined(__GNUC__) && (__GNUC__ >= 11)
-# define ATTRIBUTE_ACCESS(X) __attribute__((access X))
-#else
-# define ATTRIBUTE_ACCESS(X)
-#endif
 
 #ifndef MY_ATTRIBUTE
 #if defined(__GNUC__)
@@ -421,12 +374,6 @@ in both 32-bit and 64-bit environments. */
 # define UINT64PFx	"%016" PRIx64
 #endif
 
-#ifdef UNIV_INNOCHECKSUM
-extern bool 			strict_verify;
-extern FILE* 			log_file;
-extern uint32_t			cur_page_num;
-#endif /* UNIV_INNOCHECKSUM */
-
 typedef int64_t ib_int64_t;
 typedef uint64_t ib_uint64_t;
 typedef uint32_t ib_uint32_t;
@@ -522,14 +469,21 @@ it is read or written. */
 # define UNIV_PREFETCH_R(addr) ((void) 0)
 # define UNIV_PREFETCH_RW(addr) sun_prefetch_write_many(addr)
 
-# elif defined __WIN__
-# include <xmmintrin.h>
+# elif defined _MSC_VER
 # define UNIV_EXPECT(expr,value) (expr)
 # define UNIV_LIKELY_NULL(expr) (expr)
-// __MM_HINT_T0 - (temporal data)
-// prefetch data into all levels of the cache hierarchy.
-# define UNIV_PREFETCH_R(addr) _mm_prefetch((char *) addr, _MM_HINT_T0)
-# define UNIV_PREFETCH_RW(addr) _mm_prefetch((char *) addr, _MM_HINT_T0)
+# if defined _M_IX86 || defined _M_X64
+   // __MM_HINT_T0 - (temporal data)
+   // prefetch data into all levels of the cache hierarchy.
+#  define UNIV_PREFETCH_R(addr) _mm_prefetch((char *) addr, _MM_HINT_T0)
+#  define UNIV_PREFETCH_RW(addr) _mm_prefetch((char *) addr, _MM_HINT_T0)
+# elif defined _M_ARM64
+#  define UNIV_PREFETCH_R(addr) __prefetch(addr)
+#  define UNIV_PREFETCH_RW(addr) __prefetch(addr)
+# else
+#  define UNIV_PREFETCH_R ((void) 0)
+#  define  UNIV_PREFETCH_RW(addr) ((void) 0)
+# endif
 #else
 /* Dummy versions of the macros */
 # define UNIV_EXPECT(expr,value) (expr)
@@ -546,28 +500,11 @@ it is read or written. */
 /* Compile-time constant of the given array's size. */
 #define UT_ARR_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 
-/* The return type from a thread's start function differs between Unix and
-Windows, so define a typedef for it and a macro to use at the end of such
-functions. */
-
-#ifdef _WIN32
-typedef DWORD os_thread_ret_t;
-# define OS_THREAD_DUMMY_RETURN		return(0)
-# define OS_PATH_SEPARATOR		'\\'
-# define OS_PATH_SEPARATOR_ALT		'/'
-#else
-typedef void* os_thread_ret_t;
-# define OS_THREAD_DUMMY_RETURN		return(NULL)
-# define OS_PATH_SEPARATOR		'/'
-# define OS_PATH_SEPARATOR_ALT		'\\'
-#endif
-
 #include <stdio.h>
 #include "db0err.h"
 #include "ut0dbg.h"
 #include "ut0lst.h"
 #include "ut0ut.h"
-#include "sync0types.h"
 
 extern ulong	srv_page_size_shift;
 extern ulong	srv_page_size;
@@ -576,4 +513,49 @@ extern ulong	srv_page_size;
 myisam/sp_defs.h. We only support 2 dimension data */
 #define SPDIMS          2
 
-#endif
+#ifdef HAVE_PSI_INTERFACE
+typedef unsigned int mysql_pfs_key_t;
+
+# ifdef UNIV_PFS_MUTEX
+extern mysql_pfs_key_t buf_pool_mutex_key;
+extern mysql_pfs_key_t dict_foreign_err_mutex_key;
+extern mysql_pfs_key_t fil_system_mutex_key;
+extern mysql_pfs_key_t flush_list_mutex_key;
+extern mysql_pfs_key_t fts_cache_mutex_key;
+extern mysql_pfs_key_t fts_cache_init_mutex_key;
+extern mysql_pfs_key_t fts_delete_mutex_key;
+extern mysql_pfs_key_t fts_doc_id_mutex_key;
+extern mysql_pfs_key_t ibuf_bitmap_mutex_key;
+extern mysql_pfs_key_t ibuf_mutex_key;
+extern mysql_pfs_key_t ibuf_pessimistic_insert_mutex_key;
+extern mysql_pfs_key_t log_sys_mutex_key;
+extern mysql_pfs_key_t log_flush_order_mutex_key;
+extern mysql_pfs_key_t recalc_pool_mutex_key;
+extern mysql_pfs_key_t purge_sys_pq_mutex_key;
+extern mysql_pfs_key_t recv_sys_mutex_key;
+extern mysql_pfs_key_t rtr_active_mutex_key;
+extern mysql_pfs_key_t rtr_match_mutex_key;
+extern mysql_pfs_key_t rtr_path_mutex_key;
+extern mysql_pfs_key_t page_zip_stat_per_index_mutex_key;
+extern mysql_pfs_key_t srv_innodb_monitor_mutex_key;
+extern mysql_pfs_key_t srv_misc_tmpfile_mutex_key;
+extern mysql_pfs_key_t srv_monitor_file_mutex_key;
+extern mysql_pfs_key_t buf_dblwr_mutex_key;
+extern mysql_pfs_key_t trx_pool_mutex_key;
+extern mysql_pfs_key_t trx_pool_manager_mutex_key;
+extern mysql_pfs_key_t lock_wait_mutex_key;
+extern mysql_pfs_key_t srv_threads_mutex_key;
+# endif /* UNIV_PFS_MUTEX */
+
+# ifdef UNIV_PFS_RWLOCK
+extern mysql_pfs_key_t dict_operation_lock_key;
+extern mysql_pfs_key_t fil_space_latch_key;
+extern mysql_pfs_key_t trx_i_s_cache_lock_key;
+extern mysql_pfs_key_t trx_purge_latch_key;
+extern mysql_pfs_key_t index_tree_rw_lock_key;
+extern mysql_pfs_key_t index_online_log_key;
+extern mysql_pfs_key_t trx_sys_rw_lock_key;
+extern mysql_pfs_key_t lock_latch_key;
+extern mysql_pfs_key_t trx_rseg_latch_key;
+# endif /* UNIV_PFS_RWLOCK */
+#endif /* HAVE_PSI_INTERFACE */
