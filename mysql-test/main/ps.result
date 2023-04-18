@@ -5805,5 +5805,105 @@ END;
 $
 ERROR 42000: EXECUTE..USING does not support subqueries or stored functions
 #
+# MDEV-30073: Stored Procedure Returns Corrupt Results When Run a Second Time
+#
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+CREATE TABLE t1 (
+product_key int
+);
+INSERT INTO t1 VALUES (3569);
+CREATE TABLE t2 (
+id int,
+product_key int,
+dealerid int
+);
+INSERT INTO t2 VALUES
+(16494, 3569, 4),
+(16949, 3569, 112);
+CREATE TABLE t3 (
+product_key int
+);
+INSERT INTO t3 VALUES (3569);
+CREATE TABLE t4 (
+group_id int,
+product_key int
+);
+INSERT INTO t4 VALUES (117, 3569);
+CREATE TABLE t5 (
+group_id int,
+dealerid int
+);
+INSERT INTO t5 VALUES (117, 4);
+PREPARE stmt FROM "
+SELECT * FROM
+(
+ t1
+ JOIN
+ (
+  SELECT t2.dealerid AS dealerid, t3.product_key AS product_key
+  FROM
+  (
+   t2 JOIN t3
+   ON(t3.product_key = t2.product_key)
+  )
+ ) pd
+ ON(t1.product_key = pd.product_key)
+)
+WHERE
+! EXISTS
+(
+ SELECT pd2.id, pd2.product_key
+ FROM
+ (
+  (
+   (
+    SELECT t2.id AS id, t3.product_key AS product_key
+    FROM
+    (
+     t2 JOIN t3
+     ON(t3.product_key = t2.product_key)
+    )
+   ) pd2
+   JOIN t4
+   ON (t4.product_key = pd2.product_key)
+  )
+  JOIN t5 icrgr
+  ON(icrgr.group_id = t4.group_id)
+ )
+ WHERE
+ pd2.product_key = pd.product_key
+ AND
+ icrgr.dealerid = pd.dealerid
+)";
+# It is expected a result set containing only one record (3569, 112, 3569)
+EXECUTE stmt;
+product_key	dealerid	product_key
+3569	112	3569
+# The second execution of this Prepared Statement should produce the same results set
+EXECUTE stmt;
+product_key	dealerid	product_key
+3569	112	3569
+Clean up
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2, t3, t4, t5;
+# Unfortunately, the current fix breaks the following test case
+CREATE TABLE t1 (i INT);
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1), (2);
+PREPARE stmt FROM 'SELECT 100 FROM t1 JOIN v1 ON t1.i = v1.i WHERE EXISTS (SELECT 300 FROM t1 WHERE v1.i = 1)';
+# Expected result should contain one row (100) results set
+EXECUTE stmt;
+100
+# The same statement executed as a regular statement produces
+# correct results set
+SELECT 100 FROM t1 JOIN v1 ON t1.i = v1.i WHERE EXISTS (SELECT 300 FROM t1 WHERE v1.i = 1);
+100
+100
+# Clean up
+DEALLOCATE PREPARE stmt;
+DROP VIEW v1;
+DROP TABLE t1;
+# End of test cases for MDEV-30073
+#
 # End of 10.4 tests
 #
