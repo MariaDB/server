@@ -3042,7 +3042,7 @@ private:
   virtual int do_commit()= 0;
   virtual int do_apply_event(rpl_group_info *rgi);
   int do_record_gtid(THD *thd, rpl_group_info *rgi, bool in_trans,
-                     void **out_hton);
+                     void **out_hton, bool force_err= false);
   enum_skip_reason do_shall_skip(rpl_group_info *rgi);
   virtual const char* get_query()= 0;
 #endif
