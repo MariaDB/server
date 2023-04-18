@@ -71,6 +71,7 @@ static void lock_grant_after_reset(lock_t* lock);
 extern "C" void thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd);
 extern "C" int thd_need_wait_reports(const MYSQL_THD thd);
 extern "C" int thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd);
+extern "C" size_t thd_deadlock_buf(MYSQL_THD thd, char **buf);
 
 /** Pretty-print a table lock.
 @param[in,out]	file	output stream
@@ -117,7 +118,8 @@ private:
 		m_wait_lock(wait_lock),
 		m_mark_start(mark_start),
 		m_n_elems(),
-		m_report_waiters(report_waiters)
+		m_report_waiters(report_waiters),
+		notify_file(NULL)
 	{
 	}
 
@@ -205,7 +207,7 @@ private:
 	/** Notify that a deadlock has been detected and print the conflicting
 	transaction info.
 	@param lock lock causing deadlock */
-	void notify(const lock_t* lock) const;
+	void notify(const lock_t* lock, const trx_t *victim_trx);
 
 	/** Select the victim transaction that should be rolledback.
 	@return victim transaction */
@@ -223,7 +225,7 @@ private:
 	/** Print transaction data to the deadlock file and possibly to stderr.
 	@param trx transaction
 	@param max_query_len max query length to print */
-	static void print(const trx_t* trx, ulint max_query_len);
+	void print(const trx_t* trx, ulint max_query_len);
 
 	/** rewind(3) the file used for storing the latest detected deadlock
 	and print a heading message to stderr if printing of all deadlocks to
@@ -232,16 +234,17 @@ private:
 
 	/** Print lock data to the deadlock file and possibly to stderr.
 	@param lock record or table type lock */
-	static void print(const lock_t* lock);
+	void print(const lock_t* lock);
 
 	/** Print a message to the deadlock file and possibly to stderr.
 	@param msg message to print */
 	static void print(const char* msg);
+	void print2(const char* msg);
 
 	/** Print info about transaction that was rolled back.
 	@param trx transaction rolled back
 	@param lock lock trx wants */
-	static void rollback_print(const trx_t* trx, const lock_t* lock);
+	void rollback_print(const trx_t* trx, const lock_t* lock);
 
 private:
 	/** DFS state information, used during deadlock checking. */
@@ -278,6 +281,8 @@ private:
 
 	/** Set if thd_rpl_deadlock_check() should be called for waits. */
 	const bool m_report_waiters;
+
+	FILE *			notify_file;
 };
 
 /** Counter to mark visited nodes during deadlock search. */
@@ -315,7 +320,6 @@ static bool	lock_deadlock_found = false;
 
 /** Only created if !srv_read_only_mode */
 static FILE*		lock_latest_err_file;
-static FILE*		lock_slave_retry_log = NULL;
 
 /*********************************************************************//**
 Reports that a transaction id is insensible, i.e., in the future. */
@@ -6551,6 +6555,15 @@ DeadlockChecker::print(const char* msg)
 	}
 }
 
+void
+DeadlockChecker::print2(const char* msg)
+{
+	print(msg);
+	if (notify_file) {
+		fputs(msg, notify_file);
+	}
+}
+
 /** Print transaction data to the deadlock file and possibly to stderr.
 @param trx transaction
 @param max_query_len max query length to print */
@@ -6571,8 +6584,8 @@ DeadlockChecker::print(const trx_t* trx, ulint max_query_len)
 			      n_rec_locks, n_trx_locks, heap_size);
 	}
 
-	if (lock_slave_retry_log) {
-		trx_print_low(lock_slave_retry_log, trx, max_query_len,
+	if (notify_file) {
+		trx_print_low(notify_file, trx, max_query_len,
 			      n_rec_locks, n_trx_locks, heap_size);
 	}
 }
@@ -6591,11 +6604,19 @@ DeadlockChecker::print(const lock_t* lock)
 		if (srv_print_all_deadlocks) {
 			lock_rec_print(stderr, lock, mtr);
 		}
+
+		if (notify_file) {
+			lock_rec_print(notify_file, lock, mtr);
+		}
 	} else {
 		lock_table_print(lock_latest_err_file, lock);
 
 		if (srv_print_all_deadlocks) {
 			lock_table_print(stderr, lock);
+		}
+
+		if (notify_file) {
+			lock_table_print(notify_file, lock);
 		}
 	}
 }
@@ -6706,25 +6727,35 @@ DeadlockChecker::get_first_lock(ulint* heap_no) const
 transaction info.
 @param lock lock causing deadlock */
 void
-DeadlockChecker::notify(const lock_t* lock) const
+DeadlockChecker::notify(const lock_t* lock, const trx_t *victim_trx)
 {
 	ut_ad(lock_mutex_own());
 
+	char *buf;
+	size_t len;
+	THD *thd= victim_trx->mysql_thd;
+	if (thd) {
+		len= thd_deadlock_buf(thd, &buf);
+		if (len) {
+			notify_file = fmemopen(buf, len, "w");
+		}
+	}
+
 	start_print();
 
-	print("\n*** (1) TRANSACTION:\n");
+	print2("\n*** (1) TRANSACTION:\n");
 
 	print(m_wait_lock->trx, 3000);
 
-	print("*** (1) WAITING FOR THIS LOCK TO BE GRANTED:\n");
+	print2("*** (1) WAITING FOR THIS LOCK TO BE GRANTED:\n");
 
 	print(m_wait_lock);
 
-	print("*** (2) TRANSACTION:\n");
+	print2("*** (2) TRANSACTION:\n");
 
 	print(lock->trx, 3000);
 
-	print("*** (2) HOLDS THE LOCK(S):\n");
+	print2("*** (2) HOLDS THE LOCK(S):\n");
 
 	print(lock);
 
@@ -6732,9 +6763,13 @@ DeadlockChecker::notify(const lock_t* lock) const
 	lock when we rolled back some other waiting transaction. */
 
 	if (m_start->lock.wait_lock != 0) {
-		print("*** (2) WAITING FOR THIS LOCK TO BE GRANTED:\n");
+		print2("*** (2) WAITING FOR THIS LOCK TO BE GRANTED:\n");
 
 		print(m_start->lock.wait_lock);
+	}
+
+	if (notify_file) {
+		fclose(notify_file);
 	}
 
 	DBUG_PRINT("ib_lock", ("deadlock detected"));
@@ -6785,6 +6820,7 @@ DeadlockChecker::search()
 
 	/* Look at the locks ahead of wait_lock in the lock queue. */
 	ulint		heap_no;
+	const trx_t *	victim_trx;
 	const lock_t*	lock = get_first_lock(&heap_no);
 
 	for (;;) {
@@ -6830,8 +6866,9 @@ DeadlockChecker::search()
 
 		if (lock->trx == m_start) {
 			/* Found a cycle. */
-			notify(lock);
-			return select_victim();
+			victim_trx = select_victim();
+			notify(lock, victim_trx);
+			return victim_trx;
 		}
 
 		if (is_too_deep()) {
@@ -6982,7 +7019,7 @@ DeadlockChecker::check_and_resolve(const lock_t* lock, trx_t* trx)
 			ut_ad(trx == checker.m_start);
 			ut_ad(trx == victim_trx);
 
-			rollback_print(victim_trx, lock);
+			checker.rollback_print(victim_trx, lock);
 
 			MONITOR_INC(MONITOR_DEADLOCK);
 

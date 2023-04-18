@@ -729,13 +729,8 @@ retry_event_group(rpl_group_info *rgi, rpl_parallel_thread *rpt,
 do_retry:
   cause= thd->get_stmt_da()->sql_errno();
   // FIXME: add errmsg if not NULL
-  if (events_to_execute > 1)
-    slave_retries_print("Retry: %lu x %lu  query: %ld  cause: %u  result: %u", retries + 1,
-                        events_to_execute, thd->query_id, cause, thd->get_stmt_da()->sql_errno());
-  else
-    slave_retries_print("Retry: %lu  query: %ld  cause: %u  result: %u", retries + 1,
-                        thd->query_id, cause, thd->get_stmt_da()->sql_errno());
-
+  slave_retries_print("Retry: %lu x %lu  query: %ld  cause: %u  result: %u%s", retries + 1,
+                      events_to_execute, thd->query_id, cause, thd->get_stmt_da()->sql_errno(), rgi->deadlock_info);
   event_count= 0;
   err= 0;
   errmsg= NULL;

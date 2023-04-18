@@ -8971,7 +8971,7 @@ static void print_buffer_to_file(FILE *file,
 */
 int vprint_msg_to_log(FILE *file, enum loglevel level, const char *format, va_list args)
 {
-  char   buff[1024];
+  char   buff[4096];
   size_t length;
   DBUG_ENTER("vprint_msg_to_log");
 

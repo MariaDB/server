@@ -5285,6 +5285,14 @@ extern "C" void thd_wait_end(MYSQL_THD thd)
   MYSQL_CALLBACK(thd->scheduler, thd_wait_end, (thd));
 }
 
+extern "C" size_t thd_deadlock_buf(MYSQL_THD thd, char **buf)
+{
+  if (!thd->rgi_slave)
+    return 0;
+  *buf= thd->rgi_slave->deadlock_info;
+  return sizeof(thd->rgi_slave->deadlock_info);
+}
+
 #endif // INNODB_COMPATIBILITY_HOOKS */
 
 /****************************************************************************
