@@ -401,8 +401,11 @@ sub main {
   my $tests= collect_test_cases($opt_reorder, $opt_suites, \@opt_cases, \@opt_skip_test_list);
   mark_time_used('collect');
 
-  mysql_install_db(default_mysqld(), "$opt_vardir/install.db") unless using_extern();
-
+  if (!using_extern())
+  {
+    mysql_install_db(default_mysqld(), "$opt_vardir/install.db");
+    make_readonly("$opt_vardir/install.db");
+  }
   if ($opt_dry_run)
   {
     for (@$tests) {
