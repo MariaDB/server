@@ -4638,23 +4638,6 @@ MY_UNICASE_INFO my_unicase_unicode520=
 };
 
 
-static inline void
-my_tosort_unicode(MY_UNICASE_INFO *uni_plane, my_wc_t *wc, uint flags)
-{
-  if (*wc <= uni_plane->maxchar)
-  {
-    MY_UNICASE_CHARACTER *page;
-    if ((page= uni_plane->page[*wc >> 8]))
-      *wc= (flags & MY_CS_LOWER_SORT) ?
-           page[*wc & 0xFF].tolower :
-           page[*wc & 0xFF].sort;
-  }
-  else
-  {
-    *wc= MY_CS_REPLACEMENT_CHARACTER;
-  }
-}
-
 
 static uint
 my_casefold_multiply_utf8mbx(CHARSET_INFO *cs)
@@ -4734,8 +4717,8 @@ int my_wildcmp_unicode_impl(CHARSET_INFO *cs,
       {
         if (weights)
         {
-          my_tosort_unicode(weights, &s_wc, cs->state);
-          my_tosort_unicode(weights, &w_wc, cs->state);
+          my_tosort_unicode(weights, &s_wc);
+          my_tosort_unicode(weights, &w_wc);
         }
         if (s_wc != w_wc)
           return 1;                               /* No match */
@@ -4803,8 +4786,8 @@ int my_wildcmp_unicode_impl(CHARSET_INFO *cs,
             return 1;
           if (weights)
           {
-            my_tosort_unicode(weights, &s_wc, cs->state);
-            my_tosort_unicode(weights, &w_wc, cs->state);
+            my_tosort_unicode(weights, &s_wc);
+            my_tosort_unicode(weights, &w_wc);
           }
 
           if (s_wc == w_wc)
@@ -5242,7 +5225,7 @@ static void my_hash_sort_utf8mb3_nopad(CHARSET_INFO *cs, const uchar *s, size_t 
 
   while ((s < e) && (res=my_utf8mb3_uni(cs,&wc, (uchar *)s, (uchar*)e))>0 )
   {
-    my_tosort_unicode(uni_plane, &wc, cs->state);
+    my_tosort_unicode(uni_plane, &wc);
     MY_HASH_ADD_16(m1, m2, wc);
     s+= res;
   }
@@ -5976,8 +5959,8 @@ static int my_strnncoll_utf8mb3_cs(CHARSET_INFO *cs,
       save_diff = ((int)s_wc) - ((int)t_wc);
     }
 
-    my_tosort_unicode(uni_plane, &s_wc, cs->state);
-    my_tosort_unicode(uni_plane, &t_wc, cs->state);
+    my_tosort_unicode(uni_plane, &s_wc);
+    my_tosort_unicode(uni_plane, &t_wc);
 
     if ( s_wc != t_wc )
     {
@@ -6018,8 +6001,8 @@ static int my_strnncollsp_utf8mb3_cs(CHARSET_INFO *cs,
       save_diff = ((int)s_wc) - ((int)t_wc);
     }
 
-    my_tosort_unicode(uni_plane, &s_wc, cs->state);
-    my_tosort_unicode(uni_plane, &t_wc, cs->state);
+    my_tosort_unicode(uni_plane, &s_wc);
+    my_tosort_unicode(uni_plane, &t_wc);
 
     if ( s_wc != t_wc )
     {
@@ -7697,7 +7680,7 @@ my_hash_sort_utf8mb4_nopad(CHARSET_INFO *cs, const uchar *s, size_t slen,
 
   while ((res= my_mb_wc_utf8mb4(cs, &wc, (uchar*) s, (uchar*) e)) > 0)
   {
-    my_tosort_unicode(uni_plane, &wc, cs->state);
+    my_tosort_unicode(uni_plane, &wc);
     MY_HASH_ADD_16(m1, m2, (uint) (wc & 0xFFFF));
     if (wc > 0xFFFF)
     {

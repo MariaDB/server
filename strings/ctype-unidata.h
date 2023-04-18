@@ -36,6 +36,32 @@ static inline my_wc_t my_u300_toupper_7bit(uchar ch)
 }
 
 
+static inline void my_tosort_unicode_bmp(MY_UNICASE_INFO *uni_plane,
+                                         my_wc_t *wc)
+{
+  const MY_UNICASE_CHARACTER *page;
+  DBUG_ASSERT(*wc <= uni_plane->maxchar);
+  if ((page= uni_plane->page[*wc >> 8]))
+    *wc= page[*wc & 0xFF].sort;
+}
+
+
+static inline void my_tosort_unicode(MY_UNICASE_INFO *uni_plane,
+                                     my_wc_t *wc)
+{
+  if (*wc <= uni_plane->maxchar)
+  {
+    const MY_UNICASE_CHARACTER *page;
+    if ((page= uni_plane->page[*wc >> 8]))
+      *wc= page[*wc & 0xFF].sort;
+  }
+  else
+  {
+    *wc= MY_CS_REPLACEMENT_CHARACTER;
+  }
+}
+
+
 static inline void
 my_tolower_unicode_bmp(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
 {

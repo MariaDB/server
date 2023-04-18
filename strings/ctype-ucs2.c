@@ -1284,22 +1284,6 @@ my_uni_utf16(CHARSET_INFO *cs __attribute__((unused)),
 const char charset_name_utf16le[]= "utf16le";
 #define charset_name_utf16le_length (sizeof(charset_name_utf16le)-1)
 
-static inline void
-my_tosort_utf16(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
-{
-  if (*wc <= uni_plane->maxchar)
-  {
-    MY_UNICASE_CHARACTER *page;
-    if ((page= uni_plane->page[*wc >> 8]))
-      *wc= page[*wc & 0xFF].sort;
-  }
-  else
-  {
-    *wc= MY_CS_REPLACEMENT_CHARACTER;
-  }
-}
-
-
 
 static size_t
 my_caseup_utf16(CHARSET_INFO *cs, const char *src, size_t srclen,
@@ -1341,7 +1325,7 @@ my_hash_sort_utf16_nopad(CHARSET_INFO *cs,
 
   while ((s < e) && (res= mb_wc(cs, &wc, (uchar *) s, (uchar *) e)) > 0)
   {
-    my_tosort_utf16(uni_plane, &wc);
+    my_tosort_unicode(uni_plane, &wc);
     MY_HASH_ADD_16(m1, m2, wc);
     s+= res;
   }
@@ -2178,22 +2162,6 @@ my_uni_utf32(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-static inline void
-my_tosort_utf32(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
-{
-  if (*wc <= uni_plane->maxchar)
-  {
-    MY_UNICASE_CHARACTER *page;
-    if ((page= uni_plane->page[*wc >> 8]))
-      *wc= page[*wc & 0xFF].sort;
-  }
-  else
-  {
-    *wc= MY_CS_REPLACEMENT_CHARACTER;
-  }
-}
-
-
 static size_t
 my_lengthsp_utf32(CHARSET_INFO *cs __attribute__((unused)),
                   const char *ptr, size_t length)
@@ -2242,7 +2210,7 @@ my_hash_sort_utf32_nopad(CHARSET_INFO *cs, const uchar *s, size_t slen,
 
   while ((res= my_utf32_uni(cs, &wc, (uchar*) s, (uchar*) e)) > 0)
   {
-    my_tosort_utf32(uni_plane, &wc);
+    my_tosort_unicode(uni_plane, &wc);
     MY_HASH_ADD(m1, m2, (uint) (wc >> 24));
     MY_HASH_ADD(m1, m2, (uint) (wc >> 16) & 0xFF);
     MY_HASH_ADD(m1, m2, (uint) (wc >> 8)  & 0xFF);
@@ -3082,14 +3050,6 @@ static int my_uni_ucs2(CHARSET_INFO *cs __attribute__((unused)) ,
 }
 
 
-static inline void
-my_tosort_ucs2(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
-{
-  MY_UNICASE_CHARACTER *page;
-  if ((page= uni_plane->page[(*wc >> 8) & 0xFF]))
-    *wc= page[*wc & 0xFF].sort;
-}
-
 static size_t my_caseup_ucs2(CHARSET_INFO *cs, const char *src, size_t srclen,
                            char *dst, size_t dstlen)
 {
@@ -3125,7 +3085,7 @@ my_hash_sort_ucs2_nopad(CHARSET_INFO *cs, const uchar *s, size_t slen,
 
   while ((s < e) && (res=my_ucs2_uni(cs,&wc, (uchar *)s, (uchar*)e)) >0)
   {
-    my_tosort_ucs2(uni_plane, &wc);
+    my_tosort_unicode_bmp(uni_plane, &wc);
     MY_HASH_ADD_16(m1, m2, wc);
     s+=res;
   }
