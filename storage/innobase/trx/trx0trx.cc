@@ -811,12 +811,8 @@ static void trx_assign_rseg_low(trx_t *trx)
 	static Atomic_counter<unsigned>	rseg_slot;
 	unsigned slot = rseg_slot++ % TRX_SYS_N_RSEGS;
 	ut_d(if (trx_rseg_n_slots_debug) slot = 0);
+	ut_d(const auto start_scan_slot = slot);
 	trx_rseg_t*	rseg;
-
-#ifdef UNIV_DEBUG
-	ulint	start_scan_slot = slot;
-	bool	look_for_rollover = false;
-#endif /* UNIV_DEBUG */
 
 	bool	allocated;
 
@@ -824,17 +820,11 @@ static void trx_assign_rseg_low(trx_t *trx)
 		for (;;) {
 			rseg = &trx_sys.rseg_array[slot];
 
-#ifdef UNIV_DEBUG
-			/* Ensure that we are not revisiting the same
-			slot that we have already inspected. */
-			if (look_for_rollover) {
+			do {
+				ut_d(if (!trx_rseg_n_slots_debug) continue);
+				slot = (slot + 1) % TRX_SYS_N_RSEGS;
 				ut_ad(start_scan_slot != slot);
-			}
-			look_for_rollover = true;
-#endif /* UNIV_DEBUG */
-
-			ut_d(if (!trx_rseg_n_slots_debug))
-			slot = (slot + 1) % TRX_SYS_N_RSEGS;
+			} while (0);
 
 			if (!rseg->space) {
 				continue;

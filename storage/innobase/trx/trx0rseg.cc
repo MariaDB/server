@@ -403,6 +403,7 @@ void trx_rseg_t::reinit(uint32_t page)
   last_commit_and_offset= 0;
   last_page_no= FIL_NULL;
   curr_size= 1;
+  ref.store(0, std::memory_order_release);
 }
 
 /** Read the undo log lists.
