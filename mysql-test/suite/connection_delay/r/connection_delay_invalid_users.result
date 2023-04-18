@@ -10,6 +10,8 @@ SET @saved_max_password_errors = @@global.max_password_errors;
 SET @saved_timeout=@@global.connect_timeout;
 SET @old_debug=@@global.debug_dbug;
 # Set small values for connection_delay variables
+SET @saved_store_size=@@global.max_nonexistent_user_store_size;
+SET @@global.max_nonexistent_user_store_size=5;
 SET @@global.password_errors_before_delay = 3;
 SET @@global.debug_dbug="+d,skip_connection_delay";
 
@@ -26,15 +28,39 @@ connection default;
 # Connection attempt should fail.
 NOT FOUND /u1@localhost wait \d+ nanoseconds/ in mysqld.1.err
 
-# Following attempts will not experience delay in server response too, because not found matched acl user
+# Following attempts will experience delay in server response too
 connection default;
 # Connection attempt should fail.
-NOT FOUND /u1@localhost wait \d+ nanoseconds/ in mysqld.1.err
+FOUND 1 /The step for connection delay is 13 nanoseconds/ in mysqld.1.err
+FOUND 1 /u1@localhost wait 13 nanoseconds/ in mysqld.1.err
+# Do more nonexistent user failed login
 
+SET @saved_debug=@@global.debug_dbug;
+SET @@global.debug_dbug="+d,debug:f,acl_authenticate";
+connection default;
+# Connection attempt should fail.
+connection default;
+# Connection attempt should fail.
+connection default;
+# Connection attempt should fail.
+connection default;
+# Connection attempt should fail.
+connection default;
+# Connection attempt should fail.
+# Check nonexistent user map size is 5
+
+FOUND 2 /nonexistent user failed login map size 5/ in mysqld.1.err
 # ----------------------------------------------------------------------
 
+# First user@host failed login size will be reset
+
+connection default;
+# Connection attempt should fail.
+FOUND 1 /u1@localhost wait \d+ nanoseconds/ in mysqld.1.err
 # Cleanup
 connection default;
+SET @@global.max_nonexistent_user_store_size=@saved_store_size;
+SET @@global.debug_dbug=@saved_debug;
 # Restore original values of connection delay variables
 SET @@global.password_errors_before_delay = @saved_connections_threshold;
 SET @@global.max_password_errors = @saved_max_password_errors;

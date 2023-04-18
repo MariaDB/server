@@ -59,7 +59,6 @@
 #include "wsrep_mysqld.h"
 
 #define MAX_SCRAMBLE_LENGTH 1024
-#define MAX_OBSERVE_NONEXISTENT_USERS 50
 static std::map<std::string,uint64> nonexistent_user_failed_login_map;
 bool mysql_user_table_is_in_short_password_format= false;
 bool using_global_priv_table= true;
@@ -14399,7 +14398,10 @@ static bool check_password_lifetime(THD *thd, const ACL_USER &acl_user)
   return false;
 }
 
-static int handle_nonexistent_user_login_failed(THD* thd, const Security_context * sctx){
+static void handle_nonexistent_user_login_failed(THD *thd,
+                                                 const Security_context *sctx)
+{
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
   std::string key= std::string(sctx->user) + std::string(sctx->host);
   mysql_mutex_assert_not_owner(&acl_cache->lock);
   mysql_mutex_lock(&acl_cache->lock);
@@ -14418,7 +14420,7 @@ static int handle_nonexistent_user_login_failed(THD* thd, const Security_context
         std::make_pair(key, failed_count));
     /*Limit map growth , just erase minim key*/
     if (nonexistent_user_failed_login_map.size() >
-        MAX_OBSERVE_NONEXISTENT_USERS)
+        max_nonexistent_user_store_size)
     {
       nonexistent_user_failed_login_map.erase(
           nonexistent_user_failed_login_map.begin());
@@ -14426,8 +14428,9 @@ static int handle_nonexistent_user_login_failed(THD* thd, const Security_context
   }
   mysql_mutex_unlock(&acl_cache->lock);
   connection_delay_for_user(thd, sctx->user, sctx->host, failed_count);
-  DBUG_PRINT(("debug"),("login map size %d ",nonexistent_user_failed_login_map.size()));
-  return 0;
+  DBUG_PRINT(("info"), ("nonexistent user failed login map size %d ",
+                        nonexistent_user_failed_login_map.size()));
+#endif
 }
 
 /**

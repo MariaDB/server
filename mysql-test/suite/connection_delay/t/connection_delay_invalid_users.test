@@ -15,6 +15,9 @@
 --source ../inc/save_variables.inc
 
 --echo # Set small values for connection_delay variables
+let $max_size=5;
+SET @saved_store_size=@@global.max_nonexistent_user_store_size;
+eval SET @@global.max_nonexistent_user_store_size=$max_size;
 SET @@global.password_errors_before_delay = 3;
 let $failed_count=0;
 --source ../inc/skip_connection_delay.inc
@@ -49,11 +52,55 @@ let $SUCCESS=0;
 --source ../inc/client_connection.inc
 --source ../inc/check_no_delay.inc
 
-
-
 --echo
---echo # Following attempts will not experience delay in server response too, because not found matched acl user
+--echo # Following attempts will experience delay in server response too
 inc $failed_count;
+let $USER=u1;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+
+--source ../inc/client_connection.inc
+--source ../inc/check_delay.inc
+
+--echo # Do more nonexistent user failed login
+--echo
+SET @saved_debug=@@global.debug_dbug;
+SET @@global.debug_dbug="+d,debug:f,acl_authenticate";
+let $USER=u2;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/client_connection.inc
+
+let $USER=u3;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/client_connection.inc
+
+let $USER=u4;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/client_connection.inc
+
+let $USER=u5;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/client_connection.inc
+
+let $USER=u6;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/client_connection.inc
+
+--echo # Check nonexistent user map size is $max_size
+--echo
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN=nonexistent user failed login map size $max_size
+--source include/search_pattern_in_file.inc
+--echo # ----------------------------------------------------------------------
+--echo
+
+--echo # First user@host failed login size will be reset
+--echo
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
@@ -61,15 +108,11 @@ let $SUCCESS=0;
 --source ../inc/client_connection.inc
 --source ../inc/check_no_delay.inc
 
-
---echo
---echo # ----------------------------------------------------------------------
---echo
-
 --echo # Cleanup
 
 connection default;
-
+SET @@global.max_nonexistent_user_store_size=@saved_store_size;
+SET @@global.debug_dbug=@saved_debug;
 --source ../inc/restore_variables.inc
 
 # Wait till all disconnects are completed.

@@ -483,6 +483,7 @@ ulong binlog_stmt_cache_use= 0, binlog_stmt_cache_disk_use= 0;
 ulong max_connections, max_connect_errors;
 uint max_password_errors;
 uint password_errors_before_delay;
+uint max_nonexistent_user_store_size;
 ulong extra_max_connections;
 uint max_digest_length= 0;
 ulong slave_retried_transactions;

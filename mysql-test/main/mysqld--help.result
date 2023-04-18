@@ -606,6 +606,11 @@ The following specify which files/extra groups are read (specified before remain
  max_join_size records return an error
  --max-length-for-sort-data=# 
  Max number of bytes in sorted records
+ --max-nonexistent-user-store-size=# 
+ When enable connection delay feature, the failed-login
+ size of different nonexistent user is larger than this
+ number, the failed-login of the lowest user@host will be
+ reset. Order rule between user@host is same as string
  --max-password-errors=# 
  If there is more than this number of failed connect
  attempts due to invalid password, user will be blocked
@@ -1707,6 +1712,7 @@ max-error-count 64
 max-heap-table-size 16777216
 max-join-size 18446744073709551615
 max-length-for-sort-data 1024
+max-nonexistent-user-store-size 50
 max-password-errors 18446744073709551615
 max-prepared-stmt-count 16382
 max-recursive-iterations 1000

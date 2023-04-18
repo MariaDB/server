@@ -1782,6 +1782,15 @@ static bool check_password_errors_before_delay(sys_var *self, THD *thd,
 }
 
 static Sys_var_on_access_global<Sys_var_uint,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_NONEXISTENT_USER_STORE_SIZE>
+    Sys_max_nonexistent_user_store_size(
+        "max_nonexistent_user_store_size",
+        "When enable connection delay feature, the failed-login size of different nonexistent user is larger than this number,"
+        " the failed-login of the lowest user@host will be reset. Order rule between user@host is same as string",
+        GLOBAL_VAR(max_nonexistent_user_store_size), CMD_LINE(REQUIRED_ARG),
+        VALID_RANGE(0, UINT8_MAX), DEFAULT(50), BLOCK_SIZE(1), NO_MUTEX_GUARD);
+
+static Sys_var_on_access_global<Sys_var_uint,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_PASSWORD_ERRORS_BEFORE_DELAY>
 Sys_password_errors_before_delay(
         "password_errors_before_delay",
