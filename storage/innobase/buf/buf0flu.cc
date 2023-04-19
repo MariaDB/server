@@ -1255,6 +1255,11 @@ static void buf_flush_LRU_list_batch(ulint max, bool evict,
       ++n->evicted;
       /* fall through */
     case 1:
+      if (UNIV_LIKELY(scanned & 31))
+        continue;
+      mysql_mutex_unlock(&buf_pool.mutex);
+    reacquire_mutex:
+      mysql_mutex_lock(&buf_pool.mutex);
       continue;
     }
 
@@ -1290,32 +1295,37 @@ static void buf_flush_LRU_list_batch(ulint max, bool evict,
           auto p= buf_flush_space(space_id);
           space= p.first;
           last_space_id= space_id;
+          if (!space)
+          {
+            mysql_mutex_lock(&buf_pool.mutex);
+            goto no_space;
+          }
           mysql_mutex_lock(&buf_pool.mutex);
-          if (p.second)
-            buf_pool.stat.n_pages_written+= p.second;
+          buf_pool.stat.n_pages_written+= p.second;
         }
         else
+        {
           ut_ad(!space);
+          goto no_space;
+        }
       }
       else if (space->is_stopping())
       {
         space->release();
         space= nullptr;
-      }
-
-      if (!space)
-      {
+      no_space:
         mysql_mutex_lock(&buf_pool.flush_list_mutex);
         buf_flush_discard_page(bpage);
+        continue;
       }
-      else if (neighbors && space->is_rotational())
+
+      if (neighbors && space->is_rotational())
       {
         mysql_mutex_unlock(&buf_pool.mutex);
         n->flushed+= buf_flush_try_neighbors(space, page_id, bpage,
                                              neighbors == 1,
                                              do_evict, n->flushed, max);
-reacquire_mutex:
-        mysql_mutex_lock(&buf_pool.mutex);
+        goto reacquire_mutex;
       }
       else if (n->flushed >= max && !recv_recovery_is_on())
       {
