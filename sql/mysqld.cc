@@ -5039,6 +5039,11 @@ static int init_server_components()
                       opt_slave_retries_log, strerror(errno), errno);
       unireg_abort(1);
     }
+    else
+    {
+      slave_retries_print("%s (mariadbd %s) starting as process %lu ...",
+                          my_progname, server_version, (ulong) getpid());
+    }
   }
 #endif
 

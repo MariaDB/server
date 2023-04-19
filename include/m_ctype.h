@@ -25,7 +25,8 @@
 enum loglevel {
    ERROR_LEVEL=       0,
    WARNING_LEVEL=     1,
-   INFORMATION_LEVEL= 2
+   INFORMATION_LEVEL= 2,
+   NO_LEVEL=          255
 };
 
 #ifdef	__cplusplus

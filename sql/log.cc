@@ -1071,7 +1071,7 @@ bool Log_to_file_event_handler::
 bool Log_to_file_event_handler::log_slave_retry(const char *format, va_list args)
 {
   DBUG_ASSERT(slave_retries_file);
-  return vprint_msg_to_log(slave_retries_file, WARNING_LEVEL, format, args);
+  return vprint_msg_to_log(slave_retries_file, NO_LEVEL, format, args);
 }
 
 void Log_to_file_event_handler::init_pthread_objects()
@@ -8934,7 +8934,7 @@ static void print_buffer_to_file(FILE *file,
   localtime_r(&skr, &tm_tmp);
   start=&tm_tmp;
 
-  fprintf(file, "%d-%02d-%02d %2d:%02d:%02d %lu [%s] %.*s%.*s\n",
+  fprintf(file, "%d-%02d-%02d %2d:%02d:%02d %lu %s %.*s%.*s\n",
           start->tm_year + 1900,
           start->tm_mon+1,
           start->tm_mday,
@@ -8942,8 +8942,8 @@ static void print_buffer_to_file(FILE *file,
           start->tm_min,
           start->tm_sec,
           (unsigned long) (thd ? thd->thread_id : 0),
-          (level == ERROR_LEVEL ? "ERROR" : level == WARNING_LEVEL ?
-           "Warning" : "Note"),
+          (level == ERROR_LEVEL ? "[ERROR]" : level == WARNING_LEVEL ?
+           "[Warning]" : level == INFORMATION_LEVEL ? "[Note]" : ""),
           (int) tag_length, tag,
           (int) length, buffer);
 

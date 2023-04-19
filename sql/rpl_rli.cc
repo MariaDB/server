@@ -2150,6 +2150,7 @@ rpl_group_info::reinit(Relay_log_info *rli)
   gtid_ignore_duplicate_state= GTID_DUPLICATE_NULL;
   speculation= SPECULATE_NO;
   commit_orderer.reinit();
+  *deadlock_info= 0;
 }
 
 rpl_group_info::rpl_group_info(Relay_log_info *rli)
