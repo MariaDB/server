@@ -45,6 +45,7 @@
 #include "sql_sequence.h"
 #include "mem_root_array.h"
 #include <utility>     // pair
+#include <my_attribute.h> /* __attribute__ */
 
 class Alter_info;
 class Virtual_column_info;
@@ -1530,9 +1531,9 @@ struct handlerton
                             const char *query, uint query_length,
                             const char *db, const char *table_name);
 
-   void (*abort_transaction)(handlerton *hton, THD *bf_thd,
-			    THD *victim_thd, my_bool signal);
-   int (*set_checkpoint)(handlerton *hton, const XID* xid);
+   void (*abort_transaction)(handlerton *hton, THD *bf_thd, THD *victim_thd,
+                             my_bool signal) __attribute__((nonnull));
+   int (*set_checkpoint)(handlerton *hton, const XID *xid);
    int (*get_checkpoint)(handlerton *hton, XID* xid);
   /**
      Check if the version of the table matches the version in the .frm
