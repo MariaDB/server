@@ -4248,6 +4248,25 @@ static dberr_t fts_sync(fts_sync_t *sync, bool unlock_cache, bool wait)
 	sync->unlock_cache = unlock_cache;
 	sync->in_progress = true;
 
+	if (cache->total_size == 0)
+	{
+func_exit:
+          sync->in_progress = false;
+          pthread_cond_broadcast(&sync->cond);
+          mysql_mutex_unlock(&cache->lock);
+          /* We need to check whether an optimize is required, for
+          that we make copies of the two variables that control
+          the trigger. These variables can change behind our
+          back and we don't want to hold the lock for longer
+          than is needed. */
+          mysql_mutex_lock(&cache->deleted_lock);
+          cache->added = 0;
+          cache->deleted = 0;
+          mysql_mutex_unlock(&cache->deleted_lock);
+          DEBUG_SYNC_C("fts_sync_end");
+          return(error);
+	}
+
 	DEBUG_SYNC_C("fts_sync_begin");
 	fts_sync_begin(sync);
 
@@ -4309,27 +4328,11 @@ begin_sync:
 	} else {
 err_exit:
 		fts_sync_rollback(sync);
-		return error;
 	}
 
 	mysql_mutex_lock(&cache->lock);
 	ut_ad(sync->in_progress);
-	sync->in_progress = false;
-	pthread_cond_broadcast(&sync->cond);
-	mysql_mutex_unlock(&cache->lock);
-	/* We need to check whether an optimize is required, for that
-	we make copies of the two variables that control the trigger. These
-	variables can change behind our back and we don't want to hold the
-	lock for longer than is needed. */
-	mysql_mutex_lock(&cache->deleted_lock);
-
-	cache->added = 0;
-	cache->deleted = 0;
-
-	mysql_mutex_unlock(&cache->deleted_lock);
-
-	DEBUG_SYNC_C("fts_sync_end");
-	return(error);
+	goto func_exit;
 }
 
 /** Run SYNC on the table, i.e., write out data from the cache to the
@@ -5253,7 +5256,8 @@ fts_t::fts_t(
 	added_synced(0), dict_locked(0),
 	add_wq(NULL),
 	cache(NULL),
-	doc_col(ULINT_UNDEFINED), in_queue(false), sync_message(false),
+	doc_col(ULINT_UNDEFINED), wait_in_queue(false),
+	in_queue(false), sync_message(false), in_process(false),
 	fts_heap(heap)
 {
 	ut_a(table->fts == NULL);
@@ -5263,6 +5267,7 @@ fts_t::fts_t(
 	indexes = ib_vector_create(heap_alloc, sizeof(dict_index_t*), 4);
 
 	dict_table_get_all_fts_indexes(table, indexes);
+	pthread_cond_init(&fts_queue_cond, nullptr);
 }
 
 /** fts_t destructor. */
@@ -5275,6 +5280,7 @@ fts_t::~fts_t()
 		fts_cache_destroy(cache);
 	}
 
+	pthread_cond_destroy(&fts_queue_cond);
 	/* There is no need to call ib_vector_free() on this->indexes
 	because it is stored in this->fts_heap. */
 	mem_heap_free(fts_heap);

@@ -206,6 +206,8 @@ my_bool innodb_evict_tables_on_commit_debug;
 /** File format constraint for ALTER TABLE */
 ulong innodb_instant_alter_column_allowed;
 
+uint innodb_n_fts_threads;
+
 /** Note we cannot use rec_format_enum because we do not allow
 COMPRESSED row format for innodb_default_row_format option. */
 enum default_row_format_enum {
@@ -18603,6 +18605,12 @@ innodb_encrypt_tables_update(THD*, st_mysql_sys_var*, void*, const void* save)
 	mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
+static void innodb_fts_threads_update(
+	THD*,st_mysql_sys_var*,void*, const void* save)
+{
+  fts_set_n_threads(*static_cast<const uint*>(save));
+}
+
 static SHOW_VAR innodb_status_variables_export[]= {
 	SHOW_FUNC_ENTRY("Innodb", &show_innodb_vars),
 	{NullS, NullS, SHOW_LONG}
@@ -19747,6 +19755,13 @@ static MYSQL_SYSVAR_BOOL(encrypt_temporary_tables, innodb_encrypt_temporary_tabl
   "Enrypt the temporary table data.",
   NULL, NULL, false);
 
+static MYSQL_SYSVAR_UINT(fts_threads, innodb_n_fts_threads,
+			 PLUGIN_VAR_RQCMDARG,
+			 "Number of threads performing background fts operation ",
+			 NULL,
+			 innodb_fts_threads_update,
+			 2, 1, 255, 0);
+
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(autoextend_increment),
   MYSQL_SYSVAR(buffer_pool_size),
@@ -19913,6 +19928,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(buf_dump_status_frequency),
   MYSQL_SYSVAR(background_thread),
   MYSQL_SYSVAR(encrypt_temporary_tables),
+  MYSQL_SYSVAR(fts_threads),
 
   NULL
 };

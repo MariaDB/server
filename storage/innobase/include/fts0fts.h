@@ -332,13 +332,26 @@ public:
 	/** Vector of FTS indexes, this is mainly for caching purposes. */
 	ib_vector_t*	indexes;
 
-	/** Whether the table exists in fts_optimize_wq;
+	/** Whether the addition of new table message in
+	fts_optimize_wq; protected by fts_optimize_wq mutex */
+	bool		wait_in_queue;
+
+	/** Whether the table is in fts_optimize_wq;
 	protected by fts_optimize_wq mutex */
 	bool		in_queue;
 
 	/** Whether the sync message exists in fts_optimize_wq;
 	protected by fts_optimize_wq mutex */
 	bool		sync_message;
+
+	/** Whether the table is picked by fts threads
+	protected by fts_optimize_wq mutex */
+	bool		in_process;
+
+	/** Condition variable to wake up the background thread
+	when table is in fts queue or sync or in_process
+	condition */
+	pthread_cond_t	fts_queue_cond;
 
 	/** Heap for fts_t allocation. */
 	mem_heap_t*	fts_heap;
@@ -943,3 +956,6 @@ fts_update_sync_doc_id(const dict_table_t *table,
 /** Sync the table during commit phase
 @param[in]	table	table to be synced */
 void fts_sync_during_ddl(dict_table_t* table);
+
+/** Set the number of fts threads */
+void fts_set_n_threads(const uint new_cnt);
