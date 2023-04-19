@@ -5191,7 +5191,7 @@ void do_shutdown_server(struct st_command *command)
     if (timeout)
       (void) my_kill(pid, SIGABRT);
     /* Give server a few seconds to die in all cases */
-    if (!timeout || wait_until_dead(pid, timeout < 5 ? 5 : timeout))
+    if (wait_until_dead(pid, timeout < 5 ? 5 : timeout))
     {
       (void) my_kill(pid, SIGKILL);
     }
