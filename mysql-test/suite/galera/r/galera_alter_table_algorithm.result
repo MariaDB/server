@@ -1,0 +1,64 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+connection node_2;
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+connection node_1;
+ALTER TABLE t1 ADD COLUMN f2 INTEGER, ALGORITHM=INSTANT;
+show binlog events limit 1 offset 4;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+binlog.000001	367	Query	1	489	use `test`; ALTER TABLE t1 ADD COLUMN f2 INTEGER, ALGORITHM=INSTANT
+connection node_2;
+show binlog events limit 1 offset 4;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+binlog.000001	367	Query	1	489	use `test`; ALTER TABLE t1 ADD COLUMN f2 INTEGER, ALGORITHM=INSTANT
+connection node_1;
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+connection node_2;
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+connection node_1;
+SET SESSION alter_algorithm='INSTANT';
+ALTER TABLE t1 ADD COLUMN f3 INTEGER;
+show binlog events limit 1 offset 4;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+binlog.000001	367	Query	1	470	use `test`; ALTER TABLE t1 ADD COLUMN f3 INTEGER
+connection node_2;
+show binlog events limit 1 offset 4;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+binlog.000001	367	Query	1	489	use `test`; ALTER TABLE t1 ADD COLUMN f3 INTEGER ,ALGORITHM=INSTANT
+connection node_1;
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+connection node_2;
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+connection node_1;
+SET SESSION alter_algorithm='INSTANT';
+ALTER TABLE t1 ADD COLUMN f4 INTEGER, ALGORITHM=COPY;
+show binlog events limit 1 offset 4;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+binlog.000001	367	Query	1	486	use `test`; ALTER TABLE t1 ADD COLUMN f4 INTEGER, ALGORITHM=COPY
+connection node_2;
+show binlog events limit 1 offset 4;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+binlog.000001	367	Query	1	486	use `test`; ALTER TABLE t1 ADD COLUMN f4 INTEGER, ALGORITHM=COPY
+connection node_1;
+DROP TABLE t1;
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+connection node_2;
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
