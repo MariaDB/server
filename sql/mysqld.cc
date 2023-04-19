@@ -752,6 +752,7 @@ char *opt_binlog_index_name=0;
 #ifdef HAVE_REPLICATION
 char *opt_slave_retries_log= NULL;
 FILE *slave_retries_file= NULL;
+uint opt_slave_retries_max_log= 0;
 #endif
 
 /* Static variables */

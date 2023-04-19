@@ -182,6 +182,7 @@ extern const char *log_backup_output_str;
 #ifdef HAVE_REPLICATION
 extern char *opt_slave_retries_log;
 extern FILE *slave_retries_file;
+extern uint opt_slave_retries_max_log;
 #endif
 
 /* System Versioning begin */

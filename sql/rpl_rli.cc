@@ -2318,6 +2318,8 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
   reset_row_stmt_start_timestamp();
   unset_long_find_row_note_printed();
 
+  *deadlock_info= 0;
+
   DBUG_EXECUTE_IF("inject_sleep_gtid_100_x_x", {
       if (current_gtid.domain_id == 100)
         my_sleep(50000);

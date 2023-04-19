@@ -724,16 +724,21 @@ retry_event_group(rpl_group_info *rgi, rpl_parallel_thread *rpt,
   rpl_parallel_entry *entry= rgi->parallel_entry;
   ulong retries= 0;
   Format_description_log_event *description_event= NULL;
-  uint cause;
 
 do_retry:
-  cause= thd->get_stmt_da()->sql_errno();
   // FIXME: add errmsg if not NULL
-  slave_retries_print("[R%lu] nevents: %lu  query: %ld  GTID: %u-%u-%llu  error: %u  result: %u%s",
-                      retries + 1, events_to_execute, thd->query_id,
-                      rgi->current_gtid.domain_id, rgi->current_gtid.server_id,
-                      rgi->current_gtid.seq_no, cause,
-                      thd->get_stmt_da()->sql_errno(), rgi->deadlock_info);
+  if (!opt_slave_retries_max_log || retries < opt_slave_retries_max_log)
+    slave_retries_print("[R%lu] nevents: %lu  query_id: %ld  GTID: %u-%u-%llu  reason: %u%s",
+                        retries + 1, events_to_execute, thd->query_id,
+                        rgi->current_gtid.domain_id, rgi->current_gtid.server_id,
+                        rgi->current_gtid.seq_no,
+                        thd->get_stmt_da()->sql_errno(), rgi->deadlock_info);
+
+  DBUG_EXECUTE_IF("rpl_parallel_retries_at_max", {
+    if (retries == slave_trans_retries - 1)
+      debug_sync_set_action(thd, STRING_WITH_LEN("now SIGNAL retries_at_max"));
+  });
+
   event_count= 0;
   err= 0;
   errmsg= NULL;
@@ -1040,6 +1045,12 @@ check_retry:
   } while (event_count < events_to_execute);
 
 err:
+
+  if (!err)
+    slave_retries_print("[R%lu] nevents: %lu  query_id: %ld  GTID: %u-%u-%llu  SUCCESS",
+                        retries + 1, events_to_execute, thd->query_id,
+                        rgi->current_gtid.domain_id, rgi->current_gtid.server_id,
+                        rgi->current_gtid.seq_no);
 
   if (description_event)
     delete description_event;
