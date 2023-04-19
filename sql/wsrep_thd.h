@@ -88,9 +88,38 @@ bool wsrep_create_appliers(long threads, bool mutex_protected=false);
 void wsrep_create_rollbacker();
 
 bool wsrep_bf_abort(THD* bf_thd, THD* victim_thd);
-int  wsrep_abort_thd(THD *bf_thd,
+/*
+  Abort transaction for victim_thd. This function is called from
+  MDL BF abort codepath.
+*/
+void wsrep_abort_thd(THD *bf_thd,
                      THD *victim_thd,
                      my_bool signal) __attribute__((nonnull(1,2)));
+
+/**
+  Kill wsrep connection with kill_signal. Object thd is not
+  guaranteed to exist anymore when this function returns.
+
+  Asserts that the caller holds victim_thd->LOCK_thd_kill,
+  victim_thd->LOCK_thd_data.
+
+  @param thd THD object for connection that executes the KILL.
+  @param victim_thd THD object for connection to be killed.
+  @param kill_signal Kill signal.
+
+  @return Zero if the kill was successful, otherwise non-zero error code.
+ */
+uint wsrep_kill_thd(THD *thd, THD *victim_thd, killed_state kill_signal);
+
+/*
+  Backup kill status for commit.
+ */
+void wsrep_backup_kill_for_commit(THD *);
+
+/*
+  Restore KILL status after commit.
+ */
+void wsrep_restore_kill_after_commit(THD *);
 
 /*
   Helper methods to deal with thread local storage.

@@ -113,6 +113,10 @@ LOCK TABLE t2 WRITE;
 --connection node_1
 --send CREATE TABLE t1 AS SELECT * FROM t2;
 
+--connection node_1a
+--let $wait_condition = SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE STATE LIKE 'Waiting for table metadata lock%'
+--source include/wait_condition.inc
+
 --connection node_2
 SELECT COUNT(*) = 5 FROM t2;
 CREATE TABLE t1 AS SELECT * FROM t2;
@@ -121,7 +125,7 @@ CREATE TABLE t1 AS SELECT * FROM t2;
 UNLOCK TABLES;
 
 --connection node_1
---error ER_TABLE_EXISTS_ERROR,ER_LOCK_DEADLOCK
+--error ER_TABLE_EXISTS_ERROR,ER_QUERY_INTERRUPTED
 --reap
 
 DROP TABLE t1, t2;

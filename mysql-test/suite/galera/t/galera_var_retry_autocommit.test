@@ -10,10 +10,7 @@
 
 --connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
 
-#
-# With wsrep_retry_autocommit = 0, error is certain
-#
-
+--echo # With wsrep_retry_autocommit = 0, error is certain
 --connection node_1
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 
@@ -30,16 +27,13 @@ TRUNCATE TABLE t1;
 --connection node_1
 --error ER_LOCK_DEADLOCK
 --reap
-SELECT COUNT(*) FROM t1;
+SELECT COUNT(*) AS expect_0 FROM t1;
 
 SET DEBUG_SYNC = 'RESET';
 DROP TABLE t1;
 
 
-#
-# With wsrep_retry_autocommit = 1, success against one TRUNCATE
-#
-
+--echo # With wsrep_retry_autocommit = 1, success against one TRUNCATE
 --connection node_1
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 
@@ -54,18 +48,14 @@ SET DEBUG_SYNC = 'now WAIT_FOR before_cert';
 TRUNCATE TABLE t1;
 
 --connection node_1
---error 0,ER_LOCK_DEADLOCK
 --reap
-SELECT COUNT(*) FROM t1;
+SELECT COUNT(*) AS expect_1 FROM t1;
 
 SET DEBUG_SYNC = 'RESET';
 DROP TABLE t1;
 
 
-#
-# With wsrep_retry_autcommit = 1, failure against multiple TRUNCATEs
-#
-
+--echo # With wsrep_retry_autcommit = 1, failure against multiple TRUNCATEs
 --connection node_1
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 
@@ -90,10 +80,10 @@ SET DEBUG_SYNC = 'now SIGNAL wsrep_retry_autocommit_continue WAIT_FOR before_cer
 TRUNCATE TABLE t1;
 
 --connection node_1a
-SELECT COUNT(*) FROM t1;
+SELECT COUNT(*) AS expect_0 FROM t1;
 
 --connection node_1
---error 0,ER_LOCK_DEADLOCK
+--error ER_LOCK_DEADLOCK
 --reap
 
 SET DEBUG_SYNC = 'RESET';
@@ -101,10 +91,7 @@ SET GLOBAL debug_dbug = NULL;
 DROP TABLE t1;
 
 
-#
-# With wsrep_retry_autocommit = 64, success against 64 TRUNCATEs
-#
-
+--echo # With wsrep_retry_autocommit = 64, success against 64 TRUNCATEs
 --connection node_1
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 
@@ -136,9 +123,8 @@ while ($count)
 --enable_query_log
 
 --connection node_1
---error 0,ER_LOCK_DEADLOCK
 --reap
-SELECT COUNT(*) FROM t1;
+SELECT COUNT(*) AS expect_1 FROM t1;
 
 SET DEBUG_SYNC = 'RESET';
 SET GLOBAL debug_dbug = NULL;

@@ -1436,6 +1436,9 @@ void trans_register_ha(THD *thd, bool all, handlerton *ht_arg, ulonglong trxid)
     DEBUG_SYNC(thd, "after_set_transaction_psi_before_set_transaction_gtid");
     //gtid_set_performance_schema_values(thd);
   }
+#ifdef WITH_WSREP
+  DEBUG_SYNC(thd, "wsrep_after_trans_register_ha");
+#endif /* WITH_WSREP */
   DBUG_VOID_RETURN;
 }
 
