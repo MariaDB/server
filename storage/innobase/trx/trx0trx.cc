@@ -821,7 +821,7 @@ static void trx_assign_rseg_low(trx_t *trx)
 			rseg = &trx_sys.rseg_array[slot];
 
 			do {
-				ut_d(if (!trx_rseg_n_slots_debug) continue);
+				ut_d(if (trx_rseg_n_slots_debug) continue);
 				slot = (slot + 1) % TRX_SYS_N_RSEGS;
 				ut_ad(start_scan_slot != slot);
 			} while (0);
