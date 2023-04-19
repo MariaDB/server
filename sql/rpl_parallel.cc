@@ -714,7 +714,7 @@ retry_event_group(rpl_group_info *rgi, rpl_parallel_thread *rpt,
   File fd= (File)-1;
   const char *errmsg= NULL;
   inuse_relaylog *ir= rgi->relay_log;
-  uint64 event_count;
+  uint64 event_count= 1;
   uint64 events_to_execute= rgi->retry_event_count;
   Relay_log_info *rli= rgi->rli;
   int err;
@@ -726,13 +726,17 @@ retry_event_group(rpl_group_info *rgi, rpl_parallel_thread *rpt,
   Format_description_log_event *description_event= NULL;
 
 do_retry:
-  // FIXME: add errmsg if not NULL
-  if (!opt_slave_retries_max_log || retries < opt_slave_retries_max_log)
-    slave_retries_print("[R%lu] nevents: %lu  query_id: %ld  GTID: %u-%u-%llu  reason: %u%s",
-                        retries + 1, events_to_execute, thd->query_id,
+  if (!opt_slave_retries_max_log || retries < opt_slave_retries_max_log || errmsg)
+    slave_retries_print("[R%lu] event: %lu of %lu  offset: %lu  query_id: %ld  GTID: %u-%u-%llu  reason: %u%s%s%s",
+                        retries + 1, event_count, events_to_execute,
+                        rgi->retry_start_offset,
+                        thd->query_id,
                         rgi->current_gtid.domain_id, rgi->current_gtid.server_id,
                         rgi->current_gtid.seq_no,
-                        thd->get_stmt_da()->sql_errno(), rgi->deadlock_info);
+                        thd->get_stmt_da()->sql_errno(),
+                        (errmsg ? "  binlog error: " : ""),
+                        (errmsg ? errmsg : ""),
+                        rgi->deadlock_info);
 
   DBUG_EXECUTE_IF("rpl_parallel_retries_at_max", {
     if (retries == slave_trans_retries - 1)
@@ -923,7 +927,7 @@ do_retry:
       }
       if (unlikely(rlog.error > 0))
       {
-        sql_print_error("Slave SQL thread: I/O error reading "
+        sql_print_error2("Slave SQL thread: I/O error reading "
                         "event(errno: %d  cur_log->error: %d)",
                         my_errno, rlog.error);
         errmsg= "Aborting slave SQL thread because of partial event read";
@@ -940,7 +944,7 @@ do_retry:
          (err= rli->relay_log.find_next_log(&linfo, 1)))
       {
         char buff[22];
-        sql_print_error("next log error: %d  offset: %s  log: %s",
+        sql_print_error2("next log error: %d  offset: %s  log: %s",
                         err,
                         llstr(linfo.index_file_offset, buff),
                         log_name);
@@ -1046,11 +1050,13 @@ check_retry:
 
 err:
 
-  if (!err)
-    slave_retries_print("[R%lu] nevents: %lu  query_id: %ld  GTID: %u-%u-%llu  SUCCESS",
+  if (!err || errmsg)
+    slave_retries_print("[R%lu] nevents: %lu  query_id: %ld  GTID: %u-%u-%llu%s%s",
                         retries + 1, events_to_execute, thd->query_id,
                         rgi->current_gtid.domain_id, rgi->current_gtid.server_id,
-                        rgi->current_gtid.seq_no);
+                        rgi->current_gtid.seq_no,
+                        (errmsg ? "  binlog error: " : "  SUCCESS"),
+                        (errmsg ? errmsg : ""));
 
   if (description_event)
     delete description_event;

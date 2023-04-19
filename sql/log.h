@@ -1118,6 +1118,7 @@ uint purge_log_get_error_code(int res);
 
 int vprint_msg_to_log(FILE *file, enum loglevel level, const char *format, va_list args);
 void sql_print_error(const char *format, ...);
+void sql_print_error2(const char *format, ...);
 void sql_print_warning(const char *format, ...);
 void sql_print_information(const char *format, ...);
 void sql_print_information_v(const char *format, va_list ap);

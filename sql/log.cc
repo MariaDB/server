@@ -9001,6 +9001,20 @@ void sql_print_error(const char *format, ...)
 }
 
 
+void sql_print_error2(const char *format, ...)
+{
+  va_list args;
+  DBUG_ENTER("sql_print_error");
+
+  va_start(args, format);
+  error_log_print(ERROR_LEVEL, format, args);
+  slave_retries_print(format, args);
+  va_end(args);
+
+  DBUG_VOID_RETURN;
+}
+
+
 void sql_print_warning(const char *format, ...) 
 {
   va_list args;
