@@ -812,6 +812,7 @@ static void trx_assign_rseg_low(trx_t *trx)
 	unsigned slot = rseg_slot++ % TRX_SYS_N_RSEGS;
 	ut_d(if (trx_rseg_n_slots_debug) slot = 0);
 	ut_d(const auto start_scan_slot = slot);
+	ut_d(bool look_for_rollover = false);
 	trx_rseg_t*	rseg;
 
 	bool	allocated;
@@ -819,12 +820,10 @@ static void trx_assign_rseg_low(trx_t *trx)
 	do {
 		for (;;) {
 			rseg = &trx_sys.rseg_array[slot];
-
-			do {
-				ut_d(if (trx_rseg_n_slots_debug) continue);
-				slot = (slot + 1) % TRX_SYS_N_RSEGS;
-				ut_ad(start_scan_slot != slot);
-			} while (0);
+			ut_ad(!look_for_rollover || start_scan_slot != slot);
+			ut_d(look_for_rollover = true);
+			ut_d(if (!trx_rseg_n_slots_debug))
+			slot = (slot + 1) % TRX_SYS_N_RSEGS;
 
 			if (!rseg->space) {
 				continue;
