@@ -3454,20 +3454,20 @@ static void xb_load_single_table_tablespace(const char *dirname,
 	bool is_empty_file = file->exists() && file->is_empty_file();
 
 	if (err == DB_SUCCESS && file->space_id() != SRV_TMP_SPACE_ID) {
+		mysql_mutex_lock(&fil_system.mutex);
 		space = fil_space_t::create(
 			file->space_id(), file->flags(),
 			FIL_TYPE_TABLESPACE, nullptr/* TODO: crypt_data */,
 			FIL_ENCRYPTION_DEFAULT,
 			file->handle() != OS_FILE_CLOSED);
-
-		ut_a(space != NULL);
+		ut_ad(space);
 		fil_node_t* node= space->add(
 			file->filepath(),
 			skip_node_page0 ? file->detach() : pfs_os_file_t(),
 			0, false, false);
 		node->deferred= defer;
-		mysql_mutex_lock(&fil_system.mutex);
-		space->read_page0();
+		if (!space->read_page0())
+			err = DB_CANNOT_OPEN_FILE;
 		mysql_mutex_unlock(&fil_system.mutex);
 
 		if (srv_operation == SRV_OPERATION_RESTORE_DELTA
@@ -5324,9 +5324,12 @@ exit:
 	ut_ad(fil_space_t::zip_size(flags) == info.zip_size);
 	ut_ad(fil_space_t::physical_size(flags) == info.page_size);
 
-	if (fil_space_t::create(info.space_id, flags,
-				FIL_TYPE_TABLESPACE, 0, FIL_ENCRYPTION_DEFAULT,
-				true)) {
+	mysql_mutex_lock(&fil_system.mutex);
+	fil_space_t* space = fil_space_t::create(info.space_id, flags,
+						 FIL_TYPE_TABLESPACE, 0,
+						 FIL_ENCRYPTION_DEFAULT, true);
+	mysql_mutex_unlock(&fil_system.mutex);
+	if (space) {
 		*success = xb_space_create_file(real_name, info.space_id,
 						flags, &file);
 	} else {
