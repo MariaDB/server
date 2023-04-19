@@ -1,0 +1,41 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
+set wsrep_sync_wait = 0;
+
+CREATE TABLE t1(a int not null primary key auto_increment, b int) engine=InnoDB;
+INSERT INTO t1 VALUES (1,2); 
+
+--connection node_1a
+--let $victim_id = `SELECT CONNECTION_ID()`
+BEGIN;
+UPDATE t1 SET b=3 WHERE a=1;
+
+--connection node_1
+set debug_sync='wsrep_kill_before_awake_no_mutex SIGNAL before_kill WAIT_FOR continue';
+--disable_query_log
+--disable_result_log
+--send_eval KILL CONNECTION $victim_id 
+--enable_result_log
+--enable_query_log
+
+--connection node_1b
+set debug_sync= 'now WAIT_FOR before_kill';
+
+--connection node_2
+UPDATE t1 SET b=7 WHERE a=1;
+
+--connection node_1b 
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE User = 'system user' AND  State LIKE 'Update_rows_log_event%'; 
+--source include/wait_condition.inc
+set debug_sync= 'now SIGNAL continue'; 
+
+--connection node_1
+--reap 
+DROP TABLE t1;
+SET DEBUG_SYNC= 'RESET';
+

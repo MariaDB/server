@@ -32,6 +32,11 @@ extern "C" void wsrep_thd_LOCK(const THD *thd)
   mysql_mutex_lock(&thd->LOCK_thd_data);
 }
 
+extern "C" int wsrep_thd_TRYLOCK(const THD *thd)
+{
+  return mysql_mutex_trylock(&thd->LOCK_thd_data);
+}
+
 extern "C" void wsrep_thd_UNLOCK(const THD *thd)
 {
   mysql_mutex_unlock(&thd->LOCK_thd_data);
@@ -196,6 +201,7 @@ extern "C" void wsrep_handle_SR_rollback(THD *bf_thd,
 
   /* Note: do not store/reset globals before wsrep_bf_abort() call
      to avoid losing BF thd context. */
+  mysql_mutex_lock(&victim_thd->LOCK_thd_data);
   if (!(bf_thd && bf_thd != victim_thd))
   {
     DEBUG_SYNC(victim_thd, "wsrep_before_SR_rollback");
@@ -208,6 +214,7 @@ extern "C" void wsrep_handle_SR_rollback(THD *bf_thd,
   {
     wsrep_thd_self_abort(victim_thd);
   }
+  mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
   if (bf_thd)
   {
     wsrep_store_threadvars(bf_thd);
@@ -218,7 +225,7 @@ extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
                                       my_bool signal)
 {
   mysql_mutex_assert_owner(&victim_thd->LOCK_thd_kill);
-  mysql_mutex_assert_not_owner(&victim_thd->LOCK_thd_data);
+  mysql_mutex_assert_owner(&victim_thd->LOCK_thd_data);
   my_bool ret= wsrep_bf_abort(bf_thd, victim_thd);
   /*
     Send awake signal if victim was BF aborted or does not
@@ -227,19 +234,8 @@ extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
    */
   if ((ret || !wsrep_on(victim_thd)) && signal)
   {
-    mysql_mutex_lock(&victim_thd->LOCK_thd_data);
-
-    if (victim_thd->wsrep_aborter && victim_thd->wsrep_aborter != bf_thd->thread_id)
-    {
-      WSREP_DEBUG("victim is killed already by %llu, skipping awake",
-                  victim_thd->wsrep_aborter);
-      mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
-      return false;
-    }
-
     victim_thd->wsrep_aborter= bf_thd->thread_id;
     victim_thd->awake_no_mutex(KILL_QUERY_HARD);
-    mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
   } else {
     WSREP_DEBUG("wsrep_thd_bf_abort skipped awake, signal %d", signal);
   }
@@ -366,25 +362,6 @@ extern "C" ulong wsrep_OSU_method_get(const MYSQL_THD thd)
     return(thd->variables.wsrep_OSU_method);
   else
     return(global_system_variables.wsrep_OSU_method);
-}
-
-extern "C" bool wsrep_thd_set_wsrep_aborter(THD *bf_thd, THD *victim_thd)
-{
-  mysql_mutex_assert_owner(&victim_thd->LOCK_thd_data);
-  if (!bf_thd)
-  {
-    victim_thd->wsrep_aborter= 0;
-    WSREP_DEBUG("wsrep_thd_set_wsrep_aborter resetting wsrep_aborter");
-    return false;
-  }
-  if (victim_thd->wsrep_aborter && victim_thd->wsrep_aborter != bf_thd->thread_id)
-  {
-    return true;
-  }
-  victim_thd->wsrep_aborter= bf_thd->thread_id;
-  WSREP_DEBUG("wsrep_thd_set_wsrep_aborter setting wsrep_aborter %u",
-              victim_thd->wsrep_aborter);
-  return false;
 }
 
 extern "C" void wsrep_report_bf_lock_wait(const THD *thd,
