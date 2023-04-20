@@ -1,0 +1,2 @@
+USE test;
+CREATE TABLE t (c INT) ENGINE=SPIDER;
