@@ -6211,11 +6211,10 @@ public:
     select_tables(select_tables_arg),
     alter_info(alter_info_arg),
     m_plock(NULL), exit_done(0),
-    saved_tmp_table_share(0)
+    saved_tmp_table_share(0),
+    ddl_log_state_create(thd), ddl_log_state_rm(thd)
     {
       DBUG_ASSERT(create_info->default_table_charset);
-      bzero(&ddl_log_state_create, sizeof(ddl_log_state_create));
-      bzero(&ddl_log_state_rm, sizeof(ddl_log_state_rm));
     }
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
 

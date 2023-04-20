@@ -409,7 +409,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   SELECT_LEX *select_lex= lex->first_select_lex();
   SELECT_LEX *sl;
   SELECT_LEX_UNIT *unit= &lex->unit;
-  DDL_LOG_STATE ddl_log_state, ddl_log_state_tmp_file;
+  DDL_LOG_STATE ddl_log_state(thd), ddl_log_state_tmp_file(thd);
   char backup_file_name[FN_REFLEN+2];
   bool res= FALSE;
   DBUG_ENTER("mysql_create_view");
@@ -428,8 +428,6 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   DBUG_ASSERT(!lex->proc_list.first &&
               !lex->param_list.elements);
 
-  bzero(&ddl_log_state, sizeof(ddl_log_state));
-  bzero(&ddl_log_state_tmp_file, sizeof(ddl_log_state_tmp_file));
   backup_file_name[0]= 0;
   /*
     We can't allow taking exclusive meta-data locks of unlocked view under
@@ -1941,10 +1939,8 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
   bool some_views_deleted= FALSE;
   bool something_wrong= FALSE;
   uint not_exists_count= 0, view_count= 0;
-  DDL_LOG_STATE ddl_log_state;
+  DDL_LOG_STATE ddl_log_state(thd);
   DBUG_ENTER("mysql_drop_view");
-
-  bzero(&ddl_log_state, sizeof(ddl_log_state));
 
   /*
     We can't allow dropping of unlocked view under LOCK TABLES since this

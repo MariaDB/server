@@ -440,7 +440,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   MDL_ticket *mdl_ticket= NULL;
   MDL_request mdl_request_for_trn;
   Query_tables_list backup;
-  DDL_LOG_STATE ddl_log_state, ddl_log_state_tmp_file;
+  DDL_LOG_STATE ddl_log_state(thd), ddl_log_state_tmp_file(thd);
   char trn_path_buff[FN_REFLEN];
   char path[FN_REFLEN + 1];
 
@@ -448,8 +448,6 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
 
   /* Charset of the buffer for statement must be system one. */
   stmt_query.set_charset(system_charset_info);
-  bzero(&ddl_log_state, sizeof(ddl_log_state));
-  bzero(&ddl_log_state_tmp_file, sizeof(ddl_log_state_tmp_file));
 
   /*
     QQ: This function could be merged in mysql_alter_table() function

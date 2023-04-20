@@ -302,8 +302,9 @@ public:
   bool has_null_value;
   bool column_list;                          // COLUMNS PARTITIONING, 5.5+
 
-  partition_info()
-  : get_partition_id(NULL), get_part_partition_id(NULL),
+  partition_info(THD *thd)
+    :DDL_LOG_STATE(thd),
+     get_partition_id(NULL), get_part_partition_id(NULL),
     get_subpartition_id(NULL),
     part_field_array(NULL), subpart_field_array(NULL),
     part_charset_field_array(NULL),
@@ -333,7 +334,6 @@ public:
     is_auto_partitioned(FALSE),
     has_null_value(FALSE), column_list(FALSE)
   {
-    bzero((DDL_LOG_STATE *) this, sizeof(DDL_LOG_STATE));
     all_fields_in_PF.clear_all();
     all_fields_in_PPF.clear_all();
     all_fields_in_SPF.clear_all();

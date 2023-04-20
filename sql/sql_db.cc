@@ -1045,7 +1045,7 @@ mysql_rm_db_internal(THD *thd, const LEX_CSTRING *db, bool if_exists,
   uint path_length;
   TABLE_LIST *tables= NULL;
   TABLE_LIST *table;
-  DDL_LOG_STATE ddl_log_state;
+  DDL_LOG_STATE ddl_log_state(thd);
   Drop_table_error_handler err_handler;
   LEX_CSTRING rm_db;
   char db_tmp[SAFE_NAME_LEN+1];
@@ -1054,7 +1054,6 @@ mysql_rm_db_internal(THD *thd, const LEX_CSTRING *db, bool if_exists,
 
   dbnorm= normalize_db_name(db->str, db_tmp, sizeof(db_tmp));
   lex_string_set(&rm_db, dbnorm);
-  bzero(&ddl_log_state, sizeof(ddl_log_state));
 
   if (lock_schema_name(thd, dbnorm))
     DBUG_RETURN(true);

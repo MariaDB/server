@@ -4478,7 +4478,7 @@ partitioning:
           PARTITION_SYM have_partitioning
           {
             LEX *lex= Lex;
-            lex->part_info= new (thd->mem_root) partition_info();
+            lex->part_info= new (thd->mem_root) partition_info(thd);
             if (unlikely(!lex->part_info))
               MYSQL_YYABORT;
             if (lex->sql_command == SQLCOM_ALTER_TABLE)
@@ -7369,7 +7369,7 @@ alter_commands:
                 lex->copy_db_to(&lex->first_select_lex()->db))
               MYSQL_YYABORT;
 
-            lex->part_info= new (thd->mem_root) partition_info();
+            lex->part_info= new (thd->mem_root) partition_info(thd);
             if (unlikely(!lex->part_info))
               MYSQL_YYABORT;
 
@@ -7410,7 +7410,7 @@ add_partition_rule:
           opt_no_write_to_binlog
           {
             LEX *lex= Lex;
-            lex->part_info= new (thd->mem_root) partition_info();
+            lex->part_info= new (thd->mem_root) partition_info(thd);
             if (unlikely(!lex->part_info))
               MYSQL_YYABORT;
 
@@ -7440,7 +7440,7 @@ reorg_partition_rule:
           REORGANIZE_SYM PARTITION_SYM opt_no_write_to_binlog
           {
             LEX *lex= Lex;
-            lex->part_info= new (thd->mem_root) partition_info();
+            lex->part_info= new (thd->mem_root) partition_info(thd);
             if (unlikely(!lex->part_info))
               MYSQL_YYABORT;
 

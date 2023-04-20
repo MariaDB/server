@@ -4479,7 +4479,7 @@ bool mysql_unpack_partition(THD *thd,
 
   *work_part_info_used= FALSE;
 
-  if (unlikely(!(lex.part_info= new partition_info())))
+  if (unlikely(!(lex.part_info= new partition_info(thd))))
     goto end;
 
   lex.part_info->table= table;       /* Indicates MYSQLparse from this place */
@@ -6688,9 +6688,10 @@ static bool write_log_drop_frm(ALTER_PARTITION_PARAM_TYPE *lpt,
       goto error;
   }
 
-  if (ddl_log_write_execute_entry(drop_chain->list->entry_pos,
+  if (ddl_log_write_execute_entry(lpt->thd->catalog,
+                                  drop_chain->list->entry_pos,
                                   drop_backup ?
-                                    main_chain->execute_entry->entry_pos : 0,
+                                  main_chain->execute_entry->entry_pos : 0,
                                   &drop_chain->execute_entry))
     goto error;
   mysql_mutex_unlock(&LOCK_gdl);
@@ -6743,7 +6744,8 @@ static bool write_log_rename_frm(ALTER_PARTITION_PARAM_TYPE *lpt)
     goto error;
   log_entry= part_info->list;
   part_info->main_entry= log_entry;
-  if (ddl_log_write_execute_entry(log_entry->entry_pos,
+  if (ddl_log_write_execute_entry(lpt->thd->catalog,
+                                  log_entry->entry_pos,
                                   &exec_log_entry))
     goto error;
   release_part_info_log_entries(old_first_log_entry);
@@ -6798,7 +6800,8 @@ static bool write_log_drop_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
     goto error;
   log_entry= part_info->list;
   part_info->main_entry= log_entry;
-  if (ddl_log_write_execute_entry(log_entry->entry_pos,
+  if (ddl_log_write_execute_entry(lpt->thd->catalog,
+                                  log_entry->entry_pos,
                                   &exec_log_entry))
     goto error;
   release_part_info_log_entries(old_first_log_entry);
@@ -6830,7 +6833,8 @@ static bool write_log_convert_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
   if (write_log_convert_partition(lpt, &next_entry, (const char*)path))
     goto error;
   DBUG_ASSERT(next_entry == part_info->list->entry_pos);
-  if (ddl_log_write_execute_entry(part_info->list->entry_pos,
+  if (ddl_log_write_execute_entry(lpt->thd->catalog,
+                                  part_info->list->entry_pos,
                                   &part_info->execute_entry))
     goto error;
   mysql_mutex_unlock(&LOCK_gdl);
@@ -6885,7 +6889,8 @@ static bool write_log_add_change_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
     goto error;
   log_entry= part_info->list;
 
-  if (ddl_log_write_execute_entry(log_entry->entry_pos,
+  if (ddl_log_write_execute_entry(lpt->thd->catalog,
+                                  log_entry->entry_pos,
                                   &part_info->execute_entry))
     goto error;
   mysql_mutex_unlock(&LOCK_gdl);
@@ -6952,7 +6957,8 @@ static bool write_log_final_change_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
   log_entry= part_info->list;
   part_info->main_entry= log_entry;
   /* Overwrite the revert execute log entry with this retry execute entry */
-  if (ddl_log_write_execute_entry(log_entry->entry_pos,
+  if (ddl_log_write_execute_entry(lpt->thd->catalog,
+                                  log_entry->entry_pos,
                                   &exec_log_entry))
     goto error;
   release_part_info_log_entries(old_first_log_entry);
@@ -7610,8 +7616,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
   }
   else if (alter_info->partition_flags & ALTER_PARTITION_CONVERT_OUT)
   {
-    DDL_LOG_STATE chain_drop_backup;
-    bzero(&chain_drop_backup, sizeof(chain_drop_backup));
+    DDL_LOG_STATE chain_drop_backup(thd);
 
     if (mysql_write_frm(lpt, WFRM_WRITE_CONVERTED_TO) ||
         ERROR_INJECT("convert_partition_1") ||
@@ -7655,8 +7660,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
   }
   else if ((alter_info->partition_flags & ALTER_PARTITION_CONVERT_IN))
   {
-    DDL_LOG_STATE chain_drop_backup;
-    bzero(&chain_drop_backup, sizeof(chain_drop_backup));
+    DDL_LOG_STATE chain_drop_backup(thd);
     TABLE *table_from= table_list->next_local->table;
 
     if (wait_while_table_is_used(thd, table, HA_EXTRA_NOT_USED) ||

@@ -28,6 +28,7 @@
 #include "strfunc.h"                            // strconvert
 #include "sql_show.h"                           // append_identifier()
 #include "sql_db.h"                             // drop_database_objects()
+#include "catalog.h"
 #include <mysys_err.h>                          // EE_LINK
 
 
@@ -81,7 +82,7 @@
 #define DDL_LOG_RETRY_BITS 8
 
 uchar ddl_log_file_magic[]=
-{ (uchar) 254, (uchar) 254, (uchar) 11, (uchar) 2 };
+{ (uchar) 254, (uchar) 254, (uchar) 11, 3};
 
 /* Action names for ddl_log_action_code */
 
@@ -117,7 +118,7 @@ struct st_global_ddl_log
   uint name_pos;
   uint io_size;
   bool initialized;
-  bool open, backup_done, created;
+  bool open, backup_done, created, without_catalog;
 };
 
 /*
@@ -131,6 +132,7 @@ public:
   String drop_view;
   String query;
   String db;
+  const SQL_CATALOG *catalog;
   size_t drop_table_init_length, drop_view_init_length;
   char   current_db[NAME_LEN];
   uint   execute_entry_pos;
@@ -180,6 +182,14 @@ mysql_mutex_t LOCK_gdl;
 #define DDL_LOG_BACKUP_OFFSET_POS 8
 /* Sum of the above variables */
 #define DDL_LOG_HEADER_SIZE 4+2+2+1
+
+DDL_LOG_STATE::DDL_LOG_STATE(THD *thd)
+{
+  DBUG_ASSERT(thd->catalog);
+  bzero((void*) this, sizeof(*this));
+  catalog= thd->catalog;
+}
+
 
 /**
   Sync the ddl log file.
@@ -501,13 +511,20 @@ static int read_ddl_log_header(const char *file_name)
     goto err;
   }
 
-  if (memcmp(header, ddl_log_file_magic, 4))
+  if (memcmp(header, ddl_log_file_magic, DDL_LOG_MAGIC_LENGTH))
   {
-    /* Probably upgrade from MySQL 10.5 or earlier */
-    sql_print_warning("DDL_LOG: Wrong header in %s.  Assuming it is an old "
-                      "recovery file from MariaDB 10.5 or earlier. "
-                      "Skipping DDL recovery", file_name);
-    goto err;
+    if (!memcmp(header, ddl_log_file_magic, DDL_LOG_MAGIC_LENGTH-1) &&
+        header[DDL_LOG_MAGIC_LENGTH-1] ==
+        ddl_log_file_magic[DDL_LOG_MAGIC_LENGTH-1]-1)
+      global_ddl_log.without_catalog= 1;
+    else
+    {
+      /* Probably upgrade from MySQL 10.5 or earlier */
+      sql_print_warning("DDL_LOG: Wrong header in %s.  Assuming it is an old "
+                        "recovery file from a much older MariaDB version. "
+                        "Skipping DDL recovery", file_name);
+      goto err;
+    }
   }
 
   io_size=  uint2korr(&header[DDL_LOG_IO_SIZE_POS]);
@@ -740,6 +757,7 @@ static bool create_ddl_log()
   global_ddl_log.name_pos= DDL_LOG_TMP_NAME_POS;
   global_ddl_log.num_entries= 0;
   global_ddl_log.backup_done= 0;
+  global_ddl_log.without_catalog= 0;
 
   /*
     Fix file_entry_buf if the old log had a different io_size or if open of old
@@ -981,27 +999,37 @@ static LEX_CSTRING end_comment=
 
 
 /**
+  Log a query found in the ddl log to the binary log
+*/
+
+static void ddl_log_query_to_binary_log(THD *thd, String *query)
+{
+  SQL_CATALOG *thd_catalog= thd->catalog;
+
+  thd->catalog= const_cast<SQL_CATALOG*>(recovery_state.catalog);
+  mysql_mutex_unlock(&LOCK_gdl);
+  (void) thd->binlog_query(THD::STMT_QUERY_TYPE,
+                           query->ptr(), query->length(),
+                           TRUE, FALSE, FALSE, 0);
+  mysql_mutex_lock(&LOCK_gdl);
+  thd->catalog= thd_catalog;
+}
+
+/**
   Log DROP query to binary log with comment
 
   This function is only run during recovery
 */
 
-static void ddl_log_to_binary_log(THD *thd, String *query)
+static void ddl_log_drop_to_binary_log(THD *thd, String *query)
 {
   LEX_CSTRING thd_db= thd->db;
-
   lex_string_set(&thd->db, recovery_state.current_db);
   query->length(query->length()-1);             // Removed end ','
   query->append(&end_comment);
-  mysql_mutex_unlock(&LOCK_gdl);
-  thd->catalog= default_catalog();               // QQ to be fixed soon
-  (void) thd->binlog_query(THD::STMT_QUERY_TYPE,
-                           query->ptr(), query->length(),
-                           TRUE, FALSE, FALSE, 0);
-  mysql_mutex_lock(&LOCK_gdl);
+  ddl_log_query_to_binary_log(thd, query);
   thd->db= thd_db;
 }
-
 
 /**
    Log DROP TABLE/VIEW to binary log when needed
@@ -1020,7 +1048,7 @@ static void ddl_log_to_binary_log(THD *thd, String *query)
 */
 
 static bool ddl_log_drop_to_binary_log(THD *thd, DDL_LOG_ENTRY *ddl_log_entry,
-                                  String *query)
+                                       String *query)
 {
   DBUG_ENTER("ddl_log_drop_to_binary_log");
   if (mysql_bin_log.is_open())
@@ -1032,13 +1060,13 @@ static bool ddl_log_drop_to_binary_log(THD *thd, DDL_LOG_ENTRY *ddl_log_entry,
       if (recovery_state.drop_table.length() >
           recovery_state.drop_table_init_length)
       {
-        ddl_log_to_binary_log(thd, &recovery_state.drop_table);
+        ddl_log_drop_to_binary_log(thd, &recovery_state.drop_table);
         recovery_state.drop_table.length(recovery_state.drop_table_init_length);
       }
       if (recovery_state.drop_view.length() >
           recovery_state.drop_view_init_length)
       {
-        ddl_log_to_binary_log(thd, &recovery_state.drop_view);
+        ddl_log_drop_to_binary_log(thd, &recovery_state.drop_view);
         recovery_state.drop_view.length(recovery_state.drop_view_init_length);
       }
       DBUG_RETURN(1);
@@ -1638,7 +1666,6 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
   {
     MY_STAT stat_info;
     off_t frm_length= 1;                        // Impossible length
-    LEX_CSTRING thd_db= thd->db;
 
     /* Delete trigger temporary file if it still exists */
     if (!build_filename_and_delete_tmp_file(to_path, sizeof(to_path) - 1,
@@ -1687,15 +1714,10 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
       }
       if (mysql_bin_log.is_open())
       {
-        mysql_mutex_unlock(&LOCK_gdl);
+        LEX_CSTRING thd_db= thd->db;
         thd->db= ddl_log_entry->db;
-        thd->catalog= default_catalog();               // QQ to be fixed soon
-        (void) thd->binlog_query(THD::STMT_QUERY_TYPE,
-                                 recovery_state.drop_table.ptr(),
-                                 recovery_state.drop_table.length(), TRUE, FALSE,
-                                 FALSE, 0);
+        ddl_log_query_to_binary_log(thd, &recovery_state.drop_table);
         thd->db= thd_db;
-        mysql_mutex_lock(&LOCK_gdl);
       }
     }
     (void) update_phase(entry_pos, DDL_LOG_FINAL_PHASE);
@@ -1728,16 +1750,8 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
       query->append(STRING_WITH_LEN("DROP DATABASE IF EXISTS "));
       append_identifier(thd, query, &db);
       query->append(&end_comment);
-
       if (mysql_bin_log.is_open())
-      {
-        mysql_mutex_unlock(&LOCK_gdl);
-        thd->catalog= default_catalog();               // QQ to be fixed soon
-        (void) thd->binlog_query(THD::STMT_QUERY_TYPE,
-                                 query->ptr(), query->length(),
-                                 TRUE, FALSE, FALSE, 0);
-        mysql_mutex_lock(&LOCK_gdl);
-      }
+        ddl_log_query_to_binary_log(thd, query);
       (void) update_phase(entry_pos, DDL_LOG_FINAL_PHASE);
       break;
     }
@@ -1783,16 +1797,8 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
       query->append('.');
       append_identifier(thd, query, &table);
       query->append(&end_comment);
-
       if (mysql_bin_log.is_open())
-      {
-        mysql_mutex_unlock(&LOCK_gdl);
-        thd->catalog= default_catalog();               // QQ to be fixed soon
-        (void) thd->binlog_query(THD::STMT_QUERY_TYPE,
-                                 query->ptr(), query->length(),
-                                 TRUE, FALSE, FALSE, 0);
-        mysql_mutex_lock(&LOCK_gdl);
-      }
+        ddl_log_query_to_binary_log(thd, query);
     }
     (void) update_phase(entry_pos, DDL_LOG_FINAL_PHASE);
     error= 0;
@@ -2212,18 +2218,12 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
         thd->binlog_xid= recovery_state.xid;
         update_xid(recovery_state.execute_entry_pos, thd->binlog_xid);
 
-        mysql_mutex_unlock(&LOCK_gdl);
         save_db= thd->db;
         lex_string_set3(&thd->db, recovery_state.db.ptr(),
                         recovery_state.db.length());
-        thd->catalog= default_catalog();               // QQ to be fixed soon
-        (void) thd->binlog_query(THD::STMT_QUERY_TYPE,
-                                 recovery_state.query.ptr(),
-                                 recovery_state.query.length(),
-                                 TRUE, FALSE, FALSE, 0);
+        ddl_log_query_to_binary_log(thd, &recovery_state.query);
         thd->binlog_xid= 0;
         thd->db= save_db;
-        mysql_mutex_lock(&LOCK_gdl);
       }
       recovery_state.query.length(0);
       (void) update_phase(entry_pos, DDL_LOG_FINAL_PHASE);
@@ -2532,11 +2532,11 @@ bool ddl_log_write_entry(DDL_LOG_ENTRY *ddl_log_entry,
     @retval FALSE                  Success
 */
 
-bool ddl_log_write_execute_entry(uint first_entry,
-                                 uint cond_entry,
+bool ddl_log_write_execute_entry(const SQL_CATALOG *catalog,
+                                 uint first_entry, uint cond_entry,
                                  DDL_LOG_MEMORY_ENTRY **active_entry)
 {
-  uchar *file_entry_buf= global_ddl_log.file_entry_buf;
+  uchar *file_entry_buf= global_ddl_log.file_entry_buf, *pos;
   bool got_free_entry= 0;
   DBUG_ENTER("ddl_log_write_execute_entry");
 
@@ -2551,6 +2551,11 @@ bool ddl_log_write_execute_entry(uint first_entry,
   file_entry_buf[DDL_LOG_ENTRY_TYPE_POS]= (uchar)DDL_LOG_EXECUTE_CODE;
   int4store(file_entry_buf + DDL_LOG_NEXT_ENTRY_POS, first_entry);
   int8store(file_entry_buf + DDL_LOG_ID_POS, ((ulonglong)cond_entry << DDL_LOG_RETRY_BITS));
+
+  /* Store the catalog first (in the place for handler name) */
+  pos= file_entry_buf + global_ddl_log.name_pos;
+  pos= store_string(pos, file_entry_buf + global_ddl_log.io_size,
+                    &catalog->name);
 
   if (!(*active_entry))
   {
@@ -2768,11 +2773,24 @@ int ddl_log_execute_recovery()
     if (ddl_log_entry.entry_type == DDL_LOG_EXECUTE_CODE)
     {
       /*
-        Remeber information about executive ddl log entry,
-        used for binary logging during recovery
+        Remember information about executive ddl log entry,
+        used for binary logging during recovery.
       */
       recovery_state.execute_entry_pos= i;
       recovery_state.xid= ddl_log_entry.xid;
+      if (global_ddl_log.without_catalog)
+        recovery_state.catalog= default_catalog();
+      else
+      {
+        if (!(recovery_state.catalog= get_catalog(&ddl_log_entry.handler_name)))
+        {
+          sql_print_error("DDL_LOG: Found unknown catalog: '%s', "
+                          "ignoring entry",
+                          ddl_log_entry.handler_name.str);
+          error= -1;
+          continue;
+        }
+      }
 
       /* purecov: begin tested */
       if ((ddl_log_entry.unique_id & DDL_LOG_RETRY_MASK) > DDL_LOG_MAX_RETRY)
@@ -3046,9 +3064,12 @@ static bool ddl_log_write(DDL_LOG_STATE *ddl_state,
   DDL_LOG_MEMORY_ENTRY *log_entry;
   DBUG_ENTER("ddl_log_write");
 
+  DBUG_ASSERT(ddl_state->catalog);
+
   mysql_mutex_lock(&LOCK_gdl);
   error= ((ddl_log_write_entry(ddl_log_entry, &log_entry)) ||
-          ddl_log_write_execute_entry(log_entry->entry_pos, 0,
+          ddl_log_write_execute_entry(ddl_state->catalog,
+                                      log_entry->entry_pos, 0,
                                       &ddl_state->execute_entry));
   mysql_mutex_unlock(&LOCK_gdl);
   if (error)
@@ -3538,7 +3559,8 @@ bool ddl_log_store_query(THD *thd, DDL_LOG_STATE *ddl_state,
     ddl_log_entry.extra_name.length= 0;
     max_query_length= ddl_log_free_space_in_entry(&ddl_log_entry);
   }
-  if (ddl_log_write_execute_entry(first_entry->entry_pos,
+  if (ddl_log_write_execute_entry(ddl_state->catalog,
+                                  first_entry->entry_pos,
                                   &ddl_state->execute_entry))
     goto err;
 

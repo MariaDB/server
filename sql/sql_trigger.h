@@ -28,7 +28,7 @@ class sp_name;
 class Query_tables_list;
 struct TABLE_LIST;
 class Query_tables_list;
-typedef struct st_ddl_log_state DDL_LOG_STATE;
+class DDL_LOG_STATE;
 
 /** Event on which trigger is invoked. */
 enum trg_event_type

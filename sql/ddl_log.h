@@ -21,6 +21,8 @@
 #ifndef DDL_LOG_INCLUDED
 #define DDL_LOG_INCLUDED
 
+class SQL_CATALOG;
+
 enum ddl_log_entry_code
 {
   /*
@@ -236,12 +238,17 @@ typedef struct st_ddl_log_memory_entry
   All entries are stored as separate blocks in the ddl recovery file.
 */
 
-typedef struct st_ddl_log_state
+class DDL_LOG_STATE
 {
+public:
+  DDL_LOG_STATE(THD *thd);
+  ~DDL_LOG_STATE()= default;
+
   /* List of ddl log entries */
   DDL_LOG_MEMORY_ENTRY *list;
   /* One execute entry per list */
   DDL_LOG_MEMORY_ENTRY *execute_entry;
+  const SQL_CATALOG *catalog;
   /*
     Entry used for PHASE updates. Normally same as first in 'list', but in
     case of a query log event, this points to the main event.
@@ -249,7 +256,7 @@ typedef struct st_ddl_log_state
   DDL_LOG_MEMORY_ENTRY *main_entry;
   uint16 flags;                                 /* Cache for flags */
   bool is_active() { return list != 0; }
-} DDL_LOG_STATE;
+};
 
 
 /* These functions are for recovery */
@@ -262,13 +269,14 @@ int ddl_log_execute_recovery();
 bool ddl_log_write_entry(DDL_LOG_ENTRY *ddl_log_entry,
                            DDL_LOG_MEMORY_ENTRY **active_entry);
 
-bool ddl_log_write_execute_entry(uint first_entry, uint cond_entry,
-                                 DDL_LOG_MEMORY_ENTRY** active_entry);
+bool ddl_log_write_execute_entry(const SQL_CATALOG *catalog,
+                                 uint first_entry, uint cond_entry,
+                                 DDL_LOG_MEMORY_ENTRY **active_entry);
 inline
-bool ddl_log_write_execute_entry(uint first_entry,
+bool ddl_log_write_execute_entry(const SQL_CATALOG *catalog, uint first_entry,
                                  DDL_LOG_MEMORY_ENTRY **active_entry)
 {
-  return ddl_log_write_execute_entry(first_entry, 0, active_entry);
+  return ddl_log_write_execute_entry(catalog, first_entry, 0, active_entry);
 }
 bool ddl_log_disable_execute_entry(DDL_LOG_MEMORY_ENTRY **active_entry);
 

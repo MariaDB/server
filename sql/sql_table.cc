@@ -870,7 +870,8 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
     if (write_log_replace_frm(lpt, part_info->list->entry_pos,
                               (const char*) bak_path,
                               (const char*) path) ||
-        ddl_log_write_execute_entry(part_info->list->entry_pos,
+        ddl_log_write_execute_entry(lpt->thd->catalog,
+                                    part_info->list->entry_pos,
                                     &part_info->execute_entry))
     {
       mysql_mutex_unlock(&LOCK_gdl);
@@ -1296,7 +1297,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
   LEX_CUSTRING version;
   LEX_CSTRING partition_engine_name= {NULL, 0};
   StringBuffer<160> unknown_tables(system_charset_info);
-  DDL_LOG_STATE local_ddl_log_state;
+  DDL_LOG_STATE local_ddl_log_state(thd);
   const char *comment_start;
   uint table_count= 0, non_temp_tables_count= 0;
   int error= 0;
@@ -1312,10 +1313,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
   DBUG_ENTER("mysql_rm_table_no_locks");
 
   if (!ddl_log_state)
-  {
     ddl_log_state= &local_ddl_log_state;
-    bzero(ddl_log_state, sizeof(*ddl_log_state));
-  }
 
   unknown_tables.length(0);
   comment_len= get_comment(thd, if_exists ? 17:9, &comment_start);
@@ -4131,7 +4129,7 @@ handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING &db,
       all tables as partitioned. The handler will set up the partition info
       object with the default settings.
     */
-    thd->work_part_info= part_info= new partition_info();
+    thd->work_part_info= part_info= new partition_info(thd);
     if (unlikely(!part_info))
       goto err;
 
@@ -4827,7 +4825,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
 {
   TABLE_LIST *pos_in_locked_tables= 0;
   MDL_ticket *mdl_ticket= 0;
-  DDL_LOG_STATE ddl_log_state_create, ddl_log_state_rm;
+  DDL_LOG_STATE ddl_log_state_create(thd), ddl_log_state_rm(thd);
   int create_table_mode;
   uint save_thd_create_info_options;
   bool is_trans= FALSE;
@@ -4835,11 +4833,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   DBUG_ENTER("mysql_create_table");
 
   DBUG_ASSERT(create_info->default_table_charset);
-
   DBUG_ASSERT(create_table == thd->lex->query_tables);
-
-  bzero(&ddl_log_state_create, sizeof(ddl_log_state_create));
-  bzero(&ddl_log_state_rm, sizeof(ddl_log_state_rm));
 
   /* Copy temporarily the statement flags to thd for lock_table_names() */
   save_thd_create_info_options= thd->lex->create_info.options;
@@ -5281,7 +5275,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   TABLE_LIST *pos_in_locked_tables= 0;
   Alter_info local_alter_info;
   Alter_table_ctx local_alter_ctx; // Not used 
-  DDL_LOG_STATE ddl_log_state_create, ddl_log_state_rm;
+  DDL_LOG_STATE ddl_log_state_create(thd), ddl_log_state_rm(thd);
   int res= 1;
   bool is_trans= FALSE;
   bool do_logging= FALSE;
@@ -5290,9 +5284,6 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   uint not_used;
   int create_res;
   DBUG_ENTER("mysql_create_like_table");
-
-  bzero(&ddl_log_state_create, sizeof(ddl_log_state_create));
-  bzero(&ddl_log_state_rm, sizeof(ddl_log_state_rm));
 
 #ifdef WITH_WSREP
   if (WSREP(thd) && !thd->wsrep_applier &&
@@ -9500,7 +9491,7 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
 {
   TABLE *table= table_list->table;
   MDL_ticket *mdl_ticket= table->mdl_ticket;
-  DDL_LOG_STATE ddl_log_state;
+  DDL_LOG_STATE ddl_log_state(thd);
   LEX_CSTRING storage_engine;
   LEX_CUSTRING table_version;
   uchar table_version_buff[MY_UUID_SIZE];
@@ -9511,7 +9502,6 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
                                        ? HA_EXTRA_NOT_USED
                                        : HA_EXTRA_FORCE_REOPEN;
   DBUG_ENTER("simple_rename_or_index_change");
-  bzero(&ddl_log_state, sizeof(ddl_log_state));
 
   table_version.str= table_version_buff;
   storage_engine.str= storage_engine_buff;
@@ -9894,7 +9884,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   bool engine_changed, error, frm_is_created= false, error_handler_pushed= false;
   bool no_ha_table= true;  /* We have not created table in storage engine yet */
   TABLE *table, *new_table= nullptr;
-  DDL_LOG_STATE ddl_log_state;
+  DDL_LOG_STATE ddl_log_state(thd);
   Turn_errors_to_warnings_handler errors_to_warnings;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -9989,7 +9979,6 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   }
 
   THD_STAGE_INFO(thd, stage_init_update);
-  bzero(&ddl_log_state, sizeof(ddl_log_state));
 
   /* Temporary name for backup of original table */
   backup_name.str= backup_name_buff;

@@ -59,7 +59,7 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
   TABLE_LIST *ren_table= 0;
   int to_table;
   const char *rename_log_table[2]= {NULL, NULL};
-  DDL_LOG_STATE ddl_log_state;
+  DDL_LOG_STATE ddl_log_state(thd);
   DBUG_ENTER("mysql_rename_tables");
 
   /*
@@ -156,7 +156,6 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
     goto err;
 
   error=0;
-  bzero(&ddl_log_state, sizeof(ddl_log_state));
 
   /*
     An exclusive lock on table names is satisfactory to ensure

@@ -383,7 +383,8 @@ static bool exchange_name_with_ddl_log(THD *thd,
 
   DBUG_EXECUTE_IF("exchange_partition_fail_2", goto err_no_execute_written;);
   DBUG_EXECUTE_IF("exchange_partition_abort_2", DBUG_SUICIDE(););
-  if (unlikely(ddl_log_write_execute_entry(log_entry->entry_pos,
+  if (unlikely(ddl_log_write_execute_entry(thd->catalog,
+                                           log_entry->entry_pos,
                                            &exec_log_entry)))
     goto err_no_execute_written;
   /* ddl_log is written and synced */
