@@ -1,0 +1,3 @@
+#
+# MDEV-27233 Server hangs when using --init-file which loads Spider and creates a Spider table
+#
