@@ -35,11 +35,6 @@
 #include <string>
 #include <sstream>
 
-#define WSREP_SCHEMA          "mysql"
-#define WSREP_STREAMING_TABLE "wsrep_streaming_log"
-#define WSREP_CLUSTER_TABLE   "wsrep_cluster"
-#define WSREP_MEMBERS_TABLE   "wsrep_cluster_members"
-
 const char* wsrep_sr_table_name_full= WSREP_SCHEMA "/" WSREP_STREAMING_TABLE;
 
 static const std::string wsrep_schema_str= WSREP_SCHEMA;
