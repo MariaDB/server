@@ -833,7 +833,6 @@ struct rpl_group_info
     RETRY_KILL_KILLED
   };
   uchar killed_for_retry;
-  // FIXME: allocate from mem_root only when logging config is turned on
   char deadlock_info[4096];
 
   rpl_group_info(Relay_log_info *rli_);
