@@ -3457,9 +3457,8 @@ static void io_callback(tpool::aiocb *cb)
   else
   {
     ut_ad(write_slots->contains(cb));
-    const IORequest req{request};
+    fil_aio_callback(request);
     write_slots->release(cb);
-    fil_aio_callback(req);
   }
 }
 
