@@ -726,18 +726,6 @@ retry_event_group(rpl_group_info *rgi, rpl_parallel_thread *rpt,
   Format_description_log_event *description_event= NULL;
 
 do_retry:
-  if (!opt_slave_retries_max_log || retries < opt_slave_retries_max_log || errmsg)
-    slave_retries_print("[R%lu] event: %lu of %lu  offset: %lu  query_id: %ld  GTID: %u-%u-%llu  reason: %u%s%s%s",
-                        retries + 1, event_count, events_to_execute,
-                        rgi->retry_start_offset,
-                        thd->query_id,
-                        rgi->current_gtid.domain_id, rgi->current_gtid.server_id,
-                        rgi->current_gtid.seq_no,
-                        thd->get_stmt_da()->sql_errno(),
-                        (errmsg ? "  binlog error: " : ""),
-                        (errmsg ? errmsg : ""),
-                        rgi->deadlock_info);
-
   DBUG_EXECUTE_IF("rpl_parallel_retries_at_max", {
     if (retries == slave_trans_retries - 1)
       debug_sync_set_action(thd, STRING_WITH_LEN("now SIGNAL retries_at_max"));
@@ -974,6 +962,18 @@ do_retry:
       /* Loop to try again on the new log file. */
     }
 
+    if (!opt_slave_retries_max_log || retries < opt_slave_retries_max_log)
+      slave_retries_print("[R%lu] event: %lu of %lu  offset: %lu  query_id: %ld  GTID: %u-%u-%llu  reason: %u%s%s%s",
+                          retries + 1, event_count, events_to_execute,
+                          rgi->retry_start_offset,
+                          thd->query_id,
+                          rgi->current_gtid.domain_id, rgi->current_gtid.server_id,
+                          rgi->current_gtid.seq_no,
+                          thd->get_stmt_da()->sql_errno(),
+                          (errmsg ? "  binlog error: " : ""),
+                          (errmsg ? errmsg : ""),
+                          rgi->deadlock_info);
+
     event_type= ev->get_type_code();
     if (event_type == FORMAT_DESCRIPTION_EVENT)
     {
@@ -1025,6 +1025,19 @@ do_retry:
       continue;
 
 check_retry:
+
+    if (errmsg)
+      slave_retries_print("[R%lu] event: %lu of %lu  offset: %lu  query_id: %ld  GTID: %u-%u-%llu  reason: %u%s%s%s",
+                          retries + 1, event_count, events_to_execute,
+                          rgi->retry_start_offset,
+                          thd->query_id,
+                          rgi->current_gtid.domain_id, rgi->current_gtid.server_id,
+                          rgi->current_gtid.seq_no,
+                          thd->get_stmt_da()->sql_errno(),
+                          (errmsg ? "  binlog error: " : ""),
+                          (errmsg ? errmsg : ""),
+                          rgi->deadlock_info);
+
     convert_kill_to_deadlock_error(rgi);
     if (has_temporary_error(thd))
     {
