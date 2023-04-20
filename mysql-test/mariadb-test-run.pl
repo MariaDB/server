@@ -401,6 +401,11 @@ sub main {
 
   mtr_report("Collecting tests...");
   my $tests= collect_test_cases($opt_reorder, $opt_suites, \@opt_cases, \@opt_skip_test_list);
+  if (@$tests == 0) {
+    mtr_report("No tests to run...");
+    exit 0;
+  }
+
   mark_time_used('collect');
 
   mysql_install_db(default_mysqld(), "$opt_vardir/install.db") unless using_extern();
