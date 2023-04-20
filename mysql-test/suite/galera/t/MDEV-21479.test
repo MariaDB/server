@@ -1,0 +1,99 @@
+#
+# MDEV-21479 : Galera 4 unable to query cluster state if not primary component
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+
+--echo # Lets first see that we can access wsrep schema tables
+--echo # Node1
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+SELECT COUNT(*) AS EXPECT_1 from mysql.wsrep_cluster;
+SELECT COUNT(*) AS EXPECT_2 FROM mysql.wsrep_cluster_members;
+
+--connection node_2
+--echo # Node2
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_cluster;
+SELECT COUNT(*) AS EXPECT_2 FROM mysql.wsrep_cluster_members;
+
+--connection node_1
+# Make node 1 tolerate split-brain
+SET GLOBAL wsrep_provider_options = 'pc.ignore_sb=true';
+SET GLOBAL wsrep_provider_options = 'pc.weight=2';
+
+# Desync and disconnect node 2 from the PC:
+--connection node_2
+--echo # Desync and disconnect node_2
+SET @@global.wsrep_desync = 1;
+SET SESSION wsrep_dirty_reads=1;
+SET SESSION wsrep_sync_wait=0;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
+--let $wait_condition = SELECT VARIABLE_VALUE = 'non-Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+
+# Wait until node 2 disappears from the PC:
+--connection node_1
+--echo # Waiting until node_2 is not part of cluster anymore
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+
+--echo # Verify that we can access wsrep schema tables
+--echo # Node1
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_cluster;
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_cluster_members;
+
+--connection node_2
+#
+# Here node2 remembers old configuration even when we are non-Primary
+#
+--echo # Node2
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_cluster;
+SELECT COUNT(*) AS EXPECT_2 FROM mysql.wsrep_cluster_members;
+
+# Reconnect node 2 to the PC:
+--connection node_2
+--echo # Reconnect node_2 back to cluster
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
+SET wsrep_dirty_reads=0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready';
+--source include/wait_condition.inc
+
+# Must return 0:
+SHOW STATUS LIKE 'wsrep_desync_count';
+
+# Resync node_2, should pass:
+SET @@global.wsrep_desync = 0;
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+--source include/wait_condition.inc
+
+CALL mtr.add_suppression("WSREP: Protocol violation. JOIN message sender (.*) is not in state transfer \\(SYNCED\\). Message ignored.");
+
+--connection node_1
+--echo # Wait until both nodes are back to cluster
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+SET GLOBAL wsrep_provider_options = 'pc.ignore_sb=false';
+SET GLOBAL wsrep_provider_options = 'pc.weight=1';
+
+--echo # Verify that we can access wsrep schema tables
+--echo # Node1
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_cluster;
+SELECT COUNT(*) AS EXPECT_2 FROM mysql.wsrep_cluster_members;
+
+--connection node_2
+--echo # Node2
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_cluster;
+SELECT COUNT(*) AS EXPECT_2 FROM mysql.wsrep_cluster_members;

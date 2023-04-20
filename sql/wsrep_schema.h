@@ -33,6 +33,11 @@ struct TABLE_LIST;
 struct st_mysql_lex_string;
 typedef struct st_mysql_lex_string LEX_STRING;
 
+#define WSREP_SCHEMA          "mysql"
+#define WSREP_STREAMING_TABLE "wsrep_streaming_log"
+#define WSREP_CLUSTER_TABLE   "wsrep_cluster"
+#define WSREP_MEMBERS_TABLE   "wsrep_cluster_members"
+
 /** Name of the table in `wsrep_schema_str` used for storing streaming
 replication data. In an InnoDB full format, e.g. "database/tablename". */
 extern const char* wsrep_sr_table_name_full;
