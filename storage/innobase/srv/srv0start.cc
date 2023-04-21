@@ -970,10 +970,10 @@ same_size:
 
   ut_ad(flushed_lsn == log_sys.get_lsn());
   ut_ad(!os_aio_pending_reads());
-  ut_ad(!os_aio_pending_writes());
   ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
   ut_ad(!buf_pool.get_oldest_modification(0));
   ut_d(mysql_mutex_unlock(&buf_pool.flush_list_mutex));
+  ut_d(os_aio_wait_until_no_pending_writes());
 
   DBUG_RETURN(flushed_lsn);
 }
@@ -1608,7 +1608,6 @@ file_checked:
 			ut_ad(recv_no_log_write);
 			err = fil_write_flushed_lsn(log_sys.get_lsn());
 			ut_ad(!os_aio_pending_reads());
-			ut_ad(!os_aio_pending_writes());
 			ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
 			ut_ad(!buf_pool.get_oldest_modification(0));
 			ut_d(mysql_mutex_unlock(&buf_pool.flush_list_mutex));
