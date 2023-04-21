@@ -391,17 +391,27 @@ static void trx_purge_free_segment(buf_block_t *block, mtr_t &mtr)
                                     block->page.frame, &mtr))
   {
     block->fix();
+    const page_id_t id{block->page.id()};
     mtr.commit();
     /* NOTE: If the server is killed after the log that was produced
     up to this point was written, and before the log from the mtr.commit()
     in our caller is written, then the pages belonging to the
     undo log will become unaccessible garbage.
 
-    This does not matters when using multiple innodb_undo_tablespaces;
+    This does not matter when using multiple innodb_undo_tablespaces;
     innodb_undo_log_truncate=ON will be able to reclaim the space. */
     log_free_check();
     mtr.start();
     block->page.lock.x_lock();
+    if (UNIV_UNLIKELY(block->page.id() != id))
+    {
+      block->unfix();
+      block->page.lock.x_unlock();
+      block= buf_page_get_gen(id, 0, RW_X_LATCH, nullptr, BUF_GET, &mtr);
+      if (!block)
+        return;
+    }
+
     mtr.memo_push(block, MTR_MEMO_PAGE_X_MODIFY);
   }
 
@@ -468,6 +478,8 @@ loop:
   if (UNIV_UNLIKELY(err != DB_SUCCESS))
     goto func_exit;
 
+  rseg_hdr->fix();
+
   if (mach_read_from_2(b->page.frame + hdr_addr.boffset + TRX_UNDO_NEXT_LOG) ||
       rseg.is_referenced() ||
       rseg.needs_purge > (purge_sys.head.trx_no
@@ -496,8 +508,7 @@ loop:
       trx_undo_t *undo= UT_LIST_GET_FIRST(rseg.undo_cached);
       for (; undo; undo= UT_LIST_GET_NEXT(undo_list, undo))
         if (undo->top_page_no == hdr_addr.page &&
-            undo->hdr_page_no == hdr_addr.page &&
-            undo->hdr_offset == hdr_addr.boffset)
+            undo->hdr_page_no == hdr_addr.page)
           goto found_cached;
       ut_ad("inconsistent undo logs" == 0);
       break;
@@ -519,7 +530,6 @@ loop:
 
   hdr_addr= prev_hdr_addr;
 
-  rseg_hdr->fix();
   mtr.commit();
   ut_ad(rseg.history_size > 0);
   rseg.history_size--;
