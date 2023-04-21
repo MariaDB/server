@@ -310,7 +310,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 /*
   We should not introduce any further shift/reduce conflicts.
 */
-%expect 84
+%expect 66
 
 /*
    Comments for TOKENS.
@@ -1107,7 +1107,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %left   PREC_BELOW_NOT
 
-%nonassoc LOW_PRIORITY_NOT
+/* The precendence of boolean NOT is in fact here. See the comment below. */
+
 %left   '=' EQUAL_SYM GE '>' LE '<' NE
 %nonassoc IS
 %right BETWEEN_SYM
@@ -1119,6 +1120,24 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %left   '*' '/' '%' DIV_SYM MOD_SYM
 %left   '^'
 %left   MYSQL_CONCAT_SYM
+/*
+  Boolean negation has a special branch in "expr" starting with NOT_SYM.
+  The precedence of logical negation is determined by the grammar itself
+  (without using Bison terminal symbol precedence) in this order
+  - Boolean factor (i.e. logical AND)
+  - Boolean NOT
+  - Boolean test (such as '=', IS NULL, IS TRUE)
+
+  But we also need a precedence for NOT_SYM in other contexts,
+  to shift (without reduce) in these cases:
+     predicate <here> NOT IN ...
+     predicate <here> NOT BETWEEN ...
+     predicate <here> NOT LIKE ...
+     predicate <here> NOT REGEXP ...
+  If the precedence of NOT_SYM was low, it would reduce immediately
+  after scanning "predicate" and then produce a syntax error on "NOT".
+*/
+%nonassoc NOT_SYM
 %nonassoc NEG '~' NOT2_SYM BINARY
 %nonassoc COLLATE_SYM
 %nonassoc SUBQUERY_AS_EXPR
@@ -1369,6 +1388,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         literal insert_ident order_ident temporal_literal
         simple_ident expr sum_expr in_sum_expr
         variable variable_aux
+        boolean_test
         predicate bit_expr parenthesized_expr
         table_wild simple_expr column_default_non_parenthesized_expr udf_expr
         primary_expr string_factor_expr mysql_concatenation_expr
@@ -10180,79 +10200,83 @@ expr:
                 MYSQL_YYABORT;
             }
           }
-        | NOT_SYM expr %prec LOW_PRIORITY_NOT
+        | NOT_SYM expr
           {
             $$= negate_expression(thd, $2);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | expr IS TRUE_SYM %prec IS
+        | boolean_test %prec PREC_BELOW_NOT
+        ;
+
+boolean_test:
+          boolean_test IS TRUE_SYM %prec IS
           {
             $$= new (thd->mem_root) Item_func_istrue(thd, $1);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | expr IS not TRUE_SYM %prec IS
+        | boolean_test IS not TRUE_SYM %prec IS
           {
             $$= new (thd->mem_root) Item_func_isnottrue(thd, $1);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | expr IS FALSE_SYM %prec IS
+        | boolean_test IS FALSE_SYM %prec IS
           {
             $$= new (thd->mem_root) Item_func_isfalse(thd, $1);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | expr IS not FALSE_SYM %prec IS
+        | boolean_test IS not FALSE_SYM %prec IS
           {
             $$= new (thd->mem_root) Item_func_isnotfalse(thd, $1);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | expr IS UNKNOWN_SYM %prec IS
+        | boolean_test IS UNKNOWN_SYM %prec IS
           {
             $$= new (thd->mem_root) Item_func_isnull(thd, $1);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | expr IS not UNKNOWN_SYM %prec IS
+        | boolean_test IS not UNKNOWN_SYM %prec IS
           {
             $$= new (thd->mem_root) Item_func_isnotnull(thd, $1);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | expr IS NULL_SYM %prec PREC_BELOW_NOT
+        | boolean_test IS NULL_SYM %prec IS
           {
             $$= new (thd->mem_root) Item_func_isnull(thd, $1);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | expr IS not NULL_SYM %prec IS
+        | boolean_test IS not NULL_SYM %prec IS
           {
             $$= new (thd->mem_root) Item_func_isnotnull(thd, $1);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | expr EQUAL_SYM predicate %prec EQUAL_SYM
+        | boolean_test EQUAL_SYM predicate %prec EQUAL_SYM
           {
             $$= new (thd->mem_root) Item_func_equal(thd, $1, $3);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | expr comp_op predicate %prec '='
+        | boolean_test comp_op predicate %prec '='
           {
             $$= (*$2)(0)->create(thd, $1, $3);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | expr comp_op all_or_any '(' subselect ')' %prec '='
+        | boolean_test comp_op all_or_any '(' subselect ')' %prec '='
           {
             $$= all_any_subquery_creator(thd, $1, $2, $3, $5);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | predicate
+        | predicate %prec BETWEEN_SYM
         ;
 
 predicate:

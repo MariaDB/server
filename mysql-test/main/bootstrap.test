@@ -1,17 +1,20 @@
+--echo #
+--echo # test mysqld in bootstrap mode
+--echo #
 --source include/not_embedded.inc
-#
-# test mysqld in bootstrap mode
-#
---disable_warnings
-drop table if exists t1;
---enable_warnings
+--source include/have_example_plugin.inc
+
+--let test_bootstrap=$MYSQLTEST_VARDIR/tmp/test_bootstrap.sql
+--write_file $test_bootstrap
+use test;
+EOF
 
 # Add the datadir to the bootstrap command
 let $MYSQLD_DATADIR= `select @@datadir`;
 let $MYSQLD_BOOTSTRAP_CMD= $MYSQLD_BOOTSTRAP_CMD --datadir=$MYSQLD_DATADIR --tmpdir=$MYSQL_TMP_DIR --default-storage-engine=MyISAM --loose-skip-innodb --plugin-maturity=unknown;
-#
-# Check that --bootstrap reads from stdin
-#
+--echo #
+--echo # Check that --bootstrap reads from stdin
+--echo #
 --write_file $MYSQLTEST_VARDIR/tmp/bootstrap_test.sql
 use test;
 CREATE TABLE t1(a int);
@@ -21,9 +24,9 @@ EOF
 --source include/start_mysqld.inc
 drop table t1;
 remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_test.sql;
-#
-# Check that --bootstrap of file with SQL error returns error
-#
+--echo #
+--echo # Check that --bootstrap of file with SQL error returns error
+--echo #
 --write_file $MYSQLTEST_VARDIR/tmp/bootstrap_error.sql
 use test;
 CREATE TABLE t1;
@@ -37,9 +40,9 @@ EOF
 drop table t1;
 remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_error.sql;
 
-#
-# Bootstrap with a large thd->net.max_packet
-#
+--echo #
+--echo # Bootstrap with a large thd->net.max_packet
+--echo #
 --disable_query_log
 create table t1 select 2 as a, concat(repeat('MySQL', @@max_allowed_packet/10), ';') as b;
 eval select * into outfile '$MYSQLTEST_VARDIR/tmp/long_query.sql' from t1;
@@ -51,7 +54,9 @@ remove_file $MYSQLTEST_VARDIR/tmp/long_query.sql;
 --source include/start_mysqld.inc
 drop table t1;
 
---echo End of 5.1 tests
+--echo # 
+--echo # End of 5.1 tests
+--echo #
 
 --echo #
 --echo # Bug #11766306: 59393: HAVE_INNODB=YES WHEN MYSQLD 
@@ -63,29 +68,25 @@ SELECT 'bug' as '' FROM INFORMATION_SCHEMA.ENGINES WHERE engine='innodb'
  and SUPPORT='YES';
 
 --source include/kill_mysqld.inc
-#
-# MDEV-13063 Server crashes in intern_plugin_lock or assertion `plugin_ptr->ref_count == 1' fails in plugin_init
-#
+--echo #
+--echo # MDEV-13063 Server crashes in intern_plugin_lock or assertion `plugin_ptr->ref_count == 1' fails in plugin_init
+--echo #
 --error 1
 --exec $MYSQLD_BOOTSTRAP_CMD --myisam_recover_options=NONE
 
-#
-# MDEV-19349 mysql_install_db: segfault at tmp_file_prefix check
-#
---write_file $MYSQLTEST_VARDIR/tmp/1
-use test;
-EOF
---exec $MYSQLD_BOOTSTRAP_CMD < $MYSQLTEST_VARDIR/tmp/1 >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
---remove_file $MYSQLTEST_VARDIR/tmp/1
+--echo #
+--echo # MDEV-19349 mysql_install_db: segfault at tmp_file_prefix check
+--echo #
+--exec $MYSQLD_BOOTSTRAP_CMD < $test_bootstrap >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
 
 --source include/start_mysqld.inc
---echo End of 5.5 tests
+--echo #
+--echo # End of 5.5 tests
+--echo #
 
---source include/not_windows_embedded.inc
---source include/have_example_plugin.inc
-#
-# Check that --bootstrap can install and uninstall plugins
-#
+--echo #
+--echo # Check that --bootstrap can install and uninstall plugins
+--echo #
 let $PLUGIN_DIR=`select @@plugin_dir`;
 --source include/kill_mysqld.inc
 --write_file $MYSQLTEST_VARDIR/tmp/install_plugin.sql
@@ -95,9 +96,9 @@ EOF
 --exec $MYSQLD_BOOTSTRAP_CMD --plugin-dir=$PLUGIN_DIR  < $MYSQLTEST_VARDIR/tmp/install_plugin.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
 --remove_file $MYSQLTEST_VARDIR/tmp/install_plugin.sql
 
-#
-# Check that installed plugins are *not* automatically loaded in --bootstrap
-#
+--echo #
+--echo # Check that installed plugins are *not* automatically loaded in --bootstrap
+--echo #
 --write_file $MYSQLTEST_VARDIR/tmp/bootstrap_plugins.sql
 SET SQL_MODE="";
 use test;
@@ -113,24 +114,24 @@ drop table t1;
 select * from mysql.plugin;
 truncate table mysql.plugin;
 
-
-#
-# MDEV-9969 mysql_install_db error processing ignore_db_dirs.
-#
---write_file $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql
-use test;
-EOF
 --source include/kill_mysqld.inc
---exec $MYSQLD_BOOTSTRAP_CMD --ignore-db-dirs='some_dir' --ignore-db-dirs='some_dir' < $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
---remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql
+--echo #
+--echo # MDEV-9969 mysql_install_db error processing ignore_db_dirs.
+--echo #
+--exec $MYSQLD_BOOTSTRAP_CMD --ignore-db-dirs='some_dir' --ignore-db-dirs='some_dir' < $test_bootstrap >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
 
-#
-# MDEV-13397 MariaDB upgrade fail when using default_time_zone
-#
---write_file $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql
-use test;
-EOF
---exec $MYSQLD_BOOTSTRAP_CMD --default-time-zone=Europe/Moscow < $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
---remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql
+--echo #
+--echo # MDEV-13397 MariaDB upgrade fail when using default_time_zone
+--echo #
+--exec $MYSQLD_BOOTSTRAP_CMD --default-time-zone=Europe/Moscow < $test_bootstrap >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
+
+--echo #
+--echo # MDEV-30818 invalid ssl prevents bootstrap
+--echo #
+--exec $MYSQLD_BOOTSTRAP_CMD --ssl-ca=/dev/nonexistent < $test_bootstrap >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
 
 --source include/start_mysqld.inc
+--echo #
+--echo # End of 10.3 tests
+--echo #
+--remove_file $test_bootstrap
