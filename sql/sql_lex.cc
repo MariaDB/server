@@ -11847,3 +11847,9 @@ bool SELECT_LEX_UNIT::explainable() const
                derived->is_materialized_derived() :   // (3)
                false;
 }
+
+
+bool st_select_lex::is_query_topmost(THD *thd)
+{
+  return get_master() == &thd->lex->unit;
+}

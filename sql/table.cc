@@ -9536,7 +9536,17 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
   {
     /* A subquery might be forced to be materialized due to a side-effect. */
     if (!is_materialized_derived() && unit->can_be_merged() &&
-        (unit->outer_select() && !unit->outer_select()->with_rownum) &&
+        /*
+          Following is special case of
+          SELECT * FROM (<limited-select>) WHERE ROWNUM() <= nnn
+        */
+        (unit->outer_select() &&
+         !(unit->outer_select()->with_rownum &&
+           unit->outer_select()->table_list.elements == 1 &&
+           (thd->lex->sql_command == SQLCOM_SELECT ||
+            !unit->outer_select()->is_query_topmost(thd)) &&
+           !is_view())) &&
+
         (!thd->lex->with_rownum ||
          (!first_select->group_list.elements &&
           !first_select->order_list.elements)) &&

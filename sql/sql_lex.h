@@ -1384,6 +1384,7 @@ public:
     return (st_select_lex_unit*) slave; 
   }
   st_select_lex* outer_select();
+  bool is_query_topmost(THD *thd);
   st_select_lex* next_select() { return (st_select_lex*) next; }
   st_select_lex* next_select_in_list() 
   {
