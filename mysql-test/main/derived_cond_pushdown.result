@@ -18275,4 +18275,87 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	Using temporary
 drop view v1;
 drop table t1;
+#
+# MDEV-31102: execution of PS for query where pushdown of condition
+#             into view defined as union is applied
+#
+create table t1 (
+n int,
+lv varchar(31) charset latin1,
+mv varchar(31) charset utf8mb3
+) engine=myisam;
+insert into t1 values (1,'aa','xxx'), ('2','bb','yyy'), (3,'cc','zzz');
+create view v1 as
+select case when n=1 then lv when n=2 then mv else NULL end as r from t1
+union
+select 'a';
+select * from v1 where r < 'x';
+r
+aa
+a
+explain extended select * from v1 where r < 'x';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	/* select#1 */ select `v1`.`r` AS `r` from `test`.`v1` where `v1`.`r` < 'x'
+explain format=json select * from v1 where r < 'x';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "v1.r < 'x'",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<union2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "rows": 3,
+                    "filtered": 100,
+                    "attached_condition": "case when t1.n = 1 then convert(t1.lv using utf8) when t1.n = 2 then t1.mv else NULL end < 'x'"
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "UNION",
+                  "table": {
+                    "message": "No tables used"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+prepare stmt from "select * from v1 where r < 'x'";
+execute stmt;
+r
+aa
+a
+execute stmt;
+r
+aa
+a
+deallocate prepare stmt;
+drop view v1;
+drop table t1;
 # End of 10.4 tests
