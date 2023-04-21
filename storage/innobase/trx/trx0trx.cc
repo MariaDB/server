@@ -1023,7 +1023,13 @@ trx_write_serialisation_history(
 		mtr_t	temp_mtr;
 		temp_mtr.start();
 		temp_mtr.set_log_mode(MTR_LOG_NO_REDO);
-		trx_undo_set_state_at_finish(undo, &temp_mtr);
+		buf_block_t* block= buf_page_get(page_id_t(SRV_TMP_SPACE_ID,
+							   undo->hdr_page_no),
+						 0, RW_X_LATCH, mtr);
+		ut_a(block);
+		temp_mtr.write<2>(*block, TRX_UNDO_SEG_HDR + TRX_UNDO_STATE
+				  + block->page.frame, TRX_UNDO_TO_PURGE);
+		undo->state = TRX_UNDO_TO_PURGE;
 		temp_mtr.commit();
 	}
 
