@@ -5912,28 +5912,6 @@ handler* spider_create_handler(
   MEM_ROOT *mem_root
 ) {
   DBUG_ENTER("spider_create_handler");
-  SPIDER_THREAD *thread = &spider_table_sts_threads[0];
-  if (unlikely(thread->init_command))
-  {
-    THD *thd = current_thd;
-    pthread_cond_t *cond = thd->mysys_var->current_cond;
-    pthread_mutex_t *mutex = thd->mysys_var->current_mutex;
-    /* wait for finishing init_command */
-    pthread_mutex_lock(&thread->mutex);
-    if (unlikely(thread->init_command))
-    {
-      thd->mysys_var->current_cond = &thread->sync_cond;
-      thd->mysys_var->current_mutex = &thread->mutex;
-      pthread_cond_wait(&thread->sync_cond, &thread->mutex);
-    }
-    pthread_mutex_unlock(&thread->mutex);
-    thd->mysys_var->current_cond = cond;
-    thd->mysys_var->current_mutex = mutex;
-    if (thd->killed)
-    {
-      DBUG_RETURN(NULL);
-    }
-  }
   DBUG_RETURN(new (mem_root) ha_spider(hton, table));
 }
 

@@ -1,0 +1,7 @@
+--echo MDEV-22979 with --bootstrap
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+let $PLUGIN_DIR=`select @@plugin_dir`;
+--source include/kill_mysqld.inc
+--exec $MYSQLD_CMD --datadir=$MYSQLD_DATADIR --bootstrap --plugin-dir=$PLUGIN_DIR --plugin-load-add=ha_spider < $MYSQL_TEST_DIR/../storage/spider/mysql-test/spider/bugfix/t/mdev_22979_bootstrap.sql
+--source include/start_mysqld.inc

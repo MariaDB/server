@@ -1,0 +1,1 @@
+--echo MDEV-22979 with install soname ha_spider in sql
