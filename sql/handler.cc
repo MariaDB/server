@@ -1824,7 +1824,19 @@ int ha_commit_trans(THD *thd, bool all)
       ordering is normally done. Commit ordering must be done here.
     */
     if (run_wsrep_hooks)
-      error= wsrep_before_commit(thd, all);
+    {
+      // This commit involves more than one storage engine and requires
+      // two phases, but some engines don't support it.
+      // Issue a message to the client and roll back the transaction.
+      if (trans->no_2pc && rw_ha_count > 1)
+      {
+        my_message(ER_ERROR_DURING_COMMIT, "Transactional commit not supported "
+                   "by involved engine(s)", MYF(0));
+        error= 1;
+      }
+      else
+        error= wsrep_before_commit(thd, all);
+    }
     if (error)
     {
       ha_rollback_trans(thd, FALSE);

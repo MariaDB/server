@@ -428,18 +428,28 @@ trx_purge_free_segment(mtr_t &mtr, trx_rseg_t* rseg, fil_addr_t hdr_addr)
                                     block->page.frame, &mtr))
   {
     block->fix();
+    const page_id_t id{block->page.id()};
     mtr.commit();
     /* NOTE: If the server is killed after the log that was produced
     up to this point was written, and before the log from the mtr.commit()
     in our caller is written, then the pages belonging to the
     undo log will become unaccessible garbage.
 
-    This does not matters when using multiple innodb_undo_tablespaces;
+    This does not matter when using multiple innodb_undo_tablespaces;
     innodb_undo_log_truncate=ON will be able to reclaim the space. */
     log_free_check();
     mtr.start();
     block->page.lock.x_lock();
-    mtr.memo_push(block, MTR_MEMO_PAGE_X_MODIFY);
+    if (UNIV_UNLIKELY(block->page.id() != id))
+    {
+      block->unfix();
+      block->page.lock.x_unlock();
+      block= buf_page_get_gen(id, 0, RW_X_LATCH, nullptr, BUF_GET, &mtr, &err);
+      if (!block)
+        return err;
+    }
+    else
+      mtr.memo_push(block, MTR_MEMO_PAGE_X_MODIFY);
   }
 
   while (!fseg_free_step(TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER +
