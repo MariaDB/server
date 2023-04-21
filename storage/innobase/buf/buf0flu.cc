@@ -1905,9 +1905,13 @@ ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn)
     }
     else
 #endif
+    {
+      thd_wait_begin(nullptr, THD_WAIT_DISKIO);
+      tpool::tpool_wait_begin();
       buf_flush_wait(sync_lsn);
-
-    thd_wait_end(nullptr);
+      tpool::tpool_wait_end();
+      thd_wait_end(nullptr);
+    }
   }
 
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
