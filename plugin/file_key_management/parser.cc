@@ -314,6 +314,7 @@ int Parser::parse_line(char **line_ptr, keyentry *key)
 char* Parser::read_and_decrypt_file(const char *secret)
 {
   int f;
+  ssize_t file_size= 0;
   if (!filename || !filename[0])
   {
     my_printf_error(EE_CANT_OPEN_STREAM, "file-key-management-filename is not set",
@@ -328,41 +329,28 @@ char* Parser::read_and_decrypt_file(const char *secret)
     goto err0;
   }
 
-  my_off_t file_size;
-  file_size= lseek(f, 0, SEEK_END);
-
-  if (file_size == MY_FILEPOS_ERROR || (my_off_t)lseek(f, 0, SEEK_SET) == MY_FILEPOS_ERROR)
-  {
-    my_error(EE_CANT_SEEK, MYF(0), filename, errno);
-    goto err1;
-  }
-
-  if (file_size > MAX_KEY_FILE_SIZE)
-  {
-    my_error(EE_READ, MYF(0), filename, EFBIG);
-    goto err1;
-  }
-
   //Read file into buffer
   uchar *buffer;
-  buffer= (uchar*)malloc((size_t)file_size + 1);
+  buffer= (uchar *) malloc((size_t) MAX_KEY_FILE_SIZE );
   if (!buffer)
   {
-    my_error(EE_OUTOFMEMORY, ME_ERROR_LOG| ME_FATAL, file_size);
+    my_error(EE_OUTOFMEMORY, ME_ERROR_LOG | ME_FATAL, file_size);
     goto err1;
   }
-
-  if (read(f, buffer, (int)file_size) != (int)file_size)
+  file_size= read(f, buffer, MAX_KEY_FILE_SIZE);
+  if (file_size < 0)
   {
-    my_printf_error(EE_READ,
-      "read from %s failed, errno %d",
-      MYF(ME_ERROR_LOG|ME_FATAL), filename, errno);
+    my_printf_error(EE_READ, "Read from %s failed, errno %d",
+                   ME_ERROR_LOG , filename, errno);
     goto err2;
   }
-
-// Check for file encryption
+  my_printf_error(EE_ERROR_FIRST,
+                  "Read from %s , read bytes: %zdB, max key file size :%dB ",
+                  ME_ERROR_LOG | ME_NOTE, filename, file_size,
+                  MAX_KEY_FILE_SIZE);
+  // Check for file encryption
   uchar *decrypted;
-  if (file_size > OpenSSL_prefix_len && strncmp((char*)buffer, OpenSSL_prefix, OpenSSL_prefix_len) == 0)
+  if ((size_t)file_size > OpenSSL_prefix_len && strncmp((char*)buffer, OpenSSL_prefix, OpenSSL_prefix_len) == 0)
   {
     uchar key[OpenSSL_key_len];
     uchar iv[OpenSSL_iv_len];
