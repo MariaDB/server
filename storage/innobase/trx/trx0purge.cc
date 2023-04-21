@@ -507,8 +507,7 @@ loop:
       /* rseg.undo_cached must point to this page */
       trx_undo_t *undo= UT_LIST_GET_FIRST(rseg.undo_cached);
       for (; undo; undo= UT_LIST_GET_NEXT(undo_list, undo))
-        if (undo->top_page_no == hdr_addr.page &&
-            undo->hdr_page_no == hdr_addr.page)
+        if (undo->hdr_page_no == hdr_addr.page)
           goto found_cached;
       ut_ad("inconsistent undo logs" == 0);
       break;
