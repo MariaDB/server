@@ -448,8 +448,7 @@ got_block:
 		mysql_mutex_unlock(&buf_pool.mutex);
 		mysql_mutex_lock(&buf_pool.flush_list_mutex);
 		const auto n_flush = buf_pool.n_flush();
-		const bool try_LRU_scan = buf_pool.try_LRU_scan;
-		if (!try_LRU_scan) {
+		if (!buf_pool.try_LRU_scan) {
 			buf_pool.page_cleaner_wakeup(true);
 		}
 		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
@@ -457,7 +456,7 @@ got_block:
 		if (!n_flush) {
 			goto not_found;
 		}
-		if (!try_LRU_scan) {
+		if (!buf_pool.try_LRU_scan) {
 			my_cond_wait(&buf_pool.done_free,
 				     &buf_pool.mutex.m_mutex);
 		}
