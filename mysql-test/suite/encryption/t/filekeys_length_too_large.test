@@ -1,0 +1,33 @@
+-- source include/not_embedded.inc
+--echo # Test checks if opening a too large key file, file key plugin will only read max key file size bytes and extra bytes will be ignored.
+
+let $k=0;
+while($k<1000){
+        let $content="";
+        let $i= 1;
+        while($i <= 100){
+            let $num= `SELECT $i+$k*100`;
+            let $content=$content"$num;24e579b00c0f365a11761bdb9286a72a1148fa779d9c23dd55402627d0c87726";
+            if($i<=99){
+                let $content=$content"\n";
+            }
+            inc $i;
+        }
+        exec echo -e $content >> $MYSQL_TMP_DIR/filekeys-data-too-large.key;
+        inc $k;
+}
+--echo #Large key file will read max size bytes , which is 1MB
+let SEARCH_PATTERN=read bytes: 1048576B;
+call mtr.add_suppression("Syntax error");
+call mtr.add_suppression("Invalid key");
+call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
+call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
+
+--disable_result_log
+--error 2
+INSTALL SONAME 'file_key_management';
+--enable_result_log
+
+
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--source include/search_pattern_in_file.inc
