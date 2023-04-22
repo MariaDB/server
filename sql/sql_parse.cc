@@ -5278,13 +5278,14 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     switch (lex->sql_command) {
     case SQLCOM_CREATE_EVENT:
     {
-      res= Events::create_event(thd, lex->event_parse_data);
+      res= global_events.create_event(thd, lex->event_parse_data);
       break;
     }
     case SQLCOM_ALTER_EVENT:
-      res= Events::update_event(thd, lex->event_parse_data,
-                                lex->spname ? &lex->spname->m_db : NULL,
-                                lex->spname ? &lex->spname->m_name : NULL);
+      res= global_events.
+        update_event(thd, lex->event_parse_data,
+                     lex->spname ? &lex->spname->m_db : NULL,
+                     lex->spname ? &lex->spname->m_name : NULL);
       break;
     default:
       DBUG_ASSERT(0);
@@ -5304,13 +5305,14 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   break;
   case SQLCOM_SHOW_CREATE_EVENT:
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
-    res= Events::show_create_event(thd, &lex->spname->m_db,
-                                   &lex->spname->m_name);
+    res= global_events.show_create_event(thd, &lex->spname->m_db,
+                                                 &lex->spname->m_name);
     break;
   case SQLCOM_DROP_EVENT:
-    if (!(res= Events::drop_event(thd,
-                                  &lex->spname->m_db, &lex->spname->m_name,
-                                  lex->if_exists())))
+    if (!(res= global_events.drop_event(thd,
+                                               &lex->spname->m_db,
+                                               &lex->spname->m_name,
+                                               lex->if_exists())))
       my_ok(thd);
     break;
 #else

@@ -186,8 +186,10 @@ Event_creation_ctx::load_from_db(THD *thd,
 */
 
 bool
-Event_queue_element_for_exec::init(const LEX_CSTRING &db, const LEX_CSTRING &n)
+Event_queue_element_for_exec::init(const SQL_CATALOG *catalog_arg,
+                                   const LEX_CSTRING &db, const LEX_CSTRING &n)
 {
+  catalog= catalog_arg;
   if (!(dbname.str= my_strndup(key_memory_Event_queue_element_for_exec_names,
                                db.str, dbname.length= db.length, MYF(MY_WME))))
     return TRUE;
@@ -230,6 +232,7 @@ Event_basic::Event_basic()
   init_sql_alloc(key_memory_event_basic_root, &mem_root, 256, 512, MYF(0));
   dbname.str= name.str= NULL;
   dbname.length= name.length= 0;
+  catalog= NULL;
   time_zone= NULL;
   DBUG_VOID_RETURN;
 }
@@ -429,6 +432,7 @@ Event_job_data::load_from_row(THD *thd, TABLE *table)
   if (load_time_zone(thd, &tz_name))
     DBUG_RETURN(TRUE);
 
+  catalog= thd->catalog;
   Event_creation_ctx::load_from_db(thd, &mem_root, dbname.str, name.str, table,
                                    &creation_ctx);
 
@@ -469,7 +473,6 @@ Event_queue_element::load_from_row(THD *thd, TABLE *table)
   const char *ptr;
   MYSQL_TIME time;
   LEX_CSTRING tz_name;
-
   DBUG_ENTER("Event_queue_element::load_from_row");
 
   if (!table)
@@ -478,6 +481,7 @@ Event_queue_element::load_from_row(THD *thd, TABLE *table)
   if (table->s->fields < ET_FIELD_COUNT)
     DBUG_RETURN(TRUE);
 
+  catalog= thd->catalog;
   if (load_string_fields(table->field,
                          ET_FIELD_DB, &dbname,
                          ET_FIELD_NAME, &name,
@@ -1213,8 +1217,9 @@ Event_timed::get_create_event(THD *thd, String *buf)
   DBUG_PRINT("ret_info",("body_len=[%d]body=[%s]",
                          (int) body.length, body.str));
 
-  if (expression && Events::reconstruct_interval_expression(&expr_buf, interval,
-                                                            expression))
+  if (expression &&
+      global_events.reconstruct_interval_expression(&expr_buf, interval,
+                                                           expression))
     DBUG_RETURN(EVEX_MICROSECOND_UNSUP);
 
   buf->append(STRING_WITH_LEN("CREATE "));
@@ -1362,7 +1367,6 @@ Event_job_data::execute(THD *thd, bool drop)
 #endif
   List<Item> empty_item_list;
   bool ret= TRUE;
-
   DBUG_ENTER("Event_job_data::execute");
 
   thd->reset_for_next_command();
@@ -1388,6 +1392,7 @@ Event_job_data::execute(THD *thd, bool drop)
     procedure database before it's executed.
   */
   thd->set_db(&dbname);
+  thd->catalog= catalog;
 
   lex_start(thd);
 
@@ -1538,7 +1543,7 @@ end:
       if (sql_command_set)
         thd->lex->sql_command = SQLCOM_DROP_EVENT;
 
-      ret= Events::drop_event(thd, &dbname, &name, FALSE);
+      ret= global_events.drop_event(thd, &dbname, &name, FALSE);
 
       if (sql_command_set)
       {

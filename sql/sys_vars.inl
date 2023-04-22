@@ -44,6 +44,7 @@
 #define COST_ADJUST(X) X
 #define GLOBAL_VAR(X) sys_var::GLOBAL, (((char*)&(X))-(char*)&global_system_variables), sizeof(X)
 #define SESSION_VAR(X) sys_var::SESSION, offsetof(SV, X), sizeof(((SV *)0)->X)
+#define CATALOG_VAR(X) sys_var::CATALOG, offsetof(SQL_CATALOG, X), sizeof(internal_default_catalog.X)
 #define SESSION_ONLY(X) sys_var::ONLY_SESSION, offsetof(SV, X), sizeof(((SV *)0)->X)
 #define NO_CMD_LINE CMD_LINE(NO_ARG, sys_var::NO_GETOPT)
 #define CMD_LINE_HELP_ONLY CMD_LINE(NO_ARG, sys_var::GETOPT_ONLY_HELP)
@@ -73,6 +74,8 @@
 
 #define session_var(THD, TYPE) (*(TYPE*)session_var_ptr(THD))
 #define global_var(TYPE) (*(TYPE*)global_var_ptr())
+#define catalog_var(THD,TYPE) (*(TYPE*)catalog_var_ptr(THD))
+#define global_or_catalog_var(THD,TYPE) (*(TYPE*)global_or_catalog_var_ptr(THD))
 
 #if SIZEOF_OFF_T > 4 && defined(BIG_TABLES)
 #define GET_HA_ROWS GET_ULL
@@ -254,7 +257,7 @@ public:
   }
   bool global_update(THD *thd, set_var *var)
   {
-    global_var(T)= static_cast<T>(var->save_result.ulonglong_value);
+    global_or_catalog_var(thd, T)= static_cast<T>(var->save_result.ulonglong_value);
     return false;
   }
   void session_save_default(THD *thd, set_var *var)
@@ -415,7 +418,8 @@ public:
   }
   bool global_update(THD *thd, set_var *var)
   {
-    global_var(ulong)= static_cast<ulong>(var->save_result.ulonglong_value);
+    global_or_catalog_var(thd, ulong)=
+      static_cast<ulong>(var->save_result.ulonglong_value);
     return false;
   }
   void session_save_default(THD *thd, set_var *var)
@@ -428,6 +432,8 @@ public:
   { return valptr(thd, session_var(thd, ulong)); }
   const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return valptr(thd, global_var(ulong)); }
+  const uchar *catalog_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  { return valptr(thd, catalog_var(thd, ulong)); }
   const uchar *default_value_ptr(THD *thd) const
   { return valptr(thd, (ulong)option.def_value); }
 
@@ -469,7 +475,7 @@ public:
   }
   bool global_update(THD *thd, set_var *var)
   {
-    global_var(my_bool)= var->save_result.ulonglong_value != 0;
+    global_or_catalog_var(thd, my_bool)= var->save_result.ulonglong_value != 0;
     return false;
   }
   void session_save_default(THD *thd, set_var *var)
@@ -576,17 +582,17 @@ public:
       new_val= 0;
     return new_val;
   }
-  void global_update_finish(char *new_val)
+  void global_update_finish(THD *thd, char *new_val)
   {
     if (flags & ALLOCATED)
-      my_free(global_var(char*));
+      my_free(global_or_catalog_var(thd, char*));
     flags|= ALLOCATED;
-    global_var(char*)= new_val;
+    global_or_catalog_var(thd, char*)= new_val;
   }
   bool global_update(THD *thd, set_var *var)
   {
     char *new_val= global_update_prepare(thd, var);
-    global_update_finish(new_val);
+    global_update_finish(thd, new_val);
     return (new_val == 0 && var->save_result.string_value.str != 0);
   }
   void session_save_default(THD *thd, set_var *var)= 0;
@@ -668,7 +674,7 @@ public:
                                     var->save_result.string_value.length))
         new_val= 0;
     }
-    global_update_finish(new_val);
+    global_update_finish(thd, new_val);
     return (new_val == 0 && var->save_result.string_value.str != 0);
   }
   bool session_update(THD *thd, set_var *var)
@@ -829,7 +835,7 @@ public:
   {
     if (Sys_var_charptr::global_update(thd, var))
       return true;
-    global_var(LEX_CSTRING).length= var->save_result.string_value.length;
+    global_or_catalog_var(thd, LEX_CSTRING).length= var->save_result.string_value.length;
     return false;
   }
 };
@@ -1220,7 +1226,7 @@ public:
   }
   bool global_update(THD *thd, set_var *var)
   {
-    global_var(double)= var->save_result.double_value;
+    global_or_catalog_var(thd, double)= var->save_result.double_value;
     return false;
   }
   void session_save_default(THD *thd, set_var *var)
@@ -1494,7 +1500,7 @@ public:
   }
   bool global_update(THD *thd, set_var *var)
   {
-    global_var(ulonglong)= var->save_result.ulonglong_value;
+    global_or_catalog_var(thd, ulonglong)= var->save_result.ulonglong_value;
     return false;
   }
   void session_save_default(THD *thd, set_var *var)
@@ -1507,6 +1513,8 @@ public:
   { return valptr(thd, session_var(thd, ulonglong)); }
   const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return valptr(thd, global_var(ulonglong)); }
+  const uchar *catalog_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  { return valptr(thd, catalog_var(thd, ulonglong)); }
   const uchar *default_value_ptr(THD *thd) const
   { return valptr(thd, option.def_value); }
 };
@@ -1608,7 +1616,7 @@ public:
   }
   bool global_update(THD *thd, set_var *var)
   {
-    global_var(ulonglong)= var->save_result.ulonglong_value;
+    global_or_catalog_var(thd, ulonglong)= var->save_result.ulonglong_value;
     return false;
   }
   void session_save_default(THD *thd, set_var *var)
@@ -1621,6 +1629,8 @@ public:
   { return valptr(thd, session_var(thd, ulonglong)); }
   const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return valptr(thd, global_var(ulonglong)); }
+  const uchar *catalog_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  { return valptr(thd, catalog_var(thd, ulonglong)); }
   const uchar *default_value_ptr(THD *thd) const
   { return valptr(thd, option.def_value); }
 
@@ -1985,7 +1995,7 @@ public:
     reverse_semantics= my_count_bits(bitmask_arg) > 1;
     bitmask= reverse_semantics ? ~bitmask_arg : bitmask_arg;
     option.block_size= reverse_semantics ? -(long) bitmask : (long)bitmask;
-    set(global_var_ptr(), def_val);
+    set(global_or_catalog_var_ptr(), def_val);
     SYSVAR_ASSERT(def_val < 2);
     SYSVAR_ASSERT(size == sizeof(ulonglong));
   }
@@ -1996,7 +2006,7 @@ public:
   }
   bool global_update(THD *thd, set_var *var)
   {
-    set(global_var_ptr(), var->save_result.ulonglong_value);
+    set(global_or_catalog_var_ptr(thd), var->save_result.ulonglong_value);
     return false;
   }
   void session_save_default(THD *thd, set_var *var)
@@ -2016,6 +2026,8 @@ public:
   { return valptr(thd, session_var(thd, ulonglong)); }
   const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return valptr(thd, global_var(ulonglong)); }
+  const uchar *catalog_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  { return valptr(thd, catalog_var(thd, ulonglong)); }
   const uchar *default_value_ptr(THD *thd) const
   {
     thd->sys_var_tmp.my_bool_value= option.def_value != 0;
@@ -2085,6 +2097,11 @@ public:
     DBUG_ASSERT(FALSE);
     return 0;
   }
+  const uchar *catalog_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  {
+    DBUG_ASSERT(FALSE);
+    return 0;
+  }
   const uchar *default_value_ptr(THD *thd) const
   {
     thd->sys_var_tmp.ulonglong_value= 0;
@@ -2148,6 +2165,11 @@ public:
     return (uchar*) &thd->sys_var_tmp.double_value;
   }
   const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  {
+    DBUG_ASSERT(FALSE);
+    return 0;
+  }
+  const uchar *catalog_value_ptr(THD *thd, const LEX_CSTRING *base) const
   {
     DBUG_ASSERT(FALSE);
     return 0;
@@ -2277,7 +2299,7 @@ public:
   }
   bool global_update(THD *thd, set_var *var)
   {
-    global_var(const void*)= var->save_result.ptr;
+    global_or_catalog_var(thd, const void*)= var->save_result.ptr;
     return false;
   }
   void session_save_default(THD *thd, set_var *var)
@@ -2293,6 +2315,8 @@ public:
   { return valptr(thd, session_var(thd, uchar*)); }
   const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return valptr(thd, global_var(uchar*)); }
+  const uchar *catalog_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  { return valptr(thd, catalog_var(thd, uchar*)); }
   const uchar *default_value_ptr(THD *thd) const
   { return valptr(thd, *(uchar**)option.def_value); }
 };
@@ -2351,7 +2375,7 @@ public:
   }
   bool global_update(THD *thd, set_var *var)
   {
-    global_var(Time_zone*)= var->save_result.time_zone;
+    global_or_catalog_var(thd, Time_zone*)= var->save_result.time_zone;
     return false;
   }
   void session_save_default(THD *thd, set_var *var)
@@ -2380,6 +2404,8 @@ public:
   }
   const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return valptr(thd, global_var(Time_zone*)); }
+  const uchar *catalog_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  { return valptr(thd, catalog_var(thd, Time_zone*)); }
   const uchar *default_value_ptr(THD *thd) const
   { return valptr(thd, *(Time_zone**)option.def_value); }
 };

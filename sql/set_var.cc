@@ -176,7 +176,7 @@ sys_var::sys_var(sys_var_chain *chain, const char *name_arg,
   option.id= getopt_id;
   option.comment= comment;
   option.arg_type= getopt_arg_type;
-  option.value= (uchar **)global_var_ptr();
+  option.value= (uchar **) global_or_catalog_var_ptr();
   option.def_value= def_val;
   option.app_type= this;
   option.var_type= flags & AUTO_SET ? GET_AUTO : 0;
@@ -241,6 +241,11 @@ const uchar *sys_var::global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   return global_var_ptr();
 }
 
+const uchar *sys_var::catalog_value_ptr(THD *thd, const LEX_CSTRING *base) const
+{
+  return catalog_var_ptr(thd);
+}
+
 bool sys_var::check(THD *thd, set_var *var)
 {
   if (unlikely((var->value && do_check(thd, var)) ||
@@ -273,19 +278,24 @@ const uchar *sys_var::value_ptr(THD *thd, enum_var_type type,
                                 const LEX_CSTRING *base) const
 {
   DBUG_ASSERT(base);
+  if (scope() == CATALOG)
+  {
+    mysql_mutex_assert_owner(&LOCK_global_system_variables);
+    AutoRLock lock(guard);
+    return catalog_value_ptr(thd, base);
+  }
   if (type == OPT_GLOBAL || scope() == GLOBAL)
   {
     mysql_mutex_assert_owner(&LOCK_global_system_variables);
     AutoRLock lock(guard);
     return global_value_ptr(thd, base);
   }
-  else
-    return session_value_ptr(thd, base);
+  return session_value_ptr(thd, base);
 }
 
 bool sys_var::set_default(THD *thd, set_var* var)
 {
-  if (var->type == OPT_GLOBAL || scope() == GLOBAL)
+  if (var->type == OPT_GLOBAL || scope() == GLOBAL || scope() == CATALOG)
     global_save_default(thd, var);
   else
     session_save_default(thd, var);
@@ -1103,6 +1113,7 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
   for (uint i= 0; i < system_variable_hash.records; i++)
   {
     sys_var *var= (sys_var*) my_hash_element(&system_variable_hash, i);
+    sys_var::flag_enum scope= var->scope();
 
     strmake_buf(name_buffer, var->name.str);
     my_caseup_str(system_charset_info, name_buffer);
@@ -1137,8 +1148,8 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
     fields[3]->store(origin->str, origin->length, scs);
 
     // DEFAULT_VALUE
-    const uchar *def= var->is_readonly() && var->option.id < 0
-                      ? 0 : var->default_value_ptr(thd);
+    const uchar *def= (var->is_readonly() && var->option.id < 0 ?
+                       0 : var->default_value_ptr(thd));
     if (def)
       store_value_ptr(fields[4], var, &strbuf, def);
 
@@ -1149,10 +1160,13 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
     {
       { STRING_WITH_LEN("GLOBAL") },
       { STRING_WITH_LEN("SESSION") },
-      { STRING_WITH_LEN("SESSION ONLY") }
+      { STRING_WITH_LEN("SESSION ONLY") },
+      { STRING_WITH_LEN("CATALOG") }
     };
-    const LEX_CSTRING *scope= scopes + var->scope();
-    fields[5]->store(scope->str, scope->length, scs);
+    if (scope == sys_var::CATALOG && ! using_catalogs)
+      scope= sys_var::GLOBAL;
+    const LEX_CSTRING *scope_name= scopes + scope;
+    fields[5]->store(scope_name->str, scope_name->length, scs);
 
     // VARIABLE_TYPE
 #if SIZEOF_LONG == SIZEOF_INT

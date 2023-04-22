@@ -57,13 +57,9 @@ sortcmp_lex_string(const LEX_CSTRING *s, const LEX_CSTRING *t,
 /**
   @brief A facade to the functionality of the Event Scheduler.
 
-  Every public operation against the scheduler has to be executed via the
-  interface provided by a static method of this class. No instance of this
-  class is ever created and it has no non-static data members.
-
   The life cycle of the Events module is the following:
 
-  At server start up:
+  At server start up, do for each catalog:
      init_mutexes() -> init()
   When the server is running:
      create_event(), drop_event(), start_or_stop_event_scheduler(), etc
@@ -78,79 +74,68 @@ sortcmp_lex_string(const LEX_CSTRING *s, const LEX_CSTRING *t,
 class Events
 {
 public:
+  Events() :
+    state(EVENTS_OFF),
+    startup_state(EVENTS_OFF)
+    {}
+
   /*
     the following block is to support --event-scheduler command line option
     and the @@global.event_scheduler SQL variable.
     See sys_var.cc
   */
-  enum enum_opt_event_scheduler { EVENTS_OFF, EVENTS_ON, EVENTS_DISABLED,
-                                  EVENTS_ORIGINAL };
+  enum event_states { EVENTS_OFF, EVENTS_ON, EVENTS_DISABLED,
+    EVENTS_ORIGINAL };
   /* Protected using LOCK_global_system_variables only. */
-  static ulong opt_event_scheduler, startup_state;
-  static ulong inited;
-  static bool check_if_system_tables_error();
-  static bool start(int *err_no);
-  static bool stop();
+  event_states state, startup_state;
+  ulong inited;
+  bool check_if_system_tables_error();
+  bool start(int *err_no);
+  bool stop();
 
 public:
   /* A hack needed for Event_queue_element */
-  static Event_db_repository *
+  Event_db_repository *
   get_db_repository() { return db_repository; }
 
-  static bool init(THD *thd, const SQL_CATALOG *catalog, bool opt_noacl);
+  int init(THD *thd, const SQL_CATALOG *catalog, event_states start_state,
+           bool opt_noacl);
 
-  static void
-  deinit();
+  void deinit();
 
-  static void
-  init_mutexes();
+  void init_mutexes();
 
-  static void
-  destroy_mutexes();
+  void destroy_mutexes();
 
-  static bool
-  create_event(THD *thd, Event_parse_data *parse_data);
+  bool create_event(THD *thd, Event_parse_data *parse_data);
 
-  static bool
-  update_event(THD *thd, Event_parse_data *parse_data,
-               LEX_CSTRING *new_dbname, LEX_CSTRING *new_name);
+  bool update_event(THD *thd, Event_parse_data *parse_data,
+                    LEX_CSTRING *new_dbname, LEX_CSTRING *new_name);
 
-  static bool
-  drop_event(THD *thd, const LEX_CSTRING *dbname, const LEX_CSTRING *name,
-             bool if_exists);
+  bool drop_event(THD *thd, const LEX_CSTRING *dbname, const LEX_CSTRING *name,
+                  bool if_exists);
 
-  static void
-  drop_schema_events(THD *thd, const char *db);
+  void drop_schema_events(THD *thd, const char *db);
 
-  static bool
-  show_create_event(THD *thd, const LEX_CSTRING *dbname,
-                    const LEX_CSTRING *name);
+  bool show_create_event(THD *thd, const LEX_CSTRING *dbname,
+                         const LEX_CSTRING *name);
 
   /* Needed for both SHOW CREATE EVENT and INFORMATION_SCHEMA */
-  static int
-  reconstruct_interval_expression(String *buf, interval_type interval,
-                                  longlong expression);
+  int reconstruct_interval_expression(String *buf, interval_type interval,
+                                      longlong expression);
 
-  static int
-  fill_schema_events(THD *thd, TABLE_LIST *tables, COND * /* cond */);
+  int fill_schema_events(THD *thd, TABLE_LIST *tables, COND * /* cond */);
 
-  static void
-  dump_internal_status();
-
-  static void set_original_state(ulong startup_state_org)
-  {
-    startup_state= startup_state_org;
-  }
+  void dump_internal_status();
 
 private:
 
-  static bool
-  load_events_from_db(THD *thd);
+  bool load_events_from_db(THD *thd);
 
 private:
-  static Event_queue         *event_queue;
-  static Event_scheduler     *scheduler;
-  static Event_db_repository *db_repository;
+  Event_queue         *event_queue;
+  Event_scheduler     *scheduler;
+  Event_db_repository *db_repository;
 
 private:
   /* Prevent use of these */
@@ -162,4 +147,8 @@ private:
   @} (end of group Event Scheduler)
 */
 
+extern Events global_events;
+
+bool startup_events(const SQL_CATALOG *catalog, bool noacl_or_bootstrap);
+int fill_schema_events(THD *thd, TABLE_LIST *tables, COND * /* cond */);
 #endif /* _EVENT_H_ */

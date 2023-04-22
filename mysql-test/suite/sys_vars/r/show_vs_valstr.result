@@ -5,6 +5,6 @@ where not (s.variable_value <=> v.global_value);
 variable_name	variable_value	global_value
 select variable_name, s.variable_value, v.session_value
 from session_variables s join system_variables v using (variable_name)
-where v.variable_scope != 'GLOBAL' and
+where v.variable_scope != 'GLOBAL' and v.variable_scope != 'CATALOG' and
 not (s.variable_value <=> v.session_value);
 variable_name	variable_value	session_value

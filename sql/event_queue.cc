@@ -585,9 +585,9 @@ Event_queue::dbug_dump_queue(my_time_t when)
     TRUE   Serious error
 */
 
-bool
-Event_queue::get_top_for_execution_if_time(THD *thd,
-                Event_queue_element_for_exec **event_name)
+bool Event_queue::
+get_top_for_execution_if_time(THD *thd,
+                              Event_queue_element_for_exec **event_name)
 {
   bool ret= FALSE;
   *event_name= NULL;
@@ -643,7 +643,7 @@ Event_queue::get_top_for_execution_if_time(THD *thd,
     }
 
     if (!(*event_name= new Event_queue_element_for_exec()) ||
-        (*event_name)->init(top->dbname, top->name))
+        (*event_name)->init(top->catalog, top->dbname, top->name))
     {
       delete *event_name;
       ret= TRUE;
@@ -689,13 +689,17 @@ end:
 
   if (*event_name)
   {
+    Event_db_repository *db_repository;
     DBUG_PRINT("info", ("db: %s  name: %s",
                         (*event_name)->dbname.str, (*event_name)->name.str));
 
-    Event_db_repository *db_repository= Events::get_db_repository();
-    (void) db_repository->update_timing_fields_for_event(thd,
-                            &(*event_name)->dbname, &(*event_name)->name,
-                            last_executed, (ulonglong) status);
+    db_repository= global_events.get_db_repository();
+    (void) db_repository->
+      update_timing_fields_for_event(thd,
+                                     (*event_name)->catalog,
+                                     &(*event_name)->dbname,
+                                     &(*event_name)->name,
+                                     last_executed, (ulonglong) status);
   }
 
   DBUG_RETURN(ret);

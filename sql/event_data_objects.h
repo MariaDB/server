@@ -29,6 +29,7 @@ class Field;
 class THD;
 class Time_zone;
 struct TABLE;
+class SQL_CATALOG;
 
 void init_scheduler_psi_keys(void);
 
@@ -39,12 +40,14 @@ public:
   ~Event_queue_element_for_exec();
 
   bool
-  init(const LEX_CSTRING &dbname, const LEX_CSTRING &name);
+  init(const SQL_CATALOG *catalog, const LEX_CSTRING &dbname,
+       const LEX_CSTRING &name);
 
+  const SQL_CATALOG *catalog;
   LEX_CSTRING dbname;
   LEX_CSTRING name;
   bool dropped;
-  THD *thd;
+  THD *thd;                                     // thd has the catalog
 
 private:
   /* Prevent use of these */
@@ -69,6 +72,7 @@ protected:
 
 public:
 
+  SQL_CATALOG *catalog;
   LEX_CSTRING dbname;
   LEX_CSTRING name;
   LEX_CSTRING definer;// combination of user and host

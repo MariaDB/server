@@ -62,7 +62,7 @@ public:
   sys_var *next;
   LEX_CSTRING name;
   bool *test_load;
-  enum flag_enum { GLOBAL, SESSION, ONLY_SESSION, SCOPE_MASK=1023,
+  enum flag_enum { GLOBAL, SESSION, ONLY_SESSION, CATALOG, SCOPE_MASK=1023,
                    READONLY=1024, ALLOCATED=2048, PARSE_EARLY=4096,
                    NO_SET_STATEMENT=8192, AUTO_SET=16384};
   enum { NO_GETOPT=-1, GETOPT_ONLY_HELP=-2 };
@@ -128,7 +128,7 @@ public:
   double val_real(bool *is_null, THD *thd, enum_var_type type, const LEX_CSTRING *base);
 
   SHOW_TYPE show_type() const { return show_val_type; }
-  int scope() const { return flags & SCOPE_MASK; }
+  flag_enum scope() const { return (flag_enum) (flags & SCOPE_MASK); }
   virtual CHARSET_INFO *charset(THD *thd) const
   {
     return system_charset_info;
@@ -174,13 +174,13 @@ public:
 
   bool check_type(enum_var_type type)
   {
-    switch (scope())
-    {
+    switch (scope()) {
     case GLOBAL:       return type != OPT_GLOBAL;
+    case CATALOG:      return type != OPT_GLOBAL;
     case SESSION:      return false; // always ok
     case ONLY_SESSION: return type == OPT_GLOBAL;
+    default:           return true;             // impossible
     }
-    return true; // keep gcc happy
   }
   bool register_option(DYNAMIC_ARRAY *array, int parse_flags)
   {
@@ -232,6 +232,10 @@ private:
     save the global default value of the variable in var
   */
   virtual void global_save_default(THD *thd, set_var *var) = 0;
+  virtual void catalog_save_default(THD *thd, set_var *var)
+  {
+    return global_save_default(thd, var);
+  }
   virtual bool session_update(THD *thd, set_var *var) = 0;
   virtual bool global_update(THD *thd, set_var *var) = 0;
 
@@ -243,7 +247,7 @@ protected:
   */
   virtual const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const;
   virtual const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const;
-
+  virtual const uchar *catalog_value_ptr(THD *thd, const LEX_CSTRING *base) const;
   /**
     A pointer to a storage area of the variable, to the raw data.
     Typically it's the same as session_value_ptr(), but it's different,
@@ -254,6 +258,23 @@ protected:
 
   uchar *global_var_ptr() const
   { return ((uchar*)&global_system_variables) + offset; }
+
+  uchar *global_catalog_var_ptr() const
+  { return ((uchar*)&internal_default_catalog) + offset; }
+
+  uchar *global_or_catalog_var_ptr() const
+  {
+    return ((scope() != CATALOG) ?
+            global_var_ptr() : global_catalog_var_ptr());
+  }
+
+  uchar *global_or_catalog_var_ptr(THD *thd) const
+  {
+    return ((scope() != CATALOG) ? global_var_ptr() : catalog_var_ptr(thd));
+  }
+
+  uchar *catalog_var_ptr(THD *thd) const
+  { return ((uchar*) thd->catalog) + offset; }
 
   void *max_var_ptr()
   {

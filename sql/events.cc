@@ -36,11 +36,14 @@
 #include "lock.h"   // lock_object_name
 #include "mysql/psi/mysql_sp.h"
 #include "wsrep_mysqld.h"
+#include "catalog.h"
 
 /**
   @addtogroup Event_Scheduler
   @{
 */
+
+Events global_events;
 
 /*
  TODO list :
@@ -60,7 +63,6 @@
    an event may be deleted which is also safe for RBR.
 
  - Add logging to file
-
 */
 
 
@@ -78,13 +80,6 @@
   is disabled. Disabled events are not kept in-memory because they are not
   eligible for execution.
 */
-
-Event_queue *Events::event_queue;
-Event_scheduler *Events::scheduler;
-Event_db_repository *Events::db_repository;
-ulong Events::opt_event_scheduler= Events::EVENTS_OFF;
-ulong Events::startup_state= Events::EVENTS_OFF;
-ulong Events::inited;
 
 
 /*
@@ -420,7 +415,7 @@ Events::create_event(THD *thd, Event_parse_data *parse_data)
 
   thd->restore_stmt_binlog_format(save_binlog_format);
 
-  if (!ret && Events::opt_event_scheduler == Events::EVENTS_OFF)
+  if (!ret && global_events.state == Events::EVENTS_OFF)
   {
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, 
       "Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.");
@@ -820,6 +815,12 @@ Events::show_create_event(THD *thd, const LEX_CSTRING *dbname,
   @retval  1  an error, pushed into the error stack
 */
 
+int fill_schema_events(THD *thd, TABLE_LIST *tables, COND *cond)
+{
+  return global_events.fill_schema_events(thd, tables, cond);
+}
+
+
 int
 Events::fill_schema_events(THD *thd, TABLE_LIST *tables, COND * /* cond */)
 {
@@ -856,6 +857,22 @@ Events::fill_schema_events(THD *thd, TABLE_LIST *tables, COND * /* cond */)
   DBUG_RETURN(ret);
 }
 
+bool startup_events(const SQL_CATALOG *catalog, bool noacl_or_bootstrap)
+{
+  bool res;
+  /* Remember state given from my.cnf */
+  global_events.startup_state= (Events::event_states)
+    default_catalog()->event_scheduler;
+  res= (global_events.init((THD*) 0, catalog, global_events.startup_state,
+                           noacl_or_bootstrap) > 0);
+  /*
+    Real state becomes the default state. This is needed as events may
+    have not been able to start (crashed tables?).
+  */
+  default_catalog()->event_scheduler= global_events.state;
+  return res;
+}
+
 
 /**
   Initializes the scheduler's structures.
@@ -867,38 +884,37 @@ Events::fill_schema_events(THD *thd, TABLE_LIST *tables, COND * /* cond */)
 
   @note   This function is not synchronized.
 
-  @retval  FALSE   Perhaps there was an error, and the event scheduler
-                   is disabled. But the error is not fatal and the
-                   server start up can continue.
-  @retval  TRUE    Fatal error. Startup must terminate (call unireg_abort()).
+  @retval < 0     Event scheduler was disabled.
+  @retval  == 0   Perhaps there was an error, and the event scheduler
+                  is disabled. But the error is not fatal and the
+                  server start up can continue.
+  @retval  > 0    Fatal error. Startup must terminate (call unireg_abort()).
 */
 
-bool
-Events::init(THD *thd, const SQL_CATALOG *catalog, bool opt_noacl_or_bootstrap)
+int
+Events::init(THD *thd, const SQL_CATALOG *catalog, event_states startup_state,
+             bool opt_noacl_or_bootstrap)
 {
   int err_no;
-  bool res= FALSE;
+  int res= 1;                                   // Assume fatal
   bool had_thd= thd != 0;
   DBUG_ENTER("Events::init");
 
   DBUG_ASSERT(inited == 0);
 
-  /*
-    Was disabled explicitly from the command line
-  */
-  if (opt_event_scheduler == Events::EVENTS_DISABLED ||
-      opt_noacl_or_bootstrap)
-    DBUG_RETURN(FALSE);
+  state= startup_state;
+  if (state == EVENTS_ORIGINAL)
+    startup_state= EVENTS_OFF;
+
+  if (state == EVENTS_DISABLED || opt_noacl_or_bootstrap)
+    DBUG_RETURN(-1);
 
   /* We need a temporary THD during boot */
   if (!thd)
   {
-
     if (!(thd= new THD(0)))
-    {
-      res= TRUE;
       goto end;
-    }
+
     /*
       The thread stack does not start from this function but we cannot
       guess the real value. So better some value that doesn't assert than
@@ -926,10 +942,7 @@ Events::init(THD *thd, const SQL_CATALOG *catalog, bool opt_noacl_or_bootstrap)
     disabled - to perform events DDL.
   */
   if (!(db_repository= new Event_db_repository))
-  {
-    res= TRUE; /* fatal error: request unireg_abort */
     goto end;
-  }
 
   /*
     Since we allow event DDL even if the scheduler is disabled,
@@ -948,40 +961,33 @@ Events::init(THD *thd, const SQL_CATALOG *catalog, bool opt_noacl_or_bootstrap)
                "Event Scheduler: An error occurred when initializing "
                "system tables. Disabling the Event Scheduler.",
                MYF(ME_ERROR_LOG));
-    /* Disable the scheduler since the system tables are not up to date */
-    opt_event_scheduler= EVENTS_OFF;
+    res= -1;                                    // Not fatal
     goto end;
   }
 
-
-  DBUG_ASSERT(opt_event_scheduler == Events::EVENTS_ON ||
-              opt_event_scheduler == Events::EVENTS_OFF);
+  DBUG_ASSERT(state == EVENTS_ON || state == EVENTS_OFF);
 
   if (!(event_queue= new Event_queue) ||
-      !(scheduler= new Event_scheduler(catalog, event_queue)))
-  {
-    res= TRUE; /* fatal error: request unireg_abort */
+      !(scheduler= new Event_scheduler(event_queue)))
     goto end;
-  }
 
   if (event_queue->init_queue(thd) || load_events_from_db(thd) ||
-      (opt_event_scheduler == EVENTS_ON && scheduler->start(&err_no)))
+      (state == EVENTS_ON && scheduler->start(&err_no)))
   {
     my_message_sql(ER_STARTUP,
                    "Event Scheduler: Error while loading from mysql.event table.",
                    MYF(ME_ERROR_LOG));
-    res= TRUE; /* fatal error: request unireg_abort */
     goto end;
   }
   Event_worker_thread::init(db_repository);
   inited= 1;
+  res= 0;
 
 end:
   if (res)
     deinit();
   if (!had_thd)
     delete thd;
-
   DBUG_RETURN(res);
 }
 
@@ -1006,7 +1012,7 @@ Events::deinit()
   event_queue= NULL;                          /* For restart */
   delete db_repository;
   db_repository= NULL;                        /* For restart */
-
+  state= EVENTS_OFF;
   inited= 0;
   DBUG_VOID_RETURN;
 }
@@ -1117,7 +1123,7 @@ Events::dump_internal_status()
   puts("WOC = Waiting On Condition  DL = Data Locked");
 
   /*
-    opt_event_scheduler should only be accessed while
+    state should only be accessed while
     holding LOCK_global_system_variables.
   */
   mysql_mutex_lock(&LOCK_global_system_variables);

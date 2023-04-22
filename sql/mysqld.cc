@@ -1789,7 +1789,7 @@ static void close_connections(void)
   DBUG_EXECUTE_IF("delay_shutdown_phase_2_after_semisync_wait",
                   my_sleep(500000););
 
-  Events::deinit();
+  global_events.deinit();
   slave_prepare_for_shutdown();
   ack_receiver.stop();
 
@@ -4540,7 +4540,7 @@ static int init_thread_environment()
   mysql_cond_init(key_COND_server_started, &COND_server_started, NULL);
   sp_cache_init();
 #ifdef HAVE_EVENT_SCHEDULER
-  Events::init_mutexes();
+  global_events.init_mutexes();
 #endif
   init_show_explain_psi_keys();
   /* Parameter for threads created for connections */
@@ -5912,11 +5912,7 @@ int mysqld_main(int argc, char **argv)
     Change EVENTS_ORIGINAL to EVENTS_OFF (the default value) as there is no
     point in using ORIGINAL during startup
   */
-  if (Events::opt_event_scheduler == Events::EVENTS_ORIGINAL)
-    Events::opt_event_scheduler= Events::EVENTS_OFF;
-
-  Events::set_original_state(Events::opt_event_scheduler);
-  if (Events::init((THD*) 0, default_catalog(), opt_noacl || opt_bootstrap))
+  if (startup_events(default_catalog(), opt_noacl || opt_bootstrap))
     unireg_abort(1);
 
 #ifdef WITH_WSREP

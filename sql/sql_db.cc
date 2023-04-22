@@ -1011,7 +1011,7 @@ void drop_database_objects(THD *thd, const LEX_CSTRING *path,
     tmp_disable_binlog(thd);
     (void) sp_drop_db_routines(thd, db->str); /* @todo Do not ignore errors */
 #ifdef HAVE_EVENT_SCHEDULER
-    Events::drop_schema_events(thd, db->str);
+    global_events.drop_schema_events(thd, db->str);
 #endif
     reenable_binlog(thd);
   }

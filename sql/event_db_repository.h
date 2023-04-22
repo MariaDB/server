@@ -104,6 +104,7 @@ public:
 
   bool
   update_timing_fields_for_event(THD *thd,
+                                 const SQL_CATALOG *catalog,
                                  const LEX_CSTRING *event_db_name,
                                  const LEX_CSTRING *event_name,
                                  my_time_t last_executed,

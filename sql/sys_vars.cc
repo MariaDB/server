@@ -1130,7 +1130,7 @@ static const char *event_scheduler_names[]= { "OFF", "ON", "DISABLED",
                                               "ORIGINAL", NullS };
 static bool event_scheduler_check(sys_var *self, THD *thd, set_var *var)
 {
-  if (Events::opt_event_scheduler == Events::EVENTS_DISABLED)
+  if (global_events.state == Events::EVENTS_DISABLED)
   {
     my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0),
              "--event-scheduler=DISABLED or --skip-grant-tables");
@@ -1146,7 +1146,10 @@ static bool event_scheduler_update(sys_var *self, THD *thd, enum_var_type type)
 {
   int err_no= 0;
   bool ret;
-  uint opt_event_scheduler_value= Events::opt_event_scheduler;
+  Events *events= &global_events;
+  Events::event_states opt_state;
+
+  opt_state= (Events::event_states) thd->catalog->event_scheduler;
   mysql_mutex_unlock(&LOCK_global_system_variables);
   /*
     Events::start() is heavyweight. In particular it creates a new THD,
@@ -1166,30 +1169,28 @@ static bool event_scheduler_update(sys_var *self, THD *thd, enum_var_type type)
   */
 
   /* EVENTS_ORIGINAL means we should revert back to the startup state */
-  if (opt_event_scheduler_value == Events::EVENTS_ORIGINAL)
-  {
-    opt_event_scheduler_value= Events::opt_event_scheduler=
-      Events::startup_state;
-  }
- 
+  if (opt_state == Events::EVENTS_ORIGINAL)
+    opt_state= events->startup_state;
+
   /*
     If the scheduler was not properly inited (because of wrong system tables),
     try to init it again. This is needed for mysql_upgrade to work properly if
     the event tables where upgraded.
   */
-  if (!Events::inited && (Events::init(thd, thd->catalog, 0) ||
-                          !Events::inited))
+  if (!events->inited && events->init(thd, thd->catalog, opt_state, 0) != 0)
     ret= 1;
   else
-    ret= opt_event_scheduler_value == Events::EVENTS_ON ?
-      Events::start(&err_no) :
-      Events::stop();
+  {
+    events->state= opt_state;
+    ret= (opt_state == Events::EVENTS_ON ?
+          events->start(&err_no) :
+          events->stop());
+  }
+  /* Ensure variables are in sync */
+  thd->catalog->event_scheduler= events->state;
   mysql_mutex_lock(&LOCK_global_system_variables);
   if (ret)
-  {
-    Events::opt_event_scheduler= Events::EVENTS_OFF;
     my_error(ER_EVENT_SET_VAR_ERROR, MYF(0), err_no);
-  }
   return ret;
 }
 
@@ -1197,7 +1198,7 @@ static Sys_var_enum Sys_event_scheduler(
        "event_scheduler", "Enable the event scheduler. Possible values are "
        "ON, OFF, and DISABLED (keep the event scheduler completely "
        "deactivated, it cannot be activated run-time)",
-       GLOBAL_VAR(Events::opt_event_scheduler), CMD_LINE(OPT_ARG),
+       CATALOG_VAR(event_scheduler), CMD_LINE(OPT_ARG),
        event_scheduler_names, DEFAULT(Events::EVENTS_OFF),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(event_scheduler_check), ON_UPDATE(event_scheduler_update));

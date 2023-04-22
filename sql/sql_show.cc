@@ -7951,8 +7951,9 @@ copy_event_to_schema_table(THD *thd, TABLE *sch_table, TABLE *event_table)
     /* type */
     sch_table->field[ISE_EVENT_TYPE]->store(STRING_WITH_LEN("RECURRING"), scs);
 
-    if (Events::reconstruct_interval_expression(&show_str, et.interval,
-                                                et.expression))
+    if (global_events.reconstruct_interval_expression(&show_str,
+                                                             et.interval,
+                                                             et.expression))
       DBUG_RETURN(1);
 
     sch_table->field[ISE_INTERVAL_VALUE]->set_notnull();
@@ -10008,7 +10009,7 @@ ST_SCHEMA_TABLE schema_tables[]=
    fill_schema_engines, make_old_format, 0, -1, -1, 0, 0},
 #ifdef HAVE_EVENT_SCHEDULER
   {"EVENTS", Show::events_fields_info, 0,
-   Events::fill_schema_events, make_old_format, 0, -1, -1, 0, 0},
+   fill_schema_events, make_old_format, 0, -1, -1, 0, 0},
 #else
   {"EVENTS", Show::events_fields_info, 0,
    0, make_old_format, 0, -1, -1, 0, 0},

@@ -72,7 +72,7 @@ private:
 class Event_scheduler
 {
 public:
-  Event_scheduler(const SQL_CATALOG *catalog, Event_queue *event_queue_arg);
+  Event_scheduler(Event_queue *event_queue_arg);
   ~Event_scheduler();
 
 
@@ -131,8 +131,6 @@ private:
   enum enum_state state;
 
   THD *scheduler_thd;
-
-  const SQL_CATALOG *catalog;
 
   mysql_cond_t COND_state;
 

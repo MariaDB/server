@@ -680,7 +680,7 @@ Memory allocated by threads:             %s\n",
 #endif
 
 #ifdef HAVE_EVENT_SCHEDULER
-  Events::dump_internal_status();
+  global_events.dump_internal_status();
 #endif
   puts("");
   fflush(stdout);

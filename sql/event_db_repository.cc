@@ -31,6 +31,7 @@
 #include "sql_show.h"
 #include "lock.h"                               // MYSQL_LOCK_IGNORE_TIMEOUT
 #include "transaction.h"
+#include "catalog.h"
 
 /**
   @addtogroup Event_Scheduler
@@ -1115,6 +1116,7 @@ Event_db_repository::load_named_event(THD *thd, const LEX_CSTRING *dbname,
 bool
 Event_db_repository::
 update_timing_fields_for_event(THD *thd,
+                               const SQL_CATALOG *catalog,
                                const LEX_CSTRING *event_db_name,
                                const LEX_CSTRING *event_name,
                                my_time_t last_executed,
@@ -1122,8 +1124,9 @@ update_timing_fields_for_event(THD *thd,
 {
   TABLE *table= NULL;
   Field **fields;
-  int ret= 1;
+  bool ret= 1, err;
   MYSQL_TIME time;
+  const SQL_CATALOG *org_catalog= thd->catalog;
   DBUG_ENTER("Event_db_repository::update_timing_fields_for_event");
 
   DBUG_ASSERT(thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY);
@@ -1134,7 +1137,10 @@ update_timing_fields_for_event(THD *thd,
     possible other locks taken by the caller.
   */
   MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
-  if (open_event_table(thd, TL_WRITE, &table))
+  thd->catalog= const_cast<SQL_CATALOG*>(catalog);
+  err= open_event_table(thd, TL_WRITE, &table);
+  thd->catalog= const_cast<SQL_CATALOG*>(org_catalog);
+  if (err)
     DBUG_RETURN(1);
 
   fields= table->field;
@@ -1168,7 +1174,7 @@ end:
     ret= 1;
   thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
 
-  DBUG_RETURN(MY_TEST(ret));
+  DBUG_RETURN(ret);
 }
 
 
@@ -1200,7 +1206,8 @@ Event_db_repository::check_system_tables(THD *thd)
   if (open_and_lock_tables(thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
   {
     ret= 1;
-    sql_print_error("Cannot open mysql.event");
+    sql_print_error("Cannot open %.*s mysql.event",
+                    thd->catalog->name.length, thd->catalog->name.str);
   }
   else
   {
