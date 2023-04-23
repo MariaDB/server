@@ -1312,6 +1312,40 @@ insert into t select repeat('a',130000);
 set debug_sync= "now signal end";
 connection default;
 drop table t;
+#
+# Test that correct fields are marked as explicit:
+# Drop a, reorder b, add new column with default.
+#
+create table t (a int primary key, b int) engine=innodb;
+insert into t values (1, 1), (2, 2), (3, 3);
+set debug_sync= "alter_table_copy_end signal copy wait_for goon";
+alter table t drop primary key, drop a,
+change b c bigint,
+add x longblob default 123456;
+connection con1;
+set debug_sync= "now wait_for copy";
+update t set b = 5 where a = 1;
+update t set b = NULL where a = 1;
+select * from t;
+a	b
+1	NULL
+2	2
+3	3
+update t set a = 100 where a = 1;
+update t set b = -10 where a = 100;
+select * from t;
+a	b
+2	2
+3	3
+100	-10
+set debug_sync= "now signal goon";
+connection default;
+select * from t;
+c	x
+-10	123456
+2	123456
+3	123456
+drop table t;
 set debug_sync= reset;
 disconnect con1;
 disconnect con2;
