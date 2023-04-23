@@ -254,7 +254,8 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const colcnt,
      */
     if (bitmap_is_set(cols, (uint)(field_ptr -  begin_ptr)))
     {
-      (*field_ptr)->set_has_explicit_value();
+      if (!rpl_data.is_online_alter())
+        (*field_ptr)->set_has_explicit_value();
       if ((null_mask & 0xFF) == 0)
       {
         DBUG_ASSERT(null_ptr < row_data + master_null_byte_count);
@@ -376,6 +377,7 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const colcnt,
     for (const auto *copy=rpl_data.copy_fields;
          copy != rpl_data.copy_fields_end; copy++)
     {
+      copy->to_field->set_has_explicit_value();
       copy->do_copy(copy);
     }
   }
