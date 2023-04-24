@@ -146,10 +146,12 @@ delete from t1;
 sync_slave_with_master;
 --let $diff_tables= master:test.t1,slave:test.t1
 --source include/diff_tables.inc
+connection master;
+drop table t1;
+sync_slave_with_master;
 
 --echo # check unversioned -> versioned replication with non-unique keys on duplicate records
 connection master;
-drop table t1;
 set statement sql_log_bin=0 for create table t1 (a INT NOT NULL, b INT, INDEX(a,b));
 connection slave;
 set statement sql_log_bin=0 for create table t1 (a INT NOT NULL, b INT, INDEX(a,b)) with system versioning;
