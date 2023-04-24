@@ -14315,7 +14315,7 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
     /* We use this to test that the correct key is used in test cases. */
     DBUG_EXECUTE_IF("slave_crash_if_index_scan", abort(););
 
-    while (record_compare(table))
+    while (record_compare(table, m_vers_from_plain))
     {
       while ((error= table->file->ha_index_next(table->record[0])))
       {
