@@ -12187,6 +12187,19 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
   }
 #endif
 
+#ifdef WITH_WSREP
+  if (select_lex->item_list.elements && // With SELECT
+      WSREP(thd) && thd->variables.wsrep_trx_fragment_size > 0)
+  {
+    my_message(
+        ER_NOT_ALLOWED_COMMAND,
+        "CREATE TABLE AS SELECT is not supported with streaming replication",
+        MYF(0));
+    res= 1;
+    goto end_with_restore_list;
+  }
+#endif /* WITH_WSREP */
+
   if (select_lex->item_list.elements || select_lex->tvc) // With select or TVC
   {
     select_result *result;

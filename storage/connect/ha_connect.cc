@@ -1618,10 +1618,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
   pcf->Scale= 0;
   pcf->Opt= (fop) ? (int)fop->opt : 0;
 
-	if (fp->field_length >= 0)
-		pcf->Length= fp->field_length;
-	else
-		pcf->Length= 256;            // BLOB?
+  pcf->Length= fp->field_length;
 
   pcf->Precision= pcf->Length;
 

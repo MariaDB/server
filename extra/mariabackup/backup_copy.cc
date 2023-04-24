@@ -73,9 +73,8 @@ bool binlog_locked;
 
 static void rocksdb_create_checkpoint();
 static bool has_rocksdb_plugin();
-static void copy_or_move_dir(const char *from, const char *to, bool copy, bool allow_hardlinks);
-static void rocksdb_backup_checkpoint();
-static void rocksdb_copy_back();
+static void rocksdb_backup_checkpoint(ds_ctxt *ds_data);
+static void rocksdb_copy_back(ds_ctxt *ds_data);
 
 static bool is_abs_path(const char *path)
 {
@@ -131,7 +130,9 @@ struct datadir_thread_ctxt_t {
 	bool			ret;
 };
 
-static bool backup_files_from_datadir(const char *dir_path);
+static bool backup_files_from_datadir(ds_ctxt_t *ds_data,
+                                      const char *dir_path,
+                                      const char *prefix);
 
 /************************************************************************
 Retirn true if character if file separator */
@@ -803,7 +804,7 @@ if passes the rules for partial backup.
 @return true if file backed up or skipped successfully. */
 static
 bool
-datafile_copy_backup(const char *filepath, uint thread_n)
+datafile_copy_backup(ds_ctxt *ds_data, const char *filepath, uint thread_n)
 {
 	const char *ext_list[] = {"frm", "isl", "MYD", "MYI", "MAD", "MAI",
 		"MRG", "TRG", "TRN", "ARM", "ARZ", "CSM", "CSV", "opt", "par",
@@ -824,7 +825,7 @@ datafile_copy_backup(const char *filepath, uint thread_n)
 	}
 
 	if (filename_matches(filepath, ext_list)) {
-		return copy_file(ds_data, filepath, filepath, thread_n);
+		return ds_data->copy_file(filepath, filepath, thread_n);
 	}
 
 	return(true);
@@ -865,7 +866,8 @@ datafile_rsync_backup(const char *filepath, bool save_to_list, FILE *f)
 	return(true);
 }
 
-bool backup_file_print_buf(const char *filename, const char *buf, int buf_len)
+bool ds_ctxt_t::backup_file_print_buf(const char *filename,
+                                      const char *buf, int buf_len)
 {
 	ds_file_t	*dstfile	= NULL;
 	MY_STAT		 stat;			/* unused for now */
@@ -876,7 +878,7 @@ bool backup_file_print_buf(const char *filename, const char *buf, int buf_len)
 	stat.st_size = buf_len;
 	stat.st_mtime = my_time(0);
 
-	dstfile = ds_open(ds_data, filename, &stat);
+	dstfile = ds_open(this, filename, &stat);
 	if (dstfile == NULL) {
 		msg("error: Can't open the destination stream for %s",
 			filename);
@@ -915,9 +917,9 @@ error_close:
 	return true;
 };
 
-static
 bool
-backup_file_vprintf(const char *filename, const char *fmt, va_list ap)
+ds_ctxt_t::backup_file_vprintf(const char *filename,
+                               const char *fmt, va_list ap)
 {
 	char		*buf		= 0;
 	int		 buf_len;
@@ -928,7 +930,7 @@ backup_file_vprintf(const char *filename, const char *fmt, va_list ap)
 }
 
 bool
-backup_file_printf(const char *filename, const char *fmt, ...)
+ds_ctxt_t::backup_file_printf(const char *filename, const char *fmt, ...)
 {
 	bool result;
 	va_list ap;
@@ -1054,16 +1056,15 @@ static int fix_win_file_permissions(const char *file)
 Copy file for backup/restore.
 @return true in case of success. */
 bool
-copy_file(ds_ctxt_t *datasink,
-	  const char *src_file_path,
-	  const char *dst_file_path,
-	  uint thread_n)
+ds_ctxt_t::copy_file(const char *src_file_path,
+                     const char *dst_file_path,
+                     uint thread_n)
 {
 	char			 dst_name[FN_REFLEN];
 	ds_file_t		*dstfile = NULL;
 	datafile_cur_t		 cursor;
 	xb_fil_cur_result_t	 res;
-	DBUG_ASSERT(datasink->datasink->remove);
+	DBUG_ASSERT(datasink->remove);
 	const char	*dst_path =
 		(xtrabackup_copy_back || xtrabackup_move_back)?
 		dst_file_path : trim_dotslash(dst_file_path);
@@ -1074,7 +1075,7 @@ copy_file(ds_ctxt_t *datasink,
 
 	strncpy(dst_name, cursor.rel_path, sizeof(dst_name));
 
-	dstfile = ds_open(datasink, dst_path, &cursor.statinfo);
+	dstfile = ds_open(this, dst_path, &cursor.statinfo);
 	if (dstfile == NULL) {
 		msg(thread_n,"error: "
 			"cannot open the destination stream for %s", dst_name);
@@ -1111,7 +1112,7 @@ copy_file(ds_ctxt_t *datasink,
 error:
 	datafile_close(&cursor);
 	if (dstfile != NULL) {
-		datasink->datasink->remove(dstfile->path);
+		datasink->remove(dstfile->path);
 		ds_close(dstfile);
 	}
 
@@ -1125,12 +1126,10 @@ error_close:
 Try to move file by renaming it. If source and destination are on
 different devices fall back to copy and unlink.
 @return true in case of success. */
-static
 bool
-move_file(ds_ctxt_t *datasink,
-	  const char *src_file_path,
-	  const char *dst_file_path,
-	  const char *dst_dir, uint thread_n)
+ds_ctxt_t::move_file(const char *src_file_path,
+                     const char *dst_file_path,
+                     const char *dst_dir, uint thread_n)
 {
 	char errbuf[MYSYS_STRERROR_SIZE];
 	char dst_file_path_abs[FN_REFLEN];
@@ -1157,7 +1156,7 @@ move_file(ds_ctxt_t *datasink,
 	if (my_rename(src_file_path, dst_file_path_abs, MYF(0)) != 0) {
 		if (my_errno == EXDEV) {
 			/* Fallback to copy/unlink */
-			if(!copy_file(datasink, src_file_path,
+			if(!copy_file(src_file_path,
 					dst_file_path, thread_n))
 					return false;
 			msg(thread_n,"Removing %s", src_file_path);
@@ -1241,13 +1240,13 @@ Copy or move file depending on current mode.
 @return true in case of success. */
 static
 bool
-copy_or_move_file(const char *src_file_path,
+copy_or_move_file(ds_ctxt *datasink0, const char *src_file_path,
 		  const char *dst_file_path,
 		  const char *dst_dir,
 		  uint thread_n,
 		 bool copy = xtrabackup_copy_back)
 {
-	ds_ctxt_t *datasink = ds_data;		/* copy to datadir by default */
+	ds_ctxt_t *datasink = datasink0; /* copy to datadir by default */
 	char filedir[FN_REFLEN];
 	size_t filedir_len;
 	bool ret;
@@ -1295,13 +1294,13 @@ copy_or_move_file(const char *src_file_path,
 	}
 
 	ret = (copy ?
-		copy_file(datasink, src_file_path, dst_file_path, thread_n) :
-		move_file(datasink, src_file_path, dst_file_path,
+		datasink->copy_file(src_file_path, dst_file_path, thread_n) :
+		datasink->move_file(src_file_path, dst_file_path,
 			  dst_dir, thread_n));
 
 cleanup:
 
-	if (datasink != ds_data) {
+	if (datasink != datasink0) {
 		ds_destroy(datasink);
 	}
 
@@ -1313,7 +1312,7 @@ cleanup:
 
 static
 bool
-backup_files(const char *from, bool prep_mode)
+backup_files(ds_ctxt *ds_data, const char *from, bool prep_mode)
 {
 	char rsync_tmpfile_name[FN_REFLEN];
 	FILE *rsync_tmpfile = NULL;
@@ -1351,7 +1350,7 @@ backup_files(const char *from, bool prep_mode)
 				ret = datafile_rsync_backup(node.filepath,
 					!prep_mode, rsync_tmpfile);
 			} else {
-				ret = datafile_copy_backup(node.filepath, 1);
+				ret = datafile_copy_backup(ds_data, node.filepath, 1);
 			}
 			if (!ret) {
 				msg("Failed to copy file %s", node.filepath);
@@ -1362,7 +1361,7 @@ backup_files(const char *from, bool prep_mode)
 			char path[FN_REFLEN];
 			snprintf(path, sizeof(path),
 				 "%s/db.opt", node.filepath);
-			if (!(ret = backup_file_printf(
+			if (!(ret = ds_data->backup_file_printf(
 					trim_dotslash(path), "%s", ""))) {
 				msg("Failed to create file %s", path);
 				goto out;
@@ -1451,7 +1450,6 @@ out:
 	return(ret);
 }
 
-void backup_fix_ddl(CorruptedPages &);
 
 lsn_t get_current_lsn(MYSQL *connection)
 {
@@ -1476,7 +1474,8 @@ lsn_t get_current_lsn(MYSQL *connection)
 lsn_t server_lsn_after_lock;
 extern void backup_wait_for_lsn(lsn_t lsn);
 /** Start --backup */
-bool backup_start(CorruptedPages &corrupted_pages)
+bool backup_start(ds_ctxt *ds_data, ds_ctxt *ds_meta,
+                  CorruptedPages &corrupted_pages)
 {
 	if (!opt_no_lock) {
 		if (opt_safe_slave_backup) {
@@ -1485,7 +1484,7 @@ bool backup_start(CorruptedPages &corrupted_pages)
 			}
 		}
 
-		if (!backup_files(fil_path_to_mysql_datadir, true)) {
+		if (!backup_files(ds_data, fil_path_to_mysql_datadir, true)) {
 			return(false);
 		}
 
@@ -1497,11 +1496,15 @@ bool backup_start(CorruptedPages &corrupted_pages)
 		server_lsn_after_lock = get_current_lsn(mysql_connection);
 	}
 
-	if (!backup_files(fil_path_to_mysql_datadir, false)) {
+	if (!backup_files(ds_data, fil_path_to_mysql_datadir, false)) {
 		return(false);
 	}
 
-	if (!backup_files_from_datadir(fil_path_to_mysql_datadir)) {
+        if (!backup_files_from_datadir(ds_data, fil_path_to_mysql_datadir,
+	                               "aws-kms-key") ||
+            !backup_files_from_datadir(ds_data,
+                                       aria_log_dir_path,
+                                       "aria_log")) {
 		return false;
 	}
 
@@ -1511,7 +1514,7 @@ bool backup_start(CorruptedPages &corrupted_pages)
 
 	msg("Waiting for log copy thread to read lsn %llu", (ulonglong)server_lsn_after_lock);
 	backup_wait_for_lsn(server_lsn_after_lock);
-	backup_fix_ddl(corrupted_pages);
+	corrupted_pages.backup_fix_ddl(ds_data, ds_meta);
 
 	// There is no need to stop slave thread before coping non-Innodb data when
 	// --no-lock option is used because --no-lock option requires that no DDL or
@@ -1527,7 +1530,7 @@ bool backup_start(CorruptedPages &corrupted_pages)
 	if (opt_slave_info) {
 		lock_binlog_maybe(mysql_connection);
 
-		if (!write_slave_info(mysql_connection)) {
+		if (!write_slave_info(ds_data, mysql_connection)) {
 			return(false);
 		}
 	}
@@ -1539,7 +1542,7 @@ bool backup_start(CorruptedPages &corrupted_pages)
 	avoid that is to have a single process, i.e. merge innobackupex and
 	xtrabackup. */
 	if (opt_galera_info) {
-		if (!write_galera_info(mysql_connection)) {
+		if (!write_galera_info(ds_data, mysql_connection)) {
 			return(false);
 		}
 	}
@@ -1547,7 +1550,7 @@ bool backup_start(CorruptedPages &corrupted_pages)
 	if (opt_binlog_info == BINLOG_INFO_ON) {
 
 		lock_binlog_maybe(mysql_connection);
-		write_binlog_info(mysql_connection);
+		write_binlog_info(ds_data, mysql_connection);
 	}
 
 	if (have_flush_engine_logs && !opt_no_lock) {
@@ -1584,20 +1587,20 @@ void backup_release()
 static const char *default_buffer_pool_file = "ib_buffer_pool";
 
 /** Finish after backup_start() and backup_release() */
-bool backup_finish()
+bool backup_finish(ds_ctxt *ds_data)
 {
 	/* Copy buffer pool dump or LRU dump */
 	if (!opt_rsync && opt_galera_info) {
 		if (buffer_pool_filename && file_exists(buffer_pool_filename)) {
-			copy_file(ds_data, buffer_pool_filename, default_buffer_pool_file, 0);
+			ds_data->copy_file(buffer_pool_filename, default_buffer_pool_file, 0);
 		}
 		if (file_exists("ib_lru_dump")) {
-			copy_file(ds_data, "ib_lru_dump", "ib_lru_dump", 0);
+			ds_data->copy_file("ib_lru_dump", "ib_lru_dump", 0);
 		}
 	}
 
 	if (has_rocksdb_plugin()) {
-		rocksdb_backup_checkpoint();
+		rocksdb_backup_checkpoint(ds_data);
 	}
 
 	msg("Backup created in directory '%s'", xtrabackup_target_dir);
@@ -1609,11 +1612,11 @@ bool backup_finish()
 			mysql_slave_position);
 	}
 
-	if (!write_backup_config_file()) {
+	if (!write_backup_config_file(ds_data)) {
 		return(false);
 	}
 
-	if (!write_xtrabackup_info(mysql_connection, XTRABACKUP_INFO,
+	if (!write_xtrabackup_info(ds_data, mysql_connection, XTRABACKUP_INFO,
 				    opt_history != 0, true)) {
 		return(false);
 	}
@@ -1680,6 +1683,7 @@ ibx_copy_incremental_over_full()
 	bool ret = true;
 	char path[FN_REFLEN];
 	int i;
+	ds_ctxt *ds_data= NULL;
 
         DBUG_ASSERT(!opt_galera_info);
 	datadir_node_init(&node);
@@ -1707,15 +1711,20 @@ ibx_copy_incremental_over_full()
 				unlink(node.filepath_rel);
 			}
 
-			if (!(ret = copy_file(ds_data, node.filepath,
-						node.filepath_rel, 1))) {
+			if (!(ret = ds_data->copy_file(node.filepath,
+						       node.filepath_rel, 1))) {
 				msg("Failed to copy file %s",
 					node.filepath);
 				goto cleanup;
 			}
 		}
 
-		if (!(ret = backup_files_from_datadir(xtrabackup_incremental_dir)))
+		if (!(ret = backup_files_from_datadir(ds_data,
+						      xtrabackup_incremental_dir,
+						      "aws-kms-key")) ||
+		    !(ret = backup_files_from_datadir(ds_data,
+						      xtrabackup_incremental_dir,
+						      "aria_log")))
 			goto cleanup;
 
 		/* copy supplementary files */
@@ -1730,7 +1739,7 @@ ibx_copy_incremental_over_full()
 				if (file_exists(sup_files[i])) {
 					unlink(sup_files[i]);
 				}
-				copy_file(ds_data, path, sup_files[i], 0);
+				ds_data->copy_file(path, sup_files[i], 0);
 			}
 		}
 
@@ -1744,7 +1753,7 @@ ibx_copy_incremental_over_full()
 			if (my_mkdir(ROCKSDB_BACKUP_DIR, 0777, MYF(0))) {
 				die("my_mkdir failed for " ROCKSDB_BACKUP_DIR);
 			}
-			copy_or_move_dir(path, ROCKSDB_BACKUP_DIR, true, true);
+			ds_data->copy_or_move_dir(path, ROCKSDB_BACKUP_DIR, true, true);
 		}
 		ibx_incremental_drop_databases(xtrabackup_target_dir,
 					       xtrabackup_incremental_dir);
@@ -1830,6 +1839,39 @@ public:
   }
 };
 
+
+static inline bool
+is_aria_log_dir_file(const datadir_node_t &node)
+{
+  return starts_with(node.filepath_rel, "aria_log");
+}
+
+
+bool
+copy_back_aria_logs(const char *dstdir)
+{
+  std::unique_ptr<ds_ctxt_t, void (&)(ds_ctxt_t*)>
+    ds_ctxt_aria_log_dir_path(ds_create(dstdir, DS_TYPE_LOCAL), ds_destroy);
+
+  datadir_node_t node;
+  datadir_node_init(&node);
+  datadir_iter_t *it = datadir_iter_new(".", false);
+
+  while (datadir_iter_next(it, &node))
+  {
+    if (!is_aria_log_dir_file(node))
+      continue;
+    if (!copy_or_move_file(ds_ctxt_aria_log_dir_path.get(),
+                           node.filepath, node.filepath_rel,
+                           dstdir, 1))
+      return false;
+  }
+  datadir_node_free(&node);
+  datadir_iter_free(it);
+  return true;
+}
+
+
 bool
 copy_back()
 {
@@ -1863,12 +1905,22 @@ copy_back()
 			return(false);
 	}
 
+        Copy_back_dst_dir aria_log_dir_path_dst;
+        const char *aria_log_dir_path_abs= aria_log_dir_path_dst.make(aria_log_dir_path);
+	if (aria_log_dir_path && *aria_log_dir_path
+		&& !directory_exists(aria_log_dir_path_abs, true)) {
+			return false;
+	}
+
 	/* cd to backup directory */
 	if (my_setwd(xtrabackup_target_dir, MYF(MY_WME)))
 	{
 		msg("Can't my_setwd %s", xtrabackup_target_dir);
 		return(false);
 	}
+
+	if (!copy_back_aria_logs(aria_log_dir_path_abs))
+		return false;
 
 	/* parse data file path */
 
@@ -1892,7 +1944,7 @@ copy_back()
 
 	dst_dir = dst_dir_buf.make(srv_undo_dir);
 
-	ds_data = ds_create(dst_dir, DS_TYPE_LOCAL);
+	ds_ctxt *ds_tmp = ds_create(dst_dir, DS_TYPE_LOCAL);
 
 	for (uint i = 1; i <= TRX_SYS_MAX_UNDO_SPACES; i++) {
 		char filename[20];
@@ -1900,14 +1952,14 @@ copy_back()
 		if (!file_exists(filename)) {
 			break;
 		}
-		if (!(ret = copy_or_move_file(filename, filename,
+		if (!(ret = copy_or_move_file(ds_tmp, filename, filename,
 					      dst_dir, 1))) {
 			goto cleanup;
 		}
 	}
 
-	ds_destroy(ds_data);
-	ds_data = NULL;
+	ds_destroy(ds_tmp);
+	ds_tmp = NULL;
 
 	/* copy redo logs */
 
@@ -1916,7 +1968,7 @@ copy_back()
 	/* --backup generates a single LOG_FILE_NAME, which we must copy
 	if it exists. */
 
-	ds_data = ds_create(dst_dir, DS_TYPE_LOCAL);
+	ds_tmp = ds_create(dst_dir, DS_TYPE_LOCAL);
 	MY_STAT stat_arg;
 	if (!my_stat(LOG_FILE_NAME, &stat_arg, MYF(0)) || !stat_arg.st_size) {
 		/* After completed --prepare, redo log files are redundant.
@@ -1931,17 +1983,17 @@ copy_back()
 		snprintf(filename, sizeof filename, "%s/%s101", dst_dir,
 			 LOG_FILE_NAME_PREFIX);
 		unlink(filename);
-	} else if (!(ret = copy_or_move_file(LOG_FILE_NAME, LOG_FILE_NAME,
+	} else if (!(ret = copy_or_move_file(ds_tmp, LOG_FILE_NAME, LOG_FILE_NAME,
 					     dst_dir, 1))) {
 		goto cleanup;
 	}
-	ds_destroy(ds_data);
+	ds_destroy(ds_tmp);
 
 	/* copy innodb system tablespace(s) */
 
 	dst_dir = dst_dir_buf.make(innobase_data_home_dir);
 
-	ds_data = ds_create(dst_dir, DS_TYPE_LOCAL);
+	ds_tmp = ds_create(dst_dir, DS_TYPE_LOCAL);
 
 	for (Tablespace::const_iterator iter(srv_sys_space.begin()),
 	     end(srv_sys_space.end());
@@ -1949,16 +2001,16 @@ copy_back()
 	     ++iter) {
 		const char *filename = base_name(iter->name());
 
-		if (!(ret = copy_or_move_file(filename, iter->name(),
+		if (!(ret = copy_or_move_file(ds_tmp, filename, iter->name(),
 					      dst_dir, 1))) {
 			goto cleanup;
 		}
 	}
 
-	ds_destroy(ds_data);
+	ds_destroy(ds_tmp);
 
 	/* copy the rest of tablespaces */
-	ds_data = ds_create(mysql_data_home, DS_TYPE_LOCAL);
+	ds_tmp = ds_create(mysql_data_home, DS_TYPE_LOCAL);
 
 	it = datadir_iter_new(".", false);
 
@@ -1973,6 +2025,10 @@ copy_back()
 		char c_tmp;
 		int i_tmp;
 		bool is_ibdata_file;
+
+		/* Skip aria log files */
+		if (is_aria_log_dir_file(node))
+			continue;
 
 		if (strstr(node.filepath,"/" ROCKSDB_BACKUP_DIR "/")
 #ifdef _WIN32
@@ -2045,7 +2101,7 @@ copy_back()
 			continue;
 		}
 
-		if (!(ret = copy_or_move_file(node.filepath, node.filepath_rel,
+		if (!(ret = copy_or_move_file(ds_tmp, node.filepath, node.filepath_rel,
 					      mysql_data_home, 1))) {
 			goto cleanup;
 		}
@@ -2055,12 +2111,12 @@ copy_back()
 
         if (file_exists(default_buffer_pool_file) &&
             innobase_buffer_pool_filename) {
-		copy_or_move_file(default_buffer_pool_file,
+		copy_or_move_file(ds_tmp, default_buffer_pool_file,
 				  innobase_buffer_pool_filename,
 				  mysql_data_home, 0);
 	}
 
-	rocksdb_copy_back();
+	rocksdb_copy_back(ds_tmp);
 
 cleanup:
 	if (it != NULL) {
@@ -2069,11 +2125,11 @@ cleanup:
 
 	datadir_node_free(&node);
 
-	if (ds_data != NULL) {
-		ds_destroy(ds_data);
+	if (ds_tmp != NULL) {
+		ds_destroy(ds_tmp);
 	}
 
-	ds_data = NULL;
+	ds_tmp = NULL;
 
 	sync_check_close();
 	return(ret);
@@ -2181,7 +2237,7 @@ decrypt_decompress()
 	}
 
 	/* copy the rest of tablespaces */
-	ds_data = ds_create(".", DS_TYPE_LOCAL);
+	ds_ctxt *ds_tmp = ds_create(".", DS_TYPE_LOCAL);
 
 	it = datadir_iter_new(".", false);
 
@@ -2194,11 +2250,11 @@ decrypt_decompress()
 		datadir_iter_free(it);
 	}
 
-	if (ds_data != NULL) {
-		ds_destroy(ds_data);
+	if (ds_tmp != NULL) {
+		ds_destroy(ds_tmp);
 	}
 
-	ds_data = NULL;
+	ds_tmp = NULL;
 
 	sync_check_close();
 
@@ -2210,7 +2266,9 @@ decrypt_decompress()
   Do not copy the Innodb files (ibdata1, redo log files),
   as this is done in a separate step.
 */
-static bool backup_files_from_datadir(const char *dir_path)
+static bool backup_files_from_datadir(ds_ctxt_t *ds_data,
+                                      const char *dir_path,
+                                      const char *prefix)
 {
 	os_file_dir_t dir = os_file_opendir(dir_path);
 	if (dir == IF_WIN(INVALID_HANDLE_VALUE, nullptr)) return false;
@@ -2226,8 +2284,7 @@ static bool backup_files_from_datadir(const char *dir_path)
 		if (!pname)
 			pname = info.name;
 
-		if (!starts_with(pname, "aws-kms-key") &&
-			!starts_with(pname, "aria_log"))
+		if (!starts_with(pname, prefix))
 			/* For ES exchange the above line with the following code:
 			(!xtrabackup_prepare || !xtrabackup_incremental_dir ||
 				!starts_with(pname, "aria_log")))
@@ -2240,7 +2297,7 @@ static bool backup_files_from_datadir(const char *dir_path)
 
 		std::string full_path(dir_path);
 		full_path.append(1, OS_PATH_SEPARATOR).append(info.name);
-		if (!(ret = copy_file(ds_data, full_path.c_str() , info.name, 1)))
+		if (!(ret = ds_data->copy_file(full_path.c_str() , info.name, 1)))
 			break;
 	}
 	os_file_closedir(dir);
@@ -2290,13 +2347,14 @@ static char *trim_trailing_dir_sep(char *path)
 Create a file hardlink.
 @return true on success, false on error.
 */
-static bool make_hardlink(const char *from_path, const char *to_path)
+bool
+ds_ctxt_t::make_hardlink(const char *from_path, const char *to_path)
 {
 	DBUG_EXECUTE_IF("no_hardlinks", return false;);
 	char to_path_full[FN_REFLEN];
 	if (!is_abs_path(to_path))
 	{
-		fn_format(to_path_full, to_path, ds_data->root, "", MYF(MY_RELATIVE_PATH));
+		fn_format(to_path_full, to_path, root, "", MYF(MY_RELATIVE_PATH));
 	}
 	else
 	{
@@ -2317,7 +2375,9 @@ static bool make_hardlink(const char *from_path, const char *to_path)
  Has optimization that allows to use hardlinks when possible
  (source and destination are directories on the same device)
 */
-static void copy_or_move_dir(const char *from, const char *to, bool do_copy, bool allow_hardlinks)
+void
+ds_ctxt_t::copy_or_move_dir(const char *from, const char *to,
+                            bool do_copy, bool allow_hardlinks)
 {
 	datadir_node_t node;
 	datadir_node_init(&node);
@@ -2345,8 +2405,8 @@ static void copy_or_move_dir(const char *from, const char *to, bool do_copy, boo
 		if (!rc) 
 		{
 			rc = (do_copy ?
-				copy_file(ds_data, from_path, to_path, 1) :
-				move_file(ds_data, from_path, node.filepath_rel,
+				copy_file(from_path, to_path, 1) :
+				move_file(from_path, node.filepath_rel,
 					to, 1));
 		}
 		if (!rc)
@@ -2443,7 +2503,7 @@ static void rocksdb_create_checkpoint()
   remove temp.checkpoint directory (in server's datadir)
   and release user level lock acquired inside rocksdb_create_checkpoint().
 */
-static void rocksdb_backup_checkpoint()
+static void rocksdb_backup_checkpoint(ds_ctxt *ds_data)
 {
 	msg("Backing up rocksdb files.");
 	char rocksdb_backup_dir[FN_REFLEN];
@@ -2455,7 +2515,7 @@ static void rocksdb_backup_checkpoint()
 			die("Can't create rocksdb backup directory %s", rocksdb_backup_dir);
 		}
 	}
-	copy_or_move_dir(rocksdb_checkpoint_dir, ROCKSDB_BACKUP_DIR, true, backup_to_directory);
+	ds_data->copy_or_move_dir(rocksdb_checkpoint_dir, ROCKSDB_BACKUP_DIR, true, backup_to_directory);
 	rocksdb_remove_checkpoint_directory();
 	rocksdb_unlock_checkpoint();
 }
@@ -2463,7 +2523,7 @@ static void rocksdb_backup_checkpoint()
 /*
   Copies #rocksdb directory to the $rockdb_data_dir, on copy-back
 */
-static void rocksdb_copy_back() {
+static void rocksdb_copy_back(ds_ctxt *ds_data) {
 	if (access(ROCKSDB_BACKUP_DIR, 0))
 		return;
 	char rocksdb_home_dir[FN_REFLEN];
@@ -2475,5 +2535,5 @@ static void rocksdb_copy_back() {
 		xb_rocksdb_datadir?trim_dotslash(xb_rocksdb_datadir): ROCKSDB_BACKUP_DIR);
 	}
 	mkdirp(rocksdb_home_dir, 0777, MYF(0));
-	copy_or_move_dir(ROCKSDB_BACKUP_DIR, rocksdb_home_dir, xtrabackup_copy_back, xtrabackup_copy_back);
+	ds_data->copy_or_move_dir(ROCKSDB_BACKUP_DIR, rocksdb_home_dir, xtrabackup_copy_back, xtrabackup_copy_back);
 }
