@@ -1,0 +1,18 @@
+--source include/is_embedded.inc
+--source include/big_test.inc
+
+--echo #
+--echo # MDEV-31121: ANALYZE statement produces 0 for all timings in embedded serve
+--echo #
+create table t1 (a int);
+insert into t1 values (0),(0);
+let $out=`
+analyze format=json select sleep(1+a) from t1
+`;
+
+evalp set @js='$out';
+set @out=(select json_extract(@js,'$**.query_block.r_total_time_ms'));
+select cast(json_extract(@out,'$[0]') as DOUBLE) > 0;
+
+drop table t1;
+
