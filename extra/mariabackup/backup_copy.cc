@@ -1849,10 +1849,8 @@ is_aria_log_dir_file(const datadir_node_t &node)
 
 
 bool
-copy_back_aria_logs()
+copy_back_aria_logs(const char *dstdir)
 {
-  Copy_back_dst_dir dst_dir_buf;
-  const char *dstdir= dst_dir_buf.make(aria_log_dir_path);
   std::unique_ptr<ds_ctxt_t, void (&)(ds_ctxt_t*)>
     ds_ctxt_aria_log_dir_path(ds_create(dstdir, DS_TYPE_LOCAL), ds_destroy);
 
@@ -1907,8 +1905,11 @@ copy_back()
 		&& !directory_exists(srv_log_group_home_dir, true)) {
 			return(false);
 	}
+
+        Copy_back_dst_dir aria_log_dir_path_dst;
+        const char *aria_log_dir_path_abs= aria_log_dir_path_dst.make(aria_log_dir_path);
 	if (aria_log_dir_path && *aria_log_dir_path
-		&& !directory_exists(aria_log_dir_path, true)) {
+		&& !directory_exists(aria_log_dir_path_abs, true)) {
 			return false;
 	}
 
@@ -1919,7 +1920,7 @@ copy_back()
 		return(false);
 	}
 
-	if (!copy_back_aria_logs())
+	if (!copy_back_aria_logs(aria_log_dir_path_abs))
 		return false;
 
 	/* parse data file path */
