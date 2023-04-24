@@ -1317,11 +1317,11 @@ buf_tmp_buffer_t *buf_pool_t::io_buf_t::reserve()
     for (buf_tmp_buffer_t *s= slots, *e= slots + n_slots; s != e; s++)
       if (s->acquire())
         return s;
-    os_aio_wait_until_no_pending_writes();
+    os_aio_wait_until_no_pending_writes(true);
     for (buf_tmp_buffer_t *s= slots, *e= slots + n_slots; s != e; s++)
       if (s->acquire())
         return s;
-    os_aio_wait_until_no_pending_reads();
+    os_aio_wait_until_no_pending_reads(true);
   }
 }
 
