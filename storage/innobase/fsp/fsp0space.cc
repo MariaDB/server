@@ -88,25 +88,25 @@ Tablespace::open_or_create(bool is_temp)
 	ut_ad(!m_files.empty());
 
 	for (iterator it = begin(); it != end(); ++it) {
-
 		if (it->m_exists) {
 			err = it->open_or_create(
 				m_ignore_read_only
 				? false : srv_read_only_mode);
+			if (err != DB_SUCCESS) {
+				return err;
+			}
 		} else {
 			err = it->open_or_create(
 				m_ignore_read_only
 				? false : srv_read_only_mode);
 
+			if (err != DB_SUCCESS) {
+				return err;
+			}
+
 			/* Set the correct open flags now that we have
 			successfully created the file. */
-			if (err == DB_SUCCESS) {
-				file_found(*it);
-			}
-		}
-
-		if (err != DB_SUCCESS) {
-			break;
+			file_found(*it);
 		}
 
 		/* We can close the handle now and open the tablespace
@@ -130,20 +130,22 @@ Tablespace::open_or_create(bool is_temp)
 				fsp_flags = FSP_FLAGS_PAGE_SSIZE();
 			}
 
+			mysql_mutex_lock(&fil_system.mutex);
 			space = fil_space_t::create(
 				m_space_id, fsp_flags,
 				is_temp
 				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE,
 				NULL);
 			if (!space) {
+				mysql_mutex_unlock(&fil_system.mutex);
 				return DB_ERROR;
 			}
+		} else {
+			mysql_mutex_lock(&fil_system.mutex);
 		}
-
-		ut_a(fil_validate());
-
 		space->add(it->m_filepath, OS_FILE_CLOSED, it->m_size,
 			   false, true);
+		mysql_mutex_unlock(&fil_system.mutex);
 	}
 
 	return(err);

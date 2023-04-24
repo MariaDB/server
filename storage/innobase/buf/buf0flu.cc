@@ -209,7 +209,7 @@ void buf_flush_remove_pages(uint32_t id)
     if (!deferred)
       break;
 
-    os_aio_wait_until_no_pending_writes();
+    os_aio_wait_until_no_pending_writes(true);
   }
 }
 
@@ -1216,6 +1216,11 @@ static void buf_flush_LRU_list_batch(ulint max, bool evict,
       ++n->evicted;
       /* fall through */
     case 1:
+      if (UNIV_LIKELY(scanned & 31))
+        continue;
+      mysql_mutex_unlock(&buf_pool.mutex);
+    reacquire_mutex:
+      mysql_mutex_lock(&buf_pool.mutex);
       continue;
     }
 
@@ -1251,32 +1256,37 @@ static void buf_flush_LRU_list_batch(ulint max, bool evict,
           auto p= buf_flush_space(space_id);
           space= p.first;
           last_space_id= space_id;
+          if (!space)
+          {
+            mysql_mutex_lock(&buf_pool.mutex);
+            goto no_space;
+          }
           mysql_mutex_lock(&buf_pool.mutex);
-          if (p.second)
-            buf_pool.stat.n_pages_written+= p.second;
+          buf_pool.stat.n_pages_written+= p.second;
         }
         else
+        {
           ut_ad(!space);
+          goto no_space;
+        }
       }
       else if (space->is_stopping())
       {
         space->release();
         space= nullptr;
-      }
-
-      if (!space)
-      {
+      no_space:
         mysql_mutex_lock(&buf_pool.flush_list_mutex);
         buf_flush_discard_page(bpage);
+        continue;
       }
-      else if (neighbors && space->is_rotational())
+
+      if (neighbors && space->is_rotational())
       {
         mysql_mutex_unlock(&buf_pool.mutex);
         n->flushed+= buf_flush_try_neighbors(space, page_id, bpage,
                                              neighbors == 1,
                                              do_evict, n->flushed, max);
-reacquire_mutex:
-        mysql_mutex_lock(&buf_pool.mutex);
+        goto reacquire_mutex;
       }
       else if (n->flushed >= max && !recv_recovery_is_on())
       {
@@ -1643,7 +1653,7 @@ done:
     space->release();
 
   if (space->purpose == FIL_TYPE_IMPORT)
-    os_aio_wait_until_no_pending_writes();
+    os_aio_wait_until_no_pending_writes(true);
   else
     buf_dblwr.flush_buffered_writes();
 
@@ -1855,7 +1865,7 @@ static void buf_flush_wait(lsn_t lsn)
         break;
     }
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-    os_aio_wait_until_no_pending_writes();
+    os_aio_wait_until_no_pending_writes(false);
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
   }
 }
@@ -1890,16 +1900,20 @@ ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn)
                                        MONITOR_FLUSH_SYNC_COUNT,
                                        MONITOR_FLUSH_SYNC_PAGES, n_pages);
         }
-        os_aio_wait_until_no_pending_writes();
+        os_aio_wait_until_no_pending_writes(false);
         mysql_mutex_lock(&buf_pool.flush_list_mutex);
       }
       while (buf_pool.get_oldest_modification(sync_lsn) < sync_lsn);
     }
     else
 #endif
+    {
+      thd_wait_begin(nullptr, THD_WAIT_DISKIO);
+      tpool::tpool_wait_begin();
       buf_flush_wait(sync_lsn);
-
-    thd_wait_end(nullptr);
+      tpool::tpool_wait_end();
+      thd_wait_end(nullptr);
+    }
   }
 
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
@@ -2409,7 +2423,7 @@ static void buf_flush_page_cleaner()
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
     buf_flush_wait_LRU_batch_end();
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-    os_aio_wait_until_no_pending_writes();
+    os_aio_wait_until_no_pending_writes(false);
   }
 
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
@@ -2459,7 +2473,7 @@ ATTRIBUTE_COLD void buf_flush_buffer_pool()
   {
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
     buf_flush_list(srv_max_io_capacity);
-    os_aio_wait_until_no_pending_writes();
+    os_aio_wait_until_no_pending_writes(false);
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
     service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
                                    "Waiting to flush " ULINTPF " pages",
@@ -2467,7 +2481,6 @@ ATTRIBUTE_COLD void buf_flush_buffer_pool()
   }
 
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-  ut_ad(!os_aio_pending_writes());
   ut_ad(!os_aio_pending_reads());
 }
 
