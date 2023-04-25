@@ -477,7 +477,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
 
   view= lex->unlink_first_table(&link_to_local);
 
-  if (check_db_dir_existence(view->db.str))
+  if (check_db_dir_existence(thd->catalog, view->db.str))
   {
     my_error(ER_BAD_DB_ERROR, MYF(0), view->db.str);
     res= TRUE;
@@ -778,20 +778,21 @@ err_no_relink:
 }
 
 
-static void make_view_filename(LEX_CSTRING *dir, char *dir_buff,
-                               size_t dir_buff_len,
+static void make_view_filename(const SQL_CATALOG *catalog, LEX_CSTRING *dir,
+                               char *dir_buff, size_t dir_buff_len,
                                LEX_CSTRING *path, char *path_buff,
                                size_t path_buff_len,
                                LEX_CSTRING *file,
                                TABLE_LIST *view)
 {
   /* print file name */
-  dir->length= build_table_filename(dir_buff, dir_buff_len - 1,
+  dir->length= build_table_filename(catalog, dir_buff, dir_buff_len - 1,
                                    view->db.str, "", "", 0);
   dir->str= dir_buff;
 
-  path->length= build_table_filename(path_buff, path_buff_len - 1,
-                                     view->db.str, view->table_name.str, reg_ext, 0);
+  path->length= build_table_filename(catalog, path_buff, path_buff_len - 1,
+                                     view->db.str, view->table_name.str,
+                                     reg_ext, 0);
   path->str= path_buff;
 
   file->str= path->str + dir->length;
@@ -879,7 +880,7 @@ int mariadb_fix_view(THD *thd, TABLE_LIST *view, bool wrong_checksum,
   if (!wrong_checksum && view->mariadb_version)
     DBUG_RETURN(HA_ADMIN_OK);
 
-  make_view_filename(&dir, dir_buff, sizeof(dir_buff),
+  make_view_filename(thd->catalog, &dir, dir_buff, sizeof(dir_buff),
                      &path, path_buff, sizeof(path_buff),
                      &file, view);
   /* init timestamp */
@@ -1084,7 +1085,7 @@ static int mysql_register_view(THD *thd, DDL_LOG_STATE *ddl_log_state,
   }
 loop_out:
   /* print file name */
-  make_view_filename(&dir, dir_buff, sizeof(dir_buff),
+  make_view_filename(thd->catalog, &dir, dir_buff, sizeof(dir_buff),
                      &path, path_buff, sizeof(path_buff),
                      &file, view);
   /* init timestamp */
@@ -1963,8 +1964,9 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
     LEX_CSTRING cpath;
     bool not_exist;
     size_t length;
-    length= build_table_filename(path, sizeof(path) - 1,
-                                 view->db.str, view->table_name.str, reg_ext, 0);
+    length= build_table_filename(thd->catalog, path, sizeof(path) - 1,
+                                 view->db.str, view->table_name.str,
+                                 reg_ext, 0);
     lex_string_set3(&cpath, path, length);
 
     if ((not_exist= my_access(path, F_OK)) || !dd_frm_is_view(thd, path))
@@ -2335,7 +2337,8 @@ mysql_rename_view(THD *thd,
   DBUG_ENTER("mysql_rename_view");
 
   pathstr.str= (char *) path_buff;
-  pathstr.length= build_table_filename(path_buff, sizeof(path_buff) - 1,
+  pathstr.length= build_table_filename(thd->catalog, path_buff,
+                                       sizeof(path_buff) - 1,
                                        old_db->str, old_name->str,
                                        reg_ext, 0);
 
@@ -2369,12 +2372,15 @@ mysql_rename_view(THD *thd,
     debug_crash_here("rename_view_after_rename_schema_file");
 
     dir.str= dir_buff;
-    dir.length= build_table_filename(dir_buff, sizeof(dir_buff) - 1,
+    dir.length= build_table_filename(thd->catalog, dir_buff,
+                                     sizeof(dir_buff) - 1,
                                      new_db->str, "", "", 0);
 
     pathstr.str= path_buff;
-    pathstr.length= build_table_filename(path_buff, sizeof(path_buff) - 1,
-                                         new_db->str, new_name->str, reg_ext, 0);
+    pathstr.length= build_table_filename(thd->catalog, path_buff,
+                                         sizeof(path_buff) - 1,
+                                         new_db->str, new_name->str, reg_ext,
+                                         0);
 
     file.str= pathstr.str + dir.length;
     file.length= pathstr.length - dir.length;

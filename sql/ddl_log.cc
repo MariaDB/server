@@ -977,14 +977,15 @@ public:
   @return 1  No temporary file found
 */
 
-static bool build_filename_and_delete_tmp_file(char *path, size_t path_length,
+static bool build_filename_and_delete_tmp_file(SQL_CATALOG *catalog,
+                                               char *path, size_t path_length,
                                                const LEX_CSTRING *db,
                                                const LEX_CSTRING *name,
                                                const char *ext,
                                                PSI_file_key psi_key)
 {
   bool deleted;
-  uint length= build_table_filename(path, path_length-1,
+  uint length= build_table_filename(catalog, path, path_length-1,
                                     db->str, name->str, ext, 0);
   path[length]= '~';
   path[length+1]= 0;
@@ -1110,7 +1111,7 @@ static handler *create_handler(THD *thd, MEM_ROOT *mem_root,
   like connect, needs the .frm file to exists to be able to do an rename.
 */
 
-static void execute_rename_table(DDL_LOG_ENTRY *ddl_log_entry, handler *file,
+static void execute_rename_table(THD *thd, DDL_LOG_ENTRY *ddl_log_entry, handler *file,
                                  const LEX_CSTRING *from_db,
                                  const LEX_CSTRING *from_table,
                                  const LEX_CSTRING *to_db,
@@ -1123,18 +1124,18 @@ static void execute_rename_table(DDL_LOG_ENTRY *ddl_log_entry, handler *file,
 
   if (file->needs_lower_case_filenames())
   {
-    build_lower_case_table_filename(from_path, FN_REFLEN,
+    build_lower_case_table_filename(thd->catalog, from_path, FN_REFLEN,
                                     from_db, from_table,
                                     flags & FN_FROM_IS_TMP);
-    build_lower_case_table_filename(to_path, FN_REFLEN,
+    build_lower_case_table_filename(thd->catalog, to_path, FN_REFLEN,
                                     to_db, to_table, flags & FN_TO_IS_TMP);
   }
   else
   {
-    fr_length= build_table_filename(from_path, FN_REFLEN,
+    fr_length= build_table_filename(thd->catalog, from_path, FN_REFLEN,
                                     from_db->str, from_table->str, "",
                                     flags & FN_TO_IS_TMP);
-    to_length= build_table_filename(to_path, FN_REFLEN,
+    to_length= build_table_filename(thd->catalog, to_path, FN_REFLEN,
                                     to_db->str, to_table->str, "",
                                     flags & FN_TO_IS_TMP);
   }
@@ -1145,10 +1146,10 @@ static void execute_rename_table(DDL_LOG_ENTRY *ddl_log_entry, handler *file,
       We have to rebuild the file names as the .frm file should be used
       without lower case conversion
     */
-    fr_length= build_table_filename(from_path, FN_REFLEN,
+    fr_length= build_table_filename(thd->catalog, from_path, FN_REFLEN,
                                     from_db->str, from_table->str, reg_ext,
                                     flags & FN_FROM_IS_TMP);
-    to_length= build_table_filename(to_path, FN_REFLEN,
+    to_length= build_table_filename(thd->catalog, to_path, FN_REFLEN,
                                     to_db->str, to_table->str, reg_ext,
                                     flags & FN_TO_IS_TMP);
   }
@@ -1193,10 +1194,10 @@ static void rename_triggers(THD *thd, DDL_LOG_ENTRY *ddl_log_entry,
     to_table=   ddl_log_entry->extra_name;
   }
 
-  build_filename_and_delete_tmp_file(from_path, sizeof(from_path),
+  build_filename_and_delete_tmp_file(thd->catalog, from_path, sizeof(from_path),
                                      &from_db, &from_table,
                                      TRG_EXT, key_file_trg);
-  build_filename_and_delete_tmp_file(to_path, sizeof(to_path),
+  build_filename_and_delete_tmp_file(thd->catalog, to_path, sizeof(to_path),
                                      &to_db, &to_table,
                                      TRG_EXT, key_file_trg);
   if (lower_case_table_names)
@@ -1488,7 +1489,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
     /* fall through */
     case DDL_RENAME_PHASE_TABLE:
       /* Restore frm and table to original names */
-      execute_rename_table(ddl_log_entry, file,
+      execute_rename_table(thd, ddl_log_entry, file,
                            &ddl_log_entry->db, &ddl_log_entry->name,
                            &ddl_log_entry->from_db, &ddl_log_entry->from_name,
                            0,
@@ -1516,12 +1517,12 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
     to_table=   ddl_log_entry->name;
 
     /* Delete any left over .frm~ files */
-    build_filename_and_delete_tmp_file(to_path, sizeof(to_path) - 1,
+    build_filename_and_delete_tmp_file(thd->catalog, to_path, sizeof(to_path) - 1,
                                        &ddl_log_entry->db,
                                        &ddl_log_entry->name,
                                        reg_ext,
                                        key_file_fileparser);
-    build_filename_and_delete_tmp_file(from_path, sizeof(from_path) - 1,
+    build_filename_and_delete_tmp_file(thd->catalog, from_path, sizeof(from_path) - 1,
                                        &ddl_log_entry->from_db,
                                        &ddl_log_entry->from_name,
                                        reg_ext, key_file_fileparser);
@@ -1668,7 +1669,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
     off_t frm_length= 1;                        // Impossible length
 
     /* Delete trigger temporary file if it still exists */
-    if (!build_filename_and_delete_tmp_file(to_path, sizeof(to_path) - 1,
+    if (!build_filename_and_delete_tmp_file(thd->catalog, to_path, sizeof(to_path) - 1,
                                             &ddl_log_entry->db,
                                             &ddl_log_entry->name,
                                             TRG_EXT,
@@ -1692,7 +1693,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
         File size changed and it was not binlogged (as this entry was
         executed)
       */
-      (void) rm_trigname_file(to_path, &ddl_log_entry->db,
+      (void) rm_trigname_file(thd->catalog, to_path, &ddl_log_entry->db,
                               &ddl_log_entry->from_name,
                               MYF(0));
 
@@ -1876,11 +1877,11 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
     trigger= ddl_log_entry->tmp_name;
 
     /* Delete backup .TRG (trigger file) if it exists */
-    (void) build_filename_and_delete_tmp_file(to_path, sizeof(to_path) - 1,
+    (void) build_filename_and_delete_tmp_file(thd->catalog, to_path, sizeof(to_path) - 1,
                                               &db, &table,
                                               TRG_EXT,
                                               key_file_fileparser);
-    (void) build_filename_and_delete_tmp_file(to_path, sizeof(to_path) - 1,
+    (void) build_filename_and_delete_tmp_file(thd->catalog, to_path, sizeof(to_path) - 1,
                                               &db, &trigger,
                                               TRN_EXT,
                                               key_file_fileparser);
@@ -1889,14 +1890,14 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
     {
       size_t length;
       /* Delete copy of .TRN and .TRG files */
-      length= build_table_filename(to_path, sizeof(to_path) - 1,
+      length= build_table_filename(thd->catalog, to_path, sizeof(to_path) - 1,
                                    db.str, table.str, TRG_EXT, 0);
       to_path[length]= '-';
       to_path[length+1]= 0;
       mysql_file_delete(key_file_fileparser, to_path,
                         MYF(MY_WME|MY_IGNORE_ENOENT));
 
-      length= build_table_filename(to_path, sizeof(to_path) - 1,
+      length= build_table_filename(thd->catalog, to_path, sizeof(to_path) - 1,
                                    db.str, trigger.str, TRN_EXT, 0);
       to_path[length]= '-';
       to_path[length+1]= 0;
@@ -1911,7 +1912,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
       LEX_CSTRING path= {to_path, 0};
       size_t length;
       /* Restore old version if the .TRN and .TRG files */
-      length= build_table_filename(to_path, sizeof(to_path) - 1,
+      length= build_table_filename(thd->catalog, to_path, sizeof(to_path) - 1,
                                    db.str, table.str, TRG_EXT, 0);
       to_path[length]='-';
       to_path[length+1]= 0;
@@ -1920,7 +1921,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
       if (!access(to_path, F_OK))
         sql_restore_definition_file(&path);
 
-      length= build_table_filename(to_path, sizeof(to_path) - 1,
+      length= build_table_filename(thd->catalog, to_path, sizeof(to_path) - 1,
                                    db.str, trigger.str, TRN_EXT, 0);
       to_path[length]='-';
       to_path[length+1]= 0;
@@ -1943,11 +1944,11 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
     case DDL_CREATE_TRIGGER_PHASE_NO_OLD_TRIGGER:
     {
       /* No old trigger existed. We can just delete the .TRN and .TRG files */
-      build_table_filename(to_path, sizeof(to_path) - 1,
+      build_table_filename(thd->catalog, to_path, sizeof(to_path) - 1,
                            db.str, table.str, TRG_EXT, 0);
       mysql_file_delete(key_file_fileparser, to_path,
                         MYF(MY_WME|MY_IGNORE_ENOENT));
-      build_table_filename(to_path, sizeof(to_path) - 1,
+      build_table_filename(thd->catalog, to_path, sizeof(to_path) - 1,
                            db.str, trigger.str, TRN_EXT, 0);
       mysql_file_delete(key_file_fileparser, to_path,
                         MYF(MY_WME|MY_IGNORE_ENOENT));
@@ -1996,7 +1997,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
       quick_rm_table(thd, hton, &db, &table, FN_IS_TMP);
       if (!is_renamed)
       {
-        execute_rename_table(ddl_log_entry, file,
+        execute_rename_table(thd, ddl_log_entry, file,
                              &ddl_log_entry->from_db,
                              &ddl_log_entry->extra_name, // #sql-backup
                              &ddl_log_entry->from_db,
@@ -2024,11 +2025,11 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
         original .frm file and potentially a #sql-alter...frm file
         with the new definition.
       */
-      fr_length= build_table_filename(from_path, sizeof(from_path) - 1,
+      fr_length= build_table_filename(thd->catalog, from_path, sizeof(from_path) - 1,
                                       ddl_log_entry->db.str,
                                       ddl_log_entry->name.str,
                                       reg_ext, 0);
-      to_length= build_table_filename(to_path, sizeof(to_path) - 1,
+      to_length= build_table_filename(thd->catalog, to_path, sizeof(to_path) - 1,
                                       ddl_log_entry->from_db.str,
                                       ddl_log_entry->from_name.str,
                                       reg_ext, 0);
@@ -2089,7 +2090,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
         /* After the renames above, the original table is now in from_name */
         ddl_log_entry->name= ddl_log_entry->from_name;
         /* Rename db.name -> db.extra_name */
-        execute_rename_table(ddl_log_entry, file,
+        execute_rename_table(thd, ddl_log_entry, file,
                              &ddl_log_entry->db, &ddl_log_entry->name,
                              &ddl_log_entry->db, &ddl_log_entry->extra_name,
                              0,
@@ -2106,11 +2107,11 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
         We should remove the original table and in the next stage replace
         it with the new one.
       */
-      build_table_filename(from_path, sizeof(from_path) - 1,
+      build_table_filename(thd->catalog, from_path, sizeof(from_path) - 1,
                            ddl_log_entry->from_db.str,
                            ddl_log_entry->from_name.str,
                            "", 0);
-      build_table_filename(to_path, sizeof(to_path) - 1,
+      build_table_filename(thd->catalog, to_path, sizeof(to_path) - 1,
                            ddl_log_entry->db.str,
                            ddl_log_entry->name.str,
                            "", 0);
@@ -2140,7 +2141,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
       {
         uint length;
         /* Rename new "temporary" table to the original wanted name */
-        execute_rename_table(ddl_log_entry, file,
+        execute_rename_table(thd, ddl_log_entry, file,
                              &ddl_log_entry->db,
                              &ddl_log_entry->name,
                              &ddl_log_entry->from_db,
@@ -2153,7 +2154,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
           Backup name is always in lower case, so there is no need for
           converting table names.
         */
-        length= build_table_filename(from_path, sizeof(from_path) - 1,
+        length= build_table_filename(thd->catalog, from_path, sizeof(from_path) - 1,
                                      ddl_log_entry->from_db.str,
                                      ddl_log_entry->extra_name.str,
                                      "", FN_IS_TMP);
@@ -2162,7 +2163,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
           if (ddl_log_entry->flags & DDL_LOG_FLAG_ALTER_ENGINE_CHANGED)
           {
             /* Only frm is renamed, storage engine files have original name */
-            build_table_filename(to_path, sizeof(from_path) - 1,
+            build_table_filename(thd->catalog, to_path, sizeof(from_path) - 1,
                                  ddl_log_entry->from_db.str,
                                  ddl_log_entry->from_name.str,
                                  "", 0);
@@ -2178,7 +2179,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
                           MYF(MY_WME|MY_IGNORE_ENOENT));
       }
       else
-        execute_rename_table(ddl_log_entry, file,
+        execute_rename_table(thd, ddl_log_entry, file,
                              &ddl_log_entry->db, &ddl_log_entry->name,
                              &ddl_log_entry->db, &ddl_log_entry->extra_name,
                              FN_FROM_IS_TMP,
@@ -2791,6 +2792,7 @@ int ddl_log_execute_recovery()
           continue;
         }
       }
+      thd->catalog= const_cast<SQL_CATALOG*>(recovery_state.catalog);
 
       /* purecov: begin tested */
       if ((ddl_log_entry.unique_id & DDL_LOG_RETRY_MASK) > DDL_LOG_MAX_RETRY)
@@ -3275,7 +3277,8 @@ bool ddl_log_drop_trigger(DDL_LOG_STATE *ddl_state,
   size_t max_query_length;
   DBUG_ENTER("ddl_log_drop_trigger");
 
-  build_table_filename(path, sizeof(path)-1, db->str, table->str, TRG_EXT, 0);
+  build_table_filename(ddl_state->catalog, path, sizeof(path)-1, db->str, table->str, TRG_EXT,
+                       0);
 
   /* We can use length of frm file as an indication if trigger was removed */
   if (my_stat(path, &stat_info, MYF(MY_WME | ME_WARNING)))

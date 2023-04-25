@@ -6151,7 +6151,8 @@ static bool mysql_change_partitions(ALTER_PARTITION_PARAM_TYPE *lpt, bool copy_d
   THD *thd= lpt->thd;
   DBUG_ENTER("mysql_change_partitions");
 
-  build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
+  build_table_filename(lpt->thd->catalog, path, sizeof(path) - 1,
+                       lpt->db.str, lpt->table_name.str, "", 0);
 
   if(copy_data && mysql_trans_prepare_alter_copy_data(thd))
     DBUG_RETURN(TRUE);
@@ -6201,7 +6202,8 @@ static bool mysql_rename_partitions(ALTER_PARTITION_PARAM_TYPE *lpt)
   int error;
   DBUG_ENTER("mysql_rename_partitions");
 
-  build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
+  build_table_filename(lpt->thd->catalog, path, sizeof(path) - 1,
+                       lpt->db.str, lpt->table_name.str, "", 0);
   if (unlikely((error= lpt->table->file->ha_rename_partitions(path))))
   {
     if (error != 1)
@@ -6245,7 +6247,8 @@ static bool mysql_drop_partitions(ALTER_PARTITION_PARAM_TYPE *lpt)
                                                 lpt->table->s->table_name.str,
                                                 MDL_EXCLUSIVE));
 
-  build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
+  build_table_filename(lpt->thd->catalog, path, sizeof(path) - 1,
+                       lpt->db.str, lpt->table_name.str, "", 0);
   if ((error= lpt->table->file->ha_drop_partitions(path)))
   {
     lpt->table->file->print_error(error, MYF(0));
@@ -6288,7 +6291,7 @@ static bool alter_partition_convert_out(ALTER_PARTITION_PARAM_TYPE *lpt)
   char from_name[FN_REFLEN + 1], to_name[FN_REFLEN + 1];
   const char *path= lpt->table->s->path.str;
 
-  build_table_filename(to_name, sizeof(to_name) - 1, lpt->alter_ctx->new_db.str,
+  build_table_filename(thd->catalog, to_name, sizeof(to_name) - 1, lpt->alter_ctx->new_db.str,
                        lpt->alter_ctx->new_name.str, "", 0);
 
   for (const partition_element &e: part_info->partitions)
@@ -6634,7 +6637,8 @@ static bool write_log_convert_partition(ALTER_PARTITION_PARAM_TYPE *lpt,
   DBUG_ASSERT((f & ALTER_PARTITION_CONVERT_IN) || (f & ALTER_PARTITION_CONVERT_OUT));
   const log_action_enum convert_action= (f & ALTER_PARTITION_CONVERT_IN)
                                          ? ACT_CONVERT_IN : ACT_CONVERT_OUT;
-  build_table_filename(other_table, sizeof(other_table) - 1, lpt->alter_ctx->new_db.str,
+  build_table_filename(lpt->thd->catalog, other_table, sizeof(other_table) - 1,
+                       lpt->alter_ctx->new_db.str,
                        lpt->alter_ctx->new_name.str, "", 0);
   DDL_LOG_MEMORY_ENTRY *main_entry= lpt->part_info->main_entry;
   bool res= log_drop_or_convert_action(lpt, next_entry, path, other_table,
@@ -6673,7 +6677,7 @@ static bool write_log_drop_frm(ALTER_PARTITION_PARAM_TYPE *lpt,
   const DDL_LOG_STATE *main_chain= lpt->part_info;
   const bool drop_backup= (drop_chain != main_chain);
 
-  build_table_shadow_filename(path, sizeof(path) - 1, lpt, drop_backup);
+  build_table_shadow_filename(lpt->thd, path, sizeof(path) - 1, lpt, drop_backup);
   mysql_mutex_lock(&LOCK_gdl);
   if (ddl_log_delete_frm(drop_chain, (const char*)path))
     goto error;
@@ -6681,7 +6685,7 @@ static bool write_log_drop_frm(ALTER_PARTITION_PARAM_TYPE *lpt,
   if (drop_backup && (lpt->alter_info->partition_flags & ALTER_PARTITION_CONVERT_IN))
   {
     TABLE_LIST *table_from= lpt->table_list->next_local;
-    build_table_filename(path, sizeof(path) - 1, table_from->db.str,
+    build_table_filename(lpt->thd->catalog, path, sizeof(path) - 1, table_from->db.str,
                          table_from->table_name.str, "", 0);
 
     if (ddl_log_delete_frm(drop_chain, (const char*) path))
@@ -6737,8 +6741,9 @@ static bool write_log_rename_frm(ALTER_PARTITION_PARAM_TYPE *lpt)
   DBUG_ENTER("write_log_rename_frm");
 
   part_info->list= NULL;
-  build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
-  build_table_shadow_filename(shadow_path, sizeof(shadow_path) - 1, lpt);
+  build_table_filename(lpt->thd->catalog, path, sizeof(path) - 1,
+                       lpt->db.str, lpt->table_name.str, "", 0);
+  build_table_shadow_filename(lpt->thd, shadow_path, sizeof(shadow_path) - 1, lpt);
   mysql_mutex_lock(&LOCK_gdl);
   if (write_log_replace_frm(lpt, 0UL, shadow_path, path))
     goto error;
@@ -6789,8 +6794,9 @@ static bool write_log_drop_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
   DBUG_ENTER("write_log_drop_partition");
 
   part_info->list= NULL;
-  build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
-  build_table_shadow_filename(tmp_path, sizeof(tmp_path) - 1, lpt);
+  build_table_filename(lpt->thd->catalog, path, sizeof(path) - 1,
+                       lpt->db.str, lpt->table_name.str, "", 0);
+  build_table_shadow_filename(lpt->thd, tmp_path, sizeof(tmp_path) - 1, lpt);
   mysql_mutex_lock(&LOCK_gdl);
   if (write_log_dropped_partitions(lpt, &next_entry, (const char*)path,
                                    FALSE))
@@ -6825,8 +6831,9 @@ static bool write_log_convert_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
   char path[FN_REFLEN + 1];
   uint next_entry= part_info->list ? part_info->list->entry_pos : 0;
 
-  build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
-  build_table_shadow_filename(tmp_path, sizeof(tmp_path) - 1, lpt);
+  build_table_filename(lpt->thd->catalog, path, sizeof(path) - 1,
+                       lpt->db.str, lpt->table_name.str, "", 0);
+  build_table_shadow_filename(lpt->thd, tmp_path, sizeof(tmp_path) - 1, lpt);
 
   mysql_mutex_lock(&LOCK_gdl);
 
@@ -6877,8 +6884,9 @@ static bool write_log_add_change_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
   DBUG_ASSERT(old_first_log_entry);
   DBUG_ENTER("write_log_add_change_partition");
 
-  build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
-  build_table_shadow_filename(tmp_path, sizeof(tmp_path) - 1, lpt);
+  build_table_filename(lpt->thd->catalog, path, sizeof(path) - 1,
+                       lpt->db.str, lpt->table_name.str, "", 0);
+  build_table_shadow_filename(lpt->thd, tmp_path, sizeof(tmp_path) - 1, lpt);
   mysql_mutex_lock(&LOCK_gdl);
 
   /* Relink the previous drop shadow frm entry */
@@ -6943,8 +6951,9 @@ static bool write_log_final_change_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
     Replace the revert operations with forced retry operations.
   */
   part_info->list= NULL;
-  build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
-  build_table_shadow_filename(shadow_path, sizeof(shadow_path) - 1, lpt);
+  build_table_filename(lpt->thd->catalog, path, sizeof(path) - 1,
+                       lpt->db.str, lpt->table_name.str, "", 0);
+  build_table_shadow_filename(lpt->thd, shadow_path, sizeof(shadow_path) - 1, lpt);
   mysql_mutex_lock(&LOCK_gdl);
   if (write_log_changed_partitions(lpt, &next_entry, (const char*)path))
     goto error;

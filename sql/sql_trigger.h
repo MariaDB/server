@@ -29,6 +29,7 @@ class Query_tables_list;
 struct TABLE_LIST;
 class Query_tables_list;
 class DDL_LOG_STATE;
+class SQL_CATALOG;
 
 /** Event on which trigger is invoked. */
 enum trg_event_type
@@ -325,7 +326,8 @@ public:
 
 private:
   bool prepare_record_accessors(TABLE *table);
-  Trigger *change_table_name_in_trignames(const LEX_CSTRING *old_db_name,
+  Trigger *change_table_name_in_trignames(THD *thd,
+                                          const LEX_CSTRING *old_db_name,
                                           const LEX_CSTRING *new_db_name,
                                           const LEX_CSTRING *new_table_name,
                                           Trigger *trigger);
@@ -361,8 +363,9 @@ bool load_table_name_for_trigger(THD *thd,
                                  const LEX_CSTRING *trn_path,
                                  LEX_CSTRING *tbl_name);
 bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create);
-bool rm_trigname_file(char *path, const LEX_CSTRING *db,
-                      const LEX_CSTRING *trigger_name, myf MyFlags);
+bool rm_trigname_file(const SQL_CATALOG *catalog, char *path,
+                      const LEX_CSTRING *db, const LEX_CSTRING *trigger_name,
+                      myf MyFlags);
 
 extern const char * const TRG_EXT;
 extern const char * const TRN_EXT;

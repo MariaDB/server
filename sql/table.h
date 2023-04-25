@@ -79,6 +79,7 @@ class Pushdown_derived;
 struct Name_resolution_context;
 class Table_function_json_table;
 class Open_table_context;
+class SQL_CATALOG;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -3371,7 +3372,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
 bool copy_keys_from_share(TABLE *outparam, MEM_ROOT *root);
 bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
                      bool *error_reported, vcol_init_mode expr);
-TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
+TABLE_SHARE *alloc_table_share(const SQL_CATALOG *catalog, const char *db,
+                               const char *table_name,
                                const char *key, uint key_length);
 void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
                           uint key_length,

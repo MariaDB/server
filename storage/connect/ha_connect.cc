@@ -5258,7 +5258,7 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
     key_length= tdc_create_key(key, db, tabname);
 
     // share contains the option struct that we need
-    if (!(share= alloc_table_share(db, tabname, key, key_length)))
+    if (!(share= alloc_table_share(thd->catalog, db, tabname, key, key_length)))
       DBUG_RETURN(rc);
 
     // Get the share info from the .frm file

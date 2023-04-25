@@ -6459,7 +6459,7 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
 retry_from_frm:
 #endif
   char path[FN_REFLEN + 1];
-  size_t path_len = build_table_filename(path, sizeof(path) - 1,
+  size_t path_len = build_table_filename(thd->catalog, path, sizeof(path) - 1,
                                          db->str, table_name->str, "", 0);
   st_discover_existence_args args= {path, path_len, db->str, table_name->str, 0, true};
 

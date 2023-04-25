@@ -21,6 +21,7 @@
 */
 
 #include "mariadb.h"
+#include "sql_class.h"                          // THD
 #include "sql_priv.h"
 #include "parse_file.h"
 #include "unireg.h"                            // CREATE_MODE
@@ -410,16 +411,16 @@ my_bool rename_in_schema_file(THD *thd,
 {
   char old_path[FN_REFLEN + 1], new_path[FN_REFLEN + 1], arc_path[FN_REFLEN + 1];
 
-  build_table_filename(old_path, sizeof(old_path) - 1,
+  build_table_filename(thd->catalog, old_path, sizeof(old_path) - 1,
                        schema, old_name, reg_ext, 0);
-  build_table_filename(new_path, sizeof(new_path) - 1,
+  build_table_filename(thd->catalog, new_path, sizeof(new_path) - 1,
                        new_db, new_name, reg_ext, 0);
 
   if (mysql_file_rename(key_file_frm, old_path, new_path, MYF(MY_WME)))
     return 1;
 
   /* check if arc_dir exists: disabled unused feature (see bug #17823). */
-  build_table_filename(arc_path, sizeof(arc_path) - 1, schema, "arc", "", 0);
+  build_table_filename(thd->catalog, arc_path, sizeof(arc_path) - 1, schema, "arc", "", 0);
   
   { // remove obsolete 'arc' directory and files if any
     MY_DIR *new_dirp;

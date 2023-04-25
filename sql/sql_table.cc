@@ -519,7 +519,7 @@ uint tablename_to_filename(const char *from, char *to, size_t to_length)
 
 
 /*
-  Creates path to a file: mysql_data_dir/db/table.ext
+  Creates path to a file: mysql_data_dir/[catalog/]db/table.ext
 
   SYNOPSIS
    build_table_filename()
@@ -551,7 +551,8 @@ uint tablename_to_filename(const char *from, char *to, size_t to_length)
     path length
 */
 
-uint build_table_filename(char *buff, size_t bufflen, const char *db,
+uint build_table_filename(const SQL_CATALOG *catalog, char *buff,
+                          size_t bufflen, const char *db,
                           const char *table_name, const char *ext, uint flags)
 {
   char dbbuff[FN_REFLEN];
@@ -641,7 +642,8 @@ uint build_tmptable_filename(THD* thd, char *buff, size_t bufflen)
   Create lower case paths for engines that requires them
 */
 
-void build_lower_case_table_filename(char *buff, size_t bufflen,
+void build_lower_case_table_filename(const SQL_CATALOG *catalog, char *buff,
+                                     size_t bufflen,
                                      const LEX_CSTRING *db,
                                      const LEX_CSTRING *table,
                                      uint flags)
@@ -658,7 +660,7 @@ void build_lower_case_table_filename(char *buff, size_t bufflen,
   table_name[table->length]= 0;
   my_casedn_str(files_charset_info, table_name);
 
-  build_table_filename(buff, bufflen, db_name, table_name, "",
+  build_table_filename(catalog, buff, bufflen, db_name, table_name, "",
                        flags & FN_IS_TMP);
 }
 
@@ -678,16 +680,16 @@ void build_lower_case_table_filename(char *buff, size_t bufflen,
    @retval     path length
 */
 
-uint build_table_shadow_filename(char *buff, size_t bufflen, 
+uint build_table_shadow_filename(THD *thd, char *buff, size_t bufflen,
                                  ALTER_PARTITION_PARAM_TYPE *lpt,
                                  bool backup)
 {
   char tmp_name[FN_REFLEN];
   my_snprintf(tmp_name, sizeof (tmp_name), "%s-%s-%lx-%s", tmp_file_prefix,
               backup ? "backup" : "shadow",
-              (ulong) current_thd->thread_id, lpt->table_name.str);
-  return build_table_filename(buff, bufflen, lpt->db.str, tmp_name, "",
-                              FN_IS_TMP);
+              (ulong) thd->thread_id, lpt->table_name.str);
+  return build_table_filename(thd->catalog, buff, bufflen, lpt->db.str,
+                              tmp_name, "", FN_IS_TMP);
 }
 
 
@@ -742,12 +744,13 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
   uint syntax_len;
   partition_info *part_info= lpt->part_info;
 #endif
+  const SQL_CATALOG *catalog= lpt->thd->catalog;
   DBUG_ENTER("mysql_write_frm");
 
   /*
     Build shadow frm file name
   */
-  build_table_shadow_filename(shadow_path, sizeof(shadow_path) - 1, lpt);
+  build_table_shadow_filename(lpt->thd, shadow_path, sizeof(shadow_path) - 1, lpt);
   strxmov(shadow_frm_name, shadow_path, reg_ext, NullS);
   if (flags & WFRM_WRITE_SHADOW)
   {
@@ -858,11 +861,12 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
   }
   if (flags & WFRM_BACKUP_ORIGINAL)
   {
-    build_table_filename(path, sizeof(path) - 1, lpt->db.str,
+    build_table_filename(catalog, path, sizeof(path) - 1, lpt->db.str,
                          lpt->table_name.str, "", 0);
     strxnmov(frm_name, sizeof(frm_name), path, reg_ext, NullS);
 
-    build_table_shadow_filename(bak_path, sizeof(bak_path) - 1, lpt, true);
+    build_table_shadow_filename(lpt->thd, bak_path, sizeof(bak_path) - 1, lpt,
+                                true);
     strxmov(bak_frm_name, bak_path, reg_ext, NullS);
 
     DDL_LOG_MEMORY_ENTRY *main_entry= part_info->main_entry;
@@ -870,7 +874,7 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
     if (write_log_replace_frm(lpt, part_info->list->entry_pos,
                               (const char*) bak_path,
                               (const char*) path) ||
-        ddl_log_write_execute_entry(lpt->thd->catalog,
+        ddl_log_write_execute_entry(catalog,
                                     part_info->list->entry_pos,
                                     &part_info->execute_entry))
     {
@@ -896,7 +900,7 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
     /*
       Build frm file name
     */
-    build_table_filename(path, sizeof(path) - 1, lpt->db.str,
+    build_table_filename(catalog, path, sizeof(path) - 1, lpt->db.str,
                          lpt->table_name.str, "", 0);
     strxnmov(frm_name, sizeof(frm_name), path, reg_ext, NullS);
     /*
@@ -1495,8 +1499,8 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
 
       alias= (lower_case_table_names == 2) ? table->alias : table_name;
       /* remove .frm file and engine files */
-      path_length= build_table_filename(path, sizeof(path) - 1, db.str,
-                                        alias.str, reg_ext, 0);
+      path_length= build_table_filename(thd->catalog, path, sizeof(path) - 1,
+                                        db.str, alias.str, reg_ext, 0);
       path_end= path + path_length - reg_ext_length;
     }
 
@@ -2042,7 +2046,8 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
 
   size_t path_length= table_path ?
     (strxnmov(path, pathmax, table_path, NullS) - path) :
-    build_table_filename(path, pathmax, db->str, table_name->str, "", flags);
+    build_table_filename(thd->catalog, path, pathmax, db->str, table_name->str,
+                         "", flags);
   if ((flags & (NO_HA_TABLE | NO_PAR_TABLE)) == NO_HA_TABLE)
   {
     handler *file= get_new_handler((TABLE_SHARE*) 0, thd->mem_root, base);
@@ -4754,9 +4759,8 @@ int mysql_create_table_no_lock(THD *thd,
   else
   {
     const LEX_CSTRING *alias= table_case_name(create_info, table_name);
-    path_length= build_table_filename(path, sizeof(path) - 1, db->str,
-                                      alias->str,
-                                 "", 0);
+    path_length= build_table_filename(thd->catalog, path, sizeof(path) - 1,
+                                      db->str, alias->str, "", 0);
     // Check if we hit FN_REFLEN bytes along with file extension.
     if (path_length+reg_ext_length > FN_REFLEN)
     {
@@ -5160,9 +5164,9 @@ mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
 
   file= get_new_handler((TABLE_SHARE*) 0, thd->mem_root, base);
 
-  build_table_filename(from, sizeof(from) - 1, old_db->str, old_name->str, "",
-                       flags & FN_FROM_IS_TMP);
-  length= build_table_filename(to, sizeof(to) - 1, new_db->str,
+  build_table_filename(thd->catalog, from, sizeof(from) - 1, old_db->str,
+                       old_name->str, "", flags & FN_FROM_IS_TMP);
+  length= build_table_filename(thd->catalog, to, sizeof(to) - 1, new_db->str,
                                new_name->str, "", flags & FN_TO_IS_TMP);
   // Check if we hit FN_REFLEN bytes along with file extension.
   if (length+reg_ext_length > FN_REFLEN)
@@ -5173,9 +5177,9 @@ mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
 
   if (file && file->needs_lower_case_filenames())
   {
-    build_lower_case_table_filename(lc_from, sizeof(lc_from) -1,
+    build_lower_case_table_filename(thd->catalog, lc_from, sizeof(lc_from) -1,
                                     old_db, old_name, flags & FN_FROM_IS_TMP);
-    build_lower_case_table_filename(lc_to, sizeof(lc_from) -1,
+    build_lower_case_table_filename(thd->catalog, lc_to, sizeof(lc_from) -1,
                                     new_db, new_name, flags & FN_TO_IS_TMP);
     from_base= lc_from;
     to_base=   lc_to;

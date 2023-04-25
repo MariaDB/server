@@ -3240,7 +3240,8 @@ static File create_file(THD *thd, char *path, sql_exchange *exchange,
 
   if (!dirname_length(exchange->file_name))
   {
-    strxnmov(path, FN_REFLEN-1, mysql_real_data_home, thd->get_db(), NullS);
+    strxnmov(path, FN_REFLEN-1, mysql_real_data_home, thd->catalog->path.str,
+             thd->get_db(), NullS);
     (void) fn_format(path, exchange->file_name, path, "", option);
   }
   else

@@ -3634,7 +3634,8 @@ bool ha_mroonga::storage_create_foreign_key(TABLE *table,
                                             grn_obj *table_obj, int &error)
 {
   MRN_DBUG_ENTER_METHOD();
-  LEX *lex = ha_thd()->lex;
+  THD *thd= ha_thd();
+  LEX *lex = thd->lex;
   Alter_info *alter_info = &lex->alter_info;
   List_iterator<Key> key_iterator(alter_info->key_list);
   Key *key;
@@ -3703,7 +3704,7 @@ bool ha_mroonga::storage_create_foreign_key(TABLE *table,
     char ref_path[FN_REFLEN + 1];
     TABLE_LIST table_list;
     TABLE_SHARE *tmp_ref_table_share;
-    build_table_filename(ref_path, sizeof(ref_path) - 1,
+    build_table_filename(thd->catalog, ref_path, sizeof(ref_path) - 1,
                          table->s->db.str, ref_table_name.str, "", 0);
 
     DBUG_PRINT("info", ("mroonga: ref_path=%s", ref_path));
@@ -16491,6 +16492,7 @@ char *ha_mroonga::storage_get_foreign_key_create_info()
   char create_info_buff[2048], *create_info;
   String create_info_str(create_info_buff, sizeof(create_info_buff),
     system_charset_info);
+  THD *thd= ha_thd();
   MRN_DBUG_ENTER_METHOD();
   create_info_str.length(0);
   for (i = 0; i < n_columns; ++i) {
@@ -16520,7 +16522,7 @@ char *ha_mroonga::storage_get_foreign_key_create_info()
       DBUG_RETURN(NULL);
     }
     create_info_str.q_append(",\n  CONSTRAINT ", 15);
-    append_identifier(ha_thd(),
+    append_identifier(thd,
                       &create_info_str,
                       column_name.c_str(),
                       column_name.length());
@@ -16528,7 +16530,7 @@ char *ha_mroonga::storage_get_foreign_key_create_info()
       DBUG_RETURN(NULL);
     }
     create_info_str.q_append(" FOREIGN KEY (", 14);
-    append_identifier(ha_thd(),
+    append_identifier(thd,
                       &create_info_str,
                       column_name.c_str(),
                       column_name.length());
@@ -16536,13 +16538,13 @@ char *ha_mroonga::storage_get_foreign_key_create_info()
       DBUG_RETURN(NULL);
     }
     create_info_str.q_append(") REFERENCES ", 13);
-    append_identifier(ha_thd(), &create_info_str, table_share->db.str,
+    append_identifier(thd, &create_info_str, table_share->db.str,
                       table_share->db.length);
     if (create_info_str.reserve(1)) {
       DBUG_RETURN(NULL);
     }
     create_info_str.q_append(".", 1);
-    append_identifier(ha_thd(), &create_info_str, ref_table_buff,
+    append_identifier(thd, &create_info_str, ref_table_buff,
                       ref_table_name_length);
     if (create_info_str.reserve(2)) {
       DBUG_RETURN(NULL);
@@ -16552,7 +16554,7 @@ char *ha_mroonga::storage_get_foreign_key_create_info()
     char ref_path[FN_REFLEN + 1];
     TABLE_LIST table_list;
     TABLE_SHARE *tmp_ref_table_share;
-    build_table_filename(ref_path, sizeof(ref_path) - 1,
+    build_table_filename(thd->catalog, ref_path, sizeof(ref_path) - 1,
                          table_share->db.str, ref_table_buff, "", 0);
     DBUG_PRINT("info", ("mroonga: ref_path=%s", ref_path));
 
@@ -16568,7 +16570,7 @@ char *ha_mroonga::storage_get_foreign_key_create_info()
     uint ref_pkey_nr = tmp_ref_table_share->primary_key;
     KEY *ref_key_info = &tmp_ref_table_share->key_info[ref_pkey_nr];
     Field *ref_field = &ref_key_info->key_part->field[0];
-    append_identifier(ha_thd(), &create_info_str, ref_field->field_name.str,
+    append_identifier(thd, &create_info_str, ref_field->field_name.str,
                       ref_field->field_name.length);
     mrn_open_mutex_lock(table_share);
     mrn_free_tmp_table_share(tmp_ref_table_share);
@@ -16756,7 +16758,7 @@ int ha_mroonga::storage_get_foreign_key_list(THD *thd,
     char ref_path[FN_REFLEN + 1];
     TABLE_LIST table_list;
     TABLE_SHARE *tmp_ref_table_share;
-    build_table_filename(ref_path, sizeof(ref_path) - 1,
+    build_table_filename(thd->catalog, ref_path, sizeof(ref_path) - 1,
                          table_share->db.str, ref_table_buff, "", 0);
     DBUG_PRINT("info", ("mroonga: ref_path=%s", ref_path));
 

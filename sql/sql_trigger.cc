@@ -571,7 +571,8 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   /* We should have only one table in table list. */
   DBUG_ASSERT(tables->next_global == 0);
 
-  build_table_filename(path, sizeof(path) - 1, tables->db.str, tables->alias.str, ".frm", 0);
+  build_table_filename(thd->catalog, path, sizeof(path) - 1, tables->db.str,
+                       tables->alias.str, ".frm", 0);
   tables->required_type= dd_frm_type(NULL, path, NULL, NULL, NULL);
 
   /* We do not allow creation of triggers on temporary tables or sequence. */
@@ -968,12 +969,12 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
     sql_create_definition_file() files handles renaming and backup of older
     versions
   */
-  file.length= build_table_filename(file_buff, FN_REFLEN - 1,
+  file.length= build_table_filename(thd->catalog, file_buff, FN_REFLEN - 1,
                                     tables->db.str, tables->table_name.str,
                                     TRG_EXT, 0);
   file.str= file_buff;
-  trigname_file.length= build_table_filename(trigname_buff, FN_REFLEN-1,
-                                             tables->db.str,
+  trigname_file.length= build_table_filename(thd->catalog, trigname_buff,
+                                             FN_REFLEN-1, tables->db.str,
                                              lex->spname->m_name.str,
                                              TRN_EXT, 0);
   trigname_file.str= trigname_buff;
@@ -1197,10 +1198,11 @@ bool Trigger::add_to_file_list(void* param_arg)
     True    error
 */
 
-static bool rm_trigger_file(char *path, const LEX_CSTRING *db,
+static bool rm_trigger_file(const SQL_CATALOG *catalog, char *path, const LEX_CSTRING *db,
                             const LEX_CSTRING *table_name, myf MyFlags)
 {
-  build_table_filename(path, FN_REFLEN-1, db->str, table_name->str, TRG_EXT, 0);
+  build_table_filename(catalog, path, FN_REFLEN-1, db->str, table_name->str,
+                       TRG_EXT, 0);
   return mysql_file_delete(key_file_trg, path, MyFlags);
 }
 
@@ -1219,10 +1221,11 @@ static bool rm_trigger_file(char *path, const LEX_CSTRING *db,
     True    error
 */
 
-bool rm_trigname_file(char *path, const LEX_CSTRING *db,
-                      const LEX_CSTRING *trigger_name, myf MyFlags)
+bool rm_trigname_file(const SQL_CATALOG *catalog, char *path,
+                      const LEX_CSTRING *db, const LEX_CSTRING *trigger_name,
+                      myf MyFlags)
 {
-  build_table_filename(path, FN_REFLEN - 1, db->str, trigger_name->str,
+  build_table_filename(catalog, path, FN_REFLEN - 1, db->str, trigger_name->str,
                        TRN_EXT, 0);
   return mysql_file_delete(key_file_trn, path, MyFlags);
 }
@@ -1251,8 +1254,8 @@ bool Table_triggers_list::save_trigger_file(THD *thd, const LEX_CSTRING *db,
   if (create_lists_needed_for_files(thd->mem_root))
     DBUG_RETURN(true);
 
-  file.length= build_table_filename(file_buff, FN_REFLEN - 1, db->str, table_name->str,
-                                    TRG_EXT, 0);
+  file.length= build_table_filename(thd->catalog, file_buff, FN_REFLEN - 1,
+                                    db->str, table_name->str, TRG_EXT, 0);
   file.str= file_buff;
   DBUG_RETURN(sql_create_definition_file(NULL, &file, &triggers_file_type,
                                          (uchar*) this,
@@ -1362,7 +1365,7 @@ bool Table_triggers_list::drop_trigger(THD *thd, TABLE_LIST *tables,
       drop or create ddl_log recovery will ensure that all related
       trigger files are deleted or the original ones are restored.
     */
-    if (rm_trigger_file(path, &tables->db, &tables->table_name, MYF(MY_WME)))
+    if (rm_trigger_file(thd->catalog, path, &tables->db, &tables->table_name, MYF(MY_WME)))
       goto err;
   }
   else
@@ -1373,7 +1376,7 @@ bool Table_triggers_list::drop_trigger(THD *thd, TABLE_LIST *tables,
 
   debug_crash_here("ddl_log_drop_before_drop_trn");
 
-  if (rm_trigname_file(path, &tables->db, sp_name, MYF(MY_WME)))
+  if (rm_trigname_file(thd->catalog, path, &tables->db, sp_name, MYF(MY_WME)))
     goto err;
 
   debug_crash_here("ddl_log_drop_after_drop_trigger");
@@ -1534,7 +1537,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
   LEX_CSTRING save_db;
   DBUG_ENTER("Table_triggers_list::check_n_load");
 
-  path.length= build_table_filename(path_buff, FN_REFLEN - 1,
+  path.length= build_table_filename(thd->catalog, path_buff, FN_REFLEN - 1,
                                     db->str, table_name->str, TRG_EXT, 0);
   path.str= path_buff;
 
@@ -2047,7 +2050,7 @@ bool Table_triggers_list::drop_all_triggers(THD *thd, const LEX_CSTRING *db,
   {
     result= 1;
     /* We couldn't parse trigger file, best to just remove it */
-    rm_trigger_file(path, db, name, MyFlags);
+    rm_trigger_file(thd->catalog, path, db, name, MyFlags);
     goto end;
   }
   if (table.triggers)
@@ -2067,7 +2070,7 @@ bool Table_triggers_list::drop_all_triggers(THD *thd, const LEX_CSTRING *db,
             Such triggers have zero-length name and are skipped here.
           */
           if (trigger->name.length &&
-              rm_trigname_file(path, db, &trigger->name, MyFlags))
+              rm_trigname_file(thd->catalog, path, db, &trigger->name, MyFlags))
           {
             /*
               Instead of immediately bailing out with error if we were unable
@@ -2081,7 +2084,7 @@ bool Table_triggers_list::drop_all_triggers(THD *thd, const LEX_CSTRING *db,
         }
       }
     }
-    if (rm_trigger_file(path, db, name, MyFlags))
+    if (rm_trigger_file(thd->catalog, path, db, name, MyFlags))
       result= 1;
     delete table.triggers;
   }
@@ -2142,9 +2145,9 @@ change_table_name_in_triggers(THD *thd,
   if (save_trigger_file(thd, new_db_name, new_table_name))
     return TRUE;
 
-  if (rm_trigger_file(path_buff, old_db_name, old_table_name, MYF(MY_WME)))
+  if (rm_trigger_file(thd->catalog, path_buff, old_db_name, old_table_name, MYF(MY_WME)))
   {
-    (void) rm_trigger_file(path_buff, new_db_name, new_table_name,
+    (void) rm_trigger_file(thd->catalog, path_buff, new_db_name, new_table_name,
                            MYF(MY_WME));
     return TRUE;
   }
@@ -2211,12 +2214,14 @@ bool Trigger::change_table_name(void* param_arg)
 
 Trigger *
 Table_triggers_list::
-change_table_name_in_trignames(const LEX_CSTRING *old_db_name,
+change_table_name_in_trignames(THD *thd,
+                               const LEX_CSTRING *old_db_name,
                                const LEX_CSTRING *new_db_name,
                                const LEX_CSTRING *new_table_name,
                                Trigger *trigger)
 {
   struct change_table_name_param param;
+  param.thd= thd;
   param.old_db_name=    const_cast<LEX_CSTRING*>(old_db_name);
   param.new_db_name=    const_cast<LEX_CSTRING*>(new_db_name);
   param.new_table_name= const_cast<LEX_CSTRING*>(new_table_name);
@@ -2229,7 +2234,7 @@ change_table_name_in_trignames(const LEX_CSTRING *old_db_name,
 bool Trigger::change_on_table_name(void* param_arg)
 {
   change_table_name_param *param= (change_table_name_param*) param_arg;
-
+  THD *thd= param->thd;
   char trigname_buff[FN_REFLEN];
   struct st_trigname trigname;
   LEX_CSTRING trigname_file;
@@ -2237,14 +2242,15 @@ bool Trigger::change_on_table_name(void* param_arg)
   if (param->stopper == this)
     return 0;                                   // Stop processing
 
-  trigname_file.length= build_table_filename(trigname_buff, FN_REFLEN-1,
+  trigname_file.length= build_table_filename(thd->catalog, trigname_buff,
+                                             FN_REFLEN-1,
                                              param->new_db_name->str, name.str,
                                              TRN_EXT, 0);
   trigname_file.str= trigname_buff;
 
   trigname.trigger_table= *param->new_table_name;
 
-  if (base->create_lists_needed_for_files(current_thd->mem_root))
+  if (base->create_lists_needed_for_files(thd->mem_root))
     return true;
 
   if (sql_create_definition_file(NULL, &trigname_file, &trigname_file_type,
@@ -2254,10 +2260,10 @@ bool Trigger::change_on_table_name(void* param_arg)
   /* Remove stale .TRN file in case of database upgrade */
   if (param->old_db_name)
   {
-    if (rm_trigname_file(trigname_buff, param->old_db_name, &name,
+    if (rm_trigname_file(thd->catalog, trigname_buff, param->old_db_name, &name,
                          MYF(MY_WME)))
     {
-      (void) rm_trigname_file(trigname_buff, param->new_db_name, &name,
+      (void) rm_trigname_file(thd->catalog, trigname_buff, param->new_db_name, &name,
                               MYF(MY_WME));
       return 1;
     }
@@ -2396,7 +2402,7 @@ bool Table_triggers_list::change_table_name(THD *thd,
       goto end;
     }
     if ((err_trigger= table->triggers->
-         change_table_name_in_trignames( upgrading50to51 ? db : NULL,
+         change_table_name_in_trignames(thd, upgrading50to51 ? db : NULL,
                                          new_db, new_table, 0)))
     {
       /*
@@ -2405,12 +2411,11 @@ bool Table_triggers_list::change_table_name(THD *thd,
         We assume that we will be able to undo our changes without errors
         (we can't do much if there will be an error anyway).
       */
-      (void) table->triggers->change_table_name_in_trignames(
-                               upgrading50to51 ? new_db : NULL, db,
-                               old_alias, err_trigger);
-      (void) table->triggers->change_table_name_in_triggers(
-                               thd, db, new_db,
-                               new_table, old_alias);
+      (void) table->triggers->
+        change_table_name_in_trignames(thd, upgrading50to51 ? new_db : NULL, db,
+                                       old_alias, err_trigger);
+      (void) table->triggers->
+        change_table_name_in_triggers(thd, db, new_db, new_table, old_alias);
       result= 1;
       goto end;
     }
@@ -2730,7 +2735,7 @@ void build_trn_path(THD *thd, const sp_name *trg_name, LEX_STRING *trn_path)
 {
   /* Construct path to the TRN-file. */
 
-  trn_path->length= build_table_filename(trn_path->str,
+  trn_path->length= build_table_filename(thd->catalog, trn_path->str,
                                          FN_REFLEN - 1,
                                          trg_name->m_db.str,
                                          trg_name->m_name.str,

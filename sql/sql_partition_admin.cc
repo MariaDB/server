@@ -644,12 +644,12 @@ bool Sql_cmd_alter_table_exchange_partition::
   THD_STAGE_INFO(thd, stage_verifying_table);
 
   /* Will append the partition name later in part_info->get_part_elem() */
-  part_file_name_len= build_table_filename(part_file_name,
+  part_file_name_len= build_table_filename(thd->catalog, part_file_name,
                                            sizeof(part_file_name),
                                            table_list->db.str,
                                            table_list->table_name.str,
                                            "", 0);
-  build_table_filename(swap_file_name,
+  build_table_filename(thd->catalog, swap_file_name,
                        sizeof(swap_file_name),
                        swap_table_list->db.str,
                        swap_table_list->table_name.str,
@@ -659,7 +659,7 @@ bool Sql_cmd_alter_table_exchange_partition::
               tmp_file_prefix, current_pid, thd->thread_id);
   if (lower_case_table_names)
     my_casedn_str(files_charset_info, temp_name);
-  build_table_filename(temp_file_name, sizeof(temp_file_name),
+  build_table_filename(thd->catalog, temp_file_name, sizeof(temp_file_name),
                        table_list->next_local->db.str,
                        temp_name, "", FN_IS_TMP);
 
@@ -1030,7 +1030,7 @@ bool alter_partition_convert_in(ALTER_PARTITION_PARAM_TYPE *lpt)
 
   char from_file_name[FN_REFLEN+1];
 
-  build_table_filename(from_file_name, sizeof(from_file_name),
+  build_table_filename(thd->catalog, from_file_name, sizeof(from_file_name),
                        table_from->db.str, table_from->table_name.str, "", 0);
 
   handler *file= get_new_handler(nullptr, thd->mem_root,

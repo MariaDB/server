@@ -1688,7 +1688,7 @@ scan_all_gtid_slave_pos_table(THD *thd, int (*cb)(THD *, LEX_CSTRING *, void *),
   if (lock_schema_name(thd, MYSQL_SCHEMA_NAME.str))
     return 1;
 
-  build_table_filename(path, sizeof(path) - 1, MYSQL_SCHEMA_NAME.str, "", "", 0);
+  build_table_filename(thd->catalog, path, sizeof(path) - 1, MYSQL_SCHEMA_NAME.str, "", "", 0);
   if (!(dirp= my_dir(path, MYF(MY_DONT_SORT))))
   {
     my_error(ER_FILE_NOT_FOUND, MYF(0), path, my_errno);

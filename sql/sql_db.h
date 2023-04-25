@@ -19,6 +19,7 @@
 #include "hash.h"                               /* HASH */
 
 class THD;
+class SQL_CATALOG;
 
 int mysql_create_db(THD *thd, const LEX_CSTRING *db, DDL_options_st options,
                     const Schema_specification_st *create);
@@ -36,7 +37,7 @@ bool mysql_opt_change_db(THD *thd,
                          bool *cur_db_changed);
 bool my_dboptions_cache_init(void);
 void my_dboptions_cache_free(void);
-bool check_db_dir_existence(const char *db_name);
+bool check_db_dir_existence(const SQL_CATALOG *catalog, const char *db_name);
 bool load_db_opt(THD *thd, const char *path, Schema_specification_st *create);
 bool load_db_opt_by_name(THD *thd, const char *db_name,
                          Schema_specification_st *db_create_info);

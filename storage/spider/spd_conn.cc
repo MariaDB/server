@@ -1319,7 +1319,7 @@ int spider_conn_queue_loop_check(
   }
   my_afree(loop_check_buf);
 
-  to_str.length = build_table_filename(path, FN_REFLEN,
+  to_str.length = build_table_filename(thd->catalog, path, FN_REFLEN,
     share->tgt_dbs[conn_link_idx] ? share->tgt_dbs[conn_link_idx] : "",
     share->tgt_table_names[conn_link_idx], "", 0);
   to_str.str = path;

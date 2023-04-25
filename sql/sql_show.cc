@@ -1428,7 +1428,7 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
   }
   else
   {
-    if (check_db_dir_existence(dbname->str))
+    if (check_db_dir_existence(thd->catalog, dbname->str))
     {
       my_error(ER_BAD_DB_ERROR, MYF(0), dbname->str);
       DBUG_RETURN(TRUE);
@@ -4514,7 +4514,7 @@ make_table_name_list(THD *thd, Dynamic_array<LEX_CSTRING*> *table_names,
                      LEX_CSTRING *db_name)
 {
   char path[FN_REFLEN + 1];
-  build_table_filename(path, sizeof(path) - 1, db_name->str, "", "", 0);
+  build_table_filename(thd->catalog, path, sizeof(path) - 1, db_name->str, "", "", 0);
   if (!lookup_field_vals->wild_table_value &&
       lookup_field_vals->table_value.str)
   {
@@ -4591,7 +4591,7 @@ static void get_table_engine_for_i_s(THD *thd, char *buf, TABLE_LIST *tl,
   if (thd->get_stmt_da()->sql_errno() == ER_UNKNOWN_STORAGE_ENGINE)
   {
     char path[FN_REFLEN];
-    build_table_filename(path, sizeof(path) - 1,
+    build_table_filename(thd->catalog, path, sizeof(path) - 1,
                          db->str, table->str, reg_ext, 0);
     if (dd_frm_type(thd, path, &engine_name, NULL, NULL) == TABLE_TYPE_NORMAL)
       tl->option= engine_name.str;
@@ -5438,15 +5438,16 @@ bool store_schema_schemata(THD* thd, TABLE *table, LEX_CSTRING *db_name,
   @retval true  - on error, the database directory does not exists
   @retval false - on success, the database directory exists
 */
-static bool verify_database_directory_exists(const LEX_CSTRING &dbname)
+static bool verify_database_directory_exists(const SQL_CATALOG *catalog,
+                                             const LEX_CSTRING *dbname)
 {
   DBUG_ENTER("verify_database_directory_exists");
   char path[FN_REFLEN + 16];
   uint path_len;
   MY_STAT stat_info;
-  if (!dbname.str[0])
+  if (!dbname->str[0])
     DBUG_RETURN(true); // Empty database name: does not exist.
-  path_len= build_table_filename(path, sizeof(path) - 1, dbname.str, "", "", 0);
+  path_len= build_table_filename(catalog, path, sizeof(path) - 1, dbname->str, "", "", 0);
   path[path_len - 1]= 0;
   if (!mysql_file_stat(key_file_misc, path, &stat_info, MYF(0)))
     DBUG_RETURN(true); // The database directory was not found: does not exist.
@@ -5484,7 +5485,7 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
   if(lookup_field_vals.db_value.str && !lookup_field_vals.wild_db_value &&
      (!db_names.elements() /* The database name was too long */||
       (db_names.at(0) != &INFORMATION_SCHEMA_NAME &&
-       verify_database_directory_exists(lookup_field_vals.db_value))))
+       verify_database_directory_exists(thd->catalog, &lookup_field_vals.db_value))))
     DBUG_RETURN(0);
 
   for (size_t i=0; i < db_names.elements(); i++)
@@ -6541,7 +6542,7 @@ int store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
   DBUG_ENTER("store_schema_params");
 
   bzero((char*) &tbl, sizeof(TABLE));
-  (void) build_table_filename(path, sizeof(path), "", "", "", 0);
+  (void) build_table_filename(thd->catalog, path, sizeof(path), "", "", "", 0);
   init_tmp_table_share(thd, &share, "", 0, "", path);
 
   proc_table->field[MYSQL_PROC_FIELD_DB]->val_str_nopad(thd->mem_root, &db);
@@ -6725,7 +6726,7 @@ int store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
           Field *field;
 
           bzero((char*) &tbl, sizeof(TABLE));
-          (void) build_table_filename(path, sizeof(path), "", "", "", 0);
+          (void) build_table_filename(thd->catalog, path, sizeof(path), "", "", "", 0);
           init_tmp_table_share(thd, &share, "", 0, "", path);
           field= sp->m_return_field_def.make_field(&share, thd->mem_root,
                                                    &empty_clex_str);

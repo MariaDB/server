@@ -34,6 +34,7 @@
 #include "log_event.h"  // Delete_file_log_event,
                         // Execute_load_query_log_event,
                         // LOG_EVENT_UPDATE_TABLE_MAP_VERSION_F
+#include "catalog.h"    // SQL_CATALOG
 #include <m_ctype.h>
 #include "rpl_mi.h"
 #include "sql_repl.h"
@@ -535,7 +536,8 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
 #endif
     if (!dirname_length(ex->file_name))
     {
-      strxnmov(name, FN_REFLEN-1, mysql_real_data_home, tdb, NullS);
+      strxnmov(name, FN_REFLEN-1, mysql_real_data_home, thd->catalog->path.str,
+               tdb, NullS);
       (void) fn_format(name, ex->file_name, name, "",
 		       MY_RELATIVE_PATH | MY_UNPACK_FILENAME);
     }

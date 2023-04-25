@@ -663,7 +663,8 @@ bool load_db_opt_by_name(THD *thd, const char *db_name,
     Pass an empty file name, and the database options file name as extension
     to avoid table name to file name encoding.
   */
-  (void) build_table_filename(db_opt_path, sizeof(db_opt_path) - 1,
+  (void) build_table_filename(thd->catalog,
+                              db_opt_path, sizeof(db_opt_path) - 1,
                               db_name, "", MY_DB_OPT_FILE, 0);
 
   return load_db_opt(thd, db_opt_path, db_create_info);
@@ -751,7 +752,8 @@ mysql_create_db_internal(THD *thd, const LEX_CSTRING *db,
     DBUG_RETURN(-1);
 
   /* Check directory */
-  path_len= build_table_filename(path, sizeof(path) - 1, db->str, "", "", 0);
+  path_len= build_table_filename(thd->catalog, path, sizeof(path) - 1,
+                                 db->str, "", "", 0);
   path[path_len-1]= 0;                    // Remove last '/' from path
 
   long affected_rows= 1;
@@ -891,7 +893,8 @@ mysql_alter_db_internal(THD *thd, const LEX_CSTRING *db,
      We pass MY_DB_OPT_FILE as "extension" to avoid
      "table name to file name" encoding.
   */
-  build_table_filename(path, sizeof(path) - 1, db->str, "", MY_DB_OPT_FILE, 0);
+  build_table_filename(thd->catalog, path, sizeof(path) - 1,
+                       db->str, "", MY_DB_OPT_FILE, 0);
   if (unlikely((error=write_db_opt(thd, path, create_info))))
     goto exit;
 
@@ -1058,7 +1061,8 @@ mysql_rm_db_internal(THD *thd, const LEX_CSTRING *db, bool if_exists,
   if (lock_schema_name(thd, dbnorm))
     DBUG_RETURN(true);
 
-  path_length= build_table_filename(path, sizeof(path) - 1, db->str, "", "", 0);
+  path_length= build_table_filename(thd->catalog, path, sizeof(path) - 1,
+                                    db->str, "", "", 0);
 
   /* See if the directory exists */
   if (!(dirp= my_dir(path,MYF(MY_DONT_SORT))))
@@ -1803,7 +1807,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
 
   DEBUG_SYNC(thd, "before_db_dir_check");
 
-  if (check_db_dir_existence(new_db_file_name.str))
+  if (check_db_dir_existence(thd->catalog, new_db_file_name.str))
   {
     if (force_switch)
     {
@@ -1941,12 +1945,13 @@ bool mysql_upgrade_db(THD *thd, const LEX_CSTRING *old_db)
   if (thd->db.str && !cmp(&thd->db, old_db))
     change_to_newdb= 1;
 
-  build_table_filename(path, sizeof(path)-1,
+  build_table_filename(thd->catalog, path, sizeof(path)-1,
                        old_db->str, "", MY_DB_OPT_FILE, 0);
   if ((load_db_opt(thd, path, &create_info)))
     create_info.default_table_charset= thd->variables.collation_server;
 
-  length= build_table_filename(path, sizeof(path)-1, old_db->str, "", "", 0);
+  length= build_table_filename(thd->catalog, path, sizeof(path)-1,
+                               old_db->str, "", "", 0);
   if (length && path[length-1] == FN_LIBCHAR)
     path[length-1]=0;                            // remove ending '\'
   if (unlikely((error= my_access(path,F_OK))))
@@ -2014,10 +2019,11 @@ bool mysql_upgrade_db(THD *thd, const LEX_CSTRING *old_db)
       If some tables were left in the new directory, rmdir() will fail.
       It garantees we never loose any tables.
     */
-    build_table_filename(path, sizeof(path)-1,
+    build_table_filename(thd->catalog, path, sizeof(path)-1,
                          new_db.str,"",MY_DB_OPT_FILE, 0);
     mysql_file_delete(key_file_dbopt, path, MYF(MY_WME));
-    length= build_table_filename(path, sizeof(path)-1, new_db.str, "", "", 0);
+    length= build_table_filename(thd->catalog, path, sizeof(path)-1,
+                                 new_db.str, "", "", 0);
     if (length && path[length-1] == FN_LIBCHAR)
       path[length-1]=0;                            // remove ending '\'
     my_rmdir(path);
@@ -2066,9 +2072,9 @@ bool mysql_upgrade_db(THD *thd, const LEX_CSTRING *old_db)
         continue;
 
       /* pass empty file name, and file->name as extension to avoid encoding */
-      build_table_filename(oldname, sizeof(oldname)-1,
+      build_table_filename(thd->catalog, oldname, sizeof(oldname)-1,
                            old_db->str, "", file->name, 0);
-      build_table_filename(newname, sizeof(newname)-1,
+      build_table_filename(thd->catalog, newname, sizeof(newname)-1,
                            new_db.str, "", file->name, 0);
       mysql_file_rename(key_file_misc, oldname, newname, MYF(MY_WME));
     }
@@ -2106,17 +2112,15 @@ exit:
 /*
   Check if there is directory for the database name.
 
-  SYNOPSIS
-    check_db_dir_existence()
-    db_name   database name
+  check_db_dir_existence()
+  @param catalog   current catalog
+  @param db_name   database name
 
-  RETURN VALUES
-    FALSE   There is directory for the specified database name.
-    TRUE    The directory does not exist.
+  @return FALSE   There is directory for the specified database name.
+  @return TRUE    The directory does not exist.
 */
 
-
-bool check_db_dir_existence(const char *db_name)
+bool check_db_dir_existence(const SQL_CATALOG *catalog, const char *db_name)
 {
   char db_dir_path[FN_REFLEN + 1];
   uint db_dir_path_len;
@@ -2124,7 +2128,8 @@ bool check_db_dir_existence(const char *db_name)
   if (dbname_cache->contains(db_name))
     return 0;
 
-  db_dir_path_len= build_table_filename(db_dir_path, sizeof(db_dir_path) - 1,
+  db_dir_path_len= build_table_filename(catalog,
+                                        db_dir_path, sizeof(db_dir_path) - 1,
                                         db_name, "", "", 0);
 
   if (db_dir_path_len && db_dir_path[db_dir_path_len - 1] == FN_LIBCHAR)

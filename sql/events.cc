@@ -339,7 +339,7 @@ Events::create_event(THD *thd, Event_parse_data *parse_data)
                        parse_data->dbname.str, parse_data->name.str))
     DBUG_RETURN(TRUE);
 
-  if (check_db_dir_existence(parse_data->dbname.str))
+  if (check_db_dir_existence(thd->catalog, parse_data->dbname.str))
   {
     my_error(ER_BAD_DB_ERROR, MYF(0), parse_data->dbname.str);
     DBUG_RETURN(TRUE);
@@ -473,7 +473,7 @@ Events::update_event(THD *thd, Event_parse_data *parse_data,
                        parse_data->dbname.str, parse_data->name.str))
     DBUG_RETURN(TRUE);
 
-  if (check_db_dir_existence(parse_data->dbname.str))
+  if (check_db_dir_existence(thd->catalog, parse_data->dbname.str))
   {
     my_error(ER_BAD_DB_ERROR, MYF(0), parse_data->dbname.str);
     DBUG_RETURN(TRUE);
@@ -509,7 +509,7 @@ Events::update_event(THD *thd, Event_parse_data *parse_data,
       DBUG_RETURN(TRUE);
 
     /* Check that the target database exists */
-    if (check_db_dir_existence(new_dbname->str))
+    if (check_db_dir_existence(thd->catalog, new_dbname->str))
     {
       my_error(ER_BAD_DB_ERROR, MYF(0), new_dbname->str);
       DBUG_RETURN(TRUE);

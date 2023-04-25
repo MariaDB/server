@@ -333,15 +333,17 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
 
   if (table_list->table->s->tmp_table == NO_TMP_TABLE)
   {
-    build_table_filename(path, sizeof(path) - 1, db.str, table_name.str, "", 0);
+    build_table_filename(thd->catalog, path, sizeof(path) - 1, db.str,
+                         table_name.str, "", 0);
 
-    build_table_filename(new_path, sizeof(new_path) - 1, new_db.str, new_name.str, "", 0);
+    build_table_filename(thd->catalog, new_path, sizeof(new_path) - 1,
+                         new_db.str, new_name.str, "", 0);
 
-    build_table_filename(new_filename, sizeof(new_filename) - 1,
+    build_table_filename(thd->catalog, new_filename, sizeof(new_filename) - 1,
                          new_db.str, new_name.str, reg_ext, 0);
 
-    build_table_filename(tmp_path, sizeof(tmp_path) - 1, new_db.str, tmp_name.str, "",
-                         FN_IS_TMP);
+    build_table_filename(thd->catalog, tmp_path, sizeof(tmp_path) - 1,
+                         new_db.str, tmp_name.str, "", FN_IS_TMP);
   }
   else
   {

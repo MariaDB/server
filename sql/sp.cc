@@ -1229,7 +1229,7 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
     exists. Design note: This won't work on virtual databases
     like information_schema.
   */
-  if (check_db_dir_existence(sp->m_db.str))
+  if (check_db_dir_existence(thd->catalog, sp->m_db.str))
   {
     my_error(ER_BAD_DB_ERROR, MYF(0), sp->m_db.str);
     DBUG_RETURN(TRUE);

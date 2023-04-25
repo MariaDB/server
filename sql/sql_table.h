@@ -43,6 +43,7 @@ typedef struct st_key_cache KEY_CACHE;
 typedef struct st_lock_param_type ALTER_PARTITION_PARAM_TYPE;
 typedef struct st_order ORDER;
 class DDL_LOG_STATE;
+class SQL_CATALOG;
 
 enum enum_explain_filename_mode
 {
@@ -81,16 +82,19 @@ uint filename_to_tablename(const char *from, char *to, size_t to_length,
 uint tablename_to_filename(const char *from, char *to, size_t to_length);
 uint check_n_cut_mysql50_prefix(const char *from, char *to, size_t to_length);
 bool check_mysql50_prefix(const char *name);
-uint build_table_filename(char *buff, size_t bufflen, const char *db,
-                          const char *table, const char *ext, uint flags);
-uint build_table_shadow_filename(char *buff, size_t bufflen,
+uint build_table_filename(const SQL_CATALOG *catalog,
+                          char *buff, size_t bufflen,
+                          const char *db, const char *table, const char *ext,
+                          uint flags);
+uint build_table_shadow_filename(THD *thd, char *buff, size_t bufflen,
                                  ALTER_PARTITION_PARAM_TYPE *lpt,
                                  bool backup= false);
-void build_lower_case_table_filename(char *buff, size_t bufflen,
+void build_lower_case_table_filename(const SQL_CATALOG *catalog, char *buff,
+                                     size_t bufflen,
                                      const LEX_CSTRING *db,
                                      const LEX_CSTRING *table,
                                      uint flags);
-uint build_tmptable_filename(THD* thd, char *buff, size_t bufflen);
+uint build_tmptable_filename(THD *thd, char *buff, size_t bufflen);
 bool add_keyword_to_query(THD *thd, String *result, const LEX_CSTRING *keyword,
                           const LEX_CSTRING *add);
 

@@ -1725,7 +1725,8 @@ int plugin_init(int *argc, char **argv, int flags)
   if (!(flags & PLUGIN_INIT_SKIP_PLUGIN_TABLE))
   {
     char path[FN_REFLEN + 1];
-    build_table_filename(path, sizeof(path) - 1, "mysql", "plugin", reg_ext, 0);
+    build_table_filename(default_catalog(), path, sizeof(path) - 1,
+                         "mysql", "plugin", reg_ext, 0);
     Table_type ttype= dd_frm_type(0, path, &plugin_table_engine_name,
                                   NULL, NULL);
     if (ttype != TABLE_TYPE_NORMAL)

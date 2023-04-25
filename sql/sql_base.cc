@@ -1633,7 +1633,7 @@ bool is_locked_view(THD *thd, TABLE_LIST *t)
                                      t->table_name.str, MDL_SHARED))
   {
     char path[FN_REFLEN + 1];
-    build_table_filename(path, sizeof(path) - 1,
+    build_table_filename(thd->catalog, path, sizeof(path) - 1,
                          t->db.str, t->table_name.str, reg_ext, 0);
     /*
       Note that we can't be 100% sure that it is a view since it's
