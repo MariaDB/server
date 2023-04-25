@@ -278,6 +278,7 @@ class thread_pool_generic : public thread_pool
   /* maintenance related statistics (see maintenance()) */
   size_t m_last_thread_count;
   unsigned long long m_last_activity;
+  std::atomic_flag m_thread_creation_pending= ATOMIC_FLAG_INIT;
 
   void worker_main(worker_data *thread_data);
   void worker_end(worker_data* thread_data);
@@ -575,6 +576,7 @@ void thread_pool_generic::worker_main(worker_data *thread_var)
    m_worker_init_callback();
 
   tls_worker_data = thread_var;
+  m_thread_creation_pending.clear();
 
   while (get_task(thread_var, &task) && task)
   {
@@ -720,11 +722,13 @@ static int  throttling_interval_ms(size_t n_threads,size_t concurrency)
 /* Create a new worker.*/
 bool thread_pool_generic::add_thread()
 {
+  if (m_thread_creation_pending.test_and_set())
+    return false;
+
   size_t n_threads = thread_count();
 
   if (n_threads >= m_max_threads)
     return false;
-
   if (n_threads >= m_min_threads)
   {
     auto now = std::chrono::system_clock::now();
