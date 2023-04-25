@@ -416,7 +416,7 @@ private:
   Rows_log_event *m_pending;
 
   /*
-    Bit flags for what has been writting to cache. Used to
+    Bit flags for what has been writing to cache. Used to
     discard logs without any data changes.
     see enum_logged_status;
   */

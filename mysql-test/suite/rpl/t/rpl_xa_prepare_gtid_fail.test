@@ -1,0 +1,106 @@
+#
+#   When handling the replication of an XA PREPARE, the commit phase is
+# bifurcated. First, the prepare is handled by the relevant storage engines.
+# Then second,the GTID slave state is updated as a separate autocommit
+# transaction. If the second stage fails, i.e. we are unable to update the
+# GTID slave state, then the slave should immediately quit in error, without
+# retry.
+#
+#   This tests validates the above behavior by simulating a deadlock on the
+# GTID slave state table during the second part of XA PREPARE's commit, to
+# ensure that the appropriate error is reported and the transaction was never
+# retried.
+#
+#
+# References
+#   MDEV-31038: Parallel Replication Breaks if XA PREPARE Fails Updating Slave
+#               GTID State
+#
+source include/master-slave.inc;
+source include/have_binlog_format_row.inc;
+source include/have_innodb.inc;
+
+--connection slave
+--source include/stop_slave.inc
+
+--let $save_par_thds= `SELECT @@global.slave_parallel_threads`
+--let $save_strict_mode= `SELECT @@global.gtid_strict_mode`
+--let $save_innodb_lock_wait_timeout= `SELECT @@global.innodb_lock_wait_timeout`
+
+change master to master_use_gtid=slave_pos;
+set @@global.slave_parallel_threads= 4;
+set @@global.slave_parallel_mode= optimistic;
+set @@global.gtid_strict_mode=ON;
+
+set sql_log_bin= 0;
+alter table mysql.gtid_slave_pos engine=innodb;
+call mtr.add_suppression("Deadlock found.*");
+set sql_log_bin= 1;
+--source include/start_slave.inc
+
+--connection master
+let $datadir= `select @@datadir`;
+create table t1 (a int primary key, b int) engine=innodb;
+insert t1 values (1,1);
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+set @@global.innodb_lock_wait_timeout= 1;
+
+--let $retried_tx_initial= query_get_value(SHOW ALL SLAVES STATUS, Retried_transactions, 1)
+
+--connection master
+--let $gtid_domain_id=`SELECT @@GLOBAL.gtid_domain_id`
+--let $gtid_server_id=`SELECT @@GLOBAL.server_id`
+--let $xap_seq_no=100
+--eval set @@session.gtid_seq_no=$xap_seq_no
+xa start '1';
+update t1 set b=b+10 where a=1;
+xa end '1';
+xa prepare '1';
+--let $new_gtid= `SELECT @@global.gtid_binlog_pos`
+xa commit '1';
+--source include/save_master_gtid.inc
+
+
+--connection slave
+
+#--eval set statement sql_log_bin=0 for insert into mysql.gtid_slave_pos values ($gtid_domain_id, 5, $gtid_server_id, $xap_seq_no)
+
+--connection slave1
+BEGIN;
+--eval SELECT * FROM mysql.gtid_slave_pos WHERE seq_no=$xap_seq_no FOR UPDATE
+
+--connection slave
+--source include/start_slave.inc
+
+--let $slave_sql_errno= 1942,1213
+--source include/wait_for_slave_sql_error.inc
+
+--let $retried_tx_test= query_get_value(SHOW ALL SLAVES STATUS, Retried_transactions, 1)
+if ($retried_tx_initial != $retried_tx_test)
+{
+    --echo Transaction was retried when a failed XA PREPARE slave GTID update should lead to immediate slave stop without retry
+    --die Transaction was retried when a failed XA PREPARE slave GTID update should lead to immediate slave stop without retry
+}
+
+--connection slave1
+ROLLBACK;
+
+--echo # Cleanup
+
+--connection master
+drop table t1;
+
+--connection slave
+--source include/stop_slave.inc
+--eval set @@global.gtid_slave_pos= "$new_gtid"
+--eval set @@global.slave_parallel_threads= $save_par_thds
+--eval set @@global.gtid_strict_mode= $save_strict_mode
+--eval set @@global.innodb_lock_wait_timeout= $save_innodb_lock_wait_timeout
+--source include/start_slave.inc
+
+--source include/rpl_end.inc
+--echo # End of rpl_xa_prepare_gtid_fail.test

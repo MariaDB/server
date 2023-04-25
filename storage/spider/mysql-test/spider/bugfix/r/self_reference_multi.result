@@ -12,9 +12,9 @@ alter table t2 ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv",TABLE "t0"';
 select * from t0;
 ERROR HY000: An infinite loop is detected when opening table test.t0
 select * from t1;
-ERROR HY000: An infinite loop is detected when opening table test.t0
+ERROR HY000: An infinite loop is detected when opening table test.t1
 select * from t2;
-ERROR HY000: An infinite loop is detected when opening table test.t0
+ERROR HY000: An infinite loop is detected when opening table test.t2
 drop table t0, t1, t2;
 for master_1
 for child2

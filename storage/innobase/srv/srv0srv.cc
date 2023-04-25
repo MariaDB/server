@@ -1003,12 +1003,13 @@ srv_export_innodb_status(void)
 	export_vars.innodb_data_writes = os_n_file_writes;
 
 	buf_dblwr.lock();
-	ulint dblwr = buf_dblwr.submitted();
-	export_vars.innodb_dblwr_pages_written = buf_dblwr.written();
+	ulint dblwr = buf_dblwr.written();
+	export_vars.innodb_dblwr_pages_written = dblwr;
 	export_vars.innodb_dblwr_writes = buf_dblwr.batches();
 	buf_dblwr.unlock();
 
-	export_vars.innodb_data_written = srv_stats.data_written + dblwr;
+	export_vars.innodb_data_written = srv_stats.data_written
+		+ (dblwr << srv_page_size_shift);
 
 	export_vars.innodb_buffer_pool_write_requests =
 		srv_stats.buf_pool_write_requests;
