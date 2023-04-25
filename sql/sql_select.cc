@@ -24226,7 +24226,7 @@ JOIN_TAB::remove_duplicates()
 
   if (!(sortorder= (SORT_FIELD*) my_malloc((fields->elements+1) *
                                            sizeof(SORT_FIELD),
-                                           MYF(MY_WME))))
+                                           MYF(MY_WME | MY_ZEROFILL))))
     DBUG_RETURN(TRUE);
 
   /* Calculate how many saved fields there is in list */
@@ -24245,7 +24245,6 @@ JOIN_TAB::remove_duplicates()
       else
       {
         /* Item is not stored in temporary table, remember it */
-        sorder->field= 0;                       // Safety, not used
         sorder->item= item;
         /* Calculate sorder->length */
         item->type_handler()->sortlength(thd, item, sorder);
