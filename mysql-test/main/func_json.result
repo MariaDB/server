@@ -4668,4 +4668,40 @@ JSON_SCHEMA_VALID(@property_names, '{"I_int1":3, "I_ob1":{"key1":"val1"}}')
 1
 SET @@sql_mode= @old_sql_mode;
 set global sql_mode=default;
+#
+# MDEV-30287: JSON_SCHEMA_VALID returns incorrect result for type=number
+#
+SET @schema= '{"type":"number"}';
+SELECT JSON_SCHEMA_VALID(@schema, '3.14');
+JSON_SCHEMA_VALID(@schema, '3.14')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '0zzzz');
+JSON_SCHEMA_VALID(@schema, '0zzzz')
+0
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_schema_valid' at position 2
+SELECT JSON_SCHEMA_VALID(@schema, '-#');
+JSON_SCHEMA_VALID(@schema, '-#')
+0
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_schema_valid' at position 2
+#
+# MDEV-30689: JSON_SCHEMA_VALID for type=array return 1 for any string that starts with '['
+#
+SET @schema_array= '{"type":"array"}';
+SELECT JSON_SCHEMA_VALID(@schema_array, '[');
+JSON_SCHEMA_VALID(@schema_array, '[')
+0
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_schema_valid'
+SELECT JSON_SCHEMA_VALID(repeat('[', 100000), json_object());
+JSON_SCHEMA_VALID(repeat('[', 100000), json_object())
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_schema_valid' at position 32
+SELECT JSON_SCHEMA_VALID(json_object(), repeat('[', 10000000));
+JSON_SCHEMA_VALID(json_object(), repeat('[', 10000000))
+0
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 2 to function 'json_schema_valid' at position 32
 # End of 11.1 test

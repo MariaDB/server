@@ -4762,11 +4762,16 @@ longlong Item_func_json_schema_valid::val_int()
     } 
   }
 
+  if (is_valid && !ve.s.error && !json_scan_ended(&ve))
+  {
+    while (json_scan_next(&ve) == 0) /* no-op */;
+  }
+
 end:
   if (unlikely(ve.s.error))
   {
     is_valid= 0;
-    report_json_error(val, &ve, 2);
+    report_json_error(val, &ve, 1);
   }
 
   return is_valid;

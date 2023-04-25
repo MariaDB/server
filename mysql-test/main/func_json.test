@@ -3564,4 +3564,26 @@ SELECT JSON_SCHEMA_VALID(@property_names, '{"I_int1":3, "I_ob1":{"key1":"val1"}}
 SET @@sql_mode= @old_sql_mode;
 set global sql_mode=default;
 
+--echo #
+--echo # MDEV-30287: JSON_SCHEMA_VALID returns incorrect result for type=number
+--echo #
+
+SET @schema= '{"type":"number"}';
+
+SELECT JSON_SCHEMA_VALID(@schema, '3.14');
+SELECT JSON_SCHEMA_VALID(@schema, '0zzzz');
+SELECT JSON_SCHEMA_VALID(@schema, '-#');
+
+--echo #
+--echo # MDEV-30689: JSON_SCHEMA_VALID for type=array return 1 for any string that starts with '['
+--echo #
+
+
+SET @schema_array= '{"type":"array"}';
+SELECT JSON_SCHEMA_VALID(@schema_array, '[');
+
+SELECT JSON_SCHEMA_VALID(repeat('[', 100000), json_object());
+
+SELECT JSON_SCHEMA_VALID(json_object(), repeat('[', 10000000));
+
 --echo # End of 11.1 test

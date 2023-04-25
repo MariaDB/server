@@ -443,6 +443,11 @@ int json_normalize(DYNAMIC_STRING *result,
 
 int json_skip_array_and_count(json_engine_t *j, int* n_item);
 
+inline static int json_scan_ended(json_engine_t *j)
+{
+  return (j->state == JST_ARRAY_END && j->stack_p == 0);
+}
+
 #ifdef  __cplusplus
 }
 #endif
