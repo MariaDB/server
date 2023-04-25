@@ -210,8 +210,6 @@ static uint opt_protocol=0;
 static const char *opt_protocol_type= "";
 static CHARSET_INFO *charset_info= &my_charset_latin1;
 
-static uint protocol_to_force= MYSQL_PROTOCOL_DEFAULT;
-
 #include "sslopt-vars.h"
 
 const char *default_dbug_option="d:t:o,/tmp/mariadb.trace";
@@ -1180,14 +1178,6 @@ int main(int argc,char *argv[])
     exit(status.exit_status);
   }
 
-  /* Command line options override configured protocol */
-  if (protocol_to_force > MYSQL_PROTOCOL_DEFAULT
-      && protocol_to_force != opt_protocol)
-  {
-    warn_protocol_override(current_host, &opt_protocol, protocol_to_force);
-  }
-
-
   if (status.batch && !status.line_buff &&
       !(status.line_buff= batch_readline_init(MAX_BATCH_BUFFER_SIZE, stdin)))
   {
@@ -1737,11 +1727,9 @@ static void usage(int version)
 
 
 my_bool
-get_one_option(const struct my_option *opt, const char *argument, const char *filename)
+get_one_option(const struct my_option *opt, const char *argument,
+               const char *filename)
 {
-  /* Track when protocol is set via CLI to not force port TCP protocol override */
-  static my_bool ignore_protocol_override = FALSE;
-
   switch(opt->id) {
   case OPT_CHARSETS_DIR:
     strmake_buf(mysql_charsets_dir, argument);
@@ -1802,18 +1790,11 @@ get_one_option(const struct my_option *opt, const char *argument, const char *fi
 #ifndef EMBEDDED_LIBRARY
     if (!argument[0])
       opt_protocol= 0;
-    else if ((opt_protocol= find_type_with_warning(argument, &sql_protocol_typelib,
+    else if ((opt_protocol=
+              find_type_with_warning(argument, &sql_protocol_typelib,
                                                    opt->name)) <= 0)
       exit(1);
 #endif
-
-    /* Specification of protocol via CLI trumps implicit overrides */
-    if (filename[0] == '\0')
-    {
-      ignore_protocol_override = TRUE;
-      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
-    }
-
     break;
   case OPT_SERVER_ARG:
 #ifdef EMBEDDED_LIBRARY
@@ -1913,13 +1894,6 @@ get_one_option(const struct my_option *opt, const char *argument, const char *fi
 #ifdef _WIN32
     opt_protocol = MYSQL_PROTOCOL_PIPE;
     opt_protocol_type= "pipe";
-
-    /* Prioritize pipe if explicit via command line */
-    if (filename[0] == '\0')
-    {
-      ignore_protocol_override = TRUE;
-      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
-    }
 #endif
     break;
 #include <sslopt-case.h>
@@ -1932,35 +1906,17 @@ get_one_option(const struct my_option *opt, const char *argument, const char *fi
     mysql_end(-1);
     break;
   case 'P':
-    /* If port and socket are set, fall back to default behavior */
-    if (protocol_to_force == SOCKET_PROTOCOL_TO_FORCE)
+    if (filename[0] == '\0')
     {
-      ignore_protocol_override = TRUE;
-      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
-    }
-
-    /* If port is set via CLI, try to force protocol to TCP */
-    if (filename[0] == '\0' &&
-        !ignore_protocol_override &&
-        protocol_to_force == MYSQL_PROTOCOL_DEFAULT)
-    {
-      protocol_to_force = MYSQL_PROTOCOL_TCP;
+      /* Port given on command line, switch protocol to use TCP */
+      opt_protocol= MYSQL_PROTOCOL_TCP;
     }
     break;
   case 'S':
-    /* If port and socket are set, fall back to default behavior */
-    if (protocol_to_force == MYSQL_PROTOCOL_TCP)
+    if (filename[0] == '\0')
     {
-      ignore_protocol_override = TRUE;
-      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
-    }
-
-    /* Prioritize socket if set via command line */
-    if (filename[0] == '\0' &&
-        !ignore_protocol_override &&
-        protocol_to_force == MYSQL_PROTOCOL_DEFAULT)
-    {
-      protocol_to_force = SOCKET_PROTOCOL_TO_FORCE;
+      /* Socket given on command line, switch protocol to use SOCKETSt */
+      opt_protocol= MYSQL_PROTOCOL_SOCKET;
     }
     break;
   case 'I':
