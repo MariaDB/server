@@ -115,7 +115,12 @@ static void buf_flush_validate_skip()
 void buf_pool_t::page_cleaner_wakeup(bool for_LRU)
 {
   if (!page_cleaner_idle())
+  {
+    if (for_LRU)
+      /* Ensure that the page cleaner is not in a timed wait. */
+      pthread_cond_signal(&do_flush_list);
     return;
+  }
   double dirty_pct= double(UT_LIST_GET_LEN(buf_pool.flush_list)) * 100.0 /
     double(UT_LIST_GET_LEN(buf_pool.LRU) + UT_LIST_GET_LEN(buf_pool.free));
   double pct_lwm= srv_max_dirty_pages_pct_lwm;
