@@ -694,7 +694,9 @@ static void buf_dump_load_func(void *)
 #ifdef WITH_WSREP
 		if (!get_wsrep_recovery()) {
 #endif /* WITH_WSREP */
+			srv_thread_pool->set_concurrency(srv_n_read_io_threads);
 			buf_load();
+			srv_thread_pool->set_concurrency();
 #ifdef WITH_WSREP
 		}
 #endif /* WITH_WSREP */

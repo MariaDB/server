@@ -1486,9 +1486,14 @@ file_checked:
 		if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
 			/* Apply the hashed log records to the
 			respective file pages, for the last batch of
-			recv_group_scan_log_recs(). */
-
+			recv_group_scan_log_recs().
+			Since it may generate huge batch of threadpool tasks,
+			for read io task group, scale down thread creation rate
+			by temporarily restricting tpool concurrency.
+			*/
+			srv_thread_pool->set_concurrency(srv_n_read_io_threads);
 			recv_sys.apply(true);
+			srv_thread_pool->set_concurrency();
 
 			if (recv_sys.is_corrupt_log()
 			    || recv_sys.is_corrupt_fs()) {

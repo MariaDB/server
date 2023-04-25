@@ -445,6 +445,7 @@ public:
   {
     return new timer_generic(func, data, this);
   }
+  void set_concurrency(unsigned int concurrency=0) override;
 };
 
 void thread_pool_generic::cancel_pending(task* t)
@@ -796,7 +797,6 @@ thread_pool_generic::thread_pool_generic(int min_threads, int max_threads) :
   m_tasks_dequeued(),
   m_wakeups(),
   m_spurious_wakeups(),
-  m_concurrency(std::thread::hardware_concurrency()*2),
   m_in_shutdown(),
   m_timestamp(),
   m_long_tasks_count(),
@@ -808,14 +808,7 @@ thread_pool_generic::thread_pool_generic(int min_threads, int max_threads) :
   m_last_activity(),
   m_maintenance_timer(thread_pool_generic::maintenance_func, this, nullptr)
 {
-
-  if (m_max_threads < m_concurrency)
-    m_concurrency = m_max_threads;
-  if (m_min_threads > m_concurrency)
-    m_concurrency = min_threads;
-  if (!m_concurrency)
-    m_concurrency = 1;
-
+  set_concurrency();
   // start the timer
   m_maintenance_timer.set_time(0, (int)m_timer_interval.count());
 }
@@ -842,6 +835,20 @@ bool thread_pool_generic::too_many_active_threads()
 {
   return m_active_threads.size() - m_long_tasks_count - m_waiting_task_count >
     m_concurrency* OVERSUBSCRIBE_FACTOR;
+}
+
+void thread_pool_generic::set_concurrency(unsigned int concurrency)
+{
+  std::unique_lock<std::mutex> lk(m_mtx);
+  if (concurrency == 0)
+    concurrency= 2 * std::thread::hardware_concurrency();
+  m_concurrency = concurrency;
+  if (m_concurrency > m_max_threads)
+    m_concurrency = m_max_threads;
+  if (m_concurrency < m_min_threads)
+    m_concurrency = m_min_threads;
+  if (m_concurrency < 1)
+    m_concurrency = 1;
 }
 
 /** Submit a new task*/
