@@ -2261,8 +2261,7 @@ void spider_db_mbase::fetch_and_print_warnings(struct tm *l_time)
     DBUG_VOID_RETURN;
 
   if (mysql_num_fields(res) == 3)
-    for (MYSQL_ROW row= mysql_fetch_row(res); row;
-         mysql_fetch_row(res))
+    while (MYSQL_ROW row= mysql_fetch_row(res))
       fprintf(stderr,
               "%04d%02d%02d %02d:%02d:%02d [WARN SPIDER RESULT] from [%s] %ld "
               "to %ld: %s %s %s\n",
