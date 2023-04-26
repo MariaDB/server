@@ -13456,6 +13456,56 @@ int spider_mbase_handler::sts_mode_exchange(
   DBUG_RETURN(sts_mode);
 }
 
+/** Set the session lock wait time out */
+int spider_db_mbase::set_lock_wait_timeout(uint timeout)
+{
+  String query(0);
+  int error_num;
+  DBUG_ENTER("spider_db_set_lock_wait_timeout");
+  query.append(STRING_WITH_LEN(
+                 "set @old_lock_wait_timeout=@@session.lock_wait_timeout;"
+                 "set session lock_wait_timeout="));
+  query.append_ulonglong(timeout);
+  query.append(STRING_WITH_LEN(";"));
+  if ((error_num = exec_query(query.c_ptr(), query.length(), -1)))
+    DBUG_RETURN(error_num);
+  spider_db_result *result;
+  do {
+    st_spider_db_request_key request_key= {1, 1, NULL, 1, NULL};
+    if ((result = conn->db_conn->store_result(NULL, &request_key,
+                                              &error_num)))
+    {
+      result->free_result();
+      delete result;
+    } else if ((error_num = conn->db_conn->get_errno()))
+      break;
+  } while (!(error_num = conn->db_conn->next_result()));
+  DBUG_RETURN(0);
+}
+
+/** Reset the session lock wait time out */
+int spider_db_mbase::reset_lock_wait_timeout()
+{
+  const LEX_CSTRING query = {STRING_WITH_LEN(
+      "set session lock_wait_timeout=@old_lock_wait_timeout;")};
+  int error_num;
+  DBUG_ENTER("spider_db_set_lock_wait_timeout");
+  if ((error_num = exec_query(query.str, query.length, -1)))
+    DBUG_RETURN(error_num);
+  spider_db_result *result;
+  do {
+    st_spider_db_request_key request_key= {1, 1, NULL, 1, NULL};
+    if ((result = conn->db_conn->store_result(NULL, &request_key,
+                                              &error_num)))
+    {
+      result->free_result();
+      delete result;
+    } else if ((error_num = conn->db_conn->get_errno()))
+      break;
+  } while (!(error_num= conn->db_conn->next_result()));
+  DBUG_RETURN(0);
+}
+
 /** FIXME: refactor more functions to use spider_setup_for_query() and
 spider_teardown_after_query(). */
 void spider_setup_for_query(ha_spider *spider, SPIDER_CONN *conn, int link_idx)
@@ -13507,6 +13557,8 @@ int spider_mbase_handler::show_table_status(
   spider_conn_set_timeout_from_share(
     conn, link_idx, spider->wide_handler->trx->thd, share);
   if ((error_num = spider_db_set_names(spider, conn, link_idx)) ||
+      (error_num =
+       ((spider_db_mbase *) conn->db_conn)->set_lock_wait_timeout(1)) ||
       /* Executes the `show table status` query */
       (spider_db_query(
         conn,
@@ -13527,6 +13579,9 @@ int spider_mbase_handler::show_table_status(
       spider_conn_set_timeout_from_share(conn, link_idx,
                                          spider->wide_handler->trx->thd,
                                          share);
+      if ((error_num =
+           ((spider_db_mbase *) conn->db_conn)->set_lock_wait_timeout(1)))
+        DBUG_RETURN(spider_teardown_after_query(conn, error_num, true));
       if (spider_db_query(
             conn,
             mysql_share->show_table_status[pos].ptr(),
@@ -13604,8 +13659,21 @@ int spider_mbase_handler::show_table_status(
 
   if ((error_num = ((spider_db_mbase *) conn->db_conn)->print_warnings(NULL)))
   {
+    ((spider_db_mbase *) conn->db_conn)->reset_lock_wait_timeout();
+    if (error_num == ER_LOCK_WAIT_TIMEOUT)
+    {
+      error_num = ER_SPIDER_TABLE_OPEN_LOCK_WAIT_TIMEOUT_NUM;
+      my_printf_error(
+        ER_SPIDER_TABLE_OPEN_LOCK_WAIT_TIMEOUT_NUM,
+        ER_SPIDER_TABLE_OPEN_LOCK_WAIT_TIMEOUT_STR, MYF(0),
+        mysql_share->db_names_str[spider->conn_link_idx[link_idx]].ptr(),
+        mysql_share->table_names_str[spider->conn_link_idx[link_idx]].ptr());
+    }
     DBUG_RETURN(error_num);
   }
+  if ((error_num =
+       ((spider_db_mbase *) conn->db_conn)->reset_lock_wait_timeout()))
+    DBUG_RETURN(error_num);
   if (share->static_records_for_status != -1)
     share->stat.records = (ha_rows) share->static_records_for_status;
   if (share->static_mean_rec_length != -1)
@@ -13646,6 +13714,8 @@ int spider_mbase_handler::show_index(
   spider_conn_set_timeout_from_share(conn, link_idx,
                                      spider->wide_handler->trx->thd, share);
   if ((error_num = spider_db_set_names(spider, conn, link_idx)) ||
+      (error_num =
+       ((spider_db_mbase *) conn->db_conn)->set_lock_wait_timeout(1)) ||
       (spider_db_query(
         conn,
         mysql_share->show_index[pos].ptr(),
@@ -13665,6 +13735,9 @@ int spider_mbase_handler::show_index(
       spider_conn_set_timeout_from_share(conn, link_idx,
                                          spider->wide_handler->trx->thd,
                                          share);
+      if ((error_num =
+           ((spider_db_mbase *) conn->db_conn)->set_lock_wait_timeout(1)))
+        DBUG_RETURN(spider_teardown_after_query(conn, error_num, true));
       if (spider_db_query(
             conn,
             mysql_share->show_index[pos].ptr(),
@@ -13725,6 +13798,10 @@ int spider_mbase_handler::show_index(
   default:
     break;
   }
+  if (!error_num)
+    error_num = ((spider_db_mbase *) conn->db_conn)->reset_lock_wait_timeout();
+  else
+    ((spider_db_mbase *) conn->db_conn)->reset_lock_wait_timeout();
   DBUG_RETURN(error_num);
 }
 
