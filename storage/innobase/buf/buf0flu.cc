@@ -2081,10 +2081,12 @@ Based on various factors it decides if there is a need to do flushing.
 @return number of pages recommended to be flushed
 @param last_pages_in  number of pages flushed in previous batch
 @param oldest_lsn     buf_pool.get_oldest_modification(0)
+@param pct_lwm        innodb_max_dirty_pages_pct_lwm, or 0 to ignore it
 @param dirty_blocks   UT_LIST_GET_LEN(buf_pool.flush_list)
 @param dirty_pct      100*flush_list.count / (LRU.count + free.count) */
 static ulint page_cleaner_flush_pages_recommendation(ulint last_pages_in,
                                                      lsn_t oldest_lsn,
+                                                     double pct_lwm,
                                                      ulint dirty_blocks,
                                                      double dirty_pct)
 {
@@ -2154,11 +2156,17 @@ func_exit:
 		sum_pages = 0;
 	}
 
-	const ulint pct_for_dirty = srv_max_dirty_pages_pct_lwm == 0
-		? (dirty_pct >= max_pct ? 100 : 0)
-		: static_cast<ulint>
-		(max_pct > 0.0 ? dirty_pct / max_pct : dirty_pct);
-	ulint pct_total = std::max(pct_for_dirty, pct_for_lsn);
+	MONITOR_SET(MONITOR_FLUSH_PCT_FOR_LSN, pct_for_lsn);
+
+	double total_ratio;
+	if (pct_lwm == 0.0 || max_pct == 0.0) {
+		total_ratio = 1;
+	} else {
+		total_ratio = std::max(double(pct_for_lsn) / 100,
+				       (dirty_pct / max_pct));
+	}
+
+	MONITOR_SET(MONITOR_FLUSH_PCT_FOR_DIRTY, ulint(total_ratio * 100));
 
 	/* Estimate pages to be flushed for the lsn progress */
 	lsn_t	target_lsn = oldest_lsn
@@ -2184,7 +2192,7 @@ func_exit:
 		pages_for_lsn = 1;
 	}
 
-	n_pages = (ulint(double(srv_io_capacity) * double(pct_total) / 100.0)
+	n_pages = (ulint(double(srv_io_capacity) * total_ratio)
 		   + avg_page_rate + pages_for_lsn) / 3;
 
 	if (n_pages > srv_max_io_capacity) {
@@ -2197,8 +2205,6 @@ func_exit:
 
 	MONITOR_SET(MONITOR_FLUSH_AVG_PAGE_RATE, avg_page_rate);
 	MONITOR_SET(MONITOR_FLUSH_LSN_AVG_RATE, lsn_avg_rate);
-	MONITOR_SET(MONITOR_FLUSH_PCT_FOR_DIRTY, pct_for_dirty);
-	MONITOR_SET(MONITOR_FLUSH_PCT_FOR_LSN, pct_for_lsn);
 
 	goto func_exit;
 }
@@ -2305,7 +2311,7 @@ static void buf_flush_page_cleaner()
         soft_lsn_limit= lsn_limit;
     }
 
-    bool idle_flush= false;
+    double pct_lwm= 0.0;
     ulint n_flushed= 0, n;
 
     if (UNIV_UNLIKELY(soft_lsn_limit != 0))
@@ -2324,7 +2330,7 @@ static void buf_flush_page_cleaner()
       mysql_mutex_unlock(&buf_pool.mutex);
       last_pages+= n;
 
-      if (!idle_flush)
+      if (pct_lwm == 0.0)
         goto end_of_batch;
 
       /* when idle flushing kicks in page_cleaner is marked active.
@@ -2342,7 +2348,8 @@ static void buf_flush_page_cleaner()
     guaranteed to be nonempty, and it is a subset of buf_pool.LRU. */
     const double dirty_pct= double(dirty_blocks) * 100.0 /
       double(UT_LIST_GET_LEN(buf_pool.LRU) + UT_LIST_GET_LEN(buf_pool.free));
-    if (srv_max_dirty_pages_pct_lwm != 0.0)
+    pct_lwm= srv_max_dirty_pages_pct_lwm;
+    if (pct_lwm != 0.0)
     {
       const ulint activity_count= srv_get_activity_count();
       if (activity_count != last_activity_count)
@@ -2359,13 +2366,16 @@ static void buf_flush_page_cleaner()
            - there are no pending reads but there are dirty pages to flush */
         buf_pool.update_last_activity_count(activity_count);
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-        idle_flush= true;
         goto idle_flush;
       }
       else
+      {
       maybe_unemployed:
-        if (dirty_pct < srv_max_dirty_pages_pct_lwm)
+        const bool below{dirty_pct < pct_lwm};
+        pct_lwm= 0.0;
+        if (below)
           goto possibly_unemployed;
+      }
     }
     else if (dirty_pct < srv_max_buf_pool_modified_pct)
     possibly_unemployed:
@@ -2396,6 +2406,7 @@ static void buf_flush_page_cleaner()
     }
     else if ((n= page_cleaner_flush_pages_recommendation(last_pages,
                                                          oldest_lsn,
+                                                         pct_lwm,
                                                          dirty_blocks,
                                                          dirty_pct)) != 0)
     {
