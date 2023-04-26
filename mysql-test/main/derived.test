@@ -1145,5 +1145,35 @@ DROP VIEW v1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-28616: derived table over union with order by clause that
+--echo #             contains subquery with unresolvable column reference
+--echo #
+
+--error ER_BAD_FIELD_ERROR
+SELECT 1 FROM (
+  SELECT 1 UNION SELECT 2 ORDER BY  (SELECT 1 FROM DUAL WHERE xxx = 0)
+) dt;
+
+create table t1 (a int, b int);
+insert into t1 values (3,8), (7,2), (1,4), (5,9);
+
+create table t2 (a int, b int);
+insert into t2 values (9,1), (7,3), (2,6);
+
+create table t3 (c int, d int);
+insert into t3 values (7,8), (1,2), (3,8);
+
+--error ER_BAD_FIELD_ERROR
+select * from
+(
+  select a,b from t1 where t1.a > 3
+  union
+  select a,b from t2 where t2.b < 6
+  order by (a - b / (select a + max(c) from t3  where d = x))
+) dt;
+
+drop table t1,t2,t3;
+
+--echo #
 --echo # End of 10.3 tests
 --echo #

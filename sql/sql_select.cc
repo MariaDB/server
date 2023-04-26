@@ -29219,7 +29219,7 @@ void st_select_lex::print_item_list(THD *thd, String *str,
     outer_select() can not be used here because it is for name resolution
     and will return NULL at any end of name resolution chain (view/derived)
   */
-  bool top_level= (get_master()->get_master() == 0);
+  bool top_level= (get_master() == &thd->lex->unit);
   List_iterator_fast<Item> it(item_list);
   Item *item;
   while ((item= it++))
@@ -29326,7 +29326,7 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
     return;
   }
 
-  bool top_level= (get_master()->get_master() == 0);
+  bool top_level= (get_master() == &thd->lex->unit);
   enum explainable_cmd_type sel_type= SELECT_CMD;
   if (top_level)
     sel_type= get_explainable_cmd_type(thd);
