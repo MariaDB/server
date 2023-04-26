@@ -340,6 +340,9 @@ get_transfer()
                         "Use workaround for socat $SOCAT_VERSION bug"
                 fi
             fi
+            if check_for_version "$SOCAT_VERSION" '1.7.4'; then
+                tcmd="$tcmd,no-sni=1"
+            fi
         fi
 
         if [ "${sockopt#*,dhparam=}" = "$sockopt" ]; then

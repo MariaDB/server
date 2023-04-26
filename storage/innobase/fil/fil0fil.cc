@@ -45,7 +45,6 @@ Created 10/25/1995 Heikki Tuuri
 #include "srv0start.h"
 #include "trx0purge.h"
 #include "buf0lru.h"
-#include "ibuf0ibuf.h"
 #include "buf0flu.h"
 #include "log.h"
 #ifdef __linux__
@@ -1640,7 +1639,6 @@ pfs_os_file_t fil_delete_tablespace(uint32_t id)
     fil_space_free_low(space);
   }
 
-  ibuf_delete_for_discarded_space(id);
   return handle;
 }
 

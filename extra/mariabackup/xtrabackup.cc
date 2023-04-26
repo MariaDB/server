@@ -117,6 +117,12 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 #define MB_CORRUPTED_PAGES_FILE "innodb_corrupted_pages"
 
+// disable server's systemd notification code
+extern "C" {
+int sd_notify() { return 0; }
+int sd_notifyf() { return 0; }
+}
+
 int sys_var_init();
 
 /* === xtrabackup specific options === */
@@ -256,6 +262,7 @@ static char*	innobase_ignored_opt;
 char*	innobase_data_home_dir;
 char*	innobase_data_file_path;
 
+char *aria_log_dir_path;
 
 my_bool xtrabackup_incremental_force_scan = FALSE;
 
@@ -273,10 +280,66 @@ char *xb_plugin_dir;
 char *xb_plugin_load;
 my_bool xb_close_files;
 
-/* Datasinks */
-ds_ctxt_t       *ds_data     = NULL;
-ds_ctxt_t       *ds_meta     = NULL;
-ds_ctxt_t       *ds_redo     = NULL;
+
+class Datasink_free_list
+{
+protected:
+  /*
+    Simple datasink creation tracking...
+    add datasinks in the reverse order you want them destroyed.
+  */
+#define XTRABACKUP_MAX_DATASINKS 10
+  ds_ctxt_t  *m_datasinks_to_destroy[XTRABACKUP_MAX_DATASINKS];
+  uint        m_actual_datasinks_to_destroy;
+public:
+  Datasink_free_list()
+   :m_actual_datasinks_to_destroy(0)
+  { }
+
+  void add_datasink_to_destroy(ds_ctxt_t *ds)
+  {
+    xb_ad(m_actual_datasinks_to_destroy < XTRABACKUP_MAX_DATASINKS);
+    m_datasinks_to_destroy[m_actual_datasinks_to_destroy] = ds;
+    m_actual_datasinks_to_destroy++;
+  }
+
+  /*
+    Destroy datasinks.
+    Destruction is done in the specific order to not violate their order in the
+    pipeline so that each datasink is able to flush data down the pipeline.
+  */
+  void destroy()
+  {
+    for (uint i= m_actual_datasinks_to_destroy; i > 0; i--)
+    {
+      ds_destroy(m_datasinks_to_destroy[i - 1]);
+      m_datasinks_to_destroy[i - 1] = NULL;
+    }
+  }
+};
+
+
+class Backup_datasinks: public Datasink_free_list
+{
+public:
+  ds_ctxt_t       *m_data;
+  ds_ctxt_t       *m_meta;
+  ds_ctxt_t       *m_redo;
+
+  Backup_datasinks()
+   :m_data(NULL),
+    m_meta(NULL),
+    m_redo(NULL)
+  { }
+  void init();
+  void destroy()
+  {
+    Datasink_free_list::destroy();
+    *this= Backup_datasinks();
+  }
+  bool backup_low();
+};
+
 
 static bool	innobackupex_mode = false;
 
@@ -469,7 +532,8 @@ void CorruptedPages::rename_space(uint32_t space_id,
   ut_a(!pthread_mutex_unlock(&m_mutex));
 }
 
-bool CorruptedPages::print_to_file(const char *filename) const
+bool CorruptedPages::print_to_file(ds_ctxt *ds_data,
+                                   const char *filename) const
 {
   std::ostringstream out;
   ut_a(!pthread_mutex_lock(&m_mutex));
@@ -497,8 +561,8 @@ bool CorruptedPages::print_to_file(const char *filename) const
     out << "\n";
   }
   ut_a(!pthread_mutex_unlock(&m_mutex));
-  if (xtrabackup_backup)
-    return backup_file_print_buf(filename, out.str().c_str(),
+  if (ds_data)
+    return ds_data->backup_file_print_buf(filename, out.str().c_str(),
                                  static_cast<int>(out.str().size()));
   std::ofstream outfile;
   outfile.open(filename);
@@ -618,19 +682,6 @@ void CorruptedPages::zero_out_free_pages()
   m_spaces.swap(non_free_pages);
   ut_a(!pthread_mutex_unlock(&m_mutex));
   aligned_free(zero_page);
-}
-
-/* Simple datasink creation tracking...add datasinks in the reverse order you
-want them destroyed. */
-#define XTRABACKUP_MAX_DATASINKS	10
-static	ds_ctxt_t	*datasinks[XTRABACKUP_MAX_DATASINKS];
-static	uint		actual_datasinks = 0;
-static inline
-void
-xtrabackup_add_datasink(ds_ctxt_t *ds)
-{
-	xb_ad(actual_datasinks < XTRABACKUP_MAX_DATASINKS);
-	datasinks[actual_datasinks] = ds; actual_datasinks++;
 }
 
 typedef void (*process_single_tablespace_func_t)(const char *dirname,
@@ -973,6 +1024,7 @@ typedef struct {
 	uint			*count;
 	pthread_mutex_t*	count_mutex;
 	CorruptedPages *corrupted_pages;
+	Backup_datasinks *datasinks;
 } data_thread_ctxt_t;
 
 /* ======== for option and variables ======== */
@@ -1078,7 +1130,8 @@ enum options_xtrabackup
   OPT_XTRA_CHECK_PRIVILEGES,
   OPT_XTRA_MYSQLD_ARGS,
   OPT_XB_IGNORE_INNODB_PAGE_CORRUPTION,
-  OPT_INNODB_FORCE_RECOVERY
+  OPT_INNODB_FORCE_RECOVERY,
+  OPT_ARIA_LOG_DIR_PATH
 };
 
 struct my_option xb_client_options[]= {
@@ -1671,6 +1724,11 @@ struct my_option xb_server_options[] =
   &xb_plugin_dir, &xb_plugin_dir,
   0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
 
+  {"aria_log_dir_path", OPT_ARIA_LOG_DIR_PATH,
+   "Path to individual files and their sizes.",
+   &aria_log_dir_path, &aria_log_dir_path,
+   0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+
   {"open_files_limit", OPT_OPEN_FILES_LIMIT, "the maximum number of file "
    "descriptors to reserve with setrlimit().",
    (G_PTR*) &xb_open_files_limit, (G_PTR*) &xb_open_files_limit, 0, GET_ULONG,
@@ -1981,6 +2039,10 @@ xb_get_one_option(const struct my_option *opt,
     if (srv_force_recovery) {
         ADD_PRINT_PARAM_OPT(srv_force_recovery);
     }
+    break;
+
+  case OPT_ARIA_LOG_DIR_PATH:
+    ADD_PRINT_PARAM_OPT(aria_log_dir_path);
     break;
 
   case OPT_XTRA_TARGET_DIR:
@@ -2547,7 +2609,8 @@ xb_read_delta_metadata(const char *filepath, xb_delta_info_t *info)
 Write meta info for an incremental delta.
 @return TRUE on success, FALSE on failure. */
 my_bool
-xb_write_delta_metadata(const char *filename, const xb_delta_info_t *info)
+xb_write_delta_metadata(ds_ctxt *ds_meta,
+                        const char *filename, const xb_delta_info_t *info)
 {
 	ds_file_t	*f;
 	char		buf[64];
@@ -2878,7 +2941,9 @@ xb_get_copy_action(const char *dflt)
 for full backup, pages filter for incremental backup, etc.
 
 @return FALSE on success and TRUE on error */
-static my_bool xtrabackup_copy_datafile(fil_node_t *node, uint thread_n,
+static my_bool xtrabackup_copy_datafile(ds_ctxt *ds_data,
+                                        ds_ctxt *ds_meta,
+                                        fil_node_t *node, uint thread_n,
                                         const char *dest_name,
                                         const xb_write_filt_t &write_filter,
                                         CorruptedPages &corrupted_pages)
@@ -2936,7 +3001,7 @@ static my_bool xtrabackup_copy_datafile(fil_node_t *node, uint thread_n,
 	ut_a(write_filter.process != NULL);
 
 	if (write_filter.init != NULL &&
-		!write_filter.init(&write_filt_ctxt, dst_name, &cursor,
+		!write_filter.init(ds_meta, &write_filt_ctxt, dst_name, &cursor,
 			opt_log_innodb_page_corruption ? &corrupted_pages : NULL)) {
 		msg (thread_n, "mariabackup: error: failed to initialize page write filter.");
 		goto error;
@@ -3273,7 +3338,8 @@ static void data_copy_thread_func(data_thread_ctxt_t *ctxt) /* thread context */
 				     node->space->name(),
 			backup_wait_for_lsn(get_current_lsn(mysql_connection)););
 		/* copy the datafile */
-		if (xtrabackup_copy_datafile(node, num, NULL,
+		if (xtrabackup_copy_datafile(ctxt->datasinks->m_data,
+					     ctxt->datasinks->m_meta, node, num, NULL,
 			xtrabackup_incremental ? wf_incremental : wf_write_through,
 			*ctxt->corrupted_pages))
 			die("failed to copy datafile.");
@@ -3296,22 +3362,21 @@ Otherwise (i.e. when streaming in the 'tar' format) we need 2 separate datasinks
 for the data stream (and don't allow parallel data copying) and for metainfo
 files (including ib_logfile0). The second datasink writes to temporary
 files first, and then streams them in a serialized way when closed. */
-static void
-xtrabackup_init_datasinks(void)
+void Backup_datasinks::init()
 {
 	/* Start building out the pipelines from the terminus back */
 	if (xtrabackup_stream) {
 		/* All streaming goes to stdout */
-		ds_data = ds_meta = ds_redo = ds_create(xtrabackup_target_dir,
-						        DS_TYPE_STDOUT);
+		m_data = m_meta = m_redo = ds_create(xtrabackup_target_dir,
+						     DS_TYPE_STDOUT);
 	} else {
 		/* Local filesystem */
-		ds_data = ds_meta = ds_redo = ds_create(xtrabackup_target_dir,
-						        DS_TYPE_LOCAL);
+		m_data = m_meta = m_redo = ds_create(xtrabackup_target_dir,
+						     DS_TYPE_LOCAL);
 	}
 
 	/* Track it for destruction */
-	xtrabackup_add_datasink(ds_data);
+	add_datasink_to_destroy(m_data);
 
 	/* Stream formatting */
 	if (xtrabackup_stream) {
@@ -3320,64 +3385,48 @@ xtrabackup_init_datasinks(void)
 	 ut_a(xtrabackup_stream_fmt == XB_STREAM_FMT_XBSTREAM);
 	 ds = ds_create(xtrabackup_target_dir, DS_TYPE_XBSTREAM);
 
-		xtrabackup_add_datasink(ds);
+		add_datasink_to_destroy(ds);
 
-		ds_set_pipe(ds, ds_data);
-		ds_data = ds;
+		ds_set_pipe(ds, m_data);
+		m_data = ds;
 
 
-		ds_redo = ds_meta = ds_data;
+		m_redo = m_meta = m_data;
 	}
 
-	/* Compression for ds_data and ds_redo */
+	/* Compression for m_data and m_redo */
 	if (xtrabackup_compress) {
 		ds_ctxt_t	*ds;
 
 		/* Use a 1 MB buffer for compressed output stream */
 		ds = ds_create(xtrabackup_target_dir, DS_TYPE_BUFFER);
 		ds_buffer_set_size(ds, 1024 * 1024);
-		xtrabackup_add_datasink(ds);
-		ds_set_pipe(ds, ds_data);
-		if (ds_data != ds_redo) {
-			ds_data = ds;
+		add_datasink_to_destroy(ds);
+		ds_set_pipe(ds, m_data);
+		if (m_data != m_redo) {
+			m_data = ds;
 			ds = ds_create(xtrabackup_target_dir, DS_TYPE_BUFFER);
 			ds_buffer_set_size(ds, 1024 * 1024);
-			xtrabackup_add_datasink(ds);
-			ds_set_pipe(ds, ds_redo);
-			ds_redo = ds;
+			add_datasink_to_destroy(ds);
+			ds_set_pipe(ds, m_redo);
+			m_redo = ds;
 		} else {
-			ds_redo = ds_data = ds;
+			m_redo = m_data = ds;
 		}
 
 		ds = ds_create(xtrabackup_target_dir, DS_TYPE_COMPRESS);
-		xtrabackup_add_datasink(ds);
-		ds_set_pipe(ds, ds_data);
-		if (ds_data != ds_redo) {
-			ds_data = ds;
+		add_datasink_to_destroy(ds);
+		ds_set_pipe(ds, m_data);
+		if (m_data != m_redo) {
+			m_data = ds;
 			ds = ds_create(xtrabackup_target_dir, DS_TYPE_COMPRESS);
-			xtrabackup_add_datasink(ds);
-			ds_set_pipe(ds, ds_redo);
-			ds_redo = ds;
+			add_datasink_to_destroy(ds);
+			ds_set_pipe(ds, m_redo);
+			m_redo = ds;
 		} else {
-			ds_redo = ds_data = ds;
+			m_redo = m_data = ds;
 		}
 	}
-}
-
-/************************************************************************
-Destroy datasinks.
-
-Destruction is done in the specific order to not violate their order in the
-pipeline so that each datasink is able to flush data down the pipeline. */
-static void xtrabackup_destroy_datasinks(void)
-{
-	for (uint i = actual_datasinks; i > 0; i--) {
-		ds_destroy(datasinks[i-1]);
-		datasinks[i-1] = NULL;
-	}
-	ds_data = NULL;
-	ds_meta = NULL;
-	ds_redo = NULL;
 }
 
 #define SRV_MAX_N_PENDING_SYNC_IOS	100
@@ -4495,7 +4544,7 @@ static void stop_backup_threads()
 
 /** Implement the core of --backup
 @return	whether the operation succeeded */
-static bool xtrabackup_backup_low()
+bool Backup_datasinks::backup_low()
 {
 	mysql_mutex_lock(&recv_sys.mutex);
 	ut_ad(!metadata_to_lsn);
@@ -4561,7 +4610,7 @@ static bool xtrabackup_backup_low()
 	}
 	metadata_last_lsn = recv_sys.lsn;
 
-	if (!xtrabackup_stream_metadata(ds_meta)) {
+	if (!xtrabackup_stream_metadata(m_meta)) {
 		msg("Error: failed to stream metadata.");
 		return false;
 	}
@@ -4577,7 +4626,8 @@ static bool xtrabackup_backup_low()
 		}
 		sprintf(filename, "%s/%s", xtrabackup_extra_lsndir,
 			XTRABACKUP_INFO);
-		if (!write_xtrabackup_info(mysql_connection, filename, false, false)) {
+		if (!write_xtrabackup_info(m_data,
+		                           mysql_connection, filename, false, false)) {
 			msg("Error: failed to write info "
 			 "to '%s'.", filename);
 			return false;
@@ -4597,6 +4647,7 @@ static bool xtrabackup_backup_func()
 	pthread_mutex_t		 count_mutex;
 	CorruptedPages corrupted_pages;
 	data_thread_ctxt_t 	*data_threads;
+	Backup_datasinks backup_datasinks;
 	pthread_cond_init(&scanned_lsn_cond, NULL);
 
 #ifdef USE_POSIX_FADVISE
@@ -4722,7 +4773,7 @@ fail:
 		goto fail;
 	}
 
-	xtrabackup_init_datasinks();
+	backup_datasinks.init();
 
 	if (!select_history()) {
 		goto fail;
@@ -4730,7 +4781,7 @@ fail:
 
 	/* open the log file */
 	memset(&stat_info, 0, sizeof(MY_STAT));
-	dst_log_file = ds_open(ds_redo, LOG_FILE_NAME, &stat_info);
+	dst_log_file = ds_open(backup_datasinks.m_redo, LOG_FILE_NAME, &stat_info);
 	if (dst_log_file == NULL) {
 		msg("Error: failed to open the target stream for '%s'.",
 		    LOG_FILE_NAME);
@@ -4817,6 +4868,7 @@ fail:
 		data_threads[i].count = &count;
 		data_threads[i].count_mutex = &count_mutex;
 		data_threads[i].corrupted_pages = &corrupted_pages;
+		data_threads[i].datasinks= &backup_datasinks;
 		std::thread(data_copy_thread_func, data_threads + i).detach();
 	}
 
@@ -4834,10 +4886,13 @@ fail:
 	pthread_mutex_destroy(&count_mutex);
 	free(data_threads);
 
-	bool ok = backup_start(corrupted_pages);
+	DBUG_ASSERT(backup_datasinks.m_data);
+	DBUG_ASSERT(backup_datasinks.m_meta);
+	bool ok = backup_start(backup_datasinks.m_data,
+	                       backup_datasinks.m_meta, corrupted_pages);
 
 	if (ok) {
-		ok = xtrabackup_backup_low();
+		ok = backup_datasinks.backup_low();
 
 		backup_release();
 
@@ -4845,12 +4900,13 @@ fail:
 				pthread_join(dbug_alter_thread, nullptr););
 
 		if (ok) {
-			backup_finish();
+			backup_finish(backup_datasinks.m_data);
 		}
 	}
 
 	if (opt_log_innodb_page_corruption)
-		ok = corrupted_pages.print_to_file(MB_CORRUPTED_PAGES_FILE);
+		ok = corrupted_pages.print_to_file(backup_datasinks.m_data,
+						   MB_CORRUPTED_PAGES_FILE);
 
 	if (!ok) {
 		goto fail;
@@ -4859,7 +4915,7 @@ fail:
 	if (changed_page_bitmap) {
 		xb_page_bitmap_deinit(changed_page_bitmap);
 	}
-	xtrabackup_destroy_datasinks();
+	backup_datasinks.destroy();
 
 	msg("Redo log (from LSN " LSN_PF " to " LSN_PF ") was copied.",
 	    log_sys.next_checkpoint_lsn, recv_sys.lsn);
@@ -4907,7 +4963,7 @@ FTWRL.  This ensures consistent backup in presence of DDL.
   It is the responsibility of the prepare phase to deal with .new, .ren, and .del
   files.
 */
-void backup_fix_ddl(CorruptedPages &corrupted_pages)
+void CorruptedPages::backup_fix_ddl(ds_ctxt *ds_data, ds_ctxt *ds_meta)
 {
 	std::set<std::string> dropped_tables;
 	std::map<std::string, std::string> renamed_tables;
@@ -4929,7 +4985,7 @@ void backup_fix_ddl(CorruptedPages &corrupted_pages)
 
 		if (ddl_tracker.drops.find(id) != ddl_tracker.drops.end()) {
 			dropped_tables.insert(name);
-			corrupted_pages.drop_space(id);
+			drop_space(id);
 			continue;
 		}
 
@@ -4942,7 +4998,7 @@ void backup_fix_ddl(CorruptedPages &corrupted_pages)
 		if (new_name != name) {
 			renamed_tables[name] = new_name;
 			if (opt_log_innodb_page_corruption)
-				corrupted_pages.rename_space(id, new_name);
+				rename_space(id, new_name);
 		}
 	}
 
@@ -4965,7 +5021,7 @@ void backup_fix_ddl(CorruptedPages &corrupted_pages)
 			dropped_tables.erase(name);
 			new_tables[id] = name;
 			if (opt_log_innodb_page_corruption)
-				corrupted_pages.drop_space(id);
+				drop_space(id);
 		}
 	}
 
@@ -4974,7 +5030,8 @@ void backup_fix_ddl(CorruptedPages &corrupted_pages)
 		iter != renamed_tables.end(); ++iter) {
 		const std::string old_name = iter->first;
 		std::string new_name = iter->second;
-		backup_file_printf((old_name + ".ren").c_str(), "%s", new_name.c_str());
+		DBUG_ASSERT(ds_data);
+		ds_data->backup_file_printf((old_name + ".ren").c_str(), "%s", new_name.c_str());
 	}
 
 	// Mark tablespaces for drop
@@ -4982,7 +5039,7 @@ void backup_fix_ddl(CorruptedPages &corrupted_pages)
 		iter != dropped_tables.end();
 		iter++) {
 		const std::string name(*iter);
-		backup_file_printf((name + ".del").c_str(), "%s", "");
+		ds_data->backup_file_printf((name + ".del").c_str(), "%s", "");
 	}
 
 	//  Load and copy new tables.
@@ -5057,8 +5114,9 @@ void backup_fix_ddl(CorruptedPages &corrupted_pages)
 			node->name, strlen(node->name));
 		dest_name.append(".new");
 
-		xtrabackup_copy_datafile(node, 0, dest_name.c_str(), wf_write_through,
-			corrupted_pages);
+		xtrabackup_copy_datafile(ds_data, ds_meta,
+					 node, 0, dest_name.c_str(),
+					 wf_write_through, *this);
 	}
 }
 
@@ -6123,7 +6181,7 @@ error:
           }
         }
         else
-          corrupted_pages.print_to_file(MB_CORRUPTED_PAGES_FILE);
+          corrupted_pages.print_to_file(NULL, MB_CORRUPTED_PAGES_FILE);
 
 	if (ok) {
 		msg("Last binlog file %s, position %lld",

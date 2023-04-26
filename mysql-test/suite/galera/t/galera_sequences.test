@@ -1,4 +1,5 @@
 --source include/galera_cluster.inc
+--source include/have_innodb.inc
 
 #
 # MDEV-19353 : Alter Sequence do not replicate to another nodes with in Galera Cluster

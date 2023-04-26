@@ -461,8 +461,7 @@ public:
 /** Redo log system */
 extern log_t	log_sys;
 
-inline void log_free_check()
-{
-  if (log_sys.check_flush_or_checkpoint())
-    log_check_margins();
-}
+/** Wait for a log checkpoint if needed.
+NOTE that this function may only be called while not holding
+any synchronization objects except dict_sys.latch. */
+void log_free_check();

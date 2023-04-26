@@ -66,8 +66,6 @@ class buf_dblwr_t
   bool batch_running;
   /** number of expected flush_buffered_writes_completed() calls */
   unsigned flushing_buffered_writes;
-  /** pages submitted to flush_buffered_writes() */
-  ulint pages_submitted;
   /** number of flush_buffered_writes_completed() calls */
   ulint writes_completed;
   /** number of pages written by flush_buffered_writes_completed() */
@@ -94,9 +92,6 @@ public:
 
   /** Acquire the mutex */
   void lock() { mysql_mutex_lock(&mutex); }
-  /** @return the number of submitted page writes */
-  ulint submitted() const
-  { mysql_mutex_assert_owner(&mutex); return pages_submitted; }
   /** @return the number of completed batches */
   ulint batches() const
   { mysql_mutex_assert_owner(&mutex); return writes_completed; }

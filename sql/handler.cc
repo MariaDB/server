@@ -2171,8 +2171,11 @@ int ha_rollback_trans(THD *thd, bool all)
       rollback without signalling following transactions. And in release
       builds, we explicitly do the signalling before rolling back.
     */
-    DBUG_ASSERT(!(thd->rgi_slave && thd->rgi_slave->did_mark_start_commit) ||
-                thd->transaction->xid_state.is_explicit_XA());
+    DBUG_ASSERT(
+        !(thd->rgi_slave && thd->rgi_slave->did_mark_start_commit) ||
+        (thd->transaction->xid_state.is_explicit_XA() ||
+         (thd->rgi_slave->gtid_ev_flags2 & Gtid_log_event::FL_PREPARED_XA)));
+
     if (thd->rgi_slave && thd->rgi_slave->did_mark_start_commit)
       thd->rgi_slave->unmark_start_commit();
   }
@@ -7208,7 +7211,13 @@ static int wsrep_after_row(THD *thd)
       thd->wsrep_affected_rows > wsrep_max_ws_rows &&
       wsrep_thd_is_local(thd))
   {
-    trans_rollback_stmt(thd) || trans_rollback(thd);
+    /*
+      If we are inside stored function or trigger we should not commit or
+      rollback current statement transaction. See comment in ha_commit_trans()
+      call for more information.
+    */
+    if (!thd->in_sub_stmt)
+      trans_rollback_stmt(thd) || trans_rollback(thd);
     my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
     DBUG_RETURN(ER_ERROR_DURING_COMMIT);
   }
