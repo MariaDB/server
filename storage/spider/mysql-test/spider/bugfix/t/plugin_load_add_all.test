@@ -1,8 +1,9 @@
 --echo #
---echo # MDEV-29904 SPIDER plugin initialization fails upon startup
+--echo # plugin-load-add=ha_spider
 --echo #
-
+# A simple test that tests plugin-load-add=ha_spider
 call mtr.add_suppression("\\[Warning\\] Plugin 'SPIDER' init function returned error but may be retried.");
 call mtr.add_suppression("\\[Warning\\] Plugin 'SPIDER' registration as a STORAGE ENGINE failed but may be retried.");
---let $restart_parameters=--plugin-load-add=ha_spider
---source include/restart_mysqld.inc
+select * from mysql.plugin;
+create table t (c int) Engine=SPIDER;
+drop table t;

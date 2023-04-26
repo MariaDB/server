@@ -1,8 +1,7 @@
---echo #
---echo # MDEV-29904 SPIDER plugin initialization fails upon startup
---echo #
-
+#
+# MDEV-28218 Spider: thread hang/deadlock as result of INSTALL PLUGIN and DROP TABLE
+#
 call mtr.add_suppression("\\[Warning\\] Plugin 'SPIDER' init function returned error but may be retried.");
 call mtr.add_suppression("\\[Warning\\] Plugin 'SPIDER' registration as a STORAGE ENGINE failed but may be retried.");
---let $restart_parameters=--plugin-load-add=ha_spider
---source include/restart_mysqld.inc
+show create table mysql.spider_tables;
+ERROR 42S02: Table 'mysql.spider_tables' doesn't exist

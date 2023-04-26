@@ -153,6 +153,7 @@ extern char *enforced_storage_engine;
 extern char *gtid_pos_auto_engines;
 extern plugin_ref *opt_gtid_pos_auto_plugins;
 extern bool opt_endinfo, using_udf_functions;
+extern MYSQL_PLUGIN_IMPORT bool udf_initialized;
 extern my_bool locked_in_memory;
 extern bool opt_using_transactions;
 extern ulong current_pid;

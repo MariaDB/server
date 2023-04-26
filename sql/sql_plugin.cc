@@ -1462,10 +1462,16 @@ static int plugin_initialize(MEM_ROOT *tmp_root, struct st_plugin_int *plugin,
 
   if (plugin_type_initialize[plugin->plugin->type])
   {
-    if ((*plugin_type_initialize[plugin->plugin->type])(plugin))
+    ret= (*plugin_type_initialize[plugin->plugin->type])(plugin);
+    if (ret)
     {
-      sql_print_error("Plugin '%s' registration as a %s failed.",
-                      plugin->name.str, plugin_type_names[plugin->plugin->type].str);
+      /* Plugin init failed but requested a retry if possible */
+      if (unlikely(ret == -1))
+        sql_print_warning("Plugin '%s' registration as a %s failed but may be retried.",
+                          plugin->name.str, plugin_type_names[plugin->plugin->type].str);
+      else
+        sql_print_error("Plugin '%s' registration as a %s failed.",
+                        plugin->name.str, plugin_type_names[plugin->plugin->type].str);
       goto err;
     }
   }
@@ -1595,7 +1601,7 @@ int plugin_init(int *argc, char **argv, int flags)
   size_t i;
   struct st_maria_plugin **builtins;
   struct st_maria_plugin *plugin;
-  struct st_plugin_int tmp, *plugin_ptr, **reap;
+  struct st_plugin_int tmp, *plugin_ptr, **reap, **retry;
   MEM_ROOT tmp_root;
   bool reaped_mandatory_plugin= false;
   bool mandatory= true;
@@ -1737,32 +1743,68 @@ int plugin_init(int *argc, char **argv, int flags)
   */
 
   mysql_mutex_lock(&LOCK_plugin);
+  /* List of plugins to reap */
   reap= (st_plugin_int **) my_alloca((plugin_array.elements+1) * sizeof(void*));
   *(reap++)= NULL;
+  /* List of plugins to retry */
+  retry= (st_plugin_int **) my_alloca((plugin_array.elements+1) * sizeof(void*));
+  *(retry++)= NULL;
 
   for(;;)
   {
-    for (i=0; i < MYSQL_MAX_PLUGIN_TYPE_NUM; i++)
+    /* Number of plugins that is successfully initialised in a round */
+    int num_initialized;
+    do
     {
-      HASH *hash= plugin_hash + plugin_type_initialization_order[i];
-      for (uint idx= 0; idx < hash->records; idx++)
+      num_initialized= 0;
+      /* If any plugins failed and requested a retry, clean up before
+      retry */
+      while ((plugin_ptr= *(--retry)))
       {
-        plugin_ptr= (struct st_plugin_int *) my_hash_element(hash, idx);
-        if (plugin_ptr->state == PLUGIN_IS_UNINITIALIZED)
+        mysql_mutex_unlock(&LOCK_plugin);
+        plugin_deinitialize(plugin_ptr, true);
+        mysql_mutex_lock(&LOCK_plugin);
+        /** Needed to satisfy assertions in `test_plugin_options()` */
+        my_afree(plugin_ptr->ptr_backup);
+        plugin_ptr->ptr_backup= NULL;
+        plugin_ptr->nbackups= 0;
+        plugin_ptr->state= PLUGIN_IS_UNINITIALIZED;
+      }
+      retry++;
+      for (i=0; i < MYSQL_MAX_PLUGIN_TYPE_NUM; i++)
+      {
+        HASH *hash= plugin_hash + plugin_type_initialization_order[i];
+        for (uint idx= 0; idx < hash->records; idx++)
         {
-          bool plugin_table_engine= lex_string_eq(&plugin_table_engine_name,
-                                                  &plugin_ptr->name);
-          bool opts_only= flags & PLUGIN_INIT_SKIP_INITIALIZATION &&
-                         (flags & PLUGIN_INIT_SKIP_PLUGIN_TABLE ||
-                          !plugin_table_engine);
-          if (plugin_initialize(&tmp_root, plugin_ptr, argc, argv, opts_only))
+          plugin_ptr= (struct st_plugin_int *) my_hash_element(hash, idx);
+          if (plugin_ptr->state == PLUGIN_IS_UNINITIALIZED)
           {
-            plugin_ptr->state= PLUGIN_IS_DYING;
-            *(reap++)= plugin_ptr;
+            bool plugin_table_engine= lex_string_eq(&plugin_table_engine_name,
+                                                    &plugin_ptr->name);
+            bool opts_only= flags & PLUGIN_INIT_SKIP_INITIALIZATION &&
+              (flags & PLUGIN_INIT_SKIP_PLUGIN_TABLE ||
+               !plugin_table_engine);
+            const int error= plugin_initialize(&tmp_root, plugin_ptr, argc, argv, opts_only);
+            if (error)
+            {
+              plugin_ptr->state= PLUGIN_IS_DYING;
+              /* error code -1 means the plugin wants a retry of the
+              initialisation, possibly due to dependency on other
+              plugins */
+              if (unlikely(error == -1))
+                *(retry++)= plugin_ptr;
+              else
+                *(reap++)= plugin_ptr;
+            }
+            else
+              num_initialized++;
           }
         }
       }
-    }
+      /* Only retry if at least one plugin has been initialised
+      successfully and at least one has requested a retry during this
+      round */
+    } while (num_initialized > 0 && retry - 1);
 
     /* load and init plugins from the plugin table (unless done already) */
     if (flags & PLUGIN_INIT_SKIP_PLUGIN_TABLE)
@@ -1775,8 +1817,11 @@ int plugin_init(int *argc, char **argv, int flags)
   }
 
   /*
-    Check if any plugins have to be reaped
+    Merge the retry list to the reap list, then reap the failed
+    plugins. Note that during the merge we reverse the order in retry
   */
+  while ((plugin_ptr= *(--retry)))
+    *(reap++) = plugin_ptr;
   while ((plugin_ptr= *(--reap)))
   {
     mysql_mutex_unlock(&LOCK_plugin);
@@ -1788,6 +1833,7 @@ int plugin_init(int *argc, char **argv, int flags)
   }
 
   mysql_mutex_unlock(&LOCK_plugin);
+  my_afree(retry);
   my_afree(reap);
   if (reaped_mandatory_plugin && !opt_help)
     goto err;
