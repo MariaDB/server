@@ -2470,6 +2470,7 @@ rollback:
   if (fts_exist)
     purge_sys.resume_FTS();
 
+  ibuf_delete_for_discarded_space(space_id);
   buf_flush_remove_pages(space_id);
   trx->op_info= "";
   return err;

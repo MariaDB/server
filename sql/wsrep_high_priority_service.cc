@@ -391,8 +391,6 @@ int Wsrep_high_priority_service::rollback(const wsrep::ws_handle& ws_handle,
               m_thd->killed);
 
   m_thd->release_transactional_locks();
-  mysql_ull_cleanup(m_thd);
-  m_thd->mdl_context.release_explicit_locks();
 
   free_root(m_thd->mem_root, MYF(MY_KEEP_PREALLOC));
 

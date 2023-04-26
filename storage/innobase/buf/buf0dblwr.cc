@@ -596,7 +596,6 @@ bool buf_dblwr_t::flush_buffered_writes(const ulint size)
   const bool multi_batch= block1 + static_cast<uint32_t>(size) != block2 &&
     old_first_free > size;
   flushing_buffered_writes= 1 + multi_batch;
-  pages_submitted+= old_first_free;
   /* Now safe to release the mutex. */
   mysql_mutex_unlock(&mutex);
 #ifdef UNIV_DEBUG

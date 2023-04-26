@@ -196,34 +196,39 @@ dch -b -D "${LSBNAME}" -v "${VERSION}" "Automatic build with ${LOGSTRING}." --co
 
 echo "Creating package version ${VERSION} ... "
 
-BUILDPACKAGE_DPKGCMD=""
+BUILDPACKAGE_DPKGCMD=()
+
+# Fakeroot test
+if fakeroot true; then
+  BUILDPACKAGE_DPKGCMD+=( "fakeroot" "--" )
+fi
 
 # Use eatmydata is available to build faster with less I/O, skipping fsync()
 # during the entire build process (safe because a build can always be restarted)
 if which eatmydata > /dev/null
 then
-  BUILDPACKAGE_DPKGCMD="eatmydata"
+  BUILDPACKAGE_DPKGCMD+=("eatmydata")
 fi
 
-BUILDPACKAGE_DPKGCMD+="dpkg-buildpackage"
+BUILDPACKAGE_DPKGCMD+=("dpkg-buildpackage")
 
 # Using dpkg-buildpackage args
 # -us Allow unsigned sources
 # -uc Allow unsigned changes
 # -I  Tar ignore
-BUILDPACKAGE_DPKG_ARGS=(-us -uc -I)
+BUILDPACKAGE_DPKGCMD+=(-us -uc -I)
 
 # There can be also extra flags that are appended to args
 if [ -n "$BUILDPACKAGE_FLAGS" ]
 then
   read -ra BUILDPACKAGE_TMP_ARGS <<< "$BUILDPACKAGE_FLAGS"
-  BUILDPACKAGE_DPKG_ARGS=("${BUILDPACKAGE_DPKG_ARGS[@]} ${BUILDPACKAGE_TMP_ARGS[@]}")
+  BUILDPACKAGE_DPKGCMD+=( "${BUILDPACKAGE_TMP_ARGS[@]}" )
 fi
 
 # Build the package
 # Pass -I so that .git and other unnecessary temporary and source control files
 # will be ignored by dpkg-source when creating the tar.gz source package.
-fakeroot -- "${BUILDPACKAGE_DPKGCMD}" "${BUILDPACKAGE_DPKG_ARGS[@]}"
+"${BUILDPACKAGE_DPKGCMD[@]}"
 
 # If the step above fails due to missing dependencies, you can manually run
 #   sudo mk-build-deps debian/control -r -i

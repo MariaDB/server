@@ -68,6 +68,7 @@ before transaction commit and must be rolled back explicitly are as follows:
 
 #include "dict0defrag_bg.h"
 #include "btr0defragment.h"
+#include "ibuf0ibuf.h"
 #include "lock0lock.h"
 
 #include "que0que.h"
@@ -237,6 +238,8 @@ void trx_t::commit(std::vector<pfs_os_file_t> &deleted)
   commit_persist();
   if (dict_operation)
   {
+    std::vector<uint32_t> space_ids;
+    space_ids.reserve(mod_tables.size());
     ut_ad(dict_sys.locked());
     lock_sys.wr_lock(SRW_LOCK_CALL);
     mutex_lock();
@@ -271,6 +274,7 @@ void trx_t::commit(std::vector<pfs_os_file_t> &deleted)
         dict_sys.remove(table);
         if (const auto id= space ? space->id : 0)
         {
+          space_ids.emplace_back(id);
           pfs_os_file_t d= fil_delete_tablespace(id);
           if (d != OS_FILE_CLOSED)
             deleted.emplace_back(d);
@@ -283,6 +287,9 @@ void trx_t::commit(std::vector<pfs_os_file_t> &deleted)
     mysql_mutex_lock(&lock_sys.wait_mutex);
     lock_sys.deadlock_check();
     mysql_mutex_unlock(&lock_sys.wait_mutex);
+
+    for (const auto id : space_ids)
+      ibuf_delete_for_discarded_space(id);
   }
   commit_cleanup();
 }
