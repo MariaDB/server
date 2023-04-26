@@ -234,3 +234,85 @@ git clean -xffd && git submodule foreach --recursive git clean -xffd
 ```
 
 Then, follow all the previous steps from the beginning.
+
+## Install MariaDB on Windows
+
+There are few pre-requisite we need to install before even start building the server:
+
+### **Visual C++**
+
+Download and Install Visual C++ from [Microsoft](https://visualstudio.microsoft.com/). Community Version 2019 and 2022 are supported at this time.
+
+Make sure to select and install "Desktop Development with C++" during the installation process.
+
+
+![Visual Code Installation](https://dev-to-uploads.s3.amazonaws.com/uploads/articles/574kwg6tz8xl994lqf96.png)
+
+
+### **CMake**
+
+Download CMake from [cmake-v3.26.0](https://github.com/Kitware/CMake/releases/download/v3.26.0/cmake-3.26.0-windows-x86_64.msi) and install on the machine. 
+
+- Minimum version required: 3.14 
+
+**Check out one of my blog on** [CMake installation](https://dev.to/arun3sh/install-cmake-on-windows-4eo5) 
+
+Make sure to add `C:\GnuWin32\bin` to your windows system path. 
+
+### **Git**
+
+Download and Install git using [Git-2.39.2-64-bit.exe](https://github.com/git-for-windows/git/releases/download/v2.39.2.windows.1/Git-2.39.2-64-bit.exe)
+
+**While installing git, make sure to select the PATH environment as follows:**
+![Git Installation](https://dev-to-uploads.s3.amazonaws.com/uploads/articles/08hgxcmd6pcmbqroo4hs.png)
+
+### **Bison**
+
+Download the executable from the link:
+[Download Gnu Diff](https://ftp.gnu.org/gnu/diffutils/)
+
+Follow the steps to install the executable.
+
+## Build
+
+- Get the source code
+
+You will be able to find the source code of MariaDB from their GitHub repo [MariaDB Github Repository](https://github.com/MariaDB/server) 
+
+- Clone the repo to your system
+
+```bash
+git clone git@github.com:MariaDB/server.git 
+```
+
+After the clone is complete, you will have a complete copy of the repository in the server directory. You can then work on the code locally, commit changes, and push them back to the remote repository as needed.
+
+- Create Build directory
+
+```bash
+# create a directory with name "build-dir"
+mkdir build-dir
+
+# go into "build-dir"
+cd build-dir
+
+# Run the following commands in sequence
+
+cmake ../server
+
+# If you want to build with Debugging option
+# otherwise just omit  --config Debug
+cmake --build . --config Debug
+```
+Build will take a while to complete and make sure there are no errors while building.
+
+```bash
+# go to the directory
+cd ..\build-dir\mysql-test
+
+# Test your build
+perl mysql-test-run.pl --suite=main --parallel=auto
+
+```
+
+If all the tests came out as passed, we have installed the MariaDB perfectly on Windows machine.
