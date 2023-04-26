@@ -5003,8 +5003,10 @@ bool spider_share_get_sts_crd(
         (*error_num = spider_get_sts(share, spider->search_link_idx, tmp_time,
                                      spider, sts_interval, sts_mode, sts_sync,
                                      1, HA_STATUS_VARIABLE | HA_STATUS_CONST | HA_STATUS_AUTO))
-    ) {
-      if (*error_num != ER_SPIDER_SYS_TABLE_VERSION_NUM)
+    )
+    {
+      if (*error_num != ER_SPIDER_SYS_TABLE_VERSION_NUM &&
+          *error_num != ER_SPIDER_TABLE_OPEN_LOCK_WAIT_TIMEOUT_NUM)
         thd->clear_error();
       else
       {
@@ -5021,7 +5023,8 @@ bool spider_share_get_sts_crd(
                                      crd_sync,
                                      1)))
     {
-      if (*error_num != ER_SPIDER_SYS_TABLE_VERSION_NUM)
+      if (*error_num != ER_SPIDER_SYS_TABLE_VERSION_NUM &&
+          *error_num != ER_SPIDER_TABLE_OPEN_LOCK_WAIT_TIMEOUT_NUM)
         thd->clear_error();
       else
       {
