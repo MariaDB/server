@@ -6430,6 +6430,14 @@ static Sys_var_charptr_fscs Sys_ignore_db_dirs(
        CMD_LINE(REQUIRED_ARG, OPT_IGNORE_DB_DIRECTORY),
        DEFAULT(0));
 
+static Sys_var_mybool Sys_information_schema_local_database(
+       "information_schema_local_database",
+       "When enabled, queries against built-in INFORMATION_SCHEMA tables "
+       "will only show information from the current database if the "
+       "'TABLE_SCHEMA' column is not used in the WHERE clause.",
+       SESSION_VAR(i_s_local_db), CMD_LINE(OPT_ARG),
+       DEFAULT(FALSE));
+
 static Sys_var_ulong Sys_sp_cache_size(
        "stored_program_cache",
        "The soft upper limit for number of cached stored routines for "

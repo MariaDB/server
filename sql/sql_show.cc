@@ -4126,14 +4126,14 @@ bool calc_lookup_values_from_cond(THD *thd, COND *cond, TABLE_LIST *table,
 }
 
 
-bool uses_only_table_name_fields(Item *item, TABLE_LIST *table)
+bool uses_only_table_name_fields(Item *item, TABLE_LIST *table, bool schema_only)
 {
   if (item->type() == Item::FUNC_ITEM)
   {
     Item_func *item_func= (Item_func*)item;
     for (uint i=0; i<item_func->argument_count(); i++)
     {
-      if (!uses_only_table_name_fields(item_func->arguments()[i], table))
+      if (!uses_only_table_name_fields(item_func->arguments()[i], table, schema_only))
         return 0;
     }
   }
@@ -4142,7 +4142,7 @@ bool uses_only_table_name_fields(Item *item, TABLE_LIST *table)
     Item_row *item_row= static_cast<Item_row*>(item);
     for (uint i= 0; i < item_row->cols(); i++)
     {
-      if (!uses_only_table_name_fields(item_row->element_index(i), table))
+      if (!uses_only_table_name_fields(item_row->element_index(i), table, schema_only))
         return 0;
     }
   }
@@ -4160,18 +4160,19 @@ bool uses_only_table_name_fields(Item *item, TABLE_LIST *table)
         (cs->strnncollsp(field_name1, strlen(field_name1),
                          item_field->field_name.str,
                          item_field->field_name.length) &&
+         (schema_only ||
          cs->strnncollsp(field_name2, strlen(field_name2),
                          item_field->field_name.str,
-                         item_field->field_name.length)))
+                         item_field->field_name.length))))
       return 0;
   }
   else if (item->type() == Item::EXPR_CACHE_ITEM)
   {
     Item_cache_wrapper *tmp= static_cast<Item_cache_wrapper*>(item);
-    return uses_only_table_name_fields(tmp->get_orig_item(), table);
+    return uses_only_table_name_fields(tmp->get_orig_item(), table, schema_only);
   }
   else if (item->type() == Item::REF_ITEM)
-    return uses_only_table_name_fields(item->real_item(), table);
+    return uses_only_table_name_fields(item->real_item(), table, schema_only);
 
   if (item->real_type() == Item::SUBSELECT_ITEM && !item->const_item())
     return 0;
@@ -4230,7 +4231,7 @@ COND *make_cond_for_info_schema(THD *thd, COND *cond, TABLE_LIST *table)
     }
   }
 
-  if (!uses_only_table_name_fields(cond, table))
+  if (!uses_only_table_name_fields(cond, table, FALSE))
     return (COND*) 0;
   return cond;
 }
@@ -4340,6 +4341,7 @@ enum enum_schema_tables get_schema_table_idx(ST_SCHEMA_TABLE *schema_table)
     wild                  wild string
     idx_field_vals        idx_field_vals->db_name contains db name or
                           wild string
+    schema_in_cond        true if there is a partial condition for schema
 
   RETURN
     zero                  success
@@ -4347,7 +4349,8 @@ enum enum_schema_tables get_schema_table_idx(ST_SCHEMA_TABLE *schema_table)
 */
 
 static int make_db_list(THD *thd, Dynamic_array<LEX_CSTRING*> *files,
-                        LOOKUP_FIELD_VALUES *lookup_field_vals)
+                        LOOKUP_FIELD_VALUES *lookup_field_vals,
+                        my_bool schema_in_cond)
 {
   if (lookup_field_vals->wild_db_value)
   {
@@ -4394,6 +4397,20 @@ static int make_db_list(THD *thd, Dynamic_array<LEX_CSTRING*> *files,
     }
     if (files->append_val(&lookup_field_vals->db_value))
       return 1;
+    return 0;
+  }
+  else if (!schema_in_cond && thd->variables.i_s_local_db && thd->db.str &&
+           thd->lex->sql_command != SQLCOM_SHOW_DATABASES)
+  {
+    /*
+       When information_schema_local_database variable is set and no explicit
+       database has been provided, then implicitly provide the current database
+       as the one we are interested in.
+       Exception for SHOW DATABASES so that this still shows all databases
+       available. If there is no current database the commands will behave as
+       normal.
+    */
+    files->append_val(&thd->db);
     return 0;
   }
 
@@ -5205,6 +5222,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 #endif
   uint table_open_method= tables->table_open_method;
   bool can_deadlock;
+  my_bool schema_in_cond= FALSE;
   MEM_ROOT tmp_mem_root;
   /*
     We're going to open FRM files for tables.
@@ -5283,7 +5301,11 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 
   bzero((char*) &table_acl_check, sizeof(table_acl_check));
 
-  if (make_db_list(thd, &db_names, &plan->lookup_field_vals))
+  if (thd->variables.i_s_local_db && plan->partial_cond)
+    schema_in_cond= uses_only_table_name_fields(plan->partial_cond,
+                                                tables, TRUE);
+
+  if (make_db_list(thd, &db_names, &plan->lookup_field_vals, schema_in_cond))
     goto err;
 
   /* Use tmp_mem_root to allocate data for opened tables */
@@ -5474,7 +5496,7 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
   DBUG_PRINT("INDEX VALUES",("db_name: %s  table_name: %s",
                              lookup_field_vals.db_value.str,
                              lookup_field_vals.table_value.str));
-  if (make_db_list(thd, &db_names, &lookup_field_vals))
+  if (make_db_list(thd, &db_names, &lookup_field_vals, FALSE))
     DBUG_RETURN(1);
 
   /*
