@@ -5781,6 +5781,7 @@ void lock_sys_t::cancel_lock_wait_for_trx(trx_t *trx)
   mysql_mutex_unlock(&lock_sys.wait_mutex);
 }
 
+#ifdef WITH_WSREP
 void lock_sys_t::cancel_lock_wait_for_wsrep_bf_abort(trx_t *trx)
 {
   lock_sys.assert_locked();
@@ -5795,6 +5796,7 @@ void lock_sys_t::cancel_lock_wait_for_wsrep_bf_abort(trx_t *trx)
     }
   }
 }
+#endif /* WITH_WSREP */
 
 /** Cancel a waiting lock request.
 @tparam check_victim  whether to check for DB_DEADLOCK
