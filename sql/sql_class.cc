@@ -2168,11 +2168,11 @@ void THD::reset_killed()
       wsrep_abort_by_kill_err= 0;
       mysql_mutex_unlock(&LOCK_thd_kill);
     }
-    mysql_mutex_assert_not_owner(&LOCK_thd_data);
-    mysql_mutex_lock(&LOCK_thd_data);
-    wsrep_aborter= 0;
-    mysql_mutex_unlock(&LOCK_thd_data);
   }
+  mysql_mutex_assert_not_owner(&LOCK_thd_data);
+  mysql_mutex_lock(&LOCK_thd_data);
+  wsrep_aborter= 0;
+  mysql_mutex_unlock(&LOCK_thd_data);
 #endif /* WITH_WSREP */
 
   DBUG_VOID_RETURN;
