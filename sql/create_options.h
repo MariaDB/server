@@ -28,9 +28,24 @@ enum { ENGINE_OPTION_MAX_LENGTH=32767 };
 
 class engine_option_value: public Sql_alloc
 {
+public:
+ class Name: public Lex_ident_ci
+ {
  public:
-  LEX_CSTRING name;
-  LEX_CSTRING value;
+   using Lex_ident_ci::Lex_ident_ci;
+ };
+ class Value: public Lex_cstring
+ {
+ public:
+   using Lex_cstring::Lex_cstring;
+   bool streq(const LEX_CSTRING &rhs) const
+   {
+     return my_charset_utf8mb3_general1400_as_ci.streq(*this, rhs);
+   }
+ };
+ public:
+  Name name;
+  Value value;
   engine_option_value *next;    ///< parser puts them in a FIFO linked list
   bool parsed;                  ///< to detect unrecognized options
   bool quoted_value;            ///< option=VAL vs. option='VAL'
@@ -40,18 +55,20 @@ class engine_option_value: public Sql_alloc
     next(NULL), parsed(src->parsed), quoted_value(src->quoted_value)
   {
   }
-  engine_option_value(LEX_CSTRING &name_arg, LEX_CSTRING &value_arg,
+  engine_option_value(const Name &name_arg,
+                      const Value &value_arg,
                       bool quoted) :
     name(name_arg), value(value_arg),
     next(NULL), parsed(false), quoted_value(quoted)
   {
   }
-  engine_option_value(LEX_CSTRING &name_arg):
+  engine_option_value(const Name &name_arg):
     name(name_arg), value(null_clex_str),
     next(NULL), parsed(false), quoted_value(false)
   {
   }
-  engine_option_value(LEX_CSTRING &name_arg, ulonglong value_arg,
+  engine_option_value(const Name &name_arg,
+                      ulonglong value_arg,
                       MEM_ROOT *root) :
     name(name_arg), next(NULL), parsed(false), quoted_value(false)
   {

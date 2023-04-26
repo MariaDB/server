@@ -652,7 +652,7 @@ Item_ident::Item_ident(THD *thd, Name_resolution_context *context_arg,
    cached_field_index(NO_CACHED_FIELD_INDEX),
    can_be_depended(TRUE), alias_name_used(FALSE)
 {
-  name= field_name_arg;
+  name= Lex_ident_column(field_name_arg);
 }
 
 
@@ -669,7 +669,7 @@ Item_ident::Item_ident(THD *thd, TABLE_LIST *view_arg,
    cached_field_index(NO_CACHED_FIELD_INDEX),
    can_be_depended(TRUE), alias_name_used(FALSE)
 {
-  name= field_name_arg;
+  name= Lex_ident_column(field_name_arg);
 }
 
 
@@ -823,10 +823,10 @@ bool Item_field::rename_fields_processor(void *arg)
   {
     if (def->change.str &&
         (!db_name.str || !db_name.str[0] ||
-         !my_strcasecmp(table_alias_charset, db_name.str, rename->db_name.str)) &&
+         db_name.streq(rename->db_name)) &&
         (!table_name.str || !table_name.str[0] ||
-         !my_strcasecmp(table_alias_charset, table_name.str, rename->table_name.str)) &&
-        !my_strcasecmp(system_charset_info, field_name.str, def->change.str))
+         table_name.streq(rename->table_name)) &&
+        field_name.streq(def->change))
     {
       field_name= def->field_name;
       break;
@@ -1176,7 +1176,7 @@ my_mb_wc_item_name(CHARSET_INFO *cs, my_wc_t *pwc,
 }
 
 
-static LEX_CSTRING
+static Lex_ident_column
 make_name(THD *thd,
           const char *str, size_t length, CHARSET_INFO *cs,
           size_t max_octet_length)
@@ -1186,7 +1186,7 @@ make_name(THD *thd,
   set_if_smaller(dst_nbytes, max_octet_length);
   char *dst= (char*) thd->alloc(dst_nbytes + 1);
   if (!dst)
-    return null_clex_str;
+    return Lex_ident_column();
   uint32 cnv_length= my_convert_using_func(dst, dst_nbytes, system_charset_info,
                                            my_wc_mb_item_name,
                                            str, length,
@@ -1194,7 +1194,7 @@ make_name(THD *thd,
                                              system_charset_info : cs,
                                            my_mb_wc_item_name, &errors);
   dst[cnv_length]= '\0';
-  return Lex_cstring(dst, cnv_length);
+  return Lex_ident_column(dst, cnv_length);
 }
 
 
@@ -1274,7 +1274,7 @@ bool Item::eq(const Item *item, bool binary_cmp) const
     type() can be only among basic constant types.
   */
   return type() == item->type() && name.str && item->name.str &&
-    !lex_string_cmp(system_charset_info, &name, &item->name);
+         name.streq(item->name);
 }
 
 
@@ -1366,7 +1366,7 @@ Item *Item_num::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
 */
 Item *Item::const_charset_converter(THD *thd, CHARSET_INFO *tocs,
                                     bool lossless,
-                                    const char *func_name)
+                                    const Lex_ident_routine &func_name)
 {
   DBUG_ASSERT(const_item());
   DBUG_ASSERT(fixed());
@@ -1375,7 +1375,7 @@ Item *Item::const_charset_converter(THD *thd, CHARSET_INFO *tocs,
   MEM_ROOT *mem_root= thd->mem_root;
 
   if (!s)
-    return new (mem_root) Item_null(thd, (char *) func_name, tocs);
+    return new (mem_root) Item_null(thd, (char *) func_name.str, tocs);
 
   if (!needs_charset_converter(s->length(), tocs))
   {
@@ -1386,9 +1386,9 @@ Item *Item::const_charset_converter(THD *thd, CHARSET_INFO *tocs,
   }
 
   uint conv_errors;
-  Item_string *conv= (func_name ?
+  Item_string *conv= (func_name.str ?
                       new (mem_root)
-                      Item_static_string_func(thd, Lex_cstring_strlen(func_name),
+                      Item_static_string_func(thd, func_name,
                                               s, tocs, &conv_errors,
                                               collation.derivation,
                                               collation.repertoire) :
@@ -1475,7 +1475,7 @@ const MY_LOCALE *Item::locale_from_val_str()
   String *locale_name= val_str_ascii(&tmp);
   const MY_LOCALE *lc;
   if (!locale_name ||
-      !(lc= my_locale_by_name(locale_name->c_ptr_safe())))
+      !(lc= my_locale_by_name(locale_name->to_lex_cstring())))
   {
     THD *thd= current_thd;
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
@@ -2995,7 +2995,7 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
   dummy_table->in_use= thd;
   dummy_table->copy_blobs= TRUE;
   dummy_table->s->table_cache_key= empty_clex_str;
-  dummy_table->s->table_name= empty_clex_str;
+  dummy_table->s->table_name= Lex_ident_table(empty_clex_str);
   dummy_table->maybe_null= maybe_null;
 
   if (!(sp_result_field= m_sp->create_result_field(max_length, name,
@@ -3097,11 +3097,11 @@ Item_field::Item_field(THD *thd, Name_resolution_context *context_arg,
   */
   {
     if (db_name.str)
-      orig_db_name= thd->strmake_lex_cstring(db_name);
+      orig_db_name= Lex_ident_db(thd->strmake_lex_cstring(db_name));
     if (table_name.str)
-      orig_table_name= thd->strmake_lex_cstring(table_name);
+      orig_table_name= Lex_ident_table(thd->strmake_lex_cstring(table_name));
     if (field_name.str)
-      orig_field_name= thd->strmake_lex_cstring(field_name);
+      orig_field_name= Lex_ident_column(thd->strmake_lex_cstring(field_name));
     /*
       We don't restore 'name' in cleanup because it's not changed
       during execution. Still we need it to point to persistent
@@ -3488,14 +3488,11 @@ bool Item_field::eq(const Item *item, bool binary_cmp) const
     (In cases where we would choose wrong we would have to generate a
     ER_NON_UNIQ_ERROR).
   */
-  return (!lex_string_cmp(system_charset_info, &item_field->name,
-                          &field_name) &&
-	  (!item_field->table_name.str || !table_name.str ||
-	   (!my_strcasecmp(table_alias_charset, item_field->table_name.str,
-			   table_name.str) &&
-	    (!item_field->db_name.str || !db_name.str ||
-	     (item_field->db_name.str && !strcmp(item_field->db_name.str,
-                                                 db_name.str))))));
+  return (item_field->name.streq(field_name) &&
+          (!item_field->table_name.str || !table_name.str ||
+           (item_field->table_name.streq(table_name) &&
+            (!item_field->db_name.str || !db_name.str ||
+             item_field->db_name.streq(db_name)))));
 }
 
 
@@ -3743,7 +3740,7 @@ void Item_int::print(String *str, enum_query_type query_type)
 Item *Item_bool::neg_transformer(THD *thd)
 {
   value= !value;
-  name= null_clex_str;
+  name= Lex_ident_column();
   return this;
 }
 
@@ -4083,7 +4080,7 @@ Item_param::Item_param(THD *thd, const LEX_CSTRING *name_arg,
   m_is_settable_routine_parameter(true),
   m_clones(thd->mem_root)
 {
-  name= *name_arg;
+  name= Lex_ident_column(*name_arg);
   /*
     Since we can't say whenever this item can be NULL or cannot be NULL
     before mysql_stmt_execute(), so we assuming that it can be NULL until
@@ -5338,7 +5335,7 @@ static Item** find_field_in_group_list(Item *find_item, ORDER *group_list)
 {
   LEX_CSTRING db_name;
   LEX_CSTRING table_name;
-  LEX_CSTRING field_name;
+  Lex_ident_column field_name;
   ORDER      *found_group= NULL;
   int         found_match_degree= 0;
   IdentBuffer<SAFE_NAME_LEN> db_name_buff;
@@ -5368,8 +5365,7 @@ static Item** find_field_in_group_list(Item *find_item, ORDER *group_list)
     /* SELECT list element with explicit alias */
     if ((*(cur_group->item))->name.str && !table_name.str &&
         (*(cur_group->item))->is_explicit_name() &&
-        !lex_string_cmp(system_charset_info,
-                        &(*(cur_group->item))->name, &field_name))
+        field_name.streq((*(cur_group->item))->name))
     {
       ++cur_match_degree;
     }
@@ -5378,30 +5374,25 @@ static Item** find_field_in_group_list(Item *find_item, ORDER *group_list)
              (*(cur_group->item))->type() == Item::REF_ITEM )
     {
       Item_ident *cur_field= (Item_ident*) *cur_group->item;
-      const char *l_db_name= cur_field->db_name.str;
-      const char *l_table_name= cur_field->table_name.str;
-      LEX_CSTRING *l_field_name= &cur_field->field_name;
+      DBUG_ASSERT(cur_field->field_name.str != 0);
 
-      DBUG_ASSERT(l_field_name->str != 0);
-
-      if (!lex_string_cmp(system_charset_info,
-                          l_field_name, &field_name))
+      if (field_name.streq(cur_field->field_name))
         ++cur_match_degree;
       else
         continue;
 
-      if (l_table_name && table_name.str)
+      if (cur_field->table_name.str && table_name.str)
       {
         /* If field_name is qualified by a table name. */
-        if (my_strcasecmp(table_alias_charset, l_table_name, table_name.str))
+        if (!cur_field->table_name.streq(table_name))
           /* Same field names, different tables. */
           return NULL;
 
         ++cur_match_degree;
-        if (l_db_name && db_name.str)
+        if (cur_field->db_name.str && db_name.str)
         {
           /* If field_name is also qualified by a database name. */
-          if (strcmp(l_db_name, db_name.str))
+          if (strcmp(cur_field->db_name.str, db_name.str))
             /* Same field names, different databases. */
             return NULL;
           ++cur_match_degree;
@@ -6201,7 +6192,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
     db=  field->table->s->db.str;
     tab= field->table->s->table_name.str;
     if (!(have_privileges= (get_column_grant(thd, &field->table->grant,
-                                             db, tab, field_name.str) &
+                                             db, tab, field_name) &
                             VIEW_ANY_ACL)))
     {
       my_error(ER_COLUMNACCESS_DENIED_ERROR, MYF(0),
@@ -7028,7 +7019,7 @@ Item *Item_int::neg(THD *thd)
   else if (value < 0 && max_length)
     max_length--;
   value= -value;
-  name= null_clex_str;
+  name= Lex_ident_column();
   return this;
 }
 
@@ -7036,7 +7027,7 @@ Item *Item_decimal::neg(THD *thd)
 {
   my_decimal_neg(&decimal_value);
   unsigned_flag= 0;
-  name= null_clex_str;
+  name= Lex_ident_column();
   max_length= my_decimal_precision_to_length_no_truncation(
                       decimal_value.intg + decimals, decimals, unsigned_flag);
   return this;
@@ -7050,7 +7041,7 @@ Item *Item_float::neg(THD *thd)
     max_length--;
   value= -value;
   presentation= 0;
-  name= null_clex_str;
+  name= Lex_ident_column();
   return this;
 }
 
@@ -9940,8 +9931,7 @@ void Item_trigger_field::setup_field(THD *thd, TABLE *table,
     Try to find field by its name and if it will be found
     set field_idx properly.
   */
-  (void)find_field_in_table(thd, table, field_name.str, field_name.length,
-                            0, &field_idx);
+  (void)find_field_in_table(thd, table, field_name, 0, &field_idx);
   thd->column_usage= saved_column_usage;
   triggers= table->triggers;
   table_grants= table_grant_info;
@@ -9952,8 +9942,7 @@ bool Item_trigger_field::eq(const Item *item, bool binary_cmp) const
 {
   return item->type() == TRIGGER_FIELD_ITEM &&
          row_version == ((Item_trigger_field *)item)->row_version &&
-         !lex_string_cmp(system_charset_info, &field_name,
-                         &((Item_trigger_field *)item)->field_name);
+         field_name.streq(((Item_trigger_field *)item)->field_name);
 }
 
 
@@ -10020,8 +10009,7 @@ bool Item_trigger_field::fix_fields(THD *thd, Item **items)
       if (check_grant_column(thd, table_grants,
                              triggers->trigger_table->s->db.str,
                              triggers->trigger_table->s->table_name.str,
-                             field_name.str, field_name.length,
-                             thd->security_ctx))
+                             field_name, thd->security_ctx))
         return TRUE;
     }
 #endif // NO_EMBEDDED_ACCESS_CHECKS

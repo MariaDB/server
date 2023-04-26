@@ -129,13 +129,13 @@ ulong failed_ha_2pc= 0;
 /* size of savepoint storage area (see ha_init) */
 ulong savepoint_alloc_size= 0;
 
-static const LEX_CSTRING sys_table_aliases[]=
+static const Lex_ident_engine sys_table_aliases[]=
 {
-  { STRING_WITH_LEN("INNOBASE") },  { STRING_WITH_LEN("INNODB") },
-  { STRING_WITH_LEN("HEAP") },      { STRING_WITH_LEN("MEMORY") },
-  { STRING_WITH_LEN("MERGE") },     { STRING_WITH_LEN("MRG_MYISAM") },
-  { STRING_WITH_LEN("Maria") },     { STRING_WITH_LEN("Aria") },
-  {NullS, 0}
+  "INNOBASE"_Lex_ident_engine,  "INNODB"_Lex_ident_engine,
+  "HEAP"_Lex_ident_engine,      "MEMORY"_Lex_ident_engine,
+  "MERGE"_Lex_ident_engine,     "MRG_MYISAM"_Lex_ident_engine,
+  "Maria"_Lex_ident_engine,     "Aria"_Lex_ident_engine,
+  Lex_ident_engine()
 };
 
 const LEX_CSTRING ha_row_type[]=
@@ -261,13 +261,10 @@ handlerton *ha_default_tmp_handlerton(THD *thd)
 plugin_ref ha_resolve_by_name(THD *thd, const LEX_CSTRING *name,
                               bool tmp_table)
 {
-  const LEX_CSTRING *table_alias;
   plugin_ref plugin;
 
 redo:
-  if (thd && !my_charset_latin1.strnncoll(
-                           (const uchar *)name->str, name->length,
-                           (const uchar *)STRING_WITH_LEN("DEFAULT"), 0))
+  if (thd && "DEFAULT"_Lex_ident_engine.streq(*name))
     return tmp_table ?  ha_default_tmp_plugin(thd) : ha_default_plugin(thd);
 
   if ((plugin= my_plugin_lock_by_name(thd, name, MYSQL_STORAGE_ENGINE_PLUGIN)))
@@ -285,11 +282,11 @@ redo:
   /*
     We check for the historical aliases.
   */
-  for (table_alias= sys_table_aliases; table_alias->str; table_alias+= 2)
+  for (const Lex_ident_engine *table_alias= sys_table_aliases;
+       table_alias->str;
+       table_alias+= 2)
   {
-    if (!my_charset_latin1.strnncoll(
-                      (const uchar *)name->str, name->length,
-                      (const uchar *)table_alias->str, table_alias->length))
+    if (table_alias->streq(*name))
     {
       name= table_alias + 1;
       goto redo;
@@ -3235,8 +3232,8 @@ int ha_delete_table(THD *thd, handlerton *hton, const char *path,
         dummy_share.path.str= (char*) path;
         dummy_share.path.length= strlen(path);
         dummy_share.normalized_path= dummy_share.path;
-        dummy_share.db= *db;
-        dummy_share.table_name= *alias;
+        dummy_share.db= Lex_ident_db(*db);
+        dummy_share.table_name= Lex_ident_table(*alias);
         dummy_table.s= &dummy_share;
         dummy_table.alias.set(alias->str, alias->length, table_alias_charset);
         file->change_table_ptr(&dummy_table, &dummy_share);
@@ -7535,7 +7532,8 @@ int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
         else
         {
           Item_func_left *fnc= static_cast<Item_func_left *>(arguments[j]);
-          DBUG_ASSERT(!my_strcasecmp(system_charset_info, "left", fnc->func_name()));
+          DBUG_ASSERT(Lex_ident_routine(fnc->func_name_cstring()).
+                        streq("left"_LEX_CSTRING));
           DBUG_ASSERT(fnc->arguments()[0]->type() == Item::FIELD_ITEM);
           t_field= static_cast<Item_field *>(fnc->arguments()[0])->field;
           uint length= (uint)fnc->arguments()[1]->val_int();
@@ -8338,14 +8336,14 @@ int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info)
   VERSIONING functions
 ******************************************************************************/
 
-bool Vers_parse_info::is_start(const char *name) const
+bool Vers_parse_info::is_start(const LEX_CSTRING &name) const
 {
-  DBUG_ASSERT(name);
+  DBUG_ASSERT(name.str);
   return as_row.start && as_row.start.streq(name);
 }
-bool Vers_parse_info::is_end(const char *name) const
+bool Vers_parse_info::is_end(const LEX_CSTRING &name) const
 {
-  DBUG_ASSERT(name);
+  DBUG_ASSERT(name.str);
   return as_row.end && as_row.end.streq(name);
 }
 bool Vers_parse_info::is_start(const Create_field &f) const
@@ -8357,14 +8355,15 @@ bool Vers_parse_info::is_end(const Create_field &f) const
   return f.flags & VERS_ROW_END;
 }
 
-static Create_field *vers_init_sys_field(THD *thd, const char *field_name, int flags, bool integer)
+static Create_field *vers_init_sys_field(THD *thd,
+                                         const Lex_ident_column &field_name,
+                                         int flags, bool integer)
 {
   Create_field *f= new (thd->mem_root) Create_field();
   if (!f)
     return NULL;
 
-  f->field_name.str= field_name;
-  f->field_name.length= strlen(field_name);
+  f->field_name= field_name;
   f->charset= system_charset_info;
   f->flags= flags | NO_DEFAULT_VALUE_FLAG | NOT_NULL_FLAG;
   if (integer)
@@ -8386,7 +8385,8 @@ static Create_field *vers_init_sys_field(THD *thd, const char *field_name, int f
   return f;
 }
 
-bool Vers_parse_info::create_sys_field(THD *thd, const char *field_name,
+bool Vers_parse_info::create_sys_field(THD *thd,
+                                       const Lex_ident_column &field_name,
                                        Alter_info *alter_info, int flags)
 {
   DBUG_ASSERT(can_native >= 0); /* Requires vers_check_native() called */
@@ -8402,8 +8402,9 @@ bool Vers_parse_info::create_sys_field(THD *thd, const char *field_name,
   return false;
 }
 
-const Lex_ident Vers_parse_info::default_start= "row_start";
-const Lex_ident Vers_parse_info::default_end= "row_end";
+const Lex_ident_column
+  Vers_parse_info::default_start= "row_start"_Lex_ident_column,
+  Vers_parse_info::default_end= "row_end"_Lex_ident_column;
 
 bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info)
 {
@@ -8485,8 +8486,8 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
 
 
 bool Table_scope_and_contents_source_st::vers_check_system_fields(
-        THD *thd, Alter_info *alter_info, const Lex_table_name &table_name,
-        const Lex_table_name &db, int select_count)
+        THD *thd, Alter_info *alter_info, const Lex_ident_table &table_name,
+        const Lex_ident_db &db, int select_count)
 {
   if (!(options & HA_VERSIONED_TABLE))
     return false;
@@ -8511,7 +8512,7 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
       {
         List_iterator<Create_field> dup_it(alter_info->create_list);
         for (Create_field *dup= dup_it++; !is_dup && dup != f; dup= dup_it++)
-          is_dup= Lex_ident(dup->field_name).streq(f->field_name);
+          is_dup= dup->field_name.streq(f->field_name);
       }
 
       if (!(f->flags & VERS_UPDATE_UNVERSIONED_FLAG) && !is_dup)
@@ -8536,7 +8537,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
                                      HA_CREATE_INFO *create_info, TABLE *table)
 {
   TABLE_SHARE *share= table->s;
-  const char *table_name= share->table_name.str;
+  const Lex_ident_table &table_name= share->table_name;
 
   if (!need_check(alter_info) && !share->versioned)
     return false;
@@ -8551,7 +8552,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
   if (alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING &&
       table->versioned())
   {
-    my_error(ER_VERS_ALREADY_VERSIONED, MYF(0), table_name);
+    my_error(ER_VERS_ALREADY_VERSIONED, MYF(0), table_name.str);
     return true;
   }
 
@@ -8559,14 +8560,14 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
   {
     if (!share->versioned)
     {
-      my_error(ER_VERS_NOT_VERSIONED, MYF(0), table_name);
+      my_error(ER_VERS_NOT_VERSIONED, MYF(0), table_name.str);
       return true;
     }
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     if (table->part_info &&
         table->part_info->part_type == VERSIONING_PARTITION)
     {
-      my_error(ER_DROP_VERSIONING_SYSTEM_TIME_PARTITION, MYF(0), table_name);
+      my_error(ER_DROP_VERSIONING_SYSTEM_TIME_PARTITION, MYF(0), table_name.str);
       return true;
     }
 #endif
@@ -8596,7 +8597,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
   if ((alter_info->flags & ALTER_DROP_PERIOD ||
        versioned_fields || unversioned_fields) && !share->versioned)
   {
-    my_error(ER_VERS_NOT_VERSIONED, MYF(0), table_name);
+    my_error(ER_VERS_NOT_VERSIONED, MYF(0), table_name.str);
     return true;
   }
 
@@ -8604,7 +8605,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
   {
     if (alter_info->flags & ALTER_ADD_PERIOD)
     {
-      my_error(ER_VERS_ALREADY_VERSIONED, MYF(0), table_name);
+      my_error(ER_VERS_ALREADY_VERSIONED, MYF(0), table_name.str);
       return true;
     }
 
@@ -8613,8 +8614,8 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
 
     DBUG_ASSERT(share->vers_start_field());
     DBUG_ASSERT(share->vers_end_field());
-    Lex_ident start(share->vers_start_field()->field_name);
-    Lex_ident end(share->vers_end_field()->field_name);
+    Lex_ident_column start(share->vers_start_field()->field_name);
+    Lex_ident_column end(share->vers_end_field()->field_name);
     DBUG_ASSERT(start.str);
     DBUG_ASSERT(end.str);
 
@@ -8679,8 +8680,7 @@ Vers_parse_info::fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_
         kp_it.init(key->columns);
         while (Key_part_spec *kp= kp_it++)
         {
-          if (0 == lex_string_cmp(system_charset_info, &kp->field_name,
-                                  &f->field_name))
+          if (kp->field_name.streq(f->field_name))
           {
             kp_it.remove();
           }
@@ -8738,8 +8738,8 @@ bool Vers_parse_info::need_check(const Alter_info *alter_info) const
          alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING || *this;
 }
 
-bool Vers_parse_info::check_conditions(const Lex_table_name &table_name,
-                                       const Lex_table_name &db) const
+bool Vers_parse_info::check_conditions(const Lex_ident_table &table_name,
+                                       const Lex_ident_db &db) const
 {
   if (!as_row.start || !as_row.end)
   {
@@ -8854,8 +8854,8 @@ bool Vers_type_trx::check_sys_fields(const LEX_CSTRING &table_name,
 }
 
 
-bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
-                                       const Lex_table_name &db,
+bool Vers_parse_info::check_sys_fields(const Lex_ident_table &table_name,
+                                       const Lex_ident_db &db,
                                        Alter_info *alter_info) const
 {
   if (check_conditions(table_name, db))
@@ -8882,7 +8882,7 @@ bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
 
   if (!row_start_vers)
   {
-    require_timestamp_error(row_start->field_name.str, table_name);
+    require_timestamp_error(row_start->field_name.str, table_name.str);
     return true;
   }
 
@@ -8890,7 +8890,7 @@ bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
 }
 
 bool Table_period_info::check_field(const Create_field* f,
-                                    const Lex_ident& f_name) const
+                                    const Lex_ident_column& f_name) const
 {
   bool res= false;
   if (!f)
@@ -8916,7 +8916,7 @@ bool Table_period_info::check_field(const Create_field* f,
 
 bool Table_scope_and_contents_source_st::check_fields(
   THD *thd, Alter_info *alter_info,
-  const Lex_table_name &table_name, const Lex_table_name &db, int select_count)
+  const Lex_ident_table &table_name, const Lex_ident_db &db, int select_count)
 {
   return vers_check_system_fields(thd, alter_info,
                                   table_name, db, select_count) ||
@@ -8951,8 +8951,8 @@ bool Table_scope_and_contents_source_st::check_period_fields(
     }
   }
 
-  bool res= period_info.check_field(row_start, period.start.str)
-            || period_info.check_field(row_end, period.end.str);
+  bool res= period_info.check_field(row_start, period.start)
+            || period_info.check_field(row_end, period.end);
   if (res)
     return true;
 

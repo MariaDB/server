@@ -142,34 +142,6 @@ my_caseup_mb(CHARSET_INFO * cs, const char *src, size_t srclen,
 
 
 /*
-  my_strcasecmp_mb() returns 0 if strings are equal, non-zero otherwise.
- */
-
-int my_strcasecmp_mb(CHARSET_INFO * cs,const char *s, const char *t)
-{
-  register uint32 l;
-  register const uchar *map=cs->to_upper;
-  
-  while (*s && *t)
-  {
-    /* Pointing after the '\0' is safe here. */
-    if ((l=my_ismbchar(cs, s, s + cs->mbmaxlen)))
-    {
-      while (l--)
-        if (*s++ != *t++) 
-          return 1;
-    }
-    else if (my_ci_charlen(cs, (const uchar *) t, (const uchar *) t + cs->mbmaxlen) > 1)
-      return 1;
-    else if (map[(uchar) *s++] != map[(uchar) *t++])
-      return 1;
-  }
-  /* At least one of '*s' and '*t' is zero here. */
-  return (*t != *s);
-}
-
-
-/*
 ** Compare string against string with wildcard
 **	0 if matched
 **	-1 if not matched with wildcard
@@ -602,15 +574,6 @@ my_strnxfrm_mb_nopad(CHARSET_INFO *cs,
   return my_strxfrm_pad_desc_and_reverse_nopad(cs, d0, dst, de, nweights,
                                                flags, 0);
 }
-
-
-int
-my_strcasecmp_mb_bin(CHARSET_INFO * cs __attribute__((unused)),
-                     const char *s, const char *t)
-{
-  return strcmp(s,t);
-}
-
 
 
 void

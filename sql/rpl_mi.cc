@@ -1118,7 +1118,8 @@ bool Master_info_index::init_all_master_info()
   }
 
   /* Initialize Master_info Hash Table */
-  if (my_hash_init(PSI_INSTRUMENT_ME, &master_info_hash, system_charset_info, 
+  if (my_hash_init(PSI_INSTRUMENT_ME, &master_info_hash,
+                   Lex_ident_master_info::charset_info(),
                    MAX_REPLICATION_THREAD, 0, 0, 
                    (my_hash_get_key) get_key_master_info, 
                    (my_hash_free_key)free_key_master_info, HASH_UNIQUE))

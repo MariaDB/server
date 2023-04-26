@@ -14256,11 +14256,11 @@ int mysql_value_to_bool(struct st_mysql_value *value, my_bool *return_value) {
     char buf[16];
     int len = sizeof(buf);
     const char *str = value->val_str(value, buf, &len);
-    if (str && (my_strcasecmp(system_charset_info, "true", str) == 0 ||
-                my_strcasecmp(system_charset_info, "on", str) == 0)) {
+    if (str && (strcasecmp("true", str) == 0 ||
+                strcasecmp("on", str) == 0)) {
       *return_value = TRUE;
-    } else if (str && (my_strcasecmp(system_charset_info, "false", str) == 0 ||
-                       my_strcasecmp(system_charset_info, "off", str) == 0)) {
+    } else if (str && (strcasecmp("false", str) == 0 ||
+                       strcasecmp("off", str) == 0)) {
       *return_value = FALSE;
     } else {
       return 1;

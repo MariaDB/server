@@ -4072,8 +4072,8 @@ int spider_set_connect_info_default(
       if (
         !(share->tgt_table_names[roop_count] = spider_create_table_name_string(
           table_share->table_name.str,
-          (part_elem ? part_elem->partition_name : NULL),
-          (sub_elem ? sub_elem->partition_name : NULL)
+          (part_elem ? part_elem->partition_name.str : NULL),
+          (sub_elem ? sub_elem->partition_name.str : NULL)
         ))
       ) {
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);

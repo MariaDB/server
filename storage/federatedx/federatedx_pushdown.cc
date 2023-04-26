@@ -73,22 +73,8 @@
 bool local_and_remote_names_mismatch(const TABLE_SHARE *tbl_share,
                                      const FEDERATEDX_SHARE *fshare)
 {
-
-  if (lower_case_table_names)
-  {
-    if (strcasecmp(fshare->database, tbl_share->db.str) != 0)
-      return true;
-  }
-  else
-  {
-    if (strncmp(fshare->database, tbl_share->db.str, tbl_share->db.length) != 0)
-      return true;
-  }
-
-  return my_strnncoll(system_charset_info, (uchar *) fshare->table_name,
-                      strlen(fshare->table_name),
-                      (uchar *) tbl_share->table_name.str,
-                      tbl_share->table_name.length) != 0;
+  return !tbl_share->db.streq(Lex_cstring_strlen(fshare->database)) ||
+         !tbl_share->table_name.streq(Lex_cstring_strlen(fshare->table_name));
 }
 
 

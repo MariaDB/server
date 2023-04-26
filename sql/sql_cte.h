@@ -36,7 +36,7 @@ struct st_unit_ctxt_elem;
 class With_element_head : public Sql_alloc
 {
   /* The name of the defined CTE */
-  LEX_CSTRING *query_name;
+  const Lex_ident_with_element query_name;
 
 public:
   /*
@@ -47,7 +47,7 @@ public:
   */
   TABLE_CHAIN tables_pos;
 
-  With_element_head(LEX_CSTRING *name)
+  With_element_head(const Lex_ident_with_element &name)
     : query_name(name)
   {
     tables_pos.set_start_pos(0);
@@ -224,8 +224,8 @@ public:
       level(0), rec_result(NULL)
   { unit->with_element= this; }
 
-  LEX_CSTRING *get_name() { return head->query_name; }
-  const char *get_name_str() { return get_name()->str; }
+  const Lex_ident_with_element get_name() const { return head->query_name; }
+  const char *get_name_str() const { return get_name().str; }
 
   void set_tables_start_pos(TABLE_LIST **pos)
   { head->tables_pos.set_start_pos(pos); }

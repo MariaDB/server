@@ -125,8 +125,8 @@ const char *join_type_str[]={ "UNKNOWN","system","const","eq_ref","ref",
                               "index_merge", "hash_ALL", "hash_range",
                               "hash_index", "hash_index_merge" };
 
-LEX_CSTRING group_key= {STRING_WITH_LEN("group_key")};
-LEX_CSTRING distinct_key= {STRING_WITH_LEN("distinct_key")};
+static const Lex_ident_column group_key= "group_key"_Lex_ident_column;
+static const Lex_ident_column distinct_key= "distinct_key"_Lex_ident_column;
 
 struct st_sargable_param;
 
@@ -20742,9 +20742,9 @@ Item_field::create_tmp_field_from_item_field(MEM_ROOT *root, TABLE *new_table,
 {
   DBUG_ASSERT(!is_result_field());
   Field *result;
-  LEX_CSTRING *new_name= (orig_item ? &orig_item->name :
-                          !param->modify_item() ? &name :
-                          &field->field_name);
+  const Lex_ident_column *new_name= (orig_item ? &orig_item->name :
+                                    !param->modify_item() ? &name :
+                                    &field->field_name);
 
   /*
     If item have to be able to store NULLs but underlaid field can't do it,
@@ -21267,7 +21267,7 @@ TABLE *Create_tmp_table::start(THD *thd,
   share->table_charset= param->table_charset;
   share->primary_key= MAX_KEY;               // Indicate no primary key
   if (param->schema_table)
-    share->db= INFORMATION_SCHEMA_NAME;
+    share->db= Lex_ident_db(INFORMATION_SCHEMA_NAME);
 
   param->using_outer_summary_function= 0;
   thd->mem_root= mem_root_save;
@@ -22216,8 +22216,7 @@ bool Virtual_tmp_table::sp_find_field_by_name(uint *idx,
   for (uint i= 0; (f= field[i]); i++)
   {
     // Use the same comparison style with sp_context::find_variable()
-    if (!system_charset_info->strnncoll(f->field_name.str, f->field_name.length,
-                                        name.str, name.length))
+    if (f->field_name.streq(name))
     {
       *idx= i;
       return false;
@@ -28583,7 +28582,7 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
 	      real_pos->type() == Item::COND_ITEM) &&
 	     !real_pos->with_sum_func())
     {						// Save for send fields
-      LEX_CSTRING real_name= pos->name;
+      const Lex_ident_column real_name= pos->name;
       pos= real_pos;
       pos->name= real_name;
       /* TODO:
@@ -30847,10 +30846,7 @@ Index_hint::print(THD *thd, String *str)
   str->append(STRING_WITH_LEN(" ("));
   if (key_name.length)
   {
-    if (thd && !system_charset_info->strnncoll(
-                             (const uchar *)key_name.str, key_name.length, 
-                             (const uchar *)primary_key_name.str,
-                             primary_key_name.length))
+    if (thd && key_name.streq(primary_key_name))
       str->append(primary_key_name);
     else
       append_identifier(thd, str, &key_name);
@@ -30902,7 +30898,7 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
   }
   else
   {
-    const char *cmp_name;                         // Name to compare with alias
+    Lex_ident_table cmp_name(empty_clex_str); // Name to compare with alias
     if (view_name.str)
     {
       // A view
@@ -30915,7 +30911,7 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
         str->append('.');
       }
       append_identifier(thd, str, &view_name);
-      cmp_name= view_name.str;
+      cmp_name= view_name;
     }
     else if (derived)
     {
@@ -30925,12 +30921,12 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
         str->append('(');
         derived->print(str, query_type);
         str->append(')');
-        cmp_name= "";                               // Force printing of alias
+        cmp_name= Lex_ident_table(empty_clex_str); // Force printing of alias
       }
       else
       {
         append_identifier(thd, str, &table_name);
-        cmp_name= table_name.str;
+        cmp_name= table_name;
       }
     }
     else if (table_function)
@@ -30939,7 +30935,7 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
       (void) table_function->print(thd, this, str, query_type);
       str->append(' ');
       append_identifier(thd, str, &alias);
-      cmp_name= alias.str;
+      cmp_name= alias;
     }
     else
     {
@@ -30955,12 +30951,12 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
       if (schema_table)
       {
         append_identifier(thd, str, &schema_table_name);
-        cmp_name= schema_table_name.str;
+        cmp_name= Lex_ident_table(schema_table_name);
       }
       else
       {
         append_identifier(thd, str, &table_name);
-        cmp_name= table_name.str;
+        cmp_name= table_name;
       }
 #ifdef WITH_PARTITION_STORAGE_ENGINE
       if (partition_names && partition_names->elements)
@@ -30982,7 +30978,7 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
     if (table && table->versioned())
       vers_conditions.print(str, query_type);
 
-    if (my_strcasecmp(table_alias_charset, cmp_name, alias.str))
+    if (!cmp_name.streq(alias))
     {
       str->append(' ');
       append_identifier_opt_casedn(thd, str, alias,

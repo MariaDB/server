@@ -28,7 +28,7 @@ Item_window_func::resolve_window_name(THD *thd)
     return false;
   }
   DBUG_ASSERT(window_name != NULL && window_spec == NULL);
-  const char *ref_name= window_name->str;
+  const LEX_CSTRING &ref_name= *window_name;
 
   /* !TODO: Add the code to resolve ref_name in outer queries */ 
   /* 
@@ -41,9 +41,8 @@ Item_window_func::resolve_window_name(THD *thd)
   Window_spec *win_spec;
   while((win_spec= it++))
   {
-    const char *win_spec_name= win_spec->name();
-    if (win_spec_name &&
-        my_strcasecmp(system_charset_info, ref_name, win_spec_name) == 0)
+    const Lex_ident_window win_spec_name(win_spec->name());
+    if (win_spec_name.str && win_spec_name.streq(ref_name))
     {
       window_spec= win_spec;
       break;
@@ -52,7 +51,7 @@ Item_window_func::resolve_window_name(THD *thd)
 
   if (!window_spec)
   {
-    my_error(ER_WRONG_WINDOW_SPEC_NAME, MYF(0), ref_name);
+    my_error(ER_WRONG_WINDOW_SPEC_NAME, MYF(0), ref_name.str);
     return true;
   }
 

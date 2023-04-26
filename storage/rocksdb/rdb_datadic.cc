@@ -62,11 +62,10 @@ void get_mem_comparable_space(const CHARSET_INFO *cs,
 /*
   MariaDB's replacement for FB/MySQL Field::check_field_name_match :
 */
-inline bool field_check_field_name_match(Field *field, const char *name)
+inline bool field_check_field_name_match(Field *field, std::string *str)
 {
-  return (0 == my_strcasecmp(system_charset_info,
-                             field->field_name.str,
-                             name));
+  // Lex_ident_column::streq() expects str[length]=='\0', hence c_str().
+  return field->field_name.streq(Lex_cstring(str->c_str(), str->length()));
 }
 
 
@@ -548,7 +547,7 @@ uint Rdb_key_def::setup(const TABLE *const tbl,
           the offset of the TTL key part here.
         */
         if (!m_ttl_column.empty() &&
-            field_check_field_name_match(field, m_ttl_column.c_str())) {
+            field_check_field_name_match(field, &m_ttl_column)) {
           DBUG_ASSERT(field->real_type() == MYSQL_TYPE_LONGLONG);
           DBUG_ASSERT(field->key_type() == HA_KEYTYPE_ULONGLONG);
           DBUG_ASSERT(!field->real_maybe_null());
@@ -669,7 +668,7 @@ uint Rdb_key_def::extract_ttl_col(const TABLE *const table_arg,
   if (skip_checks) {
     for (uint i = 0; i < table_arg->s->fields; i++) {
       Field *const field = table_arg->field[i];
-      if (field_check_field_name_match(field, ttl_col_str.c_str())) {
+      if (field_check_field_name_match(field, &ttl_col_str)) {
         *ttl_column = ttl_col_str;
         *ttl_field_index = i;
       }
@@ -682,7 +681,7 @@ uint Rdb_key_def::extract_ttl_col(const TABLE *const table_arg,
     bool found = false;
     for (uint i = 0; i < table_arg->s->fields; i++) {
       Field *const field = table_arg->field[i];
-      if (field_check_field_name_match(field, ttl_col_str.c_str()) &&
+      if (field_check_field_name_match(field, &ttl_col_str) &&
           field->real_type() == MYSQL_TYPE_LONGLONG &&
           field->key_type() == HA_KEYTYPE_ULONGLONG &&
           !field->real_maybe_null()) {

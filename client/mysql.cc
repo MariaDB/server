@@ -207,9 +207,9 @@ static void my_vidattr(chtype attrs)
 #endif
 
 #ifdef FN_NO_CASE_SENSE
-#define cmp_database(cs,A,B) my_strcasecmp((cs), (A), (B))
+#define cmp_database(A,B) my_strcasecmp_latin1((A), (B))
 #else
-#define cmp_database(cs,A,B) strcmp((A),(B))
+#define cmp_database(A,B) strcmp((A),(B))
 #endif
 
 #include "completion_hash.h"
@@ -4697,7 +4697,7 @@ com_use(String *buffer __attribute__((unused)), char *line)
   */
   get_current_db();
 
-  if (!current_db || cmp_database(charset_info, current_db,tmp))
+  if (!current_db || cmp_database(current_db, tmp))
   {
     if (one_database)
     {

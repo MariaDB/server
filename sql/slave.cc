@@ -3411,8 +3411,9 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
 static int cmp_mi_by_name(const Master_info **arg1,
                           const Master_info **arg2)
 {
-  return my_strcasecmp(system_charset_info, (*arg1)->connection_name.str,
-                       (*arg2)->connection_name.str);
+  return Lex_ident_master_info::charset_info()->strnncoll(
+                                                     (*arg1)->connection_name,
+                                                     (*arg2)->connection_name);
 }
 
 

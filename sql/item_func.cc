@@ -131,16 +131,6 @@ Item_args::Item_args(THD *thd, const Item_args *other)
 }
 
 
-void Item_func::wrong_param_count_error(const LEX_CSTRING &schema_name,
-                                        const LEX_CSTRING &func_name)
-{
-  DBUG_ASSERT(schema_name.length);
-  Database_qualified_name qname(schema_name, func_name);
-  my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0),
-           ErrConvDQName(&qname).ptr());
-}
-
-
 void Item_func::sync_with_sum_func_and_with_field(List<Item> &list)
 {
   List_iterator_fast<Item> li(list);
@@ -675,7 +665,8 @@ bool Item_func::eq(const Item *item, bool binary_cmp) const
       (func_type != Item_func::FUNC_SP &&
        func_name() != item_func->func_name()) ||
       (func_type == Item_func::FUNC_SP &&
-       my_strcasecmp(system_charset_info, func_name(), item_func->func_name())))
+       !Lex_ident_routine(func_name_cstring()).
+         streq(item_func->func_name_cstring())))
     return 0;
   return Item_args::eq(item_func, binary_cmp);
 }
@@ -5829,7 +5820,8 @@ Item_func_get_system_var(THD *thd, sys_var *var_arg, enum_var_type var_type_arg,
   orig_var_type(var_type_arg), component(*component_arg), cache_present(0)
 {
   /* set_name() will allocate the name */
-  set_name(thd, name_arg, (uint) name_len_arg, system_charset_info);
+  set_name(thd, name_arg, (uint) name_len_arg,
+           Lex_ident_column::charset_info());
 }
 
 
@@ -5884,6 +5876,8 @@ bool Item_func_get_system_var::fix_length_and_dec(THD *thd)
       break;
     case SHOW_CHAR:
     case SHOW_CHAR_PTR:
+    {
+      CHARSET_INFO *cs= system_charset_info_for_i_s;
       mysql_mutex_lock(&LOCK_global_system_variables);
       cptr= var->show_type() == SHOW_CHAR ?
           reinterpret_cast<const char*>(var->value_ptr(thd, var_type,
@@ -5891,26 +5885,26 @@ bool Item_func_get_system_var::fix_length_and_dec(THD *thd)
           *reinterpret_cast<const char* const*>(var->value_ptr(thd,
                                                                var_type,
                                                                &component));
-      if (cptr)
-        max_length= (uint32) system_charset_info->numchars(cptr,
-                                                           cptr + strlen(cptr));
+      uint char_length= cptr ?
+                        (uint32) cs->numchars(cptr, cptr + strlen(cptr)) : 0;
       mysql_mutex_unlock(&LOCK_global_system_variables);
-      collation.set(system_charset_info, DERIVATION_SYSCONST);
-      max_length*= system_charset_info->mbmaxlen;
+      collation.set(cs, DERIVATION_SYSCONST);
+      fix_char_length(char_length);
       decimals=NOT_FIXED_DEC;
       break;
+    }
     case SHOW_LEX_STRING:
       {
+        CHARSET_INFO *cs= system_charset_info_for_i_s;
         mysql_mutex_lock(&LOCK_global_system_variables);
         const LEX_STRING *ls=
                 reinterpret_cast<const LEX_STRING*>(var->value_ptr(current_thd,
                                                                    var_type,
                                                                    &component));
-        max_length= (uint32) system_charset_info->numchars(ls->str,
-                                                           ls->str + ls->length);
+        uint char_length= (uint32) cs->numchars(ls->str, ls->str + ls->length);
         mysql_mutex_unlock(&LOCK_global_system_variables);
-        collation.set(system_charset_info, DERIVATION_SYSCONST);
-        max_length*= system_charset_info->mbmaxlen;
+        collation.set(cs, DERIVATION_SYSCONST);
+        fix_char_length(char_length);
         decimals=NOT_FIXED_DEC;
       }
       break;

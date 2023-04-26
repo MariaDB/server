@@ -794,10 +794,11 @@ static bool check_charset(sys_var *self, THD *thd, set_var *var)
     {
       ErrConvString err(res); /* Get utf8 '\0' terminated string */
       myf utf8_flag= thd->get_utf8_flag();
-      if (!(var->save_result.ptr= get_charset_by_csname(err.ptr(),
+      Lex_cstring csname= err.lex_cstring();
+      if (!(var->save_result.ptr= get_charset_by_csname(csname.str,
                                                              MY_CS_PRIMARY,
                                                              MYF(utf8_flag))) &&
-          !(var->save_result.ptr= get_old_charset_by_name(err.ptr())))
+          !(var->save_result.ptr= get_old_charset_by_name(csname)))
       {
         my_error(ER_UNKNOWN_CHARACTER_SET, MYF(0), err.ptr());
         return true;
@@ -838,7 +839,7 @@ static bool check_charset_not_null(sys_var *self, THD *thd, set_var *var)
 static Sys_var_struct Sys_character_set_system(
        "character_set_system", "The character set used by the server "
        "for storing identifiers",
-       READ_ONLY GLOBAL_VAR(system_charset_info), NO_CMD_LINE,
+       READ_ONLY GLOBAL_VAR(system_charset_info_for_i_s), NO_CMD_LINE,
        offsetof(CHARSET_INFO, cs_name.str), DEFAULT(0));
 
 static Sys_var_struct Sys_character_set_server(
@@ -5905,7 +5906,7 @@ static bool check_locale(sys_var *self, THD *thd, set_var *var)
     String str(buff, sizeof(buff), system_charset_info), *res;
     if (!(res=var->value->val_str(&str)))
       return true;
-    else if (!(locale= my_locale_by_name(res->c_ptr_safe())))
+    else if (!(locale= my_locale_by_name(res->to_lex_cstring())))
     {
       ErrConvString err(res);
       my_error(ER_UNKNOWN_LOCALE, MYF(0), err.ptr());

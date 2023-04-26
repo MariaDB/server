@@ -612,10 +612,10 @@ my_bool encrypt_binlog;
 my_bool encrypt_tmp_disk_tables, encrypt_tmp_files;
 
 /** name of reference on left expression in rewritten IN subquery */
-const LEX_CSTRING in_left_expr_name= {STRING_WITH_LEN("<left expr>") };
+const Lex_ident_column in_left_expr_name= "<left expr>"_Lex_ident_column;
 /** name of additional condition */
-const LEX_CSTRING in_having_cond= {STRING_WITH_LEN("<IN HAVING>") };
-const LEX_CSTRING in_additional_cond= {STRING_WITH_LEN("<IN COND>") };
+const Lex_ident_column in_having_cond= "<IN HAVING>"_Lex_ident_column;
+const Lex_ident_column in_additional_cond= "<IN COND>"_Lex_ident_column;
 
 /** Number of connection errors when selecting on the listening port */
 ulong connection_errors_select= 0;
@@ -675,6 +675,7 @@ uint temp_pool_set_next()
 }
 
 CHARSET_INFO *system_charset_info, *files_charset_info ;
+CHARSET_INFO *system_charset_info_for_i_s;
 CHARSET_INFO *national_charset_info, *table_alias_charset;
 CHARSET_INFO *character_set_filesystem;
 CHARSET_INFO *error_message_charset_info;
@@ -4191,7 +4192,7 @@ static int init_common_variables()
 
   unireg_init(opt_specialflag); /* Set up extern variabels */
   if (!(my_default_lc_messages=
-        my_locale_by_name(lc_messages)))
+        my_locale_by_name(Lex_cstring_strlen(lc_messages))))
   {
     sql_print_error("Unknown locale: '%s'", lc_messages);
     return 1;
@@ -4306,7 +4307,7 @@ static int init_common_variables()
   global_system_variables.character_set_filesystem= character_set_filesystem;
 
   if (!(my_default_lc_time_names=
-        my_locale_by_name(lc_time_names_name)))
+        my_locale_by_name(Lex_cstring_strlen(lc_time_names_name))))
   {
     sql_print_error("Unknown locale: '%s'", lc_time_names_name);
     return 1;
@@ -5635,7 +5636,8 @@ int mysqld_main(int argc, char **argv)
   remaining_argv= argv;
 
   /* Must be initialized early for comparison of options name */
-  system_charset_info= &my_charset_utf8mb3_general_ci;
+  system_charset_info= &my_charset_utf8mb3_general1400_as_ci;
+  system_charset_info_for_i_s= &my_charset_utf8mb3_general_ci;
 
   sys_var_init();
 
@@ -7838,8 +7840,9 @@ static int mysql_init_variables(void)
   key_map_full.set_all();
 
   /* Character sets */
-  system_charset_info= &my_charset_utf8mb3_general_ci;
-  files_charset_info= &my_charset_utf8mb3_general_ci;
+  system_charset_info= &my_charset_utf8mb3_general1400_as_ci;
+  system_charset_info_for_i_s= &my_charset_utf8mb3_general_ci;
+  files_charset_info= &my_charset_utf8mb3_general1400_as_ci;
   national_charset_info= &my_charset_utf8mb3_general_ci;
   table_alias_charset= &my_charset_bin;
   character_set_filesystem= &my_charset_bin;
@@ -8398,7 +8401,8 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
     val= strmake_root(&startup_root, val, (size_t) (ptr - val));
 
     /* Add instrument name and value to array of configuration options */
-    if (add_pfs_instr_to_array(name, val))
+    if (add_pfs_instr_to_array(Lex_cstring_strlen(name),
+                               Lex_cstring_strlen(val)))
     {
        my_getopt_error_reporter(WARNING_LEVEL,
                              "Invalid value for performance_schema_instrument "

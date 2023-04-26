@@ -1202,7 +1202,8 @@ int spider_db_mbase_result::fetch_table_cardinality(
       if (
         mysql_row[4] &&
         mysql_row[6] &&
-        (field = find_field_in_table_sef(table, mysql_row[4]))
+        (field = find_field_in_table_sef(table,
+                                         Lex_cstring_strlen(mysql_row[4])))
       ) {
         if ((cardinality[field->field_index] =
           (longlong) my_strtoll10(mysql_row[6], (char**) NULL, &error_num))
@@ -1229,7 +1230,8 @@ int spider_db_mbase_result::fetch_table_cardinality(
       if (
         mysql_row[0] &&
         mysql_row[1] &&
-        (field = find_field_in_table_sef(table, mysql_row[0]))
+        (field = find_field_in_table_sef(table,
+                                         Lex_cstring_strlen(mysql_row[0])))
       ) {
         if ((cardinality[field->field_index] =
           (longlong) my_strtoll10(mysql_row[1], (char**) NULL, &error_num))

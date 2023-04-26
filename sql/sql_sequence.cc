@@ -30,13 +30,28 @@
 #include "wsrep_mysqld.h"
 #endif
 
-struct Field_definition
+#define FL (NOT_NULL_FLAG | NO_DEFAULT_VALUE_FLAG)
+
+class Field_definition
 {
-  const char *field_name;
+public:
+  const Lex_ident_column field_name;
   uint length;
   const Type_handler *type_handler;
   LEX_CSTRING comment;
   ulong flags;
+
+  Field_definition(const Lex_ident_column &name_arg,
+                   uint length_arg,
+                   const Type_handler *type_handler_arg,
+                   const LEX_CSTRING &comment_arg= empty_clex_str,
+                   uint flags_arg= FL)
+   :field_name(name_arg),
+    length(length_arg),
+    type_handler(type_handler_arg),
+    comment(comment_arg),
+    flags(flags_arg)
+  { }
 };
 
 /*
@@ -48,24 +63,35 @@ struct Field_definition
   a column named NEXTVAL.
 */
 
-#define FL (NOT_NULL_FLAG | NO_DEFAULT_VALUE_FLAG)
 
 static Field_definition sequence_structure[]=
 {
-  {"next_not_cached_value", 21, &type_handler_slonglong,
-   {STRING_WITH_LEN("")}, FL},
-  {"minimum_value", 21, &type_handler_slonglong, {STRING_WITH_LEN("")}, FL},
-  {"maximum_value", 21, &type_handler_slonglong, {STRING_WITH_LEN("")}, FL},
-  {"start_value", 21, &type_handler_slonglong, {STRING_WITH_LEN("start value when sequences is created or value if RESTART is used")},  FL},
-  {"increment", 21, &type_handler_slonglong,
-   {STRING_WITH_LEN("increment value")}, FL},
-  {"cache_size", 21, &type_handler_ulonglong, {STRING_WITH_LEN("")},
+  {"next_not_cached_value"_Lex_ident_column, 21, &type_handler_slonglong},
+  {"minimum_value"_Lex_ident_column,         21, &type_handler_slonglong},
+  {"maximum_value"_Lex_ident_column,         21, &type_handler_slonglong},
+
+  {"start_value"_Lex_ident_column,
+    21, &type_handler_slonglong,
+   {STRING_WITH_LEN("start value when sequences is created or value if RESTART is used")},
+  },
+
+  {"increment"_Lex_ident_column,
+   21, &type_handler_slonglong, {STRING_WITH_LEN("increment value")}},
+
+  {"cache_size"_Lex_ident_column,
+   21, &type_handler_ulonglong, {STRING_WITH_LEN("")},
    FL | UNSIGNED_FLAG},
-  {"cycle_option", 1, &type_handler_utiny, {STRING_WITH_LEN("0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed")},
+
+  {"cycle_option"_Lex_ident_column,
+   1, &type_handler_utiny,
+   {STRING_WITH_LEN("0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed")},
    FL | UNSIGNED_FLAG },
-  {"cycle_count", 21, &type_handler_slonglong,
-   {STRING_WITH_LEN("How many cycles have been done")}, FL},
-  {NULL, 0, &type_handler_slonglong, {STRING_WITH_LEN("")}, 0}
+
+  {"cycle_count"_Lex_ident_column,
+   21, &type_handler_slonglong,
+   {STRING_WITH_LEN("How many cycles have been done")}},
+
+  {Lex_ident_column(), 0, &type_handler_slonglong}
 };
 
 #undef FL
@@ -222,8 +248,7 @@ bool check_sequence_fields(LEX *lex, List<Create_field> *fields,
   for (field_no= 0; (field= it++); field_no++)
   {
     Field_definition *field_def= &sequence_structure[field_no];
-    if (my_strcasecmp(system_charset_info, field_def->field_name,
-                      field->field_name.str) ||
+    if (!field->field_name.streq(field_def->field_name) ||
         field->flags != field_def->flags ||
         field->type_handler() != field_def->type_handler ||
         field->check_constraint || field->vcol_info)
@@ -257,13 +282,11 @@ bool prepare_sequence_fields(THD *thd, List<Create_field> *fields)
   for (field_info= sequence_structure; field_info->field_name ; field_info++)
   {
     Create_field *new_field;
-    LEX_CSTRING field_name= {field_info->field_name,
-                             strlen(field_info->field_name)};
 
     if (unlikely(!(new_field= new Create_field())))
       DBUG_RETURN(TRUE); /* purify inspected */
 
-    new_field->field_name=  field_name;
+    new_field->field_name=  field_info->field_name;
     new_field->set_handler(field_info->type_handler);
     new_field->length=      field_info->length;
     new_field->char_length= field_info->length;

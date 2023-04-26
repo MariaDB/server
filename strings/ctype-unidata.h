@@ -140,11 +140,22 @@ extern MY_CASEFOLD_INFO my_casefold_unicode1400;
 extern MY_CASEFOLD_INFO my_casefold_unicode1400tr;
 
 
-size_t my_strxfrm_pad_nweights_unicode(uchar *str, uchar *strend, size_t nweights);
-size_t my_strxfrm_pad_unicode(uchar *str, uchar *strend);
+size_t my_strxfrm_pad_nweights_unicode_be2(uchar *str, uchar *strend,
+                                           size_t nweights);
+size_t my_strxfrm_pad_unicode_be2(uchar *str, uchar *strend);
+
+size_t my_strxfrm_pad_nweights_unicode_be3(uchar *str, uchar *strend,
+                                           size_t nweights);
+size_t my_strxfrm_pad_unicode_be3(uchar *str, uchar *strend);
 
 
 #define PUT_WC_BE2_HAVE_1BYTE(dst, de, wc) \
   do { *dst++= (uchar) (wc >> 8); if (dst < de) *dst++= (uchar) (wc & 0xFF); } while(0)
+
+#define PUT_WC_BE3_HAVE_1BYTE(dst, de, wc) \
+  do { *dst++= (uchar) (wc >> 16); \
+       if (dst < de) *dst++= (uchar) ((wc >> 8) & 0xFF);\
+       if (dst < de) *dst++= (uchar) (wc & 0xFF);\
+  } while(0)
 
 #endif /* CTYPE_UNIDATA_H_INCLUDED */

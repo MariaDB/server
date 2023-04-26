@@ -590,7 +590,7 @@ public:
   bool automatic_name;
   bool if_not_exists;
   Item *expr;
-  Lex_ident name;                               /* Name of constraint */
+  Lex_ident_column name;                        /* Name of constraint */
   /* see VCOL_* (VCOL_FIELD_REF, ...) */
   uint flags;
 
@@ -803,7 +803,7 @@ public:
   TABLE *table;                                 // Pointer for table
   TABLE *orig_table;                            // Pointer to original table
   const char * const *table_name;               // Pointer to alias in TABLE
-  LEX_CSTRING field_name;
+  Lex_ident_column field_name;
   LEX_CSTRING comment;
   /** reference to the list of options or NULL */
   engine_option_value *option_list;
@@ -991,6 +991,14 @@ public:
     DBUG_ASSERT(ls.length < UINT_MAX32);
     return store(ls.str, (uint) ls.length, cs);
   }
+  int store_ident(const Lex_ident_ci &str)
+  {
+    return store(str, str.charset_info());
+  }
+  int store_ident(const Lex_ident_fs &str)
+  {
+    return store(str, str.charset_info());
+  }
 
   /*
     @brief
@@ -1085,6 +1093,14 @@ public:
     @retval                true  (EOM)
   */
   bool val_str_nopad(MEM_ROOT *mem_root, LEX_CSTRING *to);
+  /*
+    Return the field value as a LEX_CSTRING.
+  */
+  Lex_cstring val_lex_cstring(String *buffer)
+  {
+    String *res= val_str(buffer);
+    return res ? res->to_lex_cstring() : Lex_cstring();
+  }
   fast_field_copier get_fast_field_copier(const Field *from);
   /*
    str_needs_quotes() returns TRUE if the value returned by val_str() needs
@@ -5286,7 +5302,7 @@ class Column_definition: public Sql_alloc,
   const Type_handler *field_type() const; // Prevent using this
   Compression_method *compression_method_ptr;
 public:
-  Lex_ident   field_name;
+  Lex_ident_column field_name;
   LEX_CSTRING comment;			// Comment for field
   enum enum_column_versioning
   {
@@ -5714,15 +5730,15 @@ public:
 inline bool Row_definition_list::eq_name(const Spvar_definition *def,
                                          const LEX_CSTRING *name) const
 {
-  return def->field_name.length == name->length && my_strcasecmp(system_charset_info, def->field_name.str, name->str) == 0;
+  return def->field_name.streq(*name);
 }
 
 
 class Create_field :public Column_definition
 {
 public:
-  LEX_CSTRING change;			// Old column name if column is renamed by ALTER
-  LEX_CSTRING after;			// Put column after this one
+  Lex_ident_column change;		// Old column name if column is renamed by ALTER
+  Lex_ident_column after;		// Put column after this one
   Field *field;				// For alter table
   const TYPELIB *save_interval;         // Temporary copy for the above
                                         // Used only for UCS2 intervals
@@ -5737,17 +5753,13 @@ public:
     Column_definition(),
     field(0), option_struct(NULL),
     create_if_not_exists(false)
-  {
-    change= after= null_clex_str;
-  }
+  { }
   Create_field(THD *thd, Field *old_field, Field *orig_field):
     Column_definition(thd, old_field, orig_field),
     change(old_field->field_name),
     field(old_field), option_struct(old_field->option_struct),
     create_if_not_exists(false)
-  {
-    after= null_clex_str;
-  }
+  { }
   /* Used to make a clone of this object for ALTER/CREATE TABLE */
   Create_field *clone(MEM_ROOT *mem_root) const;
   static void upgrade_data_types(List<Create_field> &list)
@@ -5907,7 +5919,7 @@ enum_field_types get_blob_type_from_length(ulong length);
 int set_field_to_null(Field *field);
 int set_field_to_null_with_conversions(Field *field, bool no_conversions);
 int convert_null_to_field_value_or_error(Field *field);
-bool check_expression(Virtual_column_info *vcol, const LEX_CSTRING *name,
+bool check_expression(Virtual_column_info *vcol, const Lex_ident_column &name,
                       enum_vcol_info_type type, Alter_info *alter_info= NULL);
 
 /*

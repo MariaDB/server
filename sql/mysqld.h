@@ -20,6 +20,7 @@
 #include "sql_basic_types.h"			/* query_id_t */
 #include "sql_mode.h"                           /* Sql_mode_dependency */
 #include "sql_plugin.h"
+#include "lex_ident.h"
 #include "sql_bitmap.h"                         /* Bitmap */
 #include "my_decimal.h"                         /* my_decimal */
 #include "mysql_com.h"                     /* SERVER_VERSION_LENGTH */
@@ -89,6 +90,7 @@ extern void ssl_acceptor_stats_update(int sslaccept_ret);
 extern int reinit_ssl();
 
 extern "C" MYSQL_PLUGIN_IMPORT CHARSET_INFO *system_charset_info;
+extern "C" MYSQL_PLUGIN_IMPORT CHARSET_INFO *system_charset_info_for_i_s;
 extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *files_charset_info ;
 extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *national_charset_info;
 extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *table_alias_charset;
@@ -272,7 +274,7 @@ extern const char *first_keyword, *delayed_user;
 extern MYSQL_PLUGIN_IMPORT const char  *my_localhost;
 extern MYSQL_PLUGIN_IMPORT const char **errmesg;			/* Error messages */
 extern const char *myisam_recover_options_str;
-extern const LEX_CSTRING in_left_expr_name, in_additional_cond, in_having_cond;
+extern const Lex_ident_column in_left_expr_name, in_additional_cond, in_having_cond;
 extern const LEX_CSTRING NULL_clex_str;
 extern const LEX_CSTRING error_clex_str;
 extern SHOW_VAR status_vars[];

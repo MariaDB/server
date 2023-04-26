@@ -278,12 +278,10 @@ row_quiesce_write_table(
 		/* Write out the column name as [len, byte array]. The len
 		includes the NUL byte. */
 		ib_uint32_t	len;
-		const char*	col_name;
-
-		col_name = dict_table_get_col_name(table, dict_col_get_no(col));
+		const Lex_ident_column col_name = dict_table_get_col_name(table, dict_col_get_no(col));
 
 		/* Include the NUL byte in the length. */
-		len = static_cast<ib_uint32_t>(strlen(col_name) + 1);
+		len = static_cast<ib_uint32_t>(col_name.length + 1);
 		ut_a(len > 1);
 
 		mach_write_to_4(row, len);
@@ -292,7 +290,7 @@ row_quiesce_write_table(
 				close(fileno(file)););
 
 		if (fwrite(row, 1,  sizeof(len), file) != sizeof(len)
-		    || fwrite(col_name, 1, len, file) != len) {
+		    || fwrite(col_name.str, 1, len, file) != len) {
 
 			ib_senderrf(
 				thd, IB_LOG_LEVEL_WARN, ER_IO_WRITE_ERROR,

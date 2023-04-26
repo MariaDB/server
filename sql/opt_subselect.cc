@@ -439,7 +439,7 @@ tables. Note that this will disallow handling of cases like (CASE-FOR-SUBST).
 Currently, solution #2 is implemented.
 */
 
-LEX_CSTRING weedout_key= {STRING_WITH_LEN("weedout_key")};
+static const Lex_ident_column weedout_key= "weedout_key"_Lex_ident_column;
 
 static
 bool subquery_types_allow_materialization(THD *thd, Item_in_subselect *in_subs);
@@ -1758,7 +1758,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     {
       TABLE_LIST *outer_tbl= subq_pred->emb_on_expr_nest;
       TABLE_LIST *wrap_nest;
-      LEX_CSTRING sj_wrap_name= { STRING_WITH_LEN("(sj-wrap)") };
+      const Lex_ident_table sj_wrap_name= "(sj-wrap)"_Lex_ident_table;
       /*
         We're dealing with
 
@@ -1823,7 +1823,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
 
   TABLE_LIST *sj_nest;
   NESTED_JOIN *nested_join;
-  LEX_CSTRING sj_nest_name= { STRING_WITH_LEN("(sj-nest)") };
+  const Lex_ident_table sj_nest_name= "(sj-nest)"_Lex_ident_table;
   if (!(sj_nest= alloc_join_nest(thd)))
   {
     DBUG_RETURN(TRUE);

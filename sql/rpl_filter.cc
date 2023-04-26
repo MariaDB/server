@@ -206,8 +206,8 @@ Rpl_filter::db_ok(const char* db)
 
   SYNOPSIS
     db_ok_with_wild_table()
-    db		name of the db to check.
-		Is tested with check_db_name() before calling this function.
+    db          name of the db to check. Is tested with
+                Lex_ident_db::check_name() before calling this function.
 
   NOTES
     Here is the reason for this function.
@@ -670,7 +670,8 @@ void
 Rpl_filter::init_table_rule_hash(HASH* h, bool* h_inited)
 {
   my_hash_init(key_memory_TABLE_RULE_ENT, h,
-               system_charset_info,TABLE_RULE_HASH_SIZE,0,0, get_table_key,
+               Lex_ident_rpl_filter::charset_info(),
+               TABLE_RULE_HASH_SIZE,0,0, get_table_key,
                free_table_ent, 0);
   *h_inited = 1;
 }

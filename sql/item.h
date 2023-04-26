@@ -1037,9 +1037,9 @@ public:
   */
   String str_value;
 
-  LEX_CSTRING name;			/* Name of item */
+  Lex_ident_column name;                  /* Name of item */
   /* Original item name (if it was renamed)*/
-  LEX_CSTRING orig_name;
+  Lex_ident_column orig_name;
 
   /* All common bool variables for an Item is stored here */
   item_base_t base_flags;
@@ -1133,7 +1133,7 @@ public:
     set_name(thd, str->ptr(), str->length(), str->charset());
   }
   void set_name(THD *thd, const LEX_CSTRING &str,
-                CHARSET_INFO *cs= system_charset_info)
+                CHARSET_INFO *cs= Lex_ident_column::charset_info())
   {
     set_name(thd, str.str, str.length, cs);
   }
@@ -2549,9 +2549,9 @@ public:
     return needs_charset_converter(1, tocs);
   }
   Item *const_charset_converter(THD *thd, CHARSET_INFO *tocs, bool lossless,
-                                const char *func_name);
+                                const Lex_ident_routine &func_name);
   Item *const_charset_converter(THD *thd, CHARSET_INFO *tocs, bool lossless)
-  { return const_charset_converter(thd, tocs, lossless, NULL); }
+  { return const_charset_converter(thd, tocs, lossless, Lex_ident_routine()); }
   void delete_self()
   {
     cleanup();
@@ -3493,17 +3493,17 @@ protected:
     updated during fix_fields() to values from Field object and life-time 
     of those is shorter than life-time of Item_field.
   */
-  Lex_table_name orig_db_name;
-  Lex_table_name orig_table_name;
-  Lex_ident      orig_field_name;
+  Lex_ident_db orig_db_name;
+  Lex_ident_table orig_table_name;
+  Lex_ident_column orig_field_name;
 
   void undeclared_spvar_error() const;
 
 public:
   Name_resolution_context *context;
-  Lex_table_name db_name;
-  Lex_table_name table_name;
-  Lex_ident      field_name;
+  Lex_ident_db db_name;
+  Lex_ident_table table_name;
+  Lex_ident_column field_name;
   /*
     Cached pointer to table which contains this field, used for the same reason
     by prep. stmt. too in case then we have not-fully qualified field.
@@ -4584,15 +4584,15 @@ public:
 
 class Item_static_float_func :public Item_float
 {
-  const char *func_name;
+  const Lex_ident_routine func_name;
 public:
-  Item_static_float_func(THD *thd, const char *str, double val_arg,
+  Item_static_float_func(THD *thd, const Lex_ident_routine &str, double val_arg,
                          uint decimal_par, uint length):
     Item_float(thd, NullS, val_arg, decimal_par, length), func_name(str)
   {}
   void print(String *str, enum_query_type) override
   {
-    str->append(func_name, strlen(func_name));
+    str->append(func_name);
   }
   Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs) override
   {
@@ -4621,7 +4621,7 @@ protected:
   {
     collation.set(cs, dv);
     max_length= 0;
-    set_name(thd, NULL, 0, system_charset_info);
+    set_name(thd, NULL, 0, Lex_ident_column::charset_info());
     decimals= NOT_FIXED_DEC;
   }
 public:
@@ -4629,7 +4629,7 @@ public:
    :Item_literal(thd)
   {
     collation.set(csi, DERIVATION_COERCIBLE);
-    set_name(thd, NULL, 0, system_charset_info);
+    set_name(thd, NULL, 0, Lex_ident_column::charset_info());
     decimals= NOT_FIXED_DEC;
     str_value.copy(str_arg, length_arg, csi);
     max_length= str_value.numchars() * csi->mbmaxlen;
@@ -4765,10 +4765,10 @@ class Item_string_sys :public Item_string
 {
 public:
   Item_string_sys(THD *thd, const char *str, uint length):
-    Item_string(thd, str, length, system_charset_info)
+    Item_string(thd, str, length, system_charset_info_for_i_s)
   { }
   Item_string_sys(THD *thd, const char *str):
-    Item_string(thd, str, (uint) strlen(str), system_charset_info)
+    Item_string(thd, str, (uint) strlen(str), system_charset_info_for_i_s)
   { }
 };
 
@@ -4789,14 +4789,14 @@ public:
 
 class Item_static_string_func :public Item_string
 {
-  const LEX_CSTRING func_name;
+  const Lex_ident_routine func_name;
 public:
-  Item_static_string_func(THD *thd, const LEX_CSTRING &name_par,
+  Item_static_string_func(THD *thd, const Lex_ident_routine &name_par,
                           const LEX_CSTRING &str, CHARSET_INFO *cs,
                           Derivation dv= DERIVATION_COERCIBLE):
     Item_string(thd, LEX_CSTRING({NullS,0}), str, cs, dv), func_name(name_par)
   {}
-  Item_static_string_func(THD *thd, const LEX_CSTRING &name_par,
+  Item_static_string_func(THD *thd, const Lex_ident_routine &name_par,
                           const String *str,
                           CHARSET_INFO *tocs, uint *conv_errors,
                           Derivation dv, my_repertoire_t repertoire):
@@ -4805,7 +4805,7 @@ public:
   {}
   Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs) override
   {
-    return const_charset_converter(thd, tocs, true, func_name.str);
+    return const_charset_converter(thd, tocs, true, func_name);
   }
 
   void print(String *str, enum_query_type) override

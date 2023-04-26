@@ -35,7 +35,6 @@
 #include "structs.h"                            /* SHOW_COMP_OPTION */
 #include "sql_array.h"          /* Dynamic_array<> */
 #include "mdl.h"
-#include "vers_string.h"
 #include "ha_handler_stats.h"
 #include "optimizer_costs.h"
 
@@ -2100,7 +2099,7 @@ struct Table_period_info: Sql_alloc
     constr(NULL),
     unique_keys(0){}
 
-  Lex_ident name;
+  Lex_ident_column name;
 
   struct start_end_t
   {
@@ -2108,8 +2107,8 @@ struct Table_period_info: Sql_alloc
     start_end_t(const LEX_CSTRING& _start, const LEX_CSTRING& _end) :
       start(_start),
       end(_end) {}
-    Lex_ident start;
-    Lex_ident end;
+    Lex_ident_column start;
+    Lex_ident_column end;
   };
   start_end_t period;
   bool create_if_not_exists;
@@ -2119,15 +2118,15 @@ struct Table_period_info: Sql_alloc
   bool is_set() const
   {
     DBUG_ASSERT(bool(period.start) == bool(period.end));
-    return period.start;
+    return (bool) period.start;
   }
 
-  void set_period(const Lex_ident& start, const Lex_ident& end)
+  void set_period(const Lex_ident_column &start, const Lex_ident_column &end)
   {
     period.start= start;
     period.end= end;
   }
-  bool check_field(const Create_field* f, const Lex_ident& f_name) const;
+  bool check_field(const Create_field* f, const Lex_ident_column &f_name) const;
 };
 
 struct Vers_parse_info: public Table_period_info
@@ -2142,20 +2141,20 @@ struct Vers_parse_info: public Table_period_info
   Table_period_info::start_end_t as_row;
 
   friend struct Table_scope_and_contents_source_st;
-  void set_start(const LEX_CSTRING field_name)
+  void set_start(const Lex_ident_column field_name)
   {
     as_row.start= field_name;
     period.start= field_name;
   }
-  void set_end(const LEX_CSTRING field_name)
+  void set_end(const Lex_ident_column field_name)
   {
     as_row.end= field_name;
     period.end= field_name;
   }
 
 protected:
-  bool is_start(const char *name) const;
-  bool is_end(const char *name) const;
+  bool is_start(const LEX_CSTRING &name) const;
+  bool is_end(const LEX_CSTRING &name) const;
   bool is_start(const Create_field &f) const;
   bool is_end(const Create_field &f) const;
   bool fix_implicit(THD *thd, Alter_info *alter_info);
@@ -2164,21 +2163,21 @@ protected:
     return as_row.start || as_row.end || period.start || period.end;
   }
   bool need_check(const Alter_info *alter_info) const;
-  bool check_conditions(const Lex_table_name &table_name,
-                        const Lex_table_name &db) const;
-  bool create_sys_field(THD *thd, const char *field_name,
+  bool check_conditions(const Lex_ident_table &table_name,
+                        const Lex_ident_db &db) const;
+  bool create_sys_field(THD *thd, const Lex_ident_column &field_name,
                         Alter_info *alter_info, int flags);
 
 public:
-  static const Lex_ident default_start;
-  static const Lex_ident default_end;
+  static const Lex_ident_column default_start;
+  static const Lex_ident_column default_end;
 
   bool fix_alter_info(THD *thd, Alter_info *alter_info,
                        HA_CREATE_INFO *create_info, TABLE *table);
   bool fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_info,
                        TABLE_LIST &src_table, TABLE_LIST &table);
-  bool check_sys_fields(const Lex_table_name &table_name,
-                        const Lex_table_name &db, Alter_info *alter_info) const;
+  bool check_sys_fields(const Lex_ident_table &table_name,
+                        const Lex_ident_db &db, Alter_info *alter_info) const;
 
   /**
      At least one field was specified 'WITH/WITHOUT SYSTEM VERSIONING'.
@@ -2300,8 +2299,8 @@ struct Table_scope_and_contents_source_st:
                          const TABLE_LIST &create_table);
   bool fix_period_fields(THD *thd, Alter_info *alter_info);
   bool check_fields(THD *thd, Alter_info *alter_info,
-                    const Lex_table_name &table_name,
-                    const Lex_table_name &db,
+                    const Lex_ident_table &table_name,
+                    const Lex_ident_db &db,
                     int select_count= 0);
   bool check_period_fields(THD *thd, Alter_info *alter_info);
 
@@ -2310,8 +2309,8 @@ struct Table_scope_and_contents_source_st:
                               const TABLE_LIST &create_table);
 
   bool vers_check_system_fields(THD *thd, Alter_info *alter_info,
-                                const Lex_table_name &table_name,
-                                const Lex_table_name &db,
+                                const Lex_ident_table &table_name,
+                                const Lex_ident_db &db,
                                 int select_count= 0);
 };
 

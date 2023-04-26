@@ -143,8 +143,3 @@ I mysys:
 
  string strcfind(str,search)
  find string in another with no case_sensivity
-
- my_strcasecmp(s,t)
- Compare strings without regarding to case
- - For many strings it quicker to forst use case_sort on all strings and
-   then compare them with strcmp().

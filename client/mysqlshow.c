@@ -424,7 +424,7 @@ list_dbs(MYSQL *mysql,const char *wild)
   if (wild && mysql_num_rows(result) == 1)
   {
     row= mysql_fetch_row(result);
-    if (!my_strcasecmp(&my_charset_latin1, row[0], wild))
+    if (!my_strcasecmp_latin1(row[0], wild))
     {
       mysql_free_result(result);
       if (opt_status)

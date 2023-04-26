@@ -74,8 +74,10 @@ struct st_trg_execution_order
   /**
     Trigger name referenced in the FOLLOWS/PRECEDES clause of the
     CREATE TRIGGER statement.
+    Cannot be Lex_ident_trigger,
+    as this structure is used in %union in sql_yacc.yy
   */
-  LEX_CSTRING anchor_trigger_name;
+  LEX_CSTRING anchor_trigger_name; // Used in sql_yacc %union
 };
 
 
@@ -122,7 +124,7 @@ public:
   sp_head *body;
   Trigger *next;                                /* Next trigger of same type */
 
-  LEX_CSTRING name;
+  Lex_ident_trigger name;
   LEX_CSTRING on_table_name;                     /* Raw table name */
   LEX_CSTRING definition;
   LEX_CSTRING definer;
@@ -256,11 +258,11 @@ public:
   static bool drop_all_triggers(THD *thd, const LEX_CSTRING *db,
                                 const LEX_CSTRING *table_name, myf MyFlags);
   static bool prepare_for_rename(THD *thd, TRIGGER_RENAME_PARAM *param,
-                                 const LEX_CSTRING *db,
-                                 const LEX_CSTRING *old_alias,
-                                 const LEX_CSTRING *old_table,
-                                 const LEX_CSTRING *new_db,
-                                 const LEX_CSTRING *new_table);
+                                 const Lex_ident_db &db,
+                                 const Lex_ident_table &old_alias,
+                                 const Lex_ident_table &old_table,
+                                 const Lex_ident_db &new_db,
+                                 const Lex_ident_table &new_table);
   static bool change_table_name(THD *thd, TRIGGER_RENAME_PARAM *param,
                                 const LEX_CSTRING *db,
                                 const LEX_CSTRING *old_alias,
@@ -270,7 +272,7 @@ public:
   void add_trigger(trg_event_type event_type, 
                    trg_action_time_type action_time,
                    trigger_order_type ordering_clause,
-                   LEX_CSTRING *anchor_trigger_name,
+                   const Lex_ident_trigger &anchor_trigger_name,
                    Trigger *trigger);
   Trigger *get_trigger(trg_event_type event_type, 
                        trg_action_time_type action_time)

@@ -588,15 +588,13 @@ public:
     The index name. Empty (str=NULL) name represents an empty list 
     USE INDEX () clause 
   */ 
-  LEX_CSTRING key_name;
+  const Lex_ident_column key_name;
 
   Index_hint (enum index_hint_type type_arg, index_clause_map clause_arg,
               const char *str, size_t length) :
-    type(type_arg), clause(clause_arg)
-  {
-    key_name.str= str;
-    key_name.length= length;
-  }
+    type(type_arg), clause(clause_arg),
+    key_name(str, length)
+  { }
 
   void print(THD *thd, String *str);
 }; 
@@ -3887,7 +3885,7 @@ public:
   bool restore_set_statement_var();
 
   void init_last_field(Column_definition *field, const LEX_CSTRING *name);
-  bool last_field_generated_always_as_row_start_or_end(Lex_ident *p,
+  bool last_field_generated_always_as_row_start_or_end(Lex_ident_column *p,
                                                        const char *type,
                                                        uint flags);
   bool last_field_generated_always_as_row_start();
@@ -4249,6 +4247,10 @@ public:
                                     const Lex_ident_sys &name,
                                     List<Item> *args);
   Item *make_item_func_call_generic(THD *thd,
+                                    const Lex_ident_db &db,
+                                    const Lex_ident_routine &name,
+                                    List<Item> *args);
+  Item *make_item_func_call_generic(THD *thd,
                                     Lex_ident_cli_st *db,
                                     Lex_ident_cli_st *pkg,
                                     Lex_ident_cli_st *name,
@@ -4526,7 +4528,7 @@ public:
   bool add_constraint(const LEX_CSTRING &name, Virtual_column_info *constr,
                       bool if_not_exists)
   {
-    constr->name= name;
+    constr->name= Lex_ident_column(name);
     constr->if_not_exists= if_not_exists;
     alter_info.check_constraint_list.push_back(constr);
     return false;
@@ -4717,14 +4719,15 @@ public:
     }
   }
 
-  int add_period(Lex_ident name, Lex_ident_sys_st start, Lex_ident_sys_st end)
+  int add_period(Lex_ident_column name,
+                 Lex_ident_sys_st start, Lex_ident_sys_st end)
   {
     if (check_period_name(name.str)) {
       my_error(ER_WRONG_COLUMN_NAME, MYF(0), name.str);
       return 1;
     }
 
-    if (lex_string_cmp(system_charset_info, &start, &end) == 0)
+    if (Lex_ident_column(start).streq(end))
     {
       my_error(ER_FIELD_SPECIFIED_TWICE, MYF(0), start.str);
       return 1;
@@ -4740,7 +4743,7 @@ public:
        my_error(ER_MORE_THAN_ONE_PERIOD, MYF(0));
        return 1;
     }
-    info.set_period(start, end);
+    info.set_period(Lex_ident_column(start), Lex_ident_column(end));
     info.name= name;
 
     info.constr= new Virtual_column_info();

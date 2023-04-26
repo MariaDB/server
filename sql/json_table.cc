@@ -783,8 +783,7 @@ bool Create_json_table::add_json_table_fields(THD *thd, TABLE *table,
 
     while ((jc2= it2++) != jc)
     {
-      if (lex_string_cmp(system_charset_info,
-            &sql_f->field_name, &jc2->m_field->field_name) == 0)
+      if (sql_f->field_name.streq(jc2->m_field->field_name))
       {
         my_error(ER_DUP_FIELDNAME, MYF(0), sql_f->field_name.str);
         goto err_exit;

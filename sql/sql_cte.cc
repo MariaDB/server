@@ -288,8 +288,7 @@ bool With_clause::check_dependencies()
          elem != with_elem;
          elem= elem->next)
     {
-      if (lex_string_cmp(system_charset_info, with_elem->get_name(),
-                         elem->get_name()) == 0)
+      if (with_elem->get_name().streq(elem->get_name()))
       {
         my_error(ER_DUP_QUERY_NAME, MYF(0),
                  with_elem->get_name_str());
@@ -407,8 +406,7 @@ With_element *With_clause::find_table_def(TABLE_LIST *table,
        with_elem != barrier;
        with_elem= with_elem->next)
   {
-    if (my_strcasecmp(system_charset_info, with_elem->get_name_str(),
-                      table->table_name.str) == 0 &&
+    if (with_elem->get_name().streq(table->table_name) &&
         !table->is_fqtn)
     {
       table->set_derived();

@@ -2202,8 +2202,8 @@ void Field::make_send_field(Send_field *field)
     field->db_name= orig_table->s->db;
     if (orig_table->pos_in_table_list &&
         orig_table->pos_in_table_list->schema_table)
-      field->org_table_name= Lex_cstring_strlen(orig_table->pos_in_table_list->
-                                                schema_table->table_name);
+      field->org_table_name= orig_table->pos_in_table_list->
+                                                schema_table->table_name;
     else
       field->org_table_name= orig_table->s->table_name;
   }
@@ -10572,7 +10572,7 @@ void Column_definition::create_length_to_internal_length_newdecimal()
 }
 
 
-bool check_expression(Virtual_column_info *vcol, const LEX_CSTRING *name,
+bool check_expression(Virtual_column_info *vcol, const Lex_ident_column &name,
                       enum_vcol_info_type type, Alter_info *alter_info)
 {
   bool ret;
@@ -10580,7 +10580,7 @@ bool check_expression(Virtual_column_info *vcol, const LEX_CSTRING *name,
   res.alter_info= alter_info;
 
   if (!vcol->name.length)
-    vcol->name= *name;
+    vcol->name= name;
 
   /*
     Walk through the Item tree checking if all items are valid
@@ -10598,7 +10598,7 @@ bool check_expression(Virtual_column_info *vcol, const LEX_CSTRING *name,
   if (unlikely(ret || (res.errors & filter)))
   {
     my_error(ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0), res.name,
-             vcol_type_name(type), name->str);
+             vcol_type_name(type), name.str);
     return TRUE;
   }
   /*
@@ -10705,7 +10705,7 @@ bool Column_definition::fix_attributes_temporal_with_time(uint int_part_length)
 bool Column_definition::validate_check_constraint(THD *thd)
 {
   return check_constraint &&
-         check_expression(check_constraint, &field_name, VCOL_CHECK_FIELD);
+         check_expression(check_constraint, field_name, VCOL_CHECK_FIELD);
 }
 
 
@@ -10718,7 +10718,7 @@ bool Column_definition::check(THD *thd)
   {
     DBUG_ASSERT(vcol_info->expr);
     vcol_info->set_handler(type_handler());
-    if (check_expression(vcol_info, &field_name, vcol_info->is_stored()
+    if (check_expression(vcol_info, field_name, vcol_info->is_stored()
                          ? VCOL_GENERATED_STORED : VCOL_GENERATED_VIRTUAL))
       DBUG_RETURN(TRUE);
   }
@@ -10729,7 +10729,7 @@ bool Column_definition::check(THD *thd)
   if (default_value)
   {
     Item *def_expr= default_value->expr;
-    if (check_expression(default_value, &field_name, VCOL_DEFAULT))
+    if (check_expression(default_value, field_name, VCOL_DEFAULT))
       DBUG_RETURN(TRUE);
 
     /* Constant's are stored in the 'empty_record', except for blobs */
@@ -11160,7 +11160,7 @@ bool Column_definition::check_vcol_for_key(THD *thd) const
   if (vcol_info && (vcol_info->flags & VCOL_NOT_STRICTLY_DETERMINISTIC))
   {
     /* use check_expression() to report an error */
-    check_expression(vcol_info, &field_name, VCOL_GENERATED_STORED);
+    check_expression(vcol_info, field_name, VCOL_GENERATED_STORED);
     DBUG_ASSERT(thd->is_error());
     return true;
   }

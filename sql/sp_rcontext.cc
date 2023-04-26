@@ -211,12 +211,12 @@ bool sp_rcontext::init_var_table(THD *thd,
 */
 static inline bool
 check_column_grant_for_type_ref(THD *thd, TABLE_LIST *table_list,
-                                const char *str, size_t length,
+                                const Lex_ident_column &name,
                                 Field *fld)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   table_list->table->grant.want_privilege= SELECT_ACL;
-  return check_column_grant_in_table_ref(thd, table_list, str, length, fld);
+  return check_column_grant_in_table_ref(thd, table_list, name, fld);
 #else
   return false;
 #endif
@@ -255,8 +255,7 @@ bool Qualified_column_ident::resolve_type_ref(THD *thd,
     if (likely((src= lex.query_tables->table->find_field_by_name(&m_column))))
     {
       if (!(rc= check_column_grant_for_type_ref(thd, table_list,
-                                                m_column.str,
-                                                m_column.length, src)))
+                                                m_column, src)))
       {
         *def= Column_definition(thd, src, NULL/*No defaults,no constraints*/);
         def->flags&= (uint) ~NOT_NULL_FLAG;
@@ -318,10 +317,9 @@ bool Table_ident::resolve_table_rowtype_ref(THD *thd,
          as the table will be closed and freed soon,
          in the end of this method.
       */
-      LEX_CSTRING tmp= src[0]->field_name;
+      const Lex_ident_column tmp= src[0]->field_name;
       Spvar_definition *def;
-      if ((rc= check_column_grant_for_type_ref(thd, table_list,
-                                               tmp.str, tmp.length,src[0])) ||
+      if ((rc= check_column_grant_for_type_ref(thd, table_list, tmp, src[0])) ||
           (rc= !(src[0]->field_name.str= thd->strmake(tmp.str, tmp.length))) ||
           (rc= !(def= new (thd->mem_root) Spvar_definition(thd, *src))))
         break;

@@ -561,20 +561,15 @@ int check_if_log_table(const TABLE_LIST *table,
                        const char *error_msg)
 {
   int result= 0;
-  if (table->db.length == 5 &&
-      !my_strcasecmp(table_alias_charset, table->db.str, "mysql"))
+  if (table->db.streq(MYSQL_SCHEMA_NAME))
   {
-    const char *table_name= table->table_name.str;
-
-    if (table->table_name.length == 11 &&
-        !my_strcasecmp(table_alias_charset, table_name, "general_log"))
+    if (table->table_name.streq(GENERAL_LOG_NAME))
     {
       result= QUERY_LOG_GENERAL;
       goto end;
     }
 
-    if (table->table_name.length == 8 &&
-        !my_strcasecmp(table_alias_charset, table_name, "slow_log"))
+    if (table->table_name.streq(SLOW_LOG_NAME))
     {
       result= QUERY_LOG_SLOW;
       goto end;

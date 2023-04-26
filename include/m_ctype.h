@@ -547,8 +547,6 @@ struct my_collation_handler_st
                      const char *wildstr,const char *wildend,
                      int escape,int w_one, int w_many);
 
-  int  (*strcasecmp)(CHARSET_INFO *, const char *, const char *);
-  
   uint (*instr)(CHARSET_INFO *,
                 const char *b, size_t b_length,
                 const char *s, size_t s_length,
@@ -808,6 +806,17 @@ struct charset_info_st
 
 #ifdef __cplusplus
   /* Character set routines */
+
+  /* Make sure the comparison operand is valid. */
+  static bool is_valid_string(const LEX_CSTRING &str)
+  {
+    /*
+      LEX_CSTRING::str can be NULL, but only if LEX_CSTRING::length is 0.
+      Does not have to be a 0-terminated string.
+    */
+    return str.str != NULL || str.length == 0;
+  }
+
   bool use_mb() const
   {
     return mbmaxlen > 1;
@@ -996,6 +1005,26 @@ struct charset_info_st
   uint compiled_flag() const
   {
     return state & MY_CS_COMPILED;
+  }
+
+  /*
+    Compare two strings for equality.
+    There may be a separate more optimized virtual function streq() in
+    MY_COLLATION_HANDLER eventually. For now it's a wrapper for strnncoll().
+  */
+  my_bool streq(const LEX_CSTRING a, const LEX_CSTRING b) const
+  {
+    return 0 == strnncoll(a, b, FALSE);
+  }
+
+  int strnncoll(const LEX_CSTRING a, const LEX_CSTRING b,
+                my_bool b_is_prefix= FALSE) const
+  {
+    DBUG_ASSERT(is_valid_string(a));
+    DBUG_ASSERT(is_valid_string(b));
+    return (coll->strnncoll)(this,
+                             (const uchar *) a.str, a.length,
+                             (const uchar *) b.str, b.length, b_is_prefix);
   }
 
   int strnncoll(const uchar *a, size_t alen,
@@ -1363,6 +1392,10 @@ extern MYSQL_PLUGIN_IMPORT struct charset_info_st my_charset_latin1;
 extern MYSQL_PLUGIN_IMPORT struct charset_info_st my_charset_latin1_nopad;
 extern MYSQL_PLUGIN_IMPORT struct charset_info_st my_charset_filename;
 extern MYSQL_PLUGIN_IMPORT struct charset_info_st my_charset_utf8mb3_general_ci;
+extern MYSQL_PLUGIN_IMPORT struct charset_info_st
+                                          my_charset_utf8mb3_general1400_as_ci;
+extern MYSQL_PLUGIN_IMPORT struct charset_info_st
+                                          my_charset_utf8mb4_general1400_as_ci;
 
 extern struct charset_info_st my_charset_big5_bin;
 extern struct charset_info_st my_charset_big5_chinese_ci;
@@ -1623,7 +1656,6 @@ extern size_t my_caseup_ujis(CHARSET_INFO *,
 extern size_t my_casedn_ujis(CHARSET_INFO *,
                              const char *src, size_t srclen,
                              char *dst, size_t dstlen);
-extern int my_strcasecmp_mb(CHARSET_INFO * cs,const char *, const char *);
 
 int my_wildcmp_mb(CHARSET_INFO *,
 		  const char *str,const char *str_end,
@@ -1641,9 +1673,6 @@ int my_wildcmp_mb_bin(CHARSET_INFO *cs,
                       const char *str,const char *str_end,
                       const char *wildstr,const char *wildend,
                       int escape, int w_one, int w_many);
-
-int my_strcasecmp_mb_bin(CHARSET_INFO * cs __attribute__((unused)),
-                         const char *s, const char *t);
 
 void my_hash_sort_mb_bin(CHARSET_INFO *cs __attribute__((unused)),
                          const uchar *key, size_t len,ulong *nr1, ulong *nr2);
@@ -1809,7 +1838,6 @@ size_t my_convert_fix(CHARSET_INFO *dstcs, char *dst, size_t dst_length,
 #define my_binary_compare(s)	      ((s)->state  & MY_CS_BINSORT)
 #define use_strnxfrm(s)               ((s)->state  & MY_CS_STRNXFRM)
 #define my_strnncoll(s, a, b, c, d) ((s)->coll->strnncoll((s), (a), (b), (c), (d), 0))
-#define my_strcasecmp(s, a, b)        ((s)->coll->strcasecmp((s), (a), (b)))
 
 /**
   Detect if the leftmost character in a string is a valid multi-byte character
@@ -1854,6 +1882,13 @@ my_well_formed_length(CHARSET_INFO *cs, const char *b, const char *e,
   (void) my_ci_well_formed_char_length(cs, b, e, nchars, &status);
   *error= status.m_well_formed_error_pos == NULL ? 0 : 1;
   return (size_t) (status.m_source_end_pos - b);
+}
+
+
+static inline int
+my_strcasecmp_latin1(const char *a, const char *b)
+{
+  return my_strcasecmp_8bit(&my_charset_latin1, a, b);
 }
 
 

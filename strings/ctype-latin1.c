@@ -734,7 +734,6 @@ static MY_COLLATION_HANDLER my_collation_german2_ci_handler=
   my_strnxfrmlen_simple,
   my_like_range_simple,
   my_wildcmp_8bit,
-  my_strcasecmp_8bit,
   my_instr_simple,
   my_hash_sort_latin1_de,
   my_propagate_complex,

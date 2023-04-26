@@ -89,7 +89,7 @@ static void make_unique_view_field_name(THD *thd, Item *target,
     {
       check= itc++;
       if (check != target &&
-          my_strcasecmp(system_charset_info, buff, check->name.str) == 0)
+          check->name.streq(Lex_cstring(buff, name_len)))
       {
         ok= FALSE;
         break;
@@ -145,7 +145,7 @@ bool check_duplicate_names(THD *thd, List<Item> &item_list, bool gen_unique_view
     itc.rewind();
     while ((check= itc++) && check != item)
     {
-      if (lex_string_cmp(system_charset_info, &item->name, &check->name) == 0)
+      if (item->name.streq(check->name))
       {
         if (!gen_unique_view_name)
           goto err;
@@ -627,13 +627,13 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
         Item_field *fld= item->field_for_view_update();
         privilege_t priv(get_column_grant(thd, &view->grant, view->db.str,
                                           view->table_name.str,
-                                          item->name.str) &
+                                          item->name) &
                     VIEW_ANY_ACL);
 
         if (!fld)
           continue;
         TABLE_SHARE *s= fld->field->table->s;
-        const Lex_ident field_name= fld->field->field_name;
+        const Lex_ident_column field_name= fld->field->field_name;
         if (s->tmp_table ||
             (s->versioned &&
              (field_name.streq(s->vers_start_field()->field_name) ||
@@ -1348,12 +1348,8 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
        precedent;
        precedent= precedent->referencing_view)
   {
-    if (precedent->view_name.length == table->table_name.length &&
-        precedent->view_db.length == table->db.length &&
-        my_strcasecmp(system_charset_info,
-                      precedent->view_name.str, table->table_name.str) == 0 &&
-        my_strcasecmp(system_charset_info,
-                      precedent->view_db.str, table->db.str) == 0)
+    if (precedent->view_name.streq(table->table_name) &&
+        precedent->view_db.streq(table->db))
     {
       my_error(ER_VIEW_RECURSIVE, MYF(0),
                top_view->view_db.str, top_view->view_name.str);
@@ -2187,10 +2183,9 @@ bool insert_view_fields(THD *thd, List<Item> *list, TABLE_LIST *view)
     if ((fld= entry->item->field_for_view_update()))
     {
       TABLE_SHARE *s= fld->context->table_list->table->s;
-      Lex_ident field_name= fld->field_name;
       if (s->versioned &&
-          (field_name.streq(s->vers_start_field()->field_name) ||
-           field_name.streq(s->vers_end_field()->field_name)))
+          (fld->field_name.streq(s->vers_start_field()->field_name) ||
+           fld->field_name.streq(s->vers_end_field()->field_name)))
         continue;
       list->push_back(fld, thd->mem_root);
     }

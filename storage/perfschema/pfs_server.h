@@ -23,6 +23,8 @@
 #ifndef PFS_SERVER_H
 #define PFS_SERVER_H
 
+#include "m_string.h"                           /* LEX_CSTRING */
+
 /**
   @file storage/perfschema/pfs_server.h
   Private interface for the server (declarations).
@@ -299,7 +301,7 @@ void init_pfs_instrument_array();
 /**
   Process one PFS_INSTRUMENT configuration string.
 */
-int add_pfs_instr_to_array(const char* name, const char* value);
+int add_pfs_instr_to_array(const LEX_CSTRING &name, const LEX_CSTRING &value);
 
 /**
   Shutdown the performance schema.

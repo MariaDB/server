@@ -2674,7 +2674,7 @@ Field *Type_handler_enum::make_schema_field(MEM_ROOT *root, TABLE *table,
                     addr.null_ptr(), addr.null_bit(),
                     Field::NONE, &name,
                     get_enum_pack_length(typelib->count),
-                    typelib, system_charset_info);
+                    typelib, system_charset_info_for_i_s);
 
 }
 
@@ -4003,7 +4003,7 @@ Field *Type_handler_varchar::make_schema_field(MEM_ROOT *root, TABLE *table,
   {
     Field *field= new (root)
       Field_blob(addr.ptr(), addr.null_ptr(), addr.null_bit(), Field::NONE,
-                 &name, table->s, 4, system_charset_info);
+                 &name, table->s, 4, system_charset_info_for_i_s);
     if (field)
       field->field_length= octet_length;
     return field;
@@ -4015,7 +4015,7 @@ Field *Type_handler_varchar::make_schema_field(MEM_ROOT *root, TABLE *table,
                       HA_VARCHAR_PACKLENGTH(octet_length),
                       addr.null_ptr(), addr.null_bit(),
                       Field::NONE, &name,
-                      table->s, system_charset_info);
+                      table->s, system_charset_info_for_i_s);
   }
 }
 

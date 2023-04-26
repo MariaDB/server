@@ -2576,7 +2576,7 @@ bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
       /* Replace volatile strings with local copies */
       di->table_list.alias.str=    di->table_list.table_name.str=    di->thd.query();
       di->table_list.alias.length= di->table_list.table_name.length= di->thd.query_length();
-      di->table_list.db= di->thd.db;
+      di->table_list.db= Lex_ident_db(di->thd.db);
       /*
         Nulify select_lex because, if the thread that spawned the current one
         disconnects, the select_lex will point to freed memory.

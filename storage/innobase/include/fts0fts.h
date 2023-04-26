@@ -38,17 +38,16 @@ Created 2011/09/02 Sunny Bains
 #include "que0types.h"
 #include "ft_global.h"
 #include "mysql/plugin_ftparser.h"
+#include "lex_string.h"
 
 /** "NULL" value of a document id. */
 #define FTS_NULL_DOC_ID			0
 
 /** FTS hidden column that is used to map to and from the row */
-#define FTS_DOC_ID_COL_NAME		"FTS_DOC_ID"
+static constexpr Lex_cstring FTS_DOC_ID= "FTS_DOC_ID"_LEX_CSTRING;
 
 /** The name of the index created by FTS */
-#define FTS_DOC_ID_INDEX_NAME		"FTS_DOC_ID_INDEX"
-
-#define FTS_DOC_ID_INDEX_NAME_LEN	16
+static constexpr Lex_cstring FTS_DOC_ID_INDEX= "FTS_DOC_ID_INDEX"_LEX_CSTRING;
 
 /** Doc ID is a 8 byte value */
 #define FTS_DOC_ID_LEN			8

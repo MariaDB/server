@@ -29,6 +29,7 @@
 #include <mysql_com.h>                  /* USERNAME_LENGTH */
 #include "sql_bitmap.h"
 #include "lex_charset.h"
+#include "lex_ident.h"
 
 struct TABLE;
 class Type_handler;
@@ -133,7 +134,7 @@ typedef struct st_key {
   key_map overlapped;
   /* Set of keys constraint correlated with this key */
   key_map constraint_correlated;
-  LEX_CSTRING name;
+  Lex_ident_column name;
   enum  ha_key_alg algorithm;
   /*
     Note that parser is used when the table is opened for use, and
@@ -322,11 +323,26 @@ typedef struct  user_conn {
   uint conn_per_hour, updates, questions;
   /* Maximum amount of resources which account is allowed to consume. */
   USER_RESOURCES user_resources;
+
+  /*
+    The CHARSET_INFO used for hashes to compare the entire 'user\0hash' key.
+    Eventually we should fix it as follows:
+    - the user part should be hashed and compared case sensitively,
+    - the host part should be hashed and compared case insensitively.
+  */
+  static CHARSET_INFO *user_host_key_charset_info_for_hash()
+  {
+    return &my_charset_utf8mb3_general1400_as_ci;
+  }
 } USER_CONN;
 
 typedef struct st_user_stats
 {
   char user[MY_MAX(USERNAME_LENGTH, LIST_PROCESS_HOST_LEN) + 1];
+  static CHARSET_INFO *user_key_charset_info_for_hash()
+  {
+    return &my_charset_utf8mb3_general1400_as_ci;
+  }
   // Account name the user is mapped to when this is a user from mapped_user.
   // Otherwise, the same value as user.
   char priv_user[MY_MAX(USERNAME_LENGTH, LIST_PROCESS_HOST_LEN) + 1];

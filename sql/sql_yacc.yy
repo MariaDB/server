@@ -4956,7 +4956,7 @@ part_name:
             partition_element *p_elem= part_info->curr_part_elem;
             if (unlikely(check_ident_length(&$1)))
               MYSQL_YYABORT;
-            p_elem->partition_name= $1.str;
+            p_elem->partition_name= Lex_ident_partition($1);
           }
         ;
 
@@ -5260,7 +5260,8 @@ sub_name:
           {
             if (unlikely(check_ident_length(&$1)))
               MYSQL_YYABORT;
-            Lex->part_info->curr_part_elem->partition_name= $1.str;
+            Lex->part_info->curr_part_elem->partition_name=
+              Lex_ident_partition($1);
           }
         ;
 
@@ -5680,24 +5681,31 @@ engine_defined_option:
           {
             if (unlikely($3.length > ENGINE_OPTION_MAX_LENGTH))
               my_yyabort_error((ER_VALUE_TOO_LONG, MYF(0), $1.str));
-            $$= new (thd->mem_root) engine_option_value($1, $3, true);
+            $$= new (thd->mem_root) engine_option_value(
+                                      engine_option_value::Name($1),
+                                      engine_option_value::Value($3), true);
             MYSQL_YYABORT_UNLESS($$);
           }
         | ident_options equal ident
           {
             if (unlikely($3.length > ENGINE_OPTION_MAX_LENGTH))
               my_yyabort_error((ER_VALUE_TOO_LONG, MYF(0), $1.str));
-            $$= new (thd->mem_root) engine_option_value($1, $3, false);
+            $$= new (thd->mem_root) engine_option_value(
+                                      engine_option_value::Name($1),
+                                      engine_option_value::Value($3), false);
             MYSQL_YYABORT_UNLESS($$);
           }
         | ident_options equal real_ulonglong_num
           {
-            $$= new (thd->mem_root) engine_option_value($1, $3, thd->mem_root);
+            $$= new (thd->mem_root) engine_option_value(
+                                      engine_option_value::Name($1),
+                                      $3, thd->mem_root);
             MYSQL_YYABORT_UNLESS($$);
           }
         | ident_options equal DEFAULT
           {
-            $$= new (thd->mem_root) engine_option_value($1);
+            $$= new (thd->mem_root) engine_option_value(
+                                      engine_option_value::Name($1));
             MYSQL_YYABORT_UNLESS($$);
           }
         ;
@@ -5922,14 +5930,14 @@ period_for_system_time:
           PERIOD_SYM FOR_SYSTEM_TIME_SYM '(' ident ',' ident ')'
           {
             Vers_parse_info &info= Lex->vers_get_info();
-            info.set_period($4, $6);
+            info.set_period(Lex_ident_column($4), Lex_ident_column($6));
           }
         ;
 
 period_for_application_time:
           FOR_SYM ident '(' ident ',' ident ')'
           {
-            if (Lex->add_period($2, $4, $6))
+            if (Lex->add_period(Lex_ident_column($2), $4, $6))
               MYSQL_YYABORT;
           }
         ;
@@ -6690,7 +6698,7 @@ old_or_new_charset_name:
             if (unlikely(!($$=get_charset_by_csname($1.str,
                                                     MY_CS_PRIMARY,
                                                     MYF(utf8_flag))) &&
-                         !($$=get_old_charset_by_name($1.str))))
+                         !($$=get_old_charset_by_name($1))))
               my_yyabort_error((ER_UNKNOWN_CHARACTER_SET, MYF(0), $1.str));
           }
         | BINARY { $$= &my_charset_bin; }
@@ -7105,7 +7113,7 @@ opt_without_overlaps:
          | ',' ident WITHOUT OVERLAPS_SYM
           {
             Lex->last_key->without_overlaps= true;
-            Lex->last_key->period= $2;
+            Lex->last_key->period= Lex_ident_column($2);
           }
          ;
 
@@ -7684,7 +7692,7 @@ alter_list_item:
             LEX *lex=Lex;
             lex->create_last_non_select_table= lex->last_table();
             lex->alter_info.flags|= ALTER_PARSER_ADD_COLUMN;
-            $2->after= $3;
+            $2->after= Lex_ident_column($3);
           }
         | ADD key_def
           {
@@ -7723,8 +7731,8 @@ alter_list_item:
           {
             Lex->alter_info.flags|= ALTER_CHANGE_COLUMN | ALTER_RENAME_COLUMN;
             Lex->create_last_non_select_table= Lex->last_table();
-            $5->change= $4;
-            $5->after= $6;
+            $5->change= Lex_ident_column($4);
+            $5->after= Lex_ident_column($6);
           }
         | MODIFY_SYM opt_column opt_if_exists_table_element
           field_spec opt_place
@@ -7732,13 +7740,13 @@ alter_list_item:
             Lex->alter_info.flags|= ALTER_CHANGE_COLUMN;
             Lex->create_last_non_select_table= Lex->last_table();
             $4->change= $4->field_name;
-            $4->after= $5;
+            $4->after= Lex_ident_column($5);
           }
         | DROP opt_column opt_if_exists_table_element field_ident opt_restrict
           {
             LEX *lex=Lex;
             Alter_drop *ad= (new (thd->mem_root)
-                             Alter_drop(Alter_drop::COLUMN, $4.str, $3));
+                             Alter_drop(Alter_drop::COLUMN, $4, $3));
             if (unlikely(ad == NULL))
               MYSQL_YYABORT;
             lex->alter_info.drop_list.push_back(ad, thd->mem_root);
@@ -7749,7 +7757,7 @@ alter_list_item:
             LEX *lex=Lex;
             Alter_drop *ad= (new (thd->mem_root)
                              Alter_drop(Alter_drop::CHECK_CONSTRAINT,
-                                        $4.str, $3));
+                                        $4, $3));
             if (unlikely(ad == NULL))
               MYSQL_YYABORT;
             lex->alter_info.drop_list.push_back(ad, thd->mem_root);
@@ -7759,7 +7767,7 @@ alter_list_item:
           {
             LEX *lex=Lex;
             Alter_drop *ad= (new (thd->mem_root)
-                             Alter_drop(Alter_drop::FOREIGN_KEY, $5.str, $4));
+                             Alter_drop(Alter_drop::FOREIGN_KEY, $5, $4));
             if (unlikely(ad == NULL))
               MYSQL_YYABORT;
             lex->alter_info.drop_list.push_back(ad, thd->mem_root);
@@ -7769,7 +7777,7 @@ alter_list_item:
           {
             LEX *lex=Lex;
             Alter_drop *ad= (new (thd->mem_root)
-                             Alter_drop(Alter_drop::KEY, primary_key_name.str,
+                             Alter_drop(Alter_drop::KEY, primary_key_name,
                                         FALSE));
             if (unlikely(ad == NULL))
               MYSQL_YYABORT;
@@ -7780,7 +7788,7 @@ alter_list_item:
           {
             LEX *lex=Lex;
             Alter_drop *ad= (new (thd->mem_root)
-                             Alter_drop(Alter_drop::KEY, $4.str, $3));
+                             Alter_drop(Alter_drop::KEY, $4, $3));
             if (unlikely(ad == NULL))
               MYSQL_YYABORT;
             lex->alter_info.drop_list.push_back(ad, thd->mem_root);
@@ -7800,7 +7808,7 @@ alter_list_item:
           }
         | ALTER opt_column opt_if_exists_table_element field_ident SET DEFAULT column_default_expr
           {
-            if (check_expression($7, &$4, VCOL_DEFAULT))
+            if (check_expression($7, Lex_ident_column($4), VCOL_DEFAULT))
               MYSQL_YYABORT;
             if (unlikely(Lex->add_alter_list($4, $7, $3)))
               MYSQL_YYABORT;
@@ -7809,7 +7817,7 @@ alter_list_item:
           {
             LEX *lex= Lex;
             Alter_index_ignorability *ac= new (thd->mem_root)
-                                        Alter_index_ignorability($4.str, $5, $3);
+                                        Alter_index_ignorability($4, $5, $3);
             if (ac == NULL)
               MYSQL_YYABORT;
             lex->alter_info.alter_index_ignorability_list.push_back(ac);
@@ -7886,7 +7894,7 @@ alter_list_item:
           }
         | DROP PERIOD_SYM opt_if_exists_table_element FOR_SYM ident
           {
-            Alter_drop *ad= new Alter_drop(Alter_drop::PERIOD, $5.str, $3);
+            Alter_drop *ad= new Alter_drop(Alter_drop::PERIOD, $5, $3);
             if (unlikely(ad == NULL))
               MYSQL_YYABORT;
             Lex->alter_info.drop_list.push_back(ad, thd->mem_root);
@@ -9056,7 +9064,7 @@ for_portion_of_time_clause:
             Lex->period_conditions.init(SYSTEM_TIME_FROM_TO,
                                         Vers_history_point(VERS_TIMESTAMP, $7),
                                         Vers_history_point(VERS_TIMESTAMP, $9),
-                                        $5);
+                                        Lex_ident_column($5));
           }
         ;
 
@@ -10741,7 +10749,7 @@ function_call_generic:
             Create_func *builder;
             Item *item= NULL;
 
-            if (unlikely(check_routine_name(&$1)))
+            if (unlikely(Lex_ident_routine::check_name_with_error($1)))
               MYSQL_YYABORT;
 
             /*
@@ -13105,7 +13113,7 @@ drop:
           {
             LEX *lex=Lex;
             Alter_drop *ad= (new (thd->mem_root)
-                             Alter_drop(Alter_drop::KEY, $5.str, $4));
+                             Alter_drop(Alter_drop::KEY, $5, $4));
             if (unlikely(ad == NULL))
               MYSQL_YYABORT;
             lex->sql_command= SQLCOM_DROP_INDEX;
@@ -15442,10 +15450,9 @@ comma_separated_ident_list:
 with_element_head:
           ident
           {
-            LEX_CSTRING *name=
-              (LEX_CSTRING *) thd->memdup(&$1, sizeof(LEX_CSTRING));
-            $$= new (thd->mem_root) With_element_head(name);
-            if (unlikely(name == NULL || $$ == NULL))
+            $$= new (thd->mem_root) With_element_head(
+                                      Lex_ident_with_element($1));
+            if (unlikely($$ == NULL))
               MYSQL_YYABORT;
             $$->tables_pos.set_start_pos(Lex->query_tables_last);
           }
@@ -15556,19 +15563,16 @@ field_ident:
         | ident '.' ident '.' ident
           {
             TABLE_LIST *table= Select->table_list.first;
-            if (unlikely(my_strcasecmp(table_alias_charset, $1.str,
-                                       table->db.str)))
+            if (unlikely(!table->db.streq($1)))
               my_yyabort_error((ER_WRONG_DB_NAME, MYF(0), $1.str));
-            if (unlikely(my_strcasecmp(table_alias_charset, $3.str,
-                                       table->table_name.str)))
+            if (unlikely(!table->table_name.streq($3)))
               my_yyabort_error((ER_WRONG_TABLE_NAME, MYF(0), $3.str));
             $$=$5;
           }
         | ident '.' ident
           {
             TABLE_LIST *table= Select->table_list.first;
-            if (unlikely(my_strcasecmp(table_alias_charset, $1.str,
-                         table->alias.str)))
+            if (unlikely(!table->alias.streq($1)))
               my_yyabort_error((ER_WRONG_TABLE_NAME, MYF(0), $1.str));
             $$=$3;
           }
@@ -15748,7 +15752,8 @@ user_maybe_role:
                 It's OK to use in-place lowercase as long as
                 the character set is utf8.
               */
-              my_casedn_str(system_charset_info, (char*) $$->host.str);
+              $$->host.length= my_casedn_str(system_charset_info,
+                                             (char*) $$->host.str);
             }
             else
             {
@@ -18119,8 +18124,7 @@ trigger_follows_precedes_clause:
             /* empty */
             {
               $$.ordering_clause= TRG_ORDER_NONE;
-              $$.anchor_trigger_name.str= NULL;
-              $$.anchor_trigger_name.length= 0;
+              $$.anchor_trigger_name= null_clex_str;
             }
           |
             trigger_action_order ident_or_text
@@ -18705,7 +18709,9 @@ sp_decl_body:
           sp_decl_variable_list
         | sp_decl_ident CONDITION_SYM FOR_SYM sp_cond
           {
-            if (unlikely(Lex->spcont->declare_condition(thd, &$1, $4)))
+            if (unlikely(Lex->spcont->declare_condition(thd,
+                                                        Lex_ident_column($1),
+                                                        $4)))
               MYSQL_YYABORT;
             $$.vars= $$.hndlrs= $$.curs= 0;
             $$.conds= 1;
@@ -19647,7 +19653,9 @@ sp_decl_non_handler:
           sp_decl_variable_list
         | ident_directly_assignable CONDITION_SYM FOR_SYM sp_cond
           {
-            if (unlikely(Lex->spcont->declare_condition(thd, &$1, $4)))
+            if (unlikely(Lex->spcont->declare_condition(thd,
+                                                        Lex_ident_column($1),
+                                                        $4)))
               MYSQL_YYABORT;
             $$.vars= $$.hndlrs= $$.curs= 0;
             $$.conds= 1;
@@ -19657,7 +19665,9 @@ sp_decl_non_handler:
             sp_condition_value *spcond= new (thd->mem_root)
                                         sp_condition_value_user_defined();
             if (unlikely(!spcond) ||
-                unlikely(Lex->spcont->declare_condition(thd, &$1, spcond)))
+                unlikely(Lex->spcont->declare_condition(thd,
+                                                        Lex_ident_column($1),
+                                                        spcond)))
               MYSQL_YYABORT;
             $$.vars= $$.hndlrs= $$.curs= 0;
             $$.conds= 1;

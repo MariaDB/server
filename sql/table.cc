@@ -73,7 +73,7 @@ struct extra2_fields
 {
   LEX_CUSTRING version;
   LEX_CUSTRING options;
-  Lex_ident engine;
+  Lex_ident_engine engine;
   LEX_CUSTRING gis;
   LEX_CUSTRING field_flags;
   LEX_CUSTRING system_period;
@@ -88,23 +88,31 @@ struct extra2_fields
 static Virtual_column_info * unpack_vcol_info_from_frm(THD *,
               TABLE *, String *, Virtual_column_info **, bool *);
 
+/*
+  Lex_ident_db does not have operator""_Lex_ident_db,
+  because its constructor contains DBUG_SLOW_ASSERT
+  and therefore it's not a constexpr constructor.
+  So let's initialize a number of Lex_ident_db constants
+  using operator""_LEX_CSTRING.
+*/
+
 /* INFORMATION_SCHEMA name */
-LEX_CSTRING INFORMATION_SCHEMA_NAME= {STRING_WITH_LEN("information_schema")};
+Lex_ident_i_s_db INFORMATION_SCHEMA_NAME("information_schema"_LEX_CSTRING);
 
 /* PERFORMANCE_SCHEMA name */
-LEX_CSTRING PERFORMANCE_SCHEMA_DB_NAME= {STRING_WITH_LEN("performance_schema")};
+Lex_ident_i_s_db PERFORMANCE_SCHEMA_DB_NAME("performance_schema"_LEX_CSTRING);
 
 /* MYSQL_SCHEMA name */
-LEX_CSTRING MYSQL_SCHEMA_NAME= {STRING_WITH_LEN("mysql")};
+Lex_ident_db MYSQL_SCHEMA_NAME("mysql"_LEX_CSTRING);
 
 /* GENERAL_LOG name */
-LEX_CSTRING GENERAL_LOG_NAME= {STRING_WITH_LEN("general_log")};
+Lex_ident_table GENERAL_LOG_NAME= "general_log"_Lex_ident_table;
 
 /* SLOW_LOG name */
-LEX_CSTRING SLOW_LOG_NAME= {STRING_WITH_LEN("slow_log")};
+Lex_ident_table SLOW_LOG_NAME= "slow_log"_Lex_ident_table;
 
-LEX_CSTRING TRANSACTION_REG_NAME= {STRING_WITH_LEN("transaction_registry")};
-LEX_CSTRING MYSQL_PROC_NAME= {STRING_WITH_LEN("proc")};
+Lex_ident_table TRANSACTION_REG_NAME= "transaction_registry"_Lex_ident_table;
+Lex_ident_table MYSQL_PROC_NAME= "proc"_Lex_ident_table;
 
 /* 
   Keyword added as a prefix when parsing the defining expression for a
@@ -280,42 +288,38 @@ const char *fn_frm_ext(const char *name)
 }
 
 
-TABLE_CATEGORY get_table_category(const LEX_CSTRING *db,
-                                  const LEX_CSTRING *name)
+TABLE_CATEGORY get_table_category(const Lex_ident_db &db,
+                                  const Lex_ident_table &name)
 {
-  DBUG_ASSERT(db != NULL);
-  DBUG_ASSERT(name != NULL);
-
 #ifdef WITH_WSREP
-  if (db->str &&
-      my_strcasecmp(system_charset_info, db->str, WSREP_SCHEMA) == 0)
+  if (db.str && db.streq(MYSQL_SCHEMA_NAME))
   {
-    if ((my_strcasecmp(system_charset_info, name->str, WSREP_STREAMING_TABLE) == 0 ||
-         my_strcasecmp(system_charset_info, name->str, WSREP_CLUSTER_TABLE) == 0 ||
-         my_strcasecmp(system_charset_info, name->str, WSREP_MEMBERS_TABLE) == 0))
+    if (name.streq(Lex_ident_table{STRING_WITH_LEN(WSREP_STREAMING_TABLE)}) ||
+        name.streq(Lex_ident_table{STRING_WITH_LEN(WSREP_CLUSTER_TABLE)}) ||
+        name.streq(Lex_ident_table{STRING_WITH_LEN(WSREP_MEMBERS_TABLE)}))
     {
       return TABLE_CATEGORY_INFORMATION;
     }
   }
 #endif /* WITH_WSREP */
-  if (is_infoschema_db(db))
+  if (is_infoschema_db(&db))
     return TABLE_CATEGORY_INFORMATION;
 
-  if (is_perfschema_db(db))
+  if (is_perfschema_db(&db))
     return TABLE_CATEGORY_PERFORMANCE;
 
-  if (lex_string_eq(&MYSQL_SCHEMA_NAME, db))
+  if (db.streq(MYSQL_SCHEMA_NAME))
   {
-    if (is_system_table_name(name->str, name->length))
+    if (is_system_table_name(name.str, name.length))
       return TABLE_CATEGORY_SYSTEM;
 
-    if (lex_string_eq(&GENERAL_LOG_NAME, name))
+    if (name.streq(GENERAL_LOG_NAME))
       return TABLE_CATEGORY_LOG;
 
-    if (lex_string_eq(&SLOW_LOG_NAME, name))
+    if (name.streq(SLOW_LOG_NAME))
       return TABLE_CATEGORY_LOG;
 
-    if (lex_string_eq(&TRANSACTION_REG_NAME, name))
+    if (name.streq(TRANSACTION_REG_NAME))
       return TABLE_CATEGORY_LOG;
   }
 
@@ -368,7 +372,7 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
     strmov(path_buff, path);
     share->normalized_path.str=    share->path.str;
     share->normalized_path.length= path_length;
-    share->table_category= get_table_category(&share->db, &share->table_name);
+    share->table_category= get_table_category(share->db, share->table_name);
     share->open_errno= ENOENT;
     /* The following will be updated in open_table_from_share */
     share->can_do_row_logging= 1;
@@ -1867,7 +1871,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   options= extra2.options;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-  if (extra2.engine)
+  if (extra2.engine.str)
   {
     share->default_part_plugin= ha_resolve_by_name(NULL, &extra2.engine, false);
     if (!share->default_part_plugin)
@@ -2350,7 +2354,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   use_hash= share->fields >= MAX_FIELDS_BEFORE_HASH;
   if (use_hash)
     use_hash= !my_hash_init(PSI_INSTRUMENT_ME, &share->name_hash,
-                            system_charset_info, share->fields, 0, 0,
+                            Lex_ident_column::charset_info(),
+                            share->fields, 0, 0,
                             (my_hash_get_key) get_field_name, 0, 0);
 
   if (share->mysql_version >= 50700 && share->mysql_version < 100000 &&
@@ -2370,7 +2375,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   }
 
   /* Set system versioning information. */
-  vers.name= Lex_ident(STRING_WITH_LEN("SYSTEM_TIME"));
+  vers.name= "SYSTEM_TIME"_Lex_ident_column;
   if (extra2.system_period.str == NULL)
   {
     versioned= VERS_UNDEFINED;
@@ -2856,9 +2861,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     }
     longlong ha_option= handler_file->ha_table_flags();
     keyinfo= share->key_info;
-    uint primary_key= my_strcasecmp(system_charset_info,
-                                    share->keynames.type_names[0],
-                                    primary_key_name.str) ? MAX_KEY : 0;
+    uint primary_key= Lex_ident_column(share->keynames.type_names[0],
+                                       share->keynames.type_lengths[0]).
+                                         streq(primary_key_name) ? 0 : MAX_KEY;
     KEY* key_first_info= NULL;
 
     if (primary_key >= MAX_KEY && keyinfo->flags & HA_NOSAME &&
@@ -5255,16 +5260,18 @@ bool Lex_ident_fs::is_in_lower_case() const
   returns 1 on error
 */
 
-bool check_table_name(const char *name, size_t length, bool disallow_path_chars)
+bool Lex_ident_table::check_name(const LEX_CSTRING &str,
+                                 bool disallow_path_chars)
 {
   if (!disallow_path_chars &&
-      (disallow_path_chars= check_mysql50_prefix(name)))
+      (disallow_path_chars= check_mysql50_prefix(str.str)))
   {
-    name+= MYSQL50_TABLE_NAME_PREFIX_LENGTH;
-    length-= MYSQL50_TABLE_NAME_PREFIX_LENGTH;
+    return check_body(str.str + MYSQL50_TABLE_NAME_PREFIX_LENGTH,
+                      str.length - MYSQL50_TABLE_NAME_PREFIX_LENGTH,
+                      disallow_path_chars);
   }
 
-  return Lex_ident_fs::check_body(name, length, disallow_path_chars);
+  return check_body(str.str, str.length, disallow_path_chars);
 }
 
 
@@ -5318,18 +5325,18 @@ bool Lex_ident_fs::check_body(const char *name, size_t length,
   @returns false - on success (valid)
   @returns true - on error (invalid)
 */
-bool Lex_ident_fs::check_db_name() const
+bool Lex_ident_db::check_name(const LEX_CSTRING &str)
 {
-  DBUG_ASSERT(str);
-  if (check_mysql50_prefix(str))
+  DBUG_ASSERT(str.str);
+  if (check_mysql50_prefix(str.str))
   {
-    Lex_ident_fs name(Lex_cstring(str + MYSQL50_TABLE_NAME_PREFIX_LENGTH,
-                                  length - MYSQL50_TABLE_NAME_PREFIX_LENGTH));
+    Lex_ident_fs name(Lex_cstring(str.str + MYSQL50_TABLE_NAME_PREFIX_LENGTH,
+                                  str.length - MYSQL50_TABLE_NAME_PREFIX_LENGTH));
     return db_name_is_in_ignore_db_dirs_list(name.str) ||
            check_body(name.str, name.length, true);
   }
-  return db_name_is_in_ignore_db_dirs_list(str) ||
-         check_body(str, length, false);
+  return db_name_is_in_ignore_db_dirs_list(str.str) ||
+         check_body(str.str, str.length, false);
 }
 
 
@@ -5340,11 +5347,11 @@ bool Lex_ident_fs::check_db_name() const
   @returns false - on success (valid)
   @returns true - on error (invalid)
 */
-bool Lex_ident_fs::check_db_name_with_error() const
+bool Lex_ident_db::check_name_with_error(const LEX_CSTRING &str)
 {
-  if (!check_db_name())
+  if (!check_name(str))
     return false;
-  my_error(ER_WRONG_DB_NAME ,MYF(0), safe_str(str));
+  my_error(ER_WRONG_DB_NAME ,MYF(0), safe_str(str.str));
   return true;
 }
 
@@ -5806,9 +5813,7 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   DBUG_ASSERT(s->tmp_table != NO_TMP_TABLE || s->tdc->ref_count > 0);
 
   if (thd->lex->need_correct_ident())
-    alias_name_used= my_strcasecmp(table_alias_charset,
-                                   s->table_name.str,
-                                   tl->alias.str);
+    alias_name_used= !s->table_name.streq(tl->alias);
   /* Fix alias if table name changes. */
   if (!alias.alloced_length() || strcmp(alias.c_ptr(), tl->alias.str))
     alias.copy(tl->alias.str, tl->alias.length, alias.charset());
@@ -6800,8 +6805,8 @@ bool TABLE_LIST::prepare_view_security_context(THD *thd, bool upgrade_check)
   {
     DBUG_PRINT("info", ("This table is suid view => load contest"));
     DBUG_ASSERT(view && view_sctx);
-    if (acl_getroot(view_sctx, definer.user.str, definer.host.str,
-                                definer.host.str, thd->db.str))
+    if (acl_getroot(view_sctx, definer.user, definer.host,
+                               definer.host, thd->db))
     {
       if ((thd->lex->sql_command == SQLCOM_SHOW_CREATE) ||
           (thd->lex->sql_command == SQLCOM_SHOW_FIELDS))
@@ -7059,15 +7064,15 @@ Natural_join_column::Natural_join_column(Item_field *field_param,
 }
 
 
-LEX_CSTRING *Natural_join_column::name()
+const Lex_ident_column Natural_join_column::name()
 {
   if (view_field)
   {
     DBUG_ASSERT(table_field == NULL);
-    return &view_field->name;
+    return view_field->name;
   }
 
-  return &table_field->field_name;
+  return table_field->field_name;
 }
 
 
@@ -7094,17 +7099,19 @@ Field *Natural_join_column::field()
 }
 
 
-const char *Natural_join_column::safe_table_name()
+const Lex_ident_table Natural_join_column::safe_table_name() const
 {
   DBUG_ASSERT(table_ref);
-  return table_ref->alias.str ? table_ref->alias.str : "";
+  return table_ref->alias.str ? table_ref->alias :
+                                Lex_ident_table(empty_clex_str);
 }
 
 
-const char *Natural_join_column::safe_db_name()
+const Lex_ident_db Natural_join_column::safe_db_name() const
 {
   if (view_field)
-    return table_ref->view_db.str ? table_ref->view_db.str : "";
+    return table_ref->view_db.str ? table_ref->view_db :
+                                    Lex_ident_db(empty_clex_str);
 
   /*
     Test that TABLE_LIST::db is the same as TABLE_SHARE::db to
@@ -7116,7 +7123,7 @@ const char *Natural_join_column::safe_db_name()
               (table_ref->schema_table &&
                is_infoschema_db(&table_ref->table->s->db)) ||
               table_ref->is_materialized_derived());
-  return table_ref->db.str ? table_ref->db.str : "";
+  return table_ref->db.str ? table_ref->db : Lex_ident_db(empty_clex_str);
 }
 
 
@@ -7145,9 +7152,9 @@ void Field_iterator_view::set(TABLE_LIST *table)
 }
 
 
-LEX_CSTRING *Field_iterator_table::name()
+const Lex_ident_column Field_iterator_table::name()
 {
-  return &(*ptr)->field_name;
+  return (*ptr)->field_name;
 }
 
 
@@ -7169,9 +7176,9 @@ Item *Field_iterator_table::create_item(THD *thd)
 }
 
 
-LEX_CSTRING *Field_iterator_view::name()
+const Lex_ident_column Field_iterator_view::name()
 {
-  return &ptr->name;
+  return ptr->name;
 }
 
 
@@ -7335,26 +7342,26 @@ void Field_iterator_table_ref::next()
 }
 
 
-const char *Field_iterator_table_ref::get_table_name()
+const Lex_ident_table Field_iterator_table_ref::get_table_name() const
 {
   if (table_ref->view)
-    return table_ref->view_name.str;
+    return table_ref->view_name;
   if (table_ref->is_derived())
-    return table_ref->table->s->table_name.str;
+    return table_ref->table->s->table_name;
   else if (table_ref->is_natural_join)
     return natural_join_it.column_ref()->safe_table_name();
 
   DBUG_ASSERT(!strcmp(table_ref->table_name.str,
                       table_ref->table->s->table_name.str) ||
               table_ref->schema_table || table_ref->table_function);
-  return table_ref->table_name.str;
+  return table_ref->table_name;
 }
 
 
-const char *Field_iterator_table_ref::get_db_name()
+const Lex_ident_db Field_iterator_table_ref::get_db_name() const
 {
   if (table_ref->view)
-    return table_ref->view_db.str;
+    return table_ref->view_db;
   else if (table_ref->is_natural_join)
     return natural_join_it.column_ref()->safe_db_name();
 
@@ -7368,7 +7375,7 @@ const char *Field_iterator_table_ref::get_db_name()
                is_infoschema_db(&table_ref->table->s->db)) ||
                table_ref->table_function);
 
-  return table_ref->db.str;
+  return table_ref->db;
 }
 
 
@@ -10673,18 +10680,17 @@ void Vers_history_point::print(String *str, enum_query_type query_type,
 Field *TABLE::find_field_by_name(const LEX_CSTRING *str) const
 {
   Field **tmp;
-  size_t length= str->length;
   if (s->name_hash.records)
   {
-    tmp= (Field**) my_hash_search(&s->name_hash, (uchar*) str->str, length);
+    tmp= (Field**) my_hash_search(&s->name_hash,
+                                  (uchar*) str->str, str->length);
     return tmp ? field[tmp - s->field] : NULL;
   }
   else
   {
     for (tmp= field; *tmp; tmp++)
     {
-      if ((*tmp)->field_name.length == length &&
-          !lex_string_cmp(system_charset_info, &(*tmp)->field_name, str))
+      if ((*tmp)->field_name.streq(*str))
         return *tmp;
     }
   }

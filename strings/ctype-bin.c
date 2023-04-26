@@ -255,13 +255,6 @@ static size_t my_case_bin(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-static int my_strcasecmp_bin(CHARSET_INFO * cs __attribute__((unused)),
-			     const char *s, const char *t)
-{
-  return strcmp(s,t);
-}
-
-
 static int my_mb_wc_bin(CHARSET_INFO *cs __attribute__((unused)),
 			my_wc_t *wc,
 			const uchar *str,
@@ -520,7 +513,6 @@ MY_COLLATION_HANDLER my_collation_8bit_bin_handler =
   my_strnxfrmlen_simple,
   my_like_range_simple,
   my_wildcmp_bin,
-  my_strcasecmp_bin,
   my_instr_bin,
   my_hash_sort_8bit_bin,
   my_propagate_simple,
@@ -541,7 +533,6 @@ MY_COLLATION_HANDLER my_collation_8bit_nopad_bin_handler =
   my_strnxfrmlen_simple,
   my_like_range_simple,
   my_wildcmp_bin,
-  my_strcasecmp_bin,
   my_instr_bin,
   my_hash_sort_bin,
   my_propagate_simple,
@@ -562,7 +553,6 @@ static MY_COLLATION_HANDLER my_collation_binary_handler =
   my_strnxfrmlen_simple,
   my_like_range_simple,
   my_wildcmp_bin,
-  my_strcasecmp_bin,
   my_instr_bin,
   my_hash_sort_bin,
   my_propagate_simple,

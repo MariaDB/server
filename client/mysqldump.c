@@ -654,6 +654,19 @@ static int dump_tablespaces_for_databases(char** databases);
 static int dump_tablespaces(char* ts_where);
 static void print_comment(FILE *, my_bool, const char *, ...);
 
+
+static inline int cmp_database(const char *a, const char *b)
+{
+  return my_strcasecmp_latin1(a, b);
+}
+
+
+static inline int cmp_table(const char *a, const char *b)
+{
+  return my_strcasecmp_latin1(a, b);
+}
+
+
 /*
   Print the supplied message if in verbose mode
 
@@ -2976,10 +2989,10 @@ static uint dump_routines_for_db(char *db)
 static inline my_bool general_log_or_slow_log_tables(const char *db,
                                                      const char *table)
 {
-  return (!my_strcasecmp(charset_info, db, "mysql")) &&
-          (!my_strcasecmp(charset_info, table, "general_log") ||
-           !my_strcasecmp(charset_info, table, "slow_log") ||
-           !my_strcasecmp(charset_info, table, "transaction_registry"));
+  return (!cmp_database(db, "mysql")) &&
+          (!cmp_table(table, "general_log") ||
+           !cmp_table(table, "slow_log") ||
+           !cmp_table(table, "transaction_registry"));
 }
 /*
   get_sequence_structure-- retrieves sequence structure, prints out corresponding
@@ -4133,8 +4146,8 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
      discarding SHOW CREATE EVENT statements generation. The myslq.event
      table data should be skipped too.
   */
-  if (!opt_events && !my_strcasecmp(&my_charset_latin1, db, "mysql") &&
-      !my_strcasecmp(&my_charset_latin1, table, "event"))
+  if (!opt_events && !cmp_database(db, "mysql") &&
+      !cmp_table(table, "event"))
   {
     verbose_msg("-- Skipping data table mysql.event, --skip-events was used\n");
     DBUG_VOID_RETURN;
@@ -5386,15 +5399,15 @@ static int dump_all_databases()
   while ((row= mysql_fetch_row(tableres)))
   {
     if (mysql_get_server_version(mysql) >= FIRST_INFORMATION_SCHEMA_VERSION &&
-        !my_strcasecmp(&my_charset_latin1, row[0], INFORMATION_SCHEMA_DB_NAME))
+        !cmp_database(row[0], INFORMATION_SCHEMA_DB_NAME))
       continue;
 
     if (mysql_get_server_version(mysql) >= FIRST_PERFORMANCE_SCHEMA_VERSION &&
-        !my_strcasecmp(&my_charset_latin1, row[0], PERFORMANCE_SCHEMA_DB_NAME))
+        !cmp_database(row[0], PERFORMANCE_SCHEMA_DB_NAME))
       continue;
 
    if (mysql_get_server_version(mysql) >= FIRST_SYS_SCHEMA_VERSION &&
-       !my_strcasecmp(&my_charset_latin1, row[0], SYS_SCHEMA_DB_NAME))
+       !cmp_database(row[0], SYS_SCHEMA_DB_NAME))
      continue;
 
     if (include_database(row[0]))
@@ -5414,15 +5427,15 @@ static int dump_all_databases()
     while ((row= mysql_fetch_row(tableres)))
     {
       if (mysql_get_server_version(mysql) >= FIRST_INFORMATION_SCHEMA_VERSION &&
-          !my_strcasecmp(&my_charset_latin1, row[0], INFORMATION_SCHEMA_DB_NAME))
+          !cmp_database(row[0], INFORMATION_SCHEMA_DB_NAME))
         continue;
 
       if (mysql_get_server_version(mysql) >= FIRST_PERFORMANCE_SCHEMA_VERSION &&
-          !my_strcasecmp(&my_charset_latin1, row[0], PERFORMANCE_SCHEMA_DB_NAME))
+          !cmp_database(row[0], PERFORMANCE_SCHEMA_DB_NAME))
         continue;
 
      if (mysql_get_server_version(mysql) >= FIRST_SYS_SCHEMA_VERSION &&
-        !my_strcasecmp(&my_charset_latin1, row[0], SYS_SCHEMA_DB_NAME))
+        !cmp_database(row[0], SYS_SCHEMA_DB_NAME))
         continue;
 
       if (include_database(row[0]))
@@ -5632,7 +5645,7 @@ static int dump_all_tables_in_db(char *database)
   char hash_key[2*NAME_LEN+2];  /* "db.tablename" */
   char *afterdot;
   my_bool transaction_registry_table_exists= 0;
-  int using_mysql_db= !my_strcasecmp(charset_info, database, "mysql");
+  int using_mysql_db= !cmp_database(database, "mysql");
   DBUG_ENTER("dump_all_tables_in_db");
 
   afterdot= strmov(hash_key, database);
@@ -5743,7 +5756,7 @@ static int dump_all_tables_in_db(char *database)
          after 'UNLOCK TABLES' query is executed on the session, get the table
          structure from server and dump it in the file.
       */
-      if (using_mysql_db && !my_strcasecmp(charset_info, table, "transaction_registry"))
+      if (using_mysql_db && !cmp_table(table, "transaction_registry"))
         transaction_registry_table_exists= 1;
     }
   }
@@ -6026,9 +6039,9 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
   /* Can't LOCK TABLES in I_S / P_S, so don't try. */
   if (lock_tables &&
       !(mysql_get_server_version(mysql) >= FIRST_INFORMATION_SCHEMA_VERSION &&
-        !my_strcasecmp(&my_charset_latin1, db, INFORMATION_SCHEMA_DB_NAME)) &&
+        !cmp_database(db, INFORMATION_SCHEMA_DB_NAME)) &&
       !(mysql_get_server_version(mysql) >= FIRST_PERFORMANCE_SCHEMA_VERSION &&
-        !my_strcasecmp(&my_charset_latin1, db, PERFORMANCE_SCHEMA_DB_NAME)))
+        !cmp_database(db, PERFORMANCE_SCHEMA_DB_NAME)))
   {
     if (mysql_real_query(mysql, lock_tables_query.str,
                          (ulong)lock_tables_query.length-1))

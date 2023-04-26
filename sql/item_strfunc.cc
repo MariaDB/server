@@ -2829,7 +2829,7 @@ String *Item_func_database::val_str(String *str)
     return 0;
   }
   else
-    str->copy(thd->db.str, thd->db.length, system_charset_info);
+    str->copy(thd->db.str, thd->db.length, collation.collation);
   null_value= 0;
   return str;
 }
@@ -2845,11 +2845,11 @@ String *Item_func_sqlerrm::val_str(String *str)
   if ((err= it++))
   {
     str->copy(err->get_message_text(), err->get_message_octet_length(),
-              system_charset_info);
+              collation.collation);
     return str;
   }
   str->copy(STRING_WITH_LEN("normal, successful completion"),
-            system_charset_info);
+            collation.collation);
   return str;
 }
 
@@ -2934,7 +2934,7 @@ bool Item_func_current_role::fix_fields(THD *thd, Item **ref)
   if (ctx->priv_role[0])
   {
     if (str_value.copy(ctx->priv_role, strlen(ctx->priv_role),
-                       system_charset_info))
+                       collation.collation))
       return 1;
     str_value.mark_as_const();
     null_value= 0;
@@ -3626,7 +3626,7 @@ err:
 
 bool Item_func_binlog_gtid_pos::fix_length_and_dec(THD *thd)
 {
-  collation.set(system_charset_info);
+  collation.set(system_charset_info_for_i_s);
   max_length= MAX_BLOB_WIDTH;
   set_maybe_null();
   return FALSE;
@@ -3638,7 +3638,7 @@ String *Item_func_binlog_gtid_pos::val_str(String *str)
   DBUG_ASSERT(fixed());
 #ifndef HAVE_REPLICATION
   null_value= 0;
-  str->copy("", 0, system_charset_info);
+  str->copy("", 0, system_charset_info_for_i_s);
   return str;
 #else
   String name_str, *name;

@@ -40,8 +40,8 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("sysconst_test") };
     return name;
   }
-  const char *fully_qualified_func_name() const override
-  { return "sysconst_test()"; }
+  const Lex_ident_routine fully_qualified_func_name() const override
+  { return Lex_ident_routine("sysconst_test()"_LEX_CSTRING); }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_sysconst_test>(thd, this); }
 };

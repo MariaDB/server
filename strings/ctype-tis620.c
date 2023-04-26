@@ -874,7 +874,6 @@ static MY_COLLATION_HANDLER my_collation_ci_handler =
     my_strnxfrmlen_simple,
     my_like_range_simple,
     my_wildcmp_8bit,	/* wildcmp   */
-    my_strcasecmp_8bit,
     my_instr_simple,				/* QQ: To be fixed */
     my_hash_sort_simple,
     my_propagate_simple,
@@ -894,7 +893,6 @@ static MY_COLLATION_HANDLER my_collation_nopad_ci_handler =
     my_strnxfrmlen_simple,
     my_like_range_simple,
     my_wildcmp_8bit,	/* wildcmp   */
-    my_strcasecmp_8bit,
     my_instr_simple,				/* QQ: To be fixed */
     my_hash_sort_simple_nopad,
     my_propagate_simple,
