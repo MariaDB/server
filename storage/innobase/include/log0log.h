@@ -73,15 +73,10 @@ log_reserve_and_write_fast(
 	const void*	str,
 	ulint		len,
 	lsn_t*		start_lsn);
-/***********************************************************************//**
-Checks if there is need for a log buffer flush or a new checkpoint, and does
-this if yes. Any database operation should call this when it has modified
-more than about 4 pages. NOTE that this function may only be called when the
-OS thread owns no synchronization objects except dict_sys.latch. */
-UNIV_INLINE
-void
-log_free_check(void);
-/*================*/
+/** Wait for a log checkpoint if needed.
+NOTE that this function may only be called while not holding
+any synchronization objects except dict_sys.latch. */
+void log_free_check();
 
 /** Extends the log buffer.
 @param[in]	len	requested minimum size in bytes */

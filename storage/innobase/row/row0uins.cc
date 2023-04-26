@@ -147,8 +147,9 @@ restart:
 
 		pfs_os_file_t d = OS_FILE_CLOSED;
 
-		if (const uint32_t space_id = dict_drop_index_tree(
-			    &node->pcur, node->trx, &mtr)) {
+		const uint32_t space_id = dict_drop_index_tree(
+			&node->pcur, node->trx, &mtr);
+		if (space_id) {
 			if (table) {
 				lock_release_on_rollback(node->trx,
 							 table);
@@ -185,6 +186,10 @@ restart:
 
 		if (d != OS_FILE_CLOSED) {
 			os_file_close(d);
+		}
+
+		if (space_id) {
+			ibuf_delete_for_discarded_space(space_id);
 		}
 
 		mtr.start();
