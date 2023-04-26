@@ -1482,6 +1482,7 @@ public:
 
     if (space_list_last_opened == space)
     {
+      ut_ad(s != space_list.begin());
       space_list_t::iterator prev= s;
       space_list_last_opened= &*--prev;
     }

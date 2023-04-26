@@ -455,14 +455,12 @@ err_exit:
 
   fil_set_max_space_id_if_bigger(space_id);
 
+  mysql_mutex_lock(&fil_system.mutex);
   fil_space_t *space= fil_space_t::create(space_id, fsp_flags,
                                           FIL_TYPE_TABLESPACE, nullptr,
                                           FIL_ENCRYPTION_DEFAULT, true);
-  ut_a(fil_validate());
-  ut_a(space);
-
+  ut_ad(space);
   fil_node_t *file= space->add(name, fh, 0, false, true);
-  mysql_mutex_lock(&fil_system.mutex);
 
   if (create)
   {
@@ -862,10 +860,10 @@ same_size:
 
   ut_ad(flushed_lsn == log_sys.get_lsn());
   ut_ad(!os_aio_pending_reads());
-  ut_ad(!os_aio_pending_writes());
   ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
   ut_ad(!buf_pool.get_oldest_modification(0));
   ut_d(mysql_mutex_unlock(&buf_pool.flush_list_mutex));
+  ut_d(os_aio_wait_until_no_pending_writes(false));
 
   DBUG_RETURN(flushed_lsn);
 }

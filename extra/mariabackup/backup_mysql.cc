@@ -367,6 +367,7 @@ bool get_mysql_vars(MYSQL *connection)
   char *innodb_undo_directory_var= NULL;
   char *innodb_page_size_var= NULL;
   char *innodb_undo_tablespaces_var= NULL;
+  char *aria_log_dir_path_var= NULL;
   char *page_zip_level_var= NULL;
   char *ignore_db_dirs= NULL;
   char *endptr;
@@ -397,6 +398,7 @@ bool get_mysql_vars(MYSQL *connection)
       {"innodb_undo_tablespaces", &innodb_undo_tablespaces_var},
       {"innodb_compression_level", &page_zip_level_var},
       {"ignore_db_dirs", &ignore_db_dirs},
+      {"aria_log_dir_path", &aria_log_dir_path_var},
       {NULL, NULL}};
 
   read_mysql_variables(connection, "SHOW VARIABLES", mysql_vars, true);
@@ -527,6 +529,12 @@ bool get_mysql_vars(MYSQL *connection)
     srv_undo_tablespaces= static_cast<uint32_t>
       (strtoul(innodb_undo_tablespaces_var, &endptr, 10));
     ut_ad(*endptr == 0);
+  }
+
+  if (aria_log_dir_path_var)
+  {
+    aria_log_dir_path= my_strdup(PSI_NOT_INSTRUMENTED,
+                                 aria_log_dir_path_var, MYF(MY_FAE));
   }
 
   if (page_zip_level_var != NULL)
@@ -1379,7 +1387,7 @@ variable.
 @returns true on success
 */
 bool
-write_slave_info(MYSQL *connection)
+write_slave_info(ds_ctxt *datasink, MYSQL *connection)
 {
   String sql, comment;
   bool show_all_slaves_status= false;
@@ -1409,7 +1417,8 @@ write_slave_info(MYSQL *connection)
   }
 
   mysql_slave_position= strdup(comment.c_ptr());
-  return backup_file_print_buf(XTRABACKUP_SLAVE_INFO, sql.ptr(), sql.length());
+  return datasink->backup_file_print_buf(XTRABACKUP_SLAVE_INFO,
+                               sql.ptr(), sql.length());
 }
 
 
@@ -1417,7 +1426,7 @@ write_slave_info(MYSQL *connection)
 Retrieves MySQL Galera and
 saves it in a file. It also prints it to stdout. */
 bool
-write_galera_info(MYSQL *connection)
+write_galera_info(ds_ctxt *datasink, MYSQL *connection)
 {
 	char *state_uuid = NULL, *state_uuid55 = NULL;
 	char *last_committed = NULL, *last_committed55 = NULL;
@@ -1449,12 +1458,12 @@ write_galera_info(MYSQL *connection)
 		goto cleanup;
 	}
 
-	result = backup_file_printf(XTRABACKUP_GALERA_INFO,
+	result = datasink->backup_file_printf(XTRABACKUP_GALERA_INFO,
 		"%s:%s\n", state_uuid ? state_uuid : state_uuid55,
 			last_committed ? last_committed : last_committed55);
 	if (result)
 	{
-		write_current_binlog_file(connection);
+		write_current_binlog_file(datasink, connection);
 	}
 
 cleanup:
@@ -1468,7 +1477,7 @@ cleanup:
 Flush and copy the current binary log file into the backup,
 if GTID is enabled */
 bool
-write_current_binlog_file(MYSQL *connection)
+write_current_binlog_file(ds_ctxt *datasink, MYSQL *connection)
 {
 	char *executed_gtid_set = NULL;
 	char *gtid_binlog_state = NULL;
@@ -1538,7 +1547,7 @@ write_current_binlog_file(MYSQL *connection)
 
 		snprintf(filepath, sizeof(filepath), "%s%c%s",
 			 log_bin_dir, FN_LIBCHAR, log_bin_file);
-		result = copy_file(ds_data, filepath, log_bin_file, 0);
+		result = datasink->copy_file(filepath, log_bin_file, 0);
 	}
 
 cleanup:
@@ -1554,7 +1563,7 @@ cleanup:
 Retrieves MySQL binlog position and
 saves it in a file. It also prints it to stdout. */
 bool
-write_binlog_info(MYSQL *connection)
+write_binlog_info(ds_ctxt *datasink, MYSQL *connection)
 {
 	char *filename = NULL;
 	char *position = NULL;
@@ -1599,14 +1608,14 @@ write_binlog_info(MYSQL *connection)
 			"filename '%s', position '%s', "
 			"GTID of the last change '%s'",
 			filename, position, gtid) != -1);
-		result = backup_file_printf(XTRABACKUP_BINLOG_INFO,
+		result = datasink->backup_file_printf(XTRABACKUP_BINLOG_INFO,
 					    "%s\t%s\t%s\n", filename, position,
 					    gtid);
 	} else {
 		ut_a(asprintf(&mysql_binlog_position,
 			"filename '%s', position '%s'",
 			filename, position) != -1);
-		result = backup_file_printf(XTRABACKUP_BINLOG_INFO,
+		result = datasink->backup_file_printf(XTRABACKUP_BINLOG_INFO,
 					    "%s\t%s\n", filename, position);
 	}
 
@@ -1646,8 +1655,9 @@ PERCONA_SCHEMA.xtrabackup_history and writes a new history record to the
 table containing all the history info particular to the just completed
 backup. */
 bool
-write_xtrabackup_info(MYSQL *connection, const char * filename, bool history,
-                       bool stream)
+write_xtrabackup_info(ds_ctxt *datasink,
+                      MYSQL *connection, const char * filename, bool history,
+                      bool stream)
 {
 
 	bool result = true;
@@ -1723,7 +1733,7 @@ write_xtrabackup_info(MYSQL *connection, const char * filename, bool history,
 	}
 
 	if (stream) {
-		backup_file_printf(filename, "%s", buf);
+		datasink->backup_file_printf(filename, "%s", buf);
 	} else {
 		fp = fopen(filename, "w");
 		if (!fp) {
@@ -1844,9 +1854,9 @@ static std::string make_local_paths(const char *data_file_path)
 	return buf.str();
 }
 
-bool write_backup_config_file()
+bool write_backup_config_file(ds_ctxt *datasink)
 {
-	int rc= backup_file_printf("backup-my.cnf",
+	int rc= datasink->backup_file_printf("backup-my.cnf",
 		"# This options file was generated by innobackupex.\n\n"
 		"# The server\n"
 		"[mysqld]\n"

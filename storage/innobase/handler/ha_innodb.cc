@@ -1536,6 +1536,7 @@ static void innodb_drop_database(handlerton*, char *path)
     dfield_set_data(&dfield, namebuf, len);
     dict_index_copy_types(&tuple, sys_index, 1);
     std::vector<pfs_os_file_t> to_close;
+    std::vector<uint32_t> space_ids;
     mtr_t mtr;
     mtr.start();
     pcur.btr_cur.page_cur.index = sys_index;
@@ -1579,6 +1580,7 @@ static void innodb_drop_database(handlerton*, char *path)
         ut_ad("corrupted SYS_TABLES.SPACE" == 0);
       else if (uint32_t space_id= mach_read_from_4(s))
       {
+        space_ids.emplace_back(space_id);
         pfs_os_file_t detached= fil_delete_tablespace(space_id);
         if (detached != OS_FILE_CLOSED)
           to_close.emplace_back(detached);
@@ -1588,6 +1590,9 @@ static void innodb_drop_database(handlerton*, char *path)
     mtr.commit();
     for (pfs_os_file_t detached : to_close)
       os_file_close(detached);
+    for (const auto id : space_ids)
+      ibuf_delete_for_discarded_space(id);
+
     /* Any changes must be persisted before we return. */
     log_write_up_to(mtr.commit_lsn(), true);
   }

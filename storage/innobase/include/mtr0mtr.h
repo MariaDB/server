@@ -93,10 +93,16 @@ struct mtr_t {
   ATTRIBUTE_COLD void commit_shrink(fil_space_t &space);
 
   /** Commit a mini-transaction that is deleting or renaming a file.
-  @param space   tablespace that is being renamed or deleted
-  @param name    new file name (nullptr=the file will be deleted)
+  @param space           tablespace that is being renamed or deleted
+  @param name            new file name (nullptr=the file will be deleted)
+  @param detached_handle if detached_handle != nullptr and if space is detached
+                         during the function execution the file handle if its
+                         node will be set to OS_FILE_CLOSED, and the previous
+                         value of the file handle will be assigned to the
+                         address, pointed by detached_handle.
   @return whether the operation succeeded */
-  ATTRIBUTE_COLD bool commit_file(fil_space_t &space, const char *name);
+  ATTRIBUTE_COLD bool commit_file(fil_space_t &space, const char *name,
+      pfs_os_file_t *detached_handle= nullptr);
 
   /** Commit a mini-transaction that did not modify any pages,
   but generated some redo log on a higher level, such as
@@ -335,7 +341,7 @@ public:
   {
     mtr_memo_slot_t &slot= m_memo[savepoint];
     ut_ad(slot.type <= MTR_MEMO_BUF_FIX);
-    ut_ad(type <= MTR_MEMO_BUF_FIX);
+    ut_ad(type < MTR_MEMO_S_LOCK);
     slot.type= type;
   }
 

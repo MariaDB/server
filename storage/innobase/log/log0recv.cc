@@ -775,9 +775,10 @@ retry:
             if (!os_file_status(name->c_str(), &exists, &ftype) || !exists)
               goto processed;
           }
-          create(it, *name, static_cast<uint32_t>
-                 (1U << FSP_FLAGS_FCRC32_POS_MARKER |
-                  FSP_FLAGS_FCRC32_PAGE_SSIZE()), nullptr, 0);
+          if (create(it, *name, static_cast<uint32_t>
+                     (1U << FSP_FLAGS_FCRC32_POS_MARKER |
+                      FSP_FLAGS_FCRC32_PAGE_SSIZE()), nullptr, 0))
+            mysql_mutex_unlock(&fil_system.mutex);
         }
       }
       else
@@ -806,7 +807,7 @@ processed:
   @param flags      FSP_SPACE_FLAGS
   @param crypt_data encryption metadata
   @param size       tablespace size in pages
-  @return tablespace
+  @return tablespace; the caller must release fil_system.mutex
   @retval nullptr   if crypt_data is invalid */
   static fil_space_t *create(const recv_spaces_t::const_iterator &it,
                              const std::string &name, uint32_t flags,
@@ -818,6 +819,7 @@ processed:
       ut_free(crypt_data);
       return nullptr;
     }
+    mysql_mutex_lock(&fil_system.mutex);
     fil_space_t *space= fil_space_t::create(it->first, flags,
                                             FIL_TYPE_TABLESPACE, crypt_data);
     ut_ad(space);
@@ -878,12 +880,13 @@ processed:
         space->free_limit= fsp_header_get_field(page, FSP_FREE_LIMIT);
         space->free_len= flst_get_len(FSP_HEADER_OFFSET + FSP_FREE + page);
         fil_node_t *node= UT_LIST_GET_FIRST(space->chain);
+        mysql_mutex_unlock(&fil_system.mutex);
         if (!space->acquire())
-	{
+        {
 free_space:
           fil_space_free(it->first, false);
           goto next_item;
-	}
+        }
         if (os_file_write(IORequestWrite, node->name, node->handle,
                           page, 0, fil_space_t::physical_size(flags)) !=
             DB_SUCCESS)
@@ -953,6 +956,7 @@ bool recv_sys_t::recover_deferred(recv_sys_t::map::iterator &p,
       space->free_len= flst_get_len(FSP_HEADER_OFFSET + FSP_FREE + page);
       fil_node_t *node= UT_LIST_GET_FIRST(space->chain);
       node->deferred= true;
+      mysql_mutex_unlock(&fil_system.mutex);
       if (!space->acquire())
         goto release_and_fail;
       fil_names_dirty(space);
@@ -976,8 +980,10 @@ bool recv_sys_t::recover_deferred(recv_sys_t::map::iterator &p,
           uint32_t(file_size / fil_space_t::physical_size(flags));
         if (n_pages > size)
         {
+          mysql_mutex_lock(&fil_system.mutex);
           space->size= node->size= n_pages;
           space->set_committed_size();
+          mysql_mutex_unlock(&fil_system.mutex);
           goto size_set;
         }
       }
@@ -3582,7 +3588,7 @@ next_free_block:
           else
           {
             mysql_mutex_unlock(&mutex);
-            os_aio_wait_until_no_pending_reads();
+            os_aio_wait_until_no_pending_reads(false);
             mysql_mutex_lock(&mutex);
             ut_ad(pages.empty());
           }
