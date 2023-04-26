@@ -513,6 +513,12 @@ public:
     int wait_timeout,
     int *need_mon
   );
+
+  /** Set the global lock wait time out */
+  int set_lock_wait_timeout(uint timeout);
+  /** Reset the global lock wait time out */
+  int reset_lock_wait_timeout();
+
   bool set_sql_mode_in_bulk_sql();
   int set_sql_mode(
     sql_mode_t sql_mode,
