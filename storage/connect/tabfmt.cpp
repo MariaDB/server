@@ -62,6 +62,7 @@
 #define  NO_FUNC
 #include "plgcnx.h"                       // For DB types
 #include "resource.h"
+#include "m_string.h"
 
 /***********************************************************************/
 /*  This should be an option.                                          */
@@ -137,7 +138,7 @@ PQRYRES CSVColumns(PGLOBAL g, PCSZ dp, PTOS topt, bool info)
 			              ? strchr(tdp->Entry, '*') || strchr(tdp->Entry, '?')
 			              : GetBooleanTableOption(g, topt, "Mulentries", false);
 #else   // !ZIP_SUPPORT
-		strcpy(g->Message, "ZIP not supported by this version");
+		safe_strcpy(g->Message, sizeof(g->Message), "ZIP not supported by this version");
 		return NULL;
 #endif  // !ZIP_SUPPORT
 	} // endif // Zipped
@@ -145,7 +146,7 @@ PQRYRES CSVColumns(PGLOBAL g, PCSZ dp, PTOS topt, bool info)
 	fn = tdp->Fn = GetStringTableOption(g, topt, "Filename", NULL);
 
 	if (!tdp->Fn) {
-		strcpy(g->Message, MSG(MISSING_FNAME));
+		safe_strcpy(g->Message, sizeof(g->Message), MSG(MISSING_FNAME));
 		return NULL;
 	} // endif Fn
 
@@ -472,7 +473,7 @@ bool CSVDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   if (Catfunc == FNC_NO)
     for (PCOLDEF cdp = To_Cols; cdp; cdp = cdp->GetNext())
       if (cdp->GetOffset() < 1 && !cdp->IsSpecial()) {
-        strcpy(g->Message, MSG(BAD_OFFSET_VAL));
+        safe_strcpy(g->Message, sizeof(g->Message), MSG(BAD_OFFSET_VAL));
         return true;
         } // endif Offset
 
@@ -528,11 +529,11 @@ PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
 			} else if (mode == MODE_INSERT) {
 				txfp = new(g) ZIPFAM(this);
 			} else {
-				strcpy(g->Message, "UPDATE/DELETE not supported for ZIP");
+				safe_strcpy(g->Message, sizeof(g->Message), "UPDATE/DELETE not supported for ZIP");
 				return NULL;
 			}	// endif's mode
 #else   // !ZIP_SUPPORT
-			strcpy(g->Message, "ZIP not supported");
+			safe_strcpy(g->Message, sizeof(g->Message), "ZIP not supported");
 			return NULL;
 #endif  // !ZIP_SUPPORT
 		} else if (map) {
@@ -546,7 +547,7 @@ PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
         txfp = new(g) ZLBFAM(this);
 
 #else   // !GZ_SUPPORT
-        strcpy(g->Message, "Compress not supported");
+        safe_strcpy(g->Message, sizeof(g->Message), "Compress not supported");
         return NULL;
 #endif  // !GZ_SUPPORT
     } else
@@ -878,7 +879,7 @@ bool TDBCSV::SkipHeader(PGLOBAL g)
               if (q)
                 To_Line[strlen(To_Line)] = Qot;
 
-              strcat(To_Line, cdp->GetName());
+              safe_strcat(To_Line, Lrecl, cdp->GetName());
 
               if (q)
                 To_Line[strlen(To_Line)] = Qot;
@@ -1048,14 +1049,16 @@ bool TDBCSV::PrepareWriting(PGLOBAL g)
 
   for (i = 0; i < Fields; i++) {
     if (i)
-      strcat(To_Line, sep);
+      safe_strcat(To_Line, Lrecl, sep);
 
     if (Field[i]) {
       if (!strlen(Field[i])) {
         // Generally null fields are not quoted
-        if (Quoted > 2)
+        if (Quoted > 2) {
           // Except if explicitly required
-          strcat(strcat(To_Line, qot), qot);
+          safe_strcat(To_Line, Lrecl, qot);
+          safe_strcat(To_Line, Lrecl, qot);
+        }
 
       } else if (Qot && (strchr(Field[i], Sep) || *Field[i] == Qot
               || Quoted > 1 || (Quoted == 1 && !Fldtyp[i]))) {
@@ -1074,12 +1077,15 @@ bool TDBCSV::PrepareWriting(PGLOBAL g)
 
           To_Line[k++] = Qot;
           To_Line[k] = '\0';
-        } else
-          strcat(strcat(strcat(To_Line, qot), Field[i]), qot);
+        } else {
+          safe_strcat(To_Line, Lrecl, qot);
+          safe_strcat(To_Line, Lrecl, Field[i]);
+          safe_strcat(To_Line, Lrecl, qot);
+        }
       }
 
       else
-        strcat(To_Line, Field[i]);
+        safe_strcat(To_Line, Lrecl, Field[i]);
     }
   } // endfor i
 
@@ -1156,7 +1162,7 @@ int TDBCSV::CheckWrite(PGLOBAL g)
         } // endif
       }
       if ((nlen += n) > maxlen) {
-        strcpy(g->Message, MSG(LINE_TOO_LONG));
+        safe_strcpy(g->Message, sizeof(g->Message), MSG(LINE_TOO_LONG));
         return -1;
         } // endif nlen
 
@@ -1266,7 +1272,7 @@ bool TDBFMT::OpenDB(PGLOBAL g)
           } // endif n
 
         FldFormat[i] = (PSZ)PlugSubAlloc(g, NULL, n + 5);
-        strcpy(FldFormat[i], pfm);
+        safe_strcpy(FldFormat[i], n + 5, pfm);
 
         if (!strcmp(pfm + n, "%m")) {
           // This is a field that can be missing. Flag it so it can
@@ -1276,7 +1282,7 @@ bool TDBFMT::OpenDB(PGLOBAL g)
         } else if (i+1 < Fields && strcmp(pfm + n, "%n")) {
           // There are trailing characters after the field contents
           // add a marker for the next field start position.
-          strcat(FldFormat[i], "%n");
+          safe_strcat(FldFormat[i], n + 5, "%n");
           FmtTest[i] = 1;
         } // endif's
 

@@ -395,7 +395,6 @@ void trx_rseg_t::reinit(uint32_t page)
   {
     next= UT_LIST_GET_NEXT(undo_list, undo);
     UT_LIST_REMOVE(undo_cached, undo);
-    MONITOR_DEC(MONITOR_NUM_UNDO_SLOT_CACHED);
     ut_free(undo);
   }
 
@@ -404,6 +403,7 @@ void trx_rseg_t::reinit(uint32_t page)
   last_commit_and_offset= 0;
   last_page_no= FIL_NULL;
   curr_size= 1;
+  ref.store(0, std::memory_order_release);
 }
 
 /** Read the undo log lists.
@@ -428,7 +428,6 @@ static dberr_t trx_undo_lists_init(trx_rseg_t *rseg,
       if (is_undo_empty)
         is_undo_empty= !undo->size || undo->state == TRX_UNDO_CACHED;
       rseg->curr_size+= undo->size;
-      MONITOR_INC(MONITOR_NUM_UNDO_SLOT_USED);
     }
   }
 

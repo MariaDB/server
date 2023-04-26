@@ -654,6 +654,25 @@ SELECT a FROM t1 WHERE (a,b) in (SELECT @c,@d);
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-31085: multi-update using view with optimizer trace enabled
+--echo #
+
+SET SESSION optimizer_trace = 'enabled=on';
+
+CREATE TABLE t (a int, b int);
+CREATE VIEW v AS SELECT 1 AS c UNION SELECT 2 AS c;
+INSERT INTO t VALUES (0,4),(5,6);
+UPDATE t, v SET t.b = t.a, t.a = v.c WHERE v.c < t.a;
+SELECT * FROM information_schema.optimizer_trace;
+
+SELECT * FROM t;
+
+SET optimizer_trace=DEFAULT;
+
+DROP VIEW v;
+DROP TABLE t;
+
+--echo #
 --echo # End of 10.4 tests
 --echo #
 

@@ -11548,6 +11548,408 @@ SELECT a FROM t1 WHERE (a,b) in (SELECT @c,@d);
 a
 DROP TABLE t1;
 #
+# MDEV-31085: multi-update using view with optimizer trace enabled
+#
+SET SESSION optimizer_trace = 'enabled=on';
+CREATE TABLE t (a int, b int);
+CREATE VIEW v AS SELECT 1 AS c UNION SELECT 2 AS c;
+INSERT INTO t VALUES (0,4),(5,6);
+UPDATE t, v SET t.b = t.a, t.a = v.c WHERE v.c < t.a;
+SELECT * FROM information_schema.optimizer_trace;
+QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
+UPDATE t, v SET t.b = t.a, t.a = v.c WHERE v.c < t.a	{
+  "steps": [
+    {
+      "view": {
+        "table": "v",
+        "select_id": 2,
+        "algorithm": "materialized"
+      }
+    },
+    {
+      "join_preparation": {
+        "select_id": 2,
+        "steps": [
+          {
+            "expanded_query": "/* select#2 */ select 1 AS c"
+          }
+        ]
+      }
+    },
+    {
+      "join_preparation": {
+        "select_id": 3,
+        "steps": [
+          {
+            "expanded_query": "/* select#3 */ select 2 AS c"
+          }
+        ]
+      }
+    },
+    {
+      "join_preparation": {
+        "select_id": 1,
+        "steps": [
+          {
+            "expanded_query": "/* select#1 */ update t join v set t.b = t.a,t.a = v.c where v.c < t.a"
+          }
+        ]
+      }
+    },
+    {
+      "join_optimization": {
+        "select_id": 1,
+        "steps": [
+          {
+            "condition_processing": {
+              "condition": "WHERE",
+              "original_condition": "v.c < t.a",
+              "steps": [
+                {
+                  "transformation": "equality_propagation",
+                  "resulting_condition": "v.c < t.a"
+                },
+                {
+                  "transformation": "constant_propagation",
+                  "resulting_condition": "v.c < t.a"
+                },
+                {
+                  "transformation": "trivial_condition_removal",
+                  "resulting_condition": "v.c < t.a"
+                }
+              ]
+            }
+          },
+          {
+            "join_optimization": {
+              "select_id": 2,
+              "steps": []
+            }
+          },
+          {
+            "join_optimization": {
+              "select_id": 3,
+              "steps": []
+            }
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "t",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
+              },
+              {
+                "table": "<derived2>",
+                "row_may_be_null": false,
+                "map_bit": 1,
+                "depends_on_map_bits": []
+              }
+            ]
+          },
+          {
+            "ref_optimizer_key_uses": []
+          },
+          {
+            "rows_estimation": [
+              {
+                "table": "t",
+                "table_scan": {
+                  "rows": 2,
+                  "read_cost": 0.01028441,
+                  "read_and_compare_cost": 0.01034841
+                }
+              },
+              {
+                "table": "<derived2>",
+                "table_scan": {
+                  "rows": 2,
+                  "read_cost": 0.012350033,
+                  "read_and_compare_cost": 0.012418701
+                }
+              }
+            ]
+          },
+          {
+            "considered_execution_plans": [
+              {
+                "plan_prefix": "",
+                "get_costs_for_tables": [
+                  {
+                    "best_access_path": {
+                      "table": "t",
+                      "plan_details": {
+                        "record_count": 1
+                      },
+                      "considered_access_paths": [
+                        {
+                          "access_type": "scan",
+                          "rows": 2,
+                          "rows_after_filter": 2,
+                          "rows_out": 2,
+                          "cost": 0.01034841,
+                          "index_only": false,
+                          "chosen": true
+                        }
+                      ],
+                      "chosen_access_method": {
+                        "type": "scan",
+                        "rows_read": 2,
+                        "rows_out": 2,
+                        "cost": 0.01034841,
+                        "uses_join_buffering": false
+                      }
+                    }
+                  },
+                  {
+                    "best_access_path": {
+                      "table": "<derived2>",
+                      "plan_details": {
+                        "record_count": 1
+                      },
+                      "considered_access_paths": [
+                        {
+                          "access_type": "scan",
+                          "rows": 2,
+                          "rows_after_filter": 2,
+                          "rows_out": 2,
+                          "cost": 0.012418701,
+                          "index_only": false,
+                          "chosen": true
+                        }
+                      ],
+                      "chosen_access_method": {
+                        "type": "scan",
+                        "rows_read": 2,
+                        "rows_out": 2,
+                        "cost": 0.012418701,
+                        "uses_join_buffering": false
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "plan_prefix": "",
+                "table": "t",
+                "rows_for_plan": 2,
+                "cost_for_plan": 0.01034841,
+                "rest_of_plan": [
+                  {
+                    "plan_prefix": "t",
+                    "get_costs_for_tables": [
+                      {
+                        "best_access_path": {
+                          "table": "<derived2>",
+                          "plan_details": {
+                            "record_count": 2
+                          },
+                          "considered_access_paths": [
+                            {
+                              "access_type": "scan_with_join_cache",
+                              "rows": 2,
+                              "rows_after_filter": 2,
+                              "rows_out": 2,
+                              "cost": 0.012911897,
+                              "index_only": false,
+                              "chosen": true
+                            }
+                          ],
+                          "chosen_access_method": {
+                            "type": "scan",
+                            "rows_read": 2,
+                            "rows_out": 2,
+                            "cost": 0.012911897,
+                            "uses_join_buffering": true
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "plan_prefix": "t",
+                    "table": "<derived2>",
+                    "rows_for_plan": 4,
+                    "cost_for_plan": 0.023260307
+                  }
+                ]
+              },
+              {
+                "plan_prefix": "",
+                "table": "<derived2>",
+                "rows_for_plan": 2,
+                "cost_for_plan": 0.012418701,
+                "pruned_by_heuristic": true
+              }
+            ]
+          },
+          {
+            "best_join_order": ["t", "<derived2>"],
+            "rows": 4,
+            "cost": 0.023260307
+          },
+          {
+            "substitute_best_equal": {
+              "condition": "WHERE",
+              "resulting_condition": "v.c < t.a"
+            }
+          },
+          {
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "t",
+                  "attached_condition": null
+                },
+                {
+                  "table": "<derived2>",
+                  "attached_condition": "v.c < t.a"
+                }
+              ]
+            }
+          },
+          {
+            "make_join_readinfo": []
+          }
+        ]
+      }
+    },
+    {
+      "join_execution": {
+        "select_id": 1,
+        "steps": [
+          {
+            "join_execution": {
+              "select_id": 2,
+              "steps": []
+            }
+          },
+          {
+            "join_execution": {
+              "select_id": 3,
+              "steps": []
+            }
+          },
+          {
+            "join_preparation": {
+              "select_id": "fake",
+              "steps": [
+                {
+                  "expanded_query": "select c AS c from dual"
+                }
+              ]
+            }
+          },
+          {
+            "join_optimization": {
+              "select_id": "fake",
+              "steps": [
+                {
+                  "table_dependencies": [
+                    {
+                      "table": "union",
+                      "row_may_be_null": false,
+                      "map_bit": 0,
+                      "depends_on_map_bits": []
+                    }
+                  ]
+                },
+                {
+                  "rows_estimation": [
+                    {
+                      "table": "union",
+                      "table_scan": {
+                        "rows": 2,
+                        "read_cost": 0.010020701,
+                        "read_and_compare_cost": 0.010084701
+                      }
+                    }
+                  ]
+                },
+                {
+                  "considered_execution_plans": [
+                    {
+                      "plan_prefix": "",
+                      "get_costs_for_tables": [
+                        {
+                          "best_access_path": {
+                            "table": "union",
+                            "plan_details": {
+                              "record_count": 1
+                            },
+                            "considered_access_paths": [
+                              {
+                                "access_type": "scan",
+                                "rows": 2,
+                                "rows_after_filter": 2,
+                                "rows_out": 2,
+                                "cost": 0.010084701,
+                                "index_only": false,
+                                "chosen": true
+                              }
+                            ],
+                            "chosen_access_method": {
+                              "type": "scan",
+                              "rows_read": 2,
+                              "rows_out": 2,
+                              "cost": 0.010084701,
+                              "uses_join_buffering": false
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "plan_prefix": "",
+                      "table": "union",
+                      "rows_for_plan": 2,
+                      "cost_for_plan": 0.010084701
+                    }
+                  ]
+                },
+                {
+                  "best_join_order": ["union"],
+                  "rows": 2,
+                  "cost": 0.010084701
+                },
+                {
+                  "attaching_conditions_to_tables": {
+                    "attached_conditions_computation": [],
+                    "attached_conditions_summary": [
+                      {
+                        "table": "union",
+                        "attached_condition": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "make_join_readinfo": []
+                }
+              ]
+            }
+          },
+          {
+            "join_execution": {
+              "select_id": "fake",
+              "steps": []
+            }
+          }
+        ]
+      }
+    }
+  ]
+}	0	0
+SELECT * FROM t;
+a	b
+0	4
+1	5
+SET optimizer_trace=DEFAULT;
+DROP VIEW v;
+DROP TABLE t;
+#
 # End of 10.4 tests
 #
 set optimizer_trace='enabled=on';

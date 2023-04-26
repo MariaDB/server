@@ -455,15 +455,15 @@ got_block:
 		mysql_mutex_unlock(&buf_pool.mutex);
 		mysql_mutex_lock(&buf_pool.flush_list_mutex);
 		const auto n_flush = buf_pool.n_flush();
+		if (!buf_pool.try_LRU_scan) {
+			buf_pool.page_cleaner_wakeup(true);
+		}
 		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 		mysql_mutex_lock(&buf_pool.mutex);
 		if (!n_flush) {
 			goto not_found;
 		}
 		if (!buf_pool.try_LRU_scan) {
-			mysql_mutex_lock(&buf_pool.flush_list_mutex);
-			buf_pool.page_cleaner_wakeup(true);
-			mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 			my_cond_wait(&buf_pool.done_free,
 				     &buf_pool.mutex.m_mutex);
 		}

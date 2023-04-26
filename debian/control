@@ -932,6 +932,7 @@ Depends: libxml2,
          unixodbc,
          ${misc:Depends},
          ${shlibs:Depends}
+Recommends: curl
 Breaks: mariadb-connect-engine-10.0,
         mariadb-connect-engine-10.1,
         mariadb-connect-engine-10.2,

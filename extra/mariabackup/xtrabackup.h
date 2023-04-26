@@ -49,10 +49,12 @@ public:
   bool contains(page_id_t page_id) const;
   void drop_space(uint32_t space_id);
   void rename_space(uint32_t space_id, const std::string &new_name);
-  bool print_to_file(const char *file_name) const;
+  bool print_to_file(ds_ctxt *ds_data, const char *file_name) const;
   void read_from_file(const char *file_name);
   bool empty() const;
   void zero_out_free_pages();
+
+  void backup_fix_ddl(ds_ctxt *ds_data, ds_ctxt *ds_meta);
 
 private:
   void add_page_no_lock(const char *space_name, page_id_t page_id,
@@ -66,6 +68,7 @@ private:
   container_t m_spaces;
 };
 
+
 /* value of the --incremental option */
 extern lsn_t incremental_lsn;
 
@@ -74,13 +77,12 @@ extern char		*xtrabackup_incremental_dir;
 extern char		*xtrabackup_incremental_basedir;
 extern char		*innobase_data_home_dir;
 extern char		*innobase_buffer_pool_filename;
+extern char		*aria_log_dir_path;
 extern char		*xb_plugin_dir;
 extern char		*xb_rocksdb_datadir;
 extern my_bool	xb_backup_rocksdb;
 
 extern uint		opt_protocol;
-extern ds_ctxt_t	*ds_meta;
-extern ds_ctxt_t	*ds_data;
 
 extern xb_page_bitmap *changed_page_bitmap;
 
@@ -177,7 +179,8 @@ extern ulong opt_binlog_info;
 extern ulong xtrabackup_innodb_force_recovery;
 
 void xtrabackup_io_throttling(void);
-my_bool xb_write_delta_metadata(const char *filename,
+my_bool xb_write_delta_metadata(ds_ctxt *ds_meta,
+                                const char *filename,
 				const xb_delta_info_t *info);
 
 /************************************************************************

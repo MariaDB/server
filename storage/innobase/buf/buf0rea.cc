@@ -691,7 +691,7 @@ void buf_read_recv_pages(uint32_t space_id, st_::span<uint32_t> page_nos)
 		}
 
 		if (os_aio_pending_reads() >= limit) {
-			os_aio_wait_until_no_pending_reads();
+			os_aio_wait_until_no_pending_reads(false);
 		}
 
 		buf_pool_t::hash_chain& chain =

@@ -758,11 +758,6 @@ error:
 						row_field, field, col->len,
 						old_table->space->zip_size(),
 						conv_heap);
-				} else {
-					/* Field length mismatch should not
-					happen when rebuilding redundant row
-					format table. */
-					ut_ad(index->table->not_redundant());
 				}
 			}
 		}

@@ -711,7 +711,6 @@ struct charset_info_st my_charset_cp1250_czech_cs =
   tab_cp1250_uni,		/* tab_to_uni   */
   idx_uni_cp1250,		/* tab_from_uni */
   NULL,                         /* casefold     */
-  &my_unicase_default,          /* caseinfo     */
   NULL,				/* state_map    */
   NULL,				/* ident_map    */
   2,				/* strxfrm_multiply */

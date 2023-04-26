@@ -68,6 +68,7 @@ before transaction commit and must be rolled back explicitly are as follows:
 
 #include "dict0defrag_bg.h"
 #include "btr0defragment.h"
+#include "ibuf0ibuf.h"
 #include "lock0lock.h"
 
 #include "que0que.h"

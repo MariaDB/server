@@ -146,8 +146,9 @@ restart:
 
 		pfs_os_file_t d = OS_FILE_CLOSED;
 
-		if (const uint32_t space_id = dict_drop_index_tree(
-			    &node->pcur, node->trx, &mtr)) {
+		const uint32_t space_id = dict_drop_index_tree(
+			&node->pcur, node->trx, &mtr);
+		if (space_id) {
 			if (table) {
 				lock_release_on_rollback(node->trx,
 							 table);
