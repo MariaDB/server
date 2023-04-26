@@ -21766,14 +21766,17 @@ bool open_tmp_table(TABLE *table)
   SYNOPSIS
     create_internal_tmp_table()
       table           Table object that descrimes the table to be created
-      keyinfo         Description of the index (there is always one index)
+      keyinfo         Description of the index(es)
       start_recinfo   engine's column descriptions
       recinfo INOUT   End of engine's column descriptions
       options         Option bits
    
   DESCRIPTION
-    Create an internal emporary table according to passed description. The is
-    assumed to have one unique index or constraint.
+    Create an internal temporary table according to passed description. The
+    table may have indexes:
+    - a unique index or constraint used to handle GROUP BY or DISTINCT, or
+    - a non-unique index created by derived_with_keys optimization
+    - or, starting from 11.0: both of the above.
 
     The passed array or TMP_ENGINE_COLUMNDEF structures must have this form:
 
@@ -21791,20 +21794,35 @@ bool open_tmp_table(TABLE *table)
 */
 
 
-bool create_internal_tmp_table(TABLE *table, KEY *keyinfo, 
+bool create_internal_tmp_table(TABLE *table, KEY *all_key_info,
                                TMP_ENGINE_COLUMNDEF *start_recinfo,
                                TMP_ENGINE_COLUMNDEF **recinfo, 
                                ulonglong options)
 {
   int error;
-  MARIA_KEYDEF keydef;
+  MARIA_KEYDEF *keydef= nullptr;
   MARIA_UNIQUEDEF uniquedef;
   TABLE_SHARE *share= table->s;
   MARIA_CREATE_INFO create_info;
+  uint keyno;
   DBUG_ENTER("create_internal_tmp_table");
 
+  // Save the value of share->keys as it might be decremented when converting a
+  // key to a unique constraint.
+  uint original_keys= share->keys;
+
   if (share->keys)
-  {						// Get keys for ni_create
+  {
+    if (!(keydef= (MARIA_KEYDEF*) alloc_root(&table->mem_root,
+                                       sizeof(*keydef) * share->keys)))
+      goto err;
+    bzero(keydef, sizeof(*keydef) * share->keys);
+  }
+
+  for (keyno= 0; keyno < original_keys; keyno++)
+  {
+    KEY *keyinfo= all_key_info + keyno;
+
     bool using_unique_constraint=0;
     HA_KEYSEG *seg= (HA_KEYSEG*) alloc_root(&table->mem_root,
                                             sizeof(*seg) * keyinfo->user_defined_key_parts);
@@ -21830,9 +21848,10 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
       }
 
       /* Can't create a key; Make a unique constraint instead of a key */
-      share->keys=    0;
-      share->key_parts= share->ext_key_parts= 0;
-      share->uniques= 1;
+      share->keys--;
+      share->key_parts -= keyinfo->user_defined_key_parts;
+      share->ext_key_parts -= keyinfo->user_defined_key_parts;
+      share->uniques=1;
       using_unique_constraint=1;
       bzero((char*) &uniquedef,sizeof(uniquedef));
       uniquedef.keysegs=keyinfo->user_defined_key_parts;
@@ -21853,10 +21872,9 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
     else
     {
       /* Create a key */
-      bzero((char*) &keydef,sizeof(keydef));
-      keydef.flag= keyinfo->flags & HA_NOSAME;
-      keydef.keysegs=  keyinfo->user_defined_key_parts;
-      keydef.seg= seg;
+      keydef[keyno].flag= keyinfo->flags & HA_NOSAME;
+      keydef[keyno].keysegs=  keyinfo->user_defined_key_parts;
+      keydef[keyno].seg= seg;
     }
     for (uint i=0; i < keyinfo->user_defined_key_parts ; i++,seg++)
     {
@@ -21893,11 +21911,11 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
 	  on INSERT be regarded at the same value
 	*/
 	if (!using_unique_constraint)
-	  keydef.flag|= HA_NULL_ARE_EQUAL;
+	  keydef[keyno].flag|= HA_NULL_ARE_EQUAL;
       }
     }
     if (share->keys)
-      keyinfo->index_flags= table->file->index_flags(0, 0, 1);
+      keyinfo->index_flags= table->file->index_flags(keyno, 0, 1);
   }
   bzero((char*) &create_info,sizeof(create_info));
   create_info.data_file_length= table->in_use->variables.tmp_disk_table_size;
@@ -21943,7 +21961,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
     }
 
     if (unlikely((error= maria_create(share->path.str, file_type, share->keys,
-                                      &keydef, (uint) (*recinfo-start_recinfo),
+                                      keydef, (uint) (*recinfo-start_recinfo),
                                       start_recinfo, share->uniques, &uniquedef,
                                       &create_info, create_flags))))
     {
