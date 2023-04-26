@@ -79,7 +79,6 @@ extern "C" {
 typedef const struct my_charset_handler_st MY_CHARSET_HANDLER;
 typedef const struct my_collation_handler_st MY_COLLATION_HANDLER;
 
-typedef const struct unicase_info_st MY_UNICASE_INFO;
 typedef const struct casefold_info_st MY_CASEFOLD_INFO;
 typedef const struct uni_ctype_st MY_UNI_CTYPE;
 typedef const struct my_uni_idx_st MY_UNI_IDX;
@@ -97,28 +96,9 @@ struct casefold_info_st
 {
   my_wc_t maxchar;
   const MY_CASEFOLD_CHARACTER * const *page;
+  const uint16 * const *simple_weight; /* For general_ci-alike collations */
 };
 
-
-typedef struct unicase_info_char_st
-{
-  uint32 toupper;
-  uint32 tolower;
-  uint32 sort;
-} MY_UNICASE_CHARACTER;
-
-
-struct unicase_info_st
-{
-  my_wc_t maxchar;
-  MY_UNICASE_CHARACTER **page;
-};
-
-
-extern MY_UNICASE_INFO my_unicase_default;
-extern MY_UNICASE_INFO my_unicase_turkish;
-extern MY_UNICASE_INFO my_unicase_mysql500;
-extern MY_UNICASE_INFO my_unicase_unicode520;
 
 #define MY_UCA_MAX_CONTRACTION 6
 /*
@@ -795,7 +775,6 @@ struct charset_info_st
   const uint16 *tab_to_uni;
   MY_UNI_IDX  *tab_from_uni;
   MY_CASEFOLD_INFO *casefold;
-  MY_UNICASE_INFO *caseinfo;
   const uchar  *state_map;
   const uchar  *ident_map;
   uint      strxfrm_multiply;
@@ -1691,7 +1670,7 @@ int my_wildcmp_unicode(CHARSET_INFO *cs,
                        const char *str, const char *str_end,
                        const char *wildstr, const char *wildend,
                        int escape, int w_one, int w_many,
-                       MY_UNICASE_INFO *weights);
+                       MY_CASEFOLD_INFO *weights);
 
 extern my_bool my_parse_charset_xml(MY_CHARSET_LOADER *loader,
                                     const char *buf, size_t buflen);

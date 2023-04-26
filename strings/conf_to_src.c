@@ -409,7 +409,6 @@ void dispcset(FILE *f,CHARSET_INFO *cs)
 
   fprintf(f,"  NULL,                       /* from_uni      */\n");
   fprintf(f,"  NULL,                       /* casefold      */\n");
-  fprintf(f,"  &my_unicase_default,        /* caseinfo      */\n");
   fprintf(f,"  NULL,                       /* state map     */\n");
   fprintf(f,"  NULL,                       /* ident map     */\n");
   fprintf(f,"  1,                          /* strxfrm_multiply*/\n");
