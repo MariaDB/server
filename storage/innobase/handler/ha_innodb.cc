@@ -18736,29 +18736,9 @@ static void wsrep_abort_transaction(handlerton *, THD *bf_thd, THD *victim_thd,
   mysql_mutex_lock(&lock_sys.wait_mutex);
   victim_trx->mutex_lock();
 
-#ifdef ENABLED_DEBUG_SYNC
-  if (victim_trx->state == TRX_STATE_NOT_STARTED)
-  {
-    DBUG_EXECUTE_IF("sync.wsrep_abort_transaction_read_only", {
-      const char act[]=
-          "now "
-          "SIGNAL sync.wsrep_abort_transaction_read_only_reached "
-          "WAIT_FOR signal.wsrep_abort_transaction_read_only";
-      DBUG_ASSERT(!debug_sync_set_action(bf_thd, STRING_WITH_LEN(act)));
-    };);
-  }
-#endif /* ENABLED_DEBUG_SYNC */
-
   if (victim_trx->state == TRX_STATE_ACTIVE ||
       victim_trx->state == TRX_STATE_PREPARED)
   {
-    DEBUG_SYNC(bf_thd, "before_wsrep_thd_abort");
-    DBUG_EXECUTE_IF("sync.before_wsrep_thd_abort", {
-      const char act[]= "now "
-                        "SIGNAL sync.before_wsrep_thd_abort_reached "
-                        "WAIT_FOR signal.before_wsrep_thd_abort";
-      DBUG_ASSERT(!debug_sync_set_action(bf_thd, STRING_WITH_LEN(act)));
-    };);
     /* Cancel lock wait if the victim is waiting for a lock in InnoDB.
        The transaction which is blocked somewhere else (e.g. waiting
        for next command or MDL) has been interrupted by THD::awake_no_mutex()
