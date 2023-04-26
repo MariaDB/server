@@ -1210,7 +1210,7 @@ row_import::match_table_columns(
 		ulint		cfg_col_index;
 
 		col_name = dict_table_get_col_name(
-			m_table, dict_col_get_no(col));
+			m_table, dict_col_get_no(col)).str;
 
 		cfg_col_index = find_col(col_name);
 

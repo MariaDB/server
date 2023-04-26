@@ -462,8 +462,8 @@ bool THD::sp_eval_expr(Field *result_field, Item **expr_item_ptr)
 */
 
 sp_name::sp_name(const MDL_key *key, char *qname_buff)
- :Database_qualified_name(key->db_name(), key->db_name_length(),
-                          key->name(),  key->name_length()),
+ :Database_qualified_name(Lex_ident_db(key->db_name(), key->db_name_length()),
+                          Lex_cstring(key->name(),  key->name_length())),
   m_explicit_name(false)
 {
   if (m_db.length)
@@ -487,17 +487,16 @@ sp_name::sp_name(const MDL_key *key, char *qname_buff)
 */
 
 bool
-check_routine_name(const LEX_CSTRING *ident)
+Lex_ident_routine::check_name_with_error(const LEX_CSTRING &ident)
 {
-  DBUG_ASSERT(ident);
-  DBUG_ASSERT(ident->str);
+  DBUG_ASSERT(ident.str);
 
-  if (!ident->str[0] || ident->str[ident->length-1] == ' ')
+  if (!ident.str[0] || ident.str[ident.length-1] == ' ')
   {
-    my_error(ER_SP_WRONG_NAME, MYF(0), ident->str);
+    my_error(ER_SP_WRONG_NAME, MYF(0), ident.str);
     return TRUE;
   }
-  if (check_ident_length(ident))
+  if (check_ident_length(&ident))
     return TRUE;
 
   return FALSE;
@@ -548,7 +547,6 @@ void sp_head::destroy(sp_head *sp)
 sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
                  const Sp_handler *sph, enum_sp_aggregate_type agg_type)
   :Query_arena(NULL, STMT_INITIALIZED_FOR_SP),
-   Database_qualified_name(&null_clex_str, &null_clex_str),
    main_mem_root(*mem_root_arg),
 #ifdef PROTECT_STATEMENT_MEMROOT
    executed_counter(0),
@@ -602,9 +600,11 @@ sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
   m_lex.empty();
   my_init_dynamic_array(key_memory_sp_head_main_root, &m_instr,
                         sizeof(sp_instr *), 16, 8, MYF(0));
-  my_hash_init(key_memory_sp_head_main_root, &m_sptabs, system_charset_info, 0,
-               0, 0, sp_table_key, 0, 0);
-  my_hash_init(key_memory_sp_head_main_root, &m_sroutines, system_charset_info,
+  my_hash_init(key_memory_sp_head_main_root, &m_sptabs,
+               Lex_ident_routine::charset_info(),
+               0, 0, 0, sp_table_key, 0, 0);
+  my_hash_init(key_memory_sp_head_main_root, &m_sroutines,
+               Lex_ident_routine::charset_info(),
                0, 0, 0, sp_sroutine_key, 0, 0);
 
   DBUG_VOID_RETURN;
@@ -697,8 +697,7 @@ bool sp_package::validate_public_routines(THD *thd, sp_package *spec)
     for (LEX *lex2; (lex2= it2++); )
     {
       DBUG_ASSERT(lex2->sphead);
-      if (Sp_handler::eq_routine_name(lex2->sphead->m_name,
-                                      lex->sphead->m_name) &&
+      if (Lex_ident_routine(lex2->sphead->m_name).streq(lex->sphead->m_name) &&
           lex2->sphead->eq_routine_spec(lex->sphead))
       {
         found= true;
@@ -732,8 +731,7 @@ bool sp_package::validate_private_routines(THD *thd)
     for (LEX *lex2; (lex2= it2++); )
     {
       DBUG_ASSERT(lex2->sphead);
-      if (Sp_handler::eq_routine_name(lex2->sphead->m_name,
-                                      lex->sphead->m_name) &&
+      if (Lex_ident_routine(lex2->sphead->m_name).streq(lex->sphead->m_name) &&
           lex2->sphead->eq_routine_spec(lex->sphead))
       {
         found= true;
@@ -764,10 +762,10 @@ LEX *sp_package::LexList::find(const LEX_CSTRING &name,
         (dot= strrchr(lex->sphead->m_name.str, '.')))
     {
       size_t ofs= dot + 1 - lex->sphead->m_name.str;
-      LEX_CSTRING non_qualified_sphead_name= lex->sphead->m_name;
+      Lex_ident_routine non_qualified_sphead_name(lex->sphead->m_name);
       non_qualified_sphead_name.str+= ofs;
       non_qualified_sphead_name.length-= ofs;
-      if (Sp_handler::eq_routine_name(non_qualified_sphead_name, name))
+      if (non_qualified_sphead_name.streq(name))
         return lex;
     }
   }
@@ -783,7 +781,7 @@ LEX *sp_package::LexList::find_qualified(const LEX_CSTRING &name,
   {
     DBUG_ASSERT(lex->sphead);
     if (lex->sphead->m_handler->type() == type &&
-        Sp_handler::eq_routine_name(lex->sphead->m_name, name))
+        Lex_ident_routine(lex->sphead->m_name).streq(name))
       return lex;
   }
   return NULL;
@@ -2659,7 +2657,7 @@ sp_head::backpatch_goto(THD *thd, sp_label *lab,sp_label *lab_begin_block)
       */
       continue;
     }
-    if (lex_string_cmp(system_charset_info, &bp->lab->name, &lab->name) == 0)
+    if (bp->lab->name.streq(lab->name))
     {
       if (bp->instr_type == GOTO)
       {
@@ -3997,7 +3995,7 @@ bool sp_head::check_group_aggregate_instructions_function() const
 
 bool sp_head::check_package_routine_end_name(const LEX_CSTRING &end_name) const
 {
-  LEX_CSTRING non_qualified_name= m_name;
+  Lex_ident_routine non_qualified_name(m_name);
   const char *errpos;
   size_t ofs;
   if (!end_name.length)
@@ -4011,7 +4009,7 @@ bool sp_head::check_package_routine_end_name(const LEX_CSTRING &end_name) const
   ofs= errpos - m_name.str;
   non_qualified_name.str+= ofs;
   non_qualified_name.length-= ofs;
-  if (Sp_handler::eq_routine_name(end_name, non_qualified_name))
+  if (non_qualified_name.streq(end_name))
     return false;
 err:
   my_error(ER_END_IDENTIFIER_DOES_NOT_MATCH, MYF(0), end_name.str, errpos);
@@ -4022,7 +4020,7 @@ err:
 bool
 sp_head::check_standalone_routine_end_name(const sp_name *end_name) const
 {
-  if (end_name && !end_name->eq(this))
+  if (end_name && !end_name->eq_routine_name(this))
   {
     my_error(ER_END_IDENTIFIER_DOES_NOT_MATCH, MYF(0),
              ErrConvDQName(end_name).ptr(), ErrConvDQName(this).ptr());

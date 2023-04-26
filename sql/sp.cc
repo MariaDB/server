@@ -2212,7 +2212,7 @@ Sp_handler::sp_find_package_routine(THD *thd,
                                     bool cache_only) const
 {
   DBUG_ENTER("sp_find_package_routine");
-  Database_qualified_name pkgname(&name->m_db, &pkgname_str);
+  Database_qualified_name pkgname(name->m_db, pkgname_str);
   sp_head *ph= sp_cache_lookup(&thd->sp_package_body_cache, &pkgname);
   if (!ph && !cache_only)
     sp_handler_package_body.db_find_and_cache_routine(thd, &pkgname, &ph);
@@ -2289,7 +2289,7 @@ Sp_handler::sp_exist_routines(THD *thd, TABLE_LIST *routines) const
     if (!lex_name.str)
       DBUG_RETURN(TRUE); // EOM, error was already sent
     /*
-      routine->db was earlier tested with check_db_name().
+      routine->db was earlier tested with Lex_ident_db::check_name().
       Now it's lower-cased according to lower_case_table_names.
       It's safe to make a Lex_ident_db_normalized.
     */
@@ -2355,7 +2355,8 @@ bool sp_add_used_routine(Query_tables_list *prelocking_ctx, Query_arena *arena,
                          const Sp_handler *handler,
                          TABLE_LIST *belong_to_view)
 {
-  my_hash_init_opt(PSI_INSTRUMENT_ME, &prelocking_ctx->sroutines, system_charset_info,
+  my_hash_init_opt(PSI_INSTRUMENT_ME, &prelocking_ctx->sroutines,
+                   Lex_ident_routine::charset_info(),
                    Query_tables_list::START_SROUTINES_HASH_SIZE,
                    0, 0, sp_sroutine_key, 0, 0);
 
@@ -2432,7 +2433,7 @@ Sp_handler::sp_cache_routine_reentrant(THD *thd,
 
 static bool
 is_package_public_routine(THD *thd,
-                          const LEX_CSTRING &db,
+                          const Lex_ident_db &db,
                           const LEX_CSTRING &package,
                           const LEX_CSTRING &routine,
                           enum_sp_type type)
@@ -2466,7 +2467,7 @@ is_package_public_routine(THD *thd,
 
 static bool
 is_package_public_routine_quick(THD *thd,
-                                const LEX_CSTRING &db,
+                                const Lex_ident_db &db,
                                 const LEX_CSTRING &pkgname,
                                 const LEX_CSTRING &name,
                                 enum_sp_type type)
@@ -2490,7 +2491,7 @@ is_package_body_routine(THD *thd, sp_package *pkg,
                         const LEX_CSTRING &name2,
                         enum_sp_type type)
 {
-  return Sp_handler::eq_routine_name(pkg->m_name, name1) &&
+  return Lex_ident_routine(pkg->m_name).streq(name1) &&
          (pkg->m_routine_declarations.find(name2, type) ||
           pkg->m_routine_implementations.find(name2, type));
 }
@@ -2517,7 +2518,7 @@ bool Sp_handler::
     Rewrite name if name->m_db (xxx) is a known package,
     and name->m_name (yyy) is a known routine in this package.
   */
-  LEX_CSTRING tmpdb= thd->db;
+  const Lex_ident_db tmpdb= Lex_ident_db(thd->db);
   if (is_package_public_routine(thd, tmpdb, name->m_db, name->m_name, type()) ||
       // Check if a package routine calls a private routine
       (caller && caller->m_parent &&
@@ -2528,7 +2529,7 @@ bool Sp_handler::
        is_package_body_routine(thd, pkg, name->m_db, name->m_name, type())))
   {
     pkgname->m_db= tmpdb;
-    pkgname->m_name= name->m_db;
+    pkgname->m_name= Lex_ident_routine(name->m_db);
     *pkg_routine_handler= package_routine_handler();
     return name->make_package_routine_name(thd->mem_root, tmpdb,
                                            name->m_db, name->m_name);
@@ -2584,7 +2585,7 @@ bool Sp_handler::
       - yyy() has a forward declaration
       - yyy() is declared in the corresponding CREATE PACKAGE
     */
-    if (eq_routine_name(tmpname, name->m_name) ||
+    if (Lex_ident_routine(name->m_name).streq(tmpname) ||
         caller->m_parent->m_routine_implementations.find(name->m_name, type()) ||
         caller->m_parent->m_routine_declarations.find(name->m_name, type()) ||
         is_package_public_routine_quick(thd, caller->m_db,
@@ -2923,12 +2924,13 @@ Sp_handler::sp_cache_package_routine(THD *thd,
 {
   DBUG_ENTER("sp_cache_package_routine");
   DBUG_ASSERT(type() == SP_TYPE_FUNCTION || type() == SP_TYPE_PROCEDURE);
-  LEX_CSTRING db= lower_case_table_names ? thd->make_ident_casedn(name->m_db) :
-                                           name->m_db;
+  const Lex_ident_db db= lower_case_table_names ?
+                         thd->lex_ident_casedn(name->m_db) :
+                         name->m_db;
   if (!db.str)
     DBUG_RETURN(true); // EOM, error was already sent
   /*
-    name->m_db was earlier tested with check_db_name().
+    name->m_db was earlier tested with Lex_ident_db::check_name().
     Now it's lower-cased according to lower_case_table_names.
     It's safe to make a Lex_ident_db_normalized.
   */
@@ -3100,13 +3102,13 @@ Sp_handler::sp_load_for_information_schema(THD *thd, TABLE *proc_table,
   LEX_CSTRING dbn= lower_case_table_names ? thd->make_ident_casedn(db) : db;
   if (!dbn.str)
     return 0; // EOM, error was already sent
-  if (Lex_ident_fs(dbn).check_db_name())
+  if (Lex_ident_db::check_name(dbn))
   {
     my_error(ER_SP_WRONG_NAME, MYF(0), dbn.str);
     return 0;
   }
   /*
-    db was earlier tested with check_db_name().
+    db was earlier tested with Lex_ident_db::check_name().
     Now it's lower-cased according to lower_case_table_names.
     It's safe make a Lex_ident_db_normalized.
   */

@@ -178,7 +178,7 @@ dict_stats_should_ignore_index(
 struct dict_col_meta_t
 {
   /** column name */
-  const char *name;
+  const LEX_CSTRING name;
   /** main type */
   unsigned mtype;
   /** prtype mask; all these bits have to be set in prtype */
@@ -204,8 +204,8 @@ static const dict_table_schema_t table_stats_schema =
 {
   {C_STRING_WITH_LEN(TABLE_STATS_NAME)}, TABLE_STATS_NAME_PRINT, 6,
   {
-    {"database_name", DATA_VARMYSQL, DATA_NOT_NULL, 192},
-    {"table_name", DATA_VARMYSQL, DATA_NOT_NULL, 597},
+    {"database_name"_LEX_CSTRING, DATA_VARMYSQL, DATA_NOT_NULL, 192},
+    {"table_name"_LEX_CSTRING, DATA_VARMYSQL, DATA_NOT_NULL, 597},
     /*
       Don't check the DATA_UNSIGNED flag in last_update.
       It presents if the server is running in a pure MariaDB installation,
@@ -216,10 +216,12 @@ static const dict_table_schema_t table_stats_schema =
       This is fine not to check DATA_UNSIGNED, because Field_timestampf
       in both MariaDB and MySQL support only non-negative time_t values.
     */
-    {"last_update", DATA_INT, DATA_NOT_NULL, 4},
-    {"n_rows", DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 8},
-    {"clustered_index_size", DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 8},
-    {"sum_of_other_index_sizes", DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 8},
+    {"last_update"_LEX_CSTRING, DATA_INT, DATA_NOT_NULL, 4},
+    {"n_rows"_LEX_CSTRING, DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 8},
+    {"clustered_index_size"_LEX_CSTRING, DATA_INT,
+                                         DATA_NOT_NULL | DATA_UNSIGNED, 8},
+    {"sum_of_other_index_sizes"_LEX_CSTRING, DATA_INT,
+                                         DATA_NOT_NULL | DATA_UNSIGNED, 8},
   }
 };
 
@@ -227,18 +229,18 @@ static const dict_table_schema_t index_stats_schema =
 {
   {C_STRING_WITH_LEN(INDEX_STATS_NAME)}, INDEX_STATS_NAME_PRINT, 8,
   {
-    {"database_name", DATA_VARMYSQL, DATA_NOT_NULL, 192},
-    {"table_name", DATA_VARMYSQL, DATA_NOT_NULL, 597},
-    {"index_name", DATA_VARMYSQL, DATA_NOT_NULL, 192},
+    {"database_name"_LEX_CSTRING, DATA_VARMYSQL, DATA_NOT_NULL, 192},
+    {"table_name"_LEX_CSTRING, DATA_VARMYSQL, DATA_NOT_NULL, 597},
+    {"index_name"_LEX_CSTRING, DATA_VARMYSQL, DATA_NOT_NULL, 192},
     /*
       Don't check the DATA_UNSIGNED flag in last_update.
       See comments about last_update in table_stats_schema above.
     */
-    {"last_update", DATA_INT, DATA_NOT_NULL, 4},
-    {"stat_name", DATA_VARMYSQL, DATA_NOT_NULL, 64*3},
-    {"stat_value", DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 8},
-    {"sample_size", DATA_INT, DATA_UNSIGNED, 8},
-    {"stat_description", DATA_VARMYSQL, DATA_NOT_NULL, 1024*3}
+    {"last_update"_LEX_CSTRING, DATA_INT, DATA_NOT_NULL, 4},
+    {"stat_name"_LEX_CSTRING, DATA_VARMYSQL, DATA_NOT_NULL, 64*3},
+    {"stat_value"_LEX_CSTRING, DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 8},
+    {"sample_size"_LEX_CSTRING, DATA_INT, DATA_UNSIGNED, 8},
+    {"stat_description"_LEX_CSTRING, DATA_VARMYSQL, DATA_NOT_NULL, 1024*3}
   }
 };
 
@@ -408,7 +410,7 @@ dict_table_schema_check(
 			snprintf(errstr, errstr_sz,
 				    "required column %s"
 				    " not found in table %s.",
-				    req_schema->columns[i].name,
+				    req_schema->columns[i].name.str,
 				    req_schema->table_name_sql);
 
 			return(DB_ERROR);
@@ -424,7 +426,7 @@ dict_table_schema_check(
 					  " column name %s."
 					  " Please run mariadb-upgrade",
 					  req_schema->table_name_sql,
-					  req_schema->columns[i].name);
+					  req_schema->columns[i].name.str);
 		}
 
 		/*
@@ -445,7 +447,7 @@ dict_table_schema_check(
 
 		int s = snprintf(errstr, errstr_sz,
 				 "Column %s in table %s is ",
-				 req_schema->columns[i].name,
+				 req_schema->columns[i].name.str,
 				 req_schema->table_name_sql);
 		if (s < 0 || static_cast<size_t>(s) >= errstr_sz) {
 			return DB_ERROR;

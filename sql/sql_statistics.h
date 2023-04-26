@@ -148,7 +148,7 @@ double get_column_range_cardinality(Field *field,
                                     key_range *min_endp,
                                     key_range *max_endp,
                                     uint range_flag);
-bool is_stat_table(const LEX_CSTRING *db, LEX_CSTRING *table);
+bool is_stat_table(const Lex_ident_db &db, const Lex_ident_table &table);
 bool is_eits_usable(Field* field);
 
 class Histogram_builder;

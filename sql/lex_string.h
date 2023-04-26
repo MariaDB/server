@@ -25,26 +25,27 @@ typedef struct st_mysql_const_lex_string LEX_CSTRING;
 class Lex_cstring : public LEX_CSTRING
 {
   public:
-  Lex_cstring()
-  {
-    str= NULL;
-    length= 0;
-  }
-  Lex_cstring(const LEX_CSTRING &str)
-  {
-    LEX_CSTRING::operator=(str);
-  }
-  Lex_cstring(const char *_str, size_t _len)
-  {
-    str= _str;
-    length= _len;
-  }
+  constexpr Lex_cstring()
+   :LEX_CSTRING({NULL, 0})
+  { }
+  constexpr Lex_cstring(const LEX_CSTRING &str)
+   :LEX_CSTRING(str)
+  { }
+  constexpr Lex_cstring(const char *_str, size_t _len)
+   :LEX_CSTRING({_str, _len})
+  { }
   Lex_cstring(const char *start, const char *end)
   {
     DBUG_ASSERT(start <= end);
     str= start;
     length= end - start;
   }
+
+  bool bin_eq(const LEX_CSTRING &rhs) const
+  {
+    return length == rhs.length && !memcmp(str, rhs.str, length);
+  }
+
   void set(const char *_str, size_t _len)
   {
     str= _str;
@@ -142,12 +143,6 @@ public:
 
 
 /* Functions to compare if two lex strings are equal */
-
-static inline bool lex_string_cmp(CHARSET_INFO *charset, const LEX_CSTRING *a,
-                                  const LEX_CSTRING *b)
-{
-  return my_strcasecmp(charset, a->str, b->str);
-}
 
 /*
   Compare to LEX_CSTRING's and return 0 if equal

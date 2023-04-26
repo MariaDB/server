@@ -363,3 +363,16 @@ ALTER DATABASE Db1 DEFAULT CHARACTER SET utf8;
 SHOW CREATE DATABASE Db1;
 SHOW CREATE DATABASE db1;
 DROP DATABASE Db1;
+
+
+--echo #
+--echo # MDEV-33110 HANDLER commands are case insensitive with lower-case-table-names=0
+--echo #
+
+SET sql_mode=ORACLE;
+DELIMITER $$;
+CREATE OR REPLACE PACKAGE test.pkg AS
+END TEST.PKG;
+$$
+DELIMITER ;$$
+DROP PACKAGE test.pkg;

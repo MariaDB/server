@@ -422,3 +422,11 @@ SHOW CREATE DATABASE db1;
 Database	Create Database
 db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci */
 DROP DATABASE Db1;
+#
+# MDEV-33110 HANDLER commands are case insensitive with lower-case-table-names=0
+#
+SET sql_mode=ORACLE;
+CREATE OR REPLACE PACKAGE test.pkg AS
+END TEST.PKG;
+$$
+DROP PACKAGE test.pkg;

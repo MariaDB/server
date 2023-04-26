@@ -240,7 +240,7 @@ public:
   */
   virtual Item *create_with_db(THD *thd,
                                const Lex_ident_db_normalized &db,
-                               const LEX_CSTRING &name,
+                               const Lex_ident_routine &name,
                                bool use_explicit_name,
                                List<Item> *item_list) = 0;
 

@@ -354,9 +354,7 @@ bool Alter_info::add_stat_drop_index(THD *thd, const LEX_CSTRING *key_name)
     KEY *key_info= original_table->key_info;
     for (uint i= 0; i < original_table->s->keys; i++, key_info++)
     {
-      if (key_info->name.length &&
-          !lex_string_cmp(system_charset_info, &key_info->name,
-                          key_name))
+      if (key_info->name.length && key_info->name.streq(*key_name))
         return add_stat_drop_index(key_info, false, thd->mem_root);
     }
   }
@@ -413,7 +411,7 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
   table_name= table_list->table_name;
   alias= (lower_case_table_names == 2) ? table_list->alias : table_name;
 
-  if (!new_db.str || !my_strcasecmp(table_alias_charset, new_db.str, db.str))
+  if (!new_db.str || new_db.streq(db))
     new_db= db;
 
   if (new_name.str)
@@ -422,21 +420,23 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
 
     if (lower_case_table_names == 1) // Convert new_name/new_alias to lower
     {
-      new_name= new_name_buff.copy_casedn(files_charset_info, new_name).
-                                to_lex_cstring();
+      new_name= Lex_ident_table(new_name_buff.copy_casedn(files_charset_info,
+                                                          new_name).
+                                                to_lex_cstring());
       new_alias= new_name;
     }
     else if (lower_case_table_names == 2) // Convert new_name to lower case
     {
       new_alias= new_name;
-      new_name= new_name_buff.copy_casedn(files_charset_info, new_name).
-                                to_lex_cstring();
+      new_name= Lex_ident_table(new_name_buff.copy_casedn(files_charset_info,
+                                                          new_name).
+                                                to_lex_cstring());
     }
     else
       new_alias= new_name; // LCTN=0 => case sensitive + case preserving
 
     if (!is_database_changed() &&
-        !my_strcasecmp(table_alias_charset, new_name.str, table_name.str))
+        new_name.streq(table_name))
     {
       /*
         Source and destination table names are equal:

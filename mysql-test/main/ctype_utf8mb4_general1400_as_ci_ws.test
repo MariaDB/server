@@ -1,0 +1,39 @@
+--source include/have_utf32.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # Start of 11.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-31340 Remove MY_COLLATION_HANDLER::strcasecmp()
+--echo #
+
+SET NAMES utf8mb4 COLLATE utf8mb4_general1400_as_ci;
+
+EXECUTE IMMEDIATE SFORMAT('
+CREATE VIEW v_bmp AS
+SELECT
+  seq AS codepoint,
+  LPAD(HEX(seq),6,''0'') AS codepoint_hex6,
+  CONVERT(CHAR(seq USING utf32) USING {}) COLLATE {} AS c
+FROM
+  seq_0_to_1114111', @@character_set_connection, @@collation_connection);
+
+SELECT COLLATION(c) FROM v_bmp LIMIT 1;
+
+SELECT
+  SUM(codepoint_hex6=HEX(LOWER(c))) AS count_bmp_weight_is_lower,
+  SUM(codepoint_hex6<>HEX(LOWER(c))) AS count_bmp_weight_is_not_lower
+FROM v_bmp;
+
+SELECT codepoint_hex6,HEX(WEIGHT_STRING(c))
+FROM v_bmp
+WHERE codepoint_hex6<>HEX(WEIGHT_STRING(c));
+
+DROP VIEW v_bmp;
+
+
+--echo #
+--echo # End of 11.5 tests
+--echo #

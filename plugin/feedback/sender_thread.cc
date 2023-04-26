@@ -110,7 +110,7 @@ static int prepare_for_fill(TABLE_LIST *tables)
   lex_start(thd);
   thd->lex->init_select();
 
-  LEX_CSTRING tbl_name= {i_s_feedback->table_name, strlen(i_s_feedback->table_name) };
+  const LEX_CSTRING tbl_name= i_s_feedback->table_name;
 
   tables->init_one_table(&INFORMATION_SCHEMA_NAME, &tbl_name, 0, TL_READ);
   tables->schema_table= i_s_feedback;

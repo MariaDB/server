@@ -137,7 +137,7 @@ static uchar *extra2_write_index_properties(uchar *pos, const KEY *keyinfo,
 static field_index_t
 get_fieldno_by_name(HA_CREATE_INFO *create_info,
                     List<Create_field> &create_fields,
-                    const Lex_ident &field_name)
+                    const Lex_ident_column &field_name)
 {
   List_iterator<Create_field> it(create_fields);
   Create_field *sql_field = NULL;

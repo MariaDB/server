@@ -100,6 +100,17 @@
 #endif
 
 
+#if defined(WEIGHT_SIZE) && WEIGHT_SIZE == 3
+#define PUT_WC_BE_HAVE_1BYTE(dst, de, wc) PUT_WC_BE3_HAVE_1BYTE((dst), (de), (wc))
+#define PAD_NWEIGHTS_UNICODE_BE(str, end, n)  my_strxfrm_pad_nweights_unicode_be3(str, end, n)
+#define PAD_UNICODE_BE(str, end)  my_strxfrm_pad_unicode_be3(str, end)
+#else
+#define PUT_WC_BE_HAVE_1BYTE(dst, de, wc) PUT_WC_BE2_HAVE_1BYTE((dst), (de), (wc))
+#define PAD_NWEIGHTS_UNICODE_BE(str, end, n)  my_strxfrm_pad_nweights_unicode_be2(str, end, n)
+#define PAD_UNICODE_BE(str, end)  my_strxfrm_pad_unicode_be2(str, end)
+#endif
+
+
 #if DEFINE_STRNNCOLL
 
 /**
@@ -254,10 +265,10 @@ MY_FUNCTION_NAME(strnncoll)(CHARSET_INFO *cs __attribute__((unused)),
       >0      >0     Two weights were scanned, check weight difference.
     */
     if (!a_wlen)
-      return b_wlen ? -b_weight : 0;
+      return b_wlen ? -1 : 0;
 
     if (!b_wlen)
-      return b_is_prefix ? 0 : a_weight;
+      return b_is_prefix ? 0 : +1;
 
     if ((res= (a_weight - b_weight)))
       return res;
@@ -498,7 +509,6 @@ MY_FUNCTION_NAME(strnxfrm)(CHARSET_INFO *cs,
 #error MY_WC_WEIGHT must be defined for DEFINE_STRNXFRM_UNICODE
 #endif
 
-
 static size_t
 MY_FUNCTION_NAME(strnxfrm_internal)(CHARSET_INFO *cs __attribute__((unused)),
                                     uchar *dst, uchar *de,
@@ -520,7 +530,7 @@ MY_FUNCTION_NAME(strnxfrm_internal)(CHARSET_INFO *cs __attribute__((unused)),
     if (src[0] <= 0x7F)
     {
       wc= WEIGHT_MB1(*src++);
-      PUT_WC_BE2_HAVE_1BYTE(dst, de, wc);
+      PUT_WC_BE_HAVE_1BYTE(dst, de, wc);
       continue;
     }
 #endif
@@ -528,7 +538,7 @@ MY_FUNCTION_NAME(strnxfrm_internal)(CHARSET_INFO *cs __attribute__((unused)),
       break;
     src+= res;
     wc= MY_WC_WEIGHT(wc);
-    PUT_WC_BE2_HAVE_1BYTE(dst, de, wc);
+    PUT_WC_BE_HAVE_1BYTE(dst, de, wc);
   }
   return dst - dst0;
 }
@@ -546,12 +556,12 @@ MY_FUNCTION_NAME(strnxfrm)(CHARSET_INFO *cs,
   DBUG_ASSERT(dst <= de); /* Safety */
 
   if (dst < de && nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
-    dst+= my_strxfrm_pad_nweights_unicode(dst, de, nweights);
+    dst+= PAD_NWEIGHTS_UNICODE_BE(dst, de, nweights);
 
   my_strxfrm_desc_and_reverse(dst0, dst, flags, 0);
 
   if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && dst < de)
-    dst+= my_strxfrm_pad_unicode(dst, de);
+    dst+= PAD_UNICODE_BE(dst, de);
   return dst - dst0;
 }
 
@@ -661,12 +671,12 @@ MY_FUNCTION_NAME(strnxfrm)(CHARSET_INFO *cs,
   DBUG_ASSERT(dst <= de); /* Safety */
 
   if (dst < de && nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
-    dst+= my_strxfrm_pad_nweights_unicode(dst, de, nweights);
+    dst+= PAD_NWEIGHTS_UNICODE_BE(dst, de, nweights);
 
   my_strxfrm_desc_and_reverse(dst0, dst, flags, 0);
 
   if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && dst < de)
-    dst+= my_strxfrm_pad_unicode(dst, de);
+    dst+= PAD_UNICODE_BE(dst, de);
   return dst - dst0;
 }
 
@@ -718,6 +728,7 @@ MY_FUNCTION_NAME(strnxfrm_nopad)(CHARSET_INFO *cs,
 #undef WEIGHT_MB4
 #undef WEIGHT_PAD_SPACE
 #undef WEIGHT_MB2_FRM
+#undef WEIGHT_SIZE
 #undef DEFINE_STRNXFRM
 #undef DEFINE_STRNXFRM_UNICODE
 #undef DEFINE_STRNXFRM_UNICODE_NOPAD
@@ -729,3 +740,6 @@ MY_FUNCTION_NAME(strnxfrm_nopad)(CHARSET_INFO *cs,
 #undef STRCOLL_MB7_BIN
 #undef MY_STRCOLL_MB7_4BYTES
 #undef MY_STRCOLL_MB7_8BYTES
+#undef PUT_WC_BE_HAVE_1BYTE
+#undef PAD_NWEIGHTS_UNICODE_BE
+#undef PAD_UNICODE_BE

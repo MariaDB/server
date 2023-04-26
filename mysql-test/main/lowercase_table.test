@@ -5,6 +5,8 @@
 #remove this include after fix MDEV-27944
 --source include/no_view_protocol.inc
 
+show variables like "lower_case_table_names";
+
 create table T1 (id int primary key, Word varchar(40) not null, Index(Word));
 create table t4 (id int primary key, Word varchar(40) not null);
 INSERT INTO T1 VALUES (1, 'a'), (2, 'b'), (3, 'c');
@@ -181,4 +183,25 @@ EXECUTE IMMEDIATE CONCAT('SHOW CREATE DATABASE `#mysql50#', REPEAT(@mb3char, 65)
 
 --echo #
 --echo # End of 11.3 tests
+--echo #
+
+
+--echo #
+--echo # Start of 11.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-33110 HANDLER commands are case insensitive with lower-case-table-names=0
+--echo #
+
+SET sql_mode=ORACLE;
+DELIMITER $$;
+CREATE OR REPLACE PACKAGE test.pkg AS
+END TEST.PKG;
+$$
+DELIMITER ;$$
+DROP PACKAGE test.pkg;
+
+--echo #
+--echo # End of 11.4 tests
 --echo #

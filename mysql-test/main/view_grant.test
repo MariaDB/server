@@ -2229,3 +2229,29 @@ drop schema foo;
 # Wait till we reached the initial number of concurrent sessions
 --source include/wait_until_count_sessions.inc
 
+--echo #
+--echo # MDEV-33119 User is case insensitive in INFORMATION_SCHEMA.VIEWS
+--echo #
+
+USE test;
+CREATE USER foo;
+CREATE USER FOO;
+GRANT SELECT ON test.* TO foo;
+GRANT SELECT ON test.* TO FOO;
+
+CREATE DEFINER=foo SQL SECURITY INVOKER VIEW v1 AS SELECT 1 AS c1;
+
+--connect (FOO, localhost, FOO, , test)
+--connection FOO
+
+SELECT CURRENT_USER;
+--vertical_results
+--query_vertical SELECT * FROM INFORMATION_SCHEMA.VIEWS
+--horizontal_results
+
+--disconnect FOO
+--connection default
+
+DROP VIEW v1;
+DROP USER foo;
+DROP USER FOO;

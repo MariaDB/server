@@ -1,0 +1,154 @@
+--echo #
+--echo # Start of 11.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-31340 Remove MY_COLLATION_HANDLER::strcasecmp()
+--echo #
+
+#
+# Identifiers are accent sensitive and case insensitive,
+# and there are usually only two variants of a letter (capital and small)
+# having equal octet length in utf8.
+#
+# There are a few exceptions (coming from Unicode casefolding rules)
+# changing octet length during casefolding.
+#
+# Testing "U+0132 LATIN SMALL LETTER DOTLESS I" versus letters I and i.
+#
+
+
+# Column
+SET NAMES utf8;
+--error ER_DUP_FIELDNAME
+CREATE TABLE t1 (I int, ı int);
+
+
+# Index
+--error ER_DUP_KEYNAME
+CREATE TABLE t1 (a int, b int, KEY I(a), KEY ı(b));
+
+
+# Locale
+SET @@lc_time_names=it_ıT;
+SELECT @@lc_time_names;
+SET @@lc_time_names=DEFAULT;
+
+
+# Host
+#CREATE user u1@ıT;
+#SELECT user, host FROM mysql.user WHERE user='u1';
+#DROP USER u1@it;
+
+
+# I_S table name
+CREATE VIEW v1 AS SELECT 1;
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_NAME='v1';
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.VıEWS WHERE TABLE_NAME='v1';
+DROP VIEW v1;
+
+
+# Window name
+CREATE OR REPLACE TABLE t1 (pk int, c int);
+INSERT INTO t1 VALUES (1,1);
+INSERT INTO t1 VALUES (1,2);
+INSERT INTO t1 VALUES (1,3);
+INSERT INTO t1 VALUES (2,1);
+INSERT INTO t1 VALUES (2,2);
+INSERT INTO t1 VALUES (2,3);
+SELECT pk, COUNT(*) OVER I AS cnt
+FROM t1
+WINDOW ı AS (PARTITION BY c ORDER BY pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING);
+DROP TABLE t1;
+
+
+# Function
+SELECT CEIL(10.6);
+SELECT CEıL(10.6);
+
+CREATE FUNCTION I() RETURNS INT RETURN 1;
+SELECT ı();
+DROP FUNCTION ı;
+
+
+# CTE - WITH reference
+WITH I AS (SELECT 'a1' AS a, 'b1' AS b) SELECT * FROM ı;
+
+
+# Plugin
+--error ER_PLUGIN_INSTALLED
+INSTALL PLUGIN arıa SONAME 'not important';
+
+
+# Engine
+CREATE TABLE t1 (a INT) ENGINE=MyıSAM;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+# System variable
+SELECT @@CHARACTER_SET_CLıENT;
+
+
+# User variable
+SET @I='i';
+SELECT @ı;
+
+
+# System versioning: row start, row end
+
+CREATE TABLE t1(
+   x INT,
+   start_timestamp TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
+   end_timestamp TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+   PERIOD FOR SYSTEM_TIME(start_tımestamp, end_tımestamp)
+) WITH SYSTEM VERSIONING;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+# Label names
+
+DELIMITER $$;
+--error ER_SP_LABEL_REDEFINE
+BEGIN NOT ATOMIC
+label_ı:
+   LOOP
+label_I:
+     LOOP
+       LEAVE label_I;
+     END LOOP;
+     LEAVE label_ı;
+   END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+   label_ı:
+   LOOP
+      SELECT 'looping' AS stage;
+      LEAVE label_I;
+   END LOOP;
+   SELECT 'out of loop' AS stage;
+END;
+$$
+DELIMITER ;$$
+
+
+# References in GROUP BY
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT 'a' AS I FROM t1 GROUP BY ı;
+SELECT 'a' AS ı FROM t1 GROUP BY I;
+--error ER_BAD_FIELD_ERROR
+SELECT 'a' AS İ FROM t1 GROUP BY i;
+--error ER_BAD_FIELD_ERROR
+SELECT 'a' AS i FROM t1 GROUP BY İ;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 11.5 tests
+--echo #

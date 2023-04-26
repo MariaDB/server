@@ -98,12 +98,10 @@ typedef struct my_dbopt_st
 */
 
 static inline bool
-cmp_db_names(LEX_CSTRING *db1_name, const LEX_CSTRING *db2_name)
+cmp_db_names(const Lex_ident_db &db1_name, const Lex_ident_db &db2_name)
 {
-  return (db1_name->length == db2_name->length &&
-          (db1_name->length == 0 ||
-           my_strcasecmp(table_alias_charset,
-                         db1_name->str, db2_name->str) == 0));
+  return (db1_name.length == 0 && db2_name.length == 0) ||
+         db1_name.streq(db2_name);
 }
 
 #ifdef HAVE_PSI_INTERFACE
@@ -1087,8 +1085,7 @@ mysql_rm_db_internal(THD *thd, const Lex_ident_db &db, bool if_exists,
     Disable drop of enabled log tables, must be done before name locking.
     This check is only needed if we are dropping the "mysql" database.
   */
-  if ((rm_mysql_schema=
-        (my_strcasecmp(system_charset_info, MYSQL_SCHEMA_NAME.str, db.str) == 0)))
+  if ((rm_mysql_schema= MYSQL_SCHEMA_NAME.streq(db)))
   {
     for (table= tables; table; table= table->next_local)
       if (check_if_log_table(table, TRUE, "DROP"))
@@ -1291,7 +1288,8 @@ exit:
     SELECT DATABASE() in the future). For this we free() thd->db and set
     it to 0.
   */
-  if (unlikely(thd->db.str && cmp_db_names(&thd->db, &db) && !error))
+  if (unlikely(thd->db.str &&
+               cmp_db_names(Lex_ident_db(thd->db), db) && !error))
   {
     mysql_change_db_impl(thd, NULL, NO_ACL, thd->variables.collation_server);
     thd->session_tracker.current_schema.mark_as_changed(thd);
@@ -1332,7 +1330,7 @@ static bool find_db_tables_and_rm_known_files(THD *thd, MY_DIR *dirp,
 
   for (size_t idx=0; idx < files.elements(); idx++)
   {
-    LEX_CSTRING *table= files.at(idx);
+    const LEX_CSTRING *table= files.at(idx);
 
     /* Drop the table nicely */
     TABLE_LIST *table_list=(TABLE_LIST*)thd->calloc(sizeof(*table_list));
@@ -1346,8 +1344,8 @@ static bool find_db_tables_and_rm_known_files(THD *thd, MY_DIR *dirp,
       as well to look up the cache properly.
     */
     table_list->table_name= lower_case_file_system ?
-                            thd->make_ident_casedn(*table) :
-                            *table;
+                            Lex_ident_table(thd->make_ident_casedn(*table)) :
+                            Lex_ident_table(*table);
 
     table_list->open_type= OT_BASE_ONLY;
 
@@ -1641,7 +1639,7 @@ static void backup_current_db_name(THD *thd,
                         - new_db_name is NULL or empty;
 
                         - OR new database name is invalid
-                          (check_db_name() failed);
+                          (Lex_ident_db::check_name() failed);
 
                         - OR user has no privilege on the new database;
 
@@ -1655,8 +1653,9 @@ static void backup_current_db_name(THD *thd,
                           succeed.
 
                         - if new database name is invalid
-                          (check_db_name() failed), the current database
-                          will be NULL, @@collation_database will be set to
+                          (Lex_ident_db::check_name() failed),
+                          the current database will be NULL,
+                          @@collation_database will be set to
                           @@collation_server, but the operation will fail;
 
                         - user privileges will not be checked
@@ -1745,7 +1744,8 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
                     *new_db_name;
 
   /*
-    NOTE: if check_db_name() fails, we should throw an error in any case,
+    NOTE: if Lex_ident_db::check_name() fails,
+    we should throw an error in any case,
     even if we are called from sp_head::execute().
 
     It's next to impossible however to get this error when we are called
@@ -1754,7 +1754,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
     The cast below ok here as new_db_file_name was just allocated
   */
 
-  if (Lex_ident_fs(new_db_file_name).check_db_name_with_error())
+  if (Lex_ident_db::check_name_with_error(new_db_file_name))
   {
     if (force_switch)
       mysql_change_db_impl(thd, NULL, NO_ACL, thd->variables.collation_server);
@@ -1871,7 +1871,8 @@ bool mysql_opt_change_db(THD *thd,
                          bool force_switch,
                          bool *cur_db_changed)
 {
-  *cur_db_changed= !cmp_db_names(&thd->db, new_db_name);
+  *cur_db_changed= !cmp_db_names(Lex_ident_db(thd->db),
+                                 Lex_ident_db(*new_db_name));
 
   if (!*cur_db_changed)
     return FALSE;
@@ -2059,7 +2060,8 @@ bool mysql_upgrade_db(THD *thd, const Lex_ident_db &old_db)
       DBUG_PRINT("info",("Examining: %s", file->name));
 
       /* skiping MY_DB_OPT_FILE */
-      if (!my_strcasecmp(files_charset_info, file->name, MY_DB_OPT_FILE))
+      if (!files_charset_info->strnncoll(Lex_cstring_strlen(file->name),
+                                         Lex_cstring_strlen(MY_DB_OPT_FILE)))
         continue;
 
       /* pass empty file name, and file->name as extension to avoid encoding */

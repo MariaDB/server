@@ -29,37 +29,38 @@ Window_spec::check_window_names(List_iterator_fast<Window_spec> &it)
 {
   if (window_names_are_checked)
     return false;
-  const char *name= this->name();
-  const char *ref_name= window_reference();
+  const Lex_ident_window name= this->name();
+  const Lex_ident_window ref_name= window_reference();
   it.rewind();
   Window_spec *win_spec;
   while((win_spec= it++) && win_spec != this)
   {
-    const char *win_spec_name= win_spec->name();
-    if (!win_spec_name)
+    const Lex_ident_window win_spec_name= win_spec->name();
+    if (!win_spec_name.str)
       break;
-    if (name && my_strcasecmp(system_charset_info, name, win_spec_name) == 0)
+    if (name.str && name.streq(win_spec_name))
     {
-      my_error(ER_DUP_WINDOW_NAME, MYF(0), name);
+      my_error(ER_DUP_WINDOW_NAME, MYF(0), name.str);
       return true;
     }
-    if (ref_name &&
-        my_strcasecmp(system_charset_info, ref_name, win_spec_name) == 0)
+    if (ref_name.str && win_spec_name.streq(ref_name))
     {
       if (partition_list->elements)
       {
         my_error(ER_PARTITION_LIST_IN_REFERENCING_WINDOW_SPEC, MYF(0),
-                 ref_name);
+                 ref_name.str);
         return true;
       }
       if (win_spec->order_list->elements && order_list->elements)
       {
-        my_error(ER_ORDER_LIST_IN_REFERENCING_WINDOW_SPEC, MYF(0), ref_name);
+        my_error(ER_ORDER_LIST_IN_REFERENCING_WINDOW_SPEC, MYF(0),
+                 ref_name.str);
         return true;
       } 
       if (win_spec->window_frame)
       {
-        my_error(ER_WINDOW_FRAME_IN_REFERENCED_WINDOW_SPEC, MYF(0), ref_name);
+        my_error(ER_WINDOW_FRAME_IN_REFERENCED_WINDOW_SPEC, MYF(0),
+                 ref_name.str);
         return true;
       }
       referenced_win_spec= win_spec;
@@ -69,9 +70,9 @@ Window_spec::check_window_names(List_iterator_fast<Window_spec> &it)
         order_list= win_spec->order_list;
     }
   }
-  if (ref_name && !referenced_win_spec)
+  if (ref_name.str && !referenced_win_spec)
   {
-    my_error(ER_WRONG_WINDOW_SPEC_NAME, MYF(0), ref_name);
+    my_error(ER_WRONG_WINDOW_SPEC_NAME, MYF(0), ref_name.str);
     return true;
   }
   window_names_are_checked= true;
@@ -221,7 +222,7 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
     uint elems= win_specs.elements;
     while ((win_spec= it++) && i++ < elems)
     {
-      if (win_spec->name() == NULL)
+      if (win_spec->name().str == NULL)
       {
         it.remove();
         win_specs.push_back(win_spec);
@@ -647,7 +648,7 @@ int compare_window_funcs_by_window_specs(Item_window_func *win_func1,
       Partition lists contain the same elements. 
       Let's use only one of the lists.
     */
-    if (!win_spec1->name() && win_spec2->name())
+    if (!win_spec1->name().str && win_spec2->name().str)
     {
       win_spec1->save_partition_list= win_spec1->partition_list;
       win_spec1->partition_list= win_spec2->partition_list;
@@ -670,7 +671,7 @@ int compare_window_funcs_by_window_specs(Item_window_func *win_func1,
        Order lists contain the same elements.
        Let's use only one of the lists.
     */
-    if (!win_spec1->name() && win_spec2->name())
+    if (!win_spec1->name().str && win_spec2->name().str)
     {
       win_spec1->save_order_list= win_spec2->order_list;
       win_spec1->order_list= win_spec2->order_list;
@@ -688,7 +689,7 @@ int compare_window_funcs_by_window_specs(Item_window_func *win_func1,
       return cmp;
 
     /* Window frames are equal. Let's use only one of them. */
-    if (!win_spec1->name() && win_spec2->name())
+    if (!win_spec1->name().str && win_spec2->name().str)
       win_spec1->window_frame= win_spec2->window_frame;
     else
       win_spec2->window_frame= win_spec1->window_frame;

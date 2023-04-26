@@ -28,6 +28,7 @@ Created 2012-11-16 by Sunny Bains as srv/srv0space.cc
 #include "fsp0fsp.h"
 #include "os0file.h"
 #include "my_sys.h"
+#include "lex_ident.h"
 
 /** Check if two tablespaces have common data file names.
 @param other_space	Tablespace to check against this.
@@ -156,9 +157,10 @@ Tablespace::open_or_create(bool is_temp)
 bool
 Tablespace::find(const char* filename) const
 {
+	const Lex_ident_column filename_ident = Lex_cstring_strlen(filename);
 	for (const_iterator it = begin(); it != end(); ++it) {
 
-		if (innobase_strcasecmp(filename, it->m_filename) == 0) {
+		if (filename_ident.streq(Lex_cstring_strlen(it->m_filename))) {
 			return(true);
 		}
 	}

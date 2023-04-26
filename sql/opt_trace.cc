@@ -26,7 +26,7 @@
 
 #include "rowid_filter.h"
 
-const char I_S_table_name[]= "OPTIMIZER_TRACE";
+const Lex_ident_i_s_table I_S_table_name= "OPTIMIZER_TRACE"_Lex_ident_i_s_table;
 
 /**
    Whether a list of tables contains information_schema.OPTIMIZER_TRACE.
@@ -43,7 +43,7 @@ bool list_has_optimizer_trace_table(const TABLE_LIST *tbl)
   for (; tbl; tbl= tbl->next_global)
   {
     if (tbl->schema_table &&
-        0 == strcmp(tbl->schema_table->table_name, I_S_table_name))
+        I_S_table_name.streq(tbl->schema_table->table_name))
       return true;
   }
   return false;
@@ -191,9 +191,8 @@ void opt_trace_disable_if_no_security_context_access(THD *thd)
   if (!(thd->main_security_ctx.check_access(GLOBAL_ACLS & ~GRANT_ACL)) &&
       (0 != strcmp(thd->main_security_ctx.priv_user,
                    thd->security_context()->priv_user) ||
-       0 != my_strcasecmp(system_charset_info,
-                          thd->main_security_ctx.priv_host,
-                          thd->security_context()->priv_host)))
+       !Lex_ident_host(Lex_cstring_strlen(thd->main_security_ctx.priv_host)).
+         streq(Lex_cstring_strlen(thd->security_context()->priv_host))))
     trace->missing_privilege();
 }
 

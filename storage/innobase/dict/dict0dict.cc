@@ -284,27 +284,24 @@ otherwise table->n_def */
 ulint
 dict_table_has_column(
 	const dict_table_t*	table,
-	const char*		col_name,
+	const LEX_CSTRING	&col_name,
 	ulint			col_nr)
 {
 	ulint		col_max = table->n_def;
 
 	ut_ad(table);
-	ut_ad(col_name);
+	ut_ad(col_name.str);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 
 	if (col_nr < col_max
-	    && innobase_strcasecmp(
-		col_name, dict_table_get_col_name(table, col_nr)) == 0) {
+	    && dict_table_get_col_name(table, col_nr).streq(col_name)) {
 		return(col_nr);
 	}
 
 	/** The order of column may changed, check it with other columns */
 	for (ulint i = 0; i < col_max; i++) {
 		if (i != col_nr
-		    && innobase_strcasecmp(
-			col_name, dict_table_get_col_name(table, i)) == 0) {
-
+		    && dict_table_get_col_name(table, i).streq(col_name)) {
 			return(i);
 		}
 	}
@@ -312,63 +309,60 @@ dict_table_has_column(
 	return(col_max);
 }
 
-/** Retrieve the column name.
-@param[in]	table	the table of this column */
-const char* dict_col_t::name(const dict_table_t& table) const
+
+/** Retrieve a column name from a 0-separated list
+@param str     the list in the format "name1\0name2\0...nameN\0"
+@param col_nr  the position
+*/
+Lex_ident_column
+dict_table_t::get_name_from_z_list(const char *str, size_t col_nr)
 {
-	ut_ad(table.magic_n == DICT_TABLE_MAGIC_N);
+  if (!str)
+    return Lex_ident_column();
+  Lex_ident_column res(str, strlen(str));
+  for (size_t i= 0; i < col_nr; i++)
+  {
+    res.str+= res.length + 1;
+    res.length= strlen(res.str);
+  }
+  return res;
+}
 
-	size_t col_nr;
-	const char *s;
 
-	if (is_virtual()) {
-		col_nr = size_t(reinterpret_cast<const dict_v_col_t*>(this)
-				- table.v_cols);
-		ut_ad(col_nr < table.n_v_def);
-		s = table.v_col_names;
-	} else {
-		col_nr = size_t(this - table.cols);
-		ut_ad(col_nr < table.n_def);
-		s = table.col_names;
-	}
+/** Retrieve the column name.
+@param[in]    table    the table of this column */
+Lex_ident_column
+dict_col_t::name(const dict_table_t& table) const
+{
+  ut_ad(table.magic_n == DICT_TABLE_MAGIC_N);
 
-	if (s) {
-		for (size_t i = 0; i < col_nr; i++) {
-			s += strlen(s) + 1;
-		}
-	}
+  size_t col_nr;
 
-	return(s);
+  if (is_virtual())
+  {
+    col_nr= size_t(reinterpret_cast<const dict_v_col_t*>(this) - table.v_cols);
+    ut_ad(col_nr < table.n_v_def);
+    return dict_table_t::get_name_from_z_list(table.v_col_names, col_nr);
+  }
+  col_nr= size_t(this - table.cols);
+  ut_ad(col_nr < table.n_def);
+  return dict_table_t::get_name_from_z_list(table.col_names, col_nr);
 }
 
 /** Returns a virtual column's name.
-@param[in]	table	target table
-@param[in]	col_nr	virtual column number (nth virtual column)
+@param[in]    table     target table
+@param[in]    col_nr    virtual column number (nth virtual column)
 @return column name or NULL if column number out of range. */
-const char*
-dict_table_get_v_col_name(
-	const dict_table_t*	table,
-	ulint			col_nr)
+Lex_ident_column
+dict_table_get_v_col_name(const dict_table_t*  table, ulint col_nr)
 {
-	const char*	s;
+  ut_ad(table);
+  ut_ad(col_nr < table->n_v_def);
+  ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 
-	ut_ad(table);
-	ut_ad(col_nr < table->n_v_def);
-	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-
-	if (col_nr >= table->n_v_def) {
-		return(NULL);
-	}
-
-	s = table->v_col_names;
-
-	if (s != NULL) {
-		for (ulint i = 0; i < col_nr; i++) {
-			s += strlen(s) + 1;
-		}
-	}
-
-	return(s);
+  return col_nr >= table->n_v_def ?
+         Lex_ident_column() :
+         dict_table_t::get_name_from_z_list(table->v_col_names, col_nr);
 }
 
 /** Search virtual column's position in InnoDB according to its position
@@ -408,7 +402,7 @@ MySQL table position.
 @param[in]	col_nr	column number (nth column in the table)
 @return column name. */
 static
-const char*
+Lex_ident_column
 dict_table_get_v_col_name_mysql(
 	const dict_table_t*	table,
 	ulint			col_nr)
@@ -416,7 +410,7 @@ dict_table_get_v_col_name_mysql(
 	ulint	i = dict_table_get_v_col_pos_for_mysql(table, col_nr);
 
 	if (i == ULINT_UNDEFINED) {
-		return(NULL);
+		return Lex_ident_column();
 	}
 
 	return(dict_table_get_v_col_name(table, i));
@@ -1904,16 +1898,18 @@ TRUE.
 ibool
 dict_col_name_is_reserved(
 /*======================*/
-	const char*	name)	/*!< in: column name */
+	const LEX_CSTRING &name)	/*!< in: column name */
 {
-	static const char*	reserved_names[] = {
-		"DB_ROW_ID", "DB_TRX_ID", "DB_ROLL_PTR"
+	static Lex_ident_column reserved_names[] = {
+		"DB_ROW_ID"_Lex_ident_column,
+		"DB_TRX_ID"_Lex_ident_column,
+		"DB_ROLL_PTR"_Lex_ident_column
 	};
 
 	compile_time_assert(UT_ARR_SIZE(reserved_names) == DATA_N_SYS_COLS);
 
 	for (ulint i = 0; i < UT_ARR_SIZE(reserved_names); i++) {
-		if (innobase_strcasecmp(name, reserved_names[i]) == 0) {
+		if (reserved_names[i].streq(name)) {
 
 			return(TRUE);
 		}
@@ -2147,10 +2143,11 @@ dict_index_find_cols(
 	for (ulint i = 0; i < index->n_fields; i++) {
 		ulint		j;
 		dict_field_t*	field = dict_index_get_nth_field(index, i);
+		const Lex_ident_column field_name = Lex_cstring_strlen(field->name);
 
 		for (j = 0; j < table->n_cols; j++) {
-			if (!innobase_strcasecmp(dict_table_get_col_name(table, j),
-				    field->name)) {
+			if (field_name.
+				streq(dict_table_get_col_name(table, j))) {
 
 				/* Check if same column is being assigned again
 				which suggest that column has duplicate name. */
@@ -2174,7 +2171,7 @@ dict_index_find_cols(
 
 		/* Let's check if it is a virtual column */
 		for (j = 0; j < table->n_v_cols; j++) {
-			if (!strcmp(dict_table_get_v_col_name(table, j),
+			if (!strcmp(dict_table_get_v_col_name(table, j).str,
 				    field->name)) {
 
 				/* Check if same column is being assigned again
@@ -2242,9 +2239,9 @@ void dict_index_add_col(dict_index_t *index, const dict_table_t *table,
 		/* Register the index with the virtual column index list */
 		v_col->v_indexes.push_front(dict_v_idx_t(index, index->n_def));
 		col_name = dict_table_get_v_col_name_mysql(
-			table, dict_col_get_no(col));
+			table, dict_col_get_no(col)).str;
 	} else {
-		col_name = dict_table_get_col_name(table, dict_col_get_no(col));
+		col_name = dict_table_get_col_name(table, dict_col_get_no(col)).str;
 	}
 
 	dict_mem_index_add_field(index, col_name, prefix_len);
@@ -4572,12 +4569,10 @@ dict_foreign_qualify_index(
 	}
 
 	for (ulint i = 0; i < n_cols; i++) {
-		dict_field_t*	field;
-		const char*	col_name;
-		ulint		col_no;
-
-		field = dict_index_get_nth_field(index, i);
-		col_no = dict_col_get_no(field->col);
+		const dict_field_t * const field(dict_index_get_nth_field(index, i));
+		const Lex_ident_column field_name= Lex_cstring_strlen(field->name);
+		const ulint col_no = dict_col_get_no(field->col);
+		Lex_ident_column col_name;
 
 		if (field->prefix_len != 0) {
 			/* We do not accept column prefix
@@ -4601,20 +4596,20 @@ dict_foreign_qualify_index(
 		}
 
 		if (field->col->is_virtual()) {
-			col_name = "";
+			col_name = ""_Lex_ident_column;
 			for (ulint j = 0; j < table->n_v_def; j++) {
 				col_name = dict_table_get_v_col_name(table, j);
-				if (innobase_strcasecmp(field->name,col_name) == 0) {
+				if (field_name.streq(col_name)) {
 					break;
 				}
 			}
 		} else {
 			col_name = col_names
-				? col_names[col_no]
+				? Lex_ident_column(Lex_cstring_strlen(col_names[col_no]))
 				: dict_table_get_col_name(table, col_no);
 		}
 
-		if (0 != innobase_strcasecmp(columns[i], col_name)) {
+		if (!col_name.streq(Lex_cstring_strlen(columns[i]))) {
 			return(false);
 		}
 

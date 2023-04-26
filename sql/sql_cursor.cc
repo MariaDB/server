@@ -273,8 +273,9 @@ int Materialized_cursor::send_result_set_metadata(
     Item_ident *ident= static_cast<Item_ident *>(item_dst);
     Send_field send_field(thd, item_org);
 
-    ident->db_name= thd->strmake_lex_cstring(send_field.db_name);
-    ident->table_name= thd->strmake_lex_cstring(send_field.table_name);
+    ident->db_name= Lex_ident_db(thd->strmake_lex_cstring(send_field.db_name));
+    ident->table_name= Lex_ident_table(thd->strmake_lex_cstring(
+                                              send_field.table_name));
   }
 
   /*

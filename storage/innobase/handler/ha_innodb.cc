@@ -2425,27 +2425,6 @@ innobase_convert_from_id(
 	strconvert(cs, from, FN_REFLEN, system_charset_info, to, (uint) len, &errors);
 }
 
-/******************************************************************//**
-Compares NUL-terminated UTF-8 strings case insensitively.
-@return 0 if a=b, <0 if a<b, >1 if a>b */
-int
-innobase_strcasecmp(
-/*================*/
-	const char*	a,	/*!< in: first string to compare */
-	const char*	b)	/*!< in: second string to compare */
-{
-	if (!a) {
-		if (!b) {
-			return(0);
-		} else {
-			return(-1);
-		}
-	} else if (!b) {
-		return(1);
-	}
-
-	return(my_strcasecmp(system_charset_info, a, b));
-}
 
 /******************************************************************//**
 Compares NUL-terminated UTF-8 strings case insensitively. The
@@ -5638,11 +5617,10 @@ innobase_build_v_templ(
 			if (z >= ib_table->n_v_def) {
 				name = add_v->v_col_name[z - ib_table->n_v_def];
 			} else {
-				name = dict_table_get_v_col_name(ib_table, z);
+				name = dict_table_get_v_col_name(ib_table, z).str;
 			}
 
-			ut_ad(!my_strcasecmp(system_charset_info, name,
-					     field->field_name.str));
+			ut_ad(field->field_name.streq(Lex_cstring_strlen(name)));
 #endif
 			const dict_v_col_t*	vcol;
 
@@ -5673,10 +5651,8 @@ innobase_build_v_templ(
 			dict_col_t*   col = dict_table_get_nth_col(
 						ib_table, j);
 
-			ut_ad(!my_strcasecmp(system_charset_info,
-					     dict_table_get_col_name(
-						     ib_table, j),
-					     field->field_name.str));
+			ut_ad(field->field_name.streq(
+				  dict_table_get_col_name(ib_table, j)));
 
 			s_templ->vtempl[j] = static_cast<
 				mysql_row_templ_t*>(
@@ -7110,7 +7086,7 @@ build_template_field(
 		/* If clustered index record field is not found, lets print out
 		field names and all the rest to understand why field is not found. */
 		if (templ->clust_rec_field_no == ULINT_UNDEFINED) {
-			const char* tb_col_name = dict_table_get_col_name(clust_index->table, i);
+			const char* tb_col_name = dict_table_get_col_name(clust_index->table, i).str;
 			dict_field_t* field=NULL;
 			size_t size = 0;
 
@@ -8118,8 +8094,7 @@ calc_row_difference(
 
 		if (field_mysql_type == MYSQL_TYPE_LONGLONG
 		    && prebuilt->table->fts
-		    && innobase_strcasecmp(
-			field->field_name.str, FTS_DOC_ID_COL_NAME) == 0) {
+		    && field->field_name.streq(FTS_DOC_ID)) {
 			doc_id = mach_read_uint64_little_endian(n_ptr);
 			if (doc_id == 0) {
 				return(DB_FTS_INVALID_DOCID);
@@ -9178,7 +9153,7 @@ ha_innobase::change_active_index(
 			if (m_prebuilt->read_just_key
 			    && bitmap_is_set(table->read_set, i)
 			    && !strcmp(table->s->field[i]->field_name.str,
-				       FTS_DOC_ID_COL_NAME)) {
+				       FTS_DOC_ID.str)) {
 				m_prebuilt->fts_doc_id_in_read_set = true;
 				break;
 			}
@@ -9667,7 +9642,7 @@ innobase_fts_create_doc_id_key(
 	dict_field_t*	field = dict_index_get_nth_field(index, 0);
         ut_a(field->col->mtype == DATA_INT);
 	ut_ad(sizeof(*doc_id) == field->fixed_len);
-	ut_ad(!strcmp(index->name, FTS_DOC_ID_INDEX_NAME));
+	ut_ad(!strcmp(index->name, FTS_DOC_ID_INDEX.str));
 #endif /* UNIV_DEBUG */
 
 	/* Convert to storage byte order */
@@ -9965,7 +9940,8 @@ wsrep_append_foreign_key(
 	int i = 0;
 
 	while (idx != NULL && idx != idx_target) {
-		if (innobase_strcasecmp (idx->name, innobase_index_reserve_name) != 0) {
+		if (!Lex_ident_column(Lex_cstring_strlen(idx->name)).
+		      streq(GEN_CLUST_INDEX)) {
 			i++;
 		}
 		idx = UT_LIST_GET_NEXT(indexes, idx);
@@ -10384,8 +10360,7 @@ create_table_check_doc_id_col(
 
 		auto col_len = field->pack_length();
 
-		if (innobase_strcasecmp(field->field_name.str,
-					FTS_DOC_ID_COL_NAME) == 0) {
+		if (field->field_name.streq(FTS_DOC_ID)) {
 
 			/* Note the name is case sensitive due to
 			our internal query parser */
@@ -10393,7 +10368,7 @@ create_table_check_doc_id_col(
 			    && !field->real_maybe_null()
 			    && col_len == sizeof(doc_id_t)
 			    && (strcmp(field->field_name.str,
-				      FTS_DOC_ID_COL_NAME) == 0)) {
+				      FTS_DOC_ID.str) == 0)) {
 				*doc_id_col = i;
 			} else {
 				push_warning_printf(
@@ -10472,9 +10447,9 @@ innodb_base_col_setup(
 			ulint   z;
 
 			for (z = 0; z < table->n_cols; z++) {
-				const char* name = dict_table_get_col_name(table, z);
-				if (!innobase_strcasecmp(name,
-						base_field->field_name.str)) {
+				const Lex_cstring name =
+					dict_table_get_col_name(table, z);
+				if (base_field->field_name.streq(name)) {
 					break;
 				}
 			}
@@ -10510,10 +10485,9 @@ innodb_base_col_setup_for_stored(
 		    && bitmap_is_set(&field->table->tmp_set, i)) {
 			ulint	z;
 			for (z = 0; z < table->n_cols; z++) {
-				const char* name = dict_table_get_col_name(
-						table, z);
-				if (!innobase_strcasecmp(
-					name, base_field->field_name.str)) {
+				const Lex_cstring name =
+					dict_table_get_col_name(table, z);
+				if (base_field->field_name.streq(name)) {
 					break;
 				}
 			}
@@ -10714,7 +10688,7 @@ err_col:
 
 		/* First check whether the column to be added has a
 		system reserved name. */
-		if (dict_col_name_is_reserved(field->field_name.str)){
+		if (dict_col_name_is_reserved(field->field_name)){
 			my_error(ER_WRONG_COLUMN_NAME, MYF(0),
 				 field->field_name.str);
 			goto err_col;
@@ -10879,7 +10853,7 @@ create_index(
 	key = form->key_info + key_num;
 
 	/* Assert that "GEN_CLUST_INDEX" cannot be used as non-primary index */
-	ut_a(innobase_strcasecmp(key->name.str, innobase_index_reserve_name) != 0);
+	ut_a(!key->name.streq(GEN_CLUST_INDEX));
 	const ha_table_option_struct& o = *form->s->option_struct;
 
 	if (key->flags & (HA_SPATIAL | HA_FULLTEXT)) {
@@ -11563,7 +11537,7 @@ bool create_table_info_t::innobase_table_flags()
 			}
 		}
 
-		if (innobase_strcasecmp(key->name.str, FTS_DOC_ID_INDEX_NAME)) {
+		if (!key->name.streq(FTS_DOC_ID_INDEX)) {
 			continue;
 		}
 
@@ -11571,9 +11545,9 @@ bool create_table_info_t::innobase_table_flags()
 		if (!(key->flags & HA_NOSAME)
 		    || key->user_defined_key_parts != fts_n_uniq
 		    || (key->key_part[0].key_part_flag & HA_REVERSE_SORT)
-		    || strcmp(key->name.str, FTS_DOC_ID_INDEX_NAME)
+		    || strcmp(key->name.str, FTS_DOC_ID_INDEX.str)
 		    || strcmp(key->key_part[0].field->field_name.str,
-			      FTS_DOC_ID_COL_NAME)) {
+			      FTS_DOC_ID.str)) {
 			fts_doc_id_index_bad = key->name.str;
 		}
 
@@ -11868,6 +11842,7 @@ innobase_parse_hint_from_comment(
 				continue;
 			}
 
+			const Lex_cstring_strlen index_name(index->name);
 			for (uint i = 0; i < table_share->keys; i++) {
 				if (is_found[i]) {
 					continue;
@@ -11875,8 +11850,7 @@ innobase_parse_hint_from_comment(
 
 				KEY*	key_info = &table_share->key_info[i];
 
-				if (innobase_strcasecmp(
-					index->name, key_info->name.str) == 0) {
+				if (key_info->name.streq(index_name)) {
 
 					dict_index_set_merge_threshold(
 						index,
@@ -11911,6 +11885,7 @@ innobase_parse_hint_from_comment(
 			continue;
 		}
 
+		const Lex_cstring_strlen index_name(index->name);
 		for (uint i = 0; i < table_share->keys; i++) {
 			if (is_found[i]) {
 				continue;
@@ -11918,9 +11893,7 @@ innobase_parse_hint_from_comment(
 
 			KEY*	key_info = &table_share->key_info[i];
 
-			if (innobase_strcasecmp(
-				index->name, key_info->name.str) == 0) {
-
+			if (key_info->name.streq(index_name)) {
 				/* x-lock index is needed to exclude concurrent
 				pessimistic tree operations */
 				index->lock.x_lock(SRW_LOCK_CALL);
@@ -12126,7 +12099,7 @@ foreign_push_index_error(trx_t* trx, const char* operation,
 		col_name = field->col->is_virtual()
 				   ? "(null)"
 				   : dict_table_get_col_name(
-					   table, dict_col_get_no(field->col));
+					   table, dict_col_get_no(field->col)).str;
 		ib_foreign_warn(
 			trx, DB_CANNOT_ADD_CONSTRAINT, create_name,
 			"%s table %s with foreign key %s constraint"
@@ -12148,24 +12121,27 @@ static bool
 find_col(dict_table_t* table, const char** name)
 {
 	ulint i;
+	const Lex_ident_column outer_name = Lex_cstring_strlen(*name);
 	for (i = 0; i < dict_table_get_n_cols(table); i++) {
 
-		const char* col_name = dict_table_get_col_name(table, i);
+		const Lex_ident_column inner_name =
+		  dict_table_get_col_name(table, i);
 
-		if (0 == innobase_strcasecmp(col_name, *name)) {
+		if (outer_name.streq(inner_name)) {
 			/* Found */
-			strcpy((char*)*name, col_name);
+			strcpy((char*)*name, inner_name.str);
 			return true;
 		}
 	}
 
 	for (i = 0; i < dict_table_get_n_v_cols(table); i++) {
 
-		const char* col_name = dict_table_get_v_col_name(table, i);
+		const Lex_ident_column inner_name =
+		  dict_table_get_v_col_name(table, i);
 
-		if (0 == innobase_strcasecmp(col_name, *name)) {
+		if (outer_name.streq(inner_name)) {
 			/* Found */
-			strcpy((char*)*name, col_name);
+			strcpy((char*)*name, inner_name.str);
 			return true;
 		}
 	}
@@ -12561,7 +12537,7 @@ create_table_info_t::create_foreign_keys()
 						= dict_table_get_col_name(
 							foreign->foreign_index
 								->table,
-							dict_col_get_no(col));
+							dict_col_get_no(col)).str;
 
 					/* It is not sensible to define SET
 					NULL
@@ -12690,7 +12666,7 @@ int create_table_info_t::create_table(bool create_fk, bool strict)
 		by InnoDB */
 		ulint flags = m_table->flags;
 		dict_index_t* index = dict_mem_index_create(
-			m_table, innobase_index_reserve_name,
+			m_table, GEN_CLUST_INDEX.str,
 			DICT_CLUSTERED, 0);
 		const ha_table_option_struct& o = *m_form->s->option_struct;
 		error = convert_error_code_to_mysql(
@@ -12735,7 +12711,7 @@ int create_table_info_t::create_table(bool create_fk, bool strict)
 					    " the index definition to"
 					    " make sure it is of correct"
 					    " type\n",
-					    FTS_DOC_ID_INDEX_NAME,
+					    FTS_DOC_ID_INDEX.str,
 					    m_table->name.m_name);
 
 			if (m_table->fts) {
@@ -12744,7 +12720,7 @@ int create_table_info_t::create_table(bool create_fk, bool strict)
 			}
 
 			my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0),
-				 FTS_DOC_ID_INDEX_NAME);
+				 FTS_DOC_ID_INDEX.str);
 			DBUG_RETURN(-1);
 		case FTS_EXIST_DOC_ID_INDEX:
 		case FTS_NOT_EXIST_DOC_ID_INDEX:
@@ -13088,10 +13064,10 @@ void create_table_info_t::create_table_update_dict(dict_table_t *table,
   {
     if (!table->fts_doc_id_index)
       table->fts_doc_id_index=
-        dict_table_get_index_on_name(table, FTS_DOC_ID_INDEX_NAME);
+        dict_table_get_index_on_name(table, FTS_DOC_ID_INDEX.str);
     else
       DBUG_ASSERT(table->fts_doc_id_index ==
-                  dict_table_get_index_on_name(table, FTS_DOC_ID_INDEX_NAME));
+                  dict_table_get_index_on_name(table, FTS_DOC_ID_INDEX.str));
   }
 
   DBUG_ASSERT(!table->fts == !table->fts_doc_id_index);
@@ -17623,6 +17599,7 @@ innodb_monitor_id_by_name_get(
 	const char*	name)	/*!< in: monitor counter namer */
 {
 	ut_a(name);
+	const Lex_ident_column ident = Lex_cstring_strlen(name);
 
 	/* Search for wild character '%' in the name, if
 	found, we treat it as a wildcard match. We do not search for
@@ -17635,8 +17612,8 @@ innodb_monitor_id_by_name_get(
 
 	/* Not wildcard match, check for an exact match */
 	for (ulint i = 0; i < NUM_MONITOR; i++) {
-		if (!innobase_strcasecmp(
-			name, srv_mon_get_name(static_cast<monitor_id_t>(i)))) {
+		if (ident.streq(Lex_cstring_strlen(
+			srv_mon_get_name(static_cast<monitor_id_t>(i))))) {
 			return(i);
 		}
 	}
@@ -18060,8 +18037,7 @@ innobase_index_name_is_reserved(
 	for (key_num = 0; key_num < num_of_keys; key_num++) {
 		key = &key_info[key_num];
 
-		if (innobase_strcasecmp(key->name.str,
-					innobase_index_reserve_name) == 0) {
+		if (key->name.streq(GEN_CLUST_INDEX)) {
 			/* Push warning to mysql */
 			push_warning_printf(thd,
 					    Sql_condition::WARN_LEVEL_WARN,
@@ -18070,10 +18046,10 @@ innobase_index_name_is_reserved(
 					    " '%s'. The name is reserved"
 					    " for the system default primary"
 					    " index.",
-					    innobase_index_reserve_name);
+					    GEN_CLUST_INDEX.str);
 
 			my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0),
-				 innobase_index_reserve_name);
+				 GEN_CLUST_INDEX.str);
 
 			return(true);
 		}

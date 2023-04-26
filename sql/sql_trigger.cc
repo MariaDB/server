@@ -470,7 +470,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   /*
     We don't allow creating triggers on tables in the 'mysql' schema
   */
-  if (create && lex_string_eq(&tables->db, STRING_WITH_LEN("mysql")))
+  if (create && tables->db.streq(MYSQL_SCHEMA_NAME))
   {
     my_error(ER_NO_TRIGGERS_ON_SYSTEM_SCHEMA, MYF(0));
     DBUG_RETURN(TRUE);
@@ -948,7 +948,7 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
     DBUG_RETURN(true);
 
   /* Trigger must be in the same schema as target table. */
-  if (lex_string_cmp(table_alias_charset, &table->s->db, &lex->spname->m_db))
+  if (!table->s->db.streq(lex->spname->m_db))
   {
     my_error(ER_TRG_IN_WRONG_SCHEMA, MYF(0));
     DBUG_RETURN(true);
@@ -1126,13 +1126,13 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
   trigger->client_cs_name= thd->charset()->cs_name;
   trigger->connection_cl_name= thd->variables.collation_connection->coll_name;
   trigger->db_cl_name= get_default_db_collation(thd, tables->db.str)->coll_name;
-  trigger->name= lex->spname->m_name;
+  trigger->name= Lex_ident_trigger(lex->spname->m_name);
 
   /* Add trigger in it's correct place */
   add_trigger(lex->trg_chistics.event,
               lex->trg_chistics.action_time,
               lex->trg_chistics.ordering_clause,
-              &lex->trg_chistics.anchor_trigger_name,
+              Lex_ident_trigger(lex->trg_chistics.anchor_trigger_name),
               trigger);
 
   /* Create trigger definition file .TRG */
@@ -1318,8 +1318,7 @@ Trigger *Table_triggers_list::find_trigger(const LEX_CSTRING *name,
            (trigger= *parent);
            parent= &trigger->next)
       {
-        if (lex_string_cmp(table_alias_charset,
-                           &trigger->name, name) == 0)
+        if (trigger->name.streq(*name))
         {
           if (remove_from_list)
           {
@@ -1723,7 +1722,8 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
         */
         if (trigger->hr_create_time.val < 429496729400ULL)
           trigger->hr_create_time.val*= 10000;
-        trigger->name= sp ? sp->m_name : empty_clex_str;
+        trigger->name= sp ? Lex_ident_trigger(sp->m_name) :
+                            Lex_ident_trigger(empty_clex_str);
         trigger->on_table_name.str= (char*) lex.raw_trg_on_table_name_begin;
         trigger->on_table_name.length= (lex.raw_trg_on_table_name_end -
                                         lex.raw_trg_on_table_name_begin);
@@ -1738,7 +1738,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
           trigger_list->add_trigger(lex.trg_chistics.event,
                                     lex.trg_chistics.action_time,
                                     TRG_ORDER_NONE,
-                                    &lex.trg_chistics.anchor_trigger_name,
+                        Lex_ident_trigger(lex.trg_chistics.anchor_trigger_name),
                                     trigger);
 
         if (unlikely(parse_error))
@@ -1757,7 +1757,8 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
 
           if (likely((name= error_handler.get_trigger_name())))
           {
-            trigger->name= safe_lexcstrdup_root(&table->mem_root, *name);
+            trigger->name= Lex_ident_trigger(safe_lexcstrdup_root(
+                                               &table->mem_root, *name));
             if (unlikely(!trigger->name.str))
               goto err_with_lex_cleanup;
           }
@@ -1820,12 +1821,13 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
         */
 
         char fname[SAFE_NAME_LEN + 1];
-        DBUG_ASSERT((!my_strcasecmp(table_alias_charset, lex.query_tables->db.str, db->str) ||
+        DBUG_ASSERT((lex.query_tables->db.streq(*db) ||
                      (check_n_cut_mysql50_prefix(db->str, fname, sizeof(fname)) &&
-                      !my_strcasecmp(table_alias_charset, lex.query_tables->db.str, fname))));
-        DBUG_ASSERT((!my_strcasecmp(table_alias_charset, lex.query_tables->table_name.str, table_name->str) ||
+                      lex.query_tables->db.streq(Lex_cstring_strlen(fname)))));
+        DBUG_ASSERT((lex.query_tables->table_name.streq(*table_name) ||
                      (check_n_cut_mysql50_prefix(table_name->str, fname, sizeof(fname)) &&
-                      !my_strcasecmp(table_alias_charset, lex.query_tables->table_name.str, fname))));
+                      lex.query_tables->table_name.
+                        streq(Lex_cstring_strlen(fname)))));
 #endif
         if (names_only)
         {
@@ -1901,7 +1903,8 @@ error:
 void Table_triggers_list::add_trigger(trg_event_type event,
                                       trg_action_time_type action_time,
                                       trigger_order_type ordering_clause,
-                                      LEX_CSTRING *anchor_trigger_name,
+                                      const Lex_ident_trigger &
+                                        anchor_trigger_name,
                                       Trigger *trigger)
 {
   Trigger **parent= &triggers[event][action_time];
@@ -1910,8 +1913,7 @@ void Table_triggers_list::add_trigger(trg_event_type event,
   for ( ; *parent ; parent= &(*parent)->next, position++)
   {
     if (ordering_clause != TRG_ORDER_NONE &&
-        !lex_string_cmp(table_alias_charset, anchor_trigger_name,
-                        &(*parent)->name))
+        anchor_trigger_name.streq((*parent)->name))
     {
       if (ordering_clause == TRG_ORDER_FOLLOWS)
       {
@@ -2318,11 +2320,11 @@ bool Trigger::change_on_table_name(void* param_arg)
 bool
 Table_triggers_list::prepare_for_rename(THD *thd,
                                         TRIGGER_RENAME_PARAM *param,
-                                        const LEX_CSTRING *db,
-                                        const LEX_CSTRING *old_alias,
-                                        const LEX_CSTRING *old_table,
-                                        const LEX_CSTRING *new_db,
-                                        const LEX_CSTRING *new_table)
+                                        const Lex_ident_db &db,
+                                        const Lex_ident_table &old_alias,
+                                        const Lex_ident_table &old_table,
+                                        const Lex_ident_db &new_db,
+                                        const Lex_ident_table &new_table)
 {
   TABLE *table= &param->table;
   bool result= 0;
@@ -2331,11 +2333,10 @@ Table_triggers_list::prepare_for_rename(THD *thd,
   init_sql_alloc(key_memory_Table_trigger_dispatcher,
                  &table->mem_root, 8192, 0, MYF(0));
 
-  DBUG_ASSERT(my_strcasecmp(table_alias_charset, db->str, new_db->str) ||
-              my_strcasecmp(table_alias_charset, old_alias->str,
-                            new_table->str));
+  DBUG_ASSERT(!db.streq(new_db) ||
+              !old_alias.streq(new_table));
 
-  if (Table_triggers_list::check_n_load(thd, db, old_table, table, TRUE))
+  if (Table_triggers_list::check_n_load(thd, &db, &old_table, table, TRUE))
   {
     result= 1;
     goto end;
@@ -2357,11 +2358,11 @@ Table_triggers_list::prepare_for_rename(THD *thd,
       we will be given table name with "#mysql50#" prefix
       To remove this prefix we use check_n_cut_mysql50_prefix().
     */
-    if (my_strcasecmp(table_alias_charset, db->str, new_db->str))
+    if (!db.streq(new_db))
     {
       char dbname[SAFE_NAME_LEN + 1];
-      if (check_n_cut_mysql50_prefix(db->str, dbname, sizeof(dbname)) &&
-          !my_strcasecmp(table_alias_charset, dbname, new_db->str))
+      if (check_n_cut_mysql50_prefix(db.str, dbname, sizeof(dbname)) &&
+          new_db.streq(Lex_cstring_strlen(dbname)))
       {
         param->upgrading50to51= TRUE;
       }

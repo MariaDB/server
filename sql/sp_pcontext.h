@@ -41,7 +41,7 @@ public:
   };
 
   /// Name of the SP-variable.
-  LEX_CSTRING name;
+  Lex_ident_column name;
 
   /// Mode of the SP-variable.
   enum_mode mode;
@@ -116,7 +116,7 @@ public:
   };
 
   /// Name of the label.
-  LEX_CSTRING name;
+  Lex_ident_column name;
 
   /// Instruction pointer of the label.
   uint ip;
@@ -242,28 +242,20 @@ class sp_condition : public Sql_alloc
 {
 public:
   /// Name of the condition.
-  LEX_CSTRING name;
+  Lex_ident_column name;
 
   /// Value of the condition.
   sp_condition_value *value;
 
 public:
-  sp_condition(const LEX_CSTRING *name_arg, sp_condition_value *value_arg)
+  sp_condition(const Lex_ident_column &name_arg, sp_condition_value *value_arg)
    :Sql_alloc(),
-    name(*name_arg),
+    name(name_arg),
     value(value_arg)
   { }
-  sp_condition(const char *name_arg, size_t name_length_arg,
-               sp_condition_value *value_arg)
-   :value(value_arg)
-  {
-    name.str=    name_arg;
-    name.length= name_length_arg;
-  }
   bool eq_name(const LEX_CSTRING *str) const
   {
-    return system_charset_info->strnncoll(name.str, name.length,
-                                          str->str, str->length) == 0;
+    return name.streq(*str);
   }
 };
 
@@ -286,14 +278,14 @@ public:
     Note, m_param_context can be not NULL, but have no variables.
     This is also means a cursor with no parameters (similar to NULL).
 */
-class sp_pcursor: public LEX_CSTRING
+class sp_pcursor: public Lex_ident_column
 {
   class sp_pcontext *m_param_context; // Formal parameters
   class sp_lex_cursor *m_lex;         // The cursor statement LEX
 public:
   sp_pcursor(const LEX_CSTRING *name, class sp_pcontext *param_ctx,
              class sp_lex_cursor *lex)
-   :LEX_CSTRING(*name), m_param_context(param_ctx), m_lex(lex)
+   :Lex_ident_column(*name), m_param_context(param_ctx), m_lex(lex)
   { }
   class sp_pcontext *param_context() const { return m_param_context; }
   class sp_lex_cursor *lex() const { return m_lex; }
@@ -605,7 +597,7 @@ public:
   // Conditions.
   /////////////////////////////////////////////////////////////////////////
 
-  bool add_condition(THD *thd, const LEX_CSTRING *name,
+  bool add_condition(THD *thd, const Lex_ident_column &name,
                                sp_condition_value *value);
 
   /// See comment for find_variable() above.
@@ -615,12 +607,12 @@ public:
   sp_condition_value *
   find_declared_or_predefined_condition(THD *thd, const LEX_CSTRING *name) const;
 
-  bool declare_condition(THD *thd, const LEX_CSTRING *name,
+  bool declare_condition(THD *thd, const Lex_ident_column &name,
                                    sp_condition_value *val)
   {
-    if (find_condition(name, true))
+    if (find_condition(&name, true))
     {
-      my_error(ER_SP_DUP_COND, MYF(0), name->str);
+      my_error(ER_SP_DUP_COND, MYF(0), name.str);
       return true;
     }
     return add_condition(thd, name, val);

@@ -416,7 +416,8 @@ static int blackhole_init(void *p)
   mysql_mutex_init(bh_key_mutex_blackhole,
                    &blackhole_mutex, MY_MUTEX_INIT_FAST);
   (void) my_hash_init(PSI_INSTRUMENT_ME, &blackhole_open_tables,
-                      system_charset_info, 32, 0, 0,
+                      Lex_ident_table::charset_info(),
+                      32, 0, 0,
                       (my_hash_get_key) blackhole_get_key,
                       (my_hash_free_key) blackhole_free_key, 0);
 
