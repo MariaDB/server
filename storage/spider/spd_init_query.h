@@ -665,6 +665,5 @@ static LEX_STRING spider_init_queries[] = {
   )},
   {C_STRING_WITH_LEN(
     "drop procedure mysql.spider_plugin_installer"
-  )},
-  {C_STRING_WITH_LEN("")}
+  )}
 };
