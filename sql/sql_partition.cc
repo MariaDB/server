@@ -161,7 +161,8 @@ Item* convert_charset_partition_constant(Item *item, CHARSET_INFO *cs)
     @retval false  String not found
 */
 
-static bool is_name_in_list(const char *name, List<const char> list_names)
+static bool is_name_in_list(const Lex_ident_partition &name,
+                            List<const char> list_names)
 {
   List_iterator<const char> names_it(list_names);
   uint num_names= list_names.elements;
@@ -170,7 +171,7 @@ static bool is_name_in_list(const char *name, List<const char> list_names)
   do
   {
     const char *list_name= names_it++;
-    if (!(my_strcasecmp(system_charset_info, name, list_name)))
+    if (name.streq(Lex_cstring_strlen(list_name)))
       return TRUE;
   } while (++i < num_names);
   return FALSE;
@@ -389,9 +390,7 @@ static bool set_up_field_array(THD *thd, TABLE *table,
           do
           {
             field_name= it++;
-            if (!my_strcasecmp(system_charset_info,
-                               field_name,
-                               field->field_name.str))
+            if (field->field_name.streq(Lex_cstring_strlen(field_name)))
               break;
           } while (++inx < num_fields);
           if (inx == num_fields)
@@ -689,7 +688,7 @@ static bool handle_list_of_fields(THD *thd, List_iterator<const char> it,
   while ((field_name= it++))
   {
     is_list_empty= FALSE;
-    field= find_field_in_table_sef(table, field_name);
+    field= find_field_in_table_sef(table, Lex_cstring_strlen(field_name));
     if (likely(field != 0))
       field->flags|= GET_FIXED_FIELDS_FLAG;
     else
@@ -2261,7 +2260,7 @@ static int add_engine_part_options(String *str, partition_element *p_elem)
     NULL                         No field found
 */
 
-static Create_field* get_sql_field(const char *field_name,
+static Create_field* get_sql_field(const LEX_CSTRING &field_name,
                                    Alter_info *alter_info)
 {
   List_iterator<Create_field> it(alter_info->create_list);
@@ -2270,9 +2269,7 @@ static Create_field* get_sql_field(const char *field_name,
 
   while ((sql_field= it++))
   {
-    if (!(my_strcasecmp(system_charset_info,
-                        sql_field->field_name.str,
-                        field_name)))
+    if (sql_field->field_name.streq(field_name))
     {
       DBUG_RETURN(sql_field);
     }
@@ -2325,7 +2322,7 @@ static int add_column_list_values(String *str, partition_info *part_info,
             derived_attr(create_info->default_table_charset);
           Create_field *sql_field;
 
-          if (!(sql_field= get_sql_field(field_name,
+          if (!(sql_field= get_sql_field(Lex_cstring_strlen(field_name),
                                          alter_info)))
           {
             my_error(ER_FIELD_NOT_FOUND_PART_ERROR, MYF(0));
@@ -2716,8 +2713,7 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
           err+= str.append(STRING_WITH_LEN(",\n "));
         first= FALSE;
         err+= str.append(STRING_WITH_LEN("PARTITION "));
-        err+= append_identifier(thd, &str, part_elem->partition_name,
-                                           strlen(part_elem->partition_name));
+        err+= append_identifier(thd, &str, &part_elem->partition_name);
         err+= add_partition_values(&str, part_info, part_elem,
                                    create_info, alter_info);
         if (!part_info->is_sub_partitioned() ||
@@ -2738,8 +2734,7 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
           {
             part_elem= sub_it++;
             err+= str.append(STRING_WITH_LEN("SUBPARTITION "));
-            err+= append_identifier(thd, &str, part_elem->partition_name,
-                                               strlen(part_elem->partition_name));
+            err+= append_identifier(thd, &str, &part_elem->partition_name);
             if (show_partition_options)
               err+= add_server_part_options(&str, part_elem);
             if (j != (num_subparts-1))
@@ -4742,7 +4737,7 @@ bool set_part_state(Alter_info *alter_info, partition_info *tab_part_info,
       num_parts_found++;
       part_elem->part_state= part_state;
       DBUG_PRINT("info", ("Setting part_state to %u for partition %s",
-                          part_state, part_elem->partition_name));
+                          part_state, part_elem->partition_name.str));
     }
     else
       part_elem->part_state= PART_NORMAL;
@@ -6022,13 +6017,12 @@ the generated partition syntax in a correct manner.
         {
           KEY *primary_key= table->key_info + table->s->primary_key;
           List_iterator_fast<Alter_drop> drop_it(alter_info->drop_list);
-          const char *primary_name= primary_key->name.str;
           const Alter_drop *drop;
           drop_it.rewind();
           while ((drop= drop_it++))
           {
             if (drop->type == Alter_drop::KEY &&
-                0 == my_strcasecmp(system_charset_info, primary_name, drop->name))
+                drop->name.streq(primary_key->name))
               break;
           }
           if (drop)
@@ -7388,7 +7382,8 @@ static bool check_table_data(ALTER_PARTITION_PARAM_TYPE *lpt)
 
   uint32 new_part_id;
   partition_element *part_elem;
-  const char* partition_name= thd->lex->part_info->curr_part_elem->partition_name;
+  const Lex_ident_partition &partition_name=
+    thd->lex->part_info->curr_part_elem->partition_name;
   part_elem= table_to->part_info->get_part_elem(partition_name,
                                                 nullptr, 0, &new_part_id);
   if (unlikely(!part_elem))
@@ -8067,12 +8062,10 @@ void make_used_partitions_str(MEM_ROOT *alloc,
             parts_str->append(',');
           uint index= parts_str->length();
           parts_str->append(head_pe->partition_name,
-                           strlen(head_pe->partition_name),
-                           system_charset_info);
+                            head_pe->partition_name.charset_info());
           parts_str->append('_');
           parts_str->append(pe->partition_name,
-                           strlen(pe->partition_name),
-                           system_charset_info);
+                            pe->partition_name.charset_info());
           used_partitions_list.append_str(alloc, parts_str->ptr() + index);
         }
         partition_id++;
@@ -8087,9 +8080,9 @@ void make_used_partitions_str(MEM_ROOT *alloc,
       {
         if (parts_str->length())
           parts_str->append(',');
-        used_partitions_list.append_str(alloc, pe->partition_name);
-        parts_str->append(pe->partition_name, strlen(pe->partition_name),
-                         system_charset_info);
+        used_partitions_list.append_str(alloc, pe->partition_name.str);
+        parts_str->append(pe->partition_name,
+                          pe->partition_name.charset_info());
       }
       partition_id++;
     }
@@ -9114,7 +9107,8 @@ static const char *longest_str(const char *s1, const char *s2,
 */
 
 int create_partition_name(char *out, size_t outlen, const char *in1,
-                          const char *in2, uint name_variant, bool translate)
+                          const char *in2,
+                          uint name_variant, bool translate)
 {
   char transl_part_name[FN_REFLEN];
   const char *transl_part, *end;
@@ -9160,15 +9154,15 @@ int create_partition_name(char *out, size_t outlen, const char *in1,
     @retval false             Success.
 */
 
-int create_subpartition_name(char *out, size_t outlen,
-                             const char *in1, const char *in2,
-                             const char *in3, uint name_variant)
+int create_subpartition_name(char *out, size_t outlen, const char *in1,
+                             const Lex_ident_partition &in2,
+                             const Lex_ident_partition &in3, uint name_variant)
 {
   char transl_part_name[FN_REFLEN], transl_subpart_name[FN_REFLEN], *end;
   DBUG_ASSERT(outlen >= FN_REFLEN + 1); // consistency! same limit everywhere
 
-  tablename_to_filename(in2, transl_part_name, FN_REFLEN);
-  tablename_to_filename(in3, transl_subpart_name, FN_REFLEN);
+  tablename_to_filename(in2.str, transl_part_name, FN_REFLEN);
+  tablename_to_filename(in3.str, transl_subpart_name, FN_REFLEN);
 
   if (name_variant == NORMAL_PART_NAME)
     end= strxnmov(out, outlen-1, in1, "#P#", transl_part_name,

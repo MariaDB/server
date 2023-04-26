@@ -197,3 +197,21 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+
+--echo #
+--echo # Start of 11.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-33806 Server crashes when executing Admin SQL/DML after setting character_set_collations to utf8mb3_general1400_as_ci
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general1400_as_ci);
+INSERT INTO t1 VALUES ('111%');
+SELECT a, HEX(LIKE_RANGE_MAX(a,40)) FROM t1 ORDER BY a;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 11.5 tests
+--echo #

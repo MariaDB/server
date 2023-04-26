@@ -64,7 +64,8 @@ int sys_var_init()
   /* Must be already initialized. */
   DBUG_ASSERT(system_charset_info != NULL);
 
-  if (my_hash_init(PSI_INSTRUMENT_ME, &system_variable_hash, system_charset_info, 700, 0,
+  if (my_hash_init(PSI_INSTRUMENT_ME, &system_variable_hash,
+                   Lex_ident_sys_var::charset_info(), 700, 0,
                    0, (my_hash_get_key) get_sys_var_length, 0, HASH_UNIQUE))
     goto error;
 
@@ -499,31 +500,31 @@ bool throw_bounds_warning(THD *thd, const char *name, bool fixed, double v)
 
 typedef struct old_names_map_st
 {
-  const char *old_name;
+  const Lex_ident_charset old_name;
   const char *new_name;
 } my_old_conv;
 
 static my_old_conv old_conv[]=
 {
-  {     "cp1251_koi8"           ,       "cp1251"        },
-  {     "cp1250_latin2"         ,       "cp1250"        },
-  {     "kam_latin2"            ,       "keybcs2"       },
-  {     "mac_latin2"            ,       "MacRoman"      },
-  {     "macce_latin2"          ,       "MacCE"         },
-  {     "pc2_latin2"            ,       "pclatin2"      },
-  {     "vga_latin2"            ,       "pclatin1"      },
-  {     "koi8_cp1251"           ,       "koi8r"         },
-  {     "win1251ukr_koi8_ukr"   ,       "win1251ukr"    },
-  {     "koi8_ukr_win1251ukr"   ,       "koi8u"         },
-  {     NULL                    ,       NULL            }
+  {     "cp1251_koi8"_Lex_ident_charset          ,       "cp1251"        },
+  {     "cp1250_latin2"_Lex_ident_charset        ,       "cp1250"        },
+  {     "kam_latin2"_Lex_ident_charset           ,       "keybcs2"       },
+  {     "mac_latin2"_Lex_ident_charset           ,       "MacRoman"      },
+  {     "macce_latin2"_Lex_ident_charset         ,       "MacCE"         },
+  {     "pc2_latin2"_Lex_ident_charset           ,       "pclatin2"      },
+  {     "vga_latin2"_Lex_ident_charset           ,       "pclatin1"      },
+  {     "koi8_cp1251"_Lex_ident_charset          ,       "koi8r"         },
+  {     "win1251ukr_koi8_ukr"_Lex_ident_charset  ,       "win1251ukr"    },
+  {     "koi8_ukr_win1251ukr"_Lex_ident_charset  ,       "koi8u"         },
+  {     Lex_ident_charset()                      ,       NULL            }
 };
 
-CHARSET_INFO *get_old_charset_by_name(const char *name)
+CHARSET_INFO *get_old_charset_by_name(const LEX_CSTRING &name)
 {
   my_old_conv *conv;
-  for (conv= old_conv; conv->old_name; conv++)
+  for (conv= old_conv; conv->old_name.str; conv++)
   {
-    if (!my_strcasecmp(&my_charset_latin1, name, conv->old_name))
+    if (conv->old_name.streq(name))
       return get_charset_by_csname(conv->new_name, MY_CS_PRIMARY, MYF(0));
   }
   return NULL;
@@ -959,7 +960,7 @@ int set_var_password::update(THD *thd)
 int set_var_role::check(THD *thd)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  int status= acl_check_setrole(thd, role.str, &access);
+  int status= acl_check_setrole(thd, role, &access);
   return status;
 #else
   return 0;
@@ -969,7 +970,7 @@ int set_var_role::check(THD *thd)
 int set_var_role::update(THD *thd)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  int res= acl_setrole(thd, role.str, access);
+  int res= acl_setrole(thd, role, access);
   if (!res)
     thd->session_tracker.state_change.mark_as_changed(thd);
   return res;
@@ -986,17 +987,17 @@ int set_var_default_role::check(THD *thd)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   real_user= get_current_user(thd, user);
-  real_role= role.str;
+  real_role= role;
   if (role.str == current_role.str)
   {
     if (!thd->security_ctx->priv_role[0])
-      real_role= "NONE";
+      real_role= "NONE"_LEX_CSTRING;
     else
-      real_role= thd->security_ctx->priv_role;
+      real_role= Lex_cstring_strlen(thd->security_ctx->priv_role);
   }
 
-  return acl_check_set_default_role(thd, real_user->host.str,
-                                    real_user->user.str, real_role);
+  return acl_check_set_default_role(thd, real_user->host,
+                                    real_user->user, real_role);
 #else
   return 0;
 #endif
@@ -1007,7 +1008,7 @@ int set_var_default_role::update(THD *thd)
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   Reprepare_observer *save_reprepare_observer= thd->m_reprepare_observer;
   thd->m_reprepare_observer= 0;
-  int res= acl_set_default_role(thd, real_user->host.str, real_user->user.str,
+  int res= acl_set_default_role(thd, real_user->host, real_user->user,
                                 real_role);
   thd->m_reprepare_observer= save_reprepare_observer;
   return res;

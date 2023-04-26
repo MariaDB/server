@@ -127,6 +127,7 @@ utf8mb3_general_mysql500_ci	utf8mb3	223		#	#
 utf8mb3_croatian_ci	utf8mb3	576		#	#
 utf8mb3_myanmar_ci	utf8mb3	577		#	#
 utf8mb3_thai_520_w2	utf8mb3	578		#	#
+utf8mb3_general1400_as_ci	utf8mb3	579		#	#
 utf8mb3_general_nopad_ci	utf8mb3	1057		#	#
 utf8mb3_nopad_bin	utf8mb3	1107		#	#
 utf8mb3_unicode_nopad_ci	utf8mb3	1216		#	#
@@ -220,6 +221,7 @@ utf8mb4_vietnamese_ci	utf8mb4	247		#	#
 utf8mb4_croatian_ci	utf8mb4	608		#	#
 utf8mb4_myanmar_ci	utf8mb4	609		#	#
 utf8mb4_thai_520_w2	utf8mb4	610		#	#
+utf8mb4_general1400_as_ci	utf8mb4	611		#	#
 utf8mb4_general_nopad_ci	utf8mb4	1069		#	#
 utf8mb4_nopad_bin	utf8mb4	1070		#	#
 utf8mb4_unicode_nopad_ci	utf8mb4	1248		#	#

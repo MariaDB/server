@@ -87,10 +87,6 @@ protected:
                                            Type_handler_hybrid_field_type *th);
 public:
 
-  // Print an error message for a builtin-schema qualified function call
-  static void wrong_param_count_error(const LEX_CSTRING &schema_name,
-                                      const LEX_CSTRING &func_name);
-
   table_map not_null_tables_cache;
 
   enum Functype { UNKNOWN_FUNC,EQ_FUNC,EQUAL_FUNC,NE_FUNC,LT_FUNC,LE_FUNC,

@@ -134,12 +134,6 @@ public:
     return sph ? sph->sp_handler_mysql_proc() : NULL;
   }
 
-  static bool eq_routine_name(const LEX_CSTRING &name1,
-                              const LEX_CSTRING &name2)
-  {
-    return system_charset_info->strnncoll(name1.str, name1.length,
-                                          name2.str, name2.length) == 0;
-  }
   const char *type_str() const { return type_lex_cstring().str; }
   virtual const char *show_create_routine_col1_caption() const
   {

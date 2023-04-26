@@ -207,7 +207,7 @@ static int cur_plugin_info_interface_version[MYSQL_MAX_PLUGIN_TYPE_NUM]=
 
 static struct
 {
-  const char *plugin_name;
+  Lex_ident_plugin plugin_name;
   enum enum_plugin_load_option override;
 } override_plugin_load_policy[]={
   /*
@@ -226,10 +226,10 @@ static struct
     - yet disable explicitly a component needed for the functionality
       to work, by using '--skip-performance-schema' (the plugin)
   */
-  { "performance_schema", PLUGIN_FORCE }
+  { "performance_schema"_Lex_ident_plugin, PLUGIN_FORCE }
 
   /* we disable few other plugins by default */
-  ,{ "feedback", PLUGIN_OFF }
+  ,{ "feedback"_Lex_ident_plugin, PLUGIN_OFF }
 };
 
 /* support for Services */
@@ -374,16 +374,16 @@ bool check_valid_path(const char *path, size_t len)
 
 static void fix_dl_name(MEM_ROOT *root, LEX_CSTRING *dl)
 {
-  const size_t so_ext_len= sizeof(SO_EXT) - 1;
-  if (dl->length < so_ext_len ||
-      my_strcasecmp(&my_charset_latin1, dl->str + dl->length - so_ext_len,
-                    SO_EXT))
+  const Lex_ident_plugin so_ext(STRING_WITH_LEN(SO_EXT));
+  if (dl->length < so_ext.length ||
+      !so_ext.streq(Lex_cstring(dl->str + dl->length - so_ext.length,
+                                so_ext.length)))
   {
-    char *s= (char*)alloc_root(root, dl->length + so_ext_len + 1);
+    char *s= (char*)alloc_root(root, dl->length + so_ext.length + 1);
     memcpy(s, dl->str, dl->length);
     strcpy(s + dl->length, SO_EXT);
     dl->str= s;
-    dl->length+= so_ext_len;
+    dl->length+= so_ext.length;
   }
 }
 
@@ -1144,8 +1144,7 @@ static enum install_status plugin_add(MEM_ROOT *tmp_root, bool if_not_exists,
          tmp.plugin_dl->mariaversion == 0))
       continue; // unsupported plugin type
 
-    if (name->str && system_charset_info->strnncoll(name->str, name->length,
-                                                    tmp.name.str, tmp.name.length))
+    if (name->str && !Lex_ident_plugin(*name).streq(tmp.name))
       continue; // plugin name doesn't match
 
     if (!name->str &&
@@ -1634,7 +1633,9 @@ int plugin_init(int *argc, char **argv, int flags)
 
   for (i= 0; i < MYSQL_MAX_PLUGIN_TYPE_NUM; i++)
   {
-    if (my_hash_init(key_memory_plugin_mem_root, &plugin_hash[i], system_charset_info, 32, 0, 0,
+    if (my_hash_init(key_memory_plugin_mem_root, &plugin_hash[i],
+                     Lex_ident_plugin::charset_info(),
+                     32, 0, 0,
                      get_plugin_hash_key, NULL, HASH_UNIQUE))
       goto err;
   }
@@ -1667,21 +1668,20 @@ int plugin_init(int *argc, char **argv, int flags)
     }
     for (plugin= *builtins; plugin->info; plugin++)
     {
+      Lex_ident_plugin tmp_plugin_name(Lex_cstring_strlen(plugin->name));
       if (opt_ignore_builtin_innodb &&
-          !my_charset_latin1.strnncoll(plugin->name, 6, "InnoDB", 6))
+          tmp_plugin_name.streq("InnoDB"_Lex_ident_plugin))
         continue;
 
       bzero(&tmp, sizeof(tmp));
       tmp.plugin= plugin;
-      tmp.name.str= (char *)plugin->name;
-      tmp.name.length= strlen(plugin->name);
+      tmp.name= tmp_plugin_name;
       tmp.state= 0;
       tmp.load_option= mandatory ? PLUGIN_FORCE : PLUGIN_ON;
 
       for (i=0; i < array_elements(override_plugin_load_policy); i++)
       {
-        if (!my_strcasecmp(&my_charset_latin1, plugin->name,
-                           override_plugin_load_policy[i].plugin_name))
+        if (tmp_plugin_name.streq(override_plugin_load_policy[i].plugin_name))
         {
           tmp.load_option= override_plugin_load_policy[i].override;
           break;

@@ -25,6 +25,22 @@
 
 #include "table.h"
 #include "sql_acl.h"
+
+/*
+  The performance schema is implemented as a storage engine, in memory.
+  The current storage engine interface exposed by the server,
+  and in particular handlerton::discover, uses 'FRM' files to describe a
+  table structure, which are later stored on disk, by the server,
+  in ha_create_table_from_engine().
+  Because the table metadata is stored on disk, the table naming rules
+  used by the performance schema then have to comply with the constraints
+  imposed by the disk storage, and in particular with lower_case_table_names.
+*/
+
+using PFS_ident_db= Lex_ident_i_s_db;
+using PFS_ident_table = Lex_ident_i_s_table;
+
+
 /**
   @file storage/perfschema/pfs_engine_table.h
   Performance schema tables (declarations).
@@ -304,7 +320,7 @@ struct PFS_engine_table_share
   int write_row(TABLE *table, const unsigned char *buf, Field **fields) const;
 
   /** Table name. */
-  LEX_STRING m_name;
+  Lex_ident_table m_name;
   /** Table ACL. */
   const ACL_internal_table_access *m_acl;
   /** Open table function. */

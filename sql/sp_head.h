@@ -132,9 +132,6 @@ public:
 };
 
 
-bool
-check_routine_name(const LEX_CSTRING *ident);
-
 class sp_head :private Query_arena,
                public Database_qualified_name,
                public Sql_alloc
@@ -769,7 +766,7 @@ public:
     return false;
   }
   bool fill_spvar_definition(THD *thd, Column_definition *def,
-                             LEX_CSTRING *name)
+                             const Lex_ident_column *name)
   {
     def->field_name= *name;
     return fill_spvar_definition(thd, def);

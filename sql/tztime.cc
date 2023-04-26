@@ -1626,7 +1626,7 @@ my_tz_init(THD *org_thd, const char *default_tzname, my_bool bootstrap)
   THD *thd;
   TABLE_LIST tz_tables[1+MY_TZ_TABLES_COUNT];
   TABLE *table;
-  const LEX_CSTRING tmp_table_name= { STRING_WITH_LEN("time_zone_leap_second") };
+  const Lex_ident_table tmp_table_name= "time_zone_leap_second"_Lex_ident_table;
   Tz_names_entry *tmp_tzname;
   my_bool return_val= 1;
   int res;

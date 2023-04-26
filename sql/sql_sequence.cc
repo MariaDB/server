@@ -380,8 +380,7 @@ bool check_sequence_fields(LEX *lex, List<Create_field> *fields,
   for (field_no= 0; (field= it++); field_no++)
   {
     const Sequence_field_definition *field_def= &row_structure.fields[field_no];
-    if (my_strcasecmp(system_charset_info, field_def->field_name,
-                      field->field_name.str) ||
+    if (!field->field_name.streq(Lex_cstring_strlen(field_def->field_name)) ||
         field->flags != field_def->flags ||
         field->type_handler() != field_def->type_handler ||
         field->check_constraint || field->vcol_info)
@@ -418,8 +417,8 @@ bool sequence_definition::prepare_sequence_fields(List<Create_field> *fields,
        field_info->field_name; field_info++)
   {
     Create_field *new_field;
-    LEX_CSTRING field_name= {field_info->field_name,
-                             strlen(field_info->field_name)};
+    const Lex_ident_column field_name= Lex_cstring_strlen(field_info->
+                                                            field_name);
 
     if (unlikely(!(new_field= new Create_field())))
       DBUG_RETURN(TRUE); /* purify inspected */

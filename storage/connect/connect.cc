@@ -45,7 +45,6 @@
 #include "catalog.h"
 #include "ha_connect.h"
 
-#define my_stricmp(a, b) my_strcasecmp(default_charset_info, (a), (b))
 
 /***********************************************************************/
 /*  Routines called internally by semantic routines.                   */

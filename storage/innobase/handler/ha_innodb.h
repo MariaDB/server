@@ -25,10 +25,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 /* The InnoDB handler: the interface between MySQL and InnoDB. */
 
-/** "GEN_CLUST_INDEX" is the name reserved for InnoDB default
-system clustered index when there is no primary key. */
-extern const char innobase_index_reserve_name[];
-
 /** Prebuilt structures in an InnoDB table handle used within MySQL */
 struct row_prebuilt_t;
 
@@ -791,7 +787,7 @@ enum fts_doc_id_index_enum {
 };
 
 /**
-Check whether the table has a unique index with FTS_DOC_ID_INDEX_NAME
+Check whether the table has a unique index with name FTS_DOC_ID_INDEX
 on the Doc ID column.
 @return the status of the FTS_DOC_ID index */
 fts_doc_id_index_enum
@@ -804,7 +800,7 @@ innobase_fts_check_doc_id_index(
 	MY_ATTRIBUTE((warn_unused_result));
 
 /**
-Check whether the table has a unique index with FTS_DOC_ID_INDEX_NAME
+Check whether the table has a unique index with name FTS_DOC_ID_INDEX
 on the Doc ID column in MySQL create index definition.
 @return FTS_EXIST_DOC_ID_INDEX if there exists the FTS_DOC_ID index,
 FTS_INCORRECT_DOC_ID_INDEX if the FTS_DOC_ID index is of wrong format */

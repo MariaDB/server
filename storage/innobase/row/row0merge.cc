@@ -4544,10 +4544,10 @@ row_merge_create_index(
 				n_add_vcol++;
 			} else {
 				name = dict_table_get_v_col_name(
-					table, ifield->col_no);
+					table, ifield->col_no).str;
 			}
 		} else {
-			name = dict_table_get_col_name(table, ifield->col_no);
+			name = dict_table_get_col_name(table, ifield->col_no).str;
 		}
 
 		dict_mem_index_add_field(index, name, ifield->prefix_len,

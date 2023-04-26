@@ -156,8 +156,6 @@
 #include "tabpivot.h"
 #include "tabfix.h"
 
-#define my_stricmp(a,b) my_strcasecmp(default_charset_info, (a), (b))
-
 
 /***********************************************************************/
 /*  Initialize the ha_connect static members.                          */

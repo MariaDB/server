@@ -292,11 +292,25 @@ bool write_log_replace_frm(ALTER_PARTITION_PARAM_TYPE *lpt,
 #endif
 
 int __attribute__((warn_unused_result))
-  create_partition_name(char *out, size_t outlen, const char *in1, const char
-                        *in2, uint name_variant, bool translate);
+  create_partition_name(char *out, size_t outlen, const char *in1,
+                        const char *in2,
+                        uint name_variant, bool translate);
+
+static inline
 int __attribute__((warn_unused_result))
-  create_subpartition_name(char *out, size_t outlen, const char *in1, const
-                           char *in2, const char *in3, uint name_variant);
+  create_partition_name(char *out, size_t outlen, const char *in1,
+                        const Lex_ident_partition &in2,
+                        uint name_variant, bool translate)
+{
+  return create_partition_name(out, outlen, in1, in2.str,
+                               name_variant, translate);
+}
+
+
+int __attribute__((warn_unused_result))
+  create_subpartition_name(char *out, size_t outlen, const char *in1,
+                           const Lex_ident_partition &in2,
+                           const Lex_ident_partition &in3, uint name_variant);
 
 void set_key_field_ptr(KEY *key_info, const uchar *new_buf,
                        const uchar *old_buf);

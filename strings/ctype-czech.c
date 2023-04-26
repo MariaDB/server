@@ -591,7 +591,6 @@ static MY_COLLATION_HANDLER my_collation_latin2_czech_cs_handler =
   my_strnxfrmlen_czech,
   my_like_range_czech,
   my_wildcmp_bin,
-  my_strcasecmp_8bit,
   my_instr_simple,
   my_hash_sort_simple,
   my_propagate_simple,

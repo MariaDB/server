@@ -139,15 +139,6 @@ at least ENUM and SET, and unsigned integer types are 'unsigned types'
 uint8_t
 get_innobase_type_from_mysql_type(unsigned *unsigned_flag, const Field *field);
 
-/******************************************************************//**
-Compares NUL-terminated UTF-8 strings case insensitively.
-@return 0 if a=b, <0 if a<b, >1 if a>b */
-int
-innobase_strcasecmp(
-/*================*/
-	const char*	a,	/*!< in: first string to compare */
-	const char*	b);	/*!< in: second string to compare */
-
 /** Strip dir name from a full path name and return only the file name
 @param[in]	path_name	full path name
 @return file name or "null" if no file name */

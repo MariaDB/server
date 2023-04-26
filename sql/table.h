@@ -536,8 +536,8 @@ enum enum_table_category
 
 typedef enum enum_table_category TABLE_CATEGORY;
 
-TABLE_CATEGORY get_table_category(const LEX_CSTRING *db,
-                                  const LEX_CSTRING *name);
+TABLE_CATEGORY get_table_category(const Lex_ident_db &db,
+                                  const Lex_ident_table &name);
 
 
 typedef struct st_table_field_type
@@ -757,8 +757,8 @@ struct TABLE_SHARE
     To ensure this one can use set_table_cache() methods.
   */
   LEX_CSTRING table_cache_key;
-  LEX_CSTRING db;                        /* Pointer to db */
-  LEX_CSTRING table_name;                /* Table name (for open) */
+  Lex_ident_db db;                    /* Pointer to db */
+  Lex_ident_table table_name;            /* Table name (for open) */
   LEX_CSTRING path;                	/* Path to .frm file (from datadir) */
   LEX_CSTRING normalized_path;		/* unpack_filename(path) */
   LEX_CSTRING connect_string;
@@ -915,8 +915,8 @@ struct TABLE_SHARE
   {
     field_index_t start_fieldno;
     field_index_t end_fieldno;
-    Lex_ident name;
-    Lex_ident constr_name;
+    Lex_ident_column name;
+    Lex_ident_column constr_name;
     uint unique_keys;
     Field *start_field(TABLE_SHARE *s) const
     {
@@ -2087,7 +2087,7 @@ Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
 struct Field_translator
 {
   Item *item;
-  LEX_CSTRING name;
+  Lex_ident_column name;
 };
 
 
@@ -2114,11 +2114,11 @@ public:
 public:
   Natural_join_column(Field_translator *field_param, TABLE_LIST *tab);
   Natural_join_column(Item_field *field_param, TABLE_LIST *tab);
-  LEX_CSTRING *name();
+  const Lex_ident_column name();
   Item *create_item(THD *thd);
   Field *field();
-  const char *safe_table_name();
-  const char *safe_db_name();
+  const Lex_ident_table safe_table_name() const;
+  const Lex_ident_db safe_db_name() const;
   GRANT_INFO *grant();
 };
 
@@ -2176,7 +2176,7 @@ struct vers_select_conds_t
   bool delete_history:1;
   Vers_history_point start;
   Vers_history_point end;
-  Lex_ident name;
+  Lex_ident_column name;
 
   Item_field *field_start;
   Item_field *field_end;
@@ -2196,7 +2196,7 @@ struct vers_select_conds_t
   void init(vers_system_time_t _type,
             Vers_history_point _start= Vers_history_point(),
             Vers_history_point _end= Vers_history_point(),
-            Lex_ident          _name= "SYSTEM_TIME")
+            Lex_ident_column   _name= "SYSTEM_TIME"_Lex_ident_column)
   {
     type= _type;
     orig_type= _type;
@@ -2211,7 +2211,7 @@ struct vers_select_conds_t
   void set_all()
   {
     type= SYSTEM_TIME_ALL;
-    name= "SYSTEM_TIME";
+    name= "SYSTEM_TIME"_Lex_ident_column;
   }
 
   void print(String *str, enum_query_type query_type) const;
@@ -2327,9 +2327,10 @@ struct TABLE_LIST
     DBUG_ASSERT(!db_arg->str || strlen(db_arg->str) == db_arg->length);
     DBUG_ASSERT(!table_name_arg->str || strlen(table_name_arg->str) == table_name_arg->length);
     DBUG_ASSERT(!alias_arg || strlen(alias_arg->str) == alias_arg->length);
-    db= *db_arg;
-    table_name= *table_name_arg;
-    alias= (alias_arg ? *alias_arg : *table_name_arg);
+    db= Lex_ident_db(*db_arg);
+    table_name= Lex_ident_table(*table_name_arg);
+    alias= alias_arg ? Lex_ident_table(*alias_arg) :
+                       Lex_ident_table(*table_name_arg);
     lock_type= lock_type_arg;
     updating= lock_type >= TL_FIRST_WRITE;
     MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE, db.str, table_name.str,
@@ -2390,10 +2391,10 @@ struct TABLE_LIST
   TABLE_LIST *next_local;
   /* link in a global list of all queries tables */
   TABLE_LIST *next_global, **prev_global;
-  LEX_CSTRING   db;
-  LEX_CSTRING   table_name;
-  LEX_CSTRING   schema_table_name;
-  LEX_CSTRING   alias;
+  Lex_ident_db db;
+  Lex_ident_table table_name;
+  Lex_ident_i_s_table schema_table_name;
+  Lex_ident_table alias;
   const char    *option;                /* Used by cache index  */
   Item		*on_expr;		/* Used with outer join */
   Name_resolution_context *on_context;  /* For ON expressions */
@@ -2605,8 +2606,8 @@ struct TABLE_LIST
   LEX_STRING	select_stmt;		/* text of (CREATE/SELECT) statement */
   LEX_CSTRING	md5;			/* md5 of query text */
   LEX_CSTRING	source;			/* source of CREATE VIEW */
-  LEX_CSTRING	view_db;		/* saved view database */
-  LEX_CSTRING	view_name;		/* saved view name */
+  Lex_ident_db  view_db;		/* saved view database */
+  Lex_ident_table view_name;		/* saved view name */
   LEX_STRING	hr_timestamp;           /* time stamp of last operation */
   LEX_USER      definer;                /* definer of view */
   ulonglong	file_version;		/* version of file's field set */
@@ -3000,7 +3001,10 @@ struct TABLE_LIST
      @brief Returns the name of the database that the referenced table belongs
      to.
   */
-  const char *get_db_name() const { return view != NULL ? view_db.str : db.str; }
+  const Lex_ident_db get_db_name() const
+  {
+    return view != NULL ? view_db : db;
+  }
 
   /**
      @brief Returns the name of the table that this TABLE_LIST represents.
@@ -3008,7 +3012,10 @@ struct TABLE_LIST
      @details The unqualified table name or view name for a table or view,
      respectively.
    */
-  const char *get_table_name() const { return view != NULL ? view_name.str : table_name.str; }
+  const Lex_ident_table get_table_name() const
+  {
+    return view != NULL ? view_name : table_name;
+  }
   bool is_active_sjm();
   bool is_sjm_scan_table();
   bool is_jtbm() { return MY_TEST(jtbm_subselect != NULL); }
@@ -3080,7 +3087,7 @@ public:
   virtual void set(TABLE_LIST *)= 0;
   virtual void next()= 0;
   virtual bool end_of_fields()= 0;              /* Return 1 at end of list */
-  virtual LEX_CSTRING *name()= 0;
+  virtual const Lex_ident_column name()= 0;
   virtual Item *create_item(THD *)= 0;
   virtual Field *field()= 0;
 };
@@ -3100,7 +3107,7 @@ public:
   void set_table(TABLE *table) { ptr= table->field; }
   void next() { ptr++; }
   bool end_of_fields() { return *ptr == 0; }
-  LEX_CSTRING *name();
+  const Lex_ident_column name();
   Item *create_item(THD *thd);
   Field *field() { return *ptr; }
 };
@@ -3117,7 +3124,7 @@ public:
   void set(TABLE_LIST *table);
   void next() { ptr++; }
   bool end_of_fields() { return ptr == array_end; }
-  LEX_CSTRING *name();
+  const Lex_ident_column name();
   Item *create_item(THD *thd);
   Item **item_ptr() {return &ptr->item; }
   Field *field() { return 0; }
@@ -3141,10 +3148,10 @@ public:
   void set(TABLE_LIST *table);
   void next();
   bool end_of_fields() { return !cur_column_ref; }
-  LEX_CSTRING *name() { return cur_column_ref->name(); }
+  const Lex_ident_column name() { return cur_column_ref->name(); }
   Item *create_item(THD *thd) { return cur_column_ref->create_item(thd); }
   Field *field() { return cur_column_ref->field(); }
-  Natural_join_column *column_ref() { return cur_column_ref; }
+  Natural_join_column *column_ref() const { return cur_column_ref; }
 };
 
 
@@ -3178,9 +3185,9 @@ public:
   void next();
   bool end_of_fields()
   { return (table_ref == last_leaf && field_it->end_of_fields()); }
-  LEX_CSTRING *name() { return field_it->name(); }
-  const char *get_table_name();
-  const char *get_db_name();
+  const Lex_ident_column name() { return field_it->name(); }
+  const Lex_ident_table get_table_name() const;
+  const Lex_ident_db get_db_name() const;
   GRANT_INFO *grant();
   Item *create_item(THD *thd) { return field_it->create_item(thd); }
   Field *field() { return field_it->field(); }
@@ -3377,7 +3384,6 @@ void update_create_info_from_table(HA_CREATE_INFO *info, TABLE *form);
 
 bool check_column_name(const char *name);
 bool check_period_name(const char *name);
-bool check_table_name(const char *name, size_t length, bool check_for_path_chars);
 int rename_file_ext(const char * from,const char * to,const char * ext);
 char *get_field(MEM_ROOT *mem, Field *field);
 
@@ -3404,27 +3410,27 @@ static inline int set_zone(int nr,int min_zone,int max_zone)
 }
 
 /* performance schema */
-extern LEX_CSTRING PERFORMANCE_SCHEMA_DB_NAME;
+extern Lex_ident_i_s_db PERFORMANCE_SCHEMA_DB_NAME;
 
-extern LEX_CSTRING GENERAL_LOG_NAME;
-extern LEX_CSTRING SLOW_LOG_NAME;
-extern LEX_CSTRING TRANSACTION_REG_NAME;
+extern Lex_ident_table GENERAL_LOG_NAME;
+extern Lex_ident_table SLOW_LOG_NAME;
+extern Lex_ident_table TRANSACTION_REG_NAME;
 
 /* information schema */
-extern LEX_CSTRING INFORMATION_SCHEMA_NAME;
-extern LEX_CSTRING MYSQL_SCHEMA_NAME;
+extern Lex_ident_i_s_db INFORMATION_SCHEMA_NAME;
+extern Lex_ident_db MYSQL_SCHEMA_NAME;
 
 /* table names */
-extern LEX_CSTRING MYSQL_PROC_NAME;
+extern Lex_ident_table MYSQL_PROC_NAME;
 
 inline bool is_infoschema_db(const LEX_CSTRING *name)
 {
-  return lex_string_eq(&INFORMATION_SCHEMA_NAME, name);
+  return INFORMATION_SCHEMA_NAME.streq(*name);
 }
 
 inline bool is_perfschema_db(const LEX_CSTRING *name)
 {
-  return lex_string_eq(&PERFORMANCE_SCHEMA_DB_NAME, name);
+  return PERFORMANCE_SCHEMA_DB_NAME.streq(*name);
 }
 
 inline void mark_as_null_row(TABLE *table)

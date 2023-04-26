@@ -67,10 +67,11 @@ extern Native_func_registry_array native_func_registry_array_geom;
 class Create_sp_func : public Create_qfunc
 {
 public:
-  virtual Item *create_with_db(THD *thd,
-                               const Lex_ident_db_normalized &db,
-                               const LEX_CSTRING &name,
-                               bool use_explicit_name, List<Item> *item_list);
+  Item *create_with_db(THD *thd,
+                       const Lex_ident_db_normalized &db,
+                       const Lex_ident_routine &name,
+                       bool use_explicit_name,
+                       List<Item> *item_list) override;
 
   static Create_sp_func s_singleton;
 
@@ -2850,7 +2851,7 @@ Create_qfunc::create_func(THD *thd, const LEX_CSTRING *name,
   if (!db.str)
     return NULL; /*No db or EOM, error was already sent */
 
-  return create_with_db(thd, db, *name, false, item_list);
+  return create_with_db(thd, db, Lex_ident_routine(*name), false, item_list);
 }
 
 
@@ -2971,7 +2972,7 @@ Create_sp_func Create_sp_func::s_singleton;
 Item*
 Create_sp_func::create_with_db(THD *thd,
                                const Lex_ident_db_normalized &db,
-                               const LEX_CSTRING &name,
+                               const Lex_ident_routine &name,
                                bool use_explicit_name, List<Item> *item_list)
 {
   int arg_count= 0;
@@ -2979,7 +2980,7 @@ Create_sp_func::create_with_db(THD *thd,
   LEX *lex= thd->lex;
   sp_name *qname;
   const Sp_handler *sph= &sp_handler_function;
-  Database_qualified_name pkgname(&null_clex_str, &null_clex_str);
+  Database_qualified_name pkgname;
 
   if (unlikely(has_named_parameters(item_list)))
   {
@@ -5389,7 +5390,8 @@ Create_func_pi Create_func_pi::s_singleton;
 Item*
 Create_func_pi::create_builder(THD *thd)
 {
-  return new (thd->mem_root) Item_static_float_func(thd, "pi()", M_PI, 6, 8);
+  static const Lex_ident_routine name("pi()"_LEX_CSTRING);
+  return new (thd->mem_root) Item_static_float_func(thd, name, M_PI, 6, 8);
 }
 
 
@@ -6044,10 +6046,10 @@ Item*
 Create_func_version::create_builder(THD *thd)
 {
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
-  static Lex_cstring name(STRING_WITH_LEN("version()"));
+  static const Lex_ident_routine name("version()"_LEX_CSTRING);
   return new (thd->mem_root) Item_static_string_func(thd, name,
                                                      Lex_cstring_strlen(server_version),
-                                                     system_charset_info,
+                                                     system_charset_info_for_i_s,
                                                      DERIVATION_SYSCONST);
 }
 
@@ -6495,7 +6497,8 @@ bool Native_functions_hash::init(size_t count)
   DBUG_ENTER("Native_functions_hash::init");
 
   if (my_hash_init(key_memory_native_functions, this,
-                   system_charset_info, (ulong) count, 0, 0, (my_hash_get_key)
+                   Lex_ident_routine::charset_info(),
+                   (ulong) count, 0, 0, (my_hash_get_key)
                    get_native_fct_hash_key, NULL, MYF(0)))
     DBUG_RETURN(true);
 

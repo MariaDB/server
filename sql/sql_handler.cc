@@ -646,9 +646,8 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
   {
     /* Check if same as last keyname. If not, do a full lookup */
     if (handler->keyno < 0 ||
-        my_strcasecmp(&my_charset_latin1,
-                      keyname,
-                      table->s->key_info[handler->keyno].name.str))
+        !Lex_ident_column(Lex_cstring_strlen(keyname)).
+          streq(table->s->key_info[handler->keyno].name))
     {
       if ((handler->keyno= find_type(keyname, &table->s->keynames,
                                      FIND_TYPE_NO_PREFIX) - 1) < 0)
@@ -1081,10 +1080,8 @@ static SQL_HANDLER *mysql_ha_find_match(THD *thd, TABLE_LIST *tables)
       if (tables->is_anonymous_derived_table())
         continue;
       if ((! tables->db.str[0] ||
-          ! my_strcasecmp(&my_charset_latin1, hash_tables->db.str,
-                          tables->get_db_name())) &&
-          ! my_strcasecmp(&my_charset_latin1, hash_tables->table_name.str,
-                          tables->get_table_name()))
+          tables->get_db_name().streq(hash_tables->db)) &&
+          tables->get_table_name().streq(hash_tables->table_name))
       {
         /* Link into hash_tables list */
         hash_tables->next= head;

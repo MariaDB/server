@@ -88,14 +88,14 @@ public:
 class ST_FIELD_INFO: public Show::Type
 {
 protected:
-  LEX_CSTRING m_name;                 // I_S column name
+  Lex_ident_column m_name;            // I_S column name
   enum_nullability m_nullability;     // NULLABLE or NOT NULL
-  LEX_CSTRING m_old_name;             // SHOW column name
+  Lex_ident_column m_old_name;        // SHOW column name
   enum_show_open_table m_open_method;
 public:
-  ST_FIELD_INFO(const LEX_CSTRING &name, const Type &type,
+  ST_FIELD_INFO(const Lex_ident_column &name, const Type &type,
                 enum_nullability nullability,
-                LEX_CSTRING &old_name,
+                const Lex_ident_column &old_name,
                 enum_show_open_table open_method)
    :Type(type), m_name(name),
     m_nullability(nullability),
@@ -106,18 +106,14 @@ public:
                 enum_nullability nullability,
                 const char *old_name,
                 enum_show_open_table open_method)
-   :Type(type),
+   :Type(type), m_name(Lex_cstring_strlen(name)),
     m_nullability(nullability),
+    m_old_name(Lex_cstring_strlen(old_name)),
     m_open_method(open_method)
-  {
-    m_name.str= name;
-    m_name.length= safe_strlen(name);
-    m_old_name.str= old_name;
-    m_old_name.length= safe_strlen(old_name);
-  }
-  const LEX_CSTRING &name() const { return m_name; }
+  { }
+  const Lex_ident_column &name() const { return m_name; }
   bool nullable() const { return m_nullability == NULLABLE; }
-  const LEX_CSTRING &old_name() const { return m_old_name; }
+  const Lex_ident_column &old_name() const { return m_old_name; }
   enum_show_open_table open_method() const { return  m_open_method; }
   bool end_marker() const { return m_name.str == NULL; }
 };
@@ -329,7 +325,7 @@ typedef class Item COND;
 
 typedef struct st_schema_table
 {
-  const char *table_name;
+  Lex_ident_i_s_table table_name;
   ST_FIELD_INFO *fields_info;
   /* for FLUSH table_name */
   int (*reset_table) ();

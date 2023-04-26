@@ -390,43 +390,43 @@ void cleanup_instrument_config()
   @return 0 for success, non zero for errors
 */
 
-int add_pfs_instr_to_array(const char* name, const char* value)
+int add_pfs_instr_to_array(const LEX_CSTRING &name,
+                           const LEX_CSTRING &value_arg)
 {
-  size_t name_length= strlen(name);
-  size_t value_length= strlen(value);
+  Lex_ident_ci value(value_arg);
 
   /* Allocate structure plus string buffers plus null terminators */
   PFS_instr_config* e = (PFS_instr_config*)my_malloc(PSI_NOT_INSTRUMENTED,
                                                      sizeof(PFS_instr_config)
-                       + name_length + 1 + value_length + 1, MYF(MY_WME));
+                       + name.length + 1 + value.length + 1, MYF(MY_WME));
   if (!e) return 1;
 
   /* Copy the instrument name */
   e->m_name= (char*)e + sizeof(PFS_instr_config);
-  memcpy(e->m_name, name, name_length);
-  e->m_name_length= (uint)name_length;
-  e->m_name[name_length]= '\0';
+  memcpy(e->m_name, name.str, name.length);
+  e->m_name_length= (uint) name.length;
+  e->m_name[name.length]= '\0';
 
   /* Set flags accordingly */
-  if (!my_strcasecmp(&my_charset_latin1, value, "counted"))
+  if (value.streq("counted"_LEX_CSTRING))
   {
     e->m_enabled= true;
     e->m_timed= false;
   }
   else
-  if (!my_strcasecmp(&my_charset_latin1, value, "true") ||
-      !my_strcasecmp(&my_charset_latin1, value, "on") ||
-      !my_strcasecmp(&my_charset_latin1, value, "1") ||
-      !my_strcasecmp(&my_charset_latin1, value, "yes"))
+  if (value.streq("true"_LEX_CSTRING) ||
+      value.streq("on"_LEX_CSTRING) ||
+      value.streq("1"_LEX_CSTRING) ||
+      value.streq("yes"_LEX_CSTRING))
   {
     e->m_enabled= true;
     e->m_timed= true;
   }
   else
-  if (!my_strcasecmp(&my_charset_latin1, value, "false") ||
-      !my_strcasecmp(&my_charset_latin1, value, "off") ||
-      !my_strcasecmp(&my_charset_latin1, value, "0") ||
-      !my_strcasecmp(&my_charset_latin1, value, "no"))
+  if (value.streq("false"_LEX_CSTRING) ||
+      value.streq("off"_LEX_CSTRING) ||
+      value.streq("0"_LEX_CSTRING) ||
+      value.streq("no"_LEX_CSTRING))
   {
     e->m_enabled= false;
     e->m_timed= false;

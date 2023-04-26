@@ -247,6 +247,12 @@ static char *fix_table_name(char *dest, char *src);
 int what_to_do = 0;
 
 
+static inline int cmp_database(const char *a, const char *b)
+{
+  return my_strcasecmp_latin1(a, b);
+}
+
+
 static void usage(void)
 {
   DBUG_ENTER("usage");
@@ -869,10 +875,10 @@ static int use_db(char *database)
   DBUG_ENTER("use_db");
 
   if (mysql_get_server_version(sock) >= FIRST_INFORMATION_SCHEMA_VERSION &&
-      !my_strcasecmp(&my_charset_latin1, database, INFORMATION_SCHEMA_DB_NAME))
+      !cmp_database(database, INFORMATION_SCHEMA_DB_NAME))
     DBUG_RETURN(1);
   if (mysql_get_server_version(sock) >= FIRST_PERFORMANCE_SCHEMA_VERSION &&
-      !my_strcasecmp(&my_charset_latin1, database, PERFORMANCE_SCHEMA_DB_NAME))
+      !cmp_database(database, PERFORMANCE_SCHEMA_DB_NAME))
     DBUG_RETURN(1);
   if (mysql_select_db(sock, database))
   {

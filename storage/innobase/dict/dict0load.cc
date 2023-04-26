@@ -168,7 +168,7 @@ name_of_col_is(
 					      dict_index_get_nth_field(
 						      index, i)));
 
-	return(strcmp(name, dict_table_get_col_name(table, tmp)) == 0);
+	return(strcmp(name, dict_table_get_col_name(table, tmp).str) == 0);
 }
 #endif /* UNIV_DEBUG */
 
@@ -1383,8 +1383,8 @@ static dberr_t dict_load_columns(dict_table_t *table, unsigned use_uncommitted,
 		/* Note: Currently we have one DOC_ID column that is
 		shared by all FTS indexes on a table. And only non-virtual
 		column can be used for FULLTEXT index */
-		if (innobase_strcasecmp(name,
-					FTS_DOC_ID_COL_NAME) == 0
+		if (Lex_ident_column(Lex_cstring_strlen(name)).
+		      streq(FTS_DOC_ID)
 		    && nth_v_col == ULINT_UNDEFINED) {
 			dict_col_t*	col;
 			/* As part of normal loading of tables the
@@ -2155,7 +2155,7 @@ next_rec:
 
 	if (table->fts != NULL) {
 		dict_index_t *idx = dict_table_get_index_on_name(
-			table, FTS_DOC_ID_INDEX_NAME);
+			table, FTS_DOC_ID_INDEX.str);
 		if (idx && dict_index_is_unique(idx)) {
 			table->fts_doc_id_index = idx;
 		}

@@ -124,8 +124,7 @@ extern "C" void free_sequence_last(SEQUENCE_LAST_VALUE *entry)
 bool Key_part_spec::operator==(const Key_part_spec& other) const
 {
   return length == other.length &&
-         !lex_string_cmp(system_charset_info, &field_name,
-                         &other.field_name);
+         field_name.streq(other.field_name);
 }
 
 
@@ -289,9 +288,8 @@ bool Foreign_key::validate(List<Create_field> &table_fields)
   {
     it.rewind();
     while ((sql_field= it++) &&
-           lex_string_cmp(system_charset_info,
-                          &column->field_name,
-                          &sql_field->field_name)) {}
+           !sql_field->field_name.streq(column->field_name))
+    { }
     if (!sql_field)
     {
       my_error(ER_KEY_COLUMN_DOES_NOT_EXIST, MYF(0), column->field_name.str);
@@ -855,10 +853,11 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   profiling.set_thd(this);
 #endif
   user_connect=(USER_CONN *)0;
-  my_hash_init(key_memory_user_var_entry, &user_vars, system_charset_info,
+  my_hash_init(key_memory_user_var_entry, &user_vars,
+               Lex_ident_user_var::charset_info(),
                USER_VARS_HASH_SIZE, 0, 0, (my_hash_get_key) get_var_key,
                (my_hash_free_key) free_user_var, HASH_THREAD_SPECIFIC);
-  my_hash_init(PSI_INSTRUMENT_ME, &sequences, system_charset_info,
+  my_hash_init(PSI_INSTRUMENT_ME, &sequences, Lex_ident_fs::charset_info(),
                SEQUENCES_HASH_SIZE, 0, 0, (my_hash_get_key)
                get_sequence_last_key, (my_hash_free_key) free_sequence_last,
                HASH_THREAD_SPECIFIC);
@@ -1491,10 +1490,12 @@ void THD::change_user(void)
 
   init();
   stmt_map.reset();
-  my_hash_init(key_memory_user_var_entry, &user_vars, system_charset_info,
+  my_hash_init(key_memory_user_var_entry, &user_vars,
+               Lex_ident_user_var::charset_info(),
                USER_VARS_HASH_SIZE, 0, 0, (my_hash_get_key) get_var_key,
                (my_hash_free_key) free_user_var, HASH_THREAD_SPECIFIC);
-  my_hash_init(key_memory_user_var_entry, &sequences, system_charset_info,
+  my_hash_init(key_memory_user_var_entry, &sequences,
+               Lex_ident_fs::charset_info(),
                SEQUENCES_HASH_SIZE, 0, 0, (my_hash_get_key)
                get_sequence_last_key, (my_hash_free_key) free_sequence_last,
                HASH_THREAD_SPECIFIC);
@@ -4039,9 +4040,9 @@ Query_arena::Type Statement::type() const
 
 
 /*
-  Return a valid database name:
-  - validated with Lex_ident_db::check_db_name()
-  - optionally converted to lower-case
+  Return an internal database name:
+  - validated with Lex_ident_db::check_name()
+  - optionally converted to lower-case when lower_case_table_names==1
 
   The lower-cased copy is made on mem_root when needed.
   An error is raised in case of EOM or a bad database name.
@@ -4062,7 +4063,7 @@ Query_arena::to_ident_db_opt_casedn_with_error(const LEX_CSTRING &src,
 
   const LEX_CSTRING tmp= casedn ? make_ident_casedn(src) : src;
   if (!tmp.str /*EOM*/ ||
-      Lex_ident_fs(tmp).check_db_name_with_error())
+      Lex_ident_db::check_name_with_error(tmp))
     return Lex_ident_db();
 
   return Lex_ident_db(tmp.str, tmp.length);
@@ -4202,7 +4203,9 @@ Statement_map::Statement_map() :
   my_hash_init(key_memory_prepared_statement_map, &st_hash, &my_charset_bin,
                START_STMT_HASH_SIZE, 0, 0, get_statement_id_as_hash_key,
                delete_statement_as_hash_key, MYF(0));
-  my_hash_init(key_memory_prepared_statement_map, &names_hash, system_charset_info, START_NAME_HASH_SIZE, 0, 0,
+  my_hash_init(key_memory_prepared_statement_map, &names_hash,
+               Lex_ident_ps::charset_info(),
+               START_NAME_HASH_SIZE, 0, 0,
                (my_hash_get_key) get_stmt_name_hash_key,
                NULL, MYF(0));
 }
@@ -4689,12 +4692,11 @@ change_security_context(THD *thd,
 
   *backup= NULL;
   needs_change= (strcmp(definer_user->str, thd->security_ctx->priv_user) ||
-                 my_strcasecmp(system_charset_info, definer_host->str,
-                               thd->security_ctx->priv_host));
+                 !Lex_ident_host(*definer_host).
+                   streq(Lex_cstring_strlen(thd->security_ctx->priv_host)));
   if (needs_change)
   {
-    if (acl_getroot(this, definer_user->str, definer_host->str,
-                                definer_host->str, db->str))
+    if (acl_getroot(this, *definer_user, *definer_host, *definer_host, *db))
     {
       my_error(ER_NO_SUCH_USER, MYF(0), definer_user->str,
                definer_host->str);
@@ -4724,11 +4726,12 @@ bool Security_context::user_matches(Security_context *them)
           !strcmp(user, them->user));
 }
 
-bool Security_context::is_priv_user(const char *user, const char *host)
+bool Security_context::is_priv_user(const LEX_CSTRING &user,
+                                    const LEX_CSTRING &host)
 {
-  return ((user != NULL) && (host != NULL) &&
-          !strcmp(user, priv_user) &&
-          !my_strcasecmp(system_charset_info, host,priv_host));
+  return ((user.str != NULL) && (host.str != NULL) &&
+          !strcmp(user.str, priv_user) &&
+          Lex_ident_host(host).streq(Lex_cstring_strlen(priv_host)));
 }
 
 
@@ -8365,16 +8368,18 @@ void AUTHID::parse(const char *str, size_t length)
 
 
 bool Database_qualified_name::copy_sp_name_internal(MEM_ROOT *mem_root,
-                                                    const LEX_CSTRING &db,
+                                                    const Lex_ident_db &db,
                                                     const LEX_CSTRING &name)
 {
   DBUG_ASSERT(db.str);
   DBUG_ASSERT(name.str);
-  m_db= lower_case_table_names == 1 ?
-        lex_string_casedn_root(mem_root, &my_charset_utf8mb3_general_ci,
-                               db.str, db.length) :
-        lex_string_strmake_root(mem_root, db.str, db.length);
-  m_name= lex_string_strmake_root(mem_root, name.str, name.length);
+  m_db= Lex_ident_db(lower_case_table_names == 1 ?
+                     lex_string_casedn_root(mem_root,
+                                            &my_charset_utf8mb3_general_ci,
+                                            db.str, db.length) :
+                     lex_string_strmake_root(mem_root,
+                                             db.str, db.length));
+  m_name= Lex_cstring(lex_string_strmake_root(mem_root, name.str, name.length));
   return m_db.str == NULL || m_name.str == NULL; // check if EOM
 }
 
