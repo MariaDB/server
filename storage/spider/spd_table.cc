@@ -5080,11 +5080,6 @@ bool spider_init_share(
   else
     first_byte = '0';
 
-  /* fixme: do we need to assign spider->share at different places
-  depending on new_share? */
-  if (!new_share)
-    spider->share = share;
-
   if (!(spider->wide_handler->trx = spider_get_trx(thd, TRUE, error_num)))
   {
     spider_share_init_error_free(share, new_share, true);
@@ -5092,23 +5087,17 @@ bool spider_init_share(
   }
   spider->set_error_mode();
 
-  if (!share->sts_spider_init)
-  {
-    pthread_mutex_lock(&share->mutex);
-    if (!share->sts_spider_init &&
-        (*error_num= spider_share_init_sts(table_name, spider, share, new_share)))
+  /* There's no other place doing anything that
+  `spider_share_init_sts()` does or updating
+  `st_spider_share::sts_spider_init`, therefore there's no need to
+  lock/unlock. Same goes for crd */
+  if (!share->sts_spider_init &&
+      (*error_num= spider_share_init_sts(table_name, spider, share, new_share)))
       DBUG_RETURN(TRUE);
-    pthread_mutex_unlock(&share->mutex);
-  }
 
-  if (!share->crd_spider_init)
-  {
-    pthread_mutex_lock(&share->mutex);
-    if (!share->crd_spider_init &&
-        (*error_num= spider_share_init_crd(table_name, spider, share, new_share)))
+  if (!share->crd_spider_init &&
+      (*error_num= spider_share_init_crd(table_name, spider, share, new_share)))
       DBUG_RETURN(TRUE);
-    pthread_mutex_unlock(&share->mutex);
-  }
 
   if (continue_with_sql_command &&
       (*error_num = spider_create_mon_threads(spider->wide_handler->trx,
@@ -5163,26 +5152,29 @@ bool spider_init_share(
   }
   spider->search_link_idx= search_link_idx;
 
-  if (new_share)
+  if (continue_with_sql_command)
   {
-    if (continue_with_sql_command &&
-        spider_share_get_sts_crd(thd, spider, share, table, true, false,
-                                 error_num))
-      goto error_after_alloc_dbton_handler;
-  } else if (share->init_error)
-  {
-    pthread_mutex_lock(&share->sts_mutex);
-    pthread_mutex_lock(&share->crd_mutex);
-    if (share->init_error)
+    if (new_share)
     {
-      if (continue_with_sql_command &&
-          spider_share_get_sts_crd(thd, spider, share, table, FALSE, TRUE,
-                                   error_num))
+      if (spider_share_get_sts_crd(thd, spider, share, table, true, false,
+                                 error_num))
         goto error_after_alloc_dbton_handler;
-      share->init_error= FALSE;
+    } else if (share->init_error)
+    {
+      /* fixme: can we move the locking and unlocking into
+         spider_share_get_sts_crd()? */
+      pthread_mutex_lock(&share->sts_mutex);
+      pthread_mutex_lock(&share->crd_mutex);
+      if (share->init_error)
+      {
+        if (spider_share_get_sts_crd(thd, spider, share, table, FALSE, TRUE,
+                                     error_num))
+          goto error_after_alloc_dbton_handler;
+        share->init_error= FALSE;
+      }
+      pthread_mutex_unlock(&share->crd_mutex);
+      pthread_mutex_unlock(&share->sts_mutex);
     }
-    pthread_mutex_unlock(&share->crd_mutex);
-    pthread_mutex_unlock(&share->sts_mutex);
   }
   DBUG_RETURN(FALSE);
 
@@ -5283,6 +5275,8 @@ SPIDER_SHARE *spider_get_share(
       }
       my_sleep(10000); // wait 10 ms
     }
+
+    spider->share = share;
 
     if (spider_init_share(table_name, table, thd, spider, error_num, share,
                           table_share, FALSE))
