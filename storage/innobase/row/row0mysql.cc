@@ -67,17 +67,23 @@ Created 9/17/2000 Heikki Tuuri
 #include <thread>
 
 
-/*******************************************************************//**
-Delays an INSERT, DELETE or UPDATE operation if the purge is lagging. */
-static
-void
-row_mysql_delay_if_needed(void)
-/*===========================*/
+/** Delay an INSERT, DELETE or UPDATE operation if the purge is lagging. */
+static void row_mysql_delay_if_needed()
 {
-	if (srv_dml_needed_delay) {
-		std::this_thread::sleep_for(
-			std::chrono::microseconds(srv_dml_needed_delay));
-	}
+  const auto delay= srv_dml_needed_delay;
+  if (UNIV_UNLIKELY(delay != 0))
+  {
+    /* Adjust for purge_coordinator_state::refresh() */
+    mysql_mutex_lock(&log_sys.mutex);
+    const lsn_t last= log_sys.last_checkpoint_lsn,
+      max_age= log_sys.max_checkpoint_age;
+    mysql_mutex_unlock(&log_sys.mutex);
+    const lsn_t lsn= log_sys.get_lsn();
+    if ((lsn - last) / 4 >= max_age / 5)
+      buf_flush_ahead(last + max_age / 5, false);
+    srv_wake_purge_thread_if_not_active();
+    std::this_thread::sleep_for(std::chrono::microseconds(delay));
+  }
 }
 
 /*******************************************************************//**
