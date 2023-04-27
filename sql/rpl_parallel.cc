@@ -2583,14 +2583,16 @@ rpl_parallel::find(uint32 domain_id, Relay_log_info *rli)
     e->pause_sub_id= (uint64)ULONGLONG_MAX;
     e->pending_start_alters= 0;
     e->rli= rli;
-    if (my_hash_insert(&domain_hash, (uchar *)e))
-    {
-      my_free(e);
-      return NULL;
-    }
     mysql_mutex_init(key_LOCK_parallel_entry, &e->LOCK_parallel_entry,
                      MY_MUTEX_INIT_FAST);
     mysql_cond_init(key_COND_parallel_entry, &e->COND_parallel_entry, NULL);
+    if (my_hash_insert(&domain_hash, (uchar *)e))
+    {
+      mysql_cond_destroy(&e->COND_parallel_entry);
+      mysql_mutex_destroy(&e->LOCK_parallel_entry);
+      my_free(e);
+      return NULL;
+    }
   }
   else
   {

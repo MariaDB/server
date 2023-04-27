@@ -3943,6 +3943,36 @@ explain select * from v1;
 drop view v1;
 drop table t1;
 
+--echo #
+--echo # MDEV-31102: execution of PS for query where pushdown of condition
+--echo #             into view defined as union is applied
+--echo #
+
+create table t1 (
+   n int,
+   lv varchar(31) charset latin1,
+   mv varchar(31) charset utf8mb3
+) engine=myisam;
+insert into t1 values (1,'aa','xxx'), ('2','bb','yyy'), (3,'cc','zzz');
+create view v1 as
+select case when n=1 then lv when n=2 then mv else NULL end as r from t1
+union
+select 'a';
+
+let $q=
+select * from v1 where r < 'x';
+
+eval $q;
+eval explain extended $q;
+eval explain format=json $q;
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+drop view v1;
+drop table t1;
+
 --echo # End of 10.4 tests
 
 --echo #
