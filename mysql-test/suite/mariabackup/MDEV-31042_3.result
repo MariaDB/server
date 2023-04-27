@@ -11,7 +11,7 @@ INSERT INTO t1 VALUES (1,24596,4,'hJWXmQdfsdf==');
 # shutdown server
 # remove datadir
 # xtrabackup move back
-# restart server
+# restart
 db.opt
 t1.frm
 t1.ibd

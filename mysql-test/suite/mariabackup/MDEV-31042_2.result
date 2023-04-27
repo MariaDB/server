@@ -14,7 +14,7 @@ RENAME TABLE t1 TO z_tmp_u1332929658s, tmp_u1332929658s TO t1;
 # shutdown server
 # remove datadir
 # xtrabackup move back
-# restart server
+# restart
 create database ztest;
 RENAME TABLE test.z_tmp_u1332929658s TO ztest.z_tmp_u1332929658s;
 select count(*) from ztest.z_tmp_u1332929658s;
