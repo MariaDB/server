@@ -188,7 +188,7 @@ The following specify which files/extra groups are read (specified before remain
  ALWAYS
  --console           Write error output on screen; don't remove the console
  window on windows.
- --core-file         Write core on errors.
+ --core-file         Write core on crashes
  -h, --datadir=name  Path to the database root directory
  --date-format=name  The DATE format (ignored)
  --datetime-format=name 
@@ -1510,6 +1510,7 @@ column-compression-zlib-wrap FALSE
 completion-type NO_CHAIN
 concurrent-insert AUTO
 console TRUE
+core-file TRUE
 date-format %Y-%m-%d
 datetime-format %Y-%m-%d %H:%i:%s
 deadlock-search-depth-long 15
