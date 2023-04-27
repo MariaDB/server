@@ -3171,6 +3171,12 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   LEX_CSTRING db_backup= thd->db;
   DBUG_ENTER("TABLE_SHARE::init_from_sql_statement_string");
 
+  /*
+    Ouch. Parser may *change* the string it's working on.
+    Currently (2013-02-26) it is used to permanently disable
+    conditional comments.
+    Anyway, let's copy the caller's string...
+  */
   if (!(sql_copy= thd->strmake(sql, sql_length)))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
