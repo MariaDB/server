@@ -29,22 +29,6 @@
 
 #define HA_ERR_JSON_TABLE (HA_ERR_LAST+1)
 
-/*
-  Allocating memory and *also* using it (reading and
-  writing from it) because some build instructions cause
-  compiler to optimize out stack_used_up. Since alloca()
-  here depends on stack_used_up, it doesnt get executed
-  correctly and causes json_debug_nonembedded to fail
-  ( --error ER_STACK_OVERRUN_NEED_MORE does not occur).
-*/
-#define ALLOCATE_MEM_ON_STACK(A) do \
-                              { \
-                                uchar *array= (uchar*)alloca(A); \
-                                array[0]= 1; \
-                                array[0]++; \
-                                array[0] ? array[0]++ : array[0]--; \
-                              } while(0)
-
 class table_function_handlerton
 {
 public:

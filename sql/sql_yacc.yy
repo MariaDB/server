@@ -9867,6 +9867,7 @@ function_call_keyword:
             $$= new (thd->mem_root) Item_date_typecast(thd, $3);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
+            Lex->set_date_funcs_used_flag();
           }
         | DAY_SYM '(' expr ')'
           {
@@ -9929,6 +9930,7 @@ function_call_keyword:
             $$= new (thd->mem_root) Item_func_month(thd, $3);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
+            Lex->set_date_funcs_used_flag();
           }
         | RIGHT '(' expr ',' expr ')'
           {
@@ -9979,6 +9981,7 @@ function_call_keyword:
             $$= new (thd->mem_root) Item_func_year(thd, $3);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
+             Lex->set_date_funcs_used_flag();
           }
         ;
 

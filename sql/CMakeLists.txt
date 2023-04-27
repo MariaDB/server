@@ -111,7 +111,9 @@ SET (SQL_SOURCE
                mf_iocache.cc my_decimal.cc
                mysqld.cc net_serv.cc  keycaches.cc
                ../sql-common/client_plugin.c
-               opt_range.cc opt_sum.cc
+               opt_range.cc
+               opt_rewrite_date_cmp.cc
+               opt_sum.cc
                ../sql-common/pack.c parse_file.cc password.c procedure.cc
                protocol.cc records.cc repl_failsafe.cc rpl_filter.cc
                session_tracker.cc
@@ -159,7 +161,7 @@ SET (SQL_SOURCE
                opt_table_elimination.cc sql_expression_cache.cc
                gcalc_slicescan.cc gcalc_tools.cc
                my_apc.cc mf_iocache_encr.cc item_jsonfunc.cc
-               my_json_writer.cc
+               my_json_writer.cc json_schema.cc json_schema_helper.cc
                rpl_gtid.cc rpl_parallel.cc
                semisync.cc semisync_master.cc semisync_slave.cc
                semisync_master_ack_receiver.cc

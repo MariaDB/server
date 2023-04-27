@@ -10780,3 +10780,9 @@ ER_CM_OPTION_MISSING_REQUIREMENT
         eng "CHANGE MASTER TO option '%s=%s' is missing requirement %s"
 ER_SLAVE_STATEMENT_TIMEOUT 70100
         eng "Slave log event execution was interrupted (slave_max_statement_time exceeded)"
+ER_JSON_INVALID_VALUE_FOR_KEYWORD
+        eng "Invalid value for keyword %s"
+ER_JSON_SCHEMA_KEYWORD_UNSUPPORTED
+        eng "%s keyword is not supported"
+ER_EVENTS_NO_ACL
+        eng "Event scheduler cannot function with --skip-grant-tables, --bootstrap, or embedded build"

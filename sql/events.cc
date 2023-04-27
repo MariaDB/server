@@ -119,7 +119,12 @@ bool Events::check_if_system_tables_error()
 {
   DBUG_ENTER("Events::check_if_system_tables_error");
 
-  if (!inited)
+  if (opt_noacl)
+  {
+    my_error(ER_EVENTS_NO_ACL, MYF(0));
+    DBUG_RETURN(TRUE);
+  }
+  else if (!inited)
   {
     my_error(ER_EVENTS_DB_ERROR, MYF(0));
     DBUG_RETURN(TRUE);
@@ -886,9 +891,17 @@ Events::init(THD *thd, bool opt_noacl_or_bootstrap)
   /*
     Was disabled explicitly from the command line
   */
-  if (opt_event_scheduler == Events::EVENTS_DISABLED ||
-      opt_noacl_or_bootstrap)
+  if (opt_event_scheduler == Events::EVENTS_DISABLED)
     DBUG_RETURN(FALSE);
+  else if (opt_noacl_or_bootstrap)
+  {
+    my_message(ER_STARTUP,
+               "Event Scheduler will not function when starting "
+               "with --skip-grant-tables or --bootstrap.",
+               MYF(ME_ERROR_LOG));
+    opt_event_scheduler= EVENTS_DISABLED;
+    DBUG_RETURN(FALSE);
+  }
 
   /* We need a temporary THD during boot */
   if (!thd)
@@ -934,10 +947,8 @@ Events::init(THD *thd, bool opt_noacl_or_bootstrap)
     Since we allow event DDL even if the scheduler is disabled,
     check the system tables, as we might need them.
 
-    If run with --skip-grant-tables or --bootstrap, don't try to do the
-    check of system tables and don't complain: in these modes the tables
-    are most likely not there and we're going to disable the event
-    scheduler anyway.
+    If run with --skip-grant-tables or --bootstrap, we have already
+    disabled the event scheduler anyway.
   */
   if (Event_db_repository::check_system_tables(thd))
   {

@@ -25,6 +25,7 @@
 #include "item_strfunc.h"      // Item_str_func
 #include "item_sum.h"
 #include "sql_type_json.h"
+#include "json_schema.h"
 
 class json_path_with_flags
 {
@@ -779,7 +780,8 @@ class Item_func_json_overlaps: public Item_bool_func
   String tmp_val, *val;
 public:
   Item_func_json_overlaps(THD *thd, Item *a, Item *b):
-    Item_bool_func(thd, a, b) {}
+    Item_bool_func(thd, a, b)
+    {}
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_overlaps") };
@@ -789,6 +791,33 @@ public:
   longlong val_int() override;
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_overlaps>(thd, this); }
+};
+
+class Item_func_json_schema_valid: public Item_bool_func
+{
+  String tmp_js;
+  bool schema_parsed;
+  String tmp_val, *val;
+  List<Json_schema_keyword> keyword_list;
+  List<Json_schema_keyword> all_keywords;
+
+public:
+  Item_func_json_schema_valid(THD *thd, Item *a, Item *b):
+    Item_bool_func(thd, a, b)
+    {
+      val= NULL;
+      schema_parsed= false;
+    }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("json_schema_valid") };
+    return name;
+  }
+  bool fix_length_and_dec(THD *thd) override;
+  longlong val_int() override;
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_func_json_schema_valid>(thd, this); }
+  void cleanup() override;
 };
 
 #endif /* ITEM_JSONFUNC_INCLUDED */

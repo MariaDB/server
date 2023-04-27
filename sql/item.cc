@@ -6957,7 +6957,8 @@ Item *Item_int::clone_item(THD *thd)
 }
 
 
-void Item_datetime::set(longlong packed, enum_mysql_timestamp_type ts_type)
+void Item_datetime::set_from_packed(longlong packed,
+                                    enum_mysql_timestamp_type ts_type)
 {
   unpack_time(packed, &ltime, ts_type);
 }
@@ -6971,6 +6972,16 @@ int Item_datetime::save_in_field(Field *field, bool no_conversions)
 longlong Item_datetime::val_int()
 {
   return TIME_to_ulonglong(&ltime);
+}
+
+void Item_datetime::print(String *str, enum_query_type query_type)
+{
+  Datetime dt(current_thd, this);
+  String dt_str;
+  dt.to_string(&dt_str, decimals);
+  str->append('\'');
+  str->append(dt_str);
+  str->append('\'');
 }
 
 int Item_decimal::save_in_field(Field *field, bool no_conversions)
