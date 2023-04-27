@@ -1981,8 +1981,9 @@ static void innodb_disable_internal_writes(bool disable)
     sst_enable_innodb_writes();
 }
 
-static void wsrep_abort_transaction(handlerton*, THD *, THD *, my_bool);
-static int innobase_wsrep_set_checkpoint(handlerton* hton, const XID* xid);
+static void wsrep_abort_transaction(handlerton *, THD *, THD *, my_bool)
+    __attribute__((nonnull));
+static int innobase_wsrep_set_checkpoint(handlerton *hton, const XID *xid);
 static int innobase_wsrep_get_checkpoint(handlerton* hton, XID* xid);
 #endif /* WITH_WSREP */
 
@@ -18685,15 +18686,19 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
       /* if victim is waiting for some other lock, we have to cancel
          that waiting
       */
-      if (vtrx->id == trx_id &&
-          (vtrx->state == TRX_STATE_ACTIVE ||
-           vtrx->state == TRX_STATE_PREPARED))
+      if (vtrx->id == trx_id)
       {
-        lock_sys.cancel_lock_wait_for_wsrep_bf_abort(vtrx);
+        switch (vtrx->state) {
+        default:
+          break;
+        case TRX_STATE_ACTIVE:
+        case TRX_STATE_PREPARED:
+          lock_sys.cancel_lock_wait_for_wsrep_bf_abort(vtrx);
+        }
       }
-      vtrx->mutex_unlock();
-      mysql_mutex_unlock(&lock_sys.wait_mutex);
       lock_sys.wr_unlock();
+      mysql_mutex_unlock(&lock_sys.wait_mutex);
+      vtrx->mutex_unlock();
     }
     else
     {
@@ -18736,18 +18741,21 @@ static void wsrep_abort_transaction(handlerton *, THD *bf_thd, THD *victim_thd,
   mysql_mutex_lock(&lock_sys.wait_mutex);
   victim_trx->mutex_lock();
 
-  if (victim_trx->state == TRX_STATE_ACTIVE ||
-      victim_trx->state == TRX_STATE_PREPARED)
-  {
+  switch (victim_trx->state) {
+  default:
+    break;
+  case TRX_STATE_ACTIVE:
+  case TRX_STATE_PREPARED:
     /* Cancel lock wait if the victim is waiting for a lock in InnoDB.
        The transaction which is blocked somewhere else (e.g. waiting
        for next command or MDL) has been interrupted by THD::awake_no_mutex()
        on server level before calling this function. */
     lock_sys.cancel_lock_wait_for_wsrep_bf_abort(victim_trx);
   }
-  victim_trx->mutex_unlock();
-  mysql_mutex_unlock(&lock_sys.wait_mutex);
   lock_sys.wr_unlock();
+  mysql_mutex_unlock(&lock_sys.wait_mutex);
+  victim_trx->mutex_unlock();
+
   DBUG_VOID_RETURN;
 }
 

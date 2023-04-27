@@ -5790,11 +5790,7 @@ void lock_sys_t::cancel_lock_wait_for_wsrep_bf_abort(trx_t *trx)
   ut_ad(trx->state == TRX_STATE_ACTIVE || trx->state == TRX_STATE_PREPARED);
   trx->lock.set_wsrep_victim();
   if (lock_t *lock= trx->lock.wait_lock)
-  {
-    if (lock->is_waiting()) {
-      lock_cancel_waiting_and_release<false, false>(lock);
-    }
-  }
+    lock_cancel_waiting_and_release<false, false>(lock);
 }
 #endif /* WITH_WSREP */
 
