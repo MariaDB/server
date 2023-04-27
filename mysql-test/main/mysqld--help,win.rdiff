@@ -1,6 +1,12 @@
---- a/mysql-test/r/mysqld--help.result
-+++ b/mysql-test/r/mysqld--help.result
-@@ -685,6 +685,7 @@
+@@ -180,6 +180,7 @@
+  --console           Write error output on screen; don't remove the console
+  window on windows.
+  --core-file         Write core on crashes
++ (Defaults to on; use --skip-core-file to disable.)
+  -h, --datadir=name  Path to the database root directory
+  --date-format=name  The DATE format (ignored)
+  --datetime-format=name 
+@@ -650,6 +651,7 @@
   Use MySQL-5.6 (instead of MariaDB-5.3) format for TIME,
   DATETIME, TIMESTAMP columns.
   (Defaults to on; use --skip-mysql56-temporal-format to disable.)

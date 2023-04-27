@@ -604,10 +604,9 @@ bool check_has_super(sys_var *self, THD *thd, set_var *var)
   return false;
 }
 
-static Sys_var_bit Sys_core_file("core_file", "write a core-file on crashes",
-          READ_ONLY GLOBAL_VAR(test_flags), NO_CMD_LINE,
-          TEST_CORE_ON_SIGNAL, DEFAULT(IF_WIN(TRUE,FALSE)), NO_MUTEX_GUARD, NOT_IN_BINLOG,
-          0,0,0);
+static Sys_var_bit Sys_core_file("core_file", "Write core on crashes",
+          READ_ONLY GLOBAL_VAR(test_flags), CMD_LINE(OPT_ARG),
+          TEST_CORE_ON_SIGNAL, DEFAULT(IF_WIN(TRUE,FALSE)));
 
 static bool binlog_format_check(sys_var *self, THD *thd, set_var *var)
 {

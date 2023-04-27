@@ -38,6 +38,16 @@ $stmt").
 
 */
 
+/* fake microseconds as cycles if cycles isn't available */
+static inline double timer_tracker_frequency()
+{
+#if (MY_TIMER_ROUTINE_CYCLES)
+  return static_cast<double>(sys_timer_info.cycles.frequency);
+#else
+  return static_cast<double>(sys_timer_info.microseconds.frequency);
+#endif
+}
+
 class Gap_time_tracker;
 void attach_gap_time_tracker(THD *thd, Gap_time_tracker *gap_tracker, ulonglong timeval);
 void process_gap_time_tracker(THD *thd, ulonglong timeval);
@@ -52,9 +62,18 @@ protected:
   ulonglong cycles;
   ulonglong last_start;
 
+  ulonglong measure() const
+  {
+#if (MY_TIMER_ROUTINE_CYCLES)
+    return my_timer_cycles();
+#else
+    return my_timer_microseconds();
+#endif
+  }
+
   void cycles_stop_tracking(THD *thd)
   {
-    ulonglong end= my_timer_cycles();
+    ulonglong end= measure();
     cycles += end - last_start;
     if (unlikely(end < last_start))
       cycles += ULONGLONG_MAX;
@@ -80,7 +99,7 @@ public:
   // interface for collecting time
   void start_tracking(THD *thd)
   {
-    last_start= my_timer_cycles();
+    last_start= measure();
     process_gap_time_tracker(thd, last_start);
   }
 
@@ -96,7 +115,7 @@ public:
   {
     // convert 'cycles' to milliseconds.
     return 1000.0 * static_cast<double>(cycles) /
-      static_cast<double>(sys_timer_info.cycles.frequency);
+      timer_tracker_frequency();
   }
 
   bool has_timed_statistics() const { return cycles > 0; }
@@ -122,11 +141,9 @@ public:
   double get_time_ms() const
   {
     // convert 'cycles' to milliseconds.
-    return 1000.0 * static_cast<double>(cycles) /
-      static_cast<double>(sys_timer_info.cycles.frequency);
+    return 1000.0 * static_cast<double>(cycles) / timer_tracker_frequency();
   }
 };
-
 
 
 /*
