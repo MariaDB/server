@@ -39,9 +39,9 @@ typedef struct _colinfo {
   PCSZ   Name;
   int    Type;
   int    Offset;
-  int    Length;
+  unsigned    Length;
   int    Key;
-  int    Precision;
+  unsigned    Precision;
   int    Scale;
   int    Opt;
   int    Freq;

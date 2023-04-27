@@ -1066,11 +1066,13 @@ size_t os_aio_pending_reads_approx();
 /** @return number of pending writes */
 size_t os_aio_pending_writes();
 
-/** Wait until there are no pending asynchronous writes. */
-void os_aio_wait_until_no_pending_writes();
+/** Wait until there are no pending asynchronous writes.
+@param declare  whether the wait will be declared in tpool */
+void os_aio_wait_until_no_pending_writes(bool declare);
 
-/** Wait until all pending asynchronous reads have completed. */
-void os_aio_wait_until_no_pending_reads();
+/** Wait until all pending asynchronous reads have completed.
+@param declare  whether the wait will be declared in tpool */
+void os_aio_wait_until_no_pending_reads(bool declare);
 
 /** Prints info of the aio arrays.
 @param[in/out]	file		file where to print */

@@ -36,3 +36,35 @@ SELECT * FROM t1 PARTITION (p0) ORDER BY c1;
 SELECT * FROM t1 PARTITION (p1) ORDER BY c1;
 SELECT * FROM t1 PARTITION (p2) ORDER BY c1;
 DROP TABLE t1;
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-30072 Wrong ORDER BY for a partitioned prefix key + NOPAD
+--echo #
+
+SET NAMES utf8mb4;
+CREATE TABLE t1
+(
+  id INT,
+  data VARCHAR(20),
+  KEY data_id (data,id)
+) COLLATE utf8mb3_unicode_nopad_ci ENGINE=MyISAM
+PARTITION BY RANGE COLUMNS (id)
+(
+  PARTITION p10 VALUES LESS THAN (20),
+  PARTITION p20 VALUES LESS THAN MAXVALUE
+);
+INSERT INTO t1 VALUES (30, 'ss '), (10, 'ß ');
+SELECT id FROM t1 WHERE data='ss ' ORDER BY id;
+SELECT id FROM t1 WHERE data='ss ' ORDER BY id DESC;
+ALTER TABLE t1 DROP KEY data_id, ADD KEY data_id2(data(10),id);
+SELECT id FROM t1 WHERE data='ss ' ORDER BY id;
+SELECT id FROM t1 WHERE data='ss ' ORDER BY id DESC;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

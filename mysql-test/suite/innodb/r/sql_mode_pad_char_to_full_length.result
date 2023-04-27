@@ -1,0 +1,51 @@
+SET default_storage_engine=InnoDB;
+#
+# Start of 10.4 tests
+#
+#
+# MDEV-28190 sql_mode makes MDEV-371 virtual column expressions nondeterministic
+#
+#
+# MDEV-28190 sql_mode makes MDEV-371 virtual column expressions nondeterministic
+#
+CREATE TABLE t1 (a INT,b CHAR(20));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` char(20) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+CREATE UNIQUE INDEX bi USING HASH ON t1 (b);
+INSERT INTO t1 VALUES (0,0);
+SET sql_mode='pad_char_to_full_length';
+DELETE FROM t1;
+DROP TABLE t1;
+SET sql_mode='';
+CREATE TABLE t1 (a INT,b CHAR(20));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` char(20) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+CREATE UNIQUE INDEX bi USING HASH ON t1 (b);
+SET sql_mode='pad_char_to_full_length';
+INSERT INTO t1 VALUES (0,0);
+DELETE FROM t1;
+DROP TABLE t1;
+SET sql_mode='';
+CREATE OR REPLACE TABLE t1 (a CHAR(20),b CHAR(20));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(20) DEFAULT NULL,
+  `b` char(20) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+CREATE UNIQUE INDEX bi USING HASH ON t1 (b);
+INSERT INTO t1 VALUES (0,0);
+SET sql_mode='pad_char_to_full_length';
+DELETE FROM t1;
+DROP TABLE t1;
+#
+# End of 10.4 tests
+#

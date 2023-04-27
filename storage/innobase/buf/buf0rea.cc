@@ -687,7 +687,7 @@ void buf_read_recv_pages(ulint space_id, const uint32_t* page_nos, ulint n)
 		}
 
 		if (os_aio_pending_reads() >= limit) {
-			os_aio_wait_until_no_pending_reads();
+			os_aio_wait_until_no_pending_reads(false);
 		}
 
 		space->reacquire();

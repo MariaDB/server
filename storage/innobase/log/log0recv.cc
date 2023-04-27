@@ -3407,7 +3407,7 @@ next_free_block:
           else
           {
             mysql_mutex_unlock(&mutex);
-            os_aio_wait_until_no_pending_reads();
+            os_aio_wait_until_no_pending_reads(false);
             mysql_mutex_lock(&mutex);
             ut_ad(pages.empty());
           }
