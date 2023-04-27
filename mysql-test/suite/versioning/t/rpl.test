@@ -133,6 +133,40 @@ sync_slave_with_master;
 connection master;
 drop table t1;
 
+
+#
+#   MDEV-30430: Enabling system versioning on tables without primary key breaks replication
+#   Note that bugs are only present with row binlog format
+#
+--echo # check versioned -> versioned replication without any keys on duplicate records
+connection master;
+create table t1 (a INT) with system versioning;
+insert into t1 values (1);
+insert into t1 values (1);
+delete from t1;
+sync_slave_with_master;
+--let $diff_tables= master:test.t1,slave:test.t1
+--source include/diff_tables.inc
+connection master;
+drop table t1;
+sync_slave_with_master;
+
+--echo # check unversioned -> versioned replication with non-unique keys on duplicate records
+connection master;
+set statement sql_log_bin=0 for create table t1 (a INT NOT NULL, b INT, INDEX(a,b));
+connection slave;
+set statement sql_log_bin=0 for create table t1 (a INT NOT NULL, b INT, INDEX(a,b)) with system versioning;
+connection master;
+insert into t1 values (1,1);
+insert into t1 values (1,1);
+delete from t1;
+sync_slave_with_master;
+--let $diff_tables= master:test.t1,slave:test.t1
+--source include/diff_tables.inc
+
+connection master;
+drop table t1;
+
 --echo #
 --echo # MDEV-17554 Auto-create new partition for system versioned tables
 --echo #            with history partitioned by INTERVAL/LIMIT
