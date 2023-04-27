@@ -3780,9 +3780,9 @@ double get_column_range_cardinality(Field *field,
                                  field->key_length());
           double pos= field->pos_in_interval(col_stats->min_value,
                                              col_stats->max_value);
+          double n_distinct= col_non_nulls / avg_frequency;
           res= col_non_nulls * 
-	       hist->point_selectivity(pos,
-                                       avg_frequency / col_non_nulls);
+               hist->point_selectivity(pos, col_non_nulls, n_distinct);
         }
       }
       else if (avg_frequency == 0.0)
@@ -3840,8 +3840,10 @@ double get_column_range_cardinality(Field *field,
   
   @param pos      Position of the "const" between column's min_value and 
                   max_value.  This is a number in [0..1] range.
-  @param avg_sel  Average selectivity of condition "col=const" in this table.
-                  It is calcuated as (#non_null_values / #distinct_values).
+  @param n_rows   Number of rows covered by the histogram. This is number 
+                  of rows in the table that have non-NULL values for this
+                  column.
+  @param n_distinct  Number of distinct values for the histogram column.
   
   @return
      Expected condition selectivity (a number between 0 and 1)
@@ -3868,7 +3870,8 @@ double get_column_range_cardinality(Field *field,
       value.
 */
 
-double Histogram::point_selectivity(double pos, double avg_sel)
+double Histogram::point_selectivity(double pos, double n_rows,
+                                    double n_distinct)
 {
   double sel;
   /* Find the bucket that contains the value 'pos'. */
@@ -3901,53 +3904,99 @@ double Histogram::point_selectivity(double pos, double avg_sel)
   }
   else
   {
-    /* 
+    double n_distinct_regular_values, regular_value_rows, rows_for_regular_val;
+    /*
       The value 'pos' fits within one single histogram bucket.
 
-      Histogram buckets have the same numbers of rows, but they cover
-      different ranges of values.
-
-      We assume that values are uniformly distributed across the [0..1] value
-      range.
+      We consider values that do not fit into one histogram values "popular".
+      The value we're looking for is "regular", not popular.
+      Compute the average selectivity for regular values.
     */
-
-    /* 
-      If all buckets covered value ranges of the same size, the width of
-      value range would be:
-    */
-    double avg_bucket_width= 1.0 / (get_width() + 1);
     
-    /*
-      Let's see what is the width of value range that our bucket is covering.
-        (min==max currently. they are kept in the formula just in case we 
-         will want to extend it to handle multi-bucket case)
-    */
-    double inv_prec_factor= (double) 1.0 / prec_factor(); 
-    double current_bucket_width= 
-        (max + 1 == get_width() ?  1.0 : (get_value(max) * inv_prec_factor)) -
-        (min == 0 ?  0.0 : (get_value(min-1) * inv_prec_factor));
+    /* Number of distinct regular values in the table: */
+    n_distinct_regular_values= n_distinct - n_popular_values;
 
-    DBUG_ASSERT(current_bucket_width); /* We shouldn't get a one zero-width bucket */
+    if (n_distinct_regular_values < 1.0)
+      goto handle_edge_case;
 
     /*
-      So:
-      - each bucket has the same #rows 
-      - values are unformly distributed across the [min_value,max_value] domain.
-
-      If a bucket has value range that's N times bigger then average, than
-      each value will have to have N times fewer rows than average.
+      How many rows have regular values? Look at the fraction of histogram
+      buckets that are not occupied by popular values.
     */
-    sel= avg_sel * avg_bucket_width / current_bucket_width;
+    regular_value_rows=
+      n_rows * (get_width() - n_popular_values_buckets) / get_width();
 
-    /*
-      (Q: if we just follow this proportion we may end up in a situation
-      where number of different values we expect to find in this bucket
-      exceeds the number of rows that this histogram has in a bucket. Are 
-      we ok with this or we would want to have certain caps?)
-    */
+    if (regular_value_rows < 1.0)
+      goto handle_edge_case;
+
+    /* Average #rows that a regular value has: */
+    rows_for_regular_val= regular_value_rows / n_distinct_regular_values;
+
+    /* Selectiving this many rows out of total table rows gives: */
+    sel= rows_for_regular_val / n_rows;
+
+    /* Handle possible errors: */
+    if (sel <= 0.0 || sel > 1.0 / (get_width()))
+    {
+      DBUG_ASSERT(0);
+    handle_edge_case:
+      sel= 1.0 / (get_width());
+    }
   }
   return sel;
 }
+
+
+/*
+  @brief
+    Compute n_popular_values and n_popular_values_buckets
+
+  @detail
+    They are used in point_selectivity().
+*/
+
+void Histogram::update_popular_value_counts()
+{
+  n_popular_values=0;
+  n_popular_values_buckets=0;
+
+  // This variable means "previous bucket was occupied by a popular value":
+  bool cur_value_popular= false;
+  uint prev_value= 0;
+
+  for (uint i=0; i < get_width(); i++)
+  {
+    uint left_endpoint= prev_value;
+    uint right_endpoint= get_value(i);
+
+    if (left_endpoint == right_endpoint)
+    {
+      /* This bucket is occupied by one value. It's a popular value */
+      n_popular_values_buckets++;
+      cur_value_popular= true;
+    }
+    else
+    {
+      if (cur_value_popular)
+      {
+        /*
+          The previous bucket (and maybe also buckets before it) was fully
+          occupied by a popular value.
+        */
+        n_popular_values++;
+
+        /* But current bucket is not (as left_endpoint!=right_endpoint) */
+        cur_value_popular= false;
+      }
+    }
+    prev_value= right_endpoint;
+  }
+
+  /* Check if the last bucket was occupied by a popular value */
+  if (cur_value_popular)
+    n_popular_values++;
+}
+
 
 /*
   Check whether the table is one of the persistent statistical tables.

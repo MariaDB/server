@@ -148,6 +148,15 @@ private:
   uint8 size; /* Size of values array, in bytes */
   uchar *values;
 
+  /*
+    Number of popular values in the histogram. A value is considered popular if
+    it occupies one whole bucket or more than that.
+  */
+  uint n_popular_value;
+
+  /* Number of buckets that are fully occupied by popular values.  */
+  uint n_popular_values_buckets;
+
   uint prec_factor()
   {
     switch (type) {
@@ -223,6 +232,8 @@ private:
     return i;
   }
 
+  /* Re-compute n_popular_values and n_popular_values_buckets */
+  void update_popular_value_counts();
 public:
 
   uint get_size() { return (uint) size; }
@@ -235,7 +246,11 @@ public:
 
   void set_type (Histogram_type t) { type= t; }
 
-  void set_values (uchar *vals) { values= (uchar *) vals; }
+  void set_values(uchar *vals)
+  {
+    values= (uchar *) vals;
+    update_popular_value_counts();
+  }
 
   bool is_available() { return get_size() > 0 && get_values(); }
 
@@ -287,7 +302,7 @@ public:
   /*
     Estimate selectivity of "col=const" using a histogram
   */
-  double point_selectivity(double pos, double avg_sel);
+  double point_selectivity(double pos, double n_rows, double n_distinct);
 };
 
 
