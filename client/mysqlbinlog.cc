@@ -98,8 +98,6 @@ static const char *output_prefix= "";
 static char **defaults_argv= 0;
 static MEM_ROOT glob_root;
 
-static uint protocol_to_force= MYSQL_PROTOCOL_DEFAULT;
-
 #ifndef DBUG_OFF
 static const char *default_dbug_option = "d:t:o,/tmp/mariadb-binlog.trace";
 const char *current_dbug_option= default_dbug_option;
@@ -2054,12 +2052,10 @@ static my_time_t convert_str_to_timestamp(const char* str)
 
 
 extern "C" my_bool
-get_one_option(const struct my_option *opt, const char *argument, const char *filename)
+get_one_option(const struct my_option *opt, const char *argument,
+               const char *filename)
 {
   bool tty_password=0;
-
-  /* Track when protocol is set via CLI to not force overrides */
-  static my_bool ignore_protocol_override = FALSE;
 
   switch (opt->id) {
 #ifndef DBUG_OFF
@@ -2110,14 +2106,6 @@ get_one_option(const struct my_option *opt, const char *argument, const char *fi
       sf_leaking_memory= 1; /* no memory leak reports here */
       die(1);
     }
-
-    /* Specification of protocol via CLI trumps implicit overrides */
-    if (filename[0] == '\0')
-    {
-      ignore_protocol_override = TRUE;
-      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
-    }
-
     break;
 #ifdef WHEN_FLASHBACK_REVIEW_READY
   case opt_flashback_review:
@@ -2195,35 +2183,17 @@ get_one_option(const struct my_option *opt, const char *argument, const char *fi
     print_row_event_positions_used= 1;
     break;
   case 'P':
-    /* If port and socket are set, fall back to default behavior */
-    if (protocol_to_force == SOCKET_PROTOCOL_TO_FORCE)
+    if (filename[0] == '\0')
     {
-      ignore_protocol_override = TRUE;
-      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
-    }
-
-    /* If port is set via CLI, try to force protocol to TCP */
-    if (filename[0] == '\0' &&
-        !ignore_protocol_override &&
-        protocol_to_force == MYSQL_PROTOCOL_DEFAULT)
-    {
-      protocol_to_force = MYSQL_PROTOCOL_TCP;
+      /* Port given on command line, switch protocol to use TCP */
+      opt_protocol= MYSQL_PROTOCOL_TCP;
     }
     break;
   case 'S':
-    /* If port and socket are set, fall back to default behavior */
-    if (protocol_to_force == MYSQL_PROTOCOL_TCP)
+    if (filename[0] == '\0')
     {
-      ignore_protocol_override = TRUE;
-      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
-    }
-
-    /* Prioritize socket if set via command line */
-    if (filename[0] == '\0' &&
-        !ignore_protocol_override &&
-        protocol_to_force == MYSQL_PROTOCOL_DEFAULT)
-    {
-      protocol_to_force = SOCKET_PROTOCOL_TO_FORCE;
+      /* Socket given on command line, switch protocol to use SOCKETSt */
+      opt_protocol= MYSQL_PROTOCOL_SOCKET;
     }
     break;
   case 'v':
@@ -3370,13 +3340,6 @@ int main(int argc, char** argv)
   }
 
   parse_args(&argc, (char***)&argv);
-
-  /* Command line options override configured protocol */
-  if (protocol_to_force > MYSQL_PROTOCOL_DEFAULT
-      && protocol_to_force != opt_protocol)
-  {
-    warn_protocol_override(host, &opt_protocol, protocol_to_force);
-  }
 
   if (!argc || opt_version)
   {
