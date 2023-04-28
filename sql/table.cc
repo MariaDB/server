@@ -1101,7 +1101,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
   Field **vfield_ptr= table->vfield;
   Field **dfield_ptr= table->default_field;
   Virtual_column_info **check_constraint_ptr= table->check_constraints;
-  sql_mode_t saved_mode= thd->variables.sql_mode;
+  Sql_mode_save_for_frm_handling sql_mode_save(thd);
   Query_arena backup_arena;
   Virtual_column_info *vcol= 0;
   StringBuffer<MAX_FIELD_WIDTH> expr_str;
@@ -1128,7 +1128,6 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
   thd->stmt_arena= table->expr_arena;
   thd->update_charset(&my_charset_utf8mb4_general_ci, table->s->table_charset);
   expr_str.append(&parse_vcol_keyword);
-  thd->variables.sql_mode &= ~(MODE_NO_BACKSLASH_ESCAPES | MODE_EMPTY_STRING_IS_NULL);
 
   while (pos < end)
   {
@@ -1315,7 +1314,6 @@ end:
   thd->stmt_arena= backup_stmt_arena_ptr;
   if (save_character_set_client)
     thd->update_charset(save_character_set_client, save_collation);
-  thd->variables.sql_mode= saved_mode;
   DBUG_RETURN(res);
 }
 
