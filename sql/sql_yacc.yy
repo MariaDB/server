@@ -11485,7 +11485,7 @@ function_call_generic:
 
               This will be revised with WL#2128 (SQL PATH)
             */
-            builder= find_native_function_builder(thd, &$1);
+            builder= native_functions_hash.find(thd, $1);
             if (builder)
             {
               item= builder->create_func(thd, &$1, $4);
