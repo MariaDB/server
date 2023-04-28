@@ -7,8 +7,8 @@ DROP TABLE t220;
 #
 # Reading backup ddl log file
 #
-CREATE,ROCKSDB,1,test,t220,id: 1,,0,,,
-DROP,ROCKSDB,1,test,t220,id: 1,,0,,,
+CREATE,ROCKSDB,1,def,test,t220,id: 1,,0,,,
+DROP,ROCKSDB,1,def,test,t220,id: 1,,0,,,
 #
 # Cleanup
 #

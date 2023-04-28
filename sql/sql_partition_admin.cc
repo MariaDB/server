@@ -749,6 +749,7 @@ bool Sql_cmd_alter_table_exchange_partition::
     ddl_log.new_partitioned= false;
     ddl_log.org_storage_engine_name= *hton_name(table_hton);
     ddl_log.new_storage_engine_name= *hton_name(table_hton);
+    ddl_log.catalog= thd->catalog;
     backup_log_ddl(&ddl_log);
   }
   thd->variables.option_bits= save_option_bits;

@@ -701,6 +701,7 @@ end:
     ddl_log.org_storage_engine_name= { C_STRING_WITH_LEN("TRIGGER") };
     ddl_log.org_database=     thd->lex->spname->m_db;
     ddl_log.org_table=        thd->lex->spname->m_name;
+    ddl_log.catalog=          thd->catalog;
     backup_log_ddl(&ddl_log);
   }
   ddl_log_complete(&ddl_log_state);

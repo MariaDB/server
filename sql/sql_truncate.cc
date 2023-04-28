@@ -265,6 +265,7 @@ Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
     ddl_log.org_database=     table->s->db;
     ddl_log.org_table=        table->s->table_name;
     ddl_log.org_table_id=     table->s->tabledef_version;
+    ddl_log.catalog=          thd->catalog;
     backup_log_ddl(&ddl_log);
   }
 

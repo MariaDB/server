@@ -5171,6 +5171,7 @@ bool select_create::send_eof()
     ddl_log.org_database=   table_list->db;
     ddl_log.org_table=      table_list->table_name;
     ddl_log.org_table_id=   create_info->tabledef_version;
+    ddl_log.catalog=        thd->catalog;
     backup_log_ddl(&ddl_log);
   }
   /*
@@ -5318,6 +5319,7 @@ void select_create::abort_result_set()
         ddl_log.org_database=     table_list->db;
         ddl_log.org_table=        table_list->table_name;
         ddl_log.org_table_id=     create_info->tabledef_version;
+        ddl_log.catalog=          thd->catalog;
         backup_log_ddl(&ddl_log);
       }
     }

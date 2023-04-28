@@ -1792,6 +1792,7 @@ report_error:
         ddl_log.org_database=     table->db;
         ddl_log.org_table=        table->table_name;
         ddl_log.org_table_id=     version;
+        ddl_log.catalog=          thd->catalog;
         backup_log_ddl(&ddl_log);
       }
     }
@@ -2016,6 +2017,7 @@ bool log_drop_table(THD *thd, const LEX_CSTRING *db_name,
     ddl_log.org_database=     *db_name;
     ddl_log.org_table=        *table_name;
     ddl_log.org_table_id=     *id;
+    ddl_log.catalog=          thd->catalog;
     backup_log_ddl(&ddl_log);
   }
   DBUG_RETURN(error);
@@ -4975,6 +4977,7 @@ err:
       ddl_log.org_database=     create_table->db;
       ddl_log.org_table=        create_table->table_name;
       ddl_log.org_table_id=     create_info->tabledef_version;
+      ddl_log.catalog=          thd->catalog;
       backup_log_ddl(&ddl_log);
     }
   }
@@ -5224,6 +5227,7 @@ mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
     ddl_log.new_database=     *new_db;
     ddl_log.new_table=        *new_name;
     ddl_log.new_table_id=     *id;
+    ddl_log.catalog=          thd->catalog;
     backup_log_ddl(&ddl_log);
   }
   delete file;
@@ -5650,6 +5654,7 @@ err:
     ddl_log.org_database=     table->db;
     ddl_log.org_table=        table->table_name;
     ddl_log.org_table_id=     local_create_info.tabledef_version;
+    ddl_log.catalog=          thd->catalog;
     backup_log_ddl(&ddl_log);
   }
 
@@ -9542,6 +9547,7 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
       ddl_log.org_database=     table_list->table->s->db;
       ddl_log.org_table=        table_list->table->s->table_name;
       ddl_log.org_table_id=     table_version;
+      ddl_log.catalog=          thd->catalog;
       backup_log_ddl(&ddl_log);
     }
   }
@@ -11370,6 +11376,7 @@ end_inplace:
     ddl_log.new_database=            alter_ctx.new_db;
     ddl_log.new_table=               alter_ctx.new_alias;
     ddl_log.new_table_id=            alter_ctx.tmp_id;
+    ddl_log.catalog=                 thd->catalog;
     backup_log_ddl(&ddl_log);
   }
 

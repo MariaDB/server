@@ -7344,6 +7344,7 @@ bool log_partition_alter_to_ddl_log(ALTER_PARTITION_PARAM_TYPE *lpt)
   ddl_log.new_database=            lpt->db;
   ddl_log.new_table=               lpt->table_name;
   ddl_log.new_table_id=            lpt->create_info->tabledef_version;
+  ddl_log.catalog=                 lpt->thd->catalog;
   backup_log_ddl(&ddl_log);        // This sets backup_log_error on failure
   return 0;
 }

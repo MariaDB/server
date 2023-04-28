@@ -31,6 +31,7 @@ struct backup_log_info {
   LEX_CSTRING  new_database, new_table;
   LEX_CSTRING  new_storage_engine_name;
   LEX_CUSTRING new_table_id;                         /* Unique id from frm */
+  SQL_CATALOG *catalog;
   bool org_partitioned;
   bool new_partitioned;
 };

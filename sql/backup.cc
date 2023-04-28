@@ -36,6 +36,7 @@
 #include <my_sys.h>
 #include <strfunc.h>                           // strconvert()
 #include "debug_sync.h"
+#include "catalog.h"
 #ifdef WITH_WSREP
 #include "wsrep_server_state.h"
 #include "wsrep_mysqld.h"
@@ -610,7 +611,7 @@ void backup_log_ddl(const backup_log_info *info)
       return;
     }
     /* Enough place for db.table *2 + query + engine_name * 2 + tabs+ uuids */
-    char buff[NAME_CHAR_LEN*4+20+40*2+10+MY_UUID_STRING_LENGTH*2], *ptr= buff;
+    char buff[NAME_CHAR_LEN*5+20+40*2+10+MY_UUID_STRING_LENGTH*2], *ptr= buff;
     char timebuff[20];
     struct tm current_time;
     LEX_CSTRING tmp_lex;
@@ -631,6 +632,7 @@ void backup_log_ddl(const backup_log_info *info)
     ptr= add_str_to_buffer(ptr,  &info->query);
     ptr= add_str_to_buffer(ptr,  &info->org_storage_engine_name);
     ptr= add_bool_to_buffer(ptr, info->org_partitioned);
+    ptr= add_name_to_buffer(ptr, &info->catalog->name);
     ptr= add_name_to_buffer(ptr, &info->org_database);
     ptr= add_name_to_buffer(ptr, &info->org_table);
     ptr= add_id_to_buffer(ptr,   &info->org_table_id);

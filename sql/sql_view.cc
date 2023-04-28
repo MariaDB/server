@@ -742,6 +742,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     ddl_log.org_storage_engine_name= { C_STRING_WITH_LEN("VIEW") };
     ddl_log.org_database=     view->db;
     ddl_log.org_table=        view->table_name;
+    ddl_log.catalog=          thd->catalog;
     backup_log_ddl(&ddl_log);
   }
 
@@ -2017,6 +2018,7 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
     ddl_log.org_storage_engine_name= { C_STRING_WITH_LEN("VIEW") };
     ddl_log.org_database=     view->db;
     ddl_log.org_table=        view->table_name;
+    ddl_log.catalog=          thd->catalog;
     backup_log_ddl(&ddl_log);
   }
 

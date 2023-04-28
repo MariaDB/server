@@ -1337,6 +1337,7 @@ send_result_message:
       ddl_log.org_database=     table->db;
       ddl_log.org_table=        table->table_name;
       ddl_log.org_table_id=     tabledef_version;
+      ddl_log.catalog=          thd->catalog;
       backup_log_ddl(&ddl_log);
     }
 

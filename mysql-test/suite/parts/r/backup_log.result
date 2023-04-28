@@ -184,94 +184,94 @@ DROP TABLE t220;
 #
 # Reading backup ddl log file
 #
-CREATE,MyISAM,1,test,t1,id: 1,,0,,,
-ALTER,MyISAM,1,test,t1,id: 1,MyISAM,1,test,t1,id: 2
-RENAME,MyISAM,1,test,t1,id: 2,MyISAM,1,test,t2,id: 2
-RENAME,MyISAM,1,test,t2,id: 2,MyISAM,1,test,t1,id: 2
-TRUNCATE,MyISAM,1,test,t1,id: 2,,0,,,
-repair,MyISAM,1,test,t1,id: 2,,0,,,
-optimize,MyISAM,1,test,t1,id: 2,,0,,,
-DROP,MyISAM,1,test,t1,id: 2,,0,,,
-CREATE,InnoDB,1,test,t1_innodb,id: 3,,0,,,
-ALTER,InnoDB,1,test,t1_innodb,id: 3,InnoDB,1,test,t1_innodb,id: 4
-RENAME,InnoDB,1,test,t1_innodb,id: 4,InnoDB,1,test,t2_innodb,id: 4
-RENAME,InnoDB,1,test,t2_innodb,id: 4,InnoDB,1,test,t1_innodb,id: 4
-TRUNCATE,InnoDB,1,test,t1_innodb,id: 4,,0,,,
-repair,InnoDB,1,test,t1_innodb,id: 4,,0,,,
-ALTER,InnoDB,1,test,t1_innodb,id: 4,InnoDB,1,test,t1_innodb,id: 5
-DROP,InnoDB,1,test,t1_innodb,id: 5,,0,,,
-CREATE,MyISAM,1,test,t20,id: 6,,0,,,
-DROP,MyISAM,1,test,t20,id: 6,,0,,,
-CREATE,MyISAM,1,test,t21,id: 7,,0,,,
-DROP,MyISAM,1,test,t21,id: 7,,0,,,
-CREATE,MyISAM,1,test,t30,id: 8,,0,,,
-CREATE,MyISAM,1,test,t31,id: 9,,0,,,
-DROP,MyISAM,1,test,t31,id: 9,,0,,,
-CREATE,MyISAM,0,test,t31,id: 10,,0,,,
-DROP,MyISAM,0,test,t31,id: 10,,0,,,
-DROP_AFTER_CREATE,MyISAM,1,test,t31,id: 11,,0,,,
-CREATE,MyISAM,1,test,t32,id: 12,,0,,,
-DROP,MyISAM,1,test,t30,id: 8,,0,,,
-DROP,MyISAM,1,test,t32,id: 12,,0,,,
-CREATE,MyISAM,1,test,t40,id: 13,,0,,,
-CREATE,InnoDB,1,test,t41,id: 14,,0,,,
-CREATE,partition,0,test,t42,id: 15,,0,,,
-DROP,MyISAM,1,test,t42,id: 15,,0,,,
-CREATE,partition,0,test,t42,id: 16,,0,,,
-DROP,MyISAM,1,test,t40,id: 13,,0,,,
-DROP,InnoDB,1,test,t41,id: 14,,0,,,
-DROP,InnoDB,1,test,t42,id: 16,,0,,,
-CREATE,MyISAM,1,test,t50,id: 17,,0,,,
-CREATE,MyISAM,1,test,t51,id: 18,,0,,,
-RENAME,MyISAM,1,test,t50,id: 17,MyISAM,1,test,t52,id: 17
-RENAME,MyISAM,1,test,t51,id: 18,MyISAM,1,test,t53,id: 18
-RENAME,MyISAM,1,test,t52,id: 17,MyISAM,1,test,tmp,id: 17
-RENAME,MyISAM,1,test,t53,id: 18,MyISAM,1,test,t52,id: 18
-RENAME,MyISAM,1,test,tmp,id: 17,MyISAM,1,test,t53,id: 17
-DROP,MyISAM,1,test,t52,id: 18,,0,,,
-DROP,MyISAM,1,test,t53,id: 17,,0,,,
-CREATE,Aria,1,test,t60,id: 19,,0,,,
-CHANGE_INDEX,Aria,1,test,t60,id: 19,,0,,,
-CHANGE_INDEX,Aria,1,test,t60,id: 19,,0,,,
-DROP,Aria,1,test,t60,id: 19,,0,,,
-CREATE,Aria,1,test,t70,id: 20,,0,,,
-BULK_INSERT,Aria,1,test,t70,id: 20,,0,,,
-BULK_INSERT,Aria,1,test,t70,id: 20,,0,,,
-TRUNCATE,Aria,1,test,t70,id: 20,,0,,,
-BULK_INSERT,Aria,1,test,t70,id: 20,,0,,,
-BULK_INSERT,Aria,1,test,t70,id: 20,,0,,,
-CREATE,Aria,1,test,t71,id: 21,,0,,,
-BULK_INSERT,Aria,1,test,t71,id: 21,,0,,,
-BULK_INSERT,Aria,1,test,t71,id: 21,,0,,,
-DROP,Aria,1,test,t70,id: 20,,0,,,
-DROP,Aria,1,test,t71,id: 21,,0,,,
-CREATE,MyISAM,1,test,t@00201,id: 22,,0,,,
-DROP,MyISAM,1,test,t@00201,id: 22,,0,,,
-CREATE,MyISAM,1,test,t80,id: 23,,0,,,
-CREATE,VIEW,0,test,v1,,,0,,,
-CREATE,TRIGGER,0,test,trg,,,0,,,
-DROP,TRIGGER,0,test,trg,,,0,,,
-DROP,VIEW,0,test,v1,,,0,,,
-DROP,MyISAM,1,test,t80,id: 23,,0,,,
-CREATE,MyISAM,1,test,t85,id: 24,,0,,,
-ALTER,MyISAM,1,test,t85,id: 24,InnoDB,1,test,t85,id: 25
-DROP,InnoDB,1,test,t85,id: 25,,0,,,
-CREATE,Aria,0,test,t200,id: 26,,0,,,
-ALTER,Aria,0,test,t200,id: 26,Aria,1,test,t200,id: 27
-CREATE,Aria,0,test,t210,id: 28,,0,,,
-EXCHANGE_PARTITION,Aria,1,test,t200,id: 27,Aria,0,test,t210,id: 28
-ALTER,Aria,1,test,t200,id: 27,Aria,1,test,t200,id: 29
-ALTER,Aria,1,test,t200,id: 29,Aria,1,test,t200,id: 30
-ALTER,Aria,1,test,t200,id: 30,Aria,1,test,t200,id: 31
-ALTER,Aria,1,test,t200,id: 31,Aria,1,test,t200,id: 32
-ALTER,Aria,1,test,t200,id: 32,Aria,1,test,t200,id: 33
-ALTER,Aria,1,test,t200,id: 33,Aria,1,test,t200,id: 34
-ALTER,Aria,1,test,t200,id: 34,Aria,1,test,t200,id: 35
-ALTER,Aria,1,test,t200,id: 35,Aria,0,test,t200,id: 36
-DROP,Aria,0,test,t200,id: 36,,0,,,
-DROP,Aria,0,test,t210,id: 28,,0,,,
-CREATE,Aria,1,test,t220,id: 37,,0,,,
-DROP,Aria,1,test,t220,id: 37,,0,,,
+CREATE,MyISAM,1,def,test,t1,id: 1,,0,,,
+ALTER,MyISAM,1,def,test,t1,id: 1,MyISAM,1,test,t1,id: 2
+RENAME,MyISAM,1,def,test,t1,id: 2,MyISAM,1,test,t2,id: 2
+RENAME,MyISAM,1,def,test,t2,id: 2,MyISAM,1,test,t1,id: 2
+TRUNCATE,MyISAM,1,def,test,t1,id: 2,,0,,,
+repair,MyISAM,1,def,test,t1,id: 2,,0,,,
+optimize,MyISAM,1,def,test,t1,id: 2,,0,,,
+DROP,MyISAM,1,def,test,t1,id: 2,,0,,,
+CREATE,InnoDB,1,def,test,t1_innodb,id: 3,,0,,,
+ALTER,InnoDB,1,def,test,t1_innodb,id: 3,InnoDB,1,test,t1_innodb,id: 4
+RENAME,InnoDB,1,def,test,t1_innodb,id: 4,InnoDB,1,test,t2_innodb,id: 4
+RENAME,InnoDB,1,def,test,t2_innodb,id: 4,InnoDB,1,test,t1_innodb,id: 4
+TRUNCATE,InnoDB,1,def,test,t1_innodb,id: 4,,0,,,
+repair,InnoDB,1,def,test,t1_innodb,id: 4,,0,,,
+ALTER,InnoDB,1,def,test,t1_innodb,id: 4,InnoDB,1,test,t1_innodb,id: 5
+DROP,InnoDB,1,def,test,t1_innodb,id: 5,,0,,,
+CREATE,MyISAM,1,def,test,t20,id: 6,,0,,,
+DROP,MyISAM,1,def,test,t20,id: 6,,0,,,
+CREATE,MyISAM,1,def,test,t21,id: 7,,0,,,
+DROP,MyISAM,1,def,test,t21,id: 7,,0,,,
+CREATE,MyISAM,1,def,test,t30,id: 8,,0,,,
+CREATE,MyISAM,1,def,test,t31,id: 9,,0,,,
+DROP,MyISAM,1,def,test,t31,id: 9,,0,,,
+CREATE,MyISAM,0,def,test,t31,id: 10,,0,,,
+DROP,MyISAM,0,def,test,t31,id: 10,,0,,,
+DROP_AFTER_CREATE,MyISAM,1,def,test,t31,id: 11,,0,,,
+CREATE,MyISAM,1,def,test,t32,id: 12,,0,,,
+DROP,MyISAM,1,def,test,t30,id: 8,,0,,,
+DROP,MyISAM,1,def,test,t32,id: 12,,0,,,
+CREATE,MyISAM,1,def,test,t40,id: 13,,0,,,
+CREATE,InnoDB,1,def,test,t41,id: 14,,0,,,
+CREATE,partition,0,def,test,t42,id: 15,,0,,,
+DROP,MyISAM,1,def,test,t42,id: 15,,0,,,
+CREATE,partition,0,def,test,t42,id: 16,,0,,,
+DROP,MyISAM,1,def,test,t40,id: 13,,0,,,
+DROP,InnoDB,1,def,test,t41,id: 14,,0,,,
+DROP,InnoDB,1,def,test,t42,id: 16,,0,,,
+CREATE,MyISAM,1,def,test,t50,id: 17,,0,,,
+CREATE,MyISAM,1,def,test,t51,id: 18,,0,,,
+RENAME,MyISAM,1,def,test,t50,id: 17,MyISAM,1,test,t52,id: 17
+RENAME,MyISAM,1,def,test,t51,id: 18,MyISAM,1,test,t53,id: 18
+RENAME,MyISAM,1,def,test,t52,id: 17,MyISAM,1,test,tmp,id: 17
+RENAME,MyISAM,1,def,test,t53,id: 18,MyISAM,1,test,t52,id: 18
+RENAME,MyISAM,1,def,test,tmp,id: 17,MyISAM,1,test,t53,id: 17
+DROP,MyISAM,1,def,test,t52,id: 18,,0,,,
+DROP,MyISAM,1,def,test,t53,id: 17,,0,,,
+CREATE,Aria,1,def,test,t60,id: 19,,0,,,
+CHANGE_INDEX,Aria,1,def,test,t60,id: 19,,0,,,
+CHANGE_INDEX,Aria,1,def,test,t60,id: 19,,0,,,
+DROP,Aria,1,def,test,t60,id: 19,,0,,,
+CREATE,Aria,1,def,test,t70,id: 20,,0,,,
+BULK_INSERT,Aria,1,def,test,t70,id: 20,,0,,,
+BULK_INSERT,Aria,1,def,test,t70,id: 20,,0,,,
+TRUNCATE,Aria,1,def,test,t70,id: 20,,0,,,
+BULK_INSERT,Aria,1,def,test,t70,id: 20,,0,,,
+BULK_INSERT,Aria,1,def,test,t70,id: 20,,0,,,
+CREATE,Aria,1,def,test,t71,id: 21,,0,,,
+BULK_INSERT,Aria,1,def,test,t71,id: 21,,0,,,
+BULK_INSERT,Aria,1,def,test,t71,id: 21,,0,,,
+DROP,Aria,1,def,test,t70,id: 20,,0,,,
+DROP,Aria,1,def,test,t71,id: 21,,0,,,
+CREATE,MyISAM,1,def,test,t@00201,id: 22,,0,,,
+DROP,MyISAM,1,def,test,t@00201,id: 22,,0,,,
+CREATE,MyISAM,1,def,test,t80,id: 23,,0,,,
+CREATE,VIEW,0,def,test,v1,,,0,,,
+CREATE,TRIGGER,0,def,test,trg,,,0,,,
+DROP,TRIGGER,0,def,test,trg,,,0,,,
+DROP,VIEW,0,def,test,v1,,,0,,,
+DROP,MyISAM,1,def,test,t80,id: 23,,0,,,
+CREATE,MyISAM,1,def,test,t85,id: 24,,0,,,
+ALTER,MyISAM,1,def,test,t85,id: 24,InnoDB,1,test,t85,id: 25
+DROP,InnoDB,1,def,test,t85,id: 25,,0,,,
+CREATE,Aria,0,def,test,t200,id: 26,,0,,,
+ALTER,Aria,0,def,test,t200,id: 26,Aria,1,test,t200,id: 27
+CREATE,Aria,0,def,test,t210,id: 28,,0,,,
+EXCHANGE_PARTITION,Aria,1,def,test,t200,id: 27,Aria,0,test,t210,id: 28
+ALTER,Aria,1,def,test,t200,id: 27,Aria,1,test,t200,id: 29
+ALTER,Aria,1,def,test,t200,id: 29,Aria,1,test,t200,id: 30
+ALTER,Aria,1,def,test,t200,id: 30,Aria,1,test,t200,id: 31
+ALTER,Aria,1,def,test,t200,id: 31,Aria,1,test,t200,id: 32
+ALTER,Aria,1,def,test,t200,id: 32,Aria,1,test,t200,id: 33
+ALTER,Aria,1,def,test,t200,id: 33,Aria,1,test,t200,id: 34
+ALTER,Aria,1,def,test,t200,id: 34,Aria,1,test,t200,id: 35
+ALTER,Aria,1,def,test,t200,id: 35,Aria,0,test,t200,id: 36
+DROP,Aria,0,def,test,t200,id: 36,,0,,,
+DROP,Aria,0,def,test,t210,id: 28,,0,,,
+CREATE,Aria,1,def,test,t220,id: 37,,0,,,
+DROP,Aria,1,def,test,t220,id: 37,,0,,,
 #
 # Cleanup
 #

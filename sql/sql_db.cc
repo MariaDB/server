@@ -822,6 +822,7 @@ mysql_create_db_internal(THD *thd, const LEX_CSTRING *db,
   ddl_log.query=                   { C_STRING_WITH_LEN("CREATE") };
   ddl_log.org_storage_engine_name= { C_STRING_WITH_LEN("DATABASE") };
   ddl_log.org_database=     *db;
+  ddl_log.catalog=          thd->catalog;
   backup_log_ddl(&ddl_log);
 
 not_silent:
@@ -914,6 +915,7 @@ mysql_alter_db_internal(THD *thd, const LEX_CSTRING *db,
   ddl_log.query=                   { C_STRING_WITH_LEN("ALTER") };
   ddl_log.org_storage_engine_name= { C_STRING_WITH_LEN("DATABASE") };
   ddl_log.org_database=     *db;
+  ddl_log.catalog=          thd->catalog;
   backup_log_ddl(&ddl_log);
 
   if (mysql_bin_log.is_open())
@@ -1176,6 +1178,7 @@ update_binlog:
     ddl_log.query=                   { C_STRING_WITH_LEN("DROP") };
     ddl_log.org_storage_engine_name= { C_STRING_WITH_LEN("DATABASE") };
     ddl_log.org_database=     *db;
+    ddl_log.catalog=          thd->catalog;
     backup_log_ddl(&ddl_log);
   }
 
