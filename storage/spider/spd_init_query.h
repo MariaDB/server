@@ -197,473 +197,481 @@ static LEX_STRING spider_init_queries[] = {
   If tables already exist and their definition differ
   from the latest ones, we fix them here.
 */
-  {C_STRING_WITH_LEN(
-    "drop procedure if exists mysql.spider_fix_one_table"
-  )},
-  {C_STRING_WITH_LEN(
-    "drop procedure if exists mysql.spider_fix_system_tables"
-  )},
-  {C_STRING_WITH_LEN(
-    "create procedure mysql.spider_fix_one_table"
-    "  (tab_name char(255) charset utf8 collate utf8_bin,"
-    "    test_col_name char(255) charset utf8 collate utf8_bin,"
-    "    _sql text charset utf8 collate utf8_bin)"
-    "begin"
-    "  set @col_exists := 0;"
-    "  select 1 into @col_exists from INFORMATION_SCHEMA.COLUMNS"
-    "    where TABLE_SCHEMA = 'mysql'"
-    "      AND TABLE_NAME = tab_name"
-    "      AND COLUMN_NAME = test_col_name;"
-    "  if @col_exists = 0 then"
-    "    select @stmt := _sql;"
-    "    prepare sp_stmt1 from @stmt;"
-    "    execute sp_stmt1;"
-    "  end if;"
-    "end;"
-  )},
-  {C_STRING_WITH_LEN(
-    "create procedure mysql.spider_fix_system_tables()"
-    "begin"
-    "  select 'MariaDB' into @server_name;"
-    "  select substring_index(version(), '.', 1)"
-    "    into @server_major_version;"
-    "  select substring_index(substring_index(version(), '.', 2), '.', -1)"
-    "    into @server_minor_version;"
 /*
   Fix for 0.5
 */
-    "  call mysql.spider_fix_one_table('spider_tables', 'server',"
-    "   'alter table mysql.spider_tables"
-    "    add server char(64) default null,"
-    "    add scheme char(64) default null,"
-    "    add host char(64) default null,"
-    "    add port char(5) default null,"
-    "    add socket char(64) default null,"
-    "    add username char(64) default null,"
-    "    add password char(64) default null,"
-    "    add tgt_db_name char(64) default null,"
-    "    add tgt_table_name char(64) default null');"
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_tables"
+    "  add if not exists server char(64) default null,"
+    "  add if not exists scheme char(64) default null,"
+    "  add if not exists host char(64) default null,"
+    "  add if not exists port char(5) default null,"
+    "  add if not exists socket char(64) default null,"
+    "  add if not exists username char(64) default null,"
+    "  add if not exists password char(64) default null,"
+    "  add if not exists tgt_db_name char(64) default null,"
+    "  add if not exists tgt_table_name char(64) default null;"
+  )},
 /*
   Fix for version 0.17
 */
-    "  select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS"
-    "    where TABLE_SCHEMA = 'mysql'"
-    "      AND TABLE_NAME = 'spider_xa'"
-    "      AND COLUMN_NAME = 'data';"
-    "  if @col_type != 'binary(128)' then"
-    "    alter table mysql.spider_xa"
-    "      modify data binary(128) not null default '';"
-    "  end if;"
-    "  select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS"
-    "    where TABLE_SCHEMA = 'mysql'"
-    "      AND TABLE_NAME = 'spider_xa_member'"
-    "      AND COLUMN_NAME = 'data';"
-    "  if @col_type != 'binary(128)' then"
-    "    alter table mysql.spider_xa_member"
-    "      modify data binary(128) not null default '';"
-    "  end if;"
+  {C_STRING_WITH_LEN(
+    "select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS"
+    "  where TABLE_SCHEMA = 'mysql'"
+    "    AND TABLE_NAME = 'spider_xa'"
+    "    AND COLUMN_NAME = 'data';"
+  )},
+  {C_STRING_WITH_LEN(
+    "if @col_type != 'binary(128)' then"
+    "  alter table mysql.spider_xa"
+    "    modify data binary(128) not null default '';"
+    "end if;"
+  )},
+  {C_STRING_WITH_LEN(
+    "select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS"
+    "  where TABLE_SCHEMA = 'mysql'"
+    "    AND TABLE_NAME = 'spider_xa_member'"
+    "    AND COLUMN_NAME = 'data';"
+  )},
+  {C_STRING_WITH_LEN(
+    "if @col_type != 'binary(128)' then"
+    "  alter table mysql.spider_xa_member"
+    "    modify data binary(128) not null default '';"
+    "end if;"
+  )},
 /*
   Fix for version 2.7
 */
-    "  call mysql.spider_fix_one_table('spider_tables', 'link_id',"
-    "   'alter table mysql.spider_tables"
-    "    add column link_id int not null default 0 after table_name,"
-    "    drop primary key,"
-    "    add primary key (db_name, table_name, link_id)');"
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_tables"
+    "  add column if not exists link_id int not null default 0 after table_name,"
+    "  drop primary key,"
+    "  add primary key (db_name, table_name, link_id);"
+  )},
 /*
   Fix for version 2.8
 */
-    "  call mysql.spider_fix_one_table('spider_tables', 'link_status',"
-    "   'alter table mysql.spider_tables"
-    "    add column link_status tinyint not null default 1');"
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_tables"
+    "  add column if not exists link_status tinyint not null default 1;"
+  )},
 /*
   Fix for version 2.10
 */
-    "  call mysql.spider_fix_one_table('spider_xa_member', 'ssl_ca',"
-    "   'alter table mysql.spider_xa_member"
-    "    add column ssl_ca char(64) default null after password,"
-    "    add column ssl_capath char(64) default null after ssl_ca,"
-    "    add column ssl_cert char(64) default null after ssl_capath,"
-    "    add column ssl_cipher char(64) default null after ssl_cert,"
-    "    add column ssl_key char(64) default null after ssl_cipher,"
-    "    add column ssl_verify_server_cert tinyint not null default 0"
-    "      after ssl_key,"
-    "    add column default_file char(64) default null"
-    "      after ssl_verify_server_cert,"
-    "    add column default_group char(64) default null after default_file');"
-    "  call mysql.spider_fix_one_table('spider_tables', 'ssl_ca',"
-    "   'alter table mysql.spider_tables"
-    "    add column ssl_ca char(64) default null after password,"
-    "    add column ssl_capath char(64) default null after ssl_ca,"
-    "    add column ssl_cert char(64) default null after ssl_capath,"
-    "    add column ssl_cipher char(64) default null after ssl_cert,"
-    "    add column ssl_key char(64) default null after ssl_cipher,"
-    "    add column ssl_verify_server_cert tinyint not null default 0"
-    "      after ssl_key,"
-    "    add column default_file char(64) default null"
-    "      after ssl_verify_server_cert,"
-    "    add column default_group char(64) default null after default_file');"
-    "  call mysql.spider_fix_one_table('spider_link_mon_servers', 'ssl_ca',"
-    "   'alter table mysql.spider_link_mon_servers"
-    "    add column ssl_ca char(64) default null after password,"
-    "    add column ssl_capath char(64) default null after ssl_ca,"
-    "    add column ssl_cert char(64) default null after ssl_capath,"
-    "    add column ssl_cipher char(64) default null after ssl_cert,"
-    "    add column ssl_key char(64) default null after ssl_cipher,"
-    "    add column ssl_verify_server_cert tinyint not null default 0"
-    "      after ssl_key,"
-    "    add column default_file char(64) default null"
-    "      after ssl_verify_server_cert,"
-    "    add column default_group char(64) default null after default_file');"
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_xa_member"
+    "  add column if not exists ssl_ca char(64) default null after password,"
+    "  add column if not exists ssl_capath char(64) default null after ssl_ca,"
+    "  add column if not exists ssl_cert char(64) default null after ssl_capath,"
+    "  add column if not exists ssl_cipher char(64) default null after ssl_cert,"
+    "  add column if not exists ssl_key char(64) default null after ssl_cipher,"
+    "  add column if not exists ssl_verify_server_cert tinyint not null default 0"
+    "    after ssl_key,"
+    "  add column if not exists default_file char(64) default null"
+    "    after ssl_verify_server_cert,"
+    "  add column if not exists default_group char(64) default null after default_file;"
+  )},
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_tables"
+    "  add column if not exists ssl_ca char(64) default null after password,"
+    "  add column if not exists ssl_capath char(64) default null after ssl_ca,"
+    "  add column if not exists ssl_cert char(64) default null after ssl_capath,"
+    "  add column if not exists ssl_cipher char(64) default null after ssl_cert,"
+    "  add column if not exists ssl_key char(64) default null after ssl_cipher,"
+    "  add column if not exists ssl_verify_server_cert tinyint not null default 0"
+    "    after ssl_key,"
+    "  add column if not exists default_file char(64) default null"
+    "    after ssl_verify_server_cert,"
+    "  add column if not exists default_group char(64) default null after default_file;"
+  )},
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_link_mon_servers"
+    "  add column if not exists ssl_ca char(64) default null after password,"
+    "  add column if not exists ssl_capath char(64) default null after ssl_ca,"
+    "  add column if not exists ssl_cert char(64) default null after ssl_capath,"
+    "  add column if not exists ssl_cipher char(64) default null after ssl_cert,"
+    "  add column if not exists ssl_key char(64) default null after ssl_cipher,"
+    "  add column if not exists ssl_verify_server_cert tinyint not null default 0"
+    "    after ssl_key,"
+    "  add column if not exists default_file char(64) default null"
+    "    after ssl_verify_server_cert,"
+    "  add column if not exists default_group char(64) default null after default_file;"
+  )},
 /*
   Fix for version 2.28
 */
-    "  select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS"
-    "    where TABLE_SCHEMA = 'mysql'"
-    "      AND TABLE_NAME = 'spider_link_mon_servers'"
-    "      AND COLUMN_NAME = 'sid';"
-    "  if @col_type != 'int(10) unsigned' then"
-    "    alter table mysql.spider_link_mon_servers"
-    "    modify sid int unsigned not null default 0;"
-    "  end if;"
+  {C_STRING_WITH_LEN(
+    "select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS"
+    "  where TABLE_SCHEMA = 'mysql'"
+    "    AND TABLE_NAME = 'spider_link_mon_servers'"
+    "    AND COLUMN_NAME = 'sid';"
+  )},
+  {C_STRING_WITH_LEN(
+    "if @col_type != 'int(10) unsigned' then"
+    "  alter table mysql.spider_link_mon_servers"
+    "  modify sid int unsigned not null default 0;"
+    "end if;"
+  )},
 /*
   Fix for version 3.1
 */
-    "  select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS"
-    "    where TABLE_SCHEMA = 'mysql'"
-    "      AND TABLE_NAME = 'spider_xa_member'"
-    "      AND COLUMN_NAME = 'socket';"
-    "  if @col_type = 'char(64)' then"
-    "    alter table mysql.spider_xa_member"
-    "      drop primary key,"
-    "      add index idx1 (data, format_id, gtrid_length, host),"
-    "      modify socket text not null,"
-    "      modify ssl_ca text,"
-    "      modify ssl_capath text,"
-    "      modify ssl_cert text,"
-    "      modify ssl_key text,"
-    "      modify default_file text;"
-    "  end if;"
-    "  select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS"
-    "    where TABLE_SCHEMA = 'mysql'"
-    "      AND TABLE_NAME = 'spider_tables'"
-    "      AND COLUMN_NAME = 'socket';"
-    "  if @col_type = 'char(64)' then"
-    "    alter table mysql.spider_tables"
-    "      modify socket text,"
-    "      modify ssl_ca text,"
-    "      modify ssl_capath text,"
-    "      modify ssl_cert text,"
-    "      modify ssl_key text,"
-    "      modify default_file text;"
-    "  end if;"
-    "  select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS"
-    "    where TABLE_SCHEMA = 'mysql'"
-    "      AND TABLE_NAME = 'spider_link_mon_servers'"
-    "      AND COLUMN_NAME = 'socket';"
-    "  if @col_type = 'char(64)' then"
-    "    alter table mysql.spider_link_mon_servers"
-    "      modify socket text,"
-    "      modify ssl_ca text,"
-    "      modify ssl_capath text,"
-    "      modify ssl_cert text,"
-    "      modify ssl_key text,"
-    "      modify default_file text;"
-    "  end if;"
+  {C_STRING_WITH_LEN(
+    "select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS"
+    "  where TABLE_SCHEMA = 'mysql'"
+    "    AND TABLE_NAME = 'spider_xa_member'"
+    "    AND COLUMN_NAME = 'socket';"
+  )},
+  {C_STRING_WITH_LEN(
+    "if @col_type = 'char(64)' then"
+    "  alter table mysql.spider_xa_member"
+    "    drop primary key,"
+    "    add index idx1 (data, format_id, gtrid_length, host),"
+    "    modify socket text not null,"
+    "    modify ssl_ca text,"
+    "    modify ssl_capath text,"
+    "    modify ssl_cert text,"
+    "    modify ssl_key text,"
+    "    modify default_file text;"
+    "end if;"
+  )},
+  {C_STRING_WITH_LEN(
+    "select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS"
+    "  where TABLE_SCHEMA = 'mysql'"
+    "    AND TABLE_NAME = 'spider_tables'"
+    "    AND COLUMN_NAME = 'socket';"
+  )},
+  {C_STRING_WITH_LEN(
+    "if @col_type = 'char(64)' then"
+    "  alter table mysql.spider_tables"
+    "    modify socket text,"
+    "    modify ssl_ca text,"
+    "    modify ssl_capath text,"
+    "    modify ssl_cert text,"
+    "    modify ssl_key text,"
+    "    modify default_file text;"
+    "end if;"
+  )},
+  {C_STRING_WITH_LEN(
+    "select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS"
+    "  where TABLE_SCHEMA = 'mysql'"
+    "    AND TABLE_NAME = 'spider_link_mon_servers'"
+    "    AND COLUMN_NAME = 'socket';"
+  )},
+  {C_STRING_WITH_LEN(
+    "if @col_type = 'char(64)' then"
+    "  alter table mysql.spider_link_mon_servers"
+    "    modify socket text,"
+    "    modify ssl_ca text,"
+    "    modify ssl_capath text,"
+    "    modify ssl_cert text,"
+    "    modify ssl_key text,"
+    "    modify default_file text;"
+    "end if;"
+  )},
 /*
   Fix for version 3.3.0
 */
-    "  call mysql.spider_fix_one_table('spider_tables',"
-    "   'monitoring_binlog_pos_at_failing',"
-    "   'alter table mysql.spider_tables"
-    "    add monitoring_binlog_pos_at_failing tinyint not null default 0"
-    "      after ssl_verify_server_cert');"
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_tables"
+    "  add if not exists monitoring_binlog_pos_at_failing tinyint not null default 0"
+    "    after ssl_verify_server_cert;"
+  )},
 /*
   Fix for version 3.3.6
 */
-    "  call mysql.spider_fix_one_table('spider_tables', 'block_status',"
-    "   'alter table mysql.spider_tables"
-    "    add column block_status tinyint not null default 0"
-    "      after link_status');"
-    "  call mysql.spider_fix_one_table('spider_tables', 'static_link_id',"
-    "   'alter table mysql.spider_tables"
-    "    add column static_link_id char(64) default null after block_status,"
-    "    add unique index uidx1 (db_name, table_name, static_link_id)');"
-    "  select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS"
-    "    where TABLE_SCHEMA = 'mysql'"
-    "      AND TABLE_NAME = 'spider_link_mon_servers'"
-    "      AND COLUMN_NAME = 'link_id';"
-    "  if @col_type != 'char(64)' then"
-    "    alter table mysql.spider_link_mon_servers"
-    "    modify link_id char(64) not null default '';"
-    "  end if;"
-    "  select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS"
-    "    where TABLE_SCHEMA = 'mysql'"
-    "      AND TABLE_NAME = 'spider_link_failed_log'"
-    "      AND COLUMN_NAME = 'link_id';"
-    "  if @col_type != 'char(64)' then"
-    "    alter table mysql.spider_link_failed_log"
-    "    modify link_id char(64) not null default '';"
-    "  end if;"
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_tables"
+    "  add column if not exists block_status tinyint not null default 0"
+    "    after link_status;"
+  )},
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_tables"
+    "  add column if not exists static_link_id char(64) default null after block_status,"
+    "  add unique index if not exists uidx1 (db_name, table_name, static_link_id);"
+  )},
+  {C_STRING_WITH_LEN(
+    "select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS"
+    "  where TABLE_SCHEMA = 'mysql'"
+    "    AND TABLE_NAME = 'spider_link_mon_servers'"
+    "    AND COLUMN_NAME = 'link_id';"
+  )},
+  {C_STRING_WITH_LEN(
+    "if @col_type != 'char(64)' then"
+    "  alter table mysql.spider_link_mon_servers"
+    "  modify link_id char(64) not null default '';"
+    "end if;"
+  )},
+  {C_STRING_WITH_LEN(
+    "select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS"
+    "  where TABLE_SCHEMA = 'mysql'"
+    "    AND TABLE_NAME = 'spider_link_failed_log'"
+    "    AND COLUMN_NAME = 'link_id';"
+  )},
+  {C_STRING_WITH_LEN(
+    "if @col_type != 'char(64)' then"
+    "  alter table mysql.spider_link_failed_log"
+    "  modify link_id char(64) not null default '';"
+    "end if;"
+  )},
 /*
   Fix for version 3.3.10
 */
-    "  select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS"
-    "    where TABLE_SCHEMA = 'mysql'"
-    "      AND TABLE_NAME = 'spider_tables'"
-    "      AND COLUMN_NAME = 'table_name';"
-    "  if @col_type != 'char(199)' then"
-    "    alter table mysql.spider_tables"
-    "    modify table_name char(199) not null default '';"
-    "  end if;"
-    "  select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS"
-    "    where TABLE_SCHEMA = 'mysql'"
-    "      AND TABLE_NAME = 'spider_link_mon_servers'"
-    "      AND COLUMN_NAME = 'table_name';"
-    "  if @col_type != 'char(199)' then"
-    "    alter table mysql.spider_link_mon_servers"
-    "    modify table_name char(199) not null default '';"
-    "  end if;"
-    "  select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS"
-    "    where TABLE_SCHEMA = 'mysql'"
-    "      AND TABLE_NAME = 'spider_link_failed_log'"
-    "      AND COLUMN_NAME = 'table_name';"
-    "  if @col_type != 'char(199)' then"
-    "    alter table mysql.spider_link_failed_log"
-    "    modify table_name char(199) not null default '';"
-    "  end if;"
-    "  select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS"
-    "    where TABLE_SCHEMA = 'mysql'"
-    "      AND TABLE_NAME = 'spider_table_position_for_recovery'"
-    "      AND COLUMN_NAME = 'table_name';"
-    "  if @col_type != 'char(199)' then"
-    "    alter table mysql.spider_table_position_for_recovery"
-    "    modify table_name char(199) not null default '';"
-    "  end if;"
-    "  select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS"
-    "    where TABLE_SCHEMA = 'mysql'"
-    "      AND TABLE_NAME = 'spider_table_sts'"
-    "      AND COLUMN_NAME = 'table_name';"
-    "  if @col_type != 'char(199)' then"
-    "    alter table mysql.spider_table_sts"
-    "    modify table_name char(199) not null default '';"
-    "  end if;"
-    "  select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS"
-    "    where TABLE_SCHEMA = 'mysql'"
-    "      AND TABLE_NAME = 'spider_table_crd'"
-    "      AND COLUMN_NAME = 'table_name';"
-    "  if @col_type != 'char(199)' then"
-    "    alter table mysql.spider_table_crd"
-    "    modify table_name char(199) not null default '';"
-    "  end if;"
+  {C_STRING_WITH_LEN(
+    "select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS"
+    "  where TABLE_SCHEMA = 'mysql'"
+    "    AND TABLE_NAME = 'spider_tables'"
+    "    AND COLUMN_NAME = 'table_name';"
+  )},
+  {C_STRING_WITH_LEN(
+    "if @col_type != 'char(199)' then"
+    "  alter table mysql.spider_tables"
+    "  modify table_name char(199) not null default '';"
+    "end if;"
+  )},
+  {C_STRING_WITH_LEN(
+    "select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS"
+    "  where TABLE_SCHEMA = 'mysql'"
+    "    AND TABLE_NAME = 'spider_link_mon_servers'"
+    "    AND COLUMN_NAME = 'table_name';"
+  )},
+  {C_STRING_WITH_LEN(
+    "if @col_type != 'char(199)' then"
+    "  alter table mysql.spider_link_mon_servers"
+    "  modify table_name char(199) not null default '';"
+    "end if;"
+  )},
+  {C_STRING_WITH_LEN(
+    "select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS"
+    "  where TABLE_SCHEMA = 'mysql'"
+    "    AND TABLE_NAME = 'spider_link_failed_log'"
+    "    AND COLUMN_NAME = 'table_name';"
+  )},
+  {C_STRING_WITH_LEN(
+    "if @col_type != 'char(199)' then"
+    "  alter table mysql.spider_link_failed_log"
+    "  modify table_name char(199) not null default '';"
+    "end if;"
+  )},
+  {C_STRING_WITH_LEN(
+    "select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS"
+    "  where TABLE_SCHEMA = 'mysql'"
+    "    AND TABLE_NAME = 'spider_table_position_for_recovery'"
+    "    AND COLUMN_NAME = 'table_name';"
+  )},
+  {C_STRING_WITH_LEN(
+    "if @col_type != 'char(199)' then"
+    "  alter table mysql.spider_table_position_for_recovery"
+    "  modify table_name char(199) not null default '';"
+    "end if;"
+  )},
+  {C_STRING_WITH_LEN(
+    "select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS"
+    "  where TABLE_SCHEMA = 'mysql'"
+    "    AND TABLE_NAME = 'spider_table_sts'"
+    "    AND COLUMN_NAME = 'table_name';"
+  )},
+  {C_STRING_WITH_LEN(
+    "if @col_type != 'char(199)' then"
+    "  alter table mysql.spider_table_sts"
+    "  modify table_name char(199) not null default '';"
+    "end if;"
+  )},
+  {C_STRING_WITH_LEN(
+    "select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS"
+    "  where TABLE_SCHEMA = 'mysql'"
+    "    AND TABLE_NAME = 'spider_table_crd'"
+    "    AND COLUMN_NAME = 'table_name';"
+  )},
+  {C_STRING_WITH_LEN(
+    "if @col_type != 'char(199)' then"
+    "  alter table mysql.spider_table_crd"
+    "  modify table_name char(199) not null default '';"
+    "end if;"
+  )},
 /*
   Fix for version 3.3.15
 */
-    "  call mysql.spider_fix_one_table('spider_table_sts', 'checksum',"
-    "   'alter table mysql.spider_table_sts"
-    "    add column checksum bigint unsigned default null after update_time');"
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_table_sts"
+    "  add column if not exists checksum bigint unsigned default null after update_time;"
+  )},
 /*
   Fix for MariaDB 10.4: Crash-Safe system tables
 */
-    "  if @server_name = 'MariaDB' and"
-    "    ("
-    "      @server_major_version > 10 or"
-    "      ("
-    "        @server_major_version = 10 and"
-    "        @server_minor_version >= 4"
-    "      )"
-    "    )"
-    "  then"
-    "    select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES"
-    "      where TABLE_SCHEMA = 'mysql'"
-    "        AND TABLE_NAME = 'spider_link_failed_log';"
-    "    if @engine_name != 'Aria' then"
-    "      alter table mysql.spider_link_failed_log"
-    "        engine=Aria transactional=1;"
-    "    end if;"
-    "    select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES"
-    "      where TABLE_SCHEMA = 'mysql'"
-    "        AND TABLE_NAME = 'spider_link_mon_servers';"
-    "    if @engine_name != 'Aria' then"
-    "      alter table mysql.spider_link_mon_servers"
-    "        engine=Aria transactional=1;"
-    "    end if;"
-    "    select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES"
-    "      where TABLE_SCHEMA = 'mysql'"
-    "        AND TABLE_NAME = 'spider_table_crd';"
-    "    if @engine_name != 'Aria' then"
-    "      alter table mysql.spider_table_crd"
-    "        engine=Aria transactional=1;"
-    "    end if;"
-    "    select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES"
-    "      where TABLE_SCHEMA = 'mysql'"
-    "        AND TABLE_NAME = 'spider_table_position_for_recovery';"
-    "    if @engine_name != 'Aria' then"
-    "      alter table mysql.spider_table_position_for_recovery"
-    "        engine=Aria transactional=1;"
-    "    end if;"
-    "    select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES"
-    "      where TABLE_SCHEMA = 'mysql'"
-    "        AND TABLE_NAME = 'spider_table_sts';"
-    "    if @engine_name != 'Aria' then"
-    "      alter table mysql.spider_table_sts"
-    "        engine=Aria transactional=1;"
-    "    end if;"
-    "    select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES"
-    "      where TABLE_SCHEMA = 'mysql'"
-    "        AND TABLE_NAME = 'spider_tables';"
-    "    if @engine_name != 'Aria' then"
-    "      alter table mysql.spider_tables"
-    "        engine=Aria transactional=1;"
-    "    end if;"
-    "    select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES"
-    "      where TABLE_SCHEMA = 'mysql'"
-    "        AND TABLE_NAME = 'spider_xa';"
-    "    if @engine_name != 'Aria' then"
-    "      alter table mysql.spider_xa"
-    "        engine=Aria transactional=1;"
-    "    end if;"
-    "    select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES"
-    "      where TABLE_SCHEMA = 'mysql'"
-    "        AND TABLE_NAME = 'spider_xa_failed_log';"
-    "    if @engine_name != 'Aria' then"
-    "      alter table mysql.spider_xa_failed_log"
-    "        engine=Aria transactional=1;"
-    "    end if;"
-    "    select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES"
-    "      where TABLE_SCHEMA = 'mysql'"
-    "        AND TABLE_NAME = 'spider_xa_member';"
-    "    if @engine_name != 'Aria' then"
-    "      alter table mysql.spider_xa_member"
-    "        engine=Aria transactional=1;"
-    "    end if;"
-    "  end if;"
+  {C_STRING_WITH_LEN(
+    "select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES"
+    "  where TABLE_SCHEMA = 'mysql'"
+    "    AND TABLE_NAME = 'spider_link_failed_log';"
+  )},
+  {C_STRING_WITH_LEN(
+    "if @engine_name != 'Aria' then"
+    "  alter table mysql.spider_link_failed_log"
+    "    engine=Aria transactional=1;"
+    "end if;"
+  )},
+  {C_STRING_WITH_LEN(
+    "select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES"
+    "  where TABLE_SCHEMA = 'mysql'"
+    "    AND TABLE_NAME = 'spider_link_mon_servers';"
+  )},
+  {C_STRING_WITH_LEN(
+    "if @engine_name != 'Aria' then"
+    "  alter table mysql.spider_link_mon_servers"
+    "    engine=Aria transactional=1;"
+    "end if;"
+  )},
+  {C_STRING_WITH_LEN(
+    "select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES"
+    "  where TABLE_SCHEMA = 'mysql'"
+    "    AND TABLE_NAME = 'spider_table_crd';"
+  )},
+  {C_STRING_WITH_LEN(
+    "if @engine_name != 'Aria' then"
+    "  alter table mysql.spider_table_crd"
+    "    engine=Aria transactional=1;"
+    "end if;"
+  )},
+  {C_STRING_WITH_LEN(
+    "select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES"
+    "  where TABLE_SCHEMA = 'mysql'"
+    "    AND TABLE_NAME = 'spider_table_position_for_recovery';"
+  )},
+  {C_STRING_WITH_LEN(
+    "if @engine_name != 'Aria' then"
+    "  alter table mysql.spider_table_position_for_recovery"
+    "    engine=Aria transactional=1;"
+    "end if;"
+  )},
+  {C_STRING_WITH_LEN(
+    "select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES"
+    "  where TABLE_SCHEMA = 'mysql'"
+    "    AND TABLE_NAME = 'spider_table_sts';"
+  )},
+  {C_STRING_WITH_LEN(
+    "if @engine_name != 'Aria' then"
+    "  alter table mysql.spider_table_sts"
+    "    engine=Aria transactional=1;"
+    "end if;"
+  )},
+  {C_STRING_WITH_LEN(
+    "select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES"
+    "  where TABLE_SCHEMA = 'mysql'"
+    "    AND TABLE_NAME = 'spider_tables';"
+  )},
+  {C_STRING_WITH_LEN(
+    "if @engine_name != 'Aria' then"
+    "  alter table mysql.spider_tables"
+    "    engine=Aria transactional=1;"
+    "end if;"
+  )},
+  {C_STRING_WITH_LEN(
+    "select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES"
+    "  where TABLE_SCHEMA = 'mysql'"
+    "    AND TABLE_NAME = 'spider_xa';"
+  )},
+  {C_STRING_WITH_LEN(
+    "if @engine_name != 'Aria' then"
+    "  alter table mysql.spider_xa"
+    "    engine=Aria transactional=1;"
+    "end if;"
+  )},
+  {C_STRING_WITH_LEN(
+    "select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES"
+    "  where TABLE_SCHEMA = 'mysql'"
+    "    AND TABLE_NAME = 'spider_xa_failed_log';"
+  )},
+  {C_STRING_WITH_LEN(
+    "if @engine_name != 'Aria' then"
+    "  alter table mysql.spider_xa_failed_log"
+    "    engine=Aria transactional=1;"
+    "end if;"
+  )},
+  {C_STRING_WITH_LEN(
+    "select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES"
+    "  where TABLE_SCHEMA = 'mysql'"
+    "    AND TABLE_NAME = 'spider_xa_member';"
+  )},
+  {C_STRING_WITH_LEN(
+    "if @engine_name != 'Aria' then"
+    "  alter table mysql.spider_xa_member"
+    "    engine=Aria transactional=1;"
+    "end if;"
+  )},
 /*
   Fix for version 3.4
 */
-    "  call mysql.spider_fix_one_table('spider_link_mon_servers', 'dsn',"
-    "   'alter table mysql.spider_link_mon_servers"
-    "    add column dsn char(64) default null after default_group');"
-    "  call mysql.spider_fix_one_table('spider_tables', 'dsn',"
-    "   'alter table mysql.spider_tables"
-    "    add column dsn char(64) default null after default_group');"
-    "  call mysql.spider_fix_one_table('spider_xa_failed_log', 'dsn',"
-    "   'alter table mysql.spider_xa_failed_log"
-    "    add column dsn char(64) default null after default_group');"
-    "  call mysql.spider_fix_one_table('spider_xa_member', 'dsn',"
-    "   'alter table mysql.spider_xa_member"
-    "    add column dsn char(64) default null after default_group');"
-    "  call mysql.spider_fix_one_table('spider_link_mon_servers', 'filedsn',"
-    "   'alter table mysql.spider_link_mon_servers"
-    "    add column filedsn text default null after dsn');"
-    "  call mysql.spider_fix_one_table('spider_tables', 'filedsn',"
-    "   'alter table mysql.spider_tables"
-    "    add column filedsn text default null after dsn');"
-    "  call mysql.spider_fix_one_table('spider_xa_failed_log', 'filedsn',"
-    "   'alter table mysql.spider_xa_failed_log"
-    "    add column filedsn text default null after dsn');"
-    "  call mysql.spider_fix_one_table('spider_xa_member', 'filedsn',"
-    "   'alter table mysql.spider_xa_member"
-    "    add column filedsn text default null after dsn');"
-    "  call mysql.spider_fix_one_table('spider_link_mon_servers', 'driver',"
-    "   'alter table mysql.spider_link_mon_servers"
-    "    add column driver char(64) default null after filedsn');"
-    "  call mysql.spider_fix_one_table('spider_tables', 'driver',"
-    "   'alter table mysql.spider_tables"
-    "    add column driver char(64) default null after filedsn');"
-    "  call mysql.spider_fix_one_table('spider_xa_failed_log', 'driver',"
-    "   'alter table mysql.spider_xa_failed_log"
-    "    add column driver char(64) default null after filedsn');"
-    "  call mysql.spider_fix_one_table('spider_xa_member', 'driver',"
-    "   'alter table mysql.spider_xa_member"
-    "    add column driver char(64) default null after filedsn');"
-    "end;"
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_link_mon_servers"
+    "  add column if not exists dsn char(64) default null after default_group;"
   )},
   {C_STRING_WITH_LEN(
-    "call mysql.spider_fix_system_tables"
+    "alter table mysql.spider_tables"
+    "  add column if not exists dsn char(64) default null after default_group;"
   )},
   {C_STRING_WITH_LEN(
-    "drop procedure mysql.spider_fix_one_table"
+    "alter table mysql.spider_xa_failed_log"
+    "  add column if not exists dsn char(64) default null after default_group;"
   )},
   {C_STRING_WITH_LEN(
-    "drop procedure mysql.spider_fix_system_tables"
+    "alter table mysql.spider_xa_member"
+    "  add column if not exists dsn char(64) default null after default_group;"
   )},
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_link_mon_servers"
+    "  add column if not exists filedsn text default null after dsn;"
+  )},
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_tables"
+    "  add column if not exists filedsn text default null after dsn;"
+  )},
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_xa_failed_log"
+    "  add column if not exists filedsn text default null after dsn;"
+  )},
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_xa_member"
+    "  add column if not exists filedsn text default null after dsn;"
+  )},
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_link_mon_servers"
+    "  add column if not exists driver char(64) default null after filedsn;"
+  )},
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_tables"
+    "  add column if not exists driver char(64) default null after filedsn;"
+  )},
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_xa_failed_log"
+    "  add column if not exists driver char(64) default null after filedsn;"
+  )},
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_xa_member"
+    "  add column if not exists driver char(64) default null after filedsn;"
+  )},
+};
+
 /*
-  Install a plugin and UDFs
+  Install UDFs, requiring init_acl, thus separating out to own thread
 */
+static LEX_STRING spider_bg_init_queries[] = {
   {C_STRING_WITH_LEN(
-    "drop procedure if exists mysql.spider_plugin_installer"
+    "create function if not exists spider_direct_sql returns int"
+    "  soname 'ha_spider';"
   )},
   {C_STRING_WITH_LEN(
-    "create procedure mysql.spider_plugin_installer()"
-    "begin"
-    "  set @win_plugin := IF(@@version_compile_os like 'Win%', 1, 0);"
-    "  set @have_spider_direct_sql_udf := 0;"
-    "  select @have_spider_direct_sql_udf := 1 from mysql.func"
-    "    where name = 'spider_direct_sql';"
-    "  if @have_spider_direct_sql_udf = 0 then"
-    "    if @win_plugin = 0 then "
-    "      create function spider_direct_sql returns int"
-    "        soname 'ha_spider.so';"
-    "    else"
-    "      create function spider_direct_sql returns int"
-    "         soname 'ha_spider.dll';"
-    "    end if;"
-    "  end if;"
-    "  set @have_spider_bg_direct_sql_udf := 0;"
-    "  select @have_spider_bg_direct_sql_udf := 1 from mysql.func"
-    "    where name = 'spider_bg_direct_sql';"
-    "  if @have_spider_bg_direct_sql_udf = 0 then"
-    "    if @win_plugin = 0 then "
-    "      create aggregate function spider_bg_direct_sql returns int"
-    "        soname 'ha_spider.so';"
-    "    else"
-    "      create aggregate function spider_bg_direct_sql returns int"
-    "        soname 'ha_spider.dll';"
-    "    end if;"
-    "  end if;"
-    "  set @have_spider_ping_table_udf := 0;"
-    "  select @have_spider_ping_table_udf := 1 from mysql.func"
-    "    where name = 'spider_ping_table';"
-    "  if @have_spider_ping_table_udf = 0 then"
-    "    if @win_plugin = 0 then "
-    "      create function spider_ping_table returns int"
-    "        soname 'ha_spider.so';"
-    "    else"
-    "      create function spider_ping_table returns int"
-    "        soname 'ha_spider.dll';"
-    "    end if;"
-    "  end if;"
-    "  set @have_spider_copy_tables_udf := 0;"
-    "  select @have_spider_copy_tables_udf := 1 from mysql.func"
-    "    where name = 'spider_copy_tables';"
-    "  if @have_spider_copy_tables_udf = 0 then"
-    "    if @win_plugin = 0 then "
-    "      create function spider_copy_tables returns int"
-    "        soname 'ha_spider.so';"
-    "    else"
-    "      create function spider_copy_tables returns int"
-    "        soname 'ha_spider.dll';"
-    "    end if;"
-    "  end if;"
-    "  set @have_spider_flush_table_mon_cache_udf := 0;"
-    "  select @have_spider_flush_table_mon_cache_udf := 1 from mysql.func"
-    "    where name = 'spider_flush_table_mon_cache';"
-    "  if @have_spider_flush_table_mon_cache_udf = 0 then"
-    "    if @win_plugin = 0 then "
-    "      create function spider_flush_table_mon_cache returns int"
-    "        soname 'ha_spider.so';"
-    "    else"
-    "      create function spider_flush_table_mon_cache returns int"
-    "        soname 'ha_spider.dll';"
-    "    end if;"
-    "  end if;"
-    "end;"
+    "create aggregate function if not exists spider_bg_direct_sql returns int"
+    "  soname 'ha_spider';"
   )},
   {C_STRING_WITH_LEN(
-    "call mysql.spider_plugin_installer"
+    "create function if not exists spider_ping_table returns int"
+    "  soname 'ha_spider';"
   )},
   {C_STRING_WITH_LEN(
-    "drop procedure mysql.spider_plugin_installer"
+    "create function if not exists spider_copy_tables returns int"
+    "  soname 'ha_spider';"
+  )},
+  {C_STRING_WITH_LEN(
+    "create function if not exists spider_flush_table_mon_cache returns int"
+    "  soname 'ha_spider';"
   )}
 };
