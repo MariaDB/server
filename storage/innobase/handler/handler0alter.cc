@@ -3256,7 +3256,7 @@ innobase_get_foreign_key_info(
 					MYF(0),
 					fk_key->name.str
 					? fk_key->name.str : "",
-					table_share->table_name.str);
+					fix_name(table_share->table_name.str));
 				goto err_exit;
 			}
 
@@ -3340,7 +3340,7 @@ innobase_get_foreign_key_info(
 			my_error(
 				ER_DUP_CONSTRAINT_NAME,
 				MYF(0),
-                                "FOREIGN KEY", add_fk[num_fk]->id);
+                                "FOREIGN KEY", fix_name(add_fk[num_fk]->id));
 			goto err_exit_unlock;
 		}
 
@@ -3355,8 +3355,8 @@ innobase_get_foreign_key_info(
 		if (!correct_option) {
 			my_error(ER_FK_INCORRECT_OPTION,
 				 MYF(0),
-				 table_share->table_name.str,
-				 add_fk[num_fk]->id);
+				 fix_name(table_share->table_name.str),
+				 fix_name(add_fk[num_fk]->id));
 			goto err_exit;
 		}
 
@@ -4448,7 +4448,7 @@ innobase_check_foreigns_low(
 				my_error(drop
 					 ? ER_FK_COLUMN_CANNOT_DROP
 					 : ER_FK_COLUMN_NOT_NULL, MYF(0),
-					 col_name, foreign->id);
+					 col_name, fix_name(foreign->id));
 				return(true);
 			}
 		}
@@ -4489,8 +4489,8 @@ innobase_check_foreigns_low(
 				NULL);
 			*buf_end = '\0';
 			my_error(ER_FK_COLUMN_CANNOT_DROP_CHILD,
-				 MYF(0), col_name, foreign->id,
-				 display_name);
+				 MYF(0), col_name, fix_name(foreign->id),
+				 fix_name(display_name));
 
 			return(true);
 		}
@@ -6626,8 +6626,9 @@ new_clustered_failed:
 		       altered_table->s->path.str + prefixlen, tablen);
 #ifdef _WIN32
                 {
-                  char *sep= strchr(new_table_name, FN_LIBCHAR);
-                  sep[0]= '/';
+                  char *sep= new_table_name;
+                  while (sep= strchr(sep, FN_LIBCHAR))
+                    sep[0]= '/';
                 }
 #endif
 		memcpy(new_table_name + tablen, part ? part : "", partlen + 1);
@@ -7864,7 +7865,7 @@ ha_innobase::prepare_inplace_alter_table(
 					"Table %s in file %s is encrypted but encryption service or"
 					" used key_id is not available. "
 					" Can't continue reading table.",
-					table_share->table_name.str,
+					fix_name(table_share->table_name.str),
 					space->chain.start->name);
 
 				my_error(ER_GET_ERRMSG, MYF(0), HA_ERR_DECRYPTION_FAILED, str.c_ptr(), engine);
@@ -8110,7 +8111,7 @@ check_if_ok_to_rename:
 			     ++it) {
 
 				foreign = *it;
-				const char* fid = strchr(foreign->id, '/');
+				const char* fid = strrchr(foreign->id, '/');
 
 				DBUG_ASSERT(fid);
 				/* If no database/ prefix was present in
@@ -8748,7 +8749,7 @@ oom:
 		KEY*	dup_key;
 	default:
 		my_error_innodb(error,
-				table_share->table_name.str,
+				fix_name(table_share->table_name.str),
 				m_prebuilt->table->flags);
 		break;
 	all_done:
@@ -9849,7 +9850,7 @@ innobase_update_foreign_try(
 				NULL, NULL, NULL);
 			if (!fk->foreign_index) {
 				my_error(ER_FK_INCORRECT_OPTION,
-					 MYF(0), table_name, fk->id);
+					 MYF(0), table_name, fix_name(fk->id));
 				DBUG_RETURN(true);
 			}
 		}
@@ -9866,7 +9867,7 @@ innobase_update_foreign_try(
 
 		if (error != DB_SUCCESS) {
 			my_error(ER_FK_FAIL_ADD_SYSTEM, MYF(0),
-				 fk->id);
+				 fix_name(fk->id));
 			DBUG_RETURN(true);
 		}
 	}
@@ -11144,8 +11145,8 @@ ha_innobase::commit_inplace_alter_table(
 
 		if (error != DB_SUCCESS) {
 lock_fail:
-			my_error_innodb(
-				error, table_share->table_name.str, 0);
+			my_error_innodb(error,
+					fix_name(table_share->table_name.str), 0);
 			if (fts_exist) {
 				purge_sys.resume_FTS();
 			}
@@ -11274,7 +11275,7 @@ err_index:
 	if (!ctx0->old_table->is_stats_table() &&
 	    !ctx0->new_table->is_stats_table()) {
 		table_stats = dict_table_open_on_name(
-			TABLE_STATS_NAME, false, DICT_ERR_IGNORE_NONE);
+			TABLE_STATS_NAME(), false, DICT_ERR_IGNORE_NONE);
 		if (table_stats) {
 			dict_sys.freeze(SRW_LOCK_CALL);
 			table_stats = dict_acquire_mdl_shared<false>(
@@ -11282,7 +11283,7 @@ err_index:
 			dict_sys.unfreeze();
 		}
 		index_stats = dict_table_open_on_name(
-			INDEX_STATS_NAME, false, DICT_ERR_IGNORE_NONE);
+			INDEX_STATS_NAME(), false, DICT_ERR_IGNORE_NONE);
 		if (index_stats) {
 			dict_sys.freeze(SRW_LOCK_CALL);
 			index_stats = dict_acquire_mdl_shared<false>(
@@ -11291,8 +11292,8 @@ err_index:
 		}
 
 		if (table_stats && index_stats
-		    && !strcmp(table_stats->name.m_name, TABLE_STATS_NAME)
-		    && !strcmp(index_stats->name.m_name, INDEX_STATS_NAME)
+		    && !strcmp(table_stats->name.m_name, TABLE_STATS_NAME())
+		    && !strcmp(index_stats->name.m_name, INDEX_STATS_NAME())
 		    && !(error = lock_table_for_trx(table_stats,
 						    trx, LOCK_X))) {
 			error = lock_table_for_trx(index_stats, trx, LOCK_X);
@@ -11315,7 +11316,7 @@ err_index:
 			dict_table_close(index_stats, false, m_user_thd,
 					 mdl_index);
 		}
-		my_error_innodb(error, table_share->table_name.str, 0);
+		my_error_innodb(error, fix_name(table_share->table_name.str), 0);
 		if (fts_exist) {
 			purge_sys.resume_FTS();
 		}

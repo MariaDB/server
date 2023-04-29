@@ -436,15 +436,10 @@ eval_instr(
 
 	match_char = str2[0];
 
-	for (i = 0; i < len1; i++) {
+	for (i = 0; (int) i <= (int) (len1 - len2); i++) {
 		/* In this outer loop, the number of matched characters is 0 */
 
 		if (str1[i] == match_char) {
-
-			if (i + len2 > len1) {
-
-				break;
-			}
 
 			for (j = 1;; j++) {
 				/* We have already matched j characters */
@@ -468,6 +463,64 @@ eval_instr(
 match_found:
 	eval_node_set_int_val(func_node, int_val);
 }
+
+/*****************************************************************//**
+Evaluates an instrr-function node.  (find last occurence of string) */
+static
+void
+eval_instrr(
+/*=======*/
+	func_node_t*	func_node)	/*!< in: function node */
+{
+	que_node_t*	arg1;
+	que_node_t*	arg2;
+	dfield_t*	dfield1;
+	dfield_t*	dfield2;
+	lint		int_val= 0;		// No match
+	byte*		str1;
+	byte*		str2;
+	byte		match_char;
+	ulint		len1;
+	ulint		len2;
+	ulint		i;
+	ulint		j;
+
+	arg1 = func_node->args;
+	arg2 = que_node_get_next(arg1);
+
+	dfield1 = que_node_get_val(arg1);
+	dfield2 = que_node_get_val(arg2);
+
+	str1 = static_cast<byte*>(dfield_get_data(dfield1));
+	str2 = static_cast<byte*>(dfield_get_data(dfield2));
+
+	len1 = dfield_get_len(dfield1);
+	len2 = dfield_get_len(dfield2);
+
+	if (len2 == 0 || len2 > len1) {
+	  goto match_found;
+	}
+
+	match_char = str2[0];
+
+	for (i = len1 - len2 ; (int) i >= 0 ; i--) {
+		/* In this outer loop, the number of matched characters is 0 */
+
+		if (str1[i] != match_char) {
+	      retry:
+			continue;
+		}
+		for (j = 1; j < len2; j++) {
+			if (str1[i + j] != str2[j])
+			  goto retry;
+		}
+		int_val = lint(i) + 1;
+		break;
+	}
+match_found:
+	eval_node_set_int_val(func_node, int_val);
+}
+
 
 /*****************************************************************//**
 Evaluates a predefined function node. */
@@ -621,6 +674,9 @@ eval_func(
 			return;
 		case PARS_INSTR_TOKEN:
 			eval_instr(func_node);
+			return;
+		case PARS_INSTRR_TOKEN:
+			eval_instrr(func_node);
 			return;
 		case PARS_CONCAT_TOKEN:
 			eval_concat(func_node);

@@ -1232,7 +1232,7 @@ i_s_cmp_per_index_fill_low(
 			char	db_utf8[MAX_DB_UTF8_LEN];
 			char	table_utf8[MAX_TABLE_UTF8_LEN];
 
-			dict_fs2utf8(index->table->name.m_name,
+			dict_fs2utf8(fix_name(index->table->name.m_name),
 				     db_utf8, sizeof(db_utf8),
 				     table_utf8, sizeof(table_utf8));
 
@@ -4472,6 +4472,7 @@ static ST_FIELD_INFO innodb_sys_tables_fields_info[]=
 };
 } // namespace Show
 
+
 /**********************************************************************//**
 Populate information_schema.innodb_sys_tables table with information
 from SYS_TABLES.
@@ -4507,7 +4508,7 @@ i_s_dict_fill_sys_tables(
 
 	OK(fields[SYS_TABLES_ID]->store(longlong(table->id), TRUE));
 
-	OK(field_store_string(fields[SYS_TABLES_NAME], table->name.m_name));
+	OK(field_store_string(fields[SYS_TABLES_NAME], fix_name(table->name.m_name)));
 
 	OK(fields[SYS_TABLES_FLAG]->store(table->flags));
 
@@ -4745,7 +4746,7 @@ i_s_dict_fill_sys_tablestats(THD* thd, dict_table_t *table,
     OK(fields[SYS_TABLESTATS_ID]->store(longlong(table->id), TRUE));
 
     OK(field_store_string(fields[SYS_TABLESTATS_NAME],
-                          table->name.m_name));
+                          fix_name(table->name.m_name)));
     OK(fields[SYS_TABLESTATS_INIT]->store(table->stat_initialized, true));
 
     if (table->stat_initialized)
@@ -5736,13 +5737,13 @@ i_s_dict_fill_sys_foreign(
 
 	fields = table_to_fill->field;
 
-	OK(field_store_string(fields[SYS_FOREIGN_ID], foreign->id));
+	OK(field_store_string(fields[SYS_FOREIGN_ID], fix_name(foreign->id)));
 
 	OK(field_store_string(fields[SYS_FOREIGN_FOR_NAME],
-			      foreign->foreign_table_name));
+			      fix_name(foreign->foreign_table_name)));
 
 	OK(field_store_string(fields[SYS_FOREIGN_REF_NAME],
-			      foreign->referenced_table_name));
+			      fix_name(foreign->referenced_table_name)));
 
 	OK(fields[SYS_FOREIGN_NUM_COL]->store(foreign->n_fields));
 
@@ -5922,7 +5923,7 @@ i_s_dict_fill_sys_foreign_cols(
 
 	fields = table_to_fill->field;
 
-	OK(field_store_string(fields[SYS_FOREIGN_COL_ID], name));
+	OK(field_store_string(fields[SYS_FOREIGN_COL_ID], fix_name(name)));
 
 	OK(field_store_string(fields[SYS_FOREIGN_COL_FOR_NAME], for_col_name));
 

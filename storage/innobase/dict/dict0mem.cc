@@ -1072,7 +1072,7 @@ dict_mem_index_free(
 
 /** Create a temporary tablename like "#sql-ibNNN".
 @param[in]	heap	A memory heap
-@param[in]	dbtab	Table name in the form database/table name
+@param[in]	dbtab	Table name in the form [catalog/]database/table name
 @param[in]	id	Table id
 @return A unique temporary tablename suitable for InnoDB use */
 char*
@@ -1083,7 +1083,7 @@ dict_mem_create_temporary_tablename(
 {
 	size_t		size;
 	char*		name;
-	const char*	dbend   = strchr(dbtab, '/');
+	const char*	dbend   = strrchr(dbtab, '/');
 	ut_ad(dbend);
 	size_t		dblen   = size_t(dbend - dbtab) + 1;
 

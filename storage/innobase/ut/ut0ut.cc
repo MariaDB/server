@@ -249,6 +249,13 @@ ut_print_name(
 	char		buf[3 * NAME_LEN];
 	const char*	bufend;
 
+        if (using_catalogs)
+        {
+          /* Skip catalog when printing name */
+          const char *s;
+          if ((s= strchr(name, '/')) && strchr(name, '/'))
+            name= s+1;
+        }
 	bufend = innobase_convert_name(buf, sizeof buf,
 				       name, strlen(name),
 				       trx ? trx->mysql_thd : NULL);

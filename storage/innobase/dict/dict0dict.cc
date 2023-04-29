@@ -30,6 +30,7 @@ Created 1/8/1996 Heikki Tuuri
 
 #include "ha_prototypes.h"
 #include <mysqld.h>
+#include <catalog.h>
 #include <strfunc.h>
 
 #include "dict0dict.h"
@@ -186,9 +187,13 @@ dict_tables_have_same_db(
 	const char*	name2)	/*!< in: table name in the form
 				dbname '/' tablename */
 {
+	bool have_catalogs= using_catalogs;
 	for (; *name1 == *name2; name1++, name2++) {
-		if (*name1 == '/') {
-			return(TRUE);
+		if (*name1 == '/')
+                {
+			if (!have_catalogs)
+				return(TRUE);
+			have_catalogs= 0;
 		}
 		ut_a(*name1); /* the names must contain '/' */
 	}
@@ -204,7 +209,7 @@ dict_remove_db_name(
 	const char*	name)	/*!< in: table name in the form
 				dbname '/' tablename */
 {
-	const char*	s = strchr(name, '/');
+	const char*	s = strrchr(name, '/');
 	ut_a(s);
 
 	return(s + 1);
@@ -1552,10 +1557,10 @@ dict_table_rename_in_cache(
         bool keep_mdl_name = !table->name.is_temporary();
 
 	if (!keep_mdl_name) {
-	} else if (const char* s = static_cast<const char*>
-		   (memchr(new_name.data(), '/', new_name.size()))) {
-		keep_mdl_name = new_name.end() - s >= 5
-			&& !memcmp(s, "/#sql", 5);
+	} else if (size_t s= dict_get_db_name_len(new_name.data(),
+						  new_name.size())) {
+		keep_mdl_name = new_name.size() - s >= 5
+		  && !memcmp(new_name.data() + s, "/#sql", 5);
 	}
 
 	if (keep_mdl_name) {
@@ -1676,8 +1681,8 @@ dict_table_rename_in_cache(
 			old_name_cs_filename[MAX_FULL_NAME_LEN] = '\0';
 			if (!dict_table_t::is_temporary_name(old_name)) {
 				innobase_convert_to_system_charset(
-					strchr(old_name_cs_filename, '/') + 1,
-					strchr(old_name, '/') + 1,
+					strrchr(old_name_cs_filename, '/') + 1,
+					strrchr(old_name, '/') + 1,
 					MAX_TABLE_NAME_LEN, &errors);
 
 				if (errors) {
@@ -1686,9 +1691,9 @@ dict_table_rename_in_cache(
 					means that the old table name is
 					actually in UTF-8. */
 					innobase_convert_to_filename_charset(
-						strchr(old_name_cs_filename,
+						strrchr(old_name_cs_filename,
 						       '/') + 1,
-						strchr(old_name, '/') + 1,
+						strrchr(old_name, '/') + 1,
 						MAX_TABLE_NAME_LEN);
 				} else {
 					/* Old name already in
@@ -1707,8 +1712,8 @@ dict_table_rename_in_cache(
 
 			if (!on_tmp) {
 				innobase_convert_to_filename_charset(
-					strchr(fkid, '/') + 1,
-					strchr(foreign->id, '/') + 1,
+					strrchr(fkid, '/') + 1,
+					strrchr(foreign->id, '/') + 1,
 					MAX_TABLE_NAME_LEN+20);
 			}
 
@@ -1740,8 +1745,8 @@ dict_table_rename_in_cache(
 					MAX_TABLE_NAME_LEN);
 				table_name[MAX_TABLE_NAME_LEN] = '\0';
 				innobase_convert_to_system_charset(
-					strchr(table_name, '/') + 1,
-					strchr(table->name.m_name, '/') + 1,
+					strrchr(table_name, '/') + 1,
+					strrchr(table->name.m_name, '/') + 1,
 					MAX_TABLE_NAME_LEN, &errors);
 
 				if (errors) {
@@ -1761,9 +1766,9 @@ dict_table_rename_in_cache(
 					strcat(foreign->id,
 					       old_id + strlen(old_name));
 				} else {
-					sprintf(strchr(foreign->id, '/') + 1,
+					sprintf(strrchr(foreign->id, '/') + 1,
 						"%s%s",
-						strchr(table_name, '/') +1,
+						strrchr(table_name, '/') +1,
 						strstr(old_id, "_ibfk_") );
 				}
 
@@ -3341,12 +3346,10 @@ dict_get_referenced_table(
 	            1 = Store and compare in lower; case insensitive
 	            2 = Store as given, compare in lower; case semi-sensitive */
 	if (lower_case_table_names == 2) {
-		innobase_casedn_str(ref);
-		*table = dict_sys.load_table({ref, len});
-		memcpy(ref, database_name, database_name_len);
-		ref[database_name_len] = '/';
-		memcpy(ref + database_name_len + 1, table_name, table_name_len + 1);
-
+		char tmp[FN_REFLEN];
+		memcpy(tmp, ref, len+1);
+		innobase_casedn_str(tmp);
+		*table = dict_sys.load_table({tmp, len});
 	} else {
 #ifndef _WIN32
 		if (lower_case_table_names == 1) {
@@ -3622,13 +3625,15 @@ loop:
 		goto syntax_error;
 	}
 
-	ut_a(*n < 1000);
-	(*constraints_to_drop)[*n] = id;
-	(*n)++;
-
 	if (std::find_if(table->foreign_set.begin(),
 			 table->foreign_set.end(),
-			 dict_foreign_matches_id(id))
+			 [id](const dict_foreign_t *foreign){
+				 for (const char *f = foreign->id;
+				      !!(f = strchr(f, '/')); )
+					 if (!innobase_strcasecmp(++f, id))
+						 return true;
+				 return false;
+			 })
 	    == table->foreign_set.end()) {
 
 		if (!srv_read_only_mode) {
@@ -3651,6 +3656,8 @@ loop:
 		return(DB_CANNOT_DROP_CONSTRAINT);
 	}
 
+	ut_a(*n < 1000);
+	(*constraints_to_drop)[(*n)++] = id;
 	goto loop;
 
 syntax_error:
@@ -4432,7 +4439,8 @@ dict_fs2utf8(
 	size_t		table_utf8_size)/*!< in: table_utf8 size */
 {
 	char	db[MAX_DATABASE_NAME_LEN + 1];
-	ulint	db_len;
+        char    *db_start;
+	ulint	db_len, catalog_len= 0;
 	uint	errors;
 
 	db_len = dict_get_db_name_len(db_and_table);
@@ -4441,10 +4449,31 @@ dict_fs2utf8(
 
 	memcpy(db, db_and_table, db_len);
 	db[db_len] = '\0';
-
+	db_start= db;
+	if (using_catalogs)
+	{
+		/* Skip over the catalog name if it exist */
+		for (; *db_start != '\\' && *db_start != '/' && *db_start;
+                     db_start++)
+                  ;
+		if (*db_start)			// If catalog found
+		{
+		  db_start++;		      // Include dir separator
+		  catalog_len= (size_t) (db_start - db);
+		  db_len-= catalog_len;
+		  catalog_len = strconvert(
+					   &my_charset_filename, db,
+					   uint(catalog_len-1),
+					   system_charset_info,
+					   db_utf8, uint(catalog_len), &errors);
+		  db_utf8[catalog_len++]= '/';
+		}
+		else
+		  db_start= db;			// No catalog
+	}
 	strconvert(
-		&my_charset_filename, db, uint(db_len), system_charset_info,
-		db_utf8, uint(db_utf8_size), &errors);
+		&my_charset_filename, db_start, uint(db_len), system_charset_info,
+		db_utf8 + catalog_len, uint(db_utf8_size - catalog_len), &errors);
 
 	/* convert each # to @0023 in table name and store the result in buf */
 	const char*	table = dict_remove_db_name(db_and_table);

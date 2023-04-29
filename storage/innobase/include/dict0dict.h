@@ -37,22 +37,72 @@ Created 1/8/1996 Heikki Tuuri
 
 class MDL_ticket;
 
+extern my_bool using_catalogs;
+
 /** the first table or index ID for other than hard-coded system tables */
 constexpr uint8_t DICT_HDR_FIRST_ID= 10;
 
 
-/** Get the database name length in a table name.
-@param name   filename-safe encoded table name "dbname/tablename"
+/** Get the catalog and database name length in a table name.
+@param name   filename-safe encoded table name "[catalog]/dbname/tablename"
 @return database name length */
 inline size_t dict_get_db_name_len(const char *name)
 {
   /* table_name_t::dblen() would assert that '/' is contained */
-  if (const char* s= strchr(name, '/'))
-    return size_t(s - name);
+  const char* s= strrchr(name, '/');
+  if (!s)
+    return 0;
+  return size_t(s - name);
+}
 
+inline size_t dict_get_db_name_len(const char *name, size_t length)
+{
+  for (const char *end= name+length ; --end > name ; )
+  {
+    if (*end == '/')
+      return (end - name - 1);
+  }
   return 0;
 }
 
+
+/** Get the database name without catalog
+    This should be used when calling filename_to_tablename() on db name
+@param  name               filename-safe encoded table name
+                           "[catalog]/dbname/tablename"
+@param  db_name_offset out Where the db name starts
+@return database name length
+*/
+inline size_t dict_get_db_name_len_no_catalog(const char *name,
+                                              size_t *db_name_offset)
+{
+  *db_name_offset= 0;
+  if (!using_catalogs)
+    return dict_get_db_name_len(name);
+  const char* s= strchr(name, '/');
+  if (!s)
+    return 0;
+  const char* s1= strchr(s+1, '/');
+  if (!s1)
+    return size_t(s - name);                    // No catalog
+  *db_name_offset= size_t(s - name) + 1;
+  return size_t(s1 - s - 1);
+}
+
+/*
+  Remove catalog from table name
+  (The catalog should not be shown to catalog users)
+*/
+
+inline const char *fix_name(const char *name)
+{
+  const char *pos;
+  if (using_catalogs && (pos= strchr(name, '/')))
+    return pos+1; // FIXME: filter the output for the current catalog name!
+  return name;
+}
+
+class SQL_CATALOG;
 
 /*********************************************************************//**
 Open a table from its database and table name, this is currently used by

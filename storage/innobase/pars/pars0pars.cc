@@ -54,6 +54,7 @@ pars_res_word_t	pars_to_binary_token = {PARS_TO_BINARY_TOKEN};
 pars_res_word_t	pars_substr_token = {PARS_SUBSTR_TOKEN};
 pars_res_word_t	pars_concat_token = {PARS_CONCAT_TOKEN};
 pars_res_word_t	pars_instr_token = {PARS_INSTR_TOKEN};
+pars_res_word_t	pars_instrr_token = {PARS_INSTRR_TOKEN};
 pars_res_word_t	pars_length_token = {PARS_LENGTH_TOKEN};
 pars_res_word_t	pars_count_token = {PARS_COUNT_TOKEN};
 pars_res_word_t	pars_int_token = {PARS_INT_TOKEN};
@@ -189,6 +190,7 @@ pars_func_get_class(
 	case PARS_CONCAT_TOKEN:
 	case PARS_LENGTH_TOKEN:
 	case PARS_INSTR_TOKEN:
+	case PARS_INSTRR_TOKEN:
 	case PARS_NOTFOUND_TOKEN:
 		return(PARS_FUNC_PREDEFINED);
 
@@ -504,6 +506,7 @@ pars_resolve_func_data_type(
 
 	case PARS_LENGTH_TOKEN:
 	case PARS_INSTR_TOKEN:
+	case PARS_INSTRR_TOKEN:
 		ut_a(pars_is_string_type(que_node_get_data_type(arg)->mtype));
 		dtype_set(que_node_get_data_type(node), DATA_INT, 0, 4);
 		break;

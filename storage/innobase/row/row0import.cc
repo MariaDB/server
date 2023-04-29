@@ -3035,7 +3035,7 @@ static size_t get_buf_size()
          );
 }
 
-/* find, parse instant metadata, performing variaous checks,
+/* find, parse instant metadata, performing various checks,
 and apply it to dict_table_t
 @return DB_SUCCESS or some error */
 static dberr_t handle_instant_metadata(dict_table_t *table,

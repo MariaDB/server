@@ -124,8 +124,8 @@ dberr_t trx_t::drop_table_statistics(const table_name_t &name)
   ut_ad(dict_operation_lock_mode);
 
   if (strstr(name.m_name, "/" TEMP_FILE_PREFIX_INNODB) ||
-      !strcmp(name.m_name, TABLE_STATS_NAME) ||
-      !strcmp(name.m_name, INDEX_STATS_NAME))
+      !strcmp(name.m_name, TABLE_STATS_NAME()) ||
+      !strcmp(name.m_name, INDEX_STATS_NAME()))
     return DB_SUCCESS;
 
   char db[MAX_DB_UTF8_LEN], table[MAX_TABLE_UTF8_LEN];

@@ -53,6 +53,7 @@ extern pars_res_word_t	pars_substr_token;
 extern pars_res_word_t	pars_concat_token;
 extern pars_res_word_t	pars_length_token;
 extern pars_res_word_t	pars_instr_token;
+extern pars_res_word_t	pars_instrr_token;
 extern pars_res_word_t	pars_count_token;
 extern pars_res_word_t	pars_int_token;
 extern pars_res_word_t	pars_bigint_token;

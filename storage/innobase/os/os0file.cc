@@ -36,6 +36,7 @@ Created 10/21/1995 Heikki Tuuri
 #include "os0file.h"
 #include "sql_const.h"
 #include "log.h"
+#include "dict0dict.h"
 
 #ifdef __linux__
 # include <sys/types.h>
@@ -464,6 +465,16 @@ os_file_make_data_dir_path(
 
 	if (ptr == NULL) {
 		return;
+	}
+
+	if (using_catalogs)
+	{
+	  /* Remove catalog name */
+	  for (ptr-- ;
+	       ptr > data_dir_path &&
+		 ptr[0] != FN_LIBCHAR && ptr[0] != FN_LIBCHAR2 ;
+	       ptr--)
+	    ;
 	}
 
 	ulint	tablename_len = strlen(tablename);

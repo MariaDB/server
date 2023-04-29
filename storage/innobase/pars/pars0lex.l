@@ -428,6 +428,10 @@ In the state 'id', only two actions are possible (defined below). */
 			return(PARS_INSTR_TOKEN);
 }
 
+"INSTRR"		{
+			return(PARS_INSTRR_TOKEN);
+}
+
 "LENGTH"	{
 			return(PARS_LENGTH_TOKEN);
 }

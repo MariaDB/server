@@ -1445,7 +1445,7 @@ fts_rename_one_aux_table(
 	from the fts_table_old_name */
 	strncpy(fts_table_new_name, new_name, new_db_name_len);
 	strncpy(fts_table_new_name + new_db_name_len,
-	       strchr(fts_table_old_name, '/'),
+	       fts_table_old_name + old_db_name_len,
 	       table_new_name_len - new_db_name_len);
 	fts_table_new_name[table_new_name_len] = 0;
 

@@ -110,6 +110,7 @@ yylex(void);
 %token PARS_SUBSTR_TOKEN
 %token PARS_CONCAT_TOKEN
 %token PARS_INSTR_TOKEN
+%token PARS_INSTRR_TOKEN
 %token PARS_LENGTH_TOKEN
 %token PARS_COMMIT_TOKEN
 %token PARS_ROLLBACK_TOKEN
@@ -208,6 +209,7 @@ function_name:
 	| PARS_SUBSTR_TOKEN	{ $$ = &pars_substr_token; }
 	| PARS_CONCAT_TOKEN	{ $$ = &pars_concat_token; }
 	| PARS_INSTR_TOKEN	{ $$ = &pars_instr_token; }
+	| PARS_INSTRR_TOKEN	{ $$ = &pars_instrr_token; }
 	| PARS_LENGTH_TOKEN	{ $$ = &pars_length_token; }
 ;
 

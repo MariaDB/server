@@ -2678,8 +2678,8 @@ row_rename_table_for_mysql(
 		strncpy(old_table_utf8, old_name, MAX_TABLE_NAME_LEN);
 		old_table_utf8[MAX_TABLE_NAME_LEN] = '\0';
 		innobase_convert_to_system_charset(
-			strchr(old_table_utf8, '/') + 1,
-			strchr(old_name, '/') +1,
+			strrchr(old_table_utf8, '/') + 1,
+			strrchr(old_name, '/') +1,
 			MAX_TABLE_NAME_LEN, &errors);
 
 		if (errors) {
@@ -2700,8 +2700,8 @@ row_rename_table_for_mysql(
 		strncpy(new_table_name, new_name, MAX_TABLE_NAME_LEN);
 		new_table_name[MAX_TABLE_NAME_LEN] = '\0';
 		innobase_convert_to_system_charset(
-			strchr(new_table_name, '/') + 1,
-			strchr(new_name, '/') +1,
+			strrchr(new_table_name, '/') + 1,
+			strrchr(new_name, '/') +1,
 			MAX_TABLE_NAME_LEN, &errors);
 
 		if (errors) {
@@ -2729,8 +2729,8 @@ row_rename_table_for_mysql(
 			"found INT;\n"
 			"BEGIN\n"
 			"found := 1;\n"
-			"old_db_name_len := INSTR(:old_table_name, '/')-1;\n"
-			"new_db_name_len := INSTR(:new_table_name, '/')-1;\n"
+			"old_db_name_len := INSTRR(:old_table_name, '/')-1;\n"
+			"new_db_name_len := INSTRR(:new_table_name, '/')-1;\n"
 			"new_db_name := SUBSTR(:new_table_name, 0,\n"
 			"                      new_db_name_len);\n"
 			"old_t_name_len := LENGTH(:old_table_name);\n"

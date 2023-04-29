@@ -54,6 +54,8 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <my_bitmap.h>
 #include <mysql/service_thd_alloc.h>
 #include <mysql/service_thd_wait.h>
+#include <mysql/service_thd_catalog.h>
+#include <catalog.h>
 #include "sql_type_geom.h"
 #include "scope.h"
 #include "srv0srv.h"
@@ -1325,7 +1327,7 @@ static void innodb_drop_database(handlerton*, char *path)
 
   dict_table_t *table_stats, *index_stats;
   MDL_ticket *mdl_table= nullptr, *mdl_index= nullptr;
-  table_stats= dict_table_open_on_name(TABLE_STATS_NAME, false,
+  table_stats= dict_table_open_on_name(TABLE_STATS_NAME(), false,
                                        DICT_ERR_IGNORE_NONE);
   if (table_stats)
   {
@@ -1334,7 +1336,7 @@ static void innodb_drop_database(handlerton*, char *path)
                                                 thd, &mdl_table);
     dict_sys.unfreeze();
   }
-  index_stats= dict_table_open_on_name(INDEX_STATS_NAME, false,
+  index_stats= dict_table_open_on_name(INDEX_STATS_NAME(), false,
                                        DICT_ERR_IGNORE_NONE);
   if (index_stats)
   {
@@ -1351,8 +1353,8 @@ static void innodb_drop_database(handlerton*, char *path)
   strconvert(&my_charset_filename, namebuf, len, system_charset_info, db,
              sizeof db, &errors);
   if (!errors && table_stats && index_stats &&
-      !strcmp(table_stats->name.m_name, TABLE_STATS_NAME) &&
-      !strcmp(index_stats->name.m_name, INDEX_STATS_NAME) &&
+      !strcmp(table_stats->name.m_name, TABLE_STATS_NAME()) &&
+      !strcmp(index_stats->name.m_name, INDEX_STATS_NAME()) &&
       lock_table_for_trx(table_stats, trx, LOCK_X) == DB_SUCCESS &&
       lock_table_for_trx(index_stats, trx, LOCK_X) == DB_SUCCESS)
   {
@@ -3292,6 +3294,11 @@ innobase_invalidate_query_cache(
         const char *key_ptr;
         size_t  tabname_len;
 
+        if (using_catalogs)
+        {
+          // Skip the catalog (added to key in mysql_query_cache_invalidator)
+          full_name= strchr(full_name, '/') +1;
+        }
         // Extract the database name.
         key_ptr= strchr(full_name, '/');
         DBUG_ASSERT(key_ptr != NULL); // Database name should be present
@@ -3433,6 +3440,18 @@ innobase_convert_name(
 		return(innobase_convert_identifier(
 				buf, buflen, id, idlen, thd));
 	}
+
+        if (using_catalogs)
+        {
+          const char* slash2= (const char*) memchr(slash+1, '/', idlen - (slash-id) - 1);
+          if (slash2)
+          {
+            /* Remove the catalog from the converted name */
+            idlen-= (slash-id);
+            id= slash+1;
+            slash= slash2;
+          }
+        }
 
 	/* Print the database name and table name separately. */
 	s = innobase_convert_identifier(s, ulint(bufend - s),
@@ -4113,16 +4132,19 @@ static int innodb_init(void* p)
 	static const char	test_filename[] = "-@";
 	char			test_tablename[sizeof test_filename
 				+ sizeof(srv_mysql50_table_name_prefix) - 1];
-	DBUG_ASSERT(sizeof test_tablename - 1
-		    == filename_to_tablename(test_filename,
-					     test_tablename,
-					     sizeof test_tablename, true));
-	DBUG_ASSERT(!strncmp(test_tablename,
-			     srv_mysql50_table_name_prefix,
-			     sizeof srv_mysql50_table_name_prefix - 1));
-	DBUG_ASSERT(!strcmp(test_tablename
-			    + sizeof srv_mysql50_table_name_prefix - 1,
-			    test_filename));
+        if (!using_catalogs)
+        {
+          DBUG_ASSERT(sizeof test_tablename - 1
+                      == filename_to_tablename(test_filename,
+                                               test_tablename,
+                                               sizeof test_tablename, true));
+          DBUG_ASSERT(!strncmp(test_tablename,
+                               srv_mysql50_table_name_prefix,
+                               sizeof srv_mysql50_table_name_prefix - 1));
+          DBUG_ASSERT(!strcmp(test_tablename
+                              + sizeof srv_mysql50_table_name_prefix - 1,
+                              test_filename));
+        }
 #endif /* DBUG_OFF */
 
 	os_file_set_umask(my_umask);
@@ -4162,6 +4184,8 @@ static int innodb_init(void* p)
 	mysql_file_register("innodb", all_innodb_files, count);
 # endif /* UNIV_PFS_IO */
 #endif /* HAVE_PSI_INTERFACE */
+
+        dict_init(using_catalogs);
 
 	bool	create_new_db = false;
 
@@ -5155,8 +5179,8 @@ ha_innobase::table_cache_type()
 }
 
 /** Normalizes a table name string.
-A normalized name consists of the database name catenated to '/'
-and table name. For example: test/mytable.
+A normalized name consists of [catalog name / ] database name / table_name.
+and table name. For example: test/mytable or def/test/mytable.
 On Windows, normalization puts both the database name and the
 table name always to lower case if "set_lower_case" is set to TRUE.
 @param[out]	norm_name	Normalized name, null-terminated.
@@ -5172,15 +5196,36 @@ normalize_table_name_c_low(
 					 name to lower case */
 {
 	char*	name_ptr;
+        char*   name_end;
+        char*   norm_name_end;
 	ulint	name_len;
 	char*	db_ptr;
 	ulint	db_len;
 	char*	ptr;
 	ulint	norm_len;
 
-	/* Scan name from the end */
+        norm_name_end= norm_name;
 
-	ptr = strend(name) - 1;
+        /* Skip typical prefix "./" */
+        while (*name == FN_CURLIB || *name == FN_LIBCHAR ||
+               *name == FN_LIBCHAR2)
+          name++;
+
+        /*
+          Skip the catalog. We have to do this first to be able to
+          handle table name of type 'def/database/tablename' and def/#sql-xxx".
+        */
+        if (using_catalogs)
+        {
+          /* Keep the catalog name first */
+          while (*name != FN_LIBCHAR && *name != FN_LIBCHAR2)
+            *norm_name_end++= *name++;
+          *norm_name_end++= '/';
+          name++;                               // Skip end '/'
+        }
+
+	/* Scan name from the end */
+	ptr = (name_end= strend(name)) - 1;
 
 	/* seek to the last path separator */
 	while (ptr >= name && *ptr != '\\' && *ptr != '/') {
@@ -5188,34 +5233,43 @@ normalize_table_name_c_low(
 	}
 
 	name_ptr = ptr + 1;
-	name_len = strlen(name_ptr);
+	name_len = (size_t) (name_end - name_ptr);
 
 	/* skip any number of path separators */
 	while (ptr >= name && (*ptr == '\\' || *ptr == '/')) {
 		ptr--;
 	}
+        if (ptr < name)
+        {
+          /*
+            This can happen in case we are using catalogs and the
+            name did not have two '/'. Can happen when
+            test_normalize_table_name_low() is used.
+          */
+          DBUG_ASSERT(using_catalogs);
+          memcpy(norm_name_end, name_ptr, name_len + 1);
+        }
+        else
+	{
+	  /* seek to the last but one path separator or one char before
+	     the beginning of name */
+	  db_len = 0;
+	  while (ptr >= name && *ptr != '\\' && *ptr != '/') {
+	    ptr--;
+	    db_len++;
+	  }
+	  db_ptr = ptr + 1;
 
-	DBUG_ASSERT(ptr >= name);
+	  norm_len = (norm_name_end - norm_name) + db_len + name_len + sizeof "/";
+	  ut_a(norm_len < FN_REFLEN - 1);
 
-	/* seek to the last but one path separator or one char before
-	the beginning of name */
-	db_len = 0;
-	while (ptr >= name && *ptr != '\\' && *ptr != '/') {
-		ptr--;
-		db_len++;
-	}
+	  memcpy(norm_name_end, db_ptr, db_len);
 
-	db_ptr = ptr + 1;
+	  norm_name_end[db_len] = '/';
 
-	norm_len = db_len + name_len + sizeof "/";
-	ut_a(norm_len < FN_REFLEN - 1);
-
-	memcpy(norm_name, db_ptr, db_len);
-
-	norm_name[db_len] = '/';
-
-	/* Copy the name and null-byte. */
-	memcpy(norm_name + db_len + 1, name_ptr, name_len + 1);
+          /* Copy the name and null-byte. */
+          memcpy(norm_name_end + db_len + 1, name_ptr, name_len + 1);
+        }
 
 	if (set_lower_case) {
 		innobase_casedn_str(norm_name);
@@ -5250,6 +5304,7 @@ test_normalize_table_name_low()
 /*===========================*/
 {
 	char		norm_name[FN_REFLEN];
+	my_bool		save_using_catalogs= using_catalogs;
 	const char*	test_data[][2] = {
 		/* input, expected result */
 		{"./mysqltest/t1", "mysqltest/t1"},
@@ -5290,6 +5345,7 @@ test_normalize_table_name_low()
 		{"d\\t", "d/t"},
 	};
 
+	using_catalogs= 0;
 	for (size_t i = 0; i < UT_ARR_SIZE(test_data); i++) {
 		printf("test_normalize_table_name_low():"
 		       " testing \"%s\", expected \"%s\"... ",
@@ -5305,6 +5361,7 @@ test_normalize_table_name_low()
 			ut_error;
 		}
 	}
+	using_catalogs= save_using_catalogs;
 }
 
 /*********************************************************************
@@ -10015,7 +10072,7 @@ wsrep_append_foreign_key(
 	}
 	fprintf(stderr, "\n");
 #endif
-	char *p = strchr(cache_key, '/');
+	char *p = strrchr(cache_key, '/');
 
 	if (p) {
 		*p = '\0';
@@ -11418,6 +11475,20 @@ ha_innobase::update_create_info(
 	}
 }
 
+
+static const char *add_catalog(THD *thd, char *buf, size_t buf_length,
+			       const char *table_name)
+{
+	if (using_catalogs)
+	{
+		strxnmov(buf, buf_length-1, thd_catalog_context(thd)->path.str,
+			 table_name, NullS);
+		return buf;
+	}
+	return table_name;
+}
+
+
 /*****************************************************************//**
 Initialize the table FTS stopword list
 @return TRUE if success */
@@ -11428,7 +11499,9 @@ innobase_fts_load_stopword(
 	trx_t*		trx,	/*!< in: transaction */
 	THD*		thd)	/*!< in: current thread */
 {
+
   ut_ad(dict_sys.locked());
+  char buff[STRING_BUFFER_USUAL_SIZE];
 
   const char *stopword_table= THDVAR(thd, ft_user_stopword_table);
   if (!stopword_table)
@@ -11439,7 +11512,11 @@ innobase_fts_load_stopword(
     mysql_mutex_unlock(&LOCK_global_system_variables);
   }
 
+  if (stopword_table)
+    stopword_table= add_catalog(thd, buff, sizeof(buff), stopword_table);
+
   table->fts->dict_locked= true;
+
   bool success= fts_load_stopword(table, trx, stopword_table,
                                   THDVAR(thd, ft_enable_stopword), false);
   table->fts->dict_locked= false;
@@ -13493,7 +13570,7 @@ int ha_innobase::delete_table(const char *name)
   if (err == DB_SUCCESS && dict_stats_is_persistent_enabled(table) &&
       !table->is_stats_table())
   {
-    table_stats= dict_table_open_on_name(TABLE_STATS_NAME, false,
+    table_stats= dict_table_open_on_name(TABLE_STATS_NAME(), false,
                                          DICT_ERR_IGNORE_NONE);
     if (table_stats)
     {
@@ -13503,7 +13580,7 @@ int ha_innobase::delete_table(const char *name)
       dict_sys.unfreeze();
     }
 
-    index_stats= dict_table_open_on_name(INDEX_STATS_NAME, false,
+    index_stats= dict_table_open_on_name(INDEX_STATS_NAME(), false,
                                          DICT_ERR_IGNORE_NONE);
     if (index_stats)
     {
@@ -13516,8 +13593,8 @@ int ha_innobase::delete_table(const char *name)
     const bool skip_wait{table->name.is_temporary()};
 
     if (table_stats && index_stats &&
-        !strcmp(table_stats->name.m_name, TABLE_STATS_NAME) &&
-        !strcmp(index_stats->name.m_name, INDEX_STATS_NAME) &&
+        !strcmp(table_stats->name.m_name, TABLE_STATS_NAME()) &&
+        !strcmp(index_stats->name.m_name, INDEX_STATS_NAME()) &&
         !(err= lock_table_for_trx(table_stats, trx, LOCK_X, skip_wait)))
       err= lock_table_for_trx(index_stats, trx, LOCK_X, skip_wait);
 
@@ -13879,7 +13956,7 @@ int ha_innobase::truncate()
   if (error == DB_SUCCESS && dict_stats_is_persistent_enabled(ib_table) &&
       !ib_table->is_stats_table())
   {
-    table_stats= dict_table_open_on_name(TABLE_STATS_NAME, false,
+    table_stats= dict_table_open_on_name(TABLE_STATS_NAME(), false,
                                          DICT_ERR_IGNORE_NONE);
     if (table_stats)
     {
@@ -13888,7 +13965,7 @@ int ha_innobase::truncate()
                                                   &mdl_table);
       dict_sys.unfreeze();
     }
-    index_stats= dict_table_open_on_name(INDEX_STATS_NAME, false,
+    index_stats= dict_table_open_on_name(INDEX_STATS_NAME(), false,
                                          DICT_ERR_IGNORE_NONE);
     if (index_stats)
     {
@@ -13899,8 +13976,8 @@ int ha_innobase::truncate()
     }
 
     if (table_stats && index_stats &&
-        !strcmp(table_stats->name.m_name, TABLE_STATS_NAME) &&
-        !strcmp(index_stats->name.m_name, INDEX_STATS_NAME) &&
+        !strcmp(table_stats->name.m_name, TABLE_STATS_NAME()) &&
+        !strcmp(index_stats->name.m_name, INDEX_STATS_NAME()) &&
         !(error= lock_table_for_trx(table_stats, trx, LOCK_X)))
       error= lock_table_for_trx(index_stats, trx, LOCK_X);
   }
@@ -14057,11 +14134,11 @@ ha_innobase::rename_table(
 		table->release();
 	}
 
-	if (strcmp(norm_from, TABLE_STATS_NAME)
-	    && strcmp(norm_from, INDEX_STATS_NAME)
-	    && strcmp(norm_to, TABLE_STATS_NAME)
-	    && strcmp(norm_to, INDEX_STATS_NAME)) {
-		table_stats = dict_table_open_on_name(TABLE_STATS_NAME, false,
+	if (strcmp(norm_from, TABLE_STATS_NAME())
+	    && strcmp(norm_from, INDEX_STATS_NAME())
+	    && strcmp(norm_to, TABLE_STATS_NAME())
+	    && strcmp(norm_to, INDEX_STATS_NAME())) {
+		table_stats = dict_table_open_on_name(TABLE_STATS_NAME(), false,
 						      DICT_ERR_IGNORE_NONE);
 		if (table_stats) {
 			dict_sys.freeze(SRW_LOCK_CALL);
@@ -14069,7 +14146,7 @@ ha_innobase::rename_table(
 				table_stats, thd, &mdl_table);
 			dict_sys.unfreeze();
 		}
-		index_stats = dict_table_open_on_name(INDEX_STATS_NAME, false,
+		index_stats = dict_table_open_on_name(INDEX_STATS_NAME(), false,
 						      DICT_ERR_IGNORE_NONE);
 		if (index_stats) {
 			dict_sys.freeze(SRW_LOCK_CALL);
@@ -14079,8 +14156,8 @@ ha_innobase::rename_table(
 		}
 
 		if (error == DB_SUCCESS && table_stats && index_stats
-		    && !strcmp(table_stats->name.m_name, TABLE_STATS_NAME)
-		    && !strcmp(index_stats->name.m_name, INDEX_STATS_NAME)) {
+		    && !strcmp(table_stats->name.m_name, TABLE_STATS_NAME())
+		    && !strcmp(index_stats->name.m_name, INDEX_STATS_NAME())) {
 			error = lock_table_for_trx(table_stats, trx, LOCK_X,
 						   from_temp);
 			if (error == DB_SUCCESS) {
@@ -15402,6 +15479,7 @@ get_foreign_key_info(
 	FOREIGN_KEY_INFO*	pf_key_info;
 	uint			i = 0;
 	size_t			len;
+        size_t                  db_name_offset;
 	char			tmp_buff[NAME_LEN+1];
 	char			name_buff[NAME_LEN+1];
 	const char*		ptr;
@@ -15416,12 +15494,13 @@ get_foreign_key_info(
 	f_key_info.foreign_id = thd_make_lex_string(
 		thd, 0, ptr, strlen(ptr), 1);
 
-	/* Name format: database name, '/', table name, '\0' */
+	/* Name format: [catalog '/' ] database name, '/', table name, '\0' */
 
 	/* Referenced (parent) database name */
-	len = dict_get_db_name_len(foreign->referenced_table_name);
+	len = dict_get_db_name_len_no_catalog(foreign->referenced_table_name,
+                                              &db_name_offset);
 	ut_a(len < sizeof(tmp_buff));
-	memcpy(tmp_buff, foreign->referenced_table_name, len);
+	memcpy(tmp_buff, foreign->referenced_table_name + db_name_offset, len);
 	tmp_buff[len] = 0;
 
 	len = filename_to_tablename(tmp_buff, name_buff, sizeof(name_buff));
@@ -15435,9 +15514,10 @@ get_foreign_key_info(
 		thd, 0, name_buff, len, 1);
 
 	/* Dependent (child) database name */
-	len = dict_get_db_name_len(foreign->foreign_table_name);
+	len = dict_get_db_name_len_no_catalog(foreign->foreign_table_name,
+                                              &db_name_offset);
 	ut_a(len < sizeof(tmp_buff));
-	memcpy(tmp_buff, foreign->foreign_table_name, len);
+	memcpy(tmp_buff, foreign->foreign_table_name + db_name_offset, len);
 	tmp_buff[len] = 0;
 
 	len = filename_to_tablename(tmp_buff, name_buff, sizeof(name_buff));
@@ -16772,7 +16852,7 @@ ha_innobase::get_foreign_dup_key(
 
 	/* copy table name (and convert from filename-safe encoding to
 	system_charset_info) */
-	char*	p = strchr(err_index->table->name.m_name, '/');
+	char*	p = strrchr(err_index->table->name.m_name, '/');
 
 	/* strip ".../" prefix if any */
 	if (p != NULL) {
@@ -17356,7 +17436,9 @@ innodb_stopword_table_validate(
 	struct st_mysql_value*		value)	/*!< in: incoming string */
 {
 	const char*	stopword_table_name;
+	const char*	stopword_table_name_cat= 0;
 	char		buff[STRING_BUFFER_USUAL_SIZE];
+	char		buff2[STRING_BUFFER_USUAL_SIZE];
 	int		len = sizeof(buff);
 	trx_t*		trx;
 
@@ -17364,6 +17446,11 @@ innodb_stopword_table_validate(
 	ut_a(value != NULL);
 
 	stopword_table_name = value->val_str(value, buff, &len);
+        if (stopword_table_name)
+        {
+          stopword_table_name_cat= add_catalog(thd, buff2, sizeof(buff2),
+                                               stopword_table_name);
+        }
 
 	trx = check_trx_exists(thd);
 
@@ -17372,7 +17459,7 @@ innodb_stopword_table_validate(
 	/* Validate the stopword table's (if supplied) existence and
 	of the right format */
 	int ret = stopword_table_name && !fts_valid_stopword_table(
-		stopword_table_name, NULL);
+		stopword_table_name_cat, NULL);
 
 	row_mysql_unlock_data_dictionary(trx);
 
@@ -17406,6 +17493,7 @@ innodb_buffer_pool_size_update(THD*,st_mysql_sys_var*,void*, const void* save)
 	buf_resize_start();
 }
 
+
 /** The latest assigned innodb_ft_aux_table name */
 static char* innodb_ft_aux_table;
 
@@ -17418,10 +17506,14 @@ static int innodb_ft_aux_table_validate(THD *thd, st_mysql_sys_var*,
 {
 	char buf[STRING_BUFFER_USUAL_SIZE];
 	int len = sizeof buf;
-
-	if (const char* table_name = value->val_str(value, buf, &len)) {
+	const char* table_name = value->val_str(value, buf, &len);
+        const char* table_name_cat;
+	if (table_name)
+	{
+		char buf2[STRING_BUFFER_USUAL_SIZE];
+		table_name_cat= add_catalog(thd, buf2, sizeof(buf2), table_name);
 		if (dict_table_t* table = dict_table_open_on_name(
-			    table_name, false, DICT_ERR_IGNORE_NONE)) {
+			    table_name_cat, false, DICT_ERR_IGNORE_NONE)) {
 			const table_id_t id = dict_table_has_fts_index(table)
 				? table->id : 0;
 			dict_table_close(table);
@@ -20104,14 +20196,16 @@ innobase_rename_vc_templ(
 	char	dbname[MAX_DATABASE_NAME_LEN + 1];
 	char	tbname[MAX_DATABASE_NAME_LEN + 1];
 	char*	name = table->name.m_name;
-	ulint	dbnamelen = dict_get_db_name_len(name);
-	ulint	tbnamelen = strlen(name) - dbnamelen - 1;
+	size_t  db_name_offset;
+	ulint	dbnamelen = dict_get_db_name_len_no_catalog(name,
+                                                            &db_name_offset);
+	ulint	tbnamelen = strlen(name) - dbnamelen - db_name_offset - 1;
 	char	t_dbname[MAX_DATABASE_NAME_LEN + 1];
 	char	t_tbname[MAX_TABLE_NAME_LEN + 1];
 
-	strncpy(dbname, name, dbnamelen);
+	strncpy(dbname, name + db_name_offset, dbnamelen);
 	dbname[dbnamelen] = 0;
-	strncpy(tbname, name + dbnamelen + 1, tbnamelen);
+	strncpy(tbname, name + db_name_offset + dbnamelen + 1, tbnamelen);
 	tbname[tbnamelen] =0;
 
 	/* For partition table, remove the partition name and use the
@@ -21259,4 +21353,18 @@ buf_pool_size_align(
   } else {
     return (size / m + 1) * m;
   }
+}
+
+const char *TABLE_STATS_NAME()
+{
+  if (using_catalogs)
+    return CAT_TABLE_STATS_NAME;
+  return ORG_TABLE_STATS_NAME;
+}
+
+const char *INDEX_STATS_NAME()
+{
+  if (using_catalogs)
+    return CAT_INDEX_STATS_NAME;
+  return ORG_INDEX_STATS_NAME;
 }

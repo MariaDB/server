@@ -877,9 +877,9 @@ static ulint btr_node_ptr_max_size(const dict_index_t* index)
 				: page_get_free_space_of_empty(FALSE) / 2;
 		} else if (field_max_size == NAME_LEN && i == 1
 			   && (!strcmp(index->table->name.m_name,
-				       TABLE_STATS_NAME)
+				       TABLE_STATS_NAME())
 			       || !strcmp(index->table->name.m_name,
-					  INDEX_STATS_NAME))) {
+					  INDEX_STATS_NAME()))) {
 			/* Interpret "table_name" as VARCHAR(199) even
 			if it was incorrectly defined as VARCHAR(64).
 			While the caller of ha_innobase enforces the

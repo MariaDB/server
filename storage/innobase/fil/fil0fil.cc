@@ -3261,17 +3261,18 @@ fil_space_t::name_type fil_space_t::name() const
   ut_ad(UT_LIST_GET_LEN(chain) == 1);
 
   const char *path= UT_LIST_GET_FIRST(chain)->name;
+  const char *cat= path;
   const char *sep= strchr(path, '/');
   ut_ad(sep);
 
   while (const char *next_sep= strchr(sep + 1, '/'))
-    path= sep + 1, sep= next_sep;
-
-#ifdef _WIN32
-  if (const char *last_sep= strchr(path, '\\'))
-    if (last_sep < sep)
-      path= last_sep;
-#endif
+  {
+    cat=  path;
+    path= sep + 1;
+    sep=  next_sep;
+  }
+  if (using_catalogs)
+    path= cat;
 
   size_t len= strlen(path);
   ut_ad(len > 4);

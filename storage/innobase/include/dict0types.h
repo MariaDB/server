@@ -108,9 +108,12 @@ struct table_name_t
 	/** @return the end of the schema name */
 	const char* dbend() const
 	{
-		const char* sep = strchr(m_name, '/');
-		ut_ad(sep);
-		return sep;
+		const char* sep1 = strchr(m_name, '/');
+		ut_ad(sep1);
+		const char* sep2 = strchr(sep1 + 1, '/');
+		if (!sep2)
+			return sep1;
+		return sep2;
 	}
 
 	/** @return the length of the schema name, in bytes */
@@ -159,7 +162,14 @@ enum spatial_status_t {
 	SPATIAL_ONLY	= 3
 };
 
-#define TABLE_STATS_NAME "mysql/innodb_table_stats"
-#define INDEX_STATS_NAME "mysql/innodb_index_stats"
+#define ORG_TABLE_STATS_NAME "mysql/innodb_table_stats"
+#define ORG_INDEX_STATS_NAME "mysql/innodb_index_stats"
 
+#define CAT_TABLE_STATS_NAME "def/mysql/innodb_table_stats"
+#define CAT_INDEX_STATS_NAME "def/mysql/innodb_index_stats"
+
+const char *TABLE_STATS_NAME();
+const char* INDEX_STATS_NAME();
+
+void dict_init(bool using_catalog);
 #endif

@@ -1,4 +1,4 @@
-/* A Bison parser, made by GNU Bison 3.7.6.  */
+/* A Bison parser, made by GNU Bison 3.8.2.  */
 
 /* Bison interface for Yacc-like parsers in C
 
@@ -115,23 +115,24 @@ extern int yydebug;
     PARS_SUBSTR_TOKEN = 316,       /* PARS_SUBSTR_TOKEN  */
     PARS_CONCAT_TOKEN = 317,       /* PARS_CONCAT_TOKEN  */
     PARS_INSTR_TOKEN = 318,        /* PARS_INSTR_TOKEN  */
-    PARS_LENGTH_TOKEN = 319,       /* PARS_LENGTH_TOKEN  */
-    PARS_COMMIT_TOKEN = 320,       /* PARS_COMMIT_TOKEN  */
-    PARS_ROLLBACK_TOKEN = 321,     /* PARS_ROLLBACK_TOKEN  */
-    PARS_WORK_TOKEN = 322,         /* PARS_WORK_TOKEN  */
-    PARS_EXIT_TOKEN = 323,         /* PARS_EXIT_TOKEN  */
-    PARS_FUNCTION_TOKEN = 324,     /* PARS_FUNCTION_TOKEN  */
-    PARS_LOCK_TOKEN = 325,         /* PARS_LOCK_TOKEN  */
-    PARS_SHARE_TOKEN = 326,        /* PARS_SHARE_TOKEN  */
-    PARS_MODE_TOKEN = 327,         /* PARS_MODE_TOKEN  */
-    PARS_LIKE_TOKEN = 328,         /* PARS_LIKE_TOKEN  */
-    PARS_LIKE_TOKEN_EXACT = 329,   /* PARS_LIKE_TOKEN_EXACT  */
-    PARS_LIKE_TOKEN_PREFIX = 330,  /* PARS_LIKE_TOKEN_PREFIX  */
-    PARS_LIKE_TOKEN_SUFFIX = 331,  /* PARS_LIKE_TOKEN_SUFFIX  */
-    PARS_LIKE_TOKEN_SUBSTR = 332,  /* PARS_LIKE_TOKEN_SUBSTR  */
-    PARS_TABLE_NAME_TOKEN = 333,   /* PARS_TABLE_NAME_TOKEN  */
-    PARS_BIGINT_TOKEN = 334,       /* PARS_BIGINT_TOKEN  */
-    NEG = 335                      /* NEG  */
+    PARS_INSTRR_TOKEN = 319,       /* PARS_INSTRR_TOKEN  */
+    PARS_LENGTH_TOKEN = 320,       /* PARS_LENGTH_TOKEN  */
+    PARS_COMMIT_TOKEN = 321,       /* PARS_COMMIT_TOKEN  */
+    PARS_ROLLBACK_TOKEN = 322,     /* PARS_ROLLBACK_TOKEN  */
+    PARS_WORK_TOKEN = 323,         /* PARS_WORK_TOKEN  */
+    PARS_EXIT_TOKEN = 324,         /* PARS_EXIT_TOKEN  */
+    PARS_FUNCTION_TOKEN = 325,     /* PARS_FUNCTION_TOKEN  */
+    PARS_LOCK_TOKEN = 326,         /* PARS_LOCK_TOKEN  */
+    PARS_SHARE_TOKEN = 327,        /* PARS_SHARE_TOKEN  */
+    PARS_MODE_TOKEN = 328,         /* PARS_MODE_TOKEN  */
+    PARS_LIKE_TOKEN = 329,         /* PARS_LIKE_TOKEN  */
+    PARS_LIKE_TOKEN_EXACT = 330,   /* PARS_LIKE_TOKEN_EXACT  */
+    PARS_LIKE_TOKEN_PREFIX = 331,  /* PARS_LIKE_TOKEN_PREFIX  */
+    PARS_LIKE_TOKEN_SUFFIX = 332,  /* PARS_LIKE_TOKEN_SUFFIX  */
+    PARS_LIKE_TOKEN_SUBSTR = 333,  /* PARS_LIKE_TOKEN_SUBSTR  */
+    PARS_TABLE_NAME_TOKEN = 334,   /* PARS_TABLE_NAME_TOKEN  */
+    PARS_BIGINT_TOKEN = 335,       /* PARS_BIGINT_TOKEN  */
+    NEG = 336                      /* NEG  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -146,6 +147,8 @@ typedef int YYSTYPE;
 
 extern YYSTYPE yylval;
 
+
 int yyparse (void);
+
 
 #endif /* !YY_YY_PARS0GRM_TAB_H_INCLUDED  */
