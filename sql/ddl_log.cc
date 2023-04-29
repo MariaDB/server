@@ -2783,7 +2783,7 @@ int ddl_log_execute_recovery()
         recovery_state.catalog= default_catalog();
       else
       {
-        if (!(recovery_state.catalog= get_catalog(&ddl_log_entry.handler_name)))
+        if (!(recovery_state.catalog= get_catalog(&ddl_log_entry.handler_name, 0)))
         {
           sql_print_error("DDL_LOG: Found unknown catalog: '%s', "
                           "ignoring entry",

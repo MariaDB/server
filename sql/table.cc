@@ -46,6 +46,7 @@
 #include "sql_show.h"
 #include "opt_trace.h"
 #include "sql_db.h"              // get_default_db_collation
+#include "catalog.h"
 
 /* For MySQL 5.7 virtual fields */
 #define MYSQL57_GENERATED_FIELD 128
@@ -5156,7 +5157,7 @@ bool ok_for_lower_case_names(const char *name)
 #endif
 
 /*
-  Check if database name is valid
+  Check if catalog or database name is valid
 
   SYNPOSIS
     check_db_name()
@@ -10110,13 +10111,18 @@ enum TR_table::enabled TR_table::use_transaction_registry= TR_table::MAYBE;
 TR_table::TR_table(THD* _thd, bool rw) :
   thd(_thd), open_tables_backup(NULL)
 {
+  SQL_CATALOG *org_catalog= thd->catalog;
+  thd->catalog= default_catalog();
   init_one_table(&MYSQL_SCHEMA_NAME, &TRANSACTION_REG_NAME,
                  NULL, rw ? TL_WRITE : TL_READ);
+  thd->catalog= org_catalog;
 }
 
 bool TR_table::open()
 {
+  SQL_CATALOG *org_catalog= thd->catalog;
   DBUG_ASSERT(!table);
+
   open_tables_backup= new Open_tables_backup;
   if (!open_tables_backup)
   {
@@ -10124,9 +10130,11 @@ bool TR_table::open()
     return true;
   }
 
+  thd->catalog= default_catalog();
   All_tmp_tables_list *temporary_tables= thd->temporary_tables;
   bool error= !open_log_table(thd, this, open_tables_backup);
   thd->temporary_tables= temporary_tables;
+  thd->catalog= org_catalog;
 
   if (use_transaction_registry == MAYBE)
     error= check(error);

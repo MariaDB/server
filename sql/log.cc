@@ -40,6 +40,7 @@
 #include "sql_audit.h"
 #include "mysqld.h"
 #include "ddl_log.h"
+#include "catalog.h"
 
 #include <my_dir.h>
 #include <m_ctype.h>				// For test_if_number
@@ -10713,6 +10714,7 @@ binlog_background_thread(void *arg __attribute__((unused)))
   thd->store_globals();
   thd->security_ctx->skip_grants();
   thd->set_command(COM_DAEMON);
+  thd->catalog= &internal_default_catalog;
   THD_count::count--;
 
   /*

@@ -64,6 +64,7 @@
 #include "rpl_rli.h"
 #include "log.h"
 #include "sql_debug.h"
+#include "catalog.h"
 
 #ifdef _WIN32
 #include <io.h>
@@ -557,6 +558,7 @@ uint build_table_filename(const SQL_CATALOG *catalog, char *buff,
 {
   char dbbuff[FN_REFLEN];
   char tbbuff[FN_REFLEN];
+  size_t copy_length;
   DBUG_ENTER("build_table_filename");
   DBUG_PRINT("enter", ("db: '%s'  table_name: '%s'  ext: '%s'  flags: %x",
                        db, table_name, ext, flags));
@@ -586,6 +588,10 @@ uint build_table_filename(const SQL_CATALOG *catalog, char *buff,
   */
   if (pos[-1] != FN_LIBCHAR)
     *pos++= FN_LIBCHAR;
+
+  copy_length= MY_MIN((size_t) (end-pos-2), catalog->path.length);
+  memcpy(pos, catalog->path.str, copy_length);
+  pos+= copy_length;
   pos= strxnmov(pos, end - 2 - pos, dbbuff,NullS);
   *pos++= FN_LIBCHAR;
   *pos= 0;

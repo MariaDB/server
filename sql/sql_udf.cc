@@ -38,8 +38,9 @@
 #include "sql_parse.h"                        // check_identifier_name
 #include "sql_table.h"                        // write_bin_log
 #include "records.h"          // init_read_record, end_read_record
-#include <my_pthread.h>
 #include "lock.h"                               // MYSQL_LOCK_IGNORE_TIMEOUT
+#include "catalog.h"
+#include <my_pthread.h>
 
 #ifdef HAVE_DLOPEN
 extern "C"
@@ -183,6 +184,7 @@ void udf_init()
   new_thd->store_globals();
   new_thd->set_query_inner((char*) STRING_WITH_LEN("intern:udf_init"),
                            default_charset_info);
+  new_thd->catalog= default_catalog();
   new_thd->set_db(&MYSQL_SCHEMA_NAME);
 
   tables.init_one_table(&new_thd->db, &MYSQL_FUNC_NAME, 0, TL_READ);
@@ -506,9 +508,15 @@ static int mysql_drop_function_internal(THD *thd, udf_func *udf, TABLE *table)
 static TABLE *open_udf_func_table(THD *thd)
 {
   TABLE_LIST tables;
+  TABLE *table;
+  SQL_CATALOG *org_catalog= thd->catalog;
+
+  thd->catalog= default_catalog();
   tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_FUNC_NAME,
                         &MYSQL_FUNC_NAME, TL_WRITE);
-  return open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT);
+  table= open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT);
+  thd->catalog= org_catalog;
+  return table;
 }
 
 

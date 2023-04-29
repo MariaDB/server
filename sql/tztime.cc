@@ -52,6 +52,7 @@
 #include <mysql/psi/mysql_file.h>
 #include "lock.h"                               // MYSQL_LOCK_IGNORE_FLUSH,
                                                 // MYSQL_LOCK_IGNORE_TIMEOUT
+#include "catalog.h"                            // SQL_CATALOG
 
 /*
   Now we don't use abbreviations in server but we will do this in future.
@@ -1671,6 +1672,7 @@ my_tz_init(THD *org_thd, const char *default_tzname, my_bool bootstrap)
     leap seconds shared by all time zones.
   */
 
+  thd->catalog= default_catalog();
   thd->set_db(&MYSQL_SCHEMA_NAME);
   bzero((char*) &tz_tables[0], sizeof(TABLE_LIST));
   tz_tables[0].alias= tz_tables[0].table_name= tmp_table_name;

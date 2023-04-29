@@ -5,17 +5,17 @@ SET @super_acl_100500= 1 << 15;
 SELECT HEX(@super_acl_100500);
 HEX(@super_acl_100500)
 8000
-SET @all_known_privileges_100500= (1 << 30) - 1;
+SET @all_known_privileges_100500= (1 << 40) - 1;
 SELECT HEX(@all_known_privileges_100500);
 HEX(@all_known_privileges_100500)
-3FFFFFFF
+FFFFFFFFFF
 CREATE USER user1@localhost;
 GRANT ALL PRIVILEGES ON *.* TO user1@localhost WITH GRANT OPTION;
 SET @all_known_privileges_current=(SELECT CAST(json_value(Priv, '$.access') AS UNSIGNED) FROM mysql.global_priv WHERE host='localhost' and user='user1');
 DROP USER user1@localhost;
 SELECT HEX(@all_known_privileges_current);
 HEX(@all_known_privileges_current)
-7FFFFFFFFF
+FFFFFFFFFF
 CREATE USER bad_access1@localhost;
 UPDATE
 mysql.global_priv

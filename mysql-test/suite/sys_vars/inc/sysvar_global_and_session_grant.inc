@@ -3,11 +3,11 @@
 
 --eval SET @global=@@global.$var
 
---echo # Test that "SET $var" is not allowed without $grant
+--echo # Test that "SET $var" is not allowed without $grant or SUPER
 
 CREATE USER user1@localhost;
 GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
---eval REVOKE $grant ON *.* FROM user1@localhost
+--eval REVOKE $grant, SUPER ON *.* FROM user1@localhost
 --connect(user1,localhost,user1,,)
 --connection user1
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR

@@ -106,6 +106,8 @@ SYMBOL symbols[] = {
   { "CASCADE",		SYM(CASCADE)},
   { "CASCADED",         SYM(CASCADED)},
   { "CASE",		SYM(CASE_SYM)},
+  { "CATALOG",          SYM(CATALOG_SYM)},
+  { "CATALOGS",         SYM(CATALOGS_SYM)},
   { "CATALOG_NAME",     SYM(CATALOG_NAME_SYM)},
   { "CHAIN",		SYM(CHAIN_SYM)},
   { "CHANGE",		SYM(CHANGE)},

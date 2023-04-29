@@ -33,6 +33,7 @@
 #include <mysql/service_thd_wait.h>
 #include "lock.h"
 #include "sql_table.h"
+#include "catalog.h"
 
 static int count_relay_log_space(Relay_log_info* rli);
 bool xa_trans_force_rollback(THD *thd);
@@ -1567,11 +1568,15 @@ scan_one_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array,
   bool table_opened= false;
   bool table_scanned= false;
   struct gtid_pos_element tmp_entry, *entry;
+  SQL_CATALOG *org_catalog= thd->catalog;
   int err= 0;
 
   thd->reset_for_next_command();
+  thd->catalog= default_catalog();
   tlist.init_one_table(&MYSQL_SCHEMA_NAME, tablename, NULL, TL_READ);
-  if ((err= open_and_lock_tables(thd, &tlist, FALSE, 0)))
+  err= open_and_lock_tables(thd, &tlist, FALSE, 0);
+  thd->catalog= org_catalog;
+  if (err)
     goto end;
   table_opened= true;
   table= tlist.table;
@@ -1688,7 +1693,8 @@ scan_all_gtid_slave_pos_table(THD *thd, int (*cb)(THD *, LEX_CSTRING *, void *),
   if (lock_schema_name(thd, MYSQL_SCHEMA_NAME.str))
     return 1;
 
-  build_table_filename(thd->catalog, path, sizeof(path) - 1, MYSQL_SCHEMA_NAME.str, "", "", 0);
+  build_table_filename(default_catalog(), path, sizeof(path) - 1,
+                       MYSQL_SCHEMA_NAME.str, "", "", 0);
   if (!(dirp= my_dir(path, MYF(MY_DONT_SORT))))
   {
     my_error(ER_FILE_NOT_FOUND, MYF(0), path, my_errno);
@@ -1976,8 +1982,10 @@ find_gtid_pos_tables_cb(THD *thd, LEX_CSTRING *table_name, void *arg)
   TABLE_LIST tlist;
   TABLE *table= NULL;
   int err;
+  SQL_CATALOG *org_catalog= thd->catalog;
 
   thd->reset_for_next_command();
+  thd->catalog= default_catalog();
   tlist.init_one_table(&MYSQL_SCHEMA_NAME, table_name, NULL, TL_READ);
   if ((err= open_and_lock_tables(thd, &tlist, FALSE, 0)))
     goto end;
@@ -1995,7 +2003,7 @@ end:
     close_thread_tables(thd);
     thd->release_transactional_locks();
   }
-
+  thd->catalog= org_catalog;
   return err;
 }
 

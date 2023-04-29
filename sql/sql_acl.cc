@@ -56,6 +56,7 @@
 #include "password.h"
 #include "sql_plugin_compat.h"
 #include "wsrep_mysqld.h"
+#include "catalog.h"
 
 #define MAX_SCRAMBLE_LENGTH 1024
 
@@ -898,8 +899,9 @@ class User_table: public Grant_table_base
   virtual LEX_CSTRING& name() const = 0;
   virtual int get_auth(THD *, MEM_ROOT *, ACL_USER *u) const= 0;
   virtual bool set_auth(const ACL_USER &u) const = 0;
-  virtual privilege_t get_access() const = 0;
-  virtual void set_access(const privilege_t rights, bool revoke) const = 0;
+  virtual privilege_t get_access(SQL_CATALOG *catalog) const = 0;
+  virtual void set_access(SQL_CATALOG *catalog, const privilege_t rights,
+                          bool revoke) const = 0;
 
   char *get_host(MEM_ROOT *root) const
   { return ::get_field(root, m_table->field[0]); }
@@ -1017,7 +1019,7 @@ class User_table_tabular: public User_table
     return 0;
   }
 
-  privilege_t get_access() const
+  privilege_t get_access(SQL_CATALOG *catalog) const
   {
     privilege_t access(Grant_table_base::get_access());
     if ((num_fields() <= 13) && (access & CREATE_ACL))
@@ -1059,6 +1061,10 @@ class User_table_tabular: public User_table
     if (access & SUPER_ACL)
       access|= ALLOWED_BY_SUPER_BEFORE_101100 | ALLOWED_BY_SUPER_BEFORE_110000;
 
+    /* This will be later masked depending of what's in catalog->acl */
+    if (access & SUPER_ACL)
+      access|= CATALOG_ACL;
+
     /*
       The SHOW SLAVE HOSTS statement :
       - required REPLICATION SLAVE privilege prior to 10.5.2
@@ -1073,10 +1079,11 @@ class User_table_tabular: public User_table
     if (access & REPL_SLAVE_ACL)
       access|= SLAVE_MONITOR_ACL;
 
-    return access & GLOBAL_ACLS;
+    return access & GLOBAL_ACLS & catalog->acl;
   }
 
-  void set_access(const privilege_t rights, bool revoke) const
+  void set_access(SQL_CATALOG *catalog, const privilege_t rights,
+                  bool revoke) const
   {
     ulonglong priv(SELECT_ACL);
     for (uint i= start_priv_columns; i < end_priv_columns; i++, priv <<= 1)
@@ -1542,8 +1549,9 @@ class User_table_json: public User_table
 
   privilege_t adjust_access(ulonglong version_id, ulonglong access) const
   {
-    privilege_t mask= ALL_KNOWN_ACL_100304;
+    privilege_t mask= ALL_KNOWN_ACL;
     ulonglong orig_access= access;
+
     if (version_id < 110000)
     {
       if (access & SUPER_ACL)
@@ -1554,7 +1562,9 @@ class User_table_json: public User_table
       if (access & SUPER_ACL)
         access|= ALLOWED_BY_SUPER_BEFORE_101100;
     }
-    if (version_id >= 100509)
+    if (version_id >= 110002)
+      mask= ALL_KNOWN_ACL_110002;
+    else if (version_id >= 100509)
     {
       mask= ALL_KNOWN_ACL_100509;
     }
@@ -1585,7 +1595,7 @@ class User_table_json: public User_table
     return access & ALL_KNOWN_ACL;
   }
 
-  privilege_t get_access() const
+  privilege_t get_access(SQL_CATALOG *catalog) const
   {
     ulonglong version_id= (ulonglong) get_int_value("version_id");
     ulonglong access= (ulonglong) get_int_value("access");
@@ -1609,12 +1619,13 @@ class User_table_json: public User_table
       print_warning_bad_version_id(version_id);
       return NO_ACL;
     }
-    return adjust_access(version_id, access) & GLOBAL_ACLS;
+    return adjust_access(version_id, access) & GLOBAL_ACLS & catalog->acl;
   }
 
-  void set_access(const privilege_t rights, bool revoke) const
+  void set_access(SQL_CATALOG *catalog, const privilege_t rights,
+                  bool revoke) const
   {
-    privilege_t access= get_access();
+    privilege_t access= get_access(catalog);
     if (revoke)
       access&= ~rights;
     else
@@ -2482,7 +2493,7 @@ static bool get_YN_as_bool(Field *field)
     1	Could not initialize grant's
 */
 
-bool acl_init(bool dont_read_acl_tables)
+bool acl_init(SQL_CATALOG *catalog, bool dont_read_acl_tables)
 {
   THD  *thd;
   bool return_val;
@@ -2520,6 +2531,7 @@ bool acl_init(bool dont_read_acl_tables)
   thd->store_globals();
   thd->set_query_inner((char*) STRING_WITH_LEN("intern:acl_init"),
                        default_charset_info);
+  thd->catalog= catalog;
   /*
     It is safe to call acl_reload() since acl_* arrays and hashes which
     will be freed there are global static objects and thus are initialized
@@ -2642,7 +2654,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
 
     is_role= user_table.get_is_role();
 
-    user.access= user_table.get_access();
+    user.access= user_table.get_access(thd->catalog);
 
     user.sort= get_magic_sort("hu", user.host.hostname, user.user.str);
     user.hostname_length= safe_strlen(user.host.hostname);
@@ -2906,10 +2918,9 @@ bool acl_reload(THD *thd)
   ACL_ROLE *old_acl_public;
   MEM_ROOT old_mem;
   int result;
+  Grant_tables tables;
   DBUG_ENTER("acl_reload");
 
-
-  Grant_tables tables;
   /*
     To avoid deadlocks we should obtain table locks before
     obtaining acl_cache->lock mutex.
@@ -4791,8 +4802,8 @@ static int replace_user_table(THD *thd, const User_table &user_table,
   }
 
   /* Update table columns with new privileges */
-  user_table.set_access(rights, revoke_grant);
-  rights= user_table.get_access();
+  user_table.set_access(thd->catalog, rights, revoke_grant);
+  rights= user_table.get_access(thd->catalog);
 
   if (handle_as_role)
   {
@@ -7988,7 +7999,7 @@ void  grant_free(void)
     @retval 1 Could not initialize grant subsystem.
 */
 
-bool grant_init()
+bool grant_init(SQL_CATALOG *catalog)
 {
   THD  *thd;
   bool return_val;
@@ -8000,6 +8011,7 @@ bool grant_init()
   thd->store_globals();
   thd->set_query_inner((char*) STRING_WITH_LEN("intern:grant_init"),
                        default_charset_info);
+  thd->catalog= catalog;
 
   return_val=  grant_reload(thd);
   delete thd;
@@ -9244,7 +9256,7 @@ static const char *command_array[]=
   "CREATE USER", "EVENT", "TRIGGER", "CREATE TABLESPACE", "DELETE HISTORY",
   "SET USER", "FEDERATED ADMIN", "CONNECTION ADMIN", "READ_ONLY ADMIN",
   "REPLICATION SLAVE ADMIN", "REPLICATION MASTER ADMIN", "BINLOG ADMIN",
-  "BINLOG REPLAY", "SLAVE MONITOR"
+  "BINLOG REPLAY", "SLAVE MONITOR", "CATALOG"
 };
 
 static uint command_lengths[]=
@@ -9257,7 +9269,7 @@ static uint command_lengths[]=
   11, 5, 7, 17, 14,
   8, 15, 16, 15,
   23, 24, 12,
-  13, 13
+  13, 13, 7
 };
 
 
@@ -13651,7 +13663,6 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
   THD *thd= mpvio->auth_info.thd;
   NET *net= &thd->net;
   Security_context *sctx= thd->security_ctx;
-
   char *user= (char*) net->read_pos;
   char *end= user + packet_length;
   /* Safe because there is always a trailing \0 at the end of the packet */
@@ -13798,11 +13809,8 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
   if (thd->make_lex_string(&mpvio->db, db.str, db.length) == 0)
     DBUG_RETURN(1); /* The error is set by make_lex_string(). */
 
-  if (!(thd->catalog= get_catalog(&mpvio->catalog)))
+  if (!(thd->catalog= get_catalog_with_error(thd, &mpvio->catalog, 1)))
   {
-    my_error(ER_ACCESS_NO_SUCH_CATALOG, MYF(ME_ERROR_LOG),
-             user, thd->security_ctx->host_or_ip,
-             mpvio->catalog.length, mpvio->catalog.str);
     /*
       Do not retry with other authentication methods.
       This avoids getting the above error multiple times
@@ -13811,18 +13819,18 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
     DBUG_RETURN(1);
   }
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-  if (initialized)
-  {
-    thd->password= passwd_len > 0;
-    if (find_mpvio_user(mpvio))
-      DBUG_RETURN(1);
-  }
-  else
+  if (!initialized)
   {
     // if mysqld's been started with --skip-grant-tables option
     mpvio->status= MPVIO_EXT::SUCCESS;
     DBUG_RETURN(0);
+  }
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  else                                          // initialized
+  {
+    thd->password= passwd_len > 0;
+    if (find_mpvio_user(mpvio))
+      DBUG_RETURN(1);
   }
 
   DBUG_PRINT("info", ("client_plugin=%s, restart", client_plugin));
@@ -14077,7 +14085,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
                                     catalog.length)))
     return packet_error;
 
-  if (!(thd->catalog= get_catalog(&mpvio->catalog)))
+  if (!(thd->catalog= get_catalog(&mpvio->catalog, 1)))
   {
     my_error(ER_ACCESS_NO_SUCH_CATALOG, MYF(ME_ERROR_LOG),
              user, thd->security_ctx->host_or_ip,

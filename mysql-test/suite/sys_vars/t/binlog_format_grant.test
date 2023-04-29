@@ -4,11 +4,11 @@ source include/have_log_bin.inc;
 --echo #
 --echo #
 
---echo # Test that "SET binlog_format" is not allowed without BINLOG ADMIN
+--echo # Test that "SET binlog_format" is not allowed without BINLOG ADMIN or SUPER
 
 CREATE USER user1@localhost;
 GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
-REVOKE BINLOG ADMIN ON *.* FROM user1@localhost;
+REVOKE BINLOG ADMIN, SUPER ON *.* FROM user1@localhost;
 --connect(user1,localhost,user1,,)
 --connection user1
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR

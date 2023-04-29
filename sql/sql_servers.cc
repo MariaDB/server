@@ -45,6 +45,7 @@
 #include "sp.h"
 #include "transaction.h"
 #include "lock.h"                               // MYSQL_LOCK_IGNORE_TIMEOUT
+#include "catalog.h"                            // SQL_CATALOG
 
 /*
   We only use 1 mutex to guard the data structures - THR_LOCK_servers.
@@ -337,11 +338,13 @@ bool servers_reload(THD *thd)
 {
   TABLE_LIST tables[1];
   bool return_val= TRUE;
+  SQL_CATALOG *org_catalog= thd->catalog;
   DBUG_ENTER("servers_reload");
 
   DBUG_PRINT("info", ("locking servers_cache"));
   mysql_rwlock_wrlock(&THR_LOCK_servers);
 
+  thd->catalog= default_catalog();
   tables[0].init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_SERVERS_NAME, 0, TL_READ);
 
   if (unlikely(open_and_lock_tables(thd, tables, FALSE,
@@ -370,6 +373,7 @@ end:
   close_mysql_tables(thd);
   DBUG_PRINT("info", ("unlocking servers_cache"));
   mysql_rwlock_unlock(&THR_LOCK_servers);
+  thd->catalog= org_catalog;
   DBUG_RETURN(return_val);
 }
 
@@ -475,8 +479,10 @@ insert_server(THD *thd, FOREIGN_SERVER *server)
   int error= -1;
   TABLE_LIST tables;
   TABLE *table;
+  SQL_CATALOG *org_catalog= thd->catalog;
   DBUG_ENTER("insert_server");
 
+  thd->catalog= default_catalog();
   tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_SERVERS_NAME, 0, TL_WRITE);
 
   /* need to open before acquiring THR_LOCK_plugin or it will deadlock */
@@ -493,6 +499,7 @@ insert_server(THD *thd, FOREIGN_SERVER *server)
     goto end;
 
 end:
+  thd->catalog= org_catalog;
   DBUG_RETURN(error);
 }
 
@@ -686,11 +693,12 @@ static int drop_server_internal(THD *thd, LEX_SERVER_OPTIONS *server_options)
   int error;
   TABLE_LIST tables;
   TABLE *table;
-
+  SQL_CATALOG *org_catalog= thd->catalog;
   DBUG_ENTER("drop_server_internal");
   DBUG_PRINT("info", ("server name server->server_name %s",
                       server_options->server_name.str));
 
+  thd->catalog= default_catalog();
   tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_SERVERS_NAME, 0, TL_WRITE);
 
   /* hit the memory hit first */
@@ -716,6 +724,7 @@ static int drop_server_internal(THD *thd, LEX_SERVER_OPTIONS *server_options)
   }
 
 end:
+  thd->catalog= org_catalog;
   DBUG_RETURN(error);
 }
 
@@ -821,8 +830,10 @@ int update_server(THD *thd, FOREIGN_SERVER *existing, FOREIGN_SERVER *altered)
   int error;
   TABLE *table;
   TABLE_LIST tables;
+  SQL_CATALOG *org_catalog= thd->catalog;
   DBUG_ENTER("update_server");
 
+  thd->catalog= org_catalog;
   tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_SERVERS_NAME, 0, TL_WRITE);
 
   if (!(table= open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT)))
@@ -842,6 +853,7 @@ int update_server(THD *thd, FOREIGN_SERVER *existing, FOREIGN_SERVER *altered)
   servers_load(thd, &tables);
 
 end:
+  thd->catalog= org_catalog;
   DBUG_RETURN(error);
 }
 

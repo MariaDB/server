@@ -1498,8 +1498,8 @@ END;
 $$
 SHOW PROCEDURE CODE p1;
 Pos	Instruction
-0	stmt 31 "SET GLOBAL max_allowed_packet=16000000"
-1	stmt 31 "SET GLOBAL max_error_count=60"
+0	stmt 33 "SET GLOBAL max_allowed_packet=16000000"
+1	stmt 33 "SET GLOBAL max_error_count=60"
 2	stmt 0 "SELECT @@GLOBAL.max_allowed_packet, @..."
 DROP PROCEDURE p1;
 #
@@ -1512,5 +1512,5 @@ END;
 $$
 SHOW PROCEDURE CODE p1;
 Pos	Instruction
-0	stmt 31 "max_error_count:=10"
+0	stmt 33 "max_error_count:=10"
 DROP PROCEDURE p1;

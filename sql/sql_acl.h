@@ -75,7 +75,7 @@ static inline int access_denied_error_code(int passwd_used)
 /* prototypes */
 
 bool hostname_requires_resolving(const char *hostname);
-bool  acl_init(bool dont_read_acl_tables);
+bool  acl_init(SQL_CATALOG *catalog, bool dont_read_acl_tables);
 bool acl_reload(THD *thd);
 void acl_free(bool end=0);
 privilege_t acl_get_all3(Security_context *sctx, const char *db,
@@ -96,7 +96,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table, List <LEX_USER> &user_list,
 bool mysql_routine_grant(THD *thd, TABLE_LIST *table, const Sp_handler *sph,
                          List <LEX_USER> &user_list, privilege_t rights,
                          bool revoke, bool write_to_binlog);
-bool grant_init();
+bool grant_init(SQL_CATALOG *catalog);
 void grant_free(void);
 bool grant_reload(THD *thd);
 bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,

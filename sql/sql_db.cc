@@ -48,6 +48,7 @@
 #include <direct.h>
 #endif
 #include "debug.h"                       // debug_crash_here
+#include "catalog.h"                     // catalog->cs
 
 #define MAX_DROP_TABLE_Q_LEN      1024
 
@@ -464,8 +465,8 @@ static void del_dbopt(const char *path)
   1	Could not create file or write to it.  Error sent through my_error()
 */
 
-static bool write_db_opt(THD *thd, const char *path,
-                         Schema_specification_st *create)
+bool write_db_opt(THD *thd, const char *path, const LEX_CSTRING *name,
+                  Schema_specification_st *create)
 {
   File file;
   char buf[256+DATABASE_COMMENT_MAXLEN];
@@ -476,31 +477,15 @@ static bool write_db_opt(THD *thd, const char *path,
     if (validate_comment_length(thd, create->schema_comment,
                                 DATABASE_COMMENT_MAXLEN,
                                 ER_TOO_LONG_DATABASE_COMMENT,
-                                thd->lex->name.str))
+                                name->str))
       return error;
   }
 
-  if (thd->lex->sql_command == SQLCOM_ALTER_DB &&
-      (!create->schema_comment || !create->default_table_charset))
-  {
-    /* Use existing values of schema_comment and charset for
-       ALTER DATABASE queries */
-    Schema_specification_st tmp;
-    tmp.init();
-    load_db_opt(thd, path, &tmp);
-
-    if (!create->schema_comment)
-      create->schema_comment= tmp.schema_comment;
-
-    if (!create->default_table_charset)
-      create->default_table_charset= tmp.default_table_charset;
-  }
-
   if (!create->default_table_charset)
-    create->default_table_charset= thd->variables.collation_server;
-
-  if (put_dbopt(path, create))
-    return 1;
+  {
+    if (!(create->default_table_charset= thd->catalog->cs))
+      create->default_table_charset= thd->variables.collation_server;
+  }
 
   if ((file= mysql_file_create(key_file_dbopt, path, CREATE_MODE,
                                O_RDWR | O_TRUNC, MYF(MY_WME))) >= 0)
@@ -527,35 +512,25 @@ static bool write_db_opt(THD *thd, const char *path,
 
 
 /*
-  Load database options file
+  Load catalog or database options file
 
   load_db_opt()
   path		Path for option file
   create	Where to store the read options
 
-  DESCRIPTION
-
   RETURN VALUES
   0	File found
   1	No database file or could not open it
-
 */
 
-bool load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
+bool load_opt(const char *path, Schema_specification_st *create,
+              MEM_ROOT *root, myf utf8_flag)
 {
   File file;
   char buf[256+DATABASE_COMMENT_MAXLEN];
-  DBUG_ENTER("load_db_opt");
+  DBUG_ENTER("load_opt");
   bool error=1;
   size_t nbytes;
-  myf utf8_flag= thd->get_utf8_flag();
-
-  bzero((char*) create,sizeof(*create));
-  create->default_table_charset= thd->variables.collation_server;
-
-  /* Check if options for this database are already in the hash */
-  if (!get_dbopt(thd, path, create))
-    DBUG_RETURN(0);
 
   /* Otherwise, load options from the .opt file */
   if ((file= mysql_file_open(key_file_dbopt,
@@ -590,36 +565,57 @@ bool load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
               get_charset_by_name(pos+1, MYF(utf8_flag))))
         {
           sql_print_error("Error while loading database options: '%s':",path);
-          sql_print_error(ER_THD(thd, ER_UNKNOWN_CHARACTER_SET),pos+1);
+          sql_print_error("Unknown character set: '%-.64s'",pos+1);
           create->default_table_charset= default_charset_info;
         }
       }
       else if (!strncmp(buf,"default-collation", (pos-buf)))
       {
-        if (!(create->default_table_charset= get_charset_by_name(pos+1, MYF(utf8_flag))))
+        if (!(create->default_table_charset=
+              get_charset_by_name(pos+1, MYF(utf8_flag))))
         {
           sql_print_error("Error while loading database options: '%s':",path);
-          sql_print_error(ER_THD(thd, ER_UNKNOWN_COLLATION),pos+1);
+          sql_print_error("Unknown collation: '%-.64s", pos+1);
           create->default_table_charset= default_charset_info;
         }
       }
       else if (!strncmp(buf, "comment", (pos-buf)))
-        create->schema_comment= thd->make_clex_string(pos+1, strlen(pos+1));
+        create->schema_comment= memdup_lexcstring(root, pos, strlen(pos+1));
     }
   }
-  /*
-    Put the loaded value into the hash.
-    Note that another thread could've added the same
-    entry to the hash after we called get_dbopt(),
-    but it's not an error, as put_dbopt() takes this
-    possibility into account.
-  */
-  error= put_dbopt(path, create);
+  error= 0;
 
   end_io_cache(&cache);
 err2:
   mysql_file_close(file, MYF(0));
 err1:
+  DBUG_RETURN(error);
+}
+
+
+bool load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
+{
+  bool error;
+  DBUG_ENTER("load_db_opt");
+
+  bzero((char*) create,sizeof(*create));
+  create->default_table_charset= thd->variables.collation_server;
+
+  /* Check if options for this database are already in the hash */
+  if (!get_dbopt(thd, path, create))
+    DBUG_RETURN(0);
+
+  if (!(error= load_opt(path, create, thd->mem_root, thd->get_utf8_flag())))
+  {
+    /*
+      Put the loaded value into the hash.
+      Note that another thread could've added the same
+      entry to the hash after we called get_dbopt(),
+      but it's not an error, as put_dbopt() takes this
+      possibility into account.
+    */
+    error= put_dbopt(path, create);
+  }
   DBUG_RETURN(error);
 }
 
@@ -799,7 +795,7 @@ mysql_create_db_internal(THD *thd, const LEX_CSTRING *db,
 
   path[path_len-1]= FN_LIBCHAR;
   strmake(path+path_len, MY_DB_OPT_FILE, sizeof(path)-path_len-1);
-  if (write_db_opt(thd, path, create_info))
+  if (write_db_opt(thd, path, db, create_info))
   {
     /*
       Could not create options file.
@@ -814,6 +810,12 @@ mysql_create_db_internal(THD *thd, const LEX_CSTRING *db,
       happened.  (This is a very unlikely senario)
     */
     thd->clear_error();
+  }
+  else
+  {
+    /* Store db opt in the hash */
+    if (put_dbopt(path, create_info))
+      return 1;
   }
 
   /* Log command to ddl log */
@@ -884,7 +886,7 @@ mysql_alter_db_internal(THD *thd, const LEX_CSTRING *db,
   char path[FN_REFLEN+16];
   long result=1;
   int error= 0;
-  DBUG_ENTER("mysql_alter_db");
+  DBUG_ENTER("mysql_alter_db_internal");
 
   if (lock_schema_name(thd, db->str))
     DBUG_RETURN(TRUE);
@@ -896,11 +898,31 @@ mysql_alter_db_internal(THD *thd, const LEX_CSTRING *db,
   */
   build_table_filename(thd->catalog, path, sizeof(path) - 1,
                        db->str, "", MY_DB_OPT_FILE, 0);
-  if (unlikely((error=write_db_opt(thd, path, create_info))))
+
+  if (!create_info->schema_comment || !create_info->default_table_charset)
+  {
+    /*
+      Use existing values of schema_comment and charset for
+      ALTER DATABASE queries
+    */
+    Schema_specification_st tmp;
+    tmp.init();
+    load_db_opt(thd, path, &tmp);
+
+    if (!create_info->schema_comment)
+      create_info->schema_comment= tmp.schema_comment;
+    if (!create_info->default_table_charset)
+      create_info->default_table_charset= tmp.default_table_charset;
+  }
+
+  if (unlikely((error=write_db_opt(thd, path, db, create_info))))
+    goto exit;
+
+  /* Store db opt in the hash */
+  if (put_dbopt(path, create_info))
     goto exit;
 
   /* Change options if current database is being altered. */
-
   if (thd->db.str && !cmp(&thd->db, db))
   {
     thd->db_charset= create_info->default_table_charset ?

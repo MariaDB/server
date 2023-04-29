@@ -55,6 +55,7 @@
 #include "opt_trace_context.h"
 #include "log_event.h"
 #include "optimizer_defaults.h"
+#include "catalog.h"
 
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
 #include "../storage/perfschema/pfs_server.h"
@@ -7113,3 +7114,12 @@ static Sys_var_optimizer_cost Sys_optimizer_scan_cost(
   CMD_LINE(REQUIRED_ARG),
   VALID_RANGE(0, 100000000), DEFAULT(DEFAULT_TABLE_SCAN_SETUP_COST),
   COST_ADJUST(1000));
+
+#ifndef EMBEDDED_LIBRARY
+static Sys_var_mybool Sys_using_catalogs(
+       "catalogs",
+       "Enable catalog support. This option should mainly be used from "
+       "mariadb-install-db.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(using_catalogs),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+#endif

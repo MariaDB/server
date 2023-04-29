@@ -43,6 +43,7 @@
 #include "spd_malloc.h"
 #include "spd_group_by_handler.h"
 #include "spd_init_query.h"
+#include "catalog.h"
 
 /* Background thread management */
 #ifdef SPIDER_HAS_NEXT_THREAD_ID

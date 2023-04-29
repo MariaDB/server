@@ -212,6 +212,7 @@ sp_get_flags_for_command(LEX *lex)
   case SQLCOM_SHOW_CONTRIBUTORS:
   case SQLCOM_SHOW_CREATE:
   case SQLCOM_SHOW_CREATE_DB:
+  case SQLCOM_SHOW_CREATE_CATALOG:
   case SQLCOM_SHOW_CREATE_FUNC:
   case SQLCOM_SHOW_CREATE_PROC:
   case SQLCOM_SHOW_CREATE_PACKAGE:
@@ -288,6 +289,7 @@ sp_get_flags_for_command(LEX *lex)
     flags= sp_head::HAS_SQLCOM_RESET;
     break;
   case SQLCOM_CREATE_INDEX:
+  case SQLCOM_CREATE_CATALOG:
   case SQLCOM_CREATE_DB:
   case SQLCOM_CREATE_PACKAGE:
   case SQLCOM_CREATE_PACKAGE_BODY:

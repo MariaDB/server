@@ -140,6 +140,8 @@ The following specify which files/extra groups are read (specified before remain
  --bulk-insert-buffer-size=# 
  Size of tree cache used in bulk insert optimisation. Note
  that this is a limit per thread!
+ --catalogs          Enable catalog support. This option should mainly be used
+ from mariadb-install-db.
  --character-set-client-handshake 
  Don't ignore client side character set value sent during
  handshake.
@@ -1573,6 +1575,7 @@ binlog-row-image FULL
 binlog-row-metadata NO_LOG
 binlog-stmt-cache-size 32768
 bulk-insert-buffer-size 8388608
+catalogs FALSE
 character-set-client-handshake TRUE
 character-set-filesystem binary
 character-sets-dir MYSQL_CHARSETSDIR/
@@ -1811,7 +1814,7 @@ performance-schema-max-socket-classes 10
 performance-schema-max-socket-instances -1
 performance-schema-max-sql-text-length 1024
 performance-schema-max-stage-classes 160
-performance-schema-max-statement-classes 222
+performance-schema-max-statement-classes 228
 performance-schema-max-statement-stack 10
 performance-schema-max-table-handles -1
 performance-schema-max-table-instances -1

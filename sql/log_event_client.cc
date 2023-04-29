@@ -2956,14 +2956,14 @@ err:
     other - Error
 */
 
-int Table_map_log_event::rewrite_db(const char* new_db, size_t new_len,
+int Table_map_log_event::rewrite_db(const char *new_db, size_t new_len,
                                     const Format_description_log_event* desc)
 {
   DBUG_ENTER("Table_map_log_event::rewrite_db");
   DBUG_ASSERT(temp_buf);
 
   uint header_len= MY_MIN(desc->common_header_len,
-                       LOG_EVENT_MINIMAL_HEADER_LEN) + TABLE_MAP_HEADER_LEN;
+                          LOG_EVENT_MINIMAL_HEADER_LEN) + TABLE_MAP_HEADER_LEN;
   int len_diff;
 
   if (!(len_diff= (int)(new_len - m_dblen)))
@@ -3017,9 +3017,11 @@ int Table_map_log_event::rewrite_db(const char* new_db, size_t new_len,
   // m_dbnam resides in m_memory together with m_tblnam and m_coltype
   uchar* memory= m_memory;
   char const* tblnam= m_tblnam;
+  char const* catnam= m_catnam.str;
   uchar* coltype= m_coltype;
 
   m_memory= (uchar*) my_multi_malloc(PSI_NOT_INSTRUMENTED, MYF(MY_WME),
+                                     &m_catnam.str, (uint) m_catnam.length,
                                      &m_dbnam, (uint) m_dblen + 1,
                                      &m_tblnam, (uint) m_tbllen + 1,
                                      &m_coltype, (uint) m_colcnt,
@@ -3028,11 +3030,13 @@ int Table_map_log_event::rewrite_db(const char* new_db, size_t new_len,
   if (!m_memory)
   {
     sql_print_error("Table_map_log_event::rewrite_db: "
-                    "failed to allocate new m_memory (%d + %d + %d bytes required)",
-                    m_dblen + 1, m_tbllen + 1, m_colcnt);
+                    "failed to allocate new m_memory (%d, %d + %d + %d bytes required)",
+                    (int) m_catnam.length + 1,+ m_dblen + 1, m_tbllen + 1,
+                    m_colcnt);
     DBUG_RETURN(-1);
   }
 
+  memcpy((void*)m_catnam.str, catnam, m_catnam.length+1);
   memcpy((void*)m_dbnam, new_db, m_dblen + 1);
   memcpy((void*)m_tblnam, tblnam, m_tbllen + 1);
   memcpy(m_coltype, coltype, m_colcnt);
@@ -3047,13 +3051,26 @@ bool Table_map_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
   if (!print_event_info->short_form)
   {
     char llbuff[22];
+    char options[80], *ptr;
+
+    ptr= options;
+    if (m_flags & (TM_BIT_HAS_TRIGGERS_F | TM_BIT_HAS_CATALOG_F))
+    {
+      ptr= strmov(ptr, " (has ");
+      if (m_flags & TM_BIT_HAS_TRIGGERS_F)
+        ptr= strmov(ptr, "triggers,");
+      if (m_flags & TM_BIT_HAS_CATALOG_F)
+        ptr= strmov(ptr, "catalog,");
+      ptr[-1]= ')';
+      ptr++;
+    }
+    *ptr= 0;
 
     print_header(&print_event_info->head_cache, print_event_info, TRUE);
     if (my_b_printf(&print_event_info->head_cache,
                     "\tTable_map: %`s.%`s mapped to number %s%s\n",
                     m_dbnam, m_tblnam, ullstr(m_table_id, llbuff),
-                    ((m_flags & TM_BIT_HAS_TRIGGERS_F) ?
-                     " (has triggers)" : "")))
+                    options))
       goto err;
   }
   if (!print_event_info->short_form || print_event_info->print_row_count)

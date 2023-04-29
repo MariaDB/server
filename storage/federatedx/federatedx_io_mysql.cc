@@ -32,12 +32,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "sql_priv.h"
 #include <mysqld_error.h>
 #include <mysql.h>
-
 #include "ha_federatedx.h"
-
 #include "m_string.h"
 #include "mysqld_error.h"
 #include "sql_servers.h"
+#include "catalog.h"
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
 #pragma implementation                          // gcc: Class implementation

@@ -223,7 +223,7 @@ SHOW PROCEDURE CODE p1;
 Pos	Instruction
 0	jump_if_not 9(9) 1 = 2
 1	hpush_jump 4 0 CONTINUE
-2	stmt 31 "SET @x2 = 1"
+2	stmt 33 "SET @x2 = 1"
 3	hreturn 0
 4	hpop 1
 5	jump 11

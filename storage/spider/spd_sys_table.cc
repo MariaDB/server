@@ -30,6 +30,7 @@
 #include "spd_include.h"
 #include "spd_sys_table.h"
 #include "spd_malloc.h"
+#include "catalog.h"
 
 extern handlerton *spider_hton_ptr;
 extern Time_zone *spd_tz_system;
@@ -239,8 +240,8 @@ TABLE *spider_open_sys_table(
 ) {
   TABLE *table;
   TABLE_LIST tables;
+  SQL_CATALOG *org_catalog= thd->catalog;
   DBUG_ENTER("spider_open_sys_table");
-
 
 #ifdef SPIDER_use_LEX_CSTRING_for_database_tablename_alias
   LEX_CSTRING db_name =
@@ -259,7 +260,10 @@ TABLE *spider_open_sys_table(
     "mysql", sizeof("mysql") - 1, table_name, table_name_length, table_name,
     (write ? TL_WRITE : TL_READ));
 #endif
-    if (!(table = spider_sys_open_table(thd, &tables, open_tables_backup)))
+    thd->catalog= default_catalog();
+    table = spider_sys_open_table(thd, &tables, open_tables_backup);
+    thd->catalog= org_catalog;
+    if (!table)
     {
       my_printf_error(ER_SPIDER_CANT_OPEN_SYS_TABLE_NUM,
         ER_SPIDER_CANT_OPEN_SYS_TABLE_STR, MYF(0),

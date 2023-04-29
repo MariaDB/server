@@ -1650,7 +1650,7 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
 #ifndef MYSQL_CLIENT
   if (catalog_name.length)                      // If catalog was given
   {
-    if (!(catalog= get_catalog(&catalog_name)))
+    if (!(catalog= get_catalog(&catalog_name, 1)))
     {
       if (!user.str)
         user.str= "";
@@ -3321,6 +3321,7 @@ Table_map_log_event::Table_map_log_event(const uchar *buf, uint event_len,
 #ifndef MYSQL_CLIENT
     m_table(NULL),
 #endif
+    m_catalog(NULL),
     m_dbnam(NULL), m_dblen(0), m_tblnam(NULL), m_tbllen(0),
     m_colcnt(0), m_coltype(0),
     m_memory(NULL), m_table_id(ULONGLONG_MAX), m_flags(0),
@@ -3329,12 +3330,17 @@ Table_map_log_event::Table_map_log_event(const uchar *buf, uint event_len,
     m_optional_metadata_len(0), m_optional_metadata(NULL)
 {
   unsigned int bytes_read= 0;
-  DBUG_ENTER("Table_map_log_event::Table_map_log_event(const char*,uint,...)");
-
+  LEX_CSTRING catalog= {"",0};
   uint8 common_header_len= description_event->common_header_len;
   uint8 post_header_len= description_event->post_header_len[TABLE_MAP_EVENT-1];
-  DBUG_PRINT("info",("event_len: %u  common_header_len: %d  post_header_len: %d",
+  DBUG_ENTER("Table_map_log_event::Table_map_log_event(const char*,uint,...)");
+
+  DBUG_PRINT("info",("event_len: %u  common_header_len: %d  "
+                     "post_header_len: %d",
                      event_len, common_header_len, post_header_len));
+
+  m_catnam.str="";
+  m_catnam.length= 0;
 
   /*
     Don't print debug messages when running valgrind since they can
@@ -3344,8 +3350,8 @@ Table_map_log_event::Table_map_log_event(const uchar *buf, uint event_len,
   DBUG_DUMP("event buffer", (uchar*) buf, event_len);
 #endif
 
-	if (event_len < (uint)(common_header_len + post_header_len))
-		DBUG_VOID_RETURN;
+  if (event_len < (uint)(common_header_len + post_header_len))
+    DBUG_VOID_RETURN;
 
   /* Read the post-header */
   const uchar *post_start= buf + common_header_len;
@@ -3370,7 +3376,35 @@ Table_map_log_event::Table_map_log_event(const uchar *buf, uint event_len,
   m_flags= uint2korr(post_start);
 
   /* Read the variable part of the event */
-  const uchar *const vpart= buf + common_header_len + post_header_len;
+  const uchar *vpart= buf + common_header_len + post_header_len;
+
+  if (m_flags & TM_BIT_HAS_CATALOG_F)
+  {
+    size_t catalog_len= *vpart;
+    const char *catalog_name= (const char*) vpart + 1;
+
+    catalog.str= catalog_name;
+    catalog.length= catalog_len;
+    if (vpart + catalog_len + 2 > buf + event_len)
+      DBUG_VOID_RETURN;
+
+#ifndef MYSQL_CLIENT
+    if (!(m_catalog= get_catalog(&catalog, 1)))
+    {
+      my_error(ER_ACCESS_NO_SUCH_CATALOG, MYF(ME_ERROR_LOG),
+               "replication", "localhost",
+               catalog_len, catalog_name);
+      DBUG_VOID_RETURN;
+    }
+#endif
+    vpart+= catalog_len+2;
+  }
+#ifndef MYSQL_CLIENT
+  else
+  {
+    m_catalog= default_catalog();
+  }
+#endif /* MYSQL_CLIENT */
 
   /* Extract the length of the various parts from the buffer */
   uchar const *const ptr_dblen= (uchar const*)vpart + 0;
@@ -3395,6 +3429,7 @@ Table_map_log_event::Table_map_log_event(const uchar *buf, uint event_len,
 
   /* Allocate mem for all fields in one go. If fails, caught in is_valid() */
   m_memory= (uchar*) my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME),
+                                     &m_catnam.str, (uint) catalog.length+1,
                                      &m_dbnam, (uint) m_dblen + 1,
                                      &m_tblnam, (uint) m_tbllen + 1,
                                      &m_coltype, (uint) m_colcnt,
@@ -3403,6 +3438,8 @@ Table_map_log_event::Table_map_log_event(const uchar *buf, uint event_len,
   if (m_memory)
   {
     /* Copy the different parts into their memory */
+    memcpy(const_cast<char*>(m_catnam.str), catalog.str, catalog.length+1);
+    m_catnam.length= catalog.length;
     strncpy(const_cast<char*>(m_dbnam), (const char*)ptr_dblen  + 1, m_dblen + 1);
     strncpy(const_cast<char*>(m_tblnam), (const char*)ptr_tbllen + 1, m_tbllen + 1);
     memcpy(m_coltype, ptr_after_colcnt, m_colcnt);

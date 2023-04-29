@@ -43,6 +43,7 @@
 #include "sql_priv.h"
 #include "sql_basic_types.h"
 #include <atomic>
+#include "sql_string.h"
 #include "catalog.h"
 #include "log_event.h"
 #include "compat56.h"
@@ -53,7 +54,6 @@
 #include "sql_string.h"   // needed for Rpl_filter
 #include "sql_list.h"     // needed for Rpl_filter
 #include "rpl_filter.h"
-
 #include "mysqld.h"
 
 #include <algorithm>

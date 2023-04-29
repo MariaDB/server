@@ -82,7 +82,7 @@
 #include "wsrep_server_state.h"
 #endif /* WITH_WSREP */
 #include "proxy_protocol.h"
-
+#include "catalog.h"
 #include "sql_callback.h"
 #include "threadpool.h"
 
@@ -745,6 +745,7 @@ pthread_t signal_thread;
 pthread_attr_t connection_attrib;
 mysql_mutex_t LOCK_server_started;
 mysql_cond_t COND_server_started;
+mysql_mutex_t LOCK_catalogs;
 
 int mysqld_server_started=0, mysqld_server_initialized= 0;
 File_parser_dummy_hook file_parser_dummy_hook;
@@ -911,6 +912,7 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_status, key_LOCK_temp_pool,
   key_LOCK_system_variables_hash, key_LOCK_thd_data, key_LOCK_thd_kill,
   key_LOCK_user_conn, key_LOCK_uuid_short_generator, key_LOG_LOCK_log,
+  key_LOCK_catalogs,
   key_master_info_data_lock, key_master_info_run_lock,
   key_master_info_sleep_lock, key_master_info_start_stop_lock,
   key_master_info_start_alter_lock,
@@ -1024,7 +1026,8 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_parallel_entry, "LOCK_parallel_entry", 0},
   { &key_LOCK_ack_receiver, "Ack_receiver::mutex", 0},
   { &key_LOCK_rpl_semi_sync_master_enabled, "LOCK_rpl_semi_sync_master_enabled", 0},
-  { &key_LOCK_binlog, "LOCK_binlog", 0}
+  { &key_LOCK_binlog, "LOCK_binlog", 0},
+  { &key_LOCK_catalogs, "LOCK_catalogs", 0},
 };
 
 PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,
@@ -2002,6 +2005,8 @@ static void clean_up(bool print_message)
   semi_sync_master_deinit();
 #endif
   plugin_shutdown();
+  /* Free catalogs MUST be after plugin_shutdown as plugins can use catalogs */
+  free_catalogs();
   udf_free();
   ha_end();
   if (tc_log)
@@ -2151,6 +2156,7 @@ static void clean_up_mutexes()
   mysql_cond_destroy(&COND_prepare_ordered);
   mysql_mutex_destroy(&LOCK_after_binlog_sync);
   mysql_mutex_destroy(&LOCK_commit_ordered);
+  mysql_mutex_destroy(&LOCK_catalogs);
 #ifndef EMBEDDED_LIBRARY
   mysql_mutex_destroy(&LOCK_error_log);
 #endif
@@ -3499,6 +3505,7 @@ static bool init_global_datetime_format(timestamp_type format_type,
 
 SHOW_VAR com_status_vars[]= {
   {"admin_commands",       COM_STATUS(com_other)},
+  {"alter_catalog",        STMT_STATUS(SQLCOM_ALTER_CATALOG)},
   {"alter_db",             STMT_STATUS(SQLCOM_ALTER_DB)},
   {"alter_db_upgrade",     STMT_STATUS(SQLCOM_ALTER_DB_UPGRADE)},
   {"alter_event",          STMT_STATUS(SQLCOM_ALTER_EVENT)},
@@ -3515,12 +3522,14 @@ SHOW_VAR com_status_vars[]= {
   {"begin",                STMT_STATUS(SQLCOM_BEGIN)},
   {"binlog",               STMT_STATUS(SQLCOM_BINLOG_BASE64_EVENT)},
   {"call_procedure",       STMT_STATUS(SQLCOM_CALL)},
+  {"change_db",            STMT_STATUS(SQLCOM_CHANGE_CATALOG)},
   {"change_db",            STMT_STATUS(SQLCOM_CHANGE_DB)},
   {"change_master",        STMT_STATUS(SQLCOM_CHANGE_MASTER)},
   {"check",                STMT_STATUS(SQLCOM_CHECK)},
   {"checksum",             STMT_STATUS(SQLCOM_CHECKSUM)},
   {"commit",               STMT_STATUS(SQLCOM_COMMIT)},
   {"compound_sql",         STMT_STATUS(SQLCOM_COMPOUND)},
+  {"create_catalog",       STMT_STATUS(SQLCOM_CREATE_CATALOG)},
   {"create_db",            STMT_STATUS(SQLCOM_CREATE_DB)},
   {"create_event",         STMT_STATUS(SQLCOM_CREATE_EVENT)},
   {"create_function",      STMT_STATUS(SQLCOM_CREATE_SPFUNCTION)},
@@ -3541,6 +3550,7 @@ SHOW_VAR com_status_vars[]= {
   {"delete",               STMT_STATUS(SQLCOM_DELETE)},
   {"delete_multi",         STMT_STATUS(SQLCOM_DELETE_MULTI)},
   {"do",                   STMT_STATUS(SQLCOM_DO)},
+  {"drop_catalog",         STMT_STATUS(SQLCOM_DROP_CATALOG)},
   {"drop_db",              STMT_STATUS(SQLCOM_DROP_DB)},
   {"drop_event",           STMT_STATUS(SQLCOM_DROP_EVENT)},
   {"drop_function",        STMT_STATUS(SQLCOM_DROP_FUNCTION)},
@@ -3601,6 +3611,7 @@ SHOW_VAR com_status_vars[]= {
   {"show_collations",      STMT_STATUS(SQLCOM_SHOW_COLLATIONS)},
   {"show_contributors",    STMT_STATUS(SQLCOM_SHOW_CONTRIBUTORS)},
   {"show_create_db",       STMT_STATUS(SQLCOM_SHOW_CREATE_DB)},
+  {"show_create_catalog",  STMT_STATUS(SQLCOM_SHOW_CREATE_CATALOG)},
   {"show_create_event",    STMT_STATUS(SQLCOM_SHOW_CREATE_EVENT)},
   {"show_create_func",     STMT_STATUS(SQLCOM_SHOW_CREATE_FUNC)},
   {"show_create_package",  STMT_STATUS(SQLCOM_SHOW_CREATE_PACKAGE)},
@@ -3609,6 +3620,7 @@ SHOW_VAR com_status_vars[]= {
   {"show_create_table",    STMT_STATUS(SQLCOM_SHOW_CREATE)},
   {"show_create_trigger",  STMT_STATUS(SQLCOM_SHOW_CREATE_TRIGGER)},
   {"show_create_user",     STMT_STATUS(SQLCOM_SHOW_CREATE_USER)},
+  {"show_databases",       STMT_STATUS(SQLCOM_SHOW_CATALOGS)},
   {"show_databases",       STMT_STATUS(SQLCOM_SHOW_DATABASES)},
   {"show_engine_logs",     STMT_STATUS(SQLCOM_SHOW_ENGINE_LOGS)},
   {"show_engine_mutex",    STMT_STATUS(SQLCOM_SHOW_ENGINE_MUTEX)},
@@ -3859,10 +3871,11 @@ static const char *rpl_make_log_name(PSI_memory_key key, const char *opt,
   unsigned int options=
     MY_REPLACE_EXT | MY_UNPACK_FILENAME | MY_SAFE_PATH;
 
-  /* mysql_real_data_home_ptr  may be null if no value of datadir has been
-     specified through command-line or througha cnf file. If that is the
-     case we make mysql_real_data_home_ptr point to mysql_real_data_home
-     which, in that case holds the default path for data-dir.
+  /*
+    mysql_real_data_home_ptr may be null if no value of datadir has been
+    specified through command-line or through a cnf file. If that is the
+    case we make mysql_real_data_home_ptr point to mysql_real_data_home
+    which, in that case holds the default path for data-dir.
   */
   if(mysql_real_data_home_ptr == NULL)
     mysql_real_data_home_ptr= mysql_real_data_home;
@@ -4511,6 +4524,8 @@ static int init_thread_environment()
   mysql_mutex_init(key_LOCK_optimizer_costs, &LOCK_optimizer_costs,
                    MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_temp_pool, &LOCK_temp_pool, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_LOCK_catalogs,
+                   &LOCK_catalogs, MY_MUTEX_INIT_SLOW);
 
 #ifdef HAVE_OPENSSL
   mysql_mutex_init(key_LOCK_des_key_file,
@@ -5217,6 +5232,9 @@ static int init_server_components()
   }
 #endif /* !EMBEDDED_LIBRARY */
 
+  if (init_catalogs(mysql_real_data_home))
+    unireg_abort(1);
+
   /* call ha_init_key_cache() on all key caches to init them */
   process_key_caches(&ha_init_key_cache, 0);
 
@@ -5888,12 +5906,15 @@ int mysqld_main(int argc, char **argv)
   */
   start_signal_handler();				// Creates pidfile
 
-  if (mysql_rm_tmp_tables() || acl_init(opt_noacl) ||
+  if (late_init_all_catalogs())
+    unireg_abort(1);
+
+  if (mysql_rm_tmp_tables() || acl_init(default_catalog(), opt_noacl) ||
       my_tz_init((THD *)0, default_tz_name, opt_bootstrap))
     unireg_abort(1);
 
   if (!opt_noacl)
-    (void) grant_init();
+    (void) grant_init(default_catalog());
 
   udf_init();
 

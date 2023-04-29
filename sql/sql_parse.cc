@@ -93,6 +93,7 @@
 #include "sql_sequence.h"
 #include "opt_trace.h"
 #include "mysql/psi/mysql_sp.h"
+#include "catalog.h"
 
 #include "my_json_writer.h" 
 
@@ -125,6 +126,7 @@ static bool execute_show_status(THD *, TABLE_LIST *);
 static bool check_rename_table(THD *, TABLE_LIST *, TABLE_LIST *);
 static bool generate_incident_event(THD *thd);
 static int  show_create_db(THD *thd, LEX *lex);
+static int  show_create_catalog(THD *thd, LEX *lex);
 static bool alter_routine(THD *thd, LEX *lex);
 static bool drop_routine(THD *thd, LEX *lex);
 
@@ -550,12 +552,15 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_LOAD]=           CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_CAN_GENERATE_ROW_EVENTS | CF_REPORT_PROGRESS |
                                             CF_INSERTS_DATA;
+  sql_command_flags[SQLCOM_CREATE_CATALOG]= CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_CREATE_DB]=      CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS | CF_DB_CHANGE;
+  sql_command_flags[SQLCOM_DROP_CATALOG]=   CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_DROP_DB]=        CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS | CF_DB_CHANGE;
   sql_command_flags[SQLCOM_CREATE_PACKAGE]= CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_DROP_PACKAGE]=   CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_CREATE_PACKAGE_BODY]= CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_DROP_PACKAGE_BODY]= CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
+  sql_command_flags[SQLCOM_ALTER_CATALOG]=   CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_ALTER_DB_UPGRADE]= CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_ALTER_DB]=       CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS | CF_DB_CHANGE;
   sql_command_flags[SQLCOM_RENAME_TABLE]=   CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS | CF_ADMIN_COMMAND;
@@ -640,6 +645,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_SHOW_STATUS_PACKAGE]= CF_STATUS_COMMAND | CF_REEXECUTION_FRAGILE;
   sql_command_flags[SQLCOM_SHOW_STATUS_PACKAGE_BODY]= CF_STATUS_COMMAND | CF_REEXECUTION_FRAGILE;
   sql_command_flags[SQLCOM_SHOW_STATUS]=      CF_STATUS_COMMAND | CF_REEXECUTION_FRAGILE;
+  sql_command_flags[SQLCOM_SHOW_CATALOGS]=   CF_STATUS_COMMAND | CF_REEXECUTION_FRAGILE;
   sql_command_flags[SQLCOM_SHOW_DATABASES]=   CF_STATUS_COMMAND | CF_REEXECUTION_FRAGILE;
   sql_command_flags[SQLCOM_SHOW_TRIGGERS]=    CF_STATUS_COMMAND | CF_REEXECUTION_FRAGILE;
   sql_command_flags[SQLCOM_SHOW_EVENTS]=      CF_STATUS_COMMAND | CF_REEXECUTION_FRAGILE;
@@ -669,6 +675,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_SHOW_GRANTS]=      CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_CREATE_USER]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_CREATE_DB]=   CF_STATUS_COMMAND;
+  sql_command_flags[SQLCOM_SHOW_CREATE_CATALOG]=   CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_CREATE]=  CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_BINLOG_STAT]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_SLAVE_STAT]=  CF_STATUS_COMMAND;
@@ -841,13 +848,16 @@ void init_update_queries(void)
   */
   sql_command_flags[SQLCOM_CREATE_TABLE]|=     CF_DISALLOW_IN_RO_TRANS;
   sql_command_flags[SQLCOM_CREATE_SEQUENCE]|=  CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_ALTER_CATALOG]|=    CF_DISALLOW_IN_RO_TRANS;
   sql_command_flags[SQLCOM_ALTER_TABLE]|=      CF_DISALLOW_IN_RO_TRANS;
   sql_command_flags[SQLCOM_DROP_TABLE]|=       CF_DISALLOW_IN_RO_TRANS;
   sql_command_flags[SQLCOM_DROP_SEQUENCE]|=    CF_DISALLOW_IN_RO_TRANS;
   sql_command_flags[SQLCOM_RENAME_TABLE]|=     CF_DISALLOW_IN_RO_TRANS;
   sql_command_flags[SQLCOM_CREATE_INDEX]|=     CF_DISALLOW_IN_RO_TRANS;
   sql_command_flags[SQLCOM_DROP_INDEX]|=       CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_CREATE_CATALOG]|=   CF_DISALLOW_IN_RO_TRANS;
   sql_command_flags[SQLCOM_CREATE_DB]|=        CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_DROP_CATALOG]|=     CF_DISALLOW_IN_RO_TRANS;
   sql_command_flags[SQLCOM_DROP_DB]|=          CF_DISALLOW_IN_RO_TRANS;
   sql_command_flags[SQLCOM_CREATE_PACKAGE]|=   CF_DISALLOW_IN_RO_TRANS;
   sql_command_flags[SQLCOM_DROP_PACKAGE]|=     CF_DISALLOW_IN_RO_TRANS;
@@ -3181,6 +3191,7 @@ wsrep_error_label:
   from other cases: bad database error, no access error.
   This can be done by testing thd->is_error().
 */
+
 static bool prepare_db_action(THD *thd, privilege_t want_access,
                               LEX_CSTRING *dbname)
 {
@@ -3214,6 +3225,21 @@ static bool prepare_db_action(THD *thd, privilege_t want_access,
 #endif
   return check_access(thd, want_access, dbname->str, NULL, NULL, 1, 0);
 }
+
+#ifndef EMBEDDED_LIBRARY
+static bool prepare_catalog_action(THD *thd, LEX_CSTRING *name)
+{
+  if (check_if_using_catalogs() || check_catalog_access(thd, name))
+    return true;
+
+  if (check_db_name((LEX_STRING*) name))
+  {
+    my_error(ER_WRONG_NAME_FOR_CATALOG, MYF(0), name->str);
+    return true;
+  }
+  return false;
+}
+#endif /* EMBEDDED_LIBRARY */
 
 
 bool Sql_cmd_call::execute(THD *thd)
@@ -3693,6 +3719,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
         !wsrep_tables_accessible_when_detached(all_tables)                 &&
         lex->sql_command != SQLCOM_SET_OPTION                              &&
         lex->sql_command != SQLCOM_CHANGE_DB                               &&
+        lex->sql_command != SQLCOM_CHANGE_CATALOG                          &&
         !(lex->sql_command == SQLCOM_SELECT && !all_tables)                &&
         !wsrep_is_show_query(lex->sql_command))
     {
@@ -3901,6 +3928,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   case SQLCOM_SHOW_STATUS_FUNC:
   case SQLCOM_SHOW_STATUS_PACKAGE:
   case SQLCOM_SHOW_STATUS_PACKAGE_BODY:
+  case SQLCOM_SHOW_CATALOGS:
   case SQLCOM_SHOW_DATABASES:
   case SQLCOM_SHOW_TABLES:
   case SQLCOM_SHOW_TRIGGERS:
@@ -5014,10 +5042,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   {
     if (!mysql_change_db(thd, &select_lex->db, FALSE))
       my_ok(thd);
-
     break;
   }
-
   case SQLCOM_LOAD:
   {
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
@@ -5174,6 +5200,66 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     if (!res)
       my_ok(thd);
     break;
+#ifndef EMBEDDED_LIBRARY
+  case SQLCOM_CHANGE_CATALOG:
+  {
+    if (!(res=mariadb_change_catalog(thd, &select_lex->db)))
+      my_ok(thd);
+    break;
+  }
+  case SQLCOM_CREATE_CATALOG:
+  {
+    if (prepare_catalog_action(thd, &lex->name))
+      break;
+
+    if ((res= lex->create_info.resolve_to_charset_collation_context(thd,
+                                 thd->charset_collation_context_create_db())))
+      break;
+
+    WSREP_TO_ISOLATION_BEGIN(lex->name.str, NULL, NULL);
+
+    res= maria_create_catalog(thd, &lex->name,
+                              lex->create_info, &lex->create_info);
+    break;
+  }
+  case SQLCOM_DROP_CATALOG:
+  {
+    if (thd->variables.option_bits & OPTION_IF_EXISTS)
+      lex->create_info.set(DDL_options_st::OPT_IF_EXISTS);
+
+    if (prepare_catalog_action(thd, &lex->name))
+      break;
+
+    WSREP_TO_ISOLATION_BEGIN(lex->name.str, NULL, NULL);
+
+    res= maria_rm_catalog(thd, &lex->name, lex->if_exists());
+    break;
+  }
+  case SQLCOM_ALTER_CATALOG:
+  {
+    SQL_CATALOG *catalog;
+    LEX_CSTRING *name= &lex->name;
+
+    if (prepare_catalog_action(thd, name))
+      break;
+
+    if (!(catalog= get_catalog_with_error(thd, name, 0)))
+      break;
+
+    Charset_collation_context ccc=
+      Charset_collation_context(thd->variables.collation_server,
+                                catalog->cs);
+
+    if ((res= lex->create_info.
+         resolve_to_charset_collation_context(thd, ccc)))
+         break;
+
+    WSREP_TO_ISOLATION_BEGIN(name->str, NULL, NULL);
+
+    res= maria_alter_catalog(thd, catalog, &lex->create_info);
+    break;
+  }
+#endif /* EMBEDDED_LIBRARY */
   case SQLCOM_CREATE_DB:
   {
     if (prepare_db_action(thd, lex->create_info.or_replace() ?
@@ -5258,6 +5344,9 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   case SQLCOM_SHOW_CREATE_DB:
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
     res= show_create_db(thd, lex);
+    break;
+  case SQLCOM_SHOW_CREATE_CATALOG:
+    res= show_create_catalog(thd, lex);
     break;
   case SQLCOM_CREATE_EVENT:
   case SQLCOM_ALTER_EVENT:
@@ -6509,6 +6598,24 @@ show_create_db(THD *thd, LEX *lex)
     return 1;
   }
   return mysqld_show_create_db(thd, &db_name, &lex->name, lex->create_info);
+}
+
+static int __attribute__ ((noinline))
+show_create_catalog(THD *thd, LEX *lex)
+{
+  char name_buff[NAME_LEN+1];
+  LEX_CSTRING name;
+
+  name.str= name_buff;
+  name.length= lex->name.length;
+  strmov(name_buff, lex->name.str);
+
+  if (check_db_name((LEX_STRING*) &name))
+  {
+    my_error(ER_WRONG_CATALOG_NAME, MYF(0), name.str);
+    return 1;
+  }
+  return mariadb_show_create_catalog(thd, &name, &lex->name, lex->create_info);
 }
 
 

@@ -15,9 +15,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
-#include "my_global.h"
 #include "hash.h"
-
 
 /**
   A type-safe wrapper around mysys HASH.
@@ -45,9 +43,14 @@ public:
     my_hash_init(psi_key, &m_hash, charset, default_array_elements, key_offset,
                  key_length, get_key, free_element, flags);
   }
+  Hash_set()
+  {
+    /* This is used if the user wants to call my_hash_init() themselves */
+    bzero(&m_hash, sizeof(m_hash));
+  }
   /**
-    Destroy the hash by freeing the buckets table. Does
-    not call destructors for the elements.
+    Destroy the hash by freeing the buckets table.
+    free_element() is called for every element.
   */
   ~Hash_set()
   {
@@ -80,7 +83,8 @@ public:
   size_t size() const { return static_cast<size_t>(m_hash.records); }
   /** Erases all elements from the container */
   void clear() { my_hash_reset(&m_hash); }
-  const T* at(size_t i) const
+  void free()  { my_hash_free(&m_hash); }
+  T* at(size_t i)
   {
     return reinterpret_cast<T*>(my_hash_element(const_cast<HASH*>(&m_hash), i));
   }
@@ -107,7 +111,6 @@ public:
     HASH *m_hash;
     uint m_idx;
   };
-private:
   HASH m_hash;
 };
 

@@ -33,6 +33,7 @@
 #include "debug_sync.h"
 #include "des_key_file.h"
 #include "transaction.h"
+#include "catalog.h"
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
 #endif
@@ -85,6 +86,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
       thd->store_globals();
       thd->set_query_inner((char*) STRING_WITH_LEN("intern:reload_acl"),
                            default_charset_info);
+      thd->catalog= default_catalog();
     }
 
     if (likely(thd))

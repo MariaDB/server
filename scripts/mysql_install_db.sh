@@ -33,6 +33,9 @@ user=""
 group=""
 silent_startup="--silent-startup"
 log_error=""
+catalog_names=""
+default_catalog=""
+create_catalogs=""
 
 force=0
 in_rpm=0
@@ -72,10 +75,12 @@ Usage: $0 [OPTIONS]
   --builddir=path      If using --srcdir with out-of-directory builds, you
                        will need to set this to the location of the build
                        directory where built files reside.
+  --catalogs[=list]    Initialize MariaDB for catalogs. Argument is a list,
+                       separated with space, of the catalogs to create.
+                       The def catalog is created automatically.
   --cross-bootstrap    For internal use.  Used when building the MariaDB system
                        tables on a different host than the target.
   --datadir=path       The path to the MariaDB data directory.
-  --no-defaults        Don't read default options from any option file.
   --defaults-extra-file=name
                        Read this file after the global files are read.
   --defaults-file=name Only read default options from the given file name.
@@ -88,6 +93,7 @@ Usage: $0 [OPTIONS]
   --help               Display this help and exit.
   --ldata=path         The path to the MariaDB data directory. Same as
                        --datadir.
+  --no-defaults        Don't read default options from any option file.
   --rpm                For internal use.  This option is used by RPM files
                        during the MariaDB installation process.
   --skip-name-resolve  Use IP addresses rather than hostnames when creating
@@ -172,9 +178,19 @@ parse_arguments()
       --help) usage ;;
       --no-defaults|--defaults-file=*|--defaults-extra-file=*)
         defaults="$arg" ;;
+      --catalogs)
+          args="$args --catalogs"
+          catalog_names="def"
+          default_catalog="def/"
+          ;;
+      --catalogs=*)
+          args="$args --catalogs"
+          catalog_names=`parse_arg "$arg"`;
+          catalog_names="def $catalog_names";
+          default_catalog="def/"
+          ;;
       --defaults-group-suffix=*)
         defaults_group_suffix="$arg" ;;
-
       --cross-bootstrap|--windows)
         # Used when building the MariaDB system tables on a different host than
         # the target. The platform-independent files that are created in
@@ -479,7 +495,7 @@ then
   hostname=`echo "$resolved" | while read a; do echo ${a##* }; done`
 fi
 
-# Create database directories
+# Create data directory and catalog directories
 for dir in "$ldata"
 do
   if test ! -d "$dir"
@@ -539,9 +555,9 @@ fi
 #  args="$args --group=$group"
 #fi
 
-if test -f "$ldata/mysql/user.frm"
+if test -f "$ldata/${default_catalog}mysql/user.frm"
 then
-    echo "mysql.user table already exists!"
+    echo "mysql.user table already exists in $ldata/${default_catalog}mysql"
     echo "Run mariadb-upgrade, not mariadb-install-db"
     exit 0
 fi
@@ -591,11 +607,19 @@ mysqld_install_cmd_line()
 # Use 'root' as a fallback
 auth_root_socket_user=${auth_root_socket_user:-${user:-${USER:-root}}}
 
-cat_sql()
+cat_create_tables()
 {
-  echo "create database if not exists mysql;"
   echo "use mysql;"
 
+  cat "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$fill_help_tables" "$maria_add_gis_sp" "$mysql_sys_schema"
+  if test "$skip_test_db" -eq 0
+  then
+    cat "$mysql_test_db"
+  fi
+}
+
+cat_sql()
+{
   case "$auth_root_authentication_method" in
     normal)
       echo "SET @auth_root_socket=NULL;"
@@ -603,12 +627,24 @@ cat_sql()
     socket)
       echo "SET @auth_root_socket='$auth_root_socket_user';"
       ;;
+
   esac
 
-  cat "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$fill_help_tables" "$maria_add_gis_sp" "$mysql_sys_schema"
-  if test "$skip_test_db" -eq 0
+  if test -n "$catalog_names"
   then
-    cat "$mysql_test_db"
+      for dir in $catalog_names
+      do
+          if test ! -d "$ldata/$dir"
+          then
+              echo "create catalog if not exists $dir;"
+              echo "use catalog $dir;"
+              echo "create database if not exists mysql;"
+              cat_create_tables
+          fi
+      done
+  else
+    echo "create database if not exists mysql;"
+    cat_create_tables
   fi
 
   # cat extra file if it's not null
@@ -619,7 +655,8 @@ cat_sql()
 }
 
 # Create the system and help tables by passing them to "mariadbd --bootstrap"
-s_echo "Installing MariaDB/MySQL system tables in '$ldata' ..."
+s_echo "Installing MariaDB system tables in '$ldata' ..."
+cat_sql > /tmp/install.sql # QQQQQQQQQ
 if cat_sql | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
 then
     printf "@VERSION@-MariaDB" > "$ldata/mariadb_upgrade_info"

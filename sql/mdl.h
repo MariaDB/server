@@ -18,6 +18,7 @@
 
 #include "sql_plist.h"
 #include "ilist.h"
+#include "catalog.h"
 #include <my_sys.h>
 #include <m_string.h>
 #include <mysql_com.h>

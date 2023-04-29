@@ -2499,6 +2499,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
     res= mysql_test_delete(stmt, tables);
     break;
   /* The following allow WHERE clause, so they must be tested like SELECT */
+  case SQLCOM_SHOW_CATALOGS:
   case SQLCOM_SHOW_DATABASES:
   case SQLCOM_SHOW_TABLES:
   case SQLCOM_SHOW_TRIGGERS:

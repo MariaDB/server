@@ -4490,6 +4490,8 @@ bool open_tables(THD *thd, const DDL_options_st &options,
   bool has_prelocking_list;
   DBUG_ENTER("open_tables");
 
+  DBUG_ASSERT(thd->catalog);
+
   /* Data access in XA transaction is only allowed when it is active. */
   for (TABLE_LIST *table= *start; table; table= table->next_global)
   {

@@ -29,6 +29,7 @@
 #include "sql_show.h"           // remove_status_vars, add_status_vars
 #include "strfunc.h"            // find_set
 #include "records.h"          // init_read_record, end_read_record
+#include "catalog.h"
 #include <my_pthread.h>
 #include <my_getopt.h>
 #include "sql_audit.h"
@@ -1851,6 +1852,7 @@ static void plugin_load(MEM_ROOT *tmp_root)
   new_thd->store_globals();
   new_thd->set_query_inner((char*) STRING_WITH_LEN("intern:plugin_load"),
                            default_charset_info);
+  new_thd->catalog= default_catalog();
   new_thd->db= MYSQL_SCHEMA_NAME;
   bzero((char*) &new_thd->net, sizeof(new_thd->net));
   tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_PLUGIN_NAME, 0, TL_READ);
@@ -2229,22 +2231,25 @@ bool mysql_install_plugin(THD *thd, const LEX_CSTRING *name,
   char **argv=orig_argv;
   unsigned long event_class_mask[MYSQL_AUDIT_CLASS_MASK_SIZE] =
   { MYSQL_AUDIT_GENERAL_CLASSMASK };
+  SQL_CATALOG *org_catalog= thd->catalog;
   DBUG_ENTER("mysql_install_plugin");
 
+  thd->catalog= default_catalog();
   tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_PLUGIN_NAME, 0, TL_WRITE);
-  if (!opt_noacl && check_table_access(thd, INSERT_ACL, &tables, FALSE, 1, FALSE))
-    DBUG_RETURN(TRUE);
+  if (!opt_noacl &&
+      check_table_access(thd, INSERT_ACL, &tables, FALSE, 1, FALSE))
+    goto wsrep_error_label;
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   /* need to open before acquiring LOCK_plugin or it will deadlock */
   if (! (table = open_ltable(thd, &tables, TL_WRITE,
                              MYSQL_LOCK_IGNORE_TIMEOUT)))
-    DBUG_RETURN(TRUE);
+    goto wsrep_error_label;
 
   if (my_load_defaults(MYSQL_CONFIG_NAME, load_default_groups, &argc, &argv, NULL))
   {
     my_error(ER_PLUGIN_IS_NOT_LOADED, MYF(0), name->str);
-    DBUG_RETURN(TRUE);
+    goto wsrep_error_label;
   }
 
   /*
@@ -2303,11 +2308,12 @@ err:
   mysql_mutex_unlock(&LOCK_plugin);
   if (argv)
     free_defaults(argv);
+  thd->catalog= org_catalog;
   DBUG_RETURN(error == INSTALL_FAIL_NOT_OK);
-#ifdef WITH_WSREP
+
 wsrep_error_label:
+  thd->catalog= org_catalog;
   DBUG_RETURN(true);
-#endif
 }
 
 
@@ -2385,18 +2391,20 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_CSTRING *name,
   bool error= false;
   unsigned long event_class_mask[MYSQL_AUDIT_CLASS_MASK_SIZE] =
   { MYSQL_AUDIT_GENERAL_CLASSMASK };
+  SQL_CATALOG *org_catalog= thd->catalog;
   DBUG_ENTER("mysql_uninstall_plugin");
 
+  thd->catalog= default_catalog();
   tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_PLUGIN_NAME, 0, TL_WRITE);
 
   if (!opt_noacl && check_table_access(thd, DELETE_ACL, &tables, FALSE, 1, FALSE))
-    DBUG_RETURN(TRUE);
+    goto wsrep_error_label;
 
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   /* need to open before acquiring LOCK_plugin or it will deadlock */
   if (! (table= open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT)))
-    DBUG_RETURN(TRUE);
+    goto wsrep_error_label;
 
   if (!table->key_info)
   {
@@ -2405,7 +2413,7 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_CSTRING *name,
                     "Please check the table definition and "
                     "create the primary key accordingly.", MYF(0),
                     table->s->db.str, table->s->table_name.str);
-    DBUG_RETURN(TRUE);
+    goto wsrep_error_label;
   }
 
   /*
@@ -2460,11 +2468,12 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_CSTRING *name,
 
   global_plugin_version++;
   mysql_mutex_unlock(&LOCK_plugin);
+  thd->catalog= org_catalog;
   DBUG_RETURN(error);
-#ifdef WITH_WSREP
+
 wsrep_error_label:
+  thd->catalog= org_catalog;
   DBUG_RETURN(true);
-#endif
 }
 
 

@@ -16,8 +16,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-#include "my_global.h" // ulonglong
-
+#include "my_bit.h"
 
 /*
   A strict enum to store privilege bits.
@@ -67,13 +66,13 @@ enum privilege_t: unsigned long long
   REPL_MASTER_ADMIN_ACL = (1ULL << 35), // Added in 10.5.2
   BINLOG_ADMIN_ACL      = (1ULL << 36), // Added in 10.5.2
   BINLOG_REPLAY_ACL     = (1ULL << 37), // Added in 10.5.2
-  SLAVE_MONITOR_ACL     = (1ULL << 38)  // Added in 10.5.8
+  SLAVE_MONITOR_ACL     = (1ULL << 38), // Added in 10.5.8
+  CATALOG_ACL           = (1ULL << 39)  // Added in 11.3
   /*
     When adding new privilege bits, don't forget to update:
     In this file:
     - Add a new LAST_version_ACL
     - Add a new ALL_KNOWN_ACL_version
-    - Change ALL_KNOWN_ACL to ALL_KNOWN_ACL_version
     - Change GLOBAL_ACLS if needed
     - Change SUPER_ADDED_SINCE_USER_TABLE_ACL if needed
 
@@ -103,9 +102,10 @@ constexpr static inline privilege_t ALL_KNOWN_BITS(privilege_t x)
 constexpr privilege_t LAST_100304_ACL= DELETE_HISTORY_ACL;
 constexpr privilege_t LAST_100502_ACL= BINLOG_REPLAY_ACL;
 constexpr privilege_t LAST_100508_ACL= SLAVE_MONITOR_ACL;
+constexpr privilege_t LAST_110002_ACL= CATALOG_ACL;
 
 // Current version markers
-constexpr privilege_t LAST_CURRENT_ACL= LAST_100508_ACL;
+constexpr privilege_t LAST_CURRENT_ACL= LAST_110002_ACL;
 constexpr uint PRIVILEGE_T_MAX_BIT=
               my_bit_log2_uint64((ulonglong) LAST_CURRENT_ACL);
 
@@ -124,6 +124,7 @@ constexpr privilege_t ALL_KNOWN_ACL_100508= ALL_KNOWN_BITS(LAST_100508_ACL);
 // unfortunately, SLAVE_MONITOR_ACL was added in 10.5.9, but also in 10.5.8-5
 // let's stay compatible with that branch too.
 constexpr privilege_t ALL_KNOWN_ACL_100509= ALL_KNOWN_ACL_100508;
+constexpr privilege_t ALL_KNOWN_ACL_110002= ALL_KNOWN_BITS(LAST_110002_ACL);
 
 // A combination of all bits defined as of the current version
 constexpr privilege_t ALL_KNOWN_ACL= ALL_KNOWN_BITS(LAST_CURRENT_ACL);
@@ -279,7 +280,7 @@ constexpr privilege_t PROC_ACLS=
 constexpr privilege_t GLOBAL_ACLS=
   DB_ACLS | SHOW_DB_ACL | CREATE_USER_ACL | CREATE_TABLESPACE_ACL |
   SUPER_ACL | RELOAD_ACL | SHUTDOWN_ACL | PROCESS_ACL | FILE_ACL |
-  REPL_SLAVE_ACL |
+  REPL_SLAVE_ACL | CATALOG_ACL |
   ALLOWED_BY_SUPER_BEFORE_101100 | ALLOWED_BY_SUPER_BEFORE_110000;
 
 constexpr privilege_t DEFAULT_CREATE_PROC_ACLS=
@@ -296,6 +297,24 @@ constexpr privilege_t SHOW_CREATE_TABLE_ACLS=
 constexpr privilege_t TMP_TABLE_ACLS=
   COL_DML_ACLS | ALL_TABLE_DDL_ACLS | REFERENCES_ACL;
 
+/*
+  Privileges that are only allowed by the 'default' catalog users
+*/
+
+constexpr privilege_t CATALOG_ACLS=
+  CATALOG_ACL |
+  SHUTDOWN_ACL |
+  CREATE_TABLESPACE_ACL |
+  REPL_SLAVE_ACL |
+  BINLOG_ADMIN_ACL |
+  BINLOG_MONITOR_ACL |
+//  BINLOG_REPLAY_ACL |
+  BINLOG_MONITOR_ACL |
+  CONNECTION_ADMIN_ACL |
+  REPL_SLAVE_ADMIN_ACL |
+  SLAVE_MONITOR_ACL |
+  BINLOG_MONITOR_ACL |
+  REPL_MASTER_ADMIN_ACL;
 
 constexpr privilege_t PRIV_LOCK_TABLES= SELECT_ACL | LOCK_TABLES_ACL;
 
@@ -332,19 +351,19 @@ constexpr privilege_t PRIV_SET_RESTRICTED_SESSION_SYSTEM_VARIABLE= SUPER_ACL;
 
 /* The following variables respected only SUPER_ACL prior to 10.5.2 */
 constexpr privilege_t PRIV_SET_SYSTEM_VAR_BINLOG_FORMAT=
-  BINLOG_ADMIN_ACL;
+  BINLOG_ADMIN_ACL | SUPER_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_VAR_BINLOG_DIRECT_NON_TRANSACTIONAL_UPDATES=
-  BINLOG_ADMIN_ACL;
+  BINLOG_ADMIN_ACL | SUPER_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_VAR_BINLOG_ANNOTATE_ROW_EVENTS=
-  BINLOG_ADMIN_ACL;
+  BINLOG_ADMIN_ACL | SUPER_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_VAR_BINLOG_ROW_IMAGE=
-  BINLOG_ADMIN_ACL;
+  BINLOG_ADMIN_ACL | SUPER_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_VAR_SQL_LOG_BIN=
-  BINLOG_ADMIN_ACL;
+  BINLOG_ADMIN_ACL | SUPER_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_CACHE_SIZE=
   BINLOG_ADMIN_ACL;

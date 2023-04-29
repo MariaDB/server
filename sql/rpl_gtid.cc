@@ -29,6 +29,7 @@
 #include "rpl_rli.h"
 #include "slave.h"
 #include "log_event.h"
+#include "catalog.h"
 
 const LEX_CSTRING rpl_gtid_slave_state_table_name=
   { STRING_WITH_LEN("gtid_slave_pos") };
@@ -426,7 +427,9 @@ rpl_slave_state::truncate_state_table(THD *thd)
 {
   TABLE_LIST tlist;
   int err= 0;
+  SQL_CATALOG *org_catalog= thd->catalog;
 
+  thd->catalog= default_catalog();
   tlist.init_one_table(&MYSQL_SCHEMA_NAME, &rpl_gtid_slave_state_table_name,
                        NULL, TL_WRITE);
   tlist.mdl_request.set_type(MDL_EXCLUSIVE);
@@ -451,6 +454,7 @@ rpl_slave_state::truncate_state_table(THD *thd)
     }
     thd->release_transactional_locks();
   }
+  thd->catalog= org_catalog;
   return err;
 }
 
@@ -610,6 +614,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   LEX_CSTRING gtid_pos_table_name;
   TABLE *tbl= nullptr;
   MDL_savepoint m_start_of_statement_svp(thd->mdl_context.mdl_savepoint());
+  SQL_CATALOG *org_catalog;
   DBUG_ENTER("record_gtid");
 
   *out_hton= NULL;
@@ -688,9 +693,16 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   */
   suspended_wfc= thd->suspend_subsequent_commits();
   thd->lex->reset_n_backup_query_tables_list(&lex_backup);
-  tlist.init_one_table(&MYSQL_SCHEMA_NAME, &gtid_pos_table_name, NULL, TL_WRITE);
-  if ((err= open_and_lock_tables(thd, &tlist, FALSE, 0)))
+
+  org_catalog= thd->catalog;
+  thd->catalog= default_catalog();
+  tlist.init_one_table(&MYSQL_SCHEMA_NAME, &gtid_pos_table_name, NULL,
+                       TL_WRITE);
+  err= open_and_lock_tables(thd, &tlist, FALSE, 0);
+  thd->catalog= org_catalog;
+  if (err)
     goto end;
+
   table_opened= true;
   table= tlist.table;
   hton= table->s->db_type();
@@ -875,6 +887,7 @@ rpl_slave_state::gtid_delete_pending(THD *thd,
 {
   int err= 0;
   ulonglong thd_saved_option;
+  SQL_CATALOG *org_catalog= thd->catalog;
 
   if (unlikely(!loaded))
     return;
@@ -922,9 +935,13 @@ rpl_slave_state::gtid_delete_pending(THD *thd,
       break;
     }
 
+    thd->catalog=default_catalog();
     thd->lex->reset_n_backup_query_tables_list(&lex_backup);
-    tlist.init_one_table(&MYSQL_SCHEMA_NAME, gtid_pos_table_name, NULL, TL_WRITE);
-    if ((err= open_and_lock_tables(thd, &tlist, FALSE, 0)))
+    tlist.init_one_table(&MYSQL_SCHEMA_NAME, gtid_pos_table_name, NULL,
+                         TL_WRITE);
+    err= open_and_lock_tables(thd, &tlist, FALSE, 0);
+    thd->catalog= org_catalog;
+    if (err)
       goto end;
     table_opened= true;
     table= tlist.table;

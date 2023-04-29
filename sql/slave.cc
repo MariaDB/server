@@ -36,6 +36,7 @@
 #include "rpl_filter.h"
 #include "repl_failsafe.h"
 #include "transaction.h"
+#include "catalog.h"
 #include <thr_alarm.h>
 #include <my_dir.h>
 #include <sql_common.h>
@@ -331,6 +332,7 @@ gtid_pos_table_creation(THD *thd, plugin_ref engine, LEX_CSTRING *table_name)
   StringBuffer<sizeof(gtid_pos_table_definition1) +
                sizeof(gtid_pos_table_definition1) +
                2*FN_REFLEN> query;
+  SQL_CATALOG *org_catalog= thd->catalog;
 
   if (build_gtid_pos_create_query(thd, &query, table_name, plugin_name(engine)))
   {
@@ -363,6 +365,7 @@ gtid_pos_table_creation(THD *thd, plugin_ref engine, LEX_CSTRING *table_name)
 end:
   thd->variables.option_bits= thd_saved_option;
   thd->reset_query();
+  thd->catalog= org_catalog;
   return err;
 }
 
@@ -375,6 +378,7 @@ static THD *new_bg_THD()
   thd->security_ctx->skip_grants();
   thd->set_command(COM_DAEMON);
   thd->variables.wsrep_on= 0;
+  thd->catalog= default_catalog();
   return thd;
 }
 
@@ -5541,6 +5545,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   /* execute init_slave variable */
   if (opt_init_slave.length)
   {
+    thd->catalog= default_catalog();
     execute_init_command(thd, &opt_init_slave, &LOCK_sys_init_slave);
     if (unlikely(thd->is_slave_error))
     {
@@ -5548,6 +5553,7 @@ pthread_handler_t handle_slave_sql(void *arg)
                   "Slave SQL thread aborted. Can't execute init_slave query");
       goto err;
     }
+    thd->catalog= 0;
   }
 
   /*

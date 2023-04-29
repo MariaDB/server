@@ -33,6 +33,7 @@
 #include "debug_sync.h"
 #include "sql_acl.h"    // check_global_access()
 #include "optimizer_defaults.h"   // create_optimizer_costs
+#include "catalog.h"
 
 /*
   a set of mostly trivial (as in f(X)=X) defines below to make system variable

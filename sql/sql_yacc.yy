@@ -346,9 +346,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 */
 
 %ifdef MARIADB
-%expect 64
-%else
 %expect 65
+%else
+%expect 66
 %endif
 
 /*
@@ -461,6 +461,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> CASCADE                       /* SQL-2003-N */
 %token  <kwd> CASE_SYM                      /* SQL-2003-R */
 %token  <kwd> CAST_SYM                      /* SQL-2003-R */
+%token  <kwd> CATALOG_SYM
+%token  <kwd> CATALOGS_SYM
 %token  <kwd> CHANGE
 %token  <kwd> CHAR_SYM                      /* SQL-2003-R */
 %token  <kwd> CHECK_SYM                     /* SQL-2003-R */
@@ -2550,6 +2552,18 @@ create:
           {
             LEX *lex=Lex;
             if (unlikely(lex->set_command_with_check(SQLCOM_CREATE_DB, 0,
+                         $1 | $3)))
+               MYSQL_YYABORT;
+            lex->name= $4;
+          }
+        | create_or_replace CATALOG_SYM opt_if_not_exists ident
+          {
+            Lex->create_info.init();
+          }
+          opt_create_database_options
+          {
+            LEX *lex=Lex;
+            if (unlikely(lex->set_command_with_check(SQLCOM_CREATE_CATALOG, 0,
                          $1 | $3)))
                MYSQL_YYABORT;
             lex->name= $4;
@@ -6992,6 +7006,22 @@ alter:
               if (unlikely(Lex->m_sql_cmd == NULL))
                 MYSQL_YYABORT;
             }
+            Lex->pop_select(); //main select
+          }
+        | ALTER CATALOG_SYM ident_or_empty
+          {
+            Lex->create_info.init();
+            if (Lex->main_select_push(true))
+              MYSQL_YYABORT;
+          }
+          create_database_options
+          {
+            LEX *lex=Lex;
+            lex->sql_command=SQLCOM_ALTER_CATALOG;
+            lex->name= $3;
+            if (lex->name.str == NULL &&
+                unlikely(lex->copy_db_to(&lex->name)))
+              MYSQL_YYABORT;
             Lex->pop_select(); //main select
           }
         | ALTER DATABASE ident_or_empty
@@ -12851,6 +12881,12 @@ drop:
               MYSQL_YYABORT;
             Lex->pop_select(); //main select
           }
+        | DROP CATALOG_SYM opt_if_exists ident
+          {
+            LEX *lex=Lex;
+            lex->set_command(SQLCOM_DROP_CATALOG, $3);
+            lex->name= $4;
+          }
         | DROP DATABASE opt_if_exists ident
           {
             LEX *lex=Lex;
@@ -13669,7 +13705,14 @@ show:
         ;
 
 show_param:
-           DATABASES wild_and_where
+           CATALOGS_SYM wild_and_where
+           {
+             LEX *lex= Lex;
+             lex->sql_command= SQLCOM_SHOW_CATALOGS;
+             if (unlikely(prepare_schema_table(thd, lex, 0, SCH_CATALOGS)))
+               MYSQL_YYABORT;
+           }
+         | DATABASES wild_and_where
            {
              LEX *lex= Lex;
              lex->sql_command= SQLCOM_SHOW_DATABASES;
@@ -13873,6 +13916,11 @@ show_param:
         | CREATE DATABASE opt_if_not_exists ident
           {
             Lex->set_command(SQLCOM_SHOW_CREATE_DB, $3);
+            Lex->name= $4;
+          }
+        | CREATE CATALOG_SYM opt_if_not_exists ident
+          {
+            Lex->set_command(SQLCOM_SHOW_CREATE_CATALOG, $3);
             Lex->name= $4;
           }
         | CREATE TABLE_SYM table_ident
@@ -14600,6 +14648,20 @@ use:
             LEX *lex=Lex;
             lex->sql_command=SQLCOM_CHANGE_DB;
             lex->first_select_lex()->db= $2;
+          }
+          |
+          USE_SYM DATABASE ident
+          {
+            LEX *lex=Lex;
+            lex->sql_command=SQLCOM_CHANGE_DB;
+            lex->first_select_lex()->db= $3;
+          }
+          |
+          USE_SYM CATALOG_SYM ident
+          {
+            LEX *lex=Lex;
+            lex->sql_command= SQLCOM_CHANGE_CATALOG;
+            lex->first_select_lex()->db= $3;
           }
         ;
 
@@ -15791,6 +15853,8 @@ keyword_sp_var_and_label:
         | BODY_MARIADB_SYM
         | BTREE_SYM
         | CASCADED
+        | CATALOG_SYM
+        | CATALOGS_SYM
         | CATALOG_NAME_SYM
         | CHAIN_SYM
         | CHANNEL_SYM
@@ -17286,6 +17350,7 @@ object_privilege:
         | PROCESS                 { $$= PROCESS_ACL;}
         | FILE_SYM                { $$= FILE_ACL;}
         | GRANT OPTION            { $$= GRANT_ACL;}
+        | CATALOGS_SYM            { $$= CATALOG_ACL;}
         | SHOW DATABASES          { $$= SHOW_DB_ACL;}
         | SUPER_SYM               { $$= SUPER_ACL;}
         | CREATE TEMPORARY TABLES { $$= CREATE_TMP_ACL;}

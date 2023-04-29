@@ -38,15 +38,18 @@ bool mysql_opt_change_db(THD *thd,
 bool my_dboptions_cache_init(void);
 void my_dboptions_cache_free(void);
 bool check_db_dir_existence(const SQL_CATALOG *catalog, const char *db_name);
+bool load_opt(const char *path, Schema_specification_st *create,
+              MEM_ROOT *root, myf utf8_flag);
 bool load_db_opt(THD *thd, const char *path, Schema_specification_st *create);
 bool load_db_opt_by_name(THD *thd, const char *db_name,
                          Schema_specification_st *db_create_info);
 CHARSET_INFO *get_default_db_collation(THD *thd, const char *db_name);
 bool my_dbopt_init(void);
 void my_dbopt_cleanup(void);
+bool write_db_opt(THD *thd, const char *path, const LEX_CSTRING *name,
+                  Schema_specification_st *create);
 
-const char *normalize_db_name(const char *db, char *buffer,
-                              size_t buffer_size);
+const char *normalize_db_name(const char *db, char *buffer, size_t buffer_size);
 
 void drop_database_objects(THD *thd, const LEX_CSTRING *path,
                            const LEX_CSTRING *db,

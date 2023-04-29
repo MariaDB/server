@@ -68,7 +68,7 @@ Pos	Instruction
 3	set PACKAGE_BODY.a@0 b@0
 4	set PACKAGE_BODY.a@0 b@0 + 1
 5	set PACKAGE_BODY.a@0 PACKAGE_BODY.a@0 + 1
-6	stmt 31 "SET @a:=@a+2"
+6	stmt 33 "SET @a:=@a+2"
 7	stmt 0 "SELECT f1() FROM DUAL"
 SHOW FUNCTION CODE pkg1.f1;
 Pos	Instruction
@@ -93,11 +93,11 @@ Pos	Instruction
 Pos	Instruction
 0	stmt 0 "SELECT 'This is p2private'"
 Pos	Instruction
-0	stmt 110 "SHOW FUNCTION CODE f2public"
-1	stmt 110 "SHOW FUNCTION CODE f2private"
-2	stmt 109 "SHOW PROCEDURE CODE p2public"
-3	stmt 109 "SHOW PROCEDURE CODE p2private"
-4	stmt 109 "SHOW PROCEDURE CODE p2show"
+0	stmt 113 "SHOW FUNCTION CODE f2public"
+1	stmt 113 "SHOW FUNCTION CODE f2private"
+2	stmt 112 "SHOW PROCEDURE CODE p2public"
+3	stmt 112 "SHOW PROCEDURE CODE p2private"
+4	stmt 112 "SHOW PROCEDURE CODE p2show"
 DROP PACKAGE pkg1;
 CREATE TABLE t1 (a INT);
 CREATE PACKAGE pkg1 AS

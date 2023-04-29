@@ -10536,7 +10536,8 @@ bool LEX::sp_proc_stmt_statement_finalize_buf(THD *thd, const LEX_CSTRING &qbuf)
 {
   sphead->m_flags|= sp_get_flags_for_command(this);
   /* "USE db" doesn't work in a procedure */
-  if (unlikely(sql_command == SQLCOM_CHANGE_DB))
+  if (unlikely(sql_command == SQLCOM_CHANGE_DB ||
+               sql_command == SQLCOM_CHANGE_CATALOG))
   {
     my_error(ER_SP_BADSTATEMENT, MYF(0), "USE");
     return true;

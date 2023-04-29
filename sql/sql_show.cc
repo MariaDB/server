@@ -51,6 +51,7 @@
 #include "contributors.h"
 #include "sql_partition.h"
 #include "optimizer_defaults.h"
+#include "catalog.h"
 #ifdef HAVE_EVENT_SCHEDULER
 #include "events.h"
 #include "event_data_objects.h"
@@ -1479,6 +1480,67 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
   DBUG_RETURN(FALSE);
 }
 
+
+static void mariadb_show_create_catalog_fields(THD *thd, List<Item> *field_list)
+{
+  MEM_ROOT *mem_root= thd->mem_root;
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Catalog", NAME_CHAR_LEN),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Create Catalog", 1024),
+                        mem_root);
+}
+
+bool mariadb_show_create_catalog(THD *thd, LEX_CSTRING *name,
+                                 LEX_CSTRING *orig_name,
+                                 const DDL_options_st &options)
+{
+  char buff[2048+DATABASE_COMMENT_MAXLEN];
+  String buffer(buff, sizeof(buff), system_charset_info);
+  Protocol *protocol=thd->protocol;
+  List<Item> field_list;
+  SQL_CATALOG *catalog;
+  DBUG_ENTER("mariadb_show_create_catalog");
+
+  if (check_catalog_access(thd, name) ||
+      !(catalog= get_catalog_with_error(thd, name, 0)))
+    DBUG_RETURN(true);
+
+  mariadb_show_create_catalog_fields(thd, &field_list);
+  if (protocol->send_result_set_metadata(&field_list,
+                                         Protocol::SEND_NUM_ROWS |
+                                         Protocol::SEND_EOF))
+    DBUG_RETURN(TRUE);
+
+  protocol->prepare_for_resend();
+  protocol->store(orig_name->str, orig_name->length, system_charset_info);
+  buffer.length(0);
+  buffer.append(STRING_WITH_LEN("CREATE CATALOG "));
+  if (options.if_not_exists())
+    buffer.append(STRING_WITH_LEN("IF NOT EXISTS "));
+  append_identifier(thd, &buffer, name);
+
+  buffer.append(STRING_WITH_LEN(" DEFAULT CHARACTER SET "));
+  buffer.append(catalog->cs->cs_name);
+  if (Charset(catalog->cs).can_have_collate_clause())
+  {
+    buffer.append(STRING_WITH_LEN(" COLLATE "));
+    buffer.append(catalog->cs->coll_name);
+  }
+  if (catalog->comment.length)
+  {
+    buffer.append(STRING_WITH_LEN(" COMMENT "));
+    append_unescaped(&buffer, catalog->comment.str,
+                     catalog->comment.length);
+  }
+  protocol->store(buffer.ptr(), buffer.length(), buffer.charset());
+
+  if (protocol->write())
+    DBUG_RETURN(TRUE);
+  my_eof(thd);
+  DBUG_RETURN(FALSE);
+}
 
 
 /****************************************************************************
@@ -4274,6 +4336,7 @@ bool get_lookup_field_values(THD *thd, COND *cond, bool fix_table_name_case,
     }
     /* fall through */
   case SQLCOM_SHOW_GENERIC:
+  case SQLCOM_SHOW_CATALOGS:
   case SQLCOM_SHOW_DATABASES:
     if (wild)
     {
@@ -4350,6 +4413,8 @@ enum enum_schema_tables get_schema_table_idx(ST_SCHEMA_TABLE *schema_table)
 static int make_db_list(THD *thd, Dynamic_array<LEX_CSTRING*> *files,
                         LOOKUP_FIELD_VALUES *lookup_field_vals)
 {
+  char path[FN_REFLEN];
+
   if (lookup_field_vals->wild_db_value)
   {
     /*
@@ -4365,8 +4430,10 @@ static int make_db_list(THD *thd, Dynamic_array<LEX_CSTRING*> *files,
       if (files->append_val(&INFORMATION_SCHEMA_NAME))
         return 1;
     }
-    return find_files(thd, files, 0, mysql_data_home,
-                      &lookup_field_vals->db_value);
+
+    strxnmov(path, FN_REFLEN-1, mysql_data_home, FN_DIRSEP,
+             thd->catalog->path.str, NullS);
+    return find_files(thd, files, 0, path, &lookup_field_vals->db_value);
   }
 
 
@@ -4404,7 +4471,9 @@ static int make_db_list(THD *thd, Dynamic_array<LEX_CSTRING*> *files,
   */
   if (files->append_val(&INFORMATION_SCHEMA_NAME))
     return 1;
-  return find_files(thd, files, 0, mysql_data_home, &null_clex_str);
+  strxnmov(path, FN_REFLEN-1, mysql_data_home, FN_DIRSEP,
+           thd->catalog->path.str, NullS);
+  return find_files(thd, files, 0, path, &null_clex_str);
 }
 
 
@@ -4918,8 +4987,8 @@ try_acquire_high_prio_shared_mdl_lock(THD *thd, TABLE_LIST *table,
                                       bool can_deadlock)
 {
   bool error;
-  MDL_REQUEST_INIT(&table->mdl_request, MDL_key::TABLE, table->db.str,
-                   table->table_name.str, MDL_SHARED_HIGH_PRIO,
+  MDL_REQUEST_INIT(&table->mdl_request, MDL_key::TABLE,
+                   table->db.str, table->table_name.str, MDL_SHARED_HIGH_PRIO,
                    MDL_TRANSACTION);
 
   if (can_deadlock)
@@ -5514,6 +5583,78 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
   }
   DBUG_RETURN(0);
 }
+
+
+static int catalog_name_cmp(const SQL_CATALOG **arg1, const SQL_CATALOG **arg2)
+{
+  return strcmp((*arg1)->name.str, (*arg2)->name.str);
+}
+
+
+/*
+  Show catalog names
+
+  The catalog names are sorted to make it easier for clients that will do
+  'for all catalogs'.
+*/
+
+int fill_schema_catalogs(THD *thd, TABLE_LIST *tables, COND *cond)
+{
+  LOOKUP_FIELD_VALUES lookup_field_vals;
+  TABLE *table= tables->table;
+  const SQL_CATALOG **all_catalogs, **catalog_ptr;
+  uint catalog_count;
+  DBUG_ENTER("fill_schema_catalogs");
+
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  if (!(thd->security_ctx->master_access & CATALOG_ACL))
+    DBUG_RETURN(0);
+#endif
+
+  if (get_lookup_field_values(thd, cond, true, tables, &lookup_field_vals))
+    DBUG_RETURN(0);
+
+  mysql_mutex_lock(&LOCK_catalogs);
+  if (!(all_catalogs= (const SQL_CATALOG **) thd->alloc(sizeof(SQL_CATALOG*) *
+                                                  catalog_hash.size())))
+  {
+    mysql_mutex_unlock(&LOCK_catalogs);
+    DBUG_RETURN(1);
+  }
+  /* Collect catalogs for sorting */
+  catalog_ptr= all_catalogs;
+
+  for (size_t i=0; i < catalog_hash.size(); i++)
+  {
+    const SQL_CATALOG *cat= catalog_hash.at(i);
+
+    if (lookup_field_vals.db_value.str &&
+        wild_case_compare(system_charset_info,
+                          cat->name.str,
+                          lookup_field_vals.db_value.str))
+      continue;
+    *catalog_ptr++= cat;
+  }
+  mysql_mutex_unlock(&LOCK_catalogs);
+
+  if ((catalog_count= (uint) (catalog_ptr - all_catalogs)) > 1)
+    my_qsort(all_catalogs, catalog_count, sizeof(*all_catalogs),
+             (qsort_cmp) catalog_name_cmp);
+
+  for ( ; all_catalogs != catalog_ptr ; all_catalogs++)
+  {
+    const SQL_CATALOG *cat= *all_catalogs;
+    table->field[0]->store(cat->name, system_charset_info);
+    table->field[1]->store(cat->cs->cs_name, system_charset_info);
+    table->field[2]->store(cat->cs->coll_name, system_charset_info);
+    table->field[3]->store(cat->comment.str, cat->comment.length,
+                           system_charset_info);
+    if (schema_table_store_record(thd, table))
+      DBUG_RETURN(1);
+  }
+  DBUG_RETURN(0);
+}
+
 
 
 static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
@@ -8507,6 +8648,43 @@ int make_schemata_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   return 0;
 }
 
+static int make_catalog_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
+{
+  char tmp[128];
+  LEX *lex= thd->lex;
+  SELECT_LEX *sel= lex->current_select;
+  Name_resolution_context *context= &sel->context;
+
+  if (!sel->item_list.elements)
+  {
+    /* Catalog name */
+    ST_FIELD_INFO *field_info= &schema_table->fields_info[0];
+    String buffer(tmp,sizeof(tmp), system_charset_info);
+    Item_field *field= new (thd->mem_root) Item_field(thd, context,
+                                                      field_info->name());
+    if (!field || add_item_to_list(thd, field))
+      return 1;
+    buffer.length(0);
+    buffer.append(field_info->old_name());
+    if (lex->wild && lex->wild->ptr())
+    {
+      buffer.append(STRING_WITH_LEN(" ("));
+      buffer.append(*lex->wild);
+      buffer.append(')');
+    }
+    field->set_name(thd, &buffer);
+
+    /* comment */
+    field_info= &schema_table->fields_info[3];
+    field= new (thd->mem_root) Item_field(thd, context,
+                                          field_info->name());
+    if (!field || add_item_to_list(thd, field))
+      return 1;
+    field->set_name(thd, field_info->old_name());
+  }
+  return 0;
+}
+
 
 int make_table_names_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
 {
@@ -9270,6 +9448,15 @@ ST_FIELD_INFO schema_fields_info[]=
   CEnd()
 };
 
+ST_FIELD_INFO catalog_fields_info[]=
+{
+  Column("CATALOG_NAME",               Catalog(),        NOT_NULL, "Catalog"),
+  Column("DEFAULT_CHARACTER_SET_NAME", CSName(),         NOT_NULL),
+  Column("DEFAULT_COLLATION_NAME",     CLName(),         NOT_NULL),
+  Column("CATALOG_COMMENT", Varchar(DATABASE_COMMENT_MAXLEN), NOT_NULL, "Comment"),
+  CEnd()
+};
+
 
 ST_FIELD_INFO tables_fields_info[]=
 {
@@ -9990,6 +10177,8 @@ ST_SCHEMA_TABLE schema_tables[]=
    fill_all_plugins, make_old_format, 0, 5, -1, 0, 0},
   {"APPLICABLE_ROLES", Show::applicable_roles_fields_info, 0,
    fill_schema_applicable_roles, 0, 0, -1, -1, 0, 0},
+  {"CATALOGS", Show::catalog_fields_info, 0,
+   fill_schema_catalogs, make_catalog_old_format, 0, 1, -1, 0, 0},
   {"CHARACTER_SETS", Show::charsets_fields_info, 0,
    fill_schema_charsets, make_character_sets_old_format, 0, -1, -1, 0, 0},
   {"CHECK_CONSTRAINTS", Show::check_constraints_fields_info, 0,

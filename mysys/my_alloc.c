@@ -621,3 +621,25 @@ LEX_CSTRING safe_lexcstrdup_root(MEM_ROOT *root, const LEX_CSTRING str)
   res.length= str.length;
   return res;
 }
+
+
+/*
+  Create a LEX_CSTRING based on a string and length
+*/
+
+LEX_CSTRING *memdup_lexcstring(MEM_ROOT *root, const char *str, size_t length)
+{
+  LEX_CSTRING *lex_str;
+  char *tmp;
+
+  if (unlikely(!(lex_str= (LEX_CSTRING *)alloc_root(root,
+                                                    sizeof(LEX_CSTRING) +
+                                                    length+1))))
+    return 0;
+  tmp= (char*) (lex_str+1);
+  lex_str->str= tmp;
+  memcpy(tmp, str, length);
+  tmp[length]= 0;
+  lex_str->length= length;
+  return lex_str;
+}

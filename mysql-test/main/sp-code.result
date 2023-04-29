@@ -155,11 +155,11 @@ Pos	Instruction
 0	stmt 9 "drop temporary table if exists sudoku..."
 1	stmt 1 "create temporary table sudoku_work ( ..."
 2	stmt 1 "create temporary table sudoku_schedul..."
-3	stmt 88 "call sudoku_init()"
+3	stmt 91 "call sudoku_init()"
 4	jump_if_not 7(8) p_naive@0
 5	stmt 4 "update sudoku_work set cnt = 0 where ..."
 6	jump 8
-7	stmt 88 "call sudoku_count()"
+7	stmt 91 "call sudoku_count()"
 8	stmt 6 "insert into sudoku_schedule (row,col)..."
 9	set v_scounter@2 0
 10	set v_i@3 1
@@ -847,8 +847,8 @@ drop procedure if exists p_20906_b;
 create procedure p_20906_a() SET @a=@a+1, @b=@b+1;
 show procedure code p_20906_a;
 Pos	Instruction
-0	stmt 31 "SET @a=@a+1"
-1	stmt 31 "SET @b=@b+1"
+0	stmt 33 "SET @a=@a+1"
+1	stmt 33 "SET @b=@b+1"
 set @a=1;
 set @b=1;
 call p_20906_a();
@@ -858,9 +858,9 @@ select @a, @b;
 create procedure p_20906_b() SET @a=@a+1, @b=@b+1, @c=@c+1;
 show procedure code p_20906_b;
 Pos	Instruction
-0	stmt 31 "SET @a=@a+1"
-1	stmt 31 "SET @b=@b+1"
-2	stmt 31 "SET @c=@c+1"
+0	stmt 33 "SET @a=@a+1"
+1	stmt 33 "SET @b=@b+1"
+2	stmt 33 "SET @c=@c+1"
 set @a=1;
 set @b=1;
 set @c=1;
@@ -1367,8 +1367,8 @@ END;
 $$
 SHOW PROCEDURE CODE p1;
 Pos	Instruction
-0	stmt 31 "SET GLOBAL max_allowed_packet=16000000"
-1	stmt 31 "SET GLOBAL max_error_count=60"
+0	stmt 33 "SET GLOBAL max_allowed_packet=16000000"
+1	stmt 33 "SET GLOBAL max_error_count=60"
 2	stmt 0 "SELECT @@GLOBAL.max_allowed_packet, @..."
 DROP PROCEDURE p1;
 #

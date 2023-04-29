@@ -51,7 +51,6 @@
 #include "backup.h"
 #include "xa.h"
 #include "ddl_log.h"                            /* DDL_LOG_STATE */
-#include "catalog.h"
 
 extern "C"
 void set_thd_stage_info(void *thd,
@@ -102,6 +101,7 @@ class user_var_entry;
 struct Trans_binlog_info;
 class rpl_io_thread_info;
 class rpl_sql_thread_info;
+class SQL_CATALOG;
 #ifdef HAVE_REPLICATION
 struct Slave_info;
 #endif
@@ -4204,25 +4204,14 @@ public:
     dst->length= to - dst->str;
     return false;
   }
-
-  LEX_CSTRING *make_clex_string(const char* str, size_t length)
+  inline LEX_CSTRING *make_clex_string(const char *str, size_t length)
   {
-    LEX_CSTRING *lex_str;
-    char *tmp;
-    if (unlikely(!(lex_str= (LEX_CSTRING *)alloc_root(mem_root,
-                                                      sizeof(LEX_CSTRING) +
-                                                      length+1))))
-      return 0;
-    tmp= (char*) (lex_str+1);
-    lex_str->str= tmp;
-    memcpy(tmp, str, length);
-    tmp[length]= 0;
-    lex_str->length= length;
-    return lex_str;
+    return memdup_lexcstring(mem_root, str, length);
   }
+
   LEX_CSTRING *make_clex_string(const LEX_CSTRING from)
   {
-    return make_clex_string(from.str, from.length);
+    return memdup_lexcstring(mem_root, from.str, from.length);
   }
 
   // Allocate LEX_STRING for character set conversion

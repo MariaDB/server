@@ -82,7 +82,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond);
 int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
                       Table_specification_st *create_info_arg,
                       enum_with_db_name with_db_name);
-
 int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
                          const char * forced_db, const char *forced_name,
                          String *packet,
@@ -105,7 +104,9 @@ void mysqld_show_create_db_get_fields(THD *thd, List<Item> *field_list);
 bool mysqld_show_create_db(THD *thd, LEX_CSTRING *db_name,
                            LEX_CSTRING *orig_db_name,
                            const DDL_options_st &options);
-
+bool mariadb_show_create_catalog(THD *thd, LEX_CSTRING *name,
+                                 LEX_CSTRING *orig_name,
+                                 const DDL_options_st &options);
 void mysqld_list_processes(THD *thd,const char *user,bool verbose);
 int mysqld_show_status(THD *thd);
 int mysqld_show_variables(THD *thd,const char *wild);

@@ -21,6 +21,7 @@
 #include "sql_base.h"               // REPORT_ALL_ERRORS, setup_tables
 #include "opt_range.h"              // SQL_SELECT
 #include "records.h"          // init_read_record, end_read_record
+#include "catalog.h"
 
 struct st_find_field
 {
@@ -808,10 +809,12 @@ bool mysqld_help_prepare(THD *thd, const char *mask, List<Item> *fields)
   TABLE_LIST tables[4];
   st_find_field used_fields[array_elements(init_used_fields)];
   SQL_SELECT *select;
-
   List<String> topics_list;
-
   Sql_mode_instant_remove sms(thd, MODE_PAD_CHAR_TO_FULL_LENGTH);
+  SQL_CATALOG *org_catalog= thd->catalog;
+  bool res;
+
+  thd->catalog= default_catalog();
   initialize_tables_for_help_command(thd, tables);
 
   /*
@@ -821,7 +824,9 @@ bool mysqld_help_prepare(THD *thd, const char *mask, List<Item> *fields)
   */
   start_new_trans new_trans(thd);
 
-  if (open_system_tables_for_read(thd, tables))
+  res= open_system_tables_for_read(thd, tables);
+  thd->catalog= org_catalog;
+  if (res)
     return true;
 
   auto cleanup_and_return= [&](bool ret)

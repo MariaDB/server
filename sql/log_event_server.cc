@@ -53,7 +53,7 @@
 #include "wsrep_mysqld.h"
 #include "sql_insert.h"
 #include "sql_table.h"
-
+#include "catalog.h"
 #include <my_bitmap.h>
 #include "rpl_utility.h"
 #include "rpl_constants.h"
@@ -5601,6 +5601,8 @@ Table_map_log_event::Table_map_log_event(THD *thd, TABLE *tbl, ulong tid,
                                          bool is_transactional)
   : Log_event(thd, 0, is_transactional),
     m_table(tbl),
+    m_catalog(thd->catalog),
+    m_catnam(empty_clex_str),
     m_dbnam(tbl->s->db.str),
     m_dblen(m_dbnam ? tbl->s->db.length : 0),
     m_tblnam(tbl->s->table_name.str),
@@ -5646,6 +5648,11 @@ Table_map_log_event::Table_map_log_event(THD *thd, TABLE *tbl, ulong tid,
 
   if (tbl->triggers)
     m_flags|= TM_BIT_HAS_TRIGGERS_F;
+  if (m_catalog != default_catalog())
+  {
+    m_flags|= TM_BIT_HAS_CATALOG_F;
+    m_data_size+= m_catalog->name.length+2;
+  }
 
   /* If malloc fails, caught in is_valid() */
   if ((m_memory= (uchar*) my_malloc(PSI_INSTRUMENT_ME, m_colcnt, MYF(MY_WME))))
@@ -5665,9 +5672,9 @@ Table_map_log_event::Table_map_log_event(THD *thd, TABLE *tbl, ulong tid,
   uint num_null_bytes= (m_table->s->fields + 7) / 8;
   m_data_size+= num_null_bytes;
   m_meta_memory= (uchar *)my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME),
-                                 &m_null_bits, num_null_bytes,
-                                 &m_field_metadata, (m_colcnt * 2),
-                                 NULL);
+                                          &m_null_bits, num_null_bytes,
+                                          &m_field_metadata, (m_colcnt * 2),
+                                          NULL);
 
   bzero(m_field_metadata, (m_colcnt * 2));
 
@@ -5815,6 +5822,7 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
 
   /* Step the query id to mark what columns that are actually used. */
   thd->set_query_id(next_query_id());
+  thd->catalog= const_cast<SQL_CATALOG*>(m_catalog);
 
   if (!(memory= my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME),
                                 &table_list, (uint) sizeof(RPL_TABLE_LIST),
@@ -5957,7 +5965,7 @@ bool Table_map_log_event::write_data_header()
                   });
   int6store(buf + TM_MAPID_OFFSET, m_table_id);
   int2store(buf + TM_FLAGS_OFFSET, m_flags);
-  return write_data(buf, TABLE_MAP_HEADER_LEN);
+  return (write_data(buf, TABLE_MAP_HEADER_LEN));
 }
 
 bool Table_map_log_event::write_data_body()
@@ -5981,6 +5989,13 @@ bool Table_map_log_event::write_data_body()
   uchar mbuf[MAX_INT_WIDTH];
   uchar *const mbuf_end= net_store_length(mbuf, m_field_metadata_size);
 
+  if (m_flags & TM_BIT_HAS_CATALOG_F)
+  {
+    uchar const len[]= { (uchar) m_catalog->name.length };
+    if (write_data(len, 1) ||
+        write_data(m_catalog->name.str, m_catalog->name.length+1))
+      return 1;
+  }
   return write_data(dbuf,      sizeof(dbuf)) ||
          write_data(m_dbnam,   m_dblen+1) ||
          write_data(tbuf,      sizeof(tbuf)) ||

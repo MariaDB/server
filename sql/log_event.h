@@ -1436,8 +1436,14 @@ public:
 
   virtual bool write()
   {
-    return write_header(get_data_size()) || write_data_header() ||
-	   write_data_body() || write_footer();
+#ifdef DBUG_ASSERT_EXISTS
+    ulonglong start_pos= writer->pos();
+#endif
+    if (write_header(get_data_size()) || write_data_header() ||
+        write_data_body() || write_footer())
+      return 1;
+    DBUG_ASSERT(writer->pos() - start_pos == data_written);
+    return 0;
   }
   virtual bool write_data_header()
   { return 0; }
@@ -3771,9 +3777,22 @@ private:
   <tr>
     <td>flags</td>
     <td>2 byte bitfield</td>
-    <td>Reserved for future use; currently always 0.</td>
+    <td>Has the following bit values</tdd>
+    <td>TM_BIT_LEN_EXACT_F= 1 << 0</td>
+    <td>TM_BIT_HAS_TRIGGERS=1 << 14</td>
+    <td>TM_BIT_HAS_CATALOG= 1 << 15</td>
   </tr>
 
+  <tr>
+    <td>catalog_name</td>
+    <td>one byte string length, followed by null-terminated string</td>
+    <td>The name of the catalog in which the table resides.  The name
+    is represented as a one byte unsigned integer representing the
+    number of bytes in the name, followed by length bytes containing
+    the database name, followed by a terminating 0 byte.  (Note the
+    redundancy in the representation of the length.)
+    This entry only exists if bit TM_BIT_HAS_CATALOG is set.</td>
+  </tr>
   </table>
 
   The Body has the following components:
@@ -4206,17 +4225,6 @@ public:
     ERR_RBR_TO_SBR = 4  /**< daisy-chanining RBR to SBR not allowed */
   };
 
-  enum enum_flag
-  {
-    /* 
-       Nothing here right now, but the flags support is there in
-       preparation for changes that are coming.  Need to add a
-       constant to make it compile under HP-UX: aCC does not like
-       empty enumerations.
-    */
-    ENUM_FLAG_COUNT
-  };
-
   typedef uint16 flag_set;
   /**
     DEFAULT_CHARSET and COLUMN_CHARSET don't appear together, and
@@ -4343,7 +4351,8 @@ public:
     TM_NO_FLAGS = 0U,
     TM_BIT_LEN_EXACT_F = (1U << 0),
     // MariaDB flags (we starts from the other end)
-    TM_BIT_HAS_TRIGGERS_F= (1U << 14)
+    TM_BIT_HAS_TRIGGERS_F= (1U << 14),
+    TM_BIT_HAS_CATALOG_F=  (1U << 15),
   };
 
   flag_set get_flags(flag_set flag) const { return m_flags & flag; }
@@ -4448,6 +4457,8 @@ private:
   class Default_charset_iterator;
   class Column_charset_iterator;
 #endif
+  const SQL_CATALOG   *m_catalog;
+  LEX_CSTRING m_catnam;                      // Used by mysqlbinlog
   char const    *m_dbnam;
   size_t         m_dblen;
   char const    *m_tblnam;

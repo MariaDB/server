@@ -29,6 +29,7 @@
 #include "sql_priv.h"
 #include "protocol.h"
 #include "sql_class.h"                          // THD
+#include "catalog.h"
 #include <stdarg.h>
 
 static const unsigned int PACKET_BUFFER_EXTRA_ALLOC= 1024;
