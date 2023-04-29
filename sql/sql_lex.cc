@@ -350,7 +350,7 @@ void Lex_input_stream::body_utf8_start(THD *thd, const char *begin_ptr)
 }
 
 
-size_t Lex_input_stream::get_body_utf8_maximum_length(THD *thd)
+size_t Lex_input_stream::get_body_utf8_maximum_length(THD *thd) const
 {
   /*
     String literals can grow during escaping:
@@ -853,7 +853,7 @@ Yacc_state::~Yacc_state()
 }
 
 int Lex_input_stream::find_keyword(Lex_ident_cli_st *kwd,
-                                   uint len, bool function)
+                                   uint len, bool function) const
 {
   const char *tok= m_tok_start;
 

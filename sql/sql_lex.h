@@ -2449,7 +2449,7 @@ private:
     Get the last character accepted.
     @return the last character accepted.
   */
-  unsigned char yyGetLast()
+  unsigned char yyGetLast() const
   {
     return m_ptr[-1];
   }
@@ -2457,7 +2457,7 @@ private:
   /**
     Look at the next character to parse, but do not accept it.
   */
-  unsigned char yyPeek()
+  unsigned char yyPeek() const
   {
     return m_ptr[0];
   }
@@ -2466,7 +2466,7 @@ private:
     Look ahead at some character to parse.
     @param n offset of the character to look up
   */
-  unsigned char yyPeekn(int n)
+  unsigned char yyPeekn(int n) const
   {
     return m_ptr[n];
   }
@@ -2527,7 +2527,7 @@ private:
     @param n number of characters expected
     @return true if there are less than n characters to parse
   */
-  bool eof(int n)
+  bool eof(int n) const
   {
     return ((m_ptr + n) >= m_end_of_query);
   }
@@ -2558,10 +2558,10 @@ private:
     Get the maximum length of the utf8-body buffer.
     The utf8 body can grow because of the character set conversion and escaping.
   */
-  size_t get_body_utf8_maximum_length(THD *thd);
+  size_t get_body_utf8_maximum_length(THD *thd) const;
 
   /** Get the length of the current token, in the raw buffer. */
-  uint yyLength()
+  uint yyLength() const
   {
     /*
       The assumption is that the lexical analyser is always 1 character ahead,
@@ -2586,31 +2586,31 @@ public:
     End of file indicator for the query text to parse.
     @return true if there are no more characters to parse
   */
-  bool eof()
+  bool eof() const
   {
     return (m_ptr >= m_end_of_query);
   }
 
   /** Get the raw query buffer. */
-  const char *get_buf()
+  const char *get_buf() const
   {
     return m_buf;
   }
 
   /** Get the pre-processed query buffer. */
-  const char *get_cpp_buf()
+  const char *get_cpp_buf() const
   {
     return m_cpp_buf;
   }
 
   /** Get the end of the raw query buffer. */
-  const char *get_end_of_query()
+  const char *get_end_of_query() const
   {
     return m_end_of_query;
   }
 
   /** Get the token start position, in the raw buffer. */
-  const char *get_tok_start()
+  const char *get_tok_start() const
   {
     return has_lookahead() ? m_tok_start_prev : m_tok_start;
   }
@@ -2621,25 +2621,25 @@ public:
   }
 
   /** Get the token end position, in the raw buffer. */
-  const char *get_tok_end()
+  const char *get_tok_end() const
   {
     return m_tok_end;
   }
 
   /** Get the current stream pointer, in the raw buffer. */
-  const char *get_ptr()
+  const char *get_ptr() const
   {
     return m_ptr;
   }
 
   /** Get the token start position, in the pre-processed buffer. */
-  const char *get_cpp_tok_start()
+  const char *get_cpp_tok_start() const
   {
     return has_lookahead() ? m_cpp_tok_start_prev : m_cpp_tok_start;
   }
 
   /** Get the token end position, in the pre-processed buffer. */
-  const char *get_cpp_tok_end()
+  const char *get_cpp_tok_end() const
   {
     return m_cpp_tok_end;
   }
@@ -2648,7 +2648,7 @@ public:
     Get the token end position in the pre-processed buffer,
     with trailing spaces removed.
   */
-  const char *get_cpp_tok_end_rtrim()
+  const char *get_cpp_tok_end_rtrim() const
   {
     const char *p;
     for (p= m_cpp_tok_end;
@@ -2659,7 +2659,7 @@ public:
   }
 
   /** Get the current stream pointer, in the pre-processed buffer. */
-  const char *get_cpp_ptr()
+  const char *get_cpp_ptr() const
   {
     return m_cpp_ptr;
   }
@@ -2668,7 +2668,7 @@ public:
     Get the current stream pointer, in the pre-processed buffer,
     with traling spaces removed.
   */
-  const char *get_cpp_ptr_rtrim()
+  const char *get_cpp_ptr_rtrim() const
   {
     const char *p;
     for (p= m_cpp_ptr;
@@ -2678,13 +2678,13 @@ public:
     return p;
   }
   /** Get the utf8-body string. */
-  const char *get_body_utf8_str()
+  const char *get_body_utf8_str() const
   {
     return m_body_utf8;
   }
 
   /** Get the utf8-body length. */
-  size_t get_body_utf8_length()
+  size_t get_body_utf8_length() const
   {
     return (size_t) (m_body_utf8_ptr - m_body_utf8);
   }
@@ -2720,7 +2720,7 @@ private:
 
   bool consume_comment(int remaining_recursions_permitted);
   int lex_one_token(union YYSTYPE *yylval, THD *thd);
-  int find_keyword(Lex_ident_cli_st *str, uint len, bool function);
+  int find_keyword(Lex_ident_cli_st *str, uint len, bool function) const;
   LEX_CSTRING get_token(uint skip, uint length);
   int scan_ident_sysvar(THD *thd, Lex_ident_cli_st *str);
   int scan_ident_start(THD *thd, Lex_ident_cli_st *str);
