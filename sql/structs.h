@@ -779,6 +779,11 @@ public:
   }
   Item *make_item_func_trim_std(THD *thd) const;
   Item *make_item_func_trim_oracle(THD *thd) const;
+  /*
+    This method is still used to handle LTRIM and RTRIM,
+    while the special syntax TRIM(... BOTH|LEADING|TRAILING)
+    is now handled by Schema::make_item_func_trim().
+  */
   Item *make_item_func_trim(THD *thd) const;
 };
 
@@ -787,6 +792,25 @@ class Lex_trim: public Lex_trim_st
 {
 public:
   Lex_trim(trim_spec spec, Item *source) { set(spec, source); }
+};
+
+
+class Lex_substring_spec_st
+{
+public:
+  Item *m_subject;
+  Item *m_from;
+  Item *m_for;
+  static Lex_substring_spec_st init(Item *subject,
+                                    Item *from,
+                                    Item *xfor= NULL)
+  {
+    Lex_substring_spec_st res;
+    res.m_subject= subject;
+    res.m_from= from;
+    res.m_for= xfor;
+    return res;
+  }
 };
 
 

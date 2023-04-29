@@ -4033,9 +4033,6 @@ public:
 
   Item *create_item_query_expression(THD *thd, st_select_lex_unit *unit);
 
-  Item *make_item_func_replace(THD *thd, Item *org, Item *find, Item *replace);
-  Item *make_item_func_substr(THD *thd, Item *a, Item *b, Item *c);
-  Item *make_item_func_substr(THD *thd, Item *a, Item *b);
   Item *make_item_func_call_generic(THD *thd, Lex_ident_cli_st *db,
                                     Lex_ident_cli_st *name, List<Item> *args);
   Item *make_item_func_call_generic(THD *thd,
