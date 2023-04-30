@@ -4171,3 +4171,23 @@ deallocate prepare stmt;
 drop view v;
 drop table t1,t2,t3;
 # End of 10.4 tests
+#
+# MDEV-31143: view with ORDER BY used in query with rownum() in WHERE
+#
+create table t1 (id int primary key);
+insert into t1 values (3), (7), (1);
+create table t2 (a int);
+insert into t2 values (2), (4);
+create view v as select a from t2 order by a;
+set big_tables= 1;
+Warnings:
+Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
+select t1.id from v, t1 where rownum() = 1 group by t1.id;
+id
+1
+set big_tables=default;
+Warnings:
+Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
+drop view v;
+drop table t1, t2;
+# End of 10.6 tests
