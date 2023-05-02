@@ -4090,7 +4090,7 @@ bool LEX::can_use_merged()
     TRUE  - VIEWs with MERGE algorithms can be used
 */
 
-bool LEX::can_not_use_merged(bool no_update_or_delete)
+bool LEX::can_not_use_merged()
 {
   switch (sql_command) {
   case SQLCOM_CREATE_VIEW:
@@ -4102,10 +4102,6 @@ bool LEX::can_not_use_merged(bool no_update_or_delete)
   */
   case SQLCOM_SHOW_FIELDS:
     return TRUE;
-
-  case SQLCOM_UPDATE_MULTI:
-  case SQLCOM_DELETE_MULTI:
-    return no_update_or_delete;
 
   default:
     return FALSE;
