@@ -1012,10 +1012,19 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
   else
     table->file->print_error(error, MYF(0));
   table->s->sequence->write_unlock(table);
-  if (trans_commit_stmt(thd))
-    error= 1;
-  if (trans_commit_implicit(thd))
-    error= 1;
+  {
+    wait_for_commit* suspended_wfc= thd->suspend_subsequent_commits();
+    if (trans_commit_stmt(thd))
+      error= 1;
+    if (trans_commit_implicit(thd))
+      error= 1;
+    thd->resume_subsequent_commits(suspended_wfc);
+    DBUG_EXECUTE_IF("hold_worker_on_schedule",
+                    {
+                      /* delay binlogging of a parent trx in rpl_parallel_seq */
+                      my_sleep(100000);
+                    });
+  }
   if (likely(!error))
     error= write_bin_log(thd, 1, thd->query(), thd->query_length());
   if (likely(!error))
