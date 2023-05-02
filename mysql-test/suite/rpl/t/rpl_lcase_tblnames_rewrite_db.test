@@ -15,8 +15,8 @@
 #
 # (iii) master and slave tables do not differ
 #
--- source include/master-slave.inc
 -- source include/not_windows.inc
+-- source include/master-slave.inc
 
 SET SQL_LOG_BIN=0;
 CREATE DATABASE B37656;

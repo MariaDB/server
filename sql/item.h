@@ -6902,6 +6902,9 @@ public:
   }
 
   virtual void keep_array() {}
+#ifndef DBUG_OFF
+  bool is_array_kept() { return TRUE; }
+#endif
   void print(String *str, enum_query_type query_type) override;
   bool eq_def(const Field *field) 
   { 
@@ -7389,13 +7392,14 @@ public:
   bool null_inside() override;
   void bring_value() override;
   void keep_array() override { save_array= 1; }
+#ifndef DBUG_OFF
+  bool is_array_kept() { return save_array; }
+#endif
   void cleanup() override
   {
     DBUG_ENTER("Item_cache_row::cleanup");
     Item_cache::cleanup();
-    if (save_array)
-      bzero(values, item_count*sizeof(Item**));
-    else
+    if (!save_array)
       values= 0;
     DBUG_VOID_RETURN;
   }

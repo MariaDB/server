@@ -1,0 +1,85 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+# MDEV-29621 the sequence engine binlog_row_image-full events
+#            MDL-deadlock on the parallel slave.
+connection master;
+CREATE SEQUENCE s1;
+SET @@session.binlog_row_image=FULL;
+SET @@session.debug_dbug="+d,binlog_force_commit_id";
+SET @commit_id=7;
+SET @@gtid_seq_no=100;
+SELECT NEXT VALUE FOR s1;
+NEXT VALUE FOR s1
+1
+INSERT INTO s1 VALUES(2, 1, 10, 1, 2, 1, 1, 0);
+SET @@session.debug_dbug="";
+connection slave;
+SET @@global.slave_parallel_threads=2;
+SET @@global.slave_parallel_mode=optimistic;
+SET @@global.debug_dbug="+d,hold_worker_on_schedule";
+include/start_slave.inc
+SET DEBUG_SYNC = 'now SIGNAL continue_worker';
+connection master;
+DROP SEQUENCE s1;
+connection slave;
+include/stop_slave.inc
+# Simulate buggy 10.3.36 master to prove the parallel applier
+# does not deadlock now at replaying the above master load.
+connection master;
+include/rpl_stop_server.inc [server_number=1]
+include/rpl_start_server.inc [server_number=1]
+connection slave;
+RESET MASTER;
+SET @@global.gtid_slave_pos="";
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SERVER_MYPORT_1, master_user='root', master_use_gtid=slave_pos;
+START SLAVE UNTIL MASTER_GTID_POS='0-1-102';
+SET DEBUG_SYNC = 'now SIGNAL continue_worker';
+# Normal stop is expected
+include/wait_for_slave_to_stop.inc
+# MDEV-31077 ALTER SEQUENCE may end up in optimistic parallel slave binlog out-of-order
+# The test proves ALTER-SEQUENCE binlogs first before the following transaction does so.
+connection slave;
+include/stop_slave.inc
+Warnings:
+Note	1255	Slave already has been stopped
+RESET MASTER;
+SET @@global.gtid_slave_pos="";
+SET @@global.gtid_strict_mode=1;
+connection master;
+RESET MASTER;
+CREATE TABLE ti (a INT) ENGINE=innodb;
+CREATE SEQUENCE s2 ENGINE=innodb;
+SET @@gtid_seq_no=100;
+ALTER SEQUENCE s2 restart with 1;
+INSERT INTO ti SET a=1;
+include/save_master_gtid.inc
+SELECT @@global.gtid_binlog_state "Master gtid state";
+Master gtid state
+0-1-101
+connection slave;
+include/start_slave.inc
+SELECT @@global.gtid_binlog_state, @@global.gtid_slave_pos as "no 100,101 yet in both";
+@@global.gtid_binlog_state	no 100,101 yet in both
+0-1-2	0-1-2
+SET DEBUG_SYNC = 'now SIGNAL continue_worker';
+# Normal sync with master proves the fixes correct
+include/sync_with_master_gtid.inc
+SELECT @@global.gtid_binlog_state, @@global.gtid_slave_pos as "all through 101 have been committed";
+@@global.gtid_binlog_state	all through 101 have been committed
+0-1-101	0-1-101
+connection slave;
+include/stop_slave.inc
+SET debug_sync = RESET;
+SET @@global.slave_parallel_threads= 0;
+SET @@global.slave_parallel_mode= conservative;
+SET @@global.debug_dbug = "";
+SET @@global.gtid_strict_mode=0;
+include/start_slave.inc
+connection master;
+DROP SEQUENCE s2;
+DROP TABLE ti;
+connection slave;
+include/rpl_end.inc
