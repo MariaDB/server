@@ -2752,3 +2752,25 @@ drop view v;
 drop table t1,t2,t3;
 
 --echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-31143: view with ORDER BY used in query with rownum() in WHERE
+--echo #
+
+create table t1 (id int primary key);
+insert into t1 values (3), (7), (1);
+
+create table t2 (a int);
+insert into t2 values (2), (4);
+
+create view v as select a from t2 order by a;
+
+set big_tables= 1;
+select t1.id from v, t1 where rownum() = 1 group by t1.id;
+
+set big_tables=default;
+
+drop view v;
+drop table t1, t2;
+
+--echo # End of 10.6 tests

@@ -1338,7 +1338,7 @@ dispatch_command_return do_command(THD *thd, bool blocking)
       in wsrep_before_command().
     */
     WSREP_LOG_THD(thd, "enter found BF aborted");
-    DBUG_ASSERT(!thd->mdl_context.has_locks());
+    DBUG_ASSERT(!thd->mdl_context.has_transactional_locks());
     DBUG_ASSERT(!thd->get_stmt_da()->is_set());
     /* We let COM_QUIT and COM_STMT_CLOSE to execute even if wsrep aborted. */
     if (command == COM_STMT_EXECUTE)

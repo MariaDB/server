@@ -58,6 +58,11 @@ select *,rownum() from t1,t2 order by t2.a desc, t1.a desc;
 select * from (select * from t1 order by a desc) as t where rownum() <= 2;
 select * from t1,t2 where t1.a=t2.a and rownum()<=2 order by t1.a,t2.a;
 
+create view v1 as
+select * from (select * from t1 order by a desc) as t where rownum() <= 2;
+select * from v1;
+drop view v1;
+
 --echo #
 --echo # Having
 --echo #
@@ -568,3 +573,40 @@ drop table t1;
 --echo # Table value constructors
 --echo #
 values ("first row"),("next row is 3"),(rownum()),("next row is 5"),(rownum());
+
+--echo #
+--echo # MDEV-31073: Server crash, assertion `table != 0 &&
+--echo # view->field_translation != 0' failure with ROWNUM and view
+--echo #
+
+CREATE TABLE t (f INT);
+INSERT INTO t VALUES (1),(2);
+CREATE VIEW v AS SELECT * FROM t;
+UPDATE v SET f = 10 WHERE ROWNUM() > 42 LIMIT 1;
+
+# Cleanup
+DROP VIEW v;
+DROP TABLE t;
+
+CREATE TABLE t (f INT);
+INSERT INTO t VALUES (1),(2);
+CREATE VIEW v AS SELECT f, 3 as e FROM t;
+UPDATE v SET f = 10 WHERE e > 42 LIMIT 1;
+
+# Cleanup
+DROP VIEW v;
+DROP TABLE t;
+
+CREATE TABLE t (f INT);
+INSERT INTO t VALUES (1),(2);
+CREATE VIEW v AS SELECT f, ROWNUM() as e FROM t;
+--error ER_NON_UPDATABLE_TABLE
+UPDATE v SET f = 10 WHERE e > 42 LIMIT 1;
+
+# Cleanup
+DROP VIEW v;
+DROP TABLE t;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #

@@ -5212,6 +5212,7 @@ void do_shutdown_server(struct st_command *command)
     if (!timeout || wait_until_dead(pid, timeout < 5 ? 5 : timeout))
     {
       (void) my_kill(pid, SIGKILL);
+      wait_until_dead(pid, 5);
     }
   }
   DBUG_VOID_RETURN;

@@ -129,5 +129,25 @@ SELECT ROW_FORMAT FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='t1';
 ROW_FORMAT
 Dynamic
 DROP TABLE t1;
+#
+#  MDEV-31025 Redundant table alter fails when fixed column
+#		stored externally
+#
+set @old_sql_mode = @@sql_mode;
+SET @@sql_mode='';
+CREATE TABLE t1(pk INT,c CHAR(255),c2 CHAR(255),c3 CHAR(255),
+c4 char(255), c5 char(255), c6 char(255),
+c7 char(255), c8 char(255), primary key(pk)
+)Engine=InnoDB character set utf32 ROW_FORMAT=REDUNDANT;
+INSERT INTO t1(pk, c) VALUES (1, repeat('a', 255));
+ALTER TABLE t1 FORCE;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT LENGTH(c) FROM t1;
+LENGTH(c)
+1020
+DROP TABLE t1;
+set @@sql_mode = @old_sql_mode;
 # End of 10.4 tests
 SET GLOBAL innodb_default_row_format = @row_format;

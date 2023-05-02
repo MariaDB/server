@@ -564,6 +564,8 @@ int init_embedded_server(int argc, char **argv, char **groups)
   if (ho_error != 0)
     return 1;
 
+  my_timer_init(&sys_timer_info);
+
   if (init_common_variables())
   {
     mysql_server_end();

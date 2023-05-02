@@ -3457,9 +3457,8 @@ static void io_callback(tpool::aiocb *cb)
   else
   {
     ut_ad(write_slots->contains(cb));
-    const IORequest req{request};
+    fil_aio_callback(request);
     write_slots->release(cb);
-    fil_aio_callback(req);
   }
 }
 
@@ -3645,9 +3644,9 @@ void os_aio_free()
 }
 
 /** Wait until there are no pending asynchronous writes. */
-static void os_aio_wait_until_no_pending_writes_low()
+static void os_aio_wait_until_no_pending_writes_low(bool declare)
 {
-  bool notify_wait = write_slots->pending_io_count() > 0;
+  const bool notify_wait= declare && write_slots->pending_io_count();
 
   if (notify_wait)
     tpool::tpool_wait_begin();
@@ -3658,10 +3657,11 @@ static void os_aio_wait_until_no_pending_writes_low()
      tpool::tpool_wait_end();
 }
 
-/** Wait until there are no pending asynchronous writes. */
-void os_aio_wait_until_no_pending_writes()
+/** Wait until there are no pending asynchronous writes.
+@param declare  whether the wait will be declared in tpool */
+void os_aio_wait_until_no_pending_writes(bool declare)
 {
-  os_aio_wait_until_no_pending_writes_low();
+  os_aio_wait_until_no_pending_writes_low(declare);
   buf_dblwr.wait_flush_buffered_writes();
 }
 
@@ -3689,10 +3689,11 @@ size_t os_aio_pending_writes()
   return pending;
 }
 
-/** Wait until all pending asynchronous reads have completed. */
-void os_aio_wait_until_no_pending_reads()
+/** Wait until all pending asynchronous reads have completed.
+@param declare  whether the wait will be declared in tpool */
+void os_aio_wait_until_no_pending_reads(bool declare)
 {
-  const auto notify_wait= read_slots->pending_io_count();
+  const bool notify_wait= declare && read_slots->pending_io_count();
 
   if (notify_wait)
     tpool::tpool_wait_begin();
