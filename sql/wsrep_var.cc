@@ -985,12 +985,6 @@ bool wsrep_max_ws_size_update(sys_var *self, THD *thd, enum_var_type)
 bool wsrep_mode_check(sys_var *self, THD* thd, set_var* var)
 {
   ulonglong new_wsrep_mode= var->save_result.ulonglong_value;
-  if (new_wsrep_mode && !WSREP_ON)
-  {
-    my_message(ER_WRONG_ARGUMENTS, "wsrep_mode can't be set "
-               "if wsrep_on=OFF", MYF(0));
-    return true;
-  }
   ulonglong old_wsrep_mode= wsrep_mode;
   wsrep_mode= new_wsrep_mode;
   if (wsrep_check_mode(WSREP_MODE_REPLICATE_MYISAM) ||
