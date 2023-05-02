@@ -55,7 +55,7 @@ static const std::string create_cluster_table_str=
   "view_seqno BIGINT NOT NULL,"
   "protocol_version INT NOT NULL,"
   "capabilities INT NOT NULL"
-  ") ENGINE=InnoDB STATS_PERSISTENT=0";
+  ") ENGINE=InnoDB STATS_PERSISTENT=0 CHARSET=latin1";
 
 static const std::string create_members_table_str=
   "CREATE TABLE IF NOT EXISTS " + wsrep_schema_str + "." + members_table_str +
@@ -64,7 +64,7 @@ static const std::string create_members_table_str=
   "cluster_uuid CHAR(36) NOT NULL,"
   "node_name CHAR(32) NOT NULL,"
   "node_incoming_address VARCHAR(256) NOT NULL"
-  ") ENGINE=InnoDB STATS_PERSISTENT=0";
+  ") ENGINE=InnoDB STATS_PERSISTENT=0 CHARSET=latin1";
 
 #ifdef WSREP_SCHEMA_MEMBERS_HISTORY
 static const std::string cluster_member_history_table_str= "wsrep_cluster_member_history";
@@ -77,7 +77,7 @@ static const std::string create_members_history_table_str=
   "last_view_seqno BIGINT NOT NULL,"
   "node_name CHAR(32) NOT NULL,"
   "node_incoming_address VARCHAR(256) NOT NULL"
-  ") ENGINE=InnoDB STATS_PERSISTENT=0";
+  ") ENGINE=InnoDB STATS_PERSISTENT=0 CHARSET=latin1";
 #endif /* WSREP_SCHEMA_MEMBERS_HISTORY */
 
 static const std::string create_frag_table_str=
@@ -89,7 +89,7 @@ static const std::string create_frag_table_str=
   "flags INT NOT NULL, "
   "frag LONGBLOB NOT NULL, "
   "PRIMARY KEY (node_uuid, trx_id, seqno)"
-  ") ENGINE=InnoDB STATS_PERSISTENT=0";
+  ") ENGINE=InnoDB STATS_PERSISTENT=0 CHARSET=latin1";
 
 static const std::string delete_from_cluster_table=
   "DELETE FROM " + wsrep_schema_str + "." + cluster_table_str;
@@ -101,21 +101,21 @@ static const std::string delete_from_members_table=
 persistent statistics to be collected from these tables. */
 static const std::string alter_cluster_table=
   "ALTER TABLE " + wsrep_schema_str + "." + cluster_table_str +
-  " STATS_PERSISTENT=0";
+  " STATS_PERSISTENT=0 CHARSET=latin1";
 
 static const std::string alter_members_table=
   "ALTER TABLE " + wsrep_schema_str + "." + members_table_str +
-  " STATS_PERSISTENT=0";
+  " STATS_PERSISTENT=0 CHARSET=latin1";
 
 #ifdef WSREP_SCHEMA_MEMBERS_HISTORY
 static const std::string alter_members_history_table=
   "ALTER TABLE " + wsrep_schema_str + "." + members_history_table_str +
-  " STATS_PERSISTENT=0";
+  " STATS_PERSISTENT=0 CHARSET=latin1";
 #endif
 
 static const std::string alter_frag_table=
   "ALTER TABLE " + wsrep_schema_str + "." + sr_table_str +
-  " STATS_PERSISTENT=0";
+  " STATS_PERSISTENT=0 CHARSET=latin1";
 
 namespace Wsrep_schema_impl
 {
