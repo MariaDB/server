@@ -28,7 +28,7 @@ SET @@global.slave_parallel_mode=optimistic;
 SET @@global.debug_dbug="+d,hold_worker_on_schedule";
 --source include/start_slave.inc
 
---let $wait_condition= SELECT count(*) = 1 FROM information_schema.processlist WHERE state LIKE "Waiting for prior transaction to start commit before starting%"
+--let $wait_condition= SELECT count(*) = 1 FROM information_schema.processlist WHERE state LIKE "Waiting for prior transaction to start commit"
 --source include/wait_condition.inc
 SET DEBUG_SYNC = 'now SIGNAL continue_worker';
 

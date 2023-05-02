@@ -74,7 +74,7 @@ connection slave;
 include/stop_slave.inc
 SET debug_sync = RESET;
 SET @@global.slave_parallel_threads= 0;
-SET @@global.slave_parallel_mode= conservative;
+SET @@global.slave_parallel_mode= optimistic;
 SET @@global.debug_dbug = "";
 SET @@global.gtid_strict_mode=0;
 include/start_slave.inc
