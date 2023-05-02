@@ -807,6 +807,7 @@ public:
     {
       val= NULL;
       schema_parsed= false;
+      set_maybe_null();
     }
   LEX_CSTRING func_name_cstring() const override
   {

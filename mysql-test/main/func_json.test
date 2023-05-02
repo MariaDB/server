@@ -3586,4 +3586,11 @@ SELECT JSON_SCHEMA_VALID(repeat('[', 100000), json_object());
 
 SELECT JSON_SCHEMA_VALID(json_object(), repeat('[', 10000000));
 
+--echo #
+--echo # MDEV-30677: Incorrect result for "SELECT JSON_SCHEMA_VALID('{}', NULL)"
+--echo #
+SELECT JSON_SCHEMA_VALID('{}', NULL);
+SELECT JSON_SCHEMA_VALID(NULL, '{}');
+SELECT JSON_SCHEMA_VALID(NULL, NULL);
+
 --echo # End of 11.1 test

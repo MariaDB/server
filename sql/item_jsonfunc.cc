@@ -4731,16 +4731,20 @@ longlong Item_func_json_schema_valid::val_int()
   if (!schema_parsed)
   {
     null_value= 1;
+     return 0;
+  }
+
+   val= args[1]->val_json(&tmp_val);
+
+   if (!val)
+  {
+    null_value= 1;
     return 0;
   }
+  null_value= 0;
 
-  val= args[1]->val_json(&tmp_val);
-
-  if (!val || !val->length())
-  {
-    null_value= 0;
+  if (!val->length())
     return 1;
-  }
 
   json_scan_start(&ve, val->charset(), (const uchar *) val->ptr(),
                   (const uchar *) val->end());
@@ -4799,7 +4803,10 @@ bool Item_func_json_schema_valid::fix_length_and_dec(THD *thd)
   String *js= args[0]->val_json(&tmp_js);
 
   if ((null_value= args[0]->null_value))
+  {
+    null_value= 1;
     return 0;
+  }
   json_scan_start(&je, js->charset(), (const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
   if (!create_object_and_handle_keyword(thd, &je, &keyword_list,

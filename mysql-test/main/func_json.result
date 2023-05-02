@@ -4704,4 +4704,16 @@ JSON_SCHEMA_VALID(json_object(), repeat('[', 10000000))
 0
 Warnings:
 Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 2 to function 'json_schema_valid' at position 32
+#
+# MDEV-30677: Incorrect result for "SELECT JSON_SCHEMA_VALID('{}', NULL)"
+#
+SELECT JSON_SCHEMA_VALID('{}', NULL);
+JSON_SCHEMA_VALID('{}', NULL)
+NULL
+SELECT JSON_SCHEMA_VALID(NULL, '{}');
+JSON_SCHEMA_VALID(NULL, '{}')
+NULL
+SELECT JSON_SCHEMA_VALID(NULL, NULL);
+JSON_SCHEMA_VALID(NULL, NULL)
+NULL
 # End of 11.1 test
