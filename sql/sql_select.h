@@ -227,7 +227,7 @@ enum sj_strategy_enum
 
 typedef enum_nested_loop_state
 (*Next_select_func)(JOIN *, struct st_join_table *, bool);
-Next_select_func setup_end_select_func(JOIN *join, JOIN_TAB *tab);
+Next_select_func setup_end_select_func(JOIN *join);
 int rr_sequential(READ_RECORD *info);
 int rr_sequential_and_unpack(READ_RECORD *info);
 Item *remove_pushed_top_conjuncts(THD *thd, Item *cond);
@@ -1730,7 +1730,8 @@ public:
   void join_free();
   /** Cleanup this JOIN, possibly for reuse */
   void cleanup(bool full);
-  void clear();
+  void clear(table_map *cleared_tables);
+  void inline clear_sum_funcs();
   bool send_row_on_empty_set()
   {
     return (do_send_rows && implicit_grouping && !group_optimized_away &&
