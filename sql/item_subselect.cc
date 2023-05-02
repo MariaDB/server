@@ -658,7 +658,7 @@ int walk_items_for_table_list(Item_processor processor,
 
 
 bool Item_subselect::walk(Item_processor processor, bool walk_subquery,
-                          void *argument)
+                          void *argument, uint depth)
 {
   if (!(unit->uncacheable & ~UNCACHEABLE_DEPENDENT) && engine->is_executed() &&
       !unit->describe)

@@ -6087,7 +6087,13 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
           else
           {
             if (thd->column_usage == MARK_COLUMNS_READ)
-              it->walk(&Item::register_field_in_read_map, 0, 0);
+            {
+              if (it->walk(&Item::register_field_in_read_map, 0, 0))
+              {
+                // something went wrong, 
+                fld= nullptr;
+              }
+            }
             else
               it->walk(&Item::register_field_in_write_map, 0, 0);
           }
