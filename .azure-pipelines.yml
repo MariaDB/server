@@ -1,0 +1,26 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- 10.6-elenst
+
+pool:
+  vmImage: 'macOS-12'
+
+steps:
+- script: echo Hello, world!
+  displayName: 'Run a one-line script'
+
+- script: |
+    set +e
+    pwd
+    ls -l
+    df -kT
+    cat /proc/cpuinfo
+    cmake .
+    make
+    cd mysql-test
+    perl mysql-test-run.pl --suite=main --force --max-test-fail=0
+  displayName: 'Build and MTR'
