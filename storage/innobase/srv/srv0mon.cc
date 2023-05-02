@@ -722,7 +722,8 @@ static monitor_info_t	innodb_counter_info[] =
 
 	{"purge_dml_delay_usec", "purge",
 	 "Microseconds DML to be delayed due to purge lagging",
-	 MONITOR_DISPLAY_CURRENT,
+	 static_cast<monitor_type_t>(
+	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT),
 	 MONITOR_DEFAULT_START, MONITOR_DML_PURGE_DELAY},
 
 	{"purge_stop_count", "purge",
@@ -1545,6 +1546,9 @@ srv_mon_process_existing_counter(
 
 	case MONITOR_RSEG_CUR_SIZE:
 		value = srv_mon_get_rseg_size();
+		break;
+	case MONITOR_DML_PURGE_DELAY:
+		value = srv_max_purge_lag_delay;
 		break;
 	case MONITOR_NUM_UNDO_SLOT_USED:
 		value = srv_mon_get_rseg_used();

@@ -1243,43 +1243,6 @@ trx_purge_attach_undo_recs(ulint n_purge_threads)
 	return(n_pages_handled);
 }
 
-/*******************************************************************//**
-Calculate the DML delay required.
-@return delay in microseconds or ULINT_MAX */
-static
-ulint
-trx_purge_dml_delay(void)
-/*=====================*/
-{
-	/* Determine how much data manipulation language (DML) statements
-	need to be delayed in order to reduce the lagging of the purge
-	thread. */
-	ulint	delay = 0; /* in microseconds; default: no delay */
-
-	/* If purge lag is set then calculate the new DML delay. */
-
-	if (srv_max_purge_lag > 0) {
-		double ratio = static_cast<double>(trx_sys.history_size()) /
-			static_cast<double>(srv_max_purge_lag);
-
-		if (ratio > 1.0) {
-			/* If the history list length exceeds the
-			srv_max_purge_lag, the data manipulation
-			statements are delayed by at least 5000
-			microseconds. */
-			delay = (ulint) ((ratio - .5) * 10000);
-		}
-
-		if (delay > srv_max_purge_lag_delay) {
-			delay = srv_max_purge_lag_delay;
-		}
-
-		MONITOR_SET(MONITOR_DML_PURGE_DELAY, delay);
-	}
-
-	return(delay);
-}
-
 extern tpool::waitable_task purge_worker_task;
 
 /** Wait for pending purge jobs to complete. */
@@ -1323,17 +1286,17 @@ TRANSACTIONAL_INLINE void purge_sys_t::clone_end_view()
 
 /**
 Run a purge batch.
-@param n_tasks   number of purge tasks to submit to the queue
-@param truncate  whether to truncate the history at the end of the batch
+@param n_tasks       number of purge tasks to submit to the queue
+@param history_size  trx_sys.history_size()
+@param truncate      whether to truncate the history at the end of the batch
 @return number of undo log pages handled in the batch */
-TRANSACTIONAL_TARGET ulint trx_purge(ulint n_tasks, bool truncate)
+TRANSACTIONAL_TARGET
+ulint trx_purge(ulint n_tasks, ulint history_size, bool truncate)
 {
 	que_thr_t*	thr = NULL;
 	ulint		n_pages_handled;
 
 	ut_ad(n_tasks > 0);
-
-	srv_dml_needed_delay = trx_purge_dml_delay();
 
 	purge_sys.clone_oldest_view();
 
@@ -1345,6 +1308,24 @@ TRANSACTIONAL_TARGET ulint trx_purge(ulint n_tasks, bool truncate)
 
 	/* Fetch the UNDO recs that need to be purged. */
 	n_pages_handled = trx_purge_attach_undo_recs(n_tasks);
+
+	{
+		ulint delay = n_pages_handled ? srv_max_purge_lag : 0;
+		if (UNIV_UNLIKELY(delay)) {
+			if (delay >= history_size) {
+		no_throttle:
+				delay = 0;
+			} else if (const ulint max_delay =
+				   srv_max_purge_lag_delay) {
+				delay = std::min(max_delay,
+						 10000 * history_size / delay
+						 - 5000);
+			} else {
+				goto no_throttle;
+			}
+		}
+		srv_dml_needed_delay = delay;
+	}
 
 	/* Submit tasks to workers queue if using multi-threaded purge. */
 	for (ulint i = n_tasks; --i; ) {
