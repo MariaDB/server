@@ -9090,3 +9090,6 @@ ER_PERIOD_CONSTRAINT_DROP
 ER_TOO_LONG_KEYPART 42000 S1009
         chi "指定的索引部分太长；最大索引部分长度为 %u 个字节"
         eng "Specified key part was too long; max key part length is %u bytes"
+ER_DERIVED_RECURSION_LIMIT
+        chi "例程超出派生合并递归限制 %d（设置 derived_merge=off)"
+        eng "Derived Merged Recursive limit %d was exceeded for routine (set derived_merge=off)"

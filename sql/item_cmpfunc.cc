@@ -2529,7 +2529,8 @@ void Item_func_nullif::split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
 
 
 bool Item_func_nullif::walk(Item_processor processor,
-                            bool walk_subquery, void *arg)
+                            bool walk_subquery, void *arg,
+      uint depth)
 {
   /*
     No needs to iterate through args[2] when it's just a copy of args[0].
@@ -2538,7 +2539,7 @@ bool Item_func_nullif::walk(Item_processor processor,
   uint tmp_count= arg_count == 2 || args[0] == args[2] ? 2 : 3;
   for (uint i= 0; i < tmp_count; i++)
   {
-    if (args[i]->walk(processor, walk_subquery, arg))
+    if (args[i]->walk(processor, walk_subquery, arg, depth+1))
       return true;
   }
   return (this->*processor)(arg);
@@ -5030,14 +5031,15 @@ void Item_cond::fix_after_pullout(st_select_lex *new_parent, Item **ref,
 }
 
 
-bool Item_cond::walk(Item_processor processor, bool walk_subquery, void *arg)
+bool Item_cond::walk(Item_processor processor, bool walk_subquery, void *arg,
+    uint depth)
 {
   List_iterator_fast<Item> li(list);
   Item *item;
   while ((item= li++))
-    if (item->walk(processor, walk_subquery, arg))
+    if (item->walk(processor, walk_subquery, arg, depth+1))
       return 1;
-  return Item_func::walk(processor, walk_subquery, arg);
+  return Item_func::walk(processor, walk_subquery, arg, depth+1);
 }
 
 /**
@@ -7126,16 +7128,17 @@ bool Item_equal::fix_length_and_dec()
 }
 
 
-bool Item_equal::walk(Item_processor processor, bool walk_subquery, void *arg)
+bool Item_equal::walk(Item_processor processor, bool walk_subquery, void *arg,
+      uint depth)
 {
   Item *item;
   Item_equal_fields_iterator it(*this);
   while ((item= it++))
   {
-    if (item->walk(processor, walk_subquery, arg))
+    if (item->walk(processor, walk_subquery, arg, depth+1))
       return 1;
   }
-  return Item_func::walk(processor, walk_subquery, arg);
+  return Item_func::walk(processor, walk_subquery, arg, depth+1);
 }
 
 

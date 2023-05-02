@@ -1264,7 +1264,8 @@ public:
   my_decimal *decimal_op(my_decimal *);
   bool native_op(THD *thd, Native *to);
   bool fix_length_and_dec();
-  bool walk(Item_processor processor, bool walk_subquery, void *arg);
+  bool walk(Item_processor processor, bool walk_subquery, void *arg,
+      uint depth= 0);
   const char *func_name() const { return "nullif"; }
   void print(String *str, enum_query_type query_type);
   void split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array, 
@@ -2784,10 +2785,10 @@ public:
     return this;
   }
 
-  bool walk(Item_processor processor, bool walk_subquery, void *arg)
+  bool walk(Item_processor processor, bool walk_subquery, void *arg, uint depth)
   {
-    return walk_args(processor, walk_subquery, arg)
-      ||   escape_item->walk(processor, walk_subquery, arg)
+    return walk_args(processor, walk_subquery, arg, depth+1)
+      ||   escape_item->walk(processor, walk_subquery, arg, depth+1)
       ||  (this->*processor)(arg);
   }
 
@@ -3014,7 +3015,8 @@ public:
   void top_level_item() { abort_on_null=1; }
   bool top_level() { return abort_on_null; }
   void copy_andor_arguments(THD *thd, Item_cond *item);
-  bool walk(Item_processor processor, bool walk_subquery, void *arg);
+  bool walk(Item_processor processor, bool walk_subquery, void *arg,
+      uint depth= 0);
   Item *do_transform(THD *thd, Item_transformer transformer, uchar *arg, bool toplevel);
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg)
   {
@@ -3215,7 +3217,8 @@ public:
                       uint *and_level, table_map usable_tables,
                       SARGABLE_PARAM **sargables);
   SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
-  bool walk(Item_processor processor, bool walk_subquery, void *arg);
+  bool walk(Item_processor processor, bool walk_subquery, void *arg,
+      uint depth= 0);
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg);
   virtual void print(String *str, enum_query_type query_type);
   const Type_handler *compare_type_handler() const { return m_compare_handler; }
