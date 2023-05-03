@@ -395,7 +395,6 @@ typedef struct st_join_table {
   bool          idx_cond_fact_out;
   bool          use_join_cache;
   uint          used_join_cache_level;
-  ulong         join_buffer_size_limit;
   JOIN_CACHE	*cache;
   /*
     Index condition for BKA access join

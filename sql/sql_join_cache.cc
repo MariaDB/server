@@ -805,20 +805,18 @@ size_t JOIN_CACHE::get_min_join_buffer_size()
                         the estimated number of records in the partial join 
 
   DESCRIPTION
-    At the first its invocation for the cache the function calculates the
-    maximum possible size of join buffer for the cache. If the parameter
-    optimize_buff_size true then this value does not exceed the size of the
-    space needed for the estimated number of records 'max_records' in the
-    partial join that joins tables from the first one through join_tab. This
-    value is also capped off by the value of join_tab->join_buffer_size_limit,
-    if it has been set a to non-zero value, and by the value of the system
-    parameter join_buffer_size - otherwise. After the calculation of the
-    interesting size the function saves the value in the field 'max_buff_size'
-    in order to use it directly at the next  invocations of the function.
 
-  NOTES
-    Currently the value of join_tab->join_buffer_size_limit is initialized
-    to 0 and is never reset.
+    At the first its invocation for the cache the function calculates
+    the maximum possible size of join buffer for the cache. If the
+    parameter optimize_buff_size true then this value does not exceed
+    the size of the space needed for the estimated number of records
+    'max_records' in the partial join that joins tables from the first
+    one through join_tab. This value is also capped off by the value
+    of the system parameter join_buffer_size. After the calculation of
+    the interesting size the function saves the value in the field
+    'max_buff_size' in order to use it directly at the next
+    invocations of the function.
+
 
   RETURN VALUE
     The maximum possible size of the join buffer of this cache 
@@ -842,8 +840,6 @@ size_t JOIN_CACHE::get_max_join_buffer_size(bool optimize_buff_size)
     space_per_record= len;
     
     size_t limit_sz= (size_t)join->thd->variables.join_buff_size;
-    if (join_tab->join_buffer_size_limit)
-      set_if_smaller(limit_sz, join_tab->join_buffer_size_limit);
     if (!optimize_buff_size)
       max_sz= limit_sz;
     else
@@ -923,13 +919,25 @@ int JOIN_CACHE::alloc_buffer()
   curr_min_buff_space_sz+= min_buff_size;
   curr_buff_space_sz+= buff_size;
 
-  if (curr_min_buff_space_sz > join_buff_space_limit ||
-      (curr_buff_space_sz > join_buff_space_limit &&
-       (!optimize_buff_size || 
+  if (optimize_buff_size)
+  {
+    /*
+      optimize_join_buffer_size=on used. We should limit the join
+      buffer space to join_buff_space_limit if possible.
+    */
+    if (curr_min_buff_space_sz > join_buff_space_limit)
+    {
+      /*
+        Increase buffer size to minimum needed, to be able to use the
+        join buffer.
+      */
+      join_buff_space_limit= curr_min_buff_space_sz;
+    }
+    if (curr_buff_space_sz > join_buff_space_limit &&
         join->shrink_join_buffers(join_tab, curr_buff_space_sz,
-                                  join_buff_space_limit))))
-    goto fail;
-
+                                  join_buff_space_limit))
+      goto fail;                                // Fatal error
+  }
   if (for_explain_only)
     return 0;
                                
@@ -2766,7 +2774,6 @@ bool JOIN_CACHE_BKAH::save_explain_data(EXPLAIN_BKA_TYPE *explain)
 
 int JOIN_CACHE_HASHED::init(bool for_explain)
 {
-  int rc= 0;
   TABLE_REF *ref= &join_tab->ref;
 
   DBUG_ENTER("JOIN_CACHE_HASHED::init");
@@ -2776,8 +2783,21 @@ int JOIN_CACHE_HASHED::init(bool for_explain)
 
   key_length= ref->key_length;
 
-  if ((rc= JOIN_CACHE::init(for_explain)) || for_explain)
-    DBUG_RETURN (rc); 
+  if (JOIN_CACHE::init(for_explain))
+  {
+    THD *thd= join->thd;
+    const char *errmsg=
+      "Could not create a join buffer. Please check and "
+      "adjust the value of the variables 'JOIN_BUFFER_SIZE (%llu)' and "
+      "'JOIN_BUFFER_SPACE_LIMIT (%llu)'";
+    my_printf_error(ER_OUTOFMEMORY, errmsg, MYF(0),
+                    thd->variables.join_buff_size,
+                    thd->variables.join_buff_space_limit);
+    DBUG_RETURN (1);
+  }
+
+  if (for_explain)
+    DBUG_RETURN(0);
 
   if (!(key_buff= (uchar*) join->thd->alloc(key_length)))
     DBUG_RETURN(1);
