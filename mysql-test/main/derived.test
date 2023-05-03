@@ -1274,5 +1274,29 @@ SELECT a FROM t1 WHERE a IN ( 1, 1, 2, 194 );
 drop table t1;
 
 --echo #
+--echo # MDEV-31022: SIGSEGV in maria_create from create_internal_tmp_table
+--echo # keydef incorrectly allocated on the stack in create_internal_tmp_table()
+--echo #
+
+CREATE TABLE t1 (c CHAR(1) NULL) ENGINE=MyISAM;
+INSERT INTO t1 (c) VALUES (1);
+SET statement
+  optimizer_where_cost=1,
+  big_tables=1,
+  in_predicate_conversion_threshold=2
+FOR
+SELECT * FROM t1 WHERE c IN ('','');
+
+SET statement
+  optimizer_where_cost=1,
+  big_tables=1,
+  in_predicate_conversion_threshold=2,
+  sql_mode=''
+FOR
+SELECT * FROM t1 WHERE c IN ('','');
+
+DROP TABLE t1;
+
+--echo #
 --echo # End of 11.0 tests
 --echo #
