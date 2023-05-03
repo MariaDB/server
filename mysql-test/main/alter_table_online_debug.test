@@ -1527,6 +1527,24 @@ set debug_sync= "now signal goon";
 select * from t;
 drop table t;
 
+--echo # Test that all the fields are unpacked.
+create table t (a int, b int) engine=innodb;
+insert into t values (NULL, 123), (NULL, 456);
+
+set debug_sync= "alter_table_copy_end signal copy wait_for goon";
+send alter table t drop a, add primary key(b), algorithm=copy;
+--connection con1
+set debug_sync= "now wait_for copy";
+update t set b = b + 100;
+
+set debug_sync= "now signal goon";
+
+--connection default
+--reap
+select * from t;
+
+drop table t;
+
 
 set debug_sync= reset;
 --disconnect con1
