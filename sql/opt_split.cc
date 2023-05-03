@@ -228,6 +228,7 @@
 
 #include "mariadb.h"
 #include "sql_select.h"
+#include "opt_trace.h"
 
 /* Info on a splitting field */
 struct SplM_field_info
@@ -387,6 +388,9 @@ bool JOIN::check_for_splittable_materialized()
   if (!partition_list)
     return false;
 
+  Json_writer_object trace_wrapper(thd);
+  Json_writer_object trace_split(thd, "check_split_materialized");
+
   ORDER *ord;
   Dynamic_array<SplM_field_ext_info> candidates;
 
@@ -432,7 +436,10 @@ bool JOIN::check_for_splittable_materialized()
     }
   }
   if (candidates.elements() == 0)  // no candidates satisfying (8.1) && (8.2)
+  {
+    trace_split.add("not_applicable", "group list has no candidates");
     return false;
+  }
 
   /*
     For each table from this join find the keys that can be used for ref access
@@ -491,7 +498,11 @@ bool JOIN::check_for_splittable_materialized()
   }
 
   if (!spl_field_cnt)  // No candidate field can be accessed by ref => !(9)
+  {
+    trace_split.add("not_applicable",
+                    "no candidate field can be accessed through ref");
     return false;
+  }
 
   /*
     Create a structure of the type SplM_opt_info and fill it with
@@ -509,16 +520,22 @@ bool JOIN::check_for_splittable_materialized()
   spl_opt_info->tables_usable_for_splitting= 0;
   spl_opt_info->spl_field_cnt= spl_field_cnt;
   spl_opt_info->spl_fields= spl_field;
-  for (cand= cand_start; cand < cand_end; cand++)
+
   {
-    if (!cand->is_usable_for_ref_access)
-      continue;
-    spl_field->producing_item= cand->producing_item;
-    spl_field->underlying_field= cand->underlying_field;
-    spl_field->mat_field= cand->mat_field;
-    spl_opt_info->tables_usable_for_splitting|=
-    cand->underlying_field->table->map;
-    spl_field++;
+    Json_writer_array trace_range(thd, "split_candidates");
+    for (cand= cand_start; cand < cand_end; cand++)
+    {
+      if (!cand->is_usable_for_ref_access)
+        continue;
+      trace_range.add(cand->producing_item);
+
+      spl_field->producing_item= cand->producing_item;
+      spl_field->underlying_field= cand->underlying_field;
+      spl_field->mat_field= cand->mat_field;
+      spl_opt_info->tables_usable_for_splitting|=
+      cand->underlying_field->table->map;
+      spl_field++;
+    }
   }
 
   /* Attach this info to the table T */
@@ -773,7 +790,7 @@ void JOIN::add_keyuses_for_splitting()
   bzero((char*) &keyuse_ext_end, sizeof(keyuse_ext_end));
   if (ext_keyuses_for_splitting->push(keyuse_ext_end))
     goto err;
-
+  // psergey-todo: trace anything here?
   spl_opt_info->unsplit_card= join_record_count;
 
   rec_len= table->s->rec_buff_length;
@@ -946,7 +963,8 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
   uint best_key= 0;
   uint best_key_parts= 0;
   table_map best_param_tables;
-
+  Json_writer_object trace_obj(thd, "choose_best_splitting");
+  Json_writer_array  trace_arr(thd, "considered_keys");
   /*
     Check whether there are keys that can be used to join T employing splitting
     and if so, select the best out of such keys
@@ -999,6 +1017,13 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
           best_rec_per_key= rec_per_key;
           best_key_keyuse_ext_start= key_keyuse_ext_start;
           best_param_tables= needed_in_prefix;
+           // trace table, key_name, parts, needed_tables.
+          Json_writer_object cur_index(thd);
+          cur_index.
+            add("table_name", best_table->alias.ptr()).
+            add("index", best_table->key_info[best_key].name).
+            add("rec_per_key", best_rec_per_key).
+            add("param_tables", best_param_tables);
         }
         keyuse_ext++;
       }
@@ -1006,6 +1031,8 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
     }
     while (keyuse_ext->table == table);
   }
+  trace_arr.end();
+
   spl_opt_info->last_plan= 0;
   double refills= DBL_MAX;
   table_map excluded_tables= remaining_tables | this->join->sjm_lookup_tables;
@@ -1031,6 +1058,10 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
           break;
       }
     }
+
+    trace_obj.add("refills", refills).
+      add("spl_pd_boundary", *spl_pd_boundary);
+
     /*
       The key for splitting was chosen, look for the plan for this key
       in the cache
@@ -1042,11 +1073,13 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
         The plan for the chosen key has not been found in the cache.
         Build a new plan and save info on it in the cache
       */
+      Json_writer_array wrapper(thd, "split_plan_search");
       table_map all_table_map= (((table_map) 1) << join->table_count) - 1;
       reset_validity_vars_for_keyuses(best_key_keyuse_ext_start, best_table,
                                       best_key, excluded_tables, true);
       choose_plan(join, all_table_map & ~join->const_table_map);
 
+      wrapper.end();
       /*
         Check that the chosen plan is really a splitting plan.
         If not or if there is not enough memory to save the plan in the cache
@@ -1064,6 +1097,7 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
       {
         reset_validity_vars_for_keyuses(best_key_keyuse_ext_start, best_table,
                                         best_key, excluded_tables, false);
+        trace_obj.add("split_plan_discarded", "constructed unapplicable query plan");
         return 0;
       }
 
@@ -1089,9 +1123,20 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
       reset_validity_vars_for_keyuses(best_key_keyuse_ext_start, best_table,
                                       best_key, excluded_tables, false);
     }
+    else
+      trace_obj.add("cached_plan_found", 1);
 
     if (spl_plan)
     {
+      trace_obj.
+        add("lead_table", spl_plan->table->alias.ptr()).
+        add("index",      spl_plan->table->key_info[spl_plan->key].name).
+        add("parts",      spl_plan->parts).
+        add("split_sel",  spl_plan->split_sel).
+        add("cost",       spl_plan->cost).
+        add("records",    (ha_rows) (records * spl_plan->split_sel)).
+        add("refills",    refills);
+
       if (refills * spl_plan->cost < spl_opt_info->unsplit_cost)
       {
         /*
@@ -1100,7 +1145,10 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
 	*/
         spl_opt_info->last_plan= spl_plan;
         spl_opt_info->last_refills= refills;
+        trace_obj.add("chosen", true);
       }
+      else
+        trace_obj.add("chosen", false);
     }
   }
 
@@ -1132,7 +1180,7 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
   @details
     This function injects equalities pushed into a derived table T for which
     the split optimization has been chosen by the optimizer. The function
-    is called by JOIN::inject_splitting_cond_for_all_tables_with_split_op().
+    is called by JOIN::inject_splitting_cond_for_all_tables_with_split_opt().
     All equalities usable for splitting T whose right parts do not depend on
     any of the 'excluded_tables' can be pushed into the where clause of the
     derived table T.
