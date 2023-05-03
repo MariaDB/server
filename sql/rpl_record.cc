@@ -228,24 +228,28 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const colcnt,
   const TABLE *conv_table= rpl_data.conv_table;
   DBUG_PRINT("debug", ("Table data: tabldef: %p, conv_table: %p",
                        tabledef, conv_table));
-
+  bool is_online_alter= rpl_data.is_online_alter();
   DBUG_ASSERT(rgi);
 
-  for (field_ptr= begin_ptr; field_ptr < end_ptr && *field_ptr; ++field_ptr)
+  for (field_ptr= begin_ptr; field_ptr < end_ptr
+                             /* In Online Alter conv_table can be wider than
+                               original table, but we need to unpack it all. */
+                             && (*field_ptr || is_online_alter);
+       ++field_ptr)
   {
     /*
       If there is a conversion table, we pick up the field pointer to
       the conversion table.  If the conversion table or the field
       pointer is NULL, no conversions are necessary.
      */
-    Field *conv_field=
-      conv_table ? conv_table->field[field_ptr - begin_ptr] : NULL;
-    Field *const f=
-      conv_field ? conv_field : *field_ptr;
-    DBUG_PRINT("debug", ("Conversion %srequired for field '%s' (#%ld)",
+    Field *conv_field= conv_table ? conv_table->field[i] : NULL;
+    Field *const f= conv_field ? conv_field : *field_ptr;
+#ifdef DBUG_TRACE
+    Field *dbg= is_online_alter ? f : *field_ptr;
+#endif
+    DBUG_PRINT("debug", ("Conversion %srequired for field '%s' (#%u)",
                          conv_field ? "" : "not ",
-                         (*field_ptr)->field_name.str,
-                         (long) (field_ptr - begin_ptr)));
+                         dbg->field_name.str, i));
     DBUG_ASSERT(f != NULL);
 
     /*
@@ -254,7 +258,7 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const colcnt,
      */
     if (bitmap_is_set(cols, (uint)(field_ptr -  begin_ptr)))
     {
-      if (!rpl_data.is_online_alter())
+      if (!is_online_alter)
         (*field_ptr)->set_has_explicit_value();
       if ((null_mask & 0xFF) == 0)
       {
@@ -351,7 +355,7 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const colcnt,
         conv_field->sql_type(source_type);
         conv_field->val_str(&value_string);
         DBUG_PRINT("debug", ("Copying field '%s' of type '%s' with value '%s'",
-                             (*field_ptr)->field_name.str,
+                             dbg->field_name.str,
                              source_type.c_ptr_safe(), value_string.c_ptr_safe()));
 #endif
         copy.set(*field_ptr, f, TRUE);
@@ -362,7 +366,7 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const colcnt,
         (*field_ptr)->sql_type(target_type);
         (*field_ptr)->val_str(&value_string);
         DBUG_PRINT("debug", ("Value of field '%s' of type '%s' is now '%s'",
-                             (*field_ptr)->field_name.str,
+                             dbg->field_name.str,
                              target_type.c_ptr_safe(), value_string.c_ptr_safe()));
 #endif
       }
@@ -442,7 +446,7 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const colcnt,
   *current_row_end = pack_ptr;
   if (master_reclength)
   {
-    if (*field_ptr)
+    if (!is_online_alter && *field_ptr)
       *master_reclength = (ulong)((*field_ptr)->ptr - table->record[0]);
     else
       *master_reclength = table->s->reclength;
