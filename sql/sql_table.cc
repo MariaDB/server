@@ -12049,6 +12049,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 #ifdef HAVE_REPLICATION
   if (online && error < 0)
   {
+    MEM_UNDEFINED(from->record[0], from->s->rec_buff_length * 2);
+    MEM_UNDEFINED(to->record[0], to->s->rec_buff_length * 2);
     thd_progress_next_stage(thd);
     Table_map_log_event table_event(thd, from, from->s->table_map_id,
                                     from->file->has_transactions());
