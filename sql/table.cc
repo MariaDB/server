@@ -3463,7 +3463,6 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   char *sql_copy;
   handler *file;
   LEX *old_lex;
-  Query_arena *arena, backup;
   LEX tmp_lex;
   KEY *unused1;
   uint unused2;
@@ -3489,12 +3488,6 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   tmp_disable_binlog(thd);
   old_lex= thd->lex;
   thd->lex= &tmp_lex;
-
-  arena= thd->stmt_arena;
-  if (arena->is_conventional())
-    arena= 0;
-  else
-    thd->set_n_backup_active_arena(arena, &backup);
 
   thd->reset_db(&db);
   lex_start(thd);
@@ -3530,8 +3523,6 @@ ret:
   lex_end(thd->lex);
   thd->reset_db(&db_backup);
   thd->lex= old_lex;
-  if (arena)
-    thd->restore_active_arena(arena, &backup);
   reenable_binlog(thd);
   thd->variables.character_set_client= old_cs;
   if (unlikely(thd->is_error() || error))

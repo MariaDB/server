@@ -2935,7 +2935,12 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
 
       if (mode <= SLAVE_PARALLEL_MINIMAL ||
           !(gtid_flags & Gtid_log_event::FL_GROUP_COMMIT_ID) ||
-          e->last_commit_id != gtid_ev->commit_id)
+          e->last_commit_id != gtid_ev->commit_id ||
+          /*
+            MULTI_BATCH is also set when the current gtid even being a member
+            of a commit group is flagged as DDL which disallows parallel.
+          */
+          (gtid_flags & Gtid_log_event::FL_DDL))
         flags|= group_commit_orderer::MULTI_BATCH;
       /* Make sure we do not attempt to run DDL in parallel speculatively. */
       if (gtid_flags & Gtid_log_event::FL_DDL)
