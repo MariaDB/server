@@ -41,10 +41,11 @@ void
 trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr);
 /**
 Run a purge batch.
-@param n_tasks   number of purge tasks to submit to the queue
-@param truncate  whether to truncate the history at the end of the batch
+@param n_tasks       number of purge tasks to submit to the queue
+@param history_size  trx_sys.history_size()
+@param truncate      whether to truncate the history at the end of the batch
 @return number of undo log pages handled in the batch */
-ulint trx_purge(ulint n_tasks, bool truncate);
+ulint trx_purge(ulint n_tasks, ulint history_size, bool truncate);
 
 /** Rollback segements from a given transaction with trx-no
 scheduled for purge. */

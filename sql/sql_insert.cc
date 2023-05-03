@@ -2270,6 +2270,7 @@ int check_that_all_fields_are_given_values(THD *thd, TABLE *entry, TABLE_LIST *t
   for (Field **field=entry->field ; *field ; field++)
   {
     if (!bitmap_is_set(write_set, (*field)->field_index) &&
+        !(*field)->vcol_info &&
         has_no_default_value(thd, *field, table_list))
       err=1;
   }
