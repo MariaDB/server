@@ -7573,6 +7573,7 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key)
   join->positions[idx].records_read=1.0;	/* This is a const table */
   join->positions[idx].cond_selectivity= 1.0;
   join->positions[idx].ref_depend_map= 0;
+  join->positions[idx].partial_join_cardinality= 1;
 
 //  join->positions[idx].loosescan_key= MAX_KEY; /* Not a LooseScan */
   join->positions[idx].sj_strategy= SJ_OPT_NONE;
@@ -7590,6 +7591,7 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key)
   }
   join->best_ref[idx]=table;
   join->positions[idx].spl_plan= 0;
+  join->positions[idx].spl_pd_boundary= 0;
 }
 
 
@@ -7876,6 +7878,7 @@ best_access_path(JOIN      *join,
   MY_BITMAP *eq_join_set= &s->table->eq_join_set;
   KEYUSE *hj_start_key= 0;
   SplM_plan_info *spl_plan= 0;
+  table_map spl_pd_boundary= 0;
   Range_rowid_filter_cost_info *filter= 0;
   const char* cause= NULL;
   enum join_type best_type= JT_UNKNOWN, type= JT_UNKNOWN;
@@ -7892,9 +7895,11 @@ best_access_path(JOIN      *join,
   loose_scan_opt.init(join, s, remaining_tables);
 
   if (s->table->is_splittable())
-    spl_plan= s->choose_best_splitting(record_count, remaining_tables);
-  Json_writer_array trace_paths(thd, "considered_access_paths");
+    spl_plan= s->choose_best_splitting(idx,
+                                       remaining_tables,
+                                       &spl_pd_boundary);
 
+  Json_writer_array trace_paths(thd, "considered_access_paths");
   if (s->keyuse)
   {                                            /* Use key if possible */
     KEYUSE *keyuse;
@@ -8776,8 +8781,9 @@ best_access_path(JOIN      *join,
         best_filter= filter;
       /* range/index_merge/ALL/index access method are "independent", so: */
       best_ref_depends_map= 0;
-      best_uses_jbuf= MY_TEST(!disable_jbuf && !((s->table->map &
-                                                  join->outer_join)));
+      best_uses_jbuf= MY_TEST(!disable_jbuf && 
+                              (join->allowed_outer_join_with_cache ||
+                               !(s->table->map & join->outer_join)));
       spl_plan= 0;
       best_type= type;
     }
@@ -8800,6 +8806,7 @@ best_access_path(JOIN      *join,
   pos->loosescan_picker.loosescan_key= MAX_KEY;
   pos->use_join_buffer= best_uses_jbuf;
   pos->spl_plan= spl_plan;
+  pos->spl_pd_boundary= !spl_plan ? 0 : spl_pd_boundary;
   pos->range_rowid_filter_info= best_filter;
   pos->key_dependent= (best_type == JT_EQ_REF ? (table_map) 0 :
                        key_dependent & remaining_tables);
@@ -9333,6 +9340,9 @@ optimize_straight_join(JOIN *join, table_map remaining_tables)
       pushdown_cond_selectivity= table_cond_selectivity(join, idx, s,
                                                         remaining_tables);
     position->cond_selectivity= pushdown_cond_selectivity;
+    double partial_join_cardinality= record_count *
+                                     pushdown_cond_selectivity;
+    join->positions[idx].partial_join_cardinality= partial_join_cardinality;
     ++idx;
   }
 
@@ -10418,6 +10428,8 @@ best_extension_by_limited_search(JOIN      *join,
                               partial_join_cardinality);
         }
       }
+
+      join->positions[idx].partial_join_cardinality= partial_join_cardinality;
 
       if ((search_depth > 1) && (remaining_tables & ~real_table_bit) &
           allowed_tables)
@@ -13487,6 +13499,9 @@ uint check_join_cache_usage(JOIN_TAB *tab,
 
   join->return_tab= 0;
 
+  if (tab->no_forced_join_cache)
+    return 0;
+
   /*
     Don't use join cache if @@join_cache_level==0 or this table is the first
     one join suborder (either at top level or inside a bush)
@@ -14455,7 +14470,8 @@ bool JOIN_TAB::preread_init()
     DBUG_RETURN(TRUE);
 
   if (!(derived->get_unit()->uncacheable & UNCACHEABLE_DEPENDENT) ||
-      derived->is_nonrecursive_derived_with_rec_ref())
+      derived->is_nonrecursive_derived_with_rec_ref() ||
+      is_split_derived)
     preread_init_done= TRUE;
   if (select && select->quick)
     select->quick->replace_handler(table->file);
@@ -17923,6 +17939,9 @@ void optimize_wo_join_buffering(JOIN *join, uint first_tab, uint last_tab,
                                                         reopt_remaining_tables &
                                                         ~real_table_bit);
     }
+    double partial_join_cardinality= rec_count *
+                                     pushdown_cond_selectivity;
+    join->positions[i].partial_join_cardinality= partial_join_cardinality;
     (*outer_rec_count) *= pushdown_cond_selectivity;
     if (!rs->emb_sj_nest)
       *outer_rec_count= COST_MULT(*outer_rec_count, pos.records_read);
@@ -21536,6 +21555,16 @@ enum_nested_loop_state
 sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
 {
   DBUG_ENTER("sub_select");
+
+  if (join_tab->split_derived_to_update && !end_of_records)
+  {
+    table_map tab_map= join_tab->split_derived_to_update;
+    for (uint i= 0; tab_map; i++, tab_map>>= 1)
+    {
+      if (tab_map & 1)
+        join->map2table[i]->preread_init_done= false;
+    }
+  }
 
   if (join_tab->last_inner)
   {
