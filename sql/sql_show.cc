@@ -8840,7 +8840,6 @@ bool optimize_schema_tables_memory_usage(List<TABLE_LIST> &tables)
       TMP_TABLE_PARAM *p= table_list->schema_table_param;
       TMP_ENGINE_COLUMNDEF *from_recinfo, *to_recinfo;
       DBUG_ASSERT(table->s->keys == 0);
-      DBUG_ASSERT(table->s->uniques == 0);
 
       uchar *cur= table->field[0]->ptr;
       /* first recinfo could be a NULL bitmap, not an actual Field */

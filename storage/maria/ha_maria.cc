@@ -1082,7 +1082,8 @@ const char *ha_maria::index_type(uint key_number)
 ulong ha_maria::index_flags(uint inx, uint part, bool all_parts) const
 {
   ulong flags;
-  if (table_share->key_info[inx].algorithm == HA_KEY_ALG_FULLTEXT)
+  if (table_share->key_info[inx].algorithm == HA_KEY_ALG_FULLTEXT ||
+      table_share->key_info[inx].algorithm == HA_KEY_ALG_UNIQUE_HASH)
     flags= 0;
   else
   if ((table_share->key_info[inx].flags & HA_SPATIAL ||

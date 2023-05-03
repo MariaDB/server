@@ -853,7 +853,18 @@ struct TABLE_SHARE
   uint keys, key_parts;
   uint ext_key_parts;       /* Total number of key parts in extended keys */
   uint max_key_length, max_unique_length;
-  uint uniques;                         /* Number of UNIQUE index */
+
+  /*
+    Older versions had TABLE_SHARE::uniques but now it is replaced with
+    per-index HA_UNIQUE_HASH flag
+  */
+  bool have_unique_constraint() const
+  {
+    for (uint i=0; i < keys; i++)
+      if (key_info[i].flags & HA_UNIQUE_HASH)
+        return true;
+    return false;
+  }
   uint db_create_options;		/* Create options from database */
   uint db_options_in_use;		/* Options in use */
   uint db_record_offset;		/* if HA_REC_IN_SEQ */
