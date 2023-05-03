@@ -1292,9 +1292,22 @@ bool Item_in_optimizer::fix_left(THD *thd)
     ref0= args[1]->get_IN_subquery()->left_exp_ptr();
     args[0]= (*ref0);
   }
-  if ((*ref0)->fix_fields_if_needed(thd, ref0) ||
-      (!cache && !(cache= (*ref0)->get_cache(thd))))
+  if ((*ref0)->fix_fields_if_needed(thd, ref0))
     DBUG_RETURN(1);
+  if (!cache)
+  {
+    Query_arena *arena, backup;
+    arena= thd->activate_stmt_arena_if_needed(&backup);
+
+    bool rc= !(cache= (*ref0)->get_cache(thd));
+
+    if (arena)
+      thd->restore_active_arena(arena, &backup);
+
+    if (rc)
+      DBUG_RETURN(1);
+    cache->keep_array();
+  }
   /*
     During fix_field() expression could be substituted.
     So we copy changes before use
@@ -1654,19 +1667,10 @@ longlong Item_in_optimizer::val_int()
 }
 
 
-void Item_in_optimizer::keep_top_level_cache()
-{
-  cache->keep_array();
-  save_cache= 1;
-}
-
-
 void Item_in_optimizer::cleanup()
 {
   DBUG_ENTER("Item_in_optimizer::cleanup");
   Item_bool_func::cleanup();
-  if (!save_cache)
-    cache= 0;
   expr_cache= 0;
   DBUG_VOID_RETURN;
 }

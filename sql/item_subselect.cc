@@ -406,11 +406,11 @@ bool Item_subselect::mark_as_dependent(THD *thd, st_select_lex *select,
   {
     is_correlated= TRUE;
     Ref_to_outside *upper;
-    if (!(upper= new (thd->stmt_arena->mem_root) Ref_to_outside()))
+    if (!(upper= new (thd->mem_root) Ref_to_outside()))
       return TRUE;
     upper->select= select;
     upper->item= item;
-    if (upper_refs.push_back(upper, thd->stmt_arena->mem_root))
+    if (upper_refs.push_back(upper, thd->mem_root))
       return TRUE;
   }
   return FALSE;
@@ -2066,7 +2066,7 @@ Item_in_subselect::single_value_transformer(JOIN *join)
     thd->lex->current_select= current;
 
     /* We will refer to upper level cache array => we have to save it for SP */
-    optimizer->keep_top_level_cache();
+    DBUG_ASSERT(optimizer->get_cache()[0]->is_array_kept());
 
     /*
       As far as  Item_in_optimizer does not substitute itself on fix_fields
@@ -2466,7 +2466,7 @@ Item_in_subselect::row_value_transformer(JOIN *join)
     }
 
     // we will refer to upper level cache array => we have to save it in PS
-    optimizer->keep_top_level_cache();
+    DBUG_ASSERT(optimizer->get_cache()[0]->is_array_kept());
 
     thd->lex->current_select= current;
     /*
