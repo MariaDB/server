@@ -1,5 +1,8 @@
 #
-# MDEV-29904 SPIDER plugin initialization fails upon startup
+# plugin-load-add=ha_spider
 #
-# restart: --plugin-load-add=ha_spider
 FOUND 3 /\[Note\] Loading of SPIDER[a-zA-Z0-9_]* from ha_spider(|.so|.dll) is deferred to a temporary init file/ in mysqld.1.1.err
+select * from mysql.plugin;
+name	dl
+create table t (c int) Engine=SPIDER;
+drop table t;

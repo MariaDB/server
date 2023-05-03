@@ -577,6 +577,7 @@ char mysql_real_data_home[FN_REFLEN],
      lc_messages_dir[FN_REFLEN], reg_ext[FN_EXTLEN],
      mysql_charsets_dir[FN_REFLEN],
      *opt_init_file, *opt_tc_log_file, *opt_ddl_recovery_file;
+char temp_init_file[FN_REFLEN] = "";
 char *lc_messages_dir_ptr= lc_messages_dir, *log_error_file_ptr;
 char mysql_unpacked_real_data_home[FN_REFLEN];
 size_t mysql_unpacked_real_data_home_len;
@@ -5869,6 +5870,9 @@ int mysqld_main(int argc, char **argv)
   {
     unireg_abort(1);
   }
+
+  if (*temp_init_file && !read_init_file(temp_init_file))
+    my_delete(temp_init_file, MYF(0));
 
   if (opt_init_file && *opt_init_file)
   {

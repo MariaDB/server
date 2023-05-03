@@ -1583,6 +1583,40 @@ static void init_plugin_psi_keys(void)
 static void init_plugin_psi_keys(void) {}
 #endif /* HAVE_PSI_INTERFACE */
 
+/** Defers the initialisation of a dynamic plugin to a temporary init file */
+void plugin_defer_init(st_plugin_int &plugin)
+{
+  int fd;
+  const char *name= plugin.name.str;
+  const char *dl= plugin.plugin_dl->dl.str;
+  DBUG_ENTER("plugin_defer_init");
+  if (!plugin.plugin_dl)
+    DBUG_VOID_RETURN;
+  if (!*temp_init_file)
+  {
+    if ((fd= create_temp_file(temp_init_file, mysql_tmpdir,
+                              "plugin_init_", 0, MYF(MY_WME))) >= 0)
+      my_close(fd, MYF(0));
+    else
+    {
+      sql_print_error("Loading of %s from %s failed as a temporary "
+                      "file cannot be generated.",
+                      name, dl);
+      DBUG_VOID_RETURN;
+    }
+  }
+  FILE *ofile= fopen(temp_init_file, "a");
+  fprintf(ofile, "install plugin %s soname '%s';\n", name, dl);
+  fprintf(ofile, "delete from mysql.plugin where name=\"%s\" and dl=\"%s\";\n",
+          name, dl);
+  fclose(ofile);
+  sql_print_information("Loading of %s from %s is deferred to a temporary "
+                        "init file",
+                        name, dl);
+  plugin_del(&plugin, 0);
+  DBUG_VOID_RETURN;
+}
+
 /*
   The logic is that we first load and initialize all compiled in plugins.
   From there we load up the dynamic types (assuming we have not been told to
@@ -1750,6 +1784,15 @@ int plugin_init(int *argc, char **argv, int flags)
         plugin_ptr= (struct st_plugin_int *) my_hash_element(hash, idx);
         if (plugin_ptr->state == PLUGIN_IS_UNINITIALIZED)
         {
+          if (plugin_ptr->plugin_dl &&
+              (!strncmp(plugin_ptr->plugin_dl->dl.str, "ha_spider.so",
+                        plugin_ptr->plugin_dl->dl.length) ||
+               !strncmp(plugin_ptr->plugin_dl->dl.str, "ha_spider.dll",
+                        plugin_ptr->plugin_dl->dl.length)))
+          {
+            plugin_defer_init(*plugin_ptr);
+            continue;
+          }
           bool plugin_table_engine= lex_string_eq(&plugin_table_engine_name,
                                                   &plugin_ptr->name);
           bool opts_only= flags & PLUGIN_INIT_SKIP_INITIALIZATION &&

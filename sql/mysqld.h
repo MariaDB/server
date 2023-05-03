@@ -272,6 +272,7 @@ extern const char *myisam_recover_options_str;
 extern const LEX_CSTRING in_left_expr_name, in_additional_cond, in_having_cond;
 extern const LEX_CSTRING NULL_clex_str;
 extern const LEX_CSTRING error_clex_str;
+extern char temp_init_file[];
 extern SHOW_VAR status_vars[];
 extern struct system_variables max_system_variables;
 extern struct system_status_var global_status_var;

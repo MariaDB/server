@@ -1,10 +1,11 @@
 --echo #
---echo # MDEV-29904 SPIDER plugin initialization fails upon startup
+--echo # plugin-load-add=ha_spider
 --echo #
 
---let $restart_parameters=--plugin-load-add=ha_spider
---source include/restart_mysqld.inc
 --let SEARCH_PATTERN=\\[Note\\] Loading of SPIDER[a-zA-Z0-9_]* from ha_spider(|.so|.dll) is deferred to a temporary init file
 --let SEARCH_FILE=`select regexp_replace(@@tmpdir, '^.*/','')`
 --let SEARCH_FILE=$MYSQLTEST_VARDIR/log/$SEARCH_FILE.err
 --source include/search_pattern_in_file.inc
+select * from mysql.plugin;
+create table t (c int) Engine=SPIDER;
+drop table t;
