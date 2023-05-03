@@ -13786,7 +13786,7 @@ int Rows_log_event::update_sequence()
 
     return table->s->sequence->set_value(table, nextval, round, 0) > 0;
   }
-  if (thd->rgi_slave->is_parallel_exec && old_master)
+  if (old_master && !WSREP(thd) && thd->rgi_slave->is_parallel_exec)
   {
     DBUG_ASSERT(thd->rgi_slave->parallel_entry);
     /*
