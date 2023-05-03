@@ -834,11 +834,24 @@ select distinct sum(distinct 1), sum(t1.d) > 5 from (t1 e join t1) group by t1.c
 select distinct sum(distinct 1), sum(t1.d) > 5, t1.c from (t1 e join t1) group by t1.c;
 
 # Force usage of remove_dup_with_compare() algorithm
+SET @sort_buffer_size_save= @@sort_buffer_size;
 set @@sort_buffer_size=1024;
 insert into t1 select -seq,-seq from seq_1_to_100;
 select distinct sum(distinct 1), sum(t1.d) > 2, length(group_concat(t1.d)) > 1000 from (t1 e join t1) group by t1.c having t1.c > -2 ;
 select distinct sum(distinct 1), sum(t1.d) > 2, length(group_concat(t1.d)) > 1000,t1.c from (t1 e join t1) group by t1.c having t1.c > -2;
 drop table t1;
+set @@sort_buffer_size=@sort_buffer_size_save;
+
+--echo #
+--echo # MDEV-31113 Server crashes in store_length / Type_handler_string_result::make_sort_key
+--echo # with DISTINCT and group function
+--echo #
+
+CREATE TABLE t (f INT);
+INSERT INTO t VALUES (1),(2);
+--replace_column 2 #
+SELECT DISTINCT CONVERT(STDDEV(f), CHAR(16)) AS f1, UUID() AS f2 FROM t GROUP BY f2 WITH ROLLUP;
+DROP TABLE t;
 
 --echo # End of 10.4 tests
 

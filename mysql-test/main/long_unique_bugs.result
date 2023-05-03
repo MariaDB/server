@@ -451,6 +451,12 @@ a	b
 1	xxx
 drop table t1;
 #
+# MDEV-22756 SQL Error (1364): Field 'DB_ROW_HASH_1' doesn't have a default value
+#
+create table t1 (f text not null, unique (f));
+insert into t1 (f) select 'f';
+drop table t1;
+#
 # End of 10.4 tests
 #
 #
