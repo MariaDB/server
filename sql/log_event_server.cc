@@ -7497,7 +7497,11 @@ int Rows_log_event::update_sequence()
   int err= 0;
 
   if (!bitmap_is_set(table->rpl_write_set, MIN_VALUE_FIELD_NO) ||
-      (!(table->in_use->rgi_slave->gtid_ev_flags2 & Gtid_log_event::FL_DDL) &&
+      (
+#if defined(WITH_WSREP)
+       ! WSREP(thd) &&
+#endif
+       !(table->in_use->rgi_slave->gtid_ev_flags2 & Gtid_log_event::FL_DDL) &&
        !(old_master=
          rpl_master_has_bug(thd->rgi_slave->rli,
                             29621, FALSE, FALSE, FALSE, TRUE))))
@@ -7513,7 +7517,7 @@ int Rows_log_event::update_sequence()
 
     return table->s->sequence->set_value(table, nextval, round, 0) > 0;
   }
-  if (thd->rgi_slave->is_parallel_exec && old_master)
+  if (old_master && !WSREP(thd) && thd->rgi_slave->is_parallel_exec)
   {
     DBUG_ASSERT(thd->rgi_slave->parallel_entry);
     /*
