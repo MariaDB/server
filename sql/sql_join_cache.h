@@ -602,9 +602,10 @@ public:
   void set_join_buffer_size(size_t sz) { buff_size= sz; }
 
   /* Get the minimum possible size of the cache join buffer */
-  virtual size_t get_min_join_buffer_size();
+  size_t get_min_join_buffer_size();
   /* Get the maximum possible size of the cache join buffer */ 
-  virtual size_t get_max_join_buffer_size(bool optimize_buff_size);
+  size_t get_max_join_buffer_size(bool optimize_buff_size,
+                                  size_t min_buffer_size_arg);
 
   /* Shrink the size if the cache join buffer in a given ratio */
   bool shrink_join_buffer_in_ratio(ulonglong n, ulonglong d);

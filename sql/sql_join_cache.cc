@@ -694,16 +694,22 @@ void JOIN_CACHE::set_constants()
                (prev_cache ? prev_cache->get_size_of_rec_offset() : 0) + 
                length + fields*sizeof(uint);
   pack_length_with_blob_ptrs= pack_length + blobs*sizeof(uchar *);
-  min_buff_size= 0;
   min_records= 1;
+  min_buff_size= get_min_join_buffer_size();
   buff_size= (size_t)MY_MAX(join->thd->variables.join_buff_size,
-                 get_min_join_buffer_size());
+                            min_buff_size);
   size_of_rec_ofs= offset_size(buff_size);
   size_of_rec_len= blobs ? size_of_rec_ofs : offset_size(len); 
   size_of_fld_ofs= size_of_rec_len;
   base_prefix_length= (with_length ? size_of_rec_len : 0) +
                       (prev_cache ? prev_cache->get_size_of_rec_offset() : 0);
-  /* 
+  /*
+    Call ge_min_join_buffer_size() again as the size may have got smaller
+    if size_of_rec_ofs or some other variable changed since last call.
+  */
+  min_buff_size= 0;
+  min_buff_size= get_min_join_buffer_size();
+  /*
     The size of the offsets for referenced fields will be added later.
     The values of 'pack_length' and 'pack_length_with_blob_ptrs' are adjusted
     every time when the first reference to the referenced field is registered.
@@ -767,30 +773,29 @@ uint JOIN_CACHE::get_record_max_affix_length()
 
 size_t JOIN_CACHE::get_min_join_buffer_size()
 {
-  if (!min_buff_size)
+  if (min_buff_size)
+    return min_buff_size;                       // use cached value
+
+  size_t len= 0, len_last= 0, len_addon, min_sz, add_sz= 0;
+
+  for (JOIN_TAB *tab= start_tab; tab != join_tab;
+       tab= next_linear_tab(join, tab, WITHOUT_BUSH_ROOTS))
   {
-    size_t len= 0;
-    size_t len_last= 0;
-    for (JOIN_TAB *tab= start_tab; tab != join_tab; 
-         tab= next_linear_tab(join, tab, WITHOUT_BUSH_ROOTS))
-    {
-      len+= tab->get_max_used_fieldlength();
-      len_last+= tab->get_used_fieldlength();
-    }
-    size_t len_addon= get_record_max_affix_length() +
-                      get_max_key_addon_space_per_record();
-    len+= len_addon;
-    len_last+= len_addon;
-    size_t min_sz= len*(min_records-1) + len_last;
-    min_sz+= pack_length_with_blob_ptrs;
-    size_t add_sz= 0;
-    for (uint i=0; i < min_records; i++)
-      add_sz+= join_tab_scan->aux_buffer_incr(i+1);
-    avg_aux_buffer_incr= add_sz/min_records;
-    min_sz+= add_sz;
-    set_if_bigger(min_sz, 1);
-    min_buff_size= min_sz;
+    len+= tab->get_max_used_fieldlength();
+    len_last+= tab->get_used_fieldlength();
   }
+  len_addon= (get_record_max_affix_length() +
+              get_max_key_addon_space_per_record());
+  len+= len_addon;
+  len_last+= len_addon;
+  min_sz= len*(min_records-1) + len_last;
+  min_sz+= pack_length_with_blob_ptrs;
+  for (uint i=0; i < min_records; i++)
+    add_sz+= join_tab_scan->aux_buffer_incr(i+1);
+  avg_aux_buffer_incr= add_sz/min_records;
+  min_sz+= add_sz;
+  set_if_bigger(min_sz, 1);
+  min_buff_size= min_sz;
   return min_buff_size;
 }
 
@@ -822,48 +827,48 @@ size_t JOIN_CACHE::get_min_join_buffer_size()
     The maximum possible size of the join buffer of this cache 
 */
 
-size_t JOIN_CACHE::get_max_join_buffer_size(bool optimize_buff_size)
+size_t JOIN_CACHE::get_max_join_buffer_size(bool optimize_buff_size,
+                                            size_t min_sz)
 {
-  if (!max_buff_size)
+  if (max_buff_size)
+    return max_buff_size;                       // use cached value
+
+  size_t limit_sz= (size_t) join->thd->variables.join_buff_size;
+
+  if (!optimize_buff_size)
+    return max_buff_size= limit_sz;
+
+  size_t max_sz;
+  size_t len= 0;
+  double max_records, partial_join_cardinality=
+    (join_tab-1)->get_partial_join_cardinality();
+  /* Expected join buffer space used for one record */
+  size_t space_per_record;
+
+  for (JOIN_TAB *tab= start_tab; tab != join_tab;
+       tab= next_linear_tab(join, tab, WITHOUT_BUSH_ROOTS))
   {
-    size_t max_sz;
-    size_t min_sz= get_min_join_buffer_size(); 
-    size_t len= 0;
-    double max_records, partial_join_cardinality=
-      (join_tab-1)->get_partial_join_cardinality();
-    size_t limit_sz= (size_t) join->thd->variables.join_buff_size;
-    /* Expected join buffer space used for one record */
-    size_t space_per_record;
-
-    for (JOIN_TAB *tab= start_tab; tab != join_tab;
-         tab= next_linear_tab(join, tab, WITHOUT_BUSH_ROOTS))
-    {
-      len+= tab->get_used_fieldlength();
-    }
-    len+= get_record_max_affix_length();
-    avg_record_length= len;
-    len+= get_max_key_addon_space_per_record() + avg_aux_buffer_incr;
-    space_per_record= len;
-    
-    /* Note that space_per_record can be 0 if no table fields where used */
-    max_records= (double) (limit_sz / MY_MAX(space_per_record, 1));
-    set_if_smaller(max_records, partial_join_cardinality);
-    set_if_bigger(max_records, 10.0);
-
-    if (!optimize_buff_size)
-      max_sz= limit_sz;
-    else
-    {    
-      if ((size_t) (limit_sz / max_records) > space_per_record)
-        max_sz= space_per_record * (size_t) max_records;
-      else
-        max_sz= limit_sz;
-      max_sz+= pack_length_with_blob_ptrs;
-      set_if_smaller(max_sz, limit_sz);
-    }
-    set_if_bigger(max_sz, min_sz);
-    max_buff_size= max_sz;
+    len+= tab->get_used_fieldlength();
   }
+  len+= get_record_max_affix_length();
+  avg_record_length= len;
+  len+= get_max_key_addon_space_per_record() + avg_aux_buffer_incr;
+  space_per_record= len;
+    
+  /* Note that space_per_record can be 0 if no table fields where used */
+  max_records= (double) (limit_sz / MY_MAX(space_per_record, 1));
+  set_if_smaller(max_records, partial_join_cardinality);
+  set_if_bigger(max_records, 10.0);
+
+  if ((size_t) (limit_sz / max_records) > space_per_record)
+    max_sz= space_per_record * (size_t) max_records;
+  else
+    max_sz= limit_sz;
+  max_sz+= pack_length_with_blob_ptrs;
+  set_if_smaller(max_sz, limit_sz);
+
+  set_if_bigger(max_sz, min_sz);
+  max_buff_size= max_sz;
   return max_buff_size;
 }
       
@@ -906,11 +911,7 @@ int JOIN_CACHE::alloc_buffer()
   bool optimize_buff_size= 
          optimizer_flag(join->thd, OPTIMIZER_SWITCH_OPTIMIZE_JOIN_BUFFER_SIZE);
   buff= NULL;
-  min_buff_size= 0;
-  max_buff_size= 0;
-  min_records= 1;
-  min_buff_size= get_min_join_buffer_size();
-  buff_size= get_max_join_buffer_size(optimize_buff_size);
+  buff_size= get_max_join_buffer_size(optimize_buff_size, min_buff_size);
 
   for (tab= start_tab; tab!= join_tab; 
        tab= next_linear_tab(join, tab, WITHOUT_BUSH_ROOTS))
@@ -1093,18 +1094,19 @@ int JOIN_CACHE::init(bool for_explain)
 
 
 /* 
-  Check the possibility to read the access keys directly from the join buffer       
+  Check the possibility to read the access keys directly from the join buffer
   SYNOPSIS
     check_emb_key_usage()
 
   DESCRIPTION
-    The function checks some conditions at which the key values can be read
-    directly from the join buffer. This is possible when the key values can be
-    composed by concatenation of the record fields stored in the join buffer.
-    Sometimes when the access key is multi-component the function has to re-order
-    the fields written into the join buffer to make keys embedded. If key 
-    values for the key access are detected as embedded then 'use_emb_key'
-    is set to TRUE.
+    The function checks some conditions at which the key values can be
+    read directly from the join buffer. This is possible when the key
+    values can be composed by concatenation of the record fields
+    stored in the join buffer.  Sometimes when the access key is
+    multi-component the function has to re-order the fields written
+    into the join buffer to make keys embedded. If key values for the
+    key access are detected as embedded then 'use_emb_key' is set to
+    TRUE.
 
   EXAMPLE
     Let table t2 has an index defined on the columns a,b . Let's assume also
@@ -1257,7 +1259,7 @@ bool JOIN_CACHE::check_emb_key_usage()
           trailing spaces
         - significant part of fixed length fields that can have trailing spaces
           with the prepanded length 
-        - data of non-blob variable length fields with the prepanded data length  
+        - data of non-blob variable length fields with the prepanded data length
         - blob data from blob fields with the prepanded data length
     (5) record offset values for the data fields that are referred to from 
         other caches
@@ -1328,7 +1330,7 @@ uint JOIN_CACHE::write_record_data(uchar * link, bool *is_full)
     Check whether we won't be able to add any new record into the cache after
     this one because the cache will be full. Set last_record to TRUE if it's so.
     The assume that the cache will be full after the record has been written
-    into it if either the remaining space of the cache is not big enough for the 
+    into it if either the remaining space of the cache is not big enough for the
     record's blob values or if there is a chance that not all non-blob fields
     of the next record can be placed there.
     This function is called only in the case when there is enough space left in
@@ -1350,7 +1352,7 @@ uint JOIN_CACHE::write_record_data(uchar * link, bool *is_full)
 
   /*
     Put a reference to the fields of the record that are stored in the previous
-    cache if there is any. This reference is passed by the 'link' parameter.     
+    cache if there is any. This reference is passed by the 'link' parameter.
   */
   if (prev_cache)
   {
