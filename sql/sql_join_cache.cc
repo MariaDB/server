@@ -634,7 +634,7 @@ void JOIN_CACHE::create_remaining_fields()
 
 
 /* 
-  Calculate and set all cache constants      
+  Calculate and set all cache constants
 
   SYNOPSIS
     set_constants()
@@ -829,6 +829,12 @@ size_t JOIN_CACHE::get_max_join_buffer_size(bool optimize_buff_size)
     size_t max_sz;
     size_t min_sz= get_min_join_buffer_size(); 
     size_t len= 0;
+    double max_records, partial_join_cardinality=
+      (join_tab-1)->get_partial_join_cardinality();
+    size_t limit_sz= (size_t) join->thd->variables.join_buff_size;
+    /* Expected join buffer space used for one record */
+    size_t space_per_record;
+
     for (JOIN_TAB *tab= start_tab; tab != join_tab;
          tab= next_linear_tab(join, tab, WITHOUT_BUSH_ROOTS))
     {
@@ -839,13 +845,17 @@ size_t JOIN_CACHE::get_max_join_buffer_size(bool optimize_buff_size)
     len+= get_max_key_addon_space_per_record() + avg_aux_buffer_incr;
     space_per_record= len;
     
-    size_t limit_sz= (size_t)join->thd->variables.join_buff_size;
+    /* Note that space_per_record can be 0 if no table fields where used */
+    max_records= (double) (limit_sz / MY_MAX(space_per_record, 1));
+    set_if_smaller(max_records, partial_join_cardinality);
+    set_if_bigger(max_records, 10.0);
+
     if (!optimize_buff_size)
       max_sz= limit_sz;
     else
     {    
-      if (limit_sz / max_records > space_per_record)
-        max_sz= space_per_record * max_records;
+      if ((size_t) (limit_sz / max_records) > space_per_record)
+        max_sz= space_per_record * (size_t) max_records;
       else
         max_sz= limit_sz;
       max_sz+= pack_length_with_blob_ptrs;
@@ -855,7 +865,7 @@ size_t JOIN_CACHE::get_max_join_buffer_size(bool optimize_buff_size)
     max_buff_size= max_sz;
   }
   return max_buff_size;
-}    
+}
       
 
 /* 
@@ -895,14 +905,10 @@ int JOIN_CACHE::alloc_buffer()
     join->thd->variables.join_buff_space_limit;
   bool optimize_buff_size= 
          optimizer_flag(join->thd, OPTIMIZER_SWITCH_OPTIMIZE_JOIN_BUFFER_SIZE);
-  double partial_join_cardinality=  (join_tab-1)->get_partial_join_cardinality();
   buff= NULL;
   min_buff_size= 0;
   max_buff_size= 0;
   min_records= 1;
-  max_records= (size_t) (partial_join_cardinality <= join_buff_space_limit ?
-                 (ulonglong) partial_join_cardinality : join_buff_space_limit);
-  set_if_bigger(max_records, 10);
   min_buff_size= get_min_join_buffer_size();
   buff_size= get_max_join_buffer_size(optimize_buff_size);
 

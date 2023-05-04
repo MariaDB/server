@@ -248,9 +248,6 @@ protected:
   /* The expected size of the space per record in the auxiliary buffer */
   size_t avg_aux_buffer_incr;
 
-  /* Expected join buffer space used for one record */
-  size_t space_per_record; 
-
   /* Pointer to the beginning of the join buffer */
   uchar *buff;         
   /* 
@@ -272,11 +269,6 @@ protected:
     the minimal size equal to min_buff_size
   */
   size_t min_records;
-  /*
-    The maximum expected number of records to be put in the join buffer
-    at one refill 
-  */
-  size_t max_records;
 
   /* 
     Pointer to the current position in the join buffer.
@@ -542,6 +534,7 @@ protected:
     join_tab= tab;
     prev_cache= next_cache= 0;
     buff= 0;
+    min_buff_size= max_buff_size= 0;            // Caches
   }
 
   /* 
@@ -557,6 +550,7 @@ protected:
     next_cache= 0;
     prev_cache= prev;
     buff= 0;
+    min_buff_size= max_buff_size= 0;            // Caches
     if (prev)
       prev->next_cache= this;
   }
