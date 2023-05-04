@@ -4213,6 +4213,7 @@ bool select_insert::store_values(List<Item> &values)
   DBUG_ENTER("select_insert::store_values");
   bool error;
 
+  table->reset_default_fields();
   if (fields->elements)
     error= fill_record_n_invoke_before_triggers(thd, table, *fields, values,
                                                 true, TRG_EVENT_INSERT);
