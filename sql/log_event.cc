@@ -11672,7 +11672,30 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       if (!table->in_use)
         table->in_use= thd;
 
+      if (rgi->rli->mi->using_parallel() &&
+          ((rgi->parallel_entry->force_abort.load()) &&
+           !rli->stop_for_until) &&
+          (rgi->gtid_sub_id >
+           rgi->parallel_entry->unsafe_rollback_marker_sub_id.load()))
+      {
+        /*
+          Exit early, and let the Event-level exit logic take care of the
+          cleanup and rollback.
+        */
+        thd->transaction_rollback_request= TRUE;
+        break;
+      }
+
       error= do_exec_row(rgi);
+
+      DBUG_EXECUTE_IF(
+        "pause_after_next_row_exec",
+        {
+          DBUG_ASSERT(!debug_sync_set_action(
+              thd,
+              STRING_WITH_LEN(
+                  "now SIGNAL row_executed WAIT_FOR continue_row_execution")));
+        });
 
       if (unlikely(error))
         DBUG_PRINT("info", ("error: %s", HA_ERR(error)));
@@ -11785,7 +11808,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
 #endif /* WITH_WSREP && HAVE_QUERY_CACHE */
 
-  if (get_flags(STMT_END_F))
+  if (get_flags(STMT_END_F) && !thd->transaction_rollback_request)
   {
     if (unlikely(error= rows_event_stmt_cleanup(rgi, thd)))
       slave_rows_error_report(ERROR_LEVEL,

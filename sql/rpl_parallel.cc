@@ -148,7 +148,7 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
 {
   THD *thd= rpt->thd;
   wait_for_commit *wfc= &rgi->commit_orderer;
-  int err;
+  int err, wakeup_err;
 
   thd->get_stmt_da()->set_overwrite_status(true);
   /*
@@ -278,7 +278,14 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
     reset_diagnostics_area() already does that.
   */
   thd->get_stmt_da()->reset_diagnostics_area();
-  wfc->wakeup_subsequent_commits(rgi->worker_error);
+
+  if (!rgi->worker_error &&
+      rgi->gtid_sub_id ==
+          rgi->parallel_entry->unsafe_rollback_marker_sub_id)
+    wakeup_err= ER_QUERY_INTERRUPTED;
+  else
+    wakeup_err= rgi->worker_error;
+  wfc->wakeup_subsequent_commits(wakeup_err);
 }
 
 
@@ -395,7 +402,7 @@ do_gco_wait(rpl_group_info *rgi, group_commit_orderer *gco,
     } while (wait_count > entry->count_committing_event_groups);
   }
 
-  if (entry->force_abort && wait_count > entry->stop_count)
+  if (entry->force_abort && wait_count >= entry->stop_count)
   {
     /*
       We are stopping (STOP SLAVE), and this event group is beyond the point
@@ -460,6 +467,10 @@ do_ftwrl_wait(rpl_group_info *rgi,
 
   if (sub_id > entry->largest_started_sub_id)
     entry->largest_started_sub_id= sub_id;
+
+  if (!(rgi->gtid_ev_flags2 & Gtid_log_event::FL_TRANSACTIONAL) &&
+      sub_id > entry->unsafe_rollback_marker_sub_id)
+    entry->unsafe_rollback_marker_sub_id= sub_id;
 
   DBUG_RETURN(aborted);
 }
@@ -1207,6 +1218,11 @@ handle_rpl_parallel_thread(void *arg)
         bool did_enter_cond= false;
         PSI_stage_info old_stage;
 
+        /*
+          Set the GTIDs immediately
+        */
+        rgi->gtid_ev_flags2= static_cast<Gtid_log_event *>(qev->ev)->flags2;
+
 #ifdef ENABLED_DEBUG_SYNC
         DBUG_EXECUTE_IF("hold_worker_on_schedule", {
             if (rgi->current_gtid.domain_id == 0 &&
@@ -1376,6 +1392,20 @@ handle_rpl_parallel_thread(void *arg)
             thd->get_stmt_da()->reset_diagnostics_area();
             thd->send_kill_message();
             err= 1;
+          }
+          else if ((((unlikely(entry->force_abort) &&
+                      !rgi->rli->stop_for_until)) &&
+                    (rgi->gtid_sub_id >
+                     entry->unsafe_rollback_marker_sub_id)) ||
+                   thd->transaction_rollback_request)
+          {
+            /*
+              We are aborting our transaction and need to indicate to other
+              transactions which are potentially waiting on us for group
+              commit that we are not completing, so they also do not commit
+            */
+            err= ER_QUERY_INTERRUPTED;
+            signal_error_to_sql_driver_thread(thd, rgi, err);
           }
           else
             err= rpt_handle_event(qev, rpt);

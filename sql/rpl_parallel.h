@@ -272,7 +272,7 @@ struct rpl_parallel_entry {
     so worker threads must force abort any current transactions without
     waiting for event groups to complete.
   */
-  bool force_abort;
+  std::atomic<bool> force_abort;
   /*
    At STOP SLAVE (force_abort=true), we do not want to process all events in
    the queue (which could unnecessarily delay stop, if a lot of events happen
@@ -348,6 +348,13 @@ struct rpl_parallel_entry {
   uint64 count_committing_event_groups;
   /* The group_commit_orderer object for the events currently being queued. */
   group_commit_orderer *current_gco;
+
+  /*
+    Marks the highest sub id that all transactions up to it must be executed to
+    allow for a consistent replication state; and all active transactions
+    afterwards can safely be stopped and rolled back.
+  */
+  std::atomic<uint64> unsafe_rollback_marker_sub_id;
 
   rpl_parallel_thread * choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
                                       PSI_stage_info *old_stage, bool reuse);
