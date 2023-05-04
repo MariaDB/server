@@ -4538,6 +4538,12 @@ void subselect_uniquesubquery_engine::print(String *str,
 {
   str->append(STRING_WITH_LEN("<primary_index_lookup>("));
   tab->ref.items[0]->print(str, query_type);
+  if (!tab->table)
+  {
+    // table is not opened so unknown
+    str->append(')');
+    return;
+  }
   str->append(STRING_WITH_LEN(" in "));
   if (tab->table->s->table_category == TABLE_CATEGORY_TEMPORARY)
   {
