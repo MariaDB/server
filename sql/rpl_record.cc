@@ -144,6 +144,133 @@ pack_row(TABLE *table, MY_BITMAP const* cols,
 #endif
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
+
+struct Unpack_record_state
+{
+  uchar const *const row_data;
+  uchar const *const row_end;
+  size_t const master_null_byte_count;
+  uchar const *null_ptr;
+  uchar const *pack_ptr;
+  /** Mask to mask out the correct bit among the null bits */
+  unsigned int null_mask;
+  /** The "current" null bits */
+  unsigned int null_bits;
+  Unpack_record_state(uchar const *const row_data,
+                      uchar const *const row_end,
+                      size_t const master_null_byte_count)
+  : row_data(row_data), row_end(row_end),
+    master_null_byte_count(master_null_byte_count),
+    null_ptr(row_data), pack_ptr(row_data + master_null_byte_count)
+  {}
+  void next_null_byte()
+  {
+    DBUG_ASSERT(null_ptr < row_data + master_null_byte_count);
+    null_mask= 1U;
+    null_bits= *null_ptr++;
+  }
+};
+
+
+static bool unpack_field(const table_def *tabledef, Field *f,
+                         Unpack_record_state *st, uint field_idx)
+{
+  if ((st->null_mask & 0xFF) == 0)
+    st->next_null_byte();
+
+  DBUG_ASSERT(st->null_mask & 0xFF); // One of the 8 LSB should be set
+
+  if (st->null_bits & st->null_mask)
+  {
+    if (f->maybe_null())
+    {
+      DBUG_PRINT("debug", ("Was NULL; null mask: 0x%x; null bits: 0x%x",
+                 st->null_mask, st->null_bits));
+      /**
+        Calling reset just in case one is unpacking on top a
+        record with data.
+
+        This could probably go into set_null() but doing so,
+        (i) triggers assertion in other parts of the code at
+        the moment; (ii) it would make us reset the field,
+        always when setting null, which right now doesn't seem
+        needed anywhere else except here.
+
+        TODO: maybe in the future we should consider moving
+              the reset to make it part of set_null. But then
+              the assertions triggered need to be
+              addressed/revisited.
+       */
+      f->reset();
+      f->set_null();
+    }
+    else
+    {
+      THD *thd= f->table->in_use;
+
+      f->set_default();
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_BAD_NULL_ERROR,
+                          ER_THD(thd, ER_BAD_NULL_ERROR),
+                          f->field_name.str);
+    }
+  }
+  else
+  {
+    f->set_notnull();
+
+    /*
+      We only unpack the field if it was non-null.
+      Use the master's size information if available else call
+      normal unpack operation.
+    */
+    uint16 const metadata = tabledef->field_metadata(field_idx);
+#ifdef DBUG_TRACE
+    uchar const *const old_pack_ptr= st->pack_ptr;
+#endif
+
+    st->pack_ptr= f->unpack(f->ptr, st->pack_ptr, st->row_end, metadata);
+    DBUG_PRINT("debug", ("field: %s; metadata: 0x%x;"
+                         " pack_ptr: %p; pack_ptr': %p; bytes: %d",
+                         f->field_name.str, metadata,
+                         old_pack_ptr, st->pack_ptr,
+                         (int) (st->pack_ptr - old_pack_ptr)));
+    if (!st->pack_ptr)
+      return false;
+  }
+  st->null_mask <<= 1;
+  return true;
+}
+
+static void convert_field(Field *f, Field *result_field, Field *conv_field)
+{
+#ifndef DBUG_OFF
+  char type_buf[MAX_FIELD_WIDTH];
+  char value_buf[MAX_FIELD_WIDTH];
+  String source_type(type_buf, sizeof(type_buf), system_charset_info);
+  String value_string(value_buf, sizeof(value_buf), system_charset_info);
+  conv_field->sql_type(source_type);
+  conv_field->val_str(&value_string);
+  DBUG_PRINT("debug", ("Copying field '%s' of type '%s' with value '%s'",
+                       result_field->field_name.str,
+                       source_type.c_ptr_safe(), value_string.c_ptr_safe()));
+#endif
+
+  Copy_field copy;
+  copy.set(result_field, f, TRUE);
+  (*copy.do_copy)(&copy);
+
+#ifndef DBUG_OFF
+  String target_type(type_buf, sizeof(type_buf), system_charset_info);
+  result_field->sql_type(target_type);
+  result_field->val_str(&value_string);
+  DBUG_PRINT("debug", ("Value of field '%s' of type '%s' is now '%s'",
+                       result_field->field_name.str,
+                       target_type.c_ptr_safe(), value_string.c_ptr_safe()));
+#endif
+}
+
+
 /**
    Unpack a row into @c table->record[0].
 
@@ -169,7 +296,7 @@ pack_row(TABLE *table, MY_BITMAP const* cols,
    @param table   Table to unpack into
    @param colcnt  Number of columns to read from record
    @param row_data
-                  Packed row data
+                  Packed row datanull_ptr
    @param cols    Pointer to bitset describing columns to fill in
    @param curr_row_end
                   Pointer to variable that will hold the value of the
@@ -197,14 +324,9 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const colcnt,
   DBUG_ENTER("unpack_row");
   DBUG_ASSERT(row_data);
   DBUG_ASSERT(table);
-  size_t const master_null_byte_count= (bitmap_bits_set(cols) + 7) / 8;
+  DBUG_ASSERT(rgi);
 
-  uchar const *null_ptr= row_data;
-  uchar const *pack_ptr= row_data + master_null_byte_count;
-
-  Field **const begin_ptr = table->field;
-  Field **field_ptr;
-  Field **const end_ptr= begin_ptr + colcnt;
+  Unpack_record_state st(row_data, row_end, (bitmap_bits_set(cols) + 7) / 8);
 
   if (bitmap_is_clear_all(cols))
   {
@@ -212,127 +334,55 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const colcnt,
        There was no data sent from the master, so there is
        nothing to unpack.
      */
-    *current_row_end= pack_ptr;
+    *current_row_end= st.pack_ptr;
     *master_reclength= 0;
     DBUG_RETURN(0);
   }
-  DBUG_ASSERT(null_ptr < row_data + master_null_byte_count);
 
-  // Mask to mask out the correct bit among the null bits
-  unsigned int null_mask= 1U;
-  // The "current" null bits
-  unsigned int null_bits= *null_ptr++;
-  uint i= 0;
   Rpl_table_data rpl_data= *(RPL_TABLE_LIST*)table->pos_in_table_list;
   const table_def *tabledef= rpl_data.tabledef;
   const TABLE *conv_table= rpl_data.conv_table;
   DBUG_PRINT("debug", ("Table data: tabldef: %p, conv_table: %p",
                        tabledef, conv_table));
-  bool is_online_alter= rpl_data.is_online_alter();
-  DBUG_ASSERT(rgi);
+  uint i= 0;
 
-  for (field_ptr= begin_ptr; field_ptr < end_ptr
-                             /* In Online Alter conv_table can be wider than
-                               original table, but we need to unpack it all. */
-                             && (*field_ptr || is_online_alter);
-       ++field_ptr)
+  st.next_null_byte();
+  if (!rpl_data.is_online_alter())
   {
-    /*
-      If there is a conversion table, we pick up the field pointer to
-      the conversion table.  If the conversion table or the field
-      pointer is NULL, no conversions are necessary.
-     */
-    Field *conv_field= conv_table ? conv_table->field[i] : NULL;
-    Field *const f= conv_field ? conv_field : *field_ptr;
-#ifdef DBUG_TRACE
-    Field *dbg= is_online_alter ? f : *field_ptr;
-#endif
-    DBUG_PRINT("debug", ("Conversion %srequired for field '%s' (#%u)",
-                         conv_field ? "" : "not ",
-                         dbg->field_name.str, i));
-    DBUG_ASSERT(f != NULL);
-
-    /*
-      No need to bother about columns that does not exist: they have
-      gotten default values when being emptied above.
-     */
-    if (bitmap_is_set(cols, (uint)(field_ptr -  begin_ptr)))
+    Field *result_field;
+    for (; i < colcnt && (result_field= table->field[i]); i++)
     {
-      if (!is_online_alter)
-        (*field_ptr)->set_has_explicit_value();
-      if ((null_mask & 0xFF) == 0)
+      /*
+        If there is a conversion table, we pick up the field pointer to
+        the conversion table.  If the conversion table or the field
+        pointer is NULL, no conversions are necessary.
+       */
+      Field *conv_field= conv_table ? conv_table->field[i] : NULL;
+      Field *const f= conv_field ? conv_field : result_field;
+
+      DBUG_PRINT("debug", ("Conversion %srequired for field '%s' (#%u)",
+                           conv_field ? "" : "not ",
+                           result_field->field_name.str, i));
+      DBUG_ASSERT(f != NULL);
+
+      /*
+        No need to bother about columns that does not exist: they have
+        gotten default values when being emptied above.
+       */
+      if (!bitmap_is_set(cols, i))
+        continue;
+
+      result_field->set_has_explicit_value();
+
+      bool unpack_result= unpack_field(tabledef, f, &st, i);
+      if (!unpack_result)
       {
-        DBUG_ASSERT(null_ptr < row_data + master_null_byte_count);
-        null_mask= 1U;
-        null_bits= *null_ptr++;
-      }
-
-      DBUG_ASSERT(null_mask & 0xFF); // One of the 8 LSB should be set
-
-      if (null_bits & null_mask)
-      {
-        if (f->maybe_null())
-        {
-          DBUG_PRINT("debug", ("Was NULL; null mask: 0x%x; null bits: 0x%x",
-                               null_mask, null_bits));
-          /** 
-            Calling reset just in case one is unpacking on top a 
-            record with data. 
-
-            This could probably go into set_null() but doing so, 
-            (i) triggers assertion in other parts of the code at 
-            the moment; (ii) it would make us reset the field,
-            always when setting null, which right now doesn't seem 
-            needed anywhere else except here.
-
-            TODO: maybe in the future we should consider moving 
-                  the reset to make it part of set_null. But then
-                  the assertions triggered need to be 
-                  addressed/revisited.
-           */
-          f->reset();
-          f->set_null();
-        }
-        else
-        {
-          THD *thd= f->table->in_use;
-
-          f->set_default();
-          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                              ER_BAD_NULL_ERROR,
-                              ER_THD(thd, ER_BAD_NULL_ERROR),
-                              f->field_name.str);
-        }
-      }
-      else
-      {
-        f->set_notnull();
-
-        /*
-          We only unpack the field if it was non-null.
-          Use the master's size information if available else call
-          normal unpack operation.
-        */
-        uint16 const metadata= tabledef->field_metadata(i);
-#ifdef DBUG_TRACE
-        uchar const *const old_pack_ptr= pack_ptr;
-#endif
-
-        pack_ptr= f->unpack(f->ptr, pack_ptr, row_end, metadata);
-	DBUG_PRINT("debug", ("field: %s; metadata: 0x%x;"
-                             " pack_ptr: %p; pack_ptr': %p; bytes: %d",
-                             f->field_name.str, metadata,
-                             old_pack_ptr, pack_ptr,
-                             (int) (pack_ptr - old_pack_ptr)));
-        if (!pack_ptr)
-        {
-          rgi->rli->report(ERROR_LEVEL, ER_SLAVE_CORRUPT_EVENT,
-                      rgi->gtid_info(),
-                      "Could not read field '%s' of table '%s.%s'",
-                      f->field_name.str, table->s->db.str,
-                      table->s->table_name.str);
-          DBUG_RETURN(HA_ERR_CORRUPT_EVENT);
-        }
+        rgi->rli->report(ERROR_LEVEL, ER_SLAVE_CORRUPT_EVENT,
+                    rgi->gtid_info(),
+                    "Could not read field '%s' of table '%s.%s'",
+                    f->field_name.str, table->s->db.str,
+                    table->s->table_name.str);
+        DBUG_RETURN(HA_ERR_CORRUPT_EVENT);
       }
 
       /*
@@ -343,48 +393,74 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const colcnt,
 
         If copy_fields is set, it means we are doing an online alter table,
         and will use copy_fields set up in copy_data_between_tables
-      */
-      if (conv_field && !rpl_data.is_online_alter())
-      {
-        Copy_field copy;
-#ifndef DBUG_OFF
-        char source_buf[MAX_FIELD_WIDTH];
-        char value_buf[MAX_FIELD_WIDTH];
-        String source_type(source_buf, sizeof(source_buf), system_charset_info);
-        String value_string(value_buf, sizeof(value_buf), system_charset_info);
-        conv_field->sql_type(source_type);
-        conv_field->val_str(&value_string);
-        DBUG_PRINT("debug", ("Copying field '%s' of type '%s' with value '%s'",
-                             dbg->field_name.str,
-                             source_type.c_ptr_safe(), value_string.c_ptr_safe()));
-#endif
-        copy.set(*field_ptr, f, TRUE);
-        (*copy.do_copy)(&copy);
-#ifndef DBUG_OFF
-        char target_buf[MAX_FIELD_WIDTH];
-        String target_type(target_buf, sizeof(target_buf), system_charset_info);
-        (*field_ptr)->sql_type(target_type);
-        (*field_ptr)->val_str(&value_string);
-        DBUG_PRINT("debug", ("Value of field '%s' of type '%s' is now '%s'",
-                             dbg->field_name.str,
-                             target_type.c_ptr_safe(), value_string.c_ptr_safe()));
-#endif
-      }
-
-      null_mask <<= 1;
+       */
+      if (conv_field)
+        convert_field(f, result_field, conv_field);
     }
-    i++;
-  }
 
-  if (rpl_data.is_online_alter())
+    /*
+      Throw away master's extra fields
+     */
+    uint max_cols= MY_MIN(tabledef->size(), cols->n_bits);
+    for (; i < max_cols; i++)
+    {
+      if (bitmap_is_set(cols, i))
+      {
+        if ((st.null_mask & 0xFF) == 0)
+          st.next_null_byte();
+        DBUG_ASSERT(st.null_mask & 0xFF); // One of the 8 LSB should be set
+
+        if (!((st.null_bits & st.null_mask) && tabledef->maybe_null(i))) {
+          uint32 len= tabledef->calc_field_size(i, (uchar *) st.pack_ptr);
+          DBUG_DUMP("field_data", st.pack_ptr, len);
+          st.pack_ptr+= len;
+        }
+        st.null_mask <<= 1;
+      }
+    }
+
+    if (master_reclength)
+    {
+      if (result_field)
+        *master_reclength = (ulong)(result_field->ptr - table->record[0]);
+      else
+        *master_reclength = table->s->reclength;
+    }
+  }
+  else
   {
+    /*
+      For Online Alter, iterate through old table fields to unpack,
+      then iterate through copy_field array to copy to the new table's record.
+     */
+
+    DBUG_ASSERT(colcnt == conv_table->s->fields);
+    for (;i < colcnt; i++)
+    {
+      DBUG_ASSERT(bitmap_is_set(cols, i));
+      Field *f= conv_table->field[i];
+      bool result= unpack_field(tabledef, f, &st, i);
+      DBUG_ASSERT(result);
+    }
+
     for (const auto *copy=rpl_data.copy_fields;
          copy != rpl_data.copy_fields_end; copy++)
     {
       copy->to_field->set_has_explicit_value();
       copy->do_copy(copy);
     }
-  }
+    if (master_reclength)
+      *master_reclength = conv_table->s->reclength;
+  } // if (rpl_data.is_online_alter())
+
+  /*
+    We should now have read all the null bytes, otherwise something is
+    really wrong.
+   */
+  DBUG_ASSERT(st.null_ptr == row_data + st.master_null_byte_count);
+  DBUG_DUMP("row_data", row_data, st.pack_ptr - row_data);
+
+  *current_row_end = st.pack_ptr;
 
   if (table->default_field && (rpl_data.is_online_alter() ||
       LOG_EVENT_IS_WRITE_ROW(rgi->current_event->get_type_code())))
@@ -410,48 +486,6 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const colcnt,
       DBUG_RETURN(HA_ERR_GENERIC);
   }
 
-  /*
-    throw away master's extra fields
-  */
-  uint max_cols= MY_MIN(tabledef->size(), cols->n_bits);
-  for (; i < max_cols; i++)
-  {
-    if (bitmap_is_set(cols, i))
-    {
-      if ((null_mask & 0xFF) == 0)
-      {
-        DBUG_ASSERT(null_ptr < row_data + master_null_byte_count);
-        null_mask= 1U;
-        null_bits= *null_ptr++;
-      }
-      DBUG_ASSERT(null_mask & 0xFF); // One of the 8 LSB should be set
-
-      if (!((null_bits & null_mask) && tabledef->maybe_null(i))) {
-        uint32 len= tabledef->calc_field_size(i, (uchar *) pack_ptr);
-        DBUG_DUMP("field_data", pack_ptr, len);
-        pack_ptr+= len;
-      }
-      null_mask <<= 1;
-    }
-  }
-
-  /*
-    We should now have read all the null bytes, otherwise something is
-    really wrong.
-   */
-  DBUG_ASSERT(null_ptr == row_data + master_null_byte_count);
-
-  DBUG_DUMP("row_data", row_data, pack_ptr - row_data);
-
-  *current_row_end = pack_ptr;
-  if (master_reclength)
-  {
-    if (!is_online_alter && *field_ptr)
-      *master_reclength = (ulong)((*field_ptr)->ptr - table->record[0]);
-    else
-      *master_reclength = table->s->reclength;
-  }
-  
   DBUG_RETURN(0);
 }
 
