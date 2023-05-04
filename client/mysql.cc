@@ -1704,8 +1704,8 @@ static struct my_option my_long_options[] =
    &opt_local_infile, &opt_local_infile, 0, GET_BOOL, OPT_ARG, 0, 0, 0, 0, 0, 0},
   {"no-beep", 'b', "Turn off beep on error.", &opt_nobeep,
    &opt_nobeep, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"host", 'h', "Connect to host.", &current_host,
-   &current_host, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"host", 'h', "Connect to host. If host is not specified, connect to localhost by default or $MARIADB_HOST",
+   &current_host, &current_host, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"html", 'H', "Produce HTML output.", &opt_html, &opt_html,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"xml", 'X', "Produce XML output.", &opt_xml, &opt_xml, 0,
@@ -2132,7 +2132,10 @@ static int get_options(int argc, char **argv)
   int ho_error;
   MYSQL_PARAMETERS *mysql_params= mysql_get_parameters();
 
-  tmp= (char *) getenv("MYSQL_HOST");
+  //MARIADB_HOST will be preferred over MYSQL_HOST. 
+  tmp= getenv("MARIADB_HOST");
+  if (tmp == NULL)
+    tmp= getenv("MYSQL_HOST"); 
   if (tmp)
     current_host= my_strdup(PSI_NOT_INSTRUMENTED, tmp, MYF(MY_WME));
 

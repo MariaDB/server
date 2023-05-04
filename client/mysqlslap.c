@@ -636,8 +636,8 @@ static struct my_option my_long_options[] =
    "engine after a `:', like memory:max_row=2300",
    &default_engine, &default_engine, 0,
     GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"host", 'h', "Connect to host.", &host, &host, 0, GET_STR,
-    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"host", 'h', "Connect to host. If host is not specified, connect to localhost by default or $MARIADB_HOST",
+   &host, &host, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"init-command", OPT_INIT_COMMAND,
    "SQL Command to execute when connecting to MariaDB server. Will "
    "automatically be re-executed when reconnecting.",
@@ -1231,6 +1231,9 @@ get_options(int *argc,char ***argv)
   int ho_error;
   char *tmp_string;
   MY_STAT sbuf;  /* Stat information for the data file */
+
+  if (host == NULL)
+    host= getenv("MARIADB_HOST");
 
   DBUG_ENTER("get_options");
   if ((ho_error= handle_options(argc, argv, my_long_options, get_one_option)))
