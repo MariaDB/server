@@ -826,5 +826,21 @@ a	b	a	b	a	b	grp_id	count(*)
 5	5	5	2	5	3	5	100
 drop table t1,t2,t3;
 drop table t10, t11;
+#
+# MDEV-31194: Server crash or assertion failure with join_cache_level=4
+# (a followup to the above bug, MDEV-26301)
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (3),(4);
+CREATE TABLE t2 (id INT PRIMARY KEY) ENGINE=Aria;
+INSERT INTO t2 VALUES (1),(2);
+set @tmp1= @@optimizer_switch, @tmp2= @@join_cache_level;
+set
+optimizer_switch= 'derived_with_keys=off',
+join_cache_level= 4;
+SELECT t1.* FROM t1 JOIN (SELECT id, COUNT(*) FROM t2 GROUP BY id) sq ON sq.id= t1.a;
+a
+set optimizer_switch= @tmp1, join_cache_level= @tmp2;
+DROP TABLE t1, t2;
 # End of 10.4 tests
 SET GLOBAL innodb_stats_persistent=@save_innodb_stats_persistent;

@@ -13863,7 +13863,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   join->return_tab= 0;
 
   if (tab->no_forced_join_cache)
-    return 0;
+    goto no_join_cache;
 
   /*
     Don't use join cache if @@join_cache_level==0 or this table is the first
