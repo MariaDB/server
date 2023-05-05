@@ -250,6 +250,26 @@ SELECT * FROM t1 AS a NATURAL JOIN t1 AS b;
 
 DROP TABLE t1,t2,t3;
 
+--echo #
+--echo # MDEV-31199: Assertion `field->table->stats_is_read' fails with hash_join_cardinality=on
+--echo #
+CREATE TABLE t1 (a VARCHAR(255));
+INSERT INTO t1 VALUES ('u'),('uu');
+
+CREATE TABLE t2 (b VARCHAR(255)) CHARACTER SET utf8mb4;
+INSERT INTO t2 VALUES ('x'),('xx');
+
+CREATE TABLE t3 (c VARCHAR(255));
+INSERT INTO t3 VALUES ('z'),('zz');
+
+ANALYZE TABLE t1, t2, t3 PERSISTENT FOR ALL; # Optional, fails either way
+
+set @tmp1=@@optimizer_switch, @tmp2=@@join_cache_level;
+set optimizer_switch='hash_join_cardinality=on', join_cache_level=3;
+SELECT t1.* FROM t1 JOIN (SELECT DISTINCT b FROM t2 JOIN t3) sq ON sq.b = t1.a;
+set optimizer_switch=@tmp1, join_cache_level=@tmp2;
+DROP TABLE t1, t2, t3;
+
 --echo # 
 --echo # End of the test file
 --echo # 
