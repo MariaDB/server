@@ -8013,7 +8013,8 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
       thd_arg->transaction.all.has_created_dropped_temp_table() ||
       thd_arg->transaction.all.trans_executed_admin_cmd())
     flags2|= FL_DDL;
-  else if (is_transactional && !is_tmp_table)
+  else if (is_transactional && !is_tmp_table &&
+           !thd_arg->transaction.all.modified_non_trans_table)
     flags2|= FL_TRANSACTIONAL;
   if (!(thd_arg->variables.option_bits & OPTION_RPL_SKIP_PARALLEL))
     flags2|= FL_ALLOW_PARALLEL;

@@ -279,9 +279,8 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
   */
   thd->get_stmt_da()->reset_diagnostics_area();
 
-  if (!rgi->worker_error &&
-      rgi->gtid_sub_id ==
-          rgi->parallel_entry->unsafe_rollback_marker_sub_id)
+  if (entry->force_abort && !rgi->worker_error &&
+      rgi->gtid_sub_id == rgi->parallel_entry->unsafe_rollback_marker_sub_id)
     wakeup_err= ER_QUERY_INTERRUPTED;
   else
     wakeup_err= rgi->worker_error;
