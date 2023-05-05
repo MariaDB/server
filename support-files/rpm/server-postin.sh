@@ -69,9 +69,6 @@ if [ $1 = 1 ] ; then
   chmod -R og-rw $datadir/mysql
 fi
 
-# Set the correct filesystem ownership for the PAM v2 plugin
-chown %{mysqld_user} /usr/lib*/mysql/plugin/auth_pam_tool_dir
-
 # install SELinux files - but don't override existing ones
 SETARGETDIR=/etc/selinux/targeted/src/policy
 SEDOMPROG=$SETARGETDIR/domains/program
