@@ -346,6 +346,9 @@ ELSE()
   SET(DEFAULT_TMPDIR "\"${TMPDIR}\"")
 ENDIF()
 
+SET(MYSQLD_USER "mysql")
+SET(MYSQLD_GROUP "mysql")
+
 # Run platform tests
 INCLUDE(configure.cmake)
 
