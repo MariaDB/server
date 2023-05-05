@@ -14,20 +14,11 @@ include/start_slave.inc
 # Initialize test data
 connection master;
 SET STATEMENT sql_log_bin=0 FOR call mtr.add_suppression('Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.');
-SET @@global.binlog_direct_non_transactional_updates= 1;
-SET @@session.binlog_direct_non_transactional_updates= 1;
-CREATE SEQUENCE s1;
-CREATE SEQUENCE st;
+create sequence s1;
 create table ti (a int) engine=innodb;
 create table ti2 (a int) engine=innodb;
 create table ti3 (a int) engine=innodb;
-create table tis (a int primary key default (next value for st), b int) engine=innodb;
 create table tm (a int) engine=myisam;
-insert into ti values (100);
-insert into ti2 values (200);
-insert into ti3 values (300);
-insert into tis (b) values (400);
-insert into tm values (500);
 connection slave;
 # Run binlog format independent test cases
 #
@@ -41,10 +32,10 @@ set @@global.slave_parallel_threads=1;
 connection master;
 include/save_master_gtid.inc
 BEGIN;
+insert into ti values (100);
 insert into ti values (101);
-insert into ti values (102);
 COMMIT;
-insert into ti values (103);
+insert into ti values (102);
 connection slave;
 LOCK TABLES ti WRITE;
 START SLAVE;
@@ -75,10 +66,10 @@ set @@global.slave_parallel_threads=2;
 connection master;
 include/save_master_gtid.inc
 BEGIN;
+insert into ti values (103);
 insert into ti values (104);
-insert into ti values (105);
 COMMIT;
-insert into ti values (106);
+insert into ti values (105);
 connection slave;
 LOCK TABLES ti WRITE;
 include/start_slave.inc
@@ -117,10 +108,10 @@ SET @old_dbug= @@SESSION.debug_dbug;
 SET @@SESSION.debug_dbug="+d,binlog_force_commit_id";
 SET @commit_id= 10000;
 BEGIN;
+insert into ti values (106);
 insert into ti values (107);
-insert into ti values (108);
 COMMIT;
-insert into ti2 values (201);
+insert into ti2 values (200);
 SET @@SESSION.debug_dbug=@old_dbug;
 connection slave;
 LOCK TABLES ti WRITE;
@@ -161,14 +152,14 @@ SET @old_dbug= @@SESSION.debug_dbug;
 SET @@SESSION.debug_dbug="+d,binlog_force_commit_id";
 SET @commit_id= 10001;
 BEGIN;
+insert into ti values (108);
 insert into ti values (109);
-insert into ti values (110);
 COMMIT;
 connection master;
-insert into tm values (501);
+insert into tm values (500);
 include/save_master_gtid.inc
-insert into ti2 values (202);
-insert into ti3 values (301);
+insert into ti2 values (201);
+insert into ti3 values (300);
 SET @@SESSION.debug_dbug=@old_dbug;
 connection slave;
 LOCK TABLES ti write, ti2 WRITE;
@@ -198,8 +189,8 @@ connection master;
 truncate table ti;
 truncate table tm;
 # Set up multiple rows to allow a multi-statement update rows event
+insert into tm values (501);
 insert into tm values (502);
-insert into tm values (503);
 connection slave;
 connection slave;
 include/stop_slave.inc
@@ -209,7 +200,7 @@ connection master;
 update tm set a=a+1;
 include/save_master_gtid.inc
 # This should not be committed because it is after next-to-commit
-insert into ti values (111);
+insert into ti values (110);
 connection slave;
 set @@global.debug_dbug="+d,pause_after_next_row_exec";
 START SLAVE;
@@ -234,8 +225,8 @@ connection master;
 truncate table ti;
 truncate table ti2;
 truncate table tm;
+insert into ti values (111);
 insert into ti values (112);
-insert into ti values (113);
 connection slave;
 connection slave;
 include/stop_slave.inc
@@ -244,7 +235,7 @@ connection master;
 # Next-to-commit transactional multi-row event should be rolled back
 include/save_master_gtid.inc
 update ti set a=a+1;
-insert into ti values (114);
+insert into ti values (113);
 connection slave;
 set @@global.debug_dbug="+d,pause_after_next_row_exec";
 START SLAVE;
@@ -257,7 +248,7 @@ set debug_sync= "now SIGNAL continue_row_execution";
 connection slave1;
 include/wait_for_slave_sql_to_stop.inc
 include/assert.inc [No new rows should have been inserted]
-# Comparing master gtid 0-1-33 to slaves 0-1-33
+# Comparing master gtid 0-1-26 to slaves 0-1-26
 include/assert.inc [No transactions should have committed]
 # Slave should be error-free
 include/assert.inc [Slave should be error free]
@@ -283,12 +274,12 @@ connection master;
 SET @old_dbug= @@SESSION.debug_dbug;
 SET @@SESSION.debug_dbug="+d,binlog_force_commit_id";
 SET @commit_id= 10002;
-insert into ti values (115);
+insert into ti values (114);
 select next value for s1;
 next value for s1
 1
 include/save_master_gtid.inc
-insert into ti2 values (203);
+insert into ti2 values (202);
 SET @@SESSION.debug_dbug=@old_dbug;
 connection slave;
 LOCK TABLES ti write, ti2 WRITE;
@@ -313,8 +304,7 @@ include/sync_with_master_gtid.inc
 #
 # Cleanup
 connection master;
-DROP TABLE ti, ti2, ti3, tis, tm, s1, st;
-SET @@global.binlog_direct_non_transactional_updates= 1;
+DROP TABLE ti, ti2, ti3, tm, s1;
 include/save_master_gtid.inc
 connection slave;
 include/sync_with_master_gtid.inc

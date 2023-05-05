@@ -959,7 +959,7 @@ SET debug_sync='now SIGNAL t1_cont';
 --source include/wait_for_slave_sql_error.inc
 STOP SLAVE IO_THREAD;
 # Since T2, T3, and T4 run in parallel, we can not be sure if T2 will have time
-# to commit or not before the stop. However, T1 should commit, and T3/T4 may
+# to commit or not before the stop. However, T1 should rollback, and T3/T4 may
 # not have committed. (After slave restart we check that all become committed
 # eventually).
 SELECT * FROM t3 WHERE a >= 60 AND a != 65 ORDER BY a;
@@ -1075,6 +1075,14 @@ SET binlog_format=@old_format;
 --connection server_2
 SET debug_sync='RESET';
 --source include/start_slave.inc
+
+# Test amendment from MDEV-13915:
+# A worker thread's event queue is no longer executed on replica stop.
+# The signal query_cont needs to be re-sent because the transaction was
+# aborted.
+SET debug_sync='now WAIT_FOR query_waiting';
+SET debug_sync='now SIGNAL query_cont';
+
 --sync_with_master
 SELECT * FROM t3 WHERE a >= 80 ORDER BY a;
 

@@ -741,7 +741,6 @@ a	b
 61	61
 62	62
 63	63
-64	64
 68	68
 69	69
 70	70
@@ -826,6 +825,8 @@ SET binlog_format=@old_format;
 connection server_2;
 SET debug_sync='RESET';
 include/start_slave.inc
+SET debug_sync='now WAIT_FOR query_waiting';
+SET debug_sync='now SIGNAL query_cont';
 SELECT * FROM t3 WHERE a >= 80 ORDER BY a;
 a	b
 80	0
@@ -1214,6 +1215,7 @@ connection server_2;
 include/wait_for_slave_sql_to_stop.inc
 SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
 a
+40
 41
 42
 include/start_slave.inc

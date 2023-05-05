@@ -29,9 +29,6 @@ change master to master_use_gtid=slave_pos;
 --echo # Initialize test data
 --connection master
 set statement sql_log_bin=0 for call mtr.add_suppression('Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.');
---let $old_binlog_direct= `SELECT @@global.binlog_direct_non_transactional_updates`
-SET @@global.binlog_direct_non_transactional_updates= 0;
-SET @@session.binlog_direct_non_transactional_updates= 0;
 
 create table ti (a int primary key) engine=innodb;
 create table ti2 (a int) engine=innodb;
@@ -308,7 +305,6 @@ while ($mode_ctr)
 --echo # Cleanup
 --connection master
 DROP TABLE ti, tm, ti2, tm2, ti3;
---eval SET @@global.binlog_direct_non_transactional_updates= $old_binlog_direct
 --source include/save_master_gtid.inc
 
 --connection slave
