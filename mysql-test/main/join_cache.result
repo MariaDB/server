@@ -6229,33 +6229,6 @@ EXPLAIN
 }
 drop table t1,t2,t3;
 # End of 10.3 tests
-#
-# MDEV-28217 Incorrect Join Execution When Controlling Join Buffer Size
-#
-CREATE TABLE t1 (i int PRIMARY KEY)engine=innodb;
-INSERT INTO t1 VALUES (1332945389);
-CREATE TABLE t2 (i int PRIMARY KEY)engine=innodb;
-INSERT INTO t2 VALUES (1180244875), (1951338178);
-SET SESSION join_buffer_size= X;
-Warnings:
-Warning	X	Truncated incorrect join_buffer_size value: 'X'
-SET SESSION join_cache_level = 4;
-SET optimizer_switch='optimize_join_buffer_size=on';
-SELECT t2.i FROM t2  LEFT  JOIN t1 ON t1.i = t2.i  WHERE t1.i;
-i
-SET optimizer_switch='optimize_join_buffer_size=off';
-SELECT t1.i,t2.i FROM t2  LEFT  JOIN t1 ON t1.i = t2.i  WHERE t1.i;
-ERROR HYX: Could not create a join buffer. Please check and adjust the value of the variables 'JOIN_BUFFER_SIZE (X)' and 'JOIN_BUFFER_SPACE_LIMIT (X)'
-SET SESSION join_buffer_size= 10000000;
-SELECT t1.i,t2.i FROM t2  LEFT  JOIN t1 ON t1.i = t2.i  WHERE t1.i;
-i	i
-SET SESSION optimizer_switch= default;
-SET SESSION join_buffer_size= default;
-SET SESSION join_cache_level= default;
-drop table t1,t2;
-#
-# End of 10.4 tests
-#
 set @@optimizer_switch=@save_optimizer_switch;
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
 set global innodb_stats_persistent_sample_pages=

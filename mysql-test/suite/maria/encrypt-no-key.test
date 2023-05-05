@@ -1,3 +1,4 @@
+--source include/not_embedded.inc
 #
 # MDEV-18496 Crash when Aria encryption is enabled but plugin not available
 #
