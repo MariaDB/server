@@ -365,6 +365,9 @@ from t10 left join t11 on t11.col1=t10.col1
 group by grp_id) T on T.grp_id=t1.b;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
