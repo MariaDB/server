@@ -613,7 +613,9 @@ bool write_bin_log_start_alter(THD *thd, bool& partial_alter,
 
   if (start_alter_id)
   {
-    if (thd->rgi_slave->get_finish_event_group_called())
+    rpl_group_info *rgi= thd->rgi_slave;
+
+    if (rgi->get_finish_event_group_called())
       return false;                   // can get here through retrying
 
     DBUG_EXECUTE_IF("at_write_start_alter", {
@@ -621,8 +623,8 @@ bool write_bin_log_start_alter(THD *thd, bool& partial_alter,
                           STRING_WITH_LEN("now wait_for alter_cont"));
       });
 
-    Master_info *mi= thd->rgi_slave->rli->mi;
-    start_alter_info *info= thd->rgi_slave->sa_info;
+    Master_info *mi= rgi->rli->mi;
+    start_alter_info *info= rgi->sa_info;
     bool is_shutdown= false;
 
     info->sa_seq_no= start_alter_id;
@@ -633,8 +635,13 @@ bool write_bin_log_start_alter(THD *thd, bool& partial_alter,
     mi->start_alter_list.push_back(info, &mi->mem_root);
     mysql_mutex_unlock(&mi->start_alter_list_lock);
     info->state= start_alter_state::REGISTERED;
-    thd->rgi_slave->commit_orderer.wait_for_prior_commit(thd);
-    thd->rgi_slave->start_alter_ev->update_pos(thd->rgi_slave);
+    // Mark that the start_alter_info object is now owned by the
+    // start_alter_list, and should not be be freed at the end of applying the
+    // event group.
+    rgi->sa_info_owned = false;
+
+    rgi->commit_orderer.wait_for_prior_commit(thd);
+    rgi->start_alter_ev->update_pos(rgi);
     if (mysql_bin_log.is_open())
     {
       Write_log_with_flags wlwf (thd, Gtid_log_event::FL_START_ALTER_E1);
@@ -644,9 +651,9 @@ bool write_bin_log_start_alter(THD *thd, bool& partial_alter,
         return true;
       }
     }
-    thd->rgi_slave->mark_start_commit();
+    rgi->mark_start_commit();
     thd->wakeup_subsequent_commits(0);
-    thd->rgi_slave->finish_start_alter_event_group();
+    rgi->finish_start_alter_event_group();
 
     if (is_shutdown)
     {

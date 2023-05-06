@@ -2169,7 +2169,8 @@ rpl_group_info::rpl_group_info(Relay_log_info *rli)
     deferred_events(NULL), m_annotate_event(0), is_parallel_exec(false),
     gtid_ev_flags2(0), gtid_ev_flags_extra(0), gtid_ev_sa_seq_no(0),
     reserved_start_alter_thread(0), finish_event_group_called(0), rpt(NULL),
-    start_alter_ev(NULL), direct_commit_alter(false), sa_info(NULL)
+    start_alter_ev(NULL), sa_info(NULL), sa_info_owned(false),
+    direct_commit_alter(false)
 {
   reinit(rli);
   bzero(&current_gtid, sizeof(current_gtid));
@@ -2203,6 +2204,7 @@ event_group_new_gtid(rpl_group_info *rgi, Gtid_log_event *gev)
   rgi->commit_id= gev->commit_id;
   rgi->gtid_pending= true;
   rgi->sa_info= NULL;
+  rgi->sa_info_owned= false;
   return 0;
 }
 

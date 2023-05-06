@@ -873,8 +873,16 @@ struct rpl_group_info
   */
   rpl_parallel_thread *rpt;
   Query_log_event *start_alter_ev;
-  bool direct_commit_alter;
+  /* sa_info contains data used for START/COMMIT/ROLLBACK ALTER. */
   start_alter_info *sa_info;
+  /*
+    sa_info_owned is true while the sa_info pointer is owned by the rgi and
+    must be my_free()d when the rgi is freed. It is set to false when the
+    sa_info is installed in the start_alter_list and must be preserved after
+    the rgi is freed.
+  */
+  bool sa_info_owned;
+  bool direct_commit_alter;
 
   rpl_group_info(Relay_log_info *rli_);
   ~rpl_group_info();

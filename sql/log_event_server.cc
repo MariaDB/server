@@ -1731,7 +1731,10 @@ int Query_log_event::handle_split_alter_query_log_event(rpl_group_info *rgi,
       return rc;
     }
     if (!rgi->sa_info)
+    {
       rgi->sa_info= get_new_start_alter_info(thd);
+      rgi->sa_info_owned = true;
+    }
     else
     {
       /* Not send Start-Alter into query execution when it's to rollback */

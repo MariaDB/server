@@ -2044,10 +2044,24 @@ rpl_parallel_thread::get_rgi(Relay_log_info *rli, Gtid_log_event *gtid_ev,
 
 
 void
-rpl_parallel_thread::loc_free_rgi(rpl_group_info *rgi)
+rpl_parallel_thread::free_rgi_members(rpl_group_info *rgi)
 {
   DBUG_ASSERT(rgi->commit_orderer.waitee == NULL);
   rgi->free_annotate_event();
+  if (rgi->sa_info_owned)
+  {
+    // This can happen if the START ALTER query fails before the
+    // start_alter_info object is installed in the start_alter_list.
+    mysql_cond_destroy(&rgi->sa_info->start_alter_cond);
+    my_free(rgi->sa_info);
+  }
+}
+
+
+void
+rpl_parallel_thread::loc_free_rgi(rpl_group_info *rgi)
+{
+  free_rgi_members(rgi);
   if (!loc_rgi_list)
     loc_rgi_last_ptr_ptr= &rgi->next;
   else
@@ -2060,8 +2074,7 @@ void
 rpl_parallel_thread::free_rgi(rpl_group_info *rgi)
 {
   mysql_mutex_assert_owner(&LOCK_rpl_thread);
-  DBUG_ASSERT(rgi->commit_orderer.waitee == NULL);
-  rgi->free_annotate_event();
+  free_rgi_members(rgi);
   rgi->next= rgi_free_list;
   rgi_free_list= rgi;
 }

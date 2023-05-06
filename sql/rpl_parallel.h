@@ -245,6 +245,7 @@ struct rpl_parallel_thread {
   void free_qev(queued_event *qev);
   rpl_group_info *get_rgi(Relay_log_info *rli, Gtid_log_event *gtid_ev,
                           rpl_parallel_entry *e, ulonglong event_size);
+  static void free_rgi_members(rpl_group_info *rgi);
   /*
     Put an gco on the local free list, to be later released to the global free
     list by batch_free().

@@ -36,6 +36,36 @@ CREATE TABLE t1 (pk int)engine=innodb;
 ALTER TABLE t1 DROP FOREIGN KEY y, LOCK=EXCLUSIVE;
 drop table t1;
 --sync_slave_with_master
+
+
+--echo MDEV-31207: Memory leak when START ALTER fails on slave
+
+--connection master
+CREATE TABLE t1 (a INT PRIMARY KEY);
+
+--sync_slave_with_master
+--source include/stop_slave.inc
+--echo Drop table on slave to force START ALTER to fail on slave.
+DROP TABLE t1;
+--source include/start_slave.inc
+
+--connection master
+SET SESSION binlog_alter_two_phase=TRUE;
+ALTER TABLE t1 ADD COLUMN b INT DEFAULT NULL;
+
+--connection slave
+# 1146 = ER_NO_SUCH_TABLE
+--let $slave_sql_errno= 1146
+--source include/wait_for_slave_sql_error.inc
+--echo Re-create table on slave to fix slave error.
+CREATE TABLE t1 (a INT PRIMARY KEY);
+--source include/start_slave.inc
+
+--connection master
+DROP TABLE t1;
+--sync_slave_with_master
+
+
 --connection master
 set global binlog_alter_two_phase=false;
 
