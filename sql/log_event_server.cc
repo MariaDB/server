@@ -1705,13 +1705,14 @@ int Query_log_event::handle_split_alter_query_log_event(rpl_group_info *rgi,
   rgi->gtid_ev_flags_extra= gtid_flags_extra;
   if (gtid_flags_extra & Gtid_log_event::FL_START_ALTER_E1)
   {
-    //No Slave, Normal Slave, Start Alter under Worker 1 will simple binlog and exit
+    // No Slave, non-parallel Slave, Start Alter under Worker 1 will simply
+    // binlog and exit.
     if(!rgi->rpt || rgi->reserved_start_alter_thread || WSREP(thd))
     {
       rc= 1;
       /*
-       We will just write the binlog and move to next event , because COMMIT
-       Alter will take care of actual work
+       We will just write the binlog and move to next event, because COMMIT
+       ALTER will take care of actual work.
       */
       rgi->reserved_start_alter_thread= false;
       thd->lex->sql_command= SQLCOM_ALTER_TABLE;

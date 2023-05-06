@@ -103,7 +103,7 @@ rpl_slave_state::record_and_update_gtid(THD *thd, rpl_group_info *rgi)
   applied, then the event should be skipped. If not then the event should be
   applied.
 
-  To avoid two master connections tring to apply the same event
+  To avoid two master connections trying to apply the same event
   simultaneously, only one is allowed to work in any given domain at any point
   in time. The associated Relay_log_info object is called the owner of the
   domain (and there can be multiple parallel worker threads working in that
