@@ -1,0 +1,112 @@
+MDEV-31211: START ALTER breaks with multi-path gtid_ignore_duplicate=1
+First setup the multi-path replication topology: A<->B, A->C, B->C
+connect  server1,127.0.0.1,root,,,$SERVER_MYPORT_1;
+connect  server2,127.0.0.1,root,,,$SERVER_MYPORT_2;
+connect  server3,127.0.0.1,root,,,$SERVER_MYPORT_3;
+connection server1;
+SET @old_parallel= @@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads=5;
+CHANGE MASTER 'b2a' TO master_port=MYPORT_2, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+set default_master_connection = 'b2a';
+START SLAVE;
+include/wait_for_slave_to_start.inc
+set default_master_connection = '';
+connection server2;
+SET @old_parallel= @@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads=5;
+CHANGE MASTER 'a2b' TO master_port=MYPORT_1, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+set default_master_connection = 'a2b';
+START SLAVE;
+include/wait_for_slave_to_start.inc
+set default_master_connection = '';
+connection server3;
+SET @old_parallel= @@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads=5;
+SET @old_ignore_duplicates= @@GLOBAL.gtid_ignore_duplicates;
+SET GLOBAL gtid_ignore_duplicates=1;
+CHANGE MASTER 'a2c' TO master_port=MYPORT_1, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+CHANGE MASTER 'b2c' TO master_port=MYPORT_2, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+set default_master_connection = 'a2c';
+START SLAVE;
+include/wait_for_slave_to_start.inc
+set default_master_connection = 'b2c';
+START SLAVE;
+include/wait_for_slave_to_start.inc
+set default_master_connection = '';
+connection server1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+include/save_master_gtid.inc
+connection server2;
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+connection server3;
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+SET @old_dbug=@@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,gtid_ignore_duplicate_inject_sleep_0_x_100";
+connection server2;
+SET binlog_alter_two_phase = ON;
+SET @@session.gtid_seq_no = 100;
+ALTER TABLE t1 ADD COLUMN c int default NULL;
+INSERT INTO t1 VALUES (2, 2);
+ALTER TABLE t1 ADD COLUMN d int default NULL;
+INSERT INTO t1 VALUES (3, 3, 3);
+SELECT * FROM t1 ORDER BY a;
+a	c	d
+1	NULL	NULL
+2	2	NULL
+3	3	3
+include/save_master_gtid.inc
+connection server1;
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a	c	d
+1	NULL	NULL
+2	2	NULL
+3	3	3
+connection server3;
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a	c	d
+1	NULL	NULL
+2	2	NULL
+3	3	3
+SET GLOBAL debug_dbug=@old_dbug;
+connection server1;
+STOP ALL SLAVES;
+Warnings:
+Note	1938	SLAVE 'b2a' stopped
+SET GLOBAL slave_parallel_threads= @old_parallel;
+connection server2;
+STOP ALL SLAVES;
+Warnings:
+Note	1938	SLAVE 'a2b' stopped
+SET GLOBAL slave_parallel_threads= @old_parallel;
+connection server3;
+STOP ALL SLAVES;
+Warnings:
+Note	1938	SLAVE 'a2c' stopped
+Note	1938	SLAVE 'b2c' stopped
+SET GLOBAL slave_parallel_threads= @old_parallel;
+SET GLOBAL gtid_ignore_duplicates= @old_ignore_duplicates;
+connection server1;
+DROP TABLE t1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=Aria;
+include/reset_master_slave.inc
+disconnect server1;
+connection server2;
+DROP TABLE t1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=Aria;
+include/reset_master_slave.inc
+disconnect server2;
+connection server3;
+DROP TABLE t1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=Aria;
+include/reset_master_slave.inc
+disconnect server3;

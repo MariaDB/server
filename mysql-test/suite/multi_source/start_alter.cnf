@@ -1,0 +1,14 @@
+!include my.cnf
+
+[mysqld.1]
+log-slave-updates
+loose-innodb
+
+[mysqld.2]
+log-slave-updates
+loose-innodb
+
+[mysqld.3]
+log-bin=server3-bin
+log-slave-updates
+loose-innodb

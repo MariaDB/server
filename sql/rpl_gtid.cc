@@ -193,6 +193,16 @@ err:
     thd->EXIT_COND(&old_stage);
   else
     mysql_mutex_unlock(&LOCK_slave_state);
+  DBUG_EXECUTE_IF("gtid_ignore_duplicate_inject_sleep_0_x_100",
+                  {
+                    /*
+                      Inject a small sleep to try to increase the chance to
+                      hit a race where a different master connection becomes
+                      the owner of the domain after GTID 0-X-100.
+                    */
+                    if (res && gtid->domain_id==0 && gtid->seq_no==100)
+                      my_sleep(100000);
+                  } );
   return res;
 }
 
