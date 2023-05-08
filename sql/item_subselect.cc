@@ -3099,6 +3099,45 @@ alloc_err:
   return TRUE;
 }
 
+bool Item_in_subselect::decorrelate_in_processor(void *opt_arg)
+{
+  THD *thd= (THD *)opt_arg;
+  SELECT_LEX *first_select= unit->first_select();
+  JOIN *join= first_select->join;
+  Dynamic_array<EQ_FIELD_OUTER> eqs(PSI_INSTRUMENT_MEM, 5, 5);
+  List<Item> outer;
+  DBUG_ENTER("Item_exists_subselect::decorrelate_in_processor");
+  if (!join->conds)
+    DBUG_RETURN(FALSE);
+  /* iterate over conditions, and check whether they can be moved out. */
+  if (find_inner_outer_equalities(&join->conds, eqs))
+    DBUG_RETURN(FALSE);
+  /* move out the conditions */
+  if (left_expr->type() == Item::FIELD_ITEM)
+    outer.push_back(left_expr);
+  const uint offset= first_select->item_list.elements;
+  for (uint i= 0; i < (uint)eqs.elements(); i++)
+  {
+    Item **eq_ref= eqs.at(i).eq_ref;
+    Item_ident *local_field= eqs.at(i).local_field;
+    Item *outer_exp= eqs.at(i).outer_exp;
+    first_select->item_list.push_back(local_field, thd->mem_root);
+    first_select->ref_pointer_array[offset + i]= (Item *)local_field;
+    outer.push_back(outer_exp);
+    *eq_ref= new (thd->mem_root) Item_int(thd, 1);
+    if((*eq_ref)->fix_fields(thd, (Item **)eq_ref))
+      DBUG_RETURN(TRUE);
+  }
+  /* fixme: not always the case - partial pull out */
+  is_correlated= false;
+  left_expr= new (thd->mem_root) Item_row(thd, outer);
+  left_expr->fix_fields(thd, &left_expr);
+  OPT_TRACE_TRANSFORM(thd, trace_wrapper, trace_transform,
+                      get_select_lex()->select_number,
+                      "IN (SELECT)", "decorrelation");
+  DBUG_RETURN(FALSE);
+}
+
 /**
   Converts EXISTS subquery to IN subquery if it is possible and has sense
 

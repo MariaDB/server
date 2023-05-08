@@ -2125,6 +2125,10 @@ JOIN::optimize_inner()
   if (select_lex->first_cond_optimization &&
       conds && conds->walk(&Item::exists2in_processor, 0, thd))
     DBUG_RETURN(1);
+
+  if (select_lex->first_cond_optimization &&
+      conds && conds->walk(&Item::decorrelate_in_processor, 0, thd))
+    DBUG_RETURN(1);
   /*
     TODO
     make view to decide if it is possible to write to WHERE directly or make Semi-Joins able to process ON condition if it is possible

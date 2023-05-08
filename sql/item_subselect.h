@@ -762,6 +762,8 @@ public:
     return 0;
   };
 
+  bool decorrelate_in_processor(void *opt_arg) override;
+
   bool pushdown_cond_for_in_subquery(THD *thd, Item *cond);
 
   Item_in_subselect *get_IN_subquery() override
