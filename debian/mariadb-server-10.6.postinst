@@ -125,10 +125,10 @@ EOF
     # This direct update is needed to enable an authentication mechanism to
     # perform mariadb-upgrade, (MDEV-22678).  To keep the impact minimal, we
     # skip innodb and set key-buffer-size to 0 as it isn't reused.
-    lsof -nt "$mysql_datadir"/mysql/user.MYD > /dev/null
-    lsof_rtn_code=$?
-    if [ -f "$mysql_datadir/auto.cnf" ] && [ -f "$mysql_datadir/mysql/user.MYD" ] &&
-    [ ! ${lsof_rtn_code} ] && [ ! -f "$mysql_datadir/undo_001" ]
+    if [ -f "$mysql_datadir/auto.cnf" ] &&
+    [ -f "$mysql_datadir/mysql/user.MYD" ] &&
+    ! lsof -nt "$mysql_datadir"/mysql/user.MYD > /dev/null &&
+    [ ! -f "$mysql_datadir/undo_001" ]
     then
       echo "UPDATE mysql.user SET plugin='unix_socket' WHERE plugin='auth_socket';" |
       mariadbd --skip-innodb --key_buffer_size=0  --default-storage-engine=MyISAM --bootstrap 2> /dev/null
