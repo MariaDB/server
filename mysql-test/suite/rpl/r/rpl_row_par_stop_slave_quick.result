@@ -182,6 +182,48 @@ connection slave;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
 #
+# Common Test Case 5:
+# If retrying a T transaction while STOP SLAVE is issued, the
+# transaction should be rolled back and the slave abruptly stopped
+connection master;
+insert into ti values (110);
+include/save_master_gtid.inc
+connection slave;
+include/start_slave.inc
+Warnings:
+Note	1254	Slave is already running
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+set @@global.slave_parallel_threads=1;
+set @@global.innodb_lock_wait_timeout= 2;
+BEGIN;
+SELECT * FROM ti WHERE a=110 FOR UPDATE;
+a
+110
+connection master;
+include/save_master_gtid.inc
+update ti set a=a+1 where a=110;
+connection slave;
+include/start_slave.inc
+# Wait for replicating transaction to wait for innodb table lock
+include/start_slave.inc
+Warnings:
+Note	1254	Slave is already running
+connection slave1;
+STOP SLAVE;;
+connection slave;
+include/wait_for_slave_sql_to_stop.inc
+ROLLBACK;
+connection slave1;
+connection slave;
+include/assert.inc [The retried T transaction should have been rolled back]
+set @@global.innodb_lock_wait_timeout= 50;
+connection master;
+include/save_master_gtid.inc
+connection slave;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+#
 # ROW Test Case 1:
 # Using an N multi-statement transaction, ensure if STOP SLAVE is
 # issued in-between row updates, that the transaction is finished.
@@ -200,7 +242,7 @@ connection master;
 update tm set a=a+1;
 include/save_master_gtid.inc
 # This should not be committed because it is after next-to-commit
-insert into ti values (110);
+insert into ti values (112);
 connection slave;
 set @@global.debug_dbug="+d,pause_after_next_row_exec";
 START SLAVE;
@@ -225,8 +267,8 @@ connection master;
 truncate table ti;
 truncate table ti2;
 truncate table tm;
-insert into ti values (111);
-insert into ti values (112);
+insert into ti values (113);
+insert into ti values (114);
 connection slave;
 connection slave;
 include/stop_slave.inc
@@ -235,7 +277,7 @@ connection master;
 # Next-to-commit transactional multi-row event should be rolled back
 include/save_master_gtid.inc
 update ti set a=a+1;
-insert into ti values (113);
+insert into ti values (115);
 connection slave;
 set @@global.debug_dbug="+d,pause_after_next_row_exec";
 START SLAVE;
@@ -248,7 +290,7 @@ set debug_sync= "now SIGNAL continue_row_execution";
 connection slave1;
 include/wait_for_slave_sql_to_stop.inc
 include/assert.inc [No new rows should have been inserted]
-# Comparing master gtid 0-1-26 to slaves 0-1-26
+# Comparing master gtid 0-1-28 to slaves 0-1-28
 include/assert.inc [No transactions should have committed]
 # Slave should be error-free
 include/assert.inc [Slave should be error free]
@@ -274,7 +316,7 @@ connection master;
 SET @old_dbug= @@SESSION.debug_dbug;
 SET @@SESSION.debug_dbug="+d,binlog_force_commit_id";
 SET @commit_id= 10002;
-insert into ti values (114);
+insert into ti values (116);
 select next value for s1;
 next value for s1
 1

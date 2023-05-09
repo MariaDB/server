@@ -227,7 +227,7 @@ SET TIMESTAMP=1000000000/*!*/;
 ALTER TABLE t1 ENGINE=BLACKHOLE
 /*!*/;
 # at #
-#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-3
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-3 trans
 /*!100001 SET @@session.server_id=1*//*!*/;
 /*!100001 SET @@session.gtid_seq_no=3*//*!*/;
 START TRANSACTION

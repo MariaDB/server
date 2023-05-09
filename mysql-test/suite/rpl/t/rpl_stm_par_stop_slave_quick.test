@@ -1,8 +1,9 @@
 #
 # Validate that STOP SLAVE works in a timely manner on a parallel replica with
-# ROW binary logging format.
+# STATEMENT binary logging format.
 #
 --source include/have_debug.inc
+--source include/have_debug_sync.inc
 --source include/master-slave.inc
 --source include/have_innodb.inc
 --source include/have_binlog_format_statement.inc
@@ -18,8 +19,6 @@ SET STATEMENT sql_log_bin=0 FOR call mtr.add_suppression("Commit failed due to f
 --let $old_slave_mode= `SELECT @@global.slave_parallel_mode`
 --let $old_debug_dbug= `SELECT @@global.debug_dbug`
 
---echo # Set slave timeout to force kill worker threads to 4s
-SET @@GLOBAL.debug_dbug="+d,slave_abort_quick_timeout";
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 change master to master_use_gtid=slave_pos;
 --source include/start_slave.inc
@@ -29,7 +28,6 @@ change master to master_use_gtid=slave_pos;
 --echo # Initialize test data
 --connection master
 set statement sql_log_bin=0 for call mtr.add_suppression('Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.');
-
 create table ti (a int primary key) engine=innodb;
 create table ti2 (a int) engine=innodb;
 create table ti3 (a int) engine=innodb;
@@ -54,10 +52,15 @@ create table tm2 (a int) engine=myisam;
 --connection slave
 --source include/stop_slave.inc
 set @@global.slave_parallel_threads=1;
+set @@global.debug_dbug="+d,rpl_parallel_wait_for_done_trigger";
 --let $row_count_initial=`select count(*) from (select * from ti UNION ALL select * from tm UNION ALL select * from tm2) t`
 
 --connection master
+--let $old_binlog_direct= `SELECT @@global.binlog_direct_non_transactional_updates`
+SET @@session.binlog_direct_non_transactional_updates= 0;
 BEGIN;
+--eval insert into ti values ($ti_ctr)
+--inc $ti_ctr
 --eval insert into tm values ($tm_ctr)
 --inc $tm_ctr
 --eval insert into tm2 values ($tm2_ctr)
@@ -81,6 +84,7 @@ START SLAVE;
 --send STOP SLAVE;
 
 --connection slave
+set debug_sync= "now WAIT_FOR wait_for_done_waiting";
 --echo # Unlock row-level lock holding transaction
 UNLOCK TABLES;
 --source include/wait_for_slave_sql_to_stop.inc
@@ -92,7 +96,7 @@ UNLOCK TABLES;
 --let $row_count_end=`select count(*) from (select * from ti UNION ALL select * from tm UNION ALL select * from tm2) t`
 --let $row_count_diff=`select ($row_count_end-$row_count_initial)`
 --let $assert_text= Transaction should have committed
---let $assert_cond= $row_count_diff = 2
+--let $assert_cond= $row_count_diff = 3
 --source include/assert.inc
 
 --let $slave_gtid= `select @@global.gtid_slave_pos`
@@ -109,8 +113,11 @@ let $last_error = query_get_value("SHOW SLAVE STATUS", Last_SQL_Errno, 1);
 
 --connection master
 --source include/save_master_gtid.inc
+--eval SET @@session.binlog_direct_non_transactional_updates= $old_binlog_direct
 
 --connection slave
+set @@global.debug_dbug="-d,rpl_parallel_wait_for_done_trigger";
+set debug_sync= "RESET";
 --source include/start_slave.inc
 --source include/sync_with_master_gtid.inc
 

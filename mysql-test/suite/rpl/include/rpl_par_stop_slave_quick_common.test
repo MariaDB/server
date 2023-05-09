@@ -232,7 +232,6 @@ UNLOCK TABLES;
 --echo #    T (waiting for prior commit); should rollback
 --echo # Issuing STOP SLAVE should allow the first two transactions to commit
 --echo # while preventing and rolling back the third
-
 --connection slave
 --source include/stop_slave.inc
 set @@global.slave_parallel_mode=optimistic;
@@ -292,6 +291,83 @@ UNLOCK TABLES;
 --source include/assert.inc
 
 set @@global.slave_parallel_mode=CONSERVATIVE;
+
+--connection master
+--source include/save_master_gtid.inc
+--connection slave
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+
+
+--echo #
+--echo # Common Test Case 5:
+--echo # If retrying a T transaction while STOP SLAVE is issued, the
+--echo # transaction should be rolled back and the slave abruptly stopped
+
+--connection master
+--eval insert into ti values ($ti_ctr)
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+set @@global.slave_parallel_threads=1;
+
+--let $save_innodb_lock_wait_timeout= `SELECT @@global.innodb_lock_wait_timeout`
+# 2 second buffer to give ample time to wait for transaction and issue stop slave
+set @@global.innodb_lock_wait_timeout= 2;
+BEGIN;
+--eval SELECT * FROM ti WHERE a=$ti_ctr FOR UPDATE
+
+--connection master
+--source include/save_master_gtid.inc
+--eval update ti set a=a+1 where a=$ti_ctr
+--inc $ti_ctr
+--inc $ti_ctr
+
+--connection slave
+--source include/start_slave.inc
+--let $retried_tx_initial= query_get_value(SHOW ALL SLAVES STATUS, Retried_transactions, 1)
+
+if (`SELECT @@global.binlog_format = 'ROW'`)
+{
+    --let $update_state=Update_rows_log_event::find_row(-1)
+}
+if (`SELECT @@global.binlog_format = 'STATEMENT'`)
+{
+    --let $update_state=Updating
+}
+--echo # Wait for replicating transaction to wait for innodb table lock
+--source include/start_slave.inc
+--let $wait_condition= SELECT COUNT(*) > 0 FROM information_schema.processlist WHERE state LIKE "$update_state" and command like 'Slave_worker';
+--source include/wait_condition.inc
+
+--connection slave1
+--send STOP SLAVE;
+
+connection slave;
+--source include/wait_for_slave_sql_to_stop.inc
+--let $retried_tx_test= query_get_value(SHOW ALL SLAVES STATUS, Retried_transactions, 1)
+if ($retried_tx_initial != $retried_tx_test)
+{
+    --echo T transaction should have been rolled back without retry
+    --die T transaction should have been rolled back without retry
+}
+
+# End the SELECT ... FOR UPDATE
+ROLLBACK;
+
+--connection slave1
+--reap
+--connection slave
+
+--let $slave_gtid= `select @@global.gtid_slave_pos`
+--let $assert_text= The retried T transaction should have been rolled back
+--let $assert_cond= $master_pos = $slave_gtid
+--source include/assert.inc
+
+--eval set @@global.innodb_lock_wait_timeout= $save_innodb_lock_wait_timeout
 
 --connection master
 --source include/save_master_gtid.inc

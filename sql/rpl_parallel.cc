@@ -96,7 +96,7 @@ handle_queued_pos_update(THD *thd, rpl_parallel_thread::queued_event *qev)
   rli= qev->rgi->rli;
   e= qev->entry_for_queued;
   if (e->stop_on_error_sub_id < (uint64)ULONGLONG_MAX ||
-      (e->force_abort && !rli->stop_for_until))
+      (e->stop_abrupt(rli)))
     return;
 
   mysql_mutex_lock(&rli->data_lock);
@@ -245,6 +245,14 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
   if (unlikely(rgi->worker_error) &&
       entry->stop_on_error_sub_id == (uint64)ULONGLONG_MAX)
     entry->stop_on_error_sub_id= sub_id;
+
+  if (unlikely(entry->stop_abrupt(rgi->rli)) && !rgi->worker_error &&
+      rgi->parallel_entry->unsafe_rollback_marker_sub_id.load(
+          std::memory_order_relaxed) == rgi->gtid_sub_id)
+    wakeup_err= ER_QUERY_INTERRUPTED;
+  else
+    wakeup_err= rgi->worker_error;
+
   mysql_mutex_unlock(&entry->LOCK_parallel_entry);
 #ifdef ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("hold_worker_on_schedule", {
@@ -279,11 +287,6 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
   */
   thd->get_stmt_da()->reset_diagnostics_area();
 
-  if (entry->force_abort && !rgi->worker_error &&
-      rgi->gtid_sub_id == rgi->parallel_entry->unsafe_rollback_marker_sub_id)
-    wakeup_err= ER_QUERY_INTERRUPTED;
-  else
-    wakeup_err= rgi->worker_error;
   wfc->wakeup_subsequent_commits(wakeup_err);
 }
 
@@ -408,6 +411,7 @@ do_gco_wait(rpl_group_info *rgi, group_commit_orderer *gco,
       where we can safely stop. So return a flag that will cause us to skip,
       rather than execute, the following events.
     */
+    DBUG_ASSERT(entry->rgi_is_safe_to_terminate(rgi));
     return true;
   }
   else
@@ -467,8 +471,13 @@ do_ftwrl_wait(rpl_group_info *rgi,
   if (sub_id > entry->largest_started_sub_id)
     entry->largest_started_sub_id= sub_id;
 
+  /*
+    If this rgi is non-transactional, and the state of our current entry
+    (incorrectly) views the rgi as safe to terminate, we change our state
+    to disallow this rgi from stop/rollback in the event of STOP SLAVE.
+  */
   if (!(rgi->gtid_ev_flags2 & Gtid_log_event::FL_TRANSACTIONAL) &&
-      sub_id > entry->unsafe_rollback_marker_sub_id)
+      entry->rgi_is_safe_to_terminate(rgi))
     entry->unsafe_rollback_marker_sub_id= sub_id;
 
   DBUG_RETURN(aborted);
@@ -1217,11 +1226,6 @@ handle_rpl_parallel_thread(void *arg)
         bool did_enter_cond= false;
         PSI_stage_info old_stage;
 
-        /*
-          Set the GTIDs immediately
-        */
-        rgi->gtid_ev_flags2= static_cast<Gtid_log_event *>(qev->ev)->flags2;
-
 #ifdef ENABLED_DEBUG_SYNC
         DBUG_EXECUTE_IF("hold_worker_on_schedule", {
             if (rgi->current_gtid.domain_id == 0 &&
@@ -1392,10 +1396,8 @@ handle_rpl_parallel_thread(void *arg)
             thd->send_kill_message();
             err= 1;
           }
-          else if ((((unlikely(entry->force_abort) &&
-                      !rgi->rli->stop_for_until)) &&
-                    (rgi->gtid_sub_id >
-                     entry->unsafe_rollback_marker_sub_id)) ||
+          else if (unlikely(entry->stop_abrupt(rgi->rli) &&
+                            entry->rgi_is_safe_to_terminate(rgi)) ||
                    thd->transaction_rollback_request)
           {
             /*
@@ -2530,6 +2532,17 @@ rpl_parallel_entry::queue_master_restart(rpl_group_info *rgi,
   mysql_cond_signal(&thr->COND_rpl_thread);
   mysql_mutex_unlock(&thr->LOCK_rpl_thread);
   return 0;
+}
+
+inline bool rpl_parallel_entry::stop_abrupt(Relay_log_info *rli)
+{
+  return force_abort.load(std::memory_order_relaxed) && !rli->stop_for_until;
+}
+
+inline bool rpl_parallel_entry::rgi_is_safe_to_terminate(rpl_group_info *rgi)
+{
+  return unsafe_rollback_marker_sub_id.load(std::memory_order_relaxed) <
+         rgi->gtid_sub_id;
 }
 
 

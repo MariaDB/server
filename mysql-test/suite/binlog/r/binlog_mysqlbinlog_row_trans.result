@@ -346,7 +346,7 @@ SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-9
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-9 trans
 /*!100001 SET @@session.gtid_seq_no=9*//*!*/;
 START TRANSACTION
 /*!*/;

@@ -6,8 +6,6 @@ connection slave;
 include/stop_slave.inc
 SET STATEMENT sql_log_bin=0 FOR call mtr.add_suppression('Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.');
 SET STATEMENT sql_log_bin=0 FOR call mtr.add_suppression("Commit failed due to failure of an earlier commit on which this one depends");
-# Set slave timeout to force kill worker threads to 4s
-SET @@GLOBAL.debug_dbug="+d,slave_abort_quick_timeout";
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 change master to master_use_gtid=slave_pos;
 include/start_slave.inc
@@ -184,6 +182,48 @@ connection slave;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
 #
+# Common Test Case 5:
+# If retrying a T transaction while STOP SLAVE is issued, the
+# transaction should be rolled back and the slave abruptly stopped
+connection master;
+insert into ti values (110);
+include/save_master_gtid.inc
+connection slave;
+include/start_slave.inc
+Warnings:
+Note	1254	Slave is already running
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+set @@global.slave_parallel_threads=1;
+set @@global.innodb_lock_wait_timeout= 2;
+BEGIN;
+SELECT * FROM ti WHERE a=110 FOR UPDATE;
+a
+110
+connection master;
+include/save_master_gtid.inc
+update ti set a=a+1 where a=110;
+connection slave;
+include/start_slave.inc
+# Wait for replicating transaction to wait for innodb table lock
+include/start_slave.inc
+Warnings:
+Note	1254	Slave is already running
+connection slave1;
+STOP SLAVE;;
+connection slave;
+include/wait_for_slave_sql_to_stop.inc
+ROLLBACK;
+connection slave1;
+connection slave;
+include/assert.inc [The retried T transaction should have been rolled back]
+set @@global.innodb_lock_wait_timeout= 50;
+connection master;
+include/save_master_gtid.inc
+connection slave;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+#
 # Statement Test Case 1:
 # Using one parallel replication worker thread on workload {N,T}, ensure
 # the replica finishes the non-transactional transaction, and does not
@@ -191,13 +231,20 @@ include/sync_with_master_gtid.inc
 connection slave;
 include/stop_slave.inc
 set @@global.slave_parallel_threads=1;
+set @@global.debug_dbug="+d,rpl_parallel_wait_for_done_trigger";
 connection master;
+SET @@session.binlog_direct_non_transactional_updates= 0;
 BEGIN;
+insert into ti values (112);
 insert into tm values (201);
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it accesses a non-transactional table after accessing a transactional table within the same transaction
 insert into tm2 values (300);
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it accesses a non-transactional table after accessing a transactional table within the same transaction
 COMMIT;
 include/save_master_gtid.inc
-insert into ti values (110);
+insert into ti values (113);
 connection slave;
 lock tables tm2 write;
 START SLAVE;
@@ -206,6 +253,7 @@ connection slave;
 connection slave1;
 STOP SLAVE;;
 connection slave;
+set debug_sync= "now WAIT_FOR wait_for_done_waiting";
 # Unlock row-level lock holding transaction
 UNLOCK TABLES;
 include/wait_for_slave_sql_to_stop.inc
@@ -217,7 +265,10 @@ include/assert.inc [N should have been applied]
 include/assert.inc [Slave should be error free]
 connection master;
 include/save_master_gtid.inc
+SET @@session.binlog_direct_non_transactional_updates= 1;
 connection slave;
+set @@global.debug_dbug="-d,rpl_parallel_wait_for_done_trigger";
+set debug_sync= "RESET";
 include/start_slave.inc
 include/sync_with_master_gtid.inc
 #
@@ -230,8 +281,8 @@ connection slave;
 include/stop_slave.inc
 set @@global.slave_parallel_threads=1;
 connection master;
-insert into ti values (111);
-insert into ti values (112);
+insert into ti values (114);
+insert into ti values (115);
 include/save_master_gtid.inc
 connection slave;
 LOCK TABLES ti WRITE;
@@ -271,10 +322,10 @@ set @@global.slave_parallel_mode=AGGRESSIVE;
 connection slave;
 connection master;
 connection master;
-insert into ti values (113);
+insert into ti values (116);
 insert into tm values (203);
 insert into ti2 values (402);
-insert into ti values (114);
+insert into ti values (117);
 include/save_master_gtid.inc
 connection slave;
 LOCK TABLES ti WRITE;
@@ -307,10 +358,10 @@ set @@global.slave_parallel_mode=MINIMAL;
 connection slave;
 connection master;
 connection master;
-insert into ti values (115);
+insert into ti values (118);
 insert into tm values (203);
 insert into ti2 values (403);
-insert into ti values (116);
+insert into ti values (119);
 include/save_master_gtid.inc
 connection slave;
 LOCK TABLES ti WRITE;

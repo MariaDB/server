@@ -360,6 +360,23 @@ struct rpl_parallel_entry {
                                       PSI_stage_info *old_stage, bool reuse);
   int queue_master_restart(rpl_group_info *rgi,
                            Format_description_log_event *fdev);
+
+  /*
+    Check if we are stopping the slave as a direct command from the user, as
+    opposed to force_abort being set due to the UNTIL clause from START SLAVE.
+
+    Returns 1 if the slave has been explicitly ordered to stop, 0 otherwise.
+  */
+  bool stop_abrupt(Relay_log_info *rli);
+
+  /*
+    Check if the rgi is safe to stop and rollback in the event of an abrupt
+    stop of the parallel slave.
+
+    Returns 1 if we can safely terminate and rollback the transaction, 0
+    otherwise
+  */
+  bool rgi_is_safe_to_terminate(rpl_group_info *rgi);
 };
 struct rpl_parallel {
   HASH domain_hash;

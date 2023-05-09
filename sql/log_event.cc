@@ -8014,7 +8014,9 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
       thd_arg->transaction.all.trans_executed_admin_cmd())
     flags2|= FL_DDL;
   else if (is_transactional && !is_tmp_table &&
-           !thd_arg->transaction.all.modified_non_trans_table)
+           !(thd_arg->transaction.all.modified_non_trans_table &&
+             thd->variables.binlog_direct_non_trans_update == 0 &&
+             !thd->is_current_stmt_binlog_format_row()))
     flags2|= FL_TRANSACTIONAL;
   if (!(thd_arg->variables.option_bits & OPTION_RPL_SKIP_PARALLEL))
     flags2|= FL_ALLOW_PARALLEL;
@@ -8145,7 +8147,6 @@ Gtid_log_event::do_apply_event(rpl_group_info *rgi)
   thd->variables.server_id= this->server_id;
   thd->variables.gtid_domain_id= this->domain_id;
   thd->variables.gtid_seq_no= this->seq_no;
-  rgi->gtid_ev_flags2= flags2;
   thd->reset_for_next_command();
 
   if (opt_gtid_strict_mode && opt_bin_log && opt_log_slave_updates)
@@ -11674,10 +11675,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         table->in_use= thd;
 
       if (rgi->rli->mi->using_parallel() &&
-          ((rgi->parallel_entry->force_abort.load()) &&
-           !rli->stop_for_until) &&
-          (rgi->gtid_sub_id >
-           rgi->parallel_entry->unsafe_rollback_marker_sub_id.load()))
+          rgi->parallel_entry->stop_abrupt(rgi->rli) &&
+          (rgi->parallel_entry->rgi_is_safe_to_terminate(rgi)))
       {
         /*
           Exit early, and let the Event-level exit logic take care of the
@@ -11688,6 +11687,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       }
 
       error= do_exec_row(rgi);
+
 
       DBUG_EXECUTE_IF(
         "pause_after_next_row_exec",
