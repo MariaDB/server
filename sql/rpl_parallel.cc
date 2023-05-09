@@ -2373,6 +2373,23 @@ rpl_parallel::wait_for_done(THD *thd, Relay_log_info *rli)
   rpl_parallel_thread *rpt;
   uint32 i, j;
 
+#ifdef ENABLED_DEBUG_SYNC
+  /*
+    There can be race conditions for tests which expect errors, such that an
+    intended retry can be stopped/ignored because force_abort will be set
+    and has_temporary_error() will pick up on the error and quit too early.
+    This pauses the stop process to allow intended retry logic to complete
+    before abruptly stopping the slave transactions. Note there is no SIGNAL
+    provided in this case, as it can overwrite other signal synchronizations
+    occurring. To test if wait_for_done_begin is ready to be signalled, one
+    needs to query the processlist at the appropriate time.
+  */
+  DBUG_EXECUTE_IF("rpl_parallel_wait_for_done_preamble_hook", {
+    debug_sync_set_action(
+        thd, STRING_WITH_LEN("now WAIT_FOR wait_for_done_begin"));
+  };);
+#endif
+
   /*
     First signal all workers that they must force quit; no more events will
     be queued to complete any partial event groups executed.

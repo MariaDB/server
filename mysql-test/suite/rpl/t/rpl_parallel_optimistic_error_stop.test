@@ -22,7 +22,7 @@ SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 --source include/stop_slave.inc
 SET @old_debug_dbug = @@global.debug_dbug;
 # In a group of W1,W2,W3 of the same batch W2 simulates slowness.
-SET @@global.debug_dbug = "d,hold_worker2_favor_worker3";
+SET @@global.debug_dbug = "d,hold_worker2_favor_worker3,rpl_parallel_wait_for_done_preamble_hook";
 SET GLOBAL slave_parallel_threads=4;
 CHANGE MASTER TO master_use_gtid=slave_pos;
 SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
@@ -122,10 +122,10 @@ SELECT COUNT(*) = 1 as "W4 remains with the same status" FROM information_schema
 --echo #  Slave_SQL_Running YES = $status
 
 # B. In the fixed version W3 is waiting for W2,...
---let $wait_condition= SELECT count(*) = 1 as "W4 is waiting" FROM information_schema.processlist WHERE state LIKE "Waiting for prior transaction to commit%"
+--let $wait_condition= SELECT count(*) = 1 as "W3 is waiting" FROM information_schema.processlist WHERE state LIKE "Waiting for prior transaction to commit%"
 --source include/wait_condition.inc
 --echo # while W2 is held back ...
---let $wait_condition= SELECT count(*) = 1 as "W2 simulates slowness" FROM information_schema.processlist WHERE state LIKE "debug sync point: now"
+--let $wait_condition= SELECT count(*) >= 1 as "W2 simulates slowness" FROM information_schema.processlist WHERE state LIKE "debug sync point: now"
 --source include/wait_condition.inc
 
 # C. # ...until NOW.
@@ -143,7 +143,7 @@ if ($old_version_regression)
   --let $wait_condition= SELECT count(*) = 0 as "W3 does not wait on W2" FROM information_schema.processlist WHERE state LIKE "Waiting for prior transaction to commit%"
 --source include/wait_condition.inc
 
-  --let $wait_condition= SELECT count(*) = 1 as "W2 simulates slowness" FROM information_schema.processlist WHERE state LIKE "debug sync point: now"
+  --let $wait_condition= SELECT count(*) >= 1 as "W2 simulates slowness" FROM information_schema.processlist WHERE state LIKE "debug sync point: now"
   --source include/wait_condition.inc
 
   # Like above, but signaling is done after W4 is done to violate the commit order
@@ -151,8 +151,13 @@ if ($old_version_regression)
   SET DEBUG_SYNC = 'now SIGNAL cont_worker2';
 }
 
+--let $wait_condition= SELECT count(*) = 1 as "W2 simulates slowness" FROM information_schema.processlist WHERE state LIKE "debug sync point: now"
+--source include/wait_condition.inc
+SET DEBUG_SYNC = 'now SIGNAL wait_for_done_begin';
+
 --let $slave_sql_errno= 1062
 --source include/wait_for_slave_sql_error.inc
+SET @@global.debug_dbug = "-d,rpl_parallel_wait_for_done_preamble_hook";
 
 # Restore the slave data and resume with replication
 DELETE FROM t1 WHERE a=99;
