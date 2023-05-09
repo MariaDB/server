@@ -270,40 +270,39 @@ ADD_FEATURE_INFO(CONNECT_ODBC ODBC_LIBRARY "Support for ODBC in the CONNECT stor
 #
 # JDBC with MongoDB Java Driver included but disabled if without MONGO
 #
+
 OPTION(CONNECT_WITH_MONGO "Compile CONNECT storage engine with MONGO support" ON)
 OPTION(CONNECT_WITH_JDBC "Compile CONNECT storage engine with JDBC support" ON)
 
 IF(CONNECT_WITH_JDBC)
-  FIND_PACKAGE(Java 1.6)
+  SET(orig_CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH})
+  UNSET(CMAKE_MODULE_PATH)
+  FIND_PACKAGE(Java 1.6 REQUIRED)
   SET_PACKAGE_PROPERTIES(Java PROPERTIES TYPE OPTIONAL)
-  FIND_PACKAGE(JNI)
+  FIND_PACKAGE(JNI REQUIRED)
   SET_PACKAGE_PROPERTIES(JNI PROPERTIES TYPE OPTIONAL)
-  IF (JAVA_FOUND AND JNI_FOUND)
-    INCLUDE(UseJava)
-    INCLUDE_DIRECTORIES(${JAVA_INCLUDE_PATH})
-    INCLUDE_DIRECTORIES(${JAVA_INCLUDE_PATH2})
-    # SET(JDBC_LIBRARY ${JAVA_JVM_LIBRARY}) will be dynamically linked
+  INCLUDE(UseJava)
+  INCLUDE_DIRECTORIES(${JAVA_INCLUDE_PATH})
+  INCLUDE_DIRECTORIES(${JAVA_INCLUDE_PATH2})
+  # SET(JDBC_LIBRARY ${JAVA_JVM_LIBRARY}) will be dynamically linked
+  SET(CONNECT_SOURCES ${CONNECT_SOURCES}
+  javaconn.cpp jdbconn.cpp tabjdbc.cpp
+  jmgfam.cpp jmgoconn.cpp mongo.cpp tabjmg.cpp
+  jdbccat.h javaconn.h jdbconn.h tabjdbc.h
+  jmgfam.h jmgoconn.h mongo.h tabjmg.h
+  JdbcInterface.java ApacheInterface.java MariadbInterface.java
+  MysqlInterface.java OracleInterface.java PostgresqlInterface.java
+  Mongo2Interface.java Mongo3Interface.java
+  mysql-test/connect/std_data/JavaWrappers.jar)
+  add_definitions(-DJAVA_SUPPORT)
+  IF(CONNECT_WITH_MONGO)
     SET(CONNECT_SOURCES ${CONNECT_SOURCES}
-    javaconn.cpp jdbconn.cpp tabjdbc.cpp
-    jmgfam.cpp jmgoconn.cpp mongo.cpp tabjmg.cpp
-    jdbccat.h javaconn.h jdbconn.h tabjdbc.h
-    jmgfam.h jmgoconn.h mongo.h tabjmg.h
-    JdbcInterface.java ApacheInterface.java MariadbInterface.java
-    MysqlInterface.java OracleInterface.java PostgresqlInterface.java
-    Mongo2Interface.java Mongo3Interface.java
-    mysql-test/connect/std_data/JavaWrappers.jar)
-    add_definitions(-DJAVA_SUPPORT)
-    ADD_FEATURE_INFO(CONNECT_JDBC "ON" "Support for JDBC in the CONNECT storage engine")
-    IF(CONNECT_WITH_MONGO)
-      SET(CONNECT_SOURCES ${CONNECT_SOURCES}
-        mysql-test/connect/std_data/Mongo2.jar
-        mysql-test/connect/std_data/Mongo3.jar)
-      add_definitions(-DMONGO_SUPPORT)
-    ENDIF()
-  ELSE()
-    SET(JDBC_LIBRARY "")
-    ADD_FEATURE_INFO(CONNECT_JDBC "OFF" "Support for JDBC in the CONNECT storage engine")
-  ENDIF()
+      mysql-test/connect/std_data/Mongo2.jar
+      mysql-test/connect/std_data/Mongo3.jar)
+    add_definitions(-DMONGO_SUPPORT)
+  ENDIF(CONNECT_WITH_MONGO)
+  SET(CMAKE_MODULE_PATH ${orig_CMAKE_MODULE_PATH})
+  ADD_FEATURE_INFO(CONNECT_JDBC "ON" "Support for JDBC in the CONNECT storage engine")
 ELSE(CONNECT_WITH_JDBC)
   ADD_FEATURE_INFO(CONNECT_JDBC "OFF" "Support for JDBC in the CONNECT storage engine")
 ENDIF(CONNECT_WITH_JDBC)
