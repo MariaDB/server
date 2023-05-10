@@ -5,9 +5,26 @@
 --source include/have_log_bin.inc
 --source include/have_binlog_format_mixed.inc
 --source include/have_innodb.inc
---source include/master-slave.inc
 --source include/have_debug.inc
 --source include/no_valgrind_without_big.inc
+--let $rpl_topology= 1->2->3
+--source include/rpl_init.inc
+
+--let $rpl_connection_name= master
+--let $rpl_server_number= 1
+--source include/rpl_connect.inc
+--let $rpl_connection_name= master1
+--source include/rpl_connect.inc
+
+--let $rpl_connection_name= slave
+--let $rpl_server_number= 2
+--source include/rpl_connect.inc
+
+--connection server_3
+--source include/stop_slave.inc
+SET @old_parallel_threads= @@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads= 4;
+--source include/start_slave.inc
 
 --connection slave
 --source include/stop_slave.inc
@@ -62,6 +79,10 @@ show create table t3;
 --source include/show_binlog_events.inc
 show create table t3;
 
+--connection slave
+--sync_slave_with_master server_3
+--source include/show_binlog_events.inc
+show create table t3;
 
 --connection master
 SET GLOBAL debug_dbug= @old_debug_master;
@@ -75,6 +96,13 @@ stop slave;
 --eval set global slave_parallel_mode = $slave_parallel_mode;
 --eval set global gtid_strict_mode = $gtid_strict_mode;
 start slave;
+
+--connection slave
+--sync_slave_with_master server_3
+stop slave;
+SET GLOBAL slave_parallel_threads= @old_parallel_threads;
+start slave;
+
 --connection master
 let MYSQLD_DATADIR= `select @@datadir;`;
 --remove_files_wildcard $MYSQLD_DATADIR/test #sql*.frm
