@@ -311,11 +311,6 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *org_table_list)
       DBUG_RETURN(TRUE);
   }
 
-#ifdef WITH_WSREP
-  if (WSREP_ON && seq->cache != 0)
-    WSREP_WARN("CREATE SEQUENCES declared without `NOCACHE` will not behave correctly in galera cluster.");
-#endif
-
   /* If not temporary table */
   if (!temporary_table)
   {
@@ -925,21 +920,24 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
                    0, 0))
     DBUG_RETURN(TRUE);                  /* purecov: inspected */
 
-#ifdef WITH_WSREP
-  if (WSREP_ON && new_seq->cache != 0)
-    WSREP_WARN("ALTER SEQUENCES declared without `NOCACHE` will not behave correctly in galera cluster.");
-#endif
-
   if (check_grant(thd, ALTER_ACL, first_table, FALSE, 1, FALSE))
     DBUG_RETURN(TRUE);                  /* purecov: inspected */
 
 #ifdef WITH_WSREP
-  if (WSREP_ON && WSREP(thd) &&
-      wsrep_to_isolation_begin(thd, first_table->db.str,
-	                       first_table->table_name.str,
-		               first_table))
-    DBUG_RETURN(TRUE);
+  if (WSREP(thd) && wsrep_thd_is_local(thd))
+  {
+    if (wsrep_check_sequence(thd, new_seq))
+      DBUG_RETURN(TRUE);
+
+    if (wsrep_to_isolation_begin(thd, first_table->db.str,
+                                 first_table->table_name.str,
+                                 first_table))
+    {
+      DBUG_RETURN(TRUE);
+    }
+  }
 #endif /* WITH_WSREP */
+
   if (if_exists())
     thd->push_internal_handler(&no_such_table_handler);
   error= open_and_lock_tables(thd, first_table, FALSE, 0);

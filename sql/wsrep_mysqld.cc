@@ -2298,9 +2298,20 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
     return -1;
   }
 
+  /* If we are inside LOCK TABLE we release it and give warning. */
+  if (thd->variables.option_bits & OPTION_TABLE_LOCK &&
+      thd->lex->sql_command == SQLCOM_CREATE_SEQUENCE)
+  {
+    thd->locked_tables_list.unlock_locked_tables(thd);
+    thd->variables.option_bits&= ~(OPTION_TABLE_LOCK);
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+			HA_ERR_UNSUPPORTED,
+			"Galera cluster does not support LOCK TABLE on "
+			"SEQUENCES. Lock is released.");
+  }
   if (wsrep_debug && thd->mdl_context.has_locks())
   {
-    WSREP_DEBUG("thread holds MDL locks at TI begin: %s %llu",
+    WSREP_DEBUG("thread holds MDL locks at TO begin: %s %llu",
                 wsrep_thd_query(thd), thd->thread_id);
   }
 

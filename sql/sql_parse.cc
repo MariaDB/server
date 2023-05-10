@@ -2951,6 +2951,16 @@ retry:
         if (result)
           goto err;
       }
+
+#ifdef WITH_WSREP
+      if (WSREP(thd) && table->table->s->table_type == TABLE_TYPE_SEQUENCE)
+      {
+        my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+                 "LOCK TABLE on SEQUENCES in Galera cluster");
+        goto err;
+      }
+#endif
+
     }
     /*
        Check privileges of view tables here, after views were opened.
