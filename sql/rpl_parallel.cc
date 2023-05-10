@@ -2551,12 +2551,12 @@ rpl_parallel_entry::queue_master_restart(rpl_group_info *rgi,
   return 0;
 }
 
-inline bool rpl_parallel_entry::stop_abrupt(Relay_log_info *rli)
+bool rpl_parallel_entry::stop_abrupt(Relay_log_info *rli)
 {
   return force_abort.load(std::memory_order_relaxed) && !rli->stop_for_until;
 }
 
-inline bool rpl_parallel_entry::rgi_is_safe_to_terminate(rpl_group_info *rgi)
+bool rpl_parallel_entry::rgi_is_safe_to_terminate(rpl_group_info *rgi)
 {
   return unsafe_rollback_marker_sub_id.load(std::memory_order_relaxed) <
          rgi->gtid_sub_id;
