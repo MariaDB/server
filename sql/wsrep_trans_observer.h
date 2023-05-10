@@ -414,11 +414,12 @@ int wsrep_after_statement(THD* thd)
 {
   DBUG_ENTER("wsrep_after_statement");
   WSREP_DEBUG("wsrep_after_statement for %lu client_state %s "
-	  " client_mode %s trans_state %s",
-	  thd_get_thread_id(thd),
-	  wsrep::to_c_string(thd->wsrep_cs().state()),
-	  wsrep::to_c_string(thd->wsrep_cs().mode()),
-	  wsrep::to_c_string(thd->wsrep_cs().transaction().state()));
+              " client_mode %s trans_state %s query %s",
+              thd_get_thread_id(thd),
+              wsrep::to_c_string(thd->wsrep_cs().state()),
+              wsrep::to_c_string(thd->wsrep_cs().mode()),
+              wsrep::to_c_string(thd->wsrep_cs().transaction().state()),
+              wsrep_thd_query(thd));
   DBUG_RETURN((thd->wsrep_cs().state() != wsrep::client_state::s_none &&
 	       thd->wsrep_cs().mode() == Wsrep_client_state::m_local) ?
               thd->wsrep_cs().after_statement() : 0);
