@@ -632,6 +632,9 @@ SET GLOBAL slave_parallel_threads=0;
 SET GLOBAL slave_parallel_threads=4;
 include/start_slave.inc
 *** 4. Test killing thread that is waiting to start transaction until previous transaction commits ***
+connection server_2;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,rpl_parallel_wait_for_done_trigger";
 connection server_1;
 SET binlog_format=statement;
 SET gtid_domain_id=2;
@@ -732,7 +735,7 @@ SET debug_sync='now WAIT_FOR t3_waiting';
 SET debug_sync='now SIGNAL d2_cont';
 SET debug_sync='now WAIT_FOR t4_waiting';
 KILL THD_ID;
-SET debug_sync='now WAIT_FOR t3_killed';
+SET debug_sync='now WAIT_FOR wait_for_done_waiting';
 SET debug_sync='now SIGNAL t1_cont';
 include/wait_for_slave_sql_error.inc [errno=1317,1927,1964]
 STOP SLAVE IO_THREAD;
@@ -746,6 +749,7 @@ a	b
 69	69
 70	70
 SET debug_sync='RESET';
+SET GLOBAL debug_dbug=@old_dbug;
 SET GLOBAL slave_parallel_threads=0;
 SET GLOBAL slave_parallel_threads=10;
 SET sql_log_bin=0;

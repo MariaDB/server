@@ -11676,7 +11676,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
 
       if (rgi->rli->mi->using_parallel() &&
           rgi->parallel_entry->stop_abrupt(rgi->rli) &&
-          (rgi->parallel_entry->rgi_is_safe_to_terminate(rgi)))
+          rgi->parallel_entry->rgi_is_safe_to_terminate(rgi))
       {
         /*
           Exit early, and let the Event-level exit logic take care of the
