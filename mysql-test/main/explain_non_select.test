@@ -277,4 +277,23 @@ select * from t1;
 
 drop table t1,t2,t3;
 
+--echo #
+--echo # MDEV-31224: EXPLAIN EXTENDED for multi-table update of system table
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (3);
+
+let $q=
+UPDATE t1, t2 SET b = 4 WHERE a IN (6,2);
+
+eval EXPLAIN EXTENDED $q;
+eval $q;
+SELECT * from t2;
+
+DROP TABLE t1, t2;
+
 --echo # End of 10.4 tests
