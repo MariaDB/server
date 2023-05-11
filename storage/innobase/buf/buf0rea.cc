@@ -525,7 +525,7 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 
   /* We will check that almost all pages in the area have been accessed
   in the desired order. */
-  const bool descending= page_id == low;
+  const bool descending= page_id != low;
 
   if (!descending && page_id != high_1)
     /* This is not a border page of the area */
@@ -555,7 +555,7 @@ fail:
                                uint32_t{buf_pool.read_ahead_area});
   page_id_t new_low= low, new_high_1= high_1;
   unsigned prev_accessed= 0;
-  for (page_id_t i= low; i != high_1; ++i)
+  for (page_id_t i= low; i <= high_1; ++i)
   {
     buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(i.fold());
     transactional_shared_lock_guard<page_hash_latch> g
@@ -583,12 +583,21 @@ failed:
       if (prev == FIL_NULL || next == FIL_NULL)
         goto fail;
       page_id_t id= page_id;
-      if (descending && next - 1 == page_id.page_no())
-        id.set_page_no(prev);
-      else if (!descending && prev + 1 == page_id.page_no())
-        id.set_page_no(next);
+      if (descending)
+      {
+        if (id == high_1)
+          ++id;
+        else if (next - 1 != page_id.page_no())
+          goto fail;
+        else
+          id.set_page_no(prev);
+      }
       else
-        goto fail; /* Successor or predecessor not in the right order */
+      {
+        if (prev + 1 != page_id.page_no())
+          goto fail;
+        id.set_page_no(next);
+      }
 
       new_low= id - (id.page_no() % buf_read_ahead_area);
       new_high_1= new_low + (buf_read_ahead_area - 1);
@@ -620,7 +629,7 @@ failed:
   /* If we got this far, read-ahead can be sensible: do it */
   count= 0;
   for (ulint ibuf_mode= ibuf ? BUF_READ_IBUF_PAGES_ONLY : BUF_READ_ANY_PAGE;
-       new_low != new_high_1; ++new_low)
+       new_low <= new_high_1; ++new_low)
   {
     if (ibuf_bitmap_page(new_low, zip_size))
       continue;
