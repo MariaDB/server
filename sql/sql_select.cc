@@ -8531,25 +8531,26 @@ best_access_path(JOIN      *join,
       fanout= hash_join_fanout(join, s, remaining_tables, rnd_records,
                                hj_start_key, &stats_found);
       join_sel= 1.0; // Don't do the "10% heuristic"
-    }
-    if (!stats_found)
-    {
-      /*
-        No OPTIMIZER_SWITCH_HASH_JOIN_CARDINALITY or no field statistics
-        found.
-
-        Take into account if there is non constant constraints used with
-        earlier tables in the where expression.
-        If yes, this will set fanout to rnd_records/4.
-        We estimate that there will be HASH_FANOUT (10%)
-        hash matches / row.
-      */
-      if (found_constraint && !force_estimate)
-        rnd_records= use_found_constraint(rnd_records);
-      fanout= rnd_records;
-      join_sel= 0.1;
+      if (stats_found)
+        goto fanout_computed;
     }
 
+    /*
+      No OPTIMIZER_SWITCH_HASH_JOIN_CARDINALITY or no field statistics
+      found.
+
+      Take into account if there is non constant constraints used with
+      earlier tables in the where expression.
+      If yes, this will set fanout to rnd_records/4.
+      We estimate that there will be HASH_FANOUT (10%)
+      hash matches / row.
+    */
+    if (found_constraint && !force_estimate)
+      rnd_records= use_found_constraint(rnd_records);
+    fanout= rnd_records;
+    join_sel= 0.1;
+
+  fanout_computed:
     tmp= s->quick ? s->quick->read_time : s->scan_time();
     double cmp_time= (s->records - rnd_records)/TIME_FOR_COMPARE;
     tmp= COST_ADD(tmp, cmp_time);
