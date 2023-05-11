@@ -7901,8 +7901,18 @@ Rows_log_event::write_row(rpl_group_info *rgi,
 int Rows_log_event::update_sequence()
 {
   TABLE *table= m_table;  // pointer to event's table
+  bool old_master= false;
+  int err= 0;
 
-  if (!bitmap_is_set(table->rpl_write_set, MIN_VALUE_FIELD_NO))
+  if (!bitmap_is_set(table->rpl_write_set, MIN_VALUE_FIELD_NO) ||
+      (
+#if defined(WITH_WSREP)
+       ! WSREP(thd) &&
+#endif
+       !(table->in_use->rgi_slave->gtid_ev_flags2 & Gtid_log_event::FL_DDL) &&
+       !(old_master=
+         rpl_master_has_bug(thd->rgi_slave->rli,
+                            29621, FALSE, FALSE, FALSE, TRUE))))
   {
     /* This event come from a setval function executed on the master.
        Update the sequence next_number and round, like we do with setval()
@@ -7915,12 +7925,27 @@ int Rows_log_event::update_sequence()
 
     return table->s->sequence->set_value(table, nextval, round, 0) > 0;
   }
-
+  if (old_master && !WSREP(thd) && thd->rgi_slave->is_parallel_exec)
+  {
+    DBUG_ASSERT(thd->rgi_slave->parallel_entry);
+    /*
+      With parallel replication enabled, we can't execute alongside any other
+      transaction in which we may depend, so we force retry to release
+      the server layer table lock for possible prior in binlog order
+      same table transactions.
+    */
+    if (thd->rgi_slave->parallel_entry->last_committed_sub_id <
+        thd->rgi_slave->wait_commit_sub_id)
+    {
+      err= ER_LOCK_DEADLOCK;
+      my_error(err, MYF(0));
+    }
+  }
   /*
     Update all fields in table and update the active sequence, like with
     ALTER SEQUENCE
   */
-  return table->file->ha_write_row(table->record[0]);
+  return err == 0 ? table->file->ha_write_row(table->record[0]) : err;
 }
 
 

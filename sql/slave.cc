@@ -8255,14 +8255,15 @@ end:
    @return TRUE if master has the bug, FALSE if it does not.
 */
 bool rpl_master_has_bug(const Relay_log_info *rli, uint bug_id, bool report,
-                        bool (*pred)(const void *), const void *param)
+                        bool (*pred)(const void *), const void *param,
+                        bool maria_master)
 {
   struct st_version_range_for_one_bug {
     uint        bug_id;
     Version introduced_in; // first version with bug
     Version fixed_in;      // first version with fix
   };
-  static struct st_version_range_for_one_bug versions_for_all_bugs[]=
+  static struct st_version_range_for_one_bug versions_for_their_bugs[]=
   {
     {24432, { 5, 0, 24 }, { 5, 0, 38 } },
     {24432, { 5, 1, 12 }, { 5, 1, 17 } },
@@ -8270,11 +8271,27 @@ bool rpl_master_has_bug(const Relay_log_info *rli, uint bug_id, bool report,
     {33029, { 5, 1,  0 }, { 5, 1, 12 } },
     {37426, { 5, 1,  0 }, { 5, 1, 26 } },
   };
+  static struct st_version_range_for_one_bug versions_for_our_bugs[]=
+  {
+    {29621, { 10, 3, 36 }, { 10, 3, 39 } },
+    {29621, { 10, 4, 26 }, { 10, 4, 29 } },
+    {29621, { 10, 5, 17 }, { 10, 5, 20 } },
+    {29621, { 10, 6, 9  }, { 10, 6, 13 } },
+    {29621, { 10, 7, 5  }, { 10, 7, 9 } },
+    {29621, { 10, 8, 4  }, { 10, 8, 8  } },
+    {29621, { 10, 9, 2  }, { 10, 9, 6  } },
+    {29621, { 10, 10,1  }, { 10, 10,4  } },
+    {29621, { 10, 11,1  }, { 10, 11,3  } },
+  };
   const Version &master_ver=
     rli->relay_log.description_event_for_exec->server_version_split;
+  struct st_version_range_for_one_bug* versions_for_all_bugs= maria_master ?
+    versions_for_our_bugs : versions_for_their_bugs;
+  uint all_size= maria_master ?
+    sizeof(versions_for_our_bugs)/sizeof(*versions_for_our_bugs) :
+    sizeof(versions_for_their_bugs)/sizeof(*versions_for_their_bugs);
 
-  for (uint i= 0;
-       i < sizeof(versions_for_all_bugs)/sizeof(*versions_for_all_bugs);i++)
+  for (uint i= 0; i < all_size; i++)
   {
     const Version &introduced_in= versions_for_all_bugs[i].introduced_in;
     const Version &fixed_in= versions_for_all_bugs[i].fixed_in;
@@ -8283,18 +8300,21 @@ bool rpl_master_has_bug(const Relay_log_info *rli, uint bug_id, bool report,
         fixed_in > master_ver &&
         (pred == NULL || (*pred)(param)))
     {
+      const char *bug_source= maria_master ?
+        "https://jira.mariadb.org/browse/MDEV-" :
+        "http://bugs.mysql.com/bug.php?id=";
       if (!report)
 	return TRUE;
       // a short message for SHOW SLAVE STATUS (message length constraints)
       my_printf_error(ER_UNKNOWN_ERROR, "master may suffer from"
-                      " http://bugs.mysql.com/bug.php?id=%u"
+                      " %s%u"
                       " so slave stops; check error log on slave"
-                      " for more info", MYF(0), bug_id);
+                      " for more info", MYF(0), bug_source, bug_id);
       // a verbose message for the error log
       rli->report(ERROR_LEVEL, ER_UNKNOWN_ERROR, NULL,
                   "According to the master's version ('%s'),"
                   " it is probable that master suffers from this bug:"
-                      " http://bugs.mysql.com/bug.php?id=%u"
+                      " %s%u"
                       " and thus replicating the current binary log event"
                       " may make the slave's data become different from the"
                       " master's data."
@@ -8308,6 +8328,7 @@ bool rpl_master_has_bug(const Relay_log_info *rli, uint bug_id, bool report,
                       " equal to '%d.%d.%d'. Then replication can be"
                       " restarted.",
                       rli->relay_log.description_event_for_exec->server_version,
+                      bug_source,
                       bug_id,
                       fixed_in[0], fixed_in[1], fixed_in[2]);
       return TRUE;
