@@ -1321,16 +1321,17 @@ EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2;
 FLUSH TABLES;
 
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2;
-set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
-set histogram_size=@save_histogram_size;
-set use_stat_tables= @save_use_stat_tables;
 
 DROP TABLE t1;
 
 --echo # End of 10.2 tests
 
+
 #
 # Clean up
 #
+set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+set histogram_size=@save_histogram_size;
+set use_stat_tables= @save_use_stat_tables;
 --source include/restore_charset.inc
 set @@global.histogram_size=@save_histogram_size;

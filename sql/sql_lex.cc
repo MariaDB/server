@@ -884,7 +884,7 @@ void Lex_input_stream::body_utf8_start(THD *thd, const char *begin_ptr)
 }
 
 
-size_t Lex_input_stream::get_body_utf8_maximum_length(THD *thd)
+size_t Lex_input_stream::get_body_utf8_maximum_length(THD *thd) const
 {
   /*
     String literals can grow during escaping:
@@ -1387,7 +1387,7 @@ Yacc_state::~Yacc_state()
 }
 
 int Lex_input_stream::find_keyword(Lex_ident_cli_st *kwd,
-                                   uint len, bool function)
+                                   uint len, bool function) const
 {
   const char *tok= m_tok_start;
 
@@ -9307,33 +9307,6 @@ bool LEX::add_grant_command(THD *thd, const List<LEX_COLUMN> &columns)
     return true;
   }
   return false;
-}
-
-
-Item *LEX::make_item_func_substr(THD *thd, Item *a, Item *b, Item *c)
-{
-  return (thd->variables.sql_mode & MODE_ORACLE) ?
-    new (thd->mem_root) Item_func_substr_oracle(thd, a, b, c) :
-    new (thd->mem_root) Item_func_substr(thd, a, b, c);
-}
-
-
-Item *LEX::make_item_func_substr(THD *thd, Item *a, Item *b)
-{
-  return (thd->variables.sql_mode & MODE_ORACLE) ?
-    new (thd->mem_root) Item_func_substr_oracle(thd, a, b) :
-    new (thd->mem_root) Item_func_substr(thd, a, b);
-}
-
-
-Item *LEX::make_item_func_replace(THD *thd,
-                                  Item *org,
-                                  Item *find,
-                                  Item *replace)
-{
-  return (thd->variables.sql_mode & MODE_ORACLE) ?
-    new (thd->mem_root) Item_func_replace_oracle(thd, org, find, replace) :
-    new (thd->mem_root) Item_func_replace(thd, org, find, replace);
 }
 
 
