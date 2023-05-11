@@ -145,16 +145,6 @@ protected:
 
 
 /**
-  Find the native function builder associated with a given function name.
-  @param thd The current thread
-  @param name The native function name
-  @return The native function builder associated with the name, or NULL
-*/
-extern Create_func *find_native_function_builder(THD *thd,
-                                                 const LEX_CSTRING *name);
-
-
-/**
   Find the function builder for qualified functions.
   @param thd The current thread
   @return A function builder for qualified functions
@@ -200,9 +190,52 @@ struct Native_func_registry
   Create_func *builder;
 };
 
+
+class Native_functions_hash: public HASH
+{
+public:
+  Native_functions_hash()
+  {
+    bzero(this, sizeof(*this));
+  }
+  ~Native_functions_hash()
+  {
+    /*
+      No automatic free because objects of this type
+      are expected to be declared statically.
+      The code in cleanup() calls my_hash_free() which may not work correctly
+      at the very end of mariadbd shutdown.
+      The the upper level code should call cleanup() explicitly.
+
+      Unfortunatelly, it's not possible to use DBUG_ASSERT(!records) here,
+      because the server terminates using exit() in some cases,
+      e.g. in the test main.named_pipe with the "Create named pipe failed"
+      error.
+    */
+  }
+  bool init(size_t count);
+  bool init(const Native_func_registry array[], size_t count)
+  {
+    return init(count) || append(array);
+  }
+  bool append(const Native_func_registry array[]);
+  bool remove(const Native_func_registry array[]);
+  void cleanup();
+  /**
+    Find the native function builder associated with a given function name.
+    @param thd The current thread
+    @param name The native function name
+    @return The native function builder associated with the name, or NULL
+  */
+  Create_func *find(THD *thd, const LEX_CSTRING &name) const;
+};
+
+extern MYSQL_PLUGIN_IMPORT Native_functions_hash native_functions_hash;
+
+extern const Native_func_registry func_array[];
+extern const size_t func_array_length;
+
 int item_create_init();
-int item_create_append(Native_func_registry array[]);
-int item_create_remove(Native_func_registry array[]);
 void item_create_cleanup();
 
 Item *create_func_dyncol_create(THD *thd, List<DYNCALL_CREATE_DEF> &list);

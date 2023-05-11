@@ -76,9 +76,6 @@ extern size_t symbols_length;
 extern SYMBOL sql_functions[];
 extern size_t sql_functions_length;
 
-extern Native_func_registry func_array[];
-extern size_t func_array_length;
-
 enum enum_i_s_events_fields
 {
   ISE_EVENT_CATALOG= 0,

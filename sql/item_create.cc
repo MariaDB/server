@@ -7249,7 +7249,7 @@ Create_func_year_week::create_native(THD *thd, const LEX_CSTRING *name,
   - keep 1 line per entry, it makes grep | sort easier
 */
 
-Native_func_registry func_array[] =
+const Native_func_registry func_array[] =
 {
   { { STRING_WITH_LEN("ABS") }, BUILDER(Create_func_abs)},
   { { STRING_WITH_LEN("ACOS") }, BUILDER(Create_func_acos)},
@@ -7609,9 +7609,10 @@ Native_func_registry func_array[] =
   { {0, 0}, NULL}
 };
 
-size_t func_array_length= sizeof(func_array) / sizeof(Native_func_registry) - 1;
 
-static HASH native_functions_hash;
+const size_t func_array_length= sizeof(func_array) / sizeof(Native_func_registry) - 1;
+
+Native_functions_hash native_functions_hash;
 
 extern "C" uchar*
 get_native_fct_hash_key(const uchar *buff, size_t *length,
@@ -7628,61 +7629,64 @@ get_native_fct_hash_key(const uchar *buff, size_t *length,
   startup only (before going multi-threaded)
 */
 
-int item_create_init()
+bool Native_functions_hash::init(size_t count)
 {
-  DBUG_ENTER("item_create_init");
+  DBUG_ENTER("Native_functions_hash::init");
 
-  if (my_hash_init(& native_functions_hash,
+  if (my_hash_init(this,
                    system_charset_info,
-                   array_elements(func_array),
+                   (ulong) count,
                    0,
                    0,
                    (my_hash_get_key) get_native_fct_hash_key,
                    NULL,                          /* Nothing to free */
                    MYF(0)))
-    DBUG_RETURN(1);
+    DBUG_RETURN(true);
 
-  DBUG_RETURN(item_create_append(func_array));
+  DBUG_RETURN(false);
 }
 
-int item_create_append(Native_func_registry array[])
-{
-  Native_func_registry *func;
 
-  DBUG_ENTER("item_create_append");
+bool Native_functions_hash::append(const Native_func_registry array[])
+{
+  const Native_func_registry *func;
+
+  DBUG_ENTER("Native_functions_hash::append");
 
   for (func= array; func->builder != NULL; func++)
   {
-    if (my_hash_insert(& native_functions_hash, (uchar*) func))
-      DBUG_RETURN(1);
+    if (my_hash_insert(this, (uchar*) func))
+      DBUG_RETURN(true);
   }
 
 #ifndef DBUG_OFF
-  for (uint i=0 ; i < native_functions_hash.records ; i++)
+  for (uint i=0 ; i < records ; i++)
   {
-    func= (Native_func_registry*) my_hash_element(& native_functions_hash, i);
+    func= (Native_func_registry*) my_hash_element(this, i);
     DBUG_PRINT("info", ("native function: %s  length: %u",
                         func->name.str, (uint) func->name.length));
   }
 #endif
 
-  DBUG_RETURN(0);
+  DBUG_RETURN(false);
 }
 
-int item_create_remove(Native_func_registry array[])
-{
-  Native_func_registry *func;
 
-  DBUG_ENTER("item_create_remove");
+bool Native_functions_hash::remove(const Native_func_registry array[])
+{
+  const Native_func_registry *func;
+
+  DBUG_ENTER("Native_functions_hash::remove");
 
   for (func= array; func->builder != NULL; func++)
   {
-    if (my_hash_delete(& native_functions_hash, (uchar*) func))
-      DBUG_RETURN(1);
+    if (my_hash_delete(this, (uchar*) func))
+      DBUG_RETURN(true);
   }
 
-  DBUG_RETURN(0);
+  DBUG_RETURN(false);
 }
+
 
 /*
   Empty the hash table for native functions.
@@ -7690,23 +7694,24 @@ int item_create_remove(Native_func_registry array[])
   shutdown only (after thread requests have been executed).
 */
 
-void item_create_cleanup()
+void Native_functions_hash::cleanup()
 {
-  DBUG_ENTER("item_create_cleanup");
-  my_hash_free(& native_functions_hash);
+  DBUG_ENTER("Native_functions_hash::cleanup");
+  my_hash_free(this);
   DBUG_VOID_RETURN;
 }
 
+
 Create_func *
-find_native_function_builder(THD *thd, const LEX_CSTRING *name)
+Native_functions_hash::find(THD *thd, const LEX_CSTRING &name) const
 {
   Native_func_registry *func;
   Create_func *builder= NULL;
 
   /* Thread safe */
-  func= (Native_func_registry*) my_hash_search(&native_functions_hash,
-                                               (uchar*) name->str,
-                                               name->length);
+  func= (Native_func_registry*) my_hash_search(this,
+                                               (uchar*) name.str,
+                                               name.length);
 
   if (func)
   {
@@ -7715,6 +7720,19 @@ find_native_function_builder(THD *thd, const LEX_CSTRING *name)
 
   return builder;
 }
+
+
+int item_create_init()
+{
+  return native_functions_hash.init(func_array, array_elements(func_array));
+}
+
+
+void item_create_cleanup()
+{
+  native_functions_hash.cleanup();
+}
+
 
 Create_qfunc *
 find_qualified_function_builder(THD *thd)

@@ -1,0 +1,81 @@
+SET sql_mode='';
+CREATE TEMPORARY TABLE t1 (a tinyINT,b CHAR(1)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 VALUES (1,1),(3,3),(2,2);
+SET SESSION tmp_table_size=True;
+Warnings:
+Warning	1292	Truncated incorrect tmp_table_size value: '1'
+CREATE TABLE t2 (c INT, d DATE) ENGINE=InnoDB PARTITION BY RANGE (YEAR (d)) SUBPARTITION BY HASH (TO_DAYS (d)) (PARTITION p0 VALUES LESS THAN (1990) (SUBPARTITION s0, SUBPARTITION s1), PARTITION p1 VALUES LESS THAN MAXVALUE (SUBPARTITION s4, SUBPARTITION s5));
+SET SESSION aria_sort_buffer_size=CAST(-1 AS UNSIGNED INT);
+Warnings:
+Note	1105	Cast to unsigned converted negative integer to it's positive complement
+Note	1105	Cast to unsigned converted negative integer to it's positive complement
+Warning	1292	Truncated incorrect aria_sort_buffer_size value: '18446744073709551615'
+INSERT INTO t1 SELECT '', SEQ FROM seq_1_to_258;
+Warnings:
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 1
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 2
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 3
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 4
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 5
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 6
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 7
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 8
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 9
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 10
+Warning	1265	Data truncated for column 'b' at row 10
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 11
+Warning	1265	Data truncated for column 'b' at row 11
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 12
+Warning	1265	Data truncated for column 'b' at row 12
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 13
+Warning	1265	Data truncated for column 'b' at row 13
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 14
+Warning	1265	Data truncated for column 'b' at row 14
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 15
+Warning	1265	Data truncated for column 'b' at row 15
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 16
+Warning	1265	Data truncated for column 'b' at row 16
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 17
+Warning	1265	Data truncated for column 'b' at row 17
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 18
+Warning	1265	Data truncated for column 'b' at row 18
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 19
+Warning	1265	Data truncated for column 'b' at row 19
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 20
+Warning	1265	Data truncated for column 'b' at row 20
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 21
+Warning	1265	Data truncated for column 'b' at row 21
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 22
+Warning	1265	Data truncated for column 'b' at row 22
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 23
+Warning	1265	Data truncated for column 'b' at row 23
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 24
+Warning	1265	Data truncated for column 'b' at row 24
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 25
+Warning	1265	Data truncated for column 'b' at row 25
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 26
+Warning	1265	Data truncated for column 'b' at row 26
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 27
+Warning	1265	Data truncated for column 'b' at row 27
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 28
+Warning	1265	Data truncated for column 'b' at row 28
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 29
+Warning	1265	Data truncated for column 'b' at row 29
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 30
+Warning	1265	Data truncated for column 'b' at row 30
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 31
+Warning	1265	Data truncated for column 'b' at row 31
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 32
+Warning	1265	Data truncated for column 'b' at row 32
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 33
+Warning	1265	Data truncated for column 'b' at row 33
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 34
+Warning	1265	Data truncated for column 'b' at row 34
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 35
+Warning	1265	Data truncated for column 'b' at row 35
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 36
+Warning	1265	Data truncated for column 'b' at row 36
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`a` at row 37
+SET SESSION aria_repair_threads=4;
+UPDATE t1 SET a=( (SELECT MAX(a) FROM t1));
+drop table t1,t2;

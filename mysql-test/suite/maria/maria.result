@@ -2814,7 +2814,7 @@ DROP TABLE t1;
 #             cardinalities=1
 #
 SET aria_repair_threads=2;
-SET aria_sort_buffer_size=8192;
+SET aria_sort_buffer_size=16384;
 CREATE TABLE t1(a CHAR(255), KEY(a), KEY(a), KEY(a));
 Warnings:
 Note	1831	Duplicate index `a_2`. This is deprecated and will be disallowed in a future release
@@ -2839,19 +2839,8 @@ SET aria_repair_threads=@@global.aria_repair_threads;
 #             low myisam_sort_buffer_size
 #
 CREATE TABLE t1(a INT, b CHAR(10), KEY(a), KEY(b));
-INSERT INTO t1 VALUES(1,'0'),(2,'0'),(3,'0'),(4,'0'),(5,'0'),
-(6,'0'),(7,'0');
-INSERT INTO t1 SELECT a+10,b FROM t1;
-INSERT INTO t1 SELECT a+20,b FROM t1;
-INSERT INTO t1 SELECT a+40,b FROM t1;
-INSERT INTO t1 SELECT a+80,b FROM t1;
-INSERT INTO t1 SELECT a+160,b FROM t1;
-INSERT INTO t1 SELECT a+320,b FROM t1;
-INSERT INTO t1 SELECT a+640,b FROM t1;
-INSERT INTO t1 SELECT a+1280,b FROM t1;
-INSERT INTO t1 SELECT a+2560,b FROM t1;
-INSERT INTO t1 SELECT a+5120,b FROM t1;
-SET aria_sort_buffer_size=4096;
+INSERT INTO t1 select seq,'0' from seq_1_to_65536;
+SET aria_sort_buffer_size=16384;
 REPAIR TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	repair	error	aria_sort_buffer_size is too small. X

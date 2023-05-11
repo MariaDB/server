@@ -5,6 +5,7 @@
 
 -- source include/have_maria.inc
 -- source include/have_partition.inc
+-- source include/have_sequence.inc
 
 call mtr.add_suppression("Can't find record in '.*'");
 
@@ -2034,7 +2035,7 @@ DROP TABLE t1;
 --echo #             cardinalities=1
 --echo #
 SET aria_repair_threads=2;
-SET aria_sort_buffer_size=8192;
+SET aria_sort_buffer_size=16384;
 CREATE TABLE t1(a CHAR(255), KEY(a), KEY(a), KEY(a));
 INSERT INTO t1 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9),(0),(1),(2),(3);
 --replace_regex /Current aria_sort_buffer_size.*/X/
@@ -2050,19 +2051,8 @@ SET aria_repair_threads=@@global.aria_repair_threads;
 --echo #             low myisam_sort_buffer_size
 --echo #
 CREATE TABLE t1(a INT, b CHAR(10), KEY(a), KEY(b));
-INSERT INTO t1 VALUES(1,'0'),(2,'0'),(3,'0'),(4,'0'),(5,'0'),
-                     (6,'0'),(7,'0');
-INSERT INTO t1 SELECT a+10,b FROM t1;
-INSERT INTO t1 SELECT a+20,b FROM t1;
-INSERT INTO t1 SELECT a+40,b FROM t1;
-INSERT INTO t1 SELECT a+80,b FROM t1;
-INSERT INTO t1 SELECT a+160,b FROM t1;
-INSERT INTO t1 SELECT a+320,b FROM t1;
-INSERT INTO t1 SELECT a+640,b FROM t1;
-INSERT INTO t1 SELECT a+1280,b FROM t1;
-INSERT INTO t1 SELECT a+2560,b FROM t1;
-INSERT INTO t1 SELECT a+5120,b FROM t1;
-SET aria_sort_buffer_size=4096;
+INSERT INTO t1 select seq,'0' from seq_1_to_65536;
+SET aria_sort_buffer_size=16384;
 --replace_regex /Current aria_sort_buffer_size.*/X/
 REPAIR TABLE t1;
 CHECK TABLE t1;

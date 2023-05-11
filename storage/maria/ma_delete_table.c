@@ -43,12 +43,13 @@ int maria_delete_table(const char *name)
     'open_for_repair' to be able to open even a crashed table.
   */
   my_errno= 0;
-  if (!(info= maria_open(name, O_RDONLY, HA_OPEN_FOR_REPAIR)))
+  if (!(info= maria_open(name, O_RDONLY, (HA_OPEN_FOR_DROP | HA_OPEN_FOR_REPAIR))))
   {
     sync_dir= 0;
     /* Ignore not found errors and wrong symlink errors */
-    if (my_errno != ENOENT && my_errno != HA_WRONG_CREATE_OPTION)
-      got_error= my_errno;;
+    if (my_errno != ENOENT && my_errno != HA_WRONG_CREATE_OPTION &&
+        my_errno != HA_ERR_NO_ENCRYPTION)
+      got_error= my_errno;
   }
   else
   {

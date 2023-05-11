@@ -29,12 +29,10 @@
 
 /* static variables */
 
-#undef MIN_SORT_MEMORY
 #undef DISK_BUFFER_SIZE
 
 #define MERGEBUFF 15
 #define MERGEBUFF2 31
-#define MIN_SORT_MEMORY (4096-MALLOC_OVERHEAD)
 #define DISK_BUFFER_SIZE (IO_SIZE*128)
 
 /* How many keys we can keep in memory */
@@ -145,11 +143,11 @@ int _ma_create_index_by_sort(MARIA_SORT_PARAM *info, my_bool no_messages,
   sort_keys= (uchar **) NULL; error= 1;
   maxbuffer=1;
 
-  memavl=MY_MAX(sortbuff_size,MIN_SORT_MEMORY);
+  memavl=MY_MAX(sortbuff_size,MARIA_MIN_SORT_MEMORY);
   records=	info->sort_info->max_records;
   sort_length=	info->key_length;
 
-  while (memavl >= MIN_SORT_MEMORY)
+  while (memavl >= MARIA_MIN_SORT_MEMORY)
   {
     /* Check if we can fit all keys into memory */
     if (((ulonglong) (records + 1) *
@@ -208,10 +206,10 @@ int _ma_create_index_by_sort(MARIA_SORT_PARAM *info, my_bool no_messages,
 	break;
     }
     old_memavl=memavl;
-    if ((memavl=memavl/4*3) < MIN_SORT_MEMORY && old_memavl > MIN_SORT_MEMORY)
-      memavl=MIN_SORT_MEMORY;
+    if ((memavl=memavl/4*3) < MARIA_MIN_SORT_MEMORY && old_memavl > MARIA_MIN_SORT_MEMORY)
+      memavl=MARIA_MIN_SORT_MEMORY;
   }
-  if (memavl < MIN_SORT_MEMORY)
+  if (memavl < MARIA_MIN_SORT_MEMORY)
   {
     /* purecov: begin inspected */
     _ma_check_print_error(info->sort_info->param,
@@ -387,12 +385,12 @@ static my_bool _ma_thr_find_all_keys_exec(MARIA_SORT_PARAM* sort_param)
   bzero((char*) &sort_param->unique, sizeof(sort_param->unique));
 
   sortbuff_size= sort_param->sortbuff_size;
-  memavl=       MY_MAX(sortbuff_size, MIN_SORT_MEMORY);
+  memavl=       MY_MAX(sortbuff_size, MARIA_MIN_SORT_MEMORY);
   idx=          (ha_keys) sort_param->sort_info->max_records;
   sort_length=  sort_param->key_length;
   maxbuffer=    1;
 
-  while (memavl >= MIN_SORT_MEMORY)
+  while (memavl >= MARIA_MIN_SORT_MEMORY)
   {
     if ((my_off_t) (idx+1)*(sort_length+sizeof(char*)) <= (my_off_t) memavl)
       keys= idx+1;
@@ -442,11 +440,11 @@ static my_bool _ma_thr_find_all_keys_exec(MARIA_SORT_PARAM* sort_param)
         break;
     }
     old_memavl= memavl;
-    if ((memavl= memavl/4*3) < MIN_SORT_MEMORY &&
-        old_memavl > MIN_SORT_MEMORY)
-      memavl= MIN_SORT_MEMORY;
+    if ((memavl= memavl/4*3) < MARIA_MIN_SORT_MEMORY &&
+        old_memavl > MARIA_MIN_SORT_MEMORY)
+      memavl= MARIA_MIN_SORT_MEMORY;
   }
-  if (memavl < MIN_SORT_MEMORY)
+  if (memavl < MARIA_MIN_SORT_MEMORY)
   {
     /* purecov: begin inspected */
     _ma_check_print_error(sort_param->sort_info->param,
@@ -626,7 +624,7 @@ int _ma_thr_write_keys(MARIA_SORT_PARAM *sort_param)
       if (!mergebuf)
       {
         length=(size_t)param->sort_buffer_length;
-        while (length >= MIN_SORT_MEMORY)
+        while (length >= MARIA_MIN_SORT_MEMORY)
         {
           if ((mergebuf= my_malloc((size_t) length, MYF(0))))
               break;
