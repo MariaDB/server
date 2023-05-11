@@ -1038,6 +1038,7 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
   table_map excluded_tables= remaining_tables | this->join->sjm_lookup_tables;
   if (best_table)
   {
+    best_param_tables &= ~PSEUDO_TABLE_BITS;
     *spl_pd_boundary= this->table->map;
     if (!best_param_tables)
       refills= 1;

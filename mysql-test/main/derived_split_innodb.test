@@ -462,4 +462,40 @@ set optimizer_switch= @tmp1, join_cache_level= @tmp2;
 # Cleanup
 DROP TABLE t1, t2;
 
+--echo #
+--echo # MDEV-31240, MDEV-31241: Crashes in subselects in choose_best_splitting after upgrade
+--echo #
+
+create table t1 (
+  a int
+);
+insert into t1 select seq from seq_1_to_1000;
+
+create table t2 (
+  a int,
+  b int,
+  key (a)
+);
+
+create table t4 (a int);
+insert into t4 values (1);
+
+insert into t2 select mod(seq,10), mod(seq,10) from seq_1_to_1000;
+analyze table t2 persistent for all;
+
+explain
+select 
+  a,
+  (select
+     concat(t4.a,'=',T2_GRP.SUM_B)
+   from 
+     (select a, sum(b) as SUM_B from t2 group by a) as T2_GRP,
+     t4
+   where
+      T2_GRP.a=t1.a
+  )
+from t1;
+
+drop table t1,t2,t4;
+
 --echo # End of 10.4 tests

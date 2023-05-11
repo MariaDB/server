@@ -810,4 +810,41 @@ SELECT t1.* FROM t1 JOIN (SELECT id, COUNT(*) FROM t2 GROUP BY id) sq ON sq.id= 
 a
 set optimizer_switch= @tmp1, join_cache_level= @tmp2;
 DROP TABLE t1, t2;
+#
+# MDEV-31240, MDEV-31241: Crashes in subselects in choose_best_splitting after upgrade
+#
+create table t1 (
+a int
+);
+insert into t1 select seq from seq_1_to_1000;
+create table t2 (
+a int,
+b int,
+key (a)
+);
+create table t4 (a int);
+insert into t4 values (1);
+insert into t2 select mod(seq,10), mod(seq,10) from seq_1_to_1000;
+analyze table t2 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	Table is already up to date
+explain
+select 
+a,
+(select
+concat(t4.a,'=',T2_GRP.SUM_B)
+from 
+(select a, sum(b) as SUM_B from t2 group by a) as T2_GRP,
+t4
+where
+T2_GRP.a=t1.a
+)
+from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	1000	
+2	DEPENDENT SUBQUERY	t4	system	NULL	NULL	NULL	NULL	1	
+2	DEPENDENT SUBQUERY	<derived3>	ref	key0	key0	5	test.t1.a	100	
+3	DERIVED	t2	ALL	a	NULL	NULL	NULL	1000	Using temporary; Using filesort
+drop table t1,t2,t4;
 # End of 10.4 tests
