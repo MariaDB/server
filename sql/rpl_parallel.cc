@@ -1389,24 +1389,14 @@ handle_rpl_parallel_thread(void *arg)
         if (!err)
 #endif
         {
-          if (unlikely(thd->check_killed()))
+          if (unlikely(thd->check_killed()) ||
+              (entry->stop_abrupt(rgi->rli) &&
+               entry->rgi_is_safe_to_terminate(rgi)))
           {
             thd->clear_error();
             thd->get_stmt_da()->reset_diagnostics_area();
             thd->send_kill_message();
             err= 1;
-          }
-          else if (unlikely(entry->stop_abrupt(rgi->rli) &&
-                            entry->rgi_is_safe_to_terminate(rgi)) ||
-                   thd->transaction_rollback_request)
-          {
-            /*
-              We are aborting our transaction and need to indicate to other
-              transactions which are potentially waiting on us for group
-              commit that we are not completing, so they also do not commit
-            */
-            err= ER_QUERY_INTERRUPTED;
-            signal_error_to_sql_driver_thread(thd, rgi, err);
           }
           else
             err= rpt_handle_event(qev, rpt);
@@ -1424,6 +1414,8 @@ handle_rpl_parallel_thread(void *arg)
       else
       {
         delete qev->ev;
+        if (rgi->current_gtid.seq_no == 33 || rgi->current_gtid.seq_no == 34)
+          raise(SIGINT);
         thd->get_stmt_da()->set_overwrite_status(true);
         err= thd->wait_for_prior_commit();
         thd->get_stmt_da()->set_overwrite_status(false);

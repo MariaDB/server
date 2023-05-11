@@ -3654,7 +3654,7 @@ has_temporary_error(THD *thd)
       rgi->parallel_entry->stop_abrupt(rli) &&
       rgi->parallel_entry->rgi_is_safe_to_terminate(rgi))
   {
-    rgi->worker_error= ER_QUERY_INTERRUPTED;
+    ///rgi->worker_error= ER_QUERY_INTERRUPTED;
     DBUG_RETURN(0);
   }
 
