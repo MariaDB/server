@@ -860,7 +860,7 @@ void Lex_input_stream::body_utf8_start(THD *thd, const char *begin_ptr)
 }
 
 
-size_t Lex_input_stream::get_body_utf8_maximum_length(THD *thd)
+size_t Lex_input_stream::get_body_utf8_maximum_length(THD *thd) const
 {
   /*
     String literals can grow during escaping:
@@ -1365,7 +1365,7 @@ Yacc_state::~Yacc_state()
 }
 
 int Lex_input_stream::find_keyword(Lex_ident_cli_st *kwd,
-                                   uint len, bool function)
+                                   uint len, bool function) const
 {
   const char *tok= m_tok_start;
 
@@ -4064,7 +4064,7 @@ bool LEX::can_use_merged()
     TRUE  - VIEWs with MERGE algorithms can be used
 */
 
-bool LEX::can_not_use_merged(bool no_update_or_delete)
+bool LEX::can_not_use_merged()
 {
   switch (sql_command) {
   case SQLCOM_CREATE_VIEW:
@@ -4076,10 +4076,6 @@ bool LEX::can_not_use_merged(bool no_update_or_delete)
   */
   case SQLCOM_SHOW_FIELDS:
     return TRUE;
-
-  case SQLCOM_UPDATE_MULTI:
-  case SQLCOM_DELETE_MULTI:
-    return no_update_or_delete;
 
   default:
     return FALSE;
@@ -9393,22 +9389,6 @@ bool LEX::add_grant_command(THD *thd, const List<LEX_COLUMN> &columns)
 }
 
 
-Item *LEX::make_item_func_substr(THD *thd, Item *a, Item *b, Item *c)
-{
-  return (thd->variables.sql_mode & MODE_ORACLE) ?
-    new (thd->mem_root) Item_func_substr_oracle(thd, a, b, c) :
-    new (thd->mem_root) Item_func_substr(thd, a, b, c);
-}
-
-
-Item *LEX::make_item_func_substr(THD *thd, Item *a, Item *b)
-{
-  return (thd->variables.sql_mode & MODE_ORACLE) ?
-    new (thd->mem_root) Item_func_substr_oracle(thd, a, b) :
-    new (thd->mem_root) Item_func_substr(thd, a, b);
-}
-
-
 Item *LEX::make_item_func_sysdate(THD *thd, uint fsp)
 {
   /*
@@ -9426,17 +9406,6 @@ Item *LEX::make_item_func_sysdate(THD *thd, uint fsp)
     return NULL;
   safe_to_cache_query=0;
   return item;
-}
-
-
-Item *LEX::make_item_func_replace(THD *thd,
-                                  Item *org,
-                                  Item *find,
-                                  Item *replace)
-{
-  return (thd->variables.sql_mode & MODE_ORACLE) ?
-    new (thd->mem_root) Item_func_replace_oracle(thd, org, find, replace) :
-    new (thd->mem_root) Item_func_replace(thd, org, find, replace);
 }
 
 
@@ -11920,4 +11889,10 @@ bool SELECT_LEX_UNIT::explainable() const
              derived ?
                derived->is_materialized_derived() :   // (3)
                false;
+}
+
+
+bool st_select_lex::is_query_topmost(THD *thd)
+{
+  return get_master() == &thd->lex->unit;
 }

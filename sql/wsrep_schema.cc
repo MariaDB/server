@@ -1016,10 +1016,9 @@ int Wsrep_schema::append_fragment(THD* thd,
   Wsrep_schema_impl::store(frag_table, 3, flags);
   Wsrep_schema_impl::store(frag_table, 4, data.data(), data.size());
 
-  int error;
-  if ((error= Wsrep_schema_impl::insert(frag_table))) {
-    WSREP_ERROR("Failed to write to frag table: %d", error);
+  if (Wsrep_schema_impl::insert(frag_table)) {
     trans_rollback_stmt(thd);
+    close_thread_tables(thd);
     thd->lex->restore_backup_query_tables_list(&query_tables_list_backup);
     DBUG_RETURN(1);
   }
