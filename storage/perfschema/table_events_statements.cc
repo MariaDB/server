@@ -339,9 +339,8 @@ void table_events_statements_common::make_row_part_2(const sql_digest_storage *d
       safe_byte_count <= pfs_max_digest_length)
   {
     /* Generate the DIGEST string from the MD5 digest  */
-    MD5_HASH_TO_STRING(digest->m_md5,
-                       m_row.m_digest.m_digest);
-    m_row.m_digest.m_digest_length= MD5_HASH_TO_STRING_LENGTH;
+    m_row.m_digest.m_digest_length= md5_hash_to_string(digest->m_md5,
+                                                       m_row.m_digest.m_digest);
 
     /* Generate the DIGEST_TEXT string from the token array */
     compute_digest_text(digest, &m_row.m_digest.m_digest_text);

@@ -34,15 +34,18 @@
   Write MD5 hash value in a string to be used 
   as DIGEST for the statement.
 */
-#define MD5_HASH_TO_STRING(_hash, _str)                    \
-  sprintf(_str, "%02x%02x%02x%02x%02x%02x%02x%02x"         \
-                "%02x%02x%02x%02x%02x%02x%02x%02x",        \
-          _hash[0], _hash[1], _hash[2], _hash[3],          \
-          _hash[4], _hash[5], _hash[6], _hash[7],          \
-          _hash[8], _hash[9], _hash[10], _hash[11],        \
-          _hash[12], _hash[13], _hash[14], _hash[15])
 
-#define MD5_HASH_TO_STRING_LENGTH 32
+static inline int md5_hash_to_string(const unsigned char *_hash, char *_str)
+{
+  const size_t hash_size = 32; //hash size is always 32, 
+                               //we assume _str passed to the function is >= 33 bytes
+  int res = snprintf(_str, hash_size, 
+  "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", 
+  _hash[0], _hash[1], _hash[2], _hash[3], _hash[4],
+  _hash[5], _hash[6], _hash[7], _hash[8], _hash[9],
+  _hash[10], _hash[11], _hash[12], _hash[13], _hash[14], _hash[15]);
+  return res;
+}
 
 struct PFS_host;
 struct PFS_user;

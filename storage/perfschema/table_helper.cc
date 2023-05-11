@@ -132,8 +132,7 @@ int PFS_digest_row::make_row(PFS_statements_digest_stat* pfs)
       Calculate digest from MD5 HASH collected to be shown as
       DIGEST in this row.
     */
-    MD5_HASH_TO_STRING(pfs->m_digest_storage.m_md5, m_digest);
-    m_digest_length= MD5_HASH_TO_STRING_LENGTH;
+    m_digest_length= md5_hash_to_string(pfs->m_digest_storage.m_md5, m_digest);
 
     /*
       Calculate digest_text information from the token array collected
