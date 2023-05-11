@@ -10529,7 +10529,8 @@ int Item_cache_str::save_in_field(Field *field, bool no_conversions)
 bool Item_cache_row::allocate(THD *thd, uint num)
 {
   item_count= num;
-  return (!(values= 
+  return (!values &&
+          !(values=
 	    (Item_cache **) thd->calloc(sizeof(Item_cache *)*item_count)));
 }
 
@@ -10565,11 +10566,12 @@ bool Item_cache_row::setup(THD *thd, Item *item)
     return 1;
   for (uint i= 0; i < item_count; i++)
   {
-    Item_cache *tmp;
     Item *el= item->element_index(i);
-    if (!(tmp= values[i]= el->get_cache(thd)))
+
+    if ((!values[i]) && !(values[i]= el->get_cache(thd)))
       return 1;
-    tmp->setup(thd, el);
+
+    values[i]->setup(thd, el);
   }
   return 0;
 }
