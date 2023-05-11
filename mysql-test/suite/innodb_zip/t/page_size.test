@@ -888,4 +888,28 @@ INSERT INTO t1 VALUES ('');
 SET GLOBAL innodb_compression_level= @save_innodb_compression_level;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-31158 Assertion ...MTR_MEMO_X_LOCKED in btr_attach_half_pages()
+--echo #
+--source include/have_innodb.inc
+
+SET @save_compression_level=@@GLOBAL.innodb_compression_level;
+SET GLOBAL innodb_compression_level=0;
+CREATE TEMPORARY TABLE t(a SERIAL, prefix VARBINARY(4), pad INT);
+INSERT INTO t(prefix, pad) VALUES
+(_binary 0xff,160),('',19),(_binary 0x0001,253),(_binary 0x0b11,169),
+(_binary 0x0b010001,23),(_binary 0x0b100001,251),(_binary 0x0d,163),
+(_binary 0xb3,254),(_binary 0x96,254),(_binary 0xeb,61),
+(_binary 0xf231,253),(_binary 0x1db0,253),(_binary 0x0005,101),
+(_binary 0x6370,253),(_binary 0x0b12,112),(_binary 0x0b010002,23),
+(_binary 0x0b100002,80),(_binary 0x181984,163),(_binary 0x181926,168),
+(_binary 0xe1,176),(_binary 0xe2,187),(_binary 0xe6,254),(_binary 0xbb,51),
+(_binary 0x1c,248),(_binary 0x8a,94),(_binary 0x14,254);
+CREATE TABLE u(a SMALLINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+               b VARBINARY(255), KEY(b)) ENGINE=InnoDB
+               KEY_BLOCK_SIZE=1 ROW_FORMAT=COMPRESSED;
+INSERT INTO u SELECT a,CONCAT(prefix,REPEAT(chr(0),pad)) FROM t;
+DROP TABLE u, t;
+SET GLOBAL innodb_compression_level=@save_compression_level;
+
 --echo # End of 10.6 tests
