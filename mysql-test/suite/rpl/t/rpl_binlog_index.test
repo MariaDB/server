@@ -17,16 +17,16 @@
 # BUG#12133 master.index file keeps mysqld from starting if bin log has been moved
 # BUG#42576 Relay logs in relay-log.info&localhost-relay-bin.index not processed after move
 
-source include/master-slave.inc;
-# There is no need to run this test case on all binlog format
-source include/have_binlog_format_row.inc;
-
 # Since this test relies heavily on filesystem operations (like
 # moving files around, backslashes and so forth) we avoid messing
 # around with windows access violations for not cluttering the 
 # test case any further. It is prepared to support windows, but
 # it is not 100% compliant.
 --source include/not_windows.inc
+
+source include/master-slave.inc;
+# There is no need to run this test case on all binlog format
+source include/have_binlog_format_row.inc;
 
 connection master;
 --let $master_datadir= `select @@datadir`

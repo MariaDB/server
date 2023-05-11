@@ -5811,7 +5811,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       /*
         Perform range analysis if there are keys it could use (1).
         Don't do range analysis for materialized subqueries (2).
-        Don't do range analysis for materialized derived tables (3)
+        Don't do range analysis for materialized derived tables/views (3)
       */
       if ((!s->const_keys.is_clear_all() ||
            !bitmap_is_clear_all(&s->table->cond_set)) &&              // (1)
@@ -7570,6 +7570,7 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key)
   join->positions[idx].records_read=1.0;	/* This is a const table */
   join->positions[idx].cond_selectivity= 1.0;
   join->positions[idx].ref_depend_map= 0;
+  join->positions[idx].partial_join_cardinality= 1;
 
 //  join->positions[idx].loosescan_key= MAX_KEY; /* Not a LooseScan */
   join->positions[idx].sj_strategy= SJ_OPT_NONE;
@@ -7587,6 +7588,7 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key)
   }
   join->best_ref[idx]=table;
   join->positions[idx].spl_plan= 0;
+  join->positions[idx].spl_pd_boundary= 0;
 }
 
 
@@ -7594,20 +7596,28 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key)
   Estimate how many records we will get if we read just this table and apply
   a part of WHERE that can be checked for it.
 
+  @param s                      Current JOIN_TAB
+  @param use_cond_selectivity   Value of optimizer_use_condition_selectivity.
+                                If > 1 then use table->cond_selecitivity.
+  @param force_estiamte         Set to 1 if we should not call
+                                use_found_constraint. To be deleted in 11.0
+  @return 0.0                   No matching rows
+  @return >= 1.0                Number of expected matching rows
+
   @detail
   Estimate how many records we will get if we
    - read the given table with its "independent" access method (either quick 
      select or full table/index scan),
    - apply the part of WHERE that refers only to this table.
 
-  @seealso
+  @see also
     table_cond_selectivity() produces selectivity of condition that is checked
     after joining rows from this table to rows from preceding tables.
 */
 
-inline
-double matching_candidates_in_table(JOIN_TAB *s, bool with_found_constraint,
-                                     uint use_cond_selectivity)
+static double apply_selectivity_for_table(JOIN_TAB *s,
+                                          uint use_cond_selectivity,
+                                          bool *force_estimate)
 {
   ha_rows records;
   double dbl_records;
@@ -7618,32 +7628,45 @@ double matching_candidates_in_table(JOIN_TAB *s, bool with_found_constraint,
     double sel= table->cond_selectivity;
     double table_records= rows2double(s->records);
     dbl_records= table_records * sel;
+    *force_estimate= 1;           // Don't call use_found_constraint()
     return dbl_records;
   }
 
   records = s->found_records;
 
   /*
-    If there is a filtering condition on the table (i.e. ref analyzer found
-    at least one "table.keyXpartY= exprZ", where exprZ refers only to tables
-    preceding this table in the join order we're now considering), then 
-    assume that 25% of the rows will be filtered out by this condition.
-
-    This heuristic is supposed to force tables used in exprZ to be before
-    this table in join order.
+    If applicable, get a more accurate estimate.
   */
-  if (with_found_constraint)
-    records-= records/4;
-
-    /*
-      If applicable, get a more accurate estimate. Don't use the two
-      heuristics at once.
-    */
+  DBUG_ASSERT(s->table->opt_range_condition_rows <= s->found_records);
   if (s->table->opt_range_condition_rows != s->found_records)
+  {
+    *force_estimate= 1;           // Don't call use_found_constraint()
     records= s->table->opt_range_condition_rows;
+  }
 
   dbl_records= (double)records;
   return dbl_records;
+}
+
+/*
+  Take into account that the table's WHERE clause has conditions on earlier
+  tables that can reduce the number of accepted rows.
+
+  @param records  Number of original rows (after selectivity)
+
+  If there is a filtering condition on the table (i.e. ref analyzer found
+  at least one "table.keyXpartY= exprZ", where exprZ refers only to tables
+  preceding this table in the join order we're now considering), then
+  assume that 25% of the rows will be filtered out by this condition.
+
+  This heuristic is supposed to force tables used in exprZ to be before
+  this table in join order.
+*/
+
+inline double use_found_constraint(double records)
+{
+  records-= records/4;
+  return records;
 }
 
 
@@ -7699,6 +7722,92 @@ double adjust_quick_cost(double quick_cost, ha_rows records)
                 rows2double(records)/TIME_FOR_COMPARE);
   DBUG_ASSERT(cost > 0.0);
   return cost;
+}
+
+
+/*
+  @brief
+    Compute the fanout of hash join operation using EITS data
+*/
+
+double hash_join_fanout(JOIN *join, JOIN_TAB *s, table_map remaining_tables,
+                        double rnd_records, KEYUSE *hj_start_key,
+                        bool *stats_found)
+{
+  THD *thd= join->thd;
+  /*
+    Before doing the hash join, we will scan the table and apply the local part
+    of the WHERE condition. This will produce rnd_records.
+
+    The EITS statistics describes the entire table. Calling
+
+      table->field[N]->get_avg_frequency()
+
+    produces average #rows in the table with some value.
+
+    What happens if we filter out rows so that rnd_records rows are left?
+    Something between the two outcomes:
+    A. filtering removes a fraction of rows for each value:
+      avg_frequency=avg_frequency * condition_selectivity
+
+    B. filtering removes entire groups of rows with the same value, but
+       the remaining groups remain of the same size.
+
+    We make pessimistic assumption and assume B.
+    We also handle an edge case: if rnd_records is less than avg_frequency,
+    assume we'll get rnd_records rows with the same value, and return
+    rnd_records as the fanout estimate.
+  */
+  double min_freq= rnd_records;
+
+  Json_writer_object trace_obj(thd, "hash_join_cardinality");
+  /*
+    There can be multiple KEYUSE referring to same or different columns
+
+       KEYUSE(tbl.col1 = ...)
+       KEYUSE(tbl.col1 = ...)
+       KEYUSE(tbl.col2 = ...)
+
+    Hash join code can use multiple columns: (col1, col2) for joining.
+    We need n_distinct({col1, col2}).
+
+    EITS only has statistics on individual columns: n_distinct(col1),
+    n_distinct(col2).
+
+    Our current solution is to be very conservative and use selectivity
+    of one column with the lowest avg_frequency.
+
+    In the future, we should an approach that cautiosly takes into account
+    multiple KEYUSEs either multiply by number of equalities or by sqrt
+    of the second most selective equality.
+  */
+  Json_writer_array trace_arr(thd, "hash_join_columns");
+  for (KEYUSE *keyuse= hj_start_key;
+       keyuse->table == s->table && is_hash_join_key_no(keyuse->key);
+       keyuse++)
+  {
+    if (!(remaining_tables & keyuse->used_tables) &&
+        (!keyuse->validity_ref || *keyuse->validity_ref) &&
+        s->access_from_tables_is_allowed(keyuse->used_tables,
+                                         join->sjm_lookup_tables))
+    {
+      Field *field= s->table->field[keyuse->keypart];
+      if (is_eits_usable(field))
+      {
+        double freq= field->read_stats->get_avg_frequency();
+
+        Json_writer_object trace_field(thd);
+        trace_field.add("field",field->field_name.str).
+          add("avg_frequency", freq);
+        if (freq < min_freq)
+          min_freq= freq;
+        *stats_found= 1;
+      }
+    }
+  }
+  trace_arr.end();
+  trace_obj.add("rows", min_freq);
+  return min_freq;
 }
 
 
@@ -7766,6 +7875,7 @@ best_access_path(JOIN      *join,
   MY_BITMAP *eq_join_set= &s->table->eq_join_set;
   KEYUSE *hj_start_key= 0;
   SplM_plan_info *spl_plan= 0;
+  table_map spl_pd_boundary= 0;
   Range_rowid_filter_cost_info *filter= 0;
   const char* cause= NULL;
   enum join_type best_type= JT_UNKNOWN, type= JT_UNKNOWN;
@@ -7782,9 +7892,11 @@ best_access_path(JOIN      *join,
   loose_scan_opt.init(join, s, remaining_tables);
 
   if (s->table->is_splittable())
-    spl_plan= s->choose_best_splitting(record_count, remaining_tables);
-  Json_writer_array trace_paths(thd, "considered_access_paths");
+    spl_plan= s->choose_best_splitting(idx,
+                                       remaining_tables,
+                                       &spl_pd_boundary);
 
+  Json_writer_array trace_paths(thd, "considered_access_paths");
   if (s->keyuse)
   {                                            /* Use key if possible */
     KEYUSE *keyuse;
@@ -8394,10 +8506,44 @@ best_access_path(JOIN      *join,
       (!(s->table->map & join->outer_join) ||
        join->allowed_outer_join_with_cache))    // (2)
   {
-    double join_sel= 0.1;
+    double fanout;
+    double join_sel;
+    bool stats_found= 0, force_estimate= 0;
+    Json_writer_object trace_access_hash(thd);
+    trace_access_hash.add("type", "hash");
+    trace_access_hash.add("index", "hj-key");
     /* Estimate the cost of  the hash join access to the table */
-    double rnd_records= matching_candidates_in_table(s, found_constraint,
-                                                     use_cond_selectivity);
+    double rnd_records= apply_selectivity_for_table(s, use_cond_selectivity,
+                                                    &force_estimate);
+
+    DBUG_ASSERT(hj_start_key);
+    if (optimizer_flag(thd, OPTIMIZER_SWITCH_HASH_JOIN_CARDINALITY))
+    {
+      /*
+        Starting from this point, rnd_records should not be used anymore.
+        Use "fanout" for an estimate of # matching records.
+      */
+      fanout= hash_join_fanout(join, s, remaining_tables, rnd_records,
+                               hj_start_key, &stats_found);
+      join_sel= 1.0; // Don't do the "10% heuristic"
+    }
+    if (!stats_found)
+    {
+      /*
+        No OPTIMIZER_SWITCH_HASH_JOIN_CARDINALITY or no field statistics
+        found.
+
+        Take into account if there is non constant constraints used with
+        earlier tables in the where expression.
+        If yes, this will set fanout to rnd_records/4.
+        We estimate that there will be HASH_FANOUT (10%)
+        hash matches / row.
+      */
+      if (found_constraint && !force_estimate)
+        rnd_records= use_found_constraint(rnd_records);
+      fanout= rnd_records;
+      join_sel= 0.1;
+    }
 
     tmp= s->quick ? s->quick->read_time : s->scan_time();
     double cmp_time= (s->records - rnd_records)/TIME_FOR_COMPARE;
@@ -8409,20 +8555,37 @@ best_access_path(JOIN      *join,
                            record_count /
 			   (double) thd->variables.join_buff_size));
     tmp= COST_MULT(tmp, refills);
-    best_time= COST_ADD(tmp,
-                        COST_MULT((record_count*join_sel) / TIME_FOR_COMPARE,
-                                  rnd_records));
+
+    // Add cost of reading/writing the join buffer
+    if (optimizer_flag(thd, OPTIMIZER_SWITCH_HASH_JOIN_CARDINALITY))
+    {
+      /* Set it to be 1/10th of TIME_FOR_COMPARE */
+      double row_copy_cost= 1.0 / (10*TIME_FOR_COMPARE);
+      double join_buffer_operations=
+        COST_ADD(
+          COST_MULT(record_count, row_copy_cost),
+          COST_MULT(record_count, fanout * (idx - join->const_tables))
+          );
+      double jbuf_use_cost= row_copy_cost * join_buffer_operations;
+      trace_access_hash.add("jbuf_use_cost", jbuf_use_cost);
+      tmp= COST_ADD(tmp, jbuf_use_cost);
+    }
+
+    double where_cost= COST_MULT((fanout*join_sel) / TIME_FOR_COMPARE,
+                                  record_count);
+    trace_access_hash.add("extra_cond_check_cost", where_cost);
+
+    best_time= COST_ADD(tmp, where_cost);
+
     best= tmp;
-    records= rnd_records;
+    records= fanout;
     best_key= hj_start_key;
     best_ref_depends_map= 0;
     best_uses_jbuf= TRUE;
     best_filter= 0;
     best_type= JT_HASH;
-    Json_writer_object trace_access_hash(thd);
-    trace_access_hash.add("type", "hash");
-    trace_access_hash.add("index", "hj-key");
     trace_access_hash.add("rnd_records", rnd_records);
+    trace_access_hash.add("records", records);
     trace_access_hash.add("cost", best);
     trace_access_hash.add("chosen", true);
   }
@@ -8474,9 +8637,13 @@ best_access_path(JOIN      *join,
       !(s->table->force_index && best_key && !s->quick) &&               // (4)
       !(best_key && s->table->pos_in_table_list->jtbm_subselect))        // (5)
   {                                             // Check full join
-    double rnd_records= matching_candidates_in_table(s, found_constraint,
-                                                      use_cond_selectivity);
-
+    bool force_estimate= 0;
+    double rnd_records= apply_selectivity_for_table(s,
+                                                    use_cond_selectivity,
+                                                    &force_estimate);
+    rnd_records= ((found_constraint && !force_estimate) ?
+                  use_found_constraint(rnd_records) :
+                  rnd_records);
     /*
       Range optimizer never proposes a RANGE if it isn't better
       than FULL: so if RANGE is present, it's always preferred to FULL.
@@ -8610,8 +8777,9 @@ best_access_path(JOIN      *join,
         best_filter= filter;
       /* range/index_merge/ALL/index access method are "independent", so: */
       best_ref_depends_map= 0;
-      best_uses_jbuf= MY_TEST(!disable_jbuf && !((s->table->map &
-                                                  join->outer_join)));
+      best_uses_jbuf= MY_TEST(!disable_jbuf && 
+                              (join->allowed_outer_join_with_cache ||
+                               !(s->table->map & join->outer_join)));
       spl_plan= 0;
       best_type= type;
     }
@@ -8634,6 +8802,7 @@ best_access_path(JOIN      *join,
   pos->loosescan_picker.loosescan_key= MAX_KEY;
   pos->use_join_buffer= best_uses_jbuf;
   pos->spl_plan= spl_plan;
+  pos->spl_pd_boundary= !spl_plan ? 0 : spl_pd_boundary;
   pos->range_rowid_filter_info= best_filter;
   pos->key_dependent= (best_type == JT_EQ_REF ? (table_map) 0 :
                        key_dependent & remaining_tables);
@@ -9167,6 +9336,9 @@ optimize_straight_join(JOIN *join, table_map remaining_tables)
       pushdown_cond_selectivity= table_cond_selectivity(join, idx, s,
                                                         remaining_tables);
     position->cond_selectivity= pushdown_cond_selectivity;
+    double partial_join_cardinality= record_count *
+                                     pushdown_cond_selectivity;
+    join->positions[idx].partial_join_cardinality= partial_join_cardinality;
     ++idx;
   }
 
@@ -9693,7 +9865,7 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
     with previous tables.
 
     For quick selects and full table scans, selectivity of COND(this_table)
-    is accounted for in matching_candidates_in_table(). Here, we only count
+    is accounted for in apply_selectivity_for_table(). Here, we only count
     selectivity of COND(this_table, previous_tables). 
 
     For other access methods, we need to calculate selectivity of the whole
@@ -9895,7 +10067,7 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
     /*
       The table is accessed with full table scan, or quick select.
       Selectivity of COND(table) is already accounted for in 
-      matching_candidates_in_table().
+      apply_selectivity_for_table().
     */
     sel= 1;
   }
@@ -10252,6 +10424,8 @@ best_extension_by_limited_search(JOIN      *join,
                               partial_join_cardinality);
         }
       }
+
+      join->positions[idx].partial_join_cardinality= partial_join_cardinality;
 
       if ((search_depth > 1) && (remaining_tables & ~real_table_bit) &
           allowed_tables)
@@ -13321,6 +13495,9 @@ uint check_join_cache_usage(JOIN_TAB *tab,
 
   join->return_tab= 0;
 
+  if (tab->no_forced_join_cache)
+    goto no_join_cache;
+
   /*
     Don't use join cache if @@join_cache_level==0 or this table is the first
     one join suborder (either at top level or inside a bush)
@@ -14289,7 +14466,8 @@ bool JOIN_TAB::preread_init()
     DBUG_RETURN(TRUE);
 
   if (!(derived->get_unit()->uncacheable & UNCACHEABLE_DEPENDENT) ||
-      derived->is_nonrecursive_derived_with_rec_ref())
+      derived->is_nonrecursive_derived_with_rec_ref() ||
+      is_split_derived)
     preread_init_done= TRUE;
   if (select && select->quick)
     select->quick->replace_handler(table->file);
@@ -17757,6 +17935,9 @@ void optimize_wo_join_buffering(JOIN *join, uint first_tab, uint last_tab,
                                                         reopt_remaining_tables &
                                                         ~real_table_bit);
     }
+    double partial_join_cardinality= rec_count *
+                                     pushdown_cond_selectivity;
+    join->positions[i].partial_join_cardinality= partial_join_cardinality;
     (*outer_rec_count) *= pushdown_cond_selectivity;
     if (!rs->emb_sj_nest)
       *outer_rec_count= COST_MULT(*outer_rec_count, pos.records_read);
@@ -21370,6 +21551,16 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
 {
   DBUG_ENTER("sub_select");
 
+  if (join_tab->split_derived_to_update && !end_of_records)
+  {
+    table_map tab_map= join_tab->split_derived_to_update;
+    for (uint i= 0; tab_map; i++, tab_map>>= 1)
+    {
+      if (tab_map & 1)
+        join->map2table[i]->preread_init_done= false;
+    }
+  }
+
   if (join_tab->last_inner)
   {
     JOIN_TAB *last_inner_tab= join_tab->last_inner;
@@ -24900,7 +25091,7 @@ JOIN_TAB::remove_duplicates()
   if (!(sortorder= (SORT_FIELD*) my_malloc(PSI_INSTRUMENT_ME,
                                            (fields->elements+1) *
                                            sizeof(SORT_FIELD),
-                                           MYF(MY_WME))))
+                                           MYF(MY_WME | MY_ZEROFILL))))
     DBUG_RETURN(TRUE);
 
   /* Calculate how many saved fields there is in list */
@@ -24919,7 +25110,6 @@ JOIN_TAB::remove_duplicates()
       else
       {
         /* Item is not stored in temporary table, remember it */
-        sorder->field= 0;                       // Safety, not used
         sorder->item= item;
         /* Calculate sorder->length */
         item->type_handler()->sort_length(thd, item, sorder);
@@ -28733,7 +28923,7 @@ void st_select_lex::print_item_list(THD *thd, String *str,
     outer_select() can not be used here because it is for name resolution
     and will return NULL at any end of name resolution chain (view/derived)
   */
-  bool top_level= (get_master() == &thd->lex->unit);
+  bool top_level= is_query_topmost(thd);
   List_iterator_fast<Item> it(item_list);
   Item *item;
   while ((item= it++))
@@ -28840,7 +29030,7 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
     return;
   }
 
-  bool top_level= (get_master() == &thd->lex->unit);
+  bool top_level= is_query_topmost(thd);
   enum explainable_cmd_type sel_type= SELECT_CMD;
   if (top_level)
     sel_type= get_explainable_cmd_type(thd);

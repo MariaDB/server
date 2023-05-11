@@ -2557,6 +2557,7 @@ Field *Field::make_new_field(MEM_ROOT *root, TABLE *new_table,
   tmp->key_start.init(0);
   tmp->part_of_key.init(0);
   tmp->part_of_sortkey.init(0);
+  tmp->read_stats= NULL;
   /*
     TODO: it is not clear why this method needs to reset unireg_check.
     Try not to reset it, or explain why it needs to be reset.
