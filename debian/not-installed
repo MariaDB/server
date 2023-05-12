@@ -44,8 +44,6 @@ usr/share/man/man1/mysql_embedded.1 # Symlink to mariadb-embedded.1 which is int
 usr/share/man/man1/my_safe_process.1
 usr/share/man/man1/mysql-stress-test.pl.1
 usr/share/man/man1/mysql.server.1
-usr/share/mariadb/JavaWrappers.jar
-usr/share/mariadb/JdbcInterface.jar
 usr/share/mariadb/Mongo2.jar
 usr/share/mariadb/Mongo3.jar
 usr/share/mariadb/binary-configure

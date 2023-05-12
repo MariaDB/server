@@ -7,6 +7,7 @@ Build-Depends: bison,
                cracklib-runtime <!nocheck>,
                debhelper (>= 10),
                dh-exec,
+               default-jdk,
                flex [amd64],
                gdb <!nocheck>,
                libaio-dev [linux-any],
@@ -957,11 +958,27 @@ Replaces: mariadb-connect-engine-10.0,
           mariadb-connect-engine-10.4,
           mariadb-server-10.0,
           mariadb-server-10.1
+Suggests: mariadb-plugin-connect-jdbc
 Description: Connect storage engine for MariaDB
  Connect engine supports a number of file formats (dbf, xml, txt, bin, etc),
  connections to ODBC tables and remote MySQL tables, as well as a number of
  other interesting features.
  This package contains the Connect plugin for MariaDB.
+
+Package: mariadb-plugin-connect-jdbc
+Architecture: any
+Depends: default-jre-headless
+Suggests: libmariadb-java,
+          libcsvjdbc-java,
+          libpostgresql-jdbc-java,
+          libpostgis-java,
+          libxerial-sqlite-jdbc-java
+Enhances: mariadb-plugin-connect
+Description: Connect storage engine JDBC interface for MariaDB server.
+ To connect to remote DBMS using Connect Storage Engine (SE) and JDBC driver,
+ there is need for JDBC interface byte code.
+ The JDBC driver for the remote DBMS connection is required.
+ This package contains the Connect SE plugin JDBC interface file for MariaDB server.
 
 Package: mariadb-plugin-s3
 Architecture: any
