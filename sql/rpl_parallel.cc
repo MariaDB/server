@@ -304,7 +304,9 @@ signal_error_to_sql_driver_thread(THD *thd, rpl_group_info *rgi, int err)
         debug_sync_set_action(thd, STRING_WITH_LEN("now WAIT_FOR cont_worker2"));
       }});
 
-  rgi->unmark_start_commit();
+  if (!rgi->aborted)
+    rgi->unmark_start_commit();
+
   rgi->cleanup_context(thd, true);
   rgi->rli->abort_slave= true;
   rgi->rli->stop_for_until= false;
@@ -1389,14 +1391,25 @@ handle_rpl_parallel_thread(void *arg)
         if (!err)
 #endif
         {
-          if (unlikely(thd->check_killed()) ||
-              (entry->stop_abrupt(rgi->rli) &&
-               entry->rgi_is_safe_to_terminate(rgi)))
+          if (unlikely(thd->check_killed()))
           {
+
             thd->clear_error();
             thd->get_stmt_da()->reset_diagnostics_area();
             thd->send_kill_message();
             err= 1;
+          }
+          else if ((entry->stop_abrupt(rgi->rli) &&
+                    entry->rgi_is_safe_to_terminate(rgi)))
+          {
+            /*
+              Temporarily separated branch, will merge with above
+            */
+            thd->clear_error();
+            thd->get_stmt_da()->reset_diagnostics_area();
+            thd->send_kill_message();
+            err= 1;
+            rgi->aborted= true;
           }
           else
             err= rpt_handle_event(qev, rpt);
@@ -1414,8 +1427,6 @@ handle_rpl_parallel_thread(void *arg)
       else
       {
         delete qev->ev;
-        if (rgi->current_gtid.seq_no == 33 || rgi->current_gtid.seq_no == 34)
-          raise(SIGINT);
         thd->get_stmt_da()->set_overwrite_status(true);
         err= thd->wait_for_prior_commit();
         thd->get_stmt_da()->set_overwrite_status(false);
@@ -1979,6 +1990,7 @@ rpl_parallel_thread::get_rgi(Relay_log_info *rli, Gtid_log_event *gtid_ev,
   rgi->retry_start_offset= rli->future_event_relay_log_pos-event_size;
   rgi->retry_event_count= 0;
   rgi->killed_for_retry= rpl_group_info::RETRY_KILL_NONE;
+  rgi->aborted= 0;
 
   return rgi;
 }

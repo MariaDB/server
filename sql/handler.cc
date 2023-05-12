@@ -1893,7 +1893,7 @@ int ha_rollback_trans(THD *thd, bool all)
               trans == &thd->transaction.stmt);
 
 #ifdef HAVE_REPLICATION
-  if (is_real_trans)
+  if (is_real_trans && !(thd->rgi_slave && thd->rgi_slave->aborted))
   {
     /*
       In parallel replication, if we need to rollback during commit, we must
