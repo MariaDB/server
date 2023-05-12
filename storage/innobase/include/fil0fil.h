@@ -415,16 +415,16 @@ public:
 	punch hole */
 	bool		punch_hole;
 
-	/** mutex to protect freed ranges */
-	std::mutex	freed_range_mutex;
+private:
+  /** mutex to protect freed_ranges and last_freed_lsn */
+  std::mutex freed_range_mutex;
 
-	/** Variables to store freed ranges. This can be used to write
-	zeroes/punch the hole in files. Protected by freed_mutex */
-	range_set	freed_ranges;
+  /** Ranges of freed page numbers; protected by freed_range_mutex */
+  range_set freed_ranges;
 
-	/** Stores last page freed lsn. Protected by freed_mutex */
-	lsn_t		last_freed_lsn;
-
+  /** LSN of freeing last page; protected by freed_range_mutex */
+  lsn_t last_freed_lsn;
+public:
 	ulint		magic_n;/*!< FIL_SPACE_MAGIC_N */
 
   /** @return whether doublewrite buffering is needed */
@@ -433,6 +433,14 @@ public:
     return !atomic_write_supported && srv_use_doublewrite_buf &&
       buf_dblwr.is_initialised();
   }
+
+  /** @return whether a page has been freed */
+  inline bool is_freed(uint32_t page);
+
+  /** Apply freed_ranges to the file.
+  @param writable whether the file is writable
+  @return number of pages written or hole-punched */
+  uint32_t flush_freed(bool writable);
 
 	/** Append a file to the chain of files of a space.
 	@param[in]	name		file name of a file that is not open
@@ -589,8 +597,6 @@ public:
   /** Close all tablespace files at shutdown */
   static void close_all();
 
-  /** @return last_freed_lsn */
-  lsn_t get_last_freed_lsn() { return last_freed_lsn; }
   /** Update last_freed_lsn */
   void update_last_freed_lsn(lsn_t lsn)
   {
