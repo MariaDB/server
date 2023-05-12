@@ -19,8 +19,10 @@ CFLAGS+=$(CPPFLAGS)
 CXXFLAGS+=$(CPPFLAGS)
 
 # Only do a strict symbol checking on Linux
+# https://manpages.debian.org/testing/dpkg-dev/dpkg-gensymbols.1.en.html
+# Level 4: Fails if some libraries have been introduced.
 ifneq (,$(filter linux,$(DEB_HOST_ARCH_OS)))
-    DPKG_GENSYMBOLS_CHECK_LEVEL := 4
+    export DPKG_GENSYMBOLS_CHECK_LEVEL = 4
 endif
 
 BUILDDIR := builddir
