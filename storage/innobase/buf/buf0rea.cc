@@ -280,9 +280,7 @@ buf_read_page_low(
 	*err = DB_SUCCESS;
 
 	if (buf_dblwr.is_inside(page_id)) {
-		ib::error() << "Trying to read doublewrite buffer page "
-			<< page_id;
-		ut_ad(0);
+		*err = DB_CORRUPTION;
 nothing_read:
 		space->release();
 		return false;
