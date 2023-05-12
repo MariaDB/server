@@ -1,6 +1,7 @@
 libmariadb.so.3 libmariadb3 #MINVER#
 * Build-Depends-Package: libmariadb-dev
  libmariadb_3@libmariadb_3 3.0.0
+ libmariadb_3_3_5@libmariadb_3_3_5 3.3.5
  libmariadbclient_18@libmariadbclient_18 3.0.0
  libmysqlclient_18@libmysqlclient_18 3.0.0
  ma_pvio_register_callback@libmariadb_3 3.0.0
@@ -8,6 +9,7 @@ libmariadb.so.3 libmariadb3 #MINVER#
  mariadb_connection@libmariadb_3 3.0.0
  mariadb_convert_string@libmariadb_3 3.0.0
  mariadb_deinitialize_ssl@libmariadb_3 3.0.0
+ mariadb_field_attr@libmariadb_3 3.1.8
  mariadb_free_rpl_event@libmariadb_3 3.1.0
  mariadb_get_charset_by_name@libmariadb_3 3.0.0
  mariadb_get_charset_by_nr@libmariadb_3 3.0.0
@@ -15,8 +17,12 @@ libmariadb.so.3 libmariadb3 #MINVER#
  mariadb_get_infov@libmariadb_3 3.0.0
  mariadb_reconnect@libmariadb_3 3.0.0
  mariadb_rpl_close@libmariadb_3 3.1.0
+ mariadb_rpl_errno@libmariadb_3_3_5 3.3.5
+ mariadb_rpl_error@libmariadb_3_3_5 3.3.5
+ mariadb_rpl_extract_rows@libmariadb_3_3_5 3.3.5
  mariadb_rpl_fetch@libmariadb_3 3.1.0
  mariadb_rpl_get_optionsv@libmariadb_3 3.1.0
+ mariadb_rpl_init_ex@libmariadb_3 3.1.13
  mariadb_rpl_open@libmariadb_3 3.1.0
  mariadb_rpl_optionsv@libmariadb_3 3.1.0
  mariadb_stmt_execute_direct@libmariadb_3 3.0.0
