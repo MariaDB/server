@@ -246,9 +246,14 @@ static XID_cache_element *xid_cache_search(THD *thd, XID *xid)
                                         xid->key(), xid->key_length());
   if (element)
   {
+    /* The element can be removed from lf_hash by other thread, but
+    element->acquire_recovered() will return false in this case. */
     if (!element->acquire_recovered())
       element= 0;
     lf_hash_search_unpin(thd->xid_hash_pins);
+    /* Once the element is acquired (i.e. got the ACQUIRED bit) by this thread,
+    only this thread can delete it. The deletion happens in xid_cache_delete().
+    See also the XID_cache_element documentation. */
     DEBUG_SYNC(thd, "xa_after_search");
   }
   return element;
