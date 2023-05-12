@@ -444,7 +444,9 @@ static bool fil_node_open_file(fil_node_t *node)
     }
   }
 
-  return fil_node_open_file_low(node);
+  /* The node can be opened beween releasing and acquiring fil_system.mutex
+  in the above code */
+  return node->is_open() || fil_node_open_file_low(node);
 }
 
 /** Close the file handle. */
