@@ -135,3 +135,71 @@ alter table t1 add d int, lock=none;
 set system_versioning_alter_history= default;
 drop table t1;
 
+--echo #
+--echo # MDEV-31058 ER_KEY_NOT_FOUND upon concurrent CHANGE column autoinc 
+--echo # and DML
+--echo #
+create table t (a serial, b int) engine=innodb;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t drop a, modify b serial, algorithm=copy, lock=none;
+
+set statement sql_mode= NO_AUTO_VALUE_ON_ZERO for
+alter table t drop a, modify b serial, algorithm=copy, lock=none;
+
+create or replace table t (a serial, b int) engine=innodb;
+show create table t;
+--echo # a is unique in the old table, but is shrunk in the new one.
+--echo # Only unsafe approach is fine because of possible collisions. 
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify a int, modify b serial, algorithm=copy, lock=none;
+
+--echo #
+--echo # Check that we treat autoinc columns correctly modify old autoinc is  
+--echo # fine, adding new autoinc for existed column is unsafe.
+--echo # 
+create or replace table t (a serial) engine=innodb;
+
+alter table t change a b serial, algorithm=copy, lock=none;
+
+--echo # Shrinking the autoinc field is considered safe.
+--echo # ER_WARN_DATA_OUT_OF_RANGE should be emitted otherwise.
+alter table t change b b int auto_increment primary key,
+              algorithm=copy, lock=none;
+
+alter table t add c int default(0), drop primary key, drop key a;
+--echo # key `b` is still there
+show create table t;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t drop b, change c c serial, algorithm=copy, lock=none;
+
+--echo # Check existed unique keys.
+create or replace table t(a int, b int not null, c int not null, d int);
+
+--echo # No unique in the old table;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t add unique(b, c), modify d int auto_increment, add key(d),
+              algorithm=copy, lock=none;
+
+alter table t add unique(a, b);
+--echo # Unique in the old table has nulls;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify d int auto_increment, add key(d), 
+              algorithm=copy, lock=none;
+
+alter table t add unique(b, c);
+--echo # Change unique'scolumn;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t change b x int, modify d int auto_increment, add key(d),
+              algorithm=copy, lock=none;
+              
+--echo # Finally good.
+alter table t modify d int auto_increment, add key(d), 
+              algorithm=copy, lock=none;
+                            
+drop table t;
+
+--echo # MDEV-31172 Server crash or ASAN errors in online_alter_check_autoinc
+create table t (a int, b int, c char(8), key(a,b,c));
+alter table t modify c int auto_increment key, algorithm=copy;
+drop table t;
