@@ -286,7 +286,7 @@ extern mysql_mutex_t LOCK_gdl;
 bool check_engine(THD *, const char *, const char *, HA_CREATE_INFO *);
 
 #ifdef WITH_WSREP
-bool wsrep_check_sequence(THD* thd, const sequence_definition *seq);
+bool wsrep_check_sequence(THD* thd, const class sequence_definition *seq);
 #endif
 
 #endif /* SQL_TABLE_INCLUDED */
