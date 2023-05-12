@@ -1804,7 +1804,7 @@ public:
                                       bool with_cleanup);
   bool vcol_fix_expr(THD *thd);
   bool vcol_cleanup_expr(THD *thd);
-  Field *find_field_by_name(LEX_CSTRING *str) const;
+  Field *find_field_by_name(const LEX_CSTRING *str) const;
   bool export_structure(THD *thd, class Row_definition_list *defs);
   bool is_splittable() { return spl_opt_info != NULL; }
   void set_spl_opt_info(SplM_opt_info *spl_info);
