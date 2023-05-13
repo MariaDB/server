@@ -46,6 +46,7 @@ set sql_mode=default;
 --echo #
 --echo # MDEV-28944 XA assertions failing in binlog_rollback and binlog_commit
 --echo #
+--disable_view_protocol
 CREATE TABLE t (a INT) ENGINE=MyISAM;
 INSERT INTO t VALUES (1);
 
@@ -65,6 +66,7 @@ XA COMMIT 'xid' ONE PHASE;
 DROP TABLE t;
 --disconnect con1
 --connection default
+--enable_view_protocol
 
 --echo #
 --echo # MDEV-29068 Cascade foreign key updates do not apply in online alter
