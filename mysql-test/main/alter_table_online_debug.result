@@ -1364,6 +1364,7 @@ drop table t;
 set debug_sync= reset;
 disconnect con1;
 disconnect con2;
+NOT FOUND /Slave SQL/ in mysqld.1.err
 #
 # End of 10.10 tests
 #
