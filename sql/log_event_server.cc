@@ -5218,26 +5218,29 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       thd->clear_error(1);
       error= 0;
     }
+
+    if (unlikely(error))
+    {
+      if (rpl_data.is_online_alter())
+        goto err;
+      slave_rows_error_report(ERROR_LEVEL, error, rgi, thd, table,
+                              get_type_str(),
+                              RPL_LOG_NAME, log_pos);
+      /*
+        @todo We should probably not call
+        reset_current_stmt_binlog_format_row() from here.
+  
+        Note: this applies to log_event_old.cc too.
+        /Sven
+      */
+      thd->reset_current_stmt_binlog_format_row();
+      thd->is_slave_error= 1;
+      /* remove trigger's tables */
+      goto err;
+    }
   } // if (table)
 
-  
-  if (unlikely(error))
-  {
-    slave_rows_error_report(ERROR_LEVEL, error, rgi, thd, table,
-                             get_type_str(),
-                             RPL_LOG_NAME, log_pos);
-    /*
-      @todo We should probably not call
-      reset_current_stmt_binlog_format_row() from here.
-
-      Note: this applies to log_event_old.cc too.
-      /Sven
-    */
-    thd->reset_current_stmt_binlog_format_row();
-    thd->is_slave_error= 1;
-    /* remove trigger's tables */
-    goto err;
-  }
+  DBUG_ASSERT(error == 0);
 
   /*
     Remove trigger's tables. In case of ONLINE ALTER TABLE, event doesn't own
