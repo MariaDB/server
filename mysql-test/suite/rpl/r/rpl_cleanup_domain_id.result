@@ -1,0 +1,319 @@
+include/rpl_init.inc [topology=1->2->4,1->3]
+connection server_2;
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
+include/start_slave.inc
+connection server_3;
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
+include/start_slave.inc
+connection server_4;
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
+include/start_slave.inc
+connection server_1;
+CREATE PROCEDURE del_domain(d INTEGER)
+BEGIN
+SET GLOBAL gtid_slave_pos = SUBSTRING(REGEXP_REPLACE(CONCAT(",", @@GLOBAL.gtid_slave_pos),CONCAT(",", d, "-[0-9]+-[0-9]+"), ""), 2);
+END|
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 VALUES (10);
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a
+10
+SELECT @@GLOBAL.gtid_slave_pos;
+@@GLOBAL.gtid_slave_pos
+0-1-3
+connection server_1;
+FLUSH BINARY LOGS;
+SET @@SESSION.gtid_domain_id= 0;
+SET @@SESSION.server_id= 171970768;
+SET @@SESSION.gtid_seq_no= 717-1;
+INSERT INTO t1 VALUES (20);
+INSERT INTO t1 VALUES (21);
+SET @@SESSION.gtid_domain_id= 171966628;
+SET @@SESSION.server_id= 171966628;
+SET @@SESSION.gtid_seq_no= 1448099028-1;
+INSERT INTO t1 VALUES (30);
+INSERT INTO t1 VALUES (31);
+FLUSH BINARY LOGS;
+SET @@SESSION.gtid_domain_id= 180363398;
+SET @@SESSION.server_id= 180363398;
+SET @@SESSION.gtid_seq_no= 187984835-2;
+INSERT INTO t1 VALUES (40);
+INSERT INTO t1 VALUES (41);
+INSERT INTO t1 VALUES (42);
+SET @@SESSION.gtid_domain_id= 171970768;
+SET @@SESSION.server_id= 171970768;
+SET @@SESSION.gtid_seq_no= 49149585-4;
+INSERT INTO t1 VALUES (50);
+INSERT INTO t1 VALUES (51);
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+10
+FLUSH BINARY LOGS;
+SELECT @@gtid_binlog_state;
+@@gtid_binlog_state
+0-1-3,0-171970768-717,171966628-171966628-1448099028,171970768-171970768-49149582,180363398-180363398-187984835
+*** Domains are present in non-purged binlog files, so cannot be deleted.
+FLUSH BINARY LOGS DELETE_DOMAIN_ID=(0,171966628,180363398);
+ERROR HY000: Could not delete gtid domain. Reason: binlog files may contain gtids from the domain ('0') being deleted. Make sure to first purge those files.
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+10
+SELECT @@GLOBAL.gtid_slave_pos;
+@@GLOBAL.gtid_slave_pos
+0-171970768-717,171966628-171966628-1448099028,171970768-171970768-49149582,180363398-180363398-187984835
+include/stop_slave.inc
+SET GLOBAL gtid_slave_pos= CONCAT(@@GLOBAL.gtid_slave_pos, ",1-171970580-1,171966572-171966572-896177597,171970580-171970580-596994206,171974667-171974667-1417249615,171974681-171974681-198565537,180355159-180355159-115369055,180359202-180359202-331241772,180363268-180363268-39992186");
+include/start_slave.inc
+connection server_1;
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+master-bin.000003	#
+master-bin.000004	#
+PURGE BINARY LOGS TO 'master-bin.000004';
+show binary logs;
+Log_name	File_size
+master-bin.000004	#
+INSERT INTO t1 VALUES (52);
+INSERT INTO t1 VALUES (53);
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+12
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+SELECT @@gtid_slave_pos;
+@@gtid_slave_pos
+0-171970768-717,1-171970580-1,171966572-171966572-896177597,171966628-171966628-1448099028,171970580-171970580-596994206,171970768-171970768-49149584,171974667-171974667-1417249615,171974681-171974681-198565537,180355159-180355159-115369055,180359202-180359202-331241772,180363268-180363268-39992186,180363398-180363398-187984835
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+12
+connection server_1;
+*** After purge, no longer used domains can be deleted
+SELECT @@gtid_binlog_state;
+@@gtid_binlog_state
+0-1-3,0-171970768-717,171966628-171966628-1448099028,171970768-171970768-49149584,180363398-180363398-187984835
+show binary logs;
+Log_name	File_size
+master-bin.000004	#
+FLUSH BINARY LOGS DELETE_DOMAIN_ID=(0,171966628,180363398);
+SELECT @@gtid_binlog_state;
+@@gtid_binlog_state
+171970768-171970768-49149584
+*** Do some transactions on master after DELETE_DOMAIN_ID, see that slaves continue ok
+SET SESSION gtid_domain_id= 171970768;
+SET SESSION server_id= 171970768;
+INSERT INTO t1 VALUES (60);
+INSERT INTO t1 VALUES (61);
+FLUSH BINARY LOGS;
+INSERT INTO t1 VALUES (62);
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+15
+include/save_master_gtid.inc
+*** Check that slaves can reconnect after DELETE_DOMAIN_ID.
+connection server_2;
+include/sync_with_master_gtid.inc
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+15
+include/stop_slave.inc
+SELECT @@gtid_slave_pos;
+@@gtid_slave_pos
+0-171970768-717,1-171970580-1,171966572-171966572-896177597,171966628-171966628-1448099028,171970580-171970580-596994206,171970768-171970768-49149587,171974667-171974667-1417249615,171974681-171974681-198565537,180355159-180355159-115369055,180359202-180359202-331241772,180363268-180363268-39992186,180363398-180363398-187984835
+include/start_slave.inc
+connection server_1;
+INSERT INTO t1 VALUES (70);
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+16
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+16
+*** Clean up @@gtid_slave_pos, see that slave can still connect.
+include/stop_slave.inc
+CALL del_domain(0);
+CALL del_domain(1);
+CALL del_domain(171966572);
+CALL del_domain(171966628);
+CALL del_domain(171970580);
+CALL del_domain(171974667);
+CALL del_domain(171974681);
+CALL del_domain(180355159);
+CALL del_domain(180359202);
+CALL del_domain(180363268);
+CALL del_domain(180363398);
+SELECT @@gtid_slave_pos;
+@@gtid_slave_pos
+171970768-171970768-49149588
+include/start_slave.inc
+connection server_1;
+INSERT INTO t1 VALUES (80);
+INSERT INTO t1 VALUES (81);
+SELECT @@gtid_binlog_state;
+@@gtid_binlog_state
+171970768-171970768-49149590
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+18
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+SELECT @@gtid_slave_pos;
+@@gtid_slave_pos
+171970768-171970768-49149590
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+18
+*** Check that other servers are also fine during the operation, and can be similarly cleaned up.
+connection server_3;
+include/sync_with_master_gtid.inc
+SELECT @@gtid_slave_pos;
+@@gtid_slave_pos
+0-171970768-717,171966628-171966628-1448099028,171970768-171970768-49149590,180363398-180363398-187984835
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+18
+include/stop_slave.inc
+CALL del_domain(0);
+CALL del_domain(171966628);
+CALL del_domain(180363398);
+connection server_4;
+include/sync_with_master_gtid.inc
+SELECT @@gtid_slave_pos;
+@@gtid_slave_pos
+0-171970768-717,171966628-171966628-1448099028,171970768-171970768-49149590,180363398-180363398-187984835
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+18
+connection server_2;
+FLUSH BINARY LOGS;
+connection server_4;
+include/stop_slave.inc
+CALL del_domain(0);
+CALL del_domain(171966628);
+CALL del_domain(180363398);
+connection server_2;
+PURGE BINARY LOGS TO 'slave-bin.000002';
+show binary logs;
+Log_name	File_size
+slave-bin.000002	#
+FLUSH BINARY LOGS DELETE_DOMAIN_ID=(0,171966628,180363398);
+connection server_1;
+INSERT INTO t1 VALUES (90);
+SELECT @@gtid_binlog_state;
+@@gtid_binlog_state
+171970768-171970768-49149591
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+19
+include/save_master_gtid.inc
+connection server_3;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT @@gtid_slave_pos;
+@@gtid_slave_pos
+171970768-171970768-49149591
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+19
+connection server_4;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT @@gtid_slave_pos;
+@@gtid_slave_pos
+171970768-171970768-49149591
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+19
+*** Change the whole replication topology to use domain_id=0
+connection server_2;
+FLUSH BINARY LOGS;
+connection server_4;
+connection server_2;
+PURGE BINARY LOGS TO 'slave-bin.000004';
+show binary logs;
+Log_name	File_size
+slave-bin.000004	#
+FLUSH BINARY LOGS DELETE_DOMAIN_ID=(171970768);
+connection server_1;
+FLUSH BINARY LOGS;
+show binary logs;
+Log_name	File_size
+master-bin.000004	#
+master-bin.000005	#
+master-bin.000006	#
+master-bin.000007	#
+PURGE BINARY LOGS TO 'master-bin.000007';
+show binary logs;
+Log_name	File_size
+master-bin.000007	#
+FLUSH BINARY LOGS DELETE_DOMAIN_ID=(171970768);
+SET SESSION gtid_domain_id= 0;
+INSERT INTO t1 VALUES (100);
+SELECT @@gtid_binlog_state;
+@@gtid_binlog_state
+0-171970768-1
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+20
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+SELECT @@gtid_slave_pos;
+@@gtid_slave_pos
+0-171970768-1,171970768-171970768-49149591
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+20
+include/stop_slave.inc
+CALL del_domain(171970768);
+include/start_slave.inc
+SELECT @@gtid_slave_pos;
+@@gtid_slave_pos
+0-171970768-1
+connection server_2;
+include/sync_with_master_gtid.inc
+SELECT @@gtid_slave_pos;
+@@gtid_slave_pos
+0-171970768-1,171970768-171970768-49149591
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+20
+include/stop_slave.inc
+CALL del_domain(171970768);
+include/start_slave.inc
+SELECT @@gtid_slave_pos;
+@@gtid_slave_pos
+0-171970768-1
+connection server_4;
+include/sync_with_master_gtid.inc
+SELECT @@gtid_slave_pos;
+@@gtid_slave_pos
+0-171970768-1,171970768-171970768-49149591
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+20
+include/stop_slave.inc
+CALL del_domain(171970768);
+include/start_slave.inc
+SELECT @@gtid_slave_pos;
+@@gtid_slave_pos
+0-171970768-1
+connection server_1;
+DROP PROCEDURE del_domain;
+DROP TABLE t1;
+include/rpl_end.inc

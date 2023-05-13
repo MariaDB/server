@@ -1,0 +1,269 @@
+# This tests the procedure for removing a no longer used domain_id from
+# a multi-level replication topology. It is inspired by a real-life scenario
+# experienced by Wikimedia Foundation as described in MDEV-30386. It seems
+# a common thing that users configure needless domains, so this is an
+# important test to verify that there is a working procedure to clean up.
+#
+--source include/have_innodb.inc
+--source include/have_binlog_format_mixed.inc
+--let $rpl_topology= 1->2->4,1->3
+--source include/rpl_init.inc
+
+--connection server_2
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
+--source include/start_slave.inc
+
+--connection server_3
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
+--source include/start_slave.inc
+
+--connection server_4
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
+--source include/start_slave.inc
+
+--connection server_1
+delimiter |;
+CREATE PROCEDURE del_domain(d INTEGER)
+  BEGIN
+    SET GLOBAL gtid_slave_pos = SUBSTRING(REGEXP_REPLACE(CONCAT(",", @@GLOBAL.gtid_slave_pos),CONCAT(",", d, "-[0-9]+-[0-9]+"), ""), 2);
+  END|
+delimiter ;|
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 VALUES (10);
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+SELECT @@GLOBAL.gtid_slave_pos;
+
+--connection server_1
+# Set up some stuff on the master to resemble the original user setup.
+FLUSH BINARY LOGS;
+SET @@SESSION.gtid_domain_id= 0;
+SET @@SESSION.server_id= 171970768;
+SET @@SESSION.gtid_seq_no= 717-1;
+INSERT INTO t1 VALUES (20);
+INSERT INTO t1 VALUES (21);
+SET @@SESSION.gtid_domain_id= 171966628;
+SET @@SESSION.server_id= 171966628;
+SET @@SESSION.gtid_seq_no= 1448099028-1;
+INSERT INTO t1 VALUES (30);
+INSERT INTO t1 VALUES (31);
+FLUSH BINARY LOGS;
+SET @@SESSION.gtid_domain_id= 180363398;
+SET @@SESSION.server_id= 180363398;
+SET @@SESSION.gtid_seq_no= 187984835-2;
+INSERT INTO t1 VALUES (40);
+INSERT INTO t1 VALUES (41);
+INSERT INTO t1 VALUES (42);
+SET @@SESSION.gtid_domain_id= 171970768;
+SET @@SESSION.server_id= 171970768;
+SET @@SESSION.gtid_seq_no= 49149585-4;
+INSERT INTO t1 VALUES (50);
+INSERT INTO t1 VALUES (51);
+SELECT COUNT(*) FROM t1;
+FLUSH BINARY LOGS;
+SELECT @@gtid_binlog_state;
+--echo *** Domains are present in non-purged binlog files, so cannot be deleted.
+--error ER_BINLOG_CANT_DELETE_GTID_DOMAIN
+FLUSH BINARY LOGS DELETE_DOMAIN_ID=(0,171966628,180363398);
+
+--source include/save_master_gtid.inc
+--connection server_2
+--source include/sync_with_master_gtid.inc
+SELECT COUNT(*) FROM t1;
+SELECT @@GLOBAL.gtid_slave_pos;
+--source include/stop_slave.inc
+# Set up some complex slave position to resemble the original user setup.
+SET GLOBAL gtid_slave_pos= CONCAT(@@GLOBAL.gtid_slave_pos, ",1-171970580-1,171966572-171966572-896177597,171970580-171970580-596994206,171974667-171974667-1417249615,171974681-171974681-198565537,180355159-180355159-115369055,180359202-180359202-331241772,180363268-180363268-39992186");
+--source include/start_slave.inc
+
+--connection server_1
+--source include/show_binary_logs.inc
+--source include/wait_for_binlog_checkpoint.inc
+PURGE BINARY LOGS TO 'master-bin.000004';
+--source include/show_binary_logs.inc
+INSERT INTO t1 VALUES (52);
+INSERT INTO t1 VALUES (53);
+SELECT COUNT(*) FROM t1;
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+SELECT @@gtid_slave_pos;
+SELECT COUNT(*) FROM t1;
+
+--connection server_1
+--echo *** After purge, no longer used domains can be deleted
+SELECT @@gtid_binlog_state;
+--source include/show_binary_logs.inc
+FLUSH BINARY LOGS DELETE_DOMAIN_ID=(0,171966628,180363398);
+SELECT @@gtid_binlog_state;
+
+--echo *** Do some transactions on master after DELETE_DOMAIN_ID, see that slaves continue ok
+SET SESSION gtid_domain_id= 171970768;
+SET SESSION server_id= 171970768;
+INSERT INTO t1 VALUES (60);
+INSERT INTO t1 VALUES (61);
+FLUSH BINARY LOGS;
+INSERT INTO t1 VALUES (62);
+SELECT COUNT(*) FROM t1;
+--source include/save_master_gtid.inc
+
+--echo *** Check that slaves can reconnect after DELETE_DOMAIN_ID.
+--connection server_2
+--source include/sync_with_master_gtid.inc
+SELECT COUNT(*) FROM t1;
+--source include/stop_slave.inc
+SELECT @@gtid_slave_pos;
+--source include/start_slave.inc
+
+--connection server_1
+INSERT INTO t1 VALUES (70);
+SELECT COUNT(*) FROM t1;
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+SELECT COUNT(*) FROM t1;
+
+--echo *** Clean up @@gtid_slave_pos, see that slave can still connect.
+--source include/stop_slave.inc
+CALL del_domain(0);
+CALL del_domain(1);
+CALL del_domain(171966572);
+CALL del_domain(171966628);
+CALL del_domain(171970580);
+CALL del_domain(171974667);
+CALL del_domain(171974681);
+CALL del_domain(180355159);
+CALL del_domain(180359202);
+CALL del_domain(180363268);
+CALL del_domain(180363398);
+SELECT @@gtid_slave_pos;
+--source include/start_slave.inc
+
+--connection server_1
+INSERT INTO t1 VALUES (80);
+INSERT INTO t1 VALUES (81);
+SELECT @@gtid_binlog_state;
+SELECT COUNT(*) FROM t1;
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+SELECT @@gtid_slave_pos;
+SELECT COUNT(*) FROM t1;
+
+--echo *** Check that other servers are also fine during the operation, and can be similarly cleaned up.
+--connection server_3
+--source include/sync_with_master_gtid.inc
+SELECT @@gtid_slave_pos;
+SELECT COUNT(*) FROM t1;
+--source include/stop_slave.inc
+CALL del_domain(0);
+CALL del_domain(171966628);
+CALL del_domain(180363398);
+
+--connection server_4
+--source include/sync_with_master_gtid.inc
+SELECT @@gtid_slave_pos;
+SELECT COUNT(*) FROM t1;
+
+--connection server_2
+FLUSH BINARY LOGS;
+--source include/wait_for_binlog_checkpoint.inc
+
+# Now we need to wait until server_4 has moved to the slave-bin.000002
+# log, otherwise the purge can leave slave-bin.000001 in place and the
+# DELETE_DOMAIN_ID will fail.
+--sync_slave_with_master server_4
+--source include/stop_slave.inc
+CALL del_domain(0);
+CALL del_domain(171966628);
+CALL del_domain(180363398);
+
+--connection server_2
+PURGE BINARY LOGS TO 'slave-bin.000002';
+--source include/show_binary_logs.inc
+FLUSH BINARY LOGS DELETE_DOMAIN_ID=(0,171966628,180363398);
+
+--connection server_1
+INSERT INTO t1 VALUES (90);
+SELECT @@gtid_binlog_state;
+SELECT COUNT(*) FROM t1;
+--source include/save_master_gtid.inc
+
+--connection server_3
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+SELECT @@gtid_slave_pos;
+SELECT COUNT(*) FROM t1;
+
+--connection server_4
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+SELECT @@gtid_slave_pos;
+SELECT COUNT(*) FROM t1;
+
+--echo *** Change the whole replication topology to use domain_id=0
+
+--connection server_2
+FLUSH BINARY LOGS;
+--source include/wait_for_binlog_checkpoint.inc
+--sync_slave_with_master server_4
+--connection server_2
+PURGE BINARY LOGS TO 'slave-bin.000004';
+--source include/show_binary_logs.inc
+FLUSH BINARY LOGS DELETE_DOMAIN_ID=(171970768);
+
+--connection server_1
+FLUSH BINARY LOGS;
+--source include/show_binary_logs.inc
+--source include/wait_for_binlog_checkpoint.inc
+PURGE BINARY LOGS TO 'master-bin.000007';
+--source include/show_binary_logs.inc
+FLUSH BINARY LOGS DELETE_DOMAIN_ID=(171970768);
+SET SESSION gtid_domain_id= 0;
+INSERT INTO t1 VALUES (100);
+SELECT @@gtid_binlog_state;
+SELECT COUNT(*) FROM t1;
+--source include/save_master_gtid.inc
+
+--connection server_3
+--source include/sync_with_master_gtid.inc
+SELECT @@gtid_slave_pos;
+SELECT COUNT(*) FROM t1;
+--source include/stop_slave.inc
+CALL del_domain(171970768);
+--source include/start_slave.inc
+SELECT @@gtid_slave_pos;
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+SELECT @@gtid_slave_pos;
+SELECT COUNT(*) FROM t1;
+--source include/stop_slave.inc
+CALL del_domain(171970768);
+--source include/start_slave.inc
+SELECT @@gtid_slave_pos;
+
+--connection server_4
+--source include/sync_with_master_gtid.inc
+SELECT @@gtid_slave_pos;
+SELECT COUNT(*) FROM t1;
+--source include/stop_slave.inc
+CALL del_domain(171970768);
+--source include/start_slave.inc
+SELECT @@gtid_slave_pos;
+
+
+--connection server_1
+DROP PROCEDURE del_domain;
+DROP TABLE t1;
+
+--source include/rpl_end.inc
