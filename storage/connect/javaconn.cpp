@@ -167,7 +167,7 @@ bool JAVAConn::gmID(PGLOBAL g, jmethodID& mid, const char *name, const char *sig
 		mid = env->GetMethodID(jdi, name, sig);
 
 		if (Check()) {
-			snprintf(g->Message, sizeof(g->Message), Msg);
+			snprintf(g->Message, sizeof(g->Message), "%s", Msg);
 			return true;
 		} else
 			return false;

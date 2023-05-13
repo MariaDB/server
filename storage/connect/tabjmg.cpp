@@ -113,7 +113,7 @@ bool JMGDISC::ColDesc(PGLOBAL g, jobject obj, char *pcn, char *pfmt,
 			z = 65 - strlen(colname);
 			strncat(strncat(colname, "_", z), key, z - 1);
 		} else
-			snprintf(colname, sizeof(colname), key);
+			snprintf(colname, sizeof(colname), "%s", key);
 
 		if (pfmt) {
 			strncpy(fmt, pfmt, 128);
@@ -121,7 +121,7 @@ bool JMGDISC::ColDesc(PGLOBAL g, jobject obj, char *pcn, char *pfmt,
 			z = 129 - strlen(fmt);
 			strncat(strncat(fmt, ".", z), key, z - 1);
 		} else
-			snprintf(fmt, sizeof(fmt), key);
+			snprintf(fmt, sizeof(fmt), "%s", key);
 
 		if (!jres) {
 			bcol.Type = n[0];
