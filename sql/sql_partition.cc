@@ -4978,6 +4978,7 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
       object to allow fast_alter_partition_table to perform the changes.
     */
     DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE,
+                                               table->s->catalog,
                                                table->s->db.str,
                                                table->s->table_name.str,
                                                MDL_INTENTION_EXCLUSIVE));
@@ -6243,9 +6244,10 @@ static bool mysql_drop_partitions(ALTER_PARTITION_PARAM_TYPE *lpt)
   DBUG_ENTER("mysql_drop_partitions");
 
   DBUG_ASSERT(lpt->thd->mdl_context.is_lock_owner(MDL_key::TABLE,
-                                                lpt->table->s->db.str,
-                                                lpt->table->s->table_name.str,
-                                                MDL_EXCLUSIVE));
+                                                  lpt->table->s->catalog,
+                                                  lpt->table->s->db.str,
+                                                  lpt->table->s->table_name.str,
+                                                  MDL_EXCLUSIVE));
 
   build_table_filename(lpt->thd->catalog, path, sizeof(path) - 1,
                        lpt->db.str, lpt->table_name.str, "", 0);
@@ -6284,6 +6286,7 @@ static bool alter_partition_convert_out(ALTER_PARTITION_PARAM_TYPE *lpt)
   handler *file= get_new_handler(NULL, thd->mem_root, part_info->default_engine_type);
 
   DBUG_ASSERT(lpt->thd->mdl_context.is_lock_owner(MDL_key::TABLE,
+                                                  lpt->table->s->catalog,
                                                   lpt->table->s->db.str,
                                                   lpt->table->s->table_name.str,
                                                   MDL_EXCLUSIVE));
@@ -7097,7 +7100,7 @@ static int alter_close_table(ALTER_PARTITION_PARAM_TYPE *lpt)
 
   TABLE *table= thd->open_tables;
   do {
-    table= find_locked_table(table, share->db.str, share->table_name.str);
+    table= find_locked_table(thd, table, share->db.str, share->table_name.str);
     if (!table)
     {
       DBUG_RETURN(0);
@@ -7152,8 +7155,8 @@ static void handle_alter_part_error(ALTER_PARTITION_PARAM_TYPE *lpt,
     Better to do that here, than leave the cleaning up to others.
     Acquire EXCLUSIVE mdl lock if not already acquired.
   */
-  if (!thd->mdl_context.is_lock_owner(MDL_key::TABLE, lpt->db.str,
-                                      lpt->table_name.str,
+  if (!thd->mdl_context.is_lock_owner(MDL_key::TABLE, thd->catalog,
+                                      lpt->db.str, lpt->table_name.str,
                                       MDL_EXCLUSIVE) &&
       wait_while_table_is_used(thd, table, HA_EXTRA_FORCE_REOPEN))
   {
@@ -7375,12 +7378,12 @@ static bool check_table_data(ALTER_PARTITION_PARAM_TYPE *lpt)
   TABLE *table_to= lpt->table_list->table;
   TABLE *table_from= lpt->table_list->next_local->table;
 
-  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE,
+  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, thd->catalog,
                                              table_to->s->db.str,
                                              table_to->s->table_name.str,
                                              MDL_EXCLUSIVE));
 
-  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE,
+  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, thd->catalog,
                                              table_from->s->db.str,
                                              table_from->s->table_name.str,
                                              MDL_EXCLUSIVE));

@@ -331,7 +331,7 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *org_table_list)
      create sequence statement that is calling this function
     */
 
-    table_list.init_one_table(&org_table_list->db,
+    table_list.init_one_table(thd->catalog, &org_table_list->db,
                               &org_table_list->table_name, 
                               NULL, TL_WRITE_DEFAULT);
     table_list.updating=  1;
@@ -478,9 +478,9 @@ int SEQUENCE::read_initial_values(TABLE *table)
         where we don't have a mdl lock on the table
       */
 
-      MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE, table->s->db.str,
-                       table->s->table_name.str, MDL_SHARED_READ,
-                       MDL_EXPLICIT);
+      MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE, thd->catalog,
+                       table->s->db.str, table->s->table_name.str,
+                       MDL_SHARED_READ, MDL_EXPLICIT);
       mdl_requests.push_front(&mdl_request);
       if (thd->mdl_context.acquire_locks(&mdl_requests,
                                          thd->variables.lock_wait_timeout))

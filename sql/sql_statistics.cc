@@ -245,7 +245,7 @@ static int open_stat_tables(THD *thd, TABLE_LIST *tables, bool for_write)
 
   thd->push_internal_handler(&deh);
   init_table_list_for_stat_tables(tables, for_write);
-  init_mdl_requests(tables);
+  init_mdl_requests(thd, tables);
   thd->in_sub_stmt|= SUB_STMT_STAT_TABLES;
   rc= open_system_tables_for_read(thd, tables);
   thd->in_sub_stmt&= ~SUB_STMT_STAT_TABLES;
@@ -279,7 +279,8 @@ static int open_stat_tables(THD *thd, TABLE_LIST *tables, bool for_write)
 static inline int open_stat_table_for_ddl(THD *thd, TABLE_LIST *table,
                                           const LEX_CSTRING *stat_tab_name)
 {
-  table->init_one_table(&MYSQL_SCHEMA_NAME, stat_tab_name, NULL, TL_WRITE);
+  table->init_one_table(thd->catalog, &MYSQL_SCHEMA_NAME, stat_tab_name,
+                        NULL, TL_WRITE);
   No_such_table_error_handler nst_handler;
   thd->push_internal_handler(&nst_handler);
   int res= open_system_tables_for_read(thd, table);

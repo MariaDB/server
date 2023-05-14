@@ -494,6 +494,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
 
   /* Protect against concurrent create/drop */
   MDL_REQUEST_INIT(&mdl_request_for_trn, MDL_key::TRIGGER,
+                   thd->catalog,
                    create ? tables->db.str : thd->lex->spname->m_db.str,
                    thd->lex->spname->m_name.str,
                    MDL_EXCLUSIVE, MDL_EXPLICIT);
@@ -2389,8 +2390,8 @@ bool Table_triggers_list::change_table_name(THD *thd,
     This method interfaces the mysql server code protected by
     an exclusive metadata lock.
   */
-  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, db->str,
-                                             old_table->str,
+  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, thd->catalog,
+                                             db->str, old_table->str,
                                              MDL_EXCLUSIVE));
 
   if (table->triggers)
@@ -2539,7 +2540,8 @@ add_tables_and_routines_for_triggers(THD *thd,
           if (unlikely(!triggers->body))                  // Parse error
             continue;
 
-          MDL_key key(MDL_key::TRIGGER, trigger->m_db.str, trigger->m_name.str);
+          MDL_key key(MDL_key::TRIGGER, thd->catalog, trigger->m_db.str,
+                      trigger->m_name.str);
 
           if (sp_add_used_routine(prelocking_ctx, thd->stmt_arena,
                                   &key, &sp_handler_trigger,

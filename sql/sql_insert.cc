@@ -79,6 +79,7 @@
 #include "sql_prepare.h"
 #include "debug_sync.h"                         // DEBUG_SYNC
 #include "debug.h"                              // debug_crash_here
+#include "catalog.h"                            // default_catalog()
 #include <my_bit.h>
 
 #ifdef WITH_WSREP
@@ -566,8 +567,8 @@ bool open_and_lock_for_insert_delayed(THD *thd, TABLE_LIST *table_list)
   if (thd->has_read_only_protection())
     DBUG_RETURN(TRUE);
 
-  MDL_REQUEST_INIT(&protection_request, MDL_key::BACKUP, "", "",
-                   MDL_BACKUP_DML, MDL_STATEMENT);
+  MDL_REQUEST_INIT(&protection_request, MDL_key::BACKUP, default_catalog(),
+                   "", "", MDL_BACKUP_DML, MDL_STATEMENT);
 
   if (thd->mdl_context.acquire_lock(&protection_request,
                                     thd->variables.lock_wait_timeout))
@@ -749,7 +750,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
     never be able to get a lock on the table.
   */
   if (table_list->lock_type == TL_WRITE_DELAYED && thd->locked_tables_mode &&
-      find_locked_table(thd->open_tables, table_list->db.str,
+      find_locked_table(thd, thd->open_tables, table_list->db.str,
                         table_list->table_name.str))
   {
     my_error(ER_DELAYED_INSERT_TABLE_LOCKED, MYF(0),
@@ -2582,10 +2583,10 @@ bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
         We need the tickets so that they can be cloned in
         handle_delayed_insert
       */
-      MDL_REQUEST_INIT(&di->grl_protection, MDL_key::BACKUP, "", "",
-                       MDL_BACKUP_DML, MDL_STATEMENT);
+      MDL_REQUEST_INIT(&di->grl_protection, MDL_key::BACKUP, default_catalog(),
+                       "", "", MDL_BACKUP_DML, MDL_STATEMENT);
       di->grl_protection.ticket= grl_protection_request->ticket;
-      init_mdl_requests(&di->table_list);
+      init_mdl_requests(thd, &di->table_list);
       di->table_list.mdl_request.ticket= table_list->mdl_request.ticket;
 
       di->lock();

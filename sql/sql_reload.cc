@@ -316,8 +316,9 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
             with global read lock.
           */
           if (thd->open_tables &&
-              !thd->mdl_context.is_lock_owner(MDL_key::BACKUP, "", "",
-                                              MDL_BACKUP_DDL))
+              !thd->mdl_context.is_lock_owner(MDL_key::BACKUP,
+                                              default_catalog(),
+                                              "", "", MDL_BACKUP_DDL))
           {
             my_error(ER_TABLE_NOT_LOCKED_FOR_WRITE, MYF(0),
                      thd->open_tables->s->table_name.str);

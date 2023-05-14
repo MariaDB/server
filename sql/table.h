@@ -2326,53 +2326,28 @@ struct TABLE_LIST
     open_and_lock_tables
   */
   inline void reset() { bzero((void*)this, sizeof(*this)); }
-  inline void init_one_table(const LEX_CSTRING *db_arg,
-                             const LEX_CSTRING *table_name_arg,
-                             const LEX_CSTRING *alias_arg,
-                             enum thr_lock_type lock_type_arg)
-  {
-    enum enum_mdl_type mdl_type;
-    if (lock_type_arg >= TL_FIRST_WRITE)
-      mdl_type= MDL_SHARED_WRITE;
-    else if (lock_type_arg == TL_READ_NO_INSERT)
-      mdl_type= MDL_SHARED_NO_WRITE;
-    else
-      mdl_type= MDL_SHARED_READ;
+  void init_one_table(const SQL_CATALOG *catalog,
+                      const LEX_CSTRING *db_arg,
+                      const LEX_CSTRING *table_name_arg,
+                      const LEX_CSTRING *alias_arg,
+                      enum thr_lock_type lock_type_arg);
+  TABLE_LIST(TABLE *table_arg, thr_lock_type lock_type);
 
-    reset();
-    DBUG_ASSERT(!db_arg->str || strlen(db_arg->str) == db_arg->length);
-    DBUG_ASSERT(!table_name_arg->str || strlen(table_name_arg->str) == table_name_arg->length);
-    DBUG_ASSERT(!alias_arg || strlen(alias_arg->str) == alias_arg->length);
-    db= *db_arg;
-    table_name= *table_name_arg;
-    alias= (alias_arg ? *alias_arg : *table_name_arg);
-    lock_type= lock_type_arg;
-    updating= lock_type >= TL_FIRST_WRITE;
-    MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE, db.str, table_name.str,
-                     mdl_type, MDL_TRANSACTION);
-  }
-
-  TABLE_LIST(TABLE *table_arg, thr_lock_type lock_type)
-  {
-    DBUG_ASSERT(table_arg->s);
-    init_one_table(&table_arg->s->db, &table_arg->s->table_name,
-                   NULL, lock_type);
-    table= table_arg;
-    vers_conditions.name= table->s->vers.name;
-  }
-
-  inline void init_one_table_for_prelocking(const LEX_CSTRING *db_arg,
-                                            const LEX_CSTRING *table_name_arg,
-                                            const LEX_CSTRING *alias_arg,
-                                            enum thr_lock_type lock_type_arg,
-                                            prelocking_types prelocking_type,
-                                            TABLE_LIST *belong_to_view_arg,
-                                            uint8 trg_event_map_arg,
-                                            TABLE_LIST ***last_ptr,
-                                            my_bool insert_data)
+  void init_one_mysql_table(const LEX_CSTRING *table_name_arg,
+                            enum thr_lock_type lock_type_arg);
+  void init_one_table_for_prelocking(const SQL_CATALOG *catalog,
+                                     const LEX_CSTRING *db_arg,
+                                     const LEX_CSTRING *table_name_arg,
+                                     const LEX_CSTRING *alias_arg,
+                                     enum thr_lock_type lock_type_arg,
+                                     prelocking_types prelocking_type,
+                                     TABLE_LIST *belong_to_view_arg,
+                                     uint8 trg_event_map_arg,
+                                     TABLE_LIST ***last_ptr,
+                                     my_bool insert_data)
 
   {
-    init_one_table(db_arg, table_name_arg, alias_arg, lock_type_arg);
+    init_one_table(catalog, db_arg, table_name_arg, alias_arg, lock_type_arg);
     cacheable_table= 1;
     prelocking_placeholder= prelocking_type;
     open_type= (prelocking_type == PRELOCK_ROUTINE ?
@@ -3363,7 +3338,7 @@ enum get_table_share_flags {
 
 size_t max_row_length(TABLE *table, MY_BITMAP const *cols, const uchar *data);
 
-void init_mdl_requests(TABLE_LIST *table_list);
+void init_mdl_requests(THD *thd, TABLE_LIST *table_list);
 
 enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
                        const LEX_CSTRING *alias, uint db_stat, uint prgflag,

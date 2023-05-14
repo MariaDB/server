@@ -732,7 +732,7 @@ TDC_element *tdc_lock_share(THD *thd, const char *db, const char *table_name)
 
   element= (TDC_element *) lf_hash_search(&tdc_hash, thd->tdc_hash_pins,
                                           (uchar*) key,
-                                          tdc_create_key(key, db, table_name));
+                                          tdc_create_key(key, thd->catalog, db, table_name));
   if (element)
   {
     mysql_mutex_lock(&element->LOCK_table_share);
@@ -768,7 +768,7 @@ int tdc_share_is_cached(THD *thd, const char *db, const char *table_name)
     return -1;
 
   if (lf_hash_search(&tdc_hash, thd->tdc_hash_pins, (uchar*) key,
-                     tdc_create_key(key, db, table_name)))
+                     tdc_create_key(key, thd->catalog, db, table_name)))
   {
     lf_hash_search_unpin(thd->tdc_hash_pins);
     return 1;
@@ -1005,7 +1005,8 @@ void tdc_release_share(TABLE_SHARE *share)
 
 void tdc_remove_referenced_share(THD *thd, TABLE_SHARE *share)
 {
-  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, share->db.str,
+  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, thd->catalog,
+                                             share->db.str,
                                              share->table_name.str,
                                              MDL_EXCLUSIVE));
   share->tdc->flush_unused(true);
@@ -1035,7 +1036,8 @@ void tdc_remove_table(THD *thd, const char *db, const char *table_name)
   DBUG_ENTER("tdc_remove_table");
   DBUG_PRINT("enter", ("name: %s", table_name));
 
-  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, db, table_name,
+  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, thd->catalog,
+                                             db, table_name,
                                              MDL_EXCLUSIVE));
 
   mysql_mutex_lock(&LOCK_unused_shares);
@@ -1258,7 +1260,8 @@ void TDC_element::wait_for_refs(uint my_refs)
 
 void TDC_element::flush(THD *thd, bool mark_flushed)
 {
-  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, share->db.str,
+  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, thd->catalog,
+                                             share->db.str,
                                              share->table_name.str,
                                              MDL_EXCLUSIVE));
 

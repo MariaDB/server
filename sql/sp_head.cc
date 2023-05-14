@@ -1127,6 +1127,7 @@ subst_spvars(THD *thd, sp_instr *instr, LEX_STRING *query_str)
   char *pbuf;
   StringBuffer<512> qbuf;
   Copy_query_with_rewrite acc(thd, query_str->str, query_str->length, &qbuf);
+  size_t buf_len, db_length;
 
   /* Find rewritable Items used in this statement */
   for (Item *item= instr->free_list; item; item= item->next)
@@ -1163,14 +1164,16 @@ subst_spvars(THD *thd, sp_instr *instr, LEX_STRING *query_str)
             <db_name>     Name of current database
             <flags>       Flags struct
   */
-  size_t buf_len= (qbuf.length() + 1 + QUERY_CACHE_DB_LENGTH_SIZE +
-                thd->db.length + QUERY_CACHE_FLAGS_SIZE + 1);
+  db_length= thd->catalog->path.length + thd->db.length;
+  buf_len= (qbuf.length() + 1 + QUERY_CACHE_DB_LENGTH_SIZE +
+            db_length +
+            QUERY_CACHE_FLAGS_SIZE + 1);
   if ((pbuf= (char *) alloc_root(thd->mem_root, buf_len)))
   {
     char *ptr= pbuf + qbuf.length();
     memcpy(pbuf, qbuf.ptr(), qbuf.length());
     *ptr= 0;
-    int2store(ptr+1, thd->db.length);
+    int2store(ptr+1, db_length);
   }
   else
     DBUG_RETURN(TRUE);
@@ -5187,7 +5190,8 @@ sp_head::add_used_tables_to_table_list(THD *thd,
       LEX_CSTRING alias= { table_name.str + table_name.length + 1,
                            strlen(table_name.str + table_name.length + 1) };
 
-      table->init_one_table_for_prelocking(&db_name,
+      table->init_one_table_for_prelocking(thd->catalog,
+                                           &db_name,
                                            &table_name,
                                            &alias,
                                            stab->lock_type,
@@ -5231,8 +5235,9 @@ sp_add_to_query_tables(THD *thd, LEX *lex,
   table->lock_type= locktype;
   table->select_lex= lex->current_select;
   table->cacheable_table= 1;
-  MDL_REQUEST_INIT(&table->mdl_request, MDL_key::TABLE, table->db.str,
-                   table->table_name.str, mdl_type, MDL_TRANSACTION);
+  MDL_REQUEST_INIT(&table->mdl_request, MDL_key::TABLE, thd->catalog,
+                   table->db.str, table->table_name.str, mdl_type,
+                   MDL_TRANSACTION);
 
   lex->add_to_query_tables(table);
   return table;

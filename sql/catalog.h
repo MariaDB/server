@@ -48,7 +48,8 @@ public:
 
 extern my_bool using_catalogs;
 extern SQL_CATALOG *get_catalog(const LEX_CSTRING *name, bool initialize);
-extern SQL_CATALOG *get_catalog_with_error(THD *thd, const LEX_CSTRING *name,
+extern SQL_CATALOG *get_catalog_with_error(const THD *thd,
+                                           const LEX_CSTRING *name,
                                            bool initialize);
 extern const LEX_CSTRING default_catalog_name;
 extern SQL_CATALOG internal_default_catalog;

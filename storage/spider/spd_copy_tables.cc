@@ -955,7 +955,7 @@ long long spider_copy_tables_body(
   DBUG_PRINT("info",("spider trx->updated_in_this_trx=FALSE"));
 
     MDL_REQUEST_INIT(&table_list->mdl_request,
-    MDL_key::TABLE,
+    MDL_key::TABLE, thd->catalog,
     SPIDER_TABLE_LIST_db_str(table_list),
     SPIDER_TABLE_LIST_table_name_str(table_list),
     MDL_SHARED_READ,

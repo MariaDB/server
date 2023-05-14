@@ -338,6 +338,7 @@ TODO list:
 #include "sql_base.h"                           // TMP_TABLE_KEY_EXTRA
 #include "debug_sync.h"                         // DEBUG_SYNC
 #include "sql_table.h"
+#include "catalog.h"
 #ifdef HAVE_QUERY_CACHE
 #include <m_ctype.h>
 #include <my_dir.h>
@@ -1261,7 +1262,12 @@ void mysql_query_cache_invalidate4(THD *thd,
                                    const char *key, unsigned key_length,
                                    int using_trx)
 {
-  query_cache.invalidate(thd, key, (uint32) key_length, (my_bool) using_trx);
+  char tmp_key[MAX_DBKEY_LENGTH];
+  /* Add catalog to the table key */
+  memcpy(tmp_key, key, key_length);
+  memcpy(tmp_key + key_length, &thd->catalog, sizeof(thd->catalog));
+  key_length+= (uint) sizeof(thd->catalog);
+  query_cache.invalidate(thd, tmp_key, (uint32) key_length, (my_bool) using_trx);
 }
 
 
@@ -1366,7 +1372,7 @@ void Query_cache::store_query(THD *thd, TABLE_LIST *tables_used)
   TABLE_COUNTER_TYPE local_tables;
   size_t tot_length;
   const char *query;
-  size_t query_length;
+  size_t query_length, db_length;
   uint8 tables_type;
   DBUG_ENTER("Query_cache::store_query");
   /*
@@ -1451,6 +1457,7 @@ void Query_cache::store_query(THD *thd, TABLE_LIST *tables_used)
     flags.group_concat_max_len= thd->variables.group_concat_max_len;
     flags.div_precision_increment= thd->variables.div_precincrement;
     flags.default_week_format= thd->variables.default_week_format;
+    flags.catalog= thd->catalog;
     DBUG_PRINT("qcache", ("\
 long %d, 4.1: %d, ex metadata: %d, eof: %d, bin_proto: %d, more results %d, pkt_nr: %d, \
 CS client: %u, CS result: %u, CS conn: %u, limit: %llu, TZ: %p, \
@@ -1506,19 +1513,27 @@ def_week_frmt: %zu, in_trans: %d, autocommit: %d",
     query=        thd->base_query.ptr();
     query_length= thd->base_query.length();
 
-    /* Key is query + database + flag */
-    if (thd->db.length)
+    /* Key is query + catalog + database + flag */
+    db_length= thd->db.length + thd->catalog->path.length;
     {
-      memcpy((char*) (query + query_length + 1 + QUERY_CACHE_DB_LENGTH_SIZE),
-             thd->db.str, thd->db.length);
-      DBUG_PRINT("qcache", ("database: %s  length: %u",
-			    thd->db.str, (unsigned) thd->db.length));
+      char *pos= (char*) (query + query_length + 1 + QUERY_CACHE_DB_LENGTH_SIZE);
+      if (thd->catalog->path.length)
+      {
+        memcpy(pos, thd->catalog->path.str, thd->catalog->path.length);
+        pos+= thd->catalog->path.length;
+      }
+      if (thd->db.length)                       // Avoid zero length copy
+      {
+        memcpy(pos, thd->db.str, thd->db.length);
+        DBUG_PRINT("qcache", ("database: %s  length: %u",
+                              thd->db.str, (uint) db_length));
+      }
+      else
+      {
+        DBUG_PRINT("qcache", ("No active database"));
+      }
     }
-    else
-    {
-      DBUG_PRINT("qcache", ("No active database"));
-    }
-    tot_length= (query_length + thd->db.length + 1 +
+    tot_length= (query_length + db_length + 1 +
                  QUERY_CACHE_DB_LENGTH_SIZE + QUERY_CACHE_FLAGS_SIZE);
     /*
       We should only copy structure (don't use it location directly)
@@ -1661,10 +1676,11 @@ send_data_in_chunks(NET *net, const uchar *packet, size_t len)
    Suffix is needed for partitioned tables.
 */
 
-size_t build_normalized_name(char *buff, size_t bufflen,
-                             const char *db, size_t db_len,
-                             const char *table_name, size_t table_len,
-                             size_t suffix_len)
+static size_t build_normalized_name(char *buff, size_t bufflen,
+                                    SQL_CATALOG *catalog,
+                                    const char *db, size_t db_len,
+                                    const char *table_name, size_t table_len,
+                                    size_t suffix_len)
 {
   uint errors;
   size_t length;
@@ -1672,8 +1688,10 @@ size_t build_normalized_name(char *buff, size_t bufflen,
   DBUG_ENTER("build_normalized_name");
 
   (*pos++)= FN_LIBCHAR;
+  pos= (char*) memcpy(pos, catalog->path.str, catalog->path.length);
+  pos+= catalog->path.length;
   length= strconvert(system_charset_info, db, db_len,
-                     &my_charset_filename, pos, bufflen - 3,
+                     &my_charset_filename, pos, (end - pos) - 3,
                      &errors);
  pos+= length;
  (*pos++)= FN_LIBCHAR;
@@ -1717,9 +1735,10 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
 #endif
   Query_cache_block *result_block;
   Query_cache_block_table *block_table, *block_table_end;
-  size_t tot_length;
+  size_t tot_length, db_length;
   Query_cache_query_flags flags;
   const char *sql, *sql_end, *found_brace= 0;
+  Query_cache_block *query_block;
   DBUG_ENTER("Query_cache::send_result_to_client");
 
   /*
@@ -1755,7 +1774,6 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
     goto err;
   }
 #endif //EMBEDDED_LIBRARY
-
 
   thd->query_cache_is_applicable= 1;
   sql= org_sql; sql_end= sql + query_length;
@@ -1863,7 +1881,11 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
       as the previous one.
     */
     size_t db_len= uint2korr(sql_end+1);
-    if (thd->db.length != db_len)
+
+    /* Key is query + catalog + database + flag */
+    db_length= thd->db.length + thd->catalog->path.length;
+
+    if (db_length != db_len)
     {
       /*
         We should probably reallocate the buffer in this case,
@@ -1891,13 +1913,13 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
     goto err_unlock;
   }
 
-  Query_cache_block *query_block;
   if (thd->variables.query_cache_strip_comments)
   {
     if (found_brace)
       sql= found_brace;
     make_base_query(&thd->base_query, sql, (size_t) (sql_end - sql),
-                    thd->db.length + 1 + QUERY_CACHE_DB_LENGTH_SIZE +
+                    db_length + 1 +
+                    QUERY_CACHE_DB_LENGTH_SIZE +
                     QUERY_CACHE_FLAGS_SIZE);
     sql=          thd->base_query.ptr();
     query_length= thd->base_query.length();
@@ -1908,20 +1930,26 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
     thd->base_query.set(sql, query_length, system_charset_info);
   }
 
+  {
+    char *pos= (char*) (sql + query_length + 1 + QUERY_CACHE_DB_LENGTH_SIZE);
+    if (thd->catalog->path.length)
+    {
+      memcpy(pos, thd->catalog->path.str, thd->catalog->path.length);
+      pos+= thd->catalog->path.length;
+    }
+    if (thd->db.length)                         // Avoid 0 length copy
+    {
+      memcpy(pos, thd->db.str, thd->db.length);
+      DBUG_PRINT("qcache", ("database: %s  length: %u",
+                            thd->db.str, (uint) thd->db.length));
+    }
+    else
+    {
+      DBUG_PRINT("qcache", ("No active database"));
+    }
+  }
   tot_length= (query_length + 1 + QUERY_CACHE_DB_LENGTH_SIZE +
-               thd->db.length + QUERY_CACHE_FLAGS_SIZE);
-
-  if (thd->db.length)
-  {
-    memcpy((uchar*) sql + query_length + 1 + QUERY_CACHE_DB_LENGTH_SIZE,
-           thd->db.str, thd->db.length);
-    DBUG_PRINT("qcache", ("database: '%s'  length: %u",
-			  thd->db.str, (uint) thd->db.length));
-  }
-  else
-  {
-    DBUG_PRINT("qcache", ("No active database"));
-  }
+               db_length + QUERY_CACHE_FLAGS_SIZE);
 
   THD_STAGE_INFO(thd, stage_checking_query_cache_for_query);
 
@@ -1954,6 +1982,7 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
   flags.div_precision_increment= thd->variables.div_precincrement;
   flags.default_week_format= thd->variables.default_week_format;
   flags.lc_time_names= thd->variables.lc_time_names;
+  flags.catalog= thd->catalog;
   DBUG_PRINT("qcache", ("\
 long %d, 4.1: %d, ex metadata: %d, eof: %d, bin_proto: %d, more results %d, pkt_nr: %d, \
 CS client: %u, CS result: %u, CS conn: %u, limit: %llu, TZ: %p, \
@@ -2111,6 +2140,7 @@ lookup:
 
       qcache_se_key_len= build_normalized_name(qcache_se_key_name,
                                                sizeof(qcache_se_key_name),
+                                               thd->catalog,
                                                table->db(),
                                                db_length,
                                                table->table(),
@@ -2434,8 +2464,9 @@ void Query_cache::invalidate_by_MyISAM_filename(const char *filename)
   /* Calculate the key outside the lock to make the lock shorter */
   char key[MAX_DBKEY_LENGTH];
   uint32 db_length;
-  uint key_length= filename_2_table_key(key, filename, &db_length);
   THD *thd= current_thd;
+  uint key_length= filename_2_table_key(key, filename, thd->catalog,
+                                        &db_length);
   invalidate_table(thd,(uchar *)key, key_length);
   DBUG_VOID_RETURN;
 }
@@ -2605,7 +2636,7 @@ size_t Query_cache::init_cache()
 
   approx_additional_data_size = (sizeof(Query_cache) +
 				 sizeof(uchar*)*(def_query_hash_size+
-					       def_table_hash_size));
+                                                 def_table_hash_size));
   if (query_cache_size < approx_additional_data_size)
     goto err;
 
@@ -2666,7 +2697,7 @@ size_t Query_cache::init_cache()
 #if defined(DBUG_OFF) && defined(HAVE_MADVISE) &&  defined(MADV_DONTDUMP)
   if (madvise(cache, query_cache_size+additional_data_size, MADV_DONTDUMP))
   {
-    DBUG_PRINT("warning", ("coudn't mark query cache memory as " DONTDUMP_STR ": %s",
+    DBUG_PRINT("warning", ("Could not mark query cache memory as " DONTDUMP_STR ": %s",
 			 strerror(errno)));
   }
 #endif
@@ -2833,7 +2864,7 @@ void Query_cache::free_cache()
 #if defined(DBUG_OFF) && defined(HAVE_MADVISE) &&  defined(MADV_DODUMP)
   if (madvise(cache, query_cache_size+additional_data_size, MADV_DODUMP))
   {
-    DBUG_PRINT("warning", ("coudn't mark query cache memory as " DODUMP_STR ": %s",
+    DBUG_PRINT("warning", ("Could not mark query cache memory as " DODUMP_STR ": %s",
 			 strerror(errno)));
   }
 #endif
@@ -4627,10 +4658,23 @@ my_bool Query_cache::join_results(size_t join_limit)
 }
 
 
-uint Query_cache::filename_2_table_key (char *key, const char *path,
-					uint32 *db_length)
+/*
+  Generate a key from a filename that matches MDL keys
+
+  @param key       Generated key will be stored here
+  @param path      Path to table
+  @param catalog   Pointer to catalog.
+  @param db_length Length of database part
+
+  We cannot get the catalog name from the file name as
+  in with MERGE tables that could be anywhere!
+*/
+
+uint Query_cache::filename_2_table_key(char *key, const char *path,
+                                       const SQL_CATALOG *catalog,
+                                       uint32 *db_length)
 {
-  char tablename[FN_REFLEN+2], *filename, *dbname;
+  char tablename[FN_REFLEN+2], *filename, *dbname, *pos;
   DBUG_ENTER("Query_cache::filename_2_table_key");
 
   /* Safety if filename didn't have a directory name */
@@ -4640,14 +4684,18 @@ uint Query_cache::filename_2_table_key (char *key, const char *path,
   fn_format(tablename + 2, path, "", "", MY_REPLACE_EXT);
   filename=  tablename + dirname_length(tablename + 2) + 2;
   /* Find start of databasename */
-  for (dbname= filename - 2 ; dbname[-1] != FN_LIBCHAR ; dbname--) ;
+  for (dbname= filename - 1 ; dbname[-1] != FN_LIBCHAR ; dbname--) ;
   *db_length= (uint32)(filename - dbname) - 1;
   DBUG_PRINT("qcache", ("table '%-.*s.%s'", *db_length, dbname, filename));
 
-  DBUG_RETURN((uint) (strmake(strmake(key, dbname,
-                                      MY_MIN(*db_length, NAME_LEN)) + 1,
-                              filename, NAME_LEN) - key) + 1);
+  pos= strmake(key, dbname, MY_MIN(*db_length, NAME_LEN))+1;
+  pos= strmake(pos, filename,
+               MAX_DBKEY_LENGTH - (size_t) (pos-key) - sizeof(catalog))+1;
+  memcpy(pos, &catalog, sizeof(catalog));
+  pos+= sizeof(catalog);
+  DBUG_RETURN(pos-key);
 }
+
 
 /****************************************************************************
   Functions to be used when debugging

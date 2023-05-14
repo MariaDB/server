@@ -112,7 +112,8 @@ static int prepare_for_fill(TABLE_LIST *tables)
 
   LEX_CSTRING tbl_name= {i_s_feedback->table_name, strlen(i_s_feedback->table_name) };
 
-  tables->init_one_table(&INFORMATION_SCHEMA_NAME, &tbl_name, 0, TL_READ);
+  tables->init_one_table(thd->catalog, &INFORMATION_SCHEMA_NAME, &tbl_name, 0,
+                         TL_READ);
   tables->schema_table= i_s_feedback;
   tables->schema_table_reformed= 1;
   tables->select_lex= thd->lex->first_select_lex();

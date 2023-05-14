@@ -9,49 +9,49 @@ CREATE TABLE t1(a INT) ENGINE=InnoDB;
 CREATE TABLE t3(a INT) ENGINE=myisam;
 LOCK TABLES t1 WRITE CONCURRENT, t1 AS t2 READ;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info
-WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
+WHERE TABLE_NAME NOT LIKE 'innodb_%_stats' order by lock_mode, lock_type, table_schema, table_name;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_BACKUP_TRANS_DML	Backup lock		
 MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t1
 UNLOCK TABLES;
 LOCK TABLES t1 AS t2 READ, t1 WRITE CONCURRENT;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info
-WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
+WHERE TABLE_NAME NOT LIKE 'innodb_%_stats' order by lock_mode, lock_type, table_schema, table_name;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_BACKUP_TRANS_DML	Backup lock		
-MDL_SHARED_WRITE	Table metadata lock	test	t1
 MDL_SHARED_READ_ONLY	Table metadata lock	test	t1
+MDL_SHARED_WRITE	Table metadata lock	test	t1
 UNLOCK TABLES;
 LOCK TABLES t1 WRITE CONCURRENT, t3 WRITE;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info
-WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
+WHERE TABLE_NAME NOT LIKE 'innodb_%_stats' order by lock_mode, lock_type, table_schema, table_name;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_BACKUP_DDL	Backup lock		
 MDL_BACKUP_DML	Backup lock		
-MDL_SHARED_WRITE	Table metadata lock	test	t1
-MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t3
 MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t3
+MDL_SHARED_WRITE	Table metadata lock	test	t1
 UNLOCK TABLES;
 LOCK TABLES t3 WRITE, t1 WRITE CONCURRENT;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info
-WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
+WHERE TABLE_NAME NOT LIKE 'innodb_%_stats' order by lock_mode, lock_type, table_schema, table_name;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_BACKUP_DDL	Backup lock		
 MDL_BACKUP_DML	Backup lock		
-MDL_SHARED_WRITE	Table metadata lock	test	t1
-MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t3
 MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t3
+MDL_SHARED_WRITE	Table metadata lock	test	t1
 UNLOCK TABLES;
 LOCK TABLES t1 WRITE, mysql.user WRITE;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info
-WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
+WHERE TABLE_NAME NOT LIKE 'innodb_%_stats' order by lock_mode, lock_type, table_schema, table_name;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_BACKUP_DDL	Backup lock		
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	mysql	
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	mysql	global_priv
 MDL_SHARED_NO_READ_WRITE	Table metadata lock	mysql	user
 MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t1
-MDL_INTENTION_EXCLUSIVE	Schema metadata lock	mysql	
-MDL_SHARED_NO_READ_WRITE	Table metadata lock	mysql	global_priv
-MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
 UNLOCK TABLES;
 LOCK TABLES mysql.general_log WRITE;
 ERROR HY000: You can't use locks with log tables
@@ -73,7 +73,7 @@ insert into t1 values (1);
 connection default;
 connection default;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info
-WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
+WHERE TABLE_NAME NOT LIKE 'innodb_%_stats' order by lock_mode, lock_type, table_schema, table_name;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_BACKUP_FTWRL2	Backup lock		
 MDL_SHARED_WRITE	Table metadata lock	test	t1
@@ -87,7 +87,7 @@ insert into t3 values (2);
 connection default;
 connection default;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info
-WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
+WHERE TABLE_NAME NOT LIKE 'innodb_%_stats' order by lock_mode, lock_type, table_schema, table_name;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_BACKUP_FTWRL2	Backup lock		
 MDL_SHARED_WRITE	Table metadata lock	test	t3

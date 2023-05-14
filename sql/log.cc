@@ -839,8 +839,8 @@ bool Log_to_csv_event_handler::
     which will set TIME_ZONE_USED
   */
 
-  table_list.init_one_table(&MYSQL_SCHEMA_NAME, &GENERAL_LOG_NAME, 0,
-                            TL_WRITE_CONCURRENT_INSERT);
+  table_list.init_one_mysql_table(&GENERAL_LOG_NAME,
+                                  TL_WRITE_CONCURRENT_INSERT);
 
   /*
     1) open_log_table generates an error of the
@@ -994,8 +994,7 @@ bool Log_to_csv_event_handler::
 
   thd->push_internal_handler(& error_handler);
 
-  table_list.init_one_table(&MYSQL_SCHEMA_NAME, &SLOW_LOG_NAME, 0,
-                            TL_WRITE_CONCURRENT_INSERT);
+  table_list.init_one_mysql_table(&SLOW_LOG_NAME, TL_WRITE_CONCURRENT_INSERT);
 
   if (!(table= open_log_table(thd, &table_list, &open_tables_backup)))
     goto err;
@@ -1145,8 +1144,9 @@ int Log_to_csv_event_handler::
 
     log_name= &SLOW_LOG_NAME;
   }
-  table_list.init_one_table(&MYSQL_SCHEMA_NAME, log_name, 0, TL_WRITE_CONCURRENT_INSERT);
-
+  table_list.init_one_table(thd->catalog,
+                            &MYSQL_SCHEMA_NAME, log_name, 0,
+                            TL_WRITE_CONCURRENT_INSERT);
   table= open_log_table(thd, &table_list, &open_tables_backup);
   if (table)
   {
@@ -6800,8 +6800,8 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
       DBUG_PRINT("info", ("direct is set"));
       DBUG_ASSERT(!thd->backup_commit_lock);
 
-      MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
-                     MDL_EXPLICIT);
+      MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, default_catalog(),
+                       "", "", MDL_BACKUP_COMMIT, MDL_EXPLICIT);
       if (thd->mdl_context.acquire_lock(&mdl_request,
                                         thd->variables.lock_wait_timeout))
         DBUG_RETURN(1);
@@ -10714,7 +10714,7 @@ binlog_background_thread(void *arg __attribute__((unused)))
   thd->store_globals();
   thd->security_ctx->skip_grants();
   thd->set_command(COM_DAEMON);
-  thd->catalog= &internal_default_catalog;
+  thd->catalog= default_catalog();
   THD_count::count--;
 
   /*

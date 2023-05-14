@@ -926,8 +926,9 @@ bool vers_create_partitions(THD *thd, TABLE_LIST* tl, uint num_parts)
     create_info.alter_info= &alter_info;
     Alter_table_ctx alter_ctx(thd, tl, 1, &table->s->db, &table->s->table_name);
 
-    MDL_REQUEST_INIT(&tl->mdl_request, MDL_key::TABLE, tl->db.str,
-                    tl->table_name.str, MDL_SHARED_NO_WRITE, MDL_TRANSACTION);
+    MDL_REQUEST_INIT(&tl->mdl_request, MDL_key::TABLE, thd->catalog,
+                     tl->db.str, tl->table_name.str,
+                     MDL_SHARED_NO_WRITE, MDL_TRANSACTION);
     if (thd->mdl_context.acquire_lock(&tl->mdl_request,
                                       thd->variables.lock_wait_timeout))
       goto exit;

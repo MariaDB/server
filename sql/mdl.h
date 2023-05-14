@@ -25,7 +25,7 @@
 #include <lf.h>
 
 class THD;
-
+class SQL_CATALOG;
 class MDL_context;
 class MDL_lock;
 class MDL_ticket;
@@ -346,8 +346,8 @@ enum enum_mdl_duration {
 
 
 /** Maximal length of key for metadata locking subsystem. */
-#define MAX_MDLKEY_LENGTH (1 + NAME_LEN + 1 + NAME_LEN + 1)
-
+#define MAX_MDLKEY_LENGTH (1 + NAME_LEN + 1 + NAME_LEN + 1 + \
+                           sizeof(SQL_CATALOG*))
 
 /**
   Metadata lock object key.
@@ -402,23 +402,36 @@ public:
   uint db_name_length() const { return m_db_name_length; }
 
   const char *name() const { return m_ptr + m_db_name_length + 2; }
-  uint name_length() const { return m_length - m_db_name_length - 3; }
+  uint name_length() const
+  {
+    return (uint) (m_length - m_db_name_length - 3 - sizeof(SQL_CATALOG*));
+  }
+
+  const SQL_CATALOG *catalog() const
+  {
+    SQL_CATALOG *cat;
+    memcpy(&cat, m_ptr+ m_length - sizeof(SQL_CATALOG*), sizeof(SQL_CATALOG*));
+    return cat;
+  }
 
   enum_mdl_namespace mdl_namespace() const
   { return (enum_mdl_namespace)(m_ptr[0]); }
 
   /**
-    Construct a metadata lock key from a triplet (mdl_namespace,
-    database and name).
+    Construct a metadata lock key from:
+    mdl_namespace, database, name and catalog pointer).
 
-    @remark The key for a table is <mdl_namespace>+<database name>+<table name>
+    @remark The key for a table is
+            <mdl_namespace>+<database name>+<table name>+<catalog ptr>
 
     @param  mdl_namespace Id of namespace of object to be locked
+    @param  catalog       Pointer to catalog
     @param  db            Name of database to which the object belongs
     @param  name          Name of of the object
     @param  key           Where to store the the MDL key.
   */
   void mdl_key_init(enum_mdl_namespace mdl_namespace_arg,
+                    const SQL_CATALOG *catalog,
                     const char *db, const char *name_arg)
   {
     m_ptr[0]= (char) mdl_namespace_arg;
@@ -429,11 +442,17 @@ public:
     */
     DBUG_ASSERT(strlen(db) <= NAME_LEN);
     DBUG_ASSERT(strlen(name_arg) <= NAME_LEN);
+    /* Ensure that we don't have the catalog as part of the db */
+    DBUG_ASSERT(!using_catalogs || catalog->path.length == 0 ||
+                !is_prefix(db, catalog->path.str));
     m_db_name_length= static_cast<uint16>(strmake(m_ptr + 1, db, NAME_LEN) -
                                           m_ptr - 1);
     m_length= static_cast<uint16>(strmake(m_ptr + m_db_name_length + 2,
                                           name_arg,
-                                          NAME_LEN) - m_ptr + 1);
+                                          NAME_LEN) - m_ptr + 1 +
+                                          sizeof(SQL_CATALOG*));
+    memcpy(m_ptr+m_length-sizeof(SQL_CATALOG*), &catalog,
+           sizeof(SQL_CATALOG*));
     m_hash_value= my_hash_sort(&my_charset_bin, (uchar*) m_ptr + 1,
                                m_length - 1);
     DBUG_SLOW_ASSERT(mdl_namespace_arg == USER_LOCK || ok_for_lower_case_names(db));
@@ -467,10 +486,10 @@ public:
   {
     mdl_key_init(rhs);
   }
-  MDL_key(enum_mdl_namespace namespace_arg,
+  MDL_key(enum_mdl_namespace namespace_arg, const SQL_CATALOG *catalog,
           const char *db_arg, const char *name_arg)
   {
-    mdl_key_init(namespace_arg, db_arg, name_arg);
+    mdl_key_init(namespace_arg, catalog, db_arg, name_arg);
   }
   MDL_key() = default; /* To use when part of MDL_request. */
 
@@ -550,13 +569,21 @@ public:
   static void operator delete(void *, MEM_ROOT *) {}
 
   void init_with_source(MDL_key::enum_mdl_namespace namespace_arg,
-            const char *db_arg, const char *name_arg,
-            enum_mdl_type mdl_type_arg,
-            enum_mdl_duration mdl_duration_arg,
-            const char *src_file, uint src_line);
-  void init_by_key_with_source(const MDL_key *key_arg, enum_mdl_type mdl_type_arg,
-            enum_mdl_duration mdl_duration_arg,
-            const char *src_file, uint src_line);
+                        const SQL_CATALOG *catalog,
+                        const char *db_arg, const char *name_arg,
+                        enum_mdl_type mdl_type_arg,
+                        enum_mdl_duration mdl_duration_arg,
+                        const char *src_file, uint src_line);
+  void init_with_source(MDL_key::enum_mdl_namespace namespace_arg,
+                        const THD *thd,
+                        const char *db_arg, const char *name_arg,
+                        enum_mdl_type mdl_type_arg,
+                        enum_mdl_duration mdl_duration_arg,
+                        const char *src_file, uint src_line);
+  void init_by_key_with_source(const MDL_key *key_arg,
+                               enum_mdl_type mdl_type_arg,
+                               enum_mdl_duration mdl_duration_arg,
+                               const char *src_file, uint src_line);
   /** Set type of lock request. Can be only applied to pending locks. */
   inline void set_type(enum_mdl_type type_arg)
   {
@@ -621,8 +648,8 @@ public:
 
 typedef void (*mdl_cached_object_release_hook)(void *);
 
-#define MDL_REQUEST_INIT(R, P1, P2, P3, P4, P5) \
-  (*R).init_with_source(P1, P2, P3, P4, P5, __FILE__, __LINE__)
+#define MDL_REQUEST_INIT(R, P1, P2, P3, P4, P5, P6)             \
+  (*R).init_with_source(P1, P2, P3, P4, P5, P6, __FILE__, __LINE__)
 
 #define MDL_REQUEST_INIT_BY_KEY(R, P1, P2, P3) \
   (*R).init_by_key_with_source(P1, P2, P3, __FILE__, __LINE__)
@@ -894,6 +921,7 @@ public:
   void release_lock(MDL_ticket *ticket);
 
   bool is_lock_owner(MDL_key::enum_mdl_namespace mdl_namespace,
+                     const SQL_CATALOG *catalog,
                      const char *db, const char *name,
                      enum_mdl_type mdl_type);
   unsigned long get_lock_owner(MDL_key *mdl_key);

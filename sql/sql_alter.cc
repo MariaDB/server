@@ -534,7 +534,8 @@ bool Sql_cmd_alter_table::execute(THD *thd)
   {
     // Rename of table
     TABLE_LIST tmp_table;
-    tmp_table.init_one_table(&select_lex->db, &lex->name, 0, TL_IGNORE);
+    tmp_table.init_one_table(thd->catalog, &select_lex->db, &lex->name, 0,
+                             TL_IGNORE);
     tmp_table.grant.privilege= priv;
     if (check_grant(thd, INSERT_ACL | CREATE_ACL, &tmp_table, FALSE,
                     UINT_MAX, FALSE))

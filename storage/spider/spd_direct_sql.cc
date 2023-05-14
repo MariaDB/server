@@ -1607,7 +1607,7 @@ long long spider_direct_sql_body(
       direct_sql->table_names[roop_count],
       strlen(direct_sql->table_names[roop_count])
     };
-    table_list.init_one_table(&db_name, &tbl_name, 0, TL_WRITE);
+    table_list.init_one_table(thd->catalog, &db_name, &tbl_name, 0, TL_WRITE);
 #else
     table_list.init_one_table(direct_sql->db_names[roop_count],
       strlen(direct_sql->db_names[roop_count]),
@@ -1633,7 +1633,7 @@ long long spider_direct_sql_body(
         goto error;
       }
       TABLE_LIST *tables = &direct_sql->table_list[roop_count];
-      MDL_REQUEST_INIT(&tables->mdl_request, MDL_key::TABLE,
+      MDL_REQUEST_INIT(&tables->mdl_request, MDL_key::TABLE, thd->catalog,
         SPIDER_TABLE_LIST_db_str(&table_list),
         SPIDER_TABLE_LIST_table_name_str(&table_list),
         MDL_SHARED_WRITE, MDL_TRANSACTION);

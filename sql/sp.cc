@@ -32,6 +32,7 @@
 #include "sp_cache.h"
 #include "transaction.h"
 #include "lock.h"                               // lock_object_name
+#include "catalog.h"                            // default_catalog()
 
 #include <my_user.h>
 #include "mysql/psi/mysql_sp.h"
@@ -490,7 +491,8 @@ TABLE *open_proc_table_for_read(THD *thd)
 
   DBUG_ASSERT(thd->internal_transaction());
 
-  table.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_PROC_NAME, NULL, TL_READ);
+  table.init_one_table(thd->catalog, &MYSQL_SCHEMA_NAME, &MYSQL_PROC_NAME, NULL,
+                       TL_READ);
 
   if (open_system_tables_for_read(thd, &table))
     DBUG_RETURN(NULL);
@@ -531,8 +533,8 @@ static TABLE *open_proc_table_for_update(THD *thd)
 
   DBUG_ASSERT(!thd->internal_transaction());
 
-  table_list.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_PROC_NAME, NULL,
-                            TL_WRITE);
+  table_list.init_one_table(thd->catalog, &MYSQL_SCHEMA_NAME,
+                            &MYSQL_PROC_NAME, NULL, TL_WRITE);
 
   if (!(table= open_system_table_for_update(thd, &table_list)))
     DBUG_RETURN(NULL);
@@ -1794,8 +1796,8 @@ bool lock_db_routines(THD *thd, const char *db)
                                                  sp_type);
       if (!sph)
         sph= &sp_handler_procedure;
-      MDL_REQUEST_INIT(mdl_request, sph->get_mdl_type(), db, sp_name,
-                        MDL_EXCLUSIVE, MDL_TRANSACTION);
+      MDL_REQUEST_INIT(mdl_request, sph->get_mdl_type(), thd->catalog,
+                       db, sp_name, MDL_EXCLUSIVE, MDL_TRANSACTION);
       mdl_requests.push_front(mdl_request);
     } while (! (nxtres= table->file->ha_index_next_same(table->record[0], keybuf, key_len)));
   }
@@ -1809,10 +1811,10 @@ bool lock_db_routines(THD *thd, const char *db)
   new_trans.restore_old_transaction();
 
   /* We should already hold a global IX lock and a schema X lock. */
-  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::BACKUP, "", "",
-                                             MDL_BACKUP_DDL) &&
-              thd->mdl_context.is_lock_owner(MDL_key::SCHEMA, db, "",
-                                             MDL_EXCLUSIVE));
+  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::BACKUP, default_catalog(),
+                                             "", "", MDL_BACKUP_DDL) &&
+              thd->mdl_context.is_lock_owner(MDL_key::SCHEMA, thd->catalog,
+                                             db, "", MDL_EXCLUSIVE));
   DBUG_RETURN(thd->mdl_context.acquire_locks(&mdl_requests,
                                              thd->variables.lock_wait_timeout));
 error:
@@ -2635,11 +2637,11 @@ Sp_handler::sp_resolve_package_routine(THD *thd,
 */
 
 void Sp_handler::add_used_routine(Query_tables_list *prelocking_ctx,
-                                  Query_arena *arena,
+                                  THD *thd,
                                   const Database_qualified_name *rt) const
 {
-  MDL_key key(get_mdl_type(), rt->m_db.str, rt->m_name.str);
-  (void) sp_add_used_routine(prelocking_ctx, arena, &key, this, 0);
+  MDL_key key(get_mdl_type(), thd->catalog, rt->m_db.str, rt->m_name.str);
+  (void) sp_add_used_routine(prelocking_ctx, thd, &key, this, 0);
   prelocking_ctx->sroutines_list_own_last= prelocking_ctx->sroutines_list.next;
   prelocking_ctx->sroutines_list_own_elements=
                     prelocking_ctx->sroutines_list.elements;

@@ -644,8 +644,7 @@ bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
   if (!dict_frozen)
     dict_sys.unfreeze();
 
-  *db_name_len= filename_to_tablename(db_buf, db_name,
-                                      MAX_DATABASE_NAME_LEN + 1, true);
+  *db_name_len= filename_to_dbname(db_buf, db_name, MAX_DATABASE_NAME_LEN + 1);
 
   if (is_temp)
     return false;
@@ -732,8 +731,8 @@ retry:
 
   {
     MDL_request request;
-    MDL_REQUEST_INIT(&request,MDL_key::TABLE, db_buf, tbl_buf, MDL_SHARED,
-                     MDL_EXPLICIT);
+    MDL_REQUEST_INIT(&request,MDL_key::TABLE, thd, db_buf, tbl_buf,
+                     MDL_SHARED, MDL_EXPLICIT);
     if (trylock
         ? mdl_context->try_acquire_lock(&request)
         : mdl_context->acquire_lock(&request,

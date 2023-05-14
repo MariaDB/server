@@ -179,8 +179,8 @@ static bool backup_start(THD *thd)
     Wait for old backup to finish and block ddl's so that we can start the
     ddl logger
   */
-  MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_BLOCK_DDL,
-                   MDL_EXPLICIT);
+  MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, default_catalog(),
+                   "", "", MDL_BACKUP_BLOCK_DDL, MDL_EXPLICIT);
   if (thd->mdl_context.acquire_lock(&mdl_request,
                                     thd->variables.lock_wait_timeout))
     DBUG_RETURN(1);

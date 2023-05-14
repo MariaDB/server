@@ -38,6 +38,7 @@
 #include "transaction.h"
 #include "myisam.h"
 #include "probes_mysql.h"
+#include "catalog.h"
 #include <mysql/psi/mysql_table.h>
 #include <pfs_transaction_provider.h>
 #include <mysql/psi/mysql_transaction.h>
@@ -1060,8 +1061,8 @@ bool handler::log_not_redoable_operation(const char *operation)
     MDL_request mdl_backup;
     backup_log_info ddl_log;
 
-    MDL_REQUEST_INIT(&mdl_backup, MDL_key::BACKUP, "", "", MDL_BACKUP_DDL,
-                     MDL_STATEMENT);
+    MDL_REQUEST_INIT(&mdl_backup, MDL_key::BACKUP, default_catalog(),
+                     "", "", MDL_BACKUP_DDL, MDL_STATEMENT);
     if (thd->mdl_context.acquire_lock(&mdl_backup,
                                       thd->variables.lock_wait_timeout))
       DBUG_RETURN(1);
@@ -1775,8 +1776,8 @@ int ha_commit_trans(THD *thd, bool all)
       We allow the owner of FTWRL to COMMIT; we assume that it knows
       what it does.
     */
-    MDL_REQUEST_INIT(&mdl_backup, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
-                     MDL_EXPLICIT);
+    MDL_REQUEST_INIT(&mdl_backup, MDL_key::BACKUP, default_catalog(),
+                     "", "", MDL_BACKUP_COMMIT, MDL_EXPLICIT);
 
     if (!WSREP(thd))
     {
@@ -5425,6 +5426,7 @@ bool handler::ha_commit_inplace_alter_table(TABLE *altered_table,
      so we could be holding the same lock level as for inplace_alter_table().
    */
    DBUG_ASSERT(ha_thd()->mdl_context.is_lock_owner(MDL_key::TABLE,
+                                                   table->s->catalog,
                                                    table->s->db.str,
                                                    table->s->table_name.str,
                                                    MDL_EXCLUSIVE) ||
@@ -5946,8 +5948,8 @@ void handler::update_global_index_stats()
       mysql_mutex_lock(&LOCK_global_index_stats);
       // Gets the global index stats, creating one if necessary.
       if (!(index_stats= (INDEX_STATS*) my_hash_search(&global_index_stats,
-                                                    key_info->cache_name,
-                                                    key_length)))
+                                                       key_info->cache_name,
+                                                       key_length)))
       {
         if (!(index_stats = ((INDEX_STATS*)
                              my_malloc(PSI_INSTRUMENT_ME, sizeof(INDEX_STATS),
@@ -6521,7 +6523,7 @@ retry_from_frm:
 
     Table_exists_error_handler no_such_table_handler;
     thd->push_internal_handler(&no_such_table_handler);
-    table.init_one_table(db, table_name, 0, TL_READ);
+    table.init_one_table(thd->catalog, db, table_name, 0, TL_READ);
     TABLE_SHARE *share= tdc_acquire_share(thd, &table, flags);
     thd->pop_internal_handler();
 
@@ -8193,7 +8195,8 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
 /* Remove all indexes for a given table from global index statistics */
 
 static
-int del_global_index_stats_for_table(THD *thd, uchar* cache_key, size_t cache_key_length)
+int del_global_index_stats_for_table(THD *thd, uchar* cache_key,
+                                     size_t cache_key_length)
 {
   int res = 0;
   uint to_delete_counter= 0;
@@ -8225,7 +8228,8 @@ int del_global_index_stats_for_table(THD *thd, uchar* cache_key, size_t cache_ke
 
 /* Remove a table from global table statistics */
 
-int del_global_table_stat(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *table)
+int del_global_table_stat(THD *thd, const LEX_CSTRING *db,
+                          const LEX_CSTRING *table)
 {
   TABLE_STATS *table_stats;
   int res = 0;
@@ -8233,7 +8237,7 @@ int del_global_table_stat(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *ta
   size_t cache_key_length;
   DBUG_ENTER("del_global_table_stat");
 
-  cache_key_length= db->length + 1 + table->length + 1;
+  cache_key_length= db->length + 1 + table->length + 1 + sizeof(SQL_CATALOG*);
 
   if(!(cache_key= (uchar *)my_malloc(PSI_INSTRUMENT_ME, cache_key_length,
                                      MYF(MY_WME | MY_ZEROFILL))))
@@ -8245,6 +8249,8 @@ int del_global_table_stat(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *ta
 
   memcpy(cache_key, db->str, db->length);
   memcpy(cache_key + db->length + 1, table->str, table->length);
+  memcpy(cache_key + db->length + 1 + table->length+1,
+         &thd->catalog, sizeof(thd->catalog));
 
   res= del_global_index_stats_for_table(thd, cache_key, cache_key_length);
 

@@ -680,13 +680,15 @@ int spider_get_ping_table_gtid_pos(
     SPIDER_SYS_POS_FOR_RECOVERY_TABLE_NAME_STR,
     SPIDER_SYS_POS_FOR_RECOVERY_TABLE_NAME_LEN
   };
-  tables_tables.init_one_table(&db_name, &tbl_name_tables, 0, TL_READ);
-  tables_gtid_pos.init_one_table(&db_name, &tbl_name_gtid_pos, 0, TL_READ);
-  MDL_REQUEST_INIT(&tables_tables.mdl_request, MDL_key::TABLE,
+  tables_tables.init_one_table(thd->catalog, &db_name, &tbl_name_tables, 0,
+                               TL_READ);
+  tables_gtid_pos.init_one_table(thd->catalog, &db_name, &tbl_name_gtid_pos, 0,
+                                 TL_READ);
+  MDL_REQUEST_INIT(&tables_tables.mdl_request, MDL_key::TABLE, thd->catalog,
     SPIDER_TABLE_LIST_db_str(&tables_tables),
     SPIDER_TABLE_LIST_table_name_str(&tables_tables),
     MDL_SHARED_READ, MDL_TRANSACTION);
-  MDL_REQUEST_INIT(&tables_gtid_pos.mdl_request, MDL_key::TABLE,
+  MDL_REQUEST_INIT(&tables_gtid_pos.mdl_request, MDL_key::TABLE, thd->catalog,
     SPIDER_TABLE_LIST_db_str(&tables_gtid_pos),
     SPIDER_TABLE_LIST_table_name_str(&tables_gtid_pos),
     MDL_SHARED_READ, MDL_TRANSACTION);

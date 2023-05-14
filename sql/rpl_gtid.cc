@@ -430,7 +430,8 @@ rpl_slave_state::truncate_state_table(THD *thd)
   SQL_CATALOG *org_catalog= thd->catalog;
 
   thd->catalog= default_catalog();
-  tlist.init_one_table(&MYSQL_SCHEMA_NAME, &rpl_gtid_slave_state_table_name,
+  tlist.init_one_table(thd->catalog, &MYSQL_SCHEMA_NAME,
+                       &rpl_gtid_slave_state_table_name,
                        NULL, TL_WRITE);
   tlist.mdl_request.set_type(MDL_EXCLUSIVE);
   if (!(err= open_and_lock_tables(thd, &tlist, FALSE,
@@ -696,8 +697,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
 
   org_catalog= thd->catalog;
   thd->catalog= default_catalog();
-  tlist.init_one_table(&MYSQL_SCHEMA_NAME, &gtid_pos_table_name, NULL,
-                       TL_WRITE);
+  tlist.init_one_mysql_table(&gtid_pos_table_name, TL_WRITE);
   err= open_and_lock_tables(thd, &tlist, FALSE, 0);
   thd->catalog= org_catalog;
   if (err)
@@ -937,8 +937,7 @@ rpl_slave_state::gtid_delete_pending(THD *thd,
 
     thd->catalog=default_catalog();
     thd->lex->reset_n_backup_query_tables_list(&lex_backup);
-    tlist.init_one_table(&MYSQL_SCHEMA_NAME, gtid_pos_table_name, NULL,
-                         TL_WRITE);
+    tlist.init_one_mysql_table(gtid_pos_table_name, TL_WRITE);
     err= open_and_lock_tables(thd, &tlist, FALSE, 0);
     thd->catalog= org_catalog;
     if (err)

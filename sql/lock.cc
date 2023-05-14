@@ -75,9 +75,10 @@
 #include "sql_priv.h"
 #include "debug_sync.h"
 #include "lock.h"
-#include "sql_base.h"                       // close_tables_for_reopen
+#include "sql_base.h"                      // close_tables_for_reopen
 #include "sql_parse.h"                     // is_log_table_write_query
 #include "sql_handler.h"
+#include "catalog.h"                       // default_catalog()
 #include <hash.h>
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
@@ -171,7 +172,7 @@ lock_tables_check(THD *thd, TABLE **tables, uint count, uint flags)
       of MDL_SHARED_READ or stronger type).
     */
     DBUG_ASSERT(t->s->tmp_table ||
-                thd->mdl_context.is_lock_owner(MDL_key::TABLE,
+                thd->mdl_context.is_lock_owner(MDL_key::TABLE, thd->catalog,
                                  t->s->db.str, t->s->table_name.str,
                                  t->reginfo.lock_type >= TL_FIRST_WRITE ?
                                  MDL_SHARED_WRITE : MDL_SHARED_READ));
@@ -897,10 +898,10 @@ bool lock_schema_name(THD *thd, const char *db)
 
   if (thd->has_read_only_protection())
     return TRUE;
-  MDL_REQUEST_INIT(&global_request, MDL_key::BACKUP, "", "", MDL_BACKUP_DDL,
-                   MDL_STATEMENT);
-  MDL_REQUEST_INIT(&mdl_request, MDL_key::SCHEMA, db, "", MDL_EXCLUSIVE,
-                   MDL_TRANSACTION);
+  MDL_REQUEST_INIT(&global_request, MDL_key::BACKUP, default_catalog(),
+                   "", "", MDL_BACKUP_DDL, MDL_STATEMENT);
+  MDL_REQUEST_INIT(&mdl_request, MDL_key::SCHEMA, thd->catalog,
+                   db, "", MDL_EXCLUSIVE, MDL_TRANSACTION);
 
   mdl_requests.push_front(&mdl_request);
   mdl_requests.push_front(&global_request);
@@ -957,12 +958,12 @@ bool lock_object_name(THD *thd, MDL_key::enum_mdl_namespace mdl_type,
 
   if (thd->has_read_only_protection())
     return TRUE;
-  MDL_REQUEST_INIT(&global_request, MDL_key::BACKUP, "", "", MDL_BACKUP_DDL,
-                   MDL_STATEMENT);
-  MDL_REQUEST_INIT(&schema_request, MDL_key::SCHEMA, db, "",
-                   MDL_INTENTION_EXCLUSIVE, MDL_TRANSACTION);
-  MDL_REQUEST_INIT(&mdl_request, mdl_type, db, name, MDL_EXCLUSIVE,
-                   MDL_TRANSACTION);
+  MDL_REQUEST_INIT(&global_request, MDL_key::BACKUP, default_catalog(),
+                   "", "", MDL_BACKUP_DDL, MDL_STATEMENT);
+  MDL_REQUEST_INIT(&schema_request, MDL_key::SCHEMA, thd->catalog,
+                   db, "", MDL_INTENTION_EXCLUSIVE, MDL_TRANSACTION);
+  MDL_REQUEST_INIT(&mdl_request, mdl_type, thd->catalog, db, name,
+                   MDL_EXCLUSIVE, MDL_TRANSACTION);
 
   mdl_requests.push_front(&mdl_request);
   mdl_requests.push_front(&schema_request);
@@ -1079,12 +1080,15 @@ bool Global_read_lock::lock_global_read_lock(THD *thd)
     mysql_ha_cleanup_no_free(thd);
     DEBUG_SYNC(thd, "ftwrl_before_lock");
 
-    DBUG_ASSERT(! thd->mdl_context.is_lock_owner(MDL_key::BACKUP, "", "",
+    DBUG_ASSERT(! thd->mdl_context.is_lock_owner(MDL_key::BACKUP,
+                                                 default_catalog(),
+                                                 "", "",
                                                  MDL_BACKUP_FTWRL1));
-    DBUG_ASSERT(! thd->mdl_context.is_lock_owner(MDL_key::BACKUP, "", "",
-                                                 MDL_BACKUP_FTWRL2));
-    MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_FTWRL1,
-                     MDL_EXPLICIT);
+    DBUG_ASSERT(! thd->mdl_context.is_lock_owner(MDL_key::BACKUP,
+                                                 default_catalog(),
+                                                 "", "", MDL_BACKUP_FTWRL2));
+    MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, default_catalog(),
+                     "", "", MDL_BACKUP_FTWRL1, MDL_EXPLICIT);
 
     do
     {

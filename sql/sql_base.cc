@@ -47,6 +47,7 @@
 #include "sql_prepare.h"
 #include "sql_statistics.h"
 #include "sql_cte.h"
+#include "catalog.h"
 #include <m_ctype.h>
 #include <my_dir.h>
 #include <hash.h>
@@ -608,9 +609,8 @@ bool flush_tables(THD *thd, flush_tables_type flag)
       */
 
       MDL_request mdl_request;
-      MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE,
-                       share->db.str,
-                       share->table_name.str,
+      MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE, thd->catalog,
+                       share->db.str, share->table_name.str,
                        MDL_SHARED, MDL_EXPLICIT);
 
       if (!thd->mdl_context.acquire_lock(&mdl_request, 0))
@@ -980,6 +980,7 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
     the table to the table cache.
   */
   DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE,
+                                             table->s->catalog,
                                              table->s->db.str,
                                              table->s->table_name.str,
                                              MDL_SHARED));
@@ -1629,8 +1630,8 @@ bool is_locked_view(THD *thd, TABLE_LIST *t)
    TABLES breaks metadata locking protocol (potentially can lead
    to deadlocks) it should be disallowed.
   */
-  if (thd->mdl_context.is_lock_owner(MDL_key::TABLE, t->db.str,
-                                     t->table_name.str, MDL_SHARED))
+  if (thd->mdl_context.is_lock_owner(MDL_key::TABLE, thd->catalog,
+                                     t->db.str, t->table_name.str, MDL_SHARED))
   {
     char path[FN_REFLEN + 1];
     build_table_filename(thd->catalog, path, sizeof(path) - 1,
@@ -2269,8 +2270,8 @@ retry_share:
         DBUG_RETURN(TRUE);
       }
 
-      MDL_REQUEST_INIT(&protection_request, MDL_key::BACKUP, "", "", mdl_type,
-                       MDL_STATEMENT);
+      MDL_REQUEST_INIT(&protection_request, MDL_key::BACKUP, default_catalog(),
+                       "", "", mdl_type, MDL_STATEMENT);
 
       /*
         Install error handler which if possible will convert deadlock error
@@ -2357,10 +2358,10 @@ err_lock:
    @return Pointer to the TABLE object found, 0 if no table found.
 */
 
-TABLE *find_locked_table(TABLE *list, const char *db, const char *table_name)
+TABLE *find_locked_table(THD *thd, TABLE *list, const char *db, const char *table_name)
 {
   char	key[MAX_DBKEY_LENGTH];
-  uint key_length= tdc_create_key(key, db, table_name);
+  uint key_length= tdc_create_key(key, thd->catalog, db, table_name);
 
   for (TABLE *table= list; table ; table=table->next)
   {
@@ -2397,7 +2398,7 @@ TABLE *find_locked_table(TABLE *list, const char *db, const char *table_name)
 TABLE *find_table_for_mdl_upgrade(THD *thd, const char *db,
                                   const char *table_name, int *p_error)
 {
-  TABLE *tab= find_locked_table(thd->open_tables, db, table_name);
+  TABLE *tab= find_locked_table(thd, thd->open_tables, db, table_name);
   int error;
 
   if (unlikely(!tab))
@@ -2412,8 +2413,9 @@ TABLE *find_table_for_mdl_upgrade(THD *thd, const char *db,
     cases don't take a global IX lock in order to be compatible with
     global read lock.
   */
-  if (unlikely(!thd->mdl_context.is_lock_owner(MDL_key::BACKUP, "", "",
-                                               MDL_BACKUP_DDL)))
+  if (unlikely(!thd->mdl_context.is_lock_owner(MDL_key::BACKUP,
+                                               default_catalog(),
+                                               "", "", MDL_BACKUP_DDL)))
   {
     error= ER_TABLE_NOT_LOCKED_FOR_WRITE;
     goto err_exit;
@@ -2421,7 +2423,7 @@ TABLE *find_table_for_mdl_upgrade(THD *thd, const char *db,
 
   while (tab->mdl_ticket != NULL &&
          !tab->mdl_ticket->is_upgradable_or_exclusive() &&
-         (tab= find_locked_table(tab->next, db, table_name)))
+         (tab= find_locked_table(thd, tab->next, db, table_name)))
     continue;
 
   if (unlikely(!tab))
@@ -2492,7 +2494,7 @@ Locked_tables_list::init_locked_tables(THD *thd)
     memcpy((char*) table_name.str, table->s->table_name.str,
            table_name.length + 1);
     memcpy((char*) alias.str,      table->alias.c_ptr(), alias.length + 1);
-    dst_table_list->init_one_table(&db, &table_name,
+    dst_table_list->init_one_table(thd->catalog, &db, &table_name,
                                    &alias, table->reginfo.lock_type);
     dst_table_list->table= table;
     dst_table_list->mdl_request.ticket= src_table_list->mdl_request.ticket;
@@ -3329,7 +3331,9 @@ request_backoff_action(enum_open_table_action action_arg,
     m_failed_table= (TABLE_LIST*) m_thd->alloc(sizeof(TABLE_LIST));
     if (m_failed_table == NULL)
       return TRUE;
-    m_failed_table->init_one_table(&table->db, &table->table_name, &table->alias, TL_WRITE);
+    m_failed_table->init_one_table(m_thd->catalog,
+                                   &table->db, &table->table_name,
+                                   &table->alias, TL_WRITE);
     m_failed_table->open_strategy= table->open_strategy;
     m_failed_table->mdl_request.set_type(MDL_EXCLUSIVE);
     m_failed_table->vers_skip_create= table->vers_skip_create;
@@ -4316,8 +4320,9 @@ lock_table_names(THD *thd, const DDL_options_st &options,
       MDL_request *schema_request= new (thd->mem_root) MDL_request;
       if (schema_request == NULL)
         DBUG_RETURN(TRUE);
-      MDL_REQUEST_INIT(schema_request, MDL_key::SCHEMA, table->db.str, "",
-                       MDL_INTENTION_EXCLUSIVE, MDL_TRANSACTION);
+      MDL_REQUEST_INIT(schema_request, MDL_key::SCHEMA, thd->catalog,
+                       table->db.str, "", MDL_INTENTION_EXCLUSIVE,
+                       MDL_TRANSACTION);
       mdl_requests.push_front(schema_request);
     }
 
@@ -4339,8 +4344,8 @@ lock_table_names(THD *thd, const DDL_options_st &options,
   if (thd->has_read_only_protection())
     DBUG_RETURN(true);
 
-  MDL_REQUEST_INIT(&global_request, MDL_key::BACKUP, "", "", MDL_BACKUP_DDL,
-                   MDL_STATEMENT);
+  MDL_REQUEST_INIT(&global_request, MDL_key::BACKUP, default_catalog(), "", "",
+                   MDL_BACKUP_DDL, MDL_STATEMENT);
   mdl_savepoint= thd->mdl_context.mdl_savepoint();
 
   while (!thd->mdl_context.acquire_locks(&mdl_requests, lock_wait_timeout) &&
@@ -4938,7 +4943,7 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
     TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
     if (!tl)
       DBUG_RETURN(TRUE);
-    tl->init_one_table_for_prelocking(&tables->db,
+    tl->init_one_table_for_prelocking(thd->catalog, &tables->db,
                                       &tables->table_name,
                                       NULL, tables->lock_type,
                                       TABLE_LIST::PRELOCK_NONE,
@@ -5009,13 +5014,13 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
       continue;
 
     TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
-    tl->init_one_table_for_prelocking(fk->foreign_db,
-        fk->foreign_table,
-        NULL, lock_type,
-        TABLE_LIST::PRELOCK_FK,
-        table_list->belong_to_view, op,
-        &prelocking_ctx->query_tables_last,
-        table_list->for_insert_data);
+    tl->init_one_table_for_prelocking(thd->catalog, fk->foreign_db,
+                                      fk->foreign_table,
+                                      NULL, lock_type,
+                                      TABLE_LIST::PRELOCK_FK,
+                                      table_list->belong_to_view, op,
+                                      &prelocking_ctx->query_tables_last,
+                                      table_list->for_insert_data);
   }
   if (arena)
     thd->restore_active_arena(arena, &backup);
@@ -9348,6 +9353,7 @@ my_bool mysql_rm_tmp_tables(void)
     DBUG_RETURN(1);
   thd->thread_stack= (char*) &thd;
   thd->store_globals();
+  thd->catalog= default_catalog();
 
   for (i=0; i<=mysql_tmpdir_list.max; i++)
   {
@@ -9615,7 +9621,14 @@ open_log_table(THD *thd, TABLE_LIST *one_table, Open_tables_backup *backup)
   TABLE *table;
   /* Save value that is changed in mysql_lock_tables() */
   ulonglong save_utime_after_lock= thd->utime_after_lock;
+  SQL_CATALOG *save_catalog= thd->catalog;
   DBUG_ENTER("open_log_table");
+
+  if (!thd->catalog)
+  {
+    /* Can happen if we come from replication thread */
+    thd->catalog= default_catalog();
+  }
 
   thd->reset_n_backup_open_tables_state(backup);
 
@@ -9632,6 +9645,7 @@ open_log_table(THD *thd, TABLE_LIST *one_table, Open_tables_backup *backup)
     thd->restore_backup_open_tables_state(backup);
 
   thd->utime_after_lock= save_utime_after_lock;
+  thd->catalog= save_catalog;
   DBUG_RETURN(table);
 }
 

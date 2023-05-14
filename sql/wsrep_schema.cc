@@ -294,9 +294,8 @@ static int open_table(THD* thd,
                MYSQL_OPEN_IGNORE_FLUSH |
                MYSQL_LOCK_IGNORE_TIMEOUT);
 
-  tables.init_one_table(schema_name,
-                        table_name,
-                        NULL, lock_type);
+  tables.init_one_table(thd->catalog, schema_name,
+                        table_name, NULL, lock_type);
   thd->lex->query_tables_own_last= 0;
 
   // No need to open table if the query was bf aborted,

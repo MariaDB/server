@@ -409,7 +409,8 @@ int table_events_waits_common::make_metadata_lock_object_columns(PFS_events_wait
     case MDL_key::USER_LOCK:
       m_row.m_object_type= "USER LEVEL LOCK";
       m_row.m_object_type_length= 15;
-      user_lock_workaround.mdl_key_init(MDL_key::USER_LOCK, "", mdl->db_name());
+      user_lock_workaround.mdl_key_init(MDL_key::USER_LOCK, mdl->catalog(),
+                                        "", mdl->db_name());
       mdl=& user_lock_workaround;
       m_row.m_object_schema_length= 0;
       m_row.m_object_name_length= mdl->name_length();

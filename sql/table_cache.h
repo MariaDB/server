@@ -104,14 +104,17 @@ extern TABLE *tc_acquire_table(THD *thd, TDC_element *element);
   @return Length of key.
 */
 
-inline uint tdc_create_key(char *key, const char *db, const char *table_name)
+inline uint tdc_create_key(char *key, const SQL_CATALOG *catalog, const char *db,
+                           const char *table_name)
 {
+  char *ptr;
   /*
     In theory caller should ensure that both db and table_name are
     not longer than NAME_LEN bytes. In practice we play safe to avoid
     buffer overruns.
   */
-  return (uint) (strmake(strmake(key, db, NAME_LEN) + 1, table_name,
-                         NAME_LEN) - key + 1);
+  ptr= strmake(strmake(key, db, NAME_LEN) + 1, table_name, NAME_LEN);
+  memcpy(ptr+1, &catalog, sizeof(catalog));
+  return (uint) ((ptr - key) + 1 + sizeof(catalog));
 }
 #endif /* TABLE_CACHE_H_INCLUDED */

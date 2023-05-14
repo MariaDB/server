@@ -134,6 +134,7 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
     */
 
     MDL_REQUEST_INIT(&table_list->mdl_request, MDL_key::TABLE,
+                     thd->catalog,
                      table_list->db.str, table_list->table_name.str,
                      MDL_EXCLUSIVE, MDL_TRANSACTION);
 
@@ -626,9 +627,9 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       close_thread_tables(thd);
       table->table= NULL;
       thd->release_transactional_locks();
-      MDL_REQUEST_INIT(&table->mdl_request, MDL_key::TABLE, table->db.str,
-                       table->table_name.str, MDL_SHARED_NO_READ_WRITE,
-                       MDL_TRANSACTION);
+      MDL_REQUEST_INIT(&table->mdl_request, MDL_key::TABLE, thd->catalog,
+                       table->db.str, table->table_name.str,
+                       MDL_SHARED_NO_READ_WRITE, MDL_TRANSACTION);
     }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -902,9 +903,9 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       close_thread_tables(thd);
       table->table= NULL;
       thd->release_transactional_locks();
-      MDL_REQUEST_INIT(&table->mdl_request, MDL_key::TABLE, table->db.str,
-                       table->table_name.str, MDL_SHARED_NO_READ_WRITE,
-                       MDL_TRANSACTION);
+      MDL_REQUEST_INIT(&table->mdl_request, MDL_key::TABLE, thd->catalog,
+                       table->db.str, table->table_name.str,
+                       MDL_SHARED_NO_READ_WRITE, MDL_TRANSACTION);
       table->mdl_request.set_type(MDL_SHARED_READ);
 
       table->lock_type= TL_READ;

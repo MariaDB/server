@@ -77,6 +77,7 @@ static const uint NO_FK_CHECKS=    1 << 6;
 /* Don't delete .par table in quick_rm_table() */
 static const uint NO_PAR_TABLE=   1 << 7;
 
+uint filename_to_dbname(const char *from, char *to, size_t to_length);
 uint filename_to_tablename(const char *from, char *to, size_t to_length,
                            bool stay_quiet = false);
 uint tablename_to_filename(const char *from, char *to, size_t to_length);

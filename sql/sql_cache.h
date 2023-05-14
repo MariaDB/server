@@ -25,6 +25,7 @@ class Time_zone;
 struct LEX;
 struct TABLE;
 typedef struct st_changed_table_list CHANGED_TABLE_LIST;
+class SQL_CATALOG;
 
 /* Query cache */
 
@@ -531,8 +532,9 @@ protected:
   my_bool in_blocks(Query_cache_block * point);
 
   /* Table key generation */
-  static uint filename_2_table_key (char *key, const char *filename,
-				    uint32 *db_langth);
+static uint filename_2_table_key(char *key, const char *filename,
+                                 const SQL_CATALOG *catalog,
+                                 uint32 *db_length);
 
   enum Cache_try_lock_mode {WAIT, TIMEOUT, TRY};
   bool try_lock(THD *thd, Cache_try_lock_mode mode= WAIT);
@@ -566,6 +568,7 @@ struct Query_cache_query_flags
   size_t default_week_format;
   size_t div_precision_increment;
   MY_LOCALE *lc_time_names;
+  SQL_CATALOG *catalog;
 };
 #define QUERY_CACHE_FLAGS_SIZE sizeof(Query_cache_query_flags)
 #define QUERY_CACHE_DB_LENGTH_SIZE 2

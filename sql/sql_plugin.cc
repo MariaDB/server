@@ -1855,7 +1855,7 @@ static void plugin_load(MEM_ROOT *tmp_root)
   new_thd->catalog= default_catalog();
   new_thd->db= MYSQL_SCHEMA_NAME;
   bzero((char*) &new_thd->net, sizeof(new_thd->net));
-  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_PLUGIN_NAME, 0, TL_READ);
+  tables.init_one_mysql_table(&MYSQL_PLUGIN_NAME, TL_READ);
   tables.open_strategy= TABLE_LIST::OPEN_NORMAL;
 
   result= open_and_lock_tables(new_thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT);
@@ -2235,7 +2235,7 @@ bool mysql_install_plugin(THD *thd, const LEX_CSTRING *name,
   DBUG_ENTER("mysql_install_plugin");
 
   thd->catalog= default_catalog();
-  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_PLUGIN_NAME, 0, TL_WRITE);
+  tables.init_one_mysql_table(&MYSQL_PLUGIN_NAME, TL_WRITE);
   if (!opt_noacl &&
       check_table_access(thd, INSERT_ACL, &tables, FALSE, 1, FALSE))
     goto wsrep_error_label;
@@ -2395,7 +2395,7 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_CSTRING *name,
   DBUG_ENTER("mysql_uninstall_plugin");
 
   thd->catalog= default_catalog();
-  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_PLUGIN_NAME, 0, TL_WRITE);
+  tables.init_one_mysql_table(&MYSQL_PLUGIN_NAME, TL_WRITE);
 
   if (!opt_noacl && check_table_access(thd, DELETE_ACL, &tables, FALSE, 1, FALSE))
     goto wsrep_error_label;

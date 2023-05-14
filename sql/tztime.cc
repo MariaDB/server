@@ -1535,8 +1535,7 @@ tz_init_table_list(TABLE_LIST *tz_tabs)
 {
   for (int i= 0; i < MY_TZ_TABLES_COUNT; i++)
   {
-    tz_tabs[i].init_one_table(&MYSQL_SCHEMA_NAME, tz_tables_names + i,
-                              NULL, TL_READ);
+    tz_tabs[i].init_one_mysql_table(tz_tables_names + i, TL_READ);
     if (i != MY_TZ_TABLES_COUNT - 1)
       tz_tabs[i].next_global= tz_tabs[i].next_local= &tz_tabs[i+1];
     if (i != 0)
@@ -1624,6 +1623,8 @@ my_tz_init(THD *org_thd, const char *default_tzname, my_bool bootstrap)
     DBUG_RETURN(1);
   thd->thread_stack= (char*) &thd;
   thd->store_globals();
+  thd->catalog= default_catalog();
+
   thd->set_query_inner((char*) STRING_WITH_LEN("intern:my_tz_init"),
                        default_charset_info);
 
@@ -1682,7 +1683,7 @@ my_tz_init(THD *org_thd, const char *default_tzname, my_bool bootstrap)
   tz_init_table_list(tz_tables+1);
   tz_tables[0].next_global= tz_tables[0].next_local= &tz_tables[1];
   tz_tables[1].prev_global= &tz_tables[0].next_global;
-  init_mdl_requests(tz_tables);
+  init_mdl_requests(thd, tz_tables);
 
   /*
     We need to open only mysql.time_zone_leap_second, but we try to
@@ -2346,7 +2347,7 @@ my_tz_find(THD *thd, const String *name)
       */
       start_new_trans *new_trans= new start_new_trans(thd);
       tz_init_table_list(tz_tables);
-      init_mdl_requests(tz_tables);
+      init_mdl_requests(thd, tz_tables);
       if (!open_system_tables_for_read(thd, tz_tables))
       {
         result_tz= tz_load_from_open_tables(name, tz_tables);

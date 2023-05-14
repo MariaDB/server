@@ -355,6 +355,7 @@ TABLE_SHARE *alloc_table_share(const SQL_CATALOG *catalog,
 
     share->set_table_cache_key(key_buff, key, key_length);
 
+    share->catalog= catalog;
     share->path.str= path_buff;
     share->path.length= path_length;
     strmov(path_buff, path);
@@ -437,6 +438,7 @@ void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
                  MYF(thd->slave_thread ? 0 : MY_THREAD_SPECIFIC));
   share->table_category=         TABLE_CATEGORY_TEMPORARY;
   share->tmp_table=              INTERNAL_TMP_TABLE;
+  share->catalog=                thd->catalog;
   share->db.str=                 (char*) key;
   share->db.length=		 strlen(key);
   share->table_cache_key.str=    (char*) key;
@@ -5856,6 +5858,59 @@ void TABLE::reset_item_list(List<Item> *item_list, uint skip) const
   }
 }
 
+
+/*
+  Init information about one table for TABLE_LIST
+*/
+
+void TABLE_LIST::init_one_table(const SQL_CATALOG *catalog,
+                                const LEX_CSTRING *db_arg,
+                                const LEX_CSTRING *table_name_arg,
+                                const LEX_CSTRING *alias_arg,
+                                enum thr_lock_type lock_type_arg)
+{
+  enum enum_mdl_type mdl_type;
+  if (lock_type_arg >= TL_FIRST_WRITE)
+    mdl_type= MDL_SHARED_WRITE;
+  else if (lock_type_arg == TL_READ_NO_INSERT)
+    mdl_type= MDL_SHARED_NO_WRITE;
+  else
+    mdl_type= MDL_SHARED_READ;
+
+  reset();
+  DBUG_ASSERT(!db_arg->str || strlen(db_arg->str) == db_arg->length);
+  DBUG_ASSERT(!table_name_arg->str || strlen(table_name_arg->str) == table_name_arg->length);
+  DBUG_ASSERT(!alias_arg || strlen(alias_arg->str) == alias_arg->length);
+  db= *db_arg;
+  table_name= *table_name_arg;
+  alias= (alias_arg ? *alias_arg : *table_name_arg);
+  lock_type= lock_type_arg;
+  updating= lock_type >= TL_FIRST_WRITE;
+  MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE, catalog, db.str,
+                   table_name.str, mdl_type, MDL_TRANSACTION);
+}
+
+
+void TABLE_LIST::init_one_mysql_table(const LEX_CSTRING *table_name_arg,
+                                      enum thr_lock_type lock_type_arg)
+{
+  return init_one_table(default_catalog(), &MYSQL_SCHEMA_NAME, table_name_arg,
+                        0, lock_type_arg);
+}
+
+
+TABLE_LIST::TABLE_LIST(TABLE *table_arg, thr_lock_type lock_type)
+{
+  DBUG_ASSERT(table_arg->s);
+  DBUG_ASSERT(table_arg->in_use);
+  init_one_table(table_arg->in_use->catalog,
+                 &table_arg->s->db, &table_arg->s->table_name,
+                 NULL, lock_type);
+  table= table_arg;
+  vers_conditions.name= table->s->vers.name;
+}
+
+
 /*
   calculate md5 of query
 
@@ -8823,10 +8878,11 @@ size_t max_row_length(TABLE *table, MY_BITMAP const *cols, const uchar *data)
    objects for all elements of table list.
 */
 
-void init_mdl_requests(TABLE_LIST *table_list)
+void init_mdl_requests(THD *thd, TABLE_LIST *table_list)
 {
   for ( ; table_list ; table_list= table_list->next_global)
     MDL_REQUEST_INIT(&table_list->mdl_request, MDL_key::TABLE,
+                     thd->catalog,
                      table_list->db.str, table_list->table_name.str,
                      table_list->lock_type >= TL_FIRST_WRITE
                      ? MDL_SHARED_WRITE : MDL_SHARED_READ, MDL_TRANSACTION);
@@ -10111,11 +10167,8 @@ enum TR_table::enabled TR_table::use_transaction_registry= TR_table::MAYBE;
 TR_table::TR_table(THD* _thd, bool rw) :
   thd(_thd), open_tables_backup(NULL)
 {
-  SQL_CATALOG *org_catalog= thd->catalog;
-  thd->catalog= default_catalog();
-  init_one_table(&MYSQL_SCHEMA_NAME, &TRANSACTION_REG_NAME,
+  init_one_table(default_catalog(), &MYSQL_SCHEMA_NAME, &TRANSACTION_REG_NAME,
                  NULL, rw ? TL_WRITE : TL_READ);
-  thd->catalog= org_catalog;
 }
 
 bool TR_table::open()

@@ -7,19 +7,22 @@
 --source include/not_embedded.inc
 --source include/no_view_protocol.inc
 
+let $mdl= LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info
+WHERE TABLE_NAME NOT LIKE 'innodb_%' order by lock_mode, lock_type, table_schema, table_name;
+
 --echo #
 --echo # Test lock taken
 --echo #
 
 BACKUP LOCK test.t1;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info where table_name not like "innodb_%";
+eval SELECT $mdl;
 BACKUP UNLOCK;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info where table_name not like "innodb_%";
+eval SELECT $mdl;
 BACKUP LOCK t1;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info where table_name not like "innodb_%";
+eval SELECT $mdl;
 BACKUP UNLOCK;
 BACKUP LOCK non_existing.t1;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info where table_name not like "innodb_%";
+eval SELECT $mdl;
 BACKUP UNLOCK;
 
 --echo #
@@ -40,7 +43,7 @@ let $wait_condition=
     select count(*) = 1 from information_schema.processlist
     where state = "Waiting for table metadata lock";
 --source include/wait_condition.inc
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info where table_name not like "innodb_%";
+eval SELECT $mdl;
 --error ER_LOCK_DEADLOCK
 select * from t1;
 backup unlock;

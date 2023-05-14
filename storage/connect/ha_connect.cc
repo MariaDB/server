@@ -5255,7 +5255,7 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
 //  if ((p= strstr(tabname, "#P#")))   won't work, see above
 //    *p= 0;             // Get the main the table name
 
-    key_length= tdc_create_key(key, db, tabname);
+    key_length= tdc_create_key(key, thd->catalog, db, tabname);
 
     // share contains the option struct that we need
     if (!(share= alloc_table_share(thd->catalog, db, tabname, key, key_length)))

@@ -143,7 +143,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx);
 
 bool get_key_map_from_key_list(key_map *map, TABLE *table,
                                List<String> *index_list);
-TABLE *find_locked_table(TABLE *list, const char *db, const char *table_name);
+TABLE *find_locked_table(THD *thd, TABLE *list, const char *db, const char *table_name);
 TABLE *find_write_locked_table(TABLE *list, const char *db,
                                const char *table_name);
 thr_lock_type read_lock_type_for_table(THD *thd,

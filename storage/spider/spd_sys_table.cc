@@ -254,13 +254,14 @@ TABLE *spider_open_sys_table(
     table_name,
     (size_t) table_name_length
   };
-  tables.init_one_table(&db_name, &tbl_name, 0, (write ? TL_WRITE : TL_READ));
+  thd->catalog= default_catalog();
+  tables.init_one_table(thd->catalog, &db_name, &tbl_name, 0,
+                        (write ? TL_WRITE : TL_READ));
 #else
   tables.init_one_table(
     "mysql", sizeof("mysql") - 1, table_name, table_name_length, table_name,
     (write ? TL_WRITE : TL_READ));
 #endif
-    thd->catalog= default_catalog();
     table = spider_sys_open_table(thd, &tables, open_tables_backup);
     thd->catalog= org_catalog;
     if (!table)

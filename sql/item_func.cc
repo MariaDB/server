@@ -4260,7 +4260,7 @@ longlong Item_func_get_lock::val_int()
   }
 
   MDL_request ull_request;
-  MDL_REQUEST_INIT(&ull_request, MDL_key::USER_LOCK, res->c_ptr_safe(), "",
+  MDL_REQUEST_INIT(&ull_request, MDL_key::USER_LOCK, thd->catalog, res->c_ptr_safe(), "",
                    MDL_SHARED_NO_WRITE, MDL_EXPLICIT);
   MDL_key *ull_key= &ull_request.key;
 
@@ -4356,7 +4356,7 @@ longlong Item_func_release_lock::val_int()
   DBUG_PRINT("enter", ("lock: %.*s", res->length(), res->ptr()));
 
   MDL_key ull_key;
-  ull_key.mdl_key_init(MDL_key::USER_LOCK, res->c_ptr_safe(), "");
+  ull_key.mdl_key_init(MDL_key::USER_LOCK, thd->catalog, res->c_ptr_safe(), "");
 
   User_level_lock *ull;
 
@@ -4402,7 +4402,7 @@ longlong Item_func_is_free_lock::val_int()
     return 0;
 
   MDL_key ull_key;
-  ull_key.mdl_key_init(MDL_key::USER_LOCK, res->c_ptr_safe(), "");
+  ull_key.mdl_key_init(MDL_key::USER_LOCK, thd->catalog, res->c_ptr_safe(), "");
 
   null_value= 0;
   return thd->mdl_context.get_lock_owner(&ull_key) == 0;
@@ -4420,7 +4420,7 @@ longlong Item_func_is_used_lock::val_int()
     return 0;
 
   MDL_key ull_key;
-  ull_key.mdl_key_init(MDL_key::USER_LOCK, res->c_ptr_safe(), "");
+  ull_key.mdl_key_init(MDL_key::USER_LOCK, thd->catalog, res->c_ptr_safe(), "");
   ulong thread_id = thd->mdl_context.get_lock_owner(&ull_key);
   if (thread_id == 0)
     return 0;

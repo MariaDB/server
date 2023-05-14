@@ -35,9 +35,11 @@ static int index_stats_fill(THD *thd, TABLE_LIST *tables, COND *cond)
         check_grant(thd, SELECT_ACL, &tmp_table, 1, 1, 1))
       continue;
 
-    index_name=         tmp_table.table_name.str + tmp_table.table_name.length + 1;
+    index_name=         (tmp_table.table_name.str +
+                         tmp_table.table_name.length +
+                         1 + sizeof(SQL_CATALOG*));
     index_name_length=  (index_stats->index_name_length - tmp_table.db.length -
-                         tmp_table.table_name.length - 3);
+                         tmp_table.table_name.length - 3 - sizeof(SQL_CATALOG*));
 
     table->field[0]->store(tmp_table.db.str, tmp_table.db.length, system_charset_info);
     table->field[1]->store(tmp_table.table_name.str, tmp_table.table_name.length,

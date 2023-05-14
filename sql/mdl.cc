@@ -22,6 +22,7 @@
 #include "rpl_rli.h"
 #include <lf.h>
 #include "unireg.h"
+#include "catalog.h"
 #include <mysql/plugin.h>
 #include <mysql/service_thd_wait.h>
 #include <mysql/psi/mysql_stage.h>
@@ -803,7 +804,7 @@ my_hash_value_type mdl_hash_function(CHARSET_INFO *cs,
 
 void MDL_map::init()
 {
-  MDL_key backup_lock_key(MDL_key::BACKUP, "", "");
+  MDL_key backup_lock_key(MDL_key::BACKUP, default_catalog(), "", "");
 
   m_backup_lock= new (std::nothrow) MDL_lock(&backup_lock_key);
 
@@ -850,9 +851,9 @@ MDL_lock* MDL_map::find_or_insert(LF_PINS *pins, const MDL_key *mdl_key)
       allows to save one hash lookup for any statement changing data.
 
       It works since this namespace contains only one element so keys
-      for them look like '<namespace-id>\0\0'.
+      for them look like '<namespace-id>\0\0' followed by the catalog pointer.
     */
-    DBUG_ASSERT(mdl_key->length() == 3);
+    DBUG_ASSERT(mdl_key->length() == 3 + sizeof(SQL_CATALOG*));
     mysql_prlock_wrlock(&m_backup_lock->m_rwlock);
     return m_backup_lock;
   }
@@ -1000,14 +1001,44 @@ bool MDL_context::fix_pins()
 */
 
 void MDL_request::init_with_source(MDL_key::enum_mdl_namespace mdl_namespace,
-                       const char *db_arg,
-                       const char *name_arg,
-                       enum_mdl_type mdl_type_arg,
-                       enum_mdl_duration mdl_duration_arg,
-                       const char *src_file,
-                       uint src_line)
+                                   const SQL_CATALOG *catalog,
+                                   const char *db_arg,
+                                   const char *name_arg,
+                                   enum_mdl_type mdl_type_arg,
+                                   enum_mdl_duration mdl_duration_arg,
+                                   const char *src_file,
+                                   uint src_line)
 {
-  key.mdl_key_init(mdl_namespace, db_arg, name_arg);
+  key.mdl_key_init(mdl_namespace, catalog, db_arg, name_arg);
+  type= mdl_type_arg;
+  duration= mdl_duration_arg;
+  ticket= NULL;
+  m_src_file= src_file;
+  m_src_line= src_line;
+}
+
+
+/*
+  For usage with storage engines (at least InnoDB).
+  The difference from the above one is that, when using catalogs,
+  the db_name is "catalog/database_name".
+ */
+
+void MDL_request::init_with_source(MDL_key::enum_mdl_namespace mdl_namespace,
+                                   const THD *thd,
+                                   const char *db_arg,
+                                   const char *name_arg,
+                                   enum_mdl_type mdl_type_arg,
+                                   enum_mdl_duration mdl_duration_arg,
+                                   const char *src_file,
+                                   uint src_line)
+{
+  SQL_CATALOG *catalog;
+  LEX_CSTRING db= { db_arg, strlen(db_arg) };
+
+  catalog= thd->get_catalog_from_db(&db);
+
+  key.mdl_key_init(mdl_namespace, catalog, db.str, name_arg);
   type= mdl_type_arg;
   duration= mdl_duration_arg;
   ticket= NULL;
@@ -1019,7 +1050,7 @@ void MDL_request::init_with_source(MDL_key::enum_mdl_namespace mdl_namespace,
 /**
   Initialize a lock request using pre-built MDL_key.
 
-  @sa MDL_request::init(namespace, db, name, type).
+  @sa MDL_request::init(namespace, catalog, db, name, type).
 
   @param key_arg       The pre-built MDL key for the request.
   @param mdl_type_arg  The MDL lock type for the request.
@@ -3043,13 +3074,14 @@ void MDL_ticket::downgrade_lock(enum_mdl_type type)
 
 bool
 MDL_context::is_lock_owner(MDL_key::enum_mdl_namespace mdl_namespace,
+                           const SQL_CATALOG *catalog,
                            const char *db, const char *name,
                            enum_mdl_type mdl_type)
 {
   MDL_request mdl_request;
   enum_mdl_duration not_unused;
   /* We don't care about exact duration of lock here. */
-  MDL_REQUEST_INIT(&mdl_request, mdl_namespace, db, name, mdl_type,
+  MDL_REQUEST_INIT(&mdl_request, mdl_namespace, catalog, db, name, mdl_type,
                    MDL_TRANSACTION);
   MDL_ticket *ticket= find_ticket(&mdl_request, &not_unused);
 

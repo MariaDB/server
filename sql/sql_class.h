@@ -5613,6 +5613,7 @@ public:
       return false;
     return !is_set_timestamp_forbidden(this);
   }
+  SQL_CATALOG *get_catalog_from_db(LEX_CSTRING *db) const;
 };
 
 

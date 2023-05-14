@@ -731,14 +731,10 @@ static void initialize_tables_for_help_command(THD *thd, TABLE_LIST *tables)
   LEX_CSTRING MYSQL_HELP_RELATION_NAME= {STRING_WITH_LEN("help_relation") };
   LEX_CSTRING MYSQL_HELP_KEYWORD_NAME=  {STRING_WITH_LEN("help_keyword") };
 
-  tables[0].init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_HELP_TOPIC_NAME, 0,
-                           TL_READ);
-  tables[1].init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_HELP_CATEGORY_NAME, 0,
-                           TL_READ);
-  tables[2].init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_HELP_RELATION_NAME, 0,
-                           TL_READ);
-  tables[3].init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_HELP_KEYWORD_NAME, 0,
-                           TL_READ);
+  tables[0].init_one_mysql_table(&MYSQL_HELP_TOPIC_NAME, TL_READ);
+  tables[1].init_one_mysql_table(&MYSQL_HELP_CATEGORY_NAME, TL_READ);
+  tables[2].init_one_mysql_table(&MYSQL_HELP_RELATION_NAME, TL_READ);
+  tables[3].init_one_mysql_table(&MYSQL_HELP_KEYWORD_NAME, TL_READ);
   tables[0].next_global= tables[0].next_local=
     tables[0].next_name_resolution_table= &tables[1];
   tables[1].next_global= tables[1].next_local=

@@ -635,6 +635,7 @@ int init_slave()
     THD *thd= new THD(next_thread_id());
     thd->thread_stack= (char*) &thd;
     thd->store_globals();
+    thd->catalog= default_catalog();
 
     error= start_slave_threads(0, /* No active thd */
                                1 /* need mutex */,
@@ -4719,6 +4720,8 @@ pthread_handler_t handle_slave_io(void *arg)
 
   pthread_detach_this_thread();
   thd->thread_stack= (char*) &thd; // remember where our stack is
+  thd->catalog= default_catalog();
+
   mi->clear_error();
   if (init_slave_thread(thd, mi, SLAVE_THD_IO))
   {
@@ -5334,6 +5337,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   thd = new THD(next_thread_id()); // note that contructor of THD uses DBUG_ !
   thd->thread_stack = (char*)&thd; // remember where our stack is
   thd->system_thread_info.rpl_sql_info= &sql_info;
+  thd->catalog= default_catalog(); // For scan_all_gtid_slave_pos_table()
 
   DBUG_ASSERT(rli->inited);
   DBUG_ASSERT(rli->mi == mi);
@@ -7194,8 +7198,10 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
     else
     {
       change_rpl_status(RPL_IDLE_SLAVE,RPL_ACTIVE_SLAVE);
+      thd->catalog= default_catalog();          // For log tables
       general_log_print(thd, COM_CONNECT_OUT, "%s@%s:%d",
                         mi->user, mi->host, mi->port);
+      thd->catalog= 0;
     }
 #ifdef SIGNAL_WITH_VIO_CLOSE
     thd->set_active_vio(mysql->net.vio);

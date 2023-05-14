@@ -7,13 +7,12 @@
 --source include/not_embedded.inc
 --source include/no_view_protocol.inc
 
-
 --echo #
 --echo # Testing which locks we get from all stages
 --echo #
 
 let $mdl= LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info
-WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
+WHERE TABLE_NAME NOT LIKE 'innodb_%_stats' order by lock_mode, lock_type, table_schema, table_name;
 
 BACKUP STAGE START;
 eval SELECT $mdl;

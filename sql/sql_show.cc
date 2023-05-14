@@ -4987,7 +4987,7 @@ try_acquire_high_prio_shared_mdl_lock(THD *thd, TABLE_LIST *table,
                                       bool can_deadlock)
 {
   bool error;
-  MDL_REQUEST_INIT(&table->mdl_request, MDL_key::TABLE,
+  MDL_REQUEST_INIT(&table->mdl_request, MDL_key::TABLE, thd->catalog,
                    table->db.str, table->table_name.str, MDL_SHARED_HIGH_PRIO,
                    MDL_TRANSACTION);
 
@@ -10548,7 +10548,7 @@ TABLE_LIST *get_trigger_table(THD *thd, const sp_name *trg_name)
   if (db.str == NULL || tbl_name.str == NULL)
     return NULL;
 
-  table->init_one_table(&db, &tbl_name, 0, TL_IGNORE);
+  table->init_one_table(thd->catalog, &db, &tbl_name, 0, TL_IGNORE);
 
   return table;
 }

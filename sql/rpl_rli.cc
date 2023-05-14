@@ -1573,7 +1573,7 @@ scan_one_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array,
 
   thd->reset_for_next_command();
   thd->catalog= default_catalog();
-  tlist.init_one_table(&MYSQL_SCHEMA_NAME, tablename, NULL, TL_READ);
+  tlist.init_one_mysql_table(tablename, TL_READ);
   err= open_and_lock_tables(thd, &tlist, FALSE, 0);
   thd->catalog= org_catalog;
   if (err)
@@ -1986,7 +1986,7 @@ find_gtid_pos_tables_cb(THD *thd, LEX_CSTRING *table_name, void *arg)
 
   thd->reset_for_next_command();
   thd->catalog= default_catalog();
-  tlist.init_one_table(&MYSQL_SCHEMA_NAME, table_name, NULL, TL_READ);
+  tlist.init_one_mysql_table(table_name, TL_READ);
   if ((err= open_and_lock_tables(thd, &tlist, FALSE, 0)))
     goto end;
   table= tlist.table;

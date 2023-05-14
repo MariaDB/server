@@ -171,7 +171,7 @@ bool LEX::resolve_references_to_cte(TABLE_LIST *tables,
         if (copy_db_to(&tbl->db))
           return true;
         if (!(tbl->table_options & TL_OPTION_ALIAS))
-          MDL_REQUEST_INIT(&tbl->mdl_request, MDL_key::TABLE,
+          MDL_REQUEST_INIT(&tbl->mdl_request, MDL_key::TABLE, thd->catalog,
                            tbl->db.str, tbl->table_name.str,
                            tbl->mdl_type, MDL_TRANSACTION);
         tbl->mdl_request.set_type((tbl->lock_type >= TL_WRITE_ALLOW_WRITE) ?

@@ -1232,7 +1232,7 @@ static void rename_triggers(THD *thd, DDL_LOG_ENTRY *ddl_log_entry,
     TRIGGER_RENAME_PARAM trigger_param;
     int error __attribute__((unused));
     MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE,
-                     from_db.str,
+                     thd->catalog, from_db.str,
                      from_converted_name.str,
                      MDL_EXCLUSIVE, MDL_EXPLICIT);
     error= thd->mdl_context.acquire_lock(&mdl_request, 1);

@@ -190,7 +190,7 @@ public:
                                  sp_pcontext *spcont) const;
 
   void add_used_routine(Query_tables_list *prelocking_ctx,
-                        Query_arena *arena,
+                        THD *thd,
                         const Database_qualified_name *name) const;
 
   bool sp_resolve_package_routine(THD *thd,

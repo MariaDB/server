@@ -187,7 +187,7 @@ void udf_init()
   new_thd->catalog= default_catalog();
   new_thd->set_db(&MYSQL_SCHEMA_NAME);
 
-  tables.init_one_table(&new_thd->db, &MYSQL_FUNC_NAME, 0, TL_READ);
+  tables.init_one_mysql_table(&MYSQL_FUNC_NAME, TL_READ);
 
   if (open_and_lock_tables(new_thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
   {
@@ -512,8 +512,7 @@ static TABLE *open_udf_func_table(THD *thd)
   SQL_CATALOG *org_catalog= thd->catalog;
 
   thd->catalog= default_catalog();
-  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_FUNC_NAME,
-                        &MYSQL_FUNC_NAME, TL_WRITE);
+  tables.init_one_mysql_table(&MYSQL_FUNC_NAME, TL_WRITE);
   table= open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT);
   thd->catalog= org_catalog;
   return table;

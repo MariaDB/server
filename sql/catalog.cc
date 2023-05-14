@@ -66,7 +66,7 @@ SQL_CATALOG *get_catalog(const LEX_CSTRING *name, bool initialize)
 {
   return &internal_default_catalog;
 }
-SQL_CATALOG *get_catalog_with_error(THD *thd,
+SQL_CATALOG *get_catalog_with_error(const THD *thd,
                                     const LEX_CSTRING *name, bool initialize)
 {
   return &internal_default_catalog;
@@ -130,7 +130,7 @@ SQL_CATALOG *get_catalog(const LEX_CSTRING *name, bool initialize)
   Get catalog object, give error if not found
 */
 
-SQL_CATALOG *get_catalog_with_error(THD *thd, const LEX_CSTRING *name,
+SQL_CATALOG *get_catalog_with_error(const THD *thd, const LEX_CSTRING *name,
                                     bool initialize)
 {
   SQL_CATALOG *catalog= get_catalog(name, initialize);

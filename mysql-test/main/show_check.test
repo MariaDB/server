@@ -488,7 +488,7 @@ SELECT 1 FROM t1;
 SELECT 1 FROM t2;
 
 --echo
-
+--sorted_result
 SHOW OPEN TABLES FROM mysqltest1;
 
 --echo

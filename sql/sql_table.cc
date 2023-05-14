@@ -387,6 +387,51 @@ uint explain_filename(THD* thd,
 }
 
 
+/**
+   Convert a storage engine schema name to a SQL level schema name.
+
+   @param from              The name in my_charset_filename.
+   @param to          OUT   The name in system_charset_info.
+   @param to_length         The size of the 'to' buffer.
+
+
+  This is used to be able to use the name for MDL lock or error messages.
+
+  This is needed as storage engine internally uses file names which
+  are encoded if the SQL name contains special characters not usable
+  for file names.
+
+  When catalogs are used, the database name contains also the catalog
+  name!
+*/
+
+uint filename_to_dbname(const char *from, char *to, size_t to_length)
+{
+  size_t catalog_len= 0;
+  size_t db_len;
+  const char *db_start= from;
+  uint errors;
+
+  if (using_catalogs)
+  {
+     /* Skip over the catalog name */
+     for (; *db_start != FN_LIBCHAR && *db_start != FN_LIBCHAR2; db_start++)
+       ;
+     catalog_len= (size_t) (db_start - from);
+     catalog_len= strconvert(&my_charset_filename, from, catalog_len,
+                             system_charset_info, to, to_length, &errors);
+
+     to[catalog_len]= *db_start++;            // Include dir separator
+     catalog_len++;
+  }
+  db_len= strconvert(&my_charset_filename, db_start, FN_REFLEN,
+                     system_charset_info, to + catalog_len,
+                     to_length - catalog_len,
+                     &errors);
+  return (uint) (catalog_len + db_len);
+}
+
+
 /*
   Translate a file name to a table name (WL #1324).
 
@@ -398,16 +443,36 @@ uint explain_filename(THD* thd,
 
   RETURN
     Table name length.
+
+  This is used to be able to use the name for MDL lock or error messages.
+
+  This is needed as storage engine internally uses file names which
+  are encoded if the SQL name contains special characters not usable
+  for file names.
 */
 
 uint filename_to_tablename(const char *from, char *to, size_t to_length, 
                            bool stay_quiet)
 {
   uint errors;
-  size_t res;
+  size_t res, cat_res= 0;
   DBUG_ENTER("filename_to_tablename");
   DBUG_PRINT("enter", ("from '%s'", from));
 
+  if (using_catalogs)
+  {
+    const char *end;
+    if ((end= strchr(from, '/')))
+    {
+      cat_res= strconvert(&my_charset_filename, from,
+                          MY_MAX((size_t) (end - from), (size_t) FN_REFLEN-1),
+                          system_charset_info,  to, to_length-1, &errors);
+      from= end+1;
+      to+= cat_res;
+      *to++= '/';
+      to_length-= (cat_res+1);
+    }
+  }
   res= strconvert(&my_charset_filename, from, FN_REFLEN,
                   system_charset_info,  to, to_length, &errors);
   if (unlikely(errors)) // Old 5.0 name
@@ -419,7 +484,7 @@ uint filename_to_tablename(const char *from, char *to, size_t to_length,
   }
 
   DBUG_PRINT("exit", ("to '%s'", to));
-  DBUG_RETURN((uint)res);
+  DBUG_RETURN((uint) (res + cat_res));
 }
 
 
@@ -1500,8 +1565,9 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
     {
       non_temp_tables_count++;
 
-      DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, db.str,
-                                                 table_name.str, MDL_SHARED));
+      DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, thd->catalog,
+                                                 db.str, table_name.str,
+                                                 MDL_SHARED));
 
       alias= (lower_case_table_names == 2) ? table->alias : table_name;
       /* remove .frm file and engine files */
@@ -1591,8 +1657,9 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
         tdc_remove_table(thd, db.str, table_name.str);
 
       /* Check that we have an exclusive lock on the table to be dropped. */
-      DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, db.str,
-                                                table_name.str, MDL_EXCLUSIVE));
+      DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, thd->catalog,
+                                                 db.str, table_name.str,
+                                                 MDL_EXCLUSIVE));
 
       // Remove extension for delete
       *path_end= '\0';
@@ -4529,7 +4596,8 @@ int create_table_impl(THD *thd,
         (void) delete_statistics_for_table(thd, &db, &table_name);
 
         TABLE_LIST table_list;
-        table_list.init_one_table(&db, &table_name, 0, TL_WRITE_ALLOW_WRITE);
+        table_list.init_one_table(thd->catalog, &db, &table_name, 0,
+                                  TL_WRITE_ALLOW_WRITE);
         table_list.table= create_info->table;
 
         if (check_if_log_table(&table_list, TRUE, "CREATE OR REPLACE"))
@@ -5455,7 +5523,8 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
       because of existing table when using "if exists".
     */
     DBUG_ASSERT((create_info->tmp_table()) || create_res < 0 ||
-                thd->mdl_context.is_lock_owner(MDL_key::TABLE, table->db.str,
+                thd->mdl_context.is_lock_owner(MDL_key::TABLE, thd->catalog,
+                                               table->db.str,
                                                table->table_name.str,
                                                MDL_EXCLUSIVE) ||
                 (thd->locked_tables_mode && pos_in_locked_tables &&
@@ -9403,8 +9472,8 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
         ref_table= tbuf;
       }
 
-      MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE, ref_db, ref_table,
-                       MDL_SHARED_NO_WRITE, MDL_TRANSACTION);
+      MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE, thd->catalog,
+                       ref_db, ref_table, MDL_SHARED_NO_WRITE, MDL_TRANSACTION);
       if (thd->mdl_context.acquire_lock(&mdl_request,
                                         thd->variables.lock_wait_timeout))
         DBUG_RETURN(true);
@@ -10174,7 +10243,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
       MDL_request_list mdl_requests;
       MDL_request target_db_mdl_request;
 
-      MDL_REQUEST_INIT(&target_mdl_request, MDL_key::TABLE,
+      MDL_REQUEST_INIT(&target_mdl_request, MDL_key::TABLE, thd->catalog,
                        alter_ctx.new_db.str, alter_ctx.new_name.str,
                        MDL_EXCLUSIVE, MDL_TRANSACTION);
       mdl_requests.push_front(&target_mdl_request);
@@ -10186,7 +10255,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
       */
       if (alter_ctx.is_database_changed())
       {
-        MDL_REQUEST_INIT(&target_db_mdl_request, MDL_key::SCHEMA,
+        MDL_REQUEST_INIT(&target_db_mdl_request, MDL_key::SCHEMA, thd->catalog,
                          alter_ctx.new_db.str, "", MDL_INTENTION_EXCLUSIVE,
                          MDL_TRANSACTION);
         mdl_requests.push_front(&target_db_mdl_request);
@@ -10197,6 +10266,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
         to be altered was being opened.
       */
       DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::BACKUP,
+                                                 default_catalog(),
                                                  "", "",
                                                  MDL_BACKUP_DDL));
 
@@ -10313,8 +10383,8 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     /* Protect against MDL error in binary logging */
     MDL_request mdl_request;
     DBUG_ASSERT(!mdl_ticket);
-    MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
-                     MDL_TRANSACTION);
+    MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, default_catalog(),
+                     "", "", MDL_BACKUP_COMMIT, MDL_TRANSACTION);
     if (thd->mdl_context.acquire_lock(&mdl_request,
                                       thd->variables.lock_wait_timeout))
       DBUG_RETURN(true);

@@ -27,7 +27,7 @@
 
 #define LIBLEN FN_REFLEN-FN_LEN			/* Max l{ngd p} dev */
 /* extra 4+4 bytes for slave tmp tables */
-#define MAX_DBKEY_LENGTH (NAME_LEN*2+1+1+4+4)
+#define MAX_DBKEY_LENGTH (NAME_LEN*2+1+1+4+4 + sizeof(void*))
 #define MAX_ALIAS_NAME 256
 #define MAX_FIELD_NAME (NAME_LEN+1)             /* Max colum name length +1 */
 #define MAX_SYS_VAR_LENGTH 32

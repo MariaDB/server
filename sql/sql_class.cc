@@ -4919,6 +4919,51 @@ extern "C" const char *thd_priv_user(MYSQL_THD thd, size_t *length)
 }
 
 
+/*
+  Find the catalog based on the database name given by the engine
+
+  @param db   Database for a table. If catalogs are used then it's
+              in the format 'catalog/database' and in this case it's
+              changed to point to the database part.
+
+  @return     Catalog
+*/
+
+SQL_CATALOG *THD::get_catalog_from_db(LEX_CSTRING *db) const
+{
+  SQL_CATALOG *tmp_catalog;
+
+  if (!using_catalogs)
+    return default_catalog();
+  if (catalog)
+  {
+    DBUG_ASSERT(!memcmp(db->str, catalog->path.str, catalog->path.length));
+    db->str+=    catalog->path.length;
+    db->length-= catalog->path.length;
+    return catalog;
+  }
+
+  /*
+    We can come here in case from the InnoDB purge.
+    Catalog is first part of the database separated by FN_DIRCHAR.
+  */
+  const char *pos;
+  LEX_CSTRING catalog_name;
+  for (pos= db->str ;
+       *pos  && *pos != FN_LIBCHAR && *pos != FN_LIBCHAR2 ;
+       pos++)
+    ;
+  DBUG_ASSERT(*pos);
+  catalog_name.str=    db->str;
+  catalog_name.length= (size_t) (pos - db->str);
+  tmp_catalog= get_catalog_with_error(this, &catalog_name, 0);
+  DBUG_ASSERT(tmp_catalog);
+  db->str= pos+1;
+  db->length-= catalog_name.length+1;
+  return tmp_catalog;
+}
+
+
 #ifdef INNODB_COMPATIBILITY_HOOKS
 
 /** open a table and add it to thd->open_tables
@@ -4943,8 +4988,10 @@ TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
   TABLE_LIST *tl= (TABLE_LIST*)thd->alloc(sizeof(TABLE_LIST));
   LEX_CSTRING db_name= {db, dblen };
   LEX_CSTRING table_name= { tb, tblen };
+  SQL_CATALOG *catalog;
 
-  tl->init_one_table(&db_name, &table_name, 0, TL_READ);
+  catalog= thd->get_catalog_from_db(&db_name);
+  tl->init_one_table(catalog, &db_name, &table_name, 0, TL_READ);
   tl->i_s_requested_object= OPEN_TABLE_ONLY;
 
   bool error= open_table(thd, tl, &ot_ctx);

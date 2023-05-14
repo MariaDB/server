@@ -271,7 +271,8 @@ int PFS_object_row::make_row(const MDL_key *mdl)
     break;
   case MDL_key::USER_LOCK:
     m_object_type= OBJECT_TYPE_USER_LEVEL_LOCK;
-    user_lock_workaround.mdl_key_init(MDL_key::USER_LOCK, "", mdl->db_name());
+    user_lock_workaround.mdl_key_init(MDL_key::USER_LOCK, mdl->catalog(),
+                                      "", mdl->db_name());
     mdl=& user_lock_workaround;
     m_schema_name_length= 0;
     m_object_name_length= mdl->name_length();

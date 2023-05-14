@@ -20,6 +20,7 @@
 #include "sql_class.h"
 #include "transaction.h"
 #include "my_cpu.h"
+#include "catalog.h"
 #include <pfs_transaction_provider.h>
 #include <mysql/psi/mysql_transaction.h>
 
@@ -525,8 +526,8 @@ bool trans_xa_prepare(THD *thd)
       We allow FLUSHer to COMMIT; we assume FLUSHer knows what it does.
     */
     MDL_request mdl_request;
-    MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
-                     MDL_STATEMENT);
+    MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, default_catalog(),
+                     "", "", MDL_BACKUP_COMMIT, MDL_STATEMENT);
     if (thd->mdl_context.acquire_lock(&mdl_request,
                                       thd->variables.lock_wait_timeout) ||
         ha_prepare(thd))
@@ -610,8 +611,8 @@ bool trans_xa_commit(THD *thd)
         We allow FLUSHer to COMMIT; we assume FLUSHer knows what it does.
       */
       MDL_request mdl_request;
-      MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
-                       MDL_EXPLICIT);
+      MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, default_catalog(),
+                       "", "", MDL_BACKUP_COMMIT, MDL_EXPLICIT);
       if (thd->mdl_context.acquire_lock(&mdl_request,
                                         thd->variables.lock_wait_timeout))
       {
@@ -687,8 +688,8 @@ bool trans_xa_commit(THD *thd)
 
       We allow FLUSHer to COMMIT; we assume FLUSHer knows what it does.
     */
-    MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
-                     MDL_TRANSACTION);
+    MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, default_catalog(),
+                     "", "", MDL_BACKUP_COMMIT, MDL_TRANSACTION);
 
     if (thd->mdl_context.acquire_lock(&mdl_request,
                                       thd->variables.lock_wait_timeout))
@@ -777,8 +778,8 @@ bool trans_xa_rollback(THD *thd)
       bool res;
       bool xid_deleted= false;
       MDL_request mdl_request;
-      MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
-                       MDL_EXPLICIT);
+      MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, default_catalog(),
+                       "", "", MDL_BACKUP_COMMIT, MDL_EXPLICIT);
       if (thd->mdl_context.acquire_lock(&mdl_request,
                                         thd->variables.lock_wait_timeout))
       {
@@ -829,8 +830,8 @@ bool trans_xa_rollback(THD *thd)
   }
 
   MDL_request mdl_request;
-  MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
-      MDL_STATEMENT);
+  MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, default_catalog(),
+                   "", "", MDL_BACKUP_COMMIT, MDL_STATEMENT);
   if (thd->mdl_context.acquire_lock(&mdl_request,
         thd->variables.lock_wait_timeout))
   {

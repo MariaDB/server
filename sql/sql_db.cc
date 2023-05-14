@@ -1381,7 +1381,7 @@ static bool find_db_tables_and_rm_known_files(THD *thd, MY_DIR *dirp,
                                                    (char*) table_list->table_name.str);
 
     table_list->alias= table_list->table_name;	// If lower_case_table_names=2
-    MDL_REQUEST_INIT(&table_list->mdl_request, MDL_key::TABLE,
+    MDL_REQUEST_INIT(&table_list->mdl_request, MDL_key::TABLE, thd->catalog,
                      table_list->db.str, table_list->table_name.str,
                      MDL_EXCLUSIVE, MDL_TRANSACTION);
     /* Link into list */

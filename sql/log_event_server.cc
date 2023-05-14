@@ -5849,7 +5849,8 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
   LEX_CSTRING tmp_db_name=  {db_mem, db_mem_length };
   LEX_CSTRING tmp_tbl_name= {tname_mem, tname_mem_length };
 
-  table_list->init_one_table(&tmp_db_name, &tmp_tbl_name, 0, TL_WRITE);
+  table_list->init_one_table(m_catalog, &tmp_db_name, &tmp_tbl_name, 0,
+                             TL_WRITE);
   table_list->table_id= DBUG_IF("inject_tblmap_same_id_maps_diff_table") ? 0 : m_table_id;
   table_list->updating= 1;
   table_list->required_type= TABLE_TYPE_NORMAL;

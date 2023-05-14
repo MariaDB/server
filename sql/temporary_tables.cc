@@ -918,13 +918,14 @@ bool THD::has_temporary_tables()
     4 bytes of master thread id
     4 bytes of pseudo thread id
 */
-uint THD::create_tmp_table_def_key(char *key, const char *db,
-                                    const char *table_name)
+uint THD::create_tmp_table_def_key(char *key,
+                                   const char *db,
+                                   const char *table_name)
 {
   uint key_length;
   DBUG_ENTER("THD::create_tmp_table_def_key");
 
-  key_length= tdc_create_key(key, db, table_name);
+  key_length= tdc_create_key(key, catalog, db, table_name);
   int4store(key + key_length, variables.server_id);
   int4store(key + key_length + 4, variables.pseudo_thread_id);
   key_length += TMP_TABLE_KEY_EXTRA;

@@ -5353,7 +5353,8 @@ bool subselect_hash_sj_engine::make_semi_join_conds()
 
   table_name.str=    tmp_table->alias.c_ptr();
   table_name.length= tmp_table->alias.length(),
-  tmp_table_ref->init_one_table(&empty_clex_str, &table_name, NULL, TL_READ);
+    tmp_table_ref->init_one_table(thd->catalog, &empty_clex_str,
+                                  &table_name, NULL, TL_READ);
   tmp_table_ref->table= tmp_table;
 
   context= new Name_resolution_context(tmp_table_ref);

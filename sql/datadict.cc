@@ -262,7 +262,8 @@ bool dd_recreate_table(THD *thd, const char *db, const char *table_name)
   DBUG_ENTER("dd_recreate_table");
 
   /* There should be a exclusive metadata lock on the table. */
-  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, db, table_name,
+  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, thd->catalog,
+                                             db, table_name,
                                              MDL_EXCLUSIVE));
   create_info.init();
   build_table_filename(thd->catalog, path_buf, sizeof(path_buf) - 1,

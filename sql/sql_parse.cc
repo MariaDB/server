@@ -1067,11 +1067,11 @@ int bootstrap(MYSQL_FILE *file)
     }
 
     query= (char *) thd->memdup_w_gap(buffer, length + 1,
+                                      thd->catalog->path.length +
                                       thd->db.length + 1 +
                                       QUERY_CACHE_DB_LENGTH_SIZE +
                                       QUERY_CACHE_FLAGS_SIZE);
-    size_t db_len= 0;
-    memcpy(query + length + 1, (char *) &db_len, sizeof(size_t));
+    int2store(query + length + 1, 0);
     thd->set_query_and_id(query, length, thd->charset(), next_query_id());
     int2store(query + length + 1, 0);           // No db in bootstrap
     DBUG_PRINT("query",("%-.4096s",thd->query()));
@@ -1585,8 +1585,9 @@ public:
     1   request of thread shutdown, i. e. if command is
         COM_QUIT/COM_SHUTDOWN
 */
-dispatch_command_return dispatch_command(enum enum_server_command command, THD *thd,
-		      char* packet, uint packet_length, bool blocking)
+dispatch_command_return
+dispatch_command(enum enum_server_command command,
+                 THD *thd, char* packet, uint packet_length, bool blocking)
 {
   NET *net= &thd->net;
   bool error= 0;
@@ -2060,7 +2061,8 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
       table_name.length= my_casedn_str(files_charset_info, table_name.str);
       db.length= my_casedn_str(files_charset_info, (char*) db.str);
     }
-    table_list.init_one_table(&db, (LEX_CSTRING*) &table_name, 0, TL_READ);
+    table_list.init_one_table(thd->catalog, &db, (LEX_CSTRING*) &table_name, 0,
+                              TL_READ);
     /*
       Init TABLE_LIST members necessary when the undelrying
       table is view.
@@ -2714,6 +2716,7 @@ int prepare_schema_table(THD *thd, LEX *lex, Table_ident *table_ident,
 bool alloc_query(THD *thd, const char *packet, size_t packet_length)
 {
   char *query;
+  size_t db_length;
   /* Remove garbage at start and end of query */
   while (packet_length > 0 && my_isspace(thd->charset(), packet[0]))
   {
@@ -2737,19 +2740,20 @@ bool alloc_query(THD *thd, const char *packet, size_t packet_length)
             <db_name>     Name of current database
             <flags>       Flags struct
   */
-  if (! (query= (char*) thd->memdup_w_gap(packet,
-                                          packet_length,
-                                          1 + thd->db.length +
-                                          QUERY_CACHE_DB_LENGTH_SIZE +
-                                          QUERY_CACHE_FLAGS_SIZE)))
-      return TRUE;
+  db_length= thd->db.length + thd->catalog->path.length;
+  if (!(query= (char*) thd->memdup_w_gap(packet,
+                                         packet_length,
+                                         1 + db_length +
+                                         QUERY_CACHE_DB_LENGTH_SIZE +
+                                         QUERY_CACHE_FLAGS_SIZE)))
+    return TRUE;
   query[packet_length]= '\0';
   /*
     Space to hold the name of the current database is allocated.  We
     also store this length, in case current database is changed during
     execution.  We might need to reallocate the 'query' buffer
   */
-  int2store(query + packet_length + 1, thd->db.length);
+  int2store(query + packet_length + 1, db_length);
     
   thd->set_query(query, packet_length);
 
@@ -7502,7 +7506,8 @@ bool check_fk_parent_table_access(THD *thd,
         db_name.length= my_casedn_str(files_charset_info, (char*) db_name.str);
       }
 
-      parent_table.init_one_table(&db_name, &table_name, 0, TL_IGNORE);
+      parent_table.init_one_table(thd->catalog, &db_name, &table_name, 0,
+                                  TL_IGNORE);
 
       /*
        Check if user has any of the "privileges" at table level on
@@ -8436,8 +8441,9 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
   // Pure table aliases do not need to be locked:
   if (ptr->db.str && !(table_options & TL_OPTION_ALIAS))
   {
-    MDL_REQUEST_INIT(&ptr->mdl_request, MDL_key::TABLE, ptr->db.str,
-                     ptr->table_name.str, mdl_type, MDL_TRANSACTION);
+    MDL_REQUEST_INIT(&ptr->mdl_request, MDL_key::TABLE, thd->catalog,
+                     ptr->db.str, ptr->table_name.str, mdl_type,
+                     MDL_TRANSACTION);
   }
   DBUG_RETURN(ptr);
 }

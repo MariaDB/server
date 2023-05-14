@@ -333,8 +333,9 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
     right from the start as open_tables() can't handle properly
     back-off for such locks.
   */
-  MDL_REQUEST_INIT(&tables->mdl_request, MDL_key::TABLE, tables->db.str,
-                   tables->table_name.str, MDL_SHARED_READ, MDL_TRANSACTION);
+  MDL_REQUEST_INIT(&tables->mdl_request, MDL_key::TABLE, thd->catalog,
+                   tables->db.str, tables->table_name.str,
+                   MDL_SHARED_READ, MDL_TRANSACTION);
   mdl_savepoint= thd->mdl_context.mdl_savepoint();
 
   /* for now HANDLER can be used only for real TABLES */
@@ -578,7 +579,7 @@ static SQL_HANDLER *mysql_ha_find_handler(THD *thd, const LEX_CSTRING *name)
     {
       /* The handler table has been closed. Re-open it. */
       TABLE_LIST tmp;
-      tmp.init_one_table(&handler->db, &handler->table_name,
+      tmp.init_one_table(thd->catalog, &handler->db, &handler->table_name,
                          &handler->handler_name, TL_READ);
 
       if (mysql_ha_open(thd, &tmp, handler))

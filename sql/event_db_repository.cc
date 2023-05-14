@@ -538,7 +538,8 @@ Event_db_repository::fill_schema_events(THD *thd, TABLE_LIST *i_s_table,
 
   start_new_trans new_trans(thd);
 
-  event_table.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_EVENT_NAME, 0, TL_READ);
+  event_table.init_one_table(thd->catalog, &MYSQL_SCHEMA_NAME,
+                             &MYSQL_EVENT_NAME, 0, TL_READ);
 
   if (open_system_tables_for_read(thd, &event_table))
   {
@@ -605,7 +606,8 @@ Event_db_repository::open_event_table(THD *thd, enum thr_lock_type lock_type,
   TABLE_LIST tables;
   DBUG_ENTER("Event_db_repository::open_event_table");
 
-  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_EVENT_NAME, 0, lock_type);
+  tables.init_one_table(thd->catalog, &MYSQL_SCHEMA_NAME, &MYSQL_EVENT_NAME, 0,
+                        lock_type);
 
   if (open_and_lock_tables(thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
     DBUG_RETURN(TRUE);
@@ -1076,7 +1078,8 @@ Event_db_repository::load_named_event(THD *thd, const LEX_CSTRING *dbname,
   /* Reset sql_mode during data dictionary operations. */
   Sql_mode_instant_set sms(thd, 0);
 
-  event_table.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_EVENT_NAME, 0, TL_READ);
+  event_table.init_one_table(thd->catalog, &MYSQL_SCHEMA_NAME,
+                             &MYSQL_EVENT_NAME, 0, TL_READ);
 
   /*
     We don't use open_event_table() here to make sure that SHOW
@@ -1139,9 +1142,11 @@ update_timing_fields_for_event(THD *thd,
   MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
   thd->catalog= const_cast<SQL_CATALOG*>(catalog);
   err= open_event_table(thd, TL_WRITE, &table);
-  thd->catalog= const_cast<SQL_CATALOG*>(org_catalog);
   if (err)
+  {
+    thd->catalog= const_cast<SQL_CATALOG*>(org_catalog);
     DBUG_RETURN(1);
+  }
 
   fields= table->field;
   /*
@@ -1173,6 +1178,7 @@ end:
   if (thd->commit_whole_transaction_and_close_tables())
     ret= 1;
   thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
+  thd->catalog= const_cast<SQL_CATALOG*>(org_catalog);
 
   DBUG_RETURN(ret);
 }
@@ -1201,7 +1207,7 @@ Event_db_repository::check_system_tables(THD *thd)
   DBUG_PRINT("enter", ("thd: %p", thd));
 
   /* Check mysql.event */
-  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_EVENT_NAME, 0, TL_READ);
+  tables.init_one_mysql_table(&MYSQL_EVENT_NAME, TL_READ);
 
   if (open_and_lock_tables(thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
   {

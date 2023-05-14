@@ -233,6 +233,16 @@ static int qc_info_fill_table(THD *thd, TABLE_LIST *tables,
     compile_time_assert(QUERY_CACHE_DB_LENGTH_SIZE == 2); 
     db= key + statement_text_length + 1 + QUERY_CACHE_DB_LENGTH_SIZE;
     db_length= uint2korr(db - QUERY_CACHE_DB_LENGTH_SIZE);
+    if (using_catalogs)
+    {
+      /* Remove catalog from the db name if it exists */
+      const char *pos;
+      if ((pos= (const char*) memchr(db, '/', db_length)))
+      {
+        db_length-= (size_t) (pos-db)+1;
+        db= pos+1;
+      }
+    }
 
     table->field[COLUMN_STATEMENT_SCHEMA]->store(db, db_length, scs);
 
