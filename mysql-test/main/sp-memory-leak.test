@@ -1,0 +1,29 @@
+--echo #
+--echo # MDEV-30680 Warning: Memory not freed: 280 on mangled query, LeakSanitizer: detected memory leaks
+--echo #
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+BEGIN NOT ATOMIC
+  IF SCALAR() expected_THEN_here;
+END
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+BEGIN NOT ATOMIC
+  WHILE SCALAR() expected_DO_here;
+END
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+BEGIN NOT ATOMIC
+  REPEAT SELECT 1; UNTIL SCALAR() expected_END_here;
+END
+$$
+DELIMITER ;$$
