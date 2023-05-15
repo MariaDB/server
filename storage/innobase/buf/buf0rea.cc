@@ -265,9 +265,6 @@ buf_read_page_low(
 	buf_page_t*	bpage;
 
 	if (buf_dblwr.is_inside(page_id)) {
-		ib::error() << "Trying to read doublewrite buffer page "
-			<< page_id;
-		ut_ad(0);
 		space->release();
 		return DB_PAGE_CORRUPTED;
 	}
