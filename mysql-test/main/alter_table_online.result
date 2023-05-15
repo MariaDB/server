@@ -118,6 +118,8 @@ insert into t2 values (1, 1),(2, 2);
 alter table t2 add c int, algorithm=copy, lock=none;
 ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
 alter table t2 add c int, algorithm=copy;
+Warnings:
+Note	1846	Tables with CASCADE/SET NULL foreign keys are incompatible with LOCK=NONE, ALGORITHM=COPY
 alter table t2 add d int, algorithm=inplace;
 drop table t2, t1;
 #
@@ -134,6 +136,8 @@ alter table t1 add c int, algorithm=copy, lock=none;
 ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
 alter table t1 add c int, algorithm=inplace;
 alter table t1 add d int, lock=none;
+Warnings:
+Note	1846	Transaction-versioned tables are incompatible with LOCK=NONE, ALGORITHM=COPY
 set system_versioning_alter_history= default;
 drop table t1;
 #
@@ -203,4 +207,6 @@ drop table t;
 # MDEV-31172 Server crash or ASAN errors in online_alter_check_autoinc
 create table t (a int, b int, c char(8), key(a,b,c));
 alter table t modify c int auto_increment key, algorithm=copy;
+Warnings:
+Note	1846	Adding AUTOINC to an existing column for a table without a primary key is incompatible with LOCK=NONE, ALGORITHM=COPY
 drop table t;

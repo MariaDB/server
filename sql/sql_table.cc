@@ -9916,6 +9916,53 @@ bool online_alter_check_autoinc(const THD *thd, const Alter_info *alter_info,
   return online;
 }
 
+bool online_alter_is_supported(THD *thd, const Alter_info *alter_info,
+                               const TABLE *table)
+{
+  const char *reason= NULL;
+  List<FOREIGN_KEY_INFO> fk_list;
+
+  if (table->s->tmp_table)
+  {
+    reason= "Temporary tables are";
+    goto unsupported;
+  }
+
+  if (table->versioned(VERS_TRX_ID))
+  {
+    reason= "Transaction-versioned tables are";
+    goto unsupported;
+  }
+
+  table->file->get_foreign_key_list(thd, &fk_list);
+  for (auto &fk: fk_list)
+  {
+    if (fk_modifies_child(fk.delete_method)
+        || fk_modifies_child(fk.update_method))
+    {
+      reason= "Tables with CASCADE/SET NULL foreign keys are";
+      goto unsupported;
+    }
+  }
+
+  if (!online_alter_check_autoinc(thd, alter_info, table))
+  {
+    reason= "Adding AUTOINC to an existing column for a table without a "
+            "primary key is";
+    goto unsupported;
+  }
+
+  return true;
+
+unsupported:
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                      ER_ALTER_OPERATION_NOT_SUPPORTED_REASON,
+                      "%s incompatible with "
+                      "LOCK=NONE, ALGORITHM=COPY",
+                      reason);
+  return false;
+}
+
 
 /**
   Alter table
@@ -10139,21 +10186,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   table= table_list->table;
   bool is_reg_table= table->s->tmp_table == NO_TMP_TABLE;
   
-  online= online && !table->s->tmp_table && !table->versioned(VERS_TRX_ID);
-
-  List<FOREIGN_KEY_INFO> fk_list;
-  table->file->get_foreign_key_list(thd, &fk_list);
-  for (auto &fk: fk_list)
-  {
-    if (fk_modifies_child(fk.delete_method)
-        || fk_modifies_child(fk.update_method))
-    {
-      online= false;
-      break;
-    }
-  }
-
-  online= online && online_alter_check_autoinc(thd, alter_info, table);
+  online= online && online_alter_is_supported(thd, alter_info, table);
   
 #ifdef WITH_WSREP
   if (WSREP(thd) &&
