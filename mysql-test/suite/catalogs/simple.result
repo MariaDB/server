@@ -1,0 +1,38 @@
+create catalog c1;
+show catalogs;
+Catalog
+c1
+def
+show databases;
+Database
+information_schema
+mtr
+mysql
+performance_schema
+sys
+test
+create catalog c2;
+show catalogs;
+Catalog
+c1
+c2
+def
+show create catalog c2;
+Catalog	Create Catalog
+c2	CREATE CATALOG `c2` DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci
+alter catalog c2 default character set=utf8mb4;
+show create catalog c2;
+Catalog	Create Catalog
+c2	CREATE CATALOG `c2` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+alter catalog c2 comment='This is a test catalog.';
+show create catalog c2;
+Catalog	Create Catalog
+c2	CREATE CATALOG `c2` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci COMMENT 'This is a test catalog.'
+alter catalog c2 default character set=latin1;
+show create catalog c2;
+Catalog	Create Catalog
+c2	CREATE CATALOG `c2` DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci COMMENT 'This is a test catalog.'
+drop catalog c1;
+drop catalog c2;
+drop catalog def;
+ERROR HY000: Catalog directory 'def' is not empty

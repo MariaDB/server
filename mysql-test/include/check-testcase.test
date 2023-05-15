@@ -98,8 +98,15 @@ call mtr.check_testcase();
 
 let $datadir=`select @@datadir`;
 list_files $datadir mariadb_upgrade_info;
-list_files $datadir/test #sql*;
-list_files $datadir/mysql #sql*;
+if (`SELECT @@catalogs = 1`) {
+  list_files $datadir;
+  list_files $datadir/def/test #sql*;
+  list_files $datadir/def/mysql #sql*;
+}
+if (`SELECT @@catalogs = 0`) {
+  list_files $datadir/test #sql*;
+  list_files $datadir/mysql #sql*;
+}
 
 #
 # Check that SHOW ENGINE INNODB STATUS does not show any active transactions

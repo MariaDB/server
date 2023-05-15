@@ -1,0 +1,27 @@
+create catalog c1;
+
+show catalogs;
+show databases;
+
+create catalog c2;
+show catalogs;
+
+show create catalog c2;
+
+alter catalog c2 default character set=utf8mb4;
+show create catalog c2;
+
+alter catalog c2 comment='This is a test catalog.';
+show create catalog c2;
+
+#
+# Make sure comment is not cleared when doing alter catalog with no comment.
+#
+alter catalog c2 default character set=latin1;
+show create catalog c2;
+
+drop catalog c1;
+drop catalog c2;
+
+--error ER_CATALOG_NOT_EMPTY
+drop catalog def;

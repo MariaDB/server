@@ -180,6 +180,7 @@ my @DEFAULT_SUITES= qw(
     atomic-
     binlog-
     binlog_encryption-
+    catalogs-
     client-
     csv-
     compat/oracle-
@@ -320,7 +321,7 @@ my %mysqld_logs;
 my $opt_debug_sync_timeout= 300; # Default timeout for WAIT_FOR actions.
 my $warn_seconds = 60;
 
-my $rebootstrap_re= '--innodb[-_](?:page[-_]size|checksum[-_]algorithm|undo[-_]tablespaces|log[-_]group[-_]home[-_]dir|data[-_]home[-_]dir)|data[-_]file[-_]path|force_rebootstrap';
+my $rebootstrap_re= '--innodb[-_](?:page[-_]size|checksum[-_]algorithm|undo[-_]tablespaces|log[-_]group[-_]home[-_]dir|data[-_]home[-_]dir)|data[-_]file[-_]path|force_rebootstrap|--catalogs';
 
 sub testcase_timeout ($) { return $opt_testcase_timeout * 60; }
 sub check_timeout ($) { return testcase_timeout($_[0]); }
@@ -1281,7 +1282,8 @@ sub command_line_setup {
   # Respect MTR_BINDIR variable, which is typically set in to the 
   # build directory in out-of-source builds.
   $bindir=$ENV{MTR_BINDIR}||$basedir;
-  
+  $ENV{MTR_BASEDIR}= $basedir;
+
   fix_vs_config_dir();
 
   # Look for the client binaries directory
@@ -2230,7 +2232,16 @@ sub environment_setup {
   {
     $ENV{'MYSQLHOTCOPY'}= $mysqlhotcopy;
   }
-
+  # ----------------------------------------------------
+  # mariadb_install_db
+  # ----------------------------------------------------
+  my $mariadb_install_db=
+    mtr_pl_maybe_exists("$bindir/scripts/mariadb-install-db") ||
+    mtr_pl_maybe_exists("$bindir/mariadb-install-db");
+  if ($mariadb_install_db)
+  {
+    $ENV{'MARIADB_INSTALL_DB'}= $mariadb_install_db;
+  }
   # ----------------------------------------------------
   # perror
   # ----------------------------------------------------
@@ -3186,8 +3197,16 @@ sub mysql_install_db {
   mtr_tofile($path_bootstrap_log,
 	     "$exe_mysqld_bootstrap " . join(" ", @$args) . "\n");
 
-  # Create directories mysql
-  mkpath("$install_datadir/mysql");
+  if ('--catalogs' ~~ @$args)
+  {
+      # Create directories def mysql
+      mkpath("$install_datadir/def/mysql");
+  }
+  else
+  {
+      # Create directories mysql
+      mkpath("$install_datadir/mysql");
+  }
 
   my $realtime= gettimeofday();
   if ( My::SafeProcess->run
