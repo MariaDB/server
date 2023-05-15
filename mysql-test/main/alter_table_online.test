@@ -190,13 +190,15 @@ alter table t modify d int auto_increment, add key(d),
               algorithm=copy, lock=none;
 
 alter table t add unique(b, c);
---echo # Change unique'scolumn;
+--echo # Change unique's column;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter table t change b x int, modify d int auto_increment, add key(d),
+alter table t change b x bigint, modify d int auto_increment, add key(d),
               algorithm=copy, lock=none;
 
---echo # Finally good.
-alter table t modify d int auto_increment, add key(d), 
+--echo # Finally good. Simple renames with a type unchanged will not affect
+--echo # the result. Also NOT NULL -> NULL transform is fine.
+alter table t modify d int auto_increment, add key(d),
+              change b x int null,
               algorithm=copy, lock=none;
 
 drop table t;
