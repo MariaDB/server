@@ -4,6 +4,10 @@
 create table t (a int);
 alter ignore table t add primary key (a), algorithm=copy, lock=none;
 ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
+show warnings;
+Level	Code	Message
+Note	1846	ALTER IGNORE TABLE is incompatible with LOCK=NONE, ALGORITHM=COPY
+Error	1846	LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
 drop table t;
 #
 # MDEV-28771 Assertion `table->in_use&&tdc->flushed' failed after ALTER
@@ -92,12 +96,20 @@ on update cascade) engine=InnoDB;
 insert into t2 values (1),(2),(3);
 alter table t2 add c int, algorithm=copy, lock=none;
 ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
+show warnings;
+Level	Code	Message
+Note	1846	Tables with CASCADE/SET NULL foreign keys are incompatible with LOCK=NONE, ALGORITHM=COPY
+Error	1846	LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
 alter table t2 add c int, algorithm=inplace, lock=none;
 create or replace table t2 (b int, foreign key (b)
 references t1 (a)
 on delete set null) engine=InnoDB;
 alter table t2 add c int, algorithm=copy, lock=none;
 ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
+show warnings;
+Level	Code	Message
+Note	1846	Tables with CASCADE/SET NULL foreign keys are incompatible with LOCK=NONE, ALGORITHM=COPY
+Error	1846	LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
 alter table t2 add c int, algorithm=inplace, lock=none;
 create or replace table t2 (b int, foreign key (b)
 references t1 (a)
@@ -117,9 +129,11 @@ b int references t1 (b) on update cascade) engine=InnoDB;
 insert into t2 values (1, 1),(2, 2);
 alter table t2 add c int, algorithm=copy, lock=none;
 ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
-alter table t2 add c int, algorithm=copy;
-Warnings:
+show warnings;
+Level	Code	Message
 Note	1846	Tables with CASCADE/SET NULL foreign keys are incompatible with LOCK=NONE, ALGORITHM=COPY
+Error	1846	LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
+alter table t2 add c int, algorithm=copy;
 alter table t2 add d int, algorithm=inplace;
 drop table t2, t1;
 #
@@ -134,10 +148,12 @@ period for system_time (row_start, row_end))
 engine=innodb with system versioning;
 alter table t1 add c int, algorithm=copy, lock=none;
 ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
+show warnings;
+Level	Code	Message
+Note	1846	Transaction-versioned tables are incompatible with LOCK=NONE, ALGORITHM=COPY
+Error	1846	LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
 alter table t1 add c int, algorithm=inplace;
 alter table t1 add d int, lock=none;
-Warnings:
-Note	1846	Transaction-versioned tables are incompatible with LOCK=NONE, ALGORITHM=COPY
 set system_versioning_alter_history= default;
 drop table t1;
 #
@@ -147,6 +163,10 @@ drop table t1;
 create table t (a serial, b int) engine=innodb;
 alter table t drop a, modify b serial, algorithm=copy, lock=none;
 ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
+show warnings;
+Level	Code	Message
+Note	1846	Adding AUTOINC to an existing column for a table without a primary key is incompatible with LOCK=NONE, ALGORITHM=COPY
+Error	1846	LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
 set statement sql_mode= NO_AUTO_VALUE_ON_ZERO for
 alter table t drop a, modify b serial, algorithm=copy, lock=none;
 create or replace table t (a serial, b int) engine=innodb;
@@ -161,6 +181,10 @@ t	CREATE TABLE `t` (
 # Only unsafe approach is fine because of possible collisions. 
 alter table t modify a int, modify b serial, algorithm=copy, lock=none;
 ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
+show warnings;
+Level	Code	Message
+Note	1846	Adding AUTOINC to an existing column for a table without a primary key is incompatible with LOCK=NONE, ALGORITHM=COPY
+Error	1846	LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
 #
 # Check that we treat autoinc columns correctly modify old autoinc is  
 # fine, adding new autoinc for existed column is unsafe.
@@ -184,22 +208,38 @@ t	CREATE TABLE `t` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 alter table t drop b, change c c serial, algorithm=copy, lock=none;
 ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
+show warnings;
+Level	Code	Message
+Note	1846	Adding AUTOINC to an existing column for a table without a primary key is incompatible with LOCK=NONE, ALGORITHM=COPY
+Error	1846	LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
 # Check existed unique keys.
 create or replace table t(a int, b int not null, c int not null, d int);
 # No unique in the old table;
 alter table t add unique(b, c), modify d int auto_increment, add key(d),
 algorithm=copy, lock=none;
 ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
+show warnings;
+Level	Code	Message
+Note	1846	Adding AUTOINC to an existing column for a table without a primary key is incompatible with LOCK=NONE, ALGORITHM=COPY
+Error	1846	LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
 alter table t add unique(a, b);
 # Unique in the old table has nulls;
 alter table t modify d int auto_increment, add key(d), 
 algorithm=copy, lock=none;
 ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
+show warnings;
+Level	Code	Message
+Note	1846	Adding AUTOINC to an existing column for a table without a primary key is incompatible with LOCK=NONE, ALGORITHM=COPY
+Error	1846	LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
 alter table t add unique(b, c);
 # Change unique'scolumn;
 alter table t change b x int, modify d int auto_increment, add key(d),
 algorithm=copy, lock=none;
 ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
+show warnings;
+Level	Code	Message
+Note	1846	Adding AUTOINC to an existing column for a table without a primary key is incompatible with LOCK=NONE, ALGORITHM=COPY
+Error	1846	LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
 # Finally good.
 alter table t modify d int auto_increment, add key(d), 
 algorithm=copy, lock=none;
@@ -207,6 +247,4 @@ drop table t;
 # MDEV-31172 Server crash or ASAN errors in online_alter_check_autoinc
 create table t (a int, b int, c char(8), key(a,b,c));
 alter table t modify c int auto_increment key, algorithm=copy;
-Warnings:
-Note	1846	Adding AUTOINC to an existing column for a table without a primary key is incompatible with LOCK=NONE, ALGORITHM=COPY
 drop table t;

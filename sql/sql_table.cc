@@ -9922,6 +9922,18 @@ bool online_alter_is_supported(THD *thd, const Alter_info *alter_info,
   const char *reason= NULL;
   List<FOREIGN_KEY_INFO> fk_list;
 
+  if (alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING)
+  {
+    reason= "DROP SYSTEM VERSIONING is";
+    goto unsupported;
+  }
+
+  if (thd->lex->ignore)
+  {
+    reason= "ALTER IGNORE TABLE is";
+    goto unsupported;
+  }
+
   if (table->s->tmp_table)
   {
     reason= "Temporary tables are";
@@ -9955,11 +9967,13 @@ bool online_alter_is_supported(THD *thd, const Alter_info *alter_info,
   return true;
 
 unsupported:
-  push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                      ER_ALTER_OPERATION_NOT_SUPPORTED_REASON,
-                      "%s incompatible with "
-                      "LOCK=NONE, ALGORITHM=COPY",
-                      reason);
+  if (alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_NONE
+      && alter_info->algorithm(thd) == Alter_info::ALTER_TABLE_ALGORITHM_COPY)
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_ALTER_OPERATION_NOT_SUPPORTED_REASON,
+                        "%s incompatible with "
+                        "LOCK=NONE, ALGORITHM=COPY",
+                        reason);
   return false;
 }
 
@@ -10144,9 +10158,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   table_list->required_type= TABLE_TYPE_NORMAL;
 
   if (alter_info->requested_lock > Alter_info::ALTER_TABLE_LOCK_NONE
-      || alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING
       || thd->lex->sql_command == SQLCOM_OPTIMIZE
-      || ignore
       || alter_info->algorithm(thd) > Alter_info::ALTER_TABLE_ALGORITHM_COPY)
     online= false;
 
