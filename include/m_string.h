@@ -249,13 +249,31 @@ static inline void lex_string_set3(LEX_CSTRING *lex_str, const char *c_str,
 static inline int safe_strcpy(char *dst, size_t dst_size, const char *src)
 {
   memset(dst, '\0', dst_size);
+  /*
+     Ignoring truncation, we deal with this next.
+  */
+  #if defined(__GNUC__)
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Wstringop-truncation"
+  #endif
   strncpy(dst, src, dst_size - 1);
+  #if defined(__GNUC__)
+  #pragma GCC diagnostic pop
+  #endif
+
   /*
      If the first condition is true, we are guaranteed to have src length
      >= (dst_size - 1), hence safe to access src[dst_size - 1].
   */
+  #if defined(__GNUC__)
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Warray-bounds"
+  #endif
   if (dst[dst_size - 2] != '\0' && src[dst_size - 1] != '\0')
     return 1; /* Truncation of src. */
+  #if defined(__GNUC__)
+  #pragma GCC diagnostic pop
+  #endif
   return 0;
 }
 
