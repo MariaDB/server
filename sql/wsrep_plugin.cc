@@ -131,7 +131,7 @@ static void wsrep_provider_sysvar_update(THD *thd,
   T new_value= *((T *) save);
 
   auto options= Wsrep_server_state::get_options();
-  if (options->set(opt->name(), std::move(make_option_value(new_value))))
+  if (options->set(opt->name(), make_option_value(new_value)))
   {
     my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), opt->name(),
              make_option_value(new_value)->as_string());
