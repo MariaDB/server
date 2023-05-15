@@ -9869,26 +9869,21 @@ bool online_alter_check_autoinc(const THD *thd, const Alter_info *alter_info,
   */
   for (uint k= 0; k < table->s->keys; k++)
   {
-    const KEY &key= table->s->key_info[k];
+    const KEY &key= table->key_info[k];
     if ((key.flags & HA_NOSAME) == 0 || key.flags & HA_NULL_PART_KEY)
       continue;
     bool key_parts_good= true;
     for (uint kp= 0; kp < key.user_defined_key_parts && key_parts_good; kp++)
     {
-      const char *field_name= key.key_part[kp].field->field_name.str;
-      for (const auto &c: alter_info->drop_list)
-        if (c.type == Alter_drop::COLUMN
-            && my_strcasecmp(system_charset_info, c.name, field_name) == 0)
-        {
-          key_parts_good= false;
-          break;
-        }
+      const Field *f= key.key_part[kp].field;
+      // tmp_set contains dropped fields after mysql_prepare_alter_table
+      key_parts_good= !bitmap_is_set(&table->tmp_set, f->field_index);
+
       if (key_parts_good)
         for (const auto &c: alter_info->create_list)
-          if (c.change.str && my_strcasecmp(system_charset_info, c.change.str,
-                                            field_name) == 0)
+          if (c.field == f)
           {
-            key_parts_good= false;
+            key_parts_good= f->is_equal(c);
             break;
           }
     }
@@ -9896,25 +9891,67 @@ bool online_alter_check_autoinc(const THD *thd, const Alter_info *alter_info,
       return true;
   }
 
-  const char *old_autoinc= table->found_next_number_field
-                           ? table->found_next_number_field->field_name.str
-                           : "";
-  bool online= true;
   for (const auto &c: alter_info->create_list)
   {
-    if (c.change.str && c.flags & AUTO_INCREMENT_FLAG)
+    if (c.flags & AUTO_INCREMENT_FLAG)
     {
-      if (my_strcasecmp(system_charset_info, c.change.str,  old_autoinc) != 0)
-      {
-        if (c.create_if_not_exists // check IF EXISTS option
-            && table->find_field_by_name(&c.change) == NULL)
-          continue;
-        online= false;
-      }
+      if (c.field && !(c.field->flags & AUTO_INCREMENT_FLAG))
+        return false;
       break;
     }
   }
-  return online;
+  return true;
+}
+
+static
+const char *online_alter_check_supported(const THD *thd,
+                                         const Alter_info *alter_info,
+                                         const TABLE *table, bool *online)
+{
+  DBUG_ASSERT(*online);
+
+  *online= thd->locked_tables_mode != LTM_LOCK_TABLES && !table->s->tmp_table;
+  if (!*online)
+    return NULL;
+
+  *online= (alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING) == 0;
+  if (!*online)
+    return "DROP SYSTEM VERSIONING";
+
+  *online= !thd->lex->ignore;
+  if (!*online)
+    return "ALTER IGNORE TABLE";
+
+  *online= !table->versioned(VERS_TRX_ID);
+  if (!*online)
+    return "BIGINT GENERATED ALWAYS AS ROW_START";
+
+  List<FOREIGN_KEY_INFO> fk_list;
+  table->file->get_foreign_key_list(thd, &fk_list);
+  for (auto &fk: fk_list)
+  {
+    if (fk_modifies_child(fk.delete_method) ||
+        fk_modifies_child(fk.update_method))
+    {
+      *online= false;
+      // Don't fall to a common unsupported case to avoid heavy string ops.
+      if (alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_NONE)
+      {
+        return fk_modifies_child(fk.delete_method)
+               ? thd->strcat({STRING_WITH_LEN("ON DELETE ")},
+                             *fk_option_name(fk.delete_method)).str
+               : thd->strcat({STRING_WITH_LEN("ON UPDATE ")},
+                             *fk_option_name(fk.update_method)).str;
+      }
+      return NULL;
+    }
+  }
+
+  *online= online_alter_check_autoinc(thd, alter_info, table);
+  if (!*online)
+    return "CHANGE COLUMN ... AUTO_INCREMENT";
+
+  return NULL;
 }
 
 
@@ -10098,9 +10135,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   table_list->required_type= TABLE_TYPE_NORMAL;
 
   if (alter_info->requested_lock > Alter_info::ALTER_TABLE_LOCK_NONE
-      || alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING
       || thd->lex->sql_command == SQLCOM_OPTIMIZE
-      || ignore
       || alter_info->algorithm(thd) > Alter_info::ALTER_TABLE_ALGORITHM_COPY)
     online= false;
 
@@ -10139,22 +10174,6 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 
   table= table_list->table;
   bool is_reg_table= table->s->tmp_table == NO_TMP_TABLE;
-  
-  online= online && !table->s->tmp_table && !table->versioned(VERS_TRX_ID);
-
-  List<FOREIGN_KEY_INFO> fk_list;
-  table->file->get_foreign_key_list(thd, &fk_list);
-  for (auto &fk: fk_list)
-  {
-    if (fk_modifies_child(fk.delete_method)
-        || fk_modifies_child(fk.update_method))
-    {
-      online= false;
-      break;
-    }
-  }
-
-  online= online && online_alter_check_autoinc(thd, alter_info, table);
   
 #ifdef WITH_WSREP
   if (WSREP(thd) &&
@@ -10977,22 +10996,22 @@ do_continue:;
   if (fk_prepare_copy_alter_table(thd, table, alter_info, &alter_ctx))
     goto err_new_table_cleanup;
 
-  if (!table->s->tmp_table)
+  if (online)
   {
-    // COPY algorithm doesn't work with concurrent writes.
-    if (!online &&
+    const char *reason= online_alter_check_supported(thd, alter_info, table,
+                                                     &online);
+    if (reason &&
         alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_NONE)
     {
+      DBUG_ASSERT(!online);
       my_error(ER_ALTER_OPERATION_NOT_SUPPORTED_REASON, MYF(0),
-               "LOCK=NONE",
-               ER_THD(thd, ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_COPY),
-               "LOCK=SHARED");
+               "LOCK=NONE", reason, "LOCK=SHARED");
       goto err_new_table_cleanup;
     }
+  }
 
-    if (thd->locked_tables_mode == LTM_LOCK_TABLES)
-      online= false;
-
+  if (!table->s->tmp_table)
+  {
     // If EXCLUSIVE lock is requested, upgrade already.
     if (alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE &&
         wait_while_table_is_used(thd, table, HA_EXTRA_FORCE_REOPEN))

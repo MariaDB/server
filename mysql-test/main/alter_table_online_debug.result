@@ -491,7 +491,7 @@ a	b	UNIX_TIMESTAMP(row_start)	UNIX_TIMESTAMP(row_end)
 3	44	1.000000	2147483647.999999
 6	77	1.000000	2147483647.999999
 alter table t1 drop system versioning, algorithm= copy, lock= none;
-ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
+ERROR 0A000: LOCK=NONE is not supported. Reason: DROP SYSTEM VERSIONING. Try LOCK=SHARED
 #
 # Test ROLLBACK TO SAVEPOINT
 #

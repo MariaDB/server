@@ -1228,6 +1228,16 @@ public:
   { return strdup_root(mem_root,str); }
   inline char *strmake(const char *str, size_t size) const
   { return strmake_root(mem_root,str,size); }
+  inline LEX_CSTRING strcat(const LEX_CSTRING &a, const LEX_CSTRING &b) const
+  {
+    char *buf= (char*)alloc(a.length + b.length + 1);
+    if (unlikely(!buf))
+      return null_clex_str;
+    memcpy(buf, a.str, a.length);
+    memcpy(buf + a.length, b.str, b.length);
+    buf[a.length + b.length] = 0;
+    return {buf, a.length + b.length};
+  }
   inline void *memdup(const void *str, size_t size) const
   { return memdup_root(mem_root,str,size); }
   inline void *memdup_w_gap(const void *str, size_t size, size_t gap) const
