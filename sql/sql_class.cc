@@ -7614,7 +7614,7 @@ wait_for_commit::register_wait_for_prior_commit(wait_for_commit *waitee)
 */
 
 int
-wait_for_commit::wait_for_prior_commit2(THD *thd)
+wait_for_commit::wait_for_prior_commit2(THD *thd, bool force_wait)
 {
   PSI_stage_info old_stage;
   wait_for_commit *loc_waitee;
@@ -7639,7 +7639,7 @@ wait_for_commit::wait_for_prior_commit2(THD *thd)
                   &stage_waiting_for_prior_transaction_to_commit,
                   &old_stage);
   while ((loc_waitee= this->waitee.load(std::memory_order_relaxed)) &&
-         likely(!thd->check_killed(1)))
+         (likely(!thd->check_killed(1)) || force_wait))
     mysql_cond_wait(&COND_wait_commit, &LOCK_wait_commit);
   if (!loc_waitee)
   {
@@ -7647,6 +7647,23 @@ wait_for_commit::wait_for_prior_commit2(THD *thd)
       my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
     goto end;
   }
+#ifdef HAVE_REPLICATION
+  {
+    DBUG_ASSERT(thd->rgi_slave && thd->rgi_slave->parallel_entry);
+    rpl_group_info *rgi= thd->rgi_slave;
+    rpl_parallel_entry *e= rgi->parallel_entry;
+    group_commit_orderer *gco= rgi->gco;
+
+    /*
+      If the wait is interrupted by kill but there is a GCO which is still
+      finalizing its commit, we can't yet unregister our waitee, as the order
+      for garbage collection of GCO's needs to still be maintained.
+    */
+    if (gco->prev_gco &&
+        (e->last_committed_sub_id <= gco->prev_gco->last_sub_id))
+      goto end_kill_message;
+  }
+#endif
   /*
     Wait was interrupted by kill. We need to unregister our wait and give the
     error. But if a wakeup is already in progress, then we must ignore the
@@ -7671,6 +7688,9 @@ wait_for_commit::wait_for_prior_commit2(THD *thd)
   mysql_mutex_unlock(&loc_waitee->LOCK_wait_commit);
   this->waitee.store(NULL, std::memory_order_relaxed);
 
+#ifdef HAVE_REPLICATION
+end_kill_message:
+#endif
   wakeup_error= thd->killed_errno();
   if (!wakeup_error)
     wakeup_error= ER_QUERY_INTERRUPTED;
