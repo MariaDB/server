@@ -1892,13 +1892,6 @@ public:
     {
       return NULL;
     }
-
-    const Type_handler *handler_by_name(const LEX_CSTRING &name) const override
-    {
-      if (type_handler_fbt()->name().eq(name))
-        return type_handler_fbt();
-      return NULL;
-    }
   };
   static Type_handler_fbt *type_handler_fbt()
   {

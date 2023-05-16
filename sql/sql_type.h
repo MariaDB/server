@@ -7415,7 +7415,6 @@ class Type_collection
 public:
   virtual ~Type_collection() = default;
   virtual bool init(Type_handler_data *) { return false; }
-  virtual const Type_handler *handler_by_name(const LEX_CSTRING &name) const= 0;
   virtual const Type_handler *aggregate_for_result(const Type_handler *h1,
                                                    const Type_handler *h2)
                                                    const= 0;

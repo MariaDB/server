@@ -31,11 +31,6 @@ protected:
     return NULL;
   }
 public:
-  const Type_handler *handler_by_name(const LEX_CSTRING &name) const override
-  {
-    return NULL;
-  }
-
   const Type_handler *aggregate_for_result(const Type_handler *h1,
                                            const Type_handler *h2)
                                            const override

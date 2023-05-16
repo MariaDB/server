@@ -176,13 +176,6 @@ public:
   {
     return NULL;
   }
-
-  const Type_handler *handler_by_name(const LEX_CSTRING &name) const override
-  {
-    if (type_handler_mysql_json.name().eq(name))
-      return &type_handler_mysql_json;
-    return NULL;
-  }
 };
 
 const Type_collection *Type_handler_mysql_json::type_collection() const
