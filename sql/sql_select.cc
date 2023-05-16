@@ -9405,9 +9405,11 @@ best_access_path(JOIN      *join,
         s->cached_forced_index= forced_index;
       }
      
-     /* psergey-11.0-todo: the below should be:
-         if (disable_jbuf ||
-          (!join->allowed_outer_join_with_cache && (s->table->map & join->outer_join))) */
+     /*
+       Note: the condition checked here is very out of date and incorrect.
+       Below, we use a more accurate check when assigning the value of
+       best.use_join_buffer.
+     */
       if ((s->table->map & join->outer_join) || disable_jbuf) 
       {
         /*
