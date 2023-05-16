@@ -4125,8 +4125,28 @@ bool calc_lookup_values_from_cond(THD *thd, COND *cond, TABLE_LIST *table,
   return 0;
 }
 
+/**
+  Check if a condition is only using columns whose values are always available
 
-bool uses_only_table_name_fields(Item *item, TABLE_LIST *table, bool schema_only)
+  @param item   Condition to test. Either full where clause or part of it.
+  @param table  Information schema table to check against
+
+  @result 0     Some not available column is used.
+  @result 1     Only available column is used.
+
+  The purpose of this function is to avoid to having to open the table,
+  which is slow, if the user is only using columns that are available
+  without opening the table, like database or table name.
+
+  The caller has to set
+  schema_table->idx_field1 and/or
+  schema_table->idx_field2
+  to point to the 'always available' fields.
+  A value of -1 means the pointer is not usable.
+*/
+
+static bool uses_only_table_name_fields(Item *item, TABLE_LIST *table,
+                                        bool schema_only)
 {
   if (item->type() == Item::FUNC_ITEM)
   {
@@ -4152,16 +4172,16 @@ bool uses_only_table_name_fields(Item *item, TABLE_LIST *table, bool schema_only
     CHARSET_INFO *cs= system_charset_info;
     ST_SCHEMA_TABLE *schema_table= table->schema_table;
     ST_FIELD_INFO *field_info= schema_table->fields_info;
-    const char *field_name1= schema_table->idx_field1 >= 0 ?
-      field_info[schema_table->idx_field1].name().str : "";
-    const char *field_name2= schema_table->idx_field2 >= 0 ?
-      field_info[schema_table->idx_field2].name().str : "";
+    LEX_CSTRING field_name1= schema_table->idx_field1 >= 0 ?
+      field_info[schema_table->idx_field1].name() : empty_clex_str;
+    LEX_CSTRING field_name2= schema_table->idx_field2 >= 0 ?
+      field_info[schema_table->idx_field2].name() : empty_clex_str;
     if (table->table != item_field->field->table ||
-        (cs->strnncollsp(field_name1, strlen(field_name1),
+        (cs->strnncollsp(field_name1.str, field_name1.length,
                          item_field->field_name.str,
                          item_field->field_name.length) &&
          (schema_only ||
-         cs->strnncollsp(field_name2, strlen(field_name2),
+         cs->strnncollsp(field_name2.str, field_name2.length,
                          item_field->field_name.str,
                          item_field->field_name.length))))
       return 0;
@@ -4180,6 +4200,17 @@ bool uses_only_table_name_fields(Item *item, TABLE_LIST *table, bool schema_only
   return 1;
 }
 
+
+/*
+  Create a condition for which schemas to scan trough
+
+  @param thd    Thread pointer
+  @param cond   Condition to check
+  @param table  Information schema table to check against
+
+  @result 0     All schemas must be checked
+  @result #     Condition to check the schema name against
+*/
 
 COND *make_cond_for_info_schema(THD *thd, COND *cond, TABLE_LIST *table)
 {
