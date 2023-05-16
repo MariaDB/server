@@ -132,6 +132,9 @@ class sp_head :private Query_arena,
 
 protected:
   MEM_ROOT main_mem_root;
+#ifndef DBUG_OFF
+  ulong executed_counter;
+#endif
 public:
   /** Possible values of m_flags */
   enum {
@@ -801,6 +804,11 @@ public:
     return ip;
   }
 
+#ifndef DBUG_OFF
+  int has_all_instrs_executed();
+  void reset_instrs_executed_counter();
+#endif
+
   /* Add tables used by routine to the table list. */
   bool add_used_tables_to_table_list(THD *thd,
                                      TABLE_LIST ***query_tables_last_ptr,
@@ -1084,6 +1092,9 @@ public:
   /// Should give each a name or type code for debugging purposes?
   sp_instr(uint ip, sp_pcontext *ctx)
     :Query_arena(0, STMT_INITIALIZED_FOR_SP), marked(0), m_ip(ip), m_ctx(ctx)
+#ifndef DBUG_OFF
+  , m_has_been_run(false)
+#endif
   {}
 
   virtual ~sp_instr()
@@ -1173,6 +1184,25 @@ public:
     m_ip= dst;
   }
 
+#ifndef DBUG_OFF
+  bool has_been_run() const
+  {
+    return m_has_been_run;
+  }
+
+  void mark_as_run()
+  {
+    m_has_been_run= true;
+  }
+
+  void mark_as_not_run()
+  {
+    m_has_been_run= false;
+  }
+
+private:
+  bool m_has_been_run;
+#endif
 }; // class sp_instr : public Sql_alloc
 
 
