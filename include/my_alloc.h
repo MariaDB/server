@@ -51,6 +51,10 @@ typedef struct st_mem_root
   */
   unsigned int first_block_usage;
 
+#ifndef DBUG_OFF
+  int read_only;
+#endif
+
   void (*error_handler)(void);
   const char *name;
 } MEM_ROOT;
