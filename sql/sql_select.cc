@@ -449,6 +449,7 @@ POSITION::POSITION()
   key= 0;
   forced_index= 0;
   use_join_buffer= 0;
+  firstmatch_with_join_buf= false;
   sj_strategy= SJ_OPT_NONE;
   n_sj_tables= 0;
   spl_plan= 0;
