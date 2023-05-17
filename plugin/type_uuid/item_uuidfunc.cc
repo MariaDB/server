@@ -33,7 +33,7 @@ String *Item_func_sys_guid::val_str(String *str)
 
 const Type_handler *Item_func_uuid::type_handler() const
 {
-  return UUIDBundle::singleton();
+  return Type_handler_uuid_new::singleton();
 }
 
 bool Item_func_uuid::val_native(THD *, Native *to)

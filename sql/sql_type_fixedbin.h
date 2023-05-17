@@ -631,7 +631,8 @@ public:
       */
       DBUG_ASSERT(item->type_handler()->type_handler_base_or_self()->
                   is_traditional_scalar_type() ||
-                  item->type_handler() == type_handler());
+                  item->type_handler()->type_collection() ==
+                  type_handler()->type_collection());
       return true;
     }
     /**
@@ -646,7 +647,8 @@ public:
       // See the DBUG_ASSERT comment in can_optimize_keypart_ref()
       DBUG_ASSERT(item->type_handler()->type_handler_base_or_self()->
                   is_traditional_scalar_type() ||
-                  item->type_handler() == type_handler());
+                  item->type_handler()->type_collection() ==
+                  type_handler()->type_collection());
       return true;
     }
     void hash_not_null(Hasher *hasher) override

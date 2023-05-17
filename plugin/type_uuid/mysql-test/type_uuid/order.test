@@ -1,0 +1,26 @@
+# try all combinations of version and variant
+source include/have_sequence.inc;
+
+create table t1 (a uuid, b int not null, index (a));
+insert t1 select sformat('11223344-5566-{:x}777-{}888-99aabbccddee', seq div 4, elt(1+(seq % 4),0,8,'c','e')),seq from seq_0_to_63;
+select * from t1;
+select * from t1 order by a;
+show create table t1;
+
+--echo # now let's use the table as above, but created in 10.11.4
+let $datadir= `select @@datadir`;
+--copy_file $MTR_SUITE_DIR/std_data/mdev-29959.frm $datadir/test/t2.frm
+--copy_file $MTR_SUITE_DIR/std_data/mdev-29959.MYI $datadir/test/t2.MYI
+--copy_file $MTR_SUITE_DIR/std_data/mdev-29959.MYD $datadir/test/t2.MYD
+select * from t2;
+select * from t2 order by a;
+show create table t2;
+
+select * from t1, t2 where t1.a=t2.a;
+
+--sorted_result
+select * from t1 union select * from t2;
+
+alter ignore table t2 force;
+
+drop table t1, t2;
