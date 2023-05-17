@@ -87,7 +87,7 @@ static struct my_option my_long_options[] =
    &opt_database, &opt_database, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"s3_block_size", 'B', "Block size for data/index blocks in s3",
    &opt_block_size, &opt_block_size, 0, GET_ULONG, REQUIRED_ARG,
-   4*1024*1024, 64*1024, 16*1024*1024, MALLOC_OVERHEAD, 1024, 0 },
+   4*1024*1024, 64*1024, 16*1024*1024, 0, 1024, 0 },
   {"s3_protocol_version", 'L',
    "Protocol used to communication with S3. One of \"Auto\", \"Amazon\" or \"Original\".",
    &opt_protocol_version, &opt_protocol_version, &s3_protocol_typelib,

@@ -21,6 +21,8 @@
 /* my_getopt and my_default are almost always used together */
 #include <my_default.h>
 
+#include <ctype.h>
+
 C_MODE_START
 
 #define GET_NO_ARG     1
@@ -43,6 +45,10 @@ C_MODE_START
 #define GET_ASK_ADDR     128
 #define GET_AUTO          64
 #define GET_TYPE_MASK     63
+
+#define DEPRECATED(X) X
+#define DEPRECATED_NO_REPLACEMENT DEPRECATED("")
+#define IS_DEPRECATED_NO_REPLACEMENT(X) (*(X) == 0)
 
 /**
   Enumeration of the my_option::arg_type attributes.
@@ -72,7 +78,7 @@ struct my_option
                                            nor one-letter short equivalent
                                            use id=0
                                          */
-  const char *comment;                  /**< option comment, for autom. --help.
+  const char *comment;                  /**< Option comment, for automated --help.
                                            if it's NULL the option is not
                                            visible in --help.
                                          */
@@ -84,7 +90,11 @@ struct my_option
   longlong   def_value;                 /**< Default value */
   longlong   min_value;                 /**< Min allowed value (for numbers) */
   ulonglong  max_value;                 /**< Max allowed value (for numbers) */
-  longlong   sub_size;                  /**< Unused                          */
+  const char *deprecation_substitute;   /**< Name of the substitute variable which deprecates
+                                           this one. Use DEPRECATED_NO_REPLACEMENT when
+                                           no replacement exists for the given variable. NULL
+                                           value means the variable is not deprecated.
+                                         */
   long       block_size;                /**< Value should be a mult. of this (for numbers) */
   void       *app_type;                 /**< To be used by an application */
 };
@@ -126,7 +136,24 @@ double getopt_double_limit_value(double num, const struct my_option *optp,
 ulonglong getopt_double2ulonglong(double);
 double getopt_ulonglong2double(ulonglong);
 
+static inline void convert_dash_to_underscore(char *str, size_t len)
+{
+  for (char *p= str; p <= str+len; p++)
+    if (*p == '-')
+      *p= '_';
+    else if (*p != '_' && isalnum(*p) == 0)
+      break;
+}
+
+static inline void convert_underscore_to_dash(char *str, size_t len)
+{
+  for (char *p= str; p <= str+len; p++)
+    if (*p == '_')
+      *p= '-';
+    else if (*p != '-' && isalnum(*p) == 0)
+      break;
+}
+
 C_MODE_END
 
 #endif /* _my_getopt_h */
-

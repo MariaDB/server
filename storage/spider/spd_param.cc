@@ -717,7 +717,7 @@ static int spider_param_semi_table_lock_check(
     DBUG_RETURN(ER_SPIDER_ALTER_BEFORE_UNLOCK_NUM);
   }
   value->val_int(value, &tmp);
-  options.sub_size = 0;
+  options.deprecation_substitute = 0;
   options.var_type = GET_INT;
   options.def_value = ((MYSQL_SYSVAR_NAME(thdvar_int_t) *) var)->def_val;
   options.min_value = ((MYSQL_SYSVAR_NAME(thdvar_int_t) *) var)->min_val;
@@ -776,7 +776,7 @@ static int spider_param_semi_table_lock_connection_check(
     DBUG_RETURN(ER_SPIDER_ALTER_BEFORE_UNLOCK_NUM);
   }
   value->val_int(value, &tmp);
-  options.sub_size = 0;
+  options.deprecation_substitute = 0;
   options.var_type = GET_INT;
   options.def_value = ((MYSQL_SYSVAR_NAME(thdvar_int_t) *) var)->def_val;
   options.min_value = ((MYSQL_SYSVAR_NAME(thdvar_int_t) *) var)->min_val;

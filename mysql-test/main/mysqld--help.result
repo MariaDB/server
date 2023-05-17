@@ -13,6 +13,11 @@ The following specify which files/extra groups are read (specified before remain
  xxx_deinit(). That also means that one can load any
  function from any library, for example exit() from
  libc.so
+ --old-alter-table[=name] (it's deprecated and will be removed in a future
+ release. Please use '--alter-algorithm' instead)
+ Alias for alter_algorithm. Deprecated. Use
+ --alter-algorithm instead.. One of: DEFAULT, COPY, 
+ INPLACE, NOCOPY, INSTANT
  --alter-algorithm[=name] 
  Specify the alter table algorithm. One of: DEFAULT, COPY,
  INPLACE, NOCOPY, INSTANT
@@ -38,7 +43,8 @@ The following specify which files/extra groups are read (specified before remain
  (Automatically configured unless set explicitly)
  -b, --basedir=name  Path to installation directory. All paths are usually
  resolved relative to this
- --big-tables        Old variable, which if set to 1, allows large result sets
+ --big-tables        (it's deprecated and will be removed in a future release)
+ Old variable, which if set to 1, allows large result sets
  by saving all temporary sets to disk, avoiding 'table
  full' errors. No longer needed, as the server now handles
  this automatically.
@@ -192,8 +198,10 @@ The following specify which files/extra groups are read (specified before remain
  window on windows.
  --core-file         Write core on crashes
  -h, --datadir=name  Path to the database root directory
- --date-format=name  The DATE format (ignored)
- --datetime-format=name 
+ --date-format=name  (it's deprecated and will be removed in a future release)
+ The DATE format (ignored)
+ --datetime-format=name (it's deprecated and will be removed in a future
+ release)
  The DATETIME format (ignored)
  --deadlock-search-depth-long=# 
  Long search depth for the two-step deadlock detection
@@ -418,7 +426,8 @@ The following specify which files/extra groups are read (specified before remain
  Controls what join operations can be executed with join
  buffers. Odd numbers are used for plain join buffers
  while even numbers are used for linked buffers
- --keep-files-on-create 
+ --keep-files-on-create (it's deprecated and will be removed in a future
+ release)
  Don't overwrite stale .MYD and .MYI even if no directory
  is specified
  --key-buffer-size=# The size of the buffer used for index blocks for MyISAM
@@ -505,15 +514,16 @@ The following specify which files/extra groups are read (specified before remain
  --log-slave-updates Tells the slave to log the updates from the slave thread
  to the binary log. You will need to turn it on if you
  plan to daisy-chain the slaves.
- --log-slow-admin-statements 
+ --log-slow-disabled-statements=name 
+ Don't log certain types of statements to slow log. Any
+ combination of: admin, call, slave, sp
+ --log-slow-admin-statements (it's deprecated and will be removed in a future
+ release. Please use '--log-slow-filter' instead)
  Log slow OPTIMIZE, ANALYZE, ALTER and other
  administrative statements to the slow log if it is open. 
  Resets or sets the option 'admin' in log_slow_filter.
  Deprecated, use log_slow_filter without 'admin'.
  (Defaults to on; use --skip-log-slow-admin-statements to disable.)
- --log-slow-disabled-statements=name 
- Don't log certain types of statements to slow log. Any
- combination of: admin, call, slave, sp
  --log-slow-filter=name 
  Log only certain types of queries to the slow log. If
  variable empty alll kind of queries are logged.  All
@@ -638,7 +648,8 @@ The following specify which files/extra groups are read (specified before remain
  seconds will be aborted. The argument will be treated as
  a decimal value with microsecond precision. A value of 0
  (default) means no timeout
- --max-tmp-tables=#  Unused, will be removed.
+ --max-tmp-tables=#  (it's deprecated and will be removed in a future release)
+ Unused, will be removed.
  --max-user-connections=# 
  The maximum number of active connections for a single
  user (0 = no limit)
@@ -696,12 +707,10 @@ The following specify which files/extra groups are read (specified before remain
  --net-write-timeout=# 
  Number of seconds to wait for a block to be written to a
  connection before aborting the write
- --old               Use compatible behavior from previous MariaDB version.
+ --old               (it's deprecated and will be removed in a future release.
+ Please use '--old-mode' instead)
+ Use compatible behavior from previous MariaDB version.
  See also --old-mode
- --old-alter-table[=name] 
- Alias for alter_algorithm. Deprecated. Use
- --alter-algorithm instead.. One of: DEFAULT, COPY, 
- INPLACE, NOCOPY, INSTANT
  --old-mode=name     Used to emulate old behavior from earlier MariaDB or
  MySQL versions. Any combination of: 
  NO_DUP_KEY_WARNINGS_WITH_IGNORE, NO_PROGRESS_INFO, 
@@ -1495,7 +1504,8 @@ The following specify which files/extra groups are read (specified before remain
  worker thread is stalled, additional worker thread may be
  created to handle remaining clients.
  --thread-stack=#    The stack size for each thread
- --time-format=name  The TIME format (ignored)
+ --time-format=name  (it's deprecated and will be removed in a future release)
+ The TIME format (ignored)
  --tls-version=name  TLS protocol version for secure connections.. Any
  combination of: TLSv1.0, TLSv1.1, TLSv1.2, TLSv1.3
  --tmp-disk-table-size=# 
@@ -1548,6 +1558,7 @@ The following specify which files/extra groups are read (specified before remain
 
 Variables (--variable-name=value)
 allow-suspicious-udfs FALSE
+old-alter-table DEFAULT
 alter-algorithm DEFAULT
 analyze-sample-percentage 100
 auto-increment-increment 1
@@ -1676,8 +1687,8 @@ log-output FILE
 log-queries-not-using-indexes FALSE
 log-short-format FALSE
 log-slave-updates FALSE
-log-slow-admin-statements TRUE
 log-slow-disabled-statements sp
+log-slow-admin-statements TRUE
 log-slow-filter admin,filesort,filesort_on_disk,filesort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
 log-slow-min-examined-row-limit 0
 log-slow-query FALSE
@@ -1737,7 +1748,6 @@ net-read-timeout 30
 net-retry-count 10
 net-write-timeout 60
 old FALSE
-old-alter-table DEFAULT
 old-mode UTF8_IS_UTF8MB3
 old-passwords FALSE
 old-style-user-limits FALSE

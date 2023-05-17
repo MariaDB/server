@@ -69,7 +69,6 @@
   @@foreign_key_checks <-> OPTION_NO_FOREIGN_KEY_CHECKS
 */
 #define REVERSE(X) ~(X)
-#define DEPRECATED(X) X
 
 #define session_var(THD, TYPE) (*(TYPE*)session_var_ptr(THD))
 #define global_var(TYPE) (*(TYPE*)global_var_ptr())

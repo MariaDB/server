@@ -2761,7 +2761,7 @@ hex(concat(a))	a
 drop table t1;
 create table t1 (a year(2));
 Warnings:
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 insert into t1 values (1);
 select hex(concat(a)) from t1;
 hex(concat(a))
@@ -3076,7 +3076,7 @@ drop table t1;
 drop view v1;
 create table t1 (a year(2));
 Warnings:
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 insert into t1 values (1);
 create view v1(a) as select concat(a) from t1;
 show columns from v1;

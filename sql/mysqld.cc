@@ -7695,8 +7695,24 @@ static void print_version(void)
 /** Compares two options' names, treats - and _ the same */
 static int option_cmp(my_option *a, my_option *b)
 {
+  bool deprecated_a= false, deprecated_b= false;
+
   const char *sa= a->name;
+  if (a->deprecation_substitute != NULL &&
+      !IS_DEPRECATED_NO_REPLACEMENT(a->deprecation_substitute))
+  {
+    sa= a->deprecation_substitute;
+    deprecated_a= true;
+  }
+
   const char *sb= b->name;
+  if (b->deprecation_substitute != NULL &&
+      !IS_DEPRECATED_NO_REPLACEMENT(b->deprecation_substitute))
+  {
+    sb= b->deprecation_substitute;
+    deprecated_b= true;
+  }
+
   for (; *sa || *sb; sa++, sb++)
   {
     if (*sa < *sb)
@@ -7714,6 +7730,13 @@ static int option_cmp(my_option *a, my_option *b)
         return 1;
     }
   }
+
+  if (deprecated_a)
+    return -1;
+
+  if (deprecated_b)
+    return 1;
+
   return 0;
 }
 
@@ -8457,6 +8480,21 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
     break;
 #endif /* WITH_WSREP */
   }
+
+  if (opt->deprecation_substitute != NULL) {
+    if (IS_DEPRECATED_NO_REPLACEMENT(opt->deprecation_substitute))
+      sql_print_warning("\'%s\' is deprecated and will be removed in a future release", opt->name);
+    else
+    {
+      char buf1[NAME_CHAR_LEN + 3];
+
+      strxmov(buf1, "--", opt->deprecation_substitute, NullS);
+      convert_underscore_to_dash(buf1, strlen(opt->deprecation_substitute) + 2);
+
+      sql_print_warning("\'%s\' is deprecated and will be removed in a future release. Please use %s instead", opt->name, buf1);
+    }
+  }
+
   return 0;
 }
 

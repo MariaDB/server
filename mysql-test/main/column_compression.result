@@ -1613,7 +1613,7 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (a VARCHAR(10) BINARY COMPRESSED);
 Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use ''<data type> COMPRESSED... <character set clause> ...'' instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -1622,7 +1622,7 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 CREATE TABLE t1 (a VARCHAR(10) ASCII COMPRESSED);
 Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use ''<data type> COMPRESSED... <character set clause> ...'' instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -1631,7 +1631,7 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 CREATE TABLE t1 (a VARCHAR(10) BYTE COMPRESSED);
 Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use ''<data type> COMPRESSED... <character set clause> ...'' instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -1764,7 +1764,7 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (a TINYTEXT BINARY COMPRESSED);
 Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use ''<data type> COMPRESSED... <character set clause> ...'' instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -1773,7 +1773,7 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 CREATE TABLE t1 (a TINYTEXT ASCII COMPRESSED);
 Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use ''<data type> COMPRESSED... <character set clause> ...'' instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -1782,7 +1782,7 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 CREATE TABLE t1 (a TINYTEXT BYTE COMPRESSED);
 Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use ''<data type> COMPRESSED... <character set clause> ...'' instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -1915,7 +1915,7 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (a TEXT BINARY COMPRESSED);
 Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use ''<data type> COMPRESSED... <character set clause> ...'' instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -1924,7 +1924,7 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 CREATE TABLE t1 (a TEXT ASCII COMPRESSED);
 Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use ''<data type> COMPRESSED... <character set clause> ...'' instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -1933,7 +1933,7 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 CREATE TABLE t1 (a TEXT BYTE COMPRESSED);
 Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use ''<data type> COMPRESSED... <character set clause> ...'' instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2066,7 +2066,7 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (a MEDIUMTEXT BINARY COMPRESSED);
 Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use ''<data type> COMPRESSED... <character set clause> ...'' instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2075,7 +2075,7 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 CREATE TABLE t1 (a MEDIUMTEXT ASCII COMPRESSED);
 Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use ''<data type> COMPRESSED... <character set clause> ...'' instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2084,7 +2084,7 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 CREATE TABLE t1 (a MEDIUMTEXT BYTE COMPRESSED);
 Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use ''<data type> COMPRESSED... <character set clause> ...'' instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2217,7 +2217,7 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (a LONGTEXT BINARY COMPRESSED);
 Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use ''<data type> COMPRESSED... <character set clause> ...'' instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2226,7 +2226,7 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 CREATE TABLE t1 (a LONGTEXT ASCII COMPRESSED);
 Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use ''<data type> COMPRESSED... <character set clause> ...'' instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2235,7 +2235,7 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 CREATE TABLE t1 (a LONGTEXT BYTE COMPRESSED);
 Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use ''<data type> COMPRESSED... <character set clause> ...'' instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2314,7 +2314,7 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (a VARCHAR(10) DEFAULT '' COMPRESSED);
 Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use ''<data type> COMPRESSED... <character set clause> ...'' instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2323,7 +2323,7 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 CREATE TABLE t1 (a VARCHAR(10) NULL COMPRESSED);
 Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use ''<data type> COMPRESSED... <character set clause> ...'' instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2389,7 +2389,7 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (a TINYBLOB DEFAULT '' COMPRESSED);
 Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use ''<data type> COMPRESSED... <character set clause> ...'' instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2398,7 +2398,7 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 CREATE TABLE t1 (a TINYBLOB NULL COMPRESSED);
 Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use ''<data type> COMPRESSED... <character set clause> ...'' instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2464,7 +2464,7 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (a BLOB DEFAULT '' COMPRESSED);
 Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use ''<data type> COMPRESSED... <character set clause> ...'' instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2473,7 +2473,7 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 CREATE TABLE t1 (a BLOB NULL COMPRESSED);
 Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use ''<data type> COMPRESSED... <character set clause> ...'' instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2539,7 +2539,7 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (a MEDIUMBLOB DEFAULT '' COMPRESSED);
 Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use ''<data type> COMPRESSED... <character set clause> ...'' instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2548,7 +2548,7 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 CREATE TABLE t1 (a MEDIUMBLOB NULL COMPRESSED);
 Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use ''<data type> COMPRESSED... <character set clause> ...'' instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2614,7 +2614,7 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (a LONGBLOB DEFAULT '' COMPRESSED);
 Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use ''<data type> COMPRESSED... <character set clause> ...'' instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2623,7 +2623,7 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 CREATE TABLE t1 (a LONGBLOB NULL COMPRESSED);
 Warnings:
-Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use ''<data type> COMPRESSED... <character set clause> ...'' instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (

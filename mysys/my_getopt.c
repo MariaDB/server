@@ -1588,6 +1588,26 @@ void my_print_help(const struct my_option *options)
 	col+= (optp->arg_type == OPT_ARG) ? 5 : 3;
       }
     }
+    if (optp->deprecation_substitute != NULL)
+    {
+      if (IS_DEPRECATED_NO_REPLACEMENT(optp->deprecation_substitute))
+        col= print_comment("(it's deprecated and will be removed in a future release)",
+                           col, name_space, comment_space);
+      else
+      {
+        char buf1[NAME_CHAR_LEN + 3];
+
+        strxmov(buf1, "--", optp->deprecation_substitute, NullS);
+        convert_underscore_to_dash(buf1, strlen(optp->deprecation_substitute) + 2);
+
+        col= print_comment("(it's deprecated and will be removed in a future release. Please use '",
+                           col, name_space, comment_space);
+        col= print_comment(buf1,
+                           col, name_space, comment_space);
+        col= print_comment("' instead)",
+                           col, name_space, comment_space);
+      }
+    }
     if (optp->comment && *optp->comment)
     {
       uint count;

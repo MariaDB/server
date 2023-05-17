@@ -901,7 +901,7 @@ CREATE TABLE b15776 (a char(4294967296));
 ERROR 42000: Column length too big for column 'a' (max = 255); use BLOB or TEXT instead
 CREATE TABLE b15776 (a year(?));
 Warnings:
-Note	1287	'YEAR(?)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Note	1287	'YEAR(?)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 INSERT INTO b15776 VALUES (42);
 SELECT * FROM b15776;
 a
@@ -909,7 +909,7 @@ a
 DROP TABLE b15776;
 CREATE TABLE b15776 (a year(4294967296));
 Warnings:
-Note	1287	'YEAR(4294967295)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Note	1287	'YEAR(4294967295)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 SHOW CREATE TABLE b15776;
 Table	Create Table
 b15776	CREATE TABLE `b15776` (
@@ -918,7 +918,7 @@ b15776	CREATE TABLE `b15776` (
 DROP TABLE b15776;
 CREATE TABLE b15776 (a year(0));
 Warnings:
-Note	1287	'YEAR(0)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Note	1287	'YEAR(0)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 DROP TABLE b15776;
 CREATE TABLE b15776 (a year(-2));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '-2))' at line 1
@@ -938,7 +938,7 @@ CREATE TABLE b15776 (a char(9999999999999999999999999999999999999999999999999999
 ERROR 42000: Column length too big for column 'a' (max = 255); use BLOB or TEXT instead
 CREATE TABLE b15776 (a year(999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999));
 Warnings:
-Note	1287	'YEAR(4294967295)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Note	1287	'YEAR(4294967295)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 SHOW CREATE TABLE b15776;
 Table	Create Table
 b15776	CREATE TABLE `b15776` (

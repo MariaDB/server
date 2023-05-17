@@ -153,8 +153,7 @@ sys_var::sys_var(sys_var_chain *chain, const char *name_arg,
                  const char *substitute) :
   next(0), binlog_status(binlog_status_arg), value_origin(COMPILE_TIME),
   flags(flags_arg), show_val_type(show_val_type_arg),
-  guard(lock), offset(off), on_check(on_check_func), on_update(on_update_func),
-  deprecation_substitute(substitute)
+  guard(lock), offset(off), on_check(on_check_func), on_update(on_update_func)
 {
   /*
     There is a limitation in handle_options() related to short options:
@@ -180,6 +179,7 @@ sys_var::sys_var(sys_var_chain *chain, const char *name_arg,
   option.def_value= def_val;
   option.app_type= this;
   option.var_type= flags & AUTO_SET ? GET_AUTO : 0;
+  option.deprecation_substitute= substitute;
 
   if (chain->last)
     chain->last->next= this;
@@ -419,24 +419,29 @@ double sys_var::val_real(bool *is_null,
 
 void sys_var::do_deprecated_warning(THD *thd)
 {
-  if (deprecation_substitute != NULL)
+  if (option.deprecation_substitute != NULL)
   {
     char buf1[NAME_CHAR_LEN + 3];
+    char buf2[NAME_CHAR_LEN + 3];
+
     strxnmov(buf1, sizeof(buf1)-1, "@@", name.str, 0);
 
-    /* 
-       if deprecation_substitute is an empty string,
-       there is no replacement for the syntax
-    */
-    uint errmsg= deprecation_substitute[0] == '\0'
+    uint errmsg= IS_DEPRECATED_NO_REPLACEMENT(option.deprecation_substitute)
       ? ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT
       : ER_WARN_DEPRECATED_SYNTAX;
+
+    if (!IS_DEPRECATED_NO_REPLACEMENT(option.deprecation_substitute))
+    {
+      strxnmov(buf2, sizeof(buf2)-1, "@@", option.deprecation_substitute, 0);
+      convert_dash_to_underscore(buf2, strlen(option.deprecation_substitute) + 2);
+    }
+
     if (thd)
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_WARN_DEPRECATED_SYNTAX, ER_THD(thd, errmsg),
-                          buf1, deprecation_substitute);
+                          buf1, buf2);
     else
-      sql_print_warning(ER_DEFAULT(errmsg), buf1, deprecation_substitute);
+      sql_print_warning(ER_DEFAULT(errmsg), buf1, buf2);
   }
 }
 
@@ -1187,7 +1192,7 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
 
     // VARIABLE_COMMENT
     fields[7]->store(var->option.comment, strlen(var->option.comment),
-                           scs);
+                    scs);
 
     // NUMERIC_MIN_VALUE
     // NUMERIC_MAX_VALUE

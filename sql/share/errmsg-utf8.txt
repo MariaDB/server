@@ -5694,7 +5694,7 @@ ER_UNKNOWN_STORAGE_ENGINE 42000
         spa "Motor de almacenaje '%s' desconocido"
 ER_WARN_DEPRECATED_SYNTAX  
         chi "弃用'%s'，将在将来的版本中删除。请使用%s"
-        eng "'%s' is deprecated and will be removed in a future release. Please use %s instead"
+        eng "'%s' is deprecated and will be removed in a future release. Please use '%s' instead"
         ger "'%s' ist veraltet. Bitte benutzen Sie '%s'"
         geo "'%s' მოძველებულია და მომავალში ამოღებული იქნება. გამოიყენეთ %s"
         jpn "'%s' は将来のリリースで廃止予定です。代わりに %s を使用してください。"

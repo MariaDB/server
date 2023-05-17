@@ -82,7 +82,7 @@ t1_VARCHAR_0 VARCHAR(0),
 t1_VARMYSQL_0 VARCHAR(0) CHARACTER SET utf8
 ) ENGINE=InnoDB;
 Warnings:
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 INSERT INTO t1 () VALUES ();
 SELECT
 name,

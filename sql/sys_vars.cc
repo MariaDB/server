@@ -1050,7 +1050,7 @@ static Sys_var_dbug Sys_dbug(
        "debug", "Built-in DBUG debugger", sys_var::SESSION,
        CMD_LINE(OPT_ARG, '#'), DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_has_super), ON_UPDATE(0),
-       DEPRECATED("'@@debug_dbug'")); // since 5.5.37
+       DEPRECATED("debug_dbug")); // since 5.5.37
 
 static Sys_var_dbug Sys_debug_dbug(
        "debug_dbug", "Built-in DBUG debugger", sys_var::SESSION,
@@ -1452,7 +1452,7 @@ static Sys_var_uint Sys_large_page_size(
        READ_ONLY GLOBAL_VAR(opt_large_page_size), NO_CMD_LINE,
        VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
-       DEPRECATED(""));
+       DEPRECATED_NO_REPLACEMENT);
 
 static Sys_var_mybool Sys_large_pages(
        "large_pages", "Enable support for large pages",
@@ -1541,7 +1541,7 @@ static Sys_var_bit Sys_log_slow_admin_statements(
        SESSION_VAR(log_slow_disabled_statements),
        CMD_LINE(OPT_ARG), REVERSE(LOG_SLOW_DISABLE_ADMIN), DEFAULT(TRUE),
        0, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
-       DEPRECATED("'@@log_slow_filter'"));
+       DEPRECATED("log_slow_filter"));
 
 static Sys_var_bit Sys_log_slow_slave_statements(
        "log_slow_slave_statements",
@@ -2629,7 +2629,7 @@ static Sys_var_ulong Sys_max_tmp_tables(
        SESSION_VAR(max_tmp_tables), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, UINT_MAX), DEFAULT(32), BLOCK_SIZE(1),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
-       DEPRECATED("")); // since 10.1.2
+       DEPRECATED_NO_REPLACEMENT); // since 10.1.2;
 
 static Sys_var_ulong Sys_max_write_lock_count(
        "max_write_lock_count",
@@ -2749,7 +2749,7 @@ static bool set_old_mode (sys_var *self, THD *thd, enum_var_type type)
 static Sys_var_mybool Sys_old_mode(
        "old", "Use compatible behavior from previous MariaDB version. See also --old-mode",
        SESSION_VAR(old_mode), CMD_LINE(OPT_ARG), DEFAULT(FALSE), 0, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(set_old_mode), DEPRECATED("'@@old_mode'"));
+       ON_UPDATE(set_old_mode), DEPRECATED("old_mode"));
 
 static Sys_var_mybool Sys_opt_allow_suspicious_udfs(
        "allow_suspicious_udfs",
@@ -2779,7 +2779,7 @@ static Sys_var_enum Sys_old_alter_table(
        SESSION_VAR(alter_algorithm), CMD_LINE(OPT_ARG),
        alter_algorithm_modes, DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(0), ON_UPDATE(0),
-       DEPRECATED("'@@alter_algorithm'")); // Since 10.5.1
+       DEPRECATED("alter_algorithm")); // Since 10.5.1
 
 static bool check_old_passwords(sys_var *self, THD *thd, set_var *var)
 {
@@ -4397,7 +4397,7 @@ static Sys_var_plugin Sys_storage_engine(
        SESSION_VAR(table_plugin), NO_CMD_LINE,
        MYSQL_STORAGE_ENGINE_PLUGIN, DEFAULT(&default_storage_engine),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_not_null), ON_UPDATE(0),
-       DEPRECATED("'@@default_storage_engine'")); // since 10.5.1
+       DEPRECATED("default_storage_engine")); // since 10.5.1
 
 static Sys_var_plugin Sys_default_tmp_storage_engine(
        "default_tmp_storage_engine", "The default storage engine for user-created temporary tables",
@@ -4487,7 +4487,7 @@ static Sys_var_charptr Sys_date_format(
        CMD_LINE(REQUIRED_ARG),
        DEFAULT(known_date_time_formats[ISO_FORMAT].date_format),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
-       DEPRECATED("")); // since 10.1.2
+       DEPRECATED_NO_REPLACEMENT); // since 10.1.2
 
 static Sys_var_charptr Sys_datetime_format(
        "datetime_format", "The DATETIME format (ignored)",
@@ -4495,7 +4495,7 @@ static Sys_var_charptr Sys_datetime_format(
        CMD_LINE(REQUIRED_ARG),
        DEFAULT(known_date_time_formats[ISO_FORMAT].datetime_format),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
-       DEPRECATED("")); // since 10.1.2
+       DEPRECATED_NO_REPLACEMENT); // since 10.1.2
 
 static Sys_var_charptr Sys_time_format(
        "time_format", "The TIME format (ignored)",
@@ -4503,7 +4503,7 @@ static Sys_var_charptr Sys_time_format(
        CMD_LINE(REQUIRED_ARG),
        DEFAULT(known_date_time_formats[ISO_FORMAT].time_format),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
-       DEPRECATED("")); //  since 10.1.2
+       DEPRECATED_NO_REPLACEMENT); //  since 10.1.2
 
 static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
 {
@@ -4577,7 +4577,7 @@ static Sys_var_mybool Sys_big_tables(
        "longer needed, as the server now handles this automatically.",
        SESSION_VAR(big_tables), CMD_LINE(OPT_ARG), DEFAULT(FALSE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
-       DEPRECATED("")); // since 10.5.0
+       DEPRECATED_NO_REPLACEMENT); // since 10.5.0
 
 static Sys_var_bit Sys_big_selects(
        "sql_big_selects", "If set to 0, MariaDB will not perform large SELECTs."
@@ -5047,7 +5047,7 @@ static Sys_var_mybool Sys_keep_files_on_create(
        SESSION_VAR(keep_files_on_create), CMD_LINE(OPT_ARG),
        DEFAULT(FALSE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
-       DEPRECATED("")); // since 10.8.0
+       DEPRECATED_NO_REPLACEMENT); // since 10.8.0
 
 static char *license;
 static Sys_var_charptr Sys_license(
@@ -6169,13 +6169,12 @@ static Sys_var_enum Sys_wsrep_certification_rules(
        ON_UPDATE(0));
 
 static Sys_var_mybool Sys_wsrep_causal_reads(
-       "wsrep_causal_reads", "Setting this variable is equivalent "
-       "to setting wsrep_sync_wait READ flag",
+       "wsrep_causal_reads", "Use wsrep_sync_wait READ flag instead.",
        SESSION_VAR(wsrep_causal_reads),
        CMD_LINE(OPT_ARG, OPT_WSREP_CAUSAL_READS), DEFAULT(FALSE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(wsrep_causal_reads_update),
-       DEPRECATED("'@@wsrep_sync_wait=1'")); // since 10.1.3
+       DEPRECATED("wsrep_sync_wait=1")); // since 10.1.3
 
 static Sys_var_uint Sys_wsrep_sync_wait(
        "wsrep_sync_wait", "Ensure \"synchronous\" read view before executing "
@@ -6257,7 +6256,7 @@ static Sys_var_mybool Sys_wsrep_load_data_splitting(
        "transaction after every 10K rows inserted (deprecated)",
        GLOBAL_VAR(wsrep_load_data_splitting), 
        CMD_LINE(OPT_ARG), DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       ON_CHECK(0), ON_UPDATE(0), DEPRECATED("")); // since 10.4.3
+       ON_CHECK(0), ON_UPDATE(0), DEPRECATED_NO_REPLACEMENT); // since 10.4.3
 
 static Sys_var_mybool Sys_wsrep_slave_FK_checks(
        "wsrep_slave_FK_checks", "Should slave thread do "
