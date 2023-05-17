@@ -70,6 +70,7 @@
 */
 #define REVERSE(X) ~(X)
 #define DEPRECATED(V, REPL) (check_deprecated_version<V>(), REPL)
+#define DEPRECATED_NO_REPLACEMENT(V) DEPRECATED(V, "")
 
 #define session_var(THD, TYPE) (*(TYPE*)session_var_ptr(THD))
 #define global_var(TYPE) (*(TYPE*)global_var_ptr())

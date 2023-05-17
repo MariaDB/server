@@ -38,7 +38,8 @@ The following specify which files/extra groups are read (specified before remain
  (Automatically configured unless set explicitly)
  -b, --basedir=name  Path to installation directory. All paths are usually
  resolved relative to this
- --big-tables        Old variable, which if set to 1, allows large result sets
+ --big-tables        (it's deprecated and will be removed in a future release)
+ Old variable, which if set to 1, allows large result sets
  by saving all temporary sets to disk, avoiding 'table
  full' errors. No longer needed, as the server now handles
  this automatically.
@@ -445,7 +446,8 @@ The following specify which files/extra groups are read (specified before remain
  Controls what join operations can be executed with join
  buffers. Odd numbers are used for plain join buffers
  while even numbers are used for linked buffers
- --keep-files-on-create 
+ --keep-files-on-create (it's deprecated and will be removed in a future
+ release)
  Don't overwrite stale .MYD and .MYI even if no directory
  is specified
  --key-buffer-size=# The size of the buffer used for index blocks for MyISAM
@@ -534,16 +536,17 @@ The following specify which files/extra groups are read (specified before remain
  --log-slave-updates Tells the slave to log the updates from the slave thread
  to the binary log. You will need to turn it on if you
  plan to daisy-chain the slaves.
- --log-slow-admin-statements 
+ --log-slow-disabled-statements=name 
+ Don't log certain types of statements to slow log. Any
+ combination of: admin, call, slave, sp
+ Use 'ALL' to set all combinations.
+ --log-slow-admin-statements (it's deprecated and will be removed in a future
+ release. Please use '--log-slow-filter' instead)
  Log slow OPTIMIZE, ANALYZE, ALTER and other
  administrative statements to the slow log if it is open. 
  Resets or sets the option 'admin' in log_slow_filter.
  Deprecated, use log_slow_filter without 'admin'.
  (Defaults to on; use --skip-log-slow-admin-statements to disable.)
- --log-slow-disabled-statements=name 
- Don't log certain types of statements to slow log. Any
- combination of: admin, call, slave, sp
- Use 'ALL' to set all combinations.
  --log-slow-filter=name 
  Log only certain types of queries to the slow log. If
  variable empty all kind of queries are logged.  All types
@@ -740,7 +743,9 @@ The following specify which files/extra groups are read (specified before remain
  also @@sql_notes.. Any combination of: basic, 
  unusable_keys, explain
  Use 'ALL' to set all combinations.
- --old               Use compatible behavior from previous MariaDB version.
+ --old               (it's deprecated and will be removed in a future release.
+ Please use '--old-mode' instead)
+ Use compatible behavior from previous MariaDB version.
  See also --old-mode
  --old-mode=name     Used to emulate old behavior from earlier MariaDB or
  MySQL versions. Any combination of: 
@@ -762,7 +767,8 @@ The following specify which files/extra groups are read (specified before remain
  max_connections*5 or max_connections + table_cache*2
  (whichever is larger) number of file descriptors
  (Automatically configured unless set explicitly)
- --optimizer-adjust-secondary-key-costs=# 
+ --optimizer-adjust-secondary-key-costs=# (it's deprecated and will be removed
+ in a future release)
  Unused, will be removed.
  --optimizer-disk-read-cost=# 
  Cost of reading a block of IO_SIZE (4096) from a disk (in
@@ -1257,7 +1263,8 @@ The following specify which files/extra groups are read (specified before remain
  --safe-mode         Skip some optimize stages (for testing). Deprecated.
  --safe-user-create  Don't allow new user creation by the user who has no
  write privileges to the mysql.user table.
- --secure-auth       Disallow authentication for accounts that have old
+ --secure-auth       (it's deprecated and will be removed in a future release)
+ Disallow authentication for accounts that have old
  (pre-4.1) passwords
  (Defaults to on; use --skip-secure-auth to disable.)
  --secure-file-priv=name 
@@ -1736,8 +1743,8 @@ log-output FILE
 log-queries-not-using-indexes FALSE
 log-short-format FALSE
 log-slave-updates FALSE
-log-slow-admin-statements TRUE
 log-slow-disabled-statements sp
+log-slow-admin-statements TRUE
 log-slow-filter admin,filesort,filesort_on_disk,filesort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
 log-slow-max-warnings 10
 log-slow-min-examined-row-limit 0

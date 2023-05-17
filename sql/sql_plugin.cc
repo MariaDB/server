@@ -1535,20 +1535,6 @@ uchar *get_bookmark_hash_key(const uchar *buff, size_t *length,
   return (uchar*) var->key;
 }
 
-static inline void convert_dash_to_underscore(char *str, size_t len)
-{
-  for (char *p= str; p <= str+len; p++)
-    if (*p == '-')
-      *p= '_';
-}
-
-static inline void convert_underscore_to_dash(char *str, size_t len)
-{
-  for (char *p= str; p <= str+len; p++)
-    if (*p == '_')
-      *p= '-';
-}
-
 #ifdef HAVE_PSI_INTERFACE
 static PSI_mutex_key key_LOCK_plugin;
 
@@ -3718,8 +3704,6 @@ bool sys_var_pluginvar::global_update(THD *thd, set_var *var)
 void plugin_opt_set_limits(struct my_option *options,
                            const struct st_mysql_sys_var *opt)
 {
-  options->sub_size= 0;
-
   switch (opt->flags & (PLUGIN_VAR_TYPEMASK |
                         PLUGIN_VAR_UNSIGNED | PLUGIN_VAR_THDLOCAL)) {
   /* global system variables */
@@ -4077,6 +4061,9 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
         (global_system_variables.dynamic_variables_ptr + offset);
     else
       options->value= options->u_max_value= *(uchar***) (opt + 1);
+
+    if (opt->flags & PLUGIN_VAR_DEPRECATED)
+      options->deprecation_substitute= "";
 
     char *option_name_ptr;
     options[1]= options[0];

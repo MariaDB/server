@@ -1766,7 +1766,7 @@ static struct my_option my_long_options[] =
   {"net-buffer-length", 0,
    "The buffer size for TCP/IP and socket communication.",
    &opt_net_buffer_length, &opt_net_buffer_length, 0, GET_ULONG,
-   REQUIRED_ARG, 16384, 1024, 512*1024ULL*1024ULL, MALLOC_OVERHEAD, 1024, 0},
+   REQUIRED_ARG, 16384, 1024, 512*1024ULL*1024ULL, 0, 1024, 0},
   {"no-beep", 'b', "Turn off beep on error.", &opt_nobeep,
    &opt_nobeep, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"one-database", 'o',
