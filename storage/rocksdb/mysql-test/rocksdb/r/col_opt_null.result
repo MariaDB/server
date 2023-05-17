@@ -818,7 +818,7 @@ y2 YEAR(2) NULL,
 pk DATETIME PRIMARY KEY
 ) ENGINE=rocksdb;
 Warnings:
-Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 d	date	YES		NULL	
@@ -1003,9 +1003,9 @@ c2 YEAR(2) NULL DEFAULT '12',
 pk INT AUTO_INCREMENT PRIMARY KEY
 ) ENGINE=rocksdb;
 Warnings:
-Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
-Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
-Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
+Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
+Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	year(2)	YES		NULL	

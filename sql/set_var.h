@@ -89,7 +89,6 @@ protected:
   ptrdiff_t offset;     ///< offset to the value from global_system_variables
   on_check_function on_check;
   on_update_function on_update;
-  const char *const deprecation_substitute;
 
 public:
   sys_var(sys_var_chain *chain, const char *name_arg, const char *comment,
