@@ -853,7 +853,18 @@ struct TABLE_SHARE
   uint keys, key_parts;
   uint ext_key_parts;       /* Total number of key parts in extended keys */
   uint max_key_length, max_unique_length;
-  uint uniques;                         /* Number of UNIQUE index */
+
+  /*
+    Older versions had TABLE_SHARE::uniques but now it is replaced with
+    per-index HA_UNIQUE_HASH flag
+  */
+  bool have_unique_constraint() const
+  {
+    for (uint i=0; i < keys; i++)
+      if (key_info[i].flags & HA_UNIQUE_HASH)
+        return true;
+    return false;
+  }
   uint db_create_options;		/* Create options from database */
   uint db_options_in_use;		/* Options in use */
   uint db_record_offset;		/* if HA_REC_IN_SEQ */
@@ -2817,6 +2828,8 @@ struct TABLE_LIST
   }
   void print(THD *thd, table_map eliminated_tables, String *str, 
              enum_query_type query_type);
+  void print_leaf_tables(THD *thd, String *str,
+                         enum_query_type query_type);
   bool check_single_table(TABLE_LIST **table, table_map map,
                           TABLE_LIST *view);
   bool set_insert_values(MEM_ROOT *mem_root);
@@ -2957,8 +2970,7 @@ struct TABLE_LIST
     DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
                         (alias.str ? alias.str : "<NULL>"),
                          get_unit()));
-    derived_type= static_cast<uint8>((derived_type & DTYPE_MASK) |
-                                     DTYPE_TABLE | DTYPE_MERGE);
+    derived_type= static_cast<uint8>((derived_type & DTYPE_MASK) | DTYPE_MERGE);
     set_check_merged();
     DBUG_VOID_RETURN;
   }
@@ -2972,10 +2984,9 @@ struct TABLE_LIST
     DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
                         (alias.str ? alias.str : "<NULL>"),
                          get_unit()));
-    derived= get_unit();
     derived_type= static_cast<uint8>((derived_type &
                                       (derived ? DTYPE_MASK : DTYPE_VIEW)) |
-                                     DTYPE_TABLE | DTYPE_MATERIALIZE);
+                                     DTYPE_MATERIALIZE);
     set_check_materialized();
     DBUG_VOID_RETURN;
   }

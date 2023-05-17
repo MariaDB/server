@@ -1,7 +1,10 @@
 #! /bin/sh
+
 path=`dirname $0`
+set -- "$@" --with-debug=full
 . "$path/SETUP.sh"
+
 extra_flags="$amd64_cflags $debug_cflags"
 extra_configs="$amd64_configs $debug_configs $all_configs"
-
+CC="$CC --pipe"
 . "$path/FINISH.sh"

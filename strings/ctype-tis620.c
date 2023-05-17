@@ -593,7 +593,8 @@ static int
 my_strnncollsp_nchars_tis620(CHARSET_INFO * cs,
                              const uchar *a, size_t a_length,
                              const uchar *b, size_t b_length,
-                             size_t nchars)
+                             size_t nchars,
+                             uint flags)
 {
   set_if_smaller(a_length, nchars);
   set_if_smaller(b_length, nchars);
@@ -956,7 +957,6 @@ struct charset_info_st my_charset_tis620_thai_ci=
     NULL,		/* tab_to_uni   */
     NULL,		/* tab_from_uni */
     NULL,               /* casefold     */
-    &my_unicase_default,/* caseinfo     */
     NULL,		/* state_map    */
     NULL,		/* ident_map    */
     4,			/* strxfrm_multiply */
@@ -987,7 +987,6 @@ struct charset_info_st my_charset_tis620_bin=
     NULL,		/* tab_to_uni   */
     NULL,		/* tab_from_uni */
     NULL,               /* casefold     */
-    &my_unicase_default,/* caseinfo     */
     NULL,		/* state_map    */
     NULL,		/* ident_map    */
     1,			/* strxfrm_multiply */
@@ -1019,7 +1018,6 @@ struct charset_info_st my_charset_tis620_thai_nopad_ci=
     NULL,                  /* tab_to_uni       */
     NULL,                  /* tab_from_uni     */
     NULL,                  /* casefold         */
-    &my_unicase_default,   /* caseinfo         */
     NULL,                  /* state_map        */
     NULL,                  /* ident_map        */
     4,                     /* strxfrm_multiply */
@@ -1051,7 +1049,6 @@ struct charset_info_st my_charset_tis620_nopad_bin=
     NULL,                  /* tab_to_uni       */
     NULL,                  /* tab_from_uni     */
     NULL,                  /* casefold         */
-    &my_unicase_default,   /* caseinfo         */
     NULL,                  /* state_map        */
     NULL,                  /* ident_map        */
     1,                     /* strxfrm_multiply */

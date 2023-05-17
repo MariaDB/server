@@ -118,6 +118,18 @@ then
 
 fi
 
+# If there is no debian-*.flag, and no version was detected, but a file that
+# indicated MySQL 8.0 is found (undo_001 is created by default in MySQL 8.0+
+# installs), then that file is enough of additional indication to trigger the
+# move of the data directory.
+if [ -z "$found_version" ] &&
+   [ -z "$(find $mysql_datadir/debian-*.flag 2> /dev/null)" ] &&
+   [ -f "$mysql_datadir/undo_001" ]
+then
+  echo "$mysql_datadir: no server version flag found, assuming MySQL 8.0 data encountered"
+  downgrade_detected=true
+  found_version="previous" # Just use dummy name as we don't know real version
+fi
 
 # Don't abort dpkg if downgrade is detected (as was done previously).
 # Instead simply move the old datadir and create a new for this_version.
@@ -132,8 +144,8 @@ then
   echo "Please manually export/import your data (e.g. with mysqldump) if needed." 1>&2
   mv -f "$mysql_datadir" "$mysql_datadir-$found_version"
   # Also move away the old debian.cnf file that included credentials that are
-  # no longer valid
-  mv -f /etc/mysql/debian.cnf "/etc/mysql/debian.cnf-$found_version"
+  # no longer valid. If none existed, ignore error and let dpkg continue.
+  mv -f /etc/mysql/debian.cnf "/etc/mysql/debian.cnf-$found_version" || true
 fi
 
 # to be sure

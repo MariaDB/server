@@ -882,12 +882,13 @@ srv_export_innodb_status(void)
 	export_vars.innodb_data_writes = os_n_file_writes;
 
 	buf_dblwr.lock();
-	ulint dblwr = buf_dblwr.submitted();
-	export_vars.innodb_dblwr_pages_written = buf_dblwr.written();
+	ulint dblwr = buf_dblwr.written();
+	export_vars.innodb_dblwr_pages_written = dblwr;
 	export_vars.innodb_dblwr_writes = buf_dblwr.batches();
 	buf_dblwr.unlock();
 
-	export_vars.innodb_data_written = srv_stats.data_written + dblwr;
+	export_vars.innodb_data_written = srv_stats.data_written
+		+ (dblwr << srv_page_size_shift);
 
 	export_vars.innodb_buffer_pool_bytes_data =
 		buf_pool.stat.LRU_bytes
@@ -1468,27 +1469,32 @@ fewer_threads:
 
     m_history_length= history_size;
 
-    if (history_size &&
-        trx_purge(n_use_threads,
-                  !(++count % srv_purge_rseg_truncate_frequency) ||
-                  purge_sys.truncate.current ||
-                  (srv_shutdown_state != SRV_SHUTDOWN_NONE &&
-                   srv_fast_shutdown == 0)))
+    if (!history_size)
+      srv_dml_needed_delay= 0;
+    else if (trx_purge(n_use_threads, history_size,
+                       !(++count % srv_purge_rseg_truncate_frequency) ||
+                       purge_sys.truncate.current ||
+                       (srv_shutdown_state != SRV_SHUTDOWN_NONE &&
+                        srv_fast_shutdown == 0)))
       continue;
 
-    if (m_running == sigcount)
+    if (srv_dml_needed_delay);
+    else if (m_running == sigcount)
     {
       /* Purge was not woken up by srv_wake_purge_thread_if_not_active() */
 
       /* The magic number 5000 is an approximation for the case where we have
       cached undo log records which prevent truncate of rollback segments. */
-      wakeup= history_size &&
-        (history_size >= 5000 ||
-         history_size != trx_sys.history_size_approx());
+      wakeup= history_size >= 5000 ||
+        (history_size && history_size != trx_sys.history_size_approx());
       break;
     }
-    else if (!trx_sys.history_exists())
+
+    if (!trx_sys.history_exists())
+    {
+      srv_dml_needed_delay= 0;
       break;
+    }
 
     if (!srv_purge_should_exit())
       goto loop;

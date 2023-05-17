@@ -3630,9 +3630,11 @@ void do_system(struct st_command *command)
 /* returns TRUE if path is inside a sandbox */
 bool is_sub_path(const char *path, size_t plen, const char *sandbox)
 {
-  size_t len= strlen(sandbox);
-  if (!sandbox || !len || plen <= len || memcmp(path, sandbox, len - 1)
-      || path[len] != '/')
+  size_t len;
+  if (!sandbox)
+    return false;
+  len= strlen(sandbox);
+  if (plen <= len || memcmp(path, sandbox, len-1) || path[len] != '/')
     return false;
   return true;
 }
@@ -3878,9 +3880,21 @@ void do_move_file(struct st_command *command)
                      sizeof(move_file_args)/sizeof(struct command_arg),
                      ' ');
 
-  if (bad_path(ds_to_file.str))
-    DBUG_VOID_RETURN;
+  size_t from_plen = strlen(ds_from_file.str);
+  size_t to_plen = strlen(ds_to_file.str);
+  const char *vardir= getenv("MYSQLTEST_VARDIR");
+  const char *tmpdir= getenv("MYSQL_TMP_DIR");
 
+  if (!((is_sub_path(ds_from_file.str, from_plen, vardir) && 
+        is_sub_path(ds_to_file.str, to_plen, vardir)) || 
+        (is_sub_path(ds_from_file.str, from_plen, tmpdir) && 
+        is_sub_path(ds_to_file.str, to_plen, tmpdir)))) {
+        report_or_die("Paths '%s' and '%s' are not both under MYSQLTEST_VARDIR '%s'"
+                "or both under MYSQL_TMP_DIR '%s'",
+                ds_from_file, ds_to_file, vardir, tmpdir);
+        DBUG_VOID_RETURN;
+  }
+  
   DBUG_PRINT("info", ("Move %s to %s", ds_from_file.str, ds_to_file.str));
   error= (my_rename(ds_from_file.str, ds_to_file.str,
                     MYF(disable_warnings ? 0 : MY_WME)) != 0);
@@ -5248,6 +5262,7 @@ void do_shutdown_server(struct st_command *command)
     if (!timeout || wait_until_dead(pid, timeout < 5 ? 5 : timeout))
     {
       (void) my_kill(pid, SIGKILL);
+      wait_until_dead(pid, 5);
     }
   }
   DBUG_VOID_RETURN;
@@ -11883,7 +11898,7 @@ void dynstr_append_sorted(DYNAMIC_STRING* ds, DYNAMIC_STRING *ds_input,
 
   /* Sort array */
   qsort(lines.buffer, lines.elements,
-        sizeof(char**), (qsort_cmp)comp_lines);
+        sizeof(uchar *), (qsort_cmp)comp_lines);
 
   /* Create new result */
   for (i= 0; i < lines.elements ; i++)

@@ -780,7 +780,13 @@ eval $query;
 
 let $query=
 SELECT pk FROM t1 WHERE (b, i) IN (SELECT b, i FROM t2 WHERE pk > 0);
+#set optimizer_trace=1;
+#select @@optimizer_switch;
+#select @@join_cache_level;
+#select @@optimizer_use_condition_selectivity;
 eval EXPLAIN EXTENDED $query;
+#select * from information_schema.optimizer_trace;
+
 eval $query;
 
 let $query=

@@ -132,7 +132,8 @@ static int my_strnncollsp_binary(CHARSET_INFO * cs __attribute__((unused)),
 static int my_strnncollsp_nchars_binary(CHARSET_INFO * cs __attribute__((unused)),
                                         const uchar *s, size_t slen,
                                         const uchar *t, size_t tlen,
-                                        size_t nchars)
+                                        size_t nchars,
+                                        uint flags)
 {
   set_if_smaller(slen, nchars);
   set_if_smaller(tlen, nchars);
@@ -217,7 +218,8 @@ static int my_strnncollsp_8bit_bin(CHARSET_INFO * cs __attribute__((unused)),
 static int my_strnncollsp_nchars_8bit_bin(CHARSET_INFO * cs,
                                           const uchar *a, size_t a_length,
                                           const uchar *b, size_t b_length,
-                                          size_t nchars)
+                                          size_t nchars,
+                                          uint flags)
 {
   set_if_smaller(a_length, nchars);
   set_if_smaller(b_length, nchars);
@@ -623,7 +625,6 @@ struct charset_info_st my_charset_bin =
     NULL,			/* tab_to_uni    */
     NULL,			/* tab_from_uni  */
     NULL,                       /* casefold     */
-    &my_unicase_default,        /* caseinfo     */
     NULL,			/* state_map    */
     NULL,			/* ident_map    */
     1,				/* strxfrm_multiply */

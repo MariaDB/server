@@ -2659,7 +2659,8 @@ static int show_create_view(THD *thd, TABLE_LIST *table, String *buff)
     a different syntax, like when ANSI_QUOTES is defined.
   */
   table->view->unit.print(buff, enum_query_type(QT_VIEW_INTERNAL |
-                                                QT_ITEM_ORIGINAL_FUNC_NULLIF));
+                                                QT_ITEM_ORIGINAL_FUNC_NULLIF |
+                                                QT_NO_WRAPPERS_FOR_TVC_IN_VIEW));
 
   if (table->with_check != VIEW_CHECK_NONE)
   {
@@ -8840,7 +8841,6 @@ bool optimize_schema_tables_memory_usage(List<TABLE_LIST> &tables)
       TMP_TABLE_PARAM *p= table_list->schema_table_param;
       TMP_ENGINE_COLUMNDEF *from_recinfo, *to_recinfo;
       DBUG_ASSERT(table->s->keys == 0);
-      DBUG_ASSERT(table->s->uniques == 0);
 
       uchar *cur= table->field[0]->ptr;
       /* first recinfo could be a NULL bitmap, not an actual Field */

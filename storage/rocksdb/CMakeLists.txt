@@ -30,6 +30,11 @@ IF(WITH_VALGRIND)
   ADD_DEFINITIONS(-DROCKSDB_VALGRIND_RUN=1)
 ENDIF()
 
+ADD_DEFINITIONS(-Duint64_t=u_int64_t)
+ADD_DEFINITIONS(-Duint32_t=u_int32_t)
+ADD_DEFINITIONS(-Duint16_t=u_int16_t)
+ADD_DEFINITIONS(-Duint8_t=u_int8_t)
+
 # We've had our builders hang during the build process. This prevents MariaRocks
 # to be built on 32 bit intel OS kernels.
 IF(CMAKE_SYSTEM_PROCESSOR MATCHES "i[36]86")

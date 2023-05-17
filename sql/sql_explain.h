@@ -495,7 +495,7 @@ public:
                     bool is_analyze);
   
   /* Send tabular EXPLAIN to the client */
-  int send_explain(THD *thd);
+  int send_explain(THD *thd, bool extended);
   
   /* Return tabular EXPLAIN output as a text string */
   bool print_explain_str(THD *thd, String *out_str, bool is_analyze);
@@ -882,9 +882,22 @@ public:
   Exec_time_tracker op_tracker;
   Gap_time_tracker extra_time_tracker;
 
+  /* When using join buffer: Track the reads from join buffer */
   Table_access_tracker jbuf_tracker;
+
+  /* When using join buffer: time spent unpacking rows from the join buffer */
   Time_and_counter_tracker jbuf_unpack_tracker;
-  
+
+  /*
+    When using join buffer: time spent after unpacking rows from the join
+    buffer. This will capture the time spent checking the Join Condition:
+    the condition that depends on this table and preceding tables.
+  */
+  Gap_time_tracker jbuf_extra_time_tracker;
+
+  /* When using join buffer: Track the number of incoming record combinations */
+  Counter_tracker jbuf_loops_tracker;
+
   Explain_rowid_filter *rowid_filter;
 
   int print_explain(select_result_sink *output, uint8 explain_flags, 

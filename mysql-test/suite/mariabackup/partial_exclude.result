@@ -8,8 +8,15 @@ CREATE DATABASE db2;
 USE db2;
 CREATE TABLE t1(i INT) ENGINE INNODB;
 USE test;
+BEGIN;
+INSERT INTO db2.t1 VALUES(20);
+INSERT INTO test.t1 VALUES(20);
+INSERT INTO test.t2 VALUES(20);
 # xtrabackup backup
+COMMIT;
 t1.new
 DROP TABLE t1;
 DROP TABLE t2;
 DROP DATABASE db2;
+NOT FOUND /Operating system error number/ in backup.log
+NOT FOUND /Could not find a valid tablespace file for/ in backup.log

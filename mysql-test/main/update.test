@@ -678,6 +678,29 @@ DROP TABLE t1,t2;
 --echo # End of MariaDB 10.2 tests
 
 --echo #
+--echo # MDEV-20773: UPDATE with LIKE predicate over non-indexed column
+--echo #             of VARCHAR type
+--echo #
+
+create table t1 (a1 varchar(30), a2 varchar(30) collate utf8_bin);
+insert into t1 values
+  ('aa','zzz'), ('b','xxaa'), ('ccc','yyy'), ('ddd','xxb');
+analyze table t1 persistent for all;
+
+explain extended
+update t1 set a1 = 'u'
+  where a2 like 'xx%' and exists(select 1 from t1 where t1.a1 < 'c');
+
+update t1 set a1 = 'u'
+  where a2 like 'xx%' and exists(select 1 from t1 where t1.a1 < 'c');
+
+select * from t1;
+
+drop table t1;
+
+--echo # End of MariaDB 10.4 tests
+
+--echo #
 --echo # MDEV-29189: Second execution of SF using UPDATE?DELETE
 --echo #             after reported error by the first execution
 --echo #

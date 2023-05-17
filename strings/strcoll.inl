@@ -390,7 +390,8 @@ static int
 MY_FUNCTION_NAME(strnncollsp_nchars)(CHARSET_INFO *cs __attribute__((unused)),
                                      const uchar *a, size_t a_length,
                                      const uchar *b, size_t b_length,
-                                     size_t nchars)
+                                     size_t nchars,
+                                     uint flags)
 {
   const uchar *a_end= a + a_length;
   const uchar *b_end= b + b_length;
@@ -489,16 +490,12 @@ MY_FUNCTION_NAME(strnxfrm)(CHARSET_INFO *cs,
 #error OPTIMIZE_ASCII must be defined for DEFINE_STRNXFRM_UNICODE
 #endif
 
-#ifndef UNICASE_MAXCHAR
-#error UNICASE_MAXCHAR must be defined for DEFINE_STRNXFRM_UNICODE
+#if OPTIMIZE_ASCII && !defined(WEIGHT_MB1)
+#error WEIGHT_MB1 must be defined for DEFINE_STRNXFRM_UNICODE
 #endif
 
-#ifndef UNICASE_PAGE0
-#error UNICASE_PAGE0 must be defined for DEFINE_STRNXFRM_UNICODE
-#endif
-
-#ifndef UNICASE_PAGES
-#error UNICASE_PAGES must be defined for DEFINE_STRNXFRM_UNICODE
+#ifndef MY_WC_WEIGHT
+#error MY_WC_WEIGHT must be defined for DEFINE_STRNXFRM_UNICODE
 #endif
 
 
@@ -513,7 +510,6 @@ MY_FUNCTION_NAME(strnxfrm_internal)(CHARSET_INFO *cs __attribute__((unused)),
 
   DBUG_ASSERT(src || !se);
   DBUG_ASSERT((cs->state & MY_CS_LOWER_SORT) == 0);
-  DBUG_ASSERT(0x7F <= UNICASE_MAXCHAR);
 
   for (; dst < de && *nweights; (*nweights)--)
   {
@@ -523,7 +519,7 @@ MY_FUNCTION_NAME(strnxfrm_internal)(CHARSET_INFO *cs __attribute__((unused)),
       break;
     if (src[0] <= 0x7F)
     {
-      wc= UNICASE_PAGE0[*src++].sort;
+      wc= WEIGHT_MB1(*src++);
       PUT_WC_BE2_HAVE_1BYTE(dst, de, wc);
       continue;
     }
@@ -531,14 +527,7 @@ MY_FUNCTION_NAME(strnxfrm_internal)(CHARSET_INFO *cs __attribute__((unused)),
     if ((res= MY_MB_WC(cs, &wc, src, se)) <= 0)
       break;
     src+= res;
-    if (wc <= UNICASE_MAXCHAR)
-    {
-      MY_UNICASE_CHARACTER *page;
-      if ((page= UNICASE_PAGES[wc >> 8]))
-        wc= page[wc & 0xFF].sort;
-    }
-    else
-      wc= MY_CS_REPLACEMENT_CHARACTER;
+    wc= MY_WC_WEIGHT(wc);
     PUT_WC_BE2_HAVE_1BYTE(dst, de, wc);
   }
   return dst - dst0;
@@ -721,9 +710,7 @@ MY_FUNCTION_NAME(strnxfrm_nopad)(CHARSET_INFO *cs,
 #undef MY_FUNCTION_NAME
 #undef MY_MB_WC
 #undef OPTIMIZE_ASCII
-#undef UNICASE_MAXCHAR
-#undef UNICASE_PAGE0
-#undef UNICASE_PAGES
+#undef MY_WC_WEIGHT
 #undef WEIGHT_ILSEQ
 #undef WEIGHT_MB1
 #undef WEIGHT_MB2

@@ -242,9 +242,9 @@ enum rec_leaf_format {
 	REC_LEAF_INSTANT
 };
 
-#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 11
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 12
 # pragma GCC diagnostic push
-# pragma GCC diagnostic ignored "-Wconversion" /* GCC 5 to 10 need this */
+# pragma GCC diagnostic ignored "-Wconversion" /* GCC 5 to 11 need this */
 #endif
 /** Determine the offset to each field in a leaf-page record
 in ROW_FORMAT=COMPACT,DYNAMIC,COMPRESSED.
@@ -291,7 +291,9 @@ rec_init_offsets_comp_ordinary(
 							 != n_core)
 		? UT_BITS_IN_BYTES(unsigned(index->get_n_nullable(n_core)))
 		: (redundant_temp
-		   ? UT_BITS_IN_BYTES(index->n_nullable)
+		   ? (index->is_instant()
+		      ? UT_BITS_IN_BYTES(index->get_n_nullable(n_core))
+		      : UT_BITS_IN_BYTES(index->n_nullable))
 		   : index->n_core_null_bytes);
 
 	if (mblob) {
@@ -448,7 +450,7 @@ start:
 				continue;
 			}
 
-			len = offs += len;
+			len = offs += static_cast<rec_offs>(len);
 		} else {
 			len = offs += field->fixed_len;
 		}

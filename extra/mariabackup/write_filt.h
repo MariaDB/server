@@ -45,7 +45,8 @@ typedef struct {
 
 
 typedef struct {
-	my_bool	(*init)(xb_write_filt_ctxt_t *ctxt, char *dst_name,
+	my_bool	(*init)(ds_ctxt *ds_meta,
+	                xb_write_filt_ctxt_t *ctxt, char *dst_name,
 			xb_fil_cur_t *cursor, CorruptedPages *corrupted_pages);
 	my_bool	(*process)(xb_write_filt_ctxt_t *ctxt, ds_file_t *dstfile);
 	my_bool	(*finalize)(xb_write_filt_ctxt_t *, ds_file_t *dstfile);

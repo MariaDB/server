@@ -435,6 +435,11 @@ DROP PROCEDURE test_styles;
 
 SET NAMES utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
 --source include/ctype_casefolding.inc
+--source include/ctype_casefolding_supplementary.inc
+
+SET NAMES utf8mb4 COLLATE utf8mb4_uca1400_turkish_ai_ci;
+--source include/ctype_casefolding.inc
+--source include/ctype_casefolding_supplementary.inc
 
 --echo #
 --echo # End of 10.10 tests

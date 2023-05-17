@@ -1468,7 +1468,8 @@ rtr_ins_enlarge_mbr(
 
 	/* Check path info is not empty. */
 	ut_ad(!btr_cur->rtr_info->parent_path->empty());
-	ut_ad(btr_cur->rtr_info->thr || !btr_cur->index()->is_committed());
+	ut_ad(btr_cur->rtr_info->thr || !btr_cur->index()->is_committed()
+	      || btr_cur->index()->table->name.is_temporary());
 
 	/* Create a memory heap. */
 	heap = mem_heap_create(1024);

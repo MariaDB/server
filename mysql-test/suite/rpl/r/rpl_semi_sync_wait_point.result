@@ -7,8 +7,6 @@ SET @@global.rpl_semi_sync_master_timeout = 60000;
 SET @@global.rpl_semi_sync_master_wait_no_slave = 1;
 # It's okay to see "Killed" but we should not see "Timeout" in the log.
 call mtr.add_suppression("Killed waiting for reply of binlog");
-call mtr.add_suppression("Run function 'after_commit' in plugin 'rpl_semi_sync_master' failed");
-call mtr.add_suppression("Run function 'after_sync' in plugin 'rpl_semi_sync_master' failed");
 #
 # Test wait point = AFTER_COMMIT
 #

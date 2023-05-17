@@ -195,12 +195,10 @@ FILE *stderror_file=0;
 static uint opt_protocol= 0;
 static char *opt_plugin_dir= 0, *opt_default_auth= 0;
 
-static uint protocol_to_force= MYSQL_PROTOCOL_DEFAULT;
-
 /*
-Dynamic_string wrapper functions. In this file use these
-wrappers, they will terminate the process if there is
-an allocation failure.
+  Dynamic_string wrapper functions. In this file use these
+  wrappers, they will terminate the process if there is
+  an allocation failure.
 */
 static void init_dynamic_string_checked(DYNAMIC_STRING *str, const char *init_str,
 			    size_t init_alloc, size_t alloc_increment);
@@ -880,9 +878,6 @@ get_one_option(const struct my_option *opt,
                const char *filename)
 {
 
-  /* Track when protocol is set via CLI to not force overrides */
-  static my_bool ignore_protocol_override = FALSE;
-
   switch (opt->id) {
   case 'p':
     if (argument == disabled_my_option)
@@ -913,13 +908,6 @@ get_one_option(const struct my_option *opt,
   case 'W':
 #ifdef _WIN32
     opt_protocol= MYSQL_PROTOCOL_PIPE;
-
-    /* Prioritize pipe if explicit via command line */
-    if (filename[0] == '\0')
-    {
-      ignore_protocol_override = TRUE;
-      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
-    }
 #endif
     break;
   case 'N':
@@ -1070,49 +1058,23 @@ get_one_option(const struct my_option *opt,
       sf_leaking_memory= 1; /* no memory leak reports here */
       exit(1);
     }
-
-    /* Specification of protocol via CLI trumps implicit overrides */
-    if (filename[0] == '\0')
-    {
-      ignore_protocol_override = TRUE;
-      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
-    }
-
     break;
   case (int) OPT_DEFAULT_CHARSET:
     if (default_charset == disabled_my_option)
       default_charset= (char *)mysql_universal_client_charset;
     break;
   case 'P':
-    /* If port and socket are set, fall back to default behavior */
-    if (protocol_to_force == SOCKET_PROTOCOL_TO_FORCE)
+    if (filename[0] == '\0')
     {
-      ignore_protocol_override = TRUE;
-      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
-    }
-
-    /* If port is set via CLI, try to force protocol to TCP */
-    if (filename[0] == '\0' &&
-        !ignore_protocol_override &&
-        protocol_to_force == MYSQL_PROTOCOL_DEFAULT)
-    {
-      protocol_to_force = MYSQL_PROTOCOL_TCP;
+      /* Port given on command line, switch protocol to use TCP */
+      opt_protocol= MYSQL_PROTOCOL_TCP;
     }
     break;
   case 'S':
-    /* If port and socket are set, fall back to default behavior */
-    if (protocol_to_force == MYSQL_PROTOCOL_TCP)
+    if (filename[0] == '\0')
     {
-      ignore_protocol_override = TRUE;
-      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
-    }
-
-    /* Prioritize socket if set via command line */
-    if (filename[0] == '\0' &&
-        !ignore_protocol_override &&
-        protocol_to_force == MYSQL_PROTOCOL_DEFAULT)
-    {
-      protocol_to_force = SOCKET_PROTOCOL_TO_FORCE;
+      /* Socket given on command line, switch protocol to use SOCKETSt */
+      opt_protocol= MYSQL_PROTOCOL_SOCKET;
     }
     break;
   }
@@ -1161,19 +1123,9 @@ static int get_options(int *argc, char ***argv)
     return(ho_error);
 
   /*
-     Command line options override configured protocol
-   */
-  if (protocol_to_force > MYSQL_PROTOCOL_DEFAULT
-      && protocol_to_force != opt_protocol)
-  {
-    warn_protocol_override(current_host, &opt_protocol, protocol_to_force);
-  }
-
-
-  /*
-    Dumping under --system=stats with --replace or --insert-ignore is safe and will not
-    result into race condition. Otherwise dump only structure and ignore data by default
-    while dumping.
+    Dumping under --system=stats with --replace or --insert-ignore is
+    safe and will not result into race condition. Otherwise dump only
+    structure and ignore data by default while dumping.
   */
   if (!(opt_system & OPT_SYSTEM_STATS) && !(opt_ignore || opt_replace_into))
   {
@@ -2645,7 +2597,10 @@ static uint dump_events_for_db(char *db)
       /* Get database collation. */
 
       if (fetch_db_collation(db_name_buff, db_cl_name, sizeof (db_cl_name)))
+      {
+        mysql_free_result(event_list_res);
         DBUG_RETURN(1);
+      }
     }
 
     if (switch_character_set_results(mysql, "binary"))
@@ -3498,7 +3453,10 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       if (path)
       {
         if (!(sql_file= open_sql_file_for_table(table, O_WRONLY)))
+        {
+          mysql_free_result(result);
           DBUG_RETURN(0);
+        }
         write_header(sql_file, db);
       }
 
@@ -3887,7 +3845,7 @@ static int dump_triggers_for_table(char *table_name, char *db_name)
   char       name_buff[NAME_LEN*4+3];
   char       query_buff[QUERY_LENGTH];
   uint       old_opt_compatible_mode= opt_compatible_mode;
-  MYSQL_RES  *show_triggers_rs;
+  MYSQL_RES  *show_triggers_rs= NULL;
   MYSQL_ROW  row;
   FILE      *sql_file= md_result_file;
 
@@ -3971,8 +3929,6 @@ static int dump_triggers_for_table(char *table_name, char *db_name)
   }
 
 skip:
-  mysql_free_result(show_triggers_rs);
-
   if (switch_character_set_results(mysql, default_charset))
     goto done;
 
@@ -3987,7 +3943,7 @@ skip:
 done:
   if (path)
     my_fclose(sql_file, MYF(0));
-
+  mysql_free_result(show_triggers_rs);
   DBUG_RETURN(ret);
 }
 
@@ -4108,7 +4064,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
   size_t total_length, init_length;
   my_bool versioned= 0;
 
-  MYSQL_RES     *res;
+  MYSQL_RES     *res= NULL;
   MYSQL_FIELD   *field;
   MYSQL_ROW     row;
   DBUG_ENTER("dump_table");
@@ -4322,6 +4278,8 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
       fprintf(stderr,"%s: Error in field count for table: %s !  Aborting.\n",
               my_progname_short, result_table);
       error= EX_CONSCHECK;
+      if (!quick)
+        mysql_free_result(res);
       goto err;
     }
 
@@ -4640,6 +4598,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
 err:
   dynstr_free(&query_string);
   maybe_exit(error);
+  mysql_free_result(res);
   DBUG_VOID_RETURN;
 } /* dump_table */
 
@@ -4911,7 +4870,11 @@ static int dump_all_users_roles_and_grants()
       "                                                    '@', QUOTE(DEFAULT_ROLE_HOST))) as r,"
       "  CONCAT(QUOTE(mu.USER),'@',QUOTE(mu.HOST)) as u "
       "FROM mysql.user mu LEFT JOIN mysql.default_roles using (USER, HOST)"))
+  {
+    mysql_free_result(tableres);
     return 1;
+  }
+
   while ((row= mysql_fetch_row(tableres)))
   {
     if (dump_grants(row[1]))
@@ -5996,7 +5959,8 @@ static int get_sys_var_lower_case_table_names()
     lower_case_table_names= atoi(row[1]);
     mysql_free_result(table_res);
   }
-
+  if (!row)
+    mysql_free_result(table_res);
   return lower_case_table_names;
 }
 
@@ -6239,7 +6203,11 @@ static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
     }
 
     if (have_mariadb_gtid && get_gtid_pos(gtid_pos, 1))
+    {
+      mysql_free_result(master);
       return 1;
+    }
+
   }
 
   /* SHOW MASTER STATUS reports file and position */
@@ -6361,7 +6329,10 @@ static int do_show_slave_status(MYSQL *mysql_con, int use_gtid,
     {
       char gtid_pos[MAX_GTID_LENGTH];
       if (have_mariadb_gtid && get_gtid_pos(gtid_pos, 0))
+      {
+        mysql_free_result(slave);
         return 1;
+      }
       if (opt_comments)
         fprintf(md_result_file, "\n--\n-- Gtid position to start replication "
                 "from\n--\n\n");
@@ -6557,7 +6528,7 @@ static ulong find_set(TYPELIB *lib, const char *x, size_t length,
 {
   const char *end= x + length;
   ulong found= 0;
-  uint find;
+  int find;
   char buff[255];
 
   *err_pos= 0;                  /* No error yet */

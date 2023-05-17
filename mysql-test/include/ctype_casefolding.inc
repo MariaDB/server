@@ -21,6 +21,12 @@ INSERT INTO case_folding (code) VALUES
 (0x0131) /* LATIN SMALL LETTER DOTLESS I */
 ;
 
+INSERT INTO case_folding (code) VALUES
+(0x2C2F) /* GLAGOLITIC CAPITAL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0x2C5F) /* GLAGOLITIC SMALL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0xA7C0) /* LATIN CAPITAL LETTER OLD POLISH O (Unicode-14.0) */,
+(0xA7C1) /* LATIN SMALL LETTER OLD POLISH O (Unicode-14.0) */;
+
 UPDATE case_folding SET c=CHAR(code USING ucs2);
 SELECT HEX(code), HEX(LOWER(c)), HEX(UPPER(c)), c FROM case_folding;
 DROP TABLE case_folding;
