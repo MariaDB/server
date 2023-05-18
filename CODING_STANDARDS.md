@@ -125,14 +125,52 @@ Consecutive functions should be separated with 2 empty lines in between
 ```cpp
 void my_function_1()
 {
-  <logic>  
+  <logic>
 }
 
 
 void my_function_2()
 {
-  <logic>  
+  <logic>
 }
+```
+
+#### Preprocessor directives
+
+Compiler preprocessor directives should have no indentation to them, even if in the middle of indented code.
+For example:
+
+```c
+  case SSL_TYPE_NONE:                           // SSL is not required
+    if (opt_require_secure_transport)
+    {
+      enum enum_vio_type type= vio_type(vio);
+#ifdef HAVE_OPENSSL
+      return type != VIO_TYPE_SSL &&
+#ifndef _WIN32
+             type != VIO_TYPE_SOCKET;
+#else
+             type != VIO_TYPE_NAMEDPIPE;
+#endif
+#else
+#ifndef _WIN32
+      return type != VIO_TYPE_SOCKET;
+#else
+      return type != VIO_TYPE_NAMEDPIPE;
+#endif
+#endif
+    }
+```
+
+Comments reflecting the original `#if` condition can be appended to `#else` / `#endif` to provide additional clarity. This can be useful for large code blocks between the start and end preprocessor directives or nested preprocessor directives.
+For example:
+
+```c
+#ifndef EMBEDDED_LIBRARY
+...
+#else /* ! EMBEDDED_LIBRARY */
+...
+#endif /* ! EMBEDDED_LIBRARY */
 ```
 
 ### File names
