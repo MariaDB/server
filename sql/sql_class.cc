@@ -7641,29 +7641,27 @@ wait_for_commit::wait_for_prior_commit2(THD *thd, bool force_wait)
   while ((loc_waitee= this->waitee.load(std::memory_order_relaxed)) &&
          (likely(!thd->check_killed(1)) || force_wait))
     mysql_cond_wait(&COND_wait_commit, &LOCK_wait_commit);
-  if (!loc_waitee)
+  if (!loc_waitee
+#ifndef EMBEDDED_LIBRARY
+      /*
+        If a worker has been killed prior to this wait, e.g. in do_gco_wait(),
+        then it should not perform thread cleanup if there are threads which
+        have yet to commit. This is to prevent the cleanup of resources that
+        the prior RGI may need, e.g. its GCO. This is achieved by skipping
+        the unregistration of the waitee, such that each subsequent call to
+        wait_for_prior_commit() will exit early (while maintaining the
+        dependence), thus allowing the final call to
+        thd->wait_for_prior_commit() within finish_event_group() to wait.
+      */
+      || (thd->rgi_slave && (thd->rgi_slave->worker_error &&
+                             !thd->rgi_slave->did_mark_start_commit))
+#endif
+  )
   {
     if (wakeup_error)
       my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
     goto end;
   }
-#ifdef HAVE_REPLICATION
-  {
-    DBUG_ASSERT(thd->rgi_slave && thd->rgi_slave->parallel_entry);
-    rpl_group_info *rgi= thd->rgi_slave;
-    rpl_parallel_entry *e= rgi->parallel_entry;
-    group_commit_orderer *gco= rgi->gco;
-
-    /*
-      If the wait is interrupted by kill but there is a GCO which is still
-      finalizing its commit, we can't yet unregister our waitee, as the order
-      for garbage collection of GCO's needs to still be maintained.
-    */
-    if (gco->prev_gco &&
-        (e->last_committed_sub_id <= gco->prev_gco->last_sub_id))
-      goto end_kill_message;
-  }
-#endif
   /*
     Wait was interrupted by kill. We need to unregister our wait and give the
     error. But if a wakeup is already in progress, then we must ignore the
@@ -7687,10 +7685,6 @@ wait_for_commit::wait_for_prior_commit2(THD *thd, bool force_wait)
   remove_from_list(&loc_waitee->subsequent_commits_list);
   mysql_mutex_unlock(&loc_waitee->LOCK_wait_commit);
   this->waitee.store(NULL, std::memory_order_relaxed);
-
-#ifdef HAVE_REPLICATION
-end_kill_message:
-#endif
   wakeup_error= thd->killed_errno();
   if (!wakeup_error)
     wakeup_error= ER_QUERY_INTERRUPTED;
