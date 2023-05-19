@@ -704,7 +704,7 @@ static monitor_info_t	innodb_counter_info[] =
 	{"trx_rseg_history_len", "transaction",
 	 "Length of the TRX_RSEG_HISTORY list",
 	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT),
+	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT | MONITOR_DEFAULT_ON),
 	 MONITOR_DEFAULT_START, MONITOR_RSEG_HISTORY_LEN},
 
 	{"trx_undo_slots_used", "transaction", "Number of undo slots used",
