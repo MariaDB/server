@@ -6150,6 +6150,7 @@ static Sys_var_ulong Sys_histogram_size(
        "If set to 0, no histograms are created by ANALYZE.",
        SESSION_VAR(histogram_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 255), DEFAULT(254), BLOCK_SIZE(1));
+//       VALID_RANGE(0, 254), DEFAULT(252), BLOCK_SIZE(1));
 
 extern const char *histogram_types[];
 static Sys_var_enum Sys_histogram_type(

@@ -119,6 +119,7 @@
 #include "sql_select.h"
 #include "sql_statistics.h"
 #include "uniques.h"
+#include "my_bitmap.h"
 #include "my_json_writer.h"
 
 #ifndef EXTRA_DEBUG
@@ -3182,20 +3183,26 @@ bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
 */
 
 static
-double records_in_column_ranges(PARAM *param, uint idx, 
-                                SEL_ARG *tree)
+double records_in_column_ranges(PARAM *param, uint idx, SEL_ARG *tree,
+                                Json_writer_object *wo )
 {
   THD *thd= param->thd;
   SEL_ARG_RANGE_SEQ seq;
   KEY_MULTI_RANGE range;
   range_seq_t seq_it;
-  double rows;
   Field *field;
+  TABLE *table;
   uint flags= 0;
-  double total_rows= 0;
+  double total_rows;
   RANGE_SEQ_IF seq_if = {NULL, sel_arg_range_seq_init, 
                          sel_arg_range_seq_next, 0, 0};
-  
+  MY_BITMAP bucket_map, new_bucket_map;
+  my_bitmap_map *tmp1= nullptr, *tmp2= nullptr;
+  double table_records;
+  double column_nulls;
+  double column_non_nulls;
+  bool nulls_included;
+
   /* Handle cases when we don't have a valid non-empty list of range */
   if (!tree)
     return DBL_MAX;
@@ -3203,6 +3210,14 @@ double records_in_column_ranges(PARAM *param, uint idx,
     return (0L);
 
   field= tree->field;
+  DBUG_ASSERT(field);
+  table= field->table;
+  DBUG_ASSERT(table);
+
+  table_records= (double)table->stat_records();
+  column_nulls= table_records * field->read_stats->get_nulls_ratio();
+  column_non_nulls= table_records - column_nulls;
+  nulls_included= field->null_ptr;
 
   seq.keyno= idx;
   seq.real_keyno= MAX_KEY;
@@ -3212,39 +3227,81 @@ double records_in_column_ranges(PARAM *param, uint idx,
 
   seq_it= seq_if.init((void *) &seq, 0, flags);
 
-  Json_writer_array range_trace(thd, "ranges");
-
-  while (!seq_if.next(seq_it, &range))
+  if((total_rows= histogram_test( field, thd, wo )) > 0)
   {
-    key_range *min_endp, *max_endp;
-    min_endp= range.start_key.length? &range.start_key : NULL;
-    max_endp= range.end_key.length? &range.end_key : NULL;
-    int range_flag= range.range_flag;
-
-    if (!range.start_key.length)
-      range_flag |= NO_MIN_RANGE;
-    if (!range.end_key.length)
-      range_flag |= NO_MAX_RANGE;
-    if (range.start_key.flag == HA_READ_AFTER_KEY)
-      range_flag |= NEAR_MIN;
-    if (range.start_key.flag == HA_READ_BEFORE_KEY)
-      range_flag |= NEAR_MAX;
-
     if (unlikely(thd->trace_started()))
-    {
-      StringBuffer<128> range_info(system_charset_info);
-      print_range_for_non_indexed_field(&range_info, field, &range);
-      range_trace.add(range_info.c_ptr_safe(), range_info.length());
-    }
+      wo->add("avg_selectivity", total_rows/table_records);
+    return total_rows;
+  }
 
-    rows= get_column_range_cardinality(field, min_endp, max_endp, range_flag);
-    if (DBL_MAX == rows)
+  total_rows= 0;
+  if(my_bitmap_init(&bucket_map, tmp1,
+        field->read_stats->histogram.get_size(), FALSE))
+    return DBL_MAX;
+
+  if(my_bitmap_init(&new_bucket_map, tmp2,
+        field->read_stats->histogram.get_size(), FALSE))
+  {
+    bitmap_free( &bucket_map );
+    return DBL_MAX;
+  }
+
+  {
+    Json_writer_array range_trace(thd, "ranges");
+    key_range *min_endp, *max_endp;
+
+    while (!seq_if.next(seq_it, &range))
     {
-      total_rows= DBL_MAX;
-      break;
+      min_endp= range.start_key.length? &range.start_key : NULL;
+      max_endp= range.end_key.length? &range.end_key : NULL;
+      int range_flag= range.range_flag;
+
+      if (!range.start_key.length)
+        range_flag |= NO_MIN_RANGE;
+      if (!range.end_key.length)
+        range_flag |= NO_MAX_RANGE;
+      if (range.start_key.flag == HA_READ_AFTER_KEY)
+        range_flag |= NEAR_MIN;
+      if (range.start_key.flag == HA_READ_BEFORE_KEY)
+        range_flag |= NEAR_MAX;
+
+      if (unlikely(thd->trace_started()))
+      {
+        StringBuffer<128> range_info(system_charset_info);
+        print_range_for_non_indexed_field(&range_info, field, &range);
+        range_trace.add(range_info.c_ptr_safe(), range_info.length());
+      }
+
+      nulls_included= nulls_included && min_endp && min_endp->key[0] &&
+                     !(range_flag & NEAR_MIN);
+
+      // use histogram
+      get_column_range_bitmap(&new_bucket_map, field,
+                                  min_endp, max_endp, range_flag);
+      bitmap_union(&bucket_map, &new_bucket_map);
     }
-    total_rows += rows;
-  }    
+  }
+
+  if (nulls_included)
+  {
+    if (column_non_nulls < 1)
+    {
+      bitmap_free( &bucket_map );
+      bitmap_free( &new_bucket_map );
+      return column_nulls;
+    }
+    else
+      total_rows+= column_nulls;
+  }
+
+  total_rows+= 
+    column_non_nulls*get_selectivity_from_bitmap(field, &bucket_map);
+
+  bitmap_free( &bucket_map );
+  bitmap_free( &new_bucket_map );
+
+  if (unlikely(thd->trace_started()))
+    wo->add("selectivity_from_histogram", total_rows/table_records);
   return total_rows;
 } 
 
@@ -3520,14 +3577,11 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
         {
           enum_check_fields save_count_cuted_fields= thd->count_cuted_fields;
           thd->count_cuted_fields= CHECK_FIELD_IGNORE;
-          rows= records_in_column_ranges(&param, idx, key);
+          rows= records_in_column_ranges(&param, idx, key, 
+                                         &selectivity_for_column);
           thd->count_cuted_fields= save_count_cuted_fields;
           if (rows != DBL_MAX)
-          {
             key->field->cond_selectivity= rows/table_records;
-            selectivity_for_column.add("selectivity_from_histogram",
-                                       key->field->cond_selectivity);
-          }
         }
       }
     }

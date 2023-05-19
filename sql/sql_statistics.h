@@ -16,6 +16,11 @@
 #ifndef SQL_STATISTICS_H
 #define SQL_STATISTICS_H
 
+#include "my_json_writer.h"
+
+// a number to use in floating point comparasons
+#define FLOAT_TRUNCATION_OFFSET 0.00001
+#define DOUBLE_TRUNCATION_OFFSET 0.000001
 /*
   For COMPLEMENTARY_FOR_QUERIES and PREFERABLY_FOR_QUERIES they are
   similar to the COMPLEMENTARY and PREFERABLY respectively except that
@@ -133,10 +138,13 @@ void set_statistics_for_table(THD *thd, TABLE *table);
 
 double get_column_avg_frequency(Field * field);
 
-double get_column_range_cardinality(Field *field,
-                                    key_range *min_endp,
-                                    key_range *max_endp,
-                                    uint range_flag);
+double histogram_test( Field *field, THD *thd, Json_writer_object *wo );
+void get_column_range_bitmap(MY_BITMAP *dest,
+                             Field *field,
+                             key_range *min_endp,
+                             key_range *max_endp,
+                             uint range_flag);
+double get_selectivity_from_bitmap( Field *field, MY_BITMAP *bucket_map );
 bool is_stat_table(const LEX_CSTRING *db, LEX_CSTRING *table);
 bool is_eits_usable(Field* field);
 
@@ -184,28 +192,30 @@ private:
     return 0;
   }
 
-  /* Find the bucket which value 'pos' falls into. */
+  /*
+   * Find the bucket which value 'pos' falls into.
+   * return the bucket number [0, getsize())
+   */
+
   uint find_bucket(double pos, bool first)
   {
-    uint val= (uint) (pos * prec_factor());
-    int lp= 0;
-    int rp= get_width() - 1;
-    int d= get_width() / 2;
-    uint i= lp + d;
-    for ( ; d;  d= (rp - lp) / 2, i= lp + d)
+    uint val= (uint) (pos * prec_factor());     // scale to 2^8||2^16
+    int lp= 0;                                  // left bracket
+    int rp= get_width() - 1;                    // right backet
+    int d= get_width() / 2;                     // spacing
+    uint i= lp + d;                             // middle
+    // bisect search
+    for ( ; d;  d= (rp - lp) / 2, i= lp + d)    // while left<right
     {
-      if (val == get_value(i))
+      if (val == get_value(i))                  // found it
 	break; 
-      if (val < get_value(i))
+      if (val < get_value(i))                   // its to the left
         rp= i;
-      else if (val > get_value(i + 1))
+      else if (val > get_value(i + 1))          // its to the right
         lp= i + 1;
       else
         break;
     }
-
-    if (val > get_value(i) && i < (get_width() - 1))
-      i++;
 
     if (val == get_value(i))
     {
@@ -274,6 +284,16 @@ public:
     }
   }
 
+  void selectivity_fill_bucketmap(MY_BITMAP *dest,
+      double min_pos, double max_pos)
+  {
+    uint min= find_bucket(min_pos, TRUE);
+    uint max= find_bucket(max_pos, FALSE);
+    // fill in the dest bitmap
+    for( uint i= min; i <= max; i++ )
+      bitmap_set_bit(dest, i);
+  }
+
   double range_selectivity(double min_pos, double max_pos)
   {
     double sel;
@@ -283,7 +303,7 @@ public:
     sel= bucket_sel * (max - min + 1);
     return sel;
   } 
-  
+
   /*
     Estimate selectivity of "col=const" using a histogram
   */
@@ -425,10 +445,14 @@ public:
     avg_frequency= (ulonglong) (val * Scale_factor_avg_frequency);
   }
 
-  bool min_max_values_are_provided()
+  bool min_value_provided()
   {
-    return !is_null(COLUMN_STAT_MIN_VALUE) && 
-      !is_null(COLUMN_STAT_MAX_VALUE);
+    return !is_null(COLUMN_STAT_MIN_VALUE);
+  }
+
+  bool max_value_provided()
+  {
+    return !is_null(COLUMN_STAT_MAX_VALUE);
   }
   /*
     This function checks whether the values for the fields of the statistical

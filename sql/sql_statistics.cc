@@ -1579,7 +1579,7 @@ public:
                            column->pos_in_interval(min_value, max_value)); 
       curr_bucket++;
       while (curr_bucket != hist_width &&
-             count > bucket_capacity * (curr_bucket + 1))
+             count > (double)records * ((double)curr_bucket/(double)hist_width))
       {
         histogram->set_prev_value(curr_bucket);
         curr_bucket++;
@@ -3700,8 +3700,52 @@ double get_column_avg_frequency(Field * field)
 
 /**
   @brief
+  Handle the common non-histogram using conditions
+
+  @param
+  field       Where the histogram lies.
+
+  @details
+  Handle conditions like
+  1) no histogram
+  2) histogram has no records
+  3) histogram has only unique values.
+  4) histogram has been disabled
+*/
+double histogram_test( Field *field, THD *thd, Json_writer_object *wo )
+{
+  DBUG_ASSERT(field);
+
+  TABLE *table= field->table;
+  DBUG_ASSERT(table);
+
+  Column_statistics *col_stats= field->read_stats;
+  DBUG_ASSERT(col_stats);
+  Histogram *hist= &col_stats->histogram;
+
+  double avg_frequency= col_stats->get_avg_frequency();
+  if (avg_frequency < DOUBLE_TRUNCATION_OFFSET)
+    return (double)table->stat_records();
+  else
+  {
+    if (!hist->is_usable(thd))
+    {
+      if (col_stats)
+        return col_stats->get_avg_frequency();
+      return 1;
+    }
+  }
+  return -1;    // look into the histogram
+}
+
+
+/**
+  @brief
   Estimate the number of rows in a column range using data from stat tables 
 
+  @param
+  dest        A preallocated bitmap to fill in representing bucket numbers in
+              the histogram
   @param
   field       The column whose range cardinality is to be estimated
   @param
@@ -3712,8 +3756,80 @@ double get_column_avg_frequency(Field * field)
   range_flag  The range flags
 
   @details
+  The function fills in a bitmap of the buckets for the field using the
+  statistical data from the table column_stats.  This should be a contiguous
+  range of bits, depending on the range supplied.
+*/
+
+void get_column_range_bitmap(MY_BITMAP *dest,
+                             Field *field,
+                             key_range *min_endp,
+                             key_range *max_endp,
+                             uint range_flag)
+{
+  DBUG_ASSERT(dest);
+  DBUG_ASSERT(field);
+
+  TABLE *table= field->table;
+  DBUG_ASSERT(table);
+
+  Column_statistics *col_stats= field->read_stats;
+  DBUG_ASSERT(col_stats);
+  Histogram *hist= &col_stats->histogram;
+
+  /*
+    Use statistics for a table only when we have actually read
+    the statistics from the stat tables. For example due to
+    chances of getting a deadlock we disable reading statistics for
+    a table.
+  */
+
+  bitmap_set_above (dest, 0, 0);
+  if (!col_stats || !table->stats_is_read || !hist->is_usable(table->in_use))
+  {
+    bitmap_invert(dest);
+    return;
+  }
+
+  double min_mp_pos= 0.0, max_mp_pos= 1.0;
+
+  if (col_stats->min_value_provided())
+  {
+    if (min_endp && !(field->null_ptr && min_endp->key[0]))
+    {
+      store_key_image_to_rec(field, (uchar *) min_endp->key,
+                             field->key_length());
+      min_mp_pos= field->pos_in_interval(col_stats->min_value,
+                                         col_stats->max_value);
+    }
+  }
+
+  if (col_stats->max_value_provided())
+  {
+    if (max_endp)
+    {
+      store_key_image_to_rec(field, (uchar *) max_endp->key,
+                             field->key_length());
+      max_mp_pos= field->pos_in_interval(col_stats->min_value,
+                                         col_stats->max_value);
+    }
+  }
+
+  hist->selectivity_fill_bucketmap(dest, min_mp_pos, max_mp_pos);
+}
+
+/**
+  @brief
+  Estimate the number of rows in a column range.
+
+  @param
+  field       The column whose range cardinality is to be estimated
+  @param
+  bucket_map  A bitmap of the used buckets.
+
+  @details
   The function gets an estimate of the number of rows in a column range
-  using the statistical data from the table column_stats.
+  using a bitmap of the used histogram buckets in the table column_stats.
 
   @retval
   - The required estimate of the rows in the column range
@@ -3722,119 +3838,18 @@ double get_column_avg_frequency(Field * field)
 
 */
 
-double get_column_range_cardinality(Field *field,
-                                    key_range *min_endp,
-                                    key_range *max_endp,
-                                    uint range_flag)
+
+double get_selectivity_from_bitmap( Field *field, MY_BITMAP *bucket_map )
 {
-  double res;
-  TABLE *table= field->table;
-  Column_statistics *col_stats= field->read_stats;
-  double tab_records= (double)table->stat_records();
+  double bucket_sel= 1.0/field->read_stats->histogram.get_width();
+  uint count= 0, size= field->read_stats->histogram.get_size();
 
-  if (!col_stats)
-    return tab_records;
-  /*
-    Use statistics for a table only when we have actually read
-    the statistics from the stat tables. For example due to
-    chances of getting a deadlock we disable reading statistics for
-    a table.
-  */
+  for (uint i= 0; i < size; i++)
+    if (bitmap_is_set(bucket_map, i))
+      count++;
 
-  if (!table->stats_is_read)
-    return tab_records;
-
-  THD *thd= table->in_use;
-  double col_nulls= tab_records * col_stats->get_nulls_ratio();
-
-  double col_non_nulls= tab_records - col_nulls;
-
-  bool nulls_incl= field->null_ptr && min_endp && min_endp->key[0] &&
-                   !(range_flag & NEAR_MIN);
-
-  if (col_non_nulls < 1)
-  {
-    if (nulls_incl)
-      res= col_nulls;
-    else
-      res= 0;
-  }
-  else if (min_endp && max_endp && min_endp->length == max_endp->length &&
-           !memcmp(min_endp->key, max_endp->key, min_endp->length))
-  { 
-    if (nulls_incl)
-    {
-      /* This is null single point range */
-      res= col_nulls;
-    }
-    else
-    {
-      double avg_frequency= col_stats->get_avg_frequency();
-      res= avg_frequency;   
-      if (avg_frequency > 1.0 + 0.000001 && 
-          col_stats->min_max_values_are_provided())
-      {
-        Histogram *hist= &col_stats->histogram;
-        if (hist->is_usable(thd))
-        {
-          store_key_image_to_rec(field, (uchar *) min_endp->key,
-                                 field->key_length());
-          double pos= field->pos_in_interval(col_stats->min_value,
-                                             col_stats->max_value);
-          res= col_non_nulls * 
-	       hist->point_selectivity(pos,
-                                       avg_frequency / col_non_nulls);
-        }
-      }
-      else if (avg_frequency == 0.0)
-      {
-        /* This actually means there is no statistics data */
-        res= tab_records;
-      }
-    }
-  }  
-  else 
-  {
-    if (col_stats->min_max_values_are_provided())
-    {
-      double sel, min_mp_pos, max_mp_pos;
-
-      if (min_endp && !(field->null_ptr && min_endp->key[0]))
-      {
-        store_key_image_to_rec(field, (uchar *) min_endp->key,
-                               field->key_length());
-        min_mp_pos= field->pos_in_interval(col_stats->min_value,
-                                           col_stats->max_value);
-      }
-      else
-        min_mp_pos= 0.0;
-      if (max_endp)
-      {
-        store_key_image_to_rec(field, (uchar *) max_endp->key,
-                               field->key_length());
-        max_mp_pos= field->pos_in_interval(col_stats->min_value,
-                                           col_stats->max_value);
-      }
-      else
-        max_mp_pos= 1.0;
-
-      Histogram *hist= &col_stats->histogram;
-      if (hist->is_usable(thd))
-        sel= hist->range_selectivity(min_mp_pos, max_mp_pos);
-      else
-        sel= (max_mp_pos - min_mp_pos);
-      res= col_non_nulls * sel;
-      set_if_bigger(res, col_stats->get_avg_frequency());
-    }
-    else
-      res= col_non_nulls;
-    if (nulls_incl)
-      res+= col_nulls;
-  }
-  return res;
+  return bucket_sel * count;
 }
-
-
 
 /*
   Estimate selectivity of "col=const" using a histogram
