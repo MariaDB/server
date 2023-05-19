@@ -741,6 +741,7 @@ static int unlock_external(THD *thd, TABLE **table,uint count)
     if ((*table)->current_lock != F_UNLCK)
     {
       (*table)->current_lock = F_UNLCK;
+      (*table)->file->ha_index_or_rnd_end(); // OLEGS: check error
       if (unlikely((error=(*table)->file->ha_external_unlock(thd))))
       {
         error_code= error;

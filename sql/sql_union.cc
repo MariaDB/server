@@ -68,7 +68,8 @@ void select_unit::change_select()
   DBUG_ASSERT(curr_sel != current_select_number);
   curr_sel= current_select_number;
   /* New SELECT processing starts */
-  DBUG_ASSERT(table->file->inited == 0);
+  //DBUG_ASSERT(table->file->inited == 0);
+  table->file->ha_index_or_rnd_end();
   step= thd->lex->current_select->get_linkage();
   switch (step)
   {

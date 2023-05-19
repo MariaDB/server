@@ -15137,7 +15137,8 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
 
     if (tab->cache && tab->cache->get_join_alg() == JOIN_CACHE::BNLH_JOIN_ALG)
       tab->type= JT_HASH;
-      
+    
+    int error= 0;
     switch (tab->type) {
     case JT_SYSTEM:				// Only happens with left join 
     case JT_CONST:				// Only happens with left join
@@ -22991,6 +22992,9 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
   {
     if (unlikely(join_tab->need_to_build_rowid_filter))
     {
+      handler::init_stat save_inited = join_tab->table->file->inited;
+      DBUG_ASSERT(save_inited == handler::init_stat::NONE || 
+                  save_inited == handler::init_stat::INDEX);
       join_tab->build_range_rowid_filter();
       /*
         We have to check join_tab->rowid_filter again as the above
@@ -22998,6 +23002,14 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
       */
       if (join_tab->rowid_filter && join_tab->rowid_filter->is_empty())
         rc= NESTED_LOOP_NO_MORE_ROWS;
+      //if (inited_before == handler::init_stat::RND)
+      //{
+      //  join_tab->table->file->ha_rnd_init(TRUE /*OLEGS: FALSE may be needed*/);
+      //}
+      if (save_inited == handler::init_stat::INDEX)
+      {
+        join_tab->table->file->ha_index_init(join_tab->ref.key, join_tab->sorted);
+      }
     }
     else if (join_tab->rowid_filter->is_empty())
       rc= NESTED_LOOP_NO_MORE_ROWS;
@@ -23806,7 +23818,7 @@ join_read_always_key(JOIN_TAB *tab)
   TABLE *table= tab->table;
 
   /* Initialize the index first */
-  if (!table->file->inited)
+  /*if (!table->file->inited)
   {
     if (unlikely((error= table->file->ha_index_init(tab->ref.key,
                                                     tab->sorted))))
@@ -23814,7 +23826,7 @@ join_read_always_key(JOIN_TAB *tab)
       (void) report_error(table, error);
       return 1;
     }
-  }
+  }*/
 
   if (unlikely(cp_buffer_from_ref(tab->join->thd, table, &tab->ref)))
     return -1;
@@ -23849,6 +23861,7 @@ join_read_last_key(JOIN_TAB *tab)
   int error;
   TABLE *table= tab->table;
 
+  // OLEGS: can be replaced?
   if (!table->file->inited &&
       unlikely((error= table->file->ha_index_init(tab->ref.key, tab->sorted))))
   {
@@ -26282,7 +26295,6 @@ check_reverse_order:
       tab->read_record.unlock_row= join_const_unlock_row;
     else
       tab->read_record.unlock_row= rr_unlock_row;
-
   } // QEP has been modified
 
   /*
@@ -31646,11 +31658,11 @@ void JOIN_TAB::partial_cleanup()
 
   if (table->is_created())
   {
-    table->file->ha_index_or_rnd_end();
+    /*table->file->ha_index_or_rnd_end();
     DBUG_PRINT("info", ("close index: %s.%s  alias: %s",
                table->s->db.str,
                table->s->table_name.str,
-               table->alias.c_ptr()));
+               table->alias.c_ptr()));*/
     if (aggr)
     {
       int tmp= 0;
@@ -31949,6 +31961,16 @@ void JOIN::init_join_cache_and_keyread()
     case JT_REF:
       if (table->covering_keys.is_set(tab->ref.key) && !table->no_keyread)
         table->file->ha_start_keyread(tab->ref.key);
+      /* Initialize the index first */
+      //if (!table->file->inited)
+      //{
+        if (unlikely((
+                error= table->file->ha_index_init(tab->ref.key, tab->sorted))))
+        {
+          report_error(table, error); // OLEGS: how to check errors here?
+          //return TRUE;
+        }
+      //}
       break;
     case JT_HASH:
     case JT_ALL:

@@ -1334,6 +1334,7 @@ int multi_delete::do_table_deletes(TABLE *table, SORT_INFO *sort_info,
   ha_rows last_deleted= deleted;
   DBUG_ENTER("do_deletes_for_table");
 
+  table->file->ha_index_or_rnd_end(); // OLEGS: check result
   if (unlikely(init_read_record(&info, thd, table, NULL, sort_info, 0, 1,
                                 FALSE)))
     DBUG_RETURN(1);

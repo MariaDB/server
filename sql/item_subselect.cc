@@ -4148,6 +4148,7 @@ int subselect_single_select_engine::exec()
               tab->read_record.thd= join->thd;
               tab->read_record.ref_length= tab->table->file->ref_length;
               tab->read_record.unlock_row= rr_unlock_row;
+              //tab->read_record.table->file->ha_index_or_rnd_end();
               *(last_changed_tab++)= tab;
               break;
             }

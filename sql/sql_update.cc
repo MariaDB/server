@@ -2489,6 +2489,7 @@ int multi_update::do_updates()
     org_updated= updated;
     tmp_table= tmp_tables[cur_table->shared];
     tmp_table->file->extra(HA_EXTRA_CACHE);	// Change to read cache
+    table->file->ha_index_or_rnd_end(); // OLEGS: check result
     if (unlikely((local_error= table->file->ha_rnd_init(0))))
     {
       err_table= table;

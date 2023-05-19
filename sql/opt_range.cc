@@ -15783,6 +15783,7 @@ int QUICK_GROUP_MIN_MAX_SELECT::reset(void)
   seen_first_key= FALSE;
   head->file->ha_start_keyread(index); /* We need only the key attributes */
 
+  file->ha_index_or_rnd_end(); // OLEGS: check result
   if ((result= file->ha_index_init(index,1)))
   {
     head->file->print_error(result, MYF(0));
