@@ -3429,11 +3429,11 @@ WHERE t1.c1 NOT IN (SELECT t2.c1 FROM t2, t1 AS a1
 WHERE t2.i1 = t1.pk AND t2.i1 BETWEEN 3 AND 5);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	60	100.00	Using where
-2	DEPENDENT SUBQUERY	t2	ref|filter	c1,i1	c1|i1	3|5	func	38 (25%)	25.00	Using where; Full scan on NULL key; Using rowid filter
-2	DEPENDENT SUBQUERY	a1	ALL	NULL	NULL	NULL	NULL	60	100.00	Using join buffer (flat, BNL join)
+2	MATERIALIZED	t2	ALL	c1,i1	NULL	NULL	NULL	192	25.00	Using where
+2	MATERIALIZED	a1	ALL	NULL	NULL	NULL	NULL	60	100.00	Using join buffer (flat, BNL join)
 Warnings:
 Note	1276	Field or reference 'test.t1.pk' of SELECT #2 was resolved in SELECT #1
-Note	1003	/* select#1 */ select `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`c1` AS `c1` from `test`.`t1` where !<expr_cache><`test`.`t1`.`c1`,`test`.`t1`.`pk`>(<in_optimizer>(`test`.`t1`.`c1`,<exists>(/* select#2 */ select `test`.`t2`.`c1` from `test`.`t2` join `test`.`t1` `a1` where `test`.`t2`.`i1` = `test`.`t1`.`pk` and `test`.`t2`.`i1` between 3 and 5 and trigcond(<cache>(`test`.`t1`.`c1`) = `test`.`t2`.`c1`))))
+Note	1003	/* select#1 */ select `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`c1` AS `c1` from `test`.`t1` where !<expr_cache><`test`.`t1`.`c1`,`test`.`t1`.`pk`>(<in_optimizer>((`test`.`t1`.`c1`,`test`.`t1`.`pk`),(`test`.`t1`.`c1`,`test`.`t1`.`pk`) in ( <materialize> (/* select#2 */ select `test`.`t2`.`c1`,`test`.`t2`.`i1` from `test`.`t2` join `test`.`t1` `a1` where `test`.`t2`.`i1` is not null and `test`.`t2`.`i1` between 3 and 5 ), <primary_index_lookup>(`test`.`t1`.`c1` in <temporary table> on distinct_key where `test`.`t1`.`c1` = `<subquery2>`.`c1` and `test`.`t1`.`pk` = `<subquery2>`.`i1`))))
 SELECT * FROM t1
 WHERE t1.c1 NOT IN (SELECT t2.c1 FROM t2, t1 AS a1
 WHERE t2.i1 = t1.pk AND t2.i1 BETWEEN 3 AND 5);
