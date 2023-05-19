@@ -757,10 +757,7 @@ public:
            Item_subselect::walk(processor, walk_subquery, arg);
   }
 
-  bool exists2in_processor(void *opt_arg __attribute__((unused))) override
-  {
-    return 0;
-  };
+  bool exists2in_processor(void *opt_arg) override;
 
   bool pushdown_cond_for_in_subquery(THD *thd, Item *cond);
 
@@ -804,6 +801,7 @@ public:
   bool is_maxmin_applicable(JOIN *join);
   bool transform_into_max_min(JOIN *join);
   void no_rows_in_result();
+  bool exists2in_processor(void *arg) override { return FALSE; }
 };
 
 

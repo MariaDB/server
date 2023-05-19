@@ -3099,6 +3099,132 @@ alloc_err:
   return TRUE;
 }
 
+/* Checks whether item tree intersects with the free list */
+static bool intersects_free_list(Item *item, THD *thd)
+{
+  for (const Item *to_find= thd->free_list; to_find; to_find= to_find->next)
+    if (item->walk(&Item::find_item_processor, 1, (void *) to_find))
+      return true;
+  return false;
+}
+
+/* De-correlate where conditions in an IN subquery */
+bool Item_in_subselect::exists2in_processor(void *opt_arg)
+{
+  THD *thd= (THD *)opt_arg;
+  SELECT_LEX *first_select= unit->first_select();
+  JOIN *join= first_select->join;
+  bool will_be_correlated;
+  Dynamic_array<EQ_FIELD_OUTER> eqs(PSI_INSTRUMENT_MEM, 5, 5);
+  List<Item> outer;
+  Query_arena *arena= NULL, backup;
+  int res= FALSE;
+  DBUG_ENTER("Item_in_subselect::exists2in_processor");
+
+  if (!optimizer_flag(thd, OPTIMIZER_SWITCH_EXISTS_TO_IN) ||
+      /* proceed only if I'm a toplevel IN or a toplevel NOT IN */
+      !(is_top_level_item() ||
+        (upper_not && upper_not->is_top_level_item())) ||
+      first_select->is_part_of_union() ||  /* skip if part of a union */
+      first_select->group_list.elements || /* skip if with group by */
+      first_select->with_sum_func ||       /* skip if aggregation */
+      join->having ||                      /* skip if with having */
+      !join->conds ||                      /* skip if no conds */
+      /* skip if left expr is a single nonscalar subselect */
+      (left_expr->type() == Item::SUBSELECT_ITEM &&
+       !left_expr->type_handler()->is_scalar_type()))
+    DBUG_RETURN(FALSE);
+  /* iterate over conditions, and check whether they can be moved out. */
+  if (find_inner_outer_equalities(&join->conds, eqs))
+    DBUG_RETURN(FALSE);
+  /* If we are in the execution of a prepared statement, check for
+  intersection with the free list to avoid segfault. Note that the
+  check for prepared statement execution is necessary, otherwise it
+  will likely always find intersection thus abort the
+  transformation.
+
+  fixme: this only works when HAVE_PSI_STATEMENT_INTERFACE is
+  defined. It causes CI's like amd64-debian-10-debug-embedded to
+  fail. Are there other ways to find out we are in the execution of a
+  prepared statement? */
+  if (thd->m_statement_state.m_parent_prepared_stmt)
+  {
+    for (uint i= 0; i < (uint) eqs.elements(); i++)
+    {
+      if (intersects_free_list(*eqs.at(i).eq_ref, thd))
+        DBUG_RETURN(FALSE);
+    }
+  }
+  /* Determines whether the result will be correlated */
+  {
+    List<Item> unused;
+    Collect_deps_prm prm= {&unused,          // parameters
+      unit->first_select()->nest_level_base, // nest_level_base
+      0,                                     // count
+      unit->first_select()->nest_level,      // nest_level
+      FALSE                                  // collect
+    };
+    walk(&Item::collect_outer_ref_processor, TRUE, &prm);
+    DBUG_ASSERT(prm.count > 0);
+    DBUG_ASSERT(prm.count >= (uint)eqs.elements());
+    will_be_correlated= prm.count > (uint)eqs.elements();
+  }
+  /* Back up the free list */
+  arena= thd->activate_stmt_arena_if_needed(&backup);
+  /* Construct the items for left_expr */
+  if (left_expr->type() == Item::ROW_ITEM)
+    for (uint i= 0; i < left_expr->cols(); i++)
+      outer.push_back(left_expr->element_index(i));
+  else
+    outer.push_back(left_expr);
+  const uint offset= first_select->item_list.elements;
+  /* Move items to outer and select item list */
+  for (uint i= 0; i < (uint)eqs.elements(); i++)
+  {
+    Item **eq_ref= eqs.at(i).eq_ref;
+    Item_ident *local_field= eqs.at(i).local_field;
+    Item *outer_exp= eqs.at(i).outer_exp;
+    first_select->item_list.push_back(local_field, thd->mem_root);
+    first_select->ref_pointer_array[offset + i]= (Item *)local_field;
+    outer.push_back(outer_exp);
+    *eq_ref= new (thd->mem_root) Item_int(thd, 1);
+    if((*eq_ref)->fix_fields(thd, (Item **)eq_ref))
+    {
+      res= TRUE;
+      goto out;
+    }
+  }
+  /* Update the left_expr */
+  left_expr= new (thd->mem_root) Item_row(thd, outer);
+  if (left_expr->fix_fields(thd, &left_expr))
+  {
+    res= TRUE;
+    goto out;
+  }
+  left_expr_orig= left_expr;
+  is_correlated= will_be_correlated;
+  /* Update any Item_in_optimizer wrapper if exists */
+  if (optimizer)
+  {
+    optimizer->reset_cache();
+    if (optimizer->fix_left(thd))
+    {
+      res= TRUE;
+      goto out;
+    }
+  }
+  {
+    OPT_TRACE_TRANSFORM(thd, trace_wrapper, trace_transform,
+                        get_select_lex()->select_number, "IN (SELECT)",
+                        "decorrelation");
+  }
+out:
+  /* Restores the free list */
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
+  DBUG_RETURN(res);
+}
+
 /**
   Converts EXISTS subquery to IN subquery if it is possible and has sense
 
