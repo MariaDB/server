@@ -369,19 +369,6 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 	undo = NULL;
 }
 
-MY_ATTRIBUTE((nonnull, warn_unused_result))
-/** Remove undo log header from the history list.
-@param[in,out]  rseg    rollback segment header page
-@param[in]      log     undo log segment header page
-@param[in]      offset  byte offset in the undo log segment header page
-@param[in,out]  mtr     mini-transaction */
-static dberr_t trx_purge_remove_log_hdr(buf_block_t *rseg, buf_block_t* log,
-                                        uint16_t offset, mtr_t *mtr)
-{
-  return flst_remove(rseg, TRX_RSEG + TRX_RSEG_HISTORY, log,
-                     uint16_t(offset + TRX_UNDO_HISTORY_NODE), mtr);
-}
-
 /** Free an undo log segment.
 @param block     rollback segment header page
 @param mtr       mini-transaction */
@@ -474,18 +461,16 @@ loop:
                        TRX_UNDO_HISTORY_NODE);
   prev_hdr_addr.boffset= static_cast<uint16_t>(prev_hdr_addr.boffset -
                                                TRX_UNDO_HISTORY_NODE);
-  err= trx_purge_remove_log_hdr(rseg_hdr, b, hdr_addr.boffset, &mtr);
+
+  err= flst_remove(rseg_hdr, TRX_RSEG + TRX_RSEG_HISTORY, b,
+                   uint16_t(hdr_addr.boffset + TRX_UNDO_HISTORY_NODE), &mtr);
   if (UNIV_UNLIKELY(err != DB_SUCCESS))
     goto func_exit;
 
   rseg_hdr->fix();
 
-  if (mach_read_from_2(b->page.frame + hdr_addr.boffset + TRX_UNDO_NEXT_LOG) ||
-      rseg.is_referenced() ||
-      rseg.needs_purge > (purge_sys.head.trx_no
-                          ? purge_sys.head.trx_no
-                          : purge_sys.tail.trx_no))
-    /* We cannot free the entire undo page. */;
+  if (mach_read_from_2(b->page.frame + hdr_addr.boffset + TRX_UNDO_NEXT_LOG))
+    /* We cannot free the entire undo log segment. */;
   else
   {
     const uint32_t seg_size=
@@ -613,8 +598,9 @@ TRANSACTIONAL_TARGET static void trx_purge_truncate_history()
     {
       ut_ad(rseg.is_persistent());
       rseg.latch.wr_lock(SRW_LOCK_CALL);
-      if (dberr_t e= trx_purge_truncate_rseg_history(rseg, head))
-        err= e;
+      if (!rseg.is_referenced() && rseg.needs_purge <= head.trx_no)
+        if (dberr_t e= trx_purge_truncate_rseg_history(rseg, head))
+          err= e;
       rseg.latch.wr_unlock();
     }
 
