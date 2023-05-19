@@ -1011,6 +1011,9 @@ srv_export_innodb_status(void)
 	export_vars.innodb_data_written = srv_stats.data_written
 		+ (dblwr << srv_page_size_shift);
 
+	export_vars.innodb_buffer_pool_read_requests
+		= buf_pool.stat.n_page_gets;
+
 	export_vars.innodb_buffer_pool_write_requests =
 		srv_stats.buf_pool_write_requests;
 
