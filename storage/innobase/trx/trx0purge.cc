@@ -378,7 +378,7 @@ static void trx_purge_free_segment(buf_block_t *block, mtr_t &mtr)
                                     block->page.frame, &mtr))
   {
     block->fix();
-    const page_id_t id{block->page.id()};
+    ut_d(const page_id_t id{block->page.id()});
     mtr.commit();
     /* NOTE: If the server is killed after the log that was produced
     up to this point was written, and before the log from the mtr.commit()
@@ -390,16 +390,8 @@ static void trx_purge_free_segment(buf_block_t *block, mtr_t &mtr)
     log_free_check();
     mtr.start();
     block->page.lock.x_lock();
-    if (UNIV_UNLIKELY(block->page.id() != id))
-    {
-      block->unfix();
-      block->page.lock.x_unlock();
-      block= buf_page_get_gen(id, 0, RW_X_LATCH, nullptr, BUF_GET, &mtr);
-      if (!block)
-        return;
-    }
-    else
-      mtr.memo_push(block, MTR_MEMO_PAGE_X_MODIFY);
+    ut_ad(block->page.id() == id);
+    mtr.memo_push(block, MTR_MEMO_PAGE_X_MODIFY);
   }
 
   while (!fseg_free_step(TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER +
@@ -421,7 +413,6 @@ trx_purge_truncate_rseg_history(trx_rseg_t& rseg,
   mtr.start();
 
   dberr_t err;
-reget:
   buf_block_t *rseg_hdr= rseg.get(&mtr, &err);
   if (!rseg_hdr)
   {
@@ -520,12 +511,7 @@ loop:
   log_free_check();
   mtr.start();
   rseg_hdr->page.lock.x_lock();
-  if (UNIV_UNLIKELY(rseg_hdr->page.id() != rseg.page_id()))
-  {
-    rseg_hdr->unfix();
-    rseg_hdr->page.lock.x_unlock();
-    goto reget;
-  }
+  ut_ad(rseg_hdr->page.id() == rseg.page_id());
   mtr.memo_push(rseg_hdr, MTR_MEMO_PAGE_X_MODIFY);
 
   goto loop;
