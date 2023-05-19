@@ -1697,7 +1697,7 @@ void srv_master_callback(void*)
 }
 
 /** @return whether purge should exit due to shutdown */
-static bool srv_purge_should_exit()
+static bool srv_purge_should_exit(size_t old_history_size)
 {
   ut_ad(srv_shutdown_state <= SRV_SHUTDOWN_CLEANUP);
 
@@ -1708,7 +1708,12 @@ static bool srv_purge_should_exit()
     return true;
 
   /* Slow shutdown was requested. */
-  if (const size_t history_size= trx_sys.rseg_history_len)
+  size_t prepared, active= trx_sys.any_active_transactions(&prepared);
+  const size_t history_size= trx_sys.rseg_history_len;
+
+  if (!history_size);
+  else if (!active && history_size == old_history_size && prepared);
+  else
   {
     static time_t progress_time;
     time_t now= time(NULL);
@@ -1725,7 +1730,7 @@ static bool srv_purge_should_exit()
     return false;
   }
 
-  return !trx_sys.any_active_transactions();
+  return !active;
 }
 
 /*********************************************************************//**
@@ -1845,7 +1850,7 @@ static size_t srv_do_purge(ulint* n_total_purged)
 
 		*n_total_purged += n_pages_purged;
 	} while (n_pages_purged > 0 && !purge_sys.paused()
-		 && !srv_purge_should_exit());
+		 && !srv_purge_should_exit(rseg_history_len));
 
 	return(rseg_history_len);
 }
@@ -1960,7 +1965,7 @@ static void purge_coordinator_callback_low()
     }
   }
   while ((purge_sys.enabled() && !purge_sys.paused()) ||
-         !srv_purge_should_exit());
+         !srv_purge_should_exit(trx_sys.rseg_history_len));
 }
 
 static void purge_coordinator_callback(void*)
@@ -2031,15 +2036,19 @@ ulint srv_get_task_queue_length()
 /** Shut down the purge threads. */
 void srv_purge_shutdown()
 {
-	if (purge_sys.enabled()) {
-		if (!srv_fast_shutdown && !opt_bootstrap)
-			srv_update_purge_thread_count(innodb_purge_threads_MAX);
-		while(!srv_purge_should_exit()) {
-			ut_a(!purge_sys.paused());
-			srv_wake_purge_thread_if_not_active();
-			purge_coordinator_task.wait();
-		}
-		purge_sys.coordinator_shutdown();
-		srv_shutdown_purge_tasks();
-	}
+  if (purge_sys.enabled())
+  {
+    if (!srv_fast_shutdown && !opt_bootstrap)
+      srv_update_purge_thread_count(innodb_purge_threads_MAX);
+    size_t history_size= trx_sys.rseg_history_len;
+    while (!srv_purge_should_exit(history_size))
+    {
+      history_size= trx_sys.rseg_history_len;
+      ut_a(!purge_sys.paused());
+      srv_wake_purge_thread_if_not_active();
+      purge_coordinator_task.wait();
+    }
+    purge_sys.coordinator_shutdown();
+    srv_shutdown_purge_tasks();
+  }
 }
