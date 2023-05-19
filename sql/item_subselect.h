@@ -365,6 +365,13 @@ public:
   void no_rows_in_result() override;
 };
 
+typedef struct st_eq_field_outer
+{
+  Item **eq_ref;
+  Item_ident *local_field;
+  Item *outer_exp;
+} EQ_FIELD_OUTER;
+
 /* exists subselect */
 
 class Item_exists_subselect :public Item_subselect
@@ -375,7 +382,9 @@ protected:
 
   void init_length_and_dec();
   bool select_prepare_to_be_in();
-
+  bool exists2in_prepare(THD *thd, Dynamic_array<EQ_FIELD_OUTER> &eqs, bool &will_be_correlated);  
+  bool exists2in_create_or_update_in(THD *thd, const Dynamic_array<EQ_FIELD_OUTER> &eqs, Item** left_exp_ref);
+  bool exists2in_and_is_not_nulls(uint offset, Item *left_exp, Item **left_exp_ref);
 public:
   /*
     Used by subquery optimizations to keep track about in which clause this
@@ -757,10 +766,7 @@ public:
            Item_subselect::walk(processor, walk_subquery, arg);
   }
 
-  bool exists2in_processor(void *opt_arg __attribute__((unused))) override
-  {
-    return 0;
-  };
+  bool exists2in_processor(void *opt_arg) override;
 
   bool pushdown_cond_for_in_subquery(THD *thd, Item *cond);
 
@@ -804,6 +810,7 @@ public:
   bool is_maxmin_applicable(JOIN *join);
   bool transform_into_max_min(JOIN *join);
   void no_rows_in_result();
+  bool exists2in_processor(void *arg) override { return FALSE; }
 };
 
 
