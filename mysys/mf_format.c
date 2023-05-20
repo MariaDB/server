@@ -36,6 +36,8 @@ char * fn_format(char * to, const char *name, const char *dir,
   DBUG_PRINT("enter",("name: %s  dir: %s  extension: %s  flag: %d",
 		       name,dir,extension,flag));
 
+  memset(buff, 0, FN_REFLEN);
+
   /* Copy and skip directory */
   name+=(length=dirname_part(dev, (startpos=(char *) name), &dev_length));
   if (length == 0 || (flag & MY_REPLACE_DIR))
