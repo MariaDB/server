@@ -481,8 +481,7 @@ CREATE TEMPORARY TABLE temp_t1 LIKE t1;
 SELECT * FROM temp_t1;
 i
 CREATE TEMPORARY TABLE t1 LIKE t1;
-ERROR 42000: Not unique table/alias: 't1'
-DROP TABLE temp_t1, t1;
+DROP TABLE temp_t1, t1, t1;
 #
 # Create temporary table as base table.
 #

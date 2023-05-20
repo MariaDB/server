@@ -530,9 +530,8 @@ CREATE TABLE t1(i INT) ENGINE=INNODB;
 INSERT INTO t1 VALUES(1);
 CREATE TEMPORARY TABLE temp_t1 LIKE t1;
 SELECT * FROM temp_t1;
---error ER_NONUNIQ_TABLE
 CREATE TEMPORARY TABLE t1 LIKE t1;
-DROP TABLE temp_t1, t1;
+DROP TABLE temp_t1, t1, t1;
 
 --echo #
 --echo # Create temporary table as base table.

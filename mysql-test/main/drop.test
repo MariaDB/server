@@ -271,11 +271,14 @@ SHOW WARNINGS;
 DROP TABLE IF EXISTS t1;
 --enable_warnings
 
+connect con1,localhost,root,,;
+connection con1;
 CREATE TABLE t1 (a INT);
 LOCK TABLE t1 WRITE;
 --error ER_NONUNIQ_TABLE
 DROP TABLE t1, t1;
-
+disconnect con1;
+connection default;
 UNLOCK TABLES;
 DROP TABLE t1;
 

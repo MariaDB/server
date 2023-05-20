@@ -1,0 +1,129 @@
+#
+# MDEV-16253 Dropping base table and temporary table with the same name
+#
+#===== 1 Drop table/s without base or temp table =====
+DROP TABLE  t;
+ERROR 42S02: Unknown table 'test.t'
+DROP TABLE t,t;
+ERROR 42000: Not unique table/alias: 't'
+DROP TABLE t,t,t;
+ERROR 42000: Not unique table/alias: 't'
+DROP TABLE t,t,t,t;
+ERROR 42000: Not unique table/alias: 't'
+DROP TABLE t,t,t,t,t;
+ERROR 42000: Not unique table/alias: 't'
+#===== 2 Drop base table and without temp table =====
+CREATE TABLE t(t int);
+DROP TABLE t,t;
+ERROR 42000: Not unique table/alias: 't'
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `t` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t,t,t;
+ERROR 42000: Not unique table/alias: 't'
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `t` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t,t,t,t;
+ERROR 42000: Not unique table/alias: 't'
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `t` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t;
+#===== 3 Drop table/s without base and with temp table =====
+CREATE TEMPORARY TABLE t LIKE t;
+ERROR 42S02: Table 'test.t' doesn't exist
+CREATE OR REPLACE TABLE t LIKE t;
+ERROR 42000: Not unique table/alias: 't'
+CREATE TABLE t(t int);
+CREATE TEMPORARY TABLE t LIKE t;
+CREATE OR REPLACE TABLE t LIKE t;
+ERROR 42000: Not unique table/alias: 't'
+SHOW TABLES;
+Tables_in_test
+t
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TEMPORARY TABLE `t` (
+  `t` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t;
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `t` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t;
+CREATE TEMPORARY TABLE t(t int);
+DROP TABLE t,t;
+ERROR 42S02: Unknown table 'test.t'
+CREATE TEMPORARY TABLE t(t int);
+DROP TABLE t,t,t;
+ERROR 42000: Not unique table/alias: 't'
+DROP TABLE t,t,t,t;
+ERROR 42000: Not unique table/alias: 't'
+DROP TABLE t,t,t,t,t;
+ERROR 42000: Not unique table/alias: 't'
+DROP table t,t1,t,t;
+ERROR 42000: Not unique table/alias: 't'
+DROP table t,t1,t;
+ERROR 42S02: Unknown table 'test.t,test.t1'
+#===== 4 Drop table/s with base and temp table =====
+CREATE TABLE t(t int);
+CREATE TEMPORARY TABLE t LIKE t;
+DROP TABLE t,t;
+CREATE TABLE t(t int);
+CREATE TEMPORARY TABLE t LIKE t;
+DROP TABLE t,t,t;
+ERROR 42000: Not unique table/alias: 't'
+DROP TABLE t,t,t,t;
+ERROR 42000: Not unique table/alias: 't'
+CREATE TEMPORARY TABLE t1(t1 int);
+CREATE TEMPORARY TABLE t2 LIKE t;
+DROP TABLE t,t1,t2,t;
+connect con1, localhost, root,,;
+connection con1;
+#===== 5 Drop with locking =====
+CREATE TABLE t(t int);
+LOCK TABLE t WRITE;
+SHOW TABLES;
+Tables_in_test
+t
+DROP TABLE t,t;
+ERROR 42000: Not unique table/alias: 't'
+CREATE TEMPORARY TABLE t LIKE t;
+DROP TABLE t,t;
+DROP TABLE IF EXISTS t;
+Warnings:
+Note	1051	Unknown table 'test.t'
+connection default;
+disconnect con1;
+#===== Check grants when dropping =====
+connect con1, localhost, root,,test;
+connection con1;
+create user foo;
+GRANT Select, Create temporary tables ON test.* TO 'foo'@'%';
+disconnect con1;
+connection default;
+CREATE TABLE t(t int);
+connect con1, localhost, foo,,test;
+show tables;
+Tables_in_test
+t
+CREATE TEMPORARY TABLE t(t int);
+DROP TABLE t;
+DROP TABLE t;
+ERROR 42000: DROP command denied to user 'foo'@'localhost' for table 't'
+disconnect con1;
+connect con1, localhost, root,,test;
+connection con1;
+drop user foo;
+disconnect con1;
+connection default;
+drop table if exists t;

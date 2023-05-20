@@ -1,0 +1,136 @@
+--echo #
+--echo # MDEV-16253 Dropping base table and temporary table with the same name
+--echo #
+
+--echo #===== 1 Drop table/s without base or temp table =====
+
+--error ER_BAD_TABLE_ERROR # 1051
+DROP TABLE  t;
+
+--error ER_NONUNIQ_TABLE
+DROP TABLE t,t;
+--error ER_NONUNIQ_TABLE
+DROP TABLE t,t,t;
+--error ER_NONUNIQ_TABLE
+DROP TABLE t,t,t,t;
+--error ER_NONUNIQ_TABLE
+DROP TABLE t,t,t,t,t;
+
+--echo #===== 2 Drop base table and without temp table =====
+
+CREATE TABLE t(t int);
+--error ER_NONUNIQ_TABLE
+DROP TABLE t,t;
+SHOW CREATE TABLE t;
+
+--error ER_NONUNIQ_TABLE
+DROP TABLE t,t,t;
+SHOW CREATE TABLE t;
+
+--error ER_NONUNIQ_TABLE
+DROP TABLE t,t,t,t;
+SHOW CREATE TABLE t;
+DROP TABLE t;
+
+--echo #===== 3 Drop table/s without base and with temp table =====
+
+# Temporary table cannot be created without base table
+--error ER_NO_SUCH_TABLE
+CREATE TEMPORARY TABLE t LIKE t;
+--error ER_NONUNIQ_TABLE
+CREATE OR REPLACE TABLE t LIKE t;
+
+# Create base table and temporary table
+CREATE TABLE t(t int);
+CREATE TEMPORARY TABLE t LIKE t;
+--error ER_NONUNIQ_TABLE
+CREATE OR REPLACE TABLE t LIKE t;
+
+# Show temporary table first
+SHOW TABLES;
+SHOW CREATE TABLE t;
+DROP TABLE t;
+
+# Show base table
+SHOW CREATE TABLE t;
+DROP TABLE t;
+
+# Create temporary table and try to drop multiple tables
+CREATE TEMPORARY TABLE t(t int);
+--error ER_BAD_TABLE_ERROR
+DROP TABLE t,t;
+
+CREATE TEMPORARY TABLE t(t int);
+--error ER_NONUNIQ_TABLE
+DROP TABLE t,t,t;
+--error ER_NONUNIQ_TABLE
+DROP TABLE t,t,t,t;
+--error ER_NONUNIQ_TABLE
+DROP TABLE t,t,t,t,t;
+
+--error ER_NONUNIQ_TABLE
+DROP table t,t1,t,t;
+--error ER_BAD_TABLE_ERROR
+DROP table t,t1,t;
+
+--echo #===== 4 Drop table/s with base and temp table =====
+
+CREATE TABLE t(t int);
+CREATE TEMPORARY TABLE t LIKE t;
+DROP TABLE t,t;
+
+CREATE TABLE t(t int);
+CREATE TEMPORARY TABLE t LIKE t;
+--error ER_NONUNIQ_TABLE
+DROP TABLE t,t,t;
+--error ER_NONUNIQ_TABLE
+DROP TABLE t,t,t,t;
+
+CREATE TEMPORARY TABLE t1(t1 int);
+CREATE TEMPORARY TABLE t2 LIKE t;
+DROP TABLE t,t1,t2,t;
+
+connect con1, localhost, root,,;
+connection con1;
+
+--echo #===== 5 Drop with locking =====
+CREATE TABLE t(t int);
+LOCK TABLE t WRITE;
+SHOW TABLES;
+--ERROR ER_NONUNIQ_TABLE
+DROP TABLE t,t;
+
+CREATE TEMPORARY TABLE t LIKE t;
+DROP TABLE t,t;
+
+DROP TABLE IF EXISTS t;
+connection default;
+disconnect con1;
+
+--echo #===== Check grants when dropping =====
+
+connect con1, localhost, root,,test;
+connection con1;
+create user foo;
+GRANT Select, Create temporary tables ON test.* TO 'foo'@'%';
+disconnect con1;
+
+connection default;
+
+CREATE TABLE t(t int);
+
+connect con1, localhost, foo,,test;
+show tables;
+CREATE TEMPORARY TABLE t(t int);
+DROP TABLE t;
+--error ER_TABLEACCESS_DENIED_ERROR
+DROP TABLE t;
+disconnect con1;
+
+connect con1, localhost, root,,test;
+connection con1;
+drop user foo;
+disconnect con1;
+connection default;
+drop table if exists t;
+
