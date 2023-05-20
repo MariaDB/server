@@ -1099,13 +1099,4 @@ void srv_for_each_thread(srv_thread_type type,
 			 const void *arg);
 #endif
 
-#ifdef WITH_WSREP
-UNIV_INTERN
-void
-wsrep_srv_conc_cancel_wait(
-/*==================*/
-	trx_t*	trx);	/*!< in: transaction object associated with the
-			thread */
-#endif /* WITH_WSREP */
-
 #endif
