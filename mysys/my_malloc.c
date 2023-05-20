@@ -26,7 +26,7 @@ struct my_memory_header
   PSI_memory_key m_key;
 };
 typedef struct my_memory_header my_memory_header;
-#define HEADER_SIZE 24
+#define HEADER_SIZE MY_MEMORY_HEADER_SIZE
 
 #define USER_TO_HEADER(P) ((my_memory_header*)((char *)(P) - HEADER_SIZE))
 #define HEADER_TO_USER(P) ((char*)(P) + HEADER_SIZE)
@@ -54,8 +54,35 @@ void set_malloc_size_cb(MALLOC_SIZE_CB func)
 {
   update_malloc_size= func ? func : dummy;
 }
-    
-    
+
+
+/**
+  Initialize a memory key at the location.
+
+  @param ptr    Pointer to the allocated memory of size= size+HEADER_SIZE
+  @param size   The size of the user portion of the memory block in bytes.
+  @param flags  Failure action modifiers (bitmasks).
+
+  @return A pointer to the user memory
+*/
+void *my_psi_key_init(PSI_memory_key key, void *ptr, size_t size, myf my_flags)
+{
+  my_memory_header *mh = (my_memory_header *) ptr;
+  void *point;
+  int flag= MY_TEST(my_flags & MY_THREAD_SPECIFIC);
+  mh->m_size= size | flag;
+  mh->m_key= PSI_CALL_memory_alloc(key, size, & mh->m_owner);
+  update_malloc_size(size + HEADER_SIZE, flag);
+  point= HEADER_TO_USER(mh);
+  if (my_flags & MY_ZEROFILL)
+    bzero(point, size);
+  else
+    TRASH_ALLOC(point, size);
+
+  return point;
+}
+
+
 /**
   Allocate a sized block of memory.
 
@@ -102,17 +129,7 @@ void *my_malloc(PSI_memory_key key, size_t size, myf my_flags)
     point= NULL;
   }
   else
-  {
-    int flag= MY_TEST(my_flags & MY_THREAD_SPECIFIC);
-    mh->m_size= size | flag;
-    mh->m_key= PSI_CALL_memory_alloc(key, size, & mh->m_owner);
-    update_malloc_size(size + HEADER_SIZE, flag);
-    point= HEADER_TO_USER(mh);
-    if (my_flags & MY_ZEROFILL)
-      bzero(point, size);
-    else
-      TRASH_ALLOC(point, size);
-  }
+    point= my_psi_key_init(key, mh, size, my_flags);
   DBUG_PRINT("exit",("ptr: %p", point));
   DBUG_RETURN(point);
 }
@@ -181,6 +198,27 @@ void *my_realloc(PSI_memory_key key, void *old_point, size_t size, myf my_flags)
 
 
 /**
+  Mark the PSI key assocated with this memory to be free.
+
+  @param ptr Pointer to user memory returned by my_psi_key_init.
+  @returns ptr to start of memory allocated.
+*/
+void *my_psi_key_free(void *ptr)
+{
+  my_memory_header *mh;
+  size_t old_size;
+  my_bool old_flags;
+  mh= USER_TO_HEADER(ptr);
+  old_size= mh->m_size & ~1;
+  old_flags= mh->m_size & 1;
+  PSI_CALL_memory_free(mh->m_key, old_size, mh->m_owner);
+
+  update_malloc_size(- (longlong) old_size - HEADER_SIZE, old_flags);
+  return mh;
+}
+
+
+/**
   Free memory allocated with my_malloc.
 
   @param ptr Pointer to the memory allocated by my_malloc.
@@ -188,8 +226,9 @@ void *my_realloc(PSI_memory_key key, void *old_point, size_t size, myf my_flags)
 void my_free(void *ptr)
 {
   my_memory_header *mh;
+#ifndef SAFEMALLOC
   size_t old_size;
-  my_bool old_flags;
+#endif
   DBUG_ENTER("my_free");
   DBUG_PRINT("my",("ptr: %p", ptr));
 
@@ -197,18 +236,17 @@ void my_free(void *ptr)
     DBUG_VOID_RETURN;
 
   mh= USER_TO_HEADER(ptr);
-  old_size= mh->m_size & ~1;
-  old_flags= mh->m_size & 1;
-  PSI_CALL_memory_free(mh->m_key, old_size, mh->m_owner);
-
-  update_malloc_size(- (longlong) old_size - HEADER_SIZE, old_flags);
-
 #ifndef SAFEMALLOC
+  old_size= mh->m_size & ~1;
+  my_psi_key_free(ptr);
+
   /*
     Trash memory if not safemalloc. We don't have to do this if safemalloc
     is used as safemalloc will also do trashing
   */
   TRASH_FREE(ptr, old_size);
+#else
+  my_psi_key_free(ptr);
 #endif
   sf_free(mh);
   DBUG_VOID_RETURN;

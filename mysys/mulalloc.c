@@ -81,11 +81,13 @@ void* my_multi_malloc(PSI_memory_key key, myf myFlags, ...)
 
   SYNOPSIS
     my_multi_malloc()
+      key                  Memory instrumentation key
       myFlags              Flags
 	ptr1, length1      Multiple arguments terminated by null ptr
 	ptr2, length2      ...
         ...
 	NULL
+	ret_total_length   size_t pointer that gets the size allocated
 */
 
 void *my_multi_malloc_large(PSI_memory_key key, myf myFlags, ...)
@@ -93,7 +95,8 @@ void *my_multi_malloc_large(PSI_memory_key key, myf myFlags, ...)
   va_list args;
   char **ptr,*start,*res;
   ulonglong tot_length,length;
-  DBUG_ENTER("my_multi_malloc");
+  size_t *ret_total_length;
+  DBUG_ENTER("my_multi_malloc_large");
 
   va_start(args,myFlags);
   tot_length=0;
@@ -105,11 +108,15 @@ void *my_multi_malloc_large(PSI_memory_key key, myf myFlags, ...)
     tot_length+= ALIGN_SIZE(1);
 #endif
   }
+  ret_total_length= va_arg(args, size_t *);
+  *ret_total_length= tot_length + MY_MEMORY_HEADER_SIZE;
   va_end(args);
 
-  if (!(start=(char *) my_malloc(key, (size_t) tot_length, myFlags)))
+  if (!(start=(char *) my_large_malloc(ret_total_length,
+                                       myFlags)))
     DBUG_RETURN(0); /* purecov: inspected */
 
+  start= my_psi_key_init(key, start, tot_length, myFlags);
   va_start(args,myFlags);
   res=start;
   while ((ptr=va_arg(args, char **)))

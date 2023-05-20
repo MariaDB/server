@@ -164,10 +164,13 @@ typedef void (*MALLOC_SIZE_CB) (long long size, my_bool is_thread_specific);
 extern void set_malloc_size_cb(MALLOC_SIZE_CB func);
 
 	/* defines when allocating data */
+#define MY_MEMORY_HEADER_SIZE 24
 extern void *my_malloc(PSI_memory_key key, size_t size, myf MyFlags);
+extern void *my_psi_key_init(PSI_memory_key key, void *mh, size_t size, myf my_flags);
 extern void *my_multi_malloc(PSI_memory_key key, myf MyFlags, ...);
 extern void *my_multi_malloc_large(PSI_memory_key key, myf MyFlags, ...);
 extern void *my_realloc(PSI_memory_key key, void *ptr, size_t size, myf MyFlags);
+extern void *my_psi_key_free(void *ptr);
 extern void my_free(void *ptr);
 extern void *my_memdup(PSI_memory_key key, const void *from,size_t length,myf MyFlags);
 extern char *my_strdup(PSI_memory_key key, const char *from,myf MyFlags);

@@ -875,7 +875,7 @@ size_t init_pagecache(PAGECACHE *pagecache, size_t use_mem,
                                 &pagecache->file_blocks,
                                 (ulonglong) (sizeof(PAGECACHE_BLOCK_LINK*) *
                                              changed_blocks_hash_size),
-                                NullS))
+                                NullS, &pagecache->block_root_size))
         break;
       my_large_free(pagecache->block_mem, pagecache->mem_size);
       pagecache->block_mem= 0;
@@ -933,7 +933,8 @@ err:
   }
   if (pagecache->block_root)
   {
-    my_free(pagecache->block_root);
+    my_large_free(my_psi_key_free(pagecache->block_root),
+                  pagecache->block_root_size);
     pagecache->block_root= NULL;
   }
   my_errno= error;
@@ -1202,9 +1203,11 @@ void end_pagecache(PAGECACHE *pagecache, my_bool cleanup)
 
     if (pagecache->block_mem)
     {
-      my_large_free(pagecache->block_mem, pagecache->mem_size);
+      my_large_free(pagecache->block_mem,
+                    pagecache->mem_size);
       pagecache->block_mem= NULL;
-      my_free(pagecache->block_root);
+      my_large_free(my_psi_key_free(pagecache->block_root),
+                    pagecache->block_root_size);
       pagecache->block_root= NULL;
     }
     pagecache->disk_blocks= -1;
