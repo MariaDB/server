@@ -49,16 +49,13 @@ static int read_string(File file, uchar**to, size_t length)
   If engine_name is 0, then the function will only test if the file is a
   view or not
 
-  @param[out] is_sequence  1 if table is a SEQUENCE, 0 otherwise
-
   @retval  TABLE_TYPE_UNKNOWN   error  - file can't be opened
   @retval  TABLE_TYPE_NORMAL    table
   @retval  TABLE_TYPE_SEQUENCE  sequence table
   @retval  TABLE_TYPE_VIEW      view
 */
 
-Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
-                       bool *is_sequence)
+Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name)
 {
   File file;
   uchar header[40];     //"TYPE=VIEW\n" it is 10 characters
@@ -66,8 +63,6 @@ Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
   Table_type type= TABLE_TYPE_UNKNOWN;
   uchar dbt;
   DBUG_ENTER("dd_frm_type");
-
-  *is_sequence= 0;
 
   if ((file= mysql_file_open(key_file_frm, path, O_RDONLY | O_SHARE, MYF(0)))
       < 0)
@@ -110,7 +105,7 @@ Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
   if (((header[39] >> 4) & 3) == HA_CHOICE_YES)
   {
     DBUG_PRINT("info", ("Sequence found"));
-    *is_sequence= 1;
+    type= TABLE_TYPE_SEQUENCE;
   }
 
   /* cannot use ha_resolve_by_legacy_type without a THD */

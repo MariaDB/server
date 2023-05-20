@@ -116,8 +116,7 @@ let $PLUGIN_VERSION=
 
 if (`SELECT IF($PLUGIN_VERSION = 1, 1, 0)`)
 {
-  DROP TABLE IF EXISTS mysql.spider_xa;
-  CREATE TABLE mysql.spider_xa(
+  CREATE OR REPLACE TABLE mysql.spider_xa(
     format_id int not null default 0,
     gtrid_length int not null default 0,
     bqual_length int not null default 0,
@@ -126,8 +125,7 @@ if (`SELECT IF($PLUGIN_VERSION = 1, 1, 0)`)
     PRIMARY KEY (data, format_id, gtrid_length),
     KEY idx1 (status)
   ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
-  DROP TABLE IF EXISTS mysql.spider_xa_member;
-  CREATE TABLE mysql.spider_xa_member(
+  CREATE OR REPLACE TABLE mysql.spider_xa_member(
     format_id int not null default 0,
     gtrid_length int not null default 0,
     bqual_length int not null default 0,
@@ -140,8 +138,7 @@ if (`SELECT IF($PLUGIN_VERSION = 1, 1, 0)`)
     password char(64) not null default '',
     PRIMARY KEY (data, format_id, gtrid_length, host, port, socket)
   ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
-  DROP TABLE IF EXISTS mysql.spider_tables;
-  CREATE TABLE mysql.spider_tables(
+  CREATE OR REPLACE TABLE mysql.spider_tables(
     db_name char(64) not null default '',
     table_name char(64) not null default '',
     priority bigint not null default 0,
@@ -160,8 +157,7 @@ if (`SELECT IF($PLUGIN_VERSION = 1, 1, 0)`)
 }
 if (`SELECT IF($PLUGIN_VERSION = 2, 1, 0)`)
 {
-  DROP TABLE IF EXISTS mysql.spider_xa;
-  CREATE TABLE mysql.spider_xa(
+  CREATE OR REPLACE TABLE mysql.spider_xa(
     format_id int not null default 0,
     gtrid_length int not null default 0,
     bqual_length int not null default 0,
@@ -170,8 +166,7 @@ if (`SELECT IF($PLUGIN_VERSION = 2, 1, 0)`)
     PRIMARY KEY (data, format_id, gtrid_length),
     KEY idx1 (status)
   ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
-  DROP TABLE IF EXISTS mysql.spider_xa_member;
-  CREATE TABLE mysql.spider_xa_member(
+  CREATE OR REPLACE TABLE mysql.spider_xa_member(
     format_id int not null default 0,
     gtrid_length int not null default 0,
     bqual_length int not null default 0,
@@ -252,17 +247,7 @@ if (`SELECT IF($PLUGIN_VERSION = 2, 1, 0)`)
 }
 if (`SELECT IF($PLUGIN_VERSION = 3, 1, 0)`)
 {
-  let $ENGINE_NAME=
-    `SELECT IF (STRCMP('$SERVER_NAME', 'MariaDB') = 0,
-                IF ($SERVER_MAJOR_VERSION = 10,
-                    IF ($SERVER_MINOR_VERSION < 4,  'MyISAM',
-                        'Aria transactional=1'),
-                    IF ($SERVER_MAJOR_VERSION < 10, 'MyISAM',
-                        'Aria transactional=1')),
-                'MyISAM')`;
-  DROP TABLE IF EXISTS mysql.spider_xa;
-  eval
-  CREATE TABLE mysql.spider_xa(
+  CREATE OR REPLACE TABLE mysql.spider_xa(
     format_id int not null default 0,
     gtrid_length int not null default 0,
     bqual_length int not null default 0,
@@ -270,10 +255,8 @@ if (`SELECT IF($PLUGIN_VERSION = 3, 1, 0)`)
     status char(8) not null default '',
     PRIMARY KEY (data, format_id, gtrid_length),
     KEY idx1 (status)
-  ) ENGINE=$ENGINE_NAME DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
-  DROP TABLE IF EXISTS mysql.spider_xa_member;
-  eval
-  CREATE TABLE mysql.spider_xa_member(
+  ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+  CREATE OR REPLACE TABLE mysql.spider_xa_member(
     format_id int not null default 0,
     gtrid_length int not null default 0,
     bqual_length int not null default 0,
@@ -293,36 +276,8 @@ if (`SELECT IF($PLUGIN_VERSION = 3, 1, 0)`)
     default_file text default null,
     default_group char(64) default null,
     KEY idx1 (data, format_id, gtrid_length, host)
-  ) ENGINE=$ENGINE_NAME DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
-  DROP TABLE IF EXISTS mysql.spider_xa_failed_log;
-  eval
-  CREATE TABLE mysql.spider_xa_failed_log(
-    format_id int not null default 0,
-    gtrid_length int not null default 0,
-    bqual_length int not null default 0,
-    data binary(128) not null default '',
-    scheme char(64) not null default '',
-    host char(64) not null default '',
-    port char(5) not null default '',
-    socket text not null,
-    username char(64) not null default '',
-    password char(64) not null default '',
-    ssl_ca text,
-    ssl_capath text,
-    ssl_cert text,
-    ssl_cipher char(64) default null,
-    ssl_key text,
-    ssl_verify_server_cert tinyint not null default 0,
-    default_file text,
-    default_group char(64) default null,
-    thread_id int default null,
-    status char(8) not null default '',
-    failed_time timestamp not null default current_timestamp,
-    key idx1 (data, format_id, gtrid_length, host)
-  ) ENGINE=$ENGINE_NAME DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
-  DROP TABLE IF EXISTS mysql.spider_tables;
-  eval
-  CREATE TABLE mysql.spider_tables(
+  ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+  CREATE OR REPLACE TABLE mysql.spider_tables(
     db_name char(64) not null default '',
     table_name char(199) not null default '',
     link_id int not null default 0,
@@ -349,12 +304,9 @@ if (`SELECT IF($PLUGIN_VERSION = 3, 1, 0)`)
     block_status tinyint not null default 0,
     static_link_id char(64) default null,
     PRIMARY KEY (db_name, table_name, link_id),
-    KEY idx1 (priority),
-    UNIQUE KEY uidx1 (db_name, table_name, static_link_id)
-  ) ENGINE=$ENGINE_NAME DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
-  DROP TABLE IF EXISTS mysql.spider_link_mon_servers;
-  eval
-  CREATE TABLE mysql.spider_link_mon_servers(
+    KEY idx1 (priority)
+  ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+  CREATE OR REPLACE TABLE mysql.spider_link_mon_servers(
     db_name char(64) not null default '',
     table_name char(199) not null default '',
     link_id char(64) not null default '',
@@ -375,10 +327,8 @@ if (`SELECT IF($PLUGIN_VERSION = 3, 1, 0)`)
     default_file text default null,
     default_group char(64) default null,
     PRIMARY KEY (db_name, table_name, link_id, sid)
-  ) ENGINE=$ENGINE_NAME DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
-  DROP TABLE IF EXISTS mysql.spider_link_failed_log;
-  eval
-  CREATE TABLE mysql.spider_link_failed_log(
+  ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+  CREATE OR REPLACE TABLE mysql.spider_link_failed_log(
     db_name char(64) not null default '',
     table_name char(199) not null default '',
     link_id char(64) not null default '',

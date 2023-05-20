@@ -485,6 +485,7 @@ int federated_db_init(void *p)
   federated_hton->commit= federated_commit;
   federated_hton->rollback= federated_rollback;
   federated_hton->create= federated_create_handler;
+  federated_hton->drop_table= [](handlerton *, const char*) { return -1; };
   federated_hton->flags= HTON_ALTER_NOT_SUPPORTED | HTON_NO_PARTITION;
 
   /*

@@ -432,7 +432,10 @@ public:
   void update_auto_increment(void);
   int repair(THD* thd, HA_CHECK_OPT* check_opt);
   int optimize(THD* thd, HA_CHECK_OPT* check_opt);
-
+  int delete_table(const char *name)
+  {
+    return 0;
+  }
   int delete_all_rows(void);
   int create(const char *name, TABLE *form,
              HA_CREATE_INFO *create_info);                      //required

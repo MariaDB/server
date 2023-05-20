@@ -2,8 +2,7 @@ set global storage_engine=aria;
 set session storage_engine=aria;
 DROP TABLE if exists t1,t2;
 Warnings:
-Note	1051	Unknown table 'test.t1'
-Note	1051	Unknown table 'test.t2'
+Note	1051	Unknown table 'test.t1,test.t2'
 create table t2(a blob) engine=aria;
 create table t1(a int primary key) engine=aria;
 insert into t2 values ('foo'),('bar');

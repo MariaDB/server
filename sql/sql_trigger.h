@@ -231,7 +231,7 @@ public:
   static bool check_n_load(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *table_name,
                            TABLE *table, bool names_only);
   static bool drop_all_triggers(THD *thd, const LEX_CSTRING *db,
-                                const LEX_CSTRING *table_name);
+                                const LEX_CSTRING *table_name, myf MyFlags);
   static bool change_table_name(THD *thd, const LEX_CSTRING *db,
                                 const LEX_CSTRING *old_alias,
                                 const LEX_CSTRING *old_table,

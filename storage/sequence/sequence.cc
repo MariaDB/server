@@ -68,10 +68,15 @@ public:
 
   /* open/close/locking */
   int create(const char *name, TABLE *table_arg,
-             HA_CREATE_INFO *create_info) { return HA_ERR_WRONG_COMMAND; }
+             HA_CREATE_INFO *create_info)
+  { return HA_ERR_WRONG_COMMAND; }
 
   int open(const char *name, int mode, uint test_if_locked);
   int close(void);
+  int delete_table(const char *name)
+  {
+    return 0;
+  }
   THR_LOCK_DATA **store_lock(THD *, THR_LOCK_DATA **, enum thr_lock_type);
 
   /* table scan */
@@ -482,11 +487,21 @@ int ha_seq_group_by_handler::next_row()
   Initialize the interface between the sequence engine and MariaDB
 *****************************************************************************/
 
+static int drop_table(handlerton *hton, const char *path)
+{
+  const char *name= strrchr(path, FN_LIBCHAR)+1;
+  ulonglong from, to, step;
+  if (parse_table_name(name, strlen(name), &from, &to, &step))
+    return ENOENT;
+  return 0;
+}
+
 static int init(void *p)
 {
   handlerton *hton= (handlerton *)p;
   sequence_hton= hton;
   hton->create= create_handler;
+  hton->drop_table= drop_table;
   hton->discover_table= discover_table;
   hton->discover_table_existence= discover_table_existence;
   hton->commit= hton->rollback= dummy_commit_rollback;
@@ -516,4 +531,3 @@ maria_declare_plugin(sequence)
   MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
-

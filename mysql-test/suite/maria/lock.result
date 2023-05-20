@@ -1,7 +1,6 @@
 drop table if exists t1,t2;
 Warnings:
-Note	1051	Unknown table 'test.t1'
-Note	1051	Unknown table 'test.t2'
+Note	1051	Unknown table 'test.t1,test.t2'
 CREATE TABLE t1 (i INT) ENGINE=Aria;
 CREATE TABLE t2 (i INT) ENGINE=Aria;
 LOCK TABLE t1 WRITE, t2 WRITE;
