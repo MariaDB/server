@@ -43,14 +43,26 @@ ELSE()
 ENDIF()
 
 SET(CPACK_RPM_PACKAGE_RELEASE "1%{?dist}")
-SET(CPACK_RPM_PACKAGE_LICENSE "GPLv2")
+IF(RPM MATCHES "opensuse|sles")
+  # openSUSE and SLES RPM names licenses are based on SPDX specification
+  # https://spdx.org/licenses/
+  SET(CPACK_RPM_PACKAGE_LICENSE "GPL-2.0-only")
+ELSE()
+  # Fedora and RHEL follow these guidelines
+  # https://fedoraproject.org/wiki/Licensing:Main?rd=Licensing#Software_License_List
+  SET(CPACK_RPM_PACKAGE_LICENSE "GPLv2")
+ENDIF()
 SET(CPACK_RPM_PACKAGE_RELOCATABLE FALSE)
 SET(CPACK_PACKAGE_RELOCATABLE FALSE)
 SET(CPACK_RPM_PACKAGE_GROUP "Applications/Databases")
 SET(CPACK_RPM_PACKAGE_URL ${CPACK_PACKAGE_URL})
 
 SET(CPACK_RPM_shared_PACKAGE_VENDOR "MariaDB Corporation Ab")
-SET(CPACK_RPM_shared_PACKAGE_LICENSE "LGPLv2.1")
+IF(RPM MATCHES "opensuse|sles")
+  SET(CPACK_RPM_shared_PACKAGE_LICENSE "LGPL-2.1-only")
+ELSE()
+  SET(CPACK_RPM_shared_PACKAGE_LICENSE "LGPLv2.1")
+ENDIF()
 
 # Set default description for packages
 SET(CPACK_RPM_PACKAGE_DESCRIPTION "MariaDB: a very fast and robust SQL database server
