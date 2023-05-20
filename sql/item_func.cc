@@ -1261,6 +1261,9 @@ longlong Item_func_plus::int_op()
         goto err;
     }
   }
+  if (res_unsigned)
+    res= (longlong) ((ulonglong) val0 + (ulonglong) val1);
+
   return check_integer_overflow(res, res_unsigned);
 
 err:
@@ -1420,6 +1423,9 @@ longlong Item_func_minus::int_op()
         goto err;
     }
   }
+  if (res_unsigned)
+    res= (longlong) ((ulonglong) val0 - (ulonglong) val1);
+
   return check_integer_overflow(res, res_unsigned);
 
 err:
