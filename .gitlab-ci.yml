@@ -39,10 +39,10 @@ default:
 # submodules (a commit in this repo does not affect their builds anyway) and
 # many components that are otherwise slow to build.
 variables:
-  CMAKE_FLAGS: "-DPLUGIN_COLUMNSTORE=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_S3=NO -DPLUGIN_MROONGA=NO -DPLUGIN_CONNECT=NO -DPLUGIN_MROONGA=NO -DPLUGIN_TOKUDB=NO -DPLUGIN_PERFSCHEMA=NO -DWITH_WSREP=OFF"
+  CMAKE_FLAGS: "-DWITH_SSL=system -DPLUGIN_COLUMNSTORE=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_S3=NO -DPLUGIN_MROONGA=NO -DPLUGIN_CONNECT=NO -DPLUGIN_MROONGA=NO -DPLUGIN_TOKUDB=NO -DPLUGIN_PERFSCHEMA=NO -DWITH_WSREP=OFF"
   # Major version dictates which branches share the same ccache. E.g. 10.6-abc
   # and 10.6-xyz will have the same cache.
-  MARIADB_MAJOR_VERSION: "10.6"
+  MARIADB_MAJOR_VERSION: "10.5"
   # NOTE! Currently ccache is only used on the Centos8 build. As each job has
   # sufficiently different environments they are unable to benefit from each
   # other's ccaches. As each build generates about 1 GB of ccache, having
@@ -82,13 +82,13 @@ fedora:
     GIT_STRATEGY: fetch
     GIT_SUBMODULE_STRATEGY: normal
   script:
-    - yum install -y yum-utils rpm-build openssl-devel graphviz clang gnutls-devel
+    - yum install -y yum-utils rpm-build openssl-devel graphviz
     # Accelerate builds with unsafe disk access, as we can afford to loose the entire build anyway
     - yum install -y https://github.com/stewartsmith/libeatmydata/releases/download/v129/libeatmydata-129-1.fc33.x86_64.rpm
     # This repository does not have any .spec files, so install dependencies based on Fedora spec file
     - yum-builddep -y mariadb-server
     - mkdir builddir; cd builddir
-    - cmake -DRPM=$CI_JOB_NAME $CMAKE_FLAGS -DWITH_SSL=bundled .. 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
+    - cmake -DRPM=$CI_JOB_NAME $CMAKE_FLAGS .. 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
     - cmake --graphviz=../dependencies.dot .. && dot -Tpng -o ../dependencies.png ../dependencies.dot
     - eatmydata make package -j 2 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
     # @TODO: Don't use -j without the limit of 2 on Gitlab.com as builds just
@@ -113,13 +113,13 @@ fedora-ninja:
     GIT_STRATEGY: fetch
     GIT_SUBMODULE_STRATEGY: normal
   script:
-    - yum install -y yum-utils rpm-build openssl-devel graphviz ninja-build gnutls-devel
+    - yum install -y yum-utils rpm-build openssl-devel graphviz ninja-build
     # Accelerate builds with unsafe disk access, as we can afford to loose the entire build anyway
     - yum install -y https://github.com/stewartsmith/libeatmydata/releases/download/v129/libeatmydata-129-1.fc33.x86_64.rpm
     # This repository does not have any .spec files, so install dependencies based on Fedora spec file
     - yum-builddep -y mariadb-server
     - mkdir builddir; cd builddir
-    - cmake -DRPM=generic $CMAKE_FLAGS -DWITH_SSL=bundled -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -G Ninja .. 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
+    - cmake -DRPM=generic $CMAKE_FLAGS -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -G Ninja .. 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
     - ninja -t graph > ../dependencies.dot && dot -Tpng -o ../dependencies.png ../dependencies.dot
     - eatmydata ninja package -j 2 --verbose 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
     # @TODO: Unlike other builds, the Ninja builds using Gitlab.com runners don't get stuck, but they do get
@@ -144,7 +144,7 @@ fedora-clang:
     GIT_STRATEGY: fetch
     GIT_SUBMODULE_STRATEGY: normal
   script:
-    - yum install -y yum-utils rpm-build openssl-devel graphviz clang gnutls-devel
+    - yum install -y yum-utils rpm-build openssl-devel graphviz clang
     # Accelerate builds with unsafe disk access, as we can afford to loose the entire build anyway
     - yum install -y https://github.com/stewartsmith/libeatmydata/releases/download/v129/libeatmydata-129-1.fc33.x86_64.rpm
     # This repository does not have any .spec files, so install dependencies based on Fedora spec file
@@ -156,7 +156,7 @@ fedora-clang:
     - export CC_FOR_BUILD=${CC_FOR_BUILD:-clang}
     - export CFLAGS='-Wno-unused-command-line-argument'
     - export CXXFLAGS='-Wno-unused-command-line-argument'
-    - cmake -DRPM=generic $CMAKE_FLAGS -DWITH_SSL=bundled .. 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
+    - cmake -DRPM=generic $CMAKE_FLAGS .. 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
     - cmake --graphviz=../dependencies.dot .. && dot -Tpng -o ../dependencies.png ../dependencies.dot
     - eatmydata make package -j 2 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
     # @TODO: Don't use -j without the limit of 2 on Gitlab.com as builds just
@@ -181,7 +181,7 @@ fedora-sanitizer:
     GIT_STRATEGY: fetch
     GIT_SUBMODULE_STRATEGY: normal
   script:
-    - yum install -y yum-utils rpm-build openssl-devel clang gnutls-devel
+    - yum install -y yum-utils rpm-build openssl-devel clang
     - yum install -y libasan libtsan libubsan
     # This repository does not have any .spec files, so install dependencies based on Fedora spec file
     - yum-builddep -y mariadb-server
@@ -192,7 +192,7 @@ fedora-sanitizer:
     - export CC_FOR_BUILD=${CC_FOR_BUILD:-clang}
     - export CFLAGS='-Wno-unused-command-line-argument'
     - export CXXFLAGS='-Wno-unused-command-line-argument'
-    - cmake -DRPM=$CI_JOB_NAME $CMAKE_FLAGS -DWITH_SSL=bundled $SANITIZER .. 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
+    - cmake -DRPM=$CI_JOB_NAME $CMAKE_FLAGS $SANITIZER .. 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
     # @TODO: the build will fail consistently at 24% when trying to make using eatmydata
     - make package -j 2 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
     - *rpm_listfiles
@@ -233,7 +233,7 @@ centos8:
     # This repository does not have any .spec files, so install dependencies based on CentOS spec file
     - yum-builddep -y mariadb-server
     - mkdir builddir; cd builddir
-    - cmake -DRPM=$CI_JOB_NAME $CMAKE_FLAGS -DWITH_SSL=system .. 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
+    - cmake -DRPM=$CI_JOB_NAME $CMAKE_FLAGS .. 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
     - eatmydata make package -j 2 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
     # @TODO: Don't use -j without the limit of 2 on Gitlab.com as builds just
     # get stuck when running multi-proc and out of memory, see https://jira.mariadb.org/browse/MDEV-25968
@@ -266,7 +266,7 @@ centos7:
     # ..with a few extra ones, as CentOS 7 is very old and these are added in newer MariaDB releases
     - yum install -y yum-utils rpm-build gcc gcc-c++ bison libxml2-devel libevent-devel openssl-devel pcre2-devel
     - mkdir builddir; cd builddir
-    - cmake -DRPM=$CI_JOB_NAME $CMAKE_FLAGS -DWITH_SSL=system .. 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
+    - cmake -DRPM=$CI_JOB_NAME $CMAKE_FLAGS .. 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
     - make package -j 2 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
     # @TODO: Don't use -j without the limit of 2 on Gitlab.com as builds just
     # get stuck when running multi-proc and out of memory, see https://jira.mariadb.org/browse/MDEV-25968
@@ -331,6 +331,7 @@ mysql-test-run-asan:
   needs:
     - "fedora-sanitizer: [-DWITH_ASAN=YES]"
   <<: *mysql-test-run-def
+  allow_failure: true
   artifacts:
     when: always  # Also show results when tests fail
     reports:

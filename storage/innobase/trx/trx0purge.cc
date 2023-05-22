@@ -448,12 +448,7 @@ func_exit:
 	prev_hdr_addr.boffset = static_cast<uint16_t>(prev_hdr_addr.boffset
 						      - TRX_UNDO_HISTORY_NODE);
 
-	if (!rseg.trx_ref_count
-	    && rseg.needs_purge <= (purge_sys.head.trx_no
-				    ? purge_sys.head.trx_no
-				    : purge_sys.tail.trx_no)
-	    && mach_read_from_2(TRX_UNDO_SEG_HDR + TRX_UNDO_STATE
-				+ block->frame)
+	if (mach_read_from_2(TRX_UNDO_SEG_HDR + TRX_UNDO_STATE + block->frame)
 	    == TRX_UNDO_TO_PURGE
 	    && !mach_read_from_2(block->frame + hdr_addr.boffset
 				 + TRX_UNDO_NEXT_LOG)) {
@@ -544,7 +539,8 @@ static void trx_purge_truncate_history()
       ut_ad(rseg->id == i);
       ut_ad(rseg->is_persistent());
       mutex_enter(&rseg->mutex);
-      trx_purge_truncate_rseg_history(*rseg, head);
+      if (!rseg->trx_ref_count && rseg->needs_purge <= head.trx_no)
+        trx_purge_truncate_rseg_history(*rseg, head);
       mutex_exit(&rseg->mutex);
     }
   }

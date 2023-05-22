@@ -22,3 +22,5 @@ MDEV-26575 : MDEV-29878 Galera test failure on MDEV-26575
 galera_bf_abort_shutdown : MDEV-29918 Assertion failure on galera_bf_abort_shutdown
 galera_wan : [ERROR] WSREP: /home/buildbot/buildbot/build/gcs/src/gcs_state_msg.cpp:gcs_state_msg_get_quorum():947: Failed to establish quorum.
 galera_var_ignore_apply_errors : 28: "Server did not transition to READY state"
+MDEV-27713 : test is using get_lock(), which is now rejected in cluster
+galera_bf_abort_group_commit : MDEV-30855 PR to remove the test exists
