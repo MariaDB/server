@@ -1550,9 +1550,7 @@ ERROR HY000: Lost connection to server during query
 #sql-shadow-t1.par
 db.opt
 t1#P#p0.ibd
-t1#P#p10#TMP#.ibd
 t1#P#p10.ibd
-t1#P#p20#TMP#.ibd
 t1.frm
 t1.par
 # State after crash recovery

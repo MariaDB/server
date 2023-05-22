@@ -2023,6 +2023,10 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
         first= FALSE;
       }
     }
+    else if (part_elem->part_state == PART_TO_BE_DROPPED)
+    {
+     orig_count+= num_subparts;
+    }
   } while (++i < num_parts);
   first= FALSE;
   /*
@@ -2041,6 +2045,7 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
 
   i= 0;
   part_count= 0;
+  orig_count= 0;
   part_it.rewind();
   do
   {
@@ -2074,7 +2079,7 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
             cleanup_new_partition(part_count);
             DBUG_RETURN(error);
           }
-          part= i * num_subparts + j;
+          part= orig_count * num_subparts + j;
           DBUG_PRINT("info", ("Add subpartition %s", part_name_buff));
           if (unlikely((error=
                         prepare_new_partition(table, create_info,
@@ -2105,7 +2110,7 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
         DBUG_PRINT("info", ("Add partition %s", part_name_buff));
         if (unlikely((error=
                       prepare_new_partition(table, create_info,
-                                            new_file_array[i],
+                                            new_file_array[orig_count],
                                             (const char *)part_name_buff,
                                             part_elem,
                                             disable_non_uniq_indexes))))
@@ -2114,9 +2119,12 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
           DBUG_RETURN(error);
         }
 
-        m_added_file[part_count++]= new_file_array[i];
+        m_added_file[part_count++]= new_file_array[orig_count];
       }
+      orig_count++;
     }
+    else if (part_elem->part_state != PART_TO_BE_DROPPED)
+      orig_count++;
   } while (++i < num_parts);
 
   /*

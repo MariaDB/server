@@ -1683,12 +1683,8 @@ ERROR HY000: Lost connection to server during query
 db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
-t1#P#p10#TMP#.MYD
-t1#P#p10#TMP#.MYI
 t1#P#p10.MYD
 t1#P#p10.MYI
-t1#P#p20#TMP#.MYD
-t1#P#p20#TMP#.MYI
 t1.frm
 t1.par
 # State after crash recovery

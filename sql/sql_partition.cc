@@ -2653,6 +2653,12 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
       DBUG_ASSERT(vers_info->interval.is_set() ||
                   vers_info->limit);
       err+= str.append(STRING_WITH_LEN(" AUTO"));
+      if (vers_info->max_parts)
+      {
+        DBUG_ASSERT(vers_info->max_parts > 1);
+        err+= str.append(' ');
+        err+= str.append_ulonglong(vers_info->max_parts);
+      }
     }
   }
   else if (part_info->part_expr)
@@ -6232,7 +6238,8 @@ static bool mysql_rename_partitions(ALTER_PARTITION_PARAM_TYPE *lpt)
     table_name                  Table name
 */
 
-static bool mysql_drop_partitions(ALTER_PARTITION_PARAM_TYPE *lpt)
+static bool mysql_drop_partitions(ALTER_PARTITION_PARAM_TYPE *lpt,
+                                  bool ignore_err)
 {
   char path[FN_REFLEN+1];
   partition_info *part_info= lpt->table->part_info;
@@ -6246,10 +6253,17 @@ static bool mysql_drop_partitions(ALTER_PARTITION_PARAM_TYPE *lpt)
                                                 MDL_EXCLUSIVE));
 
   build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
+  DBUG_ASSERT(!lpt->thd->is_error());
   if ((error= lpt->table->file->ha_drop_partitions(path)))
   {
-    lpt->table->file->print_error(error, MYF(0));
-    DBUG_RETURN(TRUE);
+    myf flags= MYF(0);
+    if (ignore_err)
+    {
+      lpt->thd->clear_error();
+      flags= ME_WARNING;
+    }
+    lpt->table->file->print_error(error, flags);
+    DBUG_RETURN(!ignore_err);
   }
   DBUG_RETURN(FALSE);
 }
@@ -7594,7 +7608,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         log_partition_alter_to_ddl_log(lpt) ||
         (frm_install= FALSE, FALSE) ||
         ERROR_INJECT("drop_partition_7") ||
-        mysql_drop_partitions(lpt) ||
+        mysql_drop_partitions(lpt, false) ||
         ERROR_INJECT("drop_partition_8") ||
         (write_log_completed(lpt, FALSE), FALSE) ||
         ((!thd->lex->no_write_to_binlog) &&
@@ -7705,14 +7719,9 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         ERROR_INJECT("convert_partition_11"))
       goto err;
   }
-  /*
-    TODO: would be good if adding new empty VERSIONING partitions would always
-    go this way, auto or not.
-  */
   else if ((alter_info->partition_flags & ALTER_PARTITION_ADD) &&
            (part_info->part_type == RANGE_PARTITION ||
-            part_info->part_type == LIST_PARTITION ||
-            alter_info->partition_flags & ALTER_PARTITION_AUTO_HIST))
+            part_info->part_type == LIST_PARTITION))
   {
     DBUG_ASSERT(!(alter_info->partition_flags & ALTER_PARTITION_CONVERT_IN));
     /*
@@ -7784,7 +7793,8 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
       ADD HASH PARTITION/
       COALESCE PARTITION/
       REBUILD PARTITION/
-      REORGANIZE PARTITION
+      REORGANIZE PARTITION/
+      ADD or auto-create history partitions
  
       In this case all records are still around after the change although
       possibly organised into new partitions, thus by ensuring that all
@@ -7813,15 +7823,15 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
 
       0) Write an entry that removes the shadow frm file if crash occurs.
       1) Write the shadow frm file of new partitioning.
-      2) Log such that temporary partitions added in change phase are
-         removed in a crash situation.
-      3) Add the new partitions.
-         Copy from the reorganised partitions to the new partitions.
-      4) Get an exclusive metadata lock on the table (waits for all active
+      2) Get an exclusive metadata lock on the table (waits for all active
          transactions using this table). This ensures that we
          can release all other locks on the table and since no one can open
          the table, there can be no new threads accessing the table. They
          will be hanging on this exclusive lock.
+      3) Log such that temporary partitions added in change phase are
+         removed in a crash situation.
+      4) Add the new partitions.
+         Copy from the reorganised partitions to the new partitions.
       5) Close the table.
       6) Log that operation is completed and log all complete actions
          needed to complete operation from here.
@@ -7834,15 +7844,18 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
       12) Write to binlog
       13) Complete query.
     */
+
+    const bool auto_hist= (alter_info->partition_flags & ALTER_PARTITION_AUTO_HIST);
+
     if (write_log_drop_shadow_frm(lpt) ||
         ERROR_INJECT("change_partition_1") ||
         mysql_write_frm(lpt, WFRM_WRITE_SHADOW) ||
         ERROR_INJECT("change_partition_2") ||
-        write_log_add_change_partition(lpt) ||
-        ERROR_INJECT("change_partition_3") ||
-        mysql_change_partitions(lpt, true) ||
-        ERROR_INJECT("change_partition_4") ||
         wait_while_table_is_used(thd, table, HA_EXTRA_NOT_USED) ||
+        ERROR_INJECT("change_partition_3") ||
+        write_log_add_change_partition(lpt) ||
+        ERROR_INJECT("change_partition_4") ||
+        mysql_change_partitions(lpt, !auto_hist) ||
         ERROR_INJECT("change_partition_5") ||
         alter_close_table(lpt) ||
         ERROR_INJECT("change_partition_6") ||
@@ -7855,7 +7868,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         log_partition_alter_to_ddl_log(lpt) ||
         (frm_install= FALSE, FALSE) ||
         ERROR_INJECT("change_partition_9") ||
-        mysql_drop_partitions(lpt) ||
+        mysql_drop_partitions(lpt, auto_hist) ||
         ERROR_INJECT("change_partition_10") ||
         mysql_rename_partitions(lpt) ||
         ERROR_INJECT("change_partition_11") ||

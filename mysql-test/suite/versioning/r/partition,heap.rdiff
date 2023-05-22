@@ -1,4 +1,6 @@
-@@ -2132,85 +2132,6 @@
+--- partition.result
++++ partition,heap.reject
+@@ -2228,85 +2228,6 @@
  (PARTITION `p0` HISTORY ENGINE = X,
   PARTITION `pn` CURRENT ENGINE = X)
  drop tables t1, tp1;
@@ -82,9 +84,9 @@
 - PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = X)
 -drop tables t1, tp1;
  #
- # End of 10.7 tests
+ # MDEV-29841 Partition by system_time can be converted into table but not back
  #
-@@ -2765,134 +2686,6 @@
+@@ -2870,134 +2791,6 @@
  Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p0`) is out of INTERVAL, need more HISTORY partitions
  drop prepare s;
  affected rows: 0
@@ -219,3 +221,79 @@
  # INSERT .. ON DUPLICATE KEY UPDATE (ODKU)
  set timestamp= unix_timestamp('2000-01-01 00:00:00');
  create or replace table t1 (x int primary key) with system versioning
+@@ -3433,11 +3226,6 @@
+ 3	2000-01-01 03:00:00.000000
+ select x, row_end from t1 partition (p4);
+ ERROR HY000: Unknown partition 'p4' in table 't1'
+-t1#P#p0.ibd
+-t1#P#p1.ibd
+-t1#P#p2.ibd
+-t1#P#p3.ibd
+-t1#P#pn.ibd
+ drop table t1;
+ # 2. Drop some history partitions
+ set timestamp= unix_timestamp('2000-01-01 00:00:00');
+@@ -3480,10 +3268,6 @@
+ select x, row_end from t2 partition (p4);
+ x	row_end
+ 4	2000-01-01 04:00:00.000000
+-t2#P#p2.ibd
+-t2#P#p3.ibd
+-t2#P#p4.ibd
+-t2#P#pn.ibd
+ alter table t2 drop partition p2, p3;
+ show create table t2;
+ Table	Create Table
+@@ -3508,10 +3292,6 @@
+  PARTITION `p1` HISTORY ENGINE = DEFAULT_ENGINE,
+  PARTITION `p2` HISTORY ENGINE = DEFAULT_ENGINE,
+  PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
+-t2#P#p1.ibd
+-t2#P#p2.ibd
+-t2#P#p4.ibd
+-t2#P#pn.ibd
+ select x, row_end from t2 partition (p4);
+ x	row_end
+ 4	2000-01-01 04:00:00.000000
+@@ -3555,8 +3335,6 @@
+ select x, row_end from t3 partition (p3);
+ x	row_end
+ 4	2000-01-01 12:00:00.000000
+-t3#P#p3.ibd
+-t3#P#pn.ibd
+ drop table t3;
+ set timestamp= default;
+ # 4. LIMIT, LOCK TABLES example
+@@ -3578,10 +3356,6 @@
+  PARTITION `p2` HISTORY ENGINE = DEFAULT_ENGINE,
+  PARTITION `p3` HISTORY ENGINE = DEFAULT_ENGINE,
+  PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
+-t1#P#p1.ibd
+-t1#P#p2.ibd
+-t1#P#p3.ibd
+-t1#P#pn.ibd
+ update t1 set x= x + 5;
+ show create table t1;
+ Table	Create Table
+@@ -3593,10 +3367,6 @@
+  PARTITION `p3` HISTORY ENGINE = DEFAULT_ENGINE,
+  PARTITION `p4` HISTORY ENGINE = DEFAULT_ENGINE,
+  PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
+-t1#P#p2.ibd
+-t1#P#p3.ibd
+-t1#P#p4.ibd
+-t1#P#pn.ibd
+ unlock tables;
+ update t1 set x= x + 1;
+ update t1 set x= x + 1;
+@@ -3623,10 +3393,6 @@
+  PARTITION `p1` HISTORY ENGINE = DEFAULT_ENGINE,
+  PARTITION `p2` HISTORY ENGINE = DEFAULT_ENGINE,
+  PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
+-t1#P#p1.ibd
+-t1#P#p2.ibd
+-t1#P#p6.ibd
+-t1#P#pn.ibd
+ drop table t1;
+ # Auto-drop to 1 partition is prohibited
+ create or replace table t1 (x int) with system versioning

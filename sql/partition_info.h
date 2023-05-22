@@ -41,6 +41,7 @@ struct Vers_part_info : public Sql_alloc
   Vers_part_info() :
     limit(0),
     auto_hist(false),
+    max_parts(0),
     now_part(NULL),
     hist_part(NULL)
   {
@@ -50,6 +51,7 @@ struct Vers_part_info : public Sql_alloc
     interval(src.interval),
     limit(src.limit),
     auto_hist(src.auto_hist),
+    max_parts(src.max_parts),
     now_part(NULL),
     hist_part(NULL)
   {
@@ -59,6 +61,7 @@ struct Vers_part_info : public Sql_alloc
     interval= src.interval;
     limit= src.limit;
     auto_hist= src.auto_hist;
+    max_parts= src.max_parts;
     now_part= src.now_part;
     hist_part= src.hist_part;
     return *this;
@@ -86,6 +89,11 @@ struct Vers_part_info : public Sql_alloc
   } interval;
   ulonglong limit;
   bool auto_hist;
+  /*
+    When auto_hist == true auto-drop history partitions to keep at most
+    max_parts partitions (including now partition). 0 means auto-drop is off.
+  */
+  uint max_parts;
   partition_element *now_part;
   partition_element *hist_part;
 };
@@ -443,7 +451,7 @@ void part_type_error(THD *thd, partition_info *work_part_info,
 
 uint32 get_next_partition_id_range(struct st_partition_iter* part_iter);
 bool check_partition_dirs(partition_info *part_info);
-bool vers_create_partitions(THD* thd, TABLE_LIST* tl, uint num_parts);
+bool vers_create_partitions(THD* thd, TABLE_LIST* tl, uint add_parts);
 
 /* Initialize the iterator to return a single partition with given part_id */
 

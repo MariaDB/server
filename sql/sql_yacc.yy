@@ -1508,6 +1508,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_versioning_interval_start
 
 %type <num> opt_vers_auto_part
+%type <num> opt_vers_drop_part
 
 %type <item_param> param_marker
 
@@ -5168,11 +5169,31 @@ opt_vers_auto_part:
          {
            $$= 0;
          }
-       | AUTO_SYM
+       | AUTO_SYM opt_vers_drop_part
          {
            $$= 1;
          }
        ;
+
+opt_vers_drop_part:
+         /* empty */
+         {
+           $$= 0;
+         }
+       | ulong_num
+         {
+           if (unlikely($1 < 2))
+           {
+             my_error(ER_PART_WRONG_VALUE, MYF(0),
+                      Lex->create_last_non_select_table->table_name.str, "AUTO");
+             MYSQL_YYABORT;
+           }
+           partition_info *part_info= Lex->part_info;
+           part_info->vers_info->max_parts= (uint) $1;
+           $$= $1;
+         }
+       ;
+
 /*
  End of partition parser part
 */
