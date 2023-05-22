@@ -24640,7 +24640,7 @@ JOIN_TAB::remove_duplicates()
       !(join->select_options & OPTION_FOUND_ROWS))
   {
     // only const items with no OPTION_FOUND_ROWS
-    join->unit->lim.set_single_row();		// Only send first row
+    join->unit->lim.send_first_row();		// Only send first row
     my_free(sortorder);
     DBUG_RETURN(false);
   }
