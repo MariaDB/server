@@ -1196,6 +1196,7 @@ public:
       stat_field->val_str(&val);
       memcpy(table_field->read_stats->histogram.get_values(),
              val.ptr(), table_field->read_stats->histogram.get_size());
+      table_field->read_stats->histogram.update_popular_value_counts();
     }
   }
 
@@ -3924,7 +3925,7 @@ double Histogram::point_selectivity(double pos, double n_rows,
       buckets that are not occupied by popular values.
     */
     regular_value_rows=
-      n_rows * (get_width() - n_popular_values_buckets) / get_width();
+      n_rows * ((double)get_width() - n_popular_values_buckets) / get_width();
 
     if (regular_value_rows < 1.0)
       goto handle_edge_case;

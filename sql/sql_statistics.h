@@ -152,7 +152,7 @@ private:
     Number of popular values in the histogram. A value is considered popular if
     it occupies one whole bucket or more than that.
   */
-  uint n_popular_value;
+  uint n_popular_values;
 
   /* Number of buckets that are fully occupied by popular values.  */
   uint n_popular_values_buckets;
@@ -233,8 +233,8 @@ private:
   }
 
   /* Re-compute n_popular_values and n_popular_values_buckets */
-  void update_popular_value_counts();
 public:
+  void update_popular_value_counts();
 
   uint get_size() { return (uint) size; }
 
