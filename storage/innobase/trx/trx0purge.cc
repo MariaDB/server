@@ -619,7 +619,8 @@ static void trx_purge_truncate_history()
 
       ut_ad(rseg->curr_size > cached);
 
-      if (rseg->curr_size > cached + 1)
+      if (rseg->curr_size > cached + 1 &&
+          (srv_fast_shutdown || srv_undo_sources || trx_sys.rseg_history_len))
         goto not_free;
 
       mutex_exit(&rseg->mutex);
