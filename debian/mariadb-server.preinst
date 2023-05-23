@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash
 #
 # summary of how this script can be called:
 #        * <new-preinst> install
@@ -6,6 +6,8 @@
 #        * <new-preinst> upgrade <old-version>
 #        * <old-preinst> abort-upgrade <new-version>
 #
+
+set -e
 
 # shellcheck source=/dev/null
 . /usr/share/debconf/confmodule
