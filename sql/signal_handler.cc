@@ -27,6 +27,7 @@
 
 #ifdef _WIN32
 #include <crtdbg.h>
+#include <direct.h>
 #define SIGNAL_FMT "exception 0x%x"
 #else
 #define SIGNAL_FMT "signal %d"
@@ -66,9 +67,9 @@ static inline void output_core_info()
                           (int) len, buff);
   }
 #ifdef __FreeBSD__
-  if ((fd= my_open("/proc/curproc/rlimit", O_RDONLY, MYF(MY_NO_REGISTER))) >= 0)
+  if ((fd= open("/proc/curproc/rlimit", O_RDONLY)) >= 0)
 #else
-  if ((fd= my_open("/proc/self/limits", O_RDONLY, MYF(MY_NO_REGISTER))) >= 0)
+  if ((fd= open("/proc/self/limits", O_RDONLY)) >= 0)
 #endif
   {
     my_safe_printf_stderr("Resource Limits:\n");
@@ -76,21 +77,20 @@ static inline void output_core_info()
     {
       my_write_stderr(buff, len);
     }
-    my_close(fd, MYF(0));
+    close(fd);
   }
 #ifdef __linux__
-  if ((fd= my_open("/proc/sys/kernel/core_pattern", O_RDONLY,
-                   MYF(MY_NO_REGISTER))) >= 0)
+  if ((fd= open("/proc/sys/kernel/core_pattern", O_RDONLY)) >= 0)
   {
     len= read(fd, (uchar*)buff, sizeof(buff));
     my_safe_printf_stderr("Core pattern: %.*s\n", (int) len, buff);
-    my_close(fd, MYF(0));
+    close(fd);
   }
-  if ((fd= my_open("/proc/version", O_RDONLY, MYF(0))) >= 0)
+  if ((fd= open("/proc/version", O_RDONLY)) >= 0)
   {
-    len= my_read(fd, (uchar*)buff, sizeof(buff),  MYF(0));
+    len= read(fd, (uchar*)buff, sizeof(buff));
     my_safe_printf_stderr("Kernel version: %.*s\n", (int) len, buff);
-    my_close(fd, MYF(0));
+    close(fd);
   }
 #endif
 #elif defined(__APPLE__) || defined(__FreeBSD__)
@@ -104,11 +104,14 @@ static inline void output_core_info()
   {
     my_safe_printf_stderr("Kernel version: %.*s\n", (int) len, buff);
   }
-#else
+#elif defined(HAVE_GETCWD)
   char buff[80];
-  my_getwd(buff, sizeof(buff), 0);
-  my_safe_printf_stderr("Writing a core file at %s\n", buff);
-  fflush(stderr);
+
+  if (getcwd(buff, sizeof(buff)))
+  {
+    my_safe_printf_stderr("Writing a core file at %.*s\n", (int) sizeof(buff), buff);
+    fflush(stderr);
+  }
 #endif
 }
 

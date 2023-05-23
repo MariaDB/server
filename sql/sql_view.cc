@@ -1006,10 +1006,12 @@ static int mysql_register_view(THD *thd, DDL_LOG_STATE *ddl_log_state,
     Sql_mode_instant_remove sms(thd, MODE_ANSI_QUOTES);
 
     lex->unit.print(&view_query, enum_query_type(QT_VIEW_INTERNAL |
-                                                 QT_ITEM_ORIGINAL_FUNC_NULLIF));
+                                                 QT_ITEM_ORIGINAL_FUNC_NULLIF |
+                                                 QT_NO_WRAPPERS_FOR_TVC_IN_VIEW));
     lex->unit.print(&is_query, enum_query_type(QT_TO_SYSTEM_CHARSET |
                                                QT_WITHOUT_INTRODUCERS |
-                                               QT_ITEM_ORIGINAL_FUNC_NULLIF));
+                                               QT_ITEM_ORIGINAL_FUNC_NULLIF |
+                                               QT_NO_WRAPPERS_FOR_TVC_IN_VIEW));
   }
   DBUG_PRINT("info", ("View: %.*s", view_query.length(), view_query.ptr()));
 
@@ -1806,7 +1808,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     if (view_is_mergeable &&
         (table->select_lex->master_unit() != &old_lex->unit ||
          old_lex->can_use_merged()) &&
-        !old_lex->can_not_use_merged(0))
+        !old_lex->can_not_use_merged())
     {
       /* lex should contain at least one table */
       DBUG_ASSERT(view_main_select_tables != 0);
@@ -1839,8 +1841,11 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
       */
       if (!table->select_lex->master_unit()->is_unit_op() &&
           table->select_lex->order_list.elements == 0)
+      {
         table->select_lex->order_list.
           push_back(&lex->first_select_lex()->order_list);
+        lex->first_select_lex()->order_list.empty();
+      }
       else
       {
         if (old_lex->sql_command == SQLCOM_SELECT &&

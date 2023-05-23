@@ -1271,7 +1271,7 @@ EXPLAIN
 DROP TABLES t1, t2;
 # End of 10.3 tests
 #
-# MDEV-28538: multi-table UPDATE/DELETE with possible exists-to-in
+# MDEV-30538: multi-table UPDATE/DELETE with possible exists-to-in
 #
 create table t1 (c1 int, c2 int, c3 int, index idx(c2));
 insert into t1 values

@@ -378,7 +378,6 @@ public:
 
   lsn_t get_lsn(std::memory_order order= std::memory_order_relaxed) const
   { return lsn.load(order); }
-  void set_lsn(lsn_t lsn) { this->lsn.store(lsn, std::memory_order_release); }
 
   lsn_t get_flushed_lsn(std::memory_order order= std::memory_order_acquire)
     const noexcept
@@ -515,11 +514,10 @@ public:
 /** Redo log system */
 extern log_t	log_sys;
 
-inline void log_free_check()
-{
-  if (log_sys.check_flush_or_checkpoint())
-    log_check_margins();
-}
+/** Wait for a log checkpoint if needed.
+NOTE that this function may only be called while not holding
+any synchronization objects except dict_sys.latch. */
+void log_free_check();
 
 /** Release the latches that protect log resizing. */
 void log_resize_release();

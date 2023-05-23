@@ -162,8 +162,9 @@ close_and_exit:
 			ut_ad("corrupted SYS_INDEXES record" == 0);
 		}
 
-		if (const uint32_t space_id = dict_drop_index_tree(
-			    &node->pcur, nullptr, &mtr)) {
+		const uint32_t space_id = dict_drop_index_tree(
+			&node->pcur, nullptr, &mtr);
+		if (space_id) {
 			if (table) {
 				if (table->get_ref_count() == 0) {
 					dict_sys.remove(table);
@@ -182,6 +183,10 @@ close_and_exit:
 		if (table) {
 			dict_sys.unlock();
 			table = nullptr;
+		}
+
+		if (space_id) {
+			ibuf_delete_for_discarded_space(space_id);
 		}
 
 		purge_sys.check_stop_SYS();

@@ -38,6 +38,16 @@ $stmt").
 
 */
 
+/* fake microseconds as cycles if cycles isn't available */
+static inline double timer_tracker_frequency()
+{
+#if (MY_TIMER_ROUTINE_CYCLES)
+  return static_cast<double>(sys_timer_info.cycles.frequency);
+#else
+  return static_cast<double>(sys_timer_info.microseconds.frequency);
+#endif
+}
+
 class Gap_time_tracker;
 void attach_gap_time_tracker(THD *thd, Gap_time_tracker *gap_tracker, ulonglong timeval);
 void process_gap_time_tracker(THD *thd, ulonglong timeval);
@@ -52,9 +62,18 @@ protected:
   ulonglong cycles;
   ulonglong last_start;
 
+  ulonglong measure() const
+  {
+#if (MY_TIMER_ROUTINE_CYCLES)
+    return my_timer_cycles();
+#else
+    return my_timer_microseconds();
+#endif
+  }
+
   void cycles_stop_tracking(THD *thd)
   {
-    ulonglong end= my_timer_cycles();
+    ulonglong end= measure();
     cycles += end - last_start;
     if (unlikely(end < last_start))
       cycles += ULONGLONG_MAX;
@@ -63,19 +82,24 @@ protected:
     if (my_gap_tracker)
       attach_gap_time_tracker(thd, my_gap_tracker, end);
   }
+
+  /*
+    The time spent after stop_tracking() call on this object and any
+    subsequent time tracking call will be billed to this tracker.
+  */
+  Gap_time_tracker *my_gap_tracker;
 public:
   Exec_time_tracker() : count(0), cycles(0), my_gap_tracker(NULL) {}
 
-  /*
-    The time spent between stop_tracking() call on this object and any
-    other time measurement will be billed to this tracker.
-  */
-  Gap_time_tracker *my_gap_tracker;
+  void set_gap_tracker(Gap_time_tracker *gap_tracker)
+  {
+    my_gap_tracker= gap_tracker;
+  }
 
   // interface for collecting time
   void start_tracking(THD *thd)
   {
-    last_start= my_timer_cycles();
+    last_start= measure();
     process_gap_time_tracker(thd, last_start);
   }
 
@@ -91,7 +115,7 @@ public:
   {
     // convert 'cycles' to milliseconds.
     return 1000.0 * static_cast<double>(cycles) /
-      static_cast<double>(sys_timer_info.cycles.frequency);
+      timer_tracker_frequency();
   }
 
   bool has_timed_statistics() const { return cycles > 0; }
@@ -117,11 +141,9 @@ public:
   double get_time_ms() const
   {
     // convert 'cycles' to milliseconds.
-    return 1000.0 * static_cast<double>(cycles) /
-      static_cast<double>(sys_timer_info.cycles.frequency);
+    return 1000.0 * static_cast<double>(cycles) / timer_tracker_frequency();
   }
 };
-
 
 
 /*
@@ -160,6 +182,25 @@ public:
   if (unlikely((tracker)->timed)) \
   { (tracker)->stop_tracking(thd); }
 
+
+/*
+  Just a counter to increment one value. Wrapped in a class to be uniform
+  with other counters used by ANALYZE.
+*/
+
+class Counter_tracker
+{
+public:
+  Counter_tracker() : r_scans(0) {}
+  ha_rows r_scans;
+
+  inline void on_scan_init() { r_scans++; }
+
+  bool has_scans() const { return (r_scans != 0); }
+  ha_rows get_loops() const { return r_scans; }
+};
+
+
 /*
   A class for collecting read statistics.
   
@@ -170,20 +211,16 @@ public:
    It can be used to track reading from files, buffers, etc).
 */
 
-class Table_access_tracker 
+class Table_access_tracker
 {
 public:
-  Table_access_tracker() :
-    r_scans(0), r_rows(0), /*r_rows_after_table_cond(0),*/
-    r_rows_after_where(0)
+  Table_access_tracker() : r_scans(0), r_rows(0), r_rows_after_where(0)
   {}
 
-  ha_rows r_scans; /* How many scans were ran on this join_tab */
+  ha_rows r_scans; /* how many scans were ran on this join_tab */
   ha_rows r_rows; /* How many rows we've got after that */
   ha_rows r_rows_after_where; /* Rows after applying attached part of WHERE */
 
-  bool has_scans() const { return (r_scans != 0); }
-  ha_rows get_loops() const { return r_scans; }
   double get_avg_rows() const
   {
     return r_scans
@@ -202,6 +239,9 @@ public:
   inline void on_scan_init() { r_scans++; }
   inline void on_record_read() { r_rows++; }
   inline void on_record_after_where() { r_rows_after_where++; }
+
+  bool has_scans() const { return (r_scans != 0); }
+  ha_rows get_loops() const { return r_scans; }
 };
 
 

@@ -730,7 +730,7 @@ enum Log_event_type
 
 
 /*
-  Bit flags for what has been writting to cache. Used to
+  Bit flags for what has been writing to cache. Used to
   discard logs with table map events but not row events and
   nothing else important. This is stored by cache.
 */
@@ -3113,7 +3113,7 @@ private:
   virtual int do_commit()= 0;
   virtual int do_apply_event(rpl_group_info *rgi);
   int do_record_gtid(THD *thd, rpl_group_info *rgi, bool in_trans,
-                     void **out_hton);
+                     void **out_hton, bool force_err= false);
   enum_skip_reason do_shall_skip(rpl_group_info *rgi);
   virtual const char* get_query()= 0;
 #endif

@@ -1,0 +1,26 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t (a CHAR(1) KEY);
+START TRANSACTION;
+HANDLER t OPEN;
+disconnect node_1;
+connect node_1, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+DROP TABLE t;
+BACKUP STAGE START;
+START TRANSACTION;
+disconnect node_1;
+connect node_1, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+CREATE TABLE t2 (f1 INTEGER PRIMARY KEY);
+START TRANSACTION;
+INSERT INTO t1 VALUES(1);
+HANDLER t2 OPEN;
+connection node_2;
+INSERT INTO t1 VALUES(1);
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1a;
+connection node_1;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+DROP TABLE t1,t2;

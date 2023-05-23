@@ -7102,6 +7102,9 @@ public:
   }
 
   virtual void keep_array() {}
+#ifndef DBUG_OFF
+  bool is_array_kept() { return TRUE; }
+#endif
   void print(String *str, enum_query_type query_type) override;
   bool eq_def(const Field *field) 
   {
@@ -7590,13 +7593,14 @@ public:
   bool null_inside() override;
   void bring_value() override;
   void keep_array() override { save_array= 1; }
+#ifndef DBUG_OFF
+  bool is_array_kept() { return save_array; }
+#endif
   void cleanup() override
   {
     DBUG_ENTER("Item_cache_row::cleanup");
     Item_cache::cleanup();
-    if (save_array)
-      bzero(values, item_count*sizeof(Item**));
-    else
+    if (!save_array)
       values= 0;
     DBUG_VOID_RETURN;
   }
@@ -7827,7 +7831,7 @@ public:
   Item *get_tmp_table_item(THD *thd)
   { return m_item->get_tmp_table_item(thd); }
   Item *get_copy(THD *thd)
-  { return m_item->get_copy(thd); }
+  { return get_item_copy<Item_direct_ref_to_item>(thd, this); }
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
                           bool link_item_fields,
                           COND_EQUAL **cond_equal_ref)
@@ -7895,7 +7899,20 @@ public:
   bool excl_dep_on_grouping_fields(st_select_lex *sel)
   { return m_item->excl_dep_on_grouping_fields(sel); }
   bool is_expensive() { return m_item->is_expensive(); }
-  Item* build_clone(THD *thd) { return get_copy(thd); }
+  void set_item(Item *item) { m_item= item; }
+  Item *build_clone(THD *thd)
+  {
+    Item *clone_item= m_item->build_clone(thd);
+    if (clone_item)
+    {
+      Item_direct_ref_to_item *copy= (Item_direct_ref_to_item *) get_copy(thd);
+      if (!copy)
+        return 0;
+      copy->set_item(clone_item);
+      return copy;
+    }
+    return 0;
+  }
 
   void split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
                       List<Item> &fields, uint flags)

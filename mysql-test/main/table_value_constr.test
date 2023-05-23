@@ -1748,5 +1748,79 @@ INSERT INTO t1 (VALUES (IGNORE) UNION VALUES (IGNORE));
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-28603: VIEW with table value constructor used as single-value
+--echo #             subquery contains subquery as its first element
+--echo #
+
+create table t1 (a int);
+insert into t1 values (3), (7), (1);
+create table t2 (b int);
+insert into t2 values (1), (2);
+
+let $q=
+select (values ((select * from t1 where a > 5))) as m from t2;
+
+eval create view v as $q;
+
+eval $q;
+eval select * from v;
+eval with cte as ( $q ) select * from cte;
+
+eval explain $q;
+eval explain select * from v;
+eval explain with cte as ( $q ) select * from cte;
+
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+eval prepare stmt from "select * from v";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+eval prepare stmt from "with cte as ( $q ) select * from cte";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+show create view v;
+
+drop view v;
+
+eval prepare stmt from "create view v as $q";
+execute stmt;
+show create view v;
+select * from v;
+drop view v;
+execute stmt;
+show create view v;
+select * from v;
+deallocate prepare stmt;
+
+prepare stmt from "show create view v";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+drop view v;
+
+let $q=
+select (values ((select * from t1 where a > 5
+                 union
+                 select * from t1 where a > 7))) as m from t2;
+
+eval create view v as $q;
+
+eval $q;
+eval select * from v;
+
+show create view v;
+
+drop view v;
+drop table t1,t2;
+
+--echo #
 --echo # End of 10.4 tests
 --echo #

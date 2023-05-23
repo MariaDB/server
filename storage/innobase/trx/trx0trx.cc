@@ -816,28 +816,17 @@ static void trx_assign_rseg_low(trx_t *trx)
 	static Atomic_counter<unsigned>	rseg_slot;
 	unsigned slot = rseg_slot++ % TRX_SYS_N_RSEGS;
 	ut_d(if (trx_rseg_n_slots_debug) slot = 0);
+	ut_d(const auto start_scan_slot = slot);
+	ut_d(bool look_for_rollover = false);
 	trx_rseg_t*	rseg;
-
-#ifdef UNIV_DEBUG
-	ulint	start_scan_slot = slot;
-	bool	look_for_rollover = false;
-#endif /* UNIV_DEBUG */
 
 	bool	allocated;
 
 	do {
 		for (;;) {
 			rseg = &trx_sys.rseg_array[slot];
-
-#ifdef UNIV_DEBUG
-			/* Ensure that we are not revisiting the same
-			slot that we have already inspected. */
-			if (look_for_rollover) {
-				ut_ad(start_scan_slot != slot);
-			}
-			look_for_rollover = true;
-#endif /* UNIV_DEBUG */
-
+			ut_ad(!look_for_rollover || start_scan_slot != slot);
+			ut_d(look_for_rollover = true);
 			ut_d(if (!trx_rseg_n_slots_debug))
 			slot = (slot + 1) % TRX_SYS_N_RSEGS;
 
@@ -1038,7 +1027,13 @@ trx_write_serialisation_history(
 		mtr_t	temp_mtr;
 		temp_mtr.start();
 		temp_mtr.set_log_mode(MTR_LOG_NO_REDO);
-		trx_undo_set_state_at_finish(undo, &temp_mtr);
+		buf_block_t* block= buf_page_get(page_id_t(SRV_TMP_SPACE_ID,
+							   undo->hdr_page_no),
+						 0, RW_X_LATCH, mtr);
+		ut_a(block);
+		temp_mtr.write<2>(*block, TRX_UNDO_SEG_HDR + TRX_UNDO_STATE
+				  + block->page.frame, TRX_UNDO_TO_PURGE);
+		undo->state = TRX_UNDO_TO_PURGE;
 		temp_mtr.commit();
 	}
 

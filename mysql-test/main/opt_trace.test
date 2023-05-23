@@ -683,6 +683,101 @@ SELECT a FROM t1 WHERE (a,b) in (SELECT @c,@d);
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-31085: multi-update using view with optimizer trace enabled
+--echo #
+
+SET SESSION optimizer_trace = 'enabled=on';
+
+CREATE TABLE t (a int, b int);
+CREATE VIEW v AS SELECT 1 AS c UNION SELECT 2 AS c;
+INSERT INTO t VALUES (0,4),(5,6);
+UPDATE t, v SET t.b = t.a, t.a = v.c WHERE v.c < t.a;
+SELECT * FROM information_schema.optimizer_trace;
+
+SELECT * FROM t;
+
+SET optimizer_trace=DEFAULT;
+
+DROP VIEW v;
+DROP TABLE t;
+
+--echo #
+--echo # MDEV-26301: Split optimization improvements: Optimizer Trace coverage
+--echo #
+
+# 5 values
+create table t1(a int, b int);
+insert into t1 select seq,seq from seq_1_to_5;
+ 
+# 5 value groups of size 2 each
+create table t2(a int, b int, key(a));
+insert into t2
+select A.seq,B.seq from seq_1_to_25 A, seq_1_to_2 B;
+ 
+# 5 value groups of size 3 each
+create table t3(a int, b int, key(a));
+insert into t3
+select A.seq,B.seq from seq_1_to_5 A, seq_1_to_3 B;
+ 
+analyze table t1,t2,t3 persistent for all;
+
+create table t10 (
+  grp_id int,
+  col1 int,
+  key(grp_id)
+);
+ 
+# 100 groups of 100 values each
+insert into t10
+select
+  A.seq,
+  B.seq
+from
+  seq_1_to_100 A,
+  seq_1_to_100 B;
+ 
+# and X10 multiplier
+create table t11 (
+  col1 int,
+  col2 int
+);
+insert into t11
+select A.seq, A.seq from seq_1_to_10 A;
+ 
+analyze table t10,t11 persistent for all;
+
+set optimizer_trace=1;
+explain
+select * from
+  (
+    (t1 left join t2 on t2.a=t1.b)
+    left join t3 on t3.a=t1.b
+  ) left join (select grp_id, count(*)
+               from t10 left join t11 on t11.col1=t10.col1
+               group by grp_id) T on T.grp_id=t1.b;
+
+# Not sure how MDEV-27871 is related but this test uses this reason
+# all over the place:
+#enable after fix MDEV-27871
+--disable_view_protocol
+
+select json_detailed(json_extract(trace, '$**.check_split_materialized')) as JS
+from information_schema.optimizer_trace;
+
+select 
+  json_detailed(
+    json_remove(
+      json_extract(trace, '$**.choose_best_splitting')
+      , '$[0].split_plan_search[0]'
+    )
+  ) as JS
+from information_schema.optimizer_trace;
+
+--enable_view_protocol
+drop table t1,t2,t3,t10,t11;
+set optimizer_trace=DEFAULT;
+
+--echo #
 --echo # End of 10.4 tests
 --echo #
 
@@ -889,13 +984,6 @@ select
 from
   information_schema.optimizer_trace;
 --enable_view_protocol
-
-# Same as above. just to show that splitting plan has some coverage in the
-# trace.
-select
-  json_detailed(json_extract(trace, '$**.lateral_derived')) 
-from
-  information_schema.optimizer_trace;
 
 drop table t1,t2;
 

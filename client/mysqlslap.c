@@ -172,8 +172,6 @@ File csv_file;
 
 static uint opt_protocol= 0;
 
-static uint protocol_to_force= MYSQL_PROTOCOL_DEFAULT;
-
 static int get_options(int *argc,char ***argv);
 static uint opt_mysql_port= 0;
 
@@ -333,13 +331,6 @@ int main(int argc, char **argv)
     free_defaults(defaults_argv);
     my_end(0);
     exit(1);
-  }
-
-  /* Command line options override configured protocol */
-  if (protocol_to_force > MYSQL_PROTOCOL_DEFAULT
-      && protocol_to_force != opt_protocol)
-  {
-    warn_protocol_override(host, &opt_protocol, protocol_to_force);
   }
 
   sf_leaking_memory=0; /* from now on we cleanup properly */
@@ -744,9 +735,6 @@ static my_bool
 get_one_option(const struct my_option *opt, const char *argument,
                const char *filename)
 {
-  /* Track when protocol is set via CLI to not force overrides */
-  static my_bool ignore_protocol_override = FALSE;
-
   DBUG_ENTER("get_one_option");
   switch(opt->id) {
   case 'v':
@@ -776,13 +764,6 @@ get_one_option(const struct my_option *opt, const char *argument,
   case 'W':
 #ifdef _WIN32
     opt_protocol= MYSQL_PROTOCOL_PIPE;
-
-    /* Prioritize pipe if explicit via command line */
-    if (filename[0] == '\0')
-    {
-      ignore_protocol_override = TRUE;
-      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
-    }
 #endif
     break;
   case OPT_MYSQL_PROTOCOL:
@@ -792,45 +773,19 @@ get_one_option(const struct my_option *opt, const char *argument,
       sf_leaking_memory= 1; /* no memory leak reports here */
       exit(1);
     }
-
-    /* Specification of protocol via CLI trumps implicit overrides */
-    if (filename[0] == '\0')
-    {
-      ignore_protocol_override = TRUE;
-      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
-    }
-
     break;
   case 'P':
-    /* If port and socket are set, fall back to default behavior */
-    if (protocol_to_force == SOCKET_PROTOCOL_TO_FORCE)
+    if (filename[0] == '\0')
     {
-      ignore_protocol_override = TRUE;
-      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
-    }
-
-    /* If port is set via CLI, try to force protocol to TCP */
-    if (filename[0] == '\0' &&
-        !ignore_protocol_override &&
-        protocol_to_force == MYSQL_PROTOCOL_DEFAULT)
-    {
-      protocol_to_force = MYSQL_PROTOCOL_TCP;
+      /* Port given on command line, switch protocol to use TCP */
+      opt_protocol= MYSQL_PROTOCOL_TCP;
     }
     break;
   case 'S':
-    /* If port and socket are set, fall back to default behavior */
-    if (protocol_to_force == MYSQL_PROTOCOL_TCP)
+    if (filename[0] == '\0')
     {
-      ignore_protocol_override = TRUE;
-      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
-    }
-
-    /* Prioritize socket if set via command line */
-    if (filename[0] == '\0' &&
-        !ignore_protocol_override &&
-        protocol_to_force == MYSQL_PROTOCOL_DEFAULT)
-    {
-      protocol_to_force = SOCKET_PROTOCOL_TO_FORCE;
+      /* Socket given on command line, switch protocol to use SOCKETSt */
+      opt_protocol= MYSQL_PROTOCOL_SOCKET;
     }
     break;
   case '#':
@@ -1835,6 +1790,7 @@ run_scheduler(stats *sptr, statement *stmts, uint concur, ulonglong limit)
   uint x;
   struct timeval start_time, end_time;
   thread_context con;
+  int error;
   pthread_t mainthread;            /* Thread descriptor */
   pthread_attr_t attr;          /* Thread attributes */
   DBUG_ENTER("run_scheduler");
@@ -1843,8 +1799,11 @@ run_scheduler(stats *sptr, statement *stmts, uint concur, ulonglong limit)
   con.limit= limit;
 
   pthread_attr_init(&attr);
-  pthread_attr_setdetachstate(&attr,
-		  PTHREAD_CREATE_DETACHED);
+  if ((error= pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED)))
+  {
+    printf("Got error: %d from pthread_attr_setdetachstate\n", error);
+    exit(1);
+  }
 
   pthread_mutex_lock(&counter_mutex);
   thread_counter= 0;

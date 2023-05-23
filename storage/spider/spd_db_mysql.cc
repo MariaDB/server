@@ -2141,7 +2141,7 @@ int spider_db_mbase::exec_query(
         db_conn->affected_rows, db_conn->insert_id,
         db_conn->server_status, db_conn->warning_count);
       if (spider_param_log_result_errors() >= 3)
-        print_warnings(l_time);
+        fetch_and_print_warnings(l_time);
     } else if (log_result_errors >= 4)
     {
       time_t cur_time = (time_t) time((time_t*) 0);
@@ -2223,76 +2223,63 @@ bool spider_db_mbase::is_xa_nota_error(
   DBUG_RETURN(xa_nota);
 }
 
-int spider_db_mbase::print_warnings(
-  struct tm *l_time
-) {
+int spider_db_mbase::fetch_and_print_warnings(struct tm *l_time)
+{
   int error_num = 0;
-  DBUG_ENTER("spider_db_mbase::print_warnings");
+  DBUG_ENTER("spider_db_mbase::fetch_and_print_warnings");
   DBUG_PRINT("info",("spider this=%p", this));
-  if (db_conn->status == MYSQL_STATUS_READY)
+
+  if (spider_param_dry_access() || db_conn->status != MYSQL_STATUS_READY ||
+      db_conn->server_status & SERVER_MORE_RESULTS_EXISTS ||
+      !db_conn->warning_count)
+    DBUG_RETURN(0);
+
+  if (mysql_real_query(db_conn, SPIDER_SQL_SHOW_WARNINGS_STR,
+                       SPIDER_SQL_SHOW_WARNINGS_LEN))
+    DBUG_RETURN(0);
+
+  MYSQL_RES *res= mysql_store_result(db_conn);
+  if (!res)
+    DBUG_RETURN(0);
+
+  uint num_fields= mysql_num_fields(res);
+  if (num_fields != 3)
   {
-    if (
-      !(db_conn->server_status & SERVER_MORE_RESULTS_EXISTS) &&
-      db_conn->warning_count
-    ) {
-      if (
-        spider_param_dry_access() ||
-        !mysql_real_query(db_conn, SPIDER_SQL_SHOW_WARNINGS_STR,
-          SPIDER_SQL_SHOW_WARNINGS_LEN)
-      ) {
-        MYSQL_RES *res = NULL;
-        MYSQL_ROW row = NULL;
-        uint num_fields;
-        if (
-          spider_param_dry_access() ||
-          !(res = mysql_store_result(db_conn)) ||
-          !(row = mysql_fetch_row(res))
-        ) {
-          if (mysql_errno(db_conn))
-          {
-            if (res)
-              mysql_free_result(res);
-            DBUG_RETURN(0);
-          }
-          /* no record is ok */
-        }
-        num_fields = mysql_num_fields(res);
-        if (num_fields != 3)
-        {
-          mysql_free_result(res);
-          DBUG_RETURN(0);
-        }
-        if (l_time)
-        {
-          while (row)
-          {
-            fprintf(stderr, "%04d%02d%02d %02d:%02d:%02d [WARN SPIDER RESULT] "
-              "from [%s] %ld to %ld: %s %s %s\n",
+    mysql_free_result(res);
+    DBUG_RETURN(0);
+  }
+
+  MYSQL_ROW row= mysql_fetch_row(res);
+  if (l_time)
+  {
+    while (row)
+    {
+      fprintf(stderr,
+              "%04d%02d%02d %02d:%02d:%02d [WARN SPIDER RESULT] from [%s] %ld "
+              "to %ld: %s %s %s\n",
               l_time->tm_year + 1900, l_time->tm_mon + 1, l_time->tm_mday,
-              l_time->tm_hour, l_time->tm_min, l_time->tm_sec,
-              conn->tgt_host, (ulong) db_conn->thread_id,
-              (ulong) current_thd->thread_id, row[0], row[1], row[2]);
-            row = mysql_fetch_row(res);
-          }
-        } else {
-          while (row)
-          {
-            DBUG_PRINT("info",("spider row[0]=%s", row[0]));
-            DBUG_PRINT("info",("spider row[1]=%s", row[1]));
-            DBUG_PRINT("info",("spider row[2]=%s", row[2]));
-            longlong res_num =
-              (longlong) my_strtoll10(row[1], (char**) NULL, &error_num);
-            DBUG_PRINT("info",("spider res_num=%lld", res_num));
-            my_printf_error((int) res_num, row[2], MYF(0));
-            error_num = (int) res_num;
-            row = mysql_fetch_row(res);
-          }
-        }
-        if (res)
-          mysql_free_result(res);
-      }
+              l_time->tm_hour, l_time->tm_min, l_time->tm_sec, conn->tgt_host,
+              (ulong) db_conn->thread_id, (ulong) current_thd->thread_id, row[0],
+              row[1], row[2]);
+      row= mysql_fetch_row(res);
+    }
+  } else {
+    while (row)
+    {
+      DBUG_PRINT("info",("spider row[0]=%s", row[0]));
+      DBUG_PRINT("info",("spider row[1]=%s", row[1]));
+      DBUG_PRINT("info",("spider row[2]=%s", row[2]));
+      longlong res_num =
+        (longlong) my_strtoll10(row[1], (char**) NULL, &error_num);
+      DBUG_PRINT("info",("spider res_num=%lld", res_num));
+      my_printf_error((int) res_num, row[2], MYF(0));
+      error_num = (int) res_num;
+      row = mysql_fetch_row(res);
     }
   }
+
+  mysql_free_result(res);
+
   DBUG_RETURN(error_num);
 }
 
@@ -13851,7 +13838,7 @@ int spider_mbase_handler::show_table_status(
       DBUG_RETURN(error_num);
     }
   }
-  if ((error_num = ((spider_db_mbase *) conn->db_conn)->print_warnings(NULL)))
+  if ((error_num = ((spider_db_mbase *) conn->db_conn)->fetch_and_print_warnings(NULL)))
   {
     DBUG_RETURN(error_num);
   }

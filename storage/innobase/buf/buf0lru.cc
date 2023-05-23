@@ -448,15 +448,15 @@ got_block:
 		mysql_mutex_unlock(&buf_pool.mutex);
 		mysql_mutex_lock(&buf_pool.flush_list_mutex);
 		const auto n_flush = buf_pool.n_flush();
+		if (!buf_pool.try_LRU_scan) {
+			buf_pool.page_cleaner_wakeup(true);
+		}
 		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 		mysql_mutex_lock(&buf_pool.mutex);
 		if (!n_flush) {
 			goto not_found;
 		}
 		if (!buf_pool.try_LRU_scan) {
-			mysql_mutex_lock(&buf_pool.flush_list_mutex);
-			buf_pool.page_cleaner_wakeup(true);
-			mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 			my_cond_wait(&buf_pool.done_free,
 				     &buf_pool.mutex.m_mutex);
 		}
@@ -1105,17 +1105,8 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 				break;
 			case FIL_PAGE_TYPE_ZBLOB:
 			case FIL_PAGE_TYPE_ZBLOB2:
-				break;
 			case FIL_PAGE_INDEX:
 			case FIL_PAGE_RTREE:
-#if defined UNIV_ZIP_DEBUG && defined BTR_CUR_HASH_ADAPT
-				/* During recovery, we only update the
-				compressed page, not the uncompressed one. */
-				ut_a(recv_recovery_is_on()
-				     || page_zip_validate(
-					     &bpage->zip, page,
-					     ((buf_block_t*) bpage)->index));
-#endif /* UNIV_ZIP_DEBUG && BTR_CUR_HASH_ADAPT */
 				break;
 			default:
 				ib::error() << "The compressed page to be"

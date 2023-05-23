@@ -1340,28 +1340,28 @@ public:
     { return new QUICK_RANGE_SELECT(thd, head, index, no_alloc, parent_alloc,
                                     create_error); }
   
-  void need_sorted_output();
-  int init();
-  int reset(void);
-  int get_next();
-  void range_end();
+  void need_sorted_output() override;
+  int init() override;
+  int reset() override;
+  int get_next() override;
+  void range_end() override;
   int get_next_prefix(uint prefix_length, uint group_key_parts, 
                       uchar *cur_prefix);
-  bool reverse_sorted() { return 0; }
-  bool unique_key_range();
-  int init_ror_merged_scan(bool reuse_handler, MEM_ROOT *alloc);
-  void save_last_pos()
+  bool reverse_sorted() override { return 0; }
+  bool unique_key_range() override;
+  int init_ror_merged_scan(bool reuse_handler, MEM_ROOT *alloc) override;
+  void save_last_pos() override
   { file->position(record); }
-  int get_type() { return QS_TYPE_RANGE; }
-  void add_keys_and_lengths(String *key_names, String *used_lengths);
-  Explain_quick_select *get_explain(MEM_ROOT *alloc);
+  int get_type() override { return QS_TYPE_RANGE; }
+  void add_keys_and_lengths(String *key_names, String *used_lengths) override;
+  Explain_quick_select *get_explain(MEM_ROOT *alloc) override;
 #ifndef DBUG_OFF
-  void dbug_dump(int indent, bool verbose);
+  void dbug_dump(int indent, bool verbose) override;
 #endif
-  virtual void replace_handler(handler *new_file) { file= new_file; }
-  QUICK_SELECT_I *make_reverse(uint used_key_parts_arg);
+  virtual void replace_handler(handler *new_file) override { file= new_file; }
+  QUICK_SELECT_I *make_reverse(uint used_key_parts_arg) override;
 
-  virtual void add_used_key_part_to_set();
+  void add_used_key_part_to_set() override;
   bool are_mini_transactions_applicable() const override
   { return !in_ror_merged_scan && !mrr_flags; }
 
@@ -1492,16 +1492,16 @@ public:
   QUICK_INDEX_SORT_SELECT(THD *thd, TABLE *table);
   ~QUICK_INDEX_SORT_SELECT();
 
-  int  init();
-  void need_sorted_output() { DBUG_ASSERT(0); /* Can't do it */ }
-  int  reset(void);
-  bool reverse_sorted() { return false; }
-  bool unique_key_range() { return false; }
-  bool is_keys_used(const MY_BITMAP *fields);
+  int  init() override;
+  void need_sorted_output() override { DBUG_ASSERT(0); /* Can't do it */ }
+  int reset() override;
+  bool reverse_sorted() override { return false; }
+  bool unique_key_range() override { return false; }
+  bool is_keys_used(const MY_BITMAP *fields) override;
 #ifndef DBUG_OFF
-  void dbug_dump(int indent, bool verbose);
+  void dbug_dump(int indent, bool verbose) override;
 #endif
-  Explain_quick_select *get_explain(MEM_ROOT *alloc);
+  Explain_quick_select *get_explain(MEM_ROOT *alloc) override;
 
   bool push_quick_back(QUICK_RANGE_SELECT *quick_sel_range);
 
@@ -1513,7 +1513,7 @@ public:
 
   MEM_ROOT alloc;
   THD *thd;
-  virtual bool is_valid()
+  bool is_valid() override
   {
     List_iterator_fast<QUICK_RANGE_SELECT> it(quick_selects);
     QUICK_RANGE_SELECT *quick;
@@ -1532,7 +1532,7 @@ public:
   /* used to get rows collected in Unique */
   READ_RECORD read_record;
 
-  virtual void add_used_key_part_to_set();
+  virtual void add_used_key_part_to_set() override;
   bool are_mini_transactions_applicable() const override { return false; }
 };
 
@@ -1598,21 +1598,21 @@ public:
                              MEM_ROOT *parent_alloc);
   ~QUICK_ROR_INTERSECT_SELECT();
 
-  int  init();
-  void need_sorted_output() { DBUG_ASSERT(0); /* Can't do it */ }
-  int  reset(void);
-  int  get_next();
-  bool reverse_sorted() { return false; }
-  bool unique_key_range() { return false; }
-  int get_type() { return QS_TYPE_ROR_INTERSECT; }
-  void add_keys_and_lengths(String *key_names, String *used_lengths);
-  Explain_quick_select *get_explain(MEM_ROOT *alloc);
-  bool is_keys_used(const MY_BITMAP *fields);
-  void add_used_key_part_to_set();
+  int init() override;
+  void need_sorted_output() override { DBUG_ASSERT(0); /* Can't do it */ }
+  int reset() override;
+  int get_next() override;
+  bool reverse_sorted() override { return false; }
+  bool unique_key_range() override { return false; }
+  int get_type() override { return QS_TYPE_ROR_INTERSECT; }
+  void add_keys_and_lengths(String *key_names, String *used_lengths) override;
+  Explain_quick_select *get_explain(MEM_ROOT *alloc) override;
+  bool is_keys_used(const MY_BITMAP *fields) override;
+  void add_used_key_part_to_set() override;
 #ifndef DBUG_OFF
-  void dbug_dump(int indent, bool verbose);
+  void dbug_dump(int indent, bool verbose) override;
 #endif
-  int init_ror_merged_scan(bool reuse_handler, MEM_ROOT *alloc);
+  int init_ror_merged_scan(bool reuse_handler, MEM_ROOT *alloc) override;
   bool push_quick_back(MEM_ROOT *alloc, QUICK_RANGE_SELECT *quick_sel_range);
 
   class QUICK_SELECT_WITH_RECORD : public Sql_alloc
@@ -1629,7 +1629,7 @@ public:
   */
   List<QUICK_SELECT_WITH_RECORD> quick_selects;
 
-  virtual bool is_valid()
+  bool is_valid() override
   {
     List_iterator_fast<QUICK_SELECT_WITH_RECORD> it(quick_selects);
     QUICK_SELECT_WITH_RECORD *quick;
@@ -1680,26 +1680,26 @@ public:
   QUICK_ROR_UNION_SELECT(THD *thd, TABLE *table);
   ~QUICK_ROR_UNION_SELECT();
 
-  int  init();
-  void need_sorted_output() { DBUG_ASSERT(0); /* Can't do it */ }
-  int  reset(void);
-  int  get_next();
-  bool reverse_sorted() { return false; }
-  bool unique_key_range() { return false; }
-  int get_type() { return QS_TYPE_ROR_UNION; }
-  void add_keys_and_lengths(String *key_names, String *used_lengths);
-  Explain_quick_select *get_explain(MEM_ROOT *alloc);
-  bool is_keys_used(const MY_BITMAP *fields);
-  void add_used_key_part_to_set();
+  int init() override;
+  void need_sorted_output() override { DBUG_ASSERT(0); /* Can't do it */ }
+  int reset() override;
+  int get_next() override;
+  bool reverse_sorted() override { return false; }
+  bool unique_key_range() override { return false; }
+  int get_type() override { return QS_TYPE_ROR_UNION; }
+  void add_keys_and_lengths(String *key_names, String *used_lengths) override;
+  Explain_quick_select *get_explain(MEM_ROOT *alloc) override;
+  bool is_keys_used(const MY_BITMAP *fields) override;
+  void add_used_key_part_to_set() override;
 #ifndef DBUG_OFF
-  void dbug_dump(int indent, bool verbose);
+  void dbug_dump(int indent, bool verbose) override;
 #endif
 
   bool push_quick_back(QUICK_SELECT_I *quick_sel_range);
 
   List<QUICK_SELECT_I> quick_selects; /* Merged quick selects */
 
-  virtual bool is_valid()
+  bool is_valid() override
   {
     List_iterator_fast<QUICK_SELECT_I> it(quick_selects);
     QUICK_SELECT_I *quick;
@@ -1828,21 +1828,21 @@ public:
   void update_key_stat();
   void adjust_prefix_ranges();
   bool alloc_buffers();
-  int init();
-  void need_sorted_output() { /* always do it */ }
-  int reset();
-  int get_next();
-  bool reverse_sorted() { return false; }
-  bool unique_key_range() { return false; }
-  int get_type() { return QS_TYPE_GROUP_MIN_MAX; }
-  void add_keys_and_lengths(String *key_names, String *used_lengths);
-  void add_used_key_part_to_set();
+  int init() override;
+  void need_sorted_output() override { /* always do it */ }
+  int reset() override;
+  int get_next() override;
+  bool reverse_sorted() override { return false; }
+  bool unique_key_range() override { return false; }
+  int get_type() override { return QS_TYPE_GROUP_MIN_MAX; }
+  void add_keys_and_lengths(String *key_names, String *used_lengths) override;
+  void add_used_key_part_to_set() override;
 #ifndef DBUG_OFF
-  void dbug_dump(int indent, bool verbose);
+  void dbug_dump(int indent, bool verbose) override;
 #endif
   bool is_agg_distinct() { return have_agg_distinct; }
   bool loose_scan_is_scanning() { return is_index_scan; }
-  Explain_quick_select *get_explain(MEM_ROOT *alloc);
+  Explain_quick_select *get_explain(MEM_ROOT *alloc) override;
   bool are_mini_transactions_applicable() const override { return true; }
 };
 
