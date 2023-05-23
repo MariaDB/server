@@ -1,0 +1,19 @@
+--echo #
+--echo # MDEV-31269 Crash on 2nd ps execution caused by exists-to-in, and ASAN: use-after-poison in Item_func::fix_fields and Item_func::print_op
+--echo #
+set optimizer_switch=default;
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+PREPARE st FROM "
+SELECT * FROM t2
+HAVING 0 IN (
+  SELECT a FROM t1
+  WHERE EXISTS (
+    SELECT a FROM t1
+    WHERE b = a
+  )
+)
+";
+EXECUTE st;
+EXECUTE st;
+drop table t1, t2;
