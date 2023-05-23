@@ -989,13 +989,6 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
     /* It does not make sense to read more keys in case of a fatal error */
     if (unlikely(thd->is_error()))
       break;
-
-    /*
-      We need to this after checking the error as the transaction may have
-      rolled back in case of a deadlock
-    */
-    if (!write_record)
-      file->unlock_row();
   }
   if (!quick_select)
   {

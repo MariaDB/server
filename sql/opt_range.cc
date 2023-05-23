@@ -12444,12 +12444,6 @@ int QUICK_ROR_INTERSECT_SELECT::get_next()
   List_iterator_fast<QUICK_SELECT_WITH_RECORD> quick_it(quick_selects);
   QUICK_SELECT_WITH_RECORD *qr;
   QUICK_RANGE_SELECT* quick;
-
-  /* quick that reads the given rowid first. This is needed in order
-  to be able to unlock the row using the same handler object that locked
-  it */
-  QUICK_RANGE_SELECT* quick_with_last_rowid;
-
   int error, cmp;
   uint last_rowid_count=0;
   DBUG_ENTER("QUICK_ROR_INTERSECT_SELECT::get_next");
@@ -12461,10 +12455,7 @@ int QUICK_ROR_INTERSECT_SELECT::get_next()
   if (cpk_quick)
   {
     while (!error && !cpk_quick->row_in_ranges())
-    {
-      quick->file->unlock_row(); /* row not in range; unlock */
       error= quick->get_next();
-    }
   }
   if (unlikely(error))
     DBUG_RETURN(error);
@@ -12476,7 +12467,6 @@ int QUICK_ROR_INTERSECT_SELECT::get_next()
   quick->file->position(quick->record);
   memcpy(last_rowid, quick->file->ref, head->file->ref_length);
   last_rowid_count= 1;
-  quick_with_last_rowid= quick;
 
   while (last_rowid_count < quick_selects.elements)
   {
@@ -12492,19 +12482,9 @@ int QUICK_ROR_INTERSECT_SELECT::get_next()
       DBUG_EXECUTE_IF("innodb_quick_report_deadlock",
                       DBUG_SET("+d,innodb_report_deadlock"););
       if (unlikely((error= quick->get_next())))
-      {
-        /* On certain errors like deadlock, trx might be rolled back.*/
-        if (!thd->transaction_rollback_request)
-          quick_with_last_rowid->file->unlock_row();
         DBUG_RETURN(error);
-      }
       quick->file->position(quick->record);
       cmp= head->file->cmp_ref(quick->file->ref, last_rowid);
-      if (cmp < 0)
-      {
-        /* This row is being skipped.  Release lock on it. */
-        quick->file->unlock_row();
-      }
     } while (cmp < 0);
 
     key_copy(qr->key_tuple, record, head->key_info + quick->index,
@@ -12517,22 +12497,12 @@ int QUICK_ROR_INTERSECT_SELECT::get_next()
       if (cpk_quick)
       {
         while (!cpk_quick->row_in_ranges())
-        {
-          quick->file->unlock_row(); /* row not in range; unlock */
           if (unlikely((error= quick->get_next())))
-          {
-            /* On certain errors like deadlock, trx might be rolled back.*/
-            if (!thd->transaction_rollback_request)
-              quick_with_last_rowid->file->unlock_row();
             DBUG_RETURN(error);
-          }
-        }
         quick->file->position(quick->record);
       }
       memcpy(last_rowid, quick->file->ref, head->file->ref_length);
-      quick_with_last_rowid->file->unlock_row();
       last_rowid_count= 1;
-      quick_with_last_rowid= quick;
 
       //save the fields here
       key_copy(qr->key_tuple, record, head->key_info + quick->index,

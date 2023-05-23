@@ -261,24 +261,6 @@ row_update_for_mysql(
 	row_prebuilt_t*		prebuilt)
 	MY_ATTRIBUTE((warn_unused_result));
 
-/** This can only be used when the current transaction is at
-READ COMMITTED or READ UNCOMMITTED isolation level.
-Before calling this function row_search_mvcc() must have
-initialized prebuilt->new_rec_locks to store the information which new
-record locks really were set. This function removes a newly set
-clustered index record lock under prebuilt->pcur or
-prebuilt->clust_pcur.  Thus, this implements a 'mini-rollback' that
-releases the latest clustered index record lock we set.
-@param[in,out]	prebuilt		prebuilt struct in MySQL handle
-@param[in]	has_latches_on_recs	TRUE if called so that we have the
-					latches on the records under pcur
-					and clust_pcur, and we do not need
-					to reposition the cursors. */
-void
-row_unlock_for_mysql(
-	row_prebuilt_t*	prebuilt,
-	bool		has_latches_on_recs);
-
 /*********************************************************************//**
 Creates an query graph node of 'update' type to be used in the MySQL
 interface.
@@ -672,45 +654,6 @@ struct row_prebuilt_t {
 					that was decided in ha_innodb.cc,
 					::store_lock(), ::external_lock(),
 					etc. */
-	ulint		row_read_type;	/*!< ROW_READ_WITH_LOCKS if row locks
-					should be the obtained for records
-					under an UPDATE or DELETE cursor.
-					At READ UNCOMMITTED or
-					READ COMMITTED isolation level,
-					this can be set to
-					ROW_READ_TRY_SEMI_CONSISTENT, so that
-					if the row under an UPDATE or DELETE
-					cursor was locked by another
-					transaction, InnoDB will resort
-					to reading the last committed value
-					('semi-consistent read').  Then,
-					this field will be set to
-					ROW_READ_DID_SEMI_CONSISTENT to
-					indicate that.	If the row does not
-					match the WHERE condition, MySQL will
-					invoke handler::unlock_row() to
-					clear the flag back to
-					ROW_READ_TRY_SEMI_CONSISTENT and
-					to simply skip the row.	 If
-					the row matches, the next call to
-					row_search_mvcc() will lock
-					the row.
-					This eliminates lock waits in some
-					cases; note that this breaks
-					serializability. */
-	ulint		new_rec_locks;	/*!< normally 0; if
-					the session is using READ
-					COMMITTED or READ UNCOMMITTED
-					isolation level, set in
-					row_search_mvcc() if we set a new
-					record lock on the secondary
-					or clustered index; this is
-					used in row_unlock_for_mysql()
-					when releasing the lock under
-					the cursor if we determine
-					after retrieving the row that
-					it does not need to be locked
-					('mini-rollback') */
 	ulint		mysql_prefix_len;/*!< byte offset of the end of
 					the last requested column */
 	ulint		mysql_row_len;	/*!< length in bytes of a row in the
@@ -925,10 +868,5 @@ innobase_rename_vc_templ(
 /* Values for hint_need_to_fetch_extra_cols */
 #define ROW_RETRIEVE_PRIMARY_KEY	1
 #define ROW_RETRIEVE_ALL_COLS		2
-
-/* Values for row_read_type */
-#define ROW_READ_WITH_LOCKS		0
-#define ROW_READ_TRY_SEMI_CONSISTENT	1
-#define ROW_READ_DID_SEMI_CONSISTENT	2
 
 #endif /* row0mysql.h */

@@ -12102,7 +12102,6 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
 }
 
 
-
 static store_key *
 get_store_key(THD *thd, KEYUSE *keyuse, table_map used_tables,
 	      KEY_PART_INFO *key_part, uchar *key_buff, uint maybe_null)
@@ -13541,10 +13540,8 @@ void set_join_cache_denial(JOIN_TAB *join_tab)
   used in all access methods.
 */
 
-void rr_unlock_row(st_join_table *tab)
+void rr_unlock_row(st_join_table *)
 {
-  READ_RECORD *info= &tab->read_record;
-  info->table->file->unlock_row();
 }
 
 
@@ -22797,12 +22794,10 @@ int join_read_key2(THD *thd, JOIN_TAB *tab, TABLE *table, TABLE_REF *table_ref)
       return -1;
     }
     /*
-      Moving away from the current record. Unlock the row
-      in the handler if it did not match the partial WHERE.
+      Moving away from the current record.
     */
     if (tab && tab->ref.has_record && tab->ref.use_count == 0)
     {
-      tab->read_record.table->file->unlock_row();
       table_ref->has_record= FALSE;
     }
     error=table->file->ha_index_read_map(table->record[0],

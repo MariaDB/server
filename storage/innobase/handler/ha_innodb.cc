@@ -8757,65 +8757,6 @@ ha_innobase::delete_row(
 			    error, m_prebuilt->table->flags, m_user_thd));
 }
 
-/**********************************************************************//**
-Removes a new lock set on a row, if it was not read optimistically. This can
-be called after a row has been read in the processing of an UPDATE or a DELETE
-query. */
-
-void
-ha_innobase::unlock_row(void)
-/*=========================*/
-{
-	DBUG_ENTER("ha_innobase::unlock_row");
-
-	if (m_prebuilt->select_lock_type == LOCK_NONE) {
-		DBUG_VOID_RETURN;
-	}
-
-	ut_ad(trx_state_eq(m_prebuilt->trx, TRX_STATE_ACTIVE, true));
-
-	switch (m_prebuilt->row_read_type) {
-	case ROW_READ_WITH_LOCKS:
-		if (m_prebuilt->trx->isolation_level > TRX_ISO_READ_COMMITTED)
-			break;
-		/* fall through */
-	case ROW_READ_TRY_SEMI_CONSISTENT:
-	{
-		bool hold = (m_prebuilt->batch_mtr
-			     && !m_prebuilt->batch_mtr->cursor_stored());
-		row_unlock_for_mysql(m_prebuilt, hold);
-		break;
-	}
-	case ROW_READ_DID_SEMI_CONSISTENT:
-		m_prebuilt->row_read_type = ROW_READ_TRY_SEMI_CONSISTENT;
-		break;
-	}
-
-	DBUG_VOID_RETURN;
-}
-
-/* See handler.h and row0mysql.h for docs on this function. */
-
-bool
-ha_innobase::was_semi_consistent_read(void)
-/*=======================================*/
-{
-	return(m_prebuilt->row_read_type == ROW_READ_DID_SEMI_CONSISTENT);
-}
-
-/* See handler.h and row0mysql.h for docs on this function. */
-void ha_innobase::try_semi_consistent_read(bool yes)
-{
-	ut_ad(m_prebuilt->trx == thd_to_trx(ha_thd()));
-	/* Row read type is set to semi consistent read if this was
-	requested by the SQL layer and the transaction isolation level is
-	READ UNCOMMITTED or READ COMMITTED. */
-	m_prebuilt->row_read_type = yes
-		&& m_prebuilt->trx->isolation_level <= TRX_ISO_READ_COMMITTED
-		? ROW_READ_TRY_SEMI_CONSISTENT
-		: ROW_READ_WITH_LOCKS;
-}
-
 /******************************************************************//**
 Initializes a handle to use an index.
 @return 0 or error number */
@@ -9447,13 +9388,6 @@ ha_innobase::rnd_init(
 		err = change_active_index(MAX_KEY);
 	} else {
 		err = change_active_index(m_primary_key);
-	}
-
-	/* Don't use semi-consistent read in random row reads (by position).
-	This means we must disable semi_consistent_read if scan is false */
-
-	if (!scan) {
-		try_semi_consistent_read(0);
 	}
 
 	m_start_of_scan = true;

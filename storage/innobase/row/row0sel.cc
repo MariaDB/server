@@ -850,40 +850,6 @@ row_sel_build_prev_vers(
 }
 
 /*********************************************************************//**
-Builds the last committed version of a clustered index record for a
-semi-consistent read. */
-static
-void
-row_sel_build_committed_vers_for_mysql(
-/*===================================*/
-	dict_index_t*	clust_index,	/*!< in: clustered index */
-	row_prebuilt_t*	prebuilt,	/*!< in: prebuilt struct */
-	const rec_t*	rec,		/*!< in: record in a clustered index */
-	rec_offs**	offsets,	/*!< in/out: offsets returned by
-					rec_get_offsets(rec, clust_index) */
-	mem_heap_t**	offset_heap,	/*!< in/out: memory heap from which
-					the offsets are allocated */
-	const rec_t**	old_vers,	/*!< out: old version, or NULL if the
-					record does not exist in the view:
-					i.e., it was freshly inserted
-					afterwards */
-	dtuple_t**	vrow,		/*!< out: to be filled with old virtual
-					column version if any */
-	mtr_t*		mtr)		/*!< in: mtr */
-{
-	if (prebuilt->old_vers_heap) {
-		mem_heap_empty(prebuilt->old_vers_heap);
-	} else {
-		prebuilt->old_vers_heap = mem_heap_create(
-			rec_offs_size(*offsets));
-	}
-
-	row_vers_build_for_semi_consistent_read(prebuilt->trx,
-		rec, mtr, clust_index, offsets, offset_heap,
-		prebuilt->old_vers_heap, old_vers, vrow);
-}
-
-/*********************************************************************//**
 Tests the conditions which determine when the index segment we are searching
 through has been exhausted.
 @return TRUE if row passed the tests */
@@ -4288,12 +4254,6 @@ row_search_mvcc(
 	bool    need_vrow = prebuilt->read_just_key
 		&& prebuilt->index->has_virtual();
 
-	/* Reset the new record lock info if READ UNCOMMITTED or
-	READ COMMITED isolation level is used. Then
-	we are able to remove the record locks set here on an individual
-	row. */
-	prebuilt->new_rec_locks = 0;
-
 	/*-------------------------------------------------------------*/
 	/* PHASE 1: Try to pop the row from the prefetch cache */
 
@@ -4352,9 +4312,6 @@ row_search_mvcc(
 		DBUG_RETURN(DB_END_OF_INDEX);
 	}
 
-	/* if the query is a plain locking SELECT, and the isolation level
-	is <= TRX_ISO_READ_COMMITTED, then this is set to FALSE */
-	bool did_semi_consistent_read = false;
 	mtr_t *mtr = nullptr;
 	row_batch_mtr_t *batch_mtr = prebuilt->batch_mtr;
 	if (batch_mtr) {
@@ -4462,7 +4419,6 @@ aborted:
 				/* NOTE that we do NOT store the cursor
 				position */
 				trx->op_info = "";
-				ut_ad(!did_semi_consistent_read);
 				if (UNIV_LIKELY_NULL(heap)) {
 					mem_heap_free(heap);
 				}
@@ -4601,27 +4557,11 @@ wait_table_again:
 				}
 				return DB_CORRUPTION;
 			}
-
-			if (UNIV_UNLIKELY(prebuilt->row_read_type
-					  == ROW_READ_DID_SEMI_CONSISTENT)) {
-				/* We did a semi-consistent read,
-				but the record was removed in
-				the meantime. */
-				prebuilt->row_read_type
-					= ROW_READ_TRY_SEMI_CONSISTENT;
-			}
-		} else if (UNIV_LIKELY(prebuilt->row_read_type
-				       != ROW_READ_DID_SEMI_CONSISTENT)) {
-
+		} else {
 			/* The cursor was positioned on the record
-			that we returned previously.  If we need
-			to repeat a semi-consistent read as a
-			pessimistic locking read, the record
-			cannot be skipped. */
-
-			goto next_rec_after_check;
+			that we returned previously. */
+			goto next_rec;
 		}
-
 	} else if (dtuple_get_n_fields(search_tuple) > 0) {
 
 		if (batch_mtr && batch_mtr->has_lock()) {
@@ -5100,86 +5040,10 @@ no_gap_lock:
 				       lock_type, thr, mtr);
 
 		switch (err) {
-			const rec_t*	old_vers;
 		case DB_SUCCESS_LOCKED_REC:
-			if (trx->isolation_level <= TRX_ISO_READ_COMMITTED) {
-				/* Note that a record of
-				prebuilt->index was locked. */
-				prebuilt->new_rec_locks = 1;
-			}
 			err = DB_SUCCESS;
 			/* fall through */
 		case DB_SUCCESS:
-			break;
-		case DB_LOCK_WAIT:
-			/* Lock wait for R-tree should already
-			be handled in sel_set_rtr_rec_lock() */
-			ut_ad(!dict_index_is_spatial(index));
-			/* Never unlock rows that were part of a conflict. */
-			prebuilt->new_rec_locks = 0;
-
-			if (UNIV_LIKELY(prebuilt->row_read_type
-					!= ROW_READ_TRY_SEMI_CONSISTENT)
-			    || unique_search
-			    || index != clust_index) {
-				if (!prebuilt->skip_locked) {
-					goto lock_wait_or_error;
-				}
-			} else {
-				/* The following call returns 'offsets'
-				associated with 'old_vers' */
-				row_sel_build_committed_vers_for_mysql(
-					clust_index, prebuilt, rec,
-					&offsets, &heap, &old_vers,
-					need_vrow ? &vrow : NULL, mtr);
-			}
-
-			/* Check whether it was a deadlock or not, if not
-			a deadlock and the transaction had to wait then
-			release the lock it is waiting on. */
-
-			err = lock_trx_handle_wait(trx);
-
-			switch (err) {
-			case DB_SUCCESS:
-				ut_ad(
-				    !trx->lock.was_chosen_as_deadlock_victim);
-				/* The lock was granted while we were
-				searching for the last committed version.
-				Do a normal locking read. */
-
-				offsets = rec_get_offsets(
-					rec, index, offsets,
-					index->n_core_fields,
-					ULINT_UNDEFINED, &heap);
-				goto locks_ok;
-			case DB_DEADLOCK:
-				goto lock_wait_or_error;
-			case DB_LOCK_WAIT:
-				ut_ad(!dict_index_is_spatial(index));
-				err = DB_SUCCESS;
-				if (prebuilt->skip_locked) {
-					goto next_rec;
-				}
-				break;
-		        case DB_LOCK_WAIT_TIMEOUT:
-				if (prebuilt->skip_locked) {
-					err = DB_SUCCESS;
-					goto next_rec;
-				}
-				/* fall through */
-			default:
-				ut_error;
-			}
-
-			if (old_vers == NULL) {
-				/* The row was not yet committed */
-
-				goto next_rec;
-			}
-
-			did_semi_consistent_read = true;
-			rec = old_vers;
 			break;
 		case DB_RECORD_NOT_FOUND:
 			if (dict_index_is_spatial(index)) {
@@ -5188,14 +5052,17 @@ no_gap_lock:
 				goto lock_wait_or_error;
 			}
 			break;
+		case DB_LOCK_WAIT:
 		case DB_LOCK_WAIT_TIMEOUT:
+			/* Lock wait for R-tree should already
+			be handled in sel_set_rtr_rec_lock() */
+			ut_ad(!index->is_spatial());
 			if (prebuilt->skip_locked) {
 				err = DB_SUCCESS;
 				goto next_rec;
 			}
 			/* fall through */
 		default:
-
 			goto lock_wait_or_error;
 		}
 	} else {
@@ -5332,9 +5199,6 @@ locks_ok_del_marked:
 	/* Check if the record matches the index condition. */
 	switch (row_search_idx_cond_check(buf, prebuilt, rec, offsets)) {
 	case CHECK_NEG:
-		if (did_semi_consistent_read) {
-			row_unlock_for_mysql(prebuilt, TRUE);
-		}
 		goto next_rec;
         case CHECK_ABORTED_BY_USER:
 		err = DB_INTERRUPTED;
@@ -5388,11 +5252,6 @@ requires_clust_rec:
 			break;
 		case DB_SUCCESS_LOCKED_REC:
 			ut_a(clust_rec != NULL);
-			if (trx->isolation_level <= TRX_ISO_READ_COMMITTED) {
-				/* Note that the clustered index record
-				was locked. */
-				prebuilt->new_rec_locks = 2;
-			}
 			err = DB_SUCCESS;
 			break;
 		case DB_LOCK_WAIT_TIMEOUT:
@@ -5408,19 +5267,7 @@ requires_clust_rec:
 		}
 
 		if (rec_get_deleted_flag(clust_rec, comp)) {
-
 			/* The record is delete marked: we can skip it */
-
-			if (trx->isolation_level <= TRX_ISO_READ_COMMITTED
-			    && prebuilt->select_lock_type != LOCK_NONE) {
-
-				/* No need to keep a lock on a delete-marked
-				record if we do not want to use next-key
-				locking. */
-
-				row_unlock_for_mysql(prebuilt, TRUE);
-			}
-
 			goto next_rec;
 		}
 
@@ -5525,14 +5372,6 @@ idx_cond_failed:
 	goto normal_return;
 
 next_rec:
-	/* Reset the old and new "did semi-consistent read" flags. */
-	if (UNIV_UNLIKELY(prebuilt->row_read_type
-			  == ROW_READ_DID_SEMI_CONSISTENT)) {
-		prebuilt->row_read_type = ROW_READ_TRY_SEMI_CONSISTENT;
-	}
-next_rec_after_check:
-	did_semi_consistent_read = false;
-	prebuilt->new_rec_locks = 0;
 	vrow = NULL;
 
 	/*-------------------------------------------------------------*/
@@ -5615,13 +5454,6 @@ lock_wait_or_error:
 		btr_pcur_store_position(pcur, mtr);
 	}
 page_read_error:
-	/* Reset the old and new "did semi-consistent read" flags. */
-	if (UNIV_UNLIKELY(prebuilt->row_read_type
-			  == ROW_READ_DID_SEMI_CONSISTENT)) {
-		prebuilt->row_read_type = ROW_READ_TRY_SEMI_CONSISTENT;
-	}
-	did_semi_consistent_read = false;
-
 lock_table_wait:
 	if (batch_mtr) {
 		batch_mtr->commit();
@@ -5657,30 +5489,7 @@ lock_table_wait:
 				moves_up, mtr);
 		}
 
-		if (trx->isolation_level <= TRX_ISO_READ_COMMITTED
-		    && !same_user_rec) {
-
-			/* Since we were not able to restore the cursor
-			on the same user record, we cannot use
-			row_unlock_for_mysql() to unlock any records, and
-			we must thus reset the new rec lock info. Since
-			in lock0lock.cc we have blocked the inheriting of gap
-			X-locks, we actually do not have any new record locks
-			set in this case.
-
-			Note that if we were able to restore on the 'same'
-			user record, it is still possible that we were actually
-			waiting on a delete-marked record, and meanwhile
-			it was removed by purge and inserted again by some
-			other user. But that is no problem, because in
-			rec_loop we will again try to set a lock, and
-			new_rec_lock_info in trx will be right at the end. */
-
-			prebuilt->new_rec_locks = 0;
-		}
-
 		mode = pcur->search_mode;
-
 		goto rec_loop;
 	}
 
@@ -5710,20 +5519,6 @@ func_exit:
 	trx->op_info = "";
 	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
-	}
-
-	/* Set or reset the "did semi-consistent read" flag on return.
-	The flag did_semi_consistent_read is set if and only if
-	the record being returned was fetched with a semi-consistent read. */
-	ut_ad(prebuilt->row_read_type != ROW_READ_WITH_LOCKS
-	      || !did_semi_consistent_read);
-
-	if (prebuilt->row_read_type != ROW_READ_WITH_LOCKS) {
-		if (did_semi_consistent_read) {
-			prebuilt->row_read_type = ROW_READ_DID_SEMI_CONSISTENT;
-		} else {
-			prebuilt->row_read_type = ROW_READ_TRY_SEMI_CONSISTENT;
-		}
 	}
 
 	if (!batch_mtr) {

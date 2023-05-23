@@ -887,13 +887,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
         }
       }
     }
-    /*
-      Don't try unlocking the row if skip_record reported an error since in
-      this case the transaction might have been rolled back already.
-    */
-    else if (likely(!thd->is_error()))
-      table->file->unlock_row();  // Row failed selection, release lock on it
-    else
+    else if (unlikely(thd->is_error()))
       break;
   }
 

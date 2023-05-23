@@ -656,18 +656,6 @@ public:
     Lock count is number of locked underlying handlers (I assume)
   */
   uint lock_count() const override;
-  /*
-    Call to unlock rows not to be updated in transaction
-  */
-  void unlock_row() override;
-  /*
-    Check if semi consistent read
-  */
-  bool was_semi_consistent_read() override;
-  /*
-    Call to hint about semi consistent read
-  */
-  void try_semi_consistent_read(bool) override;
 
   /*
     NOTE: due to performance and resource issues with many partitions,

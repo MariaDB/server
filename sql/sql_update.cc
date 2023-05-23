@@ -871,8 +871,6 @@ int mysql_update(THD *thd,
         goto err;
       }
 
-      table->file->try_semi_consistent_read(1);
-
       /*
         When we get here, we have one of the following options:
         A. query_plan.index == MAX_KEY
@@ -905,9 +903,6 @@ int mysql_update(THD *thd,
         thd->inc_examined_row_count(1);
 	if (!select || (error= select->skip_record(thd)) > 0)
 	{
-          if (table->file->ha_was_semi_consistent_read())
-	    continue;  /* repeat the read of the same row if it still exists */
-
           explain->buf_tracker.on_record_after_where();
 	  table->file->position(table->record[0]);
 	  if (unlikely(my_b_write(&tempfile,table->file->ref,
@@ -935,14 +930,11 @@ int mysql_update(THD *thd,
             error= 1;
             break;
           }
-          else
-            table->file->unlock_row();
         }
       }
       if (unlikely(thd->killed) && !error)
 	error= 1;				// Aborted
       limit= tmp_limit;
-      table->file->try_semi_consistent_read(0);
       end_read_record(&info);
      
       /* Change select to use tempfile */
@@ -981,7 +973,6 @@ update_begin:
   
   if (select && select->quick && select->quick->reset())
     goto err;
-  table->file->try_semi_consistent_read(1);
   if (init_read_record(&info, thd, table, select, file_sort, 0, 1, FALSE))
     goto err;
 
@@ -1046,9 +1037,6 @@ update_begin:
     thd->inc_examined_row_count(1);
     if (!select || select->skip_record(thd) > 0)
     {
-      if (table->file->ha_was_semi_consistent_read())
-        continue;  /* repeat the read of the same row if it still exists */
-
       explain->tracker.on_record_after_where();
       store_record(table,record[1]);
 
@@ -1235,17 +1223,6 @@ error:
         }
       }
     }
-    /*
-      Don't try unlocking the row if skip_record reported an error since in
-      this case the transaction might have been rolled back already.
-    */
-    else if (likely(!thd->is_error()))
-      table->file->unlock_row();
-    else
-    {
-      error= 1;
-      break;
-    }
     thd->get_stmt_da()->inc_current_row_for_warning();
     if (unlikely(thd->is_error()))
     {
@@ -1297,8 +1274,6 @@ error:
     table->file->end_bulk_update();
 
 update_end:
-
-  table->file->try_semi_consistent_read(0);
 
   if (!transactional_table && updated > 0)
     thd->transaction->stmt.modified_non_trans_table= TRUE;

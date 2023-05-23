@@ -4028,28 +4028,6 @@ public:
   */
   virtual ulonglong table_version() const { return 0; }
 
-  /**
-    In an UPDATE or DELETE, if the row under the cursor was locked by another
-    transaction, and the engine used an optimistic read of the last
-    committed row value under the cursor, then the engine returns 1 from this
-    function. MySQL must NOT try to update this optimistic value. If the
-    optimistic value does not match the WHERE condition, MySQL can decide to
-    skip over this row. Currently only works for InnoDB. This can be used to
-    avoid unnecessary lock waits.
-
-    If this method returns nonzero, it will also signal the storage
-    engine that the next read will be a locking re-read of the row.
-  */
-  bool ha_was_semi_consistent_read();
-  virtual bool was_semi_consistent_read() { return 0; }
-  /**
-    Tell the engine whether it should avoid unnecessary lock waits.
-    If yes, in an UPDATE or DELETE, if the row under the cursor was locked
-    by another transaction, the engine may try an optimistic read of
-    the last committed row value under the cursor.
-  */
-  virtual void try_semi_consistent_read(bool) {}
-  virtual void unlock_row() {}
   virtual int start_stmt(THD *thd, thr_lock_type lock_type) {return 0;}
   virtual bool need_info_for_auto_inc() { return 0; }
   virtual bool can_use_for_auto_inc_init() { return 1; }

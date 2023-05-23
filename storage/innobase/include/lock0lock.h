@@ -444,19 +444,6 @@ dberr_t lock_table_for_trx(dict_table_t *table, trx_t *trx, lock_mode mode,
 @retval DB_SUCCESS on success */
 dberr_t lock_sys_tables(trx_t *trx);
 
-/*************************************************************//**
-Removes a granted record lock of a transaction from the queue and grants
-locks to other transactions waiting in the queue if they now are entitled
-to a lock. */
-void
-lock_rec_unlock(
-/*============*/
-	trx_t*			trx,	/*!< in/out: transaction that has
-					set a record lock */
-	const page_id_t		id,	/*!< in: page containing rec */
-	const rec_t*		rec,	/*!< in: record */
-	lock_mode		lock_mode);/*!< in: LOCK_S or LOCK_X */
-
 /** Release the explicit locks of a committing transaction,
 and release possible other transactions waiting because of these locks. */
 void lock_release(trx_t* trx);

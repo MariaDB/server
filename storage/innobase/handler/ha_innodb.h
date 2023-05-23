@@ -115,12 +115,6 @@ public:
 
 	int delete_row(const uchar * buf) override;
 
-	bool was_semi_consistent_read() override;
-
-	void try_semi_consistent_read(bool yes) override;
-
-	void unlock_row() override;
-
 	int index_init(uint index, bool sorted) override;
 
 	int index_end() override;

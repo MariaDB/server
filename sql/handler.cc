@@ -3649,14 +3649,6 @@ int handler::ha_index_next_same(uchar *buf, const uchar *key, uint keylen)
 }
 
 
-bool handler::ha_was_semi_consistent_read()
-{
-  bool result= was_semi_consistent_read();
-  if (result)
-    increment_statistics(&SSV::ha_read_retry_count);
-  return result;
-}
-
 /* Initialize handler for random reading, with error handling */
 
 int handler::ha_rnd_init_with_error(bool scan)
@@ -6666,7 +6658,6 @@ int handler::read_range_first(const key_range *start_key,
       The last read row does not fall in the range. So request
       storage engine to release row lock if possible.
     */
-    unlock_row();
     DBUG_RETURN(HA_ERR_END_OF_FILE);
   }
 }
@@ -6707,11 +6698,6 @@ int handler::read_range_next()
   }
   else
   {
-    /*
-      The last read row does not fall in the range. So request
-      storage engine to release row lock if possible.
-    */
-    unlock_row();
     DBUG_RETURN(HA_ERR_END_OF_FILE);
   }
 }
