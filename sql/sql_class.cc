@@ -1082,19 +1082,13 @@ Sql_condition* THD::raise_condition(const Sql_condition *cond)
     goto ret;
 
   switch (level) {
-  case Sql_condition::WARN_LEVEL_NOTE:
   case Sql_condition::WARN_LEVEL_WARN:
+    mysql_audit_general(this, MYSQL_AUDIT_GENERAL_WARNING, sql_errno, msg);
+    /* fall through */
+  case Sql_condition::WARN_LEVEL_NOTE:
     got_warning= 1;
     break;
   case Sql_condition::WARN_LEVEL_ERROR:
-    break;
-  case Sql_condition::WARN_LEVEL_END:
-    /* Impossible */
-    break;
-  }
-
-  if (level == Sql_condition::WARN_LEVEL_ERROR)
-  {
     mysql_audit_general(this, MYSQL_AUDIT_GENERAL_ERROR, sql_errno, msg);
 
     is_slave_error=  1; // needed to catch query errors during replication
@@ -1103,7 +1097,7 @@ Sql_condition* THD::raise_condition(const Sql_condition *cond)
     /*
       With wsrep we allow converting BF abort error to warning if
       errors are ignored.
-     */
+    */
     if (!is_fatal_error && no_errors &&
         (wsrep_trx().bf_aborted() || wsrep_retry_counter))
     {
@@ -1118,6 +1112,10 @@ Sql_condition* THD::raise_condition(const Sql_condition *cond)
 	da->set_error_status(sql_errno, msg, sqlstate, *cond, raised);
       }
     }
+    break;
+  case Sql_condition::WARN_LEVEL_END:
+    /* Impossible */
+    break;
   }
 
   query_cache_abort(this, &query_cache_tls);
