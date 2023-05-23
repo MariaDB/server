@@ -2923,3 +2923,15 @@ set global default_storage_engine=@save_default_storage_engine;
 # Check that all connections opened by test cases in this file are really
 # gone so execution of other tests won't be affected by their presence.
 --source include/wait_until_count_sessions.inc
+
+--echo #
+--echo # MDEV-31083 ASAN use-after-poison in myrg_attach_children
+--echo #
+
+CREATE TABLE t1 (f TEXT, FULLTEXT (f)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo'),('bar');
+CREATE TABLE mrg (f TEXT) ENGINE=MERGE, UNION(t1);
+SELECT * FROM mrg;
+DROP TABLE mrg, t1;
+
+--echo End of 10.5 tests

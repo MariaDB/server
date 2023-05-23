@@ -61,6 +61,15 @@ class Select_limit_counters
      with_ties= false;
    }
 
+   /* Send the first row, still honoring offset_limit_cnt */
+   void send_first_row()
+   {
+     /* Guard against overflow */
+     if ((select_limit_cnt= offset_limit_cnt +1 ) == 0)
+       select_limit_cnt= offset_limit_cnt;
+     // with_ties= false;   Remove // on merge to 10.6
+   }
+
    bool is_unlimited() const
    { return select_limit_cnt == HA_POS_ERROR; }
    /*

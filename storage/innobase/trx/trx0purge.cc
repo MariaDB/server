@@ -664,7 +664,8 @@ not_free:
       }
 
       ut_ad(rseg.curr_size > cached);
-      if (rseg.curr_size > cached + 1)
+      if (rseg.curr_size > cached + 1 &&
+          (rseg.history_size || srv_fast_shutdown || srv_undo_sources))
         goto not_free;
 
       rseg.latch.rd_unlock();
