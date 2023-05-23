@@ -439,10 +439,6 @@ struct mysql_row_templ_t {
 	ulint	is_virtual;		/*!< if a column is a virtual column */
 };
 
-#define MYSQL_FETCH_CACHE_SIZE		8
-/* After fetching this many rows, we start caching them in fetch_cache */
-#define MYSQL_FETCH_CACHE_THRESHOLD	4
-
 #define ROW_PREBUILT_ALLOCATED	78540783
 #define ROW_PREBUILT_FREED	26423527
 
@@ -719,27 +715,10 @@ struct row_prebuilt_t {
 					the last requested column */
 	ulint		mysql_row_len;	/*!< length in bytes of a row in the
 					MySQL format */
-	ulint		n_rows_fetched;	/*!< number of rows fetched after
-					positioning the current cursor */
-	ulint		fetch_direction;/*!< ROW_SEL_NEXT or ROW_SEL_PREV */
-	byte*		fetch_cache[MYSQL_FETCH_CACHE_SIZE];
-					/*!< a cache for fetched rows if we
-					fetch many rows from the same cursor:
-					it saves CPU time to fetch them in a
-					batch; we reserve mysql_row_len
-					bytes for each such row; these
-					pointers point 4 bytes past the
-					allocated mem buf start, because
-					there is a 4 byte magic number at the
-					start and at the end */
 	bool		keep_other_fields_on_keyread; /*!< when using fetch
 					cache with HA_EXTRA_KEYREAD, don't
 					overwrite other fields in mysql row
 					row buffer.*/
-	ulint		fetch_cache_first;/*!< position of the first not yet
-					fetched row in fetch_cache */
-	ulint		n_fetch_cached;	/*!< number of not yet fetched rows
-					in fetch_cache */
 	mem_heap_t*	blob_heap;	/*!< in SELECTS BLOB fields are copied
 					to this heap */
 	mem_heap_t*	old_vers_heap;	/*!< memory heap where a previous

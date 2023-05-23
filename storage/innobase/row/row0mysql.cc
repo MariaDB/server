@@ -948,27 +948,6 @@ void row_prebuilt_free(row_prebuilt_t *prebuilt)
 		mem_heap_free(prebuilt->old_vers_heap);
 	}
 
-	if (prebuilt->fetch_cache[0] != NULL) {
-		byte*	base = prebuilt->fetch_cache[0] - 4;
-		byte*	ptr = base;
-
-		for (ulint i = 0; i < MYSQL_FETCH_CACHE_SIZE; i++) {
-			ulint	magic1 = mach_read_from_4(ptr);
-			ut_a(magic1 == ROW_PREBUILT_FETCH_MAGIC_N);
-			ptr += 4;
-
-			byte*	row = ptr;
-			ut_a(row == prebuilt->fetch_cache[i]);
-			ptr += prebuilt->mysql_row_len;
-
-			ulint	magic2 = mach_read_from_4(ptr);
-			ut_a(magic2 == ROW_PREBUILT_FETCH_MAGIC_N);
-			ptr += 4;
-		}
-
-		ut_free(base);
-	}
-
 	if (prebuilt->rtr_info) {
 		rtr_clean_rtr_info(prebuilt->rtr_info, true);
 	}

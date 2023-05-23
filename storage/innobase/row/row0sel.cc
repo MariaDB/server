@@ -3822,142 +3822,6 @@ row_sel_copy_cached_fields_for_mysql(
 	}
 }
 
-/********************************************************************//**
-Pops a cached row for MySQL from the fetch cache. */
-UNIV_INLINE
-void
-row_sel_dequeue_cached_row_for_mysql(
-/*=================================*/
-	byte*		buf,		/*!< in/out: buffer where to copy the
-					row */
-	row_prebuilt_t*	prebuilt)	/*!< in: prebuilt struct */
-{
-	ulint			i;
-	const mysql_row_templ_t*templ;
-	const byte*		cached_rec;
-	ut_ad(prebuilt->n_fetch_cached > 0);
-	ut_ad(prebuilt->mysql_prefix_len <= prebuilt->mysql_row_len);
-
-	MEM_CHECK_ADDRESSABLE(buf, prebuilt->mysql_row_len);
-
-	cached_rec = prebuilt->fetch_cache[prebuilt->fetch_cache_first];
-
-	if (UNIV_UNLIKELY(prebuilt->keep_other_fields_on_keyread)) {
-		row_sel_copy_cached_fields_for_mysql(buf, cached_rec, prebuilt);
-	} else if (prebuilt->mysql_prefix_len > 63) {
-		/* The record is long. Copy it field by field, in case
-		there are some long VARCHAR column of which only a
-		small length is being used. */
-		MEM_UNDEFINED(buf, prebuilt->mysql_prefix_len);
-
-		/* First copy the NULL bits. */
-		memcpy(buf, cached_rec, prebuilt->null_bitmap_len);
-		/* Then copy the requested fields. */
-
-		for (i = 0; i < prebuilt->n_template; i++) {
-			templ = prebuilt->mysql_template + i;
-
-			/* Skip virtual columns */
-			if (templ->is_virtual
-			    && !(dict_index_has_virtual(prebuilt->index)
-				 && prebuilt->read_just_key)) {
-				continue;
-			}
-
-			row_sel_copy_cached_field_for_mysql(
-				buf, cached_rec, templ);
-		}
-	} else {
-		memcpy(buf, cached_rec, prebuilt->mysql_prefix_len);
-	}
-
-	prebuilt->n_fetch_cached--;
-	prebuilt->fetch_cache_first++;
-
-	if (prebuilt->n_fetch_cached == 0) {
-		prebuilt->fetch_cache_first = 0;
-	}
-}
-
-/********************************************************************//**
-Initialise the prefetch cache. */
-UNIV_INLINE
-void
-row_sel_prefetch_cache_init(
-/*========================*/
-	row_prebuilt_t*	prebuilt)	/*!< in/out: prebuilt struct */
-{
-	ulint	i;
-	ulint	sz;
-	byte*	ptr;
-
-	/* Reserve space for the magic number. */
-	sz = UT_ARR_SIZE(prebuilt->fetch_cache) * (prebuilt->mysql_row_len + 8);
-	ptr = static_cast<byte*>(ut_malloc_nokey(sz));
-
-	for (i = 0; i < UT_ARR_SIZE(prebuilt->fetch_cache); i++) {
-
-		/* A user has reported memory corruption in these
-		buffers in Linux. Put magic numbers there to help
-		to track a possible bug. */
-
-		mach_write_to_4(ptr, ROW_PREBUILT_FETCH_MAGIC_N);
-		ptr += 4;
-
-		prebuilt->fetch_cache[i] = ptr;
-		ptr += prebuilt->mysql_row_len;
-
-		mach_write_to_4(ptr, ROW_PREBUILT_FETCH_MAGIC_N);
-		ptr += 4;
-	}
-}
-
-/********************************************************************//**
-Get the last fetch cache buffer from the queue.
-@return pointer to buffer. */
-UNIV_INLINE
-byte*
-row_sel_fetch_last_buf(
-/*===================*/
-	row_prebuilt_t*	prebuilt)	/*!< in/out: prebuilt struct */
-{
-	ut_ad(!prebuilt->templ_contains_blob);
-	ut_ad(prebuilt->n_fetch_cached < MYSQL_FETCH_CACHE_SIZE);
-
-	if (prebuilt->fetch_cache[0] == NULL) {
-		/* Allocate memory for the fetch cache */
-		ut_ad(prebuilt->n_fetch_cached == 0);
-
-		row_sel_prefetch_cache_init(prebuilt);
-	}
-
-	ut_ad(prebuilt->fetch_cache_first == 0);
-	MEM_UNDEFINED(prebuilt->fetch_cache[prebuilt->n_fetch_cached],
-		      prebuilt->mysql_row_len);
-
-	return(prebuilt->fetch_cache[prebuilt->n_fetch_cached]);
-}
-
-/********************************************************************//**
-Pushes a row for MySQL to the fetch cache. */
-UNIV_INLINE
-void
-row_sel_enqueue_cache_row_for_mysql(
-/*================================*/
-	byte*		mysql_rec,	/*!< in/out: MySQL record */
-	row_prebuilt_t*	prebuilt)	/*!< in/out: prebuilt struct */
-{
-	/* For non ICP code path the row should already exist in the
-	next fetch cache slot. */
-
-	if (prebuilt->pk_filter || prebuilt->idx_cond) {
-		memcpy(row_sel_fetch_last_buf(prebuilt), mysql_rec,
-		       prebuilt->mysql_row_len);
-	}
-
-	++prebuilt->n_fetch_cached;
-}
-
 #ifdef BTR_CUR_HASH_ADAPT
 /*********************************************************************//**
 Tries to do a shortcut to fetch a clustered index record with a unique key,
@@ -4385,7 +4249,6 @@ row_search_mvcc(
 	ulint		next_offs;
 	bool		same_user_rec;
 	ibool		table_lock_waited		= FALSE;
-	byte*		next_buf			= 0;
 	bool		spatial_search			= false;
 	btr_latch_mode	batch_latch_mode = BTR_SEARCH_LEAF;
 
@@ -4437,59 +4300,12 @@ row_search_mvcc(
 	if (UNIV_UNLIKELY(direction == 0)) {
 		trx->op_info = "starting index read";
 
-		prebuilt->n_rows_fetched = 0;
-		prebuilt->n_fetch_cached = 0;
-		prebuilt->fetch_cache_first = 0;
-
 		if (prebuilt->sel_graph == NULL) {
 			/* Build a dummy select query graph */
 			row_prebuild_sel_graph(prebuilt);
 		}
 	} else {
 		trx->op_info = "fetching rows";
-
-		if (prebuilt->n_rows_fetched == 0) {
-			prebuilt->fetch_direction = direction;
-		}
-
-		if (UNIV_UNLIKELY(direction != prebuilt->fetch_direction)) {
-			if (UNIV_UNLIKELY(prebuilt->n_fetch_cached > 0)) {
-				ut_error;
-				/* TODO: scrollable cursor: restore cursor to
-				the place of the latest returned row,
-				or better: prevent caching for a scroll
-				cursor! */
-			}
-
-			prebuilt->n_rows_fetched = 0;
-			prebuilt->n_fetch_cached = 0;
-			prebuilt->fetch_cache_first = 0;
-
-		} else if (UNIV_LIKELY(prebuilt->n_fetch_cached > 0)) {
-			row_sel_dequeue_cached_row_for_mysql(buf, prebuilt);
-
-			prebuilt->n_rows_fetched++;
-			trx->op_info = "";
-			DBUG_RETURN(DB_SUCCESS);
-		}
-
-		if (prebuilt->fetch_cache_first > 0
-		    && prebuilt->fetch_cache_first < MYSQL_FETCH_CACHE_SIZE) {
-early_not_found:
-			/* The previous returned row was popped from the fetch
-			cache, but the cache was not full at the time of the
-			popping: no more rows can exist in the result set */
-			trx->op_info = "";
-			DBUG_RETURN(DB_RECORD_NOT_FOUND);
-		}
-
-		prebuilt->n_rows_fetched++;
-
-		if (prebuilt->n_rows_fetched > 1000000000) {
-			/* Prevent wrap-over */
-			prebuilt->n_rows_fetched = 500000000;
-		}
-
 		mode = pcur->search_mode;
 	}
 
@@ -4524,7 +4340,8 @@ early_not_found:
 
 		if (UNIV_UNLIKELY(direction != 0
 				  && !prebuilt->used_in_HANDLER)) {
-			goto early_not_found;
+			trx->op_info = "";
+			DBUG_RETURN(DB_RECORD_NOT_FOUND);
 		}
 	}
 
@@ -5649,116 +5466,35 @@ use_covering_index:
 				offsets));
 	ut_ad(!rec_get_deleted_flag(result_rec, comp));
 
-	/* Decide whether to prefetch extra rows.
-	At this point, the clustered index record is protected
-	by a page latch that was acquired when pcur was positioned.
-	The latch will not be released until mtr.commit(). */
-
-	if ((match_mode == ROW_SEL_EXACT
-	     || prebuilt->n_rows_fetched >= MYSQL_FETCH_CACHE_THRESHOLD)
-	    && prebuilt->select_lock_type == LOCK_NONE
-	    && !prebuilt->templ_contains_blob
-	    && !prebuilt->clust_index_was_generated
-	    && !prebuilt->used_in_HANDLER
-	    && !prebuilt->in_fts_query) {
-		/* Inside an update, for example, we do not cache rows,
-		since we may use the cursor position to do the actual
-		update, that is why we require ...lock_type == LOCK_NONE.
-		Since we keep space in prebuilt only for the BLOBs of
-		a single row, we cannot cache rows in the case there
-		are BLOBs in the fields to be fetched. In HANDLER we do
-		not cache rows because there the cursor is a scrollable
-		cursor. */
-
-		ut_a(prebuilt->n_fetch_cached < MYSQL_FETCH_CACHE_SIZE);
-
-		/* We only convert from InnoDB row format to MySQL row
-		format when ICP is disabled. */
-
-		if (!prebuilt->pk_filter && !prebuilt->idx_cond) {
-			/* We use next_buf to track the allocation of buffers
-			where we store and enqueue the buffers for our
-			pre-fetch optimisation.
-
-			If next_buf == 0 then we store the converted record
-			directly into the MySQL record buffer (buf). If it is
-			!= 0 then we allocate a pre-fetch buffer and store the
-			converted record there.
-
-			If the conversion fails and the MySQL record buffer
-			was not written to then we reset next_buf so that
-			we can re-use the MySQL record buffer in the next
-			iteration. */
-
-			next_buf = next_buf
-				 ? row_sel_fetch_last_buf(prebuilt) : buf;
-
-			if (!row_sel_store_mysql_rec(
-				next_buf, prebuilt, result_rec, vrow,
-				result_rec != rec,
-				result_rec != rec ? clust_index : index,
-				offsets)) {
-
-				if (next_buf == buf) {
-					ut_a(prebuilt->n_fetch_cached == 0);
-					next_buf = 0;
-				}
-
-				/* Only fresh inserts may contain incomplete
-				externally stored columns. Pretend that such
-				records do not exist. Such records may only be
-				accessed at the READ UNCOMMITTED isolation
-				level or when rolling back a recovered
-				transaction. Rollback happens at a lower
-				level, not here. */
-				goto next_rec;
-			}
-
-			if (next_buf != buf) {
-				row_sel_enqueue_cache_row_for_mysql(
-					next_buf, prebuilt);
-			}
-		} else {
-			row_sel_enqueue_cache_row_for_mysql(buf, prebuilt);
-		}
-
-		if (prebuilt->n_fetch_cached < MYSQL_FETCH_CACHE_SIZE) {
+	if (!prebuilt->pk_filter && !prebuilt->idx_cond) {
+		/* The record was not yet converted to MySQL format. */
+		if (!row_sel_store_mysql_rec(
+			    buf, prebuilt, result_rec, vrow,
+			    result_rec != rec,
+			    result_rec != rec ? clust_index : index,
+			    offsets)) {
+			/* Only fresh inserts may contain incomplete
+			externally stored columns. Pretend that such
+			records do not exist. Such records may only be
+			accessed at the READ UNCOMMITTED isolation
+			level or when rolling back a recovered
+			transaction. Rollback happens at a lower
+			level, not here. */
 			goto next_rec;
 		}
-	} else {
-		if (!prebuilt->pk_filter && !prebuilt->idx_cond) {
-			/* The record was not yet converted to MySQL format. */
-			if (!row_sel_store_mysql_rec(
-				    buf, prebuilt, result_rec, vrow,
-				    result_rec != rec,
-				    result_rec != rec ? clust_index : index,
-				    offsets)) {
-				/* Only fresh inserts may contain
-				incomplete externally stored
-				columns. Pretend that such records do
-				not exist. Such records may only be
-				accessed at the READ UNCOMMITTED
-				isolation level or when rolling back a
-				recovered transaction. Rollback
-				happens at a lower level, not here. */
-				goto next_rec;
-			}
-		}
+	}
 
-		if (!prebuilt->clust_index_was_generated) {
-		} else if (result_rec != rec || index->is_primary()) {
-			memcpy(prebuilt->row_id, result_rec, DATA_ROW_ID_LEN);
-		} else {
-			ulint len;
-			const byte* data = rec_get_nth_field(
-				result_rec, offsets, index->n_fields - 1,
-				&len);
-			ut_ad(dict_index_get_nth_col(index,
-						     index->n_fields - 1)
-			      ->prtype == (DATA_ROW_ID | DATA_NOT_NULL));
-			ut_ad(len == DATA_ROW_ID_LEN);
-			memcpy(prebuilt->row_id, data, DATA_ROW_ID_LEN);
-		}
+	if (!prebuilt->clust_index_was_generated) {
+	} else if (result_rec != rec || index->is_primary()) {
+		memcpy(prebuilt->row_id, result_rec, DATA_ROW_ID_LEN);
+	} else {
+		ulint len;
+		const byte* data = rec_get_nth_field(
+			result_rec, offsets, index->n_fields - 1, &len);
+		ut_ad(dict_index_get_nth_col(index, index->n_fields - 1)
+		      ->prtype == (DATA_ROW_ID | DATA_NOT_NULL));
+		ut_ad(len == DATA_ROW_ID_LEN);
+		memcpy(prebuilt->row_id, data, DATA_ROW_ID_LEN);
 	}
 
 	/* From this point on, 'offsets' are invalid. */
@@ -5960,27 +5696,6 @@ normal_return:
 	}
 
 	DEBUG_SYNC_C("row_search_for_mysql_before_return");
-
-	if (prebuilt->pk_filter || prebuilt->idx_cond) {
-		/* When ICP is active we don't write to the MySQL buffer
-		directly, only to buffers that are enqueued in the pre-fetch
-		queue. We need to dequeue the first buffer and copy the contents
-		to the record buffer that was passed in by MySQL. */
-
-		if (prebuilt->n_fetch_cached > 0) {
-			row_sel_dequeue_cached_row_for_mysql(buf, prebuilt);
-			err = DB_SUCCESS;
-		}
-
-	} else if (next_buf != 0) {
-
-		/* We may or may not have enqueued some buffers to the
-		pre-fetch queue, but we definitely wrote to the record
-		buffer passed to use by MySQL. */
-
-		DEBUG_SYNC_C("row_search_cached_row");
-		err = DB_SUCCESS;
-	}
 
 #ifdef UNIV_DEBUG
 	if (dict_index_is_spatial(index) && err != DB_SUCCESS
