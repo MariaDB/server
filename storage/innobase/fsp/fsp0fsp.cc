@@ -1286,23 +1286,20 @@ static dberr_t fsp_free_page(fil_space_t *space, page_no_t offset, mtr_t *mtr)
 			      + header->page.frame, frag_n_used - 1);
 	}
 
+	mtr->free(*space, static_cast<uint32_t>(offset));
+	xdes_set_free<true>(*xdes, descr, offset % FSP_EXTENT_SIZE, mtr);
+	ut_ad(err == DB_SUCCESS);
+
 	if (!xdes_get_n_used(descr)) {
 		/* The extent has become free: move it to another list */
 		err = flst_remove(header, FSP_HEADER_OFFSET + FSP_FREE_FRAG,
 				  xdes, xoffset, mtr);
-		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
-			return err;
-		}
-		err = fsp_free_extent(space, offset, mtr);
-		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
-			return err;
+		if (err == DB_SUCCESS) {
+			err = fsp_free_extent(space, offset, mtr);
 		}
 	}
 
-	mtr->free(*space, static_cast<uint32_t>(offset));
-	xdes_set_free<true>(*xdes, descr, offset % FSP_EXTENT_SIZE, mtr);
-
-	return DB_SUCCESS;
+	return err;
 }
 
 /** @return Number of segment inodes which fit on a single page */
