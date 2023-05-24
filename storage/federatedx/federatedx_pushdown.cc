@@ -297,7 +297,7 @@ ha_federatedx_select_handler::ha_federatedx_select_handler(
 {
   query.length(0);
   lex_unit->print(&query,
-                  enum_query_type(QT_VIEW_INTERNAL |
+                  enum_query_type(QT_VIEW_INTERNAL | QT_SELECT_ONLY |
                                   QT_ITEM_ORIGINAL_FUNC_NULLIF |
                                   QT_PARSABLE));
 }
@@ -309,7 +309,7 @@ ha_federatedx_select_handler::ha_federatedx_select_handler(
 {
   query.length(0);
   select_lex->print(thd, &query,
-                    enum_query_type(QT_VIEW_INTERNAL |
+                    enum_query_type(QT_VIEW_INTERNAL | QT_SELECT_ONLY |
                                     QT_ITEM_ORIGINAL_FUNC_NULLIF |
                                     QT_PARSABLE));
 }

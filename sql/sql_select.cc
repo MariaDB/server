@@ -30812,7 +30812,7 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
 
   bool top_level= is_query_topmost(thd);
   enum explainable_cmd_type sel_type= SELECT_CMD;
-  if (top_level)
+  if (top_level && !(query_type & QT_SELECT_ONLY))
     sel_type= get_explainable_cmd_type(thd);
 
   if (sel_type == INSERT_CMD || sel_type == REPLACE_CMD)
