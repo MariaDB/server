@@ -399,12 +399,13 @@ static void trx_purge_free_segment(buf_block_t *block, mtr_t &mtr)
 }
 
 /** Remove unnecessary history data from a rollback segment.
-@param[in,out]	rseg		rollback segment
-@param[in]	limit		truncate anything before this
+@param rseg   rollback segment
+@param limit  truncate anything before this
+@param all    whether everything can be truncated
 @return error code */
 static dberr_t
-trx_purge_truncate_rseg_history(trx_rseg_t& rseg,
-                                const purge_sys_t::iterator& limit)
+trx_purge_truncate_rseg_history(trx_rseg_t &rseg,
+                                const purge_sys_t::iterator &limit, bool all)
 {
   fil_addr_t hdr_addr;
   mtr_t mtr;
@@ -446,6 +447,9 @@ loop:
                                     hdr_addr.boffset, limit.undo_no);
     goto func_exit;
   }
+
+  if (!all)
+    goto func_exit;
 
   fil_addr_t prev_hdr_addr=
     flst_get_prev_addr(b->page.frame + hdr_addr.boffset +
@@ -584,9 +588,11 @@ TRANSACTIONAL_TARGET static void trx_purge_truncate_history()
     {
       ut_ad(rseg.is_persistent());
       rseg.latch.wr_lock(SRW_LOCK_CALL);
-      if (!rseg.is_referenced() && rseg.needs_purge <= head.trx_no)
-        if (dberr_t e= trx_purge_truncate_rseg_history(rseg, head))
-          err= e;
+      if (dberr_t e=
+          trx_purge_truncate_rseg_history(rseg, head,
+                                          !rseg.is_referenced() &&
+                                          rseg.needs_purge <= head.trx_no))
+        err= e;
       rseg.latch.wr_unlock();
     }
 
