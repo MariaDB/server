@@ -1598,11 +1598,11 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   if (!err_status)
   {
     if (!main_mem_root.read_only &&
-	has_all_instrs_executed() &&
-	++executed_counter >= 2)
+	has_all_instrs_executed())
     {
       main_mem_root.read_only= 1;
     }
+    ++executed_counter;
     DBUG_PRINT("info", ("execute counter: %lu", executed_counter));
   }
 #endif
