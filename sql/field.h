@@ -964,11 +964,13 @@ public:
   virtual int  store(longlong nr, bool unsigned_val)=0;
   virtual int  store_decimal(const my_decimal *d)=0;
   virtual int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
-  virtual int  store_timestamp_dec(const timeval &ts, uint dec);
+  virtual int  store_timestamp_dec(const timeval &ts, uint dec,
+                                   const Timezone_interval_null &tz);
   int store_timestamp(my_time_t timestamp, ulong sec_part)
   {
     return store_timestamp_dec(Timeval(timestamp, sec_part),
-                               TIME_SECOND_PART_DIGITS);
+                               TIME_SECOND_PART_DIGITS,
+                               Timezone_interval_null());
   }
   /**
     Store a value represented in native format
@@ -3204,7 +3206,8 @@ public:
   int  store(longlong nr, bool unsigned_val) override;
   int  store_time_dec(const MYSQL_TIME *ltime, uint dec) override;
   int  store_decimal(const my_decimal *) override;
-  int  store_timestamp_dec(const timeval &ts, uint dec) override;
+  int  store_timestamp_dec(const timeval &ts, uint dec,
+                           const Timezone_interval_null &tz) override;
   int  save_in_field(Field *to) override;
   longlong val_int() override;
   String *val_str(String *, String *) override;
@@ -3223,10 +3226,7 @@ public:
   int store_native(const Native &value) override;
   bool validate_value_in_record(THD *thd, const uchar *record) const override;
   Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item)
-    override
-  {
-    return get_equal_const_item_datetime(thd, ctx, const_item);
-  }
+    override;
   bool load_data_set_null(THD *thd) override;
   bool load_data_set_no_data(THD *thd, bool fixed_format) override;
 };

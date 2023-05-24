@@ -5031,16 +5031,24 @@ public:
 class Item_timestamp_literal: public Item_literal
 {
   Timestamp_or_zero_datetime m_value;
+  Timezone_interval_null m_tz;
 public:
   Item_timestamp_literal(THD *thd)
    :Item_literal(thd)
+  { }
+  Item_timestamp_literal(THD *thd,
+                         const Timestamp_or_zero_datetime &value,
+                         const Timezone_interval_null &tz)
+   :Item_literal(thd),
+    m_value(value),
+    m_tz(tz)
   { }
   const Type_handler *type_handler() const override
   { return &type_handler_timestamp2; }
   int save_in_field(Field *field, bool) override
   {
     Timestamp_or_zero_datetime_native native(m_value, decimals);
-    return native.save_in_field(field, decimals);
+    return native.save_in_field(field, decimals, m_tz);
   }
   longlong val_int() override
   {
@@ -5060,7 +5068,7 @@ public:
   }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
   {
-    bool res= m_value.to_TIME(thd, ltime, fuzzydate);
+    bool res= m_value.to_TIME(thd, m_tz, ltime, fuzzydate);
     DBUG_ASSERT(!res);
     return res;
   }
@@ -5072,6 +5080,7 @@ public:
   {
     m_value= value;
   }
+  void print(String *str, enum_query_type query_type) override;
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_timestamp_literal>(thd, this); }
 };
@@ -6524,7 +6533,7 @@ public:
     if (null_value)
       return set_field_to_null(field);
     Timestamp_or_zero_datetime_native native(m_value, decimals);
-    return native.save_in_field(field, decimals);
+    return native.save_in_field(field, decimals, Timezone_interval_null());
   }
   longlong val_int() override
   {

@@ -294,13 +294,28 @@ set_neg(my_bool neg, MYSQL_TIME_STATUS *st, MYSQL_TIME *ltime)
 
 
  /* Remove trailing spaces and garbage */
-static my_bool get_suffix(const char *str, size_t length, size_t *new_length)
+static my_bool get_suffix(const char *str, size_t length, size_t *new_length,
+                          MA_OPT_TIME_ZONE_INTERVAL *time_zone_interval)
 {
   /*
     QQ: perhaps 'T' should be considered as a date/time delimiter only
     if it's followed by a digit. Learn ISO 8601 details.
   */
   my_bool garbage= FALSE;
+
+  for ( ; length > 0 ; length--)
+  {
+    if (!my_isspace(&my_charset_latin1, str[length - 1]))
+      break;
+  }
+
+  if ( length > 0 && str[length-1] == 'Z')
+  {
+    time_zone_interval->specified= TRUE;
+    time_zone_interval->gmt_offset= 0;
+    length--;
+  }
+
   for ( ; length > 0 ; length--)
   {
     char ch= str[length - 1];
@@ -349,23 +364,23 @@ static size_t get_sign(my_bool *neg, const char *str, size_t length,
 
 
 static my_bool find_body(my_bool *neg, const char *str, size_t length,
-                         MYSQL_TIME *to, int *warn,
+                         MYSQL_TIME *to, MYSQL_TIME_STATUS *status,
                          const char **new_str, size_t *new_length)
 {
   size_t sign_length;
-  *warn= 0;
+  status->warnings= 0;
   length-= get_prefix(str, length, &str);
   sign_length= get_sign(neg, str, length, &str);
   length-= sign_length;
   /* There can be a space after a sign again: '- 10:20:30' or '- 1 10:20:30' */
   length-= get_prefix(str, length, &str);
-  if (get_suffix(str, length, &length))
-    *warn|= MYSQL_TIME_WARN_TRUNCATED;
+  if (get_suffix(str, length, &length, &status->opt_time_zone_interval))
+    status->warnings|= MYSQL_TIME_WARN_TRUNCATED;
   *new_str= str;
   *new_length= length;
   if (!length || !my_isdigit(&my_charset_latin1, *str))
   {
-    *warn|= MYSQL_TIME_WARN_EDOM;
+    status->warnings|= MYSQL_TIME_WARN_EDOM;
     set_zero_time(to, MYSQL_TIMESTAMP_ERROR);
     return TRUE;
   }
@@ -774,7 +789,7 @@ my_bool str_to_DDhhmmssff(const char *str, size_t length, MYSQL_TIME *ltime,
   const char *endptr;
 
   my_time_status_init(status);
-  if (find_body(&neg, str, length, ltime, &status->warnings, &str, &length))
+  if (find_body(&neg, str, length, ltime, status, &str, &length))
     return TRUE;
 
   /* Reject anything that might be parsed as a full TIMESTAMP */
@@ -816,7 +831,7 @@ str_to_datetime_or_date_or_time(const char *str, size_t length,
   DBUG_ASSERT(C_FLAGS_OK(mode));
   my_time_status_init(status);
   return
-    find_body(&neg, str, length, to, &status->warnings, &str, &length) ||
+    find_body(&neg, str, length, to, status, &str, &length) ||
     str_to_datetime_or_date_or_time_body(str, length, to, mode, status,
                                          time_max_hour, time_err_hour,
                                          FALSE, FALSE) ||
@@ -835,7 +850,7 @@ str_to_datetime_or_date_or_interval_hhmmssff(const char *str, size_t length,
   DBUG_ASSERT(C_FLAGS_OK(mode));
   my_time_status_init(status);
   return
-    find_body(&neg, str, length, to, &status->warnings, &str, &length) ||
+    find_body(&neg, str, length, to, status, &str, &length) ||
     str_to_datetime_or_date_or_time_body(str, length, to, mode, status,
                                          time_max_hour, time_err_hour,
                                          TRUE, FALSE) ||
@@ -859,7 +874,7 @@ str_to_datetime_or_date_or_interval_day(const char *str, size_t length,
       EXTRACT(DAY FROM '11111') 
   */
   return
-    find_body(&neg, str, length, to, &status->warnings, &str, &length) ||
+    find_body(&neg, str, length, to, status, &str, &length) ||
     str_to_datetime_or_date_or_time_body(str, length, to, mode, status,
                                          time_max_hour, time_err_hour,
                                          TRUE, TRUE) ||
@@ -877,7 +892,7 @@ str_to_datetime_or_date(const char *str, size_t length, MYSQL_TIME *l_time,
   DBUG_ASSERT(C_FLAGS_OK(flags));
   my_time_status_init(status);
   return
-    find_body(&neg, str, length, l_time, &status->warnings, &str, &length) ||
+    find_body(&neg, str, length, l_time, status, &str, &length) ||
     str_to_datetime_or_date_body(str, length, l_time, flags, TRUE,
                                  status, &number_of_fields, &endptr) ||
     set_neg(neg, status, l_time);

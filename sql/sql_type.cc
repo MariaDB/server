@@ -395,6 +395,14 @@ bool Timestamp::to_native(Native *to, uint decimals) const
 }
 
 
+bool Timestamp::to_TIME(const Time_zone &tz, MYSQL_TIME *ltime) const
+{
+  tz.gmt_sec_to_TIME(ltime, tv_sec);
+  ltime->second_part= tv_usec;
+  return false;
+}
+
+
 bool Timestamp::to_TIME(THD *thd, MYSQL_TIME *to, date_mode_t fuzzydate) const
 {
   return thd->timestamp_to_TIME(to, tv_sec, tv_usec, fuzzydate);
@@ -403,6 +411,12 @@ bool Timestamp::to_TIME(THD *thd, MYSQL_TIME *to, date_mode_t fuzzydate) const
 
 Timestamp::Timestamp(THD *thd, const MYSQL_TIME *ltime, uint *error_code)
  :Timeval(TIME_to_timestamp(thd, ltime, error_code), ltime->second_part)
+{ }
+
+Timestamp::Timestamp(const Time_zone &tz,
+                     const Datetime &dt, uint *err_code)
+ :Timeval(tz.TIME_to_gmt_sec(dt.get_mysql_time(), err_code),
+          dt.get_mysql_time()->second_part)
 { }
 
 
@@ -422,6 +436,18 @@ Timestamp_or_zero_datetime::Timestamp_or_zero_datetime(THD *thd,
 }
 
 
+bool Timestamp_or_zero_datetime::to_TIME(const Time_zone &tz,
+                                         MYSQL_TIME *ltime) const
+{
+  if (m_is_zero_datetime)
+  {
+    set_zero_time(ltime, MYSQL_TIMESTAMP_DATETIME);
+    return false;
+  }
+  return Timestamp::to_TIME(tz, ltime);
+}
+
+
 bool Timestamp_or_zero_datetime::to_TIME(THD *thd, MYSQL_TIME *to,
                                          date_mode_t fuzzydate) const
 {
@@ -431,6 +457,19 @@ bool Timestamp_or_zero_datetime::to_TIME(THD *thd, MYSQL_TIME *to,
     return false;
   }
   return Timestamp::to_TIME(thd, to, fuzzydate);
+}
+
+
+bool Timestamp_or_zero_datetime::to_TIME(THD *thd,
+                                         const Timezone_interval_null &tz,
+                                         MYSQL_TIME *to,
+                                         date_mode_t fuzzydate) const
+{
+  DBUG_ASSERT(tz.gmt_offset == 0);
+  bool res= tz.specified ? to_TIME(*my_tz_UTC, to) :
+                           to_TIME(thd, to, fuzzydate);
+  DBUG_ASSERT(!res);
+  return res;
 }
 
 
@@ -446,7 +485,9 @@ bool Timestamp_or_zero_datetime::to_native(Native *to, uint decimals) const
 
 
 int Timestamp_or_zero_datetime_native::save_in_field(Field *field,
-                                                     uint decimals) const
+                                            uint decimals,
+                                            const Timezone_interval_null &tz)
+                                                                        const
 {
   field->set_notnull();
   if (field->type_handler()->type_handler_for_native_format() ==
@@ -457,7 +498,7 @@ int Timestamp_or_zero_datetime_native::save_in_field(Field *field,
     static Datetime zero(Datetime::zero());
     return field->store_time_dec(zero.get_mysql_time(), decimals);
   }
-  return field->store_timestamp_dec(Timestamp(*this).tv(), decimals);
+  return field->store_timestamp_dec(Timestamp(*this).tv(), decimals, tz);
 }
 
 
@@ -1068,6 +1109,12 @@ Datetime::Datetime(THD *thd, const timeval &tv)
   DBUG_ASSERT(is_valid_value_slow());
 }
 
+
+Datetime::Datetime(const timeval &tv, const Timezone_interval_null &tz)
+{
+  DBUG_ASSERT(tz.gmt_offset == 0);
+  Timestamp(tv).to_TIME(*my_tz_UTC, this);
+}
 
 Datetime::Datetime(THD *thd, int *warn, const MYSQL_TIME *from,
                    date_conv_mode_t flags)
@@ -4311,7 +4358,7 @@ int Type_handler_timestamp_common::Item_save_in_field(Item *item,
   Timestamp_or_zero_datetime_native_null tmp(field->table->in_use, item, true);
   if (tmp.is_null())
     return set_field_to_null_with_conversions(field, no_conversions);
-  return tmp.save_in_field(field, item->decimals);
+  return tmp.save_in_field(field, item->decimals, Timezone_interval_null());
 }
 
 
@@ -8945,6 +8992,20 @@ Type_handler_temporal_with_date::create_literal_item(THD *thd,
       !have_important_literal_warnings(&st))
   {
     Datetime dt(&tmp);
+    if (st.opt_time_zone_interval.specified)
+    {
+      DBUG_ASSERT(st.opt_time_zone_interval.gmt_offset == 0);
+      uint error_code;
+      Timestamp tm(*my_tz_OFFSET0, dt, &error_code);
+      if (error_code)
+      {
+        literal_warn(thd, item, str, length, cs, &st, "TIMESTAMP", send_error);
+        return NULL;
+      }
+      return new (thd->mem_root)
+        Item_timestamp_literal(thd, Timestamp_or_zero_datetime(tm, false),
+                               st.opt_time_zone_interval);
+    }
     item= new (thd->mem_root) Item_datetime_literal(thd, &dt, st.precision);
   }
   literal_warn(thd, item, str, length, cs, &st, "DATETIME", send_error);

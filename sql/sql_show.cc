@@ -7825,7 +7825,8 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
         else if (part_info->vers_info->interval.is_set())
         {
           Timeval tv((my_time_t) part_elem->range_value, 0);
-          table->field[11]->store_timestamp_dec(tv, AUTO_SEC_PART_DIGITS);
+          table->field[11]->store_timestamp_dec(tv, AUTO_SEC_PART_DIGITS,
+                                                Timezone_interval_null());
           table->field[11]->set_notnull();
         }
       }

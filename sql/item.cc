@@ -23,6 +23,7 @@
 #include "sql_priv.h"
 #include <mysql.h>
 #include <m_ctype.h>
+#include "tztime.h"
 #include "my_dir.h"
 #include "sp_rcontext.h"
 #include "sp_head.h"
@@ -7307,6 +7308,19 @@ void Item_datetime_literal::print(String *str, enum_query_type query_type)
 }
 
 
+void Item_timestamp_literal::print(String *str, enum_query_type query_type)
+{
+  str->append(STRING_WITH_LEN("TIMESTAMP'"));
+  MYSQL_TIME ltime;
+  m_value.to_TIME(*my_tz_OFFSET0, &ltime);
+  char buf[MAX_DATE_STRING_REP_LENGTH];
+  int length= my_datetime_to_str(&ltime, buf, decimals);
+  str->append(buf, length);
+  str->append("Z", 1);
+  str->append('\'');
+}
+
+
 Item *Item_datetime_literal::clone_item(THD *thd)
 {
   return new (thd->mem_root) Item_datetime_literal(thd, &cached_time, decimals);
@@ -10321,7 +10335,7 @@ int Item_cache_timestamp::save_in_field(Field *field, bool no_conversions)
 {
   if (!has_value())
     return set_field_to_null_with_conversions(field, no_conversions);
-  return m_native.save_in_field(field, decimals);
+  return m_native.save_in_field(field, decimals, Timezone_interval_null());
 }
 
 

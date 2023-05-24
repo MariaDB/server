@@ -875,6 +875,22 @@ public:
 };
 
 
+class Timezone_interval_null: public st_mysql_opt_time_zone_interval
+{
+public:
+  Timezone_interval_null() = default;
+  Timezone_interval_null(const st_mysql_opt_time_zone_interval &rhs)
+  {
+    st_mysql_opt_time_zone_interval::operator=(rhs);
+  }
+  Timezone_interval_null(int _gmt_offset)
+  {
+    specified= true;
+    gmt_offset= _gmt_offset;
+  }
+};
+
+
 class Temporal: protected MYSQL_TIME
 {
 public:
@@ -2443,6 +2459,7 @@ public:
    :Datetime(thd, warn, Sec9(d), fuzzydate)
   { }
   Datetime(THD *thd, const timeval &tv);
+  Datetime(const timeval &tv, const Timezone_interval_null &tz);
 
   Datetime(THD *thd, Item *item, date_mode_t fuzzydate, uint dec)
    :Datetime(thd, item, fuzzydate)
@@ -2745,6 +2762,7 @@ public:
   { }
   explicit Timestamp(const Native &native);
   Timestamp(THD *thd, const MYSQL_TIME *ltime, uint *error_code);
+  Timestamp(const Time_zone &tz, const Datetime &dt, uint *err_code);
   const struct timeval &tv() const { return *this; }
   int cmp(const Timestamp &other) const
   {
@@ -2754,6 +2772,7 @@ public:
            tv_usec > other.tv_usec ? +1 : 0;
   }
   bool to_TIME(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) const;
+  bool to_TIME(const Time_zone &tz, MYSQL_TIME *ltime) const;
   bool to_native(Native *to, uint decimals) const;
   Datetime to_datetime(THD *thd) const
   {
@@ -2835,6 +2854,10 @@ public:
     return Timestamp::cmp(other);
   }
   bool to_TIME(THD *thd, MYSQL_TIME *to, date_mode_t fuzzydate) const;
+  bool to_TIME(const Time_zone &tz, MYSQL_TIME *ltime) const;
+  bool to_TIME(THD *thd, const Timezone_interval_null &tz,
+               MYSQL_TIME *to, date_mode_t fuzzydate) const;
+
   /*
     Convert to native format:
     - Real timestamps are encoded in the same way how Field_timestamp2 stores
@@ -2861,7 +2884,8 @@ public:
     if (ts.to_native(this, decimals))
       length(0); // safety
   }
-  int save_in_field(Field *field, uint decimals) const;
+  int save_in_field(Field *field, uint decimals,
+                    const Timezone_interval_null &tz) const;
   Datetime to_datetime(THD *thd) const
   {
     return is_zero_datetime() ?

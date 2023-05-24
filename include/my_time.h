@@ -100,6 +100,12 @@ extern uchar days_in_month[];
 #define TIME_MAX_VALUE_SECONDS (TIME_MAX_HOUR * 3600L + \
                                 TIME_MAX_MINUTE * 60L + TIME_MAX_SECOND)
 
+typedef struct st_mysql_opt_time_zone_interval
+{
+  int gmt_offset;
+  my_bool specified;
+} MA_OPT_TIME_ZONE_INTERVAL;
+
 /*
   Structure to return status from
     str_to_datetime(), str_to_time().
@@ -109,6 +115,7 @@ typedef struct st_mysql_time_status
   int warnings;
   uint precision;
   uint nanoseconds;
+  MA_OPT_TIME_ZONE_INTERVAL opt_time_zone_interval;
 } MYSQL_TIME_STATUS;
 
 static inline void my_time_status_init(MYSQL_TIME_STATUS *status)
@@ -116,6 +123,8 @@ static inline void my_time_status_init(MYSQL_TIME_STATUS *status)
   status->warnings= 0;
   status->precision= 0;
   status->nanoseconds= 0;
+  status->opt_time_zone_interval.gmt_offset= 0;
+  status->opt_time_zone_interval.specified= FALSE;
 }
 
 my_bool check_date(const MYSQL_TIME *ltime, my_bool not_zero_date,

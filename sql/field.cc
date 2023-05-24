@@ -2036,9 +2036,11 @@ int Field::store_text(const char *to, size_t length, CHARSET_INFO *cs,
 }
 
 
-int Field::store_timestamp_dec(const timeval &ts, uint dec)
+int Field::store_timestamp_dec(const timeval &ts, uint dec,
+                               const Timezone_interval_null &tz)
 {
-  return store_time_dec(Datetime(get_thd(), ts).get_mysql_time(), dec);
+  const Datetime dt= tz.specified ? Datetime(ts, tz) : Datetime(get_thd(), ts);
+  return store_time_dec(dt.get_mysql_time(), dec);
 }
 
 
@@ -5243,7 +5245,8 @@ int Field_timestamp::save_in_field(Field *to)
 {
   ulong sec_part;
   my_time_t ts= get_timestamp(&sec_part);
-  return to->store_timestamp_dec(Timeval(ts, sec_part), decimals());
+  return to->store_timestamp_dec(Timeval(ts, sec_part), decimals(),
+                                 Timezone_interval_null());
 }
 
 my_time_t Field_timestamp0::get_timestamp(const uchar *pos,
@@ -5338,7 +5341,23 @@ int Field_timestamp::store(const char *from,size_t len,CHARSET_INFO *cs)
   ErrConvString str(from, len, cs);
   THD *thd= get_thd();
   MYSQL_TIME_STATUS st;
-  Datetime dt(thd, &st, from, len, cs, Timestamp::DatetimeOptions(thd), decimals());
+  Datetime dt(thd, &st, from, len, cs,
+              Timestamp::DatetimeOptions(thd), decimals());
+  if (st.opt_time_zone_interval.specified) // e.g. '2001-01-01 10:00:00Z'
+  {
+    DBUG_ASSERT(st.opt_time_zone_interval.gmt_offset == 0);
+    uint error_code;
+    Timestamp ts(*my_tz_OFFSET0, dt, &error_code);
+    if (error_code)
+    {
+      set_datetime_warning(WARN_DATA_TRUNCATED, &str, "timestamp", 1);
+      store_TIMESTAMP(Timestamp(0,0));
+      return 1;
+    }
+    // Now store with rounding or truncation
+    store_TIME(ts.tv().tv_sec, ts.tv().tv_usec);
+    return 0;
+  }
   return store_TIME_with_warning(thd, &dt, &str, st.warnings);
 }
 
@@ -5364,7 +5383,8 @@ int Field_timestamp::store(longlong nr, bool unsigned_val)
 }
 
 
-int Field_timestamp::store_timestamp_dec(const timeval &ts, uint dec)
+int Field_timestamp::store_timestamp_dec(const timeval &ts, uint dec,
+                                         const Timezone_interval_null &tz)
 {
   int warn= 0;
   time_round_mode_t mode= Datetime::default_round_mode(get_thd());
@@ -5416,7 +5436,8 @@ int Field_timestamp::store_native(const Native &value)
     Field_timestamp*::store_timestamp_dec() do not use the "dec" parameter.
     Passing TIME_SECOND_PART_DIGITS is OK.
   */
-  return store_timestamp_dec(Timestamp(value).tv(), TIME_SECOND_PART_DIGITS);
+  return store_timestamp_dec(Timestamp(value).tv(), TIME_SECOND_PART_DIGITS,
+                             Timezone_interval_null());
 }
 
 
@@ -5992,6 +6013,59 @@ Item *Field_temporal::get_equal_const_item_datetime(THD *thd,
     break;
   }
   return const_item;
+}
+
+
+Item *Field_timestamp::get_equal_const_item(THD *thd,
+                                            const Context &ctx,
+                                            Item *const_item)
+{
+  switch (ctx.subst_constraint()) {
+  case IDENTITY_SUBST:
+    break;
+  case ANY_SUBST:
+    if (const_item->type_handler()->cmp_type() == STRING_RESULT)
+    {
+      // Reserve +6 for a time zone: 'Z' or '+01:00'
+      StringBuffer<MAX_DATETIME_FULL_WIDTH + 6 + 1> buf;
+      String *str= const_item->val_str(&buf);
+      if (!str)
+        return NULL;
+      MYSQL_TIME_STATUS st;
+      Datetime dt(thd, &st, str->ptr(), str->length(),
+                  const_item->collation.collation,
+                  Timestamp::DatetimeOptions(thd), decimals());
+      if (st.warnings)
+        thd->push_warning_truncated_wrong_value(Sql_condition::WARN_LEVEL_WARN,
+                                                "timestamp",
+                                                ErrConvString(str).ptr());
+      if (!dt.is_valid_datetime())
+        return NULL;
+      if (st.opt_time_zone_interval.specified) // e.g. '2001-01-01 10:00:00Z'
+      {
+        DBUG_ASSERT(st.opt_time_zone_interval.gmt_offset == 0);
+        uint error_code;
+        Timestamp tm(*my_tz_OFFSET0, dt, &error_code);
+        return error_code ? NULL :
+          new (thd->mem_root)
+            Item_timestamp_literal(thd, Timestamp_or_zero_datetime(tm, false),
+                                   st.opt_time_zone_interval);
+      }
+      /*
+        The string literal was a datetime without a time zone interval.
+        Do what get_equal_const_item_datetime() does for now.
+        Eventually we should create an Item_timestamp_literal
+        instance here as well.
+      */
+      return new (thd->mem_root)
+        Item_datetime_literal_for_invalid_dates(thd, &dt,
+                                                dt.get_mysql_time()->
+                                                second_part ?
+                                                TIME_SECOND_PART_DIGITS : 0);
+    }
+    break;
+  }
+  return get_equal_const_item_datetime(thd, ctx, const_item);
 }
 
 
