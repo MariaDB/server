@@ -399,12 +399,14 @@ void trx_purge_free_segment(mtr_t &mtr, trx_rseg_t* rseg, fil_addr_t hdr_addr)
 
 /** Remove unnecessary history data from a rollback segment.
 @param[in,out]	rseg		rollback segment
-@param[in]	limit		truncate anything before this */
+@param[in]	limit		truncate anything before this
+@param[in]	all		whether everything can be truncated */
 static
 void
 trx_purge_truncate_rseg_history(
 	trx_rseg_t&			rseg,
-	const purge_sys_t::iterator&	limit)
+	const purge_sys_t::iterator&	limit,
+	bool				all)
 {
 	fil_addr_t	hdr_addr;
 	fil_addr_t	prev_hdr_addr;
@@ -440,6 +442,10 @@ func_exit:
 				hdr_addr.boffset, limit.undo_no);
 		}
 
+		goto func_exit;
+	}
+
+	if (!all) {
 		goto func_exit;
 	}
 
@@ -539,8 +545,9 @@ static void trx_purge_truncate_history()
       ut_ad(rseg->id == i);
       ut_ad(rseg->is_persistent());
       mutex_enter(&rseg->mutex);
-      if (!rseg->trx_ref_count && rseg->needs_purge <= head.trx_no)
-        trx_purge_truncate_rseg_history(*rseg, head);
+      trx_purge_truncate_rseg_history(*rseg, head,
+                                      !rseg->trx_ref_count &&
+                                      rseg->needs_purge <= head.trx_no);
       mutex_exit(&rseg->mutex);
     }
   }
