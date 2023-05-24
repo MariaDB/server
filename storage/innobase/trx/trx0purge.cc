@@ -369,19 +369,6 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 	undo = NULL;
 }
 
-MY_ATTRIBUTE((nonnull, warn_unused_result))
-/** Remove undo log header from the history list.
-@param[in,out]  rseg    rollback segment header page
-@param[in]      log     undo log segment header page
-@param[in]      offset  byte offset in the undo log segment header page
-@param[in,out]  mtr     mini-transaction */
-static dberr_t trx_purge_remove_log_hdr(buf_block_t *rseg, buf_block_t* log,
-                                        uint16_t offset, mtr_t *mtr)
-{
-  return flst_remove(rseg, TRX_RSEG + TRX_RSEG_HISTORY, log,
-                     uint16_t(offset + TRX_UNDO_HISTORY_NODE), mtr);
-}
-
 /** Free an undo log segment.
 @param block     rollback segment header page
 @param mtr       mini-transaction */
@@ -391,7 +378,7 @@ static void trx_purge_free_segment(buf_block_t *block, mtr_t &mtr)
                                     block->page.frame, &mtr))
   {
     block->fix();
-    const page_id_t id{block->page.id()};
+    ut_d(const page_id_t id{block->page.id()});
     mtr.commit();
     /* NOTE: If the server is killed after the log that was produced
     up to this point was written, and before the log from the mtr.commit()
@@ -403,16 +390,8 @@ static void trx_purge_free_segment(buf_block_t *block, mtr_t &mtr)
     log_free_check();
     mtr.start();
     block->page.lock.x_lock();
-    if (UNIV_UNLIKELY(block->page.id() != id))
-    {
-      block->unfix();
-      block->page.lock.x_unlock();
-      block= buf_page_get_gen(id, 0, RW_X_LATCH, nullptr, BUF_GET, &mtr);
-      if (!block)
-        return;
-    }
-    else
-      mtr.memo_push(block, MTR_MEMO_PAGE_X_MODIFY);
+    ut_ad(block->page.id() == id);
+    mtr.memo_push(block, MTR_MEMO_PAGE_X_MODIFY);
   }
 
   while (!fseg_free_step(TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER +
@@ -420,12 +399,13 @@ static void trx_purge_free_segment(buf_block_t *block, mtr_t &mtr)
 }
 
 /** Remove unnecessary history data from a rollback segment.
-@param[in,out]	rseg		rollback segment
-@param[in]	limit		truncate anything before this
+@param rseg   rollback segment
+@param limit  truncate anything before this
+@param all    whether everything can be truncated
 @return error code */
 static dberr_t
-trx_purge_truncate_rseg_history(trx_rseg_t& rseg,
-                                const purge_sys_t::iterator& limit)
+trx_purge_truncate_rseg_history(trx_rseg_t &rseg,
+                                const purge_sys_t::iterator &limit, bool all)
 {
   fil_addr_t hdr_addr;
   mtr_t mtr;
@@ -434,7 +414,6 @@ trx_purge_truncate_rseg_history(trx_rseg_t& rseg,
   mtr.start();
 
   dberr_t err;
-reget:
   buf_block_t *rseg_hdr= rseg.get(&mtr, &err);
   if (!rseg_hdr)
   {
@@ -469,23 +448,24 @@ loop:
     goto func_exit;
   }
 
+  if (!all)
+    goto func_exit;
+
   fil_addr_t prev_hdr_addr=
     flst_get_prev_addr(b->page.frame + hdr_addr.boffset +
                        TRX_UNDO_HISTORY_NODE);
   prev_hdr_addr.boffset= static_cast<uint16_t>(prev_hdr_addr.boffset -
                                                TRX_UNDO_HISTORY_NODE);
-  err= trx_purge_remove_log_hdr(rseg_hdr, b, hdr_addr.boffset, &mtr);
+
+  err= flst_remove(rseg_hdr, TRX_RSEG + TRX_RSEG_HISTORY, b,
+                   uint16_t(hdr_addr.boffset + TRX_UNDO_HISTORY_NODE), &mtr);
   if (UNIV_UNLIKELY(err != DB_SUCCESS))
     goto func_exit;
 
   rseg_hdr->fix();
 
-  if (mach_read_from_2(b->page.frame + hdr_addr.boffset + TRX_UNDO_NEXT_LOG) ||
-      rseg.is_referenced() ||
-      rseg.needs_purge > (purge_sys.head.trx_no
-                          ? purge_sys.head.trx_no
-                          : purge_sys.tail.trx_no))
-    /* We cannot free the entire undo page. */;
+  if (mach_read_from_2(b->page.frame + hdr_addr.boffset + TRX_UNDO_NEXT_LOG))
+    /* We cannot free the entire undo log segment. */;
   else
   {
     const uint32_t seg_size=
@@ -535,12 +515,7 @@ loop:
   log_free_check();
   mtr.start();
   rseg_hdr->page.lock.x_lock();
-  if (UNIV_UNLIKELY(rseg_hdr->page.id() != rseg.page_id()))
-  {
-    rseg_hdr->unfix();
-    rseg_hdr->page.lock.x_unlock();
-    goto reget;
-  }
+  ut_ad(rseg_hdr->page.id() == rseg.page_id());
   mtr.memo_push(rseg_hdr, MTR_MEMO_PAGE_X_MODIFY);
 
   goto loop;
@@ -613,7 +588,10 @@ TRANSACTIONAL_TARGET static void trx_purge_truncate_history()
     {
       ut_ad(rseg.is_persistent());
       rseg.latch.wr_lock(SRW_LOCK_CALL);
-      if (dberr_t e= trx_purge_truncate_rseg_history(rseg, head))
+      if (dberr_t e=
+          trx_purge_truncate_rseg_history(rseg, head,
+                                          !rseg.is_referenced() &&
+                                          rseg.needs_purge <= head.trx_no))
         err= e;
       rseg.latch.wr_unlock();
     }
