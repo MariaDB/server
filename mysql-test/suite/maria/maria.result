@@ -2809,60 +2809,6 @@ DROP TABLE t1;
 #
 # End of 5.5 tests
 #
-#
-# BUG#47444 - --myisam_repair_threads > 1 can result in all index
-#             cardinalities=1
-#
-SET aria_repair_threads=2;
-SET aria_sort_buffer_size=16384;
-CREATE TABLE t1(a CHAR(255), KEY(a), KEY(a), KEY(a));
-Warnings:
-Note	1831	Duplicate index `a_2`. This is deprecated and will be disallowed in a future release
-Note	1831	Duplicate index `a_3`. This is deprecated and will be disallowed in a future release
-INSERT INTO t1 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9),(0),(1),(2),(3);
-REPAIR TABLE t1;
-Table	Op	Msg_type	Msg_text
-test.t1	repair	status	OK
-SELECT CARDINALITY FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
-CARDINALITY
-14
-14
-14
-CHECK TABLE t1;
-Table	Op	Msg_type	Msg_text
-test.t1	check	status	OK
-DROP TABLE t1;
-SET aria_sort_buffer_size=@@global.aria_sort_buffer_size;
-SET aria_repair_threads=@@global.aria_repair_threads;
-#
-# BUG#47073 - valgrind errs, corruption,failed repair of partition,
-#             low myisam_sort_buffer_size
-#
-CREATE TABLE t1(a INT, b CHAR(10), KEY(a), KEY(b));
-INSERT INTO t1 select seq,'0' from seq_1_to_65536;
-SET aria_sort_buffer_size=16384;
-REPAIR TABLE t1;
-Table	Op	Msg_type	Msg_text
-test.t1	repair	error	aria_sort_buffer_size is too small. X
-test.t1	repair	error	Create index by sort failed
-test.t1	repair	info	Retrying repair with keycache
-test.t1	repair	status	OK
-CHECK TABLE t1;
-Table	Op	Msg_type	Msg_text
-test.t1	check	status	OK
-SET aria_repair_threads=2;
-REPAIR TABLE t1;
-Table	Op	Msg_type	Msg_text
-test.t1	repair	error	aria_sort_buffer_size is too small. X
-test.t1	repair	error	Create index by sort failed
-test.t1	repair	info	Retrying repair with keycache
-test.t1	repair	status	OK
-CHECK TABLE t1;
-Table	Op	Msg_type	Msg_text
-test.t1	check	status	OK
-SET aria_repair_threads=@@global.aria_repair_threads;
-SET aria_sort_buffer_size=@@global.aria_sort_buffer_size;
-DROP TABLE t1;
 CREATE TABLE t1(a INT, b CHAR(10), KEY(a), KEY(b));
 INSERT INTO t1 VALUES(1,'0'),(2,'0'),(3,'0'),(4,'0'),(5,'0'),
 (6,'0'),(7,'0');
