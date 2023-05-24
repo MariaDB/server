@@ -856,7 +856,7 @@ static std::string filename_to_spacename(const void *filename, size_t len)
 {
   char f[FN_REFLEN];
   char *p= 0, *table, *db;
-  DBUG_ASSERT(len = FN_REFLEN);
+  DBUG_ASSERT(len < FN_REFLEN);
 
   strmake(f, (const char*) filename, len);
 
