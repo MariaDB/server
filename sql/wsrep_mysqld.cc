@@ -1975,6 +1975,15 @@ static bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
     }
     return true;
 
+  case SQLCOM_CREATE_SEQUENCE:
+    /* No TOI for temporary sequences as they are
+       not replicated */
+    if (thd->lex->tmp_table())
+    {
+      return false;
+    }
+    return true;
+
   default:
     if (table && !thd->find_temporary_table(db, table))
     {
@@ -2233,6 +2242,14 @@ static int wsrep_RSU_begin(THD *thd, const char *db_, const char *table_)
 {
   WSREP_DEBUG("RSU BEGIN: %lld, : %s", wsrep_thd_trx_seqno(thd),
               wsrep_thd_query(thd));
+
+  /* For CREATE TEMPORARY SEQUENCE we do not start RSU because
+     object is local only and actually CREATE TABLE + INSERT
+  */
+  if (thd->lex->sql_command == SQLCOM_CREATE_SEQUENCE &&
+      thd->lex->tmp_table())
+    return 1;
+
   if (thd->wsrep_cs().begin_rsu(5000))
   {
     WSREP_WARN("RSU begin failed");
