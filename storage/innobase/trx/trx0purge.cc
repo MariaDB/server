@@ -399,12 +399,13 @@ static void trx_purge_free_segment(buf_block_t *block, mtr_t &mtr)
 }
 
 /** Remove unnecessary history data from a rollback segment.
-@param[in,out]	rseg		rollback segment
-@param[in]	limit		truncate anything before this
+@param rseg   rollback segment
+@param limit  truncate anything before this
+@param all    whether everything can be truncated
 @return error code */
 static dberr_t
-trx_purge_truncate_rseg_history(trx_rseg_t& rseg,
-                                const purge_sys_t::iterator& limit)
+trx_purge_truncate_rseg_history(trx_rseg_t &rseg,
+                                const purge_sys_t::iterator &limit, bool all)
 {
   fil_addr_t hdr_addr;
   mtr_t mtr;
@@ -447,6 +448,9 @@ loop:
     goto func_exit;
   }
 
+  if (!all)
+    goto func_exit;
+
   fil_addr_t prev_hdr_addr=
     flst_get_prev_addr(b->page.frame + hdr_addr.boffset +
                        TRX_UNDO_HISTORY_NODE);
@@ -486,9 +490,9 @@ loop:
         if (undo->hdr_page_no == hdr_addr.page)
           goto found_cached;
       ut_ad("inconsistent undo logs" == 0);
-      break;
-    found_cached:
-      UT_LIST_REMOVE(rseg.undo_cached, undo);
+      if (false)
+      found_cached:
+        UT_LIST_REMOVE(rseg.undo_cached, undo);
       static_assert(FIL_NULL == 0xffffffff, "");
       if (UNIV_UNLIKELY(mach_read_from_4(TRX_RSEG + TRX_RSEG_FORMAT +
                                          rseg_hdr->page.frame)))
@@ -584,9 +588,11 @@ TRANSACTIONAL_TARGET static void trx_purge_truncate_history()
     {
       ut_ad(rseg.is_persistent());
       rseg.latch.wr_lock(SRW_LOCK_CALL);
-      if (!rseg.is_referenced() && rseg.needs_purge <= head.trx_no)
-        if (dberr_t e= trx_purge_truncate_rseg_history(rseg, head))
-          err= e;
+      if (dberr_t e=
+          trx_purge_truncate_rseg_history(rseg, head,
+                                          !rseg.is_referenced() &&
+                                          rseg.needs_purge <= head.trx_no))
+        err= e;
       rseg.latch.wr_unlock();
     }
 
@@ -664,7 +670,8 @@ not_free:
       }
 
       ut_ad(rseg.curr_size > cached);
-      if (rseg.curr_size > cached + 1)
+      if (rseg.curr_size > cached + 1 &&
+          (rseg.history_size || srv_fast_shutdown || srv_undo_sources))
         goto not_free;
 
       rseg.latch.rd_unlock();
