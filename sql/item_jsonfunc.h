@@ -74,7 +74,9 @@ public:
                                     (const uchar *) str.end())
   { }
   bool check_and_get_value_scalar(String *res, int *error);
-  bool check_and_get_value_complex(String *res, int *error);
+  bool check_and_get_value_complex(String *res, int *error,
+                                  json_value_types cur_value_type=
+                                                    JSON_VALUE_UNINITIALIZED);
 };
 
 
@@ -227,7 +229,7 @@ public:
   bool check_and_get_value(Json_engine_scan *je,
                            String *res, int *error) override
   {
-    return je->check_and_get_value_complex(res, error);
+    return je->check_and_get_value_complex(res, error, JSON_VALUE_UNINITIALIZED);
   }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_query>(thd, this); }
@@ -825,5 +827,32 @@ public:
   { return get_item_copy<Item_func_json_schema_valid>(thd, this); }
   void cleanup() override;
 };
+
+class Item_func_json_key_value: public Item_json_func,
+                            public Json_path_extractor
+{
+
+  String tmp_str;
+
+public:
+  Item_func_json_key_value(THD *thd, Item *js, Item *i_path):
+    Item_json_func(thd, js, i_path) {}
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("json_key_value") };
+    return name;
+  }
+  bool fix_length_and_dec(THD *thd) override;
+  String *val_str(String *to) override;
+  bool check_and_get_value(Json_engine_scan *je,
+                           String *res, int *error) override
+  {
+    return je->check_and_get_value_complex(res, error, JSON_VALUE_OBJECT);
+  }
+  bool get_key_value(json_engine_t *je, String *str);
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_func_json_key_value>(thd, this); }
+};
+
 
 #endif /* ITEM_JSONFUNC_INCLUDED */
