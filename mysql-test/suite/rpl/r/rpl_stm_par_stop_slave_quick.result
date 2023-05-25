@@ -44,6 +44,7 @@ connection slave;
 connection slave1;
 STOP SLAVE;;
 connection slave;
+# Wait for replica to signal worker threads to stop
 UNLOCK TABLES;
 include/wait_for_slave_sql_to_stop.inc
 connection slave1;
@@ -80,6 +81,7 @@ connection slave;
 connection slave1;
 STOP SLAVE;;
 connection slave;
+# Wait for replica to signal worker threads to stop
 UNLOCK TABLES;
 include/wait_for_slave_sql_to_stop.inc
 connection slave1;
@@ -123,6 +125,7 @@ connection slave;
 connection slave1;
 STOP SLAVE;;
 connection slave;
+# Wait for replica to signal worker threads to stop
 UNLOCK TABLES;
 include/wait_for_slave_sql_to_stop.inc
 connection slave1;
@@ -170,6 +173,7 @@ connection slave;
 connection slave1;
 STOP SLAVE;;
 connection slave;
+# Wait for replica to signal worker threads to stop
 UNLOCK TABLES;
 include/wait_for_slave_sql_to_stop.inc
 connection slave1;
@@ -216,6 +220,7 @@ connection slave;
 connection slave1;
 STOP SLAVE;;
 connection slave;
+# Wait for replica to signal worker threads to stop
 UNLOCK TABLES;
 include/wait_for_slave_sql_to_stop.inc
 connection slave1;
@@ -303,6 +308,7 @@ connection slave;
 connection slave1;
 STOP SLAVE;;
 connection slave;
+# Wait for replica to signal worker threads to stop
 UNLOCK TABLES;
 connection slave_lock_extra;
 UNLOCK TABLES;
@@ -339,6 +345,7 @@ connection slave;
 connection slave1;
 STOP SLAVE;;
 connection slave;
+# Wait for replica to signal worker threads to stop
 UNLOCK TABLES;
 connection slave_lock_extra;
 UNLOCK TABLES;
@@ -369,7 +376,6 @@ include/sync_with_master_gtid.inc
 connection slave;
 include/stop_slave.inc
 set @@global.slave_parallel_threads=1;
-set @@global.debug_dbug="+d,rpl_parallel_wait_for_done_trigger";
 connection master;
 SET @@session.binlog_direct_non_transactional_updates= 0;
 BEGIN;
@@ -391,7 +397,7 @@ connection slave;
 connection slave1;
 STOP SLAVE;;
 connection slave;
-set debug_sync= "now WAIT_FOR wait_for_done_waiting";
+# Wait for replica to signal worker threads to stop
 # Unlock row-level lock holding transaction
 UNLOCK TABLES;
 include/wait_for_slave_sql_to_stop.inc
@@ -405,8 +411,6 @@ connection master;
 include/save_master_gtid.inc
 SET @@session.binlog_direct_non_transactional_updates= 1;
 connection slave;
-set @@global.debug_dbug="-d,rpl_parallel_wait_for_done_trigger";
-set debug_sync= "RESET";
 include/start_slave.inc
 include/sync_with_master_gtid.inc
 #
@@ -430,6 +434,7 @@ connection slave;
 connection slave1;
 STOP SLAVE;;
 connection slave;
+# Wait for replica to signal worker threads to stop
 UNLOCK TABLES;
 include/wait_for_slave_sql_to_stop.inc
 connection slave1;

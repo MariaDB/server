@@ -55,6 +55,10 @@ LOCK TABLES ti WRITE;
 --send STOP SLAVE;
 
 --connection slave
+--echo # Wait for replica to signal worker threads to stop
+--let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE 'Waiting for worker thread to stop';
+--source include/wait_condition.inc
+
 UNLOCK TABLES;
 --source include/wait_for_slave_sql_to_stop.inc
 
@@ -120,6 +124,10 @@ LOCK TABLES ti WRITE;
 --send STOP SLAVE;
 
 --connection slave
+--echo # Wait for replica to signal worker threads to stop
+--let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE 'Waiting for worker thread to stop';
+--source include/wait_condition.inc
+
 UNLOCK TABLES;
 --source include/wait_for_slave_sql_to_stop.inc
 
@@ -197,6 +205,10 @@ LOCK TABLES ti WRITE;
 --send STOP SLAVE;
 
 --connection slave
+--echo # Wait for replica to signal worker threads to stop
+--let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE 'Waiting for worker thread to stop';
+--source include/wait_condition.inc
+
 UNLOCK TABLES;
 --source include/wait_for_slave_sql_to_stop.inc
 
@@ -278,6 +290,10 @@ LOCK TABLES ti WRITE, ti2 WRITE;
 --send STOP SLAVE;
 
 --connection slave
+--echo # Wait for replica to signal worker threads to stop
+--let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE 'Waiting for worker thread to stop';
+--source include/wait_condition.inc
+
 UNLOCK TABLES;
 --source include/wait_for_slave_sql_to_stop.inc
 
@@ -355,6 +371,10 @@ LOCK TABLES ti WRITE, ti3 WRITE;
 --send STOP SLAVE;
 
 --connection slave
+--echo # Wait for replica to signal worker threads to stop
+--let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE 'Waiting for worker thread to stop';
+--source include/wait_condition.inc
+
 UNLOCK TABLES;
 --source include/wait_for_slave_sql_to_stop.inc
 
@@ -534,7 +554,12 @@ while ($mode_ctr)
 
     --connection slave1
     --send STOP SLAVE;
+
     --connection slave
+    --echo # Wait for replica to signal worker threads to stop
+    --let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE 'Waiting for worker thread to stop';
+    --source include/wait_condition.inc
+
     UNLOCK TABLES;
     --connection slave_lock_extra
     UNLOCK TABLES;

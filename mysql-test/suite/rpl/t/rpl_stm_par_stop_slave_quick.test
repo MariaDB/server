@@ -3,7 +3,6 @@
 # STATEMENT binary logging format.
 #
 --source include/have_debug.inc
---source include/have_debug_sync.inc
 --source include/master-slave.inc
 --source include/have_innodb.inc
 --source include/have_binlog_format_statement.inc
@@ -52,7 +51,6 @@ create table tm2 (a int) engine=myisam;
 --connection slave
 --source include/stop_slave.inc
 set @@global.slave_parallel_threads=1;
-set @@global.debug_dbug="+d,rpl_parallel_wait_for_done_trigger";
 --let $row_count_initial=`select count(*) from (select * from ti UNION ALL select * from tm UNION ALL select * from tm2) t`
 
 --connection master
@@ -84,7 +82,10 @@ START SLAVE;
 --send STOP SLAVE;
 
 --connection slave
-set debug_sync= "now WAIT_FOR wait_for_done_waiting";
+--echo # Wait for replica to signal worker threads to stop
+--let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE 'Waiting for worker thread to stop';
+--source include/wait_condition.inc
+
 --echo # Unlock row-level lock holding transaction
 UNLOCK TABLES;
 --source include/wait_for_slave_sql_to_stop.inc
@@ -116,8 +117,6 @@ let $last_error = query_get_value("SHOW SLAVE STATUS", Last_SQL_Errno, 1);
 --eval SET @@session.binlog_direct_non_transactional_updates= $old_binlog_direct
 
 --connection slave
-set @@global.debug_dbug="-d,rpl_parallel_wait_for_done_trigger";
-set debug_sync= "RESET";
 --source include/start_slave.inc
 --source include/sync_with_master_gtid.inc
 
@@ -155,6 +154,9 @@ LOCK TABLES ti WRITE;
 --send STOP SLAVE;
 
 --connection slave
+--echo # Wait for replica to signal worker threads to stop
+--let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE 'Waiting for worker thread to stop';
+--source include/wait_condition.inc
 UNLOCK TABLES;
 --source include/wait_for_slave_sql_to_stop.inc
 

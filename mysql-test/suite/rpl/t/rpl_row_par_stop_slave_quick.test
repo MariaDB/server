@@ -222,6 +222,10 @@ LOCK TABLES ti write, ti2 WRITE;
 --send STOP SLAVE;
 
 --connection slave
+--echo # Wait for replica to signal worker threads to stop
+--let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE 'Waiting for worker thread to stop';
+--source include/wait_condition.inc
+
 UNLOCK TABLES;
 --source include/wait_for_slave_sql_to_stop.inc
 

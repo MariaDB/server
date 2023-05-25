@@ -808,10 +808,6 @@ SET GLOBAL slave_parallel_threads=4;
 # T1-T4 one at a time in a way which allows us to know which transaction
 # ends up with which thread id.
 
---connection server_2
-SET @old_dbug= @@GLOBAL.debug_dbug;
-SET GLOBAL debug_dbug="+d,rpl_parallel_wait_for_done_trigger";
-
 --connection server_1
 SET binlog_format=statement;
 SET gtid_domain_id=2;
@@ -953,10 +949,9 @@ SET debug_sync='now WAIT_FOR t4_waiting';
 --replace_result $d1_thd_id THD_ID
 eval KILL $d1_thd_id;
 
-# Wait until T3 has reacted on the kill. That is, T3's kill will signal the SQL
-# thread to stop, and so we wait for the SQL thread to have signalled the
-# other threads to stop as well
-SET debug_sync='now WAIT_FOR wait_for_done_waiting';
+--echo # Wait for replica to signal worker threads to stop
+--let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE 'Waiting for worker thread to stop';
+--source include/wait_condition.inc
 
 # Now we can allow T1 to proceed.
 SET debug_sync='now SIGNAL t1_cont';
@@ -973,7 +968,6 @@ SELECT * FROM t3 WHERE a >= 60 AND a != 65 ORDER BY a;
 # Now we have to disable the debug_sync statements, so they do not trigger
 # when the events are retried.
 SET debug_sync='RESET';
-SET GLOBAL debug_dbug=@old_dbug;
 SET GLOBAL slave_parallel_threads=0;
 SET GLOBAL slave_parallel_threads=10;
 SET sql_log_bin=0;
@@ -1065,6 +1059,11 @@ SET debug_sync='now WAIT_FOR wait_queue_ready';
 eval KILL $thd_id;
 
 SET debug_sync='now WAIT_FOR wait_queue_killed';
+
+--echo # Wait for replica to signal worker threads to stop
+--let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE 'Waiting for worker thread to stop';
+--source include/wait_condition.inc
+
 SET debug_sync='now SIGNAL query_cont';
 
 --let $slave_sql_errno= 1317,1927,1964

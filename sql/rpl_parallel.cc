@@ -2357,6 +2357,7 @@ rpl_parallel::wait_for_done(THD *thd, Relay_log_info *rli)
   struct rpl_parallel_entry *e;
   rpl_parallel_thread *rpt;
   uint32 i, j;
+  PSI_stage_info old_stage;
 
 #ifdef ENABLED_DEBUG_SYNC
   /*
@@ -2434,9 +2435,11 @@ rpl_parallel::wait_for_done(THD *thd, Relay_log_info *rli)
       if ((rpt= e->rpl_threads[j]))
       {
         mysql_mutex_lock(&rpt->LOCK_rpl_thread);
+        thd->ENTER_COND(&rpt->COND_rpl_thread_stop, &rpt->LOCK_rpl_thread,
+                        &stage_waiting_for_worker_stop, &old_stage);
         while (rpt->current_owner == &e->rpl_threads[j])
           mysql_cond_wait(&rpt->COND_rpl_thread_stop, &rpt->LOCK_rpl_thread);
-        mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
+        thd->EXIT_COND(&old_stage);
       }
     }
   }
