@@ -25,7 +25,7 @@
 #    let $condition= = 'Updating';
 #    --source include/wait_show_condition.inc
 #
-# Please do not use this use routine if you can replace the SHOW statement
+# Please do not use this routine if you can replace the SHOW statement
 # with a select. In such a case include/wait_condition.inc is recommended.
 #
 # Created: 2009-02-18 mleich
