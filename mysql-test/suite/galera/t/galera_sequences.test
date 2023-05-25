@@ -72,33 +72,33 @@ DROP TABLE t2;
 #
 # Case2
 #
+--connection node_2
 SET SESSION AUTOCOMMIT=0;
 SET SESSION wsrep_OSU_method='RSU';
 CREATE TABLE t1(c1 VARCHAR(10));
-INSERT INTO t1 (c1) VALUES('');
 create temporary sequence sq1 NOCACHE engine=innodb;
 create sequence sq2 NOCACHE engine=innodb;
 COMMIT;
+SET SESSION wsrep_OSU_method='TOI';
 SHOW CREATE SEQUENCE sq1;
-SHOW CREATE SEQUENCE sq2;
---connection node_2
---error ER_NO_SUCH_TABLE
-SHOW CREATE SEQUENCE sq1;
---error ER_NO_SUCH_TABLE
 SHOW CREATE SEQUENCE sq2;
 --connection node_1
+--error ER_NO_SUCH_TABLE
+SHOW CREATE SEQUENCE sq1;
+--error ER_NO_SUCH_TABLE
+SHOW CREATE SEQUENCE sq2;
+--connection node_2
 SET SESSION AUTOCOMMIT=1;
 DROP TABLE t1;
 DROP SEQUENCE sq1;
 DROP SEQUENCE sq2;
-SET SESSION wsrep_OSU_method='TOI';
 
 #
 # MDEV-30388 Assertion `!wsrep_has_changes(thd) || (thd->lex->sql_command == SQLCOM_CREATE_TABLE
 # && !thd->is_current_stmt_binlog_format_row()) ||
 # thd->wsrep_cs().transaction().state() == wsrep::transaction::s_aborted' failed
 #
-
+--connection node_1
 CREATE TABLE t (f INT) engine=innodb;
 LOCK TABLE t WRITE;
 CREATE OR REPLACE SEQUENCE t MAXVALUE=13 INCREMENT BY 1 NOCACHE engine=innodb;
