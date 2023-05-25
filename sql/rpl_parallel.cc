@@ -148,7 +148,7 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
 {
   THD *thd= rpt->thd;
   wait_for_commit *wfc= &rgi->commit_orderer;
-  int err, wakeup_err;
+  int err;
 
   thd->get_stmt_da()->set_overwrite_status(true);
   /*
@@ -246,13 +246,6 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
       entry->stop_on_error_sub_id == (uint64)ULONGLONG_MAX)
     entry->stop_on_error_sub_id= sub_id;
 
-  if (unlikely(entry->stop_abrupt(rgi->rli)) && !rgi->worker_error &&
-      rgi->parallel_entry->unsafe_rollback_marker_sub_id.load(
-          std::memory_order_relaxed) == rgi->gtid_sub_id)
-    wakeup_err= ER_QUERY_INTERRUPTED;
-  else
-    wakeup_err= rgi->worker_error;
-
   mysql_mutex_unlock(&entry->LOCK_parallel_entry);
 #ifdef ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("hold_worker_on_schedule", {
@@ -287,7 +280,7 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
   */
   thd->get_stmt_da()->reset_diagnostics_area();
 
-  wfc->wakeup_subsequent_commits(wakeup_err);
+  wfc->wakeup_subsequent_commits(rgi->worker_error);
 }
 
 
@@ -478,7 +471,8 @@ do_ftwrl_wait(rpl_group_info *rgi,
     to disallow this rgi from stop/rollback in the event of STOP SLAVE.
   */
   if (!(rgi->gtid_ev_flags2 & Gtid_log_event::FL_TRANSACTIONAL) &&
-      entry->rgi_is_safe_to_terminate(rgi))
+      entry->unsafe_rollback_marker_sub_id.load(std::memory_order_relaxed) <
+          rgi->gtid_sub_id)
     entry->unsafe_rollback_marker_sub_id= sub_id;
 
   DBUG_RETURN(aborted);

@@ -3653,10 +3653,7 @@ has_temporary_error(THD *thd)
   if (rgi->rli->mi->using_parallel() &&
       rgi->parallel_entry->stop_abrupt(rli) &&
       rgi->parallel_entry->rgi_is_safe_to_terminate(rgi))
-  {
-    ///rgi->worker_error= ER_QUERY_INTERRUPTED;
     DBUG_RETURN(0);
-  }
 
   current_errno= thd->get_stmt_da()->sql_errno();
   for (uint i= 0; i < slave_transaction_retry_error_length; i++)

@@ -12,7 +12,7 @@ connection server_2;
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 include/stop_slave.inc
 SET @old_debug_dbug = @@global.debug_dbug;
-SET @@global.debug_dbug = "d,hold_worker2_favor_worker3,rpl_parallel_wait_for_done_preamble_hook";
+SET @@global.debug_dbug = "d,hold_worker2_favor_worker3";
 SET GLOBAL slave_parallel_threads=4;
 CHANGE MASTER TO master_use_gtid=slave_pos;
 SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
@@ -62,9 +62,7 @@ W4 remains with the same status
 #  Slave_SQL_Running YES = Yes
 # while W2 is held back ...
 SET DEBUG_SYNC = 'now SIGNAL cont_worker2';
-SET DEBUG_SYNC = 'now SIGNAL wait_for_done_begin';
 include/wait_for_slave_sql_error.inc [errno=1062]
-SET @@global.debug_dbug = "-d,rpl_parallel_wait_for_done_preamble_hook";
 DELETE FROM t1 WHERE a=99;
 include/start_slave.inc
 include/sync_with_master_gtid.inc

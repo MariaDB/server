@@ -33,11 +33,12 @@ create table ti (a int) engine=innodb;
 create table ti2 (a int) engine=innodb;
 create table ti3 (a int) engine=innodb;
 create table tm (a int) engine=myisam;
+create table tm2 (a int) engine=myisam;
 --let $ti_ctr= 100
---let $ti2_ctr= 200
---let $ti3_ctr= 300
---let $tis_ctr= 400
---let $tm_ctr= 500
+--let $tm_ctr= 200
+--let $tm2_ctr= 300
+--let $ti2_ctr= 400
+--let $ti3_ctr= 500
 --sync_slave_with_master
 
 --echo # Run binlog format independent test cases
@@ -245,7 +246,7 @@ set @@global.slave_parallel_mode=CONSERVATIVE;
 --echo #
 --echo # Cleanup
 --connection master
-DROP TABLE ti, ti2, ti3, tm, s1;
+DROP TABLE ti, ti2, ti3, tm, tm2, s1;
 --source include/save_master_gtid.inc
 
 --connection slave
