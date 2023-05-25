@@ -748,18 +748,24 @@ btr_cur_will_modify_tree(
 
 /** Detects whether the modifying record might need a opposite modification
 to the intention.
-@param page		 page
-@param lock_intention	 lock intention for the tree operation
+@param bpage             buffer pool page
+@param is_clust          whether this is a clustered index
+@param lock_intention    lock intention for the tree operation
 @param node_ptr_max_size the maximum size of a node pointer
 @param compress_limit    BTR_CUR_PAGE_COMPRESS_LIMIT(index)
-@param rec		 record (current node_ptr)
-@return	true if tree modification is needed */
-static bool btr_cur_need_opposite_intention(const page_t *page,
+@param rec               record (current node_ptr)
+@return true if tree modification is needed */
+static bool btr_cur_need_opposite_intention(const buf_page_t &bpage,
+                                            bool is_clust,
                                             btr_intention_t lock_intention,
                                             ulint node_ptr_max_size,
                                             ulint compress_limit,
                                             const rec_t *rec)
 {
+  if (UNIV_LIKELY_NULL(bpage.zip.data) &&
+      !page_zip_available(&bpage.zip, is_clust, node_ptr_max_size, 1))
+    return true;
+  const page_t *const page= bpage.frame;
   if (lock_intention != BTR_INTENTION_INSERT)
   {
     /* We compensate also for btr_cur_compress_recommendation() */
@@ -1343,7 +1349,8 @@ release_tree:
           !btr_block_get(*index(), btr_page_get_next(block->page.frame),
                          RW_X_LATCH, false, mtr, &err))
         goto func_exit;
-      if (btr_cur_need_opposite_intention(block->page.frame, lock_intention,
+      if (btr_cur_need_opposite_intention(block->page, index()->is_clust(),
+                                          lock_intention,
                                           node_ptr_max_size, compress_limit,
                                           page_cur.rec))
         goto need_opposite_intention;
@@ -1399,7 +1406,8 @@ release_tree:
   default:
     break;
   case BTR_MODIFY_TREE:
-    if (btr_cur_need_opposite_intention(block->page.frame, lock_intention,
+    if (btr_cur_need_opposite_intention(block->page, index()->is_clust(),
+                                        lock_intention,
                                         node_ptr_max_size, compress_limit,
                                         page_cur.rec))
       /* If the rec is the first or last in the page for pessimistic
@@ -1949,7 +1957,7 @@ index_locked:
             break;
 
           if (!index->lock.have_x() &&
-              btr_cur_need_opposite_intention(block->page.frame,
+              btr_cur_need_opposite_intention(block->page, index->is_clust(),
                                               lock_intention,
                                               node_ptr_max_size,
                                               compress_limit, page_cur.rec))
@@ -1996,7 +2004,8 @@ index_locked:
     ut_ad(latch_mode != BTR_MODIFY_TREE || upper_rw_latch == RW_X_LATCH);
 
     if (latch_mode != BTR_MODIFY_TREE);
-    else if (btr_cur_need_opposite_intention(block->page.frame, lock_intention,
+    else if (btr_cur_need_opposite_intention(block->page, index->is_clust(),
+                                             lock_intention,
                                              node_ptr_max_size, compress_limit,
                                              page_cur.rec))
     {
