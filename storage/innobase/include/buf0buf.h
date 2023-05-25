@@ -75,8 +75,7 @@ struct buf_pool_info_t
 	ulint	flush_list_len;		/*!< Length of buf_pool.flush_list */
 	ulint	n_pend_unzip;		/*!< buf_pool.n_pend_unzip, pages
 					pending decompress */
-	ulint	n_pend_reads;		/*!< buf_pool.n_pend_reads, pages
-					pending read */
+	ulint	n_pend_reads;		/*!< os_aio_pending_reads() */
 	ulint	n_pending_flush_lru;	/*!< Pages pending flush in LRU */
 	ulint	n_pending_flush_list;	/*!< Pages pending flush in FLUSH
 					LIST */

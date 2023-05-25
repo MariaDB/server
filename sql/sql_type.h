@@ -7574,8 +7574,9 @@ extern Named_type_handler<Type_handler_time>        type_handler_time;
 extern Named_type_handler<Type_handler_time2>       type_handler_time2;
 extern Named_type_handler<Type_handler_datetime>    type_handler_datetime;
 extern Named_type_handler<Type_handler_datetime2>   type_handler_datetime2;
-extern Named_type_handler<Type_handler_timestamp>   type_handler_timestamp;
-extern Named_type_handler<Type_handler_timestamp2>  type_handler_timestamp2;
+
+extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_timestamp>   type_handler_timestamp;
+extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_timestamp2>  type_handler_timestamp2;
 
 extern Type_handler_interval_DDhhmmssff type_handler_interval_DDhhmmssff;
 

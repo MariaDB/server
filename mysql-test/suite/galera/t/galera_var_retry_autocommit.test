@@ -64,6 +64,7 @@ SELECT COUNT(*) FROM t1;
 SET DEBUG_SYNC = 'now SIGNAL wsrep_retry_autocommit_continue';
 
 --connection node_1
+--error 0,ER_LOCK_DEADLOCK
 --reap
 SELECT COUNT(*) FROM t1;
 

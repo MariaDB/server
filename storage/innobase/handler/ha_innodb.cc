@@ -945,7 +945,8 @@ static SHOW_VAR innodb_status_variables[]= {
   {"buffer_pool_read_ahead", &buf_pool.stat.n_ra_pages_read, SHOW_SIZE_T},
   {"buffer_pool_read_ahead_evicted",
    &buf_pool.stat.n_ra_pages_evicted, SHOW_SIZE_T},
-  {"buffer_pool_read_requests", &buf_pool.stat.n_page_gets, SHOW_SIZE_T},
+  {"buffer_pool_read_requests",
+   &export_vars.innodb_buffer_pool_read_requests, SHOW_SIZE_T},
   {"buffer_pool_reads", &buf_pool.stat.n_pages_read, SHOW_SIZE_T},
   {"buffer_pool_wait_free", &buf_pool.stat.LRU_waits, SHOW_SIZE_T},
   {"buffer_pool_write_requests", &buf_pool.flush_list_requests, SHOW_SIZE_T},
@@ -1935,8 +1936,9 @@ static void innodb_disable_internal_writes(bool disable)
     sst_enable_innodb_writes();
 }
 
-static void wsrep_abort_transaction(handlerton*, THD *, THD *, my_bool);
-static int innobase_wsrep_set_checkpoint(handlerton* hton, const XID* xid);
+static void wsrep_abort_transaction(handlerton *, THD *, THD *, my_bool)
+    __attribute__((nonnull));
+static int innobase_wsrep_set_checkpoint(handlerton *hton, const XID *xid);
 static int innobase_wsrep_get_checkpoint(handlerton* hton, XID* xid);
 #endif /* WITH_WSREP */
 
@@ -18654,36 +18656,45 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
                       wsrep_thd_client_mode_str(vthd),
                       wsrep_thd_transaction_state_str(vthd),
                       wsrep_thd_query(vthd));
-          /* Mark transaction as a victim for Galera abort */
-          vtrx->lock.set_wsrep_victim();
-          if (!wsrep_thd_set_wsrep_aborter(bf_thd, vthd))
-            aborting= true;
-          else
-            WSREP_DEBUG("kill transaction skipped due to wsrep_aborter set");
+          aborting= true;
         }
       }
       mysql_mutex_unlock(&lock_sys.wait_mutex);
       vtrx->mutex_unlock();
     }
-    wsrep_thd_UNLOCK(vthd);
-    if (aborting)
+
+    DEBUG_SYNC(bf_thd, "before_wsrep_thd_abort");
+    if (aborting && wsrep_thd_bf_abort(bf_thd, vthd, true))
     {
+      /* Need to grab mutexes again to ensure that the trx is still in
+         right state. */
+      lock_sys.wr_lock(SRW_LOCK_CALL);
+      mysql_mutex_lock(&lock_sys.wait_mutex);
+      vtrx->mutex_lock();
+
       /* if victim is waiting for some other lock, we have to cancel
          that waiting
       */
-      lock_sys.cancel_lock_wait_for_trx(vtrx);
-
-      DEBUG_SYNC(bf_thd, "before_wsrep_thd_abort");
-      if (!wsrep_thd_bf_abort(bf_thd, vthd, true))
+      if (vtrx->id == trx_id)
       {
-        wsrep_thd_LOCK(vthd);
-        wsrep_thd_set_wsrep_aborter(NULL, vthd);
-        wsrep_thd_UNLOCK(vthd);
-
-        WSREP_DEBUG("wsrep_thd_bf_abort has failed, victim %lu will survive",
-                     thd_get_thread_id(vthd));
+        switch (vtrx->state) {
+        default:
+          break;
+        case TRX_STATE_ACTIVE:
+        case TRX_STATE_PREPARED:
+          lock_sys.cancel_lock_wait_for_wsrep_bf_abort(vtrx);
+        }
       }
+      lock_sys.wr_unlock();
+      mysql_mutex_unlock(&lock_sys.wait_mutex);
+      vtrx->mutex_unlock();
     }
+    else
+    {
+      WSREP_DEBUG("wsrep_thd_bf_abort has failed, victim %lu will survive",
+                  thd_get_thread_id(vthd));
+    }
+    wsrep_thd_UNLOCK(vthd);
     wsrep_thd_kill_UNLOCK(vthd);
   }
 }
@@ -18691,68 +18702,50 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
 /** This function forces the victim transaction to abort. Aborting the
   transaction does NOT end it, it still has to be rolled back.
 
+  The caller must lock LOCK_thd_kill and LOCK_thd_data.
+
   @param bf_thd       brute force THD asking for the abort
   @param victim_thd   victim THD to be aborted
-
-  @return 0 victim was aborted
-  @return -1 victim thread was aborted (no transaction)
 */
-static
-void
-wsrep_abort_transaction(
-	handlerton*,
-	THD *bf_thd,
-	THD *victim_thd,
-	my_bool signal)
+static void wsrep_abort_transaction(handlerton *, THD *bf_thd, THD *victim_thd,
+                                    my_bool signal)
 {
-	DBUG_ENTER("wsrep_abort_transaction");
-	ut_ad(bf_thd);
-	ut_ad(victim_thd);
+  DBUG_ENTER("wsrep_abort_transaction");
+  ut_ad(bf_thd);
+  ut_ad(victim_thd);
 
-	wsrep_thd_kill_LOCK(victim_thd);
-	wsrep_thd_LOCK(victim_thd);
-	trx_t* victim_trx= thd_to_trx(victim_thd);
-	wsrep_thd_UNLOCK(victim_thd);
+  trx_t *victim_trx= thd_to_trx(victim_thd);
 
-	WSREP_DEBUG("abort transaction: BF: %s victim: %s victim conf: %s",
-			wsrep_thd_query(bf_thd),
-			wsrep_thd_query(victim_thd),
-			wsrep_thd_transaction_state_str(victim_thd));
+  WSREP_DEBUG("abort transaction: BF: %s victim: %s victim conf: %s",
+              wsrep_thd_query(bf_thd), wsrep_thd_query(victim_thd),
+              wsrep_thd_transaction_state_str(victim_thd));
 
-	if (victim_trx) {
-		victim_trx->lock.set_wsrep_victim();
+  if (!victim_trx)
+  {
+    WSREP_DEBUG("abort transaction: victim did not exist");
+    DBUG_VOID_RETURN;
+  }
 
-		wsrep_thd_LOCK(victim_thd);
-		bool aborting= !wsrep_thd_set_wsrep_aborter(bf_thd, victim_thd);
-		wsrep_thd_UNLOCK(victim_thd);
-		if (aborting) {
-			DEBUG_SYNC(bf_thd, "before_wsrep_thd_abort");
-			DBUG_EXECUTE_IF("sync.before_wsrep_thd_abort",
-					 {
-					   const char act[]=
-					     "now "
-					     "SIGNAL sync.before_wsrep_thd_abort_reached "
-					     "WAIT_FOR signal.before_wsrep_thd_abort";
-					   DBUG_ASSERT(!debug_sync_set_action(bf_thd,
-									      STRING_WITH_LEN(act)));
-					 };);
-			wsrep_thd_bf_abort(bf_thd, victim_thd, signal);
-		}
-	} else {
-		DBUG_EXECUTE_IF("sync.before_wsrep_thd_abort",
-				 {
-				   const char act[]=
-				     "now "
-				     "SIGNAL sync.before_wsrep_thd_abort_reached "
-				     "WAIT_FOR signal.before_wsrep_thd_abort";
-				   DBUG_ASSERT(!debug_sync_set_action(bf_thd,
-								      STRING_WITH_LEN(act)));
-				 };);
-		wsrep_thd_bf_abort(bf_thd, victim_thd, signal);
-	}
+  lock_sys.wr_lock(SRW_LOCK_CALL);
+  mysql_mutex_lock(&lock_sys.wait_mutex);
+  victim_trx->mutex_lock();
 
-	wsrep_thd_kill_UNLOCK(victim_thd);
-	DBUG_VOID_RETURN;
+  switch (victim_trx->state) {
+  default:
+    break;
+  case TRX_STATE_ACTIVE:
+  case TRX_STATE_PREPARED:
+    /* Cancel lock wait if the victim is waiting for a lock in InnoDB.
+       The transaction which is blocked somewhere else (e.g. waiting
+       for next command or MDL) has been interrupted by THD::awake_no_mutex()
+       on server level before calling this function. */
+    lock_sys.cancel_lock_wait_for_wsrep_bf_abort(victim_trx);
+  }
+  lock_sys.wr_unlock();
+  mysql_mutex_unlock(&lock_sys.wait_mutex);
+  victim_trx->mutex_unlock();
+
+  DBUG_VOID_RETURN;
 }
 
 static

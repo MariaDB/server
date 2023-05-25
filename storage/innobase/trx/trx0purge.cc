@@ -490,9 +490,9 @@ loop:
         if (undo->hdr_page_no == hdr_addr.page)
           goto found_cached;
       ut_ad("inconsistent undo logs" == 0);
-      break;
-    found_cached:
-      UT_LIST_REMOVE(rseg.undo_cached, undo);
+      if (false)
+      found_cached:
+        UT_LIST_REMOVE(rseg.undo_cached, undo);
       static_assert(FIL_NULL == 0xffffffff, "");
       if (UNIV_UNLIKELY(mach_read_from_4(TRX_RSEG + TRX_RSEG_FORMAT +
                                          rseg_hdr->page.frame)))
@@ -670,7 +670,8 @@ not_free:
       }
 
       ut_ad(rseg.curr_size > cached);
-      if (rseg.curr_size > cached + 1)
+      if (rseg.curr_size > cached + 1 &&
+          (rseg.history_size || srv_fast_shutdown || srv_undo_sources))
         goto not_free;
 
       rseg.latch.rd_unlock();
