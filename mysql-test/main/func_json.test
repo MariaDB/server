@@ -338,7 +338,7 @@ DROP TABLE t1;
 # MDEV-12324 Wrong result (phantom array value) on JSON_EXTRACT.
 #
 SELECT JSON_EXTRACT( '{"foo":"bar"}', '$[*].*' );
-SELECT JSON_EXTRACT( '{"foo":"bar"}', '$[*]' );
+SELECT JSON_EXTRACT( '{"foo":"bar"}', '$[*]');
 
 #
 # MDEV-12604 Comparison of JSON_EXTRACT result differs with Mysql.
@@ -3640,3 +3640,146 @@ SELECT JSON_SCHEMA_VALID(NULL, '{}');
 SELECT JSON_SCHEMA_VALID(NULL, NULL);
 
 --echo # End of 11.1 test
+
+--echo # Beginning of 11.2
+
+--echo #
+--echo # MDEV-30145: JSON_TABLE: allow to retrieve the key when iterating on JSON objects
+--echo #
+
+--echo # Checking json table with NULL and empty json doc
+
+SELECT jt.*
+FROM JSON_TABLE(
+    NULL, '$[*]'
+    COLUMNS (k VARCHAR(20) PATH '$.key', v VARCHAR(20) PATH '$.value', id FOR ORDINALITY)) AS jt;
+
+--echo # With Empty and NULL
+
+SELECT JSON_KEY_VALUE(NULL, '$.a');
+SELECT JSON_KEY_VALUE('', '$.a');
+SELECT JSON_KEY_VALUE('[1,2,3]', '');
+SELECT JSON_KEY_VALUE('[1,2,3]', NULL);
+
+--echo # With scalars
+
+SELECT JSON_KEY_VALUE('2', '$');
+SELECT jt.*
+FROM JSON_TABLE(
+    JSON_KEY_VALUE('2', '$'), '$[*]'
+    COLUMNS (k VARCHAR(20) PATH '$.key', v VARCHAR(20) PATH '$.value', id FOR ORDINALITY)) AS jt;
+
+SELECT JSON_KEY_VALUE('"some_string"', '$');
+SELECT jt.*
+FROM JSON_TABLE(
+    JSON_KEY_VALUE('"some_string"', '$'), '$[*]'
+    COLUMNS (k VARCHAR(20) PATH '$.key', v VARCHAR(20) PATH '$.value', id FOR ORDINALITY)) AS jt;
+
+SELECT JSON_KEY_VALUE('"some_string"', '$.a');
+SELECT jt.*
+FROM JSON_TABLE(
+    JSON_KEY_VALUE('"some_string"', '$.a'), '$[*]'
+    COLUMNS (k VARCHAR(20) PATH '$.key', v VARCHAR(20) PATH '$.value', id FOR ORDINALITY)) AS jt;
+
+SELECT JSON_KEY_VALUE('"some_string"', '$[0]');
+SELECT jt.*
+FROM JSON_TABLE(
+    JSON_KEY_VALUE('"some_string"', '$[0]'), '$[*]'
+    COLUMNS (k VARCHAR(20) PATH '$.key', v VARCHAR(20) PATH '$.value', id FOR ORDINALITY)) AS jt;
+
+SELECT JSON_KEY_VALUE('false', '$[0]');
+SELECT jt.*
+FROM JSON_TABLE(
+    JSON_KEY_VALUE('false', '$[0]'), '$[*]'
+    COLUMNS (k VARCHAR(20) PATH '$.key', v VARCHAR(20) PATH '$.value', id FOR ORDINALITY)) AS jt;
+
+--echo # With non-scalar
+
+--echo # With array
+
+SELECT JSON_KEY_VALUE('[]', '[0]');
+
+
+SELECT JSON_KEY_VALUE('[1, 2, 3]', '$[0]');
+SELECT jt.*
+FROM JSON_TABLE(
+    JSON_KEY_VALUE('[1, 2, 3]', '$[0]'), '$[*]'
+    COLUMNS (k VARCHAR(20) PATH '$.key', v VARCHAR(20) PATH '$.value', id FOR ORDINALITY)) AS jt;
+
+SELECT JSON_KEY_VALUE('[[1, 2, 3], 2, 3]', '$[0]');
+SELECT jt.*
+FROM JSON_TABLE(
+    JSON_KEY_VALUE('[[1, 2, 3], 2, 3]', '$[0]'), '$[*]'
+    COLUMNS (k VARCHAR(20) PATH '$.key', v VARCHAR(20) PATH '$.value', id FOR ORDINALITY)) AS jt;
+
+SELECT JSON_KEY_VALUE('[[1, 2, 3], 2, 3]', '$[0].a');
+SELECT jt.*
+FROM JSON_TABLE(
+    JSON_KEY_VALUE('[[1, 2, 3], 2, 3]', '$[0].a'), '$[*]'
+    COLUMNS (k VARCHAR(20) PATH '$.key', v VARCHAR(20) PATH '$.value', id FOR ORDINALITY)) AS jt;
+
+SELECT JSON_KEY_VALUE('[[1, 2, 3], 2, 3]', '$[0][1]');
+SELECT jt.*
+FROM JSON_TABLE(
+    JSON_KEY_VALUE('[[1, 2, 3], 2, 3]', '$[0][1]'), '$[*]'
+    COLUMNS (k VARCHAR(20) PATH '$.key', v VARCHAR(20) PATH '$.value', id FOR ORDINALITY)) AS jt;
+
+SELECT JSON_KEY_VALUE('[[1, {"key1":"val1", "key2":"val2"}, 3], 2, 3]', '$[0][1]');
+SELECT jt.*
+FROM JSON_TABLE(
+    JSON_KEY_VALUE('[[1, {"key1":"val1", "key2":"val2"}, 3], 2, 3]', '$[0][1]'), '$[*]'
+    COLUMNS (k VARCHAR(20) PATH '$.key', v VARCHAR(20) PATH '$.value', id FOR ORDINALITY)) AS jt;
+
+SELECT JSON_KEY_VALUE('[[1, {"key1":"val1", "key2":"val2"}, 3], 2, 3]', '$[0][1].key1');
+SELECT jt.*
+FROM JSON_TABLE(
+    JSON_KEY_VALUE('[[1, {"key1":"val1", "key2":"val2"}, 3], 2, 3]', '$[0][1].key1'), '$[*]'
+    COLUMNS (k VARCHAR(20) PATH '$.key', v VARCHAR(20) PATH '$.value', id FOR ORDINALITY)) AS jt;
+
+SELECT JSON_KEY_VALUE('[[1, [{"key1":"val1", "key2":"val2"}], 3], 2, 3]', '$[0][1]');
+SELECT jt.*
+FROM JSON_TABLE(
+    JSON_KEY_VALUE('[[1, [{"key1":"val1", "key2":"val2"}], 3], 2, 3]', '$[0][1]'), '$[*]'
+    COLUMNS (k VARCHAR(20) PATH '$.key', v VARCHAR(20) PATH '$.value', id FOR ORDINALITY)) AS jt;
+
+SELECT JSON_KEY_VALUE('[[1, [{"key1":"val1", "key2":"val2"}], 3], 2, 3]', '$[0][1][0]');
+SELECT jt.*
+FROM JSON_TABLE(
+    JSON_KEY_VALUE('[[1, [{"key1":"val1", "key2":"val2"}], 3], 2, 3]', '$[0][1][0]'), '$[*]'
+    COLUMNS (k VARCHAR(20) PATH '$.key', v VARCHAR(20) PATH '$.value', id FOR ORDINALITY)) AS jt;
+
+--echo # With object
+
+SELECT JSON_KEY_VALUE('{}', '$.key1');
+
+SELECT JSON_KEY_VALUE('{"key1":"val1", "key2":"val2"}', '$');
+SELECT jt.*
+FROM JSON_TABLE(
+    JSON_KEY_VALUE('{"key1":"val1", "key2":"val2"}', '$'), '$[*]'
+    COLUMNS (k VARCHAR(11) PATH '$.key', v VARCHAR(5) PATH '$.value', id FOR ORDINALITY)) AS jt;
+
+SELECT JSON_KEY_VALUE('{"key1":"val1", "key2":"val2"}', '$.key1');
+SELECT jt.*
+FROM JSON_TABLE(
+    JSON_KEY_VALUE('{"key1":"val1", "key2":"val2"}', '$.key1'), '$[*]'
+    COLUMNS (k VARCHAR(11) PATH '$.key', v VARCHAR(5) PATH '$.value', id FOR ORDINALITY)) AS jt;
+
+SELECT JSON_KEY_VALUE('{"key1":{"a":1, "b":2}, "key2":"val2"}', '$.key1');
+SELECT jt.*
+FROM JSON_TABLE(
+    JSON_KEY_VALUE('{"key1":{"a":1, "b":2}, "key2":"val2"}', '$.key1'), '$[*]'
+    COLUMNS (k VARCHAR(11) PATH '$.key', v VARCHAR(5) PATH '$.value', id FOR ORDINALITY)) AS jt;
+
+SELECT JSON_KEY_VALUE('{"key1":{"a":1, "b": [1,2,3, {"some_key":"some_val", "c":3}]}, "key2":"val2"}', '$.key1.b[3]');
+SELECT jt.*
+FROM JSON_TABLE(
+    JSON_KEY_VALUE('{"key1":{"a":1, "b": [1,2,3, {"some_key":"some_val", "c":3}]}, "key2":"val2"}', '$.key1.b[3]'), '$[*]'
+    COLUMNS (k VARCHAR(20) PATH '$.key', v VARCHAR(20) PATH '$.value', id FOR ORDINALITY)) AS jt;
+
+SELECT JSON_KEY_VALUE('{"key1":{"a":1, "b": [1,2,3, {"some_key":"some_val", "c":3}]}, "key2":"val2"}', '$.key1.b[0]');
+SELECT jt.*
+FROM JSON_TABLE(
+    JSON_KEY_VALUE('{"key1":{"a":1, "b": [1,2,3, {"some_key":"some_val", "c":3}]}, "key2":"val2"}', '$.key1.b[0]'), '$[*]'
+    COLUMNS (k VARCHAR(20) PATH '$.key', v VARCHAR(20) PATH '$.value', id FOR ORDINALITY)) AS jt;
+
+--echo # End of 11.2 test

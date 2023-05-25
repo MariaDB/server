@@ -1364,6 +1364,18 @@ protected:
   virtual ~Create_func_json_schema_valid() {}
 };
 
+class Create_func_json_key_value : public Create_func_arg2
+{
+public:
+  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+
+  static Create_func_json_key_value s_singleton;
+
+protected:
+  Create_func_json_key_value() = default;
+  virtual ~Create_func_json_key_value() = default;
+};
+
 
 class Create_func_last_day : public Create_func_arg1
 {
@@ -4427,6 +4439,15 @@ Create_func_json_schema_valid::create_2_arg(THD *thd, Item *arg1, Item *arg2)
   return new (thd->mem_root) Item_func_json_schema_valid(thd, arg1, arg2);
 }
 
+Create_func_json_key_value Create_func_json_key_value::s_singleton;
+
+Item*
+Create_func_json_key_value::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+{
+  status_var_increment(thd->status_var.feature_json);
+  return new (thd->mem_root) Item_func_json_key_value(thd, arg1, arg2);
+}
+
 
 Create_func_lcase Create_func_lcase::s_singleton;
 
@@ -5811,6 +5832,7 @@ Native_func_registry func_array[] =
   { { STRING_WITH_LEN("JSON_EXISTS") }, BUILDER(Create_func_json_exists)},
   { { STRING_WITH_LEN("JSON_EXTRACT") }, BUILDER(Create_func_json_extract)},
   { { STRING_WITH_LEN("JSON_INSERT") }, BUILDER(Create_func_json_insert)},
+   { { STRING_WITH_LEN("JSON_KEY_VALUE") }, BUILDER(Create_func_json_key_value)},
   { { STRING_WITH_LEN("JSON_KEYS") }, BUILDER(Create_func_json_keys)},
   { { STRING_WITH_LEN("JSON_LENGTH") }, BUILDER(Create_func_json_length)},
   { { STRING_WITH_LEN("JSON_LOOSE") }, BUILDER(Create_func_json_loose)},

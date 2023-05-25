@@ -764,12 +764,13 @@ bool Json_engine_scan::check_and_get_value_scalar(String *res, int *error)
     js_len= value_len;
   }
 
-
   return st_append_json(res, json_cs, js, js_len);
 }
 
 
-bool Json_engine_scan::check_and_get_value_complex(String *res, int *error)
+bool Json_engine_scan::check_and_get_value_complex(String *res, int *error,
+                                                   json_value_types
+                                                          cur_value_type)
 {
   if (json_value_scalar(this))
   {
@@ -781,6 +782,13 @@ bool Json_engine_scan::check_and_get_value_complex(String *res, int *error)
 
   const uchar *tmp_value= value;
   if (json_skip_level(this))
+  {
+    *error= 1;
+    return true;
+  }
+
+  if (cur_value_type != JSON_VALUE_UNINITIALIZED &&
+      value_type != cur_value_type)
   {
     *error= 1;
     return true;
@@ -4846,4 +4854,131 @@ void Item_func_json_schema_valid::cleanup()
   keyword_list.empty();
 
   DBUG_VOID_RETURN;
+}
+
+
+bool Item_func_json_key_value::get_key_value(json_engine_t *je, String *str)
+{
+  int level= je->stack_p;
+
+  if (str->append('['))
+    goto error_return;
+
+  while (json_scan_next(je) == 0 && je->stack_p >= level)
+  {
+    const uchar *key_start, *key_end, *value_begin;
+    size_t v_len;
+
+    switch (je->state)
+    {
+      case JST_KEY:
+
+        key_start= je->s.c_str;
+        do
+        {
+          key_end= je->s.c_str;
+        } while (json_read_keyname_chr(je) == 0);
+
+        if (unlikely(je->s.error))
+          goto error_return;
+
+        if (json_read_value(je))
+          goto error_return;
+
+        value_begin= je->value_begin;
+        if (json_value_scalar(je))
+          v_len= je->value_end - value_begin;
+        else
+        {
+          if (json_skip_level(je))
+           goto error_return;
+          v_len= je->s.c_str - value_begin;
+        }
+
+        size_t key_len= (size_t)(key_end-key_start);
+
+        if (str->append('{') ||
+            str->append('"') || str->append("key", 3) || str->append('"') ||
+            str->append(": ", 2) ||
+            str->append('"') || str->append((const char*)key_start, key_len) || str->append('"') ||
+            str->append(", ",2) ||
+            str->append('"') || str->append("value", 5) || str->append('"') ||
+            str->append(": ", 2) ||
+            str->append((const char*)value_begin, v_len) ||
+            str->append('}') ||
+            str->append(", ", 2))
+          goto error_return;
+    }
+  }
+
+  if (je->s.error)
+    goto error_return;
+
+  if (str->length() > 1)
+  {
+    /* remove the last comma and space. */
+    str->chop();
+    str->chop();
+  }
+
+  /* close the array */
+  if (str->append(']'))
+   goto error_return;
+
+  return false;
+
+error_return:
+  str->length(0);
+  return true;
+}
+
+String* Item_func_json_key_value::val_str(String *str)
+{
+  json_engine_t je;
+
+  if ((null_value= args[0]->null_value) ||
+      (null_value= args[1]->null_value))
+  {
+    goto return_null;
+  }
+
+  null_value= Json_path_extractor::extract(&tmp_str, args[0], args[1],
+                                             collation.collation);
+  if (null_value)
+    return NULL;
+
+  json_scan_start(&je, tmp_str.charset(), (const uchar *) tmp_str.ptr(),
+                  (const uchar *) tmp_str.ptr() + tmp_str.length());
+  if (json_read_value(&je))
+  {
+    report_json_error(str, &je, 0);
+    goto return_null;
+  }
+
+  str->length(0);
+  if (get_key_value(&je, str))
+  {
+    report_json_error(str, &je, 0);
+    goto return_null;
+  }
+
+  return str;
+
+return_null:
+  null_value= 1;
+  return NULL;
+}
+
+
+bool Item_func_json_key_value::fix_length_and_dec(THD *thd)
+{
+  collation.set(args[0]->collation);
+
+  tmp_str.set("", 0, collation.collation);
+
+  max_length= args[0]->max_length*2;
+  set_constant_flag(args[1]->const_item());
+  set_maybe_null();
+
+  return FALSE;
 }
