@@ -285,6 +285,7 @@ extern struct my_option my_long_options[];
 int handle_early_options();
 extern int MYSQL_PLUGIN_IMPORT mysqld_server_started;
 extern int mysqld_server_initialized;
+extern int MYSQL_PLUGIN_IMPORT mysqld_server_query_ready;
 extern "C" MYSQL_PLUGIN_IMPORT int orig_argc;
 extern "C" MYSQL_PLUGIN_IMPORT char **orig_argv;
 extern pthread_attr_t connection_attrib;
@@ -767,6 +768,8 @@ extern mysql_mutex_t LOCK_des_key_file;
 #endif
 extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_server_started;
 extern MYSQL_PLUGIN_IMPORT mysql_cond_t COND_server_started;
+extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_server_query_ready;
+extern MYSQL_PLUGIN_IMPORT mysql_cond_t COND_server_query_ready;
 extern mysql_rwlock_t LOCK_grant, LOCK_sys_init_connect, LOCK_sys_init_slave;
 extern mysql_rwlock_t LOCK_ssl_refresh;
 extern mysql_prlock_t LOCK_system_variables_hash;

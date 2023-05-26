@@ -125,9 +125,6 @@ const char **spd_mysqld_unix_port;
 uint *spd_mysqld_port;
 bool volatile *spd_abort_loop;
 Time_zone *spd_tz_system;
-static int *spd_mysqld_server_started;
-static pthread_mutex_t *spd_LOCK_server_started;
-static pthread_cond_t *spd_COND_server_started;
 extern long spider_conn_mutex_id;
 handlerton *spider_hton_ptr;
 SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
@@ -6287,13 +6284,32 @@ handler* spider_create_handler(
 ) {
   DBUG_ENTER("spider_create_handler");
   SPIDER_THREAD *thread = &spider_table_sts_threads[0];
+  /* If spider is still initialising */
   if (unlikely(thread->init_command))
   {
+    /* Give up if the the server is not ready to take queries yet,
+    because such an early stage call to this function indicates the
+    upstream callsite is probably in mysqld_main() and waiting would
+    cause deadlock */
+    if (!mysqld_server_query_ready)
+    {
+      my_printf_error(HA_ERR_GENERIC, "[SPIDER] server not ready yet", MYF(0));
+      DBUG_RETURN(NULL);
+    }
     THD *thd = current_thd;
     pthread_cond_t *cond = thd->mysys_var->current_cond;
     pthread_mutex_t *mutex = thd->mysys_var->current_mutex;
-    /* wait for finishing init_command */
-    pthread_mutex_lock(&thread->mutex);
+    /* Wait for finishing init_command, and give up after 1s */
+    int sleep_cnt = 0;
+    while (pthread_mutex_trylock(&thread->mutex) == EBUSY)
+    {
+      if (sleep_cnt++ > 500)
+      {
+        my_printf_error(HA_ERR_LOCK_WAIT_TIMEOUT, "[SPIDER] timeout", MYF(0));
+        DBUG_RETURN(NULL);
+      }
+      my_sleep(10000);          /* Wait for 10ms */
+    }
     if (unlikely(thread->init_command))
     {
       thd->mysys_var->current_cond = &thread->sync_cond;
@@ -6561,6 +6577,45 @@ int spider_panic(
   DBUG_RETURN(0);
 }
 
+/**
+  Run spider init queries
+
+  @retval false  success
+  @retval true   failure
+*/
+bool spider_run_init_queries()
+{
+  DBUG_ENTER("spider_init_system_tables");
+
+  MYSQL *mysql= mysql_init(NULL);
+  if (!mysql)
+    DBUG_RETURN(TRUE);
+  if (!mysql_real_connect_local(mysql))
+  {
+    mysql_close(mysql);
+    DBUG_RETURN(TRUE);
+  }
+
+  int size= sizeof(spider_init_queries) / sizeof(spider_init_queries[0]);
+  for (int i= 0; i < size; i++)
+  {
+    if (mysql_real_query(mysql, spider_init_queries[i].str,
+                         spider_init_queries[i].length))
+    {
+      fprintf(stderr,
+              "[ERROR] SPIDER plugin initialization failed at '%s' by '%s'\n",
+              spider_init_queries[i].str, mysql_error(mysql));
+
+      mysql_close(mysql);
+      DBUG_RETURN(TRUE);
+    }
+    if (MYSQL_RES *res= mysql_store_result(mysql))
+      mysql_free_result(res);
+  }
+  mysql_close(mysql);
+  DBUG_RETURN(FALSE);
+}
+
 int spider_db_init(
   void *p
 ) {
@@ -6575,16 +6630,6 @@ int spider_db_init(
 #ifdef HTON_CAN_READ_CONNECT_STRING_IN_PARTITION
   spider_hton->flags |= HTON_CAN_READ_CONNECT_STRING_IN_PARTITION;
 #endif
-  /* spider_hton->db_type = DB_TYPE_SPIDER; */
-  /*
-  spider_hton->savepoint_offset;
-  spider_hton->savepoint_set = spider_savepoint_set;
-  spider_hton->savepoint_rollback = spider_savepoint_rollback;
-  spider_hton->savepoint_release = spider_savepoint_release;
-  spider_hton->create_cursor_read_view = spider_create_cursor_read_view;
-  spider_hton->set_cursor_read_view = spider_set_cursor_read_view;
-  spider_hton->close_cursor_read_view = spider_close_cursor_read_view;
-  */
   spider_hton->panic = spider_panic;
   spider_hton->close_connection = spider_close_connection;
   spider_hton->start_consistent_snapshot = spider_start_consistent_snapshot;
@@ -6645,9 +6690,6 @@ int spider_db_init(
   spd_mysqld_port = &mysqld_port;
   spd_abort_loop = &abort_loop;
   spd_tz_system = my_tz_SYSTEM;
-  spd_mysqld_server_started = &mysqld_server_started;
-  spd_LOCK_server_started = &LOCK_server_started;
-  spd_COND_server_started = &COND_server_started;
 
 #ifdef HAVE_PSI_INTERFACE
   init_spider_psi_keys();
@@ -6834,7 +6876,14 @@ int spider_db_init(
       NullS))
   )
     goto error_alloc_mon_mutxes;
-  spider_table_sts_threads[0].init_command = TRUE;
+
+  /* Run init queries synchronously if possible */
+  if (mysqld_server_query_ready)
+  {
+    if (spider_run_init_queries())
+      goto error_alloc_mon_mutxes;
+  } else
+    spider_table_sts_threads[0].init_command = TRUE;
 
   for (roop_count = 0;
     roop_count < (int) spider_param_table_sts_thread_count();
@@ -9135,38 +9184,38 @@ void *spider_table_bg_sts_action(
 
   if (thread->init_command)
   {
-    uint i = 0;
     tmp_disable_binlog(thd);
     thd->security_ctx->skip_grants();
     thd->client_capabilities |= CLIENT_MULTI_RESULTS;
-    if (!(*spd_mysqld_server_started) && !thd->killed && !thread->killed)
+    if (!mysqld_server_query_ready && !thd->killed && !thread->killed)
     {
-      pthread_mutex_lock(spd_LOCK_server_started);
-      thd->mysys_var->current_cond = spd_COND_server_started;
-      thd->mysys_var->current_mutex = spd_LOCK_server_started;
-      if (!(*spd_mysqld_server_started) && !thd->killed && !thread->killed &&
+      pthread_mutex_lock(&LOCK_server_query_ready);
+      thd->mysys_var->current_cond = &COND_server_query_ready;
+      thd->mysys_var->current_mutex = &LOCK_server_query_ready;
+      if (!mysqld_server_query_ready && !thd->killed && !thread->killed &&
         thread->init_command)
       {
         do
         {
           struct timespec abstime;
           set_timespec_nsec(abstime, 1000);
-          error_num = pthread_cond_timedwait(spd_COND_server_started,
-            spd_LOCK_server_started, &abstime);
+          error_num = pthread_cond_timedwait(&COND_server_query_ready,
+            &LOCK_server_query_ready, &abstime);
         } while (
           (error_num == ETIMEDOUT || error_num == ETIME) &&
-          !(*spd_mysqld_server_started) && !thd->killed && !thread->killed &&
+          !mysqld_server_query_ready && !thd->killed && !thread->killed &&
           thread->init_command
         );
       }
-      pthread_mutex_unlock(spd_LOCK_server_started);
+      pthread_mutex_unlock(&LOCK_server_query_ready);
       thd->mysys_var->current_cond = &thread->cond;
       thd->mysys_var->current_mutex = &thread->mutex;
     }
     bool spd_wsrep_on = thd->variables.wsrep_on;
     thd->variables.wsrep_on = false;
-    while (spider_init_queries[i].length && !thd->killed && !thread->killed &&
-      thread->init_command)
+    int size= sizeof(spider_init_queries) / sizeof(spider_init_queries[0]);
+    for (int i= 0; i < size && !thd->killed && !thread->killed &&
+           thread->init_command; i++)
     {
       dispatch_command(COM_QUERY, thd, spider_init_queries[i].str,
         (uint) spider_init_queries[i].length);
@@ -9176,7 +9225,6 @@ void *spider_table_bg_sts_action(
         thd->clear_error();
         break;
       }
-      ++i;
     }
     thd->variables.wsrep_on = spd_wsrep_on;
     thd->mysys_var->current_cond = &thread->cond;
@@ -9185,10 +9233,6 @@ void *spider_table_bg_sts_action(
     reenable_binlog(thd);
     thread->init_command = FALSE;
     pthread_cond_broadcast(&thread->sync_cond);
-  }
-  if (thd->killed)
-  {
-    thread->killed = TRUE;
   }
   if (thd->killed)
   {

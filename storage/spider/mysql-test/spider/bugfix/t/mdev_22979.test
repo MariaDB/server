@@ -1,0 +1,16 @@
+--echo MDEV-22979 "mysqld --bootstrap" / mysql_install_db hangs when Spider is installed
+
+# This test is not the most faithful, as it does not have any
+# dependency problems on the existence of the `mysql` database. To
+# test MDEV-22979 faithfully, a mysql_install_db invocation with
+# --plugin-load-add=ha_spider should be run. We cannot run it in mtr
+# because we do not have access to --srcdir.
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+let $PLUGIN_DIR=`select @@plugin_dir`;
+--source include/kill_mysqld.inc
+--write_file $MYSQLTEST_VARDIR/tmp/mdev_22979.sql
+drop table if exists foo.bar;
+EOF
+--exec $MYSQLD_CMD --datadir=$MYSQLD_DATADIR --bootstrap --plugin-dir=$PLUGIN_DIR --plugin-load-add=ha_spider < $MYSQLTEST_VARDIR/tmp/mdev_22979.sql
+--source include/start_mysqld.inc

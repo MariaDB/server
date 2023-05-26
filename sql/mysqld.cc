@@ -743,8 +743,12 @@ pthread_t signal_thread;
 pthread_attr_t connection_attrib;
 mysql_mutex_t LOCK_server_started;
 mysql_cond_t COND_server_started;
+mysql_mutex_t LOCK_server_query_ready;
+mysql_cond_t COND_server_query_ready;
 
 int mysqld_server_started=0, mysqld_server_initialized= 0;
+/* Whether the server is ready to take queries. */
+int mysqld_server_query_ready= 0;
 File_parser_dummy_hook file_parser_dummy_hook;
 
 /* replication parameters, if master_host is not NULL, we are a slave */
@@ -907,7 +911,7 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_gdl, key_LOCK_global_system_variables,
   key_LOCK_manager, key_LOCK_backup_log,
   key_LOCK_prepared_stmt_count,
-  key_LOCK_rpl_status, key_LOCK_server_started,
+  key_LOCK_rpl_status, key_LOCK_server_started, key_LOCK_server_query_ready,
   key_LOCK_status, key_LOCK_temp_pool,
   key_LOCK_system_variables_hash, key_LOCK_thd_data, key_LOCK_thd_kill,
   key_LOCK_user_conn, key_LOCK_uuid_short_generator, key_LOG_LOCK_log,
@@ -2138,6 +2142,8 @@ static void clean_up_mutexes()
   mysql_cond_destroy(&COND_start_thread);
   mysql_mutex_destroy(&LOCK_server_started);
   mysql_cond_destroy(&COND_server_started);
+  mysql_mutex_destroy(&LOCK_server_query_ready);
+  mysql_cond_destroy(&COND_server_query_ready);
   mysql_mutex_destroy(&LOCK_prepare_ordered);
   mysql_cond_destroy(&COND_prepare_ordered);
   mysql_mutex_destroy(&LOCK_after_binlog_sync);
@@ -4465,6 +4471,9 @@ static int init_thread_environment()
   mysql_mutex_init(key_LOCK_server_started,
                    &LOCK_server_started, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_COND_server_started, &COND_server_started, NULL);
+  mysql_mutex_init(key_LOCK_server_query_ready,
+                   &LOCK_server_query_ready, MY_MUTEX_INIT_FAST);
+  mysql_cond_init(key_COND_server_started, &COND_server_started, NULL);
   sp_cache_init();
 #ifdef HAVE_EVENT_SCHEDULER
   Events::init_mutexes();
@@ -5534,7 +5543,7 @@ int mysqld_main(int argc, char **argv)
   */
   my_progname= argv[0];
   sf_leaking_memory= 1; // no safemalloc memory leak reports if we exit early
-  mysqld_server_started= mysqld_server_initialized= 0;
+  mysqld_server_started= mysqld_server_initialized= mysqld_server_query_ready= 0;
 
   if (init_early_variables())
     exit(1);
@@ -5869,6 +5878,12 @@ int mysqld_main(int argc, char **argv)
   {
     unireg_abort(1);
   }
+
+  /* Signal threads waiting for server to be ready to take queries */
+  mysql_mutex_lock(&LOCK_server_query_ready);
+  mysqld_server_query_ready= 1;
+  mysql_cond_broadcast(&COND_server_query_ready);
+  mysql_mutex_unlock(&LOCK_server_query_ready);
 
   if (opt_init_file && *opt_init_file)
   {

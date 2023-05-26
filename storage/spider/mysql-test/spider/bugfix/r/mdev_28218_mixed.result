@@ -1,0 +1,38 @@
+#
+# MDEV-28218 Spider: thread hang/deadlock as result of INSTALL PLUGIN and DROP TABLE
+#
+show create table mysql.spider_tables;
+Table	Create Table
+spider_tables	CREATE TABLE `spider_tables` (
+  `db_name` char(64) NOT NULL DEFAULT '',
+  `table_name` char(199) NOT NULL DEFAULT '',
+  `link_id` int(11) NOT NULL DEFAULT 0,
+  `priority` bigint(20) NOT NULL DEFAULT 0,
+  `server` char(64) DEFAULT NULL,
+  `scheme` char(64) DEFAULT NULL,
+  `host` char(64) DEFAULT NULL,
+  `port` char(5) DEFAULT NULL,
+  `socket` text DEFAULT NULL,
+  `username` char(64) DEFAULT NULL,
+  `password` char(64) DEFAULT NULL,
+  `ssl_ca` text DEFAULT NULL,
+  `ssl_capath` text DEFAULT NULL,
+  `ssl_cert` text DEFAULT NULL,
+  `ssl_cipher` char(64) DEFAULT NULL,
+  `ssl_key` text DEFAULT NULL,
+  `ssl_verify_server_cert` tinyint(4) NOT NULL DEFAULT 0,
+  `monitoring_binlog_pos_at_failing` tinyint(4) NOT NULL DEFAULT 0,
+  `default_file` text DEFAULT NULL,
+  `default_group` char(64) DEFAULT NULL,
+  `dsn` char(64) DEFAULT NULL,
+  `filedsn` text DEFAULT NULL,
+  `driver` char(64) DEFAULT NULL,
+  `tgt_db_name` char(64) DEFAULT NULL,
+  `tgt_table_name` char(64) DEFAULT NULL,
+  `link_status` tinyint(4) NOT NULL DEFAULT 1,
+  `block_status` tinyint(4) NOT NULL DEFAULT 0,
+  `static_link_id` char(64) DEFAULT NULL,
+  PRIMARY KEY (`db_name`,`table_name`,`link_id`),
+  UNIQUE KEY `uidx1` (`db_name`,`table_name`,`static_link_id`),
+  KEY `idx1` (`priority`)
+) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin PAGE_CHECKSUM=1 TRANSACTIONAL=1
