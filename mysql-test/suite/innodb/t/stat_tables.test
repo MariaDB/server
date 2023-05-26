@@ -28,4 +28,57 @@ XA END 'test';
 XA ROLLBACK 'test';
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-30483 After upgrade to 10.6 from Mysql 5.7 seeing "InnoDB: Column last_update in table mysql.innodb_table_stats is BINARY(4) NOT NULL but should be INT UNSIGNED NOT NULL"
+--echo #
+
+# The following tests demonstrate that these columns:
+# - innodb_table_stats.last_update
+# - innodb_index_stats.last_update
+# have sane values close to NOW(), rather than any garbage,
+# with all TIMESTAMP formats.
+
+--echo #
+--echo # Testing a non-default format: Field_timestamp0 - UINT4 based
+--echo #
+
+SET @@global.mysql56_temporal_format=0;
+ALTER TABLE mysql.innodb_table_stats MODIFY last_update TIMESTAMP;
+ALTER TABLE mysql.innodb_index_stats MODIFY last_update TIMESTAMP;
+SHOW COLUMNS FROM mysql.innodb_table_stats LIKE 'last_update';
+SHOW COLUMNS FROM mysql.innodb_index_stats LIKE 'last_update';
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=1;
+
+SELECT TIMESTAMPDIFF(DAY,last_update,now())<=1 FROM mysql.innodb_table_stats
+WHERE database_name='test' AND table_name='t1';
+SELECT TIMESTAMPDIFF(DAY,last_update,now())<=1 FROM mysql.innodb_index_stats
+WHERE database_name='test' AND table_name='t1' AND stat_name='size';
+DROP TABLE t1;
+
+--echo #
+--echo # Now as the table t1 is dropped, expect no statistics
+--echo #
+
+SELECT * FROM mysql.innodb_table_stats
+WHERE database_name='test' AND table_name='t1';
+SELECT * FROM mysql.innodb_index_stats
+WHERE database_name='test' AND table_name='t1' AND stat_name='size';
+
+--echo #
+--echo # Testing with the default format: Field_timestampf - BINARY(4) based with the UNSIGNED_FLAG
+--echo #
+
+SET @@global.mysql56_temporal_format=1;
+ALTER TABLE mysql.innodb_table_stats MODIFY last_update TIMESTAMP;
+ALTER TABLE mysql.innodb_index_stats MODIFY last_update TIMESTAMP;
+SHOW COLUMNS FROM mysql.innodb_table_stats LIKE 'last_update';
+SHOW COLUMNS FROM mysql.innodb_index_stats LIKE 'last_update';
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=1;
+SELECT TIMESTAMPDIFF(DAY,last_update,now())<=1 FROM mysql.innodb_table_stats
+WHERE database_name='test' AND table_name='t1';
+SELECT TIMESTAMPDIFF(DAY,last_update,now())<=1 FROM mysql.innodb_index_stats
+WHERE database_name='test' AND table_name='t1' AND stat_name='size';
+DROP TABLE t1;
+
+
 --echo # End of 10.6 tests
