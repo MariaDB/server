@@ -83,8 +83,8 @@ void handler::calculate_costs(Cost_estimate *cost, uint keyno,
   /* Adjust io cost to data size */
   cost->index_cost.io= MY_MIN(cost->index_cost.io, index_blocks(keyno));
 
-  cost->comp_cost= (rows2double(total_rows) * WHERE_COST +
-                    MULTI_RANGE_READ_SETUP_COST);
+  cost->comp_cost= rows2double(total_rows) * WHERE_COST;
+  cost->setup_cost= MULTI_RANGE_READ_SETUP_COST;
 }
 
 

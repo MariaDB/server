@@ -11939,14 +11939,21 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
     ha_rows table_records= param->table->stat_records();
     if (rows > table_records)
     {
+      ha_rows diff= rows - table_records;
       /*
         For any index the total number of records within all ranges
         cannot be be bigger than the number of records in the table.
         This check is needed as sometimes that table statistics or range
         estimates may be slightly out of sync.
+
+        We cannot do this easily in the above multi_range_read_info_const()
+        call as then we would need to have similar adjustmends done
+        in the partitioning engine.
       */
       rows= MY_MAX(table_records, 1);
       param->quick_rows[keynr]= rows;
+      /* Adjust costs */
+      cost->comp_cost-= file->WHERE_COST * diff;
     }
     param->possible_keys.set_bit(keynr);
     if (update_tbl_stats)

@@ -2024,6 +2024,7 @@ select * from t1,t2
 eval explain $q7;
 --source include/explain-no-costs.inc
 eval explain format=json $q7;
+--sorted_result
 eval $q7;
 
 --echo # join order: (t1,t2) with ref access of t2

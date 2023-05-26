@@ -368,8 +368,10 @@ typedef struct st_join_table {
 
   /* set by estimate_scan_time() */
   double        cached_scan_and_compare_time;
-  double        cached_forced_index_cost;
+  ALL_READ_COST cached_scan_and_compare_cost;
 
+  /* Used with force_index_join */
+  ALL_READ_COST cached_forced_index_cost;
   /*
     dependent is the table that must be read before the current one
     Used for example with STRAIGHT_JOIN or outer joins

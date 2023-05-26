@@ -36,3 +36,24 @@ Warnings:
 Warning	1931	Query execution was interrupted. The query examined at least ### rows, which exceeds LIMIT ROWS EXAMINED (1000). The query result may be incomplete
 DROP VIEW v;
 DROP TABLE t1, t2, t3, t4, t5, t1000, t2000;
+#
+# MDEV-31391 Assertion `((best.records_out) == 0.0 &&
+# (best.records) == 0.0) ||
+# (best.records_out)/(best.records) < 1.0000001' failed
+#
+CREATE TABLE t1 (a INT, b INT, PRIMARY KEY(a), KEY(b)) ENGINE=Aria;
+INSERT INTO t1 VALUES
+(1,13),(2,22),(3,8),(4,88),(5,6),(7,21),(9,64),(10,14),(11,15),(12,8),
+(6,20),(8,39),(13,0),(14,3),(15,54),(16,85),(17,1),(18,1),(19,0),(20,0);
+CREATE TABLE t2 (c INT) ENGINE=Aria;
+INSERT INTO t2 VALUES (1),(2),(3);
+EXPLAIN SELECT a FROM t1 JOIN t2 WHERE a = b AND c <> 7 GROUP BY a HAVING a != 6 AND a <= 9;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	PRIMARY,b	PRIMARY	4	NULL	9	Using index condition; Using where; Using temporary; Using filesort
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+SELECT a FROM t1 JOIN t2 WHERE a = b AND c <> 7 GROUP BY a HAVING a != 6 AND a <= 9;
+a
+DROP TABLE t1, t2;
+#
+# End of 11.0 tests
+#
