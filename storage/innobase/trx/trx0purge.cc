@@ -685,6 +685,7 @@ not_free:
     mtr_t mtr;
     mtr.start();
     mtr.x_lock_space(&space);
+    const auto space_id= space.id;
 
     /* Lock all modified pages of the tablespace.
 
@@ -694,8 +695,8 @@ not_free:
     mini-transaction commit and the server was killed, then
     discarding the to-be-trimmed pages without flushing would
     break crash recovery. */
+  rescan:
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
-
     for (buf_page_t *bpage= UT_LIST_GET_LAST(buf_pool.flush_list); bpage; )
     {
       ut_ad(bpage->oldest_modification());
@@ -703,46 +704,47 @@ not_free:
 
       buf_page_t *prev= UT_LIST_GET_PREV(list, bpage);
 
-      if (bpage->id().space() == space.id &&
-          bpage->oldest_modification() != 1)
+      if (bpage->oldest_modification() > 2 && bpage->id().space() == space_id)
       {
         ut_ad(bpage->frame);
-        auto block= reinterpret_cast<buf_block_t*>(bpage);
-        if (!bpage->lock.x_lock_try())
+        bpage->fix();
         {
-        rescan:
-          /* Let buf_pool_t::release_freed_page() proceed. */
+          /* Try to acquire an exclusive latch while the cache line is
+          fresh after fix(). */
+          const bool got_lock{bpage->lock.x_lock_try()};
+          buf_pool.flush_hp.set(prev);
           mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-          mysql_mutex_lock(&buf_pool.mutex);
-          mysql_mutex_lock(&buf_pool.flush_list_mutex);
-          mysql_mutex_unlock(&buf_pool.mutex);
-          bpage= UT_LIST_GET_LAST(buf_pool.flush_list);
-          continue;
+          if (!got_lock)
+            bpage->lock.x_lock();
         }
-        buf_pool.flush_hp.set(prev);
-        mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
 #ifdef BTR_CUR_HASH_ADAPT
-        ut_ad(!block->index); /* There is no AHI on undo tablespaces. */
+        /* There is no AHI on undo tablespaces. */
+        ut_ad(!reinterpret_cast<buf_block_t*>(bpage)->index);
 #endif
-        bpage->fix();
         ut_ad(!bpage->is_io_fixed());
-        mysql_mutex_lock(&buf_pool.flush_list_mutex);
+        ut_ad(bpage->id().space() == space_id);
 
-        if (bpage->oldest_modification() > 1)
+        if (bpage->oldest_modification() > 2)
         {
+          mtr.memo_push(reinterpret_cast<buf_block_t*>(bpage),
+                        MTR_MEMO_PAGE_X_FIX);
+          mysql_mutex_lock(&buf_pool.flush_list_mutex);
+          ut_ad(bpage->oldest_modification() > 2);
           bpage->reset_oldest_modification();
-          mtr.memo_push(block, MTR_MEMO_PAGE_X_FIX);
         }
         else
         {
           bpage->unfix();
           bpage->lock.x_unlock();
+          mysql_mutex_lock(&buf_pool.flush_list_mutex);
         }
 
         if (prev != buf_pool.flush_hp.get())
-          /* Rescan, because we may have lost the position. */
+        {
+          mysql_mutex_unlock(&buf_pool.flush_list_mutex);
           goto rescan;
+        }
       }
 
       bpage= prev;
