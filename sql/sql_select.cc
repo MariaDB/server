@@ -5206,7 +5206,17 @@ static ha_rows get_quick_record_count(THD *thd, SQL_SELECT *select,
                                           TRUE,     /* remove_where_parts*/
                                           FALSE)) ==
                1))
-      DBUG_RETURN(select->quick->records);
+    {
+      /*
+        opt_range_condition_rows was updated in test_quick_select to be
+        the smallest number of rows in any range.
+        select->quick->records is the number of rows in range with
+        smallest cost.
+      */
+      DBUG_ASSERT(select->quick->records >=
+                  table->opt_range_condition_rows);
+      DBUG_RETURN(table->opt_range_condition_rows);
+    }
     if (unlikely(error == -1))
     {
       table->reginfo.impossible_range=1;
@@ -9268,11 +9278,11 @@ best_access_path(JOIN      *join,
         TABLE::OPT_RANGE *range= &table->opt_range[key_no];
 
         /*
-          Ensure that 'range' and 's' are comming from the same source
+          Ensure that 'range' and 's' are coming from the same source
           The complex 'double' comparison is there because floating point
           registers complications when costs are calculated.
         */
-        DBUG_ASSERT(range->rows == s->found_records);
+        DBUG_ASSERT(range->rows >= s->found_records);
         DBUG_ASSERT((range->cost.total_cost() == 0.0 &&
                      s->quick->read_time == 0.0) ||
                     (range->cost.total_cost() / s->quick->read_time <= 1.0000001 &&
@@ -13610,9 +13620,8 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
         tab->use_quick=1;
         tab->ref.key= -1;
 	tab->ref.key_parts=0;		// Don't use ref key.
-	join->best_positions[i].records_read=
-          join->best_positions[i].records_out=
-          rows2double(tab->quick->records);
+	join->best_positions[i].records_read= rows2double(tab->quick->records);
+
         /*
           We will use join cache here : prevent sorting of the first
           table only and sort at the end.
@@ -31314,6 +31323,7 @@ static bool get_range_limit_read_cost(const POSITION *pos,
 
     if (pos)
     {
+      double cond_selectivity;
       /*
         Take into count table selectivity as the number of accepted
         rows for this table will be 'records_out'.
@@ -31325,7 +31335,6 @@ static bool get_range_limit_read_cost(const POSITION *pos,
         account that using key2 we have to examine much fewer rows.
       */
       best_rows= pos->records_out;      // Best rows with any key/keys
-      double cond_selectivity;
       /*
         We assign "double range_rows" from integer #rows a few lines above
         so comparison with 0.0 makes sense
