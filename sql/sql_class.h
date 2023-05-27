@@ -1216,21 +1216,21 @@ public:
   inline bool is_conventional() const
   { return state == STMT_CONVENTIONAL_EXECUTION; }
 
-  inline void* alloc(size_t size) { return alloc_root(mem_root,size); }
-  inline void* calloc(size_t size)
+  inline void* alloc(size_t size) const { return alloc_root(mem_root,size); }
+  inline void* calloc(size_t size) const
   {
     void *ptr;
     if (likely((ptr=alloc_root(mem_root,size))))
       bzero(ptr, size);
     return ptr;
   }
-  inline char *strdup(const char *str)
+  inline char *strdup(const char *str) const
   { return strdup_root(mem_root,str); }
-  inline char *strmake(const char *str, size_t size)
+  inline char *strmake(const char *str, size_t size) const
   { return strmake_root(mem_root,str,size); }
-  inline void *memdup(const void *str, size_t size)
+  inline void *memdup(const void *str, size_t size) const
   { return memdup_root(mem_root,str,size); }
-  inline void *memdup_w_gap(const void *str, size_t size, size_t gap)
+  inline void *memdup_w_gap(const void *str, size_t size, size_t gap) const
   {
     void *ptr;
     if (likely((ptr= alloc_root(mem_root,size+gap))))
@@ -2688,7 +2688,7 @@ public:
   Protocol_binary protocol_binary;	// Binary protocol
   HASH    user_vars;			// hash for user variables
   String  packet;			// dynamic buffer for network I/O
-  String  convert_buffer;               // buffer for charset conversions
+  String  convert_buffer;		// buffer for charset conversions
   struct  my_rnd_struct rand;		// used for authentication
   struct  system_variables variables;	// Changeable local variables
   struct  system_status_var status_var; // Per thread statistic vars
@@ -4146,24 +4146,25 @@ public:
   {
     return !stmt_arena->is_stmt_prepare();
   }
-  inline void* trans_alloc(size_t size)
+  inline void* trans_alloc(size_t size) const
   {
     return alloc_root(&transaction->mem_root,size);
   }
 
-  LEX_CSTRING strmake_lex_cstring(const char *str, size_t length)
+  LEX_CSTRING strmake_lex_cstring(const char *str, size_t length) const
   {
     const char *tmp= strmake_root(mem_root, str, length);
     if (!tmp)
       return {0,0};
     return {tmp, length};
   }
-  LEX_CSTRING strmake_lex_cstring(const LEX_CSTRING &from)
+  LEX_CSTRING strmake_lex_cstring(const LEX_CSTRING &from) const
   {
     return strmake_lex_cstring(from.str, from.length);
   }
 
-  LEX_STRING *make_lex_string(LEX_STRING *lex_str, const char* str, size_t length)
+  LEX_STRING *make_lex_string(LEX_STRING *lex_str, const char* str,
+                              size_t length) const
   {
     if (!(lex_str->str= strmake_root(mem_root, str, length)))
     {
@@ -4173,7 +4174,8 @@ public:
     lex_str->length= length;
     return lex_str;
   }
-  LEX_CSTRING *make_lex_string(LEX_CSTRING *lex_str, const char* str, size_t length)
+  LEX_CSTRING *make_lex_string(LEX_CSTRING *lex_str, const char* str,
+                               size_t length) const
   {
     if (!(lex_str->str= strmake_root(mem_root, str, length)))
     {
@@ -4184,7 +4186,8 @@ public:
     return lex_str;
   }
   // Remove double quotes:  aaa""bbb -> aaa"bbb
-  bool quote_unescape(LEX_CSTRING *dst, const LEX_CSTRING *src, char quote)
+  bool quote_unescape(LEX_CSTRING *dst, const LEX_CSTRING *src,
+                      char quote) const
   {
     const char *tmp= src->str;
     const char *tmpend= src->str + src->length;
@@ -4204,7 +4207,7 @@ public:
     return false;
   }
 
-  LEX_CSTRING *make_clex_string(const char* str, size_t length)
+  LEX_CSTRING *make_clex_string(const char* str, size_t length) const
   {
     LEX_CSTRING *lex_str;
     char *tmp;
@@ -4219,13 +4222,13 @@ public:
     lex_str->length= length;
     return lex_str;
   }
-  LEX_CSTRING *make_clex_string(const LEX_CSTRING from)
+  LEX_CSTRING *make_clex_string(const LEX_CSTRING from) const
   {
     return make_clex_string(from.str, from.length);
   }
 
   // Allocate LEX_STRING for character set conversion
-  bool alloc_lex_string(LEX_STRING *dst, size_t length)
+  bool alloc_lex_string(LEX_STRING *dst, size_t length) const
   {
     if (likely((dst->str= (char*) alloc(length))))
       return false;
@@ -4234,12 +4237,13 @@ public:
   }
   bool convert_string(LEX_STRING *to, CHARSET_INFO *to_cs,
 		      const char *from, size_t from_length,
-		      CHARSET_INFO *from_cs);
+		      CHARSET_INFO *from_cs) const;
   bool reinterpret_string_from_binary(LEX_CSTRING *to, CHARSET_INFO *to_cs,
-                                      const char *from, size_t from_length);
+                                      const char *from, size_t from_length)
+                                      const;
   bool convert_string(LEX_CSTRING *to, CHARSET_INFO *to_cs,
                       const char *from, size_t from_length,
-                      CHARSET_INFO *from_cs)
+                      CHARSET_INFO *from_cs) const
   {
     LEX_STRING tmp;
     bool rc= convert_string(&tmp, to_cs, from, from_length, from_cs);
@@ -4249,7 +4253,7 @@ public:
   }
   bool convert_string(LEX_CSTRING *to, CHARSET_INFO *tocs,
                       const LEX_CSTRING *from, CHARSET_INFO *fromcs,
-                      bool simple_copy_is_possible)
+                      bool simple_copy_is_possible) const
   {
     if (!simple_copy_is_possible)
       return unlikely(convert_string(to, tocs, from->str, from->length, fromcs));
@@ -4265,7 +4269,7 @@ public:
   */
   bool convert_fix(CHARSET_INFO *dstcs, LEX_STRING *dst,
                    CHARSET_INFO *srccs, const char *src, size_t src_length,
-                   String_copier *status);
+                   String_copier *status) const;
 
   /*
     Same as above, but additionally sends ER_INVALID_CHARACTER_STRING
@@ -4273,7 +4277,7 @@ public:
   */
   bool convert_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
                           CHARSET_INFO *srccs,
-                          const char *src, size_t src_length);
+                          const char *src, size_t src_length) const;
   /*
     If either "dstcs" or "srccs" is &my_charset_bin,
     then performs native copying using copy_fix().
@@ -4281,16 +4285,18 @@ public:
   */
   bool copy_fix(CHARSET_INFO *dstcs, LEX_STRING *dst,
                 CHARSET_INFO *srccs, const char *src, size_t src_length,
-                String_copier *status);
+                String_copier *status) const;
 
   /*
     Same as above, but additionally sends ER_INVALID_CHARACTER_STRING
     in case of bad byte sequences or Unicode conversion problems.
   */
   bool copy_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
-                       CHARSET_INFO *srccs, const char *src, size_t src_length);
+                       CHARSET_INFO *srccs, const char *src, size_t src_length)
+                       const;
 
-  bool convert_string(String *s, CHARSET_INFO *from_cs, CHARSET_INFO *to_cs);
+  bool convert_string(String *s, CHARSET_INFO *from_cs,
+                      CHARSET_INFO *to_cs);
 
   /*
     Check if the string is wellformed, raise an error if not wellformed.
@@ -4301,7 +4307,8 @@ public:
                                        size_t length,
                                        CHARSET_INFO *cs) const;
 
-  bool to_ident_sys_alloc(Lex_ident_sys_st *to, const Lex_ident_cli_st *from);
+  bool to_ident_sys_alloc(Lex_ident_sys_st *to,
+                          const Lex_ident_cli_st *from) const;
 
   /*
     Create a string literal with optional client->connection conversion.
@@ -4311,7 +4318,8 @@ public:
   */
   Item_basic_constant *make_string_literal(const char *str, size_t length,
                                            my_repertoire_t repertoire);
-  Item_basic_constant *make_string_literal(const Lex_string_with_metadata_st &str)
+  Item_basic_constant *
+  make_string_literal(const Lex_string_with_metadata_st &str)
   {
     my_repertoire_t repertoire= str.repertoire(variables.character_set_client);
     return make_string_literal(str.str, str.length, repertoire);
