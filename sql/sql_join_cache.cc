@@ -945,6 +945,9 @@ int JOIN_CACHE::alloc_buffer()
                                   join_buff_space_limit))
       goto fail;                                // Fatal error
   }
+  else if (curr_min_buff_space_sz > buff_size)
+    goto fail;
+
   if (for_explain_only)
     return 0;
                                
