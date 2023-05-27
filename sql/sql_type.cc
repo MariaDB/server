@@ -5070,6 +5070,46 @@ bool Type_handler_string_result::
   return false;
 }
 
+/*************************************************************************/
+
+bool Type_handler_int_result::
+       Item_sum_regr_sxx_fix_length_and_dec(Item_sum_regr_sxx *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_decimal_result::
+       Item_sum_regr_sxx_fix_length_and_dec(Item_sum_regr_sxx *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_temporal_result::
+       Item_sum_regr_sxx_fix_length_and_dec(Item_sum_regr_sxx *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_real_result::
+       Item_sum_regr_sxx_fix_length_and_dec(Item_sum_regr_sxx *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
+
+
+bool Type_handler_string_result::
+       Item_sum_regr_sxx_fix_length_and_dec(Item_sum_regr_sxx *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
 
 /*************************************************************************/
 

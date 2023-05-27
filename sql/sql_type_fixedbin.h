@@ -774,7 +774,10 @@ public:
     {
       return Item_func_or_sum_illegal_param(func);
     }
-
+    bool Item_sum_regr_sxx_fix_length_and_dec(Item_sum_regr_sxx *func) const override
+    {
+      return Item_func_or_sum_illegal_param(func);
+    }
     bool Item_val_native_with_conversion(THD *thd, Item *item,
                                          Native *to) const override
     {

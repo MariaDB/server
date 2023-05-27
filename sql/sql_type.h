@@ -50,6 +50,7 @@ class Item_sum_hybrid;
 class Item_sum_sum;
 class Item_sum_avg;
 class Item_sum_variance;
+class Item_sum_regr_sxx;
 class Item_func_hex;
 class Item_hybrid_func;
 class Item_func_min_max;
@@ -4237,7 +4238,8 @@ public:
   virtual bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const= 0;
   virtual
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const= 0;
-
+  virtual
+  bool Item_sum_regr_sxx_fix_length_and_dec(Item_sum_regr_sxx *) const= 0;
   virtual bool Item_val_native_with_conversion(THD *thd, Item *item,
                                                Native *to) const
   {
@@ -4574,6 +4576,11 @@ public:
     MY_ASSERT_UNREACHABLE();
     return true;
   }
+  bool Item_sum_regr_sxx_fix_length_and_dec(Item_sum_regr_sxx *) const override
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
   bool Item_val_bool(Item *item) const override
   {
     MY_ASSERT_UNREACHABLE();
@@ -4854,6 +4861,7 @@ public:
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const override;
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const override;
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const override;
+  bool Item_sum_regr_sxx_fix_length_and_dec(Item_sum_regr_sxx *) const override;
   bool Item_func_signed_fix_length_and_dec(Item_func_signed *item)
                                            const override;
   bool Item_func_unsigned_fix_length_and_dec(Item_func_unsigned *item)
@@ -4987,6 +4995,7 @@ public:
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const override;
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const override;
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance*) const override;
+  bool Item_sum_regr_sxx_fix_length_and_dec(Item_sum_regr_sxx*) const override;
   bool Item_val_bool(Item *item) const override
   {
     return VDec(item).to_bool();
@@ -5220,6 +5229,7 @@ public:
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const override;
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const override;
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const override;
+  bool Item_sum_regr_sxx_fix_length_and_dec(Item_sum_regr_sxx *) const override;
   bool Item_val_bool(Item *item) const override;
   void Item_get_date(THD *thd, Item *item, Temporal::Warn *warn,
                      MYSQL_TIME *ltime,  date_mode_t fuzzydate) const override;
@@ -5335,6 +5345,7 @@ public:
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const override;
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const override;
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *)const override;
+  bool Item_sum_regr_sxx_fix_length_and_dec(Item_sum_regr_sxx *)const override;
   bool Item_val_bool(Item *item) const override;
   void Item_get_date(THD *thd, Item *item, Temporal::Warn *warn,
                      MYSQL_TIME *ltime,  date_mode_t fuzzydate) const override;
@@ -5483,6 +5494,7 @@ public:
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const override;
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const override;
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const override;
+  bool Item_sum_regr_sxx_fix_length_and_dec(Item_sum_regr_sxx *) const override;
   bool Item_func_signed_fix_length_and_dec(Item_func_signed *item) const
     override;
   bool Item_func_unsigned_fix_length_and_dec(Item_func_unsigned *item) const
