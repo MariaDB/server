@@ -4410,7 +4410,7 @@ public:
     @return The handler error code or zero for success.
   */
   virtual int
-  get_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list)
+  get_foreign_key_list(const THD *thd, List<FOREIGN_KEY_INFO> *f_key_list)
   { return 0; }
   /**
     Get the list of foreign keys referencing this table.
@@ -4424,7 +4424,7 @@ public:
     @return The handler error code or zero for success.
   */
   virtual int
-  get_parent_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list)
+  get_parent_foreign_key_list(const THD *thd, List<FOREIGN_KEY_INFO> *f_key_list)
   { return 0; }
   virtual uint referenced_by_foreign_key() { return 0;}
   virtual void init_table_handle_for_HANDLER()
