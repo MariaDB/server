@@ -9683,18 +9683,18 @@ Item *LEX::create_item_qualified_asterisk(THD *thd,
 }
 
 
-bool Lex_ident_sys_st::copy_ident_cli(THD *thd, const Lex_ident_cli_st *str)
+bool Lex_ident_sys_st::copy_ident_cli(const THD *thd, const Lex_ident_cli_st *str)
 {
   return thd->to_ident_sys_alloc(this, str);
 }
 
-bool Lex_ident_sys_st::copy_keyword(THD *thd, const Lex_ident_cli_st *str)
+bool Lex_ident_sys_st::copy_keyword(const THD *thd, const Lex_ident_cli_st *str)
 {
   return thd->make_lex_string(static_cast<LEX_CSTRING*>(this),
                               str->str, str->length) == NULL;
 }
 
-bool Lex_ident_sys_st::copy_or_convert(THD *thd,
+bool Lex_ident_sys_st::copy_or_convert(const THD *thd,
                                        const Lex_ident_cli_st *src,
                                        CHARSET_INFO *cs)
 {
@@ -9704,7 +9704,7 @@ bool Lex_ident_sys_st::copy_or_convert(THD *thd,
 }
 
 
-bool Lex_ident_sys_st::copy_sys(THD *thd, const LEX_CSTRING *src)
+bool Lex_ident_sys_st::copy_sys(const THD *thd, const LEX_CSTRING *src)
 {
   if (thd->check_string_for_wellformedness(src->str, src->length,
                                            system_charset_info))
@@ -9713,7 +9713,7 @@ bool Lex_ident_sys_st::copy_sys(THD *thd, const LEX_CSTRING *src)
 }
 
 
-bool Lex_ident_sys_st::convert(THD *thd,
+bool Lex_ident_sys_st::convert(const THD *thd,
                                const LEX_CSTRING *src, CHARSET_INFO *cs)
 {
   LEX_STRING tmp;

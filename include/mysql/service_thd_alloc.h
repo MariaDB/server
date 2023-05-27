@@ -50,12 +50,12 @@ struct st_mysql_const_lex_string
 typedef struct st_mysql_const_lex_string MYSQL_CONST_LEX_STRING;
 
 extern struct thd_alloc_service_st {
-  void *(*thd_alloc_func)(MYSQL_THD, size_t);
-  void *(*thd_calloc_func)(MYSQL_THD, size_t);
-  char *(*thd_strdup_func)(MYSQL_THD, const char *);
-  char *(*thd_strmake_func)(MYSQL_THD, const char *, size_t);
-  void *(*thd_memdup_func)(MYSQL_THD, const void*, size_t);
-  MYSQL_CONST_LEX_STRING *(*thd_make_lex_string_func)(MYSQL_THD,
+  void *(*thd_alloc_func)(const MYSQL_THD, size_t);
+  void *(*thd_calloc_func)(const MYSQL_THD, size_t);
+  char *(*thd_strdup_func)(const MYSQL_THD, const char *);
+  char *(*thd_strmake_func)(const MYSQL_THD, const char *, size_t);
+  void *(*thd_memdup_func)(const MYSQL_THD, const void*, size_t);
+  MYSQL_CONST_LEX_STRING *(*thd_make_lex_string_func)(const MYSQL_THD,
                                         MYSQL_CONST_LEX_STRING *,
                                         const char *, size_t, int);
 } *thd_alloc_service;
@@ -92,23 +92,23 @@ extern struct thd_alloc_service_st {
 
   @see alloc_root()
 */
-void *thd_alloc(MYSQL_THD thd, size_t size);
+void *thd_alloc(const MYSQL_THD thd, size_t size);
 /**
   @see thd_alloc()
 */
-void *thd_calloc(MYSQL_THD thd, size_t size);
+void *thd_calloc(const MYSQL_THD thd, size_t size);
 /**
   @see thd_alloc()
 */
-char *thd_strdup(MYSQL_THD thd, const char *str);
+char *thd_strdup(const MYSQL_THD thd, const char *str);
 /**
   @see thd_alloc()
 */
-char *thd_strmake(MYSQL_THD thd, const char *str, size_t size);
+char *thd_strmake(const MYSQL_THD thd, const char *str, size_t size);
 /**
   @see thd_alloc()
 */
-void *thd_memdup(MYSQL_THD thd, const void* str, size_t size);
+void *thd_memdup(const MYSQL_THD thd, const void* str, size_t size);
 
 /**
   Create a LEX_STRING in this connection's local memory pool
@@ -124,7 +124,7 @@ void *thd_memdup(MYSQL_THD thd, const void* str, size_t size);
   @see thd_alloc()
 */
 MYSQL_CONST_LEX_STRING
-*thd_make_lex_string(MYSQL_THD thd, MYSQL_CONST_LEX_STRING *lex_str,
+*thd_make_lex_string(const MYSQL_THD thd, MYSQL_CONST_LEX_STRING *lex_str,
                      const char *str, size_t size,
                      int allocate_lex_string);
 
