@@ -3821,6 +3821,21 @@ id	MIN(id)
 8	8
 DROP TABLE t1;
 #
+# MDEV-31237 Assertion `!(tab->select && tab->select->quick)' failed
+# in make_join_readinfo
+#
+CREATE TABLE lineitem (l_orderkey int, l_linenumber int, l_receiptDATE date DEFAULT NULL, PRIMARY KEY (l_orderkey,l_linenumber), KEY i_l_receiptdate (l_receiptDATE), KEY i_l_orderkey (l_orderkey)) ENGINE=InnoDB;
+INSERT INTO lineitem VALUES (291,1,'1994-06-23'),(291,2,'1994-06-19'),
+(291,3,'1994-03-24'),(292,1,'1992-03-18'),(292,2,'1992-04-20');
+EXPLAIN SELECT DISTINCT l_orderkey FROM lineitem FORCE KEY (i_l_orderkey, i_l_receiptdate) WHERE l_orderkey > 1 ORDER BY l_receiptdate;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	lineitem	range	i_l_orderkey	i_l_orderkey	4	NULL	5	Using where; Using temporary; Using filesort
+SELECT DISTINCT l_orderkey FROM lineitem FORCE KEY (i_l_orderkey, i_l_receiptdate) WHERE l_orderkey > 1 ORDER BY l_receiptdate;
+l_orderkey
+292
+291
+DROP TABLE lineitem;
+#
 # End of 11.0 tests
 #
 set optimizer_switch=@mrr_icp_extra_tmp;

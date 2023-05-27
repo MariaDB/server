@@ -15373,7 +15373,16 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
         push_index_cond(tab, tab->ref.key);
       break;
     case JT_NEXT:                               // Index scan
-      DBUG_ASSERT(!(tab->select && tab->select->quick));
+      DBUG_ASSERT(!tab->quick);
+      if (tab->select)
+      {
+        /*
+          select->quick may be set if there was a possible range and
+          it had a higher cost than a table scan.
+        */
+	delete tab->select->quick;
+	tab->select->quick=0;
+      }
       if (tab->use_quick == 2)
       {
         join->thd->set_status_no_good_index_used();
