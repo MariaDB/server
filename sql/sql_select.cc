@@ -104,6 +104,8 @@
 
 #define double_to_rows(A) ((A) >= ((double)HA_ROWS_MAX) ? HA_ROWS_MAX : (ha_rows) (A))
 
+#define double_to_ulonglong(A) ((A) >= ((double)ULONGLONG_MAX) ? ULONGLONG_MAX : (ulonglong) (A))
+
 inline double safe_filtered(double a, double b)
 {
   return b != 0 ? a/b*100.0 : 0.0;
@@ -9168,7 +9170,7 @@ best_access_path(JOIN      *join,
     best.use_join_buffer= TRUE;
     best.filter= 0;
     best.type= JT_HASH;
-    best.refills= (ulonglong) ceil(refills);
+    best.refills= double_to_ulonglong(ceil(refills));
     if (unlikely(trace_access_hash.trace_started()))
       trace_access_hash.
         add("type", "hash").
@@ -9443,7 +9445,7 @@ best_access_path(JOIN      *join,
                                   (record_count /
                                    (double) thd->variables.join_buff_size)));
         cur_cost= COST_MULT(cur_cost, tmp_refills);
-        refills= (ulonglong) tmp_refills;
+        refills= double_to_ulonglong(ceil(tmp_refills));
 
         /* We come here only if there are already rows in the join cache */
         DBUG_ASSERT(idx != join->const_tables);
@@ -9523,7 +9525,7 @@ best_access_path(JOIN      *join,
       /* range/index_merge/ALL/index access method are "independent", so: */
       best.ref_depends_map= 0;
       best.use_join_buffer= use_join_buffer;
-      best.refills= (ulonglong) ceil(refills);
+      best.refills= refills;
       best.spl_plan= 0;
       best.type= type;
       trace_access_scan.add("chosen", true);
