@@ -15362,7 +15362,7 @@ static
 FOREIGN_KEY_INFO*
 get_foreign_key_info(
 /*=================*/
-	THD*		thd,	/*!< in: user thread handle */
+	const THD*	thd,	/*!< in: user thread handle */
 	dict_foreign_t* foreign)/*!< in: foreign key constraint */
 {
 	FOREIGN_KEY_INFO	f_key_info;
@@ -15498,7 +15498,7 @@ Gets the list of foreign keys in this table.
 int
 ha_innobase::get_foreign_key_list(
 /*==============================*/
-	THD*			thd,		/*!< in: user thread handle */
+	const THD*		thd,		/*!< in: user thread handle */
 	List<FOREIGN_KEY_INFO>*	f_key_list)	/*!< out: foreign key list */
 {
 	update_thd(ha_thd());
@@ -15536,7 +15536,7 @@ Gets the set of foreign keys where this table is the referenced table.
 int
 ha_innobase::get_parent_foreign_key_list(
 /*=====================================*/
-	THD*			thd,		/*!< in: user thread handle */
+	const THD*		thd,		/*!< in: user thread handle */
 	List<FOREIGN_KEY_INFO>*	f_key_list)	/*!< out: foreign key list */
 {
 	update_thd(ha_thd());
