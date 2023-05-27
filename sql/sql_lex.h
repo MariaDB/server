@@ -146,11 +146,12 @@ public:
 struct Lex_ident_sys_st: public LEX_CSTRING
 {
 public:
-  bool copy_ident_cli(THD *thd, const Lex_ident_cli_st *str);
-  bool copy_keyword(THD *thd, const Lex_ident_cli_st *str);
-  bool copy_sys(THD *thd, const LEX_CSTRING *str);
-  bool convert(THD *thd, const LEX_CSTRING *str, CHARSET_INFO *cs);
-  bool copy_or_convert(THD *thd, const Lex_ident_cli_st *str, CHARSET_INFO *cs);
+  bool copy_ident_cli(const THD *thd, const Lex_ident_cli_st *str);
+  bool copy_keyword(const THD *thd, const Lex_ident_cli_st *str);
+  bool copy_sys(const THD *thd, const LEX_CSTRING *str);
+  bool convert(const THD *thd, const LEX_CSTRING *str, CHARSET_INFO *cs);
+  bool copy_or_convert(const THD *thd, const Lex_ident_cli_st *str,
+                       CHARSET_INFO *cs);
   bool is_null() const { return str == NULL; }
   bool to_size_number(ulonglong *to) const;
   void set_valid_utf8(const LEX_CSTRING *name)
@@ -165,7 +166,7 @@ public:
 class Lex_ident_sys: public Lex_ident_sys_st
 {
 public:
-  Lex_ident_sys(THD *thd, const Lex_ident_cli_st *str)
+  Lex_ident_sys(const THD *thd, const Lex_ident_cli_st *str)
   {
     if (copy_ident_cli(thd, str))
       ((LEX_CSTRING &) *this)= null_clex_str;

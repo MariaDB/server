@@ -1140,31 +1140,31 @@ ret:
 }
 
 extern "C"
-void *thd_alloc(MYSQL_THD thd, size_t size)
+void *thd_alloc(const MYSQL_THD thd, size_t size)
 {
   return thd->alloc(size);
 }
 
 extern "C"
-void *thd_calloc(MYSQL_THD thd, size_t size)
+void *thd_calloc(const MYSQL_THD thd, size_t size)
 {
   return thd->calloc(size);
 }
 
 extern "C"
-char *thd_strdup(MYSQL_THD thd, const char *str)
+char *thd_strdup(const MYSQL_THD thd, const char *str)
 {
   return thd->strdup(str);
 }
 
 extern "C"
-char *thd_strmake(MYSQL_THD thd, const char *str, size_t size)
+char *thd_strmake(const MYSQL_THD thd, const char *str, size_t size)
 {
   return thd->strmake(str, size);
 }
 
 extern "C"
-LEX_CSTRING *thd_make_lex_string(THD *thd, LEX_CSTRING *lex_str,
+LEX_CSTRING *thd_make_lex_string(const THD *thd, LEX_CSTRING *lex_str,
                                 const char *str, size_t size,
                                 int allocate_lex_string)
 {
@@ -1173,7 +1173,7 @@ LEX_CSTRING *thd_make_lex_string(THD *thd, LEX_CSTRING *lex_str,
 }
 
 extern "C"
-void *thd_memdup(MYSQL_THD thd, const void* str, size_t size)
+void *thd_memdup(const MYSQL_THD thd, const void* str, size_t size)
 {
   return thd->memdup(str, size);
 }
@@ -2322,7 +2322,7 @@ void THD::cleanup_after_query()
 
 bool THD::convert_string(LEX_STRING *to, CHARSET_INFO *to_cs,
 			 const char *from, size_t from_length,
-			 CHARSET_INFO *from_cs)
+			 CHARSET_INFO *from_cs) const
 {
   DBUG_ENTER("THD::convert_string");
   size_t new_length= to_cs->mbmaxlen * from_length;
@@ -2359,7 +2359,7 @@ bool THD::convert_string(LEX_STRING *to, CHARSET_INFO *to_cs,
 */
 
 bool THD::reinterpret_string_from_binary(LEX_CSTRING *to, CHARSET_INFO *cs,
-                                         const char *str, size_t length)
+                                         const char *str, size_t length) const
 {
   /*
     When reinterpreting from binary to tricky character sets like
@@ -2401,7 +2401,7 @@ bool THD::reinterpret_string_from_binary(LEX_CSTRING *to, CHARSET_INFO *cs,
 */
 bool THD::convert_fix(CHARSET_INFO *dstcs, LEX_STRING *dst,
                       CHARSET_INFO *srccs, const char *src, size_t src_length,
-                      String_copier *status)
+                      String_copier *status) const
 {
   DBUG_ENTER("THD::convert_fix");
   size_t dst_length= dstcs->mbmaxlen * src_length;
@@ -2419,7 +2419,7 @@ bool THD::convert_fix(CHARSET_INFO *dstcs, LEX_STRING *dst,
 */
 bool THD::copy_fix(CHARSET_INFO *dstcs, LEX_STRING *dst,
                    CHARSET_INFO *srccs, const char *src, size_t src_length,
-                   String_copier *status)
+                   String_copier *status) const
 {
   DBUG_ENTER("THD::copy_fix");
   size_t dst_length= dstcs->mbmaxlen * src_length;
@@ -2451,7 +2451,7 @@ public:
 
 bool THD::convert_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
                              CHARSET_INFO *srccs,
-                             const char *src, size_t src_length)
+                             const char *src, size_t src_length) const
 {
   String_copier_with_error status;
   return convert_fix(dstcs, dst, srccs, src, src_length, &status) ||
@@ -2461,7 +2461,7 @@ bool THD::convert_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
 
 bool THD::copy_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
                           CHARSET_INFO *srccs,
-                          const char *src, size_t src_length)
+                          const char *src, size_t src_length) const
 {
   String_copier_with_error status;
   return copy_fix(dstcs, dst, srccs, src, src_length, &status) ||
@@ -2484,7 +2484,8 @@ bool THD::copy_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
    !0   out of memory
 */
 
-bool THD::convert_string(String *s, CHARSET_INFO *from_cs, CHARSET_INFO *to_cs)
+bool THD::convert_string(String *s, CHARSET_INFO *from_cs,
+                         CHARSET_INFO *to_cs)
 {
   uint dummy_errors;
   if (unlikely(convert_buffer.copy(s->ptr(), s->length(), from_cs, to_cs,
@@ -2516,7 +2517,8 @@ bool THD::check_string_for_wellformedness(const char *str,
 }
 
 
-bool THD::to_ident_sys_alloc(Lex_ident_sys_st *to, const Lex_ident_cli_st *ident)
+bool THD::to_ident_sys_alloc(Lex_ident_sys_st *to,
+                             const Lex_ident_cli_st *ident) const
 {
   if (ident->is_quoted())
   {

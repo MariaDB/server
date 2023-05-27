@@ -307,22 +307,22 @@ struct st_mysql_const_lex_string
 };
 typedef struct st_mysql_const_lex_string MYSQL_CONST_LEX_STRING;
 extern struct thd_alloc_service_st {
-  void *(*thd_alloc_func)(THD*, size_t);
-  void *(*thd_calloc_func)(THD*, size_t);
-  char *(*thd_strdup_func)(THD*, const char *);
-  char *(*thd_strmake_func)(THD*, const char *, size_t);
-  void *(*thd_memdup_func)(THD*, const void*, size_t);
-  MYSQL_CONST_LEX_STRING *(*thd_make_lex_string_func)(THD*,
+  void *(*thd_alloc_func)(const THD*, size_t);
+  void *(*thd_calloc_func)(const THD*, size_t);
+  char *(*thd_strdup_func)(const THD*, const char *);
+  char *(*thd_strmake_func)(const THD*, const char *, size_t);
+  void *(*thd_memdup_func)(const THD*, const void*, size_t);
+  MYSQL_CONST_LEX_STRING *(*thd_make_lex_string_func)(const THD*,
                                         MYSQL_CONST_LEX_STRING *,
                                         const char *, size_t, int);
 } *thd_alloc_service;
-void *thd_alloc(THD* thd, size_t size);
-void *thd_calloc(THD* thd, size_t size);
-char *thd_strdup(THD* thd, const char *str);
-char *thd_strmake(THD* thd, const char *str, size_t size);
-void *thd_memdup(THD* thd, const void* str, size_t size);
+void *thd_alloc(const THD* thd, size_t size);
+void *thd_calloc(const THD* thd, size_t size);
+char *thd_strdup(const THD* thd, const char *str);
+char *thd_strmake(const THD* thd, const char *str, size_t size);
+void *thd_memdup(const THD* thd, const void* str, size_t size);
 MYSQL_CONST_LEX_STRING
-*thd_make_lex_string(THD* thd, MYSQL_CONST_LEX_STRING *lex_str,
+*thd_make_lex_string(const THD* thd, MYSQL_CONST_LEX_STRING *lex_str,
                      const char *str, size_t size,
                      int allocate_lex_string);
 }
