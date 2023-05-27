@@ -16676,7 +16676,7 @@ bool ha_mroonga::can_switch_engines()
   DBUG_RETURN(res);
 }
 
-int ha_mroonga::wrapper_get_foreign_key_list(THD *thd,
+int ha_mroonga::wrapper_get_foreign_key_list(const THD *thd,
                                            List<FOREIGN_KEY_INFO> *f_key_list)
 {
   MRN_DBUG_ENTER_METHOD();
@@ -16690,7 +16690,7 @@ int ha_mroonga::wrapper_get_foreign_key_list(THD *thd,
 }
 
 #ifdef MRN_SUPPORT_FOREIGN_KEYS
-int ha_mroonga::storage_get_foreign_key_list(THD *thd,
+int ha_mroonga::storage_get_foreign_key_list(const THD *thd,
                                              List<FOREIGN_KEY_INFO> *f_key_list)
 {
   int error;
@@ -16800,7 +16800,7 @@ int ha_mroonga::storage_get_foreign_key_list(THD *thd,
 }
 #endif
 
-int ha_mroonga::get_foreign_key_list(THD *thd,
+int ha_mroonga::get_foreign_key_list(const THD *thd,
                                      List<FOREIGN_KEY_INFO> *f_key_list)
 {
   MRN_DBUG_ENTER_METHOD();
@@ -16814,7 +16814,7 @@ int ha_mroonga::get_foreign_key_list(THD *thd,
   DBUG_RETURN(res);
 }
 
-int ha_mroonga::wrapper_get_parent_foreign_key_list(THD *thd,
+int ha_mroonga::wrapper_get_parent_foreign_key_list(const THD *thd,
                                             List<FOREIGN_KEY_INFO> *f_key_list)
 {
   MRN_DBUG_ENTER_METHOD();
@@ -16827,7 +16827,7 @@ int ha_mroonga::wrapper_get_parent_foreign_key_list(THD *thd,
   DBUG_RETURN(res);
 }
 
-int ha_mroonga::storage_get_parent_foreign_key_list(THD *thd,
+int ha_mroonga::storage_get_parent_foreign_key_list(const THD *thd,
                                             List<FOREIGN_KEY_INFO> *f_key_list)
 {
   MRN_DBUG_ENTER_METHOD();
@@ -16835,7 +16835,7 @@ int ha_mroonga::storage_get_parent_foreign_key_list(THD *thd,
   DBUG_RETURN(res);
 }
 
-int ha_mroonga::get_parent_foreign_key_list(THD *thd,
+int ha_mroonga::get_parent_foreign_key_list(const THD *thd,
                                             List<FOREIGN_KEY_INFO> *f_key_list)
 {
   MRN_DBUG_ENTER_METHOD();
