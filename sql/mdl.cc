@@ -251,16 +251,34 @@ private:
   Print a list of all locks to DBUG trace to help with debugging
 */
 
-const char *dbug_print_mdl(MDL_ticket *mdl_ticket)
+static const char *dbug_print_key(MDL_key *mdl_key, const char *type)
 {
   thread_local char buffer[256];
-  MDL_key *mdl_key= mdl_ticket->get_key();
-  my_snprintf(buffer, sizeof(buffer) - 1, "%.*s/%.*s (%s)",
+  SQL_CATALOG const *catalog= mdl_key->catalog();
+  LEX_CSTRING cat_name= empty_clex_str;
+  const char *cat_sep= "";
+
+  if (using_catalogs)
+  {
+    cat_name= catalog->name;
+    cat_sep="/";
+  }
+
+  my_snprintf(buffer, sizeof(buffer) - 1, "%.*s%s%.*s/%.*s (%s)",
+              (int) cat_name.length, cat_name.str, cat_sep,
               (int) mdl_key->db_name_length(), mdl_key->db_name(),
               (int) mdl_key->name_length(),    mdl_key->name(),
-              mdl_ticket->get_type_name()->str);
+              type);
   return buffer;
 }
+
+
+static const char *dbug_print_mdl(MDL_ticket *mdl_ticket)
+{
+  return dbug_print_key(mdl_ticket->get_key(),
+                        mdl_ticket->get_type_name()->str);
+}
+
 
 
 static int mdl_dbug_print_lock(MDL_ticket *mdl_ticket, void *arg, bool granted)
@@ -1986,6 +2004,11 @@ MDL_context::find_ticket(MDL_request *mdl_request,
 {
   MDL_ticket *ticket;
   int i;
+  DBUG_ENTER("MDL_context::find_ticket");
+
+#ifdef EXTRA_DEBUG
+  DBUG_PRINT("enter", ("mdl_key: %s", dbug_print_key(&mdl_request->key,"")));
+#endif
 
   for (i= 0; i < MDL_DURATION_END; i++)
   {
@@ -1995,6 +2018,10 @@ MDL_context::find_ticket(MDL_request *mdl_request,
 
     while ((ticket= it++))
     {
+#ifdef EXTRA_DEBUG
+      DBUG_PRINT("info", ("mdl_ticket: %s", dbug_print_mdl(ticket)));
+#endif
+
       if (mdl_request->key.is_equal(&ticket->m_lock->key) &&
           ticket->has_stronger_or_equal_type(mdl_request->type))
       {
@@ -2003,11 +2030,11 @@ MDL_context::find_ticket(MDL_request *mdl_request,
                                               mdl_request->type)->str,
                             ticket->get_type_name()->str));
         *result_duration= duration;
-        return ticket;
+        DBUG_RETURN(ticket);
       }
     }
   }
-  return NULL;
+  DBUG_RETURN(NULL);
 }
 
 

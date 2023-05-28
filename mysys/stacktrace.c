@@ -45,6 +45,7 @@ static sig_handler default_handle_fatal_signal(int sig)
 {
   my_safe_printf_stderr("%s: Got signal %d. Attempting backtrace\n",
                         my_progname_short, sig);
+  DBUG_FLUSH();
   my_print_stacktrace(0,0,1);
 #ifndef _WIN32
   signal(sig, SIG_DFL);

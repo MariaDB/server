@@ -132,6 +132,7 @@ extern int (*dbug_sanity)(void);
 #define IF_DBUG_ASSERT(A,B)             A
 #define DBUG_SWAP_CODE_STATE(arg) dbug_swap_code_state(arg)
 #define DBUG_FREE_CODE_STATE(arg) dbug_free_code_state(arg)
+#define DBUG_FLUSH() _db_flush_()
 #undef DBUG_ASSERT_AS_PRINTF
 
 #ifndef _WIN32
@@ -200,6 +201,7 @@ extern void _db_suicide_(void);
 #define DBUG_CRASH_RETURN(val)          do { return(val); } while(0)
 #define DBUG_CRASH_VOID_RETURN          do { return; } while(0)
 #define DBUG_SUICIDE()                  ((void) 0)
+#define DBUG_FLUSH()                    do { } while(0)
 
 #ifdef DBUG_ASSERT_AS_PRINTF
 extern void (*my_dbug_assert_failed)(const char *assert_expr, const char* file, unsigned long line);
