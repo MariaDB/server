@@ -71,7 +71,7 @@ Bug Reports
 Bug and/or error reports regarding MariaDB should be submitted at:
 https://jira.mariadb.org
 
-For reporting security vulnerabilities, see our [security-policy](https://github.com/diogoteles08/mariadb-server/security/policy).
+For reporting security vulnerabilities, see our [security-policy](https://mariadb.org/about/security-policy/).
 
 The code for MariaDB, including all revision history, can be found at:
 https://github.com/MariaDB/server
