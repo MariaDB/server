@@ -321,6 +321,28 @@ select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') f
 json_extract(trace, '$**.join_optimization.steps[*].transformation.to')
 NULL
 drop table t1, t2;
+# fix NOT IN with null values
+create table t1 (a1 int, b1 int);
+create table t2 (a2 int, b2 int);
+insert into t1 values (0, null), (1, 1);
+insert into t2 values (0, 1), (1, null);
+# returns (0, null), (1, 1)
+select * from t1 where not a1 in (select a2 from t2 where b1 = b2);
+a1	b1
+0	NULL
+1	1
+select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
+json_extract(trace, '$**.join_optimization.steps[*].transformation.to')
+["decorrelation"]
+# returns empty
+select * from t1 where not (a1, b1) in (select a2, b2 from t2);
+a1	b1
+# returns (0, null), (1, 1)
+select * from t1 where not (b1 is not null and (a1, b1) in (select a2, b2 from t2 where b2 is not null));
+a1	b1
+0	NULL
+1	1
+drop table t1, t2;
 # skip transformation when neither toplevel IN nor toplevel NOT IN; testcase adapated from main.subslect4
 CREATE TABLE t1 ( a INT, b INT );
 INSERT INTO t1 VALUES ( 1, NULL ), ( 2, NULL );
@@ -332,16 +354,6 @@ select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') f
 json_extract(trace, '$**.join_optimization.steps[*].transformation.to')
 NULL
 SELECT * FROM t1 WHERE a IN ( SELECT c FROM t2 where b = d ) IS NULL;
-a	b
-select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
-json_extract(trace, '$**.join_optimization.steps[*].transformation.to')
-NULL
-SELECT * FROM t1 WHERE a NOT IN ( SELECT c FROM t2 where b = d) IS unknown;
-a	b
-select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
-json_extract(trace, '$**.join_optimization.steps[*].transformation.to')
-NULL
-SELECT * FROM t1 WHERE a IN ( SELECT c FROM t2 where b = d ) IS unknown;
 a	b
 select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
 json_extract(trace, '$**.join_optimization.steps[*].transformation.to')

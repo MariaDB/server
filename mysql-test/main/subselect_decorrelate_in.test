@@ -217,6 +217,23 @@ select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') f
 
 drop table t1, t2;
 
+--echo # fix NOT IN with null values
+create table t1 (a1 int, b1 int);
+create table t2 (a2 int, b2 int);
+
+insert into t1 values (0, null), (1, 1);
+insert into t2 values (0, 1), (1, null);
+
+--echo # returns (0, null), (1, 1)
+select * from t1 where not a1 in (select a2 from t2 where b1 = b2);
+select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
+--echo # returns empty
+select * from t1 where not (a1, b1) in (select a2, b2 from t2);
+--echo # returns (0, null), (1, 1)
+select * from t1 where not (b1 is not null and (a1, b1) in (select a2, b2 from t2 where b2 is not null));
+
+drop table t1, t2;
+
 --echo # skip transformation when neither toplevel IN nor toplevel NOT IN; testcase adapated from main.subslect4
 CREATE TABLE t1 ( a INT, b INT );
 INSERT INTO t1 VALUES ( 1, NULL ), ( 2, NULL );
@@ -227,12 +244,6 @@ SELECT * FROM t1 WHERE a NOT IN ( SELECT c FROM t2 where b = d ) IS NULL;
 select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
 # not top level, upper_not is null
 SELECT * FROM t1 WHERE a IN ( SELECT c FROM t2 where b = d ) IS NULL;
-select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
-# not top level, upper_not is not top level
-SELECT * FROM t1 WHERE a NOT IN ( SELECT c FROM t2 where b = d) IS unknown;
-select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
-# not top level, upper_not is null
-SELECT * FROM t1 WHERE a IN ( SELECT c FROM t2 where b = d ) IS unknown;
 select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
 
 drop table t1, t2;
