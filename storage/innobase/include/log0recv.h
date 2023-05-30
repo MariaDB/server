@@ -394,7 +394,7 @@ public:
   bool add(map::iterator it, lsn_t start_lsn, lsn_t lsn,
            const byte *l, size_t len);
 
-  /** Parse and register one mini-transaction in log_t::FORMAT_10_5.
+  /** Parse and register mini-transactions in log_t::FORMAT_10_5.
   @param checkpoint_lsn  the log sequence number of the latest checkpoint
   @param store           whether to store the records
   @param apply           whether to apply file-level log records

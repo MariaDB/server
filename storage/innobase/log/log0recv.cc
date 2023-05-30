@@ -2396,7 +2396,7 @@ void recv_sys_t::rewind(const byte *end, const byte *begin) noexcept
   pages_it= pages.end();
 }
 
-/** Parse and register one mini-transaction in log_t::FORMAT_10_5.
+/** Parse and register mini-transactions in log_t::FORMAT_10_5.
 @param checkpoint_lsn  the log sequence number of the latest checkpoint
 @param store           whether to store the records
 @param apply           whether to apply file-level log records
@@ -2404,7 +2404,7 @@ void recv_sys_t::rewind(const byte *end, const byte *begin) noexcept
 or corruption was noticed */
 bool recv_sys_t::parse(lsn_t checkpoint_lsn, store_t *store, bool apply)
 {
- restart:
+restart:
   mysql_mutex_assert_owner(&log_sys.mutex);
   mysql_mutex_assert_owner(&mutex);
   ut_ad(parse_start_lsn);
@@ -3626,7 +3626,6 @@ void recv_sys_t::apply(bool last_batch)
     recv_no_ibuf_operations = !last_batch ||
       srv_operation == SRV_OPERATION_RESTORE ||
       srv_operation == SRV_OPERATION_RESTORE_EXPORT;
-    ut_ad(!last_batch || recovered_lsn == scanned_lsn);
     progress_time= time(nullptr);
     report_progress();
 
