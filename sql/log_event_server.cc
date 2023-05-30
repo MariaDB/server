@@ -5676,6 +5676,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
                        " (master had triggers)" : ""));
   if (table)
   {
+    Rows_log_event::Db_restore_ctx restore_ctx(this);
     master_had_triggers= table->master_had_triggers;
     bool transactional_table= table->file->has_transactions_and_rollback();
     table->file->prepare_for_insert(get_general_type_code() != WRITE_ROWS_EVENT);
@@ -7601,7 +7602,6 @@ Write_rows_log_event::do_exec_row(rpl_group_info *rgi)
 {
   DBUG_ASSERT(m_table != NULL);
   const char *tmp= thd->get_proc_info();
-  LEX_CSTRING tmp_db= thd->db;
   char *message, msg[128];
   const LEX_CSTRING &table_name= m_table->s->table_name;
   const char quote_char=
@@ -7609,7 +7609,6 @@ Write_rows_log_event::do_exec_row(rpl_group_info *rgi)
   my_snprintf(msg, sizeof msg,
               "Write_rows_log_event::write_row() on table %c%.*s%c",
               quote_char, int(table_name.length), table_name.str, quote_char);
-  thd->reset_db(&m_table->s->db);
   message= msg;
   int error;
 
@@ -7631,7 +7630,6 @@ Write_rows_log_event::do_exec_row(rpl_group_info *rgi)
     my_error(ER_UNKNOWN_ERROR, MYF(0));
   }
 
-  thd->reset_db(&tmp_db);
   return error;
 }
 
@@ -8237,7 +8235,6 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
 {
   int error;
   const char *tmp= thd->get_proc_info();
-  LEX_CSTRING tmp_db= thd->db;
   char *message, msg[128];
   const LEX_CSTRING &table_name= m_table->s->table_name;
   const char quote_char=
@@ -8245,7 +8242,6 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
   my_snprintf(msg, sizeof msg,
               "Delete_rows_log_event::find_row() on table %c%.*s%c",
               quote_char, int(table_name.length), table_name.str, quote_char);
-  thd->reset_db(&m_table->s->db);
   message= msg;
   const bool invoke_triggers= (m_table->triggers && do_invoke_trigger());
   DBUG_ASSERT(m_table != NULL);
@@ -8305,7 +8301,6 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
       error= HA_ERR_GENERIC; // in case if error is not set yet
     m_table->file->ha_index_or_rnd_end();
   }
-  thd->reset_db(&tmp_db);
   thd_proc_info(thd, tmp);
   return error;
 }
@@ -8406,7 +8401,6 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   const bool invoke_triggers= (m_table->triggers && do_invoke_trigger());
   const char *tmp= thd->get_proc_info();
   DBUG_ASSERT(m_table != NULL);
-  LEX_CSTRING tmp_db= thd->db;
   char *message, msg[128];
   const LEX_CSTRING &table_name= m_table->s->table_name;
   const char quote_char=
@@ -8414,7 +8408,6 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   my_snprintf(msg, sizeof msg,
               "Update_rows_log_event::find_row() on table %c%.*s%c",
               quote_char, int(table_name.length), table_name.str, quote_char);
-  thd->reset_db(&m_table->s->db);
   message= msg;
 
 #ifdef WSREP_PROC_INFO
@@ -8443,7 +8436,6 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
     if ((m_curr_row= m_curr_row_end))
       unpack_current_row(rgi, &m_cols_ai);
     thd_proc_info(thd, tmp);
-    thd->reset_db(&tmp_db);
     return error;
   }
 
@@ -8532,7 +8524,6 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
 
 err:
   thd_proc_info(thd, tmp);
-  thd->reset_db(&tmp_db);
   m_table->file->ha_index_or_rnd_end();
   return error;
 }
