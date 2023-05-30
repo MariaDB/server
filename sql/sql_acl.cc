@@ -13980,6 +13980,44 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     return packet_error;
   }
 
+  /* If the server is configured to redirect clients to another server (pre-authentication),
+   * then send an error packet to signal that here.
+   *
+   * FIXME: it makes absolutely no sense for this pre-authentication redirection mechanism
+   *   to be invoked HERE, in the middle of the authentication process. Unfortunately, the
+   *   existing code structure deeply entangles two logically separate concerns:
+   *
+   *   1) Encrypting and authenticating the client->server connection at the TRANSPORT layer
+   *      using TLS/SSL (TLS stands for TRANSPORT-layer security).
+   *   2) Negotiating an appropriate APPLICATION-layer authentication mode, and then
+   *      authenticating the client.
+   *
+   *   It would be much more logical, simple, and universal to do this redirection right at
+   *   the beginning of sql_authenticate(), but -- because of the above entangling -- the
+   *   transport layer encryption has not yet been enabled at that point.
+   *
+   *   This means that a client which expects a secured transport SHOULD NOT trust any
+   *   redirection message (or any other error message) which it receives prior to the
+   *   the TLS handshake; existing clients DO present such errors as trustworthy, which is
+   *   a security vulnerability that needs a separate fix (see more details at
+   *   https://jira.mariadb.org/browse/CONC-648).
+   */
+  enum enum_vio_type type= vio_type(thd->net.vio);
+  bool local_connection= (type == VIO_TYPE_SOCKET) || (type == VIO_TYPE_NAMEDPIPE);
+
+  if (instant_failover_mode == INSTANT_FAILOVER_MODE_ALL ||
+      (instant_failover_mode == INSTANT_FAILOVER_MODE_ON && !local_connection))
+  {
+    sql_print_warning("Redirecting connection %lld via %s to INSTANT_FAILOVER_TARGET=%s (INSTANT_FAILOVER_MODE=%s)",
+                      thd->thread_id, safe_vio_type_name(thd->net.vio), instant_failover_target,
+                      (instant_failover_mode == INSTANT_FAILOVER_MODE_ON ? "ON" : "ALL"));
+    DBUG_PRINT("info", ("redirecting connection %lld via %s to INSTANT_FAILOVER_TARGET=%s (INSTANT_FAILOVER_MODE=%s)",
+                        thd->thread_id, safe_vio_type_name(thd->net.vio), instant_failover_target,
+                        (instant_failover_mode == INSTANT_FAILOVER_MODE_ON ? "ON" : "ALL")));
+    my_error(ER_INSTANT_FAILOVER, MYF(0), instant_failover_target);
+    DBUG_RETURN(packet_error);
+  }
+
   if (client_capabilities & CLIENT_PROTOCOL_41)
   {
     thd->max_client_packet_length= uint4korr(net->read_pos+4);
