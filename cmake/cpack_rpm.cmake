@@ -71,7 +71,7 @@ It was originally forked from Percona XtraBackup 2.3.8.")
 # Packages with default description
 SET(CPACK_RPM_client_PACKAGE_SUMMARY "MariaDB database client binaries")
 SET(CPACK_RPM_client_PACKAGE_DESCRIPTION "${CPACK_RPM_PACKAGE_DESCRIPTION}")
-SET(CPACK_RPM_common_PACKAGE_SUMMARY "MariaDB database common files (e.g. /etc/mysql/conf.d/mariadb.cnf)")
+SET(CPACK_RPM_common_PACKAGE_SUMMARY "MariaDB database common configuration files (e.g. /etc/mysql/conf.d/mariadb.cnf)")
 SET(CPACK_RPM_common_PACKAGE_DESCRIPTION "${CPACK_RPM_PACKAGE_DESCRIPTION}")
 SET(CPACK_RPM_compat_PACKAGE_SUMMARY "MariaDB database client library MySQL compat package")
 SET(CPACK_RPM_compat_PACKAGE_DESCRIPTION "${CPACK_RPM_PACKAGE_DESCRIPTION}")

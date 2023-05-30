@@ -1,9 +1,9 @@
 INCLUDE (CheckIncludeFiles)
 INCLUDE (CheckLibraryExists)
 
-SET(CPACK_RPM_cracklib-password-check_PACKAGE_SUMMARY "CrackLib Password Validation Plugin for MariaDB" PARENT_SCOPE)
+SET(CPACK_RPM_cracklib-password-check_PACKAGE_SUMMARY "CrackLib Password Validation Plugin for MariaDB server" PARENT_SCOPE)
 SET(CPACK_RPM_cracklib-password-check_PACKAGE_DESCRIPTION "This password validation plugin uses cracklib to allow only
-sufficiently secure (as defined by cracklib) user passwords in MariaDB." PARENT_SCOPE)
+sufficiently secure (as defined by cracklib) user passwords in MariaDB server." PARENT_SCOPE)
 
 CHECK_LIBRARY_EXISTS(crack FascistCheckUser "" HAVE_LIBCRACK)
 

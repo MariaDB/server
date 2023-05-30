@@ -17,7 +17,7 @@ IF(WITHOUT_DYNAMIC_PLUGINS OR WITH_NONE OR ("${PLUGIN_CONNECT}" STREQUAL "NO"))
   RETURN()
 ENDIF()
 
-SET(CPACK_RPM_connect-engine_PACKAGE_SUMMARY "Connect storage engine for MariaDB" PARENT_SCOPE)
+SET(CPACK_RPM_connect-engine_PACKAGE_SUMMARY "Connect storage engine for MariaDB server" PARENT_SCOPE)
 SET(CPACK_RPM_connect-engine_PACKAGE_DESCRIPTION "Connect engine supports a number of file formats (dbf, xml, txt, bin, etc),
 connections to ODBC tables and remote MySQL tables, as well as a number of
 other interesting features." PARENT_SCOPE)
