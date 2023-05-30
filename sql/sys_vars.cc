@@ -7328,3 +7328,23 @@ static Sys_var_enum Sys_block_encryption_mode(
   "AES_ENCRYPT() and AES_DECRYPT() functions",
   SESSION_VAR(block_encryption_mode), CMD_LINE(REQUIRED_ARG),
   block_encryption_mode_values, DEFAULT(0));
+
+static Sys_var_charptr_fscs Sys_instant_failover_target(
+	"instant_failover_target",
+        "Instant failover target. This should be a hostname, an IP address, or "
+        "a hostname or IP address followed by ':PORT'. Instant failover will "
+        "not be activated unless INSTANT_FAILOVER_MODE is also set.",
+        GLOBAL_VAR(instant_failover_target), CMD_LINE(REQUIRED_ARG),
+        DEFAULT(NULL));
+
+static const char *instant_failover_mode_names[]= {
+        "OFF", "ON", "ALL", 0 };
+
+static Sys_var_enum Sys_instant_failover_mode(
+       "instant_failover_mode",
+       "Instant failover mode. "
+       "Possible modes are: OFF - No instant failover, "
+       "ON: Unconditionally redirect new clients connecting over the network to INSTANT_FAILOVER_TARGET (no redirection of local socket-based connections), "
+       "ALL: Unconditionally redirect all new clients to INSTANT_FAILOVER_TARGET (even via local socket-based connections).",
+       GLOBAL_VAR(instant_failover_mode), CMD_LINE(REQUIRED_ARG),
+       instant_failover_mode_names, DEFAULT(0));

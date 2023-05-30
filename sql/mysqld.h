@@ -1002,6 +1002,14 @@ extern ulong opt_binlog_dbug_fsync_sleep;
 extern uint volatile global_disable_checkpoint;
 extern my_bool opt_help;
 
+extern const char *instant_failover_target;
+enum enum_instant_failover_mode {
+    INSTANT_FAILOVER_MODE_OFF = 0,
+    INSTANT_FAILOVER_MODE_ON = 1,
+    INSTANT_FAILOVER_MODE_ALL = 2
+};
+extern ulong instant_failover_mode;
+
 extern int mysqld_main(int argc, char **argv);
 
 #ifdef _WIN32
