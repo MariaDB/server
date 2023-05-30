@@ -5603,14 +5603,12 @@ end2:
 bool MYSQL_BIN_LOG::write_event(Log_event *ev, binlog_cache_data *cache_data,
                                 IO_CACHE *file)
 {
-  Log_event_writer writer(file, 0, &crypto);
+  Log_event_writer writer(file, cache_data, &crypto);
   if (crypto.scheme && file == &log_file)
   {
     writer.ctx= alloca(crypto.ctx_size);
     writer.set_encrypted_writer();
   }
-  if (cache_data)
-    cache_data->add_status(ev->logged_status());
   return writer.write(ev);
 }
 
