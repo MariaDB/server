@@ -7173,3 +7173,23 @@ static Sys_var_optimizer_cost Sys_optimizer_scan_cost(
   CMD_LINE(REQUIRED_ARG),
   VALID_RANGE(0, 100000000), DEFAULT(DEFAULT_TABLE_SCAN_SETUP_COST),
   COST_ADJUST(1000));
+
+static Sys_var_charptr_fscs Sys_server_redirect_target(
+	"server_redirect_target",
+        "Server redirection target. This should be a hostname, an IP address, or "
+        "a hostname or IP address followed by ':PORT'. Server redirection will "
+        "not be activated unless SERVER_REDIRECT_MODE is also set.",
+        GLOBAL_VAR(server_redirect_target), CMD_LINE(REQUIRED_ARG),
+        DEFAULT(NULL));
+
+static const char *server_redirect_mode_names[]= {
+        "OFF", "ON", "ALL", 0 };
+
+static Sys_var_enum Sys_server_redirect_mode(
+       "server_redirect_mode",
+       "Server redirection mode. "
+       "Possible modes are: OFF - No redirection, "
+       "ON: Unconditionally redirect new clients attempting to connect over the network (e.g. no redirection of local socket-based connections), "
+       "ALL: Unconditionally redirect new clients attempting to connect (even via local socket-based connections).",
+       GLOBAL_VAR(server_redirect_mode), CMD_LINE(REQUIRED_ARG),
+       server_redirect_mode_names, DEFAULT(0));

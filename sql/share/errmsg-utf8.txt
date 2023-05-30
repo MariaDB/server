@@ -10786,3 +10786,7 @@ ER_JSON_SCHEMA_KEYWORD_UNSUPPORTED
         eng "%s keyword is not supported"
 ER_EVENTS_NO_ACL
         eng "Event scheduler cannot function with --skip-grant-tables, --bootstrap, or embedded build"
+ER_SERVER_REDIRECT
+        eng "|Server is redirecting clients to '%1$s'|%1$s"
+        fra "|Ce serveur rédirige ses clients vers '%1$s'|%1$s"
+        spa "|Este servidor redirige sus clientes hacia '%1$s'|%1$s"

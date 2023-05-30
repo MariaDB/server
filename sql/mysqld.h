@@ -995,6 +995,14 @@ extern ulong opt_binlog_dbug_fsync_sleep;
 extern uint volatile global_disable_checkpoint;
 extern my_bool opt_help;
 
+extern const char *server_redirect_target;
+enum enum_server_redirect_mode {
+    SERVER_REDIRECT_MODE_OFF = 0,
+    SERVER_REDIRECT_MODE_ON = 1,
+    SERVER_REDIRECT_MODE_ALL = 2
+};
+extern ulong server_redirect_mode;
+
 extern int mysqld_main(int argc, char **argv);
 
 #ifdef _WIN32

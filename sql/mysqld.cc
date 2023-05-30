@@ -1504,6 +1504,12 @@ static Atomic_counter<uint> extra_connection_count;
 
 my_bool opt_gtid_strict_mode= FALSE;
 
+/**
+ Server redirect
+ */
+
+const char *server_redirect_target = NullS;
+ulong server_redirect_mode= SERVER_REDIRECT_MODE_OFF;
 
 /* Function declarations */
 
