@@ -43,6 +43,7 @@
 #include "sql_cte.h"
 #include "sql_test.h"
 #include "opt_trace.h"
+#include "opt_subselect.h"
 
 double get_post_group_estimate(JOIN* join, double join_op_rows);
 
@@ -3291,6 +3292,14 @@ bool Item_in_subselect::exists2in_processor(void *opt_arg)
                         get_select_lex()->select_number, "IN (SELECT)",
                         "decorrelation");
   }
+
+  /** If not having materialization as a strategy and it is not a
+  semijoin thus will not have a chance of adding materialization later
+  in `check_and_do_in_subquery_rewrites()`, try to add materialization
+  again */
+  if (!test_strategy(SUBS_MATERIALIZATION) && !is_registered_semijoin)
+    try_add_materialization(thd, this);
+
 out:
   /* Switch back to the runtime arena */
   if (arena)

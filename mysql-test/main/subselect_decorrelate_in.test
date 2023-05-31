@@ -408,3 +408,25 @@ eval $query;
 select json_detailed(json_extract(trace, '$**.join_optimization.steps[*].transformation')) from information_schema.OPTIMIZER_TRACE;
 
 drop table t1, t2;
+
+--echo # non-semijoin materialization
+create table ten(a int);
+insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table one_h(a int);
+insert into one_h select A.a + B.a* 10 from ten A, ten B;
+
+create table ten_k(a int primary key);
+insert into ten_k select A.a + B.a* 100 from one_h A, one_h B;
+
+create table t1 (a int, b int, c int );
+
+insert into t1 select a, a, a from one_h;
+
+create table t2 (a int, b int, c int );
+insert into t2  select a,a,a from ten_k;
+
+explain select * from t1 where 1 in (select 1 from t2 where t2.a=t1.a and t2.b=t1.b) or t1.c<333;
+select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
+
+drop table ten, one_h, ten_k, t1, t2;
