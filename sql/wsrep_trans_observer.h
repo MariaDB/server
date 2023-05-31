@@ -217,13 +217,18 @@ static inline bool wsrep_run_commit_hook(THD* thd, bool all)
 
   mysql_mutex_lock(&thd->LOCK_thd_data);
   /* Transaction creating sequence is TOI or RSU,
-  CREATE [TEMPORARY] SEQUENCE = CREATE + INSERT (initial value)
+  CREATE SEQUENCE = CREATE + INSERT (initial value)
   and replicated using statement based replication, thus
-  the commit hooks will be skipped */
+  the commit hooks will be skipped.
+
+  For TEMPORARY SEQUENCES commit hooks will be done as
+  CREATE + INSERT is not replicated and needs to be
+  committed locally. */
   if (ret &&
       (thd->wsrep_cs().mode() == wsrep::client_state::m_toi ||
        thd->wsrep_cs().mode() == wsrep::client_state::m_rsu) &&
-      thd->lex->sql_command == SQLCOM_CREATE_SEQUENCE)
+      thd->lex->sql_command == SQLCOM_CREATE_SEQUENCE &&
+      !thd->lex->tmp_table())
     ret= false;
   mysql_mutex_unlock(&thd->LOCK_thd_data);
 
