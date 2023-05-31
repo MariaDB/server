@@ -3076,9 +3076,6 @@ set_start_lsn:
 		     || recv_sys.is_corrupt_log()) && !srv_force_recovery) {
 			if (init) {
 				init->created = false;
-				if (space || block->page.id().page_no()) {
-					block->page.lock.x_lock_recursive();
-				}
 			}
 
 			mtr.discard_modifications();
