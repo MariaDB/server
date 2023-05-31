@@ -60,6 +60,7 @@ INSERT INTO tbl_a (pkey) VALUES (20),(21),(22),(23),(24),(25),(26),(27),(28),(29
 --echo
 --echo select test 1
 
+--disable_ps2_protocol
 --connection child2_1
 TRUNCATE TABLE mysql.general_log;
 LOCK TABLE tbl_a WRITE;
@@ -88,6 +89,7 @@ eval $CHILD2_2_SELECT_TABLES;
 
 --connection master_1
 reap;
+--enable_ps2_protocol
 
 --echo
 --echo deinit

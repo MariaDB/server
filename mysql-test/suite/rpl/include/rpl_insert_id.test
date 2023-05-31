@@ -182,9 +182,11 @@ drop trigger t1_bi;
 
 # Check that nested call doesn't affect outer context.
 select last_insert_id();
+--disable_ps2_protocol
 --disable_warnings ONCE
 select bug15728_insert();
 select last_insert_id();
+--enable_ps2_protocol
 insert into t1 (last_id) values (bug15728());
 # This should be exactly one greater than in the previous call.
 select last_insert_id();
@@ -440,8 +442,10 @@ delimiter ;|
 
 INSERT INTO t1 VALUES (NULL, -1);
 CALL p1();
+--disable_ps2_protocol
 --disable_warnings ONCE
 SELECT f1();
+--enable_ps2_protocol
 INSERT INTO t1 VALUES (NULL, f2()), (NULL, LAST_INSERT_ID()),
                       (NULL, LAST_INSERT_ID()), (NULL, f2()), (NULL, f2());
 INSERT INTO t1 VALUES (NULL, f2());
@@ -458,7 +462,9 @@ connection master1;
 INSERT INTO t1 (i) VALUES (NULL);
 
 connection master;
+--disable_ps2_protocol
 SELECT f3();
+--enable_ps2_protocol
 
 SELECT * FROM t1 ORDER BY i;
 SELECT * FROM t2 ORDER BY i;
@@ -510,8 +516,10 @@ insert into t2 (id) values(1),(2),(3);
 delete from t2;
 set sql_log_bin=1;
 #inside SELECT, then inside INSERT
+--disable_ps2_protocol
 --disable_warnings ONCE
 select insid();
+--enable_ps2_protocol
 set sql_log_bin=0;
 insert into t2 (id) values(5),(6),(7);
 delete from t2 where id>=5;

@@ -820,6 +820,7 @@ USE test;
 #
 # Bug #26162: Trigger DML ignores low_priority_updates setting
 #
+--disable_ps2_protocol
 CREATE TABLE t1 (id INTEGER);
 CREATE TABLE t2 (id INTEGER);
 
@@ -889,6 +890,7 @@ DROP TRIGGER t1_test;
 DROP TABLE t1,t2;
 SET SESSION LOW_PRIORITY_UPDATES=DEFAULT;
 SET GLOBAL LOW_PRIORITY_UPDATES=DEFAULT;
+--enable_ps2_protocol
 
 --echo End of 5.0 tests.
 

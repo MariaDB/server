@@ -37,11 +37,13 @@ INSERT INTO memos VALUES(5, "Groonga is fast");
 
 SHOW STATUS LIKE 'mroonga_fast_order_limit';
 
+--disable_ps2_protocol
 SELECT id, content
   FROM memos
  WHERE MATCH(content) AGAINST("+Mroonga" IN BOOLEAN MODE)
  ORDER BY id DESC
  LIMIT 2;
+--enable_ps2_protocol
 
 SHOW STATUS LIKE 'mroonga_fast_order_limit';
 

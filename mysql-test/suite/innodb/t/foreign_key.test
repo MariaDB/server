@@ -439,7 +439,9 @@ end|
 delimiter ;|
 flush tables;
 flush status;
+--disable_ps2_protocol
 select foo();
+--enable_ps2_protocol
 show status like '%opened_tab%';
 drop function foo;
 drop table t2, t1;

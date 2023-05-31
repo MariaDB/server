@@ -197,6 +197,7 @@ DELIMITER ;|
 --echo # Inserts
 set @a=0,@b=0,@c=0;
 
+--disable_ps2_protocol
 insert into t1 (a) values(1);
 insert into t1 (a,b) values(2, "*2*");
 insert into t1 (a,b,c) values(3, "*3*", "**3**");
@@ -219,6 +220,7 @@ update t1 set a=a+100, b=NULL where a=3;
 update t1 set a=a+100, b="invisible", c=NULL where a=4;
 select @a,@b,@c;
 select * from t1;
+--enable_ps2_protocol
 
 drop trigger t1_ins;
 drop trigger t1_update;

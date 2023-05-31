@@ -896,11 +896,14 @@ select distinct t1.id, tt.id, tt.data
        (select t1.id, 'yes' as data from t1) as tt
        on t1.id = tt.id;
 
+#Check after fix MDEV-31277
+--disable_ps2_protocol
 select distinct t1.id, tt.id, tt.data
   from t1
        left join
        (select t1.id, 'yes' as data from t1 where id > 1) as tt
        on t1.id = tt.id;
+--enable_ps2_protocol
 
 drop table t1;
 

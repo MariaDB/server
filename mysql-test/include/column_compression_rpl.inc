@@ -1,4 +1,6 @@
 
+--disable_ps2_protocol
+
 --connection slave
 
 SET @saved_slave_type_conversions = @@slave_type_conversions;
@@ -257,4 +259,4 @@ SET GLOBAL SLAVE_TYPE_CONVERSIONS = @saved_slave_type_conversions;
 DROP TABLE t1,t2;
 --sync_slave_with_master
 
-
+--enable_ps2_protocol

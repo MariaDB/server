@@ -372,9 +372,11 @@ BEGIN
 END|
 DELIMITER ;|
 
+--disable_ps2_protocol
 --disable_warnings
 SELECT func();
 --enable_warnings
+--enable_ps2_protocol
 
 --echo ==== Insert variables from a trigger ====
 
