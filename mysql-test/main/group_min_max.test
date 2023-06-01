@@ -1877,5 +1877,20 @@ SELECT MIN(a) from t1 where p = 2;
 drop table t1;
 
 --echo #
+--echo # MDEV-31380: Assertion `s->table->opt_range_condition_rows <= s->found_records' failed
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, PRIMARY KEY(a), KEY(b)) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_100;
+
+SET
+  @tmp=@@optimizer_use_condition_selectivity,
+  optimizer_use_condition_selectivity = 1;
+SELECT DISTINCT * FROM t1 WHERE a IN (1, 2);
+
+set optimizer_use_condition_selectivity = @tmp;
+drop table t1;
+
+--echo #
 --echo # End of 10.6 tests
 --echo #

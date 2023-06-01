@@ -4226,5 +4226,19 @@ MIN(a)
 0
 drop table t1;
 #
+# MDEV-31380: Assertion `s->table->opt_range_condition_rows <= s->found_records' failed
+#
+CREATE TABLE t1 (a INT, b INT, PRIMARY KEY(a), KEY(b)) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_100;
+SET
+@tmp=@@optimizer_use_condition_selectivity,
+optimizer_use_condition_selectivity = 1;
+SELECT DISTINCT * FROM t1 WHERE a IN (1, 2);
+a	b
+1	1
+2	2
+set optimizer_use_condition_selectivity = @tmp;
+drop table t1;
+#
 # End of 10.6 tests
 #
