@@ -2690,10 +2690,12 @@ void recv_sys_t::apply(bool last_batch)
         if (fil_space_t *space = fil_space_get(id + srv_undo_space_id_start))
         {
           ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
+          ut_ad(space->recv_size >= t.pages);
           fil_node_t *file= UT_LIST_GET_FIRST(space->chain);
           ut_ad(file->is_open());
           os_file_truncate(file->name, file->handle,
-                           os_offset_t{t.pages} << srv_page_size_shift, true);
+                           os_offset_t{space->recv_size} <<
+                           srv_page_size_shift, true);
         }
       }
     }
