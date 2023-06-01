@@ -20413,6 +20413,11 @@ a	HEX(a)
 \'à\	5C27E05C
 à\'\	E05C275C
 DROP TABLE t1;
+create view v1 as select hex('à\'), hex('à\t');
+select * from v1;
+hex('à\')	hex('à\t')
+E05C	E05C74
+drop view v1;
 SET character_set_client=binary, character_set_results=binary;
 SELECT @@character_set_client, @@character_set_connection, @@character_set_results;
 @@character_set_client	@@character_set_connection	@@character_set_results
@@ -20452,7 +20457,7 @@ HEX(a)
 E05C5B
 E05B
 DROP TABLE t1;
-# Start of ctype_E05C.inc
+# End of ctype_E05C.inc
 #
 # End of 10.0 tests
 #
