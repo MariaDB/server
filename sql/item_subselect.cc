@@ -3133,6 +3133,8 @@ bool Item_in_subselect::exists2in_processor(void *opt_arg)
   List<Item> outer;
   Query_arena *arena= NULL, backup;
   int res= FALSE;
+  uint outer_offset;
+  const uint offset= first_select->item_list.elements;
   DBUG_ENTER("Item_in_subselect::exists2in_processor");
 
   /*
@@ -3187,16 +3189,21 @@ bool Item_in_subselect::exists2in_processor(void *opt_arg)
     DBUG_ASSERT(prm.count >= (uint)eqs.elements());
     will_be_correlated= prm.count > (uint)eqs.elements();
   }
+
+  if ((uint)eqs.elements() > (first_select->item_list.elements +
+                              first_select->select_n_reserved))
+    goto out;
+
   /* Switch to the permanent arena if we are in a ps/sp execution */
   arena= thd->activate_stmt_arena_if_needed(&backup);
+
   /* Construct the items for left_expr */
   if (left_expr->type() == Item::ROW_ITEM)
     for (uint i= 0; i < left_expr->cols(); i++)
       outer.push_back(left_expr->element_index(i));
   else
     outer.push_back(left_expr);
-  const uint outer_offset= outer.elements;
-  const uint offset= first_select->item_list.elements;
+  outer_offset= outer.elements;
   DBUG_ASSERT(outer_offset == offset);
   /* Move items to outer and select item list */
   for (uint i= 0; i < (uint)eqs.elements(); i++)

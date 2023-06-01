@@ -159,8 +159,8 @@ json_extract(trace, '$**.join_optimization.steps[*].transformation.to')
 ["materialization", "semijoin"]
 drop table ten, t1, t2;
 # group by and having checks in the transformer; also not in
-create table t1 (a1 int, b1 char(8));
-create table t2 (a2 int, b2 char(8));
+create table t1 (a1 int not null, b1 char(8) not null);
+create table t2 (a2 int not null, b2 char(8) not null);
 insert into t1 values (0, '2 - 00');
 insert into t1 values (1, '2 - 01');
 insert into t1 values (2, '2 - 02');
