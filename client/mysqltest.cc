@@ -8943,6 +8943,8 @@ int util_query(MYSQL* org_mysql, const char* query){
           org_mysql->unix_socket);
 
       cur_con->util_mysql= mysql;
+      if (mysql->charset != org_mysql->charset)
+        mysql_set_character_set(mysql, org_mysql->charset->csname);
     }
   }
   else
