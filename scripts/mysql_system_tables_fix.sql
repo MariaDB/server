@@ -854,3 +854,9 @@ DELIMITER ;
 ALTER TABLE servers
   MODIFY Host varchar(2048) NOT NULL DEFAULT '',
   MODIFY Owner varchar(512) NOT NULL DEFAULT '';
+
+--
+-- Drop some tables not used anymore in MariaDB
+--
+drop table if exists mysql.ndb_binlog_index;
+drop table if exists mysql.host;

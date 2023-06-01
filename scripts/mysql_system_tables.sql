@@ -102,14 +102,6 @@ set @had_user_table= @@warning_count != 0;
 
 CREATE TABLE IF NOT EXISTS roles_mapping ( Host char(255) binary DEFAULT '' NOT NULL, User char(128) binary DEFAULT '' NOT NULL, Role char(128) binary DEFAULT '' NOT NULL, Admin_option enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, UNIQUE (Host, User, Role)) engine=Aria transactional=1 CHARACTER SET utf8 COLLATE utf8_bin comment='Granted roles';
 
-CREATE TABLE IF NOT EXISTS func (  name char(64) binary DEFAULT '' NOT NULL, ret tinyint(1) DEFAULT '0' NOT NULL, dl char(128) DEFAULT '' NOT NULL, type enum ('function','aggregate') COLLATE utf8_general_ci NOT NULL, PRIMARY KEY (name) ) engine=Aria transactional=1 CHARACTER SET utf8 COLLATE utf8_bin   comment='User defined functions';
-
-
-CREATE TABLE IF NOT EXISTS plugin ( name varchar(64) DEFAULT '' NOT NULL, dl varchar(128) DEFAULT '' NOT NULL, PRIMARY KEY (name) ) engine=Aria transactional=1 CHARACTER SET utf8 COLLATE utf8_general_ci comment='MySQL plugins';
-
-
-CREATE TABLE IF NOT EXISTS servers ( Server_name char(64) NOT NULL DEFAULT '', Host varchar(2048) NOT NULL DEFAULT '', Db char(64) NOT NULL DEFAULT '', Username char(128) NOT NULL DEFAULT '', Password char(64) NOT NULL DEFAULT '', Port INT(4) NOT NULL DEFAULT '0', Socket char(64) NOT NULL DEFAULT '', Wrapper char(64) NOT NULL DEFAULT '', Owner varchar(512) NOT NULL DEFAULT '', PRIMARY KEY (Server_name)) engine=Aria transactional=1 CHARACTER SET utf8 comment='MySQL Foreign Servers table';
-
 
 CREATE TABLE IF NOT EXISTS tables_priv ( Host char(255) binary DEFAULT '' NOT NULL, Db char(64) binary DEFAULT '' NOT NULL, User char(128) binary DEFAULT '' NOT NULL, Table_name char(64) binary DEFAULT '' NOT NULL, Grantor varchar(384) DEFAULT '' NOT NULL, Timestamp timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, Table_priv set('Select','Insert','Update','Delete','Create','Drop','Grant','References','Index','Alter','Create View','Show view','Trigger','Delete versioning rows') COLLATE utf8_general_ci DEFAULT '' NOT NULL, Column_priv set('Select','Insert','Update','References') COLLATE utf8_general_ci DEFAULT '' NOT NULL, PRIMARY KEY (Host,Db,User,Table_name), KEY Grantor (Grantor) ) engine=Aria transactional=1 CHARACTER SET utf8 COLLATE utf8_bin   comment='Table privileges';
 
@@ -120,32 +112,6 @@ DROP TABLE tmp_user_sys;
 
 CREATE TABLE IF NOT EXISTS columns_priv ( Host char(255) binary DEFAULT '' NOT NULL, Db char(64) binary DEFAULT '' NOT NULL, User char(128) binary DEFAULT '' NOT NULL, Table_name char(64) binary DEFAULT '' NOT NULL, Column_name char(64) binary DEFAULT '' NOT NULL, Timestamp timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, Column_priv set('Select','Insert','Update','References') COLLATE utf8_general_ci DEFAULT '' NOT NULL, PRIMARY KEY (Host,Db,User,Table_name,Column_name) ) engine=Aria transactional=1 CHARACTER SET utf8 COLLATE utf8_bin   comment='Column privileges';
 
-
-CREATE TABLE IF NOT EXISTS help_topic ( help_topic_id int unsigned not null, name char(64) not null, help_category_id smallint unsigned not null, description text not null, example text not null, url text not null, primary key (help_topic_id), unique index (name) ) engine=Aria transactional=0 CHARACTER SET utf8 comment='help topics';
-
-
-CREATE TABLE IF NOT EXISTS help_category ( help_category_id smallint unsigned not null, name  char(64) not null, parent_category_id smallint unsigned null, url text not null, primary key (help_category_id), unique index (name) ) engine=Aria transactional=0 CHARACTER SET utf8 comment='help categories';
-
-
-CREATE TABLE IF NOT EXISTS help_relation ( help_topic_id int unsigned not null references help_topic, help_keyword_id  int unsigned not null references help_keyword, primary key (help_keyword_id, help_topic_id) ) engine=Aria transactional=0 CHARACTER SET utf8 comment='keyword-topic relation';
-
-
-CREATE TABLE IF NOT EXISTS help_keyword (   help_keyword_id  int unsigned not null, name char(64) not null, primary key (help_keyword_id), unique index (name) ) engine=Aria transactional=0 CHARACTER SET utf8 comment='help keywords';
-
-
-CREATE TABLE IF NOT EXISTS time_zone_name (   Name char(64) NOT NULL, Time_zone_id int unsigned NOT NULL, PRIMARY KEY /*Name*/ (Name) ) engine=Aria transactional=1 CHARACTER SET utf8   comment='Time zone names';
-
-
-CREATE TABLE IF NOT EXISTS time_zone (   Time_zone_id int unsigned NOT NULL auto_increment, Use_leap_seconds enum('Y','N') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, PRIMARY KEY /*TzId*/ (Time_zone_id) ) engine=Aria transactional=1 CHARACTER SET utf8   comment='Time zones';
-
-
-CREATE TABLE IF NOT EXISTS time_zone_transition (   Time_zone_id int unsigned NOT NULL, Transition_time bigint signed NOT NULL, Transition_type_id int unsigned NOT NULL, PRIMARY KEY /*TzIdTranTime*/ (Time_zone_id, Transition_time) ) engine=Aria transactional=1 CHARACTER SET utf8   comment='Time zone transitions';
-
-
-CREATE TABLE IF NOT EXISTS time_zone_transition_type (   Time_zone_id int unsigned NOT NULL, Transition_type_id int unsigned NOT NULL, `Offset` int signed DEFAULT 0 NOT NULL, Is_DST tinyint unsigned DEFAULT 0 NOT NULL, Abbreviation char(8) DEFAULT '' NOT NULL, PRIMARY KEY /*TzIdTrTId*/ (Time_zone_id, Transition_type_id) ) engine=Aria transactional=1 CHARACTER SET utf8   comment='Time zone transition types';
-
-
-CREATE TABLE IF NOT EXISTS time_zone_leap_second (   Transition_time bigint signed NOT NULL, Correction int signed NOT NULL, PRIMARY KEY /*TranTime*/ (Transition_time) ) engine=Aria transactional=1 CHARACTER SET utf8   comment='Leap seconds information for time zones';
 
 CREATE TABLE IF NOT EXISTS proc (db char(64) collate utf8_bin DEFAULT '' NOT NULL, name char(64) DEFAULT '' NOT NULL, type enum('FUNCTION','PROCEDURE','PACKAGE','PACKAGE BODY') NOT NULL, specific_name char(64) DEFAULT '' NOT NULL, language enum('SQL') DEFAULT 'SQL' NOT NULL, sql_data_access enum( 'CONTAINS_SQL', 'NO_SQL', 'READS_SQL_DATA', 'MODIFIES_SQL_DATA') DEFAULT 'CONTAINS_SQL' NOT NULL, is_deterministic enum('YES','NO') DEFAULT 'NO' NOT NULL, security_type enum('INVOKER','DEFINER') DEFAULT 'DEFINER' NOT NULL, param_list blob NOT NULL, returns longblob NOT NULL, body longblob NOT NULL, definer varchar(384) collate utf8_bin DEFAULT '' NOT NULL, created timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, modified timestamp NOT NULL DEFAULT '0000-00-00 00:00:00', sql_mode set( 'REAL_AS_FLOAT', 'PIPES_AS_CONCAT', 'ANSI_QUOTES', 'IGNORE_SPACE', 'IGNORE_BAD_TABLE_OPTIONS', 'ONLY_FULL_GROUP_BY', 'NO_UNSIGNED_SUBTRACTION', 'NO_DIR_IN_CREATE', 'POSTGRESQL', 'ORACLE', 'MSSQL', 'DB2', 'MAXDB', 'NO_KEY_OPTIONS', 'NO_TABLE_OPTIONS', 'NO_FIELD_OPTIONS', 'MYSQL323', 'MYSQL40', 'ANSI', 'NO_AUTO_VALUE_ON_ZERO', 'NO_BACKSLASH_ESCAPES', 'STRICT_TRANS_TABLES', 'STRICT_ALL_TABLES', 'NO_ZERO_IN_DATE', 'NO_ZERO_DATE', 'INVALID_DATES', 'ERROR_FOR_DIVISION_BY_ZERO', 'TRADITIONAL', 'NO_AUTO_CREATE_USER', 'HIGH_NOT_PRECEDENCE', 'NO_ENGINE_SUBSTITUTION', 'PAD_CHAR_TO_FULL_LENGTH', 'EMPTY_STRING_IS_NULL', 'SIMULTANEOUS_ASSIGNMENT', 'TIME_ROUND_FRACTIONAL') DEFAULT '' NOT NULL, comment text collate utf8_bin NOT NULL, character_set_client char(32) collate utf8_bin, collation_connection char(64) collate utf8_bin, db_collation char(64) collate utf8_bin, body_utf8 longblob, aggregate enum('NONE', 'GROUP') DEFAULT 'NONE' NOT NULL, PRIMARY KEY (db,name,type)) engine=Aria transactional=1 character set utf8 comment='Stored Procedures';
 
@@ -196,19 +162,6 @@ SET @create_innodb_index_stats="CREATE TABLE IF NOT EXISTS innodb_index_stats (
 	PRIMARY KEY (database_name, table_name, index_name, stat_name)
 ) ENGINE=INNODB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0";
 
-SET @create_transaction_registry="CREATE TABLE IF NOT EXISTS transaction_registry (
-	transaction_id			BIGINT UNSIGNED NOT NULL,
-	commit_id			BIGINT UNSIGNED NOT NULL,
-	begin_timestamp			TIMESTAMP(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
-	commit_timestamp		TIMESTAMP(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
-	isolation_level			ENUM('READ-UNCOMMITTED', 'READ-COMMITTED',
-					'REPEATABLE-READ', 'SERIALIZABLE') NOT NULL,
-	PRIMARY KEY (transaction_id),
-	UNIQUE KEY (commit_id),
-	INDEX (begin_timestamp),
-	INDEX (commit_timestamp, transaction_id)
-) ENGINE=INNODB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0";
-
 SET @str=IF(@have_innodb <> 0, @create_innodb_table_stats, "SET @dummy = 0");
 PREPARE stmt FROM @str;
 EXECUTE stmt;
@@ -218,81 +171,6 @@ SET @str=IF(@have_innodb <> 0, @create_innodb_index_stats, "SET @dummy = 0");
 PREPARE stmt FROM @str;
 EXECUTE stmt;
 DROP PREPARE stmt;
-
-SET @str=IF(@have_innodb <> 0, @create_transaction_registry, "SET @dummy = 0");
-PREPARE stmt FROM @str;
-EXECUTE stmt;
-DROP PREPARE stmt;
-
-SET @cmd="CREATE TABLE IF NOT EXISTS slave_relay_log_info (
-  Number_of_lines INTEGER UNSIGNED NOT NULL COMMENT 'Number of lines in the file or rows in the table. Used to version table definitions.', 
-  Relay_log_name TEXT CHARACTER SET utf8 COLLATE utf8_bin NOT NULL COMMENT 'The name of the current relay log file.', 
-  Relay_log_pos BIGINT UNSIGNED NOT NULL COMMENT 'The relay log position of the last executed event.', 
-  Master_log_name TEXT CHARACTER SET utf8 COLLATE utf8_bin NOT NULL COMMENT 'The name of the master binary log file from which the events in the relay log file were read.', 
-  Master_log_pos BIGINT UNSIGNED NOT NULL COMMENT 'The master log position of the last executed event.', 
-  Sql_delay INTEGER NOT NULL COMMENT 'The number of seconds that the slave must lag behind the master.', 
-  Number_of_workers INTEGER UNSIGNED NOT NULL,
-  Id INTEGER UNSIGNED NOT NULL COMMENT 'Internal Id that uniquely identifies this record.',  
-  PRIMARY KEY(Id)) DEFAULT CHARSET=utf8 STATS_PERSISTENT=0 COMMENT 'Relay Log Information'";
-
-SET @str=CONCAT(@cmd, ' ENGINE=', @innodb_or_aria);
--- Don't create the table; MariaDB will have another implementation
-#PREPARE stmt FROM @str;
-#EXECUTE stmt;
-#DROP PREPARE stmt;
-
-SET @cmd= "CREATE TABLE IF NOT EXISTS slave_master_info (
-  Number_of_lines INTEGER UNSIGNED NOT NULL COMMENT 'Number of lines in the file.', 
-  Master_log_name TEXT CHARACTER SET utf8 COLLATE utf8_bin NOT NULL COMMENT 'The name of the master binary log currently being read from the master.', 
-  Master_log_pos BIGINT UNSIGNED NOT NULL COMMENT 'The master log position of the last read event.', 
-  Host CHAR(255) CHARACTER SET utf8 COLLATE utf8_bin COMMENT 'The host name of the master.',
-  User_name TEXT CHARACTER SET utf8 COLLATE utf8_bin COMMENT 'The user name used to connect to the master.', 
-  User_password TEXT CHARACTER SET utf8 COLLATE utf8_bin COMMENT 'The password used to connect to the master.', 
-  Port INTEGER UNSIGNED NOT NULL COMMENT 'The network port used to connect to the master.', 
-  Connect_retry INTEGER UNSIGNED NOT NULL COMMENT 'The period (in seconds) that the slave will wait before trying to reconnect to the master.', 
-  Enabled_ssl BOOLEAN NOT NULL COMMENT 'Indicates whether the server supports SSL connections.', 
-  Ssl_ca TEXT CHARACTER SET utf8 COLLATE utf8_bin COMMENT 'The file used for the Certificate Authority (CA) certificate.', 
-  Ssl_capath TEXT CHARACTER SET utf8 COLLATE utf8_bin COMMENT 'The path to the Certificate Authority (CA) certificates.', 
-  Ssl_cert TEXT CHARACTER SET utf8 COLLATE utf8_bin COMMENT 'The name of the SSL certificate file.', 
-  Ssl_cipher TEXT CHARACTER SET utf8 COLLATE utf8_bin COMMENT 'The name of the cipher in use for the SSL connection.', 
-  Ssl_key TEXT CHARACTER SET utf8 COLLATE utf8_bin COMMENT 'The name of the SSL key file.', 
-  Ssl_verify_server_cert BOOLEAN NOT NULL COMMENT 'Whether to verify the server certificate.', 
-  Heartbeat FLOAT NOT NULL COMMENT '', 
-  Bind TEXT CHARACTER SET utf8 COLLATE utf8_bin COMMENT 'Displays which interface is employed when connecting to the MySQL server', 
-  Ignored_server_ids TEXT CHARACTER SET utf8 COLLATE utf8_bin COMMENT 'The number of server IDs to be ignored, followed by the actual server IDs', 
-  Uuid TEXT CHARACTER SET utf8 COLLATE utf8_bin COMMENT 'The master server uuid.', 
-  Retry_count BIGINT UNSIGNED NOT NULL COMMENT 'Number of reconnect attempts, to the master, before giving up.', 
-  Ssl_crl TEXT CHARACTER SET utf8 COLLATE utf8_bin COMMENT 'The file used for the Certificate Revocation List (CRL)', 
-  Ssl_crlpath TEXT CHARACTER SET utf8 COLLATE utf8_bin COMMENT 'The path used for Certificate Revocation List (CRL) files', 
-  Enabled_auto_position BOOLEAN NOT NULL COMMENT 'Indicates whether GTIDs will be used to retrieve events from the master.', 
-  PRIMARY KEY(Host, Port)) DEFAULT CHARSET=utf8 STATS_PERSISTENT=0 COMMENT 'Master Information'";
-
-SET @str=CONCAT(@cmd, ' ENGINE=', @innodb_or_aria);
--- Don't create the table; MariaDB will have another implementation
-#PREPARE stmt FROM @str;
-#EXECUTE stmt;
-#DROP PREPARE stmt;
-
-SET @cmd= "CREATE TABLE IF NOT EXISTS slave_worker_info (
-  Id INTEGER UNSIGNED NOT NULL, 
-  Relay_log_name TEXT CHARACTER SET utf8 COLLATE utf8_bin NOT NULL, 
-  Relay_log_pos BIGINT UNSIGNED NOT NULL, 
-  Master_log_name TEXT CHARACTER SET utf8 COLLATE utf8_bin NOT NULL, 
-  Master_log_pos BIGINT UNSIGNED NOT NULL, 
-  Checkpoint_relay_log_name TEXT CHARACTER SET utf8 COLLATE utf8_bin NOT NULL, 
-  Checkpoint_relay_log_pos BIGINT UNSIGNED NOT NULL, 
-  Checkpoint_master_log_name TEXT CHARACTER SET utf8 COLLATE utf8_bin NOT NULL, 
-  Checkpoint_master_log_pos BIGINT UNSIGNED NOT NULL, 
-  Checkpoint_seqno INT UNSIGNED NOT NULL, 
-  Checkpoint_group_size INTEGER UNSIGNED NOT NULL, 
-  Checkpoint_group_bitmap BLOB NOT NULL, 
-  PRIMARY KEY(Id)) DEFAULT CHARSET=utf8 STATS_PERSISTENT=0 COMMENT 'Worker Information'";
-
-SET @str=CONCAT(@cmd, ' ENGINE=', @innodb_or_aria);
--- Don't create the table; MariaDB will have another implementation
-#PREPARE stmt FROM @str;
-#EXECUTE stmt;
-#DROP PREPARE stmt;
 
 CREATE TABLE IF NOT EXISTS proxies_priv (Host char(255) binary DEFAULT '' NOT NULL, User char(128) binary DEFAULT '' NOT NULL, Proxied_host char(255) binary DEFAULT '' NOT NULL, Proxied_user char(128) binary DEFAULT '' NOT NULL, With_grant BOOL DEFAULT 0 NOT NULL, Grantor varchar(384) DEFAULT '' NOT NULL, Timestamp timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY /*Host*/ (Host,User,Proxied_host,Proxied_user), KEY Grantor (Grantor) ) engine=Aria transactional=1 CHARACTER SET utf8 COLLATE utf8_bin comment='User proxy privileges';
 
@@ -316,25 +194,4 @@ CREATE TABLE IF NOT EXISTS column_stats (db_name varchar(64) NOT NULL, table_nam
 
 CREATE TABLE IF NOT EXISTS index_stats (db_name varchar(64) NOT NULL, table_name varchar(64) NOT NULL, index_name varchar(64) NOT NULL, prefix_arity int(11) unsigned NOT NULL, avg_frequency decimal(12,4) DEFAULT NULL, PRIMARY KEY (db_name,table_name,index_name,prefix_arity) ) engine=Aria transactional=0 CHARACTER SET utf8 COLLATE utf8_bin comment='Statistics on Indexes';
 
--- Note: This definition must be kept in sync with the one used in
--- build_gtid_pos_create_query() in sql/slave.cc
-SET @cmd= "CREATE TABLE IF NOT EXISTS gtid_slave_pos (
-  domain_id INT UNSIGNED NOT NULL,
-  sub_id BIGINT UNSIGNED NOT NULL,
-  server_id INT UNSIGNED NOT NULL,
-  seq_no BIGINT UNSIGNED NOT NULL,
-  PRIMARY KEY (domain_id, sub_id)) CHARSET=latin1
-COMMENT='Replication slave GTID position'";
-SET @str=CONCAT(@cmd, ' ENGINE=', @innodb_or_aria);
-PREPARE stmt FROM @str;
-EXECUTE stmt;
-DROP PREPARE stmt;
-
 set default_storage_engine=@orig_storage_engine;
-
---
--- Drop some tables not used anymore in MariaDB
---
-
-drop table if exists mysql.ndb_binlog_index;
-drop table if exists mysql.host;

@@ -171,7 +171,7 @@ servers	CREATE TABLE `servers` (
   `Wrapper` char(64) NOT NULL DEFAULT '',
   `Owner` varchar(512) NOT NULL DEFAULT '',
   PRIMARY KEY (`Server_name`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='MySQL Foreign Servers table'
+) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='MariaDB Foreign Servers table'
 show create table proc;
 Table	Create Table
 proc	CREATE TABLE `proc` (

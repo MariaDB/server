@@ -419,13 +419,14 @@ fi
 # Set up paths to SQL scripts required for bootstrap
 fill_help_tables="$srcpkgdatadir/fill_help_tables.sql"
 create_system_tables="$srcpkgdatadir/mysql_system_tables.sql"
-create_system_tables2="$srcpkgdatadir/mysql_performance_tables.sql"
+create_def_system_tables="$srcpkgdatadir/maria_def_system_tables.sql"
+create_performance_tables="$srcpkgdatadir/mysql_performance_tables.sql"
 fill_system_tables="$srcpkgdatadir/mysql_system_tables_data.sql"
 maria_add_gis_sp="$buildpkgdatadir/maria_add_gis_sp_bootstrap.sql"
 mysql_test_db="$srcpkgdatadir/mysql_test_db.sql"
 mysql_sys_schema="$buildpkgdatadir/mysql_sys_schema.sql"
 
-for f in "$fill_help_tables" "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$maria_add_gis_sp" "$mysql_test_db" "$mysql_sys_schema"
+for f in "$fill_help_tables" "$create_system_tables" "$create_def_system_tables" "$create_performance_tables" "$fill_system_tables" "$maria_add_gis_sp" "$mysql_test_db" "$mysql_sys_schema"
 do
   if test ! -f "$f"
   then
@@ -610,8 +611,13 @@ auth_root_socket_user=${auth_root_socket_user:-${user:-${USER:-root}}}
 cat_create_tables()
 {
   echo "use mysql;"
+  if test "$1" = "def"
+  then
+      cat "$create_system_tables" "$create_def_system_tables" "$create_performance_tables" "$fill_system_tables" "$fill_help_tables" "$maria_add_gis_sp" "$mysql_sys_schema"
+  else
+      cat "$create_system_tables" "$create_performance_tables" "$fill_system_tables" "$maria_add_gis_sp" "$mysql_sys_schema"
+  fi
 
-  cat "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$fill_help_tables" "$maria_add_gis_sp" "$mysql_sys_schema"
   if test "$skip_test_db" -eq 0
   then
     cat "$mysql_test_db"
@@ -639,12 +645,12 @@ cat_sql()
               echo "create catalog if not exists $dir;"
               echo "use catalog $dir;"
               echo "create database if not exists mysql;"
-              cat_create_tables
+              cat_create_tables $dir
           fi
       done
   else
     echo "create database if not exists mysql;"
-    cat_create_tables
+    cat_create_tables def
   fi
 
   # cat extra file if it's not null
@@ -656,7 +662,7 @@ cat_sql()
 
 # Create the system and help tables by passing them to "mariadbd --bootstrap"
 s_echo "Installing MariaDB system tables in '$ldata' ..."
-cat_sql > /tmp/install.sql # QQQQQQQQQ
+
 if cat_sql | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
 then
     printf "@VERSION@-MariaDB" > "$ldata/mariadb_upgrade_info"

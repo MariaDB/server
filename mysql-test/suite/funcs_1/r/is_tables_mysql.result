@@ -408,7 +408,7 @@ CREATE_OPTIONS	#CO#
 TABLE_COMMENT	#TC#
 MAX_INDEX_LENGTH	#MIL#
 TEMPORARY	N
-user_comment	MySQL plugins
+user_comment	MariaDB plugins
 Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
@@ -533,7 +533,7 @@ CREATE_OPTIONS	#CO#
 TABLE_COMMENT	#TC#
 MAX_INDEX_LENGTH	#MIL#
 TEMPORARY	N
-user_comment	MySQL Foreign Servers table
+user_comment	MariaDB Foreign Servers table
 Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql

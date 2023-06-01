@@ -3125,6 +3125,8 @@ sub mysql_install_db {
       # for a production system
       mtr_appendfile_to_file("$sql_dir/mysql_system_tables.sql",
            $bootstrap_sql_file);
+      mtr_appendfile_to_file("$sql_dir/maria_def_system_tables.sql",
+           $bootstrap_sql_file);
 
       my $gis_sp_path = $source_dist ? "$bindir/scripts" : $sql_dir;
       mtr_appendfile_to_file("$gis_sp_path/maria_add_gis_sp_bootstrap.sql",

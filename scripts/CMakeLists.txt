@@ -34,7 +34,7 @@ IF(NOT CMAKE_CROSSCOMPILING OR DEFINED CMAKE_CROSSCOMPILING_EMULATOR)
  TARGET_LINK_LIBRARIES(comp_sql)
 ENDIF()
 
-# Build mysql_fix_privilege_tables.sql (concatenate 3 sql scripts)
+# Build mysql_fix_privilege_tables.sql (concatenate several sql scripts)
 IF(NOT WIN32 OR  (CMAKE_CROSSCOMPILING AND NOT DEFINED CMAKE_CROSSCOMPILING_EMULATOR))
   FIND_PROGRAM(CAT_EXECUTABLE cat DOC "path to the executable")
   MARK_AS_ADVANCED(CAT_EXECUTABLE)
@@ -48,13 +48,13 @@ ENDIF()
 
 IF(CAT_EXECUTABLE)
   SET(CAT_COMMAND COMMAND
-    ${CAT_EXECUTABLE} mysql_system_tables_fix.sql mysql_system_tables.sql mysql_performance_tables.sql mysql_sys_schema.sql>
+    ${CAT_EXECUTABLE} mysql_system_tables_fix.sql mysql_system_tables.sql maria_def_system_tables.sql mysql_performance_tables.sql mysql_sys_schema.sql>
     mysql_fix_privilege_tables.sql
   )
 ELSEIF(WIN32)
   SET(CAT_COMMAND
    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_BINARY_DIR}
-   cmd /c copy /b mysql_system_tables_fix.sql + mysql_system_tables.sql +  mysql_performance_tables.sql + mysql_sys_schema.sql
+   cmd /c copy /b mysql_system_tables_fix.sql + mysql_system_tables.sql + maria_def_system_tables.sql + mysql_performance_tables.sql + mysql_sys_schema.sql
    mysql_fix_privilege_tables.sql )
 ELSE()
   MESSAGE(FATAL_ERROR "Cannot concatenate files")
@@ -71,6 +71,7 @@ ADD_CUSTOM_COMMAND(
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS comp_sql
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_system_tables.sql
+  ${CMAKE_CURRENT_SOURCE_DIR}/maria_def_system_tables.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_system_tables_fix.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_performance_tables.sql
   ${CMAKE_CURRENT_BINARY_DIR}/mysql_sys_schema.sql
@@ -110,6 +111,7 @@ CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/maria_add_gis_sp.sql.in
 IF (NOT WITHOUT_SERVER)
 INSTALL(FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_system_tables.sql
+  ${CMAKE_CURRENT_SOURCE_DIR}/maria_def_system_tables.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_system_tables_data.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_performance_tables.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_test_db.sql
