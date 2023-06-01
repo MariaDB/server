@@ -2,4 +2,7 @@
 --echo # MDEV-30370 mariadbd hangs when running with --wsrep-recover and --plugin-load-add=ha_spider.so
 --echo #
 
---exec $MYSQLD_BOOTSTRAP_CMD --wsrep-recover --plugin-load-add=ha_spider.so
+let $MYSQLD_DATADIR=$MYSQLTEST_VARDIR/mdev_30370;
+--mkdir $MYSQLD_DATADIR
+--exec $MYSQLD_BOOTSTRAP_CMD --wsrep-recover --plugin-load-add=ha_spider.so --datadir=$MYSQLD_DATADIR
+--rmdir $MYSQLD_DATADIR

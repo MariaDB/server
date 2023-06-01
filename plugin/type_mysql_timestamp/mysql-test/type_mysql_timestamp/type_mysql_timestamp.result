@@ -1,0 +1,45 @@
+#
+# MDEV-30483 After upgrade to 10.6 from Mysql 5.7 seeing "InnoDB: Column last_update in table mysql.innodb_table_stats is BINARY(4) NOT NULL but should be INT UNSIGNED NOT NULL"
+#
+SELECT
+PLUGIN_NAME,
+PLUGIN_VERSION,
+PLUGIN_STATUS,
+PLUGIN_TYPE,
+PLUGIN_AUTHOR,
+PLUGIN_DESCRIPTION,
+PLUGIN_LICENSE,
+PLUGIN_MATURITY,
+PLUGIN_AUTH_VERSION
+FROM INFORMATION_SCHEMA.PLUGINS
+WHERE PLUGIN_TYPE='DATA TYPE'
+    AND PLUGIN_NAME LIKE 'type_mysql_timestamp';
+PLUGIN_NAME	type_mysql_timestamp
+PLUGIN_VERSION	1.0
+PLUGIN_STATUS	ACTIVE
+PLUGIN_TYPE	DATA TYPE
+PLUGIN_AUTHOR	MariaDB Corporation
+PLUGIN_DESCRIPTION	Data type TYPE_MYSQL_TIMESTAMP
+PLUGIN_LICENSE	GPL
+PLUGIN_MATURITY	Experimental
+PLUGIN_AUTH_VERSION	1.0
+CREATE TABLE t1 (a TYPE_MYSQL_TIMESTAMP);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` type_mysql_timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+CREATE TABLE t1 (a TIMESTAMP);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ALTER TABLE t1 MODIFY a TYPE_MYSQL_TIMESTAMP;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` type_mysql_timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;

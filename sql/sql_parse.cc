@@ -7890,7 +7890,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
           thd->wsrep_retry_counter < thd->variables.wsrep_retry_autocommit)
       {
 #ifdef ENABLED_DEBUG_SYNC
-	DBUG_EXECUTE_IF("sync.wsrep_retry_autocommit",
+        DBUG_EXECUTE_IF("sync.wsrep_retry_autocommit",
                     {
                       const char act[]=
                         "now "
@@ -9253,23 +9253,20 @@ kill_one_thread(THD *thd, my_thread_id id, killed_state kill_signal, killed_type
         thd->security_ctx->user_matches(tmp->security_ctx))
 #endif /* WITH_WSREP */
     {
+      {
 #ifdef WITH_WSREP
-      DEBUG_SYNC(thd, "before_awake_no_mutex");
-      if (tmp->wsrep_aborter && tmp->wsrep_aborter != thd->thread_id)
-      {
-        /* victim is in hit list already, bail out */
-	WSREP_DEBUG("victim %lld has wsrep aborter: %lu, skipping awake()",
-		    id, tmp->wsrep_aborter);
-        error= 0;
-      }
-      else
+        if (WSREP(tmp))
+        {
+          error = wsrep_kill_thd(thd, tmp, kill_signal);
+        }
+        else
+        {
 #endif /* WITH_WSREP */
-      {
-        WSREP_DEBUG("kill_one_thread victim: %lld wsrep_aborter %lu"
-                    " by signal %d",
-                    id, tmp->wsrep_aborter, kill_signal);
         tmp->awake_no_mutex(kill_signal);
         error= 0;
+#ifdef WITH_WSREP
+        }
+#endif /* WITH_WSREP */
       }
     }
     else
@@ -9392,18 +9389,6 @@ static
 void sql_kill(THD *thd, my_thread_id id, killed_state state, killed_type type)
 {
   uint error;
-#ifdef WITH_WSREP
-  if (WSREP(thd))
-  {
-    WSREP_DEBUG("sql_kill called");
-    if (thd->wsrep_applier)
-    {
-      WSREP_DEBUG("KILL in applying, bailing out here");
-      return;
-    }
-    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
-  }
-#endif /* WITH_WSREP */
   if (likely(!(error= kill_one_thread(thd, id, state, type))))
   {
     if (!thd->killed)
@@ -9413,11 +9398,6 @@ void sql_kill(THD *thd, my_thread_id id, killed_state state, killed_type type)
   }
   else
     my_error(error, MYF(0), id);
-#ifdef WITH_WSREP
-  return;
- wsrep_error_label:
-  my_error(ER_KILL_DENIED_ERROR, MYF(0), (long long) thd->thread_id);
-#endif /* WITH_WSREP */
 }
 
 
@@ -9426,18 +9406,6 @@ sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
 {
   uint error;
   ha_rows rows;
-#ifdef WITH_WSREP
-  if (WSREP(thd))
-  {
-    WSREP_DEBUG("sql_kill_user called");
-    if (thd->wsrep_applier)
-    {
-      WSREP_DEBUG("KILL in applying, bailing out here");
-      return;
-    }
-    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
-  }
-#endif /* WITH_WSREP */
   switch (error= kill_threads_for_user(thd, user, state, &rows))
   {
   case 0:
@@ -9453,11 +9421,6 @@ sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
   default:
     my_error(error, MYF(0));
   }
-#ifdef WITH_WSREP
-  return;
- wsrep_error_label:
-  my_error(ER_KILL_DENIED_ERROR, MYF(0), (long long) thd->thread_id);
-#endif /* WITH_WSREP */
 }
 
 

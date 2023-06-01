@@ -26,4 +26,60 @@ UPDATE mysql.innodb_table_stats SET last_update=NULL WHERE table_name='t1';
 XA END 'test';
 XA ROLLBACK 'test';
 DROP TABLE t1;
+#
+# MDEV-30483 After upgrade to 10.6 from Mysql 5.7 seeing "InnoDB: Column last_update in table mysql.innodb_table_stats is BINARY(4) NOT NULL but should be INT UNSIGNED NOT NULL"
+#
+#
+# Testing a non-default format: Field_timestamp0 - UINT4 based
+#
+SET @@global.mysql56_temporal_format=0;
+ALTER TABLE mysql.innodb_table_stats MODIFY last_update TIMESTAMP;
+ALTER TABLE mysql.innodb_index_stats MODIFY last_update TIMESTAMP;
+SHOW COLUMNS FROM mysql.innodb_table_stats LIKE 'last_update';
+Field	Type	Null	Key	Default	Extra
+last_update	timestamp /* mariadb-5.3 */	NO		current_timestamp()	on update current_timestamp()
+SHOW COLUMNS FROM mysql.innodb_index_stats LIKE 'last_update';
+Field	Type	Null	Key	Default	Extra
+last_update	timestamp /* mariadb-5.3 */	NO		current_timestamp()	on update current_timestamp()
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=1;
+SELECT TIMESTAMPDIFF(DAY,last_update,now())<=1 FROM mysql.innodb_table_stats
+WHERE database_name='test' AND table_name='t1';
+TIMESTAMPDIFF(DAY,last_update,now())<=1
+1
+SELECT TIMESTAMPDIFF(DAY,last_update,now())<=1 FROM mysql.innodb_index_stats
+WHERE database_name='test' AND table_name='t1' AND stat_name='size';
+TIMESTAMPDIFF(DAY,last_update,now())<=1
+1
+DROP TABLE t1;
+#
+# Now as the table t1 is dropped, expect no statistics
+#
+SELECT * FROM mysql.innodb_table_stats
+WHERE database_name='test' AND table_name='t1';
+database_name	table_name	last_update	n_rows	clustered_index_size	sum_of_other_index_sizes
+SELECT * FROM mysql.innodb_index_stats
+WHERE database_name='test' AND table_name='t1' AND stat_name='size';
+database_name	table_name	index_name	last_update	stat_name	stat_value	sample_size	stat_description
+#
+# Testing with the default format: Field_timestampf - BINARY(4) based with the UNSIGNED_FLAG
+#
+SET @@global.mysql56_temporal_format=1;
+ALTER TABLE mysql.innodb_table_stats MODIFY last_update TIMESTAMP;
+ALTER TABLE mysql.innodb_index_stats MODIFY last_update TIMESTAMP;
+SHOW COLUMNS FROM mysql.innodb_table_stats LIKE 'last_update';
+Field	Type	Null	Key	Default	Extra
+last_update	timestamp	NO		current_timestamp()	on update current_timestamp()
+SHOW COLUMNS FROM mysql.innodb_index_stats LIKE 'last_update';
+Field	Type	Null	Key	Default	Extra
+last_update	timestamp	NO		current_timestamp()	on update current_timestamp()
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=1;
+SELECT TIMESTAMPDIFF(DAY,last_update,now())<=1 FROM mysql.innodb_table_stats
+WHERE database_name='test' AND table_name='t1';
+TIMESTAMPDIFF(DAY,last_update,now())<=1
+1
+SELECT TIMESTAMPDIFF(DAY,last_update,now())<=1 FROM mysql.innodb_index_stats
+WHERE database_name='test' AND table_name='t1' AND stat_name='size';
+TIMESTAMPDIFF(DAY,last_update,now())<=1
+1
+DROP TABLE t1;
 # End of 10.6 tests
