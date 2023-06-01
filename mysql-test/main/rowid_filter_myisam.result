@@ -681,3 +681,60 @@ drop table t0;
 set optimizer_switch='rowid_filter=default';
 drop table name, flag2;
 drop table t1;
+#
+# MDEV-30944 Range_rowid_filter::fill() leaves file->keyread at MAX_KEY
+#
+CREATE TABLE t1 ( a varchar(30) , i int , id int, UNIQUE KEY id (id), 
+KEY (i ,id ,a), KEY (a(1),i)) engine=myisam;
+INSERT INTO t1 VALUES('fej',NULL,1),('jeyw',8,2),(NULL,181,3),('wrkovd',9,4),
+('',NULL,5),('ko',NULL,6),('vdgzyxkop',217,7),('',7,8),('zy',0,9),
+('yxkopv',8,10),('kopv',1,11),('opv',4,12),('vc',9,13),('ri',1,14),
+('tkcn',1,15),('cnm',6,16),('m',0,17),('d',9,18),('e',28,19),(NULL,0,20);
+EXPLAIN FORMAT=JSON SELECT i, MAX( id ) FROM t1 
+WHERE ( a IS NULL OR a IN ('ko','h') ) 
+AND ( id BETWEEN 6 AND 7  OR id IN ( 8, 1) ) 
+GROUP BY i;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.006729708,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "index",
+          "possible_keys": ["id", "a"],
+          "key": "i",
+          "key_length": "43",
+          "used_key_parts": ["i", "id", "a"],
+          "rowid_filter": {
+            "range": {
+              "key": "a",
+              "used_key_parts": ["a"]
+            },
+            "rows": 5,
+            "selectivity_pct": 25
+          },
+          "loops": 1,
+          "rows": 20,
+          "cost": 0.006099522,
+          "filtered": 5,
+          "attached_condition": "(t1.a is null or t1.a in ('ko','h')) and (t1.`id` between 6 and 7 or t1.`id` in (8,1))",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+PREPARE stmt FROM "SELECT i, MAX( id ) FROM t1 
+WHERE ( a IS NULL OR a IN ('ko','h') ) 
+AND ( id BETWEEN 6 AND 7  OR id IN ( 8, 1) ) 
+GROUP BY i";
+EXECUTE stmt;
+i	MAX( id )
+NULL	6
+EXECUTE stmt;
+i	MAX( id )
+NULL	6
+DROP TABLE t1;
