@@ -873,6 +873,8 @@ struct TABLE_SHARE
   bool has_update_default_function;
   bool can_do_row_logging;              /* 1 if table supports RBR */
   bool long_unique_table;
+  /* 1 if frm version cannot be updated as part of upgrade */
+  bool keep_original_mysql_version;
 
   ulong table_map_id;                   /* for row-based replication */
 
