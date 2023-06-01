@@ -1028,7 +1028,11 @@ SELECT @@lc_time_names;
 @@lc_time_names
 ka_GE
 SET @@lc_time_names = 112;
-ERROR HY000: Unknown locale: '112'
+SELECT @@lc_time_names;
+@@lc_time_names
+sw_KE
+SET @@lc_time_names = 113;
+ERROR HY000: Unknown locale: '113'
 '#--------------------FN_DYNVARS_060_10-------------------------#'
 SET @@lc_time_names = en_EN;
 ERROR HY000: Unknown locale: 'en_EN'
