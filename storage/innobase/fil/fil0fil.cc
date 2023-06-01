@@ -350,6 +350,7 @@ fil_node_t* fil_space_t::add(const char* name, pfs_os_file_t handle,
 	this->size += size;
 	UT_LIST_ADD_LAST(chain, node);
 	if (node->is_open()) {
+		node->find_metadata(node->handle);
 		n_pending.fetch_and(~CLOSING, std::memory_order_relaxed);
 		if (++fil_system.n_open >= srv_max_n_open_files) {
 			reacquire();
@@ -2433,7 +2434,6 @@ err_exit:
 		mtr.log_file_op(FILE_CREATE, space_id, node->name);
 		mtr.commit();
 
-		node->find_metadata(file);
 		*err = DB_SUCCESS;
 		return space;
 	}
