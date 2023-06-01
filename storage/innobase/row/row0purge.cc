@@ -615,6 +615,8 @@ row_purge_del_mark(
       const auto type= node->index->type;
       if (type & (DICT_FTS | DICT_CORRUPT))
         continue;
+      if (node->index->online_status > ONLINE_INDEX_CREATION)
+        continue;
       if (UNIV_UNLIKELY(DICT_VIRTUAL & type) && !node->index->is_committed() &&
           node->index->has_new_v_col())
         continue;
@@ -764,6 +766,11 @@ row_purge_upd_exist_or_extern_func(
 		if (UNIV_UNLIKELY(DICT_VIRTUAL & type)
 		    && !node->index->is_committed()
 		    && node->index->has_new_v_col()) {
+			continue;
+		}
+
+		if (node->index->online_status
+		    > ONLINE_INDEX_CREATION) {
 			continue;
 		}
 

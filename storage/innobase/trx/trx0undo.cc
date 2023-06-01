@@ -1463,37 +1463,6 @@ template buf_block_t*
 trx_undo_assign_low<true>(trx_t *trx, trx_rseg_t *rseg, trx_undo_t **undo,
                           mtr_t *mtr, dberr_t *err);
 
-/******************************************************************//**
-Sets the state of the undo log segment at a transaction finish.
-@return undo log segment header page, x-latched */
-buf_block_t*
-trx_undo_set_state_at_finish(
-/*=========================*/
-	trx_undo_t*	undo,	/*!< in: undo log memory copy */
-	mtr_t*		mtr)	/*!< in: mtr */
-{
-  ut_ad(undo->id < TRX_RSEG_N_SLOTS);
-  ut_ad(undo->rseg->is_persistent());
-
-  buf_block_t *block=
-    buf_page_get(page_id_t(undo->rseg->space->id, undo->hdr_page_no), 0,
-                 RW_X_LATCH, mtr);
-  /* This function is invoked during transaction commit, which is not
-  allowed to fail. If we get a corrupted undo header, we will crash here. */
-  ut_a(block);
-  const uint16_t state = undo->size == 1 &&
-    TRX_UNDO_PAGE_REUSE_LIMIT >
-    mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE +
-                     block->page.frame)
-    ? TRX_UNDO_CACHED
-    : TRX_UNDO_TO_PURGE;
-
-  undo->state= state;
-  mtr->write<2>(*block, TRX_UNDO_SEG_HDR + TRX_UNDO_STATE + block->page.frame,
-                state);
-  return block;
-}
-
 /** Set the state of the undo log segment at a XA PREPARE or XA ROLLBACK.
 @param[in,out]	trx		transaction
 @param[in,out]	undo		undo log

@@ -1086,7 +1086,11 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 
 			ut_a(!zip || !bpage->oldest_modification());
 			ut_ad(bpage->zip_size());
-
+			/* Skip consistency checks if the page was freed.
+			In recovery, we could get a sole FREE_PAGE record
+			and nothing else, for a ROW_FORMAT=COMPRESSED page.
+			Its contents would be garbage. */
+			if (!bpage->is_freed())
 			switch (fil_page_get_type(page)) {
 			case FIL_PAGE_TYPE_ALLOCATED:
 			case FIL_PAGE_INODE:
@@ -1217,6 +1221,7 @@ void buf_pool_t::corrupted_evict(buf_page_t *bpage, uint32_t state)
   buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(id.fold());
   page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
 
+  recv_sys.free_corrupted_page(id);
   mysql_mutex_lock(&mutex);
   hash_lock.lock();
 
@@ -1241,8 +1246,6 @@ void buf_pool_t::corrupted_evict(buf_page_t *bpage, uint32_t state)
     buf_LRU_block_free_hashed_page(reinterpret_cast<buf_block_t*>(bpage));
 
   mysql_mutex_unlock(&mutex);
-
-  recv_sys.free_corrupted_page(id);
 }
 
 /** Update buf_pool.LRU_old_ratio.
