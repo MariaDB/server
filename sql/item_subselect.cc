@@ -3027,14 +3027,6 @@ static bool check_equality_for_exist2in(Item_func *func,
   return FALSE;
 }
 
-typedef struct st_eq_field_outer
-{
-  Item **eq_ref;
-  Item_ident *local_field;
-  Item *outer_exp;
-} EQ_FIELD_OUTER;
-
-
 /**
   Check if 'conds' is a set of AND-ed outer_expr=inner_table.col equalities
 
@@ -3111,6 +3103,257 @@ static bool intersects_free_list(Item *item, THD *thd)
 }
 
 /**
+ Prepares exists2in / decorrelation transformation
+
+ Pick out the equalities, prevent 2nd ps execution segfault, check for
+ correlation, etc.
+
+ @param thd                       The connection
+ @param eqs                   OUT The decorrelate-able equalities
+ @param will_be_correlated    OUT Whether the resulting IN subquery will
+                                  still be correlated
+
+ @retval FALSE        ok
+ @retval TRUE         error
+*/
+bool Item_exists_subselect::exists2in_prepare(
+  THD *thd, Dynamic_array<EQ_FIELD_OUTER> &eqs, bool &will_be_correlated)
+{
+  SELECT_LEX *first_select= unit->first_select();
+  DBUG_ENTER("exists2in_prepare");
+  DBUG_ASSERT(substype() == EXISTS_SUBS || substype() == IN_SUBS);
+  /* Iterate over the conditions and find decorrelatable equalities */
+  if (find_inner_outer_equalities(&first_select->join->conds, eqs))
+    DBUG_RETURN(TRUE);
+  DBUG_ASSERT(eqs.elements() != 0);
+
+  /* If we are in a ps/sp execution, check for and skip on
+  intersection with the temporary free list to avoid 2nd ps execution
+  segfault */
+  if (!thd->stmt_arena->is_conventional())
+  {
+    for (uint i= 0; i < (uint) eqs.elements(); i++)
+    {
+      if (intersects_free_list(*eqs.at(i).eq_ref, thd))
+        DBUG_RETURN(TRUE);
+    }
+  }
+
+  /* Determines whether the result will be correlated */
+  {
+    List<Item> unused;
+    Item::Collect_deps_prm prm= {&unused,          // parameters
+      first_select->nest_level_base,         // nest_level_base
+      0,                                     // count
+      first_select->nest_level,              // nest_level
+      FALSE                                  // collect
+    };
+    walk(&Item::collect_outer_ref_processor, TRUE, &prm);
+    DBUG_ASSERT(prm.count > 0);
+    DBUG_ASSERT(prm.count >= (uint)eqs.elements());
+    will_be_correlated= prm.count > (uint)eqs.elements();
+    if (substype() == EXISTS_SUBS && upper_not && will_be_correlated)
+      DBUG_RETURN(TRUE);
+  }
+
+  /** Checks that there are enough slots in
+  `first_select->ref_pointer_array` for the local fields */
+  if ((uint)eqs.elements() > (first_select->item_list.elements +
+                              first_select->select_n_reserved))
+    DBUG_RETURN(TRUE);
+  DBUG_RETURN(FALSE);
+}
+
+/**
+ Move the items around for the exists2in / decorrelate-in transformation
+
+ For exists2in, replace the inner select items with local fields; for
+ decorrelate-in, add them to the inner select items. For both move
+ the outer expressions to the left expr in the IN subquery
+
+ @param thd               The connection
+ @param eqs               The decorrelatable equalities
+ @param left_exp_ref  OUT The left expr for the resulting IN subquery
+
+ @retval FALSE        ok
+ @retval TRUE         error
+*/
+bool Item_exists_subselect::exists2in_create_or_update_in(
+  THD *thd, const Dynamic_array<EQ_FIELD_OUTER> &eqs, Item** left_exp_ref)
+{
+  SELECT_LEX *first_select= unit->first_select();
+  List_iterator<Item> it;
+  List<Item> outer;
+  uint offset= 0;
+  Item_in_subselect *in_subs= NULL;
+  DBUG_ENTER("Item_exists_subselect::exists2in_create_or_update_in");
+
+  DBUG_ASSERT(substype() == EXISTS_SUBS || substype() == IN_SUBS);
+  /* Construct the items for left_expr */
+  if (substype() == EXISTS_SUBS)
+  {
+    /* For EXISTS, remove redundant inner select items */
+    while (first_select->item_list.elements > (uint)eqs.elements())
+    {
+      first_select->item_list.pop();
+      first_select->join->all_fields.elements--;
+    }
+    it.init(first_select->item_list);
+  } else
+  {
+    /* For IN, copy existing left expr items, and point the iterator
+    at the end of the inner select item list so that nothing gets
+    overwritten */
+    it.init(first_select->item_list);
+    in_subs= (Item_in_subselect *) this;
+    offset= first_select->item_list.elements;
+    DBUG_ASSERT(in_subs);
+    if (in_subs->left_expr->type() == Item::ROW_ITEM)
+      for (uint i= 0; i < in_subs->left_expr->cols(); i++, it++)
+        outer.push_back(in_subs->left_expr->element_index(i));
+    else
+    {
+      outer.push_back(in_subs->left_expr);
+      it++;
+    }
+    DBUG_ASSERT(outer.elements == first_select->item_list.elements);
+  }
+  /* Move items to outer and select item list */
+  for (uint i= 0; i < (uint)eqs.elements(); i++)
+  {
+    Item *item= it++;
+    Item **eq_ref= eqs.at(i).eq_ref;
+    Item_ident *local_field= eqs.at(i).local_field;
+    Item *outer_exp= eqs.at(i).outer_exp;
+    /* Replace or add items to the inner select item list */
+    if (item)
+      it.replace(local_field);
+    else
+    {
+      first_select->item_list.push_back(local_field, thd->mem_root);
+      if (substype() == EXISTS_SUBS)
+        first_select->join->all_fields.elements++;
+    }
+    first_select->ref_pointer_array[offset + i]= (Item *) local_field;
+
+    /* Replace the equalities with 1 or local_field IS NOT NULL */
+    if (!upper_not || !local_field->maybe_null())
+      *eq_ref= new (thd->mem_root) Item_int(thd, 1);
+    else
+    {
+      *eq_ref= new (thd->mem_root)
+        Item_func_isnotnull(thd,
+                            new (thd->mem_root)
+                            Item_field(thd,
+                                       ((Item_field *)
+                                        (local_field->real_item()))->context,
+                                       ((Item_field *)
+                                        (local_field->real_item()))->field));
+      if ((*eq_ref)->fix_fields(thd, (Item **) eq_ref))
+        DBUG_RETURN(TRUE);
+    }
+    if (substype() == EXISTS_SUBS)
+    {
+      outer_exp->fix_after_pullout(unit->outer_select(), &outer_exp, FALSE);
+      outer_exp->update_used_tables();
+    }
+    /* Add the outer_exp to the left expr list */
+    outer.push_back(outer_exp, thd->mem_root);
+  }
+
+  /* Update the left expr */
+  if (outer.elements == 1)
+    *left_exp_ref= outer.head();
+  else
+    if (!(*left_exp_ref= new (thd->mem_root) Item_row(thd, outer)))
+      DBUG_RETURN(TRUE);
+  if ((*left_exp_ref)->fix_fields_if_needed(thd, left_exp_ref))
+    DBUG_RETURN(TRUE);
+  DBUG_RETURN(FALSE);
+}
+
+/**
+ AND the IN subquery with IS NOT NULLs if upper_not
+
+ Due to the three-value logic, we need to AND the IN subquery with
+ outer_expr IS NOT NULL so that the exists2in / decorrelate-in
+ transformation is correct, i.e. new IN subquery evals to the same
+ value as the as the old EXISTS/IN subquery.
+
+ @param offset        The offset in the left expr coming from the new item
+ @param left_exp      The left expr
+ @param left_exp_ref  The reference pointer to the left expr
+
+ @retval FALSE        ok
+ @retval TRUE         error
+*/
+bool Item_exists_subselect::exists2in_and_is_not_nulls(uint offset,
+                                                       Item *left_exp,
+                                                       Item **left_exp_ref)
+{
+  DBUG_ENTER("Item_exists_subselect::exists2in_and_is_not_nulls");
+  DBUG_ASSERT(substype() == EXISTS_SUBS || substype() == IN_SUBS);
+  if (upper_not)
+  {
+    /* optimizer == 0 implies `this` is an Item_in_subselect */
+    Item *exp= optimizer ? (Item *) optimizer : (Item *) this;
+    List<Item> *and_list= new (thd->mem_root) List<Item>;
+    if (!and_list)
+      DBUG_RETURN(TRUE);
+    if (left_exp->type() != ROW_ITEM)
+    {
+      if (left_exp->maybe_null())
+      {
+        and_list->
+          push_front(new (thd->mem_root)
+                     Item_func_isnotnull(thd,
+                                         new (thd->mem_root)
+                                         Item_direct_ref(thd,
+                                                         &unit->outer_select()->context,
+                                                         left_exp_ref,
+                                                         no_matter_name,
+                                                         exists_outer_expr_name)),
+                     thd->mem_root);
+      }
+    } else
+    {
+      for (size_t i= offset; i < left_exp->cols(); i++)
+      {
+        if (left_exp->element_index(i)->maybe_null())
+        {
+          and_list->
+            push_front(new (thd->mem_root)
+                       Item_func_isnotnull(thd,
+                                           new (thd->mem_root)
+                                           Item_direct_ref(thd,
+                                                           &unit->outer_select()->context,
+                                                           left_exp->addr(i),
+                                                           no_matter_name,
+                                                           exists_outer_expr_name)),
+                       thd->mem_root);
+        }
+      }
+    }
+    
+    if (and_list->elements > 1)
+    {
+      and_list->push_front(exp, thd->mem_root);
+      exp= new (thd->mem_root) Item_cond_and(thd, *and_list);
+    }
+    /* If we do not single out this case, and merge it with the >1
+    case, we would get an infinite loop in resolving
+    Item_direct_view_ref::real_item() like in MDEV-3881 when
+    left_exp has scalar type */
+    else if (and_list->elements == 1)
+      exp= new (thd->mem_root) Item_cond_and(thd, and_list->head(), exp);
+    upper_not->arguments()[0]= exp;
+    if (exp->fix_fields_if_needed(thd, upper_not->arguments()))
+      DBUG_RETURN(TRUE);
+  }
+  DBUG_RETURN(FALSE);
+}
+
+/**
   De-correlate where conditions in an IN subquery
 
   Similar to `Item_exists_subselect::exists2in_processor()`, it checks
@@ -3130,24 +3373,22 @@ bool Item_in_subselect::exists2in_processor(void *opt_arg)
   JOIN *join= first_select->join;
   bool will_be_correlated;
   Dynamic_array<EQ_FIELD_OUTER> eqs(PSI_INSTRUMENT_MEM, 5, 5);
-  List<Item> outer;
   Query_arena *arena= NULL, backup;
   int res= FALSE;
-  uint outer_offset;
   const uint offset= first_select->item_list.elements;
   DBUG_ENTER("Item_in_subselect::exists2in_processor");
 
   /*
    Skip the transformation if it is not needed or would not help
 
-   (1). optimizer flag exists_to_in is off
-   (2). skip if the subquery is not toplevel IN nor toplevel NOT IN
-   (3). skip if the subquery is a part of a union
-   (4). skip if the subquery has group by
-   (5). skip if the subquery has aggregation in the select
-   (6). skip if the subquery has having
-   (7). skip if the subquery does not have where conditions
-   (8). skip if the left expr is a single nonscalar subselect
+   (1) optimizer flag exists_to_in is off
+   (2) skip if the subquery is not toplevel IN nor toplevel NOT IN
+   (3) skip if the subquery is a part of a union
+   (4) skip if the subquery has group by
+   (5) skip if the subquery has aggregation in the select
+   (6) skip if the subquery has having
+   (7) skip if the subquery does not have where conditions
+   (8) skip if the left expr is a single nonscalar subselect
   */
   if (!optimizer_flag(thd, OPTIMIZER_SWITCH_EXISTS_TO_IN) || /* (1) */
       !(is_top_level_item() ||
@@ -3160,80 +3401,14 @@ bool Item_in_subselect::exists2in_processor(void *opt_arg)
       (left_expr->type() == Item::SUBSELECT_ITEM &&
        !left_expr->type_handler()->is_scalar_type())) /* (8) */
     DBUG_RETURN(FALSE);
-  /* iterate over conditions, and check whether they can be moved out. */
-  if (find_inner_outer_equalities(&join->conds, eqs))
+
+  if (exists2in_prepare(thd, eqs, will_be_correlated))
     DBUG_RETURN(FALSE);
-  /* If we are in a ps/sp execution, check for and skip on
-  intersection with the temporary free list to avoid 2nd ps execution
-  segfault */
-  if (!thd->stmt_arena->is_conventional())
-  {
-    for (uint i= 0; i < (uint) eqs.elements(); i++)
-    {
-      if (intersects_free_list(*eqs.at(i).eq_ref, thd))
-        DBUG_RETURN(FALSE);
-    }
-  }
-
-  /* Determines whether the result will be correlated */
-  {
-    List<Item> unused;
-    Collect_deps_prm prm= {&unused,          // parameters
-      unit->first_select()->nest_level_base, // nest_level_base
-      0,                                     // count
-      unit->first_select()->nest_level,      // nest_level
-      FALSE                                  // collect
-    };
-    walk(&Item::collect_outer_ref_processor, TRUE, &prm);
-    DBUG_ASSERT(prm.count > 0);
-    DBUG_ASSERT(prm.count >= (uint)eqs.elements());
-    will_be_correlated= prm.count > (uint)eqs.elements();
-  }
-
-  if ((uint)eqs.elements() > (first_select->item_list.elements +
-                              first_select->select_n_reserved))
-    goto out;
-
+  
   /* Switch to the permanent arena if we are in a ps/sp execution */
   arena= thd->activate_stmt_arena_if_needed(&backup);
 
-  /* Construct the items for left_expr */
-  if (left_expr->type() == Item::ROW_ITEM)
-    for (uint i= 0; i < left_expr->cols(); i++)
-      outer.push_back(left_expr->element_index(i));
-  else
-    outer.push_back(left_expr);
-  outer_offset= outer.elements;
-  DBUG_ASSERT(outer_offset == offset);
-  /* Move items to outer and select item list */
-  for (uint i= 0; i < (uint)eqs.elements(); i++)
-  {
-    Item **eq_ref= eqs.at(i).eq_ref;
-    Item_ident *local_field= eqs.at(i).local_field;
-    Item *outer_exp= eqs.at(i).outer_exp;
-    first_select->item_list.push_back(local_field, thd->mem_root);
-    first_select->ref_pointer_array[offset + i]= (Item *)local_field;
-    outer.push_back(outer_exp, thd->mem_root);
-    if (!upper_not || !local_field->maybe_null())
-      *eq_ref= new (thd->mem_root) Item_int(thd, 1);
-    else
-      *eq_ref= new (thd->mem_root)
-        Item_func_isnotnull(thd,
-                            new (thd->mem_root)
-                            Item_field(thd,
-                                       ((Item_field*)(local_field->
-                                                      real_item()))->context,
-                                       ((Item_field*)(local_field->
-                                                      real_item()))->field));
-    if((*eq_ref)->fix_fields(thd, (Item **)eq_ref))
-    {
-      res= TRUE;
-      goto out;
-    }
-  }
-  /* Update the left_expr */
-  left_expr= new (thd->mem_root) Item_row(thd, outer);
-  if (left_expr->fix_fields(thd, &left_expr))
+  if (exists2in_create_or_update_in(thd, eqs, &left_expr))
   {
     res= TRUE;
     goto out;
@@ -3252,46 +3427,10 @@ bool Item_in_subselect::exists2in_processor(void *opt_arg)
     }
   }
 
-  /* AND the IN subquery with IS NOT NULLs if upper_not */
-  if (upper_not)
+  if (exists2in_and_is_not_nulls(offset, left_expr, &left_expr))
   {
-    Item *exp;
-    List<Item> *and_list= new (thd->mem_root) List<Item>;
-    if (!and_list)
-    {
-      res= TRUE;
-      goto out;
-    }
-    for (size_t i= outer_offset; i < left_expr->cols(); i++)
-    {
-      if (left_expr->element_index(i)->maybe_null())
-      {
-        and_list->
-          push_front(new (thd->mem_root)
-                     Item_func_isnotnull(thd,
-                                         new (thd->mem_root)
-                                         Item_direct_ref(thd,
-                                                         &unit->outer_select()->context,
-                                                         left_expr->addr(i),
-                                                         no_matter_name,
-                                                         in_outer_expr_name)),
-                     thd->mem_root);
-      }
-    }
-    if (and_list->elements > 0)
-    {
-      if (optimizer)
-        and_list->push_front(optimizer, thd->mem_root);
-      else
-        and_list->push_front(this, thd->mem_root);
-      exp= new (thd->mem_root) Item_cond_and(thd, *and_list);
-      if (exp->fix_fields_if_needed(thd, upper_not->arguments()))
-      {
-        res= TRUE;
-        goto out;
-      }
-      upper_not->arguments()[0]= exp;
-    }
+    res= TRUE;
+    goto out;
   }
 
   {
@@ -3327,13 +3466,9 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
   THD *thd= (THD *)opt_arg;
   SELECT_LEX *first_select=unit->first_select(), *save_select;
   JOIN *join= first_select->join;
-  Item **eq_ref= NULL;
-  Item_ident *local_field= NULL;
-  Item *outer_exp= NULL;
   Item *left_exp= NULL; Item_in_subselect *in_subs;
   Query_arena *arena= NULL, backup;
   int res= FALSE;
-  List<Item> outer;
   Dynamic_array<EQ_FIELD_OUTER> eqs(PSI_INSTRUMENT_MEM, 5, 5);
   bool will_be_correlated;
   DBUG_ENTER("Item_exists_subselect::exists2in_processor");
@@ -3378,98 +3513,18 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
   DBUG_ASSERT(first_select->group_list.elements == 0 &&
               first_select->having == NULL);
 
-  if (find_inner_outer_equalities(&join->conds, eqs))
-    DBUG_RETURN(FALSE);
-
-  DBUG_ASSERT(eqs.elements() != 0);
-
   save_select= thd->lex->current_select;
   thd->lex->current_select= first_select;
 
-  /* check that the subquery has only dependencies we are going pull out */
-  {
-    List<Item> unused;
-    Collect_deps_prm prm= {&unused,          // parameters
-      unit->first_select()->nest_level_base, // nest_level_base
-      0,                                     // count
-      unit->first_select()->nest_level,      // nest_level
-      FALSE                                  // collect
-    };
-    walk(&Item::collect_outer_ref_processor, TRUE, &prm);
-    DBUG_ASSERT(prm.count > 0);
-    DBUG_ASSERT(prm.count >= (uint)eqs.elements());
-    will_be_correlated= prm.count > (uint)eqs.elements();
-    if (upper_not && will_be_correlated)
-      goto out;
-  }
-
-  if ((uint)eqs.elements() > (first_select->item_list.elements +
-                              first_select->select_n_reserved))
-    goto out;
+  if (exists2in_prepare(thd, eqs, will_be_correlated))
+    DBUG_RETURN(FALSE);
 
   arena= thd->activate_stmt_arena_if_needed(&backup);
 
-  while (first_select->item_list.elements > (uint)eqs.elements())
+  if (exists2in_create_or_update_in(thd, eqs, &left_exp))
   {
-    first_select->item_list.pop();
-    first_select->join->all_fields.elements--;
-  }
-  {
-    List_iterator<Item> it(first_select->item_list);
-
-    for (uint i= 0; i < (uint)eqs.elements(); i++)
-    {
-      Item *item= it++;
-      eq_ref= eqs.at(i).eq_ref;
-      local_field= eqs.at(i).local_field;
-      outer_exp= eqs.at(i).outer_exp;
-      /* Add the field to the SELECT_LIST */
-      if (item)
-        it.replace(local_field);
-      else
-      {
-        first_select->item_list.push_back(local_field, thd->mem_root);
-        first_select->join->all_fields.elements++;
-      }
-      first_select->ref_pointer_array[i]= (Item *)local_field;
-
-      /* remove the parts from condition */
-      if (!upper_not || !local_field->maybe_null())
-        *eq_ref= new (thd->mem_root) Item_int(thd, 1);
-      else
-      {
-        *eq_ref= new (thd->mem_root)
-          Item_func_isnotnull(thd,
-                              new (thd->mem_root)
-                              Item_field(thd,
-                                         ((Item_field*)(local_field->
-                                                        real_item()))->context,
-                                         ((Item_field*)(local_field->
-                                                        real_item()))->field));
-        if((*eq_ref)->fix_fields(thd, (Item **)eq_ref))
-        {
-          res= TRUE;
-          goto out;
-        }
-      }
-      outer_exp->fix_after_pullout(unit->outer_select(), &outer_exp, FALSE);
-      outer_exp->update_used_tables();
-      outer.push_back(outer_exp, thd->mem_root);
-    }
-  }
-
-  join->conds->update_used_tables();
-
-  /* make IN SUBQUERY and put outer_exp as left part */
-  if (eqs.elements() == 1)
-    left_exp= outer_exp;
-  else
-  {
-    if (!(left_exp= new (thd->mem_root) Item_row(thd, outer)))
-    {
-      res= TRUE;
-      goto out;
-    }
+    res= TRUE;
+    goto out;
   }
 
   /* make EXISTS->IN permanet (see Item_subselect::init()) */
@@ -3575,63 +3630,10 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
 
   first_select->fix_prepare_information(thd, &join->conds, &join->having);
 
-  if (upper_not)
+  if (exists2in_and_is_not_nulls(0, optimizer->arguments()[0], optimizer->arguments()))
   {
-    Item *exp;
-    if (eqs.elements() == 1)
-    {
-      exp= (optimizer->arguments()[0]->maybe_null() ?
-            (Item*) new (thd->mem_root)
-            Item_cond_and(thd,
-                          new (thd->mem_root)
-                          Item_func_isnotnull(thd,
-                                              new (thd->mem_root)
-                                              Item_direct_ref(thd,
-                                                              &unit->outer_select()->context,
-                                                              optimizer->arguments(),
-                                                              no_matter_name,
-                                                              exists_outer_expr_name)),
-                          optimizer) :
-            (Item *)optimizer);
-    }
-    else
-    {
-      List<Item> *and_list= new (thd->mem_root) List<Item>;
-      if (!and_list)
-      {
-        res= TRUE;
-        goto out;
-      }
-      for (size_t i= 0; i < eqs.elements(); i++)
-      {
-        if (optimizer->arguments()[0]->maybe_null())
-        {
-          and_list->
-            push_front(new (thd->mem_root)
-                       Item_func_isnotnull(thd,
-                                           new (thd->mem_root)
-                                           Item_direct_ref(thd,
-                                                           &unit->outer_select()->context,
-                                                           optimizer->arguments()[0]->addr((int)i),
-                                                           no_matter_name,
-                                                           exists_outer_expr_name)),
-                       thd->mem_root);
-        }
-      }
-      if (and_list->elements > 0)
-      {
-        and_list->push_front(optimizer, thd->mem_root);
-        exp= new (thd->mem_root) Item_cond_and(thd, *and_list);
-      }
-      else
-        exp= optimizer;
-    }
-    upper_not->arguments()[0]= exp;
-    if (exp->fix_fields_if_needed(thd, upper_not->arguments()))
-    {
-      res= TRUE;
-      goto out;
-    }
+    res= TRUE;
+    goto out;
   }
 
 out:
