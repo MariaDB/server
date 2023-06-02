@@ -1,6 +1,7 @@
 #
 # Tests that should be in join_cache but cannot be run with ASAN
 
+--source include/have_64bit.inc
 --source include/not_asan.inc
 --source include/have_innodb.inc
 
