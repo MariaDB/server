@@ -2151,6 +2151,8 @@ void buf_page_free(fil_space_t *space, uint32_t page, mtr_t *mtr)
   }
 
   block->page.lock.x_lock();
+  if (block->page.is_ibuf_exist())
+    ibuf_merge_or_delete_for_page(nullptr, page_id, block->page.zip_size());
 #ifdef BTR_CUR_HASH_ADAPT
   if (block->index)
     btr_search_drop_page_hash_index(block, false);
