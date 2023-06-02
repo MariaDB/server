@@ -100,6 +100,9 @@ buf_buddy_mem_invalid(
 Check if a buddy is stamped free.
 @return whether the buddy is free */
 UNIV_INLINE MY_ATTRIBUTE((warn_unused_result))
+#if __has_feature(memory_sanitizer)
+__attribute__((no_sanitize("memory")))
+#endif
 bool
 buf_buddy_stamp_is_free(
 /*====================*/
