@@ -2,6 +2,9 @@
 --echo # MDEV-22534 Trivial correlation detection/removal for IN subqueries
 --echo #
 
+# The test uses optimizer trace:
+--source include/not_embedded.inc
+
 --echo # Basic example
 set optimizer_switch='materialization=on,firstmatch=off';
 set optimizer_trace=1;
@@ -380,7 +383,11 @@ select * from t1 where a1 in
        (select a2 from t2 where
                (select b1 + count(*) from t2 where
                        match(b2) against('mariadb')) = a2);
+# with ps-protocol the count(0) which is an Item_aggregate_ref is in
+# the runtime arena causing skipping the decorrelation
+--disable_ps_protocol
 eval explain $query;
+--enable_ps_protocol
 select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
 eval $query;
 

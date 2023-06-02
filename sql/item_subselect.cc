@@ -3317,7 +3317,7 @@ bool Item_exists_subselect::exists2in_and_is_not_nulls(uint offset,
       }
     } else
     {
-      for (size_t i= offset; i < left_exp->cols(); i++)
+      for (uint i= offset; i < left_exp->cols(); i++)
       {
         if (left_exp->element_index(i)->maybe_null())
         {
