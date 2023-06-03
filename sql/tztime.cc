@@ -2628,10 +2628,10 @@ scan_tz_dir(char * name_end, uint symlink_recursion_level, uint verbose)
 }
 
 
-static const char *load_default_groups[]=
+static const char *tzload_default_groups[]=
 { "mysql_tzinfo_to_sql", 0};
 
-static struct my_option my_long_options[] =
+static struct my_option tz_long_options[] =
 {
   {"help", '?', "Display this help and exit.", 0, 0, 0, GET_NO_ARG, NO_ARG,
    0, 0, 0, 0, 0, 0},
@@ -2683,10 +2683,10 @@ static void print_usage(void)
   fprintf(stdout, "\nA typical place for the system timezone directory is "
           "\"%s\"\n", default_timezone_dir);
 
-  print_defaults("my",load_default_groups);
+  print_defaults("my",tzload_default_groups);
   puts("");
-  my_print_help(my_long_options);
-  my_print_variables(my_long_options);
+  my_print_help(tz_long_options);
+  my_print_variables(tz_long_options);
 }
 
 
@@ -2747,10 +2747,10 @@ main(int argc, char **argv)
   const char *trunc_tables= "";
   MY_INIT(argv[0]);
 
-  load_defaults_or_exit("my", load_default_groups, &argc, &argv);
+  load_defaults_or_exit("my", tzload_default_groups, &argc, &argv);
   default_argv= argv;
 
-  if ((handle_options(&argc, &argv, my_long_options, get_one_option)))
+  if ((handle_options(&argc, &argv, tz_long_options, get_one_option)))
     exit(1);
 
   if ((argc != 1 && argc != 2) || (opt_leap && argc != 1))
