@@ -34,16 +34,18 @@ public:
   const LEX_CSTRING name;
   const LEX_CSTRING path;             // Directory path, including '/'
   LEX_CSTRING comment;                // Comment from 'catalog.opt'
+  mysql_mutex_t lock_status;
   CHARSET_INFO *cs;
   privilege_t acl;                    // acl's allowed for this catalog
   ulong event_scheduler;              // Default for event scheduler
-  bool initialized;                   // If object has been fully initalized
+  int initialized;                    // If object has been fully initalized
   bool deleted;                       // If object has been deleted
 
   /* Init catalog based on global variables */
   void initialize_from_env();
   /* Init catalogs when server is up and tables can be read */
   bool late_init();
+  void free();
 };
 
 extern my_bool using_catalogs;

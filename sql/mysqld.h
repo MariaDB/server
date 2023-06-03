@@ -353,7 +353,7 @@ extern PSI_mutex_key key_TABLE_SHARE_LOCK_share, key_LOCK_stats,
   key_LOCK_global_user_client_stats, key_LOCK_global_table_stats,
   key_LOCK_global_index_stats, key_LOCK_wakeup_ready, key_LOCK_wait_commit,
   key_TABLE_SHARE_LOCK_rotation;
-extern PSI_mutex_key key_LOCK_gtid_waiting;
+extern PSI_mutex_key key_LOCK_gtid_waiting, key_LOCK_catalogs;
 
 extern PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,
   key_rwlock_LOCK_sys_init_connect, key_rwlock_LOCK_sys_init_slave,

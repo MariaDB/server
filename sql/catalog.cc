@@ -54,9 +54,14 @@ SQL_CATALOG::SQL_CATALOG(const LEX_CSTRING *name_arg,
   initialized=0;
   deleted= 0;
   comment.str= 0; comment.length= 0;
+  /*
+    Initialization that allocates memory or depends on server startup options
+    are done in initialize_from_env()
+ */
 }
 
 #ifdef EMBEDDED_LIBRARY
+
 bool check_if_using_catalogs()
 {
   my_error(ER_NO_CATALOGS, MYF(0));
@@ -112,18 +117,21 @@ SQL_CATALOG *get_catalog(const LEX_CSTRING *name, bool initialize)
       !strncmp(name->str, internal_default_catalog.name.str,
                internal_default_catalog.name.length))
     DBUG_RETURN(&internal_default_catalog);
-  if (using_catalogs)
+
+  if (!using_catalogs)
+    DBUG_RETURN(0);
+
+  mysql_mutex_lock(&LOCK_catalogs);
+  if ((catalog= catalog_hash.find((void*) name->str, name->length)))
   {
-    catalog= catalog_hash.find((void*) name->str, name->length);
-    if (catalog)
+    if (catalog->initialized < 2 && initialize && late_init_done)
     {
-      if (!catalog->initialized && initialize && late_init_done)
-        if (catalog->late_init())
-          DBUG_RETURN(0);
+      if (catalog->late_init())
+        catalog= 0;                             // Catalog not usable
     }
-    DBUG_RETURN(catalog);
   }
-  DBUG_RETURN(0);
+  mysql_mutex_unlock(&LOCK_catalogs);
+  DBUG_RETURN(catalog);
 }
 
 /*
@@ -215,6 +223,9 @@ void SQL_CATALOG::initialize_from_env()
     default_catalog is set in init_catalog_directories!
   */
   acl= using_catalogs ? CATALOG_ACLS : ALL_KNOWN_ACL;
+
+  mysql_mutex_init(key_LOCK_catalogs, &lock_status, MY_MUTEX_INIT_SLOW);
+  initialized= 1;
 }
 
 /*
@@ -227,7 +238,7 @@ void SQL_CATALOG::initialize_from_env()
 
 bool SQL_CATALOG::late_init()
 {
-  initialized= 1;
+  initialized= 2;
   return 0;
 }
 
@@ -241,7 +252,7 @@ bool late_init_all_catalogs()
   Hash_set<SQL_CATALOG>::Iterator it{catalog_hash};
   while (SQL_CATALOG *cat= it++)
   {
-    if (!cat->initialized)
+    if (cat->initialized < 2)
     {
       if (cat->late_init())
       {
@@ -321,12 +332,17 @@ static void move_catalog_to_delete_list(SQL_CATALOG *cat)
 }
 
 
-static void free_catalog(SQL_CATALOG *cat)
+void SQL_CATALOG::free()
 {
-  my_free((char*) cat->comment.str);
-  cat->comment.str= 0;
-  if (cat != &internal_default_catalog)
-    my_free(cat);
+  my_free((char*) comment.str);
+  comment.str= 0;
+  if (initialized)
+  {
+    initialized= 0;
+    mysql_mutex_destroy(&lock_status);
+  }
+  if (this != &internal_default_catalog)
+    my_free(this);
 }
 
 
@@ -392,11 +408,14 @@ static bool add_catalog(MEM_ROOT *memroot, const char *datadir,
     cat->comment.length= 0;
 
   cat->initialize_from_env();
+  mysql_mutex_lock(&LOCK_catalogs);
   if (catalog_hash.insert(cat))
   {
-    free_catalog(cat);
+    cat->free();
+    mysql_mutex_unlock(&LOCK_catalogs);
     return 1;                               // End of memory
   }
+  mysql_mutex_unlock(&LOCK_catalogs);
   return 0;
 }
 
@@ -507,10 +526,11 @@ void free_catalogs()
   for (catalog= deleted_catalogs.first ; catalog ; catalog= next)
   {
     next= catalog->next;
-    free_catalog(catalog);
+    catalog->free();
   }
   deleted_catalogs.empty();
-  free_catalog(&internal_default_catalog);
+  /* Free data from internal_default_catalog last */
+  internal_default_catalog.free();
   late_init_done= 0;
 }
 
@@ -767,7 +787,7 @@ rm_catalog_internal(THD *thd, const LEX_CSTRING *name, bool if_exists,
   if (rm_dir_w_symlink(rm_catalog.str, 1))
     goto err;
 
-  catalog->deleted=1;
+  catalog->deleted= 1;
   catalog_hash.remove(catalog);
 
   /*
