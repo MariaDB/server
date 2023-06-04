@@ -585,6 +585,7 @@ bool Range_rowid_filter::fill()
   Item *pushed_idx_cond_save= file->pushed_idx_cond;
   uint pushed_idx_cond_keyno_save= file->pushed_idx_cond_keyno;
   bool in_range_check_pushed_down_save= file->in_range_check_pushed_down;
+  uint keyread_save= file->keyread;
 
   table->status= 0;
   file->pushed_idx_cond= 0;
@@ -617,6 +618,7 @@ end:
   file->pushed_idx_cond= pushed_idx_cond_save;
   file->pushed_idx_cond_keyno= pushed_idx_cond_keyno_save;
   file->in_range_check_pushed_down= in_range_check_pushed_down_save;
+  file->keyread= keyread_save;
 
   tracker->set_container_elements_count(container->elements());
   tracker->report_container_buff_size(file->ref_length);
