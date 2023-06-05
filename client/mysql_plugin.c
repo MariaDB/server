@@ -99,7 +99,7 @@ int main(int argc,char *argv[])
   MY_INIT(argv[0]);
   sf_leaking_memory=1; /* don't report memory leaks on early exits */
   plugin_data.name= 0; /* initialize name                          */
-  
+
   /*
     The following operations comprise the method for enabling or disabling
     a plugin. We begin by processing the command options then check the
@@ -107,15 +107,15 @@ int main(int argc,char *argv[])
     --plugin-ini (if specified). If the directories are Ok, we then look
     for the mysqld executable and the plugin soname. Finally, we build a
     bootstrap command file for use in bootstraping the server.
-    
+
     If any step fails, the method issues an error message and the tool exits.
-    
+
       1) Parse, execute, and verify command options.
       2) Check access to directories.
       3) Look for mysqld executable.
       4) Look for the plugin.
       5) Build a bootstrap file with commands to enable or disable plugin.
-      
+
   */
   if ((error= process_options(argc, argv, operation)) ||
       (error= check_access()) ||
@@ -123,11 +123,11 @@ int main(int argc,char *argv[])
       (error= find_plugin(tp_path)) ||
       (error= build_bootstrap_file(operation, bootstrap)))
     goto exit;
-  
+
   /* Dump the bootstrap file if --verbose specified. */
   if (opt_verbose && ((error= dump_bootstrap_file(bootstrap))))
     goto exit;
-  
+
   /* Start the server in bootstrap mode and execute bootstrap commands */
   error= bootstrap_server(server_path, bootstrap);
 
@@ -235,7 +235,7 @@ static int run_command(char* cmd, const char *mode)
 #ifdef _WIN32
 /**
   Check to see if there are spaces in a path.
-  
+
   @param[in]  path  The Windows path to examine.
 
   @retval int spaces found = 1, no spaces = 0
@@ -250,7 +250,7 @@ static int has_spaces(const char *path)
 
 /**
   Convert a Unix path to a Windows path.
- 
+
   @param[in]  path  The Windows path to examine.
 
   @returns string containing path with / changed to \\
@@ -332,12 +332,12 @@ static int get_default_values()
 #ifdef _WIN32
     {
       char *format_str= 0;
-  
+
       if (has_spaces(tool_path) || has_spaces(defaults_file))
         format_str = "\"%s --mysqld > %s\"";
       else
         format_str = "%s --mysqld > %s";
-  
+
       snprintf(defaults_cmd, sizeof(defaults_cmd), format_str,
                add_quotes(tool_path), add_quotes(defaults_file));
       if (opt_verbose)
@@ -672,7 +672,7 @@ static int load_plugin_data(char *plugin_name, char *config_file)
       {
         reason= "Bad format in plugin configuration file.";
         fclose(file_ptr);
-        goto error;        
+        goto error;
       }
       break;
     }
@@ -706,7 +706,7 @@ static int load_plugin_data(char *plugin_name, char *config_file)
       }
     }
   }
-  
+
   fclose(file_ptr);
   return 0;
 
@@ -737,7 +737,7 @@ static int check_options(int argc, char **argv, char *operation)
   int num_found= 0;            /* number of options found (shortcut loop) */
   char config_file[FN_REFLEN]; /* configuration file name */
   char plugin_name[FN_REFLEN]; /* plugin name */
-  
+
   /* Form prefix strings for the options. */
   const char *basedir_prefix = "--basedir=";
   size_t basedir_len= strlen(basedir_prefix);
@@ -812,7 +812,7 @@ static int check_options(int argc, char **argv, char *operation)
     return 1;
   }
   /* If a plugin was specified, read the config file. */
-  else if (strlen(plugin_name) > 0) 
+  else if (strlen(plugin_name) > 0)
   {
     if (load_plugin_data(plugin_name, config_file))
     {
@@ -844,22 +844,22 @@ static int check_options(int argc, char **argv, char *operation)
 
 /**
   Parse, execute, and verify command options.
-  
+
   This method handles all of the option processing including the optional
   features for displaying data (--print-defaults, --help ,etc.) that do not
   result in an attempt to ENABLE or DISABLE of a plugin.
-  
+
   @param[in]   arc        Count of arguments
   @param[in]   argv       Array of arguments
   @param[out]  operation  Operation (ENABLE or DISABLE)
-  
+
   @retval int error = 1, success = 0, exit program = -1
 */
 
 static int process_options(int argc, char *argv[], char *operation)
 {
   int error= 0;
-  
+
   /* Parse and execute command-line options */
   if ((error= handle_options(&argc, &argv, my_long_options, get_one_option)))
     return error;
@@ -887,7 +887,7 @@ static int process_options(int argc, char *argv[], char *operation)
       opt_basedir= my_strdup(PSI_NOT_INSTRUMENTED, buff, MYF(MY_FAE));
     }
   }
-  
+
   /*
     If the user did not specify the option to skip loading defaults from a
     config file and the required options are not present or there was an error
@@ -922,18 +922,18 @@ static int process_options(int argc, char *argv[], char *operation)
 
 /**
   Check access
-  
+
   This method checks to ensure all of the directories (opt_basedir,
   opt_plugin_dir, opt_datadir, and opt_plugin_ini) are accessible by
   the user.
-  
+
   @retval int error = 1, success = 0
 */
 
 static int check_access()
 {
   int error= 0;
-  
+
   if ((error= my_access(opt_basedir, F_OK)))
   {
     fprintf(stderr, "ERROR: Cannot access basedir at '%s'.\n",
@@ -1045,13 +1045,13 @@ static int find_plugin(char *tp_path)
 
 /**
   Build the bootstrap file.
-  
+
   Create a new file and populate it with SQL commands to ENABLE or DISABLE
   the plugin via REPLACE and DELETE operations on the mysql.plugin table.
 
   param[in]  operation  The type of operation (ENABLE or DISABLE)
   param[out] bootstrap  A FILE* pointer
-  
+
   @retval int error = 1, success = 0
 */
 
@@ -1059,7 +1059,7 @@ static int build_bootstrap_file(char *operation, char *bootstrap)
 {
   int error= 0;
   FILE *file= 0;
-  
+
   /*
     Perform plugin operation : ENABLE or DISABLE
 
@@ -1070,10 +1070,10 @@ static int build_bootstrap_file(char *operation, char *bootstrap)
     <plugin_name>.ini configuration file. Once the file is built, a call to
     mysqld is made in read only, bootstrap modes to read the SQL statements
     and execute them.
-    
+
     Note: Replace was used so that if a user loads a newer version of a
           library with a different library name, the new library name is
-          used for symbols that match. 
+          used for symbols that match.
   */
   if ((error= make_tempfile(bootstrap, "sql")))
   {
@@ -1120,7 +1120,7 @@ static int build_bootstrap_file(char *operation, char *bootstrap)
       printf("# Disabling %s...\n", plugin_data.name);
     }
   }
-  
+
 exit:
   fclose(file);
   return error;
@@ -1129,11 +1129,11 @@ exit:
 
 /**
   Dump bootstrap file.
-  
+
   Read the contents of the bootstrap file and print it out.
-  
+
   @param[in]  bootstrap_file  Name of bootstrap file to read
-  
+
   @retval int error = 1, success = 0
 */
 
@@ -1170,7 +1170,7 @@ exit:
 
 /**
   Bootstrap the server
-  
+
   Create a command line sequence to launch mysqld in bootstrap mode. This
   will allow mysqld to launch a minimal server instance to read and
   execute SQL commands from a file piped in (the bootstrap file). We use
@@ -1191,47 +1191,39 @@ exit:
 
 static int bootstrap_server(char *server_path, char *bootstrap_file)
 {
-  char bootstrap_cmd[FN_REFLEN];
+  char bootstrap_cmd[FN_REFLEN]= {0};
+  char lc_messages_dir_str[FN_REFLEN]= {0};
   int error= 0;
 
 #ifdef _WIN32
   char *format_str= 0;
   const char *verbose_str= NULL;
-   
-  
+#endif
+
+  if (opt_lc_messages_dir != NULL)
+    snprintf(lc_messages_dir_str, sizeof(lc_messages_dir_str), "--lc-messages-dir=%s",
+             opt_lc_messages_dir);
+
+#ifdef _WIN32
   if (opt_verbose)
     verbose_str= "--console";
   else
     verbose_str= "";
+
   if (has_spaces(opt_datadir) || has_spaces(opt_basedir) ||
-      has_spaces(bootstrap_file))
-  {
-    if (opt_lc_messages_dir != NULL)
-      format_str= "\"%s %s --bootstrap --datadir=%s --basedir=%s --lc-messages-dir=%s <%s\"";
-    else
-    format_str= "\"%s %s --bootstrap --datadir=%s --basedir=%s <%s\"";
-  }
+      has_spaces(bootstrap_file) || has_spaces(lc_messages_dir_str))
+    format_str= "\"%s %s --bootstrap --datadir=%s --basedir=%s %s <%s\"";
   else
-  {
-    if (opt_lc_messages_dir != NULL)
-      format_str= "\"%s %s --bootstrap --datadir=%s --basedir=%s --lc-messages-dir=%s <%s\"";
-    else
-      format_str= "%s %s --bootstrap --datadir=%s --basedir=%s <%s";
-  }
+    format_str= "%s %s --bootstrap --datadir=%s --basedir=%s %s <%s";
+
   snprintf(bootstrap_cmd, sizeof(bootstrap_cmd), format_str,
            add_quotes(convert_path(server_path)), verbose_str,
            add_quotes(opt_datadir), add_quotes(opt_basedir),
-           add_quotes(bootstrap_file));
+           add_quotes(lc_messages_dir_str), add_quotes(bootstrap_file));
 #else
-  if (opt_lc_messages_dir != NULL)
-    snprintf(bootstrap_cmd, sizeof(bootstrap_cmd),
-             "%s --no-defaults --bootstrap --datadir=%s --basedir=%s --lc-messages-dir=%s"
-             " <%s", server_path, opt_datadir, opt_basedir, opt_lc_messages_dir, bootstrap_file);
-  else
-    snprintf(bootstrap_cmd, sizeof(bootstrap_cmd),
-             "%s --no-defaults --bootstrap --datadir=%s --basedir=%s"
-             " <%s", server_path, opt_datadir, opt_basedir, bootstrap_file);
-
+  snprintf(bootstrap_cmd, sizeof(bootstrap_cmd),
+           "%s --no-defaults --bootstrap --datadir=%s --basedir=%s %s"
+           " <%s", server_path, opt_datadir, opt_basedir, lc_messages_dir_str, bootstrap_file);
 #endif
 
   /* Execute the command */
@@ -1244,6 +1236,6 @@ static int bootstrap_server(char *server_path, char *bootstrap_file)
     fprintf(stderr,
             "ERROR: Unexpected result from bootstrap. Error code: %d.\n",
             error);
-  
+
   return error;
 }

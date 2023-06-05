@@ -1,8 +1,16 @@
 --source include/galera_cluster.inc
+--source include/have_innodb.inc
 
 #
 # MDEV-19353 : Alter Sequence do not replicate to another nodes with in Galera Cluster
 #
+
+--connection node_1
+CALL mtr.add_suppression("SEQUENCES declared without `NOCACHE` will not behave correctly in galera cluster.");
+CALL mtr.add_suppression("WSREP: CREATE TABLE isolation failure");
+--connection node_2
+
+CALL mtr.add_suppression("SEQUENCES declared without `NOCACHE` will not behave correctly in galera cluster.");
 
 --connection node_1
 CREATE SEQUENCE `seq` start with 1 minvalue 1 maxvalue 1000000 increment by 0 cache 1000 nocycle ENGINE=InnoDB;
@@ -45,8 +53,48 @@ select NEXT VALUE FOR Seq1_1;
 --connection node_1
 DROP SEQUENCE Seq1_1;
 
-CALL mtr.add_suppression("SEQUENCES declared without `NOCACHE` will not behave correctly in galera cluster.");
+#
+# MDEV-24045 : Assertion client_state_.mode() != wsrep::client_state::m_toi failed in int wsrep::transaction::before_commit()
+#
 
+--connection node_1
+CREATE TABLE t2 (d CHAR(1)KEY);
+SET SESSION autocommit=0;
+INSERT INTO t2 VALUES(1);
+CREATE TEMPORARY SEQUENCE seq1 NOCACHE ENGINE=INNODB;
+CREATE SEQUENCE seq2 NOCACHE ENGINE=INNODB;
+COMMIT;
+SET SESSION AUTOCOMMIT=1;
+SHOW CREATE TABLE seq1;
 --connection node_2
-
-CALL mtr.add_suppression("SEQUENCES declared without `NOCACHE` will not behave correctly in galera cluster.");
+--error ER_NO_SUCH_TABLE
+SHOW CREATE SEQUENCE seq1;
+SHOW CREATE SEQUENCE seq2;
+--connection node_1
+SET SESSION autocommit=1;
+DROP SEQUENCE seq1;
+DROP SEQUENCE seq2;
+DROP TABLE t2;
+#
+# Case2
+#
+SET SESSION AUTOCOMMIT=0;
+SET SESSION wsrep_OSU_method='RSU';
+CREATE TABLE t1(c1 VARCHAR(10));
+INSERT INTO t1 (c1) VALUES('');
+create temporary sequence sq1 NOCACHE engine=innodb;
+create sequence sq2 NOCACHE engine=innodb;
+COMMIT;
+SHOW CREATE SEQUENCE sq1;
+SHOW CREATE SEQUENCE sq2;
+--connection node_2
+--error ER_NO_SUCH_TABLE
+SHOW CREATE SEQUENCE sq1;
+--error ER_NO_SUCH_TABLE
+SHOW CREATE SEQUENCE sq2;
+--connection node_1
+SET SESSION AUTOCOMMIT=1;
+DROP TABLE t1;
+DROP SEQUENCE sq1;
+DROP SEQUENCE sq2;
+SET SESSION wsrep_OSU_method='TOI';

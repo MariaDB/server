@@ -11,7 +11,6 @@ call mtr.add_suppression("InnoDB: Cannot save statistics for table `test`\\.`t1`
 
 FLUSH TABLES;
 
-let $MYSQLD_TMPDIR = `SELECT @@tmpdir`;
 let $MYSQLD_DATADIR = `SELECT @@datadir`;
 let $checksum_algorithm = `SELECT @@innodb_checksum_algorithm`;
 
@@ -41,10 +40,10 @@ CREATE TABLE t2(a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPACT;
 FLUSH TABLE t1, t2 FOR EXPORT;
 --echo # List before copying files
 --list_files $MYSQLD_DATADIR/test
---copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_TMPDIR/t1.cfg
---copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_TMPDIR/t1.ibd
---move_file $MYSQLD_DATADIR/test/t2.cfg $MYSQLD_TMPDIR/t2.cfg
---copy_file $MYSQLD_DATADIR/test/t2.ibd $MYSQLD_TMPDIR/t2.ibd
+--copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_DATADIR/test/t1.cfg.sav
+--copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t1.ibd.sav
+--move_file $MYSQLD_DATADIR/test/t2.cfg $MYSQLD_DATADIR/test/t2.cfg.sav
+--copy_file $MYSQLD_DATADIR/test/t2.ibd $MYSQLD_DATADIR/test/t2.ibd.sav
 UNLOCK TABLES;
 INSERT INTO t1 (b, c) SELECT b,c FROM t1 ORDER BY a;
 SELECT COUNT(*) FROM t1;
@@ -58,8 +57,8 @@ SELECT * FROM t1 ORDER BY a DESC LIMIT 3;
 ALTER TABLE t1 DISCARD TABLESPACE;
 --echo # List after t1 DISCARD
 --list_files $MYSQLD_DATADIR/test
---copy_file $MYSQLD_TMPDIR/t1.cfg $MYSQLD_DATADIR/test/t1.cfg
---copy_file $MYSQLD_TMPDIR/t1.ibd $MYSQLD_DATADIR/test/t1.ibd
+--copy_file $MYSQLD_DATADIR/test/t1.cfg.sav $MYSQLD_DATADIR/test/t1.cfg
+--copy_file $MYSQLD_DATADIR/test/t1.ibd.sav $MYSQLD_DATADIR/test/t1.ibd
 ALTER TABLE t1 IMPORT TABLESPACE;
 ALTER TABLE t1 ENGINE InnoDB;
 SELECT COUNT(*) FROM t1;
@@ -70,15 +69,15 @@ SELECT COUNT(*) FROM t1;
 SELECT * FROM t1 ORDER BY b,a DESC LIMIT 3;
 SELECT * FROM t1 ORDER BY a DESC LIMIT 3;
 DROP TABLE t1;
---remove_file $MYSQLD_TMPDIR/t1.cfg
---remove_file $MYSQLD_TMPDIR/t1.ibd
+--remove_file $MYSQLD_DATADIR/test/t1.cfg.sav
+--remove_file $MYSQLD_DATADIR/test/t1.ibd.sav
 
 ALTER TABLE t2 ROW_FORMAT=DYNAMIC;
 ALTER TABLE t2 DISCARD TABLESPACE;
 --echo # List after t2 DISCARD
 --list_files $MYSQLD_DATADIR/test
---move_file $MYSQLD_TMPDIR/t2.ibd $MYSQLD_DATADIR/test/t2.ibd
---move_file $MYSQLD_TMPDIR/t2.cfg $MYSQLD_DATADIR/test/t2.cfg
+--move_file $MYSQLD_DATADIR/test/t2.ibd.sav $MYSQLD_DATADIR/test/t2.ibd
+--move_file $MYSQLD_DATADIR/test/t2.cfg.sav $MYSQLD_DATADIR/test/t2.cfg
 --error ER_TABLE_SCHEMA_MISMATCH
 ALTER TABLE t2 IMPORT TABLESPACE;
 --remove_file $MYSQLD_DATADIR/test/t2.cfg

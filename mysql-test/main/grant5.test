@@ -408,4 +408,16 @@ insert mysql.host values (1);
 flush privileges;
 drop table mysql.host;
 
+--echo #
+--echo # MDEV-30826 Invalid data on mysql.host segfaults the server after an upgrade to 10.4
+--echo #
+
+# from mysql_system_tables.sql in 10.3:
+create table mysql.host (host char(60) binary default '' not null, db char(64) binary default '' not null, select_priv enum('n','y') collate utf8_general_ci default 'n' not null, insert_priv enum('n','y') collate utf8_general_ci default 'n' not null, update_priv enum('n','y') collate utf8_general_ci default 'n' not null, delete_priv enum('n','y') collate utf8_general_ci default 'n' not null, create_priv enum('n','y') collate utf8_general_ci default 'n' not null, drop_priv enum('n','y') collate utf8_general_ci default 'n' not null, grant_priv enum('n','y') collate utf8_general_ci default 'n' not null, references_priv enum('n','y') collate utf8_general_ci default 'n' not null, index_priv enum('n','y') collate utf8_general_ci default 'n' not null, alter_priv enum('n','y') collate utf8_general_ci default 'n' not null, create_tmp_table_priv enum('n','y') collate utf8_general_ci default 'n' not null, lock_tables_priv enum('n','y') collate utf8_general_ci default 'n' not null, create_view_priv enum('n','y') collate utf8_general_ci default 'n' not null, show_view_priv enum('n','y') collate utf8_general_ci default 'n' not null, create_routine_priv enum('n','y') collate utf8_general_ci default 'n' not null, alter_routine_priv enum('n','y') collate utf8_general_ci default 'n' not null, execute_priv enum('n','y') collate utf8_general_ci default 'n' not null, trigger_priv enum('n','y') collate utf8_general_ci default 'n' not null, primary key /*host*/ (host,db)) engine=myisam character set utf8 collate utf8_bin comment='host privileges;  merged with database privileges';
+insert mysql.host values('10.5.0.0/255.255.0.0','','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','N');
+flush privileges;
+drop table mysql.host;
+
+--echo #
 --echo # End of 10.4 tests
+--echo #

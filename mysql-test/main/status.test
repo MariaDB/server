@@ -280,7 +280,6 @@ show status like 'Com%function';
 #
 connect (root, localhost, root,,test);
 connection root;
-let $root_connection_id= `select connection_id()`;
 --disable_warnings
 create database db37908;
 --enable_warnings
@@ -296,7 +295,6 @@ delimiter ;|
 
 connect (user1,localhost,mysqltest_1,,test);
 connection user1;
-let $user1_connection_id= `select connection_id()`;
 
 --error ER_TABLEACCESS_DENIED_ERROR
 select * from db37908.t1;
@@ -315,11 +313,8 @@ drop procedure proc37908;
 drop function func37908;
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM mysqltest_1@localhost;
 DROP USER mysqltest_1@localhost;
-# Wait till the sessions user1 and root are disconnected
-let $wait_condition =
-  SELECT COUNT(*) = 0
-  FROM information_schema.processlist
-  WHERE  id in ('$root_connection_id','$user1_connection_id');
+# Wait until all non-default sessions are disconnected
+let $wait_condition = SELECT COUNT(*) = 1 FROM information_schema.processlist;
 --source include/wait_condition.inc
 
 #
@@ -446,4 +441,35 @@ SET GLOBAL log_output = @old_log_output;
 
 # Wait till we reached the initial number of concurrent sessions
 --source include/wait_until_count_sessions.inc
+
+--echo #
+--echo # MDEV-30543 New status variable: Max_used_connections_time
+--echo #
+
+FLUSH STATUS;
+
+connect (con1,localhost,root,,);
+--sleep 1
+connect (con2,localhost,root,,);
+--sleep 1
+let $time_1=`SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME LIKE 'max_used_connections_time'`;
+--sleep 1
+connection con1;
+disconnect con2;
+--sleep 1
+let $time_2=`SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME LIKE 'max_used_connections_time'`;
+--replace_regex /[0-9]*-[0-9]*-[0-9]* [0-9]*:[0-9]*:[0-9]*/DTVALUE/
+eval SELECT '$time_1' = '$time_2' AS expect_1;
+--sleep 1
+connect (con3,localhost,root,,);
+--sleep 1
+connect (con4,localhost,root,,);
+--sleep 1
+let $time_3=`SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME LIKE 'max_used_connections_time'`;
+--replace_regex /[0-9]*-[0-9]*-[0-9]* [0-9]*:[0-9]*:[0-9]*/DTVALUE/
+eval SELECT '$time_1' < '$time_3' as expect_1;
+
+disconnect con4;
+disconnect con3;
+disconnect con1;
 

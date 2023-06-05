@@ -597,8 +597,7 @@ private:
   @return number of pending operations, possibly with NEEDS_FSYNC flag */
   uint32_t set_closing()
   {
-    return n_pending.fetch_or(CLOSING, std::memory_order_acquire) &
-      (PENDING | NEEDS_FSYNC);
+    return n_pending.fetch_or(CLOSING, std::memory_order_acquire);
   }
 
 public:
@@ -1470,6 +1469,7 @@ public:
 
     if (space_list_last_opened == space)
     {
+      ut_ad(s != space_list.begin());
       space_list_t::iterator prev= s;
       space_list_last_opened= &*--prev;
     }

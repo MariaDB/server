@@ -309,10 +309,10 @@ int ha_spider::open(
       no_bytes_in_map(table->read_set));
     wide_handler_alloc = TRUE;
 
-  if (!share && !spider_get_share(name, table, thd, this, &error_num))
-    goto error_get_share;
+    if (!share && !spider_get_share(name, table, thd, this, &error_num))
+      goto error_get_share;
 
-  wide_share = share->wide_share;
+    wide_share = share->wide_share;
 
     DBUG_PRINT("info",("spider create partition_handler"));
     DBUG_PRINT("info",("spider table=%p", table));
@@ -6559,13 +6559,6 @@ int ha_spider::info(
   auto_inc_temporary = FALSE;
 #endif
   wide_handler->sql_command = thd_sql_command(thd);
-/*
-  if (
-    sql_command == SQLCOM_DROP_TABLE ||
-    sql_command == SQLCOM_ALTER_TABLE ||
-    sql_command == SQLCOM_SHOW_CREATE
-  ) {
-*/
     if (flag & HA_STATUS_AUTO)
     {
       if (share->lgtm_tblhnd_share->auto_increment_value)
@@ -6583,9 +6576,6 @@ int ha_spider::info(
       wide_handler->sql_command == SQLCOM_ALTER_TABLE
     )
       DBUG_RETURN(0);
-/*
-  }
-*/
 
   if (flag &
     (HA_STATUS_TIME | HA_STATUS_CONST | HA_STATUS_VARIABLE | HA_STATUS_AUTO))

@@ -22,30 +22,18 @@
 
 extern bool binlog_locked;
 
-bool
-backup_file_printf(const char *filename, const char *fmt, ...)
-		ATTRIBUTE_FORMAT(printf, 2, 0);
-
 /************************************************************************
 Return true if first and second arguments are the same path. */
 bool
 equal_paths(const char *first, const char *second);
 
-/************************************************************************
-Copy file for backup/restore.
-@return true in case of success. */
-bool
-copy_file(ds_ctxt_t *datasink,
-	  const char *src_file_path,
-	  const char *dst_file_path,
-	  uint thread_n);
-
 /** Start --backup */
-bool backup_start(CorruptedPages &corrupted_pages);
+bool backup_start(ds_ctxt *ds_data, ds_ctxt *ds_meta,
+                  CorruptedPages &corrupted_pages);
 /** Release resources after backup_start() */
 void backup_release();
 /** Finish after backup_start() and backup_release() */
-bool backup_finish();
+bool backup_finish(ds_ctxt *ds_data);
 bool
 apply_log_finish();
 bool
@@ -59,6 +47,5 @@ directory_exists(const char *dir, bool create);
 
 lsn_t
 get_current_lsn(MYSQL *connection);
-bool backup_file_print_buf(const char *filename, const char *buf, int buf_len);
 
 #endif

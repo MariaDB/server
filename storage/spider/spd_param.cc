@@ -1771,7 +1771,7 @@ int spider_param_sts_mode(
 /*
  -1 :use table parameter
   0 :No synchronization.
-  1 :Table state is synchronized when opening a table.
+  1 :Table stat is synchronized when opening a table.
      Then no synchronization.
   2 :Synchronization.
  */

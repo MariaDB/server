@@ -31,7 +31,7 @@ INSERT INTO t2 VALUES('mariadb');
 connection default;
 SET @saved_dbug = @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug ='+d,fts_instrument_sync_request,ib_optimize_wq_hang';
-SET DEBUG_SYNC= 'fts_sync_end
+SET DEBUG_SYNC= 'fts_instrument_sync_request
 		 SIGNAL drop_index_start WAIT_FOR sync_op';
 send INSERT INTO t1 VALUES('Keyword');
 

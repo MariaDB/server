@@ -300,8 +300,9 @@ int cmp_data(ulint mtype, ulint prtype, bool descending,
     DBUG_ASSERT(is_strnncoll_compatible(prtype & DATA_MYSQL_TYPE_MASK));
     if (CHARSET_INFO *cs= all_charsets[dtype_get_charset_coll(prtype)])
     {
-      cmp= cs->coll->strnncollsp_nchars(cs, data1, len1, data2, len2,
-                                        std::max(len1, len2));
+      cmp= cs->coll->
+        strnncollsp_nchars(cs, data1, len1, data2, len2, std::max(len1, len2),
+                           MY_STRNNCOLLSP_NCHARS_EMULATE_TRIMMED_TRAILING_SPACES);
       goto func_exit;
     }
     goto no_collation;

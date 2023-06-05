@@ -83,8 +83,9 @@ enum fts_msg_type_t {
 	FTS_MSG_ADD_TABLE,		/*!< Add table to the optimize thread's
 					work queue */
 
-	FTS_MSG_DEL_TABLE		/*!< Remove a table from the optimize
+	FTS_MSG_DEL_TABLE,		/*!< Remove a table from the optimize
 					threads work queue */
+	FTS_MSG_SYNC_TABLE		/*!< Sync fts cache of a table */
 };
 
 /** Compressed list of words that have been read from FTS INDEX
@@ -2624,6 +2625,36 @@ fts_optimize_remove_table(
   mysql_mutex_unlock(&fts_optimize_wq->mutex);
 }
 
+/** Send sync fts cache for the table.
+@param[in]	table	table to sync */
+void
+fts_optimize_request_sync_table(
+	dict_table_t*	table)
+{
+	/* if the optimize system not yet initialized, return */
+	if (!fts_optimize_wq) {
+		return;
+	}
+
+	mysql_mutex_lock(&fts_optimize_wq->mutex);
+
+	/* FTS optimizer thread is already exited */
+	if (fts_opt_start_shutdown) {
+		ib::info() << "Try to sync table " << table->name
+			<< " after FTS optimize thread exiting.";
+	} else if (table->fts->sync_message) {
+		/* If the table already has SYNC message in
+		fts_optimize_wq queue then ignore it */
+	} else {
+		add_msg(fts_optimize_create_msg(FTS_MSG_SYNC_TABLE, table));
+		table->fts->sync_message = true;
+		DBUG_EXECUTE_IF("fts_optimize_wq_count_check",
+				DBUG_ASSERT(fts_optimize_wq->length <= 1000););
+	}
+
+	mysql_mutex_unlock(&fts_optimize_wq->mutex);
+}
+
 /** Add a table to fts_slots if it doesn't already exist. */
 static bool fts_optimize_new_table(dict_table_t* table)
 {
@@ -2765,8 +2796,7 @@ static void fts_optimize_sync_table(dict_table_t *table,
 
   if (sync_table->fts && sync_table->fts->cache && sync_table->is_accessible())
   {
-    fts_sync_table(sync_table);
-
+    fts_sync_table(sync_table, false);
     if (process_message)
     {
       mysql_mutex_lock(&fts_optimize_wq->mutex);
@@ -2866,6 +2896,24 @@ retry_later:
 					--n_tables;
 				}
 				break;
+
+			case FTS_MSG_SYNC_TABLE:
+				if (UNIV_UNLIKELY(wsrep_sst_disable_writes)) {
+					add_msg(msg);
+					goto retry_later;
+				}
+
+				DBUG_EXECUTE_IF(
+					"fts_instrument_msg_sync_sleep",
+					std::this_thread::sleep_for(
+						std::chrono::milliseconds(
+							300)););
+
+				fts_optimize_sync_table(
+					static_cast<dict_table_t*>(msg->ptr),
+					true);
+				break;
+
 			default:
 				ut_error;
 			}
@@ -2998,7 +3046,7 @@ void fts_sync_during_ddl(dict_table_t* table)
   if (!sync_message)
     return;
 
-  fts_sync_table(table);
+  fts_sync_table(table, false);
 
   mysql_mutex_lock(&fts_optimize_wq->mutex);
   table->fts->sync_message = false;

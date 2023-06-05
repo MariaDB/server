@@ -576,7 +576,7 @@ inline dberr_t SysTablespace::read_lsn_and_check_flags()
 
 	ut_a(it->order() == 0);
 
-	if (srv_operation == SRV_OPERATION_NORMAL) {
+	if (srv_operation  <= SRV_OPERATION_EXPORT_RESTORED) {
 		buf_dblwr.init_or_load_pages(it->handle(), it->filepath());
 	}
 
@@ -920,6 +920,7 @@ SysTablespace::open_or_create(
 	/* Close the curent handles, add space and file info to the
 	fil_system cache and the Data Dictionary, and re-open them
 	in file_system cache so that they stay open until shutdown. */
+	mysql_mutex_lock(&fil_system.mutex);
 	ulint	node_counter = 0;
 	for (files_t::iterator it = begin; it != end; ++it) {
 		it->close();
@@ -933,7 +934,8 @@ SysTablespace::open_or_create(
 				FIL_TYPE_TEMPORARY, NULL);
 			ut_ad(space == fil_system.temp_space);
 			if (!space) {
-				return DB_ERROR;
+				err = DB_ERROR;
+				break;
 			}
 			ut_ad(!space->is_compressed());
 			ut_ad(space->full_crc32());
@@ -944,11 +946,10 @@ SysTablespace::open_or_create(
 				FIL_TYPE_TABLESPACE, NULL);
 			ut_ad(space == fil_system.sys_space);
 			if (!space) {
-				return DB_ERROR;
+				err = DB_ERROR;
+				break;
 			}
 		}
-
-		ut_a(fil_validate());
 
 		uint32_t max_size = (++node_counter == m_files.size()
 				    ? (m_last_file_size_max == 0
@@ -960,6 +961,7 @@ SysTablespace::open_or_create(
 			   it->m_type != SRV_NOT_RAW, true, max_size);
 	}
 
+	mysql_mutex_unlock(&fil_system.mutex);
 	return(err);
 }
 

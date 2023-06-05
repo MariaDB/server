@@ -163,5 +163,18 @@ drop role student;
 drop role admin;
 drop database crm;
 #
+# MDEV-30526 Assertion `rights == merged->cols' failed in update_role_columns
+#
+create table t1 ( pk int, i int);
+create role a;
+grant select (i), update (pk) on t1 to a;
+revoke  update (pk) on t1 from a;
+show grants for a;
+Grants for a
+GRANT USAGE ON *.* TO `a`
+GRANT SELECT (`i`) ON `test`.`t1` TO `a`
+drop role a;
+drop table t1;
+#
 # End of 10.3 tests
 #

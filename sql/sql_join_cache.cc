@@ -1620,7 +1620,7 @@ bool JOIN_CACHE::get_record()
     pos+= referenced_fields*size_of_fld_ofs;
     if (prev_cache)
       prev_cache->get_record_by_pos(prev_rec_ptr);
-  } 
+  }
   ANALYZE_STOP_TRACKING(thd(), join_tab->jbuf_unpack_tracker);
   return res; 
 }
@@ -2397,7 +2397,9 @@ enum_nested_loop_state JOIN_CACHE::join_matching_records(bool skip_last)
 	  (join_tab->first_inner && !not_exists_opt_is_applicable) ||
           !skip_next_candidate_for_match(rec_ptr))
       {
-	read_next_candidate_for_match(rec_ptr);
+        ANALYZE_START_TRACKING(join->thd, join_tab->jbuf_unpack_tracker);
+        read_next_candidate_for_match(rec_ptr);
+        ANALYZE_STOP_TRACKING(join->thd, join_tab->jbuf_unpack_tracker);
         rc= generate_full_extensions(rec_ptr);
         if (rc != NESTED_LOOP_OK && rc != NESTED_LOOP_NO_MORE_ROWS)
 	  goto finish;   

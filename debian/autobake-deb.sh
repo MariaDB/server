@@ -16,6 +16,7 @@ set -e
 # Buildbot, running the test suite from installed .debs on a clean VM.
 export DEB_BUILD_OPTIONS="nocheck $DEB_BUILD_OPTIONS"
 
+# shellcheck source=/dev/null
 source ./VERSION
 
 # General CI optimizations to keep build output smaller
@@ -55,17 +56,26 @@ remove_rocksdb_tools()
   fi
 }
 
+add_lsb_base_depends()
+{
+  # Make sure one can run this multiple times remove
+  # lines 'sysvinit-utils' and 'lsb-base'.
+  sed -e '/sysvinit-utils/d' -e '/lsb-base/d' -i debian/control
+  # Add back lsb-base before lsof
+  sed -e 's#lsof #lsb-base (>= 3.0-10),\n         lsof #' -i debian/control
+}
+
 replace_uring_with_aio()
 {
   sed 's/liburing-dev/libaio-dev/g' -i debian/control
-  sed -e '/-DIGNORE_AIO_CHECK=YES/d' \
-      -e '/-DWITH_URING=YES/d' -i debian/rules
+  sed -e '/-DIGNORE_AIO_CHECK=ON/d' \
+      -e '/-DWITH_URING=ON/d' -i debian/rules
 }
 
 disable_pmem()
 {
   sed '/libpmem-dev/d' -i debian/control
-  sed '/-DWITH_PMEM=YES/d' -i debian/rules
+  sed '/-DWITH_PMEM=ON/d' -i debian/rules
 }
 
 disable_libfmt()
@@ -98,13 +108,14 @@ fi
 # If not known, use 'unknown' in .deb version identifier
 if [ -z "${LSBID}" ]
 then
-    LSBID="unknown"
+  LSBID="unknown"
 fi
 
 case "${LSBNAME}"
 in
   # Debian
-  buster)
+  "buster")
+    add_lsb_base_depends
     disable_libfmt
     replace_uring_with_aio
     if [ ! "$architecture" = amd64 ]
@@ -112,7 +123,11 @@ in
       disable_pmem
     fi
     ;&
-  bullseye|bookworm)
+  "bullseye"|"bookworm")
+    if [[ "${LSBNAME}" == "bullseye" ]]
+    then
+      add_lsb_base_depends
+    fi
     # mariadb-plugin-rocksdb in control is 4 arches covered by the distro rocksdb-tools
     # so no removal is necessary.
     if [[ ! "$architecture" =~ amd64|arm64|ppc64el ]]
@@ -124,20 +139,23 @@ in
       replace_uring_with_aio
     fi
     ;&
-  sid)
+  "sid")
     # The default packaging should always target Debian Sid, so in this case
     # there is intentionally no customizations whatsoever.
     ;;
   # Ubuntu
-  bionic)
+  "bionic")
+    add_lsb_base_depends
     remove_rocksdb_tools
     [ "$architecture" != amd64 ] && disable_pmem
     ;&
-  focal)
+  "focal")
+    add_lsb_base_depends
     replace_uring_with_aio
     disable_libfmt
     ;&
-  impish|jammy|kinetic|lunar)
+  "impish"|"jammy"|"kinetic"|"lunar")
+    add_lsb_base_depends
     # mariadb-plugin-rocksdb s390x not supported by us (yet)
     # ubuntu doesn't support mips64el yet, so keep this just
     # in case something changes.
@@ -178,17 +196,39 @@ dch -b -D "${LSBNAME}" -v "${VERSION}" "Automatic build with ${LOGSTRING}." --co
 
 echo "Creating package version ${VERSION} ... "
 
+BUILDPACKAGE_DPKGCMD=()
+
+# Fakeroot test
+if fakeroot true; then
+  BUILDPACKAGE_DPKGCMD+=( "fakeroot" "--" )
+fi
+
 # Use eatmydata is available to build faster with less I/O, skipping fsync()
 # during the entire build process (safe because a build can always be restarted)
 if which eatmydata > /dev/null
 then
-  BUILDPACKAGE_PREPEND=eatmydata
+  BUILDPACKAGE_DPKGCMD+=("eatmydata")
+fi
+
+BUILDPACKAGE_DPKGCMD+=("dpkg-buildpackage")
+
+# Using dpkg-buildpackage args
+# -us Allow unsigned sources
+# -uc Allow unsigned changes
+# -I  Tar ignore
+BUILDPACKAGE_DPKGCMD+=(-us -uc -I)
+
+# There can be also extra flags that are appended to args
+if [ -n "$BUILDPACKAGE_FLAGS" ]
+then
+  read -ra BUILDPACKAGE_TMP_ARGS <<< "$BUILDPACKAGE_FLAGS"
+  BUILDPACKAGE_DPKGCMD+=( "${BUILDPACKAGE_TMP_ARGS[@]}" )
 fi
 
 # Build the package
 # Pass -I so that .git and other unnecessary temporary and source control files
 # will be ignored by dpkg-source when creating the tar.gz source package.
-fakeroot $BUILDPACKAGE_PREPEND dpkg-buildpackage -us -uc -I $BUILDPACKAGE_FLAGS
+"${BUILDPACKAGE_DPKGCMD[@]}"
 
 # If the step above fails due to missing dependencies, you can manually run
 #   sudo mk-build-deps debian/control -r -i

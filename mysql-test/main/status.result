@@ -447,3 +447,22 @@ Feature_json	2
 connection default;
 set @@global.concurrent_insert= @old_concurrent_insert;
 SET GLOBAL log_output = @old_log_output;
+#
+# MDEV-30543 New status variable: Max_used_connections_time
+#
+FLUSH STATUS;
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connection con1;
+disconnect con2;
+SELECT 'DTVALUE' = 'DTVALUE' AS expect_1;
+expect_1
+1
+connect  con3,localhost,root,,;
+connect  con4,localhost,root,,;
+SELECT 'DTVALUE' < 'DTVALUE' as expect_1;
+expect_1
+1
+disconnect con4;
+disconnect con3;
+disconnect con1;
