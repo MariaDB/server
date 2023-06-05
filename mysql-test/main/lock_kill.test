@@ -17,7 +17,7 @@ LOCK TABLE t1 WRITE;
 eval KILL $conid;
 --enable_query_log
 --connection con1
---error 0,2006,2013,ER_CONNECTION_KILLED
+--error 0,2006,2013,2026,ER_CONNECTION_KILLED
 reap;
 --connection default
 --disconnect con1

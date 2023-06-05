@@ -66,12 +66,14 @@ set @@global.userstat=0;
 #
 # Check that we got right statistics
 #
+# Is current session TLS? (with mtr --ssl), normalize results without it.
+select variable_value != "" into @tls from information_schema.session_status where variable_name="Ssl_version";
 select * from information_schema.index_statistics;
 select * from information_schema.table_statistics;
 show table_statistics;
 show index_statistics;
---query_vertical select TOTAL_CONNECTIONS, TOTAL_SSL_CONNECTIONS, CONCURRENT_CONNECTIONS, ROWS_READ, ROWS_SENT, ROWS_DELETED, ROWS_INSERTED, ROWS_UPDATED, SELECT_COMMANDS, UPDATE_COMMANDS, COMMIT_TRANSACTIONS, ROLLBACK_TRANSACTIONS, DENIED_CONNECTIONS, LOST_CONNECTIONS, ACCESS_DENIED, EMPTY_QUERIES from information_schema.client_statistics;
---query_vertical select TOTAL_CONNECTIONS, TOTAL_SSL_CONNECTIONS, CONCURRENT_CONNECTIONS, ROWS_READ, ROWS_SENT, ROWS_DELETED, ROWS_INSERTED, ROWS_UPDATED, SELECT_COMMANDS, UPDATE_COMMANDS, COMMIT_TRANSACTIONS, ROLLBACK_TRANSACTIONS, DENIED_CONNECTIONS, LOST_CONNECTIONS, ACCESS_DENIED, EMPTY_QUERIES from information_schema.user_statistics;
+--query_vertical select TOTAL_CONNECTIONS, TOTAL_SSL_CONNECTIONS - @tls, CONCURRENT_CONNECTIONS, ROWS_READ, ROWS_SENT, ROWS_DELETED, ROWS_INSERTED, ROWS_UPDATED, SELECT_COMMANDS, UPDATE_COMMANDS, COMMIT_TRANSACTIONS, ROLLBACK_TRANSACTIONS, DENIED_CONNECTIONS, LOST_CONNECTIONS, ACCESS_DENIED, EMPTY_QUERIES from information_schema.client_statistics;
+--query_vertical select TOTAL_CONNECTIONS, TOTAL_SSL_CONNECTIONS - @tls, CONCURRENT_CONNECTIONS, ROWS_READ, ROWS_SENT, ROWS_DELETED, ROWS_INSERTED, ROWS_UPDATED, SELECT_COMMANDS, UPDATE_COMMANDS, COMMIT_TRANSACTIONS, ROLLBACK_TRANSACTIONS, DENIED_CONNECTIONS, LOST_CONNECTIONS, ACCESS_DENIED, EMPTY_QUERIES from information_schema.user_statistics;
 # different values in --ps-protocol
 select OTHER_COMMANDS IN (7,8) from information_schema.client_statistics;
 select OTHER_COMMANDS IN (7,8) from information_schema.user_statistics;

@@ -365,7 +365,7 @@ reap;
 eval KILL CONNECTION $kill2_id;
 
 --connection s6
---error 2013,ER_CONNECTION_KILLED
+--error 2013,2026,ER_CONNECTION_KILLED
 reap;
 
 --connection server_1
