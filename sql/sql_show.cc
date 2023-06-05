@@ -943,7 +943,7 @@ find_files(THD *thd, Dynamic_array<LEX_CSTRING*> *files, LEX_CSTRING *db,
 
   if (!(dirp = my_dir(path, MY_THREAD_SPECIFIC | (db ? 0 : MY_WANT_STAT))))
   {
-    if (my_errno == ENOENT)
+    if (my_errno == ENOENT && db)
       my_error(ER_BAD_DB_ERROR, MYF(0), db->str);
     else
       my_error(ER_CANT_READ_DIR, MYF(0), path, my_errno);
