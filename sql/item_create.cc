@@ -3679,13 +3679,6 @@ Create_func_get_lock Create_func_get_lock::s_singleton;
 Item*
 Create_func_get_lock::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-#ifdef WITH_WSREP
-  if (WSREP_ON && WSREP(thd))
-  {
-    my_error(ER_NOT_SUPPORTED_YET, MYF(0), "GET_LOCK in cluster (WSREP_ON=ON)");
-    return NULL;
-  }
-#endif /* WITH_WSREP */
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   thd->lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
   return new (thd->mem_root) Item_func_get_lock(thd, arg1, arg2);
@@ -5020,13 +5013,6 @@ Create_func_release_all_locks Create_func_release_all_locks::s_singleton;
 Item*
 Create_func_release_all_locks::create_builder(THD *thd)
 {
-#ifdef WITH_WSREP
-  if (WSREP_ON && WSREP(thd))
-  {
-    my_error(ER_NOT_SUPPORTED_YET, MYF(0), "RELEASE_ALL_LOCKS in cluster (WSREP_ON=ON)");
-    return NULL;
-  }
-#endif /* WITH_WSREP */
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   thd->lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
   return new (thd->mem_root) Item_func_release_all_locks(thd);
@@ -5038,13 +5024,6 @@ Create_func_release_lock Create_func_release_lock::s_singleton;
 Item*
 Create_func_release_lock::create_1_arg(THD *thd, Item *arg1)
 {
-#ifdef WITH_WSREP
-  if (WSREP_ON && WSREP(thd))
-  {
-    my_error(ER_NOT_SUPPORTED_YET, MYF(0), "RELEASE_LOCK in cluster (WSREP_ON=ON)");
-    return NULL;
-  }
-#endif /* WITH_WSREP */
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   thd->lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
   return new (thd->mem_root) Item_func_release_lock(thd, arg1);
