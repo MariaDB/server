@@ -1748,7 +1748,31 @@ int plugin_init(int *argc, char **argv, int flags)
       for (uint idx= 0; idx < hash->records; idx++)
       {
         plugin_ptr= (struct st_plugin_int *) my_hash_element(hash, idx);
-        if (plugin_ptr->state == PLUGIN_IS_UNINITIALIZED)
+        if (plugin_ptr->state == PLUGIN_IS_UNINITIALIZED &&
+            strncmp(plugin_ptr->name.str, "SPIDER", plugin_ptr->name.length))
+        {
+          bool plugin_table_engine= lex_string_eq(&plugin_table_engine_name,
+                                                  &plugin_ptr->name);
+          bool opts_only= flags & PLUGIN_INIT_SKIP_INITIALIZATION &&
+                         (flags & PLUGIN_INIT_SKIP_PLUGIN_TABLE ||
+                          !plugin_table_engine);
+          if (plugin_initialize(&tmp_root, plugin_ptr, argc, argv, opts_only))
+          {
+            plugin_ptr->state= PLUGIN_IS_DYING;
+            *(reap++)= plugin_ptr;
+          }
+        }
+      }
+    }
+
+    for (i=0; i < MYSQL_MAX_PLUGIN_TYPE_NUM; i++)
+    {
+      HASH *hash= plugin_hash + plugin_type_initialization_order[i];
+      for (uint idx= 0; idx < hash->records; idx++)
+      {
+        plugin_ptr= (struct st_plugin_int *) my_hash_element(hash, idx);
+        if (plugin_ptr->state == PLUGIN_IS_UNINITIALIZED &&
+            !strncmp(plugin_ptr->name.str, "SPIDER", plugin_ptr->name.length))
         {
           bool plugin_table_engine= lex_string_eq(&plugin_table_engine_name,
                                                   &plugin_ptr->name);

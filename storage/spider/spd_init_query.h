@@ -648,9 +648,12 @@ static LEX_STRING spider_init_queries[] = {
     "alter table mysql.spider_xa_member"
     "  add column if not exists driver char(64) default null after filedsn;"
   )},
+};
+
 /*
   Install UDFs
 */
+static LEX_STRING spider_init_udf_queries[] = {
   {C_STRING_WITH_LEN(
     "set @win_plugin := IF(@@version_compile_os like 'Win%', 1, 0);"
   )},
@@ -697,6 +700,32 @@ static LEX_STRING spider_init_queries[] = {
     "else"
     "  create function if not exists spider_flush_table_mon_cache returns int"
     "    soname 'ha_spider.dll';"
+    "end if;"
+  )}
+};
+
+/*
+  Install UDFs early, before udf_init()
+*/
+static LEX_STRING spider_init_early_udf_queries[] = {
+  {C_STRING_WITH_LEN(
+    "set @win_plugin := IF(@@version_compile_os like 'Win%', 1, 0);"
+  )},
+  {C_STRING_WITH_LEN(
+    "if @win_plugin = 0 then"
+    "  insert into mysql.func values"
+    "    ('spider_direct_sql', 2, 'ha_spider.so', 'function'),"
+    "    ('spider_bg_direct_sql', 2, 'ha_spider.so', 'aggregate'),"
+    "    ('spider_ping_table', 2, 'ha_spider.so', 'function'),"
+    "    ('spider_copy_tables', 2, 'ha_spider.so', 'function'),"
+    "    ('spider_flush_table_mon_cache', 2, 'ha_spider.so', 'function');"
+    "else"
+    "  insert into mysql.func values"
+    "    ('spider_direct_sql', 2, 'ha_spider.dll', 'function'),"
+    "    ('spider_bg_direct_sql', 2, 'ha_spider.dll', 'aggregate'),"
+    "    ('spider_ping_table', 2, 'ha_spider.dll', 'function'),"
+    "    ('spider_copy_tables', 2, 'ha_spider.dll', 'function'),"
+    "    ('spider_flush_table_mon_cache', 2, 'ha_spider.dll', 'function');"
     "end if;"
   )}
 };

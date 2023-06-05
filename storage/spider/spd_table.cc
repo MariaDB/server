@@ -6555,15 +6555,21 @@ bool spider_init_system_tables()
     DBUG_RETURN(TRUE);
   }
 
-  int size= sizeof(spider_init_queries) / sizeof(spider_init_queries[0]);
-  for (int i= 0; i < size; i++)
+  const int size= sizeof(spider_init_queries) / sizeof(spider_init_queries[0]);
+  LEX_STRING *udf_queries= udf_initialized ?
+    (LEX_STRING *) spider_init_udf_queries :
+    (LEX_STRING *) spider_init_early_udf_queries;
+  const int udf_size = udf_initialized ?
+    sizeof(spider_init_udf_queries) / sizeof(spider_init_udf_queries[0]) :
+    sizeof(spider_init_early_udf_queries) / sizeof(spider_init_early_udf_queries[0]);
+  for (int i= 0; i < size + udf_size; i++)
   {
-    if (mysql_real_query(mysql, spider_init_queries[i].str,
-                         spider_init_queries[i].length))
+    const LEX_STRING *query= i < size ? &spider_init_queries[i] : &udf_queries[i - size];
+    if (mysql_real_query(mysql, query->str, query->length))
     {
       fprintf(stderr,
               "[ERROR] SPIDER plugin initialization failed at '%s' by '%s'\n",
-              spider_init_queries[i].str, mysql_error(mysql));
+              query->str, mysql_error(mysql));
 
       mysql_close(mysql);
       DBUG_RETURN(TRUE);
