@@ -321,14 +321,28 @@ unlock_or_exit_cond(THD *thd, mysql_mutex_t *lock, bool *did_enter_cond,
     mysql_mutex_unlock(lock);
 }
 
-
-static void
+/*
+  @return 0  registration is done completely, otherwise
+          1  registration for SPECULATE_DEPEND only is done
+*/
+static int
 register_wait_for_prior_event_group_commit(rpl_group_info *rgi,
                                            rpl_parallel_entry *entry)
 {
   mysql_mutex_assert_owner(&entry->LOCK_parallel_entry);
   if (rgi->wait_commit_sub_id > entry->last_committed_sub_id)
   {
+    if ((rgi->speculation == rpl_group_info::SPECULATE_WAIT) && // todo: means S_DEPEND
+        !(rgi->gtid_ev_flags2 & Gtid_log_event::FL_ALLOW_PARALLEL))
+    {
+      if (entry->last_committed_sub_id < rgi->wait_noptim_sub_id)
+      {
+        wait_for_commit *waitee=
+          &rgi->wait_noptim_group_info->commit_orderer;
+        rgi->commit_orderer.register_wait_for_prior_commit(waitee, true);
+      }
+      return 1;
+    }
     /*
       Register that the commit of this event group must wait for the
       commit of the previous event group to complete before it may
@@ -338,6 +352,7 @@ register_wait_for_prior_event_group_commit(rpl_group_info *rgi,
       &rgi->wait_commit_group_info->commit_orderer;
     rgi->commit_orderer.register_wait_for_prior_commit(waitee);
   }
+  return 0;
 }
 
 
@@ -838,7 +853,7 @@ do_retry:
   for (;;)
   {
     mysql_mutex_lock(&entry->LOCK_parallel_entry);
-    register_wait_for_prior_event_group_commit(rgi, entry);
+    (void) register_wait_for_prior_event_group_commit(rgi, entry);
     if (!(entry->stop_on_error_sub_id == (uint64) ULONGLONG_MAX ||
 #ifndef DBUG_OFF
           (DBUG_EVALUATE_IF("simulate_mdev_12746", 1, 0)) ||
@@ -1283,7 +1298,7 @@ handle_rpl_parallel_thread(void *arg)
           such registration _and_ that previous commit has not already
           occurred.
         */
-        register_wait_for_prior_event_group_commit(rgi, entry);
+        int register_wait= register_wait_for_prior_event_group_commit(rgi, entry);
 
         unlock_or_exit_cond(thd, &entry->LOCK_parallel_entry,
                             &did_enter_cond, &old_stage);
@@ -1318,11 +1333,25 @@ handle_rpl_parallel_thread(void *arg)
           before, then wait now for the prior transaction to complete its
           commit.
         */
-        if (rgi->speculation == rpl_group_info::SPECULATE_WAIT &&
-            (err= thd->wait_for_prior_commit()))
+        if (rgi->speculation >= rpl_group_info::SPECULATE_WAIT)
         {
-          slave_output_error_info(rgi, thd);
-          signal_error_to_sql_driver_thread(thd, rgi, 1);
+          if ((err= thd->wait_for_prior_commit()))
+          {
+            slave_output_error_info(rgi, thd);
+            signal_error_to_sql_driver_thread(thd, rgi, 1);
+          }
+          else if (register_wait == 1)
+          {
+            // DBUG_ASSERT(rgi->speculation >= rpl_group_info::SPECULATE_DEPEND);
+            mysql_mutex_lock(&entry->LOCK_parallel_entry);
+            if (rgi->wait_commit_sub_id > entry->last_committed_sub_id)
+            {
+              wait_for_commit *waitee=
+                &rgi->wait_commit_group_info->commit_orderer;
+              rgi->commit_orderer.register_wait_for_prior_commit(waitee, false);
+            }
+            mysql_mutex_unlock(&entry->LOCK_parallel_entry);
+          }
         }
       }
 
@@ -2328,6 +2357,8 @@ rpl_parallel::find(uint32 domain_id)
     e->domain_id= domain_id;
     e->stop_on_error_sub_id= (uint64)ULONGLONG_MAX;
     e->pause_sub_id= (uint64)ULONGLONG_MAX;
+    //e->wait_noptim_sub_id= 0;
+    //e->wait_noptim_group_info= NULL;
     mysql_mutex_init(key_LOCK_parallel_entry, &e->LOCK_parallel_entry,
                      MY_MUTEX_INIT_FAST);
     mysql_cond_init(key_COND_parallel_entry, &e->COND_parallel_entry, NULL);
@@ -2940,6 +2971,14 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
             to run in parallel with transactions prior to this one.
           */
           speculation= rpl_group_info::SPECULATE_WAIT;
+          if (!(gtid_flags & Gtid_log_event::FL_ALLOW_PARALLEL))
+          {
+            //TODO: speculation= rpl_group_info::SPECULATE_DEPEND;
+            rgi->wait_noptim_group_info= e->current_noptim_group_info;
+            rgi->wait_noptim_sub_id= e->current_noptim_sub_id;
+            e->current_noptim_group_info= rgi;
+            e->current_noptim_sub_id= rgi->gtid_sub_id;
+          }
         }
         else
           speculation= rpl_group_info::SPECULATE_OPTIMISTIC;

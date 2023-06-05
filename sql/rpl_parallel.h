@@ -355,6 +355,8 @@ struct rpl_parallel_entry {
     afterwards can safely be stopped and rolled back.
   */
   std::atomic<uint64> unsafe_rollback_marker_sub_id;
+  uint64 current_noptim_sub_id;
+  rpl_group_info *current_noptim_group_info;
 
   rpl_parallel_thread * choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
                                       PSI_stage_info *old_stage, bool reuse);
