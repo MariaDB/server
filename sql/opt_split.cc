@@ -948,6 +948,7 @@ void reset_validity_vars_for_keyuses(KEYUSE_EXT *key_keyuse_ext_start,
 
 SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
                                                  table_map remaining_tables,
+                                                 const POSITION *join_positions,
                                                  table_map *spl_pd_boundary)
 {
   SplM_opt_info *spl_opt_info= table->spl_opt_info;
@@ -1045,7 +1046,7 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
     else
     {
       table_map last_found= this->table->map;
-      for (POSITION *pos= &this->join->positions[idx - 1]; ; pos--)
+      for (const POSITION *pos= &join_positions[idx - 1]; ; pos--)
       {
         if (pos->table->table->map & excluded_tables)
           continue;
