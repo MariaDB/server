@@ -39,3 +39,90 @@ drop catalog c1;
 drop catalog c2;
 drop catalog def;
 ERROR HY000: Catalog directory 'def' is not empty
+#
+# Test status vars
+#
+create catalog cat1;
+use catalog cat1;
+select catalog();
+catalog()
+cat1
+select database();
+database()
+NULL
+create database foo;
+use foo;
+connect  con1,localhost,root,,cat1.foo;
+connection con1;
+select catalog();
+catalog()
+cat1
+select database();
+database()
+foo
+create table t1 (a int);
+drop table t1;
+disconnect con1;
+connection default;
+select catalog();
+catalog()
+cat1
+show status like "Com_create_table";
+Variable_name	Value
+Com_create_table	0
+show catalog status like "Com_create_table";
+Variable_name	Value
+Com_create_table	1
+show server status like "Com_create_table";
+Variable_name	Value
+Com_create_table	1
+show global status like "Com_create_table";
+Variable_name	Value
+Com_create_table	1
+select * from information_schema.session_status where variable_name="Com_create_table";
+VARIABLE_NAME	VARIABLE_VALUE
+COM_CREATE_TABLE	0
+select * from information_schema.catalog_status where variable_name="Com_create_table";
+VARIABLE_NAME	VARIABLE_VALUE
+COM_CREATE_TABLE	1
+select * from information_schema.server_status where variable_name="Com_create_table";
+VARIABLE_NAME	VARIABLE_VALUE
+COM_CREATE_TABLE	1
+select * from information_schema.global_status where variable_name="Com_create_table";
+VARIABLE_NAME	VARIABLE_VALUE
+COM_CREATE_TABLE	0
+drop database foo;
+Warnings:
+Error	1146	Table 'mysql.proc' doesn't exist
+Error	1146	Table 'mysql.event' doesn't exist
+use catalog def;
+show status like "Com_create_table";
+Variable_name	Value
+Com_create_table	0
+show catalog status like "Com_create_table";
+Variable_name	Value
+Com_create_table	0
+show server status like "Com_create_table";
+Variable_name	Value
+Com_create_table	1
+show global status like "Com_create_table";
+Variable_name	Value
+Com_create_table	0
+select * from information_schema.session_status where variable_name="Com_create_table";
+VARIABLE_NAME	VARIABLE_VALUE
+COM_CREATE_TABLE	0
+select * from information_schema.catalog_status where variable_name="Com_create_table";
+VARIABLE_NAME	VARIABLE_VALUE
+COM_CREATE_TABLE	0
+select * from information_schema.server_status where variable_name="Com_create_table";
+VARIABLE_NAME	VARIABLE_VALUE
+COM_CREATE_TABLE	1
+select * from information_schema.global_status where variable_name="Com_create_table";
+VARIABLE_NAME	VARIABLE_VALUE
+COM_CREATE_TABLE	0
+drop catalog cat1;
+#
+# Test catalog variables
+#
+set @@max_prepared_stmt_count=1;
+ERROR HY000: Variable 'max_prepared_stmt_count' is a SERVER/CATALOG variable and should be set with SET SERVER or SET CATALOG

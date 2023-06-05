@@ -790,11 +790,17 @@ int set_var::check(THD *thd)
   }
   if (var->check_type(type))
   {
-    int err= type == OPT_GLOBAL ? ER_LOCAL_VARIABLE : ER_GLOBAL_VARIABLE;
+    int err= ((type == OPT_SERVER || type == OPT_CATALOG) ?
+              ER_LOCAL_VARIABLE :
+              (using_catalogs ?
+               ER_GLOBAL_OR_CATALOG_VARIABLE :
+               ER_GLOBAL_VARIABLE));
     my_error(err, MYF(0), var->name.str);
     return -1;
   }
-  if (type == OPT_GLOBAL && var->on_check_access_global(thd))
+  if (type == OPT_CATALOG)
+    type= OPT_SERVER;
+  if (type == OPT_SERVER && var->on_check_access_global(thd))
     return 1;
   /* value is a NULL pointer if we are using SET ... = DEFAULT */
   if (!value)
@@ -808,13 +814,14 @@ int set_var::check(THD *thd)
     return -1;
   }
   switch (type) {
-  case SHOW_OPT_DEFAULT:
-  case SHOW_OPT_SESSION:
+  case OPT_DEFAULT:
+  case OPT_SESSION:
     DBUG_ASSERT(var->scope() != sys_var::GLOBAL);
     if (var->on_check_access_session(thd))
       return -1;
     break;
-  case SHOW_OPT_GLOBAL:  // Checked earlier
+  case OPT_SERVER:   // Checked earlier
+  case OPT_CATALOG:  // Impossible
     break;
   }
   return var->check(thd, this) ? -1 : 0;

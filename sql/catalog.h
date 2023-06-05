@@ -23,6 +23,7 @@
 #include "sql_hset.h"
 #include "sql_string.h"
 #include "privilege.h"
+#include "status_var.h"
 
 struct Schema_specification_st;
 
@@ -35,6 +36,7 @@ public:
   const LEX_CSTRING path;             // Directory path, including '/'
   LEX_CSTRING comment;                // Comment from 'catalog.opt'
   mysql_mutex_t lock_status;
+  STATUS_VAR status_var;
   CHARSET_INFO *cs;
   privilege_t acl;                    // acl's allowed for this catalog
   ulong event_scheduler;              // Default for event scheduler

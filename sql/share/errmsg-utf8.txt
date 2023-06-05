@@ -10802,3 +10802,5 @@ ER_CATALOG_NOT_EMPTY
         eng "Catalog directory '%-.192s' is not empty"
 ER_RESERVED_CATALOG_CANNOT_BE_DROPPED
         eng "Catalog '%-.192s' is reserved and cannot be dropped"
+ER_GLOBAL_OR_CATALOG_VARIABLE
+        eng "Variable '%-.64s' is a SERVER/CATALOG variable and should be set with SET SERVER or SET CATALOG"

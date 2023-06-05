@@ -2263,7 +2263,7 @@ dispatch_command(enum enum_server_command command,
     general_log_print(thd, command, NullS);
     status_var_increment(thd->status_var.com_stat[SQLCOM_SHOW_STATUS]);
     *current_global_status_var= global_status_var;
-    calc_sum_of_all_status(current_global_status_var);
+    calc_sum_of_all_status(current_global_status_var, 0);
     if (!(uptime= (ulong) (thd->start_time - server_start_time)))
       queries_per_second1000= 0;
     else
@@ -6431,15 +6431,23 @@ execute_show_status(THD *thd, TABLE_LIST *all_tables)
   thd->server_status&= ~(SERVER_QUERY_NO_INDEX_USED |
                          SERVER_QUERY_NO_GOOD_INDEX_USED);
   /*
-    restore status variables, as we don't want 'show status' to cause
-    changes
+    Restore session status variables, as we don't want 'show status'
+    to cause changes to session status.
+    We have to copy the changes in session status to global and catalog status
+    to not loose these.
   */
   mysql_mutex_lock(&LOCK_status);
-  add_diff_to_status(&global_status_var, &thd->status_var,
-                     &old_status_var);
+  add_diff_to_status(&global_status_var, &thd->status_var, &old_status_var);
+  mysql_mutex_unlock(&LOCK_status);
+  if (using_catalogs)
+  {
+    mysql_mutex_lock(&thd->catalog->lock_status);
+    add_diff_to_status(&thd->catalog->status_var, &thd->status_var,
+                       &old_status_var);
+    mysql_mutex_unlock(&thd->catalog->lock_status);
+  }
   memcpy(&thd->status_var, &old_status_var,
          offsetof(STATUS_VAR, last_cleared_system_status_var));
-  mysql_mutex_unlock(&LOCK_status);
   return res;
 #ifdef WITH_WSREP
 wsrep_error_label: /* see WSREP_SYNC_WAIT() macro above */

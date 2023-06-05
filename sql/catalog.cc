@@ -54,6 +54,7 @@ SQL_CATALOG::SQL_CATALOG(const LEX_CSTRING *name_arg,
   initialized=0;
   deleted= 0;
   comment.str= 0; comment.length= 0;
+  bzero(&status_var, sizeof(status_var));
   /*
     Initialization that allocates memory or depends on server startup options
     are done in initialize_from_env()
@@ -207,8 +208,12 @@ bool mariadb_change_catalog(THD *thd, const LEX_CSTRING *catalog_name)
   if (!(catalog= get_catalog_with_error(thd, catalog_name, 1)))
     return 1;
 
-  thd->catalog= catalog;
+  /* Update catalog status and reset thd status */
+
+  thd->change_catalog(catalog);
+  bzero((uchar*) &thd->org_status_var, sizeof(thd->org_status_var));
   thd->set_db(&null_clex_str);
+  thd->security_ctx->db_access= NO_ACL;
   return 0;
 }
 

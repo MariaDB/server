@@ -115,7 +115,7 @@ bool mysqld_show_authors(THD *thd);
 bool mysqld_show_contributors(THD *thd);
 bool mysqld_show_privileges(THD *thd);
 char *make_backup_log_name(char *buff, const char *name, const char* log_ext);
-uint calc_sum_of_all_status(STATUS_VAR *to);
+uint calc_sum_of_all_status(STATUS_VAR *to, SQL_CATALOG *catalog);
 bool append_definer(THD *thd, String *buffer, const LEX_CSTRING *definer_user,
                     const LEX_CSTRING *definer_host);
 int add_status_vars(SHOW_VAR *list);

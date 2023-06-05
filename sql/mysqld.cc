@@ -2836,7 +2836,8 @@ void unlink_thd(THD *thd)
   DBUG_PRINT("enter", ("thd: %p", thd));
 
   thd->cleanup();
-  thd->add_status_to_global();
+  if (!thd->status_in_global)
+    thd->add_status_to_global(1);
   server_threads.erase(thd);
 
 #ifdef WITH_WSREP
@@ -7342,9 +7343,15 @@ static int show_memory_used(THD *thd, SHOW_VAR *var, char *buff,
 {
   var->type= SHOW_LONGLONG;
   var->value= buff;
-  if (scope == OPT_GLOBAL)
+  if (scope == OPT_SERVER)
   {
-    calc_sum_of_all_status_if_needed(status_var);
+    calc_sum_of_all_status_if_needed(status_var, 0);
+    *(longlong*) buff= (status_var->global_memory_used +
+                        status_var->local_memory_used);
+  }
+  else if (scope == OPT_CATALOG)
+  {
+    calc_sum_of_all_status_if_needed(status_var, thd->catalog);
     *(longlong*) buff= (status_var->global_memory_used +
                         status_var->local_memory_used);
   }
@@ -9212,13 +9219,12 @@ void refresh_status(THD *thd)
   reset_pfs_status_stats();
 #endif
 
-  /* Add thread's status variabels to global status */
-  add_to_status(&global_status_var, &thd->status_var);
+  /* Add thread's status variables to global and catalog status */
+  thd->add_status_to_global(0);
 
   /* Reset thread's status variables */
   thd->set_status_var_init();
-  thd->status_var.global_memory_used= 0;
-  bzero((uchar*) &thd->org_status_var, sizeof(thd->org_status_var)); 
+  bzero((uchar*) &thd->org_status_var, sizeof(thd->org_status_var));
   thd->start_bytes_received= 0;
 
   /* Reset some global variables */

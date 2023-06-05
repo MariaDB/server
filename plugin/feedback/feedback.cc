@@ -215,7 +215,7 @@ int fill_feedback(THD *thd, TABLE_LIST *tables, COND *unused)
   cond= make_cond(thd, tables, vars_filter);
   res= (cond == OOM) ? 1 : fill_variables(thd, tables, cond);
 
-  tables->schema_table= schema_tables + SCH_GLOBAL_STATUS;
+  tables->schema_table= schema_tables + SCH_SERVER_STATUS;
   if (!res)
   {
     cond= make_cond(thd, tables, status_filter);

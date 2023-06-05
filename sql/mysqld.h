@@ -57,7 +57,9 @@ typedef struct st_mysql_show_var SHOW_VAR;
 /* Keep things compatible */
 #define OPT_DEFAULT SHOW_OPT_DEFAULT
 #define OPT_SESSION SHOW_OPT_SESSION
-#define OPT_GLOBAL SHOW_OPT_GLOBAL
+#define OPT_CATALOG SHOW_OPT_CATALOG
+#define OPT_GLOBAL SHOW_OPT_SERVER
+#define OPT_SERVER SHOW_OPT_SERVER
 
 extern MYSQL_PLUGIN_IMPORT MY_TIMER_INFO sys_timer_info;
 

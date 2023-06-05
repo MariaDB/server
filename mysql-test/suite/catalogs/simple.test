@@ -31,3 +31,49 @@ drop catalog c2;
 
 --error ER_CATALOG_NOT_EMPTY
 drop catalog def;
+
+--echo #
+--echo # Test status vars
+--echo #
+
+create catalog cat1;
+use catalog cat1;
+select catalog();
+select database();
+create database foo;
+use foo;
+connect (con1,localhost,root,,cat1.foo);
+connection con1;
+select catalog();
+select database();
+create table t1 (a int);
+drop table t1;
+disconnect con1;
+connection default;
+select catalog();
+show status like "Com_create_table";
+show catalog status like "Com_create_table";
+show server status like "Com_create_table";
+show global status like "Com_create_table";
+select * from information_schema.session_status where variable_name="Com_create_table";
+select * from information_schema.catalog_status where variable_name="Com_create_table";
+select * from information_schema.server_status where variable_name="Com_create_table";
+select * from information_schema.global_status where variable_name="Com_create_table";
+drop database foo;
+use catalog def;
+show status like "Com_create_table";
+show catalog status like "Com_create_table";
+show server status like "Com_create_table";
+show global status like "Com_create_table";
+select * from information_schema.session_status where variable_name="Com_create_table";
+select * from information_schema.catalog_status where variable_name="Com_create_table";
+select * from information_schema.server_status where variable_name="Com_create_table";
+select * from information_schema.global_status where variable_name="Com_create_table";
+drop catalog cat1;
+
+--echo #
+--echo # Test catalog variables
+--echo #
+
+--error ER_GLOBAL_OR_CATALOG_VARIABLE
+set @@max_prepared_stmt_count=1;

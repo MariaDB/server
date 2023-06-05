@@ -5113,7 +5113,7 @@ err:
   if (mi->using_gtid != Master_info::USE_GTID_NO)
     flush_master_info(mi, TRUE, TRUE);
   THD_STAGE_INFO(thd, stage_waiting_for_slave_mutex_on_exit);
-  thd->add_status_to_global();
+  thd->add_status_to_global(1);
   server_threads.erase(thd);
   mysql_mutex_lock(&mi->run_lock);
 
@@ -5549,7 +5549,6 @@ pthread_handler_t handle_slave_sql(void *arg)
   /* execute init_slave variable */
   if (opt_init_slave.length)
   {
-    thd->catalog= default_catalog();
     execute_init_command(thd, &opt_init_slave, &LOCK_sys_init_slave);
     if (unlikely(thd->is_slave_error))
     {
@@ -5557,7 +5556,7 @@ pthread_handler_t handle_slave_sql(void *arg)
                   "Slave SQL thread aborted. Can't execute init_slave query");
       goto err;
     }
-    thd->catalog= 0;
+    thd->reset_catalog();
   }
 
   /*
@@ -5721,7 +5720,7 @@ pthread_handler_t handle_slave_sql(void *arg)
     should already have done these assignments (each event which sets these
     variables is supposed to set them to 0 before terminating)).
   */
-  thd->catalog= 0;
+  thd->reset_catalog();
   thd->reset_query();
   thd->reset_db(&null_clex_str);
   if (rli->mi->using_gtid != Master_info::USE_GTID_NO)
@@ -5777,7 +5776,7 @@ pthread_handler_t handle_slave_sql(void *arg)
     }
   }
   THD_STAGE_INFO(thd, stage_waiting_for_slave_mutex_on_exit);
-  thd->add_status_to_global();
+  thd->add_status_to_global(1);
   server_threads.erase(thd);
   mysql_mutex_lock(&rli->run_lock);
 
@@ -5849,6 +5848,7 @@ err_during_init:
   rpl_parallel_resize_pool_if_no_slaves();
 
   delete serial_rgi;
+  thd->assert_not_linked();
   delete thd;
 
   DBUG_LEAVE;                                   // Must match DBUG_ENTER()
@@ -7201,7 +7201,6 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
       thd->catalog= default_catalog();          // For log tables
       general_log_print(thd, COM_CONNECT_OUT, "%s@%s:%d",
                         mi->user, mi->host, mi->port);
-      thd->catalog= 0;
     }
 #ifdef SIGNAL_WITH_VIO_CLOSE
     thd->set_active_vio(mysql->net.vio);

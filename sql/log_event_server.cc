@@ -1856,7 +1856,8 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
   DBUG_ENTER("Query_log_event::do_apply_event");
 
   DBUG_ASSERT(catalog);
-  thd->catalog= const_cast<SQL_CATALOG*>(catalog);
+  if (thd->catalog != catalog)
+    thd->change_catalog(const_cast<SQL_CATALOG*>(catalog));
   rgi->start_alter_ev= this;
 
   size_t valid_len= Well_formed_prefix(system_charset_info,
@@ -2349,7 +2350,8 @@ Query_log_event::do_shall_skip(rpl_group_info *rgi)
 
   /* Set thd to point to the current catalog */
   DBUG_ASSERT(catalog);
-  thd->catalog= const_cast<SQL_CATALOG*>(catalog);
+  if (thd->catalog != catalog)
+    thd->change_catalog(const_cast<SQL_CATALOG*>(catalog));
 
   /*
     An event skipped due to @@skip_replication must not be counted towards the
@@ -5822,7 +5824,8 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
 
   /* Step the query id to mark what columns that are actually used. */
   thd->set_query_id(next_query_id());
-  thd->catalog= const_cast<SQL_CATALOG*>(m_catalog);
+  if (thd->catalog != m_catalog)
+    thd->change_catalog(const_cast<SQL_CATALOG*>(m_catalog));
 
   if (!(memory= my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME),
                                 &table_list, (uint) sizeof(RPL_TABLE_LIST),

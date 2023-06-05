@@ -5962,7 +5962,8 @@ void Item_func_get_system_var::print(String *str, enum_query_type query_type)
       str->append(&component);
       str->append('.');
     }
-    else if (var_type == SHOW_OPT_GLOBAL && var->scope() != sys_var::GLOBAL)
+    else if ((var_type == SHOW_OPT_SERVER || var_type == SHOW_OPT_CATALOG) &&
+             var->scope() != sys_var::GLOBAL)
     {
       str->append(STRING_WITH_LEN("global."));
     }

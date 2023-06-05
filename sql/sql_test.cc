@@ -572,7 +572,7 @@ void mysql_print_status()
   uint count;
 
   tmp= global_status_var;
-  count= calc_sum_of_all_status(&tmp);
+  count= calc_sum_of_all_status(&tmp, 0);
   printf("\nStatus information:\n\n");
   (void) my_getwd(current_dir, sizeof(current_dir),MYF(0));
   printf("Current dir: %s\n", current_dir);

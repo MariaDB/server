@@ -189,8 +189,14 @@ enum enum_mysql_show_type
 
 enum enum_var_type
 {
-  SHOW_OPT_DEFAULT= 0, SHOW_OPT_SESSION, SHOW_OPT_GLOBAL
+  SHOW_OPT_DEFAULT= 0,
+  SHOW_OPT_SESSION,
+  SHOW_OPT_CATALOG, /* variable or status stored in SQL_CATALOG */
+  SHOW_OPT_SERVER,  /* server global variable or status */
 };
+
+extern my_bool using_catalogs;
+#define SHOW_OPT_GLOBAL (using_catalogs ? SHOW_OPT_CATALOG : SHOW_OPT_SERVER );
 
 struct st_mysql_show_var {
   const char *name;

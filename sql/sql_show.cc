@@ -1521,12 +1521,15 @@ bool mariadb_show_create_catalog(THD *thd, LEX_CSTRING *name,
     buffer.append(STRING_WITH_LEN("IF NOT EXISTS "));
   append_identifier(thd, &buffer, name);
 
-  buffer.append(STRING_WITH_LEN(" DEFAULT CHARACTER SET "));
-  buffer.append(catalog->cs->cs_name);
-  if (Charset(catalog->cs).can_have_collate_clause())
+  if (catalog->cs)
   {
-    buffer.append(STRING_WITH_LEN(" COLLATE "));
-    buffer.append(catalog->cs->coll_name);
+    buffer.append(STRING_WITH_LEN(" DEFAULT CHARACTER SET "));
+    buffer.append(catalog->cs->cs_name);
+    if (Charset(catalog->cs).can_have_collate_clause())
+    {
+      buffer.append(STRING_WITH_LEN(" COLLATE "));
+      buffer.append(catalog->cs->coll_name);
+    }
   }
   if (catalog->comment.length)
   {
@@ -3870,7 +3873,7 @@ static bool show_status_array(THD *thd, const char *wild,
       names until lp:1306875 has been fixed.
       TODO: remove once lp:1306875 has been addressed.
      */
-    if (!(*prefix) && !strncasecmp(name_buffer, "wsrep", strlen("wsrep")))
+    if (!(*prefix) && !strncasecmp(name_buffer, STRING_WITH_LEN("wsrep")))
     {
       is_wsrep_var= TRUE;
     }
@@ -3934,8 +3937,12 @@ static bool show_status_array(THD *thd, const char *wild,
 
         if (show_type == SHOW_SYS)
           mysql_mutex_lock(&LOCK_global_system_variables);
-        else if (show_type >= SHOW_LONG_STATUS && scope == OPT_GLOBAL)
-          calc_sum_of_all_status_if_needed(status_var);
+        else if (show_type >= SHOW_LONG_STATUS)
+        {
+          calc_sum_of_all_status_if_needed(status_var,
+                                           scope == OPT_CATALOG ?
+                                           thd->catalog : (SQL_CATALOG*) 0);
+        }
 
         pos= get_one_variable(thd, var, scope, show_type, status_var,
                               &charset, buff, &length);
@@ -3947,7 +3954,6 @@ static bool show_status_array(THD *thd, const char *wild,
         table->field[1]->set_notnull();
         if (show_type == SHOW_SYS)
           mysql_mutex_unlock(&LOCK_global_system_variables);
-
 
         if (schema_table_store_record(thd, table))
         {
@@ -3969,14 +3975,22 @@ end:
 
 struct calc_sum_callback_arg
 {
-  calc_sum_callback_arg(STATUS_VAR *to_arg): to(to_arg), count(0) {}
+  calc_sum_callback_arg(STATUS_VAR *to_arg, SQL_CATALOG *catalog_arg):
+    to(to_arg), catalog(catalog_arg), count(0) {}
   STATUS_VAR *to;
+  SQL_CATALOG *catalog;
   uint count;
 };
 
 
 static my_bool calc_sum_callback(THD *thd, calc_sum_callback_arg *arg)
 {
+  if (arg->catalog && thd->catalog != arg->catalog)
+  {
+    /* THD is not in the catalog we are interested in */
+    return 0;
+  }
+
   arg->count++;
   if (!thd->status_in_global)
   {
@@ -3989,15 +4003,36 @@ static my_bool calc_sum_callback(THD *thd, calc_sum_callback_arg *arg)
 }
 
 
-uint calc_sum_of_all_status(STATUS_VAR *to)
+uint calc_sum_of_all_status(STATUS_VAR *to, SQL_CATALOG *catalog)
 {
-  calc_sum_callback_arg arg(to);
+  calc_sum_callback_arg arg(to, catalog);
   DBUG_ENTER("calc_sum_of_all_status");
 
   to->local_memory_used= 0;
   /* Add to this status from existing threads */
   server_threads.iterate(calc_sum_callback, &arg);
   DBUG_RETURN(arg.count);
+}
+
+
+/**
+  Calculate status for the whole server or just a catalog
+
+  @param to        Add status to this variable
+  @param catalog   Set to catalog we want to calculate. 0 if for whole server
+
+*/
+
+void calc_sum_of_all_status_if_needed2(STATUS_VAR *to, SQL_CATALOG *catalog)
+{
+  DBUG_ASSERT(to->local_memory_used == 0);
+  mysql_mutex_t *lock= catalog ? &catalog->lock_status : &LOCK_status;
+
+  mysql_mutex_lock(lock);
+  *to= catalog ? catalog->status_var : global_status_var;
+  mysql_mutex_unlock(lock);
+  calc_sum_of_all_status(to, catalog);
+  DBUG_ASSERT(to->local_memory_used);
 }
 
 
@@ -8307,6 +8342,22 @@ int fill_i_s_sql_functions(THD *thd, TABLE_LIST *tables, COND *cond)
 }
 
 
+/*
+  Get status variables.
+
+  Status variables can be of type SESSION, CATALOG or SERVER
+
+  SESSION is stored in thd->initial_status_var which points to
+  a copy of thd->status_var;
+
+  When using catalogs:
+    CATLOG returns thd->catalog->status_var;
+    SERVER returns global_status_var
+  When not using catalogs:
+    CATLOG and SERVER return global_status_var
+    catalog->status_var is not used
+*/
+
 int fill_status(THD *thd, TABLE_LIST *tables, COND *cond)
 {
   DBUG_ENTER("fill_status");
@@ -8322,15 +8373,34 @@ int fill_status(THD *thd, TABLE_LIST *tables, COND *cond)
   if (lex->sql_command == SQLCOM_SHOW_STATUS)
   {
     scope= lex->option_type;
-    if (scope == OPT_GLOBAL)
+    if (scope == OPT_SERVER ||
+        (!using_catalogs && scope == OPT_CATALOG))
+    {
+      scope= OPT_SERVER;
       tmp1= &tmp;
+    }
+    else if (scope == OPT_CATALOG)
+    {
+      DBUG_ASSERT(using_catalogs);
+      tmp1= &tmp;
+    }
     else
       tmp1= thd->initial_status_var;
   }
-  else if (schema_table_idx == SCH_GLOBAL_STATUS)
+  else if (schema_table_idx == SCH_SERVER_STATUS ||
+           (!using_catalogs &&
+            (schema_table_idx == SCH_CATALOG_STATUS ||
+             schema_table_idx == SCH_GLOBAL_STATUS)))
   {
-    scope= OPT_GLOBAL;
+    scope= OPT_SERVER;
+    schema_table_idx= SCH_SERVER_STATUS;
     tmp1= &tmp;
+  }
+  else if (schema_table_idx == SCH_CATALOG_STATUS)
+  {
+    DBUG_ASSERT(using_catalogs);
+    scope= OPT_CATALOG;
+    tmp1= &thd->catalog->status_var;
   }
   else
   {
@@ -10168,7 +10238,6 @@ extern ST_FIELD_INFO optimizer_trace_info[];
   Description of ST_FIELD_INFO in sql_i_s.h
 
   Make sure that the order of schema_tables and enum_schema_tables are the same.
-
 */
 
 ST_SCHEMA_TABLE schema_tables[]=
@@ -10218,8 +10287,6 @@ ST_SCHEMA_TABLE schema_tables[]=
     TRUE /*hidden*/, 0},
   {"FILES", Show::files_fields_info, 0,
    hton_fill_schema_table, 0, 0, -1, -1, 0, 0},
-  {"GLOBAL_STATUS", Show::variables_fields_info, 0,
-   fill_status, make_old_format, 0, 0, -1, 0, 0},
   {"GLOBAL_VARIABLES", Show::variables_fields_info, 0,
    fill_variables, make_old_format, 0, 0, -1, 0, 0},
   {"KEYWORDS", Show::keywords_field_info, 0,
@@ -10257,6 +10324,12 @@ ST_SCHEMA_TABLE schema_tables[]=
   {"SCHEMA_PRIVILEGES", Show::schema_privileges_fields_info, 0,
    fill_schema_schema_privileges, 0, 0, -1, -1, 0, 0},
   {"SESSION_STATUS", Show::variables_fields_info, 0,
+   fill_status, make_old_format, 0, 0, -1, 0, 0},
+  {"GLOBAL_STATUS", Show::variables_fields_info, 0,
+   fill_status, make_old_format, 0, 0, -1, 0, 0},
+  {"CATALOG_STATUS", Show::variables_fields_info, 0,
+   fill_status, make_old_format, 0, 0, -1, 0, 0},
+  {"SERVER_STATUS", Show::variables_fields_info, 0,
    fill_status, make_old_format, 0, 0, -1, 0, 0},
   {"SESSION_VARIABLES", Show::variables_fields_info, 0,
    fill_variables, make_old_format, 0, 0, -1, 0, 0},

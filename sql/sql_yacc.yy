@@ -1566,7 +1566,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_parenthesized_cursor_actual_parameters
 
 %type <var_type>
-        option_type opt_var_type opt_var_ident_type
+        option_type opt_var_type opt_status_var_type opt_var_ident_type
 
 %type <key_type>
         constraint_key_type fulltext spatial
@@ -13874,7 +13874,7 @@ show_param:
             if (unlikely(prepare_schema_table(thd, lex, NULL, SCH_PROFILES)))
               MYSQL_YYABORT;
           }
-        | opt_var_type STATUS_SYM wild_and_where
+        | opt_status_var_type STATUS_SYM wild_and_where
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_SHOW_STATUS;
@@ -16533,6 +16533,15 @@ opt_var_type:
         | GLOBAL_SYM  { $$=OPT_GLOBAL; }
         | LOCAL_SYM   { $$=OPT_SESSION; }
         | SESSION_SYM { $$=OPT_SESSION; }
+        ;
+
+opt_status_var_type:
+          /* empty */ { $$=OPT_SESSION; }
+        | GLOBAL_SYM  { $$= using_catalogs ? OPT_CATALOG : OPT_SERVER; }
+        | LOCAL_SYM   { $$=OPT_SESSION; }
+        | SESSION_SYM { $$=OPT_SESSION; }
+        | CATALOG_SYM { $$=OPT_CATALOG; }
+        | SERVER_SYM  { $$=OPT_SERVER; }
         ;
 
 opt_var_ident_type:

@@ -1266,7 +1266,6 @@ void THD::init()
   set_status_var_init();
   status_var.max_local_memory_used= status_var.local_memory_used;
   bzero((char *) &org_status_var, sizeof(org_status_var));
-  status_in_global= 0;
   start_bytes_received= 0;
   m_last_commit_gtid.seq_no= 0;
   last_stmt= NULL;
@@ -1411,7 +1410,7 @@ void THD::init_for_queries()
 void THD::change_user(void)
 {
   if (!status_in_global)                        // Reset in init()
-    add_status_to_global();
+    add_status_to_global(1);
 
   if (!cleanup_done)
   {
@@ -1582,7 +1581,6 @@ void THD::cleanup(void)
 #ifdef HAVE_REPLICATION
   unregister_slave();
 #endif
-  catalog= 0;
   cleanup_done=1;
   DBUG_VOID_RETURN;
 }
@@ -1680,7 +1678,7 @@ THD::~THD()
   */
   set_current_thd(this);
   if (!status_in_global)
-    add_status_to_global();
+    add_status_to_global(1);
 
   /*
     Other threads may have a lock on LOCK_thd_kill to ensure that this
@@ -1757,6 +1755,54 @@ THD::~THD()
   DBUG_VOID_RETURN;
 }
 
+
+void THD::add_status_to_global(bool lock)
+{
+  DBUG_ASSERT(status_in_global == 0);
+  if (lock)
+    mysql_mutex_lock(&LOCK_status);
+  if (using_catalogs && catalog)
+  {
+    mysql_mutex_lock(&catalog->lock_status);
+    add_to_status(&catalog->status_var, &status_var);
+    mysql_mutex_unlock(&catalog->lock_status);
+  }
+  add_to_status(&global_status_var, &status_var);
+  /* Mark that this THD status has already been added in global status */
+  status_var.global_memory_used= 0;
+  status_in_global= 1;
+  if (lock)
+    mysql_mutex_unlock(&LOCK_status);
+}
+
+
+/*
+  Change catalog and update server status
+  Used by replication
+*/
+
+void THD::change_catalog(SQL_CATALOG *new_catalog)
+{
+  mysql_mutex_lock(&LOCK_status);
+  add_status_to_global(0);
+  set_status_var_init();
+  start_bytes_received= 0;
+  catalog= new_catalog;
+  mysql_mutex_unlock(&LOCK_status);
+  /* We will continue to use the THD for new status */
+  status_in_global= 0;
+}
+
+/*
+  Reset catalog.
+  Update status variables
+*/
+
+void THD::reset_catalog()
+{
+  if (catalog)
+    change_catalog(0);
+}
 
 /*
   Add all status variables to another status variable array
@@ -4456,6 +4502,7 @@ void THD::set_status_var_init()
     STATUS. And at this point thread is guaranteed to be running.
   */
   status_var.threads_running= 1;
+  status_in_global= 0;
 }
 
 
@@ -5060,7 +5107,8 @@ MYSQL_THD create_thd()
 
 void destroy_thd(MYSQL_THD thd)
 {
-  thd->add_status_to_global();
+  if (!thd->status_in_global)
+    thd->add_status_to_global(1);
   server_threads.erase(thd);
   delete thd;
 }

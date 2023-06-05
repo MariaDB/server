@@ -1,0 +1,41 @@
+#
+# Test of things that can give different results when using catalogs
+#
+
+--echo # Basic catalog commands
+
+select catalog();
+show catalogs;
+show create catalog def;
+
+--error ER_NO_CATALOGS
+create catalog c1;
+--error ER_NO_CATALOGS
+drop catalog c1;
+--error ER_NO_CATALOGS
+alter catalog c2 default character set=utf8mb4;
+
+#
+# Make sure comment is not cleared when doing alter catalog with no comment.
+#
+
+--echo #
+--echo # Test status vars
+--echo #
+
+flush status;
+
+connect (con1,localhost,root,,);
+connection con1;
+create table t1 (a int);
+drop table t1;
+disconnect con1;
+connection default;
+show status like "Com_create_table";
+show catalog status like "Com_create_table";
+show server status like "Com_create_table";
+show global status like "Com_create_table";
+select * from information_schema.session_status where variable_name="Com_create_table";
+select * from information_schema.catalog_status where variable_name="Com_create_table";
+select * from information_schema.server_status where variable_name="Com_create_table";
+select * from information_schema.global_status where variable_name="Com_create_table";

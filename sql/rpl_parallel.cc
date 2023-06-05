@@ -1561,7 +1561,7 @@ handle_rpl_parallel_thread(void *arg)
   mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
 
   thd->clear_error();
-  thd->catalog= 0;
+  thd->reset_catalog();
   thd->reset_query();
   thd->reset_db(&null_clex_str);
   thd_proc_info(thd, "Slave worker thread exiting");

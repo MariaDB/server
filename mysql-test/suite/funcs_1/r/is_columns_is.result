@@ -24,6 +24,8 @@ def	information_schema	CATALOGS	CATALOG_COMMENT	4	NULL	NO	varchar	1024	3072	NULL
 def	information_schema	CATALOGS	CATALOG_NAME	1	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL
 def	information_schema	CATALOGS	DEFAULT_CHARACTER_SET_NAME	2	NULL	NO	varchar	32	96	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(32)			select		NEVER	NULL
 def	information_schema	CATALOGS	DEFAULT_COLLATION_NAME	3	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL
+def	information_schema	CATALOG_STATUS	VARIABLE_NAME	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL
+def	information_schema	CATALOG_STATUS	VARIABLE_VALUE	2	NULL	NO	varchar	2048	6144	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(2048)			select		NEVER	NULL
 def	information_schema	CHARACTER_SETS	CHARACTER_SET_NAME	1	NULL	NO	varchar	32	96	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(32)			select		NEVER	NULL
 def	information_schema	CHARACTER_SETS	DEFAULT_COLLATE_NAME	2	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL
 def	information_schema	CHARACTER_SETS	DESCRIPTION	3	NULL	NO	varchar	60	180	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(60)			select		NEVER	NULL
@@ -356,6 +358,8 @@ def	information_schema	SCHEMA_PRIVILEGES	IS_GRANTABLE	5	NULL	NO	varchar	3	9	NULL
 def	information_schema	SCHEMA_PRIVILEGES	PRIVILEGE_TYPE	4	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL
 def	information_schema	SCHEMA_PRIVILEGES	TABLE_CATALOG	2	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL
 def	information_schema	SCHEMA_PRIVILEGES	TABLE_SCHEMA	3	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL
+def	information_schema	SERVER_STATUS	VARIABLE_NAME	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL
+def	information_schema	SERVER_STATUS	VARIABLE_VALUE	2	NULL	NO	varchar	2048	6144	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(2048)			select		NEVER	NULL
 def	information_schema	SESSION_STATUS	VARIABLE_NAME	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL
 def	information_schema	SESSION_STATUS	VARIABLE_VALUE	2	NULL	NO	varchar	2048	6144	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(2048)			select		NEVER	NULL
 def	information_schema	SESSION_VARIABLES	VARIABLE_NAME	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL
@@ -592,6 +596,8 @@ COL_CML	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	C
 3.0000	information_schema	CATALOGS	DEFAULT_CHARACTER_SET_NAME	varchar	32	96	utf8mb3	utf8mb3_general_ci	varchar(32)
 3.0000	information_schema	CATALOGS	DEFAULT_COLLATION_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	CATALOGS	CATALOG_COMMENT	varchar	1024	3072	utf8mb3	utf8mb3_general_ci	varchar(1024)
+3.0000	information_schema	CATALOG_STATUS	VARIABLE_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
+3.0000	information_schema	CATALOG_STATUS	VARIABLE_VALUE	varchar	2048	6144	utf8mb3	utf8mb3_general_ci	varchar(2048)
 3.0000	information_schema	CHARACTER_SETS	CHARACTER_SET_NAME	varchar	32	96	utf8mb3	utf8mb3_general_ci	varchar(32)
 3.0000	information_schema	CHARACTER_SETS	DEFAULT_COLLATE_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	CHARACTER_SETS	DESCRIPTION	varchar	60	180	utf8mb3	utf8mb3_general_ci	varchar(60)
@@ -924,6 +930,8 @@ NULL	information_schema	ROUTINES	LAST_ALTERED	datetime	NULL	NULL	NULL	NULL	datet
 3.0000	information_schema	SCHEMA_PRIVILEGES	TABLE_SCHEMA	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	SCHEMA_PRIVILEGES	PRIVILEGE_TYPE	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	SCHEMA_PRIVILEGES	IS_GRANTABLE	varchar	3	9	utf8mb3	utf8mb3_general_ci	varchar(3)
+3.0000	information_schema	SERVER_STATUS	VARIABLE_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
+3.0000	information_schema	SERVER_STATUS	VARIABLE_VALUE	varchar	2048	6144	utf8mb3	utf8mb3_general_ci	varchar(2048)
 3.0000	information_schema	SESSION_STATUS	VARIABLE_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	SESSION_STATUS	VARIABLE_VALUE	varchar	2048	6144	utf8mb3	utf8mb3_general_ci	varchar(2048)
 3.0000	information_schema	SESSION_VARIABLES	VARIABLE_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)

@@ -4,6 +4,7 @@ Tables_in_information_schema
 ALL_PLUGINS
 APPLICABLE_ROLES
 CATALOGS
+CATALOG_STATUS
 CHARACTER_SETS
 CHECK_CONSTRAINTS
 CLIENT_STATISTICS
@@ -54,6 +55,7 @@ REFERENTIAL_CONSTRAINTS
 ROUTINES
 SCHEMATA
 SCHEMA_PRIVILEGES
+SERVER_STATUS
 SESSION_STATUS
 SESSION_VARIABLES
 SPATIAL_REF_SYS
@@ -87,6 +89,7 @@ table_name	column_name
 ALL_PLUGINS	PLUGIN_NAME
 APPLICABLE_ROLES	GRANTEE
 CATALOGS	CATALOG_NAME
+CATALOG_STATUS	VARIABLE_NAME
 CHARACTER_SETS	CHARACTER_SET_NAME
 CHECK_CONSTRAINTS	CONSTRAINT_SCHEMA
 CLIENT_STATISTICS	CLIENT
@@ -137,6 +140,7 @@ REFERENTIAL_CONSTRAINTS	CONSTRAINT_SCHEMA
 ROUTINES	ROUTINE_SCHEMA
 SCHEMATA	SCHEMA_NAME
 SCHEMA_PRIVILEGES	TABLE_SCHEMA
+SERVER_STATUS	VARIABLE_NAME
 SESSION_STATUS	VARIABLE_NAME
 SESSION_VARIABLES	VARIABLE_NAME
 SPATIAL_REF_SYS	SRID
@@ -170,6 +174,7 @@ table_name	column_name
 ALL_PLUGINS	PLUGIN_NAME
 APPLICABLE_ROLES	GRANTEE
 CATALOGS	CATALOG_NAME
+CATALOG_STATUS	VARIABLE_NAME
 CHARACTER_SETS	CHARACTER_SET_NAME
 CHECK_CONSTRAINTS	CONSTRAINT_SCHEMA
 CLIENT_STATISTICS	CLIENT
@@ -220,6 +225,7 @@ REFERENTIAL_CONSTRAINTS	CONSTRAINT_SCHEMA
 ROUTINES	ROUTINE_SCHEMA
 SCHEMATA	SCHEMA_NAME
 SCHEMA_PRIVILEGES	TABLE_SCHEMA
+SERVER_STATUS	VARIABLE_NAME
 SESSION_STATUS	VARIABLE_NAME
 SESSION_VARIABLES	VARIABLE_NAME
 SPATIAL_REF_SYS	SRID
@@ -259,6 +265,7 @@ table_name	group_concat(t.table_schema, '.', t.table_name)	num1
 ALL_PLUGINS	information_schema.ALL_PLUGINS	1
 APPLICABLE_ROLES	information_schema.APPLICABLE_ROLES	1
 CATALOGS	information_schema.CATALOGS	1
+CATALOG_STATUS	information_schema.CATALOG_STATUS	1
 CHARACTER_SETS	information_schema.CHARACTER_SETS	1
 CHECK_CONSTRAINTS	information_schema.CHECK_CONSTRAINTS	1
 CLIENT_STATISTICS	information_schema.CLIENT_STATISTICS	1
@@ -307,6 +314,7 @@ REFERENTIAL_CONSTRAINTS	information_schema.REFERENTIAL_CONSTRAINTS	1
 ROUTINES	information_schema.ROUTINES	1
 SCHEMATA	information_schema.SCHEMATA	1
 SCHEMA_PRIVILEGES	information_schema.SCHEMA_PRIVILEGES	1
+SERVER_STATUS	information_schema.SERVER_STATUS	1
 SESSION_STATUS	information_schema.SESSION_STATUS	1
 SESSION_VARIABLES	information_schema.SESSION_VARIABLES	1
 SPATIAL_REF_SYS	information_schema.SPATIAL_REF_SYS	1
@@ -329,6 +337,7 @@ Database: information_schema
 | ALL_PLUGINS                           |
 | APPLICABLE_ROLES                      |
 | CATALOGS                              |
+| CATALOG_STATUS                        |
 | CHARACTER_SETS                        |
 | CHECK_CONSTRAINTS                     |
 | CLIENT_STATISTICS                     |
@@ -379,6 +388,7 @@ Database: information_schema
 | ROUTINES                              |
 | SCHEMATA                              |
 | SCHEMA_PRIVILEGES                     |
+| SERVER_STATUS                         |
 | SESSION_STATUS                        |
 | SESSION_VARIABLES                     |
 | SPATIAL_REF_SYS                       |
@@ -402,6 +412,7 @@ Database: INFORMATION_SCHEMA
 | ALL_PLUGINS                           |
 | APPLICABLE_ROLES                      |
 | CATALOGS                              |
+| CATALOG_STATUS                        |
 | CHARACTER_SETS                        |
 | CHECK_CONSTRAINTS                     |
 | CLIENT_STATISTICS                     |
@@ -452,6 +463,7 @@ Database: INFORMATION_SCHEMA
 | ROUTINES                              |
 | SCHEMATA                              |
 | SCHEMA_PRIVILEGES                     |
+| SERVER_STATUS                         |
 | SESSION_STATUS                        |
 | SESSION_VARIABLES                     |
 | SPATIAL_REF_SYS                       |
@@ -475,5 +487,5 @@ Wildcard: inf_rmation_schema
 | information_schema |
 SELECT table_schema, count(*) FROM information_schema.TABLES WHERE table_schema IN ('mysql', 'INFORMATION_SCHEMA', 'test', 'mysqltest') GROUP BY TABLE_SCHEMA;
 table_schema	count(*)
-information_schema	68
+information_schema	70
 mysql	31

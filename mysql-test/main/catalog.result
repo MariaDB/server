@@ -1,0 +1,49 @@
+# Basic catalog commands
+select catalog();
+catalog()
+def
+show catalogs;
+Catalog
+show create catalog def;
+Catalog	Create Catalog
+def	CREATE CATALOG `def` COMMENT 'default catalog'
+create catalog c1;
+ERROR HY000: MariaDB is not configured to support catalogs
+drop catalog c1;
+ERROR HY000: MariaDB is not configured to support catalogs
+alter catalog c2 default character set=utf8mb4;
+ERROR HY000: MariaDB is not configured to support catalogs
+#
+# Test status vars
+#
+flush status;
+connect  con1,localhost,root,,;
+connection con1;
+create table t1 (a int);
+drop table t1;
+disconnect con1;
+connection default;
+show status like "Com_create_table";
+Variable_name	Value
+Com_create_table	0
+show catalog status like "Com_create_table";
+Variable_name	Value
+Com_create_table	1
+show server status like "Com_create_table";
+Variable_name	Value
+Com_create_table	1
+show global status like "Com_create_table";
+Variable_name	Value
+Com_create_table	1
+select * from information_schema.session_status where variable_name="Com_create_table";
+VARIABLE_NAME	VARIABLE_VALUE
+COM_CREATE_TABLE	0
+select * from information_schema.catalog_status where variable_name="Com_create_table";
+VARIABLE_NAME	VARIABLE_VALUE
+COM_CREATE_TABLE	1
+select * from information_schema.server_status where variable_name="Com_create_table";
+VARIABLE_NAME	VARIABLE_VALUE
+COM_CREATE_TABLE	1
+select * from information_schema.global_status where variable_name="Com_create_table";
+VARIABLE_NAME	VARIABLE_VALUE
+COM_CREATE_TABLE	1
