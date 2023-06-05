@@ -2430,6 +2430,7 @@ static void buf_flush_page_cleaner()
     else if (buf_pool.ran_out())
     {
       buf_pool.page_cleaner_set_idle(false);
+      buf_pool.get_oldest_modification(0);
       mysql_mutex_unlock(&buf_pool.flush_list_mutex);
       n= srv_max_io_capacity;
       mysql_mutex_lock(&buf_pool.mutex);

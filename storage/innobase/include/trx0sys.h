@@ -1053,7 +1053,7 @@ public:
   void close();
 
   /** @return total number of active (non-prepared) transactions */
-  ulint any_active_transactions();
+  size_t any_active_transactions(size_t *prepared= nullptr);
 
 
   /**
