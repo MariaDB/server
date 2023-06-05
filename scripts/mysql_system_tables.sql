@@ -46,7 +46,6 @@ INSERT INTO tmp_user_sys (Host,User,Priv) VALUES ('localhost','mariadb.sys','{"a
 INSERT IGNORE INTO global_priv SELECT * FROM tmp_user_sys WHERE 0 <> @need_sys_user_creation;
 DROP TABLE tmp_user_sys;
 
-
 CREATE DEFINER='mariadb.sys'@'localhost' SQL SECURITY DEFINER VIEW IF NOT EXISTS user AS SELECT
   Host,
   User,

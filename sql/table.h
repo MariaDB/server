@@ -2763,7 +2763,7 @@ struct TABLE_LIST
   bool prepare_security(THD *thd);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   Security_context *find_view_security_context(THD *thd);
-  bool prepare_view_security_context(THD *thd);
+  bool prepare_view_security_context(THD *thd, bool upgrade_check);
 #endif
   /*
     Cleanup for re-execution in a prepared statement or a stored

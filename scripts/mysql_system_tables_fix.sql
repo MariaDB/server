@@ -1,5 +1,5 @@
 -- Copyright (C) 2003, 2013 Oracle and/or its affiliates.
--- Copyright (C) 2010, 2022, MariaDB Corporation
+-- Copyright (C) 2010, 2023, MariaDB Corporation
 --
 -- This program is free software; you can redistribute it and/or modify
 -- it under the terms of the GNU General Public License as published by
@@ -15,7 +15,7 @@
 -- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 
 # This part converts any old privilege tables to privilege tables suitable
-# for current version of MySQL
+# for current version of MariaDB
 
 # You can safely ignore all 'Duplicate column' and 'Unknown column' errors
 # because these just mean that your tables are already up to date.
@@ -28,6 +28,7 @@ set sql_mode='';
 set default_storage_engine=Aria;
 set enforce_storage_engine=NULL;
 set alter_algorithm='DEFAULT';
+set use_stat_tables='NEVER';
 
 set @have_innodb= (select count(engine) from information_schema.engines where engine='INNODB' and support != 'NO');
 

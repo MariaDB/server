@@ -22,7 +22,7 @@
 
 #include <welcome_copyright_notice.h> /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
 
-#define VER "2.0"
+#define VER "2.1"
 
 #ifdef HAVE_SYS_WAIT_H
 #include <sys/wait.h>
@@ -38,7 +38,7 @@
 
 static int phase = 0;
 static int info_file= -1;
-static const int phases_total = 7;
+static const int phases_total = 8;
 static char mysql_path[FN_REFLEN];
 static char mysqlcheck_path[FN_REFLEN];
 
@@ -982,7 +982,7 @@ static my_bool is_mysql()
 
 static int run_mysqlcheck_views(void)
 {
-  const char *upgrade_views="--process-views=YES";
+  const char *upgrade_views="--process-views=UPGRADE";
   if (upgrade_from_mysql)
   {
     /*
@@ -1122,8 +1122,9 @@ static my_bool from_before_10_1()
 }
 
 
-static void uninstall_plugins(void)
+static int uninstall_plugins(void)
 {
+  verbose("Phase %d/%d: uninstalling plugins", ++phase, phases_total);
   if (ds_plugin_data_types.length)
   {
     char *plugins= ds_plugin_data_types.str;
@@ -1140,7 +1141,10 @@ static void uninstall_plugins(void)
       next= get_line(next);
     }
   }
+  return 0;
 }
+
+
 /**
   @brief     Install plugins for missing data types
   @details   Check for entries with "Unknown data type" in I_S.TABLES,
@@ -1189,6 +1193,8 @@ static int install_used_plugin_data_types(void)
   dynstr_free(&ds_result);
   return 0;
 }
+
+
 /*
   Check for entries with "Unknown storage engine" in I_S.TABLES,
   try to load plugins for these tables if available (MDEV-11942)
@@ -1238,6 +1244,7 @@ static int install_used_engines(void)
   dynstr_free(&ds_result);
   return 0;
 }
+
 
 static int check_slave_repositories(void)
 {
@@ -1366,6 +1373,13 @@ static int run_sql_fix_privilege_tables(void)
 }
 
 
+static int flush_privileges(void)
+{
+  verbose("Phase %d/%d: Running 'FLUSH PRIVILEGES'", ++phase, phases_total);
+  return run_query("FLUSH PRIVILEGES", NULL, TRUE);
+}
+
+
 /**
   Check if the server version matches with the server version mysql_upgrade
   was compiled with.
@@ -1395,10 +1409,11 @@ static int check_version_match(void)
 
   if (calc_server_version((char *) version_str) != MYSQL_VERSION_ID)
   {
-    fprintf(stderr, "Error: Server version (%s) does not match with the "
-            "version of\nthe server (%s) with which this program was built/"
-            "distributed. You can\nuse --skip-version-check to skip this "
-            "check.\n", version_str, MYSQL_SERVER_VERSION);
+    fprintf(stderr, "Error: Server version (%s)\n"
+            "does not match the version of the server (%s)\n"
+            "with which this program was built/distributed. You can\n"
+            "use --skip-version-check to skip this check.\n",
+            version_str, MYSQL_SERVER_VERSION);
     return 1;
   }
   return 0;
@@ -1486,18 +1501,14 @@ int main(int argc, char **argv)
   if (run_mysqlcheck_upgrade(TRUE) ||
       install_used_engines() ||
       install_used_plugin_data_types() ||
-      run_mysqlcheck_views() ||
       run_sql_fix_privilege_tables() ||
+      run_mysqlcheck_views() ||
       run_mysqlcheck_fixnames() ||
       run_mysqlcheck_upgrade(FALSE) ||
-      check_slave_repositories())
+      check_slave_repositories() ||
+      uninstall_plugins() ||
+      flush_privileges())
     die("Upgrade failed" );
-
-  uninstall_plugins();
-  verbose("Phase %d/%d: Running 'FLUSH PRIVILEGES'", ++phase, phases_total);
-  if (run_query("FLUSH PRIVILEGES", NULL, TRUE))
-    die("Upgrade failed" );
-
   verbose("OK");
 
   /* Finish writing indicating upgrade has been performed */

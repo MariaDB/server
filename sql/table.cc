@@ -6569,7 +6569,7 @@ void TABLE_LIST::register_want_access(privilege_t want_access)
 */
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-bool TABLE_LIST::prepare_view_security_context(THD *thd)
+bool TABLE_LIST::prepare_view_security_context(THD *thd, bool upgrade_check)
 {
   DBUG_ENTER("TABLE_LIST::prepare_view_security_context");
   DBUG_PRINT("enter", ("table: %s", alias.str));
@@ -6594,8 +6594,8 @@ bool TABLE_LIST::prepare_view_security_context(THD *thd)
       {
         if (thd->security_ctx->master_access & PRIV_REVEAL_MISSING_DEFINER)
         {
-          my_error(ER_NO_SUCH_USER, MYF(0), definer.user.str, definer.host.str);
-
+          my_error(ER_NO_SUCH_USER, MYF(upgrade_check ? ME_WARNING: 0),
+                   definer.user.str, definer.host.str);
         }
         else
         {
@@ -6677,11 +6677,33 @@ bool TABLE_LIST::prepare_security(THD *thd)
   TABLE_LIST *tbl;
   DBUG_ENTER("TABLE_LIST::prepare_security");
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
+  /*
+    Check if we are running REPAIR VIEW FOR UPGRADE
+    In this case we are probably comming from mysql_upgrade and
+    should not get an error for mysql.user table we just created.
+  */
+  bool upgrade_check= (thd->lex->sql_command == SQLCOM_REPAIR &&
+                       (thd->lex->check_opt.sql_flags &
+                        (TT_FOR_UPGRADE | TT_FROM_MYSQL)) &&
+                       (thd->security_ctx->master_access &
+                        PRIV_REVEAL_MISSING_DEFINER));
   Security_context *save_security_ctx= thd->security_ctx;
 
   DBUG_ASSERT(!prelocking_placeholder);
-  if (prepare_view_security_context(thd))
-    DBUG_RETURN(TRUE);
+  if (prepare_view_security_context(thd, upgrade_check))
+  {
+    if (upgrade_check)
+    {
+      /* REPAIR needs SELECT_ACL */
+      while ((tbl= tb++))
+      {
+        tbl->grant.privilege= SELECT_ACL;
+        tbl->security_ctx= save_security_ctx;
+      }
+      DBUG_RETURN(FALSE);
+    }
+    DBUG_RETURN(TRUE);                          // Fatal
+  }
   thd->security_ctx= find_view_security_context(thd);
   opt_trace_disable_if_no_security_context_access(thd);
   while ((tbl= tb++))
@@ -6707,7 +6729,7 @@ bool TABLE_LIST::prepare_security(THD *thd)
 #else
   while ((tbl= tb++))
     tbl->grant.privilege= ALL_KNOWN_ACL;
-#endif
+#endif /* NO_EMBEDDED_ACCESS_CHECKS */
   DBUG_RETURN(FALSE);
 }
 

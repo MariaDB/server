@@ -63,8 +63,9 @@ const char *operation_name[]=
   "???", "check", "repair", "analyze", "optimize", "fix names"
 };
 
-typedef enum { DO_VIEWS_NO, DO_VIEWS_YES, DO_VIEWS_FROM_MYSQL } enum_do_views;
-const char *do_views_opts[]= {"NO", "YES", "UPGRADE_FROM_MYSQL", NullS};
+typedef enum { DO_VIEWS_NO, DO_VIEWS_YES, DO_UPGRADE, DO_VIEWS_FROM_MYSQL } enum_do_views;
+const char *do_views_opts[]= {"NO", "YES", "UPGRADE", "UPGRADE_FROM_MYSQL",
+  NullS};
 TYPELIB do_views_typelib= { array_elements(do_views_opts) - 1, "",
     do_views_opts, NULL };
 static ulong opt_do_views= DO_VIEWS_NO;
@@ -213,8 +214,9 @@ static struct my_option my_long_options[] =
   {"process-views", 0,
    "Perform the requested operation (check or repair) on views. "
    "One of: NO, YES (correct the checksum, if necessary, add the "
-   "mariadb-version field), UPGRADE_FROM_MYSQL (same as YES and toggle "
-   "the algorithm MERGE<->TEMPTABLE.", &opt_do_views, &opt_do_views,
+   "mariadb-version field), UPGRADE (run from mariadb-upgrade), "
+   "UPGRADE_FROM_MYSQL (same as YES and toggle the algorithm "
+   "MERGE<->TEMPTABLE.", &opt_do_views, &opt_do_views,
    &do_views_typelib, GET_ENUM, OPT_ARG, 0, 0, 0, 0, 0, 0},
   {"process-tables", 0, "Perform the requested operation on tables.",
    &opt_do_tables, &opt_do_tables, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
@@ -922,7 +924,10 @@ static int handle_request_for_tables(char *tables, size_t length,
     op= opt_write_binlog ?  "REPAIR" : "REPAIR NO_WRITE_TO_BINLOG";
     if (view)
     {
-      if (opt_do_views == DO_VIEWS_FROM_MYSQL) end = strmov(end, " FROM MYSQL");
+      if (opt_do_views == DO_VIEWS_FROM_MYSQL)
+        end = strmov(end, " FROM MYSQL");
+      else if (opt_do_views == DO_UPGRADE)
+        end = strmov(end, " FOR UPGRADE");
     }
     else
     {
