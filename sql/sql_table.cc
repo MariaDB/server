@@ -9143,17 +9143,12 @@ fk_check_column_changes(THD *thd, Alter_info *alter_info,
           ((new_field->flags & NOT_NULL_FLAG) &&
            !(old_field->flags & NOT_NULL_FLAG)))
       {
-        if (!(thd->variables.option_bits & OPTION_NO_FOREIGN_KEY_CHECKS))
-        {
-          /*
-            Column in a FK has changed significantly. Unless
-            foreign_key_checks are off we prohibit this since this
-            means values in this column might be changed by ALTER
-            and thus referential integrity might be broken,
-          */
-          *bad_column_name= column->str;
-          return FK_COLUMN_DATA_CHANGE;
-        }
+        /*
+          Column in a FK has changed significantly and it
+          may break referential intergrity.
+        */
+        *bad_column_name= column->str;
+        return FK_COLUMN_DATA_CHANGE;
       }
     }
     else
