@@ -1097,6 +1097,7 @@ sum(distinct 1)	sum(t1.d) > 5	c
 1	1	0
 1	0	5
 1	1	6
+SET @sort_buffer_size_save= @@sort_buffer_size;
 set @@sort_buffer_size=1024;
 insert into t1 select -seq,-seq from seq_1_to_100;
 select distinct sum(distinct 1), sum(t1.d) > 2, length(group_concat(t1.d)) > 1000 from (t1 e join t1) group by t1.c having t1.c > -2 ;
@@ -1110,6 +1111,19 @@ sum(distinct 1)	sum(t1.d) > 2	length(group_concat(t1.d)) > 1000	c
 1	1	0	5
 1	1	0	6
 drop table t1;
+set @@sort_buffer_size=@sort_buffer_size_save;
+#
+# MDEV-31113 Server crashes in store_length / Type_handler_string_result::make_sort_key
+# with DISTINCT and group function
+#
+CREATE TABLE t (f INT);
+INSERT INTO t VALUES (1),(2);
+SELECT DISTINCT CONVERT(STDDEV(f), CHAR(16)) AS f1, UUID() AS f2 FROM t GROUP BY f2 WITH ROLLUP;
+f1	f2
+0.0000	#
+0.0000	#
+0.5000	#
+DROP TABLE t;
 # End of 10.4 tests
 #
 # MDEV-27382: OFFSET is ignored when it is combined with the DISTINCT, IN() and JOIN

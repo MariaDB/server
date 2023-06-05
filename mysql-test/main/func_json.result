@@ -1674,7 +1674,18 @@ DROP TABLE t;
 # End of 10.6 tests
 #
 #
-# Beginning of 10.9 tests
+# MDEV-31147 json_normalize does not work correctly with MSAN build
+#
+CREATE TABLE t1 (val JSON);
+ALTER TABLE t1 ADD COLUMN normalized_json JSON AS (JSON_NORMALIZE(val));
+INSERT INTO t1 (val) VALUES ('15');
+SELECT * FROM t1;
+val	normalized_json
+15	1.5E1
+DROP TABLE t1;
+#
+# End of 10.8 tests
+#
 #
 # MDEV-27677: Implement JSON_OVERLAPS()
 #
