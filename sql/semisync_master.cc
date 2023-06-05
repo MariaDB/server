@@ -824,6 +824,11 @@ int Repl_semi_sync_master::commit_trx(const char* trx_wait_binlog_name,
 
     set_timespec(start_ts, 0);
 
+    if (!m_wait_timeout)
+    {
+      DBUG_RETURN(0);
+    }
+
     DEBUG_SYNC(thd, "rpl_semisync_master_commit_trx_before_lock");
     /* Acquire the mutex. */
     lock();
@@ -844,6 +849,7 @@ int Repl_semi_sync_master::commit_trx(const char* trx_wait_binlog_name,
 
     while (is_on() && !thd_killed(thd))
     {
+
       if (m_reply_file_name_inited)
       {
         int cmp = Active_tranx::compare(m_reply_file_name, m_reply_file_pos,

@@ -379,10 +379,18 @@ SHOW REPLICA HOSTS;
 --echo # Start slaves again
 connection slave;
 --source include/start_slave.inc
+let $status_var= rpl_semi_sync_slave_status;
+let $status_var_value= ON;
+source include/wait_for_status_var.inc;
+show status like 'rpl_semi_sync_slave%';
 --sync_with_master
 
 connection slave2;
 --source include/start_slave.inc
+let $status_var= rpl_semi_sync_slave_status;
+let $status_var_value= ON;
+source include/wait_for_status_var.inc;
+show status like 'rpl_semi_sync_slave%';
 --sync_with_master
 
 --echo # sync with master, should ENABLE master_status, commit acknowledgment will be cleared?
@@ -432,6 +440,10 @@ connection slave;
 --let $save_server_2_dbug= `SELECT @@GLOBAL.DEBUG_DBUG`
 SET @@GLOBAL.DEBUG_DBUG="d,synchronize_semisync_slave_reply";
 --source include/start_slave.inc
+let $status_var= rpl_semi_sync_slave_status;
+let $status_var_value= ON;
+source include/wait_for_status_var.inc;
+show status like 'rpl_semi_sync_slave%';
 SET debug_sync='now WAIT_FOR at_slave_reply TIMEOUT 10';
 
 connection slave2;
@@ -439,6 +451,10 @@ connection slave2;
 --let $save_server_3_dbug= `SELECT @@GLOBAL.DEBUG_DBUG`
 SET @@GLOBAL.DEBUG_DBUG="d,synchronize_semisync_slave_reply";
 --source include/start_slave.inc
+let $status_var= rpl_semi_sync_slave_status;
+let $status_var_value= ON;
+source include/wait_for_status_var.inc;
+show status like 'rpl_semi_sync_slave%';
 SET debug_sync='now WAIT_FOR at_slave_reply TIMEOUT 10';
 
 --echo # Both replicas are stopped with synchronization point
