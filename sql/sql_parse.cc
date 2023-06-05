@@ -6310,6 +6310,11 @@ static bool __attribute__ ((noinline))
 execute_show_status(THD *thd, TABLE_LIST *all_tables)
 {
   bool res;
+
+#if defined(__GNUC__) && (__GNUC__ >= 13)
+#pragma GCC diagnostic ignored "-Wdangling-pointer"
+#endif
+
   system_status_var old_status_var= thd->status_var;
   thd->initial_status_var= &old_status_var;
   WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
