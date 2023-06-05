@@ -694,6 +694,7 @@ typedef struct st_join_table {
   void add_keyuses_for_splitting();
   SplM_plan_info *choose_best_splitting(uint idx,
                                         table_map remaining_tables,
+                                        const POSITION *join_positions,
                                         table_map *spl_pd_boundary);
   bool fix_splitting(SplM_plan_info *spl_plan, table_map excluded_tables,
                      bool is_const_table);

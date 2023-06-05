@@ -7452,6 +7452,7 @@ best_access_path(JOIN      *join,
   if (s->table->is_splittable())
     spl_plan= s->choose_best_splitting(idx,
                                        remaining_tables,
+                                       join_positions,
                                        &spl_pd_boundary);
 
   Json_writer_array trace_paths(thd, "considered_access_paths");
