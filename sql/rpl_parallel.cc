@@ -96,7 +96,7 @@ handle_queued_pos_update(THD *thd, rpl_parallel_thread::queued_event *qev)
   rli= qev->rgi->rli;
   e= qev->entry_for_queued;
   if (e->stop_on_error_sub_id < (uint64)ULONGLONG_MAX ||
-      (e->stop_abrupt(rli)))
+      (e->force_abort && !rli->stop_for_until))
     return;
 
   mysql_mutex_lock(&rli->data_lock);
@@ -173,7 +173,7 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
     mark_start_commit() calls can be made and it is safe to de-allocate
     the GCO.
   */
-  err= wfc->wait_for_prior_commit(thd, true);
+  err= wfc->wait_for_prior_commit(thd);
   if (unlikely(err) && !rgi->worker_error)
     signal_error_to_sql_driver_thread(thd, rgi, err);
   thd->wait_for_commit_ptr= NULL;
@@ -395,14 +395,13 @@ do_gco_wait(rpl_group_info *rgi, group_commit_orderer *gco,
     } while (wait_count > entry->count_committing_event_groups);
   }
 
-  if (entry->force_abort && wait_count >= entry->stop_count)
+  if (entry->force_abort && wait_count > entry->stop_count)
   {
     /*
       We are stopping (STOP SLAVE), and this event group is beyond the point
       where we can safely stop. So return a flag that will cause us to skip,
       rather than execute, the following events.
     */
-    DBUG_ASSERT(entry->rgi_is_safe_to_terminate(rgi));
     return true;
   }
   else
@@ -461,16 +460,6 @@ do_ftwrl_wait(rpl_group_info *rgi,
 
   if (sub_id > entry->largest_started_sub_id)
     entry->largest_started_sub_id= sub_id;
-
-  /*
-    If this rgi is non-transactional, and the state of our current entry
-    (incorrectly) views the rgi as safe to terminate, we change our state
-    to disallow this rgi from stop/rollback in the event of STOP SLAVE.
-  */
-  if (!(rgi->gtid_ev_flags2 & Gtid_log_event::FL_TRANSACTIONAL) &&
-      entry->unsafe_rollback_marker_sub_id.load(std::memory_order_relaxed) <
-          rgi->gtid_sub_id)
-    entry->unsafe_rollback_marker_sub_id= sub_id;
 
   DBUG_RETURN(aborted);
 }
@@ -1381,9 +1370,7 @@ handle_rpl_parallel_thread(void *arg)
         if (!err)
 #endif
         {
-          if (unlikely(thd->check_killed()) ||
-              (entry->stop_abrupt(rgi->rli) &&
-               entry->rgi_is_safe_to_terminate(rgi)))
+          if (unlikely(thd->check_killed()))
           {
             thd->clear_error();
             thd->get_stmt_da()->reset_diagnostics_area();
@@ -2352,7 +2339,6 @@ rpl_parallel::wait_for_done(THD *thd, Relay_log_info *rli)
   struct rpl_parallel_entry *e;
   rpl_parallel_thread *rpt;
   uint32 i, j;
-  PSI_stage_info old_stage;
 
   /*
     First signal all workers that they must force quit; no more events will
@@ -2413,11 +2399,9 @@ rpl_parallel::wait_for_done(THD *thd, Relay_log_info *rli)
       if ((rpt= e->rpl_threads[j]))
       {
         mysql_mutex_lock(&rpt->LOCK_rpl_thread);
-        thd->ENTER_COND(&rpt->COND_rpl_thread_stop, &rpt->LOCK_rpl_thread,
-                        &stage_waiting_for_worker_stop, &old_stage);
         while (rpt->current_owner == &e->rpl_threads[j])
           mysql_cond_wait(&rpt->COND_rpl_thread_stop, &rpt->LOCK_rpl_thread);
-        thd->EXIT_COND(&old_stage);
+        mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
       }
     }
   }
@@ -2515,17 +2499,6 @@ rpl_parallel_entry::queue_master_restart(rpl_group_info *rgi,
   mysql_cond_signal(&thr->COND_rpl_thread);
   mysql_mutex_unlock(&thr->LOCK_rpl_thread);
   return 0;
-}
-
-bool rpl_parallel_entry::stop_abrupt(Relay_log_info *rli)
-{
-  return force_abort.load(std::memory_order_relaxed) && !rli->stop_for_until;
-}
-
-bool rpl_parallel_entry::rgi_is_safe_to_terminate(rpl_group_info *rgi)
-{
-  return unsafe_rollback_marker_sub_id.load(std::memory_order_relaxed) <
-         rgi->gtid_sub_id;
 }
 
 

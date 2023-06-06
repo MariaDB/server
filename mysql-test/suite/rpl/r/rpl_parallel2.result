@@ -1,7 +1,6 @@
 include/rpl_init.inc [topology=1->2]
 *** MDEV-5509: Incorrect value for Seconds_Behind_Master if parallel replication ***
 connection server_2;
-SET STATEMENT sql_log_bin=0 FOR call mtr.add_suppression("Commit failed due to failure of an earlier commit on which this one depends");
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 set @old_parallel_mode= @@GLOBAL.slave_parallel_mode;
 include/stop_slave.inc

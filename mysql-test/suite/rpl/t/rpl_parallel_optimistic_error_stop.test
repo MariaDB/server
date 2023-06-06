@@ -122,10 +122,10 @@ SELECT COUNT(*) = 1 as "W4 remains with the same status" FROM information_schema
 --echo #  Slave_SQL_Running YES = $status
 
 # B. In the fixed version W3 is waiting for W2,...
---let $wait_condition= SELECT count(*) = 1 as "W3 is waiting" FROM information_schema.processlist WHERE state LIKE "Waiting for prior transaction to commit%"
+--let $wait_condition= SELECT count(*) = 1 as "W4 is waiting" FROM information_schema.processlist WHERE state LIKE "Waiting for prior transaction to commit%"
 --source include/wait_condition.inc
 --echo # while W2 is held back ...
---let $wait_condition= SELECT count(*) >= 1 as "W2 simulates slowness" FROM information_schema.processlist WHERE state LIKE "debug sync point: now"
+--let $wait_condition= SELECT count(*) = 1 as "W2 simulates slowness" FROM information_schema.processlist WHERE state LIKE "debug sync point: now"
 --source include/wait_condition.inc
 
 # C. # ...until NOW.
@@ -143,7 +143,7 @@ if ($old_version_regression)
   --let $wait_condition= SELECT count(*) = 0 as "W3 does not wait on W2" FROM information_schema.processlist WHERE state LIKE "Waiting for prior transaction to commit%"
 --source include/wait_condition.inc
 
-  --let $wait_condition= SELECT count(*) >= 1 as "W2 simulates slowness" FROM information_schema.processlist WHERE state LIKE "debug sync point: now"
+  --let $wait_condition= SELECT count(*) = 1 as "W2 simulates slowness" FROM information_schema.processlist WHERE state LIKE "debug sync point: now"
   --source include/wait_condition.inc
 
   # Like above, but signaling is done after W4 is done to violate the commit order
