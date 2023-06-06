@@ -2080,6 +2080,8 @@ bool DsMrr_impl::get_disk_sweep_mrr_cost(uint keynr, ha_rows rows, uint flags,
  
   /* Total cost of all index accesses */
   cost->index_cost= primary_file->ha_keyread_and_copy_time(keynr, 1, rows, 0);
+  cost->comp_cost= rows2double(rows) * primary_file->WHERE_COST;
+  cost->setup_cost= primary_file->MULTI_RANGE_READ_SETUP_COST;
   return FALSE;
 }
 
