@@ -343,6 +343,7 @@ TEST-INFO: SLAVE:  The INSERT is committed (Succeeded)
 connection master;
 SHOW TABLES LIKE 't2';
 Tables_in_mysqltest1 (t2)
+t23
 connection slave;
 SHOW TABLES LIKE 't2';
 Tables_in_mysqltest1 (t2)
