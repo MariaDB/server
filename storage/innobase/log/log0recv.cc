@@ -2491,7 +2491,7 @@ inline
 recv_sys_t::parse_mtr_result recv_sys_t::parse(source &l, bool if_exists)
   noexcept
 {
- restart:
+restart:
 #ifndef SUX_LOCK_GENERIC
   ut_ad(log_sys.latch.is_write_locked() ||
         srv_operation == SRV_OPERATION_BACKUP ||
@@ -3279,9 +3279,6 @@ set_start_lsn:
 		     || recv_sys.is_corrupt_log()) && !srv_force_recovery) {
 			if (init) {
 				init->created = false;
-				if (space || block->page.id().page_no()) {
-					block->page.lock.x_lock_recursive();
-				}
 			}
 
 			mtr.discard_modifications();
@@ -3847,10 +3844,12 @@ void recv_sys_t::apply(bool last_batch)
         if (fil_space_t *space = fil_space_get(id + srv_undo_space_id_start))
         {
           ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
+          ut_ad(space->recv_size >= t.pages);
           fil_node_t *file= UT_LIST_GET_FIRST(space->chain);
           ut_ad(file->is_open());
           os_file_truncate(file->name, file->handle,
-                           os_offset_t{t.pages} << srv_page_size_shift, true);
+                           os_offset_t{space->recv_size} <<
+                           srv_page_size_shift, true);
         }
       }
     }

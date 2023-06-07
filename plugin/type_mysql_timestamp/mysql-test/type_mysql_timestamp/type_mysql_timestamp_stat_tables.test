@@ -6,9 +6,9 @@
 
 SET @@global.innodb_stats_persistent=0;
 SHOW CREATE TABLE mysql.innodb_table_stats;
-ALTER TABLE mysql.innodb_table_stats MODIFY last_update TYPE_MYSQL_TIMESTAMP;
+ALTER TABLE mysql.innodb_table_stats MODIFY last_update TYPE_MYSQL_TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp();
 SHOW CREATE TABLE mysql.innodb_table_stats;
-ALTER TABLE mysql.innodb_index_stats MODIFY last_update TYPE_MYSQL_TIMESTAMP;
+ALTER TABLE mysql.innodb_index_stats MODIFY last_update TYPE_MYSQL_TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp();
 SHOW CREATE TABLE mysql.innodb_index_stats;
 SET @@global.innodb_stats_persistent=1;
 
@@ -17,8 +17,46 @@ INSERT INTO t1 VALUES (10);
 DROP TABLE t1;
 
 SET @@global.innodb_stats_persistent=0;
-ALTER TABLE mysql.innodb_table_stats MODIFY last_update TIMESTAMP;
+ALTER TABLE mysql.innodb_table_stats MODIFY last_update TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp();
 SHOW CREATE TABLE mysql.innodb_table_stats;
-ALTER TABLE mysql.innodb_index_stats MODIFY last_update TIMESTAMP;
+ALTER TABLE mysql.innodb_index_stats MODIFY last_update TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp();
 SHOW CREATE TABLE mysql.innodb_index_stats;
 SET @@global.innodb_stats_persistent=1;
+
+
+# The following test demonstrate that these columns:
+# - innodb_table_stats.last_update
+# - innodb_index_stats.last_update
+# have sane values close to NOW(), rather than any garbage,
+# with MySQL-alike Field_timestampf
+
+--echo #
+--echo # Testing MySQL-5.6-alike Field_timestampf: BINARY(4) based, without UNSIGNED_FLAG
+--echo #
+
+ALTER TABLE mysql.innodb_table_stats MODIFY last_update TYPE_MYSQL_TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp();
+ALTER TABLE mysql.innodb_index_stats MODIFY last_update TYPE_MYSQL_TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp();
+SHOW COLUMNS FROM mysql.innodb_table_stats LIKE 'last_update';
+SHOW COLUMNS FROM mysql.innodb_index_stats LIKE 'last_update';
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=1;
+SELECT TIMESTAMPDIFF(DAY,last_update,now())<=1 FROM mysql.innodb_table_stats
+WHERE database_name='test' AND table_name='t1';
+SELECT TIMESTAMPDIFF(DAY,last_update,now())<=1 FROM mysql.innodb_index_stats
+WHERE database_name='test' AND table_name='t1' AND stat_name='size';
+DROP TABLE t1;
+
+--echo #
+--echo # Now as the table t1 is dropped, expect no statistics
+--echo #
+
+SELECT * FROM mysql.innodb_table_stats
+WHERE database_name='test' AND table_name='t1';
+SELECT * FROM mysql.innodb_index_stats
+WHERE database_name='test' AND table_name='t1' AND stat_name='size';
+
+--echo #
+--echo # Restore the structure of the tables
+--echo #
+
+ALTER TABLE mysql.innodb_table_stats MODIFY last_update TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp();
+ALTER TABLE mysql.innodb_index_stats MODIFY last_update TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp();

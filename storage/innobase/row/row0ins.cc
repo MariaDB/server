@@ -214,14 +214,14 @@ row_ins_sec_index_entry_by_modify(
 		made to the clustered index, and completed the
 		secondary index creation before we got here. In this
 		case, the change would already be there. The CREATE
-		INDEX should be waiting for a MySQL meta-data lock
-		upgrade at least until this INSERT or UPDATE
-		returns. After that point, set_committed(true)
-		would be invoked in commit_inplace_alter_table(). */
+		INDEX should be in wait_while_table_is_used() at least
+		until this INSERT or UPDATE returns. After that point,
+		set_committed(true) would be invoked in
+		commit_inplace_alter_table(). */
 		ut_a(update->n_fields == 0);
-		ut_a(!cursor->index()->is_committed());
 		ut_ad(!dict_index_is_online_ddl(cursor->index()));
-		return(DB_SUCCESS);
+		return cursor->index()->is_committed()
+			? DB_CORRUPTION : DB_SUCCESS;
 	}
 
 	if (mode == BTR_MODIFY_LEAF) {

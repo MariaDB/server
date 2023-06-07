@@ -1955,8 +1955,8 @@ err_exit:
 						     FIL_TYPE_TABLESPACE,
 						     crypt_data, mode, true)) {
 		fil_node_t* node = space->add(path, file, size, false, true);
-		mysql_mutex_unlock(&fil_system.mutex);
 		IF_WIN(node->find_metadata(), node->find_metadata(file, true));
+		mysql_mutex_unlock(&fil_system.mutex);
 		mtr.start();
 		mtr.set_named_space(space);
 		ut_a(fsp_header_init(space, size, &mtr) == DB_SUCCESS);
