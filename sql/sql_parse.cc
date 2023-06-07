@@ -8007,7 +8007,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
   ptr->select_lex= this;
   /*
     We can't cache internal temporary tables between prepares as the
-    table may be deleted before next exection.
+    table may be deleted before next execution.
  */
   ptr->cacheable_table= !table->is_derived_table();
   ptr->index_hints= index_hints_arg;
@@ -8028,8 +8028,8 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
                     !cmp(&ptr->db, &tables->db)) &&
                    !tables->sequence))
       {
-	my_error(ER_NONUNIQ_TABLE, MYF(0), alias_str.str); /* purecov: tested */
-	DBUG_RETURN(0);				/* purecov: tested */
+        my_error(ER_NONUNIQ_TABLE, MYF(0), alias_str.str); /* purecov: tested */
+        DBUG_RETURN(0);				/* purecov: tested */
       }
     }
   }
