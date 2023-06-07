@@ -18330,4 +18330,98 @@ a
 deallocate prepare stmt;
 drop view v1;
 drop table t1;
+#
+# MDEV-31240: condition pushed into splittable derived has reference to
+#             outer column and does not refer to any column of embedding
+#             select
+#
+create table t1 (a int);
+insert into t1 select seq from seq_1_to_1000;
+create table t2 (a int, b int, key (a));
+insert into t2 select mod(seq,100), rand(13) * mod(seq,500) from seq_1_to_1000;
+create table t3 (a int);
+insert into t3 values (3), (1);
+analyze table t1, t2, t3 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	Table is already up to date
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
+explain select
+a,
+( select concat(t3.a,'=',dt.s)
+from
+(select a, sum(b) as s from t2 group by a) as dt,
+t3
+where dt.a=t1.a and t3.a < 3
+)
+from t1 limit 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	1000	
+2	DEPENDENT SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	<derived3>	ref	key0	key0	5	test.t1.a	2	
+3	LATERAL DERIVED	t2	ref	a	a	5	test.t1.a	10	
+select
+a,
+( select concat(t3.a,'=',dt.s)
+from
+(select a, sum(b) as s from t2 group by a) as dt,
+t3
+where dt.a=t1.a and t3.a < 3
+)
+from t1 limit 5;
+a	( select concat(t3.a,'=',dt.s)
+from
+(select a, sum(b) as s from t2 group by a) as dt,
+t3
+where dt.a=t1.a and t3.a < 3
+)
+1	1=804
+2	1=1056
+3	1=846
+4	1=947
+5	1=973
+truncate table t2;
+insert into t2 select mod(seq,10), rand(15) * mod(seq,500) from seq_1_to_1000;
+analyze table t2 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	Table is already up to date
+explain select
+a,
+( select concat(t3.a,'=',dt.s)
+from
+(select a, sum(b) as s from t2 group by a) as dt,
+t3
+where dt.a=t1.a and t3.a < 3
+)
+from t1 limit 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	1000	
+2	DEPENDENT SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	<derived3>	ref	key0	key0	5	test.t1.a	100	
+3	DERIVED	t2	ALL	a	NULL	NULL	NULL	1000	Using temporary; Using filesort
+select
+a,
+( select concat(t3.a,'=',dt.s)
+from
+(select a, sum(b) as s from t2 group by a) as dt,
+t3
+where dt.a=t1.a and t3.a < 3
+)
+from t1 limit 5;
+a	( select concat(t3.a,'=',dt.s)
+from
+(select a, sum(b) as s from t2 group by a) as dt,
+t3
+where dt.a=t1.a and t3.a < 3
+)
+1	1=11858
+2	1=11380
+3	1=11588
+4	1=11373
+5	1=11612
+drop table t1,t2,t3;
 # End of 10.4 tests
