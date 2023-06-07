@@ -246,128 +246,123 @@ Remove the undo log segment from the rseg slot if it is too big for reuse.
 void
 trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 {
-	DBUG_PRINT("trx", ("commit(" TRX_ID_FMT "," TRX_ID_FMT ")",
-			   trx->id, trx_id_t{trx->rw_trx_hash_element->no}));
-	ut_ad(undo == trx->rsegs.m_redo.undo);
-	trx_rseg_t*	rseg		= trx->rsegs.m_redo.rseg;
-	ut_ad(undo->rseg == rseg);
-	buf_block_t*	rseg_header	= rseg->get(mtr, nullptr);
-	/* We are in transaction commit; we cannot return an error. If the
-	database is corrupted, it is better to crash it than to
-	intentionally violate ACID by committing something that is known to
-	be corrupted. */
-	ut_ad(rseg_header);
-	buf_block_t*	undo_page	= trx_undo_set_state_at_finish(
-		undo, mtr);
-	trx_ulogf_t*	undo_header	= undo_page->page.frame
-		+ undo->hdr_offset;
+  DBUG_PRINT("trx", ("commit(" TRX_ID_FMT "," TRX_ID_FMT ")",
+                     trx->id, trx_id_t{trx->rw_trx_hash_element->no}));
+  ut_ad(undo->id < TRX_RSEG_N_SLOTS);
+  ut_ad(undo == trx->rsegs.m_redo.undo);
+  trx_rseg_t *rseg= trx->rsegs.m_redo.rseg;
+  ut_ad(undo->rseg == rseg);
+  buf_block_t *rseg_header= rseg->get(mtr, nullptr);
+  /* We are in transaction commit; we cannot return an error. If the
+  database is corrupted, it is better to crash it than to
+  intentionally violate ACID by committing something that is known to
+  be corrupted. */
+  ut_ad(rseg_header);
+  buf_block_t *undo_page=
+    buf_page_get(page_id_t(rseg->space->id, undo->hdr_page_no), 0,
+                 RW_X_LATCH, mtr);
+  /* This function is invoked during transaction commit, which is not
+  allowed to fail. If we get a corrupted undo header, we will crash here. */
+  ut_a(undo_page);
+  trx_ulogf_t *undo_header= undo_page->page.frame + undo->hdr_offset;
 
-	ut_ad(mach_read_from_2(undo_header + TRX_UNDO_NEEDS_PURGE) <= 1);
-	ut_ad(rseg->needs_purge > trx->id);
+  ut_ad(mach_read_from_2(undo_header + TRX_UNDO_NEEDS_PURGE) <= 1);
+  ut_ad(rseg->needs_purge > trx->id);
 
-	if (UNIV_UNLIKELY(mach_read_from_4(TRX_RSEG + TRX_RSEG_FORMAT
-					   + rseg_header->page.frame))) {
-		/* This database must have been upgraded from
-		before MariaDB 10.3.5. */
-		trx_rseg_format_upgrade(rseg_header, mtr);
-	}
+  if (rseg->last_page_no == FIL_NULL)
+  {
+    rseg->last_page_no= undo->hdr_page_no;
+    rseg->set_last_commit(undo->hdr_offset, trx->rw_trx_hash_element->no);
+  }
 
-	if (undo->state != TRX_UNDO_CACHED) {
-		/* The undo log segment will not be reused */
-		ut_a(undo->id < TRX_RSEG_N_SLOTS);
-		static_assert(FIL_NULL == 0xffffffff, "");
-		mtr->memset(rseg_header,
-			    TRX_RSEG + TRX_RSEG_UNDO_SLOTS
-			    + undo->id * TRX_RSEG_SLOT_SIZE, 4, 0xff);
+  rseg->history_size++;
 
-		uint32_t hist_size = mach_read_from_4(
-			TRX_RSEG_HISTORY_SIZE + TRX_RSEG
-			+ rseg_header->page.frame);
+  if (UNIV_UNLIKELY(mach_read_from_4(TRX_RSEG + TRX_RSEG_FORMAT +
+                                     rseg_header->page.frame)))
+    /* This database must have been upgraded from before MariaDB 10.3.5. */
+    trx_rseg_format_upgrade(rseg_header, mtr);
 
-		ut_ad(undo->size == flst_get_len(TRX_UNDO_SEG_HDR
-						 + TRX_UNDO_PAGE_LIST
-						 + undo_page->page.frame));
+  uint16_t undo_state;
 
-		mtr->write<4>(*rseg_header, TRX_RSEG + TRX_RSEG_HISTORY_SIZE
-			      + rseg_header->page.frame,
-			      hist_size + undo->size);
-		mtr->write<8>(*rseg_header, TRX_RSEG + TRX_RSEG_MAX_TRX_ID
-			      + rseg_header->page.frame,
-			      trx_sys.get_max_trx_id());
-	}
+  if (undo->size == 1 &&
+      TRX_UNDO_PAGE_REUSE_LIMIT >
+      mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE +
+                       undo_page->page.frame))
+  {
+    undo->state= undo_state= TRX_UNDO_CACHED;
+    UT_LIST_ADD_FIRST(rseg->undo_cached, undo);
+  }
+  else
+  {
+    ut_ad(undo->size == flst_get_len(TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST +
+                                     undo_page->page.frame));
+    /* The undo log segment will not be reused */
+    static_assert(FIL_NULL == 0xffffffff, "");
+    mtr->memset(rseg_header, TRX_RSEG + TRX_RSEG_UNDO_SLOTS +
+                undo->id * TRX_RSEG_SLOT_SIZE, 4, 0xff);
+    uint32_t hist_size= mach_read_from_4(TRX_RSEG_HISTORY_SIZE + TRX_RSEG +
+                                         rseg_header->page.frame);
+    mtr->write<4>(*rseg_header, TRX_RSEG + TRX_RSEG_HISTORY_SIZE +
+                  rseg_header->page.frame, hist_size + undo->size);
+    mtr->write<8>(*rseg_header, TRX_RSEG + TRX_RSEG_MAX_TRX_ID +
+                  rseg_header->page.frame, trx_sys.get_max_trx_id());
+    ut_free(undo);
+    undo_state= TRX_UNDO_TO_PURGE;
+  }
 
-	/* After the purge thread has been given permission to exit,
-	we may roll back transactions (trx->undo_no==0)
-	in THD::cleanup() invoked from unlink_thd() in fast shutdown,
-	or in trx_rollback_recovered() in slow shutdown.
+  undo= nullptr;
 
-	Before any transaction-generating background threads or the
-	purge have been started, we can
-	start transactions in row_merge_drop_temp_indexes(),
-	and roll back recovered transactions.
+  /* After the purge thread has been given permission to exit,
+  we may roll back transactions (trx->undo_no==0)
+  in THD::cleanup() invoked from unlink_thd() in fast shutdown,
+  or in trx_rollback_recovered() in slow shutdown.
 
-	Arbitrary user transactions may be executed when all the undo log
-	related background processes (including purge) are disabled due to
-	innodb_force_recovery=2 or innodb_force_recovery=3.
-	DROP TABLE may be executed at any innodb_force_recovery	level.
+  Before any transaction-generating background threads or the purge
+  have been started, we can start transactions in
+  row_merge_drop_temp_indexes(), and roll back recovered transactions.
 
-	During fast shutdown, we may also continue to execute
-	user transactions. */
-	ut_ad(srv_undo_sources
-	      || trx->undo_no == 0
-	      || (!purge_sys.enabled()
-		  && (srv_is_being_started
-		      || trx_rollback_is_active
-		      || srv_force_recovery >= SRV_FORCE_NO_BACKGROUND))
-	      || srv_fast_shutdown);
+  Arbitrary user transactions may be executed when all the undo log
+  related background processes (including purge) are disabled due to
+  innodb_force_recovery=2 or innodb_force_recovery=3.  DROP TABLE may
+  be executed at any innodb_force_recovery level.
 
-#ifdef	WITH_WSREP
-	if (wsrep_is_wsrep_xid(&trx->xid)) {
-		trx_rseg_update_wsrep_checkpoint(rseg_header, &trx->xid, mtr);
-	}
+  During fast shutdown, we may also continue to execute user
+  transactions. */
+  ut_ad(srv_undo_sources || trx->undo_no == 0 ||
+        (!purge_sys.enabled() &&
+         (srv_is_being_started ||
+          trx_rollback_is_active ||
+          srv_force_recovery >= SRV_FORCE_NO_BACKGROUND)) ||
+        srv_fast_shutdown);
+
+#ifdef WITH_WSREP
+  if (wsrep_is_wsrep_xid(&trx->xid))
+    trx_rseg_update_wsrep_checkpoint(rseg_header, &trx->xid, mtr);
 #endif
 
-	if (trx->mysql_log_file_name && *trx->mysql_log_file_name) {
-		/* Update the latest MySQL binlog name and offset info
-		in rollback segment header if MySQL binlogging is on
-		or the database server is a MySQL replication save. */
-		trx_rseg_update_binlog_offset(rseg_header, trx, mtr);
-	}
+  if (trx->mysql_log_file_name && *trx->mysql_log_file_name)
+    /* Update the latest binlog name and offset if log_bin=ON or this
+    is a replica. */
+    trx_rseg_update_binlog_offset(rseg_header, trx, mtr);
 
-	/* Add the log as the first in the history list */
+  /* Add the log as the first in the history list */
 
-	/* We are in transaction commit; we cannot return an error
-	when detecting corruption. It is better to crash the server
-	than to intentionally violate ACID by committing something
-	that is known to be corrupted. */
-	ut_a(flst_add_first(rseg_header, TRX_RSEG + TRX_RSEG_HISTORY, undo_page,
-			    static_cast<uint16_t>(undo->hdr_offset
-						  + TRX_UNDO_HISTORY_NODE),
-			    mtr) == DB_SUCCESS);
+  /* We are in transaction commit; we cannot return an error
+  when detecting corruption. It is better to crash the server
+  than to intentionally violate ACID by committing something
+  that is known to be corrupted. */
+  ut_a(flst_add_first(rseg_header, TRX_RSEG + TRX_RSEG_HISTORY, undo_page,
+                      uint16_t(page_offset(undo_header) +
+                               TRX_UNDO_HISTORY_NODE), mtr) == DB_SUCCESS);
 
-	mtr->write<8,mtr_t::MAYBE_NOP>(*undo_page,
-				       undo_header + TRX_UNDO_TRX_NO,
-				       trx->rw_trx_hash_element->no);
-	mtr->write<2,mtr_t::MAYBE_NOP>(*undo_page, undo_header
-				       + TRX_UNDO_NEEDS_PURGE, 1U);
-
-	if (rseg->last_page_no == FIL_NULL) {
-		rseg->last_page_no = undo->hdr_page_no;
-		rseg->set_last_commit(undo->hdr_offset,
-				      trx->rw_trx_hash_element->no);
-	}
-
-	rseg->history_size++;
-
-	if (undo->state == TRX_UNDO_CACHED) {
-		UT_LIST_ADD_FIRST(rseg->undo_cached, undo);
-	} else {
-		ut_ad(undo->state == TRX_UNDO_TO_PURGE);
-		ut_free(undo);
-	}
-
-	undo = NULL;
+  mtr->write<2>(*undo_page, TRX_UNDO_SEG_HDR + TRX_UNDO_STATE +
+                undo_page->page.frame, undo_state);
+  mtr->write<8,mtr_t::MAYBE_NOP>(*undo_page, undo_header + TRX_UNDO_TRX_NO,
+                                 trx->rw_trx_hash_element->no);
+  mtr->write<2,mtr_t::MAYBE_NOP>(*undo_page, undo_header +
+                                 TRX_UNDO_NEEDS_PURGE, 1U);
 }
+
 
 /** Free an undo log segment.
 @param block     rollback segment header page

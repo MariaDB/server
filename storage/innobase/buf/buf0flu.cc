@@ -1005,11 +1005,19 @@ uint32_t fil_space_t::flush_freed(bool writable)
   mysql_mutex_assert_not_owner(&buf_pool.flush_list_mutex);
   mysql_mutex_assert_not_owner(&buf_pool.mutex);
 
-  freed_range_mutex.lock();
-  if (freed_ranges.empty() || log_sys.get_flushed_lsn() < get_last_freed_lsn())
+  for (;;)
   {
+    freed_range_mutex.lock();
+    if (freed_ranges.empty())
+    {
+      freed_range_mutex.unlock();
+      return 0;
+    }
+    const lsn_t flush_lsn= last_freed_lsn;
+    if (log_sys.get_flushed_lsn() >= flush_lsn)
+      break;
     freed_range_mutex.unlock();
-    return 0;
+    log_write_up_to(flush_lsn, true);
   }
 
   const unsigned physical{physical_size()};
@@ -2476,6 +2484,7 @@ ATTRIBUTE_COLD void buf_flush_page_cleaner_init()
 /** Flush the buffer pool on shutdown. */
 ATTRIBUTE_COLD void buf_flush_buffer_pool()
 {
+  ut_ad(!os_aio_pending_reads());
   ut_ad(!buf_page_cleaner_is_active);
   ut_ad(!buf_flush_sync_lsn);
 

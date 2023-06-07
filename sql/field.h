@@ -3336,7 +3336,7 @@ public:
 /**
   TIMESTAMP(0..6) - MySQL56 version
 */
-class Field_timestampf final :public Field_timestamp_with_dec {
+class Field_timestampf :public Field_timestamp_with_dec {
   void store_TIMEVAL(const timeval &tv) override;
 public:
   Field_timestampf(uchar *ptr_arg,

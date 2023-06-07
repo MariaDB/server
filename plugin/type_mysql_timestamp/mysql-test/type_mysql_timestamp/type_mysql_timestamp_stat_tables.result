@@ -1,0 +1,108 @@
+#
+# MDEV-30483 After upgrade to 10.6 from Mysql 5.7 seeing "InnoDB: Column last_update in table mysql.innodb_table_stats is BINARY(4) NOT NULL but should be INT UNSIGNED NOT NULL"
+#
+SET @@global.innodb_stats_persistent=0;
+SHOW CREATE TABLE mysql.innodb_table_stats;
+Table	Create Table
+innodb_table_stats	CREATE TABLE `innodb_table_stats` (
+  `database_name` varchar(64) NOT NULL,
+  `table_name` varchar(199) NOT NULL,
+  `last_update` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `n_rows` bigint(20) unsigned NOT NULL,
+  `clustered_index_size` bigint(20) unsigned NOT NULL,
+  `sum_of_other_index_sizes` bigint(20) unsigned NOT NULL,
+  PRIMARY KEY (`database_name`,`table_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin STATS_PERSISTENT=0
+ALTER TABLE mysql.innodb_table_stats MODIFY last_update TYPE_MYSQL_TIMESTAMP;
+SHOW CREATE TABLE mysql.innodb_table_stats;
+Table	Create Table
+innodb_table_stats	CREATE TABLE `innodb_table_stats` (
+  `database_name` varchar(64) NOT NULL,
+  `table_name` varchar(199) NOT NULL,
+  `last_update` type_mysql_timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `n_rows` bigint(20) unsigned NOT NULL,
+  `clustered_index_size` bigint(20) unsigned NOT NULL,
+  `sum_of_other_index_sizes` bigint(20) unsigned NOT NULL,
+  PRIMARY KEY (`database_name`,`table_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin STATS_PERSISTENT=0
+ALTER TABLE mysql.innodb_index_stats MODIFY last_update TYPE_MYSQL_TIMESTAMP;
+SHOW CREATE TABLE mysql.innodb_index_stats;
+Table	Create Table
+innodb_index_stats	CREATE TABLE `innodb_index_stats` (
+  `database_name` varchar(64) NOT NULL,
+  `table_name` varchar(199) NOT NULL,
+  `index_name` varchar(64) NOT NULL,
+  `last_update` type_mysql_timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `stat_name` varchar(64) NOT NULL,
+  `stat_value` bigint(20) unsigned NOT NULL,
+  `sample_size` bigint(20) unsigned DEFAULT NULL,
+  `stat_description` varchar(1024) NOT NULL,
+  PRIMARY KEY (`database_name`,`table_name`,`index_name`,`stat_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin STATS_PERSISTENT=0
+SET @@global.innodb_stats_persistent=1;
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (10);
+DROP TABLE t1;
+SET @@global.innodb_stats_persistent=0;
+ALTER TABLE mysql.innodb_table_stats MODIFY last_update TIMESTAMP;
+SHOW CREATE TABLE mysql.innodb_table_stats;
+Table	Create Table
+innodb_table_stats	CREATE TABLE `innodb_table_stats` (
+  `database_name` varchar(64) NOT NULL,
+  `table_name` varchar(199) NOT NULL,
+  `last_update` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `n_rows` bigint(20) unsigned NOT NULL,
+  `clustered_index_size` bigint(20) unsigned NOT NULL,
+  `sum_of_other_index_sizes` bigint(20) unsigned NOT NULL,
+  PRIMARY KEY (`database_name`,`table_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin STATS_PERSISTENT=0
+ALTER TABLE mysql.innodb_index_stats MODIFY last_update TIMESTAMP;
+SHOW CREATE TABLE mysql.innodb_index_stats;
+Table	Create Table
+innodb_index_stats	CREATE TABLE `innodb_index_stats` (
+  `database_name` varchar(64) NOT NULL,
+  `table_name` varchar(199) NOT NULL,
+  `index_name` varchar(64) NOT NULL,
+  `last_update` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `stat_name` varchar(64) NOT NULL,
+  `stat_value` bigint(20) unsigned NOT NULL,
+  `sample_size` bigint(20) unsigned DEFAULT NULL,
+  `stat_description` varchar(1024) NOT NULL,
+  PRIMARY KEY (`database_name`,`table_name`,`index_name`,`stat_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin STATS_PERSISTENT=0
+SET @@global.innodb_stats_persistent=1;
+#
+# Testing MySQL-5.6-alike Field_timestampf: BINARY(4) based, without UNSIGNED_FLAG
+#
+ALTER TABLE mysql.innodb_table_stats MODIFY last_update TYPE_MYSQL_TIMESTAMP;
+ALTER TABLE mysql.innodb_index_stats MODIFY last_update TYPE_MYSQL_TIMESTAMP;
+SHOW COLUMNS FROM mysql.innodb_table_stats LIKE 'last_update';
+Field	Type	Null	Key	Default	Extra
+last_update	type_mysql_timestamp	NO		current_timestamp()	on update current_timestamp()
+SHOW COLUMNS FROM mysql.innodb_index_stats LIKE 'last_update';
+Field	Type	Null	Key	Default	Extra
+last_update	type_mysql_timestamp	NO		current_timestamp()	on update current_timestamp()
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=1;
+SELECT TIMESTAMPDIFF(DAY,last_update,now())<=1 FROM mysql.innodb_table_stats
+WHERE database_name='test' AND table_name='t1';
+TIMESTAMPDIFF(DAY,last_update,now())<=1
+1
+SELECT TIMESTAMPDIFF(DAY,last_update,now())<=1 FROM mysql.innodb_index_stats
+WHERE database_name='test' AND table_name='t1' AND stat_name='size';
+TIMESTAMPDIFF(DAY,last_update,now())<=1
+1
+DROP TABLE t1;
+#
+# Now as the table t1 is dropped, expect no statistics
+#
+SELECT * FROM mysql.innodb_table_stats
+WHERE database_name='test' AND table_name='t1';
+database_name	table_name	last_update	n_rows	clustered_index_size	sum_of_other_index_sizes
+SELECT * FROM mysql.innodb_index_stats
+WHERE database_name='test' AND table_name='t1' AND stat_name='size';
+database_name	table_name	index_name	last_update	stat_name	stat_value	sample_size	stat_description
+#
+# Restore the structure of the tables
+#
+ALTER TABLE mysql.innodb_table_stats MODIFY last_update TIMESTAMP;
+ALTER TABLE mysql.innodb_index_stats MODIFY last_update TIMESTAMP;

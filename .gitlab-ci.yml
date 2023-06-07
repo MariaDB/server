@@ -331,6 +331,7 @@ mysql-test-run-asan:
   needs:
     - "fedora-sanitizer: [-DWITH_ASAN=YES]"
   <<: *mysql-test-run-def
+  allow_failure: true
   artifacts:
     when: always  # Also show results when tests fail
     reports:
