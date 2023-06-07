@@ -6223,6 +6223,10 @@ void start_new_trans::restore_old_transaction()
      than one engine is involved and at least one engine is
      self-logging.
 
+  8. Parallel slave has found being stopped while the current transaction
+     is going to modify a slave's non-transactional table which
+     is transactional on master.
+
   For each error case above, the statement is prevented from being
   logged, we report an error, and roll back the statement.  For
   warnings, we set the thd->binlog_flags variable: the warning will be
@@ -6234,7 +6238,7 @@ void start_new_trans::restore_old_transaction()
   @param[in] tables Tables involved in the query
 
   @retval 0 No error; statement can be logged.
-  @retval -1 One of the error conditions above applies (1, 2, 4, 5, or 6).
+  @retval -1 One of the error conditions above applies (1, 2, 4, 5, or 6 or 8).
 */
 
 int THD::decide_logging_format(TABLE_LIST *tables)
@@ -6464,7 +6468,28 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         else
           lex->set_stmt_accessed_table(trans ? LEX::STMT_WRITES_TRANS_TABLE :
                                                LEX::STMT_WRITES_NON_TRANS_TABLE);
+        if (rgi_slave && rgi_slave->is_parallel_exec &&
+            likely(rgi_slave->gtid_ev_flags2 &&  Gtid_log_event::FL_TRANSACTIONAL) &&
+            unlikely(!trans))
+        {
+          // slave altered a transactional engine to non-transactional
+          struct rpl_parallel_entry *e= rgi_slave->parallel_entry;
 
+          mysql_mutex_lock(&e->LOCK_parallel_entry);
+          if (!e->force_abort)
+          {
+            e->unsafe_rollback_marker_sub_id=
+              std::max(rgi_slave->gtid_sub_id, e->unsafe_rollback_marker_sub_id.
+                       load(std::memory_order_relaxed));
+          }
+          else
+          {
+            // todo: issue a warning/errror
+            mysql_mutex_unlock(&e->LOCK_parallel_entry);
+            DBUG_RETURN(-1);
+          }
+          mysql_mutex_unlock(&e->LOCK_parallel_entry);
+        }
         flags_write_all_set &= flags;
         flags_write_some_set |= flags;
         is_write= TRUE;
