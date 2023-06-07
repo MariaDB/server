@@ -253,6 +253,18 @@ public:
 #endif
     return view.low_limit_no();
   }
+  /** A wrapper around ReadView::sees(). */
+  trx_id_t sees(trx_id_t id) const
+  {
+    /* This function may only be called by purge_coordinator_callback().
+
+    The purge coordinator task may call this without holding any latch,
+    because it is the only thread that may modify purge_sys.view.
+
+    Any other threads that access purge_sys.view must hold purge_sys.latch,
+    typically via purge_sys_t::view_guard. */
+    return view.sees(id);
+  }
   /** A wrapper around trx_sys_t::clone_oldest_view(). */
   void clone_oldest_view()
   {
