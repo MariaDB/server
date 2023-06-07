@@ -11,7 +11,7 @@ let $counter= 5000;
 let $mysql_errno= 9999;
 while ($mysql_errno)
 {
-  --error 0,ER_ACCESS_DENIED_ERROR,ER_SERVER_SHUTDOWN,ER_CONNECTION_KILLED,ER_LOCK_WAIT_TIMEOUT,2002,2006,2013
+  --error 0,ER_ACCESS_DENIED_ERROR,ER_SERVER_SHUTDOWN,ER_CONNECTION_KILLED,ER_LOCK_WAIT_TIMEOUT,2002,2006,2013,HA_ERR_NO_ENCRYPTION
   show status;
 
   dec $counter;
@@ -27,6 +27,10 @@ while ($mysql_errno)
     source include/wait_wsrep_ready.inc;
   }
   if ($mysql_errno == 1045)
+  {
+    let $mysql_errno=0;
+  }
+  if ($mysql_errno == 199)
   {
     let $mysql_errno=0;
   }

@@ -1043,9 +1043,6 @@ SELECT JSON_EXTRACT('{"a":null, "b":10, "c":"null"}', '$.a');
 JSON_EXTRACT('{"a":null, "b":10, "c":"null"}', '$.a')
 null
 #
-# End of 10.3 tests
-#
-#
 # Start of 10.4 tests
 #
 #
@@ -1295,6 +1292,11 @@ SELECT JSON_LENGTH('{"a":"b"}','$','$', 'foo');
 ERROR 42000: Incorrect parameter count in the call to native function 'json_length'
 SELECT JSON_LENGTH();
 ERROR 42000: Incorrect parameter count in the call to native function 'JSON_LENGTH'
+# MDEV-23187: Assorted assertion failures in json_find_path with certain collations
+SET COLLATION_CONNECTION= ucs2_unicode_ci;
+SELECT JSON_VALUE('["foo"]', '$**[0]') AS f;
+f
+foo
 #
 # End of 10.4 tests
 #

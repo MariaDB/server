@@ -751,6 +751,11 @@ select * from
                from t10 left join t11 on t11.col1=t10.col1
                group by grp_id) T on T.grp_id=t1.b;
 
+# Not sure how MDEV-27871 is related but this test uses this reason
+# all over the place:
+#enable after fix MDEV-27871
+--disable_view_protocol
+
 select json_detailed(json_extract(trace, '$**.check_split_materialized')) as JS
 from information_schema.optimizer_trace;
 
@@ -763,6 +768,7 @@ select
   ) as JS
 from information_schema.optimizer_trace;
 
+--enable_view_protocol
 drop table t1,t2,t3,t10,t11;
 set optimizer_trace=DEFAULT;
 

@@ -269,7 +269,7 @@ static MYSQL_THDVAR_ULONG(repair_threads, PLUGIN_VAR_RQCMDARG,
 static MYSQL_THDVAR_ULONGLONG(sort_buffer_size, PLUGIN_VAR_RQCMDARG,
        "The buffer that is allocated when sorting the index when doing a "
        "REPAIR or when creating indexes with CREATE INDEX or ALTER TABLE.", NULL, NULL,
-       SORT_BUFFER_INIT, MIN_SORT_BUFFER, SIZE_T_MAX, 1);
+       SORT_BUFFER_INIT, MARIA_MIN_SORT_MEMORY, SIZE_T_MAX/16, 1);
 
 static MYSQL_THDVAR_ENUM(stats_method, PLUGIN_VAR_RQCMDARG,
        "Specifies how Aria index statistics collection code should treat "
@@ -292,7 +292,8 @@ static MYSQL_SYSVAR_BOOL(used_for_temp_tables,
        "Whether temporary tables should be MyISAM or Aria", 0, 0,
        1);
 
-static MYSQL_SYSVAR_BOOL(encrypt_tables, maria_encrypt_tables, PLUGIN_VAR_OPCMDARG,
+static MYSQL_SYSVAR_BOOL(encrypt_tables, maria_encrypt_tables,
+                         PLUGIN_VAR_OPCMDARG,
        "Encrypt tables (only for tables with ROW_FORMAT=PAGE (default) "
        "and not FIXED/DYNAMIC)",
        0, 0, 0);

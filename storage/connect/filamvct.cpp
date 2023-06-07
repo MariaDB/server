@@ -429,7 +429,7 @@ bool VCTFAM::OpenTableFile(PGLOBAL g)
   /*********************************************************************/
   switch (mode) {
     case MODE_READ:
-      strcpy(opmode, "rb");
+      snprintf(opmode, sizeof(opmode), "rb");
       break;
     case MODE_DELETE:
       if (!Tdbp->GetNext()) {
@@ -437,7 +437,7 @@ bool VCTFAM::OpenTableFile(PGLOBAL g)
         DelRows = Cardinality(g);
 
         // This will delete the whole file
-        strcpy(opmode, "wb");
+        snprintf(opmode, sizeof(opmode), "wb");
         break;
         } // endif
 
@@ -445,7 +445,7 @@ bool VCTFAM::OpenTableFile(PGLOBAL g)
       /* fall through */
     case MODE_UPDATE:
       UseTemp = Tdbp->IsUsingTemp(g);
-      strcpy(opmode, (UseTemp) ? "rb" : "r+b");
+      snprintf(opmode, sizeof(opmode), (UseTemp) ? "rb" : "r+b");
       break;
     case MODE_INSERT:
       if (MaxBlk) {
@@ -453,11 +453,11 @@ bool VCTFAM::OpenTableFile(PGLOBAL g)
           if (MakeEmptyFile(g, To_File))
             return true;
 
-        strcpy(opmode, "r+b");   // Required to update empty blocks
+        snprintf(opmode, sizeof(opmode), "r+b");   // Required to update empty blocks
       } else if (!Block || Last == Nrec)
-        strcpy(opmode, "ab");
+        snprintf(opmode, sizeof(opmode), "ab");
       else
-        strcpy(opmode, "r+b");   // Required to update the last block
+        snprintf(opmode, sizeof(opmode), "r+b");   // Required to update the last block
 
       break;
     default:
@@ -1912,7 +1912,7 @@ bool VECFAM::OpenTableFile(PGLOBAL g)
   /*********************************************************************/
   switch (mode) {
     case MODE_READ:
-      strcpy(opmode, "rb");
+      snprintf(opmode, sizeof(opmode), "rb");
       break;
     case MODE_DELETE:
       if (!Tdbp->GetNext()) {
@@ -1920,7 +1920,7 @@ bool VECFAM::OpenTableFile(PGLOBAL g)
         DelRows = Cardinality(g);
 
         // This will delete the whole file
-        strcpy(opmode, "wb");
+        snprintf(opmode, sizeof(opmode), "wb");
 
         // This will stop the process by causing GetProgMax to return 0.
         ResetTableSize(g, 0, Nrec);
@@ -1931,10 +1931,10 @@ bool VECFAM::OpenTableFile(PGLOBAL g)
       /* fall through */
     case MODE_UPDATE:
       UseTemp = Tdbp->IsUsingTemp(g);
-      strcpy(opmode, (UseTemp) ? "rb": "r+b");
+      snprintf(opmode, sizeof(opmode), (UseTemp) ? "rb": "r+b");
       break;
     case MODE_INSERT:
-      strcpy(opmode, "ab");
+      snprintf(opmode, sizeof(opmode), "ab");
       break;
     default:
       snprintf(g->Message, sizeof(g->Message), MSG(BAD_OPEN_MODE), mode);

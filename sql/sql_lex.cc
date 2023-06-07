@@ -943,7 +943,7 @@ bool is_lex_native_function(const LEX_CSTRING *name)
 
 bool is_native_function(THD *thd, const LEX_CSTRING *name)
 {
-  if (find_native_function_builder(thd, name))
+  if (native_functions_hash.find(thd, *name))
     return true;
 
   if (is_lex_native_function(name))

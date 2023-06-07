@@ -3,6 +3,10 @@ SET(CPACK_RPM_tokudb-engine_PACKAGE_DESCRIPTION "The TokuDB storage engine is fo
 environments, offering increased compression and better performance based
 on fractal indexes." PARENT_SCOPE)
 
+IF(POLICY CMP0115)
+  CMAKE_POLICY(SET CMP0115 OLD)
+ENDIF()
+
 SET(TOKUDB_VERSION 5.6.49-89.0)
 # PerconaFT only supports x86-64 and cmake-2.8.9+
 IF(WIN32)

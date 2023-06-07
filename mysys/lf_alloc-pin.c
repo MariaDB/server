@@ -270,6 +270,9 @@ void lf_pinbox_free(LF_PINS *pins, void *addr)
   add_to_purgatory(pins, addr);
   if (pins->purgatory_count % LF_PURGATORY_SIZE == 0)
    lf_pinbox_real_free(pins);
+  DBUG_EXECUTE_IF("unconditional_pinbox_free",
+                  if (pins->purgatory_count % LF_PURGATORY_SIZE)
+                      lf_pinbox_real_free(pins););
 }
 
 struct st_harvester {
