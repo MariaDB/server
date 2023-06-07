@@ -27,3 +27,5 @@ galera_bf_kill_debug : timeout after 900 seconds
 galera_ssl_upgrade : [Warning] Failed to load slave replication state from table mysql.gtid_slave_pos: 130: Incorrect file format 'gtid_slave_pos'
 galera_parallel_simple : timeout related to wsrep_sync_wait
 galera_insert_bulk : MDEV-30536 no expected deadlock in galera_insert_bulk test
+MDEV-27713 : test is using get_lock(), which is now rejected in cluster
+galera_bf_abort_group_commit : MDEV-30855 PR to remove the test exists

@@ -5732,13 +5732,14 @@ static void lock_release_autoinc_locks(trx_t *trx)
 }
 
 /** Cancel a waiting lock request and release possibly waiting transactions */
-template <bool from_deadlock= false>
+template <bool from_deadlock= false, bool inner_trx_lock= true>
 void lock_cancel_waiting_and_release(lock_t *lock)
 {
   lock_sys.assert_locked(*lock);
   mysql_mutex_assert_owner(&lock_sys.wait_mutex);
   trx_t *trx= lock->trx;
-  trx->mutex_lock();
+  if (inner_trx_lock)
+    trx->mutex_lock();
   ut_d(const auto trx_state= trx->state);
   ut_ad(trx_state == TRX_STATE_COMMITTED_IN_MEMORY ||
         trx_state == TRX_STATE_ACTIVE);
@@ -5762,7 +5763,8 @@ void lock_cancel_waiting_and_release(lock_t *lock)
 
   lock_wait_end<from_deadlock>(trx);
 
-  trx->mutex_unlock();
+  if (inner_trx_lock)
+    trx->mutex_unlock();
 }
 
 void lock_sys_t::cancel_lock_wait_for_trx(trx_t *trx)
@@ -5778,6 +5780,19 @@ void lock_sys_t::cancel_lock_wait_for_trx(trx_t *trx)
   lock_sys.wr_unlock();
   mysql_mutex_unlock(&lock_sys.wait_mutex);
 }
+
+#ifdef WITH_WSREP
+void lock_sys_t::cancel_lock_wait_for_wsrep_bf_abort(trx_t *trx)
+{
+  lock_sys.assert_locked();
+  mysql_mutex_assert_owner(&lock_sys.wait_mutex);
+  ut_ad(trx->mutex_is_owner());
+  ut_ad(trx->state == TRX_STATE_ACTIVE || trx->state == TRX_STATE_PREPARED);
+  trx->lock.set_wsrep_victim();
+  if (lock_t *lock= trx->lock.wait_lock)
+    lock_cancel_waiting_and_release<false, false>(lock);
+}
+#endif /* WITH_WSREP */
 
 /** Cancel a waiting lock request.
 @tparam check_victim  whether to check for DB_DEADLOCK

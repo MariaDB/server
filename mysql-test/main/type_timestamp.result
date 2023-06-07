@@ -1230,6 +1230,8 @@ SELECT * FROM t1 HAVING MIN(t1.c1) >= ALL(SELECT 'a' UNION SELECT 'r');
 c1
 Warnings:
 Warning	1292	Truncated incorrect datetime value: 'r'
+SELECT * FROM t1 HAVING MIN(t1.c1) > 0;
+c1
 DROP TABLE t1;
 CREATE TABLE t1 (c1 timestamp);
 INSERT INTO t1 VALUES ('2010-01-01 00:00:00');

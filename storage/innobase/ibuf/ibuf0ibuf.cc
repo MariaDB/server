@@ -2365,6 +2365,7 @@ tablespace_deleted:
 		}
 
 		const ulint zip_size = s->zip_size(), size = s->size;
+		s->x_lock();
 		s->release();
 		mtr_t mtr;
 
@@ -2382,12 +2383,16 @@ tablespace_deleted:
 				|| !page_is_leaf(block->page.frame);
 			mtr.commit();
 			if (err == DB_TABLESPACE_DELETED) {
+				s->x_unlock();
 				goto tablespace_deleted;
 			}
 			if (!remove) {
+				s->x_unlock();
 				continue;
 			}
 		}
+
+		s->x_unlock();
 
 		if (srv_shutdown_state == SRV_SHUTDOWN_NONE
 		    || srv_fast_shutdown) {
@@ -2417,7 +2422,7 @@ tablespace_deleted:
 		/* Prevent an infinite loop, by removing entries from
 		the change buffer in the case the bitmap bits were
 		wrongly clear even though buffered changes exist. */
-		ibuf_delete_recs(page_id_t(space_ids[i], page_nos[i]));
+		ibuf_delete_recs(page_id_t(space_id, page_nos[i]));
 	}
 }
 
@@ -4195,25 +4200,26 @@ dberr_t ibuf_merge_or_delete_for_page(buf_block_t *block,
 
 		ibuf_mtr_commit(&mtr);
 
-		if (bitmap_bits
-		    && DB_SUCCESS
+		if (!bitmap_bits) {
+		done:
+			/* No changes are buffered for this page. */
+			space->release();
+			return DB_SUCCESS;
+		}
+
+		if (!block
+		    || DB_SUCCESS
 		    == fseg_page_is_allocated(space, page_id.page_no())) {
 			ibuf_mtr_start(&mtr);
 			mtr.set_named_space(space);
 			ibuf_reset_bitmap(block, page_id, zip_size, &mtr);
 			ibuf_mtr_commit(&mtr);
-			bitmap_bits = 0;
 			if (!block
 			    || btr_page_get_index_id(block->page.frame)
 			    != DICT_IBUF_ID_MIN + IBUF_SPACE_ID) {
 				ibuf_delete_recs(page_id);
 			}
-		}
-
-		if (!bitmap_bits) {
-			/* No changes are buffered for this page. */
-			space->release();
-			return DB_SUCCESS;
+			goto done;
 		}
 	}
 
