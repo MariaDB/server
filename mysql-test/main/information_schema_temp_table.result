@@ -1,0 +1,115 @@
+#
+# MDEV-12459: The information_schema tables for getting temporary tables
+#             info is missing, at least for innodb, there is no
+#             INNODB_TEMP_TABLE_INFO
+#
+# -------------------------------
+# Test shadowing of a base table
+# -------------------------------
+create database some_db;
+use some_db;
+# Creating temporary table with the same name shadows the base table
+# in `show create` and by design, should not raise any warning
+create table t(t int);
+create temporary table t(t int);
+show create table t;
+Table	Create Table
+t	CREATE TEMPORARY TABLE `t` (
+  `t` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+select table_schema, table_name, temporary from information_schema.tables where table_name='t';
+table_schema	table_name	temporary
+some_db	t	Y
+some_db	t	N
+drop table t;
+drop table t;
+use test;
+# ------------------------
+# IS.tables tests
+# ------------------------
+# Create first temporary table
+create temporary table test.t_temp(t int);
+insert into t_temp values (1),(2), (3);
+# Show results
+select table_schema, table_name, temporary from  information_schema.tables where table_type='temporary';
+table_schema	test
+table_name	t_temp
+temporary	Y
+# Create the base table with the same name (both should be visible)
+create table test.t_temp(t int);
+insert into t_temp values (-1),(-2);
+# Show results
+select table_schema, table_name, temporary from  information_schema.tables where table_type='temporary';
+table_schema	test
+table_name	t_temp
+temporary	Y
+create database my_db;
+# Create the temporary table with the same name in new DB
+create temporary table my_db.t_temp (t int);
+insert into my_db.t_temp values (-2),(-1);
+# Show results
+select table_schema, table_name, temporary from  information_schema.tables where table_type='temporary';
+table_schema	my_db
+table_name	t_temp
+temporary	Y
+table_schema	test
+table_name	t_temp
+temporary	Y
+connect  con1,localhost,root,,my_db,,;
+# Create the temporary table with the same name in new connection
+create temporary table t_temp(t int);
+insert into t_temp values (4),(5),(6), (7);
+# Show results
+select table_schema, table_name, temporary from  information_schema.tables where table_type='temporary';
+table_schema	my_db
+table_name	t_temp
+temporary	Y
+connection default;
+# Show results in default connection
+select table_schema, table_name, temporary from  information_schema.tables where table_type='temporary';
+table_schema	my_db
+table_name	t_temp
+temporary	Y
+table_schema	test
+table_name	t_temp
+temporary	Y
+# Check shadowing and (no)warning with explicit referencing database
+create table some_db.my_t (t int);
+show warnings;
+create temporary table some_db.my_t (t int);
+show warnings;
+# Show results
+select table_schema, table_name, temporary from  information_schema.tables where table_type='temporary';
+table_schema	some_db
+table_name	my_t
+temporary	Y
+table_schema	my_db
+table_name	t_temp
+temporary	Y
+table_schema	test
+table_name	t_temp
+temporary	Y
+use test;
+create table t1 (a int);
+create sequence s1;
+create temporary table t1 (b int);
+create temporary sequence s1;
+select table_schema, table_name, table_type, temporary from information_schema.tables where table_schema = 'test';
+table_schema	table_name	table_type	temporary
+test	s1	TEMPORARY SEQUENCE	Y
+test	t1	TEMPORARY	Y
+test	t_temp	TEMPORARY	Y
+test	t_temp	BASE TABLE	N
+test	t1	BASE TABLE	N
+test	s1	SEQUENCE	N
+drop table t1;
+drop table t1;
+drop table s1;
+drop table s1;
+drop table some_db.my_t;
+drop table some_db.my_t;
+disconnect con1;
+drop table test.t_temp;
+drop table test.t_temp;
+drop database my_db;
+drop database some_db;

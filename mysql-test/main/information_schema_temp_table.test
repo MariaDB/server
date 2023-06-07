@@ -1,0 +1,110 @@
+--echo #
+--echo # MDEV-12459: The information_schema tables for getting temporary tables
+--echo #             info is missing, at least for innodb, there is no
+--echo #             INNODB_TEMP_TABLE_INFO
+--echo #
+
+# Save the initial number of concurrent sessions
+--source include/count_sessions.inc
+--source include/have_innodb.inc
+
+--echo # -------------------------------
+--echo # Test shadowing of a base table
+--echo # -------------------------------
+
+create database some_db;
+use some_db;
+
+--echo # Creating temporary table with the same name shadows the base table
+--echo # in `show create` and by design, should not raise any warning
+create table t(t int);
+create temporary table t(t int);
+show create table t;
+select table_schema, table_name, temporary from information_schema.tables where table_name='t';
+drop table t;
+drop table t;
+use test;
+
+--echo # ------------------------
+--echo # IS.tables tests
+--echo # ------------------------
+
+--echo # Create first temporary table
+create temporary table test.t_temp(t int);
+insert into t_temp values (1),(2), (3);
+
+--echo # Show results
+--vertical_results
+select table_schema, table_name, temporary from  information_schema.tables where table_type='temporary';
+
+--echo # Create the base table with the same name (both should be visible)
+# Create the base table with the same name as temporary table.
+create table test.t_temp(t int);
+insert into t_temp values (-1),(-2);
+
+--echo # Show results
+--vertical_results
+select table_schema, table_name, temporary from  information_schema.tables where table_type='temporary';
+
+create database my_db;
+--echo # Create the temporary table with the same name in new DB
+create temporary table my_db.t_temp (t int);
+insert into my_db.t_temp values (-2),(-1);
+--echo # Show results
+--vertical_results
+select table_schema, table_name, temporary from  information_schema.tables where table_type='temporary';
+
+connect (con1,localhost,root,,my_db,,);
+
+--echo # Create the temporary table with the same name in new connection
+create temporary table t_temp(t int);
+insert into t_temp values (4),(5),(6), (7);
+--echo # Show results
+--vertical_results
+select table_schema, table_name, temporary from  information_schema.tables where table_type='temporary';
+
+connection default;
+
+--echo # Show results in default connection
+--vertical_results
+select table_schema, table_name, temporary from  information_schema.tables where table_type='temporary';
+
+--echo # Check shadowing and (no)warning with explicit referencing database
+create table some_db.my_t (t int);
+show warnings;
+create temporary table some_db.my_t (t int);
+show warnings;
+
+--echo # Show results
+--vertical_results
+select table_schema, table_name, temporary from  information_schema.tables where table_type='temporary';
+
+# Check with sequences
+use test;
+create table t1 (a int);
+create sequence s1;
+create temporary table t1 (b int);
+create temporary sequence s1;
+--horizontal_results
+select table_schema, table_name, table_type, temporary from information_schema.tables where table_schema = 'test';
+
+drop table t1;
+drop table t1;
+drop table s1;
+drop table s1;
+
+# First we are removing temporary table and after base table
+drop table some_db.my_t;
+drop table some_db.my_t;
+
+disconnect con1;
+
+# Drop both temporary and "real" table from test.
+drop table test.t_temp;
+drop table test.t_temp;
+
+drop database my_db;
+drop database some_db;
+
+# Wait till all disconnects are completed
+--source include/wait_until_count_sessions.inc

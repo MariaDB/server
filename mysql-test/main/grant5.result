@@ -264,6 +264,7 @@ show full tables;
 Tables_in_db	Table_type
 show table status;
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+tmp	MyISAM	10	Fixed	0	0	X	X	X	X	X	X	X	X	latin1_swedish_ci	NULL			X	Y
 show index in tmp;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 tmp	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE			NO
