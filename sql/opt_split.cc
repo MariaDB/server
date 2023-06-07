@@ -664,7 +664,8 @@ add_ext_keyuse_for_splitting(Dynamic_array<KEYUSE_EXT> *ext_keyuses,
   keyuse_ext.cond_guard= added_key_field->cond_guard;
   keyuse_ext.sj_pred_no= added_key_field->sj_pred_no;
   keyuse_ext.validity_ref= 0;
-  keyuse_ext.needed_in_prefix= added_key_field->val->used_tables();
+  keyuse_ext.needed_in_prefix= added_key_field->val->used_tables() &
+			       ~(OUTER_REF_TABLE_BIT | RAND_TABLE_BIT);
   keyuse_ext.validity_var= false;
   return ext_keyuses->push(keyuse_ext);
 }
@@ -945,6 +946,7 @@ void reset_validity_vars_for_keyuses(KEYUSE_EXT *key_keyuse_ext_start,
 
 SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
                                                  table_map remaining_tables,
+                                                 const POSITION *join_positions,
                                                  table_map *spl_pd_boundary)
 {
   SplM_opt_info *spl_opt_info= table->spl_opt_info;
@@ -1042,7 +1044,7 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
     else
     {
       table_map last_found= this->table->map;
-      for (POSITION *pos= &this->join->positions[idx - 1]; ; pos--)
+      for (const POSITION *pos= &join_positions[idx - 1]; ; pos--)
       {
         if (pos->table->table->map & excluded_tables)
           continue;
