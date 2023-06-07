@@ -1324,7 +1324,7 @@ int json_skip_key(json_engine_t *j)
 }
 
 
-#define SKIPPED_STEP_MARK ((int) ~0)
+#define SKIPPED_STEP_MARK INT_MAX32
 
 /*
   Current step of the patch matches the JSON construction.

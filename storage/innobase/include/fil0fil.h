@@ -638,8 +638,6 @@ public:
   /** Close all tablespace files at shutdown */
   static void close_all();
 
-  /** @return last_freed_lsn */
-  lsn_t get_last_freed_lsn() { return last_freed_lsn; }
   /** Update last_freed_lsn */
   void update_last_freed_lsn(lsn_t lsn) { last_freed_lsn= lsn; }
 

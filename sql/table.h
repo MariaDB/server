@@ -3367,10 +3367,16 @@ inline void mark_as_null_row(TABLE *table)
     bfill(table->null_flags,table->s->null_bytes,255);
 }
 
+/*
+  Restore table to state before mark_as_null_row() call.
+  This assumes that the caller has restored table->null_flags,
+  as is done in unclear_tables().
+*/
+
 inline void unmark_as_null_row(TABLE *table)
 {
-  table->null_row=0;
-  table->status= STATUS_NO_RECORD;
+  table->null_row= 0;
+  table->status&= ~STATUS_NULL_ROW;
 }
 
 bool is_simple_order(ORDER *order);

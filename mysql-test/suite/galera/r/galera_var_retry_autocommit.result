@@ -36,7 +36,10 @@ SET DEBUG_SYNC = 'now SIGNAL wsrep_retry_autocommit_continue';
 connection node_1;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
-1
+connection node_1;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
 SET DEBUG_SYNC = 'RESET';
 SET GLOBAL debug_dbug = NULL;
 DROP TABLE t1;
