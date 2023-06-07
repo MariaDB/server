@@ -9,6 +9,7 @@ CREATE OR REPLACE TABLE t1 LIKE tmp;
 SET debug_dbug=@old_debug;
 SHOW TABLES;
 Tables_in_test
+tmp
 t1
 show create table t1;
 Table	Create Table
