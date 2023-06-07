@@ -2,6 +2,7 @@ DROP TABLE IF EXISTS t1;
 CREATE TEMPORARY TABLE t1(c1 BIT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -13,6 +14,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 TINYINT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -24,6 +26,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 SMALLINT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -35,6 +38,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 MEDIUMINT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -46,6 +50,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 INT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -57,6 +62,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 INTEGER NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -68,6 +74,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 BIGINT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -79,6 +86,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 DECIMAL NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -90,6 +98,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 DEC NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -101,6 +110,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 FIXED NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -112,6 +122,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 NUMERIC NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -123,6 +134,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 DOUBLE NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -134,6 +146,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 REAL NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -145,6 +158,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 DOUBLE PRECISION NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -156,6 +170,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 FLOAT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -167,6 +182,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 DATE NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -178,6 +194,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 TIME NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -189,6 +206,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 TIMESTAMP NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -200,6 +218,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 DATETIME NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -211,6 +230,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 YEAR NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -222,6 +242,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 TINYBLOB NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -233,6 +254,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 BLOB NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -244,6 +266,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 MEDIUMBLOB NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -255,6 +278,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 LONGBLOB NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -266,6 +290,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 TINYTEXT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -277,6 +302,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 TEXT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -288,6 +314,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 MEDIUMTEXT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -299,6 +326,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 LONGTEXT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -310,6 +338,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 BIT NOT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -321,6 +350,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 TINYINT NOT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -332,6 +362,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 SMALLINT NOT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -343,6 +374,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 MEDIUMINT NOT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -354,6 +386,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 INT NOT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -365,6 +398,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 INTEGER NOT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -376,6 +410,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 BIGINT NOT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -387,6 +422,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 DECIMAL NOT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -398,6 +434,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 DEC NOT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -409,6 +446,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 FIXED NOT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -420,6 +458,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 NUMERIC NOT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -431,6 +470,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 DOUBLE NOT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -442,6 +482,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 REAL NOT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -453,6 +494,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 DOUBLE PRECISION NOT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -464,6 +506,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 FLOAT NOT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -475,6 +518,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 DATE NOT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -486,6 +530,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 TIME NOT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -497,6 +542,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 TIMESTAMP NOT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -508,6 +554,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 DATETIME NOT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -519,6 +566,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 YEAR NOT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -530,6 +578,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 TINYBLOB NOT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -541,6 +590,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 BLOB NOT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -552,6 +602,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 MEDIUMBLOB NOT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -563,6 +614,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 LONGBLOB NOT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -574,6 +626,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 TINYTEXT NOT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -585,6 +638,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 TEXT NOT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -596,6 +650,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 MEDIUMTEXT NOT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -607,6 +662,7 @@ Tables_in_test
 CREATE TEMPORARY TABLE t1(c1 LONGTEXT NOT NULL);
 SHOW TABLES;
 Tables_in_test
+t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (

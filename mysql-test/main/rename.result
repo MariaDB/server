@@ -106,6 +106,8 @@ rename table t2 to tmp, tmp to t2;
 rename table t1_tmp to tmp, tmp to t1_tmp;
 show tables;
 Tables_in_test
+t2
+t1_tmp
 t1_tmp
 t2
 SHOW CREATE TABLE t1_tmp;

@@ -243,6 +243,11 @@ Warnings:
 Warning	1196	Some non-transactional changed tables couldn't be rolled back
 SHOW TABLES;
 Tables_in_test
+tt7
+tt6
+tt5
+tt4
+tt3
 t1
 t2
 t3

@@ -329,6 +329,7 @@ i
 1
 SHOW TABLES;
 Tables_in_temp_db
+temp_t1
 DROP TABLE temp_t1;
 #
 # Create and drop a temporary table.
