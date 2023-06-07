@@ -4331,9 +4331,7 @@ lock_table_names(THD *thd, const DDL_options_st &options,
         table->mdl_request.type == MDL_SHARED_READ_ONLY ||
         table->open_type == OT_TEMPORARY_ONLY ||
         (table->open_type == OT_TEMPORARY_OR_BASE && is_temporary_table(table)))
-    {
       continue;
-    }
 
     /* Write lock on normal tables is not allowed in a read only transaction. */
     if (thd->tx_read_only)
