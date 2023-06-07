@@ -6468,9 +6468,14 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         else
           lex->set_stmt_accessed_table(trans ? LEX::STMT_WRITES_TRANS_TABLE :
                                                LEX::STMT_WRITES_NON_TRANS_TABLE);
+
+#ifndef EMBEDDED_LIBRARY
         if (rgi_slave && rgi_slave->is_parallel_exec &&
-            likely(rgi_slave->gtid_ev_flags2 &&  Gtid_log_event::FL_TRANSACTIONAL) &&
-            unlikely(!trans))
+            likely(rgi_slave->gtid_ev_flags2 &
+                   Gtid_log_event::FL_TRANSACTIONAL) &&
+            unlikely(!trans) &&
+            rgi_slave->parallel_entry->unsafe_rollback_marker_sub_id.load(
+                std::memory_order_relaxed) < rgi_slave->gtid_sub_id)
         {
           // slave altered a transactional engine to non-transactional
           struct rpl_parallel_entry *e= rgi_slave->parallel_entry;
@@ -6490,6 +6495,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
           }
           mysql_mutex_unlock(&e->LOCK_parallel_entry);
         }
+#endif
+
         flags_write_all_set &= flags;
         flags_write_some_set |= flags;
         is_write= TRUE;

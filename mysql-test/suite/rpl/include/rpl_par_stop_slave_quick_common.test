@@ -601,8 +601,138 @@ while ($mode_ctr)
 }
 --source include/start_slave.inc
 
+
+--echo #
+--echo # Common Test Case 8:
+--echo # If the tables of a transaction use different engines between the
+--echo # primary and replica, such that the primary engine is transactional
+--echo # and the replica is non-transactional, if STOP SLAVE is issued on the
+--echo # replica...
+--echo #   8a: ...after the transaction has opened and locked its tables (but
+--echo #       not yet not committed), the transaction should commit before
+--echo #       the slave stops
+--echo #   8b: ...before the transaction opens its tables, the transaction
+--echo #       should stop and rollback
+
+--echo # 8a
 --connection master
+CREATE TABLE tasym (a int) engine=InnoDB;
+--eval insert into ti2 values ($ti2_ctr)
 --source include/save_master_gtid.inc
 --connection slave
+--source include/sync_with_master_gtid.inc
+ALTER TABLE tasym engine=MyISAM;
+--let $row_count_initial=`select count(*) from tasym`
+--source include/stop_slave.inc
+
+--connection master
+BEGIN;
+--eval insert into ti values ($ti_ctr)
+--inc $ti_ctr
+insert into tasym values(1);
+--eval update ti2 set a=a+1 where a=$ti2_ctr
+COMMIT;
+--source include/save_master_gtid.inc
+
+--connection slave
+BEGIN;
+--eval SELECT * FROM ti2 WHERE a=$ti2_ctr FOR UPDATE
+--inc $ti2_ctr
+--inc $ti2_ctr
 --source include/start_slave.inc
+
+if (`SELECT @@global.binlog_format = 'ROW'`)
+{
+    --let $update_state=Update_rows_log_event::find_row(-1)
+}
+if (`SELECT @@global.binlog_format = 'STATEMENT'`)
+{
+    --let $update_state=Updating
+}
+--echo # Wait for replicating transaction to wait for innodb table lock
+--source include/start_slave.inc
+--let $wait_condition= SELECT COUNT(*)=1 FROM information_schema.processlist WHERE state LIKE "$update_state" and command like 'Slave_worker';
+--source include/wait_condition.inc
+
+--connection slave1
+--send STOP SLAVE;
+
+--connection slave
+--echo # Wait for replica to signal worker threads to stop
+--let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE 'Waiting for worker thread to stop';
+--source include/wait_condition.inc
+
+ROLLBACK;
+--connection slave1
+--reap
+--connection slave
+
+--source include/wait_for_slave_sql_to_stop.inc
+
+--let $row_count_end=`select count(*) from tasym`
+--let $row_count_diff=`select ($row_count_end-$row_count_initial)`
+--let $assert_text= The newly N transaction should commit on the slave
+--let $assert_cond= $row_count_diff = 1
+--source include/assert.inc
+
+--let $slave_gtid= `select @@global.gtid_slave_pos`
+--let $assert_text= GTID slave state should update per the committed transaction
+--let $assert_cond= $master_pos = $slave_gtid
+--source include/assert.inc
+
+
+--echo # 8b
+--connection slave
+--let $row_count_initial=`select count(*) from tasym`
+
+--connection master
+--source include/save_master_gtid.inc
+insert into tasym values(2);
+
+--connection slave
+LOCK TABLES tasym WRITE;
+--source include/start_slave.inc
+
+--echo # Wait for replica to begin executing the transaction
+--connection slave
+--let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE 'Waiting for table metadata lock' and  command LIKE 'Slave_worker';
+--source include/wait_condition.inc
+
+--connection slave1
+--send STOP SLAVE;
+
+--connection slave
+--echo # Wait for replica to signal worker threads to stop
+--let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE 'Waiting for worker thread to stop';
+--source include/wait_condition.inc
+
+UNLOCK TABLES;
+--source include/wait_for_slave_sql_to_stop.inc
+--connection slave1
+--reap
+
+--connection slave
+--let $row_count_end=`select count(*) from tasym`
+--let $row_count_diff=`select ($row_count_end-$row_count_initial)`
+--let $assert_text= No new rows should have been inserted
+--let $assert_cond= $row_count_diff = 0
+--source include/assert.inc
+
+--let $slave_gtid= `select @@global.gtid_slave_pos`
+--let $assert_text= GTID slave state should not change
+--let $assert_cond= $master_pos = $slave_gtid
+--source include/assert.inc
+
+--echo # Skip the already applied N transaction
+set @@GLOBAL.sql_slave_skip_counter= 1;
+--source include/start_slave.inc
+
+--connection master
+DROP TABLE tasym;
+
+
+--connection master
+--source include/save_master_gtid.inc
+
+--connection slave
 --source include/sync_with_master_gtid.inc

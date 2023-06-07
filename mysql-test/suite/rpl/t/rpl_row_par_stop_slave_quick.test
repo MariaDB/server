@@ -18,6 +18,7 @@ SET STATEMENT sql_log_bin=0 FOR call mtr.add_suppression("Commit failed due to f
 --let $old_threads= `SELECT @@global.slave_parallel_threads`
 --let $old_slave_mode= `SELECT @@global.slave_parallel_mode`
 set @@global.slave_parallel_mode=CONSERVATIVE;
+set @@global.slave_parallel_threads=1;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 --connect(slave_lock_extra,127.0.0.1,root,,test,$SLAVE_MYPORT)
 CHANGE MASTER TO MASTER_USE_GTID=SLAVE_POS;

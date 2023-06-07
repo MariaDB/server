@@ -7,6 +7,7 @@ include/stop_slave.inc
 SET STATEMENT sql_log_bin=0 FOR call mtr.add_suppression('Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.');
 SET STATEMENT sql_log_bin=0 FOR call mtr.add_suppression("Commit failed due to failure of an earlier commit on which this one depends");
 set @@global.slave_parallel_mode=CONSERVATIVE;
+set @@global.slave_parallel_threads=1;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 change master to master_use_gtid=slave_pos;
 include/start_slave.inc
@@ -362,12 +363,81 @@ include/start_slave.inc
 include/sync_with_master_gtid.inc
 include/stop_slave.inc
 include/start_slave.inc
+#
+# Common Test Case 8:
+# If the tables of a transaction use different engines between the
+# primary and replica, such that the primary engine is transactional
+# and the replica is non-transactional, if STOP SLAVE is issued on the
+# replica...
+#   8a: ...after the transaction has opened and locked its tables (but
+#       not yet not committed), the transaction should commit before
+#       the slave stops
+#   8b: ...before the transaction opens its tables, the transaction
+#       should stop and rollback
+# 8a
 connection master;
+CREATE TABLE tasym (a int) engine=InnoDB;
+insert into ti2 values (405);
 include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
+ALTER TABLE tasym engine=MyISAM;
+include/stop_slave.inc
+connection master;
+BEGIN;
+insert into ti values (117);
+insert into tasym values(1);
+update ti2 set a=a+1 where a=405;
+COMMIT;
+include/save_master_gtid.inc
+connection slave;
+BEGIN;
+SELECT * FROM ti2 WHERE a=405 FOR UPDATE;
+a
+405
+include/start_slave.inc
+# Wait for replicating transaction to wait for innodb table lock
 include/start_slave.inc
 Warnings:
 Note	1254	Slave is already running
+connection slave1;
+STOP SLAVE;;
+connection slave;
+# Wait for replica to signal worker threads to stop
+ROLLBACK;
+connection slave1;
+connection slave;
+include/wait_for_slave_sql_to_stop.inc
+include/assert.inc [The newly N transaction should commit on the slave]
+include/assert.inc [GTID slave state should update per the committed transaction]
+# 8b
+connection slave;
+connection master;
+include/save_master_gtid.inc
+insert into tasym values(2);
+connection slave;
+LOCK TABLES tasym WRITE;
+include/start_slave.inc
+# Wait for replica to begin executing the transaction
+connection slave;
+connection slave1;
+STOP SLAVE;;
+connection slave;
+# Wait for replica to signal worker threads to stop
+UNLOCK TABLES;
+include/wait_for_slave_sql_to_stop.inc
+connection slave1;
+connection slave;
+include/assert.inc [No new rows should have been inserted]
+include/assert.inc [GTID slave state should not change]
+# Skip the already applied N transaction
+set @@GLOBAL.sql_slave_skip_counter= 1;
+include/start_slave.inc
+connection master;
+DROP TABLE tasym;
+connection master;
+include/save_master_gtid.inc
+connection slave;
 include/sync_with_master_gtid.inc
 #
 # Statement Test Case 1:
@@ -380,7 +450,7 @@ set @@global.slave_parallel_threads=1;
 connection master;
 SET @@session.binlog_direct_non_transactional_updates= 0;
 BEGIN;
-insert into ti values (117);
+insert into ti values (118);
 insert into tm values (202);
 Warnings:
 Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it accesses a non-transactional table after accessing a transactional table within the same transaction
@@ -389,7 +459,7 @@ Warnings:
 Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it accesses a non-transactional table after accessing a transactional table within the same transaction
 COMMIT;
 include/save_master_gtid.inc
-insert into ti values (118);
+insert into ti values (119);
 connection slave;
 lock tables tm2 write;
 START SLAVE;
@@ -424,8 +494,8 @@ connection slave;
 include/stop_slave.inc
 set @@global.slave_parallel_threads=1;
 connection master;
-insert into ti values (119);
 insert into ti values (120);
+insert into ti values (121);
 include/save_master_gtid.inc
 connection slave;
 LOCK TABLES ti WRITE;
