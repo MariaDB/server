@@ -1,0 +1,17 @@
+InnoDB		0 transactions not purged
+connect stop_purge,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+CREATE TABLE t(a INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=0;
+INSERT INTO t SET a=1;
+SELECT variable_value FROM information_schema.global_status
+WHERE variable_name='INNODB_BUFFER_POOL_PAGES_DIRTY';
+variable_value
+0
+INSERT INTO t SET a=2;
+SELECT variable_value FROM information_schema.global_status
+WHERE variable_name='INNODB_BUFFER_POOL_PAGES_DIRTY';
+variable_value
+0
+disconnect stop_purge;
+DROP TABLE t;

@@ -1,0 +1,19 @@
+let $basedir=$MYSQLTEST_VARDIR/tmp/backup;
+let $incremental_dir=$MYSQLTEST_VARDIR/tmp/backup_inc1;
+
+--source ../innodb/include/wait_all_purged.inc
+connect stop_purge,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+
+CREATE TABLE t(a INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=0;
+INSERT INTO t SET a=1;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir;
+SELECT variable_value FROM information_schema.global_status
+WHERE variable_name='INNODB_BUFFER_POOL_PAGES_DIRTY';
+INSERT INTO t SET a=2;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$incremental_dir --incremental-basedir=$basedir;
+SELECT variable_value FROM information_schema.global_status
+WHERE variable_name='INNODB_BUFFER_POOL_PAGES_DIRTY';
+disconnect stop_purge;
+DROP TABLE t;

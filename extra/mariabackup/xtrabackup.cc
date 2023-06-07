@@ -4626,6 +4626,26 @@ bool Backup_datasinks::backup_low()
 	return true;
 }
 
+static const char wait_for_innodb_checkpoint[] =
+  "BEGIN NOT ATOMIC\n"
+  "DECLARE c INT DEFAULT 15;\n"
+  "DECLARE CONTINUE HANDLER FOR SQLSTATE '70100'\n"
+  "SET @@GLOBAL.innodb_max_dirty_pages_pct=@pct,"
+  "@@GLOBAL.innodb_max_dirty_pages_pct_lwm=@pct_lwm;\n"
+
+  "SET @pct=@@GLOBAL.innodb_max_dirty_pages_pct,"
+  "@pct_lwm=@@GLOBAL.innodb_max_dirty_pages_pct_lwm,"
+  "@@GLOBAL.innodb_max_dirty_pages_pct_lwm=0,"
+  "@@GLOBAL.innodb_max_dirty_pages_pct=0;\n"
+
+  "WHILE (1 IN(SELECT variable_value>0 FROM information_schema.global_status"
+  " WHERE variable_name='INNODB_BUFFER_POOL_PAGES_DIRTY') AND c>0) DO\n"
+  "DO SLEEP(1);SET c:=c-1;"
+  "END WHILE;\n"
+  "SET @@GLOBAL.innodb_max_dirty_pages_pct:=@pct,"
+  "@@GLOBAL.innodb_max_dirty_pages_pct_lwm:=@pct_lwm;\n"
+  "END;";
+
 /** Implement --backup
 @return	whether the operation succeeded */
 static bool xtrabackup_backup_func()
@@ -4652,6 +4672,9 @@ static bool xtrabackup_backup_func()
 		return(false);
 	}
 	msg("cd to %s", mysql_real_data_home);
+	// FIXME: What if InnoDB is not enabled?
+	// Should the timeout be a parameter?
+	xb_mysql_query(mysql_connection, wait_for_innodb_checkpoint, false);
 	encryption_plugin_backup_init(mysql_connection);
 	msg("open files limit requested %lu, set to %lu",
 	    xb_open_files_limit,
