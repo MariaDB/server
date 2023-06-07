@@ -26423,7 +26423,8 @@ check_reverse_order:
           if the table is accessed by the primary key
         */
         if (tab->rowid_filter &&
-            table->file->is_clustering_key(tab->index))
+            (table->file->is_clustering_key(tab->index) ||
+             table->covering_keys.is_set(best_key)))
           tab->clear_range_rowid_filter();
 
         if (tab->pre_idx_push_select_cond)

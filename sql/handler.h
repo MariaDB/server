@@ -3486,19 +3486,38 @@ public:
   inline bool keyread_enabled() { return keyread < MAX_KEY; }
   inline int ha_start_keyread(uint idx)
   {
-    if (keyread_enabled())
-      return 0;
+    DBUG_ASSERT(!keyread_enabled());
     keyread= idx;
     return extra_opt(HA_EXTRA_KEYREAD, idx);
   }
   inline int ha_end_keyread()
   {
-    if (!keyread_enabled())
+    if (!keyread_enabled())                    /* Enably lazy usage */
       return 0;
     keyread= MAX_KEY;
     return extra(HA_EXTRA_NO_KEYREAD);
   }
 
+  /*
+    End any active keyread. Return state so that we can restore things
+    at end.
+  */
+  int ha_end_active_keyread()
+  {
+    int org_keyread;
+    if (!keyread_enabled())
+      return MAX_KEY;
+    org_keyread= keyread;
+    ha_end_keyread();
+    return org_keyread;
+  }
+  /* Restore state to before ha_end_active_keyread */
+  void ha_restart_keyread(int org_keyread)
+  {
+    DBUG_ASSERT(!keyread_enabled());
+    if (org_keyread != MAX_KEY)
+      ha_start_keyread(org_keyread);
+  }
   int check_collation_compatibility();
   int check_long_hash_compatibility() const;
   int ha_check_for_upgrade(HA_CHECK_OPT *check_opt);

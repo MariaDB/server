@@ -15801,7 +15801,8 @@ int QUICK_GROUP_MIN_MAX_SELECT::reset(void)
   DBUG_ENTER("QUICK_GROUP_MIN_MAX_SELECT::reset");
 
   seen_first_key= FALSE;
-  head->file->ha_start_keyread(index); /* We need only the key attributes */
+  if (!head->file->keyread_enabled())
+    head->file->ha_start_keyread(index); /* We need only the key attributes */
 
   if ((result= file->ha_index_init(index,1)))
   {

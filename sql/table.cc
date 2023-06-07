@@ -7477,7 +7477,7 @@ MY_BITMAP *TABLE::prepare_for_keyread(uint index, MY_BITMAP *map)
 {
   MY_BITMAP *backup= read_set;
   DBUG_ENTER("TABLE::prepare_for_keyread");
-  if (!no_keyread)
+  if (!no_keyread && !file->keyread_enabled())
     file->ha_start_keyread(index);
   if (map != read_set || !is_clustering_key(index))
   {
