@@ -46,6 +46,7 @@ Created 3/14/1997 Heikki Tuuri
 #include "handler.h"
 #include "ha_innodb.h"
 #include "fil0fil.h"
+#include "debug_sync.h"
 
 /*************************************************************************
 IMPORTANT NOTE: Any operation that generates redo MUST check that there
@@ -646,7 +647,18 @@ row_purge_del_mark(
 
 	mem_heap_free(heap);
 
-	return(row_purge_remove_clust_if_poss(node));
+	bool result = row_purge_remove_clust_if_poss(node);
+
+#ifdef ENABLED_DEBUG_SYNC
+	DBUG_EXECUTE_IF(
+		"enable_row_purge_del_mark_exit_sync_point",
+		debug_sync_set_action(
+			current_thd,
+			STRING_WITH_LEN(
+				"now SIGNAL row_purge_del_mark_finished")););
+#endif
+
+	return result;
 }
 
 /** Reset DB_TRX_ID, DB_ROLL_PTR of a clustered index record

@@ -19,7 +19,7 @@ BEGIN;
 UPDATE t1 SET b=4 WHERE a=3;
 disconnect prevent_purge;
 connection default;
-InnoDB		0 transactions not purged
+SET GLOBAL innodb_max_purge_lag_wait=1;
 connection con1;
 ROLLBACK;
 disconnect con1;

@@ -111,7 +111,9 @@ SET DEBUG_SYNC= 'now WAIT_FOR uncommitted';
 COMMIT;
 
 --echo # wait for purge to process the deleted records.
+let $wait_all_purged = 1;
 --source ../../innodb/include/wait_all_purged.inc
+let $wait_all_purged = 0;
 
 SET DEBUG_SYNC= 'now SIGNAL purged';
 
