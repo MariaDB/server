@@ -108,3 +108,14 @@ drop database some_db;
 
 # Wait till all disconnects are completed
 --source include/wait_until_count_sessions.inc
+
+--echo #
+--echo # MDEV-28332: Alter on temporary table causes ER_TABLE_EXISTS_ERROR note
+--echo #
+create table t (a int);
+create temporary table t (b int);
+alter table t add c int;
+
+# Cleanup
+drop temporary table t;
+drop table t;

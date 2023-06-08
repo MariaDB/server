@@ -113,3 +113,11 @@ drop table test.t_temp;
 drop table test.t_temp;
 drop database my_db;
 drop database some_db;
+#
+# MDEV-28332: Alter on temporary table causes ER_TABLE_EXISTS_ERROR note
+#
+create table t (a int);
+create temporary table t (b int);
+alter table t add c int;
+drop temporary table t;
+drop table t;
