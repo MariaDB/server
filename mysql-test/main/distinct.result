@@ -1161,3 +1161,27 @@ explain select * from t1 limit 0 offset 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Zero limit
 drop table t1, t2;
+#
+# MDEV-28285 Unexpected result when combining DISTINCT, subselect
+# and LIMIT
+#
+create table t1 (a int primary key);
+create table t2 (a int primary key, b int not null);
+insert into t1 select seq from seq_1_to_10;
+insert into t2 select seq,seq from seq_1_to_10;
+select distinct a from t1 where t1.a=1 and t1.a in (select a from t2 where t2.b in (1,2));
+a
+1
+explain select distinct a from t1 where t1.a=1 and t1.a in (select a+0 from t2 where t2.b in (1,2)) limit 10,10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	const	PRIMARY	PRIMARY	4	const	1	Using index; Using temporary
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; FirstMatch(t1)
+select distinct a from t1 where t1.a=1 and t1.a in (select a+0 from t2 where t2.b in (1,2)) limit 10,10;
+a
+select distinct a from t1 where t1.a=1 and t1.a in (select a+0 from t2 where t2.b in (1,2)) limit 0,1;
+a
+1
+drop table t1,t2;
+#
+# end of 10.5 tests
+#
