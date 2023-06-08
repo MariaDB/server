@@ -47,6 +47,7 @@ Created 3/14/1997 Heikki Tuuri
 #include "handler.h"
 #include "ha_innodb.h"
 #include "fil0fil.h"
+#include "debug_sync.h"
 #include <mysql/service_thd_mdl.h>
 
 /*************************************************************************
@@ -631,7 +632,17 @@ row_purge_del_mark(
     mem_heap_free(heap);
   }
 
-  return row_purge_remove_clust_if_poss(node);
+  bool result= row_purge_remove_clust_if_poss(node);
+
+#ifdef ENABLED_DEBUG_SYNC
+  DBUG_EXECUTE_IF("enable_row_purge_del_mark_exit_sync_point",
+                  debug_sync_set_action
+                  (current_thd,
+                   STRING_WITH_LEN("now SIGNAL row_purge_del_mark_finished"));
+                  );
+#endif
+
+  return result;
 }
 
 void purge_sys_t::wait_SYS()
@@ -850,6 +861,9 @@ skip_secondaries:
 				   buf_page_get(page_id_t(rseg.space->id,
 							  page_no),
 						0, RW_X_LATCH, &mtr)) {
+				block->page.set_accessed();
+				buf_page_make_young_if_needed(&block->page);
+
 				byte* data_field = block->page.frame
 					+ offset + internal_offset;
 
