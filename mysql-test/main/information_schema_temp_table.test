@@ -119,3 +119,50 @@ alter table t add c int;
 # Cleanup
 drop temporary table t;
 drop table t;
+
+--echo #
+--echo # MDEV-28334: SHOW TABLE STATUS shows all temporary tables
+--echo #             ignoring database and conditions
+--echo #
+
+create temporary table test.tmp_in_test (a int);
+create table test.base_in_test (t int);
+# The base table with the same name as temporary table
+create table test.tmp_in_test (t int);
+# The temporary InnoDB table - CREATE TIME should be NULL, MDEV-28333
+create temporary table test.tmp_innodb_in_test (a int) engine=InnoDB;
+
+create database mysqltest;
+use mysqltest;
+
+# This should show tables from currently used DB
+# no temporary tables created and empty result set should be returned
+show table status;
+
+# The same as before
+show table status in mysqltest;
+
+# The should show all ables from `test` DB
+--replace_column 12 # 13 # 14 #
+--horizontal_results
+show table status in test;
+
+# The same as before
+--replace_column 12 # 13 # 14 #
+--horizontal_results
+show table status from test;
+
+
+--echo # check that InnoDB temporary table
+--echo # has a NULL value for `Create time` column (MDEV-28333)
+select create_time from information_schema.tables where table_name='tmp_innodb_in_test';
+
+# This shouldn't give any results
+show table status like 'nonexisting';
+
+# Cleanup
+drop database mysqltest;
+drop table test.base_in_test;
+# We need first to drop temporary table that shadows the base table
+drop table test.tmp_in_test;
+drop table test.tmp_in_test;

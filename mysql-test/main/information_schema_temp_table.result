@@ -49,10 +49,10 @@ create temporary table my_db.t_temp (t int);
 insert into my_db.t_temp values (-2),(-1);
 # Show results
 select table_schema, table_name, temporary from  information_schema.tables where table_type='temporary';
-table_schema	my_db
+table_schema	test
 table_name	t_temp
 temporary	Y
-table_schema	test
+table_schema	my_db
 table_name	t_temp
 temporary	Y
 connect  con1,localhost,root,,my_db,,;
@@ -67,10 +67,10 @@ temporary	Y
 connection default;
 # Show results in default connection
 select table_schema, table_name, temporary from  information_schema.tables where table_type='temporary';
-table_schema	my_db
+table_schema	test
 table_name	t_temp
 temporary	Y
-table_schema	test
+table_schema	my_db
 table_name	t_temp
 temporary	Y
 # Check shadowing and (no)warning with explicit referencing database
@@ -80,13 +80,13 @@ create temporary table some_db.my_t (t int);
 show warnings;
 # Show results
 select table_schema, table_name, temporary from  information_schema.tables where table_type='temporary';
+table_schema	test
+table_name	t_temp
+temporary	Y
 table_schema	some_db
 table_name	my_t
 temporary	Y
 table_schema	my_db
-table_name	t_temp
-temporary	Y
-table_schema	test
 table_name	t_temp
 temporary	Y
 use test;
@@ -121,3 +121,40 @@ create temporary table t (b int);
 alter table t add c int;
 drop temporary table t;
 drop table t;
+#
+# MDEV-28334: SHOW TABLE STATUS shows all temporary tables
+#             ignoring database and conditions
+#
+create temporary table test.tmp_in_test (a int);
+create table test.base_in_test (t int);
+create table test.tmp_in_test (t int);
+create temporary table test.tmp_innodb_in_test (a int) engine=InnoDB;
+create database mysqltest;
+use mysqltest;
+show table status;
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+show table status in mysqltest;
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+show table status in test;
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+tmp_innodb_in_test	InnoDB	10	Dynamic	0	0	16384	0	0	6291456	NULL	#	#	#	latin1_swedish_ci	NULL			0	Y
+tmp_in_test	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL			17179868160	Y
+base_in_test	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL			17179868160	N
+tmp_in_test	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL			17179868160	N
+show table status from test;
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+tmp_innodb_in_test	InnoDB	10	Dynamic	0	0	16384	0	0	6291456	NULL	#	#	#	latin1_swedish_ci	NULL			0	Y
+tmp_in_test	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL			17179868160	Y
+base_in_test	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL			17179868160	N
+tmp_in_test	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL			17179868160	N
+# check that InnoDB temporary table
+# has a NULL value for `Create time` column (MDEV-28333)
+select create_time from information_schema.tables where table_name='tmp_innodb_in_test';
+create_time
+NULL
+show table status like 'nonexisting';
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+drop database mysqltest;
+drop table test.base_in_test;
+drop table test.tmp_in_test;
+drop table test.tmp_in_test;

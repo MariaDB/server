@@ -5294,21 +5294,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   init_alloc_root(PSI_INSTRUMENT_ME, &tmp_mem_root, SHOW_ALLOC_BLOCK_SIZE,
                   SHOW_ALLOC_BLOCK_SIZE, MY_THREAD_SPECIFIC);
 
-  /* Handling session temporary tables from the backup state */
-  if (schema_table_idx == SCH_TABLES && open_tables_state_backup.temporary_tables)
-  {
-    All_tmp_tables_list::Iterator it(*open_tables_state_backup.temporary_tables);
-    TMP_TABLE_SHARE *share_temp;
-    while ((share_temp= it++))
-    {
-      All_share_tables_list::Iterator it2(share_temp->all_tmp_tables);
-      while (TABLE *tmp_tbl= it2++)
-      {
-        if (IS_USER_TEMP_TABLE(share_temp))
-          process_i_s_table_temporary_tables(thd, table, tmp_tbl);
-      }
-    }
-  }
 
   for (size_t i=0; i < db_names.elements(); i++)
   {
@@ -5323,6 +5308,25 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 #endif
     {
       Dynamic_array<LEX_CSTRING*> table_names(PSI_INSTRUMENT_MEM);
+      /* Handling session temporary tables from the backup state */
+      if (schema_table_idx == SCH_TABLES && open_tables_state_backup.temporary_tables)
+      {
+        All_tmp_tables_list::Iterator it(*open_tables_state_backup.temporary_tables);
+        TMP_TABLE_SHARE *share_temp;
+        while ((share_temp= it++))
+        {
+          if (!my_strcasecmp(system_charset_info, db_name->str,
+                               share_temp->db.str))
+          {
+            All_share_tables_list::Iterator it2(share_temp->all_tmp_tables);
+            while (TABLE *tmp_tbl= it2++)
+            {
+              if (IS_USER_TEMP_TABLE(share_temp))
+                process_i_s_table_temporary_tables(thd, table, tmp_tbl);
+            }
+          }
+        }
+      }
       int res= make_table_name_list(thd, &table_names, lex,
                                     &plan->lookup_field_vals, db_name);
       if (unlikely(res == 2))   /* Not fatal error, continue */
