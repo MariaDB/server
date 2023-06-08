@@ -10,28 +10,26 @@
 --echo # The following group of tests should produce no warnings
 --echo #
 
---echo # exec MYSQL --host=localhost -e "status" 2>&1 | grep "Connection:\|WARNING:"
---exec $MYSQL --host=localhost -e "status" 2>&1 | grep "Connection:\|WARNING:"
+--echo # exec MYSQL --host=localhost -e "status" 2>&1 | grep "Connection:"
+--exec $MYSQL --host=localhost -e "status" 2>&1 | grep "Connection:"
 
---echo # exec MYSQL --port=MASTER_MYPORT --protocol=tcp -e "status" 2>&1 | grep "Connection:\|WARNING:"
---exec $MYSQL --port=$MASTER_MYPORT --protocol=tcp -e "status" 2>&1 | grep "Connection:\|WARNING:"
+--echo # exec MYSQL --port=MASTER_MYPORT --protocol=tcp -e "status" 2>&1 | grep "Connection:"
+--exec $MYSQL --port=$MASTER_MYPORT --protocol=tcp -e "status" 2>&1 | grep "Connection:"
 
---echo # exec MYSQL --host=localhost --port=MASTER_MYPORT --protocol=socket -e "status" 2>&1 | grep "Connection:\|WARNING:"
---exec $MYSQL --host=localhost --port=$MASTER_MYPORT --protocol=socket -e "status" 2>&1 | grep "Connection:\|WARNING:"
+--echo # exec MYSQL --host=localhost --port=MASTER_MYPORT --protocol=socket -e "status" 2>&1 | grep "Connection:"
+--exec $MYSQL --host=localhost --port=$MASTER_MYPORT --protocol=socket -e "status" 2>&1 | grep "Connection:"
 
---echo # exec MYSQL --host=127.0.0.1 --port=MASTER_MYPORT -e "status" 2>&1 | grep "Connection:\|WARNING:"
---exec $MYSQL --host=127.0.0.1 --port=$MASTER_MYPORT -e "status" 2>&1 | grep "Connection:\|WARNING:"
+--echo # exec MYSQL --host=127.0.0.1 --port=MASTER_MYPORT -e "status" 2>&1 | grep "Connection:"
+--exec $MYSQL --host=127.0.0.1 --port=$MASTER_MYPORT -e "status" 2>&1 | grep "Connection:"
 
---echo # exec MYSQL --host=localhost --socket=MASTER_MYSOCK --port=MASTER_MYPORT -e "status" 2>&1 | grep "Connection:\|WARNING:"
---exec $MYSQL --host=localhost --socket=$MASTER_MYSOCK --port=$MASTER_MYPORT -e "status" 2>&1 | grep "Connection:\|WARNING:"
+--echo # exec MYSQL --host=localhost --socket=MASTER_MYSOCK --port=MASTER_MYPORT -e "status" 2>&1 | grep "Connection:"
+--exec $MYSQL --host=localhost --socket=$MASTER_MYSOCK --port=$MASTER_MYPORT -e "status" 2>&1 | grep "Connection:"
 
---echo # exec MYSQL --host=localhost --socket=MASTER_MYSOCK -e "status" 2>&1 | grep "Connection:\|WARNING:"
---exec $MYSQL --host=localhost --socket=$MASTER_MYSOCK -e "status" 2>&1 | grep "Connection:\|WARNING:"
+--echo # exec MYSQL --host=localhost --port=MASTER_MYPORT --socket=MASTER_MYSOCK -e "status" 2>&1 | grep "Connection:"
+--exec $MYSQL --host=localhost --port=MASTER_MYPORT --socket=$MASTER_MYSOCK -e "status" 2>&1 | grep "Connection:"
 
+--echo # exec MYSQL --host=localhost --socket=MASTER_MYSOCK -e "status" 2>&1 | grep "Connection:"
+--exec $MYSQL --host=localhost --socket=$MASTER_MYSOCK -e "status" 2>&1 | grep "Connection:"
 
---echo #
---echo # The remaining tests should produce warnings
---echo #
-
---echo # exec MYSQL --host=localhost --port=MASTER_MYPORT -e "status" 2>&1 | grep "Connection:\|WARNING:"
---exec $MYSQL --host=localhost --port=$MASTER_MYPORT -e "status" 2>&1 | grep "Connection:\|WARNING:"
+--echo # exec MYSQL --host=localhost --port=MASTER_MYPORT -e "status" 2>&1 | grep "Connection:"
+--exec $MYSQL --host=localhost --port=$MASTER_MYPORT -e "status" 2>&1 | grep "Connection:"

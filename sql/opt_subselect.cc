@@ -4104,6 +4104,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       */ 
       join->cur_sj_inner_tables= 0;
       Json_writer_object semijoin_strategy(thd);
+      double inner_fanout= 1.0;
       semijoin_strategy.add("semi_join_strategy","FirstMatch");
       Json_writer_array semijoin_plan(thd, "join_order");
       for (idx= first; idx <= tablenr; idx++)
@@ -4126,9 +4127,20 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
                            record_count, join->best_positions + idx, &dummy);
           set_if_smaller(join->best_positions[idx].records_out, records_out);
         }
+        /*
+          TODO: We should also compute the selectivity here, as well as adjust
+          the records_out according to the fraction of records removed by
+          the semi-join.
+        */
+        double rec_out= join->best_positions[idx].records_out;
+        if (join->best_positions[idx].table->emb_sj_nest)
+          inner_fanout *= rec_out;
+
         record_count *= join->best_positions[idx].records_out;
         rem_tables &= ~join->best_positions[idx].table->table->map;
       }
+      if (inner_fanout > 1.0)
+        join->best_positions[tablenr].records_out /= inner_fanout;
     }
 
     if (pos->sj_strategy == SJ_OPT_LOOSE_SCAN) 

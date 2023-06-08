@@ -840,7 +840,7 @@ flush table t1;
 set optimizer_use_condition_selectivity=4;
 explain extended select * from t1 where a=0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1025	0.39	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1025	0.78	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 0
 drop table t1;
@@ -1984,11 +1984,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	25.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2
+DROP TABLE t1;
+# End of 10.2 tests
 set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
 set histogram_size=@save_histogram_size;
 set use_stat_tables= @save_use_stat_tables;
-DROP TABLE t1;
-# End of 10.2 tests
 set @@global.histogram_size=@save_histogram_size;
 #
 # MDEV-20595

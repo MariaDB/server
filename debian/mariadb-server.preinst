@@ -210,7 +210,7 @@ fi
 
 # As preset blocksize of GNU df is 1024 then available bytes is $df_available_blocks * 1024
 # 4096 blocks is then lower than 4 MB
-df_available_blocks=`LC_ALL=C BLOCKSIZE= df --output=avail "$datadir" | tail -n 1`
+df_available_blocks="$(LC_ALL=C BLOCKSIZE='' df --output=avail "$mysql_datadir" | tail -n 1)"
 if [ "$df_available_blocks" -lt "4096" ]; then
   echo "ERROR: There's not enough space in $mysql_datadir/" 1>&2
   db_stop

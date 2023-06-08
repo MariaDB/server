@@ -443,6 +443,8 @@ typedef struct st_join_table {
   */
   bool          idx_cond_fact_out;
   bool          use_join_cache;
+  /* TRUE <=> it is prohibited to join this table using join buffer */
+  bool          no_forced_join_cache;
   uint          used_join_cache_level;
   ulong         join_buffer_size_limit;
   JOIN_CACHE	*cache;
@@ -568,6 +570,16 @@ typedef struct st_join_table {
   uint n_sj_tables;
 
   bool preread_init_done;
+
+  /* true <=> split optimization has been applied to this materialized table */
+  bool is_split_derived;
+
+  /*
+    Bitmap of split materialized derived tables that can be filled just before
+    this join table is to be joined. All parameters of the split derived tables
+    belong to tables preceding this join table.
+  */
+  table_map split_derived_to_update;
 
   /*
     Cost info to the range filter used when joining this join table
@@ -732,9 +744,11 @@ typedef struct st_join_table {
 
   void partial_cleanup();
   void add_keyuses_for_splitting();
-  SplM_plan_info *choose_best_splitting(double record_count,
-                                        table_map remaining_tables);
-  bool fix_splitting(SplM_plan_info *spl_plan, table_map remaining_tables,
+  SplM_plan_info *choose_best_splitting(uint idx,
+                                        table_map remaining_tables,
+                                        const POSITION *join_positions,
+                                        table_map *spl_pd_boundary);
+  bool fix_splitting(SplM_plan_info *spl_plan, table_map excluded_tables,
                      bool is_const_table);
 } JOIN_TAB;
 
@@ -1042,8 +1056,20 @@ public:
   */
   KEYUSE *key;
 
+  /* Cardinality of current partial join ending with this position */
+  double partial_join_cardinality;
+
   /* Info on splitting plan used at this position */
   SplM_plan_info *spl_plan;
+
+  /*
+    If spl_plan is NULL the value of spl_pd_boundary is 0. Otherwise
+    spl_pd_boundary contains the bitmap of the table from the current
+    partial join ending at this position that starts the sub-sequence of
+    tables S from which no conditions are allowed to be used in the plan
+    spl_plan for the split table joined at this position.
+  */
+  table_map spl_pd_boundary;
 
   /* Cost info for the range filter used at this position */
   Range_rowid_filter_cost_info *range_rowid_filter_info;

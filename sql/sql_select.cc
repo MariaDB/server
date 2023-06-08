@@ -5953,7 +5953,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       /*
         Perform range analysis if there are keys it could use (1).
         Don't do range analysis for materialized subqueries (2).
-        Don't do range analysis for materialized derived tables (3)
+        Don't do range analysis for materialized derived tables/views (3)
       */
       if ((!s->const_keys.is_clear_all() ||
            !bitmap_is_clear_all(&s->table->cond_set)) &&              // (1)
@@ -7786,6 +7786,7 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key)
   join->positions[idx].records_init=1.0;        /* This is a const table */
   join->positions[idx].cond_selectivity= 1.0;
   join->positions[idx].ref_depend_map= 0;
+  join->positions[idx].partial_join_cardinality= 1;
 
 //  join->positions[idx].loosescan_key= MAX_KEY; /* Not a LooseScan */
   join->positions[idx].sj_strategy= SJ_OPT_NONE;
@@ -7803,6 +7804,7 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key)
   }
   join->best_ref[idx]=table;
   join->positions[idx].spl_plan= 0;
+  join->positions[idx].spl_pd_boundary= 0;
 }
 
 
@@ -7817,7 +7819,6 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key)
   @return 0.0                   No matching rows
   @return >= 1.0                Number of expected matching rows
 
-  @details
   Estimate how many records we will get if we
    - read the given table with its "independent" access method (either quick 
      select or full table/index scan),
@@ -7830,7 +7831,7 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key)
 */
 
 static double apply_selectivity_for_table(JOIN_TAB *s,
-                                           uint use_cond_selectivity)
+                                          uint use_cond_selectivity)
 {
   double dbl_records;
 
@@ -7891,7 +7892,6 @@ static double apply_selectivity_for_table(JOIN_TAB *s,
   This heuristic is supposed to force tables used in exprZ to be before
   this table in join order.
 */
-
 inline double use_found_constraint(double records)
 {
   records-= records/4;
@@ -8309,6 +8309,7 @@ best_access_path(JOIN      *join,
   ha_rows rec;
   MY_BITMAP *eq_join_set= &s->table->eq_join_set;
   KEYUSE *hj_start_key= 0;
+  table_map spl_pd_boundary= 0;
   Loose_scan_opt loose_scan_opt;
   struct best_plan best;
   Json_writer_object trace_wrapper(thd, "best_access_path");
@@ -8350,15 +8351,18 @@ best_access_path(JOIN      *join,
   loose_scan_opt.init(join, s, remaining_tables);
 
   if (table->is_splittable())
-    best.spl_plan= s->choose_best_splitting(record_count, remaining_tables);
+    best.spl_plan= s->choose_best_splitting(idx,
+                                            remaining_tables,
+                                            join_positions,
+                                            &spl_pd_boundary);
 
   if (unlikely(thd->trace_started()))
   {
     Json_writer_object info(thd, "plan_details");
     info.add("record_count", record_count);
   }
-  Json_writer_array trace_paths(thd, "considered_access_paths");
 
+  Json_writer_array trace_paths(thd, "considered_access_paths");
   if (s->keyuse)
   {                                            /* Use key if possible */
     KEYUSE *keyuse, *start_key= 0;
@@ -9096,6 +9100,8 @@ best_access_path(JOIN      *join,
     Json_writer_object trace_access_hash(thd);
     double refills, row_copy_cost, copy_cost, cur_cost, where_cost;
     double matching_combinations, fanout, join_sel;
+    trace_access_hash.add("type", "hash");
+    trace_access_hash.add("index", "hj-key");
     /* Estimate the cost of the hash join access to the table */
     double rnd_records;
     bool stats_found= 0;
@@ -9156,6 +9162,7 @@ best_access_path(JOIN      *join,
                           (double) thd->variables.join_buff_size));
     cur_cost= COST_MULT(cur_cost, refills);
 
+
     /*
       Cost of doing the hash lookup and check all matching rows with the
       WHERE clause.
@@ -9182,8 +9189,6 @@ best_access_path(JOIN      *join,
     best.refills= double_to_ulonglong(ceil(refills));
     if (unlikely(trace_access_hash.trace_started()))
       trace_access_hash.
-        add("type", "hash").
-        add("index", "hj-key").
         add("rows", rnd_records).
         add("rows_after_hash", fanout * join_sel).
         add("refills", refills).
@@ -9432,7 +9437,12 @@ best_access_path(JOIN      *join,
       }
     }
 
-    if (disable_jbuf || (table->map & join->outer_join))
+     /*
+       Note: the condition checked here is very out of date and incorrect.
+       Below, we use a more accurate check when assigning the value of
+       best.use_join_buffer.
+     */
+    if ((s->table->map & join->outer_join) || disable_jbuf)
     {
       /*
         Simple scan
@@ -9548,7 +9558,10 @@ best_access_path(JOIN      *join,
       best.filter= filter;
       /* range/index_merge/ALL/index access method are "independent", so: */
       best.ref_depends_map= 0;
-      best.use_join_buffer= use_join_buffer;
+      best.use_join_buffer= use_join_buffer ||
+                            MY_TEST(!disable_jbuf &&
+                                (join->allowed_outer_join_with_cache ||
+                                 !(s->table->map & join->outer_join)));
       best.refills= refills;
       best.spl_plan= 0;
       best.type= type;
@@ -9587,6 +9600,7 @@ best_access_path(JOIN      *join,
   pos->use_join_buffer= best.use_join_buffer;
   pos->firstmatch_with_join_buf= 0;
   pos->spl_plan= best.spl_plan;
+  pos->spl_pd_boundary= best.spl_plan ? spl_pd_boundary: 0;
   pos->range_rowid_filter_info= best.filter;
   pos->key_dependent= (best.type == JT_EQ_REF ? (table_map) 0 :
                        key_dependent & remaining_tables);
@@ -10154,6 +10168,8 @@ optimize_straight_join(JOIN *join, table_map remaining_tables)
     }
     else
       position->cond_selectivity= 1.0;
+
+    position->partial_join_cardinality= current_record_count;
     ++idx;
     record_count= current_record_count;
   }
@@ -11546,6 +11562,7 @@ best_extension_by_limited_search(JOIN      *join,
       join->positions[idx].cond_selectivity= pushdown_cond_selectivity;
 
       partial_join_cardinality= record_count * position->records_out;
+      join->positions[idx].partial_join_cardinality= partial_join_cardinality;
 
       if (unlikely(thd->trace_started()) && pushdown_cond_selectivity < 1.0 &&
           partial_join_cardinality < current_record_count)
@@ -11553,9 +11570,9 @@ best_extension_by_limited_search(JOIN      *join,
           .add("selectivity", pushdown_cond_selectivity)
           .add("estimated_join_cardinality", partial_join_cardinality);
 
-      if (search_depth > 1 &&
-          ((remaining_tables & ~real_table_bit) & join->allowed_tables))
 
+      if ((search_depth > 1) && (remaining_tables & ~real_table_bit) &
+          allowed_tables)
       {
         /* Recursively expand the current partial plan */
         Json_writer_array trace_rest(thd, "rest_of_plan");
@@ -14854,6 +14871,9 @@ uint check_join_cache_usage(JOIN_TAB *tab,
 
   join->return_tab= 0;
 
+  if (tab->no_forced_join_cache)
+    goto no_join_cache;
+
   /*
     Don't use join cache if @@join_cache_level==0 or this table is the first
     one join suborder (either at top level or inside a bush)
@@ -15923,7 +15943,8 @@ bool JOIN_TAB::preread_init()
     DBUG_RETURN(TRUE);
 
   if (!(derived->get_unit()->uncacheable & UNCACHEABLE_DEPENDENT) ||
-      derived->is_nonrecursive_derived_with_rec_ref())
+      derived->is_nonrecursive_derived_with_rec_ref() ||
+      is_split_derived)
     preread_init_done= TRUE;
   if (select && select->quick)
     select->quick->replace_handler(table->file);
@@ -19534,7 +19555,11 @@ void optimize_wo_join_buffering(JOIN *join, uint first_tab, uint last_tab,
         table_after_join_selectivity(join, i, rs,
                                      reopt_remaining_tables &
                                      ~real_table_bit, &records_out);
+      join->positions[i].partial_join_cardinality= rec_count * pushdown_cond_selectivity;
     }
+    else
+      join->positions[i].partial_join_cardinality= COST_MULT(rec_count, records_out);
+
     rec_count= COST_MULT(rec_count, records_out);
     *outer_rec_count= COST_MULT(*outer_rec_count, records_out);
 
@@ -23229,6 +23254,16 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
   enum_nested_loop_state rc;
   DBUG_ENTER("sub_select");
 
+  if (join_tab->split_derived_to_update && !end_of_records)
+  {
+    table_map tab_map= join_tab->split_derived_to_update;
+    for (uint i= 0; tab_map; i++, tab_map>>= 1)
+    {
+      if (tab_map & 1)
+        join->map2table[i]->preread_init_done= false;
+    }
+  }
+
   if (join_tab->last_inner)
   {
     JOIN_TAB *last_inner_tab= join_tab->last_inner;
@@ -26796,7 +26831,7 @@ JOIN_TAB::remove_duplicates()
   if (!(sortorder= (SORT_FIELD*) my_malloc(PSI_INSTRUMENT_ME,
                                            (fields->elements+1) *
                                            sizeof(SORT_FIELD),
-                                           MYF(MY_WME))))
+                                           MYF(MY_WME | MY_ZEROFILL))))
     DBUG_RETURN(TRUE);
 
   /* Calculate how many saved fields there is in list */
@@ -26815,7 +26850,6 @@ JOIN_TAB::remove_duplicates()
       else
       {
         /* Item is not stored in temporary table, remember it */
-        sorder->field= 0;                       // Safety, not used
         sorder->item= item;
         /* Calculate sorder->length */
         item->type_handler()->sort_length(thd, item, sorder);
@@ -30657,7 +30691,7 @@ void st_select_lex::print_item_list(THD *thd, String *str,
     outer_select() can not be used here because it is for name resolution
     and will return NULL at any end of name resolution chain (view/derived)
   */
-  bool top_level= (get_master() == &thd->lex->unit);
+  bool top_level= is_query_topmost(thd);
   List_iterator_fast<Item> it(item_list);
   Item *item;
   while ((item= it++))
@@ -30717,7 +30751,7 @@ void st_select_lex::print_set_clause(THD *thd, String *str,
     else
       str->append(',');
 
-    item->print(str, query_type);
+    item->print(str, (enum_query_type) (query_type | QT_NO_DATA_EXPANSION));
     str->append(STRING_WITH_LEN(" = "));
     val->print(str, query_type);
   }
@@ -30764,7 +30798,7 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
     return;
   }
 
-  bool top_level= (get_master() == &thd->lex->unit);
+  bool top_level= is_query_topmost(thd);
   enum explainable_cmd_type sel_type= SELECT_CMD;
   if (top_level)
     sel_type= get_explainable_cmd_type(thd);
