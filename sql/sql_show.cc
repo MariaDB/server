@@ -5370,7 +5370,23 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
             }
             else /* SCH_TABLE */
             {
-              process_i_s_table_temporary_tables(thd, table, tmp_tbl);
+              if (tmp_tbl->file->ha_table_flags() & HA_CAN_MULTISTEP_MERGE)
+              {
+                /*
+                  MyISAM MERGE table. We have to to call open on it and its
+                  children
+                */
+                LEX_CSTRING table_name=
+                  { tmp_tbl->alias.ptr(), tmp_tbl->alias.length() };
+                if (fill_schema_table_by_open(thd, &tmp_mem_root, FALSE,
+                                              table, schema_table,
+                                              &tmp_tbl->s->db, &table_name,
+                                              &open_tables_state_backup,
+                                              0))
+                  goto err;
+              }
+              else
+                process_i_s_table_temporary_tables(thd, table, tmp_tbl);
             }
           }
         }
