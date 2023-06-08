@@ -264,7 +264,8 @@ use its own tablespace instead of the system tablespace. */
 #define DICT_TF2_USE_FILE_PER_TABLE	16U
 
 /** Set when we discard/detach the tablespace */
-#define DICT_TF2_DISCARDED		32U
+constexpr ulint DICT_TF2_POS_DISCARDED= 5;
+constexpr ulint DICT_TF2_DISCARDED= 1U << DICT_TF2_POS_DISCARDED;
 
 /** This bit is set if all aux table names (both common tables and
 index tables) of a FTS table are in HEX format. */
@@ -2097,8 +2098,9 @@ public:
 	process of altering partitions */
 	unsigned                                skip_alter_undo:1;
 
-	/*!< whether this is in a single-table tablespace and the .ibd
-	file is missing or page decryption failed and page is corrupted */
+	/** whether this is in a single-table tablespace and the .ibd file
+	is believed to be missing or page decryption failed and page is
+	corrupted */
 	unsigned				file_unreadable:1;
 
 	/** TRUE if the table object has been added to the dictionary cache. */
