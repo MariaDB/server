@@ -388,11 +388,12 @@ connection stop_purge;
 COMMIT;
 disconnect stop_purge;
 connection default;
-InnoDB		0 transactions not purged
+InnoDB		1 transactions not purged
 SET DEBUG_SYNC='now SIGNAL s2';
 connection dml;
 disconnect dml;
 connection default;
+InnoDB		0 transactions not purged
 SET DEBUG_SYNC=RESET;
 DROP TABLE t1;
 # End of 10.3 tests

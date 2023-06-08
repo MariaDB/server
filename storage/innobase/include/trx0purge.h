@@ -39,13 +39,20 @@ Remove the undo log segment from the rseg slot if it is too big for reuse.
 @param[in,out]	mtr		mini-transaction */
 void
 trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr);
+
+/**
+Remove unnecessary history data from rollback segments. NOTE that when this
+function is called, the caller (purge_coordinator_callback)
+must not have any latches on undo log pages!
+*/
+void trx_purge_truncate_history();
+
 /**
 Run a purge batch.
 @param n_tasks       number of purge tasks to submit to the queue
 @param history_size  trx_sys.history_size()
-@param truncate      whether to truncate the history at the end of the batch
 @return number of undo log pages handled in the batch */
-ulint trx_purge(ulint n_tasks, ulint history_size, bool truncate);
+ulint trx_purge(ulint n_tasks, ulint history_size);
 
 /** Rollback segements from a given transaction with trx-no
 scheduled for purge. */
@@ -284,6 +291,18 @@ public:
     Any other threads that access purge_sys.view must hold purge_sys.latch,
     typically via purge_sys_t::view_guard. */
     return view.low_limit_no();
+  }
+  /** A wrapper around ReadView::sees(). */
+  trx_id_t sees(trx_id_t id) const
+  {
+    /* This function may only be called by purge_coordinator_callback().
+
+    The purge coordinator task may call this without holding any latch,
+    because it is the only thread that may modify purge_sys.view.
+
+    Any other threads that access purge_sys.view must hold purge_sys.latch,
+    typically via purge_sys_t::view_guard. */
+    return view.sees(id);
   }
   /** A wrapper around trx_sys_t::clone_oldest_view(). */
   template<bool also_end_view= false>

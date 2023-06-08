@@ -561,10 +561,11 @@ __attribute__((optimize(0)))
 # endif
 #endif
 /**
-Removes unnecessary history data from rollback segments. NOTE that when this
-function is called, the caller must not have any latches on undo log pages!
+Remove unnecessary history data from rollback segments. NOTE that when this
+function is called, the caller (purge_coordinator_callback)
+must not have any latches on undo log pages!
 */
-TRANSACTIONAL_TARGET static void trx_purge_truncate_history()
+TRANSACTIONAL_TARGET void trx_purge_truncate_history()
 {
   ut_ad(purge_sys.head <= purge_sys.tail);
   purge_sys_t::iterator &head= purge_sys.head.trx_no
@@ -586,7 +587,7 @@ TRANSACTIONAL_TARGET static void trx_purge_truncate_history()
       if (dberr_t e=
           trx_purge_truncate_rseg_history(rseg, head,
                                           !rseg.is_referenced() &&
-                                          rseg.needs_purge <= head.trx_no))
+                                          purge_sys.sees(rseg.needs_purge)))
         err= e;
       rseg.latch.wr_unlock();
     }
@@ -644,7 +645,7 @@ TRANSACTIONAL_TARGET static void trx_purge_truncate_history()
 
       rseg.latch.rd_lock(SRW_LOCK_CALL);
       ut_ad(rseg.skip_allocation());
-      if (rseg.is_referenced() || rseg.needs_purge > head.trx_no)
+      if (rseg.is_referenced() || !purge_sys.sees(rseg.needs_purge))
       {
 not_free:
         rseg.latch.rd_unlock();
@@ -658,7 +659,7 @@ not_free:
       for (const trx_undo_t *undo= UT_LIST_GET_FIRST(rseg.undo_cached); undo;
            undo= UT_LIST_GET_NEXT(undo_list, undo))
       {
-        if (head.trx_no < undo->trx_id)
+        if (head.trx_no && head.trx_no < undo->trx_id)
           goto not_free;
         else
           cached+= undo->size;
@@ -791,7 +792,7 @@ not_free:
         continue;
 
       ut_ad(!rseg.is_referenced());
-      ut_ad(rseg.needs_purge <= head.trx_no);
+      ut_ad(!head.trx_no || rseg.needs_purge <= head.trx_no);
 
       buf_block_t *rblock= trx_rseg_header_create(&space,
                                                   &rseg - trx_sys.rseg_array,
@@ -1264,10 +1265,8 @@ TRANSACTIONAL_INLINE void purge_sys_t::clone_end_view()
 Run a purge batch.
 @param n_tasks       number of purge tasks to submit to the queue
 @param history_size  trx_sys.history_size()
-@param truncate      whether to truncate the history at the end of the batch
 @return number of undo log pages handled in the batch */
-TRANSACTIONAL_TARGET
-ulint trx_purge(ulint n_tasks, ulint history_size, bool truncate)
+TRANSACTIONAL_TARGET ulint trx_purge(ulint n_tasks, ulint history_size)
 {
 	que_thr_t*	thr = NULL;
 	ulint		n_pages_handled;
@@ -1318,10 +1317,6 @@ ulint trx_purge(ulint n_tasks, ulint history_size, bool truncate)
 	trx_purge_wait_for_workers_to_complete();
 
 	purge_sys.clone_end_view();
-
-	if (truncate) {
-		trx_purge_truncate_history();
-	}
 
 	MONITOR_INC_VALUE(MONITOR_PURGE_INVOKED, 1);
 	MONITOR_INC_VALUE(MONITOR_PURGE_N_PAGE_HANDLED, n_pages_handled);
