@@ -3033,8 +3033,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         restore_nonrange_trees(&param, tree, backup_keys);
       if ((group_trp= get_best_group_min_max(&param, tree, read_time)))
       {
-        param.table->opt_range_condition_rows= MY_MIN(group_trp->records,
-                                                  head->stat_records());
+        set_if_smaller(param.table->opt_range_condition_rows,
+                       group_trp->records);
         Json_writer_object grp_summary(thd, "best_group_range_summary");
 
         if (unlikely(thd->trace_started()))
