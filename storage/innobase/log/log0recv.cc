@@ -1319,6 +1319,7 @@ void recv_sys_t::create()
 	recv_max_page_lsn = 0;
 
 	memset(truncated_undo_spaces, 0, sizeof truncated_undo_spaces);
+	truncated_sys_space= {0, 0};
 	UT_LIST_INIT(blocks, &buf_block_t::unzip_LRU);
 }
 
@@ -2666,17 +2667,28 @@ restart:
           if (UNIV_UNLIKELY(!space_id || !page_no))
             goto record_corrupted;
 #else
-          if (!srv_is_undo_tablespace(space_id) ||
-              page_no != SRV_UNDO_TABLESPACE_SIZE_IN_PAGES)
-            goto record_corrupted;
+	  if (srv_is_undo_tablespace(space_id))
+	  {
+	      if (page_no != SRV_UNDO_TABLESPACE_SIZE_IN_PAGES)
+                goto record_corrupted;
+	  }
+	  else if (space_id != 0) goto record_corrupted;
           static_assert(UT_ARR_SIZE(truncated_undo_spaces) ==
                         TRX_SYS_MAX_UNDO_SPACES, "compatibility");
           /* The entire undo tablespace will be reinitialized by
           innodb_undo_log_truncate=ON. Discard old log for all pages. */
-          trim({space_id, 0}, lsn);
-          truncated_undo_spaces[space_id - srv_undo_space_id_start]=
+	  if (space_id == 0)
+	  {
+            trim({space_id, page_no}, lsn);
+            truncated_sys_space={ lsn, page_no};
+	  }
+	  else
+	  {
+            trim({space_id, 0}, lsn);
+            truncated_undo_spaces[space_id - srv_undo_space_id_start]=
             { lsn, page_no };
-          if (!store && undo_space_trunc)
+	  }
+          if (!store && undo_space_trunc && space_id > 0)
             undo_space_trunc(space_id);
 #endif
           last_offset= 1; /* the next record must not be same_page  */
@@ -3140,9 +3152,10 @@ static buf_block_t *recv_recover_page(buf_block_t *block, mtr_t &mtr,
 				s->flags = mach_read_from_4(
 					FSP_HEADER_OFFSET
 					+ FSP_SPACE_FLAGS + frame);
-				s->size_in_header = mach_read_from_4(
-					FSP_HEADER_OFFSET + FSP_SIZE
-					+ frame);
+				s->size_in_header =
+					mach_read_from_4(
+					  FSP_HEADER_OFFSET + FSP_SIZE
+					  + frame);
 				s->free_limit = mach_read_from_4(
 					FSP_HEADER_OFFSET
 					+ FSP_FREE_LIMIT + frame);
@@ -3719,6 +3732,27 @@ void recv_sys_t::apply(bool last_batch)
     report_progress();
 
     apply_log_recs= true;
+
+    if (truncated_sys_space.lsn && fil_system.sys_space->recv_size)
+    {
+      trim({0, truncated_sys_space.pages}, truncated_sys_space.lsn);
+      fil_node_t *file= UT_LIST_GET_LAST(fil_system.sys_space->chain);
+      ut_ad(file->is_open());
+      fil_system.sys_space->size= truncated_sys_space.pages;
+      fil_system.sys_space->size_in_header= truncated_sys_space.pages;
+      /* Last file new size after truncation */
+      uint32_t new_last_file_size=
+        truncated_sys_space.pages -
+          (srv_sys_space.get_fixed_param_size()
+           - srv_sys_space.m_files.at(
+	       srv_sys_space.m_files.size() - 1).param_size());
+      os_file_truncate(
+        file->name, file->handle,
+        os_offset_t{new_last_file_size} << srv_page_size_shift, true);
+      fil_system.sys_space->chain.end->size= new_last_file_size;
+      srv_sys_space.set_last_file_size(new_last_file_size);
+    }
+    truncated_sys_space = {0, 0};
 
     for (auto id= srv_undo_tablespaces_open; id--;)
     {

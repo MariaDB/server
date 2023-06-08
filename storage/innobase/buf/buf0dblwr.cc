@@ -613,9 +613,10 @@ bool buf_dblwr_t::flush_buffered_writes(const ulint size)
     ut_d(buf_dblwr_check_page_lsn(*bpage, write_buf + len2));
   }
 #endif /* UNIV_DEBUG */
+  if (!fil_system.sys_space->acquire())
+    return true;
   const IORequest request{nullptr, nullptr, fil_system.sys_space->chain.start,
                           IORequest::DBLWR_BATCH};
-  ut_a(fil_system.sys_space->acquire());
   if (multi_batch)
   {
     fil_system.sys_space->reacquire();

@@ -122,3 +122,9 @@ void buf_flush_sync_batch(lsn_t lsn);
 /** Synchronously flush dirty blocks.
 NOTE: The calling thread is not allowed to hold any buffer page latches! */
 void buf_flush_sync();
+
+/** Evict the pages from flush list for the given tablespace
+@param  space      Given tablespace pages to be evicted
+@param  threshold  Evict pages which are higher than threshold */
+void buf_flush_evict_pages(fil_space_t *space, uint32_t threshold,
+			   mtr_t *mtr);

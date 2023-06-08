@@ -317,6 +317,9 @@ public:
 	void set_space_id(uint32_t space_id) { m_space_id= space_id; }
 
 	void set_flags(uint32_t flags) { m_flags = flags; }
+
+	uint32_t param_size() { return m_param_size; }
+
 private:
 	/** Free the filepath buffer. */
 	void free_filepath();
@@ -405,6 +408,9 @@ private:
 	/** size in megabytes or pages; converted from megabytes to
 	pages in SysTablespace::normalize_size() */
 	uint32_t		m_size;
+
+	/** Size in pages; Initial parameter size */
+	uint32_t		m_param_size;
 
 	/** ordinal position of this datafile in the tablespace */
 	ulint			m_order;

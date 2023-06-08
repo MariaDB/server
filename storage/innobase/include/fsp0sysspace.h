@@ -143,6 +143,14 @@ public:
 			<< (20 - srv_page_size_shift);
 	}
 
+	uint32_t get_fixed_param_size() const
+	{
+          uint32_t full_size= 0;
+	  for (uint32_t i= 0; i < m_files.size(); i++)
+	    full_size+= m_files.at(i).m_param_size;
+	  return full_size;
+	}
+
 	/**
 	@return next increment size */
 	uint32_t get_increment() const;

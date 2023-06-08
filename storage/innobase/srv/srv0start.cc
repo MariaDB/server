@@ -1728,6 +1728,12 @@ dberr_t srv_start(bool create_new_db)
 		return(srv_init_abort(DB_ERROR));
 	}
 
+	if (!create_new_db && !srv_read_only_mode) {
+		fsp_system_tablespace_truncate();
+		DBUG_EXECUTE_IF("crash_after_sys_truncate",
+				return srv_init_abort(DB_ERROR););
+	}
+
 	if (!create_new_db) {
 		ut_ad(high_level_read_only
 		      || srv_force_recovery < SRV_FORCE_NO_UNDO_LOG_SCAN);
