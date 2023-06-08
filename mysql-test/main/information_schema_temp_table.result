@@ -200,3 +200,17 @@ show index in t;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t	1	b	1	b	A	NULL	NULL	NULL	YES	BTREE			NO
 drop database mysqltest;
+#
+# MDEV-28351 Assertion `this->file->children_attached' failed in ha_myisammrg::info
+#
+use test;
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+insert into t1 values (1);
+CREATE TEMPORARY TABLE t2 (a INT) ENGINE=MERGE UNION=(t1);
+CREATE TABLE t3 (a INT) ENGINE=MERGE UNION=(t1);
+SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT	MAX_INDEX_LENGTH	TEMPORARY
+def	test	tmp_innodb_in_test	TEMPORARY	InnoDB	10	Dynamic	0	0	X	X	X	X	NULL	X	X	NULL	latin1_swedish_ci	NULL			X	Y
+def	test	t3	BASE TABLE	MRG_MyISAM	10	Fixed	1	5	X	X	X	X	NULL	X	X	NULL	latin1_swedish_ci	NULL			X	N
+def	test	t1	BASE TABLE	MyISAM	10	Fixed	1	7	X	X	X	X	NULL	X	X	NULL	latin1_swedish_ci	NULL			X	N
+DROP TABLE t1,t2,t3;

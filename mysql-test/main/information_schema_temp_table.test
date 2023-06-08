@@ -195,3 +195,15 @@ show index in t;
 
 # Cleanup
 drop database mysqltest;
+
+--echo #
+--echo # MDEV-28351 Assertion `this->file->children_attached' failed in ha_myisammrg::info
+--echo #
+use test;
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+insert into t1 values (1);
+CREATE TEMPORARY TABLE t2 (a INT) ENGINE=MERGE UNION=(t1);
+CREATE TABLE t3 (a INT) ENGINE=MERGE UNION=(t1);
+--replace_column 10 X 11 X 12 X 13 X 15 X 16 X 22 X
+SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test';
+DROP TABLE t1,t2,t3;
