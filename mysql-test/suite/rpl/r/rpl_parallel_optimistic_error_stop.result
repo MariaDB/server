@@ -1,0 +1,81 @@
+include/rpl_init.inc [topology=1->2]
+call mtr.add_suppression("Slave: Commit failed due to failure of an earlier commit");
+call mtr.add_suppression("Slave: Duplicate entry '99'");
+connection server_1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1,1);
+INSERT INTO t1 VALUES(2,1);
+INSERT INTO t1 VALUES(3,1);
+INSERT INTO t1 VALUES(4,1);
+connection server_2;
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+include/stop_slave.inc
+SET @old_debug_dbug = @@global.debug_dbug;
+SET @@global.debug_dbug = "d,hold_worker2_favor_worker3";
+SET GLOBAL slave_parallel_threads=4;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_mode='optimistic';
+connection server_1;
+SET @@gtid_seq_no = 2001;
+BEGIN;
+UPDATE t1 SET b = 11  WHERE a = 4;
+UPDATE t1 SET b = 11  WHERE a = 3;
+UPDATE t1 SET a = 99  WHERE a = 1;
+COMMIT;
+UPDATE t1 SET b = 2 WHERE a = 2;
+UPDATE t1 SET b = 3 WHERE a = 3;
+DROP TABLE IF EXISTS phantom_1;
+Warnings:
+Note	1051	Unknown table 'test.phantom_1'
+include/save_master_gtid.inc
+connect  slave_local_0, 127.0.0.1, root,, test, $SLAVE_MYPORT,;
+begin;
+UPDATE t1 set b = 11 where a = 4;
+connect  slave_local_1, 127.0.0.1, root,, test, $SLAVE_MYPORT,;
+begin;
+INSERT INTO t1 VALUES (99, 11);
+connect  slave_local_2, 127.0.0.1, root,, test, $SLAVE_MYPORT,;
+begin;
+UPDATE t1 SET b = 12 WHERE a = 2;
+connect  slave_local_3, 127.0.0.1, root,, test, $SLAVE_MYPORT,;
+begin;
+UPDATE t1 SET b = 13 WHERE a = 3;
+connection server_2;
+include/start_slave.inc
+# W4 is waiting to start its DROP
+connection slave_local_3;
+rollback;
+connection slave_local_0;
+rollback;
+SELECT count(*) = 0 as "W3 undid its commit state" FROM information_schema.processlist WHERE state LIKE "Waiting for prior transaction to commit%";
+W3 undid its commit state
+1
+connection slave_local_2;
+rollback;
+connection slave_local_1;
+commit;
+SELECT COUNT(*) = 1 as "W4 remains with the same status" FROM information_schema.processlist WHERE state LIKE "Waiting for prior transaction to start commit%";
+W4 remains with the same status
+1
+#  Slave_SQL_Running YES = Yes
+# while W2 is held back ...
+SET DEBUG_SYNC = 'now SIGNAL cont_worker2';
+include/wait_for_slave_sql_error.inc [errno=1062]
+DELETE FROM t1 WHERE a=99;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_mode=@old_parallel_mode;
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+SET @@global.debug_dbug = @old_debug_dbug;
+SET debug_sync = RESET;
+include/start_slave.inc
+connection server_1;
+DROP TABLE t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/rpl_end.inc

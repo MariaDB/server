@@ -1065,11 +1065,6 @@ MYSQL_FIELD * STDCALL mysql_fetch_field_direct(MYSQL_RES *res,uint fieldnr)
   return &(res)->fields[fieldnr];
 }
 
-MYSQL_FIELD * STDCALL mysql_fetch_fields(MYSQL_RES *res)
-{
-  return (res)->fields;
-}
-
 MYSQL_ROW_OFFSET STDCALL mysql_row_tell(MYSQL_RES *res)
 {
   return res->data_cursor;
@@ -1213,18 +1208,6 @@ mysql_escape_string(char *to,const char *from,ulong length)
   my_bool overflow;
   return (uint) escape_string_for_mysql(default_charset_info, to, 0, from,
                                         length, &overflow);
-}
-
-ulong STDCALL
-mysql_real_escape_string(MYSQL *mysql, char *to,const char *from,
-			 ulong length)
-{
-  my_bool overflow;
-  if (mysql->server_status & SERVER_STATUS_NO_BACKSLASH_ESCAPES)
-    return (ulong) escape_quotes_for_mysql(mysql->charset, to, 0, from, length,
-                                           &overflow);
-  return (ulong) escape_string_for_mysql(mysql->charset, to, 0, from, length,
-                                         &overflow);
 }
 
 void STDCALL
@@ -2953,7 +2936,8 @@ my_bool STDCALL mysql_stmt_bind_param(MYSQL_STMT *stmt, MYSQL_BIND *my_bind)
       break;
     default:
       strmov(stmt->sqlstate, unknown_sqlstate);
-      sprintf(stmt->last_error,
+      snprintf(stmt->last_error,
+        sizeof(stmt->last_error),
 	      ER(stmt->last_errno= CR_UNSUPPORTED_PARAM_TYPE),
 	      param->buffer_type, count);
       DBUG_RETURN(1);
@@ -3040,7 +3024,9 @@ mysql_stmt_send_long_data(MYSQL_STMT *stmt, uint param_number,
   {
     /* Long data handling should be used only for string/binary types */
     strmov(stmt->sqlstate, unknown_sqlstate);
-    sprintf(stmt->last_error, ER(stmt->last_errno= CR_INVALID_BUFFER_USE),
+    snprintf(stmt->last_error,
+      sizeof(stmt->last_error),
+      ER(stmt->last_errno= CR_INVALID_BUFFER_USE),
 	    param->param_number);
     DBUG_RETURN(1);
   }
@@ -4171,7 +4157,8 @@ my_bool STDCALL mysql_stmt_bind_result(MYSQL_STMT *stmt, MYSQL_BIND *my_bind)
     if (setup_one_fetch_function(param, field))
     {
       strmov(stmt->sqlstate, unknown_sqlstate);
-      sprintf(stmt->last_error,
+      snprintf(stmt->last_error,
+              sizeof(stmt->last_error),
               ER(stmt->last_errno= CR_UNSUPPORTED_PARAM_TYPE),
               field->type, param_count);
       DBUG_RETURN(1);
@@ -4948,11 +4935,6 @@ int STDCALL mysql_stmt_next_result(MYSQL_STMT *stmt)
   DBUG_RETURN(0);
 }
 
-
-MYSQL_RES * STDCALL mysql_use_result(MYSQL *mysql)
-{
-  return (*mysql->methods->use_result)(mysql);
-}
 
 my_bool STDCALL mysql_read_query_result(MYSQL *mysql)
 {

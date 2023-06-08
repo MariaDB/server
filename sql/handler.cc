@@ -1863,7 +1863,19 @@ int ha_commit_trans(THD *thd, bool all)
       ordering is normally done. Commit ordering must be done here.
     */
     if (run_wsrep_hooks)
-      error= wsrep_before_commit(thd, all);
+    {
+      // This commit involves more than one storage engine and requires
+      // two phases, but some engines don't support it.
+      // Issue a message to the client and roll back the transaction.
+      if (trans->no_2pc && rw_ha_count > 1)
+      {
+        my_message(ER_ERROR_DURING_COMMIT, "Transactional commit not supported "
+                   "by involved engine(s)", MYF(0));
+        error= 1;
+      }
+      else
+        error= wsrep_before_commit(thd, all);
+    }
     if (error)
     {
       ha_rollback_trans(thd, FALSE);
@@ -2201,8 +2213,11 @@ int ha_rollback_trans(THD *thd, bool all)
       rollback without signalling following transactions. And in release
       builds, we explicitly do the signalling before rolling back.
     */
-    DBUG_ASSERT(!(thd->rgi_slave && thd->rgi_slave->did_mark_start_commit) ||
-                thd->transaction->xid_state.is_explicit_XA());
+    DBUG_ASSERT(
+        !(thd->rgi_slave && thd->rgi_slave->did_mark_start_commit) ||
+        (thd->transaction->xid_state.is_explicit_XA() ||
+         (thd->rgi_slave->gtid_ev_flags2 & Gtid_log_event::FL_PREPARED_XA)));
+
     if (thd->rgi_slave && thd->rgi_slave->did_mark_start_commit)
       thd->rgi_slave->unmark_start_commit();
   }
@@ -4823,7 +4838,7 @@ int handler::check_collation_compatibility()
 {
   ulong mysql_version= table->s->mysql_version;
 
-  if (mysql_version < 50124)
+  if (mysql_version < Charset::latest_mariadb_version_with_collation_change())
   {
     KEY *key= table->key_info;
     KEY *key_end= key + table->s->keys;
@@ -4837,18 +4852,7 @@ int handler::check_collation_compatibility()
           continue;
         Field *field= table->field[key_part->fieldnr - 1];
         uint cs_number= field->charset()->number;
-        if ((mysql_version < 50048 &&
-             (cs_number == 11 || /* ascii_general_ci - bug #29499, bug #27562 */
-              cs_number == 41 || /* latin7_general_ci - bug #29461 */
-              cs_number == 42 || /* latin7_general_cs - bug #29461 */
-              cs_number == 20 || /* latin7_estonian_cs - bug #29461 */
-              cs_number == 21 || /* latin2_hungarian_ci - bug #29461 */
-              cs_number == 22 || /* koi8u_general_ci - bug #29461 */
-              cs_number == 23 || /* cp1251_ukrainian_ci - bug #29461 */
-              cs_number == 26)) || /* cp1250_general_ci - bug #29461 */
-             (mysql_version < 50124 &&
-             (cs_number == 33 || /* utf8mb3_general_ci - bug #27877 */
-              cs_number == 35))) /* ucs2_general_ci - bug #27877 */
+        if (Charset::collation_changed_order(mysql_version, cs_number))
           return HA_ADMIN_NEEDS_UPGRADE;
       }
     }
@@ -7381,7 +7385,13 @@ static int wsrep_after_row(THD *thd)
       thd->wsrep_affected_rows > wsrep_max_ws_rows &&
       wsrep_thd_is_local(thd))
   {
-    trans_rollback_stmt(thd) || trans_rollback(thd);
+    /*
+      If we are inside stored function or trigger we should not commit or
+      rollback current statement transaction. See comment in ha_commit_trans()
+      call for more information.
+    */
+    if (!thd->in_sub_stmt)
+      trans_rollback_stmt(thd) || trans_rollback(thd);
     my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
     DBUG_RETURN(ER_ERROR_DURING_COMMIT);
   }
@@ -8171,11 +8181,13 @@ static
 int del_global_index_stats_for_table(THD *thd, uchar* cache_key, size_t cache_key_length)
 {
   int res = 0;
+  uint to_delete_counter= 0;
+  INDEX_STATS *index_stats_to_delete[MAX_INDEXES];
   DBUG_ENTER("del_global_index_stats_for_table");
 
   mysql_mutex_lock(&LOCK_global_index_stats);
 
-  for (uint i= 0; i < global_index_stats.records;)
+  for (uint i= 0; i < global_index_stats.records; i++)
   {
     INDEX_STATS *index_stats =
       (INDEX_STATS*) my_hash_element(&global_index_stats, i);
@@ -8185,18 +8197,12 @@ int del_global_index_stats_for_table(THD *thd, uchar* cache_key, size_t cache_ke
 	index_stats->index_name_length >= cache_key_length &&
 	!memcmp(index_stats->index, cache_key, cache_key_length))
     {
-      res= my_hash_delete(&global_index_stats, (uchar*)index_stats);
-      /*
-          In our HASH implementation on deletion one elements
-          is moved into a place where a deleted element was,
-          and the last element is moved into the empty space.
-          Thus we need to re-examine the current element, but
-          we don't have to restart the search from the beginning.
-      */
+      index_stats_to_delete[to_delete_counter++]= index_stats;
     }
-    else
-      i++;
   }
+
+  for (uint i= 0; i < to_delete_counter; i++)
+    res= my_hash_delete(&global_index_stats, (uchar*)index_stats_to_delete[i]);
 
   mysql_mutex_unlock(&LOCK_global_index_stats);
   DBUG_RETURN(res);

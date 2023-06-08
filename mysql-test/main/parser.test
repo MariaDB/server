@@ -1687,8 +1687,21 @@ SET @@sql_mode=@save_sql_mode;
 --echo #
 --echo # MDEV-30151 parse error 1=2 not between/in
 --echo #
-select 1=2 not in (3,4);
-select 1=2 not between 3 and 4;
+
+SELECT 1=2 NOT IN (3,4);
+SELECT 1=2 NOT BETWEEN 3 AND 4;
+
+CREATE TABLE t1 ( f INT AS ( 1 IN ( 2 NOT BETWEEN 3 AND 4 ) ) );
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 ( f INT, CHECK ( 1 IN ( 2 NOT BETWEEN 3 AND 4 ) ) );
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE VIEW v1 AS SELECT 1 IN ( 2 NOT BETWEEN 3 AND 4 );
+SHOW CREATE VIEW v1;
+DROP VIEW v1;
 
 --echo #
 --echo # End of 10.3 tests

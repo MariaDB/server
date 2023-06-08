@@ -988,7 +988,6 @@ got_error:
 }
 
 
-
 /***************************************************************************
   Delete multiple tables from join 
 ***************************************************************************/
@@ -1805,7 +1804,10 @@ bool Sql_cmd_delete::execute_inner(THD *thd)
     else
     {
       if (thd->lex->describe || thd->lex->analyze_stmt)
-        res= thd->lex->explain->send_explain(thd);
+      {
+        bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
+        res= thd->lex->explain->send_explain(thd, extended);
+      }
     }
   }
 

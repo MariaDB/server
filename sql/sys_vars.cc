@@ -604,10 +604,9 @@ bool check_has_super(sys_var *self, THD *thd, set_var *var)
   return false;
 }
 
-static Sys_var_bit Sys_core_file("core_file", "write a core-file on crashes",
-          READ_ONLY GLOBAL_VAR(test_flags), NO_CMD_LINE,
-          TEST_CORE_ON_SIGNAL, DEFAULT(IF_WIN(TRUE,FALSE)), NO_MUTEX_GUARD, NOT_IN_BINLOG,
-          0,0,0);
+static Sys_var_bit Sys_core_file("core_file", "Write core on crashes",
+          READ_ONLY GLOBAL_VAR(test_flags), CMD_LINE(OPT_ARG),
+          TEST_CORE_ON_SIGNAL, DEFAULT(IF_WIN(TRUE,FALSE)));
 
 static bool binlog_format_check(sys_var *self, THD *thd, set_var *var)
 {
@@ -804,12 +803,26 @@ static bool check_charset(sys_var *self, THD *thd, set_var *var)
   {
     int csno= (int)var->value->val_int();
     CHARSET_INFO *cs;
-    if (!(var->save_result.ptr= cs= get_charset(csno, MYF(0))) ||
-        !(cs->state & MY_CS_PRIMARY))
+    if ((var->save_result.ptr= cs= get_charset(csno, MYF(0))))
     {
-      my_error(ER_UNKNOWN_CHARACTER_SET, MYF(0), llstr(csno, buff));
-      return true;
+      /*
+        Backward compatibility: pre MDEV-30824 servers
+        can write non-default collation IDs to binary log:
+          SET character_set_client=83; -- utf8mb3_bin
+        Convert a non-default collation to the compiled default collation,
+        e.g. utf8mb3_bin to utf8mb3_general_ci, but only if
+        - THD is a slave thread or
+        - is processing a mysqlbinlog output.
+      */
+      if ((cs->state & MY_CS_PRIMARY) ||
+          ((thd->variables.pseudo_slave_mode || thd->slave_thread) &&
+           (var->save_result.ptr=
+             Lex_exact_charset_opt_extended_collate(cs, true).
+               find_default_collation())))
+        return false;
     }
+    my_error(ER_UNKNOWN_CHARACTER_SET, MYF(0), llstr(csno, buff));
+    return true;
   }
   return false;
 }
@@ -2878,6 +2891,7 @@ export const char *optimizer_switch_names[]=
   "rowid_filter",
   "condition_pushdown_from_having",
   "not_null_range_scan",
+  "hash_join_cardinality",
   "default", 
   NullS
 };

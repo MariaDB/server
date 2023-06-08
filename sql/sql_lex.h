@@ -38,6 +38,7 @@
 #include "sql_schema.h"
 #include "table.h"
 #include "sql_class.h"                // enum enum_column_usage
+#include "select_handler.h"
 
 /* Used for flags of nesting constructs */
 #define SELECT_NESTING_MAP_SIZE 64
@@ -872,7 +873,7 @@ public:
   st_select_lex_unit()
     : union_result(NULL), table(NULL),  result(NULL), fake_select_lex(NULL),
       last_procedure(NULL),cleaned(false), bag_set_op_optimized(false),
-      have_except_all_or_intersect_all(false)
+      have_except_all_or_intersect_all(false), pushdown_unit(NULL)
   {
   }
 
@@ -937,6 +938,10 @@ public:
   bool bag_set_op_optimized:1;
   bool optimize_started:1;
   bool have_except_all_or_intersect_all:1;
+
+  /* The object used to organize execution of the UNIT by a foreign engine */
+  select_handler *pushdown_unit;
+
   /**
      TRUE if the unit contained TVC at the top level that has been wrapped
      into SELECT:
@@ -1044,10 +1049,14 @@ public:
 
   bool set_lock_to_the_last_select(Lex_select_lock l);
 
+  bool can_be_merged();
+
   friend class st_select_lex;
 
 private:
+  bool exec_inner();
   bool is_derived_eliminated() const;
+  bool set_direct_union_result(select_result *sel_result);
 };
 
 typedef class st_select_lex_unit SELECT_LEX_UNIT;
@@ -1143,8 +1152,6 @@ public:
   TABLE_LIST *embedding;          /* table embedding to the above list   */
   table_value_constr *tvc;
 
-  /* The interface employed to execute the select query by a foreign engine */
-  select_handler *select_h;
   /* The object used to organize execution of the query by a foreign engine */
   select_handler *pushdown_select;
   List<TABLE_LIST> *join_list;    /* list for the currently parsed join  */
@@ -1306,6 +1313,8 @@ public:
     st_select_lex.
   */
   uint curr_tvc_name;
+  /* true <=> select has been created a TVC wrapper */
+  bool is_tvc_wrapper;
   uint fields_in_window_functions;
   uint insert_tables;
   enum_parsing_place parsing_place; /* where we are parsing expression */
@@ -1390,6 +1399,7 @@ public:
     return (st_select_lex_unit*) slave; 
   }
   st_select_lex* outer_select();
+  bool is_query_topmost(THD *thd);
   st_select_lex* next_select() { return (st_select_lex*) next; }
   st_select_lex* next_select_in_list() 
   {
@@ -1476,6 +1486,10 @@ public:
   }
   bool setup_ref_array(THD *thd, uint order_group_num);
   void print(THD *thd, String *str, enum_query_type query_type);
+  void print_item_list(THD *thd, String *str, enum_query_type query_type);
+  void print_set_clause(THD *thd, String *str, enum_query_type query_type);
+  void print_on_duplicate_key_clause(THD *thd, String *str,
+                                     enum_query_type query_type);
   static void print_order(String *str,
                           ORDER *order,
                           enum_query_type query_type);
@@ -1606,8 +1620,6 @@ public:
                                        Item_transformer transformer,
                                        uchar *arg);
   Item *pushdown_from_having_into_where(THD *thd, Item *having);
-
-  select_handler *find_select_handler(THD *thd);
 
   bool is_set_op()
   {
@@ -2548,7 +2560,7 @@ private:
     Get the last character accepted.
     @return the last character accepted.
   */
-  unsigned char yyGetLast()
+  unsigned char yyGetLast() const
   {
     return m_ptr[-1];
   }
@@ -2556,7 +2568,7 @@ private:
   /**
     Look at the next character to parse, but do not accept it.
   */
-  unsigned char yyPeek()
+  unsigned char yyPeek() const
   {
     return m_ptr[0];
   }
@@ -2565,7 +2577,7 @@ private:
     Look ahead at some character to parse.
     @param n offset of the character to look up
   */
-  unsigned char yyPeekn(int n)
+  unsigned char yyPeekn(int n) const
   {
     return m_ptr[n];
   }
@@ -2626,7 +2638,7 @@ private:
     @param n number of characters expected
     @return true if there are less than n characters to parse
   */
-  bool eof(int n)
+  bool eof(int n) const
   {
     return ((m_ptr + n) >= m_end_of_query);
   }
@@ -2657,10 +2669,10 @@ private:
     Get the maximum length of the utf8-body buffer.
     The utf8 body can grow because of the character set conversion and escaping.
   */
-  size_t get_body_utf8_maximum_length(THD *thd);
+  size_t get_body_utf8_maximum_length(THD *thd) const;
 
   /** Get the length of the current token, in the raw buffer. */
-  uint yyLength()
+  uint yyLength() const
   {
     /*
       The assumption is that the lexical analyser is always 1 character ahead,
@@ -2685,31 +2697,31 @@ public:
     End of file indicator for the query text to parse.
     @return true if there are no more characters to parse
   */
-  bool eof()
+  bool eof() const
   {
     return (m_ptr >= m_end_of_query);
   }
 
   /** Get the raw query buffer. */
-  const char *get_buf()
+  const char *get_buf() const
   {
     return m_buf;
   }
 
   /** Get the pre-processed query buffer. */
-  const char *get_cpp_buf()
+  const char *get_cpp_buf() const
   {
     return m_cpp_buf;
   }
 
   /** Get the end of the raw query buffer. */
-  const char *get_end_of_query()
+  const char *get_end_of_query() const
   {
     return m_end_of_query;
   }
 
   /** Get the token start position, in the raw buffer. */
-  const char *get_tok_start()
+  const char *get_tok_start() const
   {
     return has_lookahead() ? m_tok_start_prev : m_tok_start;
   }
@@ -2720,25 +2732,25 @@ public:
   }
 
   /** Get the token end position, in the raw buffer. */
-  const char *get_tok_end()
+  const char *get_tok_end() const
   {
     return m_tok_end;
   }
 
   /** Get the current stream pointer, in the raw buffer. */
-  const char *get_ptr()
+  const char *get_ptr() const
   {
     return m_ptr;
   }
 
   /** Get the token start position, in the pre-processed buffer. */
-  const char *get_cpp_tok_start()
+  const char *get_cpp_tok_start() const
   {
     return has_lookahead() ? m_cpp_tok_start_prev : m_cpp_tok_start;
   }
 
   /** Get the token end position, in the pre-processed buffer. */
-  const char *get_cpp_tok_end()
+  const char *get_cpp_tok_end() const
   {
     return m_cpp_tok_end;
   }
@@ -2747,7 +2759,7 @@ public:
     Get the token end position in the pre-processed buffer,
     with trailing spaces removed.
   */
-  const char *get_cpp_tok_end_rtrim()
+  const char *get_cpp_tok_end_rtrim() const
   {
     const char *p;
     for (p= m_cpp_tok_end;
@@ -2758,7 +2770,7 @@ public:
   }
 
   /** Get the current stream pointer, in the pre-processed buffer. */
-  const char *get_cpp_ptr()
+  const char *get_cpp_ptr() const
   {
     return m_cpp_ptr;
   }
@@ -2767,7 +2779,7 @@ public:
     Get the current stream pointer, in the pre-processed buffer,
     with traling spaces removed.
   */
-  const char *get_cpp_ptr_rtrim()
+  const char *get_cpp_ptr_rtrim() const
   {
     const char *p;
     for (p= m_cpp_ptr;
@@ -2777,13 +2789,13 @@ public:
     return p;
   }
   /** Get the utf8-body string. */
-  const char *get_body_utf8_str()
+  const char *get_body_utf8_str() const
   {
     return m_body_utf8;
   }
 
   /** Get the utf8-body length. */
-  size_t get_body_utf8_length()
+  size_t get_body_utf8_length() const
   {
     return (size_t) (m_body_utf8_ptr - m_body_utf8);
   }
@@ -2819,7 +2831,7 @@ private:
 
   bool consume_comment(int remaining_recursions_permitted);
   int lex_one_token(union YYSTYPE *yylval, THD *thd);
-  int find_keyword(Lex_ident_cli_st *str, uint len, bool function);
+  int find_keyword(Lex_ident_cli_st *str, uint len, bool function) const;
   LEX_CSTRING get_token(uint skip, uint length);
   int scan_ident_sysvar(THD *thd, Lex_ident_cli_st *str);
   int scan_ident_start(THD *thd, Lex_ident_cli_st *str);
@@ -3610,6 +3622,8 @@ public:
   Window_frame_bound *frame_bottom_bound;
   Window_spec *win_spec;
 
+  Item *upd_del_where;
+
   /* System Versioning */
   vers_select_conds_t vers_conditions;
   vers_select_conds_t period_conditions;
@@ -3691,7 +3705,7 @@ public:
 
   bool can_be_merged();
   bool can_use_merged();
-  bool can_not_use_merged(bool no_update_or_delete);
+  bool can_not_use_merged();
   bool only_view_structure();
   bool need_correct_ident();
   uint8 get_effective_with_check(TABLE_LIST *view);
@@ -4167,9 +4181,6 @@ public:
 
   Item *create_item_query_expression(THD *thd, st_select_lex_unit *unit);
 
-  Item *make_item_func_replace(THD *thd, Item *org, Item *find, Item *replace);
-  Item *make_item_func_substr(THD *thd, Item *a, Item *b, Item *c);
-  Item *make_item_func_substr(THD *thd, Item *a, Item *b);
   Item *make_item_func_sysdate(THD *thd, uint fsp);
   Item *make_item_func_call_generic(THD *thd, Lex_ident_cli_st *db,
                                     Lex_ident_cli_st *name, List<Item> *args);

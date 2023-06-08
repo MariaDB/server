@@ -20,7 +20,9 @@ connect(con1,localhost,root,,);
 --source include/show_binary_logs.inc
 INSERT INTO t1 VALUES (1, REPEAT("x", 1));
 INSERT INTO t2 VALUES (1, REPEAT("x", 1));
-if (`SELECT $case = "B"`)
+--let $is_case_B=`SELECT $case = "B"`
+
+if ($is_case_B)
 {
   --write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 wait-binlog_truncate_multi_engine.test
@@ -39,12 +41,12 @@ if (`SELECT $debug_sync_action != ""`)
 send COMMIT;
 
 --connection default
-if (`SELECT $case = "B"`)
+if ($is_case_B)
 {
   --source include/wait_until_disconnected.inc
   --source include/start_mysqld.inc
 }
-if (`SELECT $case != "B"`)
+if (!$is_case_B)
 {
   SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
   --echo List of binary logs after rotation

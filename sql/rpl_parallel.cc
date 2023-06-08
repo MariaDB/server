@@ -264,6 +264,12 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
                               STRING_WITH_LEN("now WAIT_FOR proceed_by_1000"));
       }
     });
+  DBUG_EXECUTE_IF("hold_worker2_favor_worker3", {
+      if (rgi->current_gtid.seq_no == 2001) {
+        DBUG_ASSERT(!rgi->worker_error || entry->stop_on_error_sub_id == sub_id);
+        debug_sync_set_action(thd, STRING_WITH_LEN("now SIGNAL cont_worker3"));
+      }
+    });
 #endif
 
   if (rgi->killed_for_retry == rpl_group_info::RETRY_KILL_PENDING)
@@ -289,6 +295,11 @@ signal_error_to_sql_driver_thread(THD *thd, rpl_group_info *rgi, int err)
     In case we get an error during commit, inform following transactions that
     we aborted our commit.
   */
+  DBUG_EXECUTE_IF("hold_worker2_favor_worker3", {
+      if (rgi->current_gtid.seq_no == 2002) {
+        debug_sync_set_action(thd, STRING_WITH_LEN("now WAIT_FOR cont_worker2"));
+      }});
+
   rgi->unmark_start_commit();
   rgi->cleanup_context(thd, true);
   rgi->rli->abort_slave= true;
@@ -823,7 +834,14 @@ do_retry:
   thd->reset_killed();
   thd->clear_error();
   rgi->killed_for_retry = rpl_group_info::RETRY_KILL_NONE;
-
+#ifdef ENABLED_DEBUG_SYNC
+    DBUG_EXECUTE_IF("hold_worker2_favor_worker3", {
+      if (rgi->current_gtid.seq_no == 2003) {
+        debug_sync_set_action(thd,
+                              STRING_WITH_LEN("now WAIT_FOR cont_worker3"));
+      }
+    });
+#endif
   /*
     If we retry due to a deadlock kill that occurred during the commit step, we
     might have already updated (but not committed) an update of table
@@ -842,13 +860,10 @@ do_retry:
   for (;;)
   {
     mysql_mutex_lock(&entry->LOCK_parallel_entry);
-    if (entry->stop_on_error_sub_id == (uint64) ULONGLONG_MAX ||
-        DBUG_IF("simulate_mdev_12746") ||
-        rgi->gtid_sub_id < entry->stop_on_error_sub_id)
-    {
-      register_wait_for_prior_event_group_commit(rgi, entry);
-    }
-    else
+    register_wait_for_prior_event_group_commit(rgi, entry);
+    if (entry->stop_on_error_sub_id != (uint64) ULONGLONG_MAX &&
+        !DBUG_IF("simulate_mdev_12746") &&
+        rgi->gtid_sub_id >= entry->stop_on_error_sub_id)
     {
       /*
         A failure of a preceding "parent" transaction may not be
@@ -2073,6 +2088,9 @@ rpl_parallel_thread::get_gco(uint64 wait_count, group_commit_orderer *prev,
   gco->prior_sub_id= prior_sub_id;
   gco->installed= false;
   gco->flags= 0;
+#ifndef DBUG_OFF
+  gco->gc_done= false;
+#endif
   return gco;
 }
 
@@ -2080,6 +2098,10 @@ rpl_parallel_thread::get_gco(uint64 wait_count, group_commit_orderer *prev,
 void
 rpl_parallel_thread::loc_free_gco(group_commit_orderer *gco)
 {
+#ifndef DBUG_OFF
+  DBUG_ASSERT(!gco->gc_done);
+  gco->gc_done= true;
+#endif
   if (!loc_gco_list)
     loc_gco_last_ptr_ptr= &gco->next_gco;
   else
@@ -2561,14 +2583,16 @@ rpl_parallel::find(uint32 domain_id, Relay_log_info *rli)
     e->pause_sub_id= (uint64)ULONGLONG_MAX;
     e->pending_start_alters= 0;
     e->rli= rli;
-    if (my_hash_insert(&domain_hash, (uchar *)e))
-    {
-      my_free(e);
-      return NULL;
-    }
     mysql_mutex_init(key_LOCK_parallel_entry, &e->LOCK_parallel_entry,
                      MY_MUTEX_INIT_FAST);
     mysql_cond_init(key_COND_parallel_entry, &e->COND_parallel_entry, NULL);
+    if (my_hash_insert(&domain_hash, (uchar *)e))
+    {
+      mysql_cond_destroy(&e->COND_parallel_entry);
+      mysql_mutex_destroy(&e->LOCK_parallel_entry);
+      my_free(e);
+      return NULL;
+    }
   }
   else
   {
@@ -3149,7 +3173,12 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
 
       if (mode <= SLAVE_PARALLEL_MINIMAL ||
           !(gtid_flags & Gtid_log_event::FL_GROUP_COMMIT_ID) ||
-          e->last_commit_id != gtid_ev->commit_id)
+          e->last_commit_id != gtid_ev->commit_id ||
+          /*
+            MULTI_BATCH is also set when the current gtid even being a member
+            of a commit group is flagged as DDL which disallows parallel.
+          */
+          (gtid_flags & Gtid_log_event::FL_DDL))
         flags|= group_commit_orderer::MULTI_BATCH;
       /* Make sure we do not attempt to run DDL in parallel speculatively. */
       if (gtid_flags & Gtid_log_event::FL_DDL)

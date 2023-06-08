@@ -66,6 +66,7 @@ before transaction commit and must be rolled back explicitly are as follows:
 #include "dict0stats.h"
 #include "dict0stats_bg.h"
 
+#include "ibuf0ibuf.h"
 #include "lock0lock.h"
 
 #include "que0que.h"

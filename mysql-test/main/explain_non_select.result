@@ -157,9 +157,13 @@ id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 explain extended update t2 set b=3 where a in (3,4);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	update `test`.`t2` set `test`.`t2`.`b` = 3 where `test`.`t2`.`a` in (3,4)
 explain extended delete from t2 where a in (3,4);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	delete  from `test`.`t2` using dual where `test`.`t2`.`a` in (3,4)
 drop table t1,t2;
 #
 #  Check the special case where partition pruning removed all partitions
@@ -273,3 +277,22 @@ EXECUTE stmt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	
 drop table t1,t2;
+#
+# MDEV-31224: EXPLAIN EXTENDED for multi-table update of system table
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (3);
+EXPLAIN EXTENDED UPDATE t1, t2 SET b = 4 WHERE a IN (6,2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	system	NULL	NULL	NULL	NULL	1	100.00	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	update `test`.`t1` set `test`.`t2`.`b` = 4 where `test`.`t1`.`a` in (6,2)
+UPDATE t1, t2 SET b = 4 WHERE a IN (6,2);
+SELECT * from t2;
+b
+4
+DROP TABLE t1, t2;
+# End of 10.4 tests

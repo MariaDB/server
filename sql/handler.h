@@ -56,6 +56,7 @@ class Field_string;
 class Field_varstring;
 class Field_blob;
 class Column_definition;
+class select_result;
 
 // the following is for checking tables
 
@@ -1206,6 +1207,7 @@ class derived_handler;
 class select_handler;
 struct Query;
 typedef class st_select_lex SELECT_LEX;
+typedef class st_select_lex_unit SELECT_LEX_UNIT;
 typedef struct st_order ORDER;
 
 /*
@@ -1551,10 +1553,18 @@ struct handlerton
   derived_handler *(*create_derived)(THD *thd, TABLE_LIST *derived);
 
   /*
-    Create and return a select_handler if the storage engine can execute
-    the select statement 'select, otherwise return NULL
+    Create and return a select_handler for a single SELECT.
+    If the storage engine cannot execute the select statement, return NULL
   */
-  select_handler *(*create_select) (THD *thd, SELECT_LEX *select);
+  select_handler *(*create_select) (THD *thd, SELECT_LEX *select_lex,
+                                   SELECT_LEX_UNIT *select_lex_unit);
+
+  /*
+    Create and return a select_handler for a unit (i.e. multiple SELECTs
+    combined with UNION/EXCEPT/INTERSECT). If the storage engine cannot execute
+    the statement, return NULL
+  */
+  select_handler *(*create_unit)(THD *thd, SELECT_LEX_UNIT *select_unit);
    
    /*********************************************************************
      Table discovery API.

@@ -4463,7 +4463,7 @@ n_field_mismatch:
 				len -= BTR_EXTERN_FIELD_REF_SIZE;
 				ulint extern_len = mach_read_from_4(
 					data + len + BTR_EXTERN_LEN + 4);
-				if (fixed_size == extern_len) {
+				if (fixed_size == extern_len + len) {
 					goto next_field;
 				}
 			}

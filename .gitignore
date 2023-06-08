@@ -267,7 +267,6 @@ support-files/mysql.10.0.11.spec
 support-files/mysql.server
 support-files/mysql.service
 support-files/mysql.spec
-support-files/mysql-log-rotate
 support-files/mysqld.service
 support-files/mysqld_multi.server
 support-files/policy/selinux/mysqld-safe.pp

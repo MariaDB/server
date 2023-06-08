@@ -107,6 +107,7 @@ SET(CPACK_RPM_SPEC_MORE_DEFINE "
 %define _sysconfdir ${INSTALL_SYSCONFDIR}
 %define restart_flag_dir %{_localstatedir}/lib/rpm-state/mariadb
 %define restart_flag %{restart_flag_dir}/need-restart
+%define _lto_cflags %{nil}
 
 %{?filter_setup:
 %filter_provides_in \\\\.\\\\(test\\\\|result\\\\|h\\\\|cc\\\\|c\\\\|inc\\\\|opt\\\\|ic\\\\|cnf\\\\|rdiff\\\\|cpp\\\\)$

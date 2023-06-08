@@ -72,6 +72,26 @@ struct my_timer_info
 
 typedef struct my_timer_info MY_TIMER_INFO;
 
+#define MY_TIMER_ROUTINE_RDTSC                    5
+#define MY_TIMER_ROUTINE_ASM_IA64                 6
+#define MY_TIMER_ROUTINE_PPC_GET_TIMEBASE         7
+#define MY_TIMER_ROUTINE_GETHRTIME                9
+#define MY_TIMER_ROUTINE_READ_REAL_TIME          10
+#define MY_TIMER_ROUTINE_CLOCK_GETTIME           11
+#define MY_TIMER_ROUTINE_GETTIMEOFDAY            13
+#define MY_TIMER_ROUTINE_QUERYPERFORMANCECOUNTER 14
+#define MY_TIMER_ROUTINE_GETTICKCOUNT            15
+#define MY_TIMER_ROUTINE_TIME                    16
+#define MY_TIMER_ROUTINE_TIMES                   17
+#define MY_TIMER_ROUTINE_FTIME                   18
+#define MY_TIMER_ROUTINE_ASM_GCC_SPARC64         23
+#define MY_TIMER_ROUTINE_ASM_GCC_SPARC32         24
+#define MY_TIMER_ROUTINE_MACH_ABSOLUTE_TIME      25
+#define MY_TIMER_ROUTINE_GETSYSTEMTIMEASFILETIME 26
+#define MY_TIMER_ROUTINE_ASM_S390                28
+#define MY_TIMER_ROUTINE_AARCH64                 29
+#define MY_TIMER_ROUTINE_RISCV                   30
+
 C_MODE_START
 
 /**
@@ -133,28 +153,36 @@ C_MODE_START
 static inline ulonglong my_timer_cycles(void)
 {
 # if __has_builtin(__builtin_readcyclecounter) && !defined (__aarch64__)
+  #define MY_TIMER_ROUTINE_CYCLES MY_TIMER_ROUTINE_AARCH64
   return __builtin_readcyclecounter();
 # elif defined _M_IX86  || defined _M_X64  || defined __i386__ || defined __x86_64__
+  #define MY_TIMER_ROUTINE_CYCLES MY_TIMER_ROUTINE_RDTSC
   return __rdtsc();
 #elif defined _M_ARM64
+  #define MY_TIMER_ROUTINE_CYCLES MY_TIMER_ROUTINE_AARCH64
   return _ReadStatusReg(ARM64_CNTVCT);
 # elif defined(__INTEL_COMPILER) && defined(__ia64__) && defined(HAVE_IA64INTRIN_H)
+  #define MY_TIMER_ROUTINE_CYCLES MY_TIMER_ROUTINE_ASM_IA64
   return (ulonglong) __getReg(_IA64_REG_AR_ITC); /* (3116) */
 #elif defined(__GNUC__) && defined(__ia64__)
+  #define MY_TIMER_ROUTINE_CYCLES MY_TIMER_ROUTINE_ASM_IA64
   {
     ulonglong result;
     __asm __volatile__ ("mov %0=ar.itc" : "=r" (result));
     return result;
   }
 #elif defined __GNUC__ && defined __powerpc__
+  #define MY_TIMER_ROUTINE_CYCLES MY_TIMER_ROUTINE_PPC_GET_TIMEBASE
   return __builtin_ppc_get_timebase();
 #elif defined(__GNUC__) && defined(__sparcv9) && defined(_LP64)
+  #define MY_TIMER_ROUTINE_CYCLES MY_TIMER_ROUTINE_ASM_GCC_SPARC64
   {
     ulonglong result;
     __asm __volatile__ ("rd %%tick,%0" : "=r" (result));
     return result;
   }
 #elif defined(__GNUC__) && defined(__sparc__) && !defined(_LP64)
+  #define MY_TIMER_ROUTINE_CYCLES MY_TIMER_ROUTINE_ASM_GCC_SPARC32
   {
       union {
               ulonglong wholeresult;
@@ -167,6 +195,7 @@ static inline ulonglong my_timer_cycles(void)
     return result.wholeresult;
   }
 #elif defined(__GNUC__) && defined(__s390__)
+  #define MY_TIMER_ROUTINE_CYCLES MY_TIMER_ROUTINE_ASM_S390
   /* covers both s390 and s390x */
   {
     ulonglong result;
@@ -174,12 +203,14 @@ static inline ulonglong my_timer_cycles(void)
     return result;
   }
 #elif defined(__GNUC__) && defined (__aarch64__)
+  #define MY_TIMER_ROUTINE_CYCLES MY_TIMER_ROUTINE_AARCH64
   {
     ulonglong result;
     __asm __volatile("mrs	%0, CNTVCT_EL0" : "=&r" (result));
     return result;
   }
 #elif defined(__riscv)
+  #define MY_TIMER_ROUTINE_CYCLES MY_TIMER_ROUTINE_RISCV
   /* Use RDCYCLE (and RDCYCLEH on riscv32) */
   {
 # if __riscv_xlen == 32
@@ -202,9 +233,11 @@ static inline ulonglong my_timer_cycles(void)
   }
 # endif
 #elif defined(HAVE_SYS_TIMES_H) && defined(HAVE_GETHRTIME)
+  #define MY_TIMER_ROUTINE_CYCLES MY_TIMER_ROUTINE_GETHRTIME
   /* gethrtime may appear as either cycle or nanosecond counter */
   return (ulonglong) gethrtime();
 #else
+  #define MY_TIMER_ROUTINE_CYCLES 0
   return 0;
 #endif
 }
@@ -240,26 +273,6 @@ ulonglong my_timer_ticks(void);
 void my_timer_init(MY_TIMER_INFO *mti);
 
 C_MODE_END
-
-#define MY_TIMER_ROUTINE_RDTSC                    5
-#define MY_TIMER_ROUTINE_ASM_IA64                 6
-#define MY_TIMER_ROUTINE_PPC_GET_TIMEBASE         7
-#define MY_TIMER_ROUTINE_GETHRTIME                9
-#define MY_TIMER_ROUTINE_READ_REAL_TIME          10
-#define MY_TIMER_ROUTINE_CLOCK_GETTIME           11
-#define MY_TIMER_ROUTINE_GETTIMEOFDAY            13
-#define MY_TIMER_ROUTINE_QUERYPERFORMANCECOUNTER 14
-#define MY_TIMER_ROUTINE_GETTICKCOUNT            15
-#define MY_TIMER_ROUTINE_TIME                    16
-#define MY_TIMER_ROUTINE_TIMES                   17
-#define MY_TIMER_ROUTINE_FTIME                   18
-#define MY_TIMER_ROUTINE_ASM_GCC_SPARC64         23
-#define MY_TIMER_ROUTINE_ASM_GCC_SPARC32         24
-#define MY_TIMER_ROUTINE_MACH_ABSOLUTE_TIME      25
-#define MY_TIMER_ROUTINE_GETSYSTEMTIMEASFILETIME 26
-#define MY_TIMER_ROUTINE_ASM_S390                28
-#define MY_TIMER_ROUTINE_AARCH64                 29
-#define MY_TIMER_ROUTINE_RISCV                   30
 
 #endif
 

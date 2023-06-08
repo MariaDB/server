@@ -462,5 +462,15 @@ void destroy_background_thd(MYSQL_THD thd);
 void
 innobase_reset_background_thd(MYSQL_THD);
 
+#ifdef WITH_WSREP
+/** Append table-level exclusive key.
+@param thd   MySQL thread handle
+@param table table
+@retval false on success
+@retval true on failure */
+struct dict_table_t;
+bool wsrep_append_table_key(MYSQL_THD thd, const dict_table_t &table);
+#endif /* WITH_WSREP */
+
 #endif /* !UNIV_INNOCHECKSUM */
 #endif /* HA_INNODB_PROTOTYPES_H */

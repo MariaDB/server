@@ -375,8 +375,7 @@ class Item_in_optimizer: public Item_bool_func
 protected:
   Item_cache *cache;
   Item *expr_cache;
-  bool save_cache;
-  /* 
+  /*
     Stores the value of "NULL IN (SELECT ...)" for uncorrelated subqueries:
       UNKNOWN - "NULL in (SELECT ...)" has not yet been evaluated
       FALSE   - result is FALSE
@@ -386,7 +385,7 @@ protected:
 public:
   Item_in_optimizer(THD *thd, Item *a, Item *b):
     Item_bool_func(thd, a, b), cache(0), expr_cache(0),
-    save_cache(0), result_for_null_param(UNKNOWN)
+    result_for_null_param(UNKNOWN)
   {
     with_flags|= item_with_t::SUBQUERY;
   }
@@ -403,7 +402,6 @@ public:
     return name;
   }
   Item_cache **get_cache() { return &cache; }
-  void keep_top_level_cache();
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg) override;
   Item *expr_cache_insert_transformer(THD *thd, uchar *unused) override;
   bool is_expensive_processor(void *arg) override;

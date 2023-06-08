@@ -31,7 +31,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 /************************************************************************
 Write-through page write filter. */
-static my_bool wf_wt_init(xb_write_filt_ctxt_t *ctxt, char *dst_name,
+static my_bool wf_wt_init(ds_ctxt *ds_meta,
+                          xb_write_filt_ctxt_t *ctxt, char *dst_name,
 			  xb_fil_cur_t *cursor, CorruptedPages *corrupted_pages);
 static my_bool wf_wt_process(xb_write_filt_ctxt_t *ctxt, ds_file_t *dstfile);
 
@@ -44,7 +45,8 @@ xb_write_filt_t wf_write_through = {
 
 /************************************************************************
 Incremental page write filter. */
-static my_bool wf_incremental_init(xb_write_filt_ctxt_t *ctxt, char *dst_name,
+static my_bool wf_incremental_init(ds_ctxt *ds_meta,
+                                   xb_write_filt_ctxt_t *ctxt, char *dst_name,
 				   xb_fil_cur_t *cursor, CorruptedPages *corrupted_pages);
 static my_bool wf_incremental_process(xb_write_filt_ctxt_t *ctxt,
 				      ds_file_t *dstfile);
@@ -64,7 +66,8 @@ Initialize incremental page write filter.
 
 @return TRUE on success, FALSE on error. */
 static my_bool
-wf_incremental_init(xb_write_filt_ctxt_t *ctxt, char *dst_name,
+wf_incremental_init(ds_ctxt *ds_meta,
+                    xb_write_filt_ctxt_t *ctxt, char *dst_name,
 		    xb_fil_cur_t *cursor, CorruptedPages *corrupted_pages)
 {
 	char				meta_name[FN_REFLEN];
@@ -88,7 +91,7 @@ wf_incremental_init(xb_write_filt_ctxt_t *ctxt, char *dst_name,
 		 XB_DELTA_INFO_SUFFIX);
 	const xb_delta_info_t	info(cursor->page_size, cursor->zip_size,
 				     cursor->space_id);
-	if (!xb_write_delta_metadata(meta_name, &info)) {
+	if (!xb_write_delta_metadata(ds_meta, meta_name, &info)) {
 		msg(cursor->thread_n,"Error: "
 		    "failed to write meta info for %s",
 		    cursor->rel_path);
@@ -207,7 +210,8 @@ Initialize the write-through page write filter.
 
 @return TRUE on success, FALSE on error. */
 static my_bool
-wf_wt_init(xb_write_filt_ctxt_t *ctxt, char *dst_name __attribute__((unused)),
+wf_wt_init(ds_ctxt *ds_meta __attribute__((unused)),
+           xb_write_filt_ctxt_t *ctxt, char *dst_name __attribute__((unused)),
 	   xb_fil_cur_t *cursor, CorruptedPages *)
 {
 	ctxt->cursor = cursor;

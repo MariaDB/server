@@ -8,6 +8,7 @@ derived_with_keys	on
 exists_to_in	on
 extended_keys	on
 firstmatch	on
+hash_join_cardinality	on
 index_condition_pushdown	on
 index_merge	on
 index_merge_intersection	on

@@ -53,7 +53,6 @@ void buf_dblwr_t::init()
     active_slot= &slots[0];
     mysql_mutex_init(buf_dblwr_mutex_key, &mutex, nullptr);
     pthread_cond_init(&cond, nullptr);
-    pthread_cond_init(&write_cond, nullptr);
   }
 }
 
@@ -467,7 +466,6 @@ void buf_dblwr_t::close()
   ut_ad(!batch_running);
 
   pthread_cond_destroy(&cond);
-  pthread_cond_destroy(&write_cond);
   for (int i= 0; i < 2; i++)
   {
     aligned_free(slots[i].write_buf);
@@ -479,38 +477,31 @@ void buf_dblwr_t::close()
 }
 
 /** Update the doublewrite buffer on write completion. */
-void buf_dblwr_t::write_completed(bool with_doublewrite)
+void buf_dblwr_t::write_completed()
 {
   ut_ad(this == &buf_dblwr);
   ut_ad(!srv_read_only_mode);
 
   mysql_mutex_lock(&mutex);
 
-  ut_ad(writes_pending);
-  if (!--writes_pending)
-    pthread_cond_broadcast(&write_cond);
+  ut_ad(is_created());
+  ut_ad(srv_use_doublewrite_buf);
+  ut_ad(batch_running);
+  slot *flush_slot= active_slot == &slots[0] ? &slots[1] : &slots[0];
+  ut_ad(flush_slot->reserved);
+  ut_ad(flush_slot->reserved <= flush_slot->first_free);
 
-  if (with_doublewrite)
+  if (!--flush_slot->reserved)
   {
-    ut_ad(is_created());
-    ut_ad(srv_use_doublewrite_buf);
-    ut_ad(batch_running);
-    slot *flush_slot= active_slot == &slots[0] ? &slots[1] : &slots[0];
-    ut_ad(flush_slot->reserved);
-    ut_ad(flush_slot->reserved <= flush_slot->first_free);
+    mysql_mutex_unlock(&mutex);
+    /* This will finish the batch. Sync data files to the disk. */
+    fil_flush_file_spaces();
+    mysql_mutex_lock(&mutex);
 
-    if (!--flush_slot->reserved)
-    {
-      mysql_mutex_unlock(&mutex);
-      /* This will finish the batch. Sync data files to the disk. */
-      fil_flush_file_spaces();
-      mysql_mutex_lock(&mutex);
-
-      /* We can now reuse the doublewrite memory buffer: */
-      flush_slot->first_free= 0;
-      batch_running= false;
-      pthread_cond_broadcast(&cond);
-    }
+    /* We can now reuse the doublewrite memory buffer: */
+    flush_slot->first_free= 0;
+    batch_running= false;
+    pthread_cond_broadcast(&cond);
   }
 
   mysql_mutex_unlock(&mutex);
@@ -605,7 +596,6 @@ bool buf_dblwr_t::flush_buffered_writes(const ulint size)
   const bool multi_batch= block1 + static_cast<uint32_t>(size) != block2 &&
     old_first_free > size;
   flushing_buffered_writes= 1 + multi_batch;
-  pages_submitted+= old_first_free;
   /* Now safe to release the mutex. */
   mysql_mutex_unlock(&mutex);
 #ifdef UNIV_DEBUG
@@ -754,7 +744,6 @@ void buf_dblwr_t::add_to_batch(const IORequest &request, size_t size)
   const ulint buf_size= 2 * block_size();
 
   mysql_mutex_lock(&mutex);
-  writes_pending++;
 
   for (;;)
   {

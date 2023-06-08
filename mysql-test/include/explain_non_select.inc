@@ -792,6 +792,22 @@ INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
 
 DROP TABLE t1;
 
+--echo #75
+
+CREATE TABLE t1 (id INT PRIMARY KEY, i INT);
+--let $query = INSERT INTO t1 VALUES (3,10), (7,11), (3,11) ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id);
+--source include/explain_utils.inc
+DROP TABLE t1;
+
+--echo #76
+
+CREATE TABLE t1 (id INT PRIMARY KEY, i INT);
+CREATE TABLE t2 (a INT, b INT);
+INSERT INTO t2 VALUES (1,10), (3,10), (7,11), (3,11);
+--let $query = INSERT INTO t1 SELECT * FROM t2 ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id);
+--source include/explain_utils.inc
+DROP TABLE t1,t2;
+
 --echo #
 --echo # Bug #12949629: CLIENT LOSES CONNECTION AFTER EXECUTING A PROCEDURE WITH
 --echo #                EXPLAIN UPDATE/DEL/INS

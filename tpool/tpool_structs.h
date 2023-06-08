@@ -14,13 +14,12 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 
 #pragma once
+#include <my_global.h>
+#include <my_pthread.h>
 #include <vector>
 #include <stack>
-#include <mutex>
-#include <condition_variable>
 #include <assert.h>
 #include <algorithm>
-
 
 /* Suppress TSAN warnings, that we believe are not critical. */
 #if defined(__has_feature)
@@ -35,6 +34,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 #define TPOOL_SUPPRESS_TSAN  __attribute__((no_sanitize_thread,noinline))
 #else
 #define TPOOL_SUPPRESS_TSAN
+#endif
+
+#ifdef HAVE_PSI_INTERFACE
+typedef unsigned int mysql_pfs_key_t;
+extern mysql_pfs_key_t tpool_cache_mutex_key;
 #endif
 
 namespace tpool
@@ -55,13 +59,13 @@ namespace tpool
 template<typename T> class cache
 {
   /** Protects updates of m_pos and m_cache members */
-  std::mutex m_mtx;
+  mysql_mutex_t m_mtx;
 
   /**
     Notify waiting threads about "cache full" or "cache not empty" conditions
     @see get() and wait()
   */
-  std::condition_variable m_cv;
+  pthread_cond_t m_cv;
 
   /** Cached items vector.Does not change after construction */
   std::vector<T> m_base;
@@ -108,12 +112,21 @@ public:
   Constructor
   @param size - maximum number of items in cache
   */
-  cache(size_t size) : m_mtx(), m_cv(), m_base(size), m_cache(size),
+  cache(size_t size) : m_base(size), m_cache(size),
     m_waiters(), m_pos(0)
   {
+    mysql_mutex_init(tpool_cache_mutex_key, &m_mtx, nullptr);
+    pthread_cond_init(&m_cv, nullptr);
+
     for(size_t i= 0 ; i < size; i++)
       m_cache[i]= &m_base[i];
   }
+
+  ~cache()
+  {
+    mysql_mutex_destroy(&m_mtx);
+    pthread_cond_destroy(&m_cv);
+ }
 
   /**
    Retrieve an item from cache. Waits for free item, if cache is
@@ -122,26 +135,25 @@ public:
   */
   T* get()
   {
-    std::unique_lock<std::mutex> lk(m_mtx);
-    while(is_empty())
-      m_cv.wait(lk);
+    mysql_mutex_lock(&m_mtx);
+    while (is_empty())
+      my_cond_wait(&m_cv, &m_mtx.m_mutex);
     assert(m_pos < capacity());
     //  return last element
-    return m_cache[m_pos++];
+    T *t= m_cache[m_pos++];
+    mysql_mutex_unlock(&m_mtx);
+    return t;
   }
 
-  std::mutex& mutex()
-  {
-    return m_mtx;
-  }
+  mysql_mutex_t &mutex() { return m_mtx; }
 
-	/**
-   Put back an item to cache.
-   @param item - item to put back
+  /**
+   Put back an element to cache.
+   @param ele element to put back
   */
   void put(T *ele)
   {
-    std::unique_lock<std::mutex> lk(m_mtx);
+    mysql_mutex_lock(&m_mtx);
     assert(!is_full());
     // put element to the logical end of the array
     m_cache[--m_pos] = ele;
@@ -149,7 +161,8 @@ public:
     /* Notify waiters  when the cache becomes
      not empty, or when it becomes full */
     if (m_pos == 1 || (m_waiters && is_full()))
-      m_cv.notify_all();
+      pthread_cond_broadcast(&m_cv);
+    mysql_mutex_unlock(&m_mtx);
   }
 
   /** Check if pointer represents cached element */
@@ -157,6 +170,25 @@ public:
   {
     // No locking required, m_base does not change after construction.
     return ele >= &m_base[0] && ele <= &m_base[capacity() - 1];
+  }
+
+  /** Wait until cache is full
+  @param m cache mutex (locked) */
+  void wait(mysql_mutex_t &m)
+  {
+    mysql_mutex_assert_owner(&m);
+    m_waiters++;
+    while (!is_full())
+      my_cond_wait(&m_cv, &m.m_mutex);
+    m_waiters--;
+  }
+
+  /* Wait until cache is full.*/
+  void wait()
+  {
+    mysql_mutex_lock(&m_mtx);
+    wait(m_mtx);
+    mysql_mutex_unlock(&m_mtx);
   }
 
   /**
@@ -168,26 +200,9 @@ public:
     return m_pos;
   }
 
-  /** Wait until cache is full
-  @param[in] lk -  lock for the cache mutex
-  (which can be obtained with mutex()) */
-  void wait(std::unique_lock<std::mutex> &lk)
-  {
-    m_waiters++;
-    while (!is_full())
-      m_cv.wait(lk);
-    m_waiters--;
-  }
-
-  /* Wait until cache is full.*/
-  void wait()
-  {
-    std::unique_lock<std::mutex> lk(m_mtx);
-    wait(lk);
-  }
-
   void resize(size_t count)
   {
+    mysql_mutex_assert_owner(&m_mtx);
     assert(is_full());
     m_base.resize(count);
     m_cache.resize(count);
