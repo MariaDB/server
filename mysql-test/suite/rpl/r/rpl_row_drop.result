@@ -6,6 +6,7 @@ CREATE TABLE t2 (a int);
 CREATE TEMPORARY TABLE t2 (a int, b int);
 SHOW TABLES;
 Tables_in_test
+t2
 t1
 t2
 connection slave;
@@ -28,6 +29,7 @@ connection master;
 CREATE TEMPORARY TABLE t2 (a int, b int);
 SHOW TABLES;
 Tables_in_test
+t2
 t1
 t2
 connection slave;

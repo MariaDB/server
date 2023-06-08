@@ -991,10 +991,14 @@ CREATE TEMPORARY TABLE `#sql1` (c1 INT);
 CREATE TEMPORARY TABLE `@0023sql2` (c1 INT);
 SHOW TABLES;
 Tables_in_test
+@0023sql2
+#sql1
 ALTER TABLE `#sql1`      RENAME `@0023sql1`;
 ALTER TABLE `@0023sql2`  RENAME `#sql2`;
 SHOW TABLES;
 Tables_in_test
+#sql2
+@0023sql1
 INSERT INTO `#sql2`      VALUES (1);
 INSERT INTO `@0023sql1`  VALUES (2);
 SHOW CREATE TABLE `#sql2`;

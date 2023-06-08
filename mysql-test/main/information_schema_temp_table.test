@@ -166,3 +166,30 @@ drop table test.base_in_test;
 # We need first to drop temporary table that shadows the base table
 drop table test.tmp_in_test;
 drop table test.tmp_in_test;
+
+--echo #
+--echo # MDEV-28453: SHOW commands are inconsistent for temporary tables
+--echo #
+create database mysqltest;
+use mysqltest;
+create table t (a int, key(a)) engine=Aria;
+create temporary table t (b int, key(b)) engine=MyISAM;
+create table base_table(t int);
+create temporary table tmp_table (b int, key(b));
+create sequence s1;
+create temporary sequence s1;
+
+# This should show all tables
+show tables;
+# This should show all tables with additional table_type
+show full tables;
+# This is already showing all tables (not related to bug)
+--replace_column 12 # 13 # 14 #
+show table status;
+# This is showing temporary table as expected since it is shadowing base table
+show columns in t;
+# This is showing temporary table as expected since it is shadowing base table
+show index in t;
+
+# Cleanup
+drop database mysqltest;
