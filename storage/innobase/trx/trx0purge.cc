@@ -547,7 +547,7 @@ static void trx_purge_truncate_history()
       mutex_enter(&rseg->mutex);
       trx_purge_truncate_rseg_history(*rseg, head,
                                       !rseg->trx_ref_count &&
-                                      rseg->needs_purge <= head.trx_no);
+                                      purge_sys.sees(rseg->needs_purge));
       mutex_exit(&rseg->mutex);
     }
   }
@@ -604,7 +604,7 @@ static void trx_purge_truncate_history()
       transactions to finish and to be purged. */
       rseg->skip_allocation = true;
 
-      if (rseg->trx_ref_count || rseg->needs_purge > head.trx_no)
+      if (rseg->trx_ref_count || !purge_sys.sees(rseg->needs_purge))
       {
       not_free:
         mutex_exit(&rseg->mutex);
