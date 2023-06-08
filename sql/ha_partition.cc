@@ -12193,6 +12193,27 @@ void ha_partition::update_optimizer_costs(OPTIMIZER_COSTS *costs)
   m_file[i]->update_optimizer_costs(costs);
 }
 
+ulonglong ha_partition::row_blocks()
+{
+  ulonglong active_partitions= bitmap_bits_set(&m_part_info->read_partitions);
+  return handler::row_blocks() + MY_MAX(active_partitions,1)-1;
+}
+
+ulonglong ha_partition::index_blocks(uint index, uint ranges, ha_rows rows)
+{
+  ulonglong blocks= 0;
+  ulonglong active_partitions= bitmap_bits_set(&m_part_info->read_partitions);
+  /* Assume rows are evenly dived among partitions */
+  rows= (rows+ active_partitions -1) / active_partitions;
+
+  for (uint i= bitmap_get_first_set(&m_part_info->read_partitions);
+       i < m_tot_parts;
+       i= bitmap_get_next_set(&m_part_info->read_partitions, i))
+    blocks+= m_file[i]->index_blocks(index, ranges, rows);
+  return blocks;
+}
+
+
 struct st_mysql_storage_engine partition_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 

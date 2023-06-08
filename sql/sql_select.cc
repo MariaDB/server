@@ -107,6 +107,13 @@
 
 #define double_to_ulonglong(A) ((A) >= ((double)ULONGLONG_MAX) ? ULONGLONG_MAX : (ulonglong) (A))
 
+/* Used to ensure that costs are calculate the same way */
+inline bool compare_cost(double a, double b)
+{
+  DBUG_ASSERT(a >= 0.0 && b >= 0.0);
+  return (a >= b - b/10000000.0 && a <= b+b/10000000.0);
+}
+
 inline double safe_filtered(double a, double b)
 {
   return b != 0 ? a/b*100.0 : 0.0;
@@ -179,10 +186,10 @@ static void update_depend_map_for_order(JOIN *join, ORDER *order);
 static ORDER *remove_const(JOIN *join,ORDER *first_order,COND *cond,
 			   bool change_list, bool *simple_order);
 static int return_zero_rows(JOIN *join, select_result *res, 
-                            List<TABLE_LIST> &tables,
-                            List<Item> &fields, bool send_row,
+                            List<TABLE_LIST> *tables,
+                            List<Item> *fields, bool send_row,
                             ulonglong select_options, const char *info,
-                            Item *having, List<Item> &all_fields);
+                            Item *having, List<Item> *all_fields);
 static COND *build_equal_items(JOIN *join, COND *cond,
                                COND_EQUAL *inherited,
                                List<TABLE_LIST> *join_list,
@@ -1335,10 +1342,39 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
   DBUG_RETURN(0);
 }
 
+
 /*****************************************************************************
   Check fields, find best join, do the select and output fields.
   mysql_select assumes that all tables are already opened
 *****************************************************************************/
+
+/*
+  Check if we have a field reference. If yes, we have to use
+  mixed_implicit_grouping.
+*/
+
+static bool check_list_for_field(List<Item> *items)
+{
+  List_iterator_fast <Item> select_it(*items);
+  Item *select_el;
+
+  while ((select_el= select_it++))
+  {
+    if (select_el->with_field())
+      return true;
+  }
+  return false;
+}
+
+static bool check_list_for_field(ORDER *order)
+{
+  for (; order; order= order->next)
+  {
+    if (order->item[0]->with_field())
+      return true;
+  }
+  return false;
+}
 
 
 /**
@@ -1421,53 +1457,44 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
     DBUG_RETURN(-1);
 
   /*
-    TRUE if the SELECT list mixes elements with and without grouping,
-    and there is no GROUP BY clause. Mixing non-aggregated fields with
-    aggregate functions in the SELECT list is a MySQL extenstion that
-    is allowed only if the ONLY_FULL_GROUP_BY sql mode is not set.
+    mixed_implicit_grouping will be set to TRUE if the SELECT list
+    mixes elements with and without grouping, and there is no GROUP BY
+    clause.
+    Mixing non-aggregated fields with aggregate functions in the
+    SELECT list or HAVING is a MySQL extension that is allowed only if
+    the ONLY_FULL_GROUP_BY sql mode is not set.
   */
   mixed_implicit_grouping= false;
   if ((~thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY) &&
       select_lex->with_sum_func && !group_list)
   {
-    List_iterator_fast <Item> select_it(fields_list);
-    Item *select_el; /* Element of the SELECT clause, can be an expression. */
-    bool found_field_elem= false;
-    bool found_sum_func_elem= false;
-
-    while ((select_el= select_it++))
+    if (check_list_for_field(&fields_list)  ||
+        check_list_for_field(order))
     {
-      if (select_el->with_sum_func())
-        found_sum_func_elem= true;
-      if (select_el->with_field())
-        found_field_elem= true;
-      if (found_sum_func_elem && found_field_elem)
+      List_iterator_fast<TABLE_LIST> li(select_lex->leaf_tables);
+
+      mixed_implicit_grouping= true;            // mark for future
+
+      while (TABLE_LIST *tbl= li++)
       {
-        mixed_implicit_grouping= true;
-        break;
+        /*
+          If the query uses implicit grouping where the select list
+          contains both aggregate functions and non-aggregate fields,
+          any non-aggregated field may produce a NULL value. Set all
+          fields of each table as nullable before semantic analysis to
+          take into account this change of nullability.
+
+          Note: this loop doesn't touch tables inside merged
+          semi-joins, because subquery-to-semijoin conversion has not
+          been done yet. This is intended.
+        */
+        if (tbl->table)
+          tbl->table->maybe_null= 1;
       }
     }
   }
-
   table_count= select_lex->leaf_tables.elements;
 
-  TABLE_LIST *tbl;
-  List_iterator_fast<TABLE_LIST> li(select_lex->leaf_tables);
-  while ((tbl= li++))
-  {
-    /*
-      If the query uses implicit grouping where the select list contains both
-      aggregate functions and non-aggregate fields, any non-aggregated field
-      may produce a NULL value. Set all fields of each table as nullable before
-      semantic analysis to take into account this change of nullability.
-
-      Note: this loop doesn't touch tables inside merged semi-joins, because
-      subquery-to-semijoin conversion has not been done yet. This is intended.
-    */
-    if (mixed_implicit_grouping && tbl->table)
-      tbl->table->maybe_null= 1;
-  }
- 
   uint real_og_num= og_num;
   if (skip_order_by && 
       select_lex != select_lex->master_unit()->global_parameters())
@@ -1480,14 +1507,14 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
     DBUG_RETURN(-1);
 
   ref_ptrs= ref_ptr_array_slice(0);
-  
+
   enum_parsing_place save_place=
                      thd->lex->current_select->context_analysis_place;
   thd->lex->current_select->context_analysis_place= SELECT_LIST;
 
   {
     List_iterator_fast<TABLE_LIST> it(select_lex->leaf_tables);
-    while ((tbl= it++))
+    while (TABLE_LIST *tbl= it++)
     {
       if (tbl->table_function &&
           tbl->table_function->setup(thd, tbl, select_lex_arg))
@@ -4137,7 +4164,7 @@ bool JOIN::make_aggr_tables_info()
   set_items_ref_array(items0);
   if (join_tab)
     join_tab[exec_join_tab_cnt() + aggr_tables - 1].next_select=
-      setup_end_select_func(this, NULL);
+      setup_end_select_func(this);
   group= has_group_by;
 
   DBUG_RETURN(false);
@@ -4539,13 +4566,7 @@ JOIN::reinit()
     }
   }
 
-  /* Reset of sum functions */
-  if (sum_funcs)
-  {
-    Item_sum *func, **func_ptr= sum_funcs;
-    while ((func= *(func_ptr++)))
-      func->clear();
-  }
+  clear_sum_funcs();
 
   if (no_rows_in_result_called)
   {
@@ -4830,12 +4851,12 @@ int JOIN::exec_inner()
     }
     else
     {
-      (void) return_zero_rows(this, result, select_lex->leaf_tables,
-                              *columns_list,
+      (void) return_zero_rows(this, result, &select_lex->leaf_tables,
+                              columns_list,
 			      send_row_on_empty_set(),
 			      select_options,
 			      zero_result_cause,
-			      having ? having : tmp_having, all_fields);
+			      having ? having : tmp_having, &all_fields);
       DBUG_RETURN(0);
     }
   }
@@ -9045,7 +9066,8 @@ best_access_path(JOIN      *join,
       copy_cost= (record_count * records_after_filter * WHERE_COST_THD(thd) +
                   startup_cost);
 
-      cur_cost= (file->cost_for_reading_multiple_times(prev_record_count, &tmp) +
+      cur_cost= (file->cost_for_reading_multiple_times(prev_record_count,
+                                                       &tmp) +
                  copy_cost);
 
       if (unlikely(trace_access_idx.trace_started()))
@@ -9147,7 +9169,7 @@ best_access_path(JOIN      *join,
   {
     Json_writer_object trace_access_hash(thd);
     double refills, row_copy_cost, copy_cost, cur_cost, where_cost;
-    double matching_combinations, fanout, join_sel;
+    double matching_combinations, fanout= 0.0, join_sel;
     trace_access_hash.add("type", "hash");
     trace_access_hash.add("index", "hj-key");
     /* Estimate the cost of the hash join access to the table */
@@ -9303,6 +9325,8 @@ best_access_path(JOIN      *join,
     uint forced_index= MAX_KEY;
     bool force_plan= 0, use_join_buffer= 0;
     ulonglong refills= 1;
+    ALL_READ_COST cost;
+
     /*
       Range optimizer never proposes a RANGE if it isn't better
       than FULL: so if RANGE is present, it's always preferred to FULL.
@@ -9315,16 +9339,7 @@ best_access_path(JOIN      *join,
         For each record we:
         - read record range through 'quick'
         - skip rows which does not satisfy WHERE constraints
-
-        Note that s->quick->read_time includes the cost of comparing
-        the row with the where clause (WHERE_COST)
-
-        TODO:
-        We take into account possible use of join cache for ALL/index
-        access (see first else-branch below), but we don't take it into 
-        account here for range/index_merge access. Find out why this is so.
       */
-      cur_cost= COST_MULT(s->quick->read_time, record_count);
 
       /*
         Use record count from range optimizer.
@@ -9348,33 +9363,38 @@ best_access_path(JOIN      *join,
         DBUG_ASSERT(range->rows >= s->found_records);
         DBUG_ASSERT((range->cost.total_cost() == 0.0 &&
                      s->quick->read_time == 0.0) ||
-                    (range->cost.total_cost() / s->quick->read_time <= 1.0000001 &&
-                     range->cost.total_cost() / s->quick->read_time >= 0.9999999));
+                    compare_cost(range->cost.total_cost(),
+                                 s->quick->read_time));
+        DBUG_ASSERT(compare_cost(range->cost.comp_cost,
+                                 range->rows * file->WHERE_COST));
 
-        range->get_costs(&tmp);
+        /* Get range cost. This does not include cost of the WHERE */
+        range->get_costs(&cost);
+        /* Ensure that cost from opt_range are correct */
+        DBUG_ASSERT(compare_cost(file->cost_no_capping(&cost) +
+                                 range->cost.comp_cost +
+                                 range->cost.setup_cost,
+                                 s->quick->read_time));
+
         if (table->can_use_rowid_filter(key_no))
         {
           filter= table->best_range_rowid_filter(key_no,
                                                  rows2double(range->rows),
-                                                 file->cost(&tmp),
-                                                 file->cost(tmp.index_cost),
+                                                 file->cost(&cost),
+                                                 file->cost(cost.index_cost),
                                                  record_count,
                                                  &records_best_filter);
           set_if_smaller(best.records_out, records_best_filter);
           if (filter)
           {
-            filter= filter->apply_filter(thd, table, &tmp,
+            filter= filter->apply_filter(thd, table, &cost,
                                          &records_after_filter,
                                          &startup_cost,
                                          range->ranges,
                                          record_count);
             if (filter)
             {
-              tmp.row_cost.cpu+= records_after_filter * WHERE_COST_THD(thd);
-              cur_cost= file->cost_for_reading_multiple_times(record_count,
-                                                              &tmp);
-              cur_cost= COST_ADD(cur_cost, startup_cost);
-              startup_cost= 0;                    // Avoid adding it again later
+              set_if_smaller(best.records_out, records_after_filter);
               table->opt_range[key_no].selectivity= filter->selectivity;
             }
           }
@@ -9391,10 +9411,24 @@ best_access_path(JOIN      *join,
           force_plan= 1;
         }
         type= JT_RANGE;
+        /*
+          We cannot use range->cost.cmp_cost here as records_after_filter
+          is be different if filter is used.
+        */
+        cost.copy_cost+= (records_after_filter * file->WHERE_COST +
+                          range->cost.setup_cost);
       }
       else
       {
         type= JT_INDEX_MERGE;
+        /*
+          We don't know exactly from where the costs comes from.
+          Let's store it in copy_cost.
+          Note that s->quick->read_time includes the cost of comparing
+          the row with the where clause (WHERE_COST)
+        */
+        cost.reset();
+        cost.copy_cost= s->quick->read_time;
       }
       loose_scan_opt.check_range_access(join, idx, s->quick);
     }
@@ -9420,7 +9454,7 @@ best_access_path(JOIN      *join,
       if (s->cached_forced_index_type)
       {
         type=         s->cached_forced_index_type;
-        cur_cost=     s->cached_forced_index_cost;
+        cost=         s->cached_forced_index_cost;
         forced_index= s->cached_forced_index;
       }
       else
@@ -9436,7 +9470,7 @@ best_access_path(JOIN      *join,
           {
             /* Use value from estimate_scan_time */
             forced_index= s->cached_covering_key;
-            cur_cost= s->cached_scan_and_compare_time;
+            cost= s->cached_scan_and_compare_cost;
           }
           else
           {
@@ -9446,98 +9480,98 @@ best_access_path(JOIN      *join,
             keys.intersect(table->keys_in_use_for_query);
             if ((forced_index= find_shortest_key(table, &keys)) < MAX_KEY)
             {
-              ALL_READ_COST cost= cost_for_index_read(thd, table,
-                                                      forced_index,
-                                                      s->records, 0);
-              cur_cost= file->cost(cost);
+              cost= cost_for_index_read(thd, table,
+                                        forced_index,
+                                        s->records, 0);
               /* Calculate cost of checking the attached WHERE */
-              cur_cost= COST_ADD(cur_cost,
-                            s->records * WHERE_COST_THD(thd));
+              cost.copy_cost+= s->records * file->WHERE_COST;
             }
             else
 #endif
             {
               /* No usable key, use table scan */
-              cur_cost= s->cached_scan_and_compare_time;
+              cost= s->cached_scan_and_compare_cost;
               type= JT_ALL;
             }
           }
         }
         else // table scan
         {
-          cur_cost= s->cached_scan_and_compare_time;
+          cost= s->cached_scan_and_compare_cost;
           type= JT_ALL;
         }
         /* Cache result for other calls */
         s->cached_forced_index_type= type;
-        s->cached_forced_index_cost= cur_cost;
+        s->cached_forced_index_cost= cost;
         s->cached_forced_index= forced_index;
       }
+    }
 
      /*
        Note: the condition checked here is very out of date and incorrect.
        Below, we use a more accurate check when assigning the value of
        best.use_join_buffer.
      */
-      if ((s->table->map & join->outer_join) || disable_jbuf)
-      {
-        /*
-          Simple scan
-          We estimate we have to read org_records rows.
-          records_after_filter rows will survive the where check of constants.
-          'best.records_out' rows will survive after the check against columns
-          from previous tables.
-        */
-        scan_type= "scan";
+    if ((s->table->map & join->outer_join) || disable_jbuf)
+    {
+      /*
+        Simple scan
+        We estimate we have to read org_records rows.
+        records_after_filter rows will survive the where check of constants.
+        'best.records_out' rows will survive after the check against columns
+        from previous tables.
+      */
+      scan_type= "scan";
 
-        /*
-          We have to compare each row set against all previous row combinations
-        */
-        cur_cost= COST_MULT(cur_cost, record_count);
-      }
-      else
-      {
-        /* Scan trough join cache */
-        double cmp_time, row_copy_cost, tmp_refills;
+      /*
+        We have to compare each row set against all previous row combinations
+      */
+      cur_cost= file->cost_for_reading_multiple_times(record_count,
+                                                      &cost);
+    }
+    else
+    {
+      /* Scan trough join cache */
+      double cmp_time, row_copy_cost, tmp_refills;
 
-        /*
-          Note that the cost of checking all rows against the table specific
-          WHERE is already included in cur_cost.
-        */
-        scan_type= "scan_with_join_cache";
+      /*
+        Note that the cost of checking all rows against the table specific
+        WHERE is already included in cur_cost.
+      */
+      scan_type= "scan_with_join_cache";
 
-        /* Calculate cost of refills */
-        tmp_refills= (1.0 + floor((double) cache_record_length(join,idx) *
-                                  (record_count /
-                                   (double) thd->variables.join_buff_size)));
-        cur_cost= COST_MULT(cur_cost, tmp_refills);
-        refills= double_to_ulonglong(ceil(tmp_refills));
+      /* Calculate cost of refills */
+      tmp_refills= (1.0 + floor((double) cache_record_length(join,idx) *
+                                (record_count /
+                                 (double) thd->variables.join_buff_size)));
+      cur_cost= file->cost_for_reading_multiple_times(tmp_refills,
+                                                      &cost);
+      refills= double_to_ulonglong(ceil(tmp_refills));
 
-        /* We come here only if there are already rows in the join cache */
-        DBUG_ASSERT(idx != join->const_tables);
-        /*
-          records_after_filter is the number of rows that have survived
-          the table specific WHERE check that only involves constants.
+      /* We come here only if there are already rows in the join cache */
+      DBUG_ASSERT(idx != join->const_tables);
+      /*
+        records_after_filter is the number of rows that have survived
+        the table specific WHERE check that only involves constants.
 
-          Calculate cost of:
-          - Copying all previous record combinations to the join cache
-          - Copying the tables from the join cache to table records
-          - Checking the WHERE against the final row combination
-        */
-        row_copy_cost= (ROW_COPY_COST_THD(thd) *
-                        JOIN_CACHE_ROW_COPY_COST_FACTOR(thd));
-        cmp_time= (record_count * row_copy_cost +
-                   records_after_filter * record_count *
-                   ((idx - join->const_tables) * row_copy_cost +
-                    WHERE_COST_THD(thd)));
-        cur_cost= COST_ADD(cur_cost, cmp_time);
-        use_join_buffer= 1;
-      }
+        Calculate cost of:
+        - Copying all previous record combinations to the join cache
+        - Copying the tables from the join cache to table records
+        - Checking the WHERE against the final row combination
+      */
+      row_copy_cost= (ROW_COPY_COST_THD(thd) *
+                      JOIN_CACHE_ROW_COPY_COST_FACTOR(thd));
+      cmp_time= (record_count * row_copy_cost +
+                 records_after_filter * record_count *
+                 ((idx - join->const_tables) * row_copy_cost +
+                  WHERE_COST_THD(thd)));
+      cur_cost= COST_ADD(cur_cost, cmp_time);
+      use_join_buffer= 1;
     }
 
     /* Splitting technique cannot be used with join cache */
     if (table->is_splittable())
-      startup_cost= table->get_materialization_cost();
+      startup_cost+= table->get_materialization_cost();
     cur_cost+= startup_cost;
 
     if (unlikely(trace_access_scan.trace_started()))
@@ -9553,6 +9587,10 @@ best_access_path(JOIN      *join,
         add("rows_after_filter",  records_after_filter).
         add("rows_out",           best.records_out).
         add("cost",               cur_cost);
+      if (use_join_buffer)
+        trace_access_scan.
+          add("cost_without_join_buffer",
+              file->cost_for_reading_multiple_times(record_count, &cost));
       if (type == JT_ALL)
       {
         trace_access_scan.add("index_only",
@@ -15825,7 +15863,9 @@ void JOIN_TAB::estimate_scan_time()
 {
   THD *thd= join->thd;
   handler *file= table->file;
-  double copy_cost;
+  double row_copy_cost, copy_cost;
+  ALL_READ_COST * const cost= &cached_scan_and_compare_cost;
+  cost->reset();
 
   cached_covering_key= MAX_KEY;
   if (table->is_created())
@@ -15836,7 +15876,8 @@ void JOIN_TAB::estimate_scan_time()
                                   &startup_cost);
       table->opt_range_condition_rows= records;
       table->used_stat_records= records;
-      copy_cost= file->ROW_COPY_COST;
+      cost->row_cost.cpu= read_time;
+      row_copy_cost= file->ROW_COPY_COST;
     }
     else
     {
@@ -15850,14 +15891,15 @@ void JOIN_TAB::estimate_scan_time()
       if (!table->covering_keys.is_clear_all() && ! table->no_keyread)
       {
         cached_covering_key= find_shortest_key(table, &table->covering_keys);
-        read_time= file->cost(file->ha_key_scan_time(cached_covering_key,
-                                                     records));
-        copy_cost= 0;                           // included in ha_key_scan_time
+        cost->index_cost= file->ha_key_scan_time(cached_covering_key, records);
+        read_time= file->cost(cost->index_cost);
+        row_copy_cost= 0;              // Included in ha_key_scan_time
       }
       else
       {
-        read_time= file->cost(file->ha_scan_time(records));
-        copy_cost= 0;
+        cost->row_cost= file->ha_scan_time(records);
+        read_time= file->cost(cost->row_cost);
+        row_copy_cost= 0;              // Included in ha_scan_time
       }
     }
   }
@@ -15878,14 +15920,24 @@ void JOIN_TAB::estimate_scan_time()
 
     records= table->stat_records();
     DBUG_ASSERT(table->opt_range_condition_rows == records);
-    // Needs fix..
-    read_time= file->cost(table->file->ha_scan_time(MY_MAX(records, 1000)));
-    copy_cost= table->s->optimizer_costs.row_copy_cost;
+    cost->row_cost= table->file->ha_scan_time(MY_MAX(records, 1000));
+    read_time= file->cost(cost->row_cost);
+    row_copy_cost= table->s->optimizer_costs.row_copy_cost;
   }
 
   found_records= records;
-  cached_scan_and_compare_time= (read_time + records *
-                                 (copy_cost + WHERE_COST_THD(thd)));
+  copy_cost= (records * (row_copy_cost + WHERE_COST_THD(thd)));
+  cached_scan_and_compare_time= read_time + copy_cost;
+  cost->copy_cost+= copy_cost;
+
+  /*
+    Assume we only need to do physical IO once even if we scan the file
+    multiple times.
+  */
+  cost->max_index_blocks= (longlong) ceil(cost->index_cost.io);
+  cost->max_row_blocks=   (longlong) ceil(cost->row_cost.io);
+  DBUG_ASSERT(compare_cost(cached_scan_and_compare_time,
+                           file->cost(cost)));
 }
 
 
@@ -16796,10 +16848,36 @@ ORDER *simple_remove_const(ORDER *order, COND *where)
 }
 
 
+/*
+  Set all fields in the table to have a null value
+
+  @param tables            Table list
+*/
+
+static void make_tables_null_complemented(List<TABLE_LIST> *tables)
+{
+  List_iterator<TABLE_LIST> ti(*tables);
+  TABLE_LIST *table;
+  while ((table= ti++))
+  {
+    /*
+      Don't touch semi-join materialization tables, as the a join_free()
+      call may have freed them (and HAVING clause can't have references to
+      them anyway).
+    */
+    if (!table->is_jtbm())
+    {
+      TABLE *tbl= table->table;
+      mark_as_null_row(tbl);		// Set fields to NULL
+    }
+  }
+}
+
+
 static int
-return_zero_rows(JOIN *join, select_result *result, List<TABLE_LIST> &tables,
-		 List<Item> &fields, bool send_row, ulonglong select_options,
-		 const char *info, Item *having, List<Item> &all_fields)
+return_zero_rows(JOIN *join, select_result *result, List<TABLE_LIST> *tables,
+		 List<Item> *fields, bool send_row, ulonglong select_options,
+		 const char *info, Item *having, List<Item> *all_fields)
 {
   DBUG_ENTER("return_zero_rows");
 
@@ -16815,24 +16893,15 @@ return_zero_rows(JOIN *join, select_result *result, List<TABLE_LIST> &tables,
       Set all tables to have NULL row. This is needed as we will be evaluating
       HAVING condition.
     */
-    List_iterator<TABLE_LIST> ti(tables);
-    TABLE_LIST *table;
-    while ((table= ti++))
-    {
-      /*
-        Don't touch semi-join materialization tables, as the above join_free()
-        call has freed them (and HAVING clause can't have references to them 
-        anyway).
-      */
-      if (!table->is_jtbm())
-        mark_as_null_row(table->table);		// All fields are NULL
-    }
-    List_iterator_fast<Item> it(all_fields);
+    make_tables_null_complemented(tables);
+
+    List_iterator_fast<Item> it(*all_fields);
     Item *item;
     /*
       Inform all items (especially aggregating) to calculate HAVING correctly,
       also we will need it for sending results.
     */
+    join->no_rows_in_result_called= 1;
     while ((item= it++))
       item->no_rows_in_result();
     if (having && having->val_int() == 0)
@@ -16846,12 +16915,12 @@ return_zero_rows(JOIN *join, select_result *result, List<TABLE_LIST> &tables,
     join->thd->limit_found_rows= 0;
   }
 
-  if (!(result->send_result_set_metadata(fields,
+  if (!(result->send_result_set_metadata(*fields,
                               Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF)))
   {
     bool send_error= FALSE;
     if (send_row)
-      send_error= result->send_data_with_check(fields, join->unit, 0) > 0;
+      send_error= result->send_data_with_check(*fields, join->unit, 0) > 0;
     if (likely(!send_error))
       result->send_eof();				// Should be safe
   }
@@ -16867,49 +16936,42 @@ return_zero_rows(JOIN *join, select_result *result, List<TABLE_LIST> &tables,
 }
 
 /**
-  used only in JOIN::clear (always) and in do_select()
-  (if there where no matching rows)
+  Reset table rows to contain a null-complement row (all fields are null)
+
+  Used only in JOIN::clear() and in do_select() if there where no matching rows.
 
   @param join            JOIN
-  @param cleared_tables  If not null, clear also const tables and mark all
-                         cleared tables in the map. cleared_tables is only
-                         set when called from do_select() when there is a
-                         group function and there where no matching rows.
+  @param cleared_tables  Used to mark all cleared tables in the map. Needed for
+                         unclear_tables() to know which tables to restore to
+                         their original state.
 */
 
 static void clear_tables(JOIN *join, table_map *cleared_tables)
 {
-  /* 
-    must clear only the non-const tables as const tables are not re-calculated.
-  */
+  DBUG_ASSERT(cleared_tables);
   for (uint i= 0 ; i < join->table_count ; i++)
   {
     TABLE *table= join->table[i];
 
     if (table->null_row)
       continue;                                 // Nothing more to do
-    if (!(table->map & join->const_table_map) || cleared_tables)
+    (*cleared_tables)|= (((table_map) 1) << i);
+    if (table->s->null_bytes)
     {
-      if (cleared_tables)
-      {
-        (*cleared_tables)|= (((table_map) 1) << i);
-        if (table->s->null_bytes)
-        {
-          /*
-            Remember null bits for the record so that we can restore the
-            original const record in unclear_tables()
-          */
-          memcpy(table->record[1], table->null_flags, table->s->null_bytes);
-        }
-      }
-      mark_as_null_row(table);                  // All fields are NULL
+      /*
+        Remember null bits for the record so that we can restore the
+        original const record in unclear_tables()
+      */
+      memcpy(table->record[1], table->null_flags, table->s->null_bytes);
     }
+    mark_as_null_row(table);                  // All fields are NULL
   }
 }
 
 
 /**
    Reverse null marking for tables and restore null bits.
+   This return the tables to the state of before clear_tables().
 
    We have to do this because the tables may be re-used in a sub query
    and the subquery will assume that the const tables contains the original
@@ -22722,9 +22784,9 @@ void set_postjoin_aggr_write_func(JOIN_TAB *tab)
     end_select function to use. This function can't fail.
 */
 
-Next_select_func setup_end_select_func(JOIN *join, JOIN_TAB *tab)
+Next_select_func setup_end_select_func(JOIN *join)
 {
-  TMP_TABLE_PARAM *tmp_tbl= tab ? tab->tmp_table_param : &join->tmp_table_param;
+  TMP_TABLE_PARAM *tmp_tbl= &join->tmp_table_param;
 
   /* 
      Choose method for presenting result to user. Use end_send_group
@@ -22797,7 +22859,7 @@ do_select(JOIN *join, Procedure *procedure)
 
   if (join->only_const_tables() && !join->need_tmp)
   {
-    Next_select_func end_select= setup_end_select_func(join, NULL);
+    Next_select_func end_select= setup_end_select_func(join);
 
     /*
       HAVING will be checked after processing aggregate functions,
@@ -23287,6 +23349,7 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
     }
   }
 
+  /* Restore state if mark_as_null_row() have been called */
   if (join_tab->last_inner)
   {
     JOIN_TAB *last_inner_tab= join_tab->last_inner;
@@ -24738,6 +24801,12 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
 {
   int idx= -1;
   enum_nested_loop_state ok_code= NESTED_LOOP_OK;
+  /*
+    join_tab can be 0 in the case all tables are const tables and we did not
+    need a temporary table to store the result.
+    In this case we use the original given fields, which is stored in
+    join->fields.
+  */
   List<Item> *fields= join_tab ? (join_tab-1)->fields : join->fields;
   DBUG_ENTER("end_send_group");
 
@@ -24747,10 +24816,12 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
   if (!join->first_record || end_of_records ||
       (idx=test_if_group_changed(join->group_fields)) >= 0)
   {
+
     if (!join->group_sent &&
         (join->first_record ||
          (end_of_records && !join->group && !join->group_optimized_away)))
     {
+      table_map cleared_tables= (table_map) 0;
       if (join->procedure)
 	join->procedure->end_group();
       /* Test if there was a group change. */
@@ -24775,11 +24846,13 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
           /* Reset all sum functions on group change. */
 	  if (!join->first_record)
 	  {
-            List_iterator_fast<Item> it(*join->fields);
-            Item *item;
             /* No matching rows for group function */
-            join->clear();
 
+            List_iterator_fast<Item> it(*fields);
+            Item *item;
+            join->no_rows_in_result_called= 1;
+
+            join->clear(&cleared_tables);
             while ((item= it++))
               item->no_rows_in_result();
 	  }
@@ -24807,7 +24880,14 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
 	    if (join->rollup_send_data((uint) (idx+1)))
 	      error= 1;
 	  }
-	}
+          if (join->no_rows_in_result_called)
+          {
+            /* Restore null tables to original state */
+            join->no_rows_in_result_called= 0;
+            if (cleared_tables)
+              unclear_tables(join, &cleared_tables);
+          }
+        }
 	if (unlikely(error > 0))
           DBUG_RETURN(NESTED_LOOP_ERROR);        /* purecov: inspected */
 	if (end_of_records)
@@ -25123,6 +25203,7 @@ end_write_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
   {
     if (join->first_record || (end_of_records && !join->group))
     {
+      table_map cleared_tables= (table_map) 0;
       if (join->procedure)
 	join->procedure->end_group();
       int send_group_parts= join->send_group_parts;
@@ -25131,7 +25212,7 @@ end_write_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
         if (!join->first_record)
         {
           /* No matching rows for group function */
-          join->clear();
+          join->clear(&cleared_tables);
         }
         copy_sum_funcs(join->sum_funcs,
                        join->sum_funcs_end[send_group_parts]);
@@ -25154,6 +25235,8 @@ end_write_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 	    DBUG_RETURN(NESTED_LOOP_ERROR);
           }
 	}
+        if (cleared_tables)
+          unclear_tables(join, &cleared_tables);
 	if (end_of_records)
 	  goto end;
       }
@@ -26481,7 +26564,8 @@ check_reverse_order:
           if the table is accessed by the primary key
         */
         if (tab->rowid_filter &&
-            table->file->is_clustering_key(tab->index))
+            (table->file->is_clustering_key(tab->index) ||
+             table->covering_keys.is_set(best_key)))
           tab->clear_range_rowid_filter();
 
         if (tab->pre_idx_push_select_cond)
@@ -26886,7 +26970,7 @@ JOIN_TAB::remove_duplicates()
       !(join->select_options & OPTION_FOUND_ROWS))
   {
     // only const items with no OPTION_FOUND_ROWS
-    join->unit->lim.set_single_row();		// Only send first row
+    join->unit->lim.send_first_row();		// Only send first row
     my_free(sortorder);
     DBUG_RETURN(false);
   }
@@ -29301,17 +29385,30 @@ int JOIN::rollup_write_data(uint idx, TMP_TABLE_PARAM *tmp_table_param_arg,
   (end_send_group/end_write_group)
 */
 
-void JOIN::clear()
+void inline JOIN::clear_sum_funcs()
 {
-  clear_tables(this, 0);
-  copy_fields(&tmp_table_param);
-
   if (sum_funcs)
   {
     Item_sum *func, **func_ptr= sum_funcs;
     while ((func= *(func_ptr++)))
       func->clear();
   }
+}
+
+
+/*
+  Prepare for returning 'empty row' when there is no matching row.
+
+  - Mark all tables with mark_as_null_row()
+  - Make a copy of of all simple SELECT items
+  - Reset all sum functions to NULL or 0.
+*/
+
+void JOIN::clear(table_map *cleared_tables)
+{
+  clear_tables(this, cleared_tables);
+  copy_fields(&tmp_table_param);
+  clear_sum_funcs();
 }
 
 

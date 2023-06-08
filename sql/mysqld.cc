@@ -1748,6 +1748,11 @@ static void close_connections(void)
       (void) unlink(mysqld_unix_port);
     }
   }
+  /*
+    The following is needed to the threads stuck in
+    setup_connection_thread_globals()
+    to continue.
+  */
   listen_sockets.free_memory();
   mysql_mutex_unlock(&LOCK_start_thread);
 
@@ -2035,6 +2040,7 @@ static void clean_up(bool print_message)
   end_ssl();
 #ifndef EMBEDDED_LIBRARY
   vio_end();
+  listen_sockets.free_memory();
 #endif /*!EMBEDDED_LIBRARY*/
 #if defined(ENABLED_DEBUG_SYNC)
   /* End the debug sync facility. See debug_sync.cc. */

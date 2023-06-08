@@ -4161,10 +4161,15 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
         if (join->best_positions[idx].use_join_buffer &&
             !join->best_positions[idx].firstmatch_with_join_buf)
         {
-           best_access_path(join, join->best_positions[idx].table,
-                            rem_tables, join->best_positions, idx,
-                            TRUE /* no jbuf */,
-                            record_count, join->best_positions + idx, &dummy);
+          /*
+            records_out cannot be bigger just because we remove join buffer
+          */
+          double records_out= join->best_positions[idx].records_out;
+          best_access_path(join, join->best_positions[idx].table,
+                           rem_tables, join->best_positions, idx,
+                           TRUE /* no jbuf */,
+                           record_count, join->best_positions + idx, &dummy);
+          set_if_smaller(join->best_positions[idx].records_out, records_out);
         }
         /*
           TODO: We should also compute the selectivity here, as well as adjust

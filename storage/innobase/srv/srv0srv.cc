@@ -890,9 +890,6 @@ srv_export_innodb_status(void)
 	export_vars.innodb_data_written = srv_stats.data_written
 		+ (dblwr << srv_page_size_shift);
 
-	export_vars.innodb_buffer_pool_read_requests
-		= buf_pool.stat.n_page_gets;
-
 	export_vars.innodb_buffer_pool_bytes_data =
 		buf_pool.stat.LRU_bytes
 		+ (UT_LIST_GET_LEN(buf_pool.unzip_LRU)
@@ -1126,17 +1123,14 @@ static tpool::waitable_task purge_coordinator_task
 static tpool::timer *purge_coordinator_timer;
 
 /** Wake up the purge threads if there is work to do. */
-void
-srv_wake_purge_thread_if_not_active()
+void srv_wake_purge_thread_if_not_active()
 {
-	ut_ad(!srv_read_only_mode);
+  ut_ad(!srv_read_only_mode);
 
-	if (purge_sys.enabled() && !purge_sys.paused()
-	    && trx_sys.history_exists()) {
-		if(++purge_state.m_running == 1) {
-			srv_thread_pool->submit_task(&purge_coordinator_task);
-		}
-	}
+  if (purge_sys.enabled() && !purge_sys.paused() &&
+      (srv_undo_log_truncate || trx_sys.history_exists()) &&
+      ++purge_state.m_running == 1)
+    srv_thread_pool->submit_task(&purge_coordinator_task);
 }
 
 /** @return whether the purge tasks are active */
@@ -1477,13 +1471,20 @@ fewer_threads:
     m_history_length= history_size;
 
     if (!history_size)
+    {
       srv_dml_needed_delay= 0;
-    else if (trx_purge(n_use_threads, history_size,
-                       !(++count % srv_purge_rseg_truncate_frequency) ||
-                       purge_sys.truncate.current ||
-                       (srv_shutdown_state != SRV_SHUTDOWN_NONE &&
-                        srv_fast_shutdown == 0)))
-      continue;
+      trx_purge_truncate_history();
+    }
+    else
+    {
+      ulint n_pages_handled= trx_purge(n_use_threads, history_size);
+      if (!(++count % srv_purge_rseg_truncate_frequency) ||
+          purge_sys.truncate.current ||
+          (srv_shutdown_state != SRV_SHUTDOWN_NONE && srv_fast_shutdown == 0))
+        trx_purge_truncate_history();
+      if (n_pages_handled)
+        continue;
+    }
 
     if (srv_dml_needed_delay);
     else if (m_running == sigcount)

@@ -374,7 +374,7 @@ public:
   {
     for (uint i= 0; i < arg_count; i++)
     {
-      args[i]->no_rows_in_result();
+      args[i]->restore_to_before_no_rows_in_result();
     }
   }
   void convert_const_compared_to_int_field(THD *thd);

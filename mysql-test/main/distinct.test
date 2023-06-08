@@ -893,3 +893,24 @@ explain select * from t1 limit 0;
 explain select * from t1 limit 0 offset 10;
 
 drop table t1, t2;
+
+--echo #
+--echo # MDEV-28285 Unexpected result when combining DISTINCT, subselect
+--echo # and LIMIT
+--echo #
+
+create table t1 (a int primary key);
+create table t2 (a int primary key, b int not null);
+
+insert into t1 select seq from seq_1_to_10;
+insert into t2 select seq,seq from seq_1_to_10;
+
+select distinct a from t1 where t1.a=1 and t1.a in (select a from t2 where t2.b in (1,2));
+explain select distinct a from t1 where t1.a=1 and t1.a in (select a+0 from t2 where t2.b in (1,2)) limit 10,10;
+select distinct a from t1 where t1.a=1 and t1.a in (select a+0 from t2 where t2.b in (1,2)) limit 10,10;
+select distinct a from t1 where t1.a=1 and t1.a in (select a+0 from t2 where t2.b in (1,2)) limit 0,1;
+drop table t1,t2;
+
+--echo #
+--echo # end of 10.5 tests
+--echo #

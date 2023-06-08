@@ -1648,6 +1648,8 @@ public:
                           const Column_definition &new_field) const override;
   void set_optimizer_costs(THD *thd) override;
   void update_optimizer_costs(OPTIMIZER_COSTS *costs) override;
+  virtual ulonglong index_blocks(uint index, uint ranges, ha_rows rows) override;
+  virtual ulonglong row_blocks() override;
 };
 
 #endif /* HA_PARTITION_INCLUDED */

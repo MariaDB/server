@@ -2578,6 +2578,30 @@ SELECT JSON_EXTRACT('{ "my-key": 1 }', '$.my-key');
 JSON_EXTRACT('{ "my-key": 1 }', '$.my-key')
 1
 #
+# MDEV-23187: Assorted assertion failures in json_find_path with certain collations
+#
+SET @save_collation_connection= @@collation_connection;
+SET @json='{ "A": [ [{"k":"v"},[1]],true],"B": {"C": 1} }';
+SELECT JSON_VALUE(@json,'$.A[last-1][last-1].key1');
+JSON_VALUE(@json,'$.A[last-1][last-1].key1')
+NULL
+SET @json='{ "A": [ [{"k":"v"},[1]],true],"B": {"C": 1} }';
+SET collation_connection='ucs2_bin';
+SELECT JSON_VALUE(@json,'$.A[last-1][last-1].key1');
+JSON_VALUE(@json,'$.A[last-1][last-1].key1')
+NULL
+SET @json='{ "A": [ [{"k":"v"},[15]],true],"B": {"C": 1} }';
+SET sql_mode=0,character_set_connection=utf32;
+SELECT JSON_VALUE(@json,'$.A[last-1][last-1].key1');
+JSON_VALUE(@json,'$.A[last-1][last-1].key1')
+NULL
+SET @json='{ "A": [ [{"k":"v"},[15]],true],"B": {"C": 1} }';
+SET sql_mode=0,character_set_connection=utf32;
+SELECT JSON_VALUE(@json,'$.A[last-1][last-1].key1');
+JSON_VALUE(@json,'$.A[last-1][last-1].key1')
+NULL
+SET @@collation_connection= @save_collation_connection;
+#
 # End of 10.9 Test
 #
 # Beginning of 11.1 test

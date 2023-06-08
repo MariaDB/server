@@ -317,7 +317,7 @@ ELSEIF(RPM MATCHES "sles")
 ENDIF()
 
 # MDEV-24629, we need it outside of ELSIFs
-IF(RPM MATCHES "fedora3[234]")
+IF(RPM MATCHES "fedora")
   ALTERNATIVE_NAME("common" "mariadb-connector-c-config" ${MARIADB_CONNECTOR_C_VERSION}-1)
 ENDIF()
 

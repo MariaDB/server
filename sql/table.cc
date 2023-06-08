@@ -361,7 +361,7 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
     strmov(path_buff, path);
     share->normalized_path.str=    share->path.str;
     share->normalized_path.length= path_length;
-    share->table_category= get_table_category(& share->db, & share->table_name);
+    share->table_category= get_table_category(&share->db, &share->table_name);
     share->open_errno= ENOENT;
     /* The following will be updated in open_table_from_share */
     share->can_do_row_logging= 1;
@@ -7474,7 +7474,7 @@ MY_BITMAP *TABLE::prepare_for_keyread(uint index, MY_BITMAP *map)
 {
   MY_BITMAP *backup= read_set;
   DBUG_ENTER("TABLE::prepare_for_keyread");
-  if (!no_keyread)
+  if (!no_keyread && !file->keyread_enabled())
     file->ha_start_keyread(index);
   if (map != read_set || !is_clustering_key(index))
   {
@@ -10599,6 +10599,13 @@ double TABLE::OPT_RANGE::index_only_fetch_cost(TABLE *table)
   return (table->file->cost(cost.index_cost)+
           (double) rows * table->s->optimizer_costs.key_copy_cost);
 }
+
+
+/*
+  Convert range cost to ALL_READ_COST
+  Note that the returned cost does not include the WHERE cost
+  (costs.comp_cost).
+*/
 
 void TABLE::OPT_RANGE::get_costs(ALL_READ_COST *res)
 {

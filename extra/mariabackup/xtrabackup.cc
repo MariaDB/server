@@ -848,27 +848,49 @@ void mdl_lock_all()
 
 
 // Convert non-null terminated filename to space name
+// Note that in 10.6 the filename may be an undo file name
 static std::string filename_to_spacename(const void *filename, size_t len)
 {
-	// null- terminate filename
-	char *f = (char *)malloc(len + 1);
-	ut_a(f);
-	memcpy(f, filename, len);
-	f[len] = 0;
-	for (size_t i = 0; i < len; i++)
-		if (f[i] == '\\')
-			f[i] = '/';
-	char *p = strrchr(f, '.');
-	ut_a(p);
-	*p = 0;
-	char *table = strrchr(f, '/');
-	ut_a(table);
-	*table = 0;
-	char *db = strrchr(f, '/');
-	*table = '/';
-	std::string s(db ? db+1 : f);
-	free(f);
-	return s;
+  char f[FN_REFLEN];
+  char *p= 0, *table, *db;
+  DBUG_ASSERT(len < FN_REFLEN);
+
+  strmake(f, (const char*) filename, len);
+
+#ifdef _WIN32
+  for (size_t i = 0; i < len; i++)
+  {
+    if (f[i] == '\\')
+      f[i] = '/';
+  }
+#endif
+
+  /* Remove extension, if exists */
+  if (!(p= strrchr(f, '.')))
+    goto err;
+  *p= 0;
+
+  /* Find table name */
+  if (!(table= strrchr(f, '/')))
+    goto err;
+  *table = 0;
+
+  /* Find database name */
+  db= strrchr(f, '/');
+  *table = '/';
+  if (!db)
+    goto err;
+  {
+    std::string s(db+1);
+    return s;
+  }
+
+err:
+  /* Not a database/table. Return original (converted) name */
+  if (p)
+    *p= '.';                                    // Restore removed extension
+  std::string s(f);
+  return s;
 }
 
 /** Report an operation to create, delete, or rename a file during backup.
@@ -3170,7 +3192,7 @@ static bool xtrabackup_copy_logfile()
       if (log_sys.buf[recv_sys.offset] <= 1)
         break;
 
-      if (recv_sys.parse_mtr(STORE_NO) == recv_sys_t::OK)
+      if (recv_sys.parse_mtr<false>(false) == recv_sys_t::OK)
       {
         do
         {
@@ -3180,7 +3202,7 @@ static bool xtrabackup_copy_logfile()
                                                  sequence_offset));
           *seq= 1;
         }
-        while ((r= recv_sys.parse_mtr(STORE_NO)) == recv_sys_t::OK);
+        while ((r= recv_sys.parse_mtr<false>(false)) == recv_sys_t::OK);
 
         if (ds_write(dst_log_file, log_sys.buf + start_offset,
                      recv_sys.offset - start_offset))

@@ -227,7 +227,7 @@ enum sj_strategy_enum
 
 typedef enum_nested_loop_state
 (*Next_select_func)(JOIN *, struct st_join_table *, bool);
-Next_select_func setup_end_select_func(JOIN *join, JOIN_TAB *tab);
+Next_select_func setup_end_select_func(JOIN *join);
 int rr_sequential(READ_RECORD *info);
 int read_record_func_for_rr_and_unpack(READ_RECORD *info);
 Item *remove_pushed_top_conjuncts(THD *thd, Item *cond);
@@ -368,8 +368,10 @@ typedef struct st_join_table {
 
   /* set by estimate_scan_time() */
   double        cached_scan_and_compare_time;
-  double        cached_forced_index_cost;
+  ALL_READ_COST cached_scan_and_compare_cost;
 
+  /* Used with force_index_join */
+  ALL_READ_COST cached_forced_index_cost;
   /*
     dependent is the table that must be read before the current one
     Used for example with STRAIGHT_JOIN or outer joins
@@ -1810,7 +1812,8 @@ public:
   void join_free();
   /** Cleanup this JOIN, possibly for reuse */
   void cleanup(bool full);
-  void clear();
+  void clear(table_map *cleared_tables);
+  void inline clear_sum_funcs();
   bool send_row_on_empty_set()
   {
     return (do_send_rows && implicit_grouping && !group_optimized_away &&

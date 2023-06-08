@@ -1880,12 +1880,13 @@ class SQL_SELECT :public Sql_alloc {
     In other cases, NULL.
   */
   Item *pre_idx_push_select_cond;
-  TABLE	*head;
-  IO_CACHE file;		// Positions to used records
-  ha_rows records;		// Records in use if read from file
-  double read_time;		// Time to read rows
-  key_map quick_keys;		// Possible quick keys
-  key_map needed_reg;		// Possible quick keys after prev tables.
+  TABLE *head;
+  IO_CACHE file;                // Positions to used records
+  ha_rows records;              // Records in use if read from file
+  ALL_READ_COST read_cost;      // Cost of reading rows
+  double read_time;             // Time to read rows (from read_cost)
+  key_map quick_keys;           // Possible quick keys
+  key_map needed_reg;           // Possible quick keys after prev tables.
   table_map const_tables,read_tables;
   /* See PARAM::possible_keys */
   key_map possible_keys;

@@ -5,7 +5,7 @@ source include/have_debug_sync.inc;
 
 SET @save_freq=@@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
-CREATE TABLE t (a int PRIMARY KEY, b int NOT NULL UNIQUE) engine = InnoDB;
+CREATE TABLE t (a int PRIMARY KEY, b int NOT NULL UNIQUE) engine = InnoDB, STATS_PERSISTENT=0;
 
 --source include/wait_all_purged.inc
 --connect(prevent_purge,localhost,root,,)
@@ -14,20 +14,20 @@ start transaction with consistent snapshot;
 --connect(con_del_1,localhost,root,,)
 INSERT INTO t VALUES (20,20);
 SET DEBUG_SYNC = 'innodb_row_search_for_mysql_exit SIGNAL first_del_row_search_mvcc_finished WAIT_FOR first_del_cont';
---send DELETE FROM t WHERE b = 20
+--send DELETE FROM t WHERE b = 20 # trx_1
 
 --connect(con_ins_1,localhost,root,,)
 SET DEBUG_SYNC = 'now WAIT_FOR first_del_row_search_mvcc_finished';
 # It's supposed the following INSERT will be suspended just after
 # lock_wait_start syncpoint, and will be awaken
-# after the previous DELETE commits. ib_after_row_insert will be executed
-# after the INSERT is woken up. The previous DELETE will wait for
+# after trx_1 DELETE commits. ib_after_row_insert will be executed
+# after the trx_2 INSERT is woken up. The trx_1 DELETE will wait for
 # first_del_cont signal before commit, and this signal will be sent later.
 # So it's safe to use two signals in a row here, it's guaranted the first
 # signal will be received before the second signal is sent.
 SET DEBUG_SYNC = 'lock_wait_start SIGNAL first_ins_locked';
 SET DEBUG_SYNC = 'ib_after_row_insert SIGNAL first_ins_row_inserted WAIT_FOR first_ins_cont';
---send INSERT INTO t VALUES(10, 20)
+--send INSERT INTO t VALUES(10, 20) # trx_2
 
 --connect(con_del_2,localhost,root,,)
 # After MDEV-30225 is fixed, the following DELETE creates next-key lock for
@@ -36,24 +36,26 @@ SET DEBUG_SYNC = 'ib_after_row_insert SIGNAL first_ins_row_inserted WAIT_FOR fir
 SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
 SET DEBUG_SYNC = 'now WAIT_FOR first_ins_locked';
 SET DEBUG_SYNC = 'lock_wait_start SIGNAL second_del_locked';
-###############################################################################
-# This DELETE is locked by the previous DELETE, after that DELETE is
-# committed, it will still be locked by the next INSERT on delete-marked
-# heap_no 2 record. After that INSERT inserted the record with heap_no 3,
-# and after heap_no 2 record is purged, this DELETE will be unlocked and
+##############################################################################
+# trx_3 DELETE is locked by trx_1 DELETE, after trx_1 DELETE is
+# committed, it will still be locked by trx_2 INSERT on delete-marked
+# heap_no 2 record. After trx_2 INSERT inserted the record with heap_no 3,
+# and after heap_no 2 record is purged, trx_3 DELETE will be unlocked and
 # must restore persistent cursor position at heap_no 3 record, as it has the
 # same secondary key value as former heap_no 2 record. Then it must be blocked
-# by the previous INSERT, and after the INSERT is committed, it must
-# delete the record, inserted by the previous INSERT, and the last INSERT(see
+# by trx_2 INSERT, and after trx_2 INSERT is committed, it must
+# delete the record, inserted by trx_2 INSERT, and trx_4 INSERT(see
 # below) must be finished without error. But instead this DELETE restores
 # persistent cursor position to supremum, as a result, it does not delete the
-# record, inserted by the previous INSERT, and the last INSERT is finished with
+# record, inserted by trx_2 INSERT, and trx_4 INSERT is finished with
 # duplicate key check error.
 ###############################################################################
---send DELETE FROM t WHERE b = 20
+--send DELETE FROM t WHERE b = 20 # trx_3
 
 --connection default
 SET DEBUG_SYNC = 'now WAIT_FOR second_del_locked';
+SET @saved_dbug = @@GLOBAL.debug_dbug;
+SET @@GLOBAL.debug_dbug="d,enable_row_purge_del_mark_exit_sync_point";
 SET DEBUG_SYNC = 'now SIGNAL first_del_cont';
 SET DEBUG_SYNC = 'now WAIT_FOR first_ins_row_inserted';
 --connection con_del_1
@@ -61,7 +63,8 @@ SET DEBUG_SYNC = 'now WAIT_FOR first_ins_row_inserted';
 
 --connection default
 --disconnect prevent_purge
---source include/wait_all_purged.inc
+SET DEBUG_SYNC = 'now WAIT_FOR row_purge_del_mark_finished';
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 SET DEBUG_SYNC = 'now SIGNAL first_ins_cont';
 
 --connection con_del_2
@@ -74,7 +77,7 @@ SET DEBUG_SYNC = 'now SIGNAL first_ins_cont';
 ###############################################################################
 # Duplicate key error is expected if the bug is not fixed.
 ###############################################################################
-INSERT INTO t VALUES(30, 20);
+INSERT INTO t VALUES(30, 20); # trx_4
 
 --disconnect con_ins_1
 --disconnect con_del_1

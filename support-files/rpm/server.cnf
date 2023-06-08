@@ -37,8 +37,13 @@
 # this is only for embedded server
 [embedded]
 
-# This group is only read by MariaDB-10.8 servers.
+# This group is only read by MariaDB servers, not by MySQL.
+# If you use the same .cnf file for MySQL and MariaDB,
+# you can put MariaDB-only options here
+[mariadb]
+
+# This group is only read by MariaDB-10.11 servers.
 # If you use the same .cnf file for MariaDB of different versions,
 # use this group for options that older servers don't understand
-[mariadb-10.8]
+[mariadb-10.11]
 

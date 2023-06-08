@@ -52,6 +52,7 @@
 #include "log_event.h"
 #include "sql_connect.h"
 #include "thread_cache.h"
+#include "debug_sync.h"
 
 #include <sstream>
 
@@ -3112,6 +3113,20 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
                   request_thd, granted_thd);
     ticket->wsrep_report(wsrep_debug);
 
+    DEBUG_SYNC(request_thd, "before_wsrep_thd_abort");
+    DBUG_EXECUTE_IF("sync.before_wsrep_thd_abort", {
+      const char act[]= "now "
+                        "SIGNAL sync.before_wsrep_thd_abort_reached "
+                        "WAIT_FOR signal.before_wsrep_thd_abort";
+      DBUG_ASSERT(!debug_sync_set_action(request_thd, STRING_WITH_LEN(act)));
+    };);
+
+    /* Here we will call wsrep_abort_transaction so we should hold
+    THD::LOCK_thd_data to protect victim from concurrent usage
+    and THD::LOCK_thd_kill to protect from disconnect or delete.
+
+    */
+    mysql_mutex_lock(&granted_thd->LOCK_thd_kill);
     mysql_mutex_lock(&granted_thd->LOCK_thd_data);
 
     if (wsrep_thd_is_toi(granted_thd) ||
@@ -3123,13 +3138,11 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
                     wsrep_thd_query(request_thd));
         THD_STAGE_INFO(request_thd, stage_waiting_isolation);
         ticket->wsrep_report(wsrep_debug);
-        mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
       }
       else if (wsrep_thd_is_SR(granted_thd) && !wsrep_thd_is_SR(request_thd))
       {
         WSREP_MDL_LOG(INFO, "MDL conflict, DDL vs SR",
                       schema, schema_len, request_thd, granted_thd);
-        mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
         WSREP_DEBUG("wsrep_handle_mdl_conflict DDL vs SR for %s",
                     wsrep_thd_query(request_thd));
         THD_STAGE_INFO(request_thd, stage_waiting_isolation);
@@ -3141,6 +3154,7 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
                       request_thd, granted_thd);
         ticket->wsrep_report(true);
         mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
+        mysql_mutex_unlock(&granted_thd->LOCK_thd_kill);
         unireg_abort(1);
       }
     }
@@ -3151,7 +3165,6 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
                   wsrep_thd_query(request_thd));
       THD_STAGE_INFO(request_thd, stage_waiting_ddl);
       ticket->wsrep_report(wsrep_debug);
-      mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
       if (granted_thd->current_backup_stage != BACKUP_FINISHED &&
 	  wsrep_check_mode(WSREP_MODE_BF_MARIABACKUP))
       {
@@ -3165,7 +3178,6 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
                   wsrep_thd_query(request_thd));
       THD_STAGE_INFO(request_thd, stage_waiting_isolation);
       ticket->wsrep_report(wsrep_debug);
-      mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
       wsrep_abort_thd(request_thd, granted_thd, 1);
     }
     else
@@ -3179,7 +3191,6 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
 
       if (granted_thd->wsrep_trx().active())
       {
-        mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
         wsrep_abort_thd(request_thd, granted_thd, 1);
       }
       else
@@ -3188,10 +3199,9 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
           Granted_thd is likely executing with wsrep_on=0. If the requesting
           thd is BF, BF abort and wait.
         */
-        mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
-
         if (wsrep_thd_is_BF(request_thd, FALSE))
         {
+          granted_thd->awake_no_mutex(KILL_QUERY_HARD);
           ha_abort_transaction(request_thd, granted_thd, TRUE);
         }
         else
@@ -3200,10 +3210,14 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
                         schema, schema_len,
                         request_thd, granted_thd);
 	  ticket->wsrep_report(true);
+          mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
+          mysql_mutex_unlock(&granted_thd->LOCK_thd_kill);
 	  unireg_abort(1);
         }
       }
     }
+    mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
+    mysql_mutex_unlock(&granted_thd->LOCK_thd_kill);
   }
   else
   {
@@ -3215,13 +3229,17 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
 static bool abort_replicated(THD *thd)
 {
   bool ret_code= false;
+  mysql_mutex_lock(&thd->LOCK_thd_kill);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
   if (thd->wsrep_trx().state() == wsrep::transaction::s_committing)
   {
     WSREP_DEBUG("aborting replicated trx: %llu", (ulonglong)(thd->real_id));
 
-    (void)wsrep_abort_thd(thd, thd, TRUE);
+    wsrep_abort_thd(thd, thd, TRUE);
     ret_code= true;
   }
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
+  mysql_mutex_unlock(&thd->LOCK_thd_kill);
   return ret_code;
 }
 
