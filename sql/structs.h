@@ -539,7 +539,8 @@ public:
     OPT_OR_REPLACE_SLAVE_GENERATED= 32,// REPLACE was added on slave, it was
                                        // not in the original query on master.
     OPT_IF_EXISTS= 64,
-    OPT_CREATE_SELECT= 128             // CREATE ... SELECT
+    OPT_CREATE_SELECT= 128,             // CREATE ... SELECT
+    OPT_IMPORT_TABLESPACE= 256      // ALTER ... IMPORT TABLESPACE
   };
 
 private:
@@ -568,6 +569,7 @@ public:
   bool like() const { return m_options & OPT_LIKE; }
   bool if_exists() const { return m_options & OPT_IF_EXISTS; }
   bool is_create_select() const { return m_options & OPT_CREATE_SELECT; }
+  bool import_tablespace() const { return m_options & OPT_IMPORT_TABLESPACE; }
 
   void add(const DDL_options_st::Options other)
   {
