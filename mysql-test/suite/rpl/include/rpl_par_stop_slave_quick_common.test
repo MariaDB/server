@@ -605,14 +605,14 @@ while ($mode_ctr)
 --echo #
 --echo # Common Test Case 8:
 --echo # If the tables of a transaction use different engines between the
---echo # primary and replica, such that the primary engine is transactional
---echo # and the replica is non-transactional, if STOP SLAVE is issued on the
+--echo # primary and replica, such that the primary's engine is transactional
+--echo # and the replica is "unilaterally" non-transactional, if STOP SLAVE is issued on the
 --echo # replica...
---echo #   8a: ...after the transaction has opened and locked its tables (but
---echo #       not yet not committed), the transaction should commit before
---echo #       the slave stops
---echo #   8b: ...before the transaction opens its tables, the transaction
---echo #       should stop and rollback
+--echo #   8a: ...after the transaction has opened and locked at least the first of
+--echo #       non-transactional engine tables (but not yet not committed), the transaction
+--echo #       should commit before the slave stops
+--echo #   8b: ...before the transaction opens its first non-transactional engine table,
+--echo #       the transaction should stop and rollback
 
 --echo # 8a
 --connection master
@@ -637,6 +637,7 @@ COMMIT;
 --connection slave
 BEGIN;
 --eval SELECT * FROM ti2 WHERE a=$ti2_ctr FOR UPDATE
+# to have the results between the row and stm mode tests that call this one
 --inc $ti2_ctr
 --inc $ti2_ctr
 --source include/start_slave.inc

@@ -366,14 +366,14 @@ include/start_slave.inc
 #
 # Common Test Case 8:
 # If the tables of a transaction use different engines between the
-# primary and replica, such that the primary engine is transactional
-# and the replica is non-transactional, if STOP SLAVE is issued on the
+# primary and replica, such that the primary's engine is transactional
+# and the replica is "unilaterally" non-transactional, if STOP SLAVE is issued on the
 # replica...
-#   8a: ...after the transaction has opened and locked its tables (but
-#       not yet not committed), the transaction should commit before
-#       the slave stops
-#   8b: ...before the transaction opens its tables, the transaction
-#       should stop and rollback
+#   8a: ...after the transaction has opened and locked at least the first of
+#       non-transactional engine tables (but not yet not committed), the transaction
+#       should commit before the slave stops
+#   8b: ...before the transaction opens its first non-transactional engine table,
+#       the transaction should stop and rollback
 # 8a
 connection master;
 CREATE TABLE tasym (a int) engine=InnoDB;

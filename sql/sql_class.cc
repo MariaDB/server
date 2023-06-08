@@ -6477,6 +6477,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
             rgi_slave->parallel_entry->unsafe_rollback_marker_sub_id.load(
                 std::memory_order_relaxed) < rgi_slave->gtid_sub_id)
         {
+          DBUG_ASSERT(!transaction->all.modified_non_trans_table);
+
           // slave altered a transactional engine to non-transactional
           struct rpl_parallel_entry *e= rgi_slave->parallel_entry;
 
