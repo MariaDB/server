@@ -974,6 +974,7 @@ SysTablespace::normalize_size()
 	for (files_t::iterator it = m_files.begin(); it != end; ++it) {
 
 		it->m_size <<= (20U - srv_page_size_shift);
+		it->m_param_size = it->m_size;
 	}
 
 	m_last_file_size_max <<= (20U - srv_page_size_shift);

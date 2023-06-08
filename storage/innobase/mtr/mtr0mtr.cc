@@ -494,12 +494,10 @@ void mtr_t::commit_shrink(fil_space_t &space)
   ut_ad(is_active());
   ut_ad(!high_level_read_only);
   ut_ad(m_modifications);
-  ut_ad(m_made_dirty);
   ut_ad(!m_memo.empty());
   ut_ad(!recv_recovery_is_on());
   ut_ad(m_log_mode == MTR_LOG_ALL);
   ut_ad(!m_freed_pages);
-  ut_ad(UT_LIST_GET_LEN(space.chain) == 1);
 
   log_write_and_flush_prepare();
   m_latch_ex= true;
@@ -514,8 +512,9 @@ void mtr_t::commit_shrink(fil_space_t &space)
   ut_ad(log_sys.latch.is_write_locked());
 #endif
 
-  os_file_truncate(space.chain.start->name, space.chain.start->handle,
-                   os_offset_t{space.size} << srv_page_size_shift, true);
+  os_file_truncate(
+    space.chain.end->name, space.chain.end->handle,
+    os_offset_t{space.chain.end->size} << srv_page_size_shift, true);
 
   space.clear_freed_ranges();
 

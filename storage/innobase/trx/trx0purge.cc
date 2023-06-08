@@ -678,7 +678,6 @@ not_free:
     mtr_t mtr;
     mtr.start();
     mtr.x_lock_space(&space);
-    const auto space_id= space.id;
 
     /* Lock all modified pages of the tablespace.
 
@@ -688,62 +687,7 @@ not_free:
     mini-transaction commit and the server was killed, then
     discarding the to-be-trimmed pages without flushing would
     break crash recovery. */
-  rescan:
-    mysql_mutex_lock(&buf_pool.flush_list_mutex);
-    for (buf_page_t *bpage= UT_LIST_GET_LAST(buf_pool.flush_list); bpage; )
-    {
-      ut_ad(bpage->oldest_modification());
-      ut_ad(bpage->in_file());
-
-      buf_page_t *prev= UT_LIST_GET_PREV(list, bpage);
-
-      if (bpage->oldest_modification() > 2 && bpage->id().space() == space_id)
-      {
-        ut_ad(bpage->frame);
-        bpage->fix();
-        {
-          /* Try to acquire an exclusive latch while the cache line is
-          fresh after fix(). */
-          const bool got_lock{bpage->lock.x_lock_try()};
-          buf_pool.flush_hp.set(prev);
-          mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-          if (!got_lock)
-            bpage->lock.x_lock();
-        }
-
-#ifdef BTR_CUR_HASH_ADAPT
-        /* There is no AHI on undo tablespaces. */
-        ut_ad(!reinterpret_cast<buf_block_t*>(bpage)->index);
-#endif
-        ut_ad(!bpage->is_io_fixed());
-        ut_ad(bpage->id().space() == space_id);
-
-        if (bpage->oldest_modification() > 2)
-        {
-          mtr.memo_push(reinterpret_cast<buf_block_t*>(bpage),
-                        MTR_MEMO_PAGE_X_FIX);
-          mysql_mutex_lock(&buf_pool.flush_list_mutex);
-          ut_ad(bpage->oldest_modification() > 2);
-          bpage->reset_oldest_modification();
-        }
-        else
-        {
-          bpage->unfix();
-          bpage->lock.x_unlock();
-          mysql_mutex_lock(&buf_pool.flush_list_mutex);
-        }
-
-        if (prev != buf_pool.flush_hp.get())
-        {
-          mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-          goto rescan;
-        }
-      }
-
-      bpage= prev;
-    }
-
-    mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+    buf_flush_evict_pages(&space, 0, &mtr);
 
     /* Re-initialize tablespace, in a single mini-transaction. */
     const ulint size= SRV_UNDO_TABLESPACE_SIZE_IN_PAGES;

@@ -1,0 +1,24 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+--source include/have_debug.inc
+
+call mtr.add_suppression("InnoDB: Plugin initialization aborted");
+call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
+call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
+
+SET GLOBAL INNODB_FILE_PER_TABLE= 0;
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL,
+                f3 INT NOT NULL, INDEX(f1),
+                INDEX(f2), INDEX(f3))ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq, seq FROM seq_1_to_16384;
+INSERT INTO t1 SELECT seq, seq, seq FROM seq_1_to_16384;
+INSERT INTO t1 SELECT seq, seq, seq FROM seq_1_to_16384;
+DROP TABLE t1;
+--source include/wait_all_purged.inc
+SELECT NAME, FILE_SIZE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE SPACE = 0;
+let $restart_parameters=--debug_dbug="+d,crash_after_sys_truncate";
+--source include/restart_mysqld.inc
+let $restart_parameters=;
+--source include/restart_mysqld.inc
+SELECT NAME, FILE_SIZE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE SPACE=0;

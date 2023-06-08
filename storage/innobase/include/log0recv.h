@@ -235,7 +235,10 @@ private:
     lsn_t lsn;
     /** truncated size of the tablespace, or 0 if not truncated */
     unsigned pages;
-  } truncated_undo_spaces[127];
+  };
+
+  trunc truncated_undo_spaces[127];
+  trunc truncated_sys_space;
 
 public:
   /** The contents of the doublewrite buffer */
