@@ -1319,6 +1319,7 @@ public:
   uint in_sum_expr;
   uint select_number; /* number of select (used for EXPLAIN) */
   uint with_wild;     /* item list contain '*' ; Counter */
+  bool is_explicit_table;   /* specified as 'TABLE xyz' in query */
   /* Number of Item_sum-derived objects in this SELECT */
   uint n_sum_items;
   /* Number of Item_sum-derived objects in children and descendant SELECTs */
@@ -2639,6 +2640,58 @@ private:
   bool has_lookahead() const
   {
     return lookahead_token >= 0;
+  }
+
+  struct savepoint_cpp_tok
+  {
+    const char *m_cpp_tok_start_prev;
+    const char *m_cpp_tok_start;
+    const char *m_cpp_tok_end;
+  };
+
+  struct savepoint_cpp_tok save_place_cpp_tok()
+  {
+    struct savepoint_cpp_tok sp;
+    sp.m_cpp_tok_start_prev= m_cpp_tok_start_prev;
+    sp.m_cpp_tok_start= m_cpp_tok_start;
+    sp.m_cpp_tok_end= m_cpp_tok_end;
+    return sp;
+  }
+
+  void restore_place_cpp_tok( struct savepoint_cpp_tok sp )
+  {
+    m_cpp_tok_start_prev= sp.m_cpp_tok_start_prev;
+    m_cpp_tok_start= sp.m_cpp_tok_start;
+    m_cpp_tok_end= sp.m_cpp_tok_end;
+  }
+
+  struct savepoint
+  {
+    char *m_ptr;
+    char *m_cpp_ptr;
+    const char *m_tok_start;
+    const char *m_tok_end;
+    enum my_lex_states next_state;
+  };
+
+  struct savepoint save_place()
+  {
+    struct savepoint sp;
+    sp.m_ptr= m_ptr;
+    sp.m_cpp_ptr= m_cpp_ptr;
+    sp.m_tok_start= m_tok_start;
+    sp.m_tok_end= m_tok_end;
+    sp.next_state= next_state;
+    return sp;
+  }
+
+  void restore_place( struct savepoint sp )
+  {
+    m_ptr= sp.m_ptr;
+    m_cpp_ptr= sp.m_cpp_ptr;
+    m_tok_start= sp.m_tok_start;
+    m_tok_end= sp.m_tok_end;
+    next_state= sp.next_state;
   }
 
 public:
@@ -4718,6 +4771,7 @@ public:
   void restore_values_list_state();
   bool parsed_TVC_start();
   SELECT_LEX *parsed_TVC_end();
+  bool parsed_explicit_table(Table_ident *tab);
   TABLE_LIST *parsed_derived_table(SELECT_LEX_UNIT *unit,
                                    int for_system_time,
                                    LEX_CSTRING *alias);

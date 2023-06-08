@@ -1863,15 +1863,125 @@ int Lex_input_stream::lex_token(YYSTYPE *yylval, THD *thd)
     lookahead_token= -1;
     *yylval= *(lookahead_yylval);
     lookahead_yylval= NULL;
-    return token;
+    if (token != ANALYZE_SYM)
+      return token;
   }
-
-  token= lex_one_token(yylval, thd);
-  add_digest_token(token, yylval);
+  else
+  {
+    token= lex_one_token(yylval, thd);
+    add_digest_token(token, yylval);
+  }
 
   SELECT_LEX *curr_sel= thd->lex->current_select;
 
   switch(token) {
+  case ANALYZE_SYM:
+    /*
+     * "ANALYZE TABLE t1"
+     * is ambigious as "TABLE t1" is a valid SQL statement.
+     * peek into future tokens to determine whether we are
+     * analyzing a table or an SQL statement
+     * retain backwards compatibility by sending
+     * ANALYZE_TABLE_SYM as a composite for "ANALYZE TABLE"
+     * to the parser
+     */
+    {
+      // this is needed for procedures
+      struct savepoint_cpp_tok sp_cpp_tok= save_place_cpp_tok();
+      token= lex_one_token(yylval, thd);
+      add_digest_token(token, yylval);
+
+      if (token == TABLES)
+        return ANALYZE_TABLE_SYM;
+
+      if (token == TABLE_SYM)
+      {
+        struct savepoint sp= save_place();
+        int token_saved= token;
+        int next_token;
+        LEX_YYSTYPE yylval_saved= yylval;
+        bool check_token= true;
+
+        /* 
+         * From sql_yacc.yy
+         * table_ident:
+         *     ident
+         *   | ident '.' ident
+         *   | '.' ident
+         */
+
+        token= lex_one_token(yylval, thd);
+        next_token= (token == END_OF_INPUT)?
+                    END_OF_INPUT:lex_one_token(yylval, thd);
+
+        if (token == END_OF_INPUT)        // syntax error
+        {
+          restore_place( sp );
+          restore_place_cpp_tok( sp_cpp_tok );
+          return ANALYZE_SYM;
+        }
+
+        if (next_token != END_OF_INPUT)
+        {
+          if (token == '.')               // . xyz token_to_check
+            token= lex_one_token(yylval, thd);
+          else
+          {
+            if (next_token == '.')        // abc . xyz token_to_check
+            {
+              token= lex_one_token(yylval, thd);
+              token= (token == END_OF_INPUT)?
+                      END_OF_INPUT:lex_one_token(yylval, thd);
+            }
+            else
+              token= next_token;
+          }
+        }
+        else
+          check_token= false;
+
+        if (token == END_OF_INPUT)
+          check_token= false;
+
+        restore_place( sp );
+        restore_place_cpp_tok( sp_cpp_tok );
+
+        /*
+         * presence of any of these symbols means 
+         * we are executing an SQL statement
+         * for example
+         * ANALYZE TABLE t1 UNION TABLE t2
+         */
+        if ( check_token
+            && ((token == UNION_SYM)
+            || (token == EXCEPT_SYM)
+            || (token == INTERSECT_SYM)
+            || (token == LIMIT)
+            || (token == ORDER_SYM)
+            || (token == OFFSET_SYM)))
+        {
+          lookahead_yylval= yylval_saved;
+          lookahead_token= token_saved;
+          // we have a lookahead token, so we need to set
+          m_cpp_tok_start_prev= m_cpp_tok_start;
+          // so that any possible get_cpp_tok_start() gets the correct token
+
+          return ANALYZE_SYM;
+        }
+
+        return ANALYZE_TABLE_SYM;
+      }
+      else
+      {
+        /*
+         * Save the token following 'ANALYZE'
+         */
+        lookahead_yylval= yylval;
+        lookahead_token= token;
+        return ANALYZE_SYM;
+      }
+      break;
+    }
   case WITH:
     /*
       Parsing 'WITH' 'ROLLUP' or 'WITH' 'CUBE' requires 2 look ups,
@@ -2958,6 +3068,7 @@ void st_select_lex::init_query()
   context.select_lex= this;
   context.init();
   cond_count= between_count= with_wild= 0;
+  is_explicit_table= false;
   max_equal_elems= 0;
   ref_pointer_array.reset();
   select_n_where_fields= 0;
@@ -2998,6 +3109,7 @@ void st_select_lex::init_select()
   table_join_options= 0;
   select_lock= select_lock_type::NONE;
   in_sum_expr= with_wild= 0;
+  is_explicit_table= false;
   options= 0;
   ftfunc_list_alloc.empty();
   inner_sum_func_list= 0;
@@ -10404,6 +10516,43 @@ SELECT_LEX *LEX::parsed_TVC_end()
   return res;
 }
 
+
+bool LEX::parsed_explicit_table(Table_ident *tab)
+{
+  TABLE_LIST *res;
+  // emulate select * from table
+
+  SELECT_LEX *sel;
+  if (!(sel= alloc_select(TRUE)) || push_select(sel))
+    return true;
+
+  sel->braces= FALSE; // just initialisation
+
+  Item *item= new(thd->mem_root) 
+          Item_field(thd, &thd->lex->current_select->context, star_clex_str);
+
+  thd->lex->current_select->with_wild++;
+  thd->lex->current_select->is_explicit_table= true;
+
+  if (unlikely(item == NULL))
+    return true;
+  if (unlikely(add_item_to_list(thd, item)))
+    return true;
+
+  if (!(res= thd->lex->current_select->add_table_to_list(thd, tab,
+          (LEX_CSTRING *) 0x0, 0, TL_READ, MDL_SHARED_READ)))
+    return true;
+
+  thd->lex->current_select->context.table_list=
+    thd->lex->current_select->context.first_name_resolution_table=
+      thd->lex->current_select->table_list.first;
+
+  thd->lex->current_select->add_joined_table(
+                                thd->lex->current_select->table_list.first);
+
+  return false;
+
+}
 
 
 TABLE_LIST *LEX::parsed_derived_table(SELECT_LEX_UNIT *unit,
