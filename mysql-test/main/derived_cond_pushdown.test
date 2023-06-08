@@ -3973,6 +3973,47 @@ deallocate prepare stmt;
 drop view v1;
 drop table t1;
 
+--echo #
+--echo # MDEV-31240: condition pushed into splittable derived has reference to
+--echo #             outer column and does not refer to any column of embedding
+--echo #             select
+--echo #
+
+create table t1 (a int);
+insert into t1 select seq from seq_1_to_1000;
+
+create table t2 (a int, b int, key (a));
+insert into t2 select mod(seq,100), rand(13) * mod(seq,500) from seq_1_to_1000;
+
+create table t3 (a int);
+insert into t3 values (3), (1);
+
+analyze table t1, t2, t3 persistent for all;
+
+let $q=
+select
+  a,
+  ( select concat(t3.a,'=',dt.s)
+   from
+     (select a, sum(b) as s from t2 group by a) as dt,
+     t3
+   where dt.a=t1.a and t3.a < 3
+  )
+from t1 limit 5;
+
+eval explain $q;
+eval $q;
+
+truncate table t2;
+insert into t2 select mod(seq,10), rand(15) * mod(seq,500) from seq_1_to_1000;
+
+analyze table t2 persistent for all;
+
+eval explain $q;
+eval $q;
+
+drop table t1,t2,t3;
+
 --echo # End of 10.4 tests
 
 --echo #
