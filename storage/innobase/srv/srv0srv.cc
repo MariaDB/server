@@ -1346,17 +1346,14 @@ static tpool::waitable_task purge_coordinator_task
 static tpool::timer *purge_coordinator_timer;
 
 /** Wake up the purge threads if there is work to do. */
-void
-srv_wake_purge_thread_if_not_active()
+void srv_wake_purge_thread_if_not_active()
 {
-	ut_ad(!srv_read_only_mode);
+  ut_ad(!srv_read_only_mode);
 
-	if (purge_sys.enabled() && !purge_sys.paused()
-	    && trx_sys.rseg_history_len) {
-		if(++purge_state.m_running == 1) {
-			srv_thread_pool->submit_task(&purge_coordinator_task);
-		}
-	}
+  if (purge_sys.enabled() && !purge_sys.paused() &&
+      (srv_undo_log_truncate || trx_sys.rseg_history_len) &&
+      ++purge_state.m_running == 1)
+    srv_thread_pool->submit_task(&purge_coordinator_task);
 }
 
 /** @return whether the purge tasks are active */
@@ -1811,8 +1808,8 @@ static size_t srv_do_purge(ulint* n_total_purged)
 			n_threads = n_use_threads = srv_n_purge_threads;
 			srv_purge_thread_count_changed = 0;
 		} else if (trx_sys.rseg_history_len > rseg_history_len
-		    || (srv_max_purge_lag > 0
-			&& rseg_history_len > srv_max_purge_lag)) {
+			   || (srv_max_purge_lag > 0
+			       && rseg_history_len > srv_max_purge_lag)) {
 
 			/* History length is now longer than what it was
 			when we took the last snapshot. Use more threads. */
@@ -1838,15 +1835,19 @@ static size_t srv_do_purge(ulint* n_total_purged)
 
 		/* Take a snapshot of the history list before purge. */
 		if (!(rseg_history_len = trx_sys.rseg_history_len)) {
-			break;
+			n_pages_purged = 0;
+			goto truncate;
 		}
 
-		n_pages_purged = trx_purge(
-			n_use_threads,
-			!(++count % srv_purge_rseg_truncate_frequency)
-			|| purge_sys.truncate.current
-			|| (srv_shutdown_state != SRV_SHUTDOWN_NONE
-			    && srv_fast_shutdown == 0));
+		n_pages_purged = trx_purge(n_use_threads);
+
+		if (!(++count % srv_purge_rseg_truncate_frequency)
+		    || purge_sys.truncate.current
+		    || (srv_shutdown_state != SRV_SHUTDOWN_NONE
+			&& srv_fast_shutdown == 0)) {
+truncate:
+			trx_purge_truncate_history();
+		}
 
 		*n_total_purged += n_pages_purged;
 	} while (n_pages_purged > 0 && !purge_sys.paused()
