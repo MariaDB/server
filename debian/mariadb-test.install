@@ -22,6 +22,7 @@ usr/lib/mysql/plugin/qa_auth_interface.so
 usr/lib/mysql/plugin/qa_auth_server.so
 usr/lib/mysql/plugin/test_sql_service.so
 usr/lib/mysql/plugin/test_versioning.so
+usr/lib/mysql/plugin/type_mysql_timestamp.so
 usr/share/man/man1/mariadb-client-test-embedded.1
 usr/share/man/man1/mariadb-client-test.1
 usr/share/man/man1/mariadb-test-embedded.1

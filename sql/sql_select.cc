@@ -7911,6 +7911,7 @@ best_access_path(JOIN      *join,
   if (s->table->is_splittable())
     spl_plan= s->choose_best_splitting(idx,
                                        remaining_tables,
+                                       join_positions,
                                        &spl_pd_boundary);
 
   Json_writer_array trace_paths(thd, "considered_access_paths");
@@ -29048,7 +29049,7 @@ void st_select_lex::print_set_clause(THD *thd, String *str,
     else
       str->append(',');
 
-    item->print(str, query_type);
+    item->print(str, (enum_query_type) (query_type | QT_NO_DATA_EXPANSION));
     str->append(STRING_WITH_LEN(" = "));
     val->print(str, query_type);
   }

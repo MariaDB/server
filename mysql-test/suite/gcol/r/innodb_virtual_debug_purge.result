@@ -78,7 +78,7 @@ SET DEBUG_SYNC= 'now WAIT_FOR uncommitted';
 # enable purge
 COMMIT;
 # wait for purge to process the deleted records.
-InnoDB		0 transactions not purged
+InnoDB		1 transactions not purged
 SET DEBUG_SYNC= 'now SIGNAL purged';
 connection default;
 /* connection default */ ALTER TABLE t1 ADD COLUMN c INT GENERATED ALWAYS AS(a+b), ADD INDEX idx (c), ALGORITHM=INPLACE, LOCK=SHARED;
