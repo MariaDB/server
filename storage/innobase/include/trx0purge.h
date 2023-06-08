@@ -43,12 +43,19 @@ Remove the undo log segment from the rseg slot if it is too big for reuse.
 @param[in,out]	mtr		mini-transaction */
 void
 trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr);
+
+/**
+Remove unnecessary history data from rollback segments. NOTE that when this
+function is called, the caller (purge_coordinator_callback)
+must not have any latches on undo log pages!
+*/
+void trx_purge_truncate_history();
+
 /**
 Run a purge batch.
 @param n_tasks   number of purge tasks to submit to the queue
-@param truncate  whether to truncate the history at the end of the batch
 @return number of undo log pages handled in the batch */
-ulint trx_purge(ulint n_tasks, bool truncate);
+ulint trx_purge(ulint n_tasks);
 
 /** Rollback segements from a given transaction with trx-no
 scheduled for purge. */
