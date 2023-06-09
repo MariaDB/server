@@ -9,19 +9,6 @@ IF(NOT PLUGIN_PERFSCHEMA STREQUAL NO)
   add_definitions(-DHAVE_PSI_INTERFACE=)
 ENDIF()
 
-# new gcc is quite buggy re. spurious warnings. let's shut it up
-IF(CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_GREATER "12.0.0")
-  # 12
-  MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-error=restrict")
-  MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-error=use-after-free")
-  # 13
-  MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-error=maybe-uninitialized")
-  MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-error=dangling-reference")
-  MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-error=dangling-pointer")
-ENDIF()
-MY_CHECK_AND_SET_COMPILER_FLAG("-fno-strict-aliasing")
-SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--as-needed")
-
 # this does everything, gets the var from the correct scope, appends new
 # values, sets in the correct scope
 macro(APPEND_FOR_CPACK V)
