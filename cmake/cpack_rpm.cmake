@@ -177,9 +177,11 @@ MACRO(SETA var)
 ENDMACRO(SETA)
 
 SETA(CPACK_RPM_client_PACKAGE_OBSOLETES
+  "mysql-community-client"
   "mysql-client"
   "MySQL-client")
 SETA(CPACK_RPM_client_PACKAGE_PROVIDES
+  "mysql-community-client"
   "MySQL-client"
   "mysql-client")
 
@@ -191,6 +193,9 @@ SETA(CPACK_RPM_devel_PACKAGE_REQUIRES
   "MariaDB-shared >= 10.2.42")
 
 SETA(CPACK_RPM_server_PACKAGE_OBSOLETES
+  "mysql-errmsg"
+  "mysql-community-common"
+  "mysql-community-server"
   "MariaDB"
   "MySQL"
   "mysql-server"
@@ -201,6 +206,7 @@ SETA(CPACK_RPM_server_PACKAGE_PROVIDES
   "MySQL"
   "MySQL-server"
   "msqlormysql"
+  "mysql-community-server"
   "mysql-server")
 
 SETA(CPACK_RPM_test_PACKAGE_OBSOLETES
@@ -333,6 +339,8 @@ IF(compat53 AND compat101)
     SET(CPACK_RPM_compat_PACKAGE_CONFLICTS "mariadb-libs < 1:10.1.0")
   ENDIF()
 ENDIF()
+
+SETA(CPACK_RPM_common_PACKAGE_CONFLICTS "mysql-common, mysql-community-common")
 
 ################
 IF(CMAKE_VERSION VERSION_GREATER "3.9.99")
