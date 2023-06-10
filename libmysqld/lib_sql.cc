@@ -609,6 +609,11 @@ int init_embedded_server(int argc, char **argv, char **groups)
     set error_handler_hook to embedded_error_handler wrapper.
   */
   error_handler_hook= embedded_error_handler;
+  /*
+    Disable error checking as clients may have called my_malloc()
+    before calling mysql_server_init()
+  */
+  my_malloc_disable_error_checking= 1;
 
   acl_error= 0;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS

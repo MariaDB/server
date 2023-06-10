@@ -44,18 +44,15 @@ typedef struct my_memory_header my_memory_header;
   @return 0 - ok
           1 - failure, abort the allocation
 */
-static void dummy(long long size __attribute__((unused)),
-                  my_bool is_thread_specific __attribute__((unused)))
-{}
 
-static MALLOC_SIZE_CB update_malloc_size= dummy;
+static MALLOC_SIZE_CB update_malloc_size= 0;
+my_bool my_malloc_disable_error_checking= 0;
 
 void set_malloc_size_cb(MALLOC_SIZE_CB func)
 {
-  update_malloc_size= func ? func : dummy;
+  update_malloc_size= func;
 }
-    
-    
+
 /**
   Allocate a sized block of memory.
 
@@ -106,7 +103,11 @@ void *my_malloc(PSI_memory_key key, size_t size, myf my_flags)
     int flag= MY_TEST(my_flags & MY_THREAD_SPECIFIC);
     mh->m_size= size | flag;
     mh->m_key= PSI_CALL_memory_alloc(key, size, & mh->m_owner);
-    update_malloc_size(size + HEADER_SIZE, flag);
+    if (update_malloc_size)
+    {
+      mh->m_size|=2;
+      update_malloc_size(size + HEADER_SIZE, flag);
+    }
     point= HEADER_TO_USER(mh);
     if (my_flags & MY_ZEROFILL)
       bzero(point, size);
@@ -143,11 +144,12 @@ void *my_realloc(PSI_memory_key key, void *old_point, size_t size, myf my_flags)
     DBUG_RETURN(my_malloc(key, size, my_flags));
 
   old_mh= USER_TO_HEADER(old_point);
-  old_size= old_mh->m_size & ~1;
-  old_flags= old_mh->m_size & 1;
+  old_size= old_mh->m_size & ~3;
+  old_flags= old_mh->m_size & 3;
 
   DBUG_ASSERT(old_mh->m_key == key || old_mh->m_key == PSI_NOT_INSTRUMENTED);
-  DBUG_ASSERT(old_flags == MY_TEST(my_flags & MY_THREAD_SPECIFIC));
+  DBUG_ASSERT(my_malloc_disable_error_checking ||
+              (old_flags & 1) == MY_TEST(my_flags & MY_THREAD_SPECIFIC));
 
   size= ALIGN_SIZE(size);
   mh= sf_realloc(old_mh, size + HEADER_SIZE, my_flags);
@@ -171,7 +173,11 @@ void *my_realloc(PSI_memory_key key, void *old_point, size_t size, myf my_flags)
   {
     mh->m_size= size | old_flags;
     mh->m_key= PSI_CALL_memory_realloc(key, old_size, size, & mh->m_owner);
-    update_malloc_size((longlong)size - (longlong)old_size, old_flags);
+    if (update_malloc_size)
+    {
+      DBUG_ASSERT(my_malloc_disable_error_checking || (old_flags & 2));
+      update_malloc_size((longlong)size - (longlong)old_size, old_flags & 1);
+    }
     point= HEADER_TO_USER(mh);
   }
 
@@ -197,12 +203,21 @@ void my_free(void *ptr)
     DBUG_VOID_RETURN;
 
   mh= USER_TO_HEADER(ptr);
-  old_size= mh->m_size & ~1;
-  old_flags= mh->m_size & 1;
+  old_size= mh->m_size & ~3;
+  old_flags= mh->m_size & 3;
   PSI_CALL_memory_free(mh->m_key, old_size, mh->m_owner);
 
-  update_malloc_size(- (longlong) old_size - HEADER_SIZE, old_flags);
-
+  if (update_malloc_size)
+  {
+    /* Ensure that update_malloc_size was set when malloc() was called */
+    DBUG_ASSERT(my_malloc_disable_error_checking || (old_flags & 2));
+    update_malloc_size(- (longlong) old_size - HEADER_SIZE, old_flags & 1);
+  }
+  else
+  {
+    /* Ensure that we did not call update_malloc_size() */
+    DBUG_ASSERT(my_malloc_disable_error_checking || !(old_flags & 2));
+  }
 #ifndef SAFEMALLOC
   /*
     Trash memory if not safemalloc. We don't have to do this if safemalloc

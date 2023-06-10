@@ -162,6 +162,7 @@ extern my_thread_id (*sf_malloc_dbug_id)(void);
 
 typedef void (*MALLOC_SIZE_CB) (long long size, my_bool is_thread_specific); 
 extern void set_malloc_size_cb(MALLOC_SIZE_CB func);
+extern my_bool my_malloc_disable_error_checking;
 
 	/* defines when allocating data */
 extern void *my_malloc(PSI_memory_key key, size_t size, myf MyFlags);
