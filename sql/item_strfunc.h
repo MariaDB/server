@@ -1088,6 +1088,28 @@ public:
 };
 
 
+class Item_func_catalog :public Item_func_sysconst
+{
+public:
+  Item_func_catalog(THD *thd): Item_func_sysconst(thd) {}
+  String *val_str(String *) override;
+  bool fix_length_and_dec(THD *thd) override
+  {
+    max_length= NAME_CHAR_LEN * system_charset_info->mbmaxlen;
+    return FALSE;
+  }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("catalog") };
+    return name;
+  }
+  const char *fully_qualified_func_name() const override
+  { return "catalog()"; }
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_func_catalog>(thd, this); }
+};
+
+
 class Item_func_sqlerrm :public Item_func_sysconst
 {
 public:

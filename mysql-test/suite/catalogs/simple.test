@@ -1,3 +1,9 @@
+#
+# Simple test of catalogs
+#
+
+select catalog();
+
 create catalog c1;
 
 show catalogs;

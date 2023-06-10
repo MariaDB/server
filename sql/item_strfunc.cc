@@ -46,6 +46,7 @@
 #include "des_key_file.h"       // st_des_keyschedule, st_des_keyblock
 #include "password.h"           // my_make_scrambled_password,
                                 // my_make_scrambled_password_323
+#include "catalog.h"            // SQL_CATALOG
 #include <m_ctype.h>
 #include <my_md5.h>
 C_MODE_START
@@ -2621,6 +2622,20 @@ String *Item_func_database::val_str(String *str)
   else
     str->copy(thd->db.str, thd->db.length, system_charset_info);
   null_value= 0;
+  return str;
+}
+
+
+String *Item_func_catalog::val_str(String *str)
+{
+  DBUG_ASSERT(fixed());
+  const LEX_CSTRING *name;
+  THD *thd= current_thd;
+  if (thd->catalog)
+    name= &thd->catalog->name;
+  else
+    name= &default_catalog()->name;
+  str->copy(name->str, name->length, system_charset_info);
   return str;
 }
 

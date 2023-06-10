@@ -1,3 +1,6 @@
+select catalog();
+catalog()
+def
 create catalog c1;
 show catalogs;
 Catalog

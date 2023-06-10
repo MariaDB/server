@@ -10323,6 +10323,13 @@ function_call_conflict:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
+        | CATALOG_SYM '(' ')'
+          {
+            $$= new (thd->mem_root) Item_func_catalog(thd);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+            Lex->safe_to_cache_query=0;
+          }
         | DATABASE '(' ')'
           {
             $$= new (thd->mem_root) Item_func_database(thd);
