@@ -277,7 +277,6 @@ bool Item_func::check_argument_types_scalar(uint start, uint end) const
   return false;
 }
 
-
 /*
   Resolve references to table column for a function and its argument
 
@@ -362,6 +361,7 @@ Item_func::fix_fields(THD *thd, Item **ref)
   if (fix_length_and_dec(thd))
     return TRUE;
   base_flags|= item_base_t::FIXED;
+
   return FALSE;
 }
 

@@ -21,8 +21,6 @@ connect(con1,localhost,root,foo,,,);
 
 update mysql.global_priv set priv=json_compact(json_remove(priv, '$.plugin', '$.authentication_string'))  where user='root';
 flush privileges;
-# Load event table
-set global event_scheduler=OFF;
 
 let MYSQLD_DATADIR= `select @@datadir`;
 --remove_file $MYSQLD_DATADIR/mariadb_upgrade_info

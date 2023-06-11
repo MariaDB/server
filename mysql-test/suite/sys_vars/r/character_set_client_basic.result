@@ -500,5 +500,16 @@ res
 #
 SET GLOBAL character_set_client=2;
 ERROR 42000: Unknown character set: '2'
+#
+# MDEV-31018 Replica of 10.3, 10.4, <10.5.19 and <10.6.12 to 10.11 will not work when using non-default charset
+#
+SET @@pseudo_slave_mode=1;
+SET character_set_client=2/*latin2_czech_cs*/;
+SHOW VARIABLES LIKE 'character_set_client';
+Variable_name	Value
+character_set_client	latin2
+SET @@pseudo_slave_mode=0;
+Warnings:
+Warning	1231	Slave applier execution mode not active, statement ineffective.
 SET @@global.character_set_client = @global_start_value;
 SET @@session.character_set_client = @session_start_value;

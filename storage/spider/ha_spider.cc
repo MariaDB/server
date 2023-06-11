@@ -309,10 +309,10 @@ int ha_spider::open(
       no_bytes_in_map(table->read_set));
     wide_handler_alloc = TRUE;
 
-  if (!share && !spider_get_share(name, table, thd, this, &error_num))
-    goto error_get_share;
+    if (!share && !spider_get_share(name, table, thd, this, &error_num))
+      goto error_get_share;
 
-  wide_share = share->wide_share;
+    wide_share = share->wide_share;
 
     DBUG_PRINT("info",("spider create partition_handler"));
     DBUG_PRINT("info",("spider table=%p", table));
@@ -6559,13 +6559,6 @@ int ha_spider::info(
   auto_inc_temporary = FALSE;
 #endif
   wide_handler->sql_command = thd_sql_command(thd);
-/*
-  if (
-    sql_command == SQLCOM_DROP_TABLE ||
-    sql_command == SQLCOM_ALTER_TABLE ||
-    sql_command == SQLCOM_SHOW_CREATE
-  ) {
-*/
     if (flag & HA_STATUS_AUTO)
     {
       if (share->lgtm_tblhnd_share->auto_increment_value)
@@ -6583,9 +6576,6 @@ int ha_spider::info(
       wide_handler->sql_command == SQLCOM_ALTER_TABLE
     )
       DBUG_RETURN(0);
-/*
-  }
-*/
 
   if (flag &
     (HA_STATUS_TIME | HA_STATUS_CONST | HA_STATUS_VARIABLE | HA_STATUS_AUTO))
@@ -11849,7 +11839,6 @@ int ha_spider::mk_bulk_tmp_table_and_bulk_start()
       dbton_hdl->first_link_idx >= 0 &&
       dbton_hdl->need_copy_for_update(roop_count)
     ) {
-#ifdef SPIDER_use_LEX_CSTRING_for_Field_blob_constructor
       LEX_CSTRING field_name = {STRING_WITH_LEN("a")};
       if (
         !tmp_table[roop_count] &&
@@ -11858,15 +11847,6 @@ int ha_spider::mk_bulk_tmp_table_and_bulk_start()
           &result_list.upd_tmp_tbl_prms[roop_count],
           &field_name, result_list.update_sqls[roop_count].charset()))
       )
-#else
-      if (
-        !tmp_table[roop_count] &&
-        !(tmp_table[roop_count] = spider_mk_sys_tmp_table(
-          wide_handler->trx->thd, table,
-          &result_list.upd_tmp_tbl_prms[roop_count], "a",
-          result_list.update_sqls[roop_count].charset()))
-      )
-#endif
       {
         error_num = HA_ERR_OUT_OF_MEM;
         goto error_2;

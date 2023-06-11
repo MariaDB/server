@@ -445,7 +445,9 @@ COMMIT;
 disconnect stop_purge;
 
 connection default;
+let $wait_all_purged = 1;
 --source include/wait_all_purged.inc
+let $wait_all_purged = 0;
 SET DEBUG_SYNC='now SIGNAL s2';
 
 connection dml;
@@ -453,6 +455,7 @@ reap;
 disconnect dml;
 
 connection default;
+--source include/wait_all_purged.inc
 SET DEBUG_SYNC=RESET;
 DROP TABLE t1;
 

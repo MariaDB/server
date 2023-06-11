@@ -526,6 +526,7 @@ mysql_pfs_key_t	trx_pool_manager_mutex_key;
 mysql_pfs_key_t	lock_wait_mutex_key;
 mysql_pfs_key_t	trx_sys_mutex_key;
 mysql_pfs_key_t	srv_threads_mutex_key;
+mysql_pfs_key_t	tpool_cache_mutex_key;
 
 /* all_innodb_mutexes array contains mutexes that are
 performance schema instrumented if "UNIV_PFS_MUTEX"
@@ -557,6 +558,7 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(rtr_match_mutex),
 	PSI_KEY(rtr_path_mutex),
 	PSI_KEY(trx_sys_mutex),
+	PSI_KEY(tpool_cache_mutex),
 };
 # endif /* UNIV_PFS_MUTEX */
 
@@ -922,7 +924,8 @@ static SHOW_VAR innodb_status_variables[]= {
   {"buffer_pool_read_ahead", &buf_pool.stat.n_ra_pages_read, SHOW_SIZE_T},
   {"buffer_pool_read_ahead_evicted",
    &buf_pool.stat.n_ra_pages_evicted, SHOW_SIZE_T},
-  {"buffer_pool_read_requests", &buf_pool.stat.n_page_gets, SHOW_SIZE_T},
+  {"buffer_pool_read_requests",
+   &export_vars.innodb_buffer_pool_read_requests, SHOW_SIZE_T},
   {"buffer_pool_reads", &buf_pool.stat.n_pages_read, SHOW_SIZE_T},
   {"buffer_pool_wait_free", &buf_pool.stat.LRU_waits, SHOW_SIZE_T},
   {"buffer_pool_write_requests", &buf_pool.flush_list_requests, SHOW_SIZE_T},
@@ -1527,6 +1530,7 @@ static void innodb_drop_database(handlerton*, char *path)
     mtr.commit();
     for (pfs_os_file_t detached : to_close)
       os_file_close(detached);
+
     /* Any changes must be persisted before we return. */
     log_write_up_to(mtr.commit_lsn(), true);
   }
@@ -1869,8 +1873,9 @@ static void innodb_disable_internal_writes(bool disable)
     sst_enable_innodb_writes();
 }
 
-static void wsrep_abort_transaction(handlerton*, THD *, THD *, my_bool);
-static int innobase_wsrep_set_checkpoint(handlerton* hton, const XID* xid);
+static void wsrep_abort_transaction(handlerton *, THD *, THD *, my_bool)
+    __attribute__((nonnull));
+static int innobase_wsrep_set_checkpoint(handlerton *hton, const XID *xid);
 static int innobase_wsrep_get_checkpoint(handlerton* hton, XID* xid);
 #endif /* WITH_WSREP */
 
@@ -2036,7 +2041,7 @@ static void innodb_ddl_recovery_done(handlerton*)
 {
   ut_ad(!ddl_recovery_done);
   ut_d(ddl_recovery_done= true);
-  if (!srv_read_only_mode && srv_operation == SRV_OPERATION_NORMAL &&
+  if (!srv_read_only_mode && srv_operation <= SRV_OPERATION_EXPORT_RESTORED &&
       srv_force_recovery < SRV_FORCE_NO_BACKGROUND)
   {
     if (srv_start_after_restore && !high_level_read_only)
@@ -8439,6 +8444,37 @@ wsrep_calc_row_hash(
 
 	return(0);
 }
+
+/** Append table-level exclusive key.
+@param thd   MySQL thread handle
+@param table table
+@retval false on success
+@retval true on failure */
+ATTRIBUTE_COLD bool wsrep_append_table_key(MYSQL_THD thd, const dict_table_t &table)
+{
+  char db_buf[NAME_LEN + 1];
+  char tbl_buf[NAME_LEN + 1];
+  ulint db_buf_len, tbl_buf_len;
+
+  if (!table.parse_name(db_buf, tbl_buf, &db_buf_len, &tbl_buf_len))
+  {
+    WSREP_ERROR("Parse_name for table key append failed: %s",
+                wsrep_thd_query(thd));
+    return true;
+  }
+
+  /* Append table-level exclusive key */
+  const int rcode = wsrep_thd_append_table_key(thd, db_buf,
+                                               tbl_buf, WSREP_SERVICE_KEY_EXCLUSIVE);
+  if (rcode)
+  {
+    WSREP_ERROR("Appending table key failed: %s, %d",
+                wsrep_thd_query(thd), rcode);
+    return true;
+  }
+
+  return false;
+}
 #endif /* WITH_WSREP */
 
 /**
@@ -8609,11 +8645,16 @@ func_exit:
 	    && !wsrep_thd_ignore_table(m_user_thd)) {
 		DBUG_PRINT("wsrep", ("update row key"));
 
-		if (wsrep_append_keys(m_user_thd,
-				      wsrep_protocol_version >= 4
-				      ? WSREP_SERVICE_KEY_UPDATE
-				      : WSREP_SERVICE_KEY_EXCLUSIVE,
-				      old_row, new_row)){
+		/* We use table-level exclusive key for SEQUENCES
+		   and normal key append for others. */
+		if (table->s->table_type == TABLE_TYPE_SEQUENCE) {
+			if (wsrep_append_table_key(m_user_thd, *m_prebuilt->table))
+				DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+		} else if (wsrep_append_keys(m_user_thd,
+					     wsrep_protocol_version >= 4
+					     ? WSREP_SERVICE_KEY_UPDATE
+					     : WSREP_SERVICE_KEY_EXCLUSIVE,
+					     old_row, new_row)) {
 			WSREP_DEBUG("WSREP: UPDATE_ROW_KEY FAILED");
 			DBUG_PRINT("wsrep", ("row key failed"));
 			DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
@@ -17821,44 +17862,6 @@ exit:
 	return;
 }
 
-/** Validate SET GLOBAL innodb_buffer_pool_filename.
-On Windows, file names with colon (:) are not allowed.
-@param thd   connection
-@param save  &srv_buf_dump_filename
-@param value new value to be validated
-@return	0 for valid name */
-static int innodb_srv_buf_dump_filename_validate(THD *thd, st_mysql_sys_var*,
-						 void *save,
-						 st_mysql_value *value)
-{
-  char buff[OS_FILE_MAX_PATH];
-  int len= sizeof buff;
-
-  if (const char *buf_name= value->val_str(value, buff, &len))
-  {
-#ifdef _WIN32
-    if (!is_filename_allowed(buf_name, len, FALSE))
-    {
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-			  ER_WRONG_ARGUMENTS,
-			  "InnoDB: innodb_buffer_pool_filename "
-			  "cannot have colon (:) in the file name.");
-      return 1;
-    }
-#endif /* _WIN32 */
-    if (buf_name == buff)
-    {
-      ut_ad(static_cast<size_t>(len) < sizeof buff);
-      buf_name= thd_strmake(thd, buf_name, len);
-    }
-
-    *static_cast<const char**>(save)= buf_name;
-    return 0;
-  }
-
-  return 1;
-}
-
 #ifdef UNIV_DEBUG
 static char* srv_buffer_pool_evict;
 
@@ -18536,36 +18539,45 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
                       wsrep_thd_client_mode_str(vthd),
                       wsrep_thd_transaction_state_str(vthd),
                       wsrep_thd_query(vthd));
-          /* Mark transaction as a victim for Galera abort */
-          vtrx->lock.set_wsrep_victim();
-          if (!wsrep_thd_set_wsrep_aborter(bf_thd, vthd))
-            aborting= true;
-          else
-            WSREP_DEBUG("kill transaction skipped due to wsrep_aborter set");
+          aborting= true;
         }
       }
       mysql_mutex_unlock(&lock_sys.wait_mutex);
       vtrx->mutex_unlock();
     }
-    wsrep_thd_UNLOCK(vthd);
-    if (aborting)
+
+    DEBUG_SYNC(bf_thd, "before_wsrep_thd_abort");
+    if (aborting && wsrep_thd_bf_abort(bf_thd, vthd, true))
     {
+      /* Need to grab mutexes again to ensure that the trx is still in
+         right state. */
+      lock_sys.wr_lock(SRW_LOCK_CALL);
+      mysql_mutex_lock(&lock_sys.wait_mutex);
+      vtrx->mutex_lock();
+
       /* if victim is waiting for some other lock, we have to cancel
          that waiting
       */
-      lock_sys.cancel_lock_wait_for_trx(vtrx);
-
-      DEBUG_SYNC(bf_thd, "before_wsrep_thd_abort");
-      if (!wsrep_thd_bf_abort(bf_thd, vthd, true))
+      if (vtrx->id == trx_id)
       {
-        wsrep_thd_LOCK(vthd);
-        wsrep_thd_set_wsrep_aborter(NULL, vthd);
-        wsrep_thd_UNLOCK(vthd);
-
-        WSREP_DEBUG("wsrep_thd_bf_abort has failed, victim %lu will survive",
-                     thd_get_thread_id(vthd));
+        switch (vtrx->state) {
+        default:
+          break;
+        case TRX_STATE_ACTIVE:
+        case TRX_STATE_PREPARED:
+          lock_sys.cancel_lock_wait_for_wsrep_bf_abort(vtrx);
+        }
       }
+      lock_sys.wr_unlock();
+      mysql_mutex_unlock(&lock_sys.wait_mutex);
+      vtrx->mutex_unlock();
     }
+    else
+    {
+      WSREP_DEBUG("wsrep_thd_bf_abort has failed, victim %lu will survive",
+                  thd_get_thread_id(vthd));
+    }
+    wsrep_thd_UNLOCK(vthd);
     wsrep_thd_kill_UNLOCK(vthd);
   }
 }
@@ -18573,68 +18585,50 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
 /** This function forces the victim transaction to abort. Aborting the
   transaction does NOT end it, it still has to be rolled back.
 
+  The caller must lock LOCK_thd_kill and LOCK_thd_data.
+
   @param bf_thd       brute force THD asking for the abort
   @param victim_thd   victim THD to be aborted
-
-  @return 0 victim was aborted
-  @return -1 victim thread was aborted (no transaction)
 */
-static
-void
-wsrep_abort_transaction(
-	handlerton*,
-	THD *bf_thd,
-	THD *victim_thd,
-	my_bool signal)
+static void wsrep_abort_transaction(handlerton *, THD *bf_thd, THD *victim_thd,
+                                    my_bool signal)
 {
-	DBUG_ENTER("wsrep_abort_transaction");
-	ut_ad(bf_thd);
-	ut_ad(victim_thd);
+  DBUG_ENTER("wsrep_abort_transaction");
+  ut_ad(bf_thd);
+  ut_ad(victim_thd);
 
-	wsrep_thd_kill_LOCK(victim_thd);
-	wsrep_thd_LOCK(victim_thd);
-	trx_t* victim_trx= thd_to_trx(victim_thd);
-	wsrep_thd_UNLOCK(victim_thd);
+  trx_t *victim_trx= thd_to_trx(victim_thd);
 
-	WSREP_DEBUG("abort transaction: BF: %s victim: %s victim conf: %s",
-			wsrep_thd_query(bf_thd),
-			wsrep_thd_query(victim_thd),
-			wsrep_thd_transaction_state_str(victim_thd));
+  WSREP_DEBUG("abort transaction: BF: %s victim: %s victim conf: %s",
+              wsrep_thd_query(bf_thd), wsrep_thd_query(victim_thd),
+              wsrep_thd_transaction_state_str(victim_thd));
 
-	if (victim_trx) {
-		victim_trx->lock.set_wsrep_victim();
+  if (!victim_trx)
+  {
+    WSREP_DEBUG("abort transaction: victim did not exist");
+    DBUG_VOID_RETURN;
+  }
 
-		wsrep_thd_LOCK(victim_thd);
-		bool aborting= !wsrep_thd_set_wsrep_aborter(bf_thd, victim_thd);
-		wsrep_thd_UNLOCK(victim_thd);
-		if (aborting) {
-			DEBUG_SYNC(bf_thd, "before_wsrep_thd_abort");
-			DBUG_EXECUTE_IF("sync.before_wsrep_thd_abort",
-					 {
-					   const char act[]=
-					     "now "
-					     "SIGNAL sync.before_wsrep_thd_abort_reached "
-					     "WAIT_FOR signal.before_wsrep_thd_abort";
-					   DBUG_ASSERT(!debug_sync_set_action(bf_thd,
-									      STRING_WITH_LEN(act)));
-					 };);
-			wsrep_thd_bf_abort(bf_thd, victim_thd, signal);
-		}
-	} else {
-		DBUG_EXECUTE_IF("sync.before_wsrep_thd_abort",
-				 {
-				   const char act[]=
-				     "now "
-				     "SIGNAL sync.before_wsrep_thd_abort_reached "
-				     "WAIT_FOR signal.before_wsrep_thd_abort";
-				   DBUG_ASSERT(!debug_sync_set_action(bf_thd,
-								      STRING_WITH_LEN(act)));
-				 };);
-		wsrep_thd_bf_abort(bf_thd, victim_thd, signal);
-	}
+  lock_sys.wr_lock(SRW_LOCK_CALL);
+  mysql_mutex_lock(&lock_sys.wait_mutex);
+  victim_trx->mutex_lock();
 
-	wsrep_thd_kill_UNLOCK(victim_thd);
-	DBUG_VOID_RETURN;
+  switch (victim_trx->state) {
+  default:
+    break;
+  case TRX_STATE_ACTIVE:
+  case TRX_STATE_PREPARED:
+    /* Cancel lock wait if the victim is waiting for a lock in InnoDB.
+       The transaction which is blocked somewhere else (e.g. waiting
+       for next command or MDL) has been interrupted by THD::awake_no_mutex()
+       on server level before calling this function. */
+    lock_sys.cancel_lock_wait_for_wsrep_bf_abort(victim_trx);
+  }
+  lock_sys.wr_unlock();
+  mysql_mutex_unlock(&lock_sys.wait_mutex);
+  victim_trx->mutex_unlock();
+
+  DBUG_VOID_RETURN;
 }
 
 static
@@ -18975,9 +18969,9 @@ static MYSQL_SYSVAR_SIZE_T(buffer_pool_chunk_size, srv_buf_pool_chunk_unit,
   0, 0, SIZE_T_MAX, 1024 * 1024);
 
 static MYSQL_SYSVAR_STR(buffer_pool_filename, srv_buf_dump_filename,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Filename to/from which to dump/load the InnoDB buffer pool",
-  innodb_srv_buf_dump_filename_validate, NULL, SRV_BUF_DUMP_FILENAME_DEFAULT);
+  NULL, NULL, SRV_BUF_DUMP_FILENAME_DEFAULT);
 
 static MYSQL_SYSVAR_BOOL(buffer_pool_dump_now, innodb_buffer_pool_dump_now,
   PLUGIN_VAR_RQCMDARG,
@@ -19298,10 +19292,17 @@ static MYSQL_SYSVAR_ULONG(purge_rseg_truncate_frequency,
   " purge rollback segment(s) on every Nth iteration of purge invocation",
   NULL, NULL, 128, 1, 128, 0);
 
+static void innodb_undo_log_truncate_update(THD *thd, struct st_mysql_sys_var*,
+                                            void*, const void *save)
+{
+  if ((srv_undo_log_truncate= *static_cast<const my_bool*>(save)))
+    srv_wake_purge_thread_if_not_active();
+}
+
 static MYSQL_SYSVAR_BOOL(undo_log_truncate, srv_undo_log_truncate,
   PLUGIN_VAR_OPCMDARG,
   "Enable or Disable Truncate of UNDO tablespace.",
-  NULL, NULL, FALSE);
+  NULL, innodb_undo_log_truncate_update, FALSE);
 
 static MYSQL_SYSVAR_LONG(autoinc_lock_mode, innobase_autoinc_lock_mode,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,

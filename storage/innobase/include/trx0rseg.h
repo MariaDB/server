@@ -129,7 +129,8 @@ public:
 #endif
   }
   /** @return whether the segment is marked for undo truncation */
-  bool skip_allocation() const { return ref_load() & SKIP; }
+  bool skip_allocation() const
+  { return ref.load(std::memory_order_acquire) & SKIP; }
   /** Increment the reference count */
   void acquire()
   { ut_d(auto r=) ref.fetch_add(REF); ut_ad(!(r & SKIP)); }

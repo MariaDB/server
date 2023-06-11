@@ -134,6 +134,8 @@
 #define ER_SPIDER_SAME_SERVER_LINK_STR2 "Host:%s and Port:%ld aim self server. Please change spider_same_server_link parameter if this link is required."
 #define ER_SPIDER_CANT_NUM 12721
 #define ER_SPIDER_CANT_STR1 "Can't %s%d"
+#define ER_SPIDER_TABLE_OPEN_LOCK_WAIT_TIMEOUT_NUM 12722
+#define ER_SPIDER_TABLE_OPEN_LOCK_WAIT_TIMEOUT_STR "Table %s.%s open lock wait timeout. Please check for self-reference."
 #define ER_SPIDER_COND_SKIP_NUM 12801
 
 #define ER_SPIDER_UNKNOWN_NUM 12500

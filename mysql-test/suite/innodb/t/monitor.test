@@ -5,11 +5,13 @@
 # sys_vars.innodb_monitor_enable_basic
 
 --source include/have_innodb.inc
-set global innodb_monitor_disable = All;
 # Test turn on/off the monitor counter  with "all" option
 # By default, they will be off.
 select name, if(enabled,'enabled','disabled') status
 from information_schema.innodb_metrics;
+
+set global innodb_monitor_disable = All;
+select name from information_schema.innodb_metrics where enabled;
 
 # Turn on all monitor counters
 set global innodb_monitor_enable = all;

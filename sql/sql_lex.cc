@@ -40,8 +40,6 @@
 #ifdef WITH_WSREP
 #include "mysql/service_wsrep.h"
 #endif
-#include "sql_update.h"                        // class Sql_cmd_update
-#include "sql_delete.h"                        // class Sql_cmd_delete
 
 void LEX::parse_error(uint err_number)
 {
@@ -862,7 +860,7 @@ void Lex_input_stream::body_utf8_start(THD *thd, const char *begin_ptr)
 }
 
 
-size_t Lex_input_stream::get_body_utf8_maximum_length(THD *thd)
+size_t Lex_input_stream::get_body_utf8_maximum_length(THD *thd) const
 {
   /*
     String literals can grow during escaping:
@@ -1299,6 +1297,8 @@ void LEX::start(THD *thd_arg)
   frame_bottom_bound= NULL;
   win_spec= NULL;
 
+  upd_del_where= NULL;
+
   vers_conditions.empty();
   period_conditions.empty();
 
@@ -1367,7 +1367,7 @@ Yacc_state::~Yacc_state()
 }
 
 int Lex_input_stream::find_keyword(Lex_ident_cli_st *kwd,
-                                   uint len, bool function)
+                                   uint len, bool function) const
 {
   const char *tok= m_tok_start;
 
@@ -3034,6 +3034,7 @@ void st_select_lex::init_select()
   in_funcs.empty();
   curr_tvc_name= 0;
   versioned_tables= 0;
+  is_tvc_wrapper= false;
   nest_flags= 0;
   item_list_usage= MARK_COLUMNS_READ;
 }
@@ -3931,57 +3932,54 @@ LEX::LEX()
 }
 
 
+bool LEX::can_be_merged()
+{
+  return unit.can_be_merged();
+}
+
+
 /*
-  Check whether the merging algorithm can be used on this VIEW
+  Check whether the merging algorithm can be used for this unit
 
   SYNOPSIS
-    LEX::can_be_merged()
+    st_select_lex_unit::can_be_merged()
 
   DESCRIPTION
-    We can apply merge algorithm if it is single SELECT view  with
-    subqueries only in WHERE clause (we do not count SELECTs of underlying
-    views, and second level subqueries) and we have not grpouping, ordering,
-    HAVING clause, aggregate functions, DISTINCT clause, LIMIT clause and
-    several underlying tables.
+    We can apply merge algorithm for a unit if it is single SELECT with
+    subqueries only in WHERE clauses or in ON conditions or in select list
+    (we do not count SELECTs of underlying  views/derived tables/CTEs and
+    second level subqueries) and we have no grouping, ordering, HAVING
+    clause, aggregate functions, DISTINCT clause, LIMIT clause.
 
   RETURN
     FALSE - only temporary table algorithm can be used
     TRUE  - merge algorithm can be used
 */
 
-bool LEX::can_be_merged()
+bool st_select_lex_unit::can_be_merged()
 {
   // TODO: do not forget implement case when select_lex.table_list.elements==0
 
   /* find non VIEW subqueries/unions */
-  bool selects_allow_merge= (first_select_lex()->next_select() == 0 &&
-                             !(first_select_lex()->uncacheable &
-                               UNCACHEABLE_RAND));
-  if (selects_allow_merge)
-  {
-    for (SELECT_LEX_UNIT *tmp_unit= first_select_lex()->first_inner_unit();
-         tmp_unit;
-         tmp_unit= tmp_unit->next_unit())
-    {
-      if (tmp_unit->first_select()->parent_lex == this &&
-          (tmp_unit->item != 0 &&
-           (tmp_unit->item->place() != IN_WHERE &&
-            tmp_unit->item->place() != IN_ON &&
-            tmp_unit->item->place() != SELECT_LIST)))
-      {
-        selects_allow_merge= 0;
-        break;
-      }
-    }
-  }
+  st_select_lex *fs= first_select();
 
-  return (selects_allow_merge &&
-          first_select_lex()->group_list.elements == 0 &&
-          first_select_lex()->having == 0 &&
-          first_select_lex()->with_sum_func == 0 &&
-          first_select_lex()->table_list.elements >= 1 &&
-          !(first_select_lex()->options & SELECT_DISTINCT) &&
-          first_select_lex()->limit_params.select_limit == 0);
+  if (fs->next_select() ||
+      (fs->uncacheable & UNCACHEABLE_RAND) ||
+      (fs->options & SELECT_DISTINCT) ||
+      fs->group_list.elements || fs->having ||
+      fs->with_sum_func ||
+      fs->table_list.elements < 1 ||
+      fs->limit_params.select_limit)
+    return false;
+  for (SELECT_LEX_UNIT *tmp_unit= fs->first_inner_unit();
+       tmp_unit;
+       tmp_unit= tmp_unit->next_unit())
+    if ((tmp_unit->item != 0 &&
+         (tmp_unit->item->place() != IN_WHERE &&
+          tmp_unit->item->place() != IN_ON &&
+          tmp_unit->item->place() != SELECT_LIST)))
+      return false;
+  return true;
 }
 
 
@@ -4028,9 +4026,6 @@ bool LEX::can_use_merged()
   SYNOPSIS
     LEX::can_not_use_merged()
 
-  @param forced_no_merge_for_update_delete Set to 1 if we can't use merge with
-                                           multiple-table updates/deletes
-
   DESCRIPTION
     Temporary table algorithm will be used on all SELECT levels for queries
     listed here (see also LEX::can_use_merged()).
@@ -4040,7 +4035,7 @@ bool LEX::can_use_merged()
     TRUE  - VIEWs with MERGE algorithms can be used
 */
 
-bool LEX::can_not_use_merged(bool forced_no_merge_for_update_delete)
+bool LEX::can_not_use_merged()
 {
   switch (sql_command) {
   case SQLCOM_CREATE_VIEW:
@@ -4052,30 +4047,6 @@ bool LEX::can_not_use_merged(bool forced_no_merge_for_update_delete)
   */
   case SQLCOM_SHOW_FIELDS:
     return TRUE;
-
-  case SQLCOM_UPDATE_MULTI:
-    if (forced_no_merge_for_update_delete)
-      return TRUE;
-    /* Fall through */
-
-  case SQLCOM_UPDATE:
-    if (forced_no_merge_for_update_delete &&
-        (((Sql_cmd_update *) m_sql_cmd)->is_multitable() ||
-         query_tables->is_multitable()))
-      return TRUE;
-    return FALSE;
-
-  case SQLCOM_DELETE_MULTI:
-    if (forced_no_merge_for_update_delete)
-      return TRUE;
-    /* Fall through */
-
-  case SQLCOM_DELETE:
-    if (forced_no_merge_for_update_delete &&
-        (((Sql_cmd_delete *) m_sql_cmd)->is_multitable() ||
-         query_tables->is_multitable()))
-      return TRUE;
-    return FALSE;
 
   default:
     return FALSE;
@@ -5479,12 +5450,18 @@ void st_select_lex::set_explain_type(bool on_the_fly)
       using_materialization= TRUE;
   }
 
+  if (!on_the_fly)
+    options|= SELECT_DESCRIBE;
+
+  if (pushdown_select)
+  {
+    type= pushed_select_text;
+    return;
+  }
+
   if (master_unit()->thd->lex->first_select_lex() == this)
   {
-    if (pushdown_select)
-      type= pushed_select_text;
-    else
-      type= is_primary ? "PRIMARY" : "SIMPLE";
+    type= is_primary ? "PRIMARY" : "SIMPLE";
   }
   else
   {
@@ -5494,7 +5471,7 @@ void st_select_lex::set_explain_type(bool on_the_fly)
       if (linkage == DERIVED_TABLE_TYPE)
       {
         bool is_pushed_master_unit= master_unit()->derived &&
-	                            master_unit()->derived->pushdown_derived;
+                                    master_unit()->derived->pushdown_derived;
         if (is_pushed_master_unit)
           type= pushed_derived_text;
         else if (is_uncacheable & UNCACHEABLE_DEPENDENT)
@@ -5506,13 +5483,10 @@ void st_select_lex::set_explain_type(bool on_the_fly)
         type= "MATERIALIZED";
       else
       {
-         if (is_uncacheable & UNCACHEABLE_DEPENDENT)
-           type= "DEPENDENT SUBQUERY";
-         else
-         {
-           type= is_uncacheable? "UNCACHEABLE SUBQUERY" :
-                                 "SUBQUERY";
-         }
+        if (is_uncacheable & UNCACHEABLE_DEPENDENT)
+          type= "DEPENDENT SUBQUERY";
+        else
+          type= is_uncacheable ? "UNCACHEABLE SUBQUERY" : "SUBQUERY";
       }
     }
     else
@@ -5535,7 +5509,10 @@ void st_select_lex::set_explain_type(bool on_the_fly)
         {
           type= is_uncacheable ? "UNCACHEABLE UNION": "UNION";
           if (this == master_unit()->fake_select_lex)
-            type= unit_operation_text[master_unit()->common_op()];
+            type=
+                master_unit()->pushdown_unit
+                    ? pushed_unit_operation_text[master_unit()->common_op()]
+                    : unit_operation_text[master_unit()->common_op()];
           /*
             join below may be =NULL when this functions is called at an early
             stage. It will be later called again and we will set the correct
@@ -5553,7 +5530,7 @@ void st_select_lex::set_explain_type(bool on_the_fly)
                 pos_in_table_list=NULL for e.g. post-join aggregation JOIN_TABs.
               */
               if (!(tab->table && tab->table->pos_in_table_list))
-	        continue;
+                continue;
               TABLE_LIST *tbl= tab->table->pos_in_table_list;
               if (tbl->with && tbl->with->is_recursive &&
                   tbl->is_with_table_recursive_reference())
@@ -5570,9 +5547,6 @@ void st_select_lex::set_explain_type(bool on_the_fly)
       }
     }
   }
-
-  if (!on_the_fly)
-    options|= SELECT_DESCRIBE;
 }
 
 
@@ -5996,7 +5970,10 @@ int st_select_lex_unit::save_union_explain(Explain_query *output)
   for (SELECT_LEX *sl= first; sl; sl= sl->next_select())
     eu->add_select(sl->select_number);
 
-  eu->fake_select_type= unit_operation_text[eu->operation= common_op()];
+  eu->is_pushed_down_to_engine= (pushdown_unit != nullptr);
+  eu->fake_select_type= pushdown_unit ?
+    pushed_unit_operation_text[eu->operation= common_op()] :
+    unit_operation_text[eu->operation= common_op()];
   eu->using_filesort= MY_TEST(global_parameters()->order_list.first);
   eu->using_tmp= union_needs_tmp_table();
 
@@ -9390,22 +9367,6 @@ bool LEX::add_grant_command(THD *thd, const List<LEX_COLUMN> &columns)
 }
 
 
-Item *LEX::make_item_func_substr(THD *thd, Item *a, Item *b, Item *c)
-{
-  return (thd->variables.sql_mode & MODE_ORACLE) ?
-    new (thd->mem_root) Item_func_substr_oracle(thd, a, b, c) :
-    new (thd->mem_root) Item_func_substr(thd, a, b, c);
-}
-
-
-Item *LEX::make_item_func_substr(THD *thd, Item *a, Item *b)
-{
-  return (thd->variables.sql_mode & MODE_ORACLE) ?
-    new (thd->mem_root) Item_func_substr_oracle(thd, a, b) :
-    new (thd->mem_root) Item_func_substr(thd, a, b);
-}
-
-
 Item *LEX::make_item_func_sysdate(THD *thd, uint fsp)
 {
   /*
@@ -9423,17 +9384,6 @@ Item *LEX::make_item_func_sysdate(THD *thd, uint fsp)
     return NULL;
   safe_to_cache_query=0;
   return item;
-}
-
-
-Item *LEX::make_item_func_replace(THD *thd,
-                                  Item *org,
-                                  Item *find,
-                                  Item *replace)
-{
-  return (thd->variables.sql_mode & MODE_ORACLE) ?
-    new (thd->mem_root) Item_func_replace_oracle(thd, org, find, replace) :
-    new (thd->mem_root) Item_func_replace(thd, org, find, replace);
 }
 
 
@@ -11917,6 +11867,13 @@ bool SELECT_LEX_UNIT::explainable() const
                  !is_derived_eliminated() :
                false;
 }
+
+
+bool st_select_lex::is_query_topmost(THD *thd)
+{
+  return get_master() == &thd->lex->unit;
+}
+
 
 /*
   Determines whether the derived table was eliminated during

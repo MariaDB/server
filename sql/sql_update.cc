@@ -433,6 +433,12 @@ bool Sql_cmd_update::update_single_table(THD *thd)
         goto produce_explain_and_leave;
     }
   }
+  if (conds && thd->lex->are_date_funcs_used())
+  {
+    /* Rewrite datetime comparison conditions into sargable */
+    conds= conds->top_level_transform(thd, &Item::date_conds_transformer,
+                                      (uchar *) 0);
+  }
 
   // Don't count on usage of 'only index' when calculating which key to use
   table->covering_keys.clear_all();
@@ -1273,7 +1279,8 @@ produce_explain_and_leave:
     goto err;
 
 emit_explain_and_leave:
-  int err2= thd->lex->explain->send_explain(thd);
+  bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
+  int err2= thd->lex->explain->send_explain(thd, extended);
 
   delete select;
   free_underlaid_joins(thd, select_lex);
@@ -3064,7 +3071,10 @@ bool Sql_cmd_update::execute_inner(THD *thd)
     else
     {
       if (thd->lex->describe || thd->lex->analyze_stmt)
-        res= thd->lex->explain->send_explain(thd);
+      {
+        bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
+        res= thd->lex->explain->send_explain(thd, extended);
+      }
     }
   }
 

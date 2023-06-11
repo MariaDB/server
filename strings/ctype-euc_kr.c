@@ -1483,7 +1483,8 @@ static const MY_CASEFOLD_CHARACTER *my_casefold_pages_euckr[256]=
 static MY_CASEFOLD_INFO my_casefold_euckr=
 {
   0xFFFF,
-  my_casefold_pages_euckr
+  my_casefold_pages_euckr,
+  NULL /* ws */
 };
 
 
@@ -10095,7 +10096,6 @@ struct charset_info_st my_charset_euckr_korean_ci=
     NULL,		/* tab_to_uni   */
     NULL,		/* tab_from_uni */
     &my_casefold_euckr, /* casefold     */
-    NULL,               /* caseinfo     */
     NULL,		/* state_map    */
     NULL,		/* ident_map    */
     1,			/* strxfrm_multiply */
@@ -10127,7 +10127,6 @@ struct charset_info_st my_charset_euckr_bin=
     NULL,		/* tab_to_uni   */
     NULL,		/* tab_from_uni */
     &my_casefold_euckr, /* casefold     */
-    NULL,               /* caseinfo     */
     NULL,		/* state_map    */
     NULL,		/* ident_map    */
     1,			/* strxfrm_multiply */
@@ -10159,7 +10158,6 @@ struct charset_info_st my_charset_euckr_korean_nopad_ci=
     NULL,               /* tab_to_uni    */
     NULL,               /* tab_from_uni  */
     &my_casefold_euckr, /* casefold     */
-    NULL,               /* caseinfo     */
     NULL,               /* state_map     */
     NULL,               /* ident_map     */
     1,                  /* strxfrm_multiply */
@@ -10191,7 +10189,6 @@ struct charset_info_st my_charset_euckr_nopad_bin=
     NULL,               /* tab_to_uni    */
     NULL,               /* tab_from_uni  */
     &my_casefold_euckr, /* casefold     */
-    NULL,               /* caseinfo     */
     NULL,               /* state_map     */
     NULL,               /* ident_map     */
     1,                  /* strxfrm_multiply */

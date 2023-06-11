@@ -25,6 +25,7 @@
 
 #include "item_func.h"             /* Item_int_func, Item_bool_func */
 #include "item.h"
+#include "opt_rewrite_date_cmp.h"
 
 extern Item_result item_cmp_type(Item_result a,Item_result b);
 inline Item_result item_cmp_type(const Item *a, const Item *b)
@@ -374,8 +375,7 @@ class Item_in_optimizer: public Item_bool_func
 protected:
   Item_cache *cache;
   Item *expr_cache;
-  bool save_cache;
-  /* 
+  /*
     Stores the value of "NULL IN (SELECT ...)" for uncorrelated subqueries:
       UNKNOWN - "NULL in (SELECT ...)" has not yet been evaluated
       FALSE   - result is FALSE
@@ -385,7 +385,7 @@ protected:
 public:
   Item_in_optimizer(THD *thd, Item *a, Item *b):
     Item_bool_func(thd, a, b), cache(0), expr_cache(0),
-    save_cache(0), result_for_null_param(UNKNOWN)
+    result_for_null_param(UNKNOWN)
   {
     with_flags|= item_with_t::SUBQUERY;
   }
@@ -402,7 +402,6 @@ public:
     return name;
   }
   Item_cache **get_cache() { return &cache; }
-  void keep_top_level_cache();
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg) override;
   Item *expr_cache_insert_transformer(THD *thd, uchar *unused) override;
   bool is_expensive_processor(void *arg) override;
@@ -789,6 +788,8 @@ public:
   friend class  Arg_comparator;
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_eq>(thd, this); }
+  Item* date_conds_transformer(THD *thd, uchar *arg) override
+  { return do_date_conds_transformation(thd, this); }
 };
 
 class Item_func_equal final :public Item_bool_rowready_func2
@@ -838,6 +839,8 @@ public:
   Item *negated_item(THD *thd) override;
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_ge>(thd, this); }
+  Item* date_conds_transformer(THD *thd, uchar *arg) override
+  { return do_date_conds_transformation(thd, this); }
 };
 
 
@@ -858,6 +861,8 @@ public:
   Item *negated_item(THD *thd) override;
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_gt>(thd, this); }
+  Item* date_conds_transformer(THD *thd, uchar *arg) override
+  { return do_date_conds_transformation(thd, this); }
 };
 
 
@@ -878,6 +883,8 @@ public:
   Item *negated_item(THD *thd) override;
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_le>(thd, this); }
+  Item* date_conds_transformer(THD *thd, uchar *arg) override
+  { return do_date_conds_transformation(thd, this); }
 };
 
 
@@ -898,6 +905,8 @@ public:
   Item *negated_item(THD *thd) override;
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_lt>(thd, this); }
+  Item* date_conds_transformer(THD *thd, uchar *arg) override
+  { return do_date_conds_transformation(thd, this); }
 };
 
 
@@ -1584,7 +1593,7 @@ public:
   {
     packed_longlong *val= reinterpret_cast<packed_longlong*>(base)+pos;
     Item_datetime *dt= static_cast<Item_datetime*>(item);
-    dt->set(val->val, type_handler()->mysql_timestamp_type());
+    dt->set_from_packed(val->val, type_handler()->mysql_timestamp_type());
   }
   friend int cmp_longlong(void *cmp_arg, packed_longlong *a,packed_longlong *b);
 };
@@ -3040,6 +3049,7 @@ public:
   bool is_const() const { return m_is_const; }
   void set_const(bool arg) { m_is_const= arg; }
   CHARSET_INFO * library_charset() const { return m_library_charset; }
+  void unset_flag(int flag) { m_library_flags&= ~flag; }
 };
 
 

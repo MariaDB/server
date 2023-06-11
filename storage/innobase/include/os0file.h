@@ -212,6 +212,10 @@ public:
   bool is_LRU() const { return (type & (WRITE_LRU ^ WRITE_ASYNC)) != 0; }
   bool is_async() const { return (type & (READ_SYNC ^ READ_ASYNC)) != 0; }
 
+  void write_complete() const;
+  void read_complete() const;
+  void fake_read_complete(os_offset_t offset) const;
+
   /** If requested, free storage space associated with a section of the file.
   @param off   byte offset from the start (SEEK_SET)
   @param len   size of the hole in bytes
@@ -933,13 +937,14 @@ os_file_flush_func(
 /** Retrieves the last error number if an error occurs in a file io function.
 The number should be retrieved before any other OS calls (because they may
 overwrite the error number). If the number is not known to this program,
-the OS error number + 100 is returned.
-@param[in]	report		true if we want an error message printed
-				for all errors
-@return error number, or OS error number + 100 */
-ulint
-os_file_get_last_error(
-	bool		report);
+the OS error number + OS_FILE_ERROR_MAX is returned.
+@param[in]	report_all_errors	true if we want an error message
+                                        printed of all errors
+@param[in]	on_error_silent		true then don't print any diagnostic
+                                        to the log
+@return error number, or OS error number + OS_FILE_ERROR_MAX */
+ulint os_file_get_last_error(bool report_all_errors,
+                             bool on_error_silent= false);
 
 /** NOTE! Use the corresponding macro os_file_read(), not directly this
 function!
@@ -1039,6 +1044,11 @@ int os_aio_init();
 Frees the asynchronous io system. */
 void os_aio_free();
 
+/** Submit a fake read request during crash recovery.
+@param type   fake read request
+@param offset additional context */
+void os_fake_read(const IORequest &type, os_offset_t offset);
+
 /** Request a read or write.
 @param type		I/O request
 @param buf		buffer
@@ -1048,11 +1058,20 @@ void os_aio_free();
 @retval DB_IO_ERROR on I/O error */
 dberr_t os_aio(const IORequest &type, void *buf, os_offset_t offset, size_t n);
 
-/** Wait until there are no pending asynchronous writes. */
-void os_aio_wait_until_no_pending_writes();
+/** @return number of pending reads */
+size_t os_aio_pending_reads();
+/** @return approximate number of pending reads */
+size_t os_aio_pending_reads_approx();
+/** @return number of pending writes */
+size_t os_aio_pending_writes();
 
-/** Wait until all pending asynchronous reads have completed. */
-void os_aio_wait_until_no_pending_reads();
+/** Wait until there are no pending asynchronous writes.
+@param declare  whether the wait will be declared in tpool */
+void os_aio_wait_until_no_pending_writes(bool declare);
+
+/** Wait until all pending asynchronous reads have completed.
+@param declare  whether the wait will be declared in tpool */
+void os_aio_wait_until_no_pending_reads(bool declare);
 
 /** Prints info of the aio arrays.
 @param[in/out]	file		file where to print */

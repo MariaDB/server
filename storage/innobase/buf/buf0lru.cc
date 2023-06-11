@@ -455,15 +455,15 @@ got_block:
 		mysql_mutex_unlock(&buf_pool.mutex);
 		mysql_mutex_lock(&buf_pool.flush_list_mutex);
 		const auto n_flush = buf_pool.n_flush();
+		if (!buf_pool.try_LRU_scan) {
+			buf_pool.page_cleaner_wakeup(true);
+		}
 		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 		mysql_mutex_lock(&buf_pool.mutex);
 		if (!n_flush) {
 			goto not_found;
 		}
 		if (!buf_pool.try_LRU_scan) {
-			mysql_mutex_lock(&buf_pool.flush_list_mutex);
-			buf_pool.page_cleaner_wakeup(true);
-			mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 			my_cond_wait(&buf_pool.done_free,
 				     &buf_pool.mutex.m_mutex);
 		}
@@ -1093,7 +1093,11 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 
 			ut_a(!zip || !bpage->oldest_modification());
 			ut_ad(bpage->zip_size());
-
+			/* Skip consistency checks if the page was freed.
+			In recovery, we could get a sole FREE_PAGE record
+			and nothing else, for a ROW_FORMAT=COMPRESSED page.
+			Its contents would be garbage. */
+			if (!bpage->is_freed())
 			switch (fil_page_get_type(page)) {
 			case FIL_PAGE_TYPE_ALLOCATED:
 			case FIL_PAGE_INODE:
@@ -1112,17 +1116,8 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 				break;
 			case FIL_PAGE_TYPE_ZBLOB:
 			case FIL_PAGE_TYPE_ZBLOB2:
-				break;
 			case FIL_PAGE_INDEX:
 			case FIL_PAGE_RTREE:
-#if defined UNIV_ZIP_DEBUG && defined BTR_CUR_HASH_ADAPT
-				/* During recovery, we only update the
-				compressed page, not the uncompressed one. */
-				ut_a(recv_recovery_is_on()
-				     || page_zip_validate(
-					     &bpage->zip, page,
-					     ((buf_block_t*) bpage)->index));
-#endif /* UNIV_ZIP_DEBUG && BTR_CUR_HASH_ADAPT */
 				break;
 			default:
 				ib::error() << "The compressed page to be"
@@ -1233,6 +1228,7 @@ void buf_pool_t::corrupted_evict(buf_page_t *bpage, uint32_t state)
   buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(id.fold());
   page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
 
+  recv_sys.free_corrupted_page(id);
   mysql_mutex_lock(&mutex);
   hash_lock.lock();
 
@@ -1257,8 +1253,6 @@ void buf_pool_t::corrupted_evict(buf_page_t *bpage, uint32_t state)
     buf_LRU_block_free_hashed_page(reinterpret_cast<buf_block_t*>(bpage));
 
   mysql_mutex_unlock(&mutex);
-
-  recv_sys.free_corrupted_page(id);
 }
 
 /** Update buf_pool.LRU_old_ratio.

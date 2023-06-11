@@ -223,6 +223,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   Lex_for_loop_bounds_st for_loop_bounds;
   Lex_trim_st trim;
   Json_table_column::On_response json_on_response;
+  Lex_substring_spec_st substring_spec;
   vers_history_point_t vers_history_point;
   struct
   {
@@ -347,9 +348,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 */
 
 %ifdef MARIADB
-%expect 82
+%expect 64
 %else
-%expect 83
+%expect 65
 %endif
 
 /*
@@ -634,7 +635,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> RELEASE_SYM                   /* SQL-2003-R */
 %token  <kwd> RENAME
 %token  <kwd> REPEAT_SYM                    /* MYSQL-FUNC */
-%token  <kwd> REPLACE                       /* MYSQL-FUNC */
 %token  <kwd> REQUIRE_SYM
 %token  <kwd> RESIGNAL_SYM                  /* SQL-2003-R */
 %token  <kwd> RESTRICT
@@ -671,7 +671,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> STDDEV_SAMP_SYM               /* SQL-2003-N */
 %token  <kwd> STD_SYM
 %token  <kwd> STRAIGHT_JOIN
-%token  <kwd> SUBSTRING                     /* SQL-2003-N */
 %token  <kwd> SUM_SYM                       /* SQL-2003-N */
 %token  <kwd> SYSDATE
 %token  <kwd> TABLE_REF_PRIORITY
@@ -684,7 +683,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> TO_SYM                        /* SQL-2003-R */
 %token  <kwd> TRAILING                      /* SQL-2003-R */
 %token  <kwd> TRIGGER_SYM                   /* SQL-2003-R */
-%token  <kwd> TRIM                          /* SQL-2003-N */
 %token  <kwd> TRUE_SYM                      /* SQL-2003-R */
 %token  <kwd> UNDO_SYM                      /* FUTURE-USE */
 %token  <kwd> UNION_SYM                     /* SQL-2003-R */
@@ -728,6 +726,14 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  RAISE_MARIADB_SYM             // PLSQL-R
 %token  <kwd>  ROWTYPE_MARIADB_SYM           // PLSQL-R
 %token  <kwd>  ROWNUM_SYM                    /* Oracle-R */
+
+/*
+  SQL functions with a special syntax
+*/
+%token  <kwd> REPLACE                        /* MYSQL-FUNC */
+%token  <kwd> SUBSTRING                      /* SQL-2003-N */
+%token  <kwd> TRIM                           /* SQL-2003-N */
+
 
 /*
   Non-reserved keywords
@@ -1180,7 +1186,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %left   PREC_BELOW_NOT
 
-%nonassoc LOW_PRIORITY_NOT
+/* The precendence of boolean NOT is in fact here. See the comment below. */
+
 %left   '=' EQUAL_SYM GE '>' LE '<' NE
 %nonassoc IS
 %right BETWEEN_SYM
@@ -1192,6 +1199,24 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %left   '*' '/' '%' DIV_SYM MOD_SYM
 %left   '^'
 %left   MYSQL_CONCAT_SYM
+/*
+  Boolean negation has a special branch in "expr" starting with NOT_SYM.
+  The precedence of logical negation is determined by the grammar itself
+  (without using Bison terminal symbol precedence) in this order
+  - Boolean factor (i.e. logical AND)
+  - Boolean NOT
+  - Boolean test (such as '=', IS NULL, IS TRUE)
+
+  But we also need a precedence for NOT_SYM in other contexts,
+  to shift (without reduce) in these cases:
+     predicate <here> NOT IN ...
+     predicate <here> NOT BETWEEN ...
+     predicate <here> NOT LIKE ...
+     predicate <here> NOT REGEXP ...
+  If the precedence of NOT_SYM was low, it would reduce immediately
+  after scanning "predicate" and then produce a syntax error on "NOT".
+*/
+%nonassoc NOT_SYM
 %nonassoc NEG '~' NOT2_SYM BINARY
 %nonassoc COLLATE_SYM
 %nonassoc SUBQUERY_AS_EXPR
@@ -1480,6 +1505,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         literal insert_ident order_ident temporal_literal
         simple_ident expr sum_expr in_sum_expr
         variable variable_aux
+        boolean_test
         predicate bit_expr parenthesized_expr
         table_wild simple_expr column_default_non_parenthesized_expr udf_expr
         primary_expr string_factor_expr mysql_concatenation_expr
@@ -1755,6 +1781,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <for_loop> sp_for_loop_index_and_bounds
 %type <for_loop_bounds> sp_for_loop_bounds
 %type <trim> trim_operands
+%type <substring_spec> substring_operands
 %type <num> opt_sp_for_loop_direction
 %type <spvar_mode> sp_parameter_type
 %type <index_hint> index_hint_type
@@ -9139,79 +9166,83 @@ expr:
                 MYSQL_YYABORT;
             }
           }
-        | NOT_SYM expr %prec LOW_PRIORITY_NOT
+        | NOT_SYM expr
           {
             $$= negate_expression(thd, $2);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | expr IS TRUE_SYM %prec IS
+        | boolean_test %prec PREC_BELOW_NOT
+        ;
+
+boolean_test:
+          boolean_test IS TRUE_SYM %prec IS
           {
             $$= new (thd->mem_root) Item_func_istrue(thd, $1);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | expr IS not TRUE_SYM %prec IS
+        | boolean_test IS not TRUE_SYM %prec IS
           {
             $$= new (thd->mem_root) Item_func_isnottrue(thd, $1);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | expr IS FALSE_SYM %prec IS
+        | boolean_test IS FALSE_SYM %prec IS
           {
             $$= new (thd->mem_root) Item_func_isfalse(thd, $1);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | expr IS not FALSE_SYM %prec IS
+        | boolean_test IS not FALSE_SYM %prec IS
           {
             $$= new (thd->mem_root) Item_func_isnotfalse(thd, $1);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | expr IS UNKNOWN_SYM %prec IS
+        | boolean_test IS UNKNOWN_SYM %prec IS
           {
             $$= new (thd->mem_root) Item_func_isnull(thd, $1);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | expr IS not UNKNOWN_SYM %prec IS
+        | boolean_test IS not UNKNOWN_SYM %prec IS
           {
             $$= new (thd->mem_root) Item_func_isnotnull(thd, $1);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | expr IS NULL_SYM %prec PREC_BELOW_NOT
+        | boolean_test IS NULL_SYM %prec IS
           {
             $$= new (thd->mem_root) Item_func_isnull(thd, $1);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | expr IS not NULL_SYM %prec IS
+        | boolean_test IS not NULL_SYM %prec IS
           {
             $$= new (thd->mem_root) Item_func_isnotnull(thd, $1);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | expr EQUAL_SYM predicate %prec EQUAL_SYM
+        | boolean_test EQUAL_SYM predicate %prec EQUAL_SYM
           {
             $$= new (thd->mem_root) Item_func_equal(thd, $1, $3);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | expr comp_op predicate %prec '='
+        | boolean_test comp_op predicate %prec '='
           {
             $$= (*$2)(0)->create(thd, $1, $3);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | expr comp_op all_or_any '(' subselect ')' %prec '='
+        | boolean_test comp_op all_or_any '(' subselect ')' %prec '='
           {
             $$= all_any_subquery_creator(thd, $1, $2, $3, $5);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | predicate
+        | predicate %prec BETWEEN_SYM
         ;
 
 predicate:
@@ -9867,6 +9898,7 @@ function_call_keyword:
             $$= new (thd->mem_root) Item_date_typecast(thd, $3);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
+            Lex->set_date_funcs_used_flag();
           }
         | DAY_SYM '(' expr ')'
           {
@@ -9929,6 +9961,7 @@ function_call_keyword:
             $$= new (thd->mem_root) Item_func_month(thd, $3);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
+            Lex->set_date_funcs_used_flag();
           }
         | RIGHT '(' expr ',' expr ')'
           {
@@ -9963,7 +9996,8 @@ function_call_keyword:
           }
         | TRIM '(' trim_operands ')'
           {
-            if (unlikely(!($$= $3.make_item_func_trim(thd))))
+            if (unlikely(!($$= Schema::find_implied(thd)->
+                                 make_item_func_trim(thd, $3))))
               MYSQL_YYABORT;
           }
         | USER_SYM '(' ')'
@@ -9979,8 +10013,29 @@ function_call_keyword:
             $$= new (thd->mem_root) Item_func_year(thd, $3);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
+             Lex->set_date_funcs_used_flag();
           }
         ;
+
+substring_operands:
+          expr ',' expr ',' expr
+          {
+            $$= Lex_substring_spec_st::init($1, $3, $5);
+          }
+        | expr ',' expr
+          {
+            $$= Lex_substring_spec_st::init($1, $3);
+          }
+        | expr FROM expr FOR_SYM expr
+          {
+            $$= Lex_substring_spec_st::init($1, $3, $5);
+          }
+        | expr FROM expr
+          {
+            $$= Lex_substring_spec_st::init($1, $3);
+          }
+        ;
+
 
 /*
   Function calls using non reserved keywords, with special syntaxic forms.
@@ -10114,24 +10169,10 @@ function_call_nonkeyword:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | SUBSTRING '(' expr ',' expr ',' expr ')'
+        | SUBSTRING '(' substring_operands ')'
           {
-            if (unlikely(!($$= Lex->make_item_func_substr(thd, $3, $5, $7))))
-              MYSQL_YYABORT;
-          }
-        | SUBSTRING '(' expr ',' expr ')'
-          {
-            if (unlikely(!($$= Lex->make_item_func_substr(thd, $3, $5))))
-              MYSQL_YYABORT;
-          }
-        | SUBSTRING '(' expr FROM expr FOR_SYM expr ')'
-          {
-            if (unlikely(!($$= Lex->make_item_func_substr(thd, $3, $5, $7))))
-              MYSQL_YYABORT;
-          }
-        | SUBSTRING '(' expr FROM expr ')'
-          {
-            if (unlikely(!($$= Lex->make_item_func_substr(thd, $3, $5))))
+            if (unlikely(!($$= Schema::find_implied(thd)->
+                                 make_item_func_substr(thd, $3))))
               MYSQL_YYABORT;
           }
 %ifdef ORACLE
@@ -10344,7 +10385,8 @@ function_call_conflict:
           }
         | REPLACE '(' expr ',' expr ',' expr ')'
           {
-            if (unlikely(!($$= Lex->make_item_func_replace(thd, $3, $5, $7))))
+            if (unlikely(!($$= Schema::find_implied(thd)->
+                                 make_item_func_replace(thd, $3, $5, $7))))
               MYSQL_YYABORT;
           }
         | REVERSE_SYM '(' expr ')'

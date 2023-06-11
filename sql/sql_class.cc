@@ -1082,19 +1082,13 @@ Sql_condition* THD::raise_condition(const Sql_condition *cond)
     goto ret;
 
   switch (level) {
-  case Sql_condition::WARN_LEVEL_NOTE:
   case Sql_condition::WARN_LEVEL_WARN:
+    mysql_audit_general(this, MYSQL_AUDIT_GENERAL_WARNING, sql_errno, msg);
+    /* fall through */
+  case Sql_condition::WARN_LEVEL_NOTE:
     got_warning= 1;
     break;
   case Sql_condition::WARN_LEVEL_ERROR:
-    break;
-  case Sql_condition::WARN_LEVEL_END:
-    /* Impossible */
-    break;
-  }
-
-  if (level == Sql_condition::WARN_LEVEL_ERROR)
-  {
     mysql_audit_general(this, MYSQL_AUDIT_GENERAL_ERROR, sql_errno, msg);
 
     is_slave_error=  1; // needed to catch query errors during replication
@@ -1103,7 +1097,7 @@ Sql_condition* THD::raise_condition(const Sql_condition *cond)
     /*
       With wsrep we allow converting BF abort error to warning if
       errors are ignored.
-     */
+    */
     if (!is_fatal_error && no_errors &&
         (wsrep_trx().bf_aborted() || wsrep_retry_counter))
     {
@@ -1118,6 +1112,10 @@ Sql_condition* THD::raise_condition(const Sql_condition *cond)
 	da->set_error_status(sql_errno, msg, sqlstate, *cond, raised);
       }
     }
+    break;
+  case Sql_condition::WARN_LEVEL_END:
+    /* Impossible */
+    break;
   }
 
   query_cache_abort(this, &query_cache_tls);
@@ -1294,6 +1292,11 @@ void THD::init()
   wsrep_affected_rows     = 0;
   m_wsrep_next_trx_id     = WSREP_UNDEFINED_TRX_ID;
   wsrep_aborter           = 0;
+  wsrep_abort_by_kill     = NOT_KILLED;
+  wsrep_abort_by_kill_err = 0;
+#ifndef DBUG_OFF
+  wsrep_killed_state      = 0;
+#endif /* DBUG_OFF */
   wsrep_desynced_backup_stage= false;
 #endif /* WITH_WSREP */
 
@@ -1642,6 +1645,13 @@ void THD::reset_for_reuse()
 #endif
 #ifdef WITH_WSREP
   wsrep_free_status(this);
+  wsrep_cs().reset_error();
+  wsrep_aborter= 0;
+  wsrep_abort_by_kill= NOT_KILLED;
+  wsrep_abort_by_kill_err= 0;
+#ifndef DBUG_OFF
+  wsrep_killed_state= 0;
+#endif /* DBUG_OFF */
 #endif /* WITH_WSREP */
 }
 
@@ -1898,7 +1908,9 @@ void THD::awake_no_mutex(killed_state state_to_set)
   }
 
   /* Interrupt target waiting inside a storage engine. */
-  if (state_to_set != NOT_KILLED  && !wsrep_is_bf_aborted(this))
+  if (state_to_set != NOT_KILLED &&
+      IF_WSREP(!wsrep_is_bf_aborted(this) && wsrep_abort_by_kill == NOT_KILLED,
+               true))
     ha_kill_query(this, thd_kill_level(this));
 
   abort_current_cond_wait(false);
@@ -2126,6 +2138,17 @@ void THD::reset_killed()
     mysql_mutex_unlock(&LOCK_thd_kill);
   }
 #ifdef WITH_WSREP
+  if (WSREP_NNULL(this))
+  {
+    if (wsrep_abort_by_kill != NOT_KILLED)
+    {
+      mysql_mutex_assert_not_owner(&LOCK_thd_kill);
+      mysql_mutex_lock(&LOCK_thd_kill);
+      wsrep_abort_by_kill= NOT_KILLED;
+      wsrep_abort_by_kill_err= 0;
+      mysql_mutex_unlock(&LOCK_thd_kill);
+    }
+  }
   mysql_mutex_assert_not_owner(&LOCK_thd_data);
   mysql_mutex_lock(&LOCK_thd_data);
   wsrep_aborter= 0;

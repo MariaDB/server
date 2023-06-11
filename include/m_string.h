@@ -199,9 +199,22 @@ extern ulonglong strtoull(const char *str, char **ptr, int base);
 
 #include <mysql/plugin.h>
 
-#define STRING_WITH_LEN(X) (X), ((size_t) (sizeof(X) - 1))
-#define USTRING_WITH_LEN(X) ((uchar*) X), ((size_t) (sizeof(X) - 1))
-#define C_STRING_WITH_LEN(X) ((char *) (X)), ((size_t) (sizeof(X) - 1))
+#ifdef __cplusplus
+#include <type_traits>
+template<typename T> inline const char *_swl_check(T s)
+{
+  static_assert(std::is_same<T, const char (&)[sizeof(T)]>::value
+             || std::is_same<T, const char [sizeof(T)]>::value,
+             "Wrong argument for STRING_WITH_LEN()");
+  return s;
+}
+#define STRING_WITH_LEN(X) _swl_check<decltype(X)>(X), ((size_t) (sizeof(X) - 1))
+#else
+#define STRING_WITH_LEN(X) (X ""), ((size_t) (sizeof(X) - 1))
+#endif
+
+#define USTRING_WITH_LEN(X) (uchar*) STRING_WITH_LEN(X)
+#define C_STRING_WITH_LEN(X) (char *) STRING_WITH_LEN(X)
 #define LEX_STRING_WITH_LEN(X) (X).str, (X).length
 
 typedef struct st_mysql_const_lex_string LEX_CSTRING;
@@ -236,14 +249,15 @@ static inline void lex_string_set3(LEX_CSTRING *lex_str, const char *c_str,
 */
 static inline int safe_strcpy(char *dst, size_t dst_size, const char *src)
 {
-  memset(dst, '\0', dst_size);
-  strncpy(dst, src, dst_size - 1);
-  /*
-     If the first condition is true, we are guaranteed to have src length
-     >= (dst_size - 1), hence safe to access src[dst_size - 1].
-  */
-  if (dst[dst_size - 2] != '\0' && src[dst_size - 1] != '\0')
-    return 1; /* Truncation of src. */
+  DBUG_ASSERT(dst_size > 0);
+  /* Note, strncpy will zerofill end of dst if src shorter than dst_size */
+  strncpy(dst, src, dst_size);
+  if (dst[dst_size-1])
+  {
+    /* Ensure string is zero terminated */
+    dst[dst_size-1]= 0;
+    return 1;
+  }
   return 0;
 }
 

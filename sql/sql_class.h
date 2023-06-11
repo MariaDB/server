@@ -1897,7 +1897,7 @@ show_system_thread(enum_thread_type thread)
     RETURN_NAME_AS_STRING(SYSTEM_THREAD_SLAVE_BACKGROUND);
     RETURN_NAME_AS_STRING(SYSTEM_THREAD_SEMISYNC_MASTER_BACKGROUND);
   default:
-    sprintf(buf, "<UNKNOWN SYSTEM THREAD: %d>", thread);
+    snprintf(buf, sizeof(buf), "<UNKNOWN SYSTEM THREAD: %d>", thread);
     return buf;
   }
 #undef RETURN_NAME_AS_STRING
@@ -5384,7 +5384,14 @@ public:
   bool                      wsrep_ignore_table;
   /* thread who has started kill for this THD protected by LOCK_thd_data*/
   my_thread_id              wsrep_aborter;
-
+  /* Kill signal used, if thread was killed by manual KILL. Protected by
+     LOCK_thd_kill. */
+  std::atomic<killed_state> wsrep_abort_by_kill;
+  /* */
+  struct err_info*          wsrep_abort_by_kill_err;
+#ifndef DBUG_OFF
+  int                       wsrep_killed_state;
+#endif /* DBUG_OFF */
   /* true if BF abort is observed in do_command() right after reading
   client's packet, and if the client has sent PS execute command. */
   bool                      wsrep_delayed_BF_abort;
@@ -7772,7 +7779,7 @@ public:
     if (unlikely(!(dst->str= tmp= (char*) alloc_root(mem_root,
                                                      dst->length + 1))))
       return true;
-    sprintf(tmp, "%.*s%.*s%.*s",
+    snprintf(tmp, dst->length + 1, "%.*s%.*s%.*s",
             (int) m_db.length, (m_db.length ? m_db.str : ""),
             dot, ".",
             (int) m_name.length, m_name.str);

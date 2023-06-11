@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2023, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -3068,7 +3068,8 @@ pfs_start_table_io_wait_v1(PSI_table_locker_state *state,
 
       PFS_table_share *share= pfs_table->m_share;
       wait->m_thread_internal_id= pfs_thread->m_thread_internal_id;
-      wait->m_class= &global_table_io_class;
+      if (wait->m_class == NULL || wait->m_class->m_type != PFS_CLASS_TABLE_LOCK)
+        wait->m_class= &global_table_io_class;
       wait->m_timer_start= timer_start;
       wait->m_timer_end= 0;
       wait->m_object_instance_addr= pfs_table->m_identity;

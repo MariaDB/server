@@ -822,7 +822,8 @@ static const MY_CASEFOLD_CHARACTER *my_casefold_pages_gb2312[256]=
 static MY_CASEFOLD_INFO my_casefold_gb2312=
 {
   0xFFFF,
-  my_casefold_pages_gb2312
+  my_casefold_pages_gb2312,
+  NULL /* ws */
 };
 
 
@@ -6499,7 +6500,6 @@ struct charset_info_st my_charset_gb2312_chinese_ci=
     NULL,		/* tab_to_uni   */
     NULL,		/* tab_from_uni */
     &my_casefold_gb2312,/* casefold     */
-    NULL,               /* caseinfo     */
     NULL,		/* state_map    */
     NULL,		/* ident_map    */
     1,			/* strxfrm_multiply */
@@ -6531,7 +6531,6 @@ struct charset_info_st my_charset_gb2312_bin=
     NULL,		/* tab_to_uni   */
     NULL,		/* tab_from_uni */
     &my_casefold_gb2312,/* casefold     */
-    NULL,               /* caseinfo     */
     NULL,		/* state_map    */
     NULL,		/* ident_map    */
     1,			/* strxfrm_multiply */
@@ -6563,7 +6562,6 @@ struct charset_info_st my_charset_gb2312_chinese_nopad_ci=
     NULL,               /* tab_to_uni       */
     NULL,               /* tab_from_uni     */
     &my_casefold_gb2312,/* casefold     */
-    NULL,               /* caseinfo     */
     NULL,               /* state_map        */
     NULL,               /* ident_map        */
     1,                  /* strxfrm_multiply */
@@ -6595,7 +6593,6 @@ struct charset_info_st my_charset_gb2312_nopad_bin=
     NULL,               /* tab_to_uni       */
     NULL,               /* tab_from_uni     */
     &my_casefold_gb2312,/* casefold     */
-    NULL,               /* caseinfo     */
     NULL,               /* state_map        */
     NULL,               /* ident_map        */
     1,                  /* strxfrm_multiply */

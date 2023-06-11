@@ -597,8 +597,7 @@ private:
   @return number of pending operations, possibly with NEEDS_FSYNC flag */
   uint32_t set_closing()
   {
-    return n_pending.fetch_or(CLOSING, std::memory_order_acquire) &
-      (PENDING | NEEDS_FSYNC);
+    return n_pending.fetch_or(CLOSING, std::memory_order_acquire);
   }
 
 public:
@@ -612,8 +611,6 @@ public:
   /** Close all tablespace files at shutdown */
   static void close_all();
 
-  /** @return last_freed_lsn */
-  lsn_t get_last_freed_lsn() { return last_freed_lsn; }
   /** Update last_freed_lsn */
   void update_last_freed_lsn(lsn_t lsn) { last_freed_lsn= lsn; }
 
@@ -1470,6 +1467,7 @@ public:
 
     if (space_list_last_opened == space)
     {
+      ut_ad(s != space_list.begin());
       space_list_t::iterator prev= s;
       space_list_last_opened= &*--prev;
     }

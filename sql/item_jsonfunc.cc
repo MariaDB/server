@@ -19,21 +19,7 @@
 #include "sql_class.h"
 #include "item.h"
 #include "sql_parse.h" // For check_stack_overrun
-
-/*
-  Allocating memory and *also* using it (reading and
-  writing from it) because some build instructions cause
-  compiler to optimize out stack_used_up. Since alloca()
-  here depends on stack_used_up, it doesnt get executed
-  correctly and causes json_debug_nonembedded to fail
-  ( --error ER_STACK_OVERRUN_NEED_MORE does not occur).
-*/
-#define ALLOCATE_MEM_ON_STACK(A) do \
-                              { \
-                                uchar *array= (uchar*)alloca(A); \
-                                bzero(array, A); \
-                                my_checksum(0, array, A); \
-                              } while(0)
+#include "json_schema_helper.h"
 
 /*
   Compare ASCII string against the string with the specified
@@ -4735,4 +4721,129 @@ bool Item_func_json_overlaps::fix_length_and_dec(THD *thd)
   set_maybe_null();
 
   return Item_bool_func::fix_length_and_dec(thd);
+}
+
+longlong Item_func_json_schema_valid::val_int()
+{
+  json_engine_t ve;
+  int is_valid= 1;
+
+  if (!schema_parsed)
+  {
+    null_value= 1;
+     return 0;
+  }
+
+   val= args[1]->val_json(&tmp_val);
+
+   if (!val)
+  {
+    null_value= 1;
+    return 0;
+  }
+  null_value= 0;
+
+  if (!val->length())
+    return 1;
+
+  json_scan_start(&ve, val->charset(), (const uchar *) val->ptr(),
+                  (const uchar *) val->end());
+
+  if (json_read_value(&ve))
+    goto end;
+
+  if (!keyword_list.is_empty())
+  {
+    List_iterator <Json_schema_keyword> it(keyword_list);;
+    Json_schema_keyword* curr_keyword= NULL;
+    while ((curr_keyword=it++))
+    {
+      if (curr_keyword->validate(&ve, NULL, NULL))
+      {
+        is_valid= 0;
+        break;
+      }
+    } 
+  }
+
+  if (is_valid && !ve.s.error && !json_scan_ended(&ve))
+  {
+    while (json_scan_next(&ve) == 0) /* no-op */;
+  }
+
+end:
+  if (unlikely(ve.s.error))
+  {
+    is_valid= 0;
+    report_json_error(val, &ve, 1);
+  }
+
+  return is_valid;
+}
+
+/*
+Idea behind implementation:
+JSON schema basically has same structure as that of json object, consisting of
+key-value pairs. So it can be parsed in the same manner as any json object.
+
+However, none of the keywords are mandatory, so making guess about the json value
+type based only on the keywords would be incorrect. Hence we need separate objects
+denoting each keyword.
+
+So during create_object_and_handle_keyword() we create appropriate objects
+based on the keywords and validate each of them individually on the json
+document by calling respective validate() function if the type matches.
+If any of them fails, return false, else return true.
+*/
+bool Item_func_json_schema_valid::fix_length_and_dec(THD *thd)
+{
+  json_engine_t je;
+  bool res= 0;
+
+  String *js= args[0]->val_json(&tmp_js);
+
+  if ((null_value= args[0]->null_value))
+  {
+    null_value= 1;
+    return 0;
+  }
+  json_scan_start(&je, js->charset(), (const uchar *) js->ptr(),
+                  (const uchar *) js->ptr() + js->length());
+  if (!create_object_and_handle_keyword(thd, &je, &keyword_list,
+                                          &all_keywords))
+    schema_parsed= true;
+  else
+    schema_parsed= false;
+
+  /*
+    create_object_and_handle_keyword fails when either the json value for
+    keyword is invalid or when there is syntax error. Return NULL in both
+    these cases.
+  */
+  if (!schema_parsed)
+  {
+    if (je.s.error)
+     report_json_error(js, &je, 0);
+    set_maybe_null();
+  }
+
+  return res || Item_bool_func::fix_length_and_dec(thd);
+}
+
+void Item_func_json_schema_valid::cleanup()
+{
+  DBUG_ENTER("Item_func_json_schema_valid::cleanup");
+  Item_bool_func::cleanup();
+
+  List_iterator<Json_schema_keyword> it2(all_keywords);
+  Json_schema_keyword *curr_schema;
+  while ((curr_schema= it2++))
+  {
+    delete curr_schema;
+    curr_schema= nullptr;
+  }
+  all_keywords.empty();
+  keyword_list.empty();
+
+  DBUG_VOID_RETURN;
 }

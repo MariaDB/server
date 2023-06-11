@@ -65,10 +65,13 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/item_geofunc.cc ../sql/item_row.cc ../sql/item_strfunc.cc 
            ../sql/item_subselect.cc ../sql/item_sum.cc ../sql/item_timefunc.cc 
            ../sql/item_xmlfunc.cc ../sql/item_jsonfunc.cc
+           ../sql/json_schema.cc ../sql/json_schema_helper.cc
            ../sql/key.cc ../sql/lock.cc ../sql/log.cc 
            ../sql/log_event.cc ../sql/log_event_server.cc 
            ../sql/mf_iocache.cc ../sql/my_decimal.cc 
-           ../sql/net_serv.cc ../sql/opt_range.cc ../sql/opt_sum.cc 
+           ../sql/net_serv.cc ../sql/opt_range.cc
+           ../sql/opt_rewrite_date_cmp.cc
+           ../sql/opt_sum.cc
            ../sql/parse_file.cc ../sql/procedure.cc ../sql/protocol.cc 
            ../sql/records.cc ../sql/repl_failsafe.cc ../sql/rpl_filter.cc
            ../sql/rpl_record.cc ../sql/des_key_file.cc

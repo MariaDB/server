@@ -948,6 +948,10 @@ public:
 
   /** Cancel possible lock waiting for a transaction */
   static void cancel_lock_wait_for_trx(trx_t *trx);
+#ifdef WITH_WSREP
+  /** Cancel lock waiting for a wsrep BF abort. */
+  static void cancel_lock_wait_for_wsrep_bf_abort(trx_t *trx);
+#endif /* WITH_WSREP */
 };
 
 /** The lock system */

@@ -1060,6 +1060,16 @@ ATTRIBUTE_COLD void log_check_margins()
   while (log_sys.check_flush_or_checkpoint());
 }
 
+/** Wait for a log checkpoint if needed.
+NOTE that this function may only be called while not holding
+any synchronization objects except dict_sys.latch. */
+void log_free_check()
+{
+  ut_ad(!lock_sys.is_writer());
+  if (log_sys.check_flush_or_checkpoint())
+    log_check_margins();
+}
+
 extern void buf_resize_shutdown();
 
 /** Make a checkpoint at the latest lsn on shutdown. */

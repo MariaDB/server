@@ -428,7 +428,8 @@ bool Item_sum::register_sum_func(THD *thd, Item **ref)
          sl= sl->master_unit()->outer_select() )
       sl->master_unit()->item->with_flags|= item_with_t::SUM_FUNC;
   }
-  thd->lex->current_select->mark_as_dependent(thd, aggr_sel, NULL);
+  if (aggr_sel)
+    thd->lex->current_select->mark_as_dependent(thd, aggr_sel, NULL);
 
   if ((thd->lex->describe & DESCRIBE_EXTENDED) && aggr_sel)
   {

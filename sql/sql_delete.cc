@@ -464,6 +464,12 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
         goto produce_explain_and_leave;
     }
   }
+  if (conds && thd->lex->are_date_funcs_used())
+  {
+    /* Rewrite datetime comparison conditions into sargable */
+    conds= conds->top_level_transform(thd, &Item::date_conds_transformer,
+                                      (uchar *) 0);
+  }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (prune_partitions(thd, table, conds))
@@ -980,7 +986,6 @@ got_error:
   return_error= 1;
   goto send_nothing_and_leave;
 }
-
 
 
 /***************************************************************************
@@ -1799,7 +1804,10 @@ bool Sql_cmd_delete::execute_inner(THD *thd)
     else
     {
       if (thd->lex->describe || thd->lex->analyze_stmt)
-        res= thd->lex->explain->send_explain(thd);
+      {
+        bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
+        res= thd->lex->explain->send_explain(thd, extended);
+      }
     }
   }
 

@@ -1,0 +1,37 @@
+--source include/have_innodb.inc
+--source include/have_partition.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+CREATE TABLE t1(f1 INT, f2 INT, INDEX(f1))ENGINE=InnoDB
+                PARTITION BY LIST(f1) (
+                        PARTITION p1 VALUES in (1, 2, 3),
+                        PARTITION p2 VALUES in (4, 5, 6));
+INSERT INTO t1 VALUES(1, 1), (1, 1), (6, 1);
+connect(con1,localhost,root,,,);
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+connect(con2,localhost,root,,,);
+SET DEBUG_SYNC="innodb_rollback_inplace_alter_table SIGNAL default_resume WAIT_FOR alter_resume";
+send ALTER TABLE t1 ADD UNIQUE INDEX(f1);
+
+connection default;
+set DEBUG_SYNC="now WAIT_FOR default_resume";
+SET DEBUG_SYNC="innodb_row_update_for_mysql_begin SIGNAL alter_resume WAIT_FOR alter_finish";
+send DELETE FROM t1;
+
+connection con2;
+--error ER_DUP_ENTRY
+reap;
+SET DEBUG_SYNC="now SIGNAL alter_finish";
+
+connection default;
+reap;
+connection con1;
+commit;
+connection default;
+disconnect con1;
+disconnect con2;
+--source ../../innodb/include/wait_all_purged.inc
+drop table t1;
+SET DEBUG_SYNC=reset;

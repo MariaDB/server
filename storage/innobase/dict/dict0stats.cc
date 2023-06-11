@@ -204,7 +204,17 @@ static const dict_table_schema_t table_stats_schema =
   {
     {"database_name", DATA_VARMYSQL, DATA_NOT_NULL, 192},
     {"table_name", DATA_VARMYSQL, DATA_NOT_NULL, 597},
-    {"last_update", DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 4},
+    /*
+      Don't check the DATA_UNSIGNED flag in last_update.
+      It presents if the server is running in a pure MariaDB installation,
+      because MariaDB's Field_timestampf::flags has UNSIGNED_FLAG.
+      But DATA_UNSIGNED misses when the server starts on a MySQL-5.7 directory
+      (during a migration), because MySQL's Field_timestampf::flags does not
+      have UNSIGNED_FLAG.
+      This is fine not to check DATA_UNSIGNED, because Field_timestampf
+      in both MariaDB and MySQL support only non-negative time_t values.
+    */
+    {"last_update", DATA_INT, DATA_NOT_NULL, 4},
     {"n_rows", DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 8},
     {"clustered_index_size", DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 8},
     {"sum_of_other_index_sizes", DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 8},
@@ -218,7 +228,11 @@ static const dict_table_schema_t index_stats_schema =
     {"database_name", DATA_VARMYSQL, DATA_NOT_NULL, 192},
     {"table_name", DATA_VARMYSQL, DATA_NOT_NULL, 597},
     {"index_name", DATA_VARMYSQL, DATA_NOT_NULL, 192},
-    {"last_update", DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 4},
+    /*
+      Don't check the DATA_UNSIGNED flag in last_update.
+      See comments about last_update in table_stats_schema above.
+    */
+    {"last_update", DATA_INT, DATA_NOT_NULL, 4},
     {"stat_name", DATA_VARMYSQL, DATA_NOT_NULL, 64*3},
     {"stat_value", DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 8},
     {"sample_size", DATA_INT, DATA_UNSIGNED, 8},

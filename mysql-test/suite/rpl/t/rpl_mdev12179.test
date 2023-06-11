@@ -1,7 +1,7 @@
+--source include/no_valgrind_without_big.inc
 --source include/have_innodb.inc
 --let $rpl_topology=1->2
 --source include/rpl_init.inc
---source include/no_valgrind_without_big.inc
 
 --connection server_2
 call mtr.add_suppression("The automatically created table.*name may not be entirely in lowercase");

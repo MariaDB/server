@@ -14,6 +14,7 @@ Audit_null_called	9
 Audit_null_general_error	1
 Audit_null_general_log	3
 Audit_null_general_result	2
+Audit_null_general_warning	1
 create procedure au1(x char(16)) select concat("test1", x);
 call au1("-12");
 concat("test1", x)
@@ -24,6 +25,7 @@ Audit_null_called	22
 Audit_null_general_error	1
 Audit_null_general_log	7
 Audit_null_general_result	5
+Audit_null_general_warning	1
 create table t1 (a int);
 insert t1 values (1), (2);
 select * from t1;

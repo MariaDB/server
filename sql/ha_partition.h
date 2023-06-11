@@ -1302,7 +1302,18 @@ public:
       The following code is not safe if you are using different
       storage engines or different index types per partition.
     */
-    return m_file[0]->index_flags(inx, part, all_parts);
+    ulong part_flags= m_file[0]->index_flags(inx, part, all_parts);
+
+    /*
+      The underlying storage engine might support Rowid Filtering. But
+      ha_partition does not forward the needed SE API calls, so the feature
+      will not be used.
+
+      Note: It's the same with IndexConditionPushdown, except for its variant
+      of IndexConditionPushdown+BatchedKeyAccess (that one works). Because of
+      that, we do not clear HA_DO_INDEX_COND_PUSHDOWN here.
+    */
+    return part_flags & ~HA_DO_RANGE_FILTER_PUSHDOWN;
   }
 
   /**
@@ -1637,6 +1648,8 @@ public:
                           const Column_definition &new_field) const override;
   void set_optimizer_costs(THD *thd) override;
   void update_optimizer_costs(OPTIMIZER_COSTS *costs) override;
+  virtual ulonglong index_blocks(uint index, uint ranges, ha_rows rows) override;
+  virtual ulonglong row_blocks() override;
 };
 
 #endif /* HA_PARTITION_INCLUDED */

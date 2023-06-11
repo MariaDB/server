@@ -151,6 +151,7 @@ static struct wsrep_service_st wsrep_handler = {
   wsrep_on,
   wsrep_prepare_key_for_innodb,
   wsrep_thd_LOCK,
+  wsrep_thd_TRYLOCK,
   wsrep_thd_UNLOCK,
   wsrep_thd_query,
   wsrep_thd_retry_counter,
@@ -179,7 +180,6 @@ static struct wsrep_service_st wsrep_handler = {
   wsrep_OSU_method_get,
   wsrep_thd_has_ignored_error,
   wsrep_thd_set_ignored_error,
-  wsrep_thd_set_wsrep_aborter,
   wsrep_report_bf_lock_wait,
   wsrep_thd_kill_LOCK,
   wsrep_thd_kill_UNLOCK,
@@ -251,7 +251,11 @@ struct sql_service_st sql_service_handler=
   mysql_fetch_lengths,
   mysql_set_character_set,
   mysql_num_fields,
-  mysql_select_db
+  mysql_select_db,
+  mysql_use_result,
+  mysql_fetch_fields,
+  mysql_real_escape_string,
+  mysql_ssl_set
 };
 
 #define DEFINE_warning_function(name, ret) {                                \

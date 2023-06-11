@@ -1352,6 +1352,18 @@ protected:
   virtual ~Create_func_json_overlaps() {}
 };
 
+class Create_func_json_schema_valid: public Create_func_arg2
+{
+public:
+  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+
+  static Create_func_json_schema_valid s_singleton;
+
+protected:
+  Create_func_json_schema_valid() {}
+  virtual ~Create_func_json_schema_valid() {}
+};
+
 
 class Create_func_last_day : public Create_func_arg1
 {
@@ -3701,13 +3713,6 @@ Create_func_get_lock Create_func_get_lock::s_singleton;
 Item*
 Create_func_get_lock::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-#ifdef WITH_WSREP
-  if (WSREP_ON && WSREP(thd))
-  {
-    my_error(ER_NOT_SUPPORTED_YET, MYF(0), "GET_LOCK in cluster (WSREP_ON=ON)");
-    return NULL;
-  }
-#endif /* WITH_WSREP */
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   thd->lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
   return new (thd->mem_root) Item_func_get_lock(thd, arg1, arg2);
@@ -4413,6 +4418,15 @@ Create_func_last_insert_id::create_native(THD *thd, const LEX_CSTRING *name,
   return func;
 }
 
+Create_func_json_schema_valid Create_func_json_schema_valid::s_singleton;
+
+Item*
+Create_func_json_schema_valid::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+{
+  status_var_increment(thd->status_var.feature_json);
+  return new (thd->mem_root) Item_func_json_schema_valid(thd, arg1, arg2);
+}
+
 
 Create_func_lcase Create_func_lcase::s_singleton;
 
@@ -5042,13 +5056,6 @@ Create_func_release_all_locks Create_func_release_all_locks::s_singleton;
 Item*
 Create_func_release_all_locks::create_builder(THD *thd)
 {
-#ifdef WITH_WSREP
-  if (WSREP_ON && WSREP(thd))
-  {
-    my_error(ER_NOT_SUPPORTED_YET, MYF(0), "RELEASE_ALL_LOCKS in cluster (WSREP_ON=ON)");
-    return NULL;
-  }
-#endif /* WITH_WSREP */
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   thd->lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
   return new (thd->mem_root) Item_func_release_all_locks(thd);
@@ -5060,13 +5067,6 @@ Create_func_release_lock Create_func_release_lock::s_singleton;
 Item*
 Create_func_release_lock::create_1_arg(THD *thd, Item *arg1)
 {
-#ifdef WITH_WSREP
-  if (WSREP_ON && WSREP(thd))
-  {
-    my_error(ER_NOT_SUPPORTED_YET, MYF(0), "RELEASE_LOCK in cluster (WSREP_ON=ON)");
-    return NULL;
-  }
-#endif /* WITH_WSREP */
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   thd->lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
   return new (thd->mem_root) Item_func_release_lock(thd, arg1);
@@ -5824,6 +5824,7 @@ Native_func_registry func_array[] =
   { { STRING_WITH_LEN("JSON_OVERLAPS") }, BUILDER(Create_func_json_overlaps)},
   { { STRING_WITH_LEN("JSON_REMOVE") }, BUILDER(Create_func_json_remove)},
   { { STRING_WITH_LEN("JSON_REPLACE") }, BUILDER(Create_func_json_replace)},
+  { { STRING_WITH_LEN("JSON_SCHEMA_VALID") }, BUILDER(Create_func_json_schema_valid)},
   { { STRING_WITH_LEN("JSON_SET") }, BUILDER(Create_func_json_set)},
   { { STRING_WITH_LEN("JSON_SEARCH") }, BUILDER(Create_func_json_search)},
   { { STRING_WITH_LEN("JSON_TYPE") }, BUILDER(Create_func_json_type)},
