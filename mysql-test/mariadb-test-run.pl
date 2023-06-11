@@ -3129,7 +3129,7 @@ sub mysql_install_db {
            $bootstrap_sql_file);
 
       my $gis_sp_path = $source_dist ? "$bindir/scripts" : $sql_dir;
-      mtr_appendfile_to_file("$gis_sp_path/maria_add_gis_sp_bootstrap.sql",
+      mtr_appendfile_to_file("$gis_sp_path/maria_add_gis_sp.sql",
            $bootstrap_sql_file);
 
       # Add the performance tables

@@ -252,7 +252,8 @@ static my_bool ignore_errors=0,wait_flag=0,quick=0,
 static my_bool debug_info_flag, debug_check_flag, batch_abort_on_error;
 static my_bool column_types_flag;
 static my_bool preserve_comments= 0;
-static my_bool in_com_source, aborted= 0;
+static my_bool in_com_source, aborted= 0, no_catalogs= 0;
+static my_bool server_supports_catalogs= 0;
 static ulong opt_max_allowed_packet, opt_net_buffer_length;
 static uint verbose=0,opt_silent=0,opt_mysql_port=0, opt_local_infile=0;
 static uint my_end_arg;
@@ -356,6 +357,9 @@ static void report_progress(const MYSQL *mysql, uint stage, uint max_stage,
                             uint proc_info_length);
 #endif
 static void report_progress_end();
+static void get_current_catalog(bool force);
+static void set_prompt();
+static void get_current_db();
 
 /* A structure which contains information on the commands this program
    can understand. */
@@ -1217,10 +1221,6 @@ int main(int argc,char *argv[])
   charset_index= get_command_index('C');
   delimiter_index= get_command_index('d');
   delimiter_str= delimiter;
-  default_prompt = my_strdup(PSI_NOT_INSTRUMENTED, getenv("MYSQL_PS1") ?
-			     getenv("MYSQL_PS1") : 
-			     "\\N [\\d]> ",MYF(MY_WME));
-  current_prompt = my_strdup(PSI_NOT_INSTRUMENTED, default_prompt,MYF(MY_WME));
   prompt_counter=0;
   aborted= 0;
   sf_leaking_memory= 1; /* no memory leak reports yet */
@@ -1299,6 +1299,15 @@ int main(int argc,char *argv[])
     status.exit_status= 1;
     mysql_end(-1);
   }
+  get_current_catalog(0);
+  if (current_catalog && current_db && is_prefix(current_db, current_catalog))
+  {
+    size_t cat_length= strlen(current_catalog);
+    if (current_db[cat_length] == '.')
+      strmov(current_db, current_db+cat_length+1);
+  }
+  set_prompt();
+
   if (!status.batch)
     ignore_errors=1;				// Don't abort monitor
 
@@ -1496,7 +1505,9 @@ static bool do_connect(MYSQL *mysql, const char *host, const char *user,
                        const char *password, const char *catalog,
                        const char *database, ulong flags)
 {
+#ifndef MARIADB_DEFAULT_CATALOG
   char catalog_db[SAFE_NAME_LEN*2+3];
+#endif
 
   if (opt_secure_auth)
     mysql_options(mysql, MYSQL_SECURE_AUTH, (char *) &opt_secure_auth);
@@ -1529,9 +1540,9 @@ static bool do_connect(MYSQL *mysql, const char *host, const char *user,
 
   if (catalog)
   {
-#ifdef MARIADB_OPT_CATALOG
+#ifdef MARIADB_DEFAULT_CATALOG
     /* using new MariaDB client protocol for catalogs */
-    mysql_optionsv(mysql, MYSQL_OPT_CATALOG, catalog);
+    mysql_optionsv(mysql, MARIADB_OPT_CATALOG, catalog);
 #else
     /* Using old catalog protocol */
     strxnmov(catalog_db, sizeof(catalog_db)-1, catalog, ".", database, NullS);
@@ -3122,6 +3133,21 @@ char *rindex(const char *s,int c)
 #endif /* HAVE_READLINE */
 
 
+static void set_prompt()
+{
+  my_free(default_prompt);
+  my_free(current_prompt);
+
+  default_prompt= my_strdup(PSI_NOT_INSTRUMENTED, getenv("MYSQL_PS1") ?
+                            getenv("MYSQL_PS1") :
+                            (server_supports_catalogs ?
+                             "\\N [\\C.\\d]> " :
+                             "\\N [\\d]> "),
+                            MYF(MY_WME));
+  current_prompt= my_strdup(PSI_NOT_INSTRUMENTED, default_prompt, MYF(MY_WME));
+}
+
+
 static int reconnect(void)
 {
   /* purecov: begin tested */
@@ -3129,8 +3155,14 @@ static int reconnect(void)
   {
     put_info("No connection. Trying to reconnect...",INFO_INFO);
     (void) com_connect((String *) 0, 0);
-    if (opt_rehash)
-      com_rehash(NULL, NULL);
+    if (connected)
+    {
+      get_current_catalog(1);
+      get_current_db();
+      set_prompt();
+      if (opt_rehash)
+        com_rehash(NULL, NULL);
+    }
   }
   if (!connected)
     return put_info("Can't connect to the server\n",INFO_ERROR);
@@ -3157,6 +3189,32 @@ static void get_current_db()
     MYSQL_ROW row= mysql_fetch_row(res);
     if (row && row[0])
       current_db= my_strdup(PSI_NOT_INSTRUMENTED, row[0], MYF(MY_WME));
+    mysql_free_result(res);
+  }
+}
+
+static void get_current_catalog(bool force)
+{
+  MYSQL_RES *res;
+
+  if ((no_catalogs || !server_supports_catalogs) && !force)
+    return;
+
+  no_catalogs=1;                                // We have tested for catalogs
+  server_supports_catalogs= 0;
+
+  /* In case of error below current_db will be NULL */
+  if (!mysql_query(&mysql, "SELECT CATALOG(), @@global.catalogs") &&
+      (res= mysql_use_result(&mysql)))
+  {
+    MYSQL_ROW row= mysql_fetch_row(res);
+    if (row && row[0] && row[1])
+    {
+      my_free(current_catalog);
+      current_catalog= my_strdup(PSI_NOT_INSTRUMENTED, row[0], MYF(MY_WME));
+      server_supports_catalogs= row[1][0] == '1';
+      no_catalogs= 0;
+    }
     mysql_free_result(res);
   }
 }
@@ -4589,8 +4647,18 @@ com_connect(String *buffer, char *line)
 
   if (connected)
   {
-    sprintf(buff,"Connection id:    %lu",mysql_thread_id(&mysql));
+    sprintf(buff,"Connection id:    %lu", mysql_thread_id(&mysql));
     put_info(buff,INFO_INFO);
+    if (server_supports_catalogs)
+    {
+      if (!current_catalog)
+        get_current_catalog(0);
+      if (current_catalog)
+      {
+        sprintf(buff,"Current catalog:  %.128s", current_catalog);
+        put_info(buff,INFO_INFO);
+      }
+    }
     sprintf(buff,"Current database: %.128s\n",
 	    current_db ? current_db : "*** NONE ***");
     put_info(buff,INFO_INFO);
@@ -4695,7 +4763,7 @@ com_delimiter(String *buffer __attribute__((unused)), char *line)
 
 	/* ARGSUSED */
 static int
-com_use(String *buffer __attribute__((unused)), char *line)
+com_use(String *buffer, char *line)
 {
   char buff[FN_REFLEN + 1], *tmp, *ptr= buff;
   int select_db;
@@ -4704,10 +4772,27 @@ com_use(String *buffer __attribute__((unused)), char *line)
   strmake_buf(buff, line);
   tmp= get_arg(&ptr, GET);
   if (!tmp || !*tmp)
+    goto error;
+
+  if (!strncasecmp(tmp, "database", 8))
   {
-    put_info("USE must be followed by a database name", INFO_ERROR);
-    return 0;
+    tmp= get_arg(&ptr, GET_NEXT);
+    if (!tmp || !*tmp)
+      goto error;
   }
+  else if (!strncasecmp(tmp, "catalog",7))
+  {
+    int res;
+    one_database= 0;
+    if (!(res= com_go(buffer, line)))
+    {
+      my_free(current_db);
+      current_db= 0;
+    }
+    get_current_catalog(1);
+    return res;
+  }
+
   /*
     We need to recheck the current database, because it may change
     under our feet, for example if DROP DATABASE or RENAME DATABASE
@@ -4765,6 +4850,11 @@ com_use(String *buffer __attribute__((unused)), char *line)
   }
 
   put_info("Database changed",INFO_INFO);
+  return 0;
+
+error:
+  put_info("USE must be followed by DATABASE, CATALOG or a database name",
+           INFO_ERROR);
   return 0;
 }
 
@@ -4972,6 +5062,21 @@ sql_real_connect(char *host, char *catalog, char *database, char *user,
     return -1;					// Retryable
   }
 
+#ifndef EMBEDDED_LIBRARY
+  ulong mariadb_capabilities;
+  mariadb_get_infov(&mysql, MARIADB_CONNECTION_EXTENDED_SERVER_CAPABILITIES,
+                    &mariadb_capabilities);
+  if (mariadb_capabilities & (MARIADB_CLIENT_CONNECT_CATALOG >> 32))
+    server_supports_catalogs= 1;
+#endif
+
+  if (catalog && !server_supports_catalogs)
+  {
+    put_info("Note: --catalog option used but server does not support "
+             "catalogs!\n",
+             INFO_INFO);
+  }
+
   charset_name= IF_EMBEDDED(mysql.charset->coll_name.str,
                             mysql.charset->name);
   charset_info= get_charset_by_name(charset_name, MYF(MY_UTF8_IS_UTF8MB3));
@@ -5069,6 +5174,9 @@ com_status(String *buffer __attribute__((unused)),
     MYSQL_ROW cur=mysql_fetch_row(result);
     if (cur)
     {
+      tee_fprintf(stdout, "Current catalog:\t%s\n",
+                  server_supports_catalogs && current_catalog ?
+                  current_catalog : "");
       tee_fprintf(stdout, "Current database:\t%s\n", cur[0] ? cur[0] : "");
       tee_fprintf(stdout, "Current user:\t\t%s\n", cur[1]);
     }
@@ -5438,6 +5546,12 @@ static const char *construct_prompt()
       {
         const char *db= current_db ? current_db : "(none)";
         processed_prompt.append(db, strlen(db));
+        break;
+      }
+      case 'C':
+      {
+        const char *cat= current_catalog ? current_catalog : "(none)";
+        processed_prompt.append(cat, strlen(cat));
         break;
       }
       case 'N':

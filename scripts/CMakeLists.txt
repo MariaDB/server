@@ -41,7 +41,7 @@ IF(NOT WIN32 OR  (CMAKE_CROSSCOMPILING AND NOT DEFINED CMAKE_CROSSCOMPILING_EMUL
 ENDIF()
 
 IF(NOT ("${CMAKE_BINARY_DIR}" STREQUAL "${CMAKE_SOURCE_DIR}"))
-  FOREACH(f fill_help_tables.sql mysql_system_tables_fix.sql mysql_system_tables.sql mysql_system_tables_data.sql mysql_performance_tables.sql)
+  FOREACH(f fill_help_tables.sql mysql_system_tables_fix.sql mysql_system_tables.sql mysql_system_tables_data.sql mysql_performance_tables.sql maria_def_system_tables.sql maria_add_gis_sp.sql mysql_test_db.sql)
     CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${f} ${CMAKE_CURRENT_BINARY_DIR}/${f} COPYONLY)
   ENDFOREACH()
 ENDIF()
@@ -91,23 +91,6 @@ IF(UNIX AND NOT WITHOUT_SERVER)
 )
 ENDIF()
 
-# Configure two scripts from one 'in' file.
-# The maria_add_gis_sp.sql - to be sent to 'mysql' tool
-# and the maria_add_gis_sp_bootstrap.sql, that can be sent to
-# the server as a bootstrap command.
-
-SET(ADD_GIS_SP_SET_DELIMITER "delimiter |")
-SET(ADD_GIS_SP_RESET_DELIMITER "delimiter ;")
-SET(ADD_GIS_SP_EOL "|")
-CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/maria_add_gis_sp.sql.in
-  ${CMAKE_CURRENT_BINARY_DIR}/maria_add_gis_sp.sql ESCAPE_QUOTES @ONLY)
-
-SET(ADD_GIS_SP_SET_DELIMITER "")
-SET(ADD_GIS_SP_RESET_DELIMITER "")
-SET(ADD_GIS_SP_EOL ";")
-CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/maria_add_gis_sp.sql.in
-  ${CMAKE_CURRENT_BINARY_DIR}/maria_add_gis_sp_bootstrap.sql ESCAPE_QUOTES @ONLY)
-
 IF (NOT WITHOUT_SERVER)
 INSTALL(FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_system_tables.sql
@@ -118,7 +101,6 @@ INSTALL(FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/fill_help_tables.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_test_data_timezone.sql
   ${CMAKE_CURRENT_BINARY_DIR}/maria_add_gis_sp.sql
-  ${CMAKE_CURRENT_BINARY_DIR}/maria_add_gis_sp_bootstrap.sql
   ${CMAKE_CURRENT_BINARY_DIR}/mysql_sys_schema.sql
   ${FIX_PRIVILEGES_SQL}
   DESTINATION ${INSTALL_MYSQLSHAREDIR} COMPONENT Server

@@ -26,6 +26,7 @@ langdir=""
 srcdir=""
 
 args=""
+client_args=""
 defaults=""
 defaults_group_suffix=""
 mysqld_opt=""
@@ -34,20 +35,24 @@ group=""
 silent_startup="--silent-startup"
 log_error=""
 catalog_names=""
-default_catalog=""
+default_catalog="def/"
 create_catalogs=""
 
 force=0
 in_rpm=0
 ip_only=0
+silent=0
 cross_bootstrap=0
+datadir_exists=0
 auth_root_authentication_method=socket
 auth_root_socket_user=""
 skip_test_db=0
 extra_file=""
+debug=""
 
 dirname0=`dirname $0 2>/dev/null`
 dirname0=`dirname $dirname0 2>/dev/null`
+debug_file=/tmp/mariadb_install_db.log
 
 case "$0" in
   *mysqld_install_db)
@@ -76,11 +81,18 @@ Usage: $0 [OPTIONS]
                        will need to set this to the location of the build
                        directory where built files reside.
   --catalogs[=list]    Initialize MariaDB for catalogs. Argument is a list,
-                       separated with space, of the catalogs to create.
+                       separated with space or ',', of the catalogs to create.
                        The def catalog is created automatically.
+  --catalog-user=user  User when adding catalogs to running server.
+  --catalog-password=password
+                       Password for catalog-user.
+  --catalog-client-arg=arg
+                       Other arguments to 'mariadb' when adding new catalogs.
   --cross-bootstrap    For internal use.  Used when building the MariaDB system
                        tables on a different host than the target.
   --datadir=path       The path to the MariaDB data directory.
+  --client-debug       Write commands to-be executed in $debug_file.
+  --server-debug       Start mariadbd with --debug.
   --defaults-extra-file=name
                        Read this file after the global files are read.
   --defaults-file=name Only read default options from the given file name.
@@ -125,7 +137,7 @@ EOF
 
 s_echo()
 {
-  if test "$in_rpm" -eq 0 -a "$cross_bootstrap" -eq 0
+  if test "$in_rpm" -eq 0 -a "$cross_bootstrap" -eq 0 -a "$silent" -eq 0
   then
     echo "$1"
   fi
@@ -173,22 +185,36 @@ parse_arguments()
       --user=*) user=`parse_arg "$arg"` ;;
       --group=*) group=`parse_arg "$arg"` ;;
       --skip-name-resolve) ip_only=1 ;;
-      --verbose) verbose=1 ; silent_startup="" ;;
+      --verbose) verbose=1 ; silent_startup=""; silent=0 ;;
+      --silent) verbose=0 ; silent=1 ;;
       --rpm) in_rpm=1 ;;
       --help) usage ;;
       --no-defaults|--defaults-file=*|--defaults-extra-file=*)
         defaults="$arg" ;;
-      --catalogs)
+      --catalogs | --catalog)
           args="$args --catalogs"
           catalog_names="def"
-          default_catalog="def/"
           ;;
       --catalogs=*)
           args="$args --catalogs"
           catalog_names=`parse_arg "$arg"`;
-          catalog_names="def $catalog_names";
-          default_catalog="def/"
+          catalog_names=`echo "def $catalog_names" | tr ',' ' '`;
           ;;
+      --catalog-user=*)
+          tmp=`parse_arg "$arg"`;
+          client_args="$client_args --user=$tmp";;
+      --catalog-password=*)
+          tmp=`parse_arg "$arg"`;
+          client_args="$client_args --password=$tmp";;
+      --catalog-password)
+          client_args="$client_args --password";;
+      --catalog-client-arg=*)
+          tmp=`parse_arg "$arg"`;
+          client_args="$client_args $tmp";;
+      --client-debug)
+          debug=1;;
+      --server-debug)
+          args="$args --debug" ;;
       --defaults-group-suffix=*)
         defaults_group_suffix="$arg" ;;
       --cross-bootstrap|--windows)
@@ -229,13 +255,19 @@ parse_arguments()
   done
 }
 
-# Try to find a specific file within --basedir which can either be a binary
-# release or installed source directory and return the path.
+# Try to find a specific file, within a set of directories, which can either
+# be a binary release or installed source directory and return the path.
+
 find_in_dirs()
 {
   case "$1" in
     --dir)
       return_dir=1; shift
+      ;;
+  esac
+  case "$1" in
+    --silent)
+      silent=1; shift
       ;;
   esac
 
@@ -248,29 +280,32 @@ find_in_dirs()
       if test -n "$return_dir"
       then
         echo "$dir"
+        found=1
       else
         echo "$dir/$file"
+        found=1
       fi
       break
     fi
   done
+  if test -z "$found" -a "$silent" -eq 0
+  then
+      >&2 cannot_find_file "$file" "$@"
+      exit 1
+  fi
 }
 
 cannot_find_file()
 {
   echo
-  echo "FATAL ERROR: Could not find $1"
+  echo "FATAL ERROR: Could not find file $1"
 
   shift
   if test $# -ne 0
   then
     echo
     echo "The following directories were searched:"
-    echo
-    for dir in "$@"
-    do
-      echo "    $dir"
-    done
+    echo "$@"
   fi
 
   echo
@@ -321,11 +356,7 @@ then
 elif test -n "$basedir"
 then
   print_defaults=`find_in_dirs my_print_defaults $basedir/bin $basedir/extra`
-  if test -z "$print_defaults"
-  then
-    cannot_find_file my_print_defaults $basedir/bin $basedir/extra
-    exit 1
-  fi
+  if test $? == 1 ; then exit 1 ; fi
 elif test -n "$dirname0" -a -x "$dirname0/@bindir@/my_print_defaults"
 then
   print_defaults="$dirname0/@bindir@/my_print_defaults"
@@ -344,8 +375,9 @@ then
   exit 1
 fi
 
-# Now we can get arguments from the groups [mariadbd] and [mysql_install_db]
-# in the my.cfg file, then re-run to merge with command line arguments.
+# Now we can get arguments from the groups [mariadbd], [mysql_install_db] and
+# [mariadb_install_db] in the my.cfg file, then re-run to merge with command
+# line arguments.
 parse_arguments `"$print_defaults" $defaults $defaults_group_suffix --mariadbd mysql_install_db mariadb-install-db`
 
 parse_arguments PICK-ARGS-FROM-ARGV "$@"
@@ -367,32 +399,18 @@ then
 elif test -n "$basedir"
 then
   bindir="$basedir/bin" # only used in the help text
-  resolveip=`find_in_dirs resolveip @resolveip_locations@`
-  if test -z "$resolveip"
-  then
-    cannot_find_file resolveip @resolveip_locations@
-    exit 1
-  fi
-  mysqld=`find_in_dirs mariadbd @mysqld_locations@`
-  if test -z "$mysqld"
-  then
-      cannot_find_file mariadbd @mysqld_locations@
-      exit 1
-  fi
-  langdir=`find_in_dirs --dir errmsg.sys @errmsg_locations@`
-  if test -z "$langdir"
-  then
-    cannot_find_file errmsg.sys @errmsg_locations@
-    exit 1
-  fi
-  srcpkgdatadir=`find_in_dirs --dir fill_help_tables.sql @pkgdata_locations@`
+  resolveip=`find_in_dirs resolveip @resolveip_locations@ $basedir/extra`
+  if test $? == 1 ; then exit 1 ; fi
+  mysqld=`find_in_dirs mariadbd @mysqld_locations@ $basedir/sql`
+  if test $? == 1 ; then exit 1 ; fi
+  langdir=`find_in_dirs --dir errmsg.sys @errmsg_locations@ $basedir/sql/share/english`
+  if test $? == 1 ; then exit 1 ; fi
+  srcpkgdatadir=`find_in_dirs --dir fill_help_tables.sql @pkgdata_locations@ $basedir/scripts`
+  if test $? == 1 ; then exit 1 ; fi
   buildpkgdatadir=$srcpkgdatadir
-  if test -z "$srcpkgdatadir"
-  then
-    cannot_find_file fill_help_tables.sql @pkgdata_locations@
-    exit 1
-  fi
-  plugindir=`find_in_dirs --dir auth_pam.so $basedir/lib*/plugin $basedir/lib*/mysql/plugin $basedir/lib/*/mariadb19/plugin`
+  mariadb_client=`find_in_dirs mariadb $bindir $basedir/client`
+  if test $? == 1 ; then exit 1 ; fi
+  plugindir=`find_in_dirs --dir --silent auth_pam.so $basedir/lib*/plugin $basedir/lib*/mysql/plugin $basedir/lib/*/mariadb19/plugin`
   pamtooldir=$plugindir
 # relative from where the script was run for a relocatable install
 elif test -n "$dirname0" -a -x "$rel_mysqld" -a ! "$rel_mysqld" -ef "@sbindir@/mariadbd"
@@ -415,6 +433,10 @@ else
   plugindir="@pkgplugindir@"
   pamtooldir="@pkgplugindir@"
 fi
+if test -z "$mariadb_client"
+then
+  mariadb_client="$bindir/mariadb"
+fi
 
 # Set up paths to SQL scripts required for bootstrap
 fill_help_tables="$srcpkgdatadir/fill_help_tables.sql"
@@ -422,7 +444,7 @@ create_system_tables="$srcpkgdatadir/mysql_system_tables.sql"
 create_def_system_tables="$srcpkgdatadir/maria_def_system_tables.sql"
 create_performance_tables="$srcpkgdatadir/mysql_performance_tables.sql"
 fill_system_tables="$srcpkgdatadir/mysql_system_tables_data.sql"
-maria_add_gis_sp="$buildpkgdatadir/maria_add_gis_sp_bootstrap.sql"
+maria_add_gis_sp="$buildpkgdatadir/maria_add_gis_sp.sql"
 mysql_test_db="$srcpkgdatadir/mysql_test_db.sql"
 mysql_sys_schema="$buildpkgdatadir/mysql_sys_schema.sql"
 
@@ -471,7 +493,7 @@ then
   if test $? -ne 0
   then
     resolved=`"$resolveip" localhost 2>&1`
-    if test $? -ne 0
+    if test $? -ne 0 -a "$silent" -eq 0
     then
       echo "Neither host '$hostname' nor 'localhost' could be looked up with"
       echo "'$resolveip'"
@@ -482,12 +504,17 @@ then
       link_to_help
       exit 1
     fi
+    if test "$silent" -eq 0
+    then
     echo "WARNING: The host '$hostname' could not be looked up with $resolveip."
-    echo "This probably means that your libc libraries are not 100 % compatible"
-    echo "with this binary MariaDB version. The MariaDB daemon, mariadbd, should work"
+    echo "This probably means that you are not connected to the Internet or"
+    echo "your libc libraries are not 100 % compatible with the binary"
+    echo "MariaDB version. The MariaDB daemon, mariadbd, should still work"
     echo "normally with the exception that host name resolving will not work."
-    echo "This means that you should use IP addresses instead of hostnames"
-    echo "when specifying MariaDB privileges !"
+    echo "This means that you should use socket authentication or use "
+    echo "IP addresses instead of hostnames when specifying MariaDB"
+    echo "privileges."
+    fi
   fi
 fi
 
@@ -558,9 +585,21 @@ fi
 
 if test -f "$ldata/${default_catalog}mysql/user.frm"
 then
-    echo "mysql.user table already exists in $ldata/${default_catalog}mysql"
+    datadir_exists=1
+fi
+
+if test "$datadir_exists" -eq 1 && test -z "$catalog_names"
+then
+    echo "mysql.user table already exists in $ldata/${default_catalog}"
     echo "Run mariadb-upgrade, not mariadb-install-db"
-    exit 0
+    exit 1
+fi
+
+if test -f "$ldata/mysql/user.frm"
+then
+    echo "mysql.user table already exists in $ldata"
+    echo "Run mariadb-upgrade, not mariadb-install-db"
+    exit 1
 fi
 
 # When doing a "cross bootstrap" install, no reference to the current
@@ -583,7 +622,7 @@ if test -n "$log_error"
 then
     if test \( -e "$log_error" -a \! -w "$log_error" \) -o \( ! -e "$log_error" -a ! -w "`dirname "$log_error"`" \)
     then
-        if test -n "$verbose"
+        if test -n "$verbose" -a "$silent" -eq 0
         then
             echo "resetting log-error '$log_error' because no write access"
         fi
@@ -603,6 +642,14 @@ mysqld_install_cmd_line()
   --net_buffer_length=16K
 }
 
+mariadb_client_install_cmd_line()
+{
+    $mariadb_client $defaults --abort-source-on-error=1 \
+           --max_allowed_packet=8M \
+           --net_buffer_length=16K --batch $client_args --catalog=def
+}
+
+
 # Use $auth_root_socket_user if explicitly specified.
 # Otherwise use the owner of datadir - ${user:-$USER}
 # Use 'root' as a fallback
@@ -610,7 +657,7 @@ auth_root_socket_user=${auth_root_socket_user:-${user:-${USER:-root}}}
 
 cat_create_tables()
 {
-  echo "use mysql;"
+  echo "set @@use_stat_tables=never;"
   if test "$1" = "def"
   then
       cat "$create_system_tables" "$create_def_system_tables" "$create_performance_tables" "$fill_system_tables" "$fill_help_tables" "$maria_add_gis_sp" "$mysql_sys_schema"
@@ -660,54 +707,80 @@ cat_sql()
   fi
 }
 
-# Create the system and help tables by passing them to "mariadbd --bootstrap"
-s_echo "Installing MariaDB system tables in '$ldata' ..."
-
-if cat_sql | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
+if test "$datadir_exists" -eq 1
 then
-    printf "@VERSION@-MariaDB" > "$ldata/mariadb_upgrade_info"
-  s_echo "OK"
-else
-  log_file_place=$ldata
-  if test -n "$log_error"
+  s_echo "Adding new catalogs to running MariaDB server at $ldata"
+  if test -n $debug
   then
-    log_file_place="$log_error or $log_file_place"
+      cat_sql | eval "$filter_cmd_line" > $debug_file
   fi
-  echo
-  echo "Installation of system tables failed!  Examine the logs in"
-  echo "$log_file_place for more information."
-  echo
-  echo "The problem could be conflicting information in an external"
-  echo "my.cnf files. You can ignore these by doing:"
-  echo
-  echo "    shell> $0 --defaults-file=~/.my.cnf"
-  echo
-  echo "You can also try to start the mariadbd daemon with:"
-  echo
-  echo "    shell> $mysqld --skip-grant-tables --general-log &"
-  echo
-  echo "and use the command line tool $bindir/mariadb"
-  echo "to connect to the mysql database and look at the grant tables:"
-  echo
-  echo "    shell> $bindir/mariadb -u root mysql"
-  echo "    MariaDB> show tables;"
-  echo
-  echo "Try '$mysqld --help' if you have problems with paths.  Using"
-  echo "--general-log gives you a log in $ldata that may be helpful."
-  link_to_help
-  echo "You can find the latest source at https://downloads.mariadb.org and"
-  echo "the maria-discuss email list at https://launchpad.net/~maria-discuss"
-  echo
-  echo "Please check all of the above before submitting a bug report"
-  echo "at https://mariadb.org/jira"
-  echo
-  exit 1
+  if cat_sql | eval "$filter_cmd_line" | mariadb_client_install_cmd_line
+  then
+      s_echo "OK"
+  else
+      echo "Creating new catalogs failed. Please check that MariaDB server is running"
+      echo "and that the mariadb client can connect to it."
+      if test -z $debug
+      then
+          echo "You can try mariadb_install_db again with the --debug and then check in"
+          echo "$debug_file what when wrong."
+      fi
+      exit 1
+  fi
+else
+  # Create the system and help tables by passing them to "mariadbd --bootstrap"
+  s_echo "Installing MariaDB system tables in '$ldata' ..."
+
+  if test -n $debug
+  then
+      cat_sql | eval "$filter_cmd_line" > $debug_file
+  fi
+  if cat_sql | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
+  then
+      printf "@VERSION@-MariaDB" > "$ldata/mariadb_upgrade_info"
+      s_echo "OK"
+  else
+    log_file_place=$ldata
+    if test -n "$log_error"
+      then
+          log_file_place="$log_error or $log_file_place"
+    fi
+    echo
+    echo "Installation of system tables failed!  Examine the logs in"
+    echo "$log_file_place for more information."
+    echo
+    echo "The problem could be conflicting information in an external"
+    echo "my.cnf files. You can ignore these by doing:"
+    echo
+    echo "    shell> $0 --defaults-file=~/.my.cnf"
+    echo
+    echo "You can also try to start the mariadbd daemon with:"
+    echo
+    echo "    shell> $mysqld --skip-grant-tables --general-log &"
+    echo
+    echo "and use the command line tool $mariadb_client"
+    echo "to connect to the mysql database and look at the grant tables:"
+    echo
+    echo "    shell> $mariadb_client -u root mysql"
+    echo "    MariaDB> show tables;"
+    echo
+    echo "Try '$mysqld --help' if you have problems with paths.  Using"
+    echo "--general-log gives you a log in $ldata that may be helpful."
+    link_to_help
+    echo "You can find the latest source at https://downloads.mariadb.org and"
+    echo "the maria-discuss email list at https://launchpad.net/~maria-discuss"
+    echo
+    echo "Please check all of the above before submitting a bug report"
+    echo "at https://mariadb.org/jira"
+    echo
+    exit 1
+  fi
 fi
 
 # Don't output verbose information if running inside bootstrap or using
 # --srcdir for testing.  In such cases, there's no end user looking at
 # the screen.
-if test "$cross_bootstrap" -eq 0 && test -z "$srcdir"
+if test "$cross_bootstrap" -eq 0 && test -z "$srcdir" && test "$silent" -eq 0
 then
   s_echo
   s_echo "To start mariadbd at boot time you have to copy"
