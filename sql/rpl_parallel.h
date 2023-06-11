@@ -91,6 +91,10 @@ struct group_commit_orderer {
   };
   uint8 flags;
 #ifndef DBUG_OFF
+  /*
+    Flag set when the GCO has been freed and entered the free list, to catch
+    (in debug) errors in the complex lifetime of this object.
+  */
   bool gc_done;
 #endif
 };

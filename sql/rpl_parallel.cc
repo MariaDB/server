@@ -286,16 +286,11 @@ static void
 signal_error_to_sql_driver_thread(THD *thd, rpl_group_info *rgi, int err)
 {
   rgi->worker_error= err;
-  /*
-    In case we get an error during commit, inform following transactions that
-    we aborted our commit.
-  */
   DBUG_EXECUTE_IF("hold_worker2_favor_worker3", {
       if (rgi->current_gtid.seq_no == 2002) {
         debug_sync_set_action(thd, STRING_WITH_LEN("now WAIT_FOR cont_worker2"));
       }});
 
-  rgi->unmark_start_commit();
   rgi->cleanup_context(thd, true);
   rgi->rli->abort_slave= true;
   rgi->rli->stop_for_until= false;
