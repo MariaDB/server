@@ -162,7 +162,7 @@ static MYSQL_BIN_LOG::xid_count_per_binlog *
 
 static bool start_binlog_background_thread();
 
-static rpl_binlog_state rpl_global_gtid_binlog_state;
+rpl_binlog_state rpl_global_gtid_binlog_state;
 
 void setup_log_handling()
 {
@@ -3542,7 +3542,7 @@ MYSQL_BIN_LOG::MYSQL_BIN_LOG(uint *sync_period)
    checksum_alg_reset(BINLOG_CHECKSUM_ALG_UNDEF),
    relay_log_checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF),
    description_event_for_exec(0), description_event_for_queue(0),
-   current_binlog_id(0), reset_master_count(0)
+   current_binlog_id(0), reset_master_count(0), gtid_state_cache(NULL)
 {
   /*
     We don't want to initialize locks here as such initialization depends on
@@ -3553,6 +3553,12 @@ MYSQL_BIN_LOG::MYSQL_BIN_LOG(uint *sync_period)
   index_file_name[0] = 0;
   bzero((char*) &index_file, sizeof(index_file));
   bzero((char*) &purge_index_file, sizeof(purge_index_file));
+}
+
+MYSQL_BIN_LOG::~MYSQL_BIN_LOG()
+{
+  if (gtid_state_cache)
+    rpl_global_gtid_binlog_state.release_binlog(&gtid_state_cache);
 }
 
 void MYSQL_BIN_LOG::stop_background_thread()
@@ -3884,6 +3890,9 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
       if (!s.is_valid())
         goto err;
       s.dont_set_created= null_created_arg;
+      if (rpl_global_gtid_binlog_state.rotate_binlog(log_file_name,
+                                                     &gtid_state_cache))
+        goto err;
       if (write_event(&s))
         goto err;
       bytes_written+= s.data_written;
@@ -4572,6 +4581,8 @@ bool MYSQL_BIN_LOG::reset_logs(THD *thd, bool create_new_log,
     else
       rpl_global_gtid_binlog_state.reset();
   }
+
+  rpl_global_gtid_binlog_state.reset_binlog_hash();
 
   /* Start logging with a new file */
   close(LOG_CLOSE_INDEX | LOG_CLOSE_TO_BE_OPENED);
@@ -5603,12 +5614,17 @@ end2:
 bool MYSQL_BIN_LOG::write_event(Log_event *ev, binlog_cache_data *cache_data,
                                 IO_CACHE *file)
 {
-  Log_event_writer writer(file, cache_data, &crypto);
+  const bool cache_gtid_state= !cache_data;
+  Log_event_writer writer(file, cache_data,
+                          (cache_gtid_state ? &gtid_state_cache : NULL),
+                          &crypto);
   if (crypto.scheme && file == &log_file)
   {
     writer.ctx= alloca(crypto.ctx_size);
     writer.set_encrypted_writer();
   }
+  DBUG_ASSERT(!cache_gtid_state || !gtid_state_cache ||
+              !strcmp(log_file_name, gtid_state_cache->filename.str));
   return writer.write(ev);
 }
 
@@ -6022,7 +6038,7 @@ THD::binlog_start_trans_and_stmt()
       uchar *buf= 0;
       size_t len= 0;
       IO_CACHE tmp_io_cache;
-      Log_event_writer writer(&tmp_io_cache, 0);
+      Log_event_writer writer(&tmp_io_cache, 0, NULL);
       if(!open_cached_file(&tmp_io_cache, mysql_tmpdir, TEMP_PREFIX,
                           128, MYF(MY_WME)))
       {
@@ -6241,7 +6257,7 @@ bool THD::binlog_write_table_map(TABLE *table, bool with_annotate)
   binlog_cache_data *cache_data= (cache_mngr->
                                   get_binlog_cache_data(is_transactional));
   IO_CACHE *file= &cache_data->cache_log;
-  Log_event_writer writer(file, cache_data);
+  Log_event_writer writer(file, cache_data, NULL);
 
   if (with_annotate)
     if (binlog_write_annotated_row(&writer))
@@ -6395,7 +6411,9 @@ MYSQL_BIN_LOG::flush_and_set_pending_rows_event(THD *thd,
 
   if (Rows_log_event* pending= cache_data->pending())
   {
-    Log_event_writer writer(&cache_data->cache_log, cache_data);
+    const bool cache_gtid_state= !cache_data;
+    Log_event_writer writer(&cache_data->cache_log, cache_data,
+                            (cache_gtid_state ? &gtid_state_cache : NULL));
 
     /*
       Write pending event to the cache.
@@ -6476,6 +6494,9 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
     seq_no= gtid.seq_no;
   }
   if (err)
+    DBUG_RETURN(true);
+
+  if (rpl_global_gtid_binlog_state.push_gtids_array(&gtid_state_cache, &gtid, 1))
     DBUG_RETURN(true);
 
   thd->set_last_commit_gtid(gtid);
@@ -7444,8 +7465,9 @@ public:
   size_t remains;
 
   CacheWriter(THD *thd_arg, IO_CACHE *file_arg, bool do_checksum,
+              GTID_state_cache **gtid_state_cache,
               Binlog_crypt_data *cr)
-    : Log_event_writer(file_arg, 0, cr), remains(0), thd(thd_arg),
+    : Log_event_writer(file_arg, 0, gtid_state_cache, cr), remains(0), thd(thd_arg),
       first(true)
   { checksum_len= do_checksum ? BINLOG_CHECKSUM_LEN : 0; }
 
@@ -7498,7 +7520,9 @@ int MYSQL_BIN_LOG::write_cache(THD *thd, IO_CACHE *cache)
   size_t val;
   size_t end_log_pos_inc= 0; // each event processed adds BINLOG_CHECKSUM_LEN 2 t
   uchar header[LOG_EVENT_HEADER_LEN];
-  CacheWriter writer(thd, &log_file, binlog_checksum_options, &crypto);
+  const bool cache_gtid_state= !is_relay_log;
+  CacheWriter writer(thd, &log_file, binlog_checksum_options,
+                     (cache_gtid_state ? &gtid_state_cache : NULL), &crypto);
 
   if (crypto.scheme)
   {

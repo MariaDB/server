@@ -992,6 +992,7 @@ public:
   ulonglong bytes_written;
   void *ctx;         ///< Encryption context or 0 if no encryption is needed
   uint checksum_len;
+  GTID_state_cache **gtid_state_cache;
   int write(Log_event *ev);
   int write_header(uchar *pos, size_t len);
   int write_data(const uchar *pos, size_t len);
@@ -1003,10 +1004,12 @@ public:
   { encrypt_or_write= &Log_event_writer::encrypt_and_write; }
 
   Log_event_writer(IO_CACHE *file_arg, binlog_cache_data *cache_data_arg,
+                   GTID_state_cache **cache_states= NULL,
                    Binlog_crypt_data *cr= 0)
     :encrypt_or_write(&Log_event_writer::write_internal),
-    bytes_written(0), ctx(0),
-    file(file_arg), cache_data(cache_data_arg), crypto(cr) { }
+    bytes_written(0), ctx(0), gtid_state_cache(cache_states),
+    file(file_arg), cache_data(cache_data_arg),
+    crypto(cr) { }
 
 private:
   IO_CACHE *file;

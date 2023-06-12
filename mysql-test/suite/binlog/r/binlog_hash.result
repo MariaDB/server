@@ -1,0 +1,304 @@
+set @old_binlog_gtid_pos_cache= @@global.binlog_gtid_pos_cache;
+set @@global.binlog_gtid_pos_cache= 0;
+reset master;
+set @@global.binlog_gtid_pos_cache= 2;
+reset master;
+select @@gtid_binlog_pos;
+@@gtid_binlog_pos
+
+create table t1 (a int primary key, b int) engine=innodb;
+select @@gtid_binlog_pos;
+@@gtid_binlog_pos
+0-1-1
+insert t1 values (1,1),(3,3),(5,5),(7,7);
+select @@gtid_binlog_pos;
+@@gtid_binlog_pos
+0-1-2
+set @@session.gtid_domain_id= 222;
+create table t2 (m int);
+select @@gtid_binlog_pos;
+@@gtid_binlog_pos
+0-1-2,222-1-1
+insert t2 values (1);
+select @@gtid_binlog_pos;
+@@gtid_binlog_pos
+0-1-2,222-1-2
+update t1 set b=50 where b=5;
+set @@session.gtid_domain_id= 333;
+select @@gtid_binlog_pos;
+@@gtid_binlog_pos
+0-1-2,222-1-3
+update t1 set b=10 where a=5;
+flush binary logs;
+select @@gtid_binlog_pos;
+@@gtid_binlog_pos
+0-1-2,222-1-3,333-1-1
+update t1 set b=20 where a= 5;
+set @@global.binlog_gtid_pos_cache= 0;
+select binlog_gtid_pos('master-bin.000001', 3);
+ERROR HY000: File './master-bin.000001' not found (Errcode: 2 "No such file or directory")
+set @@global.binlog_gtid_pos_cache= 1;
+select binlog_gtid_pos('master-bin.000001', 3);
+binlog_gtid_pos('master-bin.000001', 3)
+
+select binlog_gtid_pos('master-bin.000001', 4);
+binlog_gtid_pos('master-bin.000001', 4)
+
+select binlog_gtid_pos('master-bin.000001', 255);
+binlog_gtid_pos('master-bin.000001', 255)
+NULL
+select binlog_gtid_pos('master-bin.000001', 256);
+binlog_gtid_pos('master-bin.000001', 256)
+
+select binlog_gtid_pos('master-bin.000001', 285);
+binlog_gtid_pos('master-bin.000001', 285)
+
+select binlog_gtid_pos('master-bin.000001', 329);
+binlog_gtid_pos('master-bin.000001', 329)
+
+select binlog_gtid_pos('master-bin.000001', 371);
+binlog_gtid_pos('master-bin.000001', 371)
+0-1-1
+select binlog_gtid_pos('master-bin.000001', 503);
+binlog_gtid_pos('master-bin.000001', 503)
+0-1-1
+select binlog_gtid_pos('master-bin.000001', 545);
+binlog_gtid_pos('master-bin.000001', 545)
+0-1-2
+select binlog_gtid_pos('master-bin.000001', 608);
+binlog_gtid_pos('master-bin.000001', 608)
+0-1-2
+select binlog_gtid_pos('master-bin.000001', 654);
+binlog_gtid_pos('master-bin.000001', 654)
+0-1-2
+select binlog_gtid_pos('master-bin.000001', 723);
+binlog_gtid_pos('master-bin.000001', 723)
+0-1-2
+select binlog_gtid_pos('master-bin.000001', 754);
+binlog_gtid_pos('master-bin.000001', 754)
+0-1-2
+select binlog_gtid_pos('master-bin.000001', 796);
+binlog_gtid_pos('master-bin.000001', 796)
+0-1-2,222-1-1
+select binlog_gtid_pos('master-bin.000001', 895);
+binlog_gtid_pos('master-bin.000001', 895)
+0-1-2,222-1-1
+select binlog_gtid_pos('master-bin.000001', 937);
+binlog_gtid_pos('master-bin.000001', 937)
+0-1-2,222-1-2
+select binlog_gtid_pos('master-bin.000001', 980);
+binlog_gtid_pos('master-bin.000001', 980)
+0-1-2,222-1-2
+select binlog_gtid_pos('master-bin.000001', 1025);
+binlog_gtid_pos('master-bin.000001', 1025)
+0-1-2,222-1-2
+select binlog_gtid_pos('master-bin.000001', 1063);
+binlog_gtid_pos('master-bin.000001', 1063)
+0-1-2,222-1-2
+select binlog_gtid_pos('master-bin.000001', 1136);
+binlog_gtid_pos('master-bin.000001', 1136)
+0-1-2,222-1-2
+select binlog_gtid_pos('master-bin.000001', 1178);
+binlog_gtid_pos('master-bin.000001', 1178)
+0-1-2,222-1-3
+select binlog_gtid_pos('master-bin.000001', 1229);
+binlog_gtid_pos('master-bin.000001', 1229)
+0-1-2,222-1-3
+select binlog_gtid_pos('master-bin.000001', 1275);
+binlog_gtid_pos('master-bin.000001', 1275)
+0-1-2,222-1-3
+select binlog_gtid_pos('master-bin.000001', 1327);
+binlog_gtid_pos('master-bin.000001', 1327)
+0-1-2,222-1-3
+select binlog_gtid_pos('master-bin.000001', 1358);
+binlog_gtid_pos('master-bin.000001', 1358)
+0-1-2,222-1-3
+select binlog_gtid_pos('master-bin.000001', 1400);
+binlog_gtid_pos('master-bin.000001', 1400)
+0-1-2,333-1-1,222-1-3
+select binlog_gtid_pos('master-bin.000001', 1451);
+binlog_gtid_pos('master-bin.000001', 1451)
+0-1-2,333-1-1,222-1-3
+select binlog_gtid_pos('master-bin.000001', 1497);
+binlog_gtid_pos('master-bin.000001', 1497)
+0-1-2,333-1-1,222-1-3
+select binlog_gtid_pos('master-bin.000001', 1549);
+binlog_gtid_pos('master-bin.000001', 1549)
+0-1-2,333-1-1,222-1-3
+select binlog_gtid_pos('master-bin.000002', 4);
+binlog_gtid_pos('master-bin.000002', 4)
+0-1-2,222-1-3,333-1-1
+select binlog_gtid_pos('master-bin.000002', 256);
+binlog_gtid_pos('master-bin.000002', 256)
+0-1-2,222-1-3,333-1-1
+select binlog_gtid_pos('master-bin.000002', 375);
+binlog_gtid_pos('master-bin.000002', 375)
+0-1-2,222-1-3,333-1-1
+# Check binlog_hash rotation
+select binlog_gtid_pos('master-bin.000002', 4);
+binlog_gtid_pos('master-bin.000002', 4)
+0-1-2,222-1-3,333-1-1
+set @@global.binlog_gtid_pos_cache= 0;
+select binlog_gtid_pos('master-bin.000002', 4);
+ERROR HY000: File './master-bin.000002' not found (Errcode: 2 "No such file or directory")
+set @@global.binlog_gtid_pos_cache= 1;
+select binlog_gtid_pos('master-bin.000002', 4);
+binlog_gtid_pos('master-bin.000002', 4)
+0-1-2,222-1-3,333-1-1
+flush binary logs;
+select binlog_gtid_pos('master-bin.000002', 4);
+ERROR HY000: File './master-bin.000002' not found (Errcode: 2 "No such file or directory")
+select binlog_gtid_pos('master-bin.000002', 4);
+binlog_gtid_pos('master-bin.000002', 4)
+0-1-2,222-1-3,333-1-1
+select binlog_gtid_pos('master-bin.000002', 256);
+binlog_gtid_pos('master-bin.000002', 256)
+0-1-2,222-1-3,333-1-1
+select binlog_gtid_pos('master-bin.000002', 375);
+binlog_gtid_pos('master-bin.000002', 375)
+0-1-2,222-1-3,333-1-1
+set @@global.binlog_gtid_pos_cache= 12;
+flush binary logs;
+flush binary logs;
+flush binary logs;
+flush binary logs;
+flush binary logs;
+flush binary logs;
+flush binary logs;
+flush binary logs;
+flush binary logs;
+flush binary logs;
+flush binary logs;
+flush binary logs;
+flush binary logs;
+flush binary logs;
+flush binary logs;
+flush binary logs;
+master-bin.000001
+master-bin.000002
+master-bin.000003
+master-bin.000004
+master-bin.000005
+master-bin.000006
+master-bin.000007
+master-bin.000008
+master-bin.000009
+master-bin.000010
+master-bin.000011
+master-bin.000012
+master-bin.000013
+master-bin.000014
+master-bin.000015
+master-bin.000016
+master-bin.000017
+master-bin.000018
+master-bin.000019
+select binlog_gtid_pos('master-bin.000007', 4);
+ERROR HY000: File './master-bin.000007' not found (Errcode: 2 "No such file or directory")
+select binlog_gtid_pos('master-bin.000008', 4);
+binlog_gtid_pos('master-bin.000008', 4)
+0-1-2,222-1-3,333-1-2
+set @@global.binlog_gtid_pos_cache= 3;
+flush binary logs;
+# Check row format, server_id
+insert t2 values (2);
+set @@session.gtid_domain_id= 12;
+set @@session.server_id= 2;
+update t2 set m= 2;
+set @@session.gtid_domain_id= 22;
+insert t2 values (4);
+set @@session.gtid_domain_id= 33;
+set @@session.server_id= 3;
+update t2 set m= 3;
+set @@session.gtid_domain_id= 44;
+delete from t2;
+flush binary logs;
+select binlog_gtid_pos('master-bin.000020', 4);
+binlog_gtid_pos('master-bin.000020', 4)
+0-1-2,222-1-3,333-1-2
+select binlog_gtid_pos('master-bin.000020', 256);
+binlog_gtid_pos('master-bin.000020', 256)
+0-1-2,222-1-3,333-1-2
+select binlog_gtid_pos('master-bin.000020', 331);
+binlog_gtid_pos('master-bin.000020', 331)
+0-1-2,222-1-3,333-1-2
+select binlog_gtid_pos('master-bin.000020', 375);
+binlog_gtid_pos('master-bin.000020', 375)
+0-1-2,222-1-3,333-1-2
+select binlog_gtid_pos('master-bin.000020', 417);
+binlog_gtid_pos('master-bin.000020', 417)
+0-1-2,222-1-3,333-1-3
+select binlog_gtid_pos('master-bin.000020', 460);
+binlog_gtid_pos('master-bin.000020', 460)
+0-1-2,222-1-3,333-1-3
+select binlog_gtid_pos('master-bin.000020', 505);
+binlog_gtid_pos('master-bin.000020', 505)
+0-1-2,222-1-3,333-1-3
+select binlog_gtid_pos('master-bin.000020', 543);
+binlog_gtid_pos('master-bin.000020', 543)
+0-1-2,222-1-3,333-1-3
+select binlog_gtid_pos('master-bin.000020', 616);
+binlog_gtid_pos('master-bin.000020', 616)
+0-1-2,222-1-3,333-1-3
+select binlog_gtid_pos('master-bin.000020', 658);
+binlog_gtid_pos('master-bin.000020', 658)
+0-1-2,12-2-1,333-1-3,222-1-3
+select binlog_gtid_pos('master-bin.000020', 699);
+binlog_gtid_pos('master-bin.000020', 699)
+0-1-2,12-2-1,333-1-3,222-1-3
+select binlog_gtid_pos('master-bin.000020', 744);
+binlog_gtid_pos('master-bin.000020', 744)
+0-1-2,12-2-1,333-1-3,222-1-3
+select binlog_gtid_pos('master-bin.000020', 788);
+binlog_gtid_pos('master-bin.000020', 788)
+0-1-2,12-2-1,333-1-3,222-1-3
+select binlog_gtid_pos('master-bin.000020', 861);
+binlog_gtid_pos('master-bin.000020', 861)
+0-1-2,12-2-1,333-1-3,222-1-3
+select binlog_gtid_pos('master-bin.000020', 903);
+binlog_gtid_pos('master-bin.000020', 903)
+0-1-2,12-2-1,333-1-3,22-2-1,222-1-3
+select binlog_gtid_pos('master-bin.000020', 946);
+binlog_gtid_pos('master-bin.000020', 946)
+0-1-2,12-2-1,333-1-3,22-2-1,222-1-3
+select binlog_gtid_pos('master-bin.000020', 991);
+binlog_gtid_pos('master-bin.000020', 991)
+0-1-2,12-2-1,333-1-3,22-2-1,222-1-3
+select binlog_gtid_pos('master-bin.000020', 1029);
+binlog_gtid_pos('master-bin.000020', 1029)
+0-1-2,12-2-1,333-1-3,22-2-1,222-1-3
+select binlog_gtid_pos('master-bin.000020', 1102);
+binlog_gtid_pos('master-bin.000020', 1102)
+0-1-2,12-2-1,333-1-3,22-2-1,222-1-3
+select binlog_gtid_pos('master-bin.000020', 1144);
+binlog_gtid_pos('master-bin.000020', 1144)
+222-1-3,0-1-2,333-1-3,22-2-1,33-3-1,12-2-1
+select binlog_gtid_pos('master-bin.000020', 1185);
+binlog_gtid_pos('master-bin.000020', 1185)
+222-1-3,0-1-2,333-1-3,22-2-1,33-3-1,12-2-1
+select binlog_gtid_pos('master-bin.000020', 1230);
+binlog_gtid_pos('master-bin.000020', 1230)
+222-1-3,0-1-2,333-1-3,22-2-1,33-3-1,12-2-1
+select binlog_gtid_pos('master-bin.000020', 1294);
+binlog_gtid_pos('master-bin.000020', 1294)
+222-1-3,0-1-2,333-1-3,22-2-1,33-3-1,12-2-1
+select binlog_gtid_pos('master-bin.000020', 1367);
+binlog_gtid_pos('master-bin.000020', 1367)
+222-1-3,0-1-2,333-1-3,22-2-1,33-3-1,12-2-1
+select binlog_gtid_pos('master-bin.000020', 1409);
+binlog_gtid_pos('master-bin.000020', 1409)
+222-1-3,0-1-2,333-1-3,22-2-1,33-3-1,44-3-1,12-2-1
+select binlog_gtid_pos('master-bin.000020', 1446);
+binlog_gtid_pos('master-bin.000020', 1446)
+222-1-3,0-1-2,333-1-3,22-2-1,33-3-1,44-3-1,12-2-1
+select binlog_gtid_pos('master-bin.000020', 1491);
+binlog_gtid_pos('master-bin.000020', 1491)
+222-1-3,0-1-2,333-1-3,22-2-1,33-3-1,44-3-1,12-2-1
+select binlog_gtid_pos('master-bin.000020', 1539);
+binlog_gtid_pos('master-bin.000020', 1539)
+222-1-3,0-1-2,333-1-3,22-2-1,33-3-1,44-3-1,12-2-1
+select binlog_gtid_pos('master-bin.000020', 1612);
+binlog_gtid_pos('master-bin.000020', 1612)
+222-1-3,0-1-2,333-1-3,22-2-1,33-3-1,44-3-1,12-2-1
+drop table t1,t2;
+set @@global.binlog_gtid_pos_cache= @old_binlog_gtid_pos_cache;

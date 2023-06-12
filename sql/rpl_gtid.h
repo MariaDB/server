@@ -18,7 +18,18 @@
 
 #include "hash.h"
 #include "queues.h"
+#include "sql_list.h"
 #include <atomic>
+
+class auto_lock
+{
+public:
+  auto_lock(mysql_mutex_t* m) : m_(m) { mysql_mutex_lock(m_); }
+  ~auto_lock() { mysql_mutex_unlock(m_); }
+private:
+  mysql_mutex_t& operator =(mysql_mutex_t&);
+  mysql_mutex_t* const m_;
+};
 
 /* Definitions for MariaDB global transaction ID (GTID). */
 
@@ -45,6 +56,11 @@ inline bool operator==(const rpl_gtid& lhs, const rpl_gtid& rhs)
     lhs.server_id == rhs.server_id &&
     lhs.seq_no    == rhs.seq_no;
 };
+
+inline bool operator!=(const rpl_gtid& lhs, const rpl_gtid& rhs)
+{
+  return !(lhs == rhs);
+}
 
 inline bool operator<(const rpl_gtid& lhs, const rpl_gtid& rhs)
 {
@@ -280,6 +296,69 @@ struct rpl_slave_state
 };
 
 
+extern uint opt_binlog_gtid_pos_cache;
+
+struct GTID_state_cache
+{
+  struct pos_hash_element
+  {
+    my_off_t pos;
+    size_t gtids_idx;
+  };
+  char filename_buf[FN_REFLEN];
+  LEX_CSTRING filename;
+  /* Ordered array of gtids as they appear in binlog */
+  DYNAMIC_ARRAY gtids;
+  /* Map of file position to index in gtids array */
+  HASH pos_hash;
+  /* Currently used only for DBUG_ASSERT, but can be used for read-through caching */
+  my_off_t max_pos;
+  my_off_t eof_pos;
+  /* Pointer to MYSQL_BIN_LOG::gtid_state_cache which points to this object */
+  GTID_state_cache **binlog_ptr;
+
+  GTID_state_cache() : max_pos(0), eof_pos(0), binlog_ptr(NULL)
+  {
+    my_init_dynamic_array(PSI_INSTRUMENT_ME, &gtids, sizeof(rpl_gtid), 8, 8, MYF(0));
+    my_hash_init(PSI_INSTRUMENT_ME, &pos_hash, &my_charset_bin, 1024,
+                  offsetof(pos_hash_element, pos), sizeof(my_off_t), 0,
+                  my_free, HASH_UNIQUE);
+  }
+
+  ~GTID_state_cache()
+  {
+    /*
+      Called when: a) rotation is done; b) rpl_global_binlog_state destroyed
+
+      Relay log local MYSQL_BIN_LOG is destroyed before rpl_global_binlog_state.
+      Global MYSQL_BIN_LOG and rpl_global_binlog_state are destryed in same thread.
+      Rotation and local MYSQL_BIN_LOG destroy is protected by LOCK_gtid_state.
+    */
+    delete_dynamic(&gtids);
+    my_hash_free(&pos_hash);
+    if (binlog_ptr)
+      *binlog_ptr= NULL;
+  }
+
+  static void free(void *ptr)
+  {
+    delete static_cast<GTID_state_cache *>(ptr);
+  }
+
+  static
+  uchar* get_key(GTID_state_cache *el, size_t *length,
+                  my_bool not_used __attribute__((unused)))
+  {
+    *length= el->filename.length;
+    return (uchar*) el->filename.str;
+  }
+
+  bool push_gtids_array(const rpl_gtid *gtid, uint32 count);
+  bool push_pos_hash(my_off_t pos, uchar event_type, uint event_len);
+  int check_pos_hash(my_off_t pos, rpl_gtid **gtid_array, uint32 *array_size);
+};
+
+
 /*
   Binlog state.
   This keeps the last GTID written to the binlog for every distinct
@@ -311,10 +390,16 @@ struct rpl_binlog_state
   HASH hash;
   /* Mutex protecting access to the state. */
   mysql_mutex_t LOCK_binlog_state;
+  mysql_mutex_t LOCK_gtid_state;
   my_bool initialized;
 
   /* Auxiliary buffer to sort gtid list. */
   DYNAMIC_ARRAY gtid_sort_array;
+
+  HASH binlog_hash;
+  /* Used for binlog_hash rotation */
+  List<GTID_state_cache> binlog_list;
+  MEM_ROOT mem_root;
 
    rpl_binlog_state() :initialized(0) {}
   ~rpl_binlog_state();
@@ -344,6 +429,44 @@ struct rpl_binlog_state
   rpl_gtid *find(uint32 domain_id, uint32 server_id);
   rpl_gtid *find_most_recent(uint32 domain_id);
   const char* drop_domain(DYNAMIC_ARRAY *ids, Gtid_list_log_event *glev, char*);
+  /* binlog_gtid_pos() caching methods */
+  void reset_binlog_hash();
+  bool rotate_binlog(const char *filename, GTID_state_cache **binlog_ptr);
+  void release_binlog(GTID_state_cache **cache)
+  {
+    auto_lock l(&LOCK_gtid_state);
+    *cache= NULL;
+  }
+  bool push_gtids_array(GTID_state_cache **cache, const rpl_gtid *gtid, uint32 count)
+  {
+    auto_lock l(&LOCK_gtid_state);
+    if (*cache)
+      return (*cache)->push_gtids_array(gtid, count);
+    return false;
+  }
+  bool push_pos_hash(GTID_state_cache **cache, my_off_t pos, uchar event_type,
+                     uint event_len)
+  {
+    auto_lock l(&LOCK_gtid_state);
+    if (*cache)
+      return (*cache)->push_pos_hash(pos, event_type, event_len);
+    return false;
+  }
+  int check_pos_hash(const char *filename, my_off_t pos,
+                     rpl_gtid **gtid_array, uint32 *array_size)
+  {
+    if (!opt_binlog_gtid_pos_cache)
+      return 0;
+    auto_lock l(&LOCK_gtid_state);
+    GTID_state_cache *bel= (GTID_state_cache *)
+      my_hash_search(&binlog_hash, (const uchar *) filename, strlen(filename));
+    if (!bel)
+    {
+      DBUG_PRINT("binlog", ("Miss file: %s (%llu)", filename, pos));
+      return 0;
+    }
+    return bel->check_pos_hash(pos, gtid_array, array_size);
+  }
 };
 
 

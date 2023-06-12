@@ -1,0 +1,205 @@
+--source include/binlog_combinations.inc
+--source include/have_innodb.inc
+--source include/not_windows.inc
+--source include/not_embedded.inc
+
+let $datadir= `select @@datadir`;
+set @old_binlog_gtid_pos_cache= @@global.binlog_gtid_pos_cache;
+set @@global.binlog_gtid_pos_cache= 0;
+reset master;
+set @@global.binlog_gtid_pos_cache= 2;
+reset master;
+if ($MTR_COMBINATION_CACHE_OFF)
+{
+  --disable_query_log
+  set @@global.binlog_gtid_pos_cache= 0;
+  --enable_query_log
+}
+
+select @@gtid_binlog_pos;
+create table t1 (a int primary key, b int) engine=innodb;
+select @@gtid_binlog_pos;
+insert t1 values (1,1),(3,3),(5,5),(7,7);
+select @@gtid_binlog_pos;
+set @@session.gtid_domain_id= 222;
+create table t2 (m int);
+select @@gtid_binlog_pos;
+insert t2 values (1);
+select @@gtid_binlog_pos;
+update t1 set b=50 where b=5;
+set @@session.gtid_domain_id= 333;
+select @@gtid_binlog_pos;
+update t1 set b=10 where a=5;
+flush binary logs;
+select @@gtid_binlog_pos;
+update t1 set b=20 where a= 5;
+
+# Note: you can check GTID positions from binlog files:
+# --exec $MYSQL_BINLOG --verbose $datadir/master-bin.000001
+
+--move_file $datadir/master-bin.000001 $datadir/mister-bin.000001
+set @@global.binlog_gtid_pos_cache= 0;
+--error 29
+select binlog_gtid_pos('master-bin.000001', 3);
+set @@global.binlog_gtid_pos_cache= 1;
+if ($MTR_COMBINATION_CACHE_OFF)
+{
+  --disable_query_log
+  set @@global.binlog_gtid_pos_cache= 0;
+  --enable_query_log
+  --move_file $datadir/mister-bin.000001 $datadir/master-bin.000001
+}
+# Note: no error when there is no file means cache hit
+select binlog_gtid_pos('master-bin.000001', 3);
+select binlog_gtid_pos('master-bin.000001', 4);
+select binlog_gtid_pos('master-bin.000001', 255);
+select binlog_gtid_pos('master-bin.000001', 256);
+select binlog_gtid_pos('master-bin.000001', 285);
+select binlog_gtid_pos('master-bin.000001', 329);
+select binlog_gtid_pos('master-bin.000001', 371);
+select binlog_gtid_pos('master-bin.000001', 503);
+select binlog_gtid_pos('master-bin.000001', 545);
+select binlog_gtid_pos('master-bin.000001', 608);
+select binlog_gtid_pos('master-bin.000001', 654);
+select binlog_gtid_pos('master-bin.000001', 723);
+select binlog_gtid_pos('master-bin.000001', 754);
+select binlog_gtid_pos('master-bin.000001', 796);
+select binlog_gtid_pos('master-bin.000001', 895);
+select binlog_gtid_pos('master-bin.000001', 937);
+select binlog_gtid_pos('master-bin.000001', 980);
+select binlog_gtid_pos('master-bin.000001', 1025);
+select binlog_gtid_pos('master-bin.000001', 1063);
+select binlog_gtid_pos('master-bin.000001', 1136);
+select binlog_gtid_pos('master-bin.000001', 1178);
+select binlog_gtid_pos('master-bin.000001', 1229);
+select binlog_gtid_pos('master-bin.000001', 1275);
+select binlog_gtid_pos('master-bin.000001', 1327);
+select binlog_gtid_pos('master-bin.000001', 1358);
+select binlog_gtid_pos('master-bin.000001', 1400);
+select binlog_gtid_pos('master-bin.000001', 1451);
+select binlog_gtid_pos('master-bin.000001', 1497);
+select binlog_gtid_pos('master-bin.000001', 1549);
+select binlog_gtid_pos('master-bin.000002', 4);
+select binlog_gtid_pos('master-bin.000002', 256);
+select binlog_gtid_pos('master-bin.000002', 375);
+# select binlog_gtid_pos('master-bin.000002', 417);
+if ($MTR_COMBINATION_CACHE_ON)
+{
+  --move_file $datadir/mister-bin.000001 $datadir/master-bin.000001
+}
+
+--echo # Check binlog_hash rotation
+if ($MTR_COMBINATION_CACHE_ON)
+{
+  --move_file $datadir/master-bin.000002 $datadir/mister-bin.000002
+}
+select binlog_gtid_pos('master-bin.000002', 4);
+if ($MTR_COMBINATION_CACHE_OFF)
+{
+  --move_file $datadir/master-bin.000002 $datadir/mister-bin.000002
+}
+set @@global.binlog_gtid_pos_cache= 0;
+--error 29
+select binlog_gtid_pos('master-bin.000002', 4);
+if ($MTR_COMBINATION_CACHE_OFF)
+{
+  --move_file $datadir/mister-bin.000002 $datadir/master-bin.000002
+}
+set @@global.binlog_gtid_pos_cache= 1;
+select binlog_gtid_pos('master-bin.000002', 4);
+flush binary logs;
+if ($MTR_COMBINATION_CACHE_OFF)
+{
+  --move_file $datadir/master-bin.000002 $datadir/mister-bin.000002
+}
+--error 29
+select binlog_gtid_pos('master-bin.000002', 4);
+--move_file $datadir/mister-bin.000002 $datadir/master-bin.000002
+select binlog_gtid_pos('master-bin.000002', 4);
+select binlog_gtid_pos('master-bin.000002', 256);
+select binlog_gtid_pos('master-bin.000002', 375);
+# select binlog_gtid_pos('master-bin.000002', 417);
+
+set @@global.binlog_gtid_pos_cache= 12;
+flush binary logs; flush binary logs; flush binary logs; flush binary logs;
+flush binary logs; flush binary logs; flush binary logs; flush binary logs;
+flush binary logs; flush binary logs; flush binary logs; flush binary logs;
+flush binary logs; flush binary logs; flush binary logs; flush binary logs;
+
+--list_files $datadir *ster-bin.*
+--move_file $datadir/master-bin.000007 $datadir/mister-bin.000007
+--move_file $datadir/master-bin.000008 $datadir/mister-bin.000008
+# 07 is not in cache while 08 is still in cache
+--error 29
+select binlog_gtid_pos('master-bin.000007', 4);
+select binlog_gtid_pos('master-bin.000008', 4);
+--move_file $datadir/mister-bin.000007 $datadir/master-bin.000007
+--move_file $datadir/mister-bin.000008 $datadir/master-bin.000008
+
+set @@global.binlog_gtid_pos_cache= 3;
+flush binary logs;
+
+--echo # Check row format, server_id
+--source include/have_binlog_format_row.inc
+insert t2 values (2);
+set @@session.gtid_domain_id= 12;
+set @@session.server_id= 2;
+update t2 set m= 2;
+set @@session.gtid_domain_id= 22;
+insert t2 values (4);
+set @@session.gtid_domain_id= 33;
+set @@session.server_id= 3;
+update t2 set m= 3;
+set @@session.gtid_domain_id= 44;
+delete from t2;
+flush binary logs;
+
+# --list_files $datadir
+# --exec $MYSQL_BINLOG --verbose $datadir/master-bin.000020
+
+if ($MTR_COMBINATION_CACHE_OFF)
+{
+  --disable_query_log
+  set @@global.binlog_gtid_pos_cache= 0;
+  --enable_query_log
+}
+if ($MTR_COMBINATION_CACHE_ON)
+{
+  --move_file $datadir/master-bin.000020 $datadir/mister-bin.000020
+}
+select binlog_gtid_pos('master-bin.000020', 4);
+select binlog_gtid_pos('master-bin.000020', 256);
+select binlog_gtid_pos('master-bin.000020', 331);
+select binlog_gtid_pos('master-bin.000020', 375);
+select binlog_gtid_pos('master-bin.000020', 417);
+select binlog_gtid_pos('master-bin.000020', 460);
+select binlog_gtid_pos('master-bin.000020', 505);
+select binlog_gtid_pos('master-bin.000020', 543);
+select binlog_gtid_pos('master-bin.000020', 616);
+select binlog_gtid_pos('master-bin.000020', 658);
+select binlog_gtid_pos('master-bin.000020', 699);
+select binlog_gtid_pos('master-bin.000020', 744);
+select binlog_gtid_pos('master-bin.000020', 788);
+select binlog_gtid_pos('master-bin.000020', 861);
+select binlog_gtid_pos('master-bin.000020', 903);
+select binlog_gtid_pos('master-bin.000020', 946);
+select binlog_gtid_pos('master-bin.000020', 991);
+select binlog_gtid_pos('master-bin.000020', 1029);
+select binlog_gtid_pos('master-bin.000020', 1102);
+select binlog_gtid_pos('master-bin.000020', 1144);
+select binlog_gtid_pos('master-bin.000020', 1185);
+select binlog_gtid_pos('master-bin.000020', 1230);
+select binlog_gtid_pos('master-bin.000020', 1294);
+select binlog_gtid_pos('master-bin.000020', 1367);
+select binlog_gtid_pos('master-bin.000020', 1409);
+select binlog_gtid_pos('master-bin.000020', 1446);
+select binlog_gtid_pos('master-bin.000020', 1491);
+select binlog_gtid_pos('master-bin.000020', 1539);
+select binlog_gtid_pos('master-bin.000020', 1612);
+if ($MTR_COMBINATION_CACHE_ON)
+{
+  --move_file $datadir/mister-bin.000020 $datadir/master-bin.000020
+}
+
+drop table t1,t2;
+set @@global.binlog_gtid_pos_cache= @old_binlog_gtid_pos_cache;
