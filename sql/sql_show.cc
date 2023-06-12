@@ -2988,7 +2988,7 @@ void Show_explain_request::call_in_target_thread()
   target_thd->set_n_backup_active_arena((Query_arena*)request_thd,
                                         &backup_arena);
 
-  query_str.copy(target_thd->query(), 
+  query_str.copy(target_thd->query(),
                  target_thd->query_length(),
                  target_thd->query_charset());
 
@@ -3139,6 +3139,8 @@ int fill_show_explain_or_analyze(THD *thd, TABLE_LIST *table, COND *cond,
   if ((tmp= find_thread_by_id(thread_id)))
   {
     Security_context *tmp_sctx= tmp->security_ctx;
+    MEM_ROOT explain_mem_root, *save_mem_root;
+
     /*
       If calling_user==NULL, calling thread has SUPER or PROCESS
       privilege, and so can do SHOW EXPLAIN/SHOW ANALYZE on any user.
@@ -3164,7 +3166,8 @@ int fill_show_explain_or_analyze(THD *thd, TABLE_LIST *table, COND *cond,
     bool bres;
     /* 
       Ok we've found the thread of interest and it won't go away because 
-      we're holding its LOCK_thd_kill. Post it a SHOW EXPLAIN/SHOW ANALYZE request.
+      we're holding its LOCK_thd_kill. Post it a SHOW EXPLAIN/SHOW ANALYZE
+      request.
     */
     bool timed_out;
     int timeout_sec= 30;
@@ -3172,7 +3175,9 @@ int fill_show_explain_or_analyze(THD *thd, TABLE_LIST *table, COND *cond,
     explain_req.is_json_format= json_format;
     select_result_explain_buffer *explain_buf;
     
-    explain_buf= new select_result_explain_buffer(thd, table->table);
+    if (!(explain_buf= new (thd->mem_root)
+          select_result_explain_buffer(thd, table->table)))
+      DBUG_RETURN(1);
 
     explain_req.is_analyze= is_analyze;
     explain_req.explain_buf= explain_buf;
@@ -3180,8 +3185,19 @@ int fill_show_explain_or_analyze(THD *thd, TABLE_LIST *table, COND *cond,
     explain_req.request_thd= thd;
     explain_req.failed_to_produce= FALSE;
     
+    /*
+      Do not use default memroot as this is only to be used by the
+      target thread (It's marked as thread MY_THREAD_SPECIFIC).
+    */
+    init_sql_alloc(key_memory_thd_main_mem_root,
+                   &explain_mem_root, 0, 8000, MYF(0));
+    save_mem_root= thd->mem_root;
+    thd->mem_root= &explain_mem_root;
+
     /* Ok, we have a lock on target->LOCK_thd_kill, can call: */
-    bres= tmp->apc_target.make_apc_call(thd, &explain_req, timeout_sec, &timed_out);
+    bres= tmp->apc_target.make_apc_call(thd, &explain_req, timeout_sec,
+                                        &timed_out);
+    thd->mem_root= save_mem_root;
 
     if (bres || explain_req.failed_to_produce)
     {
@@ -3226,6 +3242,7 @@ int fill_show_explain_or_analyze(THD *thd, TABLE_LIST *table, COND *cond,
       push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
                    ER_YES, warning_text);
     }
+    free_root(&explain_mem_root, MYF(0));
     DBUG_RETURN(bres);
   }
   my_error(ER_NO_SUCH_THREAD, MYF(0), (ulong) thread_id);

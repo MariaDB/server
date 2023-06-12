@@ -99,7 +99,7 @@ static void calculate_block_sizes(MEM_ROOT *mem_root, size_t block_size,
 {
   size_t pre_alloc= *pre_alloc_size;
 
-  if (mem_root->flags&= ROOT_FLAG_MPROTECT)
+  if (mem_root->flags & ROOT_FLAG_MPROTECT)
   {
     mem_root->block_size= MY_ALIGN(block_size, my_system_page_size);
     if (pre_alloc)
@@ -159,6 +159,8 @@ void init_alloc_root(PSI_memory_key key, MEM_ROOT *mem_root, size_t block_size,
   mem_root->min_malloc= 32 + REDZONE_SIZE;
   mem_root->block_size= MY_MAX(block_size, ROOT_MIN_BLOCK_SIZE);
   mem_root->flags= 0;
+  DBUG_ASSERT(!test_all_bits(mem_root->flags,
+                             (MY_THREAD_SPECIFIC | MY_ROOT_USE_MPROTECT)));
   if (my_flags & MY_THREAD_SPECIFIC)
     mem_root->flags|= ROOT_FLAG_THREAD_SPECIFIC;
   if (my_flags & MY_ROOT_USE_MPROTECT)
