@@ -39,6 +39,7 @@ static unsigned int rate;
 static unsigned long long size_limit;
 static unsigned int rotations;
 static char rotate;
+static char warnings;
 
 static unsigned int count;
 LOGGER_HANDLE *logfile;
@@ -67,12 +68,18 @@ static MYSQL_SYSVAR_STR(filename, filename,
        "The file to log sql errors to", NULL, NULL,
        "sql_errors.log");
 
+static MYSQL_SYSVAR_BOOL(warnings, warnings,
+                         PLUGIN_VAR_OPCMDARG,
+                         "Warnings. If set to 0, warnings are not logged.",
+                         NULL, NULL, 1);
+
 static struct st_mysql_sys_var* vars[] = {
     MYSQL_SYSVAR(rate),
     MYSQL_SYSVAR(size_limit),
     MYSQL_SYSVAR(rotations),
     MYSQL_SYSVAR(rotate),
     MYSQL_SYSVAR(filename),
+    MYSQL_SYSVAR(warnings),
     NULL
 };
 
@@ -85,7 +92,7 @@ static void log_sql_errors(MYSQL_THD thd __attribute__((unused)),
          (const struct mysql_event_general*)ev;
   if (rate &&
       (event->event_subclass == MYSQL_AUDIT_GENERAL_ERROR ||
-       event->event_subclass == MYSQL_AUDIT_GENERAL_WARNING))
+       (warnings && event->event_subclass == MYSQL_AUDIT_GENERAL_WARNING)))
   {
     const char *type= (event->event_subclass == MYSQL_AUDIT_GENERAL_ERROR ?
                        "ERROR" : "WARNING");
