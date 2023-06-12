@@ -2774,14 +2774,6 @@ static Sys_var_enum Sys_alter_algorithm(
 	SESSION_VAR(alter_algorithm), CMD_LINE(OPT_ARG),
 	alter_algorithm_modes, DEFAULT(0));
 
-static Sys_var_enum Sys_old_alter_table(
-       "old_alter_table", "Alias for alter_algorithm. "
-       "Deprecated. Use --alter-algorithm instead.",
-       SESSION_VAR(alter_algorithm), CMD_LINE(OPT_ARG),
-       alter_algorithm_modes, DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       ON_CHECK(0), ON_UPDATE(0),
-       DEPRECATED("'@@alter_algorithm'")); // Since 10.5.1
-
 static bool check_old_passwords(sys_var *self, THD *thd, set_var *var)
 {
   return mysql_user_table_is_in_short_password_format;

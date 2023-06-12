@@ -1,6 +1,4 @@
-set old_alter_table=0;
-Warnings:
-Warning	1287	'@@old_alter_table' is deprecated and will be removed in a future release. Please use '@@alter_algorithm' instead
+set alter_algorithm=0;
 create table bug53592(a int) engine=innodb row_format=compact;
 alter table bug53592 add column b text charset utf8;
 alter table bug53592 add column c blob not null;
@@ -14,9 +12,7 @@ check table bug53592;
 Table	Op	Msg_type	Msg_text
 test.bug53592	check	status	OK
 drop table bug53592;
-set old_alter_table=1;
-Warnings:
-Warning	1287	'@@old_alter_table' is deprecated and will be removed in a future release. Please use '@@alter_algorithm' instead
+set alter_algorithm=1;
 create table bug53592(a int) engine=innodb row_format=compact;
 alter table bug53592 add column b text charset utf8;
 alter table bug53592 add column c blob not null;

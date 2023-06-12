@@ -698,10 +698,6 @@ The following specify which files/extra groups are read (specified before remain
  connection before aborting the write
  --old               Use compatible behavior from previous MariaDB version.
  See also --old-mode
- --old-alter-table[=name] 
- Alias for alter_algorithm. Deprecated. Use
- --alter-algorithm instead.. One of: DEFAULT, COPY, 
- INPLACE, NOCOPY, INSTANT
  --old-mode=name     Used to emulate old behavior from earlier MariaDB or
  MySQL versions. Any combination of: 
  NO_DUP_KEY_WARNINGS_WITH_IGNORE, NO_PROGRESS_INFO, 
@@ -1737,7 +1733,6 @@ net-read-timeout 30
 net-retry-count 10
 net-write-timeout 60
 old FALSE
-old-alter-table DEFAULT
 old-mode UTF8_IS_UTF8MB3
 old-passwords FALSE
 old-style-user-limits FALSE
