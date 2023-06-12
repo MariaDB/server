@@ -5,7 +5,7 @@
 --source include/have_innodb.inc
 
 # Use FIC for index creation
-set old_alter_table=0;
+set alter_algorithm=0;
 
 create table bug53592(a int) engine=innodb row_format=compact;
 
@@ -33,8 +33,8 @@ check table bug53592;
 
 drop table bug53592;
 
-# Running the same set of test when "old_alter_table" is turned on
-set old_alter_table=1;
+# Running the same set of test when "alter_algorithm" is turned on
+set alter_algorithm=1;
 
 create table bug53592(a int) engine=innodb row_format=compact;
 

@@ -14,10 +14,6 @@
 --echo # alter table = Assertion failed: thd->is_error()
 --echo #
 
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
-
 --echo # Create InnoDB table
 CREATE TABLE t1 (id INT) engine=innodb;
 connect (con2, localhost, root);
@@ -616,8 +612,8 @@ ALTER TABLE t1 FORCE;
 ALTER TABLE t1 ENGINE=INNODB;
 
 --echo #ALTER TABLE FORCE, ALTER TABLE ENGINE and OPTIMIZE TABLE uses
---echo #table copy when the old_alter_table enabled.
-SET SESSION old_alter_table= TRUE;
+--echo #table copy when the alter_algorithm enabled.
+SET SESSION alter_algorithm= TRUE;
 ALTER TABLE t1 FORCE;
 ALTER TABLE t1 ENGINE= INNODB;
 
@@ -632,7 +628,7 @@ INSERT INTO t1 VALUES(10, 20);
 --connection default
 --reap
 SET DEBUG_SYNC= 'RESET';
-SET SESSION old_alter_table= FALSE;
+SET SESSION alter_algorithm= FALSE;
 
 --echo #ALTER TABLE FORCE and ALTER TABLE ENGINE uses table copy
 --echo #when ALGORITHM COPY is used.
