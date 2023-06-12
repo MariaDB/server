@@ -1,0 +1,2 @@
+# MDEV-31369 - Test that by default only TLSv1.2 and TLSv.1.3 is enabled
+--exec $MYSQL --host=localhost --ssl -e "SELECT @@tls_version;"
