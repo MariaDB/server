@@ -98,6 +98,9 @@ The following specify which files/extra groups are read (specified before remain
  involve user-defined functions (i.e. UDFs) or the UUID()
  function; for those, row-based binary logging is
  automatically used.
+ --binlog-gtid-pos-cache=# 
+ Maximum number of binlog files to cache data for
+ binlog_gtid_pos()
  --binlog-ignore-db=name 
  Tells the master that updates to the given database
  should not be logged to the binary log.
@@ -1567,6 +1570,7 @@ binlog-direct-non-transactional-updates FALSE
 binlog-expire-logs-seconds 0
 binlog-file-cache-size 16384
 binlog-format MIXED
+binlog-gtid-pos-cache 1
 binlog-optimize-thread-scheduling TRUE
 binlog-row-event-max-size 8192
 binlog-row-image FULL

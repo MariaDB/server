@@ -2247,6 +2247,11 @@ Sys_gtid_cleanup_batch_size(
        GLOBAL_VAR(opt_gtid_cleanup_batch_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0,2147483647), DEFAULT(64), BLOCK_SIZE(1));
 
+static Sys_var_uint Sys_binlog_gtid_pos_cache(
+       "binlog_gtid_pos_cache", "Maximum number of binlog files to cache data "
+       "for binlog_gtid_pos()",
+       GLOBAL_VAR(opt_binlog_gtid_pos_cache), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, 1024), DEFAULT(1), BLOCK_SIZE(1));
 
 static bool
 check_slave_parallel_threads(sys_var *self, THD *thd, set_var *var)
