@@ -169,8 +169,10 @@ create table base_table(t int);
 create temporary table tmp_table (b int, key(b));
 create sequence s1;
 create temporary sequence s1;
+create temporary sequence s2;
 show tables;
 Tables_in_mysqltest
+s2
 s1
 tmp_table
 t
@@ -179,6 +181,7 @@ s1
 t
 show full tables;
 Tables_in_mysqltest	Table_type
+s2	TEMPORARY SEQUENCE
 s1	TEMPORARY SEQUENCE
 tmp_table	TEMPORARY TABLE
 t	TEMPORARY TABLE
@@ -187,6 +190,7 @@ s1	SEQUENCE
 t	BASE TABLE
 show table status;
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+s2	MyISAM	10	Fixed	1	58	58	16325548649218047	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL			17179868160	Y
 s1	MyISAM	10	Fixed	1	58	58	16325548649218047	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL			17179868160	Y
 tmp_table	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL			288230376151710720	Y
 t	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL			288230376151710720	Y

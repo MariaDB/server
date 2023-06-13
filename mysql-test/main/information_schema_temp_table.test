@@ -178,6 +178,7 @@ create table base_table(t int);
 create temporary table tmp_table (b int, key(b));
 create sequence s1;
 create temporary sequence s1;
+create temporary sequence s2;
 
 # This should show all tables
 show tables;
