@@ -4794,9 +4794,6 @@ end:
   @param[in]      table                    TABLE struct for I_S table
   @param[in]      db_name                  database name
   @param[in]      table_name               table name
-  @param[in]      is_temp                  flag for temporary table
-                                           (prevent call of ha_table_exists
-                                           in case of shadowing base table)
 
   @return         Operation status
     @retval       0           success
@@ -4805,8 +4802,7 @@ end:
 
 static int fill_schema_table_names(THD *thd, TABLE_LIST *tables,
                                    LEX_CSTRING *db_name,
-                                   LEX_CSTRING *table_name,
-                                   bool is_temp= false)
+                                   LEX_CSTRING *table_name)
 {
   TABLE *table= tables->table;
   if (db_name == &INFORMATION_SCHEMA_NAME)
@@ -4821,7 +4817,7 @@ static int fill_schema_table_names(THD *thd, TABLE_LIST *tables,
     bool is_sequence;
 
     if (ha_table_exists(thd, db_name, table_name, NULL, NULL,
-                        &hton, &is_sequence) && !is_temp)
+                        &hton, &is_sequence))
     {
       if (hton == view_pseudo_hton)
         table->field[3]->store(STRING_WITH_LEN("VIEW"), cs);
@@ -4831,15 +4827,7 @@ static int fill_schema_table_names(THD *thd, TABLE_LIST *tables,
         table->field[3]->store(STRING_WITH_LEN("BASE TABLE"), cs);
     }
     else
-    {
-      if (is_temp)
-        if (is_sequence)
-          table->field[3]->store(STRING_WITH_LEN("TEMPORARY SEQUENCE"), cs);
-        else
-          table->field[3]->store(STRING_WITH_LEN("TEMPORARY TABLE"), cs);
-      else
         table->field[3]->store(STRING_WITH_LEN("ERROR"), cs);
-    }
 
     if (unlikely(thd->is_error() &&
                  thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE))
@@ -5319,52 +5307,62 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 #endif
     {
       Dynamic_array<LEX_CSTRING*> table_names(PSI_INSTRUMENT_MEM);
-      /* Handling session temporary tables from the backup state for table IS.tables
-         and SHOW TABLES commands.
+
+      /* Separate handling for session temporary tables from the backup state
+         for table IS.tables and SHOW TABLES commands.
       */
-      if ((schema_table_idx == SCH_TABLES || schema_table_idx == SCH_TABLE_NAMES) && \
+      if ((schema_table_idx == SCH_TABLES || schema_table_idx == SCH_TABLE_NAMES) &&
           open_tables_state_backup.temporary_tables)
       {
         All_tmp_tables_list::Iterator it(*open_tables_state_backup.temporary_tables);
         TMP_TABLE_SHARE *share_temp;
         while ((share_temp= it++))
         {
-          LEX_CSTRING *table_name= &share_temp->table_name;
-          if (!my_strcasecmp(system_charset_info, db_name->str,
-                               share_temp->db.str))
+
+          DBUG_ASSERT(IS_USER_TEMP_TABLE(share_temp));
+          if (my_strcasecmp(system_charset_info, db_name->str,
+                            share_temp->db.str))
+            continue;
+
+          All_share_tables_list::Iterator it2(share_temp->all_tmp_tables);
+          while (TABLE *tmp_tbl= it2++)
           {
-            All_share_tables_list::Iterator it2(share_temp->all_tmp_tables);
-            while (TABLE *tmp_tbl= it2++)
+            if (schema_table_idx == SCH_TABLE_NAMES)
             {
+              LEX_CSTRING *table_name= &tmp_tbl->s->table_name;
               restore_record(table, s->default_values);
               table->field[schema_table->idx_field1]->
                 store(db_name->str, db_name->length, system_charset_info);
               table->field[schema_table->idx_field2]->
                 store(table_name->str, table_name->length,
                       system_charset_info);
-              if (IS_USER_TEMP_TABLE(share_temp))
+              if (tmp_tbl->s->table_type == TABLE_TYPE_SEQUENCE)
+                table->field[3]->store(STRING_WITH_LEN("TEMPORARY SEQUENCE"),
+                                       system_charset_info);
+              else
+                table->field[3]->store(STRING_WITH_LEN("TEMPORARY TABLE"),
+                                       system_charset_info);
+              schema_table_store_record(thd, table);
+            }
+            else /* SCH_TABLE */
+            {
+              if (tmp_tbl->file->ha_table_flags() & HA_CAN_MULTISTEP_MERGE)
               {
-                if (schema_table_idx == SCH_TABLE_NAMES)
-                  fill_schema_table_names(thd, tables, &tmp_tbl->s->db,
-                                          &tmp_tbl->s->table_name, true);
-                else if (tmp_tbl->file->ha_table_flags() & HA_CAN_MULTISTEP_MERGE)
-                {
-                  /*
-                    MyISAM MERGE table. We have to to call open on it and it's
-                    children
-                  */
-                  LEX_CSTRING table_name=
-                    { tmp_tbl->alias.ptr(), tmp_tbl->alias.length() };
-                  if (fill_schema_table_by_open(thd, &tmp_mem_root, FALSE,
-                                                table, schema_table,
-                                                &tmp_tbl->s->db, &table_name,
-                                                &open_tables_state_backup,
-                                                0))
-                    goto err;
-                }
-                else
-                  process_i_s_table_temporary_tables(thd, table, tmp_tbl);
+                /*
+                  MyISAM MERGE table. We have to to call open on it and its
+                  children
+                */
+                LEX_CSTRING table_name=
+                  { tmp_tbl->alias.ptr(), tmp_tbl->alias.length() };
+                if (fill_schema_table_by_open(thd, &tmp_mem_root, FALSE,
+                                              table, schema_table,
+                                              &tmp_tbl->s->db, &table_name,
+                                              &open_tables_state_backup,
+                                              0))
+                  goto err;
               }
+              else
+                process_i_s_table_temporary_tables(thd, table, tmp_tbl);
             }
           }
         }
