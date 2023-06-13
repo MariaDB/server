@@ -19,6 +19,16 @@
 # to check for things that should not work for either VIRTUAL or PERSISTENT
 #
 
+--echo # AES_ENCRYPT() without the mode (4th argument)
+-- error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create or replace table t1 (b blob as (aes_encrypt('abc', 'bcd')) PERSISTENT);
+-- error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create or replace table t1 (b blob as (aes_encrypt('abc', 'bcd','def')) PERSISTENT);
+-- error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create or replace table t1 (b blob as (aes_decrypt('abc', 'bcd')) PERSISTENT);
+-- error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create or replace table t1 (b blob as (aes_decrypt('abc', 'bcd','def')) PERSISTENT);
+
 --echo # RAND()
 create or replace table t1 (b double as (rand()));
 -- error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED

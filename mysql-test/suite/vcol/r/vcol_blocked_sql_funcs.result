@@ -1,4 +1,13 @@
 SET @@session.default_storage_engine = 'MyISAM';
+# AES_ENCRYPT() without the mode (4th argument)
+create or replace table t1 (b blob as (aes_encrypt('abc', 'bcd')) PERSISTENT);
+ERROR HY000: Function or expression 'aes_encrypt()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create or replace table t1 (b blob as (aes_encrypt('abc', 'bcd','def')) PERSISTENT);
+ERROR HY000: Function or expression 'aes_encrypt()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create or replace table t1 (b blob as (aes_decrypt('abc', 'bcd')) PERSISTENT);
+ERROR HY000: Function or expression 'aes_decrypt()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create or replace table t1 (b blob as (aes_decrypt('abc', 'bcd','def')) PERSISTENT);
+ERROR HY000: Function or expression 'aes_decrypt()' cannot be used in the GENERATED ALWAYS AS clause of `b`
 # RAND()
 create or replace table t1 (b double as (rand()));
 create or replace table t1 (b double as (rand()) PERSISTENT);

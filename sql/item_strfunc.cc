@@ -54,6 +54,7 @@ C_MODE_END
 #include "sql_show.h"                           // append_identifier
 #include <sql_repl.h>
 #include "sql_statistics.h"
+#include "strfunc.h"
 
 /* fmtlib include (https://fmt.dev/). */
 #define FMT_STATIC_THOUSANDS_SEPARATOR ','
@@ -309,24 +310,54 @@ bool Item_func_sha2::fix_length_and_dec(THD *thd)
     break;
   default:
     THD *thd= current_thd;
-    push_warning_printf(thd,
-                        Sql_condition::WARN_LEVEL_WARN,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_WRONG_PARAMETERS_TO_NATIVE_FCT,
-                        ER_THD(thd, ER_WRONG_PARAMETERS_TO_NATIVE_FCT),
-                        "sha2");
+                        ER_THD(thd, ER_WRONG_PARAMETERS_TO_NATIVE_FCT), "sha2");
   }
   return FALSE;
 }
 
+const char *block_encryption_mode_values[]= {
+  "aes-128-ecb", "aes-192-ecb", "aes-256-ecb",
+  "aes-128-cbc", "aes-192-cbc", "aes-256-cbc",
+  "aes-128-ctr", "aes-192-ctr", "aes-256-ctr",
+  NullS };
+TYPELIB block_encryption_mode_typelib= {9, 0, block_encryption_mode_values, 0};
+static inline uint block_encryption_mode_to_key_length(ulong bem)
+{ return (bem % 3 + 2) * 64; }
+static inline my_aes_mode block_encryption_mode_to_aes_mode(ulong bem)
+{ return (my_aes_mode)(bem / 3); }
+
 /* Implementation of AES encryption routines */
+int Item_aes_crypt::parse_mode()
+{
+  StringBuffer<80> buf;
+  String *ptr= args[3]->val_str_ascii(&buf);
+  ulong bem;
+
+  if (ptr == NULL)
+    goto err;
+
+  bem= find_type(&block_encryption_mode_typelib, ptr->ptr(), ptr->length(), 0);
+  if (!bem)
+    goto err;
+
+  aes_key_length= block_encryption_mode_to_key_length(bem - 1);
+  aes_mode= block_encryption_mode_to_aes_mode(bem - 1);
+  return 0;
+err:
+  return 1;
+}
+
+
 void Item_aes_crypt::create_key(String *user_key, uchar *real_key)
 {
-  uchar *real_key_end= real_key + AES_KEY_LENGTH / 8;
+  uchar *real_key_end= real_key + aes_key_length / 8;
   uchar *ptr;
   const char *sptr= user_key->ptr();
   const char *key_end= sptr + user_key->length();
 
-  bzero(real_key, AES_KEY_LENGTH / 8);
+  bzero(real_key, aes_key_length / 8);
 
   for (ptr= real_key; sptr < key_end; ptr++, sptr++)
   {
@@ -340,24 +371,36 @@ void Item_aes_crypt::create_key(String *user_key, uchar *real_key)
 String *Item_aes_crypt::val_str(String *str2)
 {
   DBUG_ASSERT(fixed());
-  StringBuffer<80> user_key_buf;
+  StringBuffer<80> user_key_buf, iv_buf;
   String *sptr= args[0]->val_str(&tmp_value);
-  String *user_key=  args[1]->val_str(&user_key_buf);
+  String *user_key= args[1]->val_str(&user_key_buf);
+  String *iv= NULL;
   uint32 aes_length;
 
   if (sptr && user_key) // we need both arguments to be not NULL
   {
-    null_value=0;
-    aes_length=my_aes_get_size(MY_AES_ECB, sptr->length());
+    if (arg_count > 3 && (null_value= parse_mode()))
+      return 0;
+
+    if (aes_mode != MY_AES_ECB)
+    {
+      if (arg_count > 2)
+        iv= args[2]->val_str(&iv_buf);
+      if ((null_value= (!iv || iv->length() < MY_AES_BLOCK_SIZE)))
+        return 0;
+    }
+
+    aes_length=my_aes_get_size(aes_mode, sptr->length());
 
     if (!str2->alloc(aes_length))		// Ensure that memory is free
     {
-      uchar rkey[AES_KEY_LENGTH / 8];
+      uchar *rkey= (uchar*)alloca(aes_key_length / 8);
       create_key(user_key, rkey);
 
-      if (!my_aes_crypt(MY_AES_ECB, what, (uchar*)sptr->ptr(), sptr->length(),
+      if (!my_aes_crypt(aes_mode, what, (uchar*)sptr->ptr(), sptr->length(),
                  (uchar*)str2->ptr(), &aes_length,
-                 rkey, AES_KEY_LENGTH / 8, 0, 0))
+                 rkey, aes_key_length / 8,
+                 iv ? (uchar*)iv->ptr() : 0, iv ? iv->length() : 0))
       {
         str2->length((uint) aes_length);
         DBUG_ASSERT(collation.collation == &my_charset_bin);
@@ -370,20 +413,23 @@ String *Item_aes_crypt::val_str(String *str2)
   return 0;
 }
 
+bool Item_aes_crypt::fix_fields(THD *thd, Item **ref)
+{
+  aes_key_length= block_encryption_mode_to_key_length(thd->variables.block_encryption_mode);
+  aes_mode= block_encryption_mode_to_aes_mode(thd->variables.block_encryption_mode);
+  return  Item_str_binary_checksum_func::fix_fields(thd, ref);
+}
+
 bool Item_func_aes_encrypt::fix_length_and_dec(THD *thd)
 {
   max_length=my_aes_get_size(MY_AES_ECB, args[0]->max_length);
-  what= ENCRYPTION_FLAG_ENCRYPT;
   return FALSE;
 }
-
-
 
 bool Item_func_aes_decrypt::fix_length_and_dec(THD *thd)
 {
   max_length=args[0]->max_length;
   set_maybe_null();
-  what= ENCRYPTION_FLAG_DECRYPT;
   return FALSE;
 }
 
