@@ -1,5 +1,8 @@
 #
-# MDEV-29904 SPIDER plugin initialization fails upon startup
+# plugin-load-add=ha_spider
 #
 call mtr.add_suppression("\\[Warning\\] Plugin 'SPIDER' registration as a STORAGE ENGINE failed and may be retried");
-# restart: --plugin-load-add=ha_spider
+select * from mysql.plugin;
+name	dl
+create table t (c int) Engine=SPIDER;
+drop table t;

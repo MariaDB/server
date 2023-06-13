@@ -178,7 +178,7 @@ void udf_init()
     delete new_thd;
     DBUG_VOID_RETURN;
   }
-  initialized = 1;
+  udf_initialized= initialized = 1;
   new_thd->thread_stack= (char*) &new_thd;
   new_thd->store_globals();
   new_thd->set_query_inner((char*) STRING_WITH_LEN("intern:udf_init"),
