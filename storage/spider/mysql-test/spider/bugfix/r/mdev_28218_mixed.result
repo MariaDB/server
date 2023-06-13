@@ -1,0 +1,6 @@
+#
+# MDEV-28218 Spider: thread hang/deadlock as result of INSTALL PLUGIN and DROP TABLE
+#
+call mtr.add_suppression("\\[Warning\\] Plugin 'SPIDER' registration as a STORAGE ENGINE failed");
+show create table mysql.spider_tables;
+ERROR 42S02: Table 'mysql.spider_tables' doesn't exist

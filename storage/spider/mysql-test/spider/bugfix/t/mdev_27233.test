@@ -1,0 +1,7 @@
+--echo #
+--echo # MDEV-27233 Server hangs when using --init-file which loads Spider and creates a Spider table
+--echo #
+# ps protocol eats warnings
+--disable_ps_protocol
+show create table t;
+--enable_ps_protocol

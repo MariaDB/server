@@ -1,4 +1,5 @@
 #
 # MDEV-29904 SPIDER plugin initialization fails upon startup
 #
+call mtr.add_suppression("\\[Warning\\] Plugin 'SPIDER' registration as a STORAGE ENGINE failed");
 # restart: --plugin-load-add=ha_spider
