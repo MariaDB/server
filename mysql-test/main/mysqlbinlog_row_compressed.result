@@ -57,11 +57,11 @@ START TRANSACTION
 /*!*/;
 # at 787
 # at 861
-#<date> server id 1  end_log_pos 861 CRC32 XXX 	Annotate_rows:
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Annotate_rows:
 #Q> INSERT INTO t1 VALUES (10, 1, 2, 3, 4, 5, 6, 7, "")
-#<date> server id 1  end_log_pos 917 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
 # at 917
-#<date> server id 1  end_log_pos 985 CRC32 XXX 	Write_compressed_rows: table id 32 flags: STMT_END_F
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Write_compressed_rows: table id 32 flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
@@ -86,11 +86,11 @@ START TRANSACTION
 /*!*/;
 # at 1100
 # at 1176
-#<date> server id 1  end_log_pos 1176 CRC32 XXX 	Annotate_rows:
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Annotate_rows:
 #Q> INSERT INTO t1 VALUES (11, 1, 2, 3, 4, 5, 6, 7, NULL)
-#<date> server id 1  end_log_pos 1232 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
 # at 1232
-#<date> server id 1  end_log_pos 1299 CRC32 XXX 	Write_compressed_rows: table id 32 flags: STMT_END_F
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Write_compressed_rows: table id 32 flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
 ###   @1=11 /* INT meta=0 nullable=0 is_null=0 */
@@ -115,11 +115,11 @@ START TRANSACTION
 /*!*/;
 # at 1414
 # at 1492
-#<date> server id 1  end_log_pos 1492 CRC32 XXX 	Annotate_rows:
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Annotate_rows:
 #Q> INSERT INTO t1 VALUES (12, 1, 2, 3, NULL, 5, 6, 7, "A")
-#<date> server id 1  end_log_pos 1548 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
 # at 1548
-#<date> server id 1  end_log_pos 1614 CRC32 XXX 	Write_compressed_rows: table id 32 flags: STMT_END_F
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Write_compressed_rows: table id 32 flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
 ###   @1=12 /* INT meta=0 nullable=0 is_null=0 */
@@ -144,11 +144,11 @@ START TRANSACTION
 /*!*/;
 # at 1729
 # at 1804
-#<date> server id 1  end_log_pos 1804 CRC32 XXX 	Annotate_rows:
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Annotate_rows:
 #Q> INSERT INTO t1 VALUES (13, 1, 2, 3, 0, 5, 6, 7, "A")
-#<date> server id 1  end_log_pos 1860 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
 # at 1860
-#<date> server id 1  end_log_pos 1927 CRC32 XXX 	Write_compressed_rows: table id 32 flags: STMT_END_F
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Write_compressed_rows: table id 32 flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
 ###   @1=13 /* INT meta=0 nullable=0 is_null=0 */
@@ -173,11 +173,11 @@ START TRANSACTION
 /*!*/;
 # at 2042
 # at 2096
-#<date> server id 1  end_log_pos 2096 CRC32 XXX 	Annotate_rows:
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Annotate_rows:
 #Q> INSERT INTO t2 SELECT * FROM t1
-#<date> server id 1  end_log_pos 2152 CRC32 XXX 	Table_map: `test`.`t2` mapped to number num
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Table_map: `test`.`t2` mapped to number num
 # at 2152
-#<date> server id 1  end_log_pos 2243 CRC32 XXX 	Write_compressed_rows: table id 33 flags: STMT_END_F
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Write_compressed_rows: table id 33 flags: STMT_END_F
 ### INSERT INTO `test`.`t2`
 ### SET
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
@@ -235,11 +235,11 @@ START TRANSACTION
 /*!*/;
 # at 2358
 # at 2424
-#<date> server id 1  end_log_pos 2424 CRC32 XXX 	Annotate_rows:
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Annotate_rows:
 #Q> UPDATE t2 SET f4=5 WHERE f4>0 or f4 is NULL
-#<date> server id 1  end_log_pos 2480 CRC32 XXX 	Table_map: `test`.`t2` mapped to number num
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Table_map: `test`.`t2` mapped to number num
 # at 2480
-#<date> server id 1  end_log_pos 2579 CRC32 XXX 	Update_compressed_rows: table id 33 flags: STMT_END_F
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Update_compressed_rows: table id 33 flags: STMT_END_F
 ### UPDATE `test`.`t2`
 ### WHERE
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
@@ -316,11 +316,11 @@ START TRANSACTION
 /*!*/;
 # at 2694
 # at 2731
-#<date> server id 1  end_log_pos 2731 CRC32 XXX 	Annotate_rows:
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Annotate_rows:
 #Q> DELETE FROM t1
-#<date> server id 1  end_log_pos 2787 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
 # at 2787
-#<date> server id 1  end_log_pos 2879 CRC32 XXX 	Delete_compressed_rows: table id 32 flags: STMT_END_F
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Delete_compressed_rows: table id 32 flags: STMT_END_F
 ### DELETE FROM `test`.`t1`
 ### WHERE
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
@@ -378,11 +378,11 @@ START TRANSACTION
 /*!*/;
 # at 2994
 # at 3031
-#<date> server id 1  end_log_pos 3031 CRC32 XXX 	Annotate_rows:
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Annotate_rows:
 #Q> DELETE FROM t2
-#<date> server id 1  end_log_pos 3087 CRC32 XXX 	Table_map: `test`.`t2` mapped to number num
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Table_map: `test`.`t2` mapped to number num
 # at 3087
-#<date> server id 1  end_log_pos 3172 CRC32 XXX 	Delete_compressed_rows: table id 33 flags: STMT_END_F
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Delete_compressed_rows: table id 33 flags: STMT_END_F
 ### DELETE FROM `test`.`t2`
 ### WHERE
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */

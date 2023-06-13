@@ -62,8 +62,8 @@
     Order must be one of MY_MEMORY_ORDER_RELAXED, MY_MEMORY_ORDER_RELEASE,
     MY_MEMORY_ORDER_SEQ_CST.
 
-  '#' is substituted by a size suffix - 8, 16, 32, 64, or ptr
-  (e.g. my_atomic_add8, my_atomic_fas32, my_atomic_casptr).
+  '#' is substituted by a size suffix - 8, 16, 32, 64, ptr, or ul (for unsigned
+  long) (e.g. my_atomic_add8, my_atomic_fas32, my_atomic_casptr).
 
   The first version orders memory accesses according to MY_MEMORY_ORDER_SEQ_CST,
   the second version (with _explicit suffix) orders memory accesses according to
@@ -153,4 +153,41 @@
 #define my_atomic_casptr_strong_explicit(P, E, D, S, F) \
   my_atomic_casptr((P), (E), (D))
 #endif
+
+/* Convenience macros since ulong is 32 or 64 bit depending on platform. */
+#if SIZEOF_LONG == 4
+#define my_atomic_storeul(P, D) my_atomic_store32((int32 volatile *)(P), (D))
+#define my_atomic_storeul_explicit(P, D, O) \
+  my_atomic_store32_explicit((int32 volatile *)(P), (D), (O))
+#define my_atomic_loadul(P) my_atomic_load32((int32 volatile *)(P))
+#define my_atomic_loadul_explicit(P, O) \
+  my_atomic_load32_explicit((int32 volatile *)(P), (O))
+#define my_atomic_fasul(P, D) my_atomic_fas32((int32 volatile *)(P), (D))
+#define my_atomic_fasul_explict(P, D, O) \
+  my_atomic_fas32_explicit((int32 volatile *)(P), (D), (O))
+#define my_atomic_addul(P, A) my_atomic_add32((int32 volatile *)(P), (A))
+#define my_atomic_addul_explict(P, A, O) \
+  my_atomic_add32_explicit((int32 volatile *)(P), (A), (O))
+#define my_atomic_casul(P, E, D) \
+  my_atomic_cas32((int32 volatile *)(P), (E), (D))
+#define my_atomic_casul_weak_explicit(P, E, D, S, F) \
+  my_atomic_cas32_weak_explicit((int32 volatile *)(P), (E), (D), (S), (F))
+#define my_atomic_casul_strong_explicit(P, E, D, S, F) \
+  my_atomic_cas32_strong_explicit((int32 volatile *)(P), (E), (D), (S), (F))
+#elif SIZEOF_LONG == 8
+#define my_atomic_storeul(P, D) my_atomic_store64((P), (D))
+#define my_atomic_storeul_explicit(P, D, O) my_atomic_store64_explicit((P), (D), (O))
+#define my_atomic_loadul(P) my_atomic_load64((P))
+#define my_atomic_loadul_explicit(P, O) my_atomic_load64_explicit((P), (O))
+#define my_atomic_fasul(P, D) my_atomic_fas64((P), (D))
+#define my_atomic_fasul_explict(P, D, O) my_atomic_fas64_explicit((P), (D), (O))
+#define my_atomic_addul(P, A) my_atomic_add64((P), (A))
+#define my_atomic_addul_explict(P, A, O) my_atomic_add64_explicit((P), (A), (O))
+#define my_atomic_casul(P, E, D) my_atomic_cas64((P), (E), (D))
+#define my_atomic_casul_weak_explicit(P, E, D, S, F) \
+  my_atomic_cas64_weak_explicit((P), (E), (D), (S), (F))
+#define my_atomic_casul_strong_explicit(P, E, D, S, F) \
+  my_atomic_cas64_strong_explicit((P), (E), (D), (S), (F))
+#endif
+
 #endif /* MY_ATOMIC_INCLUDED */

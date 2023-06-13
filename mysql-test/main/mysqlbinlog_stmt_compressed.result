@@ -56,7 +56,7 @@ CREATE TABLE t2 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 INT, f4 INT, f5 MEDIUMIN
 START TRANSACTION
 /*!*/;
 # at 787
-#<date> server id 1  end_log_pos 915 CRC32 XXX 	Query_compressed	thread_id=5	exec_time=x	error_code=0	xid=<xid>
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Query_compressed	thread_id=5	exec_time=x	error_code=0	xid=<xid>
 SET TIMESTAMP=X/*!*/;
 INSERT INTO t1 VALUES (10, 1, 2, 3, 4, 5, 6, 7, "")
 /*!*/;
@@ -71,7 +71,7 @@ COMMIT
 START TRANSACTION
 /*!*/;
 # at 1030
-#<date> server id 1  end_log_pos 1158 CRC32 XXX 	Query_compressed	thread_id=5	exec_time=x	error_code=0	xid=<xid>
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Query_compressed	thread_id=5	exec_time=x	error_code=0	xid=<xid>
 SET TIMESTAMP=X/*!*/;
 INSERT INTO t1 VALUES (11, 1, 2, 3, 4, 5, 6, 7, NULL)
 /*!*/;
@@ -86,7 +86,7 @@ COMMIT
 START TRANSACTION
 /*!*/;
 # at 1273
-#<date> server id 1  end_log_pos 1403 CRC32 XXX 	Query_compressed	thread_id=5	exec_time=x	error_code=0	xid=<xid>
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Query_compressed	thread_id=5	exec_time=x	error_code=0	xid=<xid>
 SET TIMESTAMP=X/*!*/;
 INSERT INTO t1 VALUES (12, 1, 2, 3, NULL, 5, 6, 7, "A")
 /*!*/;
@@ -101,7 +101,7 @@ COMMIT
 START TRANSACTION
 /*!*/;
 # at 1518
-#<date> server id 1  end_log_pos 1645 CRC32 XXX 	Query_compressed	thread_id=5	exec_time=x	error_code=0	xid=<xid>
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Query_compressed	thread_id=5	exec_time=x	error_code=0	xid=<xid>
 SET TIMESTAMP=X/*!*/;
 INSERT INTO t1 VALUES (13, 1, 2, 3, 0, 5, 6, 7, "A")
 /*!*/;
@@ -116,7 +116,7 @@ COMMIT
 START TRANSACTION
 /*!*/;
 # at 1760
-#<date> server id 1  end_log_pos 1868 CRC32 XXX 	Query_compressed	thread_id=5	exec_time=x	error_code=0	xid=<xid>
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Query_compressed	thread_id=5	exec_time=x	error_code=0	xid=<xid>
 SET TIMESTAMP=X/*!*/;
 INSERT INTO t2 SELECT * FROM t1
 /*!*/;
@@ -131,7 +131,7 @@ COMMIT
 START TRANSACTION
 /*!*/;
 # at 1983
-#<date> server id 1  end_log_pos 2100 CRC32 XXX 	Query_compressed	thread_id=5	exec_time=x	error_code=0	xid=<xid>
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Query_compressed	thread_id=5	exec_time=x	error_code=0	xid=<xid>
 SET TIMESTAMP=X/*!*/;
 UPDATE t2 SET f4=5 WHERE f4>0 or f4 is NULL
 /*!*/;
@@ -146,7 +146,7 @@ COMMIT
 START TRANSACTION
 /*!*/;
 # at 2215
-#<date> server id 1  end_log_pos 2306 CRC32 XXX 	Query_compressed	thread_id=5	exec_time=x	error_code=0	xid=<xid>
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Query_compressed	thread_id=5	exec_time=x	error_code=0	xid=<xid>
 SET TIMESTAMP=X/*!*/;
 DELETE FROM t1
 /*!*/;
@@ -161,7 +161,7 @@ COMMIT
 START TRANSACTION
 /*!*/;
 # at 2421
-#<date> server id 1  end_log_pos 2512 CRC32 XXX 	Query_compressed	thread_id=5	exec_time=x	error_code=0	xid=<xid>
+#<date> server id 1  end_log_pos 0 CRC32 XXX 	Query_compressed	thread_id=5	exec_time=x	error_code=0	xid=<xid>
 SET TIMESTAMP=X/*!*/;
 DELETE FROM t2
 /*!*/;

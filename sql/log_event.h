@@ -1456,7 +1456,7 @@ public:
   bool write_footer(Log_event_writer *writer)
   { return writer->write_footer(); }
 
-  enum enum_binlog_checksum_alg select_checksum_alg();
+  enum enum_binlog_checksum_alg select_checksum_alg(const binlog_cache_data *data);
 
   virtual bool write(Log_event_writer *writer)
   {

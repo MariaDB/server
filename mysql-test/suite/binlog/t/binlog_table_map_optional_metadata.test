@@ -275,7 +275,7 @@ INSERT INTO t1 VALUES(2, "b");
 
 # The invalid metadata will case assertion failure on Write_rows_log_event
 # So we need to stop mysqlbinlog before reading Write_rows_log_event.
---let $stop_position= query_get_value(SHOW BINLOG EVENTS FROM $start_pos LIMIT 3, End_log_pos, 3)
+--let $stop_position= query_get_value(SHOW BINLOG EVENTS FROM $start_pos LIMIT 4, Pos, 4)
 --source include/print_optional_metadata.inc
 
 --echo #
@@ -291,7 +291,7 @@ INSERT INTO t1(c_point) VALUES(ST_PointFromText('POINT(10 10)'));
 
 # The invalid metadata will case assertion failure on Write_rows_log_event
 # So we need to stop mysqlbinlog before reading Write_rows_log_event.
---let $stop_position= query_get_value(SHOW BINLOG EVENTS FROM $start_pos LIMIT 3, End_log_pos, 3)
+--let $stop_position= query_get_value(SHOW BINLOG EVENTS FROM $start_pos LIMIT 4, Pos, 4)
 --source include/print_optional_metadata.inc
 
 DROP TABLE t1;

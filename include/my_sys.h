@@ -599,6 +599,8 @@ static inline size_t my_b_bytes_in_cache(const IO_CACHE *info)
 
 int my_b_copy_to_file    (IO_CACHE *cache, FILE *file, size_t count);
 int my_b_copy_all_to_file(IO_CACHE *cache, FILE *file);
+int my_b_copy_to_cache(IO_CACHE *from_cache, IO_CACHE *to_cache, size_t count);
+int my_b_copy_all_to_cache(IO_CACHE *from_cache, IO_CACHE *to_cache);
 
 my_off_t my_b_append_tell(IO_CACHE* info);
 my_off_t my_b_safe_tell(IO_CACHE* info); /* picks the correct tell() */

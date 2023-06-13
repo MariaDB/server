@@ -101,6 +101,12 @@ The following specify which files/extra groups are read (specified before remain
  --binlog-ignore-db=name 
  Tells the master that updates to the given database
  should not be logged to the binary log.
+ --binlog-legacy-event-pos 
+ Fill in the end_log_pos field of _all_ events in the
+ binlog, even when doing so costs performance. Can be used
+ in case some old application needs it for backwards
+ compatibility. Setting this option can hurt binlog
+ scalability.
  --binlog-optimize-thread-scheduling 
  Run fast part of group commit in a single thread, to
  optimize kernel thread scheduling. On by default. Disable
@@ -1526,6 +1532,7 @@ binlog-direct-non-transactional-updates FALSE
 binlog-expire-logs-seconds 0
 binlog-file-cache-size 16384
 binlog-format MIXED
+binlog-legacy-event-pos FALSE
 binlog-optimize-thread-scheduling TRUE
 binlog-row-event-max-size 8192
 binlog-row-image FULL

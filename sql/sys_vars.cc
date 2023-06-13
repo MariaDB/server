@@ -3518,6 +3518,19 @@ Sys_master_verify_checksum(
        GLOBAL_VAR(opt_master_verify_checksum), CMD_LINE(OPT_ARG),
        DEFAULT(FALSE));
 
+
+static Sys_var_on_access_global<Sys_var_mybool,
+                           PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_LEGACY_EVENT_POS>
+Sys_binlog_legacy_event_pos(
+       "binlog_legacy_event_pos",
+       "Fill in the end_log_pos field of _all_ events in the binlog, even when "
+       "doing so costs performance. Can be used in case some old application needs "
+       "it for backwards compatibility. Setting this option can hurt binlog "
+       "scalability.",
+       GLOBAL_VAR(opt_binlog_legacy_event_pos), CMD_LINE(OPT_ARG),
+       DEFAULT(FALSE));
+
+
 /* These names must match RPL_SKIP_XXX #defines in slave.h. */
 static const char *replicate_events_marked_for_skip_names[]= {
   "REPLICATE", "FILTER_ON_SLAVE", "FILTER_ON_MASTER", 0

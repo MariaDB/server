@@ -762,6 +762,7 @@ char *relay_log_info_file, *report_user, *report_password, *report_host;
 char *opt_relay_logname = 0, *opt_relaylog_index_name=0;
 char *opt_logname, *opt_slow_logname, *opt_bin_logname;
 char *opt_binlog_index_name=0;
+my_bool opt_binlog_legacy_event_pos= FALSE;
 
 
 

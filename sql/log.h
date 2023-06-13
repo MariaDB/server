@@ -821,7 +821,7 @@ public:
   bool write_incident_already_locked(THD *thd);
   bool write_incident(THD *thd);
   void write_binlog_checkpoint_event_already_locked(const char *name, uint len);
-  int  write_cache(THD *thd, IO_CACHE *cache);
+  int  write_cache(THD *thd, binlog_cache_data *cache_data);
   void set_write_error(THD *thd, bool is_transactional);
   bool check_write_error(THD *thd);
 
