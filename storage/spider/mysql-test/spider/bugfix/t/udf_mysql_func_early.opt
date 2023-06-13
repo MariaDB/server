@@ -1,1 +1,1 @@
---plugin-load-add=ha_spider
+--init-file=$MYSQL_TEST_DIR/../storage/spider/mysql-test/spider/bugfix/t/udf_mysql_func_early.sql

@@ -6556,10 +6556,10 @@ bool spider_init_system_tables()
   }
 
   const int size= sizeof(spider_init_queries) / sizeof(spider_init_queries[0]);
-  LEX_STRING *udf_queries= udf_initialized ?
+  LEX_STRING *udf_queries= mysqld_server_started ?
     (LEX_STRING *) spider_init_udf_queries :
     (LEX_STRING *) spider_init_early_udf_queries;
-  const int udf_size = udf_initialized ?
+  const int udf_size = mysqld_server_started ?
     sizeof(spider_init_udf_queries) / sizeof(spider_init_udf_queries[0]) :
     sizeof(spider_init_early_udf_queries) / sizeof(spider_init_early_udf_queries[0]);
   for (int i= 0; i < size + udf_size; i++)
