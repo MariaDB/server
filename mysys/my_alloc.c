@@ -99,7 +99,7 @@ static void calculate_block_sizes(MEM_ROOT *mem_root, size_t block_size,
 {
   size_t pre_alloc= *pre_alloc_size;
 
-  if (mem_root->flags&= ROOT_FLAG_MPROTECT)
+  if (mem_root->flags & ROOT_FLAG_MPROTECT)
   {
     mem_root->block_size= MY_ALIGN(block_size, my_system_page_size);
     if (pre_alloc)
