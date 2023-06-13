@@ -12746,6 +12746,8 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
   char scramble_buf[SCRAMBLE_LENGTH];
   char *end= buff;
   DBUG_ENTER("send_server_handshake_packet");
+  DBUG_PRINT("info", ("send_server_handshake STARTING: vio_type=%s",
+                      safe_vio_type_name(thd->net.vio)));
 
   *end++= protocol_version;
 
@@ -13237,10 +13239,13 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   THD *thd= mpvio->auth_info.thd;
   NET *net= &thd->net;
   char *end;
+  DBUG_ENTER("parse_client_handshake_packet");
   DBUG_ASSERT(mpvio->status == MPVIO_EXT::FAILURE);
+  DBUG_PRINT("info", ("parse_client_handshake STARTING: vio_type=%s",
+                      safe_vio_type_name(thd->net.vio)));
 
   if (pkt_len < MIN_HANDSHAKE_SIZE)
-    return packet_error;
+    DBUG_RETURN(packet_error);
 
   /*
     Protocol buffer is guaranteed to always end with \0. (see my_net_read())
@@ -13253,7 +13258,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   if (client_capabilities & CLIENT_PROTOCOL_41)
   {
     if (pkt_len < 32)
-      return packet_error;
+      DBUG_RETURN(packet_error);
     client_capabilities|= ((ulong) uint2korr(net->read_pos+2)) << 16;
     if (!(client_capabilities & CLIENT_MYSQL))
     {
@@ -13275,7 +13280,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
 
     /* Do the SSL layering. */
     if (!ssl_acceptor_fd)
-      return packet_error;
+      DBUG_RETURN(packet_error);
 
     DBUG_PRINT("info", ("IO layer change in progress..."));
     mysql_rwlock_rdlock(&LOCK_ssl_refresh);
@@ -13286,8 +13291,11 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     if(ssl_ret)
     {
       DBUG_PRINT("error", ("Failed to accept new SSL connection"));
-      return packet_error;
+      DBUG_RETURN(packet_error);
     }
+
+    DBUG_PRINT("info", ("Immediately following IO layer change: vio_type=%s",
+                        safe_vio_type_name(thd->net.vio)));
 
     DBUG_PRINT("info", ("Reading user information over SSL layer"));
     pkt_len= my_net_read(net);
@@ -13295,7 +13303,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     {
       DBUG_PRINT("error", ("Failed to read user information (pkt_len= %lu)",
 			   pkt_len));
-      return packet_error;
+      DBUG_RETURN(packet_error);
     }
   }
 
@@ -13304,19 +13312,19 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     thd->max_client_packet_length= uint4korr(net->read_pos+4);
     DBUG_PRINT("info", ("client_character_set: %d", (uint) net->read_pos[8]));
     if (thd_init_client_charset(thd, (uint) net->read_pos[8]))
-      return packet_error;
+      DBUG_RETURN(packet_error);
     end= (char*) net->read_pos+32;
   }
   else
   {
     if (pkt_len < 5)
-      return packet_error;
+      DBUG_RETURN(packet_error);
     thd->max_client_packet_length= uint3korr(net->read_pos+2);
     end= (char*) net->read_pos+5;
   }
 
   if (end >= (char*) net->read_pos+ pkt_len +2)
-    return packet_error;
+    DBUG_RETURN(packet_error);
 
   if (thd->client_capabilities & CLIENT_IGNORE_SPACE)
     thd->variables.sql_mode|= MODE_IGNORE_SPACE;
@@ -13324,7 +13332,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     thd->variables.net_wait_timeout= thd->variables.net_interactive_timeout;
 
   if (end >= (char*) net->read_pos+ pkt_len +2)
-    return packet_error;
+    DBUG_RETURN(packet_error);
 
   if ((thd->client_capabilities & CLIENT_TRANSACTIONS) &&
       opt_using_transactions)
@@ -13359,7 +13367,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     len= safe_net_field_length_ll((uchar**)&passwd,
                                       net->read_pos + pkt_len - (uchar*)passwd);
     if (len > pkt_len)
-      return packet_error;
+      DBUG_RETURN(packet_error);
   }
 
   passwd_len= (size_t)len;
@@ -13368,7 +13376,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
 
   if (passwd == NULL ||
       passwd + passwd_len + MY_TEST(db) > (char*) net->read_pos + pkt_len)
-    return packet_error;
+    DBUG_RETURN(packet_error);
 
   /* strlen() can't be easily deleted without changing protocol */
   db_len= safe_strlen(db);
@@ -13383,7 +13391,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   if (unlikely(thd->copy_with_error(system_charset_info,
                                     (LEX_STRING*) &mpvio->db,
                                     thd->charset(), db, db_len)))
-    return packet_error;
+    DBUG_RETURN(packet_error);
 
   user_len= copy_and_convert(user_buff, sizeof(user_buff) - 1,
                              system_charset_info, user, user_len,
@@ -13410,7 +13418,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
 
   my_free((char*) sctx->user);
   if (!(sctx->user= my_strndup(user, user_len, MYF(MY_WME))))
-    return packet_error; /* The error is set by my_strdup(). */
+    DBUG_RETURN(packet_error); /* The error is set by my_strdup(). */
 
 
   /*
@@ -13424,12 +13432,12 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   {
     // if mysqld's been started with --skip-grant-tables option
     mpvio->status= MPVIO_EXT::SUCCESS;
-    return packet_error;
+    DBUG_RETURN(packet_error);
   }
 
   thd->password= passwd_len > 0;
   if (find_mpvio_user(mpvio))
-    return packet_error;
+    DBUG_RETURN(packet_error);
 
   if ((thd->client_capabilities & CLIENT_PLUGIN_AUTH) &&
       (client_plugin < (char *)net->read_pos + pkt_len))
@@ -13458,7 +13466,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   if ((thd->client_capabilities & CLIENT_CONNECT_ATTRS) &&
       read_client_connect_attrs(&next_field, ((char *)net->read_pos) + pkt_len,
                                 mpvio->auth_info.thd->charset()))
-    return packet_error;
+    DBUG_RETURN(packet_error);
 
   /*
     if the acl_user needs a different plugin to authenticate
@@ -13475,7 +13483,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     mpvio->cached_client_reply.pkt_len= (uint)passwd_len;
     mpvio->cached_client_reply.plugin= client_plugin;
     mpvio->status= MPVIO_EXT::RESTART;
-    return packet_error;
+    DBUG_RETURN(packet_error);
   }
 
   /*
@@ -13494,16 +13502,17 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     if (send_plugin_request_packet(mpvio,
                                    (uchar*) mpvio->cached_server_packet.pkt,
                                    mpvio->cached_server_packet.pkt_len))
-      return packet_error;
+      DBUG_RETURN(packet_error);
 
     passwd_len= my_net_read(&thd->net);
     passwd= (char*)thd->net.read_pos;
   }
 
   *buff= (uchar*) passwd;
-  return (ulong)passwd_len;
+  DBUG_RETURN((ulong)passwd_len);
 #else
-  return 0;
+  DBUG_ENTER("parse_client_handshake_packet (EMPTY STUB)");
+  DBUG_RETURN(0);
 #endif
 }
 
@@ -13524,6 +13533,8 @@ static int server_mpvio_write_packet(MYSQL_PLUGIN_VIO *param,
   MPVIO_EXT *mpvio= (MPVIO_EXT *) param;
   int res;
   DBUG_ENTER("server_mpvio_write_packet");
+  DBUG_PRINT("info", ("server_mpvio_write_packet STARTING: vio_type=%s",
+                      safe_vio_type_name(mpvio->auth_info.thd->net.vio)));
 
   /* reset cached_client_reply */
   mpvio->cached_client_reply.pkt= 0;
@@ -13570,6 +13581,9 @@ static int server_mpvio_read_packet(MYSQL_PLUGIN_VIO *param, uchar **buf)
   MYSQL_SERVER_AUTH_INFO * const ai= &mpvio->auth_info;
   ulong pkt_len;
   DBUG_ENTER("server_mpvio_read_packet");
+  DBUG_PRINT("info", ("server_mpvio_read_packet STARTING: vio_type=%s",
+                      safe_vio_type_name(mpvio->auth_info.thd->net.vio)));
+
   if (mpvio->status == MPVIO_EXT::RESTART)
   {
     const char *client_auth_plugin=
@@ -13647,6 +13661,8 @@ done:
   ai->auth_string_length= (ulong) mpvio->acl_user->auth[mpvio->curr_auth].salt.length;
   strmake_buf(ai->authenticated_as, mpvio->acl_user->user.str);
 
+  DBUG_PRINT("info", ("server_mpvio_read_packet FINISHING: vio_type=%s",
+                      safe_vio_type_name(mpvio->auth_info.thd->net.vio)));
   DBUG_RETURN((int)pkt_len);
 
 err:
@@ -13655,6 +13671,8 @@ err:
     if (!ai->thd->is_error())
       my_error(ER_HANDSHAKE_ERROR, MYF(0));
   }
+  DBUG_PRINT("info", ("server_mpvio_read_packet FINISHING WITH ERROR: vio_type=%s",
+                      safe_vio_type_name(mpvio->auth_info.thd->net.vio)));
   DBUG_RETURN(-1);
 }
 
@@ -13786,18 +13804,26 @@ static int do_auth_once(THD *thd, const LEX_CSTRING *auth_plugin_name,
   bool unlock_plugin= false;
   plugin_ref plugin= get_auth_plugin(thd, *auth_plugin_name, &unlock_plugin);
 
+  DBUG_ENTER("do_auth_once");
+  DBUG_PRINT("info", ("do_auth_once STARTING: vio_type=%s",
+                      safe_vio_type_name(thd->net.vio)));
   mpvio->plugin= plugin;
   mpvio->auth_info.user_name= NULL;
 
   if (plugin)
   {
     st_mysql_auth *info= (st_mysql_auth *) plugin_decl(plugin)->info;
+
+    DBUG_PRINT("info", ("auth_plugin_name: %s, interface_version: %d",
+                        auth_plugin_name->str, info->interface_version));
+
     switch (info->interface_version >> 8) {
     case 0x02:
       res= info->authenticate_user(mpvio, &mpvio->auth_info);
       break;
     case 0x01:
       {
+        DBUG_PRINT("info", ("Using compat downgrade for authentication"));
         MYSQL_SERVER_AUTH_INFO_0x0100 compat;
         compat.downgrade(&mpvio->auth_info);
         res= info->authenticate_user(mpvio, (MYSQL_SERVER_AUTH_INFO *)&compat);
@@ -13820,7 +13846,9 @@ static int do_auth_once(THD *thd, const LEX_CSTRING *auth_plugin_name,
     res= CR_ERROR;
   }
 
-  return res;
+  DBUG_PRINT("info", ("do_auth_once FINISHING: vio_type=%s",
+                      safe_vio_type_name(thd->net.vio)));
+  DBUG_RETURN(res);
 }
 
 enum PASSWD_ERROR_ACTION
