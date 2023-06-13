@@ -1,0 +1,2 @@
+--plugin-load-add=ha_spider
+--init-file=$MYSQL_TEST_DIR/../storage/spider/mysql-test/spider/bugfix/t/mdev_28218_mixed.sql
