@@ -2307,7 +2307,6 @@ bool rpl_binlog_state::rotate_binlog(const char *filename,
                                      GTID_state_cache **binlog_ptr)
 {
   GTID_state_cache *el;
-  DBUG_ASSERT(binlog_hash.records == binlog_list.elements);
 
   /* If turned off clear and return */
   if (!opt_binlog_gtid_pos_cache)
@@ -2322,6 +2321,7 @@ bool rpl_binlog_state::rotate_binlog(const char *filename,
 
   /* Rotate binlog_hash if needed */
   auto_lock l(&LOCK_gtid_state);
+  DBUG_ASSERT(binlog_hash.records == binlog_list.elements);
 
   if (binlog_hash.records >= opt_binlog_gtid_pos_cache)
   {
