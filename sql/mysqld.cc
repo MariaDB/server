@@ -374,6 +374,7 @@ bool opt_disable_networking=0, opt_skip_show_db=0;
 bool opt_skip_name_resolve=0;
 my_bool opt_character_set_client_handshake= 1;
 bool opt_endinfo, using_udf_functions;
+bool udf_initialized= 0;
 my_bool locked_in_memory;
 bool opt_using_transactions;
 bool volatile abort_loop;
