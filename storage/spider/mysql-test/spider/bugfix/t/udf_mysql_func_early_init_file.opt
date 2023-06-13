@@ -1,0 +1,1 @@
+--init-file=$MYSQL_TEST_DIR/../storage/spider/mysql-test/spider/bugfix/t/udf_mysql_func_early_init_file.sql
