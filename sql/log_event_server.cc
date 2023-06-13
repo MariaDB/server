@@ -687,24 +687,6 @@ void Log_event::init_show_field_list(THD *thd, List<Item>* field_list)
                         mem_root);
 }
 
-/**
-   Select if and how to write checksum for an event written to the binlog.
-   It returns the actively configured binlog checksum option, unless the event
-   is being written to a cache (in which case the checksum, if any, is added
-   later when the cache is copied to the real binlog).
-*/
-enum_binlog_checksum_alg Log_event::select_checksum_alg()
-{
-  if (cache_type == Log_event::EVENT_NO_CACHE)
-    return (enum_binlog_checksum_alg)binlog_checksum_options;
-
-  DBUG_ASSERT(get_type_code() != ROTATE_EVENT &&
-              get_type_code() != STOP_EVENT &&
-              get_type_code() != FORMAT_DESCRIPTION_EVENT);
-
-  return BINLOG_CHECKSUM_ALG_OFF;
-}
-
 int Log_event_writer::write_internal(const uchar *pos, size_t len)
 {
   DBUG_ASSERT(!ctx || encrypt_or_write == &Log_event_writer::encrypt_and_write);
@@ -857,11 +839,17 @@ bool Log_event::write_header(Log_event_writer *writer, size_t event_data_length)
     change the position
   */
 
-  if (is_artificial_event())
+  if (is_artificial_event() ||
+      cache_type == Log_event::EVENT_STMT_CACHE ||
+      cache_type == Log_event::EVENT_TRANSACTIONAL_CACHE)
   {
     /*
       Artificial events are automatically generated and do not exist
       in master's binary log, so log_pos should be set to 0.
+
+      Events written through transaction or statement cache have log_pos set
+      to 0 so that they can be copied directly to the binlog without having
+      to compute the real end_log_pos.
     */
     log_pos= 0;
   }

@@ -402,7 +402,7 @@ public:
                                        bool is_transactional);
   void set_write_error(THD *thd, bool is_transactional);
   static bool check_write_error(THD *thd);
-  int write_cache(THD *thd, IO_CACHE *cache);
+  int write_cache(THD *thd, binlog_cache_data *cache_data);
   int write_cache_raw(THD *thd, IO_CACHE *cache);
   char* get_name() { return name; }
   void cleanup()
@@ -427,6 +427,7 @@ public:
                                    bool encrypt, bool dont_set_created,
                                    bool is_relay_log);
 
+  bool write_event(Log_event *ev, binlog_cache_data *data, IO_CACHE *file);
   bool write_event(Log_event *ev, enum enum_binlog_checksum_alg checksum_alg,
                    binlog_cache_data *data, IO_CACHE *file);
 };
@@ -994,7 +995,6 @@ public:
 
   using Event_log::write_event;
 
-  bool write_event(Log_event *ev, binlog_cache_data *data, IO_CACHE *file);
   bool write_event(Log_event *ev, enum enum_binlog_checksum_alg checksum_alg)
   {
     return write_event(ev, checksum_alg, 0, &log_file);

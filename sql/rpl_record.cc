@@ -349,7 +349,7 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const colcnt,
   st.next_null_byte();
   if (!rpl_data.is_online_alter())
   {
-    Field *result_field;
+    Field *result_field= NULL;
     for (; i < colcnt && (result_field= table->field[i]); i++)
     {
       /*
@@ -439,7 +439,10 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const colcnt,
     {
       DBUG_ASSERT(bitmap_is_set(cols, i));
       Field *f= conv_table->field[i];
-      bool result= unpack_field(tabledef, f, &st, i);
+#ifndef DBUG_OFF
+      bool result=
+#endif
+        unpack_field(tabledef, f, &st, i);
       DBUG_ASSERT(result);
     }
 

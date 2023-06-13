@@ -17,11 +17,14 @@ CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=innodb;
 INSERT INTO t1 VALUES(0);
 SET @saved_dbug = @@SESSION.debug_dbug;
 SET SESSION debug_dbug='+d,fail_binlog_write_1';
+# The error injection is in the "legacy" code path.
+SET GLOBAL binlog_legacy_event_pos= 1;
 --error ER_ERROR_ON_WRITE
 INSERT INTO t1 VALUES(1);
 --error ER_ERROR_ON_WRITE
 INSERT INTO t1 VALUES(2);
 SET SESSION debug_dbug=@saved_dbug;
+SET GLOBAL binlog_legacy_event_pos= 0;
 INSERT INTO t1 VALUES(3);
 SELECT * FROM t1;
 

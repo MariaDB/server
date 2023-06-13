@@ -110,6 +110,16 @@ static const LEX_CSTRING write_error_msg=
     { STRING_WITH_LEN("error writing to the binary log") };
 
 static my_bool opt_optimize_thread_scheduling= TRUE;
+/*
+  The binlog_checksum_options value is accessed protected under LOCK_log. As
+  the checksum option used must be consistent across an entire binlog file,
+  and log rotation is needed whenever this is changed.
+
+  As an exception, event checksums are precomputed using a non-locked read
+  of binlog_checksum_options. Later, the value is checked against the option
+  value, this time under LOCK_log, and checksums are re-computed if the value
+  differs.
+*/
 ulong binlog_checksum_options;
 #ifndef DBUG_OFF
 ulong opt_binlog_dbug_fsync_sleep= 0;
@@ -278,10 +288,21 @@ void make_default_log_name(char **out, const char* log_ext, bool once)
 class binlog_cache_data
 {
 public:
-  binlog_cache_data(): before_stmt_pos(MY_OFF_T_UNDEF), m_pending(0), status(0),
-  incident(FALSE), saved_max_binlog_cache_size(0), ptr_binlog_cache_use(0),
+  binlog_cache_data(bool precompute_checksums_):
+  before_stmt_pos(MY_OFF_T_UNDEF), m_pending(0), status(0),
+  incident(FALSE), precompute_checksums(precompute_checksums_),
+  saved_max_binlog_cache_size(0), ptr_binlog_cache_use(0),
   ptr_binlog_cache_disk_use(0)
-  { }
+  {
+    /*
+      Read the current checksum setting. We will use this setting to decide
+      whether to pre-compute checksums in the cache. Then when writing the cache
+      to the actual binlog, another check will be made and checksums recomputed
+      in the unlikely case that the setting changed meanwhile.
+    */
+    checksum_opt= !precompute_checksums_ ? BINLOG_CHECKSUM_ALG_OFF :
+      (enum_binlog_checksum_alg)binlog_checksum_options;
+  }
   
   ~binlog_cache_data()
   {
@@ -333,6 +354,8 @@ public:
     bool truncate_file= (cache_log.file != -1 &&
                          my_b_write_tell(&cache_log) > CACHE_FILE_TRUNC_SIZE);
     truncate(0,1);                              // Forget what's in cache
+    checksum_opt= !precompute_checksums ? BINLOG_CHECKSUM_ALG_OFF :
+      (enum_binlog_checksum_alg)binlog_checksum_options;
     if (!cache_was_empty)
       compute_statistics();
     if (truncate_file)
@@ -431,11 +454,22 @@ private:
   */
   uint32 status;
 
+public:
+  /*
+    The algorithm (if any) used to pre-compute checksums in the cache.
+    Initialized from binlog_checksum_options when the cache is reset.
+  */
+  enum_binlog_checksum_alg checksum_opt;
+
+private:
   /*
     This indicates that some events did not get into the cache and most likely
     it is corrupted.
   */ 
   bool incident;
+
+  /* Whether the caller requested precomputing checksums. */
+  bool precompute_checksums;
 
   /**
     This function computes binlog cache and disk usage.
@@ -489,7 +523,10 @@ private:
       delete pending();
       set_pending(0);
     }
-    my_bool res= reinit_io_cache(&cache_log, WRITE_CACHE, pos, 0, reset_cache);
+#ifndef DBUG_OFF
+    my_bool res=
+#endif
+      reinit_io_cache(&cache_log, WRITE_CACHE, pos, 0, reset_cache);
     DBUG_ASSERT(res == 0);
     cache_log.end_of_file= saved_max_binlog_cache_size;
   }
@@ -503,6 +540,8 @@ class online_alter_cache_data: public Sql_alloc, public ilist_node<>,
   public binlog_cache_data
 {
 public:
+  online_alter_cache_data() : binlog_cache_data(false),
+    hton(nullptr), sink_log(nullptr), sv_list(nullptr) { }
   void store_prev_position()
   {
     before_stmt_pos= my_b_write_tell(&cache_log);
@@ -525,6 +564,38 @@ void Log_event_writer::set_incident()
 }
 
 
+/**
+   Select if and how to write checksum for an event written to the binlog.
+
+    - When writing directly to the binlog, the user-configured checksum option
+      is used.
+    - When writing to a transaction or statement cache, we have
+      binlog_cache_data that contains the checksum option to use (pre-computed
+      checksums).
+    - Otherwise, no checksum used.
+*/
+enum_binlog_checksum_alg
+Log_event::select_checksum_alg(const binlog_cache_data *data)
+{
+  if (cache_type == Log_event::EVENT_NO_CACHE)
+  {
+    DBUG_ASSERT(!data);
+    /*
+      When we're selecting the checksum algorithm to write directly to the
+      actual binlog, we must be holding the LOCK_log, otherwise the checksum
+      configuration could change just after we read it.
+    */
+    mysql_mutex_assert_owner(mysql_bin_log.get_log_lock());
+    return (enum_binlog_checksum_alg)binlog_checksum_options;
+  }
+
+  if (data)
+    return data->checksum_opt;
+
+  return BINLOG_CHECKSUM_ALG_OFF;
+}
+
+
 class binlog_cache_mngr {
 public:
   binlog_cache_mngr(my_off_t param_max_binlog_stmt_cache_size,
@@ -532,8 +603,10 @@ public:
                     ulong *param_ptr_binlog_stmt_cache_use,
                     ulong *param_ptr_binlog_stmt_cache_disk_use,
                     ulong *param_ptr_binlog_cache_use,
-                    ulong *param_ptr_binlog_cache_disk_use)
-    : last_commit_pos_offset(0), using_xa(FALSE), xa_xid(0)
+                    ulong *param_ptr_binlog_cache_disk_use,
+                    bool precompute_checksums)
+    : stmt_cache(precompute_checksums), trx_cache(precompute_checksums),
+      last_commit_pos_offset(0), using_xa(FALSE), xa_xid(0)
   {
      stmt_cache.set_binlog_cache_info(param_max_binlog_stmt_cache_size,
                                       param_ptr_binlog_stmt_cache_use,
@@ -5744,28 +5817,26 @@ end2:
 }
 
 bool Event_log::write_event(Log_event *ev, binlog_cache_data *data,
-                                IO_CACHE *file)
+                            IO_CACHE *file)
 {
-  return write_event(ev, ev->select_checksum_alg(), data, file);
+  return write_event(ev, ev->select_checksum_alg(data), data, file);
 }
 
 bool MYSQL_BIN_LOG::write_event(Log_event *ev)
 {
-  return write_event(ev, ev->select_checksum_alg(), 0, &log_file);
+  return write_event(ev, ev->select_checksum_alg(NULL), 0, &log_file);
 }
 
-bool MYSQL_BIN_LOG::write_event(Log_event *ev,
-                                enum_binlog_checksum_alg checksum_alg,
-                                binlog_cache_data *cache_data, IO_CACHE *file)
+bool Event_log::write_event(Log_event *ev,
+                            enum_binlog_checksum_alg checksum_alg,
+                            binlog_cache_data *cache_data, IO_CACHE *file)
 {
-  Log_event_writer writer(file, 0, checksum_alg, &crypto);
+  Log_event_writer writer(file, cache_data, checksum_alg, &crypto);
   if (crypto.scheme && file == &log_file)
   {
     writer.ctx= alloca(crypto.ctx_size);
     writer.set_encrypted_writer();
   }
-  if (cache_data)
-    cache_data->add_status(ev->logged_status());
   return writer.write(ev);
 }
 
@@ -6041,7 +6112,7 @@ bool stmt_has_updated_non_trans_table(const THD* thd)
   binlog_hton, which has internal linkage.
 */
 
-binlog_cache_mngr *binlog_setup_cache_mngr()
+static binlog_cache_mngr *binlog_setup_cache_mngr(THD *thd)
 {
   auto *cache_mngr= (binlog_cache_mngr*) my_malloc(key_memory_binlog_cache_mngr,
                                   sizeof(binlog_cache_mngr),
@@ -6056,13 +6127,22 @@ binlog_cache_mngr *binlog_setup_cache_mngr()
     return NULL;
   }
 
+  /*
+    Don't attempt to precompute checksums if:
+     - Disabled by user request, --binlog-legacy-event-pos
+     - Binlog is encrypted, cannot use precomputed checksums
+     - WSREP/Galera.
+  */
+  bool precompute_checksums=
+    !WSREP_NNULL(thd) && !encrypt_binlog && !opt_binlog_legacy_event_pos;
   cache_mngr= new (cache_mngr)
           binlog_cache_mngr(max_binlog_stmt_cache_size,
                             max_binlog_cache_size,
                             &binlog_stmt_cache_use,
                             &binlog_stmt_cache_disk_use,
                             &binlog_cache_use,
-                            &binlog_cache_disk_use);
+                            &binlog_cache_disk_use,
+                            precompute_checksums);
 
   return cache_mngr;
 }
@@ -6075,7 +6155,7 @@ binlog_cache_mngr *THD::binlog_setup_trx_data()
 
   if (!cache_mngr)
   {
-    cache_mngr= binlog_setup_cache_mngr();
+    cache_mngr= binlog_setup_cache_mngr(this);
     thd_set_ha_data(this, binlog_hton, cache_mngr);
   }
 
@@ -6405,7 +6485,8 @@ bool MYSQL_BIN_LOG::write_table_map(THD *thd, TABLE *table, bool with_annotate)
   binlog_cache_data *cache_data= (cache_mngr->
                                   get_binlog_cache_data(is_transactional));
   IO_CACHE *file= &cache_data->cache_log;
-  Log_event_writer writer(file, cache_data, the_event.select_checksum_alg(), NULL);
+  Log_event_writer writer(file, cache_data,
+                          the_event.select_checksum_alg(cache_data), NULL);
 
   if (with_annotate)
     if (thd->binlog_write_annotated_row(&writer))
@@ -6592,7 +6673,7 @@ Event_log::flush_and_set_pending_rows_event(THD *thd, Rows_log_event* event,
   if (Rows_log_event* pending= cache_data->pending())
   {
     Log_event_writer writer(&cache_data->cache_log, cache_data,
-                            pending->select_checksum_alg(), NULL);
+                            pending->select_checksum_alg(cache_data), NULL);
 
     /*
       Write pending event to the cache.
@@ -7875,21 +7956,36 @@ int Event_log::write_cache_raw(THD *thd, IO_CACHE *cache)
     events prior to fill in the binlog cache.
 */
 
-int Event_log::write_cache(THD *thd, IO_CACHE *cache)
+int Event_log::write_cache(THD *thd, binlog_cache_data *cache_data)
 {
   DBUG_ENTER("Event_log::write_cache");
-
+  IO_CACHE *cache= &cache_data->cache_log;
   mysql_mutex_assert_owner(&LOCK_log);
+
+  /*
+    If possible, just copy the cache over byte-by-byte with pre-computed
+    checksums.
+  */
+  if (likely(binlog_checksum_options == (ulong)cache_data->checksum_opt) &&
+      likely(!crypto.scheme) &&
+      likely(!opt_binlog_legacy_event_pos))
+  {
+    int res= my_b_copy_all_to_cache(cache, &log_file);
+    status_var_add(thd->status_var.binlog_bytes_written, my_b_tell(cache));
+    DBUG_RETURN(res ? ER_ERROR_ON_WRITE : 0);
+  }
+
   if (reinit_io_cache(cache, READ_CACHE, 0, 0, 0))
     DBUG_RETURN(ER_ERROR_ON_WRITE);
   /* Amount of remaining bytes in the IO_CACHE read buffer. */
-  size_t group;
-  size_t end_log_pos_inc= 0; // each event processed adds BINLOG_CHECKSUM_LEN 2 t
+  size_t log_file_pos;
   uchar header_buf[LOG_EVENT_HEADER_LEN];
   Log_event_writer writer(get_log_file(), 0,
                           (enum_binlog_checksum_alg)binlog_checksum_options,
                           &crypto);
   uint checksum_len= writer.checksum_len;
+  uint old_checksum_len= (cache_data->checksum_opt != BINLOG_CHECKSUM_ALG_OFF) ?
+    BINLOG_CHECKSUM_LEN : 0;
   int err= 0;
 
   if (crypto.scheme)
@@ -7915,7 +8011,7 @@ int Event_log::write_cache(THD *thd, IO_CACHE *cache)
     split.
   */
 
-  group= (size_t)my_b_tell(get_log_file());
+  log_file_pos= (size_t)my_b_tell(get_log_file());
   for (;;)
   {
     /*
@@ -7936,18 +8032,18 @@ int Event_log::write_cache(THD *thd, IO_CACHE *cache)
 
     /* Adjust the length and end_log_pos appropriately. */
     uint ev_len= uint4korr(&header_buf[EVENT_LEN_OFFSET]); // netto len
-    DBUG_ASSERT(ev_len >= LOG_EVENT_HEADER_LEN);
-    if (unlikely(ev_len < LOG_EVENT_HEADER_LEN))
+    DBUG_ASSERT(ev_len >= LOG_EVENT_HEADER_LEN + old_checksum_len);
+    if (unlikely(ev_len < LOG_EVENT_HEADER_LEN + old_checksum_len))
       goto error_in_read;
-    int4store(&header_buf[EVENT_LEN_OFFSET], ev_len + checksum_len);
-    end_log_pos_inc += checksum_len;
-    size_t val= uint4korr(&header_buf[LOG_POS_OFFSET]) + group + end_log_pos_inc;
-    int4store(&header_buf[LOG_POS_OFFSET], val);
+    uint new_len= ev_len - old_checksum_len + checksum_len;
+    int4store(&header_buf[EVENT_LEN_OFFSET], new_len);
+    log_file_pos+= new_len;
+    int4store(&header_buf[LOG_POS_OFFSET], log_file_pos);
 
     /* Write the header to the binlog. */
     if (writer.write_header(header_buf, LOG_EVENT_HEADER_LEN))
       goto error_in_write;
-    ev_len-= LOG_EVENT_HEADER_LEN;
+    ev_len-= (LOG_EVENT_HEADER_LEN + old_checksum_len);
 
     /* Write the rest of the event. */
     size_t length= my_b_bytes_in_cache(cache);
@@ -7965,7 +8061,12 @@ int Event_log::write_cache(THD *thd, IO_CACHE *cache)
       length-= chunk;
       ev_len-= chunk;
     }
-
+    /*
+      Discard any old precomputed checksum len (any needed checksum will be
+      written by writer.write_footer()).
+    */
+    if (old_checksum_len > 0 && my_b_read(cache, header_buf, old_checksum_len))
+        goto error_in_read;
     if (writer.write_footer())
       goto error_in_write;
 
@@ -9090,7 +9191,7 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
     DBUG_RETURN(ER_ERROR_ON_WRITE);
 
   if (entry->using_stmt_cache && !mngr->stmt_cache.empty() &&
-      write_cache(entry->thd, mngr->get_binlog_cache_log(FALSE)))
+      write_cache(entry->thd, mngr->get_binlog_cache_data(FALSE)))
   {
     entry->error_cache= &mngr->stmt_cache.cache_log;
     DBUG_RETURN(ER_ERROR_ON_WRITE);
@@ -9101,7 +9202,7 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
     DBUG_EXECUTE_IF("crash_before_writing_xid",
                     {
                       if ((write_cache(entry->thd,
-                                       mngr->get_binlog_cache_log(TRUE))))
+                                       mngr->get_binlog_cache_data(TRUE))))
                         DBUG_PRINT("info", ("error writing binlog cache"));
                       else
                         flush_and_sync(0);
@@ -9110,7 +9211,7 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
                       DBUG_SUICIDE();
                     });
 
-    if (write_cache(entry->thd, mngr->get_binlog_cache_log(TRUE)))
+    if (write_cache(entry->thd, mngr->get_binlog_cache_data(TRUE)))
     {
       entry->error_cache= &mngr->trx_cache.cache_log;
       DBUG_RETURN(ER_ERROR_ON_WRITE);
@@ -11728,6 +11829,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
   char binlog_checkpoint_name[FN_REFLEN];
   bool binlog_checkpoint_found;
   IO_CACHE log;
+  IO_CACHE *cur_log;
   File file= -1;
   const char *errmsg;
 #ifdef HAVE_REPLICATION
@@ -11774,12 +11876,16 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
   */
 
   binlog_checkpoint_found= false;
+  cur_log= first_log;
   for (round= 1;;)
   {
-    while ((ev= Log_event::read_log_event(round == 1 ? first_log : &log,
-                                          fdle, opt_master_verify_checksum))
+    while ((ev= Log_event::read_log_event(cur_log, fdle,
+                                          opt_master_verify_checksum))
            && ev->is_valid())
     {
+#ifdef HAVE_REPLICATION
+      my_off_t end_pos= my_b_tell(cur_log);
+#endif
       enum Log_event_type typ= ev->get_type_code();
       switch (typ)
       {
@@ -11796,7 +11902,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
             member->decided_to_commit= true;
         }
 #else
-        if (ctx.decide_or_assess(member, round, fdle, linfo, ev->log_pos))
+        if (ctx.decide_or_assess(member, round, fdle, linfo, end_pos))
           goto err2;
 #endif
       }
@@ -11897,11 +12003,12 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
           goto err2;
         ctx.last_gtid_valid= false;
       }
-      ctx.prev_event_pos= ev->log_pos;
+      ctx.prev_event_pos= end_pos;
 #endif
       delete ev;
       ev= NULL;
     } // end of while
+    cur_log= &log;
 
     /*
       If the last binlog checkpoint event points to an older log, we have to
