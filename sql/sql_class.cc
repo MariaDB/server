@@ -8417,3 +8417,11 @@ void Charset_loader_server::raise_not_applicable_error(const char *cs,
 {
   my_error(ER_COLLATION_CHARSET_MISMATCH, MYF(0), cl, cs);
 }
+
+
+LEX_CSTRING make_string(THD *thd, const char *start_ptr,
+                        const char *end_ptr)
+{
+  size_t length= end_ptr - start_ptr;
+  return {strmake_root(thd->mem_root, start_ptr, length), length};
+}
