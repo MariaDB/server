@@ -2420,3 +2420,42 @@ select "a" in ("abc", (convert(random_bytes(8) ,binary(2))));
 --echo #
 --echo # End of 10.10 tests
 --echo #
+
+--echo #
+--echo # MDEV-9069 extend AES_ENCRYPT() and AES_DECRYPT() to support IV and the algorithm
+--echo #
+select aes_encrypt('foo', 'bar', '1234') = aes_encrypt('foo', 'bar') `expected 1`;
+select aes_encrypt('foo', 'bar', NULL, 'aes-128-ecb') = aes_encrypt('foo', 'bar') `expected 1`;
+
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select aes_encrypt(1);
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select aes_encrypt(1,2,3,4,5);
+select aes_encrypt('foo', 'bar', '0123', 'something');
+select aes_encrypt('foo', 'bar', '0123', 'aes-111-ecb');
+select aes_encrypt('foo', 'bar', '0123', 'aes-128-bar');
+select aes_encrypt('foo', 'bar', '0123', 'aes-128-cbc');
+select hex(aes_encrypt('foo', 'bar', '0123456789abcdef', 'aes-256-cbc')) `x`;
+select aes_decrypt(x'42A3EB91E6DFC40A900D278F99E0726E', 'bar', '0123456789abcdef###', 'AES-256-CBC') `expected foo`;
+select hex(aes_encrypt('foo', 'bar', '0123456789abcdef', 'aes-128-ctr')) `x`;
+select aes_decrypt(x'C57C4B', 'bar', '0123456789abcdef', 'aes-128-ctr') `expected foo`;
+
+set @@block_encryption_mode='aes-128-ctr';
+select aes_decrypt(x'C57C4B', 'bar', '0123456789abcdef');
+set @@block_encryption_mode='aes-192-cbc';
+select hex(aes_encrypt('foo', 'bar'));
+select hex(aes_encrypt('foo', 'bar', 'abcdefghabcdefgh'));
+select aes_decrypt(x'9E6F76516B4DE68FED7A77632FC0913D', 'bar', 'abcdefghabcdefgh') `expected foo`;
+
+# wrong key
+select aes_decrypt(x'00000000000000011111111111111111', 'bar', 'abcdefghabcdefgh') `expected NULL`;
+# wrong iv
+select aes_decrypt(x'9E6F76516B4DE68FED7A77632FC0913D', 'bar', '0000000011111111') `expected NULL`;
+# wrong alg
+select aes_decrypt(x'9E6F76516B4DE68FED7A77632FC0913D', 'bar', 'abcdefghabcdefgh', 'aes-128-ecb') `expected NULL`;
+# but ctr doesn't use padding, so:
+select hex(aes_decrypt(x'9E6F76516B4DE68FED7A77632FC0913D', 'bar', 'abcdefghabcdefgh', 'aes-128-ctr')) `expected garbage`;
+
+--echo #
+--echo # End of 11.2 tests
+--echo #

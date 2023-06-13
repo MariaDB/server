@@ -136,6 +136,11 @@ The following specify which files/extra groups are read (specified before remain
  non-transactional engines for the binary log. If you
  often use statements updating a great number of rows, you
  can increase this to get more performance.
+ --block-encryption-mode=name 
+ Default block encryption mode for AES_ENCRYPT() and
+ AES_DECRYPT() functions. One of: aes-128-ecb, aes-192-ecb,
+ aes-256-ecb, aes-128-cbc, aes-192-cbc, aes-256-cbc, 
+ aes-128-ctr, aes-192-ctr, aes-256-ctr
  --bootstrap         Used by mysql installation scripts.
  --bulk-insert-buffer-size=# 
  Size of tree cache used in bulk insert optimisation. Note
@@ -1570,6 +1575,7 @@ binlog-row-event-max-size 8192
 binlog-row-image FULL
 binlog-row-metadata NO_LOG
 binlog-stmt-cache-size 32768
+block-encryption-mode aes-128-ecb
 bulk-insert-buffer-size 8388608
 character-set-client-handshake TRUE
 character-set-collations 

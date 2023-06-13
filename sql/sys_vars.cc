@@ -7174,3 +7174,10 @@ static Sys_var_optimizer_cost Sys_optimizer_scan_cost(
   CMD_LINE(REQUIRED_ARG),
   VALID_RANGE(0, 100000000), DEFAULT(DEFAULT_TABLE_SCAN_SETUP_COST),
   COST_ADJUST(1000));
+
+extern const char *block_encryption_mode_values[];
+static Sys_var_enum Sys_block_encryption_mode(
+  "block_encryption_mode", "Default block encryption mode for "
+  "AES_ENCRYPT() and AES_DECRYPT() functions",
+  SESSION_VAR(block_encryption_mode), CMD_LINE(REQUIRED_ARG),
+  block_encryption_mode_values, DEFAULT(0));
