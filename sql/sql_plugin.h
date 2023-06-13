@@ -79,6 +79,7 @@ typedef struct st_mysql_show_var SHOW_VAR;
 #define PLUGIN_IS_READY         8U
 #define PLUGIN_IS_DYING         16U
 #define PLUGIN_IS_DISABLED      32U
+#define PLUGIN_IS_TO_BE_RETRIED 64U
 
 struct st_ptr_backup {
   void **ptr;
