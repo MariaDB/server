@@ -198,6 +198,10 @@ public:
 
   virtual PSI_statement_info* get_psi_info() = 0;
 
+  virtual SQL_I_List<Item_trigger_field>* get_instr_trig_field_list()
+  {
+    return nullptr;
+  }
 }; // class sp_instr : public Sql_alloc
 
 
@@ -387,6 +391,11 @@ public:
   */
   LEX *parse_expr(THD *thd, sp_head *sp);
 
+  SQL_I_List<Item_trigger_field>* get_instr_trig_field_list() override
+  {
+    return &m_cur_trigger_stmt_items;
+  }
+
 protected:
   /**
     @return the expression query string. This string can't be passed directly
@@ -421,9 +430,34 @@ protected:
 
 private:
   /**
+    List of Item_trigger_field objects created on parsing of a SQL statement
+    corresponding to this SP-instruction.
+  */
+  SQL_I_List<Item_trigger_field> m_cur_trigger_stmt_items;
+
+  /**
     Clean up items previously created on behalf of the current instruction.
   */
-  void cleanup_before_parsing();
+  void cleanup_before_parsing(enum_sp_type sp_type);
+
+
+  /**
+    Set up field object for every NEW/OLD item of the trigger and
+    move the list of Item_trigger_field objects, created on parsing the current
+    trigger's instruction, from sp_head to trigger's SP instruction object.
+
+    @param thd  current thread
+    @param sp   sp_head object of the trigger
+    @param next_trig_items_list  pointer to the next list of Item_trigger_field
+                                 objects that used as a link between lists
+                                 to support list of lists structure.
+
+    @return false on success, true on failure
+  */
+
+  bool setup_table_fields_for_trigger(
+    THD *thd, sp_head *sp,
+    SQL_I_List<Item_trigger_field> *next_trig_items_list);
 };
 
 
