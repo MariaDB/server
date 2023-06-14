@@ -76,6 +76,11 @@ public:
     return m_expr_str;
   }
 
+  sp_lex_cursor* get_lex_for_cursor() override
+  {
+    return this;
+  }
+
 private:
   LEX_CSTRING m_expr_str;
 };
@@ -316,11 +321,8 @@ private:
     Set LEX object.
 
     @param lex           LEX-object
-    @param is_lex_owner  this flag specifies whether this LEX object is owned
-                         by the sp_lex_keeper and so should deleted when
-                         needed.
   */
-  void set_lex(LEX *lex, bool is_lex_owner);
+  void set_lex(LEX *lex);
 
 private:
   LEX *m_lex;
@@ -386,10 +388,11 @@ public:
 
     @param thd  Thread context.
     @param sp   The stored program.
+    @param lex  SP instruction's lex
 
     @return new LEX-object or NULL in case of failure.
   */
-  LEX *parse_expr(THD *thd, sp_head *sp);
+  LEX *parse_expr(THD *thd, sp_head *sp, LEX *lex);
 
   SQL_I_List<Item_trigger_field>* get_instr_trig_field_list() override
   {
