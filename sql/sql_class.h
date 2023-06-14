@@ -5982,6 +5982,8 @@ public:
 };
 
 
+class sp_instr_cpush;
+
 /* A mediator between stored procedures and server side cursors */
 class sp_lex_keeper;
 class sp_cursor: public sp_cursor_statistics
@@ -6048,6 +6050,7 @@ public:
     server_side_cursor= NULL;
   }
 
+  virtual sp_instr_cpush *get_push_instr() { return nullptr; }
 private:
   Select_fetch_into_spvars result;
   Server_side_cursor *server_side_cursor;
