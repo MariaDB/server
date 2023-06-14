@@ -262,7 +262,7 @@ public:
     @todo Conflicting comment in sp_head.cc
   */
   int reset_lex_and_exec_core(THD *thd, uint *nextp, bool open_tables,
-                              sp_instr* instr);
+                              sp_instr* instr, bool rerun_the_same_instr);
 
 
   /**
