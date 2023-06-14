@@ -282,18 +282,6 @@ TABLE_CATEGORY get_table_category(const LEX_CSTRING *db,
   DBUG_ASSERT(db != NULL);
   DBUG_ASSERT(name != NULL);
 
-#ifdef WITH_WSREP
-  if (db->str &&
-      my_strcasecmp(system_charset_info, db->str, WSREP_SCHEMA) == 0)
-  {
-    if ((my_strcasecmp(system_charset_info, name->str, WSREP_STREAMING_TABLE) == 0 ||
-         my_strcasecmp(system_charset_info, name->str, WSREP_CLUSTER_TABLE) == 0 ||
-         my_strcasecmp(system_charset_info, name->str, WSREP_MEMBERS_TABLE) == 0))
-    {
-      return TABLE_CATEGORY_INFORMATION;
-    }
-  }
-#endif /* WITH_WSREP */
   if (is_infoschema_db(db))
     return TABLE_CATEGORY_INFORMATION;
 
@@ -314,6 +302,19 @@ TABLE_CATEGORY get_table_category(const LEX_CSTRING *db,
     if (lex_string_eq(&TRANSACTION_REG_NAME, name))
       return TABLE_CATEGORY_LOG;
   }
+#ifdef WITH_WSREP
+  if (lex_string_eq(&WSREP_LEX_SCHEMA, db))
+  {
+    if(lex_string_eq(&WSREP_LEX_STREAMING, name))
+      return TABLE_CATEGORY_INFORMATION;
+    if (lex_string_eq(&WSREP_LEX_ALLOWLIST, name))
+      return TABLE_CATEGORY_INFORMATION;
+    if (lex_string_eq(&WSREP_LEX_CLUSTER, name))
+      return TABLE_CATEGORY_INFORMATION;
+    if (lex_string_eq(&WSREP_LEX_MEMBERS, name))
+      return TABLE_CATEGORY_INFORMATION;
+  }
+#endif /* WITH_WSREP */
 
   return TABLE_CATEGORY_USER;
 }

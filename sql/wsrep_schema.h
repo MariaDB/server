@@ -169,4 +169,10 @@ class Wsrep_schema
 
 extern Wsrep_schema* wsrep_schema;
 
+extern LEX_CSTRING WSREP_LEX_SCHEMA;
+extern LEX_CSTRING WSREP_LEX_STREAMING;
+extern LEX_CSTRING WSREP_LEX_CLUSTER;
+extern LEX_CSTRING WSREP_LEX_MEMBERS;
+extern LEX_CSTRING WSREP_LEX_ALLOWLIST;
+
 #endif /* !WSREP_SCHEMA_H */
