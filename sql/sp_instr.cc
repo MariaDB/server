@@ -472,7 +472,7 @@ int sp_lex_keeper::validate_lex_and_exec_core(THD *thd, uint *nextp,
 
 int sp_lex_keeper::cursor_reset_lex_and_exec_core(THD *thd, uint *nextp,
                                                   bool open_tables,
-                                                  sp_instr *instr)
+                                                  sp_lex_instr *instr)
 {
   Query_arena *old_arena= thd->stmt_arena;
   /*
@@ -482,7 +482,7 @@ int sp_lex_keeper::cursor_reset_lex_and_exec_core(THD *thd, uint *nextp,
     e.g. open or cursor_copy_struct (for cursor%ROWTYPE variables).
   */
   thd->stmt_arena= m_lex->query_arena();
-  int res= reset_lex_and_exec_core(thd, nextp, open_tables, instr);
+  int res= validate_lex_and_exec_core(thd, nextp, open_tables, instr);
   cleanup_items(thd->stmt_arena->free_list);
   thd->stmt_arena= old_arena;
   return res;
@@ -1534,6 +1534,13 @@ sp_instr_cpush::execute(THD *thd, uint *nextp)
 }
 
 
+int
+sp_instr_cpush::exec_core(THD *thd, uint *nextp)
+{
+  sp_cursor *c = thd->spcont->get_cursor(m_cursor);
+  return c ? c->open(thd) : true;
+}
+
 void
 sp_instr_cpush::print(String *str)
 {
@@ -1612,21 +1619,41 @@ sp_instr_copen::execute(THD *thd, uint *nextp)
   else
   {
     sp_lex_keeper *lex_keeper= c->get_lex_keeper();
-    res= lex_keeper->cursor_reset_lex_and_exec_core(thd, nextp, false, this);
-    /* TODO: Assert here that we either have an error or a cursor */
+    /*
+      The expression
+        sp_cursor *c= thd->spcont->get_cursor(m_cursor);
+      that has run above returns an instance of the class sp_instr_cpush
+      that was added former on handling the statement DECLARE CURSOR.
+      The class sp_instr_cpush implements the pure virtual method
+        sp_cursor::get_lex_keeper()
+      so the following DBUG_ASSERT must be ok. This DBUG_ASSERT is added
+      in order to catch possible future changes in execution flow that could
+      break implicit relationship between sp_instr_copen and sp_instr_cpush.
+    */
+    DBUG_ASSERT(lex_keeper);
+    /*
+      Get a pointer to a SP instruction sp_instr_cpush that was instantiated
+      on handling the statement DECLARE CURSOR. The pointer to sp_instr_cpush
+      is passed to the method cursor_reset_lex_and_exec_core() finishing
+      a process of cursor opening by calling the method
+        sp_instr_cpush::exec_core
+      that does a real work for cursor opening.
+    */
+    sp_instr_cpush *cpush_instr= c->get_push_instr();
+    /*
+      For the same goal as previous DBUG_ASSERT, this DBUG_ASSERT ensure that
+      sp_inst_cpush has been already added to SP, that is the statement
+      DECLARE CURSOR occurred before the statement OPEN cursor_name.
+    */
+    DBUG_ASSERT(cpush_instr);
+    res= lex_keeper->cursor_reset_lex_and_exec_core(thd, nextp, false,
+                                                    cpush_instr);
+
+    *nextp= m_ip + 1;
   }
   DBUG_RETURN(res);
 }
 
-
-int
-sp_instr_copen::exec_core(THD *thd, uint *nextp)
-{
-  sp_cursor *c= thd->spcont->get_cursor(m_cursor);
-  int res= c->open(thd);
-  *nextp= m_ip+1;
-  return res;
-}
 
 void
 sp_instr_copen::print(String *str)
