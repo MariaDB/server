@@ -402,6 +402,15 @@ bool sp_create_assignment_lex(THD *thd, const char *pos)
 {
   if (thd->lex->sphead)
   {
+    if (thd->lex->sphead->is_invoked())
+      /*
+        sphead->is_invoked() is true in case the assignment statement
+        is re-parsed. In this case, a new lex for re-parsing the statement
+        has been already created by sp_lex_instr::parse_expr and it should
+        be used for parsing the assignment SP instruction.
+      */
+      return false;
+
     sp_lex_local *new_lex;
     if (!(new_lex= new (thd->mem_root) sp_lex_set_var(thd, thd->lex)) ||
         new_lex->main_select_push())
@@ -436,6 +445,16 @@ bool sp_create_assignment_instr(THD *thd, bool no_lookahead,
 
   if (lex->sphead)
   {
+    if (lex->sphead->is_invoked())
+      /*
+        Don't create a new SP assignment instruction in case the current
+        one is re-parsed by reasoning of metadata changes. Since in that case
+        a new lex is also not instantiated (@sa sp_create_assignment_lex)
+        it is safe to just return without restoring old lex that was active
+        before calling SP instruction.
+      */
+      return false;
+
     if (!lex->var_list.is_empty())
     {
       /*
@@ -1312,6 +1331,7 @@ void LEX::start(THD *thd_arg)
 
   table_count_update= 0;
 
+  memset(&trg_chistics, 0, sizeof(trg_chistics));
   DBUG_VOID_RETURN;
 }
 
@@ -3792,14 +3812,20 @@ void st_select_lex::print_limit(THD *thd,
 void LEX::cleanup_lex_after_parse_error(THD *thd)
 {
   /*
-    Delete sphead for the side effect of restoring of the original
-    LEX state, thd->lex, thd->mem_root and thd->free_list if they
-    were replaced when parsing stored procedure statements.  We
-    will never use sphead object after a parse error, so it's okay
-    to delete it only for the sake of the side effect.
-    TODO: make this functionality explicit in sp_head class.
-    Sic: we must nullify the member of the main lex, not the
-    current one that will be thrown away
+    Don't delete an instance of the class sp_head pointed by the data member
+    thd->lex->sphead since sp_head's destructor deletes every instruction
+    created during parsing the stored routine. One of deleted instruction
+    is used later in the method sp_head::execute by the following
+    construction
+      ctx->handle_sql_condition(thd, &ip, i)
+    Here the variable 'i' references to the instruction that could be deleted
+    by sp_head's destructor and it would result in server abnormal termination.
+    This use case can theoretically happen in case the current stored routine's
+    instruction causes re-compilation of a SP intruction's statement and
+    internal parse error happens during this process.
+
+    Rather, just restore the original LEX object used before parser has been
+    run.
   */
   if (thd->lex->sphead)
   {
@@ -3821,12 +3847,20 @@ void LEX::cleanup_lex_after_parse_error(THD *thd)
       thd->lex->sphead= NULL;
     }
     else
-    {
-      sp_head::destroy(thd->lex->sphead);
-      thd->lex->sphead= NULL;
-    }
+      thd->lex->sphead->unwind_aux_lexes_and_restore_original_lex();
   }
-
+  else if (thd->lex->sp_mem_root_ptr)
+  {
+    /*
+      A memory root pointed by the data member thd->lex->sp_mem_root_ptr
+      is allocated on compilation of a stored routine. In case the stored
+      routine name is incorrect an instance of the class sp_head hasn't been
+      assigned yet at the moment the error is reported. So, we free here
+      a memory root that allocated for the stored routine having incorrect name.
+    */
+    free_root(thd->lex->sp_mem_root_ptr, MYF(0));
+    thd->lex->sp_mem_root_ptr= nullptr;
+  }
   /*
     json_table must be NULL before the query.
     Didn't want to overload LEX::start, it's enough to put it here.
@@ -3921,7 +3955,8 @@ LEX::LEX()
   : explain(NULL), result(0), part_info(NULL), arena_for_set_stmt(0),
     mem_root_for_set_stmt(0), json_table(NULL), default_used(0),
     with_rownum(0), is_lex_started(0), option_type(OPT_DEFAULT),
-    context_analysis_only(0), sphead(0), limit_rows_examined_cnt(ULONGLONG_MAX)
+    context_analysis_only(0), sphead(0), sp_mem_root_ptr(nullptr),
+    limit_rows_examined_cnt(ULONGLONG_MAX)
 {
 
   init_dynamic_array2(PSI_INSTRUMENT_ME, &plugins, sizeof(plugin_ref),
@@ -7371,7 +7406,7 @@ sp_head *LEX::make_sp_head(THD *thd, const sp_name *name,
   sp_head *sp;
 
   /* Order is important here: new - reset - init */
-  if (likely((sp= sp_head::create(package, sph, agg_type))))
+  if (likely((sp= sp_head::create(package, sph, agg_type, sp_mem_root_ptr))))
   {
     sp->reset_thd_mem_root(thd);
     sp->init(this);
@@ -10547,6 +10582,24 @@ bool LEX::new_sp_instr_stmt(THD *thd,
   if (prefix.length)
     memcpy(qbuff.str, prefix.str, prefix.length);
   strmake(qbuff.str + prefix.length, suffix.str, suffix.length);
+
+  /*
+    Force null-termination for every SQL statement inside multi-statements
+    block in order to make the assert
+
+      DBUG_ASSERT(ls->length < UINT_MAX32 &&
+                  ((ls->length == 0 && !ls->str) ||
+                   ls->length == strlen(ls->str)));
+
+    inside the method
+      bool String::append(const LEX_CSTRING *ls)
+    be happy.
+
+    This method is invoked by implementations of the virtual method
+      sp_lex_instr::get_query
+    and overridden implementations of this method in derived classes.
+  */
+  qbuff.str[prefix.length + suffix.length]= 0;
 
   if (!(i= new (thd->mem_root) sp_instr_stmt(sphead->instructions(),
                                              spcont, this, qbuff)))
