@@ -980,13 +980,13 @@ protected:
 
 public:
   /*
-    List of all items (Item_trigger_field objects) representing fields in
-    old/new version of row in trigger. We use this list for checking whenever
-    all such fields are valid at trigger creation time and for binding these
-    fields to TABLE object at table open (altough for latter pointer to table
-    being opened is probably enough).
+    List of lists of Item_trigger_field objects representing all fields in
+    old/new version of row in trigger. We use this list of lists for checking
+    whenever all such fields are valid at trigger creation time and for binding
+    these fields to TABLE object at table open (although for latter pointer
+    to table being opened is probably enough).
   */
-  SQL_I_List<Item_trigger_field> m_trg_table_fields;
+  SQL_I_List<SQL_I_List<Item_trigger_field> > m_trg_table_fields;
 
   /**
     The object of the Trigger class corresponding to this sp_head object.
@@ -996,6 +996,12 @@ public:
     trigger's instruction.
   */
   Trigger *m_trg= nullptr;
+
+  /*
+    List of Item_trigger_field objects created on parsing
+    a current instruction of trigger's body
+  */
+  SQL_I_List<Item_trigger_field> m_cur_instr_trig_field_items;
 }; // class sp_head : public Sql_alloc
 
 
