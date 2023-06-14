@@ -1482,11 +1482,6 @@ restore_arena_and_fail:
   DBUG_RETURN(TRUE);
 }
 
-void try_add_materialization(THD *thd, Item_in_subselect *in_sub)
-{
-  if (is_materialization_applicable(thd, in_sub, in_sub->unit->first_select()))
-    in_sub->add_strategy(SUBS_MATERIALIZATION);
-}
 
 /*
   Get #output_rows and scan_time estimates for a "delayed" table.

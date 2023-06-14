@@ -48,7 +48,6 @@
 double get_post_group_estimate(JOIN* join, double join_op_rows);
 
 LEX_CSTRING exists_outer_expr_name= { STRING_WITH_LEN("<exists outer expr>") };
-LEX_CSTRING in_outer_expr_name= { STRING_WITH_LEN("<in outer expr>") };
 
 LEX_CSTRING no_matter_name= {STRING_WITH_LEN("<no matter>") };
 
@@ -3093,7 +3092,8 @@ alloc_err:
   return TRUE;
 }
 
-/* Checks whether item tree intersects with the free list */
+
+/* Check whether item tree intersects with the free list */
 static bool intersects_free_list(Item *item, THD *thd)
 {
   for (const Item *to_find= thd->free_list; to_find; to_find= to_find->next)
@@ -3102,22 +3102,24 @@ static bool intersects_free_list(Item *item, THD *thd)
   return false;
 }
 
-/**
- Prepares exists2in / decorrelation transformation
 
- Pick out the equalities, prevent 2nd ps execution segfault, check for
- correlation, etc.
+/*
+  Prepare exists2in / decorrelation transformation
 
- @param thd                       The connection
- @param eqs                   OUT The decorrelate-able equalities
- @param will_be_correlated    OUT Whether the resulting IN subquery will
+  Pick out the equalities, prevent 2nd ps execution segfault, check for
+  correlation, etc.
+
+  @param thd                       The connection
+  @param eqs                   OUT The decorrelate-able equalities
+  @param will_be_correlated    OUT Whether the resulting IN subquery will
                                   still be correlated
 
- @retval FALSE        ok
- @retval TRUE         error
+  @retval FALSE        ok
+  @retval TRUE         error
 */
+
 bool Item_exists_subselect::exists2in_prepare(
-  THD *thd, Dynamic_array<EQ_FIELD_OUTER> &eqs, bool &will_be_correlated)
+  THD *thd, Dynamic_array<EQ_FIELD_OUTER> &eqs, bool *will_be_correlated)
 {
   SELECT_LEX *first_select= unit->first_select();
   DBUG_ENTER("exists2in_prepare");
@@ -3127,9 +3129,11 @@ bool Item_exists_subselect::exists2in_prepare(
     DBUG_RETURN(TRUE);
   DBUG_ASSERT(eqs.elements() != 0);
 
-  /* If we are in a ps/sp execution, check for and skip on
-  intersection with the temporary free list to avoid 2nd ps execution
-  segfault */
+  /*
+    If we are in a ps/sp execution, check for and skip on
+    intersection with the temporary free list to avoid 2nd ps execution
+    segfault
+  */
   if (!thd->stmt_arena->is_conventional())
   {
     for (uint i= 0; i < (uint) eqs.elements(); i++)
@@ -3139,7 +3143,7 @@ bool Item_exists_subselect::exists2in_prepare(
     }
   }
 
-  /* Determines whether the result will be correlated */
+  /* Determine whether the result will be correlated */
   {
     List<Item> unused;
     Item::Collect_deps_prm prm= {&unused,          // parameters
@@ -3151,33 +3155,37 @@ bool Item_exists_subselect::exists2in_prepare(
     walk(&Item::collect_outer_ref_processor, TRUE, &prm);
     DBUG_ASSERT(prm.count > 0);
     DBUG_ASSERT(prm.count >= (uint)eqs.elements());
-    will_be_correlated= prm.count > (uint)eqs.elements();
-    if (substype() == EXISTS_SUBS && upper_not && will_be_correlated)
+    *will_be_correlated= prm.count > (uint)eqs.elements();
+    if (substype() == EXISTS_SUBS && upper_not && *will_be_correlated)
       DBUG_RETURN(TRUE);
   }
 
-  /** Checks that there are enough slots in
-  `first_select->ref_pointer_array` for the local fields */
+  /*
+    Check that there are enough slots in
+    `first_select->ref_pointer_array` for the local fields 
+  */
   if ((uint)eqs.elements() > (first_select->item_list.elements +
                               first_select->select_n_reserved))
     DBUG_RETURN(TRUE);
   DBUG_RETURN(FALSE);
 }
 
-/**
- Move the items around for the exists2in / decorrelate-in transformation
 
- For exists2in, replace the inner select items with local fields; for
- decorrelate-in, add them to the inner select items. For both move
- the outer expressions to the left expr in the IN subquery
+/*
+  Move the items around for the exists2in / decorrelate-in transformation
 
- @param thd               The connection
- @param eqs               The decorrelatable equalities
- @param left_exp_ref  OUT The left expr for the resulting IN subquery
+  For exists2in, replace the inner select items with local fields; for
+  decorrelate-in, add them to the inner select items. For both move
+  the outer expressions to the left expr in the IN subquery
 
- @retval FALSE        ok
- @retval TRUE         error
+  @param thd               The connection
+  @param eqs               The decorrelatable equalities
+  @param left_exp_ref  OUT The left expr for the resulting IN subquery
+
+  @retval FALSE        ok
+  @retval TRUE         error
 */
+
 bool Item_exists_subselect::exists2in_create_or_update_in(
   THD *thd, const Dynamic_array<EQ_FIELD_OUTER> &eqs, Item** left_exp_ref)
 {
@@ -3189,6 +3197,7 @@ bool Item_exists_subselect::exists2in_create_or_update_in(
   DBUG_ENTER("Item_exists_subselect::exists2in_create_or_update_in");
 
   DBUG_ASSERT(substype() == EXISTS_SUBS || substype() == IN_SUBS);
+
   /* Construct the items for left_expr */
   if (substype() == EXISTS_SUBS)
   {
@@ -3199,18 +3208,23 @@ bool Item_exists_subselect::exists2in_create_or_update_in(
       first_select->join->all_fields.elements--;
     }
     it.init(first_select->item_list);
-  } else
+  }
+  else
   {
-    /* For IN, copy existing left expr items, and point the iterator
-    at the end of the inner select item list so that nothing gets
-    overwritten */
+    /*
+      For IN, copy existing left expr items, and point the iterator
+      at the end of the inner select item list so that nothing gets
+      overwritten
+    */
     it.init(first_select->item_list);
-    in_subs= (Item_in_subselect *) this;
+    DBUG_ASSERT(substype() == IN_SUBS);
+    in_subs= (Item_in_subselect*) this;
     offset= first_select->item_list.elements;
-    DBUG_ASSERT(in_subs);
     if (in_subs->left_expr->type() == Item::ROW_ITEM)
+    {
       for (uint i= 0; i < in_subs->left_expr->cols(); i++, it++)
         outer.push_back(in_subs->left_expr->element_index(i));
+    }
     else
     {
       outer.push_back(in_subs->left_expr);
@@ -3218,6 +3232,7 @@ bool Item_exists_subselect::exists2in_create_or_update_in(
     }
     DBUG_ASSERT(outer.elements == first_select->item_list.elements);
   }
+
   /* Move items to outer and select item list */
   for (uint i= 0; i < (uint)eqs.elements(); i++)
   {
@@ -3272,21 +3287,23 @@ bool Item_exists_subselect::exists2in_create_or_update_in(
   DBUG_RETURN(FALSE);
 }
 
-/**
- AND the IN subquery with IS NOT NULLs if upper_not
 
- Due to the three-value logic, we need to AND the IN subquery with
- outer_expr IS NOT NULL so that the exists2in / decorrelate-in
- transformation is correct, i.e. new IN subquery evals to the same
- value as the as the old EXISTS/IN subquery.
+/*
+  AND the IN subquery with IS NOT NULLs if upper_not
 
- @param offset        The offset in the left expr coming from the new item
- @param left_exp      The left expr
- @param left_exp_ref  The reference pointer to the left expr
+  Due to the three-value logic, we need to AND the IN subquery with
+  outer_expr IS NOT NULL so that the exists2in / decorrelate-in
+  transformation is correct, i.e. new IN subquery evals to the same
+  value as the as the old EXISTS/IN subquery.
 
- @retval FALSE        ok
- @retval TRUE         error
+  @param offset        The offset in the left expr coming from the new item
+  @param left_exp      The left expr
+  @param left_exp_ref  The reference pointer to the left expr
+
+  @retval FALSE        ok
+  @retval TRUE         error
 */
+
 bool Item_exists_subselect::exists2in_and_is_not_nulls(uint offset,
                                                        Item *left_exp,
                                                        Item **left_exp_ref)
@@ -3340,10 +3357,12 @@ bool Item_exists_subselect::exists2in_and_is_not_nulls(uint offset,
       and_list->push_front(exp, thd->mem_root);
       exp= new (thd->mem_root) Item_cond_and(thd, *and_list);
     }
-    /* If we do not single out this case, and merge it with the >1
-    case, we would get an infinite loop in resolving
-    Item_direct_view_ref::real_item() like in MDEV-3881 when
-    left_exp has scalar type */
+    /*
+      If we do not single out this case, and merge it with the >1
+      case, we would get an infinite loop in resolving
+      Item_direct_view_ref::real_item() like in MDEV-3881 when
+      left_exp has scalar type
+    */
     else if (and_list->elements == 1)
       exp= new (thd->mem_root) Item_cond_and(thd, and_list->head(), exp);
     upper_not->arguments()[0]= exp;
@@ -3353,7 +3372,8 @@ bool Item_exists_subselect::exists2in_and_is_not_nulls(uint offset,
   DBUG_RETURN(FALSE);
 }
 
-/**
+
+/*
   De-correlate where conditions in an IN subquery
 
   Similar to `Item_exists_subselect::exists2in_processor()`, it checks
@@ -3366,6 +3386,7 @@ bool Item_exists_subselect::exists2in_and_is_not_nulls(uint offset,
   @retval FALSE       ok
   @retval TRUE        error
 */
+
 bool Item_in_subselect::exists2in_processor(void *opt_arg)
 {
   THD *thd= (THD *) opt_arg;
@@ -3379,16 +3400,16 @@ bool Item_in_subselect::exists2in_processor(void *opt_arg)
   DBUG_ENTER("Item_in_subselect::exists2in_processor");
 
   /*
-   Skip the transformation if it is not needed or would not help
+    Skip the transformation if it is not needed or would not help
 
-   (1) optimizer flag exists_to_in is off
-   (2) skip if the subquery is not toplevel IN nor toplevel NOT IN
-   (3) skip if the subquery is a part of a union
-   (4) skip if the subquery has group by
-   (5) skip if the subquery has aggregation in the select
-   (6) skip if the subquery has having
-   (7) skip if the subquery does not have where conditions
-   (8) skip if the left expr is a single nonscalar subselect
+    (1) optimizer flag exists_to_in is off
+    (2) skip if the subquery is not toplevel IN nor toplevel NOT IN
+    (3) skip if the subquery is a part of a union
+    (4) skip if the subquery has group by
+    (5) skip if the subquery has aggregation in the select
+    (6) skip if the subquery has having
+    (7) skip if the subquery does not have where conditions
+    (8) skip if the left expr is a single nonscalar subselect
   */
   if (!optimizer_flag(thd, OPTIMIZER_SWITCH_EXISTS_TO_IN) || /* (1) */
       !(is_top_level_item() ||
@@ -3402,7 +3423,7 @@ bool Item_in_subselect::exists2in_processor(void *opt_arg)
        !left_expr->type_handler()->is_scalar_type())) /* (8) */
     DBUG_RETURN(FALSE);
 
-  if (exists2in_prepare(thd, eqs, will_be_correlated))
+  if (exists2in_prepare(thd, eqs, &will_be_correlated))
     DBUG_RETURN(FALSE);
   
   /* Switch to the permanent arena if we are in a ps/sp execution */
@@ -3439,12 +3460,17 @@ bool Item_in_subselect::exists2in_processor(void *opt_arg)
                         "decorrelation");
   }
 
-  /** If not having materialization as a strategy and it is not a
-  semijoin thus will not have a chance of adding materialization later
-  in `check_and_do_in_subquery_rewrites()`, try to add materialization
-  again */
+  /*
+    If not having materialization as a strategy and it is not a
+    semijoin thus will not have a chance of adding materialization later
+    in `check_and_do_in_subquery_rewrites()`, try to add materialization
+    again
+  */
   if (!test_strategy(SUBS_MATERIALIZATION) && !is_registered_semijoin)
-    try_add_materialization(thd, this);
+  {
+    if (is_materialization_applicable(thd, this, first_select))
+      add_strategy(SUBS_MATERIALIZATION);
+  }
 
 out:
   /* Switch back to the runtime arena */
@@ -3516,7 +3542,7 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
   save_select= thd->lex->current_select;
   thd->lex->current_select= first_select;
 
-  if (exists2in_prepare(thd, eqs, will_be_correlated))
+  if (exists2in_prepare(thd, eqs, &will_be_correlated))
     DBUG_RETURN(FALSE);
 
   arena= thd->activate_stmt_arena_if_needed(&backup);

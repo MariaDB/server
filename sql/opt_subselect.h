@@ -32,7 +32,6 @@ bool setup_degenerate_jtbm_semi_joins(JOIN *join,
 bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
                            List<Item> &eq_list);
 void cleanup_empty_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list);
-void try_add_materialization(THD *thd, Item_in_subselect *in_sub);
 
 // used by Loose_scan_opt
 ulonglong get_bound_sj_equalities(TABLE_LIST *sj_nest, 
@@ -430,4 +429,7 @@ void get_delayed_table_estimates(TABLE *table,
                                  double *startup_cost);
 
 enum_nested_loop_state join_tab_execution_startup(JOIN_TAB *tab);
+
+bool is_materialization_applicable(THD *thd, Item_in_subselect *in_subs,
+                                   st_select_lex *child_select);
 

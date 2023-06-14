@@ -382,9 +382,13 @@ protected:
 
   void init_length_and_dec();
   bool select_prepare_to_be_in();
-  bool exists2in_prepare(THD *thd, Dynamic_array<EQ_FIELD_OUTER> &eqs, bool &will_be_correlated);  
-  bool exists2in_create_or_update_in(THD *thd, const Dynamic_array<EQ_FIELD_OUTER> &eqs, Item** left_exp_ref);
-  bool exists2in_and_is_not_nulls(uint offset, Item *left_exp, Item **left_exp_ref);
+  bool exists2in_prepare(THD *thd, Dynamic_array<EQ_FIELD_OUTER> &eqs,
+                         bool *will_be_correlated);
+  bool exists2in_create_or_update_in(THD *thd,
+                                     const Dynamic_array<EQ_FIELD_OUTER> &eqs,
+                                     Item** left_exp_ref);
+  bool exists2in_and_is_not_nulls(uint offset, Item *left_exp,
+                                  Item **left_exp_ref);
 public:
   /*
     Used by subquery optimizations to keep track about in which clause this
