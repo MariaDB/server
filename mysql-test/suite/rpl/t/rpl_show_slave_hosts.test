@@ -119,6 +119,10 @@ show status like 'Rpl_semi_sync_master_yes_tx';
 # Here we should get `Gtid_State_Sent` and `Gtid_State_Ack`
 --replace_result $SLAVE_MYPORT SLAVE_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
 SHOW REPLICA HOSTS;
+
+# The shows using % should be replaced with the actual variable you want to
+# display, as with the % it is picking up variables with non-deterministic
+# values, such as Rpl_semi_sync_master_tx_avg_wait_time
 show status like 'rpl_semi_sync_master%';
 
 connection slave;
@@ -428,6 +432,7 @@ let $status_var_value= ON;
 source include/wait_for_status_var.inc;
 show status like 'rpl_semi_sync_master_status';
 
+let $acks_initial= query_get_value(SHOW STATUS LIKE 'rpl_semi_sync_master_get_ack', Value, 1);
 show status like 'rpl_semi_sync_master_get_ack';
 set global rpl_semi_sync_master_timeout=0;
 select @@global.rpl_semi_sync_master_timeout;
@@ -444,7 +449,6 @@ let $status_var= rpl_semi_sync_slave_status;
 let $status_var_value= ON;
 source include/wait_for_status_var.inc;
 show status like 'rpl_semi_sync_slave%';
-SET debug_sync='now WAIT_FOR at_slave_reply TIMEOUT 10';
 
 connection slave2;
 --source include/stop_slave.inc
@@ -455,15 +459,22 @@ let $status_var= rpl_semi_sync_slave_status;
 let $status_var_value= ON;
 source include/wait_for_status_var.inc;
 show status like 'rpl_semi_sync_slave%';
-SET debug_sync='now WAIT_FOR at_slave_reply TIMEOUT 10';
 
 --echo # Both replicas are stopped with synchronization point
 connection master;
 # Write event
 INSERT INTO t values (1111);
+
+--connection slave
+SET debug_sync='now WAIT_FOR at_slave_reply TIMEOUT 10';
+
+--connection slave2
+SET debug_sync='now WAIT_FOR at_slave_reply TIMEOUT 10';
+
+--connection master
 # There will be no ACK so good enough to check if the same rpl_semi_sync_master_get_ack is observed
 let $status_var= rpl_semi_sync_master_get_ack;
-let $status_var_value= 9;
+let $status_var_value= $acks_initial;
 source include/wait_for_status_var.inc;
 show status like 'rpl_semi_sync_master_get_ack';
 
@@ -480,7 +491,7 @@ connection master;
 # GTID_sent == GTID_ack (updated to the latest active transaction)
 # This is weird, master is async, why would it "get" ACK?
 let $status_var= rpl_semi_sync_master_get_ack;
-let $status_var_value= 10;
+let $status_var_value= `SELECT $acks_initial+1`;
 source include/wait_for_status_var.inc;
 show status like 'rpl_semi_sync_master_get_ack';
 --replace_column 3 'SLAVE_PORT'
@@ -494,7 +505,7 @@ SET debug_sync='now SIGNAL reply_ack_to_master';
 connection master;
 # GTID_sent == GTID_ack (already sent by server_id=2) - this is not good, ack master should be 9 instead of 10?
 let $status_var= rpl_semi_sync_master_get_ack;
-let $status_var_value= 11;
+let $status_var_value= `SELECT $acks_initial+2`;
 source include/wait_for_status_var.inc;
 show status like 'rpl_semi_sync_master_get_ack';
 --replace_column 3 'SLAVE_PORT'

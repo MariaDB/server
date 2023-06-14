@@ -102,8 +102,8 @@ Rpl_semi_sync_master_no_tx	0
 Rpl_semi_sync_master_request_ack	2
 Rpl_semi_sync_master_status	ON
 Rpl_semi_sync_master_timefunc_failures	0
-Rpl_semi_sync_master_tx_avg_wait_time	271
-Rpl_semi_sync_master_tx_wait_time	543
+Rpl_semi_sync_master_tx_avg_wait_time	655
+Rpl_semi_sync_master_tx_wait_time	1311
 Rpl_semi_sync_master_tx_waits	2
 Rpl_semi_sync_master_wait_pos_backtraverse	0
 Rpl_semi_sync_master_wait_sessions	0
@@ -424,9 +424,6 @@ show status like 'rpl_semi_sync_slave%';
 Variable_name	Value
 Rpl_semi_sync_slave_send_ack	0
 Rpl_semi_sync_slave_status	ON
-SET debug_sync='now WAIT_FOR at_slave_reply TIMEOUT 10';
-Warnings:
-Warning	1639	debug sync point wait timed out
 connection slave2;
 include/stop_slave.inc
 SET @@GLOBAL.DEBUG_DBUG="d,synchronize_semisync_slave_reply";
@@ -435,12 +432,14 @@ show status like 'rpl_semi_sync_slave%';
 Variable_name	Value
 Rpl_semi_sync_slave_send_ack	0
 Rpl_semi_sync_slave_status	ON
-SET debug_sync='now WAIT_FOR at_slave_reply TIMEOUT 10';
-Warnings:
-Warning	1639	debug sync point wait timed out
 # Both replicas are stopped with synchronization point
 connection master;
 INSERT INTO t values (1111);
+connection slave;
+SET debug_sync='now WAIT_FOR at_slave_reply TIMEOUT 10';
+connection slave2;
+SET debug_sync='now WAIT_FOR at_slave_reply TIMEOUT 10';
+connection master;
 show status like 'rpl_semi_sync_master_get_ack';
 Variable_name	Value
 Rpl_semi_sync_master_get_ack	9
