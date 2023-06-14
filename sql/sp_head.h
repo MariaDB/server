@@ -262,6 +262,7 @@ private:
   */
   uint32 unsafe_flags;
 
+  bool new_query_arena_is_set;
 public:
   inline Stored_program_creation_ctx *get_creation_ctx()
   {
