@@ -1512,16 +1512,16 @@ void rpl_binlog_state::init()
   my_hash_init(PSI_INSTRUMENT_ME, &hash, &my_charset_bin, 32,
                offsetof(element, domain_id), sizeof(element::domain_id),
                NULL, my_free, HASH_UNIQUE);
-  my_init_dynamic_array(PSI_INSTRUMENT_ME, &gtid_sort_array, sizeof(rpl_gtid), 8, 8, MYF(0));
+  my_init_dynamic_array(key_memory_binlog_gtid_cache, &gtid_sort_array, sizeof(rpl_gtid), 8, 8, MYF(0));
   mysql_mutex_init(key_LOCK_binlog_state, &LOCK_binlog_state,
                    MY_MUTEX_INIT_SLOW);
   mysql_mutex_init(key_LOCK_binlog_state, &LOCK_gtid_state,
                    MY_MUTEX_INIT_SLOW);
-  my_hash_init(PSI_INSTRUMENT_ME, &binlog_hash, files_charset_info, 10, 0, 0,
+  my_hash_init(key_memory_binlog_gtid_cache, &binlog_hash, files_charset_info, 10, 0, 0,
                (my_hash_get_key) GTID_state_cache::get_key,
                GTID_state_cache::free, HASH_UNIQUE);
   binlog_list.empty();
-  init_alloc_root(PSI_INSTRUMENT_ME, &mem_root, 1024, 0, MYF(0));
+  init_alloc_root(key_memory_binlog_gtid_cache, &mem_root, 1024, 0, MYF(0));
   initialized= 1;
 }
 
@@ -2321,7 +2321,6 @@ bool rpl_binlog_state::rotate_binlog(const char *filename,
 
   /* Rotate binlog_hash if needed */
   auto_lock l(&LOCK_gtid_state);
-  DBUG_ASSERT(binlog_hash.records == binlog_list.elements);
 
   if (binlog_hash.records >= opt_binlog_gtid_pos_cache)
   {
@@ -2346,7 +2345,7 @@ bool rpl_binlog_state::rotate_binlog(const char *filename,
   }
 
   /* Push new element */
-  el= new (std::nothrow) GTID_state_cache();
+  el= new (key_memory_binlog_gtid_cache) GTID_state_cache();
   if (!el)
   {
     my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(*el));
@@ -2365,15 +2364,7 @@ bool rpl_binlog_state::rotate_binlog(const char *filename,
     return true;
   }
 
-  /* Note: I_List cannot pop() */
-  if (binlog_list.push_back(el, &mem_root))
-  {
-    if (my_hash_delete(&binlog_hash, (uchar *) el))
-      DBUG_ASSERT(0);
-    my_error(ER_OUT_OF_RESOURCES, MYF(0));
-    return true;
-  }
-
+  binlog_list.push_back(el);
   el->binlog_ptr= binlog_ptr;
   *binlog_ptr= el;
   return false;

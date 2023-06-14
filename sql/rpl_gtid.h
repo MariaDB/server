@@ -298,7 +298,7 @@ struct rpl_slave_state
 
 extern uint opt_binlog_gtid_pos_cache;
 
-struct GTID_state_cache
+struct GTID_state_cache : public ilink
 {
   struct pos_hash_element
   {
@@ -398,7 +398,7 @@ struct rpl_binlog_state
 
   HASH binlog_hash;
   /* Used for binlog_hash rotation */
-  List<GTID_state_cache> binlog_list;
+  I_List<GTID_state_cache> binlog_list;
   MEM_ROOT mem_root;
 
    rpl_binlog_state() :initialized(0) {}

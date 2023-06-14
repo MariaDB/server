@@ -1,0 +1,2 @@
+--loose-performance-schema=ON
+--loose-performance-schema-instrument='memory/%binlog_gtid_cache%=ON'

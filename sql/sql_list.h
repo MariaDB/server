@@ -675,12 +675,16 @@ inline void bubble_sort(List<T> *list_to_sort,
 struct ilink
 {
   struct ilink **prev,*next;
-  static void *operator new(size_t size) throw ()
+  static void *operator new(size_t size, PSI_memory_key psi_key= PSI_INSTRUMENT_ME) throw ()
   {
-    return (void*)my_malloc(PSI_INSTRUMENT_ME,
+    return (void*)my_malloc(psi_key,
                             (uint)size, MYF(MY_WME | MY_FAE | ME_FATAL));
   }
-  static void operator delete(void* ptr_arg, size_t)
+  static void operator delete(void* ptr_arg, size_t) throw ()
+  {
+     my_free(ptr_arg);
+  }
+  static void operator delete(void* ptr_arg, size_t, PSI_memory_key) throw ()
   {
      my_free(ptr_arg);
   }
@@ -756,7 +760,17 @@ public:
     a->prev= last.prev;
     last.prev= &a->next;
   }
-  inline struct ilink *get()
+  inline void *pop(void)
+  {
+    if (first == &last)
+      return 0;
+    ilink *tmp= first;
+    first= first->next;
+    if (first == &last)
+      last.prev= &first;
+    return tmp;
+  }
+  inline ilink *get()
   {
     struct ilink *first_link=first;
     if (first_link == &last)
@@ -826,6 +840,7 @@ public:
   inline void push_back(T* a)	{ base_ilist::push_back(a); }
   inline T* get()		{ return (T*) base_ilist::get(); }
   inline T* head()		{ return (T*) base_ilist::head(); }
+  T* pop()                      { return (T *) base_ilist::pop(); }
   inline void move_elements_to(I_List<T>* new_owner) {
     base_ilist::move_elements_to(new_owner);
   }

@@ -9359,6 +9359,7 @@ PSI_memory_key key_memory_errmsgs;
 PSI_memory_key key_memory_frm_string;
 PSI_memory_key key_memory_gdl;
 PSI_memory_key key_memory_global_system_variables;
+PSI_memory_key key_memory_binlog_gtid_cache;
 PSI_memory_key key_memory_handler_errmsgs;
 PSI_memory_key key_memory_handlerton;
 PSI_memory_key key_memory_hash_index_key_buffer;
@@ -9681,6 +9682,7 @@ static PSI_memory_info all_server_memory[]=
 //  { &key_memory_get_all_tables, "get_all_tables", 0},
 //  { &key_memory_fill_schema_schemata, "fill_schema_schemata", 0},
   { &key_memory_native_functions, "native_functions", PSI_FLAG_GLOBAL},
+  { &key_memory_binlog_gtid_cache, "binlog_gtid_cache", 0}
 };
 
 /**

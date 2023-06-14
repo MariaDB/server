@@ -21,6 +21,8 @@ create table t1 (a int primary key, b int) engine=innodb;
 select @@gtid_binlog_pos;
 insert t1 values (1,1),(3,3),(5,5),(7,7);
 select @@gtid_binlog_pos;
+# select CURRENT_NUMBER_OF_BYTES_USED as A1 from performance_schema.memory_summary_global_by_event_name where event_name like "%gtid_cache%";
+
 set @@session.gtid_domain_id= 222;
 create table t2 (m int);
 select @@gtid_binlog_pos;
@@ -30,6 +32,9 @@ update t1 set b=50 where b=5;
 set @@session.gtid_domain_id= 333;
 select @@gtid_binlog_pos;
 update t1 set b=10 where a=5;
+
+# select CURRENT_NUMBER_OF_BYTES_USED as A2 from performance_schema.memory_summary_global_by_event_name where event_name like "%gtid_cache%";
+
 flush binary logs;
 select @@gtid_binlog_pos;
 update t1 set b=20 where a= 5;
@@ -200,6 +205,8 @@ if ($MTR_COMBINATION_CACHE_ON)
 {
   --move_file $datadir/mister-bin.000020 $datadir/master-bin.000020
 }
+
+# select CURRENT_NUMBER_OF_BYTES_USED as A3 from performance_schema.memory_summary_global_by_event_name where event_name like "%gtid_cache%";
 
 drop table t1,t2;
 set @@global.binlog_gtid_pos_cache= @old_binlog_gtid_pos_cache;
