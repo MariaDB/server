@@ -18,8 +18,11 @@
 --echo #
 --echo
 
+--source include/have_debug.inc
+
 ###########################################################################
 ###########################################################################
+SET @orig_debug=@@debug_dbug;
 
 --echo # The test case below demonstrates that meta-data changes are detected
 --echo # by triggers.
@@ -38,6 +41,14 @@ INSERT INTO t3 (a) VALUES (1);
 SELECT * FROM t1;
 SELECT * FROM t2;
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# trigger's body doesn't lead to eviction of the trigger
+# from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 ALTER TABLE t1 ADD COLUMN c INT;
 ALTER TABLE t2 ADD COLUMN c INT;
 INSERT INTO t2 VALUES (31, 32, 33);
@@ -46,6 +57,8 @@ INSERT INTO t3 (a) VALUES (2);
 
 SELECT * FROM t1;
 SELECT * FROM t2;
+
+SET @@debug_dbug=@orig_dbug;
 
 DROP TABLE t1;
 DROP TABLE t2;
@@ -92,6 +105,14 @@ INSERT INTO t1 VALUES (1), (2);
 CREATE PROCEDURE p1()
   SELECT * FROM t1;
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 CALL p1();
 
 --echo
@@ -113,6 +134,8 @@ DELETE FROM t1;
 INSERT INTO t1 VALUES (b), ('hello');
 CALL p1();
 
+SET @@debug_dbug=@orig_dbug;
+
 --echo
 --echo # 1.4 Check if table's recreation is handled correctly
 --echo # inside a call of stored procedure.
@@ -126,6 +149,14 @@ INSERT INTO t1 VALUES (1), (2);
 CREATE PROCEDURE p1()
   SELECT * FROM t1;
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 CALL p1();
 
 DROP TABLE t1;
@@ -137,6 +168,8 @@ CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1), (2);
 
 CALL p1();
+
+SET @@debug_dbug=@orig_dbug;
 
 --echo
 --echo # 1.5 Recreate table t1 with another set of columns and
@@ -151,6 +184,14 @@ INSERT INTO t1 VALUES (1), (2);
 CREATE PROCEDURE p1()
   SELECT * FROM t1;
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 CALL p1();
 
 DROP TABLE t1;
@@ -162,6 +203,8 @@ CREATE TABLE t1 (b VARCHAR(10), c VARCHAR(10));
 INSERT INTO t1 VALUES ('a', 'b'), ('c', 'd');
 
 CALL p1();
+
+SET @@debug_dbug=@orig_dbug;
 
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -182,6 +225,13 @@ CALL p1();
 
 ALTER VIEW v1 AS SELECT 1, 2, 3, 4, 5;
 
+# In result of dropping/creating a view sp_cache is invalidated.
+# It means that the stored procedure p1 be evicted from sp_cache
+# and loaded again on opening the routine. So, the statement
+#   SET @@debug_dbug='+d,check_sp_cache_not_invalidated'
+# shouldn't be run before execution of the statement
+#  'CALL p1();' since it will hit DBUG_SUICIDE in the function
+# sp_cache_flush_obsolete()
 CALL p1();
 
 --echo
@@ -208,6 +258,14 @@ DROP PROCEDURE p1;
 CREATE PROCEDURE p1()
   SELECT * FROM v1;
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 CALL p1();
 
 ALTER TABLE t1 ADD COLUMN c INT DEFAULT 3;
@@ -218,6 +276,8 @@ ALTER TABLE t1 ADD COLUMN c INT DEFAULT 3;
 # (http://dev.mysql.com/doc/refman/5.0/en/create-view.html).
 # So, this call should return 2 (not 3) columns.
 CALL p1();
+
+SET @@debug_dbug=@orig_dbug;
 
 --echo
 --echo # 2.4 Stored program that uses query like 'SELECT * FROM v' must be
@@ -235,6 +295,14 @@ DROP PROCEDURE p1;
 CREATE PROCEDURE p1()
   SELECT * FROM v1;
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 CALL p1();
 
 ALTER TABLE t1 DROP COLUMN a;
@@ -247,6 +315,8 @@ ALTER TABLE t1 DROP COLUMN b;
 # dropped -- the view has become invalid.
 --error ER_VIEW_INVALID
 CALL p1();
+
+SET @@debug_dbug=@orig_dbug;
 
 --echo
 --echo # 2.5 Stored program that uses query like 'SELECT * FROM v' must be
@@ -261,6 +331,15 @@ DROP VIEW v1;
 CREATE VIEW v1 AS SELECT b, c FROM t1;
 
 DROP PROCEDURE p1;
+
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 CREATE PROCEDURE p1()
   SELECT * FROM v1;
 
@@ -271,6 +350,8 @@ DELETE FROM t1;
 INSERT INTO t1(a, c) VALUES (10, 30);
 
 CALL p1();
+
+SET @@debug_dbug=@orig_dbug;
 
 --echo
 --echo # 2.6 Stored program that uses query like 'SELECT * FROM v' must be
@@ -294,6 +375,13 @@ CALL p1();
 
 DROP VIEW v1;
 
+# In result of dropping/creating a view sp_cache is invalidated.
+# It means that the stored procedure p1 be evicted from sp_cache
+# and loaded again on opening the routine. So, the statement
+#   SET @@debug_dbug='+d,check_sp_cache_not_invalidated'
+# shouldn't be run before execution of the statement
+#  'CALL p1();' since it will hit DBUG_SUICIDE in the function
+# sp_cache_flush_obsolete()
 --error ER_NO_SUCH_TABLE
 CALL p1();
 
@@ -317,6 +405,14 @@ CREATE VIEW v1 AS SELECT * FROM t1;
 CREATE PROCEDURE p1()
   SELECT * FROM v1;
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 CALL p1();
 
 DROP TABLE t1;
@@ -328,6 +424,8 @@ CREATE TABLE t1(a VARCHAR(255), b VARCHAR(255));
 INSERT INTO t1 VALUES ('a', 'b'), ('c', 'd');
 
 CALL p1();
+
+SET @@debug_dbug=@orig_dbug;
 
 DROP VIEW v1;
 DROP TABLE t1;
@@ -342,6 +440,14 @@ CREATE TEMPORARY TABLE t1(a INT, b INT);
 INSERT INTO t1 VALUES (1, 2);
 
 CREATE PROCEDURE p1() SELECT * FROM t1;
+
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 
 CALL p1();
 
@@ -389,6 +495,8 @@ INSERT INTO t1 VALUES ('aa', 'bb', 'cc');
 
 CALL p1();
 
+SET @@debug_dbug=@orig_dbug;
+
 DROP TEMPORARY TABLE t1;
 DROP PROCEDURE p1;
 
@@ -403,12 +511,22 @@ INSERT INTO t1 VALUES (1, 2);
 
 CREATE PROCEDURE p1() SELECT a, b FROM t1;
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 CALL p1();
 
 ALTER TABLE t1 DROP COLUMN b;
 
 --error ER_BAD_FIELD_ERROR
 CALL p1();
+
+SET @@debug_dbug=@orig_dbug;
 
 DROP PROCEDURE p1;
 DROP TABLE t1;
@@ -422,12 +540,22 @@ INSERT INTO t1 VALUES (1, 2);
 
 CREATE PROCEDURE p1() SELECT a, b FROM t1;
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 CALL p1();
 
 ALTER TABLE t1 DROP COLUMN b;
 
 --error ER_BAD_FIELD_ERROR
 CALL p1();
+
+SET @@debug_dbug=@orig_dbug;
 
 DROP PROCEDURE p1;
 DROP TEMPORARY TABLE t1;
@@ -442,10 +570,18 @@ CREATE PROCEDURE p1() SELECT a, b FROM v1;
 
 CALL p1();
 
+# In result of altering a view sp_cache is invalidated.
+# It means that the stored procedure p1 be evicted from sp_cache
+# and loaded again on opening the routine. So, the statement
+#   SET @@debug_dbug='+d,check_sp_cache_not_invalidated'
+# shouldn't be run here since it will hit DBUG_SUICIDE in the function
+# sp_cache_flush_obsolete()
 ALTER VIEW v1 AS SELECT 1 AS a;
 
 --error ER_BAD_FIELD_ERROR
 CALL p1();
+
+SET @@debug_dbug=@orig_dbug;
 
 DROP PROCEDURE p1;
 DROP VIEW v1;
@@ -459,12 +595,22 @@ INSERT INTO t1 VALUES (1, 2);
 
 CREATE PROCEDURE p1() SELECT a, b FROM t1;
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 CALL p1();
 
 DROP TABLE t1;
 
 --error ER_NO_SUCH_TABLE
 CALL p1();
+
+SET @@debug_dbug=@orig_dbug;
 
 DROP PROCEDURE p1;
 
@@ -480,6 +626,12 @@ CALL p1();
 
 DROP VIEW v1;
 
+# In result of dropping/creating a view sp_cache is invalidated.
+# It means that the stored procedure p1 be evicted from sp_cache
+# and loaded again on opening the routine. So, the statement
+#   SET @@debug_dbug='+d,check_sp_cache_not_invalidated'
+# shouldn't be run here since it will hit DBUG_SUICIDE in the function
+# sp_cache_flush_obsolete()
 --error ER_NO_SUCH_TABLE
 CALL p1();
 
@@ -494,12 +646,22 @@ INSERT INTO t1 VALUES (1, 2);
 
 CREATE PROCEDURE p1() SELECT a, b FROM t1;
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 CALL p1();
 
 DROP TABLE t1;
 
 --error ER_NO_SUCH_TABLE
 CALL p1();
+
+SET @@debug_dbug=@orig_dbug;
 
 DROP PROCEDURE p1;
 
@@ -578,6 +740,12 @@ CALL p1();
 DROP TABLE t1;
 CREATE VIEW t1 AS SELECT 1 AS a, 2 AS b;
 
+# In result of dropping/creating a view sp_cache is invalidated.
+# It means that the stored procedure p1 be evicted from sp_cache
+# and loaded again on opening the routine. So, the statement
+#   SET @@debug_dbug='+d,check_sp_cache_not_invalidated'
+# shouldn't be run here since it will hit DBUG_SUICIDE in the function
+# sp_cache_flush_obsolete()
 CALL p1();
 
 DROP PROCEDURE p1;
@@ -591,6 +759,14 @@ INSERT INTO t1 VALUES (1, 2);
 
 CREATE PROCEDURE p1() SELECT * FROM t1;
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 CALL p1();
 
 DROP TABLE t1;
@@ -598,6 +774,8 @@ CREATE TEMPORARY TABLE t1(a INT, b INT);
 INSERT INTO t1 VALUES (1, 2);
 
 CALL p1();
+
+SET @@debug_dbug=@orig_dbug;
 
 DROP PROCEDURE p1;
 DROP TEMPORARY TABLE t1;
@@ -617,6 +795,8 @@ INSERT INTO t1 VALUES (1, 2);
 
 CALL p1();
 
+SET @@debug_dbug=@orig_dbug;
+
 DROP PROCEDURE p1;
 DROP TABLE t1;
 
@@ -633,6 +813,12 @@ DROP VIEW t1;
 CREATE TEMPORARY TABLE t1(a INT, b INT);
 INSERT INTO t1 VALUES (1, 2);
 
+# In result of dropping/creating a view sp_cache is invalidated.
+# It means that the stored procedure p1 be evicted from sp_cache
+# and loaded again on opening the routine. So, the statement
+#   SET @@debug_dbug='+d,check_sp_cache_not_invalidated'
+# shouldn't be run here since it will hit DBUG_SUICIDE in the function
+# sp_cache_flush_obsolete()
 CALL p1();
 
 DROP PROCEDURE p1;
@@ -654,6 +840,8 @@ CREATE VIEW t1 AS SELECT 1 AS a, 2 AS b;
 
 CALL p1();
 
+SET @@debug_dbug=@orig_dbug;
+
 DROP PROCEDURE p1;
 DROP VIEW t1;
 
@@ -665,6 +853,14 @@ INSERT INTO t1 VALUES (1, 2);
 
 CREATE PROCEDURE p1() SELECT * FROM t1;
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 CALL p1();
 
 DROP TEMPORARY TABLE t1;
@@ -672,6 +868,8 @@ CREATE TABLE t1(a INT, b INT);
 INSERT INTO t1 VALUES (1, 2);
 
 CALL p1();
+
+SET @@debug_dbug=@orig_dbug;
 
 DROP PROCEDURE p1;
 DROP TABLE t1;
@@ -704,6 +902,12 @@ END|
 
 delimiter ;|
 
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# trigger's body doesn't lead to eviction of the trigger
+# from sp_cache
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 --echo
 SET @x = 0, @y = 0;
 UPDATE t1 SET a = 3, b = 4;
@@ -724,6 +928,8 @@ ALTER TABLE t1 CHANGE COLUMN a a VARCHAR(255);
 SET @x = 0, @y = 0;
 UPDATE t1 SET a = CONCAT('xxx_', a), b = 7;
 SELECT @x, @y;
+
+SET @@debug_dbug=@orig_dbug;
 
 --echo
 DROP TABLE t1;
@@ -750,6 +956,12 @@ END|
 
 delimiter ;|
 
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# trigger's body doesn't lead to eviction of the trigger
+# from sp_cache
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 --echo
 UPDATE t1 SET a = 3, b = 4;
 
@@ -767,6 +979,8 @@ ALTER TABLE t1 CHANGE COLUMN b b2 INT;
 --echo
 --error ER_BAD_FIELD_ERROR
 UPDATE t1 SET a = 5, b2 = 6;
+
+SET @@debug_dbug=@orig_dbug;
 
 --echo
 DROP TABLE t1;
@@ -798,9 +1012,17 @@ END|
 
 delimiter ;|
 
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 --echo
 CALL p2();
 --echo
+
+SET @@debug_dbug=@orig_dbug;
 
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
@@ -832,9 +1054,17 @@ END|
 
 delimiter ;|
 
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 --echo
 CALL p2();
 --echo
+
+SET @@debug_dbug=@orig_dbug;
 
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
@@ -870,9 +1100,17 @@ END|
 
 delimiter ;|
 
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 --echo
 CALL p2();
 --echo
+
+SET @@debug_dbug=@orig_dbug;
 
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
@@ -908,9 +1146,17 @@ END|
 
 delimiter ;|
 
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 --echo
 CALL p2();
 --echo
+
+SET @@debug_dbug=@orig_dbug;
 
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
@@ -943,9 +1189,17 @@ END|
 
 delimiter ;|
 
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 --echo
 CALL p2();
 --echo
+
+SET @@debug_dbug=@orig_dbug;
 
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
@@ -978,10 +1232,18 @@ END|
 
 delimiter ;|
 
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 --echo
 --error ER_BAD_FIELD_ERROR
 CALL p2();
 --echo
+
+SET @@debug_dbug=@orig_dbug;
 
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
@@ -1014,10 +1276,18 @@ END|
 
 delimiter ;|
 
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 --echo
 --error ER_BAD_FIELD_ERROR
 CALL p2();
 --echo
+
+SET @@debug_dbug=@orig_dbug;
 
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
@@ -1054,10 +1324,18 @@ END|
 
 delimiter ;|
 
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 --echo
 --error ER_BAD_FIELD_ERROR
 CALL p2();
 --echo
+
+SET @@debug_dbug=@orig_dbug;
 
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
@@ -1094,10 +1372,18 @@ END|
 
 delimiter ;|
 
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 --echo
 --error ER_BAD_FIELD_ERROR
 CALL p2();
 --echo
+
+SET @@debug_dbug=@orig_dbug;
 
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
@@ -1131,10 +1417,20 @@ END|
 
 delimiter ;|
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 --echo
 --error ER_BAD_FIELD_ERROR
 CALL p2();
 --echo
+
+SET @@debug_dbug=@orig_dbug;
 
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
@@ -1201,11 +1497,21 @@ END|
 
 delimiter ;|
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 CALL p1();
 
 CALL p2();
 
 CALL p3();
+
+SET @@debug_dbug=@orig_dbug;
 
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
@@ -1303,6 +1609,14 @@ delimiter ;|
 CREATE TABLE t1(a INT);
 INSERT INTO t1 VALUES (1);
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 --echo
 CALL p1();
 CALL p2();
@@ -1346,6 +1660,8 @@ SELECT f1();
 SELECT f2();
 --echo
 
+SET @@debug_dbug=@orig_dbug;
+
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 DROP FUNCTION f1;
@@ -1376,6 +1692,14 @@ delimiter ;|
 CREATE TABLE t1(a INT);
 INSERT INTO t1 VALUES (0);
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 CALL p1(3);
 
 UPDATE t1 SET a = 1;
@@ -1394,6 +1718,8 @@ ALTER TABLE t1 DROP COLUMN a;
 # Column 'a' not found for the UPDATE statememnt.
 --error ER_BAD_FIELD_ERROR
 CALL p1(3);
+
+SET @@debug_dbug=@orig_dbug;
 
 DROP PROCEDURE p1;
 DROP TABLE t1;
@@ -1422,6 +1748,14 @@ delimiter ;|
 CREATE TABLE t1(a INT);
 INSERT INTO t1 VALUES (0);
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 CALL p1(3);
 
 UPDATE t1 SET a = 1;
@@ -1440,6 +1774,8 @@ ALTER TABLE t1 DROP COLUMN a;
 # Column 'a' not found for the UPDATE statememnt.
 --error ER_BAD_FIELD_ERROR
 CALL p1(3);
+
+SET @@debug_dbug=@orig_dbug;
 
 DROP PROCEDURE p1;
 DROP TABLE t1;
@@ -1479,6 +1815,14 @@ delimiter ;|
 CREATE TABLE t1(a INT);
 INSERT INTO t1 VALUES (0);
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 --echo
 
 CALL p1();
@@ -1513,6 +1857,8 @@ ALTER TABLE t1 DROP COLUMN a;
 
 CALL p1();
 CALL p2();
+
+SET @@debug_dbug=@orig_dbug;
 
 --echo
 
@@ -1555,6 +1901,14 @@ END|
 
 delimiter ;|
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 --echo
 
 SET @x = 0;
@@ -1583,6 +1937,8 @@ SET @x = 0;
 CALL p1();
 SELECT @x;
 
+SET @@debug_dbug=@orig_dbug;
+
 --echo
 
 DROP PROCEDURE p1;
@@ -1610,6 +1966,14 @@ END|
 
 delimiter ;|
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 --echo
 CALL p1();
 
@@ -1626,6 +1990,8 @@ ALTER TABLE t1 DROP COLUMN a;
 
 --echo
 CALL p1();
+
+SET @@debug_dbug=@orig_dbug;
 
 --echo
 DROP PROCEDURE p1;
@@ -1673,6 +2039,14 @@ END|
 
 delimiter ;|
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 --echo
 CALL p1();
 --echo
@@ -1703,6 +2077,8 @@ CALL p1();
 CALL p2();
 --echo
 UPDATE t2 SET a = 30;
+
+SET @@debug_dbug=@orig_dbug;
 
 --echo
 DROP PROCEDURE p1;
@@ -1744,8 +2120,18 @@ END|
 
 delimiter ;|
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 --echo
 CALL p1();
+
+SET @@debug_dbug=@orig_dbug;
 
 --echo
 DROP TABLE t1;
@@ -1777,8 +2163,18 @@ END|
 
 delimiter ;|
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 --echo
 CALL p1();
+
+SET @@debug_dbug=@orig_dbug;
 
 --echo
 DROP TEMPORARY TABLE t1;
@@ -1814,8 +2210,18 @@ END|
 
 delimiter ;|
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 --echo
 CALL p1();
+
+SET @@debug_dbug=@orig_dbug;
 
 --echo
 DROP TABLE t1;
@@ -1862,8 +2268,18 @@ END|
 
 delimiter ;|
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 --echo
 CALL p1();
+
+SET @@debug_dbug=@orig_dbug;
 
 --echo
 DROP TABLE t1;
@@ -1878,6 +2294,12 @@ DROP PROCEDURE p1;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1), (2);
 
+# In result of dropping/creating a view sp_cache is invalidated.
+# It means that the stored procedure p1 be evicted from sp_cache
+# and loaded again on opening the routine. So, the statement
+#   SET @@debug_dbug='+d,check_sp_cache_not_invalidated'
+# shouldn't be run here since it will hit DBUG_SUICIDE in the function
+# sp_cache_flush_obsolete()
 CREATE VIEW v1 AS SELECT * FROM t1;
 
 CREATE PROCEDURE p1()
@@ -1904,6 +2326,14 @@ INSERT INTO t1 VALUES (1), (2);
 CREATE PROCEDURE p1()
   SELECT * FROM t1;
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 CALL p1();
 
 --echo # Test if added temporary table's column is recognized during
@@ -1915,6 +2345,8 @@ CALL p1();
 --echo # in procedure's result.
 ALTER TABLE t1 DROP COLUMN a;
 CALL p1();
+
+SET @@debug_dbug=@orig_dbug;
 
 DROP PROCEDURE p1;
 DROP TABLE t1;
@@ -1935,6 +2367,14 @@ END|
 
 delimiter ;|
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 SELECT f1();
 SELECT * FROM t1_result_set;
 DROP TABLE t1_result_set;
@@ -1951,6 +2391,9 @@ ALTER TABLE t1 DROP COLUMN a;
 
 SELECT f1();
 SELECT * FROM t1_result_set;
+
+SET @@debug_dbug=@orig_dbug;
+
 DROP TABLE t1_result_set;
 
 DROP TABLE t1;
@@ -1973,6 +2416,14 @@ END|
 
 delimiter ;|
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 SELECT f1();
 SELECT * FROM t1_result_set;
 DROP TABLE t1_result_set;
@@ -1985,6 +2436,9 @@ INSERT INTO t1 VALUES (1), (2);
 
 SELECT f1();
 SELECT * FROM t1_result_set;
+
+SET @@debug_dbug=@orig_dbug;
+
 DROP TABLE t1_result_set;
 
 DROP FUNCTION f1;
@@ -2011,10 +2465,18 @@ SELECT * FROM t1_result_set;
 DROP TABLE t1_result_set;
 
 ALTER TABLE t1 ADD COLUMN (b INT);
+
 ALTER VIEW v1 AS SELECT * FROM t1;
 
+# In result of altering a view sp_cache is invalidated.
+# It means that the stored function f1 be evicted from sp_cache
+# and loaded again on opening the routine. So, the statement
+#   SET @@debug_dbug='+d,check_sp_cache_not_invalidated'
+# shouldn't be run here since it will hit DBUG_SUICIDE in the function
+# sp_cache_flush_obsolete()
 SELECT f1();
 SELECT * FROM t1_result_set;
+
 DROP TABLE t1_result_set;
 DROP TABLE t1;
 DROP VIEW v1;
@@ -2049,10 +2511,19 @@ DROP TABLE t1;
 CREATE TEMPORARY TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1), (2);
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# stored routine's body doesn't lead to eviction of
+# the stored routine from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 CALL p1;
 SELECT f1();
 SELECT * FROM t1_result_set;
 DROP TABLE t1_result_set;
+
+SET @@debug_dbug=@orig_dbug;
 
 DROP TABLE t1;
 CREATE TABLE t2 (a INT);
@@ -2062,6 +2533,7 @@ CREATE VIEW t1 AS SELECT * FROM t2;
 CALL p1;
 SELECT f1();
 SELECT * FROM t1_result_set;
+
 DROP TABLE t1_result_set;
 
 DROP TABLE t2;
@@ -2077,6 +2549,14 @@ CREATE TABLE t1 (a INT);
 CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW
   SET new.a = new.a + 100;
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# trigger's body doesn't lead to eviction of trigger
+# from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 INSERT INTO t1 VALUES (1), (2);
 SELECT * FROM t1;
 
@@ -2085,6 +2565,8 @@ ALTER TABLE t1 ADD COLUMN (b INT);
 INSERT INTO t1 VALUES (3, 4);
 
 SELECT * FROM t1;
+
+SET @@debug_dbug=@orig_dbug;
 
 DROP TRIGGER trg1;
 DROP TABLE t1;
@@ -2095,6 +2577,14 @@ CREATE TABLE t1 (a INT, b INT);
 CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW
   SET new.a = new.a + 100;
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# trigger's body doesn't lead to eviction of trigger
+# from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 INSERT INTO t1 VALUES (1, 2), (3, 4);
 SELECT * FROM t1;
 
@@ -2102,6 +2592,8 @@ ALTER TABLE t1 DROP COLUMN b;
 
 INSERT INTO t1 VALUES (5);
 SELECT * FROM t1;
+
+SET @@debug_dbug=@orig_dbug;
 
 DROP TRIGGER trg1;
 DROP TABLE t1;
@@ -2113,6 +2605,14 @@ CREATE TABLE t1 (a INT, b INT);
 CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW
   SET new.a = new.a + 100;
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# trigger's body doesn't lead to eviction of trigger
+# from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 INSERT INTO t1 VALUES (1, 2), (3, 4);
 SELECT * FROM t1;
 
@@ -2120,6 +2620,8 @@ ALTER TABLE t1 DROP COLUMN a;
 
 --error ER_BAD_FIELD_ERROR
 INSERT INTO t1 VALUES (5);
+
+SET @@debug_dbug=@orig_dbug;
 
 DROP TRIGGER trg1;
 DROP TABLE t1;
@@ -2145,6 +2647,14 @@ END|
 
 delimiter ;|
 
+#
+# Set the debug keyword 'check_sp_cache_not_invalidated'
+# in order to check that re-parsing of statements inside
+# trigger's body doesn't lead to eviction of trigger
+# from sp_cache
+#
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
+
 --echo
 SET @x = NULL;
 
@@ -2163,6 +2673,8 @@ UPDATE t2 SET a = 20;
 
 SELECT * FROM v1;
 SELECT @x;
+
+SET @@debug_dbug=@orig_dbug;
 
 --echo
 DROP TABLE t1;

@@ -3,6 +3,7 @@
 # WL#4179: Stored programs: validation of stored program statements.
 #
 
+SET @orig_debug=@@debug_dbug;
 # The test case below demonstrates that meta-data changes are detected
 # by triggers.
 SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
@@ -21,6 +22,7 @@ SELECT * FROM t2;
 a	b
 11	12
 21	22
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 ALTER TABLE t1 ADD COLUMN c INT;
 ALTER TABLE t2 ADD COLUMN c INT;
 INSERT INTO t2 VALUES (31, 32, 33);
@@ -37,6 +39,7 @@ a	b	c
 11	12	NULL
 21	22	NULL
 31	32	33
+SET @@debug_dbug=@orig_dbug;
 DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t3;
@@ -66,6 +69,7 @@ CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1), (2);
 CREATE PROCEDURE p1()
 SELECT * FROM t1;
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 CALL p1();
 a
 1
@@ -95,6 +99,7 @@ CALL p1();
 b
 n/a
 hello
+SET @@debug_dbug=@orig_dbug;
 
 # 1.4 Check if table's recreation is handled correctly
 # inside a call of stored procedure.
@@ -104,6 +109,7 @@ CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1), (2);
 CREATE PROCEDURE p1()
 SELECT * FROM t1;
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 CALL p1();
 a
 1
@@ -117,6 +123,7 @@ CALL p1();
 a
 1
 2
+SET @@debug_dbug=@orig_dbug;
 
 # 1.5 Recreate table t1 with another set of columns and
 # re-call a stored procedure.
@@ -126,6 +133,7 @@ CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1), (2);
 CREATE PROCEDURE p1()
 SELECT * FROM t1;
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 CALL p1();
 a
 1
@@ -139,6 +147,7 @@ CALL p1();
 b	c
 a	b
 c	d
+SET @@debug_dbug=@orig_dbug;
 DROP TABLE t1;
 DROP PROCEDURE p1;
 
@@ -174,6 +183,7 @@ CREATE VIEW v1 AS SELECT * FROM t1;
 DROP PROCEDURE p1;
 CREATE PROCEDURE p1()
 SELECT * FROM v1;
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 CALL p1();
 a	b
 1	2
@@ -181,6 +191,7 @@ ALTER TABLE t1 ADD COLUMN c INT DEFAULT 3;
 CALL p1();
 a	b
 1	2
+SET @@debug_dbug=@orig_dbug;
 
 # 2.4 Stored program that uses query like 'SELECT * FROM v' must be
 # re-executed successfully if not used columns were removed from the
@@ -193,6 +204,7 @@ CREATE VIEW v1 AS SELECT b, c FROM t1;
 DROP PROCEDURE p1;
 CREATE PROCEDURE p1()
 SELECT * FROM v1;
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 CALL p1();
 b	c
 2	3
@@ -203,6 +215,7 @@ b	c
 ALTER TABLE t1 DROP COLUMN b;
 CALL p1();
 ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+SET @@debug_dbug=@orig_dbug;
 
 # 2.5 Stored program that uses query like 'SELECT * FROM v' must be
 # re-executed successfully if a type of some base table's columns were
@@ -213,6 +226,7 @@ INSERT INTO t1 VALUES (1, 2, 3);
 DROP VIEW v1;
 CREATE VIEW v1 AS SELECT b, c FROM t1;
 DROP PROCEDURE p1;
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 CREATE PROCEDURE p1()
 SELECT * FROM v1;
 CALL p1();
@@ -224,6 +238,7 @@ INSERT INTO t1(a, c) VALUES (10, 30);
 CALL p1();
 b	c
 n/a	30
+SET @@debug_dbug=@orig_dbug;
 
 # 2.6 Stored program that uses query like 'SELECT * FROM v' must be
 # re-executed successfully if the view 'v' was dropped and created again
@@ -259,6 +274,7 @@ INSERT INTO t1 VALUES (1, 2);
 CREATE VIEW v1 AS SELECT * FROM t1;
 CREATE PROCEDURE p1()
 SELECT * FROM v1;
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 CALL p1();
 a	b
 1	2
@@ -271,6 +287,7 @@ CALL p1();
 a	b
 a	b
 c	d
+SET @@debug_dbug=@orig_dbug;
 DROP VIEW v1;
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -281,6 +298,7 @@ DROP PROCEDURE p1;
 CREATE TEMPORARY TABLE t1(a INT, b INT);
 INSERT INTO t1 VALUES (1, 2);
 CREATE PROCEDURE p1() SELECT * FROM t1;
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 CALL p1();
 a	b
 1	2
@@ -326,6 +344,7 @@ INSERT INTO t1 VALUES ('aa', 'bb', 'cc');
 CALL p1();
 a	b	c
 aa	bb	cc
+SET @@debug_dbug=@orig_dbug;
 DROP TEMPORARY TABLE t1;
 DROP PROCEDURE p1;
 
@@ -334,12 +353,14 @@ DROP PROCEDURE p1;
 CREATE TABLE t1(a INT, b INT);
 INSERT INTO t1 VALUES (1, 2);
 CREATE PROCEDURE p1() SELECT a, b FROM t1;
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 CALL p1();
 a	b
 1	2
 ALTER TABLE t1 DROP COLUMN b;
 CALL p1();
 ERROR 42S22: Unknown column 'b' in 'field list'
+SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP TABLE t1;
 
@@ -348,12 +369,14 @@ DROP TABLE t1;
 CREATE TEMPORARY TABLE t1(a INT, b INT);
 INSERT INTO t1 VALUES (1, 2);
 CREATE PROCEDURE p1() SELECT a, b FROM t1;
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 CALL p1();
 a	b
 1	2
 ALTER TABLE t1 DROP COLUMN b;
 CALL p1();
 ERROR 42S22: Unknown column 'b' in 'field list'
+SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP TEMPORARY TABLE t1;
 
@@ -367,6 +390,7 @@ a	b
 ALTER VIEW v1 AS SELECT 1 AS a;
 CALL p1();
 ERROR 42S22: Unknown column 'b' in 'field list'
+SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP VIEW v1;
 
@@ -375,12 +399,14 @@ DROP VIEW v1;
 CREATE TABLE t1(a INT, b INT);
 INSERT INTO t1 VALUES (1, 2);
 CREATE PROCEDURE p1() SELECT a, b FROM t1;
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 CALL p1();
 a	b
 1	2
 DROP TABLE t1;
 CALL p1();
 ERROR 42S02: Table 'test.t1' doesn't exist
+SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 
 # 4.5 Stored program must fail when it is re-executed after a view that
@@ -400,12 +426,14 @@ DROP PROCEDURE p1;
 CREATE TEMPORARY TABLE t1(a INT, b INT);
 INSERT INTO t1 VALUES (1, 2);
 CREATE PROCEDURE p1() SELECT a, b FROM t1;
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 CALL p1();
 a	b
 1	2
 DROP TABLE t1;
 CALL p1();
 ERROR 42S02: Table 'test.t1' doesn't exist
+SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 
 # 4.7 Stored program must fail if the program executes some
@@ -471,6 +499,7 @@ DROP VIEW t1;
 CREATE TABLE t1(a INT, b INT);
 INSERT INTO t1 VALUES (1, 2);
 CREATE PROCEDURE p1() SELECT * FROM t1;
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 CALL p1();
 a	b
 1	2
@@ -480,6 +509,7 @@ INSERT INTO t1 VALUES (1, 2);
 CALL p1();
 a	b
 1	2
+SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP TEMPORARY TABLE t1;
 
@@ -495,6 +525,7 @@ INSERT INTO t1 VALUES (1, 2);
 CALL p1();
 a	b
 1	2
+SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP TABLE t1;
 
@@ -525,6 +556,7 @@ CREATE VIEW t1 AS SELECT 1 AS a, 2 AS b;
 CALL p1();
 a	b
 1	2
+SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP VIEW t1;
 
@@ -532,6 +564,7 @@ DROP VIEW t1;
 CREATE TEMPORARY TABLE t1(a INT, b INT);
 INSERT INTO t1 VALUES (1, 2);
 CREATE PROCEDURE p1() SELECT * FROM t1;
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 CALL p1();
 a	b
 1	2
@@ -541,6 +574,7 @@ INSERT INTO t1 VALUES (1, 2);
 CALL p1();
 a	b
 1	2
+SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP TABLE t1;
 
@@ -562,6 +596,7 @@ BEGIN
 SET @x = OLD.a;
 SET @y = NEW.a;
 END|
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 
 SET @x = 0, @y = 0;
 UPDATE t1 SET a = 3, b = 4;
@@ -584,6 +619,7 @@ UPDATE t1 SET a = CONCAT('xxx_', a), b = 7;
 SELECT @x, @y;
 @x	@y
 5	xxx_5
+SET @@debug_dbug=@orig_dbug;
 
 DROP TABLE t1;
 
@@ -601,6 +637,7 @@ BEGIN
 SET @x = OLD.a;
 SET @y = NEW.b;
 END|
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 
 UPDATE t1 SET a = 3, b = 4;
 
@@ -614,6 +651,7 @@ ALTER TABLE t1 CHANGE COLUMN b b2 INT;
 
 UPDATE t1 SET a = 5, b2 = 6;
 ERROR 42S22: Unknown column 'b' in 'NEW'
+SET @@debug_dbug=@orig_dbug;
 
 DROP TABLE t1;
 
@@ -633,6 +671,7 @@ SELECT a, b FROM t1;
 CALL p1();
 SELECT a, b FROM t1;
 END|
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 
 CALL p2();
 a	b
@@ -640,6 +679,7 @@ a	b
 a	b
 1	2
 
+SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 DROP TABLE t1;
@@ -660,6 +700,7 @@ SELECT a, b FROM t1;
 CALL p1();
 SELECT a, b FROM t1;
 END|
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 
 CALL p2();
 a	b
@@ -667,6 +708,7 @@ a	b
 a	b
 1	2
 
+SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 DROP TEMPORARY TABLE t1;
@@ -691,6 +733,7 @@ SELECT a, b FROM t1;
 CALL p1();
 SELECT a, b FROM t1;
 END|
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 
 CALL p2();
 a	b
@@ -698,6 +741,7 @@ a	b
 a	b
 1	2
 
+SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 DROP TABLE t1;
@@ -722,6 +766,7 @@ SELECT a, b FROM t1;
 CALL p1();
 SELECT a, b FROM t1;
 END|
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 
 CALL p2();
 a	b
@@ -729,6 +774,7 @@ a	b
 a	b
 1	2
 
+SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 DROP TEMPORARY TABLE t1;
@@ -750,6 +796,7 @@ SELECT a, b FROM v1;
 CALL p1();
 SELECT a, b FROM v1;
 END|
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 
 CALL p2();
 a	b
@@ -757,6 +804,7 @@ a	b
 a	b
 1	2
 
+SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 DROP VIEW v1;
@@ -778,12 +826,14 @@ SELECT a, b FROM t1;
 CALL p1();
 SELECT a, b FROM t1;
 END|
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 
 CALL p2();
 a	b
 1	2
 ERROR 42S22: Unknown column 'a' in 'field list'
 
+SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 DROP TABLE t1;
@@ -805,12 +855,14 @@ SELECT a, b FROM t1;
 CALL p1();
 SELECT a, b FROM t1;
 END|
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 
 CALL p2();
 a	b
 1	2
 ERROR 42S22: Unknown column 'a' in 'field list'
 
+SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 DROP TEMPORARY TABLE t1;
@@ -836,12 +888,14 @@ SELECT a, b FROM t1;
 CALL p1();
 SELECT a, b FROM t1;
 END|
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 
 CALL p2();
 a	b
 1	2
 ERROR 42S22: Unknown column 'a' in 'field list'
 
+SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 DROP TABLE t1;
@@ -867,12 +921,14 @@ SELECT a, b FROM t1;
 CALL p1();
 SELECT a, b FROM t1;
 END|
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 
 CALL p2();
 a	b
 1	2
 ERROR 42S22: Unknown column 'a' in 'field list'
 
+SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 DROP TEMPORARY TABLE t1;
@@ -895,12 +951,14 @@ SELECT a, b FROM v1;
 CALL p1();
 SELECT a, b FROM v1;
 END|
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 
 CALL p2();
 a	b
 1	2
 ERROR 42S22: Unknown column 'a' in 'field list'
 
+SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 DROP VIEW v1;
@@ -948,6 +1006,7 @@ SELECT * FROM v1;
 SELECT * FROM v1;
 DROP VIEW v1;
 END|
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 CALL p1();
 msg
 SQLEXCEPTION caught
@@ -963,6 +1022,7 @@ msg
 SQLEXCEPTION caught
 a	b
 1	2
+SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 DROP PROCEDURE p3;
@@ -1037,6 +1097,7 @@ RETURN 3;
 END|
 CREATE TABLE t1(a INT);
 INSERT INTO t1 VALUES (1);
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 
 CALL p1();
 1
@@ -1092,6 +1153,7 @@ SELECT f2();
 f2()
 1
 
+SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 DROP FUNCTION f1;
@@ -1110,6 +1172,7 @@ END WHILE;
 END|
 CREATE TABLE t1(a INT);
 INSERT INTO t1 VALUES (0);
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 CALL p1(3);
 UPDATE t1 SET a = 1;
 CALL p1(3);
@@ -1130,6 +1193,7 @@ CALL p1(3);
 x
 3
 ERROR 42S22: Unknown column 'a' in 'field list'
+SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP TABLE t1;
 
@@ -1145,6 +1209,7 @@ UNTIL(NOT (SELECT * FROM t1))END REPEAT;
 END|
 CREATE TABLE t1(a INT);
 INSERT INTO t1 VALUES (0);
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 CALL p1(3);
 x
 3
@@ -1175,6 +1240,7 @@ CALL p1(3);
 x
 3
 ERROR 42S22: Unknown column 'a' in 'field list'
+SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP TABLE t1;
 
@@ -1200,6 +1266,7 @@ END CASE;
 END|
 CREATE TABLE t1(a INT);
 INSERT INTO t1 VALUES (0);
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 
 CALL p1();
 a4
@@ -1232,6 +1299,7 @@ a2
 CALL p2();
 a2
 a2
+SET @@debug_dbug=@orig_dbug;
 
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
@@ -1260,6 +1328,7 @@ WHEN (SELECT * FROM t2) THEN SELECT 'subselect';
 ELSE SELECT 'else';
 END CASE;
 END|
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 
 SET @x = 0;
 CALL p1();
@@ -1288,6 +1357,7 @@ subselect
 SELECT @x;
 @x
 1
+SET @@debug_dbug=@orig_dbug;
 
 DROP PROCEDURE p1;
 DROP FUNCTION f1;
@@ -1304,6 +1374,7 @@ BEGIN
 DECLARE v INT DEFAULT (SELECT * FROM t1);
 SELECT v;
 END|
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 
 CALL p1();
 v
@@ -1319,6 +1390,7 @@ ALTER TABLE t1 DROP COLUMN a;
 CALL p1();
 v
 2
+SET @@debug_dbug=@orig_dbug;
 
 DROP PROCEDURE p1;
 DROP TABLE t1;
@@ -1346,6 +1418,7 @@ CREATE TRIGGER t2_bu BEFORE UPDATE ON t2 FOR EACH ROW
 BEGIN
 SET NEW.a = (SELECT * FROM t1) * 2;
 END|
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 
 CALL p1();
 x
@@ -1379,6 +1452,7 @@ CALL p2();
 2
 
 UPDATE t2 SET a = 30;
+SET @@debug_dbug=@orig_dbug;
 
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
@@ -1406,10 +1480,12 @@ FETCH c INTO v;
 CLOSE c;
 SELECT v;
 END|
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 
 CALL p1();
 v
 2
+SET @@debug_dbug=@orig_dbug;
 
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1429,10 +1505,12 @@ FETCH c INTO v;
 CLOSE c;
 SELECT v;
 END|
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 
 CALL p1();
 v
 2
+SET @@debug_dbug=@orig_dbug;
 
 DROP TEMPORARY TABLE t1;
 DROP PROCEDURE p1;
@@ -1453,10 +1531,12 @@ FETCH c INTO v;
 CLOSE c;
 SELECT v;
 END|
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 
 CALL p1();
 v
 1
+SET @@debug_dbug=@orig_dbug;
 
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1486,10 +1566,12 @@ SELECT f1, f2, f3;
 CLOSE c;
 END;
 END|
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 
 CALL p1();
 f1	f2	f3
 1	2	1
+SET @@debug_dbug=@orig_dbug;
 
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1521,6 +1603,7 @@ CREATE TEMPORARY TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1), (2);
 CREATE PROCEDURE p1()
 SELECT * FROM t1;
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 CALL p1();
 a
 1
@@ -1539,6 +1622,7 @@ CALL p1();
 b
 NULL
 NULL
+SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP TABLE t1;
 # Test handle of metadata changes with stored function.
@@ -1549,6 +1633,7 @@ BEGIN
 CREATE TEMPORARY TABLE t1_result_set AS SELECT * FROM t1;
 RETURN 0;
 END|
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 SELECT f1();
 f1()
 0
@@ -1576,6 +1661,7 @@ SELECT * FROM t1_result_set;
 b
 NULL
 NULL
+SET @@debug_dbug=@orig_dbug;
 DROP TABLE t1_result_set;
 DROP TABLE t1;
 DROP FUNCTION f1;
@@ -1588,6 +1674,7 @@ BEGIN
 CREATE TEMPORARY TABLE t1_result_set AS SELECT * FROM t1;
 RETURN 0;
 END|
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 SELECT f1();
 f1()
 0
@@ -1608,6 +1695,7 @@ SELECT * FROM t1_result_set;
 a
 1
 2
+SET @@debug_dbug=@orig_dbug;
 DROP TABLE t1_result_set;
 DROP FUNCTION f1;
 DROP TABLE t1;
@@ -1669,6 +1757,7 @@ DROP TABLE t1_result_set;
 DROP TABLE t1;
 CREATE TEMPORARY TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1), (2);
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 CALL p1;
 a
 1
@@ -1681,6 +1770,7 @@ a
 1
 2
 DROP TABLE t1_result_set;
+SET @@debug_dbug=@orig_dbug;
 DROP TABLE t1;
 CREATE TABLE t2 (a INT);
 INSERT INTO t2 VALUES (1), (2);
@@ -1705,6 +1795,7 @@ DROP PROCEDURE p1;
 CREATE TABLE t1 (a INT);
 CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW
 SET new.a = new.a + 100;
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 INSERT INTO t1 VALUES (1), (2);
 SELECT * FROM t1;
 a
@@ -1718,12 +1809,14 @@ a	b
 101	NULL
 102	NULL
 103	4
+SET @@debug_dbug=@orig_dbug;
 DROP TRIGGER trg1;
 DROP TABLE t1;
 # Test if deleted column is handled correctly by trigger invocation.
 CREATE TABLE t1 (a INT, b INT);
 CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW
 SET new.a = new.a + 100;
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 INSERT INTO t1 VALUES (1, 2), (3, 4);
 SELECT * FROM t1;
 a	b
@@ -1736,6 +1829,7 @@ a
 101
 103
 105
+SET @@debug_dbug=@orig_dbug;
 DROP TRIGGER trg1;
 DROP TABLE t1;
 # Check if server returns and error when was dropped a column
@@ -1743,6 +1837,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT, b INT);
 CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW
 SET new.a = new.a + 100;
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 INSERT INTO t1 VALUES (1, 2), (3, 4);
 SELECT * FROM t1;
 a	b
@@ -1751,6 +1846,7 @@ a	b
 ALTER TABLE t1 DROP COLUMN a;
 INSERT INTO t1 VALUES (5);
 ERROR 42S22: Unknown column 'a' in 'NEW'
+SET @@debug_dbug=@orig_dbug;
 DROP TRIGGER trg1;
 DROP TABLE t1;
 
@@ -1765,6 +1861,7 @@ BEGIN
 INSERT INTO v1 VALUES (NEW.a);
 SET @x = (SELECT CHARSET(a) FROM v1 LIMIT 1);
 END|
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 
 SET @x = NULL;
 UPDATE t2 SET a = 10;
@@ -1788,6 +1885,7 @@ a
 SELECT @x;
 @x
 latin1
+SET @@debug_dbug=@orig_dbug;
 
 DROP TABLE t1;
 DROP TABLE t2;
