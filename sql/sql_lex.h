@@ -3527,6 +3527,7 @@ public:
   TABLE_LIST *create_last_non_select_table;
   sp_head *sphead;
   sp_name *spname;
+  MEM_ROOT sp_mem_root, *sp_mem_root_ptr;
 
   sp_pcontext *spcont;
 

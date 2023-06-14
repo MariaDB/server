@@ -153,17 +153,17 @@ static Item* escape(THD *thd)
 
 static void yyerror(THD *thd, const char *s)
 {
+  /* "parse error" changed into "syntax error" between bison 1.75 and 1.875 */
+  if (strcmp(s,"parse error") == 0 || strcmp(s,"syntax error") == 0)
+    s= ER_THD(thd, ER_SYNTAX_ERROR);
+  thd->parse_error(s, 0);
+
   /*
     Restore the original LEX if it was replaced when parsing
     a stored procedure. We must ensure that a parsing error
     does not leave any side effects in the THD.
   */
   LEX::cleanup_lex_after_parse_error(thd);
-
-  /* "parse error" changed into "syntax error" between bison 1.75 and 1.875 */
-  if (strcmp(s,"parse error") == 0 || strcmp(s,"syntax error") == 0)
-    s= ER_THD(thd, ER_SYNTAX_ERROR);
-  thd->parse_error(s, 0);
 }
 
 
