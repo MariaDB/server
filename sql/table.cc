@@ -276,17 +276,6 @@ const char *fn_frm_ext(const char *name)
 TABLE_CATEGORY get_table_category(const Lex_ident_db &db,
                                   const Lex_ident_table &name)
 {
-#ifdef WITH_WSREP
-  if (db.str && db.streq(MYSQL_SCHEMA_NAME))
-  {
-    if (name.streq(Lex_ident_table{STRING_WITH_LEN(WSREP_STREAMING_TABLE)}) ||
-        name.streq(Lex_ident_table{STRING_WITH_LEN(WSREP_CLUSTER_TABLE)}) ||
-        name.streq(Lex_ident_table{STRING_WITH_LEN(WSREP_MEMBERS_TABLE)}))
-    {
-      return TABLE_CATEGORY_INFORMATION;
-    }
-  }
-#endif /* WITH_WSREP */
   if (is_infoschema_db(&db))
     return TABLE_CATEGORY_INFORMATION;
 
@@ -307,6 +296,18 @@ TABLE_CATEGORY get_table_category(const Lex_ident_db &db,
     if (name.streq(TRANSACTION_REG_NAME))
       return TABLE_CATEGORY_LOG;
   }
+
+#ifdef WITH_WSREP
+  if (db.streq(WSREP_LEX_SCHEMA))
+  {
+    if(name.streq(WSREP_LEX_STREAMING))
+      return TABLE_CATEGORY_INFORMATION;
+    if (name.streq(WSREP_LEX_CLUSTER))
+      return TABLE_CATEGORY_INFORMATION;
+    if (name.streq(WSREP_LEX_MEMBERS))
+      return TABLE_CATEGORY_INFORMATION;
+  }
+#endif /* WITH_WSREP */
 
   return TABLE_CATEGORY_USER;
 }
