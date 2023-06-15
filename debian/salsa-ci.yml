@@ -551,7 +551,7 @@ mariadb.org 10.9 to mariadb upgrade:
     - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
     - echo "deb https://deb.mariadb.org/10.9/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
-    - apt-get install -y mariadb-server-10.9
+    - apt-get install -y mariadb-server-10.9 mariadb-client-10.9
     - *test-verify-initial
     # Install MariaDB built in this commit
     # Force downgrades so our version installs on top of upstream revision, e.g. 1:10.9.1-1 vs 1:10.9.1+mariadb~sid
