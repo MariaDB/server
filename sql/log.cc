@@ -3349,7 +3349,6 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
           my_b_write(&log_file, (uchar*) "\n", 1))
         goto err;
 
-    /* For slow query log */
     sprintf(query_time_buff, "%.6f", ulonglong2double(query_utime)/1000000.0);
     sprintf(lock_time_buff,  "%.6f", ulonglong2double(lock_utime)/1000000.0);
     if (my_b_printf(&log_file,
@@ -3365,8 +3364,33 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
                     (ulong) (thd->status_var.bytes_sent - thd->bytes_sent_old)))
       goto err;
 
-    if ((thd->variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_QUERY_PLAN)
-        && thd->tmp_tables_used &&
+    if (unlikely(thd->variables.log_slow_verbosity &
+                 LOG_SLOW_VERBOSITY_ENGINE) &&
+        thd->handler_stats.has_stats())
+    {
+      ha_handler_stats *stats= &thd->handler_stats;
+      double tracker_frequency= timer_tracker_frequency();
+      sprintf(query_time_buff, "%.4f",
+              1000.0 * ulonglong2double(stats->pages_read_time)/
+              tracker_frequency);
+      sprintf(lock_time_buff,  "%.4f",
+              1000.0 * ulonglong2double(stats->engine_time)/
+              tracker_frequency);
+
+      if (my_b_printf(&log_file,
+                      "# Pages_accessed: %lu  Pages_read: %lu  "
+                      "Pages_updated: %lu  Old_rows_read: %lu\n"
+                      "# Pages_read_time: %s  Engine_time: %s\n",
+                      (ulong) stats->pages_accessed,
+                      (ulong) stats->pages_read_count,
+                      (ulong) stats->pages_updated,
+                      (ulong) stats->undo_records_read,
+                      query_time_buff, lock_time_buff))
+      goto err;
+    }
+
+    if ((thd->variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_QUERY_PLAN) &&
+        thd->tmp_tables_used &&
         my_b_printf(&log_file,
                     "# Tmp_tables: %lu  Tmp_disk_tables: %lu  "
                     "Tmp_table_sizes: %s\n",

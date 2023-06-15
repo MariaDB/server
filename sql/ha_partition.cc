@@ -590,6 +590,7 @@ bool ha_partition::initialize_partition(MEM_ROOT *mem_root)
       my_error(ER_MIX_HANDLER_ERROR, MYF(0));
       DBUG_RETURN(1);
     }
+    file->handler_stats= handler_stats;
   } while (*(++file_array));
   m_handler_status= handler_initialized;
   DBUG_RETURN(0);
@@ -3969,6 +3970,13 @@ int ha_partition::discover_check_version()
   return m_file[0]->discover_check_version();
 }
 
+static int set_part_handler_stats(handler *h, void *stats)
+{
+  h->handler_stats= (ha_handler_stats*) stats;
+  return 0;
+}
+
+
 /**
   Clone the open and locked partitioning handler.
 
@@ -4016,11 +4024,24 @@ handler *ha_partition::clone(const char *name, MEM_ROOT *mem_root)
                            HA_OPEN_IGNORE_IF_LOCKED | HA_OPEN_NO_PSI_CALL))
     goto err;
 
+  if (handler_stats)
+    new_handler->loop_partitions(set_part_handler_stats, handler_stats);
+
   DBUG_RETURN((handler*) new_handler);
 
 err:
   delete new_handler;
   DBUG_RETURN(NULL);
+}
+
+
+/*
+  Update all sub partitions to point to handler stats
+*/
+
+void ha_partition::handler_stats_updated()
+{
+  loop_partitions(set_part_handler_stats, handler_stats);
 }
 
 
