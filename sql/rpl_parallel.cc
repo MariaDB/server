@@ -27,6 +27,9 @@ struct rpl_parallel_thread_pool global_rpl_thread_pool;
 
 static void signal_error_to_sql_driver_thread(THD *thd, rpl_group_info *rgi,
                                               int err);
+static void
+register_wait_for_prior_event_group_commit(rpl_group_info *rgi,
+                                           rpl_parallel_entry *entry);
 
 static int
 rpt_handle_event(rpl_parallel_thread::queued_event *qev,
@@ -151,15 +154,35 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
   int err;
 
   thd->get_stmt_da()->set_overwrite_status(true);
+
+  if (unlikely(rgi->worker_error))
+  {
+    /*
+      In case a previous wait was killed, we need to re-register to be able to
+      repeat the wait.
+
+      And before doing that, we un-register any previous registration (in case
+      we got an error earlier and skipped waiting).
+    */
+    thd->wait_for_commit_ptr->unregister_wait_for_prior_commit();
+    mysql_mutex_lock(&entry->LOCK_parallel_entry);
+    register_wait_for_prior_event_group_commit(rgi, entry);
+    mysql_mutex_unlock(&entry->LOCK_parallel_entry);
+  }
+
   /*
     Remove any left-over registration to wait for a prior commit to
     complete. Normally, such wait would already have been removed at
     this point by wait_for_prior_commit() called from within COMMIT
-    processing. However, in case of MyISAM and no binlog, we might not
-    have any commit processing, and so we need to do the wait here,
-    before waking up any subsequent commits, to preserve correct
-    order of event execution. Also, in the error case we might have
-    skipped waiting and thus need to remove it explicitly.
+    processing.
+
+    However, in case of MyISAM and no binlog, we might not have any commit
+    processing, and so we need to do the wait here, before waking up any
+    subsequent commits, to preserve correct order of event execution.
+
+    Also, in the error case we might have skipped waiting and thus need to
+    remove it explicitly. Or the wait might have been killed and we need to
+    repeat the registration and the wait.
 
     It is important in the non-error case to do a wait, not just an
     unregister. Because we might be last in a group-commit that is
@@ -172,8 +195,18 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
     all earlier event groups have also committed; this way no more
     mark_start_commit() calls can be made and it is safe to de-allocate
     the GCO.
+
+    Thus this final wait is done with kill ignored during the wait. This is
+    fine, at this point there is no active query or transaction to abort, and
+    the thread will continue as soon as earlier event groups complete.
+
+    Note though, that in the non-error case there is no guarantee that
+    finish_event_group() will be run in-order. For example, a successful
+    binlog group commit will wakeup all participating event groups
+    simultaneously so only thread scheduling will decide the order in which
+    finish_event_group() calls acquire LOCK_parallel_entry.
   */
-  err= wfc->wait_for_prior_commit(thd);
+  err= wfc->wait_for_prior_commit(thd, false);
   if (unlikely(err) && !rgi->worker_error)
     signal_error_to_sql_driver_thread(thd, rgi, err);
   thd->wait_for_commit_ptr= NULL;
@@ -242,8 +275,7 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
     not yet started should just skip their group, preparing for stop of the
     SQL driver thread.
   */
-  if (unlikely(rgi->worker_error) &&
-      entry->stop_on_error_sub_id == (uint64)ULONGLONG_MAX)
+  if (unlikely(rgi->worker_error) && entry->stop_on_error_sub_id > sub_id)
     entry->stop_on_error_sub_id= sub_id;
   mysql_mutex_unlock(&entry->LOCK_parallel_entry);
 #ifdef ENABLED_DEBUG_SYNC
@@ -820,12 +852,15 @@ do_retry:
   for (;;)
   {
     mysql_mutex_lock(&entry->LOCK_parallel_entry);
-    register_wait_for_prior_event_group_commit(rgi, entry);
-    if (!(entry->stop_on_error_sub_id == (uint64) ULONGLONG_MAX ||
+    if (rgi->gtid_sub_id < entry->stop_on_error_sub_id
 #ifndef DBUG_OFF
-          (DBUG_EVALUATE_IF("simulate_mdev_12746", 1, 0)) ||
+        || DBUG_EVALUATE_IF("simulate_mdev_12746", 1, 0)
 #endif
-          rgi->gtid_sub_id < entry->stop_on_error_sub_id))
+        )
+    {
+      register_wait_for_prior_event_group_commit(rgi, entry);
+    }
+    else
     {
       /*
         A failure of a preceeding "parent" transaction may not be

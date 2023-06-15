@@ -7635,11 +7635,18 @@ wait_for_commit::register_wait_for_prior_commit(wait_for_commit *waitee)
   with register_wait_for_prior_commit(). If the commit already completed,
   returns immediately.
 
+  If ALLOW_KILL is set to true (the default), the wait can be aborted by a
+  kill. In case of kill, the wait registration is still removed, so another
+  call of unregister_wait_for_prior_commit() is needed to later retry the
+  wait. If ALLOW_KILL is set to false, then kill will be ignored and this
+  function will not return until the prior commit (if any) has called
+  wakeup_subsequent_commits().
+
   If thd->backup_commit_lock is set, release it while waiting for other threads
 */
 
 int
-wait_for_commit::wait_for_prior_commit2(THD *thd)
+wait_for_commit::wait_for_prior_commit2(THD *thd, bool allow_kill)
 {
   PSI_stage_info old_stage;
   wait_for_commit *loc_waitee;
@@ -7664,7 +7671,7 @@ wait_for_commit::wait_for_prior_commit2(THD *thd)
                   &stage_waiting_for_prior_transaction_to_commit,
                   &old_stage);
   while ((loc_waitee= this->waitee.load(std::memory_order_relaxed)) &&
-         likely(!thd->check_killed(1)))
+         (!allow_kill || likely(!thd->check_killed(1))))
     mysql_cond_wait(&COND_wait_commit, &LOCK_wait_commit);
   if (!loc_waitee)
   {
