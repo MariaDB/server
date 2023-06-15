@@ -1574,8 +1574,10 @@ public:
     1   request of thread shutdown, i. e. if command is
         COM_QUIT/COM_SHUTDOWN
 */
-dispatch_command_return dispatch_command(enum enum_server_command command, THD *thd,
-		      char* packet, uint packet_length, bool blocking)
+dispatch_command_return dispatch_command(enum enum_server_command command,
+                                         THD *thd,
+                                         char* packet, uint packet_length,
+                                         bool blocking)
 {
   NET *net= &thd->net;
   bool error= 0;

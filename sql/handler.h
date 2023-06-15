@@ -4769,7 +4769,6 @@ private:
     }
   }
 
-private:
   void mark_trx_read_write_internal();
   bool check_table_binlog_row_based_internal();
 
