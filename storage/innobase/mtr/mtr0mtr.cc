@@ -34,6 +34,7 @@ Created 11/26/1995 Heikki Tuuri
 #endif
 #include "srv0start.h"
 #include "log.h"
+#include "mariadb_stats.h"
 
 void mtr_memo_slot_t::release() const
 {
@@ -328,9 +329,10 @@ void mtr_t::commit()
     std::pair<lsn_t,page_flush_ahead> lsns{do_write()};
     process_freed_pages();
 
+    size_t modified= 0;
+
     if (m_made_dirty)
     {
-      size_t modified= 0;
       auto it= m_memo.rbegin();
 
       mysql_mutex_lock(&buf_pool.flush_list_mutex);
@@ -385,8 +387,6 @@ void mtr_t::commit()
       }
       else
         log_sys.latch.rd_unlock();
-
-      size_t modified= 0;
 
       for (auto it= m_memo.rbegin(); it != m_memo.rend(); )
       {
@@ -445,6 +445,8 @@ void mtr_t::commit()
       buf_pool.add_flush_list_requests(modified);
       m_memo.clear();
     }
+
+    mariadb_increment_pages_updated(modified);
 
     if (UNIV_UNLIKELY(lsns.second != PAGE_FLUSH_NO))
       buf_flush_ahead(m_commit_lsn, lsns.second == PAGE_FLUSH_SYNC);

@@ -3014,9 +3014,9 @@ public:
   void set_impossible_where() { impossible_where= true; }
   void set_no_partitions() { no_partitions= true; }
 
-  Explain_update* save_explain_update_data(MEM_ROOT *mem_root, THD *thd);
+  Explain_update* save_explain_update_data(THD *thd, MEM_ROOT *mem_root);
 protected:
-  bool save_explain_data_intern(MEM_ROOT *mem_root, Explain_update *eu, bool is_analyze);
+  bool save_explain_data_intern(THD *thd, MEM_ROOT *mem_root, Explain_update *eu, bool is_analyze);
 public:
   virtual ~Update_plan() = default;
 
@@ -3051,7 +3051,7 @@ public:
     deleting_all_rows= false;
   }
 
-  Explain_delete* save_explain_delete_data(MEM_ROOT *mem_root, THD *thd);
+  Explain_delete* save_explain_delete_data(THD *thd, MEM_ROOT *mem_root);
 };
 
 enum account_lock_type

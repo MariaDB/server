@@ -969,11 +969,12 @@ int close_thread_tables(THD *thd)
 void close_thread_table(THD *thd, TABLE **table_ptr)
 {
   TABLE *table= *table_ptr;
+  handler *file= table->file;
   DBUG_ENTER("close_thread_table");
   DBUG_PRINT("tcache", ("table: '%s'.'%s' %p", table->s->db.str,
                         table->s->table_name.str, table));
-  DBUG_ASSERT(!table->file->keyread_enabled());
-  DBUG_ASSERT(table->file->inited == handler::NONE);
+  DBUG_ASSERT(!file->keyread_enabled());
+  DBUG_ASSERT(file->inited == handler::NONE);
 
   /*
     The metadata lock must be released after giving back
@@ -987,9 +988,17 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
   table->vcol_cleanup_expr(thd);
   table->mdl_ticket= NULL;
 
-  table->file->update_global_table_stats();
-  table->file->update_global_index_stats();
-
+  file->update_global_table_stats();
+  file->update_global_index_stats();
+  if (unlikely(thd->variables.log_slow_verbosity &
+               LOG_SLOW_VERBOSITY_ENGINE) &&
+      likely(file->handler_stats))
+  {
+    Exec_time_tracker *tracker;
+    if ((tracker= file->get_time_tracker()))
+      file->handler_stats->engine_time+= tracker->get_cycles();
+    thd->handler_stats.add(file->handler_stats);
+  }
   /*
     This look is needed to allow THD::notify_shared_lock() to
     traverse the thd->open_tables list without having to worry that
@@ -1003,17 +1012,17 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
   if (! table->needs_reopen())
   {
     /* Avoid having MERGE tables with attached children in table cache. */
-    table->file->extra(HA_EXTRA_DETACH_CHILDREN);
+    file->extra(HA_EXTRA_DETACH_CHILDREN);
     /* Free memory and reset for next loop. */
     free_field_buffers_larger_than(table, MAX_TDC_BLOB_SIZE);
-    table->file->ha_reset();
+    file->ha_reset();
   }
 
   /*
     Do this *before* entering the TABLE_SHARE::tdc.LOCK_table_share
     critical section.
   */
-  MYSQL_UNBIND_TABLE(table->file);
+  MYSQL_UNBIND_TABLE(file);
 
   tc_release_table(table);
   DBUG_VOID_RETURN;

@@ -19,7 +19,7 @@
 #define LOG_SLOW_INCLUDED
 
 #define LOG_SLOW_VERBOSITY_INIT           0
-#define LOG_SLOW_VERBOSITY_INNODB         (1U << 0)
+#define LOG_SLOW_VERBOSITY_ENGINE         (1U << 0)
 #define LOG_SLOW_VERBOSITY_QUERY_PLAN     (1U << 1)
 #define LOG_SLOW_VERBOSITY_EXPLAIN        (1U << 2)
 
