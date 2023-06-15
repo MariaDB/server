@@ -13806,6 +13806,44 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     }
   }
 
+  /* If the server is configured to redirect clients to another server (pre-authentication),
+   * then send an error packet to signal that here.
+   *
+   * FIXME: it makes absolutely no sense for this pre-authentication redirection mechanism
+   *   to be invoked HERE, in the middle of the authentication process. Unfortunately, the 
+   *   existing code structure deeply entangles two logically separate concerns:
+   *
+   *   1) Encrypting and authenticating the client->server connection at the TRANSPORT layer
+   *      using TLS/SSL (TLS stands for TRANSPORT-layer security).
+   *   2) Negotiating an appropriate APPLICATION-layer authentication mode, and then
+   *      authenticating the client.
+   *
+   *   It would be much more logical, simple, and universal to do this redirection right at
+   *   the beginning of sql_authenticate(), but -- because of the above entangling -- the
+   *   transport layer encryption has not yet been enabled at that point.
+   *
+   *   This means that a client which expects a secured transport SHOULD NOT trust any
+   *   redirection message (or any other error message) which it receives prior to the
+   *   the TLS handshake; existing clients DO present such errors as trustworthy, which is
+   *   a security vulnerability that needs a separate fix (see more details at
+   *   https://jira.mariadb.org/browse/CONC-648).
+   */
+  enum enum_vio_type type= vio_type(thd->net.vio);
+  bool local_connection= (type == VIO_TYPE_SOCKET) || (type == VIO_TYPE_NAMEDPIPE);
+
+  if (server_redirect_mode == SERVER_REDIRECT_MODE_ALL ||
+      (server_redirect_mode == SERVER_REDIRECT_MODE_ON && !local_connection))
+  {
+    sql_print_warning("Redirecting connection %lld via %s to SERVER_REDIRECT_TARGET=%s (SERVER_REDIRECT_MODE=%s)",
+                      thd->thread_id, safe_vio_type_name(thd->net.vio), server_redirect_target,
+                      (server_redirect_mode == SERVER_REDIRECT_MODE_ON ? "ON" : "ALL"));
+    DBUG_PRINT("info", ("redirecting connection %lld via %s to SERVER_REDIRECT_TARGET=%s (SERVER_REDIRECT_MODE=%s)",
+                        thd->thread_id, safe_vio_type_name(thd->net.vio), server_redirect_target,
+                        (server_redirect_mode == SERVER_REDIRECT_MODE_ON ? "ON" : "ALL")));
+    my_error(ER_SERVER_REDIRECT, MYF(0), server_redirect_target);
+    DBUG_RETURN(packet_error);
+  }
+
   if (client_capabilities & CLIENT_PROTOCOL_41)
   {
     thd->max_client_packet_length= uint4korr(net->read_pos+4);
@@ -14440,7 +14478,6 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
 {
   int res= CR_OK;
   MPVIO_EXT mpvio;
-  enum  enum_vio_type type= vio_type(thd->net.vio);
   enum  enum_server_command command= com_change_user_pkt_len ? COM_CHANGE_USER
                                                              : COM_CONNECT;
   DBUG_ENTER("acl_authenticate");
@@ -14473,43 +14510,20 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
   }
   else
   {
-    bool local_connection = type ==
-#ifndef _WIN32
-      VIO_TYPE_SOCKET
-#else
-      VIO_TYPE_NAMEDPIPE
-#endif
-      ;
+    /* mark the thd as having no scramble yet */
+    thd->scramble[SCRAMBLE_LENGTH]= 1;
 
-    if (server_redirect_mode == SERVER_REDIRECT_MODE_ALL ||
-        (server_redirect_mode == SERVER_REDIRECT_MODE_ON && !local_connection))
-    {
-      sql_print_warning("Redirecting connection %lld via %s to SERVER_REDIRECT_TARGET=%s (SERVER_REDIRECT_MODE=%s)",
-                        thd->thread_id, safe_vio_type_name(thd->net.vio), server_redirect_target,
-                        (server_redirect_mode == SERVER_REDIRECT_MODE_ON ? "ON" : "ALL"));
-      DBUG_PRINT("info", ("redirecting connection %lld via %s to SERVER_REDIRECT_TARGET=%s (SERVER_REDIRECT_MODE=%s)",
-                         thd->thread_id, safe_vio_type_name(thd->net.vio), server_redirect_target,
-                         (server_redirect_mode == SERVER_REDIRECT_MODE_ON ? "ON" : "ALL")));
-      my_error(ER_SERVER_REDIRECT, MYF(0), server_redirect_target);
-      res= CR_ERROR;
-    }
-    else
-    {
-      /* mark the thd as having no scramble yet */
-      thd->scramble[SCRAMBLE_LENGTH]= 1;
+    /*
+      perform the first authentication attempt, with the default plugin.
+      This sends the server handshake packet, reads the client reply
+      with a user name, and performs the authentication if everyone has used
+      the correct plugin.
+    */
 
-      /*
-        perform the first authentication attempt, with the default plugin.
-        This sends the server handshake packet, reads the client reply
-        with a user name, and performs the authentication if everyone has used
-        the correct plugin.
-      */
-
-      res= do_auth_once(thd, default_auth_plugin_name, &mpvio);
-    }
+    res= do_auth_once(thd, default_auth_plugin_name, &mpvio);
   }
 
-  PSI_CALL_set_connection_type(type);
+  PSI_CALL_set_connection_type(vio_type(thd->net.vio));
 
   Security_context * const sctx= thd->security_ctx;
   const ACL_USER * acl_user= mpvio.acl_user;
