@@ -3172,11 +3172,34 @@ bool Item_exists_subselect::exists2in_prepare(
 
 
 /*
+  @brief
   Move the items around for the exists2in / decorrelate-in transformation
 
   For exists2in, replace the inner select items with local fields; for
   decorrelate-in, add them to the inner select items. For both move
-  the outer expressions to the left expr in the IN subquery
+  the outer expressions to the left expr in the IN subquery.
+
+  @detail
+  Example of conversion for EXISTS:
+    EXISTS (SELECT smth FROM t WHERE subq_where AND t.col=outer_col)
+
+    ->
+
+    left_expr_ref=t.col
+    EXISTS (SELECT t.col FROM t WHERE subq_where AND "1")
+
+  Example of conversion for IN:
+
+    outer_expr IN (SELECT inner_expr 
+                   FROM t 
+                   WHERE subq_where AND t.col=outer_col)
+    ->
+    left_expr_ref=t.col
+    outer_expr IN (SELECT inner_expr, t.col -- <-- Note this
+                   FROM t WHERE subq_where AND "1")
+
+  The "1" is in quotes just to emphasize it.
+  In case of NULL-aware execution, instead of "1" we get "t.col IS NOT NULL".
 
   @param thd               The connection
   @param eqs               The decorrelatable equalities
@@ -3295,15 +3318,27 @@ bool Item_exists_subselect::exists2in_create_or_update_in(
 
 
 /*
+  @brief
   AND the IN subquery with IS NOT NULLs if upper_not
 
   Due to the three-value logic, we need to AND the IN subquery with
   outer_expr IS NOT NULL so that the exists2in / decorrelate-in
   transformation is correct, i.e. new IN subquery evals to the same
   value as the as the old EXISTS/IN subquery.
+  
+  @detail
+  Example transformation, offset=2:
+
+  NOT ( (orig_expr1, orig_expr2, added_expr1, added_expr2) IN 
+        (SELECT ... FROM ...))
+  ->
+
+  NOT (added_expr1 IS NOT NULL AND
+       added_expr2 IS NOT NULL AND
+       (orig_expr1, ..(same as before).. ) IN (SELECT ... FROM ...)
+      )
 
   @param offset        The offset in the left expr coming from the new item
-  @param left_exp      The left expr
   @param left_exp_ref  The reference pointer to the left expr
 
   @retval FALSE        ok
@@ -3311,11 +3346,12 @@ bool Item_exists_subselect::exists2in_create_or_update_in(
 */
 
 bool Item_exists_subselect::exists2in_and_is_not_nulls(uint offset,
-                                                       Item *left_exp,
                                                        Item **left_exp_ref)
 {
   DBUG_ENTER("Item_exists_subselect::exists2in_and_is_not_nulls");
   DBUG_ASSERT(substype() == EXISTS_SUBS || substype() == IN_SUBS);
+  Item *left_exp= *left_exp_ref;
+
   if (upper_not)
   {
     /* optimizer == 0 implies `this` is an Item_in_subselect */
@@ -3338,7 +3374,8 @@ bool Item_exists_subselect::exists2in_and_is_not_nulls(uint offset,
                                                          exists_outer_expr_name)),
                      thd->mem_root);
       }
-    } else
+    }
+    else
     {
       for (uint i= offset; i < left_exp->cols(); i++)
       {
@@ -3371,6 +3408,7 @@ bool Item_exists_subselect::exists2in_and_is_not_nulls(uint offset,
     */
     else if (and_list->elements == 1)
       exp= new (thd->mem_root) Item_cond_and(thd, and_list->head(), exp);
+
     upper_not->arguments()[0]= exp;
     if (exp->fix_fields_if_needed(thd, upper_not->arguments()))
       DBUG_RETURN(TRUE);
@@ -3454,7 +3492,7 @@ bool Item_in_subselect::exists2in_processor(void *opt_arg)
     }
   }
 
-  if (exists2in_and_is_not_nulls(offset, left_expr, &left_expr))
+  if (exists2in_and_is_not_nulls(offset, &left_expr))
   {
     res= TRUE;
     goto out;
@@ -3663,7 +3701,7 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
 
   first_select->fix_prepare_information(thd, &join->conds, &join->having);
 
-  if (exists2in_and_is_not_nulls(0, optimizer->arguments()[0], optimizer->arguments()))
+  if (exists2in_and_is_not_nulls(0, optimizer->arguments()))
   {
     res= TRUE;
     goto out;
