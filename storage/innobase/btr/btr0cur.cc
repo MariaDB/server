@@ -2123,9 +2123,9 @@ btr_cur_ins_lock_and_undo(
 			ut_ad(!dict_index_is_online_ddl(index)
 			      || index->is_primary()
 			      || (flags & BTR_CREATE_FLAG));
-#if !defined(_WIN32) || defined(WITH_WSREP)
+#if (defined(HAVE_REPLICATION) && !defined(_WIN32)) || defined(WITH_WSREP)
 			trx_t* trx= thr_get_trx(thr);
-#endif /* !defined(_WIN32) || defined(WITH_WSREP) */
+#endif /* (defined(HAVE_REPLICATION) && !defined(_WIN32)) || defined(WITH_WSREP) */
 #ifdef WITH_WSREP
 			/* If transaction scanning an unique secondary
 			key is wsrep high priority thread (brute
@@ -2146,15 +2146,14 @@ btr_cur_ins_lock_and_undo(
 			if (dberr_t err = lock_rec_insert_check_and_lock(
 				    rec, btr_cur_get_block(cursor),
 				    index, thr, mtr, inherit)) {
-#ifndef _WIN32
+#if defined(HAVE_REPLICATION) && !defined(_WIN32)
                         if (!strncmp(index->table->name.m_name,
                                      "mysql/gtid_slave_pos",
                                      sizeof("mysql/gtid_slave_pos")) &&
                             (err == DB_LOCK_WAIT || err == DB_DEADLOCK) &&
                             thd_is_slave(trx->mysql_thd))
-                          my_generate_coredump(GTID_SLAVE_POS,
-                              mysql_real_data_home);
-#endif /* _WIN32 */
+                          my_generate_coredump(GTID_SLAVE_POS);
+#endif /* defined(HAVE_REPLICATION) && !defined(_WIN32) */
 
 				return err;
 			}

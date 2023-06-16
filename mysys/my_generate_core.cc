@@ -9,11 +9,12 @@
 
 constexpr int FN_REFLEN= 512;
 
-void my_generate_coredump(enum my_coredump_place_t which,
-                          const char *coredump_path)
+extern const char *opt_gcore_dump_dir;
+
+void my_generate_coredump(enum my_coredump_place_t which)
 {
   static std::atomic_flag in_process{false};
-  static std::atomic_uint cores_count[]= {{5}, {5}, {5}};
+  static std::atomic_uint cores_count[]= {{5}, {5}, {5}, {5}};
 
   if (!cores_count[which])
     return;
@@ -23,6 +24,8 @@ void my_generate_coredump(enum my_coredump_place_t which,
     fputs("my_generate_coredump is already executing\n", stderr);
     return;
   }
+
+  fputs("my_generate_coredump is generating core dump\n", stderr);
 
   --cores_count[which];
 
@@ -35,8 +38,8 @@ void my_generate_coredump(enum my_coredump_place_t which,
     snprintf(parent_pid_str, sizeof(parent_pid_str), "%" PRIdMAX,
              (intmax_t) parent_pid);
     char prefix[FN_REFLEN];
-    if (snprintf(prefix, sizeof(prefix), "%s/core.%u.%u", coredump_path, which,
-                 cores_count[which].load()) >= FN_REFLEN)
+    if (snprintf(prefix, sizeof(prefix), "%s/core.%u.%u", opt_gcore_dump_dir,
+                 which, cores_count[which].load()) >= FN_REFLEN)
       snprintf(prefix, sizeof(prefix), "core.%u.%u", which,
                cores_count[which].load());
     execlp("gcore", "gcore", "-o", prefix, parent_pid_str, NULL);

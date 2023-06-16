@@ -1878,16 +1878,14 @@ check_trx_error:
       {
         trx->error_state= DB_LOCK_WAIT_TIMEOUT;
         lock_sys.timeouts++;
-#ifdef HAVE_REPLICATION
+#if defined(HAVE_REPLICATION) && !defined(_WIN32)
         trx_t *waited_trx= trx->lock.wait_trx;
         if (thd_is_slave(trx->mysql_thd) && waited_trx &&
             waited_trx->state == TRX_STATE_PREPARED)
         {
-#ifndef _WIN32
-          my_generate_coredump(LOCK_WAIT_TIMEOUT, mysql_real_data_home);
-#endif /* _WIN32 */
+          my_generate_coredump(LOCK_WAIT_TIMEOUT);
         }
-#endif /* HAVE_REPLICATION */
+#endif /* defined(HAVE_REPLICATION) && !defined(_WIN32) */
       }
     }
     break;
@@ -4607,14 +4605,13 @@ lock_rec_set_nth_bit(
 	ut_ad(!lock->is_table());
 	ut_ad(i < lock->un_member.rec_lock.n_bits);
 
+#ifndef _WIN32
         if (lock->trx->is_not_inheriting_locks()
 	    && (i == PAGE_HEAP_NO_SUPREMUM || lock->is_gap())
 	    && lock->mode() != LOCK_X) {
-#ifndef _WIN32
-	  my_generate_coredump(LOCK_REC_SET_NTH_BIT, mysql_real_data_home);
-#endif /* _WIN32 */
+	  my_generate_coredump(LOCK_REC_SET_NTH_BIT);
 	}
-
+#endif /* _WIN32 */
 	byte_index = i / 8;
 	bit_index = i % 8;
 

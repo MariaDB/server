@@ -312,6 +312,8 @@ The following specify which files/extra groups are read (specified before remain
  Number of best matches to use for query expansion
  --ft-stopword-file=name 
  Use stopwords from this file instead of built-in list
+ --gcore-dump-dir[=name] 
+ Directory where gcore generates core dumps
  --gdb               Set up signals usable for debugging. Deprecated, use
  --general-log       Log connections and queries to a table or log file.
  Defaults logging to a file 'hostname'.log or a table

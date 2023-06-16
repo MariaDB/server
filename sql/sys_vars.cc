@@ -69,6 +69,8 @@
 #include "wsrep_mysqld.h"
 #endif
 
+#include "my_generate_core.h"
+
 #define PCRE2_STATIC 1             /* Important on Windows */
 #include "pcre2.h"                 /* pcre2 header file */
 
@@ -2816,6 +2818,26 @@ static Sys_var_charptr_fscs Sys_plugin_dir(
        "plugin_dir", "Directory for plugins",
        READ_ONLY GLOBAL_VAR(opt_plugin_dir_ptr), CMD_LINE(REQUIRED_ARG),
        DEFAULT(0));
+
+const char *opt_gcore_dump_dir= 0;
+static Sys_var_charptr_fscs Sys_gcore_dump_dir(
+       "gcore_dump_dir", "Directory where gcore generates core dumps",
+       READ_ONLY GLOBAL_VAR(opt_gcore_dump_dir), CMD_LINE(OPT_ARG),
+       DEFAULT(mysql_real_data_home));
+
+static bool opt_generate_gcore_dump;
+static bool generate_gcore_dump_update(sys_var *, THD *, enum_var_type)
+{
+  my_generate_coredump(SYS_VAR_UPDATE);
+  return false;
+}
+static Sys_var_mybool Sys_generate_gcore_dump(
+       "generate_gcore_dump",
+       "Debug variable, generates gcore dump",
+       GLOBAL_VAR(opt_generate_gcore_dump),
+       NO_CMD_LINE,
+       DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(generate_gcore_dump_update));
 
 static Sys_var_uint Sys_port(
        "port",
