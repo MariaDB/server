@@ -3764,7 +3764,8 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
       bool log_slow= !res && thd->enable_slow_log;
 
       /* Finalize server status flags after executing a statement. */
-      if (log_slow || thd->get_stmt_da()->is_eof())
+      if (log_slow || thd->get_stmt_da()->is_eof() ||
+          mysql_audit_general_enabled())
         thd->update_server_status();
 
       if (thd->get_stmt_da()->is_eof())

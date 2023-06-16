@@ -5017,7 +5017,8 @@ int handler::ha_check(THD *thd, HA_CHECK_OPT *check_opt)
 
 void handler::mark_trx_read_write_internal()
 {
-  Ha_trx_info *ha_info= &ha_thd()->ha_data[ht->slot].ha_info[0];
+  THD *thd= ha_thd();
+  Ha_trx_info *ha_info= &thd->ha_data[ht->slot].ha_info[0];
   /*
     When a storage engine method is called, the transaction must
     have been started, unless it's a DDL call, for which the
@@ -5035,6 +5036,7 @@ void handler::mark_trx_read_write_internal()
     if (table_share == NULL || table_share->tmp_table == NO_TMP_TABLE)
       ha_info->set_trx_read_write();
   }
+  thd->stmt_changes_data= 1;
 }
 
 
