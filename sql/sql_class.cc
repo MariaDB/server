@@ -7643,7 +7643,7 @@ wait_for_commit::wait_for_prior_commit2(THD *thd)
 {
   PSI_stage_info old_stage;
   wait_for_commit *loc_waitee;
-  bool backup_lock_released= 0;
+  bool backup_lock_released= false;
 
   /*
     Release MDL_BACKUP_COMMIT LOCK while waiting for other threads to commit
@@ -7653,7 +7653,7 @@ wait_for_commit::wait_for_prior_commit2(THD *thd)
   */
   if (thd->backup_commit_lock && thd->backup_commit_lock->ticket)
   {
-    backup_lock_released= 1;
+    backup_lock_released= true;
     thd->mdl_context.release_lock(thd->backup_commit_lock->ticket);
     thd->backup_commit_lock->ticket= 0;
   }
@@ -7706,14 +7706,14 @@ wait_for_commit::wait_for_prior_commit2(THD *thd)
     use within enter_cond/exit_cond.
   */
   DEBUG_SYNC(thd, "wait_for_prior_commit_killed");
-  if (backup_lock_released)
+  if (unlikely(backup_lock_released))
     thd->mdl_context.acquire_lock(thd->backup_commit_lock,
                                   thd->variables.lock_wait_timeout);
   return wakeup_error;
 
 end:
   thd->EXIT_COND(&old_stage);
-  if (backup_lock_released)
+  if (unlikely(backup_lock_released))
     thd->mdl_context.acquire_lock(thd->backup_commit_lock,
                                   thd->variables.lock_wait_timeout);
   return wakeup_error;
