@@ -3231,6 +3231,14 @@ bool Item_exists_subselect::exists2in_create_or_update_in(
       it++;
     }
     DBUG_ASSERT(outer.elements == first_select->item_list.elements);
+
+    List_iterator<Item> it(outer);
+    Item *item;
+    while ((item= it++))
+    {
+      item->fix_after_pullout(unit->outer_select(), it.ref(), FALSE);
+      item->update_used_tables();
+    }
   }
 
   /* Move items to outer and select item list */
@@ -3267,11 +3275,9 @@ bool Item_exists_subselect::exists2in_create_or_update_in(
       if ((*eq_ref)->fix_fields(thd, (Item **) eq_ref))
         DBUG_RETURN(TRUE);
     }
-    if (substype() == EXISTS_SUBS)
-    {
-      outer_exp->fix_after_pullout(unit->outer_select(), &outer_exp, FALSE);
-      outer_exp->update_used_tables();
-    }
+
+    outer_exp->fix_after_pullout(unit->outer_select(), &outer_exp, FALSE);
+    outer_exp->update_used_tables();
     /* Add the outer_exp to the left expr list */
     outer.push_back(outer_exp, thd->mem_root);
   }
