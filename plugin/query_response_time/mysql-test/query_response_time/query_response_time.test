@@ -8,6 +8,7 @@ if (`SELECT $PS_PROTOCOL + $SP_PROTOCOL + $CURSOR_PROTOCOL
    --skip Test requires: ps-protocol/sp-protocol/cursor-protocol/view-protocol disabled
 }
 
+create table t1 (a int, b int);
 
 --let base=1
 --source query_response_time.inc
@@ -26,3 +27,5 @@ if (`SELECT $PS_PROTOCOL + $SP_PROTOCOL + $CURSOR_PROTOCOL
 
 SET GLOBAL QUERY_RESPONSE_TIME_RANGE_BASE=default;
 SET GLOBAL QUERY_RESPONSE_TIME_STATS=default;
+
+drop table t1;

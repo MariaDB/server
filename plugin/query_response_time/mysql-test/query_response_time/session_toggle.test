@@ -1,0 +1,100 @@
+--echo #
+--echo # Tests for query_response_time_session_stats variable
+--echo #
+
+SET @saved_query_response_time_stats = @@GLOBAL.query_response_time_stats;
+SET @saved_query_response_time_flush = @@GLOBAL.query_response_time_flush;
+SET GLOBAL query_response_time_flush= 'ON';
+
+SELECT SUM(COUNT) FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
+
+--echo # global: ON, session: default(GLOBAL): must be logged
+SET GLOBAL query_response_time_stats= 'ON';
+
+SELECT 1;
+SELECT SUM(COUNT) FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
+
+--echo # global: OFF, session: default(GLOBAL): must not be logged
+SET GLOBAL query_response_time_stats= 'OFF';
+
+SELECT 1;
+SELECT SUM(COUNT) FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
+
+--echo # global: ON, session: GLOBAL: must be logged
+SET GLOBAL query_response_time_stats= 'ON';
+SET SESSION query_response_time_session_stats= 'GLOBAL';
+
+SELECT 1;
+SELECT SUM(COUNT) FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
+
+--echo # global: OFF, session: GLOBAL: must not be logged
+SET GLOBAL query_response_time_stats= 'OFF';
+
+SELECT 1;
+SELECT SUM(COUNT) FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
+
+--echo # global: OFF, session: OFF: must not be logged
+SET SESSION query_response_time_session_stats= 'OFF';
+
+SELECT 1;
+SELECT SUM(COUNT) FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
+
+--echo # global: ON, session: OFF: must not be logged
+
+SELECT 1;
+SELECT SUM(COUNT) FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
+
+--echo # global: ON: session: ON: must be logged
+SET SESSION query_response_time_session_stats= 'ON';
+
+SELECT 1;
+SELECT SUM(COUNT) FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
+
+--echo # global: OFF: session: ON: must be logged
+SET GLOBAL query_response_time_stats= 'OFF';
+
+SELECT 1;
+SELECT SUM(COUNT) FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
+
+connect(con2,localhost,root,,);
+connect(con3,localhost,root,,);
+
+connection con2;
+--echo # 2nd connection: global OFF, session: default(GLOBAL): must not be logged
+
+SELECT 1;
+SELECT SUM(COUNT) FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
+
+connection con3;
+--echo # 3rd connection: global OFF, session: OFF: must not be logged
+SET SESSION query_response_time_session_stats= 'OFF';
+
+SELECT 1;
+SELECT SUM(COUNT) FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
+
+connection default;
+--echo # 1st connection: global ON, session: ON: must be logged
+SET GLOBAL query_response_time_stats= 'ON';
+
+SELECT 1;
+SELECT SUM(COUNT) FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
+
+connection con2;
+--echo # 2nd connection: global ON, session: default(GLOBAL): must be logged
+
+SELECT 1;
+SELECT SUM(COUNT) FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
+
+connection con3;
+--echo # 3rd connection: global ON: session: OFF: must not be logged
+
+SELECT 1;
+SELECT SUM(COUNT) FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
+
+disconnect con2;
+disconnect con3;
+connection default;
+
+--echo # Cleanup
+SET GLOBAL query_response_time_flush = @saved_query_response_time_flush;
+SET GLOBAL query_response_time_stats = @saved_query_response_time_stats;

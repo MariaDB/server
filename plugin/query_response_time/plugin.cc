@@ -1,4 +1,5 @@
 /* Copyright (C) 2013 Percona and Sergey Vojtovich
+   Copyright (C) 2023 MariaDB Foundation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -20,12 +21,12 @@
 #include <sql_show.h>
 #include <mysql/plugin_audit.h>
 #include "query_response_time.h"
-
+#include <sql_parse.h>
 
 ulong opt_query_response_time_range_base= QRT_DEFAULT_BASE;
 my_bool opt_query_response_time_stats= 0;
 static my_bool opt_query_response_time_flush= 0;
-
+static my_bool inited= 0;
 
 static void query_response_time_flush_update(
               MYSQL_THD thd __attribute__((unused)),
@@ -36,15 +37,27 @@ static void query_response_time_flush_update(
   query_response_time_flush();
 }
 
+enum session_stat
+{
+  session_stat_global,
+  session_stat_on,
+  session_stat_off
+};
+
+static const char *session_stat_names[]= {"GLOBAL", "ON", "OFF", NullS};
+static TYPELIB session_stat_typelib= { array_elements(session_stat_names) - 1,
+                                       "", session_stat_names, NULL};
+
 
 static MYSQL_SYSVAR_ULONG(range_base, opt_query_response_time_range_base,
        PLUGIN_VAR_RQCMDARG,
-       "Select base of log for query_response_time ranges. WARNING: variable "
-       "change affect only after flush",
+       "Select base of log for query_response_time ranges. "
+       "WARNING: change of this variable take effect only after next "
+       "FLUSH QUERY_RESPONSE_TIME execution.",
        NULL, NULL, QRT_DEFAULT_BASE, 2, QRT_MAXIMUM_BASE, 1);
 static MYSQL_SYSVAR_BOOL(stats, opt_query_response_time_stats,
        PLUGIN_VAR_OPCMDARG,
-       "Enable or disable query response time statisics collecting",
+       "Enable or disable query response time statistics collecting",
        NULL, NULL, FALSE);
 static MYSQL_SYSVAR_BOOL(flush, opt_query_response_time_flush,
        PLUGIN_VAR_NOCMDOPT,
@@ -57,7 +70,11 @@ static MYSQL_THDVAR_ULONGLONG(exec_time_debug, PLUGIN_VAR_NOCMDOPT,
        "the actual execution time. Used only for debugging.",
        NULL, NULL, 0, 0, LONG_TIMEOUT, 1);
 #endif
-
+static MYSQL_THDVAR_ENUM(session_stats, PLUGIN_VAR_RQCMDARG,
+       "Controls query response time statistics collection for the current "
+       "session: ON - enable, OFF - disable, GLOBAL (default) - use "
+       "query_response_time_stats value", NULL, NULL,
+       session_stat_global, &session_stat_typelib);
 
 static struct st_mysql_sys_var *query_response_time_info_vars[]=
 {
@@ -67,9 +84,9 @@ static struct st_mysql_sys_var *query_response_time_info_vars[]=
 #ifndef DBUG_OFF
   MYSQL_SYSVAR(exec_time_debug),
 #endif
+  MYSQL_SYSVAR(session_stats),
   NULL
 };
-
 
 namespace Show {
 
@@ -81,22 +98,71 @@ ST_FIELD_INFO query_response_time_fields_info[] =
   CEnd()
 };
 
+ST_FIELD_INFO query_response_time_rw_fields_info[] =
+{
+  Column("TIME",  Varchar(QRT_TIME_STRING_LENGTH),      NOT_NULL, "Time"),
+  Column("READ_COUNT", ULong(),                         NOT_NULL, "Read_count"),
+  Column("READ_TOTAL", Varchar(QRT_TIME_STRING_LENGTH), NOT_NULL, "Read_total"),
+  Column("WRITE_COUNT", ULong(),                        NOT_NULL,
+         "Write_Count"),
+  Column("WRITE_TOTAL", Varchar(QRT_TIME_STRING_LENGTH),NOT_NULL,
+         "Write_Total"),
+  CEnd()
+};
+
 } // namespace Show
 
-static int query_response_time_info_init(void *p)
+static int query_response_time_init(void *p)
 {
   ST_SCHEMA_TABLE *i_s_query_response_time= (ST_SCHEMA_TABLE *) p;
   i_s_query_response_time->fields_info= Show::query_response_time_fields_info;
   i_s_query_response_time->fill_table= query_response_time_fill;
   i_s_query_response_time->reset_table= query_response_time_flush;
   query_response_time_init();
+  inited= 1;
   return 0;
 }
 
+static int query_response_time_read_init(void *p)
+{
+  ST_SCHEMA_TABLE *i_s_query_response_time= (ST_SCHEMA_TABLE *) p;
+  i_s_query_response_time->fields_info= Show::query_response_time_fields_info;
+  i_s_query_response_time->fill_table= query_response_time_fill_read;
+  i_s_query_response_time->reset_table= query_response_time_flush;
+  query_response_time_init();
+  return 0;
+}
 
-static int query_response_time_info_deinit(void *arg __attribute__((unused)))
+static int query_response_time_write_init(void *p)
+{
+  ST_SCHEMA_TABLE *i_s_query_response_time= (ST_SCHEMA_TABLE *) p;
+  i_s_query_response_time->fields_info= Show::query_response_time_fields_info;
+  i_s_query_response_time->fill_table= query_response_time_fill_write;
+  i_s_query_response_time->reset_table= query_response_time_flush;
+  query_response_time_init();
+  return 0;
+}
+
+static int query_response_time_read_write_init(void *p)
+{
+  ST_SCHEMA_TABLE *i_s_query_response_time= (ST_SCHEMA_TABLE *) p;
+  i_s_query_response_time->fields_info= Show::query_response_time_rw_fields_info;
+  i_s_query_response_time->fill_table= query_response_time_fill_read_write;
+  i_s_query_response_time->reset_table= query_response_time_flush;
+  query_response_time_init();
+  return 0;
+}
+
+static int query_response_time_deinit_main(void *arg __attribute__((unused)))
 {
   opt_query_response_time_stats= 0;
+  query_response_time_free();
+  inited= 0;
+  return 0;
+}
+
+static int query_response_time_deinit(void *arg __attribute__((unused)))
+{
   query_response_time_free();
   return 0;
 }
@@ -106,6 +172,42 @@ static struct st_mysql_information_schema query_response_time_info_descriptor=
 { MYSQL_INFORMATION_SCHEMA_INTERFACE_VERSION };
 
 
+static bool query_response_time_should_log(MYSQL_THD thd)
+{
+  /*
+    We don't log sub statements and in this the time will be accounted
+    multiple times (both for the sub statement and the real statement.
+  */
+  if (!inited || thd->in_sub_stmt)
+    return 0;
+
+  const enum session_stat session_stat_val=
+    static_cast<session_stat>(THDVAR(thd, session_stats));
+
+  if (!((session_stat_val == session_stat_on) ||
+        (session_stat_val == session_stat_global &&
+         opt_query_response_time_stats)))
+    return 0;
+  if (thd->lex->sql_command == SQLCOM_CALL)
+  {
+    /*
+      For stored procedures we have already handled all statements.
+      Ignore the call which contains the time for all sub statements.
+    */
+    return 0;
+  }
+  if (thd->lex->sql_command == SQLCOM_FLUSH)
+  {
+    /*
+      Ignore FLUSH as we don't want FLUSH query_response_time to affect
+      statistics.
+    */
+    return 0;
+  }
+  return 1;
+}
+
+
 static void query_response_time_audit_notify(MYSQL_THD thd,
                                              unsigned int event_class,
                                              const void *event)
@@ -113,16 +215,27 @@ static void query_response_time_audit_notify(MYSQL_THD thd,
   const struct mysql_event_general *event_general=
     (const struct mysql_event_general *) event;
   DBUG_ASSERT(event_class == MYSQL_AUDIT_GENERAL_CLASS);
+
   if (event_general->event_subclass == MYSQL_AUDIT_GENERAL_STATUS &&
-      opt_query_response_time_stats)
+      query_response_time_should_log(thd))
   {
+    QUERY_TYPE query_type= (thd->stmt_changes_data ? WRITE : READ);
 #ifndef DBUG_OFF
     if (THDVAR(thd, exec_time_debug))
-      query_response_time_collect(thd->lex->sql_command != SQLCOM_SET_OPTION ?
+    {
+      /* This code is only here for MTR tests */
+      query_response_time_collect(query_type,
+                                  thd->lex->sql_command != SQLCOM_SET_OPTION ?
                                   THDVAR(thd, exec_time_debug) : 0);
+    }
     else
 #endif
-    query_response_time_collect(thd->utime_after_query - thd->utime_after_lock);
+    {
+      DBUG_ASSERT(thd->utime_after_query >= thd->utime_after_lock);
+      query_response_time_collect(query_type,
+                                  thd->utime_after_query -
+                                  thd->utime_after_lock);
+    }
   }
 }
 
@@ -142,12 +255,57 @@ maria_declare_plugin(query_response_time)
   "Percona and Sergey Vojtovich",
   "Query Response Time Distribution INFORMATION_SCHEMA Plugin",
   PLUGIN_LICENSE_GPL,
-  query_response_time_info_init,
-  query_response_time_info_deinit,
+  query_response_time_init,
+  query_response_time_deinit_main,
   0x0100,
   NULL,
   query_response_time_info_vars,
-  "1.0",
+  "2.0",
+  MariaDB_PLUGIN_MATURITY_STABLE
+},
+{
+  MYSQL_INFORMATION_SCHEMA_PLUGIN,
+  &query_response_time_info_descriptor,
+  "QUERY_RESPONSE_TIME_READ",
+  "Percona and Sergey Vojtovich",
+  "Query Response Time Distribution INFORMATION_SCHEMA Plugin",
+  PLUGIN_LICENSE_GPL,
+  query_response_time_read_init,
+  query_response_time_deinit,
+  0x0100,
+  NULL,
+  NULL,
+  "2.0",
+  MariaDB_PLUGIN_MATURITY_STABLE
+},
+{
+  MYSQL_INFORMATION_SCHEMA_PLUGIN,
+  &query_response_time_info_descriptor,
+  "QUERY_RESPONSE_TIME_WRITE",
+  "Percona and Sergey Vojtovich",
+  "Query Response Time Distribution INFORMATION_SCHEMA Plugin",
+  PLUGIN_LICENSE_GPL,
+  query_response_time_write_init,
+  query_response_time_deinit,
+  0x0100,
+  NULL,
+  NULL,
+  "2.0",
+  MariaDB_PLUGIN_MATURITY_STABLE
+},
+{
+  MYSQL_INFORMATION_SCHEMA_PLUGIN,
+  &query_response_time_info_descriptor,
+  "QUERY_RESPONSE_TIME_READ_WRITE",
+  "Monty",
+  "Query Response Time Distribution INFORMATION_SCHEMA Plugin",
+  PLUGIN_LICENSE_GPL,
+  query_response_time_read_write_init,
+  query_response_time_deinit,
+  0x0100,
+  NULL,
+  NULL,
+  "2.0",
   MariaDB_PLUGIN_MATURITY_STABLE
 },
 {
@@ -162,7 +320,7 @@ maria_declare_plugin(query_response_time)
   0x0100,
   NULL,
   NULL,
-  "1.0",
+  "2.0",
   MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;

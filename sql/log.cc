@@ -1485,11 +1485,9 @@ bool LOGGER::general_log_write(THD *thd, enum enum_server_command command,
   char user_host_buff[MAX_USER_HOST_SIZE + 1];
   uint user_host_len= 0;
   my_hrtime_t current_time;
-
   DBUG_ASSERT(thd);
 
   user_host_len= make_user_name(thd, user_host_buff);
-
   current_time= my_hrtime();
 
   mysql_audit_general_log(thd, hrtime_to_time(current_time),
@@ -7107,7 +7105,8 @@ bool general_log_write(THD *thd, enum enum_server_command command,
                        const char *query, size_t query_length)
 {
   /* Write the message to the log if we want to log this king of commands */
-  if (logger.log_command(thd, command) || mysql_audit_general_enabled())
+  if ((opt_log && logger.log_command(thd, command)) ||
+      mysql_audit_general_enabled())
     return logger.general_log_write(thd, command, query, query_length);
 
   return FALSE;
