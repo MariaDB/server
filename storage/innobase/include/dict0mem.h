@@ -264,8 +264,8 @@ use its own tablespace instead of the system tablespace. */
 #define DICT_TF2_USE_FILE_PER_TABLE	16U
 
 /** Set when we discard/detach the tablespace */
-constexpr ulint DICT_TF2_POS_DISCARDED= 5;
-constexpr ulint DICT_TF2_DISCARDED= 1U << DICT_TF2_POS_DISCARDED;
+#define DICT_TF2_POS_DISCARDED  5
+#define DICT_TF2_DISCARDED  (1U << DICT_TF2_POS_DISCARDED)
 
 /** This bit is set if all aux table names (both common tables and
 index tables) of a FTS table are in HEX format. */

@@ -3103,7 +3103,8 @@ fsp_truncate_list(fil_space_t *space, buf_block_t *header,
     {
       /* Remove the truncated free list extents */
       err= flst_remove(
-             header, FSP_HEADER_OFFSET + hdr_offset, descr_block,
+             header,
+             static_cast<uint16_t>(FSP_HEADER_OFFSET + hdr_offset), descr_block,
              static_cast<uint16_t>(descr - descr_block->page.frame
                                    + XDES_FLST_NODE), mtr);
       if (hdr_offset == FSP_FREE)
