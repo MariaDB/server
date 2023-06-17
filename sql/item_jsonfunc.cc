@@ -5207,7 +5207,8 @@ bool Item_func_json_array_intersect::fix_length_and_dec(THD *thd)
     Scan value uses the hash table to get the intersection of two arrays.
   */
 
-  init_alloc_root(PSI_NOT_INSTRUMENTED, &hash_root, 1024, 0, MYF(0));
+  if (!root_inited)
+    init_alloc_root(PSI_NOT_INSTRUMENTED, &hash_root, 1024, 0, MYF(0));
   root_inited= true;
 
   if (json_read_value(&je1) || je1.value_type != JSON_VALUE_ARRAY ||
@@ -5360,7 +5361,8 @@ bool Item_func_json_object_filter_keys::fix_length_and_dec(THD *thd)
 
   json_scan_start(&je2, js2->charset(),(const uchar *) js2->ptr(),
                   (const uchar *) js2->ptr() + js2->length());
-  init_alloc_root(PSI_NOT_INSTRUMENTED, &hash_root, 1024, 0, MYF(0));
+  if (!root_inited)
+    init_alloc_root(PSI_NOT_INSTRUMENTED, &hash_root, 1024, 0, MYF(0));
   root_inited= true;
 
   if (json_read_value(&je2) || je2.value_type != JSON_VALUE_ARRAY ||
