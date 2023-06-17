@@ -2238,6 +2238,12 @@ static Sys_var_uint Sys_binlog_gtid_pos_cache(
        GLOBAL_VAR(opt_binlog_gtid_pos_cache), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 1024), DEFAULT(1), BLOCK_SIZE(1));
 
+static Sys_var_uint Sys_binlog_gtid_pos_cache_sparse(
+       "binlog_gtid_pos_cache_sparse", "Sparse factor S for binlog_gtid_pos_cache "
+       "means skip caching each S events, recover the missing entries from binlog file",
+       GLOBAL_VAR(opt_binlog_gtid_pos_cache_sparse), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));
+
 static bool
 check_slave_parallel_threads(sys_var *self, THD *thd, set_var *var)
 {

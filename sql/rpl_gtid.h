@@ -20,6 +20,7 @@
 #include "queues.h"
 #include "sql_list.h"
 #include <atomic>
+#include <map>
 
 class auto_lock
 {
@@ -297,31 +298,57 @@ struct rpl_slave_state
 
 
 extern uint opt_binlog_gtid_pos_cache;
+extern uint opt_binlog_gtid_pos_cache_sparse;
+
+struct rpl_binlog_state;
 
 struct GTID_state_cache : public ilink
 {
+  /* Used by contiguous algorithm */
   struct pos_hash_element
   {
-    my_off_t pos;
-    size_t gtids_idx;
+    uint32 pos;
+    uint32 gtids_idx;
+  };
+  /* Used by sparse algorithm */
+  struct pos_map_element : public pos_hash_element
+  {
+    pos_map_element(uint32 pos, uint32 gtids_idx, uint32 n_gtids,  uint32 seek_pos) :
+      pos_hash_element{pos, gtids_idx}, n_gtids{n_gtids}, seek_pos{seek_pos}
+    {}
+    /* Number of gtids in array starting from gtids[gtids_idx] */
+    uint32 n_gtids;
+    /* We don't have to scan from cached pos, so we also store next event pos */
+    uint32 seek_pos;
   };
   char filename_buf[FN_REFLEN];
   LEX_CSTRING filename;
   /* Ordered array of gtids as they appear in binlog */
   DYNAMIC_ARRAY gtids;
-  /* Map of file position to index in gtids array */
+  /* Map of file position to index in gtids array (contigous algorithm) */
   HASH pos_hash;
+  /* RB-tree search of file position to subarray in gtids array (contigous algorithm) */
+  typedef std::map<uint32, pos_map_element> pos_map_t;
+  pos_map_t pos_map;
+  uint sparse_factor;
+  uint sparse_counter;
+  rpl_binlog_state *binlog_state;
   /* Currently used only for DBUG_ASSERT, but can be used for read-through caching */
   my_off_t max_pos;
   my_off_t eof_pos;
   /* Pointer to MYSQL_BIN_LOG::gtid_state_cache which points to this object */
   GTID_state_cache **binlog_ptr;
 
-  GTID_state_cache() : max_pos(0), eof_pos(0), binlog_ptr(NULL)
+  GTID_state_cache(uint sparse_factor, rpl_binlog_state *binlog_state) :
+    sparse_factor(sparse_factor),
+    sparse_counter(sparse_factor),
+    binlog_state(binlog_state),
+    max_pos(0), eof_pos(0), binlog_ptr(NULL)
   {
-    my_init_dynamic_array(PSI_INSTRUMENT_ME, &gtids, sizeof(rpl_gtid), 8, 8, MYF(0));
+    /* Note: tweak alloc_increment to minimize allocations */
+    my_init_dynamic_array(PSI_INSTRUMENT_ME, &gtids, sizeof(rpl_gtid), 8, 4096, MYF(0));
     my_hash_init(PSI_INSTRUMENT_ME, &pos_hash, &my_charset_bin, 1024,
-                  offsetof(pos_hash_element, pos), sizeof(my_off_t), 0,
+                  offsetof(pos_hash_element, pos), sizeof(pos_hash_element::pos), 0,
                   my_free, HASH_UNIQUE);
   }
 
@@ -354,8 +381,25 @@ struct GTID_state_cache : public ilink
   }
 
   bool push_gtids_array(const rpl_gtid *gtid, uint32 count);
-  bool push_pos_hash(my_off_t pos, uchar event_type, uint event_len);
-  int check_pos_hash(my_off_t pos, rpl_gtid **gtid_array, uint32 *array_size);
+  struct push_pos_hash_args
+  {
+    uint32 pos;
+    uchar event_type;
+    uint event_len;
+  };
+  typedef bool (GTID_state_cache::*push_pos_hash_fn) (push_pos_hash_args args);
+  bool push_contiguous(push_pos_hash_args args);
+  bool push_sparse(push_pos_hash_args args);
+  struct check_pos_hash_args
+  {
+    uint32 pos;
+    rpl_gtid **gtid_array;
+    uint32 *array_size;
+    my_off_t *seek_pos;
+  };
+  typedef int (GTID_state_cache::*check_pos_hash_fn) (check_pos_hash_args args);
+  int check_contiguous(check_pos_hash_args args);
+  int check_sparse(check_pos_hash_args args);
 };
 
 
@@ -399,7 +443,13 @@ struct rpl_binlog_state
   HASH binlog_hash;
   /* Used for binlog_hash rotation */
   I_List<GTID_state_cache> binlog_list;
-  MEM_ROOT mem_root;
+  /*
+    Depending on opt_binlog_gtid_pos_cache_sparse calls
+    GTID_state_cache::push_contiguous() or GTID_state_cache::push_sparse()
+  */
+  GTID_state_cache::push_pos_hash_fn push_pos_hash_hook;
+  GTID_state_cache::check_pos_hash_fn check_pos_hash_hook;
+  uint sparse_factor;
 
    rpl_binlog_state() :initialized(0) {}
   ~rpl_binlog_state();
@@ -423,6 +473,7 @@ struct rpl_binlog_state
   uint32 count();
   int get_gtid_list(rpl_gtid *gtid_list, uint32 list_size);
   int get_most_recent_gtid_list(rpl_gtid **list, uint32 *size);
+  void get_most_recent_gtid_list(rpl_gtid *list, uint32 *size= NULL, bool lock= true);
   bool append_pos(String *str);
   bool append_state(String *str);
   rpl_gtid *find_nolock(uint32 domain_id, uint32 server_id);
@@ -439,6 +490,8 @@ struct rpl_binlog_state
   }
   bool push_gtids_array(GTID_state_cache **cache, const rpl_gtid *gtid, uint32 count)
   {
+    if (sparse_factor)
+      return false;
     auto_lock l(&LOCK_gtid_state);
     if (*cache)
       return (*cache)->push_gtids_array(gtid, count);
@@ -449,23 +502,23 @@ struct rpl_binlog_state
   {
     auto_lock l(&LOCK_gtid_state);
     if (*cache)
-      return (*cache)->push_pos_hash(pos, event_type, event_len);
+      return ((*cache)->*push_pos_hash_hook)({(uint32) pos, event_type, event_len});
     return false;
   }
   int check_pos_hash(const char *filename, my_off_t pos,
-                     rpl_gtid **gtid_array, uint32 *array_size)
+                     rpl_gtid **gtid_array, uint32 *array_size, my_off_t *seek_pos)
   {
     if (!opt_binlog_gtid_pos_cache)
       return 0;
     auto_lock l(&LOCK_gtid_state);
-    GTID_state_cache *bel= (GTID_state_cache *)
+    GTID_state_cache *cache= (GTID_state_cache *)
       my_hash_search(&binlog_hash, (const uchar *) filename, strlen(filename));
-    if (!bel)
+    if (!cache)
     {
       DBUG_PRINT("binlog", ("Miss file: %s (%llu)", filename, pos));
       return 0;
     }
-    return bel->check_pos_hash(pos, gtid_array, array_size);
+    return (cache->*check_pos_hash_hook)({(uint32) pos, gtid_array, array_size, seek_pos});
   }
 };
 

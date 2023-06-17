@@ -101,6 +101,10 @@ The following specify which files/extra groups are read (specified before remain
  --binlog-gtid-pos-cache=# 
  Maximum number of binlog files to cache data for
  binlog_gtid_pos()
+ --binlog-gtid-pos-cache-sparse=# 
+ Sparse factor S for binlog_gtid_pos_cache means skip
+ caching each S events, recover the missing entries from
+ binlog file
  --binlog-ignore-db=name 
  Tells the master that updates to the given database
  should not be logged to the binary log.
@@ -1530,6 +1534,7 @@ binlog-expire-logs-seconds 0
 binlog-file-cache-size 16384
 binlog-format MIXED
 binlog-gtid-pos-cache 1
+binlog-gtid-pos-cache-sparse 0
 binlog-optimize-thread-scheduling TRUE
 binlog-row-event-max-size 8192
 binlog-row-image FULL
