@@ -48,25 +48,6 @@ void report_path_error_ex(const char *ps, json_path_t *p,
 void report_json_error_ex(const char *js, json_engine_t *je,
                           const char *fname, int n_param,
                           Sql_condition::enum_warning_level lv);
-int check_overlaps(json_engine_t *js, json_engine_t *value, bool compare_whole);
-int json_find_overlap_with_object(json_engine_t *js,
-                                              json_engine_t *value,
-                                              bool compare_whole);
-void json_skip_current_level(json_engine_t *js, json_engine_t *value);
-bool json_find_overlap_with_scalar(json_engine_t *js, json_engine_t *value);
-bool json_compare_arrays_in_order_in_order(json_engine_t *js, json_engine_t *value);
-bool json_compare_arr_and_obj(json_engine_t *js, json_engine_t* value);
-int json_find_overlap_with_array(json_engine_t *js,
-                                             json_engine_t *value,
-                                             bool compare_whole);
-
-bool create_hash(json_engine_t *value, HASH *items, bool &hash_inited);
-bool create_item(LEX_CSTRING *&new_entry,
-                                    const uchar *value_start, size_t value_len);
-bool get_current_value(json_engine_t *js, const uchar *&value_start,
-                         size_t &value_len);
-bool get_intersect_between_arrays(String *str,
-                                         json_engine_t *value);
 
 class Json_engine_scan: public json_engine_t
 {
