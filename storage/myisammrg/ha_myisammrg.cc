@@ -1273,7 +1273,6 @@ int ha_myisammrg::delete_all_rows()
 int ha_myisammrg::info(uint flag)
 {
   MYMERGE_INFO mrg_info;
-  DBUG_ASSERT(this->file->children_attached);
   (void) myrg_status(file,&mrg_info,flag);
   /*
     The following fails if one has not compiled MySQL with -DBIG_TABLES
