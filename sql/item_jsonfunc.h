@@ -902,11 +902,9 @@ public:
   { return get_item_copy<Item_func_json_array_intersect>(thd, this); }
   void cleanup() override
   {
+    Item_str_func::cleanup();
     if (hash_inited)
       my_hash_free(&items);
-  }
-  ~Item_func_json_array_intersect()
-  {
     if (root_inited)
       free_root(&hash_root, MYF(0));
   }
@@ -934,11 +932,9 @@ public:
 
   void cleanup() override
   {
+    Item_str_func::cleanup();
     if (hash_inited)
       my_hash_free(&items);
-  }
-  ~Item_func_json_object_filter_keys()
-  {
     if (root_inited)
       free_root(&hash_root, MYF(0));
   }
