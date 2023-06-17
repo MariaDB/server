@@ -154,21 +154,18 @@ BEGIN
     DECLARE db_quoted VARCHAR(64);
     DECLARE table_quoted VARCHAR(64);
     DECLARE v_table_type VARCHAR(30) DEFAULT '';
-    DECLARE v_table_type_num INT;
     DECLARE CONTINUE HANDLER FOR 1050 SET v_error = TRUE;
     DECLARE CONTINUE HANDLER FOR 1146 SET v_error = TRUE;
 
     -- First check do we have multiple rows, what can happen if temporary table
     -- and/or sequence is shadowing base table for example.
     -- In such scenario return temporary.
-    SET v_table_type_num = (SELECT COUNT(TABLE_TYPE) FROM information_schema.TABLES WHERE
+    SET v_table_type = (SELECT GROUP_CONCAT(TABLE_TYPE) FROM information_schema.TABLES WHERE
                             TABLE_SCHEMA = in_db AND TABLE_NAME = in_table);
 
-    IF v_table_type_num > 1 THEN
+    IF v_table_type LIKE '%,%' THEN
         SET out_exists = 'TEMPORARY';
     ELSE
-        SET v_table_type = (SELECT TABLE_TYPE FROM information_schema.TABLES WHERE
-                                TABLE_SCHEMA = in_db AND TABLE_NAME = in_table);
         IF v_table_type is NULL
         THEN
             SET v_table_type='';

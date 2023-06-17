@@ -70,7 +70,6 @@
 
 #include "lex_symbol.h"
 #define KEYWORD_SIZE 64
-#define IS_USER_TEMP_TABLE(A) (A->tmp_table != NO_TMP_TABLE)
 
 extern SYMBOL symbols[];
 extern size_t symbols_length;
@@ -5285,14 +5284,57 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
     goto err;
   }
 
+  /* Use tmp_mem_root to allocate data for opened tables */
+  init_alloc_root(PSI_INSTRUMENT_ME, &tmp_mem_root, SHOW_ALLOC_BLOCK_SIZE,
+                  SHOW_ALLOC_BLOCK_SIZE, MY_THREAD_SPECIFIC);
+
+  /*
+    Separate handling for session temporary tables from the backup state
+    for table IS.tables and SHOW TABLES commands.
+  */
+  if ((schema_table_idx == SCH_TABLES || schema_table_idx == SCH_TABLE_NAMES) &&
+      open_tables_state_backup.temporary_tables)
+  {
+    All_tmp_tables_list::Iterator it(*open_tables_state_backup.temporary_tables);
+    TMP_TABLE_SHARE *share_temp;
+    const char *lookup_db= plan->lookup_field_vals.db_value.str;
+    int (*cmp)(CHARSET_INFO *, const char *, const char *)=
+      plan->lookup_field_vals.wild_db_value
+      ? wild_case_compare : system_charset_info->coll->strcasecmp;
+    while ((share_temp= it++))
+    {
+      if (lookup_db)
+      {
+        if (cmp(system_charset_info, share_temp->db.str, lookup_db))
+          continue;
+      }
+
+      TABLE *tmp_tbl= share_temp->all_tmp_tables.front();
+      if (schema_table_idx == SCH_TABLE_NAMES)
+      {
+        LEX_CSTRING *table_name= &tmp_tbl->s->table_name;
+        restore_record(table, s->default_values);
+        table->field[1]->store(share_temp->db.str, share_temp->db.length,
+                               system_charset_info);
+        table->field[2]->store(table_name->str, table_name->length,
+                               system_charset_info);
+        if (tmp_tbl->s->table_type == TABLE_TYPE_SEQUENCE)
+          table->field[3]->store(STRING_WITH_LEN("TEMPORARY SEQUENCE"),
+                                 system_charset_info);
+        else
+          table->field[3]->store(STRING_WITH_LEN("TEMPORARY TABLE"),
+                                 system_charset_info);
+        schema_table_store_record(thd, table);
+      }
+      else /* SCH_TABLE */
+        process_i_s_table_temporary_tables(thd, table, tmp_tbl);
+    }
+  }
+
   bzero((char*) &table_acl_check, sizeof(table_acl_check));
 
   if (make_db_list(thd, &db_names, &plan->lookup_field_vals))
     goto err;
-
-  /* Use tmp_mem_root to allocate data for opened tables */
-  init_alloc_root(PSI_INSTRUMENT_ME, &tmp_mem_root, SHOW_ALLOC_BLOCK_SIZE,
-                  SHOW_ALLOC_BLOCK_SIZE, MY_THREAD_SPECIFIC);
 
   for (size_t i=0; i < db_names.elements(); i++)
   {
@@ -5308,64 +5350,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
     {
       Dynamic_array<LEX_CSTRING*> table_names(PSI_INSTRUMENT_MEM);
 
-      /* Separate handling for session temporary tables from the backup state
-         for table IS.tables and SHOW TABLES commands.
-      */
-      if ((schema_table_idx == SCH_TABLES || schema_table_idx == SCH_TABLE_NAMES) &&
-          open_tables_state_backup.temporary_tables)
-      {
-        All_tmp_tables_list::Iterator it(*open_tables_state_backup.temporary_tables);
-        TMP_TABLE_SHARE *share_temp;
-        while ((share_temp= it++))
-        {
-          DBUG_ASSERT(IS_USER_TEMP_TABLE(share_temp));
-          if (my_strcasecmp(system_charset_info, db_name->str,
-                            share_temp->db.str))
-            continue;
-
-          All_share_tables_list::Iterator it2(share_temp->all_tmp_tables);
-          while (TABLE *tmp_tbl= it2++)
-          {
-            if (schema_table_idx == SCH_TABLE_NAMES)
-            {
-              LEX_CSTRING *table_name= &tmp_tbl->s->table_name;
-              restore_record(table, s->default_values);
-              table->field[schema_table->idx_field1]->
-                store(db_name->str, db_name->length, system_charset_info);
-              table->field[schema_table->idx_field2]->
-                store(table_name->str, table_name->length,
-                      system_charset_info);
-              if (tmp_tbl->s->table_type == TABLE_TYPE_SEQUENCE)
-                table->field[3]->store(STRING_WITH_LEN("TEMPORARY SEQUENCE"),
-                                       system_charset_info);
-              else
-                table->field[3]->store(STRING_WITH_LEN("TEMPORARY TABLE"),
-                                       system_charset_info);
-              schema_table_store_record(thd, table);
-            }
-            else /* SCH_TABLE */
-            {
-              if (tmp_tbl->file->ha_table_flags() & HA_CAN_MULTISTEP_MERGE)
-              {
-                /*
-                  MyISAM MERGE table. We have to to call open on it and its
-                  children
-                */
-                LEX_CSTRING table_name=
-                  { tmp_tbl->alias.ptr(), tmp_tbl->alias.length() };
-                if (fill_schema_table_by_open(thd, &tmp_mem_root, FALSE,
-                                              table, schema_table,
-                                              &tmp_tbl->s->db, &table_name,
-                                              &open_tables_state_backup,
-                                              0))
-                  goto err;
-              }
-              else
-                process_i_s_table_temporary_tables(thd, table, tmp_tbl);
-            }
-          }
-        }
-      }
       int res= make_table_name_list(thd, &table_names, lex,
                                     &plan->lookup_field_vals, db_name);
       if (unlikely(res == 2))   /* Not fatal error, continue */
@@ -5630,11 +5614,11 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
 
     if (share->tmp_table == SYSTEM_TMP_TABLE)
       table->field[3]->store(STRING_WITH_LEN("SYSTEM VIEW"), cs);
-    else if (IS_USER_TEMP_TABLE(share) && share->table_type == TABLE_TYPE_SEQUENCE)
+    else if (share->tmp_table && share->table_type == TABLE_TYPE_SEQUENCE)
       table->field[3]->store(STRING_WITH_LEN("TEMPORARY SEQUENCE"), cs);
     else if (share->table_type == TABLE_TYPE_SEQUENCE)
       table->field[3]->store(STRING_WITH_LEN("SEQUENCE"), cs);
-    else if (IS_USER_TEMP_TABLE(share))
+    else if (share->tmp_table)
       table->field[3]->store(STRING_WITH_LEN("TEMPORARY"), cs);
     else
     {

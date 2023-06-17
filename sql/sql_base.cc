@@ -4756,10 +4756,10 @@ restart:
   {
     TABLE *tbl= tables->table;
 
+    /* Schema tables may not have a TABLE object here. */
     if (!tbl)
       continue;
 
-    /* Schema tables may not have a TABLE object here. */
     if (tbl->file->ha_table_flags() & HA_CAN_MULTISTEP_MERGE)
     {
       /* MERGE tables need to access parent and child TABLE_LISTs. */
