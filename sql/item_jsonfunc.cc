@@ -21,6 +21,10 @@
 #include "sql_parse.h" // For check_stack_overrun
 #include "json_schema_helper.h"
 
+static bool get_current_value(json_engine_t *, const uchar *&, size_t &);
+static int check_overlaps(json_engine_t *, json_engine_t *, bool);
+static int json_find_overlap_with_object(json_engine_t *, json_engine_t *, bool);
+
 /*
   Compare ASCII string against the string with the specified
   character set.
@@ -4307,7 +4311,7 @@ bool Item_func_json_normalize::fix_length_and_dec(THD *thd)
   left in the object that we no longer want to compare. In this case,
   we want to skip the current item.
 */
-void json_skip_current_level(json_engine_t *js, json_engine_t *value)
+static void json_skip_current_level(json_engine_t *js, json_engine_t *value)
 {
   json_skip_level(js);
   json_skip_level(value);
@@ -4315,7 +4319,7 @@ void json_skip_current_level(json_engine_t *js, json_engine_t *value)
 
 
 /* At least one of the two arguments is a scalar. */
-bool json_find_overlap_with_scalar(json_engine_t *js, json_engine_t *value)
+static bool json_find_overlap_with_scalar(json_engine_t *js, json_engine_t *value)
 {
   if (json_value_scalar(value))
   {
@@ -4367,7 +4371,7 @@ bool json_find_overlap_with_scalar(json_engine_t *js, json_engine_t *value)
   array is object, then compare the two objects entirely. If they are
   equal return true else return false.
 */
-bool json_compare_arr_and_obj(json_engine_t *js, json_engine_t *value)
+static bool json_compare_arr_and_obj(json_engine_t *js, json_engine_t *value)
 {
   st_json_engine_t loc_val= *value;
   while (json_scan_next(js) == 0 && js->state == JST_VALUE)
@@ -4415,7 +4419,7 @@ bool json_compare_arrays_in_order(json_engine_t *js, json_engine_t *value)
 }
 
 
-int json_find_overlap_with_array(json_engine_t *js, json_engine_t *value,
+static int json_find_overlap_with_array(json_engine_t *js, json_engine_t *value,
                                  bool compare_whole)
 {
   if (value->value_type == JSON_VALUE_ARRAY)
@@ -4500,7 +4504,9 @@ int compare_nested_object(json_engine_t *js, json_engine_t *value)
 
   return MY_TEST(result);
 }
-int json_find_overlap_with_object(json_engine_t *js, json_engine_t *value,
+
+
+static int json_find_overlap_with_object(json_engine_t *js, json_engine_t *value,
                                   bool compare_whole)
 {
   if (value->value_type == JSON_VALUE_OBJECT)
@@ -4656,7 +4662,7 @@ int json_find_overlap_with_object(json_engine_t *js, json_engine_t *value,
     FALSE - If two json documents do not overlap
     TRUE  - if two json documents overlap
 */
-int check_overlaps(json_engine_t *js, json_engine_t *value, bool compare_whole)
+static int check_overlaps(json_engine_t *js, json_engine_t *value, bool compare_whole)
 {
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
                   {
@@ -4984,8 +4990,8 @@ bool Item_func_json_key_value::fix_length_and_dec(THD *thd)
 }
 
 
-bool create_hash(json_engine_t *value, HASH *items, bool &hash_inited,
-                 MEM_ROOT *hash_root)
+static bool create_hash(json_engine_t *value, HASH *items, bool &hash_inited,
+                        MEM_ROOT *hash_root)
 {
   int level= value->stack_p;
   if (my_hash_init(PSI_INSTRUMENT_ME, items, value->s.cs, 0, 0, 0,
@@ -5042,8 +5048,8 @@ bool create_hash(json_engine_t *value, HASH *items, bool &hash_inited,
     FALSE - The function was successfully completed without errors.
     TRUE  - An error occurred while running.
 */
-bool get_current_value(json_engine_t *js, const uchar *&value_start,
-                         size_t &value_len)
+static bool get_current_value(json_engine_t *js, const uchar *&value_start,
+                              size_t &value_len)
 {
   value_start= js->value_begin;
 
@@ -5072,8 +5078,8 @@ bool get_current_value(json_engine_t *js, const uchar *&value_start,
     FALSE  - if two array documents have intersection
     TRUE   - If two array documents do not have intersection
 */
-bool get_intersect_between_arrays(String *str, json_engine_t *value,
-                                  HASH items)
+static bool get_intersect_between_arrays(String *str, json_engine_t *value,
+                                         HASH items)
 {
   bool res= true, has_value= false;
   int level= value->stack_p;
@@ -5228,7 +5234,7 @@ bool Item_func_json_array_intersect::fix_length_and_dec(THD *thd)
 }
 
 
-bool filter_keys(json_engine_t *je1, String *str, HASH items)
+static bool filter_keys(json_engine_t *je1, String *str, HASH items)
 {
   int level= je1->stack_p;
   String temp_str(0);
@@ -5380,7 +5386,7 @@ bool Item_func_json_object_filter_keys::fix_length_and_dec(THD *thd)
   return FALSE;
 }
 
-bool convert_to_array(json_engine_t *je, String *str)
+static bool convert_to_array(json_engine_t *je, String *str)
 {
   int level= je->stack_p;
   String temp_str(0);

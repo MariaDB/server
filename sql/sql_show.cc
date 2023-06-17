@@ -121,6 +121,14 @@ static const LEX_CSTRING trg_event_type_names[]=
   { STRING_WITH_LEN("DELETE") }
 };
 
+static const LEX_CSTRING sp_data_access_name[]=
+{
+  { STRING_WITH_LEN("") },
+  { STRING_WITH_LEN("CONTAINS SQL") },
+  { STRING_WITH_LEN("NO SQL") },
+  { STRING_WITH_LEN("READS SQL DATA") },
+  { STRING_WITH_LEN("MODIFIES SQL DATA") }
+};
 
 LEX_CSTRING DATA_clex_str= { STRING_WITH_LEN("DATA") };
 LEX_CSTRING INDEX_clex_str= { STRING_WITH_LEN("INDEX") };

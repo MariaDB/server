@@ -1161,7 +1161,7 @@ void setup_connection_thread_globals(THD *thd)
     1    error
 */
 
-bool login_connection(THD *thd)
+static bool login_connection(THD *thd)
 {
   NET *net= &thd->net;
   int error= 0;
