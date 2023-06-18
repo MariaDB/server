@@ -6137,8 +6137,8 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     ulonglong col_access=
-      get_column_grant(thd, &tables->grant, db_name->str, table_name->str,
-                       field->field_name.str) & COL_ACLS;
+        get_column_grant(thd, &tables->grant, *db_name, *table_name,
+                         field->field_name) & COL_ACLS;
 
     if (!col_access && !tables->schema_table)
       continue;

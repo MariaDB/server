@@ -8583,20 +8583,32 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
                     tables->is_natural_join);
         DBUG_ASSERT(item->type() == Item::FIELD_ITEM);
         Item_field *fld= (Item_field*) item;
-        const char *field_db_name= field_iterator.get_db_name();
-        const char *field_table_name= field_iterator.get_table_name();
+        /*
+          TODO(cvicentiu) constructing these lex_cstrings could be avoided
+          if we updated all the users of field_iterator::get_xxx_name to
+          use LEX_CSTRING.
+        */
+        const LEX_CSTRING field_db_name= {
+          field_iterator.get_db_name(),
+          strlen(field_iterator.get_db_name())
+        };
+
+        const LEX_CSTRING field_table_name= {
+           field_iterator.get_table_name(),
+           strlen(field_iterator.get_table_name())
+        };
 
         if (!tables->schema_table && 
             !(fld->have_privileges=
               (get_column_grant(thd, field_iterator.grant(),
                                 field_db_name,
-                                field_table_name, fld->field_name.str) &
+                                field_table_name, fld->field_name) &
                VIEW_ANY_ACL)))
         {
           my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0), "ANY",
                    thd->security_ctx->priv_user,
                    thd->security_ctx->host_or_ip,
-                   field_db_name, field_table_name);
+                   field_db_name.str, field_table_name.str);
           DBUG_RETURN(TRUE);
         }
       }

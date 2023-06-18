@@ -9407,7 +9407,7 @@ bool check_column_grant_in_table_ref(THD *thd, TABLE_LIST * table_ref,
         thd->lex->sql_command == SQLCOM_SHOW_FIELDS)
     {
       view_privs= get_column_grant(thd, grant,
-                                   db_name->str, table_name->str, name);
+                                   *db_name, *table_name, {name, length});
       if (view_privs & VIEW_ANY_ACL)
       {
         table_ref->belong_to_view->allowed_show= TRUE;
@@ -9813,8 +9813,9 @@ privilege_t get_table_grant(THD *thd, TABLE_LIST *table)
 */
 
 privilege_t get_column_grant(THD *thd, GRANT_INFO *grant,
-                        const char *db_name, const char *table_name,
-                        const char *field_name)
+                             const LEX_CSTRING &db_name,
+                             const LEX_CSTRING &table_name,
+                             const LEX_CSTRING &field_name)
 {
   GRANT_TABLE *grant_table;
   GRANT_TABLE *grant_table_role;
@@ -9824,7 +9825,7 @@ privilege_t get_column_grant(THD *thd, GRANT_INFO *grant,
 
   mysql_rwlock_rdlock(&LOCK_grant);
   /* reload table if someone has modified any grants */
-  grant->refresh(thd->security_ctx, db_name, table_name);
+  grant->refresh(thd->security_ctx, db_name.str, table_name.str);
 
   grant_table= grant->grant_table_user;
   grant_table_role= grant->grant_table_role;
@@ -9836,8 +9837,8 @@ privilege_t get_column_grant(THD *thd, GRANT_INFO *grant,
   {
     if (grant_table)
     {
-      grant_column= column_hash_search(grant_table, field_name,
-                                       (uint) strlen(field_name));
+      grant_column= column_hash_search(grant_table, field_name.str,
+                                       field_name.length);
       if (!grant_column)
         priv= (grant->privilege | grant_table->privs);
       else
@@ -9846,8 +9847,8 @@ privilege_t get_column_grant(THD *thd, GRANT_INFO *grant,
 
     if (grant_table_role)
     {
-      grant_column= column_hash_search(grant_table_role, field_name,
-                                       (uint) strlen(field_name));
+      grant_column= column_hash_search(grant_table_role, field_name.str,
+                                       field_name.length);
       if (!grant_column)
         priv|= (grant->privilege | grant_table_role->privs);
       else
@@ -9856,8 +9857,8 @@ privilege_t get_column_grant(THD *thd, GRANT_INFO *grant,
     }
     if (grant_public)
     {
-      grant_column= column_hash_search(grant_public, field_name,
-                                       (uint) strlen(field_name));
+      grant_column= column_hash_search(grant_public, field_name.str,
+                                       field_name.length);
       if (!grant_column)
         priv|= (grant->privilege | grant_public->privs);
       else
