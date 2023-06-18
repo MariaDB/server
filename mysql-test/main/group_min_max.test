@@ -1885,7 +1885,7 @@ SELECT DISTINCT * FROM t1 WHERE a IN (1, 2);
 
 select 
   CAST(json_value(json_extract(trace, '$**.chosen_access_method.cost'), '$[0]')
-       as DOUBLE) < 1.0e100
+       as DOUBLE) < 1.0e100 x
 from information_schema.optimizer_trace;
 
 set optimizer_use_condition_selectivity = @tmp, optimizer_trace=@tmp2;

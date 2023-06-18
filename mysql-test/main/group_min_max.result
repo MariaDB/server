@@ -4255,10 +4255,9 @@ a	b
 2	2
 select 
 CAST(json_value(json_extract(trace, '$**.chosen_access_method.cost'), '$[0]')
-as DOUBLE) < 1.0e100
+as DOUBLE) < 1.0e100 x
 from information_schema.optimizer_trace;
-CAST(json_value(json_extract(trace, '$**.chosen_access_method.cost'), '$[0]')
-as DOUBLE) < 1.0e100
+x
 1
 set optimizer_use_condition_selectivity = @tmp, optimizer_trace=@tmp2;
 drop table t1;
