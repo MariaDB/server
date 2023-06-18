@@ -11177,7 +11177,7 @@ int SEL_ARG::number_of_eq_groups(uint group_key_parts) const
   cur= first();
   do
   {
-    if ((cur->min_flag | cur->min_flag) &
+    if ((cur->min_flag | cur->max_flag) &
         (NO_MIN_RANGE | NO_MAX_RANGE | NEAR_MIN | NEAR_MAX | GEOM_FLAG))
       return -1;
     if (min_value != max_value && !min_max_are_equal())
