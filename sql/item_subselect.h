@@ -628,6 +628,14 @@ public:
     SET to TRUE if IN subquery is converted from an IN predicate
   */
   bool converted_from_in_predicate;
+  
+  /*
+    -1 means "do nothing"
+    Other value means that we can assume that left_expr->element_index(i) 
+    cannot be NULL (because decorrelation code has added IS NOT NULL before
+    the subquery predicate).
+  */
+  int  not_nulls_after;
 
   Item_in_subselect(THD *thd_arg, Item * left_expr, st_select_lex *select_lex);
   Item_in_subselect(THD *thd_arg):
@@ -635,7 +643,8 @@ public:
     in_strategy(SUBS_NOT_TRANSFORMED),
     pushed_cond_guards(NULL), func(NULL), do_not_convert_to_sj(FALSE),
     is_jtbm_merged(FALSE), is_jtbm_const_tab(FALSE), upper_item(0),
-    converted_from_in_predicate(FALSE) {}
+    converted_from_in_predicate(FALSE),
+    not_nulls_after(-1) {}
   void cleanup() override;
   subs_type substype() override { return IN_SUBS; }
   void reset() override

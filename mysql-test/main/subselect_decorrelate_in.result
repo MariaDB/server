@@ -570,3 +570,149 @@ select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') f
 json_extract(trace, '$**.join_optimization.steps[*].transformation.to')
 ["decorrelation", "materialization"]
 drop table ten, one_h, ten_k, t1, t2;
+#
+#
+#
+create table t1 ( a int, b int, c int);
+insert into t1 select seq, seq, seq from seq_1_to_10;
+create table t2 ( x int, y int, z int);
+insert into t2 select seq, seq, seq from seq_1_to_10;
+insert into t1 values
+( NULL ,   12 ,   12 ),
+(   12 , NULL ,   12 ),
+( NULL ,   13 ,   13 ),
+(   13 , NULL ,   13 ),
+(   21 ,   21 ,   21 ),
+(   22 ,   22 ,   22 ),
+(   12 ,   12 ,   12 ),
+(   22 , NULL ,   22 ),
+( NULL ,   21 ,   21 ),
+(   23 , NULL ,   23 ),
+( NULL ,   23 ,   23 );
+create table one(w int);
+insert into one values (1);
+alter table t2 add key(x);
+alter table t2 add key(y);
+set @tmp=@@optimizer_switch, optimizer_switch='materialization=off';
+# This will not show full-scan-on-null-key:
+explain format=json 
+select * from t1 
+where t1.a not in (select t2.x from one,t2 ignore index(x) where t1.b=t2.y and t2.z=33);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 21,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "!(t1.b is not null and <in_optimizer>((t1.a,t1.b),<exists>(subquery#2)))"
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "cost": "COST_REPLACED",
+          "having_condition": "trigcond(t2.x is null)",
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "one",
+                "access_type": "system",
+                "rows": 1,
+                "filtered": 100
+              }
+            },
+            {
+              "table": {
+                "table_name": "t2",
+                "access_type": "ref",
+                "possible_keys": ["y"],
+                "key": "y",
+                "key_length": "5",
+                "used_key_parts": ["y"],
+                "ref": ["func"],
+                "loops": 1,
+                "rows": 1,
+                "cost": "COST_REPLACED",
+                "filtered": 100,
+                "index_condition": "t2.y is not null",
+                "attached_condition": "t2.z = 33 and trigcond(trigcond(<cache>(t1.a) = t2.x or t2.x is null))"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+# This will show full-scan-on-null-key:
+explain format=json 
+select * from t1 
+where t1.a not in (select t2.x from one,t2 ignore index(y) where t1.b=t2.y and t2.z=33);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 21,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "!(t1.b is not null and <in_optimizer>((t1.a,t1.b),<exists>(subquery#2)))"
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "cost": "COST_REPLACED",
+          "having_condition": "trigcond(t2.x is null)",
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "one",
+                "access_type": "system",
+                "rows": 1,
+                "filtered": 100
+              }
+            },
+            {
+              "full-scan-on-null_key": {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ref_or_null",
+                  "possible_keys": ["x"],
+                  "key": "x",
+                  "key_length": "5",
+                  "used_key_parts": ["x"],
+                  "ref": ["func"],
+                  "loops": 1,
+                  "rows": 4,
+                  "cost": "COST_REPLACED",
+                  "filtered": 100,
+                  "attached_condition": "t2.z = 33 and t2.y is not null and trigcond(trigcond(<cache>(t1.a) = t2.x or t2.x is null)) and <cache>(t1.b) = t2.y"
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+drop table one,t1,t2;

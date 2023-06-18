@@ -1631,7 +1631,8 @@ Item_in_subselect::Item_in_subselect(THD *thd, Item * left_exp,
   is_jtbm_const_tab(FALSE), is_flattenable_semijoin(FALSE),
   is_registered_semijoin(FALSE),
   upper_item(0),
-  converted_from_in_predicate(FALSE)
+  converted_from_in_predicate(FALSE),
+  not_nulls_after(-1)
 {
   DBUG_ENTER("Item_in_subselect::Item_in_subselect");
   DBUG_PRINT("info", ("in_strategy: %u", (uint)in_strategy));
@@ -2706,7 +2707,10 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                                      ref_pointer_array[i],
                                      no_matter_name,
                                      list_ref));
-      if (!is_top_level_item() && select_lex->ref_pointer_array[i]->maybe_null())
+      bool do_null_handling= (not_nulls_after == -1 || 
+                              (int)i <= not_nulls_after);
+      if (do_null_handling && !is_top_level_item() && 
+          select_lex->ref_pointer_array[i]->maybe_null())
       {
         Item *having_col_item=
           new (thd->mem_root)
@@ -2738,7 +2742,7 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
         }
         *having_item= and_items(thd, *having_item, having_col_item);
       }
-      if (!is_top_level_item() && left_expr->element_index(i)->maybe_null() &&
+      if (do_null_handling && !is_top_level_item() && left_expr->element_index(i)->maybe_null() &&
           get_cond_guard(i))
       {
         if (!(item= new (thd->mem_root)
@@ -3243,6 +3247,7 @@ bool Item_exists_subselect::exists2in_create_or_update_in(
     DBUG_ASSERT(substype() == IN_SUBS);
     in_subs= (Item_in_subselect*) this;
     offset= first_select->item_list.elements;
+    in_subs->not_nulls_after= offset - 1;
     if (in_subs->left_expr->type() == Item::ROW_ITEM)
     {
       for (uint i= 0; i < in_subs->left_expr->cols(); i++, it++)
