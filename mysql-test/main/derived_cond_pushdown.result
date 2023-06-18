@@ -22732,7 +22732,7 @@ from
 (select a, sum(b) as s from t2 group by a) as dt,
 t3
 where dt.a=t1.a and t3.a < 3
-)
+) x
 from t1 limit 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	1000	
@@ -22746,14 +22746,9 @@ from
 (select a, sum(b) as s from t2 group by a) as dt,
 t3
 where dt.a=t1.a and t3.a < 3
-)
+) x
 from t1 limit 5;
-a	( select concat(t3.a,'=',dt.s)
-from
-(select a, sum(b) as s from t2 group by a) as dt,
-t3
-where dt.a=t1.a and t3.a < 3
-)
+a	x
 1	1=804
 2	1=1056
 3	1=846
@@ -22772,7 +22767,7 @@ from
 (select a, sum(b) as s from t2 group by a) as dt,
 t3
 where dt.a=t1.a and t3.a < 3
-)
+) x
 from t1 limit 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	1000	
@@ -22786,14 +22781,9 @@ from
 (select a, sum(b) as s from t2 group by a) as dt,
 t3
 where dt.a=t1.a and t3.a < 3
-)
+) x
 from t1 limit 5;
-a	( select concat(t3.a,'=',dt.s)
-from
-(select a, sum(b) as s from t2 group by a) as dt,
-t3
-where dt.a=t1.a and t3.a < 3
-)
+a	x
 1	1=11858
 2	1=11380
 3	1=11588

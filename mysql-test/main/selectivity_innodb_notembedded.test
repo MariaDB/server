@@ -14,3 +14,32 @@ set optimizer_switch='extended_keys=on';
 set optimizer_switch=@save_optimizer_switch_for_selectivity_test;
 
 SET SESSION STORAGE_ENGINE=DEFAULT;
+
+--echo #
+--echo # MDEV-31380: Assertion `s->table->opt_range_condition_rows <= s->found_records' failed
+--echo #  (assertion in 10.6+, DBL_MAX costs in 10.5)
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, PRIMARY KEY(a), KEY(b)) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_100;
+
+SET
+  @tmp=@@optimizer_use_condition_selectivity,
+  optimizer_use_condition_selectivity = 1,
+  @tmp2=@@optimizer_trace,
+  optimizer_trace=1;
+
+SELECT DISTINCT * FROM t1 WHERE a IN (1, 2);
+
+select
+  CAST(json_value(json_extract(trace, '$**.chosen_access_method.cost'), '$[0]')
+       as DOUBLE) < 1.0e100 x
+from information_schema.optimizer_trace;
+
+set optimizer_use_condition_selectivity = @tmp, optimizer_trace=@tmp2;
+drop table t1;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
+
