@@ -1,5 +1,4 @@
 --source include/have_sequence.inc
---let $datadir= `select @@datadir`
 ###############################################################################
 # t/vcol_keys_myisam.test                                                     #
 #                                                                             #
@@ -60,8 +59,8 @@ insert t1 (a,c) values (0x7890abcd, 0x76543210);
 insert t1 (a,c) select seq, sin(seq)*10000 from seq_1_to_1000;
 explain select * from t1 where b=10;
 select * from t1 where b=10;
---replace_result $datadir datadir
---exec $MYISAMCHK -d $datadir/test/t1
+--replace_result $MARIADB_DATADIR MARIADB_DATADIR
+--exec $MYISAMCHK -d $MARIADB_DATADIR/test/t1
 update t1 set a=20 where b=10;
 select * from t1 where b=10;
 select * from t1 where b=21;
@@ -99,9 +98,9 @@ select * from t1 where b=11;
 select * from t1 where b=31;
 
 --error 1
---exec $MYISAMCHK $datadir/test/t1
+--exec $MYISAMCHK $MARIADB_DATADIR/test/t1
 --error 1
---exec $MYISAMCHK -r $datadir/test/t1
+--exec $MYISAMCHK -r $MARIADB_DATADIR/test/t1
 drop table t1;
 
 --echo #
@@ -298,9 +297,7 @@ LOAD DATA INFILE 'load_t1' INTO TABLE t1 (i,d1,d2);
 SELECT * FROM t1 WHERE d2 < d1;
 DROP TABLE t1;
 # Cleanup
---let $datadir= `SELECT @@datadir`
---remove_file $datadir/test/load_t1
-
+--remove_file $MARIADB_DATADIR/test/load_t1
 
 --echo #
 --echo # MDEV-20015 Assertion `!in_use->is_error()' failed in TABLE::update_virtual_field

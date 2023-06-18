@@ -6,7 +6,7 @@
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Failed to find tablespace for table .* in the cache. Attempting to load the tablespace with space id");
-call mtr.add_suppression("InnoDB: Allocated tablespace ID \\d+ for test.t[12], old maximum was");
+call mtr.add_suppression("InnoDB: Allocated tablespace ID \\d+ for .*test.t[12], old maximum was");
 call mtr.add_suppression("InnoDB: Allocated tablespace ID \\d+ for mysql.transaction_registry, old maximum was");
 --enable_query_log
 
@@ -50,6 +50,7 @@ let $status=`SHOW ENGINE INNODB STATUS`;
 
 select * from t2;
 
+--replace_catalog
 --error ER_READ_ONLY_MODE
 insert into t2 values(2, 3);
 
@@ -71,6 +72,7 @@ create table t3(f1 int not null)engine=innodb;
 --error ER_OPEN_AS_READONLY
 drop table t3;
 
+--replace_catalog
 --error ER_ERROR_ON_RENAME
 rename table t2 to t3;
 
@@ -111,6 +113,7 @@ create table t3(f1 int not null)engine=innodb;
 --error ER_OPEN_AS_READONLY
 drop table t1;
 
+--replace_catalog
 --error ER_ERROR_ON_RENAME
 rename table t2 to t3;
 

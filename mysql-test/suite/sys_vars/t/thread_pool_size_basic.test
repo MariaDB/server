@@ -27,7 +27,7 @@ set global thread_pool_size=1;
 select @@global.thread_pool_size;
 set global thread_pool_size=128;
 select @@global.thread_pool_size;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session thread_pool_size=1;
 
 #

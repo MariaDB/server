@@ -26,7 +26,6 @@ let $restart_noprint=2;
 --source include/restart_mysqld.inc
 
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
-let MYSQLD_DATADIR=`select @@datadir`;
 
 SELECT COUNT(*) FROM t1;
 --source ../include/no_checkpoint_start.inc
@@ -37,7 +36,7 @@ UPDATE t1 SET c='best8' WHERE pk=12;
 --echo # Corrupt the pages
 
 perl;
-my $file = "$ENV{MYSQLD_DATADIR}/test/t1.ibd";
+my $file = "$ENV{MARIADB_DATADIR}/test/t1.ibd";
 open(FILE, "+<$file") || die "Unable to open $file";
 binmode FILE;
 seek (FILE, $ENV{INNODB_PAGE_SIZE} * 19 + 38, SEEK_SET) or die "seek";

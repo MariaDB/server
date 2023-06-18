@@ -39,8 +39,6 @@
 # Does not work with --embedded
 --source include/not_embedded.inc
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-
 # These values can change during the test
 SET @file_per_table= @@GLOBAL.innodb_file_per_table;
 SET @strict_mode= @@SESSION.innodb_strict_mode;
@@ -54,6 +52,7 @@ SET SESSION innodb_strict_mode = ON;
 --echo # InnoDB only supports DATA DIRECTORY with innodb_file_per_table=ON
 --echo #
 SET GLOBAL innodb_file_per_table = OFF;
+--replace_catalog
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --error ER_CANT_CREATE_TABLE
 eval CREATE TABLE t1 (c1 INT)  ENGINE = InnoDB
@@ -65,7 +64,8 @@ PARTITION BY HASH (c1) (
     DATA DIRECTORY = '$MYSQLTEST_VARDIR/mysql-test-data-dir'
     INDEX DIRECTORY = '$MYSQLTEST_VARDIR/mysql-test-idx-dir'
 );
---replace_result ./ MYSQLD_DATADIR/  $MYSQLD_DATADIR MYSQLD_DATADIR
+--replace_catalog
+--replace_result ./ MARIADB_DATADIR/  $MARIADB_DATADIR MARIADB_DATADIR
 SHOW WARNINGS;
 
 --echo #
@@ -91,14 +91,22 @@ PARTITION BY HASH (c1)
 );
 SHOW WARNINGS;
 
+let $tmp=test;
+let $catalog=;
+if ($USING_CATALOGS == 1)
+{
+  let $tmp=`select concat("$MARIADB_CATALOG", "/test")`;
+  let $catalog=$MARIADB_CATALOG;
+}
+
 --echo # Verifying .frm, .par, .isl & .ibd files
---echo ---- MYSQLD_DATADIR/test
---list_files $MYSQLD_DATADIR/test
+--echo ---- MARIADB_DATADIR/test
+--list_files $MARIADB_DATADIR/test
 --echo ---- MYSQLTEST_VARDIR/mysql-test-data-dir/test
---list_files $MYSQLTEST_VARDIR/mysql-test-data-dir/test
+--list_files $MYSQLTEST_VARDIR/mysql-test-data-dir/$tmp
 --echo # The ibd tablespaces should not be directly under the DATA DIRECTORY
 --echo ---- MYSQLTEST_VARDIR/mysql-test-data-dir
---list_files $MYSQLTEST_VARDIR/mysql-test-data-dir
+--list_files $MYSQLTEST_VARDIR/mysql-test-data-dir/$catalog
 --echo ---- MYSQLTEST_VARDIR/mysql-test-idx-dir
 --list_files $MYSQLTEST_VARDIR/mysql-test-idx-dir
 
@@ -114,9 +122,14 @@ ALTER TABLE t1 engine=MyISAM;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 SHOW CREATE TABLE t1;
 --echo # Verifying .frm, .par and MyISAM files (.MYD, MYI)
---list_files $MYSQLD_DATADIR/test
+--list_files $MARIADB_DATADIR/test
 --echo ---- MYSQLTEST_VARDIR/mysql-test-data-dir
---list_files $MYSQLTEST_VARDIR/mysql-test-data-dir
+
+# The following wildcar to disquise the issue that MyISAM store files
+# directly under DATA DIRECTORY while InnoDB stores things under
+# 'catalog/database'.
+
+--list_files $MYSQLTEST_VARDIR/mysql-test-data-dir *.MY*
 --echo ---- MYSQLTEST_VARDIR/mysql-test-idx-dir
 --list_files $MYSQLTEST_VARDIR/mysql-test-idx-dir
 
@@ -129,14 +142,14 @@ ALTER TABLE t1 engine=InnoDB;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 SHOW CREATE TABLE t1;
 --echo # Verifying .frm, .par, .isl and InnoDB .ibd files
---echo ---- MYSQLD_DATADIR/test
---list_files $MYSQLD_DATADIR/test
+--echo ---- MARIADB_DATADIR/test
+--list_files $MARIADB_DATADIR/test
 --echo ---- MYSQLTEST_VARDIR/mysql-test-data-dir
---list_files $MYSQLTEST_VARDIR/mysql-test-data-dir
+--list_files $MYSQLTEST_VARDIR/mysql-test-data-dir/$catalog
 --echo ---- MYSQLTEST_VARDIR/mysql-test-idx-dir
 --list_files $MYSQLTEST_VARDIR/mysql-test-idx-dir
 --echo ---- MYSQLTEST_VARDIR/mysql-test-data-dir/test
---list_files $MYSQLTEST_VARDIR/mysql-test-data-dir/test
+--list_files $MYSQLTEST_VARDIR/mysql-test-data-dir/$tmp
 
 DROP TABLE t1;
 
@@ -285,7 +298,11 @@ DROP TABLE t1, t2;
 --echo # Cleanup
 --echo #
 
---rmdir $MYSQLTEST_VARDIR/mysql-test-data-dir/test
+--rmdir $MYSQLTEST_VARDIR/mysql-test-data-dir/$tmp
+if ($USING_CATALOGS == 1)
+{
+  --rmdir $MYSQLTEST_VARDIR/mysql-test-data-dir/$MARIADB_CATALOG
+}
 --rmdir $MYSQLTEST_VARDIR/mysql-test-data-dir
 --rmdir $MYSQLTEST_VARDIR/mysql-test-idx-dir
 

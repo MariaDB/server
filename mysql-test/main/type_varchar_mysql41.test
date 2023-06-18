@@ -42,15 +42,13 @@ END;
 $$
 DELIMITER ;$$
 
-let $MYSQLD_DATADIR= `SELECT @@datadir`;
-copy_file $MYSQL_TEST_DIR/std_data/vchar.frm $MYSQLD_DATADIR/test/t1old.frm;
+copy_file $MYSQL_TEST_DIR/std_data/vchar.frm $MARIADB_DATADIR/test/t1old.frm;
 TRUNCATE TABLE t1old;
 SHOW CREATE TABLE t1old;
 CALL p1('v');
 DROP TABLE t1old;
 
-let $MYSQLD_DATADIR= `SELECT @@datadir`;
-copy_file $MYSQL_TEST_DIR/std_data/bug19371.frm $MYSQLD_DATADIR/test/t1old.frm;
+copy_file $MYSQL_TEST_DIR/std_data/bug19371.frm $MARIADB_DATADIR/test/t1old.frm;
 TRUNCATE TABLE t1old;
 SHOW CREATE TABLE t1old;
 CALL p1('a');

@@ -66,7 +66,7 @@ SELECT @@global.binlog_expire_logs_seconds;
 @@global.binlog_expire_logs_seconds
 8553600
 SET @@session.binlog_expire_logs_seconds = 0;
-ERROR HY000: Variable 'binlog_expire_logs_seconds' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@binlog_expire_logs_seconds;
 @@binlog_expire_logs_seconds
 8553600
@@ -93,7 +93,7 @@ SELECT @@binlog_expire_logs_seconds = @@global.binlog_expire_logs_seconds;
 @@binlog_expire_logs_seconds = @@global.binlog_expire_logs_seconds
 1
 SET binlog_expire_logs_seconds = 1;
-ERROR HY000: Variable 'binlog_expire_logs_seconds' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@binlog_expire_logs_seconds;
 @@binlog_expire_logs_seconds
 1

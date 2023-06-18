@@ -39,7 +39,8 @@ let $restart_parameters = --disable-provider-$alg;
 source include/restart_mysqld.inc;
 
 if ($engine == "innodb") {
-  error ER_PROVIDER_NOT_LOADED;
+  --replace_catalog
+  --error ER_PROVIDER_NOT_LOADED
   select a, left(b, 9), length(b) from t1;
 }
 if ($engine == "mroonga"){

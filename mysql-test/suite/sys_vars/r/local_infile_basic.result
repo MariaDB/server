@@ -49,7 +49,7 @@ SET @@global.local_infile = " ";
 ERROR 42000: Variable 'local_infile' can't be set to the value of ' '
 '#-------------------FN_DYNVARS_018_05----------------------------#'
 SET @@session.local_infile = 1;
-ERROR HY000: Variable 'local_infile' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@session.local_infile = 1;
 ERROR HY000: Variable 'local_infile' is a GLOBAL variable
 '#----------------------FN_DYNVARS_018_06------------------------#'
@@ -83,7 +83,7 @@ SELECT @@local_infile = @@global.local_infile;
 1
 '#---------------------FN_DYNVARS_018_10----------------------#'
 SET local_infile = 1;
-ERROR HY000: Variable 'local_infile' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@local_infile;
 @@local_infile
 1

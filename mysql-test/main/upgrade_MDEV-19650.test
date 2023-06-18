@@ -1,4 +1,3 @@
-
 -- source include/mysql_upgrade_preparation.inc
 
 call mtr.add_suppression("Cannot load from mysql.proc. The table is probably corrupted");
@@ -97,12 +96,10 @@ SELECT count(*) FROM information_schema.VIEWS WHERE TABLE_CATALOG = 'def' and TA
 SELECT * FROM information_schema.USER_PRIVILEGES WHERE GRANTEE="'mariadb.sys'@'localhost'";
 SELECT * FROM information_schema.TABLE_PRIVILEGES WHERE GRANTEE="'mariadb.sys'@'localhost'";
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-
 --echo # Run mysql_upgrade
 --exec $MYSQL_UPGRADE  2>&1
---file_exists $MYSQLD_DATADIR/mariadb_upgrade_info
---remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
+--file_exists $MARIADB_TOPDIR/mariadb_upgrade_info
+--remove_file $MARIADB_TOPDIR/mariadb_upgrade_info
 
 --echo # check new definitions mysql_upgrade
 

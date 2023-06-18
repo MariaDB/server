@@ -33,12 +33,10 @@ ALTER TABLE t NOWAIT ADD INDEX (c);
 
 --connection default
 
---let $datadir= `select @@datadir`
-
 FLUSH TABLE t FOR EXPORT;
 --let $create= query_get_value(SHOW CREATE TABLE t, Create Table, 1)
---copy_file $datadir/test/t.cfg $datadir/test/t.cfg.sav
---copy_file $datadir/test/t.ibd $datadir/test/t.ibd.sav
+--copy_file $MARIADB_DATADIR/test/t.cfg $MARIADB_DATADIR/test/t.cfg.sav
+--copy_file $MARIADB_DATADIR/test/t.ibd $MARIADB_DATADIR/test/t.ibd.sav
 UNLOCK TABLES;
 
 DROP TABLE t;
@@ -47,8 +45,8 @@ eval $create;
 --enable_query_log
 
 ALTER TABLE t DISCARD TABLESPACE;
---move_file $datadir/test/t.cfg.sav $datadir/test/t.cfg
---move_file $datadir/test/t.ibd.sav $datadir/test/t.ibd
+--move_file $MARIADB_DATADIR/test/t.cfg.sav $MARIADB_DATADIR/test/t.cfg
+--move_file $MARIADB_DATADIR/test/t.ibd.sav $MARIADB_DATADIR/test/t.ibd
 ALTER TABLE t IMPORT TABLESPACE;
 
 # Cleanup

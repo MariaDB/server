@@ -134,8 +134,8 @@ set sort_buffer_size=default;
 
 ALTER TABLE t3 ADD INDEX idx(names, address);
 
-let $file1 = `SELECT CONCAT(@@datadir, "t1.txt")`;
-let $file2 = `SELECT CONCAT(@@datadir, "t2.txt")`;
+let $file1 = $MARIADB_TOPDIR/t1.txt;
+let $file2 = $MARIADB_TOPDIR/t2.txt;
 
 set sort_buffer_size= 2097152;
 --source include/analyze-format.inc

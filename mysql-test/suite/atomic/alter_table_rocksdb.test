@@ -1,4 +1,5 @@
 --source include/have_rocksdb.inc
+--source include/not_catalogs.inc
 
 let $engine_count=1;
 let $engines='rocksdb';

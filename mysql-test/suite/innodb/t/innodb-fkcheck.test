@@ -5,8 +5,6 @@
 # MDEV-10083: Orphan ibd file when playing with foreign keys
 #
 
-let $MYSQLD_DATADIR = `select @@datadir`;
-
 create database bug_fk;
 use bug_fk;
 
@@ -86,19 +84,19 @@ CREATE TABLE b (
 
 show warnings;
 
---list_files $MYSQLD_DATADIR/bug_fk b*
+--list_files $MARIADB_DATADIR/bug_fk b*
 
 set foreign_key_checks=0;
 
 drop table c;
 drop table d;
 
---list_files $MYSQLD_DATADIR/bug_fk b*
+--list_files $MARIADB_DATADIR/bug_fk b*
 
 create table b(id int) engine=innodb;
 show warnings;
 
---list_files $MYSQLD_DATADIR/bug_fk b*
+--list_files $MARIADB_DATADIR/bug_fk b*
 
 #
 # Cleanup

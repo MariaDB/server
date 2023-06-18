@@ -12,21 +12,19 @@ if (!$TYPE_MYSQL_JSON_SO) {
 
 SET NAMES utf8;
 
-let $MYSQLD_DATADIR= `select @@datadir`;
+--copy_file std_data/mysql_json/mysql_json_test.frm $MARIADB_DATADIR/test/mysql_json_test.frm
+--copy_file std_data/mysql_json/mysql_json_test.MYI $MARIADB_DATADIR/test/mysql_json_test.MYI
+--copy_file std_data/mysql_json/mysql_json_test.MYD $MARIADB_DATADIR/test/mysql_json_test.MYD
 
---copy_file std_data/mysql_json/mysql_json_test.frm $MYSQLD_DATADIR/test/mysql_json_test.frm
---copy_file std_data/mysql_json/mysql_json_test.MYI $MYSQLD_DATADIR/test/mysql_json_test.MYI
---copy_file std_data/mysql_json/mysql_json_test.MYD $MYSQLD_DATADIR/test/mysql_json_test.MYD
-
---copy_file std_data/mysql_json/mysql_json_test_big.frm $MYSQLD_DATADIR/test/mysql_json_test_big.frm
---copy_file std_data/mysql_json/mysql_json_test_big.MYI $MYSQLD_DATADIR/test/mysql_json_test_big.MYI
---copy_file std_data/mysql_json/mysql_json_test_big.MYD $MYSQLD_DATADIR/test/mysql_json_test_big.MYD
+--copy_file std_data/mysql_json/mysql_json_test_big.frm $MARIADB_DATADIR/test/mysql_json_test_big.frm
+--copy_file std_data/mysql_json/mysql_json_test_big.MYI $MARIADB_DATADIR/test/mysql_json_test_big.MYI
+--copy_file std_data/mysql_json/mysql_json_test_big.MYD $MARIADB_DATADIR/test/mysql_json_test_big.MYD
 
 --error ER_UNKNOWN_DATA_TYPE
 show create table mysql_json_test;
 
 --exec $MYSQL_UPGRADE --force 2>&1
---remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
+--remove_file $MARIADB_TOPDIR/mariadb_upgrade_info
 
 show create table mysql_json_test;
 select * from mysql_json_test;

@@ -50,9 +50,9 @@ select @@global.innodb_ft_enable_diag_print;
 select * from information_schema.global_variables where variable_name='innodb_ft_enable_diag_print';
 select * from information_schema.session_variables where variable_name='innodb_ft_enable_diag_print';
 --enable_warnings
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session innodb_ft_enable_diag_print='OFF';
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set @@session.innodb_ft_enable_diag_print='ON';
 
 #

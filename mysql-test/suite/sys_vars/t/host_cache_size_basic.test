@@ -32,7 +32,7 @@ select @@global.host_cache_size;
 set global host_cache_size=0;
 select @@global.host_cache_size;
 
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session host_cache_size=1;
 
 # Restore default

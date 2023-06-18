@@ -12,8 +12,6 @@ call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
 call mtr.add_suppression("InnoDB: Cannot change innodb_undo_tablespaces=\\d+ because previous shutdown was not with innodb_fast_shutdown=0");
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-
 CREATE TABLE t1(f1 INT NOT NULL)ENGINE=InnoDB;
 connect(con_purge,localhost,root,,,);
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
@@ -29,7 +27,7 @@ let $restart_parameters=--innodb_undo_tablespaces=2;
 select @@global.innodb_undo_tablespaces;
 
 --echo # Should list 4 undo log tablespaces
-list_files $MYSQLD_DATADIR undo*;
+list_files $MARIADB_TOPDIR undo*;
 
 --echo # case 2: XA transaction alone left
 --source include/wait_all_purged.inc
@@ -44,7 +42,7 @@ XA PREPARE 'zombie';
 select @@global.innodb_undo_tablespaces;
 
 --echo # Should list 4 undo log tablespaces
-list_files $MYSQLD_DATADIR undo*;
+list_files $MARIADB_TOPDIR undo*;
 
 XA COMMIT 'zombie';
 
@@ -58,7 +56,7 @@ let $restart_parameters=--innodb_undo_tablespaces=2;
 SELECT @@global.innodb_undo_tablespaces;
 
 --echo # Should list 2 undo log tablespaces
-list_files $MYSQLD_DATADIR undo*;
+list_files $MARIADB_TOPDIR undo*;
 
 DROP TABLE t1;
 --source include/wait_all_purged.inc
@@ -71,7 +69,7 @@ let $restart_parameters=--innodb_undo_tablespaces=0;
 SELECT @@global.innodb_undo_tablespaces;
 
 --echo # Shouldn't list any undo log tablespaces
-list_files $MYSQLD_DATADIR undo*;
+list_files $MARIADB_TOPDIR undo*;
 
 --echo # case 5: Change undo tablespace when force_recovery < 5
 let $restart_parameters=--innodb_undo_tablespaces=2 --innodb_force_recovery=4;
@@ -81,7 +79,7 @@ let $restart_parameters=--innodb_undo_tablespaces=2 --innodb_force_recovery=4;
 SELECT @@global.innodb_undo_tablespaces;
 
 --echo # Should list 2 undo log tablespaces
-list_files $MYSQLD_DATADIR undo*;
+list_files $MARIADB_TOPDIR undo*;
 
 --echo # case 6: Fail to change undo tablespace when force_recovery > 4
 let $restart_parameters=--innodb_undo_tablespaces=4 --innodb_force_recovery=5;
@@ -91,4 +89,4 @@ let $restart_parameters=--innodb_undo_tablespaces=4 --innodb_force_recovery=5;
 SELECT @@global.innodb_undo_tablespaces;
 
 --echo # Should list 2 undo log tablespaces, not 4
-list_files $MYSQLD_DATADIR undo*;
+list_files $MARIADB_TOPDIR undo*;

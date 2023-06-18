@@ -7,8 +7,9 @@
 #
 # --source include/force_restart.inc
 #
+--source include/get_datadir.inc
 
---let $_force_restart_datadir= `SELECT @@datadir`
+--let $_force_restart_datadir= $MARIADB_DATADIR
 --append_file $_force_restart_datadir/mtr/force_restart
 1
 EOF

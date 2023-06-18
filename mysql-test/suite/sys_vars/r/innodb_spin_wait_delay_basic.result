@@ -34,7 +34,7 @@ select * from information_schema.session_variables where variable_name='innodb_s
 VARIABLE_NAME	VARIABLE_VALUE
 INNODB_SPIN_WAIT_DELAY	10
 set session innodb_spin_wait_delay=1;
-ERROR HY000: Variable 'innodb_spin_wait_delay' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 set global innodb_spin_wait_delay=DEFAULT;
 select @@global.innodb_spin_wait_delay;
 @@global.innodb_spin_wait_delay

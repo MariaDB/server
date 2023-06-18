@@ -9,17 +9,16 @@
 --source include/stop_slave.inc
 
 --connection master
---let $datadir= `SELECT @@datadir`
 
 flush binary logs;
 create table t2 (a timestamp);
 
 --save_master_pos
 
---remove_file $datadir/master-bin.000001
---copy_file $MYSQL_TEST_DIR/std_data/mdev29078-mysql-bin.000001 $datadir/master-bin.000001
+--remove_file $MARIADB_TOPDIR/master-bin.000001
+--copy_file $MYSQL_TEST_DIR/std_data/mdev29078-mysql-bin.000001 $MARIADB_TOPDIR/master-bin.000001
 
---exec $MYSQL_BINLOG --short-form $datadir/master-bin.000001
+--exec $MYSQL_BINLOG --short-form $MARIADB_TOPDIR/master-bin.000001
 
 --connection slave
 

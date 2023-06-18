@@ -1,3 +1,5 @@
+--source include/have_catalogs.inc
+
 #
 # Simple test of catalogs
 #
@@ -36,6 +38,7 @@ drop catalog def;
 --echo # Test status vars
 --echo #
 
+flush status;
 create catalog cat1;
 use catalog cat1;
 select catalog();

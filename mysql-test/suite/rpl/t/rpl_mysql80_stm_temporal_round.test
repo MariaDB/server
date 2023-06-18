@@ -12,12 +12,11 @@ CREATE TABLE t1 (id SERIAL, a DATETIME(3));
 --source include/stop_slave.inc
 
 --connection master
---let $datadir= `SELECT @@datadir`
 
 --let $rpl_server_number= 1
 --source include/rpl_stop_server.inc
 
---remove_file $datadir/master-bin.000001
+--remove_file $MARIADB_TOPDIR/master-bin.000001
 
 #
 # Simulate MySQL 8.0.x master
@@ -38,7 +37,7 @@ CREATE TABLE t1 (id SERIAL, a DATETIME(3));
 #INSERT INTO t1 (a) VALUES ('2001-01-01 00:00:00.999999');
 #
 
---copy_file $MYSQL_TEST_DIR/std_data/rpl/mysql-8.0.13-stm-temporal-round-binlog.000001 $datadir/master-bin.000001
+--copy_file $MYSQL_TEST_DIR/std_data/rpl/mysql-8.0.13-stm-temporal-round-binlog.000001 $MARIADB_TOPDIR/master-bin.000001
 
 --let $rpl_server_number= 1
 --source include/rpl_start_server.inc

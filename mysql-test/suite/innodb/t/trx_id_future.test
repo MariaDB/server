@@ -12,14 +12,13 @@ let PAGE_SIZE=`select @@innodb_page_size`;
 CREATE TABLE t1(a INT) row_format=redundant engine=innoDB;
 INSERT INTO t1 VALUES(1);
 
-let MYSQLD_DATADIR=`select @@datadir`;
 --source include/wait_all_purged.inc
 let $restart_noprint=2;
 --source include/shutdown_mysqld.inc
 
 perl;
 do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
-my $file = "$ENV{MYSQLD_DATADIR}/test/t1.ibd";
+my $file = "$ENV{MARIADB_DATADIR}/test/t1.ibd";
 open(FILE, "+<", $file) || die "Unable to open $file";
 binmode FILE;
 
@@ -58,7 +57,7 @@ close(FILE) || die "Unable to close $file";
 EOF
 
 --source include/start_mysqld.inc
-call mtr.add_suppression("\\[Warning\\] InnoDB: A transaction id in a record of table `test`\\.`t1` is newer than the system-wide maximum");
+call mtr.add_suppression("\\[Warning\\] InnoDB: A transaction id in a record of table .*`test`\\.`t1` is newer than the system-wide maximum");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: We detected index corruption");
 call mtr.add_suppression("Index for table 't1' is corrupt; try to repair it");
 

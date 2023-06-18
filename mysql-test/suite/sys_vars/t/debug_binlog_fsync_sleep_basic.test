@@ -20,7 +20,7 @@ select * from information_schema.session_variables where variable_name='debug_bi
 #
 set global debug_binlog_fsync_sleep=20;
 select @@global.debug_binlog_fsync_sleep;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session debug_binlog_fsync_sleep=1;
 
 #

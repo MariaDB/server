@@ -7,13 +7,11 @@
 --source include/have_perfschema.inc
 --source include/have_innodb.inc
 
-let $MYSQLD_DATADIR= `SELECT @@datadir`;
-
 --echo # Testing mysql_upgrade with TABLE performance_schema.user_table
 
 create table test.user_table(a int);
 
---copy_file $MYSQLD_DATADIR/test/user_table.frm $MYSQLD_DATADIR/performance_schema/user_table.frm
+--copy_file $MARIADB_DATADIR/test/user_table.frm $MARIADB_DATADIR/performance_schema/user_table.frm
 
 # Make sure the table is visible
 use performance_schema;
@@ -26,5 +24,5 @@ show tables like "user_table";
 
 use test;
 
---remove_file $MYSQLD_DATADIR/performance_schema/user_table.frm
+--remove_file $MARIADB_DATADIR/performance_schema/user_table.frm
 drop table test.user_table;

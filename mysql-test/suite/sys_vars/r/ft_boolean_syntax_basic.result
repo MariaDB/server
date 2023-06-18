@@ -23,9 +23,9 @@ SELECT @@global.ft_boolean_syntax;
 + -><()~*:""&|
 '#--------------------FN_DYNVARS_033_03-------------------------#'
 SET @@session.ft_boolean_syntax = '# -><()!*:""&|';
-ERROR HY000: Variable 'ft_boolean_syntax' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SET @@ft_boolean_syntax = '# -><()!*:""&|';
-ERROR HY000: Variable 'ft_boolean_syntax' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@session.ft_boolean_syntax;
 ERROR HY000: Variable 'ft_boolean_syntax' is a GLOBAL variable
 SELECT @@local.ft_boolean_syntax;

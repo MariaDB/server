@@ -15,7 +15,6 @@
 call mtr.add_suppression("\\[Warning\\] InnoDB: Difficult to find free blocks in the buffer pool.*");
 --enable_query_log
 let MYSQLD_BASEDIR= `SELECT @@basedir`;
-let MYSQLD_DATADIR= `SELECT @@datadir`;
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/my_restart.err;
 let $restart_noprint=2;
 
@@ -35,13 +34,13 @@ while ($i > 0) {
 
 # Page_type_dump for t1
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---exec $INNOCHECKSUM -v --page-type-dump $MYSQLTEST_VARDIR/tmp/dump.txt $MYSQLD_DATADIR/test/t1.ibd
+--exec $INNOCHECKSUM -v --page-type-dump $MYSQLTEST_VARDIR/tmp/dump.txt $MARIADB_DATADIR/test/t1.ibd
 --file_exists $MYSQLTEST_VARDIR/tmp/dump.txt
 --remove_file $MYSQLTEST_VARDIR/tmp/dump.txt
 
 --echo [1]:# check the both short and long options for "help"
---exec $INNOCHECKSUM --help $MYSQLD_DATADIR/test/t1.ibd > $MYSQLTEST_VARDIR/tmp/help_output_long.txt
---exec $INNOCHECKSUM -I $MYSQLD_DATADIR/test/t1.ibd > $MYSQLTEST_VARDIR/tmp/help_output_short.txt
+--exec $INNOCHECKSUM --help $MARIADB_DATADIR/test/t1.ibd > $MYSQLTEST_VARDIR/tmp/help_output_long.txt
+--exec $INNOCHECKSUM -I $MARIADB_DATADIR/test/t1.ibd > $MYSQLTEST_VARDIR/tmp/help_output_short.txt
 --diff_files $MYSQLTEST_VARDIR/tmp/help_output_long.txt $MYSQLTEST_VARDIR/tmp/help_output_short.txt
 
 --echo [2]:# Run the innochecksum when file isn't provided.
@@ -80,13 +79,13 @@ EOF
 
 --echo [3]:# check the both short and long options for "count" and exit
 --replace_regex /[0-9]+/#/
---exec $INNOCHECKSUM --count $MYSQLD_DATADIR/test/t1.ibd
+--exec $INNOCHECKSUM --count $MARIADB_DATADIR/test/t1.ibd
 --replace_regex /[0-9]+/#/
---exec $INNOCHECKSUM -c $MYSQLD_DATADIR/test/t1.ibd
+--exec $INNOCHECKSUM -c $MARIADB_DATADIR/test/t1.ibd
 
 --echo [4]:# Print the version of innochecksum and exit
 --replace_regex /for \S+/for OS/ /\d+/#/ /#[-_A-Za-z0-9]*-MariaDB,/#-MariaDB,/ /\(.*\)/(ARCH)/ /^.*innochecksum(\.exe)?/innochecksum/
---exec $INNOCHECKSUM -V $MYSQLD_DATADIR/test/t1.ibd
+--exec $INNOCHECKSUM -V $MARIADB_DATADIR/test/t1.ibd
 
 --echo # Restart the DB server
 --source include/start_mysqld.inc

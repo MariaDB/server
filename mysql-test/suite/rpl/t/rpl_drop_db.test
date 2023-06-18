@@ -2,6 +2,8 @@
 # dropping the db on the master causes replication problems
 
 -- source include/master-slave.inc
+-- source include/get_replication_datadir.inc
+
 connection master;
 
 --disable_warnings
@@ -10,12 +12,21 @@ drop database if exists mysqltest1;
 create database mysqltest1;
 create table mysqltest1.t1 (n int);
 insert into mysqltest1.t1 values (1);
+
+let $file=mysqltest1/f1.txt;
+if ($USING_CATALOGS)
+{
+  let $file=$MARIADB_CATALOG/$file;
+}
+
+--replace_catalog
 --enable_prepare_warnings
-select * from mysqltest1.t1 into outfile 'mysqltest1/f1.txt';
+eval select * from mysqltest1.t1 into outfile '$file';
 --disable_prepare_warnings
 create table mysqltest1.t2 (n int);
 create table mysqltest1.t3 (n int);
 --replace_result \\ / 66 39 93 39 17 39 247 39 41 39 "File exists" "Directory not empty"
+--replace_catalog
 --error ER_DB_DROP_RMDIR
 drop database mysqltest1;
 use mysqltest1;
@@ -33,6 +44,7 @@ while ($1)
 --enable_query_log
 
 --replace_result \\ / 66 39 93 39 17 39 247 39  41 39 "File exists" "Directory not empty"
+--replace_catalog
 --error ER_DB_DROP_RMDIR
 drop database mysqltest1;
 use mysqltest1;
@@ -52,8 +64,7 @@ select * from t1;
 connection master;
 
 # Remove the "extra" file created above
-let $MYSQLD_DATADIR= `select @@datadir`;
-remove_file $MYSQLD_DATADIR/mysqltest1/f1.txt;
+remove_file $MASTER_DATADIR/mysqltest1/f1.txt;
 
 use test;
 drop table t1;

@@ -40,12 +40,10 @@ check view v1 for upgrade;
 
 drop view v1;
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-
---copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v1.frm $MYSQLD_DATADIR/test/v1.frm
---copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v1badcheck.frm $MYSQLD_DATADIR/test/v1badcheck.frm
---copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v2.frm $MYSQLD_DATADIR/test/v2.frm
---copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v3.frm $MYSQLD_DATADIR/test/v3.frm
+--copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v1.frm $MARIADB_DATADIR/test/v1.frm
+--copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v1badcheck.frm $MARIADB_DATADIR/test/v1badcheck.frm
+--copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v2.frm $MARIADB_DATADIR/test/v2.frm
+--copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v3.frm $MARIADB_DATADIR/test/v3.frm
 
 flush tables;
 
@@ -78,26 +76,26 @@ set sql_log_bin=0;
 
 --source include/show_binlog_events.inc
 
---replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
-eval LOAD DATA INFILE '$MYSQLD_DATADIR/test/v1.frm' REPLACE INTO TABLE kv FIELDS TERMINATED BY '=';
+--replace_result $MARIADB_DATADIR MARIADB_DATADIR
+eval LOAD DATA INFILE '$MARIADB_DATADIR/test/v1.frm' REPLACE INTO TABLE kv FIELDS TERMINATED BY '=';
 SELECT k,v from kv where k in ('md5','algorithm');
 SELECT k from kv where k ='mariadb-version';
 truncate table kv;
 
---replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
-eval LOAD DATA INFILE '$MYSQLD_DATADIR/test/v2.frm' REPLACE INTO TABLE kv FIELDS TERMINATED BY '=';
+--replace_result $MARIADB_DATADIR MARIADB_DATADIR
+eval LOAD DATA INFILE '$MARIADB_DATADIR/test/v2.frm' REPLACE INTO TABLE kv FIELDS TERMINATED BY '=';
 SELECT k,v from kv where k in ('md5','algorithm');
 SELECT k from kv where k ='mariadb-version';
 truncate table kv;
 
---replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
-eval LOAD DATA INFILE '$MYSQLD_DATADIR/test/v3.frm' REPLACE INTO TABLE kv FIELDS TERMINATED BY '=';
+--replace_result $MARIADB_DATADIR MARIADB_DATADIR
+eval LOAD DATA INFILE '$MARIADB_DATADIR/test/v3.frm' REPLACE INTO TABLE kv FIELDS TERMINATED BY '=';
 SELECT k,v from kv where k in ('md5','algorithm');
 SELECT k from kv where k ='mariadb-version';
 truncate table kv;
 
---replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
-eval LOAD DATA INFILE '$MYSQLD_DATADIR/test/v1badcheck.frm' REPLACE INTO TABLE kv FIELDS TERMINATED BY '=';
+--replace_result $MARIADB_DATADIR MARIADB_DATADIR
+eval LOAD DATA INFILE '$MARIADB_DATADIR/test/v1badcheck.frm' REPLACE INTO TABLE kv FIELDS TERMINATED BY '=';
 SELECT k,v from kv where k in ('md5','algorithm');
 SELECT k from kv where k ='mariadb-version';
 truncate table kv;
@@ -109,13 +107,13 @@ drop view if exists v1,v2,v3,v1badcheck;
 # Make it look like a MySQL directory now
 
 rename table mysql.event to mysql.ev_bk;
---copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/event.MYI $MYSQLD_DATADIR/mysql/event.MYI
---copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/event.MYD $MYSQLD_DATADIR/mysql/event.MYD
---copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/event.frm $MYSQLD_DATADIR/mysql/event.frm
+--copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/event.MYI $MARIADB_DATADIR/mysql/event.MYI
+--copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/event.MYD $MARIADB_DATADIR/mysql/event.MYD
+--copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/event.frm $MARIADB_DATADIR/mysql/event.frm
 
---copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v1.frm $MYSQLD_DATADIR/test/v1.frm
---copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v2.frm $MYSQLD_DATADIR/test/v2.frm
---copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v3.frm $MYSQLD_DATADIR/test/v3.frm
+--copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v1.frm $MARIADB_DATADIR/test/v1.frm
+--copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v2.frm $MARIADB_DATADIR/test/v2.frm
+--copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v3.frm $MARIADB_DATADIR/test/v3.frm
 
 flush tables;
 
@@ -135,8 +133,8 @@ show create view v2;
 show create view v3;
 show create view v4;
 
---replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
-eval LOAD DATA INFILE '$MYSQLD_DATADIR/test/v1.frm' REPLACE INTO TABLE kv FIELDS TERMINATED BY '=';
+--replace_result $MARIADB_DATADIR MARIADB_DATADIR
+eval LOAD DATA INFILE '$MARIADB_DATADIR/test/v1.frm' REPLACE INTO TABLE kv FIELDS TERMINATED BY '=';
 SELECT k,v from kv where k in ('md5','algorithm');
 SELECT k from kv where k ='mariadb-version';
 truncate table kv;
@@ -149,9 +147,9 @@ drop view if exists v1,v2,v3;
 drop table mysql.event;
 rename table mysql.ev_bk to mysql.event;
 
---copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v1.frm $MYSQLD_DATADIR/test/v1.frm
---copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v2.frm $MYSQLD_DATADIR/test/v2.frm
---copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v3.frm $MYSQLD_DATADIR/test/v3.frm
+--copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v1.frm $MARIADB_DATADIR/test/v1.frm
+--copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v2.frm $MARIADB_DATADIR/test/v2.frm
+--copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v3.frm $MARIADB_DATADIR/test/v3.frm
 
 # check of binlog and mixing tables (with table specific options) and views
 --exec $MYSQL_CHECK --repair --write-binlog --process-tables --use-frm --process-views=UPGRADE_FROM_MYSQL test 2>&1
@@ -169,13 +167,13 @@ drop view v1,v2,v3,v4;
 # Make it look like a MySQL directory again
 
 rename table mysql.event to mysql.ev_bk;
---copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/event.MYI $MYSQLD_DATADIR/mysql/event.MYI
---copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/event.MYD $MYSQLD_DATADIR/mysql/event.MYD
---copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/event.frm $MYSQLD_DATADIR/mysql/event.frm
+--copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/event.MYI $MARIADB_DATADIR/mysql/event.MYI
+--copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/event.MYD $MARIADB_DATADIR/mysql/event.MYD
+--copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/event.frm $MARIADB_DATADIR/mysql/event.frm
 
---copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v1.frm $MYSQLD_DATADIR/test/v1.frm
---copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v2.frm $MYSQLD_DATADIR/test/v2.frm
---copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v3.frm $MYSQLD_DATADIR/test/v3.frm
+--copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v1.frm $MARIADB_DATADIR/test/v1.frm
+--copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v2.frm $MARIADB_DATADIR/test/v2.frm
+--copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v3.frm $MARIADB_DATADIR/test/v3.frm
 
 flush tables;
 
@@ -185,6 +183,6 @@ flush tables;
 # back to mariadb default
 drop table mysql.event;
 rename table mysql.ev_bk to mysql.event;
-remove_file $MYSQLD_DATADIR/mariadb_upgrade_info;
+remove_file $MARIADB_TOPDIR/mariadb_upgrade_info;
 drop view v1,v2,v3;
 drop table t1;

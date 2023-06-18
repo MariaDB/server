@@ -28,8 +28,7 @@ drop table t2, t1;
 select @@gtid_binlog_state;
 FLUSH LOGS;
 
-let MYSQLD_DATADIR= `select @@datadir;`;
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/slave_1.sql
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/slave_1.sql
 
 --echo # reset the binlog
 RESET MASTER;
@@ -38,7 +37,7 @@ RESET MASTER;
 SELECT @@gtid_binlog_state;
 FLUSH LOGS;
 --echo # Replay 1: One more time to simulate S->S case
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/slave_2.sql
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/slave_2.sql
 
 RESET MASTER;
 --echo # execute the binlog
@@ -46,7 +45,7 @@ RESET MASTER;
 SELECT @@gtid_binlog_state;
 FLUSH LOGS;
 --echo # Replay 2: One more time to simulate S->S case
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/slave_3.sql
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/slave_3.sql
 RESET MASTER;
 --echo # execute the binlog
 --exec $MYSQL --port=$MASTER_MYPORT --host=127.0.0.1 -e "source $MYSQLTEST_VARDIR/tmp/slave_3.sql"

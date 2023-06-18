@@ -98,7 +98,7 @@ SET @@global.binlog_stmt_cache_size = 'test';
 #     Test if accessing session binlog_stmt_cache_size gives error         #
 ############################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.binlog_stmt_cache_size = 0;
 
 
@@ -133,7 +133,7 @@ SELECT @@binlog_stmt_cache_size = @@global.binlog_stmt_cache_size;
 # Check if binlog_stmt_cache_size can be accessed with and without @@ sign#
 ###########################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET binlog_stmt_cache_size = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT global.binlog_stmt_cache_size;

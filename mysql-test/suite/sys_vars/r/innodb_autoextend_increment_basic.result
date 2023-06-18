@@ -9,7 +9,7 @@ SELECT @@global.innodb_autoextend_increment ;
 64
 '#---------------------FN_DYNVARS_046_02-------------------------#'
 SET innodb_autoextend_increment  = 1;
-ERROR HY000: Variable 'innodb_autoextend_increment' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@innodb_autoextend_increment ;
 @@innodb_autoextend_increment
 64

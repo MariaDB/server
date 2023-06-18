@@ -2,7 +2,6 @@
 
 show variables like 'test_sql_discovery%';
 set sql_quote_show_create=0;
-let $mysqld_datadir= `select @@datadir`;
 
 --error ER_CANT_CREATE_TABLE
 create table t1 (a int) engine=test_sql_discovery;
@@ -114,7 +113,7 @@ show status like 'handler_discover';
 show create table t1;
 show status like 'handler_discover';
 --echo ----
---list_files $mysqld_datadir/test t*
+--list_files $MARIADB_DATADIR/test t*
 --echo ----
 show open tables from test;
 select * from t1;
@@ -130,7 +129,7 @@ show status like 'handler_discover';
 show create table t1;
 show status like 'handler_discover';
 --echo ----
---list_files $mysqld_datadir/test t*
+--list_files $MARIADB_DATADIR/test t*
 --echo ----
 show open tables from test;
 select * from t1;

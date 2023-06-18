@@ -18,16 +18,12 @@ if ($no_debug)
    --disable_query_log
 }
 
-# Get the MySQL Servers datadir without ending slash
-let $MYSQLD_DATADIR= `select LEFT(@@datadir, LENGTH(@@datadir)-1)`;
-#echo MYSQLD_DATADIR: $MYSQLD_DATADIR;
-
 if ($do_file_tests)
 {
-  let $ls_file= $MYSQLD_DATADIR/test/tmp2;
+  let $ls_file= $MARIADB_DATADIR/test/tmp2;
   # List the files belonging to the table t1
   --replace_result $MYSQLTEST_VARDIR \$MYSQLTEST_VARDIR #p# #P# #sp# #SP#
-  --list_files_write_file $ls_file $MYSQLD_DATADIR/test t1*
+  --list_files_write_file $ls_file $MARIADB_DATADIR/test t1*
   --chmod 0644 $ls_file
   if ($with_directories)
   {
@@ -67,7 +63,7 @@ if ($found_garbage)
    }
    # Do a manual cleanup, because the following tests should not suffer from
    # remaining files
-   --remove_files_wildcard $MYSQLD_DATADIR/test t1*
+   --remove_files_wildcard $MARIADB_DATADIR/test t1*
    if ($with_directories)
    {
       --remove_files_wildcard $MYSQLTEST_VARDIR/tmp t1*

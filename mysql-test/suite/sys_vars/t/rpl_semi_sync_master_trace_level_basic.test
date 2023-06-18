@@ -20,7 +20,7 @@ select * from information_schema.session_variables where variable_name='rpl_semi
 # show that it's writable
 #
 set global rpl_semi_sync_master_trace_level=16;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session rpl_semi_sync_master_trace_level=99;
 select @@global.rpl_semi_sync_master_trace_level;
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR

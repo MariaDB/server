@@ -54,7 +54,7 @@ SELECT @@global.innodb_purge_rseg_truncate_frequency;
 #   without @@ sign                                                        #
 ############################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET innodb_purge_rseg_truncate_frequency = 1;
 SELECT @@innodb_purge_rseg_truncate_frequency;
 

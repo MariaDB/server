@@ -102,7 +102,7 @@ SET @@global.mysql56_temporal_format = '';
 # Test if accessing session mysql56_temporal_format gives error           #
 ########################################################################### 
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.mysql56_temporal_format = 1;
 --Error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.mysql56_temporal_format;
@@ -142,7 +142,7 @@ SELECT @@mysql56_temporal_format = @@global.mysql56_temporal_format;
 # Check if mysql56_temporal_format can be accessed with and without @@ sign #
 #############################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET mysql56_temporal_format = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT global.mysql56_temporal_format;

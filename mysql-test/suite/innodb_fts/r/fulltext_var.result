@@ -14,7 +14,7 @@ b
 aaaaaa bbbbbb cccccc
 aaaaaa cccccc
 set ft_boolean_syntax=' +-><()~*:""&|';
-ERROR HY000: Variable 'ft_boolean_syntax' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 set global ft_boolean_syntax=' +-><()~*:""&|';
 select * from t1 where match b against ('+aaaaaa bbbbbb' in boolean mode);
 b

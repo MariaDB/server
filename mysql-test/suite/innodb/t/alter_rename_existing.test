@@ -9,7 +9,6 @@
 --source include/have_innodb.inc
 
 --disable_query_log
-LET $MYSQLD_DATADIR = `select @@datadir`;
 SET @old_innodb_file_per_table = @@innodb_file_per_table;
 --enable_query_log
 
@@ -17,12 +16,12 @@ CREATE TABLE t1 (a SERIAL, b CHAR(10)) ENGINE=Memory;
 INSERT INTO t1(b) VALUES('one'), ('two'), ('three');
 
 --echo #
---echo # Create a file called MYSQLD_DATADIR/test/t1.ibd
---exec echo "This is not t1.ibd" > $MYSQLD_DATADIR/test/t1.ibd
+--echo # Create a file called MARIADB_DATADIR/test/t1.ibd
+--exec echo "This is not t1.ibd" > $MARIADB_DATADIR/test/t1.ibd
 
 --echo # Directory listing of test/*.ibd
 --echo #
---list_files $MYSQLD_DATADIR/test/ *.ibd
+--list_files $MARIADB_DATADIR/test/ *.ibd
 
 --replace_regex  /Error on rename of '.*' to '.*'/Error on rename of 'OLD_FILE_NAME' to 'NEW_FILE_NAME'/
 --error ER_ERROR_ON_RENAME
@@ -60,6 +59,7 @@ ALTER TABLE t1 ADD COLUMN d INT, ALGORITHM=COPY;
 --echo #
 SET GLOBAL innodb_file_per_table=ON;
 --replace_regex /#sql-ib[1-9][0-9]*/#sql-ib/
+--replace_catalog
 --error ER_TABLESPACE_EXISTS
 ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
 --replace_regex  /Error on rename of '.*' to '.*'/Error on rename of 'OLD_FILE_NAME' to 'NEW_FILE_NAME'/
@@ -67,8 +67,8 @@ ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
 ALTER TABLE t1 FORCE, ALGORITHM=COPY;
 
 --echo #
---echo # Delete the blocking file called MYSQLD_DATADIR/test/t1.ibd
---remove_file $MYSQLD_DATADIR/test/t1.ibd
+--echo # Delete the blocking file called MARIADB_DATADIR/test/t1.ibd
+--remove_file $MARIADB_DATADIR/test/t1.ibd
 
 --echo # Move t1 to file-per-table using ALGORITHM=INPLACE with no blocking t1.ibd.
 --echo #

@@ -11,7 +11,7 @@ AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 
 perl;
- my $dir = $ENV{'MYSQLD_DATADIR'}."test";
+ my $dir = "$ENV{'MARIADB_DATADIR'}/test";
  my $size;
  opendir(DIR, $dir) or die $!;
  while (my $file = readdir(DIR))

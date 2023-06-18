@@ -19,6 +19,7 @@ create table t2 (f1 int primary key,
 alter table t2 add constraint c1 foreign key (f1) references t1(f1);
 
 set foreign_key_checks = 0;
+--replace_catalog
 --error ER_DUP_CONSTRAINT_NAME
 alter table t2 add constraint c1 foreign key (f1) references t1(f1);
 

@@ -45,9 +45,9 @@ select @@global.innodb_status_output;
 select * from information_schema.global_variables where variable_name='innodb_status_output';
 select * from information_schema.session_variables where variable_name='innodb_status_output';
 --enable_warnings
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session innodb_status_output='OFF';
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set @@session.innodb_status_output='ON';
 
 #

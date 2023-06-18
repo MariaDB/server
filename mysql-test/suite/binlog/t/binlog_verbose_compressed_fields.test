@@ -22,11 +22,10 @@ INSERT INTO t1 VALUES ('mya', 'myac', 'myb', 'mybc', 'myc', 'mycc', 'myd', 'mydc
 FLUSH BINARY LOGS;
 
 --let $binlog_file= query_get_value(SHOW BINARY LOGS, Log_name, 2)
---let $datadir= `SELECT @@datadir`
 --let $result_binlog= $MYSQLTEST_VARDIR/tmp/$binlog_file
 
---echo # MYSQLBINLOG --base64-output=decode-rows -vv datadir/binlog_file --result-file=result_binlog
---exec $MYSQL_BINLOG --base64-output=decode-rows -vv $datadir/$binlog_file --result-file=$result_binlog
+--echo # MYSQLBINLOG --base64-output=decode-rows -vv MARIADB_TOPDIR/binlog_file --result-file=result_binlog
+--exec $MYSQL_BINLOG --base64-output=decode-rows -vv $MARIADB_TOPDIR/$binlog_file --result-file=$result_binlog
 
 --let $assert_file= $result_binlog
 --let $assert_count= 1

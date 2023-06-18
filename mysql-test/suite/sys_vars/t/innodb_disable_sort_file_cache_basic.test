@@ -40,9 +40,9 @@ set @@global.innodb_disable_sort_file_cache='ON';
 select @@global.innodb_disable_sort_file_cache;
 select * from information_schema.global_variables where variable_name='innodb_disable_sort_file_cache';
 select * from information_schema.session_variables where variable_name='innodb_disable_sort_file_cache';
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session innodb_disable_sort_file_cache='OFF';
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set @@session.innodb_disable_sort_file_cache='ON';
 
 #

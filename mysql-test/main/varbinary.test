@@ -1,12 +1,6 @@
 # This test uses chmod, can't be run with root permissions
 -- source include/not_as_root.inc
 
-
-# Initialise
---disable_warnings
-drop table if exists t1;
---enable_warnings
-
 #
 # varbinary as string and number
 #
@@ -70,13 +64,12 @@ drop table t1;
 #
 
 # Test with a saved table from 4.1
-let $MYSQLD_DATADIR= `select @@datadir`;
-copy_file std_data/bug19371.frm $MYSQLD_DATADIR/test/t1.frm;
-chmod 0777 $MYSQLD_DATADIR/test/t1.frm;
-copy_file std_data/bug19371.MYD $MYSQLD_DATADIR/test/t1.MYD;
-chmod 0777 $MYSQLD_DATADIR/test/t1.MYD;
-copy_file std_data/bug19371.MYI $MYSQLD_DATADIR/test/t1.MYI;
-chmod 0777 $MYSQLD_DATADIR/test/t1.MYI;
+copy_file std_data/bug19371.frm $MARIADB_DATADIR/test/t1.frm;
+chmod 0777 $MARIADB_DATADIR/test/t1.frm;
+copy_file std_data/bug19371.MYD $MARIADB_DATADIR/test/t1.MYD;
+chmod 0777 $MARIADB_DATADIR/test/t1.MYD;
+copy_file std_data/bug19371.MYI $MARIADB_DATADIR/test/t1.MYI;
+chmod 0777 $MARIADB_DATADIR/test/t1.MYI;
 
 # Everything _looks_ fine
 show create table t1;

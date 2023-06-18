@@ -45,9 +45,9 @@ select @@global.innodb_status_output_locks;
 select * from information_schema.global_variables where variable_name='innodb_status_output_locks';
 select * from information_schema.session_variables where variable_name='innodb_status_output_locks';
 --enable_warnings
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session innodb_status_output_locks='OFF';
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set @@session.innodb_status_output_locks='ON';
 
 #

@@ -3,7 +3,7 @@ call mtr.add_suppression("Table rebuild required");
 # Upgrade from Maria-5.3.13:
 # Checking utf8_croatian_ci in a VARCHAR column
 #
-# Copying maria050313_utf8_croatian_ci.* to MYSQLD_DATADIR
+# Copying maria050313_utf8_croatian_ci.* to MARIADB_DATADIR
 CHECK TABLE maria050313_utf8_croatian_ci FOR UPGRADE;
 Table	Op	Msg_type	Msg_text
 test.maria050313_utf8_croatian_ci	check	error	Upgrade required. Please do "REPAIR TABLE `maria050313_utf8_croatian_ci`" or dump/reload to fix it!
@@ -24,7 +24,7 @@ SELECT count(*) FROM maria050313_utf8_croatian_ci;
 count(*)
 4
 DROP TABLE maria050313_utf8_croatian_ci;
-# Copying maria050313_utf8_croatian_ci.* to MYSQLD_DATADIR
+# Copying maria050313_utf8_croatian_ci.* to MARIADB_DATADIR
 ALTER TABLE maria050313_utf8_croatian_ci FORCE;
 SHOW CREATE TABLE maria050313_utf8_croatian_ci;
 Table	Create Table
@@ -40,7 +40,7 @@ DROP TABLE maria050313_utf8_croatian_ci;
 # Upgrade from Maria-5.3.13:
 # Checking ucs2_croatian_ci in the table default collation
 #
-# Copying maria050313_ucs2_croatian_ci.* to MYSQLD_DATADIR
+# Copying maria050313_ucs2_croatian_ci.* to MARIADB_DATADIR
 CHECK TABLE maria050313_ucs2_croatian_ci_def FOR UPGRADE;
 Table	Op	Msg_type	Msg_text
 test.maria050313_ucs2_croatian_ci_def	check	error	Upgrade required. Please do "REPAIR TABLE `maria050313_ucs2_croatian_ci_def`" or dump/reload to fix it!
@@ -55,7 +55,7 @@ maria050313_ucs2_croatian_ci_def	CREATE TABLE `maria050313_ucs2_croatian_ci_def`
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_croatian_ci
 DROP TABLE maria050313_ucs2_croatian_ci_def;
-# Copying maria050313_ucs2_croatian_ci.* to MYSQLD_DATADIR
+# Copying maria050313_ucs2_croatian_ci.* to MARIADB_DATADIR
 CHECK TABLE maria050313_ucs2_croatian_ci_def;
 Table	Op	Msg_type	Msg_text
 test.maria050313_ucs2_croatian_ci_def	check	error	Upgrade required. Please do "REPAIR TABLE `maria050313_ucs2_croatian_ci_def`" or dump/reload to fix it!
@@ -81,7 +81,7 @@ DROP TABLE maria050313_ucs2_croatian_ci_def;
 # Checking utf8_croatian_ci, utf8mb4_croatian_ci, ucs2_croatian_ci,
 # utf16_croatian_ci, utf32_croatian_ci
 #
-# Copying maria050533_xxx_croatian_ci.* to MYSQLD_DATADIR
+# Copying maria050533_xxx_croatian_ci.* to MARIADB_DATADIR
 CHECK TABLE maria050533_xxx_croatian_ci FOR UPGRADE;
 Table	Op	Msg_type	Msg_text
 test.maria050533_xxx_croatian_ci	check	error	Upgrade required. Please do "REPAIR TABLE `maria050533_xxx_croatian_ci`" or dump/reload to fix it!
@@ -101,7 +101,7 @@ SELECT count(*) FROM maria050533_xxx_croatian_ci;
 count(*)
 4
 DROP TABLE maria050533_xxx_croatian_ci;
-# Copying maria050533_xxx_croatian_ci.* to MYSQLD_DATADIR
+# Copying maria050533_xxx_croatian_ci.* to MARIADB_DATADIR
 ALTER TABLE maria050533_xxx_croatian_ci FORCE;
 SHOW CREATE TABLE maria050533_xxx_croatian_ci;
 Table	Create Table
@@ -138,7 +138,7 @@ DROP TABLE maria050533_xxx_croatian_ci;
 # Checking utf8_croatian_ci, utf8mb4_croatian_ci, ucs2_croatian_ci,
 # utf16_croatian_ci, utf32_croatian_ci
 #
-# Copying maria100004_xxx_croatian_ci.* to MYSQLD_DATADIR
+# Copying maria100004_xxx_croatian_ci.* to MARIADB_DATADIR
 CHECK TABLE maria100004_xxx_croatian_ci FOR UPGRADE;
 Table	Op	Msg_type	Msg_text
 test.maria100004_xxx_croatian_ci	check	error	Upgrade required. Please do "REPAIR TABLE `maria100004_xxx_croatian_ci`" or dump/reload to fix it!
@@ -157,7 +157,7 @@ maria100004_xxx_croatian_ci	CREATE TABLE `maria100004_xxx_croatian_ci` (
   `e` varchar(10) CHARACTER SET utf32 COLLATE utf32_croatian_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_croatian_ci
 DROP TABLE maria100004_xxx_croatian_ci;
-# Copying maria100004_xxx_croatian_ci.* to MYSQLD_DATADIR
+# Copying maria100004_xxx_croatian_ci.* to MARIADB_DATADIR
 ALTER TABLE maria100004_xxx_croatian_ci FORCE;
 SHOW CREATE TABLE maria100004_xxx_croatian_ci;
 Table	Create Table
@@ -194,7 +194,7 @@ DROP TABLE maria100004_xxx_croatian_ci;
 # Checking utf8_croatian_ci, utf8mb4_croatian_ci, ucs2_croatian_ci,
 # utf16_croatian_ci, utf32_croatian_ci
 #
-# Copying mysql050614_xxx_croatian_ci.* to MYSQLD_DATADIR
+# Copying mysql050614_xxx_croatian_ci.* to MARIADB_DATADIR
 CHECK TABLE mysql050614_xxx_croatian_ci FOR UPGRADE;
 Table	Op	Msg_type	Msg_text
 test.mysql050614_xxx_croatian_ci	check	status	OK

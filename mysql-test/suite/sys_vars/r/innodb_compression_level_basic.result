@@ -34,7 +34,7 @@ select * from information_schema.session_variables where variable_name='innodb_c
 VARIABLE_NAME	VARIABLE_VALUE
 INNODB_COMPRESSION_LEVEL	2
 set session innodb_compression_level=4;
-ERROR HY000: Variable 'innodb_compression_level' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 set global innodb_compression_level=1.1;
 ERROR 42000: Incorrect argument type to variable 'innodb_compression_level'
 set global innodb_compression_level=1e1;

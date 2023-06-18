@@ -21,7 +21,7 @@ Variable_name	Value
 innodb_deadlock_detect	ON
 set global innodb_deadlock_detect='OFF';
 set session innodb_deadlock_detect='OFF';
-ERROR HY000: Variable 'innodb_deadlock_detect' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 select @@global.innodb_deadlock_detect;
 @@global.innodb_deadlock_detect
 0

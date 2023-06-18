@@ -112,7 +112,7 @@ SELECT @@global.query_cache_min_res_unit;
 #       Test if accessing session query_cache_min_res_unit gives error            #
 ################################################################################### 
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.query_cache_min_res_unit = 0;
 SELECT @@query_cache_min_res_unit;
 
@@ -156,7 +156,7 @@ SELECT @@query_cache_min_res_unit = @@global.query_cache_min_res_unit;
 #   Check if query_cache_min_res_unit can be accessed with and without @@ sign   #
 ##################################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET query_cache_min_res_unit = 1;
 SELECT @@query_cache_min_res_unit;
 --Error ER_UNKNOWN_TABLE

@@ -33,8 +33,7 @@ while ($i)
 --enable_query_log
 INSERT INTO t1 (b) VALUES ('corrupt me');
 
-let $MYSQLD_DATADIR=`select @@datadir`;
-let t1_IBD = $MYSQLD_DATADIR/test/t1.ibd;
+let t1_IBD = $MARIADB_DATADIR/test/t1.ibd;
 
 --source include/shutdown_mysqld.inc
 

@@ -1,6 +1,6 @@
 # collection of tests which crashes the server and checks recovery.
 # also using error injection to test recovery of failures.
-# uses $DATADIR and $engine
+# uses $MARIADB_DATADIR and $engine
 
 --echo #
 --echo # Bug#53676: Unexpected errors and possible table corruption on

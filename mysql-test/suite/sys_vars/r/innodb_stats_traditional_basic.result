@@ -64,9 +64,9 @@ select * from information_schema.session_variables where variable_name='innodb_s
 VARIABLE_NAME	VARIABLE_VALUE
 INNODB_STATS_TRADITIONAL	ON
 set session innodb_stats_traditional='OFF';
-ERROR HY000: Variable 'innodb_stats_traditional' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 set @@session.innodb_stats_traditional='ON';
-ERROR HY000: Variable 'innodb_stats_traditional' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 set global innodb_stats_traditional=1.1;
 ERROR 42000: Incorrect argument type to variable 'innodb_stats_traditional'
 set global innodb_stats_traditional=1e1;

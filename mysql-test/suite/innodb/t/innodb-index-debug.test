@@ -5,8 +5,6 @@
 # This test is slow on buildbot.
 --source include/big_test.inc
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-
 #
 # Test for BUG# 12739098, check whether trx->error_status is reset on error.
 #

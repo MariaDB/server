@@ -8,7 +8,6 @@ CALL mtr.add_suppression("Unsafe statement written to the binary log using state
 call mtr.add_suppression("Table 't1' is marked as crashed and should be repaired");
 
 SET default_storage_engine=ARCHIVE;
-let $MYSQLD_DATADIR= `SELECT @@datadir`;
 
 CREATE TABLE t1 (
   Period smallint(4) unsigned zerofill DEFAULT '0000' NOT NULL,
@@ -1641,9 +1640,9 @@ DROP TABLE t1,t2;
 #
 # BUG#47012 archive tables are not upgradeable, and server crashes on any access
 #
-copy_file std_data/bug47012.frm $MYSQLD_DATADIR/test/t1.frm;
-copy_file std_data/bug47012.ARZ $MYSQLD_DATADIR/test/t1.ARZ;
-copy_file std_data/bug47012.ARM $MYSQLD_DATADIR/test/t1.ARM;
+copy_file std_data/bug47012.frm $MARIADB_DATADIR/test/t1.frm;
+copy_file std_data/bug47012.ARZ $MARIADB_DATADIR/test/t1.ARZ;
+copy_file std_data/bug47012.ARM $MARIADB_DATADIR/test/t1.ARM;
 
 SHOW CREATE TABLE t1;
 
@@ -1675,8 +1674,8 @@ DROP TABLE t1;
 # INSERT INTO bug46565 VALUES(2),(3);
 # FLUSH TABLE bug46565;
 # dd if=bug46565.ARZ of=std_data/bug46565.ARZ bs=1 count=8670
-copy_file std_data/bug46565.frm $MYSQLD_DATADIR/test/t1.frm;
-copy_file std_data/bug46565.ARZ $MYSQLD_DATADIR/test/t1.ARZ;
+copy_file std_data/bug46565.frm $MARIADB_DATADIR/test/t1.frm;
+copy_file std_data/bug46565.ARZ $MARIADB_DATADIR/test/t1.ARZ;
 --error ER_CRASHED_ON_USAGE
 SELECT * FROM t1;
 REPAIR TABLE t1;
@@ -1705,9 +1704,9 @@ SET sort_buffer_size=DEFAULT;
 --echo #
 --echo # BUG#11756687 - 48633: ARCHIVE TABLES ARE NOT UPGRADEABLE
 --echo #
-copy_file std_data/bug48633.frm $MYSQLD_DATADIR/test/t1.frm;
-copy_file std_data/bug48633.ARZ $MYSQLD_DATADIR/test/t1.ARZ;
-copy_file std_data/bug48633.ARM $MYSQLD_DATADIR/test/t1.ARM;
+copy_file std_data/bug48633.frm $MARIADB_DATADIR/test/t1.frm;
+copy_file std_data/bug48633.ARZ $MARIADB_DATADIR/test/t1.ARZ;
+copy_file std_data/bug48633.ARM $MARIADB_DATADIR/test/t1.ARM;
 SHOW CREATE TABLE t1;
 # Test first table scan
 SELECT * FROM t1;
@@ -1760,8 +1759,8 @@ DROP TABLE t1, t2;
 create table t1 (a int, b char(50)) engine=archive;
 select * from t1; # open the table to create the frm
 flush tables;     # and close the table again
---remove_file $MYSQLD_DATADIR/test/t1.ARZ
-copy_file std_data/t917689.ARZ $MYSQLD_DATADIR/test/t1.ARZ;
+--remove_file $MARIADB_DATADIR/test/t1.ARZ
+copy_file std_data/t917689.ARZ $MARIADB_DATADIR/test/t1.ARZ;
 --error ER_CRASHED_ON_USAGE
 select * from t1;
 show warnings;

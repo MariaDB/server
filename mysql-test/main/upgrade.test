@@ -1,14 +1,9 @@
 call mtr.add_suppression("Invalid .old.. table or database name");
 --source include/not_embedded.inc
+--source include/not_catalogs.inc
 
 #remove this include after fix MDEV-27872
 --source include/no_view_protocol.inc
-
---disable_warnings
-drop database if exists `mysqltest1`;
-drop database if exists `mysqltest-1`;
-drop database if exists `#mysql50#mysqltest-1`;
---enable_warnings
 
 create database `mysqltest1`;
 create database `#mysql50#mysqltest-1`;
@@ -53,10 +48,10 @@ drop table `txu@0023p@0023p1`;
 --echo # Bug#37631 Incorrect key file for table after upgrading from 5.0 to 5.1
 --echo #
 --echo # copy table created using mysql4.0 into the data dir
-let $MYSQLD_DATADIR= `SELECT @@datadir`;
-copy_file std_data/bug37631.frm $MYSQLD_DATADIR/test/t1.frm;
-copy_file std_data/bug37631.MYD $MYSQLD_DATADIR/test/t1.MYD;
-copy_file std_data/bug37631.MYI $MYSQLD_DATADIR/test/t1.MYI;
+
+copy_file std_data/bug37631.frm $MARIADB_DATADIR/test/t1.frm;
+copy_file std_data/bug37631.MYD $MARIADB_DATADIR/test/t1.MYD;
+copy_file std_data/bug37631.MYI $MARIADB_DATADIR/test/t1.MYI;
 --echo # check the table created using mysql 4.0
 CHECK TABLE t1;
 --echo # query the table created using mysql 4.0
@@ -67,10 +62,9 @@ DROP TABLE t1;
 # Check if old tables work
 #
 
-let $MYSQLD_DATADIR= `select @@datadir`;
 --error 0,1
---remove_file $MYSQLD_DATADIR/test/t1.frm
---copy_file std_data/old_table-323.frm $MYSQLD_DATADIR/test/t1.frm
+--remove_file $MARIADB_DATADIR/test/t1.frm
+--copy_file std_data/old_table-323.frm $MARIADB_DATADIR/test/t1.frm
 truncate t1;
 drop table t1;
 
@@ -88,11 +82,11 @@ create table tabc.t1 (a int);
 FLUSH TABLES;
 
 # Manually make a 5.0 database from the template
---mkdir $MYSQLD_DATADIR/a-b-c
---copy_file $MYSQLD_DATADIR/tabc/db.opt $MYSQLD_DATADIR/a-b-c/db.opt
---copy_file $MYSQLD_DATADIR/tabc/t1.frm $MYSQLD_DATADIR/a-b-c/t1.frm
---copy_file $MYSQLD_DATADIR/tabc/t1.MYD $MYSQLD_DATADIR/a-b-c/t1.MYD
---copy_file $MYSQLD_DATADIR/tabc/t1.MYI $MYSQLD_DATADIR/a-b-c/t1.MYI
+--mkdir $MARIADB_DATADIR/a-b-c
+--copy_file $MARIADB_DATADIR/tabc/db.opt $MARIADB_DATADIR/a-b-c/db.opt
+--copy_file $MARIADB_DATADIR/tabc/t1.frm $MARIADB_DATADIR/a-b-c/t1.frm
+--copy_file $MARIADB_DATADIR/tabc/t1.MYD $MARIADB_DATADIR/a-b-c/t1.MYD
+--copy_file $MARIADB_DATADIR/tabc/t1.MYI $MARIADB_DATADIR/a-b-c/t1.MYI
 
 show databases like '%a-b-c%';
 ALTER DATABASE `#mysql50#a-b-c` UPGRADE DATA DIRECTORY NAME;
@@ -107,12 +101,12 @@ drop database `tabc`;
 #
 # Bug#43385 Cannot ALTER DATABASE ... UPGRADE DATA DIRECTORY NAME when Views exist
 #
-let $MYSQLD_DATADIR= `select @@datadir`;
---mkdir $MYSQLD_DATADIR/a-b-c
+
+--mkdir $MARIADB_DATADIR/a-b-c
 use `#mysql50#a-b-c`;
 create table t1(f1 char(10));
 
---write_file $MYSQLD_DATADIR/a-b-c/v1.frm
+--write_file $MARIADB_DATADIR/a-b-c/v1.frm
 TYPE=VIEW
 query=select `a`.`f1` AS `f1` from `a-b-c`.`t1` `a` join `information_schema`.`tables` `b` where (convert(`a`.`f1` using utf8) = `b`.`TABLE_NAME`)
 md5=068271f1c657fe115e497856ca0fa493
@@ -173,9 +167,9 @@ USE `#mysql50#../blablabla`;
 #
 # Test of Bug #56441: mysql_upgrade 5.0->5.1 fails for tables with long names
 #
-copy_file $MYSQL_TEST_DIR/std_data/long_table_name.MYI $MYSQLD_DATADIR/test/ltoriaeinnovacionendesarrolloempres#9120761097220077376#cio_com.MYI;
-copy_file $MYSQL_TEST_DIR/std_data/long_table_name.MYD $MYSQLD_DATADIR/test/ltoriaeinnovacionendesarrolloempres#9120761097220077376#cio_com.MYD;
-copy_file $MYSQL_TEST_DIR/std_data/long_table_name.frm $MYSQLD_DATADIR/test/ltoriaeinnovacionendesarrolloempres#9120761097220077376#cio_com.frm;
+copy_file $MYSQL_TEST_DIR/std_data/long_table_name.MYI $MARIADB_DATADIR/test/ltoriaeinnovacionendesarrolloempres#9120761097220077376#cio_com.MYI;
+copy_file $MYSQL_TEST_DIR/std_data/long_table_name.MYD $MARIADB_DATADIR/test/ltoriaeinnovacionendesarrolloempres#9120761097220077376#cio_com.MYD;
+copy_file $MYSQL_TEST_DIR/std_data/long_table_name.frm $MARIADB_DATADIR/test/ltoriaeinnovacionendesarrolloempres#9120761097220077376#cio_com.frm;
 show full tables;
 rename table `#mysql50#ltoriaeinnovacionendesarrolloempres#9120761097220077376#cio_com` to `ltoriaeinnovacionendesarrolloempres#9120761097220077376#cio_com`;
 show full tables;

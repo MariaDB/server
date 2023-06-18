@@ -114,9 +114,8 @@ SELECT * FROM `db1``; select 'oops!'`.`t``1`;
 let $pos2= query_get_value(SHOW MASTER STATUS, Position, 1);
 
 --source include/show_binlog_events2.inc
-let $MYSQLD_DATADIR= `select @@datadir`;
 --replace_regex /LOCAL INFILE '.*SQL_LOAD.*' INTO/LOCAL INFILE '<name>' INTO/
---exec $MYSQL_BINLOG --short-form --start-position=$binlog_start --stop-position=$pos2 $MYSQLD_DATADIR/master-bin.000001
+--exec $MYSQL_BINLOG --short-form --start-position=$binlog_start --stop-position=$pos2 $MARIADB_TOPDIR/master-bin.000001
 
 sync_slave_with_master;
 connection slave;
@@ -169,7 +168,7 @@ let $pos2= query_get_value(SHOW MASTER STATUS, Position, 1);
 
 --source include/show_binlog_events2.inc
 
---exec $MYSQL_BINLOG --short-form --start-position=$binlog_start --stop-position=$pos2 $MYSQLD_DATADIR/master-bin.000001
+--exec $MYSQL_BINLOG --short-form --start-position=$binlog_start --stop-position=$pos2 $MARIADB_TOPDIR/master-bin.000001
 
 sync_slave_with_master;
 connection slave;
@@ -258,7 +257,7 @@ let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1);
 INSERT INTO t1 VALUES(1);
 --source include/show_binlog_events2.inc
 let $pos2= query_get_value(SHOW MASTER STATUS, Position, 1);
---exec $MYSQL_BINLOG --short-form --start-position=$binlog_start --stop-position=$pos2 --rewrite-db='test->ts`et' $MYSQLD_DATADIR/master-bin.000002
+--exec $MYSQL_BINLOG --short-form --start-position=$binlog_start --stop-position=$pos2 --rewrite-db='test->ts`et' $MARIADB_TOPDIR/master-bin.000002
 DROP TABLE t1;
 
 --source include/rpl_end.inc

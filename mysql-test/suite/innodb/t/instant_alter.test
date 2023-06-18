@@ -1,8 +1,6 @@
 --source include/innodb_page_size.inc
 --source include/have_sequence.inc
 
-let $datadir=`select @@datadir`;
-
 --echo #
 --echo # MDEV-11369: Instant ADD COLUMN for InnoDB
 --echo #
@@ -963,7 +961,7 @@ CREATE TABLE mdev28822_100427_innodb (
   index(id, msg)
 ) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
 FLUSH TABLES;
-remove_file $datadir/test/mdev28822_100427_innodb.frm;
-copy_file std_data/mysql_upgrade/mdev28822_100427_innodb.frm $datadir/test/mdev28822_100427_innodb.frm;
+remove_file $MARIADB_DATADIR/test/mdev28822_100427_innodb.frm;
+copy_file std_data/mysql_upgrade/mdev28822_100427_innodb.frm $MARIADB_DATADIR/test/mdev28822_100427_innodb.frm;
 ALTER TABLE mdev28822_100427_innodb ADD i1 INTEGER, ALGORITHM=INSTANT;
 DROP TABLE mdev28822_100427_innodb;

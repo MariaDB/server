@@ -24,7 +24,7 @@ select @@global.sync_master_info;
 @@global.sync_master_info
 1
 set session sync_master_info=1;
-ERROR HY000: Variable 'sync_master_info' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 set global sync_master_info=1.1;
 ERROR 42000: Incorrect argument type to variable 'sync_master_info'
 set global sync_master_info=1e1;

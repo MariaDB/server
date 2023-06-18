@@ -136,6 +136,7 @@ drop table t1;
 
 # client comment recognized, but parameter missing => error
 --exec echo "use"         >  $file
+--replace_result "DATABASE, CATALOG or " ""
 --exec $MYSQL              < $file 2>&1
 
 # Test exceutable comments

@@ -7,7 +7,7 @@ call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE faile
 call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed read of file '.*test.t1\\.ibd' page");
 call mtr.add_suppression("InnoDB: Failed to read page 3 from file '.*test.t1\\.ibd': Page read from tablespace is corrupted.");
 call mtr.add_suppression("InnoDB: (Unable to apply log to|Discarding log for) corrupted page .*, page number=3\\]");
-call mtr.add_suppression("Table test/t1 is corrupted. Please drop the table and recreate\\.");
+call mtr.add_suppression("Table .*test/t1 is corrupted. Please drop the table and recreate\\.");
 call mtr.add_suppression("InnoDB: File '.*test/t1\\.ibd' is corrupted");
 call mtr.add_suppression("InnoDB: A long wait .* was observed for dict_sys");
 --enable_query_log
@@ -32,7 +32,7 @@ INSERT INTO t2 VALUES(1);
 perl;
 my $ps = $ENV{INNODB_PAGE_SIZE};
 
-my $file = "$ENV{MYSQLD_DATADIR}/test/t1.ibd";
+my $file = "$ENV{MARIADB_DATADIR}/test/t1.ibd";
 open(FILE, "+<$file") || die "Unable to open $file";
 binmode FILE;
 sysseek(FILE, 3*$ps, 0) || die "Unable to seek $file\n";
@@ -43,7 +43,7 @@ sysseek(FILE, 3*$ps, 0) || die "Unable to seek $file\n";
 syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
 close FILE or die "close";
 
-$file = "$ENV{MYSQLD_DATADIR}/test/t2.ibd";
+$file = "$ENV{MARIADB_DATADIR}/test/t2.ibd";
 open(FILE, "+<$file") || die "Unable to open $file";
 binmode FILE;
 # Corrupt pages 1 to 3. MLOG_INIT_FILE_PAGE2 should protect us!
@@ -54,11 +54,13 @@ close FILE or die "close";
 EOF
 
 --source include/start_mysqld.inc
+--replace_catalog
 --error ER_UNKNOWN_STORAGE_ENGINE
 SELECT * FROM t1;
 let $restart_parameters=--innodb_force_recovery=1;
 --source include/restart_mysqld.inc
 
+--replace_catalog
 --error ER_TABLE_CORRUPT
 SELECT * FROM t1;
 SELECT * FROM t2;
@@ -83,7 +85,7 @@ disconnect con1;
 
 --echo # Corrupt the pages
 perl;
-my $file = "$ENV{MYSQLD_DATADIR}/test/t1.ibd";
+my $file = "$ENV{MARIADB_DATADIR}/test/t1.ibd";
 open(FILE, "+<$file") || die "Unable to open $file";
 binmode FILE;
 seek (FILE, $ENV{INNODB_PAGE_SIZE} * 3, SEEK_SET) or die "seek";

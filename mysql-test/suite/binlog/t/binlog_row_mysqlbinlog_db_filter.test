@@ -28,7 +28,6 @@
 -- source include/have_innodb.inc
 
 RESET MASTER;
--- let $MYSQLD_DATADIR= `select @@datadir`
 
 CREATE TABLE t1 (id int);
 CREATE TABLE t2 (id int);
@@ -72,8 +71,8 @@ COMMIT;
 
 FLUSH LOGS;
 
--- let $log_file1= $MYSQLD_DATADIR/master-bin.000001
--- let $log_file2= $MYSQLD_DATADIR/master-bin.000002
+-- let $log_file1= $MARIADB_TOPDIR/master-bin.000001
+-- let $log_file2= $MARIADB_TOPDIR/master-bin.000002
 -- let $outfile= $MYSQLTEST_VARDIR/tmp/b42941-mysqlbinlog
 -- let $cmd= $MYSQL_BINLOG
 

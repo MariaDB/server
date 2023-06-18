@@ -76,6 +76,5 @@ stop slave;
 --eval set global gtid_strict_mode = $gtid_strict_mode;
 start slave;
 --connection master
-let MYSQLD_DATADIR= `select @@datadir;`;
---remove_files_wildcard $MYSQLD_DATADIR/test #sql*.frm
+--remove_files_wildcard $MARIADB_DATADIR/test #sql*.frm
 --source include/rpl_end.inc

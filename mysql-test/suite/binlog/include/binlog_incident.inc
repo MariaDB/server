@@ -28,7 +28,7 @@ source include/have_log_bin.inc;
 source include/have_debug.inc;
 source include/binlog_start_pos.inc;
 
-let $MYSQLD_DATADIR= `select @@datadir`;
+let $MARIADB_DATADIR= `select @@datadir`;
 RESET MASTER;
 
 CREATE TABLE t1 (a INT);
@@ -54,7 +54,7 @@ if ($binlog_file)
     --let $filename= $binlog_file
     --let $binlog_file=
 }
---let $mysqlbinlog_args= $MYSQLD_DATADIR/$filename
+--let $mysqlbinlog_args= $MARIADB_DATADIR/$filename
 if ($use_remote_mysqlbinlog)
 {
     --let $mysqlbinlog_args= --read-from-remote-server --protocol=tcp --host=127.0.0.1 --port=$MASTER_MYPORT -uroot $filename

@@ -45,7 +45,7 @@ SET @@global.delay_key_write = "";
 ERROR 42000: Variable 'delay_key_write' can't be set to the value of ''
 '#-------------------FN_DYNVARS_023_05----------------------------#'
 SET @@delay_key_write = 0;
-ERROR HY000: Variable 'delay_key_write' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@session.delay_key_write;
 ERROR HY000: Variable 'delay_key_write' is a GLOBAL variable
 '#----------------------FN_DYNVARS_023_06------------------------#'
@@ -78,7 +78,7 @@ SELECT @@global.delay_key_write;
 OFF
 '#---------------------FN_DYNVARS_023_09----------------------#'
 SET delay_key_write = ON;
-ERROR HY000: Variable 'delay_key_write' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@delay_key_write;
 @@delay_key_write
 OFF

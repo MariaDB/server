@@ -10,7 +10,7 @@ SELECT @@global.secure_auth;
 1
 '#---------------------FN_DYNVARS_143_02-------------------------#'
 SET secure_auth = 1;
-ERROR HY000: Variable 'secure_auth' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@secure_auth;
 @@secure_auth
 1
@@ -52,11 +52,11 @@ SET @@global.secure_auth = NO;
 ERROR 42000: Variable 'secure_auth' can't be set to the value of 'NO'
 '#-------------------FN_DYNVARS_143_05----------------------------#'
 SET @@session.secure_auth = 0;
-ERROR HY000: Variable 'secure_auth' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SET @@secure_auth = 0;
-ERROR HY000: Variable 'secure_auth' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SET @@local.secure_auth = 0;
-ERROR HY000: Variable 'secure_auth' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@session.secure_auth;
 ERROR HY000: Variable 'secure_auth' is a GLOBAL variable
 SELECT @@local.secure_auth;

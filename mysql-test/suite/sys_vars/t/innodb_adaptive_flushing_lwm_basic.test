@@ -52,7 +52,7 @@ SELECT @@global.innodb_adaptive_flushing_lwm;
 #  Check if innodb_adaptive_flushing_lwm can be accessed with and without @@ sign #
 ###################################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET innodb_adaptive_flushing_lwm = 1;
 SELECT @@innodb_adaptive_flushing_lwm;
 

@@ -7,7 +7,7 @@ SELECT @save_replicate_ignore_db;
 
 # Scope.
 SET @@SESSION.replicate_ignore_db = "";
-ERROR HY000: Variable 'replicate_ignore_db' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@SESSION.replicate_ignore_db;
 ERROR HY000: Variable 'replicate_ignore_db' is a GLOBAL variable
 # Incorrect type.

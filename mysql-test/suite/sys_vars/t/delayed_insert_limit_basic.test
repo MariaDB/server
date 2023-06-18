@@ -94,7 +94,7 @@ SELECT @@global.delayed_insert_limit;
 #       Test if accessing session delayed_insert_limit gives error         #
 ############################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.delayed_insert_limit = 0;
 --Error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@Session.delayed_insert_limit;
@@ -138,7 +138,7 @@ SELECT @@delayed_insert_limit = @@global.delayed_insert_limit;
 #   Check if delayed_insert_limit can be accessed with and without @@ sign   #
 ##############################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET delayed_insert_limit = 1;
 SELECT @@delayed_insert_limit;
 --Error ER_UNKNOWN_TABLE

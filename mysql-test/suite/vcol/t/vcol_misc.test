@@ -1,8 +1,6 @@
 --source include/have_ucs2.inc
 --source include/have_debug.inc
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-
 #
 # Bug#601164: DELETE/UPDATE with ORDER BY index and LIMIT
 #             
@@ -341,15 +339,15 @@ SET sql_mode=DEFAULT;
 --echo # MDEV-15834 The code in TABLE_SHARE::init_from_binary_frm_image() is not safe
 --echo #
 
---copy_file std_data/frm/t1.frm $MYSQLD_DATADIR/test/t1.frm
+--copy_file std_data/frm/t1.frm $MARIADB_DATADIR/test/t1.frm
 SHOW TABLES;
---replace_result $MYSQLD_DATADIR ./
+--replace_result $MARIADB_DATADIR ./
 --error ER_NOT_FORM_FILE
 SHOW CREATE TABLE t1;
---replace_result $MYSQLD_DATADIR ./
+--replace_result $MARIADB_DATADIR ./
 --error ER_NOT_FORM_FILE
 ALTER TABLE t1;
---remove_file $MYSQLD_DATADIR/test/t1.frm
+--remove_file $MARIADB_DATADIR/test/t1.frm
 
 
 --echo #
@@ -419,15 +417,15 @@ SET sql_mode=DEFAULT;
 --echo # MDEV-16518 MYSQL57_GENERATED_FIELD: The code in TABLE_SHARE::init_from_binary_frm_image() is not safe
 --echo #
 
---copy_file std_data/frm/mdev16518.frm $MYSQLD_DATADIR/test/t1.frm
+--copy_file std_data/frm/mdev16518.frm $MARIADB_DATADIR/test/t1.frm
 SHOW TABLES;
---replace_result $MYSQLD_DATADIR ./
+--replace_result $MARIADB_DATADIR ./
 --error ER_NOT_FORM_FILE
 SHOW CREATE TABLE t1;
---replace_result $MYSQLD_DATADIR ./
+--replace_result $MARIADB_DATADIR ./
 --error ER_NOT_FORM_FILE
 ALTER TABLE t1;
---remove_file $MYSQLD_DATADIR/test/t1.frm
+--remove_file $MARIADB_DATADIR/test/t1.frm
 
 --echo #
 --echo # MDEV-19771 REPLACE on table with virtual_field can cause crash in set_ok_status()

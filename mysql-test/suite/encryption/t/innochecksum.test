@@ -54,16 +54,14 @@ INSERT INTO t6 SELECT * FROM t1;
 commit;
 --enable_query_log
 
-let $MYSQLD_DATADIR=`select @@datadir`;
-let t1_IBD = $MYSQLD_DATADIR/test/t1.ibd;
-let t2_IBD = $MYSQLD_DATADIR/test/t2.ibd;
-let t3_IBD = $MYSQLD_DATADIR/test/t3.ibd;
-let t4_IBD = $MYSQLD_DATADIR/test/t4.ibd;
-let t5_IBD = $MYSQLD_DATADIR/test/t5.ibd;
-let t6_IBD = $MYSQLD_DATADIR/test/t6.ibd;
+let t1_IBD = $MARIADB_DATADIR/test/t1.ibd;
+let t2_IBD = $MARIADB_DATADIR/test/t2.ibd;
+let t3_IBD = $MARIADB_DATADIR/test/t3.ibd;
+let t4_IBD = $MARIADB_DATADIR/test/t4.ibd;
+let t5_IBD = $MARIADB_DATADIR/test/t5.ibd;
+let t6_IBD = $MARIADB_DATADIR/test/t6.ibd;
 
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
-let MYSQLD_DATADIR=`select @@datadir`;
 
 --source include/shutdown_mysqld.inc
 
@@ -98,12 +96,12 @@ let MYSQLD_DATADIR=`select @@datadir`;
 --enable_result_log
 
 --echo # Backup tables before corrupting
---copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t1.ibd.backup
---copy_file $MYSQLD_DATADIR/test/t2.ibd $MYSQLD_DATADIR/test/t2.ibd.backup
---copy_file $MYSQLD_DATADIR/test/t3.ibd $MYSQLD_DATADIR/test/t3.ibd.backup
---copy_file $MYSQLD_DATADIR/test/t4.ibd $MYSQLD_DATADIR/test/t4.ibd.backup
---copy_file $MYSQLD_DATADIR/test/t5.ibd $MYSQLD_DATADIR/test/t5.ibd.backup
---copy_file $MYSQLD_DATADIR/test/t6.ibd $MYSQLD_DATADIR/test/t6.ibd.backup
+--copy_file $MARIADB_DATADIR/test/t1.ibd $MARIADB_DATADIR/test/t1.ibd.backup
+--copy_file $MARIADB_DATADIR/test/t2.ibd $MARIADB_DATADIR/test/t2.ibd.backup
+--copy_file $MARIADB_DATADIR/test/t3.ibd $MARIADB_DATADIR/test/t3.ibd.backup
+--copy_file $MARIADB_DATADIR/test/t4.ibd $MARIADB_DATADIR/test/t4.ibd.backup
+--copy_file $MARIADB_DATADIR/test/t5.ibd $MARIADB_DATADIR/test/t5.ibd.backup
+--copy_file $MARIADB_DATADIR/test/t6.ibd $MARIADB_DATADIR/test/t6.ibd.backup
 
 #
 # MDEV-11939: innochecksum mistakes a file for an encrypted one
@@ -112,22 +110,22 @@ let MYSQLD_DATADIR=`select @@datadir`;
 --echo # Corrupt FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
 
 perl;
-open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t1.ibd") or die "open";
+open(FILE, "+<", "$ENV{MARIADB_DATADIR}/test/t1.ibd") or die "open";
 binmode FILE;
 seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 26, SEEK_SET) or die "seek";
 print FILE pack("H*", "c00lcafedeadb017");
 close FILE or die "close";
-open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t2.ibd") or die "open";
+open(FILE, "+<", "$ENV{MARIADB_DATADIR}/test/t2.ibd") or die "open";
 binmode FILE;
 seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 26, SEEK_SET) or die "seek";
 print FILE pack("H*", "c00lcafedeadb017");
 close FILE or die "close";
-open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t3.ibd") or die "open";
+open(FILE, "+<", "$ENV{MARIADB_DATADIR}/test/t3.ibd") or die "open";
 binmode FILE;
 seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 26, SEEK_SET) or die "seek";
 print FILE pack("H*", "c00lcafedeadb017");
 close FILE or die "close";
-open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t6.ibd") or die "open";
+open(FILE, "+<", "$ENV{MARIADB_DATADIR}/test/t6.ibd") or die "open";
 binmode FILE;
 seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 26, SEEK_SET) or die "seek";
 print FILE pack("H*", "c00lcafedeadb017");
@@ -167,38 +165,38 @@ if ($checksum_algorithm == "strict_full_crc32")
 --enable_result_log
 
 --echo # Restore the original tables
---remove_file $MYSQLD_DATADIR/test/t1.ibd
---remove_file $MYSQLD_DATADIR/test/t2.ibd
---remove_file $MYSQLD_DATADIR/test/t3.ibd
---remove_file $MYSQLD_DATADIR/test/t4.ibd
---remove_file $MYSQLD_DATADIR/test/t5.ibd
---remove_file $MYSQLD_DATADIR/test/t6.ibd
---copy_file $MYSQLD_DATADIR/test/t1.ibd.backup $MYSQLD_DATADIR/test/t1.ibd
---copy_file $MYSQLD_DATADIR/test/t2.ibd.backup $MYSQLD_DATADIR/test/t2.ibd
---copy_file $MYSQLD_DATADIR/test/t3.ibd.backup $MYSQLD_DATADIR/test/t3.ibd
---copy_file $MYSQLD_DATADIR/test/t4.ibd.backup $MYSQLD_DATADIR/test/t4.ibd
---copy_file $MYSQLD_DATADIR/test/t5.ibd.backup $MYSQLD_DATADIR/test/t5.ibd
---copy_file $MYSQLD_DATADIR/test/t6.ibd.backup $MYSQLD_DATADIR/test/t6.ibd
+--remove_file $MARIADB_DATADIR/test/t1.ibd
+--remove_file $MARIADB_DATADIR/test/t2.ibd
+--remove_file $MARIADB_DATADIR/test/t3.ibd
+--remove_file $MARIADB_DATADIR/test/t4.ibd
+--remove_file $MARIADB_DATADIR/test/t5.ibd
+--remove_file $MARIADB_DATADIR/test/t6.ibd
+--copy_file $MARIADB_DATADIR/test/t1.ibd.backup $MARIADB_DATADIR/test/t1.ibd
+--copy_file $MARIADB_DATADIR/test/t2.ibd.backup $MARIADB_DATADIR/test/t2.ibd
+--copy_file $MARIADB_DATADIR/test/t3.ibd.backup $MARIADB_DATADIR/test/t3.ibd
+--copy_file $MARIADB_DATADIR/test/t4.ibd.backup $MARIADB_DATADIR/test/t4.ibd
+--copy_file $MARIADB_DATADIR/test/t5.ibd.backup $MARIADB_DATADIR/test/t5.ibd
+--copy_file $MARIADB_DATADIR/test/t6.ibd.backup $MARIADB_DATADIR/test/t6.ibd
 
 --echo # Corrupt FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION+4 (post encryption checksum)
 
 perl;
-open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t1.ibd") or die "open";
+open(FILE, "+<", "$ENV{MARIADB_DATADIR}/test/t1.ibd") or die "open";
 binmode FILE;
 seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 30, SEEK_SET) or die "seek";
 print FILE pack("H*", "c00lcafedeadb017");
 close FILE or die "close";
-open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t2.ibd") or die "open";
+open(FILE, "+<", "$ENV{MARIADB_DATADIR}/test/t2.ibd") or die "open";
 binmode FILE;
 seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 30, SEEK_SET) or die "seek";
 print FILE pack("H*", "c00lcafedeadb017");
 close FILE or die "close";
-open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t3.ibd") or die "open";
+open(FILE, "+<", "$ENV{MARIADB_DATADIR}/test/t3.ibd") or die "open";
 binmode FILE;
 seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 30, SEEK_SET) or die "seek";
 print FILE pack("H*", "c00lcafedeadb017");
 close FILE or die "close";
-open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t6.ibd") or die "open";
+open(FILE, "+<", "$ENV{MARIADB_DATADIR}/test/t6.ibd") or die "open";
 binmode FILE;
 seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 30, SEEK_SET) or die "seek";
 print FILE pack("H*", "c00lcafedeadb017");
@@ -225,38 +223,38 @@ EOF
 --enable_result_log
 
 --echo # Restore the original tables
---remove_file $MYSQLD_DATADIR/test/t1.ibd
---remove_file $MYSQLD_DATADIR/test/t2.ibd
---remove_file $MYSQLD_DATADIR/test/t3.ibd
---remove_file $MYSQLD_DATADIR/test/t4.ibd
---remove_file $MYSQLD_DATADIR/test/t5.ibd
---remove_file $MYSQLD_DATADIR/test/t6.ibd
---copy_file $MYSQLD_DATADIR/test/t1.ibd.backup $MYSQLD_DATADIR/test/t1.ibd
---copy_file $MYSQLD_DATADIR/test/t2.ibd.backup $MYSQLD_DATADIR/test/t2.ibd
---copy_file $MYSQLD_DATADIR/test/t3.ibd.backup $MYSQLD_DATADIR/test/t3.ibd
---copy_file $MYSQLD_DATADIR/test/t4.ibd.backup $MYSQLD_DATADIR/test/t4.ibd
---copy_file $MYSQLD_DATADIR/test/t5.ibd.backup $MYSQLD_DATADIR/test/t5.ibd
---copy_file $MYSQLD_DATADIR/test/t6.ibd.backup $MYSQLD_DATADIR/test/t6.ibd
+--remove_file $MARIADB_DATADIR/test/t1.ibd
+--remove_file $MARIADB_DATADIR/test/t2.ibd
+--remove_file $MARIADB_DATADIR/test/t3.ibd
+--remove_file $MARIADB_DATADIR/test/t4.ibd
+--remove_file $MARIADB_DATADIR/test/t5.ibd
+--remove_file $MARIADB_DATADIR/test/t6.ibd
+--copy_file $MARIADB_DATADIR/test/t1.ibd.backup $MARIADB_DATADIR/test/t1.ibd
+--copy_file $MARIADB_DATADIR/test/t2.ibd.backup $MARIADB_DATADIR/test/t2.ibd
+--copy_file $MARIADB_DATADIR/test/t3.ibd.backup $MARIADB_DATADIR/test/t3.ibd
+--copy_file $MARIADB_DATADIR/test/t4.ibd.backup $MARIADB_DATADIR/test/t4.ibd
+--copy_file $MARIADB_DATADIR/test/t5.ibd.backup $MARIADB_DATADIR/test/t5.ibd
+--copy_file $MARIADB_DATADIR/test/t6.ibd.backup $MARIADB_DATADIR/test/t6.ibd
 
 --echo # Corrupt FIL_DATA+10 (data)
 
 perl;
-open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t1.ibd") or die "open";
+open(FILE, "+<", "$ENV{MARIADB_DATADIR}/test/t1.ibd") or die "open";
 binmode FILE;
 seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 48, SEEK_SET) or die "seek";
 print FILE pack("H*", "c00lcafedeadb017");
 close FILE or die "close";
-open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t2.ibd") or die "open";
+open(FILE, "+<", "$ENV{MARIADB_DATADIR}/test/t2.ibd") or die "open";
 binmode FILE;
 seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 48, SEEK_SET) or die "seek";
 print FILE pack("H*", "c00lcafedeadb017");
 close FILE or die "close";
-open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t3.ibd") or die "open";
+open(FILE, "+<", "$ENV{MARIADB_DATADIR}/test/t3.ibd") or die "open";
 binmode FILE;
 seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 48, SEEK_SET) or die "seek";
 print FILE pack("H*", "c00lcafedeadb017");
 close FILE or die "close";
-open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t6.ibd") or die "open";
+open(FILE, "+<", "$ENV{MARIADB_DATADIR}/test/t6.ibd") or die "open";
 binmode FILE;
 seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 48, SEEK_SET) or die "seek";
 print FILE pack("H*", "c00lcafedeadb017");
@@ -291,12 +289,12 @@ if (0 && $have_debug) { # these messages sometimes fail to appear
 --enable_result_log
 
 --echo # Restore the original tables
---move_file $MYSQLD_DATADIR/test/t1.ibd.backup $MYSQLD_DATADIR/test/t1.ibd
---move_file $MYSQLD_DATADIR/test/t2.ibd.backup $MYSQLD_DATADIR/test/t2.ibd
---move_file $MYSQLD_DATADIR/test/t3.ibd.backup $MYSQLD_DATADIR/test/t3.ibd
---move_file $MYSQLD_DATADIR/test/t4.ibd.backup $MYSQLD_DATADIR/test/t4.ibd
---move_file $MYSQLD_DATADIR/test/t5.ibd.backup $MYSQLD_DATADIR/test/t5.ibd
---move_file $MYSQLD_DATADIR/test/t6.ibd.backup $MYSQLD_DATADIR/test/t6.ibd
+--move_file $MARIADB_DATADIR/test/t1.ibd.backup $MARIADB_DATADIR/test/t1.ibd
+--move_file $MARIADB_DATADIR/test/t2.ibd.backup $MARIADB_DATADIR/test/t2.ibd
+--move_file $MARIADB_DATADIR/test/t3.ibd.backup $MARIADB_DATADIR/test/t3.ibd
+--move_file $MARIADB_DATADIR/test/t4.ibd.backup $MARIADB_DATADIR/test/t4.ibd
+--move_file $MARIADB_DATADIR/test/t5.ibd.backup $MARIADB_DATADIR/test/t5.ibd
+--move_file $MARIADB_DATADIR/test/t6.ibd.backup $MARIADB_DATADIR/test/t6.ibd
 
 --source include/start_mysqld.inc
 DROP TABLE t1, t2, t3, t4, t5, t6;

@@ -88,8 +88,7 @@ DROP TABLE t1,t2;
 let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1);
 FLUSH LOGS;
 
---let $MYSQLD_DATADIR= `select @@datadir`
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/$binlog_file > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.out
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/$binlog_file > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.out
 
 --let SEARCH_PATTERN= OPTIMIZE TABLE t1,t2
 --let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mysqlbinlog.out

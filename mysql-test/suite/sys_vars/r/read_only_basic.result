@@ -76,7 +76,7 @@ SELECT @@global.read_only;
 0
 '#-------------------FN_DYNVARS_139_05----------------------------#'
 SET @@session.read_only = 0;
-ERROR HY000: Variable 'read_only' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@read_only;
 @@read_only
 0
@@ -98,7 +98,7 @@ SELECT @@read_only = @@global.read_only;
 1
 '#---------------------FN_DYNVARS_139_08----------------------#'
 SET read_only = 1;
-ERROR HY000: Variable 'read_only' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@read_only;
 @@read_only
 1

@@ -139,8 +139,7 @@ drop view v1;
 drop table t2;
 
 # load data
-let $datadir=`select @@datadir`;
---write_file $datadir/test/mdev8605.txt
+--write_file $MARIADB_DATADIR/test/mdev8605.txt
 10,\N,1
 \N,2,\N
 \N,\N,20
@@ -149,7 +148,7 @@ EOF
 load data infile 'mdev8605.txt' into table t1 fields terminated by ',';
 select * from t1;
 drop table t1;
---remove_file $datadir/test/mdev8605.txt
+--remove_file $MARIADB_DATADIR/test/mdev8605.txt
 
 # timestamps (on NULL = NOW())
 create table t1 (a timestamp not null default now() on update now(), b int auto_increment primary key);
@@ -195,7 +194,7 @@ begin
 end|
 delimiter ;|
 
---write_file $datadir/test/sep8605.txt
+--write_file $MARIADB_DATADIR/test/sep8605.txt
 1,2010-11-12 1:2:3,10,0,0
 \N,2010-11-12 1:2:3,11,1,2
 3,\N,12,0,0
@@ -219,9 +218,9 @@ load data infile 'sep8605.txt' into table t1 fields terminated by ','
    (@a,a2,a3,b,c) set a1=100-@a;
 select 100-a1,a2,a3,b,c from t1;
 delete from t1;
---remove_file $datadir/test/sep8605.txt
+--remove_file $MARIADB_DATADIR/test/sep8605.txt
 
---write_file $datadir/test/fix8605.txt
+--write_file $MARIADB_DATADIR/test/fix8605.txt
 00012010-11-12 01:02:030010000000000000000
 00052010-11-12 01:02:030014000200000000000
 00082010-11-12 01:02:030030000300000000000
@@ -233,9 +232,9 @@ set statement timestamp=777777777 for
 load data infile 'fix8605.txt' into table t1 fields terminated by '';
 select * from t1;
 delete from t1;
---remove_file $datadir/test/fix8605.txt
+--remove_file $MARIADB_DATADIR/test/fix8605.txt
 
---write_file $datadir/test/xml8605.txt
+--write_file $MARIADB_DATADIR/test/xml8605.txt
 <data>
   <row>
     <field name="a1">1</field>
@@ -303,7 +302,7 @@ set statement timestamp=777777777 for
 load xml infile 'xml8605.txt' into table t1 rows identified by '<row>';
 select * from t1;
 drop table t1;
---remove_file $datadir/test/xml8605.txt
+--remove_file $MARIADB_DATADIR/test/xml8605.txt
 
 # explicit DEFAULT
 create table t1 (a int not null default 5, b int, c int);

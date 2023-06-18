@@ -328,7 +328,6 @@ if (`select @@binlog_format = 'STATEMENT' || @@binlog_format = 'MIXED'`)
 }
 flush logs;
 
-let $MYSQLD_DATADIR= `select @@datadir`;
 # we check that the error code of the "ROLLBACK" event is 0 and not
 # ER_SERVER_SHUTDOWN (i.e. disconnection just rolls back transaction
 # and does not make slave to stop)
@@ -342,7 +341,7 @@ if (`select @@binlog_format = 'ROW'`)
 
 if (`select @@binlog_format = 'STATEMENT' || @@binlog_format = 'MIXED'`)
 {
-  --exec $MYSQL_BINLOG --start-position=$binlog_rollback $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mix_innodb_myisam_binlog.output
+  --exec $MYSQL_BINLOG --start-position=$binlog_rollback $MARIADB_TOPDIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mix_innodb_myisam_binlog.output
 
   --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
   eval select

@@ -1,7 +1,5 @@
 -- source include/have_innodb.inc
 
-let MYSQLD_DATADIR =`SELECT @@datadir`;
-
 # Export/import on the same instance
 CREATE DATABASE testdb_wl5522;
 

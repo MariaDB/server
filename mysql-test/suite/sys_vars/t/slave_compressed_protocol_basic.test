@@ -51,7 +51,7 @@ SELECT @@global.slave_compressed_protocol;
 # Check if slave_compressed_protocol can be accessed with and without @@ sign #
 ###############################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET slave_compressed_protocol = 1;
 SELECT @@slave_compressed_protocol;
 --Error ER_UNKNOWN_TABLE
@@ -102,11 +102,11 @@ SET @@global.slave_compressed_protocol = NO;
 #    Test if accessing session slave_compressed_protocol gives error      #
 ########################################################################### 
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.slave_compressed_protocol = 0;
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@slave_compressed_protocol = 0;
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@local.slave_compressed_protocol = 0;
 --Error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.slave_compressed_protocol;

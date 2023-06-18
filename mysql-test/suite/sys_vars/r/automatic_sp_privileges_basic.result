@@ -49,7 +49,7 @@ SET @@global.automatic_sp_privileges = '';
 ERROR 42000: Variable 'automatic_sp_privileges' can't be set to the value of ''
 '#-------------------FN_DYNVARS_004_05----------------------------#'
 SET @@session.automatic_sp_privileges = 1;
-ERROR HY000: Variable 'automatic_sp_privileges' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@session.automatic_sp_privileges;
 ERROR HY000: Variable 'automatic_sp_privileges' is a GLOBAL variable
 '#----------------------FN_DYNVARS_004_06------------------------#'
@@ -83,7 +83,7 @@ SELECT @@automatic_sp_privileges = @@global.automatic_sp_privileges;
 1
 '#---------------------FN_DYNVARS_004_10----------------------#'
 SET automatic_sp_privileges = 1;
-ERROR HY000: Variable 'automatic_sp_privileges' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT local.automatic_sp_privileges;
 ERROR 42S02: Unknown table 'local' in field list
 SELECT global.automatic_sp_privileges;

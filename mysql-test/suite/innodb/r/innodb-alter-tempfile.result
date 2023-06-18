@@ -1,6 +1,6 @@
 call mtr.add_suppression("Cannot find index f2 in InnoDB index dictionary.");
 call mtr.add_suppression("InnoDB indexes are inconsistent with what defined in .frm for table");
-call mtr.add_suppression("Table test/t1 contains 1 indexes inside InnoDB, which is different from the number of indexes 2 defined in");
+call mtr.add_suppression("Table .*test/t1 contains 1 indexes inside InnoDB, which is different from the number of indexes 2 defined in");
 call mtr.add_suppression("InnoDB could not find key no 1 with name f2 from dict cache for table");
 #
 # Bug #18734396	INNODB IN-PLACE ALTER FAILURES BLOCK FUTURE ALTERS

@@ -7,7 +7,6 @@
 FLUSH TABLES;
 
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
-let MYSQLD_DATADIR=`select @@datadir`;
 
 --echo #
 --echo # MDEV-11369: Instant ADD COLUMN for InnoDB
@@ -117,7 +116,7 @@ FLUSH TABLE t1,t2 FOR EXPORT;
 use strict;
 my $ps= $ENV{INNODB_PAGE_SIZE};
 foreach my $table ('t1','t2') {
-my $file= "$ENV{MYSQLD_DATADIR}/test/$table.ibd";
+my $file= "$ENV{MARIADB_DATADIR}/test/$table.ibd";
 open(FILE, "<", $file) || die "Unable to open $file\n";
 my $page;
 sysseek(FILE, 3*$ps, 0) || die "Unable to seek $file";
@@ -235,7 +234,7 @@ disconnect ddl;
 CHECK TABLE t2;
 DROP TABLE t1,t2;
 
---list_files $MYSQLD_DATADIR/test
+--list_files $MARIADB_DATADIR/test
 
 --echo #
 --echo #  MDEV-26198 Assertion `0' failed in row_log_table_apply_op during

@@ -69,9 +69,8 @@ DROP TABLE t1;
 --echo #
 create table t1 (pk int primary key, i int) engine=MyISAM;
 insert into t1 values (1,1),(2,2);
---let $datadir=`SELECT @@datadir`
 
---write_file $datadir/test/t1.TMM
+--write_file $MARIADB_DATADIR/test/t1.TMM
 EOF
 
 --connect (con1,localhost,root,,)
@@ -99,9 +98,8 @@ DROP TABLE t1;
 
 create table t1 (pk int primary key, i int) engine=aria;
 insert into t1 values (1,1),(2,2);
---let $datadir=`SELECT @@datadir`
 
---write_file $datadir/test/t1.TMM
+--write_file $MARIADB_DATADIR/test/t1.TMM
 EOF
 
 --connect (con1,localhost,root,,)

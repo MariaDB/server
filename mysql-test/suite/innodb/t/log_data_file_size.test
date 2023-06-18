@@ -2,8 +2,8 @@
 --source include/not_embedded.inc
 
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
-let MYSQLD_DATADIR=`select @@datadir`;
 let MYSQLD_IS_DEBUG=`select version() like '%debug%'`;
+
 --source include/no_checkpoint_start.inc
 SET GLOBAL innodb_file_per_table=0;
 CREATE TABLE t(a INT)ENGINE=InnoDB;
@@ -23,7 +23,7 @@ use Fcntl 'SEEK_CUR', 'SEEK_END';
 
 my $page_size = $ENV{'INNODB_PAGE_SIZE'};
 my $restart;
-open(FILE, "+<", "$ENV{'MYSQLD_DATADIR'}ibdata1") or die;
+open(FILE, "+<", "$ENV{'MARIADB_TOPDIR'}/ibdata1") or die;
 if ($ENV{'MYSQLD_IS_DEBUG'})
 {
   # It is impractical to ensure that CREATE TABLE t will extend ibdata1.
@@ -60,16 +60,16 @@ print FILE "--let \$restart_parameters=$restart\n" if $restart;
 print FILE "--let \$restart_noprint=2\n";
 print FILE "--source include/start_mysqld.inc\n";
 close FILE;
-open(FILE, "+<", "$ENV{'MYSQLD_DATADIR'}test/ibd4.ibd") or die;
+open(FILE, "+<", "$ENV{'MARIADB_DATADIR'}/test/ibd4.ibd") or die;
 truncate(FILE, $page_size * 4);
 close FILE;
-open(FILE, "+<", "$ENV{'MYSQLD_DATADIR'}test/ibd4f.ibd") or die;
+open(FILE, "+<", "$ENV{'MARIADB_DATADIR'}/test/ibd4f.ibd") or die;
 truncate(FILE, $page_size * 4 + 1234);
 # Work around MDEV-12699 and ensure that the truncated page is all-zero.
 sysseek(FILE, $page_size * 4, 0);
 syswrite(FILE, chr(0) x 1234);
 close FILE;
-open(FILE, "+<", "$ENV{'MYSQLD_DATADIR'}test/ibd5.ibd") or die;
+open(FILE, "+<", "$ENV{'MARIADB_DATADIR'}/test/ibd5.ibd") or die;
 truncate(FILE, $page_size * 5);
 close FILE;
 EOF

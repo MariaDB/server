@@ -5,8 +5,6 @@
 --source include/have_partition.inc
 --source include/not_embedded.inc
 
---let $DATADIR= `SELECT @@datadir;`
-
 let $engine= 'MyISAM';
 
 --echo # Test failures in fast_alter_partition_table.

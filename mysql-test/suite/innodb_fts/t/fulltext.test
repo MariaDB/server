@@ -780,14 +780,13 @@ DROP TABLE t1;
 --echo #
 call mtr.add_suppression("InnoDB: Index `f` of table `test`.`t2` is corrupted");
 call mtr.add_suppression("InnoDB: Skip adjustment of root pages for index `f`.");
-let $MYSQLD_DATADIR = `SELECT @@datadir`;
 CREATE TABLE t1 (f CHAR(8), FULLTEXT KEY (f)) ENGINE=InnoDB;
 CREATE TABLE t2 LIKE t1;
 ALTER TABLE t2 DISCARD TABLESPACE;
 --disable_warnings
 FLUSH TABLES t1 FOR EXPORT;
---copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t2.ibd
---copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_DATADIR/test/t2.cfg
+--copy_file $MARIADB_DATADIR/test/t1.ibd $MARIADB_DATADIR/test/t2.ibd
+--copy_file $MARIADB_DATADIR/test/t1.cfg $MARIADB_DATADIR/test/t2.cfg
 UNLOCK TABLES;
 ALTER TABLE t1 DISCARD TABLESPACE;
 ALTER TABLE t2 IMPORT TABLESPACE;

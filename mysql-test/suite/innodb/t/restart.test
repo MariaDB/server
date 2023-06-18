@@ -1,10 +1,17 @@
 --source include/innodb_page_size.inc
 --source include/not_embedded.inc
 --source include/have_symlink.inc
+# Catalogs should probably prohibit the use of DATA DIRECTORY!
+--source include/not_catalogs.inc
 
-let datadir= `select @@datadir`;
+let $tmp_in_vardir=  $MYSQLTEST_VARDIR/tmp;
+let data_in_vardir= $tmp_in_vardir;
+if ($USING_CATALOGS == 1)
+{
+  let data_in_vardir= $data_in_vardir/$MARIADB_CATALOG;
+}
+
 let page_size= `select @@innodb_page_size`;
-let tmp_in_vardir=$MYSQLTEST_VARDIR/tmp;
 
 --echo #
 --echo # MDEV-15333 MariaDB (still) slow start
@@ -23,7 +30,7 @@ call mtr.add_suppression("\\[ERROR\\] InnoDB: Restart in MySQL for migration/rec
 call mtr.add_suppression("\\[ERROR\\] InnoDB: Tablespace flags are invalid in datafile: .*test.t[rcd]\\.ibd");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: Operating system error number .* in a file operation\\.");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: The error means the system cannot find the path specified\\.");
-call mtr.add_suppression("\\[Warning\\] InnoDB: Ignoring tablespace for test/td because it could not be opened\\.");
+call mtr.add_suppression("\\[Warning\\] InnoDB: Ignoring tablespace for .*test/td because it could not be opened\\.");
 
 CREATE TABLE tr(a INT)ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
 CREATE TABLE tc(a INT)ENGINE=InnoDB ROW_FORMAT=COMPACT
@@ -34,25 +41,25 @@ STATS_PERSISTENT=0 DATA DIRECTORY='$tmp_in_vardir';
 
 --source include/shutdown_mysqld.inc
 
---move_file $datadir/test/tr.ibd $datadir/test/tr0.ibd
---move_file $datadir/test/tc.ibd $datadir/test/tc0.ibd
---move_file $tmp_in_vardir/test/td.ibd $datadir/test/td0.ibd
+--move_file $MARIADB_DATADIR/test/tr.ibd $MARIADB_DATADIR/test/tr0.ibd
+--move_file $MARIADB_DATADIR/test/tc.ibd $MARIADB_DATADIR/test/tc0.ibd
+--move_file $data_in_vardir/test/td.ibd $MARIADB_DATADIR/test/td0.ibd
 # TODO: test that MariaDB does not even attempt to open the files
-#--mkdir $datadir/test/tr.ibd
-#--mkdir $datadir/test/tc.ibd
-#--mkdir $tmp_in_vardir/test/td.ibd
+#--mkdir $MARIADB_DATADIR/test/tr.ibd
+#--mkdir $MARIADB_DATADIR/test/tc.ibd
+#--mkdir $data_in_vardir/test/td.ibd
 
 perl;
-die unless open OUT, ">", "$ENV{datadir}/test/tr.ibd";
+die unless open OUT, ">", "$ENV{MARIADB_DATADIR}/test/tr.ibd";
 print OUT "foo " x $ENV{page_size};
 close OUT or die;
-die unless open OUT, ">", "$ENV{datadir}/test/tc.ibd";
+die unless open OUT, ">", "$ENV{MARIADB_DATADIR}/test/tc.ibd";
 print OUT "bar " x $ENV{page_size};
 close OUT or die;
-die unless open OUT, ">", "$ENV{tmp_in_vardir}/test/td.ibd";
+die unless open OUT, ">", "$ENV{data_in_vardir}/test/td.ibd";
 print OUT "Xyz " x $ENV{page_size};
 close OUT or die;
-die unless open ISL, "+<", "$ENV{datadir}/test/td.isl";
+die unless open ISL, "+<", "$ENV{MARIADB_DATADIR}/test/td.isl";
 $_=<ISL>;
 if (m|^[a-zA-Z]:|)
 {
@@ -74,16 +81,16 @@ AND support IN ('YES', 'DEFAULT', 'ENABLED');
 --source include/shutdown_mysqld.inc
 
 # TODO: test that MariaDB does not even attempt to open the files
-#--rmdir $datadir/test/tr.ibd
-#--rmdir $datadir/test/tc.ibd
-#--rmdir $tmp_in_vardir/test/td.ibd
---remove_file $datadir/test/tr.ibd
---remove_file $datadir/test/tc.ibd
---remove_file $tmp_in_vardir/test/td.ibd
+#--rmdir $MARIADB_DATADIR/test/tr.ibd
+#--rmdir $MARIADB_DATADIR/test/tc.ibd
+#--rmdir $data_in_vardir/test/td.ibd
+--remove_file $MARIADB_DATADIR/test/tr.ibd
+--remove_file $MARIADB_DATADIR/test/tc.ibd
+--remove_file $data_in_vardir/test/td.ibd
 
---move_file $datadir/test/tr0.ibd $datadir/test/tr.ibd
---move_file $datadir/test/tc0.ibd $datadir/test/tc.ibd
---move_file $datadir/test/td0.ibd $tmp_in_vardir/test/td.ibd
+--move_file $MARIADB_DATADIR/test/tr0.ibd $MARIADB_DATADIR/test/tr.ibd
+--move_file $MARIADB_DATADIR/test/tc0.ibd $MARIADB_DATADIR/test/tc.ibd
+--move_file $MARIADB_DATADIR/test/td0.ibd $data_in_vardir/test/td.ibd
 
 --source include/start_mysqld.inc
 SELECT * FROM tr;
@@ -118,12 +125,13 @@ SET GLOBAL innodb_buffer_pool_size = @innodb_buffer_pool_size_orig;
 --echo # MDEV-27882 Innodb - recognise MySQL-8.0 innodb flags and give a specific error message
 --echo #
 
---let MYSQLD_DATADIR= `SELECT @@datadir`
+--let SERVER_ID= `SELECT @@server_id`
+--let EXPECT_FILE_NAME= $MYSQLTEST_VARDIR/tmp/mysqld.$SERVER_ID.expect
 
 --source include/shutdown_mysqld.inc
 
---move_file $MYSQLD_DATADIR/ibdata1 $MYSQLD_DATADIR/ibdata1.bak
---copy_file std_data/mysql80/ibdata1_$page_size $MYSQLD_DATADIR/ibdata1
+--move_file $MARIADB_TOPDIR/ibdata1 $MARIADB_TOPDIR/ibdata1.bak
+--copy_file std_data/mysql80/ibdata1_$page_size $MARIADB_TOPDIR/ibdata1
 
 perl;
 use IO::Handle;
@@ -135,7 +143,7 @@ if ($ENV{MTR_COMBINATION_64K}) {
   $size *= 4;
 }
 $size -= $ENV{page_size};
-die unless open(FILE, ">>", "$ENV{MYSQLD_DATADIR}/ibdata1");
+die unless open(FILE, ">>", "$ENV{MARIADB_TOPDIR}/ibdata1");
 binmode FILE;
 
 print FILE chr(0) x $size;
@@ -153,15 +161,15 @@ if ($MTR_COMBINATION_64K)
 }
 
 --error 1
-exec $MYSQLD --no-defaults --skip-networking --innodb_data_file_path=ibdata1:$ibdata_size --innodb-page-size=$page_size --datadir=$MYSQLD_DATADIR --log-error=$tmp_in_vardir/attempted_start.err;
+exec $MYSQLD --no-defaults --skip-networking --innodb_data_file_path=ibdata1:$ibdata_size --innodb-page-size=$page_size --datadir=$MARIADB_TOPDIR --log-error=$tmp_in_vardir/attempted_start.err;
 
 let SEARCH_FILE= $tmp_in_vardir/attempted_start.err;
 let SEARCH_PATTERN= InnoDB: MySQL-8\.0 tablespace in \./ibdata1;
 source include/search_pattern_in_file.inc;
 
 --remove_file $tmp_in_vardir/attempted_start.err
---remove_file $MYSQLD_DATADIR/ibdata1
---move_file $MYSQLD_DATADIR/ibdata1.bak $MYSQLD_DATADIR/ibdata1
+--remove_file $MARIADB_TOPDIR/ibdata1
+--move_file $MARIADB_TOPDIR/ibdata1.bak $MARIADB_TOPDIR/ibdata1
 
 --source include/start_mysqld.inc
 

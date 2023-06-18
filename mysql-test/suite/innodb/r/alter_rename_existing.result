@@ -8,7 +8,7 @@
 CREATE TABLE t1 (a SERIAL, b CHAR(10)) ENGINE=Memory;
 INSERT INTO t1(b) VALUES('one'), ('two'), ('three');
 #
-# Create a file called MYSQLD_DATADIR/test/t1.ibd
+# Create a file called MARIADB_DATADIR/test/t1.ibd
 # Directory listing of test/*.ibd
 #
 t1.ibd
@@ -67,7 +67,7 @@ ERROR HY000: Tablespace for table 'test/#sql-ib' exists. Please DISCARD the tabl
 ALTER TABLE t1 FORCE, ALGORITHM=COPY;
 ERROR HY000: Error on rename of 'OLD_FILE_NAME' to 'NEW_FILE_NAME' (errno: 184 "Tablespace already exists")
 #
-# Delete the blocking file called MYSQLD_DATADIR/test/t1.ibd
+# Delete the blocking file called MARIADB_DATADIR/test/t1.ibd
 # Move t1 to file-per-table using ALGORITHM=INPLACE with no blocking t1.ibd.
 #
 ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;

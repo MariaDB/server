@@ -56,7 +56,7 @@ SELECT @@global.innodb_flush_log_at_timeout;
 # Check if variable can be accessed with and without @@ sign                  #
 ###############################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET innodb_flush_log_at_timeout = 1;
 SELECT @@innodb_flush_log_at_timeout;
 

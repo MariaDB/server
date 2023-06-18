@@ -53,7 +53,7 @@ SELECT @@global.innodb_compression_failure_threshold_pct;
 # check if innodb_compression_failure_threshold_pct can be accessed with and without @@ sign #
 ##############################################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET innodb_compression_failure_threshold_pct = 1;
 SELECT @@innodb_compression_failure_threshold_pct;
 

@@ -20,7 +20,7 @@ SET GLOBAL innodb_monitor_reset=index_page_merge_successful;
 --echo # check MERGE_THRESHOLD
 select t.NAME as TABLE_NAME, i.NAME as INDEX_NAME, i.MERGE_THRESHOLD
 from INFORMATION_SCHEMA.INNODB_SYS_TABLES t, INFORMATION_SCHEMA.INNODB_SYS_INDEXES i
-where t.TABLE_ID = i.TABLE_ID and t.NAME like 'test/tab1%';
+where t.TABLE_ID = i.TABLE_ID and t.NAME like '%test/tab1%';
 
 INSERT INTO tab1 VALUES (1, concat("01", repeat('a',8190)));
 INSERT INTO tab1 VALUES (2, concat("02", repeat('a',8190)));
@@ -75,7 +75,7 @@ INSERT INTO tab1 VALUES (42, concat("42", repeat('a',8190)));
 select PAGE_NUMBER, NUMBER_RECORDS
 from INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES s1,
 INFORMATION_SCHEMA.INNODB_BUFFER_PAGE s2
-where s1.SPACE = s2.SPACE AND NAME like 'test/tab1%'
+where s1.SPACE = s2.SPACE AND NAME like '%test/tab1%'
 and PAGE_TYPE = "INDEX" order by PAGE_NUMBER, NUMBER_RECORDS;
 
 begin;
@@ -109,12 +109,12 @@ commit;
 
 --echo # check page merge happens (nothing is expected)
 SELECT name,count_reset FROM information_schema.innodb_metrics
-WHERE name like 'index_page_merge_%';
+WHERE name like '%index_page_merge_%';
 
 select PAGE_NUMBER, NUMBER_RECORDS
 from INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES s1,
 INFORMATION_SCHEMA.INNODB_BUFFER_PAGE s2
-where s1.SPACE = s2.SPACE AND NAME like 'test/tab1%'
+where s1.SPACE = s2.SPACE AND NAME like '%test/tab1%'
 and PAGE_TYPE = "INDEX" order by PAGE_NUMBER, NUMBER_RECORDS;
 
 
@@ -124,7 +124,7 @@ delete from tab1 where a = 32;
 
 --echo # check page merge happens (MERGE_THRESHOLD=50 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
-WHERE name like 'index_page_merge_%';
+WHERE name like '%index_page_merge_%';
 
 
 delete from tab1 where a = 31;
@@ -133,7 +133,7 @@ delete from tab1 where a = 31;
 
 --echo # check page merge happens (MERGE_THRESHOLD=45 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
-WHERE name like 'index_page_merge_%';
+WHERE name like '%index_page_merge_%';
 
 
 delete from tab1 where a = 30;
@@ -142,7 +142,7 @@ delete from tab1 where a = 30;
 
 --echo # check page merge happens (MERGE_THRESHOLD=40 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
-WHERE name like 'index_page_merge_%';
+WHERE name like '%index_page_merge_%';
 
 --disable_query_log
 # Reset flags

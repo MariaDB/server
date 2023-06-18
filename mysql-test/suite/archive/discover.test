@@ -1,5 +1,4 @@
 -- source include/have_archive.inc
-let $mysqld_datadir= `select @@datadir`;
 
 create table t1 (a int) engine=archive;
 show create table t1;
@@ -9,28 +8,28 @@ show tables;
 --echo #
 --echo # simple discover on use
 --echo #
-remove_file $mysqld_datadir/test/t1.frm;
+remove_file $MARIADB_DATADIR/test/t1.frm;
 flush tables;
 insert t1 values (2);
 select * from t1;
---list_files $mysqld_datadir/test
+--list_files $MARIADB_DATADIR/test
 
 --echo #
 --echo # show tables
 --echo #
 create table t2 (a int) engine=archive;
 select * from t2;
-remove_file $mysqld_datadir/test/t1.frm;
+remove_file $MARIADB_DATADIR/test/t1.frm;
 flush tables;
 show tables;
---list_files $mysqld_datadir/test
+--list_files $MARIADB_DATADIR/test
 
 --echo #
 --echo # show full tables
 --echo #
 flush tables;
 show full tables;
---list_files $mysqld_datadir/test
+--list_files $MARIADB_DATADIR/test
 
 --echo #
 --echo # discover on truncate
@@ -38,42 +37,42 @@ show full tables;
 flush tables;
 --error ER_ILLEGAL_HA
 truncate table t1;
---list_files $mysqld_datadir/test
+--list_files $MARIADB_DATADIR/test
 
 --echo #
 --echo # discover on rename
 --echo #
-remove_file $mysqld_datadir/test/t2.frm;
+remove_file $MARIADB_DATADIR/test/t2.frm;
 flush tables;
 rename table t2 to t0;
---list_files $mysqld_datadir/test
+--list_files $MARIADB_DATADIR/test
 
 --echo #
 --echo # discover on HA_ERR_TABLE_DEF_CHANGED
 --echo #
-copy_file $mysqld_datadir/test/t1.ARZ $MYSQL_TMP_DIR/t1.ARZ;
+copy_file $MARIADB_DATADIR/test/t1.ARZ $MYSQL_TMP_DIR/t1.ARZ;
 alter table t1 modify a int default 5;
-remove_file $mysqld_datadir/test/t1.ARZ;
-copy_file $MYSQL_TMP_DIR/t1.ARZ $mysqld_datadir/test/t1.ARZ;
+remove_file $MARIADB_DATADIR/test/t1.ARZ;
+copy_file $MYSQL_TMP_DIR/t1.ARZ $MARIADB_DATADIR/test/t1.ARZ;
 remove_file $MYSQL_TMP_DIR/t1.ARZ;
 show create table t1;
 
 --echo #
 --echo # discover on drop
 --echo #
-remove_file $mysqld_datadir/test/t1.frm;
+remove_file $MARIADB_DATADIR/test/t1.frm;
 flush tables;
 drop table t1;
---list_files $mysqld_datadir/test
+--list_files $MARIADB_DATADIR/test
 
 --echo #
 --echo # discover of table non-existence on drop
 --echo #
 select * from t0;
-remove_file $mysqld_datadir/test/t0.ARZ;
+remove_file $MARIADB_DATADIR/test/t0.ARZ;
 flush tables;
 drop table t0;
---list_files $mysqld_datadir/test
+--list_files $MARIADB_DATADIR/test
 show status like 'Handler_discover';
 
 --echo #
@@ -84,7 +83,7 @@ create table t1 (a int) engine=archive;
 show create table t1;
 insert into t1 values (1);
 optimize table t1;
-remove_file $mysqld_datadir/test/t1.frm;
+remove_file $MARIADB_DATADIR/test/t1.frm;
 flush tables;
 insert into t1 values (2);
 select * from t1 order by a;
@@ -97,7 +96,7 @@ drop table t1;
 --echo #
 create table `a/../`(a int) engine=archive;
 select * from `a/../`; flush tables;
-remove_file $mysqld_datadir/test/a@002f@002e@002e@002f.frm;
+remove_file $MARIADB_DATADIR/test/a@002f@002e@002e@002f.frm;
 drop table `a/../`;
 
 #
@@ -113,10 +112,10 @@ drop database test1;
 create table t1 (a int) engine=archive;
 select * from t1;
 flush tables;
-remove_file $mysqld_datadir/test/t1.ARZ;
+remove_file $MARIADB_DATADIR/test/t1.ARZ;
 --error ER_NO_SUCH_TABLE
 select * from t1;
---list_files $mysqld_datadir/test
+--list_files $MARIADB_DATADIR/test
 
 #
 # MDEV-4955 discover of table non-existence on CREATE
@@ -124,9 +123,9 @@ select * from t1;
 create table t1 (a int) engine=archive;
 select * from t1;
 flush tables;
-remove_file $mysqld_datadir/test/t1.ARZ;
+remove_file $MARIADB_DATADIR/test/t1.ARZ;
 create table t1 (a int) engine=archive;
-remove_file $mysqld_datadir/test/t1.frm;
+remove_file $MARIADB_DATADIR/test/t1.frm;
 flush tables;
 --error ER_TABLE_EXISTS_ERROR
 create table t1 (a int) engine=archive;

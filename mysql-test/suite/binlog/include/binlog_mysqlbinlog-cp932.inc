@@ -30,9 +30,8 @@ create table t4 (f text character set cp932);
 --exec $MYSQL --default-character-set=cp932 test -e "insert into t4 values(_cp932'ƒ\');"
 flush logs;
 rename table t3 to t03, t4 to t04;
-let $MYSQLD_DATADIR= `select @@datadir`;
 
---let $mysqlbinlog_args= $MYSQLD_DATADIR/master-bin.000001
+--let $mysqlbinlog_args= $MARIADB_TOPDIR/master-bin.000001
 if ($use_remote_mysqlbinlog)
 {
     --let $mysqlbinlog_args= --read-from-remote-server --protocol=tcp --host=127.0.0.1 --port=$MASTER_MYPORT -uroot master-bin.000001

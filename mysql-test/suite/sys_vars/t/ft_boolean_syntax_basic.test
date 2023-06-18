@@ -66,9 +66,9 @@ SELECT @@global.ft_boolean_syntax;
 ######################################################################
 #     see if it is accessible using session scope                    #
 ######################################################################
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.ft_boolean_syntax = '# -><()!*:""&|';
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@ft_boolean_syntax = '# -><()!*:""&|';
 --Error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.ft_boolean_syntax;

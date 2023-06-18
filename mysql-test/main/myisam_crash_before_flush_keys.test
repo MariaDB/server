@@ -14,7 +14,6 @@ flush tables;
 # Avoid CrashReporter popup on Mac
 --source include/not_crashrep.inc
 
-let $MYSQLD_DATADIR= `select @@datadir`;
 SET GLOBAL delay_key_write=ALL;
 CREATE TABLE t1(a INT, 
                 b INT, 

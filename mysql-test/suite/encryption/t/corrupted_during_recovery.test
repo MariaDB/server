@@ -31,8 +31,7 @@ INSERT INTO t2 VALUES(2);
 
 perl;
 my $ps = $ENV{INNODB_PAGE_SIZE};
-
-my $file = "$ENV{MYSQLD_DATADIR}/test/t1.ibd";
+my $file = "$ENV{MARIADB_DATADIR}/test/t1.ibd";
 open(FILE, "+<$file") || die "Unable to open $file";
 binmode FILE;
 my $offset = ($ENV{INNODB_CHECKSUM_ALGORITHM} =~ /full_crc32/) ? 26 : 0;
@@ -40,7 +39,7 @@ seek (FILE, $ENV{INNODB_PAGE_SIZE} * 3 + $offset, SEEK_SET) or die "seek";
 print FILE "junk";
 close FILE or die "close";
 
-$file = "$ENV{MYSQLD_DATADIR}/test/t2.ibd";
+$file = "$ENV{MARIADB_DATADIR}/test/t2.ibd";
 open(FILE, "+<$file") || die "Unable to open $file";
 binmode FILE;
 # Corrupt pages 1 to 3. MLOG_INIT_FILE_PAGE2 should protect us!
@@ -60,6 +59,7 @@ call mtr.add_suppression("Table .*t1.* is corrupted. Please drop the table and r
 let $restart_parameters=--innodb_force_recovery=1 --skip-innodb-buffer-pool-load-at-startup;
 --source include/restart_mysqld.inc
 
+--replace_catalog
 --error ER_TABLE_CORRUPT
 SELECT * FROM t1;
 SELECT * FROM t2;

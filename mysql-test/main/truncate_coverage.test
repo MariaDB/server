@@ -5,9 +5,8 @@
 #
 
 --source include/have_debug_sync.inc
-SET DEBUG_SYNC='RESET';
 
---let $MYSQLD_DATADIR= `SELECT @@datadir`
+SET DEBUG_SYNC='RESET';
 
 --disable_warnings
 DROP TABLE IF EXISTS t1;

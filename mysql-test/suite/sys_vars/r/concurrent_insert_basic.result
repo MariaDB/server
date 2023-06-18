@@ -67,7 +67,7 @@ SET @@global.concurrent_insert = '';
 ERROR 42000: Variable 'concurrent_insert' can't be set to the value of ''
 '#-------------------FN_DYNVARS_018_05----------------------------#'
 SET @@session.concurrent_insert = 1;
-ERROR HY000: Variable 'concurrent_insert' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@session.concurrent_insert = 1;
 ERROR HY000: Variable 'concurrent_insert' is a GLOBAL variable
 '#----------------------FN_DYNVARS_018_06------------------------#'
@@ -97,7 +97,7 @@ SELECT @@concurrent_insert = @@global.concurrent_insert;
 1
 '#---------------------FN_DYNVARS_018_10----------------------#'
 SET concurrent_insert = 1;
-ERROR HY000: Variable 'concurrent_insert' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@concurrent_insert;
 @@concurrent_insert
 AUTO

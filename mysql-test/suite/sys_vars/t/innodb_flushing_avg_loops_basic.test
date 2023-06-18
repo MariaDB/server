@@ -52,7 +52,7 @@ SELECT @@global.innodb_flushing_avg_loops;
 #  Check if innodb_flushing_avg_loops can be accessed with and without @@ sign   #
 ##################################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET innodb_flushing_avg_loops = 1;
 SELECT @@innodb_flushing_avg_loops;
 

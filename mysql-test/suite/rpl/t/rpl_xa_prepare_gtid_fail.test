@@ -39,7 +39,6 @@ set sql_log_bin= 1;
 --source include/start_slave.inc
 
 --connection master
-let $datadir= `select @@datadir`;
 create table t1 (a int primary key, b int) engine=innodb;
 insert t1 values (1,1);
 --source include/save_master_gtid.inc

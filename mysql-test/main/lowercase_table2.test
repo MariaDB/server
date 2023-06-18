@@ -259,10 +259,9 @@ create table t_bug44738_UPPERCASE (i int) engine = myisam;
 select table_schema, table_name, table_comment from information_schema.tables
   where table_schema = 'test' and table_name like 't_bug44738_%';
 --echo # Simulate manual removal of the table.
-let $MYSQLD_DATADIR= `select @@datadir`;
---remove_file $MYSQLD_DATADIR/test/t_bug44738_UPPERCASE.frm
---remove_file $MYSQLD_DATADIR/test/t_bug44738_UPPERCASE.MYD
---remove_file $MYSQLD_DATADIR/test/t_bug44738_UPPERCASE.MYI
+--remove_file $MARIADB_DATADIR/test/t_bug44738_UPPERCASE.frm
+--remove_file $MARIADB_DATADIR/test/t_bug44738_UPPERCASE.MYD
+--remove_file $MARIADB_DATADIR/test/t_bug44738_UPPERCASE.MYI
 --echo # Check that still there is an entry for table in TDC.
 show open tables like 't_bug44738_%';
 --echo # So attempt to create table with the same name should fail.

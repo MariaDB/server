@@ -18,7 +18,7 @@ select * from information_schema.session_variables where variable_name='extra_ma
 #
 set global extra_max_connections=1;
 select @@global.extra_max_connections;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session extra_max_connections=1;
 
 #

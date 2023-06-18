@@ -5,7 +5,6 @@
 --source include/no_valgrind_without_big.inc
 --source include/not_embedded.inc
 
-let $MYSQLD_DATADIR= `SELECT @@datadir`;
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/my_restart.err;
 
 call mtr.add_suppression("InnoDB: Unable to read tablespace .* page no .* into the buffer pool after 100 attempts");
@@ -24,48 +23,48 @@ INSERT INTO tab1 VALUES(1, 'Innochecksum InnoDB1');
 #
 #--echo [1a]: check the innochecksum when file doesn't exists
 #--error 1
-#--exec $INNOCHECKSUM  $MYSQLD_DATADIR/test/aa.ibd 2> $SEARCH_FILE
-#let SEARCH_PATTERN= Error: $MYSQLD_DATADIR/test/aa.ibd cannot be found;
+#--exec $INNOCHECKSUM  $MARIADB_DATADIR/test/aa.ibd 2> $SEARCH_FILE
+#let SEARCH_PATTERN= Error: $MARIADB_DATADIR/test/aa.ibd cannot be found;
 #--source include/search_pattern_in_file.inc
 
 --echo [1b]: check the innochecksum without --strict-check
---exec $INNOCHECKSUM  $MYSQLD_DATADIR/test/tab1.ibd
+--exec $INNOCHECKSUM  $MARIADB_DATADIR/test/tab1.ibd
 
 --echo [4]: check the innochecksum with --no-check ignores algorithm check, warning is expected
 --error 1
---exec $INNOCHECKSUM --no-check $MYSQLD_DATADIR/test/tab1.ibd 2> $SEARCH_FILE
+--exec $INNOCHECKSUM --no-check $MARIADB_DATADIR/test/tab1.ibd 2> $SEARCH_FILE
 let SEARCH_PATTERN= Error: --no-check must be associated with --write option.;
 --source include/search_pattern_in_file.inc
 
 --echo [5]: check the innochecksum with short form --no-check ignores algorithm check, warning is expected
 --error 1
---exec $INNOCHECKSUM  -n $MYSQLD_DATADIR/test/tab1.ibd 2> $SEARCH_FILE
+--exec $INNOCHECKSUM  -n $MARIADB_DATADIR/test/tab1.ibd 2> $SEARCH_FILE
 let SEARCH_PATTERN= Error: --no-check must be associated with --write option.;
 --source include/search_pattern_in_file.inc
 
 --echo [6]: check the innochecksum with full form strict-check & no-check , an error is expected
 --error 1
---exec $INNOCHECKSUM --strict-check=innodb  --no-check $MYSQLD_DATADIR/test/tab1.ibd 2> $SEARCH_FILE
+--exec $INNOCHECKSUM --strict-check=innodb  --no-check $MARIADB_DATADIR/test/tab1.ibd 2> $SEARCH_FILE
 let SEARCH_PATTERN= unknown variable 'strict-check=innodb';
 --source include/search_pattern_in_file.inc
 
 --echo [7]: check the innochecksum with short form strict-check & no-check , an error is expected
 --error 1
---exec $INNOCHECKSUM -C innodb -n $MYSQLD_DATADIR/test/tab1.ibd 2> $SEARCH_FILE
+--exec $INNOCHECKSUM -C innodb -n $MARIADB_DATADIR/test/tab1.ibd 2> $SEARCH_FILE
 let SEARCH_PATTERN= unknown option '-C';
 --source include/search_pattern_in_file.inc
 
 --error 1
---exec $INNOCHECKSUM --no-check --write=crc32 $MYSQLD_DATADIR/test/tab1.ibd 2> $SEARCH_FILE
+--exec $INNOCHECKSUM --no-check --write=crc32 $MARIADB_DATADIR/test/tab1.ibd 2> $SEARCH_FILE
 --let SEARCH_PATTERN= ignoring option '--write' due to invalid value 'crc32'
 --source include/search_pattern_in_file.inc
 
 --error 1
---exec $INNOCHECKSUM --no-check $MYSQLD_DATADIR/test/tab1.ibd 2> $SEARCH_FILE
+--exec $INNOCHECKSUM --no-check $MARIADB_DATADIR/test/tab1.ibd 2> $SEARCH_FILE
 --let SEARCH_PATTERN= Error: --no-check must be associated with --write option
 --source include/search_pattern_in_file.inc
 
---exec $INNOCHECKSUM --no-check --write $MYSQLD_DATADIR/test/tab1.ibd
+--exec $INNOCHECKSUM --no-check --write $MARIADB_DATADIR/test/tab1.ibd
 --source include/start_mysqld.inc
 
 SELECT * FROM tab1;

@@ -77,13 +77,13 @@ SELECT @@global.myisam_data_pointer_size;
 #           Check if variable can be access with session scope                  #
 #################################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@myisam_data_pointer_size = 2;
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.myisam_data_pointer_size = 3;
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@local.myisam_data_pointer_size = 4;
 
 
@@ -155,7 +155,7 @@ SELECT @@myisam_data_pointer_size = @@global.myisam_data_pointer_size;
 #   Check if myisam_data_pointer_size can be accessed without @@ sign and scope  #
 ##################################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET myisam_data_pointer_size = 7;
 --Error ER_BAD_FIELD_ERROR
 SELECT myisam_data_pointer_size;

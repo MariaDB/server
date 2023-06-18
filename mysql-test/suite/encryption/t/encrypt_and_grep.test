@@ -5,11 +5,10 @@
 #
 # MDEV-8138: strange results from encrypt-and-grep test
 #
---let $MYSQLD_DATADIR=`select @@datadir`
---let ib1_IBD = $MYSQLD_DATADIR/ibdata1
---let t1_IBD = $MYSQLD_DATADIR/test/t1.ibd
---let t2_IBD = $MYSQLD_DATADIR/test/t2.ibd
---let t3_IBD = $MYSQLD_DATADIR/test/t3.ibd
+--let ib1_IBD = $MARIADB_TOPDIR/ibdata1
+--let t1_IBD = $MARIADB_DATADIR/test/t1.ibd
+--let t2_IBD = $MARIADB_DATADIR/test/t2.ibd
+--let t3_IBD = $MARIADB_DATADIR/test/t3.ibd
 --let SEARCH_RANGE = 10000000
 
 create table t1 (a varchar(255)) engine=innodb encrypted=yes;
@@ -26,8 +25,10 @@ insert t3 values (repeat('dummysecret', 12));
 --let $wait_condition=SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0
 --source include/wait_condition.inc
 
+--replace_catalog
 --sorted_result
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+--replace_catalog
 --sorted_result
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
 
@@ -63,8 +64,10 @@ SET GLOBAL innodb_encrypt_tables = off;
 --let $wait_condition=SELECT COUNT(*) = $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND CURRENT_KEY_VERSION = 0;
 --source include/wait_condition.inc
 
+--replace_catalog
 --sorted_result
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+--replace_catalog
 --sorted_result
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
 
@@ -97,8 +100,10 @@ SET GLOBAL innodb_encrypt_tables = on;
 --let $wait_condition=SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
 --source include/wait_condition.inc
 
+--replace_catalog
 --sorted_result
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+--replace_catalog
 --sorted_result
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
 

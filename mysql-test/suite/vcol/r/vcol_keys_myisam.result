@@ -222,7 +222,7 @@ select * from t1 where b=10;
 a	b	c
 9	10	4121
 
-MyISAM file:         datadir/test/t1
+MyISAM file:         MARIADB_DATADIR/test/t1
 Record format:       Fixed length
 Character set:       latin1_swedish_ci (8)
 Data records:                 1001  Deleted blocks:                 0

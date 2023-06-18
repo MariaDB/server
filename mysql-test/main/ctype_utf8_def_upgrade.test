@@ -1,5 +1,3 @@
-let $MYSQLD_DATADIR= `select @@datadir`;
-
 --echo #
 --echo # Start of 10.1 tests
 --echo #
@@ -12,9 +10,9 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 
 SELECT @@character_set_database;
 SET @@character_set_database="latin1";
---copy_file std_data/host_old.frm $MYSQLD_DATADIR/test/t1.frm
---copy_file std_data/host_old.MYD $MYSQLD_DATADIR/test/t1.MYD
---copy_file std_data/host_old.MYI $MYSQLD_DATADIR/test/t1.MYI
+--copy_file std_data/host_old.frm $MARIADB_DATADIR/test/t1.frm
+--copy_file std_data/host_old.MYD $MARIADB_DATADIR/test/t1.MYD
+--copy_file std_data/host_old.MYI $MARIADB_DATADIR/test/t1.MYI
 
 --error ER_GET_ERRNO
 SELECT COUNT(*) FROM t1;
@@ -32,7 +30,7 @@ SET @@character_set_database=DEFAULT;
 --echo # instead of setting variables directly.
 
 --echo # Emulate a pre-4.1 database without db.opt
---mkdir $MYSQLD_DATADIR/db1
+--mkdir $MARIADB_DATADIR/db1
 SHOW CREATE DATABASE db1;
 USE db1;
 SELECT @@character_set_database, 'taken from defaults' AS comment;
@@ -41,9 +39,9 @@ ALTER DATABASE db1 DEFAULT CHARACTER SET latin1;
 USE db1;
 SELECT @@character_set_database, 'taken from db.opt' AS comment;
 
---copy_file std_data/host_old.frm $MYSQLD_DATADIR/db1/t1.frm
---copy_file std_data/host_old.MYD $MYSQLD_DATADIR/db1/t1.MYD
---copy_file std_data/host_old.MYI $MYSQLD_DATADIR/db1/t1.MYI
+--copy_file std_data/host_old.frm $MARIADB_DATADIR/db1/t1.frm
+--copy_file std_data/host_old.MYD $MARIADB_DATADIR/db1/t1.MYD
+--copy_file std_data/host_old.MYI $MARIADB_DATADIR/db1/t1.MYI
 
 --error ER_GET_ERRNO
 SELECT COUNT(*) FROM t1;

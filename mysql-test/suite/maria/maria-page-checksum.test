@@ -11,8 +11,6 @@ drop table if exists t1;
 # Test for BUG#35441 "Cannot change PAGE_CHECKSUM table option"
 #
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-
 select @@global.aria_page_checksum;
 
 # we scan through combinations in the cartesian product of
@@ -23,7 +21,7 @@ select @@global.aria_page_checksum;
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -36,7 +34,7 @@ EOF
 set global aria_page_checksum = 0 ;
 alter table t1 engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -52,7 +50,7 @@ drop table t1;
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -65,7 +63,7 @@ EOF
 set global aria_page_checksum = 0 ;
 alter table t1 PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -81,7 +79,7 @@ drop table t1;
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -94,7 +92,7 @@ EOF
 set global aria_page_checksum = 0 ;
 alter table t1 PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -110,7 +108,7 @@ drop table t1;
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -123,7 +121,7 @@ EOF
 set global aria_page_checksum = 1 ;
 alter table t1 engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -139,7 +137,7 @@ drop table t1;
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -152,7 +150,7 @@ EOF
 set global aria_page_checksum = 1 ;
 alter table t1 PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -168,7 +166,7 @@ drop table t1;
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -181,7 +179,7 @@ EOF
 set global aria_page_checksum = 1 ;
 alter table t1 PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -197,7 +195,7 @@ drop table t1;
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -210,7 +208,7 @@ EOF
 set global aria_page_checksum = 0 ;
 alter table t1 engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -226,7 +224,7 @@ drop table t1;
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -239,7 +237,7 @@ EOF
 set global aria_page_checksum = 0 ;
 alter table t1 PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -255,7 +253,7 @@ drop table t1;
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -268,7 +266,7 @@ EOF
 set global aria_page_checksum = 0 ;
 alter table t1 PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -284,7 +282,7 @@ drop table t1;
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -297,7 +295,7 @@ EOF
 set global aria_page_checksum = 1 ;
 alter table t1 engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -313,7 +311,7 @@ drop table t1;
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -326,7 +324,7 @@ EOF
 set global aria_page_checksum = 1 ;
 alter table t1 PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -342,7 +340,7 @@ drop table t1;
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -355,7 +353,7 @@ EOF
 set global aria_page_checksum = 1 ;
 alter table t1 PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -371,7 +369,7 @@ drop table t1;
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -384,7 +382,7 @@ EOF
 set global aria_page_checksum = 0 ;
 alter table t1 engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -400,7 +398,7 @@ drop table t1;
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -413,7 +411,7 @@ EOF
 set global aria_page_checksum = 0 ;
 alter table t1 PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -429,7 +427,7 @@ drop table t1;
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -442,7 +440,7 @@ EOF
 set global aria_page_checksum = 0 ;
 alter table t1 PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -458,7 +456,7 @@ drop table t1;
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -471,7 +469,7 @@ EOF
 set global aria_page_checksum = 1 ;
 alter table t1 engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -487,7 +485,7 @@ drop table t1;
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -500,7 +498,7 @@ EOF
 set global aria_page_checksum = 1 ;
 alter table t1 PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -516,7 +514,7 @@ drop table t1;
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -529,7 +527,7 @@ EOF
 set global aria_page_checksum = 1 ;
 alter table t1 PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -545,7 +543,7 @@ drop table t1;
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -558,7 +556,7 @@ EOF
 set global aria_page_checksum = 0 ;
 alter table t1 engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -574,7 +572,7 @@ drop table t1;
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -587,7 +585,7 @@ EOF
 set global aria_page_checksum = 0 ;
 alter table t1 PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -603,7 +601,7 @@ drop table t1;
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -616,7 +614,7 @@ EOF
 set global aria_page_checksum = 0 ;
 alter table t1 PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -632,7 +630,7 @@ drop table t1;
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -645,7 +643,7 @@ EOF
 set global aria_page_checksum = 1 ;
 alter table t1 engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -661,7 +659,7 @@ drop table t1;
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -674,7 +672,7 @@ EOF
 set global aria_page_checksum = 1 ;
 alter table t1 PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -690,7 +688,7 @@ drop table t1;
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -703,7 +701,7 @@ EOF
 set global aria_page_checksum = 1 ;
 alter table t1 PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -719,7 +717,7 @@ drop table t1;
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -732,7 +730,7 @@ EOF
 set global aria_page_checksum = 0 ;
 alter table t1 engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -748,7 +746,7 @@ drop table t1;
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -761,7 +759,7 @@ EOF
 set global aria_page_checksum = 0 ;
 alter table t1 PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -777,7 +775,7 @@ drop table t1;
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -790,7 +788,7 @@ EOF
 set global aria_page_checksum = 0 ;
 alter table t1 PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -806,7 +804,7 @@ drop table t1;
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -819,7 +817,7 @@ EOF
 set global aria_page_checksum = 1 ;
 alter table t1 engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -835,7 +833,7 @@ drop table t1;
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -848,7 +846,7 @@ EOF
 set global aria_page_checksum = 1 ;
 alter table t1 PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -864,7 +862,7 @@ drop table t1;
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -877,7 +875,7 @@ EOF
 set global aria_page_checksum = 1 ;
 alter table t1 PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -893,7 +891,7 @@ drop table t1;
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -906,7 +904,7 @@ EOF
 set global aria_page_checksum = 0 ;
 alter table t1 engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -922,7 +920,7 @@ drop table t1;
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -935,7 +933,7 @@ EOF
 set global aria_page_checksum = 0 ;
 alter table t1 PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -951,7 +949,7 @@ drop table t1;
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -964,7 +962,7 @@ EOF
 set global aria_page_checksum = 0 ;
 alter table t1 PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -980,7 +978,7 @@ drop table t1;
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -993,7 +991,7 @@ EOF
 set global aria_page_checksum = 1 ;
 alter table t1 engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1009,7 +1007,7 @@ drop table t1;
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1022,7 +1020,7 @@ EOF
 set global aria_page_checksum = 1 ;
 alter table t1 PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1038,7 +1036,7 @@ drop table t1;
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1051,7 +1049,7 @@ EOF
 set global aria_page_checksum = 1 ;
 alter table t1 PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1074,7 +1072,7 @@ drop table t1;
 --echo # iteration 1b
 create table t1(a int) engine=aria  ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1086,7 +1084,7 @@ EOF
 
 alter table t1 modify a bigint ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1101,7 +1099,7 @@ drop table t1;
 --echo # iteration 2b
 create table t1(a int) engine=aria  ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1113,7 +1111,7 @@ EOF
 
 alter table t1  transactional=0 ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1128,7 +1126,7 @@ drop table t1;
 --echo # iteration 3b
 create table t1(a int) engine=aria  ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1140,7 +1138,7 @@ EOF
 
 alter table t1  transactional=1 ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1155,7 +1153,7 @@ drop table t1;
 --echo # iteration 4b
 create table t1(a int) engine=aria  ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1167,7 +1165,7 @@ EOF
 
 alter table t1 engine=aria  ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1182,7 +1180,7 @@ drop table t1;
 --echo # iteration 5b
 create table t1(a int) engine=aria  ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1194,7 +1192,7 @@ EOF
 
 alter table t1 engine=aria transactional=0 ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1209,7 +1207,7 @@ drop table t1;
 --echo # iteration 6b
 create table t1(a int) engine=aria  ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1221,7 +1219,7 @@ EOF
 
 alter table t1 engine=aria transactional=1 ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1236,7 +1234,7 @@ drop table t1;
 --echo # iteration 7b
 create table t1(a int) engine=aria transactional=0 ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1248,7 +1246,7 @@ EOF
 
 alter table t1 modify a bigint ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1263,7 +1261,7 @@ drop table t1;
 --echo # iteration 8b
 create table t1(a int) engine=aria transactional=0 ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1275,7 +1273,7 @@ EOF
 
 alter table t1  transactional=0 ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1290,7 +1288,7 @@ drop table t1;
 --echo # iteration 9b
 create table t1(a int) engine=aria transactional=0 ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1302,7 +1300,7 @@ EOF
 
 alter table t1  transactional=1 ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1317,7 +1315,7 @@ drop table t1;
 --echo # iteration 10b
 create table t1(a int) engine=aria transactional=0 ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1329,7 +1327,7 @@ EOF
 
 alter table t1 engine=aria  ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1344,7 +1342,7 @@ drop table t1;
 --echo # iteration 11b
 create table t1(a int) engine=aria transactional=0 ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1356,7 +1354,7 @@ EOF
 
 alter table t1 engine=aria transactional=0 ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1371,7 +1369,7 @@ drop table t1;
 --echo # iteration 12b
 create table t1(a int) engine=aria transactional=0 ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1383,7 +1381,7 @@ EOF
 
 alter table t1 engine=aria transactional=1 ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1398,7 +1396,7 @@ drop table t1;
 --echo # iteration 13b
 create table t1(a int) engine=aria transactional=1 ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1410,7 +1408,7 @@ EOF
 
 alter table t1 modify a bigint ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1425,7 +1423,7 @@ drop table t1;
 --echo # iteration 14b
 create table t1(a int) engine=aria transactional=1 ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1437,7 +1435,7 @@ EOF
 
 alter table t1  transactional=0 ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1452,7 +1450,7 @@ drop table t1;
 --echo # iteration 15b
 create table t1(a int) engine=aria transactional=1 ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1464,7 +1462,7 @@ EOF
 
 alter table t1  transactional=1 ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1479,7 +1477,7 @@ drop table t1;
 --echo # iteration 16b
 create table t1(a int) engine=aria transactional=1 ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1491,7 +1489,7 @@ EOF
 
 alter table t1 engine=aria  ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1506,7 +1504,7 @@ drop table t1;
 --echo # iteration 17b
 create table t1(a int) engine=aria transactional=1 ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1518,7 +1516,7 @@ EOF
 
 alter table t1 engine=aria transactional=0 ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1533,7 +1531,7 @@ drop table t1;
 --echo # iteration 18b
 create table t1(a int) engine=aria transactional=1 ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;
@@ -1545,7 +1543,7 @@ EOF
 
 alter table t1 engine=aria transactional=1 ;
 show create table t1;
---exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv $MARIADB_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
 perl;
     use strict;
     use warnings;

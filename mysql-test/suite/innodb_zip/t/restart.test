@@ -6,9 +6,9 @@
 --source include/not_embedded.inc
 --source include/innodb_checksum_algorithm.inc
 --source include/have_symlink.inc
+--source include/get_datadir.inc
 
 SET default_storage_engine=InnoDB;
-LET $MYSQLD_DATADIR = `select @@datadir`;
 LET $INNODB_PAGE_SIZE = `select @@innodb_page_size`;
 
 --disable_query_log
@@ -32,7 +32,13 @@ call mtr.add_suppression("\\[ERROR\\] InnoDB: The error means the system cannot 
 #
 
 --disable_query_log
-let $MYSQL_DATA_DIR= `select @@datadir`;
+let $data_in_alt_dir=$MYSQL_TMP_DIR/alt_dir;
+let $data_in_new_dir=$MYSQL_TMP_DIR/new_dir;
+if ($USING_CATALOGS == 1)
+{
+  let $data_in_alt_dir= $MYSQL_TMP_DIR/alt_dir/$MARIADB_CATALOG;
+  let $data_in_new_dir= $MYSQL_TMP_DIR/new_dir/$MARIADB_CATALOG;
+}
 let $data_directory = DATA DIRECTORY='$MYSQL_TMP_DIR/alt_dir';
 --enable_query_log
 
@@ -159,18 +165,18 @@ SELECT count(*) FROM t7_restart;
 --echo #
 --source include/shutdown_mysqld.inc
 
---echo ---- MYSQL_DATA_DIR/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_DATA_DIR/test
+--echo ---- MARIADB_DATADIR/test
+--list_files_write_file $MARIADB_DATADIR.files.txt $MARIADB_DATADIR/test
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--cat_file $MARIADB_DATADIR.files.txt
+--remove_file $MARIADB_DATADIR.files.txt
 --echo ---- MYSQL_TMP_DIR/alt_dir
---list_files $MYSQL_TMP_DIR/alt_dir
+--list_files $data_in_alt_dir
 --echo ---- MYSQL_TMP_DIR/alt_dir/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_TMP_DIR/alt_dir/test
+--list_files_write_file $MARIADB_DATADIR.files.txt $data_in_alt_dir/test
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--cat_file $MARIADB_DATADIR.files.txt
+--remove_file $MARIADB_DATADIR.files.txt
 
 --echo #
 --echo # Start the server and show that tables are still visible and accessible.
@@ -249,20 +255,20 @@ SHOW CREATE TABLE t7_restart;
 --echo #
 --source include/shutdown_mysqld.inc
 
---copy_file $MYSQL_TMP_DIR/alt_dir/test/t5_restart.ibd $MYSQL_TMP_DIR/alt_dir/test/t5_restart.ibd.bak
---copy_file $MYSQL_DATA_DIR/test/t5_restart.isl $MYSQL_DATA_DIR/test/t5_restart.isl.bak
---copy_file $MYSQL_DATA_DIR/test/t5_restart.frm $MYSQL_DATA_DIR/test/t5_restart.frm.bak
+--copy_file $data_in_alt_dir/test/t5_restart.ibd $data_in_alt_dir/test/t5_restart.ibd.bak
+--copy_file $MARIADB_DATADIR/test/t5_restart.isl $MARIADB_DATADIR/test/t5_restart.isl.bak
+--copy_file $MARIADB_DATADIR/test/t5_restart.frm $MARIADB_DATADIR/test/t5_restart.frm.bak
 
---echo ---- MYSQL_DATA_DIR/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_DATA_DIR/test
+--echo ---- MARIADB_DATADIR/test
+--list_files_write_file $MARIADB_DATADIR.files.txt $MARIADB_DATADIR/test
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--cat_file $MARIADB_DATADIR.files.txt
+--remove_file $MARIADB_DATADIR.files.txt
 --echo ---- MYSQL_TMP_DIR/alt_dir/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_TMP_DIR/alt_dir/test
+--list_files_write_file $MARIADB_DATADIR.files.txt $data_in_alt_dir/test
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--cat_file $MARIADB_DATADIR.files.txt
+--remove_file $MARIADB_DATADIR.files.txt
 
 --echo #
 --echo # Start the server and show the tablespaces.
@@ -287,35 +293,36 @@ SHOW CREATE TABLE t7_restart;
 --echo # Try to rename a tablespace to a file that already exists
 --echo #
 
---copy_file $MYSQL_DATA_DIR/test/t5_restart.frm.bak $MYSQL_DATA_DIR/test/t55_restart.frm
+--copy_file $MARIADB_DATADIR/test/t5_restart.frm.bak $MARIADB_DATADIR/test/t55_restart.frm
 --error ER_TABLE_EXISTS_ERROR
 RENAME TABLE t5_restart TO t55_restart;
---remove_file $MYSQL_DATA_DIR/test/t55_restart.frm
---remove_file $MYSQL_DATA_DIR/test/t5_restart.frm.bak
+--remove_file $MARIADB_DATADIR/test/t55_restart.frm
+--remove_file $MARIADB_DATADIR/test/t5_restart.frm.bak
 
---copy_file $MYSQL_DATA_DIR/test/t5_restart.isl.bak $MYSQL_DATA_DIR/test/t55_restart.isl
+--copy_file $MARIADB_DATADIR/test/t5_restart.isl.bak $MARIADB_DATADIR/test/t55_restart.isl
+--replace_catalog
 --error ER_ERROR_ON_RENAME
 RENAME TABLE t5_restart TO t55_restart;
---remove_file $MYSQL_DATA_DIR/test/t55_restart.isl
---remove_file $MYSQL_DATA_DIR/test/t5_restart.isl.bak
+--remove_file $MARIADB_DATADIR/test/t55_restart.isl
+--remove_file $MARIADB_DATADIR/test/t5_restart.isl.bak
 
-#--copy_file $MYSQL_TMP_DIR/alt_dir/test/t5_restart.ibd.bak $MYSQL_TMP_DIR/alt_dir/test/t55_restart.ibd
+#--copy_file $data_in_alt_dir/test/t5_restart.ibd.bak $data_in_alt_dir/test/t55_restart.ibd
 # This RENAME TABLE works of Linux but gets ER_ERROR_ON_RENAME on Windows
 #--error ER_ERROR_ON_RENAME
 #RENAME TABLE t5_restart TO t55_restart;
-#--remove_file $MYSQL_TMP_DIR/alt_dir/test/t55_restart.ibd
---remove_file $MYSQL_TMP_DIR/alt_dir/test/t5_restart.ibd.bak
+#--remove_file $data_in_alt_dir/test/t55_restart.ibd
+--remove_file $data_in_alt_dir/test/t5_restart.ibd.bak
 
---echo ---- MYSQL_DATA_DIR/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_DATA_DIR/test
+--echo ---- MARIADB_DATADIR/test
+--list_files_write_file $MARIADB_DATADIR.files.txt $MARIADB_DATADIR/test
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--cat_file $MARIADB_DATADIR.files.txt
+--remove_file $MARIADB_DATADIR.files.txt
 --echo ---- MYSQL_TMP_DIR/alt_dir/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_TMP_DIR/alt_dir/test
+--list_files_write_file $MARIADB_DATADIR.files.txt $data_in_alt_dir/test
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--cat_file $MARIADB_DATADIR.files.txt
+--remove_file $MARIADB_DATADIR.files.txt
 
 --echo #
 --echo # Rename file table and tablespace
@@ -342,16 +349,16 @@ SELECT count(*) FROM t77_restart;
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
 SHOW CREATE TABLE t77_restart;
 
---echo ---- MYSQL_DATA_DIR/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_DATA_DIR/test
+--echo ---- MARIADB_DATADIR/test
+--list_files_write_file $MARIADB_DATADIR.files.txt $MARIADB_DATADIR/test
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--cat_file $MARIADB_DATADIR.files.txt
+--remove_file $MARIADB_DATADIR.files.txt
 --echo ---- MYSQL_TMP_DIR/alt_dir/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_TMP_DIR/alt_dir/test
+--list_files_write_file $MARIADB_DATADIR.files.txt $data_in_alt_dir/test
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--cat_file $MARIADB_DATADIR.files.txt
+--remove_file $MARIADB_DATADIR.files.txt
 
 --echo #
 --echo # Restart the server
@@ -384,81 +391,86 @@ SHOW CREATE TABLE t77_restart;
 --echo # Move the remote tablespaces to a new location and change the ISL files
 --echo #
 --mkdir $MYSQL_TMP_DIR/new_dir
---mkdir $MYSQL_TMP_DIR/new_dir/test
---echo ---- MYSQL_DATA_DIR/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_DATA_DIR/test
---replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
---echo ---- MYSQL_TMP_DIR/alt_dir/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_TMP_DIR/alt_dir/test
---replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
---echo ---- MYSQL_TMP_DIR/new_dir/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_TMP_DIR/new_dir/test
---replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+if ($USING_CATALOGS == 1)
+{
+--mkdir $data_in_new_dir
+}
+--mkdir $data_in_new_dir/test
 
---echo # Moving tablespace 't4_restart' from MYSQL_DATA_DIR to MYSQL_TMP_DIR/new_dir
---copy_file $MYSQL_DATA_DIR/test/t4_restart.ibd $MYSQL_TMP_DIR/new_dir/test/t4_restart.ibd
---remove_file $MYSQL_DATA_DIR/test/t4_restart.ibd
---exec echo $MYSQL_TMP_DIR/new_dir/test/t4_restart.ibd > $MYSQL_DATA_DIR/test/t4_restart.isl
+--echo ---- MARIADB_DATADIR/test
+--list_files_write_file $MARIADB_DATADIR.files.txt $MARIADB_DATADIR/test
+--replace_result #P# #p#  #SP# #sp#
+--cat_file $MARIADB_DATADIR.files.txt
+--remove_file $MARIADB_DATADIR.files.txt
+--echo ---- MYSQL_TMP_DIR/alt_dir/test
+--list_files_write_file $MARIADB_DATADIR.files.txt $data_in_alt_dir/test
+--replace_result #P# #p#  #SP# #sp#
+--cat_file $MARIADB_DATADIR.files.txt
+--remove_file $MARIADB_DATADIR.files.txt
+--echo ---- MYSQL_TMP_DIR/new_dir/test
+--list_files_write_file $MARIADB_DATADIR.files.txt $data_in_new_dir/test
+--replace_result #P# #p#  #SP# #sp#
+--cat_file $MARIADB_DATADIR.files.txt
+--remove_file $MARIADB_DATADIR.files.txt
+
+--echo # Moving tablespace 't4_restart' from MARIADB_DATADIR to MYSQL_TMP_DIR/new_dir
+--copy_file $MARIADB_DATADIR/test/t4_restart.ibd $data_in_new_dir/test/t4_restart.ibd
+--remove_file $MARIADB_DATADIR/test/t4_restart.ibd
+--exec echo $data_in_new_dir/test/t4_restart.ibd > $MARIADB_DATADIR/test/t4_restart.isl
 
 --echo # Moving tablespace 't55_restart' from MYSQL_TMP_DIR/alt_dir to MYSQL_TMP_DIR/new_dir
---copy_file $MYSQL_TMP_DIR/alt_dir/test/t55_restart.ibd $MYSQL_TMP_DIR/new_dir/test/t55_restart.ibd
---remove_file $MYSQL_TMP_DIR/alt_dir/test/t55_restart.ibd
---remove_file $MYSQL_DATA_DIR/test/t55_restart.isl
---exec echo $MYSQL_TMP_DIR/new_dir/test/t55_restart.ibd > $MYSQL_DATA_DIR/test/t55_restart.isl
+--copy_file $data_in_alt_dir/test/t55_restart.ibd $data_in_new_dir/test/t55_restart.ibd
+--remove_file $data_in_alt_dir/test/t55_restart.ibd
+--remove_file $MARIADB_DATADIR/test/t55_restart.isl
+--exec echo $data_in_new_dir/test/t55_restart.ibd > $MARIADB_DATADIR/test/t55_restart.isl
 
 --echo # Moving tablespace 't66_restart' from MYSQL_TMP_DIR/alt_dir to MYSQL_TMP_DIR/new_dir
---copy_file $MYSQL_TMP_DIR/alt_dir/test/t66_restart#P#p0.ibd $MYSQL_TMP_DIR/new_dir/test/t66_restart#P#p0.ibd
---copy_file $MYSQL_TMP_DIR/alt_dir/test/t66_restart#P#p1.ibd $MYSQL_TMP_DIR/new_dir/test/t66_restart#P#p1.ibd
---copy_file $MYSQL_TMP_DIR/alt_dir/test/t66_restart#P#p2.ibd $MYSQL_TMP_DIR/new_dir/test/t66_restart#P#p2.ibd
---remove_file $MYSQL_TMP_DIR/alt_dir/test/t66_restart#P#p0.ibd
---remove_file $MYSQL_TMP_DIR/alt_dir/test/t66_restart#P#p1.ibd
---remove_file $MYSQL_TMP_DIR/alt_dir/test/t66_restart#P#p2.ibd
---remove_file $MYSQL_DATA_DIR/test/t66_restart#P#p0.isl
---remove_file $MYSQL_DATA_DIR/test/t66_restart#P#p1.isl
---remove_file $MYSQL_DATA_DIR/test/t66_restart#P#p2.isl
---exec echo $MYSQL_TMP_DIR/new_dir/test/t66_restart#P#p0.ibd > $MYSQL_DATA_DIR/test/t66_restart#P#p0.isl
---exec echo $MYSQL_TMP_DIR/new_dir/test/t66_restart#P#p1.ibd > $MYSQL_DATA_DIR/test/t66_restart#P#p1.isl
---exec echo $MYSQL_TMP_DIR/new_dir/test/t66_restart#P#p2.ibd > $MYSQL_DATA_DIR/test/t66_restart#P#p2.isl
+--copy_file $data_in_alt_dir/test/t66_restart#P#p0.ibd $data_in_new_dir/test/t66_restart#P#p0.ibd
+--copy_file $data_in_alt_dir/test/t66_restart#P#p1.ibd $data_in_new_dir/test/t66_restart#P#p1.ibd
+--copy_file $data_in_alt_dir/test/t66_restart#P#p2.ibd $data_in_new_dir/test/t66_restart#P#p2.ibd
+--remove_file $data_in_alt_dir/test/t66_restart#P#p0.ibd
+--remove_file $data_in_alt_dir/test/t66_restart#P#p1.ibd
+--remove_file $data_in_alt_dir/test/t66_restart#P#p2.ibd
+--remove_file $MARIADB_DATADIR/test/t66_restart#P#p0.isl
+--remove_file $MARIADB_DATADIR/test/t66_restart#P#p1.isl
+--remove_file $MARIADB_DATADIR/test/t66_restart#P#p2.isl
+--exec echo $data_in_new_dir/test/t66_restart#P#p0.ibd > $MARIADB_DATADIR/test/t66_restart#P#p0.isl
+--exec echo $data_in_new_dir/test/t66_restart#P#p1.ibd > $MARIADB_DATADIR/test/t66_restart#P#p1.isl
+--exec echo $data_in_new_dir/test/t66_restart#P#p2.ibd > $MARIADB_DATADIR/test/t66_restart#P#p2.isl
 
 --echo # Moving tablespace 't77_restart' from MYSQL_TMP_DIR/alt_dir to MYSQL_TMP_DIR/new_dir
---copy_file $MYSQL_TMP_DIR/alt_dir/test/t77_restart#P#p0#SP#s0.ibd $MYSQL_TMP_DIR/new_dir/test/t77_restart#P#p0#SP#s0.ibd
---copy_file $MYSQL_TMP_DIR/alt_dir/test/t77_restart#P#p0#SP#s1.ibd $MYSQL_TMP_DIR/new_dir/test/t77_restart#P#p0#SP#s1.ibd
---copy_file $MYSQL_TMP_DIR/alt_dir/test/t77_restart#P#p1#SP#s2.ibd $MYSQL_TMP_DIR/new_dir/test/t77_restart#P#p1#SP#s2.ibd
---copy_file $MYSQL_TMP_DIR/alt_dir/test/t77_restart#P#p1#SP#s3.ibd $MYSQL_TMP_DIR/new_dir/test/t77_restart#P#p1#SP#s3.ibd
---remove_file $MYSQL_TMP_DIR/alt_dir/test/t77_restart#P#p0#SP#s0.ibd
---remove_file $MYSQL_TMP_DIR/alt_dir/test/t77_restart#P#p0#SP#s1.ibd
---remove_file $MYSQL_TMP_DIR/alt_dir/test/t77_restart#P#p1#SP#s2.ibd
---remove_file $MYSQL_TMP_DIR/alt_dir/test/t77_restart#P#p1#SP#s3.ibd
---remove_file $MYSQL_DATA_DIR/test/t77_restart#P#p0#SP#s0.isl
---remove_file $MYSQL_DATA_DIR/test/t77_restart#P#p0#SP#s1.isl
---remove_file $MYSQL_DATA_DIR/test/t77_restart#P#p1#SP#s2.isl
---remove_file $MYSQL_DATA_DIR/test/t77_restart#P#p1#SP#s3.isl
---exec echo $MYSQL_TMP_DIR/new_dir/test/t77_restart#P#p0#SP#s0.ibd > $MYSQL_DATA_DIR/test/t77_restart#P#p0#SP#s0.isl
---exec echo $MYSQL_TMP_DIR/new_dir/test/t77_restart#P#p0#SP#s1.ibd > $MYSQL_DATA_DIR/test/t77_restart#P#p0#SP#s1.isl
---exec echo $MYSQL_TMP_DIR/new_dir/test/t77_restart#P#p1#SP#s2.ibd > $MYSQL_DATA_DIR/test/t77_restart#P#p1#SP#s2.isl
---exec echo $MYSQL_TMP_DIR/new_dir/test/t77_restart#P#p1#SP#s3.ibd > $MYSQL_DATA_DIR/test/t77_restart#P#p1#SP#s3.isl
+--copy_file $data_in_alt_dir/test/t77_restart#P#p0#SP#s0.ibd $data_in_new_dir/test/t77_restart#P#p0#SP#s0.ibd
+--copy_file $data_in_alt_dir/test/t77_restart#P#p0#SP#s1.ibd $data_in_new_dir/test/t77_restart#P#p0#SP#s1.ibd
+--copy_file $data_in_alt_dir/test/t77_restart#P#p1#SP#s2.ibd $data_in_new_dir/test/t77_restart#P#p1#SP#s2.ibd
+--copy_file $data_in_alt_dir/test/t77_restart#P#p1#SP#s3.ibd $data_in_new_dir/test/t77_restart#P#p1#SP#s3.ibd
+--remove_file $data_in_alt_dir/test/t77_restart#P#p0#SP#s0.ibd
+--remove_file $data_in_alt_dir/test/t77_restart#P#p0#SP#s1.ibd
+--remove_file $data_in_alt_dir/test/t77_restart#P#p1#SP#s2.ibd
+--remove_file $data_in_alt_dir/test/t77_restart#P#p1#SP#s3.ibd
+--remove_file $MARIADB_DATADIR/test/t77_restart#P#p0#SP#s0.isl
+--remove_file $MARIADB_DATADIR/test/t77_restart#P#p0#SP#s1.isl
+--remove_file $MARIADB_DATADIR/test/t77_restart#P#p1#SP#s2.isl
+--remove_file $MARIADB_DATADIR/test/t77_restart#P#p1#SP#s3.isl
+--exec echo $data_in_new_dir/test/t77_restart#P#p0#SP#s0.ibd > $MARIADB_DATADIR/test/t77_restart#P#p0#SP#s0.isl
+--exec echo $data_in_new_dir/test/t77_restart#P#p0#SP#s1.ibd > $MARIADB_DATADIR/test/t77_restart#P#p0#SP#s1.isl
+--exec echo $data_in_new_dir/test/t77_restart#P#p1#SP#s2.ibd > $MARIADB_DATADIR/test/t77_restart#P#p1#SP#s2.isl
+--exec echo $data_in_new_dir/test/t77_restart#P#p1#SP#s3.ibd > $MARIADB_DATADIR/test/t77_restart#P#p1#SP#s3.isl
 
---echo ---- MYSQL_DATA_DIR/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_DATA_DIR/test
+--echo ---- MARIADB_DATADIR/test
+--list_files_write_file $MARIADB_DATADIR.files.txt $MARIADB_DATADIR/test
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--cat_file $MARIADB_DATADIR.files.txt
+--remove_file $MARIADB_DATADIR.files.txt
 --echo ---- MYSQL_TMP_DIR/alt_dir/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_TMP_DIR/alt_dir/test
+--list_files_write_file $MARIADB_DATADIR.files.txt $data_in_alt_dir/test
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--cat_file $MARIADB_DATADIR.files.txt
+--remove_file $MARIADB_DATADIR.files.txt
 --echo ---- MYSQL_TMP_DIR/new_dir/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_TMP_DIR/new_dir/test
+--list_files_write_file $MARIADB_DATADIR.files.txt $data_in_new_dir/test
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--cat_file $MARIADB_DATADIR.files.txt
+--remove_file $MARIADB_DATADIR.files.txt
 
 --echo #
 --echo # Start the server and check tablespaces.
@@ -497,62 +509,62 @@ SHOW CREATE TABLE t77_restart;
 --echo # Move the remote tablespaces back to the default datadir and delete the ISL file.
 --echo #
 
---echo ---- MYSQL_DATA_DIR/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_DATA_DIR/test
+--echo ---- MARIADB_DATADIR/test
+--list_files_write_file $MARIADB_DATADIR.files.txt $MARIADB_DATADIR/test
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--cat_file $MARIADB_DATADIR.files.txt
+--remove_file $MARIADB_DATADIR.files.txt
 --echo ---- MYSQL_TMP_DIR/new_dir/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_TMP_DIR/new_dir/test
+--list_files_write_file $MARIADB_DATADIR.files.txt $data_in_new_dir/test
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--cat_file $MARIADB_DATADIR.files.txt
+--remove_file $MARIADB_DATADIR.files.txt
 
---echo # Moving 't4_restart' from MYSQL_TMP_DIR/new_dir to MYSQL_DATA_DIR
---copy_file $MYSQL_TMP_DIR/new_dir/test/t4_restart.ibd $MYSQL_DATA_DIR/test/t4_restart.ibd
---remove_file $MYSQL_TMP_DIR/new_dir/test/t4_restart.ibd
---remove_file $MYSQL_DATA_DIR/test/t4_restart.isl
+--echo # Moving 't4_restart' from MYSQL_TMP_DIR/new_dir to MARIADB_DATADIR
+--copy_file $data_in_new_dir/test/t4_restart.ibd $MARIADB_DATADIR/test/t4_restart.ibd
+--remove_file $data_in_new_dir/test/t4_restart.ibd
+--remove_file $MARIADB_DATADIR/test/t4_restart.isl
 
---echo # Moving 't55_restart' from MYSQL_TMP_DIR/new_dir to MYSQL_DATA_DIR
---copy_file $MYSQL_TMP_DIR/new_dir/test/t55_restart.ibd $MYSQL_DATA_DIR/test/t55_restart.ibd
---remove_file $MYSQL_TMP_DIR/new_dir/test/t55_restart.ibd
---remove_file $MYSQL_DATA_DIR/test/t55_restart.isl
+--echo # Moving 't55_restart' from MYSQL_TMP_DIR/new_dir to MARIADB_DATADIR
+--copy_file $data_in_new_dir/test/t55_restart.ibd $MARIADB_DATADIR/test/t55_restart.ibd
+--remove_file $data_in_new_dir/test/t55_restart.ibd
+--remove_file $MARIADB_DATADIR/test/t55_restart.isl
 
---echo # Moving 't66_restart' from MYSQL_TMP_DIR/new_dir to MYSQL_DATA_DIR
---copy_file $MYSQL_TMP_DIR/new_dir/test/t66_restart#P#p0.ibd $MYSQL_DATA_DIR/test/t66_restart#P#p0.ibd
---copy_file $MYSQL_TMP_DIR/new_dir/test/t66_restart#P#p1.ibd $MYSQL_DATA_DIR/test/t66_restart#P#p1.ibd
---copy_file $MYSQL_TMP_DIR/new_dir/test/t66_restart#P#p2.ibd $MYSQL_DATA_DIR/test/t66_restart#P#p2.ibd
---remove_file $MYSQL_TMP_DIR/new_dir/test/t66_restart#P#p0.ibd
---remove_file $MYSQL_TMP_DIR/new_dir/test/t66_restart#P#p1.ibd
---remove_file $MYSQL_TMP_DIR/new_dir/test/t66_restart#P#p2.ibd
---remove_file $MYSQL_DATA_DIR/test/t66_restart#P#p0.isl
---remove_file $MYSQL_DATA_DIR/test/t66_restart#P#p1.isl
---remove_file $MYSQL_DATA_DIR/test/t66_restart#P#p2.isl
+--echo # Moving 't66_restart' from MYSQL_TMP_DIR/new_dir to MARIADB_DATADIR
+--copy_file $data_in_new_dir/test/t66_restart#P#p0.ibd $MARIADB_DATADIR/test/t66_restart#P#p0.ibd
+--copy_file $data_in_new_dir/test/t66_restart#P#p1.ibd $MARIADB_DATADIR/test/t66_restart#P#p1.ibd
+--copy_file $data_in_new_dir/test/t66_restart#P#p2.ibd $MARIADB_DATADIR/test/t66_restart#P#p2.ibd
+--remove_file $data_in_new_dir/test/t66_restart#P#p0.ibd
+--remove_file $data_in_new_dir/test/t66_restart#P#p1.ibd
+--remove_file $data_in_new_dir/test/t66_restart#P#p2.ibd
+--remove_file $MARIADB_DATADIR/test/t66_restart#P#p0.isl
+--remove_file $MARIADB_DATADIR/test/t66_restart#P#p1.isl
+--remove_file $MARIADB_DATADIR/test/t66_restart#P#p2.isl
 
---echo # Moving 't77_restart' from MYSQL_TMP_DIR/new_dir to MYSQL_DATA_DIR
---copy_file $MYSQL_TMP_DIR/new_dir/test/t77_restart#P#p0#SP#s0.ibd $MYSQL_DATA_DIR/test/t77_restart#P#p0#SP#s0.ibd
---copy_file $MYSQL_TMP_DIR/new_dir/test/t77_restart#P#p0#SP#s1.ibd $MYSQL_DATA_DIR/test/t77_restart#P#p0#SP#s1.ibd
---copy_file $MYSQL_TMP_DIR/new_dir/test/t77_restart#P#p1#SP#s2.ibd $MYSQL_DATA_DIR/test/t77_restart#P#p1#SP#s2.ibd
---copy_file $MYSQL_TMP_DIR/new_dir/test/t77_restart#P#p1#SP#s3.ibd $MYSQL_DATA_DIR/test/t77_restart#P#p1#SP#s3.ibd
---remove_file $MYSQL_TMP_DIR/new_dir/test/t77_restart#P#p0#SP#s0.ibd
---remove_file $MYSQL_TMP_DIR/new_dir/test/t77_restart#P#p0#SP#s1.ibd
---remove_file $MYSQL_TMP_DIR/new_dir/test/t77_restart#P#p1#SP#s2.ibd
---remove_file $MYSQL_TMP_DIR/new_dir/test/t77_restart#P#p1#SP#s3.ibd
---remove_file $MYSQL_DATA_DIR/test/t77_restart#P#p0#SP#s0.isl
---remove_file $MYSQL_DATA_DIR/test/t77_restart#P#p0#SP#s1.isl
---remove_file $MYSQL_DATA_DIR/test/t77_restart#P#p1#SP#s2.isl
---remove_file $MYSQL_DATA_DIR/test/t77_restart#P#p1#SP#s3.isl
+--echo # Moving 't77_restart' from MYSQL_TMP_DIR/new_dir to MARIADB_DATADIR
+--copy_file $data_in_new_dir/test/t77_restart#P#p0#SP#s0.ibd $MARIADB_DATADIR/test/t77_restart#P#p0#SP#s0.ibd
+--copy_file $data_in_new_dir/test/t77_restart#P#p0#SP#s1.ibd $MARIADB_DATADIR/test/t77_restart#P#p0#SP#s1.ibd
+--copy_file $data_in_new_dir/test/t77_restart#P#p1#SP#s2.ibd $MARIADB_DATADIR/test/t77_restart#P#p1#SP#s2.ibd
+--copy_file $data_in_new_dir/test/t77_restart#P#p1#SP#s3.ibd $MARIADB_DATADIR/test/t77_restart#P#p1#SP#s3.ibd
+--remove_file $data_in_new_dir/test/t77_restart#P#p0#SP#s0.ibd
+--remove_file $data_in_new_dir/test/t77_restart#P#p0#SP#s1.ibd
+--remove_file $data_in_new_dir/test/t77_restart#P#p1#SP#s2.ibd
+--remove_file $data_in_new_dir/test/t77_restart#P#p1#SP#s3.ibd
+--remove_file $MARIADB_DATADIR/test/t77_restart#P#p0#SP#s0.isl
+--remove_file $MARIADB_DATADIR/test/t77_restart#P#p0#SP#s1.isl
+--remove_file $MARIADB_DATADIR/test/t77_restart#P#p1#SP#s2.isl
+--remove_file $MARIADB_DATADIR/test/t77_restart#P#p1#SP#s3.isl
 
---echo ---- MYSQL_DATA_DIR/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_DATA_DIR/test
+--echo ---- MARIADB_DATADIR/test
+--list_files_write_file $MARIADB_DATADIR.files.txt $MARIADB_DATADIR/test
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--cat_file $MARIADB_DATADIR.files.txt
+--remove_file $MARIADB_DATADIR.files.txt
 --echo ---- MYSQL_TMP_DIR/new_dir/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_TMP_DIR/new_dir/test
+--list_files_write_file $MARIADB_DATADIR.files.txt $data_in_new_dir/test
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--cat_file $MARIADB_DATADIR.files.txt
+--remove_file $MARIADB_DATADIR.files.txt
 
 --echo #
 --echo # Start the server and check tablespaces.
@@ -587,7 +599,13 @@ DROP TABLE t55_restart;
 DROP TABLE t66_restart;
 DROP TABLE t77_restart;
 
---rmdir $MYSQL_TMP_DIR/alt_dir/test
+--rmdir $data_in_alt_dir/test
+--rmdir $data_in_new_dir/test
+
+if ($USING_CATALOGS == 1)
+{
+--rmdir $data_in_alt_dir
+--rmdir $data_in_new_dir
+}
 --rmdir $MYSQL_TMP_DIR/alt_dir
---rmdir $MYSQL_TMP_DIR/new_dir/test
 --rmdir $MYSQL_TMP_DIR/new_dir

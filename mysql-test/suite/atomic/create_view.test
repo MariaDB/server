@@ -12,7 +12,6 @@ call mtr.add_suppression("InnoDB: .* does not exist in the InnoDB internal");
 let NO_WSREP=1;
 RESET MASTER;
 --enable_query_log
-let $MYSQLD_DATADIR= `SELECT @@datadir`;
 
 let $crash_count=6;
 let $crash_points='ddl_log_create_before_copy_view', 'ddl_log_create_before_create_view', 'definition_file_after_create','ddl_log_create_after_create_view', 'ddl_log_create_before_binlog', 'ddl_log_create_after_binlog';
@@ -70,8 +69,8 @@ while ($e < 1)
         echo "No crash!";
       }
       # Check which tables still exists
-      --list_files $MYSQLD_DATADIR/test t*
-      --list_files $MYSQLD_DATADIR/test *sql*
+      --list_files $MARIADB_DATADIR/test t*
+      --list_files $MARIADB_DATADIR/test *sql*
       select * from t2;
 
       --let $binlog_file=$start_binlog_file

@@ -12,19 +12,18 @@
 --source include/stop_slave.inc
 
 --connection master
---let $datadir= `SELECT @@datadir`
 
 --let $rpl_server_number= 1
 --source include/rpl_stop_server.inc
 
---remove_file $datadir/master-bin.000001
---remove_file $datadir/master-bin.state
+--remove_file $MARIADB_TOPDIR/master-bin.000001
+--remove_file $MARIADB_TOPDIR/master-bin.state
 --echo # Data in binlog
 --echo # CREATE TABLE t1 (a INT);
 --echo # INSERT INTO t1 VALUES (1),(2),(3);
 --echo # REPLACE INTO t1 VALUES (4);
 
---copy_file $MYSQL_TEST_DIR/std_data/binlog_before_20574.bin $datadir/master-bin.000001
+--copy_file $MYSQL_TEST_DIR/std_data/binlog_before_20574.bin $MARIADB_TOPDIR/master-bin.000001
 
 --let $rpl_server_number= 1
 --source include/rpl_start_server.inc

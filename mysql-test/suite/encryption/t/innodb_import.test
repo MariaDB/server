@@ -4,15 +4,15 @@
 --echo #
 --echo # MDEV-26131 SEGV in ha_innobase::discard_or_import_tablespace
 --echo #
-let $MYSQLD_DATADIR = `SELECT @@datadir`;
 CREATE TABLE t1(f1 int,f2 text)ENGINE=InnoDB;
 INSERT INTO t1 VALUES(1, "InnoDB");
 CREATE TABLE t2 LIKE t1;
 ALTER TABLE t2 ADD KEY idx (f2(13));
 ALTER TABLE t2 DISCARD TABLESPACE;
 FLUSH TABLES t1 FOR EXPORT;
---copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t2.ibd
+--copy_file $MARIADB_DATADIR/test/t1.ibd $MARIADB_DATADIR/test/t2.ibd
 UNLOCK TABLES;
+--replace_catalog
 --error ER_INTERNAL_ERROR
 ALTER TABLE t2 IMPORT TABLESPACE;
 

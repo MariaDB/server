@@ -1,5 +1,3 @@
-let $MYSQLD_DATADIR= `select @@datadir`;
-
 --echo #
 --echo # Start of 10.7 tests
 --echo #
@@ -42,13 +40,13 @@ CALL test_pack_key();
 DROP TABLE t1;
 
 --echo "------------------ t1packkey.frm"
---copy_file $MTR_SUITE_DIR/std_data/t1packkey.frm $MYSQLD_DATADIR/test/t1.frm
+--copy_file $MTR_SUITE_DIR/std_data/t1packkey.frm $MARIADB_DATADIR/test/t1.frm
 TRUNCATE TABLE t1;
 CALL test_pack_key();
 DROP TABLE t1;
 
 --echo "------------------ t1nopackkey.frm"
---copy_file $MTR_SUITE_DIR/std_data/t1nopackkey.frm $MYSQLD_DATADIR/test/t1.frm
+--copy_file $MTR_SUITE_DIR/std_data/t1nopackkey.frm $MARIADB_DATADIR/test/t1.frm
 TRUNCATE TABLE t1;
 CALL test_pack_key();
 DROP TABLE t1;

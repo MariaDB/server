@@ -32,7 +32,7 @@ select @@global.innodb_ft_num_word_optimize;
 select * from information_schema.global_variables where variable_name='innodb_ft_num_word_optimize';
 select * from information_schema.session_variables where variable_name='innodb_ft_num_word_optimize';
 --enable_warnings
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session innodb_ft_num_word_optimize=1000;
 
 #

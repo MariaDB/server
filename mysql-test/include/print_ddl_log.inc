@@ -2,9 +2,8 @@
 --echo # Reading backup ddl log file
 --echo #
 
-let MYSQLD_DATADIR= `select @@datadir`;
 perl;
-  $datadir= $ENV{'MYSQLD_DATADIR'};
+  $datadir= $ENV{'MARIADB_TOPDIR'};
   $id_count= 0;
   $tmp_table_count;
 

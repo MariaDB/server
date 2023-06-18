@@ -90,7 +90,7 @@ SET @@session.server_id = 3;
 SELECT @@server_id;
 
 SET @@local.server_id = 4;
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 
 
 

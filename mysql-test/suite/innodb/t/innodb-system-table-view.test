@@ -6,7 +6,6 @@
 
 SET @save_frequency=@@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
-LET $MYSQLD_DATADIR = `select @@datadir`;
 LET $INNODB_PAGE_SIZE = `select @@innodb_page_size`;
 
 # The IDs of mysql.innodb_table_stats and mysql.innodb_index_stats may

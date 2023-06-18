@@ -10,7 +10,7 @@ SELECT @@global.innodb_purge_rseg_truncate_frequency;
 128
 '#---------------------FN_DYNVARS_046_02-------------------------#'
 SET innodb_purge_rseg_truncate_frequency = 1;
-ERROR HY000: Variable 'innodb_purge_rseg_truncate_frequency' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@innodb_purge_rseg_truncate_frequency;
 @@innodb_purge_rseg_truncate_frequency
 128

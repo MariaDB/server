@@ -21,7 +21,7 @@ SELECT @@global.innodb_merge_threshold_set_all_debug;
 @@global.innodb_merge_threshold_set_all_debug
 1
 set innodb_merge_threshold_set_all_debug = 50;
-ERROR HY000: Variable 'innodb_merge_threshold_set_all_debug' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 set global innodb_merge_threshold_set_all_debug = 50;
 SELECT @@global.innodb_merge_threshold_set_all_debug;
 @@global.innodb_merge_threshold_set_all_debug

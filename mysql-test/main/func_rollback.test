@@ -476,6 +476,7 @@ BEGIN
    RETURN 1;
 END//
 delimiter ;//
+--replace_result `test`.`t1_parent` `t1_parent`
 --error ER_NO_REFERENCED_ROW_2
 SELECT f1_two_inserts();
 SELECT * FROM t1_child;

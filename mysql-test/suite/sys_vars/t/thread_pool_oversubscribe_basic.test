@@ -22,7 +22,7 @@ set global thread_pool_oversubscribe=60;
 select @@global.thread_pool_oversubscribe;
 set global thread_pool_oversubscribe=1000;
 select @@global.thread_pool_oversubscribe;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session thread_pool_oversubscribe=1;
 
 #

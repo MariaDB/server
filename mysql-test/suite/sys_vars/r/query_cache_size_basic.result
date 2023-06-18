@@ -81,7 +81,7 @@ SELECT @@global.query_cache_size;
 0
 '#-------------------FN_DYNVARS_133_05----------------------------#'
 SET @@session.query_cache_size = 0;
-ERROR HY000: Variable 'query_cache_size' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@query_cache_size;
 @@query_cache_size
 0
@@ -116,7 +116,7 @@ SELECT @@query_cache_size = @@global.query_cache_size;
 1
 '#---------------------FN_DYNVARS_133_09----------------------#'
 SET query_cache_size = 1;
-ERROR HY000: Variable 'query_cache_size' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@query_cache_size;
 @@query_cache_size
 0

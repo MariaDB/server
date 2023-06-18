@@ -63,8 +63,7 @@ ANALYZE TABLE t1;
 let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1);
 FLUSH LOGS;
 
---let $MYSQLD_DATADIR= `select @@datadir`
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/$binlog_file > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.out
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/$binlog_file > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.out
 
 --let SEARCH_PATTERN= GTID $optimize_gtid ddl
 --let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mysqlbinlog.out
@@ -110,7 +109,7 @@ ALTER TABLE t1 REPAIR PARTITION p0;
 let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1);
 FLUSH LOGS;
 
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/$binlog_file > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.out
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/$binlog_file > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.out
 
 --let SEARCH_PATTERN= GTID $analyze_gtid ddl
 --let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mysqlbinlog.out

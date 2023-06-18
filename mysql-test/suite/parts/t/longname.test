@@ -2,6 +2,9 @@ source include/have_innodb.inc;
 source include/have_partition.inc;
 # The absolute path names in the embedded server hit the limit earlier.
 source include/not_embedded.inc;
+# Too long name with catalogs
+source include/not_catalogs.inc;
+
 set names utf8;
 
 create database mysqltest1;

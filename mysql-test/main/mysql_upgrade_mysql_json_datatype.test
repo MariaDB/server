@@ -7,20 +7,19 @@ call mtr.add_suppression("Table rebuild required");
 call mtr.add_suppression("is marked as crashed");
 call mtr.add_suppression("Checking");
 
-let $MYSQLD_DATADIR= `select @@datadir`;
 SET NAMES utf8;
 
---copy_file std_data/mysql_json/tempty.frm $MYSQLD_DATADIR/test/tempty.frm
---copy_file std_data/mysql_json/tempty.MYI $MYSQLD_DATADIR/test/tempty.MYI
---copy_file std_data/mysql_json/tempty.MYD $MYSQLD_DATADIR/test/tempty.MYD
+--copy_file std_data/mysql_json/tempty.frm $MARIADB_DATADIR/test/tempty.frm
+--copy_file std_data/mysql_json/tempty.MYI $MARIADB_DATADIR/test/tempty.MYI
+--copy_file std_data/mysql_json/tempty.MYD $MARIADB_DATADIR/test/tempty.MYD
 
---copy_file std_data/mysql_json/mysql_json_test.frm $MYSQLD_DATADIR/test/mysql_json_test.frm
---copy_file std_data/mysql_json/mysql_json_test.MYI $MYSQLD_DATADIR/test/mysql_json_test.MYI
---copy_file std_data/mysql_json/mysql_json_test.MYD $MYSQLD_DATADIR/test/mysql_json_test.MYD
+--copy_file std_data/mysql_json/mysql_json_test.frm $MARIADB_DATADIR/test/mysql_json_test.frm
+--copy_file std_data/mysql_json/mysql_json_test.MYI $MARIADB_DATADIR/test/mysql_json_test.MYI
+--copy_file std_data/mysql_json/mysql_json_test.MYD $MARIADB_DATADIR/test/mysql_json_test.MYD
 
---copy_file std_data/mysql_json/mysql_json_test_big.frm $MYSQLD_DATADIR/test/mysql_json_test_big.frm
---copy_file std_data/mysql_json/mysql_json_test_big.MYI $MYSQLD_DATADIR/test/mysql_json_test_big.MYI
---copy_file std_data/mysql_json/mysql_json_test_big.MYD $MYSQLD_DATADIR/test/mysql_json_test_big.MYD
+--copy_file std_data/mysql_json/mysql_json_test_big.frm $MARIADB_DATADIR/test/mysql_json_test_big.frm
+--copy_file std_data/mysql_json/mysql_json_test_big.MYI $MARIADB_DATADIR/test/mysql_json_test_big.MYI
+--copy_file std_data/mysql_json/mysql_json_test_big.MYD $MARIADB_DATADIR/test/mysql_json_test_big.MYD
 
 
 set sql_mode="";
@@ -58,4 +57,4 @@ drop table tempty;
 drop table mysql_json_test;
 drop table mysql_json_test_big;
 
---remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
+--remove_file $MARIADB_TOPDIR/mariadb_upgrade_info

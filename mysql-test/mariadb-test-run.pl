@@ -270,6 +270,9 @@ our $opt_fast= 0;
 our $opt_force= 0;
 our $opt_mem= $ENV{'MTR_MEM'};
 our $opt_clean_vardir= $ENV{'MTR_CLEAN_VARDIR'};
+our $opt_catalogs= 0;
+our $opt_catalog_name="";
+our $catalog_name="def";
 
 our $opt_gcov;
 our $opt_gprof;
@@ -1177,6 +1180,8 @@ sub command_line_setup {
              'client-libdir=s'          => \$path_client_libdir,
 
              # Misc
+             'catalogs'                 => \$opt_catalogs,
+             'use-catalog=s'            => \$opt_catalog_name,
              'comment=s'                => \$opt_comment,
              'fast'                     => \$opt_fast,
 	     'force-restart'            => \$opt_force_restart,
@@ -1798,7 +1803,7 @@ sub collect_mysqld_features {
 
 sub collect_mysqld_features_from_running_server ()
 {
-  my $mysql= mtr_exe_exists("$path_client_bindir/mysql");
+  my $mysql= mtr_exe_exists("$path_client_bindir/mariadb");
 
   my $args;
   mtr_init_args(\$args);
@@ -2119,7 +2124,8 @@ sub environment_setup {
   $ENV{'MYSQL_BINDIR'}=       $bindir;
   $ENV{'MYSQL_SHAREDIR'}=     $path_language;
   $ENV{'MYSQL_CHARSETSDIR'}=  $path_charsetsdir;
-  
+  $ENV{'MARIADB_CATALOG'}=    $catalog_name;
+
   if (IS_WINDOWS)
   {
     $ENV{'SECURE_LOAD_PATH'}= $glob_mysql_test_dir."\\std_data";
@@ -2226,8 +2232,8 @@ sub environment_setup {
   # mysqlhotcopy
   # ----------------------------------------------------
   my $mysqlhotcopy=
-    mtr_pl_maybe_exists("$bindir/scripts/mysqlhotcopy") ||
-    mtr_pl_maybe_exists("$path_client_bindir/mysqlhotcopy");
+    mtr_pl_maybe_exists("$bindir/scripts/mariadb-hotcopy") ||
+    mtr_pl_maybe_exists("$path_client_bindir/mariadb-hotcopy");
   if ($mysqlhotcopy)
   {
     $ENV{'MYSQLHOTCOPY'}= $mysqlhotcopy;
@@ -2282,6 +2288,15 @@ sub environment_setup {
       "$path_client_bindir/mariabackup");
 
   $ENV{XTRABACKUP}= native_path($exe_mariabackup) if $exe_mariabackup;
+  if ($opt_catalog_name ne "")
+  {
+    $opt_catalogs=1;
+    $catalog_name=$opt_catalog_name;
+  }
+  if ($opt_catalogs)
+  {
+    $ENV{'USING_CATALOGS'}= 1;
+  }
 
   my $exe_xbstream= mtr_exe_maybe_exists(
         "$bindir/extra/mariabackup/$multiconfig/mbstream",
@@ -3057,6 +3072,7 @@ sub mysql_install_db {
   mtr_add_arg($args, "--core-file");
   mtr_add_arg($args, "--console");
   mtr_add_arg($args, "--character-set-server=latin1");
+  mtr_add_arg($args, "--catalogs") if ($opt_catalogs);
 
   if ( $opt_debug )
   {
@@ -3177,6 +3193,30 @@ sub mysql_install_db {
            sql_to_bootstrap($text));
     }
 
+    if (-f $path_sql && $catalog_name ne "def")
+    {
+      my $sql_dir= dirname($path_sql);
+      # Create catalog directory. See mysql_install_db.sh for details
+      mtr_tofile($bootstrap_sql_file, "create catalog $catalog_name;\n");
+      mtr_tofile($bootstrap_sql_file, "use catalog $catalog_name;\n");
+      mtr_tofile($bootstrap_sql_file, "create database mysql;\n");
+      mtr_tofile($bootstrap_sql_file,
+                 "CREATE DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;\n");
+      mtr_tofile($bootstrap_sql_file, "use mysql;\n");
+      mtr_appendfile_to_file("$sql_dir/mysql_system_tables.sql",
+                             $bootstrap_sql_file);
+
+      my $gis_sp_path = $source_dist ? "$bindir/scripts" : $sql_dir;
+      mtr_appendfile_to_file("$gis_sp_path/maria_add_gis_sp.sql",
+                             $bootstrap_sql_file);
+      mtr_appendfile_to_file("$sql_dir/mysql_performance_tables.sql",
+                             $bootstrap_sql_file);
+      mtr_appendfile_to_file("$sql_dir/mysql_system_tables_data.sql",
+                             $bootstrap_sql_file);
+      mtr_appendfile_to_file("$gis_sp_path/mysql_sys_schema.sql",
+                             $bootstrap_sql_file);
+    }
+
     # Remove anonymous users
     mtr_tofile($bootstrap_sql_file,
          "DELETE FROM mysql.global_priv where user= '';\n");
@@ -3199,7 +3239,7 @@ sub mysql_install_db {
   mtr_tofile($path_bootstrap_log,
 	     "$exe_mysqld_bootstrap " . join(" ", @$args) . "\n");
 
-  if ('--catalogs' ~~ @$args)
+  if ($opt_catalogs)
   {
       # Create directories def mysql
       mkpath("$install_datadir/def/mysql");
@@ -3385,7 +3425,7 @@ sub check_testcase($$)
     }
   }
 
-  # Return immediately if no check proceess was started
+  # Return immediately if no check process was started
   return 0 unless ( keys %started );
 
   my $timeout= start_timer(check_timeout($tinfo));
@@ -3510,7 +3550,10 @@ sub start_run_one ($$) {
 
   mtr_add_arg($args, "--silent");
   mtr_add_arg($args, "--test-file=%s", "include/$run.test");
-
+  if ($opt_catalogs)
+  {
+    mtr_add_arg($args, "--catalog=%s", $catalog_name);
+  }
   my $errfile= "$opt_vardir/tmp/$name.err";
   my $proc= My::SafeProcess->new
     (
@@ -3900,6 +3943,23 @@ sub run_testcase ($$) {
           $ENV{$name}= $val;
         }
       }
+    }
+
+    # Set up things for catalogs
+    # The values of MARIADB_TOPDIR and MARIAD_DATADIR should
+    # be taken from the values used by the default (first)
+    # connection that is used by mariadb-test.
+    my ($mysqld, @servers);
+    @servers= all_servers();
+    $mysqld= $servers[0];
+    $ENV{'MARIADB_TOPDIR'}= $mysqld->value('datadir');
+    if (!$opt_catalogs)
+    {
+      $ENV{'MARIADB_DATADIR'}= $mysqld->value('datadir');
+    }
+    else
+    {
+      $ENV{'MARIADB_DATADIR'}= $mysqld->value('datadir') . "/" . $catalog_name;
     }
 
     # Write start of testcase to log
@@ -4564,6 +4624,10 @@ sub start_check_warnings ($$) {
   mtr_add_arg($args, "--defaults-file=%s", $path_config_file);
   mtr_add_arg($args, "--defaults-group-suffix=%s", $mysqld->after('mysqld'));
   mtr_add_arg($args, "--test-file=%s", "include/check-warnings.test");
+  if ($opt_catalogs)
+  {
+    mtr_add_arg($args, "--catalog=%s", $catalog_name);
+  }
 
   if ( $opt_embedded_server )
   {
@@ -5522,7 +5586,12 @@ sub start_check_testcase ($$$) {
   mtr_add_arg($args, "--defaults-group-suffix=%s", $mysqld->after('mysqld'));
   mtr_add_arg($args, "--result-file=%s", "$opt_vardir/tmp/$name.result");
   mtr_add_arg($args, "--test-file=%s", "include/check-testcase.test");
+  mtr_add_arg($args, "--debug");
   mtr_add_arg($args, "--verbose");
+  if ($opt_catalogs)
+  {
+    mtr_add_arg($args, "--catalog=%s", $catalog_name);
+  }
 
   if ( $mode eq "before" )
   {
@@ -5565,6 +5634,10 @@ sub start_mysqltest ($) {
   mtr_add_arg($args, "--tmpdir=%s", $opt_tmpdir);
   mtr_add_arg($args, "--character-sets-dir=%s", $path_charsetsdir);
   mtr_add_arg($args, "--logdir=%s/log", $opt_vardir);
+  if ($opt_catalogs)
+  {
+    mtr_add_arg($args, "--catalog=%s", $catalog_name);
+  }
 
   # Log line number and time  for each line in .test file
   mtr_add_arg($args, "--mark-progress")
@@ -5812,6 +5885,8 @@ Options to control what engine/variation to run:
                         options to mysqld
   dry-run               Don't run any tests, print the list of tests
                         that were selected for execution
+  catalog               Run test with catalog support.
+  use-catalog=name      Run all test within catalog 'name'.
 
 Options to control directories to use
   tmpdir=DIR            The directory where temporary files are stored

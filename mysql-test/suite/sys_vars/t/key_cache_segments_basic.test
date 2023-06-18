@@ -18,7 +18,7 @@ select * from information_schema.session_variables where variable_name='key_cach
 #
 set global key_cache_segments=1;
 select @@global.key_cache_segments;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session key_cache_segments=1;
 
 #

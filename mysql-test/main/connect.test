@@ -17,7 +17,7 @@ SET global secure_auth=0;
 #connect (con1,localhost,root,,"");
 #show tables;
 connect (con1,localhost,root,,mysql);
-show tables;
+show tables like "innodb%";
 connect (con2,localhost,root,,test);
 show tables;
 
@@ -39,7 +39,7 @@ grant ALL on *.* to test@127.0.0.1 identified by "gambling";
 #connect (con1,localhost,test,gambling,"");
 #show tables;
 connect (con3,localhost,test,gambling,mysql);
-show tables;
+show tables like "innodb%";
 connect (con4,localhost,test,gambling,test);
 show tables;
 
@@ -76,7 +76,7 @@ set password="";
 --error ER_PASSWD_LENGTH
 set password='gambling3';
 set password=old_password('gambling3');
-show tables;
+show tables like "innodb%";
 connect (con6,localhost,test,gambling3,test);
 show tables;
 
@@ -160,6 +160,8 @@ let $wait_condition =
   FROM information_schema.processlist
   WHERE user = 'event_scheduler';
 --source include/wait_condition.inc
+
+select @@GLOBAL.event_scheduler;
 
 --echo
 --echo # -- Disconnecting default connection...

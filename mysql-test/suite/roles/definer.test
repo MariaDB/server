@@ -7,8 +7,6 @@
 --source include/not_embedded.inc
 --source include/default_charset.inc
 
-let MYSQLD_DATADIR=`select @@datadir`;
-
 create database mysqltest1;
 use mysqltest1;
 
@@ -115,7 +113,7 @@ select * from test.v5;
 # pretend it's an old view from before 10.0.5
 perl;
 local $/;
-my $f= "$ENV{MYSQLD_DATADIR}/test/v5.frm";
+my $f= "$ENV{MARIADB_DATADIR}/test/v5.frm";
 open(F, '<', $f) or die "open(<$f): $!";
 $_=<F>;
 s/create-version=2/create-version=1/;
@@ -178,7 +176,7 @@ flush tables;
 # change triggers to use pre-10.0.5 definer with an empty hostname
 perl;
 local $/;
-my $f= "$ENV{MYSQLD_DATADIR}/mysqltest1/t2.TRG";
+my $f= "$ENV{MARIADB_DATADIR}/mysqltest1/t2.TRG";
 open(F, '<', $f) or die "open(<$f): $!";
 $_=<F>;
 s/'role2'/'role2\@'/;

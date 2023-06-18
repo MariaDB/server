@@ -20,10 +20,10 @@ select @@global.Host_Cache_Size=@Default_host_cache_size;
 1 Expected
 '#---------------------WL6372_VAR_6_03----------------------#'
 SET @@local.Host_Cache_Size=1;
-ERROR HY000: Variable 'host_cache_size' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 Expected error 'Global variable'
 SET @@session.Host_Cache_Size=1;
-ERROR HY000: Variable 'host_cache_size' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 Expected error 'Global variable'
 SET @@GLOBAL.Host_Cache_Size=1;
 SET @@GLOBAL.Host_Cache_Size=DEFAULT;

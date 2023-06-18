@@ -52,7 +52,7 @@ SELECT @@global.innodb_purge_batch_size;
 #  Check if innodb_purge_batch_size can be accessed with and without @@ sign #
 ##############################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET innodb_purge_batch_size = 1;
 SELECT @@innodb_purge_batch_size;
 

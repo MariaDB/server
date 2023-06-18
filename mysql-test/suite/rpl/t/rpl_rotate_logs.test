@@ -19,12 +19,13 @@
 
 connect (master,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK);
 connect (slave,localhost,root,,test,$SLAVE_MYPORT,$SLAVE_MYSOCK);
+source include/get_replication_datadir.inc;
 
 # Create empty file
-let $MYSQLD_SLAVE_DATADIR= `select @@datadir`;
-write_file $MYSQLD_SLAVE_DATADIR/master.info;
+connection slave;
+write_file $SLAVE_TOPDIR/master.info;
 EOF
-chmod 0000 $MYSQLD_SLAVE_DATADIR/master.info;
+chmod 0000 $SLAVE_TOPDIR/master.info;
 connection slave;
 
 CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.");
@@ -33,7 +34,7 @@ CALL mtr.add_suppression("Unsafe statement written to the binary log using state
 --replace_result $MYSQL_TEST_DIR TESTDIR
 --error 1105,1105,29
 start slave;
-chmod 0600  $MYSQLD_SLAVE_DATADIR/master.info;
+chmod 0600  $SLAVE_TOPDIR/master.info;
 # It will fail again because the file is empty so the slave cannot get valuable
 # info about how to connect to the master from it (failure in
 # init_strvar_from_file() in init_master_info()).
@@ -195,6 +196,6 @@ purge master logs before now();
 --echo End of 5.0 tests
 --echo #cleanup
 
---remove_file $MYSQLD_SLAVE_DATADIR/master.info
+--remove_file $SLAVE_TOPDIR/master.info
 --source include/stop_slave.inc
 reset slave all;

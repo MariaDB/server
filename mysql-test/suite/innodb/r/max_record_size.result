@@ -1,4 +1,4 @@
-call mtr.add_suppression("Cannot add field `.*` in table `test`.`t1` because after adding it, the row size is");
+call mtr.add_suppression("Cannot add field `.*` in table .*`test`.`t1` because after adding it, the row size is");
 CREATE TABLE t1 (
 c1 CHAR(255), c2 CHAR(255), c3 CHAR(255), c4 CHAR(255),
 c5 CHAR(255), c6 CHAR(255), c7 CHAR(255), c8 CHAR(255),

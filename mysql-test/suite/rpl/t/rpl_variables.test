@@ -114,9 +114,9 @@ SET @user_text = 'Alunda';
 # above, but can't because it affects how the slave works.
 SET @@global.init_slave = 'SELECT 1';
 
-
 connection master;
 # checking values of read-only variables
+--replace_catalog
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 query_vertical SELECT @@pid_file, @@datadir;
 --echo **** Relay log variables
@@ -128,6 +128,7 @@ query_vertical SELECT @@log_bin, @@log_bin_index, @@log_bin_basename;
 
 connection slave;
 # checking values of read-only variables
+--replace_catalog
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 query_vertical SELECT @@pid_file, @@datadir;
 --echo **** Relay log variables

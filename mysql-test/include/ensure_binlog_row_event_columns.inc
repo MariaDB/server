@@ -29,10 +29,9 @@ if (!$binlog_filename)
 --source include/begin_include_file.inc
 
 --let $assert_file=$MYSQLTEST_VARDIR/tmp/binlog_decoded.out
---let mysqld_datadir=`select @@datadir`
 
---echo # MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
---exec $MYSQL_BINLOG $mysqld_datadir/$binlog_filename -vv > $assert_file
+--echo # MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/$binlog_filename -vv > $assert_file
 
 --echo # Verifying all expected column ids appear in binlog event output..
 --let num_cols_found=0

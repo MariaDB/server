@@ -1,38 +1,9 @@
 SET global secure_auth=0;
 connect  con1,localhost,root,,mysql;
-show tables;
-Tables_in_mysql
-column_stats
-columns_priv
-db
-event
-func
-general_log
-global_priv
-gtid_slave_pos
-help_category
-help_keyword
-help_relation
-help_topic
-index_stats
+show tables like "innodb%";
+Tables_in_mysql (innodb%)
 innodb_index_stats
 innodb_table_stats
-plugin
-proc
-procs_priv
-proxies_priv
-roles_mapping
-servers
-slow_log
-table_stats
-tables_priv
-time_zone
-time_zone_leap_second
-time_zone_name
-time_zone_transition
-time_zone_transition_type
-transaction_registry
-user
 connect  con2,localhost,root,,test;
 show tables;
 Tables_in_test
@@ -48,39 +19,10 @@ disconnect con2;
 grant ALL on *.* to test@localhost identified by "gambling";
 grant ALL on *.* to test@127.0.0.1 identified by "gambling";
 connect  con3,localhost,test,gambling,mysql;
-show tables;
-Tables_in_mysql
-column_stats
-columns_priv
-db
-event
-func
-general_log
-global_priv
-gtid_slave_pos
-help_category
-help_keyword
-help_relation
-help_topic
-index_stats
+show tables like "innodb%";
+Tables_in_mysql (innodb%)
 innodb_index_stats
 innodb_table_stats
-plugin
-proc
-procs_priv
-proxies_priv
-roles_mapping
-servers
-slow_log
-table_stats
-tables_priv
-time_zone
-time_zone_leap_second
-time_zone_name
-time_zone_transition
-time_zone_transition_type
-transaction_registry
-user
 connect  con4,localhost,test,gambling,test;
 show tables;
 Tables_in_test
@@ -116,40 +58,10 @@ set password="";
 set password='gambling3';
 ERROR HY000: Password hash should be a 41-digit hexadecimal number
 set password=old_password('gambling3');
-show tables;
-Tables_in_mysql
-column_stats
-columns_priv
-db
-event
-func
-general_log
-global_priv_bak
-gtid_slave_pos
-help_category
-help_keyword
-help_relation
-help_topic
-index_stats
+show tables like "innodb%";
+Tables_in_mysql (innodb%)
 innodb_index_stats
 innodb_table_stats
-plugin
-proc
-procs_priv
-proxies_priv
-roles_mapping
-servers
-slow_log
-table_stats
-tables_priv
-time_zone
-time_zone_leap_second
-time_zone_name
-time_zone_transition
-time_zone_transition_type
-transaction_registry
-user
-user_bak
 connect  con6,localhost,test,gambling3,test;
 show tables;
 Tables_in_test
@@ -201,6 +113,9 @@ connect  tmp_con7,localhost,mysqltest_u1,,;
 connection default;
 
 # -- Waiting for Event Scheduler to start...
+select @@GLOBAL.event_scheduler;
+@@GLOBAL.event_scheduler
+ON
 
 # -- Disconnecting default connection...
 disconnect default;

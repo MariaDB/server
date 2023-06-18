@@ -425,10 +425,9 @@ REPLACE INTO t2 SELECT * FROM t2;
 DROP TABLE t1, t2;
 set timestamp= default;
 set time_zone='+00:00';
---let $datadir= `select @@datadir`
---remove_file $datadir/test/t1.data
---remove_file $datadir/test/t1.data.2
---remove_file $datadir/test/t2.data
+--remove_file $MARIADB_DATADIR/test/t1.data
+--remove_file $MARIADB_DATADIR/test/t1.data.2
+--remove_file $MARIADB_DATADIR/test/t2.data
 
 --echo #
 --echo # MDEV-16210 FK constraints on versioned tables use historical rows, which may cause constraint violation
@@ -560,8 +559,7 @@ select pk from t0;
 
 --echo # Cleanup
 drop table t1, t0, t2;
---let $datadir= `select @@datadir`
---remove_file $datadir/test/load_t0
+--remove_file $MARIADB_DATADIR/test/load_t0
 
 
 --echo # create_select for a temporary table didn't set up pos_in_locked_tables.

@@ -11,9 +11,9 @@ connection user1;
 SET GLOBAL expire_logs_days=33;
 ERROR 42000: Access denied; you need (at least one of) the BINLOG ADMIN privilege(s) for this operation
 SET expire_logs_days=33;
-ERROR HY000: Variable 'expire_logs_days' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SET SESSION expire_logs_days=33;
-ERROR HY000: Variable 'expire_logs_days' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 disconnect user1;
 connection default;
 DROP USER user1@localhost;
@@ -24,9 +24,9 @@ connect user1,localhost,user1,,;
 connection user1;
 SET GLOBAL expire_logs_days=33;
 SET expire_logs_days=33;
-ERROR HY000: Variable 'expire_logs_days' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SET SESSION expire_logs_days=33;
-ERROR HY000: Variable 'expire_logs_days' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 disconnect user1;
 connection default;
 DROP USER user1@localhost;

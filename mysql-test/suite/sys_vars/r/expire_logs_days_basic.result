@@ -76,7 +76,7 @@ SELECT @@global.expire_logs_days;
 99.000000
 '#-------------------FN_DYNVARS_029_05----------------------------#'
 SET @@session.expire_logs_days = 0;
-ERROR HY000: Variable 'expire_logs_days' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@expire_logs_days;
 @@expire_logs_days
 99.000000
@@ -107,7 +107,7 @@ SELECT @@expire_logs_days = @@global.expire_logs_days;
 1
 '#---------------------FN_DYNVARS_029_09----------------------#'
 SET expire_logs_days = 1;
-ERROR HY000: Variable 'expire_logs_days' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@expire_logs_days;
 @@expire_logs_days
 1.000000

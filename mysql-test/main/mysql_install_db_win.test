@@ -1,4 +1,6 @@
 --source include/windows.inc
+--source include/not_catalogs.inc
+
 select database();
 use mysql;
 

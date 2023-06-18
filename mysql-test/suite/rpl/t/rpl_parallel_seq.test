@@ -40,13 +40,12 @@ DROP SEQUENCE s1;
 --echo # Simulate buggy 10.3.36 master to prove the parallel applier
 --echo # does not deadlock now at replaying the above master load.
 --connection master
---let $datadir= `SELECT @@datadir`
 
 --let $rpl_server_number= 1
 --source include/rpl_stop_server.inc
 
---remove_file $datadir/master-bin.000001
---copy_file $MYSQL_TEST_DIR/std_data/rpl/master-bin-seq_10.3.36.000001 $datadir/master-bin.000001
+--remove_file $MARIADB_TOPDIR/master-bin.000001
+--copy_file $MYSQL_TEST_DIR/std_data/rpl/master-bin-seq_10.3.36.000001 $MARIADB_TOPDIR/master-bin.000001
 
 --let $rpl_server_number= 1
 --source include/rpl_start_server.inc

@@ -25,7 +25,7 @@ select @@global.thread_pool_stall_limit;
 @@global.thread_pool_stall_limit
 4294967295
 set session thread_pool_stall_limit=1;
-ERROR HY000: Variable 'thread_pool_stall_limit' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 set global thread_pool_stall_limit=1.1;
 ERROR 42000: Incorrect argument type to variable 'thread_pool_stall_limit'
 set global thread_pool_stall_limit=1e1;

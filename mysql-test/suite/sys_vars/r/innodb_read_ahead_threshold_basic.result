@@ -34,7 +34,7 @@ select * from information_schema.session_variables where variable_name='innodb_r
 VARIABLE_NAME	VARIABLE_VALUE
 INNODB_READ_AHEAD_THRESHOLD	10
 set session innodb_read_ahead_threshold=1;
-ERROR HY000: Variable 'innodb_read_ahead_threshold' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 set global innodb_read_ahead_threshold=DEFAULT;
 select @@global.innodb_read_ahead_threshold;
 @@global.innodb_read_ahead_threshold

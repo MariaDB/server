@@ -6,6 +6,7 @@ use File::Basename;
 use strict;
 
 return "Not run for embedded server" if $::opt_embedded_server;
+return "No catalog support" if $ENV{USING_CATALOGS};
 
 return "No mariabackup" unless $ENV{XTRABACKUP};
 

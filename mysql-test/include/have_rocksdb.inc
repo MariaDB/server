@@ -2,3 +2,4 @@ if (`SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.ENGINES WHERE engine = 'ROCKSDB
 {
   --skip Test requires MyRocks engine
 }
+--source include/not_catalogs.inc

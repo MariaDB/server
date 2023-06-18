@@ -37,14 +37,12 @@ SELECT count(*) FROM information_schema.ROUTINES WHERE ROUTINE_CATALOG = 'def' a
 SELECT count(*) FROM information_schema.ROUTINES WHERE ROUTINE_CATALOG = 'def' and ROUTINE_SCHEMA = 'mysql' and ROUTINE_NAME='AddGeometryColumn' and DEFINER = 'mariadb.sys@localhost';
 SELECT count(*) FROM information_schema.ROUTINES WHERE ROUTINE_CATALOG = 'def' and ROUTINE_SCHEMA = 'mysql' and ROUTINE_NAME='DropGeometryColumn' and DEFINER = 'mariadb.sys@localhost';
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-
 --echo #
 --echo # Run mysql_upgrade
 --echo #
 --exec $MYSQL_UPGRADE  2>&1
---file_exists $MYSQLD_DATADIR/mariadb_upgrade_info
---remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
+--file_exists $MARIADB_TOPDIR/mariadb_upgrade_info
+--remove_file $MARIADB_TOPDIR/mariadb_upgrade_info
 
 --echo #
 --echo # check new definers of Add/DropGeometryColumn

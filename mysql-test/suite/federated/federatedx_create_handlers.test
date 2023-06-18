@@ -168,7 +168,8 @@ select name into @var from federated.t1 where id=3 limit 1 ;
 select @var;
 select name into outfile 'tmp.txt' from federated.t1;
 
-let $path=`select concat(@@datadir, 'test/tmp.txt')`;
+--source include/get_datadir.inc
+let $path=$MARIADB_DATADIR/test/tmp.txt;
 remove_file $path;
 
 --echo #

@@ -90,7 +90,7 @@ while ($e < $engine_count)
       use test;
       # Check which tables still exists
       --error 0,1
-      --list_files $MYSQLD_DATADIR/test2 t*
+      --list_files $MARIADB_DATADIR/test2 t*
       --error 0,ER_SP_DOES_NOT_EXIST
 
       --let $binlog_file=$start_binlog_file

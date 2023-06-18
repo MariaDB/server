@@ -2,8 +2,6 @@
 -- source include/have_working_dns.inc
 -- source include/have_innodb.inc
 -- source include/have_partition.inc
-let $MYSQLD_DATADIR= `select @@datadir`;
-
 
 --echo #
 --echo #  MDEV-22057 REPLICATION MASTER ADMIN is missing in root account after upgrade
@@ -55,7 +53,7 @@ SHOW GRANTS FOR user_replslave@localhost;
 
 --echo # mysql_upgrade --force --silent 2>&1
 --exec $MYSQL_UPGRADE --force --silent 2>&1
---remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
+--remove_file $MARIADB_TOPDIR/mariadb_upgrade_info
 FLUSH PRIVILEGES;
 
 --echo #

@@ -13,7 +13,7 @@ sub ib_normalize_path {
 
 sub ib_backup_tablespace {
     my ($db, $table) = @_;
-    my $datadir = $ENV{'MYSQLD_DATADIR'};
+    my $datadir = $ENV{'MARIADB_DATADIR'};
     my $cfg_file = sprintf("%s.cfg", $table);
     my $ibd_file = sprintf("%s.ibd", $table);
     my $tmpd = $ENV{'MYSQLTEST_VARDIR'} . "/tmp";
@@ -31,7 +31,7 @@ sub ib_backup_tablespace {
 
 sub ib_cleanup {
     my ($db, $table) = @_;
-    my $datadir = $ENV{'MYSQLD_DATADIR'};
+    my $datadir = $ENV{'MARIADB_DATADIR'};
     my $cfg_file = sprintf("%s.cfg", $table);
 
     print "unlink: $cfg_file\n";
@@ -42,7 +42,7 @@ sub ib_cleanup {
 
 sub ib_unlink_tablespace {
     my ($db, $table) = @_;
-    my $datadir = $ENV{'MYSQLD_DATADIR'};
+    my $datadir = $ENV{'MARIADB_DATADIR'};
     my $ibd_file = sprintf("%s.ibd", $table);
 
     print "unlink: $ibd_file\n";
@@ -87,7 +87,7 @@ sub ib_restore_ibd_file {
 
 sub ib_restore_tablespace {
     my ($db, $table) = @_;
-    my $datadir = $ENV{'MYSQLD_DATADIR'};
+    my $datadir = $ENV{'MARIADB_DATADIR'};
     my $tmpd = $ENV{'MYSQLTEST_VARDIR'} . "/tmp";
 
     ib_restore_cfg_file($tmpd, $datadir, $db, $table);
@@ -105,7 +105,7 @@ sub ib_restore_tablespaces {
 
 sub ib_restore_cfg_files {
     my ($db, @tables) = @_;
-    my $datadir = $ENV{'MYSQLD_DATADIR'};
+    my $datadir = $ENV{'MARIADB_DATADIR'};
     my $tmpd = $ENV{'MYSQLTEST_VARDIR'} . "/tmp";
 
     foreach my $table (@tables) {
@@ -116,7 +116,7 @@ sub ib_restore_cfg_files {
 
 sub ib_restore_ibd_files {
     my ($db, @tables) = @_;
-    my $datadir = $ENV{'MYSQLD_DATADIR'};
+    my $datadir = $ENV{'MARIADB_DATADIR'};
     my $tmpd = $ENV{'MYSQLTEST_VARDIR'} . "/tmp";
 
     foreach my $table (@tables) {

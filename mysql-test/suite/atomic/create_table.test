@@ -19,7 +19,6 @@ call mtr.add_suppression("InnoDB: .* does not exist in the InnoDB internal");
 let NO_WSREP=1;
 RESET MASTER;
 --enable_query_log
-let $MYSQLD_DATADIR= `SELECT @@datadir`;
 
 if ($engine_count == "")
 {
@@ -113,8 +112,8 @@ while ($e < $engine_count)
         echo "No crash!";
       }
       # Check which tables still exists
-      --list_files $MYSQLD_DATADIR/test t*
-      --list_files $MYSQLD_DATADIR/test *sql*
+      --list_files $MARIADB_DATADIR/test t*
+      --list_files $MARIADB_DATADIR/test *sql*
 
       --let $binlog_file=$start_binlog_file
       --let $binlog_output_name=master-bin.000001

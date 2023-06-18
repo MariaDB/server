@@ -85,7 +85,7 @@ SET @@global.table_definition_cache = ON;
 #       Test if accessing session table_definition_cache gives error            #
 #################################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.table_definition_cache = 0;
 --Error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.table_definition_cache;
@@ -125,7 +125,7 @@ SELECT @@table_definition_cache = @@global.table_definition_cache;
 #   Check if table_definition_cache can be accessed with and without @@ sign   #
 ################################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET table_definition_cache = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT global.table_definition_cache;

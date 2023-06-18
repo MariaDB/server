@@ -90,7 +90,7 @@ SET @@global.connect_timeout = ON;
 #       Test if accessing session connect_timeout gives error            #
 ##########################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.connect_timeout = 0;
 --Error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.connect_timeout;
@@ -129,7 +129,7 @@ SELECT @@connect_timeout = @@global.connect_timeout;
 #   Check if connect_timeout can be accessed with and without @@ sign   #
 #########################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET connect_timeout = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT global.connect_timeout;

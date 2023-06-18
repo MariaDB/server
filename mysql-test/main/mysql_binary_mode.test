@@ -1,4 +1,5 @@
-source include/have_binlog_format_mixed_or_statement.inc;
+--source include/have_binlog_format_mixed_or_statement.inc
+
 RESET MASTER;
 
 --echo # Bug#33048 Not able to recover binary/blob data correctly using mysqlbinlog
@@ -40,8 +41,7 @@ FLUSH LOGS;
 eval DROP TABLE `$table_name_right`;
 
 --echo
-let $MYSQLD_DATADIR= `SELECT @@datadir`;
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/$binlog_file > $MYSQLTEST_VARDIR/tmp/my.sql
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/$binlog_file > $MYSQLTEST_VARDIR/tmp/my.sql
 RESET MASTER;
 
 --echo # '--exec mysql ...' without --binary-mode option
@@ -103,10 +103,9 @@ FLUSH LOGS;
 #### case #2: mysql --binlog-mode=0 
 #### Replay through regular mysql client non-interactive mode
 
---let $MYSQLD_DATADIR= `SELECT @@datadir`
 --let $prefix=`SELECT UUID()`
 --let $binlog_uuid_filename= $MYSQLTEST_VARDIR/tmp/$prefix-bin.log
---copy_file $MYSQLD_DATADIR/$binlog_file $binlog_uuid_filename
+--copy_file $MARIADB_TOPDIR/$binlog_file $binlog_uuid_filename
 RESET MASTER;
 
 --exec $MYSQL_BINLOG $binlog_uuid_filename  | $MYSQL

@@ -597,8 +597,7 @@ CREATE ALGORITHM = MERGE VIEW v1 AS SELECT f1, f2 FROM t1 WHERE f1 = 'x' WITH CH
 --error ER_TRUNCATED_WRONG_VALUE
 LOAD DATA INFILE 't1.txt' INTO TABLE v1;
 SELECT * from t1;
-let $MYSQLD_DATADIR= `select @@datadir`;
-remove_file $MYSQLD_DATADIR/test/t1.txt;
+remove_file $MARIADB_DATADIR/test/t1.txt;
 drop view v1;
 drop table t1;
 SET @@sql_mode= @save_mode;

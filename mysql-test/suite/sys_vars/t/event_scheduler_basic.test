@@ -96,7 +96,7 @@ SET @@global.event_scheduler = '';
 #         Test if accessing session event_scheduler gives error   #
 ###################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.event_scheduler = OFF;
 --Error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.event_scheduler;
@@ -145,7 +145,7 @@ SELECT @@event_scheduler = @@global.event_scheduler;
 #######################################################################
 #   Check if event_scheduler can be accessed with and without @@ sign #
 #######################################################################
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET event_scheduler = ON;
 --Error ER_UNKNOWN_TABLE
 SELECT local.event_scheduler;

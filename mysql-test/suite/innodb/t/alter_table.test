@@ -50,6 +50,7 @@ CREATE TABLE t1 (pk INT, a INT, PRIMARY KEY (pk), KEY (a), FOREIGN KEY (a) REFER
 
 SET FOREIGN_KEY_CHECKS=OFF;
 
+--replace_regex /constraint '.*test/constraint 'test/
 --error ER_FK_COLUMN_CANNOT_DROP
 ALTER TABLE t1 DROP a;
 

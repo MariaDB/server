@@ -43,7 +43,7 @@ SELECT @@global.replicate_events_marked_for_skip;
 SET GLOBAL replicate_events_marked_for_skip=FILTER_ON_SLAVE;
 SELECT @@global.replicate_events_marked_for_skip;
 STOP SLAVE;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE, ER_GLOBAL_OR_CATALOG_VARIABLE
 SET SESSION replicate_events_marked_for_skip=FILTER_ON_MASTER;
 SELECT @@global.replicate_events_marked_for_skip;
 SET GLOBAL replicate_events_marked_for_skip=FILTER_ON_MASTER;
@@ -159,15 +159,14 @@ SELECT * FROM t1 ORDER by a;
 
 STOP SLAVE;
 SET GLOBAL replicate_events_marked_for_skip=FILTER_ON_MASTER;
-let $SLAVE_DATADIR= `select @@datadir`;
-
 connection master;
+source include/get_replication_datadir.inc;
 TRUNCATE t1;
 
 # Now apply the slave binlog to the master, to check that both the slave
 # and mysqlbinlog will preserve the @@skip_replication flag.
 
---let $mysqlbinlog_args= $SLAVE_DATADIR/slave-bin.000001
+--let $mysqlbinlog_args= $SLAVE_TOPDIR/slave-bin.000001
 if ($use_remote_mysqlbinlog)
 {
     --let $mysqlbinlog_args= --read-from-remote-server --protocol=tcp --host=127.0.0.1 --port=$SLAVE_MYPORT -uroot slave-bin.000001
@@ -230,7 +229,6 @@ connection slave;
 # @@replicate_events_marked_for_skip=FILTER_ON_SLAVE). So only number 4
 # should be left.
 SELECT * FROM t1;
-
 
 #
 # Check that BINLOG statement preserves the @@skip_replication flag.

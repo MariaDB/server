@@ -1,4 +1,6 @@
 --source include/have_innodb.inc
+# The following can be deleted when we have local innodb_index_stat tabels
+--source include/not_catalogs.inc
 
 --echo #
 --echo # MDEV-30483 After upgrade to 10.6 from Mysql 5.7 seeing "InnoDB: Column last_update in table mysql.innodb_table_stats is BINARY(4) NOT NULL but should be INT UNSIGNED NOT NULL"

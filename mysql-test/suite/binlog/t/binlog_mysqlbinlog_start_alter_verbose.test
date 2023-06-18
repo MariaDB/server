@@ -36,11 +36,10 @@ alter table myt add column (b int);
 FLUSH LOGS;
 
 --disable_query_log
---let $MYSQLD_DATADIR= `select @@datadir`
 --let $BINLOG_FILENAME= query_get_value(SHOW BINARY LOGS, Log_name, 1)
 
---echo # Exec MYSQL_BINLOG --base64-output=decode-rows -v MYSQLD_DATADIR/BINLOG_FILENAME > MYSQLTEST_VARDIR/tmp/mysqlbinlog_verbose.sql
---exec $MYSQL_BINLOG --base64-output=decode-rows -v $MYSQLD_DATADIR/$BINLOG_FILENAME > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_verbose.sql
+--echo # Exec MYSQL_BINLOG --base64-output=decode-rows -v MARIADB_TOPDIR/BINLOG_FILENAME > MYSQLTEST_VARDIR/tmp/mysqlbinlog_verbose.sql
+--exec $MYSQL_BINLOG --base64-output=decode-rows -v $MARIADB_TOPDIR/$BINLOG_FILENAME > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_verbose.sql
 
 create table raw_binlog_rows (txt varchar(1000));
 --eval load data local infile '$MYSQLTEST_VARDIR/tmp/mysqlbinlog_verbose.sql' into table raw_binlog_rows columns terminated by '\n'

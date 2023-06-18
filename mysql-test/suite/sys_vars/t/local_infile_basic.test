@@ -101,7 +101,7 @@ SET @@global.local_infile = " ";
 #         Test if accessing session local_infile gives error   #
 ################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.local_infile = 1;
 --Error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.local_infile = 1;
@@ -151,7 +151,7 @@ SELECT @@local_infile = @@global.local_infile;
 #        Check if local_infile can be accessed with and without @@ sign  #
 ##########################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET local_infile = 1;
 SELECT @@local_infile;
 --Error ER_UNKNOWN_TABLE

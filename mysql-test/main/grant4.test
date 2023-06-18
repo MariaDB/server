@@ -197,7 +197,6 @@ call mtr.add_suppression("MariaDB thread id .*, query id .* localhost.*mysqltest
 --disable_warnings
 drop database if exists mysqltest_db1;
 --enable_warnings
-let $MYSQLD_DATADIR = `SELECT @@datadir`;
 create database mysqltest_db1;
 --echo # Create tables which we are going to CHECK/REPAIR.
 create table mysqltest_db1.t1 (a int, key(a)) engine=myisam;
@@ -214,8 +213,8 @@ connection default;
 --echo # by doing: 'create table t1 (a int key(a))'
 --echo #           head -c1024 t1.MYI > corrupt_t1.MYI 
 flush table mysqltest_db1.t1;
---remove_file $MYSQLD_DATADIR/mysqltest_db1/t1.MYI
---copy_file std_data/corrupt_t1.MYI $MYSQLD_DATADIR/mysqltest_db1/t1.MYI
+--remove_file $MARIADB_DATADIR/mysqltest_db1/t1.MYI
+--copy_file std_data/corrupt_t1.MYI $MARIADB_DATADIR/mysqltest_db1/t1.MYI
 
 connection con1;
 check table mysqltest_db1.t1;

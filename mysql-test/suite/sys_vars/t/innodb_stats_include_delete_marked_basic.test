@@ -28,7 +28,7 @@ SET GLOBAL innodb_stats_include_delete_marked=1;
 SELECT @@innodb_stats_include_delete_marked;
 
 # check error
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET SESSION innodb_stats_include_delete_marked=1;
 
 # check error

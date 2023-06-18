@@ -837,7 +837,7 @@ SET STATEMENT @@global.max_error_count=100 FOR INSERT INTO t1 VALUES (1,2);
 --echo ''
 --echo '#------------------Test 20-----------------------#'
 #Test for global-only variables
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE, ER_GLOBAL_OR_CATALOG_VARIABLE
 SET STATEMENT connect_timeout=100 FOR INSERT INTO t1 VALUES (1,2); 
 
 --echo ''
@@ -969,7 +969,7 @@ SET @@default_storage_engine=@save_dfs;
 # MDEV-6946:Assertion `0' failed in mysql_execute_command on SET STATEMENT
 # keycache1.key_buffer_size=.. FOR
 #
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE, ER_GLOBAL_OR_CATALOG_VARIABLE
 SET STATEMENT keycache1.key_buffer_size=1024 FOR SELECT 1;
 
 

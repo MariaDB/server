@@ -103,7 +103,7 @@ SELECT @@global.max_connect_errors;
 #       Test if accessing session max_connect_errors gives error       #
 #####################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.max_connect_errors = 4096;
 --Error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.max_connect_errors;
@@ -148,7 +148,7 @@ SELECT @@max_connect_errors = @@global.max_connect_errors;
 #   Check if max_connect_errors can be accessed with and without @@ sign    #
 ##########################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET max_connect_errors = 6000;
 SELECT @@max_connect_errors;
 --Error ER_UNKNOWN_TABLE

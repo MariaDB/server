@@ -22,9 +22,8 @@ use test;
 #
 create table t1 (a int);
 create trigger tr after insert on t1 for each row set @a=1;
-let $datadir=`select @@datadir`;
-move_file $datadir/test/tr.TRN $datadir/test/tr-1.TRN;
+move_file $MARIADB_DATADIR/test/tr.TRN $MARIADB_DATADIR/test/tr-1.TRN;
 error 2;
 exec $MYSQL_DUMP test t1 >/dev/null;
-move_file $datadir/test/tr-1.TRN $datadir/test/tr.TRN;
+move_file $MARIADB_DATADIR/test/tr-1.TRN $MARIADB_DATADIR/test/tr.TRN;
 drop table t1;

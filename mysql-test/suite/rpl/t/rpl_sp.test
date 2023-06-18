@@ -607,10 +607,10 @@ call ` mysqltestbug36570_p2`(42);
 show function status like '%mysqltestbug36570%';
 
 connection master;
+
 flush logs;
-let $MYSQLD_DATADIR= `select @@datadir`;
 --replace_regex /$MYSQL_TEST_DIR/MYSQL_TEST_DIR/ /TIMESTAMP=[0-9]*/TIMESTAMP=t/
---exec $MYSQL_BINLOG --short-form $MYSQLD_DATADIR/master-bin.000001
+--exec $MYSQL_BINLOG --short-form $MARIADB_TOPDIR/master-bin.000001
 use test;
 drop procedure mysqltestbug36570_p1;
 drop procedure ` mysqltestbug36570_p2`;

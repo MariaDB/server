@@ -1,12 +1,12 @@
 #
 # MDEV-20257 Server crashes in Grant_table_base::init_read_record upon crash-upgrade
 #
-source include/not_embedded.inc;
+--source include/not_embedded.inc
 
 call mtr.add_suppression("mysql.user");
 source include/switch_to_mysql_user.inc;
 
-let mysql_datadir=`select @@datadir`;
+let mysql_datadir=$MARIADB_DATADIR;
 flush tables;
 perl;
   $f=$ENV{mysql_datadir} . '/mysql/user.MAI';
@@ -15,7 +15,8 @@ perl;
   sysseek F, 24, O_RDWR or die "sysseek: $!";
   syswrite F, 1, 1 or die "syswrite: $!";
 EOF
-replace_result \\ /;
+
+--replace_catalog '\\' '/'
 flush privileges;
 
 source include/switch_to_mysql_global_priv.inc;

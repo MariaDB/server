@@ -26,7 +26,7 @@ SELECT @@global.replicate_events_marked_for_skip;
 REPLICATE
 STOP SLAVE;
 SET SESSION replicate_events_marked_for_skip=FILTER_ON_MASTER;
-ERROR HY000: Variable 'replicate_events_marked_for_skip' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@global.replicate_events_marked_for_skip;
 @@global.replicate_events_marked_for_skip
 REPLICATE

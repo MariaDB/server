@@ -25,5 +25,5 @@ select @@innodb_read_io_threads;
 @@innodb_read_io_threads
 64
 set session innodb_read_io_threads=1;
-ERROR HY000: Variable 'innodb_read_io_threads' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 set global innodb_read_io_threads=@n;

@@ -40,9 +40,9 @@ set @@global.innodb_adaptive_hash_index='ON';
 select @@global.innodb_adaptive_hash_index;
 select * from information_schema.global_variables where variable_name='innodb_adaptive_hash_index';
 select * from information_schema.session_variables where variable_name='innodb_adaptive_hash_index';
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session innodb_adaptive_hash_index='OFF';
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set @@session.innodb_adaptive_hash_index='ON';
 
 #

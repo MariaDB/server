@@ -19,7 +19,7 @@ select * from information_schema.session_variables where variable_name='aria_log
 #
 set global aria_log_file_size=1024*1024*10;
 select @@global.aria_log_file_size;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session aria_log_file_size=1;
 
 #

@@ -50,10 +50,8 @@ INSERT INTO table1_no_encryption SELECT NULL,NOW(),b FROM table1_no_encryption;
 
 # Make sure that binary logs are not encrypted
 
---let $master_datadir= `SELECT @@datadir`
-
 --let SEARCH_RANGE = 500000
---let SEARCH_FILE= $master_datadir/master-bin.0*
+--let SEARCH_FILE= $MARIADB_TOPDIR/master-bin.0*
 --let SEARCH_PATTERN= table1_no_encryption
 --source include/search_pattern_in_file.inc
 
@@ -80,7 +78,7 @@ INSERT INTO table2_to_encrypt SELECT NULL,NOW(),b FROM table2_to_encrypt;
 
 # Make sure that binary logs are encrypted
 
---let SEARCH_FILE= $master_datadir/master-bin.0*
+--let SEARCH_FILE= $MARIADB_TOPDIR/master-bin.0*
 --let SEARCH_PATTERN= table2_to_encrypt
 --source include/search_pattern_in_file.inc
 

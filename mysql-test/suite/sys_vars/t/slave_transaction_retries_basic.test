@@ -83,13 +83,13 @@ SELECT @@global.slave_transaction_retries;
 #           Check if variable can be access with session scope                #
 ###############################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@slave_transaction_retries = 2;
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.slave_transaction_retries = 3;
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@local.slave_transaction_retries = 4;
 
 
@@ -164,7 +164,7 @@ SELECT @@slave_transaction_retries = @@global.slave_transaction_retries;
 #   and scope 
 ###############################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET slave_transaction_retries = 2048;
 --Error ER_BAD_FIELD_ERROR
 SELECT slave_transaction_retries;

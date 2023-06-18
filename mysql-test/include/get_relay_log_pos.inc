@@ -19,11 +19,11 @@ if (!$master_log_pos)
 {
   --die 'variable $master_log_pos is null'
 }
+--source include/get_datadir.inc
 
-let $MYSQLD_DATADIR= `select @@datadir`;
 let $_suffix= `SELECT UUID()`;
 let $_tmp_file= $MYSQLTEST_VARDIR/tmp/mysqlbinlog.$_suffix;
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/$relay_log_file > $_tmp_file
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/$relay_log_file > $_tmp_file
 
 # All queries in this file should not be logged.
 --disable_query_log

@@ -646,8 +646,7 @@ delete from t1;
 load data infile "subselect.out.file.1" into table t1;
 select * from t1;
 drop table t1;
-let $datadir=`select @@datadir`;
---remove_file $datadir/test/subselect.out.file.1
+--remove_file $MARIADB_DATADIR/test/subselect.out.file.1
 
 #
 # Bug #37894: Assertion in init_read_record_seq in handler.h line 1444

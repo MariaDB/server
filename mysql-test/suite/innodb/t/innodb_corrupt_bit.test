@@ -51,6 +51,7 @@ select c from corrupt_bit_test_ā;
 -- error ER_INDEX_CORRUPT
 select z from corrupt_bit_test_ā;
 
+--replace_regex /for table .*`test`/for table `test`/
 show warnings;
 
 # Since corrupted index is a secondary index, we only disable such

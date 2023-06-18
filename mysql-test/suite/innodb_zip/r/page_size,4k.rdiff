@@ -1,3 +1,5 @@
+--- suite/innodb_zip/r/page_size.result	2023-07-14 17:30:38.991461309 +0300
++++ suite/innodb_zip/r/page_size,4k.reject	2023-07-14 17:31:06.831396754 +0300
 @@ -3,7 +3,7 @@
  SELECT variable_value FROM information_schema.global_status
  WHERE LOWER(variable_name) = 'innodb_page_size';
@@ -17,13 +19,13 @@
  === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
  Space_Name	Page_Size	Zip_Size	Path
 @@ -45,7 +45,7 @@
- innodb_undo003	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo003
- test/t1	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t1.ibd
- test/t2	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t2.ibd
--test/t3	DEFAULT	8192	MYSQLD_DATADIR/test/t3.ibd
-+test/t3	DEFAULT	2048	MYSQLD_DATADIR/test/t3.ibd
- test/t4	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t4.ibd
- innodb_temporary	DEFAULT	DEFAULT	MYSQLD_DATADIR/ibtmp1
+ innodb_undo003	DEFAULT	DEFAULT	MARIADB_DATADIR//undo003
+ test/t1	DEFAULT	DEFAULT	MARIADB_DATADIR/test/t1.ibd
+ test/t2	DEFAULT	DEFAULT	MARIADB_DATADIR/test/t2.ibd
+-test/t3	DEFAULT	8192	MARIADB_DATADIR/test/t3.ibd
++test/t3	DEFAULT	2048	MARIADB_DATADIR/test/t3.ibd
+ test/t4	DEFAULT	DEFAULT	MARIADB_DATADIR/test/t4.ibd
+ innodb_temporary	DEFAULT	DEFAULT	MARIADB_DATADIR/ibtmp1
  DROP TABLE t1, t2, t3, t4;
 @@ -55,141 +55,90 @@
  SET SESSION innodb_strict_mode = ON;

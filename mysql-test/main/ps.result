@@ -827,11 +827,11 @@ select @@max_prepared_stmt_count;
 @@max_prepared_stmt_count
 16382
 set @@max_prepared_stmt_count=1;
-ERROR HY000: Variable 'max_prepared_stmt_count' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 set max_prepared_stmt_count=1;
-ERROR HY000: Variable 'max_prepared_stmt_count' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 set local max_prepared_stmt_count=1;
-ERROR HY000: Variable 'max_prepared_stmt_count' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 set global max_prepared_stmt_count=1;
 select @@max_prepared_stmt_count;
 @@max_prepared_stmt_count

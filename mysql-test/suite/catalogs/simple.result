@@ -42,6 +42,7 @@ ERROR HY000: Catalog directory 'def' is not empty
 #
 # Test status vars
 #
+flush status;
 create catalog cat1;
 use catalog cat1;
 select catalog();

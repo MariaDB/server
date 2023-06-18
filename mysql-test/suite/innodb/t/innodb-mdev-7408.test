@@ -1,4 +1,6 @@
 --source include/have_innodb.inc
+# Can be removed when innodb_ft_server_stopword_table is catalog aware
+--source include/not_catalogs.inc
 
 call mtr.add_suppression("InnoDB: User stopword table .* does not exist.");
 

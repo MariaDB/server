@@ -451,15 +451,15 @@ RESET MASTER;
 #
 #   Error Case 4:
 #   User provides invalid positions
-# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=z
-# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=1-
-# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=1-2
-# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=1-2-
-# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=-1
+# MYSQL_BINLOG MARIADB_TOPDIR/master-bin.000001 --start-position=z
+# MYSQL_BINLOG MARIADB_TOPDIR/master-bin.000001 --start-position=1-
+# MYSQL_BINLOG MARIADB_TOPDIR/master-bin.000001 --start-position=1-2
+# MYSQL_BINLOG MARIADB_TOPDIR/master-bin.000001 --start-position=1-2-
+# MYSQL_BINLOG MARIADB_TOPDIR/master-bin.000001 --start-position=-1
 #
 #   Error Case 5:
 #   User provides GTID ranges with repeated domain ids
-# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-1,0-1-8 --stop-position=0-1-4,0-1-12
+# MYSQL_BINLOG MARIADB_TOPDIR/master-bin.000001 --start-position=0-1-1,0-1-8 --stop-position=0-1-4,0-1-12
 ##############################
 #      Cleanup
 ##############################

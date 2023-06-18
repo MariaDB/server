@@ -21,7 +21,7 @@ select @@global.aria_sync_log_dir;
 @@global.aria_sync_log_dir
 NEWFILE
 set session aria_sync_log_dir=1;
-ERROR HY000: Variable 'aria_sync_log_dir' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 set global aria_sync_log_dir=never;
 select @@global.aria_sync_log_dir;
 @@global.aria_sync_log_dir

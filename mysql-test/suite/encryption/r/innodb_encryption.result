@@ -10,10 +10,10 @@ innodb_encryption_threads	4
 SET GLOBAL innodb_encrypt_tables = ON;
 # Wait max 10 min for key encryption threads to encrypt all spaces
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0
-AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';
+AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE '%mysql/innodb_%_stats' AND NAME NOT LIKE '%mysql/transaction_registry';
 NAME
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0
-AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';
+AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE '%mysql/innodb_%_stats' AND NAME NOT LIKE '%mysql/transaction_registry';
 NAME
 innodb_system
 # Success!
@@ -21,11 +21,11 @@ innodb_system
 SET GLOBAL innodb_encrypt_tables = off;
 # Wait max 10 min for key encryption threads to decrypt all spaces
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0
-AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';
+AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE '%mysql/innodb_%_stats' AND NAME NOT LIKE '%mysql/transaction_registry';
 NAME
 innodb_system
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0
-AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';
+AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE '%mysql/innodb_%_stats' AND NAME NOT LIKE '%mysql/transaction_registry';
 NAME
 # Success!
 # Shutdown innodb_encryption_threads
@@ -35,21 +35,21 @@ SET GLOBAL innodb_encryption_threads=0;
 SET GLOBAL innodb_encrypt_tables = on;
 # Wait 15s to check that nothing gets encrypted
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0
-AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';
+AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE '%mysql/innodb_%_stats' AND NAME NOT LIKE '%mysql/transaction_registry';
 NAME
 innodb_system
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0
-AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';
+AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE '%mysql/innodb_%_stats' AND NAME NOT LIKE '%mysql/transaction_registry';
 NAME
 # Success!
 # Startup innodb_encryption_threads
 SET GLOBAL innodb_encryption_threads=@start_global_value;
 # Wait max 10 min for key encryption threads to encrypt all spaces
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0
-AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';
+AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE '%mysql/innodb_%_stats' AND NAME NOT LIKE '%mysql/transaction_registry';
 NAME
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0
-AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';
+AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE '%mysql/innodb_%_stats' AND NAME NOT LIKE '%mysql/transaction_registry';
 NAME
 innodb_system
 # Success!
@@ -64,9 +64,9 @@ innodb_encryption_rotate_key_age	15
 innodb_encryption_rotation_iops	100
 innodb_encryption_threads	0
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0
-AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';
+AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE '%mysql/innodb_%_stats' AND NAME NOT LIKE '%mysql/transaction_registry';
 NAME
 innodb_system
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0
-AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';
+AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE '%mysql/innodb_%_stats' AND NAME NOT LIKE '%mysql/transaction_registry';
 NAME

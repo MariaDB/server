@@ -86,7 +86,7 @@ SELECT @@global.sync_binlog;
 #       Test if accessing session sync_binlog gives error            #
 ########################################################################### 
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.sync_binlog = 0;
 SELECT @@sync_binlog;
 
@@ -105,7 +105,7 @@ WHERE VARIABLE_NAME='sync_binlog';
 #   Check if sync_binlog can be accessed with and without @@ sign   #
 ##########################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET sync_binlog = 1;
 SELECT @@sync_binlog;
 --Error ER_UNKNOWN_TABLE

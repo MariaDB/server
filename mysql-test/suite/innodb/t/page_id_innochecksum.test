@@ -2,8 +2,6 @@
 --source include/not_embedded.inc
 --source include/innodb_checksum_algorithm.inc
 --echo # Set the environmental variables
-let MYSQLD_BASEDIR= `SELECT @@basedir`;
-let MYSQLD_DATADIR= `SELECT @@datadir`;
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
 
 create table t1(f1 int not null)engine=innodb;
@@ -21,7 +19,7 @@ do "$ENV{MTR_SUITE_DIR}/../innodb/include/crc32.pl";
 
 my $page_size = $ENV{INNODB_PAGE_SIZE};
 
-sysopen IBD_FILE, "$ENV{MYSQLD_DATADIR}/test/t1.ibd", O_RDWR
+sysopen IBD_FILE, "$ENV{MARIADB_DATADIR}/test/t1.ibd", O_RDWR
 || die "Cannot open t1.ibd\n";
 sysread(IBD_FILE, $_, 58) || die "Cannot read t1.ibd\n";
 my ($space,$flags) = unpack("x[34]Nx[16]N", $_);
@@ -54,7 +52,7 @@ close IBD_FILE;
 EOF
 
 --error 1
-exec $INNOCHECKSUM -l $resultlog $MYSQLD_DATADIR/test/t1.ibd;
+exec $INNOCHECKSUM -l $resultlog $MARIADB_DATADIR/test/t1.ibd;
 
 let SEARCH_FILE = $MYSQLTEST_VARDIR/tmp/result.log;
 let SEARCH_PATTERN=page id mismatch;

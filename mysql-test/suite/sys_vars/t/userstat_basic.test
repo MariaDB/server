@@ -23,7 +23,7 @@ set global userstat=OFF;
 select @@global.userstat;
 set global userstat=1;
 select @@global.userstat;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session userstat=1;
 
 #

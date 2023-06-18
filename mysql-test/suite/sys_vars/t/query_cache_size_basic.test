@@ -99,7 +99,7 @@ SELECT @@global.query_cache_size;
 #       Test if accessing session query_cache_size gives error            #
 ################################################################################### 
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.query_cache_size = 0;
 SELECT @@query_cache_size;
 
@@ -139,7 +139,7 @@ SELECT @@query_cache_size = @@global.query_cache_size;
 #   Check if query_cache_size can be accessed with and without @@ sign   #
 ##################################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET query_cache_size = 1;
 SELECT @@query_cache_size;
 --Error ER_UNKNOWN_TABLE

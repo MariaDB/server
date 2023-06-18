@@ -53,19 +53,17 @@ FLUSH LOGS;
 --echo # Show mysqlbinlog result without -B
 --echo #
 
-let $MYSQLD_DATADIR= `select @@datadir`;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --replace_regex /SQL_LOAD_MB-[0-9]-[0-9]/SQL_LOAD_MB-#-#/ /exec_time=[0-9]*/exec_time=#/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/ /Xid = [0-9]*/Xid = #/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /server v [^ ]*/server v #.##.##/ /CRC32 0x[0-9a-f]*/CRC32 XXX/ /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/ /xid=\d*/xid=<xid>/
---exec $MYSQL_BINLOG --base64-output=decode-rows -v -v $MYSQLD_DATADIR/master-bin.000001
+--exec $MYSQL_BINLOG --base64-output=decode-rows -v -v $MARIADB_TOPDIR/master-bin.000001
 
 --echo # < CASE 1 >
 --echo # Show mysqlbinlog result with -B
 --echo #
 
-let $MYSQLD_DATADIR= `select @@datadir`;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --replace_regex /SQL_LOAD_MB-[0-9]-[0-9]/SQL_LOAD_MB-#-#/ /exec_time=[0-9]*/exec_time=#/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/ /Xid = [0-9]*/Xid = #/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /server v [^ ]*/server v #.##.##/ /CRC32 0x[0-9a-f]*/CRC32 XXX/ /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/ /xid=\d*/xid=<xid>/
---exec $MYSQL_BINLOG -B --base64-output=decode-rows -v -v $MYSQLD_DATADIR/master-bin.000001
+--exec $MYSQL_BINLOG -B --base64-output=decode-rows -v -v $MARIADB_TOPDIR/master-bin.000001
 
 --echo # < CASE 1 >
 --echo # Insert data to t1
@@ -97,10 +95,9 @@ FLUSH LOGS;
 --echo # Flashback & Check the result
 --echo #
 
-let $MYSQLD_DATADIR= `select @@datadir`;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---exec $MYSQL_BINLOG -vv $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_original_1.sql
---exec $MYSQL_BINLOG -B -vv $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_1.sql
+--exec $MYSQL_BINLOG -vv $MARIADB_TOPDIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_original_1.sql
+--exec $MYSQL_BINLOG -B -vv $MARIADB_TOPDIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_1.sql
 --exec $MYSQL -e "SET binlog_format= ROW; source $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_1.sql;"
 
 SELECT * FROM t1;
@@ -122,10 +119,9 @@ FLUSH LOGS;
 --echo # Flashback & Check the result
 --echo #
 
-let $MYSQLD_DATADIR= `select @@datadir`;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---exec $MYSQL_BINLOG -vv $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_original_2.sql
---exec $MYSQL_BINLOG -B -vv $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_2.sql
+--exec $MYSQL_BINLOG -vv $MARIADB_TOPDIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_original_2.sql
+--exec $MYSQL_BINLOG -B -vv $MARIADB_TOPDIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_2.sql
 --exec $MYSQL -e "SET binlog_format= ROW; source $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_2.sql;"
 
 SELECT * FROM t1;
@@ -156,10 +152,9 @@ FLUSH LOGS;
 --echo # Flashback & Check the result
 --echo #
 
-let $MYSQLD_DATADIR= `select @@datadir`;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---exec $MYSQL_BINLOG -vv $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_original_3.sql
---exec $MYSQL_BINLOG -B -vv $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_3.sql
+--exec $MYSQL_BINLOG -vv $MARIADB_TOPDIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_original_3.sql
+--exec $MYSQL_BINLOG -B -vv $MARIADB_TOPDIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_3.sql
 --exec $MYSQL -e "SET binlog_format= ROW; source $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_3.sql;"
 
 SELECT * FROM t1;
@@ -198,10 +193,9 @@ FLUSH LOGS;
 --echo # Flashback & Check the result
 --echo #
 
-let $MYSQLD_DATADIR= `select @@datadir`;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---exec $MYSQL_BINLOG -vv $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_original_4.sql
---exec $MYSQL_BINLOG -B $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_4.sql
+--exec $MYSQL_BINLOG -vv $MARIADB_TOPDIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_original_4.sql
+--exec $MYSQL_BINLOG -B $MARIADB_TOPDIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_4.sql
 --exec $MYSQL -e "SET binlog_format= ROW; source $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_4.sql;"
 
 SELECT * FROM t1;
@@ -243,10 +237,9 @@ FLUSH LOGS;
 --echo # Flashback & Check the result
 --echo #
 
-let $MYSQLD_DATADIR= `select @@datadir`;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---exec $MYSQL_BINLOG -vv $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_original_5.sql
---exec $MYSQL_BINLOG -B $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_5.sql
+--exec $MYSQL_BINLOG -vv $MARIADB_TOPDIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_original_5.sql
+--exec $MYSQL_BINLOG -B $MARIADB_TOPDIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_5.sql
 --exec $MYSQL -e "SET binlog_format= ROW; source $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_5.sql;"
 
 SELECT * FROM t1;
@@ -319,10 +312,9 @@ FLUSH LOGS;
 --echo # Flashback & Check the result
 --echo #
 
-let $MYSQLD_DATADIR= `select @@datadir`;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---exec $MYSQL_BINLOG --database=world --table=city -vv $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_original_6.sql
---exec $MYSQL_BINLOG --database=world --table=city -B $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_6.sql
+--exec $MYSQL_BINLOG --database=world --table=city -vv $MARIADB_TOPDIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_original_6.sql
+--exec $MYSQL_BINLOG --database=world --table=city -B $MARIADB_TOPDIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_6.sql
 --exec $MYSQL -e "SET binlog_format= ROW; source $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_6.sql;"
 
 SELECT * FROM world.city;

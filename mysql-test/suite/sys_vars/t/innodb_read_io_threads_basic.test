@@ -30,7 +30,7 @@ select @@innodb_read_io_threads;
 set global innodb_read_io_threads=64;
 --enable_warnings
 select @@innodb_read_io_threads;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session innodb_read_io_threads=1;
 set global innodb_read_io_threads=@n;
 

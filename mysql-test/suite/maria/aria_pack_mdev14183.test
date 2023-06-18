@@ -12,10 +12,9 @@ CREATE TABLE `t` (
 insert into t values
   ('foobar','qux',0,0),('abcdef','qux',0,0);
 
---let $datadir= `SELECT @@datadir`
 --source include/shutdown_mysqld.inc
 # maria_pack crashes by assert() if the bug is not fixed
---exec cd $datadir && $MARIA_PACK -t test/t
+--exec cd $MARIADB_DATADIR && $MARIA_PACK -t test/t
 
 --source include/start_mysqld.inc
 SELECT * FROM t;

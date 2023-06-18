@@ -1,4 +1,6 @@
 --source include/have_innodb.inc
+# Remove when we support local innodb_ft_server_stopword_table table
+--source include/not_catalogs.inc
 
 --echo #
 --echo # Bug #29717909	MEMORY LIFETIME OF VARIABLES BETWEEN CHECK AND UPDATE INCORRECTLY MANAGED

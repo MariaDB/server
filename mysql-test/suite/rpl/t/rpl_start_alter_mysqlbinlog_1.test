@@ -21,8 +21,7 @@ set global gtid_strict_mode=1;
 
 --source include/start_alter_include.inc
 --connection master
---let $MYSQLD_DATADIR= `select @@datadir;`
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/master.sql
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/master.sql
 select @@gtid_binlog_state;
 RESET master;
 

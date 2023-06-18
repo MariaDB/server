@@ -729,19 +729,18 @@ DROP TABLE t1;
 --echo # MDEV-17972 Assertion `is_valid_value_slow()' failed in Datetime::Datetime
 --echo #
 
-let $MYSQLD_DATADIR= `select @@datadir`;
 SET time_zone='+00:00';
 CREATE TABLE t1 (a TIMESTAMP(6) NOT NULL) ENGINE=MyISAM;
 INSERT INTO t1 VALUES ('2001-01-01 10:20:30');
 FLUSH TABLES;
---remove_file $MYSQLD_DATADIR/test/t1.MYD
+--remove_file $MARIADB_DATADIR/test/t1.MYD
 --disable_query_log
 # Write a data file with one record:
 # 0xFF       - record flags
 # 0x77777777 - TIMESTAMP integer part
 # 0xFFFFFF   - TIMESTAMP bad fractional part
---eval SELECT CONCAT(0xFF,0x77777777,0xFFFFFF) INTO OUTFILE '$MYSQLD_DATADIR/test/t1.MYD' FIELDS TERMINATED BY '' ESCAPED BY '' LINES TERMINATED BY ''
---eval SELECT HEX(LOAD_FILE('$MYSQLD_DATADIR/test/t1.MYD')) AS MYD
+--eval SELECT CONCAT(0xFF,0x77777777,0xFFFFFF) INTO OUTFILE '$MARIADB_DATADIR/test/t1.MYD' FIELDS TERMINATED BY '' ESCAPED BY '' LINES TERMINATED BY ''
+--eval SELECT HEX(LOAD_FILE('$MARIADB_DATADIR/test/t1.MYD')) AS MYD
 --enable_query_log
 SELECT a, CAST(a AS DATETIME) AS dt0, CAST(a AS DATETIME(6)) AS dt6 FROM t1;
 DROP TABLE t1;

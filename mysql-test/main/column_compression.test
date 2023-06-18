@@ -1,8 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_csv.inc
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-
 SET column_compression_zlib_wrap=true;
 let $typec= BLOB COMPRESSED;
 let $typeu= BLOB;
@@ -56,7 +54,7 @@ SELECT LENGTH(a) FROM t1;
 ALTER TABLE t1 ENGINE=CSV;
 SELECT LENGTH(a) FROM t1;
 SHOW CREATE TABLE t1;
---cat_file $MYSQLD_DATADIR/test/t1.CSV
+--cat_file $MARIADB_DATADIR/test/t1.CSV
 DROP TABLE t1;
 
 --echo # Test fields that don't fit data

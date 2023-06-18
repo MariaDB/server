@@ -105,7 +105,7 @@ SELECT @@global.query_cache_limit;
 #       Test if accessing session query_cache_limit gives error            #
 ########################################################################### 
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.query_cache_limit = 0;
 SELECT @@query_cache_limit;
 
@@ -149,7 +149,7 @@ SELECT @@query_cache_limit = @@global.query_cache_limit;
 #   Check if query_cache_limit can be accessed with and without @@ sign   #
 ##########################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET query_cache_limit = 1;
 SELECT @@query_cache_limit;
 --Error ER_UNKNOWN_TABLE

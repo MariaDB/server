@@ -1,7 +1,6 @@
 --source include/innodb_page_size.inc
 
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
-let MYSQLD_DATADIR=`select @@datadir`;
 SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 
@@ -46,7 +45,7 @@ FLUSH TABLE t1 FOR EXPORT;
 --perl
 use strict;
 my $ps= $ENV{INNODB_PAGE_SIZE};
-my $file= "$ENV{MYSQLD_DATADIR}/test/t1.ibd";
+my $file= "$ENV{MARIADB_DATADIR}/test/t1.ibd";
 open(FILE, "<", $file) || die "Unable to open $file\n";
 my $page;
 print "Clustered index root page contents:\n";

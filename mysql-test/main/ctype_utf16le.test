@@ -5,8 +5,6 @@
 
 --disable_service_connection
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-
 SET TIME_ZONE='+03:00';
 
 --disable_warnings
@@ -827,8 +825,8 @@ SET SESSION character_set_connection= utf16le;
 CREATE TABLE kv (v TEXT CHARACTER SET latin1);
 CREATE TABLE t (a INT);
 CREATE VIEW v AS SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
---replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
-eval LOAD DATA INFILE '$MYSQLD_DATADIR/test/v.frm' REPLACE INTO TABLE kv CHARACTER SET latin1;
+--replace_result $MARIADB_DATADIR MARIADB_DATADIR
+eval LOAD DATA INFILE '$MARIADB_DATADIR/test/v.frm' REPLACE INTO TABLE kv CHARACTER SET latin1;
 SELECT LOWER(v) FROM kv WHERE v LIKE _binary'query=%';
 TRUNCATE TABLE kv;
 SELECT * FROM v;

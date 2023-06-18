@@ -157,8 +157,7 @@ SHOW CREATE TABLE t2;
 ALTER TABLE t2 CHANGE status status VARCHAR(20) DEFAULT NULL;
 DROP TABLE t2, t1;
 
---let $datadir= `select @@datadir`
---remove_file $datadir/test/load.data
+--remove_file $MARIADB_DATADIR/test/load.data
 
 --echo #
 --echo # MDEV-20938 Double free of dict_foreign_t during instant ALTER TABLE
@@ -178,7 +177,6 @@ DROP TABLE t2, t1;
 --echo # for discarded tablespace
 --echo #
 
-let MYSQLD_DATADIR =`SELECT @@datadir`;
 CREATE TABLE t1(c1 INT NOT NULL, c2 INT NOT NULL DEFAULT 0)ENGINE=InnoDB;
 INSERT INTO t1(c1) VALUES(1);
 

@@ -1,4 +1,3 @@
-drop table if exists t1, t2;
 create table t1 (a date, b date, c date not null, d date);
 load data infile '../../std_data/loaddata1.dat' ignore into table t1 fields terminated by ',';
 Warnings:

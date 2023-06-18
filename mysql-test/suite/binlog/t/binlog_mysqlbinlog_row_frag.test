@@ -1,8 +1,6 @@
 --source include/have_debug.inc
 --source include/have_binlog_format_row.inc
 
---let $MYSQLD_DATADIR= `select @@datadir`
-
 CREATE TABLE t (a TEXT);
 # events of interest are guaranteed to stay in 000001 log
 RESET MASTER;
@@ -11,7 +9,7 @@ SELECT a into @a from t;
 FLUSH LOGS;
 DELETE FROM t;
 
---exec $MYSQL_BINLOG --verbose --debug-binlog-row-event-max-encoded-size=256 $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
+--exec $MYSQL_BINLOG --verbose --debug-binlog-row-event-max-encoded-size=256 $MARIADB_TOPDIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
 
 --let SEARCH_PATTERN= BINLOG @binlog_fragment_0, @binlog_fragment_1
 --let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql

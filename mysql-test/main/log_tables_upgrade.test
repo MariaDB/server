@@ -8,10 +8,9 @@
 
 USE test;
 
-let $MYSQLD_DATADIR= `SELECT @@datadir`;
-copy_file std_data/bug49823.frm $MYSQLD_DATADIR/test/bug49823.frm;
-copy_file std_data/bug49823.CSM $MYSQLD_DATADIR/test/bug49823.CSM;
-copy_file std_data/bug49823.CSV $MYSQLD_DATADIR/test/bug49823.CSV;
+copy_file std_data/bug49823.frm $MARIADB_DATADIR/test/bug49823.frm;
+copy_file std_data/bug49823.CSM $MARIADB_DATADIR/test/bug49823.CSM;
+copy_file std_data/bug49823.CSV $MARIADB_DATADIR/test/bug49823.CSV;
 
 SET @saved_general_log = @@GLOBAL.general_log;
 SET GLOBAL general_log = OFF;
@@ -24,5 +23,5 @@ RENAME TABLE test.bug49823 TO general_log;
 DROP TABLE general_log;
 RENAME TABLE renamed_general_log TO general_log;
 SET GLOBAL general_log = @saved_general_log;
-remove_file $MYSQLD_DATADIR/mariadb_upgrade_info;
+remove_file $MARIADB_TOPDIR/mariadb_upgrade_info;
 USE test;

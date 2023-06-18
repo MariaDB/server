@@ -25,9 +25,9 @@ SELECT @@global.init_slave;
 
 '#--------------------FN_DYNVARS_037_03-------------------------#'
 SET @@session.init_slave = '';
-ERROR HY000: Variable 'init_slave' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SET @@init_slave = "";
-ERROR HY000: Variable 'init_slave' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@session.init_slave;
 ERROR HY000: Variable 'init_slave' is a GLOBAL variable
 SELECT @@local.init_slave;

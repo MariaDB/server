@@ -93,8 +93,6 @@ DROP TABLE t1;
 SET @old_default_storage_engine = @@default_storage_engine;
 SET @@default_storage_engine = 'InnoDB';
 
---let $MYSQLD_DATADIR= `SELECT @@datadir`
-
 --echo # Test to show if I_S affects HANDLER_ counts
 FLUSH STATUS;
 eval $get_handler_status_counts;
@@ -395,7 +393,7 @@ eval $get_handler_status_counts;
 UNLOCK TABLES;
 eval $get_handler_status_counts;
 --echo # + 9 locks
---remove_file $MYSQLD_DATADIR/test/loadtest.txt
+--remove_file $MARIADB_DATADIR/test/loadtest.txt
 
 --echo #
 --echo # Test UPDATE

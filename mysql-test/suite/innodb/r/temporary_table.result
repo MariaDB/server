@@ -1,4 +1,4 @@
-# files in MYSQL_DATA_DIR
+# files in MARIADB_TOPDIR
 ibtmp1
 create temporary table t1 (i int, f float, c char(100)) engine=innodb;
 insert into t1 values (100, 1.1, 'pune');
@@ -131,7 +131,7 @@ ERROR HY000: The table 't1' is full
 drop procedure populate_t1;
 # test read-only mode
 # restart: --innodb-read-only
-# files in MYSQL_DATA_DIR
+# files in MARIADB_TOPDIR
 select * from t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
 show tables;

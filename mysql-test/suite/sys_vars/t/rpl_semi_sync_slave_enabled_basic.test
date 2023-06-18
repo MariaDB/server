@@ -21,7 +21,7 @@ select * from information_schema.session_variables where variable_name='rpl_semi
 # show that it's writable
 #
 set global rpl_semi_sync_slave_enabled=0;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session rpl_semi_sync_slave_enabled=0;
 select @@global.rpl_semi_sync_slave_enabled;
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
@@ -31,7 +31,7 @@ show session variables like 'rpl_semi_sync_slave_enabled';
 select * from information_schema.global_variables where variable_name='rpl_semi_sync_slave_enabled';
 select * from information_schema.session_variables where variable_name='rpl_semi_sync_slave_enabled';
 set global rpl_semi_sync_slave_enabled=1;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session rpl_semi_sync_slave_enabled=1;
 select @@global.rpl_semi_sync_slave_enabled;
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
@@ -50,8 +50,6 @@ set global rpl_semi_sync_slave_enabled=1.1;
 set global rpl_semi_sync_slave_enabled=1e1;
 --error ER_WRONG_VALUE_FOR_VAR
 set global rpl_semi_sync_slave_enabled="some text";
---error ER_WRONG_VALUE_FOR_VAR
-
 
 #
 # Cleanup

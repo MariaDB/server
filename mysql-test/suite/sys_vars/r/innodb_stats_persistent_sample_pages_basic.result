@@ -38,7 +38,7 @@ WHERE variable_name='innodb_stats_persistent_sample_pages';
 VARIABLE_NAME	VARIABLE_VALUE
 INNODB_STATS_PERSISTENT_SAMPLE_PAGES	10
 SET session innodb_stats_persistent_sample_pages=1;
-ERROR HY000: Variable 'innodb_stats_persistent_sample_pages' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 set global innodb_stats_persistent_sample_pages=DEFAULT;
 select @@global.innodb_stats_persistent_sample_pages;
 @@global.innodb_stats_persistent_sample_pages

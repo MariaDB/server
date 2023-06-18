@@ -46,11 +46,11 @@ SELECT @@global.myisam_max_sort_file_size;
 SET @@global.myisam_max_sort_file_size = 2147483648*2147483648;
 '#--------------------FN_DYNVARS_094_04-------------------------#'
 SET @@myisam_max_sort_file_size = 2;
-ERROR HY000: Variable 'myisam_max_sort_file_size' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SET @@session.myisam_max_sort_file_size = 3;
-ERROR HY000: Variable 'myisam_max_sort_file_size' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SET @@local.myisam_max_sort_file_size = 4;
-ERROR HY000: Variable 'myisam_max_sort_file_size' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 '#------------------FN_DYNVARS_094_05-----------------------#'
 SET @@global.myisam_max_sort_file_size = -1;
 Warnings:
@@ -117,7 +117,7 @@ SELECT @@myisam_max_sort_file_size = @@global.myisam_max_sort_file_size;
 1
 '#---------------------FN_DYNVARS_001_10----------------------#'
 SET myisam_max_sort_file_size = 2048;
-ERROR HY000: Variable 'myisam_max_sort_file_size' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT myisam_max_sort_file_size;
 ERROR 42S22: Unknown column 'myisam_max_sort_file_size' in 'field list'
 SELECT @@myisam_max_sort_file_size;

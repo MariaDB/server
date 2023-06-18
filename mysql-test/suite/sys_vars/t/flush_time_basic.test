@@ -26,7 +26,7 @@ select * from information_schema.session_variables where variable_name='flush_ti
 #
 set global flush_time=1;
 select @@global.flush_time;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session flush_time=1;
 
 #

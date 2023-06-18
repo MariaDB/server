@@ -60,7 +60,7 @@ include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
 connection server_1;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -69,7 +69,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_2;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -78,7 +78,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_3;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -97,7 +97,7 @@ include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
 connection server_1;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -106,7 +106,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_2;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -115,7 +115,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_3;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -151,7 +151,7 @@ include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
 connection server_1;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -160,7 +160,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_2;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -169,7 +169,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_3;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -188,7 +188,7 @@ include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
 connection server_1;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -197,7 +197,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_2;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -206,7 +206,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_3;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -242,7 +242,7 @@ include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
 connection server_1;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -251,7 +251,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_2;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -260,7 +260,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_3;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -279,7 +279,7 @@ include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
 connection server_1;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -288,7 +288,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_2;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -297,7 +297,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_3;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -333,7 +333,7 @@ include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
 connection server_1;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -342,7 +342,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_2;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -351,7 +351,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_3;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -370,7 +370,7 @@ include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
 connection server_1;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -379,7 +379,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_2;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -388,7 +388,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_3;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -424,7 +424,7 @@ include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
 connection server_1;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -433,7 +433,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_2;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -442,7 +442,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_3;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -461,7 +461,7 @@ include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
 connection server_1;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -470,7 +470,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_2;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -479,7 +479,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_3;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -515,7 +515,7 @@ include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
 connection server_1;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -524,7 +524,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_2;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -533,7 +533,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_3;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -552,7 +552,7 @@ include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
 connection server_1;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -561,7 +561,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_2;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -570,7 +570,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_3;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -606,7 +606,7 @@ include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
 connection server_1;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -615,7 +615,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_2;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -624,7 +624,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_3;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -643,7 +643,7 @@ include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
 connection server_1;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -652,7 +652,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_2;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -661,7 +661,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_3;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -697,7 +697,7 @@ include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
 connection server_1;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -706,7 +706,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_2;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -715,7 +715,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_3;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -734,7 +734,7 @@ include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
 connection server_1;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -743,7 +743,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_2;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
@@ -752,7 +752,7 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 connection server_3;
 FLUSH LOGS;
 include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
-# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_filename -vv > assert_file
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..

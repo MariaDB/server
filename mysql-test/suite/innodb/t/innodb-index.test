@@ -2,8 +2,6 @@
 # Embedded server tests do not support restarting.
 -- source include/not_embedded.inc
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-
 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS;
 
 # Bug#13654923 BOGUS DEBUG ASSERTION IN INDEX CREATION FOR ZERO-LENGTH RECORD
@@ -218,7 +216,7 @@ alter table t4 add constraint dc foreign key (a) references t1(a);
 show create table t4;
 # mysqltest first does replace_regex, then replace_result
 # Embedded server doesn't chdir to data directory
---replace_result $MYSQLD_DATADIR ./ master-data/ ''
+--replace_result $MARIADB_DATADIR ./ master-data/ ''
 # a foreign key 'test/dc' already exists
 --error ER_CANT_CREATE_TABLE
 alter table t3 add constraint dc foreign key (a) references t1(a);
@@ -415,7 +413,7 @@ SET FOREIGN_KEY_CHECKS=0;
 
 # mysqltest first does replace_regex, then replace_result
 # Embedded server doesn't chdir to data directory
---replace_result $MYSQLD_DATADIR ./ master-data/ ''
+--replace_result $MARIADB_DATADIR ./ master-data/ ''
 --error ER_CANT_CREATE_TABLE
 ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
  FOREIGN KEY (c3,c2) REFERENCES t1(c1,c1), ALGORITHM=COPY;
@@ -424,7 +422,7 @@ ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
  FOREIGN KEY (c3,c2) REFERENCES t1(c1,c1);
 # mysqltest first does replace_regex, then replace_result
 # Embedded server doesn't chdir to data directory
---replace_result $MYSQLD_DATADIR ./ master-data/ ''
+--replace_result $MARIADB_DATADIR ./ master-data/ ''
 --error ER_CANT_CREATE_TABLE
 ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
  FOREIGN KEY (c3,c2) REFERENCES t1(c1,c2), ALGORITHM=COPY;
@@ -438,7 +436,7 @@ ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
 
 # mysqltest first does replace_regex, then replace_result
 # Embedded server doesn't chdir to data directory
---replace_result $MYSQLD_DATADIR ./ master-data/ ''
+--replace_result $MARIADB_DATADIR ./ master-data/ ''
 --error ER_CANT_CREATE_TABLE
 ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
  FOREIGN KEY (c3,c2) REFERENCES t1(c2,c1), ALGORITHM=COPY;
@@ -446,7 +444,7 @@ ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
 ALTER TABLE t1 MODIFY COLUMN c2 BIGINT(12) NOT NULL;
 # mysqltest first does replace_regex, then replace_result
 # Embedded server doesn't chdir to data directory
---replace_result $MYSQLD_DATADIR ./ master-data/ ''
+--replace_result $MARIADB_DATADIR ./ master-data/ ''
 --error ER_CANT_CREATE_TABLE
 ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
  FOREIGN KEY (c3,c2) REFERENCES t1(c1,c2), ALGORITHM=COPY;
@@ -1139,8 +1137,8 @@ AND support IN ('YES', 'DEFAULT', 'ENABLED');
 
 --echo # Wrong space_id in a dirty file and a missing file
 
---copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t0.ibd
---move_file $MYSQLD_DATADIR/test/t2.ibd $MYSQLD_DATADIR/test/t1.ibd
+--copy_file $MARIADB_DATADIR/test/t1.ibd $MARIADB_DATADIR/test/t0.ibd
+--move_file $MARIADB_DATADIR/test/t2.ibd $MARIADB_DATADIR/test/t1.ibd
 
 --source include/start_mysqld.inc
 --eval $check_no_innodb
@@ -1148,8 +1146,8 @@ AND support IN ('YES', 'DEFAULT', 'ENABLED');
 
 --echo # Restore t1 and t2
 
---move_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t2.ibd
---move_file $MYSQLD_DATADIR/test/t0.ibd $MYSQLD_DATADIR/test/t1.ibd
+--move_file $MARIADB_DATADIR/test/t1.ibd $MARIADB_DATADIR/test/t2.ibd
+--move_file $MARIADB_DATADIR/test/t0.ibd $MARIADB_DATADIR/test/t1.ibd
 
 --source include/start_mysqld.inc
 
@@ -1165,18 +1163,18 @@ DROP TABLE t1, t2;
 --disable_query_log
 call mtr.add_suppression("Cannot find index i1 in InnoDB index dictionary");
 call mtr.add_suppression("InnoDB indexes are inconsistent with what defined");
-call mtr.add_suppression("Table test/t contains 0 indexes");
+call mtr.add_suppression("Table .*test/t contains 0 indexes");
 call mtr.add_suppression("InnoDB could not find key no");
 --enable_query_log
 
 # Test an attempt to rename a nonexistent index inside InnoDB
--- let $MYSQL_DATA_DIR = `SELECT @@datadir`
 CREATE TABLE t (a INT, INDEX i1 (a)) ENGINE=INNODB;
--- copy_file $MYSQL_DATA_DIR/test/t.frm $MYSQL_DATA_DIR/test/t.fr_
+-- copy_file $MARIADB_DATADIR/test/t.frm $MARIADB_DATADIR/test/t.fr_
 DROP TABLE t;
 CREATE TABLE t (a INT) ENGINE=INNODB;
--- remove_file $MYSQL_DATA_DIR/test/t.frm
--- move_file $MYSQL_DATA_DIR/test/t.fr_ $MYSQL_DATA_DIR/test/t.frm
+-- remove_file $MARIADB_DATADIR/test/t.frm
+-- move_file $MARIADB_DATADIR/test/t.fr_ $MARIADB_DATADIR/test/t.frm
+--replace_catalog
 --enable_prepare_warnings
 SHOW CREATE TABLE t;
 --disable_prepare_warnings

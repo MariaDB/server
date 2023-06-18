@@ -92,7 +92,7 @@ SET @@global.general_log = '';
 #         Test if accessing session general_log gives error   #
 ###################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.general_log = OFF;
 --Error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.general_log;
@@ -141,7 +141,7 @@ SELECT @@general_log = @@global.general_log;
 #######################################################################
 #   Check if general_log can be accessed with and without @@ sign #
 #######################################################################
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET general_log = ON;
 --Error ER_UNKNOWN_TABLE
 SELECT local.general_log;

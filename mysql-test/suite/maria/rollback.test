@@ -39,11 +39,13 @@ select NEXT VALUE for s1,seq from seq_1_to_4;
 --source include/kill_and_restart_mysqld.inc
 
 select * from t1 order by a;
+--replace_catalog
 select * from t2 order by a;
 insert into t1 (b) values (100),(200);
 insert into t2 (b) values (100),(200);
 select * from t1 order by a;
 select * from t2 order by a;
+--replace_catalog
 select NEXT VALUE for s1,seq from seq_1_to_4;
 drop table t1,t2;
 drop sequence s1;

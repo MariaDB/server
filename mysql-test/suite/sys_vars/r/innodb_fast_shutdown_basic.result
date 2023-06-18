@@ -10,7 +10,7 @@ SELECT @@global.innodb_fast_shutdown;
 1
 '#---------------------FN_DYNVARS_042_02-------------------------#'
 SET innodb_fast_shutdown = 1;
-ERROR HY000: Variable 'innodb_fast_shutdown' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@innodb_fast_shutdown;
 @@innodb_fast_shutdown
 1
@@ -106,11 +106,11 @@ SELECT @@global.innodb_fast_shutdown;
 0
 '#-------------------FN_DYNVARS_042_05----------------------------#'
 SET @@session.innodb_fast_shutdown = 0;
-ERROR HY000: Variable 'innodb_fast_shutdown' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SET @@innodb_fast_shutdown = 0;
-ERROR HY000: Variable 'innodb_fast_shutdown' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SET @@local.innodb_fast_shutdown = 0;
-ERROR HY000: Variable 'innodb_fast_shutdown' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 '#----------------------FN_DYNVARS_042_06------------------------#'
 SELECT count(VARIABLE_VALUE) AS res_is_0
 FROM INFORMATION_SCHEMA.SESSION_VARIABLES

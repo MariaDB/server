@@ -80,13 +80,13 @@ SELECT @@global.slave_net_timeout;
 #           Check if variable can be access with session scope                #
 ###############################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@slave_net_timeout = 2;
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.slave_net_timeout = 3;
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@local.slave_net_timeout = 4;
 
 
@@ -161,7 +161,7 @@ SELECT @@slave_net_timeout = @@global.slave_net_timeout;
 #   Check if slave_net_timeout can be accessed without @@ sign and scope #
 ##########################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET slave_net_timeout = 2048;
 --Error ER_BAD_FIELD_ERROR
 SELECT slave_net_timeout;

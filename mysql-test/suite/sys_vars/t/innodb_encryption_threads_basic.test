@@ -25,7 +25,7 @@ set global innodb_encryption_threads=5;
 select @@global.innodb_encryption_threads;
 set global innodb_encryption_threads=1;
 select @@global.innodb_encryption_threads;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session innodb_encryption_threads=1;
 
 #

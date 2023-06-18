@@ -3,10 +3,8 @@
 
 call mtr.add_suppression("Table `test`.`t2` should have 2 indexes but the tablespace has 1 indexes");
 call mtr.add_suppression("Index for table 't2' is corrupt; try to repair it");
-call mtr.add_suppression("Trying to read .* bytes at .* outside the bounds of the file: \\..test.t2\\.ibd");
+call mtr.add_suppression("Trying to read .* bytes at .* outside the bounds of the file: .*test.t2\\.ibd");
 call mtr.add_suppression("InnoDB: File '.*test/t2\\.ibd' is corrupted");
-
-let MYSQLD_DATADIR = `SELECT @@datadir`;
 
 CREATE TABLE t1 (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -33,12 +31,12 @@ DELETE FROM t1 WHERE id % 2 = 1;
 
 FLUSH TABLES t1 FOR EXPORT;
 
---copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/tmp.ibd
---copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_DATADIR/test/tmp.cfg
+--copy_file $MARIADB_DATADIR/test/t1.ibd $MARIADB_DATADIR/test/tmp.ibd
+--copy_file $MARIADB_DATADIR/test/t1.cfg $MARIADB_DATADIR/test/tmp.cfg
 
 perl;
 use strict;
-die unless open(FILE, "+<$ENV{MYSQLD_DATADIR}/test/tmp.ibd");
+die unless open(FILE, "+<$ENV{MARIADB_DATADIR}/test/tmp.ibd");
 die unless truncate(FILE, 16384*23);
 close(FILE);
 EOF
@@ -58,8 +56,8 @@ CREATE TABLE t2 (
 
 ALTER TABLE t2 DISCARD TABLESPACE;
 
---move_file $MYSQLD_DATADIR/test/tmp.ibd $MYSQLD_DATADIR/test/t2.ibd
---move_file $MYSQLD_DATADIR/test/tmp.cfg $MYSQLD_DATADIR/test/t2.cfg
+--move_file $MARIADB_DATADIR/test/tmp.ibd $MARIADB_DATADIR/test/t2.ibd
+--move_file $MARIADB_DATADIR/test/tmp.cfg $MARIADB_DATADIR/test/t2.cfg
 
 --error ER_NOT_KEYFILE
 ALTER TABLE t2 IMPORT TABLESPACE;

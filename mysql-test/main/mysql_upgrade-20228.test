@@ -16,7 +16,6 @@ if (!`SELECT count(*) FROM INFORMATION_SCHEMA.VIEWS
 --echo # MDEV-20228 `mysql_upgrade` fails on every version upgrade: "ERROR 1267 (HY000) at line 7: Illegal mix of collations (utf8mb4_unicode_ci,COERCIBLE) and (utf8mb4_general_ci,COERCIBLE) for operation 'like'"
 --echo #
 
-let $MYSQLD_DATADIR= `select @@datadir`;
 
 SET sql_mode="";
 SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -40,8 +39,8 @@ WHERE TABLE_SCHEMA='mysql' AND TABLE_NAME='user';
 
 --echo # Running mysql_upgrade
 --exec $MYSQL_UPGRADE --default-character-set=utf8mb4 --force 2>&1
---file_exists $MYSQLD_DATADIR/mariadb_upgrade_info
---remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
+--file_exists $MARIADB_TOPDIR/mariadb_upgrade_info
+--remove_file $MARIADB_TOPDIR/mariadb_upgrade_info
 
 --echo #
 --echo # Restoring character_set_client and collation_connection back

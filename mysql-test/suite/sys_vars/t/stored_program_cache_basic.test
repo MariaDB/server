@@ -45,7 +45,7 @@ SET @@global.stored_program_cache = '';
 
 --echo # Test if accessing session stored_program_cache gives error
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.stored_program_cache = 0;
 
 --echo # Check if accessing variable without SCOPE points to same global variable

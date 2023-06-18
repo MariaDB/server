@@ -16,7 +16,7 @@
 
 call mtr.add_suppression("Cannot find index f2 in InnoDB index dictionary.");
 call mtr.add_suppression("InnoDB indexes are inconsistent with what defined in .frm for table");
-call mtr.add_suppression("Table test/t1 contains 1 indexes inside InnoDB, which is different from the number of indexes 2 defined in");
+call mtr.add_suppression("Table .*test/t1 contains 1 indexes inside InnoDB, which is different from the number of indexes 2 defined in");
 call mtr.add_suppression("InnoDB could not find key no 1 with name f2 from dict cache for table");
 
 
@@ -26,8 +26,6 @@ call mtr.add_suppression("InnoDB could not find key no 1 with name f2 from dict 
 --echo # Temporary tablename will be unique. This makes sure that future
 --echo # in-place ALTERs of the same table will not be blocked due to
 --echo # temporary tablename.
-
-let datadir= `select @@datadir`;
 
 --let $_expect_file_name= `select regexp_replace(@@tmpdir, '^.*/','')`
 --let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/$_expect_file_name.expect
@@ -65,10 +63,12 @@ set DEBUG_SYNC="now WAIT_FOR default_signal";
 --let $shutdown_timeout=0
 --source include/restart_mysqld.inc
 disconnect con1;
+
+--replace_catalog
 --replace_column 7 #
 SHOW KEYS FROM t1;
 DROP TABLE t1;
-remove_files_wildcard $datadir/test #sql-*.frm;
+remove_files_wildcard $MARIADB_DATADIR/test #sql-*.frm;
 
 --echo #
 --echo # MDEV-25503 InnoDB hangs on startup during recovery
@@ -88,4 +88,4 @@ SET DEBUG_SYNC='now WAIT_FOR blocked';
 --source include/restart_mysqld.inc
 SELECT * FROM t1;
 DROP TABLE t1;
-remove_files_wildcard $datadir/test #sql-*.frm;
+remove_files_wildcard $MARIADB_DATADIR/test #sql-*.frm;

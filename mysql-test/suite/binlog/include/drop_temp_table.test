@@ -121,7 +121,6 @@ connect (con1,localhost,root,,);
 --disable_warnings
 SET @save_binlog_format= @@session.binlog_format;
 SET @@session.binlog_format=STATEMENT;
-let $MYSQLD_DATADIR= `select @@datadir`;
 CREATE TABLE t1 (a INT) ENGINE=INNODB;
 
 --connection con1
@@ -131,7 +130,7 @@ CREATE TEMPORARY TABLE t1 (b BLOB) ENGINE=INNODB;
 --connection default
 DELETE d1, d2 FROM t1 AS d1, t1 AS d2 WHERE d1.a<>d2.a;
 
---exec $MYSQL_BINLOG --force-if-open $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/bug28642318.sql
+--exec $MYSQL_BINLOG --force-if-open $MARIADB_TOPDIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/bug28642318.sql
 
 --connection default
 DROP TABLE t1;
@@ -162,7 +161,7 @@ DROP TABLE t2;
 DROP TABLE t2;
 
 --connection default
---exec $MYSQL_BINLOG --force-if-open $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/bug28642318.sql
+--exec $MYSQL_BINLOG --force-if-open $MARIADB_TOPDIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/bug28642318.sql
 
 --echo # DROP table query fails with unknown table error without patch.
 --exec $MYSQL < $MYSQLTEST_VARDIR/tmp/bug28642318.sql

@@ -1141,13 +1141,12 @@ select trigger_schema, trigger_name, event_object_schema,
        event_object_table, action_statement from information_schema.triggers
        where event_object_schema = 'test';
 # Trick which makes update of second .TRN file impossible
-let $MYSQLD_DATADIR= `select @@datadir`;
-write_file $MYSQLD_DATADIR/test/t1_ai.TRN~;
+write_file $MARIADB_DATADIR/test/t1_ai.TRN~;
 dummy
 EOF
-chmod 0000 $MYSQLD_DATADIR/test/t1_ai.TRN~;
+chmod 0000 $MARIADB_DATADIR/test/t1_ai.TRN~;
 # Normalize the datadir path; the embedded server doesn't chdir to datadir
---replace_result $MYSQLTEST_VARDIR . mysqld.1/data/ ''
+--replace_catalog $MYSQLTEST_VARDIR . mysqld.1/data/ ''
 --error 1
 rename table t1 to t2;
 # 't1' should be still there and triggers should work correctly
@@ -1156,8 +1155,8 @@ select @a, @b;
 select trigger_schema, trigger_name, event_object_schema,
        event_object_table, action_statement from information_schema.triggers
        where event_object_schema = 'test';
-chmod 0600 $MYSQLD_DATADIR/test/t1_ai.TRN~;
-remove_file $MYSQLD_DATADIR/test/t1_ai.TRN~;
+chmod 0600 $MARIADB_DATADIR/test/t1_ai.TRN~;
+remove_file $MARIADB_DATADIR/test/t1_ai.TRN~;
 # Let us check that updates to .TRN files were rolled back too
 drop trigger t1_bi;
 drop trigger t1_ai;
@@ -2406,9 +2405,8 @@ INSERT INTO t2 VALUES (1);
 SELECT * FROM t1;
 
 --echo # Work around Bug#45235
-let $MYSQLD_DATADIR = `select @@datadir`;
---remove_file $MYSQLD_DATADIR/db1/t2.TRG
---remove_file $MYSQLD_DATADIR/db1/trg1.TRN
+--remove_file $MARIADB_DATADIR/db1/t2.TRG
+--remove_file $MARIADB_DATADIR/db1/trg1.TRN
 
 DROP DATABASE db1;
 USE test;
@@ -2804,8 +2802,6 @@ DROP TABLE t1;
 --echo # Test dropping orphan .trn file
 --echo #
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-
 create table t1 (a int);
 delimiter |;
 create trigger t1_trg before insert on t1 for each row
@@ -2818,12 +2814,12 @@ delimiter ;|
 insert into t1 values (null);
 select * from t1;
 
---copy_file $MYSQLD_DATADIR/test/t1_trg.TRN $MYSQLD_DATADIR/test/t1_trg.TMP
+--copy_file $MARIADB_DATADIR/test/t1_trg.TRN $MARIADB_DATADIR/test/t1_trg.TMP
 drop table t1;
---copy_file $MYSQLD_DATADIR/test/t1_trg.TMP $MYSQLD_DATADIR/test/t1_trg.TRN
+--copy_file $MARIADB_DATADIR/test/t1_trg.TMP $MARIADB_DATADIR/test/t1_trg.TRN
 drop trigger t1_trg;
 create table t1 (a int);
---copy_file $MYSQLD_DATADIR/test/t1_trg.TMP $MYSQLD_DATADIR/test/t1_trg.TRN
+--copy_file $MARIADB_DATADIR/test/t1_trg.TMP $MARIADB_DATADIR/test/t1_trg.TRN
 drop trigger t1_trg;
 
 # Test creating an additonal trigger for t1, but with different names
@@ -2835,11 +2831,11 @@ begin
   end if;
 end|
 delimiter ;|
---copy_file $MYSQLD_DATADIR/test/t1_trg.TMP $MYSQLD_DATADIR/test/t1_trg.TRN
+--copy_file $MARIADB_DATADIR/test/t1_trg.TMP $MARIADB_DATADIR/test/t1_trg.TRN
 drop trigger t1_trg;
 drop trigger t1_trg_2;
 drop table t1;
---remove_file $MYSQLD_DATADIR/test/t1_trg.TMP
+--remove_file $MARIADB_DATADIR/test/t1_trg.TMP
 
 --echo #
 --echo # End of 10.6 tests

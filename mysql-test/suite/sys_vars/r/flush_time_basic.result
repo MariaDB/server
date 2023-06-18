@@ -21,7 +21,7 @@ select @@global.flush_time;
 @@global.flush_time
 1
 set session flush_time=1;
-ERROR HY000: Variable 'flush_time' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 set global flush_time=1.1;
 ERROR 42000: Incorrect argument type to variable 'flush_time'
 set global flush_time=1e1;

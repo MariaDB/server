@@ -4,18 +4,17 @@ source include/not_windows.inc;
 # MDEV-23569 temporary tables can overwrite existing files
 #
 
-let datadir=`select @@datadir`;
 create table d1 (a int);
 create temporary table t1 (a int);
 perl;
 chdir "$ENV{MYSQL_TMP_DIR}/mysqld.1/";
 for (<#sql*.MYI>) {
   /^(#sql-temptable-[0-9a-f]+)(-[0-9a-f]+-)([0-9a-f]+)\.MYI$/ or die $_;
-  symlink "$ENV{datadir}/test/d1.MYI", sprintf "$1$2%x.MYI", hex($3)+1;
-  symlink "$ENV{datadir}/test/d1.MYI", sprintf "$1$2%x.MAI", hex($3)+2;
-  symlink "$ENV{datadir}/test/d1.MYI", sprintf "$1$2%x.MAI", hex($3)+3;
-  symlink "$ENV{datadir}/test/d1.MYI", sprintf "$1$2%x.MAI", hex($3)+4;
-  symlink "$ENV{datadir}/test/d1.MYI", "$1-0.MAI";
+  symlink "$ENV{$MARIADB_DATADIR}/test/d1.MYI", sprintf "$1$2%x.MYI", hex($3)+1;
+  symlink "$ENV{$MARIADB_DATADIR}/test/d1.MYI", sprintf "$1$2%x.MAI", hex($3)+2;
+  symlink "$ENV{$MARIADB_DATADIR}/test/d1.MYI", sprintf "$1$2%x.MAI", hex($3)+3;
+  symlink "$ENV{$MARIADB_DATADIR}/test/d1.MYI", sprintf "$1$2%x.MAI", hex($3)+4;
+  symlink "$ENV{$MARIADB_DATADIR}/test/d1.MYI", "$1-0.MAI";
 }
 EOF
 

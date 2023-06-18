@@ -60,8 +60,7 @@ ALTER TABLE t1 COALESCE PARTITION 2;
 
 --connect (con3,localhost,root,,)
 
---let $MYSQLD_DATADIR= `SELECT @@datadir`
---write_file $MYSQLD_DATADIR/test/load.in
+--write_file $MARIADB_DATADIR/test/load.in
 1
 2
 3
@@ -74,7 +73,7 @@ COMMIT;
 
 --connection con3
 --reap
---remove_file $MYSQLD_DATADIR/test/load.in
+--remove_file $MARIADB_DATADIR/test/load.in
 DROP TABLE t1;
 
 --disconnect con3

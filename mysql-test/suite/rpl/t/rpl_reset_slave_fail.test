@@ -24,9 +24,9 @@ INSERT INTO t1 (c1) VALUES (1);
 
 --connection slave
 --source include/stop_slave_sql.inc
---let $MYSQLD_SLAVE_DATADIR= `select @@datadir`
-
 --connection master
+--source include/get_replication_datadir.inc
+
 # Generate more relay logs on slave.
 FLUSH LOGS;
 FLUSH LOGS;
@@ -45,7 +45,7 @@ call mtr.add_suppression("Failed to initialize the master info structure");
 # Delete file(s)
 --echo # Removing $remove_pattern file(s)
 --let $remove_pattern= slave-relay-bin.0*
---remove_files_wildcard $MYSQLD_SLAVE_DATADIR $remove_pattern
+--remove_files_wildcard $SLAVE_TOPDIR $remove_pattern
 
 # Start slave
 --let $rpl_server_number= 2

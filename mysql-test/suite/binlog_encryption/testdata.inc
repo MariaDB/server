@@ -173,11 +173,12 @@ TRUNCATE TABLE aria_table_name_to_encrypt;
 LOAD DATA INFILE 'file_name_to_encrypt' INTO TABLE aria_table_name_to_encrypt
   (enum_column_name_to_encrypt);
 
---let datadir= `SELECT @@datadir`
---replace_result $datadir <DATADIR>
-eval LOAD DATA LOCAL INFILE '$datadir/database_name_to_encrypt/file_name_to_encrypt' 
+--source include/get_datadir.inc
+
+--replace_result $MARIADB_DATADIR <DATADIR>
+eval LOAD DATA LOCAL INFILE '$MARIADB_DATADIR/database_name_to_encrypt/file_name_to_encrypt' 
   INTO TABLE aria_table_name_to_encrypt (enum_column_name_to_encrypt);
---remove_file $datadir/database_name_to_encrypt/file_name_to_encrypt
+--remove_file $MARIADB_DATADIR/database_name_to_encrypt/file_name_to_encrypt
 
 UPDATE view_name_to_encrypt SET blob_column_name_to_encrypt = 
   COLUMN_CREATE('dyncol1_name_to_encrypt',func_name_to_encrypt(0))

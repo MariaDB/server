@@ -43,11 +43,11 @@ Field	Type	Null	Key	Default	Extra
 last_update	timestamp /* mariadb-5.3 */	NO		current_timestamp()	on update current_timestamp()
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=1;
 SELECT TIMESTAMPDIFF(DAY,last_update,now())<=1 FROM mysql.innodb_table_stats
-WHERE database_name='test' AND table_name='t1';
+WHERE database_name like '%test' AND table_name='t1';
 TIMESTAMPDIFF(DAY,last_update,now())<=1
 1
 SELECT TIMESTAMPDIFF(DAY,last_update,now())<=1 FROM mysql.innodb_index_stats
-WHERE database_name='test' AND table_name='t1' AND stat_name='size';
+WHERE database_name like '%test' AND table_name='t1' AND stat_name='size';
 TIMESTAMPDIFF(DAY,last_update,now())<=1
 1
 DROP TABLE t1;
@@ -55,10 +55,10 @@ DROP TABLE t1;
 # Now as the table t1 is dropped, expect no statistics
 #
 SELECT * FROM mysql.innodb_table_stats
-WHERE database_name='test' AND table_name='t1';
+WHERE database_name like '%test' AND table_name='t1';
 database_name	table_name	last_update	n_rows	clustered_index_size	sum_of_other_index_sizes
 SELECT * FROM mysql.innodb_index_stats
-WHERE database_name='test' AND table_name='t1' AND stat_name='size';
+WHERE database_name like '%test' AND table_name='t1' AND stat_name='size';
 database_name	table_name	index_name	last_update	stat_name	stat_value	sample_size	stat_description
 #
 # Testing with the default format: Field_timestampf - BINARY(4) based with the UNSIGNED_FLAG
@@ -74,11 +74,11 @@ Field	Type	Null	Key	Default	Extra
 last_update	timestamp	NO		current_timestamp()	on update current_timestamp()
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=1;
 SELECT TIMESTAMPDIFF(DAY,last_update,now())<=1 FROM mysql.innodb_table_stats
-WHERE database_name='test' AND table_name='t1';
+WHERE database_name like '%test' AND table_name='t1';
 TIMESTAMPDIFF(DAY,last_update,now())<=1
 1
 SELECT TIMESTAMPDIFF(DAY,last_update,now())<=1 FROM mysql.innodb_index_stats
-WHERE database_name='test' AND table_name='t1' AND stat_name='size';
+WHERE database_name like '%test' AND table_name='t1' AND stat_name='size';
 TIMESTAMPDIFF(DAY,last_update,now())<=1
 1
 DROP TABLE t1;

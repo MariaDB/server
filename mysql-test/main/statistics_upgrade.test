@@ -1,5 +1,5 @@
 -- source include/mysql_upgrade_preparation.inc
---source include/have_sequence.inc
+-- source include/have_sequence.inc
 
 call mtr.add_suppression("Incorrect definition of table mysql.column_stats:.*");
 
@@ -43,9 +43,8 @@ alter table t3 rename mysql.column_stats;
 
 --exec $MYSQL_UPGRADE --upgrade-system-tables  --force --silent 2>&1 
 
-let $MYSQLD_DATADIR= `select @@datadir`;
---file_exists $MYSQLD_DATADIR/mariadb_upgrade_info
---remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
+--file_exists $MARIADB_TOPDIR/mariadb_upgrade_info
+--remove_file $MARIADB_TOPDIR/mariadb_upgrade_info
 
 --echo #
 --echo # Table definition after upgrade:

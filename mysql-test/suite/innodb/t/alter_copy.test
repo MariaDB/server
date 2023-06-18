@@ -61,9 +61,8 @@ let $shutdown_timeout=0;
 --source include/restart_mysqld.inc
 disconnect hang;
 let $shutdown_timeout=;
-let $datadir=`select @@datadir`;
 --replace_regex /FTS_[0-9a-f]*_[0-9a-f]*/FTS/
---list_files $datadir/test
+--list_files $MARIADB_DATADIR/test
 SHOW CREATE TABLE t;
 SELECT COUNT(*) FROM t;
 CHECK TABLE t;
@@ -77,7 +76,7 @@ CHECK TABLE t1;
 --source include/restart_mysqld.inc
 --replace_regex /FTS_[0-9a-f]*_[0-9a-f]*/FTS/
 
---list_files $datadir/test
+--list_files $MARIADB_DATADIR/test
 SHOW CREATE TABLE t;
 SELECT COUNT(*) FROM t;
 CHECK TABLE t;
@@ -90,5 +89,5 @@ CHECK TABLE t1;
 --let $restart_parameters=
 --source include/restart_mysqld.inc
 --replace_regex /FTS_[0-9a-f]*_[0-9a-f]*/FTS/
---list_files $datadir/test
+--list_files $MARIADB_DATADIR/test
 DROP TABLE t1,t;

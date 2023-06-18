@@ -24,9 +24,9 @@ call mtr.add_suppression("InnoDB: Checksum mismatch in datafile: ");
 call mtr.add_suppression("InnoDB: Inconsistent tablespace ID in .*t1\\.ibd");
 --enable_query_log
 --source include/restart_mysqld.inc
+--source include/get_datadir.inc
 
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
-let MYSQLD_DATADIR=`select @@datadir`;
 let ALGO=`select @@innodb_checksum_algorithm`;
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
 
@@ -85,7 +85,7 @@ my $polynomial = 0x82f63b78; # CRC-32C
 my $algo = $ENV{ALGO};
 die "Unsupported innodb_checksum_algorithm=$algo\n" unless $algo =~ /crc32/;
 
-my $fname= "$ENV{'MYSQLD_DATADIR'}test/t1.ibd";
+my $fname= "$ENV{'MARIADB_DATADIR'}test/t1.ibd";
 my $page_size = $ENV{INNODB_PAGE_SIZE};
 my $page;
 do "$ENV{MTR_SUITE_DIR}/../innodb/include/crc32.pl";
@@ -100,7 +100,7 @@ sysseek(FILE, 0, 0)||die "Unable to seek $fname\n";
 die unless syswrite(FILE, $page1, $page_size) == $page_size;
 close FILE;
 
-open(FILE, "+<", "$ENV{MYSQLD_DATADIR}ibdata1")||die "cannot open ibdata1\n";
+open(FILE, "+<", "$ENV{MARIADB_DATADIR}ibdata1")||die "cannot open ibdata1\n";
 sysseek(FILE, 6 * $page_size - 190, 0)||die "Unable to seek ibdata1\n";
 sysread(FILE, $_, 12) == 12||die "Unable to read TRX_SYS\n";
 my($magic,$d1,$d2)=unpack "NNN", $_;
@@ -178,7 +178,7 @@ set global innodb_buf_flush_list_now = 1;
 --echo # Corrupt the first page (page_no=0) of the user tablespace.
 perl;
 use IO::Handle;
-my $fname= "$ENV{'MYSQLD_DATADIR'}test/t1.ibd";
+my $fname= "$ENV{'MARIADB_DATADIR'}test/t1.ibd";
 my $page_size = $ENV{INNODB_PAGE_SIZE};
 open(FILE, "+<", $fname) or die;
 sysread(FILE, $page, $page_size)==$page_size||die "Unable to read $name\n";
@@ -222,7 +222,7 @@ set global innodb_buf_flush_list_now = 1;
 --echo # Make the 2nd page (page_no=1) of the tablespace all zeroes.
 perl;
 use IO::Handle;
-my $fname= "$ENV{'MYSQLD_DATADIR'}test/t1.ibd";
+my $fname= "$ENV{'MARIADB_DATADIR'}test/t1.ibd";
 open(FILE, "+<", $fname) or die;
 FILE->autoflush(1);
 binmode FILE;
@@ -265,7 +265,7 @@ set global innodb_buf_flush_list_now = 1;
 --echo # Corrupt the 2nd page (page_no=1) of the user tablespace.
 perl;
 use IO::Handle;
-my $fname= "$ENV{'MYSQLD_DATADIR'}test/t1.ibd";
+my $fname= "$ENV{'MARIADB_DATADIR'}test/t1.ibd";
 open(FILE, "+<", $fname) or die;
 FILE->autoflush(1);
 binmode FILE;
@@ -308,7 +308,7 @@ set global innodb_buf_flush_list_now = 1;
 --echo # all zeroes.
 perl;
 use IO::Handle;
-my $fname= "$ENV{'MYSQLD_DATADIR'}ibdata1";
+my $fname= "$ENV{'MARIADB_DATADIR'}ibdata1";
 open(FILE, "+<", $fname) or die;
 FILE->autoflush(1);
 binmode FILE;
@@ -344,7 +344,7 @@ set global innodb_buf_flush_list_now = 1;
 --echo # Corrupt the first page (page_no=0) of the system tablespace.
 perl;
 use IO::Handle;
-my $fname= "$ENV{'MYSQLD_DATADIR'}ibdata1";
+my $fname= "$ENV{'MARIADB_DATADIR'}ibdata1";
 open(FILE, "+<", $fname) or die;
 FILE->autoflush(1);
 binmode FILE;
@@ -381,7 +381,7 @@ set global innodb_buf_flush_list_now = 1;
 --echo # all zeroes.
 perl;
 use IO::Handle;
-my $fname= "$ENV{'MYSQLD_DATADIR'}ibdata1";
+my $fname= "$ENV{'MARIADB_DATADIR'}ibdata1";
 open(FILE, "+<", $fname) or die;
 FILE->autoflush(1);
 binmode FILE;
@@ -419,7 +419,7 @@ set global innodb_buf_flush_list_now = 1;
 --echo # all zeroes.
 perl;
 use IO::Handle;
-my $fname= "$ENV{'MYSQLD_DATADIR'}ibdata1";
+my $fname= "$ENV{'MARIADB_DATADIR'}ibdata1";
 open(FILE, "+<", $fname) or die;
 FILE->autoflush(1);
 binmode FILE;

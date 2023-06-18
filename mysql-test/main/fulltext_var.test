@@ -15,7 +15,7 @@ insert t1 values ('aaaaaa bbbbbb cccccc');
 insert t1 values ('bbbbbb cccccc');
 insert t1 values ('aaaaaa cccccc');
 select * from t1 where match b against ('+aaaaaa bbbbbb' in boolean mode);
--- error 1229
+-- error ER_GLOBAL_VARIABLE, ER_GLOBAL_OR_CATALOG_VARIABLE
 set ft_boolean_syntax=' +-><()~*:""&|';
 set global ft_boolean_syntax=' +-><()~*:""&|';
 select * from t1 where match b against ('+aaaaaa bbbbbb' in boolean mode);

@@ -10,7 +10,7 @@ SELECT @@global.innodb_max_purge_lag;
 0
 '#---------------------FN_DYNVARS_046_02-------------------------#'
 SET innodb_max_purge_lag = 1;
-ERROR HY000: Variable 'innodb_max_purge_lag' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@innodb_max_purge_lag;
 @@innodb_max_purge_lag
 0

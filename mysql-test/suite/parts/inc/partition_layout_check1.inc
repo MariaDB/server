@@ -25,10 +25,6 @@ if ($no_debug)
 # Clean the table holding the definition of t1
 DELETE FROM t0_definition;
 
-# Get the MySQL Servers datadir without ending slash
-let $MYSQLD_DATADIR= `select LEFT(@@datadir, LENGTH(@@datadir)-1)`;
-#echo MYSQLD_DATADIR: $MYSQLD_DATADIR;
-
 # Save the current definition of the table t1
 # - SHOW CREATE TABLE t1 is at least currently most probably more reliable than
 #   the corresponding SELECT on the INFORMATION_SCHEMA
@@ -36,8 +32,8 @@ let $show_create= `SHOW CREATE TABLE t1`;
 if ($do_file_tests)
 {
   # List the files belonging to the table t1
-  let $ls_file= $MYSQLD_DATADIR/test/tmp2;
-  --list_files_write_file $ls_file $MYSQLD_DATADIR/test t1*
+  let $ls_file= $MARIADB_DATADIR/test/tmp2;
+  --list_files_write_file $ls_file $MARIADB_DATADIR/test t1*
   --chmod 0644 $ls_file
   if ($with_directories)
   {
@@ -69,7 +65,7 @@ if ($do_file_tests)
    if ($ls)
    {
       # Print the list of files into the protocol
-      replace_result $MYSQLD_DATADIR MYSQLD_DATADIR $MYSQLTEST_VARDIR MYSQLTEST_VARDIR #p# #P# #sp# #SP# part_n part_N;
+      replace_result $MARIADB_DATADIR MARIADB_DATADIR $MYSQLTEST_VARDIR MYSQLTEST_VARDIR #p# #P# #sp# #SP# part_n part_N;
       SELECT file_list AS "unified filelist"
        FROM t0_definition WHERE state = 'old';
    }

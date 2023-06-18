@@ -65,7 +65,7 @@ SET @@global.relay_log_purge = '';
 ERROR 42000: Variable 'relay_log_purge' can't be set to the value of ''
 '#-------------------FN_DYNVARS_141_05----------------------------#'
 SET @@session.relay_log_purge = 1;
-ERROR HY000: Variable 'relay_log_purge' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@session.relay_log_purge;
 ERROR HY000: Variable 'relay_log_purge' is a GLOBAL variable
 '#----------------------FN_DYNVARS_141_06------------------------#'
@@ -81,7 +81,7 @@ SELECT @@relay_log_purge = @@global.relay_log_purge;
 1
 '#---------------------FN_DYNVARS_141_08----------------------#'
 SET relay_log_purge = 1;
-ERROR HY000: Variable 'relay_log_purge' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT global.relay_log_purge;
 ERROR 42S02: Unknown table 'global' in field list
 SELECT relay_log_purge = @@session.relay_log_purge;

@@ -3,8 +3,6 @@
 # Embedded server does not support restarting
 --source include/not_embedded.inc
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-
 CREATE TABLE t1(a blob,b blob,c blob,d blob,e blob,f blob,g blob,
                 h blob,i blob,j blob,k blob,l blob,m blob,n blob,
 		o blob,p blob,q blob,r blob,s blob,t blob,u blob,

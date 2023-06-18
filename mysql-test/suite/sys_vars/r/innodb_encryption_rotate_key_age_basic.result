@@ -31,7 +31,7 @@ select @@global.innodb_encryption_rotate_key_age;
 @@global.innodb_encryption_rotate_key_age
 1
 set session innodb_encryption_rotate_key_age=1;
-ERROR HY000: Variable 'innodb_encryption_rotate_key_age' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 set global innodb_encryption_rotate_key_age=1.1;
 ERROR 42000: Incorrect argument type to variable 'innodb_encryption_rotate_key_age'
 set global innodb_encryption_rotate_key_age=1e1;

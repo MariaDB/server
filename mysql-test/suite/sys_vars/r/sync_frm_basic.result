@@ -65,7 +65,7 @@ SET @@global.sync_frm = '';
 ERROR 42000: Variable 'sync_frm' can't be set to the value of ''
 '#-------------------FN_DYNVARS_169_05----------------------------#'
 SET @@session.sync_frm = 1;
-ERROR HY000: Variable 'sync_frm' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@session.sync_frm;
 ERROR HY000: Variable 'sync_frm' is a GLOBAL variable
 '#----------------------FN_DYNVARS_169_06------------------------#'
@@ -81,7 +81,7 @@ SELECT @@sync_frm = @@global.sync_frm;
 1
 '#---------------------FN_DYNVARS_169_08----------------------#'
 SET sync_frm = 1;
-ERROR HY000: Variable 'sync_frm' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@sync_frm;
 @@sync_frm
 1

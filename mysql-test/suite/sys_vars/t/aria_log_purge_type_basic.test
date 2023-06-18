@@ -19,7 +19,7 @@ select * from information_schema.session_variables where variable_name='aria_log
 #
 set global aria_log_purge_type=1;
 select @@global.aria_log_purge_type;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session aria_log_purge_type=1;
 
 #

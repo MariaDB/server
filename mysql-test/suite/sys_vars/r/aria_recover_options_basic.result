@@ -22,7 +22,7 @@ select @@global.aria_recover_options;
 @@global.aria_recover_options
 NORMAL
 set session aria_recover_options=1;
-ERROR HY000: Variable 'aria_recover_options' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 set global aria_recover_options=normal;
 select @@global.aria_recover_options;
 @@global.aria_recover_options

@@ -4,7 +4,7 @@ RESET MASTER;
 create table myt (a int) engine=InnoDB;
 alter table myt add column (b int);
 FLUSH LOGS;
-# Exec MYSQL_BINLOG --base64-output=decode-rows -v MYSQLD_DATADIR/BINLOG_FILENAME > MYSQLTEST_VARDIR/tmp/mysqlbinlog_verbose.sql
+# Exec MYSQL_BINLOG --base64-output=decode-rows -v MARIADB_TOPDIR/BINLOG_FILENAME > MYSQLTEST_VARDIR/tmp/mysqlbinlog_verbose.sql
 Verbose statements from : master-bin.000001
 select replace(txt,'\r', '') as stmt from raw_binlog_rows where txt like '###%';
 stmt

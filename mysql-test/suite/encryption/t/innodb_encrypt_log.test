@@ -11,8 +11,6 @@
 --echo # on restart after killing busy server instance
 --echo #
 
---let $MYSQLD_DATADIR=`select @@datadir`
-
 CREATE TABLE t0 (
   pk bigint auto_increment,
   col_int int,
@@ -41,13 +39,13 @@ INSERT INTO t0
 --let SEARCH_PATTERN=private|secret|sacr(ed|ament)|success|story|secur(e|ity)
 
 --echo # ibdata1 expecting NOT FOUND
--- let SEARCH_FILE=$MYSQLD_DATADIR/ibdata1
+-- let SEARCH_FILE=$MARIADB_TOPDIR/ibdata1
 -- source include/search_pattern_in_file.inc
 --echo # t0.ibd expecting NOT FOUND
--- let SEARCH_FILE=$MYSQLD_DATADIR/test/t0.ibd
+-- let SEARCH_FILE=$MARIADB_DATADIR/test/t0.ibd
 -- source include/search_pattern_in_file.inc
 --echo # ib_logfile0 expecting NOT FOUND
--- let SEARCH_FILE=$MYSQLD_DATADIR/ib_logfile0
+-- let SEARCH_FILE=$MARIADB_TOPDIR/ib_logfile0
 -- source include/search_pattern_in_file.inc
 
 --echo # Restart without redo log encryption
@@ -65,19 +63,19 @@ INSERT INTO t0 VALUES(NULL, 5, 5, 'public', 'gossip');
 --source include/kill_mysqld.inc
 
 --echo # ib_logfile0 expecting NOT FOUND
--- let SEARCH_FILE=$MYSQLD_DATADIR/ib_logfile0
+-- let SEARCH_FILE=$MARIADB_TOPDIR/ib_logfile0
 -- source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=(public|gossip).*
 --echo # ib_logfile0 expecting FOUND
--- let SEARCH_FILE=$MYSQLD_DATADIR/ib_logfile0
+-- let SEARCH_FILE=$MARIADB_TOPDIR/ib_logfile0
 -- source include/search_pattern_in_file.inc
 
 --let SEARCH_PATTERN=private|secret|sacr(ed|ament)|success|story|secur(e|ity)|public|gossip
 --echo # ibdata1 expecting NOT FOUND
--- let SEARCH_FILE=$MYSQLD_DATADIR/ibdata1
+-- let SEARCH_FILE=$MARIADB_TOPDIR/ibdata1
 -- source include/search_pattern_in_file.inc
 --echo # t0.ibd expecting NOT FOUND
--- let SEARCH_FILE=$MYSQLD_DATADIR/test/t0.ibd
+-- let SEARCH_FILE=$MARIADB_DATADIR/test/t0.ibd
 -- source include/search_pattern_in_file.inc
 
 --let $restart_parameters=

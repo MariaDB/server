@@ -59,9 +59,9 @@ WHERE variable_name='innodb_print_all_deadlocks';
 SELECT * FROM information_schema.session_variables 
 WHERE variable_name='innodb_print_all_deadlocks';
 --enable_warnings
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET session innodb_print_all_deadlocks='OFF';
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.innodb_print_all_deadlocks='ON';
 
 #

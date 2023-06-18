@@ -33,7 +33,7 @@
   And many others
 */
 
-#define VER "3.5"
+#define VER "4.0"
 
 #include "client_priv.h"
 #include <mysql_version.h>
@@ -103,7 +103,7 @@ enum {
 };
 
 static int record= 0, opt_sleep= -1;
-static char *opt_db= 0, *opt_pass= 0;
+static char *opt_db= 0, *opt_pass= 0, *opt_catalog=0;
 const char *opt_user= 0, *opt_host= 0, *unix_sock= 0, *opt_basedir= "./";
 const char *opt_logdir= "";
 const char *opt_prologue= 0, *opt_charsets_dir;
@@ -387,7 +387,7 @@ enum enum_commands {
   Q_DISABLE_RECONNECT, Q_ENABLE_RECONNECT,
   Q_IF,
   Q_DISABLE_PARSING, Q_ENABLE_PARSING,
-  Q_REPLACE_REGEX, Q_REMOVE_FILE, Q_FILE_EXIST,
+  Q_REPLACE_REGEX, Q_REPLACE_CATALOG, Q_REMOVE_FILE, Q_FILE_EXIST,
   Q_WRITE_FILE, Q_COPY_FILE, Q_PERL, Q_DIE, Q_EXIT, Q_SKIP,
   Q_CHMOD_FILE, Q_APPEND_FILE, Q_CAT_FILE, Q_DIFF_FILES,
   Q_SEND_QUIT, Q_CHANGE_USER, Q_MKDIR, Q_RMDIR,
@@ -486,6 +486,7 @@ const char *command_names[]=
   "disable_parsing",
   "enable_parsing",
   "replace_regex",
+  "replace_catalog",
   "remove_file",
   "file_exists",
   "write_file",
@@ -599,7 +600,7 @@ int odd_buf_len;
 struct st_replace_regex *glob_replace_regex= 0;
 
 struct st_replace;
-struct st_replace *glob_replace= 0;
+struct st_replace *glob_replace= 0, *catalog_replace;
 void replace_strings_append(struct st_replace *rep, DYNAMIC_STRING* ds,
 const char *from);
 
@@ -644,12 +645,16 @@ void free_win_path_patterns();
 /* For replace_column */
 static char *replace_column[MAX_COLUMNS];
 static uint max_replace_column= 0;
+void init_replace();
 void do_get_replace_column(struct st_command*);
 void free_replace_column();
+static void setup_catalog_replace(struct st_connection *con,
+                                  struct st_command *command);
+static void get_catalog(struct st_connection *con, DYNAMIC_STRING *ds);
 
 /* For replace */
 void do_get_replace(struct st_command *command);
-void free_replace();
+static void free_replace(struct st_replace **replace);
 
 /* For replace_regex */
 void do_get_replace_regex(struct st_command *command);
@@ -659,7 +664,8 @@ void free_replace_regex();
 void check_eol_junk_line(const char *eol);
 
 void free_all_replace(){
-  free_replace();
+  free_replace(&glob_replace);
+  free_replace(&catalog_replace);
   free_replace_regex();
   free_replace_column();
 }
@@ -668,7 +674,6 @@ void var_set_int(const char* name, int value);
 void enable_optimizer_trace(struct st_connection *con);
 void display_optimizer_trace(struct st_connection *con,
                              DYNAMIC_STRING *ds);
-
 
 class LogFile {
   FILE* m_file;
@@ -2719,7 +2724,7 @@ void var_query_set(VAR *var, const char *query, const char** query_end)
       Concatenate all fields in the first row with tab in between
       and assign that string to the $variable
     */
-    DYNAMIC_STRING result;
+    DYNAMIC_STRING result, tmp, tmp2;
     uint i;
     ulong *lengths;
 
@@ -2742,11 +2747,21 @@ void var_query_set(VAR *var, const char *query, const char** query_end)
 	    len= strlen(val);
 	  }
 	}
-	
 	if (glob_replace)
-	  replace_strings_append(glob_replace, &result, val);
-	else
-	  dynstr_append_mem(&result, val, len);
+        {
+          init_dynamic_string(&tmp, "", 512, 512);
+	  replace_strings_append(glob_replace, &tmp, val);
+          val= tmp.str;
+          len= tmp.length;
+        }
+        if (catalog_replace)
+        {
+          init_dynamic_string(&tmp2, "", 512, 512);
+	  replace_strings_append(catalog_replace, &tmp2, val);
+          val= tmp2.str;
+          len= tmp2.length;
+        }
+        dynstr_append_mem(&result, val, len);
       }
       dynstr_append_mem(&result, "\t", 1);
     }
@@ -3653,7 +3668,7 @@ bool bad_path(const char *path)
   if (is_sub_path(path, plen, tmpdir))
     return false;
 
-  report_or_die("Path '%s' is not a subdirectory of MYSQLTEST_VARDIR '%s'"
+  report_or_die("Path '%s' is not a subdirectory of MYSQLTEST_VARDIR '%s' "
                 "or MYSQL_TMP_DIR '%s'",
                 path, vardir, tmpdir);
   return true;
@@ -3891,7 +3906,7 @@ void do_move_file(struct st_command *command)
         is_sub_path(ds_to_file.str, to_plen, tmpdir)))) {
         report_or_die("Paths '%s' and '%s' are not both under MYSQLTEST_VARDIR '%s'"
                 "or both under MYSQL_TMP_DIR '%s'",
-                ds_from_file, ds_to_file, vardir, tmpdir);
+                ds_from_file.str, ds_to_file.str, vardir, tmpdir);
         DBUG_VOID_RETURN;
   }
   
@@ -5757,8 +5772,8 @@ void do_close_connection(struct st_command *command)
 */
 
 void safe_connect(MYSQL* mysql, const char *name, const char *host,
-                  const char *user, const char *pass, const char *db,
-                  int port, const char *sock)
+                  const char *user, const char *pass, const char *catalog,
+                  const char *db, int port, const char *sock)
 {
   int failed_attempts= 0;
 
@@ -5771,6 +5786,9 @@ void safe_connect(MYSQL* mysql, const char *name, const char *host,
   mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
                  "program_name", "mysqltest");
+  if (catalog)
+    mysql_optionsv(mysql, MARIADB_OPT_CATALOG, catalog);
+
   while(!mysql_real_connect(mysql, host,user, pass, db, port, sock,
                             CLIENT_MULTI_STATEMENTS | CLIENT_REMEMBER_OPTIONS))
   {
@@ -7093,6 +7111,8 @@ static struct my_option my_long_options[] =
   {"cursor-protocol", 0, "Use cursors for prepared statements.",
    &cursor_protocol, &cursor_protocol, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"catalog", OPT_CONNECT_CATALOG, "Catalog to use.", &opt_catalog, &opt_catalog, 0,
+   GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"database", 'D', "Database to use.", &opt_db, &opt_db, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #ifdef DBUG_OFF
@@ -8018,7 +8038,7 @@ void run_close_stmt(struct st_connection *cn, struct st_command *command, const 
                     size_t query_len, DYNAMIC_STRING *ds, DYNAMIC_STRING *ds_warnings);
 
 /*
-  Run query using MySQL C API
+  Run query using MariaDB C API
 
   SYNOPSIS
     run_query_normal()
@@ -9088,8 +9108,8 @@ int util_query(MYSQL* org_mysql, const char* query){
       mysql_options(mysql, MYSQL_OPT_LOCAL_INFILE, 0);
       mysql_options(mysql, MYSQL_OPT_NONBLOCK, 0);
       safe_connect(mysql, "util", org_mysql->host, org_mysql->user,
-          org_mysql->passwd, org_mysql->db, org_mysql->port,
-          org_mysql->unix_socket);
+                   org_mysql->passwd, opt_catalog, org_mysql->db, org_mysql->port,
+                   org_mysql->unix_socket);
 
       cur_con->util_mysql= mysql;
     }
@@ -9804,6 +9824,7 @@ int main(int argc, char **argv)
   memset(&var_reg, 0, sizeof(var_reg));
 
   init_builtin_echo();
+  init_replace();
 #ifdef _WIN32
   is_windows= 1;
   init_win_path_patterns();
@@ -9912,7 +9933,7 @@ int main(int argc, char **argv)
   mysql_options(con->mysql, MYSQL_OPT_NONBLOCK, 0);
 
   safe_connect(con->mysql, con->name, opt_host, opt_user, opt_pass,
-               opt_db, opt_port, unix_sock);
+               opt_catalog, opt_db, opt_port, unix_sock);
 
   /* Use all time until exit if no explicit 'start_timer' */
   timer_start= timer_now();
@@ -9934,7 +9955,7 @@ int main(int argc, char **argv)
   verbose_msg("Start processing test commands from '%s' ...", cur_file->file_name);
   while (!abort_flag && !read_command(&command))
   {
-    my_bool ok_to_do;
+    my_bool ok_to_do, reset_errors= 1;
     int current_line_inc = 1, processed = 0;
     if (command->type == Q_UNKNOWN || command->type == Q_COMMENT_WITH_COMMAND)
       get_command_type(command);
@@ -10196,16 +10217,24 @@ int main(int argc, char **argv)
 	break;
       case Q_ERROR:
         do_get_errcodes(command);
+        reset_errors= 0;
 	break;
       case Q_REPLACE:
 	do_get_replace(command);
+        reset_errors= 0;
 	break;
       case Q_REPLACE_REGEX:
         do_get_replace_regex(command);
+        reset_errors= 0;
         break;
       case Q_REPLACE_COLUMN:
 	do_get_replace_column(command);
+        reset_errors= 0;
 	break;
+      case Q_REPLACE_CATALOG:
+        setup_catalog_replace(cur_con, command);
+        reset_errors= 0;
+        break;
       case Q_SAVE_MASTER_POS: do_save_master_pos(); break;
       case Q_SYNC_WITH_MASTER: do_sync_with_master(command); break;
       case Q_SYNC_SLAVE_WITH_MASTER:
@@ -10221,6 +10250,7 @@ int main(int argc, char **argv)
       case Q_COMMENT:
       {
         command->last_argument= command->end;
+        reset_errors= 0;
 
         /* Don't output comments in v1 */
         if (opt_result_format_version == 1)
@@ -10240,6 +10270,7 @@ int main(int argc, char **argv)
 	break;
       }
       case Q_EMPTY_LINE:
+        reset_errors= 0;
         /* Don't output newline in v1 */
         if (opt_result_format_version == 1)
           break;
@@ -10391,8 +10422,7 @@ int main(int argc, char **argv)
     else
       check_eol_junk(command->last_argument);
 
-    if (command->type != Q_ERROR &&
-        command->type != Q_COMMENT)
+    if (reset_errors)
     {
       /*
         As soon as any non "error" command or comment has been executed,
@@ -10602,7 +10632,7 @@ typedef struct st_pointer_array {		/* when using array-strings */
 
 struct st_replace *init_replace(char * *from, char * *to, uint count,
 				char * word_end_chars);
-int insert_pointer_name(POINTER_ARRAY *pa,char * name);
+int insert_pointer_name(POINTER_ARRAY *pa, const char *name);
 void free_pointer_array(POINTER_ARRAY *pa);
 
 /*
@@ -10613,21 +10643,25 @@ void free_pointer_array(POINTER_ARRAY *pa);
   variable is replaced.
 */
 
-void do_get_replace(struct st_command *command)
+static char word_end_chars[256];
+
+void init_replace()
 {
   uint i;
-  char *from= command->first_argument;
-  char *buff, *start;
-  char word_end_chars[256], *pos;
-  POINTER_ARRAY to_array, from_array;
-  DBUG_ENTER("do_get_replace");
+  char *pos;
+  for (i= 1, pos= word_end_chars ; i < 256 ; i++)
+    if (my_isspace(&my_charset_latin1, i))
+      *pos++= i;
+  *pos=0;					/* End pointer */
+}
 
-  free_replace();
+static void insert_replace_args(struct st_command *command,
+                                char *from,
+                                POINTER_ARRAY *from_array,
+                                POINTER_ARRAY *to_array)
+{
+  char *start, *buff;
 
-  bzero(&to_array,sizeof(to_array));
-  bzero(&from_array,sizeof(from_array));
-  if (!*from)
-    die("Missing argument in %s", command->query);
   start= buff= (char*)my_malloc(PSI_NOT_INSTRUMENTED, strlen(from)+1,
                                 MYF(MY_WME|MY_FAE));
   while (*from)
@@ -10638,32 +10672,84 @@ void do_get_replace(struct st_command *command)
       die("Wrong number of arguments to replace_result in '%s'",
           command->query);
     fix_win_paths(to, from - to);
-    insert_pointer_name(&from_array,to);
+    insert_pointer_name(from_array, to);
     to= get_string(&buff, &from, command);
-    insert_pointer_name(&to_array,to);
+    insert_pointer_name(to_array,to);
   }
-  for (i= 1,pos= word_end_chars ; i < 256 ; i++)
-    if (my_isspace(charset_info,i))
-      *pos++= i;
-  *pos=0;					/* End pointer */
+  my_free(start);
+}
+
+void do_get_replace(struct st_command *command)
+{
+  char *from= command->first_argument;
+  POINTER_ARRAY to_array, from_array;
+  DBUG_ENTER("do_get_replace");
+
+  if (!*from)
+    die("Missing argument in %s", command->query);
+
+  free_replace(&glob_replace);
+  bzero(&from_array,sizeof(from_array));
+  bzero(&to_array,sizeof(to_array));
+  insert_replace_args(command, from, &from_array, &to_array);
+
   if (!(glob_replace= init_replace((char**) from_array.typelib.type_names,
 				  (char**) to_array.typelib.type_names,
 				  (uint) from_array.typelib.count,
 				  word_end_chars)))
-    die("Can't initialize replace from '%s'", command->query);
+    die("Can't initialize global replace from '%s'", command->query);
   free_pointer_array(&from_array);
   free_pointer_array(&to_array);
-  my_free(start);
   command->last_argument= command->end;
   DBUG_VOID_RETURN;
 }
 
 
-void free_replace()
+static void setup_catalog_replace(struct st_connection *con,
+                                  struct st_command *command)
+{
+  DYNAMIC_STRING catalog_name;
+  POINTER_ARRAY to_array, from_array;
+  char from[256];
+
+  get_catalog(con, &catalog_name);
+
+  free_replace(&catalog_replace);
+  bzero(&to_array,sizeof(to_array));
+  bzero(&from_array,sizeof(from_array));
+
+  strxnmov(from, sizeof(from)-1, catalog_name.str, "/", NullS);
+  insert_pointer_name(&from_array, from);
+  insert_pointer_name(&to_array, "");
+
+  strxnmov(from, sizeof(from)-1, catalog_name.str, "\\", NullS);
+  insert_pointer_name(&from_array, from);
+  insert_pointer_name(&to_array, "");
+
+  strxnmov(from, sizeof(from)-1, "`", catalog_name.str, "`.", NullS);
+  insert_pointer_name(&from_array, from);
+  insert_pointer_name(&to_array, "");
+
+  if (command->first_argument[0])
+    insert_replace_args(command, command->first_argument,
+                        &from_array, &to_array);
+
+  if (!(catalog_replace= init_replace((char**) from_array.typelib.type_names,
+                                      (char**) to_array.typelib.type_names,
+                                      (uint) from_array.typelib.count,
+                                      word_end_chars)))
+    die("Can't initialize catalog replace");
+  free_pointer_array(&from_array);
+  free_pointer_array(&to_array);
+  command->last_argument= command->end;
+}
+
+
+static void free_replace(struct st_replace **replace)
 {
   DBUG_ENTER("free_replace");
-  my_free(glob_replace);
-  glob_replace= NULL;
+  my_free(*replace);
+  *replace= 0;
   DBUG_VOID_RETURN;
 }
 
@@ -10703,7 +10789,8 @@ void replace_strings_append(REPLACE *rep, DYNAMIC_STRING* ds,
     {
       /* No match found */
       dynstr_append_mem(ds, start, from - start - 1);
-      DBUG_PRINT("exit", ("Found no more string to replace, appended: %s", start));
+      DBUG_PRINT("exit", ("Found no more string to replace, appended: %s",
+                          start));
       DBUG_VOID_RETURN;
     }
 
@@ -11694,7 +11781,7 @@ uint end_of_word(char * pos)
 #define PC_MALLOC		256	/* Bytes for pointers */
 #define PS_MALLOC		512	/* Bytes for data */
 
-int insert_pointer_name(POINTER_ARRAY *pa,char * name)
+int insert_pointer_name(POINTER_ARRAY *pa, const char *name)
 {
   uint i,length,old_count;
   uchar *new_pos;
@@ -11724,7 +11811,8 @@ int insert_pointer_name(POINTER_ARRAY *pa,char * name)
   length=(uint) strlen(name)+1;
   if (pa->length+length >= pa->max_length)
   {
-    if (!(new_pos= (uchar*) my_realloc(PSI_NOT_INSTRUMENTED, pa->str, pa->length + length + PS_MALLOC,
+  if (!(new_pos= (uchar*) my_realloc(PSI_NOT_INSTRUMENTED,
+                                       pa->str, pa->length + length + PS_MALLOC,
                                        MYF(MY_WME))))
       DBUG_RETURN(1);
     if (new_pos != pa->str)
@@ -11742,11 +11830,12 @@ int insert_pointer_name(POINTER_ARRAY *pa,char * name)
     int len;
     pa->array_allocs++;
     len=(PC_MALLOC*pa->array_allocs - MALLOC_OVERHEAD);
-    if (!(new_array=(const char **) my_realloc(PSI_NOT_INSTRUMENTED, pa->typelib.type_names,
-					       len/
-                                               (sizeof(uchar*)+sizeof(*pa->flag))*
-                                               (sizeof(uchar*)+sizeof(*pa->flag)),
-                                               MYF(MY_WME))))
+    if (!(new_array=(const char **)
+          my_realloc(PSI_NOT_INSTRUMENTED, pa->typelib.type_names,
+                     len/
+                     (sizeof(uchar*)+sizeof(*pa->flag))*
+                     (sizeof(uchar*)+sizeof(*pa->flag)),
+                     MYF(MY_WME))))
       DBUG_RETURN(1);
     pa->typelib.type_names=new_array;
     old_count=pa->max_count;
@@ -11784,6 +11873,7 @@ void free_pointer_array(POINTER_ARRAY *pa)
 void replace_dynstr_append_mem(DYNAMIC_STRING *ds, const char *val, size_t len)
 {
   char lower[1024];
+  DYNAMIC_STRING tmp, tmp2;
 
   if (len < sizeof(lower) - 1)
   {
@@ -11818,10 +11908,19 @@ void replace_dynstr_append_mem(DYNAMIC_STRING *ds, const char *val, size_t len)
   if (glob_replace)
   {
     /* Normal replace */
-    replace_strings_append(glob_replace, ds, val);
+    init_dynamic_string(&tmp, "", 512, 512);
+    replace_strings_append(glob_replace, &tmp, val);
+    val= tmp.str;
+    len= tmp.length;
   }
-  else
-    dynstr_append_mem(ds, val, len);
+  if (catalog_replace)
+  {
+    init_dynamic_string(&tmp2, "", 512, 512);
+    replace_strings_append(catalog_replace, &tmp2, val);
+    val= tmp2.str;
+    len= tmp2.length;
+  }
+  dynstr_append_mem(ds, val, len);
 }
 
 
@@ -11978,6 +12077,11 @@ LEX_CSTRING display_optimizer_trace_query
   STRING_WITH_LEN("SELECT * from information_schema.optimizer_trace")
 };
 
+LEX_CSTRING get_catalog_query
+{
+  STRING_WITH_LEN("SELECT catalog()")
+};
+
 
 void enable_optimizer_trace(struct st_connection *con)
 {
@@ -12042,5 +12146,28 @@ void display_optimizer_trace(struct st_connection *con,
   dynstr_free(&ds_warnings);
   ps_protocol_enabled= save_ps_protocol_enabled;
   view_protocol_enabled= save_view_protocol_enabled;
+  DBUG_VOID_RETURN;
+}
+
+static void get_catalog(struct st_connection *con, DYNAMIC_STRING *ds)
+{
+  ulong *lengths;
+  MYSQL_ROW row;
+  MYSQL_RES *res;
+  MYSQL *mysql= con->mysql;
+  DBUG_ENTER("get_catalog");
+
+  init_dynamic_string(ds, NULL, 0, 256);
+
+  if (mysql_real_query(mysql, get_catalog_query.str,
+                       get_catalog_query.length) ||
+      (mysql_field_count(mysql) && (res= mysql_store_result(mysql)) == 0))
+    die("Cannot read catalog");
+
+  row= mysql_fetch_row(res);
+  lengths= mysql_fetch_lengths(res);
+  dynstr_append_mem(ds, row[0], lengths[0]);
+  mysql_free_result(res);
+
   DBUG_VOID_RETURN;
 }

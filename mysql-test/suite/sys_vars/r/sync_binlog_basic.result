@@ -68,7 +68,7 @@ SELECT @@global.sync_binlog;
 4294967295
 '#-------------------FN_DYNVARS_168_05----------------------------#'
 SET @@session.sync_binlog = 0;
-ERROR HY000: Variable 'sync_binlog' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@sync_binlog;
 @@sync_binlog
 4294967295
@@ -80,7 +80,7 @@ WHERE VARIABLE_NAME='sync_binlog';
 1
 '#---------------------FN_DYNVARS_168_07----------------------#'
 SET sync_binlog = 1;
-ERROR HY000: Variable 'sync_binlog' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@sync_binlog;
 @@sync_binlog
 4294967295

@@ -16,15 +16,15 @@ if ($force_slave_mysql56_temporal_format)
 
 connection master;
 SET TIME_ZONE='+00:00';
-let $MYSQLD_MASTER_DATADIR= `select @@datadir`;
+source include/get_replication_datadir.inc;
 
---copy_file std_data/temporal_upgrade/mysql050614_temporal0.frm $MYSQLD_MASTER_DATADIR/test/mysql050614_temporal0.frm
---copy_file std_data/temporal_upgrade/mysql050614_temporal0.MYD $MYSQLD_MASTER_DATADIR/test/mysql050614_temporal0.MYD
---copy_file std_data/temporal_upgrade/mysql050614_temporal0.MYI $MYSQLD_MASTER_DATADIR/test/mysql050614_temporal0.MYI
+--copy_file std_data/temporal_upgrade/mysql050614_temporal0.frm $MASTER_DATADIR/test/mysql050614_temporal0.frm
+--copy_file std_data/temporal_upgrade/mysql050614_temporal0.MYD $MASTER_DATADIR/test/mysql050614_temporal0.MYD
+--copy_file std_data/temporal_upgrade/mysql050614_temporal0.MYI $MASTER_DATADIR/test/mysql050614_temporal0.MYI
 
---copy_file std_data/temporal_upgrade/mysql050614_temporal1.frm $MYSQLD_MASTER_DATADIR/test/mysql050614_temporal1.frm
---copy_file std_data/temporal_upgrade/mysql050614_temporal1.MYD $MYSQLD_MASTER_DATADIR/test/mysql050614_temporal1.MYD
---copy_file std_data/temporal_upgrade/mysql050614_temporal1.MYI $MYSQLD_MASTER_DATADIR/test/mysql050614_temporal1.MYI
+--copy_file std_data/temporal_upgrade/mysql050614_temporal1.frm $MASTER_DATADIR/test/mysql050614_temporal1.frm
+--copy_file std_data/temporal_upgrade/mysql050614_temporal1.MYD $MASTER_DATADIR/test/mysql050614_temporal1.MYD
+--copy_file std_data/temporal_upgrade/mysql050614_temporal1.MYI $MASTER_DATADIR/test/mysql050614_temporal1.MYI
 SHOW CREATE TABLE mysql050614_temporal0;
 SHOW CREATE TABLE mysql050614_temporal1;
 

@@ -85,8 +85,7 @@ drop table foo;
 create table foo (a int);
 
 # replay from binary log
-let $MYSQLD_DATADIR= `select @@datadir`;
-exec $MYSQL_BINLOG $MYSQLD_DATADIR/$binlog_file | $MYSQL;
+exec $MYSQL_BINLOG $MARIADB_TOPDIR/$binlog_file | $MYSQL;
 select * from foo;
 
 # clean up
@@ -155,5 +154,4 @@ FLUSH LOGS;
 
 # assertion: assert that when replaying the binary log will succeed,
 #            instead of failing with "Table 'XXX.YYY' doesn't exist"
--- let $MYSQLD_DATADIR= `select @@datadir`
--- exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 | $MYSQL
+-- exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 | $MYSQL

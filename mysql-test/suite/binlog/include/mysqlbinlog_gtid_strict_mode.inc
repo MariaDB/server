@@ -6,7 +6,6 @@
 #                         disable strict mode for GTID processing
 #
 
---let MYSQLD_DATADIR=`select @@datadir`
 --let OUT_FILE=$MYSQLTEST_VARDIR/tmp/binlog.out
 
 if ($is_strict_mode == 0)
@@ -35,8 +34,8 @@ INSERT INTO t1 values (1);
 INSERT INTO t1 values (2);
 INSERT INTO t1 values (3);
 FLUSH LOGS;
---echo # MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 $BINLOG_STRICT_MODE_PARAM 2> log_error_ > OUT_FILE
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
+--echo # MYSQL_BINLOG MARIADB_TOPDIR/master-bin.000001 $BINLOG_STRICT_MODE_PARAM 2> log_error_ > OUT_FILE
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
 --let SEARCH_PATTERN=$DEFAULT_ERROR_PREFIX
 --source include/search_pattern_in_file.inc
 --remove_file $log_error_
@@ -57,8 +56,8 @@ INSERT INTO t1 values (2);
 SET @@session.gtid_seq_no= 5;
 INSERT INTO t1 values (3);
 FLUSH LOGS;
---echo # MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 $BINLOG_STRICT_MODE_PARAM 2> log_error_ > OUT_FILE
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
+--echo # MYSQL_BINLOG MARIADB_TOPDIR/master-bin.000001 $BINLOG_STRICT_MODE_PARAM 2> log_error_ > OUT_FILE
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
 --let SEARCH_PATTERN=$DEFAULT_ERROR_PREFIX
 --source include/search_pattern_in_file.inc
 --remove_file $log_error_
@@ -78,9 +77,9 @@ INSERT INTO t1 values (2);
 SET @@session.gtid_seq_no= 1;
 INSERT INTO t1 values (1);
 FLUSH LOGS;
---echo # MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 $BINLOG_STRICT_MODE_PARAM 2> log_error_ > OUT_FILE
+--echo # MYSQL_BINLOG MARIADB_TOPDIR/master-bin.000001 $BINLOG_STRICT_MODE_PARAM 2> log_error_ > OUT_FILE
 --error $is_strict_mode
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
 --let SEARCH_PATTERN=$DEFAULT_ERROR_PREFIX: Found out of order GTID
 --source include/search_pattern_in_file.inc
 --remove_file $log_error_
@@ -101,9 +100,9 @@ SET @@session.gtid_seq_no= 4;
 INSERT INTO t1 values (4);
 INSERT INTO t1 values (5);
 FLUSH LOGS;
---echo # MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 $BINLOG_STRICT_MODE_PARAM 2> log_error_ > OUT_FILE
+--echo # MYSQL_BINLOG MARIADB_TOPDIR/master-bin.000001 $BINLOG_STRICT_MODE_PARAM 2> log_error_ > OUT_FILE
 --error $is_strict_mode
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
 --let SEARCH_PATTERN=$DEFAULT_ERROR_PREFIX: Found out of order GTID
 --source include/search_pattern_in_file.inc
 --remove_file $log_error_
@@ -124,9 +123,9 @@ SET @@session.gtid_seq_no= 3;
 INSERT INTO t1 values (3);
 INSERT INTO t1 values (4);
 FLUSH LOGS;
---echo # MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 $BINLOG_STRICT_MODE_PARAM 2> log_error_ > OUT_FILE
+--echo # MYSQL_BINLOG MARIADB_TOPDIR/master-bin.000001 $BINLOG_STRICT_MODE_PARAM 2> log_error_ > OUT_FILE
 --error $is_strict_mode
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
 --let SEARCH_PATTERN=$DEFAULT_ERROR_PREFIX: Found out of order GTID
 --source include/search_pattern_in_file.inc
 --remove_file $log_error_
@@ -155,9 +154,9 @@ INSERT INTO t2 values (3);
 SET @@session.gtid_seq_no= 4;
 INSERT INTO t2 values (4);
 FLUSH LOGS;
---echo # MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 $BINLOG_STRICT_MODE_PARAM 2> log_error_ > OUT_FILE
+--echo # MYSQL_BINLOG MARIADB_TOPDIR/master-bin.000001 $BINLOG_STRICT_MODE_PARAM 2> log_error_ > OUT_FILE
 --error $is_strict_mode
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
 --let SEARCH_PATTERN=$DEFAULT_ERROR_PREFIX: Found out of order GTID
 --source include/search_pattern_in_file.inc
 --remove_file $log_error_
@@ -184,14 +183,14 @@ INSERT INTO t1 values (5);
 FLUSH LOGS;
 
 --echo # GTID-based start-position
---echo # MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-4 $BINLOG_STRICT_MODE_PARAM > log_error_ > OUT_FILE
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-4 $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
+--echo # MYSQL_BINLOG MARIADB_TOPDIR/master-bin.000001 --start-position=0-1-4 $BINLOG_STRICT_MODE_PARAM > log_error_ > OUT_FILE
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 --start-position=0-1-4 $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
 --let SEARCH_PATTERN=$DEFAULT_ERROR_PREFIX
 --source include/search_pattern_in_file.inc
 
 --echo # Position-based start-position
---echo # MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=start_binlog_pos $BINLOG_STRICT_MODE_PARAM 2> log_error_ > OUT_FILE
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 --start-position=$start_binlog_pos $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
+--echo # MYSQL_BINLOG MARIADB_TOPDIR/master-bin.000001 --start-position=start_binlog_pos $BINLOG_STRICT_MODE_PARAM 2> log_error_ > OUT_FILE
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 --start-position=$start_binlog_pos $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
 --let SEARCH_PATTERN=$DEFAULT_ERROR_PREFIX
 --source include/search_pattern_in_file.inc
 
@@ -219,16 +218,16 @@ INSERT INTO t1 values (5);
 FLUSH LOGS;
 
 --echo # GTID-based window
---echo # MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-1 --stop-position=0-1-6 $BINLOG_STRICT_MODE_PARAM > log_error_ > OUT_FILE
+--echo # MYSQL_BINLOG MARIADB_TOPDIR/master-bin.000001 --start-position=0-1-1 --stop-position=0-1-6 $BINLOG_STRICT_MODE_PARAM > log_error_ > OUT_FILE
 --error $is_strict_mode
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-1 --stop-position=0-1-6 $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 --start-position=0-1-1 --stop-position=0-1-6 $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
 --let SEARCH_PATTERN=$DEFAULT_ERROR_PREFIX: Found out of order GTID
 --source include/search_pattern_in_file.inc
 
 --echo # Position-based window
---echo # MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=start_binlog_pos --stop-position=stop_binlog_pos $BINLOG_STRICT_MODE_PARAM 2> log_error_ > OUT_FILE
+--echo # MYSQL_BINLOG MARIADB_TOPDIR/master-bin.000001 --start-position=start_binlog_pos --stop-position=stop_binlog_pos $BINLOG_STRICT_MODE_PARAM 2> log_error_ > OUT_FILE
 --error $is_strict_mode
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 --start-position=$start_binlog_pos --stop-position=$stop_binlog_pos $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 --start-position=$start_binlog_pos --stop-position=$stop_binlog_pos $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
 --let SEARCH_PATTERN=$DEFAULT_ERROR_PREFIX: Found out of order GTID
 --source include/search_pattern_in_file.inc
 
@@ -243,15 +242,15 @@ RESET MASTER;
 --echo #
 --echo # Note: Error is only displayed in strict mode, -vvv has no effect here
 FLUSH LOGS;
---echo # MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-2 --stop-position=0-1-1 $BINLOG_STRICT_MODE_PARAM 2> log_error_ > OUT_FILE
+--echo # MYSQL_BINLOG MARIADB_TOPDIR/master-bin.000001 --start-position=0-1-2 --stop-position=0-1-1 $BINLOG_STRICT_MODE_PARAM 2> log_error_ > OUT_FILE
 --error $is_strict_mode
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-2 --stop-position=0-1-1 $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 --start-position=0-1-2 --stop-position=0-1-1 $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
 --let SEARCH_PATTERN=ERROR: Queried GTID range is invalid in strict mode
 --source include/search_pattern_in_file.inc
 
---echo # MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-2,1-2-1 --stop-position=0-1-1,1-2-2 $BINLOG_STRICT_MODE_PARAM 2> log_error_ > OUT_FILE
+--echo # MYSQL_BINLOG MARIADB_TOPDIR/master-bin.000001 --start-position=0-1-2,1-2-1 --stop-position=0-1-1,1-2-2 $BINLOG_STRICT_MODE_PARAM 2> log_error_ > OUT_FILE
 --error $is_strict_mode
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-2,1-2-1 --stop-position=0-1-1,1-2-2 $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 --start-position=0-1-2,1-2-1 --stop-position=0-1-1,1-2-2 $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
 --let SEARCH_PATTERN=ERROR: Queried GTID range is invalid in strict mode
 --source include/search_pattern_in_file.inc
 RESET MASTER;
@@ -272,9 +271,9 @@ SET @@session.gtid_seq_no= 4;
 INSERT INTO t1 values (3);
 INSERT INTO t1 values (4);
 FLUSH LOGS;
---echo # MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-1 --offset=8 $BINLOG_STRICT_MODE_PARAM 2> log_error_ > OUT_FILE
+--echo # MYSQL_BINLOG MARIADB_TOPDIR/master-bin.000001 --start-position=0-1-1 --offset=8 $BINLOG_STRICT_MODE_PARAM 2> log_error_ > OUT_FILE
 --error $is_strict_mode
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-1 --offset=8 $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 --start-position=0-1-1 --offset=8 $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
 --let SEARCH_PATTERN=$DEFAULT_ERROR_PREFIX: Found out of order GTID
 --source include/search_pattern_in_file.inc
 --remove_file $log_error_
@@ -302,9 +301,9 @@ SET timestamp=@a+3;
 INSERT INTO t1 values (3);
 INSERT INTO t1 values (4);
 FLUSH LOGS;
---echo # MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-1 --start-datetime="1970-01-21 15:32:24" $BINLOG_STRICT_MODE_PARAM 2> log_error_ > OUT_FILE
+--echo # MYSQL_BINLOG MARIADB_TOPDIR/master-bin.000001 --start-position=0-1-1 --start-datetime="1970-01-21 15:32:24" $BINLOG_STRICT_MODE_PARAM 2> log_error_ > OUT_FILE
 --error $is_strict_mode
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-1 --start-datetime="1970-01-21 15:32:24" $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 --start-position=0-1-1 --start-datetime="1970-01-21 15:32:24" $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
 --let SEARCH_PATTERN=$DEFAULT_ERROR_PREFIX: Found out of order GTID
 --source include/search_pattern_in_file.inc
 --remove_file $log_error_
@@ -331,8 +330,8 @@ FLUSH LOGS;
 --let BINLOG_FILE1= query_get_value(SHOW BINARY LOGS, Log_name, 1)
 # Skip file 2 as input
 --let BINLOG_FILE2= query_get_value(SHOW BINARY LOGS, Log_name, 2)
---echo # MYSQL_BINLOG MYSQLD_DATADIR/BINLOG_FILE1 MYSQLD_DATADIR/BINLOG_FILE2 --start-position=b2_start_pos $BINLOG_STRICT_MODE_PARAM 2> log_error_ > OUT_FILE
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/$BINLOG_FILE1 $MYSQLD_DATADIR/$BINLOG_FILE2 --start-position=$b2_start_pos $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
+--echo # MYSQL_BINLOG MARIADB_DATADIR/BINLOG_FILE1 MARIADB_DATADIR/BINLOG_FILE2 --start-position=b2_start_pos $BINLOG_STRICT_MODE_PARAM 2> log_error_ > OUT_FILE
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/$BINLOG_FILE1 $MARIADB_TOPDIR/$BINLOG_FILE2 --start-position=$b2_start_pos $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
 DROP TABLE t1;
 DROP TABLE t2;
 
@@ -373,8 +372,8 @@ FLUSH LOGS;
 --let BINLOG_FILE1= query_get_value(SHOW BINARY LOGS, Log_name, 1)
 # Skip file 2 as input
 --let BINLOG_FILE3= query_get_value(SHOW BINARY LOGS, Log_name, 3)
---echo # MYSQL_BINLOG MYSQLD_DATADIR/BINLOG_FILE1 MYSQLD_DATADIR/BINLOG_FILE3 $BINLOG_STRICT_MODE_PARAM 2> log_error_ > OUT_FILE
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/$BINLOG_FILE1 $MYSQLD_DATADIR/$BINLOG_FILE3 $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
+--echo # MYSQL_BINLOG MARIADB_DATADIR/BINLOG_FILE1 MARIADB_DATADIR/BINLOG_FILE3 $BINLOG_STRICT_MODE_PARAM 2> log_error_ > OUT_FILE
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/$BINLOG_FILE1 $MARIADB_TOPDIR/$BINLOG_FILE3 $BINLOG_STRICT_MODE_PARAM 2> $log_error_ > $OUT_FILE
 --echo # We should have two warnings about missing data from domains 0 and 1 if
 --echo # -vvv is specified
 --let SEARCH_FILE=$log_error_
@@ -410,9 +409,9 @@ FLUSH LOGS;
 --let $binlog_file= query_get_value(SHOW BINARY LOGS, Log_name, 2)
 --source include/show_gtid_list.inc
 --let $binlog_file=
---echo # MYSQL_BINLOG MYSQLD_DATADIR/BINLOG_FILE2 $BINLOG_STRICT_MODE_PARAM --stop-position=0-1-2 2> log_error_ > OUT_FILE
+--echo # MYSQL_BINLOG MARIADB_DATADIR/BINLOG_FILE2 $BINLOG_STRICT_MODE_PARAM --stop-position=0-1-2 2> log_error_ > OUT_FILE
 --error 1
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/$BINLOG_FILE2 $BINLOG_STRICT_MODE_PARAM --stop-position=0-1-2 2> $log_error_ > $OUT_FILE
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/$BINLOG_FILE2 $BINLOG_STRICT_MODE_PARAM --stop-position=0-1-2 2> $log_error_ > $OUT_FILE
 --let SEARCH_PATTERN=ERROR: --stop-position GTID
 --source include/search_pattern_in_file.inc
 --remove_file $log_error_

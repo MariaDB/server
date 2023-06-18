@@ -39,38 +39,36 @@ set autocommit=1;
 --let $wait_timeout= 600
 --let $wait_condition=SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0
 --source include/wait_condition.inc
---let $MYSQLD_DATADIR=`select @@datadir`
-
 --source include/shutdown_mysqld.inc
 
 --let SEARCH_RANGE = 10000000
 --let SEARCH_PATTERN=foobar
 --echo # t1 yes on expecting NOT FOUND
--- let SEARCH_FILE=$MYSQLD_DATADIR/test/t1.ibd
+-- let SEARCH_FILE=$MARIADB_DATADIR/test/t1.ibd
 -- source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=tempsecret
 --echo # t2 ... on expecting NOT FOUND
--- let SEARCH_FILE=$MYSQLD_DATADIR/test/t2.ibd
+-- let SEARCH_FILE=$MARIADB_DATADIR/test/t2.ibd
 -- source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=barfoo
 --echo # t3 ... on expecting NOT FOUND
--- let SEARCH_FILE=$MYSQLD_DATADIR/test/t3.ibd
+-- let SEARCH_FILE=$MARIADB_DATADIR/test/t3.ibd
 -- source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=repeat
 --echo # t4 ... on expecting NOT FOUND
--- let SEARCH_FILE=$MYSQLD_DATADIR/test/t4.ibd
+-- let SEARCH_FILE=$MARIADB_DATADIR/test/t4.ibd
 -- source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=author
 --echo # t5 ... on expecting NOT FOUND
--- let SEARCH_FILE=$MYSQLD_DATADIR/test/t5.ibd
+-- let SEARCH_FILE=$MARIADB_DATADIR/test/t5.ibd
 -- source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=mangled
 --echo # t6 ... on expecting NOT FOUND
--- let SEARCH_FILE=$MYSQLD_DATADIR/test/t6.ibd
+-- let SEARCH_FILE=$MARIADB_DATADIR/test/t6.ibd
 -- source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=mysql
 --echo # t7 ... on expecting NOT FOUND
--- let SEARCH_FILE=$MYSQLD_DATADIR/test/t7.ibd
+-- let SEARCH_FILE=$MARIADB_DATADIR/test/t7.ibd
 -- source include/search_pattern_in_file.inc
 
 -- source include/start_mysqld.inc
@@ -100,31 +98,31 @@ SHOW CREATE TABLE t7;
 
 --let SEARCH_PATTERN=foobar
 --echo # t1 yes on expecting NOT FOUND
--- let SEARCH_FILE=$MYSQLD_DATADIR/test/t1.ibd
+-- let SEARCH_FILE=$MARIADB_DATADIR/test/t1.ibd
 -- source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=tempsecret
 --echo # t2 ... on expecting NOT FOUND
--- let SEARCH_FILE=$MYSQLD_DATADIR/test/t2.ibd
+-- let SEARCH_FILE=$MARIADB_DATADIR/test/t2.ibd
 -- source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=barfoo
 --echo # t3 ... on expecting NOT FOUND
--- let SEARCH_FILE=$MYSQLD_DATADIR/test/t3.ibd
+-- let SEARCH_FILE=$MARIADB_DATADIR/test/t3.ibd
 -- source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=repeat
 --echo # t4 ... on expecting NOT FOUND
--- let SEARCH_FILE=$MYSQLD_DATADIR/test/t4.ibd
+-- let SEARCH_FILE=$MARIADB_DATADIR/test/t4.ibd
 -- source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=author
 --echo # t5 ... on expecting NOT FOUND
--- let SEARCH_FILE=$MYSQLD_DATADIR/test/t5.ibd
+-- let SEARCH_FILE=$MARIADB_DATADIR/test/t5.ibd
 -- source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=mangled
 --echo # t6 ... on expecting NOT FOUND
--- let SEARCH_FILE=$MYSQLD_DATADIR/test/t6.ibd
+-- let SEARCH_FILE=$MARIADB_DATADIR/test/t6.ibd
 -- source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=mysql
 --echo # t7 ... on expecting NOT FOUND
--- let SEARCH_FILE=$MYSQLD_DATADIR/test/t7.ibd
+-- let SEARCH_FILE=$MARIADB_DATADIR/test/t7.ibd
 -- source include/search_pattern_in_file.inc
 
 -- source include/start_mysqld.inc

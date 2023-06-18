@@ -1,6 +1,7 @@
 connect  master,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
 connect  slave,localhost,root,,test,$SLAVE_MYPORT,$SLAVE_MYSOCK;
 connection slave;
+connection slave;
 CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.");
 start slave;
 Got one of the listed errors

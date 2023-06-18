@@ -10,8 +10,6 @@
 # Crash tests don't work with embedded
 --source include/not_embedded.inc
 
---let $DATADIR= `SELECT @@datadir;`
-
 # Waiting for wl#6723
 if (0)
 {

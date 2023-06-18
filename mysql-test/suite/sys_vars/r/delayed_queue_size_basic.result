@@ -57,7 +57,7 @@ SELECT @@delayed_queue_size;
 4294967295
 '#-------------------FN_DYNVARS_026_05----------------------------#'
 SET @@session.delayed_queue_size = 0;
-ERROR HY000: Variable 'delayed_queue_size' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@session.delayed_queue_size;
 ERROR HY000: Variable 'delayed_queue_size' is a GLOBAL variable
 '#----------------------FN_DYNVARS_026_06------------------------#'
@@ -89,7 +89,7 @@ SELECT @@delayed_queue_size = @@global.delayed_queue_size;
 1
 '#---------------------FN_DYNVARS_026_09----------------------#'
 SET delayed_queue_size = 1;
-ERROR HY000: Variable 'delayed_queue_size' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@delayed_queue_size;
 @@delayed_queue_size
 1

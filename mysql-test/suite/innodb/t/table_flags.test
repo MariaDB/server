@@ -7,6 +7,8 @@
 # Perl code is inflicting, and the SELECT statements could succeed
 # instead of failing with ER_NO_SUCH_TABLE_IN_ENGINE.
 --source include/not_valgrind.inc
+# No catalogs, as they did not exist in MariaDB Server 10.1
+--source include/not_catalogs.inc
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Table `mysql`\\.`innodb_table_stats` not found");
@@ -25,7 +27,6 @@ FLUSH TABLES;
 --enable_query_log
 
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
-let MYSQLD_DATADIR=`select @@datadir`;
 
 let bugdir= $MYSQLTEST_VARDIR/tmp/table_flags;
 --mkdir $bugdir

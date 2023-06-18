@@ -85,7 +85,7 @@ SELECT @@global.binlog_expire_logs_seconds;
 #       Test if accessing session binlog_expire_logs_seconds gives error            #
 #####################################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.binlog_expire_logs_seconds = 0;
 SELECT @@binlog_expire_logs_seconds;
 
@@ -119,7 +119,7 @@ SELECT @@global.binlog_expire_logs_seconds;
 SET @@global.binlog_expire_logs_seconds = 1;
 SELECT @@binlog_expire_logs_seconds = @@global.binlog_expire_logs_seconds;
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET binlog_expire_logs_seconds = 1;
 SELECT @@binlog_expire_logs_seconds;
 --Error ER_UNKNOWN_TABLE

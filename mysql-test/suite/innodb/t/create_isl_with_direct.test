@@ -1,10 +1,9 @@
 --source include/not_embedded.inc
 --source include/have_innodb.inc
 --source include/have_symlink.inc
+--source include/get_datadir.inc
 
 SHOW VARIABLES LIKE 'innodb_flush_method';
-
-let MYSQLD_DATADIR=`SELECT @@datadir`;
 
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
 
@@ -12,10 +11,16 @@ let MYSQLD_DATADIR=`SELECT @@datadir`;
 EVAL CREATE TABLE t1 (x INT) ENGINE=INNODB, DATA DIRECTORY='$MYSQL_TMP_DIR';
 
 --echo # Contents of tmp/test directory containing .ibd file
---list_files $MYSQL_TMP_DIR/test
+let $tmp=test;
+if ($USING_CATALOGS == 1)
+{
+  let $tmp=`select concat("$MARIADB_CATALOG", "/test")`;
+}
+--list_files $MYSQL_TMP_DIR/$tmp
+
 
 --echo # Contents of the 'test' database directory containing .isl and .frm files
---list_files $MYSQLD_DATADIR/test
+--list_files $MARIADB_DATADIR/test
 
 DROP TABLE t1;
  

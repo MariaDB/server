@@ -19,7 +19,7 @@ select * from information_schema.session_variables where variable_name='aria_che
 #
 set global aria_checkpoint_log_activity=1;
 select @@global.aria_checkpoint_log_activity;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session aria_checkpoint_log_activity=1;
 
 #

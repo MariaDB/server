@@ -99,7 +99,7 @@ call mtr.check_testcase();
 let $datadir=`select @@datadir`;
 list_files $datadir mariadb_upgrade_info;
 if (`SELECT @@catalogs = 1`) {
-  list_files $datadir;
+# list_files $datadir;
   list_files $datadir/def/test #sql*;
   list_files $datadir/def/mysql #sql*;
 }

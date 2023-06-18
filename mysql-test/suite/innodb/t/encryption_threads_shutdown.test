@@ -7,12 +7,11 @@ call mtr.add_suppression("InnoDB: Database creation was aborted");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error.");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed.");
 
---let $MYSQLD_DATADIR=`SELECT @@datadir`
---let $DATA= $MYSQLD_DATADIR/ibdata1
+--let $DATA= $MARIADB_TOPDIR/ibdata1
 --let $DATACOPY=$MYSQLTEST_VARDIR/tmp/ibdata1
---let $UNDO_1= $MYSQLD_DATADIR/undo001
---let $UNDO_2= $MYSQLD_DATADIR/undo002
---let $UNDO_3= $MYSQLD_DATADIR/undo003
+--let $UNDO_1= $MARIADB_TOPDIR/undo001
+--let $UNDO_2= $MARIADB_TOPDIR/undo002
+--let $UNDO_3= $MARIADB_TOPDIR/undo003
 --let $UNDO_1_COPY=$MYSQLTEST_VARDIR/tmp/undo001
 --let $UNDO_2_COPY=$MYSQLTEST_VARDIR/tmp/undo002
 --let $UNDO_3_COPY=$MYSQLTEST_VARDIR/tmp/undo003

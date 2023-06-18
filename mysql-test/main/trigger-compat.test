@@ -64,12 +64,11 @@ CREATE TRIGGER wl2818_trg1 BEFORE INSERT ON t1 FOR EACH ROW INSERT INTO t2 VALUE
 --disable_query_log
 --connection default
 CREATE TABLE patch (a blob);
-let $MYSQLD_DATADIR = `select @@datadir`;
-eval LOAD DATA LOCAL INFILE '$MYSQLD_DATADIR/mysqltest_db1/t1.TRG' INTO TABLE patch;
+eval LOAD DATA LOCAL INFILE '$MARIADB_DATADIR/mysqltest_db1/t1.TRG' INTO TABLE patch;
 # remove original t1.TRG file so SELECT INTO OUTFILE won't fail
---remove_file $MYSQLD_DATADIR/mysqltest_db1/t1.TRG
+--remove_file $MARIADB_DATADIR/mysqltest_db1/t1.TRG
 eval SELECT SUBSTRING_INDEX(a,'definers=',1) INTO OUTFILE
- '$MYSQLD_DATADIR/mysqltest_db1/t1.TRG' 
+ '$MARIADB_DATADIR/mysqltest_db1/t1.TRG' 
 FROM patch;
 DROP TABLE patch;
 --connection wl2818_definer_con
@@ -111,8 +110,6 @@ USE test;
 --echo #
 --echo # Bug#45235: 5.1 does not support 5.0-only syntax triggers in any way
 --echo #
-let $MYSQLD_DATADIR=`SELECT @@datadir`;
-
 --disable_warnings
 DROP TABLE IF EXISTS t1, t2, t3;
 --enable_warnings
@@ -134,39 +131,39 @@ INSERT INTO t3 VALUES (1), (2), (3);
 --echo # connection_cl_names='latin1_swedish_ci'
 --echo # db_cl_names='latin1_swedish_ci'
 
---write_file $MYSQLD_DATADIR/test/tr11.TRN
+--write_file $MARIADB_DATADIR/test/tr11.TRN
 TYPE=TRIGGERNAME
 trigger_table=t1
 EOF
 
---write_file $MYSQLD_DATADIR/test/tr12.TRN
+--write_file $MARIADB_DATADIR/test/tr12.TRN
 TYPE=TRIGGERNAME
 trigger_table=t1
 EOF
 
---write_file $MYSQLD_DATADIR/test/tr13.TRN
+--write_file $MARIADB_DATADIR/test/tr13.TRN
 TYPE=TRIGGERNAME
 trigger_table=t1
 EOF
 
---write_file $MYSQLD_DATADIR/test/tr14.TRN
+--write_file $MARIADB_DATADIR/test/tr14.TRN
 TYPE=TRIGGERNAME
 trigger_table=t1
 EOF
 
---write_file $MYSQLD_DATADIR/test/tr15.TRN
+--write_file $MARIADB_DATADIR/test/tr15.TRN
 TYPE=TRIGGERNAME
 trigger_table=t1
 EOF
 
---write_file $MYSQLD_DATADIR/test/t1.TRG
+--write_file $MARIADB_DATADIR/test/t1.TRG
 TYPE=TRIGGERS
 triggers='CREATE DEFINER=`root`@`localhost` TRIGGER tr11 BEFORE INSERT ON t1 FOR EACH ROW DELETE FROM t3' 'CREATE DEFINER=`root`@`localhost` TRIGGER tr12 AFTER INSERT ON t1 FOR EACH ROW DELETE FROM t3' 'CREATE DEFINER=`root`@`localhost` TRIGGER tr13 BEFORE DELETE ON t1 FOR EACH ROW DELETE FROM t1 a USING t1 a' 'CREATE DEFINER=`root`@`localhost` TRIGGER tr14 AFTER DELETE ON t1 FOR EACH ROW DELETE FROM non_existing_table' 'CREATE DEFINER=`root`@`localhost` TRIGGER tr15 BEFORE UPDATE ON t1 FOR EACH ROW DELETE FROM non_existing_table a USING non_existing_table a'
 sql_modes=0 0 0 0 0
 definers='root@localhost' 'root@localhost' 'root@localhost' 'root@localhost' 'root@localhost'
 EOF
 
---write_file $MYSQLD_DATADIR/test/t2.TRG
+--write_file $MARIADB_DATADIR/test/t2.TRG
 TYPE=TRIGGERS
 triggers='Not allowed syntax here, and trigger name cant be extracted either.'
 sql_modes=0
@@ -209,35 +206,35 @@ DROP TRIGGER tr15;
 SHOW TRIGGERS;
 
 --echo # Make sure there is no trigger file left.
---list_files $MYSQLD_DATADIR/test/ tr*
+--list_files $MARIADB_DATADIR/test/ tr*
 
 --echo # We write the same trigger files one more time to test DROP TABLE.
---write_file $MYSQLD_DATADIR/test/tr11.TRN
+--write_file $MARIADB_DATADIR/test/tr11.TRN
 TYPE=TRIGGERNAME
 trigger_table=t1
 EOF
 
---write_file $MYSQLD_DATADIR/test/tr12.TRN
+--write_file $MARIADB_DATADIR/test/tr12.TRN
 TYPE=TRIGGERNAME
 trigger_table=t1
 EOF
 
---write_file $MYSQLD_DATADIR/test/tr13.TRN
+--write_file $MARIADB_DATADIR/test/tr13.TRN
 TYPE=TRIGGERNAME
 trigger_table=t1
 EOF
 
---write_file $MYSQLD_DATADIR/test/tr14.TRN
+--write_file $MARIADB_DATADIR/test/tr14.TRN
 TYPE=TRIGGERNAME
 trigger_table=t1
 EOF
 
---write_file $MYSQLD_DATADIR/test/tr15.TRN
+--write_file $MARIADB_DATADIR/test/tr15.TRN
 TYPE=TRIGGERNAME
 trigger_table=t1
 EOF
 
---write_file $MYSQLD_DATADIR/test/t1.TRG
+--write_file $MARIADB_DATADIR/test/t1.TRG
 TYPE=TRIGGERS
 triggers='CREATE DEFINER=`root`@`localhost` TRIGGER tr11 BEFORE INSERT ON t1 FOR EACH ROW DELETE FROM t3' 'CREATE DEFINER=`root`@`localhost` TRIGGER tr12 AFTER INSERT ON t1 FOR EACH ROW DELETE FROM t3' 'CREATE DEFINER=`root`@`localhost` TRIGGER tr13 BEFORE DELETE ON t1 FOR EACH ROW DELETE FROM t1 a USING t1 a' 'CREATE DEFINER=`root`@`localhost` TRIGGER tr14 AFTER DELETE ON t1 FOR EACH ROW DELETE FROM non_existing_table' 'CREATE DEFINER=`root`@`localhost` TRIGGER tr15 BEFORE UPDATE ON t1 FOR EACH ROW DELETE FROM non_existing_table a USING non_existing_table a'
 sql_modes=0 0 0 0 0
@@ -253,7 +250,7 @@ DROP TABLE t3;
 
 --echo # Make sure there is no trigger file left.
 
---list_files $MYSQLD_DATADIR/test/ tr*
+--list_files $MARIADB_DATADIR/test/ tr*
 
 CREATE TABLE t1 ( a INT );
 CREATE TABLE t2 ( a INT );
@@ -263,17 +260,17 @@ INSERT INTO t2 VALUES (1), (2), (3);
 --echo # We write three trigger files. First trigger is syntaxically incorrect, next trigger is correct
 --echo # and last trigger is broken.
 --echo # Next we try to execute SHOW CREATE TRIGGER command for broken trigger and then try to drop one.
---write_file $MYSQLD_DATADIR/test/tr11.TRN
+--write_file $MARIADB_DATADIR/test/tr11.TRN
 TYPE=TRIGGERNAME
 trigger_table=t1
 EOF
 
---write_file $MYSQLD_DATADIR/test/tr12.TRN
+--write_file $MARIADB_DATADIR/test/tr12.TRN
 TYPE=TRIGGERNAME
 trigger_table=t1
 EOF
 
---write_file $MYSQLD_DATADIR/test/t1.TRG
+--write_file $MARIADB_DATADIR/test/t1.TRG
 TYPE=TRIGGERS
 triggers='CREATE the wrongest trigger_in_the_world' 'CREATE DEFINER=`root`@`localhost` TRIGGER tr11 BEFORE DELETE ON t1 FOR EACH ROW DELETE FROM t1 a USING t1 a' 'CREATE DEFINER=`root`@`localhost` TRIGGER tr12 BEFORE INSERT ON t1 FOR EACH ROW DELETE FROM t2'
 sql_modes=0 0 0
@@ -300,12 +297,12 @@ DROP TABLE t2;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1);
 
---write_file $MYSQLD_DATADIR/test/tr1.TRN
+--write_file $MARIADB_DATADIR/test/tr1.TRN
 TYPE=TRIGGERNAME
 trigger_table=t1
 EOF
 
---write_file $MYSQLD_DATADIR/test/t1.TRG
+--write_file $MARIADB_DATADIR/test/t1.TRG
 TYPE=TRIGGERS
 triggers='CREATE DEFINER=`root`@`localhost` TRIGGER tr1 AFTER DELETE ON t1 FOR EACH ROW\nBEGIN\n  IF unknown_variable\n  THEN\n    INSERT INTO t2 VALUES (OLD.a);\n  END IF;\nEND'
 sql_modes=1411383296
@@ -330,13 +327,13 @@ SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='tr1';
 SET time_zone=DEFAULT;
 
 --echo # Listing trigger files
---list_files $MYSQLD_DATADIR/test *.TR?
+--list_files $MARIADB_DATADIR/test *.TR?
 --echo # Listing trigger files done
 
 DROP TABLE t1;
 
 --echo # Listing trigger files
---list_files $MYSQLD_DATADIR/test *.TR?
+--list_files $MARIADB_DATADIR/test *.TR?
 --echo # Listing trigger files done
 
 --echo # END: Total triggers 1, broken triggers 1, DROP TABLE
@@ -347,12 +344,12 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1);
 
---write_file $MYSQLD_DATADIR/test/tr1.TRN
+--write_file $MARIADB_DATADIR/test/tr1.TRN
 TYPE=TRIGGERNAME
 trigger_table=t1
 EOF
 
---write_file $MYSQLD_DATADIR/test/t1.TRG
+--write_file $MARIADB_DATADIR/test/t1.TRG
 TYPE=TRIGGERS
 triggers='CREATE DEFINER=`root`@`localhost` TRIGGER tr1 AFTER DELETE ON t1 FOR EACH ROW\nBEGIN\n  IF unknown_variable\n  THEN\n    INSERT INTO t2 VALUES (OLD.a);\n  END IF;\nEND'
 sql_modes=1411383296
@@ -377,13 +374,13 @@ SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='tr1';
 SET time_zone=DEFAULT;
 
 --echo # Listing trigger files
---list_files $MYSQLD_DATADIR/test *.TR?
+--list_files $MARIADB_DATADIR/test *.TR?
 --echo # Listing trigger files done
 
 DROP TRIGGER tr1;
 
 --echo # Listing trigger files
---list_files $MYSQLD_DATADIR/test *.TR?
+--list_files $MARIADB_DATADIR/test *.TR?
 --echo # Listing trigger files done
 
 DROP TABLE t1;
@@ -396,17 +393,17 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1);
 
---write_file $MYSQLD_DATADIR/test/tr1.TRN
+--write_file $MARIADB_DATADIR/test/tr1.TRN
 TYPE=TRIGGERNAME
 trigger_table=t1
 EOF
 
---write_file $MYSQLD_DATADIR/test/tr2.TRN
+--write_file $MARIADB_DATADIR/test/tr2.TRN
 TYPE=TRIGGERNAME
 trigger_table=t1
 EOF
 
---write_file $MYSQLD_DATADIR/test/t1.TRG
+--write_file $MARIADB_DATADIR/test/t1.TRG
 TYPE=TRIGGERS
 triggers='CREATE DEFINER=`root`@`localhost` TRIGGER tr2 AFTER INSERT ON t1 FOR EACH ROW INSERT INTO t2 VALUES (NEW.a+100)' 'CREATE DEFINER=`root`@`localhost` TRIGGER tr1 AFTER DELETE ON t1 FOR EACH ROW\nBEGIN\n  IF unknown_variable\n  THEN\n    INSERT INTO t2 VALUES (OLD.a);\n  END IF;\nEND'
 sql_modes=1411383296 1411383296
@@ -431,13 +428,13 @@ SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='tr1';
 SET time_zone=DEFAULT;
 
 --echo # Listing trigger files
---list_files $MYSQLD_DATADIR/test *.TR?
+--list_files $MARIADB_DATADIR/test *.TR?
 --echo # Listing trigger files done
 
 DROP TABLE t1;
 
 --echo # Listing trigger files
---list_files $MYSQLD_DATADIR/test *.TR?
+--list_files $MARIADB_DATADIR/test *.TR?
 --echo # Listing trigger files done
 
 --echo # END: Total triggers 2, broken triggers 1, using DROP TABLE
@@ -448,17 +445,17 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1);
 
---write_file $MYSQLD_DATADIR/test/tr1.TRN
+--write_file $MARIADB_DATADIR/test/tr1.TRN
 TYPE=TRIGGERNAME
 trigger_table=t1
 EOF
 
---write_file $MYSQLD_DATADIR/test/tr2.TRN
+--write_file $MARIADB_DATADIR/test/tr2.TRN
 TYPE=TRIGGERNAME
 trigger_table=t1
 EOF
 
---write_file $MYSQLD_DATADIR/test/t1.TRG
+--write_file $MARIADB_DATADIR/test/t1.TRG
 TYPE=TRIGGERS
 triggers='CREATE DEFINER=`root`@`localhost` TRIGGER tr2 AFTER INSERT ON t1 FOR EACH ROW INSERT INTO t2 VALUES (NEW.a+100)' 'CREATE DEFINER=`root`@`localhost` TRIGGER tr1 AFTER DELETE ON t1 FOR EACH ROW\nBEGIN\n  IF unknown_variable\n  THEN\n    INSERT INTO t2 VALUES (OLD.a);\n  END IF;\nEND'
 sql_modes=1411383296 1411383296
@@ -483,13 +480,13 @@ SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='tr1';
 SET time_zone=DEFAULT;
 
 --echo # Listing trigger files
---list_files $MYSQLD_DATADIR/test *.TR?
+--list_files $MARIADB_DATADIR/test *.TR?
 --echo # Listing trigger files done
 
 DROP TRIGGER tr1;
 
 --echo # Listing trigger files
---list_files $MYSQLD_DATADIR/test *.TR?
+--list_files $MARIADB_DATADIR/test *.TR?
 --echo # Listing trigger files done
 
 # Now we dropped the broken trigger. Make sure the good one is fired.
@@ -501,7 +498,7 @@ INSERT INTO t1 VALUES (100);
 DROP TABLE t1;
 
 --echo # Listing trigger files
---list_files $MYSQLD_DATADIR/test *.TR?
+--list_files $MARIADB_DATADIR/test *.TR?
 --echo # Listing trigger files done
 
 --echo # END: Total triggers 2, broken triggers 1, using DROP TRIGGER

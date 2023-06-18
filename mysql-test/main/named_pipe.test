@@ -2,6 +2,7 @@
 # in order  to optimize things we skip this test on all
 # other platforms
 --source include/windows.inc
+
 # Named pipe does not support the non-blocking API.
 --disable_non_blocking_api
 
@@ -21,10 +22,9 @@ connection default;
 disconnect pipe_con;
 
 # MDEV-10383 : check that other server cannot 'bind' on the same pipe
-let $MYSQLD_DATADIR= `select @@datadir`;
 --error  1
 --exec $MYSQLD_CMD --enable-named-pipe --skip-networking --log-error=second-mysqld.err
-let SEARCH_FILE=$MYSQLD_DATADIR/second-mysqld.err;
+let SEARCH_FILE=$MARIADB_DATADIR/second-mysqld.err;
 let SEARCH_PATTERN=\[ERROR\] Create named pipe failed;
 source include/search_pattern_in_file.inc;
 remove_file $SEARCH_FILE;

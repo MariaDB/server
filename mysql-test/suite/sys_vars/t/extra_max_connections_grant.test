@@ -15,9 +15,9 @@ REVOKE CONNECTION ADMIN ON *.* FROM user1@localhost;
 --connection user1
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
 SET GLOBAL extra_max_connections=10;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET extra_max_connections=10;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET SESSION extra_max_connections=10;
 --disconnect user1
 --connection default
@@ -30,9 +30,9 @@ GRANT CONNECTION ADMIN ON *.* TO user1@localhost;
 --connect(user1,localhost,user1,,)
 --connection user1
 SET GLOBAL extra_max_connections=10;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET extra_max_connections=10;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET SESSION extra_max_connections=10;
 --disconnect user1
 --connection default

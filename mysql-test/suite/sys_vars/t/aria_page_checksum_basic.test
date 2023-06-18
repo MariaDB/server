@@ -23,7 +23,7 @@ set global aria_page_checksum=OFF;
 select @@global.aria_page_checksum;
 set global aria_page_checksum=1;
 select @@global.aria_page_checksum;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session aria_page_checksum=1;
 
 #

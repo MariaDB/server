@@ -21,7 +21,7 @@ select * from information_schema.session_variables where variable_name='innodb_f
 set global innodb_ft_cache_size=1;
 SHOW VARIABLES like 'innodb_ft_cache_size';
 
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session innodb_ft_cache_size=1;
 
 set global innodb_ft_cache_size=512*1024*1024;

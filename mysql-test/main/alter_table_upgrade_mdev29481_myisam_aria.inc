@@ -1,5 +1,3 @@
-let $datadir=`select @@datadir`;
-
 DELIMITER $$;
 CREATE PROCEDURE debug_show_key_flags()
 BEGIN
@@ -17,40 +15,40 @@ $$
 DELIMITER ;$$
 
 
-copy_file $table.frm $datadir/test/t1.frm;
-copy_file $table.$EXT_DAT $datadir/test/t1.$EXT_DAT;
-copy_file $table.$EXT_IDX $datadir/test/t1.$EXT_IDX;
+copy_file $table.frm $MARIADB_DATADIR/test/t1.frm;
+copy_file $table.$EXT_DAT $MARIADB_DATADIR/test/t1.$EXT_DAT;
+copy_file $table.$EXT_IDX $MARIADB_DATADIR/test/t1.$EXT_IDX;
 SHOW CREATE TABLE t1;
 CHECK TABLE t1 FOR UPGRADE;
 DROP TABLE t1;
 
-copy_file $table.frm $datadir/test/t1.frm;
-copy_file $table.$EXT_DAT $datadir/test/t1.$EXT_DAT;
-copy_file $table.$EXT_IDX $datadir/test/t1.$EXT_IDX;
+copy_file $table.frm $MARIADB_DATADIR/test/t1.frm;
+copy_file $table.$EXT_DAT $MARIADB_DATADIR/test/t1.$EXT_DAT;
+copy_file $table.$EXT_IDX $MARIADB_DATADIR/test/t1.$EXT_IDX;
 CALL debug_show_key_flags();
 ALTER TABLE t1 MODIFY d DOUBLE DEFAULT 10, ALGORITHM=INSTANT;
 CALL debug_show_key_flags();
 DROP TABLE t1;
 
-copy_file $table.frm $datadir/test/t1.frm;
-copy_file $table.$EXT_DAT $datadir/test/t1.$EXT_DAT;
-copy_file $table.$EXT_IDX $datadir/test/t1.$EXT_IDX;
+copy_file $table.frm $MARIADB_DATADIR/test/t1.frm;
+copy_file $table.$EXT_DAT $MARIADB_DATADIR/test/t1.$EXT_DAT;
+copy_file $table.$EXT_IDX $MARIADB_DATADIR/test/t1.$EXT_IDX;
 CALL debug_show_key_flags();
 ALTER TABLE t1 MODIFY d DOUBLE DEFAULT 10, ALGORITHM=NOCOPY;
 CALL debug_show_key_flags();
 DROP TABLE t1;
 
-copy_file $table.frm $datadir/test/t1.frm;
-copy_file $table.$EXT_DAT $datadir/test/t1.$EXT_DAT;
-copy_file $table.$EXT_IDX $datadir/test/t1.$EXT_IDX;
+copy_file $table.frm $MARIADB_DATADIR/test/t1.frm;
+copy_file $table.$EXT_DAT $MARIADB_DATADIR/test/t1.$EXT_DAT;
+copy_file $table.$EXT_IDX $MARIADB_DATADIR/test/t1.$EXT_IDX;
 CALL debug_show_key_flags();
 REPAIR TABLE t1;
 CALL debug_show_key_flags();
 DROP TABLE t1;
 
-copy_file $table.frm $datadir/test/t1.frm;
-copy_file $table.$EXT_DAT $datadir/test/t1.$EXT_DAT;
-copy_file $table.$EXT_IDX $datadir/test/t1.$EXT_IDX;
+copy_file $table.frm $MARIADB_DATADIR/test/t1.frm;
+copy_file $table.$EXT_DAT $MARIADB_DATADIR/test/t1.$EXT_DAT;
+copy_file $table.$EXT_IDX $MARIADB_DATADIR/test/t1.$EXT_IDX;
 CALL debug_show_key_flags();
 ALTER TABLE t1 FORCE;
 CALL debug_show_key_flags();

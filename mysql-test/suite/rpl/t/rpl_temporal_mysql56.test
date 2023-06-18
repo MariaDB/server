@@ -2,32 +2,31 @@
 
 connection master;
 SET TIME_ZONE='+00:00';
-let $MYSQLD_MASTER_DATADIR= `select @@datadir`;
+source include/get_replication_datadir.inc;
 
 connection slave;
 SET TIME_ZONE='+00:00';
-let $MYSQLD_SLAVE_DATADIR= `select @@datadir`;
 
---copy_file std_data/mysql56time.frm $MYSQLD_MASTER_DATADIR/test/mysql56time.frm
---copy_file std_data/mysql56time.MYD $MYSQLD_MASTER_DATADIR/test/mysql56time.MYD
---copy_file std_data/mysql56time.MYI $MYSQLD_MASTER_DATADIR/test/mysql56time.MYI
---copy_file std_data/mysql56time.frm $MYSQLD_SLAVE_DATADIR/test/mysql56time.frm
---copy_file std_data/mysql56time.MYD $MYSQLD_SLAVE_DATADIR/test/mysql56time.MYD
---copy_file std_data/mysql56time.MYI $MYSQLD_SLAVE_DATADIR/test/mysql56time.MYI
+--copy_file std_data/mysql56time.frm $MASTER_DATADIR/test/mysql56time.frm
+--copy_file std_data/mysql56time.MYD $MASTER_DATADIR/test/mysql56time.MYD
+--copy_file std_data/mysql56time.MYI $MASTER_DATADIR/test/mysql56time.MYI
+--copy_file std_data/mysql56time.frm $SLAVE_DATADIR/test/mysql56time.frm
+--copy_file std_data/mysql56time.MYD $SLAVE_DATADIR/test/mysql56time.MYD
+--copy_file std_data/mysql56time.MYI $SLAVE_DATADIR/test/mysql56time.MYI
 
---copy_file std_data/mysql56datetime.frm $MYSQLD_MASTER_DATADIR/test/mysql56datetime.frm
---copy_file std_data/mysql56datetime.MYD $MYSQLD_MASTER_DATADIR/test/mysql56datetime.MYD
---copy_file std_data/mysql56datetime.MYI $MYSQLD_MASTER_DATADIR/test/mysql56datetime.MYI
---copy_file std_data/mysql56datetime.frm $MYSQLD_SLAVE_DATADIR/test/mysql56datetime.frm
---copy_file std_data/mysql56datetime.MYD $MYSQLD_SLAVE_DATADIR/test/mysql56datetime.MYD
---copy_file std_data/mysql56datetime.MYI $MYSQLD_SLAVE_DATADIR/test/mysql56datetime.MYI
+--copy_file std_data/mysql56datetime.frm $MASTER_DATADIR/test/mysql56datetime.frm
+--copy_file std_data/mysql56datetime.MYD $MASTER_DATADIR/test/mysql56datetime.MYD
+--copy_file std_data/mysql56datetime.MYI $MASTER_DATADIR/test/mysql56datetime.MYI
+--copy_file std_data/mysql56datetime.frm $SLAVE_DATADIR/test/mysql56datetime.frm
+--copy_file std_data/mysql56datetime.MYD $SLAVE_DATADIR/test/mysql56datetime.MYD
+--copy_file std_data/mysql56datetime.MYI $SLAVE_DATADIR/test/mysql56datetime.MYI
 
---copy_file std_data/mysql56timestamp.frm $MYSQLD_MASTER_DATADIR/test/mysql56timestamp.frm
---copy_file std_data/mysql56timestamp.MYD $MYSQLD_MASTER_DATADIR/test/mysql56timestamp.MYD
---copy_file std_data/mysql56timestamp.MYI $MYSQLD_MASTER_DATADIR/test/mysql56timestamp.MYI
---copy_file std_data/mysql56timestamp.frm $MYSQLD_SLAVE_DATADIR/test/mysql56timestamp.frm
---copy_file std_data/mysql56timestamp.MYD $MYSQLD_SLAVE_DATADIR/test/mysql56timestamp.MYD
---copy_file std_data/mysql56timestamp.MYI $MYSQLD_SLAVE_DATADIR/test/mysql56timestamp.MYI
+--copy_file std_data/mysql56timestamp.frm $MASTER_DATADIR/test/mysql56timestamp.frm
+--copy_file std_data/mysql56timestamp.MYD $MASTER_DATADIR/test/mysql56timestamp.MYD
+--copy_file std_data/mysql56timestamp.MYI $MASTER_DATADIR/test/mysql56timestamp.MYI
+--copy_file std_data/mysql56timestamp.frm $SLAVE_DATADIR/test/mysql56timestamp.frm
+--copy_file std_data/mysql56timestamp.MYD $SLAVE_DATADIR/test/mysql56timestamp.MYD
+--copy_file std_data/mysql56timestamp.MYI $SLAVE_DATADIR/test/mysql56timestamp.MYI
 
 connection master;
 INSERT INTO mysql56time VALUES ('01:01:01','01:01:01.1','01:01:01.11','01:01:01.111','01:01:01.1111','01:01:01.11111','01:01:01.111111');

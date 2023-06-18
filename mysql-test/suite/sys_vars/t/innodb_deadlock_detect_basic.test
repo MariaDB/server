@@ -20,7 +20,7 @@ show session variables like 'innodb_deadlock_detect';
 # show that it's writable
 #
 set global innodb_deadlock_detect='OFF';
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session innodb_deadlock_detect='OFF';
 select @@global.innodb_deadlock_detect;
 set @@global.innodb_deadlock_detect=1;

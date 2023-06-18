@@ -18,7 +18,7 @@ set global innodb_fil_make_page_dirty_debug = 0;
 --error ER_WRONG_TYPE_FOR_VAR
 set global innodb_fil_make_page_dirty_debug = dummy;
 
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set innodb_fil_make_page_dirty_debug = ON;
 
 --echo # An example usage.

@@ -32,6 +32,7 @@ OPTIMIZE TABLE t1;
 SHOW WARNINGS;
 
 --replace_regex /key_id [1-9][0-9]*/\1 /
+--replace_catalog
 CHECK TABLE t1;
 --replace_regex /key_id [1-9][0-9]*/\1 /
 SHOW WARNINGS;

@@ -38,7 +38,7 @@ FOUND 8 /\([0-9]+,0x([1-9][0-9])*00([1-9][0-9])*\)/ in dump.sql
 # Ensure data consistency on mysqlbinlog replay
 #
 FLUSH LOGS;
-# MYSQL_BINLOG MYSQLD_DATADIR/binlog_file > MYSQL_TMP_DIR/binlog_zeros.sql
+# MYSQL_BINLOG MARIADB_TOPDIR/binlog_file > MYSQL_TMP_DIR/binlog_zeros.sql
 FOUND 10 /\x5c\x00/ in binlog_zeros.sql
 # MYSQL --binary-mode test < MYSQL_TMP_DIR/binlog_zeros.sql
 # Table checksum is equivalent before and after binlog replay

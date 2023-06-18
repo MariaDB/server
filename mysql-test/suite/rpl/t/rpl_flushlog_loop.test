@@ -2,9 +2,9 @@
 # in case of bi-directional replication
 --let $rpl_topology= 1->2->1
 --source include/rpl_init.inc
+--source include/get_datadir.inc
 
-let $MYSQLD_DATADIR= `select @@datadir`;
---replace_result $MYSQLD_DATADIR MYSQLD_DATADIR/
+--replace_result $MARIADB_TOPDIR MARIADB_TOPDIR/
 show variables like 'relay_log%';
 
 #

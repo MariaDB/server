@@ -1,7 +1,6 @@
 # We are using .opt file since we need small binlog size
 # TODO: Need to look at making a row based version once the new row based client is completed. [jbm]
 -- source include/have_binlog_format_statement.inc
-
 -- source include/have_log_bin.inc
 -- source include/binlog_start_pos.inc
 
@@ -52,10 +51,9 @@ select "--- Local --" as "";
 # We should use --short-form everywhere because in other case output will
 # be time dependend. Better than nothing.
 #
-let $MYSQLD_DATADIR= `select @@datadir`;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --replace_regex /SQL_LOAD_MB-[0-9a-f]+-[0-9a-f]+/SQL_LOAD_MB-#-#/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/
---exec $MYSQL_BINLOG --short-form --local-load=$MYSQLTEST_VARDIR/tmp/ $MYSQLD_DATADIR/master-bin.000001
+--exec $MYSQL_BINLOG --short-form --local-load=$MYSQLTEST_VARDIR/tmp/ $MARIADB_TOPDIR/master-bin.000001
 
 # this should not fail but shouldn't produce any working statements
 --disable_query_log
@@ -63,7 +61,7 @@ select "--- Broken LOAD DATA --" as "";
 --enable_query_log
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --replace_regex /SQL_LOAD_MB-[0-9a-f]+-[0-9a-f]+/SQL_LOAD_MB-#-#/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/
---exec $MYSQL_BINLOG --short-form --local-load=$MYSQLTEST_VARDIR/tmp/ $MYSQLD_DATADIR/master-bin.000002 2> /dev/null
+--exec $MYSQL_BINLOG --short-form --local-load=$MYSQLTEST_VARDIR/tmp/ $MARIADB_TOPDIR/master-bin.000002 2> /dev/null
 
 # this should show almost nothing
 --disable_query_log
@@ -71,7 +69,7 @@ select "--- --database --" as "";
 --enable_query_log
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --replace_regex /SQL_LOAD_MB-[0-9a-f]+-[0-9a-f]+/SQL_LOAD_MB-#-#/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/
---exec $MYSQL_BINLOG --short-form --local-load=$MYSQLTEST_VARDIR/tmp/ --database=nottest $MYSQLD_DATADIR/master-bin.000001 2> /dev/null
+--exec $MYSQL_BINLOG --short-form --local-load=$MYSQLTEST_VARDIR/tmp/ --database=nottest $MARIADB_TOPDIR/master-bin.000001 2> /dev/null
 
 # this test for start-position option
 --disable_query_log
@@ -79,7 +77,7 @@ select "--- --start-position --" as "";
 --enable_query_log
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --replace_regex /SQL_LOAD_MB-[0-9a-f]+-[0-9a-f]+/SQL_LOAD_MB-#-#/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/
---exec $MYSQL_BINLOG --short-form --local-load=$MYSQLTEST_VARDIR/tmp/ --start-position=$binlog_start_pos $MYSQLD_DATADIR/master-bin.000002
+--exec $MYSQL_BINLOG --short-form --local-load=$MYSQLTEST_VARDIR/tmp/ --start-position=$binlog_start_pos $MARIADB_TOPDIR/master-bin.000002
 
 # These are tests for remote binlog.
 # They should return the same as previous test.
@@ -161,8 +159,8 @@ flush logs;
 # format is not executed. This makes the assertion select * from t5 
 # /* must be (1),(1) */; to fail. To temporary fix the bug, we
 # removed the option --short-form.
-#--exec $MYSQL_BINLOG --short-form $MYSQLD_DATADIR/master-bin.000004 | $MYSQL
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000004 | $MYSQL
+#--exec $MYSQL_BINLOG --short-form $MARIADB_TOPDIR/master-bin.000004 | $MYSQL
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000004 | $MYSQL
 select * from t5  /* must be (1),(1) */;
 drop table t5;
 
@@ -186,7 +184,7 @@ select * from t5 order by c1;
 flush logs;
 
 drop table t5;
---exec $MYSQL_BINLOG --short-form $MYSQLD_DATADIR/master-bin.000006 | $MYSQL
+--exec $MYSQL_BINLOG --short-form $MARIADB_TOPDIR/master-bin.000006 | $MYSQL
 select * from t5 order by c1;
 drop table t5;
 
@@ -216,8 +214,8 @@ drop procedure p1;
 --error ER_SP_DOES_NOT_EXIST
 call p1();
 --replace_regex /SQL_LOAD_MB-[0-9a-f]+-[0-9a-f]+/SQL_LOAD_MB-#-#/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/
---exec $MYSQL_BINLOG --short-form $MYSQLD_DATADIR/master-bin.000008
---exec $MYSQL_BINLOG --short-form $MYSQLD_DATADIR/master-bin.000008 | $MYSQL
+--exec $MYSQL_BINLOG --short-form $MARIADB_TOPDIR/master-bin.000008
+--exec $MYSQL_BINLOG --short-form $MARIADB_TOPDIR/master-bin.000008 | $MYSQL
 call p1();
 drop procedure p1;
 
@@ -257,7 +255,7 @@ flush logs;
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --replace_regex /SQL_LOAD_MB-[0-9a-f]+-[0-9a-f]+/SQL_LOAD_MB-#-#/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/
---exec $MYSQL_BINLOG --short-form --local-load=$MYSQLTEST_VARDIR/tmp/ $MYSQLD_DATADIR/master-bin.000010
+--exec $MYSQL_BINLOG --short-form --local-load=$MYSQLTEST_VARDIR/tmp/ $MARIADB_TOPDIR/master-bin.000010
 
 #
 # Bug#28293 missed '#' sign in the hex dump when the dump length
@@ -282,7 +280,7 @@ DROP TABLE t1;
 
 --disable_query_log
 CREATE TABLE patch (a BLOB);
---exec $MYSQL_BINLOG --hexdump --local-load=$MYSQLTEST_VARDIR/tmp/ $MYSQLD_DATADIR/master-bin.000012 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_tmp.dat
+--exec $MYSQL_BINLOG --hexdump --local-load=$MYSQLTEST_VARDIR/tmp/ $MARIADB_TOPDIR/master-bin.000012 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_tmp.dat
 ### Starting master-bin.000014
 eval LOAD DATA LOCAL INFILE '$MYSQLTEST_VARDIR/tmp/mysqlbinlog_tmp.dat'
      INTO TABLE patch FIELDS TERMINATED BY '';
@@ -310,7 +308,7 @@ let $a= `SELECT a FROM t1`;
 FLUSH LOGS;
 
 let $outfile= $MYSQLTEST_VARDIR/tmp/bug29928.sql;
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000015 > $outfile
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000015 > $outfile
 DROP TABLE t1;
 connect (con1, localhost, root, , test);
 connection con1;
@@ -335,8 +333,8 @@ exec $MYSQL_BINLOG $MYSQL_TEST_DIR/std_data/corrupt-relay-bin.000624 > $MYSQLTES
 FLUSH LOGS;
 
 --error 1
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000017 >/dev/null 2>/dev/null
---exec $MYSQL_BINLOG --force-if-open $MYSQLD_DATADIR/master-bin.000017 >/dev/null 2>/dev/null
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000017 >/dev/null 2>/dev/null
+--exec $MYSQL_BINLOG --force-if-open $MARIADB_TOPDIR/master-bin.000017 >/dev/null 2>/dev/null
 
 --echo Bug#31611 Security risk with BINLOG statement
 
@@ -357,7 +355,7 @@ INSERT INTO t1 VALUES (1,USER());
 ### Starting master-bin.000019
 flush logs;
 echo mysqlbinlog var/log/master-bin.000018 > var/tmp/bug31611.sql;
-exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000018 > $MYSQLTEST_VARDIR/tmp/bug31611.sql;
+exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000018 > $MYSQLTEST_VARDIR/tmp/bug31611.sql;
 connect (unsecure,localhost,untrusted,,mysqltest1);
 echo mysql mysqltest1 -uuntrusted < var/tmp/bug31611.sql;
 error 1;
@@ -397,7 +395,7 @@ query_vertical SELECT * FROM t1;
 DROP TABLE t1;
 
 echo >> mysqlbinlog var/log/master-bin.000020 > var/tmp/bug32580.sql;
-exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000020 > $MYSQLTEST_VARDIR/tmp/bug32580.sql;
+exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000020 > $MYSQLTEST_VARDIR/tmp/bug32580.sql;
 echo >> mysql test < var/tmp/bug32580.sql;
 exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/bug32580.sql;
 remove_file $MYSQLTEST_VARDIR/tmp/bug32580.sql;
@@ -417,7 +415,7 @@ eval SET @@global.server_id= $s_id_max;
 RESET MASTER;
 FLUSH LOGS;
 
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 > $binlog_file
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 > $binlog_file
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 eval SELECT
 (@a:=LOAD_FILE("$binlog_file"))
@@ -511,7 +509,7 @@ write_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn.empty;
 EOF
 
 # Before fix of BUG#38468, this would generate some warnings
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 >/dev/null 2> $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 >/dev/null 2> $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn
 
 # Make sure the command above does not generate any error or warnings
 diff_files $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn.empty;
@@ -539,10 +537,10 @@ remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn;
 
 --echo #
 --echo # Ensure --base64-output=auto outputs the same result as unspecified
---echo # MYSQL_BINLOG -v MYSQLD_DATADIR/master-bin.000001 > MYSQLTEST_VARDIR/tmp/mysqlbinlog_nob64spec.out
---exec  $MYSQL_BINLOG -v $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_nob64spec.out
---echo # MYSQL_BINLOG --base64-output=auto -v MYSQLD_DATADIR/master-bin.000001 > MYSQLTEST_VARDIR/tmp/mysqlbinlog_b64auto.out
---exec  $MYSQL_BINLOG --base64-output=auto -v $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_b64auto.out
+--echo # MYSQL_BINLOG -v MARIADB_TOPDIR/master-bin.000001 > MYSQLTEST_VARDIR/tmp/mysqlbinlog_nob64spec.out
+--exec  $MYSQL_BINLOG -v $MARIADB_TOPDIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_nob64spec.out
+--echo # MYSQL_BINLOG --base64-output=auto -v MARIADB_TOPDIR/master-bin.000001 > MYSQLTEST_VARDIR/tmp/mysqlbinlog_b64auto.out
+--exec  $MYSQL_BINLOG --base64-output=auto -v $MARIADB_TOPDIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_b64auto.out
 --diff_files $MYSQLTEST_VARDIR/tmp/mysqlbinlog_nob64spec.out $MYSQLTEST_VARDIR/tmp/mysqlbinlog_b64auto.out
 --remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog_nob64spec.out
 --remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog_b64auto.out
@@ -568,8 +566,7 @@ let $master_binlog= query_get_value(SHOW MASTER STATUS, File, 1);
 FLUSH LOGS;
 --source include/wait_for_binlog_checkpoint.inc
 
-let $MYSQLD_DATADIR= `SELECT @@datadir`;
-exec $MYSQL_BINLOG $MYSQLD_DATADIR/$master_binlog | $MYSQL test 2>&1;
+exec $MYSQL_BINLOG $MARIADB_TOPDIR/$master_binlog | $MYSQL test 2>&1;
 
 let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1);
 source include/show_binlog_events.inc;
@@ -588,10 +585,10 @@ DROP TABLE t1;
 --let $master_binlog= query_get_value(SHOW MASTER STATUS, File, 1)
 FLUSH LOGS;
 # The following should only create t1, not drop it.
---exec $MYSQL_BINLOG --server-id=1 $MYSQLD_DATADIR/$master_binlog | $MYSQL
+--exec $MYSQL_BINLOG --server-id=1 $MARIADB_TOPDIR/$master_binlog | $MYSQL
 SHOW TABLES IN test;
 # The following should only drop t1, not create it.
---exec $MYSQL_BINLOG --server-id=2 $MYSQLD_DATADIR/$master_binlog | $MYSQL
+--exec $MYSQL_BINLOG --server-id=2 $MARIADB_TOPDIR/$master_binlog | $MYSQL
 SHOW TABLES IN test;
 eval SET GLOBAL SERVER_ID = $old_server_id;
 
@@ -622,18 +619,18 @@ DROP TABLE t1;
 FLUSH LOGS;
 
 --error 1
---exec $MYSQL_BINLOG --rewrite-db=a --short-form $MYSQLD_DATADIR/master-bin.000001 2>&1
+--exec $MYSQL_BINLOG --rewrite-db=a --short-form $MARIADB_TOPDIR/master-bin.000001 2>&1
 
 --error 1
---exec $MYSQL_BINLOG --rewrite-db="a->" --short-form $MYSQLD_DATADIR/master-bin.000001 2>&1
+--exec $MYSQL_BINLOG --rewrite-db="a->" --short-form $MARIADB_TOPDIR/master-bin.000001 2>&1
 
 --error 1
---exec $MYSQL_BINLOG --rewrite-db="a-> " --short-form $MYSQLD_DATADIR/master-bin.000001 2>&1
+--exec $MYSQL_BINLOG --rewrite-db="a-> " --short-form $MARIADB_TOPDIR/master-bin.000001 2>&1
 
 --error 1
---exec $MYSQL_BINLOG --rewrite-db="->b" --short-form $MYSQLD_DATADIR/master-bin.000001 2>&1
+--exec $MYSQL_BINLOG --rewrite-db="->b" --short-form $MARIADB_TOPDIR/master-bin.000001 2>&1
 
 --error 1
---exec $MYSQL_BINLOG --rewrite-db=" ->" --short-form $MYSQLD_DATADIR/master-bin.000001 2>&1
+--exec $MYSQL_BINLOG --rewrite-db=" ->" --short-form $MARIADB_TOPDIR/master-bin.000001 2>&1
 
---exec $MYSQL_BINLOG --rewrite-db=" test -> foo " --short-form $MYSQLD_DATADIR/master-bin.000001 > /dev/null 2> $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn
+--exec $MYSQL_BINLOG --rewrite-db=" test -> foo " --short-form $MARIADB_TOPDIR/master-bin.000001 > /dev/null 2> $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn

@@ -11,7 +11,6 @@ call mtr.add_suppression("need more HISTORY partitions");
 --enable_prepare_warnings
 
 set system_versioning_alter_history=keep;
---let $datadir= `select @@datadir`
 --echo # Check conventional partitioning on temporal tables
 
 --replace_result $sys_datatype_expl SYS_DATATYPE
@@ -1027,7 +1026,7 @@ load data infile 'MDEV-17891.data' replace into table t1;
 load data infile 'MDEV-17891.data' replace into table t1;
 
 # Cleanup
---remove_file $datadir/test/MDEV-17891.data
+--remove_file $MARIADB_DATADIR/test/MDEV-17891.data
 eval set @@max_heap_table_size= $max_heap_table_size_orig;
 drop table t1;
 
@@ -1376,7 +1375,7 @@ load data infile 'MDEV-20077.data' replace into table t1 (x);
 select count(*) from t1 partition (p0);
 select count(*) from t1 partition (p1);
 drop table t1;
---remove_file $datadir/test/MDEV-20077.data
+--remove_file $MARIADB_DATADIR/test/MDEV-20077.data
 
 --echo # REPLACE .. SELECT
 create table t1 (x int primary key) with system versioning
@@ -1906,8 +1905,7 @@ insert into t1 values (1);
 call mtr.add_suppression("rror number .*(File exists|file operation)");
 call mtr.add_suppression("InnoDB: Cannot create file");
 
---let $datadir= `select @@datadir`
---let $dummy= $datadir/test/t1#P#p1.ibd
+--let $dummy= $MARIADB_DATADIR/test/t1#P#p1.ibd
 --write_file $dummy
 EOF
 
@@ -2210,7 +2208,7 @@ set timestamp= unix_timestamp('2000-01-01 01:00:00');
 load data infile 'MDEV-17554.data' replace into table t1 (x);
 --replace_result $default_engine DEFAULT_ENGINE
 show create table t1;
---remove_file $datadir/test/MDEV-17554.data
+--remove_file $MARIADB_DATADIR/test/MDEV-17554.data
 
 --echo # Concurrent DML
 set timestamp= unix_timestamp('2000-01-01 00:00:00');

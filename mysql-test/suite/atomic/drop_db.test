@@ -11,7 +11,6 @@ call mtr.add_suppression("InnoDB: .* does not exist in the InnoDB internal");
 # Speed up wait_until_connected_again.inc
 let NO_WSREP=1;
 RESET MASTER;
-let $MYSQLD_DATADIR= `SELECT @@datadir`;
 
 let $engine_count=2;
 let $engines='aria','innodb';
@@ -90,7 +89,7 @@ while ($e < $engine_count)
       use test;
       # Check which tables still exists
       --error 0,1
-      --list_files $MYSQLD_DATADIR/test2 t*
+      --list_files $MARIADB_DATADIR/test2 t*
       --error 0,ER_SP_DOES_NOT_EXIST
       show create procedure test2.foo;
 

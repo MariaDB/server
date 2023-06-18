@@ -38,8 +38,7 @@ SELECT * FROM t1;
 --echo # Clean up
 DEALLOCATE PREPARE stmt_1;
 DROP TABLE t1;
---let $datadir= `select @@datadir`
---remove_file $datadir/test/load.data
+--remove_file $MARIADB_DATADIR/test/load.data
 
 --echo # Test case 2: Check that the 'LOCK TABLE', 'UNLOCK TABLES' statements
 --echo # are supported by prepared statements

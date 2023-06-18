@@ -104,7 +104,7 @@ SELECT @@global.slave_max_allowed_packet;
 #       Test if accessing session slave_max_allowed_packet gives error       #
 ########################################################################### 
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.slave_max_allowed_packet = 4096;
 --Error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.slave_max_allowed_packet;
@@ -149,7 +149,7 @@ SELECT @@slave_max_allowed_packet = @@global.slave_max_allowed_packet;
 #   Check if slave_max_allowed_packet can be accessed with and without @@ sign #
 ################################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET slave_max_allowed_packet = 6000;
 SELECT @@slave_max_allowed_packet;
 --Error ER_UNKNOWN_TABLE

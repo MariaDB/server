@@ -81,7 +81,7 @@ SELECT @@global.log_bin_trust_function_creators;
 #     Test if accessing session log_bin_trust_function_creators gives error   #
 ###############################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.log_bin_trust_function_creators = 0;
 --Error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.log_bin_trust_function_creators;

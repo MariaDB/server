@@ -64,7 +64,7 @@ SELECT @@global.innodb_buffer_pool_dump_pct;
 SET GLOBAL innodb_buffer_pool_dump_pct='foo';
 
 # Set without using Global
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET innodb_buffer_pool_dump_pct=50;
 
 # Restore original value

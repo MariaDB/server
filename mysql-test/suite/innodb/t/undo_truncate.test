@@ -19,7 +19,6 @@ let $restart_parameters="--innodb_undo_tablespaces=2";
 SET GLOBAL innodb_undo_log_truncate = 0;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 
-LET $MYSQLD_DATADIR = `select @@datadir`;
 LET $INNODB_PAGE_SIZE = `select @@innodb_page_size`;
 --source suite/innodb/include/show_i_s_tablespaces.inc
 #-----------------------------------------------------------------------------
@@ -30,7 +29,6 @@ LET $INNODB_PAGE_SIZE = `select @@innodb_page_size`;
 create table t1(keyc int primary key, c char(100)) engine = innodb;
 create table t2(keyc int primary key, c char(100)) engine = innodb;
 #
-let DATADIR = `select @@datadir`;
 connect (con1,localhost,root,,);
 begin;
 send insert into t1 select seq,'a' from seq_1_to_20000;

@@ -153,15 +153,15 @@ INDEX(a1),INDEX(b)) ENGINE=InnoDB;
 INSERT INTO t1 SET a=1, b=1;
 
 UPDATE t1 SET a=2, b=3;
-let DATADIR=`select @@datadir`;
 let PAGE_SIZE=`select @@innodb_page_size`;
 
 source include/wait_all_purged.inc;
 FLUSH TABLE t1 FOR EXPORT;
 
+let MARIADB_DATADIR=$MARIADB_DATADIR;
 perl;
 my $ps = $ENV{PAGE_SIZE};
-my $file = "$ENV{DATADIR}/test/t1.ibd";
+my $file = "$ENV{MARIADB_DATADIR}/test/t1.ibd";
 open(FILE, "<", $file) or die "Unable to open $file\n";
 die "Unable to read $file\n" unless
     sysread(FILE, $_, 6*$ps) == 6*$ps;

@@ -47,14 +47,12 @@ CREATE USER 'testuser'@'localhost' IDENTIFIED by '';
 DROP USER 'testuser'@'localhost', 'nonexistentuser'@'%';
 --save_master_pos
 
-
 --echo #
 --echo # Ensure the events exist in the primary's binary log
---let $MYSQLD_DATADIR= `select @@datadir`
 --let $binlog_file=query_get_value(SHOW MASTER STATUS, File, 1)
 FLUSH BINARY LOGS;
---echo # MYSQL_BINLOG MYSQLD_DATADIR/binlog_file > MYSQL_TMP_DIR/mysqlbinlog_out.sql
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/$binlog_file > $MYSQL_TMP_DIR/mysqlbinlog_out.sql
+--echo # MYSQL_BINLOG MARIADB_TOPDIR/binlog_file > MYSQL_TMP_DIR/mysqlbinlog_out.sql
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/$binlog_file > $MYSQL_TMP_DIR/mysqlbinlog_out.sql
 
 --echo # There should be three Query events: REVOKE, CREATE USER, and DROP USER
 --let SEARCH_FILE= $MYSQL_TMP_DIR/mysqlbinlog_out.sql

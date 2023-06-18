@@ -6,7 +6,6 @@
 #                    or remote host analysis
 #
 
---let MYSQLD_DATADIR=`select @@datadir`
 --let data_inconsistent_err= "table data is inconsistent after replaying binlog using GTID start/stop positions";
 --let $tmp_out_ = $MYSQLTEST_VARDIR/tmp/null.log
 
@@ -73,8 +72,8 @@ FLUSH LOGS;
 
 if ($is_remote == 0)
 {
-    --let BINLOG_FILE_PARAM=$MYSQLD_DATADIR/$BINLOG_FILE.orig
-    --let BINLOG_FILE_PARAM2=$MYSQLD_DATADIR/$BINLOG_FILE2.orig
+    --let BINLOG_FILE_PARAM=$MARIADB_TOPDIR/$BINLOG_FILE.orig
+    --let BINLOG_FILE_PARAM2=$MARIADB_TOPDIR/$BINLOG_FILE2.orig
 }
 if ($is_remote == 1)
 {
@@ -82,8 +81,8 @@ if ($is_remote == 1)
     --let BINLOG_FILE_PARAM2= --read-from-remote-server $BINLOG_FILE2
 }
 
---copy_file $MYSQLD_DATADIR/$BINLOG_FILE $MYSQLD_DATADIR/$BINLOG_FILE.orig
---copy_file $MYSQLD_DATADIR/$BINLOG_FILE2 $MYSQLD_DATADIR/$BINLOG_FILE2.orig
+--copy_file $MARIADB_TOPDIR/$BINLOG_FILE $MARIADB_TOPDIR/$BINLOG_FILE.orig
+--copy_file $MARIADB_TOPDIR/$BINLOG_FILE2 $MARIADB_TOPDIR/$BINLOG_FILE2.orig
 
 DROP TABLE t1;
 DROP TABLE t2;
@@ -458,9 +457,9 @@ if ($is_remote == 1)
     --echo #
     --echo # Reset server state
     RESET MASTER;
-    --exec $MYSQL_BINLOG $MYSQLD_DATADIR/$BINLOG_FILE.orig | $MYSQL
+    --exec $MYSQL_BINLOG $MARIADB_TOPDIR/$BINLOG_FILE.orig | $MYSQL
     FLUSH LOGS;
-    --exec $MYSQL_BINLOG $MYSQLD_DATADIR/$BINLOG_FILE2.orig | $MYSQL
+    --exec $MYSQL_BINLOG $MARIADB_TOPDIR/$BINLOG_FILE2.orig | $MYSQL
     FLUSH LOGS;
     --eval PURGE BINARY LOGS TO "$BINLOG_FILE2"
     DROP TABLE t1;
@@ -492,9 +491,9 @@ if ($is_remote == 1)
     --echo #
     --echo # Reset server state
     RESET MASTER;
-    --exec $MYSQL_BINLOG $MYSQLD_DATADIR/$BINLOG_FILE.orig | $MYSQL
+    --exec $MYSQL_BINLOG $MARIADB_TOPDIR/$BINLOG_FILE.orig | $MYSQL
     FLUSH LOGS;
-    --exec $MYSQL_BINLOG $MYSQLD_DATADIR/$BINLOG_FILE2.orig | $MYSQL
+    --exec $MYSQL_BINLOG $MARIADB_TOPDIR/$BINLOG_FILE2.orig | $MYSQL
     FLUSH LOGS;
     --eval PURGE BINARY LOGS TO "$BINLOG_FILE2"
     DROP TABLE t1;
@@ -523,9 +522,9 @@ if ($is_remote == 1)
     --echo #
     --echo # Remote-only setup for error cases
     RESET MASTER;
-    --exec $MYSQL_BINLOG $MYSQLD_DATADIR/$BINLOG_FILE.orig | $MYSQL
+    --exec $MYSQL_BINLOG $MARIADB_TOPDIR/$BINLOG_FILE.orig | $MYSQL
     FLUSH LOGS;
-    --exec $MYSQL_BINLOG $MYSQLD_DATADIR/$BINLOG_FILE2.orig | $MYSQL
+    --exec $MYSQL_BINLOG $MARIADB_TOPDIR/$BINLOG_FILE2.orig | $MYSQL
     FLUSH LOGS;
     --eval PURGE BINARY LOGS TO "$BINLOG_FILE2"
 }
@@ -601,6 +600,6 @@ if ($is_remote == 1)
     RESET MASTER;
 }
 
---remove_file $MYSQLD_DATADIR/$BINLOG_FILE.orig
---remove_file $MYSQLD_DATADIR/$BINLOG_FILE2.orig
+--remove_file $MARIADB_TOPDIR/$BINLOG_FILE.orig
+--remove_file $MARIADB_TOPDIR/$BINLOG_FILE2.orig
 --remove_file $tmp_out_

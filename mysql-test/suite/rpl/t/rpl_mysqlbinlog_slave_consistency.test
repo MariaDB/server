@@ -381,11 +381,10 @@ let $ORIG_SERVER_ID = `select @@session.server_id`;
 --error 1201
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(0), IGNORE_DOMAIN_IDS=(1);
 
---let $MYSQLD_DATADIR=`select @@datadir`
 --let BINLOG_FILENAME= query_get_value(SHOW BINARY LOGS, Log_name, 1)
---let BINLOG_FILE_PARAM= $MYSQLD_DATADIR/$BINLOG_FILENAME.orig
+--let BINLOG_FILE_PARAM= $MARIADB_DATADIR/$BINLOG_FILENAME.orig
 --error 1
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/$BINLOG_FILENAME --do-domain-ids=0 --ignore-domain-ids=1
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/$BINLOG_FILENAME --do-domain-ids=0 --ignore-domain-ids=1
 
 RESET MASTER;
 set global gtid_slave_pos="";

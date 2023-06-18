@@ -5,9 +5,9 @@
 
 SELECT @@GLOBAL.gtid_slave_pos;
 
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET gtid_binlog_state= '';
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET SESSION gtid_binlog_state= '';
 
 --error ER_NO_DEFAULT

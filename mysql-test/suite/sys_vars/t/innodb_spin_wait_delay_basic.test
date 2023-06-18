@@ -32,7 +32,7 @@ select @@global.innodb_spin_wait_delay;
 select * from information_schema.global_variables where variable_name='innodb_spin_wait_delay';
 select * from information_schema.session_variables where variable_name='innodb_spin_wait_delay';
 --enable_warnings
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session innodb_spin_wait_delay=1;
 
 #

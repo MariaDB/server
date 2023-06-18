@@ -25,8 +25,7 @@ LOAD DATA INFILE 'load.data' INTO TABLE t1;
 SELECT * FROM t1;
 --echo # Clean up
 DROP TABLE t1;
---let $datadir= `select @@datadir`
---remove_file $datadir/test/load.data
+--remove_file $MARIADB_DATADIR/test/load.data
 
 --echo # Test case 2: Check that the statements 'LOCK TABLE', 'UNLOCK TABLES'
 --echo # are supported by prepared statements

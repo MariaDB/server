@@ -1,16 +1,14 @@
 --source include/have_binlog_format_row.inc
 --source include/master-slave.inc
 
-
 --connection slave
 CREATE TABLE t1dec102 (a DECIMAL(10,2));
 
 --connection master
-let $MYSQLD_DATADIR= `select @@datadir`;
 
---copy_file std_data/old_decimal/t1dec102.frm $MYSQLD_DATADIR/test/t1dec102.frm
---copy_file std_data/old_decimal/t1dec102.MYD $MYSQLD_DATADIR/test/t1dec102.MYD
---copy_file std_data/old_decimal/t1dec102.MYI $MYSQLD_DATADIR/test/t1dec102.MYI
+--copy_file std_data/old_decimal/t1dec102.frm $MARIADB_DATADIR/test/t1dec102.frm
+--copy_file std_data/old_decimal/t1dec102.MYD $MARIADB_DATADIR/test/t1dec102.MYD
+--copy_file std_data/old_decimal/t1dec102.MYI $MARIADB_DATADIR/test/t1dec102.MYI
 INSERT INTO t1dec102 VALUES(999.99);
 
 --let $slave_sql_errno=1677

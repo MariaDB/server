@@ -42,8 +42,6 @@ SELECT COUNT(*) > 0 AS `mysql.user has data` FROM mysql.user;
 # Restore the backup of mysql schema
 --exec $MYSQL mysql < $MYSQL_TMP_DIR/mysql_database_backup
 
---let $ddir= `select @@datadir`
-
 # It will fail if the file doesn't exist, which is good,
 # which is an extra check that it was written
---remove_file $ddir/mariadb_upgrade_info
+--remove_file $MARIADB_TOPDIR/mariadb_upgrade_info

@@ -3,8 +3,6 @@
 #
 --source include/have_partition.inc
 
-let $datadir=`select @@datadir`;
-
 # Table declared as having 2 partitions
 # create table t1 (x int)  egine=myisam
 #    partition by range columns (x)
@@ -12,13 +10,15 @@ let $datadir=`select @@datadir`;
 #
 # But we copy only second partition. So the 'p0' can't be opened.
 
-copy_file std_data/mdev11084.frm $datadir/test/t1.frm;
-copy_file std_data/mdev11084.par $datadir/test/t1.par;
-copy_file std_data/mdev11084.part1.MYD $datadir/test/t1#P#p1.MYD;
-copy_file std_data/mdev11084.part1.MYI $datadir/test/t1#P#p1.MYI;
+copy_file std_data/mdev11084.frm $MARIADB_DATADIR/test/t1.frm;
+copy_file std_data/mdev11084.par $MARIADB_DATADIR/test/t1.par;
+copy_file std_data/mdev11084.part1.MYD $MARIADB_DATADIR/test/t1#P#p1.MYD;
+copy_file std_data/mdev11084.part1.MYI $MARIADB_DATADIR/test/t1#P#p1.MYI;
 select * from t1 partition (p1);
---replace_result $datadir ./
+--replace_catalog
+--replace_result $MARIADB_DATADIR ./
 --error ER_FILE_NOT_FOUND
 select * from t1 partition (p0);
---replace_result $datadir ./
+--replace_catalog
+--replace_result $MARIADB_DATADIR ./
 drop table t1;

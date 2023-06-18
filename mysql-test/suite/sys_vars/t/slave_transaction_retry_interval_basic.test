@@ -88,13 +88,13 @@ SELECT @@global.slave_transaction_retry_interval;
 #           Check if variable can be access with session scope               #
 ##############################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@slave_transaction_retry_interval = 2;
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.slave_transaction_retry_interval = 3;
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@local.slave_transaction_retry_interval = 4;
 
 
@@ -168,7 +168,7 @@ SELECT @@slave_transaction_retry_interval = @@global.slave_transaction_retry_int
 #   and scope 
 ###############################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET slave_transaction_retry_interval = 2048;
 --Error ER_BAD_FIELD_ERROR
 SELECT slave_transaction_retry_interval;

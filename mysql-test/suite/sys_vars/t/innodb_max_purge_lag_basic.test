@@ -51,7 +51,7 @@ SELECT @@global.innodb_max_purge_lag;
 #   Check if innodb_max_purge_lag can be accessed with and without @@ sign #
 ############################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET innodb_max_purge_lag = 1;
 SELECT @@innodb_max_purge_lag;
 

@@ -52,7 +52,7 @@ SELECT @@global.innodb_compression_pad_pct_max;
 # check if innodb_compression_pad_pct_max can be accessed with and without @@ sign           #
 ##############################################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET innodb_compression_pad_pct_max = 1;
 SELECT @@innodb_compression_pad_pct_max;
 

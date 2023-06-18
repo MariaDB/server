@@ -42,7 +42,7 @@ SELECT @@global.log_bin_trust_function_creators;
 0
 '#-------------------FN_DYNVARS_063_04----------------------------#'
 SET @@session.log_bin_trust_function_creators = 0;
-ERROR HY000: Variable 'log_bin_trust_function_creators' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@session.log_bin_trust_function_creators;
 ERROR HY000: Variable 'log_bin_trust_function_creators' is a GLOBAL variable
 '#------------------FN_DYNVARS_063_05-----------------------#'

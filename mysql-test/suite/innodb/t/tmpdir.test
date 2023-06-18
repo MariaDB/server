@@ -31,11 +31,10 @@ drop table t1;
 
 --echo # innodb_tmpdir with mysql data directory path.
 
-let $MYSQLD_DATADIR= `select @@datadir`;
 create table t1(a text, b text, fulltext(a,b))engine=innodb;
 insert into t1 values('test1', 'test2');
 insert into t1 values('text1', 'text2');
---replace_result $MYSQLD_DATADIR MYSQL_DATADIR
+--replace_result $MARIADB_TOPDIR MARIADB_TOPDIR
 --error ER_WRONG_VALUE_FOR_VAR
 set global innodb_tmpdir = @@global.datadir;
 --replace_regex /.*mysqld.1/DATADIR/

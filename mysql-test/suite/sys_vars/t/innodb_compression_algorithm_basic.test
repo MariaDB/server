@@ -21,7 +21,7 @@ set global innodb_compression_algorithm=1;
 select @@global.innodb_compression_algorithm;
 select * from information_schema.global_variables where variable_name='innodb_compression_algorithm';
 select * from information_schema.session_variables where variable_name='innodb_compression_algorithm';
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session innodb_compression_algorithm=0;
 
 #

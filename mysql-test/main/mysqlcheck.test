@@ -4,6 +4,7 @@ call mtr.add_suppression("Invalid .old.. table or database name");
 --source include/not_embedded.inc
 --source include/have_innodb.inc
 --source include/default_charset.inc
+--source include/not_catalogs.inc
 
 #remove this include after fix MDEV-27873
 --source include/no_view_protocol.inc
@@ -14,7 +15,6 @@ set @save_collation_connection=@@collation_connection;
 # check that CSV engine was compiled in, as the result of the test
 # depends on the presence of the log tables (which are CSV-based).
 --source include/have_csv.inc
-let $MYSQLD_DATADIR= `select @@datadir`;
 
 #
 # Clean up after previous tests
@@ -74,8 +74,8 @@ create view v_bug25347 as select * from t_bug25347;
 insert into t_bug25347 values (1),(2),(3);
 flush tables;
 --echo removing and creating
---remove_file $MYSQLD_DATADIR/d_bug25347/t_bug25347.MYI
---write_file $MYSQLD_DATADIR/d_bug25347/t_bug25347.MYI
+--remove_file $MARIADB_DATADIR/d_bug25347/t_bug25347.MYI
+--write_file $MARIADB_DATADIR/d_bug25347/t_bug25347.MYI
 EOF
 --exec $MYSQL_CHECK --repair --databases d_bug25347
 --error 130
@@ -104,15 +104,16 @@ call mtr.add_suppression("Error reading file './test/t1.frm'");
 CREATE TABLE t1(a INT) engine=myisam;
 CREATE TABLE t2(a INT) engine=myisam;
 # backup then null t1.frm
---copy_file $MYSQLD_DATADIR/test/t1.frm $MYSQLD_DATADIR/test/t1.frm.bak
---remove_file $MYSQLD_DATADIR/test/t1.frm
---write_file $MYSQLD_DATADIR/test/t1.frm
+--copy_file $MARIADB_DATADIR/test/t1.frm $MARIADB_DATADIR/test/t1.frm.bak
+--remove_file $MARIADB_DATADIR/test/t1.frm
+--write_file $MARIADB_DATADIR/test/t1.frm
 EOF
+--replace_catalog
 --exec $MYSQL_CHECK test
 # restore t1.frm
---remove_file $MYSQLD_DATADIR/test/t1.frm
---copy_file $MYSQLD_DATADIR/test/t1.frm.bak $MYSQLD_DATADIR/test/t1.frm
---remove_file $MYSQLD_DATADIR/test/t1.frm.bak
+--remove_file $MARIADB_DATADIR/test/t1.frm
+--copy_file $MARIADB_DATADIR/test/t1.frm.bak $MARIADB_DATADIR/test/t1.frm
+--remove_file $MARIADB_DATADIR/test/t1.frm.bak
 DROP TABLE t1, t2;
 
 
@@ -125,7 +126,7 @@ DROP TABLE t1, t2;
 create table t1(a int) engine=myisam;
 create view v1 as select * from t1;
 show tables;
---copy_file $MYSQLD_DATADIR/test/v1.frm $MYSQLD_DATADIR/test/v-1.frm
+--copy_file $MARIADB_DATADIR/test/v1.frm $MARIADB_DATADIR/test/v-1.frm
 show tables;
 --exec $MYSQL_CHECK --check-upgrade --databases test
 --exec $MYSQL_CHECK --fix-table-names --databases test
@@ -177,23 +178,23 @@ CREATE TABLE `#mysql50#c@d` (a INT) engine=myisam;
 CREATE TABLE t1 (a INT) engine=myisam;
 
 # Create 5.0 like triggers
---write_file $MYSQLD_DATADIR/a@b/c@d.TRG
+--write_file $MARIADB_DATADIR/a@b/c@d.TRG
 TYPE=TRIGGERS
 triggers='CREATE DEFINER=`root`@`localhost` TRIGGER tr1 BEFORE INSERT ON `c@d` FOR EACH ROW SET NEW.a = 10 * NEW.a'
 sql_modes=0
 definers='root@localhost'
 EOF
---write_file $MYSQLD_DATADIR/a@b/tr1.TRN
+--write_file $MARIADB_DATADIR/a@b/tr1.TRN
 TYPE=TRIGGERNAME
 trigger_table=c@d
 EOF
---write_file $MYSQLD_DATADIR/a@b/t1.TRG
+--write_file $MARIADB_DATADIR/a@b/t1.TRG
 TYPE=TRIGGERS
 triggers='CREATE DEFINER=`root`@`localhost` TRIGGER tr2 BEFORE INSERT ON `a@b`.t1 FOR EACH ROW SET NEW.a = 100 * NEW.a'
 sql_modes=0
 definers='root@localhost'
 EOF
---write_file $MYSQLD_DATADIR/a@b/tr2.TRN
+--write_file $MARIADB_DATADIR/a@b/tr2.TRN
 TYPE=TRIGGERNAME
 trigger_table=t1
 EOF
@@ -267,8 +268,8 @@ INSERT INTO bug47205 VALUES ("foobar");
 FLUSH TABLE bug47205;
 
 --echo # Replace the FRM with a 5.0 FRM that will require upgrade
---remove_file $MYSQLD_DATADIR/test/bug47205.frm
---copy_file std_data/bug47205.frm $MYSQLD_DATADIR/test/bug47205.frm
+--remove_file $MARIADB_DATADIR/test/bug47205.frm
+--copy_file std_data/bug47205.frm $MARIADB_DATADIR/test/bug47205.frm
 
 --echo # Should indicate that ALTER TABLE ... FORCE is needed
 CHECK TABLE bug47205 FOR UPGRADE;
@@ -290,8 +291,8 @@ CREATE TABLE bug47205(a VARCHAR(20) PRIMARY KEY)
 FLUSH TABLE bug47205;
 
 --echo # Replace the FRM with a 5.0 FRM that will require upgrade
---remove_file $MYSQLD_DATADIR/test/bug47205.frm
---copy_file std_data/bug47205.frm $MYSQLD_DATADIR/test/bug47205.frm
+--remove_file $MARIADB_DATADIR/test/bug47205.frm
+--copy_file std_data/bug47205.frm $MARIADB_DATADIR/test/bug47205.frm
 
 --echo # Should indicate that ALTER TABLE .. FORCE is needed
 CHECK TABLE bug47205 FOR UPGRADE;
@@ -308,9 +309,9 @@ DROP TABLE bug47205;
 --echo # Test 3: MyISAM - REPAIR supported
 
 --echo # Use an old FRM that will require upgrade
---copy_file std_data/bug36055.frm $MYSQLD_DATADIR/test/bug47205.frm
---copy_file std_data/bug36055.MYD $MYSQLD_DATADIR/test/bug47205.MYD
---copy_file std_data/bug36055.MYI $MYSQLD_DATADIR/test/bug47205.MYI
+--copy_file std_data/bug36055.frm $MARIADB_DATADIR/test/bug47205.frm
+--copy_file std_data/bug36055.MYD $MARIADB_DATADIR/test/bug47205.MYD
+--copy_file std_data/bug36055.MYI $MARIADB_DATADIR/test/bug47205.MYI
 
 --echo # Should indicate that REPAIR TABLE is needed
 CHECK TABLE bug47205 FOR UPGRADE;
@@ -339,12 +340,12 @@ create view `v.1` as select 1;
 
 create table `t.2`(a varchar(20) primary key) default character set utf8 collate utf8_general_ci engine=innodb;
 flush table `t.2`;
---remove_file $MYSQLD_DATADIR/test/t@002e2.frm
---copy_file std_data/bug47205.frm $MYSQLD_DATADIR/test/t@002e2.frm
+--remove_file $MARIADB_DATADIR/test/t@002e2.frm
+--copy_file std_data/bug47205.frm $MARIADB_DATADIR/test/t@002e2.frm
 
---copy_file std_data/bug36055.frm $MYSQLD_DATADIR/test/t@002e3.frm
---copy_file std_data/bug36055.MYD $MYSQLD_DATADIR/test/t@002e3.MYD
---copy_file std_data/bug36055.MYI $MYSQLD_DATADIR/test/t@002e3.MYI
+--copy_file std_data/bug36055.frm $MARIADB_DATADIR/test/t@002e3.frm
+--copy_file std_data/bug36055.MYD $MARIADB_DATADIR/test/t@002e3.MYD
+--copy_file std_data/bug36055.MYI $MARIADB_DATADIR/test/t@002e3.MYI
 
 --echo mysqlcheck --check-upgrade --auto-repair test
 --exec $MYSQL_CHECK --check-upgrade --auto-repair test
@@ -379,7 +380,7 @@ drop view v1;
 --echo # MDEV-8124 mysqlcheck: --auto-repair runs REPAIR TABLE instead of REPAIR VIEW on views
 --echo #
 create table t1(a int);
---copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v1.frm $MYSQLD_DATADIR/test/v1.frm
+--copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v1.frm $MARIADB_DATADIR/test/v1.frm
 --echo mysqlcheck --process-views --check-upgrade --auto-repair test
 --exec $MYSQL_CHECK --process-views --check-upgrade --auto-repair test
 drop view v1;
@@ -399,9 +400,8 @@ create database mysqltest1;
 create table mysqltest1.t1 (a int) engine=myisam;
 create table t2 (a int);
 
-let $datadir= `select @@datadir`;
-remove_file $datadir/mysqltest1/t1.MYD;
-write_file $datadir/mysqltest1/t1.MYD;
+remove_file $MARIADB_DATADIR/mysqltest1/t1.MYD;
+write_file $MARIADB_DATADIR/mysqltest1/t1.MYD;
 foo
 EOF
 

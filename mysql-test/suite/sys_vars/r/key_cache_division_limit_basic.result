@@ -83,7 +83,7 @@ SELECT @@global.key_cache_division_limit;
 100
 '#-------------------FN_DYNVARS_058_05----------------------------#'
 SET @@session.key_cache_division_limit = 0;
-ERROR HY000: Variable 'key_cache_division_limit' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@session.key_cache_division_limit;
 ERROR HY000: Variable 'key_cache_division_limit' is a GLOBAL variable
 '#----------------------FN_DYNVARS_058_06------------------------#'
@@ -115,7 +115,7 @@ SELECT @@key_cache_division_limit = @@global.key_cache_division_limit;
 1
 '#---------------------FN_DYNVARS_058_09----------------------#'
 SET key_cache_division_limit = 80;
-ERROR HY000: Variable 'key_cache_division_limit' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@key_cache_division_limit;
 @@key_cache_division_limit
 90

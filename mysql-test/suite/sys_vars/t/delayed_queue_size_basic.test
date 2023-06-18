@@ -90,7 +90,7 @@ SELECT @@delayed_queue_size;
 #       Test if accessing session delayed_queue_size gives error           #
 ############################################################################
 
---Error 1229
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.delayed_queue_size = 0;
 --Error 1238
 SELECT @@session.delayed_queue_size;
@@ -133,7 +133,7 @@ SELECT @@delayed_queue_size = @@global.delayed_queue_size;
 #   Check if delayed_queue_size can be accessed with and without @@ sign  #
 ###########################################################################
 
---Error 1229
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET delayed_queue_size = 1;
 SELECT @@delayed_queue_size;
 --Error ER_UNKNOWN_TABLE

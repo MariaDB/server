@@ -17,5 +17,5 @@ set global gtid_strict_mode=0;
 select @@global.gtid_strict_mode;
 set global gtid_strict_mode=@old;
 
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session gtid_strict_mode=1;

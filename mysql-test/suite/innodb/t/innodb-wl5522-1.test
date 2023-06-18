@@ -1,11 +1,8 @@
 # Not supported in embedded
 --source include/not_embedded.inc
-
--- source include/have_innodb.inc
+--source include/have_innodb.inc
 
 call mtr.add_suppression("InnoDB: Unable to import tablespace .* because it already exists.  Please DISCARD the tablespace before IMPORT.");
-
-let MYSQLD_DATADIR =`SELECT @@datadir`;
 
 # Following testcases are created from JET cases (where import
 # export instance are differnt server )
@@ -469,6 +466,7 @@ EOF
 # Import should succeed
 ALTER TABLE testdb_wl5522.t1 IMPORT TABLESPACE;
 # Try to import twice
+--replace_catalog
 --error 1813
 ALTER TABLE testdb_wl5522.t1 IMPORT TABLESPACE;
 SELECT * FROM testdb_wl5522.t1 ORDER BY i;
@@ -950,8 +948,8 @@ EOF
 UNLOCK TABLES;
 ALTER TABLE t1 DISCARD TABLESPACE;
 
---move_file $MYSQLTEST_VARDIR/tmp/t1.cfg $MYSQLD_DATADIR/test/t1.cfg
---copy_file std_data/mysql80/t1.ibd $MYSQLD_DATADIR/test/t1.ibd
+--move_file $MYSQLTEST_VARDIR/tmp/t1.cfg $MARIADB_DATADIR/test/t1.cfg
+--copy_file std_data/mysql80/t1.ibd $MARIADB_DATADIR/test/t1.ibd
 
 call mtr.add_suppression("InnoDB: unsupported MySQL tablespace");
 --error ER_UNSUPPORTED_EXTENSION

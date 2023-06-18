@@ -14,7 +14,6 @@
 
 SET @old_sql_mode=  @@global.sql_mode;
 SET @old_binlog_format=@@session.binlog_format;
-let $MYSQLD_DATADIR= `select @@datadir`;
 SET SESSION sql_mode=8;
 
 --echo Initialization 
@@ -51,8 +50,7 @@ DELIMITER ;|
 
 --echo Check Result
 
-let $MYSQLD_DATADIR= `select @@datadir`;
---exec $MYSQL_BINLOG --force-if-open $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_bug39526.binlog
+--exec $MYSQL_BINLOG --force-if-open $MARIADB_TOPDIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_bug39526.binlog
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 eval select
 (@a:=load_file("$MYSQLTEST_VARDIR/tmp/mysqlbinlog_bug39526.binlog"))
@@ -148,8 +146,7 @@ CALL proc_without_sql_mode('abcd\'ef', 'abcd\"ef');
 CALL proc_with_sql_mode('wxyz\'ef', 'wxyz\"ef');
 SELECT * FROM test_table;
 
-let $MYSQLD_DATADIR= `select @@datadir`;
---exec $MYSQL_BINLOG --force-if-open -d mysqltest_db $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_bug12601974.binlog
+--exec $MYSQL_BINLOG --force-if-open -d mysqltest_db $MARIADB_TOPDIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_bug12601974.binlog
 
 --echo "Dropping table test_table"
 DROP TABLE test_table;

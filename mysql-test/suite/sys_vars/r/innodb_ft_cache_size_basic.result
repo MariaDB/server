@@ -22,7 +22,7 @@ SHOW VARIABLES like 'innodb_ft_cache_size';
 Variable_name	Value
 innodb_ft_cache_size	1600000
 set session innodb_ft_cache_size=1;
-ERROR HY000: Variable 'innodb_ft_cache_size' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 set global innodb_ft_cache_size=512*1024*1024;
 SHOW VARIABLES like 'innodb_ft_cache_size';
 Variable_name	Value

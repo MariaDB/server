@@ -7,7 +7,6 @@
 # outside of it's vardir anyway
 #
 
-
 if (`select LOCATE('$MYSQLTEST_VARDIR', REPLACE(@@datadir, '\\\\', '/')) != 1`)
 {
   skip Need mysqld in MYSQLTEST_VARDIR;

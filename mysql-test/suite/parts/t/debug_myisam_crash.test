@@ -6,8 +6,6 @@
 --source include/not_valgrind.inc
 --source include/not_embedded.inc
 
---let $DATADIR= `SELECT @@datadir;`
-
 let $engine= 'MyISAM';
 
 --echo # Test crash in fast_alter_partition_table.

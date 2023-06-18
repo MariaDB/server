@@ -1,6 +1,6 @@
 call mtr.add_suppression("InnoDB: Unable to import tablespace .* because it already exists.  Please DISCARD the tablespace before IMPORT\\.");
 call mtr.add_suppression("Index for table 't2' is corrupt; try to repair it");
-call mtr.add_suppression("InnoDB: Cannot save statistics for table `test`\\.`t1` because the \\.ibd file is missing");
+call mtr.add_suppression("InnoDB: Cannot save statistics for table .*`test`\\.`t1` because the \\.ibd file is missing");
 FLUSH TABLES;
 CREATE TABLE t1
 (a INT AUTO_INCREMENT PRIMARY KEY,
@@ -137,6 +137,7 @@ DROP TABLE t2;
 SELECT @@innodb_file_per_table;
 @@innodb_file_per_table
 1
+# Try importing when tablespace already exists
 CREATE TABLE t1(
 c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 c2 INT) ENGINE=InnoDB;
@@ -147,6 +148,7 @@ SELECT * FROM t1;
 c1	c2
 1	1
 DROP TABLE t1;
+# Export/import on the same instance
 CREATE TABLE t1(
 c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 c2 INT) ENGINE=InnoDB;
@@ -181,6 +183,9 @@ SELECT COUNT(*) FROM t1;
 COUNT(*)
 16
 DROP TABLE t1;
+# Export/import on the same instance
+# Insert some more records to move the LSN forward and then drop the
+# table and restore
 CREATE TABLE t1(
 c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 c2 INT) ENGINE=InnoDB;
@@ -218,6 +223,9 @@ SELECT COUNT(*) FROM t1;
 COUNT(*)
 16
 DROP TABLE t1;
+# Export/import on the same instance
+# Insert some more records to move the LSN forward and then drop the
+# table and restore, this time the table has a secondary index too.
 CREATE TABLE t1(
 c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 c2 INT, INDEX(c2)) ENGINE=InnoDB;
@@ -245,6 +253,11 @@ SELECT COUNT(*) FROM t1 WHERE c2 = 1;
 COUNT(*)
 16
 DROP TABLE t1;
+# Export/import on the same instance
+# Insert some more records to move the LSN forward and then drop the
+# table and restore, this time the table has a secondary index too.
+# Rename the index on the create so that the IMPORT fails, drop index
+# Create with proper name and then do an IMPORT.
 CREATE TABLE t1(
 c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 c2 INT, INDEX idx(c2)) ENGINE=InnoDB;
@@ -260,6 +273,7 @@ ALTER TABLE t1 DISCARD TABLESPACE;
 SELECT * FROM t1;
 ERROR HY000: Tablespace has been discarded for table `t1`
 restore: t1 .ibd and .cfg files
+# This is really a name mismatch error, need better error codes.
 ALTER TABLE t1 IMPORT TABLESPACE;
 ERROR HY000: Schema mismatch (Index x not found in tablespace meta-data file.)
 select count(*) from t1;
@@ -297,6 +311,10 @@ c1	c2
 16	1
 unlink: t1.cfg
 DROP TABLE t1;
+#
+# Export/import on the same instance, with --innodb-file-per-table=0
+# This should fail because it is not supported
+#
 SET GLOBAL innodb_file_per_table = 0;
 Warnings:
 Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
@@ -316,6 +334,9 @@ Warnings:
 Warning	1809	Table `test`.`t1` in system tablespace
 UNLOCK TABLES;
 DROP TABLE t1;
+#
+# Tests that check for schema mismatch during IMPORT
+#
 SET GLOBAL innodb_file_per_table = 1;
 Warnings:
 Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release

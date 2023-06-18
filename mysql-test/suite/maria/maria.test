@@ -1435,9 +1435,8 @@ CREATE TABLE t1 (
   KEY (c1),
   KEY (c2)
 ) ENGINE=aria DEFAULT CHARSET=utf8 PACK_KEYS=0;
-let $MYSQLD_DATADIR= `select @@datadir`;
---replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
---exec $MARIA_CHK -d --ignore-control-file $MYSQLD_DATADIR/test/t1
+--replace_result $MARIADB_DATADIR MARIADB_DATADIR
+--exec $MARIA_CHK -d --ignore-control-file $MARIADB_DATADIR/test/t1
 DROP TABLE t1;
 
 # Test warnings with transactional=1 with MyISAM

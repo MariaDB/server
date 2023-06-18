@@ -343,16 +343,15 @@ call mtr.add_suppression("InnoDB: Error number .* means");
 call mtr.add_suppression("InnoDB: Cannot create file");
 call mtr.add_suppression("InnoDB: Failed to create");
 
-let MYSQLD_DATADIR=`select @@datadir`;
 CREATE TABLE t1(a TEXT, FTS_DOC_ID BIGINT UNSIGNED NOT NULL UNIQUE) ENGINE=InnoDB;
 let $fts_aux_file= `select concat('FTS_',right(concat(repeat('0',16), lower(hex(TABLE_ID))),16),'_BEING_DELETED.ibd') FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME='test/t1'`;
-write_file $MYSQLD_DATADIR/test/$fts_aux_file;
+write_file $MARIADB_DATADIR/test/$fts_aux_file;
 EOF
 --replace_regex /".*" from/"Resource temporarily unavailable" from/
 --error ER_GET_ERRNO
 ALTER TABLE t1 ADD FULLTEXT(a), ALGORITHM=INPLACE;
 DROP TABLE t1;
-remove_file $MYSQLD_DATADIR/test/$fts_aux_file;
+remove_file $MARIADB_DATADIR/test/$fts_aux_file;
 
 # Add more than one FTS index
 CREATE TABLE t1 (a VARCHAR(3)) ENGINE=InnoDB;

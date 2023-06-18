@@ -14,7 +14,6 @@
 --source include/have_innodb.inc
 
 --disable_query_log
-let $MYSQLD_DATADIR= `select @@datadir`;
 let $initial_timeout=`select @@innodb_lock_wait_timeout`;
 --enable_query_log
 

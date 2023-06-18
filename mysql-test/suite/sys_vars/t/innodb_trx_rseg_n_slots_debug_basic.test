@@ -33,9 +33,9 @@ select @@global.innodb_trx_rseg_n_slots_debug;
 select * from information_schema.global_variables where variable_name='innodb_trx_rseg_n_slots_debug';
 select * from information_schema.session_variables where variable_name='innodb_trx_rseg_n_slots_debug';
 --enable_warnings
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session innodb_trx_rseg_n_slots_debug='some';
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set @@session.innodb_trx_rseg_n_slots_debug='some';
 
 #

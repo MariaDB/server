@@ -3592,12 +3592,10 @@ CREATE DATABASE db1;
 --echo # two ALTER..UPGRADE of different databases are not. Tests X vs X lock.
 --echo #
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-# Manually make a 5.0 database from the template
---mkdir $MYSQLD_DATADIR/a-b-c
---copy_file $MYSQLD_DATADIR/db1/db.opt $MYSQLD_DATADIR/a-b-c/db.opt
---mkdir $MYSQLD_DATADIR/a-b-c-d
---copy_file $MYSQLD_DATADIR/db1/db.opt $MYSQLD_DATADIR/a-b-c-d/db.opt
+--mkdir $MARIADB_DATADIR/a-b-c
+--copy_file $MARIADB_DATADIR/db1/db.opt $MARIADB_DATADIR/a-b-c/db.opt
+--mkdir $MARIADB_DATADIR/a-b-c-d
+--copy_file $MARIADB_DATADIR/db1/db.opt $MARIADB_DATADIR/a-b-c-d/db.opt
 
 connection default;
 SET DEBUG_SYNC= 'after_wait_locked_schema_name SIGNAL locked WAIT_FOR blocked';

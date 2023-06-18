@@ -38,8 +38,7 @@ INSERT INTO t6 VALUES (1),(2);
 flush tables;
 
 # Check that table is not zerofilled, not movable
-let $MYSQLD_DATADIR= `select @@datadir`;
---exec $MARIA_CHK -dv --ignore-control-file $MYSQLD_DATADIR/mysqltest/t1 >$MYSQLTEST_VARDIR/tmp/autozerofill.txt
+--exec $MARIA_CHK -dv --ignore-control-file $MARIADB_DATADIR/mysqltest/t1 >$MYSQLTEST_VARDIR/tmp/autozerofill.txt
 perl;
     use strict;
     use warnings;
@@ -58,13 +57,13 @@ EOF
 
 disable_ps_protocol; # see aria-recover.test
 replace_regex /Table.*t1/t1/ ;
-replace_result \\ /;
+replace_catalog \\ /;
 select * from t1;
 enable_ps_protocol;
 flush table t1;
 
 # Check that table is auto-zerofilled, movable
---exec $MARIA_CHK -dv --ignore-control-file $MYSQLD_DATADIR/mysqltest/t1 >$MYSQLTEST_VARDIR/tmp/autozerofill.txt
+--exec $MARIA_CHK -dv --ignore-control-file $MARIADB_DATADIR/mysqltest/t1 >$MYSQLTEST_VARDIR/tmp/autozerofill.txt
 perl;
     use strict;
     use warnings;
@@ -77,11 +76,12 @@ perl;
 EOF
 
 # this will attach t1 to the current Aria instance
+--replace_catalog
 insert into t1 values(2);
 flush table t1;
 
 # Check that table is not zerofilled, not movable
---exec $MARIA_CHK -dv --ignore-control-file $MYSQLD_DATADIR/mysqltest/t1 >$MYSQLTEST_VARDIR/tmp/autozerofill.txt
+--exec $MARIA_CHK -dv --ignore-control-file $MARIADB_DATADIR/mysqltest/t1 >$MYSQLTEST_VARDIR/tmp/autozerofill.txt
 perl;
     use strict;
     use warnings;
@@ -104,9 +104,9 @@ check table t2;
 check table t2;
 repair table t2;
 check table t2;
-replace_result \\ /;
+replace_catalog \\ /;
 optimize table t3;
-replace_result \\ /;
+replace_catalog \\ /;
 analyze table t4;
 repair table t5;
 check table t5;
@@ -116,7 +116,7 @@ check table t5;
 # Check that if we zerofill with aria_chk, we should not get any warnings when
 # accessing the table
 --error 0,1,11,139
---exec $MARIA_CHK --ignore-control-file --zerofill $MYSQLD_DATADIR/mysqltest/t6 >$MYSQLTEST_VARDIR/tmp/autozerofill.txt 2>&1
+--exec $MARIA_CHK --ignore-control-file --zerofill $MARIADB_DATADIR/mysqltest/t6 >$MYSQLTEST_VARDIR/tmp/autozerofill.txt 2>&1
 if ($sys_errno != 0)
 {
 --cat_file $MYSQLTEST_VARDIR/tmp/autozerofill.txt

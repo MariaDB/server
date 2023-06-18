@@ -7,7 +7,6 @@
 --echo #  MDEV-19229 Allow innodb_undo_tablespaces to be changed
 --echo #        after database creation
 --echo #
-let $MYSQLD_DATADIR= `select @@datadir`;
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
@@ -23,7 +22,7 @@ let $restart_parameters=--innodb_undo_tablespaces=4;
 --source include/restart_mysqld.inc
 
 --echo # Should list 4 undo log tablespaces
-list_files $MYSQLD_DATADIR undo*;
+list_files $MARIADB_TOPDIR undo*;
 
 --echo # case 2: Abort after deleting the old undo tablespaces
 let $restart_parameters=--innodb_undo_tablespaces=2 --debug_dbug="+d,after_deleting_old_undo_abort";
@@ -34,7 +33,7 @@ let $restart_parameters=--innodb_undo_tablespaces=2;
 --source include/restart_mysqld.inc
 
 --echo # Should list 2 undo log tablespaces
-list_files $MYSQLD_DATADIR undo*;
+list_files $MARIADB_TOPDIR undo*;
 
 --echo # case 3: Abort after successfully deleting the old undo tablespace
 let $restart_parameters=--innodb_undo_tablespaces=3 --debug_dbug="+d,after_deleting_old_undo_success";
@@ -45,7 +44,7 @@ let $restart_parameters=--innodb_undo_tablespaces=3;
 --source include/restart_mysqld.inc
 
 --echo # Should list 3 undo log tablespaces
-list_files $MYSQLD_DATADIR undo*;
+list_files $MARIADB_TOPDIR undo*;
 
 --echo # case 4: Abort after re-creating new undo tablespaces
 let $restart_parameters=--innodb_undo_tablespaces=4 --debug_dbug="+d,after_reinit_undo_abort";
@@ -56,7 +55,7 @@ let $restart_parameters=--innodb_undo_tablespaces=4;
 --source include/restart_mysqld.inc
 
 --echo # Should list 4 undo log tablespaces
-list_files $MYSQLD_DATADIR undo*;
+list_files $MARIADB_TOPDIR undo*;
 
 --echo # case 5: Abort after re-creating new undo tablespaces successfully
 let $restart_parameters=--innodb_undo_tablespaces=2 --debug_dbug="+d,after_reinit_undo_success";
@@ -67,4 +66,4 @@ let $restart_parameters=--innodb_undo_tablespaces=2;
 --source include/restart_mysqld.inc
 
 --echo # Should list 2 undo log tablespaces
-list_files $MYSQLD_DATADIR undo*;
+list_files $MARIADB_TOPDIR undo*;

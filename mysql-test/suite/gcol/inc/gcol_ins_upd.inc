@@ -632,8 +632,7 @@ LOAD DATA INFILE 'load.data' REPLACE INTO TABLE t1 (pk, b);
 
 # Cleanup
 DROP TABLE t1;
---let $datadir= `SELECT @@datadir`
---remove_file $datadir/test/load.data
+--remove_file $MARIADB_DATADIR/test/load.data
 
 
 --echo #

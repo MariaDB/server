@@ -22,6 +22,7 @@ CREATE TABLE t1 (c1 int) ENGINE=MYISAM;
 #
 # Corrupt the MyISAM table by deleting the base file
 #
+connection slave;
 #
 # Trigger a MyISAM system error during an INFORMATION_SCHEMA.TABLES query
 #

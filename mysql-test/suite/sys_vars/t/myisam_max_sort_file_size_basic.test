@@ -80,13 +80,13 @@ SET @@global.myisam_max_sort_file_size = 2147483648*2147483648;
 #           Check if variable can be access with session scope                  #
 #################################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@myisam_max_sort_file_size = 2;
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.myisam_max_sort_file_size = 3;
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@local.myisam_max_sort_file_size = 4;
 
 
@@ -158,7 +158,7 @@ SELECT @@myisam_max_sort_file_size = @@global.myisam_max_sort_file_size;
 #   Check if myisam_max_sort_file_size can be accessed without @@ sign and scope #
 ##################################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET myisam_max_sort_file_size = 2048;
 --Error ER_BAD_FIELD_ERROR
 SELECT myisam_max_sort_file_size;

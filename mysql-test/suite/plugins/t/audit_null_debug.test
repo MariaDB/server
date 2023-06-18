@@ -16,6 +16,7 @@ call mtr.add_suppression("Index for table 'plugin' is corrupt; try to repair it"
 # (a.k.a. audit event caused by the table access during audit plugin initialization)
 #
 SET debug_dbug='+d,myisam_pretend_crashed_table_on_usage';
+--replace_catalog
 --replace_result \\ /
 --error 126
 install plugin audit_null soname 'adt_null';
@@ -23,6 +24,7 @@ SET debug_dbug=@old_dbug;
 
 install plugin audit_null soname 'adt_null';
 SET debug_dbug='+d,myisam_pretend_crashed_table_on_usage';
+--replace_catalog
 --replace_result \\ /
 --error 126
 uninstall plugin audit_null;

@@ -35,7 +35,6 @@
 
 set @old_binlog_checksum=@@binlog_checksum;
 set global binlog_checksum=NONE;
---let datadir= `select @@datadir`
 
 --source include/have_log_bin.inc
 --source include/binlog_start_pos.inc
@@ -126,7 +125,7 @@ if (!$use_remote_mysqlbinlog)
     --echo #####################################################################################
 
     --replace_regex /server id [0-9]*/server id #/ /server v [^ ]*/server v #.##.##/ /exec_time=[0-9]*/exec_time=#/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/ /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/ /xid=\d*/xid=<xid>/
-    --exec $MYSQL_BINLOG --base64-output=decode-rows -v -v $datadir/master-bin.000001
+    --exec $MYSQL_BINLOG --base64-output=decode-rows -v -v $MARIADB_TOPDIR/master-bin.000001
 
     --echo #
     --echo #####################################################################################
@@ -136,7 +135,7 @@ if (!$use_remote_mysqlbinlog)
     --echo #####################################################################################
 
     --replace_regex /server id [0-9]*/server id #/ /server v [^ ]*/server v #.##.##/ /exec_time=[0-9]*/exec_time=#/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/ /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/ /xid=\d*/xid=<xid>/
-    --exec $MYSQL_BINLOG --base64-output=decode-rows --database=test1 -v -v $datadir/master-bin.000001
+    --exec $MYSQL_BINLOG --base64-output=decode-rows --database=test1 -v -v $MARIADB_TOPDIR/master-bin.000001
 
     --echo #
     --echo #####################################################################################
@@ -145,7 +144,7 @@ if (!$use_remote_mysqlbinlog)
     --echo #####################################################################################
 
     --replace_regex /server id [0-9]*/server id #/ /server v [^ ]*/server v #.##.##/ /exec_time=[0-9]*/exec_time=#/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/ /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/ /xid=\d*/xid=<xid>/
-    --exec $MYSQL_BINLOG --base64-output=decode-rows --skip-annotate-row-events -v -v $datadir/master-bin.000001
+    --exec $MYSQL_BINLOG --base64-output=decode-rows --skip-annotate-row-events -v -v $MARIADB_TOPDIR/master-bin.000001
 
     --let use_remote_mysqlbinlog= 0
 }

@@ -30,7 +30,7 @@ select @@global.host_cache_size;
 @@global.host_cache_size
 0
 set session host_cache_size=1;
-ERROR HY000: Variable 'host_cache_size' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 set global host_cache_size=123;
 select @@global.host_cache_size;
 @@global.host_cache_size

@@ -32,7 +32,7 @@ create table t1(a text, b text, fulltext(a,b))engine=innodb;
 insert into t1 values('test1', 'test2');
 insert into t1 values('text1', 'text2');
 set global innodb_tmpdir = @@global.datadir;
-ERROR 42000: Variable 'innodb_tmpdir' can't be set to the value of 'MYSQL_DATADIR'
+ERROR 42000: Variable 'innodb_tmpdir' can't be set to the value of 'MARIADB_TOPDIR/'
 show warnings;
 Level	Code	Message
 Warning	1210	InnoDB: Path Location should not be same as mysql data directory location.

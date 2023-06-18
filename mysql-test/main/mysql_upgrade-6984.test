@@ -24,8 +24,7 @@ flush privileges;
 # Load event table
 set global event_scheduler=OFF;
 
-let MYSQLD_DATADIR= `select @@datadir`;
---remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
+--remove_file $MARIADB_TOPDIR/mariadb_upgrade_info
 
 # --skip-grant-tables state may changed during the test. Need to restart the
 # server to restore the --skip-grant-tables state. Otherwise MTR's internal

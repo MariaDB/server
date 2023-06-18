@@ -8,8 +8,6 @@ set global max_allowed_packet=1048576;
 connect (conn1,localhost,root,,);
 connection conn1;
 
-let $mysqld_datadir= `select @@datadir`;
-
 set names latin1;
 
 select 'hello',"'hello'",'""hello""','''h''e''l''l''o''',"hel""lo",'hel\'lo';

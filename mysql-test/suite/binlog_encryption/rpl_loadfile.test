@@ -1,12 +1,10 @@
 --source suite/rpl/t/rpl_loadfile.test
 
---let $datadir= `SELECT @@datadir`
-
 --echo #
 --echo # Check that the loaded data is encrypted in the master binlog
 --echo #
 
---let SEARCH_FILE=$datadir/master-bin.0*
+--let SEARCH_FILE=$MARIADB_TOPDIR/master-bin.0*
 --let SEARCH_RANGE = 500000
 --let SEARCH_PATTERN= xxxxxxxxxxx
 --source include/search_pattern_in_file.inc

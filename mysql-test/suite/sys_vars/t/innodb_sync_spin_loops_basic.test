@@ -52,7 +52,7 @@ SELECT @@global.innodb_sync_spin_loops;
 #   Check if innodb_sync_spin_loops can be accessed with and without @@ sign #
 ##############################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET innodb_sync_spin_loops = 1;
 SELECT @@innodb_sync_spin_loops;
 

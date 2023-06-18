@@ -24,7 +24,7 @@ select @@global.sync_relay_log_info;
 @@global.sync_relay_log_info
 1
 set session sync_relay_log_info=1;
-ERROR HY000: Variable 'sync_relay_log_info' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 set global sync_relay_log_info=1.1;
 ERROR 42000: Incorrect argument type to variable 'sync_relay_log_info'
 set global sync_relay_log_info=1e1;

@@ -1,8 +1,6 @@
 # Export Table and Import from saved files .cfg and .ibd
 # Caller should create t1 table definition and populate table
 
-let $MYSQLD_DATADIR = `SELECT @@datadir`;
-
 if(!$source_db) {
 	let $source_db = test;
 }
@@ -13,8 +11,8 @@ if(!$dest_db) {
 
 eval FLUSH TABLES $source_db.t1 FOR EXPORT;
 
---copy_file $MYSQLD_DATADIR/$source_db/t1.cfg $MYSQLD_DATADIR/t1.cfg_back
---copy_file $MYSQLD_DATADIR/$source_db/t1.ibd $MYSQLD_DATADIR/t1.ibd_back
+--copy_file $MARIADB_DATADIR/$source_db/t1.cfg $MARIADB_DATADIR/t1.cfg_back
+--copy_file $MARIADB_DATADIR/$source_db/t1.ibd $MARIADB_DATADIR/t1.ibd_back
 
 UNLOCK TABLES;
 
@@ -26,8 +24,8 @@ if($source_db != $dest_db) {
 
 eval ALTER TABLE $dest_db.t1 DISCARD TABLESPACE;
 
---move_file $MYSQLD_DATADIR/t1.cfg_back $MYSQLD_DATADIR/$dest_db/t1.cfg
---move_file $MYSQLD_DATADIR/t1.ibd_back $MYSQLD_DATADIR/$dest_db/t1.ibd
+--move_file $MARIADB_DATADIR/t1.cfg_back $MARIADB_DATADIR/$dest_db/t1.cfg
+--move_file $MARIADB_DATADIR/t1.ibd_back $MARIADB_DATADIR/$dest_db/t1.ibd
 
 eval ALTER TABLE $dest_db.t1 IMPORT TABLESPACE;
 

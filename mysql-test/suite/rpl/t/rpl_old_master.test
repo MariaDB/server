@@ -9,13 +9,12 @@
 --source include/stop_slave.inc
 
 --connection master
---let $datadir= `SELECT @@datadir`
 
 --let $rpl_server_number= 1
 --source include/rpl_stop_server.inc
 
---remove_file $datadir/master-bin.000001
---copy_file $MYSQL_TEST_DIR/std_data/mariadb-5.5-binlog.000001 $datadir/master-bin.000001
+--remove_file $MARIADB_TOPDIR/master-bin.000001
+--copy_file $MYSQL_TEST_DIR/std_data/mariadb-5.5-binlog.000001 $MARIADB_TOPDIR/master-bin.000001
 
 --let $rpl_server_number= 1
 --source include/rpl_start_server.inc

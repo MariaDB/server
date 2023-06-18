@@ -64,9 +64,9 @@ select * from information_schema.session_variables where variable_name='innodb_r
 VARIABLE_NAME	VARIABLE_VALUE
 INNODB_RANDOM_READ_AHEAD	OFF
 set session innodb_random_read_ahead='OFF';
-ERROR HY000: Variable 'innodb_random_read_ahead' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 set @@session.innodb_random_read_ahead='ON';
-ERROR HY000: Variable 'innodb_random_read_ahead' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 set global innodb_random_read_ahead=1.1;
 ERROR 42000: Incorrect argument type to variable 'innodb_random_read_ahead'
 set global innodb_random_read_ahead=1e1;

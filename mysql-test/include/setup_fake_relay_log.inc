@@ -62,7 +62,12 @@ if ($running) {
 }
 
 # Read server variables.
-let $_fake_datadir= `SELECT @@datadir`;
+--source include/get_datadir.inc
+if (!$rpl_debug)
+{
+  --disable_query_log
+}
+let $_fake_datadir= $MARIADB_TOPDIR;
 let $_fake_filename= query_get_value(SHOW VARIABLES LIKE 'relay_log', Value, 1);
 if (!$_fake_filename) {
   --die ERROR IN TEST: relay_log variable is empty. Please use the server option --relay-log=FILE.

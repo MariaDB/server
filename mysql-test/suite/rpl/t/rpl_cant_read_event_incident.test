@@ -20,6 +20,7 @@
 
 --source include/have_binlog_format_mixed.inc
 --source include/master-slave.inc
+--source include/get_replication_datadir.inc
 
 --connection slave
 --source include/stop_slave.inc
@@ -34,13 +35,12 @@ CHANGE MASTER TO MASTER_USE_GTID=NO;
 
 --connection master
 call mtr.add_suppression("Error in Log_event::read_log_event()");
---let $datadir= `SELECT @@datadir`
 
 --let $rpl_server_number= 1
 --source include/rpl_stop_server.inc
 
---remove_file $datadir/master-bin.000001
---copy_file $MYSQL_TEST_DIR/std_data/bug11747416_32228_binlog.000001 $datadir/master-bin.000001
+--remove_file $MASTER_TOPDIR/master-bin.000001
+--copy_file $MYSQL_TEST_DIR/std_data/bug11747416_32228_binlog.000001 $MASTER_TOPDIR/master-bin.000001
 
 --let $rpl_server_number= 1
 --source include/rpl_start_server.inc

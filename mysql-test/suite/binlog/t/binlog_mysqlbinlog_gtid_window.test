@@ -110,36 +110,35 @@ RESET MASTER;
 --let err_out_= $MYSQLTEST_VARDIR/tmp/err.out
 --let tmp_out_= $MYSQLTEST_VARDIR/tmp/std.out
 
---let $MYSQLD_DATADIR=`select @@datadir`
 --echo #
 --echo #   Error Case 4:
 --echo #   User provides invalid positions
---echo # MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=z
+--echo # MYSQL_BINLOG MARIADB_TOPDIR/master-bin.000001 --start-position=z
 --error 1
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 --start-position=z
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 --start-position=z
 
---echo # MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=1-
+--echo # MYSQL_BINLOG MARIADB_TOPDIR/master-bin.000001 --start-position=1-
 --error 1
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 --start-position=1-
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 --start-position=1-
 
---echo # MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=1-2
+--echo # MYSQL_BINLOG MARIADB_TOPDIR/master-bin.000001 --start-position=1-2
 --error 1
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 --start-position=1-2
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 --start-position=1-2
 
---echo # MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=1-2-
+--echo # MYSQL_BINLOG MARIADB_TOPDIR/master-bin.000001 --start-position=1-2-
 --error 1
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 --start-position=1-2-
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 --start-position=1-2-
 
---echo # MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=-1
+--echo # MYSQL_BINLOG MARIADB_TOPDIR/master-bin.000001 --start-position=-1
 --error 1
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 --start-position=-1
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 --start-position=-1
 
 --echo #
 --echo #   Error Case 5:
 --echo #   User provides GTID ranges with repeated domain ids
---echo # MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-1,0-1-8 --stop-position=0-1-4,0-1-12
+--echo # MYSQL_BINLOG MARIADB_TOPDIR/master-bin.000001 --start-position=0-1-1,0-1-8 --stop-position=0-1-4,0-1-12
 --error 1
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-1,0-1-8 --stop-position=0-1-4,0-1-12
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 --start-position=0-1-1,0-1-8 --stop-position=0-1-4,0-1-12
 
 
 --echo ##############################

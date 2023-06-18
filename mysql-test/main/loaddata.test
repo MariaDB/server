@@ -1,12 +1,8 @@
+-- source include/have_ucs2.inc
+
 #
 # Some simple test of load data
 #
-
--- source include/have_ucs2.inc
-
---disable_warnings
-drop table if exists t1, t2;
---enable_warnings
 
 create table t1 (a date, b date, c date not null, d date);
 load data infile '../../std_data/loaddata1.dat' ignore into table t1 fields terminated by ',';
@@ -554,8 +550,7 @@ select @@character_set_filesystem;
 LOAD DATA INFILE 't@002d1' INTO TABLE t1;
 SELECT * FROM t1;
 DROP TABLE t1;
-let $MYSQLD_DATADIR= `select @@datadir`;
-remove_file $MYSQLD_DATADIR/test/t@002d1;
+remove_file $MARIADB_DATADIR/test/t@002d1;
 SET character_set_filesystem=default;
 select @@character_set_filesystem;
 
@@ -571,9 +566,7 @@ LOAD DATA INFILE 't1.txt' IGNORE INTO TABLE t1 SET col0=col0;
 SELECT * FROM t1;
 
 DROP TABLE t1;
-let $MYSQLD_DATADIR= `select @@datadir`;
-remove_file $MYSQLD_DATADIR/test/t1.txt;
-
+remove_file $MARIADB_DATADIR/test/t1.txt;
 
 --echo #
 --echo # Bug #52512 : Assertion `! is_set()' in 
@@ -612,8 +605,7 @@ disconnect con1;
 #SELECT * FROM t1;
 
 #DROP TABLE t1;
-#let $MYSQLD_DATADIR= `select @@datadir`;
-#remove_file $MYSQLD_DATADIR/test/tmpp.txt;
+#remove_file $MARIADB_DATADIR/test/tmpp.txt;
 
 
 #--echo # Problem # 2 : if you write and read ucs2 data to a file they're lost
@@ -625,8 +617,7 @@ disconnect con1;
 #SELECT * FROM t1;
 
 #DROP TABLE t1;
-#let $MYSQLD_DATADIR= `select @@datadir`;
-#remove_file $MYSQLD_DATADIR/test/tmpp2.txt;
+#remove_file $MARIADB_DATADIR/test/tmpp2.txt;
 ######################################################################################
 
 
@@ -641,8 +632,7 @@ LOAD DATA INFILE 't1.dat' IGNORE INTO TABLE t1 CHARACTER SET utf8;
 --enable_warnings
 
 DROP TABLE t1;
-let $MYSQLD_DATADIR= `select @@datadir`;
-remove_file $MYSQLD_DATADIR/test/t1.dat;
+remove_file $MARIADB_DATADIR/test/t1.dat;
 
 --echo #
 --echo # Bug#11765141 - 58072: LOAD DATA INFILE: LEAKS IO CACHE MEMORY

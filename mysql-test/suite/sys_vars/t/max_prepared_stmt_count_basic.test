@@ -110,7 +110,7 @@ SELECT @@global.max_prepared_stmt_count;
 #       Test if accessing session max_prepared_stmt_count gives error       #
 ############################################################################# 
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.max_prepared_stmt_count = 4096;
 --Error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.max_prepared_stmt_count;
@@ -155,7 +155,7 @@ SELECT @@max_prepared_stmt_count = @@global.max_prepared_stmt_count;
 #   Check if max_prepared_stmt_count can be accessed with and without @@ sign    #
 ################################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET max_prepared_stmt_count = 6000;
 SELECT @@max_prepared_stmt_count;
 --Error ER_UNKNOWN_TABLE

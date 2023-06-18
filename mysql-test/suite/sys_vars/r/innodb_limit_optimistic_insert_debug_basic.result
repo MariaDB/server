@@ -40,9 +40,9 @@ select * from information_schema.session_variables where variable_name='innodb_l
 VARIABLE_NAME	VARIABLE_VALUE
 INNODB_LIMIT_OPTIMISTIC_INSERT_DEBUG	0
 set session innodb_limit_optimistic_insert_debug='some';
-ERROR HY000: Variable 'innodb_limit_optimistic_insert_debug' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 set @@session.innodb_limit_optimistic_insert_debug='some';
-ERROR HY000: Variable 'innodb_limit_optimistic_insert_debug' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 set global innodb_limit_optimistic_insert_debug=1.1;
 ERROR 42000: Incorrect argument type to variable 'innodb_limit_optimistic_insert_debug'
 set global innodb_limit_optimistic_insert_debug='foo';

@@ -19,7 +19,7 @@ select * from information_schema.session_variables where variable_name='aria_pag
 #
 set global aria_pagecache_age_threshold=200;
 select @@global.aria_pagecache_age_threshold;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session aria_pagecache_age_threshold=1;
 
 #

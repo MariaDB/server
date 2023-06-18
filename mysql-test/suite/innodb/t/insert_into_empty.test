@@ -3,6 +3,8 @@
 --source include/have_sequence.inc
 --source include/maybe_debug.inc
 --source include/have_partition.inc
+# We can remove the next line when innodb_table_stats is per catalog
+--source include/not_catalogs.inc
 
 # Enable MDEV-515 table-level undo logging for insert into empty table
 SET foreign_key_checks=0, unique_checks=0;

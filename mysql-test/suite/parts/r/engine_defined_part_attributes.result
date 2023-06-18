@@ -226,20 +226,20 @@ id INT
 (
 pt1 PAGE_COMPRESSED=0
 );
-SELECT name, flag FROM information_schema.innodb_sys_tablespaces WHERE name like 'test/t12%';
+SELECT name, flag FROM information_schema.innodb_sys_tablespaces WHERE name like '%test/t12%';
 name	flag
 test/t12#P#pt1	21
 ALTER TABLE `t12` ADD PARTITION (
 PARTITION pt2 PAGE_COMPRESSED=1
 );
-SELECT name, flag FROM information_schema.innodb_sys_tablespaces WHERE name like 'test/t12%';
+SELECT name, flag FROM information_schema.innodb_sys_tablespaces WHERE name like '%test/t12%';
 name	flag
 test/t12#P#pt1	21
 test/t12#P#pt2	1610612789
 ALTER TABLE `t12` ADD PARTITION (
 PARTITION pt3 PAGE_COMPRESSED=1 PAGE_COMPRESSION_LEVEL=3
 );
-SELECT name, flag FROM information_schema.innodb_sys_tablespaces WHERE name like 'test/t12%';
+SELECT name, flag FROM information_schema.innodb_sys_tablespaces WHERE name like '%test/t12%';
 name	flag
 test/t12#P#pt1	21
 test/t12#P#pt2	1610612789
@@ -261,7 +261,7 @@ t13	CREATE TABLE `t13` (
 (PARTITION `pt1` VALUES LESS THAN (100) ENGINE = InnoDB PAGE_COMPRESSED = 0,
  PARTITION `pt2` VALUES LESS THAN (200) ENGINE = InnoDB PAGE_COMPRESSED = 1 PAGE_COMPRESSION_LEVEL = 3,
  PARTITION `pt3` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
-SELECT name, flag FROM information_schema.innodb_sys_tablespaces WHERE name like 'test/t13%';
+SELECT name, flag FROM information_schema.innodb_sys_tablespaces WHERE name like '%test/t13%';
 name	flag
 test/t13#P#pt1	21
 test/t13#P#pt2	805306421
@@ -280,7 +280,7 @@ t13	CREATE TABLE `t13` (
 (PARTITION `pt1` VALUES LESS THAN (100) ENGINE = InnoDB PAGE_COMPRESSED = 1 PAGE_COMPRESSION_LEVEL = 3,
  PARTITION `pt2` VALUES LESS THAN (200) ENGINE = InnoDB,
  PARTITION `pt3` VALUES LESS THAN MAXVALUE ENGINE = InnoDB PAGE_COMPRESSED = 0)
-SELECT name, flag FROM information_schema.innodb_sys_tablespaces WHERE name like 'test/t13%';
+SELECT name, flag FROM information_schema.innodb_sys_tablespaces WHERE name like '%test/t13%';
 name	flag
 test/t13#P#pt1	805306421
 test/t13#P#pt2	1610612789

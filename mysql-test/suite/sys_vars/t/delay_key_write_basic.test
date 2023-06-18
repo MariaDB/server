@@ -103,7 +103,7 @@ SET @@global.delay_key_write = "";
 #              Test if accessing session delay_key_write gives error      #
 ########################################################################### 
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@delay_key_write = 0;
 --Error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.delay_key_write;
@@ -149,7 +149,7 @@ SELECT @@global.delay_key_write;
 #####################################################################  
 # Check if delay_key_write can be accessed with and without @@ sign #
 #####################################################################
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET delay_key_write = ON;
 SELECT @@delay_key_write;
 

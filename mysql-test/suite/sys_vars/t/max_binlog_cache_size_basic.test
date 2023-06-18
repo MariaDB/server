@@ -117,7 +117,7 @@ SELECT @@global.max_binlog_cache_size;
 #       Test if accessing session max_binlog_cache_size gives error       #
 ########################################################################### 
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.max_binlog_cache_size = 4096;
 --Error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.max_binlog_cache_size;
@@ -162,7 +162,7 @@ SELECT @@max_binlog_cache_size = @@global.max_binlog_cache_size;
 #   Check if max_binlog_cache_size can be accessed with and without @@ sign    #
 ################################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET max_binlog_cache_size = 6000;
 SELECT @@max_binlog_cache_size;
 --Error ER_UNKNOWN_TABLE

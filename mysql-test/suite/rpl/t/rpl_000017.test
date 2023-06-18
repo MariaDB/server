@@ -13,10 +13,11 @@
 --source include/master-slave.inc
 
 --connection slave
---let $slave_datadir= `SELECT @@datadir`
+--source include/get_datadir.inc
+--let $SLAVE_TOPDIR=$MARIADB_TOPDIR
 
---remove_file $slave_datadir/master.info
---write_file $slave_datadir/master.info
+--remove_file $SLAVE_TOPDIR/master.info
+--write_file $SLAVE_TOPDIR/master.info
 master-bin.000001
 4
 127.0.0.1

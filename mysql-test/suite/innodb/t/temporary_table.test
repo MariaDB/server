@@ -27,10 +27,9 @@ call mtr.add_suppression("InnoDB: Unable to parse innodb_temp_data_file_path=");
 --enable_query_log
 
 let $MYSQL_TMP_DIR = `select @@tmpdir`;
-let $MYSQL_DATA_DIR = `select @@datadir`;
 
---echo # files in MYSQL_DATA_DIR
---list_files $MYSQL_DATA_DIR/ ibtmp*
+--echo # files in MARIADB_TOPDIR
+--list_files $MARIADB_TOPDIR/ ibtmp*
 
 create temporary table t1 (i int, f float, c char(100)) engine=innodb;
 insert into t1 values (100, 1.1, 'pune');
@@ -114,8 +113,8 @@ drop procedure populate_t1;
 --let $restart_parameters = --innodb-read-only
 --source include/restart_mysqld.inc
 
---echo # files in MYSQL_DATA_DIR
---list_files $MYSQL_DATA_DIR/ ibtmp*
+--echo # files in MARIADB_TOPDIR
+--list_files $MARIADB_TOPDIR/ ibtmp*
 
 --error ER_NO_SUCH_TABLE
 select * from t1;
@@ -221,7 +220,7 @@ create temporary table t (
 	engine = innodb row_format = compressed;
 --echo #files in MYSQL_TMP_DIR, expecting only default temporary tablespace file
 --list_files $MYSQL_TMP_DIR/ *.ibd
---list_files $MYSQL_DATA_DIR/ ibtmp*
+--list_files $MARIADB_TOPDIR/ ibtmp*
 #
 create temporary table t (
 	i int)

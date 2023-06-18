@@ -5401,7 +5401,7 @@ lock tables t1 read;
 connect  con1,localhost,root,,;
 connection con1;
 select * from t1;
-ERROR HY000: File 'MYSQLD_DATADIR/test/t1.CSV' not found (Errcode: 2 "No such file or directory")
+ERROR HY000: File 'MARIADB_DATADIR/test/t1.CSV' not found (Errcode: 2 "No such file or directory")
 disconnect con1;
 connection default;
 unlock tables;

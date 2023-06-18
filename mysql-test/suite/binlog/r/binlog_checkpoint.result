@@ -164,7 +164,7 @@ connection default;
 SET GLOBAL debug_dbug="+d,only_kill_system_threads_no_loop";
 # restart
 ** Proof of shutdown caused ROLLBACK-completed transaction
-# MYSQL_BINLOG datadir/binlog_file --result-file=assert_file
+# MYSQL_BINLOG MARIADB_DATADIR/binlog_file --result-file=assert_file
 include/assert_grep.inc [No XA statements should be written into the binary log]
 include/assert_grep.inc [The transaction should be rolled back]
 SELECT * FROM tm;

@@ -66,11 +66,11 @@ select @@global.Host_Cache_Size=@Default_host_cache_size;
 ####################################################################
 #   Checking Value can be set - Dynamic                            #
 ####################################################################
---error ER_GLOBAL_VARIABLE 
+--error ER_GLOBAL_VARIABLE, ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@local.Host_Cache_Size=1;
 --echo Expected error 'Global variable'
 
---error ER_GLOBAL_VARIABLE 
+--error ER_GLOBAL_VARIABLE, ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.Host_Cache_Size=1;
 --echo Expected error 'Global variable'
 

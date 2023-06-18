@@ -53,10 +53,10 @@ if ($rpl_server_count)
 --let $rpl_server_number= 2
 --source include/rpl_connect.inc
 
-
 --let $include_filename= master-slave.inc
 --source include/end_include_file.inc
 
+--source include/get_replication_datadir.inc
 
 # Set the default connection to 'master'. Do this after
 # end_include_file.inc, so that it gets printed to the query log.

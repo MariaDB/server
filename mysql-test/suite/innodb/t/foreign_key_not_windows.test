@@ -4,6 +4,8 @@
 # The embedded server prepends --datadir or --innodb-data-home-dir
 # to the path names, which reduces the maximum length of names further.
 --source include/not_embedded.inc
+# Path length becomes longer with catalogs which causes create table to fail
+--source include/not_catalogs.inc
 
 --echo #
 --echo # MDEV-28980 InnoDB: Failing assertion: len <= MAX_TABLE_NAME_LEN
@@ -25,17 +27,17 @@ CREATE TABLE t (a INT PRIMARY KEY) ENGINE=InnoDB;
 # corresponding to the 51 characters below: 5*51=255.
 let $d255=###################################################;
 let $d250=##################################################;
---replace_result $d255 d255
+--replace_catalog $d255 d255
 eval CREATE DATABASE `$d255`;
---replace_result $d255 d255
+--replace_catalog $d255 d255
 --error ER_IDENT_CAUSES_TOO_LONG_PATH
 eval CREATE TABLE `$d255`.`$d255`
 (a INT PRIMARY KEY, FOREIGN KEY(a) REFERENCES test.t(a)) ENGINE=InnoDB;
---replace_result $d255 d255
+--replace_catalog $d255 d255
 --error ER_IDENT_CAUSES_TOO_LONG_PATH
 eval CREATE TABLE `$d255`.`_$d250`
 (a INT PRIMARY KEY, FOREIGN KEY(a) REFERENCES test.t(a)) ENGINE=InnoDB;
---replace_result $d255 d255
+--replace_catalog $d255 d255
 eval CREATE TABLE `$d255`.`$d250`
 (a INT PRIMARY KEY, FOREIGN KEY(a) REFERENCES test.t(a)) ENGINE=InnoDB;
 
@@ -44,14 +46,14 @@ eval CREATE TABLE `$d255`.`$d250`
 --echo #
 
 let $d245=-------------------------------------------------;
---replace_result $d245 d245 $d255 d255
+--replace_catalog $d245 d245 $d255 d255
 eval CREATE TABLE `$d255`.`$d245` (x INT) ENGINE=InnoDB;
---replace_result $d250 d250 $d255 d255
+--replace_catalog $d250 d250 $d255 d255
 eval DROP TABLE `$d255`.`$d250`;
 
---replace_result $d245 d245 $d250 d250 d255 d255
+--replace_catalog $d245 d245 $d250 d250 d255 d255
 eval RENAME TABLE `$d255`.`$d245` TO `$d255`.`$d250`;
---replace_result $d250 d250 $d255 d255
+--replace_catalog $d250 d250 $d255 d255
 eval RENAME TABLE `$d255`.`$d250` TO a;
 --replace_result $d255 d255
 DROP TABLE a,t;

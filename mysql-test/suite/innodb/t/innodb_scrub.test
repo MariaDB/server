@@ -1,7 +1,6 @@
 -- source include/have_innodb.inc
 -- source include/no_valgrind_without_big.inc
 
-let $MYSQLD_DATADIR=`select @@datadir`;
 CREATE TABLE t1(f1 int auto_increment primary key,
                 f2 varchar(256),
                 f3 text) engine = innodb;
@@ -19,7 +18,7 @@ FLUSH TABLE t1 FOR EXPORT;
 UNLOCK TABLES;
 
 let SEARCH_PATTERN= unicycle|repairman;
-let SEARCH_FILE= $MYSQLD_DATADIR/test/t1.ibd;
+let SEARCH_FILE= $MARIADB_DATADIR/test/t1.ibd;
 -- source include/search_pattern_in_file.inc
 DELETE FROM t1;
 -- source include/wait_all_purged.inc

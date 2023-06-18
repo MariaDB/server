@@ -18,8 +18,7 @@ connection default;
 
 connection default;
 
-let MYSQLD_DATADIR= `select @@datadir`;
-remove_file $MYSQLD_DATADIR/$MARIA_LOG/aria_log.00000001;
+remove_file $MARIADB_TOPDIR/$MARIA_LOG/aria_log.00000001;
 --replace_regex /Size unknown ; .*aria_log.00000001/Size unknown ; aria_log.00000001/
 show engine aria logs;
 

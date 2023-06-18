@@ -102,7 +102,7 @@ SET @@global.automatic_sp_privileges = '';
 #         Test if accessing session automatic_sp_privileges gives error   #
 ########################################################################### 
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.automatic_sp_privileges = 1;
 --Error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.automatic_sp_privileges;
@@ -150,7 +150,7 @@ SELECT @@automatic_sp_privileges = @@global.automatic_sp_privileges;
 ###############################################################################
 #   Check if automatic_sp_privileges can be accessed with and without @@ sign #
 ###############################################################################
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET automatic_sp_privileges = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT local.automatic_sp_privileges;

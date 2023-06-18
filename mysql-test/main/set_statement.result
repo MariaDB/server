@@ -960,7 +960,7 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 ''
 '#------------------Test 20-----------------------#'
 SET STATEMENT connect_timeout=100 FOR INSERT INTO t1 VALUES (1,2);
-ERROR HY000: Variable 'connect_timeout' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 ''
 ''
 '#------------------Test 21-----------------------#'
@@ -1099,7 +1099,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 SET @@default_storage_engine=@save_dfs;
 SET STATEMENT keycache1.key_buffer_size=1024 FOR SELECT 1;
-ERROR HY000: Variable 'key_buffer_size' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 set @save_general_log=@@global.general_log;
 # SET STATEMENT works (OK)
 set statement lock_wait_timeout=1 for select @@lock_wait_timeout;

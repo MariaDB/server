@@ -51,7 +51,6 @@ INSERT INTO t8 SET c1=2;
 FLUSH TABLES t1, t2, t3, t4, t5, t6, t7, t8 FOR EXPORT;
 
 --let INNODB_PAGE_SIZE=`select @@innodb_page_size`
---let MYSQLD_DATADIR = `SELECT @@datadir`
 
 --perl
 my $ps= $ENV{INNODB_PAGE_SIZE};
@@ -59,14 +58,14 @@ my $PAGE_HEADER = 38;
 my $PAGE_ROOT_AUTO_INC = 18;
 print "AUTO_INCREMENT not partitioned: ";
 for (my $i = 1; $i <= 5; ++$i) {
-  my $autoinc= read_autoinc("$ENV{MYSQLD_DATADIR}/test/t$i.ibd");
+  my $autoinc= read_autoinc("$ENV{MARIADB_DATADIR}/test/t$i.ibd");
   print "$autoinc ";
 }
 print "\n";
 print "AUTO_INCREMENT partitioned: ";
 for (my $i = 6; $i <= 8; ++$i) {
-  my $p1= read_autoinc("$ENV{MYSQLD_DATADIR}/test/t$i#P#p1.ibd");
-  my $p2= read_autoinc("$ENV{MYSQLD_DATADIR}/test/t$i#P#p2.ibd");
+  my $p1= read_autoinc("$ENV{MARIADB_DATADIR}/test/t$i#P#p1.ibd");
+  my $p2= read_autoinc("$ENV{MARIADB_DATADIR}/test/t$i#P#p2.ibd");
   print "($p1, $p2) ";
 }
 print "\n";

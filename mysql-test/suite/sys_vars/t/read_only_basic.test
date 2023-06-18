@@ -110,7 +110,7 @@ SELECT @@global.read_only;
 #       Test if accessing session read_only gives error            #
 ####################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.read_only = 0;
 SELECT @@read_only;
 
@@ -143,7 +143,7 @@ SELECT @@read_only = @@global.read_only;
 #   Check if read_only can be accessed with and without @@ sign   #
 ###################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET read_only = 1;
 SELECT @@read_only;
 --Error ER_UNKNOWN_TABLE

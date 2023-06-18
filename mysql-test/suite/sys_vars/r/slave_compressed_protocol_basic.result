@@ -10,7 +10,7 @@ SELECT @@global.slave_compressed_protocol;
 0
 '#---------------------FN_DYNVARS_147_02-------------------------#'
 SET slave_compressed_protocol = 1;
-ERROR HY000: Variable 'slave_compressed_protocol' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@slave_compressed_protocol;
 @@slave_compressed_protocol
 0
@@ -50,11 +50,11 @@ SET @@global.slave_compressed_protocol = NO;
 ERROR 42000: Variable 'slave_compressed_protocol' can't be set to the value of 'NO'
 '#-------------------FN_DYNVARS_147_05----------------------------#'
 SET @@session.slave_compressed_protocol = 0;
-ERROR HY000: Variable 'slave_compressed_protocol' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SET @@slave_compressed_protocol = 0;
-ERROR HY000: Variable 'slave_compressed_protocol' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SET @@local.slave_compressed_protocol = 0;
-ERROR HY000: Variable 'slave_compressed_protocol' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@session.slave_compressed_protocol;
 ERROR HY000: Variable 'slave_compressed_protocol' is a GLOBAL variable
 SELECT @@local.slave_compressed_protocol;

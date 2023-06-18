@@ -25,7 +25,6 @@ call mtr.add_suppression("InnoDB: .* does not exist in the InnoDB internal");
 # Speed up wait_until_connected_again.inc
 let NO_WSREP=1;
 --enable_query_log
-let $MYSQLD_DATADIR= `SELECT @@datadir`;
 
 create database test2;
 RESET MASTER;
@@ -138,13 +137,13 @@ while ($e < $engine_count)
       }
       if ($error != 0)
       {
-        --list_files $MYSQLD_DATADIR/test t*
-        --list_files $MYSQLD_DATADIR/test *sql*
-        --list_files $MYSQLD_DATADIR/test2 t*
-        --list_files $MYSQLD_DATADIR/test2 *sql*
+        --list_files $MARIADB_DATADIR/test t*
+        --list_files $MARIADB_DATADIR/test *sql*
+        --list_files $MARIADB_DATADIR/test2 t*
+        --list_files $MARIADB_DATADIR/test2 *sql*
         # Check which tables still exists
         --error 0,1
-        --file_exists $MYSQLD_DATADIR/test/t1.frm
+        --file_exists $MARIADB_DATADIR/test/t1.frm
         let $error2=$errno;
         if ($error2 == 0)
         {
@@ -154,7 +153,7 @@ while ($e < $engine_count)
         if ($error2 == 1)
         {
           --error 0,1
-          --file_exists $MYSQLD_DATADIR/test/t2.frm
+          --file_exists $MARIADB_DATADIR/test/t2.frm
           let $error3=$errno;
           if ($error3 == 0)
           {

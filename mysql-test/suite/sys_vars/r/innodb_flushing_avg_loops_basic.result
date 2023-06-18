@@ -10,7 +10,7 @@ SELECT @@global.innodb_flushing_avg_loops;
 30
 '#---------------------FN_DYNVARS_046_02-------------------------#'
 SET innodb_flushing_avg_loops = 1;
-ERROR HY000: Variable 'innodb_flushing_avg_loops' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@innodb_flushing_avg_loops;
 @@innodb_flushing_avg_loops
 30

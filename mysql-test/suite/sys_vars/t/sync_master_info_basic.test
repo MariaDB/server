@@ -18,7 +18,7 @@ select * from information_schema.session_variables where variable_name='sync_mas
 #
 set global sync_master_info=1;
 select @@global.sync_master_info;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session sync_master_info=1;
 
 #

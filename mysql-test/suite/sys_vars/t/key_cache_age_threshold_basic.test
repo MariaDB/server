@@ -100,7 +100,7 @@ SELECT @@global.key_cache_age_threshold;
 #       Test if accessing session key_cache_age_threshold gives error     #
 ########################################################################### 
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.key_cache_age_threshold = 0;
 --Error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.key_cache_age_threshold;
@@ -145,7 +145,7 @@ SELECT @@key_cache_age_threshold = @@global.key_cache_age_threshold;
 #   Check if key_cache_age_threshold can be accessed with and without @@ sign    #
 ##################################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET key_cache_age_threshold = 8000;
 SELECT @@key_cache_age_threshold;
 --Error ER_UNKNOWN_TABLE

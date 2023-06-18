@@ -210,13 +210,13 @@ test/t7_restart#p#p1#sp#s2	test/t7_restart#p#p1#sp#s2	97	8	Dynamic	0
 test/t7_restart#p#p1#sp#s3	test/t7_restart#p#p1#sp#s3	97	8	Dynamic	0
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
-innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
-innodb_undo002	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo002
-innodb_undo003	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo003
-test/t1_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t1_restart.ibd
-test/t2_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t2_restart.ibd
-test/t3_restart	DEFAULT	2048	MYSQLD_DATADIR/test/t3_restart.ibd
-test/t4_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t4_restart.ibd
+innodb_undo001	DEFAULT	DEFAULT	MARIADB_DATADIR//undo001
+innodb_undo002	DEFAULT	DEFAULT	MARIADB_DATADIR//undo002
+innodb_undo003	DEFAULT	DEFAULT	MARIADB_DATADIR//undo003
+test/t1_restart	DEFAULT	DEFAULT	MARIADB_DATADIR/test/t1_restart.ibd
+test/t2_restart	DEFAULT	DEFAULT	MARIADB_DATADIR/test/t2_restart.ibd
+test/t3_restart	DEFAULT	2048	MARIADB_DATADIR/test/t3_restart.ibd
+test/t4_restart	DEFAULT	DEFAULT	MARIADB_DATADIR/test/t4_restart.ibd
 test/t5_restart	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t5_restart.ibd
 test/t6_restart#p#p0	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p0.ibd
 test/t6_restart#p#p1	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p1.ibd
@@ -225,11 +225,11 @@ test/t7_restart#p#p0#sp#s0	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t7_restart
 test/t7_restart#p#p0#sp#s1	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p0#sp#s1.ibd
 test/t7_restart#p#p1#sp#s2	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p1#sp#s2.ibd
 test/t7_restart#p#p1#sp#s3	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p1#sp#s3.ibd
-innodb_temporary	DEFAULT	DEFAULT	MYSQLD_DATADIR/ibtmp1
+innodb_temporary	DEFAULT	DEFAULT	MARIADB_DATADIR/ibtmp1
 #
 # Shutdown the server and list the tablespace OS files
 #
----- MYSQL_DATA_DIR/test
+---- MARIADB_DATADIR/test
 db.opt
 t1_restart.frm
 t1_restart.ibd
@@ -396,13 +396,13 @@ test/t7_restart#p#p1#sp#s2	test/t7_restart#p#p1#sp#s2	97	8	Dynamic	0
 test/t7_restart#p#p1#sp#s3	test/t7_restart#p#p1#sp#s3	97	8	Dynamic	0
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
-innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
-innodb_undo002	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo002
-innodb_undo003	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo003
-test/t1_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t1_restart.ibd
-test/t2_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t2_restart.ibd
-test/t3_restart	DEFAULT	2048	MYSQLD_DATADIR/test/t3_restart.ibd
-test/t4_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t4_restart.ibd
+innodb_undo001	DEFAULT	DEFAULT	MARIADB_DATADIR//undo001
+innodb_undo002	DEFAULT	DEFAULT	MARIADB_DATADIR//undo002
+innodb_undo003	DEFAULT	DEFAULT	MARIADB_DATADIR//undo003
+test/t1_restart	DEFAULT	DEFAULT	MARIADB_DATADIR/test/t1_restart.ibd
+test/t2_restart	DEFAULT	DEFAULT	MARIADB_DATADIR/test/t2_restart.ibd
+test/t3_restart	DEFAULT	2048	MARIADB_DATADIR/test/t3_restart.ibd
+test/t4_restart	DEFAULT	DEFAULT	MARIADB_DATADIR/test/t4_restart.ibd
 test/t5_restart	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t5_restart.ibd
 test/t6_restart#p#p0	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p0.ibd
 test/t6_restart#p#p1	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p1.ibd
@@ -411,7 +411,7 @@ test/t7_restart#p#p0#sp#s0	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t7_restart
 test/t7_restart#p#p0#sp#s1	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p0#sp#s1.ibd
 test/t7_restart#p#p1#sp#s2	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p1#sp#s2.ibd
 test/t7_restart#p#p1#sp#s3	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p1#sp#s3.ibd
-innodb_temporary	DEFAULT	DEFAULT	MYSQLD_DATADIR/ibtmp1
+innodb_temporary	DEFAULT	DEFAULT	MARIADB_DATADIR/ibtmp1
 DROP TABLE t1_restart;
 DROP TABLE t2_restart;
 DROP TABLE t3_restart;
@@ -423,10 +423,10 @@ ALTER TABLE t6_restart TRUNCATE PARTITION p2;
 ALTER TABLE t7_restart TRUNCATE PARTITION p1;
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
-innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
-innodb_undo002	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo002
-innodb_undo003	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo003
-test/t4_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t4_restart.ibd
+innodb_undo001	DEFAULT	DEFAULT	MARIADB_DATADIR//undo001
+innodb_undo002	DEFAULT	DEFAULT	MARIADB_DATADIR//undo002
+innodb_undo003	DEFAULT	DEFAULT	MARIADB_DATADIR//undo003
+test/t4_restart	DEFAULT	DEFAULT	MARIADB_DATADIR/test/t4_restart.ibd
 test/t6_restart#p#p0	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p0.ibd
 test/t6_restart#p#p1	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p1.ibd
 test/t7_restart#p#p0#sp#s0	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p0#sp#s0.ibd
@@ -435,7 +435,7 @@ test/t5_restart	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t5_restart.ibd
 test/t6_restart#p#p2	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p2.ibd
 test/t7_restart#p#p1#sp#s2	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p1#sp#s2.ibd
 test/t7_restart#p#p1#sp#s3	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p1#sp#s3.ibd
-innodb_temporary	DEFAULT	DEFAULT	MYSQLD_DATADIR/ibtmp1
+innodb_temporary	DEFAULT	DEFAULT	MARIADB_DATADIR/ibtmp1
 INSERT INTO t5_restart VALUES (1000000000, 'MySQL', 'InnoDB', '2011-11-11', 'Read this after reboot');
 INSERT INTO t5_restart (SELECT 0, c2, c3, c4, c5 FROM t5_restart);
 INSERT INTO t5_restart (SELECT 0, c2, c3, c4, c5 FROM t5_restart);
@@ -494,7 +494,7 @@ SUBPARTITION BY HASH (`c1`)
 #
 # Shutdown the server and make a backup of a tablespace
 #
----- MYSQL_DATA_DIR/test
+---- MARIADB_DATADIR/test
 db.opt
 t4_restart.frm
 t4_restart.ibd
@@ -529,10 +529,10 @@ t7_restart#p#p1#sp#s3.ibd
 # restart
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
-innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
-innodb_undo002	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo002
-innodb_undo003	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo003
-test/t4_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t4_restart.ibd
+innodb_undo001	DEFAULT	DEFAULT	MARIADB_DATADIR//undo001
+innodb_undo002	DEFAULT	DEFAULT	MARIADB_DATADIR//undo002
+innodb_undo003	DEFAULT	DEFAULT	MARIADB_DATADIR//undo003
+test/t4_restart	DEFAULT	DEFAULT	MARIADB_DATADIR/test/t4_restart.ibd
 test/t6_restart#p#p0	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p0.ibd
 test/t6_restart#p#p1	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p1.ibd
 test/t7_restart#p#p0#sp#s0	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p0#sp#s0.ibd
@@ -541,7 +541,7 @@ test/t5_restart	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t5_restart.ibd
 test/t6_restart#p#p2	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p2.ibd
 test/t7_restart#p#p1#sp#s2	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p1#sp#s2.ibd
 test/t7_restart#p#p1#sp#s3	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p1#sp#s3.ibd
-innodb_temporary	DEFAULT	DEFAULT	MYSQLD_DATADIR/ibtmp1
+innodb_temporary	DEFAULT	DEFAULT	MARIADB_DATADIR/ibtmp1
 SELECT count(*) FROM t5_restart;
 count(*)
 8
@@ -600,7 +600,7 @@ RENAME TABLE t5_restart TO t55_restart;
 ERROR 42S01: Table 't55_restart' already exists
 RENAME TABLE t5_restart TO t55_restart;
 ERROR HY000: Error on rename of './test/t5_restart' to './test/t55_restart' (errno: 184 "Tablespace already exists")
----- MYSQL_DATA_DIR/test
+---- MARIADB_DATADIR/test
 db.opt
 t4_restart.frm
 t4_restart.ibd
@@ -634,10 +634,10 @@ RENAME TABLE t6_restart TO t66_restart;
 RENAME TABLE t7_restart TO t77_restart;
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
-innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
-innodb_undo002	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo002
-innodb_undo003	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo003
-test/t4_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t4_restart.ibd
+innodb_undo001	DEFAULT	DEFAULT	MARIADB_DATADIR//undo001
+innodb_undo002	DEFAULT	DEFAULT	MARIADB_DATADIR//undo002
+innodb_undo003	DEFAULT	DEFAULT	MARIADB_DATADIR//undo003
+test/t4_restart	DEFAULT	DEFAULT	MARIADB_DATADIR/test/t4_restart.ibd
 test/t66_restart#p#p0	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t66_restart#p#p0.ibd
 test/t66_restart#p#p1	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t66_restart#p#p1.ibd
 test/t77_restart#p#p0#sp#s0	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t77_restart#p#p0#sp#s0.ibd
@@ -646,7 +646,7 @@ test/t55_restart	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t55_restart.ibd
 test/t66_restart#p#p2	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t66_restart#p#p2.ibd
 test/t77_restart#p#p1#sp#s2	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t77_restart#p#p1#sp#s2.ibd
 test/t77_restart#p#p1#sp#s3	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t77_restart#p#p1#sp#s3.ibd
-innodb_temporary	DEFAULT	DEFAULT	MYSQLD_DATADIR/ibtmp1
+innodb_temporary	DEFAULT	DEFAULT	MARIADB_DATADIR/ibtmp1
 INSERT INTO t55_restart (SELECT 0, c2, c3, c4, c5 FROM t55_restart);
 SELECT count(*) FROM t55_restart;
 count(*)
@@ -701,7 +701,7 @@ SUBPARTITION BY HASH (`c1`)
  PARTITION `p1` VALUES LESS THAN MAXVALUE
  (SUBPARTITION `s2` DATA DIRECTORY = 'MYSQL_TMP_DIR/alt_dir' ENGINE = InnoDB,
   SUBPARTITION `s3` DATA DIRECTORY = 'MYSQL_TMP_DIR/alt_dir' ENGINE = InnoDB))
----- MYSQL_DATA_DIR/test
+---- MARIADB_DATADIR/test
 db.opt
 t4_restart.frm
 t4_restart.ibd
@@ -733,10 +733,10 @@ t77_restart#p#p1#sp#s3.ibd
 # restart
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
-innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
-innodb_undo002	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo002
-innodb_undo003	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo003
-test/t4_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t4_restart.ibd
+innodb_undo001	DEFAULT	DEFAULT	MARIADB_DATADIR//undo001
+innodb_undo002	DEFAULT	DEFAULT	MARIADB_DATADIR//undo002
+innodb_undo003	DEFAULT	DEFAULT	MARIADB_DATADIR//undo003
+test/t4_restart	DEFAULT	DEFAULT	MARIADB_DATADIR/test/t4_restart.ibd
 test/t66_restart#p#p0	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t66_restart#p#p0.ibd
 test/t66_restart#p#p1	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t66_restart#p#p1.ibd
 test/t77_restart#p#p0#sp#s0	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t77_restart#p#p0#sp#s0.ibd
@@ -745,7 +745,7 @@ test/t55_restart	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t55_restart.ibd
 test/t66_restart#p#p2	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t66_restart#p#p2.ibd
 test/t77_restart#p#p1#sp#s2	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t77_restart#p#p1#sp#s2.ibd
 test/t77_restart#p#p1#sp#s3	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t77_restart#p#p1#sp#s3.ibd
-innodb_temporary	DEFAULT	DEFAULT	MYSQLD_DATADIR/ibtmp1
+innodb_temporary	DEFAULT	DEFAULT	MARIADB_DATADIR/ibtmp1
 INSERT INTO t55_restart (SELECT 0, c2, c3, c4, c5 FROM t55_restart);
 SELECT count(*) FROM t55_restart;
 count(*)
@@ -806,7 +806,7 @@ SUBPARTITION BY HASH (`c1`)
 #
 # Move the remote tablespaces to a new location and change the ISL files
 #
----- MYSQL_DATA_DIR/test
+---- MARIADB_DATADIR/test
 db.opt
 t4_restart.frm
 t4_restart.ibd
@@ -833,11 +833,11 @@ t77_restart#p#p0#sp#s1.ibd
 t77_restart#p#p1#sp#s2.ibd
 t77_restart#p#p1#sp#s3.ibd
 ---- MYSQL_TMP_DIR/new_dir/test
-# Moving tablespace 't4_restart' from MYSQL_DATA_DIR to MYSQL_TMP_DIR/new_dir
+# Moving tablespace 't4_restart' from MARIADB_DATADIR to MYSQL_TMP_DIR/new_dir
 # Moving tablespace 't55_restart' from MYSQL_TMP_DIR/alt_dir to MYSQL_TMP_DIR/new_dir
 # Moving tablespace 't66_restart' from MYSQL_TMP_DIR/alt_dir to MYSQL_TMP_DIR/new_dir
 # Moving tablespace 't77_restart' from MYSQL_TMP_DIR/alt_dir to MYSQL_TMP_DIR/new_dir
----- MYSQL_DATA_DIR/test
+---- MARIADB_DATADIR/test
 db.opt
 t4_restart.frm
 t4_restart.isl
@@ -871,9 +871,9 @@ t77_restart#p#p1#sp#s3.ibd
 # restart
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
-innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
-innodb_undo002	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo002
-innodb_undo003	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo003
+innodb_undo001	DEFAULT	DEFAULT	MARIADB_DATADIR//undo001
+innodb_undo002	DEFAULT	DEFAULT	MARIADB_DATADIR//undo002
+innodb_undo003	DEFAULT	DEFAULT	MARIADB_DATADIR//undo003
 test/t4_restart	DEFAULT	DEFAULT	MYSQL_TMP_DIR/new_dir/test/t4_restart.ibd
 test/t66_restart#p#p0	DEFAULT	2048	MYSQL_TMP_DIR/new_dir/test/t66_restart#p#p0.ibd
 test/t66_restart#p#p1	DEFAULT	2048	MYSQL_TMP_DIR/new_dir/test/t66_restart#p#p1.ibd
@@ -883,7 +883,7 @@ test/t55_restart	DEFAULT	DEFAULT	MYSQL_TMP_DIR/new_dir/test/t55_restart.ibd
 test/t66_restart#p#p2	DEFAULT	2048	MYSQL_TMP_DIR/new_dir/test/t66_restart#p#p2.ibd
 test/t77_restart#p#p1#sp#s2	DEFAULT	DEFAULT	MYSQL_TMP_DIR/new_dir/test/t77_restart#p#p1#sp#s2.ibd
 test/t77_restart#p#p1#sp#s3	DEFAULT	DEFAULT	MYSQL_TMP_DIR/new_dir/test/t77_restart#p#p1#sp#s3.ibd
-innodb_temporary	DEFAULT	DEFAULT	MYSQLD_DATADIR/ibtmp1
+innodb_temporary	DEFAULT	DEFAULT	MARIADB_DATADIR/ibtmp1
 INSERT INTO t4_restart (SELECT 0, c2, c3, c4, c5 FROM t4_restart);
 SELECT count(*) FROM t4_restart;
 count(*)
@@ -958,7 +958,7 @@ SUBPARTITION BY HASH (`c1`)
 #
 # Move the remote tablespaces back to the default datadir and delete the ISL file.
 #
----- MYSQL_DATA_DIR/test
+---- MARIADB_DATADIR/test
 db.opt
 t4_restart.frm
 t4_restart.isl
@@ -985,11 +985,11 @@ t77_restart#p#p0#sp#s0.ibd
 t77_restart#p#p0#sp#s1.ibd
 t77_restart#p#p1#sp#s2.ibd
 t77_restart#p#p1#sp#s3.ibd
-# Moving 't4_restart' from MYSQL_TMP_DIR/new_dir to MYSQL_DATA_DIR
-# Moving 't55_restart' from MYSQL_TMP_DIR/new_dir to MYSQL_DATA_DIR
-# Moving 't66_restart' from MYSQL_TMP_DIR/new_dir to MYSQL_DATA_DIR
-# Moving 't77_restart' from MYSQL_TMP_DIR/new_dir to MYSQL_DATA_DIR
----- MYSQL_DATA_DIR/test
+# Moving 't4_restart' from MYSQL_TMP_DIR/new_dir to MARIADB_DATADIR
+# Moving 't55_restart' from MYSQL_TMP_DIR/new_dir to MARIADB_DATADIR
+# Moving 't66_restart' from MYSQL_TMP_DIR/new_dir to MARIADB_DATADIR
+# Moving 't77_restart' from MYSQL_TMP_DIR/new_dir to MARIADB_DATADIR
+---- MARIADB_DATADIR/test
 db.opt
 t4_restart.frm
 t4_restart.ibd
@@ -1013,19 +1013,19 @@ t77_restart.par
 # restart
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
-innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
-innodb_undo002	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo002
-innodb_undo003	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo003
-test/t4_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t4_restart.ibd
-test/t66_restart#p#p0	DEFAULT	2048	MYSQLD_DATADIR/test/t66_restart#p#p0.ibd
-test/t66_restart#p#p1	DEFAULT	2048	MYSQLD_DATADIR/test/t66_restart#p#p1.ibd
-test/t77_restart#p#p0#sp#s0	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t77_restart#p#p0#sp#s0.ibd
-test/t77_restart#p#p0#sp#s1	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t77_restart#p#p0#sp#s1.ibd
-test/t55_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t55_restart.ibd
-test/t66_restart#p#p2	DEFAULT	2048	MYSQLD_DATADIR/test/t66_restart#p#p2.ibd
-test/t77_restart#p#p1#sp#s2	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t77_restart#p#p1#sp#s2.ibd
-test/t77_restart#p#p1#sp#s3	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t77_restart#p#p1#sp#s3.ibd
-innodb_temporary	DEFAULT	DEFAULT	MYSQLD_DATADIR/ibtmp1
+innodb_undo001	DEFAULT	DEFAULT	MARIADB_DATADIR//undo001
+innodb_undo002	DEFAULT	DEFAULT	MARIADB_DATADIR//undo002
+innodb_undo003	DEFAULT	DEFAULT	MARIADB_DATADIR//undo003
+test/t4_restart	DEFAULT	DEFAULT	MARIADB_DATADIR/test/t4_restart.ibd
+test/t66_restart#p#p0	DEFAULT	2048	MARIADB_DATADIR/test/t66_restart#p#p0.ibd
+test/t66_restart#p#p1	DEFAULT	2048	MARIADB_DATADIR/test/t66_restart#p#p1.ibd
+test/t77_restart#p#p0#sp#s0	DEFAULT	DEFAULT	MARIADB_DATADIR/test/t77_restart#p#p0#sp#s0.ibd
+test/t77_restart#p#p0#sp#s1	DEFAULT	DEFAULT	MARIADB_DATADIR/test/t77_restart#p#p0#sp#s1.ibd
+test/t55_restart	DEFAULT	DEFAULT	MARIADB_DATADIR/test/t55_restart.ibd
+test/t66_restart#p#p2	DEFAULT	2048	MARIADB_DATADIR/test/t66_restart#p#p2.ibd
+test/t77_restart#p#p1#sp#s2	DEFAULT	DEFAULT	MARIADB_DATADIR/test/t77_restart#p#p1#sp#s2.ibd
+test/t77_restart#p#p1#sp#s3	DEFAULT	DEFAULT	MARIADB_DATADIR/test/t77_restart#p#p1#sp#s3.ibd
+innodb_temporary	DEFAULT	DEFAULT	MARIADB_DATADIR/ibtmp1
 INSERT INTO t4_restart (SELECT 0, c2, c3, c4, c5 FROM t4_restart);
 SELECT count(*) FROM t4_restart;
 count(*)

@@ -3,7 +3,6 @@
 SET default_storage_engine=InnoDB;
 
 --disable_query_log
-let $MYSQLD_DATADIR = `select @@datadir`;
 let $INNODB_PAGE_SIZE = `select @@innodb_page_size`;
 
 call mtr.add_suppression("Cannot add field .* in table .* because after adding it, the row size is");

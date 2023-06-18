@@ -14,11 +14,10 @@ call mtr.add_suppression("Column count of mysql.proc is wrong. Expected 21, foun
 call mtr.add_suppression("Stored routine .test...bug14233_[123].: invalid value in column mysql.proc");
 
 # Backup proc table
-let $MYSQLD_DATADIR= `select @@datadir`;
 flush table mysql.proc;
---copy_file $MYSQLD_DATADIR/mysql/proc.frm $MYSQLTEST_VARDIR/tmp/proc.frm
---copy_file $MYSQLD_DATADIR/mysql/proc.MAD $MYSQLTEST_VARDIR/tmp/proc.MAD
---copy_file $MYSQLD_DATADIR/mysql/proc.MAI $MYSQLTEST_VARDIR/tmp/proc.MAI
+--copy_file $MARIADB_DATADIR/mysql/proc.frm $MYSQLTEST_VARDIR/tmp/proc.frm
+--copy_file $MARIADB_DATADIR/mysql/proc.MAD $MYSQLTEST_VARDIR/tmp/proc.MAD
+--copy_file $MARIADB_DATADIR/mysql/proc.MAI $MYSQLTEST_VARDIR/tmp/proc.MAI
 
 use test;
 
@@ -52,8 +51,8 @@ show procedure status;
 flush table mysql.proc;
 
 # Thrashing the .frm file
---remove_file $MYSQLD_DATADIR/mysql/proc.frm
---write_file $MYSQLD_DATADIR/mysql/proc.frm
+--remove_file $MARIADB_DATADIR/mysql/proc.frm
+--write_file $MARIADB_DATADIR/mysql/proc.frm
 saljdfa
 EOF
 --replace_result $MYSQLTEST_VARDIR . master-data// '' '\\' '/'
@@ -69,9 +68,9 @@ insert into t1 values (0);
 flush table mysql.proc;
 
 # Drop the mysql.proc table
---remove_file $MYSQLD_DATADIR/mysql/proc.frm
---remove_file $MYSQLD_DATADIR/mysql/proc.MAD
---remove_file $MYSQLD_DATADIR/mysql/proc.MAI
+--remove_file $MARIADB_DATADIR/mysql/proc.frm
+--remove_file $MARIADB_DATADIR/mysql/proc.MAD
+--remove_file $MARIADB_DATADIR/mysql/proc.MAI
 --error ER_NO_SUCH_TABLE
 call bug14233();
 --error ER_NO_SUCH_TABLE
@@ -80,9 +79,9 @@ create view v1 as select bug14233_f();
 insert into t1 values (0);
 
 # Restore mysql.proc
---copy_file $MYSQLTEST_VARDIR/tmp/proc.frm $MYSQLD_DATADIR/mysql/proc.frm
---copy_file $MYSQLTEST_VARDIR/tmp/proc.MAD $MYSQLD_DATADIR/mysql/proc.MAD
---copy_file $MYSQLTEST_VARDIR/tmp/proc.MAI $MYSQLD_DATADIR/mysql/proc.MAI 
+--copy_file $MYSQLTEST_VARDIR/tmp/proc.frm $MARIADB_DATADIR/mysql/proc.frm
+--copy_file $MYSQLTEST_VARDIR/tmp/proc.MAD $MARIADB_DATADIR/mysql/proc.MAD
+--copy_file $MYSQLTEST_VARDIR/tmp/proc.MAI $MARIADB_DATADIR/mysql/proc.MAI 
 --remove_file $MYSQLTEST_VARDIR/tmp/proc.frm
 --remove_file $MYSQLTEST_VARDIR/tmp/proc.MAD
 --remove_file $MYSQLTEST_VARDIR/tmp/proc.MAI
@@ -237,10 +236,9 @@ drop database if exists mysqltest;
 --enable_warnings
 --echo # Backup mysql.proc.
 flush table mysql.proc;
-let $MYSQLD_DATADIR= `select @@datadir`;
---copy_file $MYSQLD_DATADIR/mysql/proc.frm $MYSQLTEST_VARDIR/tmp/proc.frm
---copy_file $MYSQLD_DATADIR/mysql/proc.MAD $MYSQLTEST_VARDIR/tmp/proc.MAD
---copy_file $MYSQLD_DATADIR/mysql/proc.MAI $MYSQLTEST_VARDIR/tmp/proc.MAI
+--copy_file $MARIADB_DATADIR/mysql/proc.frm $MYSQLTEST_VARDIR/tmp/proc.frm
+--copy_file $MARIADB_DATADIR/mysql/proc.MAD $MYSQLTEST_VARDIR/tmp/proc.MAD
+--copy_file $MARIADB_DATADIR/mysql/proc.MAI $MYSQLTEST_VARDIR/tmp/proc.MAI
 
 create database mysqltest;
 --echo # Corrupt mysql.proc to make it unusable by current version of server.
@@ -250,9 +248,9 @@ drop database mysqltest;
 
 --echo # Restore mysql.proc.
 drop table mysql.proc;
---copy_file $MYSQLTEST_VARDIR/tmp/proc.frm $MYSQLD_DATADIR/mysql/proc.frm
---copy_file $MYSQLTEST_VARDIR/tmp/proc.MAD $MYSQLD_DATADIR/mysql/proc.MAD
---copy_file $MYSQLTEST_VARDIR/tmp/proc.MAI $MYSQLD_DATADIR/mysql/proc.MAI 
+--copy_file $MYSQLTEST_VARDIR/tmp/proc.frm $MARIADB_DATADIR/mysql/proc.frm
+--copy_file $MYSQLTEST_VARDIR/tmp/proc.MAD $MARIADB_DATADIR/mysql/proc.MAD
+--copy_file $MYSQLTEST_VARDIR/tmp/proc.MAI $MARIADB_DATADIR/mysql/proc.MAI 
 --remove_file $MYSQLTEST_VARDIR/tmp/proc.frm
 --remove_file $MYSQLTEST_VARDIR/tmp/proc.MAD
 --remove_file $MYSQLTEST_VARDIR/tmp/proc.MAI

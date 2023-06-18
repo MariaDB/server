@@ -1,6 +1,8 @@
 --source include/innodb_page_size.inc
 --source include/not_embedded.inc
 --source include/have_symlink.inc
+# No catalogs, as they did not exist in MariaDB Server 10.1
+--source include/not_catalogs.inc
 
 -- echo #
 -- echo # MDEV-11623 MariaDB 10.1 fails to start datadir created with
@@ -15,7 +17,6 @@ call mtr.add_suppression("InnoDB: adjusting FSP_SPACE_FLAGS of file ");
 FLUSH TABLES;
 --enable_query_log
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
-let MYSQLD_DATADIR=`select @@datadir`;
 
 CREATE TABLE tr(a INT)ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
 CREATE TABLE tc(a INT)ENGINE=InnoDB ROW_FORMAT=COMPACT;
@@ -46,7 +47,7 @@ ib_restore_tablespaces("test", "ti");
 do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
 do "$ENV{MTR_SUITE_DIR}/include/ibd_convert.pl";
 my $ps = $ENV{INNODB_PAGE_SIZE};
-my $dd = $ENV{MYSQLD_DATADIR};
+my $dd = $ENV{MARIADB_DATADIR};
 convert_to_mariadb_101("$dd/test/ti.ibd", $ps);
 EOF
 
@@ -67,7 +68,7 @@ perl;
 do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
 do "$ENV{MTR_SUITE_DIR}/include/ibd_convert.pl";
 my $ps = $ENV{INNODB_PAGE_SIZE};
-my $dd = $ENV{MYSQLD_DATADIR};
+my $dd = $ENV{MARIADB_DATADIR};
 
 convert_to_mariadb_101("$dd/ibdata1", $ps);
 convert_to_mariadb_101("$dd/test/tr.ibd", $ps);
@@ -87,7 +88,7 @@ perl;
 do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
 do "$ENV{MTR_SUITE_DIR}/include/ibd_convert.pl";
 my $ps = $ENV{INNODB_PAGE_SIZE};
-my $dd = $ENV{MYSQLD_DATADIR};
+my $dd = $ENV{MARIADB_DATADIR};
 
 convert_to_mariadb_101("$dd/ibdata1", $ps);
 convert_to_mariadb_101("$dd/test/tr.ibd", $ps);

@@ -11,11 +11,11 @@ insert into t1 values(3,"COMPRESSED");
 
 #STOP;
 
---exec $INNOCHECKSUM $MYSQLD_DATADIR/test/t1.ibd
---exec $INNOCHECKSUM --write=crc32 $MYSQLD_DATADIR/test/t1.ibd
---exec $INNOCHECKSUM --strict-check=crc32 $MYSQLD_DATADIR/test/t1.ibd
---exec $INNOCHECKSUM --write=none $MYSQLD_DATADIR/test/t1.ibd
---exec $INNOCHECKSUM --strict-check=none $MYSQLD_DATADIR/test/t1.ibd
+--exec $INNOCHECKSUM $MARIADB_DATADIR/test/t1.ibd
+--exec $INNOCHECKSUM --write=crc32 $MARIADB_DATADIR/test/t1.ibd
+--exec $INNOCHECKSUM --strict-check=crc32 $MARIADB_DATADIR/test/t1.ibd
+--exec $INNOCHECKSUM --write=none $MARIADB_DATADIR/test/t1.ibd
+--exec $INNOCHECKSUM --strict-check=none $MARIADB_DATADIR/test/t1.ibd
 
 --source include/start_mysqld.inc
 select * from t1;

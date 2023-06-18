@@ -5,7 +5,7 @@
 --let $row_format= `SELECT @@GLOBAL.innodb_default_row_format`
 --let $page_size= `SELECT @@GLOBAL.innodb_page_size`
 
-call mtr.add_suppression("Cannot add field `.*` in table `test`.`t1` because after adding it, the row size is");
+call mtr.add_suppression("Cannot add field `.*` in table .*`test`.`t1` because after adding it, the row size is");
 
 
 if ($page_size == 4096) {

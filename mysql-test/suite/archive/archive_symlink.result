@@ -47,10 +47,10 @@ set @@sql_mode=@org_mode;
 # within --datadir for any engine, including Archive
 # 
 CREATE TABLE t1 (a int AUTO_INCREMENT KEY, b char(30))
-ENGINE archive DATA DIRECTORY 'MYSQLD_DATADIR/test';
+ENGINE archive DATA DIRECTORY 'MARIADB_DATADIR/test';
 ERROR HY000: Incorrect arguments to DATA DIRECTORY
 CREATE TABLE t1 (c1 int(10), PRIMARY KEY (c1))
-ENGINE archive INDEX DIRECTORY 'MYSQLD_DATADIR/test';
+ENGINE archive INDEX DIRECTORY 'MARIADB_DATADIR/test';
 ERROR HY000: Incorrect arguments to INDEX DIRECTORY
 # 
 # Cleanup

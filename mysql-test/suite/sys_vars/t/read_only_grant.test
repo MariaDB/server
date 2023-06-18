@@ -13,9 +13,9 @@ REVOKE READ_ONLY ADMIN ON *.* FROM user1@localhost;
 --connection user1
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
 SET GLOBAL read_only=0;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET read_only=0;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET SESSION read_only=0;
 --disconnect user1
 --connection default
@@ -28,9 +28,9 @@ GRANT READ_ONLY ADMIN ON *.* TO user1@localhost;
 --connect(user1,localhost,user1,,)
 --connection user1
 SET GLOBAL read_only=0;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET read_only=0;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET SESSION read_only=0;
 --disconnect user1
 --connection default

@@ -65,7 +65,7 @@ SELECT @@global.innodb_max_dirty_pages_pct;
 # check if innodb_max_dirty_pages_pct can be accessed with and without @@ sign #
 ################################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET innodb_max_dirty_pages_pct = 1;
 SELECT @@innodb_max_dirty_pages_pct;
 

@@ -22,7 +22,7 @@ set global thread_pool_min_threads=1;
 select @@global.thread_pool_min_threads;
 set global thread_pool_min_threads=65536;
 select @@global.thread_pool_min_threads;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session thread_pool_min_threads=1;
 
 #

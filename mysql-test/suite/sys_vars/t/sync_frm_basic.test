@@ -112,7 +112,7 @@ SET @@global.sync_frm = '';
 #          Test if accessing session sync_frm gives error          #
 ####################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.sync_frm = 1;
 --Error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.sync_frm;
@@ -141,7 +141,7 @@ SELECT @@sync_frm = @@global.sync_frm;
 #    Check if sync_frm can be accessed with and without @@ sign   #
 ###################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET sync_frm = 1;
 SELECT @@sync_frm;
 --Error ER_UNKNOWN_TABLE

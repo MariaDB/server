@@ -25,7 +25,7 @@ set global innodb_encryption_rotate_key_age=2;
 select @@global.innodb_encryption_rotate_key_age;
 set global innodb_encryption_rotate_key_age=1;
 select @@global.innodb_encryption_rotate_key_age;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session innodb_encryption_rotate_key_age=1;
 
 #

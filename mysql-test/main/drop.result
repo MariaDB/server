@@ -137,7 +137,7 @@ create database mysql_test;
 use mysql_test;
 create table t1(c int);
 drop database mysql_test;
-ERROR HY000: Error dropping database (can't rmdir './mysql_test', errno: 39 "Directory not empty")
+Got one of the listed errors
 select database();
 database()
 mysql_test

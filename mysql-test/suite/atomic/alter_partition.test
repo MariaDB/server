@@ -34,8 +34,6 @@ if ($MTR_COMBINATION_ROW)
 
 --echo # Crash recovery
 
-let $MYSQLD_DATADIR= `SELECT @@datadir`;
-
 let $crash_count= 14;
 let $crash_points='crash_create_before_create_frm',
                   'crash_alter_partition_after_create_frm',
@@ -134,10 +132,10 @@ while ($r < $statement_count)
     }
     # Check which tables still exists
     --replace_result MAI MYI MAD MYD
-    --list_files $MYSQLD_DATADIR/test t*
+    --list_files $MARIADB_DATADIR/test t*
     --replace_regex /backup-\d+/backup/
-    --list_files $MYSQLD_DATADIR/test *sql*
-    --remove_files_wildcard $MYSQLD_DATADIR/test *sql-backup-*
+    --list_files $MARIADB_DATADIR/test *sql*
+    --remove_files_wildcard $MARIADB_DATADIR/test *sql-backup-*
 
     --let $binlog_file=master-bin.000001
     --source include/show_binlog_events.inc

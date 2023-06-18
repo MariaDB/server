@@ -18,7 +18,7 @@ VARIABLE_NAME	VARIABLE_VALUE
 RPL_SEMI_SYNC_MASTER_WAIT_POINT	AFTER_COMMIT
 set global rpl_semi_sync_master_wait_point=AFTER_SYNC;
 set session rpl_semi_sync_master_wait_point=AFTER_COMMIT;
-ERROR HY000: Variable 'rpl_semi_sync_master_wait_point' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 select @@global.rpl_semi_sync_master_wait_point;
 @@global.rpl_semi_sync_master_wait_point
 AFTER_SYNC

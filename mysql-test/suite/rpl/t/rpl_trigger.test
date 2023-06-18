@@ -312,7 +312,6 @@ STOP SLAVE;
 # Replace master's binlog.
 
 connection master;
-let $MYSQLD_DATADIR= `select @@datadir`;
 FLUSH LOGS;
 
 # Stop master server
@@ -320,8 +319,8 @@ FLUSH LOGS;
 --source include/rpl_stop_server.inc
 
 # Replace binlog
-remove_file $MYSQLD_DATADIR/master-bin.000001;
-copy_file $MYSQL_TEST_DIR/std_data/bug16266.000001 $MYSQLD_DATADIR/master-bin.000001;
+remove_file $MARIADB_TOPDIR/master-bin.000001;
+copy_file $MYSQL_TEST_DIR/std_data/bug16266.000001 $MARIADB_TOPDIR/master-bin.000001;
 
 --let $rpl_server_number= 1
 --source include/rpl_start_server.inc

@@ -79,7 +79,7 @@ SELECT @@global.max_connect_errors;
 4294967295
 '#-------------------FN_DYNVARS_073_05----------------------------#'
 SET @@session.max_connect_errors = 4096;
-ERROR HY000: Variable 'max_connect_errors' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@session.max_connect_errors;
 ERROR HY000: Variable 'max_connect_errors' is a GLOBAL variable
 '#----------------------FN_DYNVARS_073_06------------------------#'
@@ -111,7 +111,7 @@ SELECT @@max_connect_errors = @@global.max_connect_errors;
 1
 '#---------------------FN_DYNVARS_073_09----------------------#'
 SET max_connect_errors = 6000;
-ERROR HY000: Variable 'max_connect_errors' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@max_connect_errors;
 @@max_connect_errors
 5000

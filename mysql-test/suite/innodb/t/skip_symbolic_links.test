@@ -1,5 +1,13 @@
 --source include/have_innodb.inc
 --source include/not_windows.inc
+--source include/get_datadir.inc
+
+let $datadir=$MYSQL_TMP_DIR/test;
+if ($USING_CATALOGS)
+{
+   let $datadir=$MYSQL_TMP_DIR/$MARIADB_CATALOG/test;
+}
+
 
 SELECT @@have_symlink;
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
@@ -33,7 +41,7 @@ TRUNCATE TABLE t2;
 ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
 ALTER TABLE t2 FORCE, ALGORITHM=COPY;
 OPTIMIZE TABLE t1;
---list_files $MYSQL_TMP_DIR/test
+--list_files $datadir
 DROP TABLE t2;
 
 RENAME TABLE t1 TO t2;
@@ -44,8 +52,8 @@ ALTER TABLE t2 DROP INDEX b, RENAME TO t1;
 ALTER TABLE t1 CHANGE b c INT;
 ALTER TABLE t1 CHANGE c b INT NOT NULL;
 
---list_files $MYSQL_TMP_DIR/test
+--list_files $datadir
 # TRUNCATE TABLE will discard DATA DIRECTORY.
 TRUNCATE TABLE t1;
---list_files $MYSQL_TMP_DIR/test
+--list_files $datadir
 DROP TABLE t1;

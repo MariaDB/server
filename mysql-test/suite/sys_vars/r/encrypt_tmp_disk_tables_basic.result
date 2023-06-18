@@ -31,7 +31,7 @@ select @@global.encrypt_tmp_disk_tables;
 @@global.encrypt_tmp_disk_tables
 1
 set session encrypt_tmp_disk_tables=1;
-ERROR HY000: Variable 'encrypt_tmp_disk_tables' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 set global encrypt_tmp_disk_tables=1.1;
 ERROR 42000: Incorrect argument type to variable 'encrypt_tmp_disk_tables'
 set global encrypt_tmp_disk_tables=1e1;

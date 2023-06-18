@@ -40,14 +40,14 @@ test/t3	5	41	PRIMARY	3	3	1	50
 test/t4	5	33	PRIMARY	3	3	1	50
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
-innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
-innodb_undo002	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo002
-innodb_undo003	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo003
-test/t1	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t1.ibd
-test/t2	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t2.ibd
-test/t3	DEFAULT	8192	MYSQLD_DATADIR/test/t3.ibd
-test/t4	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t4.ibd
-innodb_temporary	DEFAULT	DEFAULT	MYSQLD_DATADIR/ibtmp1
+innodb_undo001	DEFAULT	DEFAULT	MARIADB_DATADIR//undo001
+innodb_undo002	DEFAULT	DEFAULT	MARIADB_DATADIR//undo002
+innodb_undo003	DEFAULT	DEFAULT	MARIADB_DATADIR//undo003
+test/t1	DEFAULT	DEFAULT	MARIADB_DATADIR/test/t1.ibd
+test/t2	DEFAULT	DEFAULT	MARIADB_DATADIR/test/t2.ibd
+test/t3	DEFAULT	8192	MARIADB_DATADIR/test/t3.ibd
+test/t4	DEFAULT	DEFAULT	MARIADB_DATADIR/test/t4.ibd
+innodb_temporary	DEFAULT	DEFAULT	MARIADB_DATADIR/ibtmp1
 DROP TABLE t1, t2, t3, t4;
 # Test 4) The maximum row size is dependent upon the page size.
 #         Each row format has its own amount of overhead that

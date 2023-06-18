@@ -593,11 +593,9 @@ DROP TABLE t1, t2;
 --echo # MDEV-8267 Add /*old*/ comment into I_S.COLUMN_TYPE for old DECIMAL
 --echo #
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-
---copy_file std_data/old_decimal/t1dec102.frm $MYSQLD_DATADIR/test/t1dec102.frm
---copy_file std_data/old_decimal/t1dec102.MYD $MYSQLD_DATADIR/test/t1dec102.MYD
---copy_file std_data/old_decimal/t1dec102.MYI $MYSQLD_DATADIR/test/t1dec102.MYI
+--copy_file std_data/old_decimal/t1dec102.frm $MARIADB_DATADIR/test/t1dec102.frm
+--copy_file std_data/old_decimal/t1dec102.MYD $MARIADB_DATADIR/test/t1dec102.MYD
+--copy_file std_data/old_decimal/t1dec102.MYI $MARIADB_DATADIR/test/t1dec102.MYI
 
 SHOW CREATE TABLE t1dec102;
 SHOW COLUMNS FROM t1dec102;
@@ -652,10 +650,9 @@ SET sql_mode=DEFAULT;
 --echo # MDEV-12574 MAX(old_decimal) produces a column of the old DECIMAL type
 --echo #
 
-let $MYSQLD_DATADIR= `select @@datadir`;
---copy_file std_data/old_decimal/t1dec102.frm $MYSQLD_DATADIR/test/t1dec102.frm
---copy_file std_data/old_decimal/t1dec102.MYD $MYSQLD_DATADIR/test/t1dec102.MYD
---copy_file std_data/old_decimal/t1dec102.MYI $MYSQLD_DATADIR/test/t1dec102.MYI
+--copy_file std_data/old_decimal/t1dec102.frm $MARIADB_DATADIR/test/t1dec102.frm
+--copy_file std_data/old_decimal/t1dec102.MYD $MARIADB_DATADIR/test/t1dec102.MYD
+--copy_file std_data/old_decimal/t1dec102.MYI $MARIADB_DATADIR/test/t1dec102.MYI
 
 SHOW CREATE TABLE t1dec102;
 
@@ -728,11 +725,9 @@ DROP TABLE t1;
 --echo # MDEV-9217 Split Item::tmp_table_field_from_field_type() into virtual methods in Type_handler
 --echo #
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-
---copy_file std_data/old_decimal/t1dec102.frm $MYSQLD_DATADIR/test/t1dec102.frm
---copy_file std_data/old_decimal/t1dec102.MYD $MYSQLD_DATADIR/test/t1dec102.MYD
---copy_file std_data/old_decimal/t1dec102.MYI $MYSQLD_DATADIR/test/t1dec102.MYI
+--copy_file std_data/old_decimal/t1dec102.frm $MARIADB_DATADIR/test/t1dec102.frm
+--copy_file std_data/old_decimal/t1dec102.MYD $MARIADB_DATADIR/test/t1dec102.MYD
+--copy_file std_data/old_decimal/t1dec102.MYI $MARIADB_DATADIR/test/t1dec102.MYI
 
 --echo # This creates the old DECIMAL. Will be fixed in MDEV-12574.
 CREATE TABLE t1 AS SELECT MAX(a) FROM t1dec102;

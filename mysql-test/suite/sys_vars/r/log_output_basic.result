@@ -79,7 +79,7 @@ SET @@global.log_output = ' TABLE,FILE';
 ERROR 42000: Variable 'log_output' can't be set to the value of ' TABLE'
 '#-------------------FN_DYNVARS_065_05----------------------------#'
 SET @@log_output = 0;
-ERROR HY000: Variable 'log_output' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@session.log_output;
 ERROR HY000: Variable 'log_output' is a GLOBAL variable
 '#----------------------FN_DYNVARS_065_06------------------------#'
@@ -136,7 +136,7 @@ SELECT @@global.log_output;
 NONE
 '#---------------------FN_DYNVARS_065_09----------------------#'
 SET log_output = ON;
-ERROR HY000: Variable 'log_output' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SET global log_output = 'TABLE';
 SELECT @@global.log_output;
 @@global.log_output

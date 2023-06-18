@@ -69,8 +69,6 @@ drop table test_data;
 # MDEV-12389 ADD CHECK leaves an orphaned .par file
 #
 
---let $datadir=`SELECT @@datadir`
-
 # InnoDB
 create table t1(id int, d date not null, b bool not null default 0, primary key(id,d))
 engine=innodb
@@ -86,7 +84,7 @@ show create table t1;
 --error ER_CONSTRAINT_FAILED
 insert t1 values (2, '2020-01-03', 20);
 drop table t1;
---list_files $datadir/test
+--list_files $MARIADB_DATADIR/test
 
 # MyISAM, different execution path
 create table t1(id int, d date not null, b bool not null default 0, primary key(id,d))
@@ -102,7 +100,7 @@ show create table t1;
 --error ER_CONSTRAINT_FAILED
 insert t1 values (2, '2020-01-03', 20);
 drop table t1;
---list_files $datadir/test
+--list_files $MARIADB_DATADIR/test
 
 #
 # MDEV-13097 Online alter of a partitioned MyISAM table with auto_increment

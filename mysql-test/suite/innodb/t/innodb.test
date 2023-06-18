@@ -1,8 +1,6 @@
 -- source include/have_innodb.inc
 -- source include/have_innodb_16k.inc
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-
 let collation=utf8mb3_unicode_ci;
 --source include/have_collation.inc
 
@@ -21,8 +19,8 @@ set optimizer_switch = 'mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 # See Bug#43309 Test main.innodb can't be run twice
 -- disable_query_log
 call mtr.add_suppression("Cannot add field .* in table .* because after adding it, the row size is");
-call mtr.add_suppression("\\[ERROR\\] InnoDB: in ALTER TABLE `test`.`t1`");
-call mtr.add_suppression("\\[ERROR\\] InnoDB: in RENAME TABLE table `test`.`t1`");
+call mtr.add_suppression("\\[ERROR\\] InnoDB: in ALTER TABLE .*`test`.`t1`");
+call mtr.add_suppression("\\[ERROR\\] InnoDB: in RENAME TABLE table .*`test`.`t1`");
 
 --disable_warnings
 SET @innodb_row_lock_waits_orig = (SELECT variable_value FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_row_lock_waits');
@@ -1647,12 +1645,12 @@ drop table t2,t1;
 
 # test that RENAME does not allow invalid charsets when f_k_c is 0
 
-call mtr.add_suppression("\\[Warning\\] InnoDB: In ALTER TABLE `test`.`t1` has or is referenced in foreign key constraints which are not compatible with the new table definition.");
+call mtr.add_suppression("\\[Warning\\] InnoDB: In ALTER TABLE .*`test`.`t1` has or is referenced in foreign key constraints which are not compatible with the new table definition.");
 set foreign_key_checks=0;
 create table t2 (a varchar(10), foreign key (a) references t1(a)) engine = innodb DEFAULT CHARSET=latin1;
 create table t3(a varchar(10) primary key) engine = innodb DEFAULT CHARSET=utf8;
 # Embedded server doesn't chdir to data directory
---replace_result $MYSQLD_DATADIR ./ master-data/ ''
+--replace_result $MARIADB_DATADIR ./ master-data/ '' def/ ''
 -- error 1025
 rename table t3 to t1;
 set foreign_key_checks=1;

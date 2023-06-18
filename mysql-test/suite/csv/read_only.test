@@ -4,16 +4,15 @@
 #
 source include/have_csv.inc;
 
-let datadir=`select @@datadir`;
-
 create table t1 (a int not null) engine=csv;
 insert t1 values (1),(2);
 flush tables;
 
-chmod 0400 $datadir/test/t1.CSM;
-chmod 0400 $datadir/test/t1.CSV;
+chmod 0400 $MARIADB_DATADIR/test/t1.CSM;
+chmod 0400 $MARIADB_DATADIR/test/t1.CSV;
 
---replace_result $datadir ./
+--replace_catalog
+--replace_result $MARIADB_DATADIR ./
 query_vertical select * from information_schema.tables where table_schema='test';
 
 drop table t1;

@@ -54,7 +54,7 @@ WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 NOT FOUND /\[Note\] InnoDB: Cannot read first page of .*t2.ibd/ in mysqld.1.err
-FOUND 1 /.*\[ERROR\] InnoDB: Cannot apply log to \[page id: space=[1-9][0-9]*, page number=3\] of corrupted file './test/t2\.ibd'/ in mysqld.1.err
+FOUND 1 /.*\[ERROR\] InnoDB: Cannot apply log to \[page id: space=[1-9][0-9]*, page number=3\] of corrupted file '.*/test/t2\.ibd'/ in mysqld.1.err
 # restart
 SELECT * FROM t2;
 a

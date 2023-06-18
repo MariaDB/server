@@ -60,7 +60,7 @@ SELECT @@global.key_cache_file_hash_size;
 128
 '#-------------------FN_DYNVARS_056_05----------------------------#'
 SET @@session.key_cache_file_hash_size = 0;
-ERROR HY000: Variable 'key_cache_file_hash_size' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@session.key_cache_file_hash_size;
 ERROR HY000: Variable 'key_cache_file_hash_size' is a GLOBAL variable
 '#----------------------FN_DYNVARS_056_06------------------------#'
@@ -94,7 +94,7 @@ SELECT @@key_cache_file_hash_size = @@global.key_cache_file_hash_size;
 1
 '#---------------------FN_DYNVARS_056_09----------------------#'
 SET key_cache_file_hash_size = 8000;
-ERROR HY000: Variable 'key_cache_file_hash_size' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@key_cache_file_hash_size;
 @@key_cache_file_hash_size
 150

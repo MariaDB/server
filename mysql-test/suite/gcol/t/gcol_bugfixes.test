@@ -681,8 +681,7 @@ SELECT * FROM t1;
 LOAD DATA INFILE 'load_t1' IGNORE INTO TABLE t1 (id,va);
 
 DROP TABLE t1;
---let $datadir= `select @@datadir`
---remove_file $datadir/test/load_t1
+--remove_file $MARIADB_DATADIR/test/load_t1
 
 CREATE TABLE t1 (id BIGINT PRIMARY KEY, a VARCHAR(2333),
                  va VARCHAR(171) AS (a)) ENGINE=InnoDB;
@@ -695,8 +694,7 @@ LOAD DATA INFILE 'load_t1' IGNORE INTO TABLE t1 (id,va);
 
 # Cleanup
 DROP TABLE t1;
---let $datadir= `select @@datadir`
---remove_file $datadir/test/load_t1
+--remove_file $MARIADB_DATADIR/test/load_t1
 
 
 --echo # (duplicate) MDEV-24665
@@ -714,7 +712,6 @@ INSERT IGNORE INTO t1 (id) VALUES (2);
 
 # Cleanup
 DROP TABLE t1;
---let $datadir= `select @@datadir`
---remove_file $datadir/test/load_t1
+--remove_file $MARIADB_DATADIR/test/load_t1
 
 

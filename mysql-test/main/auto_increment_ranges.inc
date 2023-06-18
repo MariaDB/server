@@ -243,8 +243,7 @@ drop table t1;
 --echo # MDEV-17333 Assertion in update_auto_increment() upon exotic LOAD
 --echo #
 --source include/have_partition.inc
-let $mysqld_datadir= `select @@datadir`;
---write_file $mysqld_datadir/test/load.data
+--write_file $MARIADB_DATADIR/test/load.data
 1	1
 0	2
 3	3
@@ -256,5 +255,5 @@ create or replace table t1 (pk int auto_increment, x int, primary key(pk), uniqu
 with system versioning partition by system_time interval 2 day
 (partition p1 history, partition pn current);
 load data infile 'load.data' ignore into table t1;
---remove_file $mysqld_datadir/test/load.data
+--remove_file $MARIADB_DATADIR/test/load.data
 drop table t1;

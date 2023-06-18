@@ -439,8 +439,7 @@ DROP TABLE t1;
 flush tables;
 
 # Create a junk frm file on disk
-let $MYSQLD_DATADIR= `select @@datadir`;
-system echo "this is a junk file for test" >> $MYSQLD_DATADIR/test/t1.frm ;
+system echo "this is a junk file for test" >> $MARIADB_DATADIR/test/t1.frm ;
 --replace_column 6 # 7 # 8 # 9 # 12 #
 SHOW TABLE STATUS like 't1';
 --error ER_NOT_FORM_FILE
@@ -449,7 +448,7 @@ show create table t1;
 drop table if exists t1;
 --enable_warnings
 --error 0,1
---remove_file $MYSQLD_DATADIR/test/t1.frm
+--remove_file $MARIADB_DATADIR/test/t1.frm
 
 #
 # Bug#12183 SHOW OPEN TABLES behavior doesn't match grammar

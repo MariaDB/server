@@ -54,17 +54,22 @@ CREATE TABLE t1 (c1 int) ENGINE=MYISAM;
 --echo #
 --echo # Corrupt the MyISAM table by deleting the base file
 --echo #
-let $MYSQLD_DATADIR= `SELECT @@datadir`;
---remove_file $MYSQLD_DATADIR/test/t1.MYD
---remove_file $MYSQLD_DATADIR/test/t1.MYI
+
+--source include/get_replication_datadir.inc
+connection slave;
+
+--remove_file $SLAVE_DATADIR/test/t1.MYD
+--remove_file $SLAVE_DATADIR/test/t1.MYI
 
 --echo #
 --echo # Trigger a MyISAM system error during an INFORMATION_SCHEMA.TABLES query
 --echo #
+
+--replace_catalog
 --replace_result 20 2
 SELECT TABLE_SCHEMA, TABLE_NAME, TABLE_TYPE, ENGINE, ROW_FORMAT, TABLE_ROWS, DATA_LENGTH, TABLE_COMMENT
        FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
-
+--replace_catalog
 DROP TABLE t1;
 
 --echo #

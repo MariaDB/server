@@ -107,7 +107,7 @@ SET @@global.flush = '';
 #            Test if accessing session flush gives error                  #
 ########################################################################### 
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.flush = 1;
 --Error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.flush;
@@ -147,7 +147,7 @@ SELECT @@flush = @@global.flush;
 #        Check if flush can be accessed with and without @@ sign         #
 ##########################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET flush = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT global.flush;

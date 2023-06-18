@@ -32,9 +32,8 @@ INSERT INTO t SELECT * FROM t;
 INSERT INTO t SELECT * FROM t;
 SELECT COUNT(*) FROM t;
 FLUSH LOGS;
-let $MYSQLD_DATADIR= `select @@datadir`;
 
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_base64.sql 2>&1
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_base64.sql 2>&1
 #
 #  Clear database and restore from binlog
 #

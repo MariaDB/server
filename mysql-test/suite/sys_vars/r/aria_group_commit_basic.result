@@ -21,7 +21,7 @@ select @@global.aria_group_commit;
 @@global.aria_group_commit
 hard
 set session aria_group_commit=1;
-ERROR HY000: Variable 'aria_group_commit' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 set global aria_group_commit=none;
 select @@global.aria_group_commit;
 @@global.aria_group_commit

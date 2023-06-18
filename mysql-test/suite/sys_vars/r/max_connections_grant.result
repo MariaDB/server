@@ -11,9 +11,9 @@ connection user1;
 SET GLOBAL max_connections=10;
 ERROR 42000: Access denied; you need (at least one of) the CONNECTION ADMIN privilege(s) for this operation
 SET max_connections=10;
-ERROR HY000: Variable 'max_connections' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SET SESSION max_connections=10;
-ERROR HY000: Variable 'max_connections' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 disconnect user1;
 connection default;
 DROP USER user1@localhost;
@@ -24,9 +24,9 @@ connect user1,localhost,user1,,;
 connection user1;
 SET GLOBAL max_connections=10;
 SET max_connections=10;
-ERROR HY000: Variable 'max_connections' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SET SESSION max_connections=10;
-ERROR HY000: Variable 'max_connections' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 disconnect user1;
 connection default;
 DROP USER user1@localhost;

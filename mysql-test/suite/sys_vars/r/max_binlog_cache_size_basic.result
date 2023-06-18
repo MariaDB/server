@@ -97,7 +97,7 @@ SELECT @@global.max_binlog_cache_size;
 4096
 '#-------------------FN_DYNVARS_072_05----------------------------#'
 SET @@session.max_binlog_cache_size = 4096;
-ERROR HY000: Variable 'max_binlog_cache_size' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@session.max_binlog_cache_size;
 ERROR HY000: Variable 'max_binlog_cache_size' is a GLOBAL variable
 '#----------------------FN_DYNVARS_072_06------------------------#'
@@ -133,7 +133,7 @@ SELECT @@max_binlog_cache_size = @@global.max_binlog_cache_size;
 1
 '#---------------------FN_DYNVARS_072_09----------------------#'
 SET max_binlog_cache_size = 6000;
-ERROR HY000: Variable 'max_binlog_cache_size' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@max_binlog_cache_size;
 @@max_binlog_cache_size
 4096

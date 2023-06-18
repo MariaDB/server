@@ -11,9 +11,9 @@ GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
 --connection user1
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
 --eval SET GLOBAL $var=$value
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 --eval SET $var=$value
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 --eval SET SESSION $var=$value
 --disconnect user1
 --connection default
@@ -26,9 +26,9 @@ CREATE USER user1@localhost;
 --connect(user1,localhost,user1,,)
 --connection user1
 --eval SET GLOBAL $var=$value
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 --eval SET $var=$value
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 --eval SET SESSION $var=$value
 --disconnect user1
 --connection default

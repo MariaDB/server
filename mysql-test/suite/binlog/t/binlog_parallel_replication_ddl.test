@@ -14,8 +14,7 @@ CREATE OR REPLACE SEQUENCE s1;
 DROP SEQUENCE s1;
 FLUSH LOGS;
 
---let $MYSQLD_DATADIR= `select @@datadir`
---exec $MYSQL_BINLOG --base64-output=decode-rows $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
+--exec $MYSQL_BINLOG --base64-output=decode-rows $MARIADB_TOPDIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
 
 --let SEARCH_PATTERN= GTID [0-9]+-[0-9]+-[0-9]+
 --let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql

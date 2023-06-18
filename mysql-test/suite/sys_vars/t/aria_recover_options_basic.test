@@ -20,7 +20,7 @@ select * from information_schema.session_variables where variable_name='aria_rec
 #
 set global aria_recover_options=1;
 select @@global.aria_recover_options;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session aria_recover_options=1;
 
 #

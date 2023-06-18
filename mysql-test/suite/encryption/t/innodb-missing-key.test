@@ -48,8 +48,10 @@ SELECT COUNT(1) FROM t3;
 SELECT COUNT(1) FROM t2;
 --error ER_NO_SUCH_TABLE_IN_ENGINE
 SELECT COUNT(1) FROM t2,t1 where t2.a = t1.a;
+--replace_catalog
 --error ER_TABLE_CORRUPT
 SELECT COUNT(1) FROM t1 where b = 'ab';
+--replace_catalog
 --error ER_TABLE_CORRUPT
 SELECT COUNT(1) FROM t1;
 

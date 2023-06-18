@@ -103,7 +103,7 @@ SELECT @@global.expire_logs_days;
 #       Test if accessing session expire_logs_days gives error            #
 ###########################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.expire_logs_days = 0;
 SELECT @@expire_logs_days;
 
@@ -148,7 +148,7 @@ SELECT @@expire_logs_days = @@global.expire_logs_days;
 #   Check if expire_logs_days can be accessed with and without @@ sign   #
 ##########################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET expire_logs_days = 1;
 SELECT @@expire_logs_days;
 --Error ER_UNKNOWN_TABLE

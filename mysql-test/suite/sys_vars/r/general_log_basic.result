@@ -43,7 +43,7 @@ SET @@global.general_log = '';
 ERROR 42000: Variable 'general_log' can't be set to the value of ''
 '#-------------------FN_DYNVARS_004_04----------------------------#'
 SET @@session.general_log = OFF;
-ERROR HY000: Variable 'general_log' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@session.general_log;
 ERROR HY000: Variable 'general_log' is a GLOBAL variable
 '#----------------------FN_DYNVARS_004_05------------------------#'
@@ -77,7 +77,7 @@ SELECT @@general_log = @@global.general_log;
 1
 '#---------------------FN_DYNVARS_004_09----------------------#'
 SET general_log = ON;
-ERROR HY000: Variable 'general_log' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT local.general_log;
 ERROR 42S02: Unknown table 'local' in field list
 SELECT global.general_log;

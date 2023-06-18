@@ -51,7 +51,7 @@ SELECT @@global.secure_auth;
 #   Check if secure_auth can be accessed with and without @@ sign           #
 ############################################################################# 
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET secure_auth = 1;
 SELECT @@secure_auth;
 --Error ER_UNKNOWN_TABLE
@@ -104,11 +104,11 @@ SET @@global.secure_auth = NO;
 #           Test if accessing session secure_auth gives error             #
 ########################################################################### 
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.secure_auth = 0;
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@secure_auth = 0;
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@local.secure_auth = 0;
 --Error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.secure_auth;

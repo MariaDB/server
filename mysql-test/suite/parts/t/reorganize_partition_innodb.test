@@ -99,6 +99,14 @@ SHOW CREATE TABLE t;
 
 DROP TABLE t;
 
-rmdir $MYSQLTEST_VARDIR/tmp/partitions_here/test;
+let $tmp=test;
+if ($USING_CATALOGS == 1)
+{
+  let $tmp=`select concat("$MARIADB_CATALOG", "/test")`;
+}
+--rmdir $MYSQLTEST_VARDIR/tmp/partitions_here/$tmp
+if ($USING_CATALOGS == 1)
+{
+  --rmdir $MYSQLTEST_VARDIR/tmp/partitions_here/$MARIADB_CATALOG
+}
 rmdir $MYSQLTEST_VARDIR/tmp/partitions_here;
-

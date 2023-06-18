@@ -1,8 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_sequence.inc
 
-let MYSQLD_DATADIR =`SELECT @@datadir`;
-
 --echo #
 --echo # MDEV-15249 Crash in MVCC read after IMPORT TABLESPACE
 --echo #

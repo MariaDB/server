@@ -3,6 +3,7 @@ if (`SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.ENGINES WHERE engine = 'rocksdb
   --skip Test requires engine RocksDB.
 }
 
+--source include/not_catalogs.inc
 --disable_query_log
 # Table statistics can vary depending on when the memtables are flushed, so
 # flush them at the beginning of the test to ensure the test runs consistently.

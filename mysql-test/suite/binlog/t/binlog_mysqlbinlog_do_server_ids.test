@@ -65,7 +65,6 @@ let $ORIG_GTID_DOMAIN_ID = `select @@session.gtid_domain_id`;
 let $ORIG_SERVER_ID = `select @@session.server_id`;
 
 # Configure test variables
---let $MYSQLD_DATADIR=`select @@datadir`
 
 --let table_inconsistent_err= "table data is inconsistent after replaying binlog events";
 --let table_exists_error= "table exists but binlog playback should have excluded its creation";
@@ -124,10 +123,10 @@ FLUSH LOGS;
 
 --let BINLOG_FILENAME= query_get_value(SHOW BINARY LOGS, Log_name, 1)
 --let BINLOG_FILENAME2= query_get_value(SHOW BINARY LOGS, Log_name, 2)
---let BINLOG_FILE_PARAM= $MYSQLD_DATADIR/$BINLOG_FILENAME.orig
---let BINLOG_FILE_PARAM2= $MYSQLD_DATADIR/$BINLOG_FILENAME2.orig
---copy_file $MYSQLD_DATADIR/$BINLOG_FILENAME $BINLOG_FILE_PARAM
---copy_file $MYSQLD_DATADIR/$BINLOG_FILENAME2 $BINLOG_FILE_PARAM2
+--let BINLOG_FILE_PARAM= $MARIADB_TOPDIR/$BINLOG_FILENAME.orig
+--let BINLOG_FILE_PARAM2= $MARIADB_TOPDIR/$BINLOG_FILENAME2.orig
+--copy_file $MARIADB_TOPDIR/$BINLOG_FILENAME $BINLOG_FILE_PARAM
+--copy_file $MARIADB_TOPDIR/$BINLOG_FILENAME2 $BINLOG_FILE_PARAM2
 
 DROP TABLE t1;
 DROP TABLE t2;

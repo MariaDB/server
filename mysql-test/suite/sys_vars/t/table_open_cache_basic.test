@@ -100,7 +100,7 @@ SET @@global.table_open_cache = '';
 #       Test if accessing session table_open_cache  gives error           #
 ###########################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.table_open_cache = 0;
 
 
@@ -138,7 +138,7 @@ SELECT @@table_open_cache = @@global.table_open_cache ;
 #   Check if table_open_cache can be accessed with and without @@ sign   #
 ##########################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET table_open_cache = 8;
 --Error ER_UNKNOWN_TABLE
 SELECT global.table_open_cache ;

@@ -1,12 +1,10 @@
-let $MYSQLD_DATADIR= `select @@datadir`;
-
 --echo #
 --echo # Test that we can use tables created in MySQL 5.7
 --echo #
 
---copy_file std_data/mysql57_virtual.frm $MYSQLD_DATADIR/test/mysql57_virtual.frm
---copy_file std_data/mysql57_virtual.MYD $MYSQLD_DATADIR/test/mysql57_virtual.MYD
---copy_file std_data/mysql57_virtual.MYI $MYSQLD_DATADIR/test/mysql57_virtual.MYI
+--copy_file std_data/mysql57_virtual.frm $MARIADB_DATADIR/test/mysql57_virtual.frm
+--copy_file std_data/mysql57_virtual.MYD $MARIADB_DATADIR/test/mysql57_virtual.MYD
+--copy_file std_data/mysql57_virtual.MYI $MARIADB_DATADIR/test/mysql57_virtual.MYI
 
 SHOW CREATE TABLE mysql57_virtual;
 insert into mysql57_virtual (a) values (1),(2);

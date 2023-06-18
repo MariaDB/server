@@ -21,7 +21,7 @@ select @@global.aria_log_purge_type;
 @@global.aria_log_purge_type
 external
 set session aria_log_purge_type=1;
-ERROR HY000: Variable 'aria_log_purge_type' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 set global aria_log_purge_type=immediate;
 select @@global.aria_log_purge_type;
 @@global.aria_log_purge_type

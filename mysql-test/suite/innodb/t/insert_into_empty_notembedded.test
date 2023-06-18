@@ -24,7 +24,7 @@ CREATE DATABASE db1;
 --remove_file $file
 --echo # Wait till statistics update after bulk insert operation
 let $wait_condition= select n_rows > 0 from mysql.innodb_table_stats
-where database_name='db1' and table_name='t1';
+where database_name like '%db1' and table_name='t1';
 source include/wait_condition.inc;
 SELECT TABLE_ROWS, AVG_ROW_LENGTH>0 FROM INFORMATION_SCHEMA.TABLES
 WHERE TABLE_NAME='t1' AND TABLE_SCHEMA='db1';
@@ -32,7 +32,7 @@ WHERE TABLE_NAME='t1' AND TABLE_SCHEMA='db1';
 OPTIMIZE TABLE db1.t1;
 --echo # Wait till statistics update after bulk insert operation
 let $wait_condition= select n_rows > 0 from mysql.innodb_table_stats
-where database_name='db1' and table_name='t1';
+where database_name like'%db1' and table_name='t1';
 source include/wait_condition.inc;
 SELECT TABLE_ROWS, AVG_ROW_LENGTH>0 FROM INFORMATION_SCHEMA.TABLES
 WHERE TABLE_NAME='t1' AND TABLE_SCHEMA='db1';

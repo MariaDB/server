@@ -25,7 +25,7 @@ set global innodb_immediate_scrub_data_uncompressed=OFF;
 select @@global.innodb_immediate_scrub_data_uncompressed;
 set global innodb_immediate_scrub_data_uncompressed=1;
 select @@global.innodb_immediate_scrub_data_uncompressed;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session innodb_immediate_scrub_data_uncompressed=1;
 
 --echo #

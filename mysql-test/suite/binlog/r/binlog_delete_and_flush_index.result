@@ -1,7 +1,7 @@
 RESET MASTER;
 CREATE TABLE t1 (a int);
 ### assertion: index file contains regular entries
-SET @index=LOAD_FILE('MYSQLTEST_VARDIR/mysqld.1/data//master-bin.index');
+SET @index=LOAD_FILE('MYSQLTEST_VARDIR/mysqld.1/data/master-bin.index');
 SELECT @index;
 @index
 master-bin.000001
@@ -17,7 +17,7 @@ master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TABLE t1 (a int)
 FLUSH LOGS;
 ### assertion: index file contains renamed binlog and the new one
-SET @index=LOAD_FILE('MYSQLTEST_VARDIR/mysqld.1/data//master-bin.index');
+SET @index=LOAD_FILE('MYSQLTEST_VARDIR/mysqld.1/data/master-bin.index');
 SELECT @index;
 @index
 master-bin-b34582.000001
@@ -44,7 +44,7 @@ master-bin.000002	#
 ### assertion: assert that binlog files were indeed purged (using file_exists calls)
 ### assertion: assert that not purged binlog file exists
 ### assertion: show index file contents and these should match show binary logs issued above
-SET @index=LOAD_FILE('MYSQLTEST_VARDIR/mysqld.1/data//master-bin.index');
+SET @index=LOAD_FILE('MYSQLTEST_VARDIR/mysqld.1/data/master-bin.index');
 SELECT @index;
 @index
 master-bin.000002

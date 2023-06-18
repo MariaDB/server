@@ -624,15 +624,13 @@ SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
 
 --let OLD_STATE= `SELECT @@gtid_binlog_state`
 
---let $datadir= `SELECT @@datadir`
-
 --write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 wait
 EOF
 shutdown_server;
 --source include/wait_until_disconnected.inc
 
---remove_file $datadir/master-bin.state
+--remove_file $MARIADB_TOPDIR/master-bin.state
 
 --append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 restart

@@ -28,14 +28,12 @@ repair table t1 extended;
 show keys from t1;
 drop table t1;
 
-
 # non-existent table
 repair table t1 use_frm;
 
 create table t1 engine=myisam SELECT 1,"table 1";
 flush tables;
-let $MYSQLD_DATADIR= `select @@datadir`;
-system echo 1 > $MYSQLD_DATADIR/test/t1.MYI ;
+system echo 1 > $MARIADB_DATADIR/test/t1.MYI ;
 repair table t1;
 repair table t1 use_frm;
 drop table t1;
@@ -127,10 +125,9 @@ DROP TABLE t1;
 #
 
 --echo # Test with a saved table from 4.1
-let $MYSQLD_DATADIR= `select @@datadir`;
---copy_file std_data/bug36055.frm $MYSQLD_DATADIR/test/t1.frm
---copy_file std_data/bug36055.MYD $MYSQLD_DATADIR/test/t1.MYD
---copy_file std_data/bug36055.MYI $MYSQLD_DATADIR/test/t1.MYI
+--copy_file std_data/bug36055.frm $MARIADB_DATADIR/test/t1.frm
+--copy_file std_data/bug36055.MYD $MARIADB_DATADIR/test/t1.MYD
+--copy_file std_data/bug36055.MYI $MARIADB_DATADIR/test/t1.MYI
 
 --replace_column 12 # 13 #
 SHOW TABLE STATUS LIKE 't1';
@@ -203,13 +200,12 @@ drop tables t1, t2;
 --echo #
 
 --echo # Test with a saved table from 3.23
-let $MYSQLD_DATADIR= `select @@datadir`;
 
 SET @save_global_character_set_server= @@global.character_set_server;
 set @@global.character_set_server=@@character_set_server;
---copy_file std_data/host_old.frm $MYSQLD_DATADIR/test/t1.frm
---copy_file std_data/host_old.MYD $MYSQLD_DATADIR/test/t1.MYD
---copy_file std_data/host_old.MYI $MYSQLD_DATADIR/test/t1.MYI
+--copy_file std_data/host_old.frm $MARIADB_DATADIR/test/t1.frm
+--copy_file std_data/host_old.MYD $MARIADB_DATADIR/test/t1.MYD
+--copy_file std_data/host_old.MYI $MARIADB_DATADIR/test/t1.MYI
 
 --error ER_GET_ERRNO
 select count(*) from t1;

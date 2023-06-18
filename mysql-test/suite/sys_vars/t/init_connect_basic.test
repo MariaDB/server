@@ -68,9 +68,9 @@ SELECT @@global.init_connect;
 ######################################################################
 #     see if it is accessible using session scope                    #
 ######################################################################
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.init_connect = '';
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@init_connect = '';
 --Error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.init_connect;

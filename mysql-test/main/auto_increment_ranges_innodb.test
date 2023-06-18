@@ -16,8 +16,7 @@ load data infile 'load.data' into table t1;
 insert t1 (f) values ('<===');
 select * from t1;
 drop table t1;
---let $datadir=`select @@datadir`
---remove_file $datadir/test/load.data
+--remove_file $MARIADB_DATADIR/test/load.data
 
 --echo #
 --echo # MDEV-21842: auto_increment does not increment with compound primary

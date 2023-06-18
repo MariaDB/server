@@ -1,16 +1,16 @@
 --source include/master-slave.inc
+--source include/get_replication_datadir.inc
 
 --echo *** MDEV-9383: Server fails to read master.info after upgrade 10.0 -> 10.1 ***
 
 --connection slave
 --source include/stop_slave.inc
---let $datadir= `SELECT @@datadir`
 
 --let $rpl_server_number= 2
 --source include/rpl_stop_server.inc
 
---remove_file $datadir/master.info
---copy_file $MYSQL_TEST_DIR/std_data/bad_master.info $datadir/master.info
+--remove_file $SLAVE_TOPDIR/master.info
+--copy_file $MYSQL_TEST_DIR/std_data/bad_master.info $SLAVE_TOPDIR/master.info
 
 --let $rpl_server_number= 2
 --source include/rpl_start_server.inc
@@ -36,8 +36,8 @@ SELECT * FROM t1;
 --let $rpl_server_number= 2
 --source include/rpl_stop_server.inc
 
---remove_file $datadir/master.info
---copy_file $MYSQL_TEST_DIR/std_data/bad2_master.info $datadir/master.info
+--remove_file $SLAVE_TOPDIR/master.info
+--copy_file $MYSQL_TEST_DIR/std_data/bad2_master.info $SLAVE_TOPDIR/master.info
 
 --let $rpl_server_number= 2
 --source include/rpl_start_server.inc
@@ -62,8 +62,8 @@ SELECT * FROM t1 ORDER BY a;
 --let $rpl_server_number= 2
 --source include/rpl_stop_server.inc
 
---remove_file $datadir/master.info
---copy_file $MYSQL_TEST_DIR/std_data/bad3_master.info $datadir/master.info
+--remove_file $SLAVE_TOPDIR/master.info
+--copy_file $MYSQL_TEST_DIR/std_data/bad3_master.info $SLAVE_TOPDIR/master.info
 
 --let $rpl_server_number= 2
 --source include/rpl_start_server.inc
@@ -88,8 +88,8 @@ SELECT * FROM t1 ORDER BY a;
 --let $rpl_server_number= 2
 --source include/rpl_stop_server.inc
 
---remove_file $datadir/master.info
---copy_file $MYSQL_TEST_DIR/std_data/bad4_master.info $datadir/master.info
+--remove_file $SLAVE_TOPDIR/master.info
+--copy_file $MYSQL_TEST_DIR/std_data/bad4_master.info $SLAVE_TOPDIR/master.info
 
 --let $rpl_server_number= 2
 --source include/rpl_start_server.inc
@@ -114,8 +114,8 @@ SELECT * FROM t1 ORDER BY a;
 --let $rpl_server_number= 2
 --source include/rpl_stop_server.inc
 
---remove_file $datadir/master.info
---copy_file $MYSQL_TEST_DIR/std_data/bad5_master.info $datadir/master.info
+--remove_file $SLAVE_TOPDIR/master.info
+--copy_file $MYSQL_TEST_DIR/std_data/bad5_master.info $SLAVE_TOPDIR/master.info
 
 --let $rpl_server_number= 2
 --source include/rpl_start_server.inc
@@ -140,8 +140,8 @@ SELECT * FROM t1 ORDER BY a;
 --let $rpl_server_number= 2
 --source include/rpl_stop_server.inc
 
---remove_file $datadir/master.info
---copy_file $MYSQL_TEST_DIR/std_data/bad6_master.info $datadir/master.info
+--remove_file $SLAVE_TOPDIR/master.info
+--copy_file $MYSQL_TEST_DIR/std_data/bad6_master.info $SLAVE_TOPDIR/master.info
 
 --let $rpl_server_number= 2
 --source include/rpl_start_server.inc

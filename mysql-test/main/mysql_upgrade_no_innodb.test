@@ -2,5 +2,4 @@
 
 --exec $MYSQL_UPGRADE --force --upgrade-system-tables 2>&1
 
-let $MYSQLD_DATADIR= `select @@datadir`;
---remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
+--remove_file $MARIADB_TOPDIR/mariadb_upgrade_info

@@ -9,7 +9,6 @@
 # Speed up wait_until_connected_again.inc
 let NO_WSREP=1;
 RESET MASTER;
-let $MYSQLD_DATADIR= `SELECT @@datadir`;
 
 let $engine_count=1;
 let $engines='aria';
@@ -84,7 +83,7 @@ while ($e < $engine_count)
         echo "No crash!";
       }
       # Check which tables still exists
-      --list_files $MYSQLD_DATADIR/test v*
+      --list_files $MARIADB_DATADIR/test v*
 
       --let $binlog_file=$start_binlog_file
       --let $binlog_output_name=master-bin.000001

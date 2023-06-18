@@ -51,7 +51,7 @@ SET @@global.connect_timeout = ON;
 ERROR 42000: Incorrect argument type to variable 'connect_timeout'
 '#-------------------FN_DYNVARS_019_05----------------------------#'
 SET @@session.connect_timeout = 0;
-ERROR HY000: Variable 'connect_timeout' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@session.connect_timeout;
 ERROR HY000: Variable 'connect_timeout' is a GLOBAL variable
 '#----------------------FN_DYNVARS_019_06------------------------#'
@@ -80,7 +80,7 @@ SELECT @@connect_timeout = @@global.connect_timeout;
 1
 '#---------------------FN_DYNVARS_019_09----------------------#'
 SET connect_timeout = 1;
-ERROR HY000: Variable 'connect_timeout' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT global.connect_timeout;
 ERROR 42S02: Unknown table 'global' in field list
 SELECT connect_timeout = @@session.connect_timeout;

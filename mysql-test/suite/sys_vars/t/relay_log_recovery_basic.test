@@ -31,7 +31,7 @@ set global relay_log_recovery=OFF;
 select @@global.relay_log_recovery;
 select * from information_schema.global_variables where variable_name='relay_log_recovery';
 select * from information_schema.session_variables where variable_name='relay_log_recovery';
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session relay_log_recovery=1;
 
 #

@@ -31,8 +31,6 @@ SELECT * FROM t1 WHERE b = "Seven";
 DROP TABLE t1;
 
 
---let $DATADIR= `SELECT @@datadir;`
-
 --echo #
 --echo # WL#4445: EXCHANGE PARTITION WITH TABLE
 --echo # Verify ddl_log in case of crashing.

@@ -1,10 +1,10 @@
 -- source include/have_binlog_format_statement.inc
 -- source include/have_log_bin.inc
 -- source include/have_innodb.inc
+
 #
 # MBug#702303: Spurious `use` statements in output from mysqlbinlog --rewrite-db="a->b" 
 #
-let $MYSQLD_DATADIR= `select @@datadir`;
 SET TIMESTAMP=1000000000;
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=innodb;
 CREATE DATABASE test2;
@@ -25,8 +25,8 @@ USE test;
 SELECT * FROM t1 ORDER BY a;
 FLUSH LOGS;
 --replace_regex /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 --short-form
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 --short-form
 --replace_regex /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 --short-form --rewrite-db="test->foo" --rewrite-db="test2->bar"
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 --short-form --rewrite-db="test->foo" --rewrite-db="test2->bar"
 DROP DATABASE test2;
 DROP TABLE t1;

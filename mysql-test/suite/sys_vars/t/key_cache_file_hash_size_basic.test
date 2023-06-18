@@ -95,7 +95,7 @@ SELECT @@global.key_cache_file_hash_size;
 #       Test if accessing session key_cache_file_hash_size gives error     #
 ########################################################################### 
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.key_cache_file_hash_size = 0;
 --Error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.key_cache_file_hash_size;
@@ -140,7 +140,7 @@ SELECT @@key_cache_file_hash_size = @@global.key_cache_file_hash_size;
 #   Check if key_cache_file_hash_size can be accessed with and without @@ sign    #
 ##################################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET key_cache_file_hash_size = 8000;
 SELECT @@key_cache_file_hash_size;
 --Error ER_UNKNOWN_TABLE

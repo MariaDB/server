@@ -4,7 +4,6 @@
 #
 
 create database test2;
-let $mysqld_datadir= `select @@datadir`;
 
 --echo #
 --echo # Testing rename error in different places
@@ -47,7 +46,7 @@ select t1.a+T2.b+t3.c+T4.d from t1,T2,t3,T4;
 --error ER_NO_SUCH_TABLE
 select * from t5;
 
---list_files $mysqld_datadir/test
+--list_files $MARIADB_DATADIR/test
 
 --echo # Cleanup
 drop table t1,T2,t3,T4;

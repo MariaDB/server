@@ -22,9 +22,9 @@ select * from information_schema.session_variables where variable_name='innodb_f
 
 call mtr.add_suppression("\\[ERROR\\] InnoDB: user stopword table Salmon does not exist.");
 
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session innodb_ft_server_stopword_table='Salmon';
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set @@session.innodb_ft_server_stopword_table='Salmon';
 
 #

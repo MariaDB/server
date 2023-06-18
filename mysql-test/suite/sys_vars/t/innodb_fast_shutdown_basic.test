@@ -55,7 +55,7 @@ SELECT @@global.innodb_fast_shutdown;
 #   Check if innodb_fast_shutdown can be accessed with and without @@ sign  #
 #############################################################################
 
---ERROR ER_GLOBAL_VARIABLE
+--ERROR ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET innodb_fast_shutdown = 1;
 SELECT @@innodb_fast_shutdown;
 
@@ -133,12 +133,12 @@ SELECT @@global.innodb_fast_shutdown;
 #           Test if accessing session innodb_fast_shutdown gives error    #
 ###########################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.innodb_fast_shutdown = 0;
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@innodb_fast_shutdown = 0;
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@local.innodb_fast_shutdown = 0;
 
 

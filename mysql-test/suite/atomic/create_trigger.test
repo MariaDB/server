@@ -10,8 +10,6 @@ RESET MASTER;
 # Testing of atomic CREATE TRIGGER with crashes in a lot of different places
 #
 
-let $MYSQLD_DATADIR= `SELECT @@datadir`;
-
 let $engine_count=1;
 let $engines='aria';
 
@@ -111,8 +109,8 @@ while ($e < $engine_count)
         echo "No crash!";
       }
       # Check which tables still exists
-      --list_files $MYSQLD_DATADIR/test *TR*
-      --list_files $MYSQLD_DATADIR/test *sql*
+      --list_files $MARIADB_DATADIR/test *TR*
+      --list_files $MARIADB_DATADIR/test *sql*
 
       --replace_column 7 #
       --error 0,ER_TRG_DOES_NOT_EXIST

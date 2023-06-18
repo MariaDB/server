@@ -11,7 +11,7 @@
 call mtr.add_suppression("InnoDB: Cannot open datafile for read-only: ");
 call mtr.add_suppression("InnoDB: Operating system error number .* in a file operation");
 call mtr.add_suppression("InnoDB: Error number \\d+ means");
-call mtr.add_suppression("InnoDB: Ignoring tablespace for test/\(t\|x@002e@002ed\) because it could not be opened");
+call mtr.add_suppression("InnoDB: Ignoring tablespace for .*test/\(t\|x@002e@002ed\) because it could not be opened");
 call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* because the .ibd file is missing");
 call mtr.add_suppression("Could not find a valid tablespace file for");
 call mtr.add_suppression("InnoDB: Failed to find tablespace for table `test`\.`\(t\|x\.\.d\)` in the cache");
@@ -20,7 +20,6 @@ call mtr.add_suppression("Table .* in the InnoDB data dictionary has tablespace 
 call mtr.add_suppression("InnoDB: ALTER TABLE `test`.`t` DISCARD TABLESPACE failed to find tablespace");
 --enable_query_log
 
-let $MYSQLD_DATADIR=`select @@datadir`;
 CREATE TABLE t(a SERIAL)ENGINE=InnoDB;
 CREATE TABLE `x..d` (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
 CREATE TABLE t1(a SERIAL)ENGINE=InnoDB;
@@ -29,8 +28,8 @@ INSERT INTO t1 VALUES(1),(2),(3);
 --source include/shutdown_mysqld.inc
 
 # Remove the tablespace files.
---remove_file $MYSQLD_DATADIR/test/t.ibd
---remove_file $MYSQLD_DATADIR/test/x@002e@002ed.ibd
+--remove_file $MARIADB_DATADIR/test/t.ibd
+--remove_file $MARIADB_DATADIR/test/x@002e@002ed.ibd
 
 --source include/start_mysqld.inc
 
@@ -40,10 +39,12 @@ SELECT * FROM t;
 
 --error ER_GET_ERRNO
 ALTER TABLE t ADD INDEX (a), ALGORITHM=INPLACE;
+--replace_catalog
 SHOW WARNINGS;
 
 --error ER_GET_ERRNO
 ALTER TABLE t ADD INDEX (a), ALGORITHM=COPY;
+--replace_catalog
 SHOW WARNINGS;
 
 --error ER_GET_ERRNO
@@ -57,6 +58,7 @@ ALTER TABLE t ALGORITHM=INPLACE, DISCARD TABLESPACE;
 ALTER TABLE t ALGORITHM=COPY, DISCARD TABLESPACE;
 --error ER_PARSE_ERROR
 ALTER TABLE t ALGORITHM=DEFAULT, DISCARD TABLESPACE;
+--replace_catalog
 ALTER TABLE t DISCARD TABLESPACE;
 RENAME TABLE t TO u;
 RENAME TABLE u TO v;

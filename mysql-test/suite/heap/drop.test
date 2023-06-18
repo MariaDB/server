@@ -1,6 +1,7 @@
+--source include/get_datadir.inc
+
 create table t1 (a int) engine=memory;
-let $DATADIR= `select @@datadir`;
-copy_file $DATADIR/test/t1.frm $DATADIR/test/t2.frm;
+copy_file $MARIADB_DATADIR/test/t1.frm $MARIADB_DATADIR/test/t2.frm;
 #
 # drop a newly created MEMORY table
 #

@@ -127,8 +127,7 @@ create trigger t1_bi before insert on t1 for each row set new.a= 1;
 show triggers like '%T1%';
 drop table t1;
 
-let $datadir= `select @@datadir`;
-remove_file $datadir/mariadb_upgrade_info;
+remove_file $MARIADB_TOPDIR/mariadb_upgrade_info;
 
 set GLOBAL sql_mode=default;
 

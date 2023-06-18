@@ -20,9 +20,8 @@ FLUSH TABLES;
 
 --echo # replacing t1.MYI with a corrupt + unclosed one created by doing:
 --echo # 'create table t1 (a int key(a))' head -c1024 t1.MYI > corrupt_t1.MYI 
-let $MYSQLD_DATADIR= `select @@datadir`;
---remove_file $MYSQLD_DATADIR/test/t1_will_crash.MYI
---copy_file std_data/corrupt_t1.MYI $MYSQLD_DATADIR/test/t1_will_crash.MYI
+--remove_file $MARIADB_DATADIR/test/t1_will_crash.MYI
+--copy_file std_data/corrupt_t1.MYI $MARIADB_DATADIR/test/t1_will_crash.MYI
 --enable_prepare_warnings
 # Embedded server doesn't chdir to data directory
 --replace_regex /Table '.*t1_will_crash/Table 't1_will_crash/
@@ -39,8 +38,8 @@ FLUSH TABLES;
 --echo # replacing t1#P#p1.MYI with a corrupt + unclosed one created by doing:
 --echo # 'create table t1 (a int key(a)) partition by hash (a) partitions 3'
 --echo # head -c1024 t1#P#p1.MYI > corrupt_t1#P#p1.MYI 
---remove_file $MYSQLD_DATADIR/test/t1_will_crash#P#p1.MYI
---copy_file std_data/corrupt_t1#P#p1.MYI $MYSQLD_DATADIR/test/t1_will_crash#P#p1.MYI
+--remove_file $MARIADB_DATADIR/test/t1_will_crash#P#p1.MYI
+--copy_file std_data/corrupt_t1#P#p1.MYI $MARIADB_DATADIR/test/t1_will_crash#P#p1.MYI
 --enable_prepare_warnings
 # Embedded server doesn't chdir to data directory
 --replace_regex /Table '.*t1_will_crash/Table 't1_will_crash/

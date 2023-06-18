@@ -64,9 +64,9 @@ WHERE variable_name='innodb_stats_method';
 VARIABLE_NAME	VARIABLE_VALUE
 INNODB_STATS_METHOD	nulls_ignored
 SET session innodb_stats_method='nulls_equal';
-ERROR HY000: Variable 'innodb_stats_method' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SET @@session.innodb_stats_method='nulls_ignored';
-ERROR HY000: Variable 'innodb_stats_method' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SET global innodb_stats_method=1.1;
 ERROR 42000: Incorrect argument type to variable 'innodb_stats_method'
 SET global innodb_stats_method=4;

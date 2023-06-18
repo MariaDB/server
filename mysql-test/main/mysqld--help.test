@@ -28,7 +28,7 @@ perl;
                large-files-support lower-case-file-system system-time-zone
                collation-server character-set-server log-tc-size table-cache
                table-open-cache table-open-cache-instances max-connections
-               tls-version version.* password-reuse-check
+               tls-version version.* password-reuse-check catalogs
                provider-bzip2 provider-lzma provider-lzo
                password-reuse-check-interval/;
 
@@ -64,7 +64,7 @@ perl;
     $skip=1 if / --($re2)\b/;
     y!\\!/!;
     s/[ ]+/ /; # squeeze spaces to remove table formatting
-    # fixes for 32-bit
+    # fixes for 32-bit   
     s/\b4294967295\b/18446744073709551615/;
     s/\b2146435072\b/9223372036853727232/;
     s/\b392192\b/299008/;

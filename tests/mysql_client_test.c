@@ -7296,6 +7296,30 @@ static void test_prepare_grant()
 }
 #endif /* EMBEDDED_LIBRARY */
 
+
+static my_bool get_current_catalog_dir(char *catalog_name, size_t maxlength)
+{
+  my_bool have_catalogs= 0;
+  MYSQL_RES *res;
+
+  catalog_name[0]= 0;
+
+  /* In case of error below current_db will be NULL */
+  if (!mysql_query(mysql, "SELECT CATALOG(), @@global.catalogs") &&
+      (res= mysql_use_result(mysql)))
+  {
+    MYSQL_ROW row= mysql_fetch_row(res);
+    if (row && row[0] && row[1][0] == '1')
+    {
+      have_catalogs= 1;
+      strxnmov(catalog_name, maxlength-1, row[0], "/", NullS);
+    }
+    mysql_free_result(res);
+  }
+  return have_catalogs;
+}
+
+
 /*
   Test a crash when invalid/corrupted .frm is used in the
   SHOW TABLE STATUS
@@ -7311,6 +7335,7 @@ static void test_frm_bug()
   FILE       *test_file;
   char       data_dir[FN_REFLEN];
   char       test_frm[FN_REFLEN];
+  char       catalog_dir[SAFE_NAME_LEN+2];
   int        rc;
 
   myheader("test_frm_bug");
@@ -7347,7 +7372,9 @@ static void test_frm_bug()
   rc= mysql_stmt_fetch(stmt);
   DIE_UNLESS(rc == MYSQL_NO_DATA);
 
-  strxmov(test_frm, data_dir, "/", current_db, "/", "test_frm_bug.frm", NullS);
+  get_current_catalog_dir(catalog_dir, sizeof(catalog_dir)-1);
+  strxmov(test_frm, data_dir, "/", catalog_dir, current_db, "/",
+          "test_frm_bug.frm", NullS);
 
   if (!opt_silent)
     fprintf(stdout, "\n test_frm: %s", test_frm);

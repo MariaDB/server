@@ -37,7 +37,7 @@ select @@global.innodb_immediate_scrub_data_uncompressed;
 @@global.innodb_immediate_scrub_data_uncompressed
 1
 set session innodb_immediate_scrub_data_uncompressed=1;
-ERROR HY000: Variable 'innodb_immediate_scrub_data_uncompressed' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 #
 # incorrect types
 #

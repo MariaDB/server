@@ -198,8 +198,7 @@ flush logs;
 select * from t1;
 DROP TABLE t1;
 
-let $MYSQLD_DATADIR= `select @@datadir;`;
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 | $MYSQL
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 | $MYSQL
 --connection master1
 select * from t1 order by a;
 DROP TABLE t1;

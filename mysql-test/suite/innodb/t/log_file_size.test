@@ -18,13 +18,14 @@ call mtr.add_suppression("InnoDB: File .*ib_logfile0 (is too small|was not found
 call mtr.add_suppression("InnoDB: Expecting only ib_logfile0");
 FLUSH TABLES;
 --enable_query_log
-let MYSQLD_DATADIR= `select @@datadir`;
 CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
 
+let MARIADB_DATADIR=$MARIADB_DATADIR/;
+let MARIADB_TOPDIR=$MARIADB_TOPDIR/;
 --source include/shutdown_mysqld.inc
 perl;
 do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
-my $file = "$ENV{MYSQLD_DATADIR}ib_logfile0";
+my $file = "$ENV{MARIADB_TOPDIR}ib_logfile0";
 open(FILE, "<$file") || die "Unable to open $file\n";
 seek(FILE, 4096, 0) || die "Unable to seek $file\n";
 die unless read(FILE, $_, 8) == 8;
@@ -138,8 +139,8 @@ let SEARCH_PATTERN= InnoDB: innodb_read_only prevents crash recovery;
 
 # Trigger an error in recovery.
 
---move_file $MYSQLD_DATADIR/ib_logfile0 $MYSQLD_DATADIR/ib_logfile101
---write_file $MYSQLD_DATADIR/ib_logfile0
+--move_file $MARIADB_TOPDIR/ib_logfile0 $MARIADB_TOPDIR/ib_logfile101
+--write_file $MARIADB_TOPDIR/ib_logfile0
 garbage
 EOF
 
@@ -149,8 +150,8 @@ EOF
 SELECT * FROM t1;
 let SEARCH_PATTERN= InnoDB: File .*ib_logfile0 is too small;
 --source include/search_pattern_in_file.inc
---move_file $MYSQLD_DATADIR/ib_logfile0 $MYSQLD_DATADIR/ib_logfile1
---move_file $MYSQLD_DATADIR/ib_logfile101 $MYSQLD_DATADIR/ib_logfile0
+--move_file $MARIADB_TOPDIR/ib_logfile0 $MARIADB_TOPDIR/ib_logfile1
+--move_file $MARIADB_TOPDIR/ib_logfile101 $MARIADB_TOPDIR/ib_logfile0
 
 --source include/restart_mysqld.inc
 --error ER_UNKNOWN_STORAGE_ENGINE
@@ -158,14 +159,14 @@ SELECT * FROM t1;
 let SEARCH_PATTERN= InnoDB: Expecting only ib_logfile0;
 --source include/search_pattern_in_file.inc
 
---remove_file $MYSQLD_DATADIR/ib_logfile1
---move_file $MYSQLD_DATADIR/ib_logfile0 $MYSQLD_DATADIR/ib_logfile101
+--remove_file $MARIADB_TOPDIR/ib_logfile1
+--move_file $MARIADB_TOPDIR/ib_logfile0 $MARIADB_TOPDIR/ib_logfile101
 
 --source include/restart_mysqld.inc
 --error ER_UNKNOWN_STORAGE_ENGINE
 let SEARCH_PATTERN= InnoDB: File .*ib_logfile0 was not found;
 --source include/search_pattern_in_file.inc
---move_file $MYSQLD_DATADIR/ib_logfile101 $MYSQLD_DATADIR/ib_logfile0
+--move_file $MARIADB_TOPDIR/ib_logfile101 $MARIADB_TOPDIR/ib_logfile0
 
 --source include/restart_mysqld.inc
 SELECT * FROM t1;

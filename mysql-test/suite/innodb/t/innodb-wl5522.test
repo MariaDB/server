@@ -7,11 +7,10 @@
 
 call mtr.add_suppression("InnoDB: Unable to import tablespace .* because it already exists.  Please DISCARD the tablespace before IMPORT\\.");
 call mtr.add_suppression("Index for table 't2' is corrupt; try to repair it");
-call mtr.add_suppression("InnoDB: Cannot save statistics for table `test`\\.`t1` because the \\.ibd file is missing");
+call mtr.add_suppression("InnoDB: Cannot save statistics for table .*`test`\\.`t1` because the \\.ibd file is missing");
 
 FLUSH TABLES;
 
-let $MYSQLD_DATADIR = `SELECT @@datadir`;
 let $checksum_algorithm = `SELECT @@innodb_checksum_algorithm`;
 
 CREATE TABLE t1
@@ -35,52 +34,54 @@ SELECT * FROM t1 ORDER BY a DESC LIMIT 3;
 
 CREATE TABLE t2(a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPACT;
 
---list_files $MYSQLD_DATADIR/test
+--list_files $MARIADB_DATADIR/test
 --source include/restart_mysqld.inc
 FLUSH TABLE t1, t2 FOR EXPORT;
 --echo # List before copying files
---list_files $MYSQLD_DATADIR/test
---copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_DATADIR/test/t1.cfg.sav
---copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t1.ibd.sav
---move_file $MYSQLD_DATADIR/test/t2.cfg $MYSQLD_DATADIR/test/t2.cfg.sav
---copy_file $MYSQLD_DATADIR/test/t2.ibd $MYSQLD_DATADIR/test/t2.ibd.sav
+--list_files $MARIADB_DATADIR/test
+--copy_file $MARIADB_DATADIR/test/t1.cfg $MARIADB_DATADIR/test/t1.cfg.sav
+--copy_file $MARIADB_DATADIR/test/t1.ibd $MARIADB_DATADIR/test/t1.ibd.sav
+--move_file $MARIADB_DATADIR/test/t2.cfg $MARIADB_DATADIR/test/t2.cfg.sav
+--copy_file $MARIADB_DATADIR/test/t2.ibd $MARIADB_DATADIR/test/t2.ibd.sav
 UNLOCK TABLES;
 INSERT INTO t1 (b, c) SELECT b,c FROM t1 ORDER BY a;
 SELECT COUNT(*) FROM t1;
 SELECT * FROM t1 ORDER BY b,a DESC LIMIT 3;
 SELECT * FROM t1 ORDER BY a DESC LIMIT 3;
 --echo # Restarting server
--- source include/restart_mysqld.inc
+--source include/restart_mysqld.inc
 --echo # Done restarting server
 --echo # List before t1 DISCARD
---list_files $MYSQLD_DATADIR/test
+--list_files $MARIADB_DATADIR/test
 ALTER TABLE t1 DISCARD TABLESPACE;
 --echo # List after t1 DISCARD
---list_files $MYSQLD_DATADIR/test
---copy_file $MYSQLD_DATADIR/test/t1.cfg.sav $MYSQLD_DATADIR/test/t1.cfg
---copy_file $MYSQLD_DATADIR/test/t1.ibd.sav $MYSQLD_DATADIR/test/t1.ibd
+--list_files $MARIADB_DATADIR/test
+--copy_file $MARIADB_DATADIR/test/t1.cfg.sav $MARIADB_DATADIR/test/t1.cfg
+--copy_file $MARIADB_DATADIR/test/t1.ibd.sav $MARIADB_DATADIR/test/t1.ibd
+--replace_catalog
 ALTER TABLE t1 IMPORT TABLESPACE;
 ALTER TABLE t1 ENGINE InnoDB;
 SELECT COUNT(*) FROM t1;
 SELECT * FROM t1 ORDER BY b,a DESC LIMIT 3;
 SELECT * FROM t1 ORDER BY a DESC LIMIT 3;
---list_files $MYSQLD_DATADIR/test
+--list_files $MARIADB_DATADIR/test
 SELECT COUNT(*) FROM t1;
 SELECT * FROM t1 ORDER BY b,a DESC LIMIT 3;
 SELECT * FROM t1 ORDER BY a DESC LIMIT 3;
 DROP TABLE t1;
---remove_file $MYSQLD_DATADIR/test/t1.cfg.sav
---remove_file $MYSQLD_DATADIR/test/t1.ibd.sav
+--remove_file $MARIADB_DATADIR/test/t1.cfg.sav
+--remove_file $MARIADB_DATADIR/test/t1.ibd.sav
 
 ALTER TABLE t2 ROW_FORMAT=DYNAMIC;
 ALTER TABLE t2 DISCARD TABLESPACE;
 --echo # List after t2 DISCARD
---list_files $MYSQLD_DATADIR/test
---move_file $MYSQLD_DATADIR/test/t2.ibd.sav $MYSQLD_DATADIR/test/t2.ibd
---move_file $MYSQLD_DATADIR/test/t2.cfg.sav $MYSQLD_DATADIR/test/t2.cfg
+--list_files $MARIADB_DATADIR/test
+--move_file $MARIADB_DATADIR/test/t2.ibd.sav $MARIADB_DATADIR/test/t2.ibd
+--move_file $MARIADB_DATADIR/test/t2.cfg.sav $MARIADB_DATADIR/test/t2.cfg
+--replace_catalog
 --error ER_TABLE_SCHEMA_MISMATCH
 ALTER TABLE t2 IMPORT TABLESPACE;
---remove_file $MYSQLD_DATADIR/test/t2.cfg
+--remove_file $MARIADB_DATADIR/test/t2.cfg
 
 let $error_code = ER_TABLE_SCHEMA_MISMATCH;
 
@@ -92,6 +93,7 @@ if ($checksum_algorithm == "strict_full_crc32") {
  let $error_code = 0;
 }
 
+--replace_catalog
 --replace_regex /(FSP_SPACE_FLAGS=0x)[0-9a-f]+(,.*0x)[0-9a-f]+(.*)/\1*\2*\3/
 --error $error_code
 ALTER TABLE t2 IMPORT TABLESPACE;
@@ -99,27 +101,26 @@ DROP TABLE t2;
 
 SELECT @@innodb_file_per_table;
 
-let MYSQLD_DATADIR =`SELECT @@datadir`;
-
-# Try importing when tablespace already exists
+--echo # Try importing when tablespace already exists
 CREATE TABLE t1(
 	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 	c2 INT) ENGINE=InnoDB;
 
 INSERT INTO t1(c2) VALUES(1);
+--replace_catalog
 --error ER_TABLESPACE_EXISTS
 ALTER TABLE t1 IMPORT TABLESPACE;
 SELECT * FROM t1;
 DROP TABLE t1;
 
-# Export/import on the same instance
+--echo # Export/import on the same instance
 CREATE TABLE t1(
 	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 	c2 INT) ENGINE=InnoDB;
 
 INSERT INTO t1 SELECT seq,1 FROM seq_1_to_16;
 
---list_files $MYSQLD_DATADIR/test
+--list_files $MARIADB_DATADIR/test
 
 FLUSH TABLES t1 FOR EXPORT;
 perl;
@@ -127,7 +128,7 @@ do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
 ib_backup_tablespaces("test", "t1");
 EOF
 
---list_files $MYSQLD_DATADIR/test
+--list_files $MARIADB_DATADIR/test
 
 UNLOCK TABLES;
 
@@ -147,7 +148,7 @@ ib_discard_tablespaces("test", "t1");
 ib_restore_tablespaces("test", "t1");
 EOF
 
---list_files $MYSQLD_DATADIR/test
+--list_files $MARIADB_DATADIR/test
 
 ALTER TABLE t1 IMPORT TABLESPACE;
 CHECK TABLE t1;
@@ -156,25 +157,25 @@ SELECT COUNT(*) FROM t1;
 
 DROP TABLE t1;
 
-# Export/import on the same instance
-# Insert some more records to move the LSN forward and then drop the
-# table and restore
+--echo # Export/import on the same instance
+--echo # Insert some more records to move the LSN forward and then drop the
+--echo # table and restore
 CREATE TABLE t1(
 	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 	c2 INT) ENGINE=InnoDB;
 
 INSERT INTO t1 SELECT seq,1 FROM seq_1_to_16;
 
---list_files $MYSQLD_DATADIR/test
+--list_files $MARIADB_DATADIR/test
 FLUSH TABLES t1 FOR EXPORT;
 perl;
 do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
 ib_backup_tablespaces("test", "t1");
 EOF
---list_files $MYSQLD_DATADIR/test
+--list_files $MARIADB_DATADIR/test
 UNLOCK TABLES;
 
---list_files $MYSQLD_DATADIR/test
+--list_files $MARIADB_DATADIR/test
 
 # Move the LSN forward
 DROP TABLE t1;
@@ -193,7 +194,7 @@ ib_discard_tablespaces("test", "t1");
 ib_restore_tablespaces("test", "t1");
 EOF
 
---list_files $MYSQLD_DATADIR/test
+--list_files $MARIADB_DATADIR/test
 
 ALTER TABLE t1 IMPORT TABLESPACE;
 CHECK TABLE t1;
@@ -202,9 +203,9 @@ SELECT COUNT(*) FROM t1;
 
 DROP TABLE t1;
 
-# Export/import on the same instance
-# Insert some more records to move the LSN forward and then drop the
-# table and restore, this time the table has a secondary index too.
+--echo # Export/import on the same instance
+--echo # Insert some more records to move the LSN forward and then drop the
+--echo # table and restore, this time the table has a secondary index too.
 CREATE TABLE t1(
 	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 	c2 INT, INDEX(c2)) ENGINE=InnoDB;
@@ -216,7 +217,7 @@ perl;
 do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
 ib_backup_tablespaces("test", "t1");
 EOF
---list_files $MYSQLD_DATADIR/test
+--list_files $MARIADB_DATADIR/test
 UNLOCK TABLES;
 
 # Move the LSN forward
@@ -243,11 +244,11 @@ SELECT COUNT(*) FROM t1 WHERE c2 = 1;
 
 DROP TABLE t1;
 
-# Export/import on the same instance
-# Insert some more records to move the LSN forward and then drop the
-# table and restore, this time the table has a secondary index too.
-# Rename the index on the create so that the IMPORT fails, drop index
-# Create with proper name and then do an IMPORT.
+--echo # Export/import on the same instance
+--echo # Insert some more records to move the LSN forward and then drop the
+--echo # table and restore, this time the table has a secondary index too.
+--echo # Rename the index on the create so that the IMPORT fails, drop index
+--echo # Create with proper name and then do an IMPORT.
 CREATE TABLE t1(
 	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 	c2 INT, INDEX idx(c2)) ENGINE=InnoDB;
@@ -278,7 +279,7 @@ ib_discard_tablespaces("test", "t1");
 ib_restore_tablespaces("test", "t1");
 EOF
 
-# This is really a name mismatch error, need better error codes.
+--echo # This is really a name mismatch error, need better error codes.
 -- error ER_TABLE_SCHEMA_MISMATCH
 ALTER TABLE t1 IMPORT TABLESPACE;
 --error ER_TABLESPACE_DISCARDED
@@ -305,9 +306,10 @@ EOF
 
 DROP TABLE t1;
 
-#
-# Export/import on the same instance, with --innodb-file-per-table=0
-# This should fail because it is not supported
+--echo #
+--echo # Export/import on the same instance, with --innodb-file-per-table=0
+--echo # This should fail because it is not supported
+--echo #
 SET GLOBAL innodb_file_per_table = 0;
 
 CREATE TABLE t1(
@@ -318,15 +320,17 @@ INSERT INTO t1 SELECT seq,1 FROM seq_1_to_16;
 SHOW CREATE TABLE t1;
 
 # This should fail, InnoDB should return a warning
+
+--replace_catalog
 FLUSH TABLES t1 FOR EXPORT;
 
 UNLOCK TABLES;
 
 DROP TABLE t1;
 
-#
-# Tests that check for schema mismatch during IMPORT
-#
+--echo #
+--echo # Tests that check for schema mismatch during IMPORT
+--echo #
 
 SET GLOBAL innodb_file_per_table = 1;
 
@@ -1085,8 +1089,8 @@ CREATE TABLE t2 ( id INT NOT NULL, i1 INT, i2 INT, PRIMARY KEY (id)) engine=inno
 ALTER TABLE t2 DISCARD TABLESPACE;
 FLUSH TABLES t1 FOR EXPORT;
 
---copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t2.ibd
---copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_DATADIR/test/t2.cfg
+--copy_file $MARIADB_DATADIR/test/t1.ibd $MARIADB_DATADIR/test/t2.ibd
+--copy_file $MARIADB_DATADIR/test/t1.cfg $MARIADB_DATADIR/test/t2.cfg
 
 UNLOCK TABLES;
 --error ER_TABLE_SCHEMA_MISMATCH
@@ -1101,8 +1105,8 @@ CREATE TABLE t2 ( id INT NOT NULL, i1 INT, i2 INT, i3 INT, PRIMARY KEY (id)) eng
 ALTER TABLE t2 DISCARD TABLESPACE;
 FLUSH TABLES t1 FOR EXPORT;
 
---copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t2.ibd
---copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_DATADIR/test/t2.cfg
+--copy_file $MARIADB_DATADIR/test/t1.ibd $MARIADB_DATADIR/test/t2.ibd
+--copy_file $MARIADB_DATADIR/test/t1.cfg $MARIADB_DATADIR/test/t2.cfg
 
 UNLOCK TABLES;
 --error ER_TABLE_SCHEMA_MISMATCH

@@ -2,6 +2,5 @@
 
 --source suite/rpl/include/hrtime.inc
 
-let $MYSQLD_DATADIR= `select @@datadir`;
---exec $MYSQL_BINLOG --short-form $MYSQLD_DATADIR/master-bin.000001
+--exec $MYSQL_BINLOG --short-form $MARIADB_TOPDIR/master-bin.000001
 

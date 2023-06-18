@@ -1,12 +1,11 @@
 call mtr.add_suppression("table or database name '.otherdir'");
 
 select @@ignore_db_dirs;
-let $MYSQLD_DATADIR= `select @@datadir`;
 
-mkdir $MYSQLD_DATADIR/.mysqlgui;
-mkdir $MYSQLD_DATADIR/.otherdir;
-mkdir $MYSQLD_DATADIR/lost+found;
-mkdir $MYSQLD_DATADIR/ignored_db;
+mkdir $MARIADB_DATADIR/.mysqlgui;
+mkdir $MARIADB_DATADIR/.otherdir;
+mkdir $MARIADB_DATADIR/lost+found;
+mkdir $MARIADB_DATADIR/ignored_db;
 --echo # Check that SHOW DATABASES ignores all directories from
 --echo # @@ignore_db_dirs and all directories with names starting
 --echo # with '.'
@@ -27,10 +26,10 @@ INSERT INTO t1 VALUES (1), (2);
 SELECT * FROM `lost+found`.t1;
 SHOW DATABASES;
 DROP DATABASE `lost+found`;
-rmdir $MYSQLD_DATADIR/.mysqlgui;
-rmdir $MYSQLD_DATADIR/.otherdir;
-rmdir $MYSQLD_DATADIR/lost+found;
-rmdir $MYSQLD_DATADIR/ignored_db;
+rmdir $MARIADB_DATADIR/.mysqlgui;
+rmdir $MARIADB_DATADIR/.otherdir;
+rmdir $MARIADB_DATADIR/lost+found;
+rmdir $MARIADB_DATADIR/ignored_db;
 
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SET @@global.ignore_db_dirs = 'aha';

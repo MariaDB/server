@@ -75,7 +75,7 @@ SELECT @@global.key_cache_age_threshold;
 100
 '#-------------------FN_DYNVARS_056_05----------------------------#'
 SET @@session.key_cache_age_threshold = 0;
-ERROR HY000: Variable 'key_cache_age_threshold' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@session.key_cache_age_threshold;
 ERROR HY000: Variable 'key_cache_age_threshold' is a GLOBAL variable
 '#----------------------FN_DYNVARS_056_06------------------------#'
@@ -111,7 +111,7 @@ SELECT @@key_cache_age_threshold = @@global.key_cache_age_threshold;
 1
 '#---------------------FN_DYNVARS_056_09----------------------#'
 SET key_cache_age_threshold = 8000;
-ERROR HY000: Variable 'key_cache_age_threshold' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@key_cache_age_threshold;
 @@key_cache_age_threshold
 100

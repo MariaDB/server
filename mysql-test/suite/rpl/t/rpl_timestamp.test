@@ -12,7 +12,6 @@ connection master;
 drop table t1;
 flush binary logs;
 
-let $datadir=`select @@datadir`;
-exec $MYSQL_BINLOG -s $datadir/master-bin.000001;
+exec $MYSQL_BINLOG -s $MARIADB_TOPDIR/master-bin.000001;
 
 source include/rpl_end.inc;

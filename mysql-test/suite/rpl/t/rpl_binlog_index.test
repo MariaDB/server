@@ -27,12 +27,8 @@
 source include/master-slave.inc;
 # There is no need to run this test case on all binlog format
 source include/have_binlog_format_row.inc;
+source include/get_replication_datadir.inc;
 
-connection master;
---let $master_datadir= `select @@datadir`
-connection slave;
---let $slave_datadir= `select @@datadir`
-connection master;
 --let $dirname= `select uuid()`
 --let $tmpdir= $MYSQLTEST_VARDIR/tmp/$dirname
 --mkdir $tmpdir
@@ -53,9 +49,9 @@ connection master;
 source include/rpl_stop_server.inc;
 
 --echo # Move the master binlog files and the index file to a new place
---move_file $master_datadir/master-bin.000001 $tmpdir/master-bin.000001
---move_file $master_datadir/master-bin.000002 $tmpdir/master-bin.000002
---move_file $master_datadir/master-bin.index  $tmpdir/master-bin.index
+--move_file $MASTER_TOPDIR/master-bin.000001 $tmpdir/master-bin.000001
+--move_file $MASTER_TOPDIR/master-bin.000002 $tmpdir/master-bin.000002
+--move_file $MASTER_TOPDIR/master-bin.index  $tmpdir/master-bin.index
 
 --echo # Restart master with log-bin option set to the new path
 --let $rpl_server_parameters=--log-bin=$tmpdir/master-bin --log-bin-index=$tmpdir/master-bin
@@ -75,7 +71,7 @@ source include/rpl_start_server.inc;
 # write_var_to_file.inc will call SELECT INTO DUMPFILE, which has to be
 # done before shutdown the server
 --echo # Create the master-bin.index file with the old format
---let $write_to_file= $master_datadir/master-bin.index
+--let $write_to_file= $MASTER_TOPDIR/master-bin.index
 if ($is_windows)
 {
   --let $write_var= .\\\\master-bin.000001\n.\\\\master-bin.000002\n.\\\\master-bin.000003\n
@@ -96,15 +92,15 @@ source include/write_var_to_file.inc;
 source include/rpl_stop_server.inc;
 
 --echo # Move back the master binlog files
---move_file $tmpdir/master-bin.000001 $master_datadir/master-bin.000001
---move_file $tmpdir/master-bin.000002 $master_datadir/master-bin.000002
---move_file $tmpdir/master-bin.000003 $master_datadir/master-bin.000003
+--move_file $tmpdir/master-bin.000001 $MASTER_TOPDIR/master-bin.000001
+--move_file $tmpdir/master-bin.000002 $MASTER_TOPDIR/master-bin.000002
+--move_file $tmpdir/master-bin.000003 $MASTER_TOPDIR/master-bin.000003
 
 --echo # Remove the unneeded master-bin.index file
 --remove_file $tmpdir/master-bin.index
 
 --echo # Restart master with log-bin option set to default
---let $rpl_server_parameters=--log-bin=$master_datadir/master-bin --log-bin-index=$master_datadir/master-bin
+--let $rpl_server_parameters=--log-bin=$MASTER_TOPDIR/master-bin --log-bin-index=$MASTER_TOPDIR/master-bin
 --let $keep_include_silent=1
 source include/rpl_start_server.inc;
 --let $keep_include_silent=0
@@ -127,15 +123,15 @@ source include/rpl_start_server.inc;
 
 --let $relocate_disable_query_log= 1
 --let $relocate_is_windows= $is_windows
---let $relocate_from=$slave_datadir
+--let $relocate_from=$SLAVE_TOPDIR
 --let $relocate_into=$tmpdir
 
 --echo # relocate  binlogs
---let $relocate_index_file=$slave_datadir/slave-bin.index
+--let $relocate_index_file=$SLAVE_TOPDIR/slave-bin.index
 --source include/relocate_binlogs.inc
 
 --echo # relocate  relay logs
---let $relocate_index_file=$slave_datadir/slave-relay-bin.index
+--let $relocate_index_file=$SLAVE_TOPDIR/slave-relay-bin.index
 --source include/relocate_binlogs.inc
 
 --echo # Restart slave with options log-bin, relay-log set to the new paths
@@ -178,7 +174,7 @@ DROP TABLE t1;
 --connection master
 
 --let $relocate_from=$tmpdir
---let $relocate_into=$slave_datadir
+--let $relocate_into=$SLAVE_TOPDIR
 --let $relocate_recreate_index= 1
 
 # binlogs
@@ -192,7 +188,7 @@ DROP TABLE t1;
 # to start the slave as it would fail (relay-log.info is
 # tainted with the full path in the RELAY_LOG_FILE position).
 # Instead, we reset the slave and let the test clean up.
---let $relocate_fix_relay_log_info= $slave_datadir/relay-log.info
+--let $relocate_fix_relay_log_info= $SLAVE_TOPDIR/relay-log.info
 --let $relocate_index_file=$tmpdir/slave-relay-bin.index
 --source include/relocate_binlogs.inc
 
@@ -201,7 +197,7 @@ DROP TABLE t1;
 --rmdir $tmpdir
 
 --echo # restarted with previous slave settings
---let $rpl_server_parameters=--log-bin=$slave_datadir/slave-bin --relay-log=$slave_datadir/slave-relay-bin --relay-log-index=$slave_datadir/slave-relay-bin.index
+--let $rpl_server_parameters=--log-bin=$SLAVE_TOPDIR/slave-bin --relay-log=$SLAVE_TOPDIR/slave-relay-bin --relay-log-index=$SLAVE_TOPDIR/slave-relay-bin.index
 --let $keep_include_silent=1
 --let $rpl_server_number= 2
 --source include/rpl_start_server.inc

@@ -10,7 +10,7 @@ SELECT @@global.innodb_flush_log_at_trx_commit;
 1
 '#---------------------FN_DYNVARS_046_02-------------------------#'
 SET innodb_flush_log_at_trx_commit = 1;
-ERROR HY000: Variable 'innodb_flush_log_at_trx_commit' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@innodb_flush_log_at_trx_commit;
 @@innodb_flush_log_at_trx_commit
 1

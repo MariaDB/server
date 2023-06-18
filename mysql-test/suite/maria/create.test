@@ -75,13 +75,12 @@ SET @@SQL_MODE=@org_sql_mode;
 --echo # thd->status_var.local_memory_used >= 0
 --echo #
 
-let $mysqld_datadir= `select @@datadir`;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1);
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
 --eval CREATE TABLE MDEV_23222 (i INT) DATA DIRECTORY = '$MYSQL_TMP_DIR', ENGINE=Aria TRANSACTIONAL=1;
 flush tables;
---remove_file $mysqld_datadir/test/MDEV_23222.frm
+--remove_file $MARIADB_DATADIR/test/MDEV_23222.frm
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
 --error 1,ER_TABLE_EXISTS_ERROR
 --eval CREATE TABLE MDEV_23222 (i INT) DATA DIRECTORY = '$MYSQL_TMP_DIR', ENGINE=Aria TRANSACTIONAL=1;

@@ -1,6 +1,8 @@
 #
 # Test of things that can give different results when using catalogs
 #
+# This test is to be run without catalog support
+--source include/not_catalogs.inc
 
 --echo # Basic catalog commands
 

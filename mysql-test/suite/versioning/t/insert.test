@@ -257,8 +257,7 @@ create or replace table t1 (a int primary key) with system versioning;
 insert ignore into t1 (a,row_start,row_end) values (1,'2022-01-01','2023-01-01'),(1,'2022-01-01','2023-01-01');
 select a,row_start,row_end from t1 for system_time all;
 
---let $datadir= `select @@datadir`
---remove_file $datadir/test/mdev29813.txt
+--remove_file $MARIADB_DATADIR/test/mdev29813.txt
 drop table t1;
 set sql_mode=default;
 

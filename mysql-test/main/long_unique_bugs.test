@@ -17,8 +17,7 @@ create temporary table tmp (a varchar(1024), b int, c int, d int, e linestring, 
 load data infile 'load.data' into table tmp;
 delete from tmp;
 drop table t1;
---let $datadir= `SELECT @@datadir`
---remove_file $datadir/test/load.data
+--remove_file $MARIADB_DATADIR/test/load.data
 drop table tmp;
 
 --echo #
@@ -229,8 +228,7 @@ SELECT * INTO OUTFILE 'load.data' from t1;
 LOAD DATA INFILE 'load.data'  INTO TABLE t1;
 select * from t1;
 DROP TABLE t1;
---let $datadir= `select @@datadir`
---remove_file $datadir/test/load.data
+--remove_file $MARIADB_DATADIR/test/load.data
 
 --echo #
 --echo # MDEV-18901 Wrong results after ADD UNIQUE INDEX(blob_column)
@@ -250,8 +248,7 @@ SELECT * FROM t1;
 LOAD DATA INFILE 'load.data' REPLACE INTO TABLE t1;
 SELECT * FROM t1;
 DROP TABLE t1;
---let $datadir= `select @@datadir`
---remove_file $datadir/test/load.data
+--remove_file $MARIADB_DATADIR/test/load.data
 
 --echo #
 --echo # MDEV-18953 Hash index on partial char field not working
@@ -476,8 +473,7 @@ select * into outfile 't1.data' from t1;
 load data infile 't1.data' replace into table t1;
 select * from t1;
 drop table t1;
---let $datadir= `SELECT @@datadir`
---remove_file $datadir/test/t1.data
+--remove_file $MARIADB_DATADIR/test/t1.data
 
 # more tests:
 

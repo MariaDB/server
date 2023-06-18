@@ -16,7 +16,6 @@
 
 -- vertical_results
 
-let MYSQLD_DATADIR=`SELECT @@datadir`;
 let $innodb_compression_level = `SELECT @@global.innodb_compression_level`;
 
 --echo # set the flags

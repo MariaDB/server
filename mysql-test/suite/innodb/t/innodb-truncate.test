@@ -1,5 +1,4 @@
 --source include/have_innodb.inc
-let $datadir=`select @@datadir`;
 --echo #
 --echo # TRUNCATE TABLE
 --echo #
@@ -85,7 +84,8 @@ SET FOREIGN_KEY_CHECKS= ON;
 CREATE TABLE t2 (f2 INT, FOREIGN KEY(f2) REFERENCES t1 (f2)) ENGINE=InnoDB;
 --error ER_CANT_CREATE_TABLE
 CREATE TABLE t3 (a INT) ENGINE=InnoDB;
---replace_result $datadir ./
+
+--replace_catalog
 --error ER_ERROR_ON_RENAME
 ALTER TABLE t1 RENAME TO t3;
 ALTER TABLE t1 FORCE;

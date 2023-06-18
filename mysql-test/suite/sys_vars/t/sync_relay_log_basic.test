@@ -19,7 +19,7 @@ select * from information_schema.session_variables where variable_name='sync_rel
 #
 set global sync_relay_log=1;
 select @@global.sync_relay_log;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session sync_relay_log=1;
 
 #

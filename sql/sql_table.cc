@@ -529,8 +529,16 @@ uint check_n_cut_mysql50_prefix(const char *from, char *to, size_t to_length)
 }
 
 
-static bool check_if_frm_exists(char *path, const char *db, const char *table)
+static bool check_if_frm_exists(char *path, const SQL_CATALOG *catalog,
+                                const char *db,
+                                const char *table)
 {
+  char buff[NAME_CHAR_LEN + MAX_CATALOG_NAME + 1];
+  if (using_catalogs)
+  {
+    strxnmov(buff, sizeof(buff)-1, catalog->path.str, db, NullS);
+    db= buff;
+  }
   fn_format(path, table, db, reg_ext, MYF(0));
   return !access(path, F_OK);
 }
@@ -637,7 +645,7 @@ uint build_table_filename(const SQL_CATALOG *catalog, char *buff,
   if (!(flags & FN_IS_TMP) &&
       is_prefix(table_name, tmp_file_prefix) &&
       strlen(table_name) < NAME_CHAR_LEN &&
-      check_if_frm_exists(tbbuff, dbbuff, table_name))
+      check_if_frm_exists(tbbuff, catalog, dbbuff, table_name))
     flags|= FN_IS_TMP;
 
   if (flags & FN_IS_TMP) // FN_FROM_IS_TMP | FN_TO_IS_TMP

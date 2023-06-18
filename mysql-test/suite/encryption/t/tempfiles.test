@@ -77,8 +77,7 @@ drop table t1, t2;
 
 set @@global.binlog_cache_size=@save_binlog_cache_size;
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 | $MYSQL;
+exec $MYSQL_BINLOG $MARIADB_TOPDIR/master-bin.000001 | $MYSQL;
 
 select left(a, 10) from t1;
 select left(a, 10) from t2;

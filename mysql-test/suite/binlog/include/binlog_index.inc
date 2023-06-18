@@ -26,8 +26,7 @@ SET @saved_dbug = @@SESSION.debug_dbug;
 
 RESET MASTER;
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-let $INDEX=$MYSQLD_DATADIR/master-bin.index;
+let $INDEX=$MARIADB_TOPDIR/master-bin.index;
 
 #
 # testing purge binary logs TO
@@ -38,7 +37,7 @@ flush logs;
 flush logs;
 
 source include/show_binary_logs.inc;
-remove_file $MYSQLD_DATADIR/master-bin.000001;
+remove_file $MARIADB_TOPDIR/master-bin.000001;
 flush tables;
 
 # there must be a warning with file names
@@ -58,7 +57,7 @@ reset master;
 flush logs;
 flush logs;
 flush logs;
-remove_file $MYSQLD_DATADIR/master-bin.000001;
+remove_file $MARIADB_TOPDIR/master-bin.000001;
 
 --echo *** must be a warning master-bin.000001 was not found ***
 let $date=`select NOW()  +  INTERVAL 1 MINUTE`;
@@ -82,15 +81,15 @@ flush logs;
 flush logs;
 flush logs;
 
-remove_file $MYSQLD_DATADIR/master-bin.000001;
-mkdir $MYSQLD_DATADIR/master-bin.000001;
+remove_file $MARIADB_TOPDIR/master-bin.000001;
+mkdir $MARIADB_TOPDIR/master-bin.000001;
 
 --source include/wait_for_binlog_checkpoint.inc
 --error ER_BINLOG_PURGE_FATAL_ERR
 purge binary logs TO 'master-bin.000002';
 replace_regex /\.[\\\/]master/master/;
 show warnings;
-rmdir $MYSQLD_DATADIR/master-bin.000001;
+rmdir $MARIADB_TOPDIR/master-bin.000001;
 --disable_warnings
 reset master;
 --enable_warnings
@@ -107,9 +106,9 @@ purge binary logs TO 'master-bin.000002';
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
-file_exists $MYSQLD_DATADIR/master-bin.000001;
-file_exists $MYSQLD_DATADIR/master-bin.000002;
-file_exists $MYSQLD_DATADIR/master-bin.000003;
+file_exists $MARIADB_TOPDIR/master-bin.000001;
+file_exists $MARIADB_TOPDIR/master-bin.000002;
+file_exists $MARIADB_TOPDIR/master-bin.000003;
 --chmod 0644 $INDEX
 -- replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 -- eval SET @index=LOAD_FILE('$index')
@@ -129,11 +128,11 @@ purge binary logs TO 'master-bin.000004';
 --source include/wait_until_connected_again.inc
 
 --error 1
-file_exists $MYSQLD_DATADIR/master-bin.000001;
+file_exists $MARIADB_TOPDIR/master-bin.000001;
 --error 1
-file_exists $MYSQLD_DATADIR/master-bin.000002;
+file_exists $MARIADB_TOPDIR/master-bin.000002;
 --error 1
-file_exists $MYSQLD_DATADIR/master-bin.000003;
+file_exists $MARIADB_TOPDIR/master-bin.000003;
 --chmod 0644 $INDEX
 -- replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 -- eval SET @index=LOAD_FILE('$index')
@@ -153,13 +152,13 @@ purge binary logs TO 'master-bin.000006';
 --source include/wait_until_connected_again.inc
 
 --error 1
-file_exists $MYSQLD_DATADIR/master-bin.000004;
+file_exists $MARIADB_TOPDIR/master-bin.000004;
 --error 1
-file_exists $MYSQLD_DATADIR/master-bin.000005;
-file_exists $MYSQLD_DATADIR/master-bin.000006;
-file_exists $MYSQLD_DATADIR/master-bin.000007;
+file_exists $MARIADB_TOPDIR/master-bin.000005;
+file_exists $MARIADB_TOPDIR/master-bin.000006;
+file_exists $MARIADB_TOPDIR/master-bin.000007;
 --error 1
-file_exists $MYSQLD_DATADIR/master-bin.000008;
+file_exists $MARIADB_TOPDIR/master-bin.000008;
 --chmod 0644 $INDEX
 -- replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 -- eval SET @index=LOAD_FILE('$index')
@@ -175,9 +174,9 @@ flush logs;
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
-file_exists $MYSQLD_DATADIR/master-bin.000008;
+file_exists $MARIADB_TOPDIR/master-bin.000008;
 --error 1
-file_exists $MYSQLD_DATADIR/master-bin.000009;
+file_exists $MARIADB_TOPDIR/master-bin.000009;
 --chmod 0644 $INDEX
 -- replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 -- eval SET @index=LOAD_FILE('$index')
@@ -193,11 +192,11 @@ flush logs;
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
-file_exists $MYSQLD_DATADIR/master-bin.000009;
+file_exists $MARIADB_TOPDIR/master-bin.000009;
 --error 1
-file_exists $MYSQLD_DATADIR/master-bin.000010;
+file_exists $MARIADB_TOPDIR/master-bin.000010;
 --error 1
-file_exists $MYSQLD_DATADIR/master-bin.000011;
+file_exists $MARIADB_TOPDIR/master-bin.000011;
 --chmod 0644 $INDEX
 -- replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 -- eval SET @index=LOAD_FILE('$index')
@@ -213,8 +212,8 @@ flush logs;
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
-file_exists $MYSQLD_DATADIR/master-bin.000010;
-file_exists $MYSQLD_DATADIR/master-bin.000011;
+file_exists $MARIADB_TOPDIR/master-bin.000010;
+file_exists $MARIADB_TOPDIR/master-bin.000011;
 --chmod 0644 $INDEX
 -- replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 -- eval SET @index=LOAD_FILE('$index')

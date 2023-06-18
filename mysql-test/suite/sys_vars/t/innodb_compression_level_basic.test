@@ -32,7 +32,7 @@ select @@global.innodb_compression_level;
 select * from information_schema.global_variables where variable_name='innodb_compression_level';
 select * from information_schema.session_variables where variable_name='innodb_compression_level';
 --enable_warnings
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session innodb_compression_level=4;
 
 #

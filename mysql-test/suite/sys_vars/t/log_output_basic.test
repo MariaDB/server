@@ -132,7 +132,7 @@ SET @@global.log_output = ' TABLE,FILE';
 #              Test if accessing session log_output gives error      #
 ######################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@log_output = 0;
 --Error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.log_output;
@@ -199,7 +199,7 @@ SELECT @@global.log_output;
 ################################################################  
 # Check if log_output can be accessed with and without @@ sign #
 ################################################################
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET log_output = ON;
 
 SET global log_output = 'TABLE';

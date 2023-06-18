@@ -2,7 +2,7 @@
 
 # Also tests some command line options, in slave_parallel_mode_basic-master.opt
 
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET SESSION slave_parallel_mode= none;
 
 SELECT @@slave_parallel_mode;

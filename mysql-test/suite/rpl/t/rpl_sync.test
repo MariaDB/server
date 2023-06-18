@@ -57,9 +57,8 @@ insert into t1(a) values(3);
 sync_slave_with_master;
 
 connection slave;
-let $MYSQLD_SLAVE_DATADIR= `select @@datadir`;
---replace_result $MYSQLD_SLAVE_DATADIR MYSQLD_SLAVE_DATADIR
---copy_file $MYSQLD_SLAVE_DATADIR/master.info $MYSQLD_SLAVE_DATADIR/master.backup
+--replace_result $SLAVE_TOPDIR MARIADB_DATADIR
+--copy_file $SLAVE_TOPDIR/master.info $SLAVE_TOPDIR/master.backup
 --source include/stop_slave_sql.inc
 
 connection master;
@@ -73,7 +72,7 @@ connection slave;
 
 let $file= query_get_value("SHOW SLAVE STATUS", Relay_Log_File, 1);
 
---let FILE_TO_CORRUPT= $MYSQLD_SLAVE_DATADIR/$file
+--let FILE_TO_CORRUPT= $SLAVE_TOPDIR/$file
 perl;
 $file= $ENV{'FILE_TO_CORRUPT'};
 open(FILE, ">$file") || die "Unable to open $file.";
@@ -113,14 +112,15 @@ insert into t1(a) values(7);
 insert into t1(a) values(8);
 insert into t1(a) values(9);
 
+source include/get_replication_datadir.inc;
+let SLAVE_TOPDIR=$SLAVE_TOPDIR;
 connection slave;
-let MYSQLD_SLAVE_DATADIR=`select @@datadir`;
 
 --perl
 use strict;
 use warnings;
-my $src= "$ENV{'MYSQLD_SLAVE_DATADIR'}/master.backup";
-my $dst= "$ENV{'MYSQLD_SLAVE_DATADIR'}/master.info";
+my $src= "$ENV{'SLAVE_TOPDIR'}/master.backup";
+my $dst= "$ENV{'SLAVE_TOPDIR'}/master.info";
 open(FILE, "<", $src) or die;
 my @content= <FILE>;
 close FILE;
@@ -154,6 +154,6 @@ source include/diff_tables.inc;
 connection master;
 drop table t1;
 
---remove_file $MYSQLD_SLAVE_DATADIR/master.backup
+--remove_file $SLAVE_TOPDIR/master.backup
 --source include/rpl_end.inc
 

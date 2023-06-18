@@ -11,7 +11,7 @@ sample_size,
 stat_description
 FROM mysql.innodb_index_stats
 WHERE
-database_name = DATABASE() AND
+database_name like concat("%",DATABASE()) AND
 table_name = 'test_innodb_stats' AND
 index_name = 'a_key' AND
 stat_name IN ('n_diff_pfx01', 'n_diff_pfx02', 'n_leaf_pages', 'size')

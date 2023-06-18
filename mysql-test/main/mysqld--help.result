@@ -1575,7 +1575,6 @@ binlog-row-image FULL
 binlog-row-metadata NO_LOG
 binlog-stmt-cache-size 32768
 bulk-insert-buffer-size 8388608
-catalogs FALSE
 character-set-client-handshake TRUE
 character-set-filesystem binary
 character-sets-dir MYSQL_CHARSETSDIR/

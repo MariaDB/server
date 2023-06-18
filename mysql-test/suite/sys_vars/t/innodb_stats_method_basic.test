@@ -53,9 +53,9 @@ SELECT * FROM information_schema.session_variables
 WHERE variable_name='innodb_stats_method';
 --enable_warnings
 
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET session innodb_stats_method='nulls_equal';
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.innodb_stats_method='nulls_ignored';
 
 #

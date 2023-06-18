@@ -112,10 +112,9 @@ DROP TABLE t1;
 # visible in .trace file)
 #
 
-let $MYSQLD_DATADIR= `SELECT @@datadir`;
-copy_file std_data/cluster_7022_table.frm $MYSQLD_DATADIR/test/t1.frm;
-copy_file std_data/cluster_7022_table.MYD $MYSQLD_DATADIR/test/t1.MYD;
-copy_file std_data/cluster_7022_table.MYI $MYSQLD_DATADIR/test/t1.MYI;
+copy_file std_data/cluster_7022_table.frm $MARIADB_DATADIR/test/t1.frm;
+copy_file std_data/cluster_7022_table.MYD $MARIADB_DATADIR/test/t1.MYD;
+copy_file std_data/cluster_7022_table.MYI $MARIADB_DATADIR/test/t1.MYI;
 
 SHOW CREATE TABLE t1;
 

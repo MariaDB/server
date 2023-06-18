@@ -4,7 +4,6 @@
 --source include/have_innodb_16k.inc
 
 call mtr.add_suppression("InnoDB: Cannot add field .* in table");
-let $MYSQLD_DATADIR= `select @@datadir`;
 
 --echo # Test 1) Show the page size from Information Schema
 SELECT variable_value FROM information_schema.global_status

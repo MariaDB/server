@@ -907,10 +907,9 @@ ROWS IDENTIFIED BY '<row>';
 
 DROP TABLE t1, t2;
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-remove_file $MYSQLD_DATADIR/test/t3.dat;
-remove_file $MYSQLD_DATADIR/test/t4.dat;
-remove_file $MYSQLD_DATADIR/test/t5.dat;
+remove_file $MARIADB_DATADIR/test/t3.dat;
+remove_file $MARIADB_DATADIR/test/t4.dat;
+remove_file $MARIADB_DATADIR/test/t5.dat;
 
 
 --echo #
@@ -1030,8 +1029,8 @@ delete from t1;
 --echo # TIMESTAMP NOT NULL (e) gets NOW.
 
 drop table t1;
-remove_file $MYSQLD_DATADIR/test/file1.dat;
-remove_file $MYSQLD_DATADIR/test/file2.dat;
+remove_file $MARIADB_DATADIR/test/file1.dat;
+remove_file $MARIADB_DATADIR/test/file2.dat;
 
 --echo #
 --echo # Test of updatable views with check options. The option can be violated

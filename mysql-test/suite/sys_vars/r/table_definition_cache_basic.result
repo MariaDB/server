@@ -59,7 +59,7 @@ SET @@global.table_definition_cache = ON;
 ERROR 42000: Incorrect argument type to variable 'table_definition_cache'
 '#-------------------FN_DYNVARS_019_05----------------------------#'
 SET @@session.table_definition_cache = 0;
-ERROR HY000: Variable 'table_definition_cache' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@session.table_definition_cache;
 ERROR HY000: Variable 'table_definition_cache' is a GLOBAL variable
 '#----------------------FN_DYNVARS_019_06------------------------#'
@@ -90,7 +90,7 @@ SELECT @@table_definition_cache = @@global.table_definition_cache;
 1
 '#---------------------FN_DYNVARS_019_09----------------------#'
 SET table_definition_cache = 1;
-ERROR HY000: Variable 'table_definition_cache' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT global.table_definition_cache;
 ERROR 42S02: Unknown table 'global' in field list
 SELECT table_definition_cache = @@session.table_definition_cache;

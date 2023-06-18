@@ -5,7 +5,7 @@
 #   $kill_server        1 when to crash, 0 for regular restart
 #   $restart_parameters the caller may simulate partial commit at recovery
 #   $test_outcome       summary of extected results
-#   $MYSQLD_DATADIR
+#   $MARIADB_DATADIR
 
 --echo #
 --echo #

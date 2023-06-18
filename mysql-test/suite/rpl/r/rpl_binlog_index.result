@@ -1,8 +1,5 @@
 include/master-slave.inc
 [connection master]
-connection master;
-connection slave;
-connection master;
 CREATE TABLE t1 (a INT);
 FLUSH BINARY LOGS;
 INSERT INTO t1 VALUES (1);

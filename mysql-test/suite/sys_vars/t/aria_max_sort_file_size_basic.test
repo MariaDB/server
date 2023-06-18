@@ -19,7 +19,7 @@ select * from information_schema.session_variables where variable_name='aria_max
 #
 set global aria_max_sort_file_size=1024*1024*10;
 select @@global.aria_max_sort_file_size;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session aria_max_sort_file_size=1;
 
 #

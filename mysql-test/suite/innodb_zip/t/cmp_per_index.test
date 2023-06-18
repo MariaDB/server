@@ -38,6 +38,7 @@ CREATE TABLE t (
 	INDEX (c(16))
 ) ENGINE=INNODB KEY_BLOCK_SIZE=2;
 
+--replace_catalog
 SELECT
 database_name,
 table_name,
@@ -79,6 +80,7 @@ SELECT * FROM information_schema.innodb_cmp_per_index;
 
 DROP USER 'tuser01'@'localhost';
 
+--replace_catalog
 SELECT
 database_name,
 table_name,

@@ -22,7 +22,7 @@ set global thread_pool_idle_timeout=60;
 select @@global.thread_pool_idle_timeout;
 set global thread_pool_idle_timeout=4294967295;
 select @@global.thread_pool_idle_timeout;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session thread_pool_idle_timeout=1;
 
 #

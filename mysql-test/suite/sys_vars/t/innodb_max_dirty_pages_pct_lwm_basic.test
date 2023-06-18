@@ -59,7 +59,7 @@ SELECT @@global.innodb_max_dirty_pages_pct_lwm;
 #check if innodb_max_dirty_pages_pct_lwm can be accessed with and without @@ sign #
 ###################################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET innodb_max_dirty_pages_pct_lwm = 1;
 SELECT @@innodb_max_dirty_pages_pct_lwm;
 

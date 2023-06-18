@@ -10,7 +10,7 @@ SELECT @@global.innodb_adaptive_flushing_lwm;
 10.000000
 '#---------------------FN_DYNVARS_046_02-------------------------#'
 SET innodb_adaptive_flushing_lwm = 1;
-ERROR HY000: Variable 'innodb_adaptive_flushing_lwm' is a GLOBAL variable and should be set with SET GLOBAL
+Got one of the listed errors
 SELECT @@innodb_adaptive_flushing_lwm;
 @@innodb_adaptive_flushing_lwm
 10.000000

@@ -152,7 +152,7 @@ while ($_dt_tables)
   let $_dt_column_list=
     `SELECT GROUP_CONCAT(column_name ORDER BY ORDINAL_POSITION SEPARATOR '`,`')
             FROM information_schema.columns
-            WHERE table_schema = '$_dt_database' AND table_name = '$_dt_table'`;
+            WHERE table_schema like '$_dt_database' AND table_name = '$_dt_table'`;
   # Restore group_concat_max_len.
   if ($_dt_old_group_concat_max_len)
   {
@@ -165,7 +165,7 @@ while ($_dt_tables)
 
   # Now that we have the comma-separated list of columns, we can write
   # the table to a file.
-  --let $_dt_outfile= `SELECT @@datadir`
+  --let $_dt_outfile= $MARIADB_TOPDIR
   --let $_dt_outfile= $_dt_outfile/diff_table-$_dt_connection-$_dt_database-$_dt_table
   eval SELECT * INTO OUTFILE '$_dt_outfile' FROM $_dt_database.$_dt_table ORDER BY `$_dt_column_list`;
 

@@ -19,7 +19,7 @@ select * from information_schema.session_variables where variable_name='aria_gro
 #
 set global aria_group_commit=1;
 select @@global.aria_group_commit;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session aria_group_commit=1;
 
 #

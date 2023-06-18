@@ -1,6 +1,3 @@
--- disable_warnings
-DROP TABLE IF EXISTS t1,t2,t3;
--- enable_warnings
 #
 # BUG#31277 - myisamchk --unpack corrupts a table
 #
@@ -29,10 +26,9 @@ INSERT INTO t1 VALUES
 (2.22402118719591e-05,2.37546284320705e-05,2.58463051055541e-05,1.83391609130854e-05,1.6300720519646e-05,1.74559091886791e-05,1.63733785575587e-05,2.26616253279828e-05,1.79541237435621e-05,45),
 (3.01092775359837e-05,3.23865212934412e-05,4.09444584045994e-05,0,2.15470966302776e-05,2.39082636344032e-05,2.28296706429177e-05,2.9007671511595e-05,2.44201138973326e-05,46);
 FLUSH TABLES;
-let $MYSQLD_DATADIR= `select @@datadir`;
---exec $MYISAMPACK -s $MYSQLD_DATADIR/test/t1
---exec $MYISAMCHK -srq $MYSQLD_DATADIR/test/t1
---exec $MYISAMCHK -s --unpack $MYSQLD_DATADIR/test/t1
+--exec $MYISAMPACK -s $MARIADB_DATADIR/test/t1
+--exec $MYISAMCHK -srq $MARIADB_DATADIR/test/t1
+--exec $MYISAMCHK -s --unpack $MARIADB_DATADIR/test/t1
 CHECK TABLE t1 EXTENDED;
 DROP TABLE t1;
 
@@ -59,8 +55,7 @@ insert into t1 select * from t1;
 insert into t1 select * from t1;
 insert into t1 select * from t1;
 flush tables;
-let $MYSQLD_DATADIR= `select @@datadir`;
---exec $MYISAMPACK $MYSQLD_DATADIR/test/t1
+--exec $MYISAMPACK $MARIADB_DATADIR/test/t1
 optimize table t1;
 repair table t1;
 drop table t1;
@@ -82,8 +77,7 @@ commit;
 --enable_query_log
 FLUSH TABLE t1; 
 --echo # Compress the table using MYISAMPACK tool
-let $MYSQLD_DATADIR= `select @@datadir`;
---exec $MYISAMPACK $MYSQLD_DATADIR/test/t1
+--exec $MYISAMPACK $MARIADB_DATADIR/test/t1
 SELECT COUNT(*) FROM t1;
 DROP TABLE t1; 
 
@@ -104,10 +98,9 @@ INSERT INTO mysql_db1.t1 SELECT * FROM mysql_db1.t1;
 FLUSH TABLE mysql_db1.t1;
 #
 --echo # Compress the table using MYISAMPACK tool
-let $MYSQLD_DATADIR= `select @@datadir`;
---exec $MYISAMPACK -s $MYSQLD_DATADIR/mysql_db1/t1
+--exec $MYISAMPACK -s $MARIADB_DATADIR/mysql_db1/t1
 --echo # Run MYISAMCHK tool on the compressed table
---exec $MYISAMCHK -srq $MYSQLD_DATADIR/mysql_db1/t1
+--exec $MYISAMCHK -srq $MARIADB_DATADIR/mysql_db1/t1
 SELECT COUNT(*) FROM mysql_db1.t1 WHERE c2 < 5;
 #
 # Bug#36573 myisampack --join does not create destination table .frm file
@@ -144,7 +137,7 @@ while ($i)
 --enable_query_log
 
 FLUSH TABLE t1,t2;
---exec $MYISAMPACK --join=$MYSQLD_DATADIR/test/t3 $MYSQLD_DATADIR/test/t1 $MYSQLD_DATADIR/test/t2 2>&1
+--exec $MYISAMPACK --join=$MARIADB_DATADIR/test/t3 $MARIADB_DATADIR/test/t1 $MARIADB_DATADIR/test/t2 2>&1
 
 --echo #If the myisampack --join operation is successful, we have table t3(.frm)
 --echo #so we should be able to query about the table from server.
@@ -157,9 +150,9 @@ SELECT COUNT(a) FROM t3;
 #############################################################################
 --echo # ===== myisampack.2 =====
 FLUSH TABLE t3;
---remove_file $MYSQLD_DATADIR/test/t3.MYI
---remove_file $MYSQLD_DATADIR/test/t3.MYD
---exec $MYISAMPACK --join=$MYSQLD_DATADIR/test/t3 $MYSQLD_DATADIR/test/t1 $MYSQLD_DATADIR/test/t2 2>&1
+--remove_file $MARIADB_DATADIR/test/t3.MYI
+--remove_file $MARIADB_DATADIR/test/t3.MYD
+--exec $MYISAMPACK --join=$MARIADB_DATADIR/test/t3 $MARIADB_DATADIR/test/t1 $MARIADB_DATADIR/test/t2 2>&1
 --echo #Tests the myisampack join operation with an existing destination .frm file, 
 --echo #the command should return correct exit status(0) and
 --echo #we should be able to query the table.
@@ -172,13 +165,13 @@ SELECT COUNT(a) FROM t3;
 # table. It should finish the join operation successfully
 #############################################################################
 --echo # ===== myisampack.3 =====
---copy_file $MYSQLD_DATADIR/test/t1.frm  $MYSQLTEST_VARDIR/tmp/bug36573.t1.frm
---copy_file $MYSQLD_DATADIR/test/t2.frm  $MYSQLTEST_VARDIR/tmp/bug36573.t2.frm
---remove_file $MYSQLD_DATADIR/test/t1.frm
---remove_file $MYSQLD_DATADIR/test/t2.frm
+--copy_file $MARIADB_DATADIR/test/t1.frm  $MYSQLTEST_VARDIR/tmp/bug36573.t1.frm
+--copy_file $MARIADB_DATADIR/test/t2.frm  $MYSQLTEST_VARDIR/tmp/bug36573.t2.frm
+--remove_file $MARIADB_DATADIR/test/t1.frm
+--remove_file $MARIADB_DATADIR/test/t2.frm
 
 DROP TABLE t3;
---exec $MYISAMPACK --join=$MYSQLD_DATADIR/test/t3 $MYSQLD_DATADIR/test/t1 $MYSQLD_DATADIR/test/t2 2>&1
+--exec $MYISAMPACK --join=$MARIADB_DATADIR/test/t3 $MARIADB_DATADIR/test/t1 $MARIADB_DATADIR/test/t2 2>&1
 --echo #Tests the myisampack join operation without frm file for the first and second table
 --echo #No frm file is generated in this and we shouldn't  be able to access the newly 
 --echo #created table
@@ -186,9 +179,9 @@ DROP TABLE t3;
 --error ER_NO_SUCH_TABLE
 SELECT COUNT(a) FROM t3;
 
---copy_file $MYSQLTEST_VARDIR/tmp/bug36573.t1.frm  $MYSQLD_DATADIR/test/t1.frm
---copy_file $MYSQLTEST_VARDIR/tmp/bug36573.t2.frm  $MYSQLD_DATADIR/test/t2.frm
---copy_file $MYSQLTEST_VARDIR/tmp/bug36573.t1.frm  $MYSQLD_DATADIR/test/t3.frm
+--copy_file $MYSQLTEST_VARDIR/tmp/bug36573.t1.frm  $MARIADB_DATADIR/test/t1.frm
+--copy_file $MYSQLTEST_VARDIR/tmp/bug36573.t2.frm  $MARIADB_DATADIR/test/t2.frm
+--copy_file $MYSQLTEST_VARDIR/tmp/bug36573.t1.frm  $MARIADB_DATADIR/test/t3.frm
 --remove_file $MYSQLTEST_VARDIR/tmp/bug36573.t1.frm
 --remove_file $MYSQLTEST_VARDIR/tmp/bug36573.t2.frm
 
@@ -216,7 +209,7 @@ SELECT COUNT(a) FROM t3;
 #
 --replace_regex /.*myisampack(\.exe)?: Can't create\/write to file .*\(/myisampack: Can't create\/write to file (/ /Aborted: .*is/Aborted: file is/
 --error 2
---exec $MYISAMPACK --join=$MYSQLD_DATADIR/test/t3 $MYSQLD_DATADIR/test/t1 $MYSQLD_DATADIR/test/t2 2>&1
+--exec $MYISAMPACK --join=$MARIADB_DATADIR/test/t3 $MARIADB_DATADIR/test/t1 $MARIADB_DATADIR/test/t2 2>&1
 
 DROP TABLE t1,t2,t3;
 
@@ -229,8 +222,8 @@ DROP DATABASE mysql_db1;
 CREATE TABLE t1(a CHAR(4), FULLTEXT(a));
 INSERT INTO t1 VALUES('aaaa'),('bbbb'),('cccc');
 FLUSH TABLE t1;
---exec $MYISAMPACK -sf $MYSQLD_DATADIR/test/t1
---exec $MYISAMCHK -srq $MYSQLD_DATADIR/test/t1
+--exec $MYISAMPACK -sf $MARIADB_DATADIR/test/t1
+--exec $MYISAMCHK -srq $MARIADB_DATADIR/test/t1
 CHECK TABLE t1;
 SELECT * FROM t1 WHERE MATCH(a) AGAINST('aaaa' IN BOOLEAN MODE);
 SELECT * FROM t1 WHERE MATCH(a) AGAINST('aaaa');
@@ -258,13 +251,13 @@ while ($1)
 
 FLUSH TABLE t1;
 --echo # Compressing table
---exec $MYISAMPACK -sf $MYSQLD_DATADIR/test/t1
+--exec $MYISAMPACK -sf $MARIADB_DATADIR/test/t1
 --echo # Fixing index (repair by sort)
---exec $MYISAMCHK -srnq $MYSQLD_DATADIR/test/t1
+--exec $MYISAMCHK -srnq $MARIADB_DATADIR/test/t1
 CHECK TABLE t1;
 FLUSH TABLE t1;
 --echo # Fixing index (repair with keycache)
---exec $MYISAMCHK -soq $MYSQLD_DATADIR/test/t1
+--exec $MYISAMCHK -soq $MARIADB_DATADIR/test/t1
 CHECK TABLE t1;
 DROP TABLE t1;
 
@@ -285,15 +278,15 @@ checksum table t1;
 insert into t1 values(NULL);
 checksum table t1;
 flush table t1;
---exec $MYISAMPACK -sf $MYSQLD_DATADIR/test/t1
---exec $MYISAMCHK -srnq $MYSQLD_DATADIR/test/t1
+--exec $MYISAMPACK -sf $MARIADB_DATADIR/test/t1
+--exec $MYISAMCHK -srnq $MARIADB_DATADIR/test/t1
 check table t1;
 checksum table t1;
 alter table t1 checksum=1 row_format=fixed;
 checksum table t1;
 flush table t1;
---exec $MYISAMPACK -sf $MYSQLD_DATADIR/test/t1
---exec $MYISAMCHK -srnq $MYSQLD_DATADIR/test/t1
+--exec $MYISAMPACK -sf $MARIADB_DATADIR/test/t1
+--exec $MYISAMCHK -srnq $MARIADB_DATADIR/test/t1
 check table t1;
 checksum table t1;
 
@@ -302,15 +295,15 @@ checksum table t1;
 alter table t1 row_format=dynamic checksum=0;
 checksum table t1;
 flush table t1;
---exec $MYISAMPACK -sf $MYSQLD_DATADIR/test/t1
---exec $MYISAMCHK -srnq $MYSQLD_DATADIR/test/t1
+--exec $MYISAMPACK -sf $MARIADB_DATADIR/test/t1
+--exec $MYISAMCHK -srnq $MARIADB_DATADIR/test/t1
 check table t1;
 checksum table t1;
 alter table t1 checksum=1 row_format=dynamic;
 checksum table t1;
 flush table t1;
---exec $MYISAMPACK -sf $MYSQLD_DATADIR/test/t1
---exec $MYISAMCHK -srnq $MYSQLD_DATADIR/test/t1
+--exec $MYISAMPACK -sf $MARIADB_DATADIR/test/t1
+--exec $MYISAMCHK -srnq $MARIADB_DATADIR/test/t1
 check table t1;
 checksum table t1;
 drop table t1;
@@ -323,6 +316,5 @@ CREATE DATABASE db1;
 CREATE TABLE db1.t1(c1 INT) ENGINE=MyISAM;
 ## Added -f to force pack db in any case regardless the size of database 
 ## being packed
-let $MYSQLD_DATADIR = `SELECT @@datadir`;
---exec $MYISAMPACK -b -f $MYSQLD_DATADIR/db1/t1
+--exec $MYISAMPACK -b -f $MARIADB_DATADIR/db1/t1
 DROP DATABASE db1;

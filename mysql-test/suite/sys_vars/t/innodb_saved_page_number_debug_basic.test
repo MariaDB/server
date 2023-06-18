@@ -18,7 +18,7 @@ set global innodb_saved_page_number_debug = 100;
 --error ER_WRONG_TYPE_FOR_VAR
 set global innodb_saved_page_number_debug = dummy;
 
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set innodb_saved_page_number_debug = ON;
 
 --echo # An example usage.

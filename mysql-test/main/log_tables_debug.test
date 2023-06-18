@@ -23,8 +23,6 @@ SET @old_slow_query_log_file= @@global.slow_query_log_file;
 --echo #           statements missed from general log
 --echo #
 
-let MYSQLD_DATADIR= `SELECT @@datadir`;
-
 # set logging to our specific bug log to control the entries added
 SET @@global.general_log = ON;
 SET @@global.general_log_file = 'bug45387_general.log';
@@ -40,9 +38,10 @@ SET @@global.general_log = @old_general_log;
 SET @@global.general_log_file = @old_general_log_file;
 SET SESSION debug_dbug='-d';
 
+let MARIADB_TOPDIR= $MARIADB_TOPDIR;
 perl;
   # get the relevant info from the surrounding perl invocation
-  $datadir= $ENV{'MYSQLD_DATADIR'};
+  $datadir= $ENV{'MARIADB_TOPDIR'};
   $conn_id= $ENV{'CONN_ID'};
 
   # loop through the log file looking for the stmt querying for conn id
@@ -70,7 +69,7 @@ perl;
   close(FILE);
 EOF
 
---remove_file $MYSQLD_DATADIR/bug45387_general.log
+--remove_file $MARIADB_TOPDIR/bug45387_general.log
 
 --echo End of 5.1 tests
 

@@ -112,7 +112,7 @@ SET @@global.relay_log_purge = '';
 #          Test if accessing session relay_log_purge gives error          #
 ########################################################################### 
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@session.relay_log_purge = 1;
 --Error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.relay_log_purge;
@@ -141,7 +141,7 @@ SELECT @@relay_log_purge = @@global.relay_log_purge;
 #    Check if relay_log_purge can be accessed with and without @@ sign   #
 ##########################################################################
 
---Error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET relay_log_purge = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT global.relay_log_purge;

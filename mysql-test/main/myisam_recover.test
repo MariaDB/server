@@ -23,7 +23,7 @@ connection con1;
 
 call mtr.add_suppression("Got an error from thread_id=.*ha_myisam.cc:");
 call mtr.add_suppression("MariaDB thread id .*, query id .* localhost.*root Checking table");
-call mtr.add_suppression(" '\..test.t1'");
+call mtr.add_suppression("/test/t1'");
 
 set @save_table_open_cache=@@table_open_cache;
 set global table_open_cache=256;
@@ -68,7 +68,6 @@ connection default;
 --disable_warnings
 drop table if exists t1, t1_mrg, t1_copy;
 --enable_warnings
-let $MYSQLD_DATADIR=`select @@datadir`;
 --echo #
 --echo # Prepare a MERGE engine table, that refers to a corrupted
 --echo # child.
@@ -82,12 +81,12 @@ create table t1_mrg (a int) union (t1) engine=merge;
 --echo #
 insert into  t1 (a) values (1), (2), (3);
 flush table t1;
---copy_file $MYSQLD_DATADIR/test/t1.MYI $MYSQLD_DATADIR/test/t1_copy.MYI
+--copy_file $MARIADB_DATADIR/test/t1.MYI $MARIADB_DATADIR/test/t1_copy.MYI
 insert into  t1 (a) values (4), (5), (6);
 flush table t1;
---remove_file $MYSQLD_DATADIR/test/t1.MYI
---copy_file $MYSQLD_DATADIR/test/t1_copy.MYI $MYSQLD_DATADIR/test/t1.MYI
---remove_file $MYSQLD_DATADIR/test/t1_copy.MYI
+--remove_file $MARIADB_DATADIR/test/t1.MYI
+--copy_file $MARIADB_DATADIR/test/t1_copy.MYI $MARIADB_DATADIR/test/t1.MYI
+--remove_file $MARIADB_DATADIR/test/t1_copy.MYI
 --echo # check table is needed to mark the table as crashed.
 check table t1;
 --echo #
@@ -131,12 +130,12 @@ insert into t2 values (1);
 --echo # overwrite the new index file with the old one.
 insert into  t1 (a) values (1);
 flush table t1;
---copy_file $MYSQLD_DATADIR/test/t1.MYI $MYSQLD_DATADIR/test/t1_copy.MYI
+--copy_file $MARIADB_DATADIR/test/t1.MYI $MARIADB_DATADIR/test/t1_copy.MYI
 insert into  t1 (a) values (4);
 flush table t1;
---remove_file $MYSQLD_DATADIR/test/t1.MYI
---copy_file $MYSQLD_DATADIR/test/t1_copy.MYI $MYSQLD_DATADIR/test/t1.MYI
---remove_file $MYSQLD_DATADIR/test/t1_copy.MYI
+--remove_file $MARIADB_DATADIR/test/t1.MYI
+--copy_file $MARIADB_DATADIR/test/t1_copy.MYI $MARIADB_DATADIR/test/t1.MYI
+--remove_file $MARIADB_DATADIR/test/t1_copy.MYI
 
 --echo # Check table is needed to mark the table as crashed.
 check table t1;

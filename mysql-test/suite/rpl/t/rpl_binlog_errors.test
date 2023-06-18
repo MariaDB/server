@@ -56,7 +56,6 @@ SET @old_debug= @@global.debug_dbug;
 ### ACTION: create a large file (> 4096 bytes) that will be later used
 ###         in LOAD DATA INFILE to check binlog errors in its vacinity
 -- let $load_file= $MYSQLTEST_VARDIR/tmp/bug_46166.data
--- let $MYSQLD_DATADIR= `select @@datadir`
 -- replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 -- eval SELECT repeat('x',8192) INTO OUTFILE '$load_file'
 
@@ -65,7 +64,6 @@ SET @old_debug= @@global.debug_dbug;
 ###         when file loading this file does not force flushing and
 ###         rotating the binary log
 -- let $load_file2= $MYSQLTEST_VARDIR/tmp/bug_46166-2.data
--- let $MYSQLD_DATADIR= `select @@datadir`
 -- replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 -- eval SELECT repeat('x',10) INTO OUTFILE '$load_file2'
 

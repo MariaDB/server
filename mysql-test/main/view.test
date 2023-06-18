@@ -3895,8 +3895,7 @@ delimiter ;//
 --echo # Trigger pre-locking when opening v2.
 CREATE VIEW v1 AS SELECT f1() FROM t1;
 
-let $MYSQLD_DATADIR= `SELECT @@datadir`;
-copy_file std_data/bug48449.frm $MYSQLD_DATADIR/test/v2.frm;
+copy_file std_data/bug48449.frm $MARIADB_DATADIR/test/v2.frm;
 
 enable_prepare_warnings;
 SHOW CREATE VIEW v1;
@@ -5230,8 +5229,7 @@ DROP TABLE t1, t2;
 
 create view v1 as select 1;
 
---let $MYSQLD_DATADIR= `select @@datadir`
---let SEARCH_FILE= $MYSQLD_DATADIR/test/v1.frm
+--let SEARCH_FILE= $MARIADB_DATADIR/test/v1.frm
 --let SEARCH_RANGE= 50000
 --let SEARCH_PATTERN=mariadb-version
 --source include/search_pattern_in_file.inc

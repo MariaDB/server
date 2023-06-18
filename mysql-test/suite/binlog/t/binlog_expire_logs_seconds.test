@@ -25,8 +25,6 @@
 
 --let $saved_expire_logs_days= `SELECT @@GLOBAL.expire_logs_days`
 --let $saved_binlog_expire_logs_seconds= `SELECT @@GLOBAL.binlog_expire_logs_seconds`
-# Set the datadir
---let $MYSQLD_DATADIR= `SELECT @@datadir`
 
 --echo ####
 --echo #### 1. When binlog_expire_logs_seconds == 0 and expire_logs_days == 0
@@ -73,9 +71,9 @@ FLUSH LOGS;
 FLUSH LOGS;
 
 --error 1
---file_exists $MYSQLD_DATADIR/$first_binlog_file
+--file_exists $MARIADB_TOPDIR/$first_binlog_file
 
---file_exists $MYSQLD_DATADIR/$second_binlog_file
+--file_exists $MARIADB_TOPDIR/$second_binlog_file
 
 RESET MASTER;
 --echo ####

@@ -904,11 +904,11 @@ set global max_prepared_stmt_count=10000000000000000;
 select @@max_prepared_stmt_count;
 set global max_prepared_stmt_count=default;
 select @@max_prepared_stmt_count;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set @@max_prepared_stmt_count=1;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set max_prepared_stmt_count=1;
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set local max_prepared_stmt_count=1;
 # set to a reasonable limit works
 set global max_prepared_stmt_count=1;

@@ -262,7 +262,7 @@ master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; REPAIR VIEW v1,v2
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; REPAIR VIEW v1badcheck
-LOAD DATA INFILE 'MYSQLD_DATADIR/test/v1.frm' REPLACE INTO TABLE kv FIELDS TERMINATED BY '=';
+LOAD DATA INFILE 'MARIADB_DATADIR/test/v1.frm' REPLACE INTO TABLE kv FIELDS TERMINATED BY '=';
 SELECT k,v from kv where k in ('md5','algorithm');
 k	v
 algorithm	1
@@ -271,7 +271,7 @@ SELECT k from kv where k ='mariadb-version';
 k
 mariadb-version
 truncate table kv;
-LOAD DATA INFILE 'MYSQLD_DATADIR/test/v2.frm' REPLACE INTO TABLE kv FIELDS TERMINATED BY '=';
+LOAD DATA INFILE 'MARIADB_DATADIR/test/v2.frm' REPLACE INTO TABLE kv FIELDS TERMINATED BY '=';
 SELECT k,v from kv where k in ('md5','algorithm');
 k	v
 algorithm	2
@@ -280,7 +280,7 @@ SELECT k from kv where k ='mariadb-version';
 k
 mariadb-version
 truncate table kv;
-LOAD DATA INFILE 'MYSQLD_DATADIR/test/v3.frm' REPLACE INTO TABLE kv FIELDS TERMINATED BY '=';
+LOAD DATA INFILE 'MARIADB_DATADIR/test/v3.frm' REPLACE INTO TABLE kv FIELDS TERMINATED BY '=';
 SELECT k,v from kv where k in ('md5','algorithm');
 k	v
 algorithm	0
@@ -289,7 +289,7 @@ SELECT k from kv where k ='mariadb-version';
 k
 mariadb-version
 truncate table kv;
-LOAD DATA INFILE 'MYSQLD_DATADIR/test/v1badcheck.frm' REPLACE INTO TABLE kv FIELDS TERMINATED BY '=';
+LOAD DATA INFILE 'MARIADB_DATADIR/test/v1badcheck.frm' REPLACE INTO TABLE kv FIELDS TERMINATED BY '=';
 SELECT k,v from kv where k in ('md5','algorithm');
 k	v
 algorithm	1
@@ -500,7 +500,7 @@ v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VI
 show create view v4;
 View	Create View	character_set_client	collation_connection
 v4	CREATE ALGORITHM=TEMPTABLE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v4` AS select `t1`.`a` AS `a` from `t1`	latin1	latin1_swedish_ci
-LOAD DATA INFILE 'MYSQLD_DATADIR/test/v1.frm' REPLACE INTO TABLE kv FIELDS TERMINATED BY '=';
+LOAD DATA INFILE 'MARIADB_DATADIR/test/v1.frm' REPLACE INTO TABLE kv FIELDS TERMINATED BY '=';
 SELECT k,v from kv where k in ('md5','algorithm');
 k	v
 algorithm	2

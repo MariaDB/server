@@ -786,8 +786,7 @@ SELECT pk, b INTO OUTFILE 'load.data' FROM t1;
 --error ER_DATA_TOO_LONG
 LOAD DATA INFILE 'load.data' REPLACE INTO TABLE t1 (pk, b);
 
---let $datadir= `SELECT @@datadir`
---remove_file $datadir/test/load.data
+--remove_file $MARIADB_DATADIR/test/load.data
 DROP TABLE t1;
 
 --echo #

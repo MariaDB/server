@@ -12,12 +12,13 @@
 #"REQUIREMENT: A master DROP TABLE on a table with non-existing MYI
 # file must be correctly replicated to the slave"
 ####################################
--- source include/master-slave.inc
+--source include/master-slave.inc
+--source include/get_replication_datadir.inc
 
 eval create table t1 (a int) engine=$engine_type;
 flush tables t1;
-let $MYSQLD_DATADIR= `select @@datadir`;
-remove_file $MYSQLD_DATADIR/test/t1.MYI ;
+remove_file $MASTER_DATADIR/test/t1.MYI ;
+--replace_catalog
 drop table if exists t1;
 
 --source include/rpl_end.inc

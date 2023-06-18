@@ -1,4 +1,3 @@
-drop table if exists t1;
 select 0x41,0x41+0,0x41 | 0x7fffffffffffffff | 0,0xffffffffffffffff | 0 ;
 0x41	0x41+0	0x41 | 0x7fffffffffffffff | 0	0xffffffffffffffff | 0
 A	65	9223372036854775807	18446744073709551615

@@ -36,29 +36,28 @@ INSERT INTO t3 select * from t1;
 COMMIT;
 
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
-let MYSQLD_DATADIR=`select @@datadir`;
 
 --source include/shutdown_mysqld.inc
 
 --echo # Backup tables before corrupting
---copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t1.ibd.backup
---copy_file $MYSQLD_DATADIR/test/t2.ibd $MYSQLD_DATADIR/test/t2.ibd.backup
---copy_file $MYSQLD_DATADIR/test/t3.ibd $MYSQLD_DATADIR/test/t3.ibd.backup
+--copy_file $MARIADB_DATADIR/test/t1.ibd $MARIADB_DATADIR/test/t1.ibd.backup
+--copy_file $MARIADB_DATADIR/test/t2.ibd $MARIADB_DATADIR/test/t2.ibd.backup
+--copy_file $MARIADB_DATADIR/test/t3.ibd $MARIADB_DATADIR/test/t3.ibd.backup
 
 --echo # Corrupt tables
 
 perl;
-open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t1.ibd") or die "open";
+open(FILE, "+<", "$ENV{MARIADB_DATADIR}/test/t1.ibd") or die "open";
 binmode FILE;
 seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 26, SEEK_SET) or die "seek";
 print FILE pack("H*", "c001cafedeadb017");
 close FILE or die "close";
-open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t2.ibd") or die "open";
+open(FILE, "+<", "$ENV{MARIADB_DATADIR}/test/t2.ibd") or die "open";
 binmode FILE;
 seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 26, SEEK_SET) or die "seek";
 print FILE pack("H*", "c001cafedeadb017");
 close FILE or die "close";
-open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t3.ibd") or die "open";
+open(FILE, "+<", "$ENV{MARIADB_DATADIR}/test/t3.ibd") or die "open";
 binmode FILE;
 seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 26, SEEK_SET) or die "seek";
 print FILE pack("H*", "c001cafedeadb017");
@@ -77,9 +76,9 @@ SELECT * FROM t3;
 --source include/shutdown_mysqld.inc
 
 --echo # Restore the original tables
---move_file $MYSQLD_DATADIR/test/t1.ibd.backup $MYSQLD_DATADIR/test/t1.ibd
---move_file $MYSQLD_DATADIR/test/t2.ibd.backup $MYSQLD_DATADIR/test/t2.ibd
---move_file $MYSQLD_DATADIR/test/t3.ibd.backup $MYSQLD_DATADIR/test/t3.ibd
+--move_file $MARIADB_DATADIR/test/t1.ibd.backup $MARIADB_DATADIR/test/t1.ibd
+--move_file $MARIADB_DATADIR/test/t2.ibd.backup $MARIADB_DATADIR/test/t2.ibd
+--move_file $MARIADB_DATADIR/test/t3.ibd.backup $MARIADB_DATADIR/test/t3.ibd
 
 --source include/start_mysqld.inc
 

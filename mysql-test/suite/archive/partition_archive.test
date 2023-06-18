@@ -10,8 +10,6 @@
 --source include/have_partition.inc
 --source include/have_archive.inc
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-
 #
 # Bug#44622: Using PARTITIONs with ARCHIVE engine reports 0 bytes in i_s.TABLES
 #

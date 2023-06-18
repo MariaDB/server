@@ -1,4 +1,3 @@
-DROP TABLE IF EXISTS t1;
 #
 # Bug#46086: crash when dropping a partitioned table and
 #            the original engine is disabled

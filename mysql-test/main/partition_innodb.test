@@ -20,8 +20,6 @@ set global innodb_stats_persistent_sample_pages=100;
 drop table if exists t1, t2;
 --enable_warnings
 
-let $MYSQLD_DATADIR= `SELECT @@datadir`;
-
 --echo #
 --echo # Bug#13694811: THE OPTIMIZER WRONGLY USES THE FIRST
 --echo #               INNODB PARTITION STATISTICS
@@ -577,7 +575,7 @@ CREATE INDEX i1 ON t1 (a);
 DROP TABLE t1;
 
 # Before the fix it should show extra file like #sql-2405_2.par
---list_files $MYSQLD_DATADIR/test/ *.par
+--list_files $MARIADB_DATADIR/test/ *.par
 
 --disable_parsing
 --echo #
@@ -612,7 +610,7 @@ ALTER TABLE t1 REORGANIZE PARTITION pMAX INTO
 SHOW WARNINGS;
 
 #Contents of the 'test' database directory:
---list_files $MYSQLD_DATADIR/test/ *.par
+--list_files $MARIADB_DATADIR/test/ *.par
 
 disconnect con1;
 connection default;

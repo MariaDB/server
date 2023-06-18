@@ -9,7 +9,7 @@ SELECT @save_replicate_wild_ignore_table;
 
 --echo # Scope.
 
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 SET @@SESSION.replicate_wild_ignore_table = "";
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@SESSION.replicate_wild_ignore_table;

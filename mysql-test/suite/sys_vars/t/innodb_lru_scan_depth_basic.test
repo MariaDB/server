@@ -32,7 +32,7 @@ select @@global.innodb_lru_scan_depth;
 select * from information_schema.global_variables where variable_name='innodb_lru_scan_depth';
 select * from information_schema.session_variables where variable_name='innodb_lru_scan_depth';
 --enable_warnings
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session innodb_lru_scan_depth=444;
 
 #

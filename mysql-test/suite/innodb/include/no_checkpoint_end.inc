@@ -5,10 +5,12 @@ if (!$no_checkpoint_kill) {
 --source include/kill_mysqld.inc
 }
 
+let MARIADB_TOPDIR=$MARIADB_TOPDIR/;
+
 perl;
 my $cp = $ENV{CHECKPOINT_LSN};
 $cp =~ s/^InnoDB\t\t//;
-my $log = "$ENV{MYSQLD_DATADIR}ib_logfile0";
+my $log = "$ENV{MARIADB_TOPDIR}ib_logfile0";
 open(LOG, "<$log") || die "Unable to open $log";
 seek(LOG, 4096, 0) || die "Unable to seek $log";
 die unless read(LOG, $_, 8) == 8;

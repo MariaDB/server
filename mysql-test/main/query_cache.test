@@ -442,9 +442,8 @@ select * from t1 limit 1 into dumpfile "query_cache.dump.file";
 --disable_prepare_warnings
 show status like "Qcache_queries_in_cache";
 drop table t1;
-let $datadir=`select @@datadir`;
---remove_file $datadir/test/query_cache.dump.file
---remove_file $datadir/test/query_cache.out.file
+--remove_file $MARIADB_DATADIR/test/query_cache.dump.file
+--remove_file $MARIADB_DATADIR/test/query_cache.out.file
 
 #
 # test of SQL_SELECT_LIMIT

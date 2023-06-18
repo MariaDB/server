@@ -13,7 +13,6 @@ set session default_storage_engine=myisam;
 # This test assumes a stable character set
 --source include/default_charset.inc
 
-let $MYSQLD_DATADIR= `select @@datadir`;
 create table t1 (a int not null primary key auto_increment, message char(20));
 create table t2 (a int not null primary key auto_increment, message char(20));
 INSERT INTO t1 (message) VALUES ("Testing"),("table"),("t1");
@@ -1707,8 +1706,8 @@ DROP DATABASE `test/1`;
 # Test compatibility. Use '@' instead of '/' (was not allowed in 5.0)
 
 CREATE TABLE `t@1`(a INT);
-copy_file std_data/bug48265.frm $MYSQLD_DATADIR/test/m1.frm;
-write_file $MYSQLD_DATADIR/test/m1.MRG;
+copy_file std_data/bug48265.frm $MARIADB_DATADIR/test/m1.frm;
+write_file $MARIADB_DATADIR/test/m1.MRG;
 t@1
 EOF
 SELECT * FROM m1;
@@ -1718,8 +1717,8 @@ DROP TABLE `t@1`;
 CREATE DATABASE `test@1`;
 CREATE TABLE `test@1`.`t@1`(a INT);
 FLUSH TABLE m1;
-remove_file $MYSQLD_DATADIR/test/m1.MRG;
-write_file $MYSQLD_DATADIR/test/m1.MRG;
+remove_file $MARIADB_DATADIR/test/m1.MRG;
+write_file $MARIADB_DATADIR/test/m1.MRG;
 ./test@1/t@1
 EOF
 SELECT * FROM m1;

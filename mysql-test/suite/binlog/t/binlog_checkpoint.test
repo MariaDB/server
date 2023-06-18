@@ -214,10 +214,9 @@ XA END 'xa1';
 --echo ** Proof of shutdown caused ROLLBACK-completed transaction
 
 --let assert_file=$MYSQLTEST_VARDIR/tmp/binlog_decoded.out
---let datadir=`select @@datadir`
 
---echo # MYSQL_BINLOG datadir/binlog_file --result-file=assert_file
---exec $MYSQL_BINLOG $datadir/$binlog_file --result-file=$assert_file
+--echo # MYSQL_BINLOG MARIADB_DATADIR/binlog_file --result-file=assert_file
+--exec $MYSQL_BINLOG $MARIADB_TOPDIR/$binlog_file --result-file=$assert_file
 
 --let $assert_text= No XA statements should be written into the binary log
 --let $assert_count= 0

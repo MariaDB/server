@@ -922,8 +922,8 @@ Alternatives are: 'NEVER','AUTO','UNSPEC','DECODE-ROWS'
 mariadb-binlog: option '--base64-output' requires an argument
 #
 # Ensure --base64-output=auto outputs the same result as unspecified
-# MYSQL_BINLOG -v MYSQLD_DATADIR/master-bin.000001 > MYSQLTEST_VARDIR/tmp/mysqlbinlog_nob64spec.out
-# MYSQL_BINLOG --base64-output=auto -v MYSQLD_DATADIR/master-bin.000001 > MYSQLTEST_VARDIR/tmp/mysqlbinlog_b64auto.out
+# MYSQL_BINLOG -v MARIADB_TOPDIR/master-bin.000001 > MYSQLTEST_VARDIR/tmp/mysqlbinlog_nob64spec.out
+# MYSQL_BINLOG --base64-output=auto -v MARIADB_TOPDIR/master-bin.000001 > MYSQLTEST_VARDIR/tmp/mysqlbinlog_b64auto.out
 RESET MASTER;
 CREATE DATABASE test1;
 USE test1;

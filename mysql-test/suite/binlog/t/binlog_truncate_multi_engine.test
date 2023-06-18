@@ -17,7 +17,6 @@
 --let $old_max_binlog_size= `select @@global.max_binlog_size`
 call mtr.add_suppression("Can.t init tc log");
 call mtr.add_suppression("Aborting");
---let $MYSQLD_DATADIR= `SELECT @@datadir`
 
 SET @@global.sync_binlog= 1;
 CREATE TABLE t1 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
@@ -33,7 +32,7 @@ CREATE TABLE t2 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=rocksdb;
 --let $test_outcome= 1 row should be present in both tables; binlog is truncated; number of binlogs at reconnect - 3
 --source binlog_truncate_multi_engine.inc
 --echo Proof of the truncated binlog file is readable (two transactions must be seen):
---exec $MYSQL_BINLOG --short-form --skip-annotate-row-events $MYSQLD_DATADIR/master-bin.000002
+--exec $MYSQL_BINLOG --short-form --skip-annotate-row-events $MARIADB_TOPDIR/master-bin.000002
 
 --let $case = "B"
 --let $description = "one engine has committed its transaction branch"

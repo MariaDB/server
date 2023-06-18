@@ -26,7 +26,7 @@ Warning	1478	InnoDB: DATA DIRECTORY requires innodb_file_per_table.
 Warning	1478	InnoDB: INDEX DIRECTORY is not supported
 Error	1005	Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
-Error	6	Error on delete of 'MYSQLD_DATADIR/test/t1.par' (Errcode: 2 "No such file or directory")
+Error	6	Error on delete of 'MARIADB_DATADIR/test/t1.par' (Errcode: 2 "No such file or directory")
 #
 # InnoDB is different from MyISAM in that it uses a text file
 # with an '.isl' extension instead of a symbolic link so that
@@ -57,7 +57,7 @@ Level	Code	Message
 Warning	1618	<INDEX DIRECTORY> option ignored
 Warning	1618	<INDEX DIRECTORY> option ignored
 # Verifying .frm, .par, .isl & .ibd files
----- MYSQLD_DATADIR/test
+---- MARIADB_DATADIR/test
 db.opt
 t1#P#p0.isl
 t1#P#p1.isl
@@ -103,7 +103,6 @@ t1.par
 ---- MYSQLTEST_VARDIR/mysql-test-data-dir
 t1#P#p0.MYD
 t1#P#p1.MYD
-test
 ---- MYSQLTEST_VARDIR/mysql-test-idx-dir
 #
 # Now verify that the DATA DIRECTORY is used again if we
@@ -120,7 +119,7 @@ t1	CREATE TABLE `t1` (
 (PARTITION `p0` DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = InnoDB,
  PARTITION `p1` DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = InnoDB)
 # Verifying .frm, .par, .isl and InnoDB .ibd files
----- MYSQLD_DATADIR/test
+---- MARIADB_DATADIR/test
 db.opt
 t1#P#p0.isl
 t1#P#p1.isl

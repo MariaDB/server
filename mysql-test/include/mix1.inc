@@ -669,8 +669,7 @@ call mtr.add_suppression("InnoDB: Cannot open table test/bug29807 from");
 --enable_query_log
 
 create table t1 (a int) engine=innodb;
-let $MYSQLD_DATADIR= `select @@datadir`;
-copy_file $MYSQLD_DATADIR/test/t1.frm $MYSQLD_DATADIR/test/bug29807.frm;
+copy_file $MARIADB_DATADIR/test/t1.frm $MARIADB_DATADIR/test/bug29807.frm;
 --error ER_NO_SUCH_TABLE_IN_ENGINE
 select * from bug29807;
 drop table t1;

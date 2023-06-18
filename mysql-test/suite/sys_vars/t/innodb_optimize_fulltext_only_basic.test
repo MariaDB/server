@@ -50,9 +50,9 @@ select @@global.innodb_optimize_fulltext_only;
 select * from information_schema.global_variables where variable_name='innodb_optimize_fulltext_only';
 select * from information_schema.session_variables where variable_name='innodb_optimize_fulltext_only';
 --enable_warnings
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set session innodb_optimize_fulltext_only='OFF';
---error ER_GLOBAL_VARIABLE
+--error ER_GLOBAL_VARIABLE,ER_GLOBAL_OR_CATALOG_VARIABLE
 set @@session.innodb_optimize_fulltext_only='ON';
 
 #
