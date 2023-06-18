@@ -1615,6 +1615,7 @@ INSERT INTO t1 VALUES (1);
 # stored routine's body doesn't lead to eviction of
 # the stored routine from sp_cache
 #
+--disable_view_protocol
 SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 
 --echo
@@ -2524,6 +2525,7 @@ SELECT * FROM t1_result_set;
 DROP TABLE t1_result_set;
 
 SET @@debug_dbug=@orig_dbug;
+--enable_view_protocol
 
 DROP TABLE t1;
 CREATE TABLE t2 (a INT);
