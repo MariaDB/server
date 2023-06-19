@@ -84,6 +84,8 @@ sub skip_combinations {
   $skip{'main/ssl_7937.combinations'} = [ 'x509v3' ]
     unless $ssl_lib =~ /WolfSSL/ or $openssl_ver ge "1.0.2";
 
+  $skip{'main/func_kdf.combinations'} = [ $ssl_lib =~ /OpenSSL 1\.0\./ ? 'new' : 'old' ];
+
   $skip{'main/ssl_verify_ip.test'} = 'x509v3 support required'
     unless $openssl_ver ge "1.0.2";
 
