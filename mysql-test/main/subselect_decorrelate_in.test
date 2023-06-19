@@ -58,20 +58,26 @@ let $query=
 select * from t1 where a in (select a from t2 where t1.b=t2.b and t1.c < 5);
 eval explain $query;
 eval $query;
-select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
+select 
+  json_extract(trace, '$**.join_optimization.steps[*].transformation.to') as JS
+from information_schema.OPTIMIZER_TRACE;
 
 let $query=
 select * from t1 where a in (select a from t2 where t1.a = t2.b and t2.c+t1.a < 9);
 eval explain $query;
 eval $query;
-select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
+select 
+  json_extract(trace, '$**.join_optimization.steps[*].transformation.to') as JS 
+from information_schema.OPTIMIZER_TRACE;
 
 --echo # No transformation because of applicable conditions in subquery
 let $query=
 select * from t1 where a in (select a from t2 where t2.c+t1.a < 9);
 eval explain $query;
 eval $query;
-select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
+select 
+  json_extract(trace, '$**.join_optimization.steps[*].transformation.to') as JS 
+from information_schema.OPTIMIZER_TRACE;
 
 drop table ten, t1, t2;
 
@@ -95,21 +101,27 @@ let $query=
 select * from t1 where a1 in (select count(*) from t2 where b1 = b2 group by b2);
 eval explain $query;
 eval $query;
-select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
+select 
+  json_extract(trace, '$**.join_optimization.steps[*].transformation.to') as JS 
+from information_schema.OPTIMIZER_TRACE;
 
 # skip having
 let $query=
 select * from t2 where a2 in (select a1 from t1 where b1 = b2 having a1 > 0);
 eval explain $query;
 eval $query;
-select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
+select 
+  json_extract(trace, '$**.join_optimization.steps[*].transformation.to') as JS
+from information_schema.OPTIMIZER_TRACE;
 
 # not in
 let $query=
 select * from t1 where a1 not in (select a2 from t2 where b1 = b2);
 eval explain $query;
 eval $query;
-select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
+select 
+  json_extract(trace, '$**.join_optimization.steps[*].transformation.to') as JS
+from information_schema.OPTIMIZER_TRACE;
 
 drop table t1, t2;
 
@@ -204,20 +216,29 @@ let $query=
 select * from t1 where a1 = any (select a2 from t2 where b1 = b2);
 eval explain $query;
 eval $query;
-select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
+select 
+  json_extract(trace, '$**.join_optimization.steps[*].transformation.to') as JS
+from information_schema.OPTIMIZER_TRACE;
 
 # transformation applied because `<> all` is synonym to `not in`
 let $query=
 select * from t1 where a1 <> all (select a2 from t2 where b1 = b2);
 eval explain $query;
 eval $query;
-select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
+select 
+  json_extract(trace, '$**.join_optimization.steps[*].transformation.to') as JS
+from information_schema.OPTIMIZER_TRACE;
 
 --echo # no transformation applied when no synonyms applied to any / all
 select * from t1 where a1 >= all (select a2 from t2 where b1 = b2);
-select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
+select 
+  json_extract(trace, '$**.join_optimization.steps[*].transformation.to') as JS 
+from information_schema.OPTIMIZER_TRACE;
+
 select * from t1 where a1 <> any (select a2 from t2 where b1 = b2);
-select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
+select 
+  json_extract(trace, '$**.join_optimization.steps[*].transformation.to') as JS 
+from information_schema.OPTIMIZER_TRACE;
 
 drop table t1, t2;
 
@@ -230,7 +251,10 @@ insert into t2 values (0, 1), (1, null);
 
 --echo # returns (0, null), (1, 1)
 select * from t1 where not a1 in (select a2 from t2 where b1 = b2);
-select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
+select 
+  json_extract(trace, '$**.join_optimization.steps[*].transformation.to') as JS
+from information_schema.OPTIMIZER_TRACE;
+
 --echo # returns empty
 select * from t1 where not (a1, b1) in (select a2, b2 from t2);
 --echo # returns (0, null), (1, 1)
@@ -245,10 +269,15 @@ CREATE TABLE t2 ( c INT, d INT );
 INSERT INTO t2 VALUES ( NULL, 3 ), ( NULL, 4 );
 # not top level, upper_not is not top level
 SELECT * FROM t1 WHERE a NOT IN ( SELECT c FROM t2 where b = d ) IS NULL;
-select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
+select 
+  json_extract(trace, '$**.join_optimization.steps[*].transformation.to') as JS
+from information_schema.OPTIMIZER_TRACE;
+
 # not top level, upper_not is null
 SELECT * FROM t1 WHERE a IN ( SELECT c FROM t2 where b = d ) IS NULL;
-select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
+select 
+  json_extract(trace, '$**.join_optimization.steps[*].transformation.to') as JS 
+from information_schema.OPTIMIZER_TRACE;
 
 drop table t1, t2;
 
@@ -261,9 +290,13 @@ INSERT INTO t2 VALUES (1,'r','r');
 CREATE OR REPLACE VIEW v1 AS SELECT * FROM t1;
 PREPARE st2 FROM 'SELECT * FROM t2 WHERE a IN (SELECT a FROM v1 WHERE v1.c = t2.c)';
 EXECUTE st2;
-select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
+select 
+  json_extract(trace, '$**.join_optimization.steps[*].transformation.to') as JS
+from information_schema.OPTIMIZER_TRACE;
 EXECUTE st2;
-select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
+select 
+  json_extract(trace, '$**.join_optimization.steps[*].transformation.to') as JS
+from information_schema.OPTIMIZER_TRACE;
 
 drop table t1, t2;
 drop view v1;
@@ -285,9 +318,13 @@ HAVING 0 IN (
 )
 ";
 EXECUTE st5;
-select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
+select 
+  json_extract(trace, '$**.join_optimization.steps[*].transformation.to') as JS
+from information_schema.OPTIMIZER_TRACE;
 EXECUTE st5;
-select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
+select 
+  json_extract(trace, '$**.join_optimization.steps[*].transformation.to') as JS
+from information_schema.OPTIMIZER_TRACE;
 
 drop table t1, t2;
 
@@ -303,7 +340,9 @@ let $query=
 SELECT * FROM t1 WHERE (NULL, 1) NOT IN (SELECT t2a.i, t2a.pk FROM t2a WHERE t2a.pk = t1.pk);
 eval EXPLAIN $query;
 eval $query;
-select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
+select 
+  json_extract(trace, '$**.join_optimization.steps[*].transformation.to') AS JS
+from information_schema.OPTIMIZER_TRACE;
 
 drop table t1, t2a;
 
@@ -360,7 +399,9 @@ select * from t1 where a1 in
                (select a1 + b2 from t2 order by b2 limit 1) = a2);
 
 eval explain $query;
-select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
+select 
+  json_extract(trace, '$**.join_optimization.steps[*].transformation.to') as JS
+from information_schema.OPTIMIZER_TRACE;
 eval $query;
 
 drop table t1, t2;
@@ -389,7 +430,9 @@ select * from t1 where a1 in
 --disable_ps_protocol
 eval explain $query;
 --enable_ps_protocol
-select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
+select 
+  json_extract(trace, '$**.join_optimization.steps[*].transformation.to') as JS
+from information_schema.OPTIMIZER_TRACE;
 eval $query;
 
 drop table t1, t2;
@@ -413,7 +456,9 @@ let $query=
 select * from t1 where a1 in (select 1 from t2 where b1 = b2);
 eval explain $query;
 eval $query;
-select json_detailed(json_extract(trace, '$**.join_optimization.steps[*].transformation')) from information_schema.OPTIMIZER_TRACE;
+select 
+  json_detailed(json_extract(trace, '$**.join_optimization.steps[*].transformation')) as JS 
+from information_schema.OPTIMIZER_TRACE;
 
 drop table t1, t2;
 
@@ -435,7 +480,9 @@ create table t2 (a int, b int, c int );
 insert into t2  select a,a,a from ten_k;
 
 explain select * from t1 where 1 in (select 1 from t2 where t2.a=t1.a and t2.b=t1.b) or t1.c<333;
-select json_extract(trace, '$**.join_optimization.steps[*].transformation.to') from information_schema.OPTIMIZER_TRACE;
+select 
+  json_extract(trace, '$**.join_optimization.steps[*].transformation.to') as JS
+from information_schema.OPTIMIZER_TRACE;
 
 drop table ten, one_h, ten_k, t1, t2;
 
