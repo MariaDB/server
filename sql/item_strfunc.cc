@@ -56,6 +56,10 @@ C_MODE_END
 #include "sql_statistics.h"
 #include "strfunc.h"
 
+#ifdef HAVE_hkdf
+#include <openssl/kdf.h>
+#endif
+
 /* fmtlib include (https://fmt.dev/). */
 #define FMT_STATIC_THOUSANDS_SEPARATOR ','
 #define FMT_HEADER_ONLY 1
@@ -434,6 +438,122 @@ bool Item_func_aes_decrypt::fix_length_and_dec(THD *thd)
   return FALSE;
 }
 
+bool Item_func_kdf::fix_length_and_dec(THD *thd)
+{
+  if (arg_count > 4 && args[4]->const_item())
+  {
+    if (((key_length= (uint)args[4]->val_int()) % 8) || key_length > 65536)
+      key_length= 0;
+  }
+  else if (arg_count <= 4)
+    key_length= block_encryption_mode_to_key_length(thd->variables.block_encryption_mode);
+  else
+    key_length= 0;
+  key_length/= 8;
+  max_length= key_length ? key_length : 256/8;
+  set_maybe_null();
+  return FALSE;
+}
+
+static void invalid_argument_error(const char *func, const char *val)
+{
+  THD *thd= current_thd;
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+    ER_STD_INVALID_ARGUMENT, ER_THD(thd, ER_STD_INVALID_ARGUMENT),
+    val, func);
+}
+
+String *Item_func_kdf::val_str(String *buf)
+{
+  // KDF(key_str, salt [, {info | iterations} [, kdf_name [, width ]]])
+  DBUG_ASSERT(fixed());
+  StringBuffer<80> key_buf, salt_buf;
+  String *key= args[0]->val_str(&key_buf);
+  String *salt= args[1]->val_str(&salt_buf);
+  bool use_hkdf= false;
+  size_t klen= key_length;
+  bool ok= false;
+
+  if (!key || !salt)
+    goto ret_null;
+
+  if (arg_count > 3)
+  {
+    if (String *s= args[3]->val_str(buf))
+    {
+      if (strcasecmp(s->c_ptr(), "hkdf") == 0)
+        use_hkdf= true;
+      else if (strcasecmp(s->c_ptr(), "pbkdf2_hmac") != 0)
+      {
+        invalid_argument_error(func_name(), ErrConvStringQ(s).ptr());
+        goto ret_null;
+      }
+    }
+    else
+      goto ret_null;
+  }
+  if (!klen)
+  {
+    klen= args[4]->val_int();
+    if (!klen || klen % 8 || klen > 65536)
+    {
+      if (!args[4]->null_value)
+        invalid_argument_error(func_name(),
+          ErrConvInteger({(ssize_t)klen, args[4]->unsigned_flag}).ptr());
+      goto ret_null;
+    }
+    klen/= 8;
+  }
+  buf->reserve(klen);
+  buf->length(klen);
+
+  if (use_hkdf)
+  {
+#ifdef HAVE_hkdf
+    StringBuffer<80> info_buf;
+    String *info= arg_count > 2 ? args[2]->val_str(&info_buf) : 0;
+
+    EVP_PKEY_CTX *ctx= EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, NULL);
+    ok= EVP_PKEY_derive_init(ctx) > 0 &&
+        EVP_PKEY_CTX_set_hkdf_md(ctx, EVP_sha512()) > 0 &&
+        EVP_PKEY_CTX_set1_hkdf_key(ctx, (const uchar*)key->ptr(), key->length()) > 0 &&
+        EVP_PKEY_CTX_set1_hkdf_salt(ctx, (const uchar*)salt->ptr(), salt->length()) > 0 &&
+        (!info || EVP_PKEY_CTX_add1_hkdf_info(ctx, (const uchar*)info->ptr(), info->length()) > 0) &&
+        EVP_PKEY_derive(ctx, (uchar*)buf->ptr(), &klen) > 0;
+
+    EVP_PKEY_CTX_free(ctx);
+#else
+    THD *thd= current_thd;
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+      ER_NOT_SUPPORTED_YET, ER_THD(thd, ER_NOT_SUPPORTED_YET),
+      "kdf(..., 'hkdf')");
+#endif
+  }
+  else
+  {
+    longlong iter= arg_count > 2 ? args[2]->val_int() : 1000;
+    if (iter <= 0)
+    {
+      if (!args[2]->null_value)
+        invalid_argument_error(func_name(),
+          ErrConvInteger({iter, args[2]->unsigned_flag}).ptr());
+    }
+    else
+      ok= PKCS5_PBKDF2_HMAC(key->ptr(), key->length(),
+                      (const uchar*)salt->ptr(), salt->length(), (int)iter,
+                      EVP_sha512(), (int)klen, (uchar*)buf->ptr());
+  }
+
+  if (ok)
+  {
+    null_value= 0;
+    return buf;
+  }
+
+ret_null:
+  null_value=1;
+  return 0;
+}
 
 bool Item_func_to_base64::fix_length_and_dec(THD *thd)
 {

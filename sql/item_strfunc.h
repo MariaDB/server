@@ -133,6 +133,8 @@ public:
    :Item_str_func(thd, a, b, c) { }
   Item_str_binary_checksum_func(THD *thd, Item *a, Item *b, Item *c, Item *d)
    :Item_str_func(thd, a, b, c, d) { }
+  Item_str_binary_checksum_func(THD *thd, Item *a, Item *b, Item *c, Item *d, Item *e)
+   :Item_str_func(thd, a, b, c, d, e) { }
   bool eq(const Item *item, bool binary_cmp) const
   {
     /*
@@ -293,6 +295,35 @@ public:
   }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_aes_decrypt>(thd, this); }
+};
+
+class Item_func_kdf :public Item_str_binary_checksum_func
+{
+  uint key_length;
+public:
+  Item_func_kdf(THD *thd, Item *a, Item *b)
+   : Item_str_binary_checksum_func(thd, a, b) {}
+  Item_func_kdf(THD *thd, Item *a, Item *b, Item *c)
+   : Item_str_binary_checksum_func(thd, a, b, c) {}
+  Item_func_kdf(THD *thd, Item *a, Item *b, Item *c, Item *d)
+   : Item_str_binary_checksum_func(thd, a, b, c, d) {}
+  Item_func_kdf(THD *thd, Item *a, Item *b, Item *c, Item *d, Item *e)
+   : Item_str_binary_checksum_func(thd, a, b, c, d, e) {}
+  bool fix_length_and_dec(THD *thd) override;
+  String *val_str(String *) override;
+  bool check_vcol_func_processor(void *arg) override
+  {
+    if (arg_count > 4)
+      return FALSE;
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
+  }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("kdf") };
+    return name;
+  }
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_func_kdf>(thd, this); }
 };
 
 class Item_func_natural_sort_key : public Item_str_func

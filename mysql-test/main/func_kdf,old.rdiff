@@ -1,0 +1,64 @@
+--- main/func_kdf.result
++++ main/func_kdf.reject
+@@ -21,10 +21,14 @@
+ 48565B49B42FBF88537AFA1D4C0FA2C6
+ select hex(kdf('foo', 'bar', 'info', 'hkdf'));
+ hex(kdf('foo', 'bar', 'info', 'hkdf'))
+-710583081D40A55F0B573A76E02D8975
++NULL
++Warnings:
++Warning	1235	This version of MariaDB doesn't yet support 'kdf(..., 'hkdf')'
+ select hex(kdf('foo', 'bar', 'infa', 'hkdf'));
+ hex(kdf('foo', 'bar', 'infa', 'hkdf'))
+-612875F859CFB4EE0DFEFF9F2A18E836
++NULL
++Warnings:
++Warning	1235	This version of MariaDB doesn't yet support 'kdf(..., 'hkdf')'
+ select hex(kdf('foo', 'bar', 'info', 'pbkdf2_hmac'));
+ hex(kdf('foo', 'bar', 'info', 'pbkdf2_hmac'))
+ NULL
+@@ -55,7 +59,9 @@
+ NULL
+ select hex(kdf('foo', 'bar', NULL, 'hkdf'));
+ hex(kdf('foo', 'bar', NULL, 'hkdf'))
+-4AFD0088E56CAF7CB5C94F6C101D58D5
++NULL
++Warnings:
++Warning	1235	This version of MariaDB doesn't yet support 'kdf(..., 'hkdf')'
+ select hex(kdf('foo', 'bar', NULL, 'pbkdf2_hmac'));
+ hex(kdf('foo', 'bar', NULL, 'pbkdf2_hmac'))
+ NULL
+@@ -81,10 +87,14 @@
+ set @@block_encryption_mode='aes-192-cbc';
+ select hex(kdf('foo', 'bar', 'info', 'hkdf'));
+ hex(kdf('foo', 'bar', 'info', 'hkdf'))
+-710583081D40A55F0B573A76E02D8975AA11A4595954C0A1
++NULL
++Warnings:
++Warning	1235	This version of MariaDB doesn't yet support 'kdf(..., 'hkdf')'
+ select hex(kdf('foo', 'bar', 'info', 'hkdf', 256));
+ hex(kdf('foo', 'bar', 'info', 'hkdf', 256))
+-710583081D40A55F0B573A76E02D8975AA11A4595954C0A1487D6D33ABAB93C3
++NULL
++Warnings:
++Warning	1235	This version of MariaDB doesn't yet support 'kdf(..., 'hkdf')'
+ select hex(kdf('foo', 'bar', 2000, 'pbkdf2_hmac'));
+ hex(kdf('foo', 'bar', 2000, 'pbkdf2_hmac'))
+ 430D4780B57254EF39EE13CE53DB381A552151AA62A9FA92
+@@ -110,10 +120,14 @@
+ Warning	3047	Invalid argument error: 0 in function kdf.
+ select length(kdf('foo', 'bar', 'info', 'hkdf', 32768));
+ length(kdf('foo', 'bar', 'info', 'hkdf', 32768))
+-4096
++NULL
++Warnings:
++Warning	1235	This version of MariaDB doesn't yet support 'kdf(..., 'hkdf')'
+ select length(kdf('foo', 'bar', 'info', 'hkdf', 65536));
+ length(kdf('foo', 'bar', 'info', 'hkdf', 65536))
+-8192
++NULL
++Warnings:
++Warning	1235	This version of MariaDB doesn't yet support 'kdf(..., 'hkdf')'
+ select length(kdf('foo', 'bar', 'info', 'hkdf', 65537));
+ length(kdf('foo', 'bar', 'info', 'hkdf', 65537))
+ NULL
