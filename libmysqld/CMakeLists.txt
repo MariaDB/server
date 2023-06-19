@@ -68,6 +68,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/log_event.cc ../sql/log_event_server.cc 
            ../sql/mf_iocache.cc ../sql/my_decimal.cc 
            ../sql/net_serv.cc ../sql/opt_range.cc ../sql/opt_sum.cc 
+           ../sql/opt_rewrite_remove_casefold.cc
            ../sql/parse_file.cc ../sql/procedure.cc ../sql/protocol.cc 
            ../sql/records.cc ../sql/repl_failsafe.cc ../sql/rpl_filter.cc
            ../sql/rpl_record.cc ../sql/des_key_file.cc

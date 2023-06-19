@@ -225,6 +225,7 @@ extern MY_UNI_CTYPE my_uni_ctype[256];
 #define MY_CS_NON1TO1 0x40000  /* Has a complex mapping from characters
                                   to weights, e.g. contractions, expansions,
                                   ignorable characters */
+#define MY_CS_UPPER_EQUAL_AS_EQUAL 0x80000 /* (UPPER(x)=UPPER(y)) <=> (x=y)*/
 #define MY_CHARSET_UNDEFINED 0
 
 /* Character repertoire flags */

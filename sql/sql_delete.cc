@@ -499,6 +499,12 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     }
   }
 
+  if (conds && optimizer_flag(thd, OPTIMIZER_SWITCH_SARGABLE_CASEFOLD))
+  {
+    conds= conds->top_level_transform(thd, &Item::varchar_upper_cmp_transformer,
+                                          (uchar *) 0);
+  }
+
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (prune_partitions(thd, table, conds))
   {

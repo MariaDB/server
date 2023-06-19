@@ -550,6 +550,12 @@ int mysql_update(THD *thd,
     }
   }
 
+  if (conds && optimizer_flag(thd, OPTIMIZER_SWITCH_SARGABLE_CASEFOLD))
+  {
+    conds= conds->top_level_transform(thd, &Item::varchar_upper_cmp_transformer,
+                                          (uchar *) 0);
+  }
+
   // Don't count on usage of 'only index' when calculating which key to use
   table->covering_keys.clear_all();
 
