@@ -1,0 +1,247 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-27201 Non-merged derived table: do not compute unused fields
+--echo #
+
+create table t1 (
+  group_id int,
+  a int,
+  b int,
+  c int
+);
+
+insert into t1 values (1,1,1,1),(1,2,2,2),(1,3,3,3), (2,4,4,4),(2,5,5,5),(2,6,6,6),
+ (3,7,7,7),(3,8,8,8),(3,9,9,9);
+
+create table t2 (a int);
+insert into t2 values (1),(2),(3);
+
+set optimizer_trace = 'enabled=on';
+
+--echo # avgb is not used so must not be calculated
+select T.group_id, T.suma
+  from (select
+         group_id, sum(a) as suma, avg(b) as avgb
+       from t1
+       group by group_id
+       ) T;
+
+--echo # Make sure that the elimination is reflected in the optimizer_trace
+select json_detailed(json_extract(trace, '$**.aggregate_functions_eliminated')) as elim_func
+  from information_schema.optimizer_trace;
+
+--echo # sum(a) and max(a) are not used so must not be calculated
+select T.group_id, T.avgb
+  from (select
+          group_id, sum(a) as suma, avg(b) as avgb, max(a) as maxa
+        from t1
+        group by group_id
+        ) as T;
+
+select json_detailed(json_extract(trace, '$**.aggregate_functions_eliminated')) as elim_func
+  from information_schema.optimizer_trace;
+
+--echo # max(a) is not used and can be eliminated but sum(a) is used in WHERE
+select T.group_id, T.avgb
+  from (select
+          group_id, sum(a) as suma, avg(b) as avgb, max(a) as maxa
+        from t1
+        group by group_id
+       ) as T
+where T.suma > 10;
+
+select json_detailed(json_extract(trace, '$**.aggregate_functions_eliminated')) as elim_func
+  from information_schema.optimizer_trace;
+
+--echo # Join of a derived and a regular tables
+select T.group_id, T.maxa
+  from t2, (select
+             group_id, sum(a) as suma, avg(b) as avgb, max(a) as maxa
+           from t1
+           group by group_id
+           ) as T
+where T.group_id = t2.a;
+
+select json_detailed(json_extract(trace, '$**.aggregate_functions_eliminated')) as elim_func
+  from information_schema.optimizer_trace;
+
+--echo # No aggregate functions must be calculated
+select T.group_id
+  from (select
+          group_id, sum(a) as suma, avg(b) as avgb, max(a) as maxa
+        from t1
+        group by group_id
+       ) as T;
+
+select json_detailed(json_extract(trace, '$**.aggregate_functions_eliminated')) as elim_func
+  from information_schema.optimizer_trace;
+
+--echo # Aggregate function not present in SELECT list but present in HAVING
+select T.group_id, T.avgb
+  from (select
+         group_id, sum(a) as suma, avg(b) as avgb, max(a) as maxa
+        from t1
+        group by group_id
+        having suma > 7
+       ) as T;
+
+select json_detailed(json_extract(trace, '$**.aggregate_functions_eliminated')) as elim_func
+  from information_schema.optimizer_trace;
+
+--echo # Aggregate function not present in SELECT list but present in ORDER BY
+select T.group_id, T.sumb
+  from (select
+          group_id, sum(a) as SUMA, sum(b) as SUMB
+        from t1
+        group by group_id
+        order by suma desc LIMIT 1
+       ) as T;
+
+--echo # Hidden field sum(b) is added to process HAVING
+select T.group_id, maxab
+  from (select
+         group_id, sum(a) as suma, max(a) as maxab
+       from t1
+       group by group_id
+       having sum(b) > 10
+      ) as T;
+
+--echo # Aggregate function is used in having
+select group_id
+  from (select group_id, count(*) as cnt
+        from t1
+        group by group_id
+        having (select count(*) from t2 where t2.a > t1.group_id)+3 > cnt
+       ) T;
+
+select json_detailed(json_extract(trace, '$**.aggregate_functions_eliminated')) as elim_func
+  from information_schema.optimizer_trace;
+
+--echo # Hidden field sum(b) is added to process ORDER BY, this must not harm
+select T.group_id, maxab
+  from (select
+          group_id, sum(a) as suma, max(a) as maxab
+        from t1
+        group by group_id
+        order by sum(b) desc limit 1
+       ) as T;
+
+--echo # Hidden fields sum(a) and sum(b) are added to process HAVING and ORDER BY
+select T.group_id
+  from (select
+         group_id, max(a) as maxa
+        from t1
+        group by group_id
+        having sum(b) > 10
+        order by sum(a) desc limit 1
+       ) as T;
+
+--echo # Sum of two aggregate functions: elimination is not implemented yet
+select T.group_id
+  from (select
+         group_id, sum(a) + sum(b) as sumab
+        from t1
+        group by group_id
+        having sum(a) + sum(b) > 20
+       ) as T;
+
+--echo # GROUP BY multiple columns
+select T.group_id, T.suma
+  from (select
+          group_id, a+b, sum(a) as suma, max(a) as maxa
+        from t1
+        group by group_id, a+b
+        having maxa >= 5
+       ) as T;
+
+--echo # Tests for the VIEW
+create view v1 as
+  select
+    group_id, sum(a) as SUMA, sum(b) as sumb, avg(b) as avgb
+  from t1
+  group by group_id;
+
+select group_id, suma from v1;
+
+select json_detailed(json_extract(trace, '$**.aggregate_functions_eliminated')) as elim_func
+  from information_schema.optimizer_trace;
+
+select group_id, avgb from v1 where sumb > 10;
+
+select json_detailed(json_extract(trace, '$**.aggregate_functions_eliminated')) as elim_func
+  from information_schema.optimizer_trace;
+
+select avgb from v1;
+
+select json_detailed(json_extract(trace, '$**.aggregate_functions_eliminated')) as elim_func
+  from information_schema.optimizer_trace;
+
+select group_id, sum(max_suma) from 
+  (select group_id, max(suma) as max_suma, min(sumb) as min_sumb, sum(avgb) sum_avgb 
+   from v1 group by group_id
+  ) as T;
+
+select json_detailed(json_extract(trace, '$**.aggregate_functions_eliminated')) as elim_func
+  from information_schema.optimizer_trace;
+
+--echo # References to group functions are not supported, and this
+--echo # test is added to ensure they are still not supported. Otherwise,
+--echo # the functionality of disabling aggregate functions needs to be
+--echo # adjusted (see sql/sql_derived.cc eliminate_unused_aggr_funcs()).
+--echo # Additionally, Sql_mode=EXTENDED_ALIASES must be checked
+--echo # where applicable
+--error ER_ILLEGAL_REFERENCE
+select T.group_id
+  from (select
+          group_id, sum(a) as suma,
+          (select count(*) from t2 where t2.a = suma) as cnt
+        from t1
+        group by group_id
+        having cnt = 0
+       ) as T;
+
+--error ER_BAD_FIELD_ERROR
+select suma_1
+  from (select group_id, sum(a) as suma, suma+1 as suma_1
+        from t1
+        group by group_id) T;
+
+--echo # Make sure aggregate functions splitting is not affected
+select group_id
+  from (select group_id, sum(a) + sum(b) as sumab
+        from t1
+        group by group_id
+        having sumab < 40
+       ) T;
+
+--echo # Make sure arithmetic for aggregate functions works correctly
+select group_id
+  from (select group_id, sum(a)+5 as sumab
+        from t1
+        group by group_id
+        having sumab < 25
+       ) T;
+
+--echo # Make sure table elimination works
+create table t3 (
+  pk int primary key,
+  col int
+);
+insert into t3 values (1,2),(2,2),(3,4);
+
+--echo # Table t3 must be absent in the EXPLAIN output (eliminated):
+explain select T.group_id, T.maxa
+  from t2, (select group_id, max(a) as maxa, sum(t3.col) as sumb
+              from t1 left join t3 on t3.pk=t1.c
+              group by group_id
+           ) as T
+  where T.group_id = t2.a;
+  
+select json_detailed(json_extract(trace, '$**.aggregate_functions_eliminated')) as elim_func,
+       json_detailed(json_extract(trace, '$**.eliminated_tables'))  as elim_tables
+  from information_schema.optimizer_trace;
+
+drop table t1, t2, t3;
+drop view v1;
+set optimizer_trace = 'enabled=off';

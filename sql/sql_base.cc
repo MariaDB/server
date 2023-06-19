@@ -6143,7 +6143,8 @@ static Field *
 find_field_in_view(THD *thd, TABLE_LIST *table_list,
                    const char *name, size_t length,
                    const char *item_name, Item **ref,
-                   bool register_tree_change)
+                   bool register_tree_change,
+                   field_index_t *field_index)
 {
   DBUG_ENTER("find_field_in_view");
   DBUG_PRINT("enter",
@@ -6153,7 +6154,9 @@ find_field_in_view(THD *thd, TABLE_LIST *table_list,
   field_it.set(table_list);
   Query_arena *arena= 0, backup;  
 
-  for (; !field_it.end_of_fields(); field_it.next())
+  for (*field_index= 0;
+       !field_it.end_of_fields();
+       field_it.next(), (*field_index)++)
   {
     if (!my_strcasecmp(system_charset_info, field_it.name()->str, name))
     {
@@ -6173,6 +6176,7 @@ find_field_in_view(THD *thd, TABLE_LIST *table_list,
         DBUG_RETURN(0);
       if (!ref)
         DBUG_RETURN((Field*) view_ref_found);
+
       /*
        *ref != NULL means that *ref contains the item that we need to
        replace. If the item was aliased by the user, set the alias to
@@ -6505,12 +6509,12 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list, const char *name,
     DBUG_RETURN(0);
 
   *actual_table= NULL;
-
+  field_index_t view_field_index;
   if (table_list->field_translation)
   {
     /* 'table_list' is a view or an information schema table. */
     if ((fld= find_field_in_view(thd, table_list, name, length, item_name, ref,
-                                 register_tree_change)))
+                                 register_tree_change, &view_field_index)))
       *actual_table= table_list;
   }
   else if (!table_list->nested_join)
@@ -6590,9 +6594,17 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list, const char *name,
           else
           {
             if (thd->column_usage == MARK_COLUMNS_READ)
+            {
+              if (!table_list->is_merged_derived() && table_list->table)
+                bitmap_set_bit(table_list->table->read_set, view_field_index);
               it->walk(&Item::register_field_in_read_map, 0, 0);
+            }
             else
+            {
+              if (!table_list->is_merged_derived() && table_list->table)
+                bitmap_set_bit(table_list->table->write_set, view_field_index);
               it->walk(&Item::register_field_in_write_map, 0, 0);
+            }
           }
         }
         else

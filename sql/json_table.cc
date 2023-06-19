@@ -729,7 +729,7 @@ bool Create_json_table::finalize(THD *thd, TABLE *table,
   DBUG_ENTER("Create_json_table::finalize");
   DBUG_ASSERT(table);
 
-  if (Create_tmp_table::finalize(thd, table, param, 1, 0))
+  if (Create_tmp_table::finalize(thd, table, param, 1, 0, true))
     DBUG_RETURN(true);
 
   table->db_stat= HA_OPEN_KEYFILE;

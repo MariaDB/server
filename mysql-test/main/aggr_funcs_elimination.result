@@ -1,0 +1,339 @@
+#
+# MDEV-27201 Non-merged derived table: do not compute unused fields
+#
+create table t1 (
+group_id int,
+a int,
+b int,
+c int
+);
+insert into t1 values (1,1,1,1),(1,2,2,2),(1,3,3,3), (2,4,4,4),(2,5,5,5),(2,6,6,6),
+(3,7,7,7),(3,8,8,8),(3,9,9,9);
+create table t2 (a int);
+insert into t2 values (1),(2),(3);
+set optimizer_trace = 'enabled=on';
+# avgb is not used so must not be calculated
+select T.group_id, T.suma
+from (select
+group_id, sum(a) as suma, avg(b) as avgb
+from t1
+group by group_id
+) T;
+group_id	suma
+1	6
+2	15
+3	24
+# Make sure that the elimination is reflected in the optimizer_trace
+select json_detailed(json_extract(trace, '$**.aggregate_functions_eliminated')) as elim_func
+from information_schema.optimizer_trace;
+elim_func
+[
+    ["avg(`t1`.`b`)"]
+]
+# sum(a) and max(a) are not used so must not be calculated
+select T.group_id, T.avgb
+from (select
+group_id, sum(a) as suma, avg(b) as avgb, max(a) as maxa
+from t1
+group by group_id
+) as T;
+group_id	avgb
+1	2.0000
+2	5.0000
+3	8.0000
+select json_detailed(json_extract(trace, '$**.aggregate_functions_eliminated')) as elim_func
+from information_schema.optimizer_trace;
+elim_func
+[
+    [
+        "sum(`t1`.`a`)",
+        "max(`t1`.`a`)"
+    ]
+]
+# max(a) is not used and can be eliminated but sum(a) is used in WHERE
+select T.group_id, T.avgb
+from (select
+group_id, sum(a) as suma, avg(b) as avgb, max(a) as maxa
+from t1
+group by group_id
+) as T
+where T.suma > 10;
+group_id	avgb
+2	5.0000
+3	8.0000
+select json_detailed(json_extract(trace, '$**.aggregate_functions_eliminated')) as elim_func
+from information_schema.optimizer_trace;
+elim_func
+[
+    ["max(`t1`.`a`)"]
+]
+# Join of a derived and a regular tables
+select T.group_id, T.maxa
+from t2, (select
+group_id, sum(a) as suma, avg(b) as avgb, max(a) as maxa
+from t1
+group by group_id
+) as T
+where T.group_id = t2.a;
+group_id	maxa
+1	3
+2	6
+3	9
+select json_detailed(json_extract(trace, '$**.aggregate_functions_eliminated')) as elim_func
+from information_schema.optimizer_trace;
+elim_func
+[
+    [
+        "sum(`t1`.`a`)",
+        "avg(`t1`.`b`)"
+    ]
+]
+# No aggregate functions must be calculated
+select T.group_id
+from (select
+group_id, sum(a) as suma, avg(b) as avgb, max(a) as maxa
+from t1
+group by group_id
+) as T;
+group_id
+1
+2
+3
+select json_detailed(json_extract(trace, '$**.aggregate_functions_eliminated')) as elim_func
+from information_schema.optimizer_trace;
+elim_func
+[
+    [
+        "sum(`t1`.`a`)",
+        "avg(`t1`.`b`)",
+        "max(`t1`.`a`)"
+    ]
+]
+# Aggregate function not present in SELECT list but present in HAVING
+select T.group_id, T.avgb
+from (select
+group_id, sum(a) as suma, avg(b) as avgb, max(a) as maxa
+from t1
+group by group_id
+having suma > 7
+) as T;
+group_id	avgb
+2	5.0000
+3	8.0000
+select json_detailed(json_extract(trace, '$**.aggregate_functions_eliminated')) as elim_func
+from information_schema.optimizer_trace;
+elim_func
+[
+    ["max(`t1`.`a`)"]
+]
+# Aggregate function not present in SELECT list but present in ORDER BY
+select T.group_id, T.sumb
+from (select
+group_id, sum(a) as SUMA, sum(b) as SUMB
+from t1
+group by group_id
+order by suma desc LIMIT 1
+) as T;
+group_id	sumb
+3	24
+# Hidden field sum(b) is added to process HAVING
+select T.group_id, maxab
+from (select
+group_id, sum(a) as suma, max(a) as maxab
+from t1
+group by group_id
+having sum(b) > 10
+) as T;
+group_id	maxab
+2	6
+3	9
+# Aggregate function is used in having
+select group_id
+from (select group_id, count(*) as cnt
+from t1
+group by group_id
+having (select count(*) from t2 where t2.a > t1.group_id)+3 > cnt
+) T;
+group_id
+1
+2
+select json_detailed(json_extract(trace, '$**.aggregate_functions_eliminated')) as elim_func
+from information_schema.optimizer_trace;
+elim_func
+[
+    []
+]
+# Hidden field sum(b) is added to process ORDER BY, this must not harm
+select T.group_id, maxab
+from (select
+group_id, sum(a) as suma, max(a) as maxab
+from t1
+group by group_id
+order by sum(b) desc limit 1
+) as T;
+group_id	maxab
+3	9
+# Hidden fields sum(a) and sum(b) are added to process HAVING and ORDER BY
+select T.group_id
+from (select
+group_id, max(a) as maxa
+from t1
+group by group_id
+having sum(b) > 10
+order by sum(a) desc limit 1
+) as T;
+group_id
+3
+# Sum of two aggregate functions: elimination is not implemented yet
+select T.group_id
+from (select
+group_id, sum(a) + sum(b) as sumab
+from t1
+group by group_id
+having sum(a) + sum(b) > 20
+) as T;
+group_id
+2
+3
+# GROUP BY multiple columns
+select T.group_id, T.suma
+from (select
+group_id, a+b, sum(a) as suma, max(a) as maxa
+from t1
+group by group_id, a+b
+having maxa >= 5
+) as T;
+group_id	suma
+2	5
+2	6
+3	7
+3	8
+3	9
+# Tests for the VIEW
+create view v1 as
+select
+group_id, sum(a) as SUMA, sum(b) as sumb, avg(b) as avgb
+from t1
+group by group_id;
+select group_id, suma from v1;
+group_id	suma
+1	6
+2	15
+3	24
+select json_detailed(json_extract(trace, '$**.aggregate_functions_eliminated')) as elim_func
+from information_schema.optimizer_trace;
+elim_func
+[
+    [
+        "sum(`t1`.`b`)",
+        "avg(`t1`.`b`)"
+    ]
+]
+select group_id, avgb from v1 where sumb > 10;
+group_id	avgb
+2	5.0000
+3	8.0000
+select json_detailed(json_extract(trace, '$**.aggregate_functions_eliminated')) as elim_func
+from information_schema.optimizer_trace;
+elim_func
+[
+    ["sum(`t1`.`a`)"]
+]
+select avgb from v1;
+avgb
+2.0000
+5.0000
+8.0000
+select json_detailed(json_extract(trace, '$**.aggregate_functions_eliminated')) as elim_func
+from information_schema.optimizer_trace;
+elim_func
+[
+    [
+        "sum(`t1`.`a`)",
+        "sum(`t1`.`b`)"
+    ]
+]
+select group_id, sum(max_suma) from 
+(select group_id, max(suma) as max_suma, min(sumb) as min_sumb, sum(avgb) sum_avgb 
+from v1 group by group_id
+) as T;
+group_id	sum(max_suma)
+1	45
+select json_detailed(json_extract(trace, '$**.aggregate_functions_eliminated')) as elim_func
+from information_schema.optimizer_trace;
+elim_func
+[
+    [
+        "min(`v1`.`sumb`)",
+        "sum(`v1`.`avgb`)"
+    ]
+]
+# References to group functions are not supported, and this
+# test is added to ensure they are still not supported. Otherwise,
+# the functionality of disabling aggregate functions needs to be
+# adjusted (see sql/sql_derived.cc eliminate_unused_aggr_funcs()).
+# Additionally, Sql_mode=EXTENDED_ALIASES must be checked
+# where applicable
+select T.group_id
+from (select
+group_id, sum(a) as suma,
+(select count(*) from t2 where t2.a = suma) as cnt
+from t1
+group by group_id
+having cnt = 0
+) as T;
+ERROR 42S22: Reference 'suma' not supported (reference to group function)
+select suma_1
+from (select group_id, sum(a) as suma, suma+1 as suma_1
+from t1
+group by group_id) T;
+ERROR 42S22: Unknown column 'suma' in 'field list'
+# Make sure aggregate functions splitting is not affected
+select group_id
+from (select group_id, sum(a) + sum(b) as sumab
+from t1
+group by group_id
+having sumab < 40
+) T;
+group_id
+1
+2
+# Make sure arithmetic for aggregate functions works correctly
+select group_id
+from (select group_id, sum(a)+5 as sumab
+from t1
+group by group_id
+having sumab < 25
+) T;
+group_id
+1
+2
+# Make sure table elimination works
+create table t3 (
+pk int primary key,
+col int
+);
+insert into t3 values (1,2),(2,2),(3,4);
+# Table t3 must be absent in the EXPLAIN output (eliminated):
+explain select T.group_id, T.maxa
+from t2, (select group_id, max(a) as maxa, sum(t3.col) as sumb
+from t1 left join t3 on t3.pk=t1.c
+group by group_id
+) as T
+where T.group_id = t2.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	9	Using temporary; Using filesort
+select json_detailed(json_extract(trace, '$**.aggregate_functions_eliminated')) as elim_func,
+json_detailed(json_extract(trace, '$**.eliminated_tables'))  as elim_tables
+from information_schema.optimizer_trace;
+elim_func	elim_tables
+[
+    ["sum(`t3`.`col`)"]
+]	[
+    ["t3"]
+]
+drop table t1, t2, t3;
+drop view v1;
+set optimizer_trace = 'enabled=off';

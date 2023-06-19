@@ -73,7 +73,8 @@ public:
                          const ST_SCHEMA_TABLE &schema_table);
 
   bool finalize(THD *thd, TABLE *table, TMP_TABLE_PARAM *param,
-                bool do_not_open, bool keep_row_order);
+                bool do_not_open, bool keep_row_order,
+                bool set_all_bits_of_read_set_to_1);
   void cleanup_on_failure(THD *thd, TABLE *table);
 };
 

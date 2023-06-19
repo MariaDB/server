@@ -4304,7 +4304,8 @@ create_result_table(THD *thd_arg, List<Item> *column_types,
                     const LEX_CSTRING *table_alias, bool bit_fields_as_long,
                     bool create_table,
                     bool keep_row_order,
-                    uint hidden)
+                    uint hidden,
+                    bool set_all_bits_of_read_set_to_1)
 {
   DBUG_ASSERT(table == 0);
   tmp_table_param.field_count= column_types->elements;
@@ -4314,7 +4315,8 @@ create_result_table(THD *thd_arg, List<Item> *column_types,
   if (! (table= create_tmp_table(thd_arg, &tmp_table_param, *column_types,
                                  (ORDER*) 0, is_union_distinct, 1,
                                  options, HA_POS_ERROR, table_alias,
-                                 !create_table, keep_row_order)))
+                                 !create_table, keep_row_order,
+                                 set_all_bits_of_read_set_to_1)))
     return TRUE;
 
   col_stat= (Column_statistics*) table->in_use->alloc(table->s->fields *

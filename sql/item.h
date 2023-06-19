@@ -2354,6 +2354,21 @@ public:
     If there is some, sets a bit for this key in the proper key map.
   */
   virtual bool check_index_dependence(void *arg) { return 0; }
+
+  /**
+    Find this item in the given JOIN::SELECT_LEX::ref_pointer_array
+    and set the bit according to the item index in the ref_pointer_array.
+
+    @param arg Pointer to std::pair<JOIN*, MY_BITMAP*>
+    JOIN*           JOIN in whose SELECT_LEX::ref_pointer_array the search
+                    is performed
+    MY_BITMAP*      bitmap where the bit must be set
+
+    @retval false   the item is found in ref_pointer_array
+    @retval true    the item is NOT found in ref_pointer_array
+  */
+  virtual bool find_item_in_ref_ptr_array(void *arg) { return 0; }
+
   /*============== End of Item processor list ======================*/
 
   /*
@@ -2734,6 +2749,10 @@ public:
     Checks if this item consists in the left part of arg IN subquery predicate
   */
   bool pushable_equality_checker_for_subquery(uchar *arg);
+
+  virtual void mark_as_eliminated() {}
+
+  virtual bool is_eliminated() const { return false; }
 };
 
 MEM_ROOT *get_thd_memroot(THD *thd);
@@ -5562,6 +5581,7 @@ public:
   }
 };
 
+
 class Item_ref :public Item_ident
 {
 protected:
@@ -5807,6 +5827,8 @@ public:
     *ref= (*ref)->remove_item_direct_ref();
     return this;
   }
+
+  bool find_item_in_ref_ptr_array(void *arg) override;
 };
 
 

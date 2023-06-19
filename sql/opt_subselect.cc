@@ -4906,7 +4906,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
     table->record[1]= table->record[0]+alloc_length;
     share->default_values= table->record[1]+alloc_length;
   }
-  setup_tmp_table_column_bitmaps(table, bitmaps, table->s->fields);
+  setup_tmp_table_column_bitmaps(table, bitmaps, table->s->fields, true);
 
   recinfo= start_recinfo;
   null_flags=(uchar*) table->record[0];

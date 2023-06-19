@@ -721,7 +721,8 @@ select t11.a as a, t11.b as b, max(t12.col1) as max_col1
 from t11 left join t12 on t12.pk=t11.b
 group by t11.a, t11.b;
 
---echo # This one must not be eliminated since only one of the GROUP BY fields is bound:
+--echo # The view v2d cannot be eliminated because only one of the GROUP BY fields
+--echo # is bound, but table t12 from v2d must be eliminated:
 explain select t1.* from t1 left join v2d on v2d.a=t1.a;
 
 --echo # This must be eliminated since both fields are bound:

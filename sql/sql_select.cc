@@ -493,7 +493,7 @@ void JOIN::init(THD *thd_arg, List<Item> &fields_arg,
   found_records= accepted_rows= 0;
   fetch_limit= HA_POS_ERROR;
   thd= thd_arg;
-  sum_funcs= sum_funcs2= 0;
+  sum_funcs= 0;
   procedure= 0;
   having= tmp_having= having_history= 0;
   having_is_correlated= false;
@@ -1526,6 +1526,7 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
   if (setup_fields(thd, ref_ptrs, fields_list, select_lex->item_list_usage,
                    &all_fields, &select_lex->pre_fix, 1))
     DBUG_RETURN(-1);
+
   thd->lex->current_select->context_analysis_place= save_place;
 
   if (setup_without_group(thd, ref_ptrs, tables_list,
@@ -20835,13 +20836,16 @@ Field *create_tmp_field(TABLE *table, Item *item,
 */
 
 void
-setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps, uint field_count)
+setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps, uint field_count,
+                               bool set_all_bits_of_read_set_to_1)
 {
   uint bitmap_size= bitmap_buffer_size(field_count);
 
   DBUG_ASSERT(table->s->virtual_fields == 0);
 
   my_bitmap_init(&table->def_read_set, (my_bitmap_map*) bitmaps, field_count);
+  bitmaps+= bitmap_size;
+  my_bitmap_init(&table->def_write_set, (my_bitmap_map*) bitmaps, field_count);
   bitmaps+= bitmap_size;
   my_bitmap_init(&table->tmp_set,
                  (my_bitmap_map*) bitmaps, field_count);
@@ -20854,10 +20858,11 @@ setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps, uint field_count)
   bitmaps+= bitmap_size;
   my_bitmap_init(&table->has_value_set,
                  (my_bitmap_map*) bitmaps, field_count);
-  /* write_set and all_set are copies of read_set */
-  table->def_write_set= table->def_read_set;
   table->s->all_set= table->def_read_set;
-  bitmap_set_all(&table->s->all_set);
+  if (set_all_bits_of_read_set_to_1)
+    bitmap_set_all(&table->def_read_set);
+  bitmap_set_all(&table->def_write_set);
+
   table->default_column_bitmaps();
 }
 
@@ -21062,7 +21067,7 @@ TABLE *Create_tmp_table::start(THD *thd,
                         &tmpname, (uint) strlen(path)+1,
                         &m_group_buff, (m_group && ! m_using_unique_constraint ?
                                       param->group_length : 0),
-                        &m_bitmaps, bitmap_buffer_size(field_count)*6,
+                        &m_bitmaps, bitmap_buffer_size(field_count)*7,
                         &const_key_parts, sizeof(*const_key_parts),
                         NullS))
   {
@@ -21374,7 +21379,8 @@ bool Create_tmp_table::choose_engine(THD *thd, TABLE *table,
 bool Create_tmp_table::finalize(THD *thd,
                                 TABLE *table,
                                 TMP_TABLE_PARAM *param,
-                                bool do_not_open, bool keep_row_order)
+                                bool do_not_open, bool keep_row_order,
+                                bool set_all_bits_of_read_set_to_1)
 {
   DBUG_ENTER("Create_tmp_table::finalize");
   DBUG_ASSERT(table);
@@ -21449,7 +21455,8 @@ bool Create_tmp_table::finalize(THD *thd,
     share->default_values= table->record[1]+alloc_length;
   }
 
-  setup_tmp_table_column_bitmaps(table, m_bitmaps, table->s->fields);
+  setup_tmp_table_column_bitmaps(table, m_bitmaps, table->s->fields,
+                                 set_all_bits_of_read_set_to_1);
 
   recinfo=param->start_recinfo;
   null_flags=(uchar*) table->record[0];
@@ -21905,14 +21912,15 @@ TABLE *create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
                         ORDER *group, bool distinct, bool save_sum_fields,
                         ulonglong select_options, ha_rows rows_limit,
                         const LEX_CSTRING *table_alias, bool do_not_open,
-                        bool keep_row_order)
+                        bool keep_row_order, bool set_all_bits_of_read_set_to_1)
 {
   TABLE *table;
   Create_tmp_table maker(group, distinct, save_sum_fields, select_options,
                          rows_limit);
   if (!(table= maker.start(thd, param, table_alias)) ||
       maker.add_fields(thd, table, param, fields) ||
-      maker.finalize(thd, table, param, do_not_open, keep_row_order))
+      maker.finalize(thd, table, param, do_not_open, keep_row_order,
+                     set_all_bits_of_read_set_to_1))
   {
     maker.cleanup_on_failure(thd, table);
     return NULL;
@@ -21932,7 +21940,7 @@ TABLE *create_tmp_table_for_schema(THD *thd, TMP_TABLE_PARAM *param,
                          select_options, HA_ROWS_MAX);
   if (!(table= maker.start(thd, param, &table_alias)) ||
       maker.add_schema_fields(thd, table, param, schema_table) ||
-      maker.finalize(thd, table, param, do_not_open, keep_row_order))
+      maker.finalize(thd, table, param, do_not_open, keep_row_order, true))
   {
     maker.cleanup_on_failure(thd, table);
     return NULL;
@@ -21963,7 +21971,7 @@ bool Virtual_tmp_table::init(uint field_count)
     DBUG_RETURN(true);
   s->reset();
   s->blob_field= blob_field;
-  setup_tmp_table_column_bitmaps(this, bitmaps, field_count);
+  setup_tmp_table_column_bitmaps(this, bitmaps, field_count, true);
   m_alloced_field_count= field_count;
   DBUG_RETURN(false);
 };
@@ -28491,7 +28499,8 @@ bool JOIN::make_sum_func_list(List<Item> &field_list,
   {
     if (item->type() == Item::SUM_FUNC_ITEM && !item->const_item() &&
         (!((Item_sum*) item)->depended_from() ||
-         ((Item_sum *)item)->depended_from() == select_lex))
+         ((Item_sum *)item)->depended_from() == select_lex) &&
+         !((Item_sum *)item)->is_eliminated())
       *func++= (Item_sum*) item;
   }
   if (before_group_by && rollup.state == ROLLUP::STATE_INITED)

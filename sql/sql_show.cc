@@ -1498,6 +1498,7 @@ mysqld_list_fields(THD *thd, TABLE_LIST *table_list, const char *wild)
                                      DT_INIT | DT_PREPARE))
     DBUG_VOID_RETURN;
   table= table_list->table;
+  bitmap_set_all(&table->def_read_set);
 
   List<Field> field_list;
 
@@ -4763,6 +4764,8 @@ fill_schema_table_by_open(THD *thd, MEM_ROOT *mem_root,
     if (unlikely(thd->is_error()))
       get_table_engine_for_i_s(thd, buf, table_list, &db_name, &table_name);
 
+    if (table_list->table)
+      bitmap_set_all(&table_list->table->def_read_set);
     result= schema_table->process_table(thd, table_list,
                                         table, result,
                                         orig_db_name,

@@ -8668,6 +8668,22 @@ Item *Item_ref::get_tmp_table_item(THD *thd)
 }
 
 
+bool Item_ref::find_item_in_ref_ptr_array(void *arg)
+{
+  std::pair<JOIN*, MY_BITMAP*> *param= (std::pair<JOIN*, MY_BITMAP*>*) arg;
+  JOIN *join= param->first;
+  MY_BITMAP *bitmap= param->second;
+
+  long offset= static_cast<long>(this->ref -
+                                 &join->select_lex->ref_pointer_array[0]);
+  if(offset < 0 || offset >= join->all_fields.elements)
+    return true;
+
+  bitmap_set_bit(bitmap, offset);
+  return false;
+}
+
+
 void Item_ref_null_helper::print(String *str, enum_query_type query_type)
 {
   str->append(STRING_WITH_LEN("<ref_null_helper>("));

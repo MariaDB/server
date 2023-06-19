@@ -326,6 +326,10 @@ bool select_unit::flush()
       keep_row_order     keep rows in order as they were inserted
       hidden             number of hidden fields (for INTERSECT)
                          plus one for `ALL`
+      set_all_bits_of_read_set_to_1
+                         if set, all bits of TABLE::read_set
+                         will be set to 1, which means all fields of the
+                         table will be marked for read
 
   DESCRIPTION
     Create a temporary table that is used to store the result of a UNION,
@@ -342,7 +346,8 @@ select_unit::create_result_table(THD *thd_arg, List<Item> *column_types,
                                  const LEX_CSTRING *alias,
                                   bool bit_fields_as_long, bool create_table,
                                   bool keep_row_order,
-                                  uint hidden)
+                                  uint hidden,
+                                  bool set_all_bits_of_read_set_to_1)
 {
   DBUG_ASSERT(table == 0);
   tmp_table_param.init();
@@ -354,7 +359,8 @@ select_unit::create_result_table(THD *thd_arg, List<Item> *column_types,
   if (! (table= create_tmp_table(thd_arg, &tmp_table_param, *column_types,
                                  (ORDER*) 0, is_union_distinct, 1,
                                  options, HA_POS_ERROR, alias,
-                                 !create_table, keep_row_order)))
+                                 !create_table, keep_row_order,
+                                 set_all_bits_of_read_set_to_1)))
     return TRUE;
 
   table->keys_in_use_for_query.clear_all();
@@ -376,13 +382,14 @@ select_union_recursive::create_result_table(THD *thd_arg,
                                             bool bit_fields_as_long,
                                             bool create_table,
                                             bool keep_row_order,
-                                            uint hidden)
+                                            uint hidden,
+                                            bool set_all_bits_of_read_set_to_1)
 {
   if (select_unit::create_result_table(thd_arg, column_types,
                                        is_union_distinct, options,
                                        &empty_clex_str, bit_fields_as_long,
                                        create_table, keep_row_order,
-                                       hidden))
+                                       hidden, set_all_bits_of_read_set_to_1))
     return true;
   
   incr_table_param.init();

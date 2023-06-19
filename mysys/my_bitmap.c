@@ -165,6 +165,24 @@ my_bool my_bitmap_init(MY_BITMAP *map, my_bitmap_map *buf, uint n_bits)
 }
 
 
+/*
+  Initialize a MY_BITMAP with a buffer allocated on the current
+  memory root.
+*/
+
+my_bool my_bitmap_init_memroot(MY_BITMAP *map, uint n_bits, MEM_ROOT *mem_root)
+{
+  my_bitmap_map *bitmap_buf;
+
+  if (!(bitmap_buf= (my_bitmap_map*) alloc_root(mem_root,
+                                                bitmap_buffer_size(n_bits))) ||
+      my_bitmap_init(map, bitmap_buf, n_bits))
+    return TRUE;
+  bitmap_clear_all(map);
+  return FALSE;
+}
+
+
 void my_bitmap_free(MY_BITMAP *map)
 {
   DBUG_ENTER("my_bitmap_free");

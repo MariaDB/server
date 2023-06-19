@@ -479,6 +479,7 @@ Item_sum::Item_sum(THD *thd, List<Item> &list): Item_func_or_sum(thd, list)
 
 Item_sum::Item_sum(THD *thd, Item_sum *item):
   Item_func_or_sum(thd, item),
+  eliminated(item->is_eliminated()),
   aggr_sel(item->aggr_sel),
   nest_level(item->nest_level), aggr_level(item->aggr_level),
   quick_group(item->quick_group),

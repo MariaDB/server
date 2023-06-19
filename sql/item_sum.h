@@ -343,6 +343,8 @@ private:
   /* TRUE if this is aggregate function of a window function */
   bool window_func_sum_expr_flag;
 
+  bool eliminated= false;
+
 public:
 
   bool has_force_copy_fields() const { return force_copy_fields; }
@@ -599,6 +601,13 @@ public:
   bool is_window_func_sum_expr() { return window_func_sum_expr_flag; }
   virtual void setup_caches(THD *thd) {};
   virtual void set_partition_row_count(ulonglong count) { DBUG_ASSERT(0); }
+
+  /*
+    Marks the aggregate function as eliminated, meaning that its result is not
+    used anywhere and so its calculation was disabled for performance reasons
+  */
+  void mark_as_eliminated() override { eliminated= true; }
+  bool is_eliminated() const override { return eliminated; }
 };
 
 

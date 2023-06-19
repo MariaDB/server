@@ -41,6 +41,8 @@ extern "C" {
 
 extern void create_last_word_mask(MY_BITMAP *map);
 extern my_bool my_bitmap_init(MY_BITMAP *map, my_bitmap_map *buf, uint n_bits);
+extern my_bool my_bitmap_init_memroot(MY_BITMAP *map, uint n_bits,
+                                      MEM_ROOT *mem_root);
 extern my_bool bitmap_is_clear_all(const MY_BITMAP *map);
 extern my_bool bitmap_is_prefix(const MY_BITMAP *map, uint prefix_size);
 extern my_bool bitmap_is_set_all(const MY_BITMAP *map);

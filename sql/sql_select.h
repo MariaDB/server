@@ -1495,7 +1495,7 @@ public:
   THD	   *thd;
   Item_sum  **sum_funcs, ***sum_funcs_end;
   /** second copy of sumfuncs (for queries with 2 temporary tables */
-  Item_sum  **sum_funcs2, ***sum_funcs_end2;
+  //Item_sum  **sum_funcs2, ***sum_funcs_end2; /* todo: not used, remove */
   Procedure *procedure;
   Item	    *having;
   Item      *tmp_having; ///< To store having when processed temporary table
@@ -2549,11 +2549,12 @@ void unpack_to_base_table_fields(TABLE *table);
 #define MIN_STRING_LENGTH_TO_PACK_ROWS   10
 
 void calc_group_buffer(TMP_TABLE_PARAM *param, ORDER *group);
-TABLE *create_tmp_table(THD *thd,TMP_TABLE_PARAM *param,List<Item> &fields,
-			ORDER *group, bool distinct, bool save_sum_fields,
-			ulonglong select_options, ha_rows rows_limit,
+TABLE *create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
+                        ORDER *group, bool distinct, bool save_sum_fields,
+                        ulonglong select_options, ha_rows rows_limit,
                         const LEX_CSTRING *alias, bool do_not_open=FALSE,
-                        bool keep_row_order= FALSE);
+                        bool keep_row_order= FALSE,
+                        bool set_all_bits_of_read_set_to_1= TRUE);
 TABLE *create_tmp_table_for_schema(THD *thd, TMP_TABLE_PARAM *param,
                                    const ST_SCHEMA_TABLE &schema_table,
                                    longlong select_options,

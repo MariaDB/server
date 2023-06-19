@@ -5157,26 +5157,6 @@ ulonglong subselect_hash_sj_engine::rowid_merge_buff_size(
 }
 
 
-/*
-  Initialize a MY_BITMAP with a buffer allocated on the current
-  memory root.
-  TIMOUR: move to bitmap C file?
-*/
-
-static my_bool
-my_bitmap_init_memroot(MY_BITMAP *map, uint n_bits, MEM_ROOT *mem_root)
-{
-  my_bitmap_map *bitmap_buf;
-
-  if (!(bitmap_buf= (my_bitmap_map*) alloc_root(mem_root,
-                                                bitmap_buffer_size(n_bits))) ||
-      my_bitmap_init(map, bitmap_buf, n_bits))
-    return TRUE;
-  bitmap_clear_all(map);
-  return FALSE;
-}
-
-
 /**
   Create all structures needed for IN execution that can live between PS
   reexecution.

@@ -12971,7 +12971,7 @@ EXPLAIN
                       "attached_condition": "t1.f is not null"
                     },
                     "buffer_type": "flat",
-                    "buffer_size": "64",
+                    "buffer_size": "1",
                     "join_type": "BNL"
                   }
                 }

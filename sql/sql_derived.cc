@@ -715,7 +715,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
                                    thd->variables.option_bits |
                                    TMP_TABLE_ALL_COLUMNS),
                                   &derived->alias, FALSE, FALSE,
-                                  keep_row_order, 0);
+                                  keep_row_order, 0, false);
     thd->create_tmp_table_for_derived= FALSE;
 
     if (likely(!res) && !derived->table)
@@ -880,7 +880,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
                                                    TMP_TABLE_ALL_COLUMNS),
                                                    &derived->alias,
                                                    FALSE, FALSE, keep_row_order,
-                                                   0))
+                                                   0, false))
   { 
     thd->create_tmp_table_for_derived= FALSE;
     goto exit;
@@ -952,6 +952,190 @@ exit:
       table->maybe_null= 1;
   }
   DBUG_RETURN(res);
+}
+
+
+/*
+  Iterate the list of fields and look for the given field.
+  Returns the index of the field if it is found in the list
+  and -1 otherwise
+*/
+
+int find_field_in_list(List<Item> &fields_list, Item *field)
+{
+  List_iterator<Item> it(fields_list);
+  int field_idx= 0;
+  while (auto next_field= it++)
+  {
+    if (next_field->eq(field, false))
+      return field_idx;
+    field_idx++;
+  }
+  return -1; /*not found*/
+}
+
+/*
+  Find sum_func_to_remove in the JOIN::sum_funcs list and remove it.
+  OLEGS: add logging of the removal to opt_trace or dbug_print (or both)
+*/
+static
+void remove_item_from_sum_funcs_list(JOIN *join, Item *sum_func_to_remove)
+{
+  bool found= false;
+  Item_sum **sum_func= join->sum_funcs;
+  while(*sum_func)
+  {
+    if (*sum_func == sum_func_to_remove)
+    {
+      // Shift all remaining sum funcs one position to the left
+      Item_sum **next_sum_func= sum_func + 1;
+      while(*next_sum_func)
+      {
+        *sum_func= *next_sum_func;
+        sum_func++;
+        next_sum_func++;
+      }
+      *sum_func= nullptr; // End marker
+
+      // Adjust all sum_funcs_ends accordingly
+      for (uint i= 0; i <= join->send_group_parts; i++)
+        join->sum_funcs_end[i]--;
+      found= true;
+      break;
+    }
+    sum_func++;
+  }
+  DBUG_ASSERT(found);
+}
+
+
+/**
+  @brief
+  Disable the calculation of aggregate functions whose results are not used,
+  neither inside the derived table SQL nor outside, in the outer select.
+  For example, in the following case:
+    SELECT sum_b
+    FROM (SELECT a, sum(b) AS sum_b, max(c) AS max_c, min(d) AS min_d
+          FROM t1
+          GROUP BY a
+          HAVING max_c > 10
+         ) T
+  T.min_d is not used anywhere, thus there is no need to calculate the
+  aggregate function min(d).
+  This applies to both VIEWs and derived tables.
+
+  @param thd     Thread handle
+  @param join    Reference to the derived table JOIN
+  @param derived Reference to the derived table TABLE_LIST
+
+  @details
+  Aggregate functions (excluding window functions) are present in the
+  JOIN::sum_funcs list. The function checks which aggregate functions are not
+  used in:
+  - the outer SELECT
+  - the HAVING clause
+  - the ORDER BY clause
+
+  Current limitations and possible TODOs.
+  1. The function does not disable aggregate functions splitting like this:
+       SELECT sum(a) + sum(b) AS sumab FROM ...
+     In this case sum(a) + sum(b) is calculated as two separate aggregate
+     functions sum(a) and sum(b). They are not disabled even if the field
+     "sumab" is not used.
+  2. If any arithmetic and/or an additional calculation are applied to an
+     aggregate functionm, it will not be disabled. For example:
+       SELECT sum(a)+1 AS suma_1 FROM ...
+  3. Window aggregate functions are not processed.
+  4. References to previous fields like this:
+       SELECT sum(a) AS suma, suma+1 AS suma_1 FROM ...
+     are not processed. Currently they are not supported at all, but if
+     they are supported in the future, appropriate adjustments will need to
+     be made for this function. There is currently no check that sum(a) is used
+     for suma_1, so sum(a) may be erroneously disabled.
+
+  @return FALSE ok
+  @return TRUE  if an error occured
+*/
+
+static
+bool eliminate_unused_aggr_funcs(THD *thd, JOIN *join, TABLE_LIST *derived)
+{
+  if (*join->sum_funcs && join->rollup.state == ROLLUP::STATE_NONE)
+  {
+    /*
+      Set N lowest bits to 1 and others to 0,
+      where N = join->fields_list.elements
+    */
+    uint all_fields_set_bitmap= ~(~0u << join->fields_list.elements);
+    if (*derived->table->read_set->bitmap == all_fields_set_bitmap)
+    {
+      /*
+        All fields are marked for read in the outer SELECT, so there is
+        no chance of disabling anything
+      */
+      return false;
+    }
+
+    MY_BITMAP having_and_order_by_bitmap;
+    if (my_bitmap_init_memroot(&having_and_order_by_bitmap,
+                               join->all_fields.elements, thd->mem_root))
+      return true;
+
+    if (join->having)
+    {
+      auto param= std::make_pair(join, &having_and_order_by_bitmap);
+      // Traverse the HAVING item tree and register the fields in the bitmap
+      if (join->having->walk(&Item::find_item_in_ref_ptr_array, true, &param))
+        return true;
+    }
+    if (join->order)
+    {
+      for (ORDER *ord= join->order; ord; ord= ord->next)
+        if (ord->in_field_list)
+        {
+          /*
+            It makes sense to check only the fields that are present in the
+            SELECT list. If ordering is performed by a field that is not
+            present there, a hidden field will be present in the JOIN.
+            However, the function never disables any hidden fields.
+          */
+          int field_idx= find_field_in_list(join->fields_list,
+                                            *ord->item);
+          if (field_idx != -1)
+            bitmap_set_bit(&having_and_order_by_bitmap, field_idx);
+        }
+    }
+    List_iterator<Item> li(join->fields_list);
+    uint field_index= 0;
+    Item *field;
+    Json_writer_object opt_trace_wrapper(thd);
+    Json_writer_array opt_trace_eliminated(thd,
+                                           "aggregate_functions_eliminated");
+    while ((field= li++))
+    {
+      if (field->type() == Item::SUM_FUNC_ITEM)
+      {
+        if (!bitmap_is_set(derived->table->read_set, field_index) &&
+            !bitmap_is_set(&having_and_order_by_bitmap, field_index) &&
+            !field->is_eliminated())
+        {
+          field->mark_as_eliminated();
+          remove_item_from_sum_funcs_list(join, field);
+
+          char item_text_buf[2048];
+          String str(item_text_buf, sizeof(item_text_buf), &my_charset_bin);
+          str.length(0);
+          field->print(&str, QT_EXPLAIN);
+
+          DBUG_PRINT("info", ("Aggregate function eliminated: %s",
+                              str.c_ptr_safe()));
+          opt_trace_eliminated.add(str.c_ptr_safe());
+        }
+      }
+      field_index++;
+    }
+  }
+  return false;
 }
 
 
@@ -1034,6 +1218,9 @@ bool mysql_derived_optimize(THD *thd, LEX *lex, TABLE_LIST *derived)
           DBUG_RETURN(FALSE);
         }
       }
+
+      eliminate_unused_aggr_funcs(thd, join, derived);
+
       if ((res= join->optimize()))
         goto err;
       if (join->table_count == join->const_tables)
@@ -1263,6 +1450,7 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
       first_select->options&= ~OPTION_FOUND_ROWS;
 
     lex->current_select= first_select;
+
     res= mysql_select(thd,
                       first_select->table_list.first,
                       first_select->item_list, first_select->where,

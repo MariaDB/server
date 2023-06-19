@@ -34,6 +34,8 @@
 #include "opt_trace.h"
 #include "my_json_writer.h"
 
+extern int find_field_in_list(List<Item> &fields_list, Item *field);
+
 /*
   OVERVIEW
   ========
@@ -588,7 +590,6 @@ public:
 private:
   void create_unique_pseudo_key_if_needed(TABLE_LIST *table_list,
                                           Dep_value_table *tbl_dep);
-  int find_field_in_list(List<Item> &fields_list, Item *field);
 };
 
 
@@ -704,14 +705,16 @@ void eliminate_tables(JOIN *join)
     while ((item= val_it++))
     {
       DBUG_ASSERT(item->fixed());
-      used_tables |= item->used_tables();
+      if (!item->is_eliminated())
+        used_tables |= item->used_tables();
     }
   }
   
   /* Add tables referred to from the select list */
   List_iterator<Item> it(join->fields_list);
   while ((item= it++))
-    used_tables |= item->used_tables();
+    if (!item->is_eliminated())
+      used_tables |= item->used_tables();
 
   {
     /*
@@ -1781,27 +1784,6 @@ void Dep_analysis_context::create_unique_pseudo_key_if_needed(
       tbl_dep->pseudo_key= pseudo_key;
     }
   }
-}
-
-
-/*
-  Iterate the list of fields and look for the given field.
-  Returns the index of the field if it is found on the list
-  and -1 otherwise
-*/
-
-int Dep_analysis_context::find_field_in_list(List<Item> &fields_list,
-                                             Item *field)
-{
-  List_iterator<Item> it(fields_list);
-  int field_idx= 0;
-  while (auto next_field= it++)
-  {
-    if (next_field->eq(field, false))
-      return field_idx;
-    field_idx++;
-  }
-  return -1; /*not found*/
 }
 
 
