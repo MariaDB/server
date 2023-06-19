@@ -2514,6 +2514,8 @@ public:
   { return this; }
   virtual Item *multiple_equality_transformer(THD *thd, uchar *arg)
   { return this; }
+  virtual Item* varchar_upper_cmp_transformer(THD *thd, uchar *arg)
+  { return this; }
   virtual Item* date_conds_transformer(THD *thd, uchar *arg)
   { return this; }
   virtual bool expr_cache_is_needed(THD *) { return FALSE; }

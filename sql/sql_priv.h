@@ -239,6 +239,7 @@
 #define OPTIMIZER_SWITCH_COND_PUSHDOWN_FROM_HAVING (1ULL << 34)
 #define OPTIMIZER_SWITCH_NOT_NULL_RANGE_SCAN       (1ULL << 35)
 #define OPTIMIZER_SWITCH_HASH_JOIN_CARDINALITY     (1ULL << 36)
+#define OPTIMIZER_SWITCH_SARGABLE_CASEFOLD         (1ULL << 37)
 
 #define OPTIMIZER_SWITCH_DEFAULT (OPTIMIZER_SWITCH_INDEX_MERGE | \
                                   OPTIMIZER_SWITCH_INDEX_MERGE_UNION | \
@@ -270,7 +271,8 @@
                                   OPTIMIZER_SWITCH_USE_ROWID_FILTER | \
                                   OPTIMIZER_SWITCH_COND_PUSHDOWN_FROM_HAVING | \
                                   OPTIMIZER_SWITCH_OPTIMIZE_JOIN_BUFFER_SIZE |\
-                                  OPTIMIZER_SWITCH_HASH_JOIN_CARDINALITY)
+                                  OPTIMIZER_SWITCH_HASH_JOIN_CARDINALITY |\
+                                  OPTIMIZER_SWITCH_SARGABLE_CASEFOLD)
 /*
   Replication uses 8 bytes to store SQL_MODE in the binary log. The day you
   use strictly more than 64 bits by adding one more define above, you should

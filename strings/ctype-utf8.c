@@ -1243,7 +1243,8 @@ MY_CHARSET_HANDLER my_charset_utf8mb3_handler=
 struct charset_info_st my_charset_utf8mb3_general_ci=
 {
     33,0,0,             /* number       */
-    MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_STRNXFRM|MY_CS_UNICODE,  /* state  */
+    MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_STRNXFRM|MY_CS_UNICODE|
+      MY_CS_UPPER_EQUAL_AS_EQUAL,  /* state  */
     { charset_name_utf8mb3, charset_name_utf8mb3_length },            /* cs name */
     { STRING_WITH_LEN(MY_UTF8MB3 "_general_ci") },              /* name   */
     "",                 /* comment      */
@@ -3573,7 +3574,8 @@ MY_CHARSET_HANDLER my_charset_utf8mb4_handler=
 struct charset_info_st my_charset_utf8mb4_general_ci=
 {
   45,0,0,              /* number       */
-  MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_STRNXFRM|MY_CS_UNICODE|MY_CS_UNICODE_SUPPLEMENT,  /* state  */
+  MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_STRNXFRM|MY_CS_UNICODE|
+    MY_CS_UNICODE_SUPPLEMENT|MY_CS_UPPER_EQUAL_AS_EQUAL,  /* state  */
   { charset_name_utf8mb4, charset_name_utf8mb4_length}, /* cs name    */
   { STRING_WITH_LEN(MY_UTF8MB4_GENERAL_CI) },           /* name       */
   "UTF-8 Unicode",    /* comment      */

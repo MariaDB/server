@@ -2342,6 +2342,12 @@ JOIN::optimize_inner()
   if (thd->lex->are_date_funcs_used())
     transform_date_conds_into_sargable();
 
+  if (optimizer_flag(thd, OPTIMIZER_SWITCH_SARGABLE_CASEFOLD))
+  {
+    transform_all_conds_and_on_exprs(
+          thd, &Item::varchar_upper_cmp_transformer);
+  }
+
   conds= optimize_cond(this, conds, join_list, ignore_on_expr,
                        &cond_value, &cond_equal, OPT_LINK_EQUAL_FIELDS);
 

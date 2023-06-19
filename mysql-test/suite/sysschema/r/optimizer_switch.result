@@ -26,6 +26,7 @@ outer_join_with_cache	on
 partial_match_rowid_merge	on
 partial_match_table_scan	on
 rowid_filter	on
+sargable_casefold	on
 semijoin	on
 semijoin_with_cache	on
 split_materialized	on
