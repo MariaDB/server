@@ -794,6 +794,7 @@ public:
   friend class  Arg_comparator;
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_eq>(thd, this); }
+  Item* varchar_upper_cmp_transformer(THD *thd, uchar *arg) override;
 };
 
 class Item_func_equal final :public Item_bool_rowready_func2
@@ -2631,6 +2632,7 @@ public:
   Item *in_predicate_to_in_subs_transformer(THD *thd, uchar *arg) override;
   Item *in_predicate_to_equality_transformer(THD *thd, uchar *arg) override;
   uint32 max_length_of_left_expr();
+  Item* varchar_upper_cmp_transformer(THD *thd, uchar *arg) override;
 };
 
 class cmp_item_row :public cmp_item
