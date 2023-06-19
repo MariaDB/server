@@ -190,7 +190,7 @@
 /* The rest of the file is included in the server only */
 #ifndef MYSQL_CLIENT
 
-/* @@optimizer_switch flags. These must be in sync with optimizer_switch_typelib */
+/* @@optimizer_switch flags. These must be in sync with optimizer_switch_names */
 #define OPTIMIZER_SWITCH_INDEX_MERGE               (1ULL << 0)
 #define OPTIMIZER_SWITCH_INDEX_MERGE_UNION         (1ULL << 1)
 #define OPTIMIZER_SWITCH_INDEX_MERGE_SORT_UNION    (1ULL << 2)
