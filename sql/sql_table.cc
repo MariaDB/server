@@ -8208,7 +8208,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                           &def->change))
 	break;
     }
-    if (def && field->invisible < INVISIBLE_SYSTEM)
+    if (def && (field->invisible < INVISIBLE_SYSTEM || table->vers_start_field() == field 
+                || table->vers_end_field() == field))
     {						// Field is changed
       def->field=field;
       /*
@@ -8232,6 +8233,16 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           add new columns.
         */
 	def_it.remove();
+      }
+      if (table->vers_start_field() == field)
+      {
+        create_info->vers_info.period.start= def->field_name;
+        create_info->vers_info.as_row.start= def->field_name;
+      }
+      else if (table->vers_end_field() == field)
+      {
+        create_info->vers_info.period.end= def->field_name;
+        create_info->vers_info.as_row.end= def->field_name;
       }
     }
     else if (alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING &&

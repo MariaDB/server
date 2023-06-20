@@ -8541,7 +8541,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
     List_iterator_fast<Create_field> it(alter_info->create_list);
     while (Create_field *f= it++)
     {
-      if (f->flags & VERS_SYSTEM_FIELD)
+      if (f->flags & VERS_SYSTEM_FIELD && !f->change.str)
       {
         if (!table->versioned())
         {
@@ -8591,11 +8591,11 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
         if (f->versioning == Column_definition::WITHOUT_VERSIONING)
           f->flags|= VERS_UPDATE_UNVERSIONED_FLAG;
 
-        if (f->change.str && (start.streq(f->change) || end.streq(f->change)))
-        {
-          my_error(ER_VERS_ALTER_SYSTEM_FIELD, MYF(0), f->change.str);
-          return true;
-        }
+//        if (f->change.str && (start.streq(f->change) || end.streq(f->change)))
+//        {
+//          my_error(ER_VERS_ALTER_SYSTEM_FIELD, MYF(0), f->change.str);
+//          return true;
+//        }
       }
     }
 
