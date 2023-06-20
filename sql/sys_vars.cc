@@ -7344,7 +7344,7 @@ static Sys_var_enum Sys_instant_failover_mode(
        "instant_failover_mode",
        "Instant failover mode. "
        "Possible modes are: OFF - No instant failover, "
-       "ON: Unconditionally redirect new clients connecting over the network to INSTANT_FAILOVER_TARGET (no redirection of local socket-based connections), "
-       "ALL: Unconditionally redirect all new clients to INSTANT_FAILOVER_TARGET (even via local socket-based connections).",
+       "ON: Unconditionally redirect new clients connecting over the network via the standard server port to INSTANT_FAILOVER_TARGET (no redirection of local socket-based connections, nor of connections to the EXTRA_PORT), "
+       "ALL: Unconditionally redirect all new clients to INSTANT_FAILOVER_TARGET (even via local socket-based connections and the EXTRA_PORT).",
        GLOBAL_VAR(instant_failover_mode), CMD_LINE(REQUIRED_ARG),
        instant_failover_mode_names, DEFAULT(0));
