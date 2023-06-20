@@ -1490,6 +1490,7 @@ JSON_VALID(' {"number": 01E-4}')
 select JSON_VALID(' {"number": 0E-4.0}');
 JSON_VALID(' {"number": 0E-4.0}')
 0
+#
 # End of 10.4 tests
 #
 # MDEV-16620 JSON_ARRAYAGG
@@ -1674,6 +1675,23 @@ JSON_OBJECTAGG('\"', 1)
 SELECT JSON_OBJECTAGG('\\', 1);
 JSON_OBJECTAGG('\\', 1)
 {"\\":1}
+#
+# MDEV-31477: Inconsistent handling while fetching values in json
+#
+SET @json = '{"a":1, "b":2, "c" : 3}';
+SELECT @json;
+@json
+{"a":1, "b":2, "c" : 3}
+SELECT JSON_KEYS('{"key1": @json}', '$.key1');
+JSON_KEYS('{"key1": @json}', '$.key1')
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_keys' at position 10
+SELECT JSON_VALUE('{"key1": @json}', '$.key1');
+JSON_VALUE('{"key1": @json}', '$.key1')
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_value' at position 10
 #
 # MDEV-24784 JSON_ARRAYAGG charset issue
 #
@@ -2763,4 +2781,22 @@ SELECT * FROM json_table(@JSON, '$.SZ[1].OFFERS[1]'
 COLUMNS(NAME VARCHAR(30) PATH '$.NAME')) AS t_sz;
 NAME
 S1A1
+#
+#
+# MDEV-31477: Inconsistent handling while fetching values in json
+#
+SET @json = '{"a":1, "b":2, "c" : 3}';
+SELECT @json;
+@json
+{"a":1, "b":2, "c" : 3}
+SELECT JSON_KEYS('{"key1": @json}', '$.key1');
+JSON_KEYS('{"key1": @json}', '$.key1')
+NULL
+Warnings:
+Warning 4038  Syntax error in JSON text in argument 1 to function 'json_keys' at position 10
+SELECT JSON_VALUE('{"key1": @json}', '$.key1');
+JSON_VALUE('{"key1": @json}', '$.key1')
+NULL
+Warnings:
+Warning 4038  Syntax error in JSON text in argument 1 to function 'json_value' at position 10
 # End of 10.11 Test

@@ -969,6 +969,7 @@ select JSON_VALID(' {"number": 00E-4}');
 select JSON_VALID(' {"number": 01E-4}');
 select JSON_VALID(' {"number": 0E-4.0}');
 
+--echo #
 --echo # End of 10.4 tests
 
 -- echo #
@@ -1133,6 +1134,18 @@ DROP TABLE arrNestTest;
 SELECT JSON_OBJECTAGG('"', 1);
 SELECT JSON_OBJECTAGG('\"', 1);
 SELECT JSON_OBJECTAGG('\\', 1);
+
+
+--echo #
+--echo # MDEV-31477: Inconsistent handling while fetching values in json
+--echo #
+
+SET @json = '{"a":1, "b":2, "c" : 3}';
+
+SELECT @json;
+
+SELECT JSON_KEYS('{"key1": @json}', '$.key1');
+SELECT JSON_VALUE('{"key1": @json}', '$.key1');
 
 --echo #
 --echo # MDEV-24784 JSON_ARRAYAGG charset issue
@@ -2024,5 +2037,17 @@ COLUMNS(NAME VARCHAR(30) PATH '$.NAME')) AS t_sz;
 --echo # Should return S1A1
 SELECT * FROM json_table(@JSON, '$.SZ[1].OFFERS[1]' 
 COLUMNS(NAME VARCHAR(30) PATH '$.NAME')) AS t_sz;
+
+--echo #
+--echo #
+--echo # MDEV-31477: Inconsistent handling while fetching values in json
+--echo #
+
+SET @json = '{"a":1, "b":2, "c" : 3}';
+
+SELECT @json;
+
+SELECT JSON_KEYS('{"key1": @json}', '$.key1');
+SELECT JSON_VALUE('{"key1": @json}', '$.key1');
 
 --echo # End of 10.11 Test

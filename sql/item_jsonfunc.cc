@@ -707,7 +707,24 @@ err_return:
 }
 
 
-bool Item_func_json_value::fix_length_and_dec(THD *thd)
+String* Item_func_json_value::val_str(String *to)
+{
+  json_engine_t je;
+  String *tmp= args[0]->val_json(&tmp_js);
+
+  null_value= Json_path_extractor::extract(&je, to, args[0], args[1],
+                                           collation.collation);
+  if (null_value)
+  {
+    if (je.s.error)
+      report_json_error(tmp, &je, 0);
+    return NULL;
+  }
+  return to;
+}
+
+
+bool Item_func_json_value::fix_length_and_dec()
 {
   collation.set(args[0]->collation);
   max_length= args[0]->max_length;
@@ -717,7 +734,23 @@ bool Item_func_json_value::fix_length_and_dec(THD *thd)
 }
 
 
-bool Item_func_json_query::fix_length_and_dec(THD *thd)
+String* Item_func_json_query::val_str(String *to)
+{
+  json_engine_t je;
+  String *tmp= args[0]->val_json(&tmp_js);
+  null_value= Json_path_extractor::extract(&je, to, args[0], args[1],
+                                           collation.collation);
+  if (null_value)
+  {
+    if (je.s.error)
+      report_json_error(tmp, &je, 0);
+    return NULL;
+  }
+  return to;
+}
+
+
+bool Item_func_json_query::fix_length_and_dec()
 {
   collation.set(args[0]->collation);
   max_length= args[0]->max_length;
@@ -727,7 +760,7 @@ bool Item_func_json_query::fix_length_and_dec(THD *thd)
 }
 
 
-bool Json_path_extractor::extract(String *str, Item *item_js, Item *item_jp,
+bool Json_path_extractor::extract(json_engine_t *tmp_je, String *str, Item *item_js, Item *item_jp,
                                   CHARSET_INFO *cs)
 {
   String *js= item_js->val_json(&tmp_js);
@@ -754,22 +787,27 @@ bool Json_path_extractor::extract(String *str, Item *item_js, Item *item_jp,
   cur_step= p.steps;
 continue_search:
   if (json_find_path(&je, &p, &cur_step, array_counters))
-    return true;
+    goto error_return;
 
   if (json_read_value(&je))
-    return true;
+    goto error_return;
 
   if (je.value_type == JSON_VALUE_NULL)
-    return true;
+    goto error_return;
 
   if (unlikely(check_and_get_value(&je, str, &error)))
   {
     if (error)
-      return true;
+      goto error_return;
     goto continue_search;
   }
 
   return false;
+
+  error_return:
+  if (je.s.error)
+    *tmp_je= je;
+  return true;
 }
 
 
