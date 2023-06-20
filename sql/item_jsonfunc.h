@@ -64,7 +64,7 @@ protected:
   virtual ~Json_path_extractor() { }
   virtual bool check_and_get_value(Json_engine_scan *je,
                                    String *to, int *error)=0;
-  bool extract(String *to, Item *js, Item *jp, CHARSET_INFO *cs);
+  bool extract(json_engine_t *je, String *to, Item *js, Item *jp, CHARSET_INFO *cs);
 };
 
 
@@ -139,12 +139,7 @@ public:
     Item_str_func(thd, js, i_path) {}
   const char *func_name() const override { return "json_value"; }
   bool fix_length_and_dec() override ;
-  String *val_str(String *to) override
-  {
-    null_value= Json_path_extractor::extract(to, args[0], args[1],
-                                             collation.collation);
-    return null_value ? NULL : to;
-  }
+  String *val_str(String *to) override;
   bool check_and_get_value(Json_engine_scan *je,
                            String *res, int *error) override
   {
@@ -163,12 +158,7 @@ public:
     Item_json_func(thd, js, i_path) {}
   const char *func_name() const override { return "json_query"; } 
   bool fix_length_and_dec() override;
-  String *val_str(String *to) override
-  {
-    null_value= Json_path_extractor::extract(to, args[0], args[1],
-                                             collation.collation);
-    return null_value ? NULL : to;
-  }
+  String *val_str(String *to) override;
   bool check_and_get_value(Json_engine_scan *je,
                            String *res, int *error) override
   {
