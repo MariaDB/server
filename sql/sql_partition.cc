@@ -4512,7 +4512,7 @@ bool mysql_unpack_partition(THD *thd,
 
   DBUG_PRINT("info", ("Successful parse"));
   DBUG_PRINT("info", ("default engine = %s, default_db_type = %s",
-             ha_resolve_storage_engine_name(part_info->default_engine_type),
+             ha_resolve_storage_engine_name(part_info->main_engine_ht),
              ha_resolve_storage_engine_name(default_db_type)));
   if (is_create_table_ind && old_lex->sql_command == SQLCOM_CREATE_TABLE)
   {
@@ -4535,12 +4535,15 @@ bool mysql_unpack_partition(THD *thd,
   }
   table->part_info= part_info;
   part_info->table= table;
+  part_info->main_engine_ht= default_db_type;
   table->file->set_part_info(part_info);
+  /*MDEV-22168
   if (!part_info->default_engine_type)
     part_info->default_engine_type= default_db_type;
   DBUG_ASSERT(part_info->default_engine_type == default_db_type);
-  DBUG_ASSERT(part_info->default_engine_type->db_type != DB_TYPE_UNKNOWN);
-  DBUG_ASSERT(part_info->default_engine_type != partition_hton);
+  */
+  DBUG_ASSERT(part_info->main_engine_ht->db_type != DB_TYPE_UNKNOWN);
+  DBUG_ASSERT(part_info->main_engine_ht != partition_hton);
   result= FALSE;
 end:
   end_lex_with_single_table(thd, table, old_lex);
@@ -4645,7 +4648,7 @@ static bool check_native_partitioned(HA_CREATE_INFO *create_info,bool *ret_val,
                                      partition_info *part_info, THD *thd)
 {
   bool table_engine_set;
-  handlerton *engine_type= part_info->default_engine_type;
+  handlerton *engine_type= part_info->main_engine_ht;
   handlerton *old_engine_type= engine_type;
   DBUG_ENTER("check_native_partitioned");
 
@@ -4833,7 +4836,7 @@ static void check_datadir_altered_for_innodb(THD *thd,
     partition_info *tab_part_info,
     partition_info *alt_part_info)
 {
-  if (tab_part_info->default_engine_type->db_type != DB_TYPE_INNODB)
+  if (tab_part_info->main_engine_ht->db_type != DB_TYPE_INNODB)
     return;
 
   for (List_iterator_fast<partition_element> it(alt_part_info->partitions);
@@ -5549,7 +5552,7 @@ that are reorganised.
     else if (alter_info->partition_flags & ALTER_PARTITION_REBUILD)
     {
       set_engine_all_partitions(tab_part_info,
-                                tab_part_info->default_engine_type);
+                                tab_part_info->main_engine_ht);
       if (set_part_state(alter_info, tab_part_info, PART_CHANGED))
       {
         my_error(ER_PARTITION_DOES_NOT_EXIST, MYF(0));
@@ -5949,7 +5952,7 @@ the generated partition syntax in a correct manner.
         if (!(create_info->used_fields & HA_CREATE_USED_ENGINE))
         {
           DBUG_PRINT("info", ("No explicit engine used"));
-          create_info->db_type= tab_part_info->default_engine_type;
+          create_info->db_type= tab_part_info->main_engine_ht;
         }
         DBUG_PRINT("info", ("New engine type: %s",
                    ha_resolve_storage_engine_name(create_info->db_type)));
@@ -5968,7 +5971,7 @@ the generated partition syntax in a correct manner.
           DBUG_RETURN(TRUE);
         thd->work_part_info= tab_part_info;
         if (create_info->used_fields & HA_CREATE_USED_ENGINE &&
-            create_info->db_type != tab_part_info->default_engine_type)
+            create_info->db_type != tab_part_info->main_engine_ht)
         {
           /*
             Make sure change of engine happens to all partitions.
@@ -6082,20 +6085,20 @@ the generated partition syntax in a correct manner.
       }
 
       /*
-        Set up partition default_engine_type either from the create_info
+        Set up partition main_engine_ht either from the create_info
         or from the previus table
       */
       if (create_info->used_fields & HA_CREATE_USED_ENGINE)
-        part_info->default_engine_type= create_info->db_type;
+        part_info->main_engine_ht= create_info->db_type;
       else
       {
         if (tab_part_info)
-          part_info->default_engine_type= tab_part_info->default_engine_type;
+          part_info->main_engine_ht= tab_part_info->main_engine_ht;
         else
-          part_info->default_engine_type= create_info->db_type;
+          part_info->main_engine_ht= create_info->db_type;
       }
-      DBUG_ASSERT(part_info->default_engine_type &&
-                  part_info->default_engine_type != partition_hton);
+      DBUG_ASSERT(part_info->main_engine_ht &&
+                  part_info->main_engine_ht != partition_hton);
       if (check_native_partitioned(create_info, &is_native_partitioned,
                                    part_info, thd))
       {
@@ -6278,7 +6281,7 @@ static bool alter_partition_convert_out(ALTER_PARTITION_PARAM_TYPE *lpt)
   partition_info *part_info= lpt->table->part_info;
   THD *thd= lpt->thd;
   int error;
-  handler *file= get_new_handler(NULL, thd->mem_root, part_info->default_engine_type);
+  handler *file= get_new_handler(NULL, thd->mem_root, part_info->main_engine_ht);
 
   DBUG_ASSERT(lpt->thd->mdl_context.is_lock_owner(MDL_key::TABLE,
                                                   lpt->table->s->db.str,

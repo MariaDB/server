@@ -309,11 +309,14 @@ private:
   handler **m_reorged_file;             // Reorganised partitions
   handler **m_added_file;               // Added parts kept for errors
   LEX_CSTRING *m_connect_string;
+  handlerton *m_main_engine_ht;
   partition_info *m_part_info;          // local reference to partition
   Field **m_part_field_array;           // Part field array locally to save acc
   uchar *m_ordered_rec_buffer;          // Row and key buffer for ord. idx scan
   st_partition_ft_info *ft_first;
   st_partition_ft_info *ft_current;
+  uint8 m_table_cache_type;
+  uint m_cache_dependent_tables;
   /*
     Current index.
     When used in key_rec_cmp: If clustered pk, index compare
@@ -482,8 +485,9 @@ public:
   handler *clone(const char *name, MEM_ROOT *mem_root) override;
   void set_part_info(partition_info *part_info) override
   {
-     m_part_info= part_info;
-     m_is_sub_partitioned= part_info->is_sub_partitioned();
+    DBUG_ASSERT(part_info->main_engine_ht == m_main_engine_ht);
+    m_part_info= part_info;
+    m_is_sub_partitioned= part_info->is_sub_partitioned();
   }
 
   void return_record_by_parent() override;
@@ -590,7 +594,7 @@ private:
     And one method to read it in.
   */
   bool create_handler_file(const char *name);
-  bool setup_engine_array(MEM_ROOT *mem_root, handlerton *first_engine);
+  bool setup_engine_array(MEM_ROOT *mem_root);
   bool read_par_file(const char *name);
   handlerton *get_def_part_engine(const char *name);
   bool get_from_handler_file(const char *name, MEM_ROOT *mem_root,
@@ -1610,10 +1614,12 @@ public:
   */
   handlerton *partition_ht() const override
   {
+    /*MDEV-22168
     handlerton *h= m_file[0]->ht;
     for (uint i=1; i < m_tot_parts; i++)
       DBUG_ASSERT(h == m_file[i]->ht);
-    return h;
+      */
+    return m_main_engine_ht;
   }
 
   bool partition_engine() override { return 1;}

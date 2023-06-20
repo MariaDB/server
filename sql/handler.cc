@@ -337,6 +337,14 @@ plugin_ref ha_lock_engine(THD *thd, const handlerton *hton)
 }
 
 
+plugin_ref engine_by_legacy_type(THD *thd, enum legacy_db_type db_type)
+{
+  DBUG_ASSERT(db_type > DB_TYPE_UNKNOWN && db_type < DB_TYPE_DEFAULT);
+
+  return ha_lock_engine(thd, installed_htons[db_type]);
+}
+
+
 handlerton *ha_resolve_by_legacy_type(THD *thd, enum legacy_db_type db_type)
 {
   plugin_ref plugin;

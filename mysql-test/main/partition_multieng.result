@@ -1,0 +1,29 @@
+create table t1(id int, name varchar(64)) engine=myisam
+partition by range (id)
+partitions 2
+(
+partition p1 values less than (3),
+partition p2 values less than (100) engine=heap
+);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) DEFAULT NULL,
+  `name` varchar(64) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`id`)
+(PARTITION `p1` VALUES LESS THAN (3) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (100) ENGINE = MEMORY)
+insert into t1 values (1, 'one');
+insert into t1 values (2, 'two');
+select * from t1;
+id	name
+1	one
+2	two
+insert into t1 values (10, 'ten');
+select * from t1;
+id	name
+1	one
+2	two
+10	ten
+drop table t1;

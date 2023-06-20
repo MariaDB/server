@@ -244,7 +244,7 @@ public:
   key_map all_fields_in_PF, all_fields_in_PPF, all_fields_in_SPF;
   key_map some_fields_in_PF;
 
-  handlerton *default_engine_type;
+  handlerton *main_engine_ht;
   partition_type part_type;
   partition_type subpart_type;
 
@@ -317,7 +317,7 @@ public:
     part_info_string(NULL),
     curr_part_elem(NULL), current_partition(NULL),
     curr_list_object(0), num_columns(0), table(NULL),
-    default_engine_type(NULL),
+    main_engine_ht(NULL),
     part_type(NOT_A_PARTITION), subpart_type(NOT_A_PARTITION),
     part_info_len(0),
     num_parts(0), num_subparts(0),
