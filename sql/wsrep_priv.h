@@ -1,4 +1,4 @@
-/* Copyright 2010 Codership Oy <http://www.codership.com>
+/* Copyright 2010-2023 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,8 +21,6 @@
 
 #include "wsrep_api.h"
 #include "wsrep/server_state.hpp"
-
-my_bool wsrep_ready_set (my_bool x);
 
 ssize_t wsrep_sst_prepare   (void** msg);
 wsrep_cb_status wsrep_sst_donate_cb (void* app_ctx,
