@@ -13743,6 +13743,84 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   DBUG_PRINT("info", ("parse_client_handshake STARTING: vio_type=%s",
                       safe_vio_type_name(thd->net.vio)));
 
+  enum enum_vio_type type= vio_type(thd->net.vio);
+  bool local_connection= (type == VIO_TYPE_SOCKET) || (type == VIO_TYPE_NAMEDPIPE);
+  uint16_t server_port = 0;
+  bool is_extra_port= FALSE;
+
+  if (!local_connection) {
+    /* We want to determine if the client is connecting to the TCP
+     * port optionally configured via the system variable
+     * EXTRA_PORT. This is intended for emergency/administrative
+     * use. (See
+     * https://mariadb.com/kb/en/thread-pool-in-mariadb/#configuring-the-extra-port)
+     *
+     * Based on its name and usage elsewhere in the server codebase,
+     * I expected that the net->vio->mysql_socket data structure
+     * would be populated at this point, including the member
+     * .is_extra_port whose name suggests it is precisely intended
+     * to convey this information.
+     *
+     * However, debugging with GDB demonstrates that
+     * net->vio->mysql_socket is NOT reliably populated, and in
+     * particular .is_extra_port appears to have the value 127
+     * regardless of whether client has connected via the extra
+     * port, or not.
+     *
+     * This means that we need to compare the local socket
+     * address to mysqld_extra_port (which holds the value of the
+     * EXTRA_PORT system vairable).
+     *
+     * That leads to another data structure which is inexplicably
+     * unpopulated at this point: net->vio->local. Since we cannot
+     * rely on that data structure either, we have to populate it
+     * ourselves here.
+     *
+     * FIXME: If net->vio->mysql_socket were sanely and reliably
+     * populated here, this entire 'if'-block could be replaced
+     * with:
+     *
+     *   is_extra_port= net->vio->mysql_socket->is_extra_port.
+     */
+
+    union _sockaddr_ipv46 {
+      struct sockaddr_storage _nvl; /* This is the actual type of net->vio->local */
+      struct sockaddr_in inaddr;
+      struct sockaddr_in6 in6addr;
+      struct sockaddr addr;
+    } *a = (union _sockaddr_ipv46 *)&net->vio->local;
+
+    if (a->_nvl.ss_family == AF_UNSPEC)
+    {
+      /* FIXME: If we could rely on net->vio->local having already
+       * been populated, we could remove this entire 'if' block.
+       */
+      socklen_t addrlen = sizeof(a->_nvl);
+      memset(a, 0, addrlen);
+      if (mysql_socket_getsockname(net->vio->mysql_socket, &a->addr, &addrlen) == -1)
+        DBUG_PRINT("error", ("mysql_socket_getsockname(net->vio->mysql_socket.fd = %d) failed: errno = %d",
+                             net->vio->mysql_socket.fd, errno));
+      else if (a->addr.sa_family != AF_INET && a->addr.sa_family != AF_INET6)
+        DBUG_PRINT("error", ("mysql_socket_getsockname(net->vio->mysql_socket.fd = %d) unexpectedly returned non-IP address family: %d",
+                             net->vio->mysql_socket.fd, a->addr.sa_family));
+    }
+
+    if (a->_nvl.ss_family == AF_INET || a->_nvl.ss_family == AF_INET6) {
+      server_port= ntohs(a->addr.sa_family == AF_INET
+                         ? a->inaddr.sin_port
+                         : a->in6addr.sin6_port);
+      DBUG_PRINT("info", ("Client has connected via TCP/IP port %d (EXTRA_PORT is %d)",
+                          server_port, mysqld_extra_port));
+
+      /* FIXME: Should we set net->vio->mysql_socket.is_extra_port directly,
+       * or will that have unintended side effects?
+       *
+       * Err on the side of caution and simply set a local variable.
+       */
+      is_extra_port= (server_port == mysqld_extra_port);
+    }
+  }
+
   if (pkt_len < MIN_HANDSHAKE_SIZE)
     DBUG_RETURN(packet_error);
 
@@ -13828,11 +13906,9 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
    *   a security vulnerability that needs a separate fix (see more details at
    *   https://jira.mariadb.org/browse/CONC-648).
    */
-  enum enum_vio_type type= vio_type(thd->net.vio);
-  bool local_connection= (type == VIO_TYPE_SOCKET) || (type == VIO_TYPE_NAMEDPIPE);
 
   if (server_redirect_mode == SERVER_REDIRECT_MODE_ALL ||
-      (server_redirect_mode == SERVER_REDIRECT_MODE_ON && !local_connection))
+      (server_redirect_mode == SERVER_REDIRECT_MODE_ON && !local_connection && !is_extra_port))
   {
     sql_print_warning("Redirecting connection %lld via %s to SERVER_REDIRECT_TARGET=%s (SERVER_REDIRECT_MODE=%s)",
                       thd->thread_id, safe_vio_type_name(thd->net.vio), server_redirect_target,

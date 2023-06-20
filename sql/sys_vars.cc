@@ -7189,7 +7189,7 @@ static Sys_var_enum Sys_server_redirect_mode(
        "server_redirect_mode",
        "Server redirection mode. "
        "Possible modes are: OFF - No redirection, "
-       "ON: Unconditionally redirect new clients attempting to connect over the network (e.g. no redirection of local socket-based connections), "
+       "ON: Redirect all new clients attempting to connect over the network to the standard server port (no redirection of local socket-based connections, nor of connections to the EXTRA_PORT), "
        "ALL: Unconditionally redirect new clients attempting to connect (even via local socket-based connections).",
        GLOBAL_VAR(server_redirect_mode), CMD_LINE(REQUIRED_ARG),
        server_redirect_mode_names, DEFAULT(0));
