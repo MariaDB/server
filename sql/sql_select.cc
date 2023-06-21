@@ -7870,12 +7870,15 @@ static double apply_selectivity_for_table(JOIN_TAB *s,
     /*
       This is only taking into considering constant key parts used with
       this table!
-      If no such conditions existed the following should hold:
+      If no such conditions existed the following should normally hold:
       s->table->opt_range_condition_rows == s->found_rows ==
       s->records.
+      The case when this does not hold is when using 'best splitting'
+      in which case s->records may be less than s->found_rows;
     */
     DBUG_ASSERT(s->table->opt_range_condition_rows <= s->found_records);
-    dbl_records= rows2double(s->table->opt_range_condition_rows);
+    dbl_records= rows2double(MY_MIN(s->table->opt_range_condition_rows,
+                                    s->records));
   }
 
   DBUG_ASSERT(dbl_records <= s->records);
