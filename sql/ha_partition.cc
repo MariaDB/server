@@ -12204,7 +12204,7 @@ ulonglong ha_partition::index_blocks(uint index, uint ranges, ha_rows rows)
   ulonglong blocks= 0;
   ulonglong active_partitions= bitmap_bits_set(&m_part_info->read_partitions);
   /* Assume rows are evenly dived among partitions */
-  rows= (rows+ active_partitions -1) / active_partitions;
+  rows= (rows+ active_partitions -1) / MY_MAX(active_partitions, 1);
 
   for (uint i= bitmap_get_first_set(&m_part_info->read_partitions);
        i < m_tot_parts;
