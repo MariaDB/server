@@ -42,90 +42,65 @@ set @@global.binlog_gtid_pos_cache= 1;
 select binlog_gtid_pos('master-bin.000001', 3);
 binlog_gtid_pos('master-bin.000001', 3)
 
-select binlog_gtid_pos('master-bin.000001', 4);
-binlog_gtid_pos('master-bin.000001', 4)
-
 select binlog_gtid_pos('master-bin.000001', 255);
 binlog_gtid_pos('master-bin.000001', 255)
 NULL
-select binlog_gtid_pos('master-bin.000001', 256);
-binlog_gtid_pos('master-bin.000001', 256)
+pos_1
 
-select binlog_gtid_pos('master-bin.000001', 285);
-binlog_gtid_pos('master-bin.000001', 285)
-NULL
-select binlog_gtid_pos('master-bin.000001', 329);
-binlog_gtid_pos('master-bin.000001', 329)
-NULL
-select binlog_gtid_pos('master-bin.000001', 371);
-binlog_gtid_pos('master-bin.000001', 371)
-NULL
-select binlog_gtid_pos('master-bin.000001', 503);
-binlog_gtid_pos('master-bin.000001', 503)
-NULL
-select binlog_gtid_pos('master-bin.000001', 545);
-binlog_gtid_pos('master-bin.000001', 545)
-NULL
-select binlog_gtid_pos('master-bin.000001', 608);
-binlog_gtid_pos('master-bin.000001', 608)
-NULL
-select binlog_gtid_pos('master-bin.000001', 654);
-binlog_gtid_pos('master-bin.000001', 654)
-NULL
-select binlog_gtid_pos('master-bin.000001', 723);
-binlog_gtid_pos('master-bin.000001', 723)
-NULL
-select binlog_gtid_pos('master-bin.000001', 754);
-binlog_gtid_pos('master-bin.000001', 754)
-NULL
-select binlog_gtid_pos('master-bin.000001', 796);
-binlog_gtid_pos('master-bin.000001', 796)
-NULL
-select binlog_gtid_pos('master-bin.000001', 895);
-binlog_gtid_pos('master-bin.000001', 895)
-NULL
-select binlog_gtid_pos('master-bin.000001', 937);
-binlog_gtid_pos('master-bin.000001', 937)
-NULL
-select binlog_gtid_pos('master-bin.000001', 980);
-binlog_gtid_pos('master-bin.000001', 980)
-NULL
-select binlog_gtid_pos('master-bin.000001', 1025);
-binlog_gtid_pos('master-bin.000001', 1025)
-NULL
-select binlog_gtid_pos('master-bin.000001', 1063);
-binlog_gtid_pos('master-bin.000001', 1063)
-NULL
-select binlog_gtid_pos('master-bin.000001', 1136);
-binlog_gtid_pos('master-bin.000001', 1136)
-NULL
-select binlog_gtid_pos('master-bin.000001', 1178);
-binlog_gtid_pos('master-bin.000001', 1178)
-NULL
-select binlog_gtid_pos('master-bin.000001', 1229);
-binlog_gtid_pos('master-bin.000001', 1229)
-NULL
-select binlog_gtid_pos('master-bin.000001', 1275);
-binlog_gtid_pos('master-bin.000001', 1275)
-NULL
-select binlog_gtid_pos('master-bin.000001', 1327);
-binlog_gtid_pos('master-bin.000001', 1327)
-NULL
-select binlog_gtid_pos('master-bin.000001', 1358);
-binlog_gtid_pos('master-bin.000001', 1358)
-NULL
-select binlog_gtid_pos('master-bin.000001', 1400);
-binlog_gtid_pos('master-bin.000001', 1400)
-NULL
-select binlog_gtid_pos('master-bin.000001', 1451);
-binlog_gtid_pos('master-bin.000001', 1451)
-NULL
-select binlog_gtid_pos('master-bin.000001', 1497);
-binlog_gtid_pos('master-bin.000001', 1497)
-NULL
-select binlog_gtid_pos('master-bin.000001', 1549);
-binlog_gtid_pos('master-bin.000001', 1549)
-NULL
+pos_2
+
+pos_3
+
+pos_4
+
+pos_5
+
+pos_6
+0-1-1
+pos_7
+0-1-1
+pos_8
+0-1-2
+pos_9
+0-1-2
+pos_10
+0-1-2
+pos_11
+0-1-2
+pos_12
+0-1-2
+pos_13
+0-1-2,222-1-1
+pos_14
+0-1-2,222-1-1
+pos_15
+0-1-2,222-1-2
+pos_16
+0-1-2,222-1-2
+pos_17
+0-1-2,222-1-2
+pos_18
+0-1-2,222-1-2
+pos_19
+0-1-2,222-1-2
+pos_20
+0-1-2,222-1-3
+pos_21
+0-1-2,222-1-3
+pos_22
+0-1-2,222-1-3
+pos_23
+0-1-2,222-1-3
+pos_24
+0-1-2,222-1-3
+pos_25
+0-1-2,222-1-3,333-1-1
+pos_26
+0-1-2,222-1-3,333-1-1
+pos_27
+0-1-2,222-1-3,333-1-1
+pos_28
+0-1-2,222-1-3,333-1-1
 select binlog_gtid_pos('master-bin.000002', 4);
 binlog_gtid_pos('master-bin.000002', 4)
 0-1-2,222-1-3,333-1-1
@@ -215,93 +190,64 @@ update t2 set m= 3;
 set @@session.gtid_domain_id= 44;
 delete from t2;
 flush binary logs;
-select binlog_gtid_pos('master-bin.000020', 4);
-binlog_gtid_pos('master-bin.000020', 4)
+pos_1
 0-1-2,222-1-3,333-1-2
-select binlog_gtid_pos('master-bin.000020', 256);
-binlog_gtid_pos('master-bin.000020', 256)
+pos_2
 0-1-2,222-1-3,333-1-2
-select binlog_gtid_pos('master-bin.000020', 331);
-binlog_gtid_pos('master-bin.000020', 331)
-NULL
-select binlog_gtid_pos('master-bin.000020', 375);
-binlog_gtid_pos('master-bin.000020', 375)
-NULL
-select binlog_gtid_pos('master-bin.000020', 417);
-binlog_gtid_pos('master-bin.000020', 417)
-NULL
-select binlog_gtid_pos('master-bin.000020', 460);
-binlog_gtid_pos('master-bin.000020', 460)
-NULL
-select binlog_gtid_pos('master-bin.000020', 505);
-binlog_gtid_pos('master-bin.000020', 505)
-NULL
-select binlog_gtid_pos('master-bin.000020', 543);
-binlog_gtid_pos('master-bin.000020', 543)
-NULL
-select binlog_gtid_pos('master-bin.000020', 616);
-binlog_gtid_pos('master-bin.000020', 616)
-NULL
-select binlog_gtid_pos('master-bin.000020', 658);
-binlog_gtid_pos('master-bin.000020', 658)
-NULL
-select binlog_gtid_pos('master-bin.000020', 699);
-binlog_gtid_pos('master-bin.000020', 699)
-NULL
-select binlog_gtid_pos('master-bin.000020', 744);
-binlog_gtid_pos('master-bin.000020', 744)
-NULL
-select binlog_gtid_pos('master-bin.000020', 788);
-binlog_gtid_pos('master-bin.000020', 788)
-NULL
-select binlog_gtid_pos('master-bin.000020', 861);
-binlog_gtid_pos('master-bin.000020', 861)
-NULL
-select binlog_gtid_pos('master-bin.000020', 903);
-binlog_gtid_pos('master-bin.000020', 903)
-NULL
-select binlog_gtid_pos('master-bin.000020', 946);
-binlog_gtid_pos('master-bin.000020', 946)
-NULL
-select binlog_gtid_pos('master-bin.000020', 991);
-binlog_gtid_pos('master-bin.000020', 991)
-NULL
-select binlog_gtid_pos('master-bin.000020', 1029);
-binlog_gtid_pos('master-bin.000020', 1029)
-NULL
-select binlog_gtid_pos('master-bin.000020', 1102);
-binlog_gtid_pos('master-bin.000020', 1102)
-NULL
-select binlog_gtid_pos('master-bin.000020', 1144);
-binlog_gtid_pos('master-bin.000020', 1144)
-NULL
-select binlog_gtid_pos('master-bin.000020', 1185);
-binlog_gtid_pos('master-bin.000020', 1185)
-NULL
-select binlog_gtid_pos('master-bin.000020', 1230);
-binlog_gtid_pos('master-bin.000020', 1230)
-NULL
-select binlog_gtid_pos('master-bin.000020', 1294);
-binlog_gtid_pos('master-bin.000020', 1294)
-NULL
-select binlog_gtid_pos('master-bin.000020', 1367);
-binlog_gtid_pos('master-bin.000020', 1367)
-NULL
-select binlog_gtid_pos('master-bin.000020', 1409);
-binlog_gtid_pos('master-bin.000020', 1409)
-NULL
-select binlog_gtid_pos('master-bin.000020', 1446);
-binlog_gtid_pos('master-bin.000020', 1446)
-NULL
-select binlog_gtid_pos('master-bin.000020', 1491);
-binlog_gtid_pos('master-bin.000020', 1491)
-NULL
-select binlog_gtid_pos('master-bin.000020', 1539);
-binlog_gtid_pos('master-bin.000020', 1539)
-NULL
-select binlog_gtid_pos('master-bin.000020', 1612);
-binlog_gtid_pos('master-bin.000020', 1612)
-NULL
+pos_3
+0-1-2,222-1-3,333-1-2
+pos_4
+0-1-2,222-1-3,333-1-2
+pos_5
+0-1-2,222-1-3,333-1-2
+pos_6
+0-1-2,222-1-3,333-1-3
+pos_7
+0-1-2,222-1-3,333-1-3
+pos_8
+0-1-2,222-1-3,333-1-3
+pos_9
+0-1-2,222-1-3,333-1-3
+pos_10
+0-1-2,222-1-3,333-1-3
+pos_11
+0-1-2,12-2-1,222-1-3,333-1-3
+pos_12
+0-1-2,12-2-1,222-1-3,333-1-3
+pos_13
+0-1-2,12-2-1,222-1-3,333-1-3
+pos_14
+0-1-2,12-2-1,222-1-3,333-1-3
+pos_15
+0-1-2,12-2-1,222-1-3,333-1-3
+pos_16
+0-1-2,12-2-1,22-2-1,222-1-3,333-1-3
+pos_17
+0-1-2,12-2-1,22-2-1,222-1-3,333-1-3
+pos_18
+0-1-2,12-2-1,22-2-1,222-1-3,333-1-3
+pos_19
+0-1-2,12-2-1,22-2-1,222-1-3,333-1-3
+pos_20
+0-1-2,12-2-1,22-2-1,222-1-3,333-1-3
+pos_21
+0-1-2,12-2-1,22-2-1,33-3-1,222-1-3,333-1-3
+pos_22
+0-1-2,12-2-1,22-2-1,33-3-1,222-1-3,333-1-3
+pos_23
+0-1-2,12-2-1,22-2-1,33-3-1,222-1-3,333-1-3
+pos_24
+0-1-2,12-2-1,22-2-1,33-3-1,222-1-3,333-1-3
+pos_25
+0-1-2,12-2-1,22-2-1,33-3-1,222-1-3,333-1-3
+pos_26
+0-1-2,12-2-1,22-2-1,33-3-1,44-3-1,222-1-3,333-1-3
+pos_27
+0-1-2,12-2-1,22-2-1,33-3-1,44-3-1,222-1-3,333-1-3
+pos_28
+0-1-2,12-2-1,22-2-1,33-3-1,44-3-1,222-1-3,333-1-3
+pos_29
+0-1-2,12-2-1,22-2-1,33-3-1,44-3-1,222-1-3,333-1-3
 drop table t1,t2;
 set @@global.binlog_gtid_pos_cache= @old_binlog_gtid_pos_cache;
 set @@global.binlog_gtid_pos_cache_sparse= @old_binlog_gtid_pos_cache_sparse;

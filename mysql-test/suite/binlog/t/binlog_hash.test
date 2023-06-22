@@ -52,6 +52,11 @@ update t1 set b=20 where a= 5;
 # Note: you can check GTID positions from binlog files:
 # --exec $MYSQL_BINLOG --verbose $datadir/master-bin.000001
 
+--let binlog_file= $datadir/master-bin.000001
+--source binlog_hash_perl.inc
+--source $datadir/binlog.inc
+--remove_file $datadir/binlog.inc
+
 --move_file $datadir/master-bin.000001 $datadir/mister-bin.000001
 set @@global.binlog_gtid_pos_cache= 0;
 --error 29
@@ -71,34 +76,18 @@ if ($MTR_COMBINATION_CACHE_SPARSE)
 }
 # Note: no error when there is no file means cache hit
 select binlog_gtid_pos('master-bin.000001', 3);
-select binlog_gtid_pos('master-bin.000001', 4);
 select binlog_gtid_pos('master-bin.000001', 255);
-select binlog_gtid_pos('master-bin.000001', 256);
-select binlog_gtid_pos('master-bin.000001', 285);
-select binlog_gtid_pos('master-bin.000001', 329);
-select binlog_gtid_pos('master-bin.000001', 371);
-select binlog_gtid_pos('master-bin.000001', 503);
-select binlog_gtid_pos('master-bin.000001', 545);
-select binlog_gtid_pos('master-bin.000001', 608);
-select binlog_gtid_pos('master-bin.000001', 654);
-select binlog_gtid_pos('master-bin.000001', 723);
-select binlog_gtid_pos('master-bin.000001', 754);
-select binlog_gtid_pos('master-bin.000001', 796);
-select binlog_gtid_pos('master-bin.000001', 895);
-select binlog_gtid_pos('master-bin.000001', 937);
-select binlog_gtid_pos('master-bin.000001', 980);
-select binlog_gtid_pos('master-bin.000001', 1025);
-select binlog_gtid_pos('master-bin.000001', 1063);
-select binlog_gtid_pos('master-bin.000001', 1136);
-select binlog_gtid_pos('master-bin.000001', 1178);
-select binlog_gtid_pos('master-bin.000001', 1229);
-select binlog_gtid_pos('master-bin.000001', 1275);
-select binlog_gtid_pos('master-bin.000001', 1327);
-select binlog_gtid_pos('master-bin.000001', 1358);
-select binlog_gtid_pos('master-bin.000001', 1400);
-select binlog_gtid_pos('master-bin.000001', 1451);
-select binlog_gtid_pos('master-bin.000001', 1497);
-select binlog_gtid_pos('master-bin.000001', 1549);
+
+let $i= 1;
+while ($i < $pos_n)
+{
+  let $pos=`select ELT($i, $pos_l)`;
+  --disable_query_log
+  eval select binlog_gtid_pos('master-bin.000001', $pos) as pos_$i;
+  --enable_query_log
+  inc $i;
+}
+
 select binlog_gtid_pos('master-bin.000002', 4);
 select binlog_gtid_pos('master-bin.000002', 256);
 select binlog_gtid_pos('master-bin.000002', 375);
@@ -192,6 +181,11 @@ set @@session.gtid_domain_id= 44;
 delete from t2;
 flush binary logs;
 
+--let binlog_file= $datadir/master-bin.000020
+--source binlog_hash_perl.inc
+--source $datadir/binlog.inc
+--remove_file $datadir/binlog.inc
+
 # --list_files $datadir
 # --exec $MYSQL_BINLOG --verbose $datadir/master-bin.000020
 
@@ -205,35 +199,17 @@ if ($MTR_COMBINATION_CACHE_ON)
 {
   --move_file $datadir/master-bin.000020 $datadir/mister-bin.000020
 }
-select binlog_gtid_pos('master-bin.000020', 4);
-select binlog_gtid_pos('master-bin.000020', 256);
-select binlog_gtid_pos('master-bin.000020', 331);
-select binlog_gtid_pos('master-bin.000020', 375);
-select binlog_gtid_pos('master-bin.000020', 417);
-select binlog_gtid_pos('master-bin.000020', 460);
-select binlog_gtid_pos('master-bin.000020', 505);
-select binlog_gtid_pos('master-bin.000020', 543);
-select binlog_gtid_pos('master-bin.000020', 616);
-select binlog_gtid_pos('master-bin.000020', 658);
-select binlog_gtid_pos('master-bin.000020', 699);
-select binlog_gtid_pos('master-bin.000020', 744);
-select binlog_gtid_pos('master-bin.000020', 788);
-select binlog_gtid_pos('master-bin.000020', 861);
-select binlog_gtid_pos('master-bin.000020', 903);
-select binlog_gtid_pos('master-bin.000020', 946);
-select binlog_gtid_pos('master-bin.000020', 991);
-select binlog_gtid_pos('master-bin.000020', 1029);
-select binlog_gtid_pos('master-bin.000020', 1102);
-select binlog_gtid_pos('master-bin.000020', 1144);
-select binlog_gtid_pos('master-bin.000020', 1185);
-select binlog_gtid_pos('master-bin.000020', 1230);
-select binlog_gtid_pos('master-bin.000020', 1294);
-select binlog_gtid_pos('master-bin.000020', 1367);
-select binlog_gtid_pos('master-bin.000020', 1409);
-select binlog_gtid_pos('master-bin.000020', 1446);
-select binlog_gtid_pos('master-bin.000020', 1491);
-select binlog_gtid_pos('master-bin.000020', 1539);
-select binlog_gtid_pos('master-bin.000020', 1612);
+
+let $i= 1;
+while ($i < $pos_n)
+{
+  let $pos=`select ELT($i, $pos_l)`;
+  --disable_query_log
+  eval select binlog_gtid_pos('master-bin.000020', $pos) as pos_$i;
+  --enable_query_log
+  inc $i;
+}
+
 if ($MTR_COMBINATION_CACHE_ON)
 {
   --move_file $datadir/mister-bin.000020 $datadir/master-bin.000020
