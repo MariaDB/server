@@ -2860,6 +2860,18 @@ set global default_storage_engine=@save_default_storage_engine;
 --source include/wait_until_count_sessions.inc
 
 --echo #
+--echo # MDEV-31083 ASAN use-after-poison in myrg_attach_children
+--echo #
+
+CREATE TABLE t1 (f TEXT, FULLTEXT (f)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo'),('bar');
+CREATE TABLE mrg (f TEXT) ENGINE=MERGE, UNION(t1);
+SELECT * FROM mrg;
+DROP TABLE mrg, t1;
+
+--echo End of 10.5 tests
+
+--echo #
 --echo # End of 10.0 tests
 --echo #
 

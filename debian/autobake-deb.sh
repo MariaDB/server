@@ -68,8 +68,8 @@ add_lsb_base_depends()
 replace_uring_with_aio()
 {
   sed 's/liburing-dev/libaio-dev/g' -i debian/control
-  sed -e '/-DIGNORE_AIO_CHECK=YES/d' \
-      -e '/-DWITH_URING=YES/d' -i debian/rules
+  sed -e '/-DIGNORE_AIO_CHECK=ON/d' \
+      -e '/-DWITH_URING=ON/d' -i debian/rules
 }
 
 disable_pmem()
@@ -115,7 +115,6 @@ case "${LSBNAME}"
 in
   # Debian
   "buster")
-    add_lsb_base_depends
     disable_libfmt
     replace_uring_with_aio
     if [ ! "$architecture" = amd64 ]
@@ -123,11 +122,10 @@ in
       disable_pmem
     fi
     ;&
-  "bullseye"|"bookworm")
-    if [[ "${LSBNAME}" == "bullseye" ]]
-    then
-      add_lsb_base_depends
-    fi
+  "bullseye")
+    add_lsb_base_depends
+    ;&
+  "bookworm")
     # mariadb-plugin-rocksdb in control is 4 arches covered by the distro rocksdb-tools
     # so no removal is necessary.
     if [[ ! "$architecture" =~ amd64|arm64|ppc64el ]]
@@ -145,17 +143,17 @@ in
     ;;
   # Ubuntu
   "bionic")
-    add_lsb_base_depends
     remove_rocksdb_tools
     [ "$architecture" != amd64 ] && disable_pmem
     ;&
   "focal")
-    add_lsb_base_depends
     replace_uring_with_aio
     disable_libfmt
     ;&
-  "impish"|"jammy"|"kinetic"|"lunar")
+  "jammy"|"kinetic")
     add_lsb_base_depends
+    ;&
+  "lunar"|"mantic")
     # mariadb-plugin-rocksdb s390x not supported by us (yet)
     # ubuntu doesn't support mips64el yet, so keep this just
     # in case something changes.

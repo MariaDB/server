@@ -25,6 +25,8 @@ SET DEBUG_SYNC = 'wsrep_before_certification SIGNAL before_cert WAIT_FOR continu
 SET DEBUG_SYNC = 'now WAIT_FOR before_cert';
 
 --connection node_2
+--let $wait_condition = SELECT count(*)=1 FROM information_schema.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1'
+--source include/wait_condition.inc
 TRUNCATE TABLE t1;
 
 --connection node_1
@@ -44,6 +46,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 
 SET SESSION wsrep_retry_autocommit = 1;
+SET GLOBAL debug_dbug = '+d,sync.wsrep_retry_autocommit';
 SET DEBUG_SYNC = 'wsrep_before_certification SIGNAL before_cert WAIT_FOR continue';
 --send INSERT INTO t1 (f1) VALUES (3)
 
@@ -51,7 +54,14 @@ SET DEBUG_SYNC = 'wsrep_before_certification SIGNAL before_cert WAIT_FOR continu
 SET DEBUG_SYNC = 'now WAIT_FOR before_cert';
 
 --connection node_2
+--let $wait_condition = SELECT count(*)=1 FROM information_schema.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1'
+--source include/wait_condition.inc
 TRUNCATE TABLE t1;
+
+--connection node_1a
+SET DEBUG_SYNC = 'now WAIT_FOR wsrep_retry_autocommit_reached';
+SELECT COUNT(*) FROM t1;
+SET DEBUG_SYNC = 'now SIGNAL wsrep_retry_autocommit_continue';
 
 --connection node_1
 --error 0,ER_LOCK_DEADLOCK
@@ -59,6 +69,7 @@ TRUNCATE TABLE t1;
 SELECT COUNT(*) FROM t1;
 
 SET DEBUG_SYNC = 'RESET';
+SET GLOBAL debug_dbug = NULL;
 DROP TABLE t1;
 
 
@@ -79,6 +90,8 @@ SET DEBUG_SYNC = 'wsrep_before_certification SIGNAL before_cert WAIT_FOR continu
 SET DEBUG_SYNC = 'now WAIT_FOR before_cert';
 
 --connection node_2
+--let $wait_condition = SELECT count(*)=1 FROM information_schema.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1'
+--source include/wait_condition.inc
 TRUNCATE TABLE t1;
 
 --connection node_1a
@@ -114,6 +127,11 @@ SET DEBUG_SYNC = 'wsrep_before_certification SIGNAL before_cert WAIT_FOR continu
 
 --send INSERT INTO t1 VALUES (5)
 
+--connection node_2
+--let $wait_condition = SELECT count(*)=1 FROM information_schema.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1'
+--source include/wait_condition.inc
+
+--connection node_1
 --disable_query_log
 --disable_result_log
 --let $count = 64

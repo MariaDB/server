@@ -185,10 +185,10 @@ static void update_depend_map_for_order(JOIN *join, ORDER *order);
 static ORDER *remove_const(JOIN *join,ORDER *first_order,COND *cond,
 			   bool change_list, bool *simple_order);
 static int return_zero_rows(JOIN *join, select_result *res, 
-                            List<TABLE_LIST> &tables,
-                            List<Item> &fields, bool send_row,
+                            List<TABLE_LIST> *tables,
+                            List<Item> *fields, bool send_row,
                             ulonglong select_options, const char *info,
-                            Item *having, List<Item> &all_fields);
+                            Item *having, List<Item> *all_fields);
 static COND *build_equal_items(JOIN *join, COND *cond,
                                COND_EQUAL *inherited,
                                List<TABLE_LIST> *join_list,
@@ -1341,10 +1341,39 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
   DBUG_RETURN(0);
 }
 
+
 /*****************************************************************************
   Check fields, find best join, do the select and output fields.
   mysql_select assumes that all tables are already opened
 *****************************************************************************/
+
+/*
+  Check if we have a field reference. If yes, we have to use
+  mixed_implicit_grouping.
+*/
+
+static bool check_list_for_field(List<Item> *items)
+{
+  List_iterator_fast <Item> select_it(*items);
+  Item *select_el;
+
+  while ((select_el= select_it++))
+  {
+    if (select_el->with_field())
+      return true;
+  }
+  return false;
+}
+
+static bool check_list_for_field(ORDER *order)
+{
+  for (; order; order= order->next)
+  {
+    if (order->item[0]->with_field())
+      return true;
+  }
+  return false;
+}
 
 
 /**
@@ -1427,53 +1456,44 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
     DBUG_RETURN(-1);
 
   /*
-    TRUE if the SELECT list mixes elements with and without grouping,
-    and there is no GROUP BY clause. Mixing non-aggregated fields with
-    aggregate functions in the SELECT list is a MySQL extenstion that
-    is allowed only if the ONLY_FULL_GROUP_BY sql mode is not set.
+    mixed_implicit_grouping will be set to TRUE if the SELECT list
+    mixes elements with and without grouping, and there is no GROUP BY
+    clause.
+    Mixing non-aggregated fields with aggregate functions in the
+    SELECT list or HAVING is a MySQL extension that is allowed only if
+    the ONLY_FULL_GROUP_BY sql mode is not set.
   */
   mixed_implicit_grouping= false;
   if ((~thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY) &&
       select_lex->with_sum_func && !group_list)
   {
-    List_iterator_fast <Item> select_it(fields_list);
-    Item *select_el; /* Element of the SELECT clause, can be an expression. */
-    bool found_field_elem= false;
-    bool found_sum_func_elem= false;
-
-    while ((select_el= select_it++))
+    if (check_list_for_field(&fields_list)  ||
+        check_list_for_field(order))
     {
-      if (select_el->with_sum_func())
-        found_sum_func_elem= true;
-      if (select_el->with_field())
-        found_field_elem= true;
-      if (found_sum_func_elem && found_field_elem)
+      List_iterator_fast<TABLE_LIST> li(select_lex->leaf_tables);
+
+      mixed_implicit_grouping= true;            // mark for future
+
+      while (TABLE_LIST *tbl= li++)
       {
-        mixed_implicit_grouping= true;
-        break;
+        /*
+          If the query uses implicit grouping where the select list
+          contains both aggregate functions and non-aggregate fields,
+          any non-aggregated field may produce a NULL value. Set all
+          fields of each table as nullable before semantic analysis to
+          take into account this change of nullability.
+
+          Note: this loop doesn't touch tables inside merged
+          semi-joins, because subquery-to-semijoin conversion has not
+          been done yet. This is intended.
+        */
+        if (tbl->table)
+          tbl->table->maybe_null= 1;
       }
     }
   }
-
   table_count= select_lex->leaf_tables.elements;
 
-  TABLE_LIST *tbl;
-  List_iterator_fast<TABLE_LIST> li(select_lex->leaf_tables);
-  while ((tbl= li++))
-  {
-    /*
-      If the query uses implicit grouping where the select list contains both
-      aggregate functions and non-aggregate fields, any non-aggregated field
-      may produce a NULL value. Set all fields of each table as nullable before
-      semantic analysis to take into account this change of nullability.
-
-      Note: this loop doesn't touch tables inside merged semi-joins, because
-      subquery-to-semijoin conversion has not been done yet. This is intended.
-    */
-    if (mixed_implicit_grouping && tbl->table)
-      tbl->table->maybe_null= 1;
-  }
- 
   uint real_og_num= og_num;
   if (skip_order_by && 
       select_lex != select_lex->master_unit()->global_parameters())
@@ -1486,14 +1506,14 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
     DBUG_RETURN(-1);
 
   ref_ptrs= ref_ptr_array_slice(0);
-  
+
   enum_parsing_place save_place=
                      thd->lex->current_select->context_analysis_place;
   thd->lex->current_select->context_analysis_place= SELECT_LIST;
 
   {
     List_iterator_fast<TABLE_LIST> it(select_lex->leaf_tables);
-    while ((tbl= it++))
+    while (TABLE_LIST *tbl= it++)
     {
       if (tbl->table_function &&
           tbl->table_function->setup(thd, tbl, select_lex_arg))
@@ -4135,7 +4155,7 @@ bool JOIN::make_aggr_tables_info()
   set_items_ref_array(items0);
   if (join_tab)
     join_tab[exec_join_tab_cnt() + aggr_tables - 1].next_select=
-      setup_end_select_func(this, NULL);
+      setup_end_select_func(this);
   group= has_group_by;
 
   DBUG_RETURN(false);
@@ -4537,13 +4557,7 @@ JOIN::reinit()
     }
   }
 
-  /* Reset of sum functions */
-  if (sum_funcs)
-  {
-    Item_sum *func, **func_ptr= sum_funcs;
-    while ((func= *(func_ptr++)))
-      func->clear();
-  }
+  clear_sum_funcs();
 
   if (no_rows_in_result_called)
   {
@@ -4828,12 +4842,12 @@ int JOIN::exec_inner()
     }
     else
     {
-      (void) return_zero_rows(this, result, select_lex->leaf_tables,
-                              *columns_list,
+      (void) return_zero_rows(this, result, &select_lex->leaf_tables,
+                              columns_list,
 			      send_row_on_empty_set(),
 			      select_options,
 			      zero_result_cause,
-			      having ? having : tmp_having, all_fields);
+			      having ? having : tmp_having, &all_fields);
       DBUG_RETURN(0);
     }
   }
@@ -5953,7 +5967,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       /*
         Perform range analysis if there are keys it could use (1).
         Don't do range analysis for materialized subqueries (2).
-        Don't do range analysis for materialized derived tables (3)
+        Don't do range analysis for materialized derived tables/views (3)
       */
       if ((!s->const_keys.is_clear_all() ||
            !bitmap_is_clear_all(&s->table->cond_set)) &&              // (1)
@@ -7786,6 +7800,7 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key)
   join->positions[idx].records_init=1.0;        /* This is a const table */
   join->positions[idx].cond_selectivity= 1.0;
   join->positions[idx].ref_depend_map= 0;
+  join->positions[idx].partial_join_cardinality= 1;
 
 //  join->positions[idx].loosescan_key= MAX_KEY; /* Not a LooseScan */
   join->positions[idx].sj_strategy= SJ_OPT_NONE;
@@ -7803,6 +7818,7 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key)
   }
   join->best_ref[idx]=table;
   join->positions[idx].spl_plan= 0;
+  join->positions[idx].spl_pd_boundary= 0;
 }
 
 
@@ -7817,7 +7833,6 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key)
   @return 0.0                   No matching rows
   @return >= 1.0                Number of expected matching rows
 
-  @details
   Estimate how many records we will get if we
    - read the given table with its "independent" access method (either quick 
      select or full table/index scan),
@@ -7830,7 +7845,7 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key)
 */
 
 static double apply_selectivity_for_table(JOIN_TAB *s,
-                                           uint use_cond_selectivity)
+                                          uint use_cond_selectivity)
 {
   double dbl_records;
 
@@ -7855,12 +7870,15 @@ static double apply_selectivity_for_table(JOIN_TAB *s,
     /*
       This is only taking into considering constant key parts used with
       this table!
-      If no such conditions existed the following should hold:
+      If no such conditions existed the following should normally hold:
       s->table->opt_range_condition_rows == s->found_rows ==
       s->records.
+      The case when this does not hold is when using 'best splitting'
+      in which case s->records may be less than s->found_rows;
     */
     DBUG_ASSERT(s->table->opt_range_condition_rows <= s->found_records);
-    dbl_records= rows2double(s->table->opt_range_condition_rows);
+    dbl_records= rows2double(MY_MIN(s->table->opt_range_condition_rows,
+                                    s->records));
   }
 
   DBUG_ASSERT(dbl_records <= s->records);
@@ -7891,7 +7909,6 @@ static double apply_selectivity_for_table(JOIN_TAB *s,
   This heuristic is supposed to force tables used in exprZ to be before
   this table in join order.
 */
-
 inline double use_found_constraint(double records)
 {
   records-= records/4;
@@ -8309,6 +8326,7 @@ best_access_path(JOIN      *join,
   ha_rows rec;
   MY_BITMAP *eq_join_set= &s->table->eq_join_set;
   KEYUSE *hj_start_key= 0;
+  table_map spl_pd_boundary= 0;
   Loose_scan_opt loose_scan_opt;
   struct best_plan best;
   Json_writer_object trace_wrapper(thd, "best_access_path");
@@ -8350,15 +8368,18 @@ best_access_path(JOIN      *join,
   loose_scan_opt.init(join, s, remaining_tables);
 
   if (table->is_splittable())
-    best.spl_plan= s->choose_best_splitting(record_count, remaining_tables);
+    best.spl_plan= s->choose_best_splitting(idx,
+                                            remaining_tables,
+                                            join_positions,
+                                            &spl_pd_boundary);
 
   if (unlikely(thd->trace_started()))
   {
     Json_writer_object info(thd, "plan_details");
     info.add("record_count", record_count);
   }
-  Json_writer_array trace_paths(thd, "considered_access_paths");
 
+  Json_writer_array trace_paths(thd, "considered_access_paths");
   if (s->keyuse)
   {                                            /* Use key if possible */
     KEYUSE *keyuse, *start_key= 0;
@@ -9095,7 +9116,9 @@ best_access_path(JOIN      *join,
   {
     Json_writer_object trace_access_hash(thd);
     double refills, row_copy_cost, copy_cost, cur_cost, where_cost;
-    double matching_combinations, fanout, join_sel;
+    double matching_combinations, fanout= 0.0, join_sel;
+    trace_access_hash.add("type", "hash");
+    trace_access_hash.add("index", "hj-key");
     /* Estimate the cost of the hash join access to the table */
     double rnd_records;
     bool stats_found= 0;
@@ -9156,6 +9179,7 @@ best_access_path(JOIN      *join,
                           (double) thd->variables.join_buff_size));
     cur_cost= COST_MULT(cur_cost, refills);
 
+
     /*
       Cost of doing the hash lookup and check all matching rows with the
       WHERE clause.
@@ -9182,8 +9206,6 @@ best_access_path(JOIN      *join,
     best.refills= double_to_ulonglong(ceil(refills));
     if (unlikely(trace_access_hash.trace_started()))
       trace_access_hash.
-        add("type", "hash").
-        add("index", "hj-key").
         add("rows", rnd_records).
         add("rows_after_hash", fanout * join_sel).
         add("refills", refills).
@@ -9432,7 +9454,12 @@ best_access_path(JOIN      *join,
       }
     }
 
-    if (disable_jbuf || (table->map & join->outer_join))
+     /*
+       Note: the condition checked here is very out of date and incorrect.
+       Below, we use a more accurate check when assigning the value of
+       best.use_join_buffer.
+     */
+    if ((s->table->map & join->outer_join) || disable_jbuf)
     {
       /*
         Simple scan
@@ -9548,7 +9575,10 @@ best_access_path(JOIN      *join,
       best.filter= filter;
       /* range/index_merge/ALL/index access method are "independent", so: */
       best.ref_depends_map= 0;
-      best.use_join_buffer= use_join_buffer;
+      best.use_join_buffer= use_join_buffer ||
+                            MY_TEST(!disable_jbuf &&
+                                (join->allowed_outer_join_with_cache ||
+                                 !(s->table->map & join->outer_join)));
       best.refills= refills;
       best.spl_plan= 0;
       best.type= type;
@@ -9587,6 +9617,7 @@ best_access_path(JOIN      *join,
   pos->use_join_buffer= best.use_join_buffer;
   pos->firstmatch_with_join_buf= 0;
   pos->spl_plan= best.spl_plan;
+  pos->spl_pd_boundary= best.spl_plan ? spl_pd_boundary: 0;
   pos->range_rowid_filter_info= best.filter;
   pos->key_dependent= (best.type == JT_EQ_REF ? (table_map) 0 :
                        key_dependent & remaining_tables);
@@ -10154,6 +10185,8 @@ optimize_straight_join(JOIN *join, table_map remaining_tables)
     }
     else
       position->cond_selectivity= 1.0;
+
+    position->partial_join_cardinality= current_record_count;
     ++idx;
     record_count= current_record_count;
   }
@@ -11546,6 +11579,7 @@ best_extension_by_limited_search(JOIN      *join,
       join->positions[idx].cond_selectivity= pushdown_cond_selectivity;
 
       partial_join_cardinality= record_count * position->records_out;
+      join->positions[idx].partial_join_cardinality= partial_join_cardinality;
 
       if (unlikely(thd->trace_started()) && pushdown_cond_selectivity < 1.0 &&
           partial_join_cardinality < current_record_count)
@@ -11553,9 +11587,9 @@ best_extension_by_limited_search(JOIN      *join,
           .add("selectivity", pushdown_cond_selectivity)
           .add("estimated_join_cardinality", partial_join_cardinality);
 
-      if (search_depth > 1 &&
-          ((remaining_tables & ~real_table_bit) & join->allowed_tables))
 
+      if ((search_depth > 1) && (remaining_tables & ~real_table_bit) &
+          allowed_tables)
       {
         /* Recursively expand the current partial plan */
         Json_writer_array trace_rest(thd, "rest_of_plan");
@@ -14854,6 +14888,9 @@ uint check_join_cache_usage(JOIN_TAB *tab,
 
   join->return_tab= 0;
 
+  if (tab->no_forced_join_cache)
+    goto no_join_cache;
+
   /*
     Don't use join cache if @@join_cache_level==0 or this table is the first
     one join suborder (either at top level or inside a bush)
@@ -15923,7 +15960,8 @@ bool JOIN_TAB::preread_init()
     DBUG_RETURN(TRUE);
 
   if (!(derived->get_unit()->uncacheable & UNCACHEABLE_DEPENDENT) ||
-      derived->is_nonrecursive_derived_with_rec_ref())
+      derived->is_nonrecursive_derived_with_rec_ref() ||
+      is_split_derived)
     preread_init_done= TRUE;
   if (select && select->quick)
     select->quick->replace_handler(table->file);
@@ -16752,10 +16790,36 @@ ORDER *simple_remove_const(ORDER *order, COND *where)
 }
 
 
+/*
+  Set all fields in the table to have a null value
+
+  @param tables            Table list
+*/
+
+static void make_tables_null_complemented(List<TABLE_LIST> *tables)
+{
+  List_iterator<TABLE_LIST> ti(*tables);
+  TABLE_LIST *table;
+  while ((table= ti++))
+  {
+    /*
+      Don't touch semi-join materialization tables, as the a join_free()
+      call may have freed them (and HAVING clause can't have references to
+      them anyway).
+    */
+    if (!table->is_jtbm())
+    {
+      TABLE *tbl= table->table;
+      mark_as_null_row(tbl);		// Set fields to NULL
+    }
+  }
+}
+
+
 static int
-return_zero_rows(JOIN *join, select_result *result, List<TABLE_LIST> &tables,
-		 List<Item> &fields, bool send_row, ulonglong select_options,
-		 const char *info, Item *having, List<Item> &all_fields)
+return_zero_rows(JOIN *join, select_result *result, List<TABLE_LIST> *tables,
+		 List<Item> *fields, bool send_row, ulonglong select_options,
+		 const char *info, Item *having, List<Item> *all_fields)
 {
   DBUG_ENTER("return_zero_rows");
 
@@ -16771,24 +16835,15 @@ return_zero_rows(JOIN *join, select_result *result, List<TABLE_LIST> &tables,
       Set all tables to have NULL row. This is needed as we will be evaluating
       HAVING condition.
     */
-    List_iterator<TABLE_LIST> ti(tables);
-    TABLE_LIST *table;
-    while ((table= ti++))
-    {
-      /*
-        Don't touch semi-join materialization tables, as the above join_free()
-        call has freed them (and HAVING clause can't have references to them 
-        anyway).
-      */
-      if (!table->is_jtbm())
-        mark_as_null_row(table->table);		// All fields are NULL
-    }
-    List_iterator_fast<Item> it(all_fields);
+    make_tables_null_complemented(tables);
+
+    List_iterator_fast<Item> it(*all_fields);
     Item *item;
     /*
       Inform all items (especially aggregating) to calculate HAVING correctly,
       also we will need it for sending results.
     */
+    join->no_rows_in_result_called= 1;
     while ((item= it++))
       item->no_rows_in_result();
     if (having && having->val_int() == 0)
@@ -16802,12 +16857,12 @@ return_zero_rows(JOIN *join, select_result *result, List<TABLE_LIST> &tables,
     join->thd->limit_found_rows= 0;
   }
 
-  if (!(result->send_result_set_metadata(fields,
+  if (!(result->send_result_set_metadata(*fields,
                               Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF)))
   {
     bool send_error= FALSE;
     if (send_row)
-      send_error= result->send_data_with_check(fields, join->unit, 0) > 0;
+      send_error= result->send_data_with_check(*fields, join->unit, 0) > 0;
     if (likely(!send_error))
       result->send_eof();				// Should be safe
   }
@@ -16823,49 +16878,42 @@ return_zero_rows(JOIN *join, select_result *result, List<TABLE_LIST> &tables,
 }
 
 /**
-  used only in JOIN::clear (always) and in do_select()
-  (if there where no matching rows)
+  Reset table rows to contain a null-complement row (all fields are null)
+
+  Used only in JOIN::clear() and in do_select() if there where no matching rows.
 
   @param join            JOIN
-  @param cleared_tables  If not null, clear also const tables and mark all
-                         cleared tables in the map. cleared_tables is only
-                         set when called from do_select() when there is a
-                         group function and there where no matching rows.
+  @param cleared_tables  Used to mark all cleared tables in the map. Needed for
+                         unclear_tables() to know which tables to restore to
+                         their original state.
 */
 
 static void clear_tables(JOIN *join, table_map *cleared_tables)
 {
-  /* 
-    must clear only the non-const tables as const tables are not re-calculated.
-  */
+  DBUG_ASSERT(cleared_tables);
   for (uint i= 0 ; i < join->table_count ; i++)
   {
     TABLE *table= join->table[i];
 
     if (table->null_row)
       continue;                                 // Nothing more to do
-    if (!(table->map & join->const_table_map) || cleared_tables)
+    (*cleared_tables)|= (((table_map) 1) << i);
+    if (table->s->null_bytes)
     {
-      if (cleared_tables)
-      {
-        (*cleared_tables)|= (((table_map) 1) << i);
-        if (table->s->null_bytes)
-        {
-          /*
-            Remember null bits for the record so that we can restore the
-            original const record in unclear_tables()
-          */
-          memcpy(table->record[1], table->null_flags, table->s->null_bytes);
-        }
-      }
-      mark_as_null_row(table);                  // All fields are NULL
+      /*
+        Remember null bits for the record so that we can restore the
+        original const record in unclear_tables()
+      */
+      memcpy(table->record[1], table->null_flags, table->s->null_bytes);
     }
+    mark_as_null_row(table);                  // All fields are NULL
   }
 }
 
 
 /**
    Reverse null marking for tables and restore null bits.
+   This return the tables to the state of before clear_tables().
 
    We have to do this because the tables may be re-used in a sub query
    and the subquery will assume that the const tables contains the original
@@ -19534,7 +19582,11 @@ void optimize_wo_join_buffering(JOIN *join, uint first_tab, uint last_tab,
         table_after_join_selectivity(join, i, rs,
                                      reopt_remaining_tables &
                                      ~real_table_bit, &records_out);
+      join->positions[i].partial_join_cardinality= rec_count * pushdown_cond_selectivity;
     }
+    else
+      join->positions[i].partial_join_cardinality= COST_MULT(rec_count, records_out);
+
     rec_count= COST_MULT(rec_count, records_out);
     *outer_rec_count= COST_MULT(*outer_rec_count, records_out);
 
@@ -22674,9 +22726,9 @@ void set_postjoin_aggr_write_func(JOIN_TAB *tab)
     end_select function to use. This function can't fail.
 */
 
-Next_select_func setup_end_select_func(JOIN *join, JOIN_TAB *tab)
+Next_select_func setup_end_select_func(JOIN *join)
 {
-  TMP_TABLE_PARAM *tmp_tbl= tab ? tab->tmp_table_param : &join->tmp_table_param;
+  TMP_TABLE_PARAM *tmp_tbl= &join->tmp_table_param;
 
   /* 
      Choose method for presenting result to user. Use end_send_group
@@ -22749,7 +22801,7 @@ do_select(JOIN *join, Procedure *procedure)
 
   if (join->only_const_tables() && !join->need_tmp)
   {
-    Next_select_func end_select= setup_end_select_func(join, NULL);
+    Next_select_func end_select= setup_end_select_func(join);
 
     /*
       HAVING will be checked after processing aggregate functions,
@@ -23229,6 +23281,17 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
   enum_nested_loop_state rc;
   DBUG_ENTER("sub_select");
 
+  if (join_tab->split_derived_to_update && !end_of_records)
+  {
+    table_map tab_map= join_tab->split_derived_to_update;
+    for (uint i= 0; tab_map; i++, tab_map>>= 1)
+    {
+      if (tab_map & 1)
+        join->map2table[i]->preread_init_done= false;
+    }
+  }
+
+  /* Restore state if mark_as_null_row() have been called */
   if (join_tab->last_inner)
   {
     JOIN_TAB *last_inner_tab= join_tab->last_inner;
@@ -24680,6 +24743,12 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
 {
   int idx= -1;
   enum_nested_loop_state ok_code= NESTED_LOOP_OK;
+  /*
+    join_tab can be 0 in the case all tables are const tables and we did not
+    need a temporary table to store the result.
+    In this case we use the original given fields, which is stored in
+    join->fields.
+  */
   List<Item> *fields= join_tab ? (join_tab-1)->fields : join->fields;
   DBUG_ENTER("end_send_group");
 
@@ -24689,10 +24758,12 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
   if (!join->first_record || end_of_records ||
       (idx=test_if_group_changed(join->group_fields)) >= 0)
   {
+
     if (!join->group_sent &&
         (join->first_record ||
          (end_of_records && !join->group && !join->group_optimized_away)))
     {
+      table_map cleared_tables= (table_map) 0;
       if (join->procedure)
 	join->procedure->end_group();
       /* Test if there was a group change. */
@@ -24717,11 +24788,13 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
           /* Reset all sum functions on group change. */
 	  if (!join->first_record)
 	  {
-            List_iterator_fast<Item> it(*join->fields);
-            Item *item;
             /* No matching rows for group function */
-            join->clear();
 
+            List_iterator_fast<Item> it(*fields);
+            Item *item;
+            join->no_rows_in_result_called= 1;
+
+            join->clear(&cleared_tables);
             while ((item= it++))
               item->no_rows_in_result();
 	  }
@@ -24749,7 +24822,14 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
 	    if (join->rollup_send_data((uint) (idx+1)))
 	      error= 1;
 	  }
-	}
+          if (join->no_rows_in_result_called)
+          {
+            /* Restore null tables to original state */
+            join->no_rows_in_result_called= 0;
+            if (cleared_tables)
+              unclear_tables(join, &cleared_tables);
+          }
+        }
 	if (unlikely(error > 0))
           DBUG_RETURN(NESTED_LOOP_ERROR);        /* purecov: inspected */
 	if (end_of_records)
@@ -25065,6 +25145,7 @@ end_write_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
   {
     if (join->first_record || (end_of_records && !join->group))
     {
+      table_map cleared_tables= (table_map) 0;
       if (join->procedure)
 	join->procedure->end_group();
       int send_group_parts= join->send_group_parts;
@@ -25073,7 +25154,7 @@ end_write_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
         if (!join->first_record)
         {
           /* No matching rows for group function */
-          join->clear();
+          join->clear(&cleared_tables);
         }
         copy_sum_funcs(join->sum_funcs,
                        join->sum_funcs_end[send_group_parts]);
@@ -25096,6 +25177,8 @@ end_write_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 	    DBUG_RETURN(NESTED_LOOP_ERROR);
           }
 	}
+        if (cleared_tables)
+          unclear_tables(join, &cleared_tables);
 	if (end_of_records)
 	  goto end;
       }
@@ -26796,7 +26879,7 @@ JOIN_TAB::remove_duplicates()
   if (!(sortorder= (SORT_FIELD*) my_malloc(PSI_INSTRUMENT_ME,
                                            (fields->elements+1) *
                                            sizeof(SORT_FIELD),
-                                           MYF(MY_WME))))
+                                           MYF(MY_WME | MY_ZEROFILL))))
     DBUG_RETURN(TRUE);
 
   /* Calculate how many saved fields there is in list */
@@ -26815,7 +26898,6 @@ JOIN_TAB::remove_duplicates()
       else
       {
         /* Item is not stored in temporary table, remember it */
-        sorder->field= 0;                       // Safety, not used
         sorder->item= item;
         /* Calculate sorder->length */
         item->type_handler()->sort_length(thd, item, sorder);
@@ -26830,7 +26912,7 @@ JOIN_TAB::remove_duplicates()
       !(join->select_options & OPTION_FOUND_ROWS))
   {
     // only const items with no OPTION_FOUND_ROWS
-    join->unit->lim.set_single_row();		// Only send first row
+    join->unit->lim.send_first_row();		// Only send first row
     my_free(sortorder);
     DBUG_RETURN(false);
   }
@@ -29245,17 +29327,30 @@ int JOIN::rollup_write_data(uint idx, TMP_TABLE_PARAM *tmp_table_param_arg,
   (end_send_group/end_write_group)
 */
 
-void JOIN::clear()
+void inline JOIN::clear_sum_funcs()
 {
-  clear_tables(this, 0);
-  copy_fields(&tmp_table_param);
-
   if (sum_funcs)
   {
     Item_sum *func, **func_ptr= sum_funcs;
     while ((func= *(func_ptr++)))
       func->clear();
   }
+}
+
+
+/*
+  Prepare for returning 'empty row' when there is no matching row.
+
+  - Mark all tables with mark_as_null_row()
+  - Make a copy of of all simple SELECT items
+  - Reset all sum functions to NULL or 0.
+*/
+
+void JOIN::clear(table_map *cleared_tables)
+{
+  clear_tables(this, cleared_tables);
+  copy_fields(&tmp_table_param);
+  clear_sum_funcs();
 }
 
 
@@ -30657,7 +30752,7 @@ void st_select_lex::print_item_list(THD *thd, String *str,
     outer_select() can not be used here because it is for name resolution
     and will return NULL at any end of name resolution chain (view/derived)
   */
-  bool top_level= (get_master() == &thd->lex->unit);
+  bool top_level= is_query_topmost(thd);
   List_iterator_fast<Item> it(item_list);
   Item *item;
   while ((item= it++))
@@ -30717,7 +30812,7 @@ void st_select_lex::print_set_clause(THD *thd, String *str,
     else
       str->append(',');
 
-    item->print(str, query_type);
+    item->print(str, (enum_query_type) (query_type | QT_NO_DATA_EXPANSION));
     str->append(STRING_WITH_LEN(" = "));
     val->print(str, query_type);
   }
@@ -30764,7 +30859,7 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
     return;
   }
 
-  bool top_level= (get_master() == &thd->lex->unit);
+  bool top_level= is_query_topmost(thd);
   enum explainable_cmd_type sel_type= SELECT_CMD;
   if (top_level)
     sel_type= get_explainable_cmd_type(thd);

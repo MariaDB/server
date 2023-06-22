@@ -2760,3 +2760,65 @@ drop view v;
 drop table t1,t2,t3;
 
 --echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-31143: view with ORDER BY used in query with rownum() in WHERE
+--echo #
+
+create table t1 (id int primary key);
+insert into t1 values (3), (7), (1);
+
+create table t2 (a int);
+insert into t2 values (2), (4);
+
+create view v as select a from t2 order by a;
+
+set big_tables= 1;
+select t1.id from v, t1 where rownum() = 1 group by t1.id;
+
+set big_tables=default;
+
+drop view v;
+drop table t1, t2;
+
+--echo #
+--echo # MDEV-31162: multi-table mergeable view with ORDER BY used
+--echo #             in query with rownum() in WHERE
+--echo #
+
+create table t1 (a INT) engine=MyISAM;
+insert into t1 values (1),(2);
+
+create table t2 (b INT) engine=MyISAM;
+insert into t2 values (3),(4);
+
+create view v1 AS select * from t1 join t2 order by b;
+let $q1=
+select * from v1 where rownum() <= 2;
+
+eval explain $q1;
+--sorted_result
+eval $q1;
+
+eval prepare stmt from "$q1";
+--sorted_result
+execute stmt;
+--sorted_result
+execute stmt;
+deallocate prepare stmt;
+
+create view v2 AS select * from t1 join t2 order by b/a;
+let $q2=
+select * from v2 where rownum() <= 2;
+
+eval explain $q2;
+eval $q2;
+eval prepare stmt from "$q2";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+drop view v1,v2;
+drop table t1,t2;
+
+--echo # End of 10.6 tests

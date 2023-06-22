@@ -2472,7 +2472,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
-Note	1003	update `test`.`t1` set NULL = 10
+Note	1003	update `test`.`t1` set `test`.`t2`.`c2` = 10
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
 Handler_read_key	7
@@ -2513,7 +2513,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	update `test`.`t1` set NULL = 10 where `test`.`t1`.`c3` = 10
+Note	1003	update `test`.`t1` set `test`.`t2`.`c2` = 10 where `test`.`t1`.`c3` = 10
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
 Handler_read_key	7

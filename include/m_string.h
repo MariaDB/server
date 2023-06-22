@@ -249,14 +249,15 @@ static inline void lex_string_set3(LEX_CSTRING *lex_str, const char *c_str,
 */
 static inline int safe_strcpy(char *dst, size_t dst_size, const char *src)
 {
-  memset(dst, '\0', dst_size);
-  strncpy(dst, src, dst_size - 1);
-  /*
-     If the first condition is true, we are guaranteed to have src length
-     >= (dst_size - 1), hence safe to access src[dst_size - 1].
-  */
-  if (dst[dst_size - 2] != '\0' && src[dst_size - 1] != '\0')
-    return 1; /* Truncation of src. */
+  DBUG_ASSERT(dst_size > 0);
+  /* Note, strncpy will zerofill end of dst if src shorter than dst_size */
+  strncpy(dst, src, dst_size);
+  if (dst[dst_size-1])
+  {
+    /* Ensure string is zero terminated */
+    dst[dst_size-1]= 0;
+    return 1;
+  }
   return 0;
 }
 

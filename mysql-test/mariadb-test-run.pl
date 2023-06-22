@@ -410,8 +410,11 @@ sub main {
 
   mark_time_used('collect');
 
-  mysql_install_db(default_mysqld(), "$opt_vardir/install.db") unless using_extern();
-
+  if (!using_extern())
+  {
+    mysql_install_db(default_mysqld(), "$opt_vardir/install.db");
+    make_readonly("$opt_vardir/install.db");
+  }
   if ($opt_dry_run)
   {
     for (@$tests) {

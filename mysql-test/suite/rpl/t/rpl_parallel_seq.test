@@ -1,0 +1,131 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--connection slave
+--source include/stop_slave.inc
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+
+--echo # MDEV-29621 the sequence engine binlog_row_image-full events
+--echo #            MDL-deadlock on the parallel slave.
+--connection master
+CREATE SEQUENCE s1;
+SET @@session.binlog_row_image=FULL;
+SET @@session.debug_dbug="+d,binlog_force_commit_id";
+SET @commit_id=7;
+SET @@gtid_seq_no=100;
+SELECT NEXT VALUE FOR s1;
+INSERT INTO s1 VALUES(2, 1, 10, 1, 2, 1, 1, 0);
+SET @@session.debug_dbug="";
+
+--connection slave
+--let $slave_parallel_threads=`select @@global.slave_parallel_threads`
+--let $slave_parallel_mode=`select @@global.slave_parallel_mode`
+SET @@global.slave_parallel_threads=2;
+SET @@global.slave_parallel_mode=optimistic;
+SET @@global.debug_dbug="+d,hold_worker_on_schedule";
+--source include/start_slave.inc
+
+--let $wait_condition= SELECT count(*) = 1 FROM information_schema.processlist WHERE state LIKE "Waiting for prior transaction to start commit"
+--source include/wait_condition.inc
+SET DEBUG_SYNC = 'now SIGNAL continue_worker';
+
+--connection master
+DROP SEQUENCE s1;
+--sync_slave_with_master
+--source include/stop_slave.inc
+
+--echo # Simulate buggy 10.3.36 master to prove the parallel applier
+--echo # does not deadlock now at replaying the above master load.
+--connection master
+--let $datadir= `SELECT @@datadir`
+
+--let $rpl_server_number= 1
+--source include/rpl_stop_server.inc
+
+--remove_file $datadir/master-bin.000001
+--copy_file $MYSQL_TEST_DIR/std_data/rpl/master-bin-seq_10.3.36.000001 $datadir/master-bin.000001
+
+--let $rpl_server_number= 1
+--source include/rpl_start_server.inc
+
+--source include/wait_until_connected_again.inc
+--save_master_pos
+
+--connection slave
+RESET MASTER;
+SET @@global.gtid_slave_pos="";
+
+--replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
+eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_1, master_user='root', master_use_gtid=slave_pos;
+
+START SLAVE UNTIL MASTER_GTID_POS='0-1-102';
+
+--let $wait_condition= SELECT count(*) = 1 FROM information_schema.processlist WHERE state LIKE "Waiting for prior transaction to commit"
+--source include/wait_condition.inc
+SET DEBUG_SYNC = 'now SIGNAL continue_worker';
+
+--echo # Normal stop is expected
+--source include/wait_for_slave_to_stop.inc
+
+--echo # MDEV-31077 ALTER SEQUENCE may end up in optimistic parallel slave binlog out-of-order
+--echo # The test proves ALTER-SEQUENCE binlogs first before the following transaction does so.
+
+--connection slave
+--source include/stop_slave.inc
+RESET MASTER;
+SET @@global.gtid_slave_pos="";
+--let $slave_gtid_strict_mode=`select @@global.gtid_strict_mode`
+SET @@global.gtid_strict_mode=1;
+--connection master
+RESET MASTER;
+
+# Load from master
+CREATE TABLE ti (a INT) ENGINE=innodb;
+CREATE SEQUENCE s2 ENGINE=innodb;
+
+SET @@gtid_seq_no=100;
+ALTER SEQUENCE s2 restart with 1;
+INSERT INTO ti SET a=1;
+--source include/save_master_gtid.inc
+SELECT @@global.gtid_binlog_state "Master gtid state";
+
+--connection slave
+--source include/start_slave.inc
+
+--let $wait_condition= SELECT count(*) = 1 FROM information_schema.processlist WHERE state LIKE "Waiting for prior transaction to commit"
+--source include/wait_condition.inc
+
+SELECT @@global.gtid_binlog_state, @@global.gtid_slave_pos as "no 100,101 yet in both";
+
+# DEBUG_DBUG extension point of hold_worker_on_schedule is reused
+# (gets deployed) in Sql_cmd_alter_sequence::execute.
+SET DEBUG_SYNC = 'now SIGNAL continue_worker';
+
+--echo # Normal sync with master proves the fixes correct
+--source include/sync_with_master_gtid.inc
+
+SELECT @@global.gtid_binlog_state, @@global.gtid_slave_pos as "all through 101 have been committed";
+
+#
+# MDEV-29621/MDEV-31077 clean up.
+#
+--connection slave
+--source include/stop_slave.inc
+
+SET debug_sync = RESET;
+--eval SET @@global.slave_parallel_threads= $slave_parallel_threads
+--eval SET @@global.slave_parallel_mode= $slave_parallel_mode
+       SET @@global.debug_dbug = "";
+--eval SET @@global.gtid_strict_mode=$slave_gtid_strict_mode
+--source include/start_slave.inc
+
+--connection master
+DROP SEQUENCE s2;
+DROP TABLE ti;
+
+--sync_slave_with_master
+
+--source include/rpl_end.inc

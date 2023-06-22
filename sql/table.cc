@@ -3542,7 +3542,6 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   char *sql_copy;
   handler *file;
   LEX *old_lex;
-  Query_arena *arena, backup;
   LEX tmp_lex;
   KEY *unused1;
   uint unused2;
@@ -3569,11 +3568,6 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   old_lex= thd->lex;
   thd->lex= &tmp_lex;
 
-  arena= thd->stmt_arena;
-  if (arena->is_conventional())
-    arena= 0;
-  else
-    thd->set_n_backup_active_arena(arena, &backup);
 
   /*
     THD::reset_db() does not set THD::db_charset,
@@ -3625,8 +3619,6 @@ ret:
   lex_end(thd->lex);
   thd->reset_db(&db_backup);
   thd->lex= old_lex;
-  if (arena)
-    thd->restore_active_arena(arena, &backup);
   reenable_binlog(thd);
   thd->variables.character_set_client= old_cs;
   if (unlikely(thd->is_error() || error))
@@ -6876,7 +6868,7 @@ void TABLE_LIST::set_check_materialized()
   DBUG_ENTER("TABLE_LIST::set_check_materialized");
   SELECT_LEX_UNIT *derived= this->derived;
   if (view)
-    derived= &view->unit;
+    derived= this->derived= &view->unit;
   DBUG_ASSERT(derived);
   DBUG_ASSERT(!derived->is_excluded());
   if (!derived->first_select()->exclude_from_table_unique_test)
@@ -9693,8 +9685,13 @@ void TABLE_LIST::wrap_into_nested_join(List<TABLE_LIST> &join_list)
 
 static inline bool derived_table_optimization_done(TABLE_LIST *table)
 {
-  return table->derived &&
-      (table->derived->is_excluded() ||
+  SELECT_LEX_UNIT *derived= (table->derived ?
+                             table->derived :
+                             (table->view ?
+                              &table->view->unit:
+                              NULL));
+  return derived &&
+      (derived->is_excluded() ||
        table->is_materialized_derived());
 }
 
@@ -9756,18 +9753,29 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
     set_derived();
   }
 
-  if (is_view() ||
-      !derived_table_optimization_done(this))
+  if (!derived_table_optimization_done(this))
   {
     /* A subquery might be forced to be materialized due to a side-effect. */
     if (!is_materialized_derived() && unit->can_be_merged() &&
-        (unit->outer_select() && !unit->outer_select()->with_rownum) &&
+        /*
+          Following is special case of
+          SELECT * FROM (<limited-select>) WHERE ROWNUM() <= nnn
+        */
+        (unit->outer_select() &&
+         !(unit->outer_select()->with_rownum &&
+           unit->outer_select()->table_list.elements == 1 &&
+           (thd->lex->sql_command == SQLCOM_SELECT ||
+            !unit->outer_select()->is_query_topmost(thd)) &&
+           !is_view())) &&
+
         (!thd->lex->with_rownum ||
          (!first_select->group_list.elements &&
           !first_select->order_list.elements)) &&
         (is_view() ||
-         (optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_MERGE) &&
-          !thd->lex->can_not_use_merged(1))) &&
+         optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_MERGE)) &&
+          !thd->lex->can_not_use_merged() &&
+        !((thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
+           thd->lex->sql_command == SQLCOM_DELETE_MULTI) && !is_view()) &&
         !is_recursive_with_table())
       set_merged_derived();
     else
