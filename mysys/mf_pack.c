@@ -249,7 +249,7 @@ void symdirget(char *dir)
     *pos++=temp; *pos=0;	  /* Restore old filename */
     if (file >= 0)
     {
-      if ((length= my_read(file, buff, sizeof(buff) - 1, MYF(0))) > 0)
+      if ((length= my_read(file, buff, sizeof(buff) - 1, MYF(0))) != MY_FILE_ERROR && length > 0)
       {
 	for (pos= buff + length ;
 	     pos > buff && (iscntrl(pos[-1]) || isspace(pos[-1])) ;

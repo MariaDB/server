@@ -291,7 +291,7 @@ int prepare_linux_info()
     /* Cool, LSB-compliant distribution! */
     size_t len= my_read(fd, (uchar*)distribution, sizeof(distribution)-1, MYF(0));
     my_close(fd, MYF(0));
-    if (len != (size_t)-1)
+    if (len != MY_FILE_ERROR)
     {
       distribution[len]= 0; // safety
       char *found= strstr(distribution, "DISTRIB_DESCRIPTION=");
@@ -336,7 +336,7 @@ int prepare_linux_info()
         size_t to_len= distribution + sizeof(distribution) - 1 - to;
         size_t len= my_read(fd, (uchar*)to, to_len, MYF(0));
         my_close(fd, MYF(0));
-        if (len != (size_t)-1)
+        if (len != MY_FILE_ERROR)
         {
           to[len]= 0; // safety
           char *end= strstr(to, "\n");

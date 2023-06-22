@@ -1763,7 +1763,8 @@ int cat_file(DYNAMIC_STRING* ds, const char* filename)
   }
   len= my_read(fd, (uchar*)buff, len, MYF(0));
   my_close(fd, MYF(0));
-
+  
+  if(len != MY_FILE_ERROR)
   {
     char *p= buff, *start= buff,*end=buff+len;
     while (p < end)
@@ -2100,9 +2101,9 @@ int compare_files2(File fd1, const char* filename2)
 
   (void) my_seek(fd1, 0, SEEK_SET, MYF(0));
   (void) my_seek(fd2, 0, SEEK_SET, MYF(0));
-  if (my_read(fd1, (uchar*) fd1_result.str, fd1_length, MYF(MY_WME | MY_NABP)))
+  if (my_read(fd1, (uchar*) fd1_result.str, fd1_length, MYF(MY_WME | MY_NABP)) == MY_FILE_ERROR)
     die("Error when reading data from result file");
-  if (my_read(fd2, (uchar*) fd2_result.str, fd2_length, MYF(MY_WME | MY_NABP)))
+  if (my_read(fd2, (uchar*) fd2_result.str, fd2_length, MYF(MY_WME | MY_NABP)) == MY_FILE_ERROR)
     die("Error when reading data from result file");
 
   if (global_subst &&
@@ -5234,7 +5235,8 @@ void do_shutdown_server(struct st_command *command)
       die("Failed to open file '%s'", ds_pidfile_name.str);
     dynstr_free(&ds_pidfile_name);
 
-    if (my_read(fd, (uchar*)&buff, sizeof(buff), MYF(0)) <= 0){
+    const size_t bytes_read= my_read(fd, (uchar*)&buff, sizeof(buff), MYF(0));
+    if (bytes_read == MY_FILE_ERROR || bytes_read == 0){
       my_close(fd, MYF(0));
       die("pid file was empty");
     }

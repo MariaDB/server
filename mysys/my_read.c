@@ -28,7 +28,7 @@
     Flags on what to do on error
 
     Return:
-      -1 on error
+      SIZE_MAX on error
       0  if flag has bits MY_NABP or MY_FNABP set
       N  number of bytes read.
 */

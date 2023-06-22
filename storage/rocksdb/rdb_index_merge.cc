@@ -462,9 +462,8 @@ int Rdb_index_merge::merge_buf_info::read_next_chunk_from_disk(File fd) {
   }
 
   /* Overwrite the old block */
-  const size_t bytes_read =
-      my_read(fd, m_block.get(), m_block_len, MYF(MY_WME));
-  if (bytes_read == (size_t)-1) {
+  const size_t bytes_read= my_read(fd, m_block.get(), m_block_len, MYF(MY_WME));
+  if (bytes_read == MY_FILE_ERROR) {
     // NO_LINT_DEBUG
     sql_print_error("Error reading merge file from disk.");
     return HA_EXIT_FAILURE;
@@ -575,10 +574,10 @@ size_t Rdb_index_merge::merge_buf_info::prepare(File fd, ulonglong f_offset) {
 
   const size_t bytes_read =
       my_read(fd, m_block.get(), m_total_size, MYF(MY_WME));
-  if (bytes_read == (size_t)-1) {
+  if (bytes_read == MY_FILE_ERROR) {
     // NO_LINT_DEBUG
     sql_print_error("Error reading merge file from disk.");
-    return (size_t)-1;
+    return MY_FILE_ERROR;
   }
 
   /*

@@ -202,8 +202,8 @@ tmpfile_deinit(ds_ctxt_t *ctxt)
 			    tmp_file->file->path, my_errno);
 		}
 		offset = 0;
-		while ((bytes = my_read(tmp_file->fd, (unsigned char *)buf, buf_size,
-					MYF(MY_WME))) > 0) {
+		while ((bytes= my_read(tmp_file->fd, (unsigned char *)buf, buf_size,
+					MYF(MY_WME))) != MY_FILE_ERROR && bytes > 0) {
 			posix_fadvise(tmp_file->fd, offset, buf_size, POSIX_FADV_DONTNEED);
 			offset += buf_size;
 			if (ds_write(dst_file, buf, bytes)) {
@@ -211,7 +211,7 @@ tmpfile_deinit(ds_ctxt_t *ctxt)
 				    tmp_file->orig_path);
 			}
 		}
-		if (bytes == (size_t) -1) {
+		if (bytes == MY_FILE_ERROR) {
 			die("my_read failed for %s", tmp_file->orig_path);
 		}
 

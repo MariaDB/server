@@ -86,9 +86,9 @@ int my_copy(const char *from, const char *to, myf MyFlags)
     file_created= 1;
     while ((Count=my_read(from_file, buff, sizeof(buff), MyFlags)) != 0)
     {
-	if (Count == (uint) -1 ||
-	    my_write(to_file,buff,Count,MYF(MyFlags | MY_NABP)))
-	goto err;
+      if (Count == MY_FILE_ERROR ||
+          my_write(to_file,buff,Count,MYF(MyFlags | MY_NABP)))
+      goto err;
     }
 
     /* sync the destination file */
