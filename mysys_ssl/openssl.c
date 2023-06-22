@@ -33,7 +33,7 @@ int check_openssl_compatibility()
 #include <openssl/evp.h>
 
 static uint testing;
-size_t alloc_size, alloc_count;
+static size_t alloc_size, alloc_count;
 
 static void *coc_malloc(size_t size, const char *f __attribute__((unused)),
                                              int l __attribute__((unused)))
