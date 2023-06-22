@@ -684,7 +684,15 @@ struct ilink
   {
      my_free(ptr_arg);
   }
-  static void operator delete(void* ptr_arg, size_t, PSI_memory_key) throw ()
+  static void operator delete(void* ptr_arg, size_t, PSI_memory_key= PSI_INSTRUMENT_ME) throw ()
+  {
+     my_free(ptr_arg);
+  }
+  static void operator delete(void* ptr_arg) throw ()
+  {
+     my_free(ptr_arg);
+  }
+  static void operator delete(void* ptr_arg, PSI_memory_key= PSI_INSTRUMENT_ME) throw ()
   {
      my_free(ptr_arg);
   }
