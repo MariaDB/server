@@ -126,7 +126,7 @@ static int  show_create_db(THD *thd, LEX *lex);
 static bool alter_routine(THD *thd, LEX *lex);
 static bool drop_routine(THD *thd, LEX *lex);
 
-const Lex_ident_db any_db(STRING_WITH_LEN("*any*"));
+const Lex_ident_db_normalized any_db(STRING_WITH_LEN("*any*"));
 
 const LEX_CSTRING command_name[257]={
   { STRING_WITH_LEN("Sleep") },           //0
@@ -2045,8 +2045,8 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
     /* Must be before we init the table list. */
     if (lower_case_table_names)
     {
-      table_name.length= my_casedn_str(files_charset_info, table_name.str);
-      db.length= my_casedn_str(files_charset_info, (char*) db.str);
+      table_name= thd->make_ident_casedn(table_name);
+      db= thd->make_ident_casedn(db);
     }
     table_list.init_one_table(&db, (LEX_CSTRING*) &table_name, 0, TL_READ);
     /*

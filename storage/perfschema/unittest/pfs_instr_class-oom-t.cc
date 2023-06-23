@@ -40,6 +40,8 @@ void test_oom()
   PFS_thread pfs_thread;
   PFS_table_share *pfs_table_share;
 
+  files_charset_info= &my_charset_utf8mb3_general_ci;
+
   rc= init_sync_class(1000, 0, 0);
   ok(rc == 1, "oom (mutex)");
   rc= init_sync_class(0, 1000, 0);

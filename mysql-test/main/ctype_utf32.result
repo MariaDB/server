@@ -1638,7 +1638,7 @@ ORDER BY l DESC;
 id	l
 a	256
 Warnings:
-Warning	1260	Row 1 was cut by GROUP_CONCAT()
+Warning	1260	Row 1 was cut by group_concat()
 #
 # incorrect charset for val_str_ascii
 #

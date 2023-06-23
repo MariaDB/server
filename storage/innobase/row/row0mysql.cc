@@ -2595,17 +2595,16 @@ row_rename_table_for_mysql(
 		/* Check for the table using lower
 		case name, including the partition
 		separator "P" */
-		memcpy(par_case_name, old_name,
-			strlen(old_name));
-		par_case_name[strlen(old_name)] = 0;
-		innobase_casedn_str(par_case_name);
+		system_charset_info->casedn_z(
+				old_name, strlen(old_name),
+				par_case_name, sizeof(par_case_name));
 #else
 		/* On Windows platfrom, check
 		whether there exists table name in
 		system table whose name is
 		not being normalized to lower case */
 		normalize_table_name_c_low(
-			par_case_name, old_name, FALSE);
+			par_case_name, sizeof(par_case_name), old_name, FALSE);
 #endif
 		table = dict_table_open_on_name(par_case_name, true,
 						DICT_ERR_IGNORE_FK_NOKEY);

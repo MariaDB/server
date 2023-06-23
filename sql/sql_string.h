@@ -1030,6 +1030,24 @@ public:
     set_charset(tocs);
     return false;
   }
+  bool copy_casedn(CHARSET_INFO *cs, const LEX_CSTRING &str)
+  {
+    size_t nbytes= str.length * cs->casedn_multiply();
+    DBUG_ASSERT(nbytes + 1 <= UINT_MAX32);
+    if (alloc(nbytes))
+      return true;
+    str_length= (uint32) cs->casedn_z(str.str, str.length, Ptr, nbytes + 1);
+    return false;
+  }
+  bool copy_caseup(CHARSET_INFO *cs, const LEX_CSTRING &str)
+  {
+    size_t nbytes= str.length * cs->caseup_multiply();
+    DBUG_ASSERT(nbytes + 1 <= UINT_MAX32);
+    if (alloc(nbytes))
+      return true;
+    str_length= (uint32) cs->caseup_z(str.str, str.length, Ptr, nbytes + 1);
+    return false;
+  }
   // Append without character set conversion
   bool append(const String &s)
   {

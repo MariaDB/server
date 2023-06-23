@@ -424,16 +424,15 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
 
     if (lower_case_table_names == 1) // Convert new_name/new_alias to lower
     {
-      new_name.length= my_casedn_str(files_charset_info, (char*) new_name.str);
+      new_name= new_name_buff.copy_casedn(files_charset_info, new_name).
+                                to_lex_cstring();
       new_alias= new_name;
     }
     else if (lower_case_table_names == 2) // Convert new_name to lower case
     {
-      new_alias.str=    new_alias_buff;
-      new_alias.length= new_name.length;
-      strmov(new_alias_buff, new_name.str);
-      new_name.length= my_casedn_str(files_charset_info, (char*) new_name.str);
-
+      new_alias= new_name;
+      new_name= new_name_buff.copy_casedn(files_charset_info, new_name).
+                                to_lex_cstring();
     }
     else
       new_alias= new_name; // LCTN=0 => case sensitive + case preserving
@@ -461,7 +460,10 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
                                tmp_file_prefix, current_pid, thd->thread_id);
   /* Safety fix for InnoDB */
   if (lower_case_table_names)
-    tmp_name.length= my_casedn_str(files_charset_info, tmp_name_buff);
+  {
+    // Ok to latin1, as the file name is in the form '#sql-alter-abc-def'
+    tmp_name.length= my_casedn_str_latin1(tmp_name_buff);
+  }
 
   if (table_list->table->s->tmp_table == NO_TMP_TABLE)
   {

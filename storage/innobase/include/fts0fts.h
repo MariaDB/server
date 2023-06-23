@@ -738,21 +738,6 @@ innobase_fts_text_cmp(
 	const void*	p2);			/*!< in: node */
 
 /******************************************************************//**
-Makes all characters in a string lower case. */
-extern
-size_t
-innobase_fts_casedn_str(
-/*====================*/
-        CHARSET_INFO*	cs,			/*!< in: Character set */
-	char*		src,			/*!< in: string to put in
-						lower case */
-	size_t		src_len,		/*!< in: input string length */
-	char*		dst,			/*!< in: buffer for result
-						string */
-	size_t		dst_len);		/*!< in: buffer size */
-
-
-/******************************************************************//**
 compare two character string according to their charset. */
 extern
 int

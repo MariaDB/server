@@ -472,14 +472,12 @@ row_merge_fts_doc_tokenize(
 	ulint		len;
 	row_merge_buf_t* buf;
 	dfield_t*	field;
-	fts_string_t	t_str;
 	ibool		buf_full = FALSE;
-	byte		str_buf[FTS_MAX_WORD_LEN + 1];
+	CharBuffer<FTS_MAX_WORD_LEN> str_buf;
 	ulint		data_size[FTS_NUM_AUX_INDEX];
 	ulint		n_tuple[FTS_NUM_AUX_INDEX];
 	st_mysql_ftparser*	parser;
 
-	t_str.f_n_char = 0;
 	t_ctx->buf_used = 0;
 
 	memset(n_tuple, 0, FTS_NUM_AUX_INDEX * sizeof(ulint));
@@ -544,11 +542,8 @@ row_merge_fts_doc_tokenize(
 			continue;
 		}
 
-		t_str.f_len = innobase_fts_casedn_str(
-			doc->charset, (char*) str.f_str, str.f_len,
-			(char*) &str_buf, FTS_MAX_WORD_LEN + 1);
-
-		t_str.f_str = (byte*) &str_buf;
+		str_buf.copy_casedn(doc->charset,
+			LEX_CSTRING{(const char *) str.f_str, str.f_len});
 
 		/* if "cached_stopword" is defined, ignore words in the
 		stopword list */
@@ -566,8 +561,8 @@ row_merge_fts_doc_tokenize(
 
 		/* There are FTS_NUM_AUX_INDEX auxiliary tables, find
 		out which sort buffer to put this word record in */
-		t_ctx->buf_used = fts_select_index(
-			doc->charset, t_str.f_str, t_str.f_len);
+		t_ctx->buf_used = fts_select_index(doc->charset,
+			(const byte*) str_buf.ptr(), str_buf.length());
 
 		buf = sort_buf[t_ctx->buf_used];
 
@@ -581,7 +576,7 @@ row_merge_fts_doc_tokenize(
 				       FTS_NUM_FIELDS_SORT * sizeof *field));
 
 		/* The first field is the tokenized word */
-		dfield_set_data(field, t_str.f_str, t_str.f_len);
+		dfield_set_data(field, str_buf.ptr(), str_buf.length());
 		len = dfield_get_len(field);
 
 		dict_col_copy_type(dict_index_get_nth_col(buf->index, 0), &field->type);

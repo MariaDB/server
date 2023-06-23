@@ -6458,8 +6458,6 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_mb_wc_gb2312,	/* mb_wc      */
   my_wc_mb_gb2312,	/* wc_mb      */
   my_mb_ctype_mb,
-  my_caseup_str_mb,
-  my_casedn_str_mb,
   my_caseup_mb,
   my_casedn_mb,
   my_snprintf_8bit,

@@ -330,6 +330,16 @@ fts_string_dup(
 	mem_heap_t*		heap);		/*!< in: heap to use */
 
 /******************************************************************//**
+Duplicate a string with lower case conversion. */
+UNIV_INLINE
+fts_string_t
+fts_string_dup_casedn(
+/*===========*/
+	CHARSET_INFO *cs,
+	const fts_string_t&	src,		/*!< in: src string */
+	mem_heap_t*		heap);		/*!< in: heap to use */
+
+/******************************************************************//**
 Get the selected FTS aux INDEX suffix. */
 UNIV_INLINE
 const char*

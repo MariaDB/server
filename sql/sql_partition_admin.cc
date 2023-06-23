@@ -657,7 +657,10 @@ bool Sql_cmd_alter_table_exchange_partition::
   my_snprintf(temp_name, sizeof(temp_name), "%s-exchange-%lx-%llx",
               tmp_file_prefix, current_pid, thd->thread_id);
   if (lower_case_table_names)
-    my_casedn_str(files_charset_info, temp_name);
+  {
+    // Ok to use latin1 as the file name is in the form '#sql-exchange-abc-def'
+    my_casedn_str_latin1(temp_name);
+  }
   build_table_filename(temp_file_name, sizeof(temp_file_name),
                        table_list->next_local->db.str,
                        temp_name, "", FN_IS_TMP);

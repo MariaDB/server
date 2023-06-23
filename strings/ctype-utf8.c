@@ -565,46 +565,6 @@ static int my_utf8mb3_uni(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-/*
-  The same as above, but without range check
-  for example, for a null-terminated string
-*/
-static int my_utf8mb3_uni_no_range(CHARSET_INFO *cs __attribute__((unused)),
-                                   my_wc_t * pwc, const uchar *s)
-{
-  uchar c;
-
-  c= s[0];
-  if (c < 0x80)
-  {
-    *pwc = c;
-    return 1;
-  }
-
-  if (c < 0xc2)
-    return MY_CS_ILSEQ;
-
-  if (c < 0xe0)
-  {
-    if (!((s[1] ^ 0x80) < 0x40))
-      return MY_CS_ILSEQ;
-
-    *pwc= UTF8MB2_CODE(c, s[1]);
-    return 2;
-  }
-
-  if (c < 0xf0)
-  {
-    if (!IS_UTF8MB3_STEP2(c, s[1], s[2]))
-      return MY_CS_ILSEQ;
-
-    *pwc= UTF8MB3_CODE(c, s[1], s[2]);
-    return 3;
-  }
-  return MY_CS_ILSEQ;
-}
-
-
 static int my_uni_utf8mb3(CHARSET_INFO *cs __attribute__((unused)),
                           my_wc_t wc, uchar *r, uchar *e)
 {
@@ -635,35 +595,6 @@ static int my_uni_utf8mb3(CHARSET_INFO *cs __attribute__((unused)),
     return 3;
   }
   return MY_CS_ILUNI;
-}
-
-
-/*
-  The same as above, but without range check.
-*/
-static int my_uni_utf8mb3_no_range(CHARSET_INFO *cs __attribute__((unused)),
-                                   my_wc_t wc, uchar *r)
-{
-  int count;
-
-  if (wc < 0x80)
-    count= 1;
-  else if (wc < 0x800)
-    count= 2;
-  else if (wc < 0x10000)
-    count= 3;
-  else
-    return MY_CS_ILUNI;
-
-  switch (count)
-  {
-    case 3: r[2]= (uchar) (0x80 | (wc & 0x3f)); wc= wc >> 6; wc |= 0x800;
-      /* fall through */
-    case 2: r[1]= (uchar) (0x80 | (wc & 0x3f)); wc= wc >> 6; wc |= 0xc0;
-      /* fall through */
-    case 1: r[0]= (uchar) wc;
-  }
-  return count;
 }
 
 
@@ -723,28 +654,6 @@ static void my_hash_sort_utf8mb3(CHARSET_INFO *cs, const uchar *s, size_t slen,
 }
 
 
-static size_t my_caseup_str_utf8mb3(CHARSET_INFO *cs, char *src)
-{
-  my_wc_t wc;
-  int srcres, dstres;
-  char *dst= src, *dst0= src;
-  MY_CASEFOLD_INFO *uni_plane= cs->casefold;
-  DBUG_ASSERT(cs->cset->caseup_multiply(cs) == 1);
-
-  while (*src &&
-         (srcres= my_utf8mb3_uni_no_range(cs, &wc, (uchar *) src)) > 0)
-  {
-    my_toupper_unicode_bmp(uni_plane, &wc);
-    if ((dstres= my_uni_utf8mb3_no_range(cs, wc, (uchar*) dst)) <= 0)
-      break;
-    src+= srcres;
-    dst+= dstres;
-  }
-  *dst= '\0';
-  return (size_t) (dst - dst0);
-}
-
-
 static size_t my_casedn_utf8mb3(CHARSET_INFO *cs,
                                 const char *src, size_t srclen,
                                 char *dst, size_t dstlen)
@@ -765,44 +674,6 @@ static size_t my_casedn_utf8mb3(CHARSET_INFO *cs,
     src+= srcres;
     dst+= dstres;
   }
-  return (size_t) (dst - dst0);
-}
-
-
-static size_t my_casedn_str_utf8mb3(CHARSET_INFO *cs, char *src)
-{
-  my_wc_t wc;
-  int srcres, dstres;
-  char *dst= src, *dst0= src;
-  MY_CASEFOLD_INFO *uni_plane= cs->casefold;
-  DBUG_ASSERT(cs->cset->casedn_multiply(cs) == 1);
-
-  while (*src &&
-         (srcres= my_utf8mb3_uni_no_range(cs, &wc, (uchar *) src)) > 0)
-  {
-    my_tolower_unicode_bmp(uni_plane, &wc);
-    if ((dstres= my_uni_utf8mb3_no_range(cs, wc, (uchar*) dst)) <= 0)
-      break;
-    src+= srcres;
-    dst+= dstres;
-  }
-
-  /*
-   In rare cases lower string can be shorter than
-   the original string, for example:
-
-   "U+0130 LATIN CAPITAL LETTER I WITH DOT ABOVE"
-   (which is 0xC4B0 in utf8mb3, i.e. two bytes)
-
-   is converted into
-
-   "U+0069 LATIN SMALL LETTER I"
-   (which is 0x69 in utf8mb3, i.e. one byte)
-
-   So, we need to put '\0' terminator after converting.
-  */
-
-  *dst= '\0';
   return (size_t) (dst - dst0);
 }
 
@@ -1213,8 +1084,6 @@ MY_CHARSET_HANDLER my_charset_utf8mb3_handler=
     my_utf8mb3_uni,
     my_uni_utf8mb3,
     my_mb_ctype_mb,
-    my_caseup_str_utf8mb3,
-    my_casedn_str_utf8mb3,
     my_caseup_utf8mb3,
     my_casedn_utf8mb3,
     my_snprintf_8bit,
@@ -2857,8 +2726,6 @@ static MY_CHARSET_HANDLER my_charset_filename_handler=
     my_mb_wc_filename,
     my_wc_mb_filename,
     my_mb_ctype_mb,
-    my_caseup_str_utf8mb3,
-    my_casedn_str_utf8mb3,
     my_caseup_utf8mb3,
     my_casedn_utf8mb3,
     my_snprintf_8bit,
@@ -3081,40 +2948,6 @@ my_wc_mb_utf8mb4(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-/*
-  The same as above, but without range check.
-*/
-static int
-my_wc_mb_utf8mb4_no_range(CHARSET_INFO *cs __attribute__((unused)),
-                          my_wc_t wc, uchar *r)
-{
-  int count;
-
-  if (wc < 0x80)
-    count= 1;
-  else if (wc < 0x800)
-    count= 2;
-  else if (wc < 0x10000)
-    count= 3;
-  else if (wc < 0x200000)
-    count= 4;
-  else
-    return MY_CS_ILUNI;
-
-  switch (count)
-  {
-    case 4: r[3]= (uchar) (0x80 | (wc & 0x3f)); wc= wc >> 6; wc |= 0x10000;
-      /* fall through */
-    case 3: r[2]= (uchar) (0x80 | (wc & 0x3f)); wc= wc >> 6; wc |= 0x800;
-      /* fall through */
-    case 2: r[1]= (uchar) (0x80 | (wc & 0x3f)); wc= wc >> 6; wc |= 0xc0;
-      /* fall through */
-    case 1: r[0]= (uchar) wc;
-  }
-  return count;
-}
-
-
 static size_t
 my_caseup_utf8mb4(CHARSET_INFO *cs, const char *src, size_t srclen,
                   char *dst, size_t dstlen)
@@ -3186,29 +3019,6 @@ my_hash_sort_utf8mb4(CHARSET_INFO *cs, const uchar *s, size_t slen,
 
 
 static size_t
-my_caseup_str_utf8mb4(CHARSET_INFO *cs, char *src)
-{
-  my_wc_t wc;
-  int srcres, dstres;
-  char *dst= src, *dst0= src;
-  MY_CASEFOLD_INFO *uni_plane= cs->casefold;
-  DBUG_ASSERT(cs->cset->caseup_multiply(cs) == 1);
-
-  while (*src &&
-         (srcres= my_mb_wc_utf8mb4_no_range(cs, &wc, (uchar *) src)) > 0)
-  {
-    my_toupper_unicode(uni_plane, &wc);
-    if ((dstres= my_wc_mb_utf8mb4_no_range(cs, wc, (uchar*) dst)) <= 0)
-      break;
-    src+= srcres;
-    dst+= dstres;
-  }
-  *dst= '\0';
-  return (size_t) (dst - dst0);
-}
-
-
-static size_t
 my_casedn_utf8mb4(CHARSET_INFO *cs,
                   const char *src, size_t srclen,
                   char *dst, size_t dstlen)
@@ -3230,45 +3040,6 @@ my_casedn_utf8mb4(CHARSET_INFO *cs,
     src+= srcres;
     dst+= dstres;
   }
-  return (size_t) (dst - dst0);
-}
-
-
-static size_t
-my_casedn_str_utf8mb4(CHARSET_INFO *cs, char *src)
-{
-  my_wc_t wc;
-  int srcres, dstres;
-  char *dst= src, *dst0= src;
-  MY_CASEFOLD_INFO *uni_plane= cs->casefold;
-  DBUG_ASSERT(cs->cset->casedn_multiply(cs) == 1);
-
-  while (*src &&
-         (srcres= my_mb_wc_utf8mb4_no_range(cs, &wc, (uchar *) src)) > 0)
-  {
-    my_tolower_unicode(uni_plane, &wc);
-    if ((dstres= my_wc_mb_utf8mb4_no_range(cs, wc, (uchar*) dst)) <= 0)
-      break;
-    src+= srcres;
-    dst+= dstres;
-  }
-
-  /*
-   In rare cases lower string can be shorter than
-   the original string, for example:
-
-   "U+0130 LATIN CAPITAL LETTER I WITH DOT ABOVE"
-   (which is 0xC4B0 in utf8mb3, i.e. two bytes)
-
-   is converted into
-
-   "U+0069 LATIN SMALL LETTER I"
-   (which is 0x69 in utf8mb3, i.e. one byte)
-
-   So, we need to put '\0' terminator after converting.
-  */
-
-  *dst= '\0';
   return (size_t) (dst - dst0);
 }
 
@@ -3544,8 +3315,6 @@ MY_CHARSET_HANDLER my_charset_utf8mb4_handler=
   my_mb_wc_utf8mb4,
   my_wc_mb_utf8mb4,
   my_mb_ctype_mb,
-  my_caseup_str_utf8mb4,
-  my_casedn_str_utf8mb4,
   my_caseup_utf8mb4,
   my_casedn_utf8mb4,
   my_snprintf_8bit,

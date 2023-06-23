@@ -1340,17 +1340,16 @@ static bool find_db_tables_and_rm_known_files(THD *thd, MY_DIR *dirp,
     if (!table_list)
       DBUG_RETURN(true);
     table_list->db= db;
-    table_list->table_name= *table;
-    table_list->open_type= OT_BASE_ONLY;
-
     /*
       On the case-insensitive file systems table is opened
       with the lowercased file name. So we should lowercase
       as well to look up the cache properly.
     */
-    if (lower_case_file_system)
-      table_list->table_name.length= my_casedn_str(files_charset_info,
-                                                   (char*) table_list->table_name.str);
+    table_list->table_name= lower_case_file_system ?
+                            thd->make_ident_casedn(*table) :
+                            *table;
+
+    table_list->open_type= OT_BASE_ONLY;
 
     table_list->alias= table_list->table_name;	// If lower_case_table_names=2
     MDL_REQUEST_INIT(&table_list->mdl_request, MDL_key::TABLE,

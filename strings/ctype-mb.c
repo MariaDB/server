@@ -21,48 +21,6 @@
 #ifdef USE_MB
 
 
-size_t my_caseup_str_mb(CHARSET_INFO * cs, char *str)
-{
-  register uint32 l;
-  register const uchar *map= cs->to_upper;
-  char *str_orig= str;
-  
-  while (*str)
-  {
-    /* Pointing after the '\0' is safe here. */
-    if ((l= my_ismbchar(cs, str, str + cs->mbmaxlen)))
-      str+= l;
-    else
-    { 
-      *str= (char) map[(uchar)*str];
-      str++;
-    }
-  }
-  return (size_t) (str - str_orig);
-}
-
-
-size_t my_casedn_str_mb(CHARSET_INFO * cs, char *str)
-{
-  register uint32 l;
-  register const uchar *map= cs->to_lower;
-  char *str_orig= str;
-  
-  while (*str)
-  {
-    /* Pointing after the '\0' is safe here. */
-    if ((l= my_ismbchar(cs, str, str + cs->mbmaxlen)))
-      str+= l;
-    else
-    {
-      *str= (char) map[(uchar)*str];
-      str++;
-    }
-  }
-  return (size_t) (str - str_orig);
-}
-
-
 static inline const MY_CASEFOLD_CHARACTER*
 get_case_info_for_ch(CHARSET_INFO *cs, uint page, uint offs)
 {

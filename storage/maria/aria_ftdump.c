@@ -120,8 +120,9 @@ int main(int argc,char *argv[])
     if (subkeys.i >= 0)
       weight= subkeys.f;
 
-    snprintf(buf,MAX_LEN,"%.*s",(int) keylen,info->lastkey_buff+1);
-    my_casedn_str(default_charset_info,buf);
+    keylen= (uint) my_ci_casedn(default_charset_info, buf, sizeof(buf) - 1,
+                                (char *) info->lastkey_buff  + 1, keylen);
+    buf[keylen]= '\0';
     total++;
     lengths[keylen]++;
 

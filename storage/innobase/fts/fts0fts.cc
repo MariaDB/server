@@ -4427,7 +4427,6 @@ fts_add_token(
 		fts_string_t	t_str;
 		fts_token_t*	token;
 		ib_rbt_bound_t	parent;
-		ulint		newlen;
 
 		heap = static_cast<mem_heap_t*>(result_doc->self_heap->arg);
 
@@ -4443,24 +4442,19 @@ fts_add_token(
 		if (my_binary_compare(result_doc->charset)) {
 			memcpy(t_str.f_str, str.f_str, str.f_len);
 			t_str.f_str[str.f_len]= 0;
-			newlen= str.f_len;
+			t_str.f_len= str.f_len;
 		} else {
-			newlen = innobase_fts_casedn_str(
-				result_doc->charset, (char*) str.f_str, str.f_len,
-				(char*) t_str.f_str, t_str.f_len);
+			t_str.f_len= result_doc->charset->casedn_z(
+					(const char*) str.f_str, str.f_len,
+					(char *) t_str.f_str, t_str.f_len);
 		}
-
-		t_str.f_len = newlen;
-		t_str.f_str[newlen] = 0;
 
 		/* Add the word to the document statistics. If the word
 		hasn't been seen before we create a new entry for it. */
 		if (rbt_search(result_doc->tokens, &parent, &t_str) != 0) {
 			fts_token_t	new_token;
 
-			new_token.text.f_len = newlen;
-			new_token.text.f_str = t_str.f_str;
-			new_token.text.f_n_char = t_str.f_n_char;
+			new_token.text = t_str;
 
 			new_token.positions = ib_vector_create(
 				result_doc->self_heap, sizeof(ulint), 32);

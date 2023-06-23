@@ -1459,28 +1459,23 @@ static void fill_server(MEM_ROOT *mem_root, FEDERATEDX_SERVER *server,
   char buffer[STRING_BUFFER_USUAL_SIZE];
   const char *socket_arg= share->socket ? share->socket : "";
   const char *password_arg= share->password ? share->password : "";
+  const Lex_cstring_strlen ls_database(share->database);
+  const Lex_cstring_strlen ls_socket(socket_arg);
 
   String key(buffer, sizeof(buffer), &my_charset_bin);  
-  String scheme(share->scheme, strlen(share->scheme), &my_charset_latin1);
-  String hostname(share->hostname, strlen(share->hostname), &my_charset_latin1);
-  String database(share->database, strlen(share->database), system_charset_info);
+  String scheme, hostname;
+  String database(ls_database.str, ls_database.length, system_charset_info);
   String username(share->username, strlen(share->username), system_charset_info);
-  String socket(socket_arg, strlen(socket_arg), files_charset_info);
+  String socket(ls_socket.str, ls_socket.length, files_charset_info);
   String password(password_arg, strlen(password_arg), &my_charset_bin);
   DBUG_ENTER("fill_server");
 
   /* Do some case conversions */
-  scheme.reserve(scheme.length());
-  scheme.length(my_casedn_str(&my_charset_latin1, scheme.c_ptr_safe()));
-  
-  hostname.reserve(hostname.length());
-  hostname.length(my_casedn_str(&my_charset_latin1, hostname.c_ptr_safe()));
-  
+  scheme.copy_casedn(&my_charset_latin1, Lex_cstring_strlen(share->scheme));
+  hostname.copy_casedn(&my_charset_latin1, Lex_cstring_strlen(share->hostname));
+
   if (lower_case_table_names)
-  {
-    database.reserve(database.length());
-    database.length(my_casedn_str(system_charset_info, database.c_ptr_safe()));
-  }
+    database.copy_casedn(system_charset_info, ls_database);
 
 #ifndef _WIN32
   /*
@@ -1488,10 +1483,7 @@ static void fill_server(MEM_ROOT *mem_root, FEDERATEDX_SERVER *server,
     revised about using sockets in such environment.
   */
   if (lower_case_file_system && socket.length())
-  {
-    socket.reserve(socket.length());
-    socket.length(my_casedn_str(files_charset_info, socket.c_ptr_safe()));
-  }
+    socket.copy_casedn(files_charset_info, ls_socket);
 #endif
 
   /* start with all bytes zeroed */  

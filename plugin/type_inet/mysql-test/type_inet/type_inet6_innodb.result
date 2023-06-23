@@ -85,7 +85,7 @@ EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=CAST('::ff' AS INET6);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ref	a	a	17	const	1	100.00	Using where; Using index
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = INET6'::ff'
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = inet6'::ff'
 DROP TABLE t1;
 #
 # MDEV-26742 Assertion `field->type_handler() == this' failed in FixedBinTypeBundle<NATIVE_LEN, MAX_CHAR_LEN>::Type_handler_fbt::stored_field_cmp_to_item

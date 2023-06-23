@@ -4279,7 +4279,8 @@ bool LEX::copy_db_to(LEX_CSTRING *to)
 {
   if (sphead && sphead->m_name.str)
   {
-    DBUG_ASSERT(sphead->m_db.str && sphead->m_db.length);
+    DBUG_ASSERT(sphead->m_db.str);
+    DBUG_ASSERT(sphead->m_db.length);
     /*
       It is safe to assign the string by-pointer, both sphead and
       its statements reside in the same memory root.
@@ -4289,6 +4290,19 @@ bool LEX::copy_db_to(LEX_CSTRING *to)
   }
   return thd->copy_db_to(to);
 }
+
+
+Lex_ident_db_normalized LEX::copy_db_normalized()
+{
+  if (sphead && sphead->m_name.str)
+  {
+    DBUG_ASSERT(sphead->m_db.str);
+    DBUG_ASSERT(sphead->m_db.length);
+    return thd->to_ident_db_normalized_with_error(sphead->m_db);
+  }
+  return thd->copy_db_normalized();
+}
+
 
 /**
   Initialize offset and limit counters.
@@ -7431,10 +7445,10 @@ bool LEX::sp_block_finalize(THD *thd, const Lex_spblock_st spblock,
 sp_name *LEX::make_sp_name(THD *thd, const Lex_ident_sys_st &name)
 {
   sp_name *res;
-  LEX_CSTRING db;
+  Lex_ident_db_normalized db;
   if (unlikely(check_routine_name(&name)) ||
-      unlikely(copy_db_to(&db)) ||
-      unlikely((!(res= new (thd->mem_root) sp_name(&db, &name, false)))))
+      unlikely(!(db= copy_db_normalized()).str) ||
+      unlikely((!(res= new (thd->mem_root) sp_name(db, name, false)))))
     return NULL;
   return res;
 }
@@ -7471,10 +7485,11 @@ sp_name *LEX::make_sp_name(THD *thd, const Lex_ident_sys_st &name1,
 {
   DBUG_ASSERT(name1.str);
   sp_name *res;
-  const Lex_ident_db norm_name1= thd->to_ident_db_internal_with_error(name1);
+  const Lex_ident_db_normalized norm_name1=
+    thd->to_ident_db_normalized_with_error(name1);
   if (unlikely(!norm_name1.str) ||
       unlikely(check_routine_name(&name2)) ||
-      unlikely(!(res= new (thd->mem_root) sp_name(&norm_name1, &name2, true))))
+      unlikely(!(res= new (thd->mem_root) sp_name(norm_name1, name2, true))))
     return NULL;
   return res;
 }
@@ -7530,7 +7545,9 @@ sp_head *LEX::make_sp_head(THD *thd, const sp_name *name,
                                       name->m_name);
       else
         sp->init_sp_name(name);
-      if (!(sp->m_qname= sp->make_qname(sp->get_main_mem_root(), true)).str)
+      if (!(sp->m_qname=
+              sp->to_identifier_chain2().
+                 make_qname_casedn_part1(sp->get_main_mem_root())).str)
         return NULL;
     }
     sphead= sp;
@@ -9432,17 +9449,17 @@ bool LEX::call_statement_start(THD *thd,
 
   sql_command= SQLCOM_CALL;
 
-  const Lex_ident_db db_int= thd->to_ident_db_internal_with_error(*db);
-  if (!db_int.str ||
+  const Lex_ident_db_normalized dbn= thd->to_ident_db_normalized_with_error(*db);
+  if (!dbn.str ||
       check_routine_name(pkg) ||
       check_routine_name(proc))
     return true;
 
   // Concat `pkg` and `name` to `pkg.name`
   LEX_CSTRING pkg_dot_proc;
-  if (!(pkg_dot_proc= q_pkg_proc.make_qname(thd->mem_root, false)).str ||
+  if (!(pkg_dot_proc= q_pkg_proc.make_qname(thd->mem_root)).str ||
       check_ident_length(&pkg_dot_proc) ||
-      !(spname= new (thd->mem_root) sp_name(&db_int, &pkg_dot_proc, true)))
+      !(spname= new (thd->mem_root) sp_name(dbn, pkg_dot_proc, true)))
     return true;
 
   sp_handler_package_function.add_used_routine(thd->lex, thd, spname);
@@ -9507,7 +9524,8 @@ sp_package *LEX::create_package_start(THD *thd,
     return NULL;
   pkg->reset_thd_mem_root(thd);
   pkg->init(this);
-  if (!(pkg->m_qname= pkg->make_qname(pkg->get_main_mem_root(), true)).str)
+  if (!(pkg->m_qname= pkg->to_identifier_chain2().
+                        make_qname_casedn_part1(pkg->get_main_mem_root())).str)
     return NULL;
   pkg->set_c_chistics(chistics);
   sphead= pkg;
@@ -9801,12 +9819,7 @@ Item *LEX::make_item_func_call_generic(THD *thd,
     - MySQL.version() is the SQL 2003 syntax for the native function
     version() (a vendor can specify any schema).
   */
-
-  const Lex_ident_db db_int= thd->to_ident_db_internal_with_error(db);
-  if (!db_int.str || check_routine_name(&name))
-    return NULL;
-
-  return make_item_func_call_generic(thd, Lex_ident_sys(db_int.str, db_int.length), name, args);
+  return make_item_func_call_generic(thd, db, name, args);
 }
 
 
@@ -9821,7 +9834,12 @@ Item *LEX::make_item_func_call_generic(THD *thd,
 
   Create_qfunc *builder= find_qualified_function_builder(thd);
   DBUG_ASSERT(builder);
-  return builder->create_with_db(thd, &db, &name, true, args);
+
+  const Lex_ident_db_normalized dbn= thd->to_ident_db_normalized_with_error(db);
+  if (!dbn.str || check_routine_name(&name))
+    return NULL;
+
+  return builder->create_with_db(thd, dbn, name, true, args);
 }
 
 
@@ -9845,17 +9863,17 @@ Item *LEX::make_item_func_call_generic(THD *thd,
   if (db.is_null() || pkg.is_null() || func.is_null())
     return NULL; // EOM
 
-  const Lex_ident_db db_int= thd->to_ident_db_internal_with_error(db);
-  if (!db_int.str ||
+  const Lex_ident_db_normalized dbn= thd->to_ident_db_normalized_with_error(db);
+  if (!dbn.str ||
       check_routine_name(&pkg) ||
       check_routine_name(&func))
     return NULL;
 
   // Concat `pkg` and `name` to `pkg.name`
   LEX_CSTRING pkg_dot_func;
-  if (!(pkg_dot_func= q_pkg_func.make_qname(thd->mem_root, false)).str ||
+  if (!(pkg_dot_func= q_pkg_func.make_qname(thd->mem_root)).str ||
       check_ident_length(&pkg_dot_func) ||
-      !(qname= new (thd->mem_root) sp_name(&db_int, &pkg_dot_func, true)))
+      !(qname= new (thd->mem_root) sp_name(dbn, pkg_dot_func, true)))
     return NULL;
 
   sp_handler_package_function.add_used_routine(thd->lex, thd, qname);
@@ -11838,11 +11856,11 @@ bool LEX::stmt_drop_routine(const Sp_handler *sph,
   if (check_routine_name(&name))
     return true;
   enum_sql_command sqlcom= sph->sqlcom_drop();
-  LEX_CSTRING db_int= {0, 0};
+  Lex_ident_db_normalized dbn;
   if (db.str)
   {
     // An explicit database name is given
-    if (!(db_int= thd->to_ident_db_internal_with_error(db)).str)
+    if (!(dbn= thd->to_ident_db_normalized_with_error(db)).str)
       return true;
   }
   else if (thd->db.str || sqlcom != SQLCOM_DROP_FUNCTION)
@@ -11856,9 +11874,9 @@ bool LEX::stmt_drop_routine(const Sp_handler *sph,
          - DROP PACKAGE
          - DROP PACKAGE BODY
          - DROP PROCEDURE
-         copy_db_to() raises ER_NO_DB_ERROR.
+         copy_db_normalized() raises ER_NO_DB_ERROR.
     */
-    if (copy_db_to(&db_int))
+    if (!(dbn= copy_db_normalized()).str)
       return true;
   }
   else
@@ -11868,11 +11886,11 @@ bool LEX::stmt_drop_routine(const Sp_handler *sph,
       There is no an explicit database name given.
       The current database is not set.
       It can still be a valid DROP FUNCTION - for an UDF.
-      Keep db_int=={NULL,0}.
+      Keep dbn=={NULL,0}.
     */
   }
   set_command(sqlcom, options);
-  spname= new (thd->mem_root) sp_name(&db_int, &name, db.str != NULL);
+  spname= new (thd->mem_root) sp_name(dbn, name, db.str != NULL);
   return false;
 }
 

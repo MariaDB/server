@@ -3776,18 +3776,10 @@ int group_concat_key_cmp_with_order_with_nulls(void *arg, const void *key1_arg,
 
 static void report_cut_value_error(THD *thd, uint row_count, const char *fname)
 {
-  size_t fn_len= strlen(fname);
-  char *fname_upper= (char *) my_alloca(fn_len + 1);
-  if (!fname_upper)
-    fname_upper= (char*) fname;                 // Out of memory
-  else
-    memcpy(fname_upper, fname, fn_len+1);
-  my_caseup_str(&my_charset_latin1, fname_upper);
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                       ER_CUT_VALUE_GROUP_CONCAT,
                       ER_THD(thd, ER_CUT_VALUE_GROUP_CONCAT),
-                      row_count, fname_upper);
-  my_afree(fname_upper);
+                      row_count, fname);
 }
 
 
