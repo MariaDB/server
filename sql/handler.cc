@@ -1668,10 +1668,7 @@ int ha_commit_trans(THD *thd, bool all)
     DEBUG_SYNC(thd, "ha_commit_trans_after_acquire_commit_lock");
   }
 
-  if (rw_trans &&
-      opt_readonly &&
-      !(thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY) &&
-      !thd->slave_thread)
+  if (rw_trans && thd->is_read_only_ctx())
   {
     my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--read-only");
     goto err;

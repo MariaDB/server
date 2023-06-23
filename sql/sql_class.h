@@ -2787,6 +2787,16 @@ public:
     return m_binlog_filter_state;
   }
 
+  /**
+    Checks if a user connection is read-only
+  */
+  inline bool is_read_only_ctx()
+  {
+    return opt_readonly &&
+           !(security_ctx->master_access & PRIV_IGNORE_READ_ONLY) &&
+           !slave_thread;
+  }
+
 private:
   /**
     Indicate if the current statement should be discarded
