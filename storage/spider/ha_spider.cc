@@ -428,12 +428,9 @@ int ha_spider::open(
       wide_handler->sql_command =
         pt_clone_source_handler->wide_handler->sql_command;
     }
-  } else {
-    if (share->semi_table_lock)
-    {
-      wide_handler->semi_table_lock = TRUE;
-    }
-  }
+  } else
+    wide_handler->semi_table_lock =
+      spider_param_semi_table_lock(thd, share->semi_table_lock);
 
   if (reset())
   {
@@ -770,7 +767,7 @@ THR_LOCK_DATA **ha_spider::store_lock(
       ) {
         if (
           !spider_param_local_lock_table(thd) &&
-          spider_param_semi_table_lock(thd, wide_handler->semi_table_lock)
+          wide_handler->semi_table_lock
         ) {
           wide_handler->lock_table_type = 2;
           if (partition_handler && partition_handler->handlers)

@@ -1,4 +1,5 @@
 /* Copyright (C) 2008-2018 Kentoku Shiba
+   Copyright (C) 2023 MariaDB plc
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -12,6 +13,26 @@
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
+
+/**
+  @file
+
+  There are several kinds of spider parameters.
+
+  - sysvar/thdvar that are not table parameters. These variables do
+    not appear in a `SPIDER_SHARE`. Examples include `support_xa` and
+    `conn_recycle_mode`. Their values are commonly retrieved by
+    `SPIDER_SYSVAR_VALUE_FUN()` and `SPIDER_THDVAR_VALUE_FUN()`
+  - sysvar/thdvar that are also table parameters. These variables
+    commonly appear in a `SPIDER_SHARE`. Examples include
+    `read_only_mode` and `use_table_charset`. Table parameter values
+    override variable values, and their values are commonly retrieved
+    by `SPIDER_SYSVAR_OVERRIDE_VALUE_FUN()` and
+    `SPIDER_THDVAR_OVERRIDE_VALUE_FUN()`.
+  - table parameters that are not sysvar/thdvar. Examples include
+    host and username. They are not handled in this file which is only
+    concerned with global/session variables
+*/
 
 #define MYSQL_SERVER 1
 #include <my_global.h>
@@ -36,6 +57,57 @@ extern struct st_maria_plugin spider_i_s_wrapper_protocols_maria;
 
 extern volatile ulonglong spider_mon_table_cache_version;
 extern volatile ulonglong spider_mon_table_cache_version_req;
+
+/*
+  Define a function returning the value of a global variable.
+*/
+#define SPIDER_SYSVAR_VALUE_FUN(param_type, param_name)              \
+  param_type spider_param_ ## param_name()                           \
+  {                                                                  \
+    return SYSVAR(param_name);                                       \
+  }
+
+/*
+  Define a function returning the value of a session variable.
+*/
+#define SPIDER_THDVAR_VALUE_FUN(param_type, param_name)              \
+  param_type spider_param_ ## param_name(THD *thd)                   \
+  {                                                                  \
+    return THDVAR(thd, param_name);                                  \
+  }
+
+/*
+ Define a function returning the value of a table param that is also a
+ global variable.
+
+ If the table param value is not -1, use the table param value.
+ Otherwise if the variable value is not -1, use the variable value.
+ Otherwise use the default variable value.
+*/
+#define SPIDER_SYSVAR_OVERRIDE_VALUE_FUN(param_name)                \
+  int spider_param_ ## param_name(int param_name)                   \
+  {                                                                 \
+    return param_name != -1 ? param_name :                          \
+      SYSVAR(param_name) != -1 ? SYSVAR(param_name) :               \
+      MYSQL_SYSVAR_NAME(param_name).def_val;                        \
+  }
+
+/*
+ Define a function returning the value of a table param that is also a
+ session variable.
+
+ If the table param value is not -1, use the table param value.
+ Otherwise if the variable value is not -1, use the variable value.
+ Otherwise use the default variable value.
+*/
+#define SPIDER_THDVAR_OVERRIDE_VALUE_FUN(param_type, param_name)        \
+  param_type spider_param_ ## param_name(THD* thd,                      \
+                                         param_type param_name)         \
+  {                                                                     \
+    return param_name != -1 ? param_name :                              \
+      THDVAR(thd, param_name) != -1 ? THDVAR(thd, param_name) :         \
+      MYSQL_SYSVAR_NAME(param_name).def_val;                            \
+  }
 
 static int spider_direct_update(THD *thd, SHOW_VAR *var, char *buff)
 {
@@ -166,11 +238,7 @@ static void spider_var_deprecated_longlong(THD *thd, st_mysql_sys_var *,
   }
 }
 
-my_bool spider_param_support_xa()
-{
-  DBUG_ENTER("spider_param_support_xa");
-  DBUG_RETURN(spider_support_xa);
-}
+SPIDER_SYSVAR_VALUE_FUN(my_bool, support_xa)
 
 static my_bool spider_connect_mutex;
 static MYSQL_SYSVAR_BOOL(
@@ -183,11 +251,7 @@ static MYSQL_SYSVAR_BOOL(
   FALSE
 );
 
-my_bool spider_param_connect_mutex()
-{
-  DBUG_ENTER("spider_param_connect_mutex");
-  DBUG_RETURN(spider_connect_mutex);
-}
+SPIDER_SYSVAR_VALUE_FUN(my_bool, connect_mutex)
 
 static uint spider_connect_error_interval;
 /*
@@ -206,11 +270,7 @@ static MYSQL_SYSVAR_UINT(
   0
 );
 
-uint spider_param_connect_error_interval()
-{
-  DBUG_ENTER("spider_param_connect_error_interval");
-  DBUG_RETURN(spider_connect_error_interval);
-}
+SPIDER_SYSVAR_VALUE_FUN(uint, connect_error_interval)
 
 static uint spider_table_init_error_interval;
 /*
@@ -229,11 +289,7 @@ static MYSQL_SYSVAR_UINT(
   0
 );
 
-uint spider_param_table_init_error_interval()
-{
-  DBUG_ENTER("spider_param_table_init_error_interval");
-  DBUG_RETURN(spider_table_init_error_interval);
-}
+SPIDER_SYSVAR_VALUE_FUN(uint, table_init_error_interval)
 
 static int spider_use_table_charset;
 /*
@@ -254,13 +310,7 @@ static MYSQL_SYSVAR_INT(
   0
 );
 
-int spider_param_use_table_charset(
-  int use_table_charset
-) {
-  DBUG_ENTER("spider_param_use_table_charset");
-  DBUG_RETURN(spider_use_table_charset == -1 ?
-    use_table_charset : spider_use_table_charset);
-}
+SPIDER_SYSVAR_OVERRIDE_VALUE_FUN(use_table_charset)
 
 /*
   0: no recycle
@@ -279,12 +329,7 @@ static MYSQL_THDVAR_UINT(
   0 /* blk */
 );
 
-uint spider_param_conn_recycle_mode(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_conn_recycle_mode");
-  DBUG_RETURN(THDVAR(thd, conn_recycle_mode));
-}
+SPIDER_THDVAR_VALUE_FUN(uint, conn_recycle_mode)
 
 /*
   0: weak
@@ -302,12 +347,7 @@ static MYSQL_THDVAR_UINT(
   0 /* blk */
 );
 
-uint spider_param_conn_recycle_strict(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_conn_recycle_strict");
-  DBUG_RETURN(THDVAR(thd, conn_recycle_strict));
-}
+SPIDER_THDVAR_VALUE_FUN(uint, conn_recycle_strict)
 
 /*
   FALSE: no sync
@@ -322,12 +362,7 @@ static MYSQL_THDVAR_BOOL(
   TRUE /* def */
 );
 
-bool spider_param_sync_trx_isolation(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_sync_trx_isolation");
-  DBUG_RETURN(THDVAR(thd, sync_trx_isolation));
-}
+SPIDER_THDVAR_VALUE_FUN(bool, sync_trx_isolation)
 
 /*
   FALSE: no use
@@ -342,12 +377,7 @@ static MYSQL_THDVAR_BOOL(
   FALSE /* def */
 );
 
-bool spider_param_use_consistent_snapshot(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_use_consistent_snapshot");
-  DBUG_RETURN(THDVAR(thd, use_consistent_snapshot));
-}
+SPIDER_THDVAR_VALUE_FUN(bool, use_consistent_snapshot)
 
 /*
   FALSE: off
@@ -362,12 +392,7 @@ static MYSQL_THDVAR_BOOL(
   FALSE /* def */
 );
 
-bool spider_param_internal_xa(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_internal_xa");
-  DBUG_RETURN(THDVAR(thd, internal_xa));
-}
+SPIDER_THDVAR_VALUE_FUN(bool, internal_xa)
 
 /*
   0 :err when use a spider table
@@ -387,12 +412,7 @@ static MYSQL_THDVAR_UINT(
   0 /* blk */
 );
 
-uint spider_param_internal_xa_snapshot(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_internal_xa_snapshot");
-  DBUG_RETURN(THDVAR(thd, internal_xa_snapshot));
-}
+SPIDER_THDVAR_VALUE_FUN(uint, internal_xa_snapshot)
 
 /*
   0 :off
@@ -411,12 +431,7 @@ static MYSQL_THDVAR_UINT(
   0 /* blk */
 );
 
-uint spider_param_force_commit(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_force_commit");
-  DBUG_RETURN(THDVAR(thd, force_commit));
-}
+SPIDER_THDVAR_VALUE_FUN(uint, force_commit)
 
 /*
   0: register all XA transaction
@@ -434,12 +449,7 @@ static MYSQL_THDVAR_UINT(
   0 /* blk */
 );
 
-uint spider_param_xa_register_mode(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_xa_register_mode");
-  DBUG_RETURN(THDVAR(thd, xa_register_mode));
-}
+SPIDER_THDVAR_VALUE_FUN(uint, xa_register_mode)
 
 /*
  -1 :use table parameter
@@ -457,14 +467,7 @@ static MYSQL_THDVAR_LONGLONG(
   0 /* blk */
 );
 
-longlong spider_param_internal_offset(
-  THD *thd,
-  longlong internal_offset
-) {
-  DBUG_ENTER("spider_param_internal_offset");
-  DBUG_RETURN(THDVAR(thd, internal_offset) < 0 ?
-    internal_offset : THDVAR(thd, internal_offset));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(longlong, internal_offset)
 
 /*
  -1 :use table parameter
@@ -482,14 +485,7 @@ static MYSQL_THDVAR_LONGLONG(
   0 /* blk */
 );
 
-longlong spider_param_internal_limit(
-  THD *thd,
-  longlong internal_limit
-) {
-  DBUG_ENTER("spider_param_internal_limit");
-  DBUG_RETURN(THDVAR(thd, internal_limit) < 0 ?
-    internal_limit : THDVAR(thd, internal_limit));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(longlong, internal_limit)
 
 /*
  -1 :use table parameter
@@ -507,14 +503,7 @@ static MYSQL_THDVAR_LONGLONG(
   0 /* blk */
 );
 
-longlong spider_param_split_read(
-  THD *thd,
-  longlong split_read
-) {
-  DBUG_ENTER("spider_param_split_read");
-  DBUG_RETURN(THDVAR(thd, split_read) < 0 ?
-    split_read : THDVAR(thd, split_read));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(longlong, split_read)
 
 /*
   -1 :use table parameter
@@ -533,14 +522,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-double spider_param_semi_split_read(
-  THD *thd,
-  double semi_split_read
-) {
-  DBUG_ENTER("spider_param_semi_split_read");
-  DBUG_RETURN(THDVAR(thd, semi_split_read) < 0 ?
-    semi_split_read : THDVAR(thd, semi_split_read));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(double, semi_split_read)
 
 /*
  -1 :use table parameter
@@ -558,14 +540,7 @@ static MYSQL_THDVAR_LONGLONG(
   0 /* blk */
 );
 
-longlong spider_param_semi_split_read_limit(
-  THD *thd,
-  longlong semi_split_read_limit
-) {
-  DBUG_ENTER("spider_param_semi_split_read_limit");
-  DBUG_RETURN(THDVAR(thd, semi_split_read_limit) < 0 ?
-    semi_split_read_limit : THDVAR(thd, semi_split_read_limit));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(longlong, semi_split_read_limit)
 
 /*
  -1 :use table parameter
@@ -584,14 +559,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_init_sql_alloc_size(
-  THD *thd,
-  int init_sql_alloc_size
-) {
-  DBUG_ENTER("spider_param_init_sql_alloc_size");
-  DBUG_RETURN(THDVAR(thd, init_sql_alloc_size) < 0 ?
-    init_sql_alloc_size : THDVAR(thd, init_sql_alloc_size));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, init_sql_alloc_size)
 
 /*
  -1 :use table parameter
@@ -610,14 +578,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_reset_sql_alloc(
-  THD *thd,
-  int reset_sql_alloc
-) {
-  DBUG_ENTER("spider_param_reset_sql_alloc");
-  DBUG_RETURN(THDVAR(thd, reset_sql_alloc) < 0 ?
-    reset_sql_alloc : THDVAR(thd, reset_sql_alloc));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, reset_sql_alloc)
 
 /*
  -1 :use table parameter
@@ -636,14 +597,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_multi_split_read(
-  THD *thd,
-  int multi_split_read
-) {
-  DBUG_ENTER("spider_param_multi_split_read");
-  DBUG_RETURN(THDVAR(thd, multi_split_read) < 0 ?
-    multi_split_read : THDVAR(thd, multi_split_read));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, multi_split_read)
 
 /*
  -1 :use table parameter
@@ -661,14 +615,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_max_order(
-  THD *thd,
-  int max_order
-) {
-  DBUG_ENTER("spider_param_max_order");
-  DBUG_RETURN(THDVAR(thd, max_order) < 0 ?
-    max_order : THDVAR(thd, max_order));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, max_order)
 
 /*
  -1 :off
@@ -689,12 +636,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_semi_trx_isolation(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_semi_trx_isolation");
-  DBUG_RETURN(THDVAR(thd, semi_trx_isolation));
-}
+SPIDER_THDVAR_VALUE_FUN(int, semi_trx_isolation)
 
 static int spider_param_semi_table_lock_check(
   MYSQL_THD thd,
@@ -747,13 +689,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_semi_table_lock(
-  THD *thd,
-  int semi_table_lock
-) {
-  DBUG_ENTER("spider_param_semi_table_lock");
-  DBUG_RETURN((semi_table_lock & THDVAR(thd, semi_table_lock)));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, semi_table_lock)
 
 static int spider_param_semi_table_lock_connection_check(
   MYSQL_THD thd,
@@ -807,14 +743,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_semi_table_lock_connection(
-  THD *thd,
-  int semi_table_lock_connection
-) {
-  DBUG_ENTER("spider_param_semi_table_lock_connection");
-  DBUG_RETURN(THDVAR(thd, semi_table_lock_connection) == -1 ?
-    semi_table_lock_connection : THDVAR(thd, semi_table_lock_connection));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, semi_table_lock_connection)
 
 /*
   0-:block_size
@@ -831,12 +760,7 @@ static MYSQL_THDVAR_UINT(
   0 /* blk */
 );
 
-uint spider_param_block_size(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_block_size");
-  DBUG_RETURN(THDVAR(thd, block_size));
-}
+SPIDER_THDVAR_VALUE_FUN(uint, block_size)
 
 /*
  -1 :use table parameter
@@ -856,14 +780,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_selupd_lock_mode(
-  THD *thd,
-  int selupd_lock_mode
-) {
-  DBUG_ENTER("spider_param_selupd_lock_mode");
-  DBUG_RETURN(THDVAR(thd, selupd_lock_mode) == -1 ?
-    selupd_lock_mode : THDVAR(thd, selupd_lock_mode));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, selupd_lock_mode)
 
 /*
   FALSE: no sync
@@ -878,12 +795,7 @@ static MYSQL_THDVAR_BOOL(
   TRUE /* def */
 );
 
-bool spider_param_sync_autocommit(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_sync_autocommit");
-  DBUG_RETURN(THDVAR(thd, sync_autocommit));
-}
+SPIDER_THDVAR_VALUE_FUN(bool, sync_autocommit)
 
 /*
   FALSE: not use
@@ -898,12 +810,7 @@ static MYSQL_THDVAR_BOOL(
   TRUE /* def */
 );
 
-bool spider_param_use_default_database(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_use_default_database");
-  DBUG_RETURN(THDVAR(thd, use_default_database));
-}
+SPIDER_THDVAR_VALUE_FUN(bool, use_default_database)
 
 /*
 -1 :don't know or does not matter; don't send 'SET SQL_LOG_OFF' statement
@@ -922,12 +829,7 @@ static MYSQL_THDVAR_INT(
   0                                                      /* blk */
 );
 
-int spider_param_internal_sql_log_off(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_internal_sql_log_off");
-  DBUG_RETURN(THDVAR(thd, internal_sql_log_off));
-}
+SPIDER_THDVAR_VALUE_FUN(int, internal_sql_log_off)
 
 /*
  -1 :use table parameter
@@ -945,14 +847,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_bulk_size(
-  THD *thd,
-  int bulk_size
-) {
-  DBUG_ENTER("spider_param_bulk_size");
-  DBUG_RETURN(THDVAR(thd, bulk_size) < 0 ?
-    bulk_size : THDVAR(thd, bulk_size));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, bulk_size)
 
 /*
  -1 :use table parameter
@@ -974,14 +869,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_bulk_update_mode(
-  THD *thd,
-  int bulk_update_mode
-) {
-  DBUG_ENTER("spider_param_bulk_update_mode");
-  DBUG_RETURN(THDVAR(thd, bulk_update_mode) == -1 ?
-    bulk_update_mode : THDVAR(thd, bulk_update_mode));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, bulk_update_mode)
 
 /*
  -1 :use table parameter
@@ -999,14 +887,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_bulk_update_size(
-  THD *thd,
-  int bulk_update_size
-) {
-  DBUG_ENTER("spider_param_bulk_update_size");
-  DBUG_RETURN(THDVAR(thd, bulk_update_size) == -1 ?
-    bulk_update_size : THDVAR(thd, bulk_update_size));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, bulk_update_size)
 
 /*
  -1 :use table parameter
@@ -1024,14 +905,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_buffer_size(
-  THD *thd,
-  int buffer_size
-) {
-  DBUG_ENTER("spider_param_buffer_size");
-  DBUG_RETURN(THDVAR(thd, buffer_size) == -1 ?
-    buffer_size : THDVAR(thd, buffer_size));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, buffer_size)
 
 /*
  -1 :use table parameter
@@ -1050,14 +924,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_internal_optimize(
-  THD *thd,
-  int internal_optimize
-) {
-  DBUG_ENTER("spider_param_internal_optimize");
-  DBUG_RETURN(THDVAR(thd, internal_optimize) == -1 ?
-    internal_optimize : THDVAR(thd, internal_optimize));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, internal_optimize)
 
 /*
  -1 :use table parameter
@@ -1076,14 +943,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_internal_optimize_local(
-  THD *thd,
-  int internal_optimize_local
-) {
-  DBUG_ENTER("spider_param_internal_optimize_local");
-  DBUG_RETURN(THDVAR(thd, internal_optimize_local) == -1 ?
-    internal_optimize_local : THDVAR(thd, internal_optimize_local));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, internal_optimize_local)
 
 /*
   FALSE: off
@@ -1098,12 +958,7 @@ static MYSQL_THDVAR_BOOL(
   FALSE /* def */
 );
 
-bool spider_param_use_flash_logs(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_use_flash_logs");
-  DBUG_RETURN(THDVAR(thd, use_flash_logs));
-}
+SPIDER_THDVAR_VALUE_FUN(bool, use_flash_logs)
 
 /*
   0 :off
@@ -1122,12 +977,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_use_snapshot_with_flush_tables(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_use_snapshot_with_flush_tables");
-  DBUG_RETURN(THDVAR(thd, use_snapshot_with_flush_tables));
-}
+SPIDER_THDVAR_VALUE_FUN(int, use_snapshot_with_flush_tables)
 
 /*
   FALSE: off
@@ -1142,12 +992,7 @@ static MYSQL_THDVAR_BOOL(
   FALSE /* def */
 );
 
-bool spider_param_use_all_conns_snapshot(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_use_all_conns_snapshot");
-  DBUG_RETURN(THDVAR(thd, use_all_conns_snapshot));
-}
+SPIDER_THDVAR_VALUE_FUN(bool, use_all_conns_snapshot)
 
 /*
   FALSE: off
@@ -1162,12 +1007,7 @@ static MYSQL_THDVAR_BOOL(
   FALSE /* def */
 );
 
-bool spider_param_lock_exchange(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_lock_exchange");
-  DBUG_RETURN(THDVAR(thd, lock_exchange));
-}
+SPIDER_THDVAR_VALUE_FUN(bool, lock_exchange)
 
 /*
   FALSE: off
@@ -1182,12 +1022,7 @@ static MYSQL_THDVAR_BOOL(
   FALSE /* def */
 );
 
-bool spider_param_internal_unlock(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_internal_unlock");
-  DBUG_RETURN(THDVAR(thd, internal_unlock));
-}
+SPIDER_THDVAR_VALUE_FUN(bool, internal_unlock)
 
 /*
   FALSE: off
@@ -1202,12 +1037,7 @@ static MYSQL_THDVAR_BOOL(
   TRUE /* def */
 );
 
-bool spider_param_semi_trx(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_semi_trx");
-  DBUG_RETURN(THDVAR(thd, semi_trx));
-}
+SPIDER_THDVAR_VALUE_FUN(bool, semi_trx)
 
 /*
  -1 :use table parameter
@@ -1225,16 +1055,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_connect_timeout(
-  THD *thd,
-  int connect_timeout
-) {
-  DBUG_ENTER("spider_param_connect_timeout");
-  if (thd)
-    DBUG_RETURN(THDVAR(thd, connect_timeout) == -1 ?
-      connect_timeout : THDVAR(thd, connect_timeout));
-  DBUG_RETURN(connect_timeout);
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, connect_timeout)
 
 /*
  -1 :use table parameter
@@ -1252,16 +1073,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_net_read_timeout(
-  THD *thd,
-  int net_read_timeout
-) {
-  DBUG_ENTER("spider_param_net_read_timeout");
-  if (thd)
-    DBUG_RETURN(THDVAR(thd, net_read_timeout) == -1 ?
-      net_read_timeout : THDVAR(thd, net_read_timeout));
-  DBUG_RETURN(net_read_timeout);
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, net_read_timeout)
 
 /*
  -1 :use table parameter
@@ -1279,16 +1091,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_net_write_timeout(
-  THD *thd,
-  int net_write_timeout
-) {
-  DBUG_ENTER("spider_param_net_write_timeout");
-  if (thd)
-    DBUG_RETURN(THDVAR(thd, net_write_timeout) == -1 ?
-      net_write_timeout : THDVAR(thd, net_write_timeout));
-  DBUG_RETURN(net_write_timeout);
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, net_write_timeout)
 
 /*
  -1 :use table parameter
@@ -1310,14 +1113,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_quick_mode(
-  THD *thd,
-  int quick_mode
-) {
-  DBUG_ENTER("spider_param_quick_mode");
-  DBUG_RETURN(THDVAR(thd, quick_mode) < 0 ?
-    quick_mode : THDVAR(thd, quick_mode));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, quick_mode)
 
 /*
  -1 :use table parameter
@@ -1335,14 +1131,7 @@ static MYSQL_THDVAR_LONGLONG(
   0 /* blk */
 );
 
-longlong spider_param_quick_page_size(
-  THD *thd,
-  longlong quick_page_size
-) {
-  DBUG_ENTER("spider_param_quick_page_size");
-  DBUG_RETURN(THDVAR(thd, quick_page_size) < 0 ?
-    quick_page_size : THDVAR(thd, quick_page_size));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(longlong, quick_page_size)
 
 /*
  -1 :use table parameter
@@ -1360,14 +1149,7 @@ static MYSQL_THDVAR_LONGLONG(
   0 /* blk */
 );
 
-longlong spider_param_quick_page_byte(
-  THD *thd,
-  longlong quick_page_byte
-) {
-  DBUG_ENTER("spider_param_quick_page_byte");
-  DBUG_RETURN(THDVAR(thd, quick_page_byte) < 0 ?
-    quick_page_byte : THDVAR(thd, quick_page_byte));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(longlong, quick_page_byte)
 
 /*
  -1 :use table parameter
@@ -1386,14 +1168,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_low_mem_read(
-  THD *thd,
-  int low_mem_read
-) {
-  DBUG_ENTER("spider_param_low_mem_read");
-  DBUG_RETURN(THDVAR(thd, low_mem_read) < 0 ?
-    low_mem_read : THDVAR(thd, low_mem_read));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, low_mem_read)
 
 /*
  -1 :use table parameter
@@ -1413,14 +1188,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_select_column_mode(
-  THD *thd,
-  int select_column_mode
-) {
-  DBUG_ENTER("spider_param_select_column_mode");
-  DBUG_RETURN(THDVAR(thd, select_column_mode) == -1 ?
-    select_column_mode : THDVAR(thd, select_column_mode));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, select_column_mode)
 
 /*
  -1 :use table parameter
@@ -1441,14 +1209,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_bgs_mode(
-  THD *thd,
-  int bgs_mode
-) {
-  DBUG_ENTER("spider_param_bgs_mode");
-  DBUG_RETURN(THDVAR(thd, bgs_mode) < 0 ?
-    bgs_mode : THDVAR(thd, bgs_mode));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, bgs_mode)
 
 /*
  -1 :use table parameter
@@ -1467,14 +1228,7 @@ static MYSQL_THDVAR_LONGLONG(
   0 /* blk */
 );
 
-longlong spider_param_bgs_first_read(
-  THD *thd,
-  longlong bgs_first_read
-) {
-  DBUG_ENTER("spider_param_bgs_first_read");
-  DBUG_RETURN(THDVAR(thd, bgs_first_read) < 0 ?
-    bgs_first_read : THDVAR(thd, bgs_first_read));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(longlong, bgs_first_read)
 
 /*
  -1 :use table parameter
@@ -1493,14 +1247,7 @@ static MYSQL_THDVAR_LONGLONG(
   0 /* blk */
 );
 
-longlong spider_param_bgs_second_read(
-  THD *thd,
-  longlong bgs_second_read
-) {
-  DBUG_ENTER("spider_param_bgs_second_read");
-  DBUG_RETURN(THDVAR(thd, bgs_second_read) < 0 ?
-    bgs_second_read : THDVAR(thd, bgs_second_read));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(longlong, bgs_second_read)
 
 /*
  -1 :use table parameter
@@ -1519,14 +1266,7 @@ static MYSQL_THDVAR_LONGLONG(
   0 /* blk */
 );
 
-longlong spider_param_first_read(
-  THD *thd,
-  longlong first_read
-) {
-  DBUG_ENTER("spider_param_first_read");
-  DBUG_RETURN(THDVAR(thd, first_read) < 0 ?
-    first_read : THDVAR(thd, first_read));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(longlong, first_read)
 
 /*
  -1 :use table parameter
@@ -1545,14 +1285,7 @@ static MYSQL_THDVAR_LONGLONG(
   0 /* blk */
 );
 
-longlong spider_param_second_read(
-  THD *thd,
-  longlong second_read
-) {
-  DBUG_ENTER("spider_param_second_read");
-  DBUG_RETURN(THDVAR(thd, second_read) < 0 ?
-    second_read : THDVAR(thd, second_read));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(longlong, second_read)
 
 /*
  -1 :use table parameter
@@ -1571,14 +1304,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-double spider_param_crd_interval(
-  THD *thd,
-  double crd_interval
-) {
-  DBUG_ENTER("spider_param_crd_interval");
-  DBUG_RETURN(THDVAR(thd, crd_interval) == -1 ?
-    crd_interval : THDVAR(thd, crd_interval));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(double, crd_interval)
 
 /*
  -1 :use table parameter
@@ -1599,14 +1325,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_crd_mode(
-  THD *thd,
-  int crd_mode
-) {
-  DBUG_ENTER("spider_param_crd_mode");
-  DBUG_RETURN(THDVAR(thd, crd_mode) <= 0 ?
-    crd_mode : THDVAR(thd, crd_mode));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, crd_mode)
 
 /*
  -1 :use table parameter
@@ -1627,14 +1346,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_crd_sync(
-  THD *thd,
-  int crd_sync
-) {
-  DBUG_ENTER("spider_param_crd_sync");
-  DBUG_RETURN(THDVAR(thd, crd_sync) == -1 ?
-    crd_sync : THDVAR(thd, crd_sync));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, crd_sync)
 
 /*
  -1 :use table parameter
@@ -1654,14 +1366,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_crd_type(
-  THD *thd,
-  int crd_type
-) {
-  DBUG_ENTER("spider_param_crd_type");
-  DBUG_RETURN(THDVAR(thd, crd_type) == -1 ?
-    crd_type : THDVAR(thd, crd_type));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, crd_type)
 
 /*
  -1 :use table parameter
@@ -1679,14 +1384,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-double spider_param_crd_weight(
-  THD *thd,
-  double crd_weight
-) {
-  DBUG_ENTER("spider_param_crd_weight");
-  DBUG_RETURN(THDVAR(thd, crd_weight) == -1 ?
-    crd_weight : THDVAR(thd, crd_weight));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(double, crd_weight)
 
 /*
  -1 :use table parameter
@@ -1706,14 +1404,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_crd_bg_mode(
-  THD *thd,
-  int crd_bg_mode
-) {
-  DBUG_ENTER("spider_param_crd_bg_mode");
-  DBUG_RETURN(THDVAR(thd, crd_bg_mode) == -1 ?
-    crd_bg_mode : THDVAR(thd, crd_bg_mode));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, crd_bg_mode)
 
 /*
  -1 :use table parameter
@@ -1732,14 +1423,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-double spider_param_sts_interval(
-  THD *thd,
-  double sts_interval
-) {
-  DBUG_ENTER("spider_param_sts_interval");
-  DBUG_RETURN(THDVAR(thd, sts_interval) == -1 ?
-    sts_interval : THDVAR(thd, sts_interval));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(double, sts_interval)
 
 /*
  -1 :use table parameter
@@ -1759,14 +1443,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_sts_mode(
-  THD *thd,
-  int sts_mode
-) {
-  DBUG_ENTER("spider_param_sts_mode");
-  DBUG_RETURN(THDVAR(thd, sts_mode) <= 0 ?
-    sts_mode : THDVAR(thd, sts_mode));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, sts_mode)
 
 /*
  -1 :use table parameter
@@ -1787,14 +1464,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_sts_sync(
-  THD *thd,
-  int sts_sync
-) {
-  DBUG_ENTER("spider_param_sts_sync");
-  DBUG_RETURN(THDVAR(thd, sts_sync) == -1 ?
-    sts_sync : THDVAR(thd, sts_sync));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, sts_sync)
 
 /*
  -1 :use table parameter
@@ -1814,14 +1484,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_sts_bg_mode(
-  THD *thd,
-  int sts_bg_mode
-) {
-  DBUG_ENTER("spider_param_sts_bg_mode");
-  DBUG_RETURN(THDVAR(thd, sts_bg_mode) == -1 ?
-    sts_bg_mode : THDVAR(thd, sts_bg_mode));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, sts_bg_mode)
 
 /*
   0 :always ping
@@ -1839,12 +1502,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-double spider_param_ping_interval_at_trx_start(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_ping_interval_at_trx_start");
-  DBUG_RETURN(THDVAR(thd, ping_interval_at_trx_start));
-}
+SPIDER_THDVAR_VALUE_FUN(double, ping_interval_at_trx_start)
 
 /*
  -1 :use table parameter
@@ -1864,14 +1522,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_auto_increment_mode(
-  THD *thd,
-  int auto_increment_mode
-) {
-  DBUG_ENTER("spider_param_auto_increment_mode");
-  DBUG_RETURN(THDVAR(thd, auto_increment_mode) == -1 ?
-    auto_increment_mode : THDVAR(thd, auto_increment_mode));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, auto_increment_mode)
 
 /*
   FALSE: off
@@ -1886,12 +1537,7 @@ static MYSQL_THDVAR_BOOL(
   FALSE /* def */
 );
 
-bool spider_param_same_server_link(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_same_server_link");
-  DBUG_RETURN(THDVAR(thd, same_server_link));
-}
+SPIDER_THDVAR_VALUE_FUN(bool, same_server_link)
 
 /*
   FALSE: transmits
@@ -1907,12 +1553,7 @@ static MYSQL_THDVAR_BOOL(
   FALSE /* def */
 );
 
-bool spider_param_local_lock_table(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_local_lock_table");
-  DBUG_RETURN(THDVAR(thd, local_lock_table));
-}
+SPIDER_THDVAR_VALUE_FUN(bool, local_lock_table)
 
 /*
  -1 :use table parameter
@@ -1931,14 +1572,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_use_pushdown_udf(
-  THD *thd,
-  int use_pushdown_udf
-) {
-  DBUG_ENTER("spider_param_use_pushdown_udf");
-  DBUG_RETURN(THDVAR(thd, use_pushdown_udf) == -1 ?
-    use_pushdown_udf : THDVAR(thd, use_pushdown_udf));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, use_pushdown_udf)
 
 /*
  -1 :use table parameter
@@ -1957,14 +1591,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_direct_dup_insert(
-  THD *thd,
-  int direct_dup_insert
-) {
-  DBUG_ENTER("spider_param_direct_dup_insert");
-  DBUG_RETURN(THDVAR(thd, direct_dup_insert) < 0 ?
-    direct_dup_insert : THDVAR(thd, direct_dup_insert));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, direct_dup_insert)
 
 static char *spider_remote_access_charset;
 /*
@@ -1980,11 +1607,7 @@ static MYSQL_SYSVAR_STR(
   NULL
 );
 
-char *spider_param_remote_access_charset()
-{
-  DBUG_ENTER("spider_param_remote_access_charset");
-  DBUG_RETURN(spider_remote_access_charset);
-}
+SPIDER_SYSVAR_VALUE_FUN(char*, remote_access_charset)
 
 static int spider_remote_autocommit;
 /*
@@ -2005,11 +1628,7 @@ static MYSQL_SYSVAR_INT(
   0
 );
 
-int spider_param_remote_autocommit()
-{
-  DBUG_ENTER("spider_param_remote_autocommit");
-  DBUG_RETURN(spider_remote_autocommit);
-}
+SPIDER_SYSVAR_VALUE_FUN(int, remote_autocommit)
 
 static char *spider_remote_time_zone;
 /*
@@ -2025,11 +1644,7 @@ static MYSQL_SYSVAR_STR(
   NULL
 );
 
-char *spider_param_remote_time_zone()
-{
-  DBUG_ENTER("spider_param_remote_time_zone");
-  DBUG_RETURN(spider_remote_time_zone);
-}
+SPIDER_SYSVAR_VALUE_FUN(char *, remote_time_zone)
 
 static int spider_remote_sql_log_off;
 /*
@@ -2050,11 +1665,7 @@ static MYSQL_SYSVAR_INT(
   0
 );
 
-int spider_param_remote_sql_log_off()
-{
-  DBUG_ENTER("spider_param_remote_sql_log_off");
-  DBUG_RETURN(spider_remote_sql_log_off);
-}
+SPIDER_SYSVAR_VALUE_FUN(int, remote_sql_log_off)
 
 static int spider_remote_trx_isolation;
 /*
@@ -2077,11 +1688,7 @@ static MYSQL_SYSVAR_INT(
   0
 );
 
-int spider_param_remote_trx_isolation()
-{
-  DBUG_ENTER("spider_param_remote_trx_isolation");
-  DBUG_RETURN(spider_remote_trx_isolation);
-}
+SPIDER_SYSVAR_VALUE_FUN(int, remote_trx_isolation)
 
 static char *spider_remote_default_database;
 /*
@@ -2097,11 +1704,7 @@ static MYSQL_SYSVAR_STR(
   NULL
 );
 
-char *spider_param_remote_default_database()
-{
-  DBUG_ENTER("spider_param_remote_default_database");
-  DBUG_RETURN(spider_remote_default_database);
-}
+SPIDER_SYSVAR_VALUE_FUN(char *, remote_default_database)
 
 /*
   0-:connect retry interval (micro second)
@@ -2168,8 +1771,7 @@ char *spider_param_bka_engine(
   char *bka_engine
 ) {
   DBUG_ENTER("spider_param_bka_engine");
-  DBUG_RETURN(THDVAR(thd, bka_engine) ?
-    THDVAR(thd, bka_engine) : bka_engine);
+  DBUG_RETURN(bka_engine ? bka_engine : THDVAR(thd, bka_engine));
 }
 
 /*
@@ -2189,14 +1791,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_bka_mode(
-  THD *thd,
-  int bka_mode
-) {
-  DBUG_ENTER("spider_param_bka_mode");
-  DBUG_RETURN(THDVAR(thd, bka_mode) == -1 ?
-    bka_mode : THDVAR(thd, bka_mode));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, bka_mode)
 
 /*
  -1 :use table parameter
@@ -2215,14 +1810,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_error_read_mode(
-  THD *thd,
-  int error_read_mode
-) {
-  DBUG_ENTER("spider_param_error_read_mode");
-  DBUG_RETURN(THDVAR(thd, error_read_mode) == -1 ?
-    error_read_mode : THDVAR(thd, error_read_mode));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, error_read_mode)
 
 /*
  -1 :use table parameter
@@ -2241,14 +1829,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_error_write_mode(
-  THD *thd,
-  int error_write_mode
-) {
-  DBUG_ENTER("spider_param_error_write_mode");
-  DBUG_RETURN(THDVAR(thd, error_write_mode) == -1 ?
-    error_write_mode : THDVAR(thd, error_write_mode));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, error_write_mode)
 
 /*
  -1 :use table parameter
@@ -2267,14 +1848,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_skip_default_condition(
-  THD *thd,
-  int skip_default_condition
-) {
-  DBUG_ENTER("spider_param_skip_default_condition");
-  DBUG_RETURN(THDVAR(thd, skip_default_condition) == -1 ?
-    skip_default_condition : THDVAR(thd, skip_default_condition));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, skip_default_condition)
 
 /*
  -1 :use table parameter
@@ -2295,14 +1869,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_skip_parallel_search(
-  THD *thd,
-  int skip_parallel_search
-) {
-  DBUG_ENTER("spider_param_skip_parallel_search");
-  DBUG_RETURN(THDVAR(thd, skip_parallel_search) == -1 ?
-    skip_parallel_search : THDVAR(thd, skip_parallel_search));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, skip_parallel_search)
 
 /*
  -1 :use table parameter
@@ -2321,14 +1888,7 @@ static MYSQL_THDVAR_LONGLONG(
   0 /* blk */
 );
 
-longlong spider_param_direct_order_limit(
-  THD *thd,
-  longlong direct_order_limit
-) {
-  DBUG_ENTER("spider_param_direct_order_limit");
-  DBUG_RETURN(THDVAR(thd, direct_order_limit) == -1 ?
-    direct_order_limit : THDVAR(thd, direct_order_limit));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(longlong, direct_order_limit)
 
 /*
  -1 :use table parameter
@@ -2347,14 +1907,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_read_only_mode(
-  THD *thd,
-  int read_only_mode
-) {
-  DBUG_ENTER("spider_param_read_only_mode");
-  DBUG_RETURN(THDVAR(thd, read_only_mode) == -1 ?
-    read_only_mode : THDVAR(thd, read_only_mode));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, read_only_mode)
 
 static my_bool spider_general_log;
 static MYSQL_SYSVAR_BOOL(
@@ -2367,11 +1920,7 @@ static MYSQL_SYSVAR_BOOL(
   FALSE
 );
 
-my_bool spider_param_general_log()
-{
-  DBUG_ENTER("spider_param_general_log");
-  DBUG_RETURN(spider_general_log);
-}
+SPIDER_SYSVAR_VALUE_FUN(my_bool, general_log)
 
 /*
   FALSE: no pushdown hints
@@ -2386,12 +1935,7 @@ static MYSQL_THDVAR_BOOL(
   FALSE /* def */
 );
 
-my_bool spider_param_index_hint_pushdown(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_index_hint_pushdown");
-  DBUG_RETURN(THDVAR(thd, index_hint_pushdown));
-}
+SPIDER_THDVAR_VALUE_FUN(my_bool, index_hint_pushdown)
 
 static uint spider_max_connections;
 static MYSQL_SYSVAR_UINT(
@@ -2407,11 +1951,7 @@ static MYSQL_SYSVAR_UINT(
   0 /* blk */
 );
 
-uint spider_param_max_connections()
-{
-  DBUG_ENTER("spider_param_max_connections");
-  DBUG_RETURN(spider_max_connections);
-}
+SPIDER_SYSVAR_VALUE_FUN(uint, max_connections)
 
 static uint spider_conn_wait_timeout;
 static MYSQL_SYSVAR_UINT(
@@ -2427,11 +1967,7 @@ static MYSQL_SYSVAR_UINT(
   0 /* blk */
 );
 
-uint spider_param_conn_wait_timeout()
-{
-  DBUG_ENTER("spider_param_conn_wait_timeout");
-  DBUG_RETURN(spider_conn_wait_timeout);
-}
+SPIDER_SYSVAR_VALUE_FUN(uint, conn_wait_timeout)
 
 static uint spider_log_result_errors;
 /*
@@ -2454,11 +1990,7 @@ static MYSQL_SYSVAR_UINT(
   0
 );
 
-uint spider_param_log_result_errors()
-{
-  DBUG_ENTER("spider_param_log_result_errors");
-  DBUG_RETURN(spider_log_result_errors);
-}
+SPIDER_SYSVAR_VALUE_FUN(uint, log_result_errors)
 
 static uint spider_log_result_error_with_sql;
 /*
@@ -2480,11 +2012,7 @@ static MYSQL_SYSVAR_UINT(
   0
 );
 
-uint spider_param_log_result_error_with_sql()
-{
-  DBUG_ENTER("spider_param_log_result_error_with_sql");
-  DBUG_RETURN(spider_log_result_error_with_sql);
-}
+SPIDER_SYSVAR_VALUE_FUN(uint, log_result_error_with_sql)
 
 /*
   0: server_id + thread_id
@@ -2502,12 +2030,7 @@ static MYSQL_THDVAR_UINT(
   0 /* blk */
 );
 
-uint spider_param_internal_xa_id_type(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_internal_xa_id_type");
-  DBUG_RETURN(THDVAR(thd, internal_xa_id_type));
-}
+SPIDER_THDVAR_VALUE_FUN(uint, internal_xa_id_type)
 
 /*
  -1 :use table parameter
@@ -2527,14 +2050,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_casual_read(
-  THD *thd,
-  int casual_read
-) {
-  DBUG_ENTER("spider_param_casual_read");
-  DBUG_RETURN(THDVAR(thd, casual_read) == -1 ?
-    casual_read : THDVAR(thd, casual_read));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, casual_read)
 
 static my_bool spider_dry_access;
 static MYSQL_SYSVAR_BOOL(
@@ -2547,11 +2063,7 @@ static MYSQL_SYSVAR_BOOL(
   FALSE
 );
 
-my_bool spider_param_dry_access()
-{
-  DBUG_ENTER("spider_param_dry_access");
-  DBUG_RETURN(spider_dry_access);
-}
+SPIDER_SYSVAR_VALUE_FUN(my_bool, dry_access)
 
 /*
  -1 :use table parameter
@@ -2570,14 +2082,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_delete_all_rows_type(
-  THD *thd,
-  int delete_all_rows_type
-) {
-  DBUG_ENTER("spider_param_delete_all_rows_type");
-  DBUG_RETURN(THDVAR(thd, delete_all_rows_type) == -1 ?
-    delete_all_rows_type : THDVAR(thd, delete_all_rows_type));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, delete_all_rows_type)
 
 /*
  -1 :use table parameter
@@ -2596,14 +2101,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_bka_table_name_type(
-  THD *thd,
-  int bka_table_name_type
-) {
-  DBUG_ENTER("spider_param_bka_table_name_type");
-  DBUG_RETURN(THDVAR(thd, bka_table_name_type) == -1 ?
-    bka_table_name_type : THDVAR(thd, bka_table_name_type));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, bka_table_name_type)
 
 /*
  -1 :use table parameter
@@ -2622,12 +2120,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_use_cond_other_than_pk_for_update(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_reset_sql_alloc");
-  DBUG_RETURN(THDVAR(thd, use_cond_other_than_pk_for_update));
-}
+SPIDER_THDVAR_VALUE_FUN(int, use_cond_other_than_pk_for_update)
 
 static int spider_store_last_sts;
 /*
@@ -2648,13 +2141,7 @@ static MYSQL_SYSVAR_INT(
   0
 );
 
-int spider_param_store_last_sts(
-  int store_last_sts
-) {
-  DBUG_ENTER("spider_param_store_last_sts");
-  DBUG_RETURN(spider_store_last_sts == -1 ?
-    store_last_sts : spider_store_last_sts);
-}
+SPIDER_SYSVAR_OVERRIDE_VALUE_FUN(store_last_sts)
 
 static int spider_store_last_crd;
 /*
@@ -2675,13 +2162,7 @@ static MYSQL_SYSVAR_INT(
   0
 );
 
-int spider_param_store_last_crd(
-  int store_last_crd
-) {
-  DBUG_ENTER("spider_param_store_last_crd");
-  DBUG_RETURN(spider_store_last_crd == -1 ?
-    store_last_crd : spider_store_last_crd);
-}
+SPIDER_SYSVAR_OVERRIDE_VALUE_FUN(store_last_crd)
 
 static int spider_load_sts_at_startup;
 /*
@@ -2702,13 +2183,7 @@ static MYSQL_SYSVAR_INT(
   0
 );
 
-int spider_param_load_sts_at_startup(
-  int load_sts_at_startup
-) {
-  DBUG_ENTER("spider_param_load_sts_at_startup");
-  DBUG_RETURN(spider_load_sts_at_startup == -1 ?
-    load_sts_at_startup : spider_load_sts_at_startup);
-}
+SPIDER_SYSVAR_OVERRIDE_VALUE_FUN(load_sts_at_startup)
 
 static int spider_load_crd_at_startup;
 /*
@@ -2729,13 +2204,7 @@ static MYSQL_SYSVAR_INT(
   0
 );
 
-int spider_param_load_crd_at_startup(
-  int load_crd_at_startup
-) {
-  DBUG_ENTER("spider_param_load_crd_at_startup");
-  DBUG_RETURN(spider_load_crd_at_startup == -1 ?
-    load_crd_at_startup : spider_load_crd_at_startup);
-}
+SPIDER_SYSVAR_OVERRIDE_VALUE_FUN(load_crd_at_startup)
 
 static uint spider_table_sts_thread_count;
 /*
@@ -2754,11 +2223,7 @@ static MYSQL_SYSVAR_UINT(
   0
 );
 
-uint spider_param_table_sts_thread_count()
-{
-  DBUG_ENTER("spider_param_table_sts_thread_count");
-  DBUG_RETURN(spider_table_sts_thread_count);
-}
+SPIDER_SYSVAR_VALUE_FUN(uint, table_sts_thread_count)
 
 static uint spider_table_crd_thread_count;
 /*
@@ -2777,11 +2242,7 @@ static MYSQL_SYSVAR_UINT(
   0
 );
 
-uint spider_param_table_crd_thread_count()
-{
-  DBUG_ENTER("spider_param_table_crd_thread_count");
-  DBUG_RETURN(spider_table_crd_thread_count);
-}
+SPIDER_SYSVAR_VALUE_FUN(uint, table_crd_thread_count)
 
 static int spider_slave_trx_isolation;
 /*
@@ -2804,11 +2265,7 @@ static MYSQL_SYSVAR_INT(
   0 /* blk */
 );
 
-int spider_param_slave_trx_isolation()
-{
-  DBUG_ENTER("spider_param_slave_trx_isolation");
-  DBUG_RETURN(spider_slave_trx_isolation);
-}
+SPIDER_SYSVAR_VALUE_FUN(int, slave_trx_isolation)
 
 /*
  -1 :not set
@@ -2873,12 +2330,7 @@ static MYSQL_THDVAR_BOOL(
   TRUE /* def */
 );
 
-bool spider_param_sync_sql_mode(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_sync_sql_mode");
-  DBUG_RETURN(THDVAR(thd, sync_sql_mode));
-}
+SPIDER_THDVAR_VALUE_FUN(bool, sync_sql_mode)
 
 /*
  -1 : use table parameter
@@ -2897,14 +2349,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_strict_group_by(
-  THD *thd,
-  int strict_group_by
-) {
-  DBUG_ENTER("spider_param_strict_group_by");
-  DBUG_RETURN(THDVAR(thd, strict_group_by) == -1 ?
-    strict_group_by : THDVAR(thd, strict_group_by));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUN(int, strict_group_by)
 
 static struct st_mysql_storage_engine spider_storage_engine =
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
