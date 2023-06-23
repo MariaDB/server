@@ -236,15 +236,6 @@ static int my_strnncollsp_8bit_nopad_bin(CHARSET_INFO * cs
 }
 
 
-/* This function is used for all conversion functions */
-
-static size_t my_case_str_bin(CHARSET_INFO *cs __attribute__((unused)),
-                              char *str __attribute__((unused)))
-{
-  return 0;
-}
-
-
 static size_t my_case_bin(CHARSET_INFO *cs __attribute__((unused)),
                           const char *src, size_t srclen,
                           char *dst, size_t dstlen __attribute__((unused)))
@@ -583,8 +574,6 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_mb_wc_bin,
   my_wc_mb_bin,
   my_mb_ctype_8bit,
-  my_case_str_bin,
-  my_case_str_bin,
   my_case_bin,
   my_case_bin,
   my_snprintf_8bit,

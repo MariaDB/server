@@ -39,6 +39,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <innodb_priv.h>
 #include <strfunc.h>
 #include <sql_acl.h>
+#include <lex_ident.h>
 #include <sql_class.h>
 #include <sql_show.h>
 #include <sql_table.h>
@@ -1276,17 +1277,18 @@ static void innodb_drop_database(handlerton*, char *path)
     len++;
 
   ptr++;
+  size_t casedn_nbytes= len * system_charset_info->casedn_multiply();
   char *namebuf= static_cast<char*>
-    (my_malloc(PSI_INSTRUMENT_ME, len + 2, MYF(0)));
+    (my_malloc(PSI_INSTRUMENT_ME, casedn_nbytes + 2, MYF(0)));
   if (!namebuf)
     return;
+#ifndef _WIN32
   memcpy(namebuf, ptr, len);
+#else /*_WIN32*/
+  len= system_charset_info->casedn(ptr, len, namebuf, casedn_nbytes);
+#endif /* _WIN32 */
   namebuf[len] = '/';
   namebuf[len + 1] = '\0';
-
-#ifdef _WIN32
-  innobase_casedn_str(namebuf);
-#endif /* _WIN32 */
 
   THD * const thd= current_thd;
   trx_t *trx= innobase_trx_allocate(thd);
@@ -1886,8 +1888,17 @@ static int innobase_wsrep_set_checkpoint(handlerton *hton, const XID *xid);
 static int innobase_wsrep_get_checkpoint(handlerton* hton, XID* xid);
 #endif /* WITH_WSREP */
 
-#define normalize_table_name(a,b) \
-	normalize_table_name_c_low(a,b,IF_WIN(true,false))
+
+static inline size_t
+normalize_table_name(
+	char*		norm_name,
+	size_t		norm_name_size,
+	const char*	name)
+{
+	return normalize_table_name_c_low(norm_name, norm_name_size,
+					name, IF_WIN(true,false));
+}
+
 
 ulonglong ha_innobase::table_version() const
 {
@@ -1913,7 +1924,7 @@ static int innodb_check_version(handlerton *hton, const char *path,
     DBUG_RETURN(0);
 
   char norm_path[FN_REFLEN];
-  normalize_table_name(norm_path, path);
+  normalize_table_name(norm_path, sizeof(norm_path), path);
 
   if (dict_table_t *table= dict_table_open_on_name(norm_path, false,
                                                    DICT_ERR_IGNORE_NONE))
@@ -2441,16 +2452,6 @@ innobase_basename(
 	const char*	name = base_name(path_name);
 
 	return((name) ? name : "null");
-}
-
-/******************************************************************//**
-Makes all characters in a NUL-terminated UTF-8 string lower case. */
-void
-innobase_casedn_str(
-/*================*/
-	char*	a)	/*!< in/out: string to put in lower case */
-{
-	my_casedn_str(system_charset_info, a);
 }
 
 /** Determines the current SQL statement.
@@ -3261,7 +3262,7 @@ innobase_query_caching_of_table_permitted(
 	}
 
 	/* Normalize the table name to InnoDB format */
-	normalize_table_name(norm_name, full_name);
+	normalize_table_name(norm_name, sizeof(norm_name), full_name);
 
 	innobase_register_trx(innodb_hton_ptr, thd, trx);
 
@@ -5183,21 +5184,22 @@ table name always to lower case if "set_lower_case" is set to TRUE.
 @param[out]	norm_name	Normalized name, null-terminated.
 @param[in]	name		Name to normalize.
 @param[in]	set_lower_case	True if we also should fold to lower case. */
-void
+size_t
 normalize_table_name_c_low(
 /*=======================*/
 	char*           norm_name,      /* out: normalized name as a
 					null-terminated string */
+	size_t          norm_name_size, /*!< in: number of bytes available
+					in norm_name*/
 	const char*     name,           /* in: table name string */
 	bool            set_lower_case) /* in: TRUE if we want to set
 					 name to lower case */
 {
-	char*	name_ptr;
+	const char* name_ptr;
 	ulint	name_len;
-	char*	db_ptr;
+	const char* db_ptr;
 	ulint	db_len;
-	char*	ptr;
-	ulint	norm_len;
+	const char* ptr;
 
 	/* Scan name from the end */
 
@@ -5227,28 +5229,15 @@ normalize_table_name_c_low(
 	}
 
 	db_ptr = ptr + 1;
-
-	norm_len = db_len + name_len + sizeof "/";
-	ut_a(norm_len < FN_REFLEN - 1);
-
-	memcpy(norm_name, db_ptr, db_len);
-
-	norm_name[db_len] = '/';
-
-	/* Copy the name and null-byte. */
-	memcpy(norm_name + db_len + 1, name_ptr, name_len + 1);
-
-	if (set_lower_case) {
-		innobase_casedn_str(norm_name);
-	}
+	return Identifier_chain2({db_ptr, db_len}, {name_ptr, name_len}).
+		make_sep_name_opt_casedn(norm_name, norm_name_size, '/',
+					set_lower_case);
 }
 
 create_table_info_t::create_table_info_t(
 	THD*		thd,
 	const TABLE*	form,
 	HA_CREATE_INFO*	create_info,
-	char*		table_name,
-	char*		remote_path,
 	bool		file_per_table,
 	trx_t*		trx)
 	: m_thd(thd),
@@ -5256,11 +5245,12 @@ create_table_info_t::create_table_info_t(
 	  m_form(form),
 	  m_default_row_format(innodb_default_row_format),
 	  m_create_info(create_info),
-	  m_table_name(table_name), m_table(NULL),
-	  m_remote_path(remote_path),
+	  m_table(NULL),
 	  m_innodb_file_per_table(file_per_table),
 	  m_creating_stub(thd_ddl_options(thd)->import_tablespace())
 {
+  m_table_name[0]= '\0';
+  m_remote_path[0]= '\0';
 }
 
 #if !defined(DBUG_OFF)
@@ -5318,7 +5308,7 @@ test_normalize_table_name_low()
 		       test_data[i][0], test_data[i][1]);
 
 		normalize_table_name_c_low(
-			norm_name, test_data[i][0], FALSE);
+			norm_name, sizeof(norm_name), test_data[i][0], FALSE);
 
 		if (strcmp(norm_name, test_data[i][1]) == 0) {
 			printf("ok\n");
@@ -5866,7 +5856,7 @@ ha_innobase::open(const char* name, int, uint)
 
 	DBUG_ENTER("ha_innobase::open");
 
-	normalize_table_name(norm_name, name);
+	normalize_table_name(norm_name, sizeof(norm_name), name);
 
 	m_user_thd = NULL;
 
@@ -6199,15 +6189,17 @@ ha_innobase::open_dict_table(
 			/* Check for the table using lower
 			case name, including the partition
 			separator "P" */
-			strcpy(par_case_name, norm_name);
-			innobase_casedn_str(par_case_name);
+			system_charset_info->casedn_z(
+				norm_name, strlen(norm_name),
+				par_case_name, sizeof(par_case_name));
 #else
 			/* On Windows platfrom, check
 			whether there exists table name in
 			system table whose name is
 			not being normalized to lower case */
 			normalize_table_name_c_low(
-				par_case_name, table_name, false);
+				par_case_name, sizeof(par_case_name),
+				table_name, false);
 #endif
 			/* FIXME: try_drop_aborted */
 			ib_table = dict_table_open_on_name(
@@ -6424,29 +6416,6 @@ innobase_fts_text_cmp(
 }
 
 /******************************************************************//**
-compare two character string case insensitively according to their charset. */
-int
-innobase_fts_text_case_cmp(
-/*=======================*/
-	const void*	cs,		/*!< in: Character set */
-	const void*     p1,		/*!< in: key */
-	const void*     p2)		/*!< in: node */
-{
-	const CHARSET_INFO*	charset = (const CHARSET_INFO*) cs;
-	const fts_string_t*	s1 = (const fts_string_t*) p1;
-	const fts_string_t*	s2 = (const fts_string_t*) p2;
-	ulint			newlen;
-
-	my_casedn_str(charset, (char*) s2->f_str);
-
-	newlen = strlen((const char*) s2->f_str);
-
-	return(ha_compare_word(charset,
-		s1->f_str, static_cast<uint>(s1->f_len),
-		s2->f_str, static_cast<uint>(newlen)));
-}
-
-/******************************************************************//**
 Get the first character's code position for FTS index partition. */
 ulint
 innobase_strnxfrm(
@@ -6495,28 +6464,6 @@ innobase_fts_text_cmp_prefix(
 	/* We switched s1, s2 position in the above call. So we need
 	to negate the result */
 	return(-result);
-}
-
-/******************************************************************//**
-Makes all characters in a string lower case. */
-size_t
-innobase_fts_casedn_str(
-/*====================*/
-	CHARSET_INFO*	cs,	/*!< in: Character set */
-	char*		src,	/*!< in: string to put in lower case */
-	size_t		src_len,/*!< in: input string length */
-	char*		dst,	/*!< in: buffer for result string */
-	size_t		dst_len)/*!< in: buffer size */
-{
-	if (cs->casedn_multiply() == 1) {
-		memcpy(dst, src, src_len);
-		dst[src_len] = 0;
-		my_casedn_str(cs, dst);
-
-		return(strlen(dst));
-	} else {
-		return(cs->casedn(src, src_len, dst, dst_len));
-	}
 }
 
 #define true_word_char(c, ch) ((c) & (_MY_U | _MY_L | _MY_NMR) || (ch) == '_')
@@ -12065,7 +12012,7 @@ int create_table_info_t::prepare_create_table(const char* name, bool strict)
 
 	set_tablespace_type(false);
 
-	normalize_table_name(m_table_name, name);
+	normalize_table_name(m_table_name, sizeof(m_table_name), name);
 
 	/* Validate table options not handled by the SQL-parser */
 	if (check_table_options()) {
@@ -12467,7 +12414,7 @@ create_table_info_t::create_foreign_keys()
 			return (DB_OUT_OF_MEMORY);
 		}
 
-		dict_mem_foreign_table_name_lookup_set(foreign, TRUE);
+		foreign->foreign_table_name_lookup_set();
 
 		foreign->foreign_index = index;
 		foreign->n_fields      = i & dict_index_t::MAX_N_FIELDS;
@@ -12574,7 +12521,7 @@ create_table_info_t::create_foreign_keys()
 		}
 
 		foreign->referenced_index = index;
-		dict_mem_referenced_table_name_lookup_set(foreign, TRUE);
+		foreign->referenced_table_name_lookup_set();
 
 		foreign->referenced_col_names = static_cast<const char**>(
 			mem_heap_alloc(foreign->heap, i * sizeof(void*)));
@@ -13189,16 +13136,12 @@ int
 ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
                     bool file_per_table, trx_t *trx= nullptr)
 {
-  char norm_name[FN_REFLEN];	/* {database}/{tablename} */
-  char remote_path[FN_REFLEN];	/* Absolute path of table */
-
   DBUG_ENTER("ha_innobase::create");
   DBUG_ASSERT(form->s == table_share);
   DBUG_ASSERT(table_share->table_type == TABLE_TYPE_SEQUENCE ||
               table_share->table_type == TABLE_TYPE_NORMAL);
 
-  create_table_info_t info(ha_thd(), form, create_info, norm_name,
-                           remote_path, file_per_table, trx);
+  create_table_info_t info(ha_thd(), form, create_info, file_per_table, trx);
 
   int error= info.initialize();
   if (!error)
@@ -13421,16 +13364,18 @@ int ha_innobase::delete_table(const char *name)
 
   {
     char norm_name[FN_REFLEN];
-    normalize_table_name(norm_name, name);
-    span<const char> n{norm_name, strlen(norm_name)};
+    size_t norm_len= normalize_table_name_c_low(norm_name, sizeof(norm_name),
+    						name, IF_WIN(true,false));
+    span<const char> n{norm_name, norm_len};
 
     dict_sys.lock(SRW_LOCK_CALL);
     table= dict_sys.load_table(n, DICT_ERR_IGNORE_DROP);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     if (!table && lower_case_table_names == 1 && is_partition(norm_name))
     {
-      IF_WIN(normalize_table_name_c_low(norm_name, name, false),
-             innobase_casedn_str(norm_name));
+      norm_len= normalize_table_name_c_low(norm_name, sizeof(norm_name),
+      					name, IF_WIN(false, true));
+      n= {norm_name, norm_len};
       table= dict_sys.load_table(n, DICT_ERR_IGNORE_DROP);
     }
 #endif
@@ -13731,8 +13676,8 @@ static dberr_t innobase_rename_table(trx_t *trx, const char *from,
 
 	ut_ad(!srv_read_only_mode);
 
-	normalize_table_name(norm_to, to);
-	normalize_table_name(norm_from, from);
+	normalize_table_name(norm_to, sizeof(norm_to), to);
+	normalize_table_name(norm_from, sizeof(norm_from), from);
 
 	DEBUG_SYNC_C("innodb_rename_table_ready");
 
@@ -13751,15 +13696,17 @@ static dberr_t innobase_rename_table(trx_t *trx, const char *from,
 				/* Check for the table using lower
 				case name, including the partition
 				separator "P" */
-				strcpy(par_case_name, norm_from);
-				innobase_casedn_str(par_case_name);
+				system_charset_info->casedn_z(
+					norm_from, strlen(norm_from),
+					par_case_name, sizeof(par_case_name));
 #else
 				/* On Windows platfrom, check
 				whether there exists table name in
 				system table whose name is
 				not being normalized to lower case */
 				normalize_table_name_c_low(
-					par_case_name, from, false);
+					par_case_name, sizeof(par_case_name),
+					from, false);
 #endif /* _WIN32 */
 				trx_start_if_not_started(trx, true);
 				error = row_rename_table_for_mysql(
@@ -14063,8 +14010,8 @@ ha_innobase::rename_table(
 	char norm_from[MAX_FULL_NAME_LEN];
 	char norm_to[MAX_FULL_NAME_LEN];
 
-	normalize_table_name(norm_from, from);
-	normalize_table_name(norm_to, to);
+	normalize_table_name(norm_from, sizeof(norm_from), from);
+	normalize_table_name(norm_to, sizeof(norm_to), to);
 
 	dberr_t error = DB_SUCCESS;
 	const bool from_temp = dict_table_t::is_temporary_name(norm_from);

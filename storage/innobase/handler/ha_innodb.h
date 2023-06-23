@@ -625,8 +625,6 @@ public:
 		THD*		thd,
 		const TABLE*	form,
 		HA_CREATE_INFO*	create_info,
-		char*		table_name,
-		char*		remote_path,
 		bool		file_per_table,
 		trx_t*		trx = NULL);
 
@@ -740,13 +738,13 @@ private:
 	/** Create options. */
 	HA_CREATE_INFO*	m_create_info;
 
-	/** Table name */
-	char*		m_table_name;
+	/** Table name: {database}/{tablename} */
+	char		m_table_name[FN_REFLEN];
 	/** Table */
 	dict_table_t*	m_table;
 
 	/** Remote path (DATA DIRECTORY) or zero length-string */
-	char*		m_remote_path;
+	char		m_remote_path[FN_REFLEN]; // Absolute path of the table
 
 	/** Local copy of srv_file_per_table. */
 	bool		m_innodb_file_per_table;

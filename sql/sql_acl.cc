@@ -631,8 +631,6 @@ bool ROLE_GRANT_PAIR::init(MEM_ROOT *mem, const char *username,
 }
 
 #define IP_ADDR_STRLEN (3 + 1 + 3 + 1 + 3 + 1 + 3)
-#define ACL_KEY_LENGTH (IP_ADDR_STRLEN + 1 + NAME_LEN + \
-                        1 + USERNAME_LENGTH + 1)
 
 #if defined(HAVE_OPENSSL)
 /*
@@ -2552,6 +2550,37 @@ static void push_new_user(const ACL_USER &user)
 }
 
 
+/**
+  Make a database name on mem_root from a String,
+  apply lower-case conversion if lower_case_table_names says so.
+  Perform database name length limit validation.
+
+  @param thd      - the THD, to get the warning text from
+  @param mem_root - allocate the result on this memory root
+  @param dbstr    - the String, e.g. with Field::val_str() result
+
+  @return         - {NULL,0} in case of EOM or a bad database name,
+                    or a good database name otherwise.
+*/
+static LEX_STRING make_and_check_db_name(MEM_ROOT *mem_root,
+                                         const String &dbstr)
+{
+  LEX_STRING dbls= lower_case_table_names ?
+                   lex_string_casedn_root(mem_root, files_charset_info,
+                                          dbstr.ptr(), dbstr.length()) :
+                   lex_string_strmake_root(mem_root,
+                                           dbstr.ptr(), dbstr.length());
+  if (!dbls.str)
+    return LEX_STRING{NULL, 0}; // EOM
+  if (dbls.length > SAFE_NAME_LEN)
+  {
+    sql_print_warning(ER_DEFAULT(ER_WRONG_DB_NAME), dbls.str);
+    return LEX_STRING{NULL, 0}; // Bad name
+  }
+  return dbls; // Good name
+}
+
+
 /*
   Initialize structures responsible for user/db-level privilege checking
   and load information about grants from open privilege tables.
@@ -2571,7 +2600,6 @@ static void push_new_user(const ACL_USER &user)
 static bool acl_load(THD *thd, const Grant_tables& tables)
 {
   READ_RECORD read_record_info;
-  char tmp_name[SAFE_NAME_LEN+1];
   Sql_mode_save old_mode_save(thd);
   DBUG_ENTER("acl_load");
 
@@ -2589,28 +2617,25 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
     {
       ACL_HOST host;
       update_hostname(&host.host, get_field(&acl_memroot, host_table.host()));
-      host.db= get_field(&acl_memroot, host_table.db());
-      if (lower_case_table_names && host.db)
+      StringBuffer<SAFE_NAME_LEN> dbstr;
+      host_table.db()->val_str(&dbstr);
+      if (dbstr.length())
       {
+        const LEX_STRING dbls= make_and_check_db_name(&acl_memroot, dbstr);
+        if (!(host.db= dbls.str))
+          continue; // EOM or a bad database name
         /*
-          convert db to lower case and give a warning if the db wasn't
-          already in lower case
+          Issue a warning if lower case conversion happened
+          and it changed the database name.
         */
-        char *end = strnmov(tmp_name, host.db, sizeof(tmp_name));
-        if (end >= tmp_name + sizeof(tmp_name))
-        {
-          sql_print_warning(ER_THD(thd, ER_WRONG_DB_NAME), host.db);
-          continue;
-        }
-        my_casedn_str(files_charset_info, host.db);
-        if (strcmp(host.db, tmp_name) != 0)
+        if (lower_case_table_names && cmp(dbls, dbstr.to_lex_cstring()))
           sql_print_warning("'host' entry '%s|%s' had database in mixed "
                             "case that has been forced to lowercase because "
                             "lower_case_table_names is set. It will not be "
                             "possible to remove this privilege using REVOKE.",
                             host.host.hostname, host.db);
       }
-      else if (!host.db)
+      else
         host.db= const_cast<char*>(host_not_specified.str);
       host.access= host_table.get_access();
       host.access= fix_rights_for_db(host.access);
@@ -2737,18 +2762,35 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
   while (!(read_record_info.read_record()))
   {
     ACL_DB db;
-    char *db_name;
     db.user=safe_str(get_field(&acl_memroot, db_table.user()));
     const char *hostname= get_field(&acl_memroot, db_table.host());
     if (!hostname && find_acl_role(db.user, true))
       hostname= "";
     update_hostname(&db.host, hostname);
-    db.db= db_name= get_field(&acl_memroot, db_table.db());
-    if (!db.db)
+
+    StringBuffer<SAFE_NAME_LEN> dbstr;
+    db_table.db()->val_str(&dbstr);
+    if (!dbstr.length())
     {
       sql_print_warning("Found an entry in the 'db' table with empty database name; Skipped");
       continue;
     }
+    const LEX_STRING dbls= make_and_check_db_name(&acl_memroot, dbstr);
+    if (!(db.db= dbls.str)) // EOM or a bad database name
+      continue;
+    /*
+      Issue a warning if lower case conversion happened
+      and it changed the database name.
+    */
+    if (lower_case_table_names && cmp(dbls, dbstr.to_lex_cstring()))
+    {
+      sql_print_warning("'db' entry '%s %s@%s' had database in mixed "
+                        "case that has been forced to lowercase because "
+                        "lower_case_table_names is set. It will not be "
+                        "possible to remove this privilege using REVOKE.",
+                        db.db, db.user, safe_str(db.host.hostname));
+    }
+
     if (opt_skip_name_resolve && hostname_requires_resolving(db.host.hostname))
     {
       sql_print_warning("'db' entry '%s %s@%s' "
@@ -2759,28 +2801,6 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
     db.access= db_table.get_access();
     db.access=fix_rights_for_db(db.access);
     db.initial_access= db.access;
-    if (lower_case_table_names)
-    {
-      /*
-        convert db to lower case and give a warning if the db wasn't
-        already in lower case
-      */
-      char *end = strnmov(tmp_name, db.db, sizeof(tmp_name));
-      if (end >= tmp_name + sizeof(tmp_name))
-      {
-        sql_print_warning(ER_THD(thd, ER_WRONG_DB_NAME), db.db);
-        continue;
-      }
-      my_casedn_str(files_charset_info, db_name);
-      if (strcmp(db_name, tmp_name) != 0)
-      {
-        sql_print_warning("'db' entry '%s %s@%s' had database in mixed "
-                          "case that has been forced to lowercase because "
-                          "lower_case_table_names is set. It will not be "
-                          "possible to remove this privilege using REVOKE.",
-		          db.db, db.user, safe_str(db.host.hostname));
-      }
-    }
     db.sort=get_magic_sort("hdu", db.host.hostname, db.db, db.user);
 #ifndef TO_BE_REMOVED
     if (db_table.num_fields() <=  9)
@@ -3700,26 +3720,34 @@ privilege_t acl_get(const char *host, const char *ip,
 {
   privilege_t host_access(ALL_KNOWN_ACL), db_access(NO_ACL);
   uint i;
-  size_t key_length;
-  char key[ACL_KEY_LENGTH],*tmp_db,*end;
+  const char *tmp_db;
   acl_entry *entry;
   DBUG_ENTER("acl_get");
 
-  tmp_db= strmov(strmov(key, safe_str(ip)) + 1, user) + 1;
-  end= strnmov(tmp_db, db, key + sizeof(key) - tmp_db);
+  // Key length, without the trailing '\0' byte
+  constexpr size_t key_data_size= IP_ADDR_STRLEN + 1/*'\0'*/ +
+                                  USERNAME_LENGTH + 1/*'\0'*/ +
+                                  NAME_LEN/*database*/;
+  /*
+    Let's reserve extra MY_CS_MBMAXLEN bytes in the buffer.
+    This is to catch cases when a too long database name gets truncated:
+      key.length() will return a length in the range:
+      [key_data_size + 1, key_data_size + MY_CS_MBMAXLEN].
+  */
+  CharBuffer<key_data_size + MY_CS_MBMAXLEN> key;
+  key.append(Lex_cstring_strlen(safe_str(ip))).append_char('\0')
+     .append(Lex_cstring_strlen(user)).append_char('\0');
+  tmp_db= key.end();
+  key.append_opt_casedn(files_charset_info, Lex_cstring_strlen(db),
+                        lower_case_table_names);
+  db= tmp_db;
 
-  if (end >= key + sizeof(key)) // db name was truncated
+  if (key.length() > key_data_size) // db name was truncated
     DBUG_RETURN(NO_ACL);        // no privileges for an invalid db name
 
-  if (lower_case_table_names)
-  {
-    my_casedn_str(files_charset_info, tmp_db);
-    db=tmp_db;
-  }
-  key_length= (size_t) (end-key);
-
   mysql_mutex_lock(&acl_cache->lock);
-  if (!db_is_pattern && (entry=acl_cache->search((uchar*) key, key_length)))
+  if (!db_is_pattern &&
+      (entry= acl_cache->search((uchar*) key.ptr(), key.length())))
   {
     db_access=entry->access;
     mysql_mutex_unlock(&acl_cache->lock);
@@ -3764,12 +3792,13 @@ exit:
   /* Save entry in cache for quick retrieval */
   if (!db_is_pattern &&
       (entry= (acl_entry*) my_malloc(key_memory_acl_cache,
-                                     sizeof(acl_entry)+key_length, MYF(MY_WME))))
+                                     sizeof(acl_entry) + key.length(),
+                                     MYF(MY_WME))))
   {
     entry->access=(db_access & host_access);
-    DBUG_ASSERT(key_length < 0xffff);
-    entry->length=(uint16)key_length;
-    memcpy((uchar*) entry->key,key,key_length);
+    DBUG_ASSERT(key.length() < 0xffff);
+    entry->length= (uint16) key.length();
+    memcpy((uchar*) entry->key, key.ptr(), key.length());
     acl_cache->add(entry);
   }
   mysql_mutex_unlock(&acl_cache->lock);
@@ -5476,17 +5505,21 @@ void GRANT_NAME::set_user_details(const char *h, const char *d,
   update_hostname(&host, strdup_root(&grant_memroot, h));
   if (db != d)
   {
-    db= strdup_root(&grant_memroot, d);
-    if (lower_case_table_names)
-      my_casedn_str(files_charset_info, db);
+    DBUG_ASSERT(d);
+    db= lower_case_table_names ?
+        lex_string_casedn_root(&grant_memroot, files_charset_info,
+                               d, strlen(d)).str :
+        strdup_root(&grant_memroot, d);
   }
   user = strdup_root(&grant_memroot,u);
   sort=  get_magic_sort("hdu", host.hostname, db, user);
   if (tname != t)
   {
-    tname= strdup_root(&grant_memroot, t);
-    if (lower_case_table_names || is_routine)
-      my_casedn_str(files_charset_info, tname);
+    DBUG_ASSERT(t);
+    tname= lower_case_table_names || is_routine ?
+           lex_string_casedn_root(&grant_memroot, files_charset_info,
+                                  t, strlen(t)).str :
+           strdup_root(&grant_memroot, t);
   }
   key_length= strlen(d) + strlen(u)+ strlen(t)+3;
   hash_key=   (char*) alloc_root(&grant_memroot,key_length);
@@ -5533,11 +5566,15 @@ GRANT_NAME::GRANT_NAME(TABLE *form, bool is_routine)
   sort=  get_magic_sort("hdu", host.hostname, db, user);
   if (lower_case_table_names)
   {
-    my_casedn_str(files_charset_info, db);
+    DBUG_ASSERT(db);
+    db= lex_string_casedn_root(&grant_memroot, files_charset_info,
+                               db, strlen(db)).str;
   }
   if (lower_case_table_names || is_routine)
   {
-    my_casedn_str(files_charset_info, tname);
+    DBUG_ASSERT(tname);
+    tname= lex_string_casedn_root(&grant_memroot, files_charset_info,
+                                  tname, strlen(tname)).str;
   }
   key_length= (strlen(db) + strlen(user) + strlen(tname) + 3);
   hash_key=   (char*) alloc_root(&grant_memroot, key_length);
@@ -5661,28 +5698,25 @@ static GRANT_NAME *name_hash_search(HASH *name_hash,
                                     const char *user, const char *tname,
                                     bool exact, bool name_tolower)
 {
-  char helping[SAFE_NAME_LEN*2+USERNAME_LENGTH+3];
-  char *hend = helping + sizeof(helping);
-  uint len;
+  constexpr size_t key_data_size= SAFE_NAME_LEN * 2 + USERNAME_LENGTH + 1;
+  // See earlier comments on MY_CS_MBMAXLEN above
+  CharBuffer<key_data_size + MY_CS_MBMAXLEN> key;
   GRANT_NAME *grant_name,*found=0;
   HASH_SEARCH_STATE state;
 
-  char *db_ptr= strmov(helping, user) + 1;
-  char *tname_ptr= strnmov(db_ptr, db, hend - db_ptr) + 1;
-  if (tname_ptr > hend)
-    return 0; // invalid name = not found
-  char *end= strnmov(tname_ptr, tname, hend - tname_ptr) + 1;
-  if (end > hend)
+  key.append(Lex_cstring_strlen(user)).append_char('\0')
+     .append(Lex_cstring_strlen(db)).append_char('\0')
+     .append_opt_casedn(files_charset_info, Lex_cstring_strlen(tname),
+                        name_tolower);
+  key.append_char('\0');
+  if (key.length() > key_data_size)
     return 0; // invalid name = not found
 
-  len  = (uint) (end - helping);
-  if (name_tolower)
-    my_casedn_str(files_charset_info, tname_ptr);
-  for (grant_name= (GRANT_NAME*) my_hash_first(name_hash, (uchar*) helping,
-                                               len, &state);
+  for (grant_name= (GRANT_NAME*) my_hash_first(name_hash, (uchar*) key.ptr(),
+                                               key.length(), &state);
        grant_name ;
-       grant_name= (GRANT_NAME*) my_hash_next(name_hash,(uchar*) helping,
-                                              len, &state))
+       grant_name= (GRANT_NAME*) my_hash_next(name_hash, (uchar*) key.ptr(),
+                                              key.length(), &state))
   {
     if (exact)
     {
@@ -8857,33 +8891,28 @@ static bool check_grant_db_routine(THD *thd, const char *db, HASH *hash)
 bool check_grant_db(THD *thd, const char *db)
 {
   Security_context *sctx= thd->security_ctx;
-  char helping [SAFE_NAME_LEN + USERNAME_LENGTH+2], *end;
-  char helping2 [SAFE_NAME_LEN + USERNAME_LENGTH+2], *tmp_db;
-  uint len, UNINIT_VAR(len2);
+  constexpr size_t key_data_size= SAFE_NAME_LEN + USERNAME_LENGTH + 1;
+  // See earlier comments on MY_CS_MBMAXLEN above
+  CharBuffer<key_data_size + MY_CS_MBMAXLEN> key, key2;
   bool error= TRUE;
 
-  tmp_db= strmov(helping, sctx->priv_user) + 1;
-  end= strnmov(tmp_db, db, helping + sizeof(helping) - tmp_db);
+  key.append(Lex_cstring_strlen(sctx->priv_user)).append_char('\0')
+     .append_opt_casedn(files_charset_info, Lex_cstring_strlen(db),
+                        lower_case_table_names)
+     .append_char('\0');
 
-  if (end >= helping + sizeof(helping)) // db name was truncated
-    return 1;                           // no privileges for an invalid db name
-
-  if (lower_case_table_names)
-  {
-    end = tmp_db + my_casedn_str(files_charset_info, tmp_db);
-    db=tmp_db;
-  }
-
-  len= (uint) (end - helping) + 1;
+  if (key.length() > key_data_size) // db name was truncated
+    return 1;                        // no privileges for an invalid db name
 
   /*
      If a role is set, we need to check for privileges here as well.
   */
   if (sctx->priv_role[0])
   {
-    end= strmov(helping2, sctx->priv_role) + 1;
-    end= strnmov(end, db, helping2 + sizeof(helping2) - end);
-    len2= (uint) (end - helping2) + 1;
+    key2.append(Lex_cstring_strlen(sctx->priv_role)).append_char('\0')
+        .append_opt_casedn(files_charset_info, Lex_cstring_strlen(db),
+                           lower_case_table_names)
+        .append_char('\0');
   }
 
 
@@ -8893,16 +8922,16 @@ bool check_grant_db(THD *thd, const char *db)
   {
     GRANT_TABLE *grant_table= (GRANT_TABLE*) my_hash_element(&column_priv_hash,
                                                              idx);
-    if (len < grant_table->key_length &&
-        !memcmp(grant_table->hash_key, helping, len) &&
+    if (key.length() < grant_table->key_length &&
+        !memcmp(grant_table->hash_key, key.ptr(), key.length()) &&
         compare_hostname(&grant_table->host, sctx->host, sctx->ip))
     {
       error= FALSE; /* Found match. */
       break;
     }
     if (sctx->priv_role[0] &&
-        len2 < grant_table->key_length &&
-        !memcmp(grant_table->hash_key, helping2, len2) &&
+        key2.length() < grant_table->key_length &&
+        !memcmp(grant_table->hash_key, key2.ptr(), key2.length()) &&
         (!grant_table->host.hostname || !grant_table->host.hostname[0]))
     {
       error= FALSE; /* Found role match */

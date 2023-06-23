@@ -2897,7 +2897,7 @@ innobase_init_foreign(
         foreign->foreign_table = table;
         foreign->foreign_table_name = mem_heap_strdup(
                 foreign->heap, table->name.m_name);
-        dict_mem_foreign_table_name_lookup_set(foreign, TRUE);
+        foreign->foreign_table_name_lookup_set();
 
         foreign->foreign_index = index;
         foreign->n_fields = static_cast<unsigned>(num_field)
@@ -2916,7 +2916,7 @@ innobase_init_foreign(
 
 	foreign->referenced_table_name = mem_heap_strdup(
 		foreign->heap, referenced_table_name);
-        dict_mem_referenced_table_name_lookup_set(foreign, TRUE);
+        foreign->referenced_table_name_lookup_set();
 
         foreign->referenced_col_names = static_cast<const char**>(
                 mem_heap_alloc(foreign->heap,
@@ -6493,7 +6493,7 @@ prepare_inplace_alter_table_dict(
 	new_clustered = (DICT_CLUSTERED & index_defs[0].ind_type) != 0;
 
 	create_table_info_t info(ctx->prebuilt->trx->mysql_thd, altered_table,
-				 ha_alter_info->create_info, NULL, NULL,
+				 ha_alter_info->create_info,
 				 srv_file_per_table);
 
 	/* The primary index would be rebuilt if a FTS Doc ID
@@ -7904,8 +7904,6 @@ ha_innobase::prepare_inplace_alter_table(
 	create_table_info_t	info(m_user_thd,
 				     altered_table,
 				     ha_alter_info->create_info,
-				     NULL,
-				     NULL,
 				     srv_file_per_table);
 
 	info.set_tablespace_type(indexed_table->space != fil_system.sys_space);

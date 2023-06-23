@@ -266,6 +266,24 @@ mem_heap_strdupl(mem_heap_t* heap, const char* str, size_t len)
 	return(static_cast<char*>(memcpy(s, str, len)));
 }
 
+/** Duplicate a string to a memory heap, with lower-case conversion
+@param[in]	heap	memory heap where string is allocated
+@param[in]	cs	the character set of the string
+@param[in]	str	the source string
+@return own: a NUL-terminated lower-cased copy of str */
+inline
+LEX_STRING
+mem_heap_alloc_casedn_z(mem_heap_t *heap,
+			CHARSET_INFO *cs,
+			const LEX_CSTRING &str)
+{
+	size_t nbytes= str.length * cs->casedn_multiply() + 1;
+	LEX_STRING res;
+	res.str= static_cast<char*>(mem_heap_alloc(heap, nbytes));
+	res.length= cs->casedn_z(str.str, str.length, res.str, nbytes);
+	return res;
+}
+
 /**********************************************************************//**
 Concatenate two strings and return the result, using a memory heap.
 @return own: the result */

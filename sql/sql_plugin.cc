@@ -3864,7 +3864,7 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
 
   plugin_name_ptr= (char*) alloc_root(mem_root, plugin_name_len + 1);
   strcpy(plugin_name_ptr, plugin_name);
-  my_casedn_str(&my_charset_latin1, plugin_name_ptr);
+  my_casedn_str_latin1(plugin_name_ptr); // Plugin names are pure ASCII
   convert_underscore_to_dash(plugin_name_ptr, plugin_name_len);
   plugin_name_with_prefix_ptr= (char*) alloc_root(mem_root,
                                                   plugin_name_len +
@@ -4233,7 +4233,8 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
           len= tmp->name.length + strlen(o->name) + 2;
           varname= (char*) alloc_root(mem_root, len);
           strxmov(varname, tmp->name.str, "-", o->name, NullS);
-          my_casedn_str(&my_charset_latin1, varname);
+          // Ok to use latin1, as the variable name is pure ASCII
+          my_casedn_str_latin1(varname);
           convert_dash_to_underscore(varname, len-1);
         }
         if (o->flags & PLUGIN_VAR_NOSYSVAR)

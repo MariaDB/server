@@ -1566,7 +1566,7 @@ select json_arrayagg(a) from t1;
 json_arrayagg(a)
 ["x64-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
 Warnings:
-Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 1 was cut by json_arrayagg()
 drop table t1;
 SET group_concat_max_len= default;
 create table t1 (col1 json);

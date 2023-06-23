@@ -1075,7 +1075,6 @@ static void store_var(Field *field, sys_var *var, enum_var_type scope,
 
 int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
 {
-  char name_buffer[NAME_CHAR_LEN];
   bool res= 1;
   CHARSET_INFO *scs= system_charset_info;
   StringBuffer<STRING_BUFFER_USUAL_SIZE> strbuf(scs);
@@ -1091,15 +1090,14 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
   for (uint i= 0; i < system_variable_hash.records; i++)
   {
     sys_var *var= (sys_var*) my_hash_element(&system_variable_hash, i);
-
-    strmake_buf(name_buffer, var->name.str);
-    my_caseup_str(system_charset_info, name_buffer);
+    CharBuffer<NAME_CHAR_LEN> name_buffer;
+    name_buffer.copy_caseup(scs, var->name);
 
     /* this must be done before evaluating cond */
     restore_record(tables->table, s->default_values);
-    fields[0]->store(name_buffer, strlen(name_buffer), scs);
+    fields[0]->store(name_buffer.to_lex_cstring(), scs);
 
-    if ((wild && wild_case_compare(system_charset_info, name_buffer, wild))
+    if ((wild && wild_case_compare(scs, name_buffer.ptr(), wild))
         || (cond && !cond->val_int()))
       continue;
 

@@ -3142,7 +3142,7 @@ public:
                                  const Lex_cstring &db_and_table)
   {
     DBUG_ASSERT(homedir.length + db_and_table.length <= max_data_size());
-    copy_bin(homedir);
+    copy(homedir);
     append_casedn(db_and_table_charset, db_and_table);
     return *this;
   }

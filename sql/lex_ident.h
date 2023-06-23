@@ -19,6 +19,7 @@
 */
 
 #include "char_buffer.h"
+#include "lex_string.h"
 
 
 /*
@@ -45,6 +46,10 @@ public:
   bool is_in_lower_case() const;
   bool ok_for_lower_case_names() const;
 #endif
+  bool check_db_name_quick() const
+  {
+    return !length || length > NAME_LEN || str[length-1] == ' ';
+  }
 };
 
 
@@ -56,6 +61,10 @@ public:
 */
 class Lex_ident_db: public Lex_ident_fs
 {
+  bool is_null() const
+  {
+    return length == 0 && str == NULL;
+  }
   // {empty_c_string,0} is used by derived tables
   bool is_empty() const
   {
@@ -68,7 +77,7 @@ public:
   Lex_ident_db(const char *str, size_t length)
    :Lex_ident_fs(str, length)
   {
-    DBUG_SLOW_ASSERT(is_empty() || !check_db_name());
+    DBUG_SLOW_ASSERT(is_null() || is_empty() || !check_db_name());
   }
 };
 
@@ -81,6 +90,8 @@ public:
 class Lex_ident_db_normalized: public Lex_ident_db
 {
 public:
+  Lex_ident_db_normalized()
+  { }
   Lex_ident_db_normalized(const char *str, size_t length)
    :Lex_ident_db(str, length)
   {
@@ -156,6 +167,97 @@ public:
     if (Lex_ident_fs(tmp).check_db_name_with_error())
       return Lex_ident_db();
     return Lex_ident_db(tmp.str, tmp.length);
+  }
+};
+
+
+class Identifier_chain2
+{
+  LEX_CSTRING m_name[2];
+public:
+  Identifier_chain2()
+   :m_name{Lex_cstring(), Lex_cstring()}
+  { }
+  Identifier_chain2(const LEX_CSTRING &a, const LEX_CSTRING &b)
+   :m_name{a, b}
+  { }
+
+  const LEX_CSTRING& operator [] (size_t i) const
+  {
+    return m_name[i];
+  }
+
+  static Identifier_chain2 split(const LEX_CSTRING &txt)
+  {
+    DBUG_ASSERT(txt.str[txt.length] == '\0'); // Expect 0-terminated input
+    const char *dot= strchr(txt.str, '.');
+    if (!dot)
+      return Identifier_chain2(Lex_cstring(), txt);
+    size_t length0= dot - txt.str;
+    Lex_cstring name0(txt.str, length0);
+    Lex_cstring name1(txt.str + length0 + 1, txt.length - length0 - 1);
+    return Identifier_chain2(name0, name1);
+  }
+
+  // Export as a qualified name string: 'db.name'
+  size_t make_qname(char *dst, size_t dstlen) const
+  {
+    return my_snprintf(dst, dstlen, "%.*s.%.*s",
+                       (int) m_name[0].length, m_name[0].str,
+                       (int) m_name[1].length, m_name[1].str);
+  }
+
+  // Export as a qualified name string, allocate on mem_root.
+  bool make_qname(MEM_ROOT *mem_root, LEX_CSTRING *dst) const
+  {
+    const uint dot= !!m_name[0].length;
+    char *tmp;
+    /* format: [pkg + dot] + name + '\0' */
+    dst->length= m_name[0].length + dot + m_name[1].length;
+    if (unlikely(!(dst->str= tmp= (char*) alloc_root(mem_root,
+                                                     dst->length + 1))))
+      return true;
+    snprintf(tmp, dst->length + 1, "%.*s%.*s%.*s",
+            (int) m_name[0].length, (m_name[0].length ? m_name[0].str : ""),
+            dot, ".",
+            (int) m_name[1].length, m_name[1].str);
+    return false;
+  }
+
+  /*
+    Build a separated two step name, e.g. "ident1/ident2", 0-terminated.
+    with an optional lower-case conversion.
+    @param [OUT] dst      - the destination
+    @param       dst_size - number of bytes available in dst
+    @param       sep      - the separator character
+    @param       casedn   - whether to convert components to lower case
+    @return               - number of bytes written to "dst", not counting
+                            the trailing '\0' byte.
+  */
+  size_t make_sep_name_opt_casedn(char *dst, size_t dst_size,
+                                  int sep, bool casedn) const
+  {
+    /*
+      Minimal possible buffer is 4 bytes: 'd/t\0'
+      where 'd' is the database name, 't' is the table name.
+      Callers should never pass a smaller buffer.
+    */
+    DBUG_ASSERT(dst_size >= 4);
+    DBUG_ASSERT(m_name[0].length + m_name[1].length + 2 < FN_REFLEN - 1);
+    if (casedn)
+    {
+      CHARSET_INFO *cs= &my_charset_utf8mb3_general_ci;
+      char *ptr= dst, *end= dst + dst_size;
+      ptr+= cs->casedn(m_name[0].str, m_name[0].length, ptr, end - ptr - 2);
+      *ptr++= (char) sep;
+      ptr+= cs->casedn_z(m_name[1].str, m_name[1].length, ptr, end - ptr);
+      return ptr - dst;
+    }
+    memcpy(dst, m_name[0].str, m_name[0].length);
+    dst[m_name[0].length] = (char) sep;
+    /* Copy the name and null-byte. */
+    memcpy(dst + m_name[0].length + 1, m_name[1].str, m_name[1].length + 1);
+    return m_name[0].length + 1/*sep*/ + m_name[1].length;
   }
 };
 

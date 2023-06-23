@@ -956,12 +956,6 @@ extern "C" void unireg_clear(int exit_code);
 #define unireg_abort(exit_code) do { unireg_clear(exit_code); DBUG_RETURN(exit_code); } while(0)
 #endif
 
-inline void table_case_convert(char * name, uint length)
-{
-  if (lower_case_table_names)
-    files_charset_info->casedn(name, length, name, length);
-}
-
 extern void set_server_version(char *buf, size_t size);
 
 #define current_thd _current_thd()

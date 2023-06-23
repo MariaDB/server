@@ -133,8 +133,6 @@ I mysys:
 
  void caseup _A((string str,uint length));
  void casedn _A((string str,uint length));
- void caseup_str _A((string str));
- void casedn_str _A((string str));
  Converts strings or part of string to upper or lower-case.
 
  void case_sort _A((string str,uint length));

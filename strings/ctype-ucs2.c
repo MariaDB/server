@@ -55,23 +55,6 @@ static unsigned long lfactor[9]=
 
 
 #ifdef HAVE_CHARSET_mb2_or_mb4
-static size_t
-my_caseup_str_mb2_or_mb4(CHARSET_INFO * cs  __attribute__((unused)), 
-                         char * s __attribute__((unused)))
-{
-  DBUG_ASSERT(0);
-  return 0;
-}
-
-
-static size_t
-my_casedn_str_mb2_or_mb4(CHARSET_INFO *cs __attribute__((unused)), 
-                         char * s __attribute__((unused)))
-{
-  DBUG_ASSERT(0);
-  return 0;
-}
-
 
 static int
 my_strcasecmp_mb2_or_mb4(CHARSET_INFO *cs __attribute__((unused)),
@@ -1559,8 +1542,6 @@ MY_CHARSET_HANDLER my_charset_utf16_handler=
   my_utf16_uni,        /* mb_wc        */
   my_uni_utf16,        /* wc_mb        */
   my_mb_ctype_mb,
-  my_caseup_str_mb2_or_mb4,
-  my_casedn_str_mb2_or_mb4,
   my_caseup_utf16,
   my_casedn_utf16,
   my_snprintf_mb2,
@@ -1912,8 +1893,6 @@ static MY_CHARSET_HANDLER my_charset_utf16le_handler=
   my_utf16le_uni,      /* mb_wc        */
   my_uni_utf16le,      /* wc_mb        */
   my_mb_ctype_mb,
-  my_caseup_str_mb2_or_mb4,
-  my_casedn_str_mb2_or_mb4,
   my_caseup_utf16,
   my_casedn_utf16,
   my_snprintf_mb2,
@@ -2711,8 +2690,6 @@ MY_CHARSET_HANDLER my_charset_utf32_handler=
   my_utf32_uni,
   my_uni_utf32,
   my_mb_ctype_mb,
-  my_caseup_str_mb2_or_mb4,
-  my_casedn_str_mb2_or_mb4,
   my_caseup_utf32,
   my_casedn_utf32,
   my_snprintf_utf32,
@@ -3326,8 +3303,6 @@ MY_CHARSET_HANDLER my_charset_ucs2_handler=
     my_ucs2_uni,	/* mb_wc        */
     my_uni_ucs2,	/* wc_mb        */
     my_mb_ctype_mb,
-    my_caseup_str_mb2_or_mb4,
-    my_casedn_str_mb2_or_mb4,
     my_caseup_ucs2,
     my_casedn_ucs2,
     my_snprintf_mb2,

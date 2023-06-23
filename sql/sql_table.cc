@@ -657,7 +657,7 @@ uint build_tmptable_filename(THD* thd, char *buff, size_t bufflen)
   if (lower_case_table_names)
   {
     /* Convert all except tmpdir to lower case */
-    my_casedn_str(files_charset_info, p);
+    my_casedn_str_latin1(p);
   }
 
   size_t length= unpack_filename(buff, buff);

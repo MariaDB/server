@@ -67592,8 +67592,6 @@ static MY_CHARSET_HANDLER my_charset_handler=
     my_mb_wc_eucjpms,   /* mb_wc       */
     my_wc_mb_eucjpms,   /* wc_mb       */
     my_mb_ctype_mb,
-    my_caseup_str_mb,
-    my_casedn_str_mb,
     my_caseup_ujis,
     my_casedn_ujis,
     my_snprintf_8bit,

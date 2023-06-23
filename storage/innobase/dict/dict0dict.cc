@@ -1606,19 +1606,13 @@ dict_table_rename_in_cache(
 			foreign->referenced_table->referenced_set.erase(foreign);
 		}
 
-		if (strlen(foreign->foreign_table_name)
-		    < strlen(table->name.m_name)) {
-			/* Allocate a longer name buffer;
-			TODO: store buf len to save memory */
+		/* Allocate a name buffer;
+		TODO: store buf len to save memory */
 
-			foreign->foreign_table_name = mem_heap_strdup(
-				foreign->heap, table->name.m_name);
-			dict_mem_foreign_table_name_lookup_set(foreign, TRUE);
-		} else {
-			strcpy(foreign->foreign_table_name,
-			       table->name.m_name);
-			dict_mem_foreign_table_name_lookup_set(foreign, FALSE);
-		}
+		foreign->foreign_table_name = mem_heap_strdup(
+			foreign->heap, table->name.m_name);
+		foreign->foreign_table_name_lookup_set();
+
 		if (strchr(foreign->id, '/')) {
 			/* This is a >= 4.0.18 format id */
 
@@ -1779,24 +1773,13 @@ dict_table_rename_in_cache(
 
 		foreign = *it;
 
-		if (strlen(foreign->referenced_table_name)
-		    < strlen(table->name.m_name)) {
-			/* Allocate a longer name buffer;
-			TODO: store buf len to save memory */
+		/* Allocate a name buffer;
+		TODO: store buf len to save memory */
 
-			foreign->referenced_table_name = mem_heap_strdup(
-				foreign->heap, table->name.m_name);
+		foreign->referenced_table_name = mem_heap_strdup(
+			foreign->heap, table->name.m_name);
 
-			dict_mem_referenced_table_name_lookup_set(
-				foreign, TRUE);
-		} else {
-			/* Use the same buffer */
-			strcpy(foreign->referenced_table_name,
-			       table->name.m_name);
-
-			dict_mem_referenced_table_name_lookup_set(
-				foreign, FALSE);
-		}
+		foreign->referenced_table_name_lookup_set();
 	}
 
 	return(DB_SUCCESS);
@@ -3244,7 +3227,6 @@ dict_get_referenced_table(
 	mem_heap_t*    heap,		  /*!< in/out: heap memory */
 	CHARSET_INFO*  from_cs)		  /*!< in: table name charset */
 {
-	char*		ref;
 	char		db_name[MAX_DATABASE_NAME_LEN];
 	char		tbl_name[MAX_TABLE_NAME_LEN];
 	CHARSET_INFO*	to_cs = &my_charset_filename;
@@ -3290,31 +3272,22 @@ dict_get_referenced_table(
 	}
 
 	/* Copy database_name, '/', table_name, '\0' */
-	const size_t len = database_name_len + table_name_len + 1;
-	ref = static_cast<char*>(mem_heap_alloc(heap, len + 1));
-	memcpy(ref, database_name, database_name_len);
-	ref[database_name_len] = '/';
-	memcpy(ref + database_name_len + 1, table_name, table_name_len + 1);
+	Identifier_chain2 ident({database_name, database_name_len},
+				{table_name, table_name_len});
+	size_t ref_nbytes= (database_name_len + table_name_len) *
+			system_charset_info->casedn_multiply() + 2;
+	char *ref = static_cast<char*>(mem_heap_alloc(heap, ref_nbytes));
 
 	/* Values;  0 = Store and compare as given; case sensitive
 	            1 = Store and compare in lower; case insensitive
 	            2 = Store as given, compare in lower; case semi-sensitive */
-	if (lower_case_table_names == 2) {
-		innobase_casedn_str(ref);
-		*table = dict_sys.load_table({ref, len});
-		memcpy(ref, database_name, database_name_len);
-		ref[database_name_len] = '/';
-		memcpy(ref + database_name_len + 1, table_name, table_name_len + 1);
 
-	} else {
-#ifndef _WIN32
-		if (lower_case_table_names == 1) {
-			innobase_casedn_str(ref);
-		}
-#else
-		innobase_casedn_str(ref);
-#endif /* !_WIN32 */
-		*table = dict_sys.load_table({ref, len});
+	size_t len= ident.make_sep_name_opt_casedn(ref, ref_nbytes,
+					'/', lower_case_table_names > 0);
+	*table = dict_sys.load_table({ref, len});
+
+	if (lower_case_table_names == 2) {
+		ident.make_sep_name_opt_casedn(ref, ref_nbytes, '/', false);
 	}
 
 	return(ref);

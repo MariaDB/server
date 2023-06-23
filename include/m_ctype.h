@@ -630,10 +630,6 @@ struct my_charset_handler_st
   int (*ctype)(CHARSET_INFO *cs, int *ctype,
                const uchar *s, const uchar *e);
   
-  /* Functions for case and sort conversion */
-  size_t  (*caseup_str)(CHARSET_INFO *, char *);
-  size_t  (*casedn_str)(CHARSET_INFO *, char *);
-
   my_charset_conv_case caseup;
   my_charset_conv_case casedn;
 
@@ -847,6 +843,38 @@ struct charset_info_st
                 char *dst, size_t dstlen) const
   {
     return (cset->casedn)(this, src, srclen, dst, dstlen);
+  }
+
+  size_t opt_casedn(const char *src, size_t srclen,
+                    char *dst, size_t dstlen, my_bool opt_casedn) const
+  {
+    if (opt_casedn)
+      return casedn(src, srclen, dst, dstlen);
+    set_if_smaller(srclen, dstlen);
+    memcpy(dst, src, srclen);
+    return srclen;
+  }
+
+  /* Convert to a lower-cased 0-terminated string */
+  size_t casedn_z(const char *src, size_t srclen,
+                  char *dst, size_t dstlen) const
+  {
+    DBUG_ASSERT(dstlen);
+    DBUG_ASSERT(src != dst);
+    size_t len= casedn(src, srclen, dst, dstlen - 1);
+    dst[len]= '\0';
+    return len;
+  }
+
+  /* Convert to a upper-cased 0-terminated string */
+  size_t caseup_z(const char *src, size_t srclen,
+                  char *dst, size_t dstlen) const
+  {
+    DBUG_ASSERT(dstlen);
+    DBUG_ASSERT(src != dst);
+    size_t len= caseup(src, srclen, dst, dstlen - 1);
+    dst[len]= '\0';
+    return len;
   }
 
   uint caseup_multiply() const
@@ -1513,6 +1541,14 @@ size_t my_copy_fix_mb(CHARSET_INFO *cs,
 /* Functions for 8bit */
 extern size_t my_caseup_str_8bit(CHARSET_INFO *, char *);
 extern size_t my_casedn_str_8bit(CHARSET_INFO *, char *);
+static inline size_t my_caseup_str_latin1(char *str)
+{
+  return my_caseup_str_8bit(&my_charset_latin1, str);
+}
+static inline size_t my_casedn_str_latin1(char *str)
+{
+  return my_casedn_str_8bit(&my_charset_latin1, str);
+}
 extern size_t my_caseup_8bit(CHARSET_INFO *,
                              const char *src, size_t srclen,
                              char *dst, size_t dstlen);
@@ -1609,8 +1645,6 @@ int my_charlen_8bit(CHARSET_INFO *, const uchar *str, const uchar *end);
 
 
 /* Functions for multibyte charsets */
-extern size_t my_caseup_str_mb(CHARSET_INFO *, char *);
-extern size_t my_casedn_str_mb(CHARSET_INFO *, char *);
 extern size_t my_caseup_mb(CHARSET_INFO *,
                            const char *src, size_t srclen,
                            char *dst, size_t dstlen);
@@ -1856,9 +1890,6 @@ my_well_formed_length(CHARSET_INFO *cs, const char *b, const char *e,
   return (size_t) (status.m_source_end_pos - b);
 }
 
-
-#define my_caseup_str(s, a)           ((s)->cset->caseup_str((s), (a)))
-#define my_casedn_str(s, a)           ((s)->cset->casedn_str((s), (a)))
 
 /* XXX: still need to take care of this one */
 #ifdef MY_CHARSET_TIS620

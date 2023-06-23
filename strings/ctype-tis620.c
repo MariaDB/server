@@ -914,8 +914,6 @@ static MY_CHARSET_HANDLER my_charset_handler=
     my_mb_wc_tis620,	/* mb_wc     */
     my_wc_mb_tis620,	/* wc_mb     */
     my_mb_ctype_8bit,
-    my_caseup_str_8bit,
-    my_casedn_str_8bit,
     my_caseup_8bit,
     my_casedn_8bit,
     my_snprintf_8bit,

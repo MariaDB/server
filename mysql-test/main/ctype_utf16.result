@@ -1584,7 +1584,7 @@ ORDER BY l DESC;
 id	l
 a	512
 Warnings:
-Warning	1260	Row 1 was cut by GROUP_CONCAT()
+Warning	1260	Row 1 was cut by group_concat()
 SET STATEMENT group_concat_max_len=1024 FOR
 SELECT id, CHAR_LENGTH(GROUP_CONCAT(body)) AS l
 FROM (SELECT 'a' AS id, REPEAT('foo bar', 100) AS body
@@ -1593,7 +1593,7 @@ SELECT 'a' AS id, REPEAT('bla bla', 100) AS body) t1;
 id	l
 a	512
 Warnings:
-Warning	1260	Row 1 was cut by GROUP_CONCAT()
+Warning	1260	Row 1 was cut by group_concat()
 #
 # MDEV-6865 Merge Bug#18935421 RPAD DIES WITH CERTAIN PADSTR INTPUTS..
 #

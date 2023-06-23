@@ -3825,6 +3825,7 @@ public:
   }
 
   bool copy_db_to(LEX_CSTRING *to);
+  Lex_ident_db_normalized copy_db_normalized();
 
   void inc_select_stack_outer_barrier()
   {

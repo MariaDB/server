@@ -3810,24 +3810,27 @@ static bool show_status_array(THD *thd, const char *wild,
                               SHOW_VAR *variables,
                               enum enum_var_type scope,
                               struct system_status_var *status_var,
-                              const char *prefix, TABLE *table,
+                              const LEX_CSTRING &prefix, TABLE *table,
                               bool ucase_names,
                               COND *cond)
 {
   my_aligned_storage<SHOW_VAR_FUNC_BUFF_SIZE, MY_ALIGNOF(long)> buffer;
   char * const buff= buffer.data;
-  char *prefix_end;
-  char name_buffer[NAME_CHAR_LEN];
-  int len;
+  CharBuffer<NAME_CHAR_LEN> name_buffer;
   SHOW_VAR tmp, *var;
   bool res= FALSE;
   CHARSET_INFO *charset= system_charset_info;
   DBUG_ENTER("show_status_array");
 
-  prefix_end=strnmov(name_buffer, prefix, sizeof(name_buffer)-1);
-  if (*prefix)
-    *prefix_end++= '_';
-  len=(int)(name_buffer + sizeof(name_buffer) - prefix_end);
+  if (prefix.length)
+  {
+    if (ucase_names)
+      name_buffer.copy_caseup(system_charset_info, prefix);
+    else
+      name_buffer.copy_casedn(system_charset_info, prefix);
+    name_buffer.append(Lex_cstring("_", 1));
+  }
+  size_t prefix_length= name_buffer.length();
 
 #ifdef WITH_WSREP
   bool is_wsrep_var= FALSE;
@@ -3837,7 +3840,7 @@ static bool show_status_array(THD *thd, const char *wild,
     for status variables defined under wsrep plugin.
     TODO: remove once lp:1306875 has been addressed.
   */
-  if (*prefix && !my_strcasecmp(system_charset_info, prefix, "wsrep"))
+  if (prefix.length && !my_strcasecmp(system_charset_info, prefix.str, "wsrep"))
   {
     is_wsrep_var= TRUE;
   }
@@ -3846,8 +3849,8 @@ static bool show_status_array(THD *thd, const char *wild,
   for (; variables->name; variables++)
   {
     bool wild_checked= false;
-    strnmov(prefix_end, variables->name, len);
-    name_buffer[sizeof(name_buffer)-1]=0;       /* Safety */
+    Lex_cstring_strlen var_name(variables->name);
+    name_buffer.truncate(prefix_length);
 
 #ifdef WITH_WSREP
     /*
@@ -3856,30 +3859,31 @@ static bool show_status_array(THD *thd, const char *wild,
       names until lp:1306875 has been fixed.
       TODO: remove once lp:1306875 has been addressed.
      */
-    if (!(*prefix) && !strncasecmp(name_buffer, "wsrep", strlen("wsrep")))
+    if (!prefix.length &&
+        !strncasecmp(name_buffer.ptr(), "wsrep", strlen("wsrep")))
     {
       is_wsrep_var= TRUE;
     }
 #endif /* WITH_WSREP */
 
     if (ucase_names)
-      my_caseup_str(system_charset_info, name_buffer);
+      name_buffer.append_caseup(system_charset_info, var_name);
     else
     {
-      my_casedn_str(system_charset_info, name_buffer);
-      DBUG_ASSERT(name_buffer[0] >= 'a');
-      DBUG_ASSERT(name_buffer[0] <= 'z');
-
+      name_buffer.append_casedn(system_charset_info, var_name);
       // WSREP_TODO: remove once lp:1306875 has been addressed.
       if (IF_WSREP(is_wsrep_var == FALSE, 1) &&
           status_var)
-        name_buffer[0]-= 'a' - 'A';
+      {
+        char *ptr= (char*) name_buffer.ptr();
+        if (ptr[0] >= 'a' && ptr[0] <= 'z')
+          ptr[0]-= 'a' - 'A';
+      }
     }
 
 
     restore_record(table, s->default_values);
-    table->field[0]->store(name_buffer, strlen(name_buffer),
-                           system_charset_info);
+    table->field[0]->store(name_buffer.to_lex_cstring(), system_charset_info);
 
     /*
       Compare name for types that can't return arrays. We do this to not
@@ -3888,7 +3892,7 @@ static bool show_status_array(THD *thd, const char *wild,
     if ((variables->type != SHOW_FUNC && variables->type != SHOW_ARRAY))
     {
       if (wild && wild[0] && wild_case_compare(system_charset_info,
-                                               name_buffer, wild))
+                                               name_buffer.ptr(), wild))
         continue;
       wild_checked= 1;                          // Avoid checking it again
     }
@@ -3906,13 +3910,15 @@ static bool show_status_array(THD *thd, const char *wild,
     if (show_type == SHOW_ARRAY)
     {
       show_status_array(thd, wild, (SHOW_VAR *) var->value, scope,
-                        status_var, name_buffer, table, ucase_names, cond);
+                        status_var, name_buffer.to_lex_cstring(),
+                        table, ucase_names, cond);
     }
     else
     {
       if ((wild_checked ||
            !(wild && wild[0] && wild_case_compare(system_charset_info,
-                                                  name_buffer, wild))) &&
+                                                  name_buffer.ptr(),
+                                                  wild))) &&
           (!cond || cond->val_int()))
       {
         const char *pos;                  // We assign a lot of const's
@@ -4355,18 +4361,15 @@ bool get_lookup_field_values(THD *thd, COND *cond, bool fix_table_name_case,
 
   if (lower_case_table_names && !rc)
   {
-    /* 
-      We can safely do in-place upgrades here since all of the above cases
-      are allocating a new memory buffer for these strings.
-    */  
     if (lookup_field_values->db_value.str && lookup_field_values->db_value.str[0])
-      my_casedn_str(system_charset_info,
-                    (char*) lookup_field_values->db_value.str);
+      lookup_field_values->db_value= thd->make_ident_casedn(
+                                       lookup_field_values->db_value);
+
     if (fix_table_name_case &&
         lookup_field_values->table_value.str &&
         lookup_field_values->table_value.str[0])
-      my_casedn_str(system_charset_info,
-                    (char*) lookup_field_values->table_value.str);
+      lookup_field_values->table_value= thd->make_ident_casedn(
+                                          lookup_field_values->table_value);
   }
 
   return rc;
@@ -8340,7 +8343,7 @@ int fill_variables(THD *thd, TABLE_LIST *tables, COND *cond)
     sync_dynamic_session_variables(thd, true);
 
   res= show_status_array(thd, wild, enumerate_sys_vars(thd, sorted_vars, scope),
-                         scope, NULL, "", tables->table,
+                         scope, NULL, empty_clex_str, tables->table,
                          upper_case_names, partial_cond);
   mysql_prlock_unlock(&LOCK_system_variables_hash);
   DBUG_RETURN(res);
@@ -8440,7 +8443,7 @@ int fill_status(THD *thd, TABLE_LIST *tables, COND *cond)
   mysql_rwlock_rdlock(&LOCK_all_status_vars);
   res= show_status_array(thd, wild,
                          (SHOW_VAR *)all_status_vars.buffer,
-                         scope, tmp1, "", tables->table,
+                         scope, tmp1, empty_clex_str, tables->table,
                          upper_case_names, partial_cond);
   mysql_rwlock_unlock(&LOCK_all_status_vars);
   DBUG_RETURN(res);
@@ -10616,11 +10619,7 @@ TABLE_LIST *get_trigger_table(THD *thd, const sp_name *trg_name)
   if (!(table= (TABLE_LIST*) thd->alloc(sizeof(TABLE_LIST))))
     return NULL;
 
-  db= trg_name->m_db;
-
-  db.str= thd->strmake(db.str, db.length);
-  if (lower_case_table_names)
-    db.length= my_casedn_str(files_charset_info, (char*) db.str);
+  db= thd->make_ident_opt_casedn(trg_name->m_db, lower_case_table_names);
 
   tbl_name.str= thd->strmake(tbl_name.str, tbl_name.length);
 

@@ -1802,9 +1802,8 @@ gtid_pos_auto_create_tables(rpl_slave_state::gtid_pos_table **list_ptr)
        ++auto_engines)
   {
     void *hton= plugin_hton(*auto_engines);
-    char buf[FN_REFLEN+1];
+    CharBuffer<FN_REFLEN> buf;
     LEX_CSTRING table_name;
-    char *p;
     rpl_slave_state::gtid_pos_table *entry, **next_ptr;
 
     /* See if this engine is already in the list. */
@@ -1821,13 +1820,12 @@ gtid_pos_auto_create_tables(rpl_slave_state::gtid_pos_table **list_ptr)
       continue;
 
     /* Add an auto-create entry for this engine at end of list. */
-    p= strmake(buf, rpl_gtid_slave_state_table_name.str, FN_REFLEN);
-    p= strmake(p, "_", FN_REFLEN - (p - buf));
-    p= strmake(p, plugin_name(*auto_engines)->str, FN_REFLEN - (p - buf));
-    table_name.str= buf;
-    table_name.length= p - buf;
-    table_case_convert(const_cast<char*>(table_name.str),
-                       static_cast<uint>(table_name.length));
+    buf.append_opt_casedn(files_charset_info, rpl_gtid_slave_state_table_name,
+                          lower_case_table_names)
+       .append({STRING_WITH_LEN("_")})
+       .append_opt_casedn(files_charset_info, *plugin_name(*auto_engines),
+                          lower_case_table_names);
+    table_name= buf.to_lex_cstring();
     entry= rpl_global_gtid_slave_state->alloc_gtid_pos_table
       (&table_name, hton, rpl_slave_state::GTID_POS_AUTO_CREATE);
     if (!entry)

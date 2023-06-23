@@ -1278,12 +1278,16 @@ public:
     Methods to copy a string to the memory root
     and return the value as a LEX_CSTRING.
   */
-  LEX_CSTRING strmake_lex_cstring(const char *str, size_t length) const
+  LEX_STRING strmake_lex_string(const char *str, size_t length) const
   {
-    const char *tmp= strmake_root(mem_root, str, length);
+    char *tmp= strmake_root(mem_root, str, length);
     if (!tmp)
       return {0,0};
     return {tmp, length};
+  }
+  LEX_CSTRING strmake_lex_cstring(const char *str, size_t length) const
+  {
+    return strmake_lex_string(str, length);
   }
   LEX_CSTRING strmake_lex_cstring(const LEX_CSTRING &from) const
   {
@@ -1407,6 +1411,21 @@ public:
   }
 
   /*
+    Convert a LEX_CSTRING to a valid database name:
+    - validated with Lex_ident_fs::check_db_name()
+    - optionally lower-cased
+    The lower-cased copy is created on Query_arena::mem_root, when needed.
+
+    @param name         - The name to normalize. Must not be {NULL,0}.
+    @param casedn       - If the name should be lower-cased.
+    @return             - {NULL,0} on EOM or a bad database name
+                          (with an errror is raised,
+                          or a good database name otherwise.
+  */
+  Lex_ident_db to_ident_db_opt_casedn_with_error(const LEX_CSTRING &name,
+                                                 bool casedn);
+
+  /*
     Convert a LEX_CSTRING to a valid internal database name:
     - validated with Lex_ident_fs::check_db_name()
     - optionally lower-cased when lower_case_table_names==1
@@ -1417,7 +1436,29 @@ public:
                           (with an errror is raised,
                           or a good database name otherwise.
   */
-  Lex_ident_db to_ident_db_internal_with_error(const LEX_CSTRING &name);
+  Lex_ident_db to_ident_db_internal_with_error(const LEX_CSTRING &name)
+  {
+    return to_ident_db_opt_casedn_with_error(name, lower_case_table_names == 1);
+  }
+
+  /*
+    Convert a LEX_CSTRING to a valid normalized database name:
+    - validated with Lex_ident_fs::check_db_name()
+    - optionally lower-cased when lower_case_table_names>0
+    The lower-cased copy is created on Query_arena::mem_root, when needed.
+
+    @param name         - The name to normalize. Must not be {NULL,0}.
+    @return             - {NULL,0} on EOM or a bad database name
+                          (with an errror is raised,
+                          or a good database name otherwise.
+  */
+  Lex_ident_db_normalized to_ident_db_normalized_with_error(
+                                                      const LEX_CSTRING &name)
+  {
+    Lex_ident_db tmp= to_ident_db_opt_casedn_with_error(name,
+                                                   lower_case_table_names > 0);
+    return Lex_ident_db_normalized(tmp);
+  }
 
   void set_query_arena(Query_arena *set);
 
@@ -4910,14 +4951,7 @@ public:
   /** Set the current database, without copying */
   void reset_db(const LEX_CSTRING *new_db);
 
-  /*
-    Copy the current database to the argument. Use the current arena to
-    allocate memory for a deep copy: current database may be freed after
-    a statement is parsed but before it's executed.
-
-    Can only be called by owner of thd (no mutex protection)
-  */
-  bool copy_db_to(LEX_CSTRING *to)
+  bool check_if_current_db_is_set_with_error() const
   {
     if (db.str == NULL)
     {
@@ -4933,10 +4967,45 @@ public:
         my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
       return TRUE;
     }
+    return false;
+  }
+
+  /*
+    Copy the current database to the argument. Use the current arena to
+    allocate memory for a deep copy: current database may be freed after
+    a statement is parsed but before it's executed.
+
+    Can only be called by owner of thd (no mutex protection)
+  */
+  bool copy_db_to(LEX_CSTRING *to)
+  {
+    if (check_if_current_db_is_set_with_error())
+      return true;
 
     to->str= strmake(db.str, db.length);
     to->length= db.length;
     return to->str == NULL;                     /* True on error */
+  }
+
+  /*
+    Make a normalized copy of the current database.
+    Raise an error if no current database is set.
+    Note, in case of lower_case_table_names==2, thd->db can contain the
+    name in arbitrary case typed by the user, so it must be lower-cased.
+    For other lower_case_table_names values the name is already in
+    its normalized case, so it's copied as is.
+  */
+  Lex_ident_db_normalized copy_db_normalized()
+  {
+    if (check_if_current_db_is_set_with_error())
+      return Lex_ident_db_normalized();
+    LEX_CSTRING ident= make_ident_opt_casedn(db, lower_case_table_names == 2);
+    /*
+      A non-empty thd->db is always known to satisfy check_db_name().
+      So after optional lower-casing above it's safe to
+      make Lex_ident_db_normalized.
+    */
+    return Lex_ident_db_normalized(ident);
   }
   /* Get db name or "". Use for printing current db */
   const char *get_db()
@@ -7216,7 +7285,7 @@ public:
   inline Table_ident(SELECT_LEX_UNIT *s) : sel(s)
   {
     /* We must have a table name here as this is used with add_table_to_list */
-    db.str= empty_c_string;                    /* a subject to casedn_str */
+    db.str= empty_c_string;
     db.length= 0;
     table.str= internal_table_name;
     table.length=1;
@@ -8002,61 +8071,6 @@ public:
   {
     thd->variables.sql_mode&= ~(MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE);
     thd->variables.sql_mode|= MODE_INVALID_DATES;
-  }
-};
-
-
-class Identifier_chain2
-{
-  LEX_CSTRING m_name[2];
-public:
-  Identifier_chain2()
-   :m_name{Lex_cstring(), Lex_cstring()}
-  { }
-  Identifier_chain2(const LEX_CSTRING &a, const LEX_CSTRING &b)
-   :m_name{a, b}
-  { }
-
-  const LEX_CSTRING& operator [] (size_t i) const
-  {
-    return m_name[i];
-  }
-
-  static Identifier_chain2 split(const LEX_CSTRING &txt)
-  {
-    DBUG_ASSERT(txt.str[txt.length] == '\0'); // Expect 0-terminated input
-    const char *dot= strchr(txt.str, '.');
-    if (!dot)
-      return Identifier_chain2(Lex_cstring(), txt);
-    size_t length0= dot - txt.str;
-    Lex_cstring name0(txt.str, length0);
-    Lex_cstring name1(txt.str + length0 + 1, txt.length - length0 - 1);
-    return Identifier_chain2(name0, name1);
-  }
-
-  // Export as a qualified name string: 'db.name'
-  size_t make_qname(char *dst, size_t dstlen) const
-  {
-    return my_snprintf(dst, dstlen, "%.*s.%.*s",
-                       (int) m_name[0].length, m_name[0].str,
-                       (int) m_name[1].length, m_name[1].str);
-  }
-
-  // Export as a qualified name string, allocate on mem_root.
-  bool make_qname(MEM_ROOT *mem_root, LEX_CSTRING *dst) const
-  {
-    const uint dot= !!m_name[0].length;
-    char *tmp;
-    /* format: [pkg + dot] + name + '\0' */
-    dst->length= m_name[0].length + dot + m_name[1].length;
-    if (unlikely(!(dst->str= tmp= (char*) alloc_root(mem_root,
-                                                     dst->length + 1))))
-      return true;
-    snprintf(tmp, dst->length + 1, "%.*s%.*s%.*s",
-            (int) m_name[0].length, (m_name[0].length ? m_name[0].str : ""),
-            dot, ".",
-            (int) m_name[1].length, m_name[1].str);
-    return false;
   }
 };
 

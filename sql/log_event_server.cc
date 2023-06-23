@@ -5772,6 +5772,10 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
   RPL_TABLE_LIST *table_list;
   char *db_mem, *tname_mem, *ptr;
   size_t dummy_len, db_mem_length, tname_mem_length;
+  size_t multiplier= lower_case_table_names ?
+                     files_charset_info->casedn_multiply() : 1;
+  size_t db_mem_alloced= m_dblen * multiplier + 1/*for '\0'*/;
+  size_t tname_mem_alloced= m_tbllen * multiplier + 1/*for \0*/;
   void *memory;
   Rpl_filter *filter;
   Relay_log_info const *rli= rgi->rli;
@@ -5782,17 +5786,23 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
 
   if (!(memory= my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME),
                                 &table_list, (uint) sizeof(RPL_TABLE_LIST),
-                                &db_mem, (uint) NAME_LEN + 1,
-                                &tname_mem, (uint) NAME_LEN + 1,
+                                &db_mem, (uint) db_mem_alloced,
+                                &tname_mem, (uint) tname_mem_alloced,
                                 NullS)))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
-  db_mem_length= strmov(db_mem, m_dbnam) - db_mem;
-  tname_mem_length= strmov(tname_mem, m_tblnam) - tname_mem;
   if (lower_case_table_names)
   {
-    my_casedn_str(files_charset_info, (char*)tname_mem);
-    my_casedn_str(files_charset_info, (char*)db_mem);
+    db_mem_length= files_charset_info->casedn_z(m_dbnam, m_dblen,
+                                                db_mem, db_mem_alloced);
+    tname_mem_length= files_charset_info->casedn_z(m_tblnam, m_tbllen,
+                                                   tname_mem,
+                                                   tname_mem_alloced);
+  }
+  else
+  {
+    db_mem_length= strmov(db_mem, m_dbnam) - db_mem;
+    tname_mem_length= strmov(tname_mem, m_tblnam) - tname_mem;
   }
 
   /* call from mysql_client_binlog_statement() will not set rli->mi */

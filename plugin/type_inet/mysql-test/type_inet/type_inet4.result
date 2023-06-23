@@ -1290,7 +1290,7 @@ EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=COALESCE(CAST('0.0.0.1' AS INET4)) AND
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = INET4'0.0.0.1' and `test`.`t1`.`id` > 0
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = inet4'0.0.0.1' and `test`.`t1`.`id` > 0
 DROP TABLE t1;
 #
 # Optimizer: equal field propagation
@@ -1303,14 +1303,14 @@ AND LENGTH(CONCAT(a,RAND()))>1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = INET4'0.0.0.1' and octet_length(concat(INET4'0.0.0.1',rand())) > 1
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = inet4'0.0.0.1' and octet_length(concat(inet4'0.0.0.1',rand())) > 1
 EXPLAIN EXTENDED SELECT * FROM t1
 WHERE a=COALESCE(CAST('0.0.0.1' AS INET4))
 AND LENGTH(a)>1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = INET4'0.0.0.1'
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = inet4'0.0.0.1'
 DROP TABLE t1;
 #
 # Optimizer: equal expression propagation

@@ -411,28 +411,6 @@ dict_foreign_t*
 dict_mem_foreign_create(void);
 /*=========================*/
 
-/**********************************************************************//**
-Sets the foreign_table_name_lookup pointer based on the value of
-lower_case_table_names.  If that is 0 or 1, foreign_table_name_lookup
-will point to foreign_table_name.  If 2, then another string is
-allocated from the heap and set to lower case. */
-void
-dict_mem_foreign_table_name_lookup_set(
-/*===================================*/
-	dict_foreign_t*	foreign,	/*!< in/out: foreign struct */
-	ibool		do_alloc);	/*!< in: is an alloc needed */
-
-/**********************************************************************//**
-Sets the referenced_table_name_lookup pointer based on the value of
-lower_case_table_names.  If that is 0 or 1, referenced_table_name_lookup
-will point to referenced_table_name.  If 2, then another string is
-allocated from the heap and set to lower case. */
-void
-dict_mem_referenced_table_name_lookup_set(
-/*======================================*/
-	dict_foreign_t*	foreign,	/*!< in/out: foreign struct */
-	ibool		do_alloc);	/*!< in: is an alloc needed */
-
 /** Fills the dependent virtual columns in a set.
 Reason for being dependent are
 1) FK can be present on base column of virtual columns
@@ -1522,6 +1500,20 @@ struct dict_foreign_t{
 	/** Check whether the fulltext index gets affected by
 	foreign key constraint */
 	bool affects_fulltext() const;
+
+	/**********************************************************************//**
+	Sets the foreign_table_name_lookup pointer based on the value of
+	lower_case_table_names.  If that is 0 or 1, foreign_table_name_lookup
+	will point to foreign_table_name.  If 2, then another string is
+	allocated from the heap and set to lower case. */
+	void foreign_table_name_lookup_set();
+
+	/**********************************************************************//**
+	Sets the referenced_table_name_lookup pointer based on the value of
+	lower_case_table_names.  If that is 0 or 1, referenced_table_name_lookup
+	will point to referenced_table_name.  If 2, then another string is
+	allocated from the heap and set to lower case. */
+	void referenced_table_name_lookup_set();
 };
 
 std::ostream&

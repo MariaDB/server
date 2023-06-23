@@ -2281,12 +2281,20 @@ Sp_handler::sp_exist_routines(THD *thd, TABLE_LIST *routines) const
   for (routine= routines; routine; routine= routine->next_global)
   {
     sp_name *name;
-    LEX_CSTRING lex_db;
-    LEX_CSTRING lex_name;
-    thd->make_lex_string(&lex_db, routine->db.str, routine->db.length);
-    thd->make_lex_string(&lex_name, routine->table_name.str,
-                         routine->table_name.length);
-    name= new sp_name(&lex_db, &lex_name, true);
+    LEX_CSTRING lex_db= thd->make_ident_opt_casedn(routine->db,
+                                                   lower_case_table_names);
+    if (!lex_db.str)
+      DBUG_RETURN(TRUE); // EOM, error was already sent
+    LEX_CSTRING lex_name= thd->strmake_lex_cstring(routine->table_name);
+    if (!lex_name.str)
+      DBUG_RETURN(TRUE); // EOM, error was already sent
+    /*
+      routine->db was earlier tested with check_db_name().
+      Now it's lower-cased according to lower_case_table_names.
+      It's safe to make a Lex_ident_db_normalized.
+    */
+    name= new (thd->mem_root) sp_name(Lex_ident_db_normalized(lex_db),
+                                      lex_name, true);
     sp_object_found= sp_find_routine(thd, name, false) != NULL;
     thd->get_stmt_da()->clear_warning_info(thd->query_id);
     if (! sp_object_found)
@@ -2915,7 +2923,16 @@ Sp_handler::sp_cache_package_routine(THD *thd,
 {
   DBUG_ENTER("sp_cache_package_routine");
   DBUG_ASSERT(type() == SP_TYPE_FUNCTION || type() == SP_TYPE_PROCEDURE);
-  sp_name pkgname(&name->m_db, &pkgname_cstr, false);
+  LEX_CSTRING db= lower_case_table_names ? thd->make_ident_casedn(name->m_db) :
+                                           name->m_db;
+  if (!db.str)
+    DBUG_RETURN(true); // EOM, error was already sent
+  /*
+    name->m_db was earlier tested with check_db_name().
+    Now it's lower-cased according to lower_case_table_names.
+    It's safe to make a Lex_ident_db_normalized.
+  */
+  sp_name pkgname(Lex_ident_db_normalized(db), pkgname_cstr, false);
   sp_head *ph= NULL;
   int ret= sp_handler_package_body.sp_cache_routine(thd, &pkgname,
                                                     lookup_only,
@@ -3079,7 +3096,21 @@ Sp_handler::sp_load_for_information_schema(THD *thd, TABLE *proc_table,
   const AUTHID definer= {{STRING_WITH_LEN("")}, {STRING_WITH_LEN("")}};
   sp_head *sp;
   sp_cache **spc= get_cache(thd);
-  sp_name sp_name_obj(&db, &name, true); // This can change "name"
+  DBUG_ASSERT(db.str);
+  LEX_CSTRING dbn= lower_case_table_names ? thd->make_ident_casedn(db) : db;
+  if (!dbn.str)
+    return 0; // EOM, error was already sent
+  if (Lex_ident_fs(dbn).check_db_name())
+  {
+    my_error(ER_SP_WRONG_NAME, MYF(0), dbn.str);
+    return 0;
+  }
+  /*
+    db was earlier tested with check_db_name().
+    Now it's lower-cased according to lower_case_table_names.
+    It's safe make a Lex_ident_db_normalized.
+  */
+  sp_name sp_name_obj(Lex_ident_db_normalized(dbn), name, true);
   *free_sp_head= 0;
   sp= sp_cache_lookup(spc, &sp_name_obj);
 

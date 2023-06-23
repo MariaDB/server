@@ -239,8 +239,8 @@ public:
     @return An item representing the parsed function call
   */
   virtual Item *create_with_db(THD *thd,
-                               const LEX_CSTRING *db,
-                               const LEX_CSTRING *name,
+                               const Lex_ident_db_normalized &db,
+                               const LEX_CSTRING &name,
                                bool use_explicit_name,
                                List<Item> *item_list) = 0;
 

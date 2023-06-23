@@ -2976,7 +2976,7 @@ err_exit:
 
 	foreign->foreign_table_name = mem_heap_strdupl(
 		foreign->heap, (char*) field, len);
-	dict_mem_foreign_table_name_lookup_set(foreign, TRUE);
+	foreign->foreign_table_name_lookup_set();
 
 	const size_t foreign_table_name_len = len;
 	const size_t table_name_len = strlen(table_name);
@@ -2997,7 +2997,7 @@ err_exit:
 
 	foreign->referenced_table_name = mem_heap_strdupl(
 		foreign->heap, (const char*) field, len);
-	dict_mem_referenced_table_name_lookup_set(foreign, TRUE);
+	foreign->referenced_table_name_lookup_set();
 
 	mtr.commit();
 	if (UNIV_LIKELY_NULL(heap)) {

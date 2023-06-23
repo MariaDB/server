@@ -175,12 +175,6 @@ innobase_convert_from_id(
 	const char*	from,	/*!< in: identifier to convert */
 	ulint		len);	/*!< in: length of 'to', in bytes;
 				should be at least 3 * strlen(to) + 1 */
-/******************************************************************//**
-Makes all characters in a NUL-terminated UTF-8 string lower case. */
-void
-innobase_casedn_str(
-/*================*/
-	char*	a);	/*!< in/out: string to put in lower case */
 
 #ifdef WITH_WSREP
 ulint wsrep_innobase_mysql_sort(int mysql_type, uint charset_number,
@@ -239,15 +233,6 @@ thd_lock_wait_timeout(
 /*==================*/
 	THD*	thd);	/*!< in: thread handle, or NULL to query
 			the global innodb_lock_wait_timeout */
-
-/******************************************************************//**
-compare two character string case insensitively according to their charset. */
-int
-innobase_fts_text_case_cmp(
-/*=======================*/
-	const void*	cs,		/*!< in: Character set */
-	const void*	p1,		/*!< in: key */
-	const void*	p2);		/*!< in: node */
 
 /******************************************************************//**
 Returns true if transaction should be flagged as read-only.
@@ -439,11 +424,13 @@ Normalizes a table name string. A normalized name consists of the
 database name catenated to '/' and table name. An example:
 test/mytable. On Windows normalization puts both the database name and the
 table name always to lower case if "set_lower_case" is set to TRUE. */
-void
+size_t
 normalize_table_name_c_low(
 /*=======================*/
 	char*		norm_name,	/*!< out: normalized name as a
 					null-terminated string */
+	size_t		norm_name_size, /*!< in: number of bytes available
+					 in norm_name*/
 	const char*	name,		/*!< in: table name string */
 	bool		set_lower_case); /*!< in: true if we want to set
 					name to lower case */

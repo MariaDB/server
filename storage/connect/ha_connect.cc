@@ -156,8 +156,6 @@
 #include "tabpivot.h"
 #include "tabfix.h"
 
-#define my_strupr(p)    my_caseup_str(default_charset_info, (p));
-#define my_strlwr(p)    my_casedn_str(default_charset_info, (p));
 #define my_stricmp(a,b) my_strcasecmp(default_charset_info, (a), (b))
 
 
