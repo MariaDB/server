@@ -125,7 +125,7 @@ void maria_chk_init(HA_CHECK *param)
   param->max_stage= 1;
   param->stack_end_ptr= &my_thread_var->stack_ends_here;
   param->max_allowed_lsn= (LSN) ~0ULL;
-  param->malloc_flags= MY_THREAD_SPECIFIC;
+  param->malloc_flags= maria_in_ha_maria ? MY_THREAD_SPECIFIC : 0;
 }
 
 
