@@ -335,20 +335,28 @@ TABLE_SHARE *alloc_table_share(const SQL_CATALOG *catalog,
 {
   MEM_ROOT mem_root;
   TABLE_SHARE *share;
-  char *key_buff, *path_buff;
+  char *key_buff, *path_buff, *error_path;
   char path[FN_REFLEN];
-  uint path_length;
+  uint path_length, error_path_length= 0;
   DBUG_ENTER("alloc_table_share");
   DBUG_PRINT("enter", ("table: '%s'.'%s'", db, table_name));
 
   path_length= build_table_filename(catalog, path, sizeof(path) - 1,
                                     db, table_name, "", 0);
+
+  if (using_catalogs && path[0] == '.' && path[1] == '/')
+  {
+    /* Error path is like normalized_path but without the catalog part */
+    error_path_length= path_length - catalog->path.length;
+  }
+
   init_sql_alloc(key_memory_table_share, &mem_root, TABLE_ALLOC_BLOCK_SIZE, 0,
                  MYF(0));
   if (multi_alloc_root(&mem_root,
                        &share, sizeof(*share),
                        &key_buff, key_length,
                        &path_buff, path_length + 1,
+                       &error_path, error_path_length+1,
                        NULL))
   {
     bzero((char*) share, sizeof(*share));
@@ -361,6 +369,17 @@ TABLE_SHARE *alloc_table_share(const SQL_CATALOG *catalog,
     strmov(path_buff, path);
     share->normalized_path.str=    share->path.str;
     share->normalized_path.length= path_length;
+    if (error_path_length)
+    {
+      memcpy(error_path, path_buff, 2);
+      memcpy(error_path+2, path_buff + 2 + catalog->path.length,
+             error_path_length+1-2);
+      share->error_path.str= error_path;
+      share->error_path.length= error_path_length;
+    }
+    else
+      share->error_path= share->normalized_path;
+
     share->table_category= get_table_category(&share->db, &share->table_name);
     share->open_errno= ENOENT;
     /* The following will be updated in open_table_from_share */
@@ -447,7 +466,9 @@ void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
   share->table_name.length=      strlen(table_name);
   share->path.str=               (char*) path;
   share->normalized_path.str=    (char*) path;
-  share->path.length= share->normalized_path.length= strlen(path);
+  share->error_path.str=         (char*) path;
+  share->path.length= share->normalized_path.length=
+      share->error_path.length= strlen(path);
   share->frm_version= 		 FRM_VER_CURRENT;
   share->not_usable_by_query_cache= 1;
   share->can_do_row_logging= 0;           // No row logging
@@ -942,7 +963,7 @@ static uint enum_value_with_check(THD *thd, TABLE_SHARE *share,
     return value;
 
   sql_print_warning("%s.frm: invalid value %d for the field %s",
-                share->normalized_path.str, value, name);
+                share->error_path.str, value, name);
   return 0;
 }
 
@@ -1985,7 +2006,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         {
           /* bad file, legacy_db_type did not match the name */
           sql_print_warning("%s.frm is inconsistent: engine typecode %d, engine name %s (%d)",
-                        share->normalized_path.str, legacy_db_type,
+                        share->error_path.str, legacy_db_type,
                         plugin_name(tmp_plugin)->str,
                         ha_legacy_type(plugin_data(tmp_plugin, handlerton *)));
         }
@@ -4728,7 +4749,7 @@ void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
       my_error(ER_NO_SUCH_TABLE, MYF(0), share->db.str, share->table_name.str);
     else
     {
-      strxmov(buff, share->normalized_path.str, reg_ext, NullS);
+      strxmov(buff, share->error_path.str, reg_ext, NullS);
       my_error((db_errno == EMFILE) ? ER_CANT_OPEN_FILE : ER_FILE_NOT_FOUND,
                errortype, buff, db_errno);
     }
@@ -4750,11 +4771,11 @@ void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
     DBUG_ASSERT(0); // open_table_error() is never called for this one
     break;
   case OPEN_FRM_CORRUPTED:
-    strxmov(buff, share->normalized_path.str, reg_ext, NullS);
+    strxmov(buff, share->error_path.str, reg_ext, NullS);
     my_error(ER_NOT_FORM_FILE, errortype, buff);
     break;
   case OPEN_FRM_READ_ERROR:
-    strxmov(buff, share->normalized_path.str, reg_ext, NullS);
+    strxmov(buff, share->error_path.str, reg_ext, NullS);
     my_error(ER_ERROR_ON_READ, errortype, buff, db_errno);
     break;
   case OPEN_FRM_NEEDS_REBUILD:

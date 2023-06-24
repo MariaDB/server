@@ -790,6 +790,7 @@ struct TABLE_SHARE
   LEX_CSTRING table_name;                /* Table name (for open) */
   LEX_CSTRING path;                	/* Path to .frm file (from datadir) */
   LEX_CSTRING normalized_path;		/* unpack_filename(path) */
+  LEX_CSTRING error_path;		/* like normalized_path, no catalog */
   LEX_CSTRING connect_string;
   const SQL_CATALOG *catalog;           /* Pointer to the catalog */
 
