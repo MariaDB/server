@@ -36,7 +36,7 @@ mysqlhotcopy - fast on-line hot-backup utility for local MySQL databases and tab
 
 =head1 SYNOPSIS
 
-  mysqlhotcopy db_name
+  mysqlhotcopy [--catalog=catalog] db_name
 
   mysqlhotcopy --suffix=_copy db_name_1 ... db_name_n
 
@@ -62,7 +62,7 @@ WARNING: THIS PROGRAM IS STILL IN BETA. Comments/patches welcome.
 # fix CORE::GLOBAL::die to return a predictable exit code
 BEGIN { *CORE::GLOBAL::die= sub { warn @_; exit 1; }; }
 
-my $VERSION = "1.23";
+my $VERSION = "2.0";
 
 my $opt_tmpdir = $ENV{TMPDIR} || "/tmp";
 
@@ -77,6 +77,7 @@ Usage: $0 db_name[./table_regex/] [new_db_name | directory]
   -p, --password=#     password to use when connecting to server (if not set
                        in my.cnf, which is recommended)
   -h, --host=#         hostname for local server when connecting over TCP/IP
+  -C, --catalog=#      Catalog
   -P, --port=#         port to use when connecting to local server with TCP/IP
   -S, --socket=#       socket to use when connecting to local server
       --old_server     connect to old MySQL-server (before v5.5) which
@@ -128,6 +129,7 @@ GetOptions( \%opt,
     "password|p=s",
     "port|P=s",
     "socket|S=s",
+    "catalog=s",
     "old_server",
     "allowold!",
     "keepold!",
@@ -241,6 +243,32 @@ my $datadir = $mysqld_vars{'datadir'}
     || die "datadir not in mysqld variables";
     $datadir= $opt{chroot}.$datadir if ($opt{chroot});
 $datadir =~ s:/$::;
+
+# --- Get catalog information from database
+my $using_catalogs= 0;
+$dbh->{'RaiseError'}=0;
+$sth_vars= $dbh->prepare("select \@\@catalogs, catalog()") or
+    die "Cannot prepare catalog statement: $DBI::errstr\n";
+if (!$sth_vars->execute)
+{
+    print "$DBI::errstr\n";
+}
+else
+{
+    my ($catalogs, $cur_catalog) = $sth_vars->fetchrow_array;
+    if ($catalogs == '1')
+    {
+        $using_catalogs= 1;
+        if (defined($opt{catalog}) && $cur_catalog ne $opt{catalog})
+        {
+            $cur_catalog= $opt{catalog};
+            eval { $dbh->do( qq{ use catalog `$cur_catalog` } ) };
+            die "Error changing catalog to '$cur_catalog': $@" if ($@);
+        }
+        $datadir="$datadir/$cur_catalog";
+    }
+}
+$dbh->{'RaiseError'}=1;
 
 
 # --- get target path ---
