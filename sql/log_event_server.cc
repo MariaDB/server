@@ -1137,7 +1137,7 @@ bool Query_log_event::write()
   if (catalog_len) // i.e. this var is inited (false for 4.0 events)
   {
     store_str_with_code_and_len(&start,
-                                catalog, catalog_len, Q_CATALOG_NZ_CODE);
+                                catalog, catalog_len, (uint) Q_CATALOG_NZ_CODE);
     /*
       In 5.0.x where x<4 masters we used to store the end zero here. This was
       a waste of one byte so we don't do it in x>=4 masters. We change code to
