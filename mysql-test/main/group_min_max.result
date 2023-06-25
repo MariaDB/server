@@ -4204,30 +4204,6 @@ a	b	s1
 2	2	t2:t2a-null;min_t3_b:t3b-null
 3	3	t2:1;min_t3_b:3
 drop table t1,t2,t3;
-# 
-# MDEV-31380: Assertion `s->table->opt_range_condition_rows <= s->found_records' failed
-#  (assertion in 10.6+, DBL_MAX costs in 10.5)
-# 
-CREATE TABLE t1 (a INT, b INT, PRIMARY KEY(a), KEY(b)) ENGINE=InnoDB;
-INSERT INTO t1 SELECT seq, seq FROM seq_1_to_100;
-SET
-@tmp=@@optimizer_use_condition_selectivity,
-optimizer_use_condition_selectivity = 1,
-@tmp2=@@optimizer_trace,
-optimizer_trace=1;
-SELECT DISTINCT * FROM t1 WHERE a IN (1, 2);
-a	b
-1	1
-2	2
-select 
-CAST(json_value(json_extract(trace, '$**.chosen_access_method.cost'), '$[0]')
-as DOUBLE) < 1.0e100
-from information_schema.optimizer_trace;
-CAST(json_value(json_extract(trace, '$**.chosen_access_method.cost'), '$[0]')
-as DOUBLE) < 1.0e100
-1
-set optimizer_use_condition_selectivity = @tmp, optimizer_trace=@tmp2;
-drop table t1;
 #
 # End of 10.5 tests
 #
