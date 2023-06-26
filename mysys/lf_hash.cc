@@ -325,8 +325,8 @@ static inline my_hash_value_type calc_hash(CHARSET_INFO *cs,
                                            size_t keylen)
 {
   ulong nr1= 1, nr2= 4;
-  my_ci_hash_sort(cs, (uchar*) key, keylen, &nr1, &nr2);
-  return nr1;
+//  my_ci_hash_sort(cs, (uchar*) key, keylen, &nr1, &nr2);
+  return my_hash_sort(cs, key, keylen);
 }
 
 #define MAX_LOAD 1.0    /* average number of elements in a bucket */

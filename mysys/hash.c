@@ -45,8 +45,12 @@ my_hash_value_type my_hash_sort(CHARSET_INFO *cs, const uchar *key,
                                 size_t length)
 {
   ulong nr1= 1, nr2= 4;
-  my_ci_hash_sort(cs, (uchar*) key, length, &nr1, &nr2);
-  return (my_hash_value_type) nr1;
+  if (cs != &my_charset_bin)
+  {
+    my_ci_hash_sort(cs, (uchar*) key, length, &nr1, &nr2);
+    return (my_hash_value_type) nr1;
+  }
+  return (my_hash_value_type) my_crc32c(0, key, length);
 }
 
 /**
