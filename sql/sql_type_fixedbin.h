@@ -200,10 +200,6 @@ public:
     {
       return to_fbt().to_binary(to);
     }
-    size_t to_string(char *dst, size_t dstsize) const
-    {
-      return to_fbt().to_string(dst, dstsize);
-    }
     bool to_string(String *to) const
     {
       return to_fbt().to_string(to);
