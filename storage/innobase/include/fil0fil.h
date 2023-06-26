@@ -1655,9 +1655,11 @@ template<bool have_reference> inline void fil_space_t::flush()
     flush_low();
   else
   {
-    if (!(acquire_low() & (STOPPING | CLOSING)))
+    if (!(acquire_low(STOPPING | CLOSING) & (STOPPING | CLOSING)))
+    {
       flush_low();
-    release();
+      release();
+    }
   }
 }
 

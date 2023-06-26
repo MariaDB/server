@@ -15,10 +15,12 @@ a	b
 2	2
 select 
 CAST(json_value(json_extract(trace, '$**.chosen_access_method.cost'), '$[0]')
-as DOUBLE) < 1.0e100
+as DOUBLE) < 1.0e100  as ACCESS_METHOD_COST_IS_FINITE
 from information_schema.optimizer_trace;
-CAST(json_value(json_extract(trace, '$**.chosen_access_method.cost'), '$[0]')
-as DOUBLE) < 1.0e100
+ACCESS_METHOD_COST_IS_FINITE
 1
 set optimizer_use_condition_selectivity = @tmp, optimizer_trace=@tmp2;
 drop table t1;
+#
+# End of 10.5 tests
+#

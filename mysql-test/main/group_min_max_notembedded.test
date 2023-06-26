@@ -1,7 +1,10 @@
---source include/no_valgrind_without_big.inc
+#
+# Tests for group-min-max optimization that require optimizer trace
+# and so need not-embedded.
+#
 --source include/default_optimizer_switch.inc
---source include/have_sequence.inc
 --source include/have_innodb.inc
+--source include/have_sequence.inc
 --source include/not_embedded.inc
 
 --echo # 
@@ -22,8 +25,13 @@ SELECT DISTINCT * FROM t1 WHERE a IN (1, 2);
 
 select 
   CAST(json_value(json_extract(trace, '$**.chosen_access_method.cost'), '$[0]')
-       as DOUBLE) < 1.0e100
+       as DOUBLE) < 1.0e100  as ACCESS_METHOD_COST_IS_FINITE
 from information_schema.optimizer_trace;
 
 set optimizer_use_condition_selectivity = @tmp, optimizer_trace=@tmp2;
 drop table t1;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
+
