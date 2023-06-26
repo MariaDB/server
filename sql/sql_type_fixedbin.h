@@ -32,8 +32,10 @@
 
 
 template<class FbtImpl>
-class FixedBinTypeBundle
+class Type_handler_fbt: public Type_handler
 {
+  /* =[ internal helper classes ]=============================== */
+
 public:
   class Fbt: public FbtImpl
   {
@@ -41,7 +43,7 @@ public:
     using FbtImpl::m_buffer;
     bool make_from_item(Item *item, bool warn)
     {
-      if (item->type_handler() == type_handler_fbt())
+      if (item->type_handler() == singleton())
       {
         Native tmp(m_buffer, sizeof(m_buffer));
         bool rc= item->val_native(current_thd, &tmp);
@@ -78,14 +80,14 @@ public:
                                           str->charset());
         if (rc && warn)
           current_thd->push_warning_wrong_value(Sql_condition::WARN_LEVEL_WARN,
-                       type_handler_fbt()->name().ptr(), ErrConvString(str).ptr());
+                       singleton()->name().ptr(), ErrConvString(str).ptr());
         return rc;
       }
       if (str->length() != sizeof(m_buffer))
       {
         if (warn)
           current_thd->push_warning_wrong_value(Sql_condition::WARN_LEVEL_WARN,
-                       type_handler_fbt()->name().ptr(), ErrConvString(str).ptr());
+                       singleton()->name().ptr(), ErrConvString(str).ptr());
         return true;
       }
       DBUG_ASSERT(str->ptr() != m_buffer);
@@ -125,7 +127,7 @@ public:
     {
       if (item->maybe_null())
         return true;
-      if (item->type_handler() == type_handler_fbt())
+      if (item->type_handler() == singleton())
         return false;
       if (!item->const_item() || item->is_expensive())
         return true;
@@ -206,6 +208,76 @@ public:
     }
   };
 
+  /* =[ API classes ]=========================================== */
+
+  class Type_collection_fbt: public Type_collection
+  {
+    const Type_handler *aggregate_common(const Type_handler *a,
+                                         const Type_handler *b) const
+    {
+      if (a == b)
+        return a;
+      return NULL;
+    }
+    const Type_handler *aggregate_if_string(const Type_handler *a,
+                                            const Type_handler *b) const
+    {
+      static const Type_aggregator::Pair agg[]=
+      {
+        {singleton(), &type_handler_null,        singleton()},
+        {singleton(), &type_handler_varchar,     singleton()},
+        {singleton(), &type_handler_string,      singleton()},
+        {singleton(), &type_handler_tiny_blob,   singleton()},
+        {singleton(), &type_handler_blob,        singleton()},
+        {singleton(), &type_handler_medium_blob, singleton()},
+        {singleton(), &type_handler_long_blob,   singleton()},
+        {singleton(), &type_handler_hex_hybrid,  singleton()},
+        {NULL,NULL,NULL}
+      };
+      return Type_aggregator::find_handler_in_array(agg, a, b, true);
+    }
+  public:
+    const Type_handler *aggregate_for_result(const Type_handler *a,
+                                             const Type_handler *b)
+                                             const override
+    {
+      const Type_handler *h;
+      if ((h= aggregate_common(a, b)) ||
+          (h= aggregate_if_string(a, b)))
+        return h;
+      return NULL;
+    }
+
+    const Type_handler *aggregate_for_min_max(const Type_handler *a,
+                                              const Type_handler *b)
+                                              const override
+    {
+      return aggregate_for_result(a, b);
+    }
+
+    const Type_handler *aggregate_for_comparison(const Type_handler *a,
+                                                 const Type_handler *b)
+                                                 const override
+    {
+      if (const Type_handler *h= aggregate_common(a, b))
+        return h;
+      static const Type_aggregator::Pair agg[]=
+      {
+        {singleton(), &type_handler_null,      singleton()},
+        {singleton(), &type_handler_long_blob, singleton()},
+        {NULL,NULL,NULL}
+      };
+      return Type_aggregator::find_handler_in_array(agg, a, b, true);
+    }
+
+    const Type_handler *aggregate_for_num_op(const Type_handler *a,
+                                             const Type_handler *b)
+                                             const override
+    {
+      return NULL;
+    }
+  };
+
   class Type_std_attributes_fbt: public Type_std_attributes
   {
   public:
@@ -216,847 +288,66 @@ public:
     { }
   };
 
-  class Type_handler_fbt: public Type_handler
+  class Item_literal_fbt: public Item_literal
   {
-    bool character_or_binary_string_to_native(THD *thd, const String *str,
-                                              Native *to) const
-    {
-      if (str->charset() == &my_charset_bin)
-      {
-        // Convert from a binary string
-        if (str->length() != FbtImpl::binary_length() ||
-            to->copy(str->ptr(), str->length()))
-        {
-          thd->push_warning_wrong_value(Sql_condition::WARN_LEVEL_WARN,
-                                        name().ptr(), ErrConvString(str).ptr());
-          return true;
-        }
-        return false;
-      }
-      // Convert from a character string
-      Fbt_null tmp(*str);
-      if (tmp.is_null())
-        thd->push_warning_wrong_value(Sql_condition::WARN_LEVEL_WARN,
-                                      name().ptr(), ErrConvString(str).ptr());
-      return tmp.is_null() || tmp.to_native(to);
-    }
-
+    Fbt m_value;
   public:
-    ~Type_handler_fbt() override {}
-
-    const Type_collection *type_collection() const override
+    Item_literal_fbt(THD *thd)
+     :Item_literal(thd),
+      m_value(Fbt::zero())
+    { }
+    Item_literal_fbt(THD *thd, const Fbt &value)
+     :Item_literal(thd),
+      m_value(value)
+    { }
+    const Type_handler *type_handler() const override
     {
-      static Type_collection_fbt type_collection_fbt;
-      return &type_collection_fbt;
+      return singleton();
     }
-
-    const Name &default_value() const override
-    {
-      return FbtImpl::default_value();
-    }
-    ulong KEY_pack_flags(uint column_nr) const override
-    {
-      return FbtImpl::KEY_pack_flags(column_nr);
-    }
-    protocol_send_type_t protocol_send_type() const override
-    {
-      return PROTOCOL_SEND_STRING;
-    }
-    bool Item_append_extended_type_info(Send_field_extended_metadata *to,
-                                        const Item *item) const override
-    {
-      return to->set_data_type_name(name().lex_cstring());
-    }
-
-    enum_field_types field_type() const override
-    {
-      return MYSQL_TYPE_STRING;
-    }
-
-    Item_result result_type() const override
-    {
-      return STRING_RESULT;
-    }
-
-    Item_result cmp_type() const override
-    {
-      return STRING_RESULT;
-    }
-
-    enum_dynamic_column_type dyncol_type(const Type_all_attributes *attr)
-                                         const override
-    {
-      return DYN_COL_STRING;
-    }
-
-    uint32 max_display_length_for_field(const Conv_source &src) const override
-    {
-      return FbtImpl::max_char_length();
-    }
-
-    const Type_handler *type_handler_for_comparison() const override
-    {
-      return this;
-    }
-
-    int stored_field_cmp_to_item(THD *thd, Field *field, Item *item) const override
-    {
-      DBUG_ASSERT(field->type_handler() == this);
-      Fbt_null ni(item); // Convert Item to Fbt
-      if (ni.is_null())
-        return 0;
-      NativeBuffer<FbtImpl::binary_length()+1> tmp;
-      if (field->val_native(&tmp))
-      {
-        DBUG_ASSERT(0);
-        return 0;
-      }
-      return -ni.cmp(tmp);
-    }
-    CHARSET_INFO *charset_for_protocol(const Item *item) const override
-    {
-      return item->collation.collation;
-    }
-
-    bool is_scalar_type() const override { return true; }
-    bool is_val_native_ready() const override { return true; }
-    bool can_return_int() const override { return false; }
-    bool can_return_decimal() const override { return false; }
-    bool can_return_real() const override { return false; }
-    bool can_return_str() const override { return true; }
-    bool can_return_text() const override { return true; }
-    bool can_return_date() const override { return false; }
-    bool can_return_time() const override { return false; }
-    bool convert_to_binary_using_val_native() const override { return true; }
-
-    decimal_digits_t  Item_time_precision(THD *thd, Item *item) const override
+    longlong val_int() override
     {
       return 0;
     }
-    decimal_digits_t Item_datetime_precision(THD *thd, Item *item) const override
+    double val_real() override
     {
       return 0;
     }
-    decimal_digits_t Item_decimal_scale(const Item *item) const override
+    String *val_str(String *to) override
     {
-      return 0;
+      return m_value.to_string(to) ? NULL : to;
     }
-    decimal_digits_t  Item_decimal_precision(const Item *item) const override
+    my_decimal *val_decimal(my_decimal *to) override
     {
-      /* This will be needed if we ever allow cast from Fbt to DECIMAL. */
-      return (FbtImpl::binary_length()*8+7)/10*3; // = bytes to decimal digits
+      my_decimal_set_zero(to);
+      return to;
     }
-
-    /*
-      Returns how many digits a divisor adds into a division result.
-      See Item::divisor_precision_increment() in item.h for more comments.
-    */
-    decimal_digits_t Item_divisor_precision_increment(const Item *) const override
-    {
-      return 0;
-    }
-    /**
-      Makes a temporary table Field to handle numeric aggregate functions,
-      e.g. SUM(DISTINCT expr), AVG(DISTINCT expr), etc.
-    */
-    Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const override
-    {
-      DBUG_ASSERT(0);
-      return 0;
-    }
-    Field *make_conversion_table_field(MEM_ROOT *root, TABLE *table, uint metadata,
-                                       const Field *target) const override
-    {
-      const Record_addr tmp(NULL, Bit_addr(true));
-      return new (table->in_use->mem_root) Field_fbt(&empty_clex_str, tmp);
-    }
-    // Fix attributes after the parser
-    bool Column_definition_fix_attributes(Column_definition *c) const override
-    {
-      c->length= FbtImpl::max_char_length();
-      return false;
-    }
-
-    bool Column_definition_prepare_stage1(THD *thd, MEM_ROOT *mem_root,
-                                          Column_definition *def, handler *file,
-                                          ulonglong table_flags,
-                                          const Column_derived_attributes *derived_attr)
-                                          const override
-    {
-      def->prepare_stage1_simple(&my_charset_numeric);
-      return false;
-    }
-
-    bool Column_definition_redefine_stage1(Column_definition *def,
-                                           const Column_definition *dup,
-                                           const handler *file) const override
-    {
-      def->redefine_stage1_common(dup, file);
-      def->set_compression_method(dup->compression_method());
-      def->create_length_to_internal_length_string();
-      return false;
-    }
-
-    bool Column_definition_prepare_stage2(Column_definition *def, handler *file,
-                                          ulonglong table_flags) const override
-    {
-      def->pack_flag= FIELDFLAG_BINARY;
-      return false;
-    }
-
-    bool partition_field_check(const LEX_CSTRING &field_name,
-                               Item *item_expr) const override
-    {
-      if (item_expr->cmp_type() != STRING_RESULT)
-      {
-        my_error(ER_WRONG_TYPE_COLUMN_VALUE_ERROR, MYF(0));
-        return true;
-      }
-      return false;
-    }
-
-    bool partition_field_append_value(String *to, Item *item_expr,
-                                      CHARSET_INFO *field_cs,
-                                      partition_value_print_mode_t mode)
-                                      const override
-    {
-      StringBuffer<FbtImpl::max_char_length()+64> fbtstr;
-      Fbt_null fbt(item_expr);
-      if (fbt.is_null())
-      {
-        my_error(ER_PARTITION_FUNCTION_IS_NOT_ALLOWED, MYF(0));
-        return true;
-      }
-      return fbt.to_string(&fbtstr) ||
-             to->append('\'') ||
-             to->append(fbtstr) ||
-             to->append('\'');
-    }
-
-    Field *make_table_field(MEM_ROOT *root, const LEX_CSTRING *name,
-                            const Record_addr &addr,
-                            const Type_all_attributes &attr,
-                            TABLE_SHARE *table) const override
-    {
-      return new (root) Field_fbt(name, addr);
-    }
-
-    Field * make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
-                              const LEX_CSTRING *name, const Record_addr &addr,
-                              const Bit_addr &bit,
-                              const Column_definition_attributes *attr,
-                              uint32 flags) const override
-    {
-      return new (mem_root) Field_fbt(name, addr);
-    }
-    void Column_definition_attributes_frm_pack(const Column_definition_attributes *def,
-                                          uchar *buff) const override
-    {
-      def->frm_pack_basic(buff);
-      def->frm_pack_charset(buff);
-    }
-    bool Column_definition_attributes_frm_unpack(Column_definition_attributes *def,
-                                            TABLE_SHARE *share, const uchar *buffer,
-                                            LEX_CUSTRING *gis_options)
-                                            const override
-    {
-      def->frm_unpack_basic(buffer);
-      return def->frm_unpack_charset(share, buffer);
-    }
-    void make_sort_key_part(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
-                            String *) const override
-    {
-      DBUG_ASSERT(item->type_handler() == this);
-      NativeBuffer<FbtImpl::binary_length()+1> tmp;
-      item->val_native_result(current_thd, &tmp);
-      if (item->maybe_null())
-      {
-        if (item->null_value)
-        {
-          memset(to, 0, FbtImpl::binary_length() + 1);
-          return;
-        }
-        *to++= 1;
-      }
-      DBUG_ASSERT(!item->null_value);
-      DBUG_ASSERT(FbtImpl::binary_length() == tmp.length());
-      DBUG_ASSERT(FbtImpl::binary_length() == sort_field->length);
-      FbtImpl::memory_to_record((char*) to, tmp.ptr());
-    }
-    uint make_packed_sort_key_part(uchar *to, Item *item,
-                                   const SORT_FIELD_ATTR *sort_field,
-                                   String *) const override
-    {
-      DBUG_ASSERT(item->type_handler() == this);
-      NativeBuffer<FbtImpl::binary_length()+1> tmp;
-      item->val_native_result(current_thd, &tmp);
-      if (item->maybe_null())
-      {
-        if (item->null_value)
-        {
-          *to++=0;
-          return 0;
-        }
-        *to++= 1;
-      }
-      DBUG_ASSERT(!item->null_value);
-      DBUG_ASSERT(FbtImpl::binary_length() == tmp.length());
-      DBUG_ASSERT(FbtImpl::binary_length() == sort_field->length);
-      FbtImpl::memory_to_record((char*) to, tmp.ptr());
-      return tmp.length();
-    }
-    void sort_length(THD *thd, const Type_std_attributes *item,
-                    SORT_FIELD_ATTR *attr) const override
-    {
-      attr->original_length= attr->length= FbtImpl::binary_length();
-      attr->suffix_length= 0;
-    }
-    uint32 max_display_length(const Item *item) const override
-    {
-      return FbtImpl::max_char_length();
-    }
-    uint32 calc_pack_length(uint32 length) const override
-    {
-      return FbtImpl::binary_length();
-    }
-    void Item_update_null_value(Item *item) const override
-    {
-      NativeBuffer<FbtImpl::binary_length()+1> tmp;
-      item->val_native(current_thd, &tmp);
-    }
-    bool Item_save_in_value(THD *thd, Item *item, st_value *value) const override
-    {
-      value->m_type= DYN_COL_STRING;
-      String *str= item->val_str(&value->m_string);
-      if (str != &value->m_string && !item->null_value)
-      {
-        // "item" returned a non-NULL value
-        if (Fbt_null(*str).is_null())
-        {
-          /*
-            The value was not-null, but conversion to FBT failed:
-              SELECT a, DECODE_ORACLE(fbtcol, 'garbage', '<NULL>', '::01', '01')
-              FROM t1;
-          */
-          thd->push_warning_wrong_value(Sql_condition::WARN_LEVEL_WARN,
-                                        name().ptr(), ErrConvString(str).ptr());
-          value->m_type= DYN_COL_NULL;
-          return true;
-        }
-        // "item" returned a non-NULL value, and it was a valid FBT
-        value->m_string.set(str->ptr(), str->length(), str->charset());
-      }
-      return check_null(item, value);
-    }
-    void Item_param_setup_conversion(THD *thd, Item_param *param) const override
-    {
-      param->setup_conversion_string(thd, thd->variables.character_set_client);
-    }
-    void Item_param_set_param_func(Item_param *param,
-                                   uchar **pos, ulong len) const override
-    {
-      param->set_param_str(pos, len);
-    }
-    bool Item_param_set_from_value(THD *thd, Item_param *param,
-                                   const Type_all_attributes *attr,
-                                   const st_value *val) const override
-    {
-      param->unsigned_flag= false;
-      param->setup_conversion_string(thd, attr->collation.collation);
-      /*
-        Exact value of max_length is not known unless fbt is converted to
-        charset of connection, so we have to set it later.
-      */
-      return param->set_str(val->m_string.ptr(), val->m_string.length(),
-                            attr->collation.collation,
-                            attr->collation.collation);
-    }
-    bool Item_param_val_native(THD *thd, Item_param *item, Native *to)
-                               const override
-    {
-      StringBuffer<FbtImpl::max_char_length()+1> buffer;
-      String *str= item->val_str(&buffer);
-      if (!str)
-        return true;
-      Fbt_null tmp(*str);
-      return tmp.is_null() || tmp.to_native(to);
-    }
-    bool Item_send(Item *item, Protocol *p, st_value *buf) const override
-    {
-      return Item_send_str(item, p, buf);
-    }
-    int Item_save_in_field(Item *item, Field *field, bool no_conversions)
-                           const override
-    {
-      if (field->type_handler() == this)
-      {
-        NativeBuffer<MAX_FIELD_WIDTH> tmp;
-        bool rc= item->val_native(current_thd, &tmp);
-        if (rc || item->null_value)
-          return set_field_to_null_with_conversions(field, no_conversions);
-        field->set_notnull();
-        return field->store_native(tmp);
-      }
-      return item->save_str_in_field(field, no_conversions);
-    }
-
-    String *print_item_value(THD *thd, Item *item, String *str) const override
-    {
-      StringBuffer<FbtImpl::max_char_length()+64> buf;
-      String *result= item->val_str(&buf);
-      /*
-        TODO: This should eventually use one of these notations:
-        1. CAST('xxx' AS Fbt)
-           Problem: CAST is not supported as a NAME_CONST() argument.
-        2. Fbt'xxx'
-           Problem: This syntax is not supported by the parser yet.
-      */
-      return !result || str->realloc(result->length() + 2) ||
-             str->append(STRING_WITH_LEN("'")) ||
-             str->append(result->ptr(), result->length()) ||
-             str->append(STRING_WITH_LEN("'")) ? nullptr : str;
-    }
-
-    /**
-      Check if
-        WHERE expr=value AND expr=const
-      can be rewritten as:
-        WHERE const=value AND expr=const
-
-      "this" is the comparison handler that is used by "target".
-
-      @param target       - the predicate expr=value,
-                            whose "expr" argument will be replaced to "const".
-      @param target_expr  - the target's "expr" which will be replaced to "const".
-      @param target_value - the target's second argument, it will remain unchanged.
-      @param source       - the equality predicate expr=const (or expr<=>const)
-                            that can be used to rewrite the "target" part
-                            (under certain conditions, see the code).
-      @param source_expr  - the source's "expr". It should be exactly equal to
-                            the target's "expr" to make condition rewrite possible.
-      @param source_const - the source's "const" argument, it will be inserted
-                            into "target" instead of "expr".
-    */
-    bool can_change_cond_ref_to_const(Item_bool_func2 *target, Item *target_expr,
-                                 Item *target_value, Item_bool_func2 *source,
-                                 Item *source_expr, Item *source_const)
-                                 const override
-    {
-      /*
-        WHERE COALESCE(col)='xxx' AND COALESCE(col)=CONCAT(a);  -->
-        WHERE COALESCE(col)='xxx' AND         'xxx'=CONCAT(a);
-      */
-      return target->compare_type_handler() == source->compare_type_handler();
-    }
-    bool subquery_type_allows_materialization(const Item *inner,
-                                         const Item *outer, bool) const override
-    {
-      /*
-        Example:
-          SELECT * FROM t1 WHERE a IN (SELECT col FROM t1 GROUP BY col);
-        Allow materialization only if the outer column is also FBT.
-        This can be changed for more relaxed rules in the future.
-      */
-      DBUG_ASSERT(inner->type_handler() == this);
-      return outer->type_handler() == this;
-    }
-    /**
-      Make a simple constant replacement item for a constant "src",
-      so the new item can futher be used for comparison with "cmp", e.g.:
-        src = cmp   ->  replacement = cmp
-
-      "this" is the type handler that is used to compare "src" and "cmp".
-
-      @param thd - current thread, for mem_root
-      @param src - The item that we want to replace. It's a const item,
-                   but it can be complex enough to calculate on every row.
-      @param cmp - The src's comparand.
-      @retval    - a pointer to the created replacement Item
-      @retval    - NULL, if could not create a replacement (e.g. on EOM).
-                   NULL is also returned for ROWs, because instead of replacing
-                   a Item_row to a new Item_row, Type_handler_row just replaces
-                   its elements.
-    */
-    Item *make_const_item_for_comparison(THD *thd, Item *src,
-                                         const Item *cmp) const override
-    {
-      Fbt_null tmp(src);
-      if (tmp.is_null())
-        return new (thd->mem_root) Item_null(thd, src->name.str);
-      return new (thd->mem_root) Item_literal_fbt(thd, tmp);
-    }
-    Item_cache *Item_get_cache(THD *thd, const Item *item) const override
-    {
-      return new (thd->mem_root) Item_cache_fbt(thd);
-    }
-
-    Item *create_typecast_item(THD *thd, Item *item,
-                               const Type_cast_attributes &attr) const override
-    {
-      return new (thd->mem_root) Item_typecast_fbt(thd, item);
-    }
-    Item_copy *create_item_copy(THD *thd, Item *item) const override
-    {
-      return new (thd->mem_root) Item_copy_fbt(thd, item);
-    }
-    int cmp_native(const Native &a, const Native &b) const override
-    {
-      return FbtImpl::cmp(a.to_lex_cstring(), b.to_lex_cstring());
-    }
-    bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override
-    {
-      return cmp->set_cmp_func_native(thd);
-    }
-    bool Item_const_eq(const Item_const *a, const Item_const *b,
-                               bool binary_cmp) const override
-    {
-      return false;
-    }
-    bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
-                       Item *a, Item *b) const override
-    {
-      Fbt_null na(a), nb(b);
-      return !na.is_null() && !nb.is_null() && !na.cmp(nb);
-    }
-    bool Item_hybrid_func_fix_attributes(THD *thd, const LEX_CSTRING &name,
-                                         Type_handler_hybrid_field_type *h,
-                                         Type_all_attributes *attr,
-                                         Item **items, uint nitems) const override
-    {
-      attr->Type_std_attributes::operator=(Type_std_attributes_fbt());
-      h->set_handler(this);
-      /*
-        If some of the arguments cannot be safely converted to "FBT NOT NULL",
-        then mark the entire function nullability as NULL-able.
-        Otherwise, keep the generic nullability calculated by earlier stages:
-        - either by the most generic way in Item_func::fix_fields()
-        - or by Item_func_xxx::fix_length_and_dec() before the call of
-          Item_hybrid_func_fix_attributes()
-        IFNULL() is special. It does not need to test args[0].
-      */
-      uint first= dynamic_cast<Item_func_ifnull*>(attr) ? 1 : 0;
-      for (uint i= first; i < nitems; i++)
-      {
-        if (Fbt::fix_fields_maybe_null_on_conversion_to_fbt(items[i]))
-        {
-          attr->set_type_maybe_null(true);
-          break;
-        }
-      }
-      return false;
-    }
-    bool Item_func_min_max_fix_attributes(THD *thd, Item_func_min_max *func,
-                                          Item **items, uint nitems) const override
-    {
-      return Item_hybrid_func_fix_attributes(thd, func->func_name_cstring(),
-                                             func, func, items, nitems);
-
-    }
-    bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const override
-    {
-      func->Type_std_attributes::operator=(Type_std_attributes_fbt());
-      func->set_handler(this);
-      return false;
-    }
-    bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *func) const override
-    {
-      return Item_func_or_sum_illegal_param(func);
-    }
-    bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *func) const override
-    {
-      return Item_func_or_sum_illegal_param(func);
-    }
-    bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *func) const override
-    {
-      return Item_func_or_sum_illegal_param(func);
-    }
-
-    bool Item_val_native_with_conversion(THD *thd, Item *item,
-                                         Native *to) const override
-    {
-      if (item->type_handler() == this)
-        return item->val_native(thd, to); // No conversion needed
-      StringBuffer<FbtImpl::max_char_length()+1> buffer;
-      String *str= item->val_str(&buffer);
-      return str ? character_or_binary_string_to_native(thd, str, to) : true;
-    }
-    bool Item_val_native_with_conversion_result(THD *thd, Item *item,
-                                                Native *to) const override
-    {
-      if (item->type_handler() == this)
-        return item->val_native_result(thd, to); // No conversion needed
-      StringBuffer<FbtImpl::max_char_length()+1> buffer;
-      String *str= item->str_result(&buffer);
-      return str ? character_or_binary_string_to_native(thd, str, to) : true;
-    }
-
-    bool Item_val_bool(Item *item) const override
-    {
-      NativeBuffer<FbtImpl::binary_length()+1> tmp;
-      if (item->val_native(current_thd, &tmp))
-        return false;
-      return !Fbt::only_zero_bytes(tmp.ptr(), tmp.length());
-    }
-    void Item_get_date(THD *thd, Item *item, Temporal::Warn *buff,
-                       MYSQL_TIME *ltime, date_mode_t fuzzydate) const override
+    bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
     {
       set_zero_time(ltime, MYSQL_TIMESTAMP_TIME);
-    }
-
-    longlong Item_val_int_signed_typecast(Item *item) const override
-    {
-      DBUG_ASSERT(0);
-      return 0;
-    }
-
-    longlong Item_val_int_unsigned_typecast(Item *item) const override
-    {
-      DBUG_ASSERT(0);
-      return 0;
-    }
-
-    String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str)
-                                        const override
-    {
-      NativeBuffer<FbtImpl::binary_length()+1> tmp;
-      if ((item->null_value= item->arguments()[0]->val_native(current_thd, &tmp)))
-        return nullptr;
-      DBUG_ASSERT(tmp.length() == FbtImpl::binary_length());
-      if (str->set_hex(tmp.ptr(), tmp.length()))
-      {
-        str->length(0);
-        str->set_charset(item->collation.collation);
-      }
-      return str;
-    }
-
-    String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *item,
-                                                String *str) const override
-    {
-      NativeBuffer<FbtImpl::binary_length()+1> native;
-      if (item->val_native(current_thd, &native))
-      {
-        DBUG_ASSERT(item->null_value);
-        return nullptr;
-      }
-      DBUG_ASSERT(native.length() == FbtImpl::binary_length());
-      Fbt_null tmp(native.ptr(), native.length());
-      return tmp.is_null() || tmp.to_string(str) ? nullptr : str;
-    }
-    double Item_func_hybrid_field_type_val_real(Item_func_hybrid_field_type *)
-                                                const override
-    {
-      return 0;
-    }
-    longlong Item_func_hybrid_field_type_val_int(Item_func_hybrid_field_type *)
-                                                 const override
-    {
-      return 0;
-    }
-    my_decimal *
-    Item_func_hybrid_field_type_val_decimal(Item_func_hybrid_field_type *,
-                                            my_decimal *to) const override
-    {
-      my_decimal_set_zero(to);
-      return to;
-    }
-    void Item_func_hybrid_field_type_get_date(THD *,
-                                              Item_func_hybrid_field_type *,
-                                              Temporal::Warn *,
-                                              MYSQL_TIME *to,
-                                              date_mode_t fuzzydate)
-                                              const override
-    {
-      set_zero_time(to, MYSQL_TIMESTAMP_TIME);
-    }
-    // WHERE is Item_func_min_max_val_native???
-    String *Item_func_min_max_val_str(Item_func_min_max *func, String *str)
-                                      const override
-    {
-      Fbt_null tmp(func);
-      return tmp.is_null() || tmp.to_string(str) ? nullptr : str;
-    }
-    double Item_func_min_max_val_real(Item_func_min_max *) const override
-    {
-      return 0;
-    }
-    longlong Item_func_min_max_val_int(Item_func_min_max *) const override
-    {
-      return 0;
-    }
-    my_decimal *Item_func_min_max_val_decimal(Item_func_min_max *,
-                                              my_decimal *to) const override
-    {
-      my_decimal_set_zero(to);
-      return to;
-    }
-    bool Item_func_min_max_get_date(THD *thd, Item_func_min_max*, MYSQL_TIME *to,
-                                    date_mode_t fuzzydate) const override
-    {
-      set_zero_time(to, MYSQL_TIMESTAMP_TIME);
       return false;
     }
+    bool val_native(THD *thd, Native *to) override
+    {
+      return m_value.to_native(to);
+    }
+    void print(String *str, enum_query_type query_type) override
+    {
+      StringBuffer<FbtImpl::max_char_length()+64> tmp;
+      tmp.append(singleton()->name().lex_cstring());
+      my_caseup_str(&my_charset_latin1, tmp.c_ptr());
+      str->append(tmp);
+      str->append('\'');
+      m_value.to_string(&tmp);
+      str->append(tmp);
+      str->append('\'');
+    }
+    Item *get_copy(THD *thd) override
+    { return get_item_copy<Item_literal_fbt>(thd, this); }
 
-    bool Item_func_between_fix_length_and_dec(Item_func_between *func) const override
+    // Non-overriding methods
+    void set_value(const Fbt &value)
     {
-      return false;
-    }
-    longlong Item_func_between_val_int(Item_func_between *func) const override
-    {
-      return func->val_int_cmp_native();
-    }
-
-    cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const override
-    {
-      return new (thd->mem_root) cmp_item_fbt;
-    }
-
-    in_vector *make_in_vector(THD *thd, const Item_func_in *func,
-                              uint nargs) const override
-    {
-      return new (thd->mem_root) in_fbt(thd, nargs);
-    }
-
-    bool Item_func_in_fix_comparator_compatible_types(THD *thd,
-                                                      Item_func_in *func)
-                                                      const override
-    {
-      if (func->compatible_types_scalar_bisection_possible())
-      {
-        return func->value_list_convert_const_to_int(thd) ||
-               func->fix_for_scalar_comparison_using_bisection(thd);
-      }
-      return
-        func->fix_for_scalar_comparison_using_cmp_items(thd,
-                                                        1U << (uint) STRING_RESULT);
-    }
-    bool Item_func_round_fix_length_and_dec(Item_func_round *func) const override
-    {
-      return Item_func_or_sum_illegal_param(func);
-    }
-    bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *func) const override
-    {
-      return Item_func_or_sum_illegal_param(func);
-    }
-
-    bool Item_func_abs_fix_length_and_dec(Item_func_abs *func) const override
-    {
-      return Item_func_or_sum_illegal_param(func);
-    }
-
-    bool Item_func_neg_fix_length_and_dec(Item_func_neg *func) const override
-    {
-      return Item_func_or_sum_illegal_param(func);
-    }
-
-    bool Item_func_signed_fix_length_and_dec(Item_func_signed *item) const override
-    {
-      return Item_func_or_sum_illegal_param(item);
-    }
-    bool Item_func_unsigned_fix_length_and_dec(Item_func_unsigned *item) const override
-    {
-      return Item_func_or_sum_illegal_param(item);
-    }
-    bool Item_double_typecast_fix_length_and_dec(Item_double_typecast *item)
-                                            const override
-    {
-      return Item_func_or_sum_illegal_param(item);
-    }
-    bool Item_float_typecast_fix_length_and_dec(Item_float_typecast *item)
-                                           const override
-    {
-      return Item_func_or_sum_illegal_param(item);
-    }
-    bool Item_decimal_typecast_fix_length_and_dec(Item_decimal_typecast *item)
-                                             const override
-    {
-      return Item_func_or_sum_illegal_param(item);
-    }
-    bool Item_char_typecast_fix_length_and_dec(Item_char_typecast *item)
-                                               const override
-    {
-      if (item->cast_charset() == &my_charset_bin)
-      {
-        static Item_char_typecast_func_handler_fbt_to_binary
-                 item_char_typecast_func_handler_fbt_to_binary;
-        item->fix_length_and_dec_native_to_binary(FbtImpl::binary_length());
-        item->set_func_handler(&item_char_typecast_func_handler_fbt_to_binary);
-        return false;
-      }
-      item->fix_length_and_dec_str();
-      return false;
-    }
-
-    bool Item_time_typecast_fix_length_and_dec(Item_time_typecast *item) const override
-    {
-      return Item_func_or_sum_illegal_param(item);
-    }
-    bool Item_date_typecast_fix_length_and_dec(Item_date_typecast *item) const override
-    {
-      return Item_func_or_sum_illegal_param(item);
-    }
-    bool Item_datetime_typecast_fix_length_and_dec(Item_datetime_typecast *item)
-                                              const override
-    {
-      return Item_func_or_sum_illegal_param(item);
-    }
-    bool Item_func_plus_fix_length_and_dec(Item_func_plus *item) const override
-    {
-      return Item_func_or_sum_illegal_param(item);
-    }
-    bool Item_func_minus_fix_length_and_dec(Item_func_minus *item) const override
-    {
-      return Item_func_or_sum_illegal_param(item);
-    }
-    bool Item_func_mul_fix_length_and_dec(Item_func_mul *item) const override
-    {
-      return Item_func_or_sum_illegal_param(item);
-    }
-    bool Item_func_div_fix_length_and_dec(Item_func_div *item) const override
-    {
-      return Item_func_or_sum_illegal_param(item);
-    }
-    bool Item_func_mod_fix_length_and_dec(Item_func_mod *item) const override
-    {
-      return Item_func_or_sum_illegal_param(item);
-    }
-  };
-
-  class cmp_item_fbt: public cmp_item_scalar
-  {
-    Fbt m_native;
-  public:
-    cmp_item_fbt()
-     :cmp_item_scalar(),
-      m_native(Fbt::zero())
-    { }
-    void store_value(Item *item) override
-    {
-      m_native= Fbt(item, &m_null_value);
-    }
-    int cmp_not_null(const Value *val) override
-    {
-      DBUG_ASSERT(!val->is_null());
-      DBUG_ASSERT(val->is_string());
-      Fbt_null tmp(val->m_string);
-      DBUG_ASSERT(!tmp.is_null());
-      return m_native.cmp(tmp);
-    }
-    int cmp(Item *arg) override
-    {
-      Fbt_null tmp(arg);
-      return m_null_value || tmp.is_null() ? UNKNOWN : m_native.cmp(tmp) != 0;
-    }
-    int compare(cmp_item *ci) override
-    {
-      cmp_item_fbt *tmp= static_cast<cmp_item_fbt*>(ci);
-      DBUG_ASSERT(!m_null_value);
-      DBUG_ASSERT(!tmp->m_null_value);
-      return m_native.cmp(tmp->m_native);
-    }
-    cmp_item *make_same(THD *thd) override
-    {
-      return new (thd->mem_root) cmp_item_fbt();
+      m_value= value;
     }
   };
 
@@ -1076,7 +367,7 @@ public:
       if (get_thd()->count_cuted_fields <= CHECK_FIELD_EXPRESSION)
         return;
       const TABLE_SHARE *s= table->s;
-      static const Name type_name= type_handler_fbt()->name();
+      static const Name type_name= singleton()->name();
       get_thd()->push_warning_truncated_value_for_field(level, type_name.ptr(),
         str.ptr(), s ? s->db.str : nullptr, s ? s->table_name.str : nullptr,
         field_name.str);
@@ -1119,7 +410,7 @@ public:
     }
     const Type_handler *type_handler() const override
     {
-      return type_handler_fbt();
+      return singleton();
     }
     uint32 max_display_length() const override { return field_length; }
     bool str_needs_quotes() const override { return true; }
@@ -1168,14 +459,14 @@ public:
 
     void sql_type(String &str) const override
     {
-      static Name name= type_handler_fbt()->name();
+      static Name name= singleton()->name();
       str.set_ascii(name.ptr(), name.length());
     }
 
     void make_send_field(Send_field *to) override
     {
       Field::make_send_field(to);
-      to->set_data_type_name(type_handler_fbt()->name().lex_cstring());
+      to->set_data_type_name(singleton()->name().lex_cstring());
     }
 
     bool validate_value_in_record(THD *thd, const uchar *record) const override
@@ -1491,13 +782,171 @@ public:
     uint size_of() const override { return sizeof(*this); }
   };
 
+
+  class cmp_item_fbt: public cmp_item_scalar
+  {
+    Fbt m_native;
+  public:
+    cmp_item_fbt()
+     :cmp_item_scalar(),
+      m_native(Fbt::zero())
+    { }
+    void store_value(Item *item) override
+    {
+      m_native= Fbt(item, &m_null_value);
+    }
+    int cmp_not_null(const Value *val) override
+    {
+      DBUG_ASSERT(!val->is_null());
+      DBUG_ASSERT(val->is_string());
+      Fbt_null tmp(val->m_string);
+      DBUG_ASSERT(!tmp.is_null());
+      return m_native.cmp(tmp);
+    }
+    int cmp(Item *arg) override
+    {
+      Fbt_null tmp(arg);
+      return m_null_value || tmp.is_null() ? UNKNOWN : m_native.cmp(tmp) != 0;
+    }
+    int compare(cmp_item *ci) override
+    {
+      cmp_item_fbt *tmp= static_cast<cmp_item_fbt*>(ci);
+      DBUG_ASSERT(!m_null_value);
+      DBUG_ASSERT(!tmp->m_null_value);
+      return m_native.cmp(tmp->m_native);
+    }
+    cmp_item *make_same(THD *thd) override
+    {
+      return new (thd->mem_root) cmp_item_fbt();
+    }
+  };
+
+  class in_fbt :public in_vector
+  {
+    Fbt m_value;
+    static int cmp_fbt(void *cmp_arg, Fbt *a, Fbt *b)
+    {
+      return a->cmp(*b);
+    }
+  public:
+    in_fbt(THD *thd, uint elements)
+     :in_vector(thd, elements, sizeof(Fbt), (qsort2_cmp) cmp_fbt, 0),
+      m_value(Fbt::zero())
+    { }
+    const Type_handler *type_handler() const override
+    {
+      return singleton();
+    }
+    void set(uint pos, Item *item) override
+    {
+      Fbt *buff= &((Fbt *) base)[pos];
+      Fbt_null value(item);
+      if (value.is_null())
+        *buff= Fbt::zero();
+      else
+        *buff= value;
+    }
+    uchar *get_value(Item *item) override
+    {
+      Fbt_null value(item);
+      if (value.is_null())
+        return 0;
+      m_value= value;
+      return (uchar *) &m_value;
+    }
+    Item* create_item(THD *thd) override
+    {
+      return new (thd->mem_root) Item_literal_fbt(thd);
+    }
+    void value_to_item(uint pos, Item *item) override
+    {
+      const Fbt &buff= (((Fbt*) base)[pos]);
+      static_cast<Item_literal_fbt*>(item)->set_value(buff);
+    }
+  };
+
+  class Item_copy_fbt: public Item_copy
+  {
+    NativeBuffer<Fbt::binary_length()+1> m_value;
+  public:
+    Item_copy_fbt(THD *thd, Item *item_arg): Item_copy(thd, item_arg) {}
+
+    bool val_native(THD *thd, Native *to) override
+    {
+      if (null_value)
+        return true;
+      return to->copy(m_value.ptr(), m_value.length());
+    }
+    String *val_str(String *to) override
+    {
+      if (null_value)
+        return NULL;
+      Fbt_null tmp(m_value.ptr(), m_value.length());
+      return tmp.is_null() || tmp.to_string(to) ? NULL : to;
+    }
+    my_decimal *val_decimal(my_decimal *to) override
+    {
+      my_decimal_set_zero(to);
+      return to;
+    }
+    double val_real() override
+    {
+      return 0;
+    }
+    longlong val_int() override
+    {
+      return 0;
+    }
+    bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
+    {
+      set_zero_time(ltime, MYSQL_TIMESTAMP_TIME);
+      return null_value;
+    }
+    void copy() override
+    {
+      null_value= item->val_native(current_thd, &m_value);
+      DBUG_ASSERT(null_value == item->null_value);
+    }
+    int save_in_field(Field *field, bool no_conversions) override
+    {
+      return Item::save_in_field(field, no_conversions);
+    }
+    Item *get_copy(THD *thd) override
+    { return get_item_copy<Item_copy_fbt>(thd, this); }
+  };
+
+  class Item_char_typecast_func_handler_fbt_to_binary:
+                                         public Item_handled_func::Handler_str
+  {
+  public:
+    const Type_handler *return_type_handler(const Item_handled_func *item)
+                                            const override
+    {
+      if (item->max_length > MAX_FIELD_VARCHARLENGTH)
+        return Type_handler::blob_type_handler(item->max_length);
+      if (item->max_length > 255)
+        return &type_handler_varchar;
+      return &type_handler_string;
+    }
+    bool fix_length_and_dec(Item_handled_func *xitem) const override
+    {
+      return false;
+    }
+    String *val_str(Item_handled_func *item, String *to) const override
+    {
+      DBUG_ASSERT(dynamic_cast<const Item_char_typecast*>(item));
+      return static_cast<Item_char_typecast*>(item)->
+               val_str_binary_from_native(to);
+    }
+  };
+
   class Item_typecast_fbt: public Item_func
   {
   public:
     Item_typecast_fbt(THD *thd, Item *a) :Item_func(thd, a) {}
 
     const Type_handler *type_handler() const override
-    { return type_handler_fbt(); }
+    { return singleton(); }
 
     enum Functype functype() const override { return CHAR_TYPECAST_FUNC; }
     bool eq(const Item *item, bool binary_cmp) const override
@@ -1514,7 +963,7 @@ public:
     }
     LEX_CSTRING func_name_cstring() const override
     {
-      static Name name= type_handler_fbt()->name();
+      static Name name= singleton()->name();
       size_t len= 9+name.length()+1;
       char *buf= (char*)current_thd->alloc(len);
       strmov(strmov(buf, "cast_as_"), name.ptr());
@@ -1525,7 +974,7 @@ public:
       str->append(STRING_WITH_LEN("cast("));
       args[0]->print(str, query_type);
       str->append(STRING_WITH_LEN(" as "));
-      str->append(type_handler_fbt()->name().lex_cstring());
+      str->append(singleton()->name().lex_cstring());
       str->append(')');
     }
     bool fix_length_and_dec() override
@@ -1572,7 +1021,7 @@ public:
     NativeBuffer<FbtImpl::binary_length()+1> m_value;
   public:
     Item_cache_fbt(THD *thd)
-     :Item_cache(thd, type_handler_fbt()) { }
+     :Item_cache(thd, singleton()) { }
     Item *get_copy(THD *thd)
     { return get_item_copy<Item_cache_fbt>(thd, this); }
     bool cache_value()
@@ -1640,256 +1089,813 @@ public:
     }
   };
 
-  class Item_literal_fbt: public Item_literal
+  /* =[ methods ]=============================================== */
+private:
+
+  bool character_or_binary_string_to_native(THD *thd, const String *str,
+                                            Native *to) const
   {
-    Fbt m_value;
-  public:
-    Item_literal_fbt(THD *thd)
-     :Item_literal(thd),
-      m_value(Fbt::zero())
-    { }
-    Item_literal_fbt(THD *thd, const Fbt &value)
-     :Item_literal(thd),
-      m_value(value)
-    { }
-    const Type_handler *type_handler() const override
+    if (str->charset() == &my_charset_bin)
     {
-      return type_handler_fbt();
-    }
-    longlong val_int() override
-    {
-      return 0;
-    }
-    double val_real() override
-    {
-      return 0;
-    }
-    String *val_str(String *to) override
-    {
-      return m_value.to_string(to) ? NULL : to;
-    }
-    my_decimal *val_decimal(my_decimal *to) override
-    {
-      my_decimal_set_zero(to);
-      return to;
-    }
-    bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
-    {
-      set_zero_time(ltime, MYSQL_TIMESTAMP_TIME);
-      return false;
-    }
-    bool val_native(THD *thd, Native *to) override
-    {
-      return m_value.to_native(to);
-    }
-    void print(String *str, enum_query_type query_type) override
-    {
-      StringBuffer<FbtImpl::max_char_length()+64> tmp;
-      tmp.append(type_handler_fbt()->name().lex_cstring());
-      my_caseup_str(&my_charset_latin1, tmp.c_ptr());
-      str->append(tmp);
-      str->append('\'');
-      m_value.to_string(&tmp);
-      str->append(tmp);
-      str->append('\'');
-    }
-    Item *get_copy(THD *thd) override
-    { return get_item_copy<Item_literal_fbt>(thd, this); }
-
-    // Non-overriding methods
-    void set_value(const Fbt &value)
-    {
-      m_value= value;
-    }
-  };
-
-  class Item_copy_fbt: public Item_copy
-  {
-    NativeBuffer<Fbt::binary_length()+1> m_value;
-  public:
-    Item_copy_fbt(THD *thd, Item *item_arg): Item_copy(thd, item_arg) {}
-
-    bool val_native(THD *thd, Native *to) override
-    {
-      if (null_value)
+      // Convert from a binary string
+      if (str->length() != FbtImpl::binary_length() ||
+          to->copy(str->ptr(), str->length()))
+      {
+        thd->push_warning_wrong_value(Sql_condition::WARN_LEVEL_WARN,
+                                      name().ptr(), ErrConvString(str).ptr());
         return true;
-      return to->copy(m_value.ptr(), m_value.length());
-    }
-    String *val_str(String *to) override
-    {
-      if (null_value)
-        return NULL;
-      Fbt_null tmp(m_value.ptr(), m_value.length());
-      return tmp.is_null() || tmp.to_string(to) ? NULL : to;
-    }
-    my_decimal *val_decimal(my_decimal *to) override
-    {
-      my_decimal_set_zero(to);
-      return to;
-    }
-    double val_real() override
-    {
-      return 0;
-    }
-    longlong val_int() override
-    {
-      return 0;
-    }
-    bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
-    {
-      set_zero_time(ltime, MYSQL_TIMESTAMP_TIME);
-      return null_value;
-    }
-    void copy() override
-    {
-      null_value= item->val_native(current_thd, &m_value);
-      DBUG_ASSERT(null_value == item->null_value);
-    }
-    int save_in_field(Field *field, bool no_conversions) override
-    {
-      return Item::save_in_field(field, no_conversions);
-    }
-    Item *get_copy(THD *thd) override
-    { return get_item_copy<Item_copy_fbt>(thd, this); }
-  };
-
-  class in_fbt :public in_vector
-  {
-    Fbt m_value;
-    static int cmp_fbt(void *cmp_arg, Fbt *a, Fbt *b)
-    {
-      return a->cmp(*b);
-    }
-  public:
-    in_fbt(THD *thd, uint elements)
-     :in_vector(thd, elements, sizeof(Fbt), (qsort2_cmp) cmp_fbt, 0),
-      m_value(Fbt::zero())
-    { }
-    const Type_handler *type_handler() const override
-    {
-      return type_handler_fbt();
-    }
-    void set(uint pos, Item *item) override
-    {
-      Fbt *buff= &((Fbt *) base)[pos];
-      Fbt_null value(item);
-      if (value.is_null())
-        *buff= Fbt::zero();
-      else
-        *buff= value;
-    }
-    uchar *get_value(Item *item) override
-    {
-      Fbt_null value(item);
-      if (value.is_null())
-        return 0;
-      m_value= value;
-      return (uchar *) &m_value;
-    }
-    Item* create_item(THD *thd) override
-    {
-      return new (thd->mem_root) Item_literal_fbt(thd);
-    }
-    void value_to_item(uint pos, Item *item) override
-    {
-      const Fbt &buff= (((Fbt*) base)[pos]);
-      static_cast<Item_literal_fbt*>(item)->set_value(buff);
-    }
-  };
-
-  class Item_char_typecast_func_handler_fbt_to_binary:
-                                         public Item_handled_func::Handler_str
-  {
-  public:
-    const Type_handler *return_type_handler(const Item_handled_func *item)
-                                            const override
-    {
-      if (item->max_length > MAX_FIELD_VARCHARLENGTH)
-        return Type_handler::blob_type_handler(item->max_length);
-      if (item->max_length > 255)
-        return &type_handler_varchar;
-      return &type_handler_string;
-    }
-    bool fix_length_and_dec(Item_handled_func *xitem) const override
-    {
+      }
       return false;
     }
-    String *val_str(Item_handled_func *item, String *to) const override
-    {
-      DBUG_ASSERT(dynamic_cast<const Item_char_typecast*>(item));
-      return static_cast<Item_char_typecast*>(item)->
-               val_str_binary_from_native(to);
-    }
-  };
+    // Convert from a character string
+    Fbt_null tmp(*str);
+    if (tmp.is_null())
+      thd->push_warning_wrong_value(Sql_condition::WARN_LEVEL_WARN,
+                                    name().ptr(), ErrConvString(str).ptr());
+    return tmp.is_null() || tmp.to_native(to);
+  }
 
-  class Type_collection_fbt: public Type_collection
+public:
+  ~Type_handler_fbt() override {}
+
+  const Type_collection *type_collection() const override
   {
-    const Type_handler *aggregate_common(const Type_handler *a,
-                                         const Type_handler *b) const
-    {
-      if (a == b)
-        return a;
-      return NULL;
-    }
-    const Type_handler *aggregate_if_string(const Type_handler *a,
-                                            const Type_handler *b) const
-    {
-      static const Type_aggregator::Pair agg[]=
-      {
-        {type_handler_fbt(), &type_handler_null,        type_handler_fbt()},
-        {type_handler_fbt(), &type_handler_varchar,     type_handler_fbt()},
-        {type_handler_fbt(), &type_handler_string,      type_handler_fbt()},
-        {type_handler_fbt(), &type_handler_tiny_blob,   type_handler_fbt()},
-        {type_handler_fbt(), &type_handler_blob,        type_handler_fbt()},
-        {type_handler_fbt(), &type_handler_medium_blob, type_handler_fbt()},
-        {type_handler_fbt(), &type_handler_long_blob,   type_handler_fbt()},
-        {type_handler_fbt(), &type_handler_hex_hybrid,  type_handler_fbt()},
-        {NULL,NULL,NULL}
-      };
-      return Type_aggregator::find_handler_in_array(agg, a, b, true);
-    }
-  public:
-    const Type_handler *aggregate_for_result(const Type_handler *a,
-                                             const Type_handler *b)
-                                             const override
-    {
-      const Type_handler *h;
-      if ((h= aggregate_common(a, b)) ||
-          (h= aggregate_if_string(a, b)))
-        return h;
-      return NULL;
-    }
+    static Type_collection_fbt type_collection_fbt;
+    return &type_collection_fbt;
+  }
 
-    const Type_handler *aggregate_for_min_max(const Type_handler *a,
-                                              const Type_handler *b)
+  const Name &default_value() const override
+  {
+    return FbtImpl::default_value();
+  }
+  ulong KEY_pack_flags(uint column_nr) const override
+  {
+    return FbtImpl::KEY_pack_flags(column_nr);
+  }
+  protocol_send_type_t protocol_send_type() const override
+  {
+    return PROTOCOL_SEND_STRING;
+  }
+  bool Item_append_extended_type_info(Send_field_extended_metadata *to,
+                                      const Item *item) const override
+  {
+    return to->set_data_type_name(name().lex_cstring());
+  }
+
+  enum_field_types field_type() const override
+  {
+    return MYSQL_TYPE_STRING;
+  }
+
+  Item_result result_type() const override
+  {
+    return STRING_RESULT;
+  }
+
+  Item_result cmp_type() const override
+  {
+    return STRING_RESULT;
+  }
+
+  enum_dynamic_column_type dyncol_type(const Type_all_attributes *attr)
+                                       const override
+  {
+    return DYN_COL_STRING;
+  }
+
+  uint32 max_display_length_for_field(const Conv_source &src) const override
+  {
+    return FbtImpl::max_char_length();
+  }
+
+  const Type_handler *type_handler_for_comparison() const override
+  {
+    return this;
+  }
+
+  int stored_field_cmp_to_item(THD *thd, Field *field, Item *item) const override
+  {
+    DBUG_ASSERT(field->type_handler() == this);
+    Fbt_null ni(item); // Convert Item to Fbt
+    if (ni.is_null())
+      return 0;
+    NativeBuffer<FbtImpl::binary_length()+1> tmp;
+    if (field->val_native(&tmp))
+    {
+      DBUG_ASSERT(0);
+      return 0;
+    }
+    return -ni.cmp(tmp);
+  }
+  CHARSET_INFO *charset_for_protocol(const Item *item) const override
+  {
+    return item->collation.collation;
+  }
+
+  bool is_scalar_type() const override { return true; }
+  bool is_val_native_ready() const override { return true; }
+  bool can_return_int() const override { return false; }
+  bool can_return_decimal() const override { return false; }
+  bool can_return_real() const override { return false; }
+  bool can_return_str() const override { return true; }
+  bool can_return_text() const override { return true; }
+  bool can_return_date() const override { return false; }
+  bool can_return_time() const override { return false; }
+  bool convert_to_binary_using_val_native() const override { return true; }
+
+  decimal_digits_t  Item_time_precision(THD *thd, Item *item) const override
+  {
+    return 0;
+  }
+  decimal_digits_t Item_datetime_precision(THD *thd, Item *item) const override
+  {
+    return 0;
+  }
+  decimal_digits_t Item_decimal_scale(const Item *item) const override
+  {
+    return 0;
+  }
+  decimal_digits_t  Item_decimal_precision(const Item *item) const override
+  {
+    /* This will be needed if we ever allow cast from Fbt to DECIMAL. */
+    return (FbtImpl::binary_length()*8+7)/10*3; // = bytes to decimal digits
+  }
+
+  /*
+    Returns how many digits a divisor adds into a division result.
+    See Item::divisor_precision_increment() in item.h for more comments.
+  */
+  decimal_digits_t Item_divisor_precision_increment(const Item *) const override
+  {
+    return 0;
+  }
+  /**
+    Makes a temporary table Field to handle numeric aggregate functions,
+    e.g. SUM(DISTINCT expr), AVG(DISTINCT expr), etc.
+  */
+  Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const override
+  {
+    DBUG_ASSERT(0);
+    return 0;
+  }
+  Field *make_conversion_table_field(MEM_ROOT *root, TABLE *table, uint metadata,
+                                     const Field *target) const override
+  {
+    const Record_addr tmp(NULL, Bit_addr(true));
+    return new (table->in_use->mem_root) Field_fbt(&empty_clex_str, tmp);
+  }
+  // Fix attributes after the parser
+  bool Column_definition_fix_attributes(Column_definition *c) const override
+  {
+    c->length= FbtImpl::max_char_length();
+    return false;
+  }
+
+  bool Column_definition_prepare_stage1(THD *thd, MEM_ROOT *mem_root,
+                                        Column_definition *def,
+                                        handler *file, ulonglong table_flags,
+                                        const Column_derived_attributes *derived_attr)
+                                        const override
+  {
+    def->prepare_stage1_simple(&my_charset_numeric);
+    return false;
+  }
+
+  bool Column_definition_redefine_stage1(Column_definition *def,
+                                         const Column_definition *dup,
+                                         const handler *file) const override
+  {
+    def->redefine_stage1_common(dup, file);
+    def->set_compression_method(dup->compression_method());
+    def->create_length_to_internal_length_string();
+    return false;
+  }
+
+  bool Column_definition_prepare_stage2(Column_definition *def, handler *file,
+                                        ulonglong table_flags) const override
+  {
+    def->pack_flag= FIELDFLAG_BINARY;
+    return false;
+  }
+
+  bool partition_field_check(const LEX_CSTRING &field_name,
+                             Item *item_expr) const override
+  {
+    if (item_expr->cmp_type() != STRING_RESULT)
+    {
+      my_error(ER_WRONG_TYPE_COLUMN_VALUE_ERROR, MYF(0));
+      return true;
+    }
+    return false;
+  }
+
+  bool partition_field_append_value(String *to, Item *item_expr,
+                                    CHARSET_INFO *field_cs,
+                                    partition_value_print_mode_t mode)
+                                    const override
+  {
+    StringBuffer<FbtImpl::max_char_length()+64> fbtstr;
+    Fbt_null fbt(item_expr);
+    if (fbt.is_null())
+    {
+      my_error(ER_PARTITION_FUNCTION_IS_NOT_ALLOWED, MYF(0));
+      return true;
+    }
+    return fbt.to_string(&fbtstr) ||
+           to->append('\'') ||
+           to->append(fbtstr) ||
+           to->append('\'');
+  }
+
+  Field *make_table_field(MEM_ROOT *root, const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE_SHARE *table) const override
+  {
+    return new (root) Field_fbt(name, addr);
+  }
+
+  Field * make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name, const Record_addr &addr,
+                            const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                            uint32 flags) const override
+  {
+    return new (mem_root) Field_fbt(name, addr);
+  }
+  void Column_definition_attributes_frm_pack(const Column_definition_attributes *def,
+                                        uchar *buff) const override
+  {
+    def->frm_pack_basic(buff);
+    def->frm_pack_charset(buff);
+  }
+  bool Column_definition_attributes_frm_unpack(Column_definition_attributes *def,
+                                          TABLE_SHARE *share, const uchar *buffer,
+                                          LEX_CUSTRING *gis_options)
+                                          const override
+  {
+    def->frm_unpack_basic(buffer);
+    return def->frm_unpack_charset(share, buffer);
+  }
+  void make_sort_key_part(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
+                          String *) const override
+  {
+    DBUG_ASSERT(item->type_handler() == this);
+    NativeBuffer<FbtImpl::binary_length()+1> tmp;
+    item->val_native_result(current_thd, &tmp);
+    if (item->maybe_null())
+    {
+      if (item->null_value)
+      {
+        memset(to, 0, FbtImpl::binary_length() + 1);
+        return;
+      }
+      *to++= 1;
+    }
+    DBUG_ASSERT(!item->null_value);
+    DBUG_ASSERT(FbtImpl::binary_length() == tmp.length());
+    DBUG_ASSERT(FbtImpl::binary_length() == sort_field->length);
+    FbtImpl::memory_to_record((char*) to, tmp.ptr());
+  }
+  uint make_packed_sort_key_part(uchar *to, Item *item,
+                                 const SORT_FIELD_ATTR *sort_field,
+                                 String *) const override
+  {
+    DBUG_ASSERT(item->type_handler() == this);
+    NativeBuffer<FbtImpl::binary_length()+1> tmp;
+    item->val_native_result(current_thd, &tmp);
+    if (item->maybe_null())
+    {
+      if (item->null_value)
+      {
+        *to++=0;
+        return 0;
+      }
+      *to++= 1;
+    }
+    DBUG_ASSERT(!item->null_value);
+    DBUG_ASSERT(FbtImpl::binary_length() == tmp.length());
+    DBUG_ASSERT(FbtImpl::binary_length() == sort_field->length);
+    FbtImpl::memory_to_record((char*) to, tmp.ptr());
+    return tmp.length();
+  }
+  void sort_length(THD *thd, const Type_std_attributes *item,
+                  SORT_FIELD_ATTR *attr) const override
+  {
+    attr->original_length= attr->length= FbtImpl::binary_length();
+    attr->suffix_length= 0;
+  }
+  uint32 max_display_length(const Item *item) const override
+  {
+    return FbtImpl::max_char_length();
+  }
+  uint32 calc_pack_length(uint32 length) const override
+  {
+    return FbtImpl::binary_length();
+  }
+  void Item_update_null_value(Item *item) const override
+  {
+    NativeBuffer<FbtImpl::binary_length()+1> tmp;
+    item->val_native(current_thd, &tmp);
+  }
+  bool Item_save_in_value(THD *thd, Item *item, st_value *value) const override
+  {
+    value->m_type= DYN_COL_STRING;
+    String *str= item->val_str(&value->m_string);
+    if (str != &value->m_string && !item->null_value)
+    {
+      // "item" returned a non-NULL value
+      if (Fbt_null(*str).is_null())
+      {
+        /*
+          The value was not-null, but conversion to FBT failed:
+            SELECT a, DECODE_ORACLE(fbtcol, 'garbage', '<NULL>', '::01', '01')
+            FROM t1;
+        */
+        thd->push_warning_wrong_value(Sql_condition::WARN_LEVEL_WARN,
+                                      name().ptr(), ErrConvString(str).ptr());
+        value->m_type= DYN_COL_NULL;
+        return true;
+      }
+      // "item" returned a non-NULL value, and it was a valid FBT
+      value->m_string.set(str->ptr(), str->length(), str->charset());
+    }
+    return check_null(item, value);
+  }
+  void Item_param_setup_conversion(THD *thd, Item_param *param) const override
+  {
+    param->setup_conversion_string(thd, thd->variables.character_set_client);
+  }
+  void Item_param_set_param_func(Item_param *param,
+                                 uchar **pos, ulong len) const override
+  {
+    param->set_param_str(pos, len);
+  }
+  bool Item_param_set_from_value(THD *thd, Item_param *param,
+                                 const Type_all_attributes *attr,
+                                 const st_value *val) const override
+  {
+    param->unsigned_flag= false;
+    param->setup_conversion_string(thd, attr->collation.collation);
+    /*
+      Exact value of max_length is not known unless fbt is converted to
+      charset of connection, so we have to set it later.
+    */
+    return param->set_str(val->m_string.ptr(), val->m_string.length(),
+                          attr->collation.collation,
+                          attr->collation.collation);
+  }
+  bool Item_param_val_native(THD *thd, Item_param *item, Native *to)
+                             const override
+  {
+    StringBuffer<FbtImpl::max_char_length()+1> buffer;
+    String *str= item->val_str(&buffer);
+    if (!str)
+      return true;
+    Fbt_null tmp(*str);
+    return tmp.is_null() || tmp.to_native(to);
+  }
+  bool Item_send(Item *item, Protocol *p, st_value *buf) const override
+  {
+    return Item_send_str(item, p, buf);
+  }
+  int Item_save_in_field(Item *item, Field *field, bool no_conversions)
+                         const override
+  {
+    if (field->type_handler() == this)
+    {
+      NativeBuffer<MAX_FIELD_WIDTH> tmp;
+      bool rc= item->val_native(current_thd, &tmp);
+      if (rc || item->null_value)
+        return set_field_to_null_with_conversions(field, no_conversions);
+      field->set_notnull();
+      return field->store_native(tmp);
+    }
+    return item->save_str_in_field(field, no_conversions);
+  }
+
+  String *print_item_value(THD *thd, Item *item, String *str) const override
+  {
+    StringBuffer<FbtImpl::max_char_length()+64> buf;
+    String *result= item->val_str(&buf);
+    /*
+      TODO: This should eventually use one of these notations:
+      1. CAST('xxx' AS Fbt)
+         Problem: CAST is not supported as a NAME_CONST() argument.
+      2. Fbt'xxx'
+         Problem: This syntax is not supported by the parser yet.
+    */
+    return !result || str->realloc(result->length() + 2) ||
+           str->append(STRING_WITH_LEN("'")) ||
+           str->append(result->ptr(), result->length()) ||
+           str->append(STRING_WITH_LEN("'")) ? nullptr : str;
+  }
+
+  /**
+    Check if
+      WHERE expr=value AND expr=const
+    can be rewritten as:
+      WHERE const=value AND expr=const
+
+    "this" is the comparison handler that is used by "target".
+
+    @param target       - the predicate expr=value,
+                          whose "expr" argument will be replaced to "const".
+    @param target_expr  - the target's "expr" which will be replaced to "const".
+    @param target_value - the target's second argument, it will remain unchanged.
+    @param source       - the equality predicate expr=const (or expr<=>const)
+                          that can be used to rewrite the "target" part
+                          (under certain conditions, see the code).
+    @param source_expr  - the source's "expr". It should be exactly equal to
+                          the target's "expr" to make condition rewrite possible.
+    @param source_const - the source's "const" argument, it will be inserted
+                          into "target" instead of "expr".
+  */
+  bool can_change_cond_ref_to_const(Item_bool_func2 *target, Item *target_expr,
+                               Item *target_value, Item_bool_func2 *source,
+                               Item *source_expr, Item *source_const)
+                               const override
+  {
+    /*
+      WHERE COALESCE(col)='xxx' AND COALESCE(col)=CONCAT(a);  -->
+      WHERE COALESCE(col)='xxx' AND         'xxx'=CONCAT(a);
+    */
+    return target->compare_type_handler() == source->compare_type_handler();
+  }
+  bool subquery_type_allows_materialization(const Item *inner,
+                                       const Item *outer, bool) const override
+  {
+    /*
+      Example:
+        SELECT * FROM t1 WHERE a IN (SELECT col FROM t1 GROUP BY col);
+      Allow materialization only if the outer column is also FBT.
+      This can be changed for more relaxed rules in the future.
+    */
+    DBUG_ASSERT(inner->type_handler() == this);
+    return outer->type_handler() == this;
+  }
+  /**
+    Make a simple constant replacement item for a constant "src",
+    so the new item can futher be used for comparison with "cmp", e.g.:
+      src = cmp   ->  replacement = cmp
+
+    "this" is the type handler that is used to compare "src" and "cmp".
+
+    @param thd - current thread, for mem_root
+    @param src - The item that we want to replace. It's a const item,
+                 but it can be complex enough to calculate on every row.
+    @param cmp - The src's comparand.
+    @retval    - a pointer to the created replacement Item
+    @retval    - NULL, if could not create a replacement (e.g. on EOM).
+                 NULL is also returned for ROWs, because instead of replacing
+                 a Item_row to a new Item_row, Type_handler_row just replaces
+                 its elements.
+  */
+  Item *make_const_item_for_comparison(THD *thd, Item *src,
+                                       const Item *cmp) const override
+  {
+    Fbt_null tmp(src);
+    if (tmp.is_null())
+      return new (thd->mem_root) Item_null(thd, src->name.str);
+    return new (thd->mem_root) Item_literal_fbt(thd, tmp);
+  }
+  Item_cache *Item_get_cache(THD *thd, const Item *item) const override
+  {
+    return new (thd->mem_root) Item_cache_fbt(thd);
+  }
+
+  Item *create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const override
+  {
+    return new (thd->mem_root) Item_typecast_fbt(thd, item);
+  }
+  Item_copy *create_item_copy(THD *thd, Item *item) const override
+  {
+    return new (thd->mem_root) Item_copy_fbt(thd, item);
+  }
+  int cmp_native(const Native &a, const Native &b) const override
+  {
+    return FbtImpl::cmp(a.to_lex_cstring(), b.to_lex_cstring());
+  }
+  bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override
+  {
+    return cmp->set_cmp_func_native(thd);
+  }
+  bool Item_const_eq(const Item_const *a, const Item_const *b,
+                             bool binary_cmp) const override
+  {
+    return false;
+  }
+  bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
+                     Item *a, Item *b) const override
+  {
+    Fbt_null na(a), nb(b);
+    return !na.is_null() && !nb.is_null() && !na.cmp(nb);
+  }
+  bool Item_hybrid_func_fix_attributes(THD *thd, const LEX_CSTRING &name,
+                                       Type_handler_hybrid_field_type *h,
+                                       Type_all_attributes *attr,
+                                       Item **items, uint nitems) const override
+  {
+    attr->Type_std_attributes::operator=(Type_std_attributes_fbt());
+    h->set_handler(this);
+    /*
+      If some of the arguments cannot be safely converted to "FBT NOT NULL",
+      then mark the entire function nullability as NULL-able.
+      Otherwise, keep the generic nullability calculated by earlier stages:
+      - either by the most generic way in Item_func::fix_fields()
+      - or by Item_func_xxx::fix_length_and_dec() before the call of
+        Item_hybrid_func_fix_attributes()
+      IFNULL() is special. It does not need to test args[0].
+    */
+    uint first= dynamic_cast<Item_func_ifnull*>(attr) ? 1 : 0;
+    for (uint i= first; i < nitems; i++)
+    {
+      if (Fbt::fix_fields_maybe_null_on_conversion_to_fbt(items[i]))
+      {
+        attr->set_type_maybe_null(true);
+        break;
+      }
+    }
+    return false;
+  }
+  bool Item_func_min_max_fix_attributes(THD *thd, Item_func_min_max *func,
+                                        Item **items, uint nitems) const override
+  {
+    return Item_hybrid_func_fix_attributes(thd, func->func_name_cstring(),
+                                           func, func, items, nitems);
+
+  }
+  bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const override
+  {
+    func->Type_std_attributes::operator=(Type_std_attributes_fbt());
+    func->set_handler(this);
+    return false;
+  }
+  bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *func) const override
+  {
+    return Item_func_or_sum_illegal_param(func);
+  }
+  bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *func) const override
+  {
+    return Item_func_or_sum_illegal_param(func);
+  }
+  bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *func) const override
+  {
+    return Item_func_or_sum_illegal_param(func);
+  }
+
+  bool Item_val_native_with_conversion(THD *thd, Item *item,
+                                       Native *to) const override
+  {
+    if (item->type_handler() == this)
+      return item->val_native(thd, to); // No conversion needed
+    StringBuffer<FbtImpl::max_char_length()+1> buffer;
+    String *str= item->val_str(&buffer);
+    return str ? character_or_binary_string_to_native(thd, str, to) : true;
+  }
+  bool Item_val_native_with_conversion_result(THD *thd, Item *item,
+                                              Native *to) const override
+  {
+    if (item->type_handler() == this)
+      return item->val_native_result(thd, to); // No conversion needed
+    StringBuffer<FbtImpl::max_char_length()+1> buffer;
+    String *str= item->str_result(&buffer);
+    return str ? character_or_binary_string_to_native(thd, str, to) : true;
+  }
+
+  bool Item_val_bool(Item *item) const override
+  {
+    NativeBuffer<FbtImpl::binary_length()+1> tmp;
+    if (item->val_native(current_thd, &tmp))
+      return false;
+    return !Fbt::only_zero_bytes(tmp.ptr(), tmp.length());
+  }
+  void Item_get_date(THD *thd, Item *item, Temporal::Warn *buff,
+                     MYSQL_TIME *ltime, date_mode_t fuzzydate) const override
+  {
+    set_zero_time(ltime, MYSQL_TIMESTAMP_TIME);
+  }
+
+  longlong Item_val_int_signed_typecast(Item *item) const override
+  {
+    DBUG_ASSERT(0);
+    return 0;
+  }
+
+  longlong Item_val_int_unsigned_typecast(Item *item) const override
+  {
+    DBUG_ASSERT(0);
+    return 0;
+  }
+
+  String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str)
+                                      const override
+  {
+    NativeBuffer<FbtImpl::binary_length()+1> tmp;
+    if ((item->null_value= item->arguments()[0]->val_native(current_thd, &tmp)))
+      return nullptr;
+    DBUG_ASSERT(tmp.length() == FbtImpl::binary_length());
+    if (str->set_hex(tmp.ptr(), tmp.length()))
+    {
+      str->length(0);
+      str->set_charset(item->collation.collation);
+    }
+    return str;
+  }
+
+  String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *item,
+                                              String *str) const override
+  {
+    NativeBuffer<FbtImpl::binary_length()+1> native;
+    if (item->val_native(current_thd, &native))
+    {
+      DBUG_ASSERT(item->null_value);
+      return nullptr;
+    }
+    DBUG_ASSERT(native.length() == FbtImpl::binary_length());
+    Fbt_null tmp(native.ptr(), native.length());
+    return tmp.is_null() || tmp.to_string(str) ? nullptr : str;
+  }
+  double Item_func_hybrid_field_type_val_real(Item_func_hybrid_field_type *)
                                               const override
-    {
-      return aggregate_for_result(a, b);
-    }
+  {
+    return 0;
+  }
+  longlong Item_func_hybrid_field_type_val_int(Item_func_hybrid_field_type *)
+                                               const override
+  {
+    return 0;
+  }
+  my_decimal *
+  Item_func_hybrid_field_type_val_decimal(Item_func_hybrid_field_type *,
+                                          my_decimal *to) const override
+  {
+    my_decimal_set_zero(to);
+    return to;
+  }
+  void Item_func_hybrid_field_type_get_date(THD *,
+                                            Item_func_hybrid_field_type *,
+                                            Temporal::Warn *,
+                                            MYSQL_TIME *to,
+                                            date_mode_t fuzzydate)
+                                            const override
+  {
+    set_zero_time(to, MYSQL_TIMESTAMP_TIME);
+  }
+  // WHERE is Item_func_min_max_val_native???
+  String *Item_func_min_max_val_str(Item_func_min_max *func, String *str)
+                                    const override
+  {
+    Fbt_null tmp(func);
+    return tmp.is_null() || tmp.to_string(str) ? nullptr : str;
+  }
+  double Item_func_min_max_val_real(Item_func_min_max *) const override
+  {
+    return 0;
+  }
+  longlong Item_func_min_max_val_int(Item_func_min_max *) const override
+  {
+    return 0;
+  }
+  my_decimal *Item_func_min_max_val_decimal(Item_func_min_max *,
+                                            my_decimal *to) const override
+  {
+    my_decimal_set_zero(to);
+    return to;
+  }
+  bool Item_func_min_max_get_date(THD *thd, Item_func_min_max*, MYSQL_TIME *to,
+                                  date_mode_t fuzzydate) const override
+  {
+    set_zero_time(to, MYSQL_TIMESTAMP_TIME);
+    return false;
+  }
 
-    const Type_handler *aggregate_for_comparison(const Type_handler *a,
-                                                 const Type_handler *b)
-                                                 const override
-    {
-      if (const Type_handler *h= aggregate_common(a, b))
-        return h;
-      static const Type_aggregator::Pair agg[]=
-      {
-        {type_handler_fbt(), &type_handler_null,      type_handler_fbt()},
-        {type_handler_fbt(), &type_handler_long_blob, type_handler_fbt()},
-        {NULL,NULL,NULL}
-      };
-      return Type_aggregator::find_handler_in_array(agg, a, b, true);
-    }
+  bool Item_func_between_fix_length_and_dec(Item_func_between *func) const override
+  {
+    return false;
+  }
+  longlong Item_func_between_val_int(Item_func_between *func) const override
+  {
+    return func->val_int_cmp_native();
+  }
 
-    const Type_handler *aggregate_for_num_op(const Type_handler *a,
-                                             const Type_handler *b)
+  cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const override
+  {
+    return new (thd->mem_root) cmp_item_fbt;
+  }
+
+  in_vector *make_in_vector(THD *thd, const Item_func_in *func,
+                            uint nargs) const override
+  {
+    return new (thd->mem_root) in_fbt(thd, nargs);
+  }
+
+  bool Item_func_in_fix_comparator_compatible_types(THD *thd,
+                                                    Item_func_in *func)
+                                                    const override
+  {
+    if (func->compatible_types_scalar_bisection_possible())
+    {
+      return func->value_list_convert_const_to_int(thd) ||
+             func->fix_for_scalar_comparison_using_bisection(thd);
+    }
+    return
+      func->fix_for_scalar_comparison_using_cmp_items(thd,
+                                                      1U << (uint) STRING_RESULT);
+  }
+  bool Item_func_round_fix_length_and_dec(Item_func_round *func) const override
+  {
+    return Item_func_or_sum_illegal_param(func);
+  }
+  bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *func) const override
+  {
+    return Item_func_or_sum_illegal_param(func);
+  }
+
+  bool Item_func_abs_fix_length_and_dec(Item_func_abs *func) const override
+  {
+    return Item_func_or_sum_illegal_param(func);
+  }
+
+  bool Item_func_neg_fix_length_and_dec(Item_func_neg *func) const override
+  {
+    return Item_func_or_sum_illegal_param(func);
+  }
+
+  bool Item_func_signed_fix_length_and_dec(Item_func_signed *item) const override
+  {
+    return Item_func_or_sum_illegal_param(item);
+  }
+  bool Item_func_unsigned_fix_length_and_dec(Item_func_unsigned *item) const override
+  {
+    return Item_func_or_sum_illegal_param(item);
+  }
+  bool Item_double_typecast_fix_length_and_dec(Item_double_typecast *item)
+                                          const override
+  {
+    return Item_func_or_sum_illegal_param(item);
+  }
+  bool Item_float_typecast_fix_length_and_dec(Item_float_typecast *item)
+                                         const override
+  {
+    return Item_func_or_sum_illegal_param(item);
+  }
+  bool Item_decimal_typecast_fix_length_and_dec(Item_decimal_typecast *item)
+                                           const override
+  {
+    return Item_func_or_sum_illegal_param(item);
+  }
+  bool Item_char_typecast_fix_length_and_dec(Item_char_typecast *item)
                                              const override
+  {
+    if (item->cast_charset() == &my_charset_bin)
     {
-      return NULL;
+      static Item_char_typecast_func_handler_fbt_to_binary
+               item_char_typecast_func_handler_fbt_to_binary;
+      item->fix_length_and_dec_native_to_binary(FbtImpl::binary_length());
+      item->set_func_handler(&item_char_typecast_func_handler_fbt_to_binary);
+      return false;
     }
-  };
-  static Type_handler_fbt *type_handler_fbt()
+    item->fix_length_and_dec_str();
+    return false;
+  }
+
+  bool Item_time_typecast_fix_length_and_dec(Item_time_typecast *item) const override
+  {
+    return Item_func_or_sum_illegal_param(item);
+  }
+  bool Item_date_typecast_fix_length_and_dec(Item_date_typecast *item) const override
+  {
+    return Item_func_or_sum_illegal_param(item);
+  }
+  bool Item_datetime_typecast_fix_length_and_dec(Item_datetime_typecast *item)
+                                            const override
+  {
+    return Item_func_or_sum_illegal_param(item);
+  }
+  bool Item_func_plus_fix_length_and_dec(Item_func_plus *item) const override
+  {
+    return Item_func_or_sum_illegal_param(item);
+  }
+  bool Item_func_minus_fix_length_and_dec(Item_func_minus *item) const override
+  {
+    return Item_func_or_sum_illegal_param(item);
+  }
+  bool Item_func_mul_fix_length_and_dec(Item_func_mul *item) const override
+  {
+    return Item_func_or_sum_illegal_param(item);
+  }
+  bool Item_func_div_fix_length_and_dec(Item_func_div *item) const override
+  {
+    return Item_func_or_sum_illegal_param(item);
+  }
+  bool Item_func_mod_fix_length_and_dec(Item_func_mod *item) const override
+  {
+    return Item_func_or_sum_illegal_param(item);
+  }
+
+  static Type_handler_fbt *singleton()
   {
     static Type_handler_fbt th;
     return &th;
