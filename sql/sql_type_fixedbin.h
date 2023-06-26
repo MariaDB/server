@@ -31,7 +31,9 @@
 /***********************************************************************/
 
 
-template<class FbtImpl>
+template<class FbtImpl> class Type_collection_fbt;
+
+template<class FbtImpl, class TypeCollectionImpl = Type_collection_fbt<FbtImpl> >
 class Type_handler_fbt: public Type_handler
 {
   /* =[ internal helper classes ]=============================== */
@@ -209,74 +211,6 @@ public:
   };
 
   /* =[ API classes ]=========================================== */
-
-  class Type_collection_fbt: public Type_collection
-  {
-    const Type_handler *aggregate_common(const Type_handler *a,
-                                         const Type_handler *b) const
-    {
-      if (a == b)
-        return a;
-      return NULL;
-    }
-    const Type_handler *aggregate_if_string(const Type_handler *a,
-                                            const Type_handler *b) const
-    {
-      static const Type_aggregator::Pair agg[]=
-      {
-        {singleton(), &type_handler_null,        singleton()},
-        {singleton(), &type_handler_varchar,     singleton()},
-        {singleton(), &type_handler_string,      singleton()},
-        {singleton(), &type_handler_tiny_blob,   singleton()},
-        {singleton(), &type_handler_blob,        singleton()},
-        {singleton(), &type_handler_medium_blob, singleton()},
-        {singleton(), &type_handler_long_blob,   singleton()},
-        {singleton(), &type_handler_hex_hybrid,  singleton()},
-        {NULL,NULL,NULL}
-      };
-      return Type_aggregator::find_handler_in_array(agg, a, b, true);
-    }
-  public:
-    const Type_handler *aggregate_for_result(const Type_handler *a,
-                                             const Type_handler *b)
-                                             const override
-    {
-      const Type_handler *h;
-      if ((h= aggregate_common(a, b)) ||
-          (h= aggregate_if_string(a, b)))
-        return h;
-      return NULL;
-    }
-
-    const Type_handler *aggregate_for_min_max(const Type_handler *a,
-                                              const Type_handler *b)
-                                              const override
-    {
-      return aggregate_for_result(a, b);
-    }
-
-    const Type_handler *aggregate_for_comparison(const Type_handler *a,
-                                                 const Type_handler *b)
-                                                 const override
-    {
-      if (const Type_handler *h= aggregate_common(a, b))
-        return h;
-      static const Type_aggregator::Pair agg[]=
-      {
-        {singleton(), &type_handler_null,      singleton()},
-        {singleton(), &type_handler_long_blob, singleton()},
-        {NULL,NULL,NULL}
-      };
-      return Type_aggregator::find_handler_in_array(agg, a, b, true);
-    }
-
-    const Type_handler *aggregate_for_num_op(const Type_handler *a,
-                                             const Type_handler *b)
-                                             const override
-    {
-      return NULL;
-    }
-  };
 
   class Type_std_attributes_fbt: public Type_std_attributes
   {
@@ -1120,8 +1054,7 @@ public:
 
   const Type_collection *type_collection() const override
   {
-    static Type_collection_fbt type_collection_fbt;
-    return &type_collection_fbt;
+    return TypeCollectionImpl::singleton();
   }
 
   const Name &default_value() const override
@@ -1899,6 +1832,80 @@ public:
   {
     static Type_handler_fbt th;
     return &th;
+  }
+};
+
+template<class FbtImpl>
+class Type_collection_fbt: public Type_collection
+{
+  const Type_handler *aggregate_common(const Type_handler *a,
+                                       const Type_handler *b) const
+  {
+    if (a == b)
+      return a;
+    return NULL;
+  }
+  const Type_handler *aggregate_if_string(const Type_handler *a,
+                                          const Type_handler *b) const
+  {
+    static const Type_aggregator::Pair agg[]=
+    {
+      {Type_handler_fbt<FbtImpl>::singleton(), &type_handler_null,        Type_handler_fbt<FbtImpl>::singleton()},
+      {Type_handler_fbt<FbtImpl>::singleton(), &type_handler_varchar,     Type_handler_fbt<FbtImpl>::singleton()},
+      {Type_handler_fbt<FbtImpl>::singleton(), &type_handler_string,      Type_handler_fbt<FbtImpl>::singleton()},
+      {Type_handler_fbt<FbtImpl>::singleton(), &type_handler_tiny_blob,   Type_handler_fbt<FbtImpl>::singleton()},
+      {Type_handler_fbt<FbtImpl>::singleton(), &type_handler_blob,        Type_handler_fbt<FbtImpl>::singleton()},
+      {Type_handler_fbt<FbtImpl>::singleton(), &type_handler_medium_blob, Type_handler_fbt<FbtImpl>::singleton()},
+      {Type_handler_fbt<FbtImpl>::singleton(), &type_handler_long_blob,   Type_handler_fbt<FbtImpl>::singleton()},
+      {Type_handler_fbt<FbtImpl>::singleton(), &type_handler_hex_hybrid,  Type_handler_fbt<FbtImpl>::singleton()},
+      {NULL,NULL,NULL}
+    };
+    return Type_aggregator::find_handler_in_array(agg, a, b, true);
+  }
+public:
+  const Type_handler *aggregate_for_result(const Type_handler *a,
+                                           const Type_handler *b)
+                                           const override
+  {
+    const Type_handler *h;
+    if ((h= aggregate_common(a, b)) || (h= aggregate_if_string(a, b)))
+      return h;
+    return NULL;
+  }
+
+  const Type_handler *aggregate_for_min_max(const Type_handler *a,
+                                            const Type_handler *b)
+                                            const override
+  {
+    return aggregate_for_result(a, b);
+  }
+
+  const Type_handler *aggregate_for_comparison(const Type_handler *a,
+                                               const Type_handler *b)
+                                               const override
+  {
+    if (const Type_handler *h= aggregate_common(a, b))
+      return h;
+    static const Type_aggregator::Pair agg[]=
+    {
+      {Type_handler_fbt<FbtImpl>::singleton(), &type_handler_null,      Type_handler_fbt<FbtImpl>::singleton()},
+      {Type_handler_fbt<FbtImpl>::singleton(), &type_handler_long_blob, Type_handler_fbt<FbtImpl>::singleton()},
+      {NULL,NULL,NULL}
+    };
+    return Type_aggregator::find_handler_in_array(agg, a, b, true);
+  }
+
+  const Type_handler *aggregate_for_num_op(const Type_handler *a,
+                                           const Type_handler *b)
+                                           const override
+  {
+    return NULL;
+  }
+
+  static Type_collection_fbt *singleton()
+  {
+    static Type_collection_fbt tc;
+    return &tc;
   }
 };
 
