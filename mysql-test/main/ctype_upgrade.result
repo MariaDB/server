@@ -227,7 +227,7 @@ DROP TABLE mysql050614_xxx_croatian_ci;
 # Checking mysql_upgrade
 #
 # Running mysql_upgrade
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -258,8 +258,9 @@ mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
 mysql.user                                         OK
 sys.host_summary                                   OK
 sys.host_summary_by_file_io                        OK
@@ -361,9 +362,8 @@ sys.x$wait_classes_global_by_latency               OK
 sys.x$waits_by_host_by_latency                     OK
 sys.x$waits_by_user_by_latency                     OK
 sys.x$waits_global_by_latency                      OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
@@ -384,11 +384,12 @@ test.maria050313_ucs2_croatian_ci_def              OK
 test.maria050313_utf8_croatian_ci                  OK
 test.maria050533_xxx_croatian_ci                   OK
 test.maria100004_xxx_croatian_ci                   OK
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 # Running mysql_upgrade for the second time
 # This should report OK for all tables
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -419,8 +420,9 @@ mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
 mysql.user                                         OK
 sys.host_summary                                   OK
 sys.host_summary_by_file_io                        OK
@@ -522,9 +524,8 @@ sys.x$wait_classes_global_by_latency               OK
 sys.x$waits_by_host_by_latency                     OK
 sys.x$waits_by_user_by_latency                     OK
 sys.x$waits_global_by_latency                      OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
@@ -539,7 +540,8 @@ test.maria050313_utf8_croatian_ci                  OK
 test.maria050533_xxx_croatian_ci                   OK
 test.maria100004_xxx_croatian_ci                   OK
 test.mysql050614_xxx_croatian_ci                   OK
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 SHOW CREATE TABLE maria050313_ucs2_croatian_ci_def;
 Table	Create Table

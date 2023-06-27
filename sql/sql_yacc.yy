@@ -7989,6 +7989,7 @@ mi_repair_type:
 
 opt_view_repair_type:
           /* empty */    { }
+        | FOR_SYM UPGRADE_SYM { Lex->check_opt.sql_flags|= TT_FOR_UPGRADE; }
         | FROM MYSQL_SYM { Lex->check_opt.sql_flags|= TT_FROM_MYSQL; }
         ;
 

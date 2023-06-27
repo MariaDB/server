@@ -43,12 +43,12 @@ const TABLE_FIELD_TYPE event_table_fields[ET_FIELD_COUNT] =
   {
     { STRING_WITH_LEN("db") },
     { STRING_WITH_LEN("char(64)") },
-    { STRING_WITH_LEN("utf8mb3") }
+    { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("name") },
     { STRING_WITH_LEN("char(64)") },
-    { STRING_WITH_LEN("utf8mb3") }
+    { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("body") },
@@ -58,7 +58,7 @@ const TABLE_FIELD_TYPE event_table_fields[ET_FIELD_COUNT] =
   {
     { STRING_WITH_LEN("definer") },
     { STRING_WITH_LEN("varchar(") },
-    { STRING_WITH_LEN("utf8mb3") }
+    { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("execute_at") },
@@ -131,7 +131,7 @@ const TABLE_FIELD_TYPE event_table_fields[ET_FIELD_COUNT] =
   {
     { STRING_WITH_LEN("comment") },
     { STRING_WITH_LEN("char(64)") },
-    { STRING_WITH_LEN("utf8mb3") }
+    { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("originator") },
@@ -146,17 +146,17 @@ const TABLE_FIELD_TYPE event_table_fields[ET_FIELD_COUNT] =
   {
     { STRING_WITH_LEN("character_set_client") },
     { STRING_WITH_LEN("char(32)") },
-    { STRING_WITH_LEN("utf8mb3") }
+    { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("collation_connection") },
     { STRING_WITH_LEN("char(32)") },
-    { STRING_WITH_LEN("utf8mb3") }
+    { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("db_collation") },
     { STRING_WITH_LEN("char(32)") },
-    { STRING_WITH_LEN("utf8mb3") }
+    { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("body_utf8") },
