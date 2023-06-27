@@ -3111,9 +3111,7 @@ check_access(THD *thd, privilege_t want_access,
     if (!(sctx->master_access & SELECT_ACL))
     {
       if (db && (!thd->db.str || db_is_pattern || strcmp(db, thd->db.str)))
-      {
         db_access= acl_get_all3(sctx, db, db_is_pattern);
-      }
       else
       {
         /* get access for current db */
@@ -3728,10 +3726,12 @@ bool check_fk_parent_table_access(THD *thd,
           parent_table.grant.want_privilege)
       {
         my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
-                "REFERENCES",
-                thd->security_ctx->priv_user,
-                thd->security_ctx->host_or_ip,
-                db_name.str, table_name.str);
+                 "REFERENCES",
+                 thd->security_ctx->priv_user,
+                 thd->security_ctx->host_or_ip,
+                 db_name.str,
+                 table_name.str);
+
         return true;
       }
     }
@@ -8224,9 +8224,9 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
     /* Create user if needed */
     if (copy_and_check_auth(Str, tmp_Str, thd) ||
         replace_user_table(thd, tables.user_table(), Str,
-			   NO_ACL, revoke_grant, create_new_users,
+                           NO_ACL, revoke_grant, create_new_users,
                            !is_public(Str) && (thd->variables.sql_mode &
-                                     MODE_NO_AUTO_CREATE_USER)))
+                                               MODE_NO_AUTO_CREATE_USER)))
     {
       result= TRUE;
       continue;
@@ -8617,7 +8617,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
 }
 
 
-bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
+bool mysql_grant(THD *thd, const char *db, List<LEX_USER> &list,
                  privilege_t rights, bool revoke_grant, bool is_proxy)
 {
   List_iterator <LEX_USER> str_list (list);
@@ -11876,7 +11876,8 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     }
 
     if (replace_user_table(thd, tables.user_table(), user_name,
-                           NO_ACL, 0, 1, 0))
+                           NO_ACL, false,
+                           true, false))
     {
       append_user(thd, &wrong_users, user_name);
       result= TRUE;
@@ -12182,8 +12183,9 @@ int mysql_alter_user(THD* thd, List<LEX_USER> &users_list)
   {
     LEX_USER* lex_user= get_current_user(thd, tmp_lex_user, false);
     if (!lex_user ||
-        replace_user_table(thd, tables.user_table(), lex_user, NO_ACL,
-                           false, false, true))
+        replace_user_table(thd, tables.user_table(), lex_user,
+                           NO_ACL, false,
+                           false, true))
     {
       thd->clear_error();
       append_user(thd, &wrong_users, tmp_lex_user);
@@ -12311,7 +12313,8 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
     }
 
     if (replace_user_table(thd, tables.user_table(), lex_user,
-                           ALL_KNOWN_ACL, 1, 0, 0))
+                           ALL_KNOWN_ACL, true,
+                           false, false))
     {
       result= -1;
       continue;
