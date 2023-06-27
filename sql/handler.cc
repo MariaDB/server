@@ -4812,8 +4812,12 @@ static bool update_frm_version(TABLE *table)
     by server with the same version. This also ensures that we do not
     update frm version for temporary tables as this code doesn't support
     temporary tables.
+
+    keep_original_mysql_version is set if the table version cannot be
+    changed without rewriting the frm file.
   */
-  if (table->s->mysql_version == MYSQL_VERSION_ID)
+  if (table->s->mysql_version == MYSQL_VERSION_ID ||
+      table->s->keep_original_mysql_version)
     DBUG_RETURN(0);
 
   strxmov(path, table->s->normalized_path.str, reg_ext, NullS);

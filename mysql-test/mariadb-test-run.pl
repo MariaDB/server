@@ -1794,7 +1794,7 @@ sub collect_mysqld_features {
 
 sub collect_mysqld_features_from_running_server ()
 {
-  my $mysql= mtr_exe_exists("$path_client_bindir/mysql");
+  my $mysql= mtr_exe_exists("$path_client_bindir/mariadb");
 
   my $args;
   mtr_init_args(\$args);

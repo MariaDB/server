@@ -2008,6 +2008,9 @@ bool DsMrr_impl::get_disk_sweep_mrr_cost(uint keynr, ha_rows rows, uint flags,
   /* Total cost of all index accesses */
   index_read_cost= primary_file->keyread_time(keynr, 1, rows);
   cost->add_io(index_read_cost, 1 /* Random seeks */);
+
+  cost->cpu_cost+= (rows2double(rows) / TIME_FOR_COMPARE +
+                   MULTI_RANGE_READ_SETUP_COST);
   return FALSE;
 }
 

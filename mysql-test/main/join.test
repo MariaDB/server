@@ -1835,3 +1835,22 @@ SELECT COUNT(*) FROM t1 LEFT JOIN (t2 LEFT JOIN t3 ON t2.b = t3.c) ON t1.a = t2.
 DROP TABLE t1, t2, t3;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-31449: Assertion s->table->opt_range_condition_rows <= s->found_records
+--echo #
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,2),(3,4);
+
+CREATE TABLE t2 (c INT);
+INSERT INTO t2 VALUES (5),(6);
+
+SET @tmp=@@OPTIMIZER_USE_CONDITION_SELECTIVITY, OPTIMIZER_USE_CONDITION_SELECTIVITY = 1;
+
+SELECT * FROM
+(SELECT t1.* FROM t1 WHERE t1.a IN (SELECT MAX(t2.c) FROM t2 JOIN t1)) AS sq1,
+(SELECT t2.* FROM t2 JOIN t1 ON (t1.b IN (SELECT t1.b FROM t2 STRAIGHT_JOIN t1))) AS sq2;
+
+SET OPTIMIZER_USE_CONDITION_SELECTIVITY=@tmp;
+DROP TABLE t1,t2;
+--echo # End of 10.6 tests
