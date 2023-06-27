@@ -60,3 +60,35 @@ SET @@GLOBAL.session_track_system_variables=NULL;
 SET SESSION session_track_system_variables=NULL;
 
 --echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-25237: crash after setting global session_track_system_variables
+--echo # to an invalid value
+--echo #
+
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET GLOBAL session_track_system_variables='a';
+SET GLOBAL event_scheduler=1;
+
+
+--echo # check that value really returns as it was
+
+set GLOBAL session_track_system_variables='character_set_connection';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET GLOBAL session_track_system_variables='a';
+
+connect (con,localhost,root,,test);
+--enable_session_track_info
+SET NAMES 'utf8';
+SET NAMES 'big5';
+--disable_session_track_info
+
+select @@session_track_system_variables;
+
+connection default;
+disconnect con;
+
+SET GLOBAL session_track_system_variables=default;
+SET GLOBAL event_scheduler=default;
+
+--echo # End of 10.4 test
