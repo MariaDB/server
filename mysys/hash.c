@@ -22,6 +22,7 @@
 #include <m_string.h>
 #include <m_ctype.h>
 #include "hash.h"
+#include "xxhash.h"
 
 #define NO_RECORD	~((my_hash_value_type) 0)
 #define LOWFIND 1
@@ -50,7 +51,7 @@ my_hash_value_type my_hash_sort(CHARSET_INFO *cs, const uchar *key,
     my_ci_hash_sort(cs, (uchar*) key, length, &nr1, &nr2);
     return (my_hash_value_type) nr1;
   }
-  return (my_hash_value_type) my_crc32c(0, key, length);
+  return (my_hash_value_type) XXH3_64bits(key, length);
 }
 
 /**
