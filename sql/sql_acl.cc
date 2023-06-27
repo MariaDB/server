@@ -903,7 +903,7 @@ class User_table: public Grant_table_base
   virtual int get_auth(THD *, MEM_ROOT *, ACL_USER *u) const= 0;
   virtual bool set_auth(const ACL_USER &u) const = 0;
   virtual privilege_t get_access() const = 0;
-  virtual void set_access(const privilege_t rights, bool revoke) const = 0;
+  virtual void set_access(const privilege_t rights) const = 0;
 
   char *get_host(MEM_ROOT *root) const
   { return ::get_field(root, m_table->field[0]); }
@@ -1080,14 +1080,11 @@ class User_table_tabular: public User_table
     return access & GLOBAL_ACLS;
   }
 
-  void set_access(const privilege_t rights, bool revoke) const
+  void set_access(const privilege_t rights) const
   {
     ulonglong priv(SELECT_ACL);
     for (uint i= start_priv_columns; i < end_priv_columns; i++, priv <<= 1)
-    {
-      if (priv & rights)
-        m_table->field[i]->store(1 + !revoke, 0);
-    }
+      m_table->field[i]->store(priv & rights ? 2 : 1, 0);
   }
 
   SSL_type get_ssl_type () const
@@ -1631,14 +1628,9 @@ class User_table_json: public User_table
     return adjust_access(version_id, access) & GLOBAL_ACLS;
   }
 
-  void set_access(const privilege_t rights, bool revoke) const
+  void set_access(const privilege_t rights) const
   {
-    privilege_t access= get_access();
-    if (revoke)
-      access&= ~rights;
-    else
-      access|= rights;
-    set_int_value("access", (longlong) (access & GLOBAL_ACLS));
+    set_int_value("access", (longlong) (rights & GLOBAL_ACLS));
     set_int_value("version_id", (longlong) MYSQL_VERSION_ID);
   }
   const char *unsafe_str(const char *s) const
@@ -5463,9 +5455,11 @@ static bool test_if_create_new_users(THD *thd)
 ****************************************************************************/
 static USER_AUTH auth_no_password;
 
+
 static int replace_user_table(THD *thd, const User_table &user_table,
-                              LEX_USER * const combo, privilege_t rights,
-                              const bool revoke_grant,
+                              LEX_USER * const combo,
+                              privilege_t rights,
+                              const bool revoke,
                               const bool can_create_user,
                               const bool no_auto_create)
 {
@@ -5477,6 +5471,7 @@ static int replace_user_table(THD *thd, const User_table &user_table,
   LEX *lex= thd->lex;
   TABLE *table= user_table.table();
   ACL_USER new_acl_user, *old_acl_user= 0;
+  privilege_t access;
   DBUG_ENTER("replace_user_table");
 
   mysql_mutex_assert_owner(&acl_cache->lock);
@@ -5490,7 +5485,7 @@ static int replace_user_table(THD *thd, const User_table &user_table,
   if (table->file->ha_index_read_idx_map(table->record[0], 0, user_key,
                                          HA_WHOLE_KEY, HA_READ_KEY_EXACT))
   {
-    if (revoke_grant)
+    if (revoke)
     {
       if (combo->host.length)
         my_error(ER_NONEXISTING_GRANT, MYF(0), combo->user.str,
@@ -5553,8 +5548,13 @@ static int replace_user_table(THD *thd, const User_table &user_table,
   }
 
   /* Update table columns with new privileges */
-  user_table.set_access(rights, revoke_grant);
-  rights= user_table.get_access();
+  access= user_table.get_access();
+  if (revoke)
+    access&= ~rights;
+  else
+    access|= rights;
+  user_table.set_access(access);
+  access= user_table.get_access();
 
   if (handle_as_role)
   {
@@ -5580,9 +5580,9 @@ static int replace_user_table(THD *thd, const User_table &user_table,
       goto end;
     }
     new_acl_user= old_row_exists ? *old_acl_user :
-                  ACL_USER(thd, *combo, lex->account_options, rights);
+                  ACL_USER(thd, *combo, lex->account_options, access);
     if (acl_user_update(thd, &new_acl_user, nauth,
-                        *combo, lex->account_options, rights))
+                        *combo, lex->account_options, access))
       goto end;
 
     if (user_table.set_auth(new_acl_user))
@@ -5690,9 +5690,9 @@ end:
     if (handle_as_role)
     {
       if (old_row_exists)
-        acl_update_role(combo->user.str, rights);
+        acl_update_role(combo->user.str, access);
       else
-        acl_insert_role(combo->user.str, rights);
+        acl_insert_role(combo->user.str, access);
     }
     else
     {
