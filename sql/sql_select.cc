@@ -673,8 +673,11 @@ void remove_redundant_subquery_clauses(st_select_lex *subq_select_lex)
           select (select ... ) as SUBQ ...  group by SUBQ
 
         Here SUBQ cannot be removed.
+        If this Item is constructed from a view, it's not safe to remove
       */
-      if (!ord->in_field_list)
+      if (!ord->in_field_list && 
+          !(((*ord->item)->type() == Item::REF_ITEM) &&
+            ((Item_ref *)(*ord->item))->ref_type() == Item_ref::VIEW_REF))
       {
         (*ord->item)->walk(&Item::eliminate_subselect_processor, FALSE, NULL);
         /*
@@ -1351,7 +1354,7 @@ JOIN::prepare(TABLE_LIST *tables_init,
   */
   if (select_lex->master_unit()->item &&                               // 1)
       select_lex->first_cond_optimization &&                           // 2)
-      !thd->lex->is_view_context_analysis())                           // 3)
+      !thd->lex->is_ps_or_view_context_analysis())                     // 3)
   {
     remove_redundant_subquery_clauses(select_lex);
   }

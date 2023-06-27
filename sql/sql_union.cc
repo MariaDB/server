@@ -688,7 +688,10 @@ bool st_select_lex_unit::prepare_join(THD *thd_arg, SELECT_LEX *sl,
   {
     for (ORDER *ord= (ORDER *)sl->order_list.first; ord; ord= ord->next)
     {
-      (*ord->item)->walk(&Item::eliminate_subselect_processor, FALSE, NULL);
+      // It is unsafe to eliminate views.
+      if (!((*ord->item)->type() != Item::REF_ITEM &&
+           ((Item_ref *)(*ord->item))->ref_type() == Item_ref::VIEW_REF))
+        (*ord->item)->walk(&Item::eliminate_subselect_processor, FALSE, NULL);
     }
   }
   DBUG_RETURN(false);
