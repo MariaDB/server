@@ -5,7 +5,7 @@
 SET NAMES utf8;
 show create table mysql_json_test;
 ERROR HY000: Unknown data type: 'MYSQL_JSON'
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -53,9 +53,10 @@ error    : Corrupt
 mysql.transaction_registry
 Error    : Unknown storage engine 'InnoDB'
 error    : Corrupt
-Phase 2/7: Installing used storage engines... Skipped
+Phase 2/8: Installing used storage engines... Skipped
 installing plugin for MYSQL_JSON data type
-Phase 3/7: Fixing views
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
 mysql.user                                         OK
 sys.host_summary                                   OK
 sys.host_summary_by_file_io                        OK
@@ -157,9 +158,8 @@ sys.x$wait_classes_global_by_latency               OK
 sys.x$waits_by_host_by_latency                     OK
 sys.x$waits_by_user_by_latency                     OK
 sys.x$waits_global_by_latency                      OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
@@ -175,8 +175,9 @@ test.mysql_json_test_big                           Needs upgrade
 Repairing tables
 test.mysql_json_test                               OK
 test.mysql_json_test_big                           OK
+Phase 7/8: uninstalling plugins
 uninstalling plugin for 'type_mysql_json' data type
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 show create table mysql_json_test;
 Table	Create Table

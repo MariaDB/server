@@ -8,6 +8,7 @@ sql_error_log_rate	1
 sql_error_log_rotate	OFF
 sql_error_log_rotations	9
 sql_error_log_size_limit	1000000
+sql_error_log_warnings	ON
 set global sql_error_log_rate=1;
 select * from t_doesnt_exist;
 ERROR 42S02: Table 'test.t_doesnt_exist' doesn't exist
