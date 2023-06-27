@@ -23,11 +23,13 @@ perl;
   # their paths may vary:
   @skipvars=qw/basedir open-files-limit general-log-file log plugin-dir plugin-maturity
                log-slow-queries pid-file slow-query-log-file log-basename
+               log-slow-query-file
                datadir slave-load-tmpdir tmpdir socket thread-pool-size
                large-files-support lower-case-file-system system-time-zone
                collation-server character-set-server log-tc-size table-cache
                table-open-cache table-open-cache-instances max-connections
                tls-version version.* password-reuse-check
+               provider-bzip2 provider-lzma provider-lzo
                password-reuse-check-interval/;
 
   # Plugins which may or may not be there:
@@ -40,7 +42,7 @@ perl;
               wsrep file-key-management cracklib-password-check user-variables
               provider-bzip2 provider-lzma provider-lzo
               thread-pool-groups thread-pool-queues thread-pool-stats
-              thread-pool-waits hashicorp provider/;
+              thread-pool-waits hashicorp provider gssapi/;
 
   # And substitute the content some environment variables with their
   # names:
