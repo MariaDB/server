@@ -13387,18 +13387,19 @@ int spider_mbase_handler::sts_mode_exchange(
 }
 
 /** Set the session lock wait time out */
-int spider_db_mbase::set_lock_wait_timeout(uint timeout)
+static int spider_set_lock_wait_timeout(uint seconds, SPIDER_CONN *conn,
+                                        int *need_mon)
 {
-  String query(0);
+  char query[512];;
   int error_num;
   DBUG_ENTER("spider_db_set_lock_wait_timeout");
-  query.append(STRING_WITH_LEN(
-                 "set @old_lock_wait_timeout=@@session.lock_wait_timeout;"
-                 "set session lock_wait_timeout="));
-  query.append_ulonglong(timeout);
-  query.append(STRING_WITH_LEN(";"));
-  if ((error_num = exec_query(query.c_ptr(), query.length(), -1)))
-    DBUG_RETURN(error_num);
+  size_t query_len =
+    my_snprintf(query, sizeof(query),
+              "set @old_lock_wait_timeout=@@session.lock_wait_timeout;"
+              "set session lock_wait_timeout=%d;",
+              seconds);
+  if (spider_db_query(conn, query, query_len, -1, need_mon))
+    DBUG_RETURN(spider_db_errorno(conn));
   spider_db_result *result;
   do {
     st_spider_db_request_key request_key= {1, 1, NULL, 1, NULL};
@@ -13486,9 +13487,10 @@ int spider_mbase_handler::show_table_status(
   spider_setup_for_query(spider, conn, link_idx);
   spider_conn_set_timeout_from_share(
     conn, link_idx, spider->wide_handler->trx->thd, share);
+
   if ((error_num = spider_db_set_names(spider, conn, link_idx)) ||
-      (error_num =
-       ((spider_db_mbase *) conn->db_conn)->set_lock_wait_timeout(1)) ||
+      (error_num = spider_set_lock_wait_timeout(
+        1, conn, &spider->need_mons[link_idx])) ||
       /* Executes the `show table status` query */
       (spider_db_query(
         conn,
@@ -13510,7 +13512,7 @@ int spider_mbase_handler::show_table_status(
                                          spider->wide_handler->trx->thd,
                                          share);
       if ((error_num =
-           ((spider_db_mbase *) conn->db_conn)->set_lock_wait_timeout(1)))
+           spider_set_lock_wait_timeout(1, conn, &spider->need_mons[link_idx])))
         DBUG_RETURN(spider_teardown_after_query(conn, error_num, true));
       if (spider_db_query(
             conn,
@@ -13644,7 +13646,7 @@ int spider_mbase_handler::show_index(
                                      spider->wide_handler->trx->thd, share);
   if ((error_num = spider_db_set_names(spider, conn, link_idx)) ||
       (error_num =
-       ((spider_db_mbase *) conn->db_conn)->set_lock_wait_timeout(1)) ||
+       spider_set_lock_wait_timeout(1, conn, &spider->need_mons[link_idx])) ||
       (spider_db_query(
         conn,
         mysql_share->show_index[pos].ptr(),
@@ -13665,7 +13667,7 @@ int spider_mbase_handler::show_index(
                                          spider->wide_handler->trx->thd,
                                          share);
       if ((error_num =
-           ((spider_db_mbase *) conn->db_conn)->set_lock_wait_timeout(1)))
+           spider_set_lock_wait_timeout(1, conn, &spider->need_mons[link_idx])))
         DBUG_RETURN(spider_teardown_after_query(conn, error_num, true));
       if (spider_db_query(
             conn,
