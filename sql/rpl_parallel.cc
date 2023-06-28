@@ -819,6 +819,10 @@ do_retry:
   event_count= 0;
   err= 0;
   errmsg= NULL;
+#ifdef WITH_WSREP
+  thd->wsrep_cs().reset_error();
+  WSREP_DEBUG("retrying async replication event");
+#endif /* WITH_WSREP */
 
   /*
     If we already started committing before getting the deadlock (or other
@@ -918,6 +922,7 @@ do_retry:
       err= rgi->worker_error= 1;
       my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
       mysql_mutex_unlock(&entry->LOCK_parallel_entry);
+
       goto err;
     }
     mysql_mutex_unlock(&entry->LOCK_parallel_entry);
@@ -959,7 +964,17 @@ do_retry:
     possibility of an old deadlock kill lingering on beyond this point.
   */
   thd->reset_killed();
+#ifdef WITH_WSREP
+  if (wsrep_before_command(thd))
+  {
+    WSREP_WARN("Parallel slave worker failed at wsrep_before_command() hook");
+    err= 1;
+    goto err;
+  }
+  wsrep_start_trx_if_not_started(thd);
+  WSREP_DEBUG("parallel slave retry, after trx start");
 
+#endif /* WITH_WSREP */
   strmake_buf(log_name, ir->name);
   if ((fd= open_binlog(&rlog, log_name, &errmsg)) <0)
   {
