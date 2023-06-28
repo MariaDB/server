@@ -28,22 +28,7 @@ if (`SELECT IF($PLUGIN_VERSION = 3, 1, 0)`)
     DROP TABLE IF EXISTS mysql.spider_rewritten_tables;
   }
 }
-DROP FUNCTION spider_flush_table_mon_cache;
-DROP FUNCTION spider_copy_tables;
-DROP FUNCTION spider_ping_table;
-DROP FUNCTION spider_bg_direct_sql;
-DROP FUNCTION spider_direct_sql;
-UNINSTALL PLUGIN spider_alloc_mem;
-UNINSTALL PLUGIN spider;
-DROP TABLE IF EXISTS mysql.spider_xa;
-DROP TABLE IF EXISTS mysql.spider_xa_member;
-DROP TABLE IF EXISTS mysql.spider_xa_failed_log;
-DROP TABLE IF EXISTS mysql.spider_tables;
-DROP TABLE IF EXISTS mysql.spider_link_mon_servers;
-DROP TABLE IF EXISTS mysql.spider_link_failed_log;
-DROP TABLE IF EXISTS mysql.spider_table_position_for_recovery;
-DROP TABLE IF EXISTS mysql.spider_table_sts;
-DROP TABLE IF EXISTS mysql.spider_table_crd;
+--source clean_up_spider.inc
 if ($VERSION_COMPILE_OS_WIN)
 {
   if ($CHILD2_1_MYPORT)
