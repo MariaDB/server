@@ -1,0 +1,548 @@
+#
+# Beginning of 10.6 test
+#
+# MDEV-28915: mysql_upgrade fails due to old_mode="", with "Cannot load
+# from mysql.proc. The table is probably corrupted"
+# Show that tables are created with utf8mb3 even without UTF8_IS_UTF8MB3 (see the .opt file)
+SHOW CREATE TABLE mysql.proc;
+Table	Create Table
+proc	CREATE TABLE `proc` (
+  `db` char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL DEFAULT '',
+  `name` char(64) NOT NULL DEFAULT '',
+  `type` enum('FUNCTION','PROCEDURE','PACKAGE','PACKAGE BODY') NOT NULL,
+  `specific_name` char(64) NOT NULL DEFAULT '',
+  `language` enum('SQL') NOT NULL DEFAULT 'SQL',
+  `sql_data_access` enum('CONTAINS_SQL','NO_SQL','READS_SQL_DATA','MODIFIES_SQL_DATA') NOT NULL DEFAULT 'CONTAINS_SQL',
+  `is_deterministic` enum('YES','NO') NOT NULL DEFAULT 'NO',
+  `security_type` enum('INVOKER','DEFINER') NOT NULL DEFAULT 'DEFINER',
+  `param_list` blob NOT NULL,
+  `returns` longblob NOT NULL,
+  `body` longblob NOT NULL,
+  `definer` varchar(384) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL DEFAULT '',
+  `created` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `modified` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `sql_mode` set('REAL_AS_FLOAT','PIPES_AS_CONCAT','ANSI_QUOTES','IGNORE_SPACE','IGNORE_BAD_TABLE_OPTIONS','ONLY_FULL_GROUP_BY','NO_UNSIGNED_SUBTRACTION','NO_DIR_IN_CREATE','POSTGRESQL','ORACLE','MSSQL','DB2','MAXDB','NO_KEY_OPTIONS','NO_TABLE_OPTIONS','NO_FIELD_OPTIONS','MYSQL323','MYSQL40','ANSI','NO_AUTO_VALUE_ON_ZERO','NO_BACKSLASH_ESCAPES','STRICT_TRANS_TABLES','STRICT_ALL_TABLES','NO_ZERO_IN_DATE','NO_ZERO_DATE','INVALID_DATES','ERROR_FOR_DIVISION_BY_ZERO','TRADITIONAL','NO_AUTO_CREATE_USER','HIGH_NOT_PRECEDENCE','NO_ENGINE_SUBSTITUTION','PAD_CHAR_TO_FULL_LENGTH','EMPTY_STRING_IS_NULL','SIMULTANEOUS_ASSIGNMENT','TIME_ROUND_FRACTIONAL') NOT NULL DEFAULT '',
+  `comment` text CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL,
+  `character_set_client` char(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
+  `collation_connection` char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
+  `db_collation` char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
+  `body_utf8` longblob DEFAULT NULL,
+  `aggregate` enum('NONE','GROUP') NOT NULL DEFAULT 'NONE',
+  PRIMARY KEY (`db`,`name`,`type`)
+) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='Stored Procedures'
+SHOW CREATE TABLE mysql.event;
+Table	Create Table
+event	CREATE TABLE `event` (
+  `db` char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL DEFAULT '',
+  `name` char(64) NOT NULL DEFAULT '',
+  `body` longblob NOT NULL,
+  `definer` varchar(384) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL DEFAULT '',
+  `execute_at` datetime DEFAULT NULL,
+  `interval_value` int(11) DEFAULT NULL,
+  `interval_field` enum('YEAR','QUARTER','MONTH','DAY','HOUR','MINUTE','WEEK','SECOND','MICROSECOND','YEAR_MONTH','DAY_HOUR','DAY_MINUTE','DAY_SECOND','HOUR_MINUTE','HOUR_SECOND','MINUTE_SECOND','DAY_MICROSECOND','HOUR_MICROSECOND','MINUTE_MICROSECOND','SECOND_MICROSECOND') DEFAULT NULL,
+  `created` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `modified` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `last_executed` datetime DEFAULT NULL,
+  `starts` datetime DEFAULT NULL,
+  `ends` datetime DEFAULT NULL,
+  `status` enum('ENABLED','DISABLED','SLAVESIDE_DISABLED') NOT NULL DEFAULT 'ENABLED',
+  `on_completion` enum('DROP','PRESERVE') NOT NULL DEFAULT 'DROP',
+  `sql_mode` set('REAL_AS_FLOAT','PIPES_AS_CONCAT','ANSI_QUOTES','IGNORE_SPACE','IGNORE_BAD_TABLE_OPTIONS','ONLY_FULL_GROUP_BY','NO_UNSIGNED_SUBTRACTION','NO_DIR_IN_CREATE','POSTGRESQL','ORACLE','MSSQL','DB2','MAXDB','NO_KEY_OPTIONS','NO_TABLE_OPTIONS','NO_FIELD_OPTIONS','MYSQL323','MYSQL40','ANSI','NO_AUTO_VALUE_ON_ZERO','NO_BACKSLASH_ESCAPES','STRICT_TRANS_TABLES','STRICT_ALL_TABLES','NO_ZERO_IN_DATE','NO_ZERO_DATE','INVALID_DATES','ERROR_FOR_DIVISION_BY_ZERO','TRADITIONAL','NO_AUTO_CREATE_USER','HIGH_NOT_PRECEDENCE','NO_ENGINE_SUBSTITUTION','PAD_CHAR_TO_FULL_LENGTH','EMPTY_STRING_IS_NULL','SIMULTANEOUS_ASSIGNMENT','TIME_ROUND_FRACTIONAL') NOT NULL DEFAULT '',
+  `comment` char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL DEFAULT '',
+  `originator` int(10) unsigned NOT NULL,
+  `time_zone` char(64) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL DEFAULT 'SYSTEM',
+  `character_set_client` char(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
+  `collation_connection` char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
+  `db_collation` char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
+  `body_utf8` longblob DEFAULT NULL,
+  PRIMARY KEY (`db`,`name`)
+) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='Events'
+Phase 1/8: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.global_priv                                  OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.innodb_table_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.transaction_registry
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+
+Repairing tables
+mysql.innodb_index_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.innodb_table_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.transaction_registry
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
+mysql.user                                         OK
+sys.host_summary                                   OK
+sys.host_summary_by_file_io                        OK
+sys.host_summary_by_file_io_type                   OK
+sys.host_summary_by_stages                         OK
+sys.host_summary_by_statement_latency              OK
+sys.host_summary_by_statement_type                 OK
+sys.innodb_buffer_stats_by_schema                  OK
+sys.innodb_buffer_stats_by_table                   OK
+sys.innodb_lock_waits                              OK
+sys.io_by_thread_by_latency                        OK
+sys.io_global_by_file_by_bytes                     OK
+sys.io_global_by_file_by_latency                   OK
+sys.io_global_by_wait_by_bytes                     OK
+sys.io_global_by_wait_by_latency                   OK
+sys.latest_file_io                                 OK
+sys.memory_by_host_by_current_bytes                OK
+sys.memory_by_thread_by_current_bytes              OK
+sys.memory_by_user_by_current_bytes                OK
+sys.memory_global_by_current_bytes                 OK
+sys.memory_global_total                            OK
+sys.metrics                                        OK
+sys.processlist                                    OK
+sys.ps_check_lost_instrumentation                  OK
+sys.schema_auto_increment_columns                  OK
+sys.schema_index_statistics                        OK
+sys.schema_object_overview                         OK
+sys.schema_redundant_indexes                       OK
+sys.schema_table_lock_waits                        OK
+sys.schema_table_statistics                        OK
+sys.schema_table_statistics_with_buffer            OK
+sys.schema_tables_with_full_table_scans            OK
+sys.schema_unused_indexes                          OK
+sys.session                                        OK
+sys.session_ssl_status                             OK
+sys.statement_analysis                             OK
+sys.statements_with_errors_or_warnings             OK
+sys.statements_with_full_table_scans               OK
+sys.statements_with_runtimes_in_95th_percentile    OK
+sys.statements_with_sorting                        OK
+sys.statements_with_temp_tables                    OK
+sys.user_summary                                   OK
+sys.user_summary_by_file_io                        OK
+sys.user_summary_by_file_io_type                   OK
+sys.user_summary_by_stages                         OK
+sys.user_summary_by_statement_latency              OK
+sys.user_summary_by_statement_type                 OK
+sys.version                                        OK
+sys.wait_classes_global_by_avg_latency             OK
+sys.wait_classes_global_by_latency                 OK
+sys.waits_by_host_by_latency                       OK
+sys.waits_by_user_by_latency                       OK
+sys.waits_global_by_latency                        OK
+sys.x$host_summary                                 OK
+sys.x$host_summary_by_file_io                      OK
+sys.x$host_summary_by_file_io_type                 OK
+sys.x$host_summary_by_stages                       OK
+sys.x$host_summary_by_statement_latency            OK
+sys.x$host_summary_by_statement_type               OK
+sys.x$innodb_buffer_stats_by_schema                OK
+sys.x$innodb_buffer_stats_by_table                 OK
+sys.x$innodb_lock_waits                            OK
+sys.x$io_by_thread_by_latency                      OK
+sys.x$io_global_by_file_by_bytes                   OK
+sys.x$io_global_by_file_by_latency                 OK
+sys.x$io_global_by_wait_by_bytes                   OK
+sys.x$io_global_by_wait_by_latency                 OK
+sys.x$latest_file_io                               OK
+sys.x$memory_by_host_by_current_bytes              OK
+sys.x$memory_by_thread_by_current_bytes            OK
+sys.x$memory_by_user_by_current_bytes              OK
+sys.x$memory_global_by_current_bytes               OK
+sys.x$memory_global_total                          OK
+sys.x$processlist                                  OK
+sys.x$ps_digest_95th_percentile_by_avg_us          OK
+sys.x$ps_digest_avg_latency_distribution           OK
+sys.x$ps_schema_table_statistics_io                OK
+sys.x$schema_flattened_keys                        OK
+sys.x$schema_index_statistics                      OK
+sys.x$schema_table_lock_waits                      OK
+sys.x$schema_table_statistics                      OK
+sys.x$schema_table_statistics_with_buffer          OK
+sys.x$schema_tables_with_full_table_scans          OK
+sys.x$session                                      OK
+sys.x$statement_analysis                           OK
+sys.x$statements_with_errors_or_warnings           OK
+sys.x$statements_with_full_table_scans             OK
+sys.x$statements_with_runtimes_in_95th_percentile  OK
+sys.x$statements_with_sorting                      OK
+sys.x$statements_with_temp_tables                  OK
+sys.x$user_summary                                 OK
+sys.x$user_summary_by_file_io                      OK
+sys.x$user_summary_by_file_io_type                 OK
+sys.x$user_summary_by_stages                       OK
+sys.x$user_summary_by_statement_latency            OK
+sys.x$user_summary_by_statement_type               OK
+sys.x$wait_classes_global_by_avg_latency           OK
+sys.x$wait_classes_global_by_latency               OK
+sys.x$waits_by_host_by_latency                     OK
+sys.x$waits_by_user_by_latency                     OK
+sys.x$waits_global_by_latency                      OK
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
+Processing databases
+information_schema
+mtr
+mtr.global_suppressions                            OK
+mtr.test_suppressions                              OK
+performance_schema
+sys
+sys.sys_config                                     OK
+test
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
+OK
+SHOW CREATE TABLE mysql.proc;
+Table	Create Table
+proc	CREATE TABLE `proc` (
+  `db` char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL DEFAULT '',
+  `name` char(64) NOT NULL DEFAULT '',
+  `type` enum('FUNCTION','PROCEDURE','PACKAGE','PACKAGE BODY') NOT NULL,
+  `specific_name` char(64) NOT NULL DEFAULT '',
+  `language` enum('SQL') NOT NULL DEFAULT 'SQL',
+  `sql_data_access` enum('CONTAINS_SQL','NO_SQL','READS_SQL_DATA','MODIFIES_SQL_DATA') NOT NULL DEFAULT 'CONTAINS_SQL',
+  `is_deterministic` enum('YES','NO') NOT NULL DEFAULT 'NO',
+  `security_type` enum('INVOKER','DEFINER') NOT NULL DEFAULT 'DEFINER',
+  `param_list` blob NOT NULL,
+  `returns` longblob NOT NULL,
+  `body` longblob NOT NULL,
+  `definer` varchar(384) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL DEFAULT '',
+  `created` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `modified` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `sql_mode` set('REAL_AS_FLOAT','PIPES_AS_CONCAT','ANSI_QUOTES','IGNORE_SPACE','IGNORE_BAD_TABLE_OPTIONS','ONLY_FULL_GROUP_BY','NO_UNSIGNED_SUBTRACTION','NO_DIR_IN_CREATE','POSTGRESQL','ORACLE','MSSQL','DB2','MAXDB','NO_KEY_OPTIONS','NO_TABLE_OPTIONS','NO_FIELD_OPTIONS','MYSQL323','MYSQL40','ANSI','NO_AUTO_VALUE_ON_ZERO','NO_BACKSLASH_ESCAPES','STRICT_TRANS_TABLES','STRICT_ALL_TABLES','NO_ZERO_IN_DATE','NO_ZERO_DATE','INVALID_DATES','ERROR_FOR_DIVISION_BY_ZERO','TRADITIONAL','NO_AUTO_CREATE_USER','HIGH_NOT_PRECEDENCE','NO_ENGINE_SUBSTITUTION','PAD_CHAR_TO_FULL_LENGTH','EMPTY_STRING_IS_NULL','SIMULTANEOUS_ASSIGNMENT','TIME_ROUND_FRACTIONAL') NOT NULL DEFAULT '',
+  `comment` text CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL,
+  `character_set_client` char(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
+  `collation_connection` char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
+  `db_collation` char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
+  `body_utf8` longblob DEFAULT NULL,
+  `aggregate` enum('NONE','GROUP') NOT NULL DEFAULT 'NONE',
+  PRIMARY KEY (`db`,`name`,`type`)
+) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='Stored Procedures'
+SHOW CREATE TABLE mysql.event;
+Table	Create Table
+event	CREATE TABLE `event` (
+  `db` char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL DEFAULT '',
+  `name` char(64) NOT NULL DEFAULT '',
+  `body` longblob NOT NULL,
+  `definer` varchar(384) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL DEFAULT '',
+  `execute_at` datetime DEFAULT NULL,
+  `interval_value` int(11) DEFAULT NULL,
+  `interval_field` enum('YEAR','QUARTER','MONTH','DAY','HOUR','MINUTE','WEEK','SECOND','MICROSECOND','YEAR_MONTH','DAY_HOUR','DAY_MINUTE','DAY_SECOND','HOUR_MINUTE','HOUR_SECOND','MINUTE_SECOND','DAY_MICROSECOND','HOUR_MICROSECOND','MINUTE_MICROSECOND','SECOND_MICROSECOND') DEFAULT NULL,
+  `created` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `modified` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `last_executed` datetime DEFAULT NULL,
+  `starts` datetime DEFAULT NULL,
+  `ends` datetime DEFAULT NULL,
+  `status` enum('ENABLED','DISABLED','SLAVESIDE_DISABLED') NOT NULL DEFAULT 'ENABLED',
+  `on_completion` enum('DROP','PRESERVE') NOT NULL DEFAULT 'DROP',
+  `sql_mode` set('REAL_AS_FLOAT','PIPES_AS_CONCAT','ANSI_QUOTES','IGNORE_SPACE','IGNORE_BAD_TABLE_OPTIONS','ONLY_FULL_GROUP_BY','NO_UNSIGNED_SUBTRACTION','NO_DIR_IN_CREATE','POSTGRESQL','ORACLE','MSSQL','DB2','MAXDB','NO_KEY_OPTIONS','NO_TABLE_OPTIONS','NO_FIELD_OPTIONS','MYSQL323','MYSQL40','ANSI','NO_AUTO_VALUE_ON_ZERO','NO_BACKSLASH_ESCAPES','STRICT_TRANS_TABLES','STRICT_ALL_TABLES','NO_ZERO_IN_DATE','NO_ZERO_DATE','INVALID_DATES','ERROR_FOR_DIVISION_BY_ZERO','TRADITIONAL','NO_AUTO_CREATE_USER','HIGH_NOT_PRECEDENCE','NO_ENGINE_SUBSTITUTION','PAD_CHAR_TO_FULL_LENGTH','EMPTY_STRING_IS_NULL','SIMULTANEOUS_ASSIGNMENT','TIME_ROUND_FRACTIONAL') NOT NULL DEFAULT '',
+  `comment` char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL DEFAULT '',
+  `originator` int(10) unsigned NOT NULL,
+  `time_zone` char(64) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL DEFAULT 'SYSTEM',
+  `character_set_client` char(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
+  `collation_connection` char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
+  `db_collation` char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
+  `body_utf8` longblob DEFAULT NULL,
+  PRIMARY KEY (`db`,`name`)
+) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='Events'
+# Emulate that tables were created with utf8mb4 by an older version
+ALTER TABLE mysql.proc MODIFY db CHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+MODIFY name CHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+MODIFY specific_name CHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+MODIFY definer VARCHAR(384) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '',
+MODIFY comment TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+MODIFY character_set_client CHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+MODIFY collation_connection CHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+MODIFY db_collation CHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL;
+ALTER TABLE mysql.event MODIFY db CHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
+MODIFY name CHAR(64) CHARACTER SET utf8mb4 NOT NULL DEFAULT '',
+MODIFY definer VARCHAR(384) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
+MODIFY comment CHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
+MODIFY character_set_client CHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+MODIFY collation_connection CHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+MODIFY db_collation CHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL;
+CREATE TABLE t1 (id1 INT, val1 VARCHAR(5));
+CREATE PROCEDURE sp1 ()
+BEGIN
+SELECT val1 FROM t1;
+END|
+SELECT name, body_utf8, body FROM mysql.proc WHERE name like 'sp1';
+name	body_utf8	body
+sp1	BEGIN
+SELECT val1 FROM t1;
+END	BEGIN
+SELECT val1 FROM t1;
+END
+CALL sp1();
+val1
+SELECT name, body_utf8, body FROM mysql.proc WHERE name like 'sp1';
+name	body_utf8	body
+sp1	BEGIN
+SELECT val1 FROM t1;
+END	BEGIN
+SELECT val1 FROM t1;
+END
+SET GLOBAL event_scheduler=ON;
+SELECT name, body_utf8, body FROM mysql.event;
+name	body_utf8	body
+CREATE EVENT ev1 ON SCHEDULE EVERY 1 SECOND DO INSERT INTO t1 VALUES (1, 'abc');
+SELECT name, body_utf8, body FROM mysql.event;
+name	body_utf8	body
+ev1	INSERT INTO t1 VALUES (1, 'abc')	INSERT INTO t1 VALUES (1, 'abc')
+# mysql_upgrade changes columns from utf8mb4 to utf8mb3
+Phase 1/8: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.global_priv                                  OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.innodb_table_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.transaction_registry
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+
+Repairing tables
+mysql.innodb_index_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.innodb_table_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.transaction_registry
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
+mysql.user                                         OK
+sys.host_summary                                   OK
+sys.host_summary_by_file_io                        OK
+sys.host_summary_by_file_io_type                   OK
+sys.host_summary_by_stages                         OK
+sys.host_summary_by_statement_latency              OK
+sys.host_summary_by_statement_type                 OK
+sys.innodb_buffer_stats_by_schema                  OK
+sys.innodb_buffer_stats_by_table                   OK
+sys.innodb_lock_waits                              OK
+sys.io_by_thread_by_latency                        OK
+sys.io_global_by_file_by_bytes                     OK
+sys.io_global_by_file_by_latency                   OK
+sys.io_global_by_wait_by_bytes                     OK
+sys.io_global_by_wait_by_latency                   OK
+sys.latest_file_io                                 OK
+sys.memory_by_host_by_current_bytes                OK
+sys.memory_by_thread_by_current_bytes              OK
+sys.memory_by_user_by_current_bytes                OK
+sys.memory_global_by_current_bytes                 OK
+sys.memory_global_total                            OK
+sys.metrics                                        OK
+sys.processlist                                    OK
+sys.ps_check_lost_instrumentation                  OK
+sys.schema_auto_increment_columns                  OK
+sys.schema_index_statistics                        OK
+sys.schema_object_overview                         OK
+sys.schema_redundant_indexes                       OK
+sys.schema_table_lock_waits                        OK
+sys.schema_table_statistics                        OK
+sys.schema_table_statistics_with_buffer            OK
+sys.schema_tables_with_full_table_scans            OK
+sys.schema_unused_indexes                          OK
+sys.session                                        OK
+sys.session_ssl_status                             OK
+sys.statement_analysis                             OK
+sys.statements_with_errors_or_warnings             OK
+sys.statements_with_full_table_scans               OK
+sys.statements_with_runtimes_in_95th_percentile    OK
+sys.statements_with_sorting                        OK
+sys.statements_with_temp_tables                    OK
+sys.user_summary                                   OK
+sys.user_summary_by_file_io                        OK
+sys.user_summary_by_file_io_type                   OK
+sys.user_summary_by_stages                         OK
+sys.user_summary_by_statement_latency              OK
+sys.user_summary_by_statement_type                 OK
+sys.version                                        OK
+sys.wait_classes_global_by_avg_latency             OK
+sys.wait_classes_global_by_latency                 OK
+sys.waits_by_host_by_latency                       OK
+sys.waits_by_user_by_latency                       OK
+sys.waits_global_by_latency                        OK
+sys.x$host_summary                                 OK
+sys.x$host_summary_by_file_io                      OK
+sys.x$host_summary_by_file_io_type                 OK
+sys.x$host_summary_by_stages                       OK
+sys.x$host_summary_by_statement_latency            OK
+sys.x$host_summary_by_statement_type               OK
+sys.x$innodb_buffer_stats_by_schema                OK
+sys.x$innodb_buffer_stats_by_table                 OK
+sys.x$innodb_lock_waits                            OK
+sys.x$io_by_thread_by_latency                      OK
+sys.x$io_global_by_file_by_bytes                   OK
+sys.x$io_global_by_file_by_latency                 OK
+sys.x$io_global_by_wait_by_bytes                   OK
+sys.x$io_global_by_wait_by_latency                 OK
+sys.x$latest_file_io                               OK
+sys.x$memory_by_host_by_current_bytes              OK
+sys.x$memory_by_thread_by_current_bytes            OK
+sys.x$memory_by_user_by_current_bytes              OK
+sys.x$memory_global_by_current_bytes               OK
+sys.x$memory_global_total                          OK
+sys.x$processlist                                  OK
+sys.x$ps_digest_95th_percentile_by_avg_us          OK
+sys.x$ps_digest_avg_latency_distribution           OK
+sys.x$ps_schema_table_statistics_io                OK
+sys.x$schema_flattened_keys                        OK
+sys.x$schema_index_statistics                      OK
+sys.x$schema_table_lock_waits                      OK
+sys.x$schema_table_statistics                      OK
+sys.x$schema_table_statistics_with_buffer          OK
+sys.x$schema_tables_with_full_table_scans          OK
+sys.x$session                                      OK
+sys.x$statement_analysis                           OK
+sys.x$statements_with_errors_or_warnings           OK
+sys.x$statements_with_full_table_scans             OK
+sys.x$statements_with_runtimes_in_95th_percentile  OK
+sys.x$statements_with_sorting                      OK
+sys.x$statements_with_temp_tables                  OK
+sys.x$user_summary                                 OK
+sys.x$user_summary_by_file_io                      OK
+sys.x$user_summary_by_file_io_type                 OK
+sys.x$user_summary_by_stages                       OK
+sys.x$user_summary_by_statement_latency            OK
+sys.x$user_summary_by_statement_type               OK
+sys.x$wait_classes_global_by_avg_latency           OK
+sys.x$wait_classes_global_by_latency               OK
+sys.x$waits_by_host_by_latency                     OK
+sys.x$waits_by_user_by_latency                     OK
+sys.x$waits_global_by_latency                      OK
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
+Processing databases
+information_schema
+mtr
+mtr.global_suppressions                            OK
+mtr.test_suppressions                              OK
+performance_schema
+sys
+sys.sys_config                                     OK
+test
+test.t1                                            OK
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
+OK
+SHOW CREATE TABLE mysql.proc;
+Table	proc
+Create Table	CREATE TABLE `proc` (
+  `db` char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL DEFAULT '',
+  `name` char(64) NOT NULL DEFAULT '',
+  `type` enum('FUNCTION','PROCEDURE','PACKAGE','PACKAGE BODY') NOT NULL,
+  `specific_name` char(64) NOT NULL DEFAULT '',
+  `language` enum('SQL') NOT NULL DEFAULT 'SQL',
+  `sql_data_access` enum('CONTAINS_SQL','NO_SQL','READS_SQL_DATA','MODIFIES_SQL_DATA') NOT NULL DEFAULT 'CONTAINS_SQL',
+  `is_deterministic` enum('YES','NO') NOT NULL DEFAULT 'NO',
+  `security_type` enum('INVOKER','DEFINER') NOT NULL DEFAULT 'DEFINER',
+  `param_list` blob NOT NULL,
+  `returns` longblob NOT NULL,
+  `body` longblob NOT NULL,
+  `definer` varchar(384) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL DEFAULT '',
+  `created` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `modified` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `sql_mode` set('REAL_AS_FLOAT','PIPES_AS_CONCAT','ANSI_QUOTES','IGNORE_SPACE','IGNORE_BAD_TABLE_OPTIONS','ONLY_FULL_GROUP_BY','NO_UNSIGNED_SUBTRACTION','NO_DIR_IN_CREATE','POSTGRESQL','ORACLE','MSSQL','DB2','MAXDB','NO_KEY_OPTIONS','NO_TABLE_OPTIONS','NO_FIELD_OPTIONS','MYSQL323','MYSQL40','ANSI','NO_AUTO_VALUE_ON_ZERO','NO_BACKSLASH_ESCAPES','STRICT_TRANS_TABLES','STRICT_ALL_TABLES','NO_ZERO_IN_DATE','NO_ZERO_DATE','INVALID_DATES','ERROR_FOR_DIVISION_BY_ZERO','TRADITIONAL','NO_AUTO_CREATE_USER','HIGH_NOT_PRECEDENCE','NO_ENGINE_SUBSTITUTION','PAD_CHAR_TO_FULL_LENGTH','EMPTY_STRING_IS_NULL','SIMULTANEOUS_ASSIGNMENT','TIME_ROUND_FRACTIONAL') NOT NULL DEFAULT '',
+  `comment` text CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL,
+  `character_set_client` char(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
+  `collation_connection` char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
+  `db_collation` char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
+  `body_utf8` longblob DEFAULT NULL,
+  `aggregate` enum('NONE','GROUP') NOT NULL DEFAULT 'NONE',
+  PRIMARY KEY (`db`,`name`,`type`)
+) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='Stored Procedures'
+SHOW CREATE TABLE mysql.event;
+Table	event
+Create Table	CREATE TABLE `event` (
+  `db` char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL DEFAULT '',
+  `name` char(64) NOT NULL DEFAULT '',
+  `body` longblob NOT NULL,
+  `definer` varchar(384) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL DEFAULT '',
+  `execute_at` datetime DEFAULT NULL,
+  `interval_value` int(11) DEFAULT NULL,
+  `interval_field` enum('YEAR','QUARTER','MONTH','DAY','HOUR','MINUTE','WEEK','SECOND','MICROSECOND','YEAR_MONTH','DAY_HOUR','DAY_MINUTE','DAY_SECOND','HOUR_MINUTE','HOUR_SECOND','MINUTE_SECOND','DAY_MICROSECOND','HOUR_MICROSECOND','MINUTE_MICROSECOND','SECOND_MICROSECOND') DEFAULT NULL,
+  `created` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `modified` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `last_executed` datetime DEFAULT NULL,
+  `starts` datetime DEFAULT NULL,
+  `ends` datetime DEFAULT NULL,
+  `status` enum('ENABLED','DISABLED','SLAVESIDE_DISABLED') NOT NULL DEFAULT 'ENABLED',
+  `on_completion` enum('DROP','PRESERVE') NOT NULL DEFAULT 'DROP',
+  `sql_mode` set('REAL_AS_FLOAT','PIPES_AS_CONCAT','ANSI_QUOTES','IGNORE_SPACE','IGNORE_BAD_TABLE_OPTIONS','ONLY_FULL_GROUP_BY','NO_UNSIGNED_SUBTRACTION','NO_DIR_IN_CREATE','POSTGRESQL','ORACLE','MSSQL','DB2','MAXDB','NO_KEY_OPTIONS','NO_TABLE_OPTIONS','NO_FIELD_OPTIONS','MYSQL323','MYSQL40','ANSI','NO_AUTO_VALUE_ON_ZERO','NO_BACKSLASH_ESCAPES','STRICT_TRANS_TABLES','STRICT_ALL_TABLES','NO_ZERO_IN_DATE','NO_ZERO_DATE','INVALID_DATES','ERROR_FOR_DIVISION_BY_ZERO','TRADITIONAL','NO_AUTO_CREATE_USER','HIGH_NOT_PRECEDENCE','NO_ENGINE_SUBSTITUTION','PAD_CHAR_TO_FULL_LENGTH','EMPTY_STRING_IS_NULL','SIMULTANEOUS_ASSIGNMENT','TIME_ROUND_FRACTIONAL') NOT NULL DEFAULT '',
+  `comment` char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL DEFAULT '',
+  `originator` int(10) unsigned NOT NULL,
+  `time_zone` char(64) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL DEFAULT 'SYSTEM',
+  `character_set_client` char(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
+  `collation_connection` char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
+  `db_collation` char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
+  `body_utf8` longblob DEFAULT NULL,
+  PRIMARY KEY (`db`,`name`)
+) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='Events'
+SET GLOBAL event_scheduler=OFF;
+DROP EVENT ev1;
+DROP PROCEDURE sp1;
+DROP TABLE t1;
+# end of 10.6 test

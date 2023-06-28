@@ -2673,9 +2673,9 @@ restart:
                         TRX_SYS_MAX_UNDO_SPACES, "compatibility");
           /* The entire undo tablespace will be reinitialized by
           innodb_undo_log_truncate=ON. Discard old log for all pages. */
-          trim({space_id, 0}, lsn);
+          trim({space_id, 0}, start_lsn);
           truncated_undo_spaces[space_id - srv_undo_space_id_start]=
-            { lsn, page_no };
+            { start_lsn, page_no };
           if (!store && undo_space_trunc)
             undo_space_trunc(space_id);
 #endif

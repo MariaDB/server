@@ -281,6 +281,12 @@ extern "C" sig_handler handle_fatal_signal(int sig);
 
 int init_io_cache_encryption();
 
+extern "C"
+{
+  static void my_malloc_size_cb_func(long long size,
+                                     my_bool is_thread_specific);
+}
+
 /* Constants */
 
 #include <welcome_copyright_notice.h> // ORACLE_WELCOME_COPYRIGHT_NOTICE

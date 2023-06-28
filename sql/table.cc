@@ -1196,7 +1196,10 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
             ? VCOL_GENERATED_STORED : VCOL_GENERATED_VIRTUAL;
       expr_length= uint2korr(pos+1);
       if (table->s->mysql_version > 50700 && table->s->mysql_version < 100000)
+      {
+        table->s->keep_original_mysql_version= 1;
         pos+= 4;                        // MySQL from 5.7
+      }
       else
         pos+= pos[0] == 2 ? 4 : 3;      // MariaDB from 5.2 to 10.1
     }
@@ -1711,6 +1714,33 @@ public:
 };
 
 
+/*
+  Change to use the partition storage engine
+*/
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+static bool change_to_partiton_engine(LEX_CSTRING *name,
+                                      plugin_ref *se_plugin)
+{
+  /*
+    Use partition handler
+    tmp_plugin is locked with a local lock.
+    we unlock the old value of se_plugin before
+    replacing it with a globally locked version of tmp_plugin
+  */
+  /* Check if the partitioning engine is ready */
+  if (!plugin_is_ready(name, MYSQL_STORAGE_ENGINE_PLUGIN))
+  {
+    my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0),
+             "--skip-partition");
+    return 1;
+  }
+  plugin_unlock(NULL, *se_plugin);
+  *se_plugin= ha_lock_engine(NULL, partition_hton);
+  return 0;
+}
+#endif /* WITH_PARTITION_STORAGE_ENGINE */
+
 /**
   Read data from a binary .frm file image into a TABLE_SHARE
 
@@ -1763,6 +1793,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   uint vcol_screen_length;
   uchar *vcol_screen_pos;
   LEX_CUSTRING options;
+  LEX_CSTRING se_name= empty_clex_str;
   KEY first_keyinfo;
   uint len;
   uint ext_key_parts= 0;
@@ -1972,11 +2003,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (next_chunk + 2 < buff_end)
     {
       uint str_db_type_length= uint2korr(next_chunk);
-      LEX_CSTRING name;
-      name.str= (char*) next_chunk + 2;
-      name.length= str_db_type_length;
+      se_name.str= (char*) next_chunk + 2;
+      se_name.length= str_db_type_length;
 
-      plugin_ref tmp_plugin= ha_resolve_by_name(thd, &name, false);
+      plugin_ref tmp_plugin= ha_resolve_by_name(thd, &se_name, false);
       if (tmp_plugin != NULL && !plugin_equals(tmp_plugin, se_plugin) &&
           legacy_db_type != DB_TYPE_S3)
       {
@@ -2000,28 +2030,15 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       else if (str_db_type_length == 9 &&
                !strncmp((char *) next_chunk + 2, "partition", 9))
       {
-        /*
-          Use partition handler
-          tmp_plugin is locked with a local lock.
-          we unlock the old value of se_plugin before
-          replacing it with a globally locked version of tmp_plugin
-        */
-        /* Check if the partitioning engine is ready */
-        if (!plugin_is_ready(&name, MYSQL_STORAGE_ENGINE_PLUGIN))
-        {
-          my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0),
-                   "--skip-partition");
+        if (change_to_partiton_engine(&se_name, &se_plugin))
           goto err;
-        }
-        plugin_unlock(NULL, se_plugin);
-        se_plugin= ha_lock_engine(NULL, partition_hton);
       }
 #endif
       else if (!tmp_plugin)
       {
         /* purecov: begin inspected */
-        ((char*) name.str)[name.length]=0;
-        my_error(ER_UNKNOWN_STORAGE_ENGINE, MYF(0), name.str);
+        ((char*) se_name.str)[se_name.length]=0;
+        my_error(ER_UNKNOWN_STORAGE_ENGINE, MYF(0), se_name.str);
         goto err;
         /* purecov: end */
       }
@@ -2052,6 +2069,13 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                           partition_info_str_len + 1)))
         {
           goto err;
+        }
+        if (plugin_data(se_plugin, handlerton*) != partition_hton &&
+            share->mysql_version >= 50600 && share->mysql_version <= 50799)
+        {
+          share->keep_original_mysql_version= 1;
+          if (change_to_partiton_engine(&se_name, &se_plugin))
+            goto err;
         }
       }
 #else
@@ -2320,6 +2344,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (share->mysql_version >= 50700 && share->mysql_version < 100000 &&
       vcol_screen_length)
   {
+    share->keep_original_mysql_version= 1;
     /*
       MySQL 5.7 stores the null bits for not stored fields last.
       Calculate the position for them.
@@ -2597,8 +2622,12 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     }
 
     /* Remove >32 decimals from old files */
-    if (share->mysql_version < 100200)
+    if (share->mysql_version < 100200 &&
+        (attr.pack_flag & FIELDFLAG_LONG_DECIMAL))
+    {
+      share->keep_original_mysql_version= 1;
       attr.pack_flag&= ~FIELDFLAG_LONG_DECIMAL;
+    }
 
     if (interval_nr && attr.charset->mbminlen > 1 &&
         !interval_unescaped[interval_nr - 1])
@@ -4210,7 +4239,6 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   outparam->in_use= thd;
   outparam->s= share;
   outparam->db_stat= db_stat;
-  outparam->write_row_record= NULL;
   outparam->status= STATUS_NO_RECORD;
 
   if (share->incompatible_version &&
@@ -5439,7 +5467,8 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
         error= TRUE;
       }
       else if (field_def->cset.str &&
-               strcmp(field->charset()->cs_name.str, field_def->cset.str))
+               strncmp(field->charset()->cs_name.str, field_def->cset.str,
+                       field_def->cset.length))
       {
         report_error(0, "Incorrect definition of table %s.%s: "
                      "expected the type of column '%s' at position %d "
@@ -6707,7 +6736,7 @@ void TABLE_LIST::register_want_access(privilege_t want_access)
 */
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-bool TABLE_LIST::prepare_view_security_context(THD *thd)
+bool TABLE_LIST::prepare_view_security_context(THD *thd, bool upgrade_check)
 {
   DBUG_ENTER("TABLE_LIST::prepare_view_security_context");
   DBUG_PRINT("enter", ("table: %s", alias.str));
@@ -6732,8 +6761,8 @@ bool TABLE_LIST::prepare_view_security_context(THD *thd)
       {
         if (thd->security_ctx->master_access & PRIV_REVEAL_MISSING_DEFINER)
         {
-          my_error(ER_NO_SUCH_USER, MYF(0), definer.user.str, definer.host.str);
-
+          my_error(ER_NO_SUCH_USER, MYF(upgrade_check ? ME_WARNING: 0),
+                   definer.user.str, definer.host.str);
         }
         else
         {
@@ -6815,11 +6844,33 @@ bool TABLE_LIST::prepare_security(THD *thd)
   TABLE_LIST *tbl;
   DBUG_ENTER("TABLE_LIST::prepare_security");
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
+  /*
+    Check if we are running REPAIR VIEW FOR UPGRADE
+    In this case we are probably comming from mysql_upgrade and
+    should not get an error for mysql.user table we just created.
+  */
+  bool upgrade_check= (thd->lex->sql_command == SQLCOM_REPAIR &&
+                       (thd->lex->check_opt.sql_flags &
+                        (TT_FOR_UPGRADE | TT_FROM_MYSQL)) &&
+                       (thd->security_ctx->master_access &
+                        PRIV_REVEAL_MISSING_DEFINER));
   Security_context *save_security_ctx= thd->security_ctx;
 
   DBUG_ASSERT(!prelocking_placeholder);
-  if (prepare_view_security_context(thd))
-    DBUG_RETURN(TRUE);
+  if (prepare_view_security_context(thd, upgrade_check))
+  {
+    if (upgrade_check)
+    {
+      /* REPAIR needs SELECT_ACL */
+      while ((tbl= tb++))
+      {
+        tbl->grant.privilege= SELECT_ACL;
+        tbl->security_ctx= save_security_ctx;
+      }
+      DBUG_RETURN(FALSE);
+    }
+    DBUG_RETURN(TRUE);                          // Fatal
+  }
   thd->security_ctx= find_view_security_context(thd);
   opt_trace_disable_if_no_security_context_access(thd);
   while ((tbl= tb++))
@@ -6845,7 +6896,7 @@ bool TABLE_LIST::prepare_security(THD *thd)
 #else
   while ((tbl= tb++))
     tbl->grant.privilege= ALL_KNOWN_ACL;
-#endif
+#endif /* NO_EMBEDDED_ACCESS_CHECKS */
   DBUG_RETURN(FALSE);
 }
 
