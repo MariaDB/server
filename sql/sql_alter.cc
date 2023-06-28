@@ -260,6 +260,14 @@ Alter_info::algorithm(const THD *thd) const
   return requested_algorithm;
 }
 
+bool Alter_info::algorithm_is_nocopy(const THD *thd) const
+{
+  auto alg= algorithm(thd);
+  return alg == ALTER_TABLE_ALGORITHM_INPLACE
+         || alg == ALTER_TABLE_ALGORITHM_INSTANT
+         || alg == ALTER_TABLE_ALGORITHM_NOCOPY;
+}
+
 
 Alter_table_ctx::Alter_table_ctx()
   : db(null_clex_str), table_name(null_clex_str), alias(null_clex_str),

@@ -233,6 +233,7 @@ public:
     algorithm then return alter_algorithm variable value.
    */
   enum_alter_table_algorithm algorithm(const THD *thd) const;
+  bool algorithm_is_nocopy(const THD *thd) const;
 
 private:
   Alter_info &operator=(const Alter_info &rhs); // not implemented

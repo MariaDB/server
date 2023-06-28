@@ -1,6 +1,6 @@
 --- alter_algorithm.result
 +++ alter_algorithm.reject
-@@ -7,43 +7,43 @@
+@@ -7,40 +7,40 @@
  INSERT INTO t1(f1, f2, f3) VALUES(1, 1, 1);
  SELECT @@alter_algorithm;
  @@alter_algorithm
@@ -56,13 +56,8 @@
 +affected rows: 0
 +info: Records: 0  Duplicates: 0  Warnings: 0
  ALTER TABLE t1 FORCE, ALGORITHM=DEFAULT;
--affected rows: 1
--info: Records: 1  Duplicates: 0  Warnings: 0
-+affected rows: 0
-+info: Records: 0  Duplicates: 0  Warnings: 0
- DROP TABLE t1;
  affected rows: 0
- CREATE TABLE t1(f1 INT PRIMARY KEY, f2 INT NOT NULL,
+ info: Records: 0  Duplicates: 0  Warnings: 0
 @@ -56,22 +56,22 @@
  FOREIGN KEY fidx(f1) REFERENCES t1(f1))ENGINE=INNODB;
  INSERT INTO t1(f1, f2, f4, f5) VALUES(1, 2, 3, 4);
