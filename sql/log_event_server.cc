@@ -7091,7 +7091,9 @@ static bool record_compare(TABLE *table, bool vers_from_plain= false)
     */
     if (!all_values_set)
     {
-      if (!f->has_explicit_value())
+      if (!f->has_explicit_value() &&
+          /* Don't skip row_end if replicating unversioned -> versioned */
+          !(vers_from_plain && table->vers_end_field() == f))
         continue;
       if (f->is_null() != f->is_null(table->s->rec_buff_length))
         goto record_compare_differ;
@@ -7809,7 +7811,6 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
       {
         error= m_table->file->ha_delete_row(m_table->record[0]);
       }
-      m_table->default_column_bitmaps();
     }
     if (invoke_triggers && likely(!error) &&
         unlikely(process_triggers(TRG_EVENT_DELETE, TRG_ACTION_AFTER, FALSE)))
