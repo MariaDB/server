@@ -10200,7 +10200,14 @@ commit_try_rebuild(
 	"parent" table. */
 	if (!user_table->space) {
 		rebuilt_table->file_unreadable = true;
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 12
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wconversion" /* GCC 5 to 11 need this */
+#endif
 		rebuilt_table->flags2 |= DICT_TF2_DISCARDED;
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 12
+# pragma GCC diagnostic pop /* ignored "-Wconversion" */
+#endif
 	}
 
 	/* We can now rename the old table as a temporary table,
