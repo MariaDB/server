@@ -1,7 +1,3 @@
-#
-# MDEV-26541 Undefined symbol: _ZTI12ha_partition when attempting to use ha_spider.so in UBSAN builds
-#
-INSTALL SONAME 'ha_spider.so';
 DROP FUNCTION spider_flush_table_mon_cache;
 DROP FUNCTION spider_copy_tables;
 DROP FUNCTION spider_ping_table;
