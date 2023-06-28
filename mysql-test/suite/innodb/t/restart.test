@@ -1,6 +1,7 @@
 --source include/innodb_page_size.inc
 --source include/not_embedded.inc
 --source include/have_symlink.inc
+--source include/not_as_root.inc
 
 let datadir= `select @@datadir`;
 let page_size= `select @@innodb_page_size`;

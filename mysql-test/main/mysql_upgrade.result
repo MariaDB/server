@@ -1,7 +1,7 @@
 set sql_mode="";
 call mtr.add_suppression("Incorrect definition of table mysql.column_stats:.*");
 Run mysql_upgrade once
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -32,8 +32,9 @@ mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
 mysql.user                                         OK
 sys.host_summary                                   OK
 sys.host_summary_by_file_io                        OK
@@ -135,9 +136,8 @@ sys.x$wait_classes_global_by_latency               OK
 sys.x$waits_by_host_by_latency                     OK
 sys.x$waits_by_user_by_latency                     OK
 sys.x$waits_global_by_latency                      OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
@@ -147,13 +147,14 @@ performance_schema
 sys
 sys.sys_config                                     OK
 test
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 Run it again - should say already completed
 This installation of MariaDB is already upgraded to VERSION.There is no need to run mariadb-upgrade again for VERSION.
 You can use --force if you still want to run mariadb-upgrade
 Force should run it regardless of whether it has been run before
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -184,8 +185,9 @@ mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
 mysql.user                                         OK
 sys.host_summary                                   OK
 sys.host_summary_by_file_io                        OK
@@ -287,9 +289,8 @@ sys.x$wait_classes_global_by_latency               OK
 sys.x$waits_by_host_by_latency                     OK
 sys.x$waits_by_user_by_latency                     OK
 sys.x$waits_global_by_latency                      OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
@@ -299,12 +300,13 @@ performance_schema
 sys
 sys.sys_config                                     OK
 test
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 CREATE USER mysqltest1@'%' IDENTIFIED by 'sakila';
 GRANT ALL ON *.* TO mysqltest1@'%';
 Run mysql_upgrade with password protected account
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -335,8 +337,9 @@ mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
 mysql.user                                         OK
 sys.host_summary                                   OK
 sys.host_summary_by_file_io                        OK
@@ -438,9 +441,8 @@ sys.x$wait_classes_global_by_latency               OK
 sys.x$waits_by_host_by_latency                     OK
 sys.x$waits_by_user_by_latency                     OK
 sys.x$waits_global_by_latency                      OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
@@ -450,7 +452,8 @@ performance_schema
 sys
 sys.sys_config                                     OK
 test
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 DROP USER mysqltest1@'%';
 Reading datadir from the MariaDB server failed. Got the following error when executing the 'mysql' command line client
@@ -461,7 +464,7 @@ Reading datadir from the MariaDB server failed. Got the following error when exe
 ERROR 2005 (HY000): Unknown server host 'not_existing_host' (errno)
 FATAL ERROR: Upgrade failed
 set GLOBAL sql_mode='STRICT_ALL_TABLES,ANSI_QUOTES,NO_ZERO_DATE';
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -492,8 +495,9 @@ mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
 mysql.user                                         OK
 sys.host_summary                                   OK
 sys.host_summary_by_file_io                        OK
@@ -595,9 +599,8 @@ sys.x$wait_classes_global_by_latency               OK
 sys.x$waits_by_host_by_latency                     OK
 sys.x$waits_by_user_by_latency                     OK
 sys.x$waits_global_by_latency                      OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
@@ -607,7 +610,8 @@ performance_schema
 sys
 sys.sys_config                                     OK
 test
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 set GLOBAL sql_mode=default;
 #
@@ -618,7 +622,7 @@ CREATE PROCEDURE testproc() BEGIN END;
 UPDATE mysql.proc SET character_set_client = NULL WHERE name LIKE 'testproc';
 UPDATE mysql.proc SET collation_connection = NULL WHERE name LIKE 'testproc';
 UPDATE mysql.proc SET db_collation = NULL WHERE name LIKE 'testproc';
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -649,8 +653,9 @@ mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
 mysql.user                                         OK
 sys.host_summary                                   OK
 sys.host_summary_by_file_io                        OK
@@ -752,9 +757,8 @@ sys.x$wait_classes_global_by_latency               OK
 sys.x$waits_by_host_by_latency                     OK
 sys.x$waits_by_user_by_latency                     OK
 sys.x$waits_global_by_latency                      OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
@@ -764,7 +768,8 @@ performance_schema
 sys
 sys.sys_config                                     OK
 test
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 CALL testproc();
 DROP PROCEDURE testproc;
@@ -778,7 +783,7 @@ WARNING: NULL values of the 'db_collation' column ('mysql.proc' table) have been
 GRANT USAGE ON *.* TO 'user3'@'%';
 GRANT ALL PRIVILEGES ON `roelt`.`test2` TO 'user3'@'%';
 Run mysql_upgrade with all privileges on a user
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -809,8 +814,9 @@ mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
 mysql.user                                         OK
 sys.host_summary                                   OK
 sys.host_summary_by_file_io                        OK
@@ -912,9 +918,8 @@ sys.x$wait_classes_global_by_latency               OK
 sys.x$waits_by_host_by_latency                     OK
 sys.x$waits_by_user_by_latency                     OK
 sys.x$waits_global_by_latency                      OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
@@ -924,7 +929,8 @@ performance_schema
 sys
 sys.sys_config                                     OK
 test
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 SHOW GRANTS FOR 'user3'@'%';
 Grants for user3@%
@@ -933,7 +939,7 @@ GRANT ALL PRIVILEGES ON `roelt`.`test2` TO `user3`@`%`
 DROP USER 'user3'@'%';
 # End of 5.1 tests
 The --upgrade-system-tables option was used, user tables won't be touched.
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -964,12 +970,13 @@ mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views... Skipped
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names ... Skipped
-Phase 6/7: Checking and upgrading tables... Skipped
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views... Skipped
+Phase 5/8: Fixing table and database names ... Skipped
+Phase 6/8: Checking and upgrading tables... Skipped
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 #
 # Bug#11827359 60223: MYSQL_UPGRADE PROBLEM WITH OPTION
@@ -977,7 +984,7 @@ OK
 #
 # Droping the previously created mariadb_upgrade_info file..
 # Running mysql_upgrade with --skip-write-binlog..
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -1008,8 +1015,9 @@ mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
 mysql.user                                         OK
 sys.host_summary                                   OK
 sys.host_summary_by_file_io                        OK
@@ -1111,9 +1119,8 @@ sys.x$wait_classes_global_by_latency               OK
 sys.x$waits_by_host_by_latency                     OK
 sys.x$waits_by_user_by_latency                     OK
 sys.x$waits_global_by_latency                      OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
@@ -1123,7 +1130,8 @@ performance_schema
 sys
 sys.sys_config                                     OK
 test
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 #
 # Bug #21489398: MYSQL_UPGRADE: FATAL ERROR: UPGRADE FAILED - IMPROVE ERROR
@@ -1148,7 +1156,7 @@ GRANT INSERT ON mysql.user TO very_long_user_name_number_2;
 GRANT UPDATE (User) ON mysql.db TO very_long_user_name_number_1;
 GRANT UPDATE (User) ON mysql.db TO very_long_user_name_number_2;
 CREATE PROCEDURE test.pr() BEGIN END;
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -1179,8 +1187,9 @@ mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
 mysql.user                                         OK
 sys.host_summary                                   OK
 sys.host_summary_by_file_io                        OK
@@ -1282,9 +1291,8 @@ sys.x$wait_classes_global_by_latency               OK
 sys.x$waits_by_host_by_latency                     OK
 sys.x$waits_by_user_by_latency                     OK
 sys.x$waits_global_by_latency                      OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
@@ -1294,7 +1302,8 @@ performance_schema
 sys
 sys.sys_config                                     OK
 test
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 SELECT definer FROM mysql.proc WHERE db = 'test' AND name = 'pr';
 definer
@@ -1327,7 +1336,7 @@ set sql_mode=default;
 create table test.t1(a int) engine=MyISAM;
 # Trying to enforce InnoDB for all tables
 SET GLOBAL enforce_storage_engine=InnoDB;
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -1358,8 +1367,9 @@ mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
 mysql.user                                         OK
 sys.host_summary                                   OK
 sys.host_summary_by_file_io                        OK
@@ -1461,9 +1471,8 @@ sys.x$wait_classes_global_by_latency               OK
 sys.x$waits_by_host_by_latency                     OK
 sys.x$waits_by_user_by_latency                     OK
 sys.x$waits_global_by_latency                      OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
@@ -1474,7 +1483,8 @@ sys
 sys.sys_config                                     OK
 test
 test.t1                                            OK
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 # Should return 2
 SELECT count(*) FROM information_schema.tables where ENGINE="InnoDB";
@@ -1545,7 +1555,7 @@ user	CREATE TABLE `user` (
   `account_locked` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
   PRIMARY KEY (`Host`,`User`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin COMMENT='Users and global privileges'
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -1578,9 +1588,11 @@ mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
 mysql.user                                         OK
 Upgrading from a version before MariaDB-10.1
-Phase 2/7: Installing used storage engines
+Phase 2/8: Installing used storage engines
 Checking for tables with unknown storage engine
-Phase 3/7: Fixing views
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
+mysql.user                                         OK
 sys.host_summary                                   OK
 sys.host_summary_by_file_io                        OK
 sys.host_summary_by_file_io_type                   OK
@@ -1681,9 +1693,8 @@ sys.x$wait_classes_global_by_latency               OK
 sys.x$waits_by_host_by_latency                     OK
 sys.x$waits_by_user_by_latency                     OK
 sys.x$waits_global_by_latency                      OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
@@ -1693,7 +1704,8 @@ performance_schema
 sys
 sys.sys_config                                     OK
 test
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 SHOW CREATE TABLE mysql.user;
 View	Create View	character_set_client	collation_connection
@@ -1723,7 +1735,7 @@ ALTER TABLE mysql.user ADD is_role enum('N', 'Y') COLLATE utf8_general_ci DEFAUL
 ALTER TABLE mysql.user ADD default_role char(80) binary DEFAULT '' NOT NULL;
 ALTER TABLE mysql.user ADD max_statement_time decimal(12,6) DEFAULT 0 NOT NULL;
 FLUSH PRIVILEGES;
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -1755,8 +1767,12 @@ mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
 mysql.user                                         OK
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
+mysql.user
+Warning  : The user specified as a definer ('mariadb.sys'@'localhost') does not exist
+status   : OK
 sys.host_summary                                   OK
 sys.host_summary_by_file_io                        OK
 sys.host_summary_by_file_io_type                   OK
@@ -1857,9 +1873,8 @@ sys.x$wait_classes_global_by_latency               OK
 sys.x$waits_by_host_by_latency                     OK
 sys.x$waits_by_user_by_latency                     OK
 sys.x$waits_global_by_latency                      OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
@@ -1869,7 +1884,8 @@ performance_schema
 sys
 sys.sys_config                                     OK
 test
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 SHOW CREATE TABLE mysql.user;
 View	Create View	character_set_client	collation_connection
@@ -1954,7 +1970,7 @@ SET GLOBAL alter_algorithm='INPLACE';
 SHOW GLOBAL VARIABLES LIKE 'alter_algorithm';
 Variable_name	Value
 alter_algorithm	INPLACE
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -1985,8 +2001,9 @@ mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
 mysql.user                                         OK
 sys.host_summary                                   OK
 sys.host_summary_by_file_io                        OK
@@ -2088,9 +2105,8 @@ sys.x$wait_classes_global_by_latency               OK
 sys.x$waits_by_host_by_latency                     OK
 sys.x$waits_by_user_by_latency                     OK
 sys.x$waits_global_by_latency                      OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
@@ -2100,7 +2116,8 @@ performance_schema
 sys
 sys.sys_config                                     OK
 test
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 SET GLOBAL alter_algorithm=DEFAULT;
 SHOW GLOBAL VARIABLES LIKE 'alter_algorithm';
@@ -2168,7 +2185,7 @@ FLUSH PRIVILEGES;
 CREATE USER mariadb_102;
 UPDATE mysql.user SET password_last_changed=0 WHERE user='mariadb_102';
 FLUSH PRIVILEGES;
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -2201,9 +2218,13 @@ mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
 mysql.user                                         OK
 Upgrading from a version before MariaDB-10.1
-Phase 2/7: Installing used storage engines
+Phase 2/8: Installing used storage engines
 Checking for tables with unknown storage engine
-Phase 3/7: Fixing views
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
+mysql.user
+Warning  : The user specified as a definer ('mariadb.sys'@'localhost') does not exist
+status   : OK
 sys.host_summary                                   OK
 sys.host_summary_by_file_io                        OK
 sys.host_summary_by_file_io_type                   OK
@@ -2304,9 +2325,8 @@ sys.x$wait_classes_global_by_latency               OK
 sys.x$waits_by_host_by_latency                     OK
 sys.x$waits_by_user_by_latency                     OK
 sys.x$waits_global_by_latency                      OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
@@ -2316,7 +2336,8 @@ performance_schema
 sys
 sys.sys_config                                     OK
 test
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 SHOW CREATE USER mariadb_102;
 CREATE USER for mariadb_102@%

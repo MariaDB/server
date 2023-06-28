@@ -4,6 +4,8 @@
 
 source include/not_windows.inc;
 source include/not_embedded.inc;
+source include/not_as_root.inc;
+
 #
 # MDEV-17710 "unknown error" with FLUSH LOGS if log directory is not writeable
 #
