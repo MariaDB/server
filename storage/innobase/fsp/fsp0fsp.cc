@@ -3072,11 +3072,9 @@ std::ostream &fseg_header::to_stream(std::ostream &out) const
 @param threshold  truncated value
 @param mtr        mini-transaction to remove the extents
 @return DB_SUCCESS on success or error code */
-static
-void
-fsp_truncate_list(fil_space_t *space, buf_block_t *header,
-		  uint16_t hdr_offset, uint32_t threshold,
-		  mtr_t *mtr)
+static void fsp_truncate_list(fil_space_t *space, buf_block_t *header,
+                              uint16_t hdr_offset, uint32_t threshold,
+                              mtr_t *mtr)
 {
   const uint32_t len= flst_get_len(
     FSP_HEADER_OFFSET + hdr_offset + header->page.frame);
@@ -3085,37 +3083,33 @@ fsp_truncate_list(fil_space_t *space, buf_block_t *header,
 
   buf_block_t *descr_block= nullptr;
   dberr_t err= DB_SUCCESS;
-  fil_addr_t addr= flst_get_first(
-    header->page.frame + FSP_HEADER_OFFSET + hdr_offset);
+  fil_addr_t addr= flst_get_first(header->page.frame + FSP_HEADER_OFFSET +
+                                  hdr_offset);
 
   for (uint32_t i= len; i > 0; i--)
   {
     const buf_block_t *b=
       buf_page_get_gen(page_id_t(space->id, addr.page),
-		       space->zip_size(), RW_SX_LATCH, nullptr,
-		       BUF_GET, mtr);
+                       space->zip_size(), RW_SX_LATCH, nullptr,
+                       BUF_GET, mtr);
 
-    xdes_t *descr= xdes_lst_get_descriptor(
-	*space, addr, mtr, &descr_block, &err);
+    xdes_t *descr= xdes_lst_get_descriptor(*space, addr, mtr, &descr_block,
+                                           &err);
     ut_ad(descr);
 
     if (threshold <= xdes_get_offset(descr))
     {
       /* Remove the truncated free list extents */
-      err= flst_remove(
-             header,
-             static_cast<uint16_t>(FSP_HEADER_OFFSET + hdr_offset), descr_block,
-             static_cast<uint16_t>(descr - descr_block->page.frame
-                                   + XDES_FLST_NODE), mtr);
+      err= flst_remove(header,
+                       uint16_t(FSP_HEADER_OFFSET + hdr_offset), descr_block,
+                       uint16_t(descr - descr_block->page.frame +
+                                XDES_FLST_NODE), mtr);
       if (hdr_offset == FSP_FREE)
         space->free_len--;
       else
       {
-        uint32_t frag_n_used= mach_read_from_4(
-          FSP_HEADER_OFFSET + FSP_FRAG_N_USED + header->page.frame);
-	frag_n_used-= 2;
-	mtr->write<4>(*header, FSP_HEADER_OFFSET + FSP_FRAG_N_USED
-                      + header->page.frame, frag_n_used);
+        byte *n_used= FSP_HEADER_OFFSET + FSP_FRAG_N_USED + header->page.frame;
+        mtr->write<4>(*header, n_used, mach_read_from_4(n_used) - 2);
       }
     }
 
