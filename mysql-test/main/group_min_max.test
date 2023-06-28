@@ -7,7 +7,7 @@
 --source include/default_optimizer_switch.inc
 --source include/have_sequence.inc
 --source include/have_innodb.inc
---source include/have_sequence.inc
+
 #
 # TODO:
 # Add queries with:

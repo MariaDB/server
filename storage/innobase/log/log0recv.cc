@@ -2679,14 +2679,14 @@ restart:
           innodb_undo_log_truncate=ON. Discard old log for all pages. */
 	  if (space_id == 0)
 	  {
-            trim({space_id, page_no}, lsn);
-            truncated_sys_space={ lsn, page_no};
+            trim({space_id, page_no}, start_lsn);
+            truncated_sys_space={ start_lsn, page_no};
 	  }
 	  else
 	  {
-            trim({space_id, 0}, lsn);
+            trim({space_id, 0}, start_lsn);
             truncated_undo_spaces[space_id - srv_undo_space_id_start]=
-            { lsn, page_no };
+            { start_lsn, page_no };
 	  }
           if (!store && undo_space_trunc && space_id > 0)
             undo_space_trunc(space_id);
