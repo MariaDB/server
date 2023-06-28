@@ -2301,7 +2301,7 @@ int view_repair(THD *thd, TABLE_LIST *view, HA_CHECK_OPT *check_opt)
   bool swap_alg= (check_opt->sql_flags & TT_FROM_MYSQL);
   bool wrong_checksum= view_checksum(thd, view) != HA_ADMIN_OK;
   int ret;
-  if (wrong_checksum || swap_alg || (!view->mariadb_version))
+  if (wrong_checksum || !view->mariadb_version)
   {
     ret= mariadb_fix_view(thd, view, wrong_checksum, swap_alg);
     DBUG_RETURN(ret);

@@ -901,6 +901,8 @@ struct TABLE_SHARE
   bool has_update_default_function;
   bool can_do_row_logging;              /* 1 if table supports RBR */
   bool long_unique_table;
+  /* 1 if frm version cannot be updated as part of upgrade */
+  bool keep_original_mysql_version;
   bool optimizer_costs_inited;
 
   ulong table_map_id;                   /* for row-based replication */
@@ -2889,7 +2891,7 @@ struct TABLE_LIST
   bool prepare_security(THD *thd);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   Security_context *find_view_security_context(THD *thd);
-  bool prepare_view_security_context(THD *thd);
+  bool prepare_view_security_context(THD *thd, bool upgrade_check);
 #endif
   /*
     Cleanup for re-execution in a prepared statement or a stored
