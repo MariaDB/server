@@ -10674,31 +10674,25 @@ do_continue:;
 #endif
 
   /*
-    Use copy algorithm if:
-    - old_alter_table system variable is set without in-place requested using
-      the ALGORITHM clause.
-    - Or if in-place is impossible for given operation.
+    We can use only copy algorithm if one of the following is true:
+    - In-place is impossible for given operation.
     - Changes to partitioning which were not handled by fast_alter_part_table()
       needs to be handled using table copying algorithm unless the engine
       supports auto-partitioning as such engines can do some changes
       using in-place API.
   */
-  if ((thd->variables.alter_algorithm == Alter_info::ALTER_TABLE_ALGORITHM_COPY &&
-       alter_info->algorithm(thd) !=
-       Alter_info::ALTER_TABLE_ALGORITHM_INPLACE)
-      || is_inplace_alter_impossible(table, create_info, alter_info)
+  if (is_inplace_alter_impossible(table, create_info, alter_info)
       || IF_PARTITIONING((partition_changed &&
-          !(old_db_type->partition_flags() & HA_USE_AUTO_PARTITION)), 0))
+                          !(old_db_type->partition_flags() & HA_USE_AUTO_PARTITION)), 0))
   {
-    if (alter_info->algorithm(thd) ==
-        Alter_info::ALTER_TABLE_ALGORITHM_INPLACE)
+    if (alter_info->algorithm_is_nocopy(thd))
     {
       my_error(ER_ALTER_OPERATION_NOT_SUPPORTED, MYF(0),
                "ALGORITHM=INPLACE", "ALGORITHM=COPY");
       DBUG_RETURN(true);
     }
-    alter_info->set_requested_algorithm(
-      Alter_info::ALTER_TABLE_ALGORITHM_COPY);
+
+    alter_info->set_requested_algorithm(Alter_info::ALTER_TABLE_ALGORITHM_COPY);
   }
 
   /*
