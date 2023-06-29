@@ -1,0 +1,1279 @@
+Logging: ./mtr  --suite=main --big --mem --parallel=15 --mem --force --max-test-fail=5000
+VS config: 
+vardir: /optane/dev-git2/10.11-monty/mysql-test/var
+Checking leftover processes...
+Removing old var directory...
+Creating var directory '/optane/dev-git2/10.11-monty/mysql-test/var'...
+ - symlinking 'var' to '/dev/shm/var_auto_TmWm'
+Checking supported features...
+MariaDB Version 10.11.5-MariaDB-debug
+ - SSL connections supported
+ - binaries are debug compiled
+Using suites: main
+Collecting tests...
+Installing system database...
+
+==============================================================================
+
+TEST                                  WORKER RESULT   TIME (ms) or COMMENT
+--------------------------------------------------------------------------
+
+worker[8] Using MTR_BUILD_THREAD 308, with reserved ports 16160..16179
+worker[4] Using MTR_BUILD_THREAD 301, with reserved ports 16020..16039
+worker[3] Using MTR_BUILD_THREAD 300, with reserved ports 16000..16019
+worker[5] Using MTR_BUILD_THREAD 304, with reserved ports 16080..16099
+worker[7] Using MTR_BUILD_THREAD 306, with reserved ports 16120..16139
+worker[6] Using MTR_BUILD_THREAD 307, with reserved ports 16140..16159
+worker[9] Using MTR_BUILD_THREAD 302, with reserved ports 16040..16059
+worker[1] Using MTR_BUILD_THREAD 303, with reserved ports 16060..16079
+worker[2] Using MTR_BUILD_THREAD 305, with reserved ports 16100..16119
+worker[10] Using MTR_BUILD_THREAD 309, with reserved ports 16180..16199
+worker[12] Using MTR_BUILD_THREAD 310, with reserved ports 16200..16219
+worker[13] Using MTR_BUILD_THREAD 311, with reserved ports 16220..16239
+worker[14] Using MTR_BUILD_THREAD 314, with reserved ports 16280..16299
+worker[11] Using MTR_BUILD_THREAD 312, with reserved ports 16240..16259
+worker[15] Using MTR_BUILD_THREAD 313, with reserved ports 16260..16279
+main.events_time_zone                    [ disabled ]  Test is not predictable as it depends on precise timing.
+main.file_contents                       [ disabled ]  MDEV-6526 these files are not installed anymore
+main.max_statement_time                  [ disabled ]  cannot possibly work, depends on timing
+main.mysql_embedded                      [ disabled ]  Bug#12561297 2011-05-14 Anitha Dependent on PB2 changes - eventum#41836
+main.partition_innodb                    [ disabled ]  Waiting for fix MDEV-20169
+main.partition_open_files_limit          [ disabled ]  open_files_limit check broken by MDEV-18360
+main.read_many_rows_innodb               [ disabled ]  Bug#11748886 2010-11-15 mattiasj report already exists
+main.tablespace                          [ disabled ]  disabled in MariaDB (no TABLESPACE table attribute)
+main.mysql_install_db_win_admin 'innodb' [ skipped ]  Requires admin privileges
+main.charset_client_win                  [ skipped ]  Not tested with utf8 command line support
+main.openssl_6975                        [ skipped ]  no or wrong openssl version
+main.winservice_basic                    [ skipped ]  Requires admin privileges
+main.winservice_i18n                     [ skipped ]  Requires admin privileges
+main.connect-abstract                    w10 [ pass ]      1
+main.bind_address_resolution             w12 [ pass ]     40
+main.bind_multiple_addresses_resolution  w9 [ pass ]     46
+main.connect2                            w4 [ pass ]     27
+main.ctype_cp932_binlog_row              w8 [ pass ]    101
+main.mysqlbinlog_row_minimal             w15 [ pass ]    125
+main.ipv4_and_ipv6                       w2 [ pass ]    169
+main.ipv6                                w6 [ pass ]    252
+main.invisible_partition                 w12 [ pass ]     53
+main.mysqlbinlog_row_compressed          w10 [ pass ]    108
+main.long_unique_bugs 'innodb'           w14 [ pass ]    250
+main.ipv4_as_ipv6                        w7 [ pass ]    480
+main.mysqlbinlog-innodb 'innodb'         w9 [ pass ]     18
+main.session_tracker_last_gtid 'innodb'  w8 [ pass ]      9
+main.partition_innodb_stmt 'innodb'      w4 [ pass ]     25
+main.mysqlbinlog_stmt_compressed         w2 [ pass ]     75
+main.set_statement_notembedded_binlog    w2 [ pass ]     22
+main.ctype_filesystem                    w10 [ pass ]      3
+main.lock_tables_lost_commit 'innodb'    w12 [ pass ]     13
+main.mysqlbinlog                         w15 [ pass ]    496
+main.stat_tables_rbr 'innodb'            w1 [ pass ]    898
+main.sp_trans_log 'innodb'               w13 [ pass ]    859
+main.ctype_utf16_def                     w2 [ pass ]     71
+main.ctype_utf32_def                     w10 [ pass ]     74
+main.ctype_ucs2_query_cache              w8 [ pass ]     66
+main.ctype_ucs2_def                      w4 [ pass ]     43
+main.bug47671                            w15 [ pass ]     16
+main.type_varchar                        w9 [ pass ]    140
+main.upgrade                             w9 [ pass ]     55
+main.lowercase_utf8                      w12 [ pass ]      3
+main.date_formats                        w4 [ pass ]     90
+main.ctype_utf8mb4_unicode_ci_def        w1 [ pass ]     58
+main.ctype_utf8_def_upgrade              w13 [ pass ]     83
+main.mysqlcheck 'innodb'                 w7 [ pass ]    838
+main.ctype_ldml                          w2 [ pass ]    446
+main.grant                               w10 [ pass ]    548
+main.lock_sync 'innodb'                  w15 [ pass ]    525
+main.grant2                              w10 [ pass ]    193
+main.ctype_utf8mb4_innodb 'innodb'       w9 [ pass ]    582
+main.crash_commit_before 'innodb'        w13 [ pass ]    416
+main.grant4                              w10 [ pass ]    184
+main.mysqldump-max 'innodb'              w12 [ pass ]    733
+main.enforce_storage_engine_opt          w10 [ pass ]     46
+main.tc_heuristic_recover 'innodb'       w11 [ pass ]   3143
+main.sql_safe_updates                    w13 [ pass ]     37
+main.mdl_sync 'innodb'                   w1 [ pass ]   1407
+main.ps                                  w14 [ pass ]   2733
+main.log_state_bug33693                  w11 [ pass ]       
+main.userstat 'innodb'                   w15 [ pass ]   1046
+main.subselect_mat_cost                  w11 [ pass ]    472
+main.ctype_utf8 'innodb'                 w7 [ pass ]   3649
+main.events_logs_tests                   w10 [ pass ]   3077
+main.ctype_utf8mb4 'innodb'              w7 [ pass ]    382
+main.create_or_replace 'innodb'          w10 [ pass ]    107
+main.implicit_commit 'innodb'            w7 [ pass ]    196
+main.ps_3innodb 'innodb'                 w7 [ pass ]    243
+main.strict 'innodb'                     w7 [ pass ]    104
+main.innodb_load_xa                      w7 [ skipped ]  Need InnoDB plugin
+main.show_explain 'innodb'               w9 [ pass ]   5026
+main.innodb_ignore_builtin               w7 [ pass ]      2
+main.init_file                           w9 [ pass ]      2
+main.init_file_longline_3816             w7 [ pass ]     52
+main.init_connection_query_cache         w9 [ pass ]     60
+main.init_connect                        w7 [ pass ]    117
+main.mysql_upgrade-6984                  w10 [ pass ]   2138
+main.delayed_blob                        w9 [ pass ]     44
+main.insert_debug 'innodb'               w10 [ pass ]     16
+main.partition_binlog_stmt               w6 [ pass ]     44
+main.bootstrap                           w2 [ pass ]   8468
+main.mdev-25830 'innodb,unoptimized'     w6 [ pass ]     38
+main.partition_innodb_semi_consistent 'innodb' w4 [ pass ]  10048
+main.pool_of_threads                     w5 [ pass ]  12709
+main.mdev-25830 'covering,innodb'        w4 [ pass ]     37
+main.large_pages 'innodb'                w5 [ pass ]      9
+main.innodb_ext_key 'innodb,off,unoptimized' w9 [ pass ]   3276
+main.drop_table_force 'innodb'           w5 [ pass ]     53
+main.events_bugs                         w12 [ pass ]  10532
+main.innodb_ext_key 'innodb,on,unoptimized' w10 [ pass ]   3278
+main.connect                             w3 [ pass ]  14229
+main.innodb_ext_key 'covering,innodb,off' w2 [ pass ]   3307
+main.bug39022 'innodb'                   w5 [ pass ]    223
+main.innodb_mysql_lock2 'innodb'         w9 [ pass ]    636
+main.flush_block_commit_notembedded 'innodb' w4 [ pass ]   1086
+main.innodb_ext_key 'covering,innodb,on' w6 [ pass ]   3353
+main.partition_exchange 'innodb'         w10 [ pass ]    216
+main.log_state                           w11 [ pass ]  10413
+main.partition_explicit_prune 'innodb'   w2 [ pass ]    477
+main.alter_table_online 'innodb'         w4 [ pass ]    114
+main.bug46760 'innodb'                   w10 [ pass ]      9
+main.commit_1innodb 'innodb'             w5 [ pass ]   1049
+main.row-checksum-old 'innodb'           w11 [ pass ]     29
+main.auto_increment_ranges_innodb 'innodb' w4 [ pass ]    169
+main.create_select 'innodb'              w5 [ pass ]     18
+main.row-checksum 'innodb'               w2 [ pass ]     33
+main.sp_trans 'innodb'                   w5 [ pass ]    271
+main.backup_interaction 'innodb'         w10 [ pass ]     88
+main.xa_binlog 'innodb'                  w5 [ pass ]     14
+main.log_tables                          w15 [ pass ]  13721
+main.long_unique_innodb 'innodb'         w7 [ pass ]   8033
+main.backup_lock 'innodb'                w10 [ pass ]   3088
+main.mysqldump 'innodb'                  w8 [ pass ]  18577
+main.group_min_max 'innodb'              w5 [ pass ]   3433
+main.statistics_json 'innodb'            w2 [ pass ]   3724
+main.events_restart                      w12 [ pass ]   7081
+main.lowercase_mixed_tmpdir_innodb 'innodb' w2 [ skipped ]  Test requires: 'lowercase2'
+main.lowercase_table4 'innodb'           w12 [ skipped ]  Test requires: 'case_insensitive_file_system'
+main.mysql_upgrade_mysql_json_datatype 'innodb' w8 [ pass ]   3028
+main.plugin_innodb 'innodb'              w12 [ pass ]   1859
+main.temp_table 'innodb'                 w12 [ pass ]    131
+main.information_schema_all_engines 'innodb' w6 [ pass ]  10330
+main.plugin_auth 'innodb'                w2 [ pass ]   4183
+main.stat_tables_innodb 'innodb'         w3 [ pass ]  11944
+main.mysqldump-order-by-size 'innodb'    w2 [ pass ]     66
+main.mysqldump-system 'innodb,unix'      w2 [ pass ]    327
+main.xa_prepared_binlog_off 'innodb'     w8 [ pass ]   2823
+main.opt_trace_index_merge_innodb 'innodb' w2 [ pass ]    339
+main.order_by_optimizer_innodb 'innodb'  w2 [ pass ]    114
+main.alter_table_combinations 'innodb'   w8 [ pass ]     90
+main.plugin_loaderr                      w3 [ pass ]   1383
+main.selectivity_innodb 'innodb'         w15 [ pass ]  10125
+main.key_cache                           w3 [ pass ]    303
+main.myisam-blob                         w8 [ pass ]    622
+main.selectivity_innodb_notembedded 'innodb' w15 [ pass ]    609
+main.locale                              w8 [ pass ]     75
+main.stat_tables_innodb_debug 'innodb'   w15 [ pass ]     27
+main.parser_bug21114_innodb 'innodb'     w2 [ pass ]   2289
+main.percona_nonflushing_analyze_debug 'innodb' w2 [ pass ]     13
+main.innodb_mysql_sync 'innodb'          w4 [ pass ]  15359
+main.progress_976225 'innodb'            w2 [ pass ]     19
+main.partition_binlog                    w15 [ pass ]    100
+main.ps_innodb 'innodb'                  w2 [ pass ]     23
+main.ctype_cp932_binlog_stm              w8 [ pass ]    990
+main.ps_missed_cmds 'innodb'             w2 [ pass ]     66
+main.ps_missed_cmds_bin_prot 'innodb'    w2 [ skipped ]  Need ps-protocol
+main.ps_missed_cmds_bin_prot_not_embedded 'innodb' w2 [ skipped ]  Need ps-protocol
+main.alter_table-big                     w15 [ pass ]    160
+main.system_mysql_db_error_log           w8 [ pass ]     37
+main.ps_missed_cmds_not_embedded 'innodb' w2 [ pass ]      5
+main.create-big                          w15 [ pass ]    154
+main.stat_tables_par_innodb 'innodb'     w12 [ pass ]   6446
+main.mysql_upgrade-20228 'innodb'        w4 [ pass ]   1002
+main.ps_qc_innodb 'innodb'               w2 [ pass ]    542
+main.query_cache_innodb 'innodb'         w2 [ pass ]     71
+main.mysqlbinlog_row_big                 w15 [ pass ]    905
+main.show_check                          w8 [ pass ]   1217
+main.mysql_upgrade_to_100502 'innodb'    w4 [ pass ]    938
+main.rowid_filter_innodb 'innodb'        w5 [ pass ]  12908
+main.partition_alter 'innodb'            w4 [ pass ]    156
+main.status                              w8 [ pass ]    151
+main.select_pkeycache 'nm'               w3 [ pass ]   4134
+main.partition_cache 'innodb'            w4 [ pass ]    192
+main.explain_slowquerylog                w3 [ pass ]     49
+main.multi_statement                     w5 [ pass ]     45
+main.analyze_stmt_slow_query_log         w3 [ pass ]     40
+main.partition_blackhole                 w5 [ pass ]     90
+main.information_schema-big 'innodb'     w6 [ pass ]   7719
+main.union                               w8 [ pass ]    610
+main.blackhole                           w3 [ pass ]     59
+main.alter_events 'innodb'               w6 [ pass ]    116
+main.partition_cache_innodb 'innodb'     w4 [ pass ]    841
+main.func_encrypt                        w8 [ pass ]     88
+main.mysqldump-compat                    w5 [ pass ]    131
+main.ssl_7937 'nossl'                    w3 [ pass ]     40
+main.backup_lock_binlog                  w15 [ pass ]   2008
+main.partition_datatype 'innodb'         w4 [ pass ]    170
+main.cli_options_force_protocol_win      w8 [ skipped ]  Need windows
+main.auth_named_pipe                     w5 [ skipped ]  Need windows
+main.compound                            w15 [ pass ]     94
+main.named_pipe                          w5 [ skipped ]  Need windows
+main.partition_debug_sync 'innodb'       w4 [ pass ]    117
+main.create_drop_binlog                  w15 [ pass ]     71
+main.partition_innodb_plugin 'innodb'    w4 [ pass ]     63
+main.partition_range                     w8 [ pass ]    268
+main.partition_not_blackhole             w5 [ pass ]      7
+main.create_drop_function                w15 [ pass ]     10
+main.partition_mrr_innodb 'innodb'       w4 [ pass ]     54
+main.ctype_gbk_binlog                    w15 [ pass ]     28
+main.truncate-stale-6500 'innodb'        w4 [ pass ]     20
+main.partition_example                   w5 [ pass ]     55
+main.statistics 'innodb'                 w12 [ pass ]   4104
+main.type_datetime_hires 'innodb'        w4 [ pass ]     71
+main.statistics_index_crash-7362 'innodb' w12 [ pass ]     28
+main.partition_not_windows               w5 [ pass ]     69
+main.assign_key_cache                    w5 [ pass ]     67
+main.auto_increment_ranges_myisam        w5 [ pass ]     59
+main.column_compression_parts            w5 [ pass ]    178
+main.partition                           w3 [ pass ]   2354
+main.ctype_partitions                    w5 [ pass ]     17
+main.ctype_uca_partitions                w5 [ pass ]     25
+main.drop_bad_db_type                    w5 [ pass ]     23
+main.explain_json_format_partitions      w5 [ pass ]      8
+main.explain_non_select                  w5 [ pass ]     56
+main.range 'innodb'                      w2 [ pass ]   5907
+main.multi_update                        w4 [ pass ]   2168
+main.stat_tables                         w12 [ pass ]   2558
+main.ssl_7937 'x509v3'                   w4 [ pass ]     87
+main.ssl_verify_ip                       w4 [ pass ]     32
+main.ssl_7937 'ssl'                      w12 [ pass ]     96
+main.alter_table 'innodb'                w6 [ pass ]   5124
+main.alter_table_autoinc-5574 'innodb'   w6 [ pass ]      7
+main.alter_table_errors 'innodb'         w6 [ pass ]     10
+main.alter_table_trans 'innodb'          w6 [ pass ]     34
+main.mysql_client_test                   w1 [ pass ]  37158
+main.analyze_stmt_orderby 'innodb'       w6 [ pass ]     61
+main.mysql_client_test_nonblock          w14 [ pass ]  37529
+main.plugin_load                         w1 [ pass ]      4
+main.backup_lock_debug 'innodb'          w6 [ pass ]     17
+main.flush_and_binlog                    w15 [ pass ]   5010
+main.failed_auth_unixsocket              w4 [ pass ]   1067
+main.plugin_load_option                  w14 [ pass ]      3
+main.backup_log 'innodb'                 w6 [ pass ]     80
+main.password_expiration_unix_socket     w4 [ pass ]     20
+main.huge_frm-6224                       w5 [ pass ]   2648
+main.multi_update_binlog                 w15 [ pass ]     79
+main.ignored_index                       w5 [ pass ]    108
+main.mysql_binary_mode                   w15 [ pass ]     92
+main.information_schema_part             w5 [ pass ]     30
+main.mysql_binary_zero_insert            w15 [ pass ]     97
+main.lock                                w5 [ pass ]    108
+main.long_unique                         w5 [ pass ]    209
+main.partition_bug18198                  w5 [ pass ]     17
+main.func_misc                           w12 [ pass ]   2829
+main.mysql_upgrade 'innodb'              w9 [ pass ]  28568
+main.partition_cache_myisam              w5 [ pass ]    747
+main.partition_charset                   w5 [ pass ]     15
+main.partition_column                    w5 [ pass ]     93
+main.analyze_format_json_timings         w9 [ pass ]    207
+main.partition_column_prune              w5 [ pass ]     25
+main.range_mrr_icp 'innodb'              w2 [ pass ]   5551
+main.bootstrap_innodb 'innodb'           w6 [ pass ]   2951
+main.partition_csv                       w5 [ pass ]     29
+main.cte_recursive                       w14 [ pass ]   2933
+main.read_only_innodb 'innodb'           w2 [ pass ]     58
+main.cache_innodb 'innodb'               w6 [ pass ]    173
+main.reopen_temp_table 'innodb'          w2 [ pass ]     55
+main.partition_default                   w5 [ pass ]    181
+main.check_constraint_innodb 'innodb'    w6 [ pass ]     15
+main.rowid_order_innodb 'innodb'         w2 [ pass ]     40
+main.mysql_upgrade_view                  w15 [ pass ]   3049
+main.partition_error                     w5 [ pass ]    270
+main.mysqlbinlog_raw_mode                w15 [ pass ]    127
+main.partition_grant                     w5 [ pass ]     22
+main.column_compression 'innodb'         w6 [ pass ]    397
+main.index_merge_innodb 'innodb'         w11 [ pass ]  29735
+main.sp                                  w8 [ pass ]   9870
+main.partition_hash                      w5 [ pass ]     43
+main.commit 'innodb'                     w6 [ pass ]     60
+main.mysqldump_restore                   w15 [ pass ]    362
+main.skip_log_bin                        w8 [ pass ]     42
+main.partition_key_cache                 w5 [ pass ]    443
+main.warnings                            w11 [ pass ]     96
+main.partition_disabled                  w8 [ pass ]     28
+main.show_analyze 'innodb'               w2 [ pass ]   1148
+main.partition_list                      w5 [ pass ]     51
+main.partition_mgm                       w5 [ pass ]     24
+main.variables-notembedded               w8 [ pass ]     67
+main.partition_mgm_err                   w5 [ pass ]     55
+main.myisam_crash_before_flush_keys      w11 [ pass ]    269
+main.partition_mgm_err2                  w5 [ pass ]     11
+main.ctype_utf8mb4_general_ci_casefold   w14 [ pass ]   2336
+main.ssl_system_ca 'bad'                 w8 [ pass ]     50
+main.partition_mrr_aria                  w5 [ pass ]     45
+main.ssl_8k_key                          w11 [ pass ]     46
+main.partition_mrr_myisam                w5 [ pass ]     53
+main.show_analyze_json 'innodb'          w2 [ pass ]   1064
+main.partition_myisam                    w5 [ pass ]     50
+main.partition_order                     w5 [ pass ]    115
+main.partition_pruning                   w5 [ pass ]    498
+main.partition_rename_longfilename       w5 [ pass ]     12
+main.partition_sp                        w5 [ pass ]      6
+main.show_explain_json 'innodb'          w2 [ pass ]   1182
+main.thread_pool_info                    w11 [ pass ]   1339
+main.index_merge_myisam                  w1 [ pass ]   7787
+main.partition_symlink                   w5 [ pass ]     36
+main.show_explain_non_select 'innodb'    w2 [ pass ]    103
+main.partition_sync                      w5 [ pass ]     21
+main.selectivity                         w12 [ pass ]   5820
+main.ssl_cipher                          w11 [ skipped ]  OpenSSL 1.1.1
+main.ctype_utf8mb4_general_ci_ws         w14 [ pass ]   2136
+main.partition_truncate                  w5 [ pass ]      9
+main.simultaneous_assignment 'innodb'    w2 [ pass ]     29
+main.ssl_timeout-9836                    w8 [ pass ]   2014
+main.selectivity_notembedded             w12 [ pass ]     58
+main.partition_ucs2                      w5 [ pass ]      4
+main.single_delete_update_innodb 'innodb' w2 [ pass ]     11
+main.partition_utf8                      w5 [ pass ]     24
+main.sp-group 'innodb'                   w2 [ pass ]     33
+main.lowercase_mixed_tmpdir              w8 [ pass ]     38
+main.stat_tables_myisam_debug            w12 [ pass ]     45
+main.partition_utf8-debug                w5 [ pass ]     20
+main.partition_windows                   w5 [ skipped ]  Need windows
+main.stat_tables_partition               w5 [ pass ]     14
+main.grant_lowercase                     w8 [ pass ]     44
+main.lowercase_view                      w12 [ pass ]     64
+main.delete_use_source 'innodb'          w7 [ pass ]  31772
+main.lowercase_table                     w8 [ pass ]     71
+main.lowercase_table_grant               w8 [ pass ]      6
+main.variables                           w12 [ pass ]    291
+main.lowercase_table_qcache              w8 [ pass ]      6
+main.user_limits                         w12 [ pass ]     91
+main.ctype_utf8mb4_turkish_ci_casefold   w14 [ pass ]   2009
+main.mysql_json_table_recreate           w1 [ pass ]   2433
+main.view                                w5 [ pass ]   1502
+main.myisam_recover                      w12 [ pass ]    573
+main.merge_mmap                          w5 [ pass ]     73
+main.old-mode                            w12 [ pass ]     87
+main.plugin_auth_qa                      w5 [ pass ]    122
+main.count_distinct2                     w8 [ pass ]   1442
+main.mysql_json_mysql_upgrade_with_plugin_loaded w11 [ pass ]   3206
+main.multi_update_tiny_hash              w8 [ pass ]     19
+main.plugin_auth_qa_2                    w12 [ pass ]    166
+main.plugin_auth_qa_1                    w5 [ pass ]    272
+main.plugin_auth_qa_3                    w11 [ pass ]     29
+main.plugin_maturity                     w8 [ pass ]      2
+main.myisam                              w1 [ pass ]   1291
+main.handlersocket                       w12 [ pass ]      5
+main.bug58669                            w11 [ pass ]      5
+main.require_secure_transport            w8 [ pass ]      4
+main.plugin                              w12 [ pass ]     93
+main.ctype_utf8mb4_uca1400_ai_ci_casefold w14 [ pass ]   2072
+main.grant3                              w1 [ pass ]    108
+main.secure_file_priv_win                w11 [ skipped ]  Need windows
+main.sp-innodb 'innodb'                  w2 [ pass ]   4043
+main.ssl_and_innodb 'innodb'             w2 [ pass ]      6
+main.udf_skip_grants                     w1 [ pass ]      1
+main.flush2                              w11 [ pass ]      4
+main.mysqldump-no-binlog                 w11 [ pass ]     17
+main.kill-2                              w1 [ pass ]      8
+main.skip_name_resolve                   w1 [ pass ]     12
+main.concurrent_innodb_safelog 'innodb'  w6 [ pass ]   9086
+main.ssl_crl 'file'                      w1 [ pass ]     45
+main.plugin_not_embedded                 w12 [ pass ]   1421
+main.ssl_crl 'path'                      w1 [ pass ]     40
+main.table_options-5867                  w12 [ pass ]      5
+main.mysqltest                           w15 [ pass ]   9697
+main.truncate_badse                      w12 [ pass ]     10
+main.ps_change_master                    w15 [ pass ]      6
+main.wolfssl                             w1 [ pass ]      1
+main.ctype_utf8mb4_unicode_520_ci_casefold w14 [ pass ]   2040
+main.no-threads                          w1 [ skipped ]  Test requires: 'one_thread_per_connection'
+main.trigger_wl3253                      w15 [ pass ]    186
+main.user_var-binlog                     w15 [ pass ]     50
+main.sysdate_is_now                      w12 [ pass ]   1001
+main.tls_version1                        w12 [ pass ]     53
+main.stat_tables_disabled 'innodb'       w2 [ pass ]   3503
+main.mysqlslap                           w11 [ pass ]   3098
+main.tls_version                         w12 [ pass ]     91
+main.ctype_utf8mb4_unicode_ci_casefold   w14 [ pass ]   1785
+main.multi_update_big                    w4 [ pass ]  16604
+main.shutdown_debug '1tpc'               w1 [ pass ]   1556
+main.long_tmpdir                         w11 [ pass ]       
+main.skip_grants                         w8 [ pass ]   4260
+main.error_simulation                    w12 [ pass ]     72
+main.analyze_format_json_emb             w11 [ skipped ]  Test requires: embedded server
+main.trans_read_only                     w14 [ pass ]    149
+main.mysqldump-compat-102                w1 [ pass ]     23
+main.bulk_replace                        w8 [ pass ]     28
+main.cte_cycle                           w12 [ pass ]     73
+main.selectivity_no_engine               w4 [ pass ]    248
+main.cache_temporal_4265                 w8 [ pass ]      8
+main.cte_grant                           w12 [ pass ]     27
+main.engine_error_in_alter-8453          w1 [ pass ]     50
+main.case                                w8 [ pass ]     49
+main.cast                                w8 [ pass ]    126
+main.cte_nonrecursive                    w12 [ pass ]    214
+main.events_1                            w1 [ pass ]    301
+main.change_user                         w8 [ pass ]     19
+main.cte_nonrecursive_not_embedded       w12 [ pass ]      8
+main.events_2                            w1 [ pass ]     54
+main.cte_recursive_not_embedded          w12 [ pass ]      4
+main.events_embedded                     w1 [ skipped ]  Test requires: embedded server
+main.ctype_ascii                         w12 [ pass ]      6
+main.query_cache_notembedded             w5 [ pass ]   6235
+main.events_grant                        w1 [ pass ]    125
+main.events_microsec                     w1 [ pass ]      2
+main.fulltext_order_by                   w5 [ pass ]     76
+main.mdev-21101                          w15 [ pass ]   3303
+main.statistics_upgrade_not_done 'innodb' w2 [ pass ]   2270
+main.fulltext_update                     w5 [ pass ]      4
+main.ctype_ujis                          w14 [ pass ]   1569
+main.concurrent_innodb_unsafelog 'innodb' w6 [ pass ]   5192
+main.strict_autoinc_2innodb 'innodb'     w2 [ pass ]      7
+main.fulltext_var                        w5 [ pass ]      5
+main.consistent_snapshot 'innodb'        w6 [ pass ]     12
+main.func_bit                            w5 [ pass ]     17
+main.subselect-crash_15755 'innodb'      w2 [ pass ]     53
+main.ctype_uca_innodb 'innodb'           w6 [ pass ]     24
+main.subselect2 'innodb'                 w2 [ pass ]    153
+main.func_compress                       w5 [ pass ]    572
+main.ctype_ujis_ucs2                     w14 [ pass ]    851
+main.order_by_pack_big                   w9 [ pass ]  17006
+main.func_concat                         w5 [ pass ]     29
+main.stat_tables_par                     w4 [ pass ]   2648
+main.func_crypt                          w5 [ pass ]     24
+main.analyze_format_json                 w9 [ pass ]    147
+main.ctype_utf16                         w14 [ pass ]    244
+main.func_date_add                       w5 [ pass ]     17
+main.shutdown_debug 'pot'                w15 [ pass ]   1519
+main.ctype_ucs2_general_ci_casefold      w9 [ pass ]    162
+main.func_debug                          w5 [ pass ]    121
+main.handler_read_last                   w15 [ pass ]     50
+main.ctype_utf16_uca                     w14 [ pass ]    467
+main.func_default                        w5 [ pass ]     33
+main.ctype_ucs2_general_ci_ws            w9 [ pass ]    292
+main.having                              w15 [ pass ]    134
+main.func_des_encrypt                    w5 [ pass ]      7
+main.ctype_ucs2_general_mysql500_ci_casefold w9 [ pass ]    103
+main.ctype_utf16le                       w14 [ pass ]    264
+main.func_digest                         w5 [ pass ]     61
+main.ctype_upgrade 'innodb'              w6 [ pass ]   1862
+main.func_encrypt_nossl                  w5 [ skipped ]  Test requires: embedded server
+main.having_cond_pushdown                w15 [ pass ]    179
+main.ctype_utf32_innodb 'innodb'         w6 [ pass ]      8
+main.func_encrypt_ucs2                   w5 [ pass ]      4
+main.ctype_ucs2_general_mysql500_ci_ws   w9 [ pass ]    289
+main.ctype_utf32                         w14 [ pass ]    223
+main.func_equal                          w5 [ pass ]      7
+main.help                                w15 [ pass ]    136
+main.func_extract                        w5 [ pass ]     19
+main.ctype_big5                          w12 [ pass ]   3568
+main.ctype_ucs2_turkish_ci_casefold      w9 [ pass ]    139
+main.implicit_char_to_num_conversion     w15 [ pass ]     31
+main.in_datetime_241                     w15 [ pass ]      1
+main.ctype_ucs2_unicode_520_ci_casefold  w9 [ pass ]     99
+main.ctype_utf32_uca                     w14 [ pass ]    436
+main.in_subq_cond_pushdown               w15 [ pass ]    162
+main.ctype_binary                        w12 [ pass ]    375
+main.ctype_utf8mb3_general_ci_casefold   w9 [ pass ]    122
+main.ctype_collate                       w12 [ pass ]     51
+main.ctype_utf8_uca                      w14 [ pass ]    281
+main.func_group                          w5 [ pass ]    738
+main.ctype_utf8mb3_general_ci_ws         w9 [ pass ]    263
+main.change_user_notembedded             w8 [ pass ]   5007
+main.index_intersect                     w15 [ pass ]    456
+main.ctype_utf8mb4_heap                  w14 [ pass ]    216
+main.charset_client_win_utf8mb4          w8 [ skipped ]  Need windows
+main.ctype_utf8mb3_general_mysql500_ci_casefold w9 [ pass ]    111
+main.func_hybrid_type                    w5 [ pass ]    236
+main.information_schema2                 w15 [ pass ]      8
+main.func_if                             w5 [ pass ]     23
+main.information_schema_chmod            w15 [ pass ]      3
+main.ctype_utf8mb4_myisam                w14 [ pass ]    270
+main.information_schema_columns          w15 [ pass ]      6
+main.ctype_utf8mb3_general_mysql500_ci_ws w9 [ pass ]    312
+main.ctype_utf8mb3_turkish_ci_casefold   w9 [ pass ]    174
+main.information_schema_db               w15 [ pass ]    469
+main.subselect_innodb 'innodb'           w2 [ pass ]   4584
+main.ctype_utf8mb4_uca                   w14 [ pass ]    555
+main.ctype_utf8mb3_unicode_520_ci_casefold w9 [ pass ]    121
+main.information_schema_linux            w15 [ pass ]      1
+main.events_scheduling                   w1 [ pass ]   5746
+main.information_schema_parameters       w15 [ pass ]     62
+main.information_schema_prepare          w15 [ pass ]      2
+main.func_in                             w5 [ pass ]   1399
+main.information_schema_routines         w15 [ pass ]     59
+main.subselect_sj2 'innodb'              w2 [ pass ]    662
+main.func_int                            w5 [ pass ]      6
+main.information_schema_stats            w15 [ pass ]     11
+main.func_isnull                         w5 [ pass ]     17
+main.func_json                           w5 [ pass ]    116
+main.func_json_notembedded               w5 [ pass ]     41
+main.events_slowlog                      w1 [ pass ]   1115
+main.subselect_sj2_jcl6 'innodb'         w2 [ pass ]    565
+main.check                               w8 [ pass ]   2672
+main.derived                             w9 [ pass ]   1446
+main.except                              w1 [ pass ]     24
+main.func_like                           w5 [ pass ]     36
+main.except_all                          w1 [ pass ]     28
+main.check_constraint                    w8 [ pass ]     47
+main.check_constraint_show               w8 [ pass ]      2
+main.check_view_protocol                 w8 [ skipped ]  Test requires view-protocol
+main.func_math                           w5 [ pass ]    414
+main.system_mysql_db_fix40123 'innodb'   w2 [ pass ]    581
+main.init_file_set_password-7656         w15 [ pass ]   1312
+main.execution_constants                 w1 [ pass ]    346
+main.cli_options_force_protocol_not_win  w8 [ pass ]    117
+main.func_op                             w5 [ pass ]      4
+main.backup_locks 'innodb'               w10 [ pass ]  49223
+main.func_regexp                         w5 [ pass ]     14
+main.client_xml                          w8 [ pass ]    124
+main.func_regexp_pcre                    w5 [ pass ]     41
+main.derived_cond_pushdown               w9 [ pass ]   1002
+main.column_compression_utf16            w8 [ pass ]      2
+main.backup_priv 'innodb'                w10 [ pass ]    213
+main.ctype_collate_column                w12 [ pass ]   4373
+main.explain                             w1 [ pass ]    369
+main.func_regexp_pcre_debug              w5 [ pass ]       
+main.system_mysql_db_fix50030 'innodb'   w2 [ pass ]    603
+main.comment_column                      w8 [ pass ]     73
+main.func_sapdb                          w5 [ pass ]     14
+main.explain_json                        w1 [ pass ]    130
+main.comment_column2                     w8 [ pass ]     66
+main.func_set                            w5 [ pass ]     18
+main.distinct                            w9 [ pass ]    365
+main.comment_database                    w8 [ pass ]      6
+main.deadlock_innodb 'innodb'            w6 [ pass ]   6045
+main.func_sformat                        w5 [ pass ]     25
+main.errors                              w9 [ pass ]     36
+main.insert                              w15 [ pass ]    977
+main.comment_index                       w8 [ pass ]     62
+main.func_system                         w5 [ pass ]      9
+main.insert_notembedded                  w15 [ pass ]     26
+main.func_test                           w5 [ pass ]     23
+main.comment_table                       w8 [ pass ]     23
+main.system_mysql_db_fix50117 'innodb'   w2 [ pass ]    698
+main.insert_returning                    w15 [ pass ]     61
+main.comments                            w8 [ pass ]      6
+main.default 'innodb'                    w6 [ pass ]    464
+main.insert_returning_datatypes          w15 [ pass ]      4
+main.compare                             w8 [ pass ]     17
+main.invisible_field_grant_system        w5 [ pass ]    210
+main.default_innodb 'innodb'             w6 [ pass ]      9
+main.func_time                           w4 [ pass ]   8357
+main.func_time_hires                     w4 [ pass ]     15
+main.system_mysql_db_fix50568 'innodb'   w2 [ pass ]    604
+main.insert_select                       w15 [ pass ]    416
+main.drop 'innodb'                       w6 [ pass ]    267
+main.func_time_round                     w4 [ pass ]     54
+main.tmp_table_error 'innodb'            w2 [ pass ]     97
+main.endspace 'innodb'                   w6 [ pass ]     29
+main.join                                w5 [ pass ]    667
+main.func_timestamp                      w4 [ pass ]      3
+main.join_crash                          w5 [ pass ]      9
+main.events_trans 'innodb'               w6 [ pass ]     30
+main.func_weight_string                  w4 [ pass ]     18
+main.func_gconcat                        w9 [ pass ]   1703
+main.join_nested                         w5 [ pass ]    169
+main.events_trans_notembedded 'innodb'   w6 [ pass ]    116
+main.explain_innodb 'innodb'             w6 [ pass ]     11
+main.function_defaults                   w4 [ pass ]    361
+main.join_nested_jcl6                    w5 [ pass ]    216
+main.explain_json_innodb 'innodb'        w6 [ pass ]     14
+main.function_defaults_notembedded       w4 [ pass ]     25
+main.func_str                            w9 [ pass ]    427
+main.ext_key_noPK_6794 'innodb'          w6 [ pass ]     10
+main.join_optimizer                      w5 [ pass ]    127
+main.gcc296                              w4 [ pass ]      3
+main.json_debug_nonembedded              w5 [ pass ]      1
+main.fast_prefix_index_fetch_innodb 'innodb' w6 [ pass ]     56
+main.failed_auth_3909                    w1 [ pass ]   3009
+main.information_schema_tables           w9 [ pass ]    340
+main.json_equals                         w5 [ pass ]      7
+main.features 'nm'                       w1 [ pass ]     24
+main.join_cache_cardinality              w9 [ pass ]     14
+main.json_normalize                      w5 [ pass ]      8
+main.fetch_first                         w1 [ pass ]     50
+main.key_diff                            w5 [ pass ]      3
+main.insert_update                       w15 [ pass ]   2047
+main.gis                                 w4 [ pass ]    607
+main.key_primary                         w5 [ pass ]      4
+main.key                                 w9 [ pass ]    131
+main.flush-innodb 'innodb'               w6 [ pass ]    495
+main.filesort_bad_i_s-7585               w1 [ pass ]    121
+main.insert_update_autoinc-7150          w15 [ pass ]      2
+main.ctype_collate_context               w12 [ pass ]   4151
+main.gis-debug                           w4 [ pass ]    103
+main.filesort_debug                      w1 [ pass ]     17
+main.keywords                            w5 [ pass ]    138
+main.gis-json                            w4 [ pass ]      7
+main.ctype_collate_database              w12 [ pass ]     18
+main.myisam_icp                          w9 [ pass ]    251
+main.filesort_pack                       w1 [ pass ]      8
+main.kill                                w5 [ pass ]     45
+main.gis-loaddata                        w4 [ pass ]      4
+main.ctype_collate_table                 w12 [ pass ]      8
+main.kill_processlist-6619               w5 [ pass ]      4
+main.flush-innodb-notembedded 'innodb'   w6 [ pass ]    514
+main.ctype_cp1250_ch                     w12 [ pass ]     79
+main.kill_query-6728                     w5 [ pass ]      2
+main.compress                            w8 [ pass ]   3570
+main.last_value                          w5 [ pass ]      4
+main.connect_debug                       w8 [ pass ]     29
+main.natural_sort_key                    w9 [ pass ]    534
+main.limit                               w5 [ pass ]     17
+main.fix_priv_tables                     w1 [ pass ]    678
+main.constraints                         w8 [ pass ]     37
+main.ctype_cp1251                        w12 [ pass ]    394
+main.contributors                        w8 [ pass ]       
+main.limit_rows_examined                 w5 [ pass ]     80
+main.ctype_cp850                         w12 [ pass ]     71
+main.count_distinct                      w8 [ pass ]     32
+main.mysql_client_test_comp              w3 [ pass ]  36748
+main.ctype_cp866                         w12 [ pass ]      1
+main.loaddata                            w5 [ pass ]    129
+main.flush_block_commit 'innodb'         w6 [ pass ]   1020
+main.ctype_cp932                         w12 [ pass ]     70
+main.log_tables_debug                    w3 [ pass ]      5
+main.ctype_create                        w12 [ pass ]     27
+main.long_host                           w3 [ pass ]     43
+main.ctype_dec8                          w12 [ pass ]      3
+main.long_unique_debug                   w3 [ pass ]     13
+main.ctype_errors                        w12 [ pass ]      8
+main.long_unique_delayed                 w3 [ pass ]      5
+main.long_unique_update                  w3 [ pass ]     24
+main.intersect                           w15 [ pass ]   2678
+main.long_unique_using_hash              w3 [ pass ]      5
+main.opt_trace                           w9 [ pass ]   1669
+main.opt_tvc                             w9 [ pass ]     70
+main.lowercase_fs_off                    w3 [ pass ]    968
+main.flush_read_lock 'innodb'            w6 [ pass ]   1897
+main.lowercase_fs_on                     w3 [ skipped ]  Test requires: 'case_insensitive_file_system'
+main.ctype_eucjpms                       w12 [ pass ]   1674
+main.lowercase_table5                    w3 [ pass ]      3
+main.flush_read_lock_kill 'innodb'       w6 [ pass ]    116
+main.foreign_key 'innodb'                w6 [ pass ]     23
+main.func_analyse 'innodb'               w6 [ pass ]     37
+main.func_group_innodb 'innodb'          w6 [ pass ]     83
+main.loadxml                             w5 [ pass ]   3169
+main.func_rollback 'innodb'              w6 [ pass ]     66
+main.ctype_euckr                         w12 [ pass ]    937
+main.ctype_filename                      w12 [ pass ]     21
+main.transaction_timeout 'innodb'        w2 [ pass ]   8018
+main.function_defaults_innodb 'innodb'   w6 [ pass ]    751
+main.flush                               w1 [ pass ]   4846
+main.order_by                            w9 [ pass ]   3096
+main.flush_logs_not_windows              w1 [ pass ]      6
+main.get_diagnostics 'innodb'            w6 [ pass ]    179
+main.flush_notembedded                   w1 [ pass ]     12
+main.range_notembedded                   w9 [ pass ]    263
+main.gis-alter_table_online 'innodb'     w6 [ pass ]     21
+main.create                              w8 [ pass ]   5276
+main.create-uca                          w8 [ pass ]      7
+main.create_drop_db                      w8 [ pass ]      4
+main.max_password_errors                 w3 [ pass ]   3016
+main.mdev19198                           w3 [ pass ]      3
+main.mdev316                             w3 [ pass ]      1
+main.count_distinct3                     w11 [ pass ]  22288
+main.mdev375                             w3 [ pass ]      8
+main.mdev6830                            w3 [ pass ]      9
+main.mdev_14586                          w3 [ pass ]     10
+main.trigger-trans 'innodb'              w2 [ pass ]   2175
+main.mdev_19276                          w3 [ pass ]      8
+main.ctype_utf8mb4_uca_allkeys1400       w14 [ pass ]  15645
+main.type_bit_innodb 'innodb'            w2 [ pass ]     63
+main.create_drop_event                   w8 [ pass ]   1221
+main.intersect_all                       w15 [ pass ]   5755
+main.create_drop_index                   w8 [ pass ]      7
+main.type_blob 'innodb'                  w2 [ pass ]    161
+main.ctype_gb2312                        w12 [ pass ]   3317
+main.invisible_field                     w15 [ pass ]     95
+main.create_drop_procedure               w8 [ pass ]     12
+main.type_num_innodb 'innodb'            w2 [ pass ]     38
+main.create_drop_role                    w8 [ pass ]     17
+main.invisible_field_debug               w15 [ pass ]     59
+main.flush_ssl                           w1 [ pass ]   2666
+main.type_temporal_innodb 'innodb'       w2 [ pass ]     40
+main.range_vs_index_merge                w9 [ pass ]   2638
+main.create_drop_server                  w8 [ pass ]      5
+main.invisible_field_grant_completely    w15 [ pass ]    109
+main.create_drop_trigger                 w8 [ pass ]     23
+main.type_time_hires 'innodb'            w2 [ pass ]     87
+main.repair                              w9 [ pass ]    179
+main.create_drop_udf                     w8 [ pass ]      6
+main.create_delayed                      w11 [ pass ]   1903
+main.myisam_debug                        w15 [ pass ]    137
+main.type_timestamp_hires 'innodb'       w2 [ pass ]     69
+main.create_drop_user                    w8 [ pass ]     16
+main.union_innodb 'innodb'               w2 [ pass ]     18
+main.create_drop_view                    w8 [ pass ]      7
+main.unique 'innodb'                     w2 [ pass ]     10
+main.create_not_windows                  w8 [ pass ]      7
+main.create_or_replace_permission        w8 [ pass ]      9
+main.gis-precise                         w4 [ pass ]   9925
+main.create_replace_tmp                  w8 [ pass ]      1
+main.myisam_debug_keys                   w15 [ pass ]    554
+main.gis-rt-precise                      w4 [ pass ]     58
+main.myisam_enable_keys-10506            w15 [ pass ]      9
+main.create_user                         w8 [ pass ]     27
+main.backup_stages 'innodb'              w10 [ pass ]  15071
+main.create_utf8                         w8 [ pass ]     13
+main.gis-rtree                           w4 [ pass ]    202
+main.mdev_22370                          w3 [ pass ]   2412
+main.create_w_max_indexes_128            w8 [ skipped ]  Test needs mysqld built with --with-max-indexes=128
+main.backup_syntax 'innodb'              w10 [ pass ]     14
+main.gis_notembedded                     w4 [ pass ]      8
+main.create_w_max_indexes_64             w8 [ pass ]     24
+main.create_windows                      w8 [ skipped ]  Need windows
+main.grant5                              w4 [ pass ]     89
+main.grant_4332                          w4 [ pass ]     76
+main.mysqld--defaults-file               w8 [ pass ]    220
+main.grant_binlog_replay                 w4 [ pass ]      7
+main.mysqld--help 'unix'                 w8 [ pass ]    113
+main.mysqld--help-aria                   w8 [ pass ]    208
+main.rowid_filter                        w9 [ pass ]   2604
+main.unsafe_binlog_innodb 'innodb'       w2 [ pass ]   2085
+main.lock_multi                          w5 [ pass ]   7353
+main.mysqld_help_crash-9183              w8 [ pass ]     76
+main.grant_cache_no_prot                 w4 [ pass ]    746
+main.rowid_filter_myisam_debug           w9 [ pass ]     95
+main.grant_cache_ps_prot                 w4 [ skipped ]  Need ps-protocol
+main.ctype_gbk                           w12 [ pass ]   3864
+main.grant_explain_non_select            w4 [ pass ]     32
+main.ctype_gbk_export_import             w12 [ skipped ]  Need POSIX locale zh_CN.gbk
+main.rownum                              w9 [ pass ]    123
+main.update 'innodb'                     w2 [ pass ]    399
+main.grant_kill                          w4 [ pass ]     25
+main.ctype_hebrew                        w12 [ pass ]      3
+main.grant_lowercase_fs                  w4 [ skipped ]  Test requires: 'case_insensitive_fs'
+main.myisam_explain_non_select_all       w15 [ pass ]   2392
+main.slowlog_enospace-10508              w9 [ pass ]     95
+main.innodb_mysql_lock 'innodb'          w10 [ pass ]   2056
+main.update_innodb 'innodb'              w2 [ pass ]     81
+main.grant_master_admin                  w4 [ pass ]      5
+main.myisam_icp_debug                    w15 [ pass ]     22
+main.warnings_debug 'innodb'             w2 [ pass ]      8
+main.mdl 'innodb'                        w10 [ pass ]     25
+main.flush_table                         w1 [ pass ]   4025
+main.grant_read_only                     w4 [ pass ]     11
+main.myisam_icp_notembedded              w15 [ pass ]    140
+main.frm-debug                           w1 [ pass ]     35
+main.grant_repair                        w4 [ pass ]     28
+main.ctype_utf8mb4_uca_allkeys400        w14 [ pass ]   5345
+main.frm_bad_row_type-7333               w1 [ pass ]      2
+main.grant_server                        w4 [ pass ]      9
+main.myisam_mrr '64bit'                  w15 [ pass ]    218
+main.grant_slave_admin                   w4 [ pass ]      9
+main.fulltext                            w1 [ pass ]    115
+main.mysqld_option_err                   w8 [ pass ]   1643
+main.grant_slave_monitor                 w4 [ pass ]     11
+main.myisam_optimize                     w15 [ pass ]    156
+main.grant_utf8_cli                      w4 [ pass ]     20
+main.null_key                            w10 [ pass ]    541
+main.odbc                                w10 [ pass ]      5
+main.lock_multi_bug38499                 w5 [ pass ]   2188
+main.greedy_optimizer 'innodb'           w6 [ pass ]   8211
+main.mysqldump-header                    w8 [ pass ]    382
+main.fulltext2                           w1 [ pass ]    486
+main.fulltext3                           w1 [ pass ]     10
+main.olap                                w10 [ pass ]     85
+main.group_by_innodb 'innodb'            w6 [ pass ]     76
+main.events_stress                       w11 [ pass ]   5265
+main.mysqldump-nl                        w8 [ pass ]    102
+main.fulltext_cache                      w1 [ pass ]      6
+main.myisampack                          w15 [ pass ]    689
+main.fulltext_charsets                   w1 [ pass ]      2
+main.group_by                            w4 [ pass ]    675
+main.group_min_max_innodb 'innodb'       w6 [ pass ]    152
+main.fulltext_derived_4257               w1 [ pass ]      2
+main.group_by_null                       w4 [ pass ]      2
+main.openssl_1                           w10 [ pass ]    355
+main.perror-win                          w4 [ skipped ]  Need windows
+main.fulltext_derived_4316               w1 [ pass ]      2
+main.opt_trace_default                   w10 [ pass ]      3
+main.fulltext_distinct                   w1 [ pass ]      5
+main.lock_multi_bug38691                 w5 [ pass ]   1058
+main.fulltext_left_join                  w1 [ pass ]     21
+main.sp-big                              w9 [ pass ]   2782
+main.fulltext_multi                      w1 [ pass ]      3
+main.ps_not_windows                      w1 [ pass ]      4
+main.mysqldump-timing                    w8 [ pass ]   1105
+main.public_basic                        w1 [ pass ]     26
+main.ctype_latin1                        w12 [ pass ]   3403
+main.mysqldump-utf8mb4                   w8 [ pass ]     89
+main.mysqlhotcopy_myisam                 w8 [ skipped ]  Test needs Perl modules DBI and DBD::MariaDB
+main.public_privileges                   w1 [ pass ]     76
+main.ctype_latin1_de                     w12 [ pass ]     47
+main.host_cache_size_functionality 'innodb' w6 [ pass ]   1417
+main.mysqlshow                           w8 [ pass ]     64
+main.plugin_vars                         w4 [ pass ]   1141
+main.statistics_upgrade                  w9 [ pass ]    741
+main.query_cache_28249                   w1 [ pass ]     15
+main.ctype_latin2                        w12 [ pass ]     43
+main.mysqltest_256                       w8 [ pass ]       
+main.lock_user                           w5 [ pass ]   1024
+main.ctype_latin2_ch                     w12 [ pass ]     77
+main.mysqltest_cont_on_error             w8 [ pass ]     15
+main.mysqltest_ps                        w8 [ skipped ]  Need ps-protocol
+main.lock_view                           w5 [ pass ]     94
+main.mysqltest_tracking_info             w8 [ pass ]      2
+main.mysql                               w15 [ pass ]   2060
+main.opt_trace_index_merge               w10 [ pass ]   1749
+main.name_resolution_cache_debug         w8 [ pass ]      6
+main.subselect4                          w9 [ pass ]    555
+main.ignored_index_innodb 'innodb'       w6 [ pass ]     13
+main.ctype_like_range                    w12 [ pass ]    384
+main.opt_trace_security                  w10 [ pass ]     45
+main.negation_elimination                w8 [ pass ]     20
+main.opt_trace_ucs2                      w10 [ pass ]      4
+main.mysql-bug41486                      w15 [ pass ]    266
+main.ctype_many                          w12 [ pass ]     69
+main.nested_profiling                    w8 [ pass ]      5
+main.table_elim                          w9 [ pass ]    142
+main.order_by-mdev-10122                 w10 [ pass ]     17
+main.query_cache_merge                   w1 [ pass ]    982
+main.no_binlog                           w8 [ pass ]      1
+main.ctype_mb                            w12 [ pass ]      9
+main.user_var                            w9 [ pass ]     81
+main.mysql-bug45236                      w15 [ pass ]    175
+main.order_by_optimizer                  w10 [ pass ]     23
+main.query_cache_ps_no_prot              w1 [ pass ]     67
+main.non_blocking_api                    w8 [ pass ]      3
+main.query_cache_ps_ps_prot              w1 [ skipped ]  Test requires: ps-protocol enabled, other protocols disabled
+main.mysql-metadata                      w15 [ pass ]     33
+main.not_embedded_server                 w8 [ pass ]    137
+main.mysql5613mysql                      w15 [ pass ]     19
+main.query_cache_with_views              w1 [ pass ]     48
+main.not_partition                       w8 [ skipped ]  Test requires no partitioning
+main.mysql57_virtual                     w15 [ pass ]      6
+main.quick_select_4161                   w1 [ pass ]      5
+main.log_errchk                          w5 [ pass ]   1328
+main.precedence                          w4 [ pass ]   1966
+main.mysql_comments                      w15 [ pass ]     64
+main.null                                w8 [ pass ]    159
+main.precedence_bugs                     w4 [ pass ]     10
+main.replace_returning_err               w8 [ pass ]      7
+main.mysql_cp932                         w15 [ pass ]    108
+main.merge                               w3 [ pass ]   8427
+main.reset_connection                    w8 [ pass ]      4
+main.ctype_nopad_8bit                    w12 [ pass ]   1120
+main.mysql_install_db_win                w15 [ skipped ]  Need windows
+main.mysql_install_db_win_utf8           w15 [ skipped ]  Need windows
+main.merge_debug                         w3 [ pass ]      8
+main.rollback                            w8 [ pass ]      3
+main.order_by_sortkey                    w10 [ pass ]   1166
+main.ctype_recoding                      w12 [ pass ]     33
+main.index_intersect_innodb 'innodb'     w6 [ pass ]   1805
+main.order_by_zerolength-4285            w10 [ pass ]      4
+main.round                               w8 [ pass ]     26
+main.metadata                            w3 [ pass ]     37
+main.row                                 w8 [ pass ]     49
+main.information_schema_inno 'innodb'    w6 [ pass ]    140
+main.innodb_bug878769 'innodb'           w6 [ pass ]     16
+main.rowid_filter_myisam                 w8 [ pass ]    211
+main.log_slow                            w5 [ pass ]   1163
+main.innodb_group 'innodb'               w6 [ pass ]      6
+main.order_fill_sortbuf                  w10 [ pass ]    508
+main.schema                              w8 [ pass ]     20
+main.log_slow_debug                      w5 [ pass ]     53
+main.outfile                             w10 [ pass ]     16
+main.innodb_icp_debug 'innodb'           w6 [ pass ]    174
+main.second_frac-9175                    w8 [ pass ]      2
+main.xa 'innodb'                         w2 [ pass ]   7333
+main.outfile_loaddata                    w10 [ pass ]     48
+main.preload                             w4 [ pass ]   1579
+main.overflow                            w10 [ pass ]      4
+main.prepare                             w4 [ pass ]     19
+main.packet                              w10 [ pass ]      5
+main.innodb_mrr_cpk 'innodb'             w6 [ pass ]    385
+main.innodb_utf8 'innodb'                w6 [ pass ]      8
+main.insert_innodb 'innodb'              w6 [ pass ]     23
+main.parser                              w10 [ pass ]    291
+main.set_statement                       w5 [ pass ]    903
+main.set_statement_debug                 w5 [ pass ]      7
+main.parser_not_embedded                 w10 [ pass ]     23
+main.xtradb_mrr 'innodb'                 w2 [ pass ]   1127
+main.mix2_myisam                         w3 [ pass ]   2194
+main.mix2_myisam_ucs2                    w3 [ pass ]     45
+main.range_aria_dbt3                     w1 [ pass ]   3594
+main.range_debug                         w1 [ pass ]     65
+main.signal_demo2                        w2 [ pass ]     75
+main.range_interrupted-13751             w1 [ pass ]     11
+main.signal_demo3                        w2 [ pass ]     16
+main.mysql_json_mysql_upgrade            w15 [ pass ]   3473
+main.signal_sqlmode                      w2 [ pass ]     11
+main.mysql_locale_posix                  w15 [ skipped ]  Need POSIX locale de_DE.iso88591
+main.read_only                           w1 [ pass ]    150
+main.mysql_not_windows                   w15 [ pass ]     85
+main.rename                              w1 [ pass ]     45
+main.renamedb                            w1 [ pass ]      1
+main.mysql_protocols                     w15 [ pass ]     58
+main.parser_stack                        w10 [ pass ]   1836
+main.single_delete_update                w2 [ pass ]    499
+main.repair_symlink-5543                 w1 [ pass ]     11
+main.set_statement_notembedded           w5 [ pass ]   2002
+main.password_expiration                 w10 [ pass ]     65
+main.replace                             w1 [ pass ]      6
+main.set_statement_profiling             w5 [ pass ]      2
+main.ctype_utf8mb4_uca_allkeys520        w14 [ pass ]  10393
+main.sp-anchor-row-type-cursor           w2 [ pass ]    160
+main.perror                              w10 [ pass ]     19
+main.replace_returning                   w1 [ pass ]     28
+main.show                                w5 [ pass ]     10
+main.win                                 w9 [ pass ]   6059
+main.sp-expr                             w10 [ pass ]     15
+main.replace_returning_datatypes         w1 [ pass ]      4
+main.ctype_sjis                          w12 [ pass ]   4789
+main.custom_aggregate_functions          w14 [ pass ]    173
+main.show_bad_definer-5553               w5 [ pass ]      4
+main.sp-anchor-row-type-table            w2 [ pass ]    136
+main.sp-fib                              w10 [ pass ]      5
+main.custom_aggregates_i_s               w14 [ pass ]     14
+main.show_create_user                    w5 [ pass ]      8
+main.ssl_crl_clients                     w1 [ pass ]     56
+main.sp-for-loop                         w10 [ pass ]     23
+main.mysql_upgrade_no_innodb             w15 [ pass ]    866
+main.sp-anchor-type                      w2 [ pass ]    156
+main.datetime_456                        w14 [ pass ]      1
+main.ssl_system_ca 'good'                w1 [ pass ]     12
+main.show_explain_ps                     w5 [ pass ]     44
+main.sp-vars                             w9 [ pass ]    245
+main.show_function_with_pad_char_to_full_length w5 [ pass ]      7
+main.sp-bugs                             w2 [ pass ]     83
+main.sp2                                 w9 [ pass ]    115
+main.show_profile                        w5 [ pass ]      2
+main.sp-bugs2                            w2 [ pass ]      4
+main.sp-i_s_columns                      w10 [ pass ]    432
+main.show_row_order-9226                 w5 [ pass ]      4
+main.sp_gis                              w9 [ pass ]     20
+main.select 'nm'                         w8 [ pass ]   4622
+main.sp-code                             w2 [ pass ]     82
+main.sp_missing_4665                     w9 [ pass ]      3
+main.select_debug                        w8 [ pass ]      5
+main.join_cache 'innodb'                 w6 [ pass ]   3978
+main.sp-inout                            w10 [ pass ]    256
+main.mrr_icp_extra                       w3 [ pass ]   3290
+main.shutdown                            w5 [ pass ]    216
+main.select_found                        w8 [ pass ]    114
+main.ddl_i18n_koi8r                      w14 [ pass ]    916
+main.multi_update_debug                  w3 [ pass ]      7
+main.join_outer_innodb 'innodb'          w6 [ pass ]    107
+main.sighup-6580                         w5 [ pass ]      3
+main.my_print_defaults                   w3 [ pass ]     42
+main.keyread 'innodb'                    w6 [ pass ]     18
+main.sp_notembedded                      w9 [ pass ]    457
+main.processlist                         w4 [ pass ]   5011
+main.sp-condition-handler                w2 [ pass ]    566
+main.myisam-system                       w3 [ pass ]      6
+main.kill_debug 'innodb'                 w6 [ pass ]     94
+main.signal                              w5 [ pass ]    254
+main.strict_autoinc_3heap                w3 [ pass ]      3
+main.signal_code                         w5 [ pass ]      3
+main.loaddata_autocom_innodb 'innodb'    w6 [ pass ]     14
+main.strings                             w3 [ pass ]      6
+main.sp-lock                             w10 [ pass ]    828
+main.signal_demo1                        w5 [ pass ]     25
+main.lock_kill 'innodb'                  w6 [ pass ]     18
+main.sp-no-code                          w10 [ skipped ]  Does not run with debug binaries
+main.locked_temporary-5955 'innodb'      w6 [ pass ]      5
+main.ctype_swe7                          w12 [ pass ]   2414
+main.join_outer                          w11 [ pass ]  12052
+main.sp-no-valgrind                      w10 [ pass ]      8
+main.ddl_i18n_utf8                       w14 [ pass ]    976
+main.locking_clause 'innodb'             w6 [ pass ]     26
+main.deadlock_ftwrl                      w14 [ pass ]     10
+main.sp-prelocking                       w10 [ pass ]     97
+main.ctype_tis620                        w12 [ pass ]    165
+main.debug_sync                          w14 [ pass ]     43
+main.default_debug                       w14 [ pass ]      5
+main.subselect_mat                       w5 [ pass ]    794
+main.default_session                     w14 [ pass ]     30
+main.sp-row                              w10 [ pass ]    470
+main.subselect_mat_cost_bugs             w5 [ pass ]     92
+main.ctype_uca                           w12 [ pass ]    522
+main.log_tables_upgrade 'innodb'         w6 [ pass ]    955
+main.sp-security                         w10 [ pass ]    187
+main.lowercase_table2 'innodb'           w6 [ skipped ]  Test requires: 'lowercase2'
+main.sp-security-anchor-type             w10 [ pass ]     32
+main.mdev13607 'innodb'                  w6 [ pass ]    113
+main.sp-threads                          w10 [ pass ]     30
+main.merge_innodb 'innodb'               w6 [ pass ]     23
+main.mysqladmin                          w15 [ pass ]   3921
+main.sp-ucs2                             w10 [ pass ]     30
+main.ctype_ucs                           w12 [ pass ]    799
+main.mrr_derived_crash_4610 'innodb'     w6 [ pass ]     16
+main.subselect_sj_aria                   w15 [ pass ]     19
+main.sp-cursor                           w2 [ pass ]   2722
+main.system_mysql_db_507                 w10 [ pass ]     36
+main.system_mysql_db_refs                w10 [ pass ]     14
+main.multi_update_innodb 'innodb'        w6 [ pass ]    136
+main.sp_stress_case                      w9 [ pass ]   3049
+main.sp-destruct                         w2 [ pass ]    105
+main.default_storage_engine              w14 [ pass ]   1362
+main.ctype_ucs2_uca                      w12 [ pass ]    267
+main.system_time_debug                   w10 [ pass ]      1
+main.subselect                           w3 [ pass ]   2726
+main.sp_sync                             w9 [ pass ]     23
+main.table_elim_debug                    w10 [ pass ]      3
+main.sp-dynamic                          w2 [ pass ]     70
+main.temp_table_symlink                  w12 [ pass ]     18
+main.mysql_tzinfo_to_sql_symlink 'innodb' w6 [ pass ]    256
+main.sql_mode                            w9 [ pass ]     67
+main.table_keyinfo-6838                  w10 [ pass ]      7
+main.temporal_literal                    w12 [ pass ]     44
+main.sql_mode_pad_char_to_full_length    w9 [ pass ]     13
+main.table_options                       w10 [ pass ]     16
+main.temporal_scale_4283                 w12 [ pass ]      4
+main.subselect3                          w3 [ pass ]    476
+main.thread_id_overflow                  w12 [ pass ]      3
+main.sp-error                            w2 [ pass ]    397
+main.select_jcl6 'nm'                    w8 [ pass ]   4290
+main.timeout                             w12 [ pass ]     12
+main.table_value_constr                  w10 [ pass ]    231
+main.timezone_grant                      w2 [ pass ]     30
+main.select_safe                         w8 [ pass ]     17
+main.tablelock                           w10 [ pass ]     13
+main.servers                             w8 [ pass ]      4
+main.tmp_table_count-7586                w2 [ pass ]     21
+main.subselect3_jcl6                     w3 [ pass ]    367
+main.subselect_no_exists_to_in           w5 [ pass ]   2633
+main.temp_table_frm                      w10 [ pass ]      8
+main.timezone                            w12 [ pass ]     76
+main.set_operation                       w8 [ pass ]    100
+main.set_operation_oracle                w8 [ pass ]     24
+main.truncate_coverage                   w10 [ pass ]    212
+main.timezone2                           w12 [ pass ]    148
+main.truncate_notembedded                w10 [ pass ]      3
+main.set_password                        w8 [ pass ]     42
+main.processlist_notembedded             w4 [ pass ]   5028
+main.type_binary                         w10 [ pass ]     28
+main.subselect_cache                     w3 [ pass ]    682
+main.type_decimal                        w8 [ pass ]    139
+main.profiling                           w4 [ pass ]    135
+main.subselect_debug                     w3 [ pass ]      6
+main.timezone3                           w12 [ pass ]     87
+main.ps_10nestset                        w4 [ pass ]      7
+main.type_bit                            w10 [ pass ]    255
+main.ps_11bugs                           w4 [ pass ]     26
+main.type_enum                           w8 [ pass ]    298
+main.timezone4                           w12 [ pass ]      1
+main.subselect_exists2in                 w3 [ pass ]    374
+main.type_date                           w10 [ pass ]    147
+main.delayed                             w14 [ pass ]   2732
+main.type_float                          w8 [ pass ]    135
+main.type_date_round                     w10 [ pass ]     25
+main.type_json                           w12 [ pass ]     80
+main.ps_1general                         w4 [ pass ]    316
+main.delete                              w14 [ pass ]    102
+main.type_geometry_mix_int               w8 [ pass ]     67
+main.type_nchar                          w12 [ pass ]      6
+main.delete_returning                    w14 [ pass ]     22
+main.subselect_exists2in_costmat         w3 [ pass ]    363
+main.type_hex_hybrid                     w8 [ pass ]     21
+main.type_datetime                       w10 [ pass ]    206
+main.delete_returning_grant              w14 [ pass ]     16
+main.ps_2myisam                          w4 [ pass ]    252
+main.type_datetime_round                 w10 [ pass ]     31
+main.mysql_upgrade_noengine 'innodb'     w6 [ pass ]   3207
+main.delimiter_command_case_sensitivity  w14 [ pass ]     18
+main.type_int                            w8 [ pass ]    184
+main.type_newdecimal                     w12 [ pass ]    291
+main.type_temporal_mariadb53             w10 [ pass ]     12
+main.subselect_sj_jcl6                   w15 [ pass ]   4063
+main.subselect_extra                     w3 [ pass ]    298
+main.deprecated_features                 w14 [ pass ]      1
+main.type_interval                       w8 [ pass ]      4
+main.ps_4heap                            w4 [ pass ]    243
+main.type_temporal_mysql56               w10 [ pass ]      5
+main.type_num                            w12 [ pass ]    166
+main.subselect_no_mat                    w5 [ pass ]   2733
+main.type_timestamp                      w8 [ pass ]    187
+main.type_ranges                         w12 [ pass ]     53
+main.type_temporal_mysql56_debug         w10 [ pass ]     99
+main.subselect_extra_no_semijoin         w3 [ pass ]    434
+main.type_timestamp_round                w8 [ pass ]     34
+main.type_row                            w12 [ pass ]      9
+main.ssl                                 w9 [ pass ]   3907
+main.subselect_gis                       w3 [ pass ]      3
+main.ps_5merge                           w4 [ pass ]    569
+main.type_uint                           w8 [ pass ]     12
+main.subselect_sj_mat                    w15 [ pass ]    768
+main.type_set                            w12 [ pass ]     59
+main.ssl_ca                              w9 [ pass ]     45
+main.udf_debug_sync                      w3 [ pass ]      8
+main.type_time                           w10 [ pass ]    276
+main.type_varchar_mysql41                w8 [ pass ]     22
+main.subselect_sj_nonmerged              w15 [ pass ]     43
+main.mysql_upgrade_ssl 'innodb'          w6 [ pass ]   1101
+main.type_time_6065                      w10 [ pass ]     88
+main.type_year                           w8 [ pass ]     70
+main.type_time_round                     w10 [ pass ]     42
+main.ps_ddl                              w4 [ pass ]    655
+main.ssl_timeout                         w1 [ pass ]  10037
+main.userstat-badlogin-4824              w6 [ pass ]      5
+main.stack-crash                         w1 [ pass ]      9
+main.sum_distinct                        w15 [ pass ]    577
+main.ps_ddl1                             w4 [ pass ]    102
+main.varbinary                           w6 [ pass ]     19
+main.view_grant                          w10 [ pass ]    437
+main.variables_community                 w6 [ pass ]      2
+main.upgrade_MDEV-19650                  w12 [ pass ]   1095
+main.view_alias                          w6 [ pass ]     34
+main.view_debug                          w6 [ pass ]      6
+main.udf_notembedded                     w3 [ pass ]   1416
+main.win_avg                             w6 [ pass ]      3
+main.udf_query_cache                     w3 [ pass ]      8
+main.udf                                 w8 [ pass ]   1392
+main.union_crash-714                     w3 [ pass ]      2
+main.symlink                             w15 [ pass ]    877
+main.update_ignore_216                   w3 [ pass ]      3
+main.win_bit                             w8 [ pass ]      6
+main.symlink-aria-11902                  w15 [ pass ]     25
+main.win_insert_select                   w3 [ pass ]     10
+main.subselect_no_opts                   w5 [ pass ]   2789
+main.win_empty_over                      w8 [ pass ]      8
+main.symlink-myisam-11902                w15 [ pass ]     32
+main.trigger                             w2 [ pass ]   5889
+main.derived_opt                         w14 [ pass ]   3269
+main.stat_tables-enospc                  w1 [ pass ]   1477
+main.win_lead_lag                        w3 [ pass ]      7
+main.win_first_last_value                w8 [ pass ]      8
+main.synchronization                     w15 [ pass ]     34
+main.win_big                             w6 [ pass ]    709
+main.ps_error                            w4 [ pass ]   1430
+main.stat_tables_missing                 w1 [ pass ]      8
+main.win_i_s                             w8 [ pass ]      4
+main.trigger-compat                      w2 [ pass ]     90
+main.win_min_max                         w3 [ pass ]     33
+main.system_mysql_db                     w15 [ pass ]      6
+main.win_big-mdev-10092                  w6 [ pass ]     25
+main.ps_grant                            w4 [ pass ]     16
+main.statement-expr                      w1 [ pass ]     10
+main.trigger_no_defaults-11698           w2 [ pass ]      8
+main.win_ntile                           w8 [ pass ]     20
+main.win_nth_value                       w3 [ pass ]      6
+main.ps_max_subselect-5113               w4 [ pass ]      2
+main.win_percentile                      w15 [ pass ]     36
+main.statistics_close                    w1 [ pass ]      5
+main.win_orderby                         w8 [ pass ]     11
+main.win_sum                             w3 [ pass ]      3
+main.windows                             w3 [ skipped ]  Need windows
+main.xa_sync                             w4 [ pass ]      6
+main.win_rank                            w15 [ pass ]      6
+main.status2                             w1 [ pass ]     13
+main.win_percent_cume                    w8 [ pass ]      3
+main.windows_debug                       w3 [ skipped ]  Need windows
+main.status_bug17954                     w1 [ pass ]      6
+main.win_std                             w15 [ pass ]     15
+main.upgrade_MDEV-23102-1                w12 [ pass ]   2006
+main.xml                                 w4 [ pass ]     73
+main.derived_view                        w14 [ pass ]    905
+main.str_to_datetime_457                 w1 [ pass ]      2
+main.strict_autoinc_1myisam              w1 [ pass ]      2
+main.ssl_compress                        w9 [ pass ]   3861
+main.join_outer_jcl6                     w11 [ pass ]  11844
+main.dirty_close                         w14 [ pass ]   1022
+main.subselect_no_scache                 w5 [ pass ]   2489
+main.trigger_notembedded                 w2 [ pass ]   2163
+main.invisible_binlog 'mix'              w4 [ pass ]   1195
+main.drop_combinations                   w14 [ pass ]    265
+main.ssl_connect                         w9 [ pass ]   1052
+main.auth_rpl 'mix'                      w15 [ pass ]   1310
+main.create_or_replace2 'innodb,row'     w1 [ pass ]   1062
+main.upgrade_MDEV-23102-2                w12 [ pass ]   1873
+main.trigger_null-8605                   w2 [ pass ]     87
+main.dyncol                              w14 [ pass ]    124
+main.truncate                            w2 [ pass ]     28
+main.column_compression_rpl 'innodb,mix' w3 [ pass ]   1791
+main.rpl_mysqldump_slave 'mix'           w4 [ pass ]    413
+main.upgrade_geometrycolumn_procedure_definer w12 [ pass ]    945
+main.empty_server_name-8224              w14 [ pass ]   1218
+main.empty_string_literal                w14 [ pass ]     20
+main.wait_timeout                        w10 [ pass ]   6061
+main.win_big-mdev-11697                  w6 [ pass ]   4409
+main.long_unique_bugs_replication 'row'  w1 [ pass ]   1047
+main.stat_tables_repl 'row'              w15 [ pass ]   1072
+main.empty_table                         w14 [ pass ]     16
+main.auth_rpl 'row'                      w2 [ pass ]   1126
+main.warnings_engine_disabled            w10 [ pass ]      5
+main.column_compression_rpl 'innodb,row' w9 [ pass ]   1753
+main.empty_user_table                    w14 [ pass ]     23
+main.win_as_arg_to_aggregate_func        w10 [ pass ]      8
+main.subselect_no_semijoin               w5 [ pass ]   2549
+main.invisible_binlog 'row'              w3 [ pass ]   1160
+main.enforce_storage_engine              w14 [ pass ]     24
+main.upgrade_mdev_24363                  w12 [ pass ]   1018
+main.query_cache_debug                   w14 [ pass ]     43
+main.subselect_notembedded               w5 [ pass ]    144
+main.subselect_nulls                     w5 [ pass ]     10
+main.rpl_mysqldump_slave 'row'           w3 [ pass ]    441
+main.subselect_partial_match             w5 [ pass ]    124
+main.column_compression_rpl 'innodb,stmt' w4 [ pass ]   1779
+main.rpl_mysql_upgrade_slave_repo_check 'innodb,mix' w8 [ pass ]   5046
+main.ps_show_log 'stmt'                  w6 [ pass ]    991
+main.delete_innodb 'innodb'              w3 [ pass ]     15
+main.auth_rpl 'stmt'                     w1 [ pass ]   1058
+main.invisible_binlog 'stmt'             w15 [ pass ]   1047
+main.long_unique_big                     w11 [ pass ]   4923
+main.1st                                 w11 [ pass ]      1
+main.derived_split_innodb 'innodb'       w4 [ pass ]    520
+main.rpl_mysqldump_slave 'stmt'          w15 [ pass ]    396
+main.aborted_clients                     w11 [ pass ]      8
+main.desc_index_range 'innodb'           w8 [ pass ]    345
+main.adddate_454                         w11 [ pass ]      2
+main.log_slow_innodb 'innodb'            w1 [ pass ]    150
+main.alias                               w11 [ pass ]     50
+main.innodb_icp 'innodb'                 w3 [ pass ]   1168
+main.almost_full                         w11 [ pass ]     55
+main.alter_table_combinations 'aria'     w11 [ pass ]     73
+main.alter_table_combinations 'heap'     w11 [ pass ]     39
+main.alter_table_debug                   w11 [ pass ]      9
+main.alter_table_lock                    w11 [ pass ]      4
+main.subselect_sj2_mat 'innodb'          w3 [ pass ]    867
+main.order_by_innodb 'innodb'            w4 [ pass ]   1965
+main.rowid_filter_innodb_debug 'innodb'  w1 [ pass ]   1644
+main.update_use_source 'innodb'          w3 [ pass ]    555
+main.type_newdecimal-big                 w14 [ pass ]   4365
+main.alter_table_upgrade_myisam_debug    w14 [ pass ]     21
+main.subselect_sj                        w5 [ pass ]   4131
+main.alter_table_upgrade_aria            w1 [ pass ]     71
+main.analyze                             w5 [ pass ]     16
+main.alter_user                          w14 [ pass ]     41
+main.alter_table_upgrade_myisam          w3 [ pass ]     73
+main.analyze_debug                       w1 [ pass ]      2
+main.analyze_stmt_privileges             w14 [ pass ]      7
+main.ansi                                w1 [ pass ]      7
+main.analyze_stmt                        w5 [ pass ]     50
+main.aria_icp_debug                      w14 [ pass ]     72
+main.myisam-big                          w9 [ pass ]   5189
+main.auto_increment                      w5 [ pass ]     79
+main.bad_frm_crash_5029                  w9 [ pass ]      2
+main.backup_aria                         w14 [ pass ]     36
+main.bench_count_distinct                w9 [ pass ]     22
+main.analyze_stmt_privileges2            w3 [ pass ]    539
+main.bigint                              w14 [ pass ]     45
+main.binary                              w9 [ pass ]     23
+main.blackhole_plugin                    w14 [ pass ]      5
+main.binary_to_hex                       w3 [ pass ]     97
+main.alter_table_mdev539_myisam          w4 [ pass ]   1316
+main.bool                                w9 [ pass ]      8
+main.bug12427262                         w3 [ pass ]      9
+main.bug13633383                         w4 [ pass ]      6
+main.assign_key_cache_debug              w1 [ pass ]   1004
+main.brackets                            w14 [ pass ]    343
+main.information_schema 'innodb'         w6 [ pass ]   4983
+main.bad_startup_options                 w5 [ pass ]   1393
+main.alter_table_mdev539_maria           w11 [ pass ]   3605
+main.range_innodb 'innodb'               w15 [ pass ]   7943
+main.range_vs_index_merge_innodb 'innodb' w8 [ pass ]   9106
+main.query_cache                         w10 [ pass ]  26833
+main.ssl-big                             w12 [ pass ]  36025
+main.merge-big                           w2 [ pass ]  36111
+main.log_tables-big                      w13 [ pass ]  163034
+main.sum_distinct-big 'innodb'           w7 [ pass ]  200644
+--------------------------------------------------------------------------
+The servers were restarted 236 times
+Spent 1815.799 of 257 seconds executing testcases
+
+Completed: All 1188 tests were successful.
+
+40 tests were skipped, 35 by the test itself.
+

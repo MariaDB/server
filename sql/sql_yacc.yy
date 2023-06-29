@@ -14217,6 +14217,11 @@ opt_format_json:
           {
             if (lex_string_eq(&$3, STRING_WITH_LEN("JSON")))
               Lex->explain_json= true;
+            else if (lex_string_eq(&$3, STRING_WITH_LEN("JSON_EXT")))
+            {
+              Lex->explain_json= true;
+              Lex->explain_json_ext= true;
+            }
             else if (lex_string_eq(&$3, STRING_WITH_LEN("TRADITIONAL")))
               DBUG_ASSERT(Lex->explain_json==false);
             else

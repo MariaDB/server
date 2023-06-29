@@ -3360,6 +3360,7 @@ public:
   bool parse_vcol_expr:1;
   bool analyze_stmt:1; /* TRUE<=> this is "ANALYZE $stmt" */
   bool explain_json:1;
+  bool explain_json_ext:1;
   /*
     true <=> The parsed fragment requires resolution of references to CTE
     at the end of parsing. This name resolution process involves searching

@@ -1964,6 +1964,23 @@ void Explain_table_access::print_explain_json(Explain_query *query,
       writer->add_member("r_table_time_ms").add_double(total_time);
       writer->add_member("r_other_time_ms").add_double(extra_time_tracker.get_time_ms());
     }
+    if (handler_for_stats && handler_for_stats->handler_stats)
+    {
+      ha_handler_stats *hs= handler_for_stats->handler_stats;
+      writer->add_member("r_engine_stats").start_object();
+      if (hs->pages_accessed)
+        writer->add_member("pages_accessed").add_ull(hs->pages_accessed);
+      if (hs->pages_updated)
+        writer->add_member("pages_updated").add_ull(hs->pages_updated);
+      if (hs->pages_read_count)
+        writer->add_member("pages_read_count").add_ull(hs->pages_read_count);
+      if (hs->pages_read_time)
+        writer->add_member("pages_read_time_ms").
+          add_double(hs->pages_read_time / 1000.0);
+      if (hs->undo_records_read)
+        writer->add_member("undo_records_read").add_ull(hs->undo_records_read);
+      writer->end_object();
+    }
   }
 
   /* `filtered` */

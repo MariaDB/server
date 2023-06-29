@@ -28236,6 +28236,9 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
                LOG_SLOW_VERBOSITY_ENGINE))
   {
     table->file->set_time_tracker(&eta->op_tracker);
+    //TODO: should the eta also own the handler_stats object?
+    if (thd->lex->explain_json_ext)
+      eta->handler_for_stats= table->file;
     if (likely(thd->lex->analyze_stmt))
     {
       eta->op_tracker.set_gap_tracker(&eta->extra_time_tracker);

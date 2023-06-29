@@ -766,6 +766,7 @@ public:
     pushed_index_cond(NULL),
     sjm_nest(NULL),
     pre_join_sort(NULL),
+    handler_for_stats(NULL),
     jbuf_unpack_tracker(timed),
     rowid_filter(NULL)
   {}
@@ -873,6 +874,9 @@ public:
   Table_access_tracker tracker;
   Exec_time_tracker op_tracker;
   Gap_time_tracker extra_time_tracker;
+  
+  // TODO: Is it really safe to keep the pointer here?
+  handler *handler_for_stats;
 
   /* When using join buffer: Track the reads from join buffer */
   Table_access_tracker jbuf_tracker;

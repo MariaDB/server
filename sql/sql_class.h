@@ -5630,6 +5630,12 @@ public:
       return false;
     return !is_set_timestamp_forbidden(this);
   }
+
+  bool should_collect_handler_stats() const
+  {
+    return (variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_ENGINE) ||
+           lex->explain_json_ext;
+  }
 };
 
 
