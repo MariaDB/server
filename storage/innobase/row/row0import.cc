@@ -3608,11 +3608,20 @@ row_import_set_discarded(
 	ulint	flags2 = mach_read_from_4(
 		static_cast<byte*>(dfield_get_data(dfield)));
 
+#if defined __GNUC__ && !defined __clang__
+# pragma GCC diagnostic push
+# if __GNUC__ < 12 || defined WITH_UBSAN
+#  pragma GCC diagnostic ignored "-Wconversion"
+# endif
+#endif
 	if (discard->state) {
 		flags2 |= DICT_TF2_DISCARDED;
 	} else {
 		flags2 &= ~DICT_TF2_DISCARDED;
 	}
+#if defined __GNUC__ && !defined __clang__
+# pragma GCC diagnostic pop
+#endif
 
 	mach_write_to_4(reinterpret_cast<byte*>(&discard->flags2), flags2);
 
