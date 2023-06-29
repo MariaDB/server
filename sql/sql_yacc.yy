@@ -1535,6 +1535,21 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         cursor_actual_parameters
         opt_parenthesized_cursor_actual_parameters
 
+%destructor
+{
+  if ($$)
+  {
+    sp_assignment_lex *elem;
+    List_iterator<sp_assignment_lex> li(*$$);
+    while ((elem= li++))
+    {
+      if (!elem->sp_lex_in_use)
+        delete elem;
+    }
+  }
+} <sp_assignment_lex_list>
+
+
 %type <var_type>
         option_type opt_var_type opt_var_ident_type
 

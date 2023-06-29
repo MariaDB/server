@@ -27,3 +27,28 @@ BEGIN NOT ATOMIC
 END
 $$
 DELIMITER ;$$
+
+
+--echo #
+--echo # MDEV-31578 DECLARE CURSOR: "Memory not freed: 280 bytes lost" on syntax error
+--echo #
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+BEGIN NOT ATOMIC
+  DECLARE cur CURSOR (a INT) FOR SELECT a+1;
+  OPEN cur(sp_followed_by_syntax_error();
+  CLOSE cur;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+BEGIN NOT ATOMIC
+  DECLARE cur CURSOR (a INT) FOR SELECT a+1;
+  OPEN cur(1,sp_followed_by_syntax_error();
+  CLOSE cur;
+END;
+$$
+DELIMITER ;$$
