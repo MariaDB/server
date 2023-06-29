@@ -84,6 +84,7 @@ public:
     ALTER_TABLE_LOCK_EXCLUSIVE
   };
 
+  Lex_table_name db, table_name;
 
   // Columns and keys to be dropped.
   List<Alter_drop>              drop_list;

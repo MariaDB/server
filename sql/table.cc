@@ -3411,17 +3411,18 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
                 sql_unusable_for_discovery(thd, hton, sql_copy))))
     goto ret;
 
-  thd->lex->create_info.db_type= hton;
+  tmp_lex.create_info.db_type= hton;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   thd->work_part_info= 0;                       // For partitioning
 #endif
 
   if (tabledef_version.str)
-    thd->lex->create_info.tabledef_version= tabledef_version;
+    tmp_lex.create_info.tabledef_version= tabledef_version;
 
-  promote_first_timestamp_column(&thd->lex->alter_info.create_list);
-  file= mysql_create_frm_image(thd, db, table_name,
-                               &thd->lex->create_info, &thd->lex->alter_info,
+  tmp_lex.alter_info.db= db;
+  tmp_lex.alter_info.table_name= table_name;
+  promote_first_timestamp_column(&tmp_lex.alter_info.create_list);
+  file= mysql_create_frm_image(thd, &tmp_lex.create_info, &tmp_lex.alter_info,
                                C_ORDINARY_CREATE, &unused1, &unused2, &frm);
   error|= file == 0;
   delete file;
@@ -3435,7 +3436,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
 
 ret:
   my_free(const_cast<uchar*>(frm.str));
-  lex_end(thd->lex);
+  lex_end(&tmp_lex);
   thd->reset_db(&db_backup);
   thd->lex= old_lex;
   reenable_binlog(thd);

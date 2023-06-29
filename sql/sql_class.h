@@ -313,7 +313,7 @@ typedef struct st_copy_info {
 
 class Key_part_spec :public Sql_alloc {
 public:
-  LEX_CSTRING field_name;
+  Lex_ident field_name;
   uint length;
   bool generated;
   Key_part_spec(const LEX_CSTRING *name, uint len, bool gen= false)

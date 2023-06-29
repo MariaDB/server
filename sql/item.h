@@ -3332,17 +3332,17 @@ protected:
     updated during fix_fields() to values from Field object and life-time 
     of those is shorter than life-time of Item_field.
   */
-  LEX_CSTRING orig_db_name;
-  LEX_CSTRING orig_table_name;
-  LEX_CSTRING orig_field_name;
+  Lex_table_name orig_db_name;
+  Lex_table_name orig_table_name;
+  Lex_ident      orig_field_name;
 
   void undeclared_spvar_error() const;
 
 public:
   Name_resolution_context *context;
-  LEX_CSTRING db_name;
-  LEX_CSTRING table_name;
-  LEX_CSTRING field_name;
+  Lex_table_name db_name;
+  Lex_table_name table_name;
+  Lex_ident      field_name;
   /*
      NOTE: came from TABLE::alias_name_used and this is only a hint!
      See comment for TABLE::alias_name_used.

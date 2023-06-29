@@ -79,9 +79,7 @@ static int copy_data_between_tables(THD *, TABLE *,TABLE *,
                                     Alter_table_ctx *);
 static int append_system_key_parts(THD *, HA_CREATE_INFO *, Key *);
 static int mysql_prepare_create_table(THD *, HA_CREATE_INFO *, Alter_info *,
-                                      uint *, handler *, KEY **, uint *, int,
-                                      const LEX_CSTRING db,
-                                      const LEX_CSTRING table_name);
+                                      uint *, handler *, KEY **, uint *, int);
 static uint blob_length_by_type(enum_field_types type);
 static bool fix_constraints_names(THD *, List<Virtual_column_info> *,
                                   const HA_CREATE_INFO *);
@@ -1765,9 +1763,9 @@ uint build_table_shadow_filename(char *buff, size_t bufflen,
 {
   char tmp_name[FN_REFLEN];
   my_snprintf(tmp_name, sizeof (tmp_name), "%s-shadow-%lx-%s", tmp_file_prefix,
-              (ulong) current_thd->thread_id, lpt->table_name.str);
-  return build_table_filename(buff, bufflen, lpt->db.str, tmp_name, "",
-                              FN_IS_TMP);
+              (ulong) current_thd->thread_id, lpt->alter_info->table_name.str);
+  return build_table_filename(buff, bufflen, lpt->alter_info->db.str, tmp_name,
+                              "", FN_IS_TMP);
 }
 
 
@@ -1826,7 +1824,7 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
     if (mysql_prepare_create_table(lpt->thd, lpt->create_info, lpt->alter_info,
                                    &lpt->db_options, lpt->table->file,
                                    &lpt->key_info_buffer, &lpt->key_count,
-                                   C_ALTER_TABLE, lpt->db, lpt->table_name))
+                                   C_ALTER_TABLE))
     {
       DBUG_RETURN(TRUE);
     }
@@ -1846,7 +1844,7 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
 #endif
     /* Write shadow frm file */
     lpt->create_info->table_options= lpt->db_options;
-    LEX_CUSTRING frm= build_frm_image(lpt->thd, lpt->table_name,
+    LEX_CUSTRING frm= build_frm_image(lpt->thd, lpt->alter_info->table_name,
                                       lpt->create_info,
                                       lpt->alter_info->create_list,
                                       lpt->key_count, lpt->key_info_buffer,
@@ -1857,7 +1855,8 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
       goto end;
     }
 
-    int error= writefile(shadow_frm_name, lpt->db.str, lpt->table_name.str,
+    int error= writefile(shadow_frm_name, lpt->alter_info->db.str,
+                         lpt->alter_info->table_name.str,
                          lpt->create_info->tmp_table(), frm.str, frm.length);
     my_free(const_cast<uchar*>(frm.str));
 
@@ -1879,8 +1878,8 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
     /*
       Build frm file name
     */
-    build_table_filename(path, sizeof(path) - 1, lpt->db.str,
-                         lpt->table_name.str, "", 0);
+    build_table_filename(path, sizeof(path) - 1, lpt->alter_info->db.str,
+                         lpt->alter_info->table_name.str, "", 0);
     strxnmov(frm_name, sizeof(frm_name), path, reg_ext, NullS);
     /*
       When we are changing to use new frm file we need to ensure that we
@@ -3556,8 +3555,7 @@ static int
 mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                            Alter_info *alter_info, uint *db_options,
                            handler *file, KEY **key_info_buffer,
-                           uint *key_count, int create_table_mode,
-                           const LEX_CSTRING db, const LEX_CSTRING table_name)
+                           uint *key_count, int create_table_mode)
 {
   const char	*key_name;
   Create_field	*sql_field,*dup_field;
@@ -4454,7 +4452,7 @@ without_overlaps_err:
   create_info->null_bits= null_fields;
 
   /* Check fields. */
-  Item::Check_table_name_prm walk_prm(db, table_name);
+  Item::Check_table_name_prm walk_prm(alter_info->db, alter_info->table_name);
   it.rewind();
   while ((sql_field=it++))
   {
@@ -4858,9 +4856,7 @@ static int append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
   return result;
 }
 
-handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING &db,
-                                const LEX_CSTRING &table_name,
-                                HA_CREATE_INFO *create_info,
+handler *mysql_create_frm_image(THD *thd, HA_CREATE_INFO *create_info,
                                 Alter_info *alter_info, int create_table_mode,
                                 KEY **key_info, uint *key_count,
                                 LEX_CUSTRING *frm)
@@ -4875,7 +4871,7 @@ handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING &db,
     DBUG_RETURN(NULL);
   }
 
-  set_table_default_charset(thd, create_info, db);
+  set_table_default_charset(thd, create_info, alter_info->db);
 
   db_options= create_info->table_options_with_row_type();
 
@@ -4996,7 +4992,7 @@ handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING &db,
 
     if (part_info->vers_info && !create_info->versioned())
     {
-      my_error(ER_VERS_NOT_VERSIONED, MYF(0), table_name.str);
+      my_error(ER_VERS_NOT_VERSIONED, MYF(0), alter_info->table_name.str);
       goto err;
     }
 
@@ -5094,14 +5090,12 @@ handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING &db,
 #endif
 
   if (mysql_prepare_create_table(thd, create_info, alter_info, &db_options,
-                                 file, key_info, key_count,
-                                 create_table_mode, db, table_name))
+                                 file, key_info, key_count, create_table_mode))
     goto err;
   create_info->table_options=db_options;
 
-  *frm= build_frm_image(thd, table_name, create_info,
-                        alter_info->create_list, *key_count,
-                        *key_info, file);
+  *frm= build_frm_image(thd, alter_info->table_name, create_info,
+                        alter_info->create_list, *key_count, *key_info, file);
 
   if (frm->str)
     DBUG_RETURN(file);
@@ -5373,9 +5367,10 @@ int create_table_impl(THD *thd, const LEX_CSTRING &orig_db,
   }
   else
   {
-    file= mysql_create_frm_image(thd, orig_db, orig_table_name, create_info,
-                                 alter_info, create_table_mode, key_info,
-                                 key_count, frm);
+    alter_info->db= orig_db;
+    alter_info->table_name= orig_table_name;
+    file= mysql_create_frm_image(thd, create_info, alter_info,
+                                 create_table_mode, key_info, key_count, frm);
     /*
     TODO: remove this check of thd->is_error() (now it intercept
     errors in some val_*() methoids and bring some single place to
@@ -7725,13 +7720,15 @@ bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
   uint db_options= 0; /* not used */
   KEY *key_info_buffer= NULL;
 
+  tmp_alter_info.db= table->s->db;
+  tmp_alter_info.table_name= table->s->table_name;
+
   /* Create the prepared information. */
   int create_table_mode= table->s->tmp_table == NO_TMP_TABLE ?
                            C_ORDINARY_CREATE : C_ALTER_TABLE;
   if (mysql_prepare_create_table(thd, create_info, &tmp_alter_info,
                                  &db_options, table->file, &key_info_buffer,
-                                 &key_count, create_table_mode,
-                                 table->s->db, table->s->table_name))
+                                 &key_count, create_table_mode))
     DBUG_RETURN(1);
 
   /* Some very basic checks. */
@@ -10640,10 +10637,10 @@ do_continue:;
     }
 
     // In-place execution of ALTER TABLE for partitioning.
+    alter_info->db= alter_ctx.db;
+    alter_info->table_name= alter_ctx.table_name;
     DBUG_RETURN(fast_alter_partition_table(thd, table, alter_info,
-                                           create_info, table_list,
-                                           &alter_ctx.db,
-                                           &alter_ctx.table_name));
+                                           create_info, table_list));
   }
 #endif
 
