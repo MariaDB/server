@@ -89,8 +89,8 @@ extern volatile ulonglong spider_mon_table_cache_version_req;
  Otherwise if the variable value is not -1, use the variable value.
  Otherwise use the default variable value.
 */
-#define SPIDER_SYSVAR_OVERRIDE_VALUE_FUN(param_name)                \
-  int spider_param_ ## param_name(int param_name)                   \
+#define SPIDER_SYSVAR_OVERRIDE_VALUE_FUN(param_type, param_name)     \
+  param_type spider_param_ ## param_name(param_type param_name)      \
   {                                                                 \
     return param_name != -1 ? param_name :                          \
       SYSVAR(param_name) != -1 ? SYSVAR(param_name) :               \
@@ -316,7 +316,7 @@ static MYSQL_SYSVAR_INT(
   0
 );
 
-SPIDER_SYSVAR_OVERRIDE_VALUE_FUN(use_table_charset)
+SPIDER_SYSVAR_OVERRIDE_VALUE_FUN(int, use_table_charset)
 
 /*
   0: no recycle
@@ -1693,7 +1693,7 @@ static MYSQL_THDVAR_LONGLONG(
   "Number of rows for bulk inserting", /* comment */
   NULL, /* check */
   NULL, /* update */
-  -1, /* def */
+  3000, /* def */
   -1, /* min */
   9223372036854775807LL, /* max */
   0 /* blk */
@@ -1713,7 +1713,7 @@ static MYSQL_THDVAR_INT(
   "Table loop mode if the number of tables in table list are less than the number of result sets", /* comment */
   NULL, /* check */
   NULL, /* update */
-  -1, /* def */
+  0, /* def */
   -1, /* min */
   2, /* max */
   0 /* blk */
@@ -2031,19 +2031,13 @@ static MYSQL_SYSVAR_INT(
   "The interval time between bulk insert and next bulk insert at coping",
   NULL,
   NULL,
-  -1,
+  10,
   -1,
   2147483647,
   0
 );
 
-int spider_param_udf_ct_bulk_insert_interval(
-  int udf_ct_bulk_insert_interval
-) {
-  DBUG_ENTER("spider_param_udf_ct_bulk_insert_interval");
-  DBUG_RETURN(spider_udf_ct_bulk_insert_interval < 0 ?
-    udf_ct_bulk_insert_interval : spider_udf_ct_bulk_insert_interval);
-}
+SPIDER_SYSVAR_OVERRIDE_VALUE_FUN(int, udf_ct_bulk_insert_interval)
 
 static longlong spider_udf_ct_bulk_insert_rows;
 /*
@@ -2057,19 +2051,13 @@ static MYSQL_SYSVAR_LONGLONG(
   "The number of rows inserted with bulk insert of one time at coping",
   NULL,
   NULL,
-  -1,
+  100,
   -1,
   9223372036854775807LL,
   0
 );
 
-longlong spider_param_udf_ct_bulk_insert_rows(
-  longlong udf_ct_bulk_insert_rows
-) {
-  DBUG_ENTER("spider_param_udf_ct_bulk_insert_rows");
-  DBUG_RETURN(spider_udf_ct_bulk_insert_rows <= 0 ?
-    udf_ct_bulk_insert_rows : spider_udf_ct_bulk_insert_rows);
-}
+SPIDER_SYSVAR_OVERRIDE_VALUE_FUN(longlong, udf_ct_bulk_insert_rows)
 
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
 /*
@@ -2354,19 +2342,13 @@ static MYSQL_SYSVAR_INT(
   "Free mode of bulk access resources",
   NULL,
   NULL,
-  -1,
+  0,
   -1,
   1,
   0
 );
 
-int spider_param_bulk_access_free(
-  int bulk_access_free
-) {
-  DBUG_ENTER("spider_param_bulk_access_free");
-  DBUG_RETURN(spider_bulk_access_free == -1 ?
-    bulk_access_free : spider_bulk_access_free);
-}
+SPIDER_SYSVAR_OVERRIDE_VALUE_FUN(int, bulk_access_free)
 #endif
 
 #if MYSQL_VERSION_ID < 50500
@@ -2382,7 +2364,7 @@ static MYSQL_THDVAR_INT(
   "Use real table for temporary table list", /* comment */
   NULL, /* check */
   NULL, /* update */
-  -1, /* def */
+  0, /* def */
   -1, /* min */
   1, /* max */
   0 /* blk */
@@ -2634,7 +2616,7 @@ static MYSQL_SYSVAR_INT(
   0
 );
 
-SPIDER_SYSVAR_OVERRIDE_VALUE_FUN(store_last_sts)
+SPIDER_SYSVAR_OVERRIDE_VALUE_FUN(int, store_last_sts)
 
 static int spider_store_last_crd;
 /*
@@ -2655,7 +2637,7 @@ static MYSQL_SYSVAR_INT(
   0
 );
 
-SPIDER_SYSVAR_OVERRIDE_VALUE_FUN(store_last_crd)
+SPIDER_SYSVAR_OVERRIDE_VALUE_FUN(int, store_last_crd)
 
 static int spider_load_sts_at_startup;
 /*
@@ -2676,7 +2658,7 @@ static MYSQL_SYSVAR_INT(
   0
 );
 
-SPIDER_SYSVAR_OVERRIDE_VALUE_FUN(load_sts_at_startup)
+SPIDER_SYSVAR_OVERRIDE_VALUE_FUN(int, load_sts_at_startup)
 
 static int spider_load_crd_at_startup;
 /*
@@ -2697,7 +2679,7 @@ static MYSQL_SYSVAR_INT(
   0
 );
 
-SPIDER_SYSVAR_OVERRIDE_VALUE_FUN(load_crd_at_startup)
+SPIDER_SYSVAR_OVERRIDE_VALUE_FUN(int, load_crd_at_startup)
 
 #ifndef WITHOUT_SPIDER_BG_SEARCH
 static uint spider_table_sts_thread_count;

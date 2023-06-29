@@ -3757,10 +3757,6 @@ int spider_set_connect_info_default(
     share->table_count_mode = 0;
   if (share->active_link_count == -1)
     share->active_link_count = share->all_link_count;
-#ifdef HA_CAN_BULK_ACCESS
-  if (share->bulk_access_free == -1)
-    share->bulk_access_free = 0;
-#endif
 #ifdef HA_CAN_FORCE_BULK_UPDATE
   if (share->force_bulk_update == -1)
     share->force_bulk_update = 0;
