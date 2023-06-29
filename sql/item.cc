@@ -1543,33 +1543,19 @@ bool mark_unsupported_function(const char *w1, const char *w2,
 
 bool Item_field::check_vcol_func_processor(void *arg)
 {
+  uint r= VCOL_FIELD_REF;
   context= 0;
   vcol_func_processor_result *res= (vcol_func_processor_result *) arg;
   if (res && res->alter_info)
+    r|= res->alter_info->check_vcol_field(this);
+  else if (field)
   {
-    for (Key &k: res->alter_info->key_list)
-    {
-      if (k.type != Key::FOREIGN_KEY)
-        continue;
-      Foreign_key *fk= (Foreign_key*) &k;
-      if (fk->update_opt != FK_OPTION_CASCADE)
-        continue;
-      for (Key_part_spec& kp: fk->columns)
-      {
-        if (!lex_string_cmp(system_charset_info, &kp.field_name, &field_name))
-        {
-          return mark_unsupported_function(field_name.str, arg, VCOL_IMPOSSIBLE);
-        }
-      }
-    }
+    if (field->unireg_check == Field::NEXT_NUMBER)
+      r|= VCOL_AUTO_INC;
+    if (field->vcol_info &&
+        field->vcol_info->flags & (VCOL_NOT_STRICTLY_DETERMINISTIC | VCOL_AUTO_INC))
+      r|= VCOL_NON_DETERMINISTIC;
   }
-
-  uint r= VCOL_FIELD_REF;
-  if (field && field->unireg_check == Field::NEXT_NUMBER)
-    r|= VCOL_AUTO_INC;
-  if (field && field->vcol_info &&
-      field->vcol_info->flags & (VCOL_NOT_STRICTLY_DETERMINISTIC | VCOL_AUTO_INC))
-    r|= VCOL_NON_DETERMINISTIC;
   return mark_unsupported_function(field_name.str, arg, r);
 }
 

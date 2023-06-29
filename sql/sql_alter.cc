@@ -252,6 +252,25 @@ Alter_info::algorithm(const THD *thd) const
 }
 
 
+uint Alter_info::check_vcol_field(Item_field *item) const
+{
+  for (Key &k: key_list)
+  {
+    if (k.type != Key::FOREIGN_KEY)
+      continue;
+    Foreign_key *fk= (Foreign_key*) &k;
+    if (fk->update_opt != FK_OPTION_CASCADE)
+      continue;
+    for (Key_part_spec& kp: fk->columns)
+    {
+      if (item->field_name.streq(kp.field_name))
+        return VCOL_NON_DETERMINISTIC;
+    }
+  }
+  return 0;
+}
+
+
 Alter_table_ctx::Alter_table_ctx()
   : implicit_default_value_error_field(NULL),
     error_if_not_empty(false),
