@@ -12,6 +12,12 @@ Connection:		localhost via named pipe
 # exec MYSQL --host=localhost -W -e "status" 2>&1 | findstr /c:"Connection:"
 Connection:		localhost via named pipe
 # exec MYSQL --host=localhost -W --socket=MASTER_MYSOCK -e "status" 2>&1 | findstr /c:"Connection:"
-Connection:		localhost via TCP/IP
+Connection:		localhost via named pipe
 # exec MYSQL --host=localhost --socket=MASTER_MYSOCK -e "status" 2>&1 | findstr /c:"Connection:"
 Connection:		localhost via TCP/IP
+#
+# MDEV-30639: Upgrade to 10.8 and later does not work on Windows
+#             due to connection protocol overwrite
+#
+# exec MYSQL --host=localhost --protocol=pipe --socket=MASTER_MYSOCK -e "status" 2>&1 | findstr /c:"Connection:"
+Connection:		localhost via named pipe
