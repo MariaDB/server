@@ -1504,7 +1504,7 @@ int Item::save_in_field_no_warnings(Field *field, bool no_conversions)
 
 #ifndef DBUG_OFF
 static inline
-void mark_unsupported_func(const char *where, const char *processor_name)
+void dbug_mark_unsupported_func(const char *where, const char *processor_name)
 {
   char buff[64];
   my_snprintf(buff, sizeof(buff), "%s::%s", where ? where: "", processor_name);
@@ -1514,7 +1514,7 @@ void mark_unsupported_func(const char *where, const char *processor_name)
   DBUG_VOID_RETURN;
 }
 #else
-#define mark_unsupported_func(X,Y) {}
+#define dbug_mark_unsupported_func(X,Y) {}
 #endif
 
 bool mark_unsupported_function(const char *where, void *store, uint result)
@@ -1522,7 +1522,7 @@ bool mark_unsupported_function(const char *where, void *store, uint result)
   Item::vcol_func_processor_result *res=
     (Item::vcol_func_processor_result*) store;
   uint old_errors= res->errors;
-  mark_unsupported_func(where, "check_vcol_func_processor");
+  dbug_mark_unsupported_func(where, "check_vcol_func_processor");
   res->errors|= result;  /* Store type of expression */
   /* Store the name to the highest violation (normally VCOL_IMPOSSIBLE) */
   if (result > old_errors)

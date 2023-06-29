@@ -77,8 +77,7 @@ static int copy_data_between_tables(THD *, TABLE *,TABLE *,
                                     ha_rows *, ha_rows *,
                                     Alter_info::enum_enable_or_disable,
                                     Alter_table_ctx *);
-static int append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
-                                   Key *key);
+static int append_system_key_parts(THD *, HA_CREATE_INFO *, Key *);
 static int mysql_prepare_create_table(THD *, HA_CREATE_INFO *, Alter_info *,
                                       uint *, handler *, KEY **, uint *, int,
                                       const LEX_CSTRING db,
@@ -396,8 +395,7 @@ uint filename_to_tablename(const char *from, char *to, size_t to_length,
                   system_charset_info,  to, to_length, &errors);
   if (unlikely(errors)) // Old 5.0 name
   {
-    res= (strxnmov(to, to_length, MYSQL50_TABLE_NAME_PREFIX,  from, NullS) -
-          to);
+    res= strxnmov(to, to_length, MYSQL50_TABLE_NAME_PREFIX, from, NullS) - to;
     if (!stay_quiet)
       sql_print_error("Invalid (old?) table or database name '%s'", from);
   }
@@ -3578,6 +3576,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   const Column_derived_attributes dattr(create_info->default_table_charset);
   const Column_bulk_alter_attributes
     battr(create_info->alter_table_convert_to_charset);
+  const CHARSET_INFO *scs= system_charset_info;
   DBUG_ENTER("mysql_prepare_create_table");
 
   DBUG_EXECUTE_IF("test_pseudo_invisible",{
@@ -3591,23 +3590,17 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                       new (thd->mem_root)Item_int(thd, 9));
           });
   DBUG_EXECUTE_IF("test_invisible_index",{
-          LEX_CSTRING temp;
-          temp.str= "invisible";
-          temp.length= strlen("invisible");
-          mysql_add_invisible_index(thd, &alter_info->key_list
-                  , &temp, Key::MULTIPLE);
+          LEX_CSTRING temp= { STRING_WITH_LEN("invisible") };
+          mysql_add_invisible_index(thd, &alter_info->key_list, &temp,
+                                    Key::MULTIPLE);
           });
-  LEX_CSTRING* connect_string = &create_info->connect_string;
-  if (connect_string->length != 0 &&
-      connect_string->length > CONNECT_STRING_MAXLEN &&
-      (system_charset_info->charpos(connect_string->str,
-                                    (connect_string->str +
-                                     connect_string->length),
-                                    CONNECT_STRING_MAXLEN)
-      < connect_string->length))
+  LEX_CSTRING* connstr = &create_info->connect_string;
+  if (connstr->length > CONNECT_STRING_MAXLEN &&
+      scs->charpos(connstr->str, connstr->str + connstr->length,
+                   CONNECT_STRING_MAXLEN) < connstr->length)
   {
-    my_error(ER_WRONG_STRING_LENGTH, MYF(0),
-             connect_string->str, "CONNECTION", CONNECT_STRING_MAXLEN);
+    my_error(ER_WRONG_STRING_LENGTH, MYF(0), connstr->str, "CONNECTION",
+             CONNECT_STRING_MAXLEN);
     DBUG_RETURN(TRUE);
   }
 
@@ -3670,9 +3663,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     /* Check if we have used the same field name before */
     for (dup_no=0; (dup_field=it2++) != sql_field; dup_no++)
     {
-      if (lex_string_cmp(system_charset_info,
-                         &sql_field->field_name,
-                         &dup_field->field_name) == 0)
+      if (lex_string_cmp(scs, &sql_field->field_name, &dup_field->field_name) == 0)
       {
 	/*
 	  If this was a CREATE ... SELECT statement, accept a field
@@ -3852,7 +3843,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
              key2->name.str != ignore_key &&
              !foreign_key_prefix(key, key2)))
         {
-          /* TODO: issue warning message */
           /* mark that the generated key should be ignored */
           if (!key2->generated ||
               (key->generated && key->columns.elements <
@@ -3873,13 +3863,13 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     else
       (*key_count)--;
     if (key->name.str && !tmp_table && (key->type != Key::PRIMARY) &&
-	!my_strcasecmp(system_charset_info, key->name.str, primary_key_name))
+	!my_strcasecmp(scs, key->name.str, primary_key_name))
     {
       my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0), key->name.str);
       DBUG_RETURN(TRUE);
     }
     if (key->type == Key::PRIMARY && key->name.str &&
-        my_strcasecmp(system_charset_info, key->name.str, primary_key_name) != 0)
+        my_strcasecmp(scs, key->name.str, primary_key_name) != 0)
     {
       bool sav_abort_on_warning= thd->abort_on_warning;
       thd->abort_on_warning= FALSE; /* Don't make an error out of this. */
@@ -3917,9 +3907,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       auto field_name= key->columns.elem(0)->field_name;
       it.rewind();
       while ((sql_field=it++) &&
-             lex_string_cmp(system_charset_info,
-                            &field_name,
-                            &sql_field->field_name));
+             lex_string_cmp(scs, &field_name, &sql_field->field_name));
       if (sql_field)
         field_name= sql_field->field_name;
       key_name=make_unique_key_name(thd, field_name.str,
@@ -4092,9 +4080,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       it.rewind();
       field=0;
       while ((sql_field=it++) &&
-	     lex_string_cmp(system_charset_info,
-                            &column->field_name,
-                            &sql_field->field_name))
+	     lex_string_cmp(scs, &column->field_name, &sql_field->field_name))
 	field++;
       /*
          Either field is not present or field visibility is > INVISIBLE_USER
@@ -4114,8 +4100,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       }
       while ((dup_column= cols2++) != column)
       {
-        if (!lex_string_cmp(system_charset_info,
-                            &column->field_name, &dup_column->field_name))
+        if (!lex_string_cmp(scs, &column->field_name, &dup_column->field_name))
 	{
 	  my_error(ER_DUP_FIELDNAME, MYF(0), column->field_name.str);
 	  DBUG_RETURN(TRUE);
@@ -4418,8 +4403,7 @@ without_overlaps_err:
         {
           for (Key_part_spec& kp2: fk->columns)
           {
-            if (!lex_string_cmp(system_charset_info, &kp.field_name,
-                               &kp2.field_name))
+            if (!lex_string_cmp(scs, &kp.field_name, &kp2.field_name))
             {
               goto without_overlaps_err;
             }
@@ -4530,12 +4514,12 @@ without_overlaps_err:
     if (create_simple)
     {
       /*
-        NOTE: we cannot do this in check_vcol_func_processor() as there is already
-        no table name qualifier in expression.
+        NOTE: we cannot do this in check_vcol_func_processor() as there is
+        already no table name qualifier in expression.
       */
       if (sql_field->vcol_info && sql_field->vcol_info->expr &&
           sql_field->vcol_info->expr->walk(&Item::check_table_name_processor,
-                                           false, (void *) &walk_prm))
+                                           false, &walk_prm))
       {
         my_error(ER_BAD_FIELD_ERROR, MYF(0), walk_prm.field.c_ptr(), "GENERATED ALWAYS");
         DBUG_RETURN(TRUE);
@@ -4543,7 +4527,7 @@ without_overlaps_err:
 
       if (sql_field->default_value &&
           sql_field->default_value->expr->walk(&Item::check_table_name_processor,
-                                              false, (void *) &walk_prm))
+                                               false, &walk_prm))
       {
         my_error(ER_BAD_FIELD_ERROR, MYF(0), walk_prm.field.c_ptr(), "DEFAULT");
         DBUG_RETURN(TRUE);
@@ -4551,7 +4535,7 @@ without_overlaps_err:
 
       if (sql_field->check_constraint &&
           sql_field->check_constraint->expr->walk(&Item::check_table_name_processor,
-                                                  false, (void *) &walk_prm))
+                                                  false, &walk_prm))
       {
         my_error(ER_BAD_FIELD_ERROR, MYF(0), walk_prm.field.c_ptr(), "CHECK");
         DBUG_RETURN(TRUE);
@@ -4563,22 +4547,15 @@ without_overlaps_err:
   create_info->check_constraint_list= &alter_info->check_constraint_list;
   {
     List_iterator_fast<Virtual_column_info> c_it(alter_info->check_constraint_list);
-    Virtual_column_info *check;
-    while ((check= c_it++))
+    while (Virtual_column_info *check= c_it++)
     {
-      if (create_simple && check->expr->walk(&Item::check_table_name_processor, false,
-                            (void *) &walk_prm))
+      if (create_simple && check->expr->walk(&Item::check_table_name_processor,
+                                             false, &walk_prm))
       {
         my_error(ER_BAD_FIELD_ERROR, MYF(0), walk_prm.field.c_ptr(), "CHECK");
         DBUG_RETURN(TRUE);
       }
-      if (!check->name.length || check->automatic_name)
-      {
-        if (check_expression(check, &check->name, VCOL_CHECK_TABLE, alter_info))
-          DBUG_RETURN(TRUE);
-        continue;
-      }
-
+      if (check->name.length && !check->automatic_name)
       {
         /* Check that there's no repeating table CHECK constraint names. */
         List_iterator_fast<Virtual_column_info>
@@ -4586,41 +4563,34 @@ without_overlaps_err:
         const Virtual_column_info *dup_check;
         while ((dup_check= dup_it++) && dup_check != check)
         {
-          if (!lex_string_cmp(system_charset_info,
-                              &check->name, &dup_check->name))
+          if (check->name.streq(dup_check->name))
           {
             my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "CHECK", check->name.str);
             DBUG_RETURN(TRUE);
           }
         }
-      }
 
-      /* Check that there's no repeating key constraint names. */
-      List_iterator_fast<Key> key_it(alter_info->key_list);
-      while (const Key *key= key_it++)
-      {
-        /*
-          Not all keys considered to be the CONSTRAINT
-          Noly Primary Key UNIQUE and Foreign keys.
-        */
-        if (key->type != Key::PRIMARY && key->type != Key::UNIQUE &&
-            key->type != Key::FOREIGN_KEY)
-          continue;
-
-        if (check->name.length == key->name.length &&
-            my_strcasecmp(system_charset_info,
-              check->name.str, key->name.str) == 0)
+        /* Check that there's no repeating key constraint names. */
+        List_iterator_fast<Key> key_it(alter_info->key_list);
+        while (const Key *key= key_it++)
         {
-          my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "CHECK", check->name.str);
+          if (key->type != Key::PRIMARY && key->type != Key::UNIQUE &&
+              key->type != Key::FOREIGN_KEY)
+            continue;
+
+          if (check->name.length == key->name.length &&
+              my_strcasecmp(scs, check->name.str, key->name.str) == 0)
+          {
+            my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "CHECK", check->name.str);
+            DBUG_RETURN(TRUE);
+          }
+        }
+
+        if (check_string_char_length(&check->name, 0, NAME_CHAR_LEN, scs, 1))
+        {
+          my_error(ER_TOO_LONG_IDENT, MYF(0), check->name.str);
           DBUG_RETURN(TRUE);
         }
-      }
-
-      if (check_string_char_length(&check->name, 0, NAME_CHAR_LEN,
-                                   system_charset_info, 1))
-      {
-        my_error(ER_TOO_LONG_IDENT, MYF(0), check->name.str);
-        DBUG_RETURN(TRUE);
       }
       if (check_expression(check, &check->name, VCOL_CHECK_TABLE, alter_info))
         DBUG_RETURN(TRUE);
@@ -4644,12 +4614,10 @@ without_overlaps_err:
                           thd->mem_root))
       DBUG_RETURN(TRUE);
 
-#ifndef DBUG_OFF
   DBUG_EXECUTE_IF("key",
     Debug_key::print_keys(thd, "prep_create_table: ",
                           *key_info_buffer, *key_count);
   );
-#endif
 
   DBUG_RETURN(FALSE);
 }
@@ -7736,10 +7704,8 @@ static void update_altered_table(const Alter_inplace_info &ha_alter_info,
   @retval false  success
 */
 
-bool mysql_compare_tables(TABLE *table,
-                          Alter_info *alter_info,
-                          HA_CREATE_INFO *create_info,
-                          bool *metadata_equal)
+bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
+                          HA_CREATE_INFO *create_info, bool *metadata_equal)
 {
   DBUG_ENTER("mysql_compare_tables");
 
@@ -7764,15 +7730,14 @@ bool mysql_compare_tables(TABLE *table,
   Alter_info tmp_alter_info(*alter_info, thd->mem_root);
   uint db_options= 0; /* not used */
   KEY *key_info_buffer= NULL;
-  LEX_CSTRING db= { table->s->db.str, table->s->db.length };
-  LEX_CSTRING table_name= { table->s->db.str, table->s->table_name.length };
 
   /* Create the prepared information. */
   int create_table_mode= table->s->tmp_table == NO_TMP_TABLE ?
                            C_ORDINARY_CREATE : C_ALTER_TABLE;
   if (mysql_prepare_create_table(thd, create_info, &tmp_alter_info,
                                  &db_options, table->file, &key_info_buffer,
-                                 &key_count, create_table_mode, db, table_name))
+                                 &key_count, create_table_mode,
+                                 table->s->db, table->s->table_name))
     DBUG_RETURN(1);
 
   /* Some very basic checks. */
@@ -9205,7 +9170,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       tmp_name.length= strlen(key_name);
       /* We dont need LONG_UNIQUE_HASH_FIELD flag because it will be autogenerated */
       key= new (thd->mem_root) Key(key_type, &tmp_name, &key_create_info,
-                   MY_TEST(key_info->flags & HA_GENERATED_KEY),
+                   key_info->flags & HA_GENERATED_KEY,
                    &key_parts, key_info->option_list, DDL_options());
       key->without_overlaps= key_info->without_overlaps;
       key->period= table->s->period.name;
@@ -10798,10 +10763,9 @@ do_continue:;
   */
   error= create_table_impl(thd, alter_ctx.db, alter_ctx.table_name,
                            alter_ctx.new_db, alter_ctx.tmp_name,
-                           alter_ctx.get_tmp_path(),
-                           thd->lex->create_info, create_info, alter_info,
-                           C_ALTER_TABLE_FRM_ONLY, NULL,
-                           &key_info, &key_count, &frm);
+                           alter_ctx.get_tmp_path(), thd->lex->create_info,
+                           create_info, alter_info, C_ALTER_TABLE_FRM_ONLY,
+                           NULL, &key_info, &key_count, &frm);
   thd->abort_on_warning= false;
   reenable_binlog(thd);
   if (unlikely(error))
