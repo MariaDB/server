@@ -2476,7 +2476,6 @@ ER_TABLE_NOT_LOCKED
         swe "Tabell '%-.192s' är inte låst med LOCK TABLES"
         ukr "Таблицю '%-.192s' не було блоковано з LOCK TABLES"
 ER_UNUSED_17
-        chi "你永远不应该看到它"
         eng "You should never see it"
 ER_WRONG_DB_NAME 42000 
         chi "数据库名称不正确'%-.100T'"
@@ -4270,7 +4269,6 @@ ER_NEW_ABORTING_CONNECTION 08S01
         swe "Avbröt länken för tråd %lld till db '%-.192s', användare '%-.48s', host '%-.64s' (%-.64s)"
         ukr "Перервано з'єднання %lld до бази данних: '%-.192s' користувач: '%-.48s' хост: '%-.64s' (%-.64s)"
 ER_UNUSED_10
-        chi "你应当永远看不到这个"
         eng "You should never see it"
 ER_FLUSH_MASTER_BINLOG_CLOSED  
         chi "Binlog 已关闭, 不能 RESET MASTER"
@@ -6589,10 +6587,8 @@ ER_EVENT_NEITHER_M_EXPR_NOR_M_AT
         eng "No datetime expression provided"
         ger "Kein DATETIME-Ausdruck angegeben"
 ER_UNUSED_2
-        chi "你永远不应该看到它"
         eng "You should never see it"
 ER_UNUSED_3
-        chi "你永远不应该看到它"
         eng "You should never see it"
 ER_EVENT_CANNOT_DELETE
         chi "无法从mysql.event删除该事件"
@@ -6630,7 +6626,6 @@ ER_CANT_LOCK_LOG_TABLE
         eng "You can't use locks with log tables"
         ger "Log-Tabellen können nicht gesperrt werden"
 ER_UNUSED_4
-        chi "你永远不应该看到它"
         eng "You should never see it"
 ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE
         chi "mysql的列计数。%s是错误的。预期%d，找到%d。使用MariaDB%d创建，现在运行%d。请使用mysql_upgrade来修复此错误"
@@ -6645,7 +6640,6 @@ ER_STORED_FUNCTION_PREVENTS_SWITCH_BINLOG_FORMAT
         eng "Cannot change the binary logging format inside a stored function or trigger"
         ger "Das Binärlog-Format kann innerhalb einer gespeicherten Funktion oder eines Triggers nicht geändert werden"
 ER_UNUSED_13
-        chi "你永远不应该看到它"
         eng "You should never see it"
 ER_PARTITION_NO_TEMPORARY
         chi "无法使用分区创建临时表"
@@ -6866,7 +6860,6 @@ ER_CANT_CREATE_SROUTINE
         eng "Cannot create stored routine %`s. Check warnings"
         ger "Kann gespeicherte Routine %`s nicht erzeugen. Beachten Sie die Warnungen"
 ER_UNUSED_11
-        chi "你永远不应该看到它"
         eng "You should never see it"
 ER_NO_FORMAT_DESCRIPTION_EVENT_BEFORE_BINLOG_STATEMENT
         chi "类型%s的Binlog语句未在格式描述binlog语句之前"
@@ -6930,7 +6923,6 @@ ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE
         chi "心跳周期的请求值是负的或超过允许的最大值（%u秒）"
         eng "The requested value for the heartbeat period is either negative or exceeds the maximum allowed (%u seconds)"
 ER_UNUSED_14
-        chi "你永远不应该看到它"
         eng "You should never see it"
 ER_CONFLICT_FN_PARSE_ERROR
         chi "解析冲突功能时出错。消息：%-.64s"
@@ -7319,11 +7311,9 @@ ER_BINLOG_UNSAFE_UPDATE_IGNORE
         eng "UPDATE IGNORE is unsafe because the order in which rows are updated determines which (if any) rows are ignored. This order cannot be predicted and may differ on master and the slave"
 
 ER_UNUSED_15
-        chi "你永远不应该看到它"
         eng "You should never see it"
 
 ER_UNUSED_16
-        chi "你永远不应该看到它"
         eng "You should never see it"
 
 ER_BINLOG_UNSAFE_WRITE_AUTOINC_SELECT
@@ -7434,7 +7424,6 @@ ER_ROW_DOES_NOT_MATCH_GIVEN_PARTITION_SET
         swe "Hittade en rad som inte passar i någon given partition"
 
 ER_UNUSED_5
-        chi "你永远不应该看到它"
         eng "You should never see it"
 
 ER_CHANGE_RPL_INFO_REPOSITORY_FAILURE
@@ -7670,7 +7659,6 @@ ER_SLAVE_SILENT_RETRY_TRANSACTION
         eng "Slave must silently retry current transaction"
 
 ER_UNUSED_22
-        chi "你永远不应该看到它"
         eng "You should never see it"
 
 ER_TABLE_SCHEMA_MISMATCH
@@ -8006,12 +7994,12 @@ ER_LAST_MYSQL_ERROR_MESSAGE
 start-error-number 1900
 
 ER_UNUSED_18
-        eng ""
+        eng "You should never see it"
 ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
         chi "函数或表达式'%s'不能用于%s的%`s"
         eng "Function or expression '%s' cannot be used in the %s clause of %`s"
 ER_UNUSED_19
-        eng ""
+        eng "You should never see it"
 ER_PRIMARY_KEY_BASED_ON_GENERATED_COLUMN
         chi "主键无法在生成的列上定义"
         eng "Primary key cannot be defined upon a generated column"
@@ -8028,9 +8016,9 @@ ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
         chi "生成的列尚未支持这一点"
         eng "This is not yet supported for generated columns"
 ER_UNUSED_20
-        eng ""
+        eng "You should never see it"
 ER_UNUSED_21
-        eng ""
+        eng "You should never see it"
 ER_UNSUPPORTED_ENGINE_FOR_GENERATED_COLUMNS
         chi "%s存储引擎不支持生成的列"
         eng "%s storage engine does not support generated columns"
@@ -8044,13 +8032,10 @@ ER_BAD_OPTION_VALUE
         eng "Incorrect value '%-.64T' for option '%-.64s'"
         hindi "गलत मान '%-.64T' विकल्प '%-.64s' के लिए"
 ER_UNUSED_6
-        chi "你永远不应该看到它"
         eng "You should never see it"
 ER_UNUSED_7
-        chi "你永远不应该看到它"
         eng "You should never see it"
 ER_UNUSED_8
-        chi "你永远不应该看到它"
         eng "You should never see it"
 ER_DATA_OVERFLOW 22003
         chi "转换'%-.128s'到%-.32s时溢出。值截断"
@@ -8092,7 +8077,6 @@ ER_CONNECTION_KILLED 70100
         eng "Connection was killed"
         hindi "कनेक्शन को समाप्त कर दिया गया है"
 ER_UNUSED_12
-        chi "你永远不应该看到它"
         eng "You should never see it"
 ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_SKIP_REPLICATION
         chi "无法修改事务中的@@session.skip_replication"
@@ -8242,7 +8226,6 @@ ER_SET_STATEMENT_NOT_SUPPORTED 42000
         chi "系统变量%.200s无法在set语句中设置。“"
         eng "The system variable %.200s cannot be set in SET STATEMENT." 
 ER_UNUSED_9
-        chi "你永远不应该看到它"
         eng "You should never see it"
 ER_USER_CREATE_EXISTS
         chi "无法创建用户'%-.64s'@'%-.64s';它已经存在"
@@ -8390,9 +8373,8 @@ ER_WARN_ONLY_MASTER_LOG_FILE_NO_POS
         chi "使用CHANGE MASTER TO master_log_file子句更改master，但没有master_log_pos子句可能不安全。旧位置值可能对新的二进制日志文件无效。"
         eng "CHANGE MASTER TO with a MASTER_LOG_FILE clause but no MASTER_LOG_POS clause may not be safe. The old position value may not be valid for the new binary log file."
 
-ER_QUERY_TIMEOUT 
-        chi "查询执行中断，超过了最大语句执行时间"
-        eng "Query execution was interrupted, maximum statement execution time exceeded"
+ER_UNUSED_1
+        eng "You should never see it"
 
 ER_NON_RO_SELECT_DISABLE_TIMER
         chi "SELECT不是只读语句，禁用计时器"
@@ -8921,7 +8903,6 @@ ER_VERS_ENGINE_UNSUPPORTED
         eng "Transaction-precise system versioning for %`s is not supported"
 
 ER_UNUSED_23
-        chi "你永远不应该看到它"
         eng "You should never see it"
 
 ER_PARTITION_WRONG_TYPE
@@ -8941,7 +8922,6 @@ ER_VERS_DROP_PARTITION_INTERVAL
         eng "Can only drop oldest partitions when rotating by INTERVAL"
 
 ER_UNUSED_25
-        chi "你永远不应该看到它"
         eng "You should never see it"
 WARN_VERS_PART_NON_HISTORICAL
         chi "分区%`s包含非历史数据"
@@ -9016,7 +8996,6 @@ ER_VERS_ALREADY_VERSIONED
         eng "Table %`s is already system-versioned"
 
 ER_UNUSED_24
-        chi "你永远不应该看到它"
         eng "You should never see it"
 
 ER_VERS_NOT_SUPPORTED
