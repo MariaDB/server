@@ -13259,6 +13259,7 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
     thd->client_capabilities|= CLIENT_TRANSACTIONS;
 
   thd->client_capabilities|= CAN_CLIENT_COMPRESS;
+  thd->client_capabilities|= CLIENT_CAN_SEND_DUMMY_HANDSHAKE_PACKET;
 
   if (ssl_acceptor_fd)
   {
@@ -13830,30 +13831,19 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   */
   DBUG_ASSERT(net->read_pos[pkt_len] == 0);
 
-  ulonglong client_capabilities= uint2korr(net->read_pos);
-  compile_time_assert(sizeof(client_capabilities) >= 8);
-  if (client_capabilities & CLIENT_PROTOCOL_41)
+  ushort first_two_bytes_of_client_capabilities= uint2korr(net->read_pos);
+  if (first_two_bytes_of_client_capabilities & CLIENT_SSL)
   {
-    if (pkt_len < 32)
-      DBUG_RETURN(packet_error);
-    client_capabilities|= ((ulong) uint2korr(net->read_pos+2)) << 16;
-    if (!(client_capabilities & CLIENT_MYSQL))
-    {
-      // it is client with mariadb extensions
-      ulonglong ext_client_capabilities=
-        (((ulonglong)uint4korr(net->read_pos + 28)) << 32);
-      client_capabilities|= ext_client_capabilities;
-    }
-  }
+    /* Client wants to use TLS. This packet is really just a
+     * dummy which gets sent before the TLS handshake, in order
+     * to trigger the server (us) to start the TLS handshake.
+     *
+     * We should ignore everything else in this packet until
+     * after the TLS handshake.
+     */
 
-  /* Disable those bits which are not supported by the client. */
-  compile_time_assert(sizeof(thd->client_capabilities) >= 8);
-  thd->client_capabilities&= client_capabilities;
-
-  DBUG_PRINT("info", ("client capabilities: %llu", thd->client_capabilities));
-  if (thd->client_capabilities & CLIENT_SSL)
-  {
     unsigned long errptr __attribute__((unused));
+    DBUG_PRINT("info", ("client capabilities have TLS/SSL bit set"));
 
     /* Do the SSL layering. */
     if (!ssl_acceptor_fd)
@@ -13874,6 +13864,10 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     DBUG_PRINT("info", ("Immediately following IO layer change: vio_type=%s",
                         safe_vio_type_name(thd->net.vio)));
 
+    /* Now we are using TLS. The client will resend its REAL
+     * handshake packet, containing complete credentials and
+     * capability information.
+     */
     DBUG_PRINT("info", ("Reading user information over SSL layer"));
     pkt_len= my_net_read(net);
     if (unlikely(pkt_len == packet_error || pkt_len < NORMAL_HANDSHAKE_SIZE))
@@ -13882,7 +13876,32 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
 			   pkt_len));
       DBUG_RETURN(packet_error);
     }
+
+    /* Re-load the FIRST TWO BYTES of the client handshake packet */
+    first_two_bytes_of_client_capabilities = uint2korr(net->read_pos);
   }
+
+  ulonglong client_capabilities= (ulonglong) first_two_bytes_of_client_capabilities;
+  compile_time_assert(sizeof(client_capabilities) >= 8);
+
+  DBUG_PRINT("info", ("client capabilities: %llu", thd->client_capabilities));
+  if (client_capabilities & CLIENT_PROTOCOL_41)
+  {
+    if (pkt_len < 32)
+      DBUG_RETURN(packet_error);
+    client_capabilities|= ((ulong) uint2korr(net->read_pos+2)) << 16;
+    if (!(client_capabilities & CLIENT_MYSQL))
+    {
+      // it is client with mariadb extensions
+      ulonglong ext_client_capabilities=
+        (((ulonglong)uint4korr(net->read_pos + 28)) << 32);
+      client_capabilities|= ext_client_capabilities;
+    }
+  }
+
+  /* Disable those bits which are not supported by the client. */
+  compile_time_assert(sizeof(thd->client_capabilities) >= 8);
+  thd->client_capabilities&= client_capabilities;
 
   /* If the server is configured to redirect clients to another server (pre-authentication),
    * then send an error packet to signal that here.

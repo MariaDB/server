@@ -288,6 +288,9 @@ enum enum_indicator_type
 /* Do not resend metadata for prepared statements, since 10.6*/
 #define MARIADB_CLIENT_CACHE_METADATA (1ULL << 36)
 
+/* Server doesn't improperly read the pre-TLS dummy packet beyond the initial 2 bytes */
+#define CLIENT_CAN_SEND_DUMMY_HANDSHAKE_PACKET (1ULL << 37)
+
 #ifdef HAVE_COMPRESS
 #define CAN_CLIENT_COMPRESS CLIENT_COMPRESS
 #else
