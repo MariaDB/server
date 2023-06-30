@@ -12761,6 +12761,7 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
   if (ssl_acceptor_fd)
   {
     thd->client_capabilities |= CLIENT_SSL;
+    thd->client_capabilities |= CLIENT_CAN_SSL_V2;  /* See parse_client_handshake_packet */
   }
 
   if (data_len)
@@ -13253,30 +13254,31 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   */
   DBUG_ASSERT(net->read_pos[pkt_len] == 0);
 
-  ulonglong client_capabilities= uint2korr(net->read_pos);
-  compile_time_assert(sizeof(client_capabilities) >= 8);
-  if (client_capabilities & CLIENT_PROTOCOL_41)
-  {
-    if (pkt_len < 32)
-      DBUG_RETURN(packet_error);
-    client_capabilities|= ((ulong) uint2korr(net->read_pos+2)) << 16;
-    if (!(client_capabilities & CLIENT_MYSQL))
-    {
-      // it is client with mariadb extensions
-      ulonglong ext_client_capabilities=
-        (((ulonglong)uint4korr(net->read_pos + 28)) << 32);
-      client_capabilities|= ext_client_capabilities;
-    }
-  }
+  ushort first_two_bytes_of_client_capabilities= uint2korr(net->read_pos);
+  bool pre_tls_client_packet_is_ssl_v2= (pkt_len==2 && first_two_bytes_of_client_capabilities == CLIENT_SSL);
+  bool pre_tls_client_packet_wants_ssl= !!(first_two_bytes_of_client_capabilities & CLIENT_SSL);
 
-  /* Disable those bits which are not supported by the client. */
-  compile_time_assert(sizeof(thd->client_capabilities) >= 8);
-  thd->client_capabilities&= client_capabilities;
-
-  DBUG_PRINT("info", ("client capabilities: %llu", thd->client_capabilities));
-  if (thd->client_capabilities & CLIENT_SSL)
+  if (pre_tls_client_packet_wants_ssl)
   {
+    /* Client wants to use TLS. This SSLRequest packet, sent in
+     * plaintext before the TLS handshake, is basically just a vestige
+     * that triggers the server (us) to start the TLS handshake.
+     *
+     * We ignore everything else in this pre-TLS packet, even though
+     * older clients send much of the same information that they will
+     * re-send over the TLS channel.
+     *
+     * This pre-TLS packet is untrustworthy AND if the server acts on
+     * its content, that FORCES the client to send more information
+     * in the clear.
+     */
+
     unsigned long errptr __attribute__((unused));
+    if (pre_tls_client_packet_is_ssl_v2)
+        DBUG_PRINT("info", ("client sent SSL_V2 SSLRequest packet (2 bytes with only TLS/SSL bit set)"));
+    else
+        DBUG_PRINT("info", ("client sent old SSLRequest packet (%ld bytes including TLS/SSL bit; capabilities & 0xffff == 0x%04x)",
+                            pkt_len, first_two_bytes_of_client_capabilities));
 
     /* Do the SSL layering. */
     if (!ssl_acceptor_fd)
@@ -13297,6 +13299,10 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     DBUG_PRINT("info", ("Immediately following IO layer change: vio_type=%s",
                         safe_vio_type_name(thd->net.vio)));
 
+    /* Now we are using TLS. The client will resend its REAL
+     * handshake packet, containing complete credentials and
+     * capability information.
+     */
     DBUG_PRINT("info", ("Reading user information over SSL layer"));
     pkt_len= my_net_read(net);
     if (unlikely(pkt_len == packet_error || pkt_len < NORMAL_HANDSHAKE_SIZE))
@@ -13305,7 +13311,54 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
 			   pkt_len));
       DBUG_RETURN(packet_error);
     }
+
+    /* Re-load the FIRST TWO BYTES of the capabilities from the packet sent over TLS. */
+    first_two_bytes_of_client_capabilities = uint2korr(net->read_pos);
   }
+
+  ulonglong client_capabilities= (ulonglong) first_two_bytes_of_client_capabilities;
+  compile_time_assert(sizeof(client_capabilities) >= 8);
+
+  DBUG_PRINT("info", ("client capabilities: %llu", thd->client_capabilities));
+  if (client_capabilities & CLIENT_PROTOCOL_41)
+  {
+    if (pkt_len < 32)
+      DBUG_RETURN(packet_error);
+    client_capabilities|= ((ulong) uint2korr(net->read_pos+2)) << 16;
+    if (!(client_capabilities & CLIENT_MYSQL))
+    {
+      // it is client with mariadb extensions
+      ulonglong ext_client_capabilities=
+        (((ulonglong)uint4korr(net->read_pos + 28)) << 32);
+      client_capabilities|= ext_client_capabilities;
+    }
+  }
+  bool post_tls_client_packet_indicates_ssl_v2= (client_capabilities & CLIENT_CAN_SSL_V2);
+
+  if (pre_tls_client_packet_wants_ssl
+      && post_tls_client_packet_indicates_ssl_v2
+      && !pre_tls_client_packet_is_ssl_v2)
+  {
+    /* 1. We told the client in our server greeting that we support the pre-TLS client packet containing only the TLS/SSL flag,
+     *    CLIENT_CAN_SSL_V2. [Server greeting packet is sent in the clear, may be MITM'ed en route to the client.]
+     * 2. The client told us in its pre-TLS SSLRequest packet that it wants to use SSL. (CLIENT_SSL flag)
+     * 3. The client told us in its post-TLS packet that it too supports the pre-TLS client packet containing only the TLS/SSL flag,
+     *    CLIENT_CAN_SSL_V2. [We received this information via TLS; assuming the client validated our server certificate
+     *    to avoid a 2-sided TLS MITM, we know that this packet is authentically from the client.]
+     * 4. Nevertheless, the client DID NOT SEND us an SSL_V2-style SSLRequest packet.
+     *
+     * The only way this can happen is if the client is being downgraded by an active MITM attacker which
+     * disables the CLIENT_CAN_SSL_V2 bit in our server greeting packet.
+     */
+    sql_print_warning("Aborting connection %lld because it is being actively MITM'ed to downgrade TLS security (attacker "
+                      "is stripping the CLIENT_CAN_SSL_V2 bit from our server capabilities)",
+                      thd->thread_id);
+    DBUG_RETURN(packet_error);
+  }
+
+  /* Disable those bits which are not supported by the client. */
+  compile_time_assert(sizeof(thd->client_capabilities) >= 8);
+  thd->client_capabilities&= client_capabilities;
 
   if (client_capabilities & CLIENT_PROTOCOL_41)
   {
