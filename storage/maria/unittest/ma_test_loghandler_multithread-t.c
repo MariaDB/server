@@ -335,7 +335,7 @@ int main(int argc __attribute__((unused)),
   thr_setconcurrency(2);
 #endif
 
-  if (ma_control_file_open(TRUE, TRUE, TRUE))
+  if (ma_control_file_open(TRUE, TRUE, TRUE, control_file_open_flags))
   {
     fprintf(stderr, "Can't init control file (%d)\n", errno);
     exit(1);

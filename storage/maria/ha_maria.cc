@@ -38,6 +38,7 @@ C_MODE_START
 #include "ma_recovery.h"
 C_MODE_END
 #include "ma_trnman.h"
+#include "ma_loghandler.h"
 
 //#include "sql_priv.h"
 #include "protocol.h"
@@ -3893,7 +3894,8 @@ static int ha_maria_init(void *p)
   if (!aria_readonly)
     res= maria_upgrade();
   res= res || maria_init();
-  tmp= ma_control_file_open(!aria_readonly, !aria_readonly, !aria_readonly);
+  tmp= ma_control_file_open(!aria_readonly, !aria_readonly, !aria_readonly,
+                            control_file_open_flags);
   res= res || aria_readonly ? tmp == CONTROL_FILE_LOCKED : tmp != 0;
   res= res ||
     ((force_start_after_recovery_failures != 0 && !aria_readonly) &&

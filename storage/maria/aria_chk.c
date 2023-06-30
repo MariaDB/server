@@ -145,7 +145,8 @@ int main(int argc, char **argv)
   {
     if ((ma_control_file_open(FALSE, opt_require_control_file ||
                               !(check_param.testflag & T_SILENT),
-                              TRUE)))
+                              TRUE,
+                              control_file_open_flags)))
     {
       if (opt_require_control_file ||
           (opt_transaction_logging && (check_param.testflag & T_REP_ANY)))
