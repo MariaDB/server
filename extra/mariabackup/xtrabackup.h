@@ -26,6 +26,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 #include "xbstream.h"
 #include "changed_page_bitmap.h"
 #include <set>
+#include "handler.h"
+
+#include <utility>
+#include <vector>
+#include <tuple>
+#include <functional>
 
 #define XB_TOOL_NAME "mariadb-backup"
 #define XB_HISTORY_TABLE "mysql.mariadb_backup_history"
@@ -68,7 +74,6 @@ private:
   container_t m_spaces;
 };
 
-
 /* value of the --incremental option */
 extern lsn_t incremental_lsn;
 
@@ -77,6 +82,8 @@ extern char		*xtrabackup_incremental_dir;
 extern char		*xtrabackup_incremental_basedir;
 extern char		*innobase_data_home_dir;
 extern char		*innobase_buffer_pool_filename;
+extern char		*buffer_pool_filename;
+extern char		*xb_plugin_dir;
 extern char		*aria_log_dir_path;
 extern char		*xb_plugin_dir;
 extern char		*xb_rocksdb_datadir;
@@ -112,7 +119,7 @@ extern my_bool		xtrabackup_decrypt_decompress;
 extern char		*innobase_data_file_path;
 extern longlong		innobase_page_size;
 
-extern int		xtrabackup_parallel;
+extern uint		xtrabackup_parallel;
 
 extern my_bool		xb_close_files;
 extern const char	*xtrabackup_compress_alg;
@@ -131,7 +138,6 @@ extern my_bool		opt_galera_info;
 extern my_bool		opt_slave_info;
 extern my_bool		opt_no_lock;
 extern my_bool		opt_safe_slave_backup;
-extern my_bool		opt_rsync;
 extern my_bool		opt_force_non_empty_dirs;
 extern my_bool		opt_noversioncheck;
 extern my_bool		opt_no_backup_locks;
@@ -288,15 +294,40 @@ fil_file_readdir_next_file(
 	os_file_stat_t* info);	/*!< in/out: buffer where the
 				info is returned */
 
-#ifndef DBUG_OFF
-#include <fil0fil.h>
-extern void dbug_mariabackup_event(const char *event,
-                            const fil_space_t::name_type key);
+const char *convert_dst(const char *dst);
 
-#define DBUG_MARIABACKUP_EVENT(A, B)                                          \
-  DBUG_EXECUTE_IF("mariabackup_events", dbug_mariabackup_event(A, B);)
-#else
-#define DBUG_MARIABACKUP_EVENT(A, B) /* empty */
-#endif // DBUG_OFF
+std::string get_table_version_from_image(const std::vector<uchar> &frm_image);
+std::pair<bool, legacy_db_type>
+	get_table_engine_from_image(const std::vector<uchar> &frm_image);
+std::string read_table_version_id(File file);
 
+std::string convert_tablename_to_filepath(
+	const char *data_dir_path, const std::string &db, const std::string &table);
+
+std::tuple<std::string, std::string, std::string>
+convert_filepath_to_tablename(const char *filepath);
+
+typedef std::string table_key_t;
+
+inline table_key_t table_key(const std::string &db, const std::string &table) {
+	return std::string(db).append(".").append(table);
+};
+
+inline table_key_t table_key(const char *db, const char *table) {
+	return std::string(db).append(".").append(table);
+};
+
+typedef std::function<void(std::string, std::string, std::string)>
+  post_copy_table_hook_t;
+
+my_bool
+check_if_skip_table(
+/******************/
+	const char*	name);	/*!< in: path to the table */
+
+bool is_log_table(const char *dbname, const char *tablename);
+bool is_stats_table(const char *dbname, const char *tablename);
+
+extern my_bool xtrabackup_copy_back;
+extern my_bool xtrabackup_move_back;
 #endif /* XB_XTRABACKUP_H */

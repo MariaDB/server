@@ -58,15 +58,17 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include <sstream>
 #include <sql_error.h>
 #include "page0zip.h"
+#include "backup_debug.h"
 
 char *tool_name;
 char tool_args[2048];
 
-ulong mysql_server_version;
+/* mysql flavor and version */
+mysql_flavor_t server_flavor = FLAVOR_UNKNOWN;
+unsigned long mysql_server_version = 0;
 
 /* server capabilities */
 bool have_changed_page_bitmaps = false;
-bool have_backup_locks = false;
 bool have_lock_wait_timeout = false;
 bool have_galera_enabled = false;
 bool have_multi_threaded_slave = false;
@@ -203,13 +205,14 @@ struct mysql_variable {
 
 
 static
-void
+uint
 read_mysql_variables(MYSQL *connection, const char *query, mysql_variable *vars,
 	bool vertical_result)
 {
 	MYSQL_RES *mysql_result;
 	MYSQL_ROW row;
 	mysql_variable *var;
+	uint n_values=0;
 
 	mysql_result = xb_mysql_query(connection, query, true);
 
@@ -223,6 +226,7 @@ read_mysql_variables(MYSQL *connection, const char *query, mysql_variable *vars,
 				if (strcmp(var->name, name) == 0
 				    && value != NULL) {
 					*(var->value) = strdup(value);
+					n_values++;
 				}
 			}
 		}
@@ -239,6 +243,7 @@ read_mysql_variables(MYSQL *connection, const char *query, mysql_variable *vars,
 					if (strcmp(var->name, name) == 0
 					    && value != NULL) {
 						*(var->value) = strdup(value);
+						n_values++;
 					}
 				}
 				++i;
@@ -247,6 +252,7 @@ read_mysql_variables(MYSQL *connection, const char *query, mysql_variable *vars,
 	}
 
 	mysql_free_result(mysql_result);
+	return n_values;
 }
 
 
@@ -311,7 +317,6 @@ bool get_mysql_vars(MYSQL *connection)
 {
   char *gtid_mode_var= NULL;
   char *version_var= NULL;
-  char *have_backup_locks_var= NULL;
   char *log_bin_var= NULL;
   char *lock_wait_timeout_var= NULL;
   char *wsrep_on_var= NULL;
@@ -336,7 +341,6 @@ bool get_mysql_vars(MYSQL *connection)
   bool ret= true;
 
   mysql_variable mysql_vars[]= {
-      {"have_backup_locks", &have_backup_locks_var},
       {"log_bin", &log_bin_var},
       {"lock_wait_timeout", &lock_wait_timeout_var},
       {"gtid_mode", &gtid_mode_var},
@@ -361,11 +365,6 @@ bool get_mysql_vars(MYSQL *connection)
 
   read_mysql_variables(connection, "SHOW VARIABLES", mysql_vars, true);
 
-  if (have_backup_locks_var != NULL && !opt_no_backup_locks)
-  {
-    have_backup_locks= true;
-  }
-
   if (opt_binlog_info == BINLOG_INFO_AUTO)
   {
     if (log_bin_var != NULL && !strcmp(log_bin_var, "ON"))
@@ -379,7 +378,7 @@ bool get_mysql_vars(MYSQL *connection)
     have_lock_wait_timeout= true;
   }
 
-  if (wsrep_on_var != NULL)
+  if (wsrep_on_var != NULL && wsrep_on_var[0] != '0')
   {
     have_galera_enabled= true;
   }
@@ -841,7 +840,8 @@ Function acquires either a backup tables lock, if supported
 by the server, or a global read lock (FLUSH TABLES WITH READ LOCK)
 otherwise.
 @returns true if lock acquired */
-bool lock_tables(MYSQL *connection)
+bool
+lock_for_backup_stage_start(MYSQL *connection)
 {
   if (have_lock_wait_timeout || opt_lock_wait_timeout)
   {
@@ -854,12 +854,6 @@ bool lock_tables(MYSQL *connection)
     xb_mysql_query(connection, buf, false);
   }
 
-  if (have_backup_locks)
-  {
-    msg("Executing LOCK TABLES FOR BACKUP...");
-    xb_mysql_query(connection, "LOCK TABLES FOR BACKUP", false);
-    return (true);
-  }
 
   if (opt_lock_wait_timeout)
   {
@@ -884,8 +878,6 @@ bool lock_tables(MYSQL *connection)
 
   xb_mysql_query(connection, "BACKUP STAGE START", true);
   DBUG_MARIABACKUP_EVENT("after_backup_stage_start", {});
-  xb_mysql_query(connection, "BACKUP STAGE BLOCK_COMMIT", true);
-  DBUG_MARIABACKUP_EVENT("after_backup_stage_block_commit", {});
   /* Set the maximum supported session value for
   lock_wait_timeout to prevent unnecessary timeouts when the
   global value is changed from the default */
@@ -901,24 +893,68 @@ bool lock_tables(MYSQL *connection)
   return (true);
 }
 
-/*********************************************************************//**
-If backup locks are used, execute LOCK BINLOG FOR BACKUP provided that we are
-not in the --no-lock mode and the lock has not been acquired already.
-@returns true if lock acquired */
 bool
-lock_binlog_maybe(MYSQL *connection)
-{
-	if (have_backup_locks && !opt_no_lock && !binlog_locked) {
-		msg("Executing LOCK BINLOG FOR BACKUP...");
-		xb_mysql_query(connection, "LOCK BINLOG FOR BACKUP", false);
-		binlog_locked = true;
-
-		return(true);
+lock_for_backup_stage_flush(MYSQL *connection) {
+	if (opt_kill_long_queries_timeout) {
+		start_query_killer();
 	}
-
-	return(false);
+	xb_mysql_query(connection, "BACKUP STAGE FLUSH", true);
+	if (opt_kill_long_queries_timeout) {
+		stop_query_killer();
+	}
+	return true;
 }
 
+bool
+lock_for_backup_stage_block_ddl(MYSQL *connection) {
+	if (opt_kill_long_queries_timeout) {
+		start_query_killer();
+	}
+	xb_mysql_query(connection, "BACKUP STAGE BLOCK_DDL", true);
+	DBUG_MARIABACKUP_EVENT("after_backup_stage_block_ddl", {});
+	if (opt_kill_long_queries_timeout) {
+		stop_query_killer();
+	}
+	return true;
+}
+
+bool
+lock_for_backup_stage_commit(MYSQL *connection) {
+	if (opt_kill_long_queries_timeout) {
+		start_query_killer();
+	}
+	xb_mysql_query(connection, "BACKUP STAGE BLOCK_COMMIT", true);
+	DBUG_MARIABACKUP_EVENT("after_backup_stage_block_commit", {});
+	if (opt_kill_long_queries_timeout) {
+		stop_query_killer();
+	}
+	return true;
+}
+
+bool backup_lock(MYSQL *con, const char *table_name) {
+	static const std::string backup_lock_prefix("BACKUP LOCK ");
+	std::string backup_lock_query = backup_lock_prefix + table_name;
+	xb_mysql_query(con, backup_lock_query.c_str(), true);
+	return true;
+}
+
+bool backup_unlock(MYSQL *con) {
+	xb_mysql_query(con, "BACKUP UNLOCK", true);
+	return true;
+}
+
+std::unordered_set<std::string>
+get_tables_in_use(MYSQL *con) {
+	std::unordered_set<std::string> result;
+	MYSQL_RES *q_res =
+		xb_mysql_query(con, "SHOW OPEN TABLES WHERE In_use = 1", true);
+	while (MYSQL_ROW row = mysql_fetch_row(q_res)) {
+		auto tk = table_key(row[0], row[1]);
+		msg("Table %s is in use", tk.c_str());
+		result.insert(std::move(tk));
+	}
+	return result;
+}
 
 /*********************************************************************//**
 Releases either global read lock acquired with FTWRL and the binlog
@@ -1358,48 +1394,36 @@ saves it in a file. It also prints it to stdout. */
 bool
 write_galera_info(ds_ctxt *datasink, MYSQL *connection)
 {
-	char *state_uuid = NULL, *state_uuid55 = NULL;
-	char *last_committed = NULL, *last_committed55 = NULL;
-	bool result;
+  char *state_uuid = NULL;
+  char *last_committed = NULL;
+  bool result;
 
-	mysql_variable status[] = {
-		{"Wsrep_local_state_uuid", &state_uuid},
-		{"wsrep_local_state_uuid", &state_uuid55},
-		{"Wsrep_last_committed", &last_committed},
-		{"wsrep_last_committed", &last_committed55},
-		{NULL, NULL}
-	};
+  mysql_variable status[] = {
+    {"wsrep_local_state_uuid", &state_uuid},
+    {"wsrep_last_committed",  &last_committed},
+    {NULL, NULL}
+  };
 
-	/* When backup locks are supported by the server, we should skip
-	creating xtrabackup_galera_info file on the backup stage, because
-	wsrep_local_state_uuid and wsrep_last_committed will be inconsistent
-	without blocking commits. The state file will be created on the prepare
-	stage using the WSREP recovery procedure. */
-	if (have_backup_locks) {
-		return(true);
-	}
+  read_mysql_variables(connection, "SHOW STATUS like \"wsrep_%\"",
+                       status, true);
 
-	read_mysql_variables(connection, "SHOW STATUS", status, true);
+  if (state_uuid == NULL || last_committed == NULL)
+  {
+    msg("Warning: failed to get master wsrep state from SHOW STATUS.");
+    result = true;
+    goto cleanup;
+  }
 
-	if ((state_uuid == NULL && state_uuid55 == NULL)
-		|| (last_committed == NULL && last_committed55 == NULL)) {
-		msg("Warning: failed to get master wsrep state from SHOW STATUS.");
-		result = true;
-		goto cleanup;
-	}
-
-	result = datasink->backup_file_printf(XTRABACKUP_GALERA_INFO,
-		"%s:%s\n", state_uuid ? state_uuid : state_uuid55,
-			last_committed ? last_committed : last_committed55);
-	if (result)
-	{
-		write_current_binlog_file(datasink, connection);
-	}
+  result= datasink->backup_file_printf(XTRABACKUP_GALERA_INFO,
+                                       "%s:%s\n",
+                                       state_uuid, last_committed);
+  if (result)
+    write_current_binlog_file(datasink, connection);
 
 cleanup:
-	free_mysql_variables(status);
+  free_mysql_variables(status);
 
-	return(result);
+  return(result);
 }
 
 
@@ -1441,8 +1465,6 @@ write_current_binlog_file(ds_ctxt *datasink, MYSQL *connection)
 
 	if (gtid_exists) {
 		size_t log_bin_dir_length;
-
-		lock_binlog_maybe(connection);
 
 		xb_mysql_query(connection, "FLUSH BINARY LOGS", false);
 

@@ -38,8 +38,9 @@ typedef struct {
 
 static ds_ctxt_t *local_init(const char *root);
 static ds_file_t *local_open(ds_ctxt_t *ctxt, const char *path,
-			     MY_STAT *mystat);
+			     MY_STAT *mystat, bool rewrite);
 static int local_write(ds_file_t *file, const uchar *buf, size_t len);
+static int local_seek_set(ds_file_t *file, my_off_t offset);
 static int local_close(ds_file_t *file);
 static void local_deinit(ds_ctxt_t *ctxt);
 
@@ -48,13 +49,20 @@ static int local_remove(const char *path)
 	return unlink(path);
 }
 
+static int local_rename(
+	ds_ctxt_t *ctxt, const char *old_path, const char *new_path);
+static int local_mremove(ds_ctxt_t *ctxt, const char *path);
+
 extern "C" {
 datasink_t datasink_local = {
 	&local_init,
 	&local_open,
 	&local_write,
+	&local_seek_set,
 	&local_close,
 	&local_remove,
+	&local_rename,
+	&local_mremove,
 	&local_deinit
 };
 }
@@ -85,7 +93,7 @@ local_init(const char *root)
 static
 ds_file_t *
 local_open(ds_ctxt_t *ctxt, const char *path,
-	   MY_STAT *mystat __attribute__((unused)))
+	   MY_STAT *mystat __attribute__((unused)), bool rewrite)
 {
 	char 		fullpath[FN_REFLEN];
 	char		dirpath[FN_REFLEN];
@@ -107,8 +115,10 @@ local_open(ds_ctxt_t *ctxt, const char *path,
 		return NULL;
 	}
 
-	fd = my_create(fullpath, 0, O_WRONLY | O_BINARY | O_EXCL | O_NOFOLLOW,
-		     MYF(MY_WME));
+	// TODO: check in Windows and set the corresponding flags on fail
+	fd = my_create(fullpath, 0,
+		O_WRONLY | O_BINARY | (rewrite ? O_TRUNC : O_EXCL) | O_NOFOLLOW,
+		MYF(MY_WME));
 	if (fd < 0) {
 		return NULL;
 	}
@@ -226,6 +236,15 @@ local_write(ds_file_t *file, const uchar *buf, size_t len)
 	return 1;
 }
 
+static
+int
+local_seek_set(ds_file_t *file, my_off_t offset) {
+	ds_local_file_t *local_file= (ds_local_file_t *)file->ptr;
+	if (my_seek(local_file->fd, offset, SEEK_SET, MYF(0)) == MY_FILEPOS_ERROR)
+		return 1;
+	return 0;
+}
+
 /* Set EOF at file's current position.*/
 static int set_eof(File fd)
 {
@@ -262,4 +281,74 @@ local_deinit(ds_ctxt_t *ctxt)
 {
 	my_free(ctxt->root);
 	my_free(ctxt);
+}
+
+
+static int local_rename(
+	ds_ctxt_t *ctxt, const char *old_path, const char *new_path) {
+	char		full_old_path[FN_REFLEN];
+	char		full_new_path[FN_REFLEN];
+	fn_format(full_old_path, old_path, ctxt->root, "", MYF(MY_RELATIVE_PATH));
+	fn_format(full_new_path, new_path, ctxt->root, "", MYF(MY_RELATIVE_PATH));
+	// Ignore errors as .frm files can be copied separately.
+	// TODO: return error processing here after the corresponding changes in
+	// xtrabackup.cc
+	(void)my_rename(full_old_path, full_new_path, MYF(MY_WME));
+	return 0;
+}
+
+// It's ok if destination does not contain the file or folder
+static int local_mremove(ds_ctxt_t *ctxt, const char *path) {
+	char		full_path[FN_REFLEN];
+	fn_format(full_path, path, ctxt->root, "", MYF(MY_RELATIVE_PATH));
+	size_t full_path_len = strlen(full_path);
+	if (full_path[full_path_len - 1] == '*') {
+		full_path[full_path_len - 1] = '\0';
+		char *preffix = strrchr(full_path, '/');
+		const char *full_path_dir = full_path;
+		size_t preffix_len;
+		if (preffix) {
+			preffix_len = (full_path_len - 1) - (preffix - full_path);
+			*(preffix++) = '\0';
+		}
+		else {
+			preffix = full_path;
+			preffix_len = full_path_len - 1;
+			full_path_dir= IF_WIN(".\\", "./");
+		}
+		if (!preffix_len)
+			return 0;
+		MY_DIR *dir= my_dir(full_path_dir, 0);
+		if (!dir)
+			return 0;
+		for (size_t i = 0; i < dir->number_of_files; ++i) {
+			char full_fpath[FN_REFLEN];
+			if (strncmp(dir->dir_entry[i].name, preffix, preffix_len))
+				continue;
+			fn_format(full_fpath, dir->dir_entry[i].name,
+					full_path_dir, "", MYF(MY_RELATIVE_PATH));
+			(void)my_delete(full_fpath, MYF(0));
+		}
+		my_dirend(dir);
+	}
+	else {
+		MY_STAT stat;
+		if (!my_stat(full_path, &stat, MYF(0)))
+			return 0;
+		MY_DIR *dir= my_dir(full_path, 0);
+		if (!dir) {
+			// TODO: check for error here if necessary
+			(void)my_delete(full_path, MYF(0));
+			return 0;
+		}
+		for (size_t i = 0; i < dir->number_of_files; ++i) {
+			char		full_fpath[FN_REFLEN];
+			fn_format(full_fpath, dir->dir_entry[i].name,
+					full_path, "", MYF(MY_RELATIVE_PATH));
+			(void)my_delete(full_fpath, MYF(0));
+		}
+		my_dirend(dir);
+		(void)my_rmtree(full_path, MYF(0));
+	}
+	return 0;
 }

@@ -91,6 +91,7 @@ DROP TABLE t1;
 --echo # Testing aria log files after --copy-back
 SET @@global.aria_checkpoint_interval=DEFAULT /*Force checkpoint*/;
 --file_exists $ARIA_LOGDIR_FS/aria_log_control
+--error 1
 --file_exists $ARIA_LOGDIR_FS/aria_log.00000001
 --file_exists $ARIA_LOGDIR_FS/aria_log.00000002
 --error 1

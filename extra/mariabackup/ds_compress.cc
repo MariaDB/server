@@ -1,6 +1,7 @@
 /******************************************************
 Copyright (c) 2011-2013 Percona LLC and/or its affiliates.
 Copyright (c) 2022, MariaDB Corporation.
+Copyright (c) 2022-2023, MariaDB Corporation.
 
 Compressing datasink implementation for XtraBackup.
 
@@ -65,7 +66,7 @@ extern ulonglong	xtrabackup_compress_chunk_size;
 
 static ds_ctxt_t *compress_init(const char *root);
 static ds_file_t *compress_open(ds_ctxt_t *ctxt, const char *path,
-				MY_STAT *mystat);
+				MY_STAT *mystat, bool rewrite);
 static int compress_write(ds_file_t *file, const uchar *buf, size_t len);
 static int compress_close(ds_file_t *file);
 static void compress_deinit(ds_ctxt_t *ctxt);
@@ -74,8 +75,11 @@ datasink_t datasink_compress = {
 	&compress_init,
 	&compress_open,
 	&compress_write,
+	nullptr,
 	&compress_close,
 	&dummy_remove,
+	nullptr,
+	nullptr,
 	&compress_deinit
 };
 
@@ -116,8 +120,10 @@ compress_init(const char *root)
 
 static
 ds_file_t *
-compress_open(ds_ctxt_t *ctxt, const char *path, MY_STAT *mystat)
+compress_open(ds_ctxt_t *ctxt, const char *path,
+              MY_STAT *mystat, bool rewrite)
 {
+  DBUG_ASSERT(rewrite == false);
 	ds_compress_ctxt_t	*comp_ctxt;
 	ds_ctxt_t		*dest_ctxt;
  	ds_file_t		*dest_file;

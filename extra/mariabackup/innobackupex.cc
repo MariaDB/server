@@ -78,7 +78,6 @@ my_bool opt_ibx_galera_info = FALSE;
 my_bool opt_ibx_slave_info = FALSE;
 my_bool opt_ibx_no_lock = FALSE;
 my_bool opt_ibx_safe_slave_backup = FALSE;
-my_bool opt_ibx_rsync = FALSE;
 my_bool opt_ibx_force_non_empty_dirs = FALSE;
 my_bool opt_ibx_noversioncheck = FALSE;
 my_bool opt_ibx_no_backup_locks = FALSE;
@@ -297,15 +296,6 @@ static struct my_option ibx_long_options[] =
 	 (uchar *) &opt_ibx_safe_slave_backup,
 	 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
-	{"rsync", OPT_RSYNC, "Uses the rsync utility to optimize local file "
-	 "transfers. When this option is specified, innobackupex uses rsync "
-	 "to copy all non-InnoDB files instead of spawning a separate cp for "
-	 "each file, which can be much faster for servers with a large number "
-	 "of databases or tables.  This option cannot be used together with "
-	 "--stream.",
-	 (uchar *) &opt_ibx_rsync, (uchar *) &opt_ibx_rsync,
-	 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-
 	{"force-non-empty-directories", OPT_FORCE_NON_EMPTY_DIRS, "This "
 	 "option, when specified, makes --copy-back or --move-back transfer "
 	 "files to non-empty directories. Note that no existing files will be "
@@ -377,7 +367,7 @@ static struct my_option ibx_long_options[] =
 
 	{"incremental-history-name", OPT_INCREMENTAL_HISTORY_NAME,
 	 "This option specifies the name of the backup series stored in the "
-	 XB_HISTORY_TABLE " history record to base an "
+	 "PERCONA_SCHEMA.xtrabackup_history history record to base an "
 	 "incremental backup on. Backup will search the history table "
 	 "looking for the most recent (highest innodb_to_lsn), successful "
 	 "backup in the series and take the to_lsn value to use as the "
@@ -392,7 +382,7 @@ static struct my_option ibx_long_options[] =
 
 	{"incremental-history-uuid", OPT_INCREMENTAL_HISTORY_UUID,
 	 "This option specifies the UUID of the specific history record "
-	 "stored in the " XB_HISTORY_TABLE " table to base an "
+	 "stored in the PERCONA_SCHEMA.xtrabackup_history to base an "
 	 "incremental backup on. --incremental-history-name, "
 	 "--incremental-basedir and --incremental-lsn. If no valid lsn can be "
 	 "found (no success record with that uuid), an error will be returned."
@@ -417,7 +407,7 @@ static struct my_option ibx_long_options[] =
 
 	{"history", OPT_HISTORY,
 	 "This option enables the tracking of backup history in the "
-	 XB_HISTORY_TABLE " table. An optional history "
+	 "PERCONA_SCHEMA.xtrabackup_history table. An optional history "
 	 "series name may be specified that will be placed with the history "
 	 "record for the current backup being taken.",
 	 NULL, NULL, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
@@ -864,10 +854,8 @@ ibx_init()
 	opt_slave_info = opt_ibx_slave_info;
 	opt_no_lock = opt_ibx_no_lock;
 	opt_safe_slave_backup = opt_ibx_safe_slave_backup;
-	opt_rsync = opt_ibx_rsync;
 	opt_force_non_empty_dirs = opt_ibx_force_non_empty_dirs;
 	opt_noversioncheck = opt_ibx_noversioncheck;
-	opt_no_backup_locks = opt_ibx_no_backup_locks;
 	opt_decompress = opt_ibx_decompress;
 
 	opt_incremental_history_name = opt_ibx_incremental_history_name;
