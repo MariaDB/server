@@ -2116,14 +2116,13 @@ static bool ha_validate(const hash_table_t *table,
 }
 
 /** Validates the search system for given hash table.
-@param[in]	hash_table_id	hash table to validate
-@return TRUE if ok */
-static
-ibool
-btr_search_hash_table_validate(ulint hash_table_id)
+@param thd            connection, for checking if CHECK TABLE has been killed
+@param hash_table_id  hash table to validate
+@return true if ok */
+static bool btr_search_hash_table_validate(THD *thd, ulint hash_table_id)
 {
 	ha_node_t*	node;
-	ibool		ok		= TRUE;
+	bool		ok		= true;
 	ulint		i;
 	ulint		cell_count;
 	mem_heap_t*	heap		= NULL;
@@ -2131,9 +2130,15 @@ btr_search_hash_table_validate(ulint hash_table_id)
 	rec_offs*	offsets		= offsets_;
 
 	btr_search_x_lock_all();
-	if (!btr_search_enabled) {
+	if (!btr_search_enabled || (thd && thd_kill_level(thd))) {
+func_exit:
 		btr_search_x_unlock_all();
-		return(TRUE);
+
+		if (UNIV_LIKELY_NULL(heap)) {
+			mem_heap_free(heap);
+		}
+
+		return ok;
 	}
 
 	/* How many cells to check before temporarily releasing
@@ -2160,8 +2165,8 @@ btr_search_hash_table_validate(ulint hash_table_id)
 
 			btr_search_x_lock_all();
 
-			if (!btr_search_enabled) {
-				ok = true;
+			if (!btr_search_enabled
+			    || (thd && thd_kill_level(thd))) {
 				goto func_exit;
 			}
 
@@ -2268,8 +2273,8 @@ state_ok:
 
 			btr_search_x_lock_all();
 
-			if (!btr_search_enabled) {
-				ok = true;
+			if (!btr_search_enabled
+			    || (thd && thd_kill_level(thd))) {
 				goto func_exit;
 			}
 
@@ -2290,33 +2295,23 @@ state_ok:
 		ulint end_index = ut_min(i + chunk_size - 1, cell_count - 1);
 
 		if (!ha_validate(&part.table, i, end_index)) {
-			ok = FALSE;
+			ok = false;
 		}
 	}
 
 	mysql_mutex_unlock(&buf_pool.mutex);
-func_exit:
-	btr_search_x_unlock_all();
-
-	if (UNIV_LIKELY_NULL(heap)) {
-		mem_heap_free(heap);
-	}
-
-	return(ok);
+	goto func_exit;
 }
 
-/** Validate the search system.
-@return true if ok. */
-bool
-btr_search_validate()
+/** Validates the search system.
+@param thd   connection, for checking if CHECK TABLE has been killed
+@return true if ok */
+bool btr_search_validate(THD *thd)
 {
-	for (ulint i = 0; i < btr_ahi_parts; ++i) {
-		if (!btr_search_hash_table_validate(i)) {
-			return(false);
-		}
-	}
-
-	return(true);
+  for (ulint i= 0; i < btr_ahi_parts; ++i)
+    if (!btr_search_hash_table_validate(thd, i))
+      return(false);
+  return true;
 }
 
 #ifdef UNIV_DEBUG

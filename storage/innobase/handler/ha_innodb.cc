@@ -15406,7 +15406,8 @@ ha_innobase::check(
 	/* We validate the whole adaptive hash index for all tables
 	at every CHECK TABLE only when QUICK flag is not present. */
 
-	if (!(check_opt->flags & T_QUICK) && !btr_search_validate()) {
+	if (!(check_opt->flags & T_QUICK)
+	    && !btr_search_validate(m_prebuilt->trx->mysql_thd)) {
 		push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
 			     ER_NOT_KEYFILE,
 			     "InnoDB: The adaptive hash index is corrupted.");
