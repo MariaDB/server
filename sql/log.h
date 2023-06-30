@@ -493,7 +493,8 @@ public:
 
   void acquire()
   {
-    auto prev= ref_count.fetch_add(1);
+    IF_DBUG(auto prev= ,)
+    ref_count.fetch_add(1);
     DBUG_ASSERT(prev != 0);
   }
 
