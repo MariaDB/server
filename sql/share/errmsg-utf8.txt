@@ -8084,9 +8084,8 @@ ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_SKIP_REPLICATION
 ER_STORED_FUNCTION_PREVENTS_SWITCH_SKIP_REPLICATION
         chi "无法修改存储函数或触发器内的@@session.skip_replication"
         eng "Cannot modify @@session.skip_replication inside a stored function or trigger"
-ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT
-        chi "查询执行被中断。查询检查至少%llu行，超过限制行（%llu）。查询结果可能是不完整的"
-        eng "Query execution was interrupted. The query examined at least %llu rows, which exceeds LIMIT ROWS EXAMINED (%llu). The query result may be incomplete"
+ER_QUERY_RESULT_INCOMPLETE
+        eng "Query execution was interrupted. The query exceeded %s %llu. The query result may be incomplete"
 ER_NO_SUCH_TABLE_IN_ENGINE 42S02 
         chi "表'%-.192s.%-.192s'在引擎中不存在"
         eng "Table '%-.192s.%-.192s' doesn't exist in engine"
