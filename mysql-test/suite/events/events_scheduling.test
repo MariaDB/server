@@ -1,6 +1,8 @@
 # Can't test with embedded server that doesn't support events
 -- source include/not_embedded.inc
 
+call mtr.add_suppression("Event Scheduler: .* Table 'events_test.t1' doesn't exist");
+
 CREATE DATABASE IF NOT EXISTS events_test;
 USE events_test;
 

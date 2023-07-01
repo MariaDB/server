@@ -9,6 +9,7 @@ set sql_mode="";
 
 call mtr.add_suppression("Column count of mysql.event is wrong. Expected .*, found .*\. The table is probably corrupted");
 call mtr.add_suppression("Incorrect definition of table mysql.event:.*");
+call mtr.add_suppression("Event Scheduler: .* DROP command denied to user");
 
 --disable_warnings
 drop database if exists events_test;

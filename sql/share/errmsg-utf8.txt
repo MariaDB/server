@@ -10784,5 +10784,3 @@ ER_JSON_INVALID_VALUE_FOR_KEYWORD
         eng "Invalid value for keyword %s"
 ER_JSON_SCHEMA_KEYWORD_UNSUPPORTED
         eng "%s keyword is not supported"
-ER_EVENTS_NO_ACL
-        eng "Event scheduler cannot function with --skip-grant-tables, --bootstrap, or embedded build"
