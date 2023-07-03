@@ -5048,27 +5048,33 @@ bool Sys_var_rpl_filter::global_update(THD *thd, set_var *var)
 bool Sys_var_rpl_filter::set_filter_value(const char *value, Master_info *mi)
 {
   bool status= true;
-  Rpl_filter* rpl_filter= mi->rpl_filter;
+  Rpl_filter* rpl_filter= (opt_id < OPT_PARALLEL_DO_DB) ? mi->rpl_filter : parallel_filter;
 
   /* Proctect against other threads */
   mysql_mutex_lock(&LOCK_active_mi);
   switch (opt_id) {
   case OPT_REPLICATE_DO_DB:
+  case OPT_PARALLEL_DO_DB:
     status= rpl_filter->set_do_db(value);
     break;
   case OPT_REPLICATE_DO_TABLE:
+  case OPT_PARALLEL_DO_TABLE:
     status= rpl_filter->set_do_table(value);
     break;
   case OPT_REPLICATE_IGNORE_DB:
+  case OPT_PARALLEL_IGNORE_DB:
     status= rpl_filter->set_ignore_db(value);
     break;
   case OPT_REPLICATE_IGNORE_TABLE:
+  case OPT_PARALLEL_IGNORE_TABLE:
     status= rpl_filter->set_ignore_table(value);
     break;
   case OPT_REPLICATE_WILD_DO_TABLE:
+  case OPT_PARALLEL_WILD_DO_TABLE:
     status= rpl_filter->set_wild_do_table(value);
     break;
   case OPT_REPLICATE_WILD_IGNORE_TABLE:
+  case OPT_PARALLEL_WILD_IGNORE_TABLE:
     status= rpl_filter->set_wild_ignore_table(value);
     break;
   }
@@ -5097,26 +5103,33 @@ Sys_var_rpl_filter::global_value_ptr(THD *thd,
     return 0;
   }
 
-  rpl_filter= mi->rpl_filter;
+  rpl_filter= (opt_id < OPT_PARALLEL_DO_DB) ? mi->rpl_filter : parallel_filter;
+  tmp.length(0);
 
   mysql_mutex_lock(&LOCK_active_mi);
   switch (opt_id) {
   case OPT_REPLICATE_DO_DB:
+  case OPT_PARALLEL_DO_DB:
     rpl_filter->get_do_db(&tmp);
     break;
   case OPT_REPLICATE_DO_TABLE:
+  case OPT_PARALLEL_DO_TABLE:
     rpl_filter->get_do_table(&tmp);
     break;
   case OPT_REPLICATE_IGNORE_DB:
+  case OPT_PARALLEL_IGNORE_DB:
     rpl_filter->get_ignore_db(&tmp);
     break;
   case OPT_REPLICATE_IGNORE_TABLE:
+  case OPT_PARALLEL_IGNORE_TABLE:
     rpl_filter->get_ignore_table(&tmp);
     break;
   case OPT_REPLICATE_WILD_DO_TABLE:
+  case OPT_PARALLEL_WILD_DO_TABLE:
     rpl_filter->get_wild_do_table(&tmp);
     break;
   case OPT_REPLICATE_WILD_IGNORE_TABLE:
+  case OPT_PARALLEL_WILD_IGNORE_TABLE:
     rpl_filter->get_wild_ignore_table(&tmp);
     break;
   }
@@ -5169,6 +5182,46 @@ static Sys_var_rpl_filter Sys_replicate_wild_ignore_table(
        "replicate_wild_ignore_table", OPT_REPLICATE_WILD_IGNORE_TABLE,
        "Tells the slave thread to not replicate to the tables that "
        "match the given wildcard pattern.");
+
+static Sys_var_rpl_filter Sys_parallel_do_db(
+       "parallel_do_db", OPT_PARALLEL_DO_DB,
+       "Tell the master to restrict parallel replication to databases "
+       "whose names appear in the comma-separated list. Other databases will be "
+       "in serial replication, no matter parallel_ignore_db is used or not.");
+
+static Sys_var_rpl_filter Sys_parallel_do_table(
+       "parallel_do_table", OPT_PARALLEL_DO_TABLE,
+       "Tells the master to restrict parallel replication to tables in the "
+       "comma-separated list.");
+
+static Sys_var_rpl_filter Sys_parallel_ignore_db(
+       "parallel_ignore_db", OPT_PARALLEL_IGNORE_DB,
+       "Tell the master to restrict parallel replication to databases "
+       "whose names do not appear in the comma-separated list. "
+       "If parallel_do_db is used this directive is ignored.");
+
+static Sys_var_rpl_filter Sys_parallel_ignore_table(
+       "parallel_ignore_table", OPT_PARALLEL_IGNORE_TABLE,
+       "Tell the master to restrict parallel replication to tables "
+       "whose names do not appear in the comma-separated list.");
+
+static Sys_var_rpl_filter Sys_parallel_wild_do_table(
+       "parallel_wild_do_table", OPT_PARALLEL_WILD_DO_TABLE,
+       "Tells the master to restrict parallel replication to statements "
+       "where all the updated tables match the specified database "
+       "and table name patterns.");
+
+static Sys_var_rpl_filter Sys_parallel_wild_ignore_table(
+       "parallel_wild_ignore_table", OPT_PARALLEL_WILD_IGNORE_TABLE,
+       "Tells the master to restrict parallel replication to statements "
+       "where none of the updated tables match the specified database "
+       "and table name patterns.");
+
+static Sys_var_mybool Sys_slave_ordered_thread(
+       "slave_ordered_thread",
+       "Per-domain dedicated thread on slave for processing ordered events",
+       GLOBAL_VAR(opt_slave_ordered_thread),
+       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
 
 static Sys_var_charptr Sys_slave_load_tmpdir(
        "slave_load_tmpdir", "The location where the slave should put "

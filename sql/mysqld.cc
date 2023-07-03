@@ -375,6 +375,7 @@ bool opt_bin_log, opt_bin_log_used=0, opt_ignore_builtin_innodb= 0;
 bool opt_bin_log_compress;
 uint opt_bin_log_compress_min_len;
 my_bool opt_log, debug_assert_if_crashed_table= 0, opt_help= 0;
+my_bool opt_slave_ordered_thread= 0;
 my_bool debug_assert_on_not_freed_memory= 0;
 my_bool disable_log_notes, opt_support_flashback= 0;
 static my_bool opt_abort;
@@ -647,6 +648,7 @@ THD_list server_threads;
 Rpl_filter* cur_rpl_filter;
 Rpl_filter* global_rpl_filter;
 Rpl_filter* binlog_filter;
+Rpl_filter* parallel_filter;
 
 struct system_variables global_system_variables;
 /**
@@ -2033,6 +2035,7 @@ static void clean_up(bool print_message)
   wsrep_thr_deinit();
   my_uuid_end();
   delete type_handler_data;
+  delete parallel_filter;
   delete binlog_filter;
   delete global_rpl_filter;
   end_ssl();
@@ -3952,7 +3955,8 @@ static int init_common_variables()
 
   global_rpl_filter= new Rpl_filter;
   binlog_filter= new Rpl_filter;
-  if (!global_rpl_filter || !binlog_filter)
+  parallel_filter= new Rpl_filter;
+  if (!global_rpl_filter || !binlog_filter || !parallel_filter)
   {
     sql_perror("Could not allocate replication and binlog filters");
     exit(1);
@@ -5874,6 +5878,7 @@ int mysqld_main(int argc, char **argv)
 
   /* Copy default global rpl_filter to global_rpl_filter */
   copy_filter_setting(global_rpl_filter, get_or_create_rpl_filter("", 0));
+  copy_filter_setting(parallel_filter, get_or_create_rpl_filter("", 0));
 
   /*
     init_slave() must be called after the thread keys are created.

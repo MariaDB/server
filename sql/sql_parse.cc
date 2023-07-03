@@ -379,7 +379,7 @@ const LEX_CSTRING command_name[257]={
   { 0, 0 }, //237
   { 0, 0 }, //238
   { 0, 0 }, //239
-  { 0, 0 }, //240
+  { STRING_WITH_LEN("Slave_ordered") }, //240
   { 0, 0 }, //241
   { 0, 0 }, //242
   { 0, 0 }, //243
@@ -6258,6 +6258,27 @@ finish:
     }
     else
     {
+      /*
+        In multi-statement transaction if one statement sets rpl_ordered, it stays
+        for the whole transaction.
+      */
+      if (all_tables && !thd->rpl_ordered && thd->variables.option_bits & OPTION_BIN_LOG)
+      {
+        TABLE_LIST *table;
+        /* Transaction can be parallel as long as all tables allow parallel */
+        bool can_parallel= true;
+        for (table= all_tables; can_parallel && table; table= table->next_global)
+        {
+          if (!table->updating)
+            continue;
+          int res= parallel_filter->table_ok(thd->db.str, table);
+          if (!(res & Rpl_filter::NOT_IN_ANY_LIST))
+            can_parallel= (res & Rpl_filter::ALLOWED);
+          else /* Table did not match any lists, check database lists */
+            can_parallel= parallel_filter->db_ok(table->db.str);
+        }
+        thd->rpl_ordered= !can_parallel;
+      }
       /* If commit fails, we should be able to reset the OK status. */
       THD_STAGE_INFO(thd, stage_commit);
       thd->get_stmt_da()->set_overwrite_status(true);
@@ -7557,6 +7578,8 @@ void THD::reset_for_next_command(bool do_clear_error)
   binlog_unsafe_warning_flags= 0;
 
   save_prep_leaf_list= false;
+  if (!in_multi_stmt_transaction_mode())
+    rpl_ordered= false;
 
 #ifdef WITH_WSREP
 #if !defined(DBUG_OFF)

@@ -2693,6 +2693,10 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
   bool is_group_event;
   bool did_enter_cond= false;
   PSI_stage_info old_stage;
+  Gtid_log_event *gtid_ev;
+  enum rpl_group_info::enum_speculation speculation;
+  uint8 force_switch_flag;
+  bool new_gco;
 
   DBUG_EXECUTE_IF("slave_crash_if_parallel_apply", DBUG_SUICIDE(););
   /* Handle master log name change, seen in Rotate_log_event. */
@@ -2882,13 +2886,10 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
 
   if (typ == GTID_EVENT)
   {
-    Gtid_log_event *gtid_ev= static_cast<Gtid_log_event *>(ev);
-    bool new_gco;
+    gtid_ev= static_cast<Gtid_log_event *>(ev);
     enum_slave_parallel_mode mode= rli->mi->parallel_mode;
     uchar gtid_flags= gtid_ev->flags2;
     group_commit_orderer *gco;
-    uint8 force_switch_flag;
-    enum rpl_group_info::enum_speculation speculation;
 
     if (!(rgi= cur_thread->get_rgi(rli, gtid_ev, e, event_size)))
     {
@@ -3076,6 +3077,27 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
   else
   {
     qev->rgi= e->current_group_info;
+  }
+
+  if (typ == GTID_EVENT)
+  {
+    DBUG_PRINT("rpl",
+              ("pos: %llu  "
+               "GTID %u-%u-%llu  "
+               "cid=%llu  "
+               "spcl: %u  fsf: %u  ng: %u  "
+               "groups_q: %llu",
+               ev->log_pos,
+               gtid_ev->domain_id, gtid_ev->server_id, gtid_ev->seq_no,
+               gtid_ev->commit_id,
+               speculation, force_switch_flag, new_gco,
+               e->count_queued_event_groups));
+  }
+  else
+  {
+    DBUG_PRINT("rpl",
+              ("pos: %llu  type: %u",
+               ev->log_pos, typ));
   }
 
   /*
