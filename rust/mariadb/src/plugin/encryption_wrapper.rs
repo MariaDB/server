@@ -77,6 +77,7 @@ impl<T> WrapEncryption for T where T: Encryption {}
 
 pub trait WrapEncryption: Encryption {
     extern "C" fn wrap_crypt_ctx_size(_key_id: c_uint, _key_version: c_uint) -> c_uint {
+        // CHECKME might define how many bytes extra we get on the buffer
         // I believe that key_id and key_version are provided in case this plugin
         // uses different structs for different keys. However, it seems safer & more
         // user friendly to sidestep that and just make everything the same size
@@ -157,7 +158,8 @@ pub trait WrapEncryption: Encryption {
             Ok(v) => (bindings::MY_AES_OK.try_into().unwrap(), v.try_into().unwrap()),
             Err(e) => (e as c_int, 0),
         };
-
+        *dlen = written;
+        dbg!(*dlen);
         ctx.drop_in_place();
         ret
     }

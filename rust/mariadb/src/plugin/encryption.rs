@@ -102,11 +102,14 @@ pub trait Encryption: Sized {
     ) -> Result<Self, EncryptionError>;
 
     /// Update the encryption context with new data, return the number of bytes
-    /// written
+    /// written. Do not append the iv to the ciphertext, MariaDB keeps track of
+    /// it separately.
     fn update(&mut self, src: &[u8], dst: &mut [u8]) -> Result<usize, EncryptionError>;
 
-    /// Write the remaining bytes to the buffer. Return the total number of written bytes
-    fn finish(&mut self, dst: &mut [u8]) -> Result<usize, EncryptionError>;
+    /// Write the remaining bytes to the buffer. This usually can't write anything.
+    fn finish(&mut self, dst: &mut [u8]) -> Result<usize, EncryptionError> {
+        Ok(0)
+    }
 
     /// Return the exact length of the encrypted data based on the source length
     ///

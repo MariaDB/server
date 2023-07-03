@@ -154,9 +154,10 @@ impl Encryption for EncryptionExampleRs {
     fn finish(&mut self, dst: &mut [u8]) -> Result<usize, EncryptionError> {
         eprintln!("encryption finish");
         dbg!(dst.len());
-        self.0 += dst.len();
-        dbg!(self);
-        Ok(dst.len())
+        // self.0 += dst.len();
+        dbg!(&self);
+        // Ok(self.0)
+        Ok(0)
     }
 
     fn encrypted_length(key_id: u32, key_version: u32, src_len: usize) -> usize {
