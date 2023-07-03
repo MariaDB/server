@@ -21,6 +21,8 @@ CREATE TABLE t (a int) ENGINE=InnoDB;
 INSERT INTO t VALUES(42);
 FLUSH TABLES t FOR EXPORT;
 UNLOCK TABLES;
+SET GLOBAL innodb_max_dirty_pages_pct_lwm=0.0;
+SET GLOBAL innodb_max_dirty_pages_pct=0.0;
 connect  hang1,localhost,root;
 SET DEBUG_SYNC='ib_after_create_stub_for_import SIGNAL hung WAIT_FOR ever';
 ALTER TABLE t1 IMPORT TABLESPACE;

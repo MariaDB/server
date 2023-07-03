@@ -44,6 +44,15 @@ FLUSH TABLES t FOR EXPORT;
 --copy_file $MYSQLD_DATADIR/test/t.ibd $MYSQLD_DATADIR/test/t4.ibd
 UNLOCK TABLES;
 
+SET GLOBAL innodb_max_dirty_pages_pct_lwm=0.0;
+SET GLOBAL innodb_max_dirty_pages_pct=0.0;
+
+let $wait_condition =
+SELECT variable_value = 0
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_DIRTY';
+--source include/wait_condition.inc
+
 connect (hang1,localhost,root);
 SET DEBUG_SYNC='ib_after_create_stub_for_import SIGNAL hung WAIT_FOR ever';
 send ALTER TABLE t1 IMPORT TABLESPACE;
