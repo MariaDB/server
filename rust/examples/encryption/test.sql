@@ -1,3 +1,5 @@
+INSTALL PLUGIN encryption_example SONAME 'libencryption_example.so';
+
 SET GLOBAL innodb_encryption_threads=1;
 SET GLOBAL innodb_encrypt_tables=ON;
 SET SESSION innodb_default_encryption_key_id=100;

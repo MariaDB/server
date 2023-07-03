@@ -1,7 +1,7 @@
 # Define our crates within a workspace
 
 [workspace]
-
+resolver = "2"
 members = [
     "bindings",
     "mariadb",
@@ -10,4 +10,6 @@ members = [
     "examples/keymgt-debug",
     "examples/encryption",
     "plugins/keymgt-clevis",
+    "plugins/encryption-chacha",
+    "test-runner",
 ]

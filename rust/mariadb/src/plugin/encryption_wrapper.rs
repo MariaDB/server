@@ -48,7 +48,7 @@ pub trait WrapKeyMgr: KeyManager {
         }
 
         // SAFETY: caller guarantees validity
-        let buf = slice::from_raw_parts_mut(dstbuf, *buflen as usize);
+        let buf = slice::from_raw_parts_mut(dstbuf, (*buflen).try_into().unwrap());
 
         // If successful, return 0. If an error occurs, return it
         match dbg!(Self::get_key(key_id, version, buf)) {
@@ -101,16 +101,16 @@ pub trait WrapEncryption: Encryption {
         key_version: c_uint,
     ) -> c_int {
         /// SAFETY: caller guarantees buffer validity
-        let keybuf = slice::from_raw_parts(key, klen as usize);
-        let ivbuf = slice::from_raw_parts(iv, ivlen as usize);
+        let keybuf = slice::from_raw_parts(key, klen.try_into().unwrap());
+        let ivbuf = slice::from_raw_parts(iv, ivlen.try_into().unwrap());
         let flags = Flags::new(flags);
-        match Self::init(key_id, key_version, keybuf, ivbuf, flags) {
-            Ok(newctx) => {
-                ctx.cast::<Self>().write(newctx);
-                bindings::MY_AES_OK.try_into().unwrap()
-            }
-            Err(e) => e as c_int,
-        }
+        let newctx = match Self::init(key_id, key_version, keybuf, ivbuf, flags) {
+            Ok(c) => c,
+            Err(e) => return e as c_int,
+        };
+
+        ctx.cast::<Self>().write(newctx);
+        bindings::MY_AES_OK.try_into().unwrap()
     }
 
     /// # Safety
@@ -131,14 +131,13 @@ pub trait WrapEncryption: Encryption {
         dst: *mut c_uchar,
         dlen: *mut c_uint,
     ) -> c_int {
-        // dbg!(slen, dlen, *dlen);
-        let sbuf = slice::from_raw_parts(src, slen as usize);
-        let dbuf = slice::from_raw_parts_mut(dst, slen as usize);
+        // debug_assert!(*dlen >= slen, "using a version from before MDEV-30309");
+        let sbuf = slice::from_raw_parts(src, slen.try_into().unwrap());
+        let dbuf = slice::from_raw_parts_mut(dst, slen.try_into().unwrap());
 
-        let c: &mut Self = &mut *ctx.cast();
-        let (ret, written) = match c.update(sbuf, dbuf) {
-            // FIXME dlen
-            Ok(_) => (bindings::MY_AES_OK.try_into().unwrap(), 0),
+        let this: &mut Self = &mut *ctx.cast();
+        let (ret, written) = match this.update(sbuf, dbuf) {
+            Ok(v) => (bindings::MY_AES_OK.try_into().unwrap(), v.try_into().unwrap()),
             Err(e) => (e as c_int, 0),
         };
         *dlen = written;
@@ -151,12 +150,11 @@ pub trait WrapEncryption: Encryption {
         dlen: *mut c_uint,
     ) -> c_int {
         dbg!(*dlen);
-        let dbuf = slice::from_raw_parts_mut(dst, dlen as usize);
+        let dbuf = slice::from_raw_parts_mut(dst, (*dlen).try_into().unwrap());
 
-        let c: &mut Self = &mut *ctx.cast();
-        let (ret, written) = match c.finish(dbuf) {
-            // FIXME dlen
-            Ok(_) => (bindings::MY_AES_OK.try_into().unwrap(), 0),
+        let this: &mut Self = &mut *ctx.cast();
+        let (ret, written) = match this.finish(dbuf) {
+            Ok(v) => (bindings::MY_AES_OK.try_into().unwrap(), v.try_into().unwrap()),
             Err(e) => (e as c_int, 0),
         };
 

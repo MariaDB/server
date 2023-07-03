@@ -26,7 +26,6 @@ pub fn entry(tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
 struct PluginInfo {
     /// The main type that has required methods implemented on it
     main_ty: Ident,
-    span: Span,
     ptype: Option<Expr>,
     name: Option<Expr>,
     author: Option<Expr>,
@@ -42,9 +41,7 @@ struct PluginInfo {
 impl Parse for PluginInfo {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let main_ty = input.parse()?;
-        // FIXME: span is only the beginning
-        let span = input.span();
-        let mut ret = Self::new(main_ty, span);
+        let mut ret = Self::new(main_ty);
         let _: Token![,] = input.parse()?;
 
         let fields = Punctuated::<FieldValue, Token![,]>::parse_terminated(input)?;
@@ -86,10 +83,9 @@ impl Parse for PluginInfo {
 }
 
 impl PluginInfo {
-    const fn new(main_ty: Ident, span: Span) -> Self {
+    const fn new(main_ty: Ident) -> Self {
         Self {
             main_ty,
-            span,
             ptype: None,
             name: None,
             author: None,
@@ -131,14 +127,14 @@ impl PluginInfo {
             let (field_val, fname) = name_map.iter().find(|f| f.1 == *req_field).unwrap();
 
             if field_val.is_none() {
-                let msg = format!("field '{fname}' is expected for plugins of type {ptype}, but not provided\n(in macro 'register_plugin')");
-                return Err(Error::new(self.span, msg));
+                let msg = format!("field '{fname}' is expected for {ptype} plugins, but not provided\n(in macro 'register_plugin')");
+                return Err(Error::new(Span::call_site(), msg));
             }
         }
 
         for (field, fname) in name_map {
             if field.is_some() && !req.contains(&fname) && !optional.contains(&fname) {
-                let msg = format!("field '{fname}' is not expected for plugins of type {ptype}\n(in macro 'register_plugin')");
+                let msg = format!("field '{fname}' is not expected for {ptype} plugins\n(in macro 'register_plugin')");
                 return Err(Error::new_spanned(field.as_ref().unwrap(), msg));
             }
         }

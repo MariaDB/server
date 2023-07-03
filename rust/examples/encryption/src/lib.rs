@@ -51,53 +51,60 @@ impl KeyVersions {
             next: now,
         };
         ret.update_next();
+        dbg!(&ret);
         ret
     }
 
+    /// Create a random time for the next key update
     fn update_next(&mut self) {
         let mult = rand::thread_rng().gen_range(0.0..1.0);
         let add_duration = KEY_ROTATION_MIN + mult * KEY_ROTATION_INTERVAL;
         self.next += Duration::from_secs_f32(add_duration);
     }
 
-    /// Update the internal duration if needed, and return the elapsed time
-    fn update_returning_version(&mut self) -> u64 {
+    /// Check if we need to update the ksy, i.e. if our elapsed time has passed,
+    /// and return the current key
+    fn update_returning_version(&mut self) -> u32 {
         let now = Instant::now();
         if now > self.next {
             self.current = now;
             self.update_next();
+            eprintln!("updating to {:?}", self);
         }
-        (self.next - self.start).as_secs()
+        (self.next - self.start).as_secs().try_into().unwrap()
     }
 }
 
-struct RustEncryption;
+#[derive(Debug)]
+struct EncryptionExampleRs(usize);
 
-impl Init for RustEncryption {
+impl Init for EncryptionExampleRs {
     /// Initialize function:
     fn init() -> Result<(), InitError> {
-        eprintln!("init called for RustEncryption");
+        eprintln!("init called for EncryptionExampleRs");
         let mut guard = KEY_VERSIONS.lock().unwrap();
         *guard = Some(KeyVersions::new_now());
         Ok(())
     }
 
     fn deinit() -> Result<(), InitError> {
-        eprintln!("deinit called for RustEncryption");
+        eprintln!("deinit called for EncryptionExampleRs");
         Ok(())
     }
 }
 
-impl KeyManager for RustEncryption {
+impl KeyManager for EncryptionExampleRs {
     fn get_latest_key_version(_key_id: u32) -> Result<u32, KeyError> {
+        eprintln!("get_latest_key_version");
         dbg!(_key_id);
         let mut guard = KEY_VERSIONS.lock().unwrap();
         let mut vers = guard.as_mut().unwrap();
-        Ok(vers.update_returning_version() as u32)
+        Ok(vers.update_returning_version())
     }
 
     /// Given a key ID and a version, create its hash
     fn get_key(key_id: u32, key_version: u32, dst: &mut [u8]) -> Result<(), KeyError> {
+        eprintln!("get_key");
         dbg!(key_id, key_version, dst.len());
 
         let output_size = Hasher::output_size();
@@ -112,13 +119,14 @@ impl KeyManager for RustEncryption {
     }
 
     fn key_length(key_id: u32, key_version: u32) -> Result<usize, KeyError> {
+        eprintln!("key_length");
         dbg!(key_id, key_version);
         // All keys have the same length
         Ok(Hasher::output_size())
     }
 }
 
-impl Encryption for RustEncryption {
+impl Encryption for EncryptionExampleRs {
     fn init(
         key_id: u32,
         key_version: u32,
@@ -130,21 +138,25 @@ impl Encryption for RustEncryption {
         dbg!(&key_id, &key_version);
         eprintln!("key: {:x?}", &key);
         eprintln!("iv: {:x?}", &iv);
-        dbg!(flags);
-        Ok(Self)
+        dbg!(flags, flags.should_encrypt());
+        Ok(Self(0))
     }
 
-    fn update(&mut self, src: &[u8], dst: &mut [u8]) -> Result<(), EncryptionError> {
+    fn update(&mut self, src: &[u8], dst: &mut [u8]) -> Result<usize, EncryptionError> {
         eprintln!("encryption update");
         dbg!(src.len(), dst.len());
         dst[..src.len()].copy_from_slice(src);
-        Ok(())
+        self.0 += src.len();
+        dbg!(self);
+        Ok(src.len())
     }
 
-    fn finish(&mut self, dst: &mut [u8]) -> Result<(), EncryptionError> {
+    fn finish(&mut self, dst: &mut [u8]) -> Result<usize, EncryptionError> {
         eprintln!("encryption finish");
         dbg!(dst.len());
-        Ok(())
+        self.0 += dst.len();
+        dbg!(self);
+        Ok(dst.len())
     }
 
     fn encrypted_length(key_id: u32, key_version: u32, src_len: usize) -> usize {
@@ -155,7 +167,7 @@ impl Encryption for RustEncryption {
 }
 
 register_plugin! {
-    RustEncryption,
+    EncryptionExampleRs,
     ptype: PluginType::MariaEncryption,
     name: "encryption_example",
     author: "Trevor Gross",
@@ -163,6 +175,6 @@ register_plugin! {
     license: License::Gpl,
     maturity: Maturity::Experimental,
     version: "0.1",
-    init: RustEncryption, // optional
+    init: EncryptionExampleRs, // optional
     encryption: true,
 }

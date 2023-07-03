@@ -51,7 +51,7 @@ impl Flags {
         Self(value)
     }
 
-    pub(crate) const fn should_encrypt(self) -> bool {
+    pub const fn should_encrypt(self) -> bool {
         (self.0 & bindings::ENCRYPTION_FLAG_ENCRYPT as i32) != 0
     }
 
@@ -90,7 +90,7 @@ pub trait KeyManager: Send + Sized {
     fn key_length(key_id: u32, key_version: u32) -> Result<usize, KeyError>;
 }
 
-// TODO: Maybe split into `Encrypt` and `Decrypt` traits
+// TODO: Split into `Encrypt` and `Decrypt` traits
 pub trait Encryption: Sized {
     /// Initialize the encryption context object
     fn init(
@@ -103,10 +103,10 @@ pub trait Encryption: Sized {
 
     /// Update the encryption context with new data, return the number of bytes
     /// written
-    fn update(&mut self, src: &[u8], dst: &mut [u8]) -> Result<(), EncryptionError>;
+    fn update(&mut self, src: &[u8], dst: &mut [u8]) -> Result<usize, EncryptionError>;
 
-    /// Write the remaining bytes to the buffer
-    fn finish(&mut self, dst: &mut [u8]) -> Result<(), EncryptionError>;
+    /// Write the remaining bytes to the buffer. Return the total number of written bytes
+    fn finish(&mut self, dst: &mut [u8]) -> Result<usize, EncryptionError>;
 
     /// Return the exact length of the encrypted data based on the source length
     ///

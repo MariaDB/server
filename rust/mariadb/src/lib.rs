@@ -2,6 +2,7 @@
 #![warn(clippy::pedantic)]
 #![warn(clippy::nursery)]
 #![warn(clippy::str_to_string)]
+#![warn(clippy::cast_lossless)]
 #![allow(clippy::option_if_let_else)]
 #![allow(clippy::missing_errors_doc)]
 #![allow(clippy::must_use_candidate)]

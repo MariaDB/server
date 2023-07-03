@@ -53,7 +53,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 
 RUN export RUST_BACKTRACE=1
 
-FROM mariadb:10.11-rc
+FROM mariadb:11.1.1-rc
 
 # Deb utils
 RUN apt-get update \
