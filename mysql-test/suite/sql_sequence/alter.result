@@ -248,3 +248,17 @@ SELECT NEXTVAL(s);
 NEXTVAL(s)
 1
 DROP SEQUENCE s;
+#
+# MDEV-31607 ER_DUP_KEY in mysql.table_stats upon REANME on sequence
+#
+CREATE SEQUENCE s1 ENGINE=InnoDB;
+CREATE SEQUENCE s2 ENGINE=InnoDB;
+SHOW CREATE SEQUENCE s1;
+Table	Create Table
+s1	CREATE SEQUENCE `s1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=InnoDB
+SHOW CREATE SEQUENCE s2;
+Table	Create Table
+s2	CREATE SEQUENCE `s2` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=InnoDB
+DROP SEQUENCE s2;
+RENAME TABLE s1 TO s2;
+DROP SEQUENCE s2;
