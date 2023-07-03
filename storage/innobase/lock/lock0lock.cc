@@ -1368,7 +1368,7 @@ which does NOT check for deadlocks or lock compatibility!
 @param[in,out] trx transaction
 @param[in] caller_owns_trx_mutex TRUE if caller owns the transaction mutex */
 TRANSACTIONAL_TARGET
-static void lock_rec_add_to_queue(unsigned type_mode, hash_cell_t &cell,
+static void lock_rec_add_to_queue(unsigned type_mode, const hash_cell_t &cell,
                                   const page_id_t id, const page_t *page,
                                   ulint heap_no, dict_index_t *index,
                                   trx_t *trx, bool caller_owns_trx_mutex)
@@ -1469,6 +1469,48 @@ create:
 			    caller_owns_trx_mutex);
 }
 
+/** A helper function for lock_rec_lock_slow(), which grants a Next Key Lock
+(either LOCK_X or LOCK_S as specified by `mode`) on <`block`,`heap_no`> in the
+`index` to the `trx`, assuming that it already has a granted `held_lock`, which
+is at least as strong as mode|LOCK_REC_NOT_GAP. It does so by either reusing the
+lock if it already covers the gap, or by ensuring a separate GAP Lock, which in
+combination with Record Lock satisfies the request.
+@param[in]      held_lock   a lock granted to `trx` which is at least as strong
+                            as mode|LOCK_REC_NOT_GAP
+@param[in]      mode        requested lock mode: LOCK_X or LOCK_S
+@param[in]      cell        lock hash table cell
+@param[in]      id          page identifier
+@param[in]      page        buffer block containing the record
+@param[in]      heap_no     heap number of the record to be locked
+@param[in]      index       index of record to be locked
+@param[in]      trx         the transaction requesting the Next Key Lock */
+static void lock_reuse_for_next_key_lock(const lock_t *held_lock, unsigned mode,
+                                         const hash_cell_t &cell,
+                                         const page_id_t id,
+                                         const page_t *page,
+                                         ulint heap_no, dict_index_t *index,
+                                         trx_t *trx) {
+  ut_ad(trx->mutex_is_owner());
+  ut_ad(mode == LOCK_S || mode == LOCK_X);
+  ut_ad(lock_mode_is_next_key_lock(mode));
+
+  if (!held_lock->is_record_not_gap()) {
+    ut_ad(held_lock->is_next_key_lock());
+    return;
+  }
+
+  /* We have a Record Lock granted, so we only need a GAP Lock. We assume
+  that GAP Locks do not conflict with anything. Therefore a GAP Lock
+  could be granted to us right now if we've requested: */
+  mode |= LOCK_GAP;
+  ut_ad(nullptr ==
+        lock_rec_other_has_conflicting(mode, cell, id, heap_no, trx));
+
+  /* It might be the case we already have one, so we first check that. */
+  if (lock_rec_has_expl(mode, cell, id, heap_no, trx) == nullptr)
+    lock_rec_add_to_queue(mode, cell, id, page, heap_no, index, trx, true);
+}
+
 /*********************************************************************//**
 Tries to lock the specified record in the mode requested. If not immediately
 possible, enqueues a waiting lock request. This is a low-level function
@@ -1537,8 +1579,17 @@ lock_rec_lock(
         lock->type_mode != mode ||
         lock_rec_get_n_bits(lock) <= heap_no)
     {
+
+      ulint checked_mode= (heap_no != PAGE_HEAP_NO_SUPREMUM &&
+                          lock_mode_is_next_key_lock(mode))
+                             ? mode | LOCK_REC_NOT_GAP
+                             : mode;
+
+      const lock_t *held_lock=
+          lock_rec_has_expl(checked_mode, g.cell(), id, heap_no, trx);
+
       /* Do nothing if the trx already has a strong enough lock on rec */
-      if (!lock_rec_has_expl(mode, g.cell(), id, heap_no, trx))
+      if (!held_lock)
       {
         if (lock_t *c_lock= lock_rec_other_has_conflicting(mode, g.cell(), id,
                                                            heap_no, trx))
@@ -1557,6 +1608,16 @@ lock_rec_lock(
                                 index, trx, true);
           err= DB_SUCCESS_LOCKED_REC;
         }
+      }
+      /* If checked_mode == mode, trx already has a strong enough lock on rec */
+      else if (checked_mode != mode)
+      {
+        /* As check_mode != mode, the mode is Next Key Lock, which can not be
+        emulated by implicit lock (which are LOCK_REC_NOT_GAP only). */
+        ut_ad(!impl);
+
+        lock_reuse_for_next_key_lock(held_lock, mode, g.cell(), id,
+                                     block->page.frame, heap_no, index, trx);
       }
     }
     else if (!impl)
@@ -5567,6 +5628,8 @@ lock_sec_rec_read_check_and_lock(
 
 	ut_ad(lock_rec_queue_validate(false, block->page.id(),
 				      rec, index, offsets));
+
+	DEBUG_SYNC_C("lock_sec_rec_read_check_and_lock_has_locked");
 
 	return(err);
 }
