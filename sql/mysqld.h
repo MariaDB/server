@@ -907,7 +907,7 @@ enum enum_query_type
 
   // The temporary tables used by the query might be freed by the time
   // this print() call is made.
-  QT_DONT_ACCESS_TMP_TABLES= (1 << 13)
+  QT_ACCESS_TMP_TABLES= (1 << 13)
 };
 
 

@@ -449,7 +449,7 @@ class Explain_insert;
   (1) - Query plan construction is finished and it is available for reading.
 
   (2) - Temporary tables are freed. After this point,
-        we need to pass QT_DONT_ACCESS_TMP_TABLES to item->print(). Since
+        we dont need to pass QT_ACCESS_TMP_TABLES to item->print(). Since
         we don't track when #2 happens for each temp.table, we pass this
         flag whenever we're printing the query plan for a SHOW command.
         Also, we pass it when printing ANALYZE (?)
@@ -457,7 +457,7 @@ class Explain_insert;
   (3) - Notification about (4).
   (4) - Tables used by the query are closed. One known consequence of this is
         that the values of the const tables' fields are not available anymore.
-        We could use the same approach as in QT_DONT_ACCESS_TMP_TABLES to work
+        We could use the same approach as in QT_ACCESS_TMP_TABLES to work
         around that, but instead we disallow producing FORMAT=JSON output at
         step #3. We also processing of SHOW command. The rationale is that
         query is close to finish anyway.

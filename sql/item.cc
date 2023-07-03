@@ -7877,10 +7877,9 @@ void Item_field::print(String *str, enum_query_type query_type)
           * the field refers to a temporary (work) table, and
           * temp. tables might already have been dropped.
   */
-  if (!(refers_to_temp_table &&                      // (1)
-        (query_type & QT_DONT_ACCESS_TMP_TABLES)) && // (1)
-      field && field->table->const_table &&
-      !(query_type & (QT_NO_DATA_EXPANSION | QT_VIEW_INTERNAL)))
+  if (!refers_to_temp_table &&
+      field && field->table->const_table && !(query_type &
+        (QT_NO_DATA_EXPANSION | QT_VIEW_INTERNAL | QT_ACCESS_TMP_TABLES)))
   {
     print_value(str);
     return;

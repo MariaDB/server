@@ -3079,7 +3079,7 @@ EXPLAIN
           "rows": 12,
           "filtered": 100,
           "index_condition": "t1.a is not null",
-          "attached_condition": "(t1.a,1 + 1) in (<cache>((2,2)),<cache>((7,7)),<cache>((8,8))) and octet_length(t1.c) = 1",
+          "attached_condition": "(t1.a,t3.v + 1) in (<cache>((2,2)),<cache>((7,7)),<cache>((8,8))) and octet_length(t1.c) = 1",
           "mrr_type": "Rowid-ordered scan"
         }
       },
