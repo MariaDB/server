@@ -13748,13 +13748,12 @@ err_exit:
   }
 
   if (!table->no_rollback())
-  {
     err= trx->drop_table_foreign(table->name);
-    if (err == DB_SUCCESS && table_stats && index_stats)
-      err= trx->drop_table_statistics(table->name);
-    if (err != DB_SUCCESS)
-      goto err_exit;
-  }
+
+  if (err == DB_SUCCESS && table_stats && index_stats)
+    err= trx->drop_table_statistics(table->name);
+  if (err != DB_SUCCESS)
+    goto err_exit;
 
   err= trx->drop_table(*table);
   if (err != DB_SUCCESS)
