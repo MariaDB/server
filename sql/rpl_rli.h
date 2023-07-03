@@ -825,7 +825,8 @@ struct rpl_group_info
       speculate. So it will wait for the prior transaction to commit before
       starting to replicate.
     */
-    SPECULATE_WAIT
+    SPECULATE_WAIT,
+    SPECULATE_DEPEND
   } speculation;
   enum enum_retry_killed {
     RETRY_KILL_NONE = 0,
@@ -833,8 +834,9 @@ struct rpl_group_info
     RETRY_KILL_KILLED
   };
   uchar killed_for_retry;
-  uint64 wait_noptim_sub_id;
-  rpl_group_info *wait_noptim_group_info;
+  /* sub_id of previous SPECULATE_DEPEND */
+  uint64 wait_depend_sub_id;
+  rpl_group_info *wait_depend_group_info;
 
   rpl_group_info(Relay_log_info *rli_);
   ~rpl_group_info();
