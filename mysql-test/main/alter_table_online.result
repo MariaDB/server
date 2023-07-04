@@ -136,3 +136,71 @@ alter table t1 add c int, algorithm=inplace;
 alter table t1 add d int, lock=none;
 set system_versioning_alter_history= default;
 drop table t1;
+#
+# MDEV-31058 ER_KEY_NOT_FOUND upon concurrent CHANGE column autoinc
+# and DML
+#
+create table t (a serial, b int) engine=innodb;
+alter table t drop a, modify b serial, algorithm=copy, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
+set statement sql_mode= NO_AUTO_VALUE_ON_ZERO for
+alter table t drop a, modify b serial, algorithm=copy, lock=none;
+create or replace table t (a serial, b int) engine=innodb;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `b` int(11) DEFAULT NULL,
+  UNIQUE KEY `a` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+# a is unique in the old table, but is shrunk in the new one.
+# Only unsafe approach is fine because of possible collisions.
+alter table t modify a int, modify b serial, algorithm=copy, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
+#
+# Check that we treat autoinc columns correctly modify old autoinc is
+# fine, adding new autoinc for existed column is unsafe.
+#
+create or replace table t (a serial) engine=innodb;
+alter table t change a b serial, algorithm=copy, lock=none;
+Warnings:
+Note	1831	Duplicate index `b`. This is deprecated and will be disallowed in a future release
+# Shrinking the autoinc field is considered safe.
+# ER_WARN_DATA_OUT_OF_RANGE should be emitted otherwise.
+alter table t change b b int auto_increment primary key,
+algorithm=copy, lock=none;
+alter table t add c int default(0), drop primary key, drop key a;
+# key `b` is still there
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `b` int(11) NOT NULL AUTO_INCREMENT,
+  `c` int(11) DEFAULT 0,
+  UNIQUE KEY `b` (`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+alter table t drop b, change c c serial, algorithm=copy, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
+# Check existed unique keys.
+create or replace table t(a int, b int not null, c int not null, d int);
+# No unique in the old table;
+alter table t add unique(b, c), modify d int auto_increment, add key(d),
+algorithm=copy, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
+alter table t add unique(a, b);
+# Unique in the old table has nulls;
+alter table t modify d int auto_increment, add key(d),
+algorithm=copy, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
+alter table t add unique(b, c);
+# Change unique'scolumn;
+alter table t change b x int, modify d int auto_increment, add key(d),
+algorithm=copy, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
+# Finally good.
+alter table t modify d int auto_increment, add key(d), 
+algorithm=copy, lock=none;
+drop table t;
+# MDEV-31172 Server crash or ASAN errors in online_alter_check_autoinc
+create table t (a int, b int, c char(8), key(a,b,c));
+alter table t modify c int auto_increment key, algorithm=copy;
+drop table t;

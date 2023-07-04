@@ -10616,7 +10616,7 @@ void Vers_history_point::print(String *str, enum_query_type query_type,
   item->print(str, query_type);
 }
 
-Field *TABLE::find_field_by_name(LEX_CSTRING *str) const
+Field *TABLE::find_field_by_name(const LEX_CSTRING *str) const
 {
   Field **tmp;
   size_t length= str->length;
