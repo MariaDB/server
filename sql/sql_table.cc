@@ -9847,6 +9847,79 @@ static uint64 get_start_alter_id(THD *thd)
 }
 
 
+static
+bool online_alter_check_autoinc(const THD *thd, const Alter_info *alter_info,
+                                const TABLE *table)
+{
+  /*
+    We can't go online, if all of the following is presented:
+    * Autoinc is added to existing field
+    * Disabled NO_AUTO_VALUE_ON_ZERO
+    * No non-nullable unique key in the old table, that has all the key parts
+      remaining unchanged.
+  */
+
+  // Exit earlier when possible
+  if (thd->variables.sql_mode & MODE_NO_AUTO_VALUE_ON_ZERO)
+    return true;
+  if ((alter_info->flags | ALTER_CHANGE_COLUMN) != alter_info->flags)
+    return true;
+
+  /*
+    Find at least one unique index (without NULLs), all columns of which
+    remain in the table unchanged to presume it's a safe ALTER TABLE.
+  */
+  for (uint k= 0; k < table->s->keys; k++)
+  {
+    const KEY &key= table->s->key_info[k];
+    if ((key.flags & HA_NOSAME) == 0 || key.flags & HA_NULL_PART_KEY)
+      continue;
+    bool key_parts_good= true;
+    for (uint kp= 0; kp < key.user_defined_key_parts && key_parts_good; kp++)
+    {
+      const char *field_name= key.key_part[kp].field->field_name.str;
+      for (const auto &c: alter_info->drop_list)
+        if (c.type == Alter_drop::COLUMN
+            && my_strcasecmp(system_charset_info, c.name, field_name) == 0)
+        {
+          key_parts_good= false;
+          break;
+        }
+      if (key_parts_good)
+        for (const auto &c: alter_info->create_list)
+          if (c.change.str && my_strcasecmp(system_charset_info, c.change.str,
+                                            field_name) == 0)
+          {
+            key_parts_good= false;
+            break;
+          }
+    }
+    if (key_parts_good)
+      return true;
+  }
+
+  const char *old_autoinc= table->found_next_number_field
+                           ? table->found_next_number_field->field_name.str
+                           : "";
+  bool online= true;
+  for (const auto &c: alter_info->create_list)
+  {
+    if (c.change.str && c.flags & AUTO_INCREMENT_FLAG)
+    {
+      if (my_strcasecmp(system_charset_info, c.change.str,  old_autoinc) != 0)
+      {
+        if (c.create_if_not_exists // check IF EXISTS option
+            && table->find_field_by_name(&c.change) == NULL)
+          continue;
+        online= false;
+      }
+      break;
+    }
+  }
+  return online;
+}
+
+
 /**
   Alter table
 
@@ -10083,6 +10156,8 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     }
   }
 
+  online= online && online_alter_check_autoinc(thd, alter_info, table);
+  
 #ifdef WITH_WSREP
   if (WSREP(thd) &&
       (thd->lex->sql_command == SQLCOM_ALTER_TABLE ||
