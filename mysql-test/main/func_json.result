@@ -5126,5 +5126,19 @@ SELECT JSON_OBJECT_TO_ARRAY(@arr1);
 JSON_OBJECT_TO_ARRAY(@arr1)
 NULL
 #
+# MDEV-31411: JSON_ARRAY_INTERSECT/JSON_OBJECT_FILTER_KEYS should fetch
+# data from a table similar to other JSON functions
+#
+CREATE TABLE t1 (
+c1 longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(c1)),
+c2 longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`c2`))
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+INSERT INTO t1 VALUES('[1,2,3]', '[2, 3, 4]'), ('[2 ,3, 4]', '[4, 5, 6]');
+SELECT JSON_ARRAY_INTERSECT(c1, c2) FROM t1;
+JSON_ARRAY_INTERSECT(c1, c2)
+[2, 3]
+[4]
+DROP TABLE t1;
+#
 # End of 11.2 Test
 #

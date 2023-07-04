@@ -1,3 +1,5 @@
+--source include/have_innodb.inc
+
 select json_valid('[1, 2]');
 select json_valid('"string"}');
 select json_valid('{"key1":1, "key2":[2,3]}');
@@ -3946,6 +3948,24 @@ SELECT JSON_OBJECT_TO_ARRAY(@obj1);
 
 SET @arr1= '[1, 2, 3]';
 SELECT JSON_OBJECT_TO_ARRAY(@arr1);
+
+
+--echo #
+--echo # MDEV-31411: JSON_ARRAY_INTERSECT/JSON_OBJECT_FILTER_KEYS should fetch
+--echo # data from a table similar to other JSON functions
+--echo #
+
+CREATE TABLE t1 (
+                  c1 longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(c1)),
+                  c2 longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`c2`))
+                ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+INSERT INTO t1 VALUES('[1,2,3]', '[2, 3, 4]'), ('[2 ,3, 4]', '[4, 5, 6]');
+
+SELECT JSON_ARRAY_INTERSECT(c1, c2) FROM t1;
+
+DROP TABLE t1;
+
 
 --echo #
 --echo # End of 11.2 Test
