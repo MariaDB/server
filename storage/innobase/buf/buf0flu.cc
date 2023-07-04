@@ -1863,8 +1863,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
     ib::info() << "Resized log to " << ib::bytes_iec{resizing_completed}
       << "; start LSN=" << resizing;
   else
-    sql_print_error("InnoDB: Resize of log failed at " LSN_PF,
-                    get_flushed_lsn());
+    buf_flush_ahead(end_lsn + 1, false);
 }
 
 /** Initiate a log checkpoint, discarding the start of the log.
