@@ -479,3 +479,11 @@ INSERT INTO t1 VALUES
 COMMIT;
 DROP TABLE t1;
 --echo # End of 10.8 tests
+
+--echo #
+--echo #  MDEV-31537 Bulk insert operation aborts the server
+--echo #		for redundant table
+--echo #
+CREATE TABLE t (a CHAR CHARACTER SET utf8) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT t SELECT left(seq,1) FROM seq_1_to_43691;
+DROP TABLE t;
