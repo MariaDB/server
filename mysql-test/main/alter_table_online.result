@@ -206,3 +206,16 @@ drop table t;
 create table t (a int, b int, c char(8), key(a,b,c));
 alter table t modify c int auto_increment key, algorithm=copy;
 drop table t;
+# MDEV-31601 Some ALTER TABLE .. fail when they worked before, and with
+# a wrong error message
+create table t (a int) engine=aria;
+insert into t values (1),(2);
+alter table t algorithm=nocopy, order by a;
+ERROR 0A000: ALGORITHM=NOCOPY is not supported for this operation. Try ALGORITHM=COPY
+alter table t engine=myisam, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+drop table t;
+create temporary table t (f int);
+alter table t force, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=COPY
+drop table t;
