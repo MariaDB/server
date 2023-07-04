@@ -3870,7 +3870,7 @@ i_s_innodb_buffer_page_get_info(
 
 	page_info->state = bpage->state();
 
-	if (page_info->state < buf_page_t::FREED) {
+	if (page_info->state < buf_page_t::UNFIXED) {
 		page_info->page_type = I_S_PAGE_TYPE_UNKNOWN;
 		page_info->compressed_only = false;
 	} else {

@@ -1,18 +1,22 @@
 SET @save_frequency=@@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
-CREATE TABLE t1(id INT PRIMARY key, val VARCHAR(16000)) ENGINE=InnoDB;
+CREATE TABLE t1(id INT PRIMARY key, val VARCHAR(16000))
+ENGINE=InnoDB STATS_PERSISTENT=0;
 INSERT INTO t1 (id,val) SELECT 2*seq,'x' FROM seq_0_to_1023;
 connect con1,localhost,root,,;
 InnoDB		0 transactions not purged
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connection default;
 DELETE FROM t1 WHERE id=1788;
+SET @saved_dbug = @@GLOBAL.debug_dbug;
+SET @@GLOBAL.debug_dbug="d,enable_row_purge_del_mark_exit_sync_point";
 BEGIN;
 SELECT * FROM t1 WHERE id=1788 FOR UPDATE;
 id	val
 connection con1;
 COMMIT;
-InnoDB		0 transactions not purged
+SET DEBUG_SYNC = 'now WAIT_FOR row_purge_del_mark_finished';
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 connection default;
 INSERT INTO t1 (id,val) VALUES (1787, REPEAT('x',2000));
 connection con1;
