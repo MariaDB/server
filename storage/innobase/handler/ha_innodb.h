@@ -701,6 +701,8 @@ public:
 	ulint flags2() const
 	{ return(m_flags2); }
 
+	bool creating_stub() const { return UNIV_UNLIKELY(m_creating_stub); }
+
 	/** Get trx. */
 	trx_t* trx() const
 	{ return(m_trx); }
@@ -767,6 +769,9 @@ private:
 
 	/** Table flags2 */
 	ulint		m_flags2;
+
+	/** Whether we are creating a stub table for importing. */
+	const bool	m_creating_stub;
 };
 
 /**
