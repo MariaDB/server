@@ -207,3 +207,18 @@ drop table t;
 create table t (a int, b int, c char(8), key(a,b,c));
 alter table t modify c int auto_increment key, algorithm=copy;
 drop table t;
+
+--echo # MDEV-31601 Some ALTER TABLE .. fail when they worked before, and with
+--echo # a wrong error message
+create table t (a int) engine=aria;
+insert into t values (1),(2);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t algorithm=nocopy, order by a;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t engine=myisam, algorithm=inplace;
+drop table t;
+
+create temporary table t (f int);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t force, algorithm=instant;
+drop table t;

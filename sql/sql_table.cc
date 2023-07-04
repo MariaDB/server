@@ -10690,7 +10690,7 @@ do_continue:;
     if (alter_info->algorithm_is_nocopy(thd))
     {
       my_error(ER_ALTER_OPERATION_NOT_SUPPORTED, MYF(0),
-               "ALGORITHM=INPLACE", "ALGORITHM=COPY");
+               alter_info->algorithm_clause(thd), "ALGORITHM=COPY");
       DBUG_RETURN(true);
     }
 
