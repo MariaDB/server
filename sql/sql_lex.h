@@ -1424,8 +1424,8 @@ public:
   bool add_ftfunc_to_list(THD *thd, Item_func_match *func);
   bool add_order_to_list(THD *thd, Item *item, bool asc);
   bool add_gorder_to_list(THD *thd, Item *item, bool asc);
-  TABLE_LIST* add_table_to_list(THD *thd, Table_ident *table,
-                                LEX_CSTRING *alias,
+  TABLE_LIST* add_table_to_list(THD *thd, const Table_ident *table,
+                                const LEX_CSTRING *alias,
                                 ulong table_options,
                                 thr_lock_type flags= TL_UNLOCK,
                                 enum_mdl_type mdl_type= MDL_SHARED_READ,

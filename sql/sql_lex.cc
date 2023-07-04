@@ -7389,14 +7389,9 @@ sp_name *LEX::make_sp_name(THD *thd, const Lex_ident_sys_st &name1,
 {
   DBUG_ASSERT(name1.str);
   sp_name *res;
-  LEX_CSTRING norm_name1;
-  if (unlikely(!thd->make_lex_string(&norm_name1, name1.str, name1.length)) ||
-      unlikely(check_db_name((LEX_STRING *) &norm_name1)))
-  {
-    my_error(ER_WRONG_DB_NAME, MYF(0), name1.str);
-    return NULL;
-  }
-  if (unlikely(check_routine_name(&name2)) ||
+  const Lex_ident_db norm_name1= thd->to_ident_db_internal_with_error(name1);
+  if (unlikely(!norm_name1.str) ||
+      unlikely(check_routine_name(&name2)) ||
       unlikely(!(res= new (thd->mem_root) sp_name(&norm_name1, &name2, true))))
     return NULL;
   return res;
@@ -9309,20 +9304,16 @@ bool LEX::call_statement_start(THD *thd,
                                const Lex_ident_sys_st *pkg,
                                const Lex_ident_sys_st *proc)
 {
+  DBUG_ASSERT(db->str);
   Database_qualified_name q_db_pkg(db, pkg);
   Identifier_chain2 q_pkg_proc(*pkg, *proc);
   sp_name *spname;
 
   sql_command= SQLCOM_CALL;
 
-  if (check_db_name(reinterpret_cast<LEX_STRING*>
-                    (const_cast<LEX_CSTRING*>
-                     (static_cast<const LEX_CSTRING*>(db)))))
-  {
-    my_error(ER_WRONG_DB_NAME, MYF(0), db->str);
-    return true;
-  }
-  if (check_routine_name(pkg) ||
+  const Lex_ident_db db_int= thd->to_ident_db_internal_with_error(*db);
+  if (!db_int.str ||
+      check_routine_name(pkg) ||
       check_routine_name(proc))
     return true;
 
@@ -9330,7 +9321,7 @@ bool LEX::call_statement_start(THD *thd,
   LEX_CSTRING pkg_dot_proc;
   if (q_pkg_proc.make_qname(thd->mem_root, &pkg_dot_proc) ||
       check_ident_length(&pkg_dot_proc) ||
-      !(spname= new (thd->mem_root) sp_name(db, &pkg_dot_proc, true)))
+      !(spname= new (thd->mem_root) sp_name(&db_int, &pkg_dot_proc, true)))
     return true;
 
   sp_handler_package_function.add_used_routine(thd->lex, thd, spname);
@@ -9575,17 +9566,13 @@ Item *LEX::make_item_func_call_generic(THD *thd, Lex_ident_cli_st *cdb,
     version() (a vendor can specify any schema).
   */
 
-  if (!name.str || check_db_name((LEX_STRING*) static_cast<LEX_CSTRING*>(&db)))
-  {
-    my_error(ER_WRONG_DB_NAME, MYF(0), db.str);
-    return NULL;
-  }
-  if (check_routine_name(&name))
+  const Lex_ident_db db_int= thd->to_ident_db_internal_with_error(db);
+  if (!db_int.str || check_routine_name(&name))
     return NULL;
 
   Create_qfunc *builder= find_qualified_function_builder(thd);
   DBUG_ASSERT(builder);
-  return builder->create_with_db(thd, &db, &name, true, args);
+  return builder->create_with_db(thd, &db_int, &name, true, args);
 }
 
 
@@ -9609,12 +9596,9 @@ Item *LEX::make_item_func_call_generic(THD *thd,
   if (db.is_null() || pkg.is_null() || func.is_null())
     return NULL; // EOM
 
-  if (check_db_name((LEX_STRING*) static_cast<LEX_CSTRING*>(&db)))
-  {
-    my_error(ER_WRONG_DB_NAME, MYF(0), db.str);
-    return NULL;
-  }
-  if (check_routine_name(&pkg) ||
+  const Lex_ident_db db_int= thd->to_ident_db_internal_with_error(db);
+  if (!db_int.str ||
+      check_routine_name(&pkg) ||
       check_routine_name(&func))
     return NULL;
 
@@ -9622,7 +9606,7 @@ Item *LEX::make_item_func_call_generic(THD *thd,
   LEX_CSTRING pkg_dot_func;
   if (q_pkg_func.make_qname(thd->mem_root, &pkg_dot_func) ||
       check_ident_length(&pkg_dot_func) ||
-      !(qname= new (thd->mem_root) sp_name(&db, &pkg_dot_func, true)))
+      !(qname= new (thd->mem_root) sp_name(&db_int, &pkg_dot_func, true)))
     return NULL;
 
   sp_handler_package_function.add_used_routine(thd->lex, thd, qname);
@@ -11427,13 +11411,18 @@ bool LEX::stmt_alter_table_exchange_partition(Table_ident *table)
 bool LEX::stmt_alter_table(Table_ident *table)
 {
   DBUG_ASSERT(sql_command == SQLCOM_ALTER_TABLE);
-  first_select_lex()->db= table->db;
-  if (first_select_lex()->db.str == NULL &&
-      copy_db_to(&first_select_lex()->db))
+
+  if (table->db.str)
+  {
+    const Lex_ident_db db_int= thd->to_ident_db_internal_with_error(table->db);
+    if (!db_int.str)
+      return true;
+    first_select_lex()->db= db_int;
+  }
+  else if (copy_db_to(&first_select_lex()->db))
     return true;
   if (unlikely(check_table_name(table->table.str, table->table.length,
-                                false)) ||
-      (table->db.str && unlikely(check_db_name((LEX_STRING*) &table->db))))
+                                false)))
   {
     my_error(ER_WRONG_TABLE_NAME, MYF(0), table->table.str);
     return true;
@@ -11502,18 +11491,19 @@ bool LEX::stmt_drop_function(const DDL_options_st &options,
                              const Lex_ident_sys_st &db,
                              const Lex_ident_sys_st &name)
 {
-  if (unlikely(db.str && check_db_name((LEX_STRING*) &db)))
-  {
-    my_error(ER_WRONG_DB_NAME, MYF(0), db.str);
+  DBUG_ASSERT(db.str);
+  DBUG_ASSERT(name.str);
+  const Lex_ident_db db_int= thd->to_ident_db_internal_with_error(db);
+  if (unlikely(!db_int.str))
     return true;
-  }
+
   if (unlikely(sphead))
   {
     my_error(ER_SP_NO_DROP_SP, MYF(0), "FUNCTION");
     return true;
   }
   set_command(SQLCOM_DROP_FUNCTION, options);
-  spname= new (thd->mem_root) sp_name(&db, &name, true);
+  spname= new (thd->mem_root) sp_name(&db_int, &name, true);
   return spname == NULL;
 }
 

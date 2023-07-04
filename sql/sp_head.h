@@ -339,7 +339,7 @@ public:
   init(LEX *lex);
 
   /** Copy sp name from parser. */
-  void
+  bool
   init_sp_name(const sp_name *spname);
 
   /** Set the body-definition start position. */

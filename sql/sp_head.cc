@@ -810,7 +810,7 @@ sp_head::init(LEX *lex)
 }
 
 
-void
+bool
 sp_head::init_sp_name(const sp_name *spname)
 {
   DBUG_ENTER("sp_head::init_sp_name");
@@ -819,10 +819,10 @@ sp_head::init_sp_name(const sp_name *spname)
 
   DBUG_ASSERT(spname && spname->m_db.str && spname->m_db.length);
 
-  /* We have to copy strings to get them into the right memroot. */
-  Database_qualified_name::copy(&main_mem_root, spname->m_db, spname->m_name);
   m_explicit_name= spname->m_explicit_name;
-  DBUG_VOID_RETURN;
+  /* We have to copy strings to get them into the right memroot. */
+  DBUG_RETURN(copy_sp_name_internal(&main_mem_root,
+                                    spname->m_db, spname->m_name));
 }
 
 void

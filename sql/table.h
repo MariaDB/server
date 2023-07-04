@@ -3398,7 +3398,7 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share,
 void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
                       int db_errno);
 void update_create_info_from_table(HA_CREATE_INFO *info, TABLE *form);
-bool check_db_name(LEX_STRING *db);
+
 bool check_column_name(const char *name);
 bool check_period_name(const char *name);
 bool check_table_name(const char *name, size_t length, bool check_for_path_chars);

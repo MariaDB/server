@@ -2620,9 +2620,9 @@ bool Sp_handler::
                                         pkgstr, name->m_name, type()))
     {
       DBUG_ASSERT(ret == SP_OK);
-      pkgname->copy(thd->mem_root, caller->m_db, pkgstr);
       *pkg_routine_handler= package_routine_handler();
-      if (name->make_package_routine_name(thd->mem_root, pkgstr, name->m_name))
+      if (pkgname->copy_sp_name_internal(thd->mem_root, caller->m_db, pkgstr) ||
+          name->make_package_routine_name(thd->mem_root, pkgstr, name->m_name))
         return true;
     }
     return ret != SP_OK;

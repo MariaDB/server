@@ -10409,7 +10409,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
    till this point for the alter operation.
   */
   if ((alter_info->flags & ALTER_ADD_FOREIGN_KEY) &&
-      check_fk_parent_table_access(thd, create_info, alter_info, new_db->str))
+      check_fk_parent_table_access(thd, create_info, alter_info, *new_db))
     DBUG_RETURN(true);
 
   /*

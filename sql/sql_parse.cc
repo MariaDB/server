@@ -2623,18 +2623,11 @@ int prepare_schema_table(THD *thd, LEX *lex, Table_ident *table_ident,
       schema_select_lex= new (thd->mem_root) SELECT_LEX();
       schema_select_lex->table_list.first= NULL;
       if (lower_case_table_names == 1)
-        lex->first_select_lex()->db.str=
-          thd->strdup(lex->first_select_lex()->db.str);
+        lex->first_select_lex()->db=
+          thd->make_ident_casedn(lex->first_select_lex()->db);
       schema_select_lex->db= lex->first_select_lex()->db;
-      /*
-        check_db_name() may change db.str if lower_case_table_names == 1,
-        but that's ok as the db is allocted above in this case.
-      */
-      if (check_db_name((LEX_STRING*) &lex->first_select_lex()->db))
-      {
-        my_error(ER_WRONG_DB_NAME, MYF(0), lex->first_select_lex()->db.str);
+      if (Lex_ident_fs(lex->first_select_lex()->db).check_db_name_with_error())
         DBUG_RETURN(1);
-      }
       break;
     }
 #endif
@@ -3045,15 +3038,11 @@ mysql_create_routine(THD *thd, LEX *lex)
 {
   DBUG_ASSERT(lex->sphead != 0);
   DBUG_ASSERT(lex->sphead->m_db.str); /* Must be initialized in the parser */
-  /*
-    Verify that the database name is allowed, optionally
-    lowercase it.
-  */
-  if (check_db_name((LEX_STRING*) &lex->sphead->m_db))
-  {
-    my_error(ER_WRONG_DB_NAME, MYF(0), lex->sphead->m_db.str);
+  DBUG_ASSERT(lower_case_table_names != 1 ||
+              Lex_ident_fs(lex->sphead->m_db).is_in_lower_case());
+
+  if (Lex_ident_fs(lex->sphead->m_db).check_db_name_with_error())
     return true;
-  }
 
   if (check_access(thd, CREATE_PROC_ACL, lex->sphead->m_db.str,
                    NULL, NULL, 0, 0))
@@ -7056,7 +7045,7 @@ bool check_global_access(THD *thd, privilege_t want_access, bool no_errors)
 bool check_fk_parent_table_access(THD *thd,
                                   HA_CREATE_INFO *create_info,
                                   Alter_info *alter_info,
-                                  const char* create_db)
+                                  const LEX_CSTRING &create_db)
 {
   Key *key;
   List_iterator<Key> key_iterator(alter_info->key_list);
@@ -7079,52 +7068,35 @@ bool check_fk_parent_table_access(THD *thd,
         my_error(ER_WRONG_TABLE_NAME, MYF(0), table_name.str);
         return true;
       }
+      // if lower_case_table_names is set then convert tablename to lower case.
+      if (lower_case_table_names &&
+          !(table_name= thd->make_ident_casedn(fk_key->ref_table)).str)
+        return true;
 
       if (fk_key->ref_db.str)
       {
-        if (!(db_name.str= (char *) thd->memdup(fk_key->ref_db.str,
-                                                fk_key->ref_db.length+1)))
+        if (Lex_ident_fs(fk_key->ref_db).check_db_name_with_error() ||
+            !(db_name= thd->make_ident_opt_casedn(fk_key->ref_db,
+                                                  lower_case_table_names)).str)
           return true;
-        db_name.length= fk_key->ref_db.length;
-
-        // Check if database name is valid or not.
-        if (check_db_name((LEX_STRING*) &db_name))
-        {
-          my_error(ER_WRONG_DB_NAME, MYF(0), db_name.str);
-          return true;
-        }
       }
       else
       {
         if (!thd->db.str)
         {
-          DBUG_ASSERT(create_db);
-          db_name.length= strlen(create_db);
-          if (!(db_name.str= (char *) thd->memdup(create_db,
-                                                  db_name.length+1)))
+          DBUG_ASSERT(create_db.str);
+          if (Lex_ident_fs(create_db).check_db_name_with_error() ||
+              !(db_name= thd->make_ident_opt_casedn(create_db,
+                                                 lower_case_table_names)).str)
             return true;
-
-          if (check_db_name((LEX_STRING*) &db_name))
-          {
-            my_error(ER_WRONG_DB_NAME, MYF(0), db_name.str);
-            return true;
-          }
         }
         else
         {
-          if (thd->lex->copy_db_to(&db_name))
+          if (thd->lex->copy_db_to(&db_name) ||
+              (lower_case_table_names &&
+               !(db_name= thd->make_ident_casedn(db_name)).str))
             return true;
         }
-      }
-
-      // if lower_case_table_names is set then convert tablename to lower case.
-      if (lower_case_table_names)
-      {
-        char *name;
-        table_name.str= name= (char *) thd->memdup(fk_key->ref_table.str,
-                                                   fk_key->ref_table.length+1);
-        table_name.length= my_casedn_str(files_charset_info, name);
-        db_name.length= my_casedn_str(files_charset_info, (char*) db_name.str);
       }
 
       parent_table.init_one_table(&db_name, &table_name, 0, TL_IGNORE);
@@ -7892,11 +7864,30 @@ bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *item,bool asc)
       0		Error
   @retval
     \#	Pointer to TABLE_LIST element added to the total table list
+
+
+  This method can be called in contexts when the "table" argument has a longer
+  life cycle than TABLE_LIST and belongs to a different MEM_ROOT than
+  the current THD::mem_root.
+
+  For example, it's called from Table_ident::resolve_table_rowtype_ref()
+  during sp_head::rcontext_create() during a CALL statement.
+  "table" in this case belongs to sp_pcontext, which must stay valid
+  (inside its SP cache sp_head entry) after the end of the current statement.
+
+  Let's allocate normalized copies of table.db and table.table on the current
+  THD::mem_root and store them in the TABLE_LIST.
+
+  We should not touch "table" and replace table.db and table.table to their
+  normalized copies allocated on the current THD::mem_root, because it'll be
+  freed at the end of the current statement, while table.db and table.table
+  should stay valid. Let's keep them in the original state.
+
 */
 
 TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
-					     Table_ident *table,
-					     LEX_CSTRING *alias,
+					     const Table_ident *table,
+					     const LEX_CSTRING *alias,
 					     ulong table_options,
 					     thr_lock_type lock_type,
 					     enum_mdl_type mdl_type,
@@ -7928,11 +7919,8 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
 
   if (unlikely(table->is_derived_table() == FALSE && table->db.str &&
                !(table_options & TL_OPTION_TABLE_FUNCTION) &&
-               check_db_name((LEX_STRING*) &table->db)))
-  {
-    my_error(ER_WRONG_DB_NAME, MYF(0), table->db.str);
+               Lex_ident_fs(table->db).check_db_name_with_error()))
     DBUG_RETURN(0);
-  }
 
   if (!alias)                            /* Alias is case sensitive */
   {
@@ -7960,16 +7948,17 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
 
   ptr->alias= alias_str;
   ptr->is_alias= alias ? TRUE : FALSE;
+  ptr->table_name= table->table;
+
   if (lower_case_table_names)
   {
-    if (table->table.length)
-      table->table.length= my_casedn_str(files_charset_info,
-                                         (char*) table->table.str);
-    if (ptr->db.length && ptr->db.str != any_db.str)
-      ptr->db.length= my_casedn_str(files_charset_info, (char*) ptr->db.str);
+    if (!(ptr->table_name= thd->make_ident_casedn(ptr->table_name)).str)
+      DBUG_RETURN(0);
+    if (ptr->db.length && ptr->db.str != any_db.str &&
+        !(ptr->db= thd->make_ident_casedn(ptr->db)).str)
+      DBUG_RETURN(0);
   }
 
-  ptr->table_name= table->table;
   ptr->lock_type= lock_type;
   ptr->mdl_type= mdl_type;
   ptr->table_options= table_options;
@@ -9693,7 +9682,7 @@ bool create_table_precheck(THD *thd, TABLE_LIST *tables,
   }
 
   if (check_fk_parent_table_access(thd, &lex->create_info, &lex->alter_info,
-                                   create_table->db.str))
+                                   create_table->db))
     goto err;
 
   error= FALSE;

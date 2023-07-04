@@ -42,6 +42,7 @@ public:
   bool check_db_name() const;
   bool check_db_name_with_error() const;
 #ifndef DBUG_OFF
+  bool is_in_lower_case() const;
   bool ok_for_lower_case_names() const;
 #endif
 };
@@ -55,6 +56,11 @@ public:
 */
 class Lex_ident_db: public Lex_ident_fs
 {
+  // {empty_c_string,0} is used by derived tables
+  bool is_empty() const
+  {
+    return length == 0 && str != NULL;
+  }
 public:
   Lex_ident_db()
    :Lex_ident_fs(NULL, 0)
@@ -62,7 +68,7 @@ public:
   Lex_ident_db(const char *str, size_t length)
    :Lex_ident_fs(str, length)
   {
-    DBUG_SLOW_ASSERT(!check_db_name());
+    DBUG_SLOW_ASSERT(is_empty() || !check_db_name());
   }
 };
 

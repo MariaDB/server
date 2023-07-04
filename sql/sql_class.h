@@ -1355,6 +1355,45 @@ public:
     return false;
   }
 
+  /*
+    Make a lower-cased copy of an identifier on mem_root.
+
+    @param src    - The original identifier (usually coming from the parser)
+    @return       - {NULL,0} in case of EOM, or a non-NULL LEX_STRING
+                    with the lower-cased identifier copy.
+  */
+  LEX_STRING make_ident_casedn(const LEX_CSTRING &src)
+  {
+    return lex_string_casedn_root(mem_root, &my_charset_utf8mb3_general_ci,
+                                  src.str, src.length);
+  }
+
+  /*
+    Make an exact copy or a lower-cased copy of an identifier on mem_root.
+
+    @param src    - The original identifier (usually coming from the parser)
+    @param casedn - If the name should be converted to lower case
+    @return       - {NULL,0} in case of EOM,
+                    or a non-NULL LEX_STRING with the identifier copy.
+  */
+  LEX_STRING make_ident_opt_casedn(const LEX_CSTRING &src, bool casedn)
+  {
+    return casedn ? make_ident_casedn(src) :
+                    lex_string_strmake_root(mem_root, src.str, src.length);
+  }
+
+  /*
+    Convert a LEX_CSTRING to a valid internal database name:
+    - validated with Lex_ident_fs::check_db_name()
+    - optionally lower-cased when lower_case_table_names==1
+    The lower-cased copy is created on Query_arena::mem_root, when needed.
+
+    @param name         - The name to normalize. Must not be {NULL,0}.
+    @return             - {NULL,0} on EOM or a bad database name
+                          (with an errror is raised,
+                          or a good database name otherwise.
+  */
+  Lex_ident_db to_ident_db_internal_with_error(const LEX_CSTRING &name);
 
   void set_query_arena(Query_arena *set);
 
@@ -7051,6 +7090,16 @@ public:
   }
   bool resolve_table_rowtype_ref(THD *thd, Row_definition_list &defs);
   bool append_to(THD *thd, String *to) const;
+  /*
+    Convert Table_ident::m_db to a valid internal database name:
+    - validated with Lex_ident_fs::check_db_name()
+    - optionally lower-cased when lower_case_table_names==1
+
+    @param arena - the arena to allocate the lower-cased copy on, when needed.
+    @return        {NULL,0} in case of EOM or invalid database name,
+                   or a good identifier otherwise.
+  */
+  Lex_ident_db to_ident_db_internal_with_error(Query_arena *arena) const;
 };
 
 
@@ -7865,8 +7914,13 @@ public:
       !cs->strnncoll(m_name.str, m_name.length,
                      other->m_name.str, other->m_name.length);
   }
-  void copy(MEM_ROOT *mem_root, const LEX_CSTRING &db,
-                                const LEX_CSTRING &name);
+  /*
+    Make copies of "db" and "name" on the memory root in internal format:
+    - Lower-case "db" if lower-case-table-names==1.
+    - Preserve "name" as is.
+  */
+  bool copy_sp_name_internal(MEM_ROOT *mem_root, const LEX_CSTRING &db,
+                             const LEX_CSTRING &name);
 
   // Export db and name as a qualified name string: 'db.name'
   size_t make_qname(char *dst, size_t dstlen) const

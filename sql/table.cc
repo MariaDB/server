@@ -5146,56 +5146,15 @@ uint calculate_key_len(TABLE *table, uint key, const uchar *buf,
 */
 bool Lex_ident_fs::ok_for_lower_case_names() const
 {
-  if (!lower_case_table_names || !str)
-    return true;
-  DBNameBuffer buf(*this, lower_case_table_names);
+  return !lower_case_table_names || !str || is_in_lower_case();
+}
+
+bool Lex_ident_fs::is_in_lower_case() const
+{
+  DBNameBuffer buf(*this, true);
   return cmp(*this, buf.to_lex_cstring()) == 0;
 }
 #endif
-
-/*
-  Check if database name is valid
-
-  SYNPOSIS
-    check_db_name()
-    org_name		Name of database
-
-  NOTES
-    If lower_case_table_names is set to 1 then database name is converted
-    to lower case
-
-  RETURN
-    0	ok
-    1   error
-*/
-
-bool check_db_name(LEX_STRING *org_name)
-{
-  char *name= org_name->str;
-  size_t name_length= org_name->length;
-  bool disallow_path_chars;
-
-  if ((disallow_path_chars= check_mysql50_prefix(name)))
-  {
-    name+= MYSQL50_TABLE_NAME_PREFIX_LENGTH;
-    name_length-= MYSQL50_TABLE_NAME_PREFIX_LENGTH;
-  }
-
-  if (!name_length || name_length > NAME_LEN)
-    return 1;
-
-  if (lower_case_table_names == 1 && name != any_db.str)
-  {
-    org_name->length= name_length= my_casedn_str(files_charset_info, name);
-    if (disallow_path_chars)
-      org_name->length+= MYSQL50_TABLE_NAME_PREFIX_LENGTH;
-  }
-  if (db_name_is_in_ignore_db_dirs_list(name))
-    return 1;
-
-  return check_table_name(name, name_length, disallow_path_chars);
-}
-
 
 /*
   Allow anything as a table name, as long as it doesn't contain an
