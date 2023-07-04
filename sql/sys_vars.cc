@@ -1134,7 +1134,7 @@ static bool event_scheduler_check(sys_var *self, THD *thd, set_var *var)
   if (Events::opt_event_scheduler == Events::EVENTS_DISABLED)
   {
     my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0),
-             "--event-scheduler=DISABLED or --skip-grant-tables");
+             opt_noacl ? "--skip-grant-tables" : "--event-scheduler=DISABLED");
     return true;
   }
   /* DISABLED is only accepted on the command line */

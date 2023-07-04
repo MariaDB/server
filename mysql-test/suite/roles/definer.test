@@ -7,6 +7,8 @@
 --source include/not_embedded.inc
 --source include/default_charset.inc
 
+call mtr.add_suppression('Event Scheduler:');
+
 let MYSQLD_DATADIR=`select @@datadir`;
 
 create database mysqltest1;

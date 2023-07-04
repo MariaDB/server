@@ -460,3 +460,10 @@ ERROR HY000: Got error 1 "Operation not permitted" during COMMIT
 COMMIT;
 DROP TABLE t1;
 # End of 10.8 tests
+#
+#  MDEV-31537 Bulk insert operation aborts the server
+#		for redundant table
+#
+CREATE TABLE t (a CHAR CHARACTER SET utf8) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT t SELECT left(seq,1) FROM seq_1_to_43691;
+DROP TABLE t;

@@ -1,6 +1,5 @@
 # This tests not performed with embedded server
 -- source include/not_embedded.inc
-call mtr.add_suppression("Event Scheduler will not function when starting with --skip-grant-tables or --bootstrap.");
 
 -- disable_ps_protocol
 use test;

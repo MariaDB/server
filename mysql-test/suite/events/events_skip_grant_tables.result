@@ -1,0 +1,12 @@
+call mtr.add_suppression("Event Scheduler will not function when starting with --skip-grant-tables");
+#
+# MDEV-29827 Misleading error messages about event scheduler when using --skip-grant-tables 
+#
+FOUND 1 /Event Scheduler will not function when starting with --skip-grant-tables/ in mysqld.1.err
+CREATE EVENT test ON SCHEDULE AT CURRENT_TIMESTAMP DO DO NULL;
+ERROR HY000: The MariaDB server is running with the --skip-grant-tables option so it cannot execute this statement
+select (@@global.event_scheduler='DISABLED') as expect_1;
+expect_1
+1
+set global event_scheduler=1;
+ERROR HY000: The MariaDB server is running with the --skip-grant-tables option so it cannot execute this statement
