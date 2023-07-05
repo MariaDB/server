@@ -3471,6 +3471,12 @@ public:
   sp_head *sphead;
   sp_name *spname;
 
+  void delete_if_not_sp_lex_in_use()
+  {
+    if (!sp_lex_in_use)
+      delete this;
+  }
+
   sp_pcontext *spcont;
 
   st_sp_chistics sp_chistics;
