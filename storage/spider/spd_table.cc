@@ -1046,123 +1046,12 @@ void spider_free_tmp_share_alloc(
   DBUG_VOID_RETURN;
 }
 
-char *spider_get_string_between_quote(
-  char *ptr,
-  bool alloc,
-  SPIDER_PARAM_STRING_PARSE *param_string_parse
-) {
-  char *start_ptr, *end_ptr, *tmp_ptr, *esc_ptr;
-  bool find_flg = FALSE, esc_flg = FALSE;
-  DBUG_ENTER("spider_get_string_between_quote");
-
-  start_ptr = strchr(ptr, '\'');
-  end_ptr = strchr(ptr, '"');
-  if (start_ptr && (!end_ptr || start_ptr < end_ptr))
-  {
-    tmp_ptr = ++start_ptr;
-    while (!find_flg)
-    {
-      if (!(end_ptr = strchr(tmp_ptr, '\'')))
-        DBUG_RETURN(NULL);
-      esc_ptr = tmp_ptr;
-      while (!find_flg)
-      {
-        esc_ptr = strchr(esc_ptr, '\\');
-        if (!esc_ptr || esc_ptr > end_ptr)
-          find_flg = TRUE;
-        else if (esc_ptr == end_ptr - 1)
-        {
-          esc_flg = TRUE;
-          tmp_ptr = end_ptr + 1;
-          break;
-        } else {
-          esc_flg = TRUE;
-          esc_ptr += 2;
-        }
-      }
-    }
-  } else if (end_ptr)
-  {
-    start_ptr = end_ptr;
-    tmp_ptr = ++start_ptr;
-    while (!find_flg)
-    {
-      if (!(end_ptr = strchr(tmp_ptr, '"')))
-        DBUG_RETURN(NULL);
-      esc_ptr = tmp_ptr;
-      while (!find_flg)
-      {
-        esc_ptr = strchr(esc_ptr, '\\');
-        if (!esc_ptr || esc_ptr > end_ptr)
-          find_flg = TRUE;
-        else if (esc_ptr == end_ptr - 1)
-        {
-          esc_flg = TRUE;
-          tmp_ptr = end_ptr + 1;
-          break;
-        } else {
-          esc_flg = TRUE;
-          esc_ptr += 2;
-        }
-      }
-    }
-  } else
-    DBUG_RETURN(NULL);
-
-  *end_ptr = '\0';
-  if (esc_flg)
-  {
-    esc_ptr = start_ptr;
-    while (TRUE)
-    {
-      esc_ptr = strchr(esc_ptr, '\\');
-      if (!esc_ptr)
-        break;
-      switch(*(esc_ptr + 1))
-      {
-        case 'b':
-          *esc_ptr = '\b';
-          break;
-        case 'n':
-          *esc_ptr = '\n';
-          break;
-        case 'r':
-          *esc_ptr = '\r';
-          break;
-        case 't':
-          *esc_ptr = '\t';
-          break;
-        default:
-          *esc_ptr = *(esc_ptr + 1);
-          break;
-      }
-      esc_ptr++;
-      strcpy(esc_ptr, esc_ptr + 1);
-    }
-  }
-
-  if (param_string_parse)
-    param_string_parse->set_param_value(start_ptr, start_ptr + strlen(start_ptr) + 1);
-
-  if (alloc)
-  {
-    DBUG_RETURN(
-      spider_create_string(
-      start_ptr,
-      strlen(start_ptr))
-    );
-  } else {
-    DBUG_RETURN(start_ptr);
-  }
-}
-
 int spider_create_string_list(
   char ***string_list,
   uint **string_length_list,
   uint *list_length,
   char *str,
-  uint length,
-  SPIDER_PARAM_STRING_PARSE *param_string_parse
+  uint length
 ) {
   int roop_count;
   char *tmp_ptr, *tmp_ptr2, *tmp_ptr3, *esc_ptr;
@@ -1170,7 +1059,6 @@ int spider_create_string_list(
   DBUG_ENTER("spider_create_string_list");
 
   *list_length = 0;
-  param_string_parse->init_param_value();
   if (!str)
   {
     *string_list = NULL;
@@ -1282,9 +1170,6 @@ int spider_create_string_list(
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   }
 
-  param_string_parse->set_param_value(tmp_ptr3,
-                                      tmp_ptr3 + strlen(tmp_ptr3) + 1);
-
   DBUG_PRINT("info",("spider string_list[%d]=%s", roop_count,
     (*string_list)[roop_count]));
 
@@ -1297,15 +1182,13 @@ int spider_create_long_list(
   char *str,
   uint length,
   long min_val,
-  long max_val,
-  SPIDER_PARAM_STRING_PARSE *param_string_parse
+  long max_val
 ) {
   int roop_count;
   char *tmp_ptr;
   DBUG_ENTER("spider_create_long_list");
 
   *list_length = 0;
-  param_string_parse->init_param_value();
   if (!str)
   {
     *long_list = NULL;
@@ -1361,9 +1244,6 @@ int spider_create_long_list(
       (*long_list)[roop_count] = max_val;
   }
 
-  param_string_parse->set_param_value(tmp_ptr,
-                                      tmp_ptr + strlen(tmp_ptr) + 1);
-
 #ifndef DBUG_OFF
   for (roop_count = 0; roop_count < (int) *list_length; roop_count++)
   {
@@ -1381,15 +1261,13 @@ int spider_create_longlong_list(
   char *str,
   uint length,
   longlong min_val,
-  longlong max_val,
-  SPIDER_PARAM_STRING_PARSE *param_string_parse
+  longlong max_val
 ) {
   int error_num, roop_count;
   char *tmp_ptr;
   DBUG_ENTER("spider_create_longlong_list");
 
   *list_length = 0;
-  param_string_parse->init_param_value();
   if (!str)
   {
     *longlong_list = NULL;
@@ -1445,9 +1323,6 @@ int spider_create_longlong_list(
     else if ((*longlong_list)[roop_count] > max_val)
       (*longlong_list)[roop_count] = max_val;
   }
-
-  param_string_parse->set_param_value(tmp_ptr,
-                                      tmp_ptr + strlen(tmp_ptr) + 1);
 
 #ifndef DBUG_OFF
   for (roop_count = 0; roop_count < (int) *list_length; roop_count++)
@@ -1688,325 +1563,192 @@ static int spider_set_ll_value(
   DBUG_RETURN(error_num);
 }
 
-/**
-  Print a parameter string error message.
-
-  @return                   Error code.
-*/
-
-int st_spider_param_string_parse::print_param_error()
-{
-  if (start_title_ptr)
-  {
-    /* Restore the input delimiter characters */
-    restore_delims();
-
-    /* Print the error message */
-    switch (error_num)
-    {
-    case ER_SPIDER_INVALID_UDF_PARAM_NUM:
-      my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR,
-                      MYF(0), start_title_ptr);
-      break;
-    case ER_SPIDER_INVALID_CONNECT_INFO_NUM:
-    default:
-      my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_STR,
-                      MYF(0), start_title_ptr);
-    }
-
-    return error_num;
-  }
-  else
-    return 0;
-}
-
 #define SPIDER_PARAM_STR_LEN(name) name ## _length
-#define SPIDER_PARAM_STR(title_name, param_name) \
-  if (!strncasecmp(tmp_ptr, title_name, title_length)) \
-  { \
-    DBUG_PRINT("info",("spider " title_name " start")); \
-    if (!share->param_name) \
-    { \
-      if ((share->param_name = spider_get_string_between_quote( \
-        start_ptr, TRUE, &connect_string_parse))) \
+#define SPIDER_PARAM_STR(title_name, param_name)                        \
+  if (!strncasecmp(parse.start_title, title_name, title_length))        \
+  {                                                                     \
+    DBUG_PRINT("info",("spider " title_name " start"));                 \
+    if (!share->param_name)                                             \
+    {                                                                   \
+      if ((share->param_name = spider_create_string(parse.start_value,  \
+                                                    value_length)))     \
         share->SPIDER_PARAM_STR_LEN(param_name) = strlen(share->param_name); \
-      else { \
-        error_num = connect_string_parse.print_param_error(); \
-        goto error; \
-      } \
+      else {                                                            \
+        error_num= parse.fail(true);                                    \
+        goto error;                                                     \
+      }                                                                 \
       DBUG_PRINT("info",("spider " title_name "=%s", share->param_name)); \
-    } \
-    break; \
+    }                                                                   \
+    break;                                                              \
   }
 #define SPIDER_PARAM_STR_LENS(name) name ## _lengths
 #define SPIDER_PARAM_STR_CHARLEN(name) name ## _charlen
-#define SPIDER_PARAM_STR_LIST(title_name, param_name) \
-  if (!strncasecmp(tmp_ptr, title_name, title_length)) \
-  { \
-    DBUG_PRINT("info",("spider " title_name " start")); \
-    if (!share->param_name) \
-    { \
-      if ((tmp_ptr2 = spider_get_string_between_quote( \
-        start_ptr, FALSE))) \
-      { \
-        share->SPIDER_PARAM_STR_CHARLEN(param_name) = strlen(tmp_ptr2); \
-        if ((error_num = spider_create_string_list( \
-          &share->param_name, \
-          &share->SPIDER_PARAM_STR_LENS(param_name), \
-          &share->SPIDER_PARAM_STR_LEN(param_name), \
-          tmp_ptr2, \
-          share->SPIDER_PARAM_STR_CHARLEN(param_name), \
-          &connect_string_parse))) \
-          goto error; \
-      } else { \
-        error_num = connect_string_parse.print_param_error(); \
-        goto error; \
-      } \
-    } \
-    break; \
+#define SPIDER_PARAM_STR_LIST(title_name, param_name)                   \
+  if (!strncasecmp(parse.start_title, title_name, title_length))        \
+  {                                                                     \
+    DBUG_PRINT("info", ("spider " title_name " start"));                \
+    if (!share->param_name)                                             \
+    {                                                                   \
+      share->SPIDER_PARAM_STR_CHARLEN(param_name)= value_length;        \
+      if ((error_num= spider_create_string_list(                        \
+             &share->param_name,                                        \
+             &share->SPIDER_PARAM_STR_LENS(param_name),                 \
+             &share->SPIDER_PARAM_STR_LEN(param_name),                  \
+             parse.start_value,                                         \
+             share->SPIDER_PARAM_STR_CHARLEN(param_name))))             \
+        goto error;                                                     \
+    }                                                                   \
+    break;                                                              \
   }
 #define SPIDER_PARAM_HINT(title_name, param_name, check_length, max_size, append_method) \
-  if (!strncasecmp(tmp_ptr, title_name, check_length)) \
-  { \
-    DBUG_PRINT("info",("spider " title_name " start")); \
-    DBUG_PRINT("info",("spider max_size=%d", max_size)); \
-    int hint_num = atoi(tmp_ptr + check_length); \
-    DBUG_PRINT("info",("spider hint_num=%d", hint_num)); \
-    DBUG_PRINT("info",("spider share->param_name=%p", share->param_name)); \
-    if (share->param_name) \
-    { \
-      if (hint_num < 0 || hint_num >= max_size) \
-      { \
-        error_num = connect_string_parse.print_param_error(); \
-        goto error; \
-      } else if (share->param_name[hint_num].length() > 0) \
-        break; \
-      char *hint_str = spider_get_string_between_quote(start_ptr, FALSE); \
-      if ((error_num = \
-        append_method(&share->param_name[hint_num], hint_str))) \
-        goto error; \
-      DBUG_PRINT("info",("spider " title_name "[%d]=%s", hint_num, \
-        share->param_name[hint_num].ptr())); \
-    } else { \
-      error_num = connect_string_parse.print_param_error(); \
-      goto error; \
-    } \
-    break; \
+  if (!strncasecmp(parse.start_title, title_name, check_length))        \
+  {                                                                     \
+    DBUG_PRINT("info",("spider " title_name " start"));                 \
+    DBUG_PRINT("info",("spider max_size=%d", max_size));                \
+    int hint_num = atoi(parse.start_title + check_length);              \
+    DBUG_PRINT("info",("spider hint_num=%d", hint_num));                \
+    DBUG_PRINT("info",("spider share->param_name=%p",                   \
+                       share->param_name));                             \
+    if (share->param_name)                                              \
+    {                                                                   \
+      if (hint_num < 0 || hint_num >= max_size)                         \
+      {                                                                 \
+        error_num= parse.fail(true);                                    \
+        goto error;                                                     \
+      } else if (share->param_name[hint_num].length() > 0)              \
+        break;                                                          \
+      if ((error_num= append_method(&share->param_name[hint_num],       \
+                                    parse.start_value)))                \
+        goto error;                                                     \
+      DBUG_PRINT("info",("spider " title_name "[%d]=%s", hint_num,      \
+                         share->param_name[hint_num].ptr()));           \
+    } else {                                                            \
+      error_num= parse.fail(true);                                      \
+      goto error;                                                       \
+    }                                                                   \
+    break;                                                              \
   }
 #define SPIDER_PARAM_NUMHINT(title_name, param_name, check_length, max_size, append_method) \
-  if (!strncasecmp(tmp_ptr, title_name, check_length)) \
-  { \
-    DBUG_PRINT("info",("spider " title_name " start")); \
-    DBUG_PRINT("info",("spider max_size=%d", max_size)); \
-    int hint_num = atoi(tmp_ptr + check_length); \
-    DBUG_PRINT("info",("spider hint_num=%d", hint_num)); \
+  if (!strncasecmp(parse.start_title, title_name, check_length))        \
+  {                                                                     \
+    DBUG_PRINT("info",("spider " title_name " start"));                 \
+    DBUG_PRINT("info",("spider max_size=%d", max_size));                \
+    int hint_num = atoi(parse.start_title + check_length);              \
+    DBUG_PRINT("info",("spider hint_num=%d", hint_num));                \
     DBUG_PRINT("info",("spider share->param_name=%p", share->param_name)); \
-    if (share->param_name) \
-    { \
-      if (hint_num < 0 || hint_num >= max_size) \
-      { \
-        error_num = connect_string_parse.print_param_error(); \
-        goto error; \
-      } else if (share->param_name[hint_num] != -1) \
-        break; \
-      char *hint_str = spider_get_string_between_quote(start_ptr, FALSE); \
-      if ((error_num = \
-        append_method(&share->param_name[hint_num], hint_str))) \
-        goto error; \
-      DBUG_PRINT("info",("spider " title_name "[%d]=%lld", hint_num, \
-        share->param_name[hint_num])); \
-    } else { \
-      error_num = connect_string_parse.print_param_error(); \
-      goto error; \
-    } \
-    break; \
+    if (share->param_name)                                              \
+    {                                                                   \
+      if (hint_num < 0 || hint_num >= max_size)                         \
+      {                                                                 \
+        error_num= parse.fail(true);                                    \
+        goto error;                                                     \
+      } else if (share->param_name[hint_num] != -1)                     \
+        break;                                                          \
+      if ((error_num =                                                  \
+           append_method(&share->param_name[hint_num], parse.start_value))) \
+        goto error;                                                     \
+      DBUG_PRINT("info",("spider " title_name "[%d]=%lld", hint_num,    \
+                         share->param_name[hint_num]));                 \
+    } else {                                                            \
+      error_num= parse.fail(true);                                      \
+      goto error;                                                       \
+    }                                                                   \
+    break;                                                              \
   }
 #define SPIDER_PARAM_LONG_LEN(name) name ## _length
-#define SPIDER_PARAM_LONG_LIST_WITH_MAX(title_name, param_name, \
-  min_val, max_val) \
-  if (!strncasecmp(tmp_ptr, title_name, title_length)) \
-  { \
-    DBUG_PRINT("info",("spider " title_name " start")); \
-    if (!share->param_name) \
-    { \
-      if ((tmp_ptr2 = spider_get_string_between_quote( \
-        start_ptr, FALSE))) \
-      { \
-        if ((error_num = spider_create_long_list( \
-          &share->param_name, \
-          &share->SPIDER_PARAM_LONG_LEN(param_name), \
-          tmp_ptr2, \
-          strlen(tmp_ptr2), \
-          min_val, max_val, \
-          &connect_string_parse))) \
-          goto error; \
-      } else { \
-        error_num = connect_string_parse.print_param_error(); \
-        goto error; \
-      } \
-    } \
-    break; \
+#define SPIDER_PARAM_LONG_LIST_WITH_MAX(title_name, param_name,   \
+                                        min_val, max_val)         \
+  if (!strncasecmp(parse.start_title, title_name, title_length))  \
+  {                                                               \
+    DBUG_PRINT("info",("spider " title_name " start"));           \
+    if (!share->param_name)                                       \
+    {                                                             \
+      if ((error_num = spider_create_long_list(                   \
+             &share->param_name,                                  \
+             &share->SPIDER_PARAM_LONG_LEN(param_name),           \
+             parse.start_value,                                   \
+             value_length,                                        \
+             min_val, max_val)))                                  \
+        goto error;                                               \
+    }                                                             \
+    break;                                                        \
   }
 #define SPIDER_PARAM_LONGLONG_LEN(name) name ## _length
 #define SPIDER_PARAM_LONGLONG_LIST_WITH_MAX(title_name, param_name, \
-  min_val, max_val) \
-  if (!strncasecmp(tmp_ptr, title_name, title_length)) \
-  { \
-    DBUG_PRINT("info",("spider " title_name " start")); \
-    if (!share->param_name) \
-    { \
-      if ((tmp_ptr2 = spider_get_string_between_quote( \
-        start_ptr, FALSE))) \
-      { \
-        if ((error_num = spider_create_longlong_list( \
-          &share->param_name, \
-          &share->SPIDER_PARAM_LONGLONG_LEN(param_name), \
-          tmp_ptr2, \
-          strlen(tmp_ptr2), \
-          min_val, max_val, \
-          &connect_string_parse))) \
-          goto error; \
-      } else { \
-        error_num = connect_string_parse.print_param_error(); \
-        goto error; \
-      } \
-    } \
-    break; \
+                                            min_val, max_val)       \
+  if (!strncasecmp(parse.start_title, title_name, title_length))    \
+  {                                                                 \
+    DBUG_PRINT("info",("spider " title_name " start"));             \
+    if (!share->param_name)                                         \
+    {                                                               \
+      if ((error_num = spider_create_longlong_list(                 \
+             &share->param_name,                                    \
+             &share->SPIDER_PARAM_LONGLONG_LEN(param_name),         \
+             parse.start_value,                                     \
+             value_length,                                          \
+             min_val, max_val)))                                    \
+        goto error;                                                 \
+    }                                                               \
+    break;                                                          \
   }
 #define SPIDER_PARAM_INT_WITH_MAX(title_name, param_name, min_val, max_val) \
-  if (!strncasecmp(tmp_ptr, title_name, title_length)) \
-  { \
-    DBUG_PRINT("info",("spider " title_name " start")); \
-    if (share->param_name == -1) \
-    { \
-      if ((tmp_ptr2 = spider_get_string_between_quote( \
-        start_ptr, FALSE))) \
-      { \
-        share->param_name = atoi(tmp_ptr2); \
-        if (share->param_name < min_val) \
-          share->param_name = min_val; \
-        else if (share->param_name > max_val) \
-          share->param_name = max_val; \
-        connect_string_parse.set_param_value(tmp_ptr2, \
-                                             tmp_ptr2 + \
-                                               strlen(tmp_ptr2) + 1); \
-      } else { \
-        error_num = connect_string_parse.print_param_error(); \
-        goto error; \
-      } \
+  if (!strncasecmp(parse.start_title, title_name, title_length))        \
+  {                                                                     \
+    DBUG_PRINT("info",("spider " title_name " start"));                 \
+    if (share->param_name == -1)                                        \
+    {                                                                   \
+      share->param_name = atoi(parse.start_value);                      \
+      if (share->param_name < min_val)                                  \
+        share->param_name = min_val;                                    \
+      else if (share->param_name > max_val)                             \
+        share->param_name = max_val;                                    \
       DBUG_PRINT("info",("spider " title_name "=%d", share->param_name)); \
-    } \
-    break; \
+    }                                                                   \
+    break;                                                              \
   }
-#define SPIDER_PARAM_INT(title_name, param_name, min_val) \
-  if (!strncasecmp(tmp_ptr, title_name, title_length)) \
-  { \
-    DBUG_PRINT("info",("spider " title_name " start")); \
-    if (share->param_name == -1) \
-    { \
-      if ((tmp_ptr2 = spider_get_string_between_quote( \
-        start_ptr, FALSE))) \
-      { \
-        share->param_name = atoi(tmp_ptr2); \
-        if (share->param_name < min_val) \
-          share->param_name = min_val; \
-        connect_string_parse.set_param_value(tmp_ptr2, \
-                                             tmp_ptr2 + \
-                                               strlen(tmp_ptr2) + 1); \
-      } else { \
-        error_num = connect_string_parse.print_param_error(); \
-        goto error; \
-      } \
+#define SPIDER_PARAM_INT(title_name, param_name, min_val)               \
+  if (!strncasecmp(parse.start_title, title_name, title_length))        \
+  {                                                                     \
+    DBUG_PRINT("info",("spider " title_name " start"));                 \
+    if (share->param_name == -1)                                        \
+    {                                                                   \
+      share->param_name = atoi(parse.start_value);                      \
+      if (share->param_name < min_val)                                  \
+        share->param_name = min_val;                                    \
       DBUG_PRINT("info",("spider " title_name "=%d", share->param_name)); \
-    } \
-    break; \
+    }                                                                   \
+    break;                                                              \
   }
-#define SPIDER_PARAM_DOUBLE(title_name, param_name, min_val) \
-  if (!strncasecmp(tmp_ptr, title_name, title_length)) \
-  { \
-    DBUG_PRINT("info",("spider " title_name " start")); \
-    if (share->param_name == -1) \
-    { \
-      if ((tmp_ptr2 = spider_get_string_between_quote( \
-        start_ptr, FALSE))) \
-      { \
-        share->param_name = my_atof(tmp_ptr2); \
-        if (share->param_name < min_val) \
-          share->param_name = min_val; \
-        connect_string_parse.set_param_value(tmp_ptr2, \
-                                             tmp_ptr2 + \
-                                               strlen(tmp_ptr2) + 1); \
-      } else { \
-        error_num = connect_string_parse.print_param_error(); \
-        goto error; \
-      } \
+#define SPIDER_PARAM_DOUBLE(title_name, param_name, min_val)            \
+  if (!strncasecmp(parse.start_title, title_name, title_length))        \
+  {                                                                     \
+    DBUG_PRINT("info",("spider " title_name " start"));                 \
+    if (share->param_name == -1)                                        \
+    {                                                                   \
+      share->param_name = my_atof(parse.start_value);                   \
+      if (share->param_name < min_val)                                  \
+        share->param_name = min_val;                                    \
       DBUG_PRINT("info",("spider " title_name "=%f", share->param_name)); \
-    } \
-    break; \
+    }                                                                   \
+    break;                                                              \
   }
-#define SPIDER_PARAM_LONGLONG(title_name, param_name, min_val) \
-  if (!strncasecmp(tmp_ptr, title_name, title_length)) \
-  { \
-    DBUG_PRINT("info",("spider " title_name " start")); \
-    if (share->param_name == -1) \
-    { \
-      if ((tmp_ptr2 = spider_get_string_between_quote( \
-        start_ptr, FALSE))) \
-      { \
-        share->param_name = my_strtoll10(tmp_ptr2, (char**) NULL, &error_num); \
-        if (share->param_name < min_val) \
-          share->param_name = min_val; \
-        connect_string_parse.set_param_value(tmp_ptr2, \
-                                             tmp_ptr2 + \
-                                               strlen(tmp_ptr2) + 1); \
-      } else { \
-        error_num = connect_string_parse.print_param_error(); \
-        goto error; \
-      } \
+#define SPIDER_PARAM_LONGLONG(title_name, param_name, min_val)          \
+  if (!strncasecmp(parse.start_title, title_name, title_length))        \
+  {                                                                     \
+    DBUG_PRINT("info",("spider " title_name " start"));                 \
+    if (share->param_name == -1)                                        \
+    {                                                                   \
+      share->param_name = my_strtoll10(parse.start_value, (char**) NULL, \
+                                       &error_num);                     \
+      if (share->param_name < min_val)                                  \
+        share->param_name = min_val;                                    \
       DBUG_PRINT("info",("spider " title_name "=%lld", share->param_name)); \
     } \
     break; \
   }
 
-int spider_parse_connect_info(
-  SPIDER_SHARE *share,
-  TABLE_SHARE *table_share,
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  partition_info *part_info,
-#endif
-  uint create_table
-) {
-  int error_num = 0;
-  char *connect_string = NULL;
-  char *sprit_ptr;
-  char *tmp_ptr, *tmp_ptr2, *start_ptr;
-  int roop_count;
-  int title_length;
-  SPIDER_PARAM_STRING_PARSE connect_string_parse;
-  SPIDER_ALTER_TABLE *share_alter;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  partition_element *part_elem;
-  partition_element *sub_elem;
-#endif
-  DBUG_ENTER("spider_parse_connect_info");
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-#if MYSQL_VERSION_ID < 50500
-  DBUG_PRINT("info",("spider partition_info=%s", table_share->partition_info));
-#else
-  DBUG_PRINT("info",("spider partition_info=%s",
-    table_share->partition_info_str));
-#endif
-  DBUG_PRINT("info",("spider part_info=%p", part_info));
-#endif
-  DBUG_PRINT("info",("spider s->db=%s", table_share->db.str));
-  DBUG_PRINT("info",("spider s->table_name=%s", table_share->table_name.str));
-  DBUG_PRINT("info",("spider s->path=%s", table_share->path.str));
-  DBUG_PRINT("info",
-    ("spider s->normalized_path=%s", table_share->normalized_path.str));
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  spider_get_partition_info(share->table_name, share->table_name_length,
-    table_share, part_info, &part_elem, &sub_elem);
-#endif
+static void spider_minus_1(SPIDER_SHARE *share, TABLE_SHARE *table_share)
+{
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   share->sts_bg_mode = -1;
 #endif
@@ -2092,13 +1834,275 @@ int spider_parse_connect_info(
   share->delete_all_rows_type = -1;
   share->static_records_for_status = -1;
   share->static_mean_rec_length = -1;
-  for (roop_count = 0; roop_count < (int) table_share->keys; roop_count++)
+  for (uint i = 0; i < table_share->keys; i++)
   {
-    share->static_key_cardinality[roop_count] = -1;
+    share->static_key_cardinality[i] = -1;
   }
+}
 
+/**
+  Get the connect info of a certain type.
+
+  @param  type              The type of the connect info.
+                            4: partition; 3: subpartition; 2: comment;
+                            1: connect_string
+  @retval 0                 Success
+  @retval 1                 Not applicable. That is, the info with the
+                            type is missing
+  @retval HA_ERR_OUT_OF_MEM Failure
+*/
+static int spider_get_connect_info(const int type,
+                                   const partition_element *part_elem,
+                                   const partition_element *sub_elem,
+                                   const TABLE_SHARE* table_share,
+                                   char*& out)
+{
+  switch (type)
+  {
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-  for (roop_count = 4; roop_count > 0; roop_count--)
+  case 4:
+    if (!sub_elem || !sub_elem->part_comment)
+      return 1;
+    if (!(out = spider_create_string(
+            sub_elem->part_comment, strlen(sub_elem->part_comment))))
+      return HA_ERR_OUT_OF_MEM;
+    break;
+  case 3:
+    if (!part_elem || !part_elem->part_comment)
+      return 1;
+    if (!(out = spider_create_string(
+            part_elem->part_comment, strlen(part_elem->part_comment))))
+      return HA_ERR_OUT_OF_MEM;
+    break;
+#endif
+  case 2:
+    if (table_share->comment.length == 0)
+      return 1;
+    if (!(out = spider_create_string(
+            table_share->comment.str, table_share->comment.length)))
+      return HA_ERR_OUT_OF_MEM;
+    break;
+  default:
+    if (table_share->connect_string.length == 0)
+      return 1;
+    DBUG_PRINT("info",("spider create out string"));
+    if (!(out = spider_create_string(
+          table_share->connect_string.str, table_share->connect_string.length)))
+      return HA_ERR_OUT_OF_MEM;
+    break;
+  }
+  return 0;
+}
+
+/**
+  Find the beginning and end of a parameter title
+
+  Skip over whitespace to find the beginning of the parameter
+  title. Then skip over non-whitespace/quote/nul chars to find the end
+  of the parameter title
+
+  @param  start_title  The start of the param definition. Will be
+                       moved to the start of the param title
+  @param  end_title    Will be moved to the end of the param title
+  @retval false        Success
+  @retval true         Failure
+*/
+static bool spider_parse_find_title(char*& start_title, char*& end_title)
+{
+  /* Skip leading whitespaces. */
+  while (*start_title == ' ' || *start_title == '\r' ||
+         *start_title == '\n' || *start_title == '\t')
+    start_title++;
+
+  if (*start_title == '\0')
+    return true;
+
+  end_title = start_title;
+  /* Move over non-whitespace/comma/nul/quote chars (parameter title). */
+  while (*end_title != ' ' && *end_title != '\r' &&
+         *end_title != '\n' && *end_title != '\t' &&
+         *end_title != '\0' && *end_title != ',' &&
+         *end_title != '\'' && *end_title != '"')
+    end_title++;
+
+  /* Fail on invalid end: there should be at least one space between
+  title and value, and the value should be non-empty. */
+  if (*end_title == '\'' || *end_title == '"' ||
+      *end_title == '\0' || *end_title == ',')
+    return true;
+
+  return false;
+}
+
+/**
+  Find the beginning and the end of a paramter value, and the value
+  delimiter
+
+  Skip over whitespaces to find the start delimiter, then skip over
+  the param value to find the end delimiter
+
+  @param  start_value  The end of the param title. Will be moved to
+                       the start of the param value, just after the
+                       delimiter
+  @param  end_value    Will be moved to the end of the param value, at
+                       the delimiter
+  @param  delim        Will be assigned the param value delimiter,
+                       either the single or double quote
+  @retval false        Success
+  @retval true         Failure
+*/
+static bool spider_parse_find_value(char*& start_value, char*& end_value,
+                                    char& delim)
+{
+  /* Skip over whitespaces */
+  while (*start_value == ' ' || *start_value == '\r' ||
+         *start_value == '\n' || *start_value == '\t')
+    start_value++;
+  if (*start_value != '"' && *start_value != '\'')
+    return true;
+  delim= *start_value;
+  end_value= start_value++;
+
+  while (1)
+  {
+    end_value++;
+    /* Escaping */
+    if (*end_value == '\\')
+    {
+      end_value++;
+      /* The backslash cannot be at the end */
+      if (*end_value == '\0')
+        return true;
+    }
+    else if (*end_value == delim)
+      return false;
+    else if (*end_value == '\0')
+      return true;
+  }
+}
+
+/**
+  Find the beginning of the next parameter
+
+  Skip over whitespaces, then check that the first non-whitespace char
+  is a comma or the end of string
+
+  @param  start_param  The end of the param value. Will be moved to
+                       the start of the next param definition, just
+                       after the comma, if there's one; otherwise will
+                       be moved to the end of the string
+  @retval false        Success
+  @retval true         Failure
+*/
+static bool spider_parse_find_next(char*& start_param)
+{
+  /* Skip over whitespaces */
+  while (*start_param == ' ' || *start_param == '\r' ||
+         *start_param == '\n' || *start_param == '\t')
+    start_param++;
+  /* No more param definitions */
+  if (*start_param == '\0')
+    return false;
+  else if (*start_param == ',')
+  {
+    start_param++;
+    return false;
+  }
+  else
+    return true;
+}
+
+/**
+  Find the start and end of the current param title and value and the
+  value deliminator.
+
+  @param  start_param    The beginning of the current param
+                         definition. Will be mutated to the beginning
+                         of the next param definition.
+  @retval false  success
+  @retval true   failure
+*/
+bool st_spider_param_string_parse::locate_param_def(char*& start_param)
+{
+  DBUG_ENTER("parse::locate_param_def");
+  start_title= start_param;
+  if (spider_parse_find_title(start_title, end_title))
+    DBUG_RETURN(TRUE);
+  start_value= end_title;
+  if (spider_parse_find_value(start_value, end_value, delim_value))
+    DBUG_RETURN(TRUE);
+  /* skip the delim */
+  start_param= end_value + 1;
+  if (spider_parse_find_next(start_param))
+    DBUG_RETURN(TRUE);
+  DBUG_RETURN(FALSE);
+}
+
+/**
+  Handle parsing failure.
+
+  Print error and optionally restore param value end delimiter that
+  has been nulled before.
+
+  @param  restore_delim  If true, restore the end value delimiter
+  @return                The error number
+*/
+int st_spider_param_string_parse::fail(bool restore_delim)
+{
+  DBUG_ENTER("spider_parse_print_param_error");
+  DBUG_ASSERT(error_num != 0);
+  /* Print the error message */
+  switch (error_num)
+  {
+  case ER_SPIDER_INVALID_UDF_PARAM_NUM:
+    my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR,
+                    MYF(0), start_title);
+    break;
+  case ER_SPIDER_INVALID_CONNECT_INFO_NUM:
+  default:
+    my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_STR,
+                    MYF(0), start_title);
+  }
+  if (restore_delim)
+    *end_value = delim_value;
+  DBUG_RETURN(error_num);
+}
+
+/*
+  Parse connection information specified by COMMENT, CONNECT, or engine-defined
+  options.
+
+  TODO: Deprecate the connection specification by COMMENT and CONNECT,
+  and then solely utilize engine-defined options.
+*/
+int spider_parse_connect_info(
+  SPIDER_SHARE *share,
+  TABLE_SHARE *table_share,
+  partition_info *part_info,
+  uint create_table
+) {
+  int error_num = 0;
+  char *connect_string = NULL;
+  char *start_param;
+  int title_length, value_length;
+  SPIDER_PARAM_STRING_PARSE parse;
+  SPIDER_ALTER_TABLE *share_alter;
+  partition_element *part_elem;
+  partition_element *sub_elem;
+  DBUG_ENTER("spider_parse_connect_info");
+  DBUG_PRINT("info",("spider partition_info=%s",
+    table_share->partition_info_str));
+  DBUG_PRINT("info",("spider part_info=%p", part_info));
+  DBUG_PRINT("info",("spider s->db=%s", table_share->db.str));
+  DBUG_PRINT("info",("spider s->table_name=%s", table_share->table_name.str));
+  DBUG_PRINT("info",("spider s->path=%s", table_share->path.str));
+  DBUG_PRINT("info",
+    ("spider s->normalized_path=%s", table_share->normalized_path.str));
+  spider_get_partition_info(share->table_name, share->table_name_length,
+    table_share, part_info, &part_elem, &sub_elem);
+  spider_minus_1(share, table_share);
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  for (int i = 4; i > 0; i--)
 #else
   for (roop_count = 2; roop_count > 0; roop_count--)
 #endif
@@ -2108,517 +2112,446 @@ int spider_parse_connect_info(
       spider_free(spider_current_trx, connect_string, MYF(0));
       connect_string = NULL;
     }
-    switch (roop_count)
+
+    int error_num_1 = spider_get_connect_info(i, part_elem, sub_elem,
+                                              table_share, connect_string);
+    if (error_num_1 == 1)
+      continue;
+    if (error_num_1 == HA_ERR_OUT_OF_MEM)
     {
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-      case 4:
-        if (!sub_elem || !sub_elem->part_comment)
-          continue;
-        DBUG_PRINT("info",("spider create sub comment string"));
-        if (
-          !(connect_string = spider_create_string(
-            sub_elem->part_comment,
-            strlen(sub_elem->part_comment)))
-        ) {
-          error_num = HA_ERR_OUT_OF_MEM;
-          goto error_alloc_conn_string;
-        }
-        DBUG_PRINT("info",("spider sub comment string=%s", connect_string));
-        break;
-      case 3:
-        if (!part_elem || !part_elem->part_comment)
-          continue;
-        DBUG_PRINT("info",("spider create part comment string"));
-        if (
-          !(connect_string = spider_create_string(
-            part_elem->part_comment,
-            strlen(part_elem->part_comment)))
-        ) {
-          error_num = HA_ERR_OUT_OF_MEM;
-          goto error_alloc_conn_string;
-        }
-        DBUG_PRINT("info",("spider part comment string=%s", connect_string));
-        break;
-#endif
-      case 2:
-        if (table_share->comment.length == 0)
-          continue;
-        DBUG_PRINT("info",("spider create comment string"));
-        if (
-          !(connect_string = spider_create_string(
-            table_share->comment.str,
-            table_share->comment.length))
-        ) {
-          error_num = HA_ERR_OUT_OF_MEM;
-          goto error_alloc_conn_string;
-        }
-        DBUG_PRINT("info",("spider comment string=%s", connect_string));
-        break;
-      default:
-        if (table_share->connect_string.length == 0)
-          continue;
-        DBUG_PRINT("info",("spider create connect_string string"));
-        if (
-          !(connect_string = spider_create_string(
-            table_share->connect_string.str,
-            table_share->connect_string.length))
-        ) {
-          error_num = HA_ERR_OUT_OF_MEM;
-          goto error_alloc_conn_string;
-        }
-        DBUG_PRINT("info",("spider connect_string=%s", connect_string));
-        break;
+      error_num= HA_ERR_OUT_OF_MEM;
+      goto error_alloc_conn_string;
     }
+    DBUG_ASSERT(error_num_1 == 0);
 
-    sprit_ptr = connect_string;
-    connect_string_parse.init(connect_string, ER_SPIDER_INVALID_CONNECT_INFO_NUM);
-    while (sprit_ptr)
+    start_param = connect_string;
+    parse.error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM;
+    while (*start_param != '\0')
     {
-      tmp_ptr = sprit_ptr;
-      while (*tmp_ptr == ' ' || *tmp_ptr == '\r' ||
-        *tmp_ptr == '\n' || *tmp_ptr == '\t')
-        tmp_ptr++;
-
-      if (*tmp_ptr == '\0')
-        break;
-
-      title_length = 0;
-      start_ptr = tmp_ptr;
-      while (*start_ptr != ' ' && *start_ptr != '\'' &&
-        *start_ptr != '"' && *start_ptr != '\0' &&
-        *start_ptr != '\r' && *start_ptr != '\n' &&
-        *start_ptr != '\t')
+      if (parse.locate_param_def(start_param))
       {
-        title_length++;
-        start_ptr++;
-      }
-      connect_string_parse.set_param_title(tmp_ptr, tmp_ptr + title_length);
-      if ((error_num = connect_string_parse.get_next_parameter_head(
-        start_ptr, &sprit_ptr)))
-      {
+        error_num= parse.fail(false);
         goto error;
       }
-
-      switch (title_length)
+      /* Null the end of the parameter value. */
+      *parse.end_value= '\0';
+      value_length= (int) (parse.end_value - parse.start_value);
+      switch (title_length = (int) (parse.end_title - parse.start_title))
       {
-        case 0:
-          error_num = connect_string_parse.print_param_error();
-          if (error_num)
-            goto error;
-          continue;
-        case 3:
-          SPIDER_PARAM_LONG_LIST_WITH_MAX("abl", access_balances, 0,
-            2147483647);
-          SPIDER_PARAM_INT_WITH_MAX("aim", auto_increment_mode, 0, 3);
-          SPIDER_PARAM_INT("alc", active_link_count, 1);
+      case 0:
+        error_num= parse.fail(true);
+        goto error;
+      case 3:
+        SPIDER_PARAM_LONG_LIST_WITH_MAX("abl", access_balances, 0,
+                                        2147483647);
+        SPIDER_PARAM_INT_WITH_MAX("aim", auto_increment_mode, 0, 3);
+        SPIDER_PARAM_INT("alc", active_link_count, 1);
 #ifdef HA_CAN_BULK_ACCESS
-          SPIDER_PARAM_INT_WITH_MAX("baf", bulk_access_free, 0, 1);
+        SPIDER_PARAM_INT_WITH_MAX("baf", bulk_access_free, 0, 1);
 #endif
 #ifndef WITHOUT_SPIDER_BG_SEARCH
-          SPIDER_PARAM_LONGLONG("bfr", bgs_first_read, 0);
-          SPIDER_PARAM_INT("bmd", bgs_mode, 0);
-          SPIDER_PARAM_LONGLONG("bsr", bgs_second_read, 0);
+        SPIDER_PARAM_LONGLONG("bfr", bgs_first_read, 0);
+        SPIDER_PARAM_INT("bmd", bgs_mode, 0);
+        SPIDER_PARAM_LONGLONG("bsr", bgs_second_read, 0);
 #endif
-          SPIDER_PARAM_STR("bke", bka_engine);
-          SPIDER_PARAM_INT_WITH_MAX("bkm", bka_mode, 0, 2);
-          SPIDER_PARAM_INT("bsz", bulk_size, 0);
-          SPIDER_PARAM_LONG_LIST_WITH_MAX("btt", bka_table_name_types,
-            0, 1);
-          SPIDER_PARAM_INT_WITH_MAX("bum", bulk_update_mode, 0, 2);
-          SPIDER_PARAM_INT("bus", bulk_update_size, 0);
+        SPIDER_PARAM_STR("bke", bka_engine);
+        SPIDER_PARAM_INT_WITH_MAX("bkm", bka_mode, 0, 2);
+        SPIDER_PARAM_INT("bsz", bulk_size, 0);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX("btt", bka_table_name_types,
+                                        0, 1);
+        SPIDER_PARAM_INT_WITH_MAX("bum", bulk_update_mode, 0, 2);
+        SPIDER_PARAM_INT("bus", bulk_update_size, 0);
 #ifndef WITHOUT_SPIDER_BG_SEARCH
-          SPIDER_PARAM_INT_WITH_MAX("cbm", crd_bg_mode, 0, 2);
+        SPIDER_PARAM_INT_WITH_MAX("cbm", crd_bg_mode, 0, 2);
 #endif
-          SPIDER_PARAM_DOUBLE("civ", crd_interval, 0);
-          SPIDER_PARAM_INT_WITH_MAX("cmd", crd_mode, 0, 3);
-          SPIDER_PARAM_INT_WITH_MAX("csr", casual_read, 0, 63);
+        SPIDER_PARAM_DOUBLE("civ", crd_interval, 0);
+        SPIDER_PARAM_INT_WITH_MAX("cmd", crd_mode, 0, 3);
+        SPIDER_PARAM_INT_WITH_MAX("csr", casual_read, 0, 63);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-          SPIDER_PARAM_INT_WITH_MAX("csy", crd_sync, 0, 2);
+        SPIDER_PARAM_INT_WITH_MAX("csy", crd_sync, 0, 2);
 #endif
-          SPIDER_PARAM_LONG_LIST_WITH_MAX("cto", connect_timeouts, 0,
-            2147483647);
-          SPIDER_PARAM_INT_WITH_MAX("ctp", crd_type, 0, 2);
-          SPIDER_PARAM_DOUBLE("cwg", crd_weight, 1);
-          SPIDER_PARAM_INT_WITH_MAX("dat", delete_all_rows_type, 0, 1);
-          SPIDER_PARAM_INT_WITH_MAX("ddi", direct_dup_insert, 0, 1);
-          SPIDER_PARAM_STR_LIST("dff", tgt_default_files);
-          SPIDER_PARAM_STR_LIST("dfg", tgt_default_groups);
-          SPIDER_PARAM_LONGLONG("dol", direct_order_limit, 0);
-          SPIDER_PARAM_INT_WITH_MAX("erm", error_read_mode, 0, 1);
-          SPIDER_PARAM_INT_WITH_MAX("ewm", error_write_mode, 0, 1);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX("cto", connect_timeouts, 0,
+                                        2147483647);
+        SPIDER_PARAM_INT_WITH_MAX("ctp", crd_type, 0, 2);
+        SPIDER_PARAM_DOUBLE("cwg", crd_weight, 1);
+        SPIDER_PARAM_INT_WITH_MAX("dat", delete_all_rows_type, 0, 1);
+        SPIDER_PARAM_INT_WITH_MAX("ddi", direct_dup_insert, 0, 1);
+        SPIDER_PARAM_STR_LIST("dff", tgt_default_files);
+        SPIDER_PARAM_STR_LIST("dfg", tgt_default_groups);
+        SPIDER_PARAM_LONGLONG("dol", direct_order_limit, 0);
+        SPIDER_PARAM_INT_WITH_MAX("erm", error_read_mode, 0, 1);
+        SPIDER_PARAM_INT_WITH_MAX("ewm", error_write_mode, 0, 1);
 #ifdef HA_CAN_FORCE_BULK_DELETE
-          SPIDER_PARAM_INT_WITH_MAX("fbd", force_bulk_delete, 0, 1);
+        SPIDER_PARAM_INT_WITH_MAX("fbd", force_bulk_delete, 0, 1);
 #endif
 #ifdef HA_CAN_FORCE_BULK_UPDATE
-          SPIDER_PARAM_INT_WITH_MAX("fbu", force_bulk_update, 0, 1);
+        SPIDER_PARAM_INT_WITH_MAX("fbu", force_bulk_update, 0, 1);
 #endif
-          SPIDER_PARAM_LONGLONG("frd", first_read, 0);
+        SPIDER_PARAM_LONGLONG("frd", first_read, 0);
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-          SPIDER_PARAM_LONGLONG("hrf", hs_result_free_size, 0);
-          SPIDER_PARAM_LONG_LIST_WITH_MAX(
-            "hrp", hs_read_ports, 0, 65535);
-          SPIDER_PARAM_STR_LIST("hrs", hs_read_socks);
-          SPIDER_PARAM_LONG_LIST_WITH_MAX(
-            "hwp", hs_write_ports, 0, 65535);
-          SPIDER_PARAM_LONG_LIST_WITH_MAX(
-            "hwr", hs_write_to_reads, 0, 1);
-          SPIDER_PARAM_STR_LIST("hws", hs_write_socks);
+        SPIDER_PARAM_LONGLONG("hrf", hs_result_free_size, 0);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX(
+          "hrp", hs_read_ports, 0, 65535);
+        SPIDER_PARAM_STR_LIST("hrs", hs_read_socks);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX(
+          "hwp", hs_write_ports, 0, 65535);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX(
+          "hwr", hs_write_to_reads, 0, 1);
+        SPIDER_PARAM_STR_LIST("hws", hs_write_socks);
 #endif
-          SPIDER_PARAM_INT("isa", init_sql_alloc_size, 0);
-          SPIDER_PARAM_LONGLONG("ilm", internal_limit, 0);
-          SPIDER_PARAM_LONGLONG("ios", internal_offset, 0);
-          SPIDER_PARAM_INT_WITH_MAX("iom", internal_optimize, 0, 1);
-          SPIDER_PARAM_INT_WITH_MAX("iol", internal_optimize_local, 0, 1);
-          SPIDER_PARAM_INT_WITH_MAX("lmr", low_mem_read, 0, 1);
-          SPIDER_PARAM_INT_WITH_MAX("lcs", load_crd_at_startup, 0, 1);
-          SPIDER_PARAM_INT_WITH_MAX("lss", load_sts_at_startup, 0, 1);
-          SPIDER_PARAM_LONG_LIST_WITH_MAX("lst", link_statuses, 0, 3);
+        SPIDER_PARAM_INT("isa", init_sql_alloc_size, 0);
+        SPIDER_PARAM_LONGLONG("ilm", internal_limit, 0);
+        SPIDER_PARAM_LONGLONG("ios", internal_offset, 0);
+        SPIDER_PARAM_INT_WITH_MAX("iom", internal_optimize, 0, 1);
+        SPIDER_PARAM_INT_WITH_MAX("iol", internal_optimize_local, 0, 1);
+        SPIDER_PARAM_INT_WITH_MAX("lmr", low_mem_read, 0, 1);
+        SPIDER_PARAM_INT_WITH_MAX("lcs", load_crd_at_startup, 0, 1);
+        SPIDER_PARAM_INT_WITH_MAX("lss", load_sts_at_startup, 0, 1);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX("lst", link_statuses, 0, 3);
 #ifndef WITHOUT_SPIDER_BG_SEARCH
-          SPIDER_PARAM_LONG_LIST_WITH_MAX("mbf", monitoring_bg_flag, 0, 1);
-          SPIDER_PARAM_LONGLONG_LIST_WITH_MAX(
-            "mbi", monitoring_bg_interval, 0, 4294967295LL);
-          SPIDER_PARAM_LONG_LIST_WITH_MAX("mbk", monitoring_bg_kind, 0, 3);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX("mbf", monitoring_bg_flag, 0, 1);
+        SPIDER_PARAM_LONGLONG_LIST_WITH_MAX(
+          "mbi", monitoring_bg_interval, 0, 4294967295LL);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX("mbk", monitoring_bg_kind, 0, 3);
 #endif
-          SPIDER_PARAM_LONG_LIST_WITH_MAX("mbp", monitoring_binlog_pos_at_failing, 0, 2);
-          SPIDER_PARAM_LONG_LIST_WITH_MAX("mfg", monitoring_flag, 0, 1);
-          SPIDER_PARAM_LONG_LIST_WITH_MAX("mkd", monitoring_kind, 0, 3);
-          SPIDER_PARAM_LONGLONG_LIST_WITH_MAX(
-            "mlt", monitoring_limit, 0, 9223372036854775807LL);
-          SPIDER_PARAM_INT("mod", max_order, 0);
-          SPIDER_PARAM_LONGLONG_LIST_WITH_MAX(
-            "msi", monitoring_sid, 0, 4294967295LL);
-          SPIDER_PARAM_INT_WITH_MAX("msr", multi_split_read, 0, 2147483647);
-          SPIDER_PARAM_LONG_LIST_WITH_MAX("nrt", net_read_timeouts, 0,
-            2147483647);
-          SPIDER_PARAM_LONG_LIST_WITH_MAX("nwt", net_write_timeouts, 0,
-            2147483647);
-          SPIDER_PARAM_STR_LIST("pkn", tgt_pk_names);
-          SPIDER_PARAM_LONGLONG("prt", priority, 0);
-          SPIDER_PARAM_INT_WITH_MAX("qch", query_cache, 0, 2);
-          SPIDER_PARAM_INT_WITH_MAX("qcs", query_cache_sync, 0, 3);
-          SPIDER_PARAM_INT_WITH_MAX("qmd", quick_mode, 0, 3);
-          SPIDER_PARAM_LONGLONG("qpb", quick_page_byte, 0);
-          SPIDER_PARAM_LONGLONG("qps", quick_page_size, 0);
-          SPIDER_PARAM_INT_WITH_MAX("rom", read_only_mode, 0, 1);
-          SPIDER_PARAM_DOUBLE("rrt", read_rate, 0);
-          SPIDER_PARAM_INT_WITH_MAX("rsa", reset_sql_alloc, 0, 1);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX("mbp", monitoring_binlog_pos_at_failing, 0, 2);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX("mfg", monitoring_flag, 0, 1);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX("mkd", monitoring_kind, 0, 3);
+        SPIDER_PARAM_LONGLONG_LIST_WITH_MAX(
+          "mlt", monitoring_limit, 0, 9223372036854775807LL);
+        SPIDER_PARAM_INT("mod", max_order, 0);
+        SPIDER_PARAM_LONGLONG_LIST_WITH_MAX(
+          "msi", monitoring_sid, 0, 4294967295LL);
+        SPIDER_PARAM_INT_WITH_MAX("msr", multi_split_read, 0, 2147483647);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX("nrt", net_read_timeouts, 0,
+                                        2147483647);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX("nwt", net_write_timeouts, 0,
+                                        2147483647);
+        SPIDER_PARAM_STR_LIST("pkn", tgt_pk_names);
+        SPIDER_PARAM_LONGLONG("prt", priority, 0);
+        SPIDER_PARAM_INT_WITH_MAX("qch", query_cache, 0, 2);
+        SPIDER_PARAM_INT_WITH_MAX("qcs", query_cache_sync, 0, 3);
+        SPIDER_PARAM_INT_WITH_MAX("qmd", quick_mode, 0, 3);
+        SPIDER_PARAM_LONGLONG("qpb", quick_page_byte, 0);
+        SPIDER_PARAM_LONGLONG("qps", quick_page_size, 0);
+        SPIDER_PARAM_INT_WITH_MAX("rom", read_only_mode, 0, 1);
+        SPIDER_PARAM_DOUBLE("rrt", read_rate, 0);
+        SPIDER_PARAM_INT_WITH_MAX("rsa", reset_sql_alloc, 0, 1);
 #ifndef WITHOUT_SPIDER_BG_SEARCH
-          SPIDER_PARAM_INT_WITH_MAX("sbm", sts_bg_mode, 0, 2);
+        SPIDER_PARAM_INT_WITH_MAX("sbm", sts_bg_mode, 0, 2);
 #endif
-          SPIDER_PARAM_STR_LIST("sca", tgt_ssl_cas);
-          SPIDER_PARAM_STR_LIST("sch", tgt_ssl_ciphers);
-          SPIDER_PARAM_INT_WITH_MAX("scm", select_column_mode, 0, 1);
-          SPIDER_PARAM_STR_LIST("scp", tgt_ssl_capaths);
-          SPIDER_PARAM_STR_LIST("scr", tgt_ssl_certs);
-          SPIDER_PARAM_INT_WITH_MAX("sdc", skip_default_condition, 0, 1);
-          SPIDER_PARAM_DOUBLE("siv", sts_interval, 0);
-          SPIDER_PARAM_STR_LIST("sky", tgt_ssl_keys);
-          SPIDER_PARAM_STR_LIST("sli", static_link_ids);
-          SPIDER_PARAM_INT_WITH_MAX("slc", store_last_crd, 0, 1);
-          SPIDER_PARAM_INT_WITH_MAX("slm", selupd_lock_mode, 0, 2);
-          SPIDER_PARAM_INT_WITH_MAX("sls", store_last_sts, 0, 1);
-          SPIDER_PARAM_INT_WITH_MAX("smd", sts_mode, 1, 2);
-          SPIDER_PARAM_LONGLONG("smr", static_mean_rec_length, 0);
-          SPIDER_PARAM_LONGLONG("spr", split_read, 0);
-          SPIDER_PARAM_INT_WITH_MAX("sps", skip_parallel_search, 0, 3);
-          SPIDER_PARAM_STR_LIST("sqn", tgt_sequence_names);
-          SPIDER_PARAM_LONGLONG("srd", second_read, 0);
-          SPIDER_PARAM_DOUBLE("srt", scan_rate, 0);
-          SPIDER_PARAM_STR_LIST("srv", server_names);
-          SPIDER_PARAM_DOUBLE("ssr", semi_split_read, 0);
-          SPIDER_PARAM_LONGLONG("ssl", semi_split_read_limit, 0);
+        SPIDER_PARAM_STR_LIST("sca", tgt_ssl_cas);
+        SPIDER_PARAM_STR_LIST("sch", tgt_ssl_ciphers);
+        SPIDER_PARAM_INT_WITH_MAX("scm", select_column_mode, 0, 1);
+        SPIDER_PARAM_STR_LIST("scp", tgt_ssl_capaths);
+        SPIDER_PARAM_STR_LIST("scr", tgt_ssl_certs);
+        SPIDER_PARAM_INT_WITH_MAX("sdc", skip_default_condition, 0, 1);
+        SPIDER_PARAM_DOUBLE("siv", sts_interval, 0);
+        SPIDER_PARAM_STR_LIST("sky", tgt_ssl_keys);
+        SPIDER_PARAM_STR_LIST("sli", static_link_ids);
+        SPIDER_PARAM_INT_WITH_MAX("slc", store_last_crd, 0, 1);
+        SPIDER_PARAM_INT_WITH_MAX("slm", selupd_lock_mode, 0, 2);
+        SPIDER_PARAM_INT_WITH_MAX("sls", store_last_sts, 0, 1);
+        SPIDER_PARAM_INT_WITH_MAX("smd", sts_mode, 1, 2);
+        SPIDER_PARAM_LONGLONG("smr", static_mean_rec_length, 0);
+        SPIDER_PARAM_LONGLONG("spr", split_read, 0);
+        SPIDER_PARAM_INT_WITH_MAX("sps", skip_parallel_search, 0, 3);
+        SPIDER_PARAM_STR_LIST("sqn", tgt_sequence_names);
+        SPIDER_PARAM_LONGLONG("srd", second_read, 0);
+        SPIDER_PARAM_DOUBLE("srt", scan_rate, 0);
+        SPIDER_PARAM_STR_LIST("srv", server_names);
+        SPIDER_PARAM_DOUBLE("ssr", semi_split_read, 0);
+        SPIDER_PARAM_LONGLONG("ssl", semi_split_read_limit, 0);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-          SPIDER_PARAM_INT_WITH_MAX("ssy", sts_sync, 0, 2);
+        SPIDER_PARAM_INT_WITH_MAX("ssy", sts_sync, 0, 2);
 #endif
-          SPIDER_PARAM_INT_WITH_MAX("stc", semi_table_lock_conn, 0, 1);
-          SPIDER_PARAM_INT_WITH_MAX("stl", semi_table_lock, 0, 1);
-          SPIDER_PARAM_LONGLONG("srs", static_records_for_status, 0);
-          SPIDER_PARAM_LONG_LIST_WITH_MAX("svc", tgt_ssl_vscs, 0, 1);
-          SPIDER_PARAM_STR_LIST("tbl", tgt_table_names);
-          SPIDER_PARAM_INT_WITH_MAX("tcm", table_count_mode, 0, 3);
-          SPIDER_PARAM_LONG_LIST_WITH_MAX("uhd", use_handlers, 0, 3);
+        SPIDER_PARAM_INT_WITH_MAX("stc", semi_table_lock_conn, 0, 1);
+        SPIDER_PARAM_INT_WITH_MAX("stl", semi_table_lock, 0, 1);
+        SPIDER_PARAM_LONGLONG("srs", static_records_for_status, 0);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX("svc", tgt_ssl_vscs, 0, 1);
+        SPIDER_PARAM_STR_LIST("tbl", tgt_table_names);
+        SPIDER_PARAM_INT_WITH_MAX("tcm", table_count_mode, 0, 3);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX("uhd", use_handlers, 0, 3);
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-          SPIDER_PARAM_LONG_LIST_WITH_MAX(
-            "uhr", use_hs_reads, 0, 1);
-          SPIDER_PARAM_LONG_LIST_WITH_MAX(
-            "uhw", use_hs_writes, 0, 1);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX(
+          "uhr", use_hs_reads, 0, 1);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX(
+          "uhw", use_hs_writes, 0, 1);
 #endif
-          SPIDER_PARAM_INT_WITH_MAX("upu", use_pushdown_udf, 0, 1);
-          SPIDER_PARAM_INT_WITH_MAX("utc", use_table_charset, 0, 1);
-          error_num = connect_string_parse.print_param_error();
-          goto error;
-        case 4:
-          SPIDER_PARAM_STR_LIST("host", tgt_hosts);
-          SPIDER_PARAM_STR_LIST("user", tgt_usernames);
-          SPIDER_PARAM_LONG_LIST_WITH_MAX("port", tgt_ports, 0, 65535);
-          error_num = connect_string_parse.print_param_error();
-          goto error;
-        case 5:
-          SPIDER_PARAM_STR_LIST("table", tgt_table_names);
-          error_num = connect_string_parse.print_param_error();
-          goto error;
-        case 6:
-          SPIDER_PARAM_STR_LIST("server", server_names);
-          SPIDER_PARAM_STR_LIST("socket", tgt_sockets);
-          SPIDER_PARAM_HINT("idx", key_hint, 3, (int) table_share->keys,
-            spider_db_append_key_hint);
-          SPIDER_PARAM_STR_LIST("ssl_ca", tgt_ssl_cas);
-          SPIDER_PARAM_NUMHINT("skc", static_key_cardinality, 3,
-            (int) table_share->keys, spider_set_ll_value);
-          error_num = connect_string_parse.print_param_error();
-          goto error;
-        case 7:
-          SPIDER_PARAM_STR_LIST("wrapper", tgt_wrappers);
-          SPIDER_PARAM_STR_LIST("ssl_key", tgt_ssl_keys);
-          SPIDER_PARAM_STR_LIST("pk_name", tgt_pk_names);
-          error_num = connect_string_parse.print_param_error();
-          goto error;
-        case 8:
-          SPIDER_PARAM_STR_LIST("database", tgt_dbs);
-          SPIDER_PARAM_STR_LIST("password", tgt_passwords);
-          SPIDER_PARAM_INT_WITH_MAX("sts_mode", sts_mode, 1, 2);
+        SPIDER_PARAM_INT_WITH_MAX("upu", use_pushdown_udf, 0, 1);
+        SPIDER_PARAM_INT_WITH_MAX("utc", use_table_charset, 0, 1);
+        error_num = parse.fail(true);
+        goto error;
+      case 4:
+        SPIDER_PARAM_STR_LIST("host", tgt_hosts);
+        SPIDER_PARAM_STR_LIST("user", tgt_usernames);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX("port", tgt_ports, 0, 65535);
+        error_num = parse.fail(true);
+        goto error;
+      case 5:
+        SPIDER_PARAM_STR_LIST("table", tgt_table_names);
+        error_num = parse.fail(true);
+        goto error;
+      case 6:
+        SPIDER_PARAM_STR_LIST("server", server_names);
+        SPIDER_PARAM_STR_LIST("socket", tgt_sockets);
+        SPIDER_PARAM_HINT("idx", key_hint, 3, (int) table_share->keys,
+                          spider_db_append_key_hint);
+        SPIDER_PARAM_STR_LIST("ssl_ca", tgt_ssl_cas);
+        SPIDER_PARAM_NUMHINT("skc", static_key_cardinality, 3,
+                             (int) table_share->keys, spider_set_ll_value);
+        error_num = parse.fail(true);
+        goto error;
+      case 7:
+        SPIDER_PARAM_STR_LIST("wrapper", tgt_wrappers);
+        SPIDER_PARAM_STR_LIST("ssl_key", tgt_ssl_keys);
+        SPIDER_PARAM_STR_LIST("pk_name", tgt_pk_names);
+        error_num = parse.fail(true);
+        goto error;
+      case 8:
+        SPIDER_PARAM_STR_LIST("database", tgt_dbs);
+        SPIDER_PARAM_STR_LIST("password", tgt_passwords);
+        SPIDER_PARAM_INT_WITH_MAX("sts_mode", sts_mode, 1, 2);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-          SPIDER_PARAM_INT_WITH_MAX("sts_sync", sts_sync, 0, 2);
+        SPIDER_PARAM_INT_WITH_MAX("sts_sync", sts_sync, 0, 2);
 #endif
-          SPIDER_PARAM_INT_WITH_MAX("crd_mode", crd_mode, 0, 3);
+        SPIDER_PARAM_INT_WITH_MAX("crd_mode", crd_mode, 0, 3);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-          SPIDER_PARAM_INT_WITH_MAX("crd_sync", crd_sync, 0, 2);
+        SPIDER_PARAM_INT_WITH_MAX("crd_sync", crd_sync, 0, 2);
 #endif
-          SPIDER_PARAM_INT_WITH_MAX("crd_type", crd_type, 0, 2);
-          SPIDER_PARAM_LONGLONG("priority", priority, 0);
+        SPIDER_PARAM_INT_WITH_MAX("crd_type", crd_type, 0, 2);
+        SPIDER_PARAM_LONGLONG("priority", priority, 0);
 #ifndef WITHOUT_SPIDER_BG_SEARCH
-          SPIDER_PARAM_INT("bgs_mode", bgs_mode, 0);
+        SPIDER_PARAM_INT("bgs_mode", bgs_mode, 0);
 #endif
-          SPIDER_PARAM_STR_LIST("ssl_cert", tgt_ssl_certs);
-          SPIDER_PARAM_INT_WITH_MAX("bka_mode", bka_mode, 0, 2);
-          error_num = connect_string_parse.print_param_error();
-          goto error;
-        case 9:
-          SPIDER_PARAM_INT("max_order", max_order, 0);
-          SPIDER_PARAM_INT("bulk_size", bulk_size, 0);
-          SPIDER_PARAM_DOUBLE("scan_rate", scan_rate, 0);
-          SPIDER_PARAM_DOUBLE("read_rate", read_rate, 0);
-          error_num = connect_string_parse.print_param_error();
-          goto error;
-        case 10:
-          SPIDER_PARAM_DOUBLE("crd_weight", crd_weight, 1);
-          SPIDER_PARAM_LONGLONG("split_read", split_read, 0);
-          SPIDER_PARAM_INT_WITH_MAX("quick_mode", quick_mode, 0, 3);
-          SPIDER_PARAM_STR_LIST("ssl_cipher", tgt_ssl_ciphers);
-          SPIDER_PARAM_STR_LIST("ssl_capath", tgt_ssl_capaths);
-          SPIDER_PARAM_STR("bka_engine", bka_engine);
-          SPIDER_PARAM_LONGLONG("first_read", first_read, 0);
-          error_num = connect_string_parse.print_param_error();
-          goto error;
-        case 11:
-          SPIDER_PARAM_INT_WITH_MAX("query_cache", query_cache, 0, 2);
+        SPIDER_PARAM_STR_LIST("ssl_cert", tgt_ssl_certs);
+        SPIDER_PARAM_INT_WITH_MAX("bka_mode", bka_mode, 0, 2);
+        error_num = parse.fail(true);
+        goto error;
+      case 9:
+        SPIDER_PARAM_INT("max_order", max_order, 0);
+        SPIDER_PARAM_INT("bulk_size", bulk_size, 0);
+        SPIDER_PARAM_DOUBLE("scan_rate", scan_rate, 0);
+        SPIDER_PARAM_DOUBLE("read_rate", read_rate, 0);
+        error_num = parse.fail(true);
+        goto error;
+      case 10:
+        SPIDER_PARAM_DOUBLE("crd_weight", crd_weight, 1);
+        SPIDER_PARAM_LONGLONG("split_read", split_read, 0);
+        SPIDER_PARAM_INT_WITH_MAX("quick_mode", quick_mode, 0, 3);
+        SPIDER_PARAM_STR_LIST("ssl_cipher", tgt_ssl_ciphers);
+        SPIDER_PARAM_STR_LIST("ssl_capath", tgt_ssl_capaths);
+        SPIDER_PARAM_STR("bka_engine", bka_engine);
+        SPIDER_PARAM_LONGLONG("first_read", first_read, 0);
+        error_num = parse.fail(true);
+        goto error;
+      case 11:
+        SPIDER_PARAM_INT_WITH_MAX("query_cache", query_cache, 0, 2);
 #ifndef WITHOUT_SPIDER_BG_SEARCH
-          SPIDER_PARAM_INT_WITH_MAX("crd_bg_mode", crd_bg_mode, 0, 2);
-          SPIDER_PARAM_INT_WITH_MAX("sts_bg_mode", sts_bg_mode, 0, 2);
+        SPIDER_PARAM_INT_WITH_MAX("crd_bg_mode", crd_bg_mode, 0, 2);
+        SPIDER_PARAM_INT_WITH_MAX("sts_bg_mode", sts_bg_mode, 0, 2);
 #endif
-          SPIDER_PARAM_LONG_LIST_WITH_MAX("link_status", link_statuses, 0, 3);
-          SPIDER_PARAM_LONG_LIST_WITH_MAX("use_handler", use_handlers, 0, 3);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX("link_status", link_statuses, 0, 3);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX("use_handler", use_handlers, 0, 3);
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-          SPIDER_PARAM_LONG_LIST_WITH_MAX("use_hs_read", use_hs_reads, 0, 1);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX("use_hs_read", use_hs_reads, 0, 1);
 #endif
-          SPIDER_PARAM_INT_WITH_MAX("casual_read", casual_read, 0, 63);
-          error_num = connect_string_parse.print_param_error();
-          goto error;
-        case 12:
-          SPIDER_PARAM_DOUBLE("sts_interval", sts_interval, 0);
-          SPIDER_PARAM_DOUBLE("crd_interval", crd_interval, 0);
-          SPIDER_PARAM_INT_WITH_MAX("low_mem_read", low_mem_read, 0, 1);
-          SPIDER_PARAM_STR_LIST("default_file", tgt_default_files);
+        SPIDER_PARAM_INT_WITH_MAX("casual_read", casual_read, 0, 63);
+        error_num = parse.fail(true);
+        goto error;
+      case 12:
+        SPIDER_PARAM_DOUBLE("sts_interval", sts_interval, 0);
+        SPIDER_PARAM_DOUBLE("crd_interval", crd_interval, 0);
+        SPIDER_PARAM_INT_WITH_MAX("low_mem_read", low_mem_read, 0, 1);
+        SPIDER_PARAM_STR_LIST("default_file", tgt_default_files);
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-          SPIDER_PARAM_LONG_LIST_WITH_MAX(
-            "use_hs_write", use_hs_writes, 0, 1);
-          SPIDER_PARAM_LONG_LIST_WITH_MAX(
-            "hs_read_port", hs_read_ports, 0, 65535);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX(
+          "use_hs_write", use_hs_writes, 0, 1);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX(
+          "hs_read_port", hs_read_ports, 0, 65535);
 #endif
-          error_num = connect_string_parse.print_param_error();
-          goto error;
-        case 13:
-          SPIDER_PARAM_STR_LIST("default_group", tgt_default_groups);
+        error_num = parse.fail(true);
+        goto error;
+      case 13:
+        SPIDER_PARAM_STR_LIST("default_group", tgt_default_groups);
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-          SPIDER_PARAM_LONG_LIST_WITH_MAX(
-            "hs_write_port", hs_write_ports, 0, 65535);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX(
+          "hs_write_port", hs_write_ports, 0, 65535);
 #endif
-          SPIDER_PARAM_STR_LIST("sequence_name", tgt_sequence_names);
-          error_num = connect_string_parse.print_param_error();
-          goto error;
-        case 14:
-          SPIDER_PARAM_LONGLONG("internal_limit", internal_limit, 0);
+        SPIDER_PARAM_STR_LIST("sequence_name", tgt_sequence_names);
+        error_num = parse.fail(true);
+        goto error;
+      case 14:
+        SPIDER_PARAM_LONGLONG("internal_limit", internal_limit, 0);
 #ifndef WITHOUT_SPIDER_BG_SEARCH
-          SPIDER_PARAM_LONGLONG("bgs_first_read", bgs_first_read, 0);
+        SPIDER_PARAM_LONGLONG("bgs_first_read", bgs_first_read, 0);
 #endif
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-          SPIDER_PARAM_STR_LIST(
-            "hs_read_socket", hs_read_socks);
+        SPIDER_PARAM_STR_LIST(
+          "hs_read_socket", hs_read_socks);
 #endif
-          SPIDER_PARAM_INT_WITH_MAX("read_only_mode", read_only_mode, 0, 1);
-          SPIDER_PARAM_LONG_LIST_WITH_MAX("access_balance", access_balances, 0,
-            2147483647);
-          SPIDER_PARAM_STR_LIST("static_link_id", static_link_ids);
-          SPIDER_PARAM_INT_WITH_MAX("store_last_crd", store_last_crd, 0, 1);
-          SPIDER_PARAM_INT_WITH_MAX("store_last_sts", store_last_sts, 0, 1);
-          error_num = connect_string_parse.print_param_error();
-          goto error;
-        case 15:
-          SPIDER_PARAM_LONGLONG("internal_offset", internal_offset, 0);
-          SPIDER_PARAM_INT_WITH_MAX("reset_sql_alloc", reset_sql_alloc, 0, 1);
-          SPIDER_PARAM_INT_WITH_MAX("semi_table_lock", semi_table_lock, 0, 1);
-          SPIDER_PARAM_LONGLONG("quick_page_byte", quick_page_byte, 0);
-          SPIDER_PARAM_LONGLONG("quick_page_size", quick_page_size, 0);
+        SPIDER_PARAM_INT_WITH_MAX("read_only_mode", read_only_mode, 0, 1);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX("access_balance", access_balances, 0,
+                                        2147483647);
+        SPIDER_PARAM_STR_LIST("static_link_id", static_link_ids);
+        SPIDER_PARAM_INT_WITH_MAX("store_last_crd", store_last_crd, 0, 1);
+        SPIDER_PARAM_INT_WITH_MAX("store_last_sts", store_last_sts, 0, 1);
+        error_num = parse.fail(true);
+        goto error;
+      case 15:
+        SPIDER_PARAM_LONGLONG("internal_offset", internal_offset, 0);
+        SPIDER_PARAM_INT_WITH_MAX("reset_sql_alloc", reset_sql_alloc, 0, 1);
+        SPIDER_PARAM_INT_WITH_MAX("semi_table_lock", semi_table_lock, 0, 1);
+        SPIDER_PARAM_LONGLONG("quick_page_byte", quick_page_byte, 0);
+        SPIDER_PARAM_LONGLONG("quick_page_size", quick_page_size, 0);
 #ifndef WITHOUT_SPIDER_BG_SEARCH
-          SPIDER_PARAM_LONGLONG("bgs_second_read", bgs_second_read, 0);
+        SPIDER_PARAM_LONGLONG("bgs_second_read", bgs_second_read, 0);
 #endif
-          SPIDER_PARAM_LONG_LIST_WITH_MAX("monitoring_flag", monitoring_flag, 0, 1);
-          SPIDER_PARAM_LONG_LIST_WITH_MAX("monitoring_kind", monitoring_kind, 0, 3);
-          SPIDER_PARAM_DOUBLE("semi_split_read", semi_split_read, 0);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX("monitoring_flag", monitoring_flag, 0, 1);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX("monitoring_kind", monitoring_kind, 0, 3);
+        SPIDER_PARAM_DOUBLE("semi_split_read", semi_split_read, 0);
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-          SPIDER_PARAM_STR_LIST(
-            "hs_write_socket", hs_write_socks);
+        SPIDER_PARAM_STR_LIST(
+          "hs_write_socket", hs_write_socks);
 #endif
-          SPIDER_PARAM_LONG_LIST_WITH_MAX("connect_timeout", connect_timeouts,
-            0, 2147483647);
-          SPIDER_PARAM_INT_WITH_MAX("error_read_mode", error_read_mode, 0, 1);
-          error_num = connect_string_parse.print_param_error();
-          goto error;
-        case 16:
-          SPIDER_PARAM_INT_WITH_MAX(
-            "multi_split_read", multi_split_read, 0, 2147483647);
-          SPIDER_PARAM_INT_WITH_MAX(
-            "selupd_lock_mode", selupd_lock_mode, 0, 2);
-          SPIDER_PARAM_INT_WITH_MAX(
-            "table_count_mode", table_count_mode, 0, 3);
-          SPIDER_PARAM_INT_WITH_MAX(
-            "use_pushdown_udf", use_pushdown_udf, 0, 1);
-          SPIDER_PARAM_LONGLONG_LIST_WITH_MAX(
-            "monitoring_limit", monitoring_limit, 0, 9223372036854775807LL);
-          SPIDER_PARAM_INT_WITH_MAX(
-            "bulk_update_mode", bulk_update_mode, 0, 2);
-          SPIDER_PARAM_INT("bulk_update_size", bulk_update_size, 0);
-          SPIDER_PARAM_LONG_LIST_WITH_MAX("net_read_timeout",
-            net_read_timeouts, 0, 2147483647);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX("connect_timeout", connect_timeouts,
+                                        0, 2147483647);
+        SPIDER_PARAM_INT_WITH_MAX("error_read_mode", error_read_mode, 0, 1);
+        error_num = parse.fail(true);
+        goto error;
+      case 16:
+        SPIDER_PARAM_INT_WITH_MAX(
+          "multi_split_read", multi_split_read, 0, 2147483647);
+        SPIDER_PARAM_INT_WITH_MAX(
+          "selupd_lock_mode", selupd_lock_mode, 0, 2);
+        SPIDER_PARAM_INT_WITH_MAX(
+          "table_count_mode", table_count_mode, 0, 3);
+        SPIDER_PARAM_INT_WITH_MAX(
+          "use_pushdown_udf", use_pushdown_udf, 0, 1);
+        SPIDER_PARAM_LONGLONG_LIST_WITH_MAX(
+          "monitoring_limit", monitoring_limit, 0, 9223372036854775807LL);
+        SPIDER_PARAM_INT_WITH_MAX(
+          "bulk_update_mode", bulk_update_mode, 0, 2);
+        SPIDER_PARAM_INT("bulk_update_size", bulk_update_size, 0);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX("net_read_timeout",
+                                        net_read_timeouts, 0, 2147483647);
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-          SPIDER_PARAM_LONG_LIST_WITH_MAX(
-            "hs_write_to_read", hs_write_to_reads, 0, 1);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX(
+          "hs_write_to_read", hs_write_to_reads, 0, 1);
 #endif
-          SPIDER_PARAM_INT_WITH_MAX(
-            "error_write_mode", error_write_mode, 0, 1);
+        SPIDER_PARAM_INT_WITH_MAX(
+          "error_write_mode", error_write_mode, 0, 1);
 #ifdef HA_CAN_BULK_ACCESS
-          SPIDER_PARAM_INT_WITH_MAX(
-            "bulk_access_free", bulk_access_free, 0, 1);
+        SPIDER_PARAM_INT_WITH_MAX(
+          "bulk_access_free", bulk_access_free, 0, 1);
 #endif
-          SPIDER_PARAM_INT_WITH_MAX(
-            "query_cache_sync", query_cache_sync, 0, 3);
-          error_num = connect_string_parse.print_param_error();
-          goto error;
-        case 17:
-          SPIDER_PARAM_INT_WITH_MAX(
-            "internal_optimize", internal_optimize, 0, 1);
-          SPIDER_PARAM_INT_WITH_MAX(
-            "use_table_charset", use_table_charset, 0, 1);
-          SPIDER_PARAM_INT_WITH_MAX(
-            "direct_dup_insert", direct_dup_insert, 0, 1);
-          SPIDER_PARAM_INT("active_link_count", active_link_count, 1);
-          SPIDER_PARAM_LONG_LIST_WITH_MAX("net_write_timeout",
-            net_write_timeouts, 0, 2147483647);
+        SPIDER_PARAM_INT_WITH_MAX(
+          "query_cache_sync", query_cache_sync, 0, 3);
+        error_num = parse.fail(true);
+        goto error;
+      case 17:
+        SPIDER_PARAM_INT_WITH_MAX(
+          "internal_optimize", internal_optimize, 0, 1);
+        SPIDER_PARAM_INT_WITH_MAX(
+          "use_table_charset", use_table_charset, 0, 1);
+        SPIDER_PARAM_INT_WITH_MAX(
+          "direct_dup_insert", direct_dup_insert, 0, 1);
+        SPIDER_PARAM_INT("active_link_count", active_link_count, 1);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX("net_write_timeout",
+                                        net_write_timeouts, 0, 2147483647);
 #ifdef HA_CAN_FORCE_BULK_DELETE
-          SPIDER_PARAM_INT_WITH_MAX(
-            "force_bulk_delete", force_bulk_delete, 0, 1);
+        SPIDER_PARAM_INT_WITH_MAX(
+          "force_bulk_delete", force_bulk_delete, 0, 1);
 #endif
 #ifdef HA_CAN_FORCE_BULK_UPDATE
-          SPIDER_PARAM_INT_WITH_MAX(
-            "force_bulk_update", force_bulk_update, 0, 1);
+        SPIDER_PARAM_INT_WITH_MAX(
+          "force_bulk_update", force_bulk_update, 0, 1);
 #endif
-          error_num = connect_string_parse.print_param_error();
-          goto error;
-        case 18:
-          SPIDER_PARAM_INT_WITH_MAX(
-            "select_column_mode", select_column_mode, 0, 1);
+        error_num = parse.fail(true);
+        goto error;
+      case 18:
+        SPIDER_PARAM_INT_WITH_MAX(
+          "select_column_mode", select_column_mode, 0, 1);
 #ifndef WITHOUT_SPIDER_BG_SEARCH
-          SPIDER_PARAM_LONG_LIST_WITH_MAX(
-            "monitoring_bg_flag", monitoring_bg_flag, 0, 1);
-          SPIDER_PARAM_LONG_LIST_WITH_MAX(
-            "monitoring_bg_kind", monitoring_bg_kind, 0, 3);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX(
+          "monitoring_bg_flag", monitoring_bg_flag, 0, 1);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX(
+          "monitoring_bg_kind", monitoring_bg_kind, 0, 3);
 #endif
-          SPIDER_PARAM_LONGLONG(
-            "direct_order_limit", direct_order_limit, 0);
-          error_num = connect_string_parse.print_param_error();
-          goto error;
-        case 19:
-          SPIDER_PARAM_INT("init_sql_alloc_size", init_sql_alloc_size, 0);
-          SPIDER_PARAM_INT_WITH_MAX(
-            "auto_increment_mode", auto_increment_mode, 0, 3);
+        SPIDER_PARAM_LONGLONG(
+          "direct_order_limit", direct_order_limit, 0);
+        error_num = parse.fail(true);
+        goto error;
+      case 19:
+        SPIDER_PARAM_INT("init_sql_alloc_size", init_sql_alloc_size, 0);
+        SPIDER_PARAM_INT_WITH_MAX(
+          "auto_increment_mode", auto_increment_mode, 0, 3);
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-          SPIDER_PARAM_LONGLONG("hs_result_free_size", hs_result_free_size, 0);
+        SPIDER_PARAM_LONGLONG("hs_result_free_size", hs_result_free_size, 0);
 #endif
-          SPIDER_PARAM_LONG_LIST_WITH_MAX("bka_table_name_type",
-            bka_table_name_types, 0, 1);
-          SPIDER_PARAM_INT_WITH_MAX(
-            "load_crd_at_startup", load_crd_at_startup, 0, 1);
-          SPIDER_PARAM_INT_WITH_MAX(
-            "load_sts_at_startup", load_sts_at_startup, 0, 1);
-          error_num = connect_string_parse.print_param_error();
-          goto error;
-        case 20:
-          SPIDER_PARAM_LONGLONG_LIST_WITH_MAX(
-            "monitoring_server_id", monitoring_sid, 0, 4294967295LL);
-          SPIDER_PARAM_INT_WITH_MAX(
-            "delete_all_rows_type", delete_all_rows_type, 0, 1);
-          SPIDER_PARAM_INT_WITH_MAX(
-            "skip_parallel_search", skip_parallel_search, 0, 3);
-          error_num = connect_string_parse.print_param_error();
-          goto error;
-        case 21:
-          SPIDER_PARAM_LONGLONG(
-            "semi_split_read_limit", semi_split_read_limit, 0);
-          error_num = connect_string_parse.print_param_error();
-          goto error;
-        case 22:
-          SPIDER_PARAM_LONG_LIST_WITH_MAX(
-            "ssl_verify_server_cert", tgt_ssl_vscs, 0, 1);
+        SPIDER_PARAM_LONG_LIST_WITH_MAX("bka_table_name_type",
+                                        bka_table_name_types, 0, 1);
+        SPIDER_PARAM_INT_WITH_MAX(
+          "load_crd_at_startup", load_crd_at_startup, 0, 1);
+        SPIDER_PARAM_INT_WITH_MAX(
+          "load_sts_at_startup", load_sts_at_startup, 0, 1);
+        error_num = parse.fail(true);
+        goto error;
+      case 20:
+        SPIDER_PARAM_LONGLONG_LIST_WITH_MAX(
+          "monitoring_server_id", monitoring_sid, 0, 4294967295LL);
+        SPIDER_PARAM_INT_WITH_MAX(
+          "delete_all_rows_type", delete_all_rows_type, 0, 1);
+        SPIDER_PARAM_INT_WITH_MAX(
+          "skip_parallel_search", skip_parallel_search, 0, 3);
+        error_num = parse.fail(true);
+        goto error;
+      case 21:
+        SPIDER_PARAM_LONGLONG(
+          "semi_split_read_limit", semi_split_read_limit, 0);
+        error_num = parse.fail(true);
+        goto error;
+      case 22:
+        SPIDER_PARAM_LONG_LIST_WITH_MAX(
+          "ssl_verify_server_cert", tgt_ssl_vscs, 0, 1);
 #ifndef WITHOUT_SPIDER_BG_SEARCH
-          SPIDER_PARAM_LONGLONG_LIST_WITH_MAX(
-            "monitoring_bg_interval", monitoring_bg_interval, 0, 4294967295LL);
+        SPIDER_PARAM_LONGLONG_LIST_WITH_MAX(
+          "monitoring_bg_interval", monitoring_bg_interval, 0, 4294967295LL);
 #endif
-          SPIDER_PARAM_INT_WITH_MAX(
-            "skip_default_condition", skip_default_condition, 0, 1);
-          SPIDER_PARAM_LONGLONG(
-            "static_mean_rec_length", static_mean_rec_length, 0);
-          error_num = connect_string_parse.print_param_error();
-          goto error;
-        case 23:
-          SPIDER_PARAM_INT_WITH_MAX(
-            "internal_optimize_local", internal_optimize_local, 0, 1);
-          error_num = connect_string_parse.print_param_error();
-          goto error;
-        case 25:
-          SPIDER_PARAM_LONGLONG("static_records_for_status",
-            static_records_for_status, 0);
-          SPIDER_PARAM_NUMHINT("static_key_cardinality", static_key_cardinality,
-            3, (int) table_share->keys, spider_set_ll_value);
-          error_num = connect_string_parse.print_param_error();
-          goto error;
-        case 26:
-          SPIDER_PARAM_INT_WITH_MAX(
-            "semi_table_lock_connection", semi_table_lock_conn, 0, 1);
-          error_num = connect_string_parse.print_param_error();
-          goto error;
-        case 32:
-          SPIDER_PARAM_LONG_LIST_WITH_MAX("monitoring_binlog_pos_at_failing",
-            monitoring_binlog_pos_at_failing, 0, 2);
-          error_num = connect_string_parse.print_param_error();
-          goto error;
-        default:
-          error_num = connect_string_parse.print_param_error();
-          goto error;
+        SPIDER_PARAM_INT_WITH_MAX(
+          "skip_default_condition", skip_default_condition, 0, 1);
+        SPIDER_PARAM_LONGLONG(
+          "static_mean_rec_length", static_mean_rec_length, 0);
+        error_num = parse.fail(true);
+        goto error;
+      case 23:
+        SPIDER_PARAM_INT_WITH_MAX(
+          "internal_optimize_local", internal_optimize_local, 0, 1);
+        error_num = parse.fail(true);
+        goto error;
+      case 25:
+        SPIDER_PARAM_LONGLONG("static_records_for_status",
+                              static_records_for_status, 0);
+        SPIDER_PARAM_NUMHINT("static_key_cardinality", static_key_cardinality,
+                             3, (int) table_share->keys, spider_set_ll_value);
+        error_num = parse.fail(true);
+        goto error;
+      case 26:
+        SPIDER_PARAM_INT_WITH_MAX(
+          "semi_table_lock_connection", semi_table_lock_conn, 0, 1);
+        error_num = parse.fail(true);
+        goto error;
+      case 32:
+        SPIDER_PARAM_LONG_LIST_WITH_MAX("monitoring_binlog_pos_at_failing",
+                                        monitoring_binlog_pos_at_failing, 0, 2);
+        error_num = parse.fail(true);
+        goto error;
+      default:
+        error_num = parse.fail(true);
+        goto error;
       }
-
-      /* Verify that the remainder of the parameter value is whitespace */
-      if ((error_num = connect_string_parse.has_extra_parameter_values()))
-          goto error;
+      /* Restore delim */
+      *parse.end_value= parse.delim_value;
     }
   }
 
@@ -3199,8 +3132,8 @@ int spider_parse_connect_info(
 
   if (create_table)
   {
-    for (roop_count = 0; roop_count < (int) share->all_link_count;
-      roop_count++)
+    for (int roop_count = 0; roop_count < (int) share->all_link_count;
+         roop_count++)
     {
       int roop_count2;
       for (roop_count2 = 0; roop_count2 < SPIDER_DBTON_SIZE; roop_count2++)
