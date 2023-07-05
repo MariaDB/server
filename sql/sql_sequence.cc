@@ -900,6 +900,20 @@ end:
   DBUG_RETURN(error);
 }
 
+#if defined(HAVE_REPLICATION)
+class wait_for_commit_raii
+{
+private:
+  THD *m_thd;
+  wait_for_commit *m_wfc;
+
+public:
+  wait_for_commit_raii(THD* thd) :
+      m_thd(thd), m_wfc(thd->suspend_subsequent_commits())
+    {}
+  ~wait_for_commit_raii() { m_thd->resume_subsequent_commits(m_wfc); }
+};
+#endif
 
 bool Sql_cmd_alter_sequence::execute(THD *thd)
 {
@@ -912,7 +926,10 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
   SEQUENCE *seq;
   No_such_table_error_handler no_such_table_handler;
   DBUG_ENTER("Sql_cmd_alter_sequence::execute");
-
+#if defined(HAVE_REPLICATION)
+  /* No wakeup():s of subsequent commits is allowed in this function. */
+  wait_for_commit_raii suspend_wfc(thd);
+#endif
 
   if (check_access(thd, ALTER_ACL, first_table->db.str,
                    &first_table->grant.privilege,
@@ -1010,19 +1027,15 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
   else
     table->file->print_error(error, MYF(0));
   table->s->sequence->write_unlock(table);
-  {
-    wait_for_commit* suspended_wfc= thd->suspend_subsequent_commits();
-    if (trans_commit_stmt(thd))
-      error= 1;
-    if (trans_commit_implicit(thd))
-      error= 1;
-    thd->resume_subsequent_commits(suspended_wfc);
-    DBUG_EXECUTE_IF("hold_worker_on_schedule",
-                    {
-                      /* delay binlogging of a parent trx in rpl_parallel_seq */
-                      my_sleep(100000);
-                    });
-  }
+  if (trans_commit_stmt(thd))
+    error= 1;
+  if (trans_commit_implicit(thd))
+    error= 1;
+  DBUG_EXECUTE_IF("hold_worker_on_schedule",
+                  {
+                    /* delay binlogging of a parent trx in rpl_parallel_seq */
+                    my_sleep(100000);
+                  });
   if (likely(!error))
     error= write_bin_log(thd, 1, thd->query(), thd->query_length());
   if (likely(!error))
