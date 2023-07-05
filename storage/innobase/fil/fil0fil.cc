@@ -391,8 +391,16 @@ static bool fil_node_open_file_low(fil_node_t *node)
                                  : OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
                                  OS_FILE_AIO, type,
                                  srv_read_only_mode, &success);
-    if (success)
+    if (node->is_open())
+    {
+      ut_ad(success);
+#ifndef _WIN32
+      if (!node->space->id && !srv_read_only_mode && my_disable_locking &&
+          os_file_lock(node->handle, node->name))
+        goto fail;
+#endif
       break;
+    }
 
     /* The following call prints an error message */
     if (os_file_get_last_error(true) == EMFILE + 100 &&
@@ -406,6 +414,9 @@ static bool fil_node_open_file_low(fil_node_t *node)
   if (node->size);
   else if (!node->read_page0() || !fil_comp_algo_validate(node->space))
   {
+#ifndef _WIN32
+  fail:
+#endif
     os_file_close(node->handle);
     node->handle= OS_FILE_CLOSED;
     return false;
