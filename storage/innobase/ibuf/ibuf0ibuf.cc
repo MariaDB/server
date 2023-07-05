@@ -243,21 +243,11 @@ mysql_mutex_t ibuf_mutex,
 	ibuf_pessimistic_insert_mutex;
 
 /** The area in pages from which contract looks for page numbers for merge */
-const ulint		IBUF_MERGE_AREA = 8;
+constexpr ulint		IBUF_MERGE_AREA = 8;
 
-/** Inside the merge area, pages which have at most 1 per this number less
-buffered entries compared to maximum volume that can buffered for a single
-page are merged along with the page whose buffer became full */
-const ulint		IBUF_MERGE_THRESHOLD = 4;
-
-/** In ibuf_contract at most this number of pages is read to memory in one
-batch, in order to merge the entries for them in the insert buffer */
-const ulint		IBUF_MAX_N_PAGES_MERGED = IBUF_MERGE_AREA;
-
-/** If the combined size of the ibuf trees exceeds ibuf.max_size by
-this many pages, we start to contract it synchronous contract, but do
-not insert */
-const ulint		IBUF_CONTRACT_DO_NOT_INSERT = 10;
+/** In ibuf_contract() at most this number of pages is read to memory in one
+batch, in order to merge the entries for them in the change buffer */
+constexpr ulint		IBUF_MAX_N_PAGES_MERGED = IBUF_MERGE_AREA;
 
 /* TODO: how to cope with drop table if there are records in the insert
 buffer for the indexes of the table? Is there actually any problem,
@@ -2004,11 +1994,11 @@ ibuf_free_excess_pages(void)
 }
 
 #ifdef UNIV_DEBUG
-# define ibuf_get_merge_page_nos(contract,rec,mtr,ids,pages,n_stored) \
-	ibuf_get_merge_page_nos_func(contract,rec,mtr,ids,pages,n_stored)
+# define ibuf_get_merge_page_nos(rec,mtr,ids,pages,n_stored) \
+	ibuf_get_merge_page_nos_func(rec,mtr,ids,pages,n_stored)
 #else /* UNIV_DEBUG */
-# define ibuf_get_merge_page_nos(contract,rec,mtr,ids,pages,n_stored) \
-	ibuf_get_merge_page_nos_func(contract,rec,ids,pages,n_stored)
+# define ibuf_get_merge_page_nos(rec,mtr,ids,pages,n_stored) \
+	ibuf_get_merge_page_nos_func(rec,ids,pages,n_stored)
 #endif /* UNIV_DEBUG */
 
 /*********************************************************************//**
@@ -2019,10 +2009,6 @@ static
 ulint
 ibuf_get_merge_page_nos_func(
 /*=========================*/
-	ibool		contract,/*!< in: TRUE if this function is called to
-				contract the tree, FALSE if this is called
-				when a single page becomes full and we look
-				if it pays to read also nearby pages */
 	const rec_t*	rec,	/*!< in: insert buffer record */
 #ifdef UNIV_DEBUG
 	mtr_t*		mtr,	/*!< in: mini-transaction holding rec */
@@ -2153,22 +2139,10 @@ corruption:
 		     || rec_page_no != prev_page_no)
 		    && (prev_space_id != 0 || prev_page_no != 0)) {
 
-			if (contract
-			    || (prev_page_no == first_page_no
-				&& prev_space_id == first_space_id)
-			    || (volume_for_page
-				> ((IBUF_MERGE_THRESHOLD - 1)
-				   * 4U << srv_page_size_shift
-				   / IBUF_PAGE_SIZE_PER_FREE_SPACE)
-				/ IBUF_MERGE_THRESHOLD)) {
-
-				space_ids[*n_stored] = prev_space_id;
-				page_nos[*n_stored] = prev_page_no;
-
-				(*n_stored)++;
-
-				sum_volumes += volume_for_page;
-			}
+			space_ids[*n_stored] = prev_space_id;
+			page_nos[*n_stored] = prev_page_no;
+			(*n_stored)++;
+			sum_volumes += volume_for_page;
 
 			if (rec_space_id != first_space_id
 			    || rec_page_no / IBUF_MERGE_AREA
@@ -2428,7 +2402,7 @@ tablespace_deleted:
 @return a lower limit for the combined size in bytes of entries which
 will be merged from ibuf trees to the pages read
 @retval 0 if ibuf.empty */
-ulint ibuf_contract()
+ATTRIBUTE_COLD ulint ibuf_contract()
 {
 	if (UNIV_UNLIKELY(!ibuf.index)) return 0;
 	mtr_t		mtr;
@@ -2460,10 +2434,8 @@ ulint ibuf_contract()
 	}
 
 	ulint n_pages = 0;
-	sum_sizes = ibuf_get_merge_page_nos(TRUE,
-					    btr_cur_get_rec(&cur), &mtr,
-					    space_ids,
-					    page_nos, &n_pages);
+	sum_sizes = ibuf_get_merge_page_nos(btr_cur_get_rec(&cur), &mtr,
+					    space_ids, page_nos, &n_pages);
 	ibuf_mtr_commit(&mtr);
 
 	ibuf_read_merge_pages(space_ids, page_nos, n_pages);
@@ -2551,30 +2523,6 @@ ibuf_merge_space(
 	}
 
 	return(n_pages);
-}
-
-/*********************************************************************//**
-Contract insert buffer trees after insert if they are too big. */
-UNIV_INLINE
-void
-ibuf_contract_after_insert(
-/*=======================*/
-	ulint	entry_size)	/*!< in: size of a record which was inserted
-				into an ibuf tree */
-{
-	/* dirty comparison, to avoid contention on ibuf_mutex */
-	if (ibuf.size < ibuf.max_size) {
-		return;
-	}
-
-	/* Contract at least entry_size many bytes */
-	ulint sum_sizes = 0;
-	ulint size;
-
-	do {
-		size = ibuf_contract();
-		sum_sizes += size;
-	} while (size > 0 && sum_sizes < entry_size);
 }
 
 /** Determine if a change buffer record has been encountered already.
@@ -3175,10 +3123,6 @@ ibuf_insert_low(
 	buf_block_t*	block		= NULL;
 	page_t*		root;
 	dberr_t		err;
-	ibool		do_merge;
-	uint32_t	space_ids[IBUF_MAX_N_PAGES_MERGED];
-	uint32_t	page_nos[IBUF_MAX_N_PAGES_MERGED];
-	ulint		n_stored;
 	mtr_t		mtr;
 	mtr_t		bitmap_mtr;
 
@@ -3189,28 +3133,9 @@ ibuf_insert_low(
 	ut_ad(page_id.space() == index->table->space_id);
 	ut_a(op < IBUF_OP_COUNT);
 
-	do_merge = FALSE;
-
 	/* Perform dirty comparison of ibuf.max_size and ibuf.size to
-	reduce ibuf_mutex contention. This should be OK; at worst we
-	are doing some excessive ibuf_contract() or occasionally
-	skipping an ibuf_contract(). */
-	const ulint max_size = ibuf.max_size;
-
-	if (max_size == 0) {
-		return(DB_STRONG_FAIL);
-	}
-
-	if (ibuf.size >= max_size + IBUF_CONTRACT_DO_NOT_INSERT) {
-		/* Insert buffer is now too big, contract it but do not try
-		to insert */
-
-
-#ifdef UNIV_IBUF_DEBUG
-		fputs("Ibuf too big\n", stderr);
-#endif
-		ibuf_contract();
-
+	reduce ibuf_mutex contention. */
+	if (ibuf.size >= ibuf.max_size) {
 		return(DB_STRONG_FAIL);
 	}
 
@@ -3262,17 +3187,6 @@ func_exit:
 		ibuf_mtr_commit(&mtr);
 		ut_free(pcur.old_rec_buf);
 		mem_heap_free(heap);
-
-		if (err == DB_SUCCESS && mode == BTR_INSERT_TREE) {
-			ibuf_contract_after_insert(entry_size);
-		}
-
-		if (do_merge) {
-#ifdef UNIV_IBUF_DEBUG
-			ut_a(n_stored <= IBUF_MAX_N_PAGES_MERGED);
-#endif
-			ibuf_read_merge_pages(space_ids, page_nos, n_stored);
-		}
 		return err;
 	}
 
@@ -3362,15 +3276,6 @@ commit_exit:
 							  bits)) {
 			/* Release the bitmap page latch early. */
 			ibuf_mtr_commit(&bitmap_mtr);
-
-			/* It may not fit */
-			do_merge = TRUE;
-
-			ibuf_get_merge_page_nos(FALSE,
-						btr_pcur_get_rec(&pcur), &mtr,
-						space_ids,
-						page_nos, &n_stored);
-
 			goto fail_exit;
 		}
 	}
