@@ -1,0 +1,30 @@
+--echo #
+--echo # MDEV-31117 Spider UBSAN runtime error: applying non-zero offset x to null pointer in st_spider_param_string_parse::restore_delims
+--echo #
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+--error 12501
+CREATE TABLE t (c INT) ENGINE=Spider COMMENT='abc';
+
+--error 12501
+ALTER TABLE mysql.help_topic ENGINE=Spider;
+
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER MYSQL OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+create table t2 (c int);
+# param title should not have delimiter
+--error 12501
+create table t1 (c int) ENGINE=Spider COMMENT='WRAPPER "mysql", "srv" "srv",TABLE "t2"';
+# test escaping
+create table t1 (c int) ENGINE=Spider CONNECTION='WRAPPER "mysql", srv \'srv\',TABLE "t2", password "say \\"hello\\ world!\\""';
+drop table t1, t2;
+
+--disable_query_log
+--disable_result_log
+--source ../t/test_deinit.inc
+--enable_query_log
+--enable_result_log

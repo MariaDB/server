@@ -76,133 +76,77 @@ int spider_udf_set_copy_tables_param_default(
 
 #define SPIDER_PARAM_STR_LEN(name) name ## _length
 #define SPIDER_PARAM_STR(title_name, param_name) \
-  if (!strncasecmp(tmp_ptr, title_name, title_length)) \
+  if (!strncasecmp(parse.start_title, title_name, title_length)) \
   { \
     DBUG_PRINT("info",("spider " title_name " start")); \
     if (!copy_tables->param_name) \
     { \
-      if ((copy_tables->param_name = spider_get_string_between_quote( \
-        start_ptr, TRUE, &param_string_parse))) \
+      if ((copy_tables->param_name = spider_create_string(parse.start_value, \
+                                                          value_length))) \
         copy_tables->SPIDER_PARAM_STR_LEN(param_name) = \
           strlen(copy_tables->param_name); \
       else { \
-        error_num = param_string_parse.print_param_error(); \
+        error_num= parse.fail(true); \
         goto error; \
       } \
       DBUG_PRINT("info",("spider " title_name "=%s", copy_tables->param_name)); \
     } \
     break; \
   }
-#define SPIDER_PARAM_HINT_WITH_MAX(title_name, param_name, check_length, max_size, min_val, max_val) \
-  if (!strncasecmp(tmp_ptr, title_name, check_length)) \
-  { \
-    DBUG_PRINT("info",("spider " title_name " start")); \
-    DBUG_PRINT("info",("spider max_size=%d", max_size)); \
-    int hint_num = atoi(tmp_ptr + check_length) - 1; \
-    DBUG_PRINT("info",("spider hint_num=%d", hint_num)); \
-    DBUG_PRINT("info",("spider copy_tables->param_name=%x", \
-      copy_tables->param_name)); \
-    if (copy_tables->param_name) \
-    { \
-      if (hint_num < 0 || hint_num >= max_size) \
-      { \
-        error_num = param_string_parse.print_param_error(); \
-        goto error; \
-      } else if (copy_tables->param_name[hint_num] != -1) \
-        break; \
-      char *hint_str = spider_get_string_between_quote(start_ptr, FALSE); \
-      if (hint_str) \
-      { \
-        copy_tables->param_name[hint_num] = atoi(hint_str); \
-        if (copy_tables->param_name[hint_num] < min_val) \
-          copy_tables->param_name[hint_num] = min_val; \
-        else if (copy_tables->param_name[hint_num] > max_val) \
-          copy_tables->param_name[hint_num] = max_val; \
-      } else { \
-        error_num = param_string_parse.print_param_error(); \
-        goto error; \
-      } \
-      DBUG_PRINT("info",("spider " title_name "[%d]=%d", hint_num, \
-        copy_tables->param_name[hint_num])); \
-    } else { \
-      error_num = param_string_parse.print_param_error(); \
-      goto error; \
-    } \
-    break; \
-  }
 #define SPIDER_PARAM_INT_WITH_MAX(title_name, param_name, min_val, max_val) \
-  if (!strncasecmp(tmp_ptr, title_name, title_length)) \
+  if (!strncasecmp(parse.start_title, title_name, title_length)) \
   { \
     DBUG_PRINT("info",("spider " title_name " start")); \
     if (copy_tables->param_name == -1) \
     { \
-      if ((tmp_ptr2 = spider_get_string_between_quote( \
-        start_ptr, FALSE))) \
-      { \
-        copy_tables->param_name = atoi(tmp_ptr2); \
-        if (copy_tables->param_name < min_val) \
-          copy_tables->param_name = min_val; \
-        else if (copy_tables->param_name > max_val) \
-          copy_tables->param_name = max_val; \
-        param_string_parse.set_param_value(tmp_ptr2, \
-                                           tmp_ptr2 + \
-                                             strlen(tmp_ptr2) + 1); \
-      } else { \
-        error_num = param_string_parse.print_param_error(); \
-        goto error; \
-      } \
+      copy_tables->param_name = atoi(parse.start_value); \
+      if (copy_tables->param_name < min_val) \
+        copy_tables->param_name = min_val; \
+      else if (copy_tables->param_name > max_val) \
+        copy_tables->param_name = max_val; \
       DBUG_PRINT("info",("spider " title_name "=%d", copy_tables->param_name)); \
     } \
     break; \
   }
 #define SPIDER_PARAM_INT(title_name, param_name, min_val) \
-  if (!strncasecmp(tmp_ptr, title_name, title_length)) \
+  if (!strncasecmp(parse.start_title, title_name, title_length)) \
   { \
     DBUG_PRINT("info",("spider " title_name " start")); \
     if (copy_tables->param_name == -1) \
     { \
-      if ((tmp_ptr2 = spider_get_string_between_quote( \
-        start_ptr, FALSE))) \
-      { \
-        copy_tables->param_name = atoi(tmp_ptr2); \
-        if (copy_tables->param_name < min_val) \
-          copy_tables->param_name = min_val; \
-        param_string_parse.set_param_value(tmp_ptr2, \
-                                           tmp_ptr2 + \
-                                             strlen(tmp_ptr2) + 1); \
-      } else { \
-        error_num = param_string_parse.print_param_error(); \
-        goto error; \
-      } \
+      copy_tables->param_name = atoi(parse.start_value); \
+      if (copy_tables->param_name < min_val) \
+        copy_tables->param_name = min_val; \
       DBUG_PRINT("info",("spider " title_name "=%d", copy_tables->param_name)); \
     } \
     break; \
   }
 #define SPIDER_PARAM_LONGLONG(title_name, param_name, min_val) \
-  if (!strncasecmp(tmp_ptr, title_name, title_length)) \
+  if (!strncasecmp(parse.start_title, title_name, title_length)) \
   { \
     DBUG_PRINT("info",("spider " title_name " start")); \
     if (copy_tables->param_name == -1) \
     { \
-      if ((tmp_ptr2 = spider_get_string_between_quote( \
-        start_ptr, FALSE))) \
-      { \
-        copy_tables->param_name = \
-          my_strtoll10(tmp_ptr2, (char**) NULL, &error_num); \
-        if (copy_tables->param_name < min_val) \
-          copy_tables->param_name = min_val; \
-        param_string_parse.set_param_value(tmp_ptr2, \
-                                           tmp_ptr2 + \
-                                             strlen(tmp_ptr2) + 1); \
-      } else { \
-        error_num = param_string_parse.print_param_error(); \
-        goto error; \
-      } \
+      copy_tables->param_name = \
+        my_strtoll10(parse.start_value, (char**) NULL, &error_num); \
+      if (copy_tables->param_name < min_val) \
+        copy_tables->param_name = min_val; \
       DBUG_PRINT("info",("spider " title_name "=%lld", \
-        copy_tables->param_name)); \
+                         copy_tables->param_name)); \
     } \
     break; \
   }
+
+static void spider_minus_1(SPIDER_COPY_TABLES *copy_tables)
+{
+  copy_tables->bulk_insert_interval = -1;
+  copy_tables->bulk_insert_rows = -1;
+  copy_tables->use_table_charset = -1;
+  copy_tables->use_transaction = -1;
+#ifndef WITHOUT_SPIDER_BG_SEARCH
+  copy_tables->bg_mode = -1;
+#endif
+}
 
 int spider_udf_parse_copy_tables_param(
   SPIDER_COPY_TABLES *copy_tables,
@@ -211,69 +155,40 @@ int spider_udf_parse_copy_tables_param(
 ) {
   int error_num = 0;
   char *param_string = NULL;
-  char *sprit_ptr;
-  char *tmp_ptr, *tmp_ptr2, *start_ptr;
-  int title_length;
-  SPIDER_PARAM_STRING_PARSE param_string_parse;
+  char *start_param;
+  int title_length, value_length;
+  SPIDER_PARAM_STRING_PARSE parse;
   DBUG_ENTER("spider_udf_parse_copy_tables_param");
-  copy_tables->bulk_insert_interval = -1;
-  copy_tables->bulk_insert_rows = -1;
-  copy_tables->use_table_charset = -1;
-  copy_tables->use_transaction = -1;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
-  copy_tables->bg_mode = -1;
-#endif
-
+  spider_minus_1(copy_tables);
   if (param_length == 0)
     goto set_default;
   DBUG_PRINT("info",("spider create param_string string"));
-  if (
-    !(param_string = spider_create_string(
-      param,
-      param_length))
-  ) {
+  if (!(param_string = spider_create_string(param, param_length)))
+  {
     error_num = HA_ERR_OUT_OF_MEM;
     my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
     goto error_alloc_param_string;
   }
   DBUG_PRINT("info",("spider param_string=%s", param_string));
 
-  sprit_ptr = param_string;
-  param_string_parse.init(param_string, ER_SPIDER_INVALID_UDF_PARAM_NUM);
-  while (sprit_ptr)
+  start_param = param_string;
+  parse.error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM;
+  while (*start_param != '\0')
   {
-    tmp_ptr = sprit_ptr;
-    while (*tmp_ptr == ' ' || *tmp_ptr == '\r' ||
-      *tmp_ptr == '\n' || *tmp_ptr == '\t')
-      tmp_ptr++;
-
-    if (*tmp_ptr == '\0')
-      break;
-
-    title_length = 0;
-    start_ptr = tmp_ptr;
-    while (*start_ptr != ' ' && *start_ptr != '\'' &&
-      *start_ptr != '"' && *start_ptr != '\0' &&
-      *start_ptr != '\r' && *start_ptr != '\n' &&
-      *start_ptr != '\t')
+    if (parse.locate_param_def(start_param))
     {
-      title_length++;
-      start_ptr++;
-    }
-    param_string_parse.set_param_title(tmp_ptr, tmp_ptr + title_length);
-    if ((error_num = param_string_parse.get_next_parameter_head(
-      start_ptr, &sprit_ptr)))
-    {
+      error_num= parse.fail(false);
       goto error;
     }
+    /* Null the end of the parameter value. */
+    *parse.end_value= '\0';
+    value_length= (int) (parse.end_value - parse.start_value);
 
-    switch (title_length)
+    switch (title_length = (int) (parse.end_title - parse.start_title))
     {
       case 0:
-        error_num = param_string_parse.print_param_error();
-        if (error_num)
-          goto error;
-        continue;
+        error_num= parse.fail(true);
+        goto error;
       case 3:
 #ifndef WITHOUT_SPIDER_BG_SEARCH
         SPIDER_PARAM_INT_WITH_MAX("bgm", bg_mode, 0, 1);
@@ -283,55 +198,45 @@ int spider_udf_parse_copy_tables_param(
         SPIDER_PARAM_STR("dtb", database);
         SPIDER_PARAM_INT_WITH_MAX("utc", use_table_charset, 0, 1);
         SPIDER_PARAM_INT_WITH_MAX("utr", use_transaction, 0, 1);
-        error_num = param_string_parse.print_param_error();
+        error_num= parse.fail(true);
         goto error;
 #ifndef WITHOUT_SPIDER_BG_SEARCH
       case 7:
         SPIDER_PARAM_INT_WITH_MAX("bg_mode", bg_mode, 0, 1);
-        error_num = param_string_parse.print_param_error();
+        error_num= parse.fail(true);
         goto error;
 #endif
       case 8:
         SPIDER_PARAM_STR("database", database);
-        error_num = param_string_parse.print_param_error();
+        error_num= parse.fail(true);
         goto error;
       case 15:
         SPIDER_PARAM_INT_WITH_MAX("use_transaction", use_transaction, 0, 1);
-        error_num = param_string_parse.print_param_error();
+        error_num= parse.fail(true);
         goto error;
       case 16:
         SPIDER_PARAM_LONGLONG("bulk_insert_rows", bulk_insert_rows, 1);
-        error_num = param_string_parse.print_param_error();
+        error_num= parse.fail(true);
         goto error;
       case 17:
         SPIDER_PARAM_INT_WITH_MAX(
           "use_table_charset", use_table_charset, 0, 1);
-        error_num = param_string_parse.print_param_error();
+        error_num= parse.fail(true);
         goto error;
       case 20:
         SPIDER_PARAM_INT("bulk_insert_interval", bulk_insert_interval, 0);
-        error_num = param_string_parse.print_param_error();
+        error_num= parse.fail(true);
         goto error;
       default:
-        error_num = param_string_parse.print_param_error();
+        error_num= parse.fail(true);
         goto error;
     }
-
-    /* Verify that the remainder of the parameter value is whitespace */
-    if ((error_num = param_string_parse.has_extra_parameter_values()))
-      goto error;
+    /* Restore delim */
+    *parse.end_value= parse.delim_value;
   }
 
 set_default:
-  if ((error_num = spider_udf_set_copy_tables_param_default(
-    copy_tables
-  )))
-    goto error;
-
-  if (param_string)
-    spider_free(spider_current_trx, param_string, MYF(0));
-  DBUG_RETURN(0);
-
+  error_num = spider_udf_set_copy_tables_param_default(copy_tables);
 error:
   if (param_string)
     spider_free(spider_current_trx, param_string, MYF(0));
