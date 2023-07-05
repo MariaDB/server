@@ -99,7 +99,6 @@ int yylex(void *yylval, void *yythd);
 #define MYSQL_YYABORT                         \
   do                                          \
   {                                           \
-    LEX::cleanup_lex_after_parse_error(thd);  \
     YYABORT;                                  \
   } while (0)
 
@@ -150,13 +149,6 @@ static Item* escape(THD *thd)
 
 static void yyerror(THD *thd, const char *s)
 {
-  /*
-    Restore the original LEX if it was replaced when parsing
-    a stored procedure. We must ensure that a parsing error
-    does not leave any side effects in the THD.
-  */
-  LEX::cleanup_lex_after_parse_error(thd);
-
   /* "parse error" changed into "syntax error" between bison 1.75 and 1.875 */
   if (strcmp(s,"parse error") == 0 || strcmp(s,"syntax error") == 0)
     s= ER_THD(thd, ER_SYNTAX_ERROR);
@@ -1542,6 +1534,19 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <expr_lex>
         expr_lex
 
+%destructor
+{
+  /*
+     In case of a syntax/oom error let's free the sp_expr_lex
+     instance, but only if it has not been linked to any structures
+     such as sp_instr_jump_if_not::m_lex_keeper yet, e.g.:
+       IF f1() THEN1
+     i.e. THEN1 came instead of the expected THEN causing a syntax error.
+  */
+  if (!$$->sp_lex_in_use)
+    delete $$;
+} <expr_lex>
+
 %type <assignment_lex>
         assignment_source_lex
         assignment_source_expr
@@ -1550,6 +1555,21 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <sp_assignment_lex_list>
         cursor_actual_parameters
         opt_parenthesized_cursor_actual_parameters
+
+%destructor
+{
+  if ($$)
+  {
+    sp_assignment_lex *elem;
+    List_iterator<sp_assignment_lex> li(*$$);
+    while ((elem= li++))
+    {
+      if (!elem->sp_lex_in_use)
+        delete elem;
+    }
+  }
+} <sp_assignment_lex_list>
+
 
 %type <var_type>
         option_type opt_var_type opt_var_ident_type
@@ -3832,7 +3852,6 @@ expr_lex:
           expr
           {
             $$= $<expr_lex>1;
-            $$->sp_lex_in_use= true;
             $$->set_item($2);
             Lex->pop_select(); //min select
             if (Lex->check_cte_dependencies_and_resolve_references())
@@ -3864,7 +3883,6 @@ assignment_source_expr:
           {
             DBUG_ASSERT($1 == thd->lex);
             $$= $1;
-            $$->sp_lex_in_use= true;
             $$->set_item_and_free_list($3, thd->free_list);
             thd->free_list= NULL;
             Lex->pop_select(); //min select
@@ -3885,7 +3903,6 @@ for_loop_bound_expr:
           {
             DBUG_ASSERT($1 == thd->lex);
             $$= $1;
-            $$->sp_lex_in_use= true;
             $$->set_item_and_free_list($3, NULL);
             Lex->pop_select(); //main select
             if (unlikely($$->sphead->restore_lex(thd)))
