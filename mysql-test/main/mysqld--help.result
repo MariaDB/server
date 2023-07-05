@@ -433,6 +433,20 @@ The following specify which files/extra groups are read (specified before remain
  Set the replication role. One of: MASTER, SLAVE
  --init-slave=name   Command(s) that are executed by a slave server each time
  the SQL thread starts
+ --instant-failover-mode=name 
+ Instant failover mode. Possible modes are: OFF - No
+ instant failover, ON: Unconditionally redirect new
+ clients connecting over the network via the standard
+ server port to INSTANT_FAILOVER_TARGET (no redirection of
+ local socket-based connections, nor of connections to the
+ EXTRA_PORT), ALL: Unconditionally redirect all new
+ clients to INSTANT_FAILOVER_TARGET (even via local
+ socket-based connections and the EXTRA_PORT).
+ --instant-failover-target=name 
+ Instant failover target. This should be a hostname, an IP
+ address, or a hostname or IP address followed by ':PORT'.
+ Instant failover will not be activated unless
+ INSTANT_FAILOVER_MODE is also set.
  --interactive-timeout=# 
  The number of seconds the server waits for activity on an
  interactive connection before closing it
@@ -1706,6 +1720,8 @@ init-connect
 init-file (No default value)
 init-rpl-role MASTER
 init-slave 
+instant-failover-mode OFF
+instant-failover-target (No default value)
 interactive-timeout 28800
 join-buffer-size 262144
 join-buffer-space-limit 2097152
