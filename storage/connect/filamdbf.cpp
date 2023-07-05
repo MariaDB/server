@@ -335,9 +335,9 @@ PQRYRES DBFColumns(PGLOBAL g, PCSZ dp, PCSZ fn, PTOS topt, bool info)
           hp->Headlen(), hp->Reclen(), fields);
     htrc("flags(iem)=%d,%d,%d cp=%d\n", hp->Incompleteflag,
           hp->Encryptflag, hp->Mdxflag, hp->Language);
-    htrc("%hd records, last changed %02d/%02d/%d\n",
-          hp->Records(), hp->Filedate[1], hp->Filedate[2],
-          hp->Filedate[0] + (hp->Filedate[0] <= 30) ? 2000 : 1900);
+    htrc("%hd records, last changed %04d-%02d-%02d\n",
+          hp->Records(),
+          hp->Filedate[0] + 1900, hp->Filedate[1], hp->Filedate[2]);
     htrc("Field    Type  Offset  Len  Dec  Set  Mdx\n");
     } // endif trace
 
@@ -605,8 +605,7 @@ bool DBFFAM::OpenTableFile(PGLOBAL g)
       strcpy(opmode, (UseTemp) ? "rb" : "r+b");
       break;
     case MODE_INSERT:
-      // Must be in text mode to remove an eventual EOF character
-      strcpy(opmode, "a+");
+      strcpy(opmode, Records ? "r+b" : "w+b");
       break;
     default:
       snprintf(g->Message, sizeof(g->Message), MSG(BAD_OPEN_MODE), mode);
@@ -619,7 +618,7 @@ bool DBFFAM::OpenTableFile(PGLOBAL g)
   if (!(Stream = PlugOpenFile(g, filename, opmode))) {
     if (trace(1))
       htrc("%s\n", g->Message);
-    
+
     return (mode == MODE_READ && errno == ENOENT)
             ? PushWarning(g, Tdbp) : true;
     } // endif Stream
@@ -643,6 +642,7 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
   {
   char c;
   int  rc;
+  int len;
   MODE mode = Tdbp->GetMode();
 
   Buflen = Blksize;
@@ -664,7 +664,7 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
     /************************************************************************/
     /*  If this is a new file, the header must be generated.                */
     /************************************************************************/
-    int len = GetFileLength(g);
+    len = GetFileLength(g);
 
     if (!len) {
       // Make the header for this DBF table file
@@ -702,7 +702,7 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
       header->Version = DBFTYPE;
       t = time(NULL) - (time_t)DTVAL::GetShift();
       datm = gmtime(&t);
-      header->Filedate[0] = datm->tm_year - 100;
+      header->Filedate[0] = datm->tm_year;
       header->Filedate[1] = datm->tm_mon + 1;
       header->Filedate[2] = datm->tm_mday;
       header->SetHeadlen((ushort)hlen);
@@ -793,8 +793,12 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
   /**************************************************************************/
   /*  Position the file at the begining of the data.                        */
   /**************************************************************************/
-  if (Tdbp->GetMode() == MODE_INSERT)
-    rc = fseek(Stream, 0, SEEK_END);
+  if (Tdbp->GetMode() == MODE_INSERT) {
+    if (len)
+      rc = fseek(Stream, -1, SEEK_END);
+    else
+      rc = fseek(Stream, 0, SEEK_END);
+    }
   else
     rc = fseek(Stream, Headlen, SEEK_SET);
 
@@ -979,6 +983,7 @@ void DBFFAM::CloseTableFile(PGLOBAL g, bool abort)
     Rbuf = CurNum--;
 //  Closing = true;
     wrc = WriteBuffer(g);
+    fputc(0x1a, Stream);
   } else if (mode == MODE_UPDATE || mode == MODE_DELETE) {
     if (Modif && !Closing) {
       // Last updated block remains to be written
@@ -1003,35 +1008,27 @@ void DBFFAM::CloseTableFile(PGLOBAL g, bool abort)
   } // endif's mode
 
   if (Tdbp->GetMode() == MODE_INSERT) {
-    int n = ftell(Stream) - Headlen;
-
-    rc = PlugCloseFile(g, To_Fb);
+    int n = ftell(Stream) - Headlen - 1;
 
     if (n >= 0 && !(n % Lrecl)) {
       n /= Lrecl;                       // New number of lines
 
       if (n > Records) {
         // Update the number of rows in the file header
-        char filename[_MAX_PATH];
+        char nRecords[4];
+        int4store(nRecords, n);
 
-        PlugSetPath(filename, To_File, Tdbp->GetPath());
-        if ((Stream= global_fopen(g, MSGID_OPEN_MODE_STRERROR, filename, "r+b")))
-        {
-          char nRecords[4];
-          int4store(nRecords, n);
-
-          fseek(Stream, 4, SEEK_SET);     // Get header.Records position
-          fwrite(nRecords, sizeof(nRecords), 1, Stream);
-          fclose(Stream);
-          Stream= NULL;
-          Records= n;                    // Update Records value
-        }
+        fseek(Stream, 4, SEEK_SET);     // Get header.Records position
+        fwrite(nRecords, sizeof(nRecords), 1, Stream);
+        Stream= NULL;
+        Records= n;                    // Update Records value
       } // endif n
 
     } // endif n
 
-  } else  // Finally close the file
-    rc = PlugCloseFile(g, To_Fb);
+  }
+  // Finally close the file
+  rc = PlugCloseFile(g, To_Fb);
 
  fin:
   if (trace(1))
