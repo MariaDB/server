@@ -818,17 +818,16 @@ error:
 
 #define SPIDER_PARAM_STR_LEN(name) name ## _length
 #define SPIDER_PARAM_STR(title_name, param_name) \
-  if (!strncasecmp(tmp_ptr, title_name, title_length)) \
+  if (!strncasecmp(parse.start_title, title_name, title_length)) \
   { \
     DBUG_PRINT("info",("spider " title_name " start")); \
     if (!direct_sql->param_name) \
     { \
-      if ((direct_sql->param_name = spider_get_string_between_quote( \
-        start_ptr, TRUE, &param_string_parse))) \
-        direct_sql->SPIDER_PARAM_STR_LEN(param_name) = \
-          strlen(direct_sql->param_name); \
+      if ((direct_sql->param_name = spider_create_string(parse.start_value, \
+                                                         value_length))) \
+        direct_sql->SPIDER_PARAM_STR_LEN(param_name) = strlen(direct_sql->param_name); \
       else { \
-        error_num = param_string_parse.print_param_error(); \
+        error_num= parse.fail(true); \
         goto error; \
       } \
       DBUG_PRINT("info",("spider " title_name "=%s", direct_sql->param_name)); \
@@ -836,130 +835,81 @@ error:
     break; \
   }
 #define SPIDER_PARAM_HINT_WITH_MAX(title_name, param_name, check_length, max_size, min_val, max_val) \
-  if (!strncasecmp(tmp_ptr, title_name, check_length)) \
+  if (!strncasecmp(parse.start_title, title_name, check_length)) \
   { \
     DBUG_PRINT("info",("spider " title_name " start")); \
     DBUG_PRINT("info",("spider max_size=%d", max_size)); \
-    int hint_num = atoi(tmp_ptr + check_length) - 1; \
+    int hint_num = atoi(parse.start_title + check_length) - 1; \
     DBUG_PRINT("info",("spider hint_num=%d", hint_num)); \
     DBUG_PRINT("info",("spider direct_sql->param_name=%p", \
-      direct_sql->param_name)); \
+                       direct_sql->param_name)); \
     if (direct_sql->param_name) \
     { \
       if (hint_num < 0 || hint_num >= max_size) \
       { \
-        error_num = param_string_parse.print_param_error(); \
+        error_num= parse.fail(true); \
         goto error; \
       } else if (direct_sql->param_name[hint_num] != -1) \
         break; \
-      char *hint_str = spider_get_string_between_quote(start_ptr, FALSE); \
-      if (hint_str) \
-      { \
-        direct_sql->param_name[hint_num] = atoi(hint_str); \
-        if (direct_sql->param_name[hint_num] < min_val) \
-          direct_sql->param_name[hint_num] = min_val; \
-        else if (direct_sql->param_name[hint_num] > max_val) \
-          direct_sql->param_name[hint_num] = max_val; \
-      } else { \
-        error_num = param_string_parse.print_param_error(); \
-        goto error; \
-      } \
+      direct_sql->param_name[hint_num] = atoi(parse.start_value); \
+      if (direct_sql->param_name[hint_num] < min_val) \
+        direct_sql->param_name[hint_num] = min_val; \
+      else if (direct_sql->param_name[hint_num] > max_val) \
+        direct_sql->param_name[hint_num] = max_val; \
       DBUG_PRINT("info",("spider " title_name "[%d]=%d", hint_num, \
-        direct_sql->param_name[hint_num])); \
+                         direct_sql->param_name[hint_num])); \
     } else { \
-      error_num = param_string_parse.print_param_error(); \
+      error_num= parse.fail(true); \
       goto error; \
     } \
     break; \
   }
 #define SPIDER_PARAM_INT_WITH_MAX(title_name, param_name, min_val, max_val) \
-  if (!strncasecmp(tmp_ptr, title_name, title_length)) \
+  if (!strncasecmp(parse.start_title, title_name, title_length)) \
   { \
     DBUG_PRINT("info",("spider " title_name " start")); \
     if (direct_sql->param_name == -1) \
     { \
-      if ((tmp_ptr2 = spider_get_string_between_quote( \
-        start_ptr, FALSE))) \
-      { \
-        direct_sql->param_name = atoi(tmp_ptr2); \
-        if (direct_sql->param_name < min_val) \
-          direct_sql->param_name = min_val; \
-        else if (direct_sql->param_name > max_val) \
-          direct_sql->param_name = max_val; \
-        param_string_parse.set_param_value(tmp_ptr2, \
-                                           tmp_ptr2 + \
-                                             strlen(tmp_ptr2) + 1); \
-      } else { \
-        error_num = param_string_parse.print_param_error(); \
-        goto error; \
-      } \
+      direct_sql->param_name = atoi(parse.start_value); \
+      if (direct_sql->param_name < min_val) \
+        direct_sql->param_name = min_val; \
+      else if (direct_sql->param_name > max_val) \
+        direct_sql->param_name = max_val; \
       DBUG_PRINT("info",("spider " title_name "=%d", \
-        (int) direct_sql->param_name)); \
+                         (int) direct_sql->param_name)); \
     } \
     break; \
   }
 #define SPIDER_PARAM_INT(title_name, param_name, min_val) \
-  if (!strncasecmp(tmp_ptr, title_name, title_length)) \
+  if (!strncasecmp(parse.start_title, title_name, title_length)) \
   { \
     DBUG_PRINT("info",("spider " title_name " start")); \
     if (direct_sql->param_name == -1) \
     { \
-      if ((tmp_ptr2 = spider_get_string_between_quote( \
-        start_ptr, FALSE))) \
-      { \
-        direct_sql->param_name = atoi(tmp_ptr2); \
-        if (direct_sql->param_name < min_val) \
-          direct_sql->param_name = min_val; \
-        param_string_parse.set_param_value(tmp_ptr2, \
-                                           tmp_ptr2 + \
-                                             strlen(tmp_ptr2) + 1); \
-      } else { \
-        error_num = param_string_parse.print_param_error(); \
-        goto error; \
-      } \
+      direct_sql->param_name = atoi(parse.start_value); \
+      if (direct_sql->param_name < min_val) \
+        direct_sql->param_name = min_val; \
       DBUG_PRINT("info",("spider " title_name "=%d", direct_sql->param_name)); \
     } \
     break; \
   }
 #define SPIDER_PARAM_LONGLONG(title_name, param_name, min_val) \
-  if (!strncasecmp(tmp_ptr, title_name, title_length)) \
+  if (!strncasecmp(parse.start_title, title_name, title_length)) \
   { \
     DBUG_PRINT("info",("spider " title_name " start")); \
     if (direct_sql->param_name == -1) \
     { \
-      if ((tmp_ptr2 = spider_get_string_between_quote( \
-        start_ptr, FALSE))) \
-      { \
-        direct_sql->param_name = \
-          my_strtoll10(tmp_ptr2, (char**) NULL, &error_num); \
-        if (direct_sql->param_name < min_val) \
-          direct_sql->param_name = min_val; \
-        param_string_parse.set_param_value(tmp_ptr2, \
-                                           tmp_ptr2 + \
-                                             strlen(tmp_ptr2) + 1); \
-      } else { \
-        error_num = param_string_parse.print_param_error(); \
-        goto error; \
-      } \
-      DBUG_PRINT("info",("spider " title_name "=%lld", \
-        direct_sql->param_name)); \
+      direct_sql->param_name = my_strtoll10(parse.start_value, (char**) NULL, \
+                                            &error_num); \
+      if (direct_sql->param_name < min_val) \
+        direct_sql->param_name = min_val; \
+      DBUG_PRINT("info",("spider " title_name "=%lld", direct_sql->param_name)); \
     } \
     break; \
   }
 
-int spider_udf_parse_direct_sql_param(
-  SPIDER_TRX *trx,
-  SPIDER_DIRECT_SQL *direct_sql,
-  const char *param,
-  int param_length
-) {
-  int error_num = 0, roop_count;
-  char *param_string = NULL;
-  char *sprit_ptr;
-  char *tmp_ptr, *tmp_ptr2, *start_ptr;
-  int title_length;
-  SPIDER_PARAM_STRING_PARSE param_string_parse;
-  DBUG_ENTER("spider_udf_parse_direct_sql_param");
+static void spider_minus_1(SPIDER_DIRECT_SQL *direct_sql)
+{
   direct_sql->tgt_port = -1;
   direct_sql->tgt_ssl_vsc = -1;
   direct_sql->table_loop_mode = -1;
@@ -971,59 +921,53 @@ int spider_udf_parse_direct_sql_param(
   direct_sql->connection_channel = -1;
   direct_sql->use_real_table = -1;
   direct_sql->error_rw_mode = -1;
-  for (roop_count = 0; roop_count < direct_sql->table_count; roop_count++)
-    direct_sql->iop[roop_count] = -1;
+  for (int i = 0; i < direct_sql->table_count; i++)
+    direct_sql->iop[i] = -1;
+}
 
+int spider_udf_parse_direct_sql_param(
+  SPIDER_TRX *trx,
+  SPIDER_DIRECT_SQL *direct_sql,
+  const char *param,
+  int param_length
+) {
+  int error_num = 0;
+  char *param_string = NULL;
+  char *start_param;
+  int title_length, value_length;
+  SPIDER_PARAM_STRING_PARSE parse;
+  DBUG_ENTER("spider_udf_parse_direct_sql_param");
+
+  spider_minus_1(direct_sql);
   if (param_length == 0)
     goto set_default;
   DBUG_PRINT("info",("spider create param_string string"));
-  if (
-    !(param_string = spider_create_string(
-      param,
-      param_length))
-  ) {
+  if (!(param_string = spider_create_string(param, param_length)))
+  {
     error_num = HA_ERR_OUT_OF_MEM;
     my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
     goto error_alloc_param_string;
   }
   DBUG_PRINT("info",("spider param_string=%s", param_string));
 
-  sprit_ptr = param_string;
-  param_string_parse.init(param_string, ER_SPIDER_INVALID_UDF_PARAM_NUM);
-  while (sprit_ptr)
+  start_param = param_string;
+  parse.error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM;
+  while (*start_param != '\0')
   {
-    tmp_ptr = sprit_ptr;
-    while (*tmp_ptr == ' ' || *tmp_ptr == '\r' ||
-      *tmp_ptr == '\n' || *tmp_ptr == '\t')
-      tmp_ptr++;
-
-    if (*tmp_ptr == '\0')
-      break;
-
-    title_length = 0;
-    start_ptr = tmp_ptr;
-    while (*start_ptr != ' ' && *start_ptr != '\'' &&
-      *start_ptr != '"' && *start_ptr != '\0' &&
-      *start_ptr != '\r' && *start_ptr != '\n' &&
-      *start_ptr != '\t')
+    if (parse.locate_param_def(start_param))
     {
-      title_length++;
-      start_ptr++;
-    }
-    param_string_parse.set_param_title(tmp_ptr, tmp_ptr + title_length);
-    if ((error_num = param_string_parse.get_next_parameter_head(
-      start_ptr, &sprit_ptr)))
-    {
+      error_num= parse.fail(false);
       goto error;
     }
+    /* Null the end of the parameter value. */
+    *parse.end_value= '\0';
+    value_length= (int) (parse.end_value - parse.start_value);
 
-    switch (title_length)
+    switch (title_length = (int) (parse.end_title - parse.start_title))
     {
       case 0:
-        error_num = param_string_parse.print_param_error();
-        if (error_num)
-          goto error;
-        continue;
+        error_num= parse.fail(true);
+        goto error;
       case 3:
         SPIDER_PARAM_LONGLONG("bir", bulk_insert_rows, 0);
         SPIDER_PARAM_INT_WITH_MAX("cch", connection_channel, 0, 63);
@@ -1045,14 +989,14 @@ int spider_udf_parse_direct_sql_param(
         SPIDER_PARAM_INT_WITH_MAX("tlm", table_loop_mode, 0, 2);
         SPIDER_PARAM_INT_WITH_MAX("urt", use_real_table, 0, 1);
         SPIDER_PARAM_INT("wto", net_write_timeout, 0);
-        error_num = param_string_parse.print_param_error();
+        error_num= parse.fail(true);
         goto error;
       case 4:
         SPIDER_PARAM_INT_WITH_MAX("erwm", error_rw_mode, 0, 1);
         SPIDER_PARAM_STR("host", tgt_host);
         SPIDER_PARAM_INT_WITH_MAX("port", tgt_port, 0, 65535);
         SPIDER_PARAM_STR("user", tgt_username);
-        error_num = param_string_parse.print_param_error();
+        error_num= parse.fail(true);
         goto error;
       case 6:
         SPIDER_PARAM_STR("driver", tgt_driver);
@@ -1060,93 +1004,90 @@ int spider_udf_parse_direct_sql_param(
         SPIDER_PARAM_STR("socket", tgt_socket);
         SPIDER_PARAM_HINT_WITH_MAX("iop", iop, 3, direct_sql->table_count, 0, 2);
         SPIDER_PARAM_STR("ssl_ca", tgt_ssl_ca);
-        error_num = param_string_parse.print_param_error();
+        error_num= parse.fail(true);
         goto error;
       case 7:
         SPIDER_PARAM_STR("filedsn", tgt_filedsn);
         SPIDER_PARAM_STR("wrapper", tgt_wrapper);
         SPIDER_PARAM_STR("ssl_key", tgt_ssl_key);
-        error_num = param_string_parse.print_param_error();
+        error_num= parse.fail(true);
         goto error;
       case 8:
         SPIDER_PARAM_STR("database", tgt_default_db_name);
         SPIDER_PARAM_STR("password", tgt_password);
         SPIDER_PARAM_LONGLONG("priority", priority, 0);
         SPIDER_PARAM_STR("ssl_cert", tgt_ssl_cert);
-        error_num = param_string_parse.print_param_error();
+        error_num= parse.fail(true);
         goto error;
       case 10:
         SPIDER_PARAM_STR("ssl_cipher", tgt_ssl_cipher);
         SPIDER_PARAM_STR("ssl_capath", tgt_ssl_capath);
-        error_num = param_string_parse.print_param_error();
+        error_num= parse.fail(true);
         goto error;
       case 11:
+<<<<<<< HEAD
         error_num = param_string_parse.print_param_error();
+=======
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+        SPIDER_PARAM_INT_WITH_MAX("access_mode", access_mode, 0, 2);
+#endif
+        error_num= parse.fail(true);
+>>>>>>> c966d67cef2 (MDEV-31117 Fix spider connection info parsing)
         goto error;
       case 12:
         SPIDER_PARAM_STR("default_file", tgt_default_file);
-        error_num = param_string_parse.print_param_error();
+        error_num= parse.fail(true);
         goto error;
       case 13:
         SPIDER_PARAM_STR("default_group", tgt_default_group);
         SPIDER_PARAM_INT_WITH_MAX("error_rw_mode", error_rw_mode, 0, 1);
-        error_num = param_string_parse.print_param_error();
+        error_num= parse.fail(true);
         goto error;
       case 14:
         SPIDER_PARAM_INT_WITH_MAX("use_real_table", use_real_table, 0, 1);
+<<<<<<< HEAD
         error_num = param_string_parse.print_param_error();
+=======
+#endif
+        error_num= parse.fail(true);
+>>>>>>> c966d67cef2 (MDEV-31117 Fix spider connection info parsing)
         goto error;
       case 15:
         SPIDER_PARAM_INT_WITH_MAX("table_loop_mode", table_loop_mode, 0, 2);
         SPIDER_PARAM_INT("connect_timeout", connect_timeout, 0);
-        error_num = param_string_parse.print_param_error();
+        error_num= parse.fail(true);
         goto error;
       case 16:
         SPIDER_PARAM_LONGLONG("bulk_insert_rows", bulk_insert_rows, 1);
         SPIDER_PARAM_INT("net_read_timeout", net_read_timeout, 0);
-        error_num = param_string_parse.print_param_error();
+        error_num= parse.fail(true);
         goto error;
       case 17:
         SPIDER_PARAM_INT("net_write_timeout", net_write_timeout, 0);
-        error_num = param_string_parse.print_param_error();
+        error_num= parse.fail(true);
         goto error;
       case 18:
         SPIDER_PARAM_INT_WITH_MAX(
           "connection_channel", connection_channel, 0, 63);
-        error_num = param_string_parse.print_param_error();
+        error_num= parse.fail(true);
         goto error;
       case 22:
         SPIDER_PARAM_INT_WITH_MAX("ssl_verify_server_cert", tgt_ssl_vsc, 0, 1);
-        error_num = param_string_parse.print_param_error();
+        error_num= parse.fail(true);
         goto error;
       default:
-        error_num = param_string_parse.print_param_error();
+        error_num= parse.fail(true);
         goto error;
     }
-
-    /* Verify that the remainder of the parameter value is whitespace */
-    if ((error_num = param_string_parse.has_extra_parameter_values()))
-      goto error;
+    /* Restore delim */
+    *parse.end_value= parse.delim_value;
   }
 
 set_default:
-  if ((error_num = spider_udf_set_direct_sql_param_default(
-    trx,
-    direct_sql
-  )))
-    goto error;
-
-  if (param_string)
-  {
-    spider_free(spider_current_trx, param_string, MYF(0));
-  }
-  DBUG_RETURN(0);
-
+  error_num = spider_udf_set_direct_sql_param_default(trx, direct_sql);
 error:
   if (param_string)
-  {
     spider_free(spider_current_trx, param_string, MYF(0));
-  }
 error_alloc_param_string:
   DBUG_RETURN(error_num);
 }
