@@ -52,6 +52,7 @@ dbug/factorial
 dbug/tests
 dbug/user.ps
 dbug/user.t
+docker_obj/
 extra/comp_err
 extra/innochecksum
 extra/jemalloc/build/
