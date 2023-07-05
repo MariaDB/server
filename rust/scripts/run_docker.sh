@@ -16,8 +16,9 @@ echo $obj_dir
 mkdir -p "$obj_dir"
 
 args=""
-args="$args --volume $obj_dir:/checkout/obj"
+# args="$args --volume $maria_root:/checkout"
 args="$args --volume $maria_root:/checkout:ro"
+args="$args --volume $obj_dir:/obj"
 
 echo 1
 echo $1 "build"
@@ -31,7 +32,7 @@ elif [ "$1" = "shell" ]; then
     args="$args -it"
 elif [ "$1" = "build" ]; then
     echo building mariadb
-    command="/checkout/build_maria.sh"
+    command="/checkout/rust/scripts/docker/build_maria.sh"
 else
     echo invalid command
     exit 1
@@ -45,7 +46,7 @@ echo $args
 docker build --file "$dockerfile" --tag mdb-rust .
 
 docker run \
-    --workdir /checkout/obj \
+    --workdir /obj \
     $args \
     mdb-rust \
     "$command"

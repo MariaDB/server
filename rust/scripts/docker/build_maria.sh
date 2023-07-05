@@ -3,8 +3,21 @@ set -eaux
 
 echo starting internal build
 
-# mkdir build-mariadb
-# cd build-mariadb
+export CMAKE_ARCHIVE_OUTPUT_DIRECTORY=/obj/lib
+export CMAKE_LIBRARY_OUTPUT_DIRECTORY=/obj/lib
+export CMAKE_RUNTIME_OUTPUT_DIRECTORY=/obj/bin
 
-# cmake ../ -DCMAKE_BUILD_TYPE=Debug
-# cmake --build .
+mkdir -p build-mariadb
+cd build-mariadb
+
+git config --global --add safe.directory '*'
+
+cmake \
+    -S/checkout\
+    -B/obj/build-mariadb \
+    -DCMAKE_BUILD_TYPE=Debug \
+    -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=/obj/lib \
+    -DCMAKE_LIBRARY_OUTPUT_DIRECTORY=/obj/lib \
+    -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=/obj/bin \
+    -DUPDATE_SUBMODULES=OFF
+cmake --build .
