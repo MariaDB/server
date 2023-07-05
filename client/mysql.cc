@@ -248,7 +248,8 @@ static my_bool ignore_errors=0,wait_flag=0,quick=0,
                default_pager_set= 0, opt_sigint_ignore= 0,
                auto_vertical_output= 0, show_query_cost= 0,
                show_warnings= 0, executing_query= 0,
-               ignore_spaces= 0, opt_binhex= 0, opt_progress_reports;
+               ignore_spaces= 0, opt_binhex= 0, opt_progress_reports,
+               opt_follow_server_redirects= 1;
 static my_bool debug_info_flag, debug_check_flag, batch_abort_on_error;
 static my_bool column_types_flag;
 static my_bool preserve_comments= 0;
@@ -1508,6 +1509,8 @@ static bool do_connect(MYSQL *mysql, const char *host, const char *user,
   mysql_options(mysql,MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
                 (char*)&opt_ssl_verify_server_cert);
 #endif
+  mysql_options(mysql,MARIADB_OPT_FOLLOW_SERVER_REDIRECTS,
+                (char*)&opt_follow_server_redirects);
   if (opt_protocol)
     mysql_options(mysql,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
   if (opt_plugin_dir && *opt_plugin_dir)
@@ -1770,6 +1773,11 @@ static struct my_option my_long_options[] =
    &opt_mysql_unix_port, &opt_mysql_unix_port, 0, GET_STR_ALLOC,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #include "sslopt-longopts.h"
+  {"follow-server-redirects", 0,
+   "Follow server redirects. Disable with "
+   "--disable-follow-server-redirects. This option is enabled by default.",
+   &opt_follow_server_redirects, &opt_follow_server_redirects,
+   0, GET_BOOL, OPT_ARG, 1, 0, 0, 0, 0, 0},
   {"table", 't', "Output in table format.", &output_tables,
    &output_tables, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"tee", OPT_TEE,
