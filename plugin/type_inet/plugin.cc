@@ -24,7 +24,7 @@
 static struct st_mariadb_data_type plugin_descriptor_type_inet6=
 {
   MariaDB_DATA_TYPE_INTERFACE_VERSION,
-  Inet6Bundle::type_handler_fbt()
+  Type_handler_inet6::singleton()
 };
 
 

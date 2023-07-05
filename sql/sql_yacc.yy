@@ -1320,6 +1320,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         sp_opt_label BIN_NUM TEXT_STRING_filesystem
         opt_constraint constraint opt_ident
         sp_block_label sp_control_label opt_place opt_db
+        udt_name
 
 %type <ident_sys>
         IDENT_sys
@@ -6022,23 +6023,19 @@ qualified_field_type:
           }
         ;
 
+udt_name:
+          IDENT_sys                     { $$= $1; }
+        | reserved_keyword_udt          { $$= $1; }
+        | non_reserved_keyword_udt      { $$= $1; }
+        ;
+
 field_type_all:
           field_type_numeric
         | field_type_temporal
         | field_type_string
         | field_type_lob
         | field_type_misc
-        | IDENT_sys float_options srid_option
-          {
-            if (Lex->set_field_type_udt(&$$, $1, $2))
-              MYSQL_YYABORT;
-          }
-        | reserved_keyword_udt float_options srid_option
-          {
-            if (Lex->set_field_type_udt(&$$, $1, $2))
-              MYSQL_YYABORT;
-          }
-        | non_reserved_keyword_udt float_options srid_option
+        | udt_name float_options srid_option
           {
             if (Lex->set_field_type_udt(&$$, $1, $2))
               MYSQL_YYABORT;
@@ -11189,17 +11186,7 @@ cast_type:
           }
         | cast_type_numeric  { $$= $1; }
         | cast_type_temporal { $$= $1; }
-        | IDENT_sys
-          {
-            if (Lex->set_cast_type_udt(&$$, $1))
-              MYSQL_YYABORT;
-          }
-        | reserved_keyword_udt
-          {
-            if (Lex->set_cast_type_udt(&$$, $1))
-              MYSQL_YYABORT;
-          }
-        | non_reserved_keyword_udt
+        | udt_name
           {
             if (Lex->set_cast_type_udt(&$$, $1))
               MYSQL_YYABORT;

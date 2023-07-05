@@ -181,6 +181,6 @@ public:
 
 
 #include "sql_type_fixedbin.h"
-typedef FixedBinTypeBundle<UUID> UUIDBundle;
+typedef Type_handler_fbt<UUID> UUIDBundle;
 
 #endif // SQL_TYPE_UUID_INCLUDED

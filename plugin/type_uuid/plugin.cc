@@ -24,7 +24,7 @@
 static struct st_mariadb_data_type plugin_descriptor_type_uuid=
 {
   MariaDB_DATA_TYPE_INTERFACE_VERSION,
-  UUIDBundle::type_handler_fbt()
+  UUIDBundle::singleton()
 };
 
 /*************************************************************************/
