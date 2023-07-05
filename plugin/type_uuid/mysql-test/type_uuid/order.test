@@ -16,7 +16,21 @@ select * from t2;
 select * from t2 order by a;
 show create table t2;
 
-select * from t1, t2 where t1.a=t2.a;
+explain select * from t1 left join t2 on (t1.a=t2.a);
+--sorted_result
+select * from t1 left join t2 on (t1.a=t2.a);
+
+explain select * from t1 left join t2 on (t1.a<=>t2.a);
+--sorted_result
+select * from t1 left join t2 on (t1.a<=>t2.a);
+
+explain select * from t2 left join t1 on (t1.a=t2.a);
+--sorted_result
+select * from t2 left join t1 on (t1.a=t2.a);
+
+explain select * from t2 left join t1 on (t1.a<=>t2.a);
+--sorted_result
+select * from t2 left join t1 on (t1.a<=>t2.a);
 
 --sorted_result
 select * from t1 union select * from t2;

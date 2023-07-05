@@ -25562,7 +25562,8 @@ cp_buffer_from_ref(THD *thd, TABLE *table, TABLE_REF *ref)
   thd->count_cuted_fields= CHECK_FIELD_IGNORE;
   for (store_key **copy=ref->key_copy ; *copy ; copy++)
   {
-    if ((*copy)->copy(thd) & 1)
+    if ((*copy)->copy(thd) & 1 ||
+        (ref->null_rejecting && (*copy)->null_key))
     {
       result= 1;
       break;
