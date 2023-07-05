@@ -1,0 +1,21 @@
+#
+# MDEV-31117 Spider UBSAN runtime error: applying non-zero offset x to null pointer in st_spider_param_string_parse::restore_delims
+#
+for master_1
+for child2
+for child3
+CREATE TABLE t (c INT) ENGINE=Spider COMMENT='abc';
+ERROR HY000: The connect info 'abc' is invalid
+ALTER TABLE mysql.help_topic ENGINE=Spider;
+ERROR HY000: The connect info 'help topics' is invalid
+CREATE SERVER srv FOREIGN DATA WRAPPER MYSQL OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+create table t2 (c int);
+create table t1 (c int) ENGINE=Spider COMMENT='WRAPPER "mysql", "srv" "srv",TABLE "t2"';
+ERROR HY000: The connect info '"srv" "srv",TABLE "t2"' is invalid
+create table t1 (c int) ENGINE=Spider CONNECTION='WRAPPER "mysql", srv \'srv\',TABLE "t2", password "say \\"hello\\ world!\\""';
+Warnings:
+Warning	138	The high availability feature of Spider has been deprecated and will be removed in a future release
+drop table t1, t2;
+for master_1
+for child2
+for child3
