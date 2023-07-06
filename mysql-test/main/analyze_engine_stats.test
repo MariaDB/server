@@ -1,0 +1,62 @@
+#
+# Tests for r_engine_stats in ANALYZE FORMAT=JSON output
+#
+--source include/analyze-format.inc
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+
+create table t1 (
+  pk int not null, 
+  a varchar(64),
+  b varchar(64),
+  c varchar(64)
+) engine=innodb;
+
+insert into t1 select
+  seq, seq, seq, seq
+from
+  seq_1_to_10000;
+
+--echo # Note the r_engine_stats below.  Only non-zero members are printed
+let $out=`
+ANALYZE FORMAT=json
+select * from t1 where pk < 120000;
+`;
+
+# Don't use "source include/analyze-format.inc" as it replaces r_engine_stats
+# Replace the "pages_accessed" value, too, as it is different for some
+# platforms...
+--replace_regex /("(r_[a-z_]*_time(_in_progress)?_ms|r_buffer_size|pages_accessed)": )[^, \n]*/\1"REPLACED"/
+evalp select '$out' as X;
+
+evalp set @js='$out';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_accessed'));
+select cast(json_extract(@out,'$[0]') as DOUBLE) > 0 as PAGES_ACCESSED_MORE_THAN_ZERO;
+
+--echo #
+--echo # Try an UPDATE
+--echo #
+
+let $out=`analyze format=json update t1 set b = b-1 where pk < 120000`;
+
+--replace_regex /("(r_[a-z_]*_time_ms|pages_accessed|pages_updated)": )[^, \n]*/\1"REPLACED"/
+evalp select '$out' as X;
+
+evalp set @js='$out';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_updated'));
+select cast(json_extract(@out,'$[0]') as DOUBLE) > 0 as PAGES_UPDATED_MORE_THAN_ZERO;
+
+--echo #
+--echo # Try a DELETE
+--echo #
+let $out=`analyze format=json delete from t1 where mod(pk,2)=1`;
+
+--replace_regex /("(r_[a-z_]*_time_ms|pages_accessed|pages_updated)": )[^, \n]*/\1"REPLACED"/
+evalp select '$out' as X;
+
+evalp set @js='$out';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_updated'));
+select cast(json_extract(@out,'$[0]') as DOUBLE) > 0 as PAGES_UPDATED_MORE_THAN_ZERO;
+
+drop table t1;
+

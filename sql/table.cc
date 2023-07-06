@@ -5667,7 +5667,7 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   }
 
   /* enable and clear or disable engine query statistics */
-  if ((thd->variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_ENGINE))
+  if (thd->should_collect_handler_stats())
     file->ha_handler_stats_reset();
   else
     file->ha_handler_stats_disable();

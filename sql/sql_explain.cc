@@ -171,7 +171,10 @@ void Explain_query::notify_tables_are_closed()
   /*
     Disable processing of SHOW EXPLAIN|ANALYZE. The query is about to close
     the tables it is using, which will make it impossible to print Item*
-    values. See sql_explain.h:ExplainDataStructureLifetime for details.
+    values. Also, handler_for_stats will no longer point to valid handler
+    statistics data structure.
+
+    See sql_explain.h:ExplainDataStructureLifetime for details.
   */
   if (apc_enabled)
   {
@@ -1823,6 +1826,26 @@ void Explain_rowid_filter::print_explain_json(Explain_query *query,
   writer->end_object(); // rowid_filter
 }
 
+static void trace_engine_stats(handler *file, Json_writer *writer)
+{
+  if (file && file->handler_stats)
+  {
+    ha_handler_stats *hs= file->handler_stats;
+    writer->add_member("r_engine_stats").start_object();
+    if (hs->pages_accessed)
+      writer->add_member("pages_accessed").add_ull(hs->pages_accessed);
+    if (hs->pages_updated)
+      writer->add_member("pages_updated").add_ull(hs->pages_updated);
+    if (hs->pages_read_count)
+      writer->add_member("pages_read_count").add_ull(hs->pages_read_count);
+    if (hs->pages_read_time)
+      writer->add_member("pages_read_time_ms").
+        add_double(hs->pages_read_time / 1000.0);
+    if (hs->undo_records_read)
+      writer->add_member("old_rows_read").add_ull(hs->undo_records_read);
+    writer->end_object();
+  }
+}
 
 void Explain_table_access::print_explain_json(Explain_query *query,
                                               Json_writer *writer,
@@ -1964,6 +1987,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
       writer->add_member("r_table_time_ms").add_double(total_time);
       writer->add_member("r_other_time_ms").add_double(extra_time_tracker.get_time_ms());
     }
+    trace_engine_stats(handler_for_stats, writer);
   }
 
   /* `filtered` */
@@ -2667,6 +2691,8 @@ void Explain_update::print_explain_json(Explain_query *query,
               add_double(table_tracker.get_time_ms());
     }
   }
+
+  trace_engine_stats(handler_for_stats, writer);
 
   if (where_cond)
   {
