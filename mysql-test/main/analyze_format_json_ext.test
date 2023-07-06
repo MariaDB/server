@@ -1,0 +1,26 @@
+--source include/analyze-format.inc
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+
+create table t1 (
+  pk int not null, 
+  a varchar(64),
+  b varchar(64),
+  c varchar(64)
+) engine=innodb;
+
+insert into t1 select
+  seq, seq, seq, seq
+from
+  seq_1_to_10000;
+
+analyze table t1 persistent for all;
+
+--echo # Note the r_engine_stats below.  Only non-zero members are printed
+--source include/analyze-format.inc
+--replace_regex /("(r_[a-z_]*_time(_in_progress)?_ms|r_buffer_size)": )[^, \n]*/\1"REPLACED"/
+ANALYZE FORMAT=json
+select * from t1 where pk < 120000;
+
+drop table t1;
+

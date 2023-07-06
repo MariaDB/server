@@ -735,6 +735,7 @@ public:
     pushed_index_cond(NULL),
     sjm_nest(NULL),
     pre_join_sort(NULL),
+    handler_for_stats(NULL),
     jbuf_unpack_tracker(timed),
     rowid_filter(NULL)
   {}
@@ -842,6 +843,16 @@ public:
   Table_access_tracker tracker;
   Exec_time_tracker op_tracker;
   Gap_time_tracker extra_time_tracker;
+
+  /*
+    Note: This pointer is only valid until notify_tables_are_closed() is
+    called. After that, the tables may be freed or reused, together with their
+    handler_stats objects.
+
+    notify_tables_are_closed() disables printing of FORMAT=JSON output.
+    r_engine_stats is only printed in FORMAT=JSON output, so we're fine.
+  */
+  handler *handler_for_stats;
 
   /* When using join buffer: Track the reads from join buffer */
   Table_access_tracker jbuf_tracker;
