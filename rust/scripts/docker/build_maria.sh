@@ -25,6 +25,8 @@ cmake \
     -DPLUGIN_TOKUDB=NO \
     -G Ninja
 
+CMD_CCMAKE="ccmake -S/checkout -B/obj/build-mariadb"
+
 # -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=/obj/lib \
 # -DCMAKE_LIBRARY_OUTPUT_DIRECTORY=/obj/lib \
 # -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=/obj/bin \

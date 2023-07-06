@@ -1,5 +1,5 @@
 [package]
-name = "keymgt-debug"
+name = "keymgt-debug-rs"
 version = "0.1.0"
 edition = '2021'
 

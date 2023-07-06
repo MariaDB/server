@@ -24,9 +24,6 @@ args="$args --rm"
 build_cmd="/checkout/rust/scripts/docker/build_maria.sh"
 test_cmd="/checkout/rust/scripts/docker/run_mtr.sh"
 
-echo 1
-echo $1 "build"
-
 if [ -z "${1:-""}" ]; then
     echo "no command provided"
     exit 1

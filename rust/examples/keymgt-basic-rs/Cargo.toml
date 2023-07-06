@@ -1,5 +1,5 @@
 [package]
-name = "encryption-example"
+name = "keymgt-basic-rs"
 version = "0.1.0"
 edition = '2021'
 
@@ -8,6 +8,3 @@ crate-type = ["cdylib"]
 
 [dependencies]
 mariadb = { path = "../../mariadb" }
-aes-gcm = "0.10"
-sha2 = "0.10"
-rand = "0.8"
