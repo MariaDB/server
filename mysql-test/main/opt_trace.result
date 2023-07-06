@@ -9231,5 +9231,17 @@ json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
 ]
 set in_predicate_conversion_threshold=@tmp;
 drop table t0;
+#
+# MDEV-29298: INSERT ... SELECT Does not produce an optimizer trace
+#
+create table t1 (a int, b int);
+create table t2 (a int, b int);
+insert into t1 values (1,1), (2,2), (3,3), (4,4), (5,5);
+set optimizer_trace=1;
+insert into t2 select * from t1 where a<= b and a>4;
+select QUERY, LENGTH(trace)>1 from information_schema.optimizer_trace;
+QUERY	LENGTH(trace)>1
+insert into t2 select * from t1 where a<= b and a>4	1
+drop table t1, t2;
 # End of 10.5 tests
 set optimizer_trace='enabled=off';
