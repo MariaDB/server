@@ -1484,17 +1484,19 @@ combination with Record Lock satisfies the request.
 @param[in]      heap_no     heap number of the record to be locked
 @param[in]      index       index of record to be locked
 @param[in]      trx         the transaction requesting the Next Key Lock */
-static void lock_reuse_for_next_key_lock(const lock_t *held_lock, unsigned mode,
+static void lock_reuse_for_next_key_lock(const lock_t *held_lock,
+                                         unsigned mode,
                                          const hash_cell_t &cell,
                                          const page_id_t id,
-                                         const page_t *page,
-                                         ulint heap_no, dict_index_t *index,
-                                         trx_t *trx) {
+                                         const page_t *page, ulint heap_no,
+                                         dict_index_t *index, trx_t *trx)
+{
   ut_ad(trx->mutex_is_owner());
   ut_ad(mode == LOCK_S || mode == LOCK_X);
   ut_ad(lock_mode_is_next_key_lock(mode));
 
-  if (!held_lock->is_record_not_gap()) {
+  if (!held_lock->is_record_not_gap())
+  {
     ut_ad(held_lock->is_next_key_lock());
     return;
   }
@@ -1502,7 +1504,7 @@ static void lock_reuse_for_next_key_lock(const lock_t *held_lock, unsigned mode,
   /* We have a Record Lock granted, so we only need a GAP Lock. We assume
   that GAP Locks do not conflict with anything. Therefore a GAP Lock
   could be granted to us right now if we've requested: */
-  mode |= LOCK_GAP;
+  mode|= LOCK_GAP;
   ut_ad(nullptr ==
         lock_rec_other_has_conflicting(mode, cell, id, heap_no, trx));
 
@@ -1580,7 +1582,7 @@ lock_rec_lock(
         lock_rec_get_n_bits(lock) <= heap_no)
     {
 
-      ulint checked_mode= (heap_no != PAGE_HEAP_NO_SUPREMUM &&
+      unsigned checked_mode= (heap_no != PAGE_HEAP_NO_SUPREMUM &&
                           lock_mode_is_next_key_lock(mode))
                              ? mode | LOCK_REC_NOT_GAP
                              : mode;
@@ -1709,8 +1711,8 @@ void lock_sys_t::wait_resume(THD *thd, my_hrtime_t start, my_hrtime_t now)
   wait_count--;
   if (now.val >= start.val)
   {
-    const uint32_t diff_time=
-      static_cast<uint32_t>((now.val - start.val) / 1000);
+    const uint64_t diff_time=
+      static_cast<uint64_t>((now.val - start.val) / 1000);
     wait_time+= diff_time;
 
     if (diff_time > wait_time_max)

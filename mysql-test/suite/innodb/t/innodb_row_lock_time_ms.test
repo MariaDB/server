@@ -1,0 +1,38 @@
+--source include/have_innodb.inc
+--source include/count_sessions.inc
+
+CREATE TABLE `t`(`id` INT, PRIMARY KEY(`id`)) ENGINE=InnoDB;
+
+INSERT INTO t VALUES (1);
+
+BEGIN;
+SELECT * FROM t FOR UPDATE;
+
+--connect(con1,localhost,root,,)
+SET innodb_lock_wait_timeout = 1;
+--error ER_LOCK_WAIT_TIMEOUT
+SELECT * FROM t FOR UPDATE;
+--error ER_LOCK_WAIT_TIMEOUT
+SELECT * FROM t FOR UPDATE;
+--disconnect con1
+
+--connection default
+
+SELECT variable_value > 500 FROM information_schema.global_status
+  WHERE LOWER(variable_name) = 'innodb_row_lock_time';
+SELECT variable_value > 500 FROM information_schema.global_status
+  WHERE LOWER(variable_name) = 'innodb_row_lock_time_max';
+SELECT variable_value > 500 FROM information_schema.global_status
+  WHERE LOWER(variable_name) = 'innodb_row_lock_time_avg';
+
+SELECT COUNT > 500, MAX_COUNT > 500, AVG_COUNT > 500 FROM INFORMATION_SCHEMA.INNODB_METRICS
+  WHERE NAME="lock_row_lock_time";
+SELECT COUNT > 500, MAX_COUNT > 500, MIN_COUNT > 500 FROM INFORMATION_SCHEMA.INNODB_METRICS
+  WHERE NAME="lock_row_lock_time_max";
+SELECT COUNT > 500, MAX_COUNT > 500, MIN_COUNT > 500 FROM INFORMATION_SCHEMA.INNODB_METRICS
+  WHERE NAME="lock_row_lock_time_avg";
+
+
+DROP TABLE t;
+
+--source include/wait_until_count_sessions.inc

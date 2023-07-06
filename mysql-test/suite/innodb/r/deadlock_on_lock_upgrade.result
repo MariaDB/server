@@ -1,8 +1,6 @@
 #
 # Bug #23755664 DEADLOCK WITH 3 CONCURRENT DELETES BY UNIQUE KEY
 #
-connect dont_purge, localhost,root,,;
-START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connection default;
 CREATE TABLE `t`(
 `id` INT,
