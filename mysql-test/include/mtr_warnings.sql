@@ -93,7 +93,6 @@ INSERT INTO global_suppressions VALUES
  ("Enabling keys got errno"),
  ("Error reading master configuration"),
  ("Error reading packet"),
- ("Event Scheduler"),
  ("Failed to open log"),
  ("Failed to open the existing master info file"),
  ("Forcing shutdown of [0-9]* plugins"),

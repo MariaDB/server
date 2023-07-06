@@ -2,6 +2,7 @@
 --source include/have_innodb.inc
 #--source include/have_metadata_lock_info.inc
 
+call mtr.add_suppression('Event Scheduler: .* Duplicate entry');
 #
 # Testing of problems with ALTER TABLE and events on the same table(s)
 #

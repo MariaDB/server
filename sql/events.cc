@@ -121,7 +121,8 @@ bool Events::check_if_system_tables_error()
 
   if (opt_noacl)
   {
-    my_error(ER_EVENTS_NO_ACL, MYF(0));
+    my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0),
+             opt_bootstrap ? "--bootstrap" : "--skip-grant-tables");
     DBUG_RETURN(TRUE);
   }
   else if (!inited)
@@ -404,13 +405,7 @@ Events::create_event(THD *thd, Event_parse_data *parse_data)
       char buffer[1024];
       String log_query(buffer, sizeof(buffer), &my_charset_bin);
       if (create_query_string(thd, &log_query))
-      {
-        my_message_sql(ER_STARTUP,
-                       "Event Error: An error occurred while creating query "
-                       "string, before writing it into binary log.",
-                       MYF(ME_ERROR_LOG));
-        ret= true;
-      }
+        ret= true; // EE_OUTOFMEMORY set by my_malloc()
       else
       {
         /*
@@ -895,10 +890,9 @@ Events::init(THD *thd, bool opt_noacl_or_bootstrap)
     DBUG_RETURN(FALSE);
   else if (opt_noacl_or_bootstrap)
   {
-    my_message(ER_STARTUP,
-               "Event Scheduler will not function when starting "
-               "with --skip-grant-tables or --bootstrap.",
-               MYF(ME_ERROR_LOG));
+    if (opt_event_scheduler == Events::EVENTS_ON)
+      sql_print_error("Event Scheduler will not function when starting with %s",
+                      opt_bootstrap ? "--bootstrap" : "--skip-grant-tables");
     opt_event_scheduler= EVENTS_DISABLED;
     DBUG_RETURN(FALSE);
   }
@@ -944,7 +938,7 @@ Events::init(THD *thd, bool opt_noacl_or_bootstrap)
   }
 
   /*
-    Since we allow event DDL even if the scheduler is disabled,
+    Since we allow event DDL even if the scheduler is off,
     check the system tables, as we might need them.
 
     If run with --skip-grant-tables or --bootstrap, we have already
@@ -962,7 +956,6 @@ Events::init(THD *thd, bool opt_noacl_or_bootstrap)
     opt_event_scheduler= EVENTS_OFF;
     goto end;
   }
-
 
   DBUG_ASSERT(opt_event_scheduler == Events::EVENTS_ON ||
               opt_event_scheduler == Events::EVENTS_OFF);
@@ -1305,9 +1298,7 @@ Events::load_events_from_db(THD *thd)
   }
   my_printf_error(ER_STARTUP,
                   "Event Scheduler: Loaded %d event%s",
-                  MYF(ME_ERROR_LOG |
-                      (global_system_variables.log_warnings) ?
-                      ME_NOTE: 0),
+                  MYF(ME_ERROR_LOG | ME_NOTE),
                   count, (count == 1) ? "" : "s");
   ret= FALSE;
 

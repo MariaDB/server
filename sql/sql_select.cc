@@ -563,6 +563,7 @@ void JOIN::init(THD *thd_arg, List<Item> &fields_arg,
   sjm_scan_tables= 0;
   is_orig_degenerated= false;
   with_ties_order_count= 0;
+  prepared= false;
 };
 
 
@@ -1816,6 +1817,7 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
   unit= unit_arg;
   if (prepare_stage2())
     goto err;
+  prepared= true;
 
   DBUG_RETURN(0); // All OK
 
@@ -5185,7 +5187,8 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
       }
       else
       {
-        if ((err= join->prepare(tables, conds, og_num, order, false, group,
+        if (!join->prepared &&
+            (err= join->prepare(tables, conds, og_num, order, false, group,
                                 having, proc_param, select_lex, unit)))
 	{
 	  goto err;
@@ -5211,7 +5214,8 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
 	DBUG_RETURN(TRUE);
     THD_STAGE_INFO(thd, stage_init);
     thd->lex->used_tables=0;
-    if ((err= join->prepare(tables, conds, og_num, order, false, group, having,
+    if (!join->prepared &&
+        (err= join->prepare(tables, conds, og_num, order, false, group, having,
                             proc_param, select_lex, unit)))
     {
       goto err;

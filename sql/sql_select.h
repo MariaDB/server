@@ -1596,6 +1596,8 @@ public:
   */
   bool impossible_where; 
 
+  bool prepared;
+
   /*
     All fields used in the query processing.
 

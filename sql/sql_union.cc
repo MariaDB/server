@@ -1759,24 +1759,6 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
     goto err;
 
 cont:
-  pushdown_unit= find_unit_handler(thd, this);
-  if (pushdown_unit)
-  {
-    if (unlikely(pushdown_unit->prepare()))
-      goto err;
-    /*
-      Always use select_union_direct result for pushed down units, overwrite
-      the previous union_result unless select_union_direct is already used
-    */
-    if (!use_direct_union_result)
-    {
-      if (unlikely(set_direct_union_result(sel_result)))
-        goto err;
-      fake_select_lex= NULL;
-      instantiate_tmp_table= false;
-      use_direct_union_result= true;
-    }
-  }
   /*
     If the query is using select_union_direct, we have postponed
     preparation of the underlying select_result until column types
@@ -1919,37 +1901,6 @@ cont:
 
       if (unlikely(saved_error))
         goto err;
-
-      if (fake_select_lex != NULL &&
-          (thd->stmt_arena->is_stmt_prepare() ||
-           (thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW)))
-      {
-        /* Validate the global parameters of this union */
-
-	init_prepare_fake_select_lex(thd, TRUE);
-        /* Should be done only once (the only item_list per statement) */
-        DBUG_ASSERT(fake_select_lex->join == 0);
-	if (!(fake_select_lex->join= new JOIN(thd, item_list, thd->variables.option_bits,
-					      result)))
-	{
-	  fake_select_lex->table_list.empty();
-	  DBUG_RETURN(TRUE);
-	}
-
-        /*
-          Fake st_select_lex should have item list for correct ref_array
-          allocation.
-        */
-	fake_select_lex->item_list= item_list;
-
-	thd->lex->current_select= fake_select_lex;
-
-        /*
-          We need to add up n_sum_items in order to make the correct
-          allocation in setup_ref_array().
-        */
-        fake_select_lex->n_child_sum_items+= global_parameters()->n_sum_items;
-      }
     }
     else
     {
@@ -1959,23 +1910,45 @@ cont:
       */
       table->reset_item_list(&item_list, hidden);
     }
-    if (fake_select_lex != NULL &&
-        (thd->stmt_arena->is_stmt_prepare() ||
-         (thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW)))
+
+    if (fake_select_lex != NULL)
     {
-      if (!fake_select_lex->join &&
-          !(fake_select_lex->join=
-            new JOIN(thd, item_list, thd->variables.option_bits, result)))
+      init_prepare_fake_select_lex(thd, TRUE);
+
+      DBUG_ASSERT(fake_select_lex->join == 0);
+      if (!(fake_select_lex->join= new JOIN(thd, item_list, options, result)))
       {
-         fake_select_lex->table_list.empty();
-         DBUG_RETURN(TRUE);
+        fake_select_lex->table_list.empty();
+        DBUG_RETURN(TRUE);
       }
-      saved_error= fake_select_lex->join->
-        prepare(fake_select_lex->table_list.first, 0,
+
+      /*
+        Fake st_select_lex should have item list for correct ref_array
+        allocation.
+      */
+      fake_select_lex->item_list= item_list;
+
+      thd->lex->current_select= fake_select_lex;
+
+      /*
+        We need to add up n_sum_items in order to make the correct
+        allocation in setup_ref_array().
+      */
+      fake_select_lex->n_child_sum_items+= global_parameters()->n_sum_items;
+      fake_select_lex->join->no_const_tables= TRUE;
+      saved_error= fake_select_lex->join->prepare(
+          fake_select_lex->table_list.first, 0,
                 global_parameters()->order_list.elements, // og_num
                 global_parameters()->order_list.first,    // order
                 false, NULL, NULL, NULL, fake_select_lex, this);
-      fake_select_lex->table_list.empty();
+    }
+
+    if (!thd->lex->is_view_context_analysis())
+      pushdown_unit= find_unit_handler(thd, this);
+    if (pushdown_unit)
+    {
+      if (prepare_pushdown(use_direct_union_result, sel_result))
+        goto err;
     }
   }
 
@@ -1988,6 +1961,36 @@ err:
   (void) cleanup();
   DBUG_RETURN(TRUE);
 }
+
+/**
+  @brief
+    Prepare st_select_lex_unit for the pushdown handler processing
+  @details
+    Creates and initializes data structures required for processing of the
+    pushdown handler. Validates fake_select_lex then discards it and sets
+    direct union result which is necessary for pushed down statements
+  @return
+    false - success
+    true - failure
+*/
+bool st_select_lex_unit::prepare_pushdown(bool use_direct_union_result,
+                                          select_result *sel_result)
+{
+  if (unlikely(pushdown_unit->prepare()))
+    return true;
+
+  if(!use_direct_union_result)
+  {
+    /*
+      Always use select_union_direct result for pushed down units, overwrite
+      the previous union_result unless select_union_direct is already used
+    */
+    if (unlikely(set_direct_union_result(sel_result)))
+      return true;
+  }
+  return false;
+}
+
 
 bool st_select_lex_unit::set_direct_union_result(select_result *sel_result)
 {
@@ -2466,45 +2469,13 @@ bool st_select_lex_unit::exec_inner()
        saved_error= true;
 
       set_limit(global_parameters());
-      init_prepare_fake_select_lex(thd, first_execution);
       JOIN *join= fake_select_lex->join;
       saved_error= false;
-      if (!join)
+      if (!(thd->stmt_arena->is_stmt_prepare() ||
+           (thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW)) &&
+          first_execution)
       {
-	/*
-	  allocate JOIN for fake select only once (prevent
-	  mysql_select automatic allocation)
-          TODO: The above is nonsense. mysql_select() will not allocate the
-          join if one already exists. There must be some other reason why we
-          don't let it allocate the join. Perhaps this is because we need
-          some special parameter values passed to join constructor?
-	*/
-	if (unlikely(!(fake_select_lex->join=
-                       new JOIN(thd, item_list, fake_select_lex->options,
-                                result))))
-	{
-	  fake_select_lex->table_list.empty();
-	  goto err;
-	}
-        fake_select_lex->join->no_const_tables= TRUE;
-
-        /*
-          Fake st_select_lex should have item list for correct ref_array
-          allocation.
-        */
-        fake_select_lex->item_list= item_list;
-
-        /*
-          We need to add up n_sum_items in order to make the correct
-          allocation in setup_ref_array().
-          Don't add more sum_items if we have already done JOIN::prepare
-          for this (with a different join object)
-        */
-        if (fake_select_lex->ref_pointer_array.is_null())
-          fake_select_lex->n_child_sum_items+= global_parameters()->n_sum_items;
-        
-        if (!was_executed)
-          save_union_explain_part2(thd->lex->explain);
+        save_union_explain_part2(thd->lex->explain);
 
         saved_error= mysql_select(thd, &result_table_list,
                                   item_list, NULL,
@@ -2527,7 +2498,6 @@ bool st_select_lex_unit::exec_inner()
             subquery execution rather than EXPLAIN line production. In order 
             to reset them back, we re-do all of the actions (yes it is ugly):
           */ // psergey-todo: is the above really necessary anymore?? 
-	  join->init(thd, item_list, fake_select_lex->options, result);
           saved_error= mysql_select(thd, &result_table_list, item_list, NULL,
 				    global_parameters()->order_list.elements,
 				    global_parameters()->order_list.first,
@@ -2557,7 +2527,6 @@ bool st_select_lex_unit::exec_inner()
     }
   }
   thd->lex->current_select= lex_select_save;
-err:
   thd->lex->set_limit_rows_examined();
   return saved_error;
 }
@@ -2822,12 +2791,9 @@ bool st_select_lex_unit::change_result(select_result_interceptor *new_result,
       if (sl->join->change_result(new_result, old_result))
 	return true; /* purecov: inspected */
   }
-  /*
-    If there were a fake_select_lex->join, we would have to change the
-    result of that also, but change_result() is called before such an
-    object is created.
-  */
-  DBUG_ASSERT(fake_select_lex == NULL || fake_select_lex->join == NULL);
+
+  if (fake_select_lex && fake_select_lex->join)
+    fake_select_lex->join->change_result(new_result, old_result);
   return false;
 }
 

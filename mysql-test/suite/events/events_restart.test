@@ -1,6 +1,7 @@
 # Can't test with embedded server that doesn't support grants
 -- source include/not_embedded.inc
-call mtr.add_suppression("Column count of mysql.event is wrong. Expected .*, found .*\. The table is probably corrupted");
+call mtr.add_suppression('Column count of mysql.event is wrong. Expected .*, found .*\. The table is probably corrupted');
+call mtr.add_suppression('Event Scheduler: An error occurred when initializing system tables. Disabling the Event Scheduler');
 
 let $collation_server=`select @@collation_server`;
 #
@@ -11,9 +12,6 @@ let $collation_server=`select @@collation_server`;
 # Switch off the scheduler for now.
 set global event_scheduler=off;
 
---disable_warnings
-drop database if exists events_test;
---enable_warnings
 create database events_test;
 use events_test;
 create table execution_log(name char(10));
@@ -43,7 +41,7 @@ insert into event_like select * from mysql.event;
 # Now let's alter the table and restart the server
 alter table mysql.event
   change column body  body longtext character set utf8 collate utf8_bin;
---echo "Now we restart the server"
+--echo # Now we restart the server
 
 call mtr.add_suppression("Incorrect definition of table mysql.event:.*");
 --source include/restart_mysqld.inc
@@ -77,16 +75,16 @@ set global event_scheduler=on;
 --error ER_STARTUP
 set global event_scheduler=off;
 show variables like 'event_scheduler';
---echo Make sure that we still can create and drop databases,
---echo and no warnings are produced.
+--echo # Make sure that we still can create and drop databases,
+--echo # and no warnings are produced.
 drop database if exists mysqltest_database_not_exists;
 create database mysqltest_db1;
 drop database mysqltest_db1;
---echo Restore the original mysql.event table
+--echo # Restore the original mysql.event table
 drop table mysql.event;
 rename table event_like to mysql.event;
 
---echo check that we can now enable events without restart
+--echo # check that we can now enable events without restart
 set global event_scheduler=original;
 select @@global.event_scheduler;
 set global event_scheduler=on;
@@ -96,7 +94,7 @@ select @@global.event_scheduler;
 --replace_result $collation_server latin1_swedish_ci
 show events;
 
---echo Now let's restart the server again
+--echo # Now let's restart the server again
 
 --source include/restart_mysqld.inc
 
@@ -132,7 +130,7 @@ CREATE EVENT e1 ON SCHEDULE EVERY 1 SECOND DISABLE DO SELECT 1;
 --replace_column 6 # 9 # 10 #
 SHOW EVENTS;
 
---echo "Now we restart the server"
+--echo # Now we restart the server
 --source include/restart_mysqld.inc
 USE test;
 SELECT @@event_scheduler;

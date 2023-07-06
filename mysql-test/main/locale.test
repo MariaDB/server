@@ -209,6 +209,17 @@ SET lc_messages=DEFAULT;
 
 
 --echo #
+--echo # Add Swahili error messages and locale
+--echo #
+
+SET lc_messages=sw_KE;
+--error ER_BAD_FIELD_ERROR
+SELECT x;
+
+SET lc_messages=DEFAULT;
+
+
+--echo #
 --echo # MDEV-30997 SIGSEGV in __strlen_avx2 | make_date_time | Item_func_date_format::val_str
 --echo #
 

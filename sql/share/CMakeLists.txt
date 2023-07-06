@@ -40,6 +40,7 @@ russian
 serbian
 slovak
 spanish
+swahili
 swedish
 ukrainian
 )
