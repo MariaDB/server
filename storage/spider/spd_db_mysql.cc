@@ -13539,35 +13539,6 @@ int spider_db_mbase::reset_lock_wait_timeout()
   DBUG_RETURN(0);
 }
 
-/** FIXME: refactor more functions to use spider_setup_for_query() and
-spider_teardown_after_query(). */
-void spider_setup_for_query(ha_spider *spider, SPIDER_CONN *conn, int link_idx)
-{
-  pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
-  pthread_mutex_lock(&conn->mta_conn_mutex);
-  SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
-  conn->need_mon= &spider->need_mons[link_idx];
-  DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
-  DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
-  conn->mta_conn_mutex_lock_already= TRUE;
-  conn->mta_conn_mutex_unlock_later= TRUE;
-  conn->disable_connect_retry= TRUE;
-}
-
-int spider_teardown_after_query(SPIDER_CONN *conn, int error_num, bool clear)
-{
-  conn->disable_connect_retry= FALSE;
-  DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-  DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-  conn->mta_conn_mutex_lock_already= FALSE;
-  conn->mta_conn_mutex_unlock_later= FALSE;
-  if (clear)
-  {
-    SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-    pthread_mutex_unlock(&conn->mta_conn_mutex);
-  }
-  return error_num;
-}
 /**
   Executes show table status query and stores results in share->stat
 */
@@ -13586,7 +13557,7 @@ int spider_mbase_handler::show_table_status(
   DBUG_ENTER("spider_mbase_handler::show_table_status");
   DBUG_PRINT("info",("spider sts_mode=%d", sts_mode));
 
-  spider_setup_for_query(spider, conn, link_idx);
+  spider_conn_before_query(spider, conn, link_idx);
   spider_conn_set_timeout_from_share(
     conn, link_idx, spider->wide_handler->trx->thd, share);
 
@@ -13607,15 +13578,15 @@ int spider_mbase_handler::show_table_status(
     {
       /* retry */
       if ((error_num = spider_db_ping(spider, conn, link_idx)))
-        DBUG_RETURN(spider_teardown_after_query(conn, error_num, true));
+        DBUG_RETURN(spider_conn_after_query(conn, error_num, true));
       if ((error_num = spider_db_set_names(spider, conn, link_idx)))
-        DBUG_RETURN(spider_teardown_after_query(conn, error_num, true));
+        DBUG_RETURN(spider_conn_after_query(conn, error_num, true));
       spider_conn_set_timeout_from_share(conn, link_idx,
                                          spider->wide_handler->trx->thd,
                                          share);
       if ((error_num =
            spider_set_lock_wait_timeout(1, conn, &spider->need_mons[link_idx])))
-        DBUG_RETURN(spider_teardown_after_query(conn, error_num, true));
+        DBUG_RETURN(spider_conn_after_query(conn, error_num, true));
       if (spider_db_query(
             conn,
             mysql_share->show_table_status[pos].ptr(),
@@ -13623,24 +13594,24 @@ int spider_mbase_handler::show_table_status(
             -1,
             &spider->need_mons[link_idx])
       ) {
-        spider_teardown_after_query(conn, 0, false);
+        spider_conn_after_query(conn, 0, false);
         DBUG_RETURN(spider_db_errorno(conn));
       }
     } else
-      DBUG_RETURN(spider_teardown_after_query(conn, error_num, true));
+      DBUG_RETURN(spider_conn_after_query(conn, error_num, true));
   }
   st_spider_db_request_key request_key = {
     spider->wide_handler->trx->spider_thread_id,
     spider->wide_handler->trx->thd->query_id, spider, 1, NULL};
   if (spider_param_dry_access())
-    DBUG_RETURN(spider_teardown_after_query(conn, 0, true));
+    DBUG_RETURN(spider_conn_after_query(conn, 0, true));
   if (!(res = conn->db_conn->store_result(NULL, &request_key, &error_num)))
   {
     if (sts_mode == 1)          /* get from status table */
     {
       if (error_num)
-        DBUG_RETURN(spider_teardown_after_query(conn, error_num, true));
-      spider_teardown_after_query(conn, 0, false);
+        DBUG_RETURN(spider_conn_after_query(conn, error_num, true));
+      spider_conn_after_query(conn, 0, false);
       if ((error_num = spider_db_errorno(conn)))
         DBUG_RETURN(error_num);
       else
@@ -13654,14 +13625,14 @@ int spider_mbase_handler::show_table_status(
       }
     } else                      /* get from information schema */
     {
-      spider_teardown_after_query(conn, error_num, false);
+      spider_conn_after_query(conn, error_num, false);
       if (error_num || (error_num= spider_db_errorno(conn)))
         DBUG_RETURN(error_num);
       else
         DBUG_RETURN(ER_QUERY_ON_FOREIGN_DATA_SOURCE);
     }
   }
-  spider_teardown_after_query(conn, 0, true);
+  spider_conn_after_query(conn, 0, true);
   /* Fetches query results into share->stat. */
   error_num = res->fetch_table_status(sts_mode, share->stat);
   auto_increment_value = share->stat.auto_increment_value;
@@ -13743,7 +13714,7 @@ int spider_mbase_handler::show_index(
     (crd_mode == 1 ? 0 : 1);
   DBUG_ENTER("spider_mbase_handler::show_index");
   DBUG_PRINT("info",("spider crd_mode=%d", crd_mode));
-  spider_setup_for_query(spider, conn, link_idx);
+  spider_conn_before_query(spider, conn, link_idx);
   spider_conn_set_timeout_from_share(conn, link_idx,
                                      spider->wide_handler->trx->thd, share);
   if ((error_num = spider_db_set_names(spider, conn, link_idx)) ||
@@ -13762,15 +13733,15 @@ int spider_mbase_handler::show_index(
     {
       /* retry */
       if ((error_num = spider_db_ping(spider, conn, link_idx)))
-        DBUG_RETURN(spider_teardown_after_query(conn, error_num, true));
+        DBUG_RETURN(spider_conn_after_query(conn, error_num, true));
       if ((error_num = spider_db_set_names(spider, conn, link_idx)))
-        DBUG_RETURN(spider_teardown_after_query(conn, error_num, true));
+        DBUG_RETURN(spider_conn_after_query(conn, error_num, true));
       spider_conn_set_timeout_from_share(conn, link_idx,
                                          spider->wide_handler->trx->thd,
                                          share);
       if ((error_num =
            spider_set_lock_wait_timeout(1, conn, &spider->need_mons[link_idx])))
-        DBUG_RETURN(spider_teardown_after_query(conn, error_num, true));
+        DBUG_RETURN(spider_conn_after_query(conn, error_num, true));
       if (spider_db_query(
             conn,
             mysql_share->show_index[pos].ptr(),
@@ -13778,11 +13749,11 @@ int spider_mbase_handler::show_index(
             -1,
             &spider->need_mons[link_idx]))
       {
-        spider_teardown_after_query(conn, 0, false);
+        spider_conn_after_query(conn, 0, false);
         DBUG_RETURN(spider_db_errorno(conn));
       }
     } else
-      DBUG_RETURN(spider_teardown_after_query(conn, error_num, true));
+      DBUG_RETURN(spider_conn_after_query(conn, error_num, true));
   }
   st_spider_db_request_key request_key = {
     spider->wide_handler->trx->spider_thread_id,
@@ -13790,8 +13761,8 @@ int spider_mbase_handler::show_index(
   /* no record is ok */
   if (!(res = conn->db_conn->store_result(NULL, &request_key, &error_num)) &&
       (error_num || (error_num = spider_db_errorno(conn))))
-    DBUG_RETURN(spider_teardown_after_query(conn, error_num, true));
-  spider_teardown_after_query(conn, 0, true);
+    DBUG_RETURN(spider_conn_after_query(conn, error_num, true));
+  spider_conn_after_query(conn, 0, true);
   if (res)
     error_num = res->fetch_table_cardinality(
       crd_mode, table, share->cardinality, share->cardinality_upd,

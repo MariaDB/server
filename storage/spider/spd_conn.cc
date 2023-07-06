@@ -217,6 +217,24 @@ void spider_conn_done(
   DBUG_VOID_RETURN;
 }
 
+void spider_conn_before_query(ha_spider *spider, SPIDER_CONN *conn, int link_idx)
+{
+  pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
+  spider_conn_mutex_lock(conn);
+  conn->need_mon = &spider->need_mons[link_idx];
+  spider_conn_mutex_locked(conn);
+  conn->disable_connect_retry= TRUE;
+}
+
+int spider_conn_after_query(SPIDER_CONN *conn, int error_num, bool unlock)
+{
+  conn->disable_connect_retry= FALSE;
+  spider_conn_mutex_unlocking(conn);
+  if (unlock)
+    spider_conn_mutex_unlock(conn);
+  return error_num;
+}
+
 int spider_reset_conn_setted_parameter(
   SPIDER_CONN *conn,
   THD *thd
