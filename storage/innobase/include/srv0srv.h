@@ -708,13 +708,10 @@ struct export_var_t{
 	ulint innodb_os_log_pending_fsyncs;	/*!< n_pending_log_flushes */
 	ulint innodb_row_lock_waits;		/*!< srv_n_lock_wait_count */
 	ulint innodb_row_lock_current_waits;	/*!< srv_n_lock_wait_current_count */
-	int64_t innodb_row_lock_time;		/*!< srv_n_lock_wait_time
-						/ 1000 */
-	ulint innodb_row_lock_time_avg;		/*!< srv_n_lock_wait_time
-						/ 1000
-						/ srv_n_lock_wait_count */
-	ulint innodb_row_lock_time_max;		/*!< srv_n_lock_max_wait_time
-						/ 1000 */
+	int64_t innodb_row_lock_time;		/*!< srv_n_lock_wait_time */
+	uint64_t innodb_row_lock_time_avg;	/*!< srv_n_lock_wait_time
+						     / srv_n_lock_wait_count */
+	uint64_t innodb_row_lock_time_max;	/*!< srv_n_lock_max_wait_time */
 	ulint innodb_rows_read;			/*!< srv_n_rows_read */
 	ulint innodb_rows_inserted;		/*!< srv_n_rows_inserted */
 	ulint innodb_rows_updated;		/*!< srv_n_rows_updated */

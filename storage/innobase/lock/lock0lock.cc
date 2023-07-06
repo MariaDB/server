@@ -1648,8 +1648,8 @@ void lock_sys_t::wait_resume(THD *thd, my_hrtime_t start, my_hrtime_t now)
   wait_count--;
   if (now.val >= start.val)
   {
-    const uint32_t diff_time=
-      static_cast<uint32_t>((now.val - start.val) / 1000);
+    const uint64_t diff_time=
+      static_cast<uint64_t>((now.val - start.val) / 1000);
     wait_time+= diff_time;
 
     if (diff_time > wait_time_max)
