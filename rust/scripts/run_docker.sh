@@ -19,6 +19,10 @@ args=""
 # args="$args --volume $maria_root:/checkout"
 args="$args --volume $maria_root:/checkout:ro"
 args="$args --volume $obj_dir:/obj"
+args="$args --rm"
+
+build_cmd="/checkout/rust/scripts/docker/build_maria.sh"
+test_cmd="/checkout/rust/scripts/docker/run_mtr.sh"
 
 echo 1
 echo $1 "build"
@@ -32,7 +36,10 @@ elif [ "$1" = "shell" ]; then
     args="$args -it"
 elif [ "$1" = "build" ]; then
     echo building mariadb
-    command="/checkout/rust/scripts/docker/build_maria.sh"
+    command="$build_cmd"
+elif [ "$1" = "test" ]; then
+    echo testing mariadb
+    command="$build_cmd && $test_cmd"
 else
     echo invalid command
     exit 1
@@ -49,4 +56,4 @@ docker run \
     --workdir /obj \
     $args \
     mdb-rust \
-    "$command"
+    /bin/bash -c "$command"
