@@ -66,6 +66,39 @@ void spider_conn_done(
   SPIDER_CONN *conn
 );
 
+inline void spider_conn_mutex_lock(SPIDER_CONN *conn)
+{
+  pthread_mutex_lock(&conn->mta_conn_mutex);
+  SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
+}
+
+inline void spider_conn_mutex_unlock(SPIDER_CONN *conn)
+{
+  SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
+  pthread_mutex_unlock(&conn->mta_conn_mutex);
+}
+
+inline void spider_conn_mutex_locked(SPIDER_CONN *conn)
+{
+  DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
+  conn->mta_conn_mutex_lock_already = TRUE;
+  conn->mta_conn_mutex_unlock_later = TRUE;
+}
+
+inline void spider_conn_mutex_unlocking(SPIDER_CONN *conn)
+{
+  DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+  conn->mta_conn_mutex_lock_already = FALSE;
+  conn->mta_conn_mutex_unlock_later = FALSE;
+}
+
+void spider_conn_before_query(ha_spider *spider, SPIDER_CONN *conn,
+                              int link_idx);
+
+int spider_conn_after_query(SPIDER_CONN *conn, int error_num, bool clear);
+
 int spider_reset_conn_setted_parameter(
   SPIDER_CONN *conn,
   THD *thd
