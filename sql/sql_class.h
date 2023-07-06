@@ -5607,6 +5607,12 @@ public:
   {
     lex= backup_lex;
   }
+
+  bool should_collect_handler_stats() const
+  {
+    return (variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_ENGINE) ||
+           lex->analyze_stmt;
+  }
 };
 
 

@@ -126,6 +126,8 @@ bool Update_plan::save_explain_data_intern(THD *thd,
        LOG_SLOW_VERBOSITY_ENGINE))
     table->file->set_time_tracker(&explain->table_tracker);
 
+  explain->handler_for_stats= table->file;
+
   select_lex->set_explain_type(TRUE);
   explain->select_type= select_lex->type;
   /* Partitions */

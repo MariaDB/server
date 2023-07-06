@@ -735,6 +735,7 @@ public:
     pushed_index_cond(NULL),
     sjm_nest(NULL),
     pre_join_sort(NULL),
+    handler_for_stats(NULL),
     jbuf_unpack_tracker(timed),
     rowid_filter(NULL)
   {}
@@ -843,6 +844,16 @@ public:
   Exec_time_tracker op_tracker;
   Gap_time_tracker extra_time_tracker;
 
+  /*
+    Note: This pointer is only valid until notify_tables_are_closed() is
+    called. After that, the tables may be freed or reused, together with their
+    handler_stats objects.
+
+    notify_tables_are_closed() disables printing of FORMAT=JSON output.
+    r_engine_stats is only printed in FORMAT=JSON output, so we're fine.
+  */
+  handler *handler_for_stats;
+
   /* When using join buffer: Track the reads from join buffer */
   Table_access_tracker jbuf_tracker;
 
@@ -893,7 +904,8 @@ public:
   Explain_update(MEM_ROOT *root, bool is_analyze) : 
     Explain_node(root),
     filesort_tracker(NULL),
-    command_tracker(is_analyze)
+    command_tracker(is_analyze),
+    handler_for_stats(NULL)
   {}
 
   virtual enum explain_node_type get_type() { return EXPLAIN_UPDATE; }
@@ -952,6 +964,9 @@ public:
   
   /* TODO: This tracks time to read rows from the table */
   Exec_time_tracker table_tracker;
+
+  /* The same as  Explain_table_access::handler_for_stats */
+  handler *handler_for_stats;
 
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
                             uint8 explain_flags, bool is_analyze);
