@@ -404,9 +404,12 @@ bool Item_subselect::eliminate_subselect_processor(void *arg)
 bool Item_subselect::mark_as_dependent(THD *thd, st_select_lex *select, 
                                        Item *item)
 {
+  is_correlated= TRUE;
+  if (thd->lex->is_ps_or_view_context_analysis())
+    return FALSE;
+  DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
   if (inside_first_fix_fields)
   {
-    is_correlated= TRUE;
     Ref_to_outside *upper;
     if (!(upper= new (thd->mem_root) Ref_to_outside()))
       return TRUE;
