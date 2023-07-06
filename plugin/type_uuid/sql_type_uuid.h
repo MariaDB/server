@@ -95,7 +95,7 @@ public:
     }
     if (str < end)
       goto err; // Some input left
-    if (m_buffer[6] < 0 && m_buffer[8] > 0)
+    if (m_buffer[6] & -m_buffer[8] & 0x80)
       goto err; // impossible combination: version >= 8, variant = 0
     return false;
   err:
@@ -176,7 +176,7 @@ public:
   // Convert the in-memory representation to the in-record representation
   static void memory_to_record(char *to, const char *from)
   {
-    if (force_swap || (from[6] > 0 && from[6] < 0x60 && from[8] < 0))
+    if (force_swap || (from[6] > 0 && from[6] < 0x60 && from[8] & 0x80))
     {
       segment(0).memory_to_record(to, from);
       segment(1).memory_to_record(to, from);
@@ -191,7 +191,7 @@ public:
   // Convert the in-record representation to the in-memory representation
   static void record_to_memory(char *to, const char *from)
   {
-    if (force_swap || (from[6] < 0 && from[8] > 0))
+    if (force_swap || (from[6] & -from[8] & 0x80))
     {
       segment(0).record_to_memory(to, from);
       segment(1).record_to_memory(to, from);
