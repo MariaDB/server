@@ -485,8 +485,6 @@ if ($HAVE_PARTITION)
     }
   }
   --connection master_1
-  SET @original_spider_auto_increment_mode = @@SESSION.spider_auto_increment_mode;
-  SET SESSION spider_auto_increment_mode = -1;
   if ($USE_REPLICATION)
   {
     save_master_pos;
@@ -558,7 +556,6 @@ if ($HAVE_PARTITION)
   INSERT INTO t1 (id) VALUES (1000);
   SELECT LAST_INSERT_ID();
   SELECT MAX(id) FROM t1;
-  SET SESSION spider_auto_increment_mode = @original_spider_auto_increment_mode;
   if ($USE_REPLICATION)
   {
     save_master_pos;

@@ -312,10 +312,6 @@ UNLOCK TABLES;
 
 auto_increment
 connection master_1;
-SET @original_spider_auto_increment_mode = @@SESSION.spider_auto_increment_mode;
-SET SESSION spider_auto_increment_mode = -1;
-Warnings:
-Warning	138	The option value -1 (use table value) is deprecated and will be removed in a future release
 connection slave1_1;
 connection master_1;
 DROP TABLE IF EXISTS t1;
@@ -409,7 +405,6 @@ LAST_INSERT_ID()
 SELECT MAX(id) FROM t1;
 MAX(id)
 42
-SET SESSION spider_auto_increment_mode = @original_spider_auto_increment_mode;
 connection slave1_1;
 SELECT id FROM t1 ORDER BY id;
 id
@@ -428,10 +423,6 @@ connection master_1;
 
 read only
 connection master_1;
-SET @original_spider_read_only_mode = @@SESSION.spider_read_only_mode;
-SET SESSION spider_read_only_mode = -1;
-Warnings:
-Warning	138	The option value -1 (use table value) is deprecated and will be removed in a future release
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
 id int(11) NOT NULL,
@@ -460,19 +451,10 @@ DELETE FROM t1;
 ERROR HY000: Table 'auto_test_local.t1' is read only
 TRUNCATE t1;
 ERROR HY000: Table 'auto_test_local.t1' is read only
-SET SESSION spider_read_only_mode = @original_spider_read_only_mode;
 
 2.27
 error mode
 connection master_1;
-SET @original_spider_error_read_mode = @@SESSION.spider_error_read_mode;
-SET @original_spider_error_write_mode = @@SESSION.spider_error_write_mode;
-SET SESSION spider_error_read_mode = -1;
-Warnings:
-Warning	138	The option value -1 (use table value) is deprecated and will be removed in a future release
-SET SESSION spider_error_write_mode = -1;
-Warnings:
-Warning	138	The option value -1 (use table value) is deprecated and will be removed in a future release
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
 id int(11) NOT NULL,
@@ -494,8 +476,6 @@ Error	1146	Table 'auto_test_remote.ter1_1' doesn't exist
 TRUNCATE t1;
 Warnings:
 Error	1146	Table 'auto_test_remote.ter1_1' doesn't exist
-SET SESSION spider_error_read_mode = @original_spider_error_read_mode;
-SET SESSION spider_error_write_mode = @original_spider_error_write_mode;
 
 3.0
 is null
