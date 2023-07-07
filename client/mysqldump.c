@@ -1794,8 +1794,13 @@ static FILE* open_sql_file_for_table(const char* table, int flags)
 
 static void free_resources()
 {
-  if (md_result_file && md_result_file != stdout)
-    my_fclose(md_result_file, MYF(0));
+  if (md_result_file)
+  {
+    if (md_result_file != stdout)
+      my_fclose(md_result_file, MYF(0));
+    else
+      fflush(md_result_file);
+  }
   if (get_table_name_result)
     mysql_free_result(get_table_name_result);
   if (routine_res)
