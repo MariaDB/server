@@ -2341,6 +2341,10 @@ void Item::split_sum_func2(THD *thd, Ref_ptr_array ref_pointer_array,
                            List<Item> &fields, Item **ref, 
                            uint split_flags)
 {
+  if (thd->lex->is_ps_or_view_context_analysis())
+    return;
+  DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
+
   if (unlikely(type() == SUM_FUNC_ITEM))
   {
     /* An item of type Item_sum is registered if ref_by != 0 */
