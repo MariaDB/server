@@ -37,6 +37,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "buf0buf.h"
 #include "buf0checksum.h"
 #include "ut0crc32.h"
+#include "mariadb_stats.h"
 #include <string.h>
 
 #ifndef UNIV_INNOCHECKSUM
@@ -2177,6 +2178,7 @@ buf_page_t* buf_page_get_zip(const page_id_t page_id, ulint zip_size)
   ut_ad(zip_size);
   ut_ad(ut_is_2pow(zip_size));
   ++buf_pool.stat.n_page_gets;
+  mariadb_increment_pages_accessed();
 
   buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(page_id.fold());
   page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
@@ -2272,6 +2274,7 @@ must_read_page:
   switch (dberr_t err= buf_read_page(page_id, zip_size)) {
   case DB_SUCCESS:
   case DB_SUCCESS_LOCKED_REC:
+    mariadb_increment_pages_read();
     goto lookup;
   default:
     ib::error() << "Reading compressed page " << page_id
@@ -2449,6 +2452,7 @@ buf_page_get_low(
 	      || ibuf_page_low(page_id, zip_size, FALSE, NULL));
 
 	++buf_pool.stat.n_page_gets;
+        mariadb_increment_pages_accessed();
 
 	auto& chain= buf_pool.page_hash.cell_get(page_id.fold());
 	page_hash_latch& hash_lock = buf_pool.page_hash.lock_get(chain);
@@ -2520,6 +2524,7 @@ loop:
 	switch (dberr_t local_err = buf_read_page(page_id, zip_size)) {
 	case DB_SUCCESS:
 	case DB_SUCCESS_LOCKED_REC:
+                mariadb_increment_pages_read();
 		buf_read_ahead_random(page_id, zip_size, ibuf_inside(mtr));
 		break;
 	default:
@@ -3080,7 +3085,6 @@ bool buf_page_optimistic_get(ulint rw_latch, buf_block_t *block,
   ut_ad(~buf_page_t::LRU_MASK & state);
   ut_ad(block->page.frame);
 
-  ++buf_pool.stat.n_page_gets;
   return true;
 }
 
@@ -3118,6 +3122,7 @@ buf_block_t *buf_page_try_get(const page_id_t page_id, mtr_t *mtr)
   ut_ad(block->page.id() == page_id);
 
   ++buf_pool.stat.n_page_gets;
+  mariadb_increment_pages_accessed();
   return block;
 }
 

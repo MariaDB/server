@@ -37,6 +37,7 @@ Created 11/26/1995 Heikki Tuuri
 #endif
 #include "srv0start.h"
 #include "log.h"
+#include "mariadb_stats.h"
 
 void mtr_memo_slot_t::release() const
 {
@@ -139,6 +140,7 @@ void mtr_t::commit()
     ut_ad(!srv_read_only_mode || m_log_mode == MTR_LOG_NO_REDO);
 
     std::pair<lsn_t,page_flush_ahead> lsns;
+    size_t modified= 0;
 
     if (UNIV_LIKELY(is_logged()))
     {
@@ -188,6 +190,7 @@ void mtr_t::commit()
     {
       if (slot.type & MTR_MEMO_MODIFY)
       {
+        modified++;
         ut_ad(slot.type == MTR_MEMO_PAGE_X_MODIFY ||
               slot.type == MTR_MEMO_PAGE_SX_MODIFY);
         buf_flush_note_modification(static_cast<buf_block_t*>(slot.object),
@@ -199,6 +202,8 @@ void mtr_t::commit()
       mysql_mutex_unlock(&log_sys.flush_order_mutex);
 
     release();
+
+    mariadb_increment_pages_updated(modified);
 
     if (UNIV_UNLIKELY(lsns.second != PAGE_FLUSH_NO))
       buf_flush_ahead(m_commit_lsn, lsns.second == PAGE_FLUSH_SYNC);

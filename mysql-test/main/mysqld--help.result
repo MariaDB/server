@@ -528,7 +528,7 @@ The following specify which files/extra groups are read (specified before remain
  (Defaults to on; use --skip-log-slow-slave-statements to disable.)
  --log-slow-verbosity=name 
  Verbosity level for the slow log. Any combination of: 
- innodb, query_plan, explain
+ innodb, query_plan, explain, engine, full
  --log-tc=name       Path to transaction coordinator log (used for
  transactions that affect more than one storage engine,
  when binary log is disabled).

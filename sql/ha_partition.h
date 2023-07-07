@@ -1645,5 +1645,6 @@ public:
 
   bool can_convert_nocopy(const Field &field,
                           const Column_definition &new_field) const override;
+  void handler_stats_updated() override;
 };
 #endif /* HA_PARTITION_INCLUDED */
