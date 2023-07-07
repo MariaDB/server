@@ -3820,128 +3820,20 @@ int spider_set_connect_info_default(
       share->net_write_timeouts[roop_count] = 600;
     if (share->access_balances[roop_count] == -1)
       share->access_balances[roop_count] = 100;
-    if (share->bka_table_name_types[roop_count] == -1)
-      share->bka_table_name_types[roop_count] = 0;
-    if (share->strict_group_bys[roop_count] == -1)
-      share->strict_group_bys[roop_count] = 1;
   }
 
-  if (share->sts_bg_mode == -1)
-    share->sts_bg_mode = 2;
-  if (share->sts_interval == -1)
-    share->sts_interval = 10;
-  if (share->sts_mode == -1)
-    share->sts_mode = 1;
-  if (share->sts_sync == -1)
-    share->sts_sync = 0;
-  if (share->store_last_sts == -1)
-    share->store_last_sts = 1;
-  if (share->load_sts_at_startup == -1)
-    share->load_sts_at_startup = 1;
-  if (share->crd_bg_mode == -1)
-    share->crd_bg_mode = 2;
-  if (share->crd_interval == -1)
-    share->crd_interval = 51;
-  if (share->crd_mode == -1)
-    share->crd_mode = 1;
-  if (share->crd_sync == -1)
-    share->crd_sync = 0;
-  if (share->store_last_crd == -1)
-    share->store_last_crd = 1;
-  if (share->load_crd_at_startup == -1)
-    share->load_crd_at_startup = 1;
-  if (share->crd_type == -1)
-    share->crd_type = 2;
-  if (share->crd_weight == -1)
-    share->crd_weight = 2;
-  if (share->internal_offset == -1)
-    share->internal_offset = 0;
-  if (share->internal_limit == -1)
-    share->internal_limit = 9223372036854775807LL;
-  if (share->split_read == -1)
-    share->split_read = 9223372036854775807LL;
-  if (share->semi_split_read == -1)
-    share->semi_split_read = 2;
-  if (share->semi_split_read_limit == -1)
-    share->semi_split_read_limit = 9223372036854775807LL;
-  if (share->init_sql_alloc_size == -1)
-    share->init_sql_alloc_size = 1024;
-  if (share->reset_sql_alloc == -1)
-    share->reset_sql_alloc = 1;
-  if (share->multi_split_read == -1)
-    share->multi_split_read = 100;
-  if (share->max_order == -1)
-    share->max_order = 32767;
-  if (share->semi_table_lock == -1)
-    share->semi_table_lock = 0;
-  if (share->semi_table_lock_conn == -1)
-    share->semi_table_lock_conn = 1;
-  if (share->selupd_lock_mode == -1)
-    share->selupd_lock_mode = 1;
   if (share->query_cache == -1)
     share->query_cache = 0;
   if (share->query_cache_sync == -1)
     share->query_cache_sync = 0;
-  if (share->bulk_size == -1)
-    share->bulk_size = 16000;
-  if (share->bulk_update_mode == -1)
-    share->bulk_update_mode = 0;
-  if (share->bulk_update_size == -1)
-    share->bulk_update_size = 16000;
-  if (share->buffer_size == -1)
-    share->buffer_size = 16000;
-  if (share->internal_optimize == -1)
-    share->internal_optimize = 0;
-  if (share->internal_optimize_local == -1)
-    share->internal_optimize_local = 0;
   if (share->scan_rate == -1)
     share->scan_rate = 1;
   if (share->read_rate == -1)
     share->read_rate = 0.0002;
   if (share->priority == -1)
     share->priority = 1000000;
-  if (share->quick_mode == -1)
-    share->quick_mode = 3;
-  if (share->quick_page_size == -1)
-    share->quick_page_size = 1024;
-  if (share->quick_page_byte == -1)
-    share->quick_page_byte = 10485760;
-  if (share->low_mem_read == -1)
-    share->low_mem_read = 1;
   if (share->table_count_mode == -1)
     share->table_count_mode = 0;
-  if (share->select_column_mode == -1)
-    share->select_column_mode = 1;
-  if (share->bgs_mode == -1)
-    share->bgs_mode = 0;
-  if (share->bgs_first_read == -1)
-    share->bgs_first_read = 2;
-  if (share->bgs_second_read == -1)
-    share->bgs_second_read = 100;
-  if (share->first_read == -1)
-    share->first_read = 0;
-  if (share->second_read == -1)
-    share->second_read = 0;
-  if (share->auto_increment_mode == -1)
-    share->auto_increment_mode = 0;
-  if (share->use_table_charset == -1)
-    share->use_table_charset = 1;
-  if (share->use_pushdown_udf == -1)
-    share->use_pushdown_udf = 1;
-  if (share->skip_default_condition == -1)
-    share->skip_default_condition = 0;
-  if (share->skip_parallel_search == -1)
-    share->skip_parallel_search = 0;
-  if (share->direct_dup_insert == -1)
-    share->direct_dup_insert = 0;
-  if (share->direct_order_limit == -1)
-    share->direct_order_limit = 9223372036854775807LL;
-  if (share->read_only_mode == -1)
-    share->read_only_mode = 0;
-  if (share->error_read_mode == -1)
-    share->error_read_mode = 0;
-  if (share->error_write_mode == -1)
-    share->error_write_mode = 0;
   if (share->active_link_count == -1)
     share->active_link_count = share->all_link_count;
 #ifdef HA_CAN_FORCE_BULK_UPDATE
@@ -3952,14 +3844,6 @@ int spider_set_connect_info_default(
   if (share->force_bulk_delete == -1)
     share->force_bulk_delete = 0;
 #endif
-  if (share->casual_read == -1)
-    share->casual_read = 0;
-  if (share->delete_all_rows_type == -1)
-  {
-    share->delete_all_rows_type = 1;
-  }
-  if (share->bka_mode == -1)
-    share->bka_mode = 1;
   if (!share->bka_engine)
   {
     DBUG_PRINT("info",("spider create default bka_engine"));
