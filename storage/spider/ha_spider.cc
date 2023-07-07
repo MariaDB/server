@@ -564,12 +564,9 @@ int ha_spider::open(
       wide_handler->sql_command =
         pt_clone_source_handler->wide_handler->sql_command;
     }
-  } else {
-    if (share->semi_table_lock)
-    {
-      wide_handler->semi_table_lock = TRUE;
-    }
-  }
+  } else
+    wide_handler->semi_table_lock =
+      spider_param_semi_table_lock(thd, share->semi_table_lock);
 #ifdef HA_CAN_BULK_ACCESS
   external_lock_cnt = 0;
 #endif
