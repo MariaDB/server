@@ -26,15 +26,18 @@ eval create table t1 (
   sys_trx_end $sys_datatype_expl as row end invisible,
   period for system_time (sys_trx_start, sys_trx_end))
 with system versioning;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
 insert into t1 values(1, 1, 1);
-set @ins_t= now(6);
 select sys_trx_start into @tmp1 from t1;
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
 update t1 set x= 11, y= 11 where id = 1;
 select @tmp1 < sys_trx_start as A1, x, y from t1;
 select sys_trx_start into @tmp1 from t1;
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
 update t1 set y= 1 where id = 1;
 select @tmp1 = sys_trx_start as A2, x from t1;
 drop table t1;
+set timestamp= default;
 
 replace_result $sys_datatype_expl SYS_DATATYPE;
 eval create table t1 (
@@ -372,6 +375,28 @@ update t1, t2 set t1.a = 3, t2.a = 3 where t1.b <= 10 and t2.b <= 10 and t1.b = 
 
 # cleanup
 drop tables t1, t2;
+
+--echo #
+--echo # MDEV-25644 UPDATE not working properly on transaction precise system versioned table
+--echo #
+create or replace table t1 (nid int primary key, nstate int, ntype int) engine innodb;
+--replace_result $sys_datatype_expl SYS_DATATYPE
+eval alter table t1 add
+  row_start $sys_datatype_expl generated always as row start invisible,
+  add row_end $sys_datatype_expl generated always as row end invisible,
+  add period for system_time(row_start, row_end),
+  add system versioning;
+insert into t1 values (1, 1, 1);
+select nid, nstate, check_row(row_start, row_end) from t1 for system_time all order by row_start, row_end;
+start transaction;
+update t1 set nstate= nstate where nid = 1;
+select nid, nstate, check_row(row_start, row_end) from t1 for system_time all order by row_start, row_end;
+--echo # Bug: ERROR 1761 (23000): Foreign key constraint for table 'xxx', record '1-18446744073709551615' would lead to a duplicate entry in table 'xxx', key 'PRIMARY'
+update t1 set nstate= 3 where nid= 1;
+# Under one transaction trx_id generates only one history row, that differs from timestamp
+select nid, nstate, check_row(row_start, row_end) from t1 for system_time all order by row_start, row_end;
+commit;
+drop tables t1;
 
 --echo # End of 10.4 tests
 
