@@ -6941,13 +6941,7 @@ DeadlockChecker::search()
 			return m_start;
 		}
 
-		/* We do not need to report autoinc locks to the upper
-		layer. These locks are released before commit, so they
-		can not cause deadlocks with binlog-fixed commit
-		order. */
-		if (m_report_waiters
-		    && (lock_get_type_low(lock) != LOCK_TABLE
-			|| lock_get_mode(lock) != LOCK_AUTO_INC)) {
+		if (m_report_waiters) {
 			thd_rpl_deadlock_check(m_start->mysql_thd,
 					       lock->trx->mysql_thd);
 		}

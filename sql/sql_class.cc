@@ -5144,12 +5144,6 @@ thd_need_wait_reports(const MYSQL_THD thd)
   deadlock with the pre-determined commit order, we kill the later
   transaction, and later re-try it, to resolve the deadlock.
 
-  This call need only receive reports about waits for locks that will remain
-  until the holding transaction commits. InnoDB auto-increment locks,
-  for example, are released earlier, and so need not be reported. (Such false
-  positives are not harmful, but could lead to unnecessary kill and retry, so
-  best avoided).
-
   Returns 1 if the OTHER_THD will be killed to resolve deadlock, 0 if not. The
   actual kill will happen later, asynchronously from another thread. The
   caller does not need to take any actions on the return value if the
