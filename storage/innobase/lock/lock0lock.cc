@@ -1740,7 +1740,6 @@ static void lock_wait_rpl_report(trx_t *trx)
   const lock_t *wait_lock= trx->lock.wait_lock;
   if (!wait_lock)
     return;
-  ut_ad(!(wait_lock->type_mode & LOCK_AUTO_INC));
   /* This would likely be too large to attempt to use a memory transaction,
   even for wait_lock->is_table(). */
   const bool nowait=  lock_sys.wr_lock_try();
@@ -1764,14 +1763,13 @@ func_exit:
   }
   else if (!wait_lock->is_waiting())
     goto func_exit;
-  ut_ad(!(wait_lock->type_mode & LOCK_AUTO_INC));
 
   if (wait_lock->is_table())
   {
     dict_table_t *table= wait_lock->un_member.tab_lock.table;
     for (lock_t *lock= UT_LIST_GET_FIRST(table->locks); lock;
          lock= UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock))
-      if (!(lock->type_mode & LOCK_AUTO_INC) && lock->trx != trx)
+      if (lock->trx != trx)
         thd_rpl_deadlock_check(thd, lock->trx->mysql_thd);
   }
   else
@@ -1862,8 +1860,8 @@ dberr_t lock_wait(que_thr_t *thr)
   thd_need_wait_reports() will hold even if parallel (or any) replication
   is not being used. We want to be allow the user to skip
   lock_wait_rpl_report(). */
-  const bool rpl= !(type_mode & LOCK_AUTO_INC) && trx->mysql_thd &&
-    innodb_deadlock_detect && thd_need_wait_reports(trx->mysql_thd);
+  const bool rpl= trx->mysql_thd && innodb_deadlock_detect &&
+          thd_need_wait_reports(trx->mysql_thd);
 #endif
   const bool row_lock_wait= thr->lock_state == QUE_THR_LOCK_ROW;
   timespec abstime;
