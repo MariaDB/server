@@ -1410,7 +1410,7 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
     db_access= acl_get_all3(sctx, dbname->str, FALSE) |
                sctx->master_access;
 
-  if (!(db_access & DB_ACLS) && check_grant_db(sctx, dbname->str))
+  if (!(db_access & DB_ACLS) && check_grant_db(sctx, *dbname))
   {
     status_var_increment(thd->status_var.access_denied_errors);
     my_error(ER_DBACCESS_DENIED_ERROR, MYF(0),
@@ -5315,7 +5315,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (!(check_access(thd, SELECT_ACL, db_name->str,
                        &thd->col_access, NULL, 0, 1) ||
-          (!thd->col_access && check_grant_db(sctx, db_name->str))) ||
+          (!thd->col_access && check_grant_db(sctx, *db_name))) ||
         sctx->master_access & (DB_ACLS | SHOW_DB_ACL) ||
         acl_get_all3(sctx, db_name->str, false))
 #endif
@@ -5518,7 +5518,7 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (sctx->master_access & (DB_ACLS | SHOW_DB_ACL) ||
         acl_get_all3(sctx, db_name->str, false) ||
-        !check_grant_db(sctx, db_name->str))
+        !check_grant_db(sctx, *db_name))
 #endif
     {
       load_db_opt_by_name(thd, db_name->str, &create);

@@ -3346,12 +3346,12 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
   case SCH_TRIGGERS:
   case SCH_EVENTS:
   {
-    const char *dst_db_name= table->schema_select_lex->db.str;
+    const LEX_CSTRING &dst_db_name= table->schema_select_lex->db;
 
-    DBUG_ASSERT(dst_db_name);
+    DBUG_ASSERT(dst_db_name.str);
     privilege_t cur_access;
 
-    if (check_access(thd, SELECT_ACL, dst_db_name,
+    if (check_access(thd, SELECT_ACL, dst_db_name.str,
                      &cur_access, NULL, FALSE, FALSE))
       return TRUE;
 
@@ -3361,7 +3361,7 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
       my_error(ER_DBACCESS_DENIED_ERROR, MYF(0),
                thd->security_ctx->priv_user,
                thd->security_ctx->priv_host,
-               dst_db_name);
+               dst_db_name.str);
       return TRUE;
     }
 
@@ -9574,20 +9574,21 @@ err:
 }
 
 
-static bool check_grant_db_routine(Security_context *sctx, const char *db, HASH *hash)
+static bool check_grant_db_routine(Security_context *sctx,
+                                   const LEX_CSTRING &db, HASH *hash)
 {
   for (uint idx= 0; idx < hash->records; ++idx)
   {
     GRANT_NAME *item= (GRANT_NAME*) my_hash_element(hash, idx);
 
     if (strcmp(item->user, sctx->priv_user) == 0 &&
-        strcmp(item->db, db) == 0 &&
+        strcmp(item->db, db.str) == 0 &&
         compare_hostname(&item->host, sctx->host, sctx->ip))
     {
       return FALSE;
     }
     if (sctx->priv_role[0] && strcmp(item->user, sctx->priv_role) == 0 &&
-        strcmp(item->db, db) == 0 &&
+        strcmp(item->db, db.str) == 0 &&
         (!item->host.hostname || !item->host.hostname[0]))
     {
       return FALSE; /* Found current role match */
@@ -9598,43 +9599,57 @@ static bool check_grant_db_routine(Security_context *sctx, const char *db, HASH 
 }
 
 
+static size_t compute_grant_key(char *key_buf, size_t buf_size,
+                                const char *user, const char *db)
+{
+  DBUG_ASSERT(buf_size >= SAFE_NAME_LEN + USERNAME_LENGTH + 2);
+  char *end= strnmov(key_buf, user, buf_size) + 1;
+  DBUG_ASSERT(static_cast<size_t>(end - key_buf) < buf_size);
+  end= strnmov(end, db, buf_size - (end - key_buf));
+  // db was truncated. No privileges for an invalid db name.
+  if (end >= key_buf + buf_size)
+    return 0;
+  return end - key_buf;
+}
+
 /*
   Check if a user has the right to access a database
   Access is accepted if he has a grant for any table/routine in the database
   Return 1 if access is denied
 */
 
-bool check_grant_db(Security_context *sctx, const char *db)
+bool check_grant_db(Security_context *sctx, const LEX_CSTRING &db)
 {
-  char helping [SAFE_NAME_LEN + USERNAME_LENGTH+2], *end;
-  char helping2 [SAFE_NAME_LEN + USERNAME_LENGTH+2], *tmp_db;
-  uint len, UNINIT_VAR(len2);
+  char key_buf[SAFE_NAME_LEN + USERNAME_LENGTH + 2];
+  char role_key_buf[SAFE_NAME_LEN + USERNAME_LENGTH + 2];
+  char db_str_buf[SAFE_NAME_LEN + 1];
+  size_t key_len, role_key_len= 0;
   bool error= TRUE;
 
-  tmp_db= strmov(helping, sctx->priv_user) + 1;
-  end= strnmov(tmp_db, db, helping + sizeof(helping) - tmp_db);
-
-  if (end >= helping + sizeof(helping)) // db name was truncated
-    return 1;                           // no privileges for an invalid db name
+  LEX_CSTRING lcase_db= db;
 
   if (lower_case_table_names)
   {
-    end = tmp_db + my_casedn_str(files_charset_info, tmp_db);
-    db=tmp_db;
+    strnmov(db_str_buf, db.str, sizeof(db_str_buf) - 1);
+    my_casedn_str(files_charset_info, db_str_buf);
+
+    lcase_db.str= (char *)db_str_buf;
+    DBUG_ASSERT(strlen(lcase_db.str) == db.length);
   }
 
-  len= (uint) (end - helping) + 1;
+  key_len= compute_grant_key(key_buf, sizeof(key_buf),
+                             sctx->priv_user, lcase_db.str);
+  if (!key_len)
+    return 1;
 
-  /*
-     If a role is set, we need to check for privileges here as well.
-  */
   if (sctx->priv_role[0])
   {
-    end= strmov(helping2, sctx->priv_role) + 1;
-    end= strnmov(end, db, helping2 + sizeof(helping2) - end);
-    len2= (uint) (end - helping2) + 1;
+    role_key_len= compute_grant_key(role_key_buf,
+                                    sizeof(role_key_buf),
+                                    sctx->priv_role, lcase_db.str);
+    if (!role_key_len)
+      return 1;
   }
-
 
   mysql_rwlock_rdlock(&LOCK_grant);
 
@@ -9642,16 +9657,16 @@ bool check_grant_db(Security_context *sctx, const char *db)
   {
     GRANT_TABLE *grant_table= (GRANT_TABLE*) my_hash_element(&column_priv_hash,
                                                              idx);
-    if (len < grant_table->key_length &&
-        !memcmp(grant_table->hash_key, helping, len) &&
+    if (key_len < grant_table->key_length &&
+        !memcmp(grant_table->hash_key, key_buf, key_len) &&
         compare_hostname(&grant_table->host, sctx->host, sctx->ip))
     {
       error= FALSE; /* Found match. */
       break;
     }
     if (sctx->priv_role[0] &&
-        len2 < grant_table->key_length &&
-        !memcmp(grant_table->hash_key, helping2, len2) &&
+        role_key_len < grant_table->key_length &&
+        !memcmp(grant_table->hash_key, role_key_buf, role_key_len) &&
         (!grant_table->host.hostname || !grant_table->host.hostname[0]))
     {
       error= FALSE; /* Found role match */
@@ -9660,10 +9675,10 @@ bool check_grant_db(Security_context *sctx, const char *db)
   }
 
   if (error)
-    error= check_grant_db_routine(sctx, db, &proc_priv_hash) &&
-           check_grant_db_routine(sctx, db, &func_priv_hash) &&
-           check_grant_db_routine(sctx, db, &package_spec_priv_hash) &&
-           check_grant_db_routine(sctx, db, &package_body_priv_hash);
+    error= check_grant_db_routine(sctx, lcase_db, &proc_priv_hash) &&
+           check_grant_db_routine(sctx, lcase_db, &func_priv_hash) &&
+           check_grant_db_routine(sctx, lcase_db, &package_spec_priv_hash) &&
+           check_grant_db_routine(sctx, lcase_db, &package_body_priv_hash);
 
   mysql_rwlock_unlock(&LOCK_grant);
 
