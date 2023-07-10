@@ -333,6 +333,17 @@ class String;
 #define Q_HRNOW 128
 #define Q_XID   129
 
+/*
+  When sending transactions to old slaves that don't support GTID events, the
+  GTID event is over-written (in-place, i.e. within the same allocated memory)
+  to be a BEGIN query event. If the header length of the original GTID event
+  exceeds the standard length of the Query event header, Q_DUMMY bytes pad the
+  status var section of the Query header so the structure of the Query event
+  is valid. Old slaves will see the first Q_DUMMY byte, not recognize it, and
+  skip reading the rest of the status var section.
+*/
+#define Q_DUMMY 255
+
 #define Q_GTID_FLAGS3 130
 
 #define Q_CHARACTER_SET_COLLATIONS 131
@@ -3326,6 +3337,7 @@ public:
     When zero the event does not contain that information.
   */
   uint8 extra_engines;
+  my_thread_id thread_id;
 
   /* Flags2. */
 
@@ -3371,6 +3383,7 @@ public:
   static const uchar FL_START_ALTER_E1= 2;
   static const uchar FL_COMMIT_ALTER_E1= 4;
   static const uchar FL_ROLLBACK_ALTER_E1= 8;
+  static const uchar FL_EXTRA_THREAD_ID= 16; // thread_id like in BEGIN Query
 
 #ifdef MYSQL_SERVER
   Gtid_log_event(THD *thd_arg, uint64 seq_no, uint32 domain_id, bool standalone,
