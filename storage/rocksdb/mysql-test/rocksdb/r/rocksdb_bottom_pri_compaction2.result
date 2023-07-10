@@ -1,0 +1,16 @@
+1
+Bottom thread counts:
+5
+"Increasing bottom pri compaction threads online."
+SET GLOBAL rocksdb_max_bottom_pri_background_compactions=10;
+1
+Bottom thread counts:
+10
+"Decreasing bottom pri compaction threads online."
+SET GLOBAL rocksdb_max_bottom_pri_background_compactions=2;
+1
+Bottom thread counts:
+2
+SET GLOBAL rocksdb_max_bottom_pri_background_compactions=0;
+ERROR HY000: Error when executing command SET: max_bottom_pri_background_compactions can't be changed to 0 online.
+SET GLOBAL rocksdb_max_bottom_pri_background_compactions=5;

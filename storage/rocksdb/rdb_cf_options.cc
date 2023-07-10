@@ -74,14 +74,20 @@ void Rdb_cf_options::get(const std::string &cf_name,
                          rocksdb::ColumnFamilyOptions *const opts) {
   DBUG_ASSERT(opts != nullptr);
 
+  rocksdb::ConfigOptions config_options;
+  config_options.input_strings_escaped = false;
+  config_options.ignore_unknown_options = false;
+
   // Get defaults.
-  rocksdb::GetColumnFamilyOptionsFromString(*opts, m_default_config, opts);
+  rocksdb::GetColumnFamilyOptionsFromString(config_options, *opts,
+                                            m_default_config, opts);
 
   // Get a custom confguration if we have one.
   Name_to_config_t::iterator it = m_name_map.find(cf_name);
 
   if (it != m_name_map.end()) {
-    rocksdb::GetColumnFamilyOptionsFromString(*opts, it->second, opts);
+    rocksdb::GetColumnFamilyOptionsFromString(config_options, *opts, it->second,
+                                              opts);
   }
 }
 
@@ -98,10 +104,14 @@ void Rdb_cf_options::update(const std::string &cf_name,
 
 bool Rdb_cf_options::set_default(const std::string &default_config) {
   rocksdb::ColumnFamilyOptions options;
+  rocksdb::ConfigOptions config_options;
+  config_options.input_strings_escaped = false;
+  config_options.ignore_unknown_options = false;
 
-  if (!default_config.empty() && !rocksdb::GetColumnFamilyOptionsFromString(
-                                      options, default_config, &options)
-                                      .ok()) {
+  if (!default_config.empty() &&
+      !rocksdb::GetColumnFamilyOptionsFromString(config_options, options,
+                                                 default_config, &options)
+           .ok()) {
     // NO_LINT_DEBUG
     fprintf(stderr, "Invalid default column family config: %s\n",
             default_config.c_str());
@@ -260,6 +270,9 @@ bool Rdb_cf_options::parse_cf_options(const std::string &cf_options,
   std::string cf;
   std::string opt_str;
   rocksdb::ColumnFamilyOptions options;
+  rocksdb::ConfigOptions config_options;
+  config_options.input_strings_escaped = false;
+  config_options.ignore_unknown_options = false;
 
   DBUG_ASSERT(option_map != nullptr);
   DBUG_ASSERT(option_map->empty());
@@ -283,7 +296,8 @@ bool Rdb_cf_options::parse_cf_options(const std::string &cf_options,
     }
 
     // Generate an error if the <opt_str> is not valid according to RocksDB.
-    if (!rocksdb::GetColumnFamilyOptionsFromString(options, opt_str, &options)
+    if (!rocksdb::GetColumnFamilyOptionsFromString(config_options, options,
+                                                   opt_str, &options)
              .ok()) {
       // NO_LINT_DEBUG
       sql_print_warning(

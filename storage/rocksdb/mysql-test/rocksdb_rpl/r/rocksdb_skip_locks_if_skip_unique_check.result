@@ -1,0 +1,37 @@
+include/master-slave.inc
+[connection master]
+connection master;
+create table t1 (a int primary key, b int) engine = rocksdb;
+set @@unique_checks = 0;
+insert into t1 values(1, 1);
+insert into t1 values(2, 2);
+include/sync_slave_sql_with_master.inc
+connection slave;
+begin;
+update t1 set b = 20 where a = 2;
+connection master;
+set @@unique_checks = 0;
+insert into t1 values(2, 200);
+connection slave;
+rollback;
+connection slave;
+set @@global.rocksdb_skip_locks_if_skip_unique_check = 1;
+stop slave;
+start slave;
+begin;
+update t1 set b = 10 where a = 1;
+connection master;
+set @@unique_checks = 0;
+insert into t1 values(1, 100);
+include/sync_slave_sql_with_master.inc
+connection slave;
+rollback;
+select * from t1;
+a	b
+1	100
+2	200
+set @@global.rocksdb_skip_locks_if_skip_unique_check = 0;
+connection master;
+drop table t1;
+include/sync_slave_sql_with_master.inc
+include/rpl_end.inc

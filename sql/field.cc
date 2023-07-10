@@ -8593,7 +8593,7 @@ void Field_blob::store_length(uchar *i_ptr, uint i_packlength, uint32 i_number)
 }
 
 
-uint32 Field_blob::get_length(const uchar *pos, uint packlength_arg) const
+uint32 Field_blob::get_length(const uchar *pos, uint packlength_arg)
 {
   return (uint32)read_lowendian(pos, packlength_arg);
 }

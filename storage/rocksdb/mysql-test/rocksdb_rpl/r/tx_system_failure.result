@@ -1,0 +1,240 @@
+include/master-slave.inc
+[connection master]
+call mtr.add_suppression("Attempting backtrace");
+call mtr.add_suppression("failed to write to WAL");
+call mtr.add_suppression("aborting on WAL write error");
+create table t1 (id int primary key, value int) engine = rocksdb;
+insert into t1 values (1,1),(2,2),(3,3);
+set session debug= "+d,myrocks_prepare_io_error";
+insert into t1 values (4,4);
+ERROR HY000: Internal error: RocksDB error on COMMIT (Prepare/merge): IO error: 
+begin;
+insert into t1 values (5,5);
+insert into t1 values (6,6);
+commit;
+ERROR HY000: Internal error: RocksDB error on COMMIT (Prepare/merge): IO error: 
+set session debug= "-d,myrocks_prepare_io_error";
+select * from t1 order by id;
+id	value
+1	1
+2	2
+3	3
+drop table t1;
+create table t1 (id int primary key, value int) engine = rocksdb;
+insert into t1 values (1,1),(2,2),(3,3);
+set session debug= "+d,myrocks_prepare_incomplete";
+insert into t1 values (4,4);
+ERROR HY000: Internal error: RocksDB error on COMMIT (Prepare/merge): Result incomplete: 
+begin;
+insert into t1 values (5,5);
+insert into t1 values (6,6);
+commit;
+ERROR HY000: Internal error: RocksDB error on COMMIT (Prepare/merge): Result incomplete: 
+set session debug= "-d,myrocks_prepare_incomplete";
+select * from t1 order by id;
+id	value
+1	1
+2	2
+3	3
+drop table t1;
+connection master;
+create table t1 (id int primary key, value int) engine = rocksdb;
+insert into t1 values (1,1),(2,2),(3,3);
+set session debug= "+d,myrocks_commit_io_error";
+insert into t1 values (4,4);
+ERROR HY000: Lost connection to server during query
+include/rpl_reconnect.inc
+select * from t1 order by id;
+id	value
+1	1
+2	2
+3	3
+4	4
+include/sync_slave_sql_with_master.inc
+connection slave;
+select * from t1 order by id;
+id	value
+1	1
+2	2
+3	3
+4	4
+connection master;
+set session debug= "+d,myrocks_commit_io_error";
+begin;
+insert into t1 values (5,5);
+insert into t1 values (6,6);
+commit;
+ERROR HY000: Lost connection to server during query
+include/rpl_reconnect.inc
+select * from t1 order by id;
+id	value
+1	1
+2	2
+3	3
+4	4
+5	5
+6	6
+include/sync_slave_sql_with_master.inc
+connection slave;
+select * from t1 order by id;
+id	value
+1	1
+2	2
+3	3
+4	4
+5	5
+6	6
+connection master;
+drop table t1;
+include/sync_slave_sql_with_master.inc
+connection master;
+create table t1 (id int primary key, value int) engine = rocksdb;
+insert into t1 values (1,1),(2,2),(3,3);
+set session debug= "+d,myrocks_commit_incomplete";
+insert into t1 values (4,4);
+ERROR HY000: Lost connection to server during query
+include/rpl_reconnect.inc
+select * from t1 order by id;
+id	value
+1	1
+2	2
+3	3
+4	4
+include/sync_slave_sql_with_master.inc
+connection slave;
+select * from t1 order by id;
+id	value
+1	1
+2	2
+3	3
+4	4
+connection master;
+set session debug= "+d,myrocks_commit_incomplete";
+begin;
+insert into t1 values (5,5);
+insert into t1 values (6,6);
+commit;
+ERROR HY000: Lost connection to server during query
+include/rpl_reconnect.inc
+select * from t1 order by id;
+id	value
+1	1
+2	2
+3	3
+4	4
+5	5
+6	6
+include/sync_slave_sql_with_master.inc
+connection slave;
+select * from t1 order by id;
+id	value
+1	1
+2	2
+3	3
+4	4
+5	5
+6	6
+connection master;
+drop table t1;
+include/sync_slave_sql_with_master.inc
+connection master;
+create table t1 (id int primary key, value int) engine = rocksdb;
+insert into t1 values (1,1),(2,2),(3,3);
+set session debug= "+d,myrocks_commit_merge_io_error";
+insert into t1 values (4,4);
+ERROR HY000: Lost connection to server during query
+include/rpl_reconnect.inc
+select * from t1 order by id;
+id	value
+1	1
+2	2
+3	3
+4	4
+include/sync_slave_sql_with_master.inc
+connection slave;
+select * from t1 order by id;
+id	value
+1	1
+2	2
+3	3
+4	4
+connection master;
+set session debug= "+d,myrocks_commit_merge_io_error";
+begin;
+insert into t1 values (5,5);
+insert into t1 values (6,6);
+commit;
+ERROR HY000: Lost connection to server during query
+include/rpl_reconnect.inc
+select * from t1 order by id;
+id	value
+1	1
+2	2
+3	3
+4	4
+5	5
+6	6
+include/sync_slave_sql_with_master.inc
+connection slave;
+select * from t1 order by id;
+id	value
+1	1
+2	2
+3	3
+4	4
+5	5
+6	6
+connection master;
+drop table t1;
+include/sync_slave_sql_with_master.inc
+connection master;
+create table t1 (id int primary key, value int) engine = rocksdb;
+insert into t1 values (1,1),(2,2),(3,3);
+set session debug= "+d,myrocks_commit_merge_incomplete";
+insert into t1 values (4,4);
+ERROR HY000: Lost connection to server during query
+include/rpl_reconnect.inc
+select * from t1 order by id;
+id	value
+1	1
+2	2
+3	3
+4	4
+include/sync_slave_sql_with_master.inc
+connection slave;
+select * from t1 order by id;
+id	value
+1	1
+2	2
+3	3
+4	4
+connection master;
+set session debug= "+d,myrocks_commit_merge_incomplete";
+begin;
+insert into t1 values (5,5);
+insert into t1 values (6,6);
+commit;
+ERROR HY000: Lost connection to server during query
+include/rpl_reconnect.inc
+select * from t1 order by id;
+id	value
+1	1
+2	2
+3	3
+4	4
+5	5
+6	6
+include/sync_slave_sql_with_master.inc
+connection slave;
+select * from t1 order by id;
+id	value
+1	1
+2	2
+3	3
+4	4
+5	5
+6	6
+connection master;
+drop table t1;
+include/sync_slave_sql_with_master.inc
+include/rpl_end.inc

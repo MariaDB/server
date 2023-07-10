@@ -1,0 +1,112 @@
+create table t1 (id1 bigint, id2 bigint, c1 bigint, c2 bigint, c3 bigint, c4 bigint, c5 bigint, c6 bigint, c7 bigint, primary key (id1, id2), index i(c1, c2));
+begin;
+select * from t1 where c3=1 for update;
+id1	id2	c1	c2	c3	c4	c5	c6	c7
+SHOW ENGINE rocksdb TRANSACTION STATUS;
+Type	Name	Status
+rocksdb		
+============================================================
+TIMESTAMP ROCKSDB TRANSACTION MONITOR OUTPUT
+============================================================
+---------
+SNAPSHOTS
+---------
+LIST OF SNAPSHOTS FOR EACH SESSION:
+---SNAPSHOT, ACTIVE NUM sec
+MySQL thread id TID, OS thread handle PTR, query id QID localhost root ACTION
+SHOW ENGINE rocksdb TRANSACTION STATUS
+lock count 0, write count 0
+insert count 0, update count 0, delete count 0
+----------LATEST DETECTED DEADLOCKS----------
+-----------------------------------------
+END OF ROCKSDB TRANSACTION MONITOR OUTPUT
+=========================================
+
+select * from t1 where c7 between 101 and 110 for update;
+id1	id2	c1	c2	c3	c4	c5	c6	c7
+101	0	101	0	0	0	0	0	101
+102	0	102	0	0	0	0	0	102
+103	0	103	0	0	0	0	0	103
+104	0	104	0	0	0	0	0	104
+105	0	105	0	0	0	0	0	105
+106	0	106	0	0	0	0	0	106
+107	0	107	0	0	0	0	0	107
+108	0	108	0	0	0	0	0	108
+109	0	109	0	0	0	0	0	109
+110	0	110	0	0	0	0	0	110
+SHOW ENGINE rocksdb TRANSACTION STATUS;
+Type	Name	Status
+rocksdb		
+============================================================
+TIMESTAMP ROCKSDB TRANSACTION MONITOR OUTPUT
+============================================================
+---------
+SNAPSHOTS
+---------
+LIST OF SNAPSHOTS FOR EACH SESSION:
+---SNAPSHOT, ACTIVE NUM sec
+MySQL thread id TID, OS thread handle PTR, query id QID localhost root ACTION
+SHOW ENGINE rocksdb TRANSACTION STATUS
+lock count 10, write count 0
+insert count 0, update count 0, delete count 0
+----------LATEST DETECTED DEADLOCKS----------
+-----------------------------------------
+END OF ROCKSDB TRANSACTION MONITOR OUTPUT
+=========================================
+
+rollback;
+set session rocksdb_lock_scanned_rows=on;
+begin;
+select * from t1 where c3=1 for update;
+id1	id2	c1	c2	c3	c4	c5	c6	c7
+SHOW ENGINE rocksdb TRANSACTION STATUS;
+Type	Name	Status
+rocksdb		
+============================================================
+TIMESTAMP ROCKSDB TRANSACTION MONITOR OUTPUT
+============================================================
+---------
+SNAPSHOTS
+---------
+LIST OF SNAPSHOTS FOR EACH SESSION:
+---SNAPSHOT, ACTIVE NUM sec
+MySQL thread id TID, OS thread handle PTR, query id QID localhost root ACTION
+SHOW ENGINE rocksdb TRANSACTION STATUS
+lock count 1000, write count 0
+insert count 0, update count 0, delete count 0
+----------LATEST DETECTED DEADLOCKS----------
+-----------------------------------------
+END OF ROCKSDB TRANSACTION MONITOR OUTPUT
+=========================================
+
+rollback;
+set session rocksdb_lock_scanned_rows=off;
+SET @start_rocksdb_max_row_locks = @@global.rocksdb_max_row_locks;
+set global rocksdb_max_row_locks = 20;
+select * from t1 where c3=1 for update;
+id1	id2	c1	c2	c3	c4	c5	c6	c7
+select * from t1 where c7 between 101 and 110 for update;
+id1	id2	c1	c2	c3	c4	c5	c6	c7
+101	0	101	0	0	0	0	0	101
+102	0	102	0	0	0	0	0	102
+103	0	103	0	0	0	0	0	103
+104	0	104	0	0	0	0	0	104
+105	0	105	0	0	0	0	0	105
+106	0	106	0	0	0	0	0	106
+107	0	107	0	0	0	0	0	107
+108	0	108	0	0	0	0	0	108
+109	0	109	0	0	0	0	0	109
+110	0	110	0	0	0	0	0	110
+set global rocksdb_max_row_locks = 5;
+select * from t1 where c3=1 for update;
+id1	id2	c1	c2	c3	c4	c5	c6	c7
+select * from t1 where c7 between 101 and 110 for update;
+ERROR HY000: Got error 10 'Operation aborted: Failed to acquire lock due to rocksdb_max_row_locks limit' from ROCKSDB
+set session rocksdb_lock_scanned_rows=on;
+select * from t1 where c3=1 for update;
+ERROR HY000: Got error 10 'Operation aborted: Failed to acquire lock due to rocksdb_max_row_locks limit' from ROCKSDB
+select * from t1 where c7 between 101 and 110 for update;
+ERROR HY000: Got error 10 'Operation aborted: Failed to acquire lock due to rocksdb_max_row_locks limit' from ROCKSDB
+set session rocksdb_lock_scanned_rows=off;
+set @@global.rocksdb_max_row_locks = @start_rocksdb_max_row_locks;
+drop table t1;

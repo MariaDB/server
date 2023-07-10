@@ -9,7 +9,6 @@ INCLUDE_DIRECTORIES(
   ${CMAKE_CURRENT_BINARY_DIR}
   ${ROCKSDB_SOURCE_DIR}
   ${ROCKSDB_SOURCE_DIR}/include
-  ${ROCKSDB_SOURCE_DIR}/third-party/gtest-1.7.0/fused-src
 )
 
 list(APPEND CMAKE_MODULE_PATH "${ROCKSDB_SOURCE_DIR}/cmake/modules/")
@@ -90,6 +89,8 @@ elseif(CMAKE_SYSTEM_NAME MATCHES "Linux")
   add_definitions(-DOS_LINUX)
 elseif(CMAKE_SYSTEM_NAME MATCHES "SunOS")
   add_definitions(-DOS_SOLARIS)
+elseif(CMAKE_SYSTEM_NAME MATCHES "kFreeBSD")
+  add_definitions(-DOS_GNU_KFREEBSD)
 elseif(CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
   add_definitions(-DOS_FREEBSD)
 elseif(CMAKE_SYSTEM_NAME MATCHES "NetBSD")
@@ -101,7 +102,7 @@ elseif(CMAKE_SYSTEM_NAME MATCHES "DragonFly")
 elseif(CMAKE_SYSTEM_NAME MATCHES "Android")
   add_definitions(-DOS_ANDROID)
 elseif(CMAKE_SYSTEM_NAME MATCHES "Windows")
-  add_definitions(-DOS_WIN)
+  add_definitions(-DWIN32 -DOS_WIN -D_MBCS -DWIN64 -DNOMINMAX)
 endif()
 
 IF(MSVC)
@@ -113,7 +114,7 @@ endif()
 
 include(CheckCCompilerFlag)
 # ppc64 or ppc64le or powerpc64 (BSD)
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64|powerpc64")
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(powerpc|ppc)64")
   CHECK_C_COMPILER_FLAG("-maltivec" HAS_ALTIVEC)
   if(HAS_ALTIVEC)
     message(STATUS " HAS_ALTIVEC yes")
@@ -127,7 +128,7 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64|powerpc64")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mcpu=power8")
   endif()
   ADD_DEFINITIONS(-DHAVE_POWER8 -DHAS_ALTIVEC)
-endif(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64|powerpc64")
+endif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(powerpc|ppc)64")
 
 option(WITH_FALLOCATE "build with fallocate" ON)
 
@@ -146,14 +147,35 @@ int main() {
   endif()
 endif()
 
+CHECK_CXX_SOURCE_COMPILES("
+#include <pthread.h>
+int main() {
+  (void) PTHREAD_MUTEX_ADAPTIVE_NP;
+}
+" HAVE_PTHREAD_MUTEX_ADAPTIVE_NP)
+if(HAVE_PTHREAD_MUTEX_ADAPTIVE_NP)
+  add_definitions(-DROCKSDB_PTHREAD_ADAPTIVE_MUTEX)
+endif()
+
+CHECK_SYMBOL_EXISTS(SYNC_FILE_RANGE_WRITE "fcntl.h" HAVE_SYNC_FILE_RANGE_WRITE)
+if(HAVE_SYNC_FILE_RANGE_WRITE)
+  add_definitions(-DROCKSDB_RANGESYNC_PRESENT)
+endif()
+
 CHECK_FUNCTION_EXISTS(malloc_usable_size HAVE_MALLOC_USABLE_SIZE)
 if(HAVE_MALLOC_USABLE_SIZE)
   add_definitions(-DROCKSDB_MALLOC_USABLE_SIZE)
 endif()
 
-include_directories(${ROCKSDB_SOURCE_DIR})
-include_directories(${ROCKSDB_SOURCE_DIR}/include)
-include_directories(SYSTEM ${ROCKSDB_SOURCE_DIR}/third-party/gtest-1.7.0/fused-src)
+CHECK_FUNCTION_EXISTS(getauxval HAVE_AUXV_GETAUXVAL)
+if(HAVE_AUXV_GETAUXVAL)
+  add_definitions(-DROCKSDB_AUXV_GETAUXVAL_PRESENT)
+endif()
+
+CHECK_FUNCTION_EXISTS(F_FULLFSYNC HAVE_FULLFSYNC)
+if(HAVE_FULLFSYNC)
+  add_definitions(-DHAVE_FULLFSYNC)
+endif()
 
 find_package(Threads REQUIRED)
 if(WIN32)
@@ -162,10 +184,8 @@ else()
   set(SYSTEM_LIBS ${SYSTEM_LIBS} ${CMAKE_THREAD_LIBS_INIT} ${LIBRT} ${CMAKE_DL_LIBS} ${ATOMIC_EXTRA_LIBS})
 endif()
 
-set(ROCKSDB_LIBS rocksdblib})
+set(ROCKSDB_LIBS rocksdblib)
 set(LIBS ${ROCKSDB_LIBS} ${THIRDPARTY_LIBS} ${SYSTEM_LIBS})
-
-#add_subdirectory(${ROCKSDB_SOURCE_DIR}/tools)
 
 # Main library source code
 #  Note : RocksDB has a lot of unittests. We should not include these files
@@ -176,14 +196,36 @@ set(LIBS ${ROCKSDB_LIBS} ${THIRDPARTY_LIBS} ${SYSTEM_LIBS})
 #  - *_test.cc
 #  - *_bench.cc
 set(ROCKSDB_SOURCES
+        cache/cache.cc
+        cache/cache_entry_roles.cc
+        cache/cache_key.cc
+        cache/cache_helpers.cc
+        cache/cache_reservation_manager.cc
+        cache/charged_cache.cc
         cache/clock_cache.cc
+        cache/compressed_secondary_cache.cc
         cache/lru_cache.cc
+        cache/secondary_cache.cc
+        cache/secondary_cache_adapter.cc
         cache/sharded_cache.cc
         db/arena_wrapped_db_iter.cc
+        db/blob/blob_contents.cc
+        db/blob/blob_fetcher.cc
+        db/blob/blob_file_addition.cc
+        db/blob/blob_file_builder.cc
+        db/blob/blob_file_cache.cc
+        db/blob/blob_file_garbage.cc
+        db/blob/blob_file_meta.cc
+        db/blob/blob_file_reader.cc
+        db/blob/blob_garbage_meter.cc
+        db/blob/blob_log_format.cc
+        db/blob/blob_log_sequential_reader.cc
+        db/blob/blob_log_writer.cc
+        db/blob/blob_source.cc
+        db/blob/prefetch_buffer_collection.cc
         db/builder.cc
         db/c.cc
         db/column_family.cc
-        db/compacted_db_impl.cc
         db/compaction/compaction.cc
         db/compaction/compaction_iterator.cc
         db/compaction/compaction_picker.cc
@@ -191,8 +233,14 @@ set(ROCKSDB_SOURCES
         db/compaction/compaction_picker_fifo.cc
         db/compaction/compaction_picker_level.cc
         db/compaction/compaction_picker_universal.cc
+        db/compaction/compaction_service_job.cc
+        db/compaction/compaction_state.cc
+        db/compaction/compaction_outputs.cc
+        db/compaction/sst_partitioner.cc
+        db/compaction/subcompaction_state.cc
         db/convenience.cc
         db/db_filesnapshot.cc
+        db/db_impl/compacted_db_impl.cc
         db/db_impl/db_impl.cc
         db/db_impl/db_impl_write.cc
         db/db_impl/db_impl_compaction_flush.cc
@@ -223,9 +271,12 @@ set(ROCKSDB_SOURCES
         db/memtable_list.cc
         db/merge_helper.cc
         db/merge_operator.cc
+        db/output_validator.cc
+        db/periodic_task_scheduler.cc
         db/range_del_aggregator.cc
         db/range_tombstone_fragmenter.cc
         db/repair.cc
+        db/seqno_to_time_mapping.cc
         db/snapshot_impl.cc
         db/table_cache.cc
         db/table_properties_collector.cc
@@ -233,22 +284,31 @@ set(ROCKSDB_SOURCES
         db/trim_history_scheduler.cc
         db/version_builder.cc
         db/version_edit.cc
+        db/version_edit_handler.cc
         db/version_set.cc
+        db/wal_edit.cc
         db/wal_manager.cc
+        db/wide/wide_column_serialization.cc
+        db/wide/wide_columns.cc
         db/write_batch.cc
         db/write_batch_base.cc
         db/write_controller.cc
+        db/write_stall_stats.cc
         db/write_thread.cc
+        env/composite_env.cc
         env/env.cc
         env/env_chroot.cc
         env/env_encryption.cc
-        env/env_hdfs.cc
         env/file_system.cc
+        env/file_system_tracer.cc
+        env/fs_remap.cc
         env/mock_env.cc
+        env/unique_id_gen.cc
         file/delete_scheduler.cc
         file/file_prefetch_buffer.cc
         file/file_util.cc
         file/filename.cc
+        file/line_file_reader.cc
         file/random_access_file_reader.cc
         file/read_write_util.cc
         file/readahead_raf.cc
@@ -261,6 +321,8 @@ set(ROCKSDB_SOURCES
         memory/arena.cc
         memory/concurrent_arena.cc
         memory/jemalloc_nodump_allocator.cc
+        memory/memkind_kmem_allocator.cc
+        memory/memory_allocator.cc
         memtable/alloc_tracker.cc
         memtable/hash_linklist_rep.cc
         memtable/hash_skiplist_rep.cc
@@ -281,19 +343,24 @@ set(ROCKSDB_SOURCES
         monitoring/thread_status_util.cc
         monitoring/thread_status_util_debug.cc
         options/cf_options.cc
+        options/configurable.cc
+        options/customizable.cc
         options/db_options.cc
         options/options.cc
         options/options_helper.cc
         options/options_parser.cc
-        options/options_sanity_check.cc
+        port/mmap.cc
         port/stack_trace.cc
         table/adaptive/adaptive_table_factory.cc
+        table/block_based/binary_search_index_reader.cc
         table/block_based/block.cc
-        table/block_based/block_based_filter_block.cc
         table/block_based/block_based_table_builder.cc
         table/block_based/block_based_table_factory.cc
+        table/block_based/block_based_table_iterator.cc
         table/block_based/block_based_table_reader.cc
         table/block_based/block_builder.cc
+        table/block_based/block_cache.cc
+        table/block_based/block_prefetcher.cc
         table/block_based/block_prefix_index.cc
         table/block_based/data_block_hash_index.cc
         table/block_based/data_block_footer.cc
@@ -301,9 +368,14 @@ set(ROCKSDB_SOURCES
         table/block_based/filter_policy.cc
         table/block_based/flush_block_policy.cc
         table/block_based/full_filter_block.cc
+        table/block_based/hash_index_reader.cc
         table/block_based/index_builder.cc
+        table/block_based/index_reader_common.cc
         table/block_based/parsed_full_filter_block.cc
         table/block_based/partitioned_filter_block.cc
+        table/block_based/partitioned_index_iterator.cc
+        table/block_based/partitioned_index_reader.cc
+        table/block_based/reader_common.cc
         table/block_based/uncompression_dict_reader.cc
         table/block_fetcher.cc
         table/cuckoo/cuckoo_table_builder.cc
@@ -313,6 +385,7 @@ set(ROCKSDB_SOURCES
         table/get_context.cc
         table/iterator.cc
         table/merging_iterator.cc
+        table/compaction_merging_iterator.cc
         table/meta_blocks.cc
         table/persistent_cache_helper.cc
         table/plain/plain_table_bloom.cc
@@ -321,57 +394,80 @@ set(ROCKSDB_SOURCES
         table/plain/plain_table_index.cc
         table/plain/plain_table_key_coding.cc
         table/plain/plain_table_reader.cc
+        table/sst_file_dumper.cc
         table/sst_file_reader.cc
         table/sst_file_writer.cc
+        table/table_factory.cc
         table/table_properties.cc
         table/two_level_iterator.cc
+        table/unique_id.cc
         test_util/sync_point.cc
         test_util/sync_point_impl.cc
         test_util/testutil.cc
         test_util/transaction_test_util.cc
         tools/block_cache_analyzer/block_cache_trace_analyzer.cc
         tools/dump/db_dump_tool.cc
+        tools/io_tracer_parser_tool.cc
         tools/ldb_cmd.cc
         tools/ldb_tool.cc
         tools/sst_dump_tool.cc
         tools/trace_analyzer_tool.cc
-        trace_replay/trace_replay.cc
         trace_replay/block_cache_tracer.cc
+        trace_replay/io_tracer.cc
+        trace_replay/trace_record_handler.cc
+        trace_replay/trace_record_result.cc
+        trace_replay/trace_record.cc
+        trace_replay/trace_replay.cc
+        util/async_file_reader.cc
+        util/cleanable.cc
         util/coding.cc
         util/compaction_job_stats_impl.cc
         util/comparator.cc
+        util/compression.cc
         util/compression_context_cache.cc
         util/concurrent_task_limiter_impl.cc
         util/crc32c.cc
+        util/data_structure.cc
         util/dynamic_bloom.cc
         util/hash.cc
         util/murmurhash.cc
         util/random.cc
         util/rate_limiter.cc
+        util/ribbon_config.cc
         util/slice.cc
         util/file_checksum_helper.cc
         util/status.cc
+        util/stderr_logger.cc
         util/string_util.cc
         util/thread_local.cc
         util/threadpool_imp.cc
         util/xxhash.cc
-        utilities/backupable/backupable_db.cc
+        utilities/agg_merge/agg_merge.cc
+        utilities/backup/backup_engine.cc
         utilities/blob_db/blob_compaction_filter.cc
         utilities/blob_db/blob_db.cc
         utilities/blob_db/blob_db_impl.cc
         utilities/blob_db/blob_db_impl_filesnapshot.cc
         utilities/blob_db/blob_dump_tool.cc
         utilities/blob_db/blob_file.cc
-        utilities/blob_db/blob_log_reader.cc
-        utilities/blob_db/blob_log_writer.cc
-        utilities/blob_db/blob_log_format.cc
+        utilities/cache_dump_load.cc
+        utilities/cache_dump_load_impl.cc
+        utilities/cassandra/cassandra_compaction_filter.cc
+        utilities/cassandra/format.cc
+        utilities/cassandra/merge_operator.cc
         utilities/checkpoint/checkpoint_impl.cc
+        utilities/compaction_filters.cc
         utilities/compaction_filters/remove_emptyvalue_compactionfilter.cc
+        utilities/counted_fs.cc
         utilities/debug.cc
         utilities/env_mirror.cc
         utilities/env_timed.cc
+        utilities/fault_injection_env.cc
+        utilities/fault_injection_fs.cc
+        utilities/fault_injection_secondary_cache.cc
         utilities/leveldb_options/leveldb_options.cc
         utilities/memory/memory_util.cc
+        utilities/merge_operators.cc
         utilities/merge_operators/bytesxor.cc
         utilities/merge_operators/max.cc
         utilities/merge_operators/put.cc
@@ -391,6 +487,12 @@ set(ROCKSDB_SOURCES
         utilities/simulator_cache/sim_cache.cc
         utilities/table_properties_collectors/compact_on_deletion_collector.cc
         utilities/trace/file_trace_reader_writer.cc
+        utilities/trace/replayer_impl.cc
+        utilities/transactions/lock/lock_manager.cc
+        utilities/transactions/lock/point/point_lock_tracker.cc
+        utilities/transactions/lock/point/point_lock_manager.cc
+        utilities/transactions/lock/range/range_tree/range_tree_lock_manager.cc
+        utilities/transactions/lock/range/range_tree/range_tree_lock_tracker.cc
         utilities/transactions/optimistic_transaction_db_impl.cc
         utilities/transactions/optimistic_transaction.cc
         utilities/transactions/pessimistic_transaction.cc
@@ -398,15 +500,27 @@ set(ROCKSDB_SOURCES
         utilities/transactions/snapshot_checker.cc
         utilities/transactions/transaction_base.cc
         utilities/transactions/transaction_db_mutex_impl.cc
-        utilities/transactions/transaction_lock_mgr.cc
         utilities/transactions/transaction_util.cc
         utilities/transactions/write_prepared_txn.cc
         utilities/transactions/write_prepared_txn_db.cc
         utilities/transactions/write_unprepared_txn.cc
         utilities/transactions/write_unprepared_txn_db.cc
         utilities/ttl/db_ttl_impl.cc
+        utilities/wal_filter.cc
         utilities/write_batch_with_index/write_batch_with_index.cc
         utilities/write_batch_with_index/write_batch_with_index_internal.cc
+        utilities/transactions/lock/range/range_tree/lib/locktree/concurrent_tree.cc
+        utilities/transactions/lock/range/range_tree/lib/locktree/keyrange.cc
+        utilities/transactions/lock/range/range_tree/lib/locktree/lock_request.cc
+        utilities/transactions/lock/range/range_tree/lib/locktree/locktree.cc
+        utilities/transactions/lock/range/range_tree/lib/locktree/manager.cc
+        utilities/transactions/lock/range/range_tree/lib/locktree/range_buffer.cc
+        utilities/transactions/lock/range/range_tree/lib/locktree/treenode.cc
+        utilities/transactions/lock/range/range_tree/lib/locktree/txnid_set.cc
+        utilities/transactions/lock/range/range_tree/lib/locktree/wfg.cc
+        utilities/transactions/lock/range/range_tree/lib/standalone_port.cc
+        utilities/transactions/lock/range/range_tree/lib/util/dbt.cc
+        utilities/transactions/lock/range/range_tree/lib/util/memarena.cc
 )
 
 
@@ -426,14 +540,14 @@ else()
     env/io_posix.cc
     env/fs_posix.cc)
   # ppc64 or ppc64le
-  if(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64")
+  if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(powerpc|ppc)64")
     enable_language(ASM)
     list(APPEND ROCKSDB_SOURCES
       util/crc32c_ppc.c
       util/crc32c_ppc_asm.S)
-  endif(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64")
+  endif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(powerpc|ppc)64")
   # aarch
-  if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|AARCH64")
+  if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64|AARCH64")
     INCLUDE(CheckCXXCompilerFlag)
     CHECK_CXX_COMPILER_FLAG("-march=armv8-a+crc+crypto" HAS_ARMV8_CRC)
     if(HAS_ARMV8_CRC)
@@ -442,7 +556,7 @@ else()
       list(APPEND ROCKSDB_SOURCES
         util/crc32c_arm64.cc)
     endif(HAS_ARMV8_CRC)
-  endif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|AARCH64")
+  endif(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64|AARCH64")
 endif()
 SET(SOURCES)
 FOREACH(s ${ROCKSDB_SOURCES})
@@ -459,7 +573,7 @@ if(MSVC)
   # Workaround Win8.1 SDK bug, that breaks /permissive-
   string(REPLACE "/permissive-" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 else()
-  set(CMAKE_REQUIRED_FLAGS "-msse4.2 -mpclmul ${CXX11_FLAGS}")
+  set(CMAKE_REQUIRED_FLAGS "-msse4.2 -mpclmul ${CXX17_FLAGS}")
 
   CHECK_CXX_SOURCE_COMPILES("
 #include <cstdint>
@@ -480,16 +594,26 @@ int main() {
   unset(CMAKE_REQUIRED_FLAGS)
 endif()
 
-IF(CMAKE_VERSION VERSION_GREATER "2.8.10")
-  STRING(TIMESTAMP GIT_DATE_TIME "%Y-%m-%d %H:%M:%S")
-ENDIF()
+if(GIT_EXECUTABLE AND EXISTS "${ROCKSDB_SOURCE_DIR}/.git")
+  execute_process(WORKING_DIRECTORY "${ROCKSDB_SOURCE_DIR}" OUTPUT_VARIABLE GIT_SHA COMMAND "${GIT_EXECUTABLE}" rev-parse HEAD )
+  execute_process(WORKING_DIRECTORY "${ROCKSDB_SOURCE_DIR}" RESULT_VARIABLE GIT_MOD COMMAND "${GIT_EXECUTABLE}" diff-index HEAD --quiet)
+  execute_process(WORKING_DIRECTORY "${ROCKSDB_SOURCE_DIR}" OUTPUT_VARIABLE GIT_DATE COMMAND "${GIT_EXECUTABLE}" log -1 --date=format:"%Y-%m-%d %T" --format="%ad")
+  execute_process(WORKING_DIRECTORY "${ROCKSDB_SOURCE_DIR}" OUTPUT_VARIABLE GIT_TAG RESULT_VARIABLE rv COMMAND "${GIT_EXECUTABLE}" symbolic-ref -q --short HEAD OUTPUT_STRIP_TRAILING_WHITESPACE)
+  if (rv AND NOT rv EQUAL 0)
+    execute_process(WORKING_DIRECTORY "${ROCKSDB_SOURCE_DIR}" OUTPUT_VARIABLE GIT_TAG COMMAND "${GIT_EXECUTABLE}" describe --tags --exact-match OUTPUT_STRIP_TRAILING_WHITESPACE)
+  endif()
+else()
+  set(GIT_SHA 0)
+  set(GIT_MOD 1)
+endif()
+string(REGEX REPLACE "[^0-9a-fA-F]+" "" GIT_SHA "${GIT_SHA}")
+string(REGEX REPLACE "[^0-9: /-]+" "" GIT_DATE "${GIT_DATE}")
 
 CONFIGURE_FILE(${ROCKSDB_SOURCE_DIR}/util/build_version.cc.in build_version.cc @ONLY)
-INCLUDE_DIRECTORIES(${ROCKSDB_SOURCE_DIR}/util)
 list(APPEND SOURCES ${CMAKE_CURRENT_BINARY_DIR}/build_version.cc)
 
 ADD_CONVENIENCE_LIBRARY(rocksdblib ${SOURCES})
 target_link_libraries(rocksdblib ${THIRDPARTY_LIBS} ${SYSTEM_LIBS})
 IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  set_target_properties(rocksdblib PROPERTIES COMPILE_FLAGS "-fPIC -fno-builtin-memcmp -Wno-error")
+  set_target_properties(rocksdblib PROPERTIES COMPILE_FLAGS "-fPIC -fno-builtin-memcmp -Wno-error -Wno-missing-braces -Wno-strict-aliasing -Wno-invalid-offsetof")
 endif()

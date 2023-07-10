@@ -1,0 +1,19 @@
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connection default;
+set global rocksdb_debug_manual_compaction_delay=80;
+connection con1;
+SET GLOBAL rocksdb_compact_cf='default';
+connection default;
+connection con2;
+set session rocksdb_manual_compaction_threads=2;
+SET GLOBAL rocksdb_compact_cf='default';
+connection default;
+connection con2;
+ERROR HY000: Internal error: Manual Compaction Failed. Reason: Cancelled by client.
+connection con1;
+ERROR HY000: Internal error: Manual Compaction Failed. Reason: Cancelled by client. (timeout)
+connection default;
+set global rocksdb_debug_manual_compaction_delay=0;
+connection con1;
+SET GLOBAL rocksdb_compact_cf='default';

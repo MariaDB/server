@@ -1,6 +1,32 @@
 SET @@global.ROCKSDB_DELETE_CF = 'nonexistent_cf';
-ERROR 42000: Variable 'rocksdb_delete_cf' can't be set to the value of 'nonexistent_cf'
+ERROR HY000: Cannot drop Column family ('nonexistent_cf') because it is in use or does not exist.
 SET @@global.ROCKSDB_DELETE_CF = '__system__';
-ERROR 42000: Variable 'rocksdb_delete_cf' can't be set to the value of '__system__'
+ERROR HY000: Cannot drop Column family ('__system__') because it is in use or does not exist.
+select count(*) from information_schema.rocksdb_ddl where cf = 'default';
+count(*)
+0
 SET @@global.ROCKSDB_DELETE_CF = 'default';
-ERROR 42000: Variable 'rocksdb_delete_cf' can't be set to the value of 'default'
+ERROR HY000: Cannot drop Column family ('default') because it is in use or does not exist.
+SET @@global.ROCKSDB_DELETE_CF = '';
+ERROR HY000: Cannot drop Column family ('') because it is in use or does not exist.
+SET @@global.ROCKSDB_DELETE_CF = NULL;
+CREATE TABLE cf_deletion_test_table1 (
+id1 int(10) unsigned NOT NULL DEFAULT '0',
+id2 int(10) unsigned NOT NULL DEFAULT '0',
+PRIMARY KEY (id1) COMMENT 'cf_primary_key',
+KEY `sec_key` (id2) COMMENT 'cf_secondary_key'
+) ENGINE=ROCKSDB;
+SET @@global.ROCKSDB_DELETE_CF = 'cf_primary_key';
+ERROR HY000: Cannot drop Column family ('cf_primary_key') because it is in use or does not exist.
+SET @@global.ROCKSDB_DELETE_CF = 'cf_secondary_key';
+ERROR HY000: Cannot drop Column family ('cf_secondary_key') because it is in use or does not exist.
+CREATE TABLE cf_deletion_test_table2 (
+id1 int(10) unsigned NOT NULL DEFAULT '0',
+PRIMARY KEY (id1) COMMENT 'cf_primary_key'
+) ENGINE=ROCKSDB;
+DROP TABLE cf_deletion_test_table1;
+SET @@global.ROCKSDB_DELETE_CF = 'cf_primary_key';
+ERROR HY000: Cannot drop Column family ('cf_primary_key') because it is in use or does not exist.
+SET @@global.ROCKSDB_DELETE_CF = 'cf_secondary_key';
+DROP TABLE cf_deletion_test_table2;
+SET @@global.ROCKSDB_DELETE_CF = 'cf_primary_key';

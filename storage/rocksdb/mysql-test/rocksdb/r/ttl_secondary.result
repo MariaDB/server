@@ -290,12 +290,12 @@ CREATE TABLE t1 (
 a bigint(20) UNSIGNED NOT NULL,
 b int NOT NULL,
 c int NOT NULL,
-ts bigint(20),
+ts bigint(20) UNSIGNED,
 PRIMARY KEY (a,c),
 KEY (b)
 ) ENGINE=rocksdb
 COMMENT='ttl_duration=1;ttl_col=ts;';
-ERROR HY000: TTL column (ts) in MyRocks must be an unsigned non-null 64-bit integer, exist inside the table, and have an accompanying ttl duration.
+ERROR HY000: TTL column (ts) in MyRocks must be an unsigned non-null 64-bit integer or non-null timestamp, exist inside the table, and have an accompanying ttl duration.
 CREATE TABLE t1 (
 a bigint(20) UNSIGNED NOT NULL,
 b int NOT NULL,
@@ -305,7 +305,7 @@ PRIMARY KEY (a,c),
 KEY (b)
 ) ENGINE=rocksdb
 COMMENT='ttl_duration=1;ttl_col=ts;';
-ERROR HY000: TTL column (ts) in MyRocks must be an unsigned non-null 64-bit integer, exist inside the table, and have an accompanying ttl duration.
+ERROR HY000: TTL column (ts) in MyRocks must be an unsigned non-null 64-bit integer or non-null timestamp, exist inside the table, and have an accompanying ttl duration.
 CREATE TABLE t1 (
 a bigint(20) UNSIGNED NOT NULL,
 b int NOT NULL,
@@ -323,7 +323,7 @@ PRIMARY KEY (a,c),
 KEY (b)
 ) ENGINE=rocksdb
 COMMENT='ttl_duration=1;ttl_col=abc;';
-ERROR HY000: TTL column (abc) in MyRocks must be an unsigned non-null 64-bit integer, exist inside the table, and have an accompanying ttl duration.
+ERROR HY000: TTL column (abc) in MyRocks must be an unsigned non-null 64-bit integer or non-null timestamp, exist inside the table, and have an accompanying ttl duration.
 CREATE TABLE t1 (
 a bigint(20) UNSIGNED NOT NULL,
 b int NOT NULL,
@@ -332,7 +332,7 @@ PRIMARY KEY (a,c),
 KEY (b)
 ) ENGINE=rocksdb
 COMMENT='ttl_col=abc;';
-ERROR HY000: TTL column (abc) in MyRocks must be an unsigned non-null 64-bit integer, exist inside the table, and have an accompanying ttl duration.
+ERROR HY000: TTL column (abc) in MyRocks must be an unsigned non-null 64-bit integer or non-null timestamp, exist inside the table, and have an accompanying ttl duration.
 CREATE TABLE t1 (
 a bigint(20) NOT NULL,
 b int NOT NULL,
@@ -687,6 +687,2133 @@ COMMENT='ttl_duration=1;ttl_col=ts;';
 set global rocksdb_debug_ttl_rec_ts = -100;
 INSERT INTO t1 values ('a', 'b', 'c', UNIX_TIMESTAMP(), 'd');
 INSERT INTO t1 values ('d', 'e', 'f', UNIX_TIMESTAMP(), 'g');
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*);
+COUNT(*)
+1
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+SELECT COUNT(*);
+COUNT(*)
+1
+CREATE INDEX kb on t1 (b);
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+`a` binary(8) NOT NULL,
+`b` varbinary(64) NOT NULL,
+`c` varbinary(256) NOT NULL,
+`ts` TIMESTAMP NOT NULL,
+`value` mediumblob NOT NULL,
+PRIMARY KEY (`b`,`a`,`c`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values ('a', 'b', 'c', NOW(), 'd');
+INSERT INTO t1 values ('d', 'e', 'f', NOW(), 'g');
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+2
+DROP TABLE t1;
+CREATE TABLE t1 (
+`a` binary(8) NOT NULL,
+`b` varbinary(64) NOT NULL,
+`c` varbinary(256) NOT NULL,
+`ts` TIMESTAMP NOT NULL,
+`value` mediumblob NOT NULL,
+PRIMARY KEY (`b`,`a`,`c`),
+KEY kb (`b`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values ('a', 'b', 'c', NOW(), 'd');
+INSERT INTO t1 values ('d', 'e', 'f', NOW(), 'g');
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a bigint(20) NOT NULL,
+b int NOT NULL,
+ts TIMESTAMP NOT NULL,
+c int NOT NULL,
+PRIMARY KEY (a),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1, 3, NOW(), 5);
+INSERT INTO t1 values (2, 4, NOW(), 6);
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a bigint(20) NOT NULL,
+b int NOT NULL,
+c int NOT NULL,
+ts TIMESTAMP NOT NULL,
+PRIMARY KEY (a,c),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1, 3, 5, NOW());
+INSERT INTO t1 values (2, 4, 6, NOW());
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a bigint(20) NOT NULL,
+b int,
+c int,
+ts TIMESTAMP NOT NULL,
+PRIMARY KEY (a),
+KEY kbc (b, c)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1, NULL, NULL, NOW());
+INSERT INTO t1 values (2, NULL, NULL, NOW());
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+`a` binary(8) NOT NULL,
+`b` varbinary(64),
+`c` varbinary(256),
+`ts` TIMESTAMP NOT NULL,
+`value` mediumblob NOT NULL,
+PRIMARY KEY (`a`),
+KEY kbc (`b`, `c`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values ('a', NULL, 'bc', NOW(), 'd');
+INSERT INTO t1 values ('d', 'efghijk', NULL, NOW(), 'l');
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a bigint(20) NOT NULL,
+b int NOT NULL,
+c int NOT NULL,
+PRIMARY KEY (a),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1, 3, 5);
+INSERT INTO t1 values (2, 4, 6);
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a int,
+ts TIMESTAMP NOT NULL,
+PRIMARY KEY (a, ts),
+KEY kt (ts)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=5;ttl_col=ts;';
+INSERT INTO t1 values (1, NOW());
+INSERT INTO t1 values (2, NOW());
+SELECT COUNT(*) FROM t1 FORCE INDEX(kt);
+COUNT(*)
+2
+set global rocksdb_debug_ttl_snapshot_ts = -10;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX(kt);
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_debug_ttl_snapshot_ts = 10;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1 FORCE INDEX(kt);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a bigint(20) NOT NULL,
+b int NOT NULL,
+ts TIMESTAMP NOT NULL,
+c int NOT NULL,
+PRIMARY KEY (a, ts),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1, 3, NOW(), 5);
+INSERT INTO t1 values (2, 4, NOW(), 6);
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+`a` binary(8) NOT NULL,
+`b` varbinary(64),
+`c` varbinary(256),
+`ts` TIMESTAMP NOT NULL,
+`value` mediumblob NOT NULL,
+PRIMARY KEY (`a`, `ts`),
+KEY kb (`b`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values ('a', NULL, 'bc', NOW(), 'd');
+INSERT INTO t1 values ('de', 'fghijk', NULL, NOW(), 'l');
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a INT NOT NULL,
+b varbinary(64) NOT NULL,
+c varbinary(256) NOT NULL,
+ts TIMESTAMP NOT NULL,
+value mediumblob NOT NULL,
+PRIMARY KEY (b,a,c),
+KEY kb (b)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+COMMENT='ttl_duration=10;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -300;
+INSERT INTO t1 values (1, 'b', 'c', NOW(), 'd');
+INSERT INTO t1 values (2, 'e', 'f', NOW(), 'g');
+set global rocksdb_debug_ttl_rec_ts = 300;
+INSERT INTO t1 values (3, 'i', 'j', NOW(), 'k');
+INSERT INTO t1 values (4, 'm', 'n', NOW(), 'o');
+set global rocksdb_debug_ttl_rec_ts = 0;
+set global rocksdb_debug_ttl_snapshot_ts = -3600;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+SELECT a FROM t1 FORCE INDEX (kb);
+a
+1
+2
+3
+4
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT a FROM t1 FORCE INDEX (kb);
+a
+3
+4
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_debug_ttl_snapshot_ts = 3600;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT a FROM t1 FORCE INDEX (kb);
+a
+DROP TABLE t1;
+CREATE TABLE t1 (
+a bigint(20) UNSIGNED NOT NULL,
+b int NOT NULL,
+c int NOT NULL,
+ts TIMESTAMP,
+PRIMARY KEY (a,c),
+KEY (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;ttl_col=ts;';
+ERROR HY000: TTL column (ts) in MyRocks must be an unsigned non-null 64-bit integer or non-null timestamp, exist inside the table, and have an accompanying ttl duration.
+CREATE TABLE t1 (
+a bigint(20) UNSIGNED NOT NULL,
+b int NOT NULL,
+c int NOT NULL,
+ts int,
+PRIMARY KEY (a,c),
+KEY (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;ttl_col=ts;';
+ERROR HY000: TTL column (ts) in MyRocks must be an unsigned non-null 64-bit integer or non-null timestamp, exist inside the table, and have an accompanying ttl duration.
+CREATE TABLE t1 (
+a bigint(20) UNSIGNED NOT NULL,
+b int NOT NULL,
+c int NOT NULL,
+PRIMARY KEY (a,c),
+KEY (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=abc;';
+ERROR HY000: TTL duration (abc) in MyRocks must be an unsigned non-null 64-bit integer.
+CREATE TABLE t1 (
+a bigint(20) UNSIGNED NOT NULL,
+b int NOT NULL,
+c int NOT NULL,
+PRIMARY KEY (a,c),
+KEY (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;ttl_col=abc;';
+ERROR HY000: TTL column (abc) in MyRocks must be an unsigned non-null 64-bit integer or non-null timestamp, exist inside the table, and have an accompanying ttl duration.
+CREATE TABLE t1 (
+a bigint(20) UNSIGNED NOT NULL,
+b int NOT NULL,
+c int NOT NULL,
+PRIMARY KEY (a,c),
+KEY (b)
+) ENGINE=rocksdb
+COMMENT='ttl_col=abc;';
+ERROR HY000: TTL column (abc) in MyRocks must be an unsigned non-null 64-bit integer or non-null timestamp, exist inside the table, and have an accompanying ttl duration.
+CREATE TABLE t1 (
+a bigint(20) NOT NULL,
+b int NOT NULL,
+PRIMARY KEY (a),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=500;';
+INSERT INTO t1 values (1, 1);
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+1
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+1
+DROP TABLE t1;
+CREATE TABLE t1 (
+a INT PRIMARY KEY,
+b INT NOT NULL,
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=100;';
+INSERT INTO t1 values (1, 1);
+SELECT * FROM t1 FORCE INDEX (kb);
+a	b
+1	1
+set global rocksdb_debug_ttl_rec_ts = -300;
+ALTER TABLE t1 COMMENT = 'ttl_duration=1';
+set global rocksdb_debug_ttl_rec_ts = 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` int(11) NOT NULL,
+  PRIMARY KEY (`a`),
+  KEY `kb` (`b`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='ttl_duration=1'
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a INT PRIMARY KEY,
+b INT,
+KEY (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=100;';
+ALTER TABLE t1 DROP PRIMARY KEY;
+ERROR HY000: TTL support is currently disabled when table has a hidden PK.
+DROP TABLE t1;
+CREATE TABLE t1 (
+a INT PRIMARY KEY,
+b INT,
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=5;';
+INSERT INTO t1 VALUES (1,1);
+INSERT INTO t1 VALUES (2,2);
+ALTER TABLE t1 DROP PRIMARY KEY, ADD PRIMARY KEY(b);
+set global rocksdb_debug_ttl_snapshot_ts = -3600;
+set global rocksdb_force_flush_memtable_now=1;
+set @@global.rocksdb_compact_cf = 'default';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_debug_ttl_snapshot_ts = 3600;
+set @@global.rocksdb_compact_cf = 'default';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a TIMESTAMP NOT NULL,
+b int,
+PRIMARY KEY (a,b),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='asdadfasdfsadfadf ;ttl_duration=1; asfasdfasdfadfa';
+INSERT INTO t1 values (NOW(), 1);
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+1
+set global rocksdb_debug_ttl_snapshot_ts = 3600;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+ALTER TABLE t1 COMMENT = 'adsf;;ttl_duration=5;asfasdfa;ttl_col=a;asdfasdf;';
+set global rocksdb_debug_ttl_rec_ts = 300;
+INSERT INTO t1 values (NOW(), 2);
+set global rocksdb_debug_ttl_rec_ts = 0;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+1
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_debug_ttl_snapshot_ts = 3600;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a bigint(20) NOT NULL,
+b int NOT NULL,
+PRIMARY KEY (a),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=5;';
+set global rocksdb_debug_ttl_rec_ts = -300;
+INSERT INTO t1 values (1, 0);
+INSERT INTO t1 values (3, 0);
+INSERT INTO t1 values (5, 0);
+set global rocksdb_debug_ttl_rec_ts = 300;
+INSERT INTO t1 values (7, 0);
+INSERT INTO t1 values (9, 0);
+set global rocksdb_debug_ttl_rec_ts = 0;
+UPDATE t1 SET a=a+1;
+SELECT * FROM t1 FORCE INDEX (kb);
+a	b
+10	0
+2	0
+4	0
+6	0
+8	0
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT * FROM t1;
+a	b
+10	0
+8	0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a INT,
+b TIMESTAMP NOT NULL,
+PRIMARY KEY (a),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=5;ttl_col=b;';
+set global rocksdb_debug_ttl_rec_ts = -300;
+INSERT INTO t1 values (1, NOW());
+INSERT INTO t1 values (3, NOW());
+INSERT INTO t1 values (5, NOW());
+INSERT INTO t1 values (7, NOW());
+set global rocksdb_debug_ttl_rec_ts = 300;
+UPDATE t1 SET b=(ADDTIME(NOW(), '00:00:01')) WHERE a < 4;
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT a FROM t1 FORCE INDEX (kb);
+a
+1
+3
+5
+7
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT a FROM t1 FORCE INDEX (kb);
+a
+1
+3
+DROP TABLE t1;
+CREATE TABLE t1 (
+a bigint(20) NOT NULL,
+b int NOT NULL,
+PRIMARY KEY (a),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1, 1);
+INSERT INTO t1 values (2, 1);
+INSERT INTO t1 values (3, 1);
+set global rocksdb_debug_ttl_rec_ts = 0;
+set global rocksdb_enable_ttl=0;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+select variable_value into @c from information_schema.global_status where variable_name='rocksdb_rows_expired';
+set global rocksdb_enable_ttl=1;
+set global rocksdb_compact_cf='default';
+select variable_value-@c from information_schema.global_status where variable_name='rocksdb_rows_expired';
+variable_value-@c
+6
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a bigint(20) NOT NULL,
+b int NOT NULL,
+PRIMARY KEY (a),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=100;';
+INSERT INTO t1 values (1, 1);
+INSERT INTO t1 values (2, 2);
+INSERT INTO t1 values (3, 3);
+select variable_value into @c from information_schema.global_status where variable_name='rocksdb_rows_expired';
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+select variable_value-@c from information_schema.global_status where variable_name='rocksdb_rows_expired';
+variable_value-@c
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a INT,
+b TIMESTAMP NOT NULL,
+PRIMARY KEY (a, b),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=5;ttl_col=b;';
+set global rocksdb_debug_ttl_rec_ts = -300;
+INSERT INTO t1 values (1, NOW());
+INSERT INTO t1 values (3, NOW());
+INSERT INTO t1 values (5, NOW());
+INSERT INTO t1 values (7, NOW());
+set global rocksdb_debug_ttl_rec_ts = 300;
+UPDATE t1 SET b=(ADDTIME(NOW(), '00:00:01')) WHERE a < 4;
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT a FROM t1 FORCE INDEX (kb);
+a
+1
+3
+5
+7
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT a FROM t1 FORCE INDEX (kb);
+a
+1
+3
+DROP TABLE t1;
+CREATE TABLE t1 (
+a INT,
+b TIMESTAMP NOT NULL,
+PRIMARY KEY (a, b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=5;ttl_col=b;';
+set global rocksdb_debug_ttl_rec_ts = -300;
+INSERT INTO t1 values (1, NOW());
+INSERT INTO t1 values (3, NOW());
+INSERT INTO t1 values (5, NOW());
+INSERT INTO t1 values (7, NOW());
+set global rocksdb_debug_ttl_rec_ts = 300;
+UPDATE t1 SET b=(ADDTIME(NOW(), '00:00:01')) WHERE a < 4;
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT a FROM t1;
+a
+1
+3
+5
+7
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+SELECT a FROM t1;
+a
+1
+3
+DROP TABLE t1;
+CREATE TABLE t1 (
+`a` binary(8) NOT NULL,
+`b` varbinary(64) NOT NULL,
+`c` varbinary(256) NOT NULL,
+`ts` TIMESTAMP NOT NULL,
+`value` mediumblob NOT NULL,
+PRIMARY KEY (`b`,`a`,`c`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values ('a', 'b', 'c', NOW(), 'd');
+INSERT INTO t1 values ('d', 'e', 'f', NOW(), 'g');
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*);
+COUNT(*)
+1
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+SELECT COUNT(*);
+COUNT(*)
+1
+CREATE INDEX kb on t1 (b);
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+`a` binary(8) NOT NULL,
+`b` varbinary(64) NOT NULL,
+`c` varbinary(256) NOT NULL,
+`value` mediumblob NOT NULL,
+PRIMARY KEY (`b`,`a`,`c`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+COMMENT='ttl_duration=1';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values ('a', 'b', 'c', 'd');
+INSERT INTO t1 values ('d', 'e', 'f', 'g');
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*);
+COUNT(*)
+1
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+SELECT COUNT(*);
+COUNT(*)
+1
+CREATE INDEX kb on t1 (b);
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+`a` binary(8) NOT NULL,
+`b` varbinary(64) NOT NULL,
+`c` varbinary(256) NOT NULL,
+`ts` TIMESTAMP NOT NULL,
+`value` mediumblob NOT NULL,
+PRIMARY KEY (`b`,`a`,`c`, `ts`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values ('a', 'b', 'c', NOW(), 'd');
+INSERT INTO t1 values ('d', 'e', 'f', NOW(), 'g');
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*);
+COUNT(*)
+1
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+SELECT COUNT(*);
+COUNT(*)
+1
+CREATE INDEX kb on t1 (b);
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+`a` binary(8) NOT NULL,
+`b` varbinary(64) NOT NULL,
+`c` varbinary(256) NOT NULL,
+`ts` TIMESTAMP DEFAULT NOW() NOT NULL,
+`value` mediumblob NOT NULL,
+PRIMARY KEY (`b`,`a`,`c`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values ('a', 'b', 'c', NOW(), 'd');
+INSERT INTO t1 values ('d', 'e', 'f', NOW(), 'g');
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+2
+DROP TABLE t1;
+CREATE TABLE t1 (
+`a` binary(8) NOT NULL,
+`b` varbinary(64) NOT NULL,
+`c` varbinary(256) NOT NULL,
+`ts` TIMESTAMP DEFAULT NOW() NOT NULL,
+`value` mediumblob NOT NULL,
+PRIMARY KEY (`b`,`a`,`c`),
+KEY kb (`b`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values ('a', 'b', 'c', NOW(), 'd');
+INSERT INTO t1 values ('d', 'e', 'f', NOW(), 'g');
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a bigint(20) NOT NULL,
+b int NOT NULL,
+ts TIMESTAMP DEFAULT NOW() NOT NULL,
+c int NOT NULL,
+PRIMARY KEY (a),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1, 3, NOW(), 5);
+INSERT INTO t1 values (2, 4, NOW(), 6);
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a bigint(20) NOT NULL,
+b int NOT NULL,
+c int NOT NULL,
+ts TIMESTAMP DEFAULT NOW() NOT NULL,
+PRIMARY KEY (a,c),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1, 3, 5, NOW());
+INSERT INTO t1 values (2, 4, 6, NOW());
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a bigint(20) NOT NULL,
+b int,
+c int,
+ts TIMESTAMP DEFAULT NOW() NOT NULL,
+PRIMARY KEY (a),
+KEY kbc (b, c)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1, NULL, NULL, NOW());
+INSERT INTO t1 values (2, NULL, NULL, NOW());
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+`a` binary(8) NOT NULL,
+`b` varbinary(64),
+`c` varbinary(256),
+`ts` TIMESTAMP DEFAULT NOW() NOT NULL,
+`value` mediumblob NOT NULL,
+PRIMARY KEY (`a`),
+KEY kbc (`b`, `c`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values ('a', NULL, 'bc', NOW(), 'd');
+INSERT INTO t1 values ('d', 'efghijk', NULL, NOW(), 'l');
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a bigint(20) NOT NULL,
+b int NOT NULL,
+c int NOT NULL,
+PRIMARY KEY (a),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1, 3, 5);
+INSERT INTO t1 values (2, 4, 6);
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a int,
+ts TIMESTAMP DEFAULT NOW() NOT NULL,
+PRIMARY KEY (a, ts),
+KEY kt (ts)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=5;ttl_col=ts;';
+INSERT INTO t1 values (1, NOW());
+INSERT INTO t1 values (2, NOW());
+SELECT COUNT(*) FROM t1 FORCE INDEX(kt);
+COUNT(*)
+2
+set global rocksdb_debug_ttl_snapshot_ts = -10;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX(kt);
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_debug_ttl_snapshot_ts = 10;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1 FORCE INDEX(kt);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a bigint(20) NOT NULL,
+b int NOT NULL,
+ts TIMESTAMP DEFAULT NOW() NOT NULL,
+c int NOT NULL,
+PRIMARY KEY (a, ts),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1, 3, NOW(), 5);
+INSERT INTO t1 values (2, 4, NOW(), 6);
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+`a` binary(8) NOT NULL,
+`b` varbinary(64),
+`c` varbinary(256),
+`ts` TIMESTAMP DEFAULT NOW() NOT NULL,
+`value` mediumblob NOT NULL,
+PRIMARY KEY (`a`, `ts`),
+KEY kb (`b`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values ('a', NULL, 'bc', NOW(), 'd');
+INSERT INTO t1 values ('de', 'fghijk', NULL, NOW(), 'l');
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a INT NOT NULL,
+b varbinary(64) NOT NULL,
+c varbinary(256) NOT NULL,
+ts TIMESTAMP DEFAULT NOW() NOT NULL,
+value mediumblob NOT NULL,
+PRIMARY KEY (b,a,c),
+KEY kb (b)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+COMMENT='ttl_duration=10;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -300;
+INSERT INTO t1 values (1, 'b', 'c', NOW(), 'd');
+INSERT INTO t1 values (2, 'e', 'f', NOW(), 'g');
+set global rocksdb_debug_ttl_rec_ts = 300;
+INSERT INTO t1 values (3, 'i', 'j', NOW(), 'k');
+INSERT INTO t1 values (4, 'm', 'n', NOW(), 'o');
+set global rocksdb_debug_ttl_rec_ts = 0;
+set global rocksdb_debug_ttl_snapshot_ts = -3600;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+SELECT a FROM t1 FORCE INDEX (kb);
+a
+1
+2
+3
+4
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT a FROM t1 FORCE INDEX (kb);
+a
+3
+4
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_debug_ttl_snapshot_ts = 3600;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT a FROM t1 FORCE INDEX (kb);
+a
+DROP TABLE t1;
+CREATE TABLE t1 (
+a bigint(20) UNSIGNED NOT NULL,
+b int NOT NULL,
+c int NOT NULL,
+ts TIMESTAMP DEFAULT NOW(),
+PRIMARY KEY (a,c),
+KEY (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;ttl_col=ts;';
+ERROR HY000: TTL column (ts) in MyRocks must be an unsigned non-null 64-bit integer or non-null timestamp, exist inside the table, and have an accompanying ttl duration.
+CREATE TABLE t1 (
+a bigint(20) UNSIGNED NOT NULL,
+b int NOT NULL,
+c int NOT NULL,
+ts int,
+PRIMARY KEY (a,c),
+KEY (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;ttl_col=ts;';
+ERROR HY000: TTL column (ts) in MyRocks must be an unsigned non-null 64-bit integer or non-null timestamp, exist inside the table, and have an accompanying ttl duration.
+CREATE TABLE t1 (
+a bigint(20) UNSIGNED NOT NULL,
+b int NOT NULL,
+c int NOT NULL,
+PRIMARY KEY (a,c),
+KEY (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=abc;';
+ERROR HY000: TTL duration (abc) in MyRocks must be an unsigned non-null 64-bit integer.
+CREATE TABLE t1 (
+a bigint(20) UNSIGNED NOT NULL,
+b int NOT NULL,
+c int NOT NULL,
+PRIMARY KEY (a,c),
+KEY (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;ttl_col=abc;';
+ERROR HY000: TTL column (abc) in MyRocks must be an unsigned non-null 64-bit integer or non-null timestamp, exist inside the table, and have an accompanying ttl duration.
+CREATE TABLE t1 (
+a bigint(20) UNSIGNED NOT NULL,
+b int NOT NULL,
+c int NOT NULL,
+PRIMARY KEY (a,c),
+KEY (b)
+) ENGINE=rocksdb
+COMMENT='ttl_col=abc;';
+ERROR HY000: TTL column (abc) in MyRocks must be an unsigned non-null 64-bit integer or non-null timestamp, exist inside the table, and have an accompanying ttl duration.
+CREATE TABLE t1 (
+a bigint(20) NOT NULL,
+b int NOT NULL,
+PRIMARY KEY (a),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=500;';
+INSERT INTO t1 values (1, 1);
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+1
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+1
+DROP TABLE t1;
+CREATE TABLE t1 (
+a INT PRIMARY KEY,
+b INT NOT NULL,
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=100;';
+INSERT INTO t1 values (1, 1);
+SELECT * FROM t1 FORCE INDEX (kb);
+a	b
+1	1
+set global rocksdb_debug_ttl_rec_ts = -300;
+ALTER TABLE t1 COMMENT = 'ttl_duration=1';
+set global rocksdb_debug_ttl_rec_ts = 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` int(11) NOT NULL,
+  PRIMARY KEY (`a`),
+  KEY `kb` (`b`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='ttl_duration=1'
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a INT PRIMARY KEY,
+b INT,
+KEY (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=100;';
+ALTER TABLE t1 DROP PRIMARY KEY;
+ERROR HY000: TTL support is currently disabled when table has a hidden PK.
+DROP TABLE t1;
+CREATE TABLE t1 (
+a INT PRIMARY KEY,
+b INT,
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=5;';
+INSERT INTO t1 VALUES (1,1);
+INSERT INTO t1 VALUES (2,2);
+ALTER TABLE t1 DROP PRIMARY KEY, ADD PRIMARY KEY(b);
+set global rocksdb_debug_ttl_snapshot_ts = -3600;
+set global rocksdb_force_flush_memtable_now=1;
+set @@global.rocksdb_compact_cf = 'default';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_debug_ttl_snapshot_ts = 3600;
+set @@global.rocksdb_compact_cf = 'default';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a TIMESTAMP DEFAULT NOW() NOT NULL,
+b int,
+PRIMARY KEY (a,b),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='asdadfasdfsadfadf ;ttl_duration=1; asfasdfasdfadfa';
+INSERT INTO t1 values (NOW(), 1);
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+1
+set global rocksdb_debug_ttl_snapshot_ts = 3600;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+ALTER TABLE t1 COMMENT = 'adsf;;ttl_duration=5;asfasdfa;ttl_col=a;asdfasdf;';
+set global rocksdb_debug_ttl_rec_ts = 300;
+INSERT INTO t1 values (NOW(), 2);
+set global rocksdb_debug_ttl_rec_ts = 0;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+1
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_debug_ttl_snapshot_ts = 3600;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a bigint(20) NOT NULL,
+b int NOT NULL,
+PRIMARY KEY (a),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=5;';
+set global rocksdb_debug_ttl_rec_ts = -300;
+INSERT INTO t1 values (1, 0);
+INSERT INTO t1 values (3, 0);
+INSERT INTO t1 values (5, 0);
+set global rocksdb_debug_ttl_rec_ts = 300;
+INSERT INTO t1 values (7, 0);
+INSERT INTO t1 values (9, 0);
+set global rocksdb_debug_ttl_rec_ts = 0;
+UPDATE t1 SET a=a+1;
+SELECT * FROM t1 FORCE INDEX (kb);
+a	b
+10	0
+2	0
+4	0
+6	0
+8	0
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT * FROM t1;
+a	b
+10	0
+8	0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a INT,
+b TIMESTAMP DEFAULT NOW() NOT NULL,
+PRIMARY KEY (a),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=5;ttl_col=b;';
+set global rocksdb_debug_ttl_rec_ts = -300;
+INSERT INTO t1 values (1, NOW());
+INSERT INTO t1 values (3, NOW());
+INSERT INTO t1 values (5, NOW());
+INSERT INTO t1 values (7, NOW());
+set global rocksdb_debug_ttl_rec_ts = 300;
+UPDATE t1 SET b=(ADDTIME(NOW(), '00:00:01')) WHERE a < 4;
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT a FROM t1 FORCE INDEX (kb);
+a
+1
+3
+5
+7
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT a FROM t1 FORCE INDEX (kb);
+a
+1
+3
+DROP TABLE t1;
+CREATE TABLE t1 (
+a bigint(20) NOT NULL,
+b int NOT NULL,
+PRIMARY KEY (a),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1, 1);
+INSERT INTO t1 values (2, 1);
+INSERT INTO t1 values (3, 1);
+set global rocksdb_debug_ttl_rec_ts = 0;
+set global rocksdb_enable_ttl=0;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+select variable_value into @c from information_schema.global_status where variable_name='rocksdb_rows_expired';
+set global rocksdb_enable_ttl=1;
+set global rocksdb_compact_cf='default';
+select variable_value-@c from information_schema.global_status where variable_name='rocksdb_rows_expired';
+variable_value-@c
+6
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a bigint(20) NOT NULL,
+b int NOT NULL,
+PRIMARY KEY (a),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=100;';
+INSERT INTO t1 values (1, 1);
+INSERT INTO t1 values (2, 2);
+INSERT INTO t1 values (3, 3);
+select variable_value into @c from information_schema.global_status where variable_name='rocksdb_rows_expired';
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+select variable_value-@c from information_schema.global_status where variable_name='rocksdb_rows_expired';
+variable_value-@c
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a INT,
+b TIMESTAMP DEFAULT NOW() NOT NULL,
+PRIMARY KEY (a, b),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=5;ttl_col=b;';
+set global rocksdb_debug_ttl_rec_ts = -300;
+INSERT INTO t1 values (1, NOW());
+INSERT INTO t1 values (3, NOW());
+INSERT INTO t1 values (5, NOW());
+INSERT INTO t1 values (7, NOW());
+set global rocksdb_debug_ttl_rec_ts = 300;
+UPDATE t1 SET b=(ADDTIME(NOW(), '00:00:01')) WHERE a < 4;
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT a FROM t1 FORCE INDEX (kb);
+a
+1
+3
+5
+7
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT a FROM t1 FORCE INDEX (kb);
+a
+1
+3
+DROP TABLE t1;
+CREATE TABLE t1 (
+a INT,
+b TIMESTAMP DEFAULT NOW() NOT NULL,
+PRIMARY KEY (a, b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=5;ttl_col=b;';
+set global rocksdb_debug_ttl_rec_ts = -300;
+INSERT INTO t1 values (1, NOW());
+INSERT INTO t1 values (3, NOW());
+INSERT INTO t1 values (5, NOW());
+INSERT INTO t1 values (7, NOW());
+set global rocksdb_debug_ttl_rec_ts = 300;
+UPDATE t1 SET b=(ADDTIME(NOW(), '00:00:01')) WHERE a < 4;
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT a FROM t1;
+a
+1
+3
+5
+7
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+SELECT a FROM t1;
+a
+1
+3
+DROP TABLE t1;
+CREATE TABLE t1 (
+`a` binary(8) NOT NULL,
+`b` varbinary(64) NOT NULL,
+`c` varbinary(256) NOT NULL,
+`ts` TIMESTAMP DEFAULT NOW() NOT NULL,
+`value` mediumblob NOT NULL,
+PRIMARY KEY (`b`,`a`,`c`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values ('a', 'b', 'c', NOW(), 'd');
+INSERT INTO t1 values ('d', 'e', 'f', NOW(), 'g');
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*);
+COUNT(*)
+1
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+SELECT COUNT(*);
+COUNT(*)
+1
+CREATE INDEX kb on t1 (b);
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+`a` binary(8) NOT NULL,
+`b` varbinary(64) NOT NULL,
+`c` varbinary(256) NOT NULL,
+`value` mediumblob NOT NULL,
+PRIMARY KEY (`b`,`a`,`c`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+COMMENT='ttl_duration=1';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values ('a', 'b', 'c', 'd');
+INSERT INTO t1 values ('d', 'e', 'f', 'g');
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*);
+COUNT(*)
+1
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+SELECT COUNT(*);
+COUNT(*)
+1
+CREATE INDEX kb on t1 (b);
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+`a` binary(8) NOT NULL,
+`b` varbinary(64) NOT NULL,
+`c` varbinary(256) NOT NULL,
+`ts` TIMESTAMP DEFAULT NOW() NOT NULL,
+`value` mediumblob NOT NULL,
+PRIMARY KEY (`b`,`a`,`c`, `ts`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values ('a', 'b', 'c', NOW(), 'd');
+INSERT INTO t1 values ('d', 'e', 'f', NOW(), 'g');
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*);
+COUNT(*)
+1
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+SELECT COUNT(*);
+COUNT(*)
+1
+CREATE INDEX kb on t1 (b);
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+`a` binary(8) NOT NULL,
+`b` varbinary(64) NOT NULL,
+`c` varbinary(256) NOT NULL,
+`ts` TIMESTAMP(6) NOT NULL,
+`value` mediumblob NOT NULL,
+PRIMARY KEY (`b`,`a`,`c`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values ('a', 'b', 'c', NOW(), 'd');
+INSERT INTO t1 values ('d', 'e', 'f', NOW(), 'g');
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+2
+DROP TABLE t1;
+CREATE TABLE t1 (
+`a` binary(8) NOT NULL,
+`b` varbinary(64) NOT NULL,
+`c` varbinary(256) NOT NULL,
+`ts` TIMESTAMP(6) NOT NULL,
+`value` mediumblob NOT NULL,
+PRIMARY KEY (`b`,`a`,`c`),
+KEY kb (`b`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values ('a', 'b', 'c', NOW(), 'd');
+INSERT INTO t1 values ('d', 'e', 'f', NOW(), 'g');
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a bigint(20) NOT NULL,
+b int NOT NULL,
+ts TIMESTAMP(6) NOT NULL,
+c int NOT NULL,
+PRIMARY KEY (a),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1, 3, NOW(), 5);
+INSERT INTO t1 values (2, 4, NOW(), 6);
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a bigint(20) NOT NULL,
+b int NOT NULL,
+c int NOT NULL,
+ts TIMESTAMP(6) NOT NULL,
+PRIMARY KEY (a,c),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1, 3, 5, NOW());
+INSERT INTO t1 values (2, 4, 6, NOW());
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a bigint(20) NOT NULL,
+b int,
+c int,
+ts TIMESTAMP(6) NOT NULL,
+PRIMARY KEY (a),
+KEY kbc (b, c)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1, NULL, NULL, NOW());
+INSERT INTO t1 values (2, NULL, NULL, NOW());
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+`a` binary(8) NOT NULL,
+`b` varbinary(64),
+`c` varbinary(256),
+`ts` TIMESTAMP(6) NOT NULL,
+`value` mediumblob NOT NULL,
+PRIMARY KEY (`a`),
+KEY kbc (`b`, `c`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values ('a', NULL, 'bc', NOW(), 'd');
+INSERT INTO t1 values ('d', 'efghijk', NULL, NOW(), 'l');
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a bigint(20) NOT NULL,
+b int NOT NULL,
+c int NOT NULL,
+PRIMARY KEY (a),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1, 3, 5);
+INSERT INTO t1 values (2, 4, 6);
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a int,
+ts TIMESTAMP(6) NOT NULL,
+PRIMARY KEY (a, ts),
+KEY kt (ts)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=5;ttl_col=ts;';
+INSERT INTO t1 values (1, NOW());
+INSERT INTO t1 values (2, NOW());
+SELECT COUNT(*) FROM t1 FORCE INDEX(kt);
+COUNT(*)
+2
+set global rocksdb_debug_ttl_snapshot_ts = -10;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX(kt);
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_debug_ttl_snapshot_ts = 10;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1 FORCE INDEX(kt);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a bigint(20) NOT NULL,
+b int NOT NULL,
+ts TIMESTAMP(6) NOT NULL,
+c int NOT NULL,
+PRIMARY KEY (a, ts),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1, 3, NOW(), 5);
+INSERT INTO t1 values (2, 4, NOW(), 6);
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+`a` binary(8) NOT NULL,
+`b` varbinary(64),
+`c` varbinary(256),
+`ts` TIMESTAMP(6) NOT NULL,
+`value` mediumblob NOT NULL,
+PRIMARY KEY (`a`, `ts`),
+KEY kb (`b`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values ('a', NULL, 'bc', NOW(), 'd');
+INSERT INTO t1 values ('de', 'fghijk', NULL, NOW(), 'l');
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a INT NOT NULL,
+b varbinary(64) NOT NULL,
+c varbinary(256) NOT NULL,
+ts TIMESTAMP(6) NOT NULL,
+value mediumblob NOT NULL,
+PRIMARY KEY (b,a,c),
+KEY kb (b)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+COMMENT='ttl_duration=10;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -300;
+INSERT INTO t1 values (1, 'b', 'c', NOW(), 'd');
+INSERT INTO t1 values (2, 'e', 'f', NOW(), 'g');
+set global rocksdb_debug_ttl_rec_ts = 300;
+INSERT INTO t1 values (3, 'i', 'j', NOW(), 'k');
+INSERT INTO t1 values (4, 'm', 'n', NOW(), 'o');
+set global rocksdb_debug_ttl_rec_ts = 0;
+set global rocksdb_debug_ttl_snapshot_ts = -3600;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+SELECT a FROM t1 FORCE INDEX (kb);
+a
+1
+2
+3
+4
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT a FROM t1 FORCE INDEX (kb);
+a
+3
+4
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_debug_ttl_snapshot_ts = 3600;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT a FROM t1 FORCE INDEX (kb);
+a
+DROP TABLE t1;
+CREATE TABLE t1 (
+a bigint(20) UNSIGNED NOT NULL,
+b int NOT NULL,
+c int NOT NULL,
+ts TIMESTAMP(6),
+PRIMARY KEY (a,c),
+KEY (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;ttl_col=ts;';
+ERROR HY000: TTL column (ts) in MyRocks must be an unsigned non-null 64-bit integer or non-null timestamp, exist inside the table, and have an accompanying ttl duration.
+CREATE TABLE t1 (
+a bigint(20) UNSIGNED NOT NULL,
+b int NOT NULL,
+c int NOT NULL,
+ts int,
+PRIMARY KEY (a,c),
+KEY (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;ttl_col=ts;';
+ERROR HY000: TTL column (ts) in MyRocks must be an unsigned non-null 64-bit integer or non-null timestamp, exist inside the table, and have an accompanying ttl duration.
+CREATE TABLE t1 (
+a bigint(20) UNSIGNED NOT NULL,
+b int NOT NULL,
+c int NOT NULL,
+PRIMARY KEY (a,c),
+KEY (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=abc;';
+ERROR HY000: TTL duration (abc) in MyRocks must be an unsigned non-null 64-bit integer.
+CREATE TABLE t1 (
+a bigint(20) UNSIGNED NOT NULL,
+b int NOT NULL,
+c int NOT NULL,
+PRIMARY KEY (a,c),
+KEY (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;ttl_col=abc;';
+ERROR HY000: TTL column (abc) in MyRocks must be an unsigned non-null 64-bit integer or non-null timestamp, exist inside the table, and have an accompanying ttl duration.
+CREATE TABLE t1 (
+a bigint(20) UNSIGNED NOT NULL,
+b int NOT NULL,
+c int NOT NULL,
+PRIMARY KEY (a,c),
+KEY (b)
+) ENGINE=rocksdb
+COMMENT='ttl_col=abc;';
+ERROR HY000: TTL column (abc) in MyRocks must be an unsigned non-null 64-bit integer or non-null timestamp, exist inside the table, and have an accompanying ttl duration.
+CREATE TABLE t1 (
+a bigint(20) NOT NULL,
+b int NOT NULL,
+PRIMARY KEY (a),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=500;';
+INSERT INTO t1 values (1, 1);
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+1
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+1
+DROP TABLE t1;
+CREATE TABLE t1 (
+a INT PRIMARY KEY,
+b INT NOT NULL,
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=100;';
+INSERT INTO t1 values (1, 1);
+SELECT * FROM t1 FORCE INDEX (kb);
+a	b
+1	1
+set global rocksdb_debug_ttl_rec_ts = -300;
+ALTER TABLE t1 COMMENT = 'ttl_duration=1';
+set global rocksdb_debug_ttl_rec_ts = 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` int(11) NOT NULL,
+  PRIMARY KEY (`a`),
+  KEY `kb` (`b`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='ttl_duration=1'
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a INT PRIMARY KEY,
+b INT,
+KEY (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=100;';
+ALTER TABLE t1 DROP PRIMARY KEY;
+ERROR HY000: TTL support is currently disabled when table has a hidden PK.
+DROP TABLE t1;
+CREATE TABLE t1 (
+a INT PRIMARY KEY,
+b INT,
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=5;';
+INSERT INTO t1 VALUES (1,1);
+INSERT INTO t1 VALUES (2,2);
+ALTER TABLE t1 DROP PRIMARY KEY, ADD PRIMARY KEY(b);
+set global rocksdb_debug_ttl_snapshot_ts = -3600;
+set global rocksdb_force_flush_memtable_now=1;
+set @@global.rocksdb_compact_cf = 'default';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+2
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_debug_ttl_snapshot_ts = 3600;
+set @@global.rocksdb_compact_cf = 'default';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a TIMESTAMP(6) NOT NULL,
+b int,
+PRIMARY KEY (a,b),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='asdadfasdfsadfadf ;ttl_duration=1; asfasdfasdfadfa';
+INSERT INTO t1 values (NOW(), 1);
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+1
+set global rocksdb_debug_ttl_snapshot_ts = 3600;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+ALTER TABLE t1 COMMENT = 'adsf;;ttl_duration=5;asfasdfa;ttl_col=a;asdfasdf;';
+set global rocksdb_debug_ttl_rec_ts = 300;
+INSERT INTO t1 values (NOW(), 2);
+set global rocksdb_debug_ttl_rec_ts = 0;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+1
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_debug_ttl_snapshot_ts = 3600;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a bigint(20) NOT NULL,
+b int NOT NULL,
+PRIMARY KEY (a),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=5;';
+set global rocksdb_debug_ttl_rec_ts = -300;
+INSERT INTO t1 values (1, 0);
+INSERT INTO t1 values (3, 0);
+INSERT INTO t1 values (5, 0);
+set global rocksdb_debug_ttl_rec_ts = 300;
+INSERT INTO t1 values (7, 0);
+INSERT INTO t1 values (9, 0);
+set global rocksdb_debug_ttl_rec_ts = 0;
+UPDATE t1 SET a=a+1;
+SELECT * FROM t1 FORCE INDEX (kb);
+a	b
+10	0
+2	0
+4	0
+6	0
+8	0
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT * FROM t1;
+a	b
+10	0
+8	0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a INT,
+b TIMESTAMP(6) NOT NULL,
+PRIMARY KEY (a),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=5;ttl_col=b;';
+set global rocksdb_debug_ttl_rec_ts = -300;
+INSERT INTO t1 values (1, NOW());
+INSERT INTO t1 values (3, NOW());
+INSERT INTO t1 values (5, NOW());
+INSERT INTO t1 values (7, NOW());
+set global rocksdb_debug_ttl_rec_ts = 300;
+UPDATE t1 SET b=(ADDTIME(NOW(), '00:00:01')) WHERE a < 4;
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT a FROM t1 FORCE INDEX (kb);
+a
+1
+3
+5
+7
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT a FROM t1 FORCE INDEX (kb);
+a
+1
+3
+DROP TABLE t1;
+CREATE TABLE t1 (
+a bigint(20) NOT NULL,
+b int NOT NULL,
+PRIMARY KEY (a),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1, 1);
+INSERT INTO t1 values (2, 1);
+INSERT INTO t1 values (3, 1);
+set global rocksdb_debug_ttl_rec_ts = 0;
+set global rocksdb_enable_ttl=0;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+select variable_value into @c from information_schema.global_status where variable_name='rocksdb_rows_expired';
+set global rocksdb_enable_ttl=1;
+set global rocksdb_compact_cf='default';
+select variable_value-@c from information_schema.global_status where variable_name='rocksdb_rows_expired';
+variable_value-@c
+6
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a bigint(20) NOT NULL,
+b int NOT NULL,
+PRIMARY KEY (a),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=100;';
+INSERT INTO t1 values (1, 1);
+INSERT INTO t1 values (2, 2);
+INSERT INTO t1 values (3, 3);
+select variable_value into @c from information_schema.global_status where variable_name='rocksdb_rows_expired';
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+select variable_value-@c from information_schema.global_status where variable_name='rocksdb_rows_expired';
+variable_value-@c
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+a INT,
+b TIMESTAMP(6) NOT NULL,
+PRIMARY KEY (a, b),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=5;ttl_col=b;';
+set global rocksdb_debug_ttl_rec_ts = -300;
+INSERT INTO t1 values (1, NOW());
+INSERT INTO t1 values (3, NOW());
+INSERT INTO t1 values (5, NOW());
+INSERT INTO t1 values (7, NOW());
+set global rocksdb_debug_ttl_rec_ts = 300;
+UPDATE t1 SET b=(ADDTIME(NOW(), '00:00:01')) WHERE a < 4;
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT a FROM t1 FORCE INDEX (kb);
+a
+1
+3
+5
+7
+set global rocksdb_debug_ttl_ignore_pk=1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk=0;
+SELECT a FROM t1 FORCE INDEX (kb);
+a
+1
+3
+DROP TABLE t1;
+CREATE TABLE t1 (
+a INT,
+b TIMESTAMP(6) NOT NULL,
+PRIMARY KEY (a, b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=5;ttl_col=b;';
+set global rocksdb_debug_ttl_rec_ts = -300;
+INSERT INTO t1 values (1, NOW());
+INSERT INTO t1 values (3, NOW());
+INSERT INTO t1 values (5, NOW());
+INSERT INTO t1 values (7, NOW());
+set global rocksdb_debug_ttl_rec_ts = 300;
+UPDATE t1 SET b=(ADDTIME(NOW(), '00:00:01')) WHERE a < 4;
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT a FROM t1;
+a
+1
+3
+5
+7
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+SELECT a FROM t1;
+a
+1
+3
+DROP TABLE t1;
+CREATE TABLE t1 (
+`a` binary(8) NOT NULL,
+`b` varbinary(64) NOT NULL,
+`c` varbinary(256) NOT NULL,
+`ts` TIMESTAMP(6) NOT NULL,
+`value` mediumblob NOT NULL,
+PRIMARY KEY (`b`,`a`,`c`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values ('a', 'b', 'c', NOW(), 'd');
+INSERT INTO t1 values ('d', 'e', 'f', NOW(), 'g');
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*);
+COUNT(*)
+1
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+SELECT COUNT(*);
+COUNT(*)
+1
+CREATE INDEX kb on t1 (b);
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+`a` binary(8) NOT NULL,
+`b` varbinary(64) NOT NULL,
+`c` varbinary(256) NOT NULL,
+`value` mediumblob NOT NULL,
+PRIMARY KEY (`b`,`a`,`c`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+COMMENT='ttl_duration=1';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values ('a', 'b', 'c', 'd');
+INSERT INTO t1 values ('d', 'e', 'f', 'g');
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT COUNT(*);
+COUNT(*)
+1
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+SELECT COUNT(*);
+COUNT(*)
+1
+CREATE INDEX kb on t1 (b);
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+SELECT COUNT(*) FROM t1 FORCE INDEX (kb);
+COUNT(*)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+`a` binary(8) NOT NULL,
+`b` varbinary(64) NOT NULL,
+`c` varbinary(256) NOT NULL,
+`ts` TIMESTAMP(6) NOT NULL,
+`value` mediumblob NOT NULL,
+PRIMARY KEY (`b`,`a`,`c`, `ts`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values ('a', 'b', 'c', NOW(), 'd');
+INSERT INTO t1 values ('d', 'e', 'f', NOW(), 'g');
 set global rocksdb_debug_ttl_rec_ts = 0;
 SELECT COUNT(*);
 COUNT(*)

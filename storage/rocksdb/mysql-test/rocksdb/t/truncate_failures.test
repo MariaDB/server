@@ -1,0 +1,115 @@
+--source include/have_rocksdb.inc
+--source include/have_debug_sync.inc
+--source include/not_valgrind.inc
+
+#
+# Test truncation of tables with potential collation issues
+#
+
+set global rocksdb_strict_collation_exceptions = 't1,t2';
+
+CREATE TABLE t1 (
+    pk INT,
+    a VARCHAR(64),
+    PRIMARY KEY (pk),
+    KEY (a)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_general_ci;
+
+INSERT INTO t1 VALUES (1, 'one');
+RENAME TABLE t1 TO t1_trunc;
+SELECT * FROM t1_trunc ORDER BY pk;
+TRUNCATE TABLE t1_trunc;
+SELECT * FROM t1_trunc;
+
+CREATE TABLE t2 (
+    pk INT,
+    a VARCHAR(64),
+    PRIMARY KEY (pk),
+    KEY (a)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_general_ci
+PARTITION BY RANGE (pk) (
+    PARTITION p0 VALUES LESS THAN (3),
+    PARTITION p1 VALUES LESS THAN (6),
+    PARTITION p2 VALUES LESS THAN MAXVALUE
+);
+
+INSERT INTO t2 VALUES (1, 'one'), (4, 'four'), (7, 'seven');
+RENAME TABLE t2 to t2_trunc;
+SELECT * FROM t2_trunc ORDER BY pk;
+ALTER TABLE t2_trunc TRUNCATE PARTITION p0;
+SELECT * FROM t2_trunc ORDER BY pk;
+TRUNCATE TABLE t2_trunc;
+SELECT * FROM t2_trunc ORDER BY pk;
+
+set global rocksdb_strict_collation_exceptions = default;
+
+DROP TABLE t1_trunc, t2_trunc;
+
+#
+# Test truncation of tables with explicit failures during create
+#
+
+CREATE TABLE t1 (
+    pk INT PRIMARY KEY
+) ENGINE=ROCKSDB;
+
+INSERT INTO t1 VALUES (1), (2);
+SELECT * FROM t1;
+
+SET DEBUG_DBUG = "+d,rocksdb_truncate_failure";
+--error 1815
+TRUNCATE TABLE t1;
+SET DEBUG_DBUG = "-d,rocksdb_truncate_failure";
+SELECT * FROM t1;
+
+CREATE TABLE t2 (
+    a INT
+) ENGINE=ROCKSDB
+PARTITION BY RANGE (a) (
+    PARTITION p0 VALUES LESS THAN (3),
+    PARTITION p1 VALUES LESS THAN (6),
+    PARTITION p2 VALUES LESS THAN MAXVALUE
+);
+
+INSERT INTO t2 VALUES (1), (4), (7);
+
+SET DEBUG_DBUG = "+d,rocksdb_truncate_failure";
+--error 1815
+TRUNCATE TABLE t2;
+--error 1815
+ALTER TABLE t2 TRUNCATE PARTITION p1;
+SET DEBUG_DBUG = "-d,rocksdb_truncate_failure";
+SELECT * FROM t2;
+
+DROP TABLE t1, t2;
+
+#
+# Crash the server during server truncation and verify the table is removed
+#
+
+CREATE TABLE t1_crash (
+    pk INT PRIMARY KEY
+) ENGINE=ROCKSDB;
+
+INSERT INTO t1_crash VALUES (100), (1000);
+SELECT * FROM t1_crash;
+
+--let LOG=$MYSQLTEST_VARDIR/tmp/rocksdb_truncate_failure.err
+--exec echo "restart:--rocksdb_validate_tables=2 --log-error=$LOG" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+
+SET DEBUG_DBUG = "+d,rocksdb_truncate_failure_crash";
+--error 2013
+TRUNCATE TABLE t1_crash;
+--source include/wait_until_disconnected.inc
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--disable_reconnect
+--exec grep 'Removing truncated leftover' $LOG | cut -d] -f2
+DROP TABLE t1_crash;
+
+--exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+shutdown_server;
+--source include/wait_until_disconnected.inc
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--disable_reconnect

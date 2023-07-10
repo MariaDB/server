@@ -57,20 +57,21 @@ class Rdb_convert_to_record_value_decoder {
   Rdb_convert_to_record_value_decoder &operator=(
       const Rdb_convert_to_record_value_decoder &decoder) = delete;
 
-  static int decode(uchar *const buf, uint *offset, TABLE *table,
-                    my_core::Field *field, Rdb_field_encoder *field_dec,
-                    Rdb_string_reader *reader, bool decode, bool is_null);
+  static int decode(uchar *const buf, TABLE *table,
+                    Rdb_field_encoder *field_dec, Rdb_string_reader *reader,
+                    bool decode, bool is_null);
 
  private:
-  static int decode_blob(TABLE *table, Field *field, Rdb_string_reader *reader,
-                         bool decode);
-  static int decode_fixed_length_field(Field *const field,
+  static int decode_blob(TABLE *table, uchar *const buf,
+                         Rdb_field_encoder *field_dec,
+                         Rdb_string_reader *reader, bool decode);
+  static int decode_fixed_length_field(uchar *const buf,
                                        Rdb_field_encoder *field_dec,
                                        Rdb_string_reader *const reader,
                                        bool decode);
 
-  static int decode_varchar(Field *const field, Rdb_string_reader *const reader,
-                            bool decode);
+  static int decode_varchar(uchar *const buf, Rdb_field_encoder *field_dec,
+                            Rdb_string_reader *const reader, bool decode);
 };
 
 /**
@@ -119,8 +120,6 @@ class Rdb_value_field_iterator {
   int get_field_index() const;
   // get current field type
   enum_field_types get_field_type() const;
-  // get current field
-  Field *get_field() const;
 };
 
 /**
@@ -136,8 +135,8 @@ class Rdb_converter {
   Rdb_converter &operator=(const Rdb_converter &decoder) = delete;
   ~Rdb_converter();
 
-  void setup_field_decoders(const MY_BITMAP *field_map,
-                            bool decode_all_fields = false);
+  void setup_field_decoders(const MY_BITMAP *field_map, uint active_index,
+                            bool keyread_only, bool decode_all_fields = false);
 
   int decode(const std::shared_ptr<Rdb_key_def> &key_def, uchar *dst,
              const rocksdb::Slice *key_slice,
@@ -173,6 +172,8 @@ class Rdb_converter {
   const std::vector<READ_FIELD> *get_decode_fields() const {
     return &m_decoders_vect;
   }
+
+  const MY_BITMAP *get_lookup_bitmap() { return &m_lookup_bitmap; }
 
  private:
   int decode_value_header(Rdb_string_reader *reader,
@@ -243,5 +244,11 @@ class Rdb_converter {
   my_core::ha_rows m_row_checksums_checked;
   // buffer to hold data during encode_value_slice
   String m_storage_record;
+  /*
+    For the active index, indicates which columns must be covered for the
+    current lookup to be covered. If the bitmap field is null, that means this
+    index does not cover the current lookup for any record.
+   */
+  MY_BITMAP m_lookup_bitmap;
 };
 }  // namespace myrocks

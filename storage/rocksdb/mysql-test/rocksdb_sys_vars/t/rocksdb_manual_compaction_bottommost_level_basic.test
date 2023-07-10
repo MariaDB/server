@@ -1,0 +1,18 @@
+--source include/have_rocksdb.inc
+
+CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO valid_values VALUES('kSkip');
+INSERT INTO valid_values VALUES('kIfHaveCompactionFilter');
+INSERT INTO valid_values VALUES('kForce');
+INSERT INTO valid_values VALUES('kForceOptimized');
+
+CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO invalid_values VALUES('\'aaa\'');
+
+--let $sys_var=ROCKSDB_MANUAL_COMPACTION_BOTTOMMOST_LEVEL
+--let $read_only=0
+--let $session=1
+--source ../include/rocksdb_sys_var.inc
+
+DROP TABLE valid_values;
+DROP TABLE invalid_values;

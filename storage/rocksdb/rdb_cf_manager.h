@@ -29,6 +29,7 @@
 
 /* MyRocks header files */
 #include "./rdb_cf_options.h"
+#include "./rdb_datadic.h"
 
 namespace myrocks {
 
@@ -47,8 +48,9 @@ namespace myrocks {
 */
 
 class Rdb_cf_manager {
-  std::map<std::string, rocksdb::ColumnFamilyHandle *> m_cf_name_map;
-  std::map<uint32_t, rocksdb::ColumnFamilyHandle *> m_cf_id_map;
+  std::map<std::string, std::shared_ptr<rocksdb::ColumnFamilyHandle>>
+      m_cf_name_map;
+  std::map<uint32_t, std::shared_ptr<rocksdb::ColumnFamilyHandle>> m_cf_id_map;
 
   mutable mysql_mutex_t m_mutex;
 
@@ -72,26 +74,36 @@ class Rdb_cf_manager {
 
   /*
     Used by CREATE TABLE.
-    - cf_name=nullptr means use default column family
+    cf_name requires non-empty string
   */
-  rocksdb::ColumnFamilyHandle *get_or_create_cf(rocksdb::DB *const rdb,
-                                                const std::string &cf_name);
+  std::shared_ptr<rocksdb::ColumnFamilyHandle> get_or_create_cf(
+      rocksdb::DB *const rdb, const std::string &cf_name);
 
   /* Used by table open */
-  rocksdb::ColumnFamilyHandle *get_cf(
-      const std::string &cf_name, const bool lock_held_by_caller = false) const;
+  std::shared_ptr<rocksdb::ColumnFamilyHandle> get_cf(
+      const std::string &cf_name) const;
 
   /* Look up cf by id; used by datadic */
-  rocksdb::ColumnFamilyHandle *get_cf(const uint32_t id) const;
+  std::shared_ptr<rocksdb::ColumnFamilyHandle> get_cf(const uint32_t id) const;
 
   /* Used to iterate over column families for show status */
   std::vector<std::string> get_cf_names(void) const;
 
   /* Used to iterate over column families */
-  std::vector<rocksdb::ColumnFamilyHandle *> get_all_cf(void) const;
+  std::vector<std::shared_ptr<rocksdb::ColumnFamilyHandle>> get_all_cf(
+      void) const;
+
+  int remove_dropped_cf(Rdb_dict_manager *const dict_manager,
+                        rocksdb::TransactionDB *const rdb, const uint32 &cf_id);
 
   /* Used to delete cf by name */
-  int drop_cf(const std::string &cf_name);
+  int drop_cf(Rdb_ddl_manager *const ddl_manager,
+              Rdb_dict_manager *const dict_manager, const std::string &cf_name);
+
+  /* Create cf flags if it does not exist */
+  int create_cf_flags_if_needed(const Rdb_dict_manager *const dict_manager,
+                                const uint32 &cf_id, const std::string &cf_name,
+                                const bool is_per_partition_cf = false);
 
   void get_cf_options(const std::string &cf_name,
                       rocksdb::ColumnFamilyOptions *const opts)
@@ -103,6 +115,10 @@ class Rdb_cf_manager {
                           const std::string &updated_options) {
     m_cf_options->update(cf_name, updated_options);
   }
+
+ private:
+  std::shared_ptr<rocksdb::ColumnFamilyHandle> get_cf(
+      const std::string &cf_name, const bool lock_held_by_caller) const;
 };
 
 }  // namespace myrocks

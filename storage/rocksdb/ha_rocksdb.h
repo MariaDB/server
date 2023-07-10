@@ -93,6 +93,7 @@ enum collations_used {
 
 #if 0 // MARIAROCKS_NOT_YET : read-free replication is not supported
 extern char *rocksdb_read_free_rpl_tables;
+extern ulong rocksdb_max_row_locks;
 #if defined(HAVE_PSI_INTERFACE)
 extern PSI_rwlock_key key_rwlock_read_free_rpl_tables;
 #endif
@@ -290,12 +291,18 @@ class ha_rocksdb : public my_core::handler {
    */
   bool m_insert_with_update;
 
-  /* TRUE if last time the insertion failed due to duplicated PK */
-  bool m_dup_pk_found;
+  /*
+    TRUE if last time the insertion failed due to duplicate key error.
+    (m_dupp_errkey holds the key# that we've had error for)
+  */
+  bool m_dup_key_found;
 
 #ifndef DBUG_OFF
-  /* Last retreived record for sanity checking */
-  String m_dup_pk_retrieved_record;
+  /*
+    Last retrieved record (for duplicate PK) or index tuple (for duplicate
+    unique SK). Used for sanity checking.
+  */
+  String m_dup_key_retrieved_record;
 #endif
 
   /**
@@ -347,10 +354,10 @@ class ha_rocksdb : public my_core::handler {
       MY_ATTRIBUTE((__nonnull__));
   void release_scan_iterator(void);
 
-  rocksdb::Status get_for_update(
-      Rdb_transaction *const tx,
-      rocksdb::ColumnFamilyHandle *const column_family,
-      const rocksdb::Slice &key, rocksdb::PinnableSlice *value) const;
+  rocksdb::Status get_for_update(Rdb_transaction *const tx,
+                                 const Rdb_key_def &kd,
+                                 const rocksdb::Slice &key,
+                                 rocksdb::PinnableSlice *value) const;
 
   int get_row_by_rowid(uchar *const buf, const char *const rowid,
                        const uint rowid_size, const bool skip_lookup = false,
@@ -391,13 +398,6 @@ class ha_rocksdb : public my_core::handler {
   void update_row_stats(const operation_type &type);
 
   void set_last_rowkey(const uchar *const old_data);
-
-  /*
-    For the active index, indicates which columns must be covered for the
-    current lookup to be covered. If the bitmap field is null, that means this
-    index does not cover the current lookup for any record.
-   */
-  MY_BITMAP m_lookup_bitmap = {nullptr, nullptr, 0, 0};
 
   int alloc_key_buffers(const TABLE *const table_arg,
                         const Rdb_tbl_def *const tbl_def_arg,
@@ -670,7 +670,7 @@ public:
   */
  private:
   struct key_def_cf_info {
-    rocksdb::ColumnFamilyHandle *cf_handle;
+    std::shared_ptr<rocksdb::ColumnFamilyHandle> cf_handle;
     bool is_reverse_cf;
     bool is_per_partition_cf;
   };
@@ -771,14 +771,14 @@ public:
   int get_pk_for_update(struct update_row_info *const row_info);
   int check_and_lock_unique_pk(const uint key_id,
                                const struct update_row_info &row_info,
-                               bool *const found)
+                               bool *const found, const bool skip_unique_check)
       MY_ATTRIBUTE((__warn_unused_result__));
   int check_and_lock_sk(const uint key_id,
                         const struct update_row_info &row_info,
-                        bool *const found)
+                        bool *const found, const bool skip_unique_check)
       MY_ATTRIBUTE((__warn_unused_result__));
   int check_uniqueness_and_lock(const struct update_row_info &row_info,
-                                bool pk_changed)
+                                bool pk_changed, const bool skip_unique_check)
       MY_ATTRIBUTE((__warn_unused_result__));
   bool over_bulk_load_threshold(int *err)
       MY_ATTRIBUTE((__warn_unused_result__));
@@ -923,6 +923,8 @@ public:
       MY_ATTRIBUTE((__warn_unused_result__));
   int create_table(const std::string &table_name, const TABLE *table_arg,
                    ulonglong auto_increment_value);
+  int truncate_table(Rdb_tbl_def *tbl_def, TABLE *table_arg,
+                     ulonglong auto_increment_value);
   bool check_if_incompatible_data(HA_CREATE_INFO *const info,
                                   uint table_changes) override
       MY_ATTRIBUTE((__warn_unused_result__));
@@ -982,6 +984,9 @@ public:
   bool is_read_free_rpl_table() const;
 #endif
 
+  void build_decoder();
+  void check_build_decoder();
+
 #ifdef MARIAROCKS_NOT_YET // MDEV-10976
  public:
   virtual void rpl_before_delete_rows() override;
@@ -997,6 +1002,9 @@ public:
   bool m_in_rpl_update_rows;
 
   bool m_force_skip_unique_check;
+
+  /* Need to build decoder on next read operation */
+  bool m_need_build_decoder;
 };
 
 /*

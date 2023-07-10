@@ -1,0 +1,52 @@
+--source include/have_rocksdb.inc
+
+DELIMITER //;
+CREATE PROCEDURE compact_start()
+BEGIN
+ select variable_value into @c from information_schema.global_status where variable_name='rocksdb_compact_write_bytes';
+END//
+CREATE PROCEDURE compact_end()
+BEGIN
+  select case when variable_value-@c > 0 then 'true' else 'false' end as checked from information_schema.global_status where variable_name='rocksdb_compact_write_bytes';
+END//
+DELIMITER ;//
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+CREATE TABLE t1 (
+  a int not null,
+  b int not null,
+  primary key (a,b),
+  key (b)
+) ENGINE=RocksDB;
+
+# Populate tables
+let $max = 1000;
+let $table = t1;
+--source drop_table_repopulate_table.inc
+
+# compact to move all data in files in Lmax level
+set @@session.rocksdb_manual_compaction_bottommost_level='kSkip';
+call compact_start();
+set @@global.rocksdb_compact_cf = 'default';
+call compact_end(); # should return true as compaction of lower levels is performed
+
+# skip compaction of files in bottommost level i.e. Lmax->Lmax compaction and ensure rocksdb_compact_write_byte
+# does not increase after compaction
+set @@session.rocksdb_manual_compaction_bottommost_level='kSkip';
+call compact_start();
+set @@global.rocksdb_compact_cf = 'default';
+call compact_end(); # should return false as files only in bottommost layer
+
+# restore 'kForceOptimized' default setting  and check that value of rocksdb_compact_write_byte increses after compaction
+set @@session.rocksdb_manual_compaction_bottommost_level='kForceOptimized';
+call compact_start();
+set @@global.rocksdb_compact_cf = 'default';
+call compact_end(); # should return true 
+
+# cleanup
+DROP PROCEDURE compact_start;
+DROP PROCEDURE compact_end;
+drop table t1;

@@ -1505,6 +1505,33 @@
 }
 
 {
+   Still reachable for once-per-process initializations
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:_ZN10my_rocksdb24CacheEntryStatsCollectorINS_13InternalStats19CacheEntryRoleStatsEE9GetSharedEPNS_5CacheEPNS_11SystemClockEPSt10shared_ptrIS3_E
+   ...
+}
+
+{
+   Still reachable for once-per-process initializations
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:_ZN10my_rocksdb12_GLOBAL__N_18Registry8RegisterEPFvRKNS_5SliceEPvENS_14CacheEntryRoleE
+   ...
+}
+
+{
+   Still reachable for once-per-process initializations
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:_ZN10my_rocksdb12_GLOBAL__N_111GetRegistryEv
+   ...
+}
+
+{
    Still reachable for thread local storage initialization (SetHandle)
    Memcheck:Leak
    match-leak-kinds: reachable

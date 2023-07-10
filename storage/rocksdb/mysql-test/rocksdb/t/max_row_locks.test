@@ -1,0 +1,59 @@
+--source include/have_rocksdb.inc
+
+create table t1 (id1 bigint, id2 bigint, c1 bigint, c2 bigint, c3 bigint, c4 bigint, c5 bigint, c6 bigint, c7 bigint, primary key (id1, id2), index i(c1, c2));
+--disable_query_log
+let $i=0;
+while ($i<1000)
+{
+  inc $i;
+  eval insert t1(id1, id2, c1, c2, c3, c4, c5, c6, c7)
+          values($i,    0, $i,  0,  0,  0,  0,  0,  $i);
+}
+--enable_query_log
+
+# by default, no matching row should not have any row lock.
+begin;
+select * from t1 where c3=1 for update;
+
+# This should report 0 row lock
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/TIMESTAMP/ /(ACTIVE) [0-9]+ /\1 NUM / /(thread id) [0-9]+/\1 TID/ /0x[0-9a-f]+/PTR/ /(query id) [0-9]+/\1 QID/ /(root) [a-z ]+/\1 ACTION/
+SHOW ENGINE rocksdb TRANSACTION STATUS;
+
+select * from t1 where c7 between 101 and 110 for update;
+
+# This should report 10 row locks
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/TIMESTAMP/ /(ACTIVE) [0-9]+ /\1 NUM / /(thread id) [0-9]+/\1 TID/ /0x[0-9a-f]+/PTR/ /(query id) [0-9]+/\1 QID/ /(root) [a-z ]+/\1 ACTION/
+SHOW ENGINE rocksdb TRANSACTION STATUS;
+
+rollback;
+
+set session rocksdb_lock_scanned_rows=on;
+
+begin;
+select * from t1 where c3=1 for update;
+# This should report 1000 row locks
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/TIMESTAMP/ /(ACTIVE) [0-9]+ /\1 NUM / /(thread id) [0-9]+/\1 TID/ /0x[0-9a-f]+/PTR/ /(query id) [0-9]+/\1 QID/ /(root) [a-z ]+/\1 ACTION/
+SHOW ENGINE rocksdb TRANSACTION STATUS;
+
+rollback;
+set session rocksdb_lock_scanned_rows=off;
+
+SET @start_rocksdb_max_row_locks = @@global.rocksdb_max_row_locks;
+# small max row locks should not hit errors if number of locked rows is smaller
+set global rocksdb_max_row_locks = 20;
+select * from t1 where c3=1 for update;
+select * from t1 where c7 between 101 and 110 for update;
+
+set global rocksdb_max_row_locks = 5;
+select * from t1 where c3=1 for update;
+--error 1296
+select * from t1 where c7 between 101 and 110 for update;
+
+set session rocksdb_lock_scanned_rows=on;
+--error 1296
+select * from t1 where c3=1 for update;
+--error 1296
+select * from t1 where c7 between 101 and 110 for update;
+set session rocksdb_lock_scanned_rows=off;
+set @@global.rocksdb_max_row_locks = @start_rocksdb_max_row_locks;
+drop table t1;

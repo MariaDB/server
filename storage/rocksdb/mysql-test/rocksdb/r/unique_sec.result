@@ -219,3 +219,34 @@ CHECK TABLE t EXTENDED;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 DROP TABLE t;
+#
+# Validate lock acquired on SK during delete
+#
+CREATE TABLE t3 (pk INT PRIMARY KEY, sk INT, UNIQUE KEY (sk)) ENGINE=ROCKSDB;
+INSERT INTO t3 VALUES (1, 100);
+BEGIN;
+# This should acquire a lock on sk = 100
+DELETE FROM t3 WHERE pk = 1;
+connect  con1, localhost, root,,;
+connection con1;
+set session rocksdb_lock_wait_timeout=1;
+set session transaction_isolation='REPEATABLE-READ';
+SELECT * FROM t3;
+pk	sk
+1	100
+# RR: This should fail with lock wait timeout due to sk = 100
+INSERT INTO t3 VALUES (2, 100);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+set session transaction_isolation='READ-COMMITTED';
+# RC: This should fail with lock wait timeout due to sk = 100
+INSERT INTO t3 VALUES (2, 100);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection default;
+# The original transaction should be able to perform an insert
+INSERT INTO t3 VALUES (3, 100);
+COMMIT;
+SELECT * FROM t3;
+pk	sk
+3	100
+disconnect con1;
+DROP TABLE t3;

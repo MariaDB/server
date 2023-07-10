@@ -55,7 +55,6 @@ select * from t;
 i
 rollback;
 connection con2;
-i
 rollback;
 connection con1;
 i

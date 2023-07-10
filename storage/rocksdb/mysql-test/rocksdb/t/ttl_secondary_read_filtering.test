@@ -409,6 +409,45 @@ SELECT a, b FROM t1 FORCE INDEX (kb);
 
 DROP TABLE t1;
 
+# Test that index_next_with_direction skips records properly for timestamps
+CREATE TABLE t1 (
+  a int,
+  b int,
+  ts TIMESTAMP NOT NULL,
+  PRIMARY KEY (a),
+  KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;ttl_col=ts;';
+
+set global rocksdb_debug_ttl_rec_ts = 100;
+INSERT INTO t1 VALUES (1, 1, NOW());
+INSERT INTO t1 VALUES (2, 2, NOW());
+INSERT INTO t1 VALUES (3, 3, NOW());
+INSERT INTO t1 VALUES (4, 4, NOW());
+INSERT INTO t1 VALUES (5, 5, NOW());
+INSERT INTO t1 VALUES (6, 6, NOW());
+INSERT INTO t1 VALUES (7, 7, NOW());
+INSERT INTO t1 VALUES (8, 8, NOW());
+INSERT INTO t1 VALUES (9, 9, NOW());
+INSERT INTO t1 VALUES (10, 10, NOW());
+set global rocksdb_debug_ttl_rec_ts = 0;
+
+set global rocksdb_force_flush_memtable_now=1;
+--echo # None are expired
+SELECT a, b FROM t1 FORCE INDEX (kb);
+
+set global rocksdb_debug_ttl_rec_ts = -100;
+UPDATE t1 SET ts=(ADDTIME(NOW(), 1)) WHERE a IN (4, 7);
+set global rocksdb_debug_ttl_rec_ts = 0;
+
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+
+--echo # 4 and 7 should be gone
+SELECT a, b FROM t1 FORCE INDEX (kb);
+
+DROP TABLE t1;
+
 # Test range scans with various conditionals
 CREATE TABLE t1 (
   c1 INT,

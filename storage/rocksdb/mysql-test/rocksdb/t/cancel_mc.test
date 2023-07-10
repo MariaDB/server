@@ -1,0 +1,201 @@
+--source include/have_rocksdb.inc
+
+DELIMITER //;
+CREATE FUNCTION is_compaction_stopped() RETURNS INT
+BEGIN
+  SELECT variable_value INTO @cwb_1 FROM information_schema.global_status WHERE variable_name="rocksdb_compact_write_bytes";
+  SELECT SLEEP(3) INTO @a;
+  SELECT variable_value INTO @cwb_2 FROM information_schema.global_status WHERE variable_name="rocksdb_compact_write_bytes";
+  IF @cwb_2 > @cwb_1 THEN
+    RETURN 0;
+  END IF;
+  RETURN 1;
+END//
+DELIMITER ;//
+
+
+let $datadir = `SELECT @@datadir`;
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+create table t1 (id int auto_increment, value int, value2 varchar(500), primary key (id), index(value2) comment 'cf_i') engine=rocksdb;
+
+let $datadir = `SELECT @@datadir`;
+
+# generating test data
+--let MYSQLD_DATADIR=$datadir
+perl;
+my $row_count = 500000;
+my $datadir = $ENV{'MYSQLD_DATADIR'};
+open(DATA, ">", $datadir . "/se_loaddata.dat") || die "Can't open file: $!\n";
+my $value = 'x' x 250;
+for (my $i= 1; $i <= $row_count; $i++) {
+  print DATA "$i,$i,$value\n";
+}
+close(DATA);
+EOF
+
+SET SESSION rocksdb_bulk_load_allow_sk=1;
+SET SESSION rocksdb_bulk_load=1;
+
+--replace_result $datadir <DATADIR>
+eval
+LOAD DATA INFILE '$datadir/se_loaddata.dat' INTO TABLE t1
+  FIELDS TERMINATED BY ',' (id, value, value2);
+
+SET SESSION rocksdb_bulk_load=0;
+SET SESSION rocksdb_bulk_load_allow_sk=0;
+
+--remove_file $datadir/se_loaddata.dat
+
+
+--connect (con1,localhost,root,,)
+--connect (con2,localhost,root,,)
+
+# Note that finishing cancelling MC may take a few seconds after instruction,
+# so testing with very large datasets or slowing down compaction is needed
+# to make tests reliable. rocksdb_rate_limiter_bytes_per_sec=256k
+# (in -master.opt) is an option to do the latter so that RocksDB has enough
+# time to cancel compactions.
+
+--echo # 
+--echo # Cancelling MC, including pending MCs, by KILL statements
+--echo # 
+
+connection default;
+SELECT variable_value into @executed_start FROM information_schema.global_status WHERE variable_name="rocksdb_manual_compactions_cancelled";
+
+connection con1;
+--let $con1_id = `SELECT CONNECTION_ID()`
+send SET GLOBAL rocksdb_compact_cf='default';
+
+connection con2;
+--let $con2_id = `SELECT CONNECTION_ID()`
+set session rocksdb_manual_compaction_threads=2;
+send SET GLOBAL rocksdb_compact_cf='cf_i';
+
+connection default;
+let $wait_condition=
+  select variable_value = 1 from information_schema.global_status WHERE variable_name="rocksdb_manual_compactions_running";
+--source include/wait_condition.inc
+let $wait_condition=
+  select variable_value = 1 from information_schema.global_status WHERE variable_name="rocksdb_manual_compactions_pending";
+--source include/wait_condition.inc
+--disable_query_log
+eval kill query $con1_id;
+eval kill query $con2_id;
+--enable_query_log
+
+connection con1;
+--error ER_INTERNAL_ERROR
+reap;
+
+connection con2;
+--error ER_INTERNAL_ERROR
+reap;
+
+connection default;
+let $wait_condition=
+  select variable_value = 0 from information_schema.global_status WHERE variable_name="rocksdb_manual_compactions_pending";
+--source include/wait_condition.inc
+
+SELECT variable_value into @executed_end FROM information_schema.global_status WHERE variable_name="rocksdb_manual_compactions_cancelled";
+SELECT @executed_end-@executed_start AS CANCELLED_MC;
+
+let $wait_condition=
+  select is_compaction_stopped() = 1 from dual;
+--source include/wait_condition.inc
+
+--echo # 
+--echo # Cancelling MC by global opt
+--echo # 
+
+connection default;
+SELECT variable_value into @executed_start FROM information_schema.global_status WHERE variable_name="rocksdb_manual_compactions_cancelled";
+
+connection con1;
+set session rocksdb_manual_compaction_threads=2;
+send SET GLOBAL rocksdb_compact_cf='default';
+
+# waiting for compaction to actually start
+connection default;
+let $wait_condition=
+  select variable_value = 1 from information_schema.global_status WHERE variable_name="rocksdb_manual_compactions_running";
+--source include/wait_condition.inc
+
+# Issuing second MC (pending)
+connection con2;
+send SET GLOBAL rocksdb_compact_cf='cf_i';
+
+connection default;
+let $wait_condition=
+  select variable_value = 1 from information_schema.global_status WHERE variable_name="rocksdb_manual_compactions_pending";
+--source include/wait_condition.inc
+set global rocksdb_cancel_manual_compactions=ON;
+
+# first MC (running state) is cancelled
+connection con1;
+--error ER_INTERNAL_ERROR
+reap;
+
+# second MC (pending state) is also cancelled
+connection con2;
+--error ER_INTERNAL_ERROR
+reap;
+
+connection default;
+SELECT variable_value into @executed_end FROM information_schema.global_status WHERE variable_name="rocksdb_manual_compactions_cancelled";
+SELECT @executed_end-@executed_start AS CANCELLED_MC;
+
+let $wait_condition=
+  select is_compaction_stopped() = 1 from dual;
+--source include/wait_condition.inc
+
+--echo # 
+--echo # Cancelling OPTIMIZE TABLE by global opt
+--echo # 
+connection con1;
+send OPTIMIZE TABLE t1;
+
+connection default;
+SELECT variable_value into @current_cwb FROM information_schema.global_status WHERE variable_name="rocksdb_compact_write_bytes";
+
+let $wait_condition=
+  select count(*) = 1 from information_schema.processlist
+    where info IN ("OPTIMIZE TABLE t1");
+--source include/wait_condition.inc
+
+# compacting more than 100kb (at least a few percent)
+let $wait_condition=
+  select variable_value > (@current_cwb + 100000) FROM information_schema.global_status WHERE variable_name="rocksdb_compact_write_bytes";
+--source include/wait_condition.inc
+
+set global rocksdb_cancel_manual_compactions=ON;
+
+connection con1;
+reap;
+
+connection default;
+select 'PRIMARY' as idx, COUNT(*) as cnt FROM t1 FORCE INDEX (PRIMARY)
+UNION ALL SELECT 'value2' as idx, COUNT(*) as cnt FROM t1 FORCE INDEX (value2);
+
+--echo # 
+--echo # Dropping Indexes complete even after cancelling MC
+--echo # 
+INSERT INTO t1 (id) VALUES (null);
+set global rocksdb_force_flush_memtable_now=ON;
+
+SELECT variable_value into @current_cwb FROM information_schema.global_status WHERE variable_name="rocksdb_compact_write_bytes";
+DROP TABLE t1;
+
+let $wait_condition=
+  select variable_value > @current_cwb FROM information_schema.global_status WHERE variable_name="rocksdb_compact_write_bytes";
+set global rocksdb_cancel_manual_compactions=ON;
+
+let $wait_condition = select count(*) = 0
+                      as c from information_schema.rocksdb_global_info
+                      where TYPE = 'DDL_DROP_INDEX_ONGOING';
+--source include/wait_condition.inc
+
+DROP FUNCTION is_compaction_stopped;

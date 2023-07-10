@@ -15,3 +15,18 @@ EXPLAIN SELECT COUNT(*) FROM t1 FORCE INDEX(d);
 --echo # segfault here without the fix
 SELECT COUNT(*) FROM t1 FORCE INDEX(d);
 DROP TABLE t1;
+
+CREATE TABLE `t1` (
+`a` bigint(20) NOT NULL,
+`b` varchar(10) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+`u` timestamp NOT NULL,
+`d` bigint(20) DEFAULT NULL,
+PRIMARY KEY (`a`,`b`),
+KEY `d` (`d`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='ttl_duration=1000;ttl_col=u';
+INSERT INTO t1 VALUES (100, 'aaabbb', NOW(), 200);
+--replace_column 9 #
+EXPLAIN SELECT COUNT(*) FROM t1;
+--echo # segfault here without the fix
+SELECT COUNT(*) FROM t1;
+DROP TABLE t1;

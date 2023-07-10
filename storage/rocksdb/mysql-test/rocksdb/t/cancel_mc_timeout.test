@@ -1,0 +1,49 @@
+--source include/have_rocksdb.inc
+
+--connect (con1,localhost,root,,)
+--connect (con2,localhost,root,,)
+
+connection default;
+# longer than compaction wait timeout (60 seconds)
+set global rocksdb_debug_manual_compaction_delay=80;
+
+connection con1;
+--let $con1_id = `SELECT CONNECTION_ID()`
+send SET GLOBAL rocksdb_compact_cf='default';
+
+
+connection default;
+let $wait_condition=
+  select variable_value = 1 from information_schema.global_status WHERE variable_name="rocksdb_manual_compactions_running";
+--source include/wait_condition.inc
+
+connection con2;
+--let $con2_id = `SELECT CONNECTION_ID()`
+set session rocksdb_manual_compaction_threads=2;
+send SET GLOBAL rocksdb_compact_cf='default';
+
+connection default;
+let $wait_condition=
+  select variable_value = 1 from information_schema.global_status WHERE variable_name="rocksdb_manual_compactions_pending";
+--source include/wait_condition.inc
+--disable_query_log
+eval kill query $con1_id;
+eval kill query $con2_id;
+--enable_query_log
+
+# pending compaction can be cancelled instantly
+connection con2;
+--error ER_INTERNAL_ERROR
+reap;
+
+# running compaction hits timeout
+connection con1;
+--error ER_INTERNAL_ERROR
+reap;
+
+connection default;
+set global rocksdb_debug_manual_compaction_delay=0;
+
+# next compaction starts after previous (running) compaction finishes
+connection con1;
+SET GLOBAL rocksdb_compact_cf='default';

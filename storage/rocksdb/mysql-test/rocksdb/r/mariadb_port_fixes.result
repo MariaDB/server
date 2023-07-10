@@ -83,6 +83,7 @@ ROCKSDB_INDEX_FILE_MAP	Stable
 ROCKSDB_LOCKS	Stable
 ROCKSDB_TRX	Stable
 ROCKSDB_DEADLOCK	Stable
+ROCKSDB_LIVE_FILES_METADATA	Stable
 #
 #  MDEV-12466 : Assertion `thd->transaction.stmt.is_empty() || thd->in_sub_stmt ||  ...
 #

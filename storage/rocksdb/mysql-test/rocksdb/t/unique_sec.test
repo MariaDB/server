@@ -49,3 +49,36 @@ CREATE TABLE t (a VARCHAR(255), PRIMARY KEY(a(2)), UNIQUE KEY (a(1))) engine=roc
 INSERT INTO t VALUES('a');
 CHECK TABLE t EXTENDED;
 DROP TABLE t;
+
+--echo #
+--echo # Validate lock acquired on SK during delete
+--echo #
+CREATE TABLE t3 (pk INT PRIMARY KEY, sk INT, UNIQUE KEY (sk)) ENGINE=ROCKSDB;
+INSERT INTO t3 VALUES (1, 100);
+
+BEGIN;
+--echo # This should acquire a lock on sk = 100
+DELETE FROM t3 WHERE pk = 1;
+
+connect (con1, localhost, root,,);
+connection con1;
+set session rocksdb_lock_wait_timeout=1;
+set session transaction_isolation='REPEATABLE-READ';
+SELECT * FROM t3;
+--echo # RR: This should fail with lock wait timeout due to sk = 100
+--error ER_LOCK_WAIT_TIMEOUT
+INSERT INTO t3 VALUES (2, 100);
+
+set session transaction_isolation='READ-COMMITTED';
+--echo # RC: This should fail with lock wait timeout due to sk = 100
+--error ER_LOCK_WAIT_TIMEOUT
+INSERT INTO t3 VALUES (2, 100);
+
+connection default;
+--echo # The original transaction should be able to perform an insert
+INSERT INTO t3 VALUES (3, 100);
+COMMIT;
+SELECT * FROM t3;
+
+disconnect con1;
+DROP TABLE t3;

@@ -1,0 +1,2 @@
+--rocksdb_max_subcompactions=1
+--rocksdb_default_cf_options=target_file_size_base=100k;max_bytes_for_level_multiplier=1;max_bytes_for_level_base=1m;target_file_size_multiplier=1

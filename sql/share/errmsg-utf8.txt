@@ -11675,10 +11675,10 @@ ER_RDB_TTL_UNSUPPORTED
         sw "Uauniaji wa TTL umezimwa kwa sasa wakati jedwali lina PK iliyofichwa."
 
 ER_RDB_TTL_COL_FORMAT
-        chi "Myrocks中的TTL列(%s)必须是一个无符号的非空64位整数，存在于表内，并具有伴随的TTL持续时间。"
-        eng "TTL column (%s) in MyRocks must be an unsigned non-null 64-bit integer, exist inside the table, and have an accompanying ttl duration."
-        spa "La columna TTL (%s) en MyRocks debe de ser un entero sin signo no-null de 64-bit, debe de existir dentro de la tabla y debe de tener una duración ttl acompañante."
-        sw "Safu wima ya TTL (%s) katika MyRocks lazima iwe nambari kamili ya biti 64 ambayo haijatiwa saini, iwe ndani ya jedwali, na iwe na muda wa ttl unaoandamana."
+        chi "Myrocks中的TTL列(%s)必须是一个无符号的非空64位整数或非空时间戳，存在于表内，并具有伴随的TTL持续时间。"
+        eng "TTL column (%s) in MyRocks must be an unsigned non-null 64-bit integer or non-null timestamp, exist inside the table, and have an accompanying ttl duration."
+        spa "La columna TTL (%s) en MyRocks debe de ser un entero sin signo no-null de 64-bit o una marca de tiempo no-null, debe de existir dentro de la tabla y debe de tener una duración ttl acompañante."
+        sw "Safu wima ya TTL (%s) katika MyRocks lazima iwe nambari kamili ya biti 64 ambayo haijatiwa saini au muhuri wa muda usio batili, iwe ndani ya jedwali, na iwe na muda wa ttl unaoandamana."
 
 ER_PER_INDEX_CF_DEPRECATED
         chi "已弃用每个索引列族选项"
@@ -11697,6 +11697,7 @@ ER_SK_POPULATE_DURING_ALTER
         eng "MyRocks failed populating secondary key during alter."
         spa "MyRocks falló al poblar clave secundaria duante el 'alter'."
         sw "MyRocks imeshindwa kujaza ufunguo wa sekondari wakati wa kubadilisha."
+
 # MyRocks messages end
 
 ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
@@ -12300,3 +12301,9 @@ ER_JSON_INVALID_VALUE_FOR_KEYWORD
 ER_JSON_SCHEMA_KEYWORD_UNSUPPORTED
         eng "%s keyword is not supported"
         sw "%s neno kuu halitumiki"
+ER_CF_DROPPED
+        chi "列族 ('%s') 正在被删除。"
+        eng "Column family ('%s') is being dropped."
+ER_CANT_DROP_CF
+        chi "不能删除列族 ('%s')，因为它正在使用或不存在。"
+        eng "Cannot drop Column family ('%s') because it is in use or does not exist."
