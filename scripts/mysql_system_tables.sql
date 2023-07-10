@@ -303,6 +303,7 @@ set @had_proxies_priv_table= @@warning_count != 0;
 -- and for upgrades
 CREATE TEMPORARY TABLE tmp_proxies_priv LIKE proxies_priv;
 INSERT INTO tmp_proxies_priv VALUES ('localhost', 'root', '', '', TRUE, '', now());
+REPLACE INTO tmp_proxies_priv SELECT 'localhost',IFNULL(@auth_root_socket, 'root'), '', '', TRUE, '', now() FROM DUAL;
 INSERT INTO proxies_priv SELECT * FROM tmp_proxies_priv WHERE @had_proxies_priv_table=0;
 DROP TABLE tmp_proxies_priv;
 
