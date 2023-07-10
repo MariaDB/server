@@ -4814,6 +4814,10 @@ Query_log_event::Query_log_event(const char* buf, uint event_len,
       pos+= 3;
       break;
     }
+    case Q_DUMMY:
+    {
+      break;
+    }
     default:
       /* That's why you must write status vars in growing order of code */
       DBUG_PRINT("info",("Query_log_event has unknown status vars (first has\
@@ -5127,11 +5131,12 @@ Query_log_event::begin_event(String *packet, ulong ev_offset,
   /*
     Currently we only need to replace GTID event.
     The length of GTID differs depending on whether it contains commit id.
+    And/or thread id.
   */
-  DBUG_ASSERT(data_len == LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN ||
-              data_len == LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN + 2);
-  if (data_len != LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN &&
-      data_len != LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN + 2)
+  DBUG_ASSERT(data_len >= LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN &&
+              data_len <= LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN + 2 + 5);
+  if (data_len < LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN ||
+      data_len > LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN + 2 + 5)
     return 1;
 
   flags= uint2korr(p + FLAGS_OFFSET);
@@ -5152,9 +5157,18 @@ Query_log_event::begin_event(String *packet, ulong ev_offset,
   }
   else
   {
-    DBUG_ASSERT(data_len == LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN + 2);
-    /* Put in an empty time_zone_str to take up the extra 2 bytes. */
-    int2store(q + Q_STATUS_VARS_LEN_OFFSET, 2);
+    DBUG_ASSERT(data_len <= LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN + 7);
+    /* Put in an empty time_zone_str to take up the extra 2 plus the number of
+       dummy_bytes. */
+    int dummy_bytes= data_len - (LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN + 2);
+
+    DBUG_ASSERT(dummy_bytes == 0 || dummy_bytes == 5);
+
+    int2store(q + Q_STATUS_VARS_LEN_OFFSET, dummy_bytes + 2);
+    for (int i= 0; i < dummy_bytes; i++)
+      q[Q_DATA_OFFSET + i]= Q_DUMMY;
+    q+= dummy_bytes;
+
     q[Q_DATA_OFFSET]= Q_TIME_ZONE_CODE;
     q[Q_DATA_OFFSET+1]= 0;           /* Zero length for empty time_zone_str */
     q[Q_DATA_OFFSET+2]= 0;                  /* Zero terminator for empty db */
@@ -7964,10 +7978,11 @@ bool Binlog_checkpoint_log_event::write()
 
 Gtid_log_event::Gtid_log_event(const char *buf, uint event_len,
                const Format_description_log_event *description_event)
-  : Log_event(buf, description_event), seq_no(0), commit_id(0)
+  : Log_event(buf, description_event), seq_no(0), commit_id(0), thread_id(0)
 {
   uint8 header_size= description_event->common_header_len;
   uint8 post_header_len= description_event->post_header_len[GTID_EVENT-1];
+  const char *buf_0= buf;
   if (event_len < (uint) header_size + (uint) post_header_len ||
       post_header_len < GTID_HEADER_LEN)
     return;
@@ -7978,6 +7993,7 @@ Gtid_log_event::Gtid_log_event(const char *buf, uint event_len,
   domain_id= uint4korr(buf);
   buf+= 4;
   flags2= *buf;
+  ++buf;
   if (flags2 & FL_GROUP_COMMIT_ID)
   {
     if (event_len < (uint)header_size + GTID_HEADER_LEN + 2)
@@ -7985,8 +8001,23 @@ Gtid_log_event::Gtid_log_event(const char *buf, uint event_len,
       seq_no= 0;                                // So is_valid() returns false
       return;
     }
-    ++buf;
     commit_id= uint8korr(buf);
+    buf+= 8;
+  }
+
+  /* the extra flags check and actions */
+  if (static_cast<uint>(buf - buf_0) < event_len)
+  {
+    flags_extra= *buf++;
+
+    if (flags_extra & FL_EXTRA_THREAD_ID)
+    {
+      DBUG_ASSERT(static_cast<uint>(buf - buf_0) <= event_len + 4);
+
+      thread_id= uint4korr(buf);
+
+      DBUG_ASSERT(thread_id > 0);
+    }
   }
 }
 
@@ -7999,7 +8030,9 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
                                uint64 commit_id_arg)
   : Log_event(thd_arg, flags_arg, is_transactional),
     seq_no(seq_no_arg), commit_id(commit_id_arg), domain_id(domain_id_arg),
-    flags2((standalone ? FL_STANDALONE : 0) | (commit_id_arg ? FL_GROUP_COMMIT_ID : 0))
+    flags2((standalone ? FL_STANDALONE : 0) |
+           (commit_id_arg ? FL_GROUP_COMMIT_ID : 0)),
+    flags_extra(0), thread_id(thd_arg->thread_id)
 {
   cache_type= Log_event::EVENT_NO_CACHE;
   bool is_tmp_table= thd_arg->lex->stmt_accessed_temp_table();
@@ -8020,6 +8053,8 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
   /* Preserve any DDL or WAITED flag in the slave's binlog. */
   if (thd_arg->rgi_slave)
     flags2|= (thd_arg->rgi_slave->gtid_ev_flags2 & (FL_DDL|FL_WAITED));
+  if (thread_id > 0)
+    flags_extra|= FL_EXTRA_THREAD_ID;
 }
 
 
@@ -8062,22 +8097,38 @@ Gtid_log_event::peek(const char *event_start, size_t event_len,
 bool
 Gtid_log_event::write()
 {
-  uchar buf[GTID_HEADER_LEN+2];
-  size_t write_len;
+  uchar buf[GTID_HEADER_LEN+2 + 1 + 4 /* FL_EXTRA_THREAD_ID */];
+  size_t write_len= 13;
 
   int8store(buf, seq_no);
   int4store(buf+8, domain_id);
   buf[12]= flags2;
   if (flags2 & FL_GROUP_COMMIT_ID)
   {
-    int8store(buf+13, commit_id);
+    int8store(buf+write_len, commit_id);
+
+    DBUG_ASSERT(write_len + 8 == GTID_HEADER_LEN + 2);
+
     write_len= GTID_HEADER_LEN + 2;
   }
-  else
+
+  if (flags_extra > 0)
   {
-    bzero(buf+13, GTID_HEADER_LEN-13);
+    buf[write_len]= flags_extra;
+    write_len++;
+  }
+  if (flags_extra & FL_EXTRA_THREAD_ID)
+  {
+    int4store(buf + write_len, thread_id);
+    write_len+= 4;
+  }
+
+  if (write_len < GTID_HEADER_LEN)
+  {
+    bzero(buf+write_len, GTID_HEADER_LEN-write_len);
     write_len= GTID_HEADER_LEN;
   }
+
   return write_header(write_len) ||
          write_data(buf, write_len) ||
          write_footer();
@@ -8266,6 +8317,9 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
         goto err;
     if (flags2 & FL_WAITED)
       if (my_b_write_string(&cache, " waited"))
+        goto err;
+    if (flags_extra & FL_EXTRA_THREAD_ID)
+      if (my_b_printf(&cache, " thread_id=%u", thread_id))
         goto err;
     if (my_b_printf(&cache, "\n"))
       goto err;
