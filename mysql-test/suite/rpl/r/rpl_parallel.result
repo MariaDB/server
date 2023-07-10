@@ -2,6 +2,7 @@ include/master-slave.inc
 [connection master]
 connection server_2;
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
 SET GLOBAL slave_parallel_threads=10;
 ERROR HY000: This operation cannot be performed as you have a running slave ''; run STOP SLAVE '' first
 include/stop_slave.inc
@@ -1679,13 +1680,52 @@ a
 2000
 SELECT * FROM t2 WHERE a>=2000 ORDER BY a;
 a
+MDEV-31655: Parallel replication deadlock victim preference code erroneously removed
+connection server_1;
+CREATE TABLE t7 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+BEGIN;
+COMMIT;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+set @@global.slave_parallel_threads= 5;
+set @@global.slave_parallel_mode= conservative;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug= "+d,rpl_mdev31655_zero_retries";
+connection master;
+SET @old_dbug= @@SESSION.debug_dbug;
+SET SESSION debug_dbug="+d,binlog_force_commit_id";
+SET @commit_id= 1+1000;
+SET @commit_id= 2+1000;
+SET @commit_id= 3+1000;
+SET @commit_id= 4+1000;
+SET @commit_id= 5+1000;
+SET @commit_id= 6+1000;
+SET @commit_id= 7+1000;
+SET @commit_id= 8+1000;
+SET @commit_id= 9+1000;
+SET @commit_id= 10+1000;
+SET SESSION debug_dbug= @old_dbug;
+SELECT COUNT(*), SUM(a*100*b) FROM t7;
+COUNT(*)	SUM(a*100*b)
+10	225000
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SET GLOBAL debug_dbug= @old_dbug;
+SELECT COUNT(*), SUM(a*100*b) FROM t7;
+COUNT(*)	SUM(a*100*b)
+10	225000
 connection server_2;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+SET GLOBAL slave_parallel_mode=@old_parallel_mode;
 include/start_slave.inc
 SET DEBUG_SYNC= 'RESET';
 connection server_1;
 DROP function foo;
-DROP TABLE t1,t2,t3,t4,t5,t6;
+DROP TABLE t1,t2,t3,t4,t5,t6,t7;
 SET DEBUG_SYNC= 'RESET';
 include/rpl_end.inc
