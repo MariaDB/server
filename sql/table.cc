@@ -5695,6 +5695,12 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
     (*f_ptr)->cond_selectivity= 1.0;
   }
 
+  /* enable and clear or disable engine query statistics */
+  if ((thd->variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_ENGINE))
+    file->ha_handler_stats_reset();
+  else
+    file->ha_handler_stats_disable();
+
   notnull_cond= 0;
   DBUG_ASSERT(!file->keyread_enabled());
 
