@@ -108,6 +108,8 @@ wait/io/table/sql/handler	handler.cc:	TABLE	mysql	db	fetch	NULL
 wait/io/table/sql/handler	handler.cc:	TABLE	mysql	proxies_priv	fetch	NULL
 wait/io/table/sql/handler	handler.cc:	TABLE	mysql	proxies_priv	fetch	NULL
 wait/io/table/sql/handler	handler.cc:	TABLE	mysql	proxies_priv	fetch	NULL
+wait/io/table/sql/handler	handler.cc:	TABLE	mysql	proxies_priv	fetch	NULL
+wait/io/table/sql/handler	handler.cc:	TABLE	mysql	proxies_priv	fetch	NULL
 wait/io/table/sql/handler	handler.cc:	TABLE	mysql	roles_mapping	fetch	NULL
 wait/io/table/sql/handler	handler.cc:	TABLE	mysql	tables_priv	fetch	NULL
 wait/io/table/sql/handler	handler.cc:	TABLE	mysql	tables_priv	fetch	NULL
