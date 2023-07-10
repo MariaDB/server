@@ -1586,6 +1586,17 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
       }
       break;
     }
+    case Q_DUMMY:
+    {
+      /*
+        At some point, this query event was translated from a GTID event, with
+        these Q_DUMMY bytes added to pad the end of the header. We can skip the
+        rest of processing these vars. Note this is a separate case from the
+        default to avoid the DBUG_PRINT of an unknown status var.
+      */
+      pos= (const uchar*) end;
+      break;
+    }
     default:
       /* That's why you must write status vars in growing order of code */
       DBUG_PRINT("info",("Query_log_event has unknown status vars (first has\
@@ -1890,6 +1901,7 @@ Query_log_event::begin_event(String *packet, ulong ev_offset,
   uchar *p= (uchar *)packet->ptr() + ev_offset;
   uchar *q= p + LOG_EVENT_HEADER_LEN;
   size_t data_len= packet->length() - ev_offset;
+  size_t dummy_bytes;
   uint16 flags;
 
   if (checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
@@ -1898,15 +1910,6 @@ Query_log_event::begin_event(String *packet, ulong ev_offset,
     DBUG_ASSERT(checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF ||
                 checksum_alg == BINLOG_CHECKSUM_ALG_OFF);
 
-  /*
-    Currently we only need to replace GTID event.
-    The length of GTID differs depending on whether it contains commit id.
-  */
-  DBUG_ASSERT(data_len == LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN ||
-              data_len == LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN + 2);
-  if (data_len != LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN &&
-      data_len != LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN + 2)
-    return 1;
 
   flags= uint2korr(p + FLAGS_OFFSET);
   flags&= ~LOG_EVENT_THREAD_SPECIFIC_F;
@@ -1918,22 +1921,21 @@ Query_log_event::begin_event(String *packet, ulong ev_offset,
   int4store(q + Q_EXEC_TIME_OFFSET, 0);
   q[Q_DB_LEN_OFFSET]= 0;
   int2store(q + Q_ERR_CODE_OFFSET, 0);
-  if (data_len == LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN)
-  {
-    int2store(q + Q_STATUS_VARS_LEN_OFFSET, 0);
-    q[Q_DATA_OFFSET]= 0;                    /* Zero terminator for empty db */
-    q+= Q_DATA_OFFSET + 1;
-  }
-  else
-  {
-    DBUG_ASSERT(data_len == LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN + 2);
-    /* Put in an empty time_zone_str to take up the extra 2 bytes. */
-    int2store(q + Q_STATUS_VARS_LEN_OFFSET, 2);
-    q[Q_DATA_OFFSET]= Q_TIME_ZONE_CODE;
-    q[Q_DATA_OFFSET+1]= 0;           /* Zero length for empty time_zone_str */
-    q[Q_DATA_OFFSET+2]= 0;                  /* Zero terminator for empty db */
-    q+= Q_DATA_OFFSET + 3;
-  }
+
+  /*
+    If the allocated GTID event packet header is longer than the size of the
+    standard BEGIN query event's, then we need to fill in everything else with
+    "dummy" values. That is, old replicas won't recognize the meaning for the
+    DUMMY value, and will skip the rest of the status vars section.
+  */
+  DBUG_ASSERT(data_len >= LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN);
+  dummy_bytes= data_len - (LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN);
+  int2store(q + Q_STATUS_VARS_LEN_OFFSET, dummy_bytes);
+  for (size_t i= 0; i < dummy_bytes; i++)
+    q[Q_DATA_OFFSET + i]= Q_DUMMY;
+  q[Q_DATA_OFFSET + dummy_bytes]= 0; /* Zero terminator for empty db */
+  q+= Q_DATA_OFFSET + dummy_bytes + 1;
+
   memcpy(q, "BEGIN", 5);
 
   if (checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
@@ -2394,7 +2396,7 @@ Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
                                const Format_description_log_event
                                *description_event)
   : Log_event(buf, description_event), seq_no(0), commit_id(0),
-    flags_extra(0), extra_engines(0)
+    flags_extra(0), extra_engines(0), thread_id(0)
 {
   uint8 header_size= description_event->common_header_len;
   uint8 post_header_len= description_event->post_header_len[GTID_EVENT-1];
@@ -2453,6 +2455,13 @@ Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
     {
       sa_seq_no= uint8korr(buf);
       buf+= 8;
+    }
+
+    if (flags_extra & FL_EXTRA_THREAD_ID &&
+        static_cast<uint>(buf - buf_0) <= event_len + 4)
+    {
+      thread_id= uint4korr(buf);
+      buf+= 4;
     }
   }
   /*
