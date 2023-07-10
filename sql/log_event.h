@@ -313,6 +313,7 @@ class String;
 #define Q_INVOKER 11
 
 #define Q_HRNOW 128
+#define Q_DUMMY 255
 
 /* Intvar event post-header */
 
@@ -3395,6 +3396,8 @@ public:
   uint64 commit_id;
   uint32 domain_id;
   uchar flags2;
+  uint  flags_extra; // more flags area placed after the regular flags2's one
+  my_thread_id thread_id;
 
   /* Flags2. */
 
@@ -3422,6 +3425,11 @@ public:
   static const uchar FL_WAITED= 16;
   /* FL_DDL is set for event group containing DDL. */
   static const uchar FL_DDL= 32;
+
+  /* Flags_extra. */
+
+  // static const uchar FL_EXTRA_MULTI_ENGINE= 1;
+  static const uchar FL_EXTRA_THREAD_ID= 2; // thread_id like in BEGIN Query
 
 #ifdef MYSQL_SERVER
   Gtid_log_event(THD *thd_arg, uint64 seq_no, uint32 domain_id, bool standalone,
