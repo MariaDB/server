@@ -324,6 +324,7 @@ class String;
 
 #define Q_HRNOW 128
 #define Q_XID   129
+#define Q_DUMMY 255
 
 #define Q_GTID_FLAGS3 130
 
@@ -3324,6 +3325,7 @@ public:
     When zero the event does not contain that information.
   */
   uint8 extra_engines;
+  my_thread_id thread_id;
 
   /* Flags2. */
 
@@ -3369,6 +3371,7 @@ public:
   static const uchar FL_START_ALTER_E1= 2;
   static const uchar FL_COMMIT_ALTER_E1= 4;
   static const uchar FL_ROLLBACK_ALTER_E1= 8;
+  static const uchar FL_EXTRA_THREAD_ID= 16; // thread_id like in BEGIN Query
 
 #ifdef MYSQL_SERVER
   Gtid_log_event(THD *thd_arg, uint64 seq_no, uint32 domain_id, bool standalone,
