@@ -46,6 +46,9 @@ void rdb_handle_io_error(const rocksdb::Status status,
     MY_ATTRIBUTE((noinline,noclone));
 #endif
 
+bool rdb_is_tablename_normalized(const std::string &tablename)
+    MY_ATTRIBUTE((__warn_unused_result__));
+
 int rdb_normalize_tablename(const std::string &tablename, std::string *str)
     MY_ATTRIBUTE((__nonnull__, __warn_unused_result__));
 
@@ -53,6 +56,11 @@ int rdb_split_normalized_tablename(const std::string &fullname, std::string *db,
                                    std::string *table = nullptr,
                                    std::string *partition = nullptr)
     MY_ATTRIBUTE((__warn_unused_result__));
+
+void rdb_gen_normalized_tablename(const std::string *db,
+                                  const std::string *table,
+                                  const std::string *partition,
+                                  std::string *fullname);
 
 std::vector<std::string> rdb_get_open_table_names(void);
 
@@ -65,6 +73,8 @@ void rdb_get_global_perf_counters(Rdb_perf_counters *counters)
     MY_ATTRIBUTE((__nonnull__(1)));
 
 void rdb_queue_save_stats_request();
+
+extern const std::string TRUNCATE_TABLE_PREFIX;
 
 /*
   Access to singleton objects.

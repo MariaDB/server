@@ -69,6 +69,7 @@ gap_lock_issue254:    MDEV-11735: MyRocks: Gap Lock detector support
 gap_lock_raise_error: MDEV-11735: MyRocks: Gap Lock detector support
 show_engine : MariaRocks: MariaDB doesnt support SHOW ENGINE rocksdb TRANSACTION STATUS
 issue243_transactionStatus: MariaDB doesnt support SHOW ENGINE rocksdb TRANSACTION STATUS
+max_row_locks: MariaDB doesnt support SHOW ENGINE rocksdb TRANSACTION STATUS
 rpl_row_not_found : MariaDB doesnt support slave_exec_mode='SEMI_STRICT'
 rpl_row_not_found_rc : MariaDB doesnt support slave_exec_mode='SEMI_STRICT'
 

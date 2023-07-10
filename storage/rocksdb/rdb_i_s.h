@@ -34,4 +34,5 @@ extern struct st_maria_plugin rdb_i_s_index_file_map;
 extern struct st_maria_plugin rdb_i_s_lock_info;
 extern struct st_maria_plugin rdb_i_s_trx_info;
 extern struct st_maria_plugin rdb_i_s_deadlock_info;
+extern struct st_maria_plugin rdb_i_s_live_files_metadata;
 }  // namespace myrocks

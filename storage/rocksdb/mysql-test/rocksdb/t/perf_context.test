@@ -64,10 +64,24 @@ INSERT INTO t2 VALUES (1), (2);
 INSERT INTO t2 VALUES (3), (4);
 COMMIT;
 
-SELECT COUNT(*) from INFORMATION_SCHEMA.ROCKSDB_PERF_CONTEXT
-WHERE TABLE_NAME = 't2'
-AND STAT_TYPE = 'IO_WRITE_NANOS'
-AND VALUE > 0;
+# For write unprepared, writes can happen before commit, meaning some IOs can
+# be attributed to specific statements/tables.
+let $wup = `SELECT @@global.rocksdb_write_policy = 'write_unprepared'`;
+--disable_query_log
+if ($wup) {
+  SELECT COUNT(*) from INFORMATION_SCHEMA.ROCKSDB_PERF_CONTEXT
+  WHERE TABLE_NAME = 't2'
+  AND STAT_TYPE = 'IO_WRITE_NANOS'
+  AND VALUE = 0;
+}
+
+if (!$wup) {
+  SELECT COUNT(*) from INFORMATION_SCHEMA.ROCKSDB_PERF_CONTEXT
+  WHERE TABLE_NAME = 't2'
+  AND STAT_TYPE = 'IO_WRITE_NANOS'
+  AND VALUE > 0;
+}
+--enable_query_log
 
 SELECT COUNT(*) from INFORMATION_SCHEMA.ROCKSDB_PERF_CONTEXT_GLOBAL
 WHERE STAT_TYPE = 'IO_WRITE_NANOS' AND VALUE > 0;

@@ -1,0 +1,15 @@
+1
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (
+a int not null,
+b int not null,
+primary key (a,b),
+key (b)
+) ENGINE=RocksDB;
+DELETE FROM t1;
+set @@global.rocksdb_compact_cf = 'default';
+Bottom thread priority:
+19
+Bottom thread counts:
+1
+drop table t1;

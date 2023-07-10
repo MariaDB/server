@@ -27,6 +27,7 @@
 #include <sql_show.h>
 
 /* RocksDB header files */
+#include "rocksdb/advanced_cache.h"
 #include "rocksdb/compaction_filter.h"
 #include "rocksdb/convenience.h"
 #include "rocksdb/filter_policy.h"
@@ -36,6 +37,7 @@
 #include "rocksdb/utilities/transaction_db.h"
 
 /* MyRocks header files */
+#include "./debug_sync.h"
 #include "./ha_rocksdb.h"
 #include "./ha_rocksdb_proto.h"
 #include "./rdb_cf_manager.h"
@@ -102,7 +104,22 @@ static int rdb_i_s_cfstats_fill_table(
        "NUM_ENTRIES_IMM_MEM_TABLES"},
       {rocksdb::DB::Properties::kEstimateTableReadersMem,
        "NON_BLOCK_CACHE_SST_MEM_USAGE"},
-      {rocksdb::DB::Properties::kNumLiveVersions, "NUM_LIVE_VERSIONS"}};
+      {rocksdb::DB::Properties::kNumLiveVersions, "NUM_LIVE_VERSIONS"},
+      {rocksdb::DB::Properties::kNumImmutableMemTableFlushed,
+       "NUM_IMMUTABLE_MEM_TABLE_FLUSHED"},
+      {rocksdb::DB::Properties::kNumRunningFlushes, "NUM_RUNNING_FLUSHES"},
+      {rocksdb::DB::Properties::kNumRunningCompactions,
+       "NUM_RUNNING_COMPACTIONS"},
+      {rocksdb::DB::Properties::kSizeAllMemTables, "SIZE_ALL_MEM_TABLES"},
+      {rocksdb::DB::Properties::kNumDeletesActiveMemTable,
+       "NUM_DELETES_ACTIVE_MEM_TABLE"},
+      {rocksdb::DB::Properties::kNumDeletesImmMemTables,
+       "NUM_DELETES_IMM_MEM_TABLES"},
+      {rocksdb::DB::Properties::kEstimateNumKeys, "ESTIMATE_NUM_KEYS"},
+      {rocksdb::DB::Properties::kEstimateLiveDataSize,
+       "ESTIMATE_LIVE_DATA_SIZE"},
+      {rocksdb::DB::Properties::kEstimatePendingCompactionBytes,
+       "ESTIMATE_PENDING_COMPACTION_BYTES"}};
 
   rocksdb::DB *const rdb = rdb_get_rocksdb_db();
 
@@ -114,13 +131,16 @@ static int rdb_i_s_cfstats_fill_table(
 
   for (const auto &cf_name : cf_manager.get_cf_names()) {
     DBUG_ASSERT(!cf_name.empty());
-    rocksdb::ColumnFamilyHandle *cfh = cf_manager.get_cf(cf_name);
-    if (cfh == nullptr) {
+    std::shared_ptr<rocksdb::ColumnFamilyHandle> cfh =
+        cf_manager.get_cf(cf_name);
+    if (!cfh) {
       continue;
     }
 
+    // It is safe if the CF is removed from cf_manager at
+    // this point. The CF handle object is valid and sufficient here.
     for (const auto &property : cf_properties) {
-      if (!rdb->GetIntProperty(cfh, property.first, &val)) {
+      if (!rdb->GetIntProperty(cfh.get(), property.first, &val)) {
         continue;
       }
 
@@ -482,8 +502,6 @@ static int rdb_i_s_cfoptions_fill_table(
          std::to_string(opts.level0_slowdown_writes_trigger)},
         {"LEVEL0_STOP_WRITES_TRIGGER",
          std::to_string(opts.level0_stop_writes_trigger)},
-        {"MAX_MEM_COMPACTION_LEVEL",
-         std::to_string(opts.max_mem_compaction_level)},
         {"TARGET_FILE_SIZE_BASE", std::to_string(opts.target_file_size_base)},
         {"TARGET_FILE_SIZE_MULTIPLIER",
          std::to_string(opts.target_file_size_multiplier)},
@@ -493,15 +511,9 @@ static int rdb_i_s_cfoptions_fill_table(
          opts.level_compaction_dynamic_level_bytes ? "ON" : "OFF"},
         {"MAX_BYTES_FOR_LEVEL_MULTIPLIER",
          std::to_string(opts.max_bytes_for_level_multiplier)},
-        {"SOFT_RATE_LIMIT", std::to_string(opts.soft_rate_limit)},
-        {"HARD_RATE_LIMIT", std::to_string(opts.hard_rate_limit)},
-        {"RATE_LIMIT_DELAY_MAX_MILLISECONDS",
-         std::to_string(opts.rate_limit_delay_max_milliseconds)},
         {"ARENA_BLOCK_SIZE", std::to_string(opts.arena_block_size)},
         {"DISABLE_AUTO_COMPACTIONS",
          opts.disable_auto_compactions ? "ON" : "OFF"},
-        {"PURGE_REDUNDANT_KVS_WHILE_FLUSH",
-         opts.purge_redundant_kvs_while_flush ? "ON" : "OFF"},
         {"MAX_SEQUENTIAL_SKIP_IN_ITERATIONS",
          std::to_string(opts.max_sequential_skip_in_iterations)},
         {"MEMTABLE_FACTORY", opts.memtable_factory == nullptr
@@ -576,9 +588,10 @@ static int rdb_i_s_cfoptions_fill_table(
 
     // get PREFIX_EXTRACTOR option
     cf_option_types.push_back(
-        {"PREFIX_EXTRACTOR", opts.prefix_extractor == nullptr
-                                 ? "NULL"
-                                 : std::string(opts.prefix_extractor->Name())});
+        {"PREFIX_EXTRACTOR",
+         opts.prefix_extractor == nullptr
+             ? "NULL"
+             : std::string(opts.prefix_extractor->GetId())});
 
     // get COMPACTION_STYLE option
     switch (opts.compaction_style) {
@@ -637,7 +650,7 @@ static int rdb_i_s_cfoptions_fill_table(
 
     // get table related options
     std::vector<std::string> table_options =
-        split_into_vector(opts.table_factory->GetPrintableTableOptions(), '\n');
+        split_into_vector(opts.table_factory->GetPrintableOptions(), '\n');
 
     for (auto option : table_options) {
       option.erase(std::remove(option.begin(), option.end(), ' '),
@@ -759,7 +772,7 @@ static int rdb_i_s_global_info_fill_table(
   }
 
   /* max index info */
-  const Rdb_dict_manager *const dict_manager = rdb_get_dict_manager();
+  Rdb_dict_manager *const dict_manager = rdb_get_dict_manager();
   DBUG_ASSERT(dict_manager != nullptr);
 
   uint32_t max_index_id;
@@ -780,16 +793,22 @@ static int rdb_i_s_global_info_fill_table(
   for (const auto &cf_handle : cf_manager.get_all_cf()) {
     DBUG_ASSERT(cf_handle != nullptr);
 
+    DBUG_EXECUTE_IF("information_schema_global_info", {
+      if (cf_handle->GetName() == "cf_primary_key") {
+        const char act[] =
+            "now signal ready_to_mark_cf_dropped_in_global_info "
+            "wait_for mark_cf_dropped_done_in_global_info";
+        DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(act)));
+      }
+    });
+
     uint flags;
 
     if (!dict_manager->get_cf_flags(cf_handle->GetID(), &flags)) {
-      // NO_LINT_DEBUG
-      sql_print_error(
-          "RocksDB: Failed to get column family flags "
-          "from CF with id = %u. MyRocks data dictionary may "
-          "be corrupted.",
-          cf_handle->GetID());
-      abort();
+      // If cf flags cannot be retrieved, set flags to 0. It can happen
+      // if the CF is dropped. flags is only used to print information
+      // here and so it doesn't affect functional correctness.
+      flags = 0;
     }
 
     snprintf(cf_id_buf, INT_BUF_LEN, "%u", cf_handle->GetID());
@@ -846,15 +865,18 @@ static int rdb_i_s_compact_stats_fill_table(
   Rdb_cf_manager &cf_manager = rdb_get_cf_manager();
 
   for (auto cf_name : cf_manager.get_cf_names()) {
-    rocksdb::ColumnFamilyHandle *cfh = cf_manager.get_cf(cf_name);
+    std::shared_ptr<rocksdb::ColumnFamilyHandle> cfh =
+        cf_manager.get_cf(cf_name);
 
-    if (cfh == nullptr) {
+    if (!cfh) {
       continue;
     }
 
+    // It is safe if the CF is removed from cf_manager at
+    // this point. The CF handle object is valid and sufficient here.
     std::map<std::string, std::string> props;
     bool bool_ret MY_ATTRIBUTE((__unused__));
-    bool_ret = rdb->GetMapProperty(cfh, "rocksdb.cfstats", &props);
+    bool_ret = rdb->GetMapProperty(cfh.get(), "rocksdb.cfstats", &props);
     DBUG_ASSERT(bool_ret);
 
     const std::string prop_name_prefix = "compaction.";
@@ -885,6 +907,208 @@ static int rdb_i_s_compact_stats_fill_table(
         DBUG_RETURN(ret);
       }
     }
+  }
+
+  DBUG_RETURN(ret);
+}
+
+/*
+  Support for INFORMATION_SCHEMA.ROCKSDB_LIVE_FILES_METADATA dynamic table
+ */
+namespace RDB_LIVE_FILES_METADATA_FIELD {
+enum {
+  CF_NAME = 0,
+  LEVEL,
+  NAME,
+  DB_PATH,
+  FILE_NUMBER,
+  FILE_TYPE,
+  SIZE,
+  RELATIVE_FILENAME,
+  DIRECTORY,
+  TEMPERATURE,
+  FILE_CHECKSUM,
+  FILE_CHECKSUM_FUNC_NAME,
+  SMALLEST_SEQNO,
+  LARGEST_SEQNO,
+  SMALLEST_KEY,
+  LARGEST_KEY,
+  NUM_READS_SAMPLED,
+  BEING_COMPACTED,
+  NUM_ENTRIES,
+  NUM_DELETIONS,
+  OLDEST_BLOB_FILE_NUMBER,
+  OLDEST_ANCESTER_TIME,
+  FILE_CREATION_TIME,
+};
+}  // namespace RDB_LIVE_FILES_METADATA_FIELD
+
+static ST_FIELD_INFO rdb_i_s_live_files_metadata_fields_info[] = {
+    Column("CF_NAME", Varchar(NAME_LEN + 1), NOT_NULL),
+    Column("LEVEL", Varchar(FN_REFLEN + 1), NOT_NULL),
+    Column("NAME", Varchar(FN_REFLEN + 1), NOT_NULL),
+    Column("DB_PATH", Varchar(FN_REFLEN + 1), NOT_NULL),
+    Column("FILE_NUMBER", SLonglong(), NOT_NULL),
+    Column("FILE_TYPE", Varchar(NAME_LEN + 1), NOT_NULL),
+    Column("SIZE", SLonglong(), NOT_NULL),
+    Column("RELATIVE_FILENAME", Varchar(NAME_LEN + 1), NOT_NULL),
+    Column("DIRECTORY", Varchar(FN_REFLEN + 1), NOT_NULL),
+    Column("TEMPERATURE", Varchar(NAME_LEN + 1), NOT_NULL),
+    Column("FILE_CHECKSUM", Varchar(FN_REFLEN + 1), NOT_NULL),
+    Column("FILE_CHECKSUM_FUNC_NAME", Varchar(NAME_LEN + 1), NOT_NULL),
+    Column("SMALLEST_SEQNO", SLonglong(), NOT_NULL),
+    Column("LARGEST_SEQNO", SLonglong(), NOT_NULL),
+    Column("SMALLEST_KEY", Varchar(FN_REFLEN + 1), NOT_NULL),
+    Column("LARGEST_KEY", Varchar(FN_REFLEN + 1), NOT_NULL),
+    Column("NUM_READS_SAMPLED", SLonglong(), NOT_NULL),
+    Column("BEING_COMPACTED", STiny(1), NOT_NULL),
+    Column("NUM_ENTRIES", SLonglong(), NOT_NULL),
+    Column("NUM_DELETIONS", SLonglong(), NOT_NULL),
+    Column("OLDEST_BLOB_FILE_NUMBER", SLonglong(), NOT_NULL),
+    Column("OLDEST_ANCESTER_TIME", SLonglong(), NOT_NULL),
+    Column("FILE_CREATION_TIME", SLonglong(), NOT_NULL),
+    CEnd()};
+
+namespace {
+
+using rocksdb::FileType;
+
+std::string GetFileTypeString(FileType file_type) {
+  switch (file_type) {
+    case FileType::kWalFile:
+      return "WalFile";
+    case FileType::kDBLockFile:
+      return "DBLockFile";
+    case FileType::kTableFile:
+      return "TableFile";
+    case FileType::kDescriptorFile:
+      return "DescriptorFile";
+    case FileType::kCurrentFile:
+      return "CurrentFile";
+    case FileType::kTempFile:
+      return "TempFile";
+    case FileType::kInfoLogFile:
+      return "InfoLogFile";
+    case FileType::kMetaDatabase:
+      return "MetaDatabase";
+    case FileType::kIdentityFile:
+      return "IdentityFile";
+    case FileType::kOptionsFile:
+      return "OptionsFile";
+    case FileType::kBlobFile:
+      return "BlobFile";
+    default:
+      return std::to_string(static_cast<int>(file_type));
+  }
+}
+
+using rocksdb::Temperature;
+
+std::string GetTemperatureString(Temperature temperature) {
+  switch (temperature) {
+    case Temperature::kUnknown:
+      return "Unknown";
+    case Temperature::kHot:
+      return "Hot";
+    case Temperature::kWarm:
+      return "Warm";
+    case Temperature::kCold:
+      return "Cold";
+    default:
+      return std::to_string(static_cast<int>(temperature));
+  }
+}
+
+}  // anonymous namespace
+
+static int rdb_i_s_live_files_metadata_fill_table(
+    my_core::THD *thd, my_core::TABLE_LIST *tables,
+    my_core::Item *cond MY_ATTRIBUTE((__unused__))) {
+  DBUG_ASSERT(thd != nullptr);
+  DBUG_ASSERT(tables != nullptr);
+
+  DBUG_ENTER_FUNC();
+
+  int ret = 0;
+  rocksdb::DB *rdb = rdb_get_rocksdb_db();
+
+  if (!rdb) {
+    DBUG_RETURN(ret);
+  }
+
+  std::vector<rocksdb::LiveFileMetaData> metadata;
+  rdb->GetLiveFilesMetaData(&metadata);
+
+  for (const auto &file : metadata) {
+    Field **field = tables->table->field;
+    DBUG_ASSERT(field != nullptr);
+
+    field[RDB_LIVE_FILES_METADATA_FIELD::CF_NAME]->store(
+        file.column_family_name.c_str(), file.column_family_name.size(),
+        system_charset_info);
+    field[RDB_LIVE_FILES_METADATA_FIELD::LEVEL]->store(file.level, true);
+    field[RDB_LIVE_FILES_METADATA_FIELD::NAME]->store(
+        file.name.c_str(),file.name.size(), system_charset_info);
+    field[RDB_LIVE_FILES_METADATA_FIELD::DB_PATH]->store(
+        file.db_path.c_str(), file.db_path.size(), system_charset_info);
+    field[RDB_LIVE_FILES_METADATA_FIELD::FILE_NUMBER]->store(file.file_number,
+                                                             true);
+    std::string file_type = GetFileTypeString(file.file_type);
+    field[RDB_LIVE_FILES_METADATA_FIELD::FILE_TYPE]->store(
+        file_type.c_str(), file_type.size(), system_charset_info);
+    field[RDB_LIVE_FILES_METADATA_FIELD::SIZE]->store(file.size, true);
+    field[RDB_LIVE_FILES_METADATA_FIELD::RELATIVE_FILENAME]->store(
+        file.relative_filename.c_str(), file.relative_filename.size(),
+        system_charset_info);
+    field[RDB_LIVE_FILES_METADATA_FIELD::DIRECTORY]->store(
+        file.directory.c_str(), file.directory.size(), system_charset_info);
+    std::string temperature = GetTemperatureString(file.temperature);
+    field[RDB_LIVE_FILES_METADATA_FIELD::TEMPERATURE]->store(
+        temperature.c_str(), temperature.size(), system_charset_info);
+    rocksdb::Slice file_checksum_slice(file.file_checksum);
+    auto file_checksum = "0x" + file_checksum_slice.ToString(true);
+    field[RDB_LIVE_FILES_METADATA_FIELD::FILE_CHECKSUM]->store(
+        file_checksum.c_str(), file_checksum.size(), system_charset_info);
+    field[RDB_LIVE_FILES_METADATA_FIELD::FILE_CHECKSUM_FUNC_NAME]->store(
+        file.file_checksum_func_name.c_str(),
+        file.file_checksum_func_name.size(), system_charset_info);
+    field[RDB_LIVE_FILES_METADATA_FIELD::SMALLEST_SEQNO]->store(
+        file.smallest_seqno, true);
+    field[RDB_LIVE_FILES_METADATA_FIELD::LARGEST_SEQNO]->store(
+        file.largest_seqno, true);
+    rocksdb::Slice smallest_key_slice(file.smallestkey);
+    auto smallest_key = "0x" + smallest_key_slice.ToString(true);
+    field[RDB_LIVE_FILES_METADATA_FIELD::SMALLEST_KEY]->store(
+        smallest_key.c_str(), smallest_key.size(), system_charset_info);
+    rocksdb::Slice largest_key_slice(file.largestkey);
+    auto largest_key = "0x" + largest_key_slice.ToString(true);
+    field[RDB_LIVE_FILES_METADATA_FIELD::LARGEST_KEY]->store(
+        largest_key.c_str(), largest_key.size(), system_charset_info);
+    field[RDB_LIVE_FILES_METADATA_FIELD::NUM_READS_SAMPLED]->store(
+        file.num_reads_sampled, true);
+    field[RDB_LIVE_FILES_METADATA_FIELD::BEING_COMPACTED]->store(
+        file.being_compacted);
+    field[RDB_LIVE_FILES_METADATA_FIELD::NUM_ENTRIES]->store(file.num_entries,
+                                                             true);
+    field[RDB_LIVE_FILES_METADATA_FIELD::NUM_DELETIONS]->store(
+        file.num_deletions, true);
+    field[RDB_LIVE_FILES_METADATA_FIELD::OLDEST_BLOB_FILE_NUMBER]->store(
+        file.oldest_blob_file_number, true);
+    field[RDB_LIVE_FILES_METADATA_FIELD::OLDEST_ANCESTER_TIME]->store(
+        file.oldest_ancester_time, true);
+    field[RDB_LIVE_FILES_METADATA_FIELD::FILE_CREATION_TIME]->store(
+        file.file_creation_time, true);
+
+    ret |= static_cast<int>(
+        my_core::schema_table_store_record(thd, tables->table));
+
+    if (ret != 0) {
+      DBUG_RETURN(ret);
+    }
+  }
+
+  if (!rdb) {
+    DBUG_RETURN(ret);
   }
 
   DBUG_RETURN(ret);
@@ -1091,6 +1315,20 @@ static int rdb_i_s_compact_stats_init(void *p) {
   DBUG_RETURN(0);
 }
 
+static int rdb_i_s_live_files_metadata_init(void *p) {
+  my_core::ST_SCHEMA_TABLE *schema;
+
+  DBUG_ENTER_FUNC();
+  DBUG_ASSERT(p != nullptr);
+
+  schema = reinterpret_cast<my_core::ST_SCHEMA_TABLE *>(p);
+
+  schema->fields_info = rdb_i_s_live_files_metadata_fields_info;
+  schema->fill_table = rdb_i_s_live_files_metadata_fill_table;
+
+  DBUG_RETURN(0);
+}
+
 /* Given a path to a file return just the filename portion. */
 static std::string rdb_filename_without_path(const std::string &path) {
   /* Find last slash in path */
@@ -1176,12 +1414,14 @@ static int rdb_i_s_sst_props_fill_table(
     /* Grab the the properties of all the tables in the column family */
     rocksdb::TablePropertiesCollection table_props_collection;
     const rocksdb::Status s =
-        rdb->GetPropertiesOfAllTables(cf_handle, &table_props_collection);
+        rdb->GetPropertiesOfAllTables(cf_handle.get(), &table_props_collection);
 
     if (!s.ok()) {
       continue;
     }
 
+    // It is safe if the CF is removed from cf_manager at
+    // this point. The CF handle object is valid and sufficient here.
     /* Iterate over all the items in the collection, each of which contains a
      * name and the actual properties */
     for (const auto &props : table_props_collection) {
@@ -1332,8 +1572,11 @@ static int rdb_i_s_index_file_map_fill_table(
   for (const auto &cf_handle : cf_manager.get_all_cf()) {
     /* Grab the the properties of all the tables in the column family */
     rocksdb::TablePropertiesCollection table_props_collection;
+
+    // It is safe if the CF is removed from cf_manager at
+    // this point. The CF handle object is valid and sufficient here.
     const rocksdb::Status s =
-        rdb->GetPropertiesOfAllTables(cf_handle, &table_props_collection);
+        rdb->GetPropertiesOfAllTables(cf_handle.get(), &table_props_collection);
 
     if (!s.ok()) {
       continue;
@@ -1860,6 +2103,22 @@ struct st_maria_plugin rdb_i_s_compact_stats = {
     "RocksDB compaction stats",
     PLUGIN_LICENSE_GPL,
     rdb_i_s_compact_stats_init,
+    rdb_i_s_deinit,
+    0x0001,  /* version number (0.1) */
+    nullptr, /* status variables */
+    nullptr, /* system variables */
+    nullptr, /* config options */
+    MYROCKS_MARIADB_PLUGIN_MATURITY_LEVEL
+};
+
+struct st_maria_plugin rdb_i_s_live_files_metadata = {
+    MYSQL_INFORMATION_SCHEMA_PLUGIN,
+    &rdb_i_s_info,
+    "ROCKSDB_LIVE_FILES_METADATA",
+    "Facebook",
+    "RocksDB live files metadata",
+    PLUGIN_LICENSE_GPL,
+    rdb_i_s_live_files_metadata_init,
     rdb_i_s_deinit,
     0x0001,  /* version number (0.1) */
     nullptr, /* status variables */

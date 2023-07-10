@@ -1,0 +1,1 @@
+--rocksdb_max_bottom_pri_background_compactions=5

@@ -1,0 +1,95 @@
+set global rocksdb_strict_collation_exceptions = 't1,t2';
+CREATE TABLE t1 (
+pk INT,
+a VARCHAR(64),
+PRIMARY KEY (pk),
+KEY (a)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_general_ci;
+INSERT INTO t1 VALUES (1, 'one');
+RENAME TABLE t1 TO t1_trunc;
+SELECT * FROM t1_trunc ORDER BY pk;
+pk	a
+1	one
+TRUNCATE TABLE t1_trunc;
+SELECT * FROM t1_trunc;
+pk	a
+CREATE TABLE t2 (
+pk INT,
+a VARCHAR(64),
+PRIMARY KEY (pk),
+KEY (a)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_general_ci
+PARTITION BY RANGE (pk) (
+PARTITION p0 VALUES LESS THAN (3),
+PARTITION p1 VALUES LESS THAN (6),
+PARTITION p2 VALUES LESS THAN MAXVALUE
+);
+INSERT INTO t2 VALUES (1, 'one'), (4, 'four'), (7, 'seven');
+RENAME TABLE t2 to t2_trunc;
+SELECT * FROM t2_trunc ORDER BY pk;
+pk	a
+1	one
+4	four
+7	seven
+ALTER TABLE t2_trunc TRUNCATE PARTITION p0;
+SELECT * FROM t2_trunc ORDER BY pk;
+pk	a
+4	four
+7	seven
+TRUNCATE TABLE t2_trunc;
+SELECT * FROM t2_trunc ORDER BY pk;
+pk	a
+set global rocksdb_strict_collation_exceptions = default;
+DROP TABLE t1_trunc, t2_trunc;
+CREATE TABLE t1 (
+pk INT PRIMARY KEY
+) ENGINE=ROCKSDB;
+INSERT INTO t1 VALUES (1), (2);
+SELECT * FROM t1;
+pk
+1
+2
+SET DEBUG_DBUG = "+d,rocksdb_truncate_failure";
+TRUNCATE TABLE t1;
+ERROR HY000: Internal error: Simulated truncation failure.
+SET DEBUG_DBUG = "-d,rocksdb_truncate_failure";
+SELECT * FROM t1;
+pk
+1
+2
+CREATE TABLE t2 (
+a INT
+) ENGINE=ROCKSDB
+PARTITION BY RANGE (a) (
+PARTITION p0 VALUES LESS THAN (3),
+PARTITION p1 VALUES LESS THAN (6),
+PARTITION p2 VALUES LESS THAN MAXVALUE
+);
+INSERT INTO t2 VALUES (1), (4), (7);
+SET DEBUG_DBUG = "+d,rocksdb_truncate_failure";
+TRUNCATE TABLE t2;
+ERROR HY000: Internal error: Simulated truncation failure.
+ALTER TABLE t2 TRUNCATE PARTITION p1;
+ERROR HY000: Internal error: Simulated truncation failure.
+SET DEBUG_DBUG = "-d,rocksdb_truncate_failure";
+SELECT * FROM t2;
+a
+1
+4
+7
+DROP TABLE t1, t2;
+CREATE TABLE t1_crash (
+pk INT PRIMARY KEY
+) ENGINE=ROCKSDB;
+INSERT INTO t1_crash VALUES (100), (1000);
+SELECT * FROM t1_crash;
+pk
+100
+1000
+SET DEBUG_DBUG = "+d,rocksdb_truncate_failure_crash";
+TRUNCATE TABLE t1_crash;
+ERROR HY000: Lost connection to server during query
+ MyRocks: Removing truncated leftover table test.#truncate_tmp#t1_crash
+DROP TABLE t1_crash;
+Warnings:
+Warning	1932	Table 'test.t1_crash' doesn't exist in engine

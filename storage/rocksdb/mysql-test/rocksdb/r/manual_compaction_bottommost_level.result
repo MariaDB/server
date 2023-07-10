@@ -1,0 +1,37 @@
+CREATE PROCEDURE compact_start()
+BEGIN
+select variable_value into @c from information_schema.global_status where variable_name='rocksdb_compact_write_bytes';
+END//
+CREATE PROCEDURE compact_end()
+BEGIN
+select case when variable_value-@c > 0 then 'true' else 'false' end as checked from information_schema.global_status where variable_name='rocksdb_compact_write_bytes';
+END//
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (
+a int not null,
+b int not null,
+primary key (a,b),
+key (b)
+) ENGINE=RocksDB;
+DELETE FROM t1;
+set @@session.rocksdb_manual_compaction_bottommost_level='kSkip';
+call compact_start();
+set @@global.rocksdb_compact_cf = 'default';
+call compact_end();
+checked
+true
+set @@session.rocksdb_manual_compaction_bottommost_level='kSkip';
+call compact_start();
+set @@global.rocksdb_compact_cf = 'default';
+call compact_end();
+checked
+false
+set @@session.rocksdb_manual_compaction_bottommost_level='kForceOptimized';
+call compact_start();
+set @@global.rocksdb_compact_cf = 'default';
+call compact_end();
+checked
+true
+DROP PROCEDURE compact_start;
+DROP PROCEDURE compact_end;
+drop table t1;

@@ -3,3 +3,7 @@ loose-rocksdb_write_policy=write_committed
 
 [write_prepared]
 loose-rocksdb_write_policy=write_prepared
+
+[write_unprepared]
+loose-rocksdb_write_policy=write_unprepared
+loose-rocksdb_write_batch_flush_threshold=1

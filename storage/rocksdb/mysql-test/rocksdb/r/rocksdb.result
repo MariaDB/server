@@ -888,6 +888,7 @@ rocksdb_cache_dump	ON
 rocksdb_cache_high_pri_pool_ratio	0.000000
 rocksdb_cache_index_and_filter_blocks	ON
 rocksdb_cache_index_and_filter_with_high_priority	ON
+rocksdb_cancel_manual_compactions	OFF
 rocksdb_checksums_pct	100
 rocksdb_collect_sst_properties	ON
 rocksdb_commit_in_the_middle	OFF
@@ -918,6 +919,9 @@ rocksdb_delete_obsolete_files_period_micros	21600000000
 rocksdb_enable_2pc	ON
 rocksdb_enable_bulk_load_api	ON
 rocksdb_enable_insert_with_update_caching	ON
+rocksdb_enable_iterate_bounds	ON
+rocksdb_enable_pipelined_write	OFF
+rocksdb_enable_remove_orphaned_dropped_cfs	ON
 rocksdb_enable_thread_tracking	ON
 rocksdb_enable_ttl	ON
 rocksdb_enable_ttl_read_filtering	ON
@@ -945,10 +949,14 @@ rocksdb_lock_wait_timeout	1
 rocksdb_log_dir	
 rocksdb_log_file_time_to_roll	0
 rocksdb_manifest_preallocation_size	4194304
+rocksdb_manual_compaction_bottommost_level	kForceOptimized
 rocksdb_manual_compaction_threads	0
 rocksdb_manual_wal_flush	ON
 rocksdb_master_skip_tx_api	OFF
+rocksdb_max_background_compactions	-1
+rocksdb_max_background_flushes	-1
 rocksdb_max_background_jobs	2
+rocksdb_max_bottom_pri_background_compactions	0
 rocksdb_max_latest_deadlocks	5
 rocksdb_max_log_file_size	0
 rocksdb_max_manifest_file_size	1073741824
@@ -979,10 +987,11 @@ rocksdb_signal_drop_index_thread	OFF
 rocksdb_sim_cache_size	0
 rocksdb_skip_bloom_filter_on_read	OFF
 rocksdb_skip_fill_cache	OFF
+rocksdb_skip_locks_if_skip_unique_check	OFF
 rocksdb_skip_unique_check_tables	.*
 rocksdb_sst_mgr_rate_bytes_per_sec	0
 rocksdb_stats_dump_period_sec	600
-rocksdb_stats_level	0
+rocksdb_stats_level	1
 rocksdb_stats_recalc_rate	0
 rocksdb_store_row_debug_checksums	OFF
 rocksdb_strict_collation_check	OFF
@@ -991,6 +1000,7 @@ rocksdb_table_cache_numshardbits	6
 rocksdb_table_stats_sampling_pct	10
 rocksdb_tmpdir	
 rocksdb_trace_sst_api	OFF
+rocksdb_track_and_verify_wals_in_manifest	ON
 rocksdb_two_write_queues	ON
 rocksdb_unsafe_for_binlog	OFF
 rocksdb_update_cf_options	
@@ -1003,10 +1013,11 @@ rocksdb_validate_tables	1
 rocksdb_verify_row_debug_checksums	OFF
 rocksdb_wal_bytes_per_sync	0
 rocksdb_wal_dir	
-rocksdb_wal_recovery_mode	1
+rocksdb_wal_recovery_mode	2
 rocksdb_wal_size_limit_mb	0
 rocksdb_wal_ttl_seconds	0
 rocksdb_whole_key_filtering	ON
+rocksdb_write_batch_flush_threshold	0
 rocksdb_write_batch_max_bytes	0
 rocksdb_write_disable_wal	OFF
 rocksdb_write_ignore_missing_column_families	OFF
@@ -1365,9 +1376,10 @@ CREATE TABLE t1 (pk INT PRIMARY KEY, a int) ENGINE=RocksDB;
 set @a=-1;
 insert into t1 select (@a:=@a+1), 1234 from information_schema.session_variables limit 100;
 set @tmp1= @@rocksdb_max_row_locks;
-set rocksdb_max_row_locks= 20;
+set GLOBAL rocksdb_max_row_locks= 20;
 update t1 set a=a+10;
 ERROR HY000: Got error 10 'Operation aborted: Failed to acquire lock due to rocksdb_max_row_locks limit' from ROCKSDB
+set @@global.rocksdb_max_row_locks = @tmp1;
 DROP TABLE t1;
 # 
 # Test AUTO_INCREMENT behavior problem,
@@ -1500,19 +1512,15 @@ Rocksdb_block_cache_data_bytes_insert	#
 Rocksdb_block_cache_data_hit	#
 Rocksdb_block_cache_data_miss	#
 Rocksdb_block_cache_filter_add	#
-Rocksdb_block_cache_filter_bytes_evict	#
 Rocksdb_block_cache_filter_bytes_insert	#
 Rocksdb_block_cache_filter_hit	#
 Rocksdb_block_cache_filter_miss	#
 Rocksdb_block_cache_hit	#
 Rocksdb_block_cache_index_add	#
-Rocksdb_block_cache_index_bytes_evict	#
 Rocksdb_block_cache_index_bytes_insert	#
 Rocksdb_block_cache_index_hit	#
 Rocksdb_block_cache_index_miss	#
 Rocksdb_block_cache_miss	#
-Rocksdb_block_cachecompressed_hit	#
-Rocksdb_block_cachecompressed_miss	#
 Rocksdb_bloom_filter_full_positive	#
 Rocksdb_bloom_filter_full_true_positive	#
 Rocksdb_bloom_filter_prefix_checked	#
@@ -1531,14 +1539,14 @@ Rocksdb_get_hit_l1	#
 Rocksdb_get_hit_l2_and_up	#
 Rocksdb_getupdatessince_calls	#
 Rocksdb_iter_bytes_read	#
+Rocksdb_manual_compactions_cancelled	#
+Rocksdb_manual_compactions_pending	#
 Rocksdb_manual_compactions_processed	#
 Rocksdb_manual_compactions_running	#
 Rocksdb_memtable_hit	#
 Rocksdb_memtable_miss	#
-Rocksdb_no_file_closes	#
 Rocksdb_no_file_errors	#
 Rocksdb_no_file_opens	#
-Rocksdb_num_iterators	#
 Rocksdb_number_block_not_compressed	#
 Rocksdb_number_db_next	#
 Rocksdb_number_db_next_found	#
@@ -1546,7 +1554,6 @@ Rocksdb_number_db_prev	#
 Rocksdb_number_db_prev_found	#
 Rocksdb_number_db_seek	#
 Rocksdb_number_db_seek_found	#
-Rocksdb_number_deletes_filtered	#
 Rocksdb_number_keys_read	#
 Rocksdb_number_keys_updated	#
 Rocksdb_number_keys_written	#
@@ -1582,7 +1589,6 @@ Rocksdb_wal_group_syncs	#
 Rocksdb_wal_synced	#
 Rocksdb_write_other	#
 Rocksdb_write_self	#
-Rocksdb_write_timedout	#
 Rocksdb_write_wal	#
 select VARIABLE_NAME from INFORMATION_SCHEMA.global_status where VARIABLE_NAME LIKE 'rocksdb%' and VARIABLE_NAME NOT LIKE '%num_get_for_update%';
 VARIABLE_NAME
@@ -1611,19 +1617,15 @@ ROCKSDB_BLOCK_CACHE_DATA_BYTES_INSERT
 ROCKSDB_BLOCK_CACHE_DATA_HIT
 ROCKSDB_BLOCK_CACHE_DATA_MISS
 ROCKSDB_BLOCK_CACHE_FILTER_ADD
-ROCKSDB_BLOCK_CACHE_FILTER_BYTES_EVICT
 ROCKSDB_BLOCK_CACHE_FILTER_BYTES_INSERT
 ROCKSDB_BLOCK_CACHE_FILTER_HIT
 ROCKSDB_BLOCK_CACHE_FILTER_MISS
 ROCKSDB_BLOCK_CACHE_HIT
 ROCKSDB_BLOCK_CACHE_INDEX_ADD
-ROCKSDB_BLOCK_CACHE_INDEX_BYTES_EVICT
 ROCKSDB_BLOCK_CACHE_INDEX_BYTES_INSERT
 ROCKSDB_BLOCK_CACHE_INDEX_HIT
 ROCKSDB_BLOCK_CACHE_INDEX_MISS
 ROCKSDB_BLOCK_CACHE_MISS
-ROCKSDB_BLOCK_CACHECOMPRESSED_HIT
-ROCKSDB_BLOCK_CACHECOMPRESSED_MISS
 ROCKSDB_BLOOM_FILTER_FULL_POSITIVE
 ROCKSDB_BLOOM_FILTER_FULL_TRUE_POSITIVE
 ROCKSDB_BLOOM_FILTER_PREFIX_CHECKED
@@ -1642,14 +1644,14 @@ ROCKSDB_GET_HIT_L1
 ROCKSDB_GET_HIT_L2_AND_UP
 ROCKSDB_GETUPDATESSINCE_CALLS
 ROCKSDB_ITER_BYTES_READ
+ROCKSDB_MANUAL_COMPACTIONS_CANCELLED
+ROCKSDB_MANUAL_COMPACTIONS_PENDING
 ROCKSDB_MANUAL_COMPACTIONS_PROCESSED
 ROCKSDB_MANUAL_COMPACTIONS_RUNNING
 ROCKSDB_MEMTABLE_HIT
 ROCKSDB_MEMTABLE_MISS
-ROCKSDB_NO_FILE_CLOSES
 ROCKSDB_NO_FILE_ERRORS
 ROCKSDB_NO_FILE_OPENS
-ROCKSDB_NUM_ITERATORS
 ROCKSDB_NUMBER_BLOCK_NOT_COMPRESSED
 ROCKSDB_NUMBER_DB_NEXT
 ROCKSDB_NUMBER_DB_NEXT_FOUND
@@ -1657,7 +1659,6 @@ ROCKSDB_NUMBER_DB_PREV
 ROCKSDB_NUMBER_DB_PREV_FOUND
 ROCKSDB_NUMBER_DB_SEEK
 ROCKSDB_NUMBER_DB_SEEK_FOUND
-ROCKSDB_NUMBER_DELETES_FILTERED
 ROCKSDB_NUMBER_KEYS_READ
 ROCKSDB_NUMBER_KEYS_UPDATED
 ROCKSDB_NUMBER_KEYS_WRITTEN
@@ -1693,7 +1694,6 @@ ROCKSDB_WAL_GROUP_SYNCS
 ROCKSDB_WAL_SYNCED
 ROCKSDB_WRITE_OTHER
 ROCKSDB_WRITE_SELF
-ROCKSDB_WRITE_TIMEDOUT
 ROCKSDB_WRITE_WAL
 # RocksDB-SE's status variables are global internally 
 #  but they are shown as both session and global, like InnoDB's status vars.
@@ -1724,19 +1724,15 @@ ROCKSDB_BLOCK_CACHE_DATA_BYTES_INSERT
 ROCKSDB_BLOCK_CACHE_DATA_HIT
 ROCKSDB_BLOCK_CACHE_DATA_MISS
 ROCKSDB_BLOCK_CACHE_FILTER_ADD
-ROCKSDB_BLOCK_CACHE_FILTER_BYTES_EVICT
 ROCKSDB_BLOCK_CACHE_FILTER_BYTES_INSERT
 ROCKSDB_BLOCK_CACHE_FILTER_HIT
 ROCKSDB_BLOCK_CACHE_FILTER_MISS
 ROCKSDB_BLOCK_CACHE_HIT
 ROCKSDB_BLOCK_CACHE_INDEX_ADD
-ROCKSDB_BLOCK_CACHE_INDEX_BYTES_EVICT
 ROCKSDB_BLOCK_CACHE_INDEX_BYTES_INSERT
 ROCKSDB_BLOCK_CACHE_INDEX_HIT
 ROCKSDB_BLOCK_CACHE_INDEX_MISS
 ROCKSDB_BLOCK_CACHE_MISS
-ROCKSDB_BLOCK_CACHECOMPRESSED_HIT
-ROCKSDB_BLOCK_CACHECOMPRESSED_MISS
 ROCKSDB_BLOOM_FILTER_FULL_POSITIVE
 ROCKSDB_BLOOM_FILTER_FULL_TRUE_POSITIVE
 ROCKSDB_BLOOM_FILTER_PREFIX_CHECKED
@@ -1755,14 +1751,14 @@ ROCKSDB_GET_HIT_L1
 ROCKSDB_GET_HIT_L2_AND_UP
 ROCKSDB_GETUPDATESSINCE_CALLS
 ROCKSDB_ITER_BYTES_READ
+ROCKSDB_MANUAL_COMPACTIONS_CANCELLED
+ROCKSDB_MANUAL_COMPACTIONS_PENDING
 ROCKSDB_MANUAL_COMPACTIONS_PROCESSED
 ROCKSDB_MANUAL_COMPACTIONS_RUNNING
 ROCKSDB_MEMTABLE_HIT
 ROCKSDB_MEMTABLE_MISS
-ROCKSDB_NO_FILE_CLOSES
 ROCKSDB_NO_FILE_ERRORS
 ROCKSDB_NO_FILE_OPENS
-ROCKSDB_NUM_ITERATORS
 ROCKSDB_NUMBER_BLOCK_NOT_COMPRESSED
 ROCKSDB_NUMBER_DB_NEXT
 ROCKSDB_NUMBER_DB_NEXT_FOUND
@@ -1770,7 +1766,6 @@ ROCKSDB_NUMBER_DB_PREV
 ROCKSDB_NUMBER_DB_PREV_FOUND
 ROCKSDB_NUMBER_DB_SEEK
 ROCKSDB_NUMBER_DB_SEEK_FOUND
-ROCKSDB_NUMBER_DELETES_FILTERED
 ROCKSDB_NUMBER_KEYS_READ
 ROCKSDB_NUMBER_KEYS_UPDATED
 ROCKSDB_NUMBER_KEYS_WRITTEN
@@ -1806,7 +1801,6 @@ ROCKSDB_WAL_GROUP_SYNCS
 ROCKSDB_WAL_SYNCED
 ROCKSDB_WRITE_OTHER
 ROCKSDB_WRITE_SELF
-ROCKSDB_WRITE_TIMEDOUT
 ROCKSDB_WRITE_WAL
 #
 # Fix issue #9: HA_ERR_INTERNAL_ERROR when running linkbench

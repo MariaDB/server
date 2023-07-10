@@ -1,40 +1,30 @@
 --disable_query_log
-call mtr.add_suppression("Failed to drop column family");
+call mtr.add_suppression("Cannot mark Column family.*to be dropped");
 call mtr.add_suppression("Column family '[a-z_]+' not found");
 --enable_query_log
 
 --source include/have_rocksdb.inc
 
 # should fail for not existing CF
---error ER_WRONG_VALUE_FOR_VAR
+--error ER_CANT_DROP_CF
 --eval SET @@global.ROCKSDB_DELETE_CF = 'nonexistent_cf'
 
 # should fail for default system cf
---error ER_WRONG_VALUE_FOR_VAR
+--error ER_CANT_DROP_CF
 --eval SET @@global.ROCKSDB_DELETE_CF = '__system__'
-
-# should fail for default cf
---error ER_WRONG_VALUE_FOR_VAR
---eval SET @@global.ROCKSDB_DELETE_CF = 'default'
-
---disable_parsing
-# should succeed for not existing CF
---eval SET @@global.ROCKSDB_DELETE_CF = 'nonexistent_cf'
-
-# should fail for default system cf
---error ER_WRONG_VALUE_FOR_VAR
---eval SET @@global.ROCKSDB_DELETE_CF = '__system__'
-
-alter table mysql.slave_worker_info engine = MyISAM;
-alter table mysql.slave_relay_log_info engine = MyISAM;
-alter table mysql.slave_gtid_info engine = MyISAM;
-alter table mysql.slave_master_info engine = MyISAM;
 
 select count(*) from information_schema.rocksdb_ddl where cf = 'default';
 
 # should fail for default cf
---error ER_GET_ERRMSG
+--error ER_CANT_DROP_CF
 --eval SET @@global.ROCKSDB_DELETE_CF = 'default'
+
+# should fail for empty string, which is same to default cf
+--error ER_CANT_DROP_CF
+--eval SET @@global.ROCKSDB_DELETE_CF = ''
+
+# should succeed for NULL
+--eval SET @@global.ROCKSDB_DELETE_CF = NULL
 
 CREATE TABLE cf_deletion_test_table1 (
   id1 int(10) unsigned NOT NULL DEFAULT '0',
@@ -44,9 +34,9 @@ CREATE TABLE cf_deletion_test_table1 (
 ) ENGINE=ROCKSDB;
 
 # should fail, CFs are still in use
---error ER_WRONG_VALUE_FOR_VAR
+--error ER_CANT_DROP_CF
 --eval SET @@global.ROCKSDB_DELETE_CF = 'cf_primary_key'
---error ER_WRONG_VALUE_FOR_VAR
+--error ER_CANT_DROP_CF
 --eval SET @@global.ROCKSDB_DELETE_CF = 'cf_secondary_key'
 
 CREATE TABLE cf_deletion_test_table2 (
@@ -57,7 +47,7 @@ CREATE TABLE cf_deletion_test_table2 (
 DROP TABLE cf_deletion_test_table1;
 
 # should fail, still used by second table
---error ER_WRONG_VALUE_FOR_VAR
+--error ER_CANT_DROP_CF
 --eval SET @@global.ROCKSDB_DELETE_CF = 'cf_primary_key'
 
 # should succeed, no one is using it anymore
@@ -67,9 +57,3 @@ DROP TABLE cf_deletion_test_table2;
 
 # should succeed now
 --eval SET @@global.ROCKSDB_DELETE_CF = 'cf_primary_key'
-
-alter table mysql.slave_worker_info engine = ROCKSDB;
-alter table mysql.slave_relay_log_info engine = ROCKSDB;
-alter table mysql.slave_gtid_info engine = ROCKSDB;
-alter table mysql.slave_master_info engine = ROCKSDB;
---enable_parsing

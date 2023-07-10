@@ -4540,7 +4540,7 @@ public:
   }
   inline uint32 get_length(my_ptrdiff_t row_offset= 0) const
   { return get_length(ptr+row_offset, this->packlength); }
-  uint32 get_length(const uchar *ptr, uint packlength) const;
+  static uint32 get_length(const uchar *ptr, uint packlength);
   uint32 get_length(const uchar *ptr_arg) const
   { return get_length(ptr_arg, this->packlength); }
   inline uchar *get_ptr() const { return get_ptr(ptr); }

@@ -5,3 +5,8 @@ rocksdb_write_policy=write_committed
 [row-write-prepared]
 binlog-format=row
 rocksdb_write_policy=write_prepared
+
+[row-write-unprepared]
+binlog-format=row
+rocksdb_write_policy=write_unprepared
+rocksdb_write_batch_flush_threshold=1

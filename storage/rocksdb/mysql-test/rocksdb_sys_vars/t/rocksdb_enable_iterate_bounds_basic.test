@@ -1,0 +1,43 @@
+#
+# test rocksdb_enable_iterate_bounds
+#
+connect (con1, localhost, root,,);
+connect (con2, localhost, root,,);
+
+connection con2;
+# explicitly enable the iterate bounds
+SET SESSION rocksdb_enable_iterate_bounds=1;
+
+connection con1;
+SET SESSION rocksdb_enable_iterate_bounds=0;
+SELECT @@rocksdb_enable_iterate_bounds; # should be disabled
+
+DROP TABLE IF EXISTS t;
+
+--disable_query_log
+CREATE TABLE t (a INT AUTO_INCREMENT PRIMARY KEY, b CHAR(8)) ENGINE=rocksdb;
+INSERT INTO t (a, b) VALUES (NULL, 'foo');
+INSERT INTO t SELECT 0, b FROM t;
+INSERT INTO t SELECT 0, b FROM t;
+INSERT INTO t SELECT 0, b FROM t;
+INSERT INTO t SELECT 0, b FROM t;
+INSERT INTO t SELECT 0, b FROM t;
+INSERT INTO t SELECT 0, b FROM t;
+--enable_query_log
+
+# point select
+SELECT COUNT(*) FROM t WHERE a = 1;
+# range/scan
+SELECT COUNT(*) FROM t WHERE a >= 1 AND a <= 32;
+SELECT COUNT(*) FROM t;
+
+
+# In another session, it should still be enabled
+connection con2;
+SELECT @@rocksdb_enable_iterate_bounds;
+
+SELECT COUNT(*) FROM t WHERE a = 1;
+SELECT COUNT(*) FROM t WHERE a >= 1 AND a <= 32;
+SELECT COUNT(*) FROM t;
+
+DROP TABLE t;

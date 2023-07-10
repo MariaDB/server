@@ -12,8 +12,8 @@ use strict;
 
 my $sst_dump=
 ::mtr_exe_maybe_exists(
-  "$::bindir/storage/rocksdb$::multiconfig/sst_dump",
-  "$::path_client_bindir/sst_dump");
+  "$::bindir/storage/rocksdb$::multiconfig/mariadb-sst-dump",
+  "$::path_client_bindir/mariadb-sst-dump");
 return "RocksDB is not compiled, no sst_dump" unless $sst_dump;
 $ENV{MARIAROCKS_SST_DUMP}="$sst_dump";
 
