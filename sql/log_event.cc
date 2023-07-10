@@ -5160,12 +5160,13 @@ Query_log_event::begin_event(String *packet, ulong ev_offset,
     DBUG_ASSERT(data_len <= LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN + 7);
     /* Put in an empty time_zone_str to take up the extra 2 plus the number of
        dummy_bytes. */
-    int dummy_bytes= data_len - (LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN + 2);
+    size_t dummy_bytes=
+        data_len - (LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN + 2);
 
     DBUG_ASSERT(dummy_bytes == 0 || dummy_bytes == 5);
 
     int2store(q + Q_STATUS_VARS_LEN_OFFSET, dummy_bytes + 2);
-    for (int i= 0; i < dummy_bytes; i++)
+    for (size_t i= 0; i < dummy_bytes; i++)
       q[Q_DATA_OFFSET + i]= Q_DUMMY;
     q+= dummy_bytes;
 

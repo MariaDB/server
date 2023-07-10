@@ -3426,10 +3426,16 @@ public:
   /* FL_DDL is set for event group containing DDL. */
   static const uchar FL_DDL= 32;
 
-  /* Flags_extra. */
+  /*
+    Flags_extra.
 
-  // static const uchar FL_EXTRA_MULTI_ENGINE= 1;
-  static const uchar FL_EXTRA_THREAD_ID= 2; // thread_id like in BEGIN Query
+    Bits from future MariaDB versions:
+    static const uchar FL_EXTRA_MULTI_ENGINE= 1;
+    static const uchar FL_START_ALTER_E1= 2;
+    static const uchar FL_COMMIT_ALTER_E1= 4;
+    static const uchar FL_ROLLBACK_ALTER_E1= 8;
+  */
+  static const uchar FL_EXTRA_THREAD_ID= 16; // thread_id like in BEGIN Query
 
 #ifdef MYSQL_SERVER
   Gtid_log_event(THD *thd_arg, uint64 seq_no, uint32 domain_id, bool standalone,

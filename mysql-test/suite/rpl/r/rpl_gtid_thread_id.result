@@ -1,0 +1,48 @@
+include/master-slave.inc
+[connection master]
+connection master;
+create table t1(a int);
+insert into t1 values(1);
+optimize table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+connection slave;
+connection master;
+# MYSQL_BINLOG local > primary_outfile
+include/assert_grep.inc [Ensure only 3 GTID events exist (Primary)]
+include/assert_grep.inc [Ensure each GTID event has the thread id (Primary)]
+#
+# GTID event's thread_id should not use psuedo_thread_id
+connection master;
+set @@pseudo_thread_id=99999;
+insert into t1 values(2);
+# MYSQL_BINLOG local > primary_outfile
+include/assert_grep.inc [GTID event's thread_id does not use pseudo_thread_id]
+#
+# Test the serial replica
+connection slave;
+# MYSQL_BINLOG local > replica_outfile
+include/assert_grep.inc [Ensure the same number of GTID events on the replica as the primary]
+include/assert_grep.inc [Ensure each GTID event has the thread id of the SQL Thread]
+#
+# Test the parallel replica
+connection slave;
+include/stop_slave.inc
+SET @@GLOBAL.slave_parallel_threads=1;
+include/start_slave.inc
+connection master;
+insert into t1 values(3);
+insert into t1 values(4);
+connection slave;
+connection slave;
+# MYSQL_BINLOG local > replica_outfile
+include/assert_grep.inc [Ensure the same number of GTID events on the replica as the primary]
+include/assert_grep.inc [Ensure only the new GTID events have the thread id of the worker thread]
+include/stop_slave.inc
+SET @@GLOBAL.slave_parallel_threads=0;
+include/start_slave.inc
+#
+# Cleanup
+connection master;
+drop table t1;
+include/rpl_end.inc
