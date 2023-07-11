@@ -1293,10 +1293,12 @@ ERROR 42000: Incorrect parameter count in the call to native function 'json_leng
 SELECT JSON_LENGTH();
 ERROR 42000: Incorrect parameter count in the call to native function 'JSON_LENGTH'
 # MDEV-23187: Assorted assertion failures in json_find_path with certain collations
+SET @old_collation_connection= @@COLLATION_CONNECTION;
 SET COLLATION_CONNECTION= ucs2_unicode_ci;
 SELECT JSON_VALUE('["foo"]', '$**[0]') AS f;
 f
 foo
+SET @@COLLATION_CONNECTION= @old_collation_connection;
 #
 # End of 10.4 tests
 #

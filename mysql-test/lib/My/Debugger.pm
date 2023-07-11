@@ -116,19 +116,19 @@ for my $k (sort keys %debuggers) {
   my $v = $debuggers{$k};
   $v = $debuggers{$k} = $debuggers{$v} if not ref $v; # resolve aliases
 
-  sub register_opt($$) {
-    my ($name, $msg) = @_;
-    $opts{"$name=s"} = \$opt_vals{$name};
-    $help .= wrap(sprintf("  %-23s", $name), ' 'x25, "$msg under $name\n");
+  sub register_opt($$$) {
+    my ($prefix, $name, $msg) = @_;
+    $opts{"$prefix$name=s"} = \$opt_vals{$prefix.$name};
+    $help .= wrap(sprintf("  %-23s", $prefix.$name), ' 'x25, "$msg under $name\n");
   }
 
   $v->{script} = '' unless $v->{script};
   $v->{options} =~ s/(\{exe\}|$)/ {options} $&/ unless $v->{options} =~ /\{options\}/;
 
-  register_opt "$k" => "Start mysqld";
-  register_opt "client-$k" => "Start mysqltest client";
-  register_opt "boot-$k" => "Start bootstrap server";
-  register_opt "manual-$k" => "Before running test(s) let user manually start mysqld";
+  register_opt "", $k, "Start mysqld";
+  register_opt "client-", $k, "Start mysqltest client";
+  register_opt "boot-", $k, "Start bootstrap server";
+  register_opt "manual-", "$k", "Before running test(s) let user manually start mysqld";
 }
 
 sub subst($%) {

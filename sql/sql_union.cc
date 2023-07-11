@@ -1658,9 +1658,9 @@ bool st_select_lex_unit::exec()
           the current result.
         */
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                            ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT,
-                            ER_THD(thd, ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT),
-                            thd->accessed_rows_and_keys,
+                            ER_QUERY_RESULT_INCOMPLETE,
+                            ER_THD(thd, ER_QUERY_RESULT_INCOMPLETE),
+                            "LIMIT ROWS EXAMINED",
                             thd->lex->limit_rows_examined->val_uint());
         thd->reset_killed();
         break;

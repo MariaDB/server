@@ -252,12 +252,23 @@ public:
   */
   inline longlong check_integer_overflow(longlong value, bool val_unsigned)
   {
-    if ((unsigned_flag && !val_unsigned && value < 0) ||
-        (!unsigned_flag && val_unsigned &&
-         (ulonglong) value > (ulonglong) LONGLONG_MAX))
-      return raise_integer_overflow();
-    return value;
+    return check_integer_overflow(Longlong_hybrid(value, val_unsigned));
   }
+
+  // Check if the value is compatible with Item::unsigned_flag.
+  inline longlong check_integer_overflow(const Longlong_hybrid &sval)
+  {
+    Longlong_null res= sval.val_int(unsigned_flag);
+    return res.is_null() ? raise_integer_overflow() : res.value();
+  }
+
+  // Check if the value is compatible with Item::unsigned_flag.
+  longlong check_integer_overflow(const ULonglong_hybrid &uval)
+  {
+    Longlong_null res= uval.val_int(unsigned_flag);
+    return res.is_null() ? raise_integer_overflow() : res.value();
+  }
+
   /**
      Throw an error if the error code of a DECIMAL operation is E_DEC_OVERFLOW.
   */
