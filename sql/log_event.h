@@ -1294,8 +1294,6 @@ public:
   */
   ulong slave_exec_mode;
 
-  Log_event_writer *writer;
-
 #ifdef MYSQL_SERVER
   THD* thd;
 
@@ -1433,24 +1431,26 @@ public:
   static void operator delete(void*, void*) { }
 
 #ifdef MYSQL_SERVER
-  bool write_header(size_t event_data_length);
-  bool write_data(const uchar *buf, size_t data_length)
+  bool write_header(Log_event_writer *writer, size_t event_data_length);
+  bool write_data(Log_event_writer *writer, const uchar *buf, size_t data_length)
   { return writer->write_data(buf, data_length); }
-  bool write_data(const char *buf, size_t data_length)
-  { return write_data((uchar*)buf, data_length); }
-  bool write_footer()
+  bool write_data(Log_event_writer *writer, const char *buf, size_t data_length)
+  { return write_data(writer, (uchar*)buf, data_length); }
+  bool write_footer(Log_event_writer *writer)
   { return writer->write_footer(); }
 
   my_bool need_checksum();
 
-  virtual bool write()
+  virtual bool write(Log_event_writer *writer)
   {
-    return write_header(get_data_size()) || write_data_header() ||
-	   write_data_body() || write_footer();
+    return write_header(writer, get_data_size()) ||
+           write_data_header(writer) ||
+	   write_data_body(writer) ||
+           write_footer(writer);
   }
-  virtual bool write_data_header()
+  virtual bool write_data_header(Log_event_writer *writer)
   { return 0; }
-  virtual bool write_data_body()
+  virtual bool write_data_body(Log_event_writer *writer)
   { return 0; }
 
   /* Return start of query time or current time */
@@ -2208,8 +2208,8 @@ public:
   static int begin_event(String *packet, ulong ev_offset,
                          enum enum_binlog_checksum_alg checksum_alg);
 #ifdef MYSQL_SERVER
-  bool write();
-  virtual bool write_post_header_for_derived() { return FALSE; }
+  bool write(Log_event_writer *writer);
+  virtual bool write_post_header_for_derived(Log_event_writer *writer) { return FALSE; }
 #endif
   bool is_valid() const { return query != 0; }
 
@@ -2289,7 +2289,7 @@ public:
                              ulong query_length,
                              bool using_trans, bool direct, bool suppress_use,
                              int error);
-  virtual bool write();
+  virtual bool write(Log_event_writer *writer);
 #endif
 };
 
@@ -2622,8 +2622,8 @@ public:
     return sql_ex.new_format() ? NEW_LOAD_EVENT: LOAD_EVENT;
   }
 #ifdef MYSQL_SERVER
-  bool write_data_header();
-  bool write_data_body();
+  bool write_data_header(Log_event_writer *writer);
+  bool write_data_body(Log_event_writer *writer);
 #endif
   bool is_valid() const { return table_name != 0; }
   int get_data_size()
@@ -2711,7 +2711,7 @@ public:
   my_off_t get_header_len(my_off_t l __attribute__((unused)))
   { return LOG_EVENT_MINIMAL_HEADER_LEN; }
 #ifdef MYSQL_SERVER
-  bool write();
+  bool write(Log_event_writer *writer);
 #endif
   bool is_valid() const { return server_version[0] != 0; }
   int get_data_size()
@@ -2760,14 +2760,14 @@ public:
     memcpy(nonce, nonce_arg, BINLOG_NONCE_LENGTH);
   }
 
-  bool write_data_body()
+  bool write_data_body(Log_event_writer *writer)
   {
     uchar scheme_buf= crypto_scheme;
     uchar key_version_buf[BINLOG_KEY_VERSION_LENGTH];
     int4store(key_version_buf, key_version);
-    return write_data(&scheme_buf, sizeof(scheme_buf)) ||
-           write_data(key_version_buf, sizeof(key_version_buf)) ||
-           write_data(nonce, BINLOG_NONCE_LENGTH);
+    return write_data(writer, &scheme_buf, sizeof(scheme_buf)) ||
+           write_data(writer, key_version_buf, sizeof(key_version_buf)) ||
+           write_data(writer, nonce, BINLOG_NONCE_LENGTH);
   }
 #else
   bool print(FILE* file, PRINT_EVENT_INFO* print_event_info);
@@ -2888,7 +2888,7 @@ public:
   }
   Log_event_type get_type_code() { return FORMAT_DESCRIPTION_EVENT;}
 #ifdef MYSQL_SERVER
-  bool write();
+  bool write(Log_event_writer *writer);
 #endif
   bool header_is_valid() const
   {
@@ -3001,7 +3001,7 @@ Intvar_log_event(THD* thd_arg,uchar type_arg, ulonglong val_arg,
   const char* get_var_type_name();
   int get_data_size() { return  9; /* sizeof(type) + sizeof(val) */;}
 #ifdef MYSQL_SERVER
-  bool write();
+  bool write(Log_event_writer *writer);
 #endif
   bool is_valid() const { return 1; }
   bool is_part_of_group() { return 1; }
@@ -3081,7 +3081,7 @@ class Rand_log_event: public Log_event
   Log_event_type get_type_code() { return RAND_EVENT;}
   int get_data_size() { return 16; /* sizeof(ulonglong) * 2*/ }
 #ifdef MYSQL_SERVER
-  bool write();
+  bool write(Log_event_writer *writer);
 #endif
   bool is_valid() const { return 1; }
   bool is_part_of_group() { return 1; }
@@ -3161,7 +3161,7 @@ public:
   Log_event_type get_type_code() { return XID_EVENT;}
   int get_data_size() { return sizeof(xid); }
 #ifdef MYSQL_SERVER
-  bool write();
+  bool write(Log_event_writer *writer);
 #endif
 
 private:
@@ -3311,7 +3311,7 @@ public:
   }
 
 #ifdef MYSQL_SERVER
-  bool write();
+  bool write(Log_event_writer *writer);
 #endif
 
 private:
@@ -3380,7 +3380,7 @@ public:
   ~User_var_log_event() = default;
   Log_event_type get_type_code() { return USER_VAR_EVENT;}
 #ifdef MYSQL_SERVER
-  bool write();
+  bool write(Log_event_writer *writer);
   /* 
      Getter and setter for deferred User-event. 
      Returns true if the event is not applied directly 
@@ -3532,7 +3532,7 @@ public:
   int get_data_size() { return  ident_len + ROTATE_HEADER_LEN;}
   bool is_valid() const { return new_log_ident != 0; }
 #ifdef MYSQL_SERVER
-  bool write();
+  bool write(Log_event_writer *writer);
 #endif
 
 private:
@@ -3566,7 +3566,7 @@ public:
   int get_data_size() { return binlog_file_len + BINLOG_CHECKPOINT_HEADER_LEN;}
   bool is_valid() const { return binlog_file_name != 0; }
 #ifdef MYSQL_SERVER
-  bool write();
+  bool write(Log_event_writer *writer);
   enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 #endif
 };
@@ -3731,7 +3731,7 @@ public:
   }
   bool is_valid() const { return seq_no != 0; }
 #ifdef MYSQL_SERVER
-  bool write();
+  bool write(Log_event_writer *writer);
   static int make_compatible_event(String *packet, bool *need_dummy_event,
                                     ulong ev_offset, enum enum_binlog_checksum_alg checksum_alg);
   static bool peek(const uchar *event_start, size_t event_len,
@@ -3849,7 +3849,7 @@ public:
   bool is_valid() const { return list != NULL; }
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   bool to_packet(String *packet);
-  bool write();
+  bool write(Log_event_writer *writer);
   virtual int do_apply_event(rpl_group_info *rgi);
   enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 #endif
@@ -3920,13 +3920,13 @@ public:
   }
   bool is_valid() const { return inited_from_old || block != 0; }
 #ifdef MYSQL_SERVER
-  bool write_data_header();
-  bool write_data_body();
+  bool write_data_header(Log_event_writer *writer);
+  bool write_data_body(Log_event_writer *writer);
   /*
     Cut out Create_file extensions and
     write it as Load event - used on the slave
   */
-  bool write_base();
+  bool write_base(Log_event_writer *writer);
 #endif
 
 private:
@@ -3980,7 +3980,7 @@ public:
   int get_data_size() { return  block_len + APPEND_BLOCK_HEADER_LEN ;}
   bool is_valid() const { return block != 0; }
 #ifdef MYSQL_SERVER
-  bool write();
+  bool write(Log_event_writer *writer);
   const char* get_db() { return db; }
 #endif
 
@@ -4021,7 +4021,7 @@ public:
   int get_data_size() { return DELETE_FILE_HEADER_LEN ;}
   bool is_valid() const { return file_id != 0; }
 #ifdef MYSQL_SERVER
-  bool write();
+  bool write(Log_event_writer *writer);
   const char* get_db() { return db; }
 #endif
 
@@ -4061,7 +4061,7 @@ public:
   int get_data_size() { return  EXEC_LOAD_HEADER_LEN ;}
   bool is_valid() const { return file_id != 0; }
 #ifdef MYSQL_SERVER
-  bool write();
+  bool write(Log_event_writer *writer);
   const char* get_db() { return db; }
 #endif
 
@@ -4161,7 +4161,7 @@ public:
 
   ulong get_post_header_size_for_derived();
 #ifdef MYSQL_SERVER
-  bool write_post_header_for_derived();
+  bool write_post_header_for_derived(Log_event_writer *writer);
 #endif
 
 private:
@@ -4229,8 +4229,8 @@ public:
   virtual bool is_part_of_group() { return 1; }
 
 #ifndef MYSQL_CLIENT
-  virtual bool write_data_header();
-  virtual bool write_data_body();
+  virtual bool write_data_header(Log_event_writer *writer);
+  virtual bool write_data_body(Log_event_writer *writer);
 #endif
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
@@ -4895,8 +4895,8 @@ public:
   virtual int get_data_size() { return (uint) m_data_size; } 
 #ifdef MYSQL_SERVER
   virtual int save_field_metadata();
-  virtual bool write_data_header();
-  virtual bool write_data_body();
+  virtual bool write_data_header(Log_event_writer *writer);
+  virtual bool write_data_body(Log_event_writer *writer);
   virtual const char *get_db() { return m_dbnam; }
 #endif
 
@@ -5154,9 +5154,9 @@ public:
 #endif
 
 #ifdef MYSQL_SERVER
-  virtual bool write_data_header();
-  virtual bool write_data_body();
-  virtual bool write_compressed();
+  virtual bool write_data_header(Log_event_writer *writer);
+  virtual bool write_data_body(Log_event_writer *writer);
+  virtual bool write_compressed(Log_event_writer *writer);
   virtual const char *get_db() { return m_table->s->db.str; }
 #endif
   /*
@@ -5468,7 +5468,7 @@ public:
 #if defined(MYSQL_SERVER)
   Write_rows_compressed_log_event(THD*, TABLE*, ulong table_id,
                        bool is_transactional);
-  virtual bool write();
+  virtual bool write(Log_event_writer *writer);
 #endif
 #ifdef HAVE_REPLICATION
   Write_rows_compressed_log_event(const uchar *buf, uint event_len,
@@ -5556,7 +5556,7 @@ public:
 #if defined(MYSQL_SERVER)
   Update_rows_compressed_log_event(THD*, TABLE*, ulong table_id,
                         bool is_transactional);
-  virtual bool write();
+  virtual bool write(Log_event_writer *writer);
 #endif
 #ifdef HAVE_REPLICATION
   Update_rows_compressed_log_event(const uchar *buf, uint event_len,
@@ -5640,7 +5640,7 @@ class Delete_rows_compressed_log_event : public Delete_rows_log_event
 public:
 #if defined(MYSQL_SERVER)
   Delete_rows_compressed_log_event(THD*, TABLE*, ulong, bool is_transactional);
-  virtual bool write();
+  virtual bool write(Log_event_writer *writer);
 #endif
 #ifdef HAVE_REPLICATION
   Delete_rows_compressed_log_event(const uchar *buf, uint event_len,
@@ -5733,8 +5733,8 @@ public:
 #ifdef MYSQL_SERVER
   void pack_info(Protocol*);
 
-  virtual bool write_data_header();
-  virtual bool write_data_body();
+  virtual bool write_data_header(Log_event_writer *writer);
+  virtual bool write_data_body(Log_event_writer *writer);
 #endif
 
   Incident_log_event(const uchar *buf, uint event_len,
@@ -5871,9 +5871,7 @@ private:
 
 inline int Log_event_writer::write(Log_event *ev)
 {
-  ev->writer= this;
-  int res= ev->write();
-  IF_DBUG(ev->writer= 0,); // writer must be set before every Log_event::write
+  int res= ev->write(this);
   add_status(ev->logged_status());
   return res;
 }

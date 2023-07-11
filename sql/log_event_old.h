@@ -134,8 +134,8 @@ public:
   ulong get_table_id() const        { return m_table_id; }
 
 #ifndef MYSQL_CLIENT
-  virtual bool write_data_header();
-  virtual bool write_data_body();
+  virtual bool write_data_header(Log_event_writer *writer);
+  virtual bool write_data_body(Log_event_writer *writer);
   virtual const char *get_db() { return m_table->s->db.str; }
 #endif
   /*

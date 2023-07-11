@@ -950,7 +950,7 @@ int Log_event_writer::write_footer()
   Log_event::write_header()
 */
 
-bool Log_event::write_header(size_t event_data_length)
+bool Log_event::write_header(Log_event_writer *writer, size_t event_data_length)
 {
   uchar header[LOG_EVENT_HEADER_LEN];
   ulong now;
@@ -1108,7 +1108,7 @@ static void store_str_with_code_and_len(uchar **dst, const char *src,
     will print!
 */
 
-bool Query_log_event::write()
+bool Query_log_event::write(Log_event_writer *writer)
 {
   uchar buf[QUERY_HEADER_LEN + MAX_SIZE_LOG_EVENT_STATUS];
   uchar *start, *start_of_status;
@@ -1361,16 +1361,16 @@ bool Query_log_event::write()
   event_length= ((uint) (start-buf) + get_post_header_size_for_derived() +
                  db_len + 1 + q_len);
 
-  return write_header(event_length) ||
-         write_data(buf, QUERY_HEADER_LEN) ||
-         write_post_header_for_derived() ||
-         write_data(start_of_status, (uint) status_vars_len) ||
-         write_data(db, db_len + 1) ||
-         write_data(query, q_len) ||
-         write_footer();
+  return write_header(writer, event_length) ||
+         write_data(writer, buf, QUERY_HEADER_LEN) ||
+         write_post_header_for_derived(writer) ||
+         write_data(writer, start_of_status, (uint) status_vars_len) ||
+         write_data(writer, db, db_len + 1) ||
+         write_data(writer, query, q_len) ||
+         write_footer(writer);
 }
 
-bool Query_compressed_log_event::write()
+bool Query_compressed_log_event::write(Log_event_writer *writer)
 {
   uchar *buffer;
   uint32 alloc_size, compressed_size;
@@ -1389,7 +1389,7 @@ bool Query_compressed_log_event::write()
     uint32 q_len_tmp= q_len;
     query= (char*) buffer;
     q_len= compressed_size;
-    ret= Query_log_event::write();
+    ret= Query_log_event::write(writer);
     query= query_tmp;
     q_len= q_len_tmp;
   }
@@ -2506,7 +2506,7 @@ void Start_log_event_v3::pack_info(Protocol *protocol)
 #endif
 
 
-bool Start_log_event_v3::write()
+bool Start_log_event_v3::write(Log_event_writer *writer)
 {
   char buff[START_V3_HEADER_LEN];
   int2store(buff + ST_BINLOG_VER_OFFSET,binlog_version);
@@ -2514,9 +2514,9 @@ bool Start_log_event_v3::write()
   if (!dont_set_created)
     created= get_time(); // this sets when and when_sec_part as a side effect
   int4store(buff + ST_CREATED_OFFSET,created);
-  return write_header(sizeof(buff)) ||
-         write_data(buff, sizeof(buff)) ||
-         write_footer();
+  return write_header(writer, sizeof(buff)) ||
+         write_data(writer, buff, sizeof(buff)) ||
+         write_footer(writer);
 }
 
 
@@ -2606,7 +2606,7 @@ int Start_log_event_v3::do_apply_event(rpl_group_info *rgi)
        Format_description_log_event methods
 ****************************************************************************/
 
-bool Format_description_log_event::write()
+bool Format_description_log_event::write(Log_event_writer *writer)
 {
   bool ret;
   bool no_checksum;
@@ -2654,11 +2654,11 @@ bool Format_description_log_event::write()
   {
     checksum_alg= BINLOG_CHECKSUM_ALG_CRC32;  // Forcing (V) room to fill anyway
   }
-  ret= write_header(rec_size) ||
-       write_data(buff, sizeof(buff)) ||
-       write_data(post_header_len, number_of_event_types) ||
-       write_data(&checksum_byte, sizeof(checksum_byte)) ||
-       write_footer();
+  ret= write_header(writer, rec_size) ||
+       write_data(writer, buff, sizeof(buff)) ||
+       write_data(writer, post_header_len, number_of_event_types) ||
+       write_data(writer, &checksum_byte, sizeof(checksum_byte)) ||
+       write_footer(writer);
   if (no_checksum)
     checksum_alg= BINLOG_CHECKSUM_ALG_OFF;
   return ret;
@@ -2933,7 +2933,7 @@ void Load_log_event::pack_info(Protocol *protocol)
 #endif /* defined(HAVE_REPLICATION) */
 
 
-bool Load_log_event::write_data_header()
+bool Load_log_event::write_data_header(Log_event_writer *writer)
 {
   char buf[LOAD_HEADER_LEN];
   int4store(buf + L_THREAD_ID_OFFSET, slave_proxy_id);
@@ -2942,23 +2942,23 @@ bool Load_log_event::write_data_header()
   buf[L_TBL_LEN_OFFSET] = (char)table_name_len;
   buf[L_DB_LEN_OFFSET] = (char)db_len;
   int4store(buf + L_NUM_FIELDS_OFFSET, num_fields);
-  return write_data(buf, LOAD_HEADER_LEN) != 0;
+  return write_data(writer, buf, LOAD_HEADER_LEN) != 0;
 }
 
 
-bool Load_log_event::write_data_body()
+bool Load_log_event::write_data_body(Log_event_writer *writer)
 {
   if (sql_ex.write_data(writer))
     return 1;
   if (num_fields && fields && field_lens)
   {
-    if (write_data(field_lens, num_fields) ||
-	write_data(fields, field_block_len))
+    if (write_data(writer, field_lens, num_fields) ||
+	write_data(writer, fields, field_block_len))
       return 1;
   }
-  return (write_data(table_name, table_name_len + 1) ||
-	  write_data(db, db_len + 1) ||
-	  write_data(fname, fname_len));
+  return (write_data(writer, table_name, table_name_len + 1) ||
+	  write_data(writer, db, db_len + 1) ||
+	  write_data(writer, fname, fname_len));
 }
 
 
@@ -3412,14 +3412,14 @@ Rotate_log_event::Rotate_log_event(const char* new_log_ident_arg,
 }
 
 
-bool Rotate_log_event::write()
+bool Rotate_log_event::write(Log_event_writer *writer)
 {
   char buf[ROTATE_HEADER_LEN];
   int8store(buf + R_POS_OFFSET, pos);
-  return (write_header(ROTATE_HEADER_LEN + ident_len) ||
-          write_data(buf, ROTATE_HEADER_LEN) ||
-          write_data(new_log_ident, (uint) ident_len) ||
-          write_footer());
+  return (write_header(writer, ROTATE_HEADER_LEN + ident_len) ||
+          write_data(writer, buf, ROTATE_HEADER_LEN) ||
+          write_data(writer, new_log_ident, (uint) ident_len) ||
+          write_footer(writer));
 }
 
 
@@ -3569,14 +3569,14 @@ Binlog_checkpoint_log_event::Binlog_checkpoint_log_event(
 }
 
 
-bool Binlog_checkpoint_log_event::write()
+bool Binlog_checkpoint_log_event::write(Log_event_writer *writer)
 {
   uchar buf[BINLOG_CHECKPOINT_HEADER_LEN];
   int4store(buf, binlog_file_len);
-  return write_header(BINLOG_CHECKPOINT_HEADER_LEN + binlog_file_len) ||
-         write_data(buf, BINLOG_CHECKPOINT_HEADER_LEN) ||
-         write_data(binlog_file_name, binlog_file_len) ||
-         write_footer();
+  return write_header(writer, BINLOG_CHECKPOINT_HEADER_LEN + binlog_file_len) ||
+         write_data(writer, buf, BINLOG_CHECKPOINT_HEADER_LEN) ||
+         write_data(writer, binlog_file_name, binlog_file_len) ||
+         write_footer(writer);
 }
 
 
@@ -3702,7 +3702,7 @@ Gtid_log_event::peek(const uchar *event_start, size_t event_len,
 
 
 bool
-Gtid_log_event::write()
+Gtid_log_event::write(Log_event_writer *writer)
 {
   uchar buf[GTID_HEADER_LEN+2+sizeof(XID) + /* flags_extra: */ 1+4];
   size_t write_len= 13;
@@ -3750,9 +3750,9 @@ Gtid_log_event::write()
     bzero(buf+write_len, GTID_HEADER_LEN-write_len);
     write_len= GTID_HEADER_LEN;
   }
-  return write_header(write_len) ||
-         write_data(buf, write_len) ||
-         write_footer();
+  return write_header(writer, write_len) ||
+         write_data(writer, buf, write_len) ||
+         write_footer(writer);
 }
 
 
@@ -4040,7 +4040,7 @@ Gtid_list_log_event::to_packet(String *packet)
 
 
 bool
-Gtid_list_log_event::write()
+Gtid_list_log_event::write(Log_event_writer *writer)
 {
   char buf[128];
   String packet(buf, sizeof(buf), system_charset_info);
@@ -4048,9 +4048,9 @@ Gtid_list_log_event::write()
   packet.length(0);
   if (to_packet(&packet))
     return true;
-  return write_header(get_data_size()) ||
-         write_data(packet.ptr(), packet.length()) ||
-         write_footer();
+  return write_header(writer, get_data_size()) ||
+         write_data(writer, packet.ptr(), packet.length()) ||
+         write_footer(writer);
 }
 
 
@@ -4144,14 +4144,14 @@ void Intvar_log_event::pack_info(Protocol *protocol)
 #endif
 
 
-bool Intvar_log_event::write()
+bool Intvar_log_event::write(Log_event_writer *writer)
 {
   uchar buf[9];
   buf[I_TYPE_OFFSET]= (uchar) type;
   int8store(buf + I_VAL_OFFSET, val);
-  return write_header(sizeof(buf)) ||
-         write_data(buf, sizeof(buf)) ||
-         write_footer();
+  return write_header(writer, sizeof(buf)) ||
+         write_data(writer, buf, sizeof(buf)) ||
+         write_footer(writer);
 }
 
 
@@ -4223,14 +4223,14 @@ void Rand_log_event::pack_info(Protocol *protocol)
 #endif
 
 
-bool Rand_log_event::write()
+bool Rand_log_event::write(Log_event_writer *writer)
 {
   uchar buf[16];
   int8store(buf + RAND_SEED1_OFFSET, seed1);
   int8store(buf + RAND_SEED2_OFFSET, seed2);
-  return write_header(sizeof(buf)) ||
-         write_data(buf, sizeof(buf)) ||
-         write_footer();
+  return write_header(writer, sizeof(buf)) ||
+         write_data(writer, buf, sizeof(buf)) ||
+         write_footer(writer);
 }
 
 
@@ -4479,12 +4479,12 @@ int Xid_log_event::do_commit()
 #endif
 
 
-bool Xid_log_event::write()
+bool Xid_log_event::write(Log_event_writer *writer)
 {
   DBUG_EXECUTE_IF("do_not_write_xid", return 0;);
-  return write_header(sizeof(xid)) ||
-         write_data((uchar*)&xid, sizeof(xid)) ||
-         write_footer();
+  return write_header(writer, sizeof(xid)) ||
+         write_data(writer, (uchar*)&xid, sizeof(xid)) ||
+         write_footer(writer);
 }
 
 /**************************************************************************
@@ -4529,7 +4529,7 @@ int XA_prepare_log_event::do_commit()
 #endif // HAVE_REPLICATION
 
 
-bool XA_prepare_log_event::write()
+bool XA_prepare_log_event::write(Log_event_writer *writer)
 {
   uchar data[1 + 4 + 4 + 4]= {one_phase,};
   uint8 one_phase_byte= one_phase;
@@ -4540,14 +4540,14 @@ bool XA_prepare_log_event::write()
 
   DBUG_ASSERT(xid_subheader_no_data == sizeof(data) - 1);
 
-  return write_header(sizeof(one_phase_byte) + xid_subheader_no_data +
+  return write_header(writer, sizeof(one_phase_byte) + xid_subheader_no_data +
                       static_cast<XID*>(xid)->gtrid_length +
                       static_cast<XID*>(xid)->bqual_length) ||
-         write_data(data, sizeof(data)) ||
-         write_data((uchar*) static_cast<XID*>(xid)->data,
+         write_data(writer, data, sizeof(data)) ||
+         write_data(writer, (uchar*) static_cast<XID*>(xid)->data,
                      static_cast<XID*>(xid)->gtrid_length +
                      static_cast<XID*>(xid)->bqual_length) ||
-         write_footer();
+         write_footer(writer);
 }
 
 
@@ -4671,7 +4671,7 @@ void User_var_log_event::pack_info(Protocol* protocol)
 #endif // HAVE_REPLICATION
 
 
-bool User_var_log_event::write()
+bool User_var_log_event::write(Log_event_writer *writer)
 {
   char buf[UV_NAME_LEN_SIZE];
   char buf1[UV_VAL_IS_NULL + UV_VAL_TYPE_SIZE + 
@@ -4726,13 +4726,13 @@ bool User_var_log_event::write()
   /* Length of the whole event */
   event_length= sizeof(buf)+ name_len + buf1_length + val_len + unsigned_len;
 
-  return write_header(event_length) ||
-         write_data(buf, sizeof(buf))   ||
-         write_data(name, name_len)     ||
-         write_data(buf1, buf1_length) ||
-         write_data(pos, val_len) ||
-         write_data(&flags, unsigned_len) ||
-         write_footer();
+  return write_header(writer, event_length) ||
+         write_data(writer, buf, sizeof(buf))   ||
+         write_data(writer, name, name_len)     ||
+         write_data(writer, buf1, buf1_length) ||
+         write_data(writer, pos, val_len) ||
+         write_data(writer, &flags, unsigned_len) ||
+         write_footer(writer);
 }
 
 
@@ -4951,13 +4951,13 @@ Create_file_log_event(THD* thd_arg, sql_exchange* ex,
   Create_file_log_event::write_data_body()
 */
 
-bool Create_file_log_event::write_data_body()
+bool Create_file_log_event::write_data_body(Log_event_writer *writer)
 {
   bool res;
-  if ((res= Load_log_event::write_data_body()) || fake_base)
+  if ((res= Load_log_event::write_data_body(writer)) || fake_base)
     return res;
-  return write_data("", 1) ||
-         write_data(block, block_len);
+  return write_data(writer, "", 1) ||
+         write_data(writer, block, block_len);
 }
 
 
@@ -4965,14 +4965,14 @@ bool Create_file_log_event::write_data_body()
   Create_file_log_event::write_data_header()
 */
 
-bool Create_file_log_event::write_data_header()
+bool Create_file_log_event::write_data_header(Log_event_writer *writer)
 {
   bool res;
   uchar buf[CREATE_FILE_HEADER_LEN];
-  if ((res= Load_log_event::write_data_header()) || fake_base)
+  if ((res= Load_log_event::write_data_header(writer)) || fake_base)
     return res;
   int4store(buf + CF_FILE_ID_OFFSET, file_id);
-  return write_data(buf, CREATE_FILE_HEADER_LEN) != 0;
+  return write_data(writer, buf, CREATE_FILE_HEADER_LEN) != 0;
 }
 
 
@@ -4980,11 +4980,11 @@ bool Create_file_log_event::write_data_header()
   Create_file_log_event::write_base()
 */
 
-bool Create_file_log_event::write_base()
+bool Create_file_log_event::write_base(Log_event_writer *writer)
 {
   bool res;
   fake_base= 1;                                 // pretend we are Load event
-  res= write();
+  res= write(writer);
   fake_base= 0;
   return res;
 }
@@ -5051,8 +5051,7 @@ int Create_file_log_event::do_apply_event(rpl_group_info *rgi)
   // a trick to avoid allocating another buffer
   fname= fname_buf;
   fname_len= (uint) (strmov(ext, ".data") - fname);
-  writer= &lew;
-  if (write_base())
+  if (write_base(&lew))
   {
     strmov(ext, ".info"); // to have it right in the error message
     rli->report(ERROR_LEVEL, my_errno, rgi->gtid_info(),
@@ -5110,14 +5109,14 @@ Append_block_log_event::Append_block_log_event(THD *thd_arg,
 }
 
 
-bool Append_block_log_event::write()
+bool Append_block_log_event::write(Log_event_writer *writer)
 {
   uchar buf[APPEND_BLOCK_HEADER_LEN];
   int4store(buf + AB_FILE_ID_OFFSET, file_id);
-  return write_header(APPEND_BLOCK_HEADER_LEN + block_len) ||
-         write_data(buf, APPEND_BLOCK_HEADER_LEN) ||
-         write_data(block, block_len) ||
-         write_footer();
+  return write_header(writer, APPEND_BLOCK_HEADER_LEN + block_len) ||
+         write_data(writer, buf, APPEND_BLOCK_HEADER_LEN) ||
+         write_data(writer, block, block_len) ||
+         write_footer(writer);
 }
 
 
@@ -5220,13 +5219,13 @@ Delete_file_log_event::Delete_file_log_event(THD *thd_arg, const char* db_arg,
 }
 
 
-bool Delete_file_log_event::write()
+bool Delete_file_log_event::write(Log_event_writer *writer)
 {
  uchar buf[DELETE_FILE_HEADER_LEN];
  int4store(buf + DF_FILE_ID_OFFSET, file_id);
- return write_header(sizeof(buf)) ||
-        write_data(buf, sizeof(buf)) ||
-        write_footer();
+ return write_header(writer, sizeof(buf)) ||
+        write_data(writer, buf, sizeof(buf)) ||
+        write_footer(writer);
 }
 
 
@@ -5268,13 +5267,13 @@ Execute_load_log_event::Execute_load_log_event(THD *thd_arg,
 }
   
 
-bool Execute_load_log_event::write()
+bool Execute_load_log_event::write(Log_event_writer *writer)
 {
   uchar buf[EXEC_LOAD_HEADER_LEN];
   int4store(buf + EL_FILE_ID_OFFSET, file_id);
-  return write_header(sizeof(buf)) ||
-         write_data(buf, sizeof(buf)) ||
-         write_footer();
+  return write_header(writer, sizeof(buf)) ||
+         write_data(writer, buf, sizeof(buf)) ||
+         write_footer(writer);
 }
 
 
@@ -5433,14 +5432,14 @@ Execute_load_query_log_event(THD *thd_arg, const char* query_arg,
 
 
 bool
-Execute_load_query_log_event::write_post_header_for_derived()
+Execute_load_query_log_event::write_post_header_for_derived(Log_event_writer *writer)
 {
   uchar buf[EXECUTE_LOAD_QUERY_EXTRA_HEADER_LEN];
   int4store(buf, file_id);
   int4store(buf + 4, fn_pos_start);
   int4store(buf + 4 + 4, fn_pos_end);
   *(buf + 4 + 4 + 4)= (uchar) dup_handling;
-  return write_data(buf, EXECUTE_LOAD_QUERY_EXTRA_HEADER_LEN);
+  return write_data(writer, buf, EXECUTE_LOAD_QUERY_EXTRA_HEADER_LEN);
 }
 
 
@@ -6405,7 +6404,7 @@ Rows_log_event::do_update_pos(rpl_group_info *rgi)
 #endif /* defined(HAVE_REPLICATION) */
 
 
-bool Rows_log_event::write_data_header()
+bool Rows_log_event::write_data_header(Log_event_writer *writer)
 {
   uchar buf[ROWS_HEADER_LEN_V2];        // No need to init the buffer
   DBUG_ASSERT(m_table_id != ~0ULL);
@@ -6413,14 +6412,14 @@ bool Rows_log_event::write_data_header()
                   {
                     int4store(buf + 0, m_table_id);
                     int2store(buf + 4, m_flags);
-                    return (write_data(buf, 6));
+                    return (write_data(writer, buf, 6));
                   });
   int6store(buf + RW_MAPID_OFFSET, m_table_id);
   int2store(buf + RW_FLAGS_OFFSET, m_flags);
-  return write_data(buf, ROWS_HEADER_LEN);
+  return write_data(writer, buf, ROWS_HEADER_LEN);
 }
 
-bool Rows_log_event::write_data_body()
+bool Rows_log_event::write_data_body(Log_event_writer *writer)
 {
   /*
      Note that this should be the number of *bits*, not the number of
@@ -6433,10 +6432,10 @@ bool Rows_log_event::write_data_body()
   DBUG_ASSERT(static_cast<size_t>(sbuf_end - sbuf) <= sizeof(sbuf));
 
   DBUG_DUMP("m_width", sbuf, (size_t) (sbuf_end - sbuf));
-  res= res || write_data(sbuf, (size_t) (sbuf_end - sbuf));
+  res= res || write_data(writer, sbuf, (size_t) (sbuf_end - sbuf));
 
   DBUG_DUMP("m_cols", (uchar*) m_cols.bitmap, no_bytes_in_map(&m_cols));
-  res= res || write_data((uchar*)m_cols.bitmap, no_bytes_in_map(&m_cols));
+  res= res || write_data(writer, (uchar*)m_cols.bitmap, no_bytes_in_map(&m_cols));
   /*
     TODO[refactor write]: Remove the "down cast" here (and elsewhere).
    */
@@ -6444,17 +6443,17 @@ bool Rows_log_event::write_data_body()
   {
     DBUG_DUMP("m_cols_ai", (uchar*) m_cols_ai.bitmap,
               no_bytes_in_map(&m_cols_ai));
-    res= res || write_data((uchar*)m_cols_ai.bitmap,
+    res= res || write_data(writer, (uchar*)m_cols_ai.bitmap,
                            no_bytes_in_map(&m_cols_ai));
   }
   DBUG_DUMP("rows", m_rows_buf, data_size);
-  res= res || write_data(m_rows_buf, (size_t) data_size);
+  res= res || write_data(writer, m_rows_buf, (size_t) data_size);
 
   return res;
 
 }
 
-bool Rows_log_event::write_compressed()
+bool Rows_log_event::write_compressed(Log_event_writer *writer)
 {
   uchar *m_rows_buf_tmp= m_rows_buf;
   uchar *m_rows_cur_tmp= m_rows_cur;
@@ -6468,7 +6467,7 @@ bool Rows_log_event::write_compressed()
                           (uint32)(m_rows_cur_tmp - m_rows_buf_tmp), &comlen))
   {
     m_rows_cur= comlen + m_rows_buf;
-    ret= Log_event::write();
+    ret= Log_event::write(writer);
   }
   my_safe_afree(m_rows_buf, alloc_size);
   m_rows_buf= m_rows_buf_tmp;
@@ -6510,15 +6509,15 @@ Annotate_rows_log_event::Annotate_rows_log_event(THD *thd,
 }
 
 
-bool Annotate_rows_log_event::write_data_header()
+bool Annotate_rows_log_event::write_data_header(Log_event_writer *writer)
 { 
   return 0;
 }
 
 
-bool Annotate_rows_log_event::write_data_body()
+bool Annotate_rows_log_event::write_data_body(Log_event_writer *writer)
 {
-  return write_data(m_query_txt, m_query_len);
+  return write_data(writer, m_query_txt, m_query_len);
 }
 
 
@@ -6964,7 +6963,7 @@ int Table_map_log_event::do_update_pos(rpl_group_info *rgi)
 
 #endif /* defined(HAVE_REPLICATION) */
 
-bool Table_map_log_event::write_data_header()
+bool Table_map_log_event::write_data_header(Log_event_writer *writer)
 {
   DBUG_ASSERT(m_table_id != ~0ULL);
   uchar buf[TABLE_MAP_HEADER_LEN];
@@ -6972,14 +6971,14 @@ bool Table_map_log_event::write_data_header()
                   {
                     int4store(buf + 0, m_table_id);
                     int2store(buf + 4, m_flags);
-                    return (write_data(buf, 6));
+                    return (write_data(writer, buf, 6));
                   });
   int6store(buf + TM_MAPID_OFFSET, m_table_id);
   int2store(buf + TM_FLAGS_OFFSET, m_flags);
-  return write_data(buf, TABLE_MAP_HEADER_LEN);
+  return write_data(writer, buf, TABLE_MAP_HEADER_LEN);
 }
 
-bool Table_map_log_event::write_data_body()
+bool Table_map_log_event::write_data_body(Log_event_writer *writer)
 {
   DBUG_ASSERT(m_dbnam != NULL);
   DBUG_ASSERT(m_tblnam != NULL);
@@ -7000,17 +6999,17 @@ bool Table_map_log_event::write_data_body()
   uchar mbuf[MAX_INT_WIDTH];
   uchar *const mbuf_end= net_store_length(mbuf, m_field_metadata_size);
 
-  return write_data(dbuf,      sizeof(dbuf)) ||
-         write_data(m_dbnam,   m_dblen+1) ||
-         write_data(tbuf,      sizeof(tbuf)) ||
-         write_data(m_tblnam,  m_tbllen+1) ||
-         write_data(cbuf, (size_t) (cbuf_end - cbuf)) ||
-         write_data(m_coltype, m_colcnt) ||
-         write_data(mbuf, (size_t) (mbuf_end - mbuf)) ||
-         write_data(m_field_metadata, m_field_metadata_size),
-         write_data(m_null_bits, (m_colcnt + 7) / 8) ||
-         write_data((const uchar*) m_metadata_buf.ptr(),
-                                  m_metadata_buf.length());
+  return write_data(writer, dbuf,      sizeof(dbuf)) ||
+         write_data(writer, m_dbnam,   m_dblen+1) ||
+         write_data(writer, tbuf,      sizeof(tbuf)) ||
+         write_data(writer, m_tblnam,  m_tbllen+1) ||
+         write_data(writer, cbuf, (size_t) (cbuf_end - cbuf)) ||
+         write_data(writer, m_coltype, m_colcnt) ||
+         write_data(writer, mbuf, (size_t) (mbuf_end - mbuf)) ||
+         write_data(writer, m_field_metadata, m_field_metadata_size),
+         write_data(writer, m_null_bits, (m_colcnt + 7) / 8) ||
+         write_data(writer, (const uchar*) m_metadata_buf.ptr(),
+                                           m_metadata_buf.length());
  }
 
 /**
@@ -7438,9 +7437,9 @@ Write_rows_compressed_log_event::Write_rows_compressed_log_event(
   m_type = WRITE_ROWS_COMPRESSED_EVENT_V1;
 }
 
-bool Write_rows_compressed_log_event::write()
+bool Write_rows_compressed_log_event::write(Log_event_writer *writer)
 {
-  return Rows_log_event::write_compressed();
+  return Rows_log_event::write_compressed(writer);
 }
 
 
@@ -8553,9 +8552,9 @@ Delete_rows_compressed_log_event::Delete_rows_compressed_log_event(
   m_type= DELETE_ROWS_COMPRESSED_EVENT_V1;
 }
 
-bool Delete_rows_compressed_log_event::write()
+bool Delete_rows_compressed_log_event::write(Log_event_writer *writer)
 {
-  return Rows_log_event::write_compressed();    
+  return Rows_log_event::write_compressed(writer);
 }
 
 
@@ -8702,9 +8701,9 @@ Update_rows_compressed_log_event::Update_rows_compressed_log_event(THD *thd_arg,
   m_type = UPDATE_ROWS_COMPRESSED_EVENT_V1;
 }
 
-bool Update_rows_compressed_log_event::write()
+bool Update_rows_compressed_log_event::write(Log_event_writer *writer)
 {
-  return Rows_log_event::write_compressed();
+  return Rows_log_event::write_compressed(writer);
 }
 
 void Update_rows_log_event::init(MY_BITMAP const *cols)
@@ -8993,23 +8992,23 @@ int Incident_log_event::do_apply_event(rpl_group_info *rgi)
 
 
 bool
-Incident_log_event::write_data_header()
+Incident_log_event::write_data_header(Log_event_writer *writer)
 {
   DBUG_ENTER("Incident_log_event::write_data_header");
   DBUG_PRINT("enter", ("m_incident: %d", m_incident));
   uchar buf[sizeof(int16)];
   int2store(buf, (int16) m_incident);
-  DBUG_RETURN(write_data(buf, sizeof(buf)));
+  DBUG_RETURN(write_data(writer, buf, sizeof(buf)));
 }
 
 bool
-Incident_log_event::write_data_body()
+Incident_log_event::write_data_body(Log_event_writer *writer)
 {
   uchar tmp[1];
   DBUG_ENTER("Incident_log_event::write_data_body");
   tmp[0]= (uchar) m_message.length;
-  DBUG_RETURN(write_data(tmp, sizeof(tmp)) ||
-              write_data(m_message.str, m_message.length));
+  DBUG_RETURN(write_data(writer, tmp, sizeof(tmp)) ||
+              write_data(writer, m_message.str, m_message.length));
 }
 
 
