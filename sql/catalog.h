@@ -50,7 +50,15 @@ public:
   void free();
 };
 
+/*
+  We have to keep catalog names short as otherwise we will get a problem with
+  InnoDB table dictionary.
+  This is the max storage name, including the end '/'
+*/
+#define MAX_CATALOG_NAME 65
+
 extern my_bool using_catalogs;
+extern bool check_catalog_name(const LEX_STRING *name);
 extern SQL_CATALOG *get_catalog(const LEX_CSTRING *name, bool initialize);
 extern SQL_CATALOG *get_catalog_with_error(const THD *thd,
                                            const LEX_CSTRING *name,

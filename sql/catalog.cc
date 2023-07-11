@@ -106,6 +106,32 @@ bool check_if_using_catalogs()
 }
 
 /*
+  Check catalog name
+
+  It cannot be longer than MAX_CATALOG_NAME -1.
+  It can also not (for now) contain any special characters.
+  This is because of mysql_install_db does not know about
+  the converted names.
+ */
+
+bool check_catalog_name(const LEX_STRING *name)
+{
+  const uchar *ptr, *end;
+  if (name->length >= MAX_CATALOG_NAME)
+    return 1;
+
+  for (ptr= (uchar*) name->str, end= ptr+ name->length ; ptr < end; ptr++)
+  {
+    my_wc_t wc;
+    int res= files_charset_info->mb_wc(&wc, ptr, end);
+    if (res != 1)
+      return 1;                                 // Wrong character
+  }
+  return 0;
+}
+
+
+/*
   Get catalog object
 */
 

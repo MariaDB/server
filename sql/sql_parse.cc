@@ -3236,7 +3236,7 @@ static bool prepare_catalog_action(THD *thd, LEX_CSTRING *name)
   if (check_if_using_catalogs() || check_catalog_access(thd, name))
     return true;
 
-  if (check_db_name((LEX_STRING*) name))
+  if (check_catalog_name((LEX_STRING*) name))
   {
     my_error(ER_WRONG_NAME_FOR_CATALOG, MYF(0), name->str);
     return true;
