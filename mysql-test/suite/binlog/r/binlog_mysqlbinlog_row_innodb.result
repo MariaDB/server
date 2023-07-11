@@ -2258,7 +2258,7 @@ ROLLBACK/*!*/;
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Binlog checkpoint master-bin.000001
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-1 ddl
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-1 ddl thread_id=#
 /*!100101 SET @@session.skip_parallel_replication=0*//*!*/;
 /*!100001 SET @@session.gtid_domain_id=0*//*!*/;
 /*!100001 SET @@session.server_id=1*//*!*/;
@@ -2366,7 +2366,7 @@ crn INT -- row number
 ) ENGINE=InnoDB DEFAULT CHARSET latin1
 /*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-2 trans
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-2 trans thread_id=#
 /*!100001 SET @@session.gtid_seq_no=2*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -2548,7 +2548,7 @@ START TRANSACTION
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
 COMMIT/*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-3 trans
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-3 trans thread_id=#
 /*!100001 SET @@session.gtid_seq_no=3*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -2730,7 +2730,7 @@ START TRANSACTION
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
 COMMIT/*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-4 trans
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-4 trans thread_id=#
 /*!100001 SET @@session.gtid_seq_no=4*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -3078,7 +3078,7 @@ START TRANSACTION
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
 COMMIT/*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-5 trans
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-5 trans thread_id=#
 /*!100001 SET @@session.gtid_seq_no=5*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -3418,7 +3418,7 @@ START TRANSACTION
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
 COMMIT/*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-6 trans
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-6 trans thread_id=#
 /*!100001 SET @@session.gtid_seq_no=6*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -3763,7 +3763,7 @@ START TRANSACTION
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
 COMMIT/*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-7 trans
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-7 trans thread_id=#
 /*!100001 SET @@session.gtid_seq_no=7*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -4106,7 +4106,7 @@ START TRANSACTION
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
 COMMIT/*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-8 trans
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-8 trans thread_id=#
 /*!100001 SET @@session.gtid_seq_no=8*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -4452,7 +4452,7 @@ START TRANSACTION
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
 COMMIT/*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-9 trans
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-9 trans thread_id=#
 /*!100001 SET @@session.gtid_seq_no=9*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -4632,7 +4632,7 @@ START TRANSACTION
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
 COMMIT/*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-10 trans
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-10 trans thread_id=#
 /*!100001 SET @@session.gtid_seq_no=10*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -4809,7 +4809,7 @@ START TRANSACTION
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
 COMMIT/*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-11 trans
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-11 trans thread_id=#
 /*!100001 SET @@session.gtid_seq_no=11*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -4989,7 +4989,7 @@ START TRANSACTION
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
 COMMIT/*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-12 trans
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-12 trans thread_id=#
 /*!100001 SET @@session.gtid_seq_no=12*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -5267,7 +5267,7 @@ ROLLBACK/*!*/;
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Binlog checkpoint master-bin.000001
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-1 ddl
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-1 ddl thread_id=#
 /*!100101 SET @@session.skip_parallel_replication=0*//*!*/;
 /*!100001 SET @@session.gtid_domain_id=0*//*!*/;
 /*!100001 SET @@session.server_id=1*//*!*/;
@@ -5291,7 +5291,7 @@ crn INT -- row number
 ) ENGINE=InnoDB DEFAULT CHARSET latin1
 /*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-2 trans
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-2 trans thread_id=#
 /*!100001 SET @@session.gtid_seq_no=2*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -5361,7 +5361,7 @@ START TRANSACTION
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
 COMMIT/*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-3 trans
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-3 trans thread_id=#
 /*!100001 SET @@session.gtid_seq_no=3*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -5440,7 +5440,7 @@ START TRANSACTION
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
 COMMIT/*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-4 trans
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-4 trans thread_id=#
 /*!100001 SET @@session.gtid_seq_no=4*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -5667,7 +5667,7 @@ ROLLBACK/*!*/;
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Binlog checkpoint master-bin.000001
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-1 ddl
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-1 ddl thread_id=#
 /*!100101 SET @@session.skip_parallel_replication=0*//*!*/;
 /*!100001 SET @@session.gtid_domain_id=0*//*!*/;
 /*!100001 SET @@session.server_id=1*//*!*/;
@@ -5691,7 +5691,7 @@ c_1_n INT -- row number
 ) ENGINE=InnoDB DEFAULT CHARSET latin1
 /*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-2 ddl
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-2 ddl thread_id=#
 /*!100001 SET @@session.gtid_seq_no=2*//*!*/;
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
@@ -5703,7 +5703,7 @@ c_2_n INT -- row number
 ) ENGINE=InnoDB DEFAULT CHARSET latin1
 /*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-3 ddl
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-3 ddl thread_id=#
 /*!100001 SET @@session.gtid_seq_no=3*//*!*/;
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
@@ -5715,7 +5715,7 @@ c_3_n INT -- row number
 ) ENGINE=InnoDB DEFAULT CHARSET latin1
 /*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-4 trans
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-4 trans thread_id=#
 /*!100001 SET @@session.gtid_seq_no=4*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -5785,7 +5785,7 @@ START TRANSACTION
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
 COMMIT/*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-5 trans
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-5 trans thread_id=#
 /*!100001 SET @@session.gtid_seq_no=5*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -5855,7 +5855,7 @@ START TRANSACTION
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
 COMMIT/*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-6 trans
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-6 trans thread_id=#
 /*!100001 SET @@session.gtid_seq_no=6*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -5925,7 +5925,7 @@ START TRANSACTION
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
 COMMIT/*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-7 trans
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-7 trans thread_id=#
 /*!100001 SET @@session.gtid_seq_no=7*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -6115,7 +6115,7 @@ START TRANSACTION
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
 COMMIT/*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-8 trans
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-8 trans thread_id=#
 /*!100001 SET @@session.gtid_seq_no=8*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -6305,7 +6305,7 @@ ROLLBACK/*!*/;
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Binlog checkpoint master-bin.000001
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-1 ddl
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-1 ddl thread_id=#
 /*!100101 SET @@session.skip_parallel_replication=0*//*!*/;
 /*!100001 SET @@session.gtid_domain_id=0*//*!*/;
 /*!100001 SET @@session.server_id=1*//*!*/;
@@ -6329,7 +6329,7 @@ c3 VARCHAR(60)
 ) ENGINE=InnoDB DEFAULT CHARSET latin1
 /*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-2 trans
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-2 trans thread_id=#
 /*!100001 SET @@session.gtid_seq_no=2*//*!*/;
 START TRANSACTION
 /*!*/;
