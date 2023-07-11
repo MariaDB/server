@@ -9771,18 +9771,12 @@ LEX_CSTRING *fk_option_name(enum_fk_option opt)
   {
     { STRING_WITH_LEN("???") },
     { STRING_WITH_LEN("RESTRICT") },
+    { STRING_WITH_LEN("NO ACTION") },
     { STRING_WITH_LEN("CASCADE") },
     { STRING_WITH_LEN("SET NULL") },
-    { STRING_WITH_LEN("NO ACTION") },
     { STRING_WITH_LEN("SET DEFAULT") }
   };
   return names + opt;
-}
-
-bool fk_modifies_child(enum_fk_option opt)
-{
-  static bool can_write[]= { false, false, true, true, false, true };
-  return can_write[opt];
 }
 
 enum TR_table::enabled TR_table::use_transaction_registry= TR_table::MAYBE;

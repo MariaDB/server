@@ -1860,8 +1860,8 @@ enum enum_schema_table_state
   PROCESSED_BY_JOIN_EXEC
 };
 
-enum enum_fk_option { FK_OPTION_UNDEF, FK_OPTION_RESTRICT, FK_OPTION_CASCADE,
-               FK_OPTION_SET_NULL, FK_OPTION_NO_ACTION, FK_OPTION_SET_DEFAULT};
+enum enum_fk_option { FK_OPTION_UNDEF, FK_OPTION_RESTRICT, FK_OPTION_NO_ACTION,
+  FK_OPTION_CASCADE, FK_OPTION_SET_NULL, FK_OPTION_SET_DEFAULT };
 
 typedef struct st_foreign_key_info
 {
@@ -1878,7 +1878,11 @@ typedef struct st_foreign_key_info
 } FOREIGN_KEY_INFO;
 
 LEX_CSTRING *fk_option_name(enum_fk_option opt);
-bool fk_modifies_child(enum_fk_option opt);
+static inline bool fk_modifies_child(enum_fk_option opt)
+{
+  return opt >= FK_OPTION_CASCADE;
+}
+
 
 class IS_table_read_plan;
 
