@@ -28,12 +28,14 @@
   correctly and causes json_debug_nonembedded to fail
   ( --error ER_STACK_OVERRUN_NEED_MORE does not occur).
 */
-#define ALLOCATE_MEM_ON_STACK(A) do \
-                              { \
-                                uchar *array= (uchar*)alloca(A); \
-                                bzero(array, A); \
-                                my_checksum(0, array, A); \
-                              } while(0)
+void ALLOCATE_MEM_ON_STACK(long chunk)
+                              {
+                                uchar *array= (uchar*)alloca(chunk);
+                                bfill(array, 'a', chunk);
+                                long random= rand() % chunk;
+                                uchar temp= ++array[random];
+                                bfill(array, temp, chunk);
+                              }
 
 /*
   Compare ASCII string against the string with the specified
@@ -149,6 +151,7 @@ int json_path_parts_compare(
     enum json_value_types vt)
 {
   int res, res2;
+  uchar buff[sizeof(char*)];
 
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
                   {
@@ -156,7 +159,7 @@ int json_path_parts_compare(
                     long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
                     ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);
                   });
-  if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE , buff))
     return 1;
 
   while (a <= a_end)
