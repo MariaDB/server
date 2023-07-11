@@ -14839,7 +14839,6 @@ int ha_spider::append_sum_select_sql_part(
       DBUG_RETURN(error_num);
     }
   }
-  wide_handler->trx->direct_aggregate_count++;
   DBUG_RETURN(0);
 }
 #endif

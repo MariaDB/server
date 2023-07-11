@@ -554,11 +554,12 @@ SPIDER_DB_ROW *spider_db_mbase_row::clone()
   } else {
     row_size = record_size + field_count;
   }
-  if (!spider_bulk_malloc(spider_current_trx, 29, MYF(MY_WME),
-    &clone_row->row, (uint) (sizeof(char*) * field_count),
-    &tmp_char, (uint) (row_size),
-    &clone_row->lengths, (uint) (sizeof(ulong) * field_count),
-    NullS)
+  if (!spider_bulk_malloc(
+        spider_current_trx, 29, MYF(MY_WME),
+        &clone_row->row, (uint) (sizeof(char*) * (field_count + 1)),
+        &tmp_char, (uint) (row_size),
+        &clone_row->lengths, (uint) (sizeof(ulong) * field_count),
+        NullS)
   ) {
     delete clone_row;
     DBUG_RETURN(NULL);
@@ -583,6 +584,7 @@ SPIDER_DB_ROW *spider_db_mbase_row::clone()
     tmp_lengths++;
     tmp_row++;
   }
+  clone_row->row[field_count] = NULL;
   clone_row->field_count = field_count;
   clone_row->record_size = record_size;
   clone_row->row_first = clone_row->row;
@@ -741,6 +743,7 @@ SPIDER_DB_ROW *spider_db_mbase_result::fetch_row()
   }
   row.lengths = mysql_fetch_lengths(db_result);
   row.field_count = mysql_num_fields(db_result);
+  row.row[row.field_count] = NULL;
   row.row_first = row.row;
   row.lengths_first = row.lengths;
   row.record_size = 0;
@@ -15138,7 +15141,6 @@ int spider_mbase_handler::show_records(
     DBUG_PRINT("info", ("spider error_num=%d", error_num));
     DBUG_RETURN(error_num);
   }
-  spider->wide_handler->trx->direct_aggregate_count++;
   DBUG_RETURN(0);
 }
 
