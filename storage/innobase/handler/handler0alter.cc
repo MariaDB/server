@@ -3269,6 +3269,7 @@ innobase_get_foreign_key_info(
 
 		referenced_table_name = dict_get_referenced_table(
 			table->name.m_name,
+			fk_key->catalog,
 			LEX_STRING_WITH_LEN(fk_key->ref_db),
 			LEX_STRING_WITH_LEN(fk_key->ref_table),
 			&referenced_table,

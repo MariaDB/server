@@ -791,6 +791,7 @@ struct TABLE_SHARE
   LEX_CSTRING path;                	/* Path to .frm file (from datadir) */
   LEX_CSTRING normalized_path;		/* unpack_filename(path) */
   LEX_CSTRING connect_string;
+  const SQL_CATALOG *catalog;           /* Pointer to the catalog */
 
   /* 
      Set of keys in use, implemented as a Bitmap.

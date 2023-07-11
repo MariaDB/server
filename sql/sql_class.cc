@@ -193,6 +193,7 @@ Key::Key(const Key &rhs, MEM_ROOT *mem_root)
 Foreign_key::Foreign_key(const Foreign_key &rhs, MEM_ROOT *mem_root)
   :Key(rhs,mem_root),
   constraint_name(rhs.constraint_name),
+  catalog(rhs.catalog),
   ref_db(rhs.ref_db),
   ref_table(rhs.ref_table),
   ref_columns(rhs.ref_columns,mem_root),
@@ -4974,6 +4975,17 @@ TABLE *get_purge_table(THD *thd)
 TABLE *find_fk_open_table(THD *thd, const char *db, size_t db_len,
                        const char *table, size_t table_len)
 {
+  if (using_catalogs)
+  {
+    /* Remove catalog from database path */
+    const char *dir;
+    if ((dir= strchr(db,'/')))
+    {
+      db_len-= (size_t) (dir-db)+1;
+      db= dir+1;
+    }
+  }
+
   for (TABLE *t= thd->open_tables; t; t= t->next)
   {
     if (t->s->db.length == db_len && t->s->table_name.length == table_len &&

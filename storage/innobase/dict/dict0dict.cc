@@ -3282,6 +3282,7 @@ heap memory passed in */
 char*
 dict_get_referenced_table(
 	const char*    name,		  /*!< in: foreign key table name */
+	const SQL_CATALOG *catalog,	  /*!< in: catalog */
 	const char*    database_name,	  /*!< in: table db name */
 	ulint	       database_name_len, /*!< in: db name length */
 	const char*    table_name,	  /*!< in: table name */
@@ -3294,6 +3295,7 @@ dict_get_referenced_table(
 	char		db_name[MAX_DATABASE_NAME_LEN];
 	char		tbl_name[MAX_TABLE_NAME_LEN];
 	CHARSET_INFO*	to_cs = &my_charset_filename;
+	LEX_CSTRING	catalog_name= {"", 0};
 	uint		errors;
 	ut_ad(database_name || name);
 	ut_ad(table_name);
@@ -3328,19 +3330,24 @@ dict_get_referenced_table(
 			from_cs, database_name, database_name_len, to_cs,
 			db_name, MAX_DATABASE_NAME_LEN, &errors);
 		database_name = db_name;
+
+		if (using_catalogs)
+			catalog_name= catalog->path;
 	} else {
-		/* Use the database name of the foreign key table */
+		/* Use the catalog and database name of the foreign key table */
 
 		database_name = name;
 		database_name_len = dict_get_db_name_len(name);
 	}
 
 	/* Copy database_name, '/', table_name, '\0' */
-	const size_t len = database_name_len + table_name_len + 1;
+	const size_t len = catalog_name.length + database_name_len + table_name_len + 1;
 	ref = static_cast<char*>(mem_heap_alloc(heap, len + 1));
-	memcpy(ref, database_name, database_name_len);
-	ref[database_name_len] = '/';
-	memcpy(ref + database_name_len + 1, table_name, table_name_len + 1);
+	memcpy(ref, catalog_name.str, catalog_name.length);
+	memcpy(ref + catalog_name.length, database_name, database_name_len);
+	ref[catalog_name.length + database_name_len] = '/';
+	memcpy(ref + catalog_name.length + database_name_len + 1,
+	       table_name, table_name_len + 1);
 
 	/* Values;  0 = Store and compare as given; case sensitive
 	            1 = Store and compare in lower; case insensitive
@@ -3509,8 +3516,8 @@ dict_table_get_highest_foreign_id(
 		/* Convert foreign key identifier on dictionary memory
 		cache to filename charset. */
 		innobase_convert_to_filename_charset(
-				strchr(fkid, '/') + 1,
-				strchr(foreign->id, '/') + 1,
+				strrchr(fkid, '/') + 1,
+				strrchr(foreign->id, '/') + 1,
 				MAX_TABLE_NAME_LEN);
 
 		if (strlen(fkid) > ((sizeof dict_ibfk) - 1) + len
@@ -3629,7 +3636,7 @@ loop:
 			 table->foreign_set.end(),
 			 [id](const dict_foreign_t *foreign){
 				 for (const char *f = foreign->id;
-				      !!(f = strchr(f, '/')); )
+				      !!(f = strrchr(f, '/')); )
 					 if (!innobase_strcasecmp(++f, id))
 						 return true;
 				 return false;

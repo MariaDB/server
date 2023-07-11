@@ -113,6 +113,7 @@ char*
 dict_get_referenced_table(
 /*======================*/
 	const char*	name,		/*!< in: foreign key table name */
+	const SQL_CATALOG *catalog,	/*!< in: catalog name */
 	const char*	database_name,	/*!< in: table db name */
 	ulint		database_name_len,/*!< in: db name length */
 	const char*	table_name,	/*!< in: table name */

@@ -12331,7 +12331,8 @@ create_table_info_t::create_foreign_keys()
 		mem_heap_t*   heap = mem_heap_create(10000);
 		ulint	      highest_id_so_far;
 		char*	      n = dict_get_referenced_table(
-			name, LEX_STRING_WITH_LEN(m_form->s->db),
+			name, m_form->s->catalog,
+			LEX_STRING_WITH_LEN(m_form->s->db),
 			LEX_STRING_WITH_LEN(m_form->s->table_name),
 			&table_to_alter, heap, cs);
 
@@ -12522,7 +12523,7 @@ create_table_info_t::create_foreign_keys()
 		       i * sizeof(void*));
 
 		foreign->referenced_table_name = dict_get_referenced_table(
-			name, LEX_STRING_WITH_LEN(fk->ref_db),
+			name, fk->catalog, LEX_STRING_WITH_LEN(fk->ref_db),
 			LEX_STRING_WITH_LEN(fk->ref_table),
 			&foreign->referenced_table, foreign->heap, cs);
 

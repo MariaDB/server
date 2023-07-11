@@ -11667,7 +11667,8 @@ bool LEX::add_table_foreign_key(const LEX_CSTRING *name,
                                 Table_ident *ref_table_name,
                                 DDL_options ddl_options)
 {
-  Key *key= new (thd->mem_root) Foreign_key(name,
+  Key *key= new (thd->mem_root) Foreign_key(thd->catalog,
+                                            name,
                                             &last_key->columns,
                                             constraint_name,
                                             &ref_table_name->db,
