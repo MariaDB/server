@@ -620,20 +620,24 @@ public:
   restore_lex(THD *thd)
   {
     DBUG_ENTER("sp_head::restore_lex");
+    /*
+      There is no a need to free the current thd->lex here.
+      - In the majority of the cases restore_lex() is called
+        on success and thd->lex does not need to be deleted.
+      - In cases when restore_lex() is called on error,
+        e.g. from sp_create_assignment_instr(), thd->lex is
+        already linked to some sp_instr_xxx (using sp_lex_keeper).
+
+      Note, we don't get to here in case of a syntax error
+      when the current thd->lex is not yet completely
+      initialized and linked. It gets automatically deleted
+      by the Bison %destructor in sql_yacc.yy.
+    */
     LEX *oldlex= (LEX *) m_lex.pop();
     if (!oldlex)
       DBUG_RETURN(false); // Nothing to restore
-    LEX *sublex= thd->lex;
     // This restores thd->lex and thd->stmt_lex
-    if (thd->restore_from_local_lex_to_old_lex(oldlex))
-      DBUG_RETURN(true);
-    if (!sublex->sp_lex_in_use)
-    {
-      sublex->sphead= NULL;
-      lex_end(sublex);
-      delete sublex;
-    }
-    DBUG_RETURN(false);
+    DBUG_RETURN(thd->restore_from_local_lex_to_old_lex(oldlex));
   }
 
   /**

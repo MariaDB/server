@@ -25,3 +25,10 @@
 
 --echo # exec MYSQL --host=localhost --socket=MASTER_MYSOCK -e "status" 2>&1 | findstr /c:"Connection:"
 --exec $MYSQL --host=localhost --socket=$MASTER_MYSOCK -e "status" 2>&1 | findstr /c:"Connection:"
+
+--echo #
+--echo # MDEV-30639: Upgrade to 10.8 and later does not work on Windows
+--echo #             due to connection protocol overwrite
+--echo #
+--echo # exec MYSQL --host=localhost --protocol=pipe --socket=MASTER_MYSOCK -e "status" 2>&1 | findstr /c:"Connection:"
+--exec $MYSQL --host=localhost --protocol=pipe --socket=$MASTER_MYSOCK -e "status" 2>&1 | findstr /c:"Connection:"

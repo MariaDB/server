@@ -6315,6 +6315,11 @@ static bool __attribute__ ((noinline))
 execute_show_status(THD *thd, TABLE_LIST *all_tables)
 {
   bool res;
+
+#if defined(__GNUC__) && (__GNUC__ >= 13)
+#pragma GCC diagnostic ignored "-Wdangling-pointer"
+#endif
+
   system_status_var old_status_var= thd->status_var;
   thd->initial_status_var= &old_status_var;
   WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
@@ -10401,6 +10406,15 @@ bool parse_sql(THD *thd, Parser_state *parser_state,
 
   bool mysql_parse_status= thd->variables.sql_mode & MODE_ORACLE
                            ? ORAparse(thd) : MYSQLparse(thd);
+
+  if (mysql_parse_status)
+    /*
+      Restore the original LEX if it was replaced when parsing
+      a stored procedure. We must ensure that a parsing error
+      does not leave any side effects in the THD.
+    */
+    LEX::cleanup_lex_after_parse_error(thd);
+
   DBUG_ASSERT(opt_bootstrap || mysql_parse_status ||
               thd->lex->select_stack_top == 0);
   thd->lex->current_select= thd->lex->first_select_lex();

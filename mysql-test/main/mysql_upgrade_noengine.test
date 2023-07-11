@@ -34,7 +34,7 @@ select table_catalog, table_schema, table_name, table_type, engine, row_format, 
 
 --echo # upgrade from 10.1 - engines aren't enabled
 --replace_regex /\d\d\.\d*\.\d*[^ .\n]*/MariaDB /
-exec $MYSQL_UPGRADE 2>&1;
+exec $MYSQL_UPGRADE --silent 2>&1;
 select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t1';
 select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t2';
 
@@ -54,7 +54,7 @@ EOF
 
 --echo # still upgrade from 10.1
 --replace_regex /\d\d\.\d*\.\d*[^ .\n]*/MariaDB /
-exec $MYSQL_UPGRADE 2>&1;
+exec $MYSQL_UPGRADE --silent 2>&1;
 select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t1';
 select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t2';
 
@@ -68,13 +68,14 @@ remove_file $datadir/mysql_upgrade_info;
 
 --echo # upgrade from 10.0 - engines are enabled
 --replace_regex /\d\d\.\d*\.\d*[^ .\n]*/MariaDB /
-exec $MYSQL_UPGRADE 2>&1;
+exec $MYSQL_UPGRADE --silent 2>&1;
 select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t1';
 select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t2';
 
 drop table t1, t2;
 
 remove_file $datadir/mysql_upgrade_info;
+# This is needed as mysql_upgrade can load the plugins
 uninstall plugin blackhole;
 uninstall plugin archive;
 

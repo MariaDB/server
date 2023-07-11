@@ -1,5 +1,8 @@
 --source include/not_embedded.inc
 --source include/have_sequence.inc
+# View protocol changes some plans
+--source include/no_view_protocol.inc
+
 SELECT table_name, column_name FROM information_schema.columns where table_name="OPTIMIZER_TRACE";
 set optimizer_trace="enabled=on";
 show variables like 'optimizer_trace';

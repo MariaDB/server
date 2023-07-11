@@ -677,7 +677,7 @@ bool String::append_with_prefill(const char *s,uint32 arg_length,
 }
 
 
-int Binary_string::strstr(const char *search, uint32 search_length, uint32 offset)
+int Binary_string::strstr(const char *search, uint32 search_length, uint32 offset) const
 {
   if (search_length + offset <= str_length)
   {
@@ -703,7 +703,7 @@ skip:
   return -1;
 }
 
-int Binary_string::strstr(const Binary_string &s, uint32 offset)
+int Binary_string::strstr(const Binary_string &s, uint32 offset) const
 {
   return strstr(s.ptr(), s.length(), offset);
 }
@@ -712,7 +712,7 @@ int Binary_string::strstr(const Binary_string &s, uint32 offset)
 ** Search string from end. Offset is offset to the end of string
 */
 
-int Binary_string::strrstr(const Binary_string &s, uint32 offset)
+int Binary_string::strrstr(const Binary_string &s, uint32 offset) const
 {
   if (s.length() <= offset && offset <= str_length)
   {

@@ -5823,7 +5823,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
         get_delayed_table_estimates(s->table, &s->records, &s->read_time,
                                     &s->startup_cost);
         s->found_records= s->records;
-        table->opt_range_condition_rows=s->records;
+        s->table->opt_range_condition_rows=s->records;
       }
       else
         s->scan_time();
@@ -25562,7 +25562,8 @@ cp_buffer_from_ref(THD *thd, TABLE *table, TABLE_REF *ref)
   thd->count_cuted_fields= CHECK_FIELD_IGNORE;
   for (store_key **copy=ref->key_copy ; *copy ; copy++)
   {
-    if ((*copy)->copy(thd) & 1)
+    if ((*copy)->copy(thd) & 1 ||
+        (ref->null_rejecting && (*copy)->null_key))
     {
       result= 1;
       break;
@@ -27781,12 +27782,16 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
   jbuf_unpack_tracker= &eta->jbuf_unpack_tracker;
 
   /* Enable the table access time tracker only for "ANALYZE stmt" */
-  if (thd->lex->analyze_stmt)
+  if (unlikely(thd->lex->analyze_stmt ||
+               thd->variables.log_slow_verbosity &
+               LOG_SLOW_VERBOSITY_ENGINE))
   {
     table->file->set_time_tracker(&eta->op_tracker);
-    eta->op_tracker.set_gap_tracker(&eta->extra_time_tracker);
-
-    eta->jbuf_unpack_tracker.set_gap_tracker(&eta->jbuf_extra_time_tracker);
+    if (likely(thd->lex->analyze_stmt))
+    {
+      eta->op_tracker.set_gap_tracker(&eta->extra_time_tracker);
+      eta->jbuf_unpack_tracker.set_gap_tracker(&eta->jbuf_extra_time_tracker);
+    }
   }
   /* No need to save id and select_type here, they are kept in Explain_select */
 

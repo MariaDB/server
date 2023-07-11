@@ -590,6 +590,7 @@ bool ha_partition::initialize_partition(MEM_ROOT *mem_root)
       my_error(ER_MIX_HANDLER_ERROR, MYF(0));
       DBUG_RETURN(1);
     }
+    file->handler_stats= handler_stats;
   } while (*(++file_array));
   m_handler_status= handler_initialized;
   DBUG_RETURN(0);
@@ -3116,14 +3117,15 @@ error:
   @param name  Name of table file (without extension)
 
   @return Operation status
-    @retval true   Failure
-    @retval false  Success
+    @retval 0  success
+    @retval 1  no par file
+    @retval #  other error
 
   @note On success, m_file_buffer is allocated and must be
   freed by the caller. m_name_buffer_ptr and m_tot_parts is also set.
 */
 
-bool ha_partition::read_par_file(const char *name)
+int ha_partition::read_par_file(const char *name)
 {
   char buff[FN_REFLEN];
   uchar *tot_name_len_offset;
@@ -3134,13 +3136,13 @@ bool ha_partition::read_par_file(const char *name)
   DBUG_PRINT("enter", ("table name: '%s'", name));
 
   if (m_file_buffer)
-    DBUG_RETURN(false);
+    DBUG_RETURN(0);
   fn_format(buff, name, "", ha_par_ext, MY_APPEND_EXT);
 
   /* Following could be done with mysql_file_stat to read in whole file */
   if ((file= mysql_file_open(key_file_ha_partition_par,
                              buff, O_RDONLY | O_SHARE, MYF(0))) < 0)
-    DBUG_RETURN(TRUE);
+    DBUG_RETURN(1);
   if (mysql_file_read(file, (uchar *) &buff[0], PAR_WORD_SIZE, MYF(MY_NABP)))
     goto err1;
   len_words= uint4korr(buff);
@@ -3201,12 +3203,12 @@ bool ha_partition::read_par_file(const char *name)
   }
 
   (void) mysql_file_close(file, MYF(0));
-  DBUG_RETURN(false);
+  DBUG_RETURN(0);
 
 err2:
 err1:
   (void) mysql_file_close(file, MYF(0));
-  DBUG_RETURN(true);
+  DBUG_RETURN(2);
 }
 
 
@@ -3364,14 +3366,20 @@ err:
 bool ha_partition::get_from_handler_file(const char *name, MEM_ROOT *mem_root,
                                          bool is_clone)
 {
+  int error;
   DBUG_ENTER("ha_partition::get_from_handler_file");
   DBUG_PRINT("enter", ("table name: '%s'", name));
 
   if (m_file_buffer)
     DBUG_RETURN(false);
 
-  if (read_par_file(name))
-    DBUG_RETURN(true);
+  if ((error= read_par_file(name)))
+  {
+    if (error != 1 || is_clone || re_create_par_file(name))
+      DBUG_RETURN(true);
+    if (read_par_file(name))                    // Test file
+      DBUG_RETURN(true);
+  }
 
   handlerton *default_engine= get_def_part_engine(name);
   if (!default_engine)
@@ -3382,6 +3390,78 @@ bool ha_partition::get_from_handler_file(const char *name, MEM_ROOT *mem_root,
 
   DBUG_RETURN(false);
 }
+
+
+/*
+ Create .par file from SQL syntax.
+
+ This is only used with partitioned tables from MySQL 5.6 or 5.7
+ which do not have a .par file.
+*/
+
+bool ha_partition::re_create_par_file(const char *name)
+{
+  THD *thd= current_thd;
+  TABLE table;
+  TABLE_SHARE *share= table_share;
+  Query_arena *backup_stmt_arena_ptr= thd->stmt_arena;
+  Query_arena backup_arena;
+  uint8 save_context_analysis_only= thd->lex->context_analysis_only;
+  bool work_part_info_used;
+  bool tmp;
+  DBUG_ENTER("ha_partition:re_create_par_file");
+
+  /* Share can be NULL in case of delete of non existing table */
+  if (!share ||
+      !(share->mysql_version >= 50600 && share->mysql_version <= 50799))
+    DBUG_RETURN(1);
+
+  bzero((char*) &table, sizeof(table));
+  table.in_use= thd;
+  table.s= share;
+  table.file= this;
+  init_sql_alloc(key_memory_TABLE, &table.mem_root, TABLE_ALLOC_BLOCK_SIZE,
+                 0, MYF(0));
+
+  Query_arena part_func_arena(&table.mem_root,
+                              Query_arena::STMT_INITIALIZED);
+  thd->set_n_backup_active_arena(&part_func_arena, &backup_arena);
+  thd->stmt_arena= &part_func_arena;
+
+  tmp= mysql_unpack_partition(thd, share->partition_info_str,
+                              share->partition_info_str_len,
+                              &table, 0,
+                              plugin_hton(share->default_part_plugin),
+                              &work_part_info_used);
+
+  if (!tmp && m_part_info->partitions.elements == 0)
+  {
+    tmp= m_part_info->set_up_defaults_for_partitioning(thd, this,
+                                                       (HA_CREATE_INFO*) 0,
+                                                       0);
+    if (m_part_info->partitions.elements == 0)
+    {
+      /* We did not succed in creating default partitions */
+      tmp= 1;
+    }
+  }
+
+  thd->stmt_arena= backup_stmt_arena_ptr;
+  thd->restore_active_arena(&part_func_arena, &backup_arena);
+  if (!tmp)
+  {
+    tmp= create_handler_file(name);
+  }
+
+  if (table.part_info)
+    free_items(table.part_info->item_free_list);
+  thd->lex->context_analysis_only= save_context_analysis_only;
+  if (table.expr_arena)
+    table.expr_arena->free_items();
+  free_root(&table.mem_root, MYF(0));
+  DBUG_RETURN(tmp);
+}
+
 
 
 /****************************************************************************
@@ -3969,6 +4049,13 @@ int ha_partition::discover_check_version()
   return m_file[0]->discover_check_version();
 }
 
+static int set_part_handler_stats(handler *h, void *stats)
+{
+  h->handler_stats= (ha_handler_stats*) stats;
+  return 0;
+}
+
+
 /**
   Clone the open and locked partitioning handler.
 
@@ -4016,11 +4103,24 @@ handler *ha_partition::clone(const char *name, MEM_ROOT *mem_root)
                            HA_OPEN_IGNORE_IF_LOCKED | HA_OPEN_NO_PSI_CALL))
     goto err;
 
+  if (handler_stats)
+    new_handler->loop_partitions(set_part_handler_stats, handler_stats);
+
   DBUG_RETURN((handler*) new_handler);
 
 err:
   delete new_handler;
   DBUG_RETURN(NULL);
+}
+
+
+/*
+  Update all sub partitions to point to handler stats
+*/
+
+void ha_partition::handler_stats_updated()
+{
+  loop_partitions(set_part_handler_stats, handler_stats);
 }
 
 
