@@ -38,9 +38,9 @@ Created 9/20/1997 Heikki Tuuri
 #define recv_recovery_is_on() UNIV_UNLIKELY(recv_sys.recovery_on)
 
 ATTRIBUTE_COLD MY_ATTRIBUTE((nonnull, warn_unused_result))
-/** Apply any buffered redo log to a page that was just read from a data file.
-@param[in,out]	space	tablespace
-@param[in,out]	bpage	buffer pool page
+/** Apply any buffered redo log to a page.
+@param space     tablespace
+@param bpage     buffer pool page
 @return whether the page was recovered correctly */
 bool recv_recover_page(fil_space_t* space, buf_page_t* bpage);
 
@@ -48,17 +48,6 @@ bool recv_recover_page(fil_space_t* space, buf_page_t* bpage);
 of first system tablespace page
 @return error code or DB_SUCCESS */
 dberr_t recv_recovery_from_checkpoint_start();
-
-/** Whether to store redo log records in recv_sys.pages */
-enum store_t {
-	/** Do not store redo log records. */
-	STORE_NO,
-	/** Store redo log records. */
-	STORE_YES,
-	/** Store redo log records if the tablespace exists. */
-	STORE_IF_EXISTS
-};
-
 
 /** Report an operation to create, delete, or rename a file during backup.
 @param[in]	space_id	tablespace identifier
@@ -125,21 +114,15 @@ struct recv_dblwr_t
   list pages;
 };
 
-/** the recovery state and buffered records for a page */
+/** recv_sys.pages entry; protected by recv_sys.mutex */
 struct page_recv_t
 {
-  /** Recovery state; protected by recv_sys.mutex */
-  enum
-  {
-    /** not yet processed */
-    RECV_NOT_PROCESSED,
-    /** not processed; the page will be reinitialized */
-    RECV_WILL_NOT_READ,
-    /** page is being read */
-    RECV_BEING_READ,
-    /** log records are being applied on the page */
-    RECV_BEING_PROCESSED
-  } state= RECV_NOT_PROCESSED;
+  /** Recovery status: 0=not in progress, 1=log is being applied,
+  -1=log has been applied and the entry may be erased.
+  Transitions from 1 to -1 are NOT protected by recv_sys.mutex. */
+  Atomic_relaxed<int8_t> being_processed{0};
+  /** Whether reading the page will be skipped */
+  bool skip_read= false;
   /** Latest written byte offset when applying the log records.
   @see mtr_t::m_last_offset */
   uint16_t last_offset= 1;
@@ -162,6 +145,9 @@ struct page_recv_t
         head= recs;
       tail= recs;
     }
+    /** Remove the last records for the page
+    @param start_lsn   start of the removed log */
+    ATTRIBUTE_COLD void rewind(lsn_t start_lsn);
 
     /** @return the last log snippet */
     const log_rec_t* last() const { return tail; }
@@ -180,8 +166,8 @@ struct page_recv_t
     iterator begin() { return head; }
     iterator end() { return NULL; }
     bool empty() const { ut_ad(!head == !tail); return !head; }
-    /** Clear and free the records; @see recv_sys_t::alloc() */
-    inline void clear();
+    /** Clear and free the records; @see recv_sys_t::add() */
+    void clear();
   } log;
 
   /** Trim old log records for a page.
@@ -190,21 +176,14 @@ struct page_recv_t
   inline bool trim(lsn_t start_lsn);
   /** Ignore any earlier redo log records for this page. */
   inline void will_not_read();
-  /** @return whether the log records for the page are being processed */
-  bool is_being_processed() const { return state == RECV_BEING_PROCESSED; }
 };
 
 /** Recovery system data structure */
 struct recv_sys_t
 {
-  /** mutex protecting apply_log_recs and page_recv_t::state */
-  mysql_mutex_t mutex;
+  /** mutex protecting this as well as some of page_recv_t */
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t mutex;
 private:
-  /** condition variable for
-  !apply_batch_on || pages.empty() || found_corrupt_log || found_corrupt_fs */
-  pthread_cond_t cond;
-  /** whether recv_apply_hashed_log_recs() is running */
-  bool apply_batch_on;
   /** set when finding a corrupt log block or record, or there is a
   log parsing buffer overflow */
   bool found_corrupt_log;
@@ -226,6 +205,8 @@ public:
   size_t offset;
   /** log sequence number of the first non-parsed record */
   lsn_t lsn;
+  /** log sequence number of the last parsed mini-transaction */
+  lsn_t scanned_lsn;
   /** log sequence number at the end of the FILE_CHECKPOINT record, or 0 */
   lsn_t file_checkpoint;
   /** the time when progress was last reported */
@@ -238,6 +219,9 @@ public:
   map pages;
 
 private:
+  /** iterator to pages, used by parse() */
+  map::iterator pages_it;
+
   /** Process a record that indicates that a tablespace size is being shrunk.
   @param page_id first page that is not in the file
   @param lsn     log sequence number of the shrink operation */
@@ -257,30 +241,42 @@ public:
   /** The contents of the doublewrite buffer */
   recv_dblwr_t dblwr;
 
-  /** Last added LSN to pages, before switching to STORE_NO */
-  lsn_t last_stored_lsn= 0;
-
   inline void read(os_offset_t offset, span<byte> buf);
   inline size_t files_size();
   void close_files() { files.clear(); files.shrink_to_fit(); }
 
+  /** Advance pages_it if it matches the iterator */
+  void pages_it_invalidate(const map::iterator &p)
+  {
+    mysql_mutex_assert_owner(&mutex);
+    if (pages_it == p)
+      pages_it++;
+  }
+  /** Invalidate pages_it if it points to the given tablespace */
+  void pages_it_invalidate(uint32_t space_id)
+  {
+    mysql_mutex_assert_owner(&mutex);
+    if (pages_it != pages.end() && pages_it->first.space() == space_id)
+      pages_it= pages.end();
+  }
+
 private:
   /** Attempt to initialize a page based on redo log records.
-  @param page_id  page identifier
-  @param p        iterator pointing to page_id
+  @param p        iterator
   @param mtr      mini-transaction
   @param b        pre-allocated buffer pool block
+  @param init_lsn page initialization
   @return the recovered block
   @retval nullptr if the page cannot be initialized based on log records
   @retval -1      if the page cannot be recovered due to corruption */
-  inline buf_block_t *recover_low(const page_id_t page_id, map::iterator &p,
-                                  mtr_t &mtr, buf_block_t *b);
+  inline buf_block_t *recover_low(const map::iterator &p, mtr_t &mtr,
+                                  buf_block_t *b, lsn_t init_lsn);
   /** Attempt to initialize a page based on redo log records.
   @param page_id  page identifier
   @return the recovered block
   @retval nullptr if the page cannot be initialized based on log records
   @retval -1      if the page cannot be recovered due to corruption */
-  buf_block_t *recover_low(const page_id_t page_id);
+  ATTRIBUTE_COLD buf_block_t *recover_low(const page_id_t page_id);
 
   /** All found log files (multiple ones are possible if we are upgrading
   from before MariaDB Server 10.5.1) */
@@ -289,10 +285,27 @@ private:
   /** Base node of the redo block list.
   List elements are linked via buf_block_t::unzip_LRU. */
   UT_LIST_BASE_NODE_T(buf_block_t) blocks;
+
+  /** Allocate a block from the buffer pool for recv_sys.pages */
+  ATTRIBUTE_COLD buf_block_t *add_block();
+
+  /** Wait for buffer pool to become available.
+  @param pages number of buffer pool pages needed */
+  ATTRIBUTE_COLD void wait_for_pool(size_t pages);
+
+  /** Free log for processed pages. */
+  void garbage_collect();
+
+  /** Apply a recovery batch.
+  @param space_id       current tablespace identifier
+  @param space          current tablespace
+  @param free_block     spare buffer block
+  @param last_batch     whether it is possible to write more redo log
+  @return whether the caller must provide a new free_block */
+  bool apply_batch(uint32_t space_id, fil_space_t *&space,
+                   buf_block_t *&free_block, bool last_batch);
+
 public:
-  /** Check whether the number of read redo log blocks exceeds the maximum.
-  @return whether the memory is exhausted */
-  inline bool is_memory_exhausted();
   /** Apply buffered log to persistent data pages.
   @param last_batch     whether it is possible to write more redo log */
   void apply(bool last_batch);
@@ -310,7 +323,7 @@ public:
   /** Clean up after create() */
   void close();
 
-  bool is_initialised() const { return last_stored_lsn != 0; }
+  bool is_initialised() const { return scanned_lsn != 0; }
 
   /** Find the latest checkpoint.
   @return error code or DB_SUCCESS */
@@ -321,60 +334,76 @@ public:
   @param start_lsn start LSN of the mini-transaction
   @param lsn      @see mtr_t::commit_lsn()
   @param l        redo log snippet
-  @param len      length of l, in bytes */
-  inline void add(map::iterator it, lsn_t start_lsn, lsn_t lsn,
-                  const byte *l, size_t len);
+  @param len      length of l, in bytes
+  @return whether we ran out of memory */
+  bool add(map::iterator it, lsn_t start_lsn, lsn_t lsn,
+           const byte *l, size_t len);
 
-  enum parse_mtr_result { OK, PREMATURE_EOF, GOT_EOF };
+  /** Parsing result */
+  enum parse_mtr_result {
+    /** a record was successfully parsed */
+    OK,
+    /** the log ended prematurely (need to read more) */
+    PREMATURE_EOF,
+    /** the end of the log was reached */
+    GOT_EOF,
+    /** parse<true>(l, false) ran out of memory */
+    GOT_OOM
+  };
 
 private:
   /** Parse and register one log_t::FORMAT_10_8 mini-transaction.
-  @param store   whether to store the records
-  @param l       log data source */
+  @tparam store     whether to store the records
+  @param  l         log data source
+  @param  if_exists if store: whether to check if the tablespace exists */
+  template<typename source,bool store>
+  inline parse_mtr_result parse(source &l, bool if_exists) noexcept;
+
+  /** Rewind a mini-transaction when parse() runs out of memory.
+  @param  l         log data source
+  @param  begin     start of the mini-transaction */
   template<typename source>
-  inline parse_mtr_result parse(store_t store, source& l) noexcept;
+  ATTRIBUTE_COLD void rewind(source &l, source &begin) noexcept;
+
+  /** Report progress in terms of LSN or pages remaining */
+  ATTRIBUTE_COLD void report_progress() const;
 public:
   /** Parse and register one log_t::FORMAT_10_8 mini-transaction,
   handling log_sys.is_pmem() buffer wrap-around.
-  @param store           whether to store the records */
-  static parse_mtr_result parse_mtr(store_t store) noexcept;
+  @tparam store     whether to store the records
+  @param  if_exists if store: whether to check if the tablespace exists */
+  template<bool store>
+  static parse_mtr_result parse_mtr(bool if_exists) noexcept;
 
   /** Parse and register one log_t::FORMAT_10_8 mini-transaction,
   handling log_sys.is_pmem() buffer wrap-around.
-  @param store   whether to store the records */
-  static parse_mtr_result parse_pmem(store_t store) noexcept
+  @tparam store     whether to store the records
+  @param  if_exists if store: whether to check if the tablespace exists */
+  template<bool store>
+  static parse_mtr_result parse_pmem(bool if_exists) noexcept
 #ifdef HAVE_PMEM
     ;
 #else
-  { return parse_mtr(store); }
+  { return parse_mtr<store>(if_exists); }
 #endif
 
+  /** Erase log records for a page. */
+  void erase(map::iterator p);
+
   /** Clear a fully processed set of stored redo log records. */
-  inline void clear();
+  void clear();
 
   /** Determine whether redo log recovery progress should be reported.
   @param time  the current time
   @return whether progress should be reported
   (the last report was at least 15 seconds ago) */
-  bool report(time_t time)
-  {
-    if (time - progress_time < 15)
-      return false;
-
-    progress_time= time;
-    return true;
-  }
+  bool report(time_t time);
 
   /** The alloc() memory alignment, in bytes */
   static constexpr size_t ALIGNMENT= sizeof(size_t);
 
-  /** Allocate memory for log_rec_t
-  @param len  allocation size, in bytes
-  @return pointer to len bytes of memory (never NULL) */
-  inline void *alloc(size_t len);
-
   /** Free a redo log snippet.
-  @param data buffer returned by alloc() */
+  @param data buffer allocated in add() */
   inline void free(const void *data);
 
   /** Remove records for a corrupted page.
@@ -386,8 +415,6 @@ public:
   ATTRIBUTE_COLD void set_corrupt_fs();
   /** Flag log file corruption during recovery. */
   ATTRIBUTE_COLD void set_corrupt_log();
-  /** Possibly finish a recovery batch. */
-  inline void maybe_finish_batch();
 
   /** @return whether data file corruption was found */
   bool is_corrupt_fs() const { return UNIV_UNLIKELY(found_corrupt_fs); }
@@ -405,13 +432,14 @@ public:
   }
 
   /** Try to recover a tablespace that was not readable earlier
-  @param p          iterator, initially pointing to page_id_t{space_id,0};
-                    the records will be freed and the iterator advanced
+  @param p          iterator
   @param name       tablespace file name
   @param free_block spare buffer block
-  @return whether recovery failed */
-  bool recover_deferred(map::iterator &p, const std::string &name,
-                        buf_block_t *&free_block);
+  @return recovered tablespace
+  @retval nullptr if recovery failed */
+  fil_space_t *recover_deferred(const map::iterator &p,
+                                const std::string &name,
+                                buf_block_t *&free_block);
 };
 
 /** The recovery system */

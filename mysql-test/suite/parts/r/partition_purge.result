@@ -1,0 +1,26 @@
+CREATE TABLE t1(f1 INT, f2 INT, INDEX(f1))ENGINE=InnoDB
+PARTITION BY LIST(f1) (
+PARTITION p1 VALUES in (1, 2, 3),
+PARTITION p2 VALUES in (4, 5, 6));
+INSERT INTO t1 VALUES(1, 1), (1, 1), (6, 1);
+connect con1,localhost,root,,,;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connect con2,localhost,root,,,;
+SET DEBUG_SYNC="innodb_rollback_inplace_alter_table SIGNAL default_resume WAIT_FOR alter_resume";
+ALTER TABLE t1 ADD UNIQUE INDEX(f1);
+connection default;
+set DEBUG_SYNC="now WAIT_FOR default_resume";
+SET DEBUG_SYNC="innodb_row_update_for_mysql_begin SIGNAL alter_resume WAIT_FOR alter_finish";
+DELETE FROM t1;
+connection con2;
+ERROR 23000: Duplicate entry '1' for key 'f1_2'
+SET DEBUG_SYNC="now SIGNAL alter_finish";
+connection default;
+connection con1;
+commit;
+connection default;
+disconnect con1;
+disconnect con2;
+InnoDB		0 transactions not purged
+drop table t1;
+SET DEBUG_SYNC=reset;

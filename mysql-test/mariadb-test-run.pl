@@ -186,6 +186,7 @@ my @DEFAULT_SUITES= qw(
     compat/mssql-
     compat/maxdb-
     encryption-
+    events-
     federated-
     funcs_1-
     funcs_2-
@@ -200,6 +201,7 @@ my @DEFAULT_SUITES= qw(
     json-
     maria-
     mariabackup-
+    merge-
     multi_source-
     optimizer_unfixed_bugs-
     parts-
@@ -408,8 +410,11 @@ sub main {
 
   mark_time_used('collect');
 
-  mysql_install_db(default_mysqld(), "$opt_vardir/install.db") unless using_extern();
-
+  if (!using_extern())
+  {
+    mysql_install_db(default_mysqld(), "$opt_vardir/install.db");
+    make_readonly("$opt_vardir/install.db");
+  }
   if ($opt_dry_run)
   {
     for (@$tests) {
@@ -1791,7 +1796,7 @@ sub collect_mysqld_features {
 
 sub collect_mysqld_features_from_running_server ()
 {
-  my $mysql= mtr_exe_exists("$path_client_bindir/mysql");
+  my $mysql= mtr_exe_exists("$path_client_bindir/mariadb");
 
   my $args;
   mtr_init_args(\$args);
@@ -5960,7 +5965,7 @@ Misc options
                         phases of test execution.
   stress=ARGS           Run stress test, providing options to
                         mysql-stress-test.pl. Options are separated by comma.
-  xml-report=<file>     Output jUnit xml file of the results.
+  xml-report=<file>     Output xml file of the results.
   tail-lines=N          Number of lines of the result to include in a failure
                         report.
 

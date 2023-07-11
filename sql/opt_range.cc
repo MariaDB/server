@@ -11177,7 +11177,7 @@ int SEL_ARG::number_of_eq_groups(uint group_key_parts) const
   cur= first();
   do
   {
-    if ((cur->min_flag | cur->min_flag) &
+    if ((cur->min_flag | cur->max_flag) &
         (NO_MIN_RANGE | NO_MAX_RANGE | NEAR_MIN | NEAR_MAX | GEOM_FLAG))
       return -1;
     if (min_value != max_value && !min_max_are_equal())
@@ -11939,14 +11939,21 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
     ha_rows table_records= param->table->stat_records();
     if (rows > table_records)
     {
+      ha_rows diff= rows - table_records;
       /*
         For any index the total number of records within all ranges
         cannot be be bigger than the number of records in the table.
         This check is needed as sometimes that table statistics or range
         estimates may be slightly out of sync.
+
+        We cannot do this easily in the above multi_range_read_info_const()
+        call as then we would need to have similar adjustmends done
+        in the partitioning engine.
       */
       rows= MY_MAX(table_records, 1);
       param->quick_rows[keynr]= rows;
+      /* Adjust costs */
+      cost->comp_cost-= file->WHERE_COST * diff;
     }
     param->possible_keys.set_bit(keynr);
     if (update_tbl_stats)
@@ -15794,7 +15801,8 @@ int QUICK_GROUP_MIN_MAX_SELECT::reset(void)
   DBUG_ENTER("QUICK_GROUP_MIN_MAX_SELECT::reset");
 
   seen_first_key= FALSE;
-  head->file->ha_start_keyread(index); /* We need only the key attributes */
+  if (!head->file->keyread_enabled())
+    head->file->ha_start_keyread(index); /* We need only the key attributes */
 
   if ((result= file->ha_index_init(index,1)))
   {

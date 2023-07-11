@@ -14,6 +14,7 @@ create table tcon engine=connect table_type=mysql CONNECTION='mysql://root@local
 
 # copy the invalid frm (as created by the statement above before the MDEV-9949 fix)
 copy_file $MTR_SUITE_DIR/std_data/mdev9949.frm $datadir/test/mdev9949.frm;
+--replace_result $datadir MYSQLD_DATADIR/ ./ MYSQLD_DATADIR/
 drop table mdev9949;
 drop table t1;
 

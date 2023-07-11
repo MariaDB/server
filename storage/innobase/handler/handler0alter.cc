@@ -1387,7 +1387,8 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
     for (unsigned i= 0; i < index->n_fields; i++)
     {
       const char *field_name= index->fields[i].name();
-      if (!field_name || !dtype_is_string_type(index->fields[i].col->mtype))
+      if (!field_name || !dtype_is_string_type(index->fields[i].col->mtype) ||
+	  index->fields[i].col->is_virtual())
         continue;
       for (uint j= 0; j < altered_table.s->fields; j++)
       {

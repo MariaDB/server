@@ -221,6 +221,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   Lex_for_loop_bounds_st for_loop_bounds;
   Lex_trim_st trim;
   Json_table_column::On_response json_on_response;
+  Lex_substring_spec_st substring_spec;
   vers_history_point_t vers_history_point;
   struct
   {
@@ -632,7 +633,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> RELEASE_SYM                   /* SQL-2003-R */
 %token  <kwd> RENAME
 %token  <kwd> REPEAT_SYM                    /* MYSQL-FUNC */
-%token  <kwd> REPLACE                       /* MYSQL-FUNC */
 %token  <kwd> REQUIRE_SYM
 %token  <kwd> RESIGNAL_SYM                  /* SQL-2003-R */
 %token  <kwd> RESTRICT
@@ -669,7 +669,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> STDDEV_SAMP_SYM               /* SQL-2003-N */
 %token  <kwd> STD_SYM
 %token  <kwd> STRAIGHT_JOIN
-%token  <kwd> SUBSTRING                     /* SQL-2003-N */
 %token  <kwd> SUM_SYM                       /* SQL-2003-N */
 %token  <kwd> SYSDATE
 %token  <kwd> TABLE_REF_PRIORITY
@@ -682,7 +681,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> TO_SYM                        /* SQL-2003-R */
 %token  <kwd> TRAILING                      /* SQL-2003-R */
 %token  <kwd> TRIGGER_SYM                   /* SQL-2003-R */
-%token  <kwd> TRIM                          /* SQL-2003-N */
 %token  <kwd> TRUE_SYM                      /* SQL-2003-R */
 %token  <kwd> UNDO_SYM                      /* FUTURE-USE */
 %token  <kwd> UNION_SYM                     /* SQL-2003-R */
@@ -726,6 +724,14 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  RAISE_MARIADB_SYM             // PLSQL-R
 %token  <kwd>  ROWTYPE_MARIADB_SYM           // PLSQL-R
 %token  <kwd>  ROWNUM_SYM                    /* Oracle-R */
+
+/*
+  SQL functions with a special syntax
+*/
+%token  <kwd> REPLACE                        /* MYSQL-FUNC */
+%token  <kwd> SUBSTRING                      /* SQL-2003-N */
+%token  <kwd> TRIM                           /* SQL-2003-N */
+
 
 /*
   Non-reserved keywords
@@ -1773,6 +1779,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <for_loop> sp_for_loop_index_and_bounds
 %type <for_loop_bounds> sp_for_loop_bounds
 %type <trim> trim_operands
+%type <substring_spec> substring_operands
 %type <num> opt_sp_for_loop_direction
 %type <spvar_mode> sp_parameter_type
 %type <index_hint> index_hint_type
@@ -7984,6 +7991,7 @@ mi_repair_type:
 
 opt_view_repair_type:
           /* empty */    { }
+        | FOR_SYM UPGRADE_SYM { Lex->check_opt.sql_flags|= TT_FOR_UPGRADE; }
         | FROM MYSQL_SYM { Lex->check_opt.sql_flags|= TT_FROM_MYSQL; }
         ;
 
@@ -9985,7 +9993,8 @@ function_call_keyword:
           }
         | TRIM '(' trim_operands ')'
           {
-            if (unlikely(!($$= $3.make_item_func_trim(thd))))
+            if (unlikely(!($$= Schema::find_implied(thd)->
+                                 make_item_func_trim(thd, $3))))
               MYSQL_YYABORT;
           }
         | USER_SYM '(' ')'
@@ -10003,6 +10012,26 @@ function_call_keyword:
               MYSQL_YYABORT;
           }
         ;
+
+substring_operands:
+          expr ',' expr ',' expr
+          {
+            $$= Lex_substring_spec_st::init($1, $3, $5);
+          }
+        | expr ',' expr
+          {
+            $$= Lex_substring_spec_st::init($1, $3);
+          }
+        | expr FROM expr FOR_SYM expr
+          {
+            $$= Lex_substring_spec_st::init($1, $3, $5);
+          }
+        | expr FROM expr
+          {
+            $$= Lex_substring_spec_st::init($1, $3);
+          }
+        ;
+
 
 /*
   Function calls using non reserved keywords, with special syntaxic forms.
@@ -10136,24 +10165,10 @@ function_call_nonkeyword:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | SUBSTRING '(' expr ',' expr ',' expr ')'
+        | SUBSTRING '(' substring_operands ')'
           {
-            if (unlikely(!($$= Lex->make_item_func_substr(thd, $3, $5, $7))))
-              MYSQL_YYABORT;
-          }
-        | SUBSTRING '(' expr ',' expr ')'
-          {
-            if (unlikely(!($$= Lex->make_item_func_substr(thd, $3, $5))))
-              MYSQL_YYABORT;
-          }
-        | SUBSTRING '(' expr FROM expr FOR_SYM expr ')'
-          {
-            if (unlikely(!($$= Lex->make_item_func_substr(thd, $3, $5, $7))))
-              MYSQL_YYABORT;
-          }
-        | SUBSTRING '(' expr FROM expr ')'
-          {
-            if (unlikely(!($$= Lex->make_item_func_substr(thd, $3, $5))))
+            if (unlikely(!($$= Schema::find_implied(thd)->
+                                 make_item_func_substr(thd, $3))))
               MYSQL_YYABORT;
           }
 %ifdef ORACLE
@@ -10366,7 +10381,8 @@ function_call_conflict:
           }
         | REPLACE '(' expr ',' expr ',' expr ')'
           {
-            if (unlikely(!($$= Lex->make_item_func_replace(thd, $3, $5, $7))))
+            if (unlikely(!($$= Schema::find_implied(thd)->
+                                 make_item_func_replace(thd, $3, $5, $7))))
               MYSQL_YYABORT;
           }
         | REVERSE_SYM '(' expr ')'

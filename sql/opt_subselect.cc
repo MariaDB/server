@@ -4104,6 +4104,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       */ 
       join->cur_sj_inner_tables= 0;
       Json_writer_object semijoin_strategy(thd);
+      double inner_fanout= 1.0;
       semijoin_strategy.add("semi_join_strategy","FirstMatch");
       Json_writer_array semijoin_plan(thd, "join_order");
       for (idx= first; idx <= tablenr; idx++)
@@ -4116,14 +4117,30 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
         if (join->best_positions[idx].use_join_buffer &&
             !join->best_positions[idx].firstmatch_with_join_buf)
         {
-           best_access_path(join, join->best_positions[idx].table,
-                            rem_tables, join->best_positions, idx,
-                            TRUE /* no jbuf */,
-                            record_count, join->best_positions + idx, &dummy);
+          /*
+            records_out cannot be bigger just because we remove join buffer
+          */
+          double records_out= join->best_positions[idx].records_out;
+          best_access_path(join, join->best_positions[idx].table,
+                           rem_tables, join->best_positions, idx,
+                           TRUE /* no jbuf */,
+                           record_count, join->best_positions + idx, &dummy);
+          set_if_smaller(join->best_positions[idx].records_out, records_out);
         }
+        /*
+          TODO: We should also compute the selectivity here, as well as adjust
+          the records_out according to the fraction of records removed by
+          the semi-join.
+        */
+        double rec_out= join->best_positions[idx].records_out;
+        if (join->best_positions[idx].table->emb_sj_nest)
+          inner_fanout *= rec_out;
+
         record_count *= join->best_positions[idx].records_out;
         rem_tables &= ~join->best_positions[idx].table->table->map;
       }
+      if (inner_fanout > 1.0)
+        join->best_positions[tablenr].records_out /= inner_fanout;
     }
 
     if (pos->sj_strategy == SJ_OPT_LOOSE_SCAN) 
@@ -4903,11 +4920,13 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
   {
     DBUG_PRINT("info",("Creating group key in temporary table"));
     share->keys=1;
-    share->uniques= MY_TEST(using_unique_constraint);
     table->key_info= share->key_info= keyinfo;
     keyinfo->key_part=key_part_info;
-    keyinfo->flags=HA_NOSAME;
+    keyinfo->flags= HA_NOSAME | (using_unique_constraint ? HA_UNIQUE_HASH : 0);
+    keyinfo->ext_key_flags= keyinfo->flags;
     keyinfo->usable_key_parts= keyinfo->user_defined_key_parts= 1;
+    keyinfo->ext_key_parts= 1;
+    share->key_parts= 1;
     keyinfo->key_length=0;
     keyinfo->rec_per_key=0;
     keyinfo->algorithm= HA_KEY_ALG_UNDEF;

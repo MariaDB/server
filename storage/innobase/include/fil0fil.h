@@ -611,8 +611,6 @@ public:
   /** Close all tablespace files at shutdown */
   static void close_all();
 
-  /** @return last_freed_lsn */
-  lsn_t get_last_freed_lsn() { return last_freed_lsn; }
   /** Update last_freed_lsn */
   void update_last_freed_lsn(lsn_t lsn) { last_freed_lsn= lsn; }
 
@@ -1569,9 +1567,11 @@ template<bool have_reference> inline void fil_space_t::flush()
     flush_low();
   else
   {
-    if (!(acquire_low() & (STOPPING | CLOSING)))
+    if (!(acquire_low(STOPPING | CLOSING) & (STOPPING | CLOSING)))
+    {
       flush_low();
-    release();
+      release();
+    }
   }
 }
 

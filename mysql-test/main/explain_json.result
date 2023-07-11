@@ -1375,7 +1375,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	idx_t1_1	163	NULL	128	Using where; Using index
 explain select count(distinct a1,a2,b) from t1 where a1 >= "" and (a2 >= 'b') and (b = 'a');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx_t1_0,idx_t1_1,idx_t1_2	idx_t1_1	147	NULL	1	Using where; Using index for group-by
+1	SIMPLE	t1	range	idx_t1_0,idx_t1_1,idx_t1_2	idx_t1_2	147	NULL	17	Using where; Using index for group-by
 explain format=json select count(distinct a1,a2,b) from t1 where (a2 >= 'b') and (b = 'a');
 EXPLAIN
 {
@@ -1438,11 +1438,11 @@ EXPLAIN
           "table_name": "t1",
           "access_type": "range",
           "possible_keys": ["idx_t1_0", "idx_t1_1", "idx_t1_2"],
-          "key": "idx_t1_1",
+          "key": "idx_t1_2",
           "key_length": "147",
           "used_key_parts": ["a1", "a2", "b"],
           "loops": 1,
-          "rows": 1,
+          "rows": 17,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "t1.b = 'a' and t1.a1 >= '' and t1.a2 >= 'b'",

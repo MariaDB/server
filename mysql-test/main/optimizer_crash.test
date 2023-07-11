@@ -1,0 +1,82 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-31247 Assertion `c >= 0' failed in COST_MULT upon query with
+--echo # many joins
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+
+CREATE TABLE t3 (c INT) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (1),(2),(3);
+
+CREATE TABLE t4 (d CHAR(200), e INT, KEY(e)) ENGINE=Aria;
+INSERT INTO t4 (e) VALUES (1),(2),(3);
+
+CREATE TABLE t5 (f INT) ENGINE=MyISAM;
+INSERT INTO t5 VALUES (1),(2),(3),(4),(5),(6);
+
+create table t1000 engine=memory select seq from seq_1_to_1000;
+create table t2000 engine=memory select seq from seq_1_to_2000;
+
+CREATE ALGORITHM=TEMPTABLE VIEW v AS select t1000.seq
+  from t1000 ml1
+  join t1000 ml2
+  join t1000;
+
+set @@max_statement_time=10;
+--replace_regex /least \d* rows/least ### rows/
+SELECT * FROM information_schema.TABLES
+         JOIN t1000 ts
+         JOIN t1000 d1
+         JOIN t2000 d3
+         LEFT JOIN (t1 JOIN t2) ON 1
+         JOIN t1000 d5
+         JOIN t1000 PROCESSLIST
+         JOIN t1000 d2
+         JOIN t1000 event_name
+         JOIN t3
+         JOIN t4 ON ts.seq = t4.e
+         JOIN v ON ts.seq+1 = v.seq
+         JOIN t5 limit rows examined 1000;
+# Cleanup
+DROP VIEW v;
+DROP TABLE t1, t2, t3, t4, t5, t1000, t2000;
+
+--echo #
+--echo # MDEV-31391 Assertion `((best.records_out) == 0.0 &&
+--echo # (best.records) == 0.0) ||
+--echo # (best.records_out)/(best.records) < 1.0000001' failed
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, PRIMARY KEY(a), KEY(b)) ENGINE=Aria;
+INSERT INTO t1 VALUES
+(1,13),(2,22),(3,8),(4,88),(5,6),(7,21),(9,64),(10,14),(11,15),(12,8),
+(6,20),(8,39),(13,0),(14,3),(15,54),(16,85),(17,1),(18,1),(19,0),(20,0);
+CREATE TABLE t2 (c INT) ENGINE=Aria;
+INSERT INTO t2 VALUES (1),(2),(3);
+EXPLAIN SELECT a FROM t1 JOIN t2 WHERE a = b AND c <> 7 GROUP BY a HAVING a != 6 AND a <= 9;
+SELECT a FROM t1 JOIN t2 WHERE a = b AND c <> 7 GROUP BY a HAVING a != 6 AND a <= 9;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-31375 Assertion `dbl_records <= s->records' failed with
+--echo # optimizer_use_condition_selectivity=1
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (id INT PRIMARY KEY);
+INSERT INTO t2 VALUES (2),(3);
+SET optimizer_switch = 'derived_with_keys=off';
+SET optimizer_use_condition_selectivity = 1;
+SELECT t1.* FROM t1 JOIN (SELECT id, COUNT(*) FROM t2 GROUP BY id) sq ON sq.id = t1.a;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # End of 11.0 tests
+--echo #

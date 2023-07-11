@@ -2028,3 +2028,17 @@ set optimizer_switch='rowid_filter=default';
 
 drop table name, flag2;
 drop table t1;
+
+--echo #
+--echo # MDEV-30944 Range_rowid_filter::fill() leaves file->keyread at MAX_KEY
+--echo #
+
+CREATE TABLE t1 ( a varchar(30) , i int , id int, UNIQUE KEY id (id), KEY (i ,id ,a), KEY (a(1),i)) engine=myisam;
+INSERT INTO t1 VALUES('fej',NULL,1),('jeyw',8,2),(NULL,181,3),('wrkovd',9,4),('',NULL,5),('ko',NULL,6),('vdgzyxkop',217,7),('',7,8),('zy',0,9),('yxkopv',8,10),('kopv',1,11),('opv',4,12),('vc',9,13),('ri',1,14),('tkcn',1,15),('cnm',6,16),('m',0,17),('d',9,18),('e',28,19),(NULL,0,20);
+explain SELECT i, MAX( id ) FROM t1 WHERE ( a IS NULL OR a IN ('o','h') ) AND ( id BETWEEN 6 AND 7  OR id IN ( 8, 1) ) GROUP BY i;
+SELECT i, MAX( id ) FROM t1 WHERE ( a IS NULL OR a IN ('o','h') ) AND ( id BETWEEN 6 AND 7  OR id IN ( 8, 1) ) GROUP BY i;
+drop table t1;
+
+--echo #
+--echo # End of 11.0 tests
+--echo #

@@ -4971,8 +4971,12 @@ static bool update_frm_version(TABLE *table)
     by server with the same version. This also ensures that we do not
     update frm version for temporary tables as this code doesn't support
     temporary tables.
+
+    keep_original_mysql_version is set if the table version cannot be
+    changed without rewriting the frm file.
   */
-  if (table->s->mysql_version == MYSQL_VERSION_ID)
+  if (table->s->mysql_version == MYSQL_VERSION_ID ||
+      table->s->keep_original_mysql_version)
     DBUG_RETURN(0);
 
   strxmov(path, table->s->normalized_path.str, reg_ext, NullS);
@@ -8144,6 +8148,9 @@ Compare_keys handler::compare_key_parts(const Field &old_field,
   concurrent accesses. And it's an overkill to take LOCK_plugin and
   iterate the whole installed_htons[] array every time.
 
+  @note Object victim_thd is not guaranteed to exist after this
+        function returns.
+
   @param bf_thd       brute force THD asking for the abort
   @param victim_thd   victim THD to be aborted
 
@@ -8157,6 +8164,8 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
   if (!WSREP(bf_thd) &&
       !(bf_thd->variables.wsrep_OSU_method == WSREP_OSU_RSU &&
         wsrep_thd_is_toi(bf_thd))) {
+    mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
+    mysql_mutex_unlock(&victim_thd->LOCK_thd_kill);
     DBUG_RETURN(0);
   }
 
@@ -8168,6 +8177,8 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
   else
   {
     WSREP_WARN("Cannot abort InnoDB transaction");
+    mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
+    mysql_mutex_unlock(&victim_thd->LOCK_thd_kill);
   }
 
   DBUG_RETURN(0);

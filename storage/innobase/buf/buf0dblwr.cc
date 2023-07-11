@@ -372,7 +372,7 @@ void buf_dblwr_t::recover()
     const uint32_t space_id= page_get_space_id(page);
     const page_id_t page_id(space_id, page_no);
 
-    if (recv_sys.lsn < lsn)
+    if (recv_sys.scanned_lsn < lsn)
     {
       ib::info() << "Ignoring a doublewrite copy of page " << page_id
                  << " with future log sequence number " << lsn;

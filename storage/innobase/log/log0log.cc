@@ -524,7 +524,14 @@ log_t::resize_start_status log_t::resize_start(os_offset_t size) noexcept
   log_resize_release();
 
   if (start_lsn)
+  {
+    mysql_mutex_lock(&buf_pool.flush_list_mutex);
+    lsn_t target_lsn= buf_pool.get_oldest_modification(0);
+    if (start_lsn < target_lsn)
+      start_lsn= target_lsn + 1;
+    mysql_mutex_unlock(&buf_pool.flush_list_mutex);
     buf_flush_ahead(start_lsn, false);
+  }
 
   return status;
 }

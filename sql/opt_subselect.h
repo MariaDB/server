@@ -316,6 +316,7 @@ public:
       pos->loosescan_picker.loosescan_key=   best_loose_scan_key;
       pos->loosescan_picker.loosescan_parts= best_max_loose_keypart + 1;
       pos->use_join_buffer= FALSE;
+      pos->firstmatch_with_join_buf= FALSE;
       pos->table=           tab;
       pos->range_rowid_filter_info= tab->range_rowid_filter_info;
       pos->ref_depend_map=  best_ref_depend_map;

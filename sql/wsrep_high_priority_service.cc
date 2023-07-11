@@ -510,6 +510,7 @@ int Wsrep_high_priority_service::log_dummy_write_set(const wsrep::ws_handle& ws_
       m_thd->wait_for_prior_commit();
     }
 
+    WSREP_DEBUG("checkpointing dummy write set %lld", ws_meta.seqno().get());
     wsrep_set_SE_checkpoint(ws_meta.gtid(), wsrep_gtid_server.gtid());
 
     if (!WSREP_EMULATE_BINLOG(m_thd))

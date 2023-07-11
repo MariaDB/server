@@ -216,14 +216,6 @@ buf_block_t*
 trx_undo_assign_low(trx_t *trx, trx_rseg_t *rseg, trx_undo_t **undo,
                     mtr_t *mtr, dberr_t *err)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/******************************************************************//**
-Sets the state of the undo log segment at a transaction finish.
-@return undo log segment header page, x-latched */
-buf_block_t*
-trx_undo_set_state_at_finish(
-/*=========================*/
-	trx_undo_t*	undo,	/*!< in: undo log memory copy */
-	mtr_t*		mtr);	/*!< in: mtr */
 
 /** Set the state of the undo log segment at a XA PREPARE or XA ROLLBACK.
 @param[in,out]	trx		transaction

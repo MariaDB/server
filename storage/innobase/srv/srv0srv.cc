@@ -1144,17 +1144,14 @@ static tpool::waitable_task purge_coordinator_task
 static tpool::timer *purge_coordinator_timer;
 
 /** Wake up the purge threads if there is work to do. */
-void
-srv_wake_purge_thread_if_not_active()
+void srv_wake_purge_thread_if_not_active()
 {
-	ut_ad(!srv_read_only_mode);
+  ut_ad(!srv_read_only_mode);
 
-	if (purge_sys.enabled() && !purge_sys.paused()
-	    && trx_sys.history_exists()) {
-		if(++purge_state.m_running == 1) {
-			srv_thread_pool->submit_task(&purge_coordinator_task);
-		}
-	}
+  if (purge_sys.enabled() && !purge_sys.paused() &&
+      (srv_undo_log_truncate || trx_sys.history_exists()) &&
+      ++purge_state.m_running == 1)
+    srv_thread_pool->submit_task(&purge_coordinator_task);
 }
 
 /** @return whether the purge tasks are active */
@@ -1345,7 +1342,7 @@ void srv_master_callback(void*)
 }
 
 /** @return whether purge should exit due to shutdown */
-static bool srv_purge_should_exit()
+static bool srv_purge_should_exit(size_t old_history_size)
 {
   ut_ad(srv_shutdown_state <= SRV_SHUTDOWN_CLEANUP);
 
@@ -1356,8 +1353,12 @@ static bool srv_purge_should_exit()
     return true;
 
   /* Slow shutdown was requested. */
+  size_t prepared, active= trx_sys.any_active_transactions(&prepared);
   const size_t history_size= trx_sys.history_size();
-  if (history_size)
+
+  if (!history_size);
+  else if (!active && history_size == old_history_size && prepared);
+  else
   {
     static time_t progress_time;
     time_t now= time(NULL);
@@ -1374,7 +1375,7 @@ static bool srv_purge_should_exit()
     return false;
   }
 
-  return !trx_sys.any_active_transactions();
+  return !active;
 }
 
 /*********************************************************************//**
@@ -1490,29 +1491,41 @@ fewer_threads:
 
     m_history_length= history_size;
 
-    if (history_size &&
-        trx_purge(n_use_threads,
-                  !(++count % srv_purge_rseg_truncate_frequency) ||
-                  purge_sys.truncate.current ||
-                  (srv_shutdown_state != SRV_SHUTDOWN_NONE &&
-                   srv_fast_shutdown == 0)))
-      continue;
+    if (!history_size)
+    {
+      srv_dml_needed_delay= 0;
+      trx_purge_truncate_history();
+    }
+    else
+    {
+      ulint n_pages_handled= trx_purge(n_use_threads, history_size);
+      if (!(++count % srv_purge_rseg_truncate_frequency) ||
+          purge_sys.truncate.current ||
+          (srv_shutdown_state != SRV_SHUTDOWN_NONE && srv_fast_shutdown == 0))
+        trx_purge_truncate_history();
+      if (n_pages_handled)
+        continue;
+    }
 
-    if (m_running == sigcount)
+    if (srv_dml_needed_delay);
+    else if (m_running == sigcount)
     {
       /* Purge was not woken up by srv_wake_purge_thread_if_not_active() */
 
       /* The magic number 5000 is an approximation for the case where we have
       cached undo log records which prevent truncate of rollback segments. */
-      wakeup= history_size &&
-        (history_size >= 5000 ||
-         history_size != trx_sys.history_size_approx());
+      wakeup= history_size >= 5000 ||
+        (history_size && history_size != trx_sys.history_size_approx());
       break;
     }
-    else if (!trx_sys.history_exists())
-      break;
 
-    if (!srv_purge_should_exit())
+    if (!trx_sys.history_exists())
+    {
+      srv_dml_needed_delay= 0;
+      break;
+    }
+
+    if (!srv_purge_should_exit(history_size))
       goto loop;
   }
 
@@ -1708,15 +1721,19 @@ ulint srv_get_task_queue_length()
 /** Shut down the purge threads. */
 void srv_purge_shutdown()
 {
-	if (purge_sys.enabled()) {
-		if (!srv_fast_shutdown && !opt_bootstrap)
-			srv_update_purge_thread_count(innodb_purge_threads_MAX);
-		while(!srv_purge_should_exit()) {
-			ut_a(!purge_sys.paused());
-			srv_wake_purge_thread_if_not_active();
-			purge_coordinator_task.wait();
-		}
-		purge_sys.coordinator_shutdown();
-		srv_shutdown_purge_tasks();
-	}
+  if (purge_sys.enabled())
+  {
+    if (!srv_fast_shutdown && !opt_bootstrap)
+      srv_update_purge_thread_count(innodb_purge_threads_MAX);
+    size_t history_size= trx_sys.history_size();
+    while (!srv_purge_should_exit(history_size))
+    {
+      history_size= trx_sys.history_size();
+      ut_a(!purge_sys.paused());
+      srv_wake_purge_thread_if_not_active();
+      purge_coordinator_task.wait();
+    }
+    purge_sys.coordinator_shutdown();
+    srv_shutdown_purge_tasks();
+  }
 }

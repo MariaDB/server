@@ -132,7 +132,7 @@ typedef struct st_mi_base_info
   uint extra_alloc_bytes;
   uint extra_alloc_procent;
   /* The following are from the header */
-  uint key_parts, all_key_parts;
+  uint key_parts, all_key_parts, base_key_parts;
 } MI_BASE_INFO;
 
 

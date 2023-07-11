@@ -580,11 +580,11 @@ bool Range_rowid_filter::fill()
   handler *file= table->file;
   THD *thd= table->in_use;
   QUICK_RANGE_SELECT* quick= (QUICK_RANGE_SELECT*) select->quick;
-
   uint table_status_save= table->status;
   Item *pushed_idx_cond_save= file->pushed_idx_cond;
   uint pushed_idx_cond_keyno_save= file->pushed_idx_cond_keyno;
   bool in_range_check_pushed_down_save= file->in_range_check_pushed_down;
+  int org_keyread;
 
   table->status= 0;
   file->pushed_idx_cond= 0;
@@ -594,6 +594,7 @@ bool Range_rowid_filter::fill()
   /* We're going to just read rowids / clustered primary keys */
   table->prepare_for_position();
 
+  org_keyread= file->ha_end_active_keyread();
   file->ha_start_keyread(quick->index);
 
   if (quick->init() || quick->reset())
@@ -612,6 +613,7 @@ bool Range_rowid_filter::fill()
 end:
   quick->range_end();
   file->ha_end_keyread();
+  file->ha_restart_keyread(org_keyread);
 
   table->status= table_status_save;
   file->pushed_idx_cond= pushed_idx_cond_save;

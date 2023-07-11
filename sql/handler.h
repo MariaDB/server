@@ -47,6 +47,7 @@
 #include "sql_sequence.h"
 #include "mem_root_array.h"
 #include <utility>     // pair
+#include <my_attribute.h> /* __attribute__ */
 
 class Alter_info;
 class Virtual_column_info;
@@ -1463,9 +1464,9 @@ struct handlerton
                             const char *query, uint query_length,
                             const char *db, const char *table_name);
 
-   void (*abort_transaction)(handlerton *hton, THD *bf_thd,
-			    THD *victim_thd, my_bool signal);
-   int (*set_checkpoint)(handlerton *hton, const XID* xid);
+   void (*abort_transaction)(handlerton *hton, THD *bf_thd, THD *victim_thd,
+                             my_bool signal) __attribute__((nonnull));
+   int (*set_checkpoint)(handlerton *hton, const XID *xid);
    int (*get_checkpoint)(handlerton *hton, XID* xid);
   /**
      Check if the version of the table matches the version in the .frm
@@ -2818,7 +2819,7 @@ public:
   double comp_cost;       /* Cost of comparing found rows with WHERE clause */
   double copy_cost;       /* Copying the data to 'record' */
   double limit_cost;      /* Total cost when restricting rows with limit */
-
+  double setup_cost;      /* MULTI_RANGE_READ_SETUP_COST or similar */
   IO_AND_CPU_COST index_cost;
   IO_AND_CPU_COST row_cost;
 
@@ -2835,8 +2836,8 @@ public:
   double total_cost() const
   {
     return ((index_cost.io + row_cost.io) * avg_io_cost+
-            index_cost.cpu + row_cost.cpu + comp_cost + copy_cost +
-            cpu_cost);
+            index_cost.cpu + row_cost.cpu + copy_cost +
+            comp_cost + cpu_cost + setup_cost);
   }
 
   /* Cost for just fetching and copying a row (no compare costs) */
@@ -2881,6 +2882,7 @@ public:
     copy_cost+=      cost->copy_cost;
     comp_cost+=      cost->comp_cost;
     cpu_cost+=       cost->cpu_cost;
+    setup_cost+=     cost->setup_cost;
   }
 
   inline void reset()
@@ -2888,6 +2890,7 @@ public:
     avg_io_cost= 0;
     comp_cost= cpu_cost= 0.0;
     copy_cost= limit_cost= 0.0;
+    setup_cost= 0.0;
     index_cost= {0,0};
     row_cost=   {0,0};
   }
@@ -3333,10 +3336,11 @@ private:
     For non partitioned handlers this is &TABLE_SHARE::ha_share.
   */
   Handler_share **ha_share;
+public:
+
   double optimizer_where_cost;          // Copy of THD->...optimzer_where_cost
   double optimizer_scan_setup_cost;     // Copy of THD->...optimzer_scan_...
 
-public:
   handler(handlerton *ht_arg, TABLE_SHARE *share_arg)
     :table_share(share_arg), table(0),
     estimation_rows_to_insert(0),
@@ -3483,19 +3487,38 @@ public:
   inline bool keyread_enabled() { return keyread < MAX_KEY; }
   inline int ha_start_keyread(uint idx)
   {
-    if (keyread_enabled())
-      return 0;
+    DBUG_ASSERT(!keyread_enabled());
     keyread= idx;
     return extra_opt(HA_EXTRA_KEYREAD, idx);
   }
   inline int ha_end_keyread()
   {
-    if (!keyread_enabled())
+    if (!keyread_enabled())                    /* Enably lazy usage */
       return 0;
     keyread= MAX_KEY;
     return extra(HA_EXTRA_NO_KEYREAD);
   }
 
+  /*
+    End any active keyread. Return state so that we can restore things
+    at end.
+  */
+  int ha_end_active_keyread()
+  {
+    int org_keyread;
+    if (!keyread_enabled())
+      return MAX_KEY;
+    org_keyread= keyread;
+    ha_end_keyread();
+    return org_keyread;
+  }
+  /* Restore state to before ha_end_active_keyread */
+  void ha_restart_keyread(int org_keyread)
+  {
+    DBUG_ASSERT(!keyread_enabled());
+    if (org_keyread != MAX_KEY)
+      ha_start_keyread(org_keyread);
+  }
   int check_collation_compatibility();
   int check_long_hash_compatibility() const;
   int ha_check_for_upgrade(HA_CHECK_OPT *check_opt);
@@ -3603,6 +3626,18 @@ public:
     return ((cost->index_cost.cpu + cost->row_cost.cpu + cost->copy_cost) +
             blocks * DISK_READ_COST * DISK_READ_RATIO);
   }
+  /*
+    Same as above but without capping.
+    This is only used for comparing cost with s->quick_read time, which
+    does not do any capping.
+  */
+
+ inline double cost_no_capping(ALL_READ_COST *cost)
+  {
+    double blocks= (cost->index_cost.io + cost->row_cost.io);
+    return ((cost->index_cost.cpu + cost->row_cost.cpu + cost->copy_cost) +
+            blocks * DISK_READ_COST * DISK_READ_RATIO);
+  }
 
   /*
     Calculate cost when we are going to excute the given read method
@@ -3621,7 +3656,7 @@ public:
             blocks * DISK_READ_COST * DISK_READ_RATIO);
   }
 
-  inline ulonglong row_blocks()
+  virtual ulonglong row_blocks()
   {
     return (stats.data_file_length + IO_SIZE-1) / IO_SIZE;
   }

@@ -280,6 +280,12 @@ extern "C" sig_handler handle_fatal_signal(int sig);
 
 int init_io_cache_encryption();
 
+extern "C"
+{
+  static void my_malloc_size_cb_func(long long size,
+                                     my_bool is_thread_specific);
+}
+
 /* Constants */
 
 #include <welcome_copyright_notice.h> // ORACLE_WELCOME_COPYRIGHT_NOTICE
@@ -1747,6 +1753,11 @@ static void close_connections(void)
       (void) unlink(mysqld_unix_port);
     }
   }
+  /*
+    The following is needed to the threads stuck in
+    setup_connection_thread_globals()
+    to continue.
+  */
   listen_sockets.free_memory();
   mysql_mutex_unlock(&LOCK_start_thread);
 
@@ -2033,6 +2044,7 @@ static void clean_up(bool print_message)
   end_ssl();
 #ifndef EMBEDDED_LIBRARY
   vio_end();
+  listen_sockets.free_memory();
 #endif /*!EMBEDDED_LIBRARY*/
 #if defined(ENABLED_DEBUG_SYNC)
   /* End the debug sync facility. See debug_sync.cc. */

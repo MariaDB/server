@@ -1808,7 +1808,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     if (view_is_mergeable &&
         (table->select_lex->master_unit() != &old_lex->unit ||
          old_lex->can_use_merged()) &&
-        !old_lex->can_not_use_merged(0))
+        !old_lex->can_not_use_merged())
     {
       /* lex should contain at least one table */
       DBUG_ASSERT(view_main_select_tables != 0);
@@ -1841,8 +1841,11 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
       */
       if (!table->select_lex->master_unit()->is_unit_op() &&
           table->select_lex->order_list.elements == 0)
+      {
         table->select_lex->order_list.
           push_back(&lex->first_select_lex()->order_list);
+        lex->first_select_lex()->order_list.empty();
+      }
       else
       {
         if (old_lex->sql_command == SQLCOM_SELECT &&
@@ -2298,7 +2301,7 @@ int view_repair(THD *thd, TABLE_LIST *view, HA_CHECK_OPT *check_opt)
   bool swap_alg= (check_opt->sql_flags & TT_FROM_MYSQL);
   bool wrong_checksum= view_checksum(thd, view) != HA_ADMIN_OK;
   int ret;
-  if (wrong_checksum || swap_alg || (!view->mariadb_version))
+  if (wrong_checksum || !view->mariadb_version)
   {
     ret= mariadb_fix_view(thd, view, wrong_checksum, swap_alg);
     DBUG_RETURN(ret);

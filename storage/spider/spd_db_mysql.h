@@ -514,8 +514,6 @@ public:
     int *need_mon
   );
 
-  /** Set the global lock wait time out */
-  int set_lock_wait_timeout(uint timeout);
   /** Reset the global lock wait time out */
   int reset_lock_wait_timeout();
 
