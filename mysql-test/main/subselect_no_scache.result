@@ -7503,6 +7503,18 @@ ERROR HY000: Illegal parameter data types row and boolean for operation '='
 SELECT ROW(1,2) = (1 = ANY (SELECT 1 UNION SELECT 2));
 ERROR HY000: Illegal parameter data types row and boolean for operation '='
 #
+# MDEV-29283: Assertion `0' failed -or- Assertion `item->maybe_null()'
+# failed - both in virtual void
+# Type_handler_string_result::make_sort_key_part - on UPDATE ...
+# ORDER BY ... LIMIT 0
+#
+CREATE TABLE t(c CHAR (1)KEY ) ENGINE=MYISAM;
+INSERT INTO t VALUES(3);
+UPDATE t SET c= 1 ORDER BY(SELECT c LIMIT 0);
+UPDATE t SET c= 1 ORDER BY(SELECT c LIMIT 1 OFFSET 1);
+UPDATE t SET c= 1 ORDER BY(SELECT c LIMIT 2 OFFSET 1);
+drop table t;
+#
 # End of 10.4 tests
 #
 set optimizer_switch=default;

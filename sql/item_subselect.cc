@@ -4730,7 +4730,12 @@ bool subselect_single_select_engine::no_tables()
 */
 bool subselect_single_select_engine::may_be_null()
 {
-  return ((no_tables() && !join->conds && !join->having) ? maybe_null : 1);
+  return ((no_tables() && !join->conds &&
+           !join->having &&
+           join->select_lex->get_limit() > 0 &&
+           join->select_lex->get_offset() == 0) ?
+          maybe_null :
+          1);
 }
 
 

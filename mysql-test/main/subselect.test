@@ -6335,6 +6335,21 @@ SELECT ROW(1,2) = 1 IN (SELECT 1 UNION SELECT 2);
 --error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 SELECT ROW(1,2) = (1 = ANY (SELECT 1 UNION SELECT 2));
 
+
+--echo #
+--echo # MDEV-29283: Assertion `0' failed -or- Assertion `item->maybe_null()'
+--echo # failed - both in virtual void
+--echo # Type_handler_string_result::make_sort_key_part - on UPDATE ...
+--echo # ORDER BY ... LIMIT 0
+--echo #
+
+CREATE TABLE t(c CHAR (1)KEY ) ENGINE=MYISAM;
+INSERT INTO t VALUES(3);
+UPDATE t SET c= 1 ORDER BY(SELECT c LIMIT 0);
+UPDATE t SET c= 1 ORDER BY(SELECT c LIMIT 1 OFFSET 1);
+UPDATE t SET c= 1 ORDER BY(SELECT c LIMIT 2 OFFSET 1);
+drop table t;
+
 --echo #
 --echo # End of 10.4 tests
 --echo #
