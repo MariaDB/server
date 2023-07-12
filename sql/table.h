@@ -2310,19 +2310,11 @@ struct TABLE_LIST
     open_and_lock_tables
   */
   inline void reset() { bzero((void*)this, sizeof(*this)); }
-  inline void init_one_table(const LEX_CSTRING *db_arg,
-                             const LEX_CSTRING *table_name_arg,
-                             const LEX_CSTRING *alias_arg,
-                             enum thr_lock_type lock_type_arg)
+  inline void init_one_table_no_request(const LEX_CSTRING *db_arg,
+                                        const LEX_CSTRING *table_name_arg,
+                                        const LEX_CSTRING *alias_arg,
+                                        enum thr_lock_type lock_type_arg)
   {
-    enum enum_mdl_type mdl_type;
-    if (lock_type_arg >= TL_FIRST_WRITE)
-      mdl_type= MDL_SHARED_WRITE;
-    else if (lock_type_arg == TL_READ_NO_INSERT)
-      mdl_type= MDL_SHARED_NO_WRITE;
-    else
-      mdl_type= MDL_SHARED_READ;
-
     reset();
     DBUG_ASSERT(!db_arg->str || strlen(db_arg->str) == db_arg->length);
     DBUG_ASSERT(!table_name_arg->str || strlen(table_name_arg->str) == table_name_arg->length);
@@ -2332,8 +2324,37 @@ struct TABLE_LIST
     alias= (alias_arg ? *alias_arg : *table_name_arg);
     lock_type= lock_type_arg;
     updating= lock_type >= TL_FIRST_WRITE;
+  }
+
+  static enum_mdl_type get_mdl_type(enum thr_lock_type lock_type)
+  {
+    if (lock_type >= TL_FIRST_WRITE)
+      return MDL_SHARED_WRITE;
+    if (lock_type == TL_READ_NO_INSERT)
+      return MDL_SHARED_NO_WRITE;
+    return MDL_SHARED_READ;
+  }
+
+  inline void init_one_table(const LEX_CSTRING *db_arg,
+                             const LEX_CSTRING *table_name_arg,
+                             const LEX_CSTRING *alias_arg,
+                             enum thr_lock_type lock_type_arg)
+  {
+    init_one_table_no_request(db_arg, table_name_arg, alias_arg, lock_type_arg);
+
     MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE, db.str, table_name.str,
-                     mdl_type, MDL_TRANSACTION);
+                     get_mdl_type(lock_type_arg), MDL_TRANSACTION);
+  }
+  inline void init_one_table_by_key(const LEX_CSTRING *db_arg,
+                                    const LEX_CSTRING *table_name_arg,
+                                    const LEX_CSTRING *alias_arg,
+                                    enum thr_lock_type lock_type_arg,
+                                    const MDL_key *mdl_key)
+  {
+    init_one_table_no_request(db_arg, table_name_arg, alias_arg, lock_type_arg);
+
+    MDL_REQUEST_INIT_BY_KEY(&mdl_request, mdl_key, get_mdl_type(lock_type_arg),
+                            MDL_TRANSACTION);
   }
 
   TABLE_LIST(const LEX_CSTRING *db_arg,
@@ -2360,10 +2381,14 @@ struct TABLE_LIST
                                             TABLE_LIST *belong_to_view_arg,
                                             uint8 trg_event_map_arg,
                                             TABLE_LIST ***last_ptr,
+                                            MDL_key *mdl_key,
                                             my_bool insert_data)
-
   {
-    init_one_table(db_arg, table_name_arg, alias_arg, lock_type_arg);
+    if (mdl_key == NULL)
+      init_one_table(db_arg, table_name_arg, alias_arg, lock_type_arg);
+    else
+      init_one_table_by_key(db_arg, table_name_arg, alias_arg, lock_type_arg,
+                            mdl_key);
     cacheable_table= 1;
     prelocking_placeholder= prelocking_type;
     open_type= (prelocking_type == PRELOCK_ROUTINE ?
@@ -2494,6 +2519,11 @@ struct TABLE_LIST
       table->tablenr= new_tablenr;
       table->map= table_map(1) << new_tablenr;
     }
+  }
+
+  MDL_key *get_key() 
+  { 
+    return &mdl_request.key;
   }
   /*
     Reference from aux_tables to local list entry of main select of

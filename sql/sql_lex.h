@@ -1767,6 +1767,13 @@ public:
     0 - indicates that this query does not need prelocking.
   */
   TABLE_LIST **query_tables_own_last;
+
+  /**
+    Prelocked tables hash. Stores only tables with FK_PRELOCK tag to speed up
+    table access during prelocking. Deinitializes in reset_query_tables_list.
+  */
+  Open_address_hash<MDL_key, TABLE_LIST*,
+                    MDL_key_trait<TABLE_LIST> > fk_table_hash;
   /*
     Set of stored routines called by statement.
     (Note that we use lazy-initialization for this hash).
