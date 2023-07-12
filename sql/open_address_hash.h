@@ -98,19 +98,42 @@ private:
   {
     uint past_capacity= capacity;
     capacity= _capacity;
-    auto temp_hash_array= hash_array;
-    hash_array= new T[capacity]{};
-    size= 0;
 
-    for (uint i= 0; i < past_capacity; i++)
+    if (past_capacity > capacity)
     {
-      if (temp_hash_array[i])
+      size= 0;
+      for (uint i= capacity; i < past_capacity; i++)
       {
-        insert_helper(get_key(temp_hash_array[i]), temp_hash_array[i]);
+        if (hash_array[i])
+        {
+          auto temp_el= hash_array[i];
+          hash_array[i]= nullptr;
+          insert_helper(get_key(temp_el), temp_el);
+        }
+      }
+
+      hash_array= (T *) realloc(hash_array, capacity * sizeof(T));
+    }
+    else
+    {
+      hash_array= (T *) realloc(hash_array, capacity * sizeof(T));
+      for (uint i = past_capacity; i < capacity; i++)
+      {
+        hash_array[i]= nullptr;
+      }
+      size= 0;
+
+      for (uint i = 0; i < past_capacity; i++)
+      {
+        if (hash_array[i])
+        {
+          auto temp_el= hash_array[i];
+          hash_array[i]= nullptr;
+          insert_helper(get_key(temp_el), temp_el);
+        }
       }
     }
 
-    delete[] temp_hash_array;
     return;
   }
 
