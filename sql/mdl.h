@@ -24,6 +24,7 @@
 #include <lf.h>
 #include <atomic>
 #include "lex_ident.h"
+#include "open_address_hash.h"
 
 class THD;
 
@@ -710,14 +711,12 @@ public:
   MDL_ticket *next_in_context;
   MDL_ticket **prev_in_context;
 
-#ifndef DBUG_OFF
   /**
     Duration of lock represented by this ticket.
-    Context public. Debug-only.
+    Context public.
   */
 public:
   enum_mdl_duration m_duration;
-#endif
   ulonglong m_time;
 
 #ifdef WITH_WSREP
@@ -855,6 +854,24 @@ typedef I_P_List<MDL_request, I_P_List_adapter<MDL_request,
                  &MDL_request::prev_in_list>,
                  I_P_List_counter>
         MDL_request_list;
+
+
+template <typename T>
+struct MDL_key_trait
+{
+  using Hash_value_type= decltype(MDL_key().tc_hash_value());
+
+  static const MDL_key *get_key(T *t) { return t->get_key(); }
+  static my_hash_value_type get_hash_value(const MDL_key *key)
+  {
+    return key->tc_hash_value();
+  }
+};
+namespace traits
+{
+template<>
+struct Open_address_hash_key_trait<MDL_key>: public MDL_key_trait<MDL_ticket>{};
+};
 
 /**
   Context of the owner of metadata locks. I.e. each server
@@ -1052,11 +1069,17 @@ private:
 private:
   MDL_ticket *find_ticket(MDL_request *mdl_req,
                           enum_mdl_duration *duration);
+
   void release_locks_stored_before(enum_mdl_duration duration, MDL_ticket *sentinel);
   void release_lock(enum_mdl_duration duration, MDL_ticket *ticket);
   bool try_acquire_lock_impl(MDL_request *mdl_request,
                              MDL_ticket **out_ticket);
   bool fix_pins();
+
+  /**
+    Ticket hash. Stores only locked tickets.
+  */
+  Open_address_hash<MDL_key, MDL_ticket*> ticket_hash;
 
 public:
   THD *get_thd() const { return m_owner->get_thd(); }

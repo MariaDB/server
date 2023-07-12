@@ -5036,23 +5036,17 @@ bool DML_prelocking_strategy::handle_routine(THD *thd,
   return FALSE;
 }
 
-
-/*
-  @note this can be changed to use a hash, instead of scanning the linked
-  list, if the performance of this function will ever become an issue
-*/
-bool table_already_fk_prelocked(TABLE_LIST *tl, LEX_CSTRING *db,
-                                LEX_CSTRING *table, thr_lock_type lock_type)
+TABLE_LIST *find_fk_prelocked_table(const Query_tables_list *prelocking_ctx,
+                                    const MDL_key &key,
+                                    thr_lock_type lock_type)
 {
-  for (; tl; tl= tl->next_global )
-  {
-    if (tl->lock_type >= lock_type &&
-        tl->prelocking_placeholder == TABLE_LIST::PRELOCK_FK &&
-        strcmp(tl->db.str, db->str) == 0 &&
-        strcmp(tl->table_name.str, table->str) == 0)
-      return true;
-  }
-  return false;
+  return prelocking_ctx->fk_table_hash.find(key,
+          [&key, lock_type](const TABLE_LIST *tl) {
+                  return tl->lock_type >= lock_type
+                         && tl->prelocking_placeholder == TABLE_LIST::PRELOCK_FK
+                         && strcmp(tl->table_name.str, key.name()) == 0
+                         && strcmp(tl->db.str, key.db_name()) == 0;
+  });
 }
 
 
@@ -5104,6 +5098,7 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
                                       TABLE_LIST::PRELOCK_NONE,
                                       0, 0,
                                       &prelocking_ctx->query_tables_last,
+                                      &tables->mdl_request.key,
                                       tables->for_insert_data);
     /*
       Store link to the sequences table so that we can in open_table() update
@@ -5199,30 +5194,42 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
     else
       lock_type= TL_READ;
 
-    if (table_already_fk_prelocked(prelocking_ctx->query_tables,
-          fk->foreign_db, fk->foreign_table, lock_type))
-      continue;
+    MDL_key key(MDL_key::TABLE, fk->foreign_db->str, fk->foreign_table->str);
 
-    TABLE_LIST *tl= thd->alloc<TABLE_LIST>(1);
-    tl->init_one_table_for_prelocking(fk->foreign_db, fk->foreign_table,
-        NULL, lock_type, TABLE_LIST::PRELOCK_FK, table_list->belong_to_view,
-        op, &prelocking_ctx->query_tables_last, table_list->for_insert_data,
-        override_fk_ignore_table);
-
-#ifdef WITH_WSREP
-    /*
-      Append table level shared key for the referenced/foreign table for:
-        - statement that updates existing rows (UPDATE, multi-update)
-        - statement that deletes existing rows (DELETE, DELETE_MULTI)
-	- statement that inserts new rows (INSERT, REPLACE, LOAD, ALTER TABLE)
-      This is done to avoid potential MDL conflicts with concurrent DDLs.
-    */
-    if (wsrep_foreign_key_append(thd, fk))
+    TABLE_LIST *tl= find_fk_prelocked_table(prelocking_ctx, key, lock_type);
+    if (tl == NULL)
     {
-      error= TRUE;
-      break;
-    }
+      tl= thd->alloc<TABLE_LIST>(1);
+      tl->init_one_table_for_prelocking(
+          fk->foreign_db, fk->foreign_table, NULL, lock_type,
+          TABLE_LIST::PRELOCK_FK, table_list->belong_to_view, op,
+          &prelocking_ctx->query_tables_last, &key,
+          table_list->for_insert_data,
+          override_fk_ignore_table);
+      bool success= prelocking_ctx->fk_table_hash.insert(tl);
+      if (!success)
+      {
+        DBUG_ASSERT(thd->is_error()); // ER_OUTOFMEMORY is set inside the hash
+        if (arena)
+          thd->restore_active_arena(arena, &backup);
+        DBUG_RETURN(TRUE);
+      }
+#ifdef WITH_WSREP
+      /*
+        Append table level shared key for the referenced/foreign table for:
+          - statement that updates existing rows (UPDATE, multi-update)
+          - statement that deletes existing rows (DELETE, DELETE_MULTI)
+          - statement that inserts new rows (INSERT, REPLACE, LOAD, ALTER TABLE)
+        This is done to avoid potential MDL conflicts with concurrent DDLs.
+      */
+      if (wsrep_foreign_key_append(thd, fk))
+      {
+        error= TRUE;
+        break;
+      }
 #endif // WITH_WSREP
+    }
+
   }
   if (arena)
     thd->restore_active_arena(arena, &backup);
