@@ -1049,16 +1049,16 @@ void MDL_request::init_by_key_with_source(const MDL_key *key_arg,
 */
 
 MDL_ticket *MDL_ticket::create(MDL_context *ctx_arg, enum_mdl_type type_arg
-#ifndef DBUG_OFF
+//#ifndef DBUG_OFF
                                , enum_mdl_duration duration_arg
-#endif
+//#endif
                                )
 {
   return new (std::nothrow)
              MDL_ticket(ctx_arg, type_arg
-#ifndef DBUG_OFF
+//#ifndef DBUG_OFF
                         , duration_arg
-#endif
+//#endif
                         );
 }
 
@@ -1981,6 +1981,45 @@ MDL_context::find_ticket(MDL_request *mdl_request,
   return NULL;
 }
 
+MDL_ticket *
+MDL_context::find_ticket_using_hash(MDL_request *mdl_request,
+                                    enum_mdl_duration *result_duration)
+{
+  const auto &ticket_fits= [&mdl_request](const MDL_ticket *t) {
+    return mdl_request->key.is_equal(t->get_key()) &&
+           t->has_stronger_or_equal_type(mdl_request->type);
+  };
+
+  const auto &ticket_fits_with_transaction=
+      [&mdl_request](const MDL_ticket *t) {
+        return mdl_request->key.is_equal(t->get_key()) &&
+               t->has_stronger_or_equal_type(mdl_request->type) &&
+               t->m_duration != MDL_EXPLICIT;
+      };
+
+  MDL_ticket *ret_value= NULL;
+
+  if (mdl_request->duration != MDL_EXPLICIT)
+  {
+    ret_value=
+        ticket_hash.find(&mdl_request->key, ticket_fits_with_transaction);
+    if (ret_value)
+    {
+      goto ret_not_null_value;
+    }
+  }
+
+  ret_value= ticket_hash.find(&mdl_request->key, ticket_fits);
+  if (ret_value)
+    goto ret_not_null_value;
+
+  return NULL;
+
+ret_not_null_value:
+  *result_duration= ret_value->m_duration;
+  return ret_value;
+}
+
 
 /**
   Try to acquire one lock.
@@ -2066,7 +2105,7 @@ MDL_context::try_acquire_lock_impl(MDL_request *mdl_request,
     Check whether the context already holds a shared lock on the object,
     and if so, grant the request.
   */
-  if ((ticket= find_ticket(mdl_request, &found_duration)))
+  if ((ticket= find_ticket_using_hash(mdl_request, &found_duration)))
   {
     DBUG_ASSERT(ticket->m_lock);
     DBUG_ASSERT(ticket->has_stronger_or_equal_type(mdl_request->type));
@@ -2103,9 +2142,9 @@ MDL_context::try_acquire_lock_impl(MDL_request *mdl_request,
     return TRUE;
 
   if (!(ticket= MDL_ticket::create(this, mdl_request->type
-#ifndef DBUG_OFF
+//#ifndef DBUG_OFF
                                    , mdl_request->duration
-#endif
+//#endif
                                    )))
     return TRUE;
 
@@ -2133,6 +2172,7 @@ MDL_context::try_acquire_lock_impl(MDL_request *mdl_request,
 
     mysql_prlock_unlock(&lock->m_rwlock);
 
+    ticket_hash.insert(&mdl_request->key, ticket); // TODO error handling
     m_tickets[mdl_request->duration].push_front(ticket);
 
     mdl_request->ticket= ticket;
@@ -2181,9 +2221,9 @@ MDL_context::clone_ticket(MDL_request *mdl_request)
     the request.
   */
   if (!(ticket= MDL_ticket::create(this, mdl_request->type
-#ifndef DBUG_OFF
+//#ifndef DBUG_OFF
                                    , mdl_request->duration
-#endif
+//#endif
                                    )))
     return TRUE;
 
@@ -2200,6 +2240,11 @@ MDL_context::clone_ticket(MDL_request *mdl_request)
   DBUG_ASSERT(mdl_request->ticket->has_stronger_or_equal_type(ticket->m_type));
 
   ticket->m_lock= mdl_request->ticket->m_lock;
+  if (!ticket_hash.insert(ticket->get_key(), ticket))
+  {
+    delete ticket;
+    return TRUE;
+  }
   mdl_request->ticket= ticket;
 
   mysql_prlock_wrlock(&ticket->m_lock->m_rwlock);
@@ -2453,7 +2498,7 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
   DBUG_ASSERT(wait_status == MDL_wait::GRANTED);
 
   m_tickets[mdl_request->duration].push_front(ticket);
-
+  ticket_hash.insert(&mdl_request->key, ticket); // TODO error handling
   mdl_request->ticket= ticket;
 
   mysql_mdl_set_status(ticket->m_psi, MDL_ticket::GRANTED);
@@ -2615,6 +2660,7 @@ MDL_context::upgrade_shared_lock(MDL_ticket *mdl_ticket,
 
   if (is_new_ticket)
   {
+    ticket_hash.erase(mdl_xlock_request.ticket);
     m_tickets[MDL_TRANSACTION].remove(mdl_xlock_request.ticket);
     MDL_ticket::destroy(mdl_xlock_request.ticket);
   }
@@ -2881,6 +2927,10 @@ void MDL_context::release_lock(enum_mdl_duration duration, MDL_ticket *ticket)
 
   DBUG_ASSERT(this == ticket->get_ctx());
   DBUG_PRINT("mdl", ("Released: %s", dbug_print_mdl(ticket)));
+
+  bool success= ticket_hash.erase(ticket);
+  DBUG_ASSERT(success);
+  DBUG_ASSERT(ticket_hash.find(ticket) == NULL);
 
   lock->remove_ticket(m_pins, &MDL_lock::m_granted, ticket);
 
@@ -3181,9 +3231,9 @@ void MDL_context::set_lock_duration(MDL_ticket *mdl_ticket,
 
   m_tickets[MDL_TRANSACTION].remove(mdl_ticket);
   m_tickets[duration].push_front(mdl_ticket);
-#ifndef DBUG_OFF
+//#ifndef DBUG_OFF
   mdl_ticket->m_duration= duration;
-#endif
+//#endif
 }
 
 
@@ -3218,12 +3268,12 @@ void MDL_context::set_explicit_duration_for_all_locks()
     }
   }
 
-#ifndef DBUG_OFF
+//#ifndef DBUG_OFF
   Ticket_iterator exp_it(m_tickets[MDL_EXPLICIT]);
 
   while ((ticket= exp_it++))
     ticket->m_duration= MDL_EXPLICIT;
-#endif
+//#endif
 }
 
 
@@ -3256,12 +3306,12 @@ void MDL_context::set_transaction_duration_for_all_locks()
     m_tickets[MDL_TRANSACTION].push_front(ticket);
   }
 
-#ifndef DBUG_OFF
+//#ifndef DBUG_OFF
   Ticket_iterator trans_it(m_tickets[MDL_TRANSACTION]);
 
   while ((ticket= trans_it++))
     ticket->m_duration= MDL_TRANSACTION;
-#endif
+//#endif
 }
 
 
