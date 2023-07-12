@@ -54,6 +54,7 @@
 #include "xa.h"
 #include "ddl_log.h"                            /* DDL_LOG_STATE */
 #include "ha_handler_stats.h"                    // ha_handler_stats */
+#include "open_address_hash.h"
 
 extern "C"
 void set_thd_stage_info(void *thd,

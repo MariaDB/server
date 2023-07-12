@@ -3111,7 +3111,7 @@ sub mysql_install_db {
   mtr_add_arg($args, "--core-file");
   mtr_add_arg($args, "--console");
   mtr_add_arg($args, "--character-set-server=latin1");
-  mtr_add_arg($args, "--disable-performance-schema");
+  mtr_add_arg($args, "--loose-disable-performance-schema");
 
   if ( $opt_debug )
   {
