@@ -53,6 +53,7 @@
 #include "xa.h"
 #include "ddl_log.h"                            /* DDL_LOG_STATE */
 #include "ha_handler_stats.h"                    // ha_handler_stats */
+#include "open_address_hash.h"
 
 extern "C"
 void set_thd_stage_info(void *thd,
@@ -2774,6 +2775,12 @@ public:
     - Also ensures that THD is not deleted while mutex is hold
   */
   mutable mysql_mutex_t LOCK_thd_kill;
+
+  /**
+    Prelocked tables hash. Stores only tables with FK_PRELOCK tag to speed up
+    table access during prelocking. Deinitializes in close_thread_tables.
+  */
+  open_address_hash<MDL_key_trait<TABLE_LIST>, hash_trait<TABLE_LIST> > pr_table_hash;
 
   /* all prepared statements and cursors of this connection */
   Statement_map stmt_map;

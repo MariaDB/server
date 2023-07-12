@@ -1,0 +1,40 @@
+--source include/have_innodb.inc
+
+CREATE TABLE parent_test_table
+(
+    Id INT PRIMARY KEY AUTO_INCREMENT,
+    Age INT
+) engine=InnoDB;
+
+let $i=1;
+while($i < 2000) {
+    EVAL CREATE TABLE t_$i
+  (
+    Id INT PRIMARY KEY AUTO_INCREMENT,
+    parent_test_tableId$i INT,
+        Sum INT,
+        FOREIGN KEY (parent_test_tableId$i)  REFERENCES parent_test_table (Id)
+  ) engine=InnoDB;
+
+    inc $i;
+}
+
+Insert parent_test_table(Age) 
+VALUES(20);
+
+let $i=1;
+while($i < 2000) {
+    EVAL Insert t_$i(parent_test_tableId$i, Sum)
+    VALUES(1, 300);
+
+    inc $i;
+}
+
+--source include/restart_mysqld.inc
+
+let $i=1;
+while($i < 100) {
+UPDATE parent_test_table
+SET Age = Age + 10;
+    inc $i;
+}
