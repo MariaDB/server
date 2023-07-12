@@ -23,16 +23,16 @@ ROLLBACK/*!*/;
 # at 285
 #<date> server id 1  end_log_pos 329 CRC32 XXX 	Binlog checkpoint master-bin.000001
 # at 329
-#<date> server id 1  end_log_pos 371 CRC32 XXX 	GTID 0-1-1 ddl
+#<date> server id 1  end_log_pos 371 CRC32 XXX 	GTID 0-1-1 ddl thread_id=TID
 /*!100101 SET @@session.skip_parallel_replication=0*//*!*/;
 /*!100001 SET @@session.gtid_domain_id=0*//*!*/;
 /*!100001 SET @@session.server_id=1*//*!*/;
 /*!100001 SET @@session.gtid_seq_no=1*//*!*/;
 # at 371
-#<date> server id 1  end_log_pos 533 CRC32 XXX 	Query_compressed	thread_id=5	exec_time=x	error_code=0
+#<date> server id 1  end_log_pos 533 CRC32 XXX 	Query_compressed	thread_id=TID	exec_time=x	error_code=0
 use `test`/*!*/;
 SET TIMESTAMP=X/*!*/;
-SET @@session.pseudo_thread_id=5/*!*/;
+SET @@session.pseudo_thread_id=TID/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1/*!*/;
 SET @@session.sql_mode=#/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
@@ -43,15 +43,15 @@ SET @@session.collation_database=DEFAULT/*!*/;
 CREATE TABLE t1 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 TINYINT, f4 MEDIUMINT, f5 BIGINT, f6 INT, f7 INT, f8 char(1))
 /*!*/;
 # at 533
-#<date> server id 1  end_log_pos 575 CRC32 XXX 	GTID 0-1-2 ddl
+#<date> server id 1  end_log_pos 575 CRC32 XXX 	GTID 0-1-2 ddl thread_id=TID
 /*!100001 SET @@session.gtid_seq_no=2*//*!*/;
 # at 575
-#<date> server id 1  end_log_pos 727 CRC32 XXX 	Query_compressed	thread_id=5	exec_time=x	error_code=0
+#<date> server id 1  end_log_pos 727 CRC32 XXX 	Query_compressed	thread_id=TID	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
 CREATE TABLE t2 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 INT, f4 INT, f5 MEDIUMINT, f6 INT, f7 INT, f8 char(1))
 /*!*/;
 # at 727
-#<date> server id 1  end_log_pos 769 CRC32 XXX 	GTID 0-1-3
+#<date> server id 1  end_log_pos 769 CRC32 XXX 	GTID 0-1-3 thread_id=TID
 /*!100001 SET @@session.gtid_seq_no=3*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -75,12 +75,12 @@ START TRANSACTION
 ###   @9='' /* STRING(1) meta=65025 nullable=1 is_null=0 */
 # Number of rows: 1
 # at 967
-#<date> server id 1  end_log_pos 1040 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
+#<date> server id 1  end_log_pos 1040 CRC32 XXX 	Query	thread_id=TID	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
 COMMIT
 /*!*/;
 # at 1040
-#<date> server id 1  end_log_pos 1082 CRC32 XXX 	GTID 0-1-4
+#<date> server id 1  end_log_pos 1082 CRC32 XXX 	GTID 0-1-4 thread_id=TID
 /*!100001 SET @@session.gtid_seq_no=4*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -104,12 +104,12 @@ START TRANSACTION
 ###   @9=NULL /* STRING(1) meta=65025 nullable=1 is_null=1 */
 # Number of rows: 1
 # at 1281
-#<date> server id 1  end_log_pos 1354 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
+#<date> server id 1  end_log_pos 1354 CRC32 XXX 	Query	thread_id=TID	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
 COMMIT
 /*!*/;
 # at 1354
-#<date> server id 1  end_log_pos 1396 CRC32 XXX 	GTID 0-1-5
+#<date> server id 1  end_log_pos 1396 CRC32 XXX 	GTID 0-1-5 thread_id=TID
 /*!100001 SET @@session.gtid_seq_no=5*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -133,12 +133,12 @@ START TRANSACTION
 ###   @9='A' /* STRING(1) meta=65025 nullable=1 is_null=0 */
 # Number of rows: 1
 # at 1596
-#<date> server id 1  end_log_pos 1669 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
+#<date> server id 1  end_log_pos 1669 CRC32 XXX 	Query	thread_id=TID	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
 COMMIT
 /*!*/;
 # at 1669
-#<date> server id 1  end_log_pos 1711 CRC32 XXX 	GTID 0-1-6
+#<date> server id 1  end_log_pos 1711 CRC32 XXX 	GTID 0-1-6 thread_id=TID
 /*!100001 SET @@session.gtid_seq_no=6*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -162,12 +162,12 @@ START TRANSACTION
 ###   @9='A' /* STRING(1) meta=65025 nullable=1 is_null=0 */
 # Number of rows: 1
 # at 1909
-#<date> server id 1  end_log_pos 1982 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
+#<date> server id 1  end_log_pos 1982 CRC32 XXX 	Query	thread_id=TID	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
 COMMIT
 /*!*/;
 # at 1982
-#<date> server id 1  end_log_pos 2024 CRC32 XXX 	GTID 0-1-7
+#<date> server id 1  end_log_pos 2024 CRC32 XXX 	GTID 0-1-7 thread_id=TID
 /*!100001 SET @@session.gtid_seq_no=7*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -224,12 +224,12 @@ START TRANSACTION
 ###   @9='A' /* STRING(1) meta=65025 nullable=1 is_null=0 */
 # Number of rows: 4
 # at 2225
-#<date> server id 1  end_log_pos 2298 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
+#<date> server id 1  end_log_pos 2298 CRC32 XXX 	Query	thread_id=TID	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
 COMMIT
 /*!*/;
 # at 2298
-#<date> server id 1  end_log_pos 2340 CRC32 XXX 	GTID 0-1-8
+#<date> server id 1  end_log_pos 2340 CRC32 XXX 	GTID 0-1-8 thread_id=TID
 /*!100001 SET @@session.gtid_seq_no=8*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -305,12 +305,12 @@ START TRANSACTION
 ###   @9='A' /* STRING(1) meta=65025 nullable=1 is_null=0 */
 # Number of rows: 3
 # at 2561
-#<date> server id 1  end_log_pos 2634 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
+#<date> server id 1  end_log_pos 2634 CRC32 XXX 	Query	thread_id=TID	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
 COMMIT
 /*!*/;
 # at 2634
-#<date> server id 1  end_log_pos 2676 CRC32 XXX 	GTID 0-1-9
+#<date> server id 1  end_log_pos 2676 CRC32 XXX 	GTID 0-1-9 thread_id=TID
 /*!100001 SET @@session.gtid_seq_no=9*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -367,12 +367,12 @@ START TRANSACTION
 ###   @9='A' /* STRING(1) meta=65025 nullable=1 is_null=0 */
 # Number of rows: 4
 # at 2861
-#<date> server id 1  end_log_pos 2934 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
+#<date> server id 1  end_log_pos 2934 CRC32 XXX 	Query	thread_id=TID	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
 COMMIT
 /*!*/;
 # at 2934
-#<date> server id 1  end_log_pos 2976 CRC32 XXX 	GTID 0-1-10
+#<date> server id 1  end_log_pos 2976 CRC32 XXX 	GTID 0-1-10 thread_id=TID
 /*!100001 SET @@session.gtid_seq_no=10*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -429,7 +429,7 @@ START TRANSACTION
 ###   @9='A' /* STRING(1) meta=65025 nullable=1 is_null=0 */
 # Number of rows: 4
 # at 3154
-#<date> server id 1  end_log_pos 3227 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
+#<date> server id 1  end_log_pos 3227 CRC32 XXX 	Query	thread_id=TID	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
 COMMIT
 /*!*/;

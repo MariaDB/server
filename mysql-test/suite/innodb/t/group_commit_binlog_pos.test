@@ -97,7 +97,7 @@ SELECT * FROM t1 ORDER BY a;
 # for the end of the second transaction (as can be checked with
 # mysqlbinlog).
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
-let pos=`select $binlog_start_pos + 730`;
+let pos=`select $binlog_start_pos + 740`;
 --replace_result $pos <pos>
 --exec sed -ne 's/.*\(InnoDB: Last binlog file .* position.*\)/\1/p' $MYSQLD_DATADIR/../../log/mysqld.1.err | tail -1
 
