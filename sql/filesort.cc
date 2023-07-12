@@ -202,7 +202,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   else
     thd->inc_status_sort_scan();
   thd->query_plan_flags|= QPLAN_FILESORT;
-  tracker->report_use(max_rows);
+  tracker->report_use(thd, max_rows);
 
   // If number of rows is not known, use as much of sort buffer as possible. 
   num_rows= table->file->estimate_rows_upper_bound();
@@ -372,7 +372,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
       outfile->end_of_file=save_pos;
     }
   }
-  tracker->report_merge_passes_at_end(thd->query_plan_fsort_passes);
+  tracker->report_merge_passes_at_end(thd, thd->query_plan_fsort_passes);
   if (unlikely(error))
   {
     int kill_errno= thd->killed_errno();

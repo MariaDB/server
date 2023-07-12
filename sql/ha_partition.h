@@ -1619,5 +1619,6 @@ public:
 
   friend int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2);
   friend int cmp_key_part_id(void *key_p, uchar *ref1, uchar *ref2);
+  void handler_stats_updated() override;
 };
 #endif /* HA_PARTITION_INCLUDED */

@@ -48,6 +48,7 @@
 #include <mysql/psi/mysql_table.h>
 #include <mysql_com_server.h>
 #include "session_tracker.h"
+#include "ha_handler_stats.h"                    // ha_handler_stats */
 
 extern "C"
 void set_thd_stage_info(void *thd,
@@ -1663,6 +1664,7 @@ public:
   ulonglong cuted_fields, sent_row_count, examined_row_count;
   ulonglong affected_rows;
   ulonglong bytes_sent_old;
+  ha_handler_stats handler_stats;
   ulong     tmp_tables_used;
   ulong     tmp_tables_disk_used;
   ulong     query_plan_fsort_passes;
@@ -2218,6 +2220,22 @@ public:
 
 extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
 
+class Gap_time_tracker;
+
+/*
+  Thread context for Gap_time_tracker class.
+*/
+class Gap_time_tracker_data
+{
+public:
+  Gap_time_tracker_data(): bill_to(NULL) {}
+
+  Gap_time_tracker *bill_to;
+  ulonglong start_time;
+
+  void init() { bill_to = NULL; }
+};
+
 /**
   @class THD
   For each client connection we create a separate thread with THD serving as
@@ -2323,6 +2341,7 @@ public:
   struct  system_status_var status_var; // Per thread statistic vars
   struct  system_status_var org_status_var; // For user statistics
   struct  system_status_var *initial_status_var; /* used by show status */
+  ha_handler_stats handler_stats;       // Handler statistics
   THR_LOCK_INFO lock_info;              // Locking info of this thread
   /**
     Protects THD data accessed from other threads:
@@ -3394,6 +3413,8 @@ public:
     Show_explain_request uses this.
   */
   Apc_target apc_target;
+
+  Gap_time_tracker_data gap_tracker_data;
 
 #ifndef MYSQL_CLIENT
   enum enum_binlog_query_type {
@@ -4938,6 +4959,12 @@ public:
   Item *sp_fix_func_item(Item **it_addr);
   Item *sp_prepare_func_item(Item **it_addr, uint cols= 1);
   bool sp_eval_expr(Field *result_field, Item **expr_item_ptr);
+
+  bool should_collect_handler_stats() const
+  {
+    return (variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_ENGINE) ||
+           lex->explain_json_ext;
+  }
 };
 
 inline void add_to_active_threads(THD *thd)

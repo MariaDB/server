@@ -35,6 +35,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "mach0data.h"
 #include "page0size.h"
 #include "buf0buf.h"
+#include "mariadb_stats.h"
 #include <string.h>
 
 #ifdef UNIV_NONINL
@@ -3551,6 +3552,7 @@ buf_page_get_zip(
 	buf_pool_t*	buf_pool = buf_pool_get(page_id);
 
 	buf_pool->stat.n_page_gets++;
+	mariadb_increment_pages_accessed();
 
 	for (;;) {
 lookup:
@@ -4033,6 +4035,8 @@ buf_page_get_low(
 	      || ibuf_page_low(page_id, page_size, FALSE, file, line, NULL));
 
 	buf_pool->stat.n_page_gets++;
+	mariadb_increment_pages_accessed();
+
 	hash_lock = buf_page_hash_lock_get(buf_pool, page_id);
 loop:
 	block = guess;
@@ -4142,6 +4146,7 @@ loop:
 		dberr_t local_err = buf_read_page(page_id, page_size);
 
 		if (local_err == DB_SUCCESS) {
+			mariadb_increment_pages_read();
 			buf_read_ahead_random(page_id, page_size,
 					      ibuf_inside(mtr));
 
@@ -4772,7 +4777,8 @@ buf_page_optimistic_get(
 	}
 
 	buf_pool = buf_pool_from_block(block);
-	buf_pool->stat.n_page_gets++;
+//	buf_pool->stat.n_page_gets++;
+//	mariadb_increment_pages_accessed(); // Do not count optimistic access
 
 	return(TRUE);
 }
@@ -4948,6 +4954,7 @@ buf_page_try_get_func(
 	buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
 
 	buf_pool->stat.n_page_gets++;
+	mariadb_increment_pages_accessed();
 
 	return(block);
 }

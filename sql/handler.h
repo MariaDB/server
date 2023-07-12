@@ -35,6 +35,7 @@
 #include "sql_array.h"          /* Dynamic_array<> */
 #include "mdl.h"
 #include "vers_string.h"
+#include "ha_handler_stats.h"
 
 #include "sql_analyze_stmt.h" // for Exec_time_tracker 
 
@@ -164,6 +165,9 @@ enum enum_alter_inplace_result {
 */
 #define HA_BINLOG_ROW_CAPABLE  (1ULL << 34)
 #define HA_BINLOG_STMT_CAPABLE (1ULL << 35)
+#define HA_CAN_QUERY_STATS  (1ULL << 62)
+
+#define HA_LAST_TABLE_FLAG HA_CAN_QUERY_STATS
 
 /*
     When a multiple key conflict happens in a REPLACE command mysql
@@ -2846,12 +2850,24 @@ protected:
   Table_flags cached_table_flags;       /* Set on init() and open() */
 
   ha_rows estimation_rows_to_insert;
+
+  /* Statistics for the query. Updated if handler_stats.in_use is set */
+  ha_handler_stats active_handler_stats;
+  void set_handler_stats();
 public:
   handlerton *ht;                 /* storage engine of this handler */
   uchar *ref;				/* Pointer to current row */
   uchar *dup_ref;			/* Pointer to duplicate row */
 
+  /* General statistics for the table like number of row, file sizes etc */
   ha_statistics stats;
+  /*
+    Collect query stats here if pointer is != NULL.
+    This is a pointer because if we do a clone of the handler, we want to
+    use the original handler for collecting statistics.
+  */
+  ha_handler_stats *handler_stats;
+ 
 
   /** MultiRangeRead-related members: */
   range_seq_t mrr_iter;    /* Iterator to traverse the range sequence */
@@ -2928,6 +2944,7 @@ private:
   Exec_time_tracker *tracker;
 public:
   void set_time_tracker(Exec_time_tracker *tracker_arg) { tracker=tracker_arg;}
+  Exec_time_tracker *get_time_tracker() { return tracker; }
 
   Item *pushed_idx_cond;
   uint pushed_idx_cond_keyno;  /* The index which the above condition is for */
@@ -2980,7 +2997,8 @@ private:
 public:
   handler(handlerton *ht_arg, TABLE_SHARE *share_arg)
     :table_share(share_arg), table(0),
-    estimation_rows_to_insert(0), ht(ht_arg),
+    estimation_rows_to_insert(0),
+    ht(ht_arg), handler_stats(NULL),
     ref(0), end_range(NULL),
     implicit_emptied(0),
     mark_trx_read_write_done(0),
@@ -4333,6 +4351,7 @@ public:
     check_table_binlog_row_based_done= 0;
     check_table_binlog_row_based_result= 0;
   }
+
 private:
   /* Cache result to avoid extra calls */
   inline void mark_trx_read_write()
@@ -4435,6 +4454,22 @@ public:
   {
     return HA_ERR_WRONG_COMMAND;
   }
+  virtual void handler_stats_updated() {}
+
+  inline void ha_handler_stats_reset()
+  {
+    handler_stats= &active_handler_stats;
+    active_handler_stats.reset();
+    active_handler_stats.active= 1;
+    handler_stats_updated();
+  }
+  inline void ha_handler_stats_disable()
+  {
+    handler_stats= 0;
+    active_handler_stats.active= 0;
+    handler_stats_updated();
+  }
+
 private:
   virtual int pre_direct_delete_rows_init()
   {
@@ -4826,12 +4861,12 @@ int binlog_log_row(TABLE* table,
   { \
     Exec_time_tracker *this_tracker; \
     if (unlikely((this_tracker= tracker))) \
-      tracker->start_tracking(); \
+      tracker->start_tracking(table->in_use); \
     \
     MYSQL_TABLE_IO_WAIT(PSI, OP, INDEX, FLAGS, PAYLOAD); \
     \
     if (unlikely(this_tracker)) \
-      tracker->stop_tracking(); \
+      tracker->stop_tracking(table->in_use); \
   }
 
 void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag);

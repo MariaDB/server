@@ -1566,6 +1566,30 @@ void add_json_keyset(Json_writer *writer, const char *elem_name,
     print_json_array(writer, elem_name, *keyset);
 }
 
+void Explain_rowid_filter::print_explain_json(Explain_query *query,
+                                              Json_writer *writer,
+                                              bool is_analyze)
+{
+  Json_writer_nesting_guard guard(writer);
+  writer->add_member("rowid_filter").start_object();
+  quick->print_json(writer);
+  writer->add_member("rows").add_ll(rows);
+  writer->add_member("selectivity_pct").add_double(selectivity * 100.0);
+  if (is_analyze)
+  {
+    writer->add_member("r_rows").add_double(tracker->get_container_elements());
+    writer->add_member("r_lookups").add_ll(tracker->get_container_lookups());
+    writer->add_member("r_selectivity_pct").
+      add_double(tracker->get_r_selectivity_pct() * 100.0);
+    writer->add_member("r_buffer_size").
+      add_double((double) (tracker->get_container_buff_size()));
+    writer->add_member("r_filling_time_ms").
+      add_double(tracker->get_time_fill_container_ms());
+  }
+  writer->end_object(); // rowid_filter
+}
+
+
 
 void Explain_table_access::print_explain_json(Explain_query *query,
                                               Json_writer *writer,
@@ -1664,6 +1688,11 @@ void Explain_table_access::print_explain_json(Explain_query *query,
   if (!ref_list.is_empty())
     print_json_array(writer, "ref", ref_list);
 
+  if (rowid_filter)
+  {
+    rowid_filter->print_explain_json(query, writer, is_analyze);
+  }
+
   /* r_loops (not present in tabular output) */
   if (is_analyze)
   {
@@ -1698,6 +1727,23 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     {
       writer->add_member("r_total_time_ms").
               add_double(op_tracker.get_time_ms());
+    }
+    if (handler_for_stats && handler_for_stats->handler_stats)
+    {
+      ha_handler_stats *hs= handler_for_stats->handler_stats;
+      writer->add_member("r_engine_stats").start_object();
+      if (hs->pages_accessed)
+        writer->add_member("pages_accessed").add_ull(hs->pages_accessed);
+      if (hs->pages_updated)
+        writer->add_member("pages_updated").add_ull(hs->pages_updated);
+      if (hs->pages_read_count)
+        writer->add_member("pages_read_count").add_ull(hs->pages_read_count);
+      if (hs->pages_read_time)
+        writer->add_member("pages_read_time_ms").
+          add_double(hs->pages_read_time / 1000.0);
+      if (hs->undo_records_read)
+        writer->add_member("undo_records_read").add_ull(hs->undo_records_read);
+      writer->end_object();
     }
   }
   

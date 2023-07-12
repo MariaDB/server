@@ -32,6 +32,7 @@ Created 11/26/1995 Heikki Tuuri
 #include "mtr0log.h"
 #include "row0trunc.h"
 #include "log0recv.h"
+#include "mariadb_stats.h"
 
 /** Iterate over a memo block in reverse. */
 template <typename Functor>
@@ -418,6 +419,19 @@ inline void mtr_t::release_resources()
   m_state= MTR_STATE_COMMITTED;
 }
 
+#ifdef UNIV_DEBUG
+struct add_if_modify {
+  size_t *modified;
+  add_if_modify( size_t *modified ) : modified(modified) { }
+  bool operator()(mtr_memo_slot_t *slot) const
+  {
+    if( slot->type & MTR_MEMO_MODIFY )
+      (*modified)++;
+    return true;
+  }
+};
+#endif
+
 /** Commit a mini-transaction. */
 void
 mtr_t::commit()
@@ -435,6 +449,7 @@ mtr_t::commit()
     ut_ad(!srv_read_only_mode || m_log_mode == MTR_LOG_NO_REDO);
 
     lsn_t start_lsn;
+    size_t modified= 0;
 
     if (const ulint len= prepare_write())
       start_lsn= finish_write(len);
@@ -452,10 +467,17 @@ mtr_t::commit()
     m_memo.for_each_block_in_reverse(CIterate<const ReleaseBlocks>
                                      (ReleaseBlocks(start_lsn, m_commit_lsn,
                                                     m_flush_observer)));
+
+#ifdef UNIV_DEBUG
+    m_memo.for_each_block_in_reverse(
+        CIterate<add_if_modify>(add_if_modify(&modified)));
+#endif
+
     if (m_made_dirty)
       log_flush_order_mutex_exit();
 
     m_memo.for_each_block_in_reverse(CIterate<ReleaseLatches>());
+    mariadb_increment_pages_updated(modified);
   }
   else
     m_memo.for_each_block_in_reverse(CIterate<ReleaseAll>());

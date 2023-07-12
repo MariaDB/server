@@ -3980,9 +3980,9 @@ void JOIN::exec()
                                                select_lex->select_number))
                         dbug_serve_apcs(thd, 1);
                  );
-  ANALYZE_START_TRACKING(&explain->time_tracker);
+  ANALYZE_START_TRACKING(thd, &explain->time_tracker);
   exec_inner();
-  ANALYZE_STOP_TRACKING(&explain->time_tracker);
+  ANALYZE_STOP_TRACKING(thd, &explain->time_tracker);
 
   DBUG_EXECUTE_IF("show_explain_probe_join_exec_end", 
                   if (dbug_user_var_equals_int(thd, 
@@ -25780,8 +25780,21 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
   jbuf_tracker= &eta->jbuf_tracker;
 
   /* Enable the table access time tracker only for "ANALYZE stmt" */
-  if (thd->lex->analyze_stmt)
+  if (unlikely(thd->lex->analyze_stmt ||
+               thd->variables.log_slow_verbosity &
+               LOG_SLOW_VERBOSITY_ENGINE))
+  {
     table->file->set_time_tracker(&eta->op_tracker);
+
+    if (likely(thd->lex->analyze_stmt))
+    {
+      eta->op_tracker.set_gap_tracker(&eta->extra_time_tracker);
+      eta->jbuf_unpack_tracker.set_gap_tracker(&eta->jbuf_extra_time_tracker);
+    }
+    //TODO: should the eta also own the handler_stats object?
+    if (thd->lex->explain_json_ext)
+      eta->handler_for_stats= table->file;
+  }
 
   /* No need to save id and select_type here, they are kept in Explain_select */
 
@@ -26390,7 +26403,8 @@ int JOIN::save_explain_data_intern(Explain_query *output,
 
 
       Explain_table_access *eta= (new (output->mem_root)
-                                  Explain_table_access(output->mem_root));
+                                  Explain_table_access(output->mem_root,
+                                                       thd->lex->analyze_stmt));
 
       if (!eta)
         DBUG_RETURN(1);

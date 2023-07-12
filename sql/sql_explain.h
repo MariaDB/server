@@ -608,6 +608,37 @@ public:
   inline uint get_key_len() const { return key_len; }
 };
 
+/*
+  Query Plan data structure for Rowid filter.
+*/
+class Explain_rowid_filter : public Sql_alloc
+{
+public:
+  /* Quick select used to collect the rowids into filter */
+  Explain_quick_select *quick;
+
+  /* How many rows the above quick select is expected to return */
+  ha_rows rows;
+
+  /* Expected selectivity for the filter */
+  double selectivity;
+
+  /* Tracker with the information about how rowid filter is executed */
+  Rowid_filter_tracker *tracker;
+
+  void print_explain_json(Explain_query *query, Json_writer *writer,
+                          bool is_analyze);
+
+  /* 
+    TODO:
+      Here should be ANALYZE members:
+      - r_rows for the quick select
+      - An object that tracked the table access time
+      - real selectivity of the filter.
+  */ 
+};
+
+
 
 /*
   QPF for quick range selects, as well as index_merge select
@@ -682,7 +713,7 @@ public:
 class Explain_table_access : public Sql_alloc
 {
 public:
-  Explain_table_access(MEM_ROOT *root) :
+  Explain_table_access(MEM_ROOT *root, bool timed) :
     derived_select_number(0),
     non_merged_sjm_number(0),
     extra_tags(root),
@@ -694,7 +725,10 @@ public:
     cache_cond(NULL),
     pushed_index_cond(NULL),
     sjm_nest(NULL),
-    pre_join_sort(NULL)
+    pre_join_sort(NULL),
+    handler_for_stats(NULL),
+    jbuf_unpack_tracker(timed),
+    rowid_filter(NULL)
   {}
   ~Explain_table_access() { delete sjm_nest; }
 
@@ -796,6 +830,22 @@ public:
 
   /* ANALYZE members */
 
+  Gap_time_tracker extra_time_tracker;
+  /*
+     When using join buffer: time spent after unpacking rows from the join
+    buffer. This will capture the time spent checking the Join Condition:
+    the condition that depends on this table and preceding tables.
+  */
+  Gap_time_tracker jbuf_extra_time_tracker; 
+
+  Explain_rowid_filter *rowid_filter;
+
+  // TODO: Is it really safe to keep the pointer here?
+  handler *handler_for_stats;
+
+  /* When using join buffer: time spent unpacking rows from the join buffer */
+  Time_and_counter_tracker jbuf_unpack_tracker;
+ 
   /* Tracker for reading the table */
   Table_access_tracker tracker;
   Exec_time_tracker op_tracker;
@@ -886,12 +936,28 @@ public:
 
   /* ANALYZE members and methods */
   Table_access_tracker tracker;
+  Exec_time_tracker op_tracker;
+  Gap_time_tracker extra_time_tracker;
 
+  // TODO: Is it really safe to keep the pointer here?
+  handler *handler_for_stats;
+  
+  /* When using join buffer: Track the reads from join buffer */
+  Table_access_tracker jbuf_tracker;
+  
   /* This tracks execution of the whole command */
   Time_and_counter_tracker command_tracker;
   
   /* TODO: This tracks time to read rows from the table */
   Exec_time_tracker table_tracker;
+
+  /*
+    When using join buffer: time spent after unpacking rows from the join
+    buffer. This will capture the time spent checking the Join Condition:
+    the condition that depends on this table and preceding tables.
+  */
+  Gap_time_tracker jbuf_extra_time_tracker;
+
 
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
                             uint8 explain_flags, bool is_analyze);

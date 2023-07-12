@@ -706,6 +706,7 @@ void LEX::start(THD *thd_arg)
   describe= 0;
   analyze_stmt= 0;
   explain_json= false;
+  explain_json_ext= 0;
   context_analysis_only= 0;
   derived_tables= 0;
   with_cte_resolution= false;

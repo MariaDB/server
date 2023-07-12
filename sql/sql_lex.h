@@ -2796,9 +2796,10 @@ public:
   void set_impossible_where() { impossible_where= true; }
   void set_no_partitions() { no_partitions= true; }
 
-  Explain_update* save_explain_update_data(MEM_ROOT *mem_root, THD *thd);
+  Explain_update* save_explain_update_data(THD *thd, MEM_ROOT *mem_root);
 protected:
-  bool save_explain_data_intern(MEM_ROOT *mem_root, Explain_update *eu, bool is_analyze);
+  bool save_explain_data_intern(THD *thd, MEM_ROOT *mem_root, 
+                                Explain_update *eu, bool is_analyze);
 public:
   virtual ~Update_plan() {}
 
@@ -2833,7 +2834,7 @@ public:
     deleting_all_rows= false;
   }
 
-  Explain_delete* save_explain_delete_data(MEM_ROOT *mem_root, THD *thd);
+  Explain_delete* save_explain_delete_data(THD *thd, MEM_ROOT *mem_root);
 };
 
 
@@ -3055,6 +3056,7 @@ public:
   uint8 describe;
   bool  analyze_stmt; /* TRUE<=> this is "ANALYZE $stmt" */
   bool  explain_json;
+  bool  explain_json_ext;
   /*
     A flag that indicates what kinds of derived tables are present in the
     query (0 if no derived tables, otherwise a combination of flags

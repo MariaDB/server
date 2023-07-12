@@ -56,7 +56,8 @@
     invoked on a running DELETE statement.
 */
 
-Explain_delete* Delete_plan::save_explain_delete_data(MEM_ROOT *mem_root, THD *thd)
+Explain_delete* Delete_plan::save_explain_delete_data(THD *thd, 
+                                                        MEM_ROOT *mem_root)
 {
   Explain_query *query= thd->lex->explain;
   Explain_delete *explain= 
@@ -73,7 +74,7 @@ Explain_delete* Delete_plan::save_explain_delete_data(MEM_ROOT *mem_root, THD *t
   else
   {
     explain->deleting_all_rows= false;
-    if (Update_plan::save_explain_data_intern(mem_root, explain,
+    if (Update_plan::save_explain_data_intern(thd, mem_root, explain,
                                               thd->lex->analyze_stmt))
       return 0;
   }
@@ -84,21 +85,22 @@ Explain_delete* Delete_plan::save_explain_delete_data(MEM_ROOT *mem_root, THD *t
 
 
 Explain_update* 
-Update_plan::save_explain_update_data(MEM_ROOT *mem_root, THD *thd)
+Update_plan::save_explain_update_data(THD *thd, MEM_ROOT *mem_root)
 {
   Explain_query *query= thd->lex->explain;
   Explain_update* explain= 
     new (mem_root) Explain_update(mem_root, thd->lex->analyze_stmt);
   if (!explain)
     return 0;
-  if (save_explain_data_intern(mem_root, explain, thd->lex->analyze_stmt))
+  if (save_explain_data_intern(thd, mem_root, explain, thd->lex->analyze_stmt))
     return 0;
   query->add_upd_del_plan(explain);
   return explain;
 }
 
 
-bool Update_plan::save_explain_data_intern(MEM_ROOT *mem_root,
+bool Update_plan::save_explain_data_intern(THD *thd,
+                                           MEM_ROOT *mem_root,
                                            Explain_update *explain,
                                            bool is_analyze)
 {
@@ -120,7 +122,9 @@ bool Update_plan::save_explain_data_intern(MEM_ROOT *mem_root,
     return 0;
   }
   
-  if (is_analyze)
+  if (is_analyze ||
+      (thd->variables.log_slow_verbosity &
+       LOG_SLOW_VERBOSITY_ENGINE))
     table->file->set_time_tracker(&explain->table_tracker);
 
   select_lex->set_explain_type(TRUE);
@@ -428,7 +432,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       query_type= THD::STMT_QUERY_TYPE;
       error= -1;
       deleted= maybe_deleted;
-      if (!query_plan.save_explain_delete_data(thd->mem_root, thd))
+      if (!query_plan.save_explain_delete_data(thd, thd->mem_root))
         error= 1;
       goto cleanup;
     }
@@ -547,9 +551,9 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (thd->lex->describe)
     goto produce_explain_and_leave;
   
-  if (!(explain= query_plan.save_explain_delete_data(thd->mem_root, thd)))
+  if (!(explain= query_plan.save_explain_delete_data(thd, thd->mem_root)))
     goto got_error;
-  ANALYZE_START_TRACKING(&explain->command_tracker);
+  ANALYZE_START_TRACKING(thd, &explain->command_tracker);
 
   DBUG_EXECUTE_IF("show_explain_probe_delete_exec_start", 
                   dbug_serve_apcs(thd, 1););
@@ -784,7 +788,7 @@ terminate_delete:
   end_read_record(&info);
   if (options & OPTION_QUICK)
     (void) table->file->extra(HA_EXTRA_NORMAL);
-  ANALYZE_STOP_TRACKING(&explain->command_tracker);
+  ANALYZE_STOP_TRACKING(thd, &explain->command_tracker);
 
 cleanup:
   /*
@@ -868,7 +872,7 @@ produce_explain_and_leave:
     We come here for various "degenerate" query plans: impossible WHERE,
     no-partitions-used, impossible-range, etc.
   */
-  if (!(query_plan.save_explain_delete_data(thd->mem_root, thd)))
+  if (!(query_plan.save_explain_delete_data(thd, thd->mem_root)))
     goto got_error;
 
 send_nothing_and_leave:

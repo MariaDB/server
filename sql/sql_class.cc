@@ -5450,6 +5450,7 @@ void THD::store_slow_query_state(Sub_statement_state *backup)
   backup->tmp_tables_disk_used=    tmp_tables_disk_used;
   backup->tmp_tables_size=         tmp_tables_size;
   backup->tmp_tables_used=         tmp_tables_used;
+  backup->handler_stats=            handler_stats;
 }
 
 /* Reset variables related to slow query log */
@@ -5465,6 +5466,8 @@ void THD::reset_slow_query_state()
   tmp_tables_disk_used=         0;
   tmp_tables_size=              0;
   tmp_tables_used=              0;
+  if ((variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_ENGINE))
+    handler_stats.reset();
 }
 
 /*
@@ -5483,6 +5486,8 @@ void THD::add_slow_query_state(Sub_statement_state *backup)
   tmp_tables_disk_used+=         backup->tmp_tables_disk_used;
   tmp_tables_size+=              backup->tmp_tables_size;
   tmp_tables_used+=              backup->tmp_tables_used;
+  if ((variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_ENGINE))
+    handler_stats.add(&backup->handler_stats);
 }
 
 

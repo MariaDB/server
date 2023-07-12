@@ -4934,6 +4934,13 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
     (*f_ptr)->cond_selectivity= 1.0;
   }
 
+  /* enable and clear or disable engine query statistics */
+  if (thd->should_collect_handler_stats())
+    file->ha_handler_stats_reset();
+  else
+    file->ha_handler_stats_disable();
+
+
   DBUG_ASSERT(!file->keyread_enabled());
 
   restore_record(this, s->default_values);

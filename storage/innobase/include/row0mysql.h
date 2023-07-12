@@ -43,6 +43,7 @@ Created 9/17/2000 Heikki Tuuri
 extern ibool row_rollback_on_timeout;
 
 struct row_prebuilt_t;
+class ha_handler_stats;
 
 /*******************************************************************//**
 Frees the blob heap in prebuilt when no longer needed. */

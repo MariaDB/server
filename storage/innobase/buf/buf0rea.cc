@@ -40,6 +40,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "os0file.h"
 #include "srv0start.h"
 #include "srv0srv.h"
+#include "mariadb_stats.h"
 
 /** There must be at least this many pages in buf_pool in the area to start
 a random read-ahead */
@@ -163,8 +164,12 @@ buf_read_page_low(
 
 	ut_ad(buf_page_in_file(bpage));
 
+	ulonglong mariadb_timer= 0;
+
 	if (sync) {
 		thd_wait_begin(NULL, THD_WAIT_DISKIO);
+		if (mariadb_stats_active())
+			mariadb_timer= mariadb_measure();
 	}
 
 	void*	dst;
@@ -185,6 +190,8 @@ buf_read_page_low(
 
 	if (sync) {
 		thd_wait_end(NULL);
+		if (mariadb_timer)
+		  mariadb_increment_pages_read_time(mariadb_timer);
 	}
 
 	if (UNIV_UNLIKELY(*err != DB_SUCCESS)) {
