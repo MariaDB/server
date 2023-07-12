@@ -27,7 +27,7 @@ connection con1;
 SET @old_dbug = @@SESSION.debug_dbug;
 SET debug_dbug = '+d,fts_instrument_sync_debug';
 
-SET DEBUG_SYNC= 'fts_sync_end SIGNAL written WAIT_FOR selected';
+SET DEBUG_SYNC= 'fts_write_node SIGNAL written WAIT_FOR selected';
 
 send INSERT INTO t1(title) VALUES('mysql database');
 
@@ -74,7 +74,7 @@ connection con1;
 
 SET debug_dbug = '+d,fts_instrument_sync_debug';
 
-SET DEBUG_SYNC= 'fts_sync_end SIGNAL written WAIT_FOR inserted';
+SET DEBUG_SYNC= 'fts_write_node SIGNAL written WAIT_FOR inserted';
 
 send INSERT INTO t1(title) VALUES('mysql database');
 
@@ -104,7 +104,8 @@ disconnect con1;
 DROP TABLE t1;
 
 --echo # Case 3: Test insert crash recovery
---let $_expect_file_name=$MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect
+--let $_expect_file_name= `select regexp_replace(@@tmpdir, '^.*/','')`
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/$_expect_file_name.expect
 
 CREATE TABLE t1 (
         FTS_DOC_ID BIGINT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,

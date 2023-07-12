@@ -481,6 +481,13 @@ static ulint row_merge_bulk_buf_add(row_merge_buf_t* buf,
 
     ulint fixed_len= ifield->fixed_len;
 
+    /* CHAR in ROW_FORMAT=REDUNDANT is always
+    fixed-length, but in the temporary file it is
+    variable-length for variable-length character sets. */
+    if (fixed_len && !index->table->not_redundant() &&
+        col->mbminlen != col->mbmaxlen)
+      fixed_len= 0;
+
     if (fixed_len);
     else if (len < 128 || (!DATA_BIG_COL(col)))
       extra_size++;
@@ -758,11 +765,6 @@ error:
 						row_field, field, col->len,
 						old_table->space->zip_size(),
 						conv_heap);
-				} else {
-					/* Field length mismatch should not
-					happen when rebuilding redundant row
-					format table. */
-					ut_ad(index->table->not_redundant());
 				}
 			}
 		}

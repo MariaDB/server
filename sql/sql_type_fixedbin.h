@@ -468,7 +468,7 @@ public:
       return def->frm_unpack_charset(share, buffer);
     }
     void make_sort_key_part(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
-                            Sort_param *param) const override
+                            String *) const override
     {
       DBUG_ASSERT(item->type_handler() == this);
       NativeBuffer<FbtImpl::binary_length()+1> tmp;
@@ -489,7 +489,7 @@ public:
     }
     uint make_packed_sort_key_part(uchar *to, Item *item,
                                    const SORT_FIELD_ATTR *sort_field,
-                                   Sort_param *param) const override
+                                   String *) const override
     {
       DBUG_ASSERT(item->type_handler() == this);
       NativeBuffer<FbtImpl::binary_length()+1> tmp;

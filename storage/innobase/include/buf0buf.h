@@ -71,8 +71,7 @@ struct buf_pool_info_t
 	ulint	flush_list_len;		/*!< Length of buf_pool.flush_list */
 	ulint	n_pend_unzip;		/*!< buf_pool.n_pend_unzip, pages
 					pending decompress */
-	ulint	n_pend_reads;		/*!< buf_pool.n_pend_reads, pages
-					pending read */
+	ulint	n_pend_reads;		/*!< os_aio_pending_reads() */
 	ulint	n_pending_flush_lru;	/*!< Pages pending flush in LRU */
 	ulint	n_pending_flush_list;	/*!< Pages pending flush in FLUSH
 					LIST */
@@ -1592,8 +1591,6 @@ public:
   /** map of block->frame to buf_block_t blocks that belong
   to buf_buddy_alloc(); protected by buf_pool.mutex */
   hash_table_t zip_hash;
-	/** number of pending read operations */
-	Atomic_counter<ulint> n_pend_reads;
 	Atomic_counter<ulint>
 			n_pend_unzip;	/*!< number of pending decompressions */
 
@@ -1620,7 +1617,7 @@ public:
   /** flush_list size in bytes; protected by flush_list_mutex */
   ulint flush_list_bytes;
   /** possibly modified persistent pages (a subset of LRU);
-  buf_dblwr.pending_writes() is approximately COUNT(is_write_fixed()) */
+  os_aio_pending_writes() is approximately COUNT(is_write_fixed()) */
   UT_LIST_BASE_NODE_T(buf_page_t) flush_list;
   /** number of blocks ever added to flush_list;
   sometimes protected by flush_list_mutex */
@@ -1775,18 +1772,6 @@ public:
 
   /** Reserve a buffer. */
   buf_tmp_buffer_t *io_buf_reserve() { return io_buf.reserve(); }
-
-  /** @return whether any I/O is pending */
-  bool any_io_pending()
-  {
-    if (n_pend_reads)
-      return true;
-    mysql_mutex_lock(&flush_list_mutex);
-    const bool any_pending= page_cleaner_status > PAGE_CLEANER_IDLE ||
-      buf_dblwr.pending_writes();
-    mysql_mutex_unlock(&flush_list_mutex);
-    return any_pending;
-  }
 
   /** Remove a block from flush_list.
   @param bpage   buffer pool page */

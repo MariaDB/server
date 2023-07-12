@@ -591,10 +591,11 @@ private:
   */
   bool create_handler_file(const char *name);
   bool setup_engine_array(MEM_ROOT *mem_root, handlerton *first_engine);
-  bool read_par_file(const char *name);
+  int read_par_file(const char *name);
   handlerton *get_def_part_engine(const char *name);
   bool get_from_handler_file(const char *name, MEM_ROOT *mem_root,
                              bool is_clone);
+  bool re_create_par_file(const char *name);
   bool new_handlers_from_part_info(MEM_ROOT *mem_root);
   bool create_handlers(MEM_ROOT *mem_root);
   void clear_handler_file();
@@ -1302,7 +1303,18 @@ public:
       The following code is not safe if you are using different
       storage engines or different index types per partition.
     */
-    return m_file[0]->index_flags(inx, part, all_parts);
+    ulong part_flags= m_file[0]->index_flags(inx, part, all_parts);
+
+    /*
+      The underlying storage engine might support Rowid Filtering. But
+      ha_partition does not forward the needed SE API calls, so the feature
+      will not be used.
+
+      Note: It's the same with IndexConditionPushdown, except for its variant
+      of IndexConditionPushdown+BatchedKeyAccess (that one works). Because of
+      that, we do not clear HA_DO_INDEX_COND_PUSHDOWN here.
+    */
+    return part_flags & ~HA_DO_RANGE_FILTER_PUSHDOWN;
   }
 
   /**
@@ -1637,6 +1649,8 @@ public:
                           const Column_definition &new_field) const override;
   void set_optimizer_costs(THD *thd) override;
   void update_optimizer_costs(OPTIMIZER_COSTS *costs) override;
+  virtual ulonglong index_blocks(uint index, uint ranges, ha_rows rows) override;
+  virtual ulonglong row_blocks() override;
 };
 
 #endif /* HA_PARTITION_INCLUDED */

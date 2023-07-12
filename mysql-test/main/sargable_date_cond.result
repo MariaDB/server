@@ -721,7 +721,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 300.4906324,
+    "cost": 24.30051963,
     "nested_loop": [
       {
         "table": {
@@ -750,7 +750,7 @@ EXPLAIN
             "used_key_parts": ["a"],
             "loops": 252.56,
             "rows": 961,
-            "cost": 299.9325764,
+            "cost": 23.74246363,
             "filtered": 56,
             "index_condition": "t22.a >= '2017-02-01 00:00:00'",
             "attached_condition": "t22.a >= '2017-02-01 00:00:00' and t22.b > '2017-11-01'"

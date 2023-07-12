@@ -106,9 +106,9 @@ public:
 	}
 
 	/* Wait for completions of all AIO operations */
-	void wait(std::unique_lock<std::mutex> &lk)
+	void wait(mysql_mutex_t &m)
 	{
-		m_cache.wait(lk);
+		m_cache.wait(m);
 	}
 
 	void wait()
@@ -131,14 +131,13 @@ public:
 		wait();
 	}
 
-	std::mutex& mutex()
+	mysql_mutex_t& mutex()
 	{
 		return m_cache.mutex();
 	}
 
-	void resize(int max_submitted_io, int max_callback_concurrency, std::unique_lock<std::mutex> &lk)
+	void resize(int max_submitted_io, int max_callback_concurrency)
 	{
-		ut_a(lk.owns_lock());
 		m_cache.resize(max_submitted_io);
 		m_group.set_max_tasks(max_callback_concurrency);
 		m_max_aio = max_submitted_io;
@@ -751,22 +750,16 @@ os_file_punch_hole_posix(
 	return(DB_IO_NO_PUNCH_HOLE);
 }
 
-
-
 /** Retrieves the last error number if an error occurs in a file io function.
 The number should be retrieved before any other OS calls (because they may
 overwrite the error number). If the number is not known to this program,
 the OS error number + 100 is returned.
 @param[in]	report_all_errors	true if we want an error message
-					printed of all errors
+                                        printed of all errors
 @param[in]	on_error_silent		true then don't print any diagnostic
 					to the log
 @return error number, or OS error number + 100 */
-static
-ulint
-os_file_get_last_error_low(
-	bool	report_all_errors,
-	bool	on_error_silent)
+ulint os_file_get_last_error(bool report_all_errors, bool on_error_silent)
 {
 	int	err = errno;
 
@@ -1801,16 +1794,13 @@ bool os_file_flush_func(os_file_t file)
 The number should be retrieved before any other OS calls (because they may
 overwrite the error number). If the number is not known to this program,
 then OS error number + OS_FILE_ERROR_MAX is returned.
-@param[in]	report_all_errors	true if we want an error message printed
-					of all errors
+@param[in]	report_all_errors	true if we want an error message
+printed of all errors
 @param[in]	on_error_silent		true then don't print any diagnostic
 					to the log
 @return error number, or OS error number + OS_FILE_ERROR_MAX */
-static
-ulint
-os_file_get_last_error_low(
-	bool	report_all_errors,
-	bool	on_error_silent)
+ulint os_file_get_last_error(bool report_all_errors, bool on_error_silent)
+
 {
 	ulint	err = (ulint) GetLastError();
 
@@ -2928,20 +2918,6 @@ os_file_read_func(
   return err ? err : DB_IO_ERROR;
 }
 
-/** Retrieves the last error number if an error occurs in a file io function.
-The number should be retrieved before any other OS calls (because they may
-overwrite the error number). If the number is not known to this program,
-the OS error number + 100 is returned.
-@param[in]	report_all_errors	true if we want an error printed
-					for all errors
-@return error number, or OS error number + 100 */
-ulint
-os_file_get_last_error(
-	bool	report_all_errors)
-{
-	return(os_file_get_last_error_low(report_all_errors, false));
-}
-
 /** Handle errors for file operations.
 @param[in]	name		name of a file or NULL
 @param[in]	operation	operation
@@ -2958,7 +2934,7 @@ os_file_handle_error_cond_exit(
 {
 	ulint	err;
 
-	err = os_file_get_last_error_low(false, on_error_silent);
+	err = os_file_get_last_error(false, on_error_silent);
 
 	switch (err) {
 	case OS_FILE_DISK_FULL:
@@ -3421,15 +3397,12 @@ os_file_get_status(
 	return(ret);
 }
 
-
-extern void fil_aio_callback(const IORequest &request);
-
-static void io_callback(tpool::aiocb *cb)
+static void io_callback_errorcheck(const tpool::aiocb *cb)
 {
-  const IORequest &request= *static_cast<const IORequest*>
-    (static_cast<const void*>(cb->m_userdata));
   if (cb->m_err != DB_SUCCESS)
   {
+    const IORequest &request= *static_cast<const IORequest*>
+      (static_cast<const void*>(cb->m_userdata));
     ib::fatal() << "IO Error: " << cb->m_err << " during " <<
       (request.is_async() ? "async " : "sync ") <<
       (request.is_LRU() ? "lru " : "") <<
@@ -3437,20 +3410,36 @@ static void io_callback(tpool::aiocb *cb)
       " of " << cb->m_len << " bytes, for file " << cb->m_fh << ", returned " <<
       cb->m_ret_len;
   }
-  /* Return cb back to cache*/
-  if (cb->m_opcode == tpool::aio_opcode::AIO_PREAD)
-  {
-    ut_ad(read_slots->contains(cb));
-    fil_aio_callback(request);
-    read_slots->release(cb);
-  }
-  else
-  {
-    ut_ad(write_slots->contains(cb));
-    const IORequest req{request};
-    write_slots->release(cb);
-    fil_aio_callback(req);
-  }
+}
+
+static void fake_io_callback(void *c)
+{
+  tpool::aiocb *cb= static_cast<tpool::aiocb*>(c);
+  ut_ad(read_slots->contains(cb));
+  static_cast<const IORequest*>(static_cast<const void*>(cb->m_userdata))->
+    fake_read_complete(cb->m_offset);
+  read_slots->release(cb);
+}
+
+static void read_io_callback(void *c)
+{
+  tpool::aiocb *cb= static_cast<tpool::aiocb*>(c);
+  ut_ad(cb->m_opcode == tpool::aio_opcode::AIO_PREAD);
+  io_callback_errorcheck(cb);
+  ut_ad(read_slots->contains(cb));
+  static_cast<const IORequest*>
+    (static_cast<const void*>(cb->m_userdata))->read_complete();
+  read_slots->release(cb);
+}
+
+static void write_io_callback(void *c)
+{
+  tpool::aiocb *cb= static_cast<tpool::aiocb*>(c);
+  ut_ad(cb->m_opcode == tpool::aio_opcode::AIO_PWRITE);
+  ut_ad(write_slots->contains(cb));
+  static_cast<const IORequest*>
+    (static_cast<const void*>(cb->m_userdata))->write_complete();
+  write_slots->release(cb);
 }
 
 #ifdef LINUX_NATIVE_AIO
@@ -3647,8 +3636,9 @@ more concurrent threads via thread_group setting.
 int os_aio_resize(ulint n_reader_threads, ulint n_writer_threads)
 {
   /* Lock the slots, and wait until all current IOs finish.*/
-  std::unique_lock<std::mutex> lk_read(read_slots->mutex());
-  std::unique_lock<std::mutex> lk_write(write_slots->mutex());
+  auto &lk_read= read_slots->mutex(), &lk_write= write_slots->mutex();
+  mysql_mutex_lock(&lk_read);
+  mysql_mutex_lock(&lk_write);
 
   read_slots->wait(lk_read);
   write_slots->wait(lk_write);
@@ -3661,20 +3651,25 @@ int os_aio_resize(ulint n_reader_threads, ulint n_writer_threads)
   /** Do the Linux AIO dance (this will try to create a new
   io context with changed max_events ,etc*/
 
-  if (int ret= srv_thread_pool->reconfigure_aio(srv_use_native_aio, events))
+  int ret= srv_thread_pool->reconfigure_aio(srv_use_native_aio, events);
+
+  if (ret)
   {
     /** Do the best effort. We can't change the parallel io number,
     but we still can adjust the number of concurrent completion handlers.*/
     read_slots->task_group().set_max_tasks(static_cast<int>(n_reader_threads));
     write_slots->task_group().set_max_tasks(static_cast<int>(n_writer_threads));
-    return ret;
+  }
+  else
+  {
+    /* Allocation succeeded, resize the slots*/
+    read_slots->resize(max_read_events, static_cast<int>(n_reader_threads));
+    write_slots->resize(max_write_events, static_cast<int>(n_writer_threads));
   }
 
-  /* Allocation succeeded, resize the slots*/
-  read_slots->resize(max_read_events, static_cast<int>(n_reader_threads), lk_read);
-  write_slots->resize(max_write_events, static_cast<int>(n_writer_threads), lk_write);
-
-  return 0;
+  mysql_mutex_unlock(&lk_read);
+  mysql_mutex_unlock(&lk_write);
+  return ret;
 }
 
 void os_aio_free()
@@ -3687,9 +3682,9 @@ void os_aio_free()
 }
 
 /** Wait until there are no pending asynchronous writes. */
-static void os_aio_wait_until_no_pending_writes_low()
+static void os_aio_wait_until_no_pending_writes_low(bool declare)
 {
-  bool notify_wait = write_slots->pending_io_count() > 0;
+  const bool notify_wait= declare && write_slots->pending_io_count();
 
   if (notify_wait)
     tpool::tpool_wait_begin();
@@ -3700,17 +3695,43 @@ static void os_aio_wait_until_no_pending_writes_low()
      tpool::tpool_wait_end();
 }
 
-/** Wait until there are no pending asynchronous writes. */
-void os_aio_wait_until_no_pending_writes()
+/** Wait until there are no pending asynchronous writes.
+@param declare  whether the wait will be declared in tpool */
+void os_aio_wait_until_no_pending_writes(bool declare)
 {
-  os_aio_wait_until_no_pending_writes_low();
+  os_aio_wait_until_no_pending_writes_low(declare);
   buf_dblwr.wait_flush_buffered_writes();
 }
 
-/** Wait until all pending asynchronous reads have completed. */
-void os_aio_wait_until_no_pending_reads()
+/** @return number of pending reads */
+size_t os_aio_pending_reads()
 {
-  const auto notify_wait= read_slots->pending_io_count();
+  mysql_mutex_lock(&read_slots->mutex());
+  size_t pending= read_slots->pending_io_count();
+  mysql_mutex_unlock(&read_slots->mutex());
+  return pending;
+}
+
+/** @return approximate number of pending reads */
+size_t os_aio_pending_reads_approx()
+{
+  return read_slots->pending_io_count();
+}
+
+/** @return number of pending writes */
+size_t os_aio_pending_writes()
+{
+  mysql_mutex_lock(&write_slots->mutex());
+  size_t pending= write_slots->pending_io_count();
+  mysql_mutex_unlock(&write_slots->mutex());
+  return pending;
+}
+
+/** Wait until all pending asynchronous reads have completed.
+@param declare  whether the wait will be declared in tpool */
+void os_aio_wait_until_no_pending_reads(bool declare)
+{
+  const bool notify_wait= declare && read_slots->pending_io_count();
 
   if (notify_wait)
     tpool::tpool_wait_begin();
@@ -3720,6 +3741,28 @@ void os_aio_wait_until_no_pending_reads()
   if (notify_wait)
     tpool::tpool_wait_end();
 }
+
+/** Submit a fake read request during crash recovery.
+@param type  fake read request
+@param offset additional context */
+void os_fake_read(const IORequest &type, os_offset_t offset)
+{
+  tpool::aiocb *cb= read_slots->acquire();
+
+  cb->m_group= read_slots->get_task_group();
+  cb->m_fh= type.node->handle.m_file;
+  cb->m_buffer= nullptr;
+  cb->m_len= 0;
+  cb->m_offset= offset;
+  cb->m_opcode= tpool::aio_opcode::AIO_PREAD;
+  new (cb->m_userdata) IORequest{type};
+  cb->m_internal_task.m_func= fake_io_callback;
+  cb->m_internal_task.m_arg= cb;
+  cb->m_internal_task.m_group= cb->m_group;
+
+  srv_thread_pool->submit_task(&cb->m_internal_task);
+}
+
 
 /** Request a read or write.
 @param type		I/O request
@@ -3766,23 +3809,32 @@ func_exit:
 		return err;
 	}
 
+	io_slots* slots;
+	tpool::callback_func callback;
+	tpool::aio_opcode opcode;
+
 	if (type.is_read()) {
 		++os_n_file_reads;
+		slots = read_slots;
+		callback = read_io_callback;
+		opcode = tpool::aio_opcode::AIO_PREAD;
 	} else {
 		++os_n_file_writes;
+		slots = write_slots;
+		callback = write_io_callback;
+		opcode = tpool::aio_opcode::AIO_PWRITE;
 	}
 
 	compile_time_assert(sizeof(IORequest) <= tpool::MAX_AIO_USERDATA_LEN);
-	io_slots* slots= type.is_read() ? read_slots : write_slots;
 	tpool::aiocb* cb = slots->acquire();
 
 	cb->m_buffer = buf;
-	cb->m_callback = (tpool::callback_func)io_callback;
+	cb->m_callback = callback;
 	cb->m_group = slots->get_task_group();
 	cb->m_fh = type.node->handle.m_file;
 	cb->m_len = (int)n;
 	cb->m_offset = offset;
-	cb->m_opcode = type.is_read() ? tpool::aio_opcode::AIO_PREAD : tpool::aio_opcode::AIO_PWRITE;
+	cb->m_opcode = opcode;
 	new (cb->m_userdata) IORequest{type};
 
 	if (srv_thread_pool->submit_io(cb)) {
@@ -3790,6 +3842,7 @@ func_exit:
 		os_file_handle_error(type.node->name, type.is_read()
 				     ? "aio read" : "aio write");
 		err = DB_IO_ERROR;
+		type.node->space->release();
 	}
 
 	goto func_exit;

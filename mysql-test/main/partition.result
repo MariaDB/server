@@ -2820,3 +2820,79 @@ DROP TABLE t1,t2;
 #
 # End of 10.1 tests
 #
+#
+# MDEV-30596: Assertion 'pushed_rowid_filter != __null ...' failed
+#
+create table t1 (a int);
+insert into t1 values (NULL),(1),(2);
+create table t2 (a int);
+insert into t2 select seq from seq_1_to_1000;
+create table t3 (
+a1 int,
+a2 int,
+b int,
+c int,
+filler1 char(200),
+filler2 char(200),
+key(a1,a2),
+key(b)
+) partition by hash(a1) partitions 2;
+insert into t3 select seq/100, seq/100, seq, seq, seq, seq from seq_1_to_10000;
+analyze table t3 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
+set @tmp_os= @@optimizer_switch;
+set optimizer_switch='materialization=off';
+# Must not show "Using rowid filter":
+explain
+select *
+from t1
+where
+t1.a not in (select straight_join t3.a1
+from t2, t3
+where t3.b < 3000 and t3.a2=t2.a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	1000	Using where
+2	DEPENDENT SUBQUERY	t3	ref_or_null	a1,b	a1	10	func,test.t2.a	198	Using where; Full scan on NULL key
+set optimizer_switch=@tmp_os;
+drop table t1,t2,t3;
+#
+# MDEV-31494 Server crashes in ha_partition::index_blocks /
+# get_key_scans_params
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT, c INT, KEY(c)) PARTITION BY LIST (b) (PARTITION p0 VALUES IN (1,2), PARTITION p1 VALUES IN (3,4));
+INSERT INTO t2 VALUES (1,1),(2,2);
+explain SELECT * FROM t1 STRAIGHT_JOIN t2 WHERE t2.b = 5 AND t2.c = 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+SELECT * FROM t1 STRAIGHT_JOIN t2 WHERE t2.b = 5 AND t2.c = 10;
+a	b	c
+DROP TABLE t1, t2;
+#
+# MDEV-31445 Server crashes in ha_partition::index_blocks /
+# cost_for_index_read
+#
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+CREATE TABLE t3 (c INT, d INT, KEY(d)) PARTITION BY KEY (c) PARTITIONS 2;
+CREATE TABLE t4 (e INT);
+INSERT INTO t1 VALUES (1),(2);
+INSERT INTO t2 VALUES (1),(2);
+INSERT INTO t3 VALUES (1,1),(2,2);
+INSERT INTO t4 VALUES (1),(2);
+explain SELECT * FROM t1 LEFT JOIN (t2 JOIN t3 ON (0 IN (SELECT e FROM t4) AND t3.d = t2.b)) ON (t3.c < t2.b);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t3	ref	d	d	5	test.t2.b	1	Using where
+2	SUBQUERY	t4	ALL	NULL	NULL	NULL	NULL	2	Using where
+SELECT * FROM t1 LEFT JOIN (t2 JOIN t3 ON (0 IN (SELECT e FROM t4) AND t3.d = t2.b)) ON (t3.c < t2.b);
+a	b	c	d
+1	NULL	NULL	NULL
+2	NULL	NULL	NULL
+drop table t1,t2,t3,t4;
+# End of 11.0 tests

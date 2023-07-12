@@ -409,7 +409,6 @@ void dispcset(FILE *f,CHARSET_INFO *cs)
 
   fprintf(f,"  NULL,                       /* from_uni      */\n");
   fprintf(f,"  NULL,                       /* casefold      */\n");
-  fprintf(f,"  &my_unicase_default,        /* caseinfo      */\n");
   fprintf(f,"  NULL,                       /* state map     */\n");
   fprintf(f,"  NULL,                       /* ident map     */\n");
   fprintf(f,"  1,                          /* strxfrm_multiply*/\n");
@@ -471,7 +470,7 @@ main(int argc, char **argv  __attribute__((unused)))
   bzero((void*)&all_charsets,sizeof(all_charsets));
   bzero((void*) refids, sizeof(refids));
   
-  sprintf(filename,"%s/%s",argv[1],"Index.xml");
+  snprintf(filename,sizeof(filename),"%s/%s",argv[1],"Index.xml");
   my_read_charset_file(filename);
   
   for (cs= all_charsets;
@@ -482,7 +481,8 @@ main(int argc, char **argv  __attribute__((unused)))
     {
       if ( (!simple_cs_is_full(cs)) && (cs->cs_name.str))
       {
-        sprintf(filename,"%s/%s.xml",argv[1], cs->cs_name.str);
+        snprintf(filename, sizeof filename, "%s/%.*s.xml",
+                 argv[1], cs->csname.length, cs->csname.str);
         my_read_charset_file(filename);
       }
       cs->state|= MY_CS_LOADED;

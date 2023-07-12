@@ -523,7 +523,14 @@ log_t::resize_start_status log_t::resize_start(os_offset_t size) noexcept
   log_resize_release();
 
   if (start_lsn)
+  {
+    mysql_mutex_lock(&buf_pool.flush_list_mutex);
+    lsn_t target_lsn= buf_pool.get_oldest_modification(0);
+    if (start_lsn < target_lsn)
+      start_lsn= target_lsn + 1;
+    mysql_mutex_unlock(&buf_pool.flush_list_mutex);
     buf_flush_ahead(start_lsn, false);
+  }
 
   return status;
 }
@@ -1058,6 +1065,16 @@ ATTRIBUTE_COLD void log_check_margins()
     ut_ad(!recv_no_log_write);
   }
   while (log_sys.check_flush_or_checkpoint());
+}
+
+/** Wait for a log checkpoint if needed.
+NOTE that this function may only be called while not holding
+any synchronization objects except dict_sys.latch. */
+void log_free_check()
+{
+  ut_ad(!lock_sys.is_writer());
+  if (log_sys.check_flush_or_checkpoint())
+    log_check_margins();
 }
 
 extern void buf_resize_shutdown();

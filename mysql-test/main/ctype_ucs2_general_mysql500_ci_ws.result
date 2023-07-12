@@ -24,7 +24,7 @@ SUM(codepoint_hex4=HEX(WEIGHT_STRING(c))) AS count_bmp_weight_is_codepoint,
 SUM(codepoint_hex4<>HEX(WEIGHT_STRING(c))) AS count_bmp_weight_is_not_codepoint
 FROM v_bmp;
 count_bmp_weight_is_codepoint	count_bmp_weight_is_not_codepoint
-64428	1108
+64429	1107
 SELECT codepoint_hex4,HEX(WEIGHT_STRING(c))
 FROM v_bmp
 WHERE codepoint_hex4<>HEX(WEIGHT_STRING(c));
@@ -82,7 +82,6 @@ codepoint_hex4	HEX(WEIGHT_STRING(c))
 00DB	0055
 00DC	0055
 00DD	0059
-00DF	0053
 00E0	0041
 00E1	0041
 00E2	0041

@@ -19,12 +19,19 @@ CREATE TABLE t1(i INT) ENGINE INNODB;
 
 USE test;
 
+BEGIN;
+INSERT INTO db2.t1 VALUES(20);
+INSERT INTO test.t1 VALUES(20);
+INSERT INTO test.t2 VALUES(20);
+
 echo # xtrabackup backup;
 
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 --disable_result_log
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup "--tables-exclude=test.*2" "--databases-exclude=db2" --target-dir=$targetdir;
 --enable_result_log
+
+COMMIT;
 
 # check that only t1 table is in backup (t2 is excluded)
 list_files $targetdir/test *.new;
@@ -47,4 +54,17 @@ DROP DATABASE db2;
 rmdir $MYSQLD_DATADIR/db3;
 rmdir $MYSQLD_DATADIR/db4;
 rmdir $MYSQLD_DATADIR/db5;
+
+--let $backup_log=$MYSQLTEST_VARDIR/tmp/backup.log
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --export --prepare --target-dir="$targetdir" > $backup_log;
+--enable_result_log
+
+--let SEARCH_FILE=$backup_log
+--let SEARCH_PATTERN=Operating system error number
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=Could not find a valid tablespace file for
+--source include/search_pattern_in_file.inc
+--remove_file $backup_log
+
 rmdir $targetdir;

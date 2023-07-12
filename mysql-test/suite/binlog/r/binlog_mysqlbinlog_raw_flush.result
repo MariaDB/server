@@ -1,3 +1,7 @@
+#
+# MDEV-30698 Cover missing test cases for mariadb-binlog options
+#            --raw [and] --flashback
+#
 CREATE TABLE t1 (a int);
 FLUSH LOGS;
 INSERT INTO t1 VALUES (1);

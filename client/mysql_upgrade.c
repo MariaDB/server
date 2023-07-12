@@ -20,7 +20,7 @@
 #include <sslopt-vars.h>
 #include <../scripts/mariadb_fix_privilege_tables_sql.c>
 
-#define VER "2.0"
+#define VER "2.1"
 #include <welcome_copyright_notice.h> /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
 
 #ifdef HAVE_SYS_WAIT_H
@@ -37,7 +37,7 @@
 
 static int phase = 0;
 static int info_file= -1;
-static const int phases_total = 7;
+static const int phases_total = 8;
 static char mysql_path[FN_REFLEN];
 static char mysqlcheck_path[FN_REFLEN];
 
@@ -74,6 +74,8 @@ static my_bool not_used; /* Can't use GET_BOOL without a value pointer */
 char upgrade_from_version[1024];
 
 static my_bool opt_write_binlog;
+
+static void print_conn_args(const char *tool_name);
 
 #define OPT_SILENT OPT_MAX_CLIENT_OPTION
 
@@ -154,7 +156,10 @@ static struct my_option my_long_options[]=
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"user", 'u', "User for login.", &opt_user,
    &opt_user, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"verbose", 'v', "Display more output about the process; Using it twice will print connection argument; Using it 3 times will print out all CHECK, RENAME and ALTER TABLE during the check phase.",
+  {"verbose", 'v', "Display more output about the process; Using it twice will print connection argument;"
+  "Using it 3 times will print out all CHECK, RENAME and ALTER TABLE during the check phase;"
+  "Using it 4 times (added in MariaDB 10.0.14) will also write out all mariadb-check commands used;"
+  "Using it 5 times will print all the mariadb commands used and their results while running mysql_fix_privilege_tables script.",
    &opt_not_used, &opt_not_used, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
   {"version", 'V', "Output version information and exit.", 0, 0, 0,
    GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -209,6 +214,7 @@ static void die(const char *fmt, ...)
   DBUG_ENTER("die");
 
   /* Print the error message */
+  print_conn_args("mariadb-check");
   fflush(stdout);
   va_start(args, fmt);
   if (fmt)
@@ -638,6 +644,7 @@ static int run_query(const char *query, DYNAMIC_STRING *ds_res,
                 "--database=mysql",
                 "--batch", /* Turns off pager etc. */
                 force ? "--force": "--skip-force",
+                opt_verbose >= 5 ? "--verbose" : "",
                 ds_res || opt_silent ? "--silent": "",
                 "<",
                 query_file_path,
@@ -873,8 +880,7 @@ static int upgrade_already_done(int silent)
             "There is no need to run mariadb-upgrade again for %s.",
             upgrade_from_version, version);
     if (!opt_check_upgrade)
-      verbose("You can use --force if you still want to run mariadb-upgrade",
-              upgrade_from_version, version);
+      verbose("You can use --force if you still want to run mariadb-upgrade");
   }
   return 0;
 }
@@ -983,7 +989,7 @@ static my_bool is_mysql()
 
 static int run_mysqlcheck_views(void)
 {
-  const char *upgrade_views="--process-views=YES";
+  const char *upgrade_views="--process-views=UPGRADE";
   if (upgrade_from_mysql)
   {
     /*
@@ -1123,8 +1129,9 @@ static my_bool from_before_10_1()
 }
 
 
-static void uninstall_plugins(void)
+static int uninstall_plugins(void)
 {
+  verbose("Phase %d/%d: uninstalling plugins", ++phase, phases_total);
   if (ds_plugin_data_types.length)
   {
     char *plugins= ds_plugin_data_types.str;
@@ -1141,7 +1148,10 @@ static void uninstall_plugins(void)
       next= get_line(next);
     }
   }
+  return 0;
 }
+
+
 /**
   @brief     Install plugins for missing data types
   @details   Check for entries with "Unknown data type" in I_S.TABLES,
@@ -1190,6 +1200,8 @@ static int install_used_plugin_data_types(void)
   dynstr_free(&ds_result);
   return 0;
 }
+
+
 /*
   Check for entries with "Unknown storage engine" in I_S.TABLES,
   try to load plugins for these tables if available (MDEV-11942)
@@ -1239,6 +1251,7 @@ static int install_used_engines(void)
   dynstr_free(&ds_result);
   return 0;
 }
+
 
 static int check_slave_repositories(void)
 {
@@ -1336,9 +1349,7 @@ static int run_sql_fix_privilege_tables(void)
       dynstr_append(&ds_script, *query_ptr);
   }
 
-  run_query(ds_script.str,
-            &ds_result, /* Collect result */
-            TRUE);
+  run_query(ds_script.str, (opt_verbose >= 5) ? NULL : &ds_result, TRUE);
 
   {
     /*
@@ -1366,6 +1377,13 @@ static int run_sql_fix_privilege_tables(void)
   dynstr_free(&ds_result);
   dynstr_free(&ds_script);
   DBUG_RETURN(found_real_errors);
+}
+
+
+static int flush_privileges(void)
+{
+  verbose("Phase %d/%d: Running 'FLUSH PRIVILEGES'", ++phase, phases_total);
+  return run_query("FLUSH PRIVILEGES", NULL, TRUE);
 }
 
 
@@ -1398,10 +1416,11 @@ static int check_version_match(void)
 
   if (calc_server_version((char *) version_str) != MYSQL_VERSION_ID)
   {
-    fprintf(stderr, "Error: Server version (%s) does not match with the "
-            "version of\nthe server (%s) with which this program was built/"
-            "distributed. You can\nuse --skip-version-check to skip this "
-            "check.\n", version_str, MYSQL_SERVER_VERSION);
+    fprintf(stderr, "Error: Server version (%s)\n"
+            "does not match the version of the server (%s)\n"
+            "with which this program was built/distributed. You can\n"
+            "use --skip-version-check to skip this check.\n",
+            version_str, MYSQL_SERVER_VERSION);
     return 1;
   }
   return 0;
@@ -1489,18 +1508,14 @@ int main(int argc, char **argv)
   if (run_mysqlcheck_upgrade(TRUE) ||
       install_used_engines() ||
       install_used_plugin_data_types() ||
-      run_mysqlcheck_views() ||
       run_sql_fix_privilege_tables() ||
+      run_mysqlcheck_views() ||
       run_mysqlcheck_fixnames() ||
       run_mysqlcheck_upgrade(FALSE) ||
-      check_slave_repositories())
+      check_slave_repositories() ||
+      uninstall_plugins() ||
+      flush_privileges())
     die("Upgrade failed" );
-
-  uninstall_plugins();
-  verbose("Phase %d/%d: Running 'FLUSH PRIVILEGES'", ++phase, phases_total);
-  if (run_query("FLUSH PRIVILEGES", NULL, TRUE))
-    die("Upgrade failed" );
-
   verbose("OK");
 
   /* Finish writing indicating upgrade has been performed */
@@ -1509,6 +1524,7 @@ int main(int argc, char **argv)
   DBUG_ASSERT(phase == phases_total);
 
 end:
+  print_conn_args("mariadb-check");
   free_used_memory();
   my_end(my_end_arg);
   exit(0);

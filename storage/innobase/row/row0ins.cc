@@ -48,6 +48,7 @@ Created 4/20/1996 Heikki Tuuri
 #ifdef WITH_WSREP
 #include <wsrep.h>
 #include <mysql/service_wsrep.h>
+#include "ha_prototypes.h"
 #endif /* WITH_WSREP */
 
 /*************************************************************************
@@ -212,14 +213,14 @@ row_ins_sec_index_entry_by_modify(
 		made to the clustered index, and completed the
 		secondary index creation before we got here. In this
 		case, the change would already be there. The CREATE
-		INDEX should be waiting for a MySQL meta-data lock
-		upgrade at least until this INSERT or UPDATE
-		returns. After that point, set_committed(true)
-		would be invoked in commit_inplace_alter_table(). */
+		INDEX should be in wait_while_table_is_used() at least
+		until this INSERT or UPDATE returns. After that point,
+		set_committed(true) would be invoked in
+		commit_inplace_alter_table(). */
 		ut_a(update->n_fields == 0);
-		ut_a(!cursor->index()->is_committed());
 		ut_ad(!dict_index_is_online_ddl(cursor->index()));
-		return(DB_SUCCESS);
+		return cursor->index()->is_committed()
+			? DB_CORRUPTION : DB_SUCCESS;
 	}
 
 	if (mode == BTR_MODIFY_LEAF) {
@@ -2580,42 +2581,6 @@ but GCC 4.8.5 does not support pop_options. */
 # pragma GCC optimize ("O0")
 #endif
 
-#ifdef WITH_WSREP
-/** Start bulk insert operation for Galera by appending
-table-level exclusive key for bulk insert.
-@param trx transaction
-@param index index
-@retval false on success
-@retval true on failure */
-ATTRIBUTE_COLD static bool row_ins_wsrep_start_bulk(trx_t *trx, const dict_index_t &index)
-{
-  char db_buf[NAME_LEN + 1];
-  char tbl_buf[NAME_LEN + 1];
-  ulint	db_buf_len, tbl_buf_len;
-
-  if (!index.table->parse_name(db_buf, tbl_buf, &db_buf_len, &tbl_buf_len))
-  {
-    WSREP_ERROR("Parse_name for bulk insert failed: %s",
-                wsrep_thd_query(trx->mysql_thd));
-    trx->error_state = DB_ROLLBACK;
-    return true;
-  }
-
-  /* Append table-level exclusive key for bulk insert. */
-  const int rcode = wsrep_thd_append_table_key(trx->mysql_thd, db_buf,
-                                               tbl_buf, WSREP_SERVICE_KEY_EXCLUSIVE);
-  if (rcode)
-  {
-    WSREP_ERROR("Appending table key for bulk insert failed: %s, %d",
-                wsrep_thd_query(trx->mysql_thd), rcode);
-    trx->error_state = DB_ROLLBACK;
-    return true;
-  }
-
-  return false;
-}
-#endif
-
 /***************************************************************//**
 Tries to insert an entry into a clustered index, ignoring foreign key
 constraints. If a record with the same unique key is found, the other
@@ -2780,10 +2745,13 @@ avoid_bulk:
 #ifdef WITH_WSREP
 			if (trx->is_wsrep())
 			{
-			    if (!wsrep_thd_is_local_transaction(trx->mysql_thd))
-				    goto skip_bulk_insert;
-			    if (row_ins_wsrep_start_bulk(trx, *index))
-				    goto err_exit;
+				if (!wsrep_thd_is_local_transaction(trx->mysql_thd))
+					goto skip_bulk_insert;
+				if (wsrep_append_table_key(trx->mysql_thd, *index->table))
+				{
+					trx->error_state = DB_ROLLBACK;
+					goto err_exit;
+				}
 			}
 #endif /* WITH_WSREP */
 

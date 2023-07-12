@@ -57,10 +57,17 @@ static inline int encryption_crypt(const unsigned char* src, unsigned int slen,
 {
   void *ctx= alloca(encryption_handler.encryption_ctx_size_func((key_id),(key_version)));
   int res1, res2;
-  unsigned int d1, d2;
+  unsigned int d1, d2= *dlen;
+  assert(*dlen >= slen);
+  assert((dst[*dlen - 1]= 1));
+  if (src < dst)
+    assert(src + slen <= dst);
+  else
+    assert(dst + *dlen <= src);
   if ((res1= encryption_handler.encryption_ctx_init_func((ctx),(key),(klen),(iv),(ivlen),(flags),(key_id),(key_version))))
     return res1;
   res1= encryption_handler.encryption_ctx_update_func((ctx),(src),(slen),(dst),(&d1));
+  d2-= d1;
   res2= encryption_handler.encryption_ctx_finish_func((ctx),(dst + d1),(&d2));
   *dlen= d1 + d2;
   return res1 ? res1 : res2;
@@ -487,6 +494,12 @@ extern struct sql_service_st {
   int (STDCALL *mysql_set_character_set_func)(MYSQL *mysql, const char *cs_name);
   unsigned int (STDCALL *mysql_num_fields_func)(MYSQL_RES *res);
   int (STDCALL *mysql_select_db_func)(MYSQL *mysql, const char *db);
+  MYSQL_RES *(STDCALL *mysql_use_result_func)(MYSQL *mysql);
+  MYSQL_FIELD *(STDCALL *mysql_fetch_fields_func)(MYSQL_RES *res);
+  unsigned long (STDCALL *mysql_real_escape_string_func)(MYSQL *mysql, char *to,
+                                        const char *from, unsigned long length);
+  my_bool (STDCALL *mysql_ssl_set_func)(MYSQL *mysql, const char *key,
+      const char *cert, const char *ca, const char *capath, const char *cipher);
 } *sql_service;
 MYSQL *mysql_real_connect_local(MYSQL *mysql);
 }

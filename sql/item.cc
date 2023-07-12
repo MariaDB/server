@@ -5770,7 +5770,8 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
             max_arg_level for the function if it's needed.
           */
           if (thd->lex->in_sum_func &&
-              thd->lex == context->select_lex->parent_lex &&
+              last_checked_context->select_lex->parent_lex ==
+              context->select_lex->parent_lex &&
               thd->lex->in_sum_func->nest_level >= select->nest_level)
           {
             Item::Type ref_type= (*reference)->type();
@@ -5796,7 +5797,8 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
                              (Item_ident*) (*reference) :
                              0), false);
           if (thd->lex->in_sum_func &&
-              thd->lex == context->select_lex->parent_lex &&
+              last_checked_context->select_lex->parent_lex ==
+              context->select_lex->parent_lex &&
               thd->lex->in_sum_func->nest_level >= select->nest_level)
           {
             set_if_bigger(thd->lex->in_sum_func->max_arg_level,
@@ -6145,10 +6147,8 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
         goto mark_non_agg_field;
     }
 
-    if (!thd->lex->current_select->no_wrap_view_item &&
+    if (select && !thd->lex->current_select->no_wrap_view_item &&
         thd->lex->in_sum_func &&
-        select &&
-        thd->lex == select->parent_lex &&
         thd->lex->in_sum_func->nest_level == 
         select->nest_level)
       set_if_bigger(thd->lex->in_sum_func->max_arg_level,
@@ -8215,7 +8215,8 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
           max_arg_level for the function if it's needed.
         */
         if (thd->lex->in_sum_func &&
-            thd->lex == context->select_lex->parent_lex &&
+            last_checked_context->select_lex->parent_lex ==
+            context->select_lex->parent_lex &&
             thd->lex->in_sum_func->nest_level >= 
             last_checked_context->select_lex->nest_level)
           set_if_bigger(thd->lex->in_sum_func->max_arg_level,
@@ -8239,7 +8240,8 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
         max_arg_level for the function if it's needed.
       */
       if (thd->lex->in_sum_func &&
-          thd->lex == context->select_lex->parent_lex &&
+          last_checked_context->select_lex->parent_lex ==
+          context->select_lex->parent_lex &&
           thd->lex->in_sum_func->nest_level >= 
           last_checked_context->select_lex->nest_level)
         set_if_bigger(thd->lex->in_sum_func->max_arg_level,
@@ -8254,7 +8256,8 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
       1. outer reference (will be fixed later by the fix_inner_refs function);
       2. an unnamed reference inside an aggregate function.
   */
-  if (!((*ref)->type() == REF_ITEM &&
+  if (!set_properties_only && 
+      !((*ref)->type() == REF_ITEM &&
        ((Item_ref *)(*ref))->ref_type() == OUTER_REF) &&
       (((*ref)->with_sum_func() && name.str &&
         !(current_sel->get_linkage() != GLOBAL_OPTIONS_TYPE &&
@@ -10591,7 +10594,8 @@ int Item_cache_str::save_in_field(Field *field, bool no_conversions)
 bool Item_cache_row::allocate(THD *thd, uint num)
 {
   item_count= num;
-  return (!(values= 
+  return (!values &&
+          !(values=
 	    (Item_cache **) thd->calloc(sizeof(Item_cache *)*item_count)));
 }
 
@@ -10627,11 +10631,12 @@ bool Item_cache_row::setup(THD *thd, Item *item)
     return 1;
   for (uint i= 0; i < item_count; i++)
   {
-    Item_cache *tmp;
     Item *el= item->element_index(i);
-    if (!(tmp= values[i]= el->get_cache(thd)))
+
+    if ((!values[i]) && !(values[i]= el->get_cache(thd)))
       return 1;
-    tmp->setup(thd, el);
+
+    values[i]->setup(thd, el);
   }
   return 0;
 }
@@ -10859,6 +10864,25 @@ table_map Item_direct_view_ref::not_null_tables() const
   if (tab == NO_NULL_TABLE || (*ref)->used_tables())
     return (*ref)->not_null_tables();
    return get_null_ref_table()->map;
+}
+
+void Item_direct_view_ref::print(String *str, enum_query_type query_type)
+{
+  /*
+    If the view/derived table was not merged then this field name must
+    be complemented with the view name/derived table alias.
+    For example, for "SELECT a FROM (SELECT a FROM t1) q" field `a` in the
+    select list must be printed as `q`.`a`.
+    Ancestor class Item_ident contains the correct table_name for that case.
+    But if the view was merged then the initial `q` does not make sense
+    any more so print the Item_ref contents. Field `a` will be printed
+    as `t1`.`a` then
+  */
+  if (!view->merged)
+    Item_ident::print(str, query_type);
+  else
+    Item_ref::print(str, query_type);
+
 }
 
 /*

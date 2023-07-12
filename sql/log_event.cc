@@ -838,7 +838,7 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
       DBUG_RETURN(LOG_READ_MEM);
     memcpy(newpkt, packet->ptr(), ev_offset);
 
-    uint dstlen;
+    uint dstlen= (uint) sz - ev_offset - 4;
     uchar *src= (uchar*)packet->ptr() + ev_offset;
     uchar *dst= (uchar*)newpkt + ev_offset;
     memcpy(src + EVENT_LEN_OFFSET, src, 4);

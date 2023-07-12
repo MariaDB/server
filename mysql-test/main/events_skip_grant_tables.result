@@ -1,8 +1,0 @@
-call mtr.add_suppression("Event Scheduler will not function when starting with --skip-grant-tables or --bootstrap.");
-CREATE EVENT test ON SCHEDULE AT CURRENT_TIMESTAMP DO DO NULL;
-ERROR HY000: Event scheduler cannot function with --skip-grant-tables, --bootstrap, or embedded build
-select (@@global.event_scheduler='DISABLED') as expect_1;
-expect_1
-1
-set global event_scheduler=1;
-ERROR HY000: The MariaDB server is running with the --event-scheduler=DISABLED or --skip-grant-tables option so it cannot execute this statement

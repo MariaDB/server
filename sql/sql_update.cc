@@ -1279,7 +1279,8 @@ produce_explain_and_leave:
     goto err;
 
 emit_explain_and_leave:
-  int err2= thd->lex->explain->send_explain(thd);
+  bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
+  int err2= thd->lex->explain->send_explain(thd, extended);
 
   delete select;
   free_underlaid_joins(thd, select_lex);
@@ -3070,7 +3071,10 @@ bool Sql_cmd_update::execute_inner(THD *thd)
     else
     {
       if (thd->lex->describe || thd->lex->analyze_stmt)
-        res= thd->lex->explain->send_explain(thd);
+      {
+        bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
+        res= thd->lex->explain->send_explain(thd, extended);
+      }
     }
   }
 

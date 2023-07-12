@@ -203,25 +203,19 @@ trx_undo_assign(trx_t* trx, dberr_t* err, mtr_t* mtr)
 	MY_ATTRIBUTE((nonnull));
 /** Assign an undo log for a transaction.
 A new undo log is created or a cached undo log reused.
+@tparam is_temp  whether this is temporary undo log
 @param[in,out]	trx	transaction
 @param[in]	rseg	rollback segment
 @param[out]	undo	the undo log
-@param[out]	err	error code
 @param[in,out]	mtr	mini-transaction
+@param[out]	err	error code
 @return	the undo log block
-@retval	NULL	on error */
+@retval	nullptr	on error */
+template<bool is_temp>
 buf_block_t*
-trx_undo_assign_low(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo,
-		    dberr_t* err, mtr_t* mtr)
+trx_undo_assign_low(trx_t *trx, trx_rseg_t *rseg, trx_undo_t **undo,
+                    mtr_t *mtr, dberr_t *err)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/******************************************************************//**
-Sets the state of the undo log segment at a transaction finish.
-@return undo log segment header page, x-latched */
-buf_block_t*
-trx_undo_set_state_at_finish(
-/*=========================*/
-	trx_undo_t*	undo,	/*!< in: undo log memory copy */
-	mtr_t*		mtr);	/*!< in: mtr */
 
 /** Set the state of the undo log segment at a XA PREPARE or XA ROLLBACK.
 @param[in,out]	trx		transaction

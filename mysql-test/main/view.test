@@ -6704,6 +6704,25 @@ create algorithm=merge view v as
 
 drop table t1,t2,t3;
 
+--echo #
+--echo # MDEV-31189: Server crash or assertion failure in upon 2nd
+--echo # execution of PS with views and HAVING
+--echo #
+
+CREATE TABLE t (f INT);
+INSERT INTO t VALUES (1),(2); # Optional, fails either way
+CREATE VIEW v1 AS SELECT 1 AS a;
+CREATE VIEW v2 AS SELECT a FROM v1;
+
+PREPARE stmt FROM "SELECT * FROM v2 HAVING 1 IN (SELECT f FROM t)";
+EXECUTE stmt;
+EXECUTE stmt;
+
+# Cleanup
+DROP VIEW v1;
+DROP VIEW v2;
+DROP TABLE t;
+
 --echo # End of 10.4 tests
 
 --echo #

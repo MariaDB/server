@@ -750,18 +750,24 @@ btr_cur_will_modify_tree(
 
 /** Detects whether the modifying record might need a opposite modification
 to the intention.
-@param page		 page
-@param lock_intention	 lock intention for the tree operation
+@param bpage             buffer pool page
+@param is_clust          whether this is a clustered index
+@param lock_intention    lock intention for the tree operation
 @param node_ptr_max_size the maximum size of a node pointer
 @param compress_limit    BTR_CUR_PAGE_COMPRESS_LIMIT(index)
-@param rec		 record (current node_ptr)
-@return	true if tree modification is needed */
-static bool btr_cur_need_opposite_intention(const page_t *page,
+@param rec               record (current node_ptr)
+@return true if tree modification is needed */
+static bool btr_cur_need_opposite_intention(const buf_page_t &bpage,
+                                            bool is_clust,
                                             btr_intention_t lock_intention,
                                             ulint node_ptr_max_size,
                                             ulint compress_limit,
                                             const rec_t *rec)
 {
+  if (UNIV_LIKELY_NULL(bpage.zip.data) &&
+      !page_zip_available(&bpage.zip, is_clust, node_ptr_max_size, 1))
+    return true;
+  const page_t *const page= bpage.frame;
   if (lock_intention != BTR_INTENTION_INSERT)
   {
     /* We compensate also for btr_cur_compress_recommendation() */
@@ -1017,7 +1023,7 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
     if (lock_intention == BTR_INTENTION_DELETE)
     {
       compress_limit= BTR_CUR_PAGE_COMPRESS_LIMIT(index());
-      if (buf_pool.n_pend_reads &&
+      if (os_aio_pending_reads_approx() &&
           trx_sys.history_size_approx() > BTR_CUR_FINE_HISTORY_LENGTH)
       {
         /* Most delete-intended operations are due to the purge of history.
@@ -1232,7 +1238,8 @@ release_tree:
           !btr_block_get(*index(), btr_page_get_next(block->page.frame),
                          RW_X_LATCH, mtr, &err))
         goto func_exit;
-      if (btr_cur_need_opposite_intention(block->page.frame, lock_intention,
+      if (btr_cur_need_opposite_intention(block->page, index()->is_clust(),
+                                          lock_intention,
                                           node_ptr_max_size, compress_limit,
                                           page_cur.rec))
         goto need_opposite_intention;
@@ -1288,7 +1295,8 @@ release_tree:
   default:
     break;
   case BTR_MODIFY_TREE:
-    if (btr_cur_need_opposite_intention(block->page.frame, lock_intention,
+    if (btr_cur_need_opposite_intention(block->page, index()->is_clust(),
+                                        lock_intention,
                                         node_ptr_max_size, compress_limit,
                                         page_cur.rec))
       /* If the rec is the first or last in the page for pessimistic
@@ -1723,7 +1731,7 @@ dberr_t btr_cur_t::open_leaf(bool first, dict_index_t *index,
     {
       compress_limit= BTR_CUR_PAGE_COMPRESS_LIMIT(index);
 
-      if (buf_pool.n_pend_reads &&
+      if (os_aio_pending_reads_approx() &&
           trx_sys.history_size_approx() > BTR_CUR_FINE_HISTORY_LENGTH)
       {
         mtr_x_lock_index(index, mtr);
@@ -1826,7 +1834,7 @@ index_locked:
             break;
 
           if (!index->lock.have_x() &&
-              btr_cur_need_opposite_intention(block->page.frame,
+              btr_cur_need_opposite_intention(block->page, index->is_clust(),
                                               lock_intention,
                                               node_ptr_max_size,
                                               compress_limit, page_cur.rec))
@@ -1873,7 +1881,8 @@ index_locked:
     ut_ad(latch_mode != BTR_MODIFY_TREE || upper_rw_latch == RW_X_LATCH);
 
     if (latch_mode != BTR_MODIFY_TREE);
-    else if (btr_cur_need_opposite_intention(block->page.frame, lock_intention,
+    else if (btr_cur_need_opposite_intention(block->page, index->is_clust(),
+                                             lock_intention,
                                              node_ptr_max_size, compress_limit,
                                              page_cur.rec))
     {
@@ -4664,8 +4673,6 @@ class btr_est_cur_t
   page_id_t m_page_id;
   /** Current block */
   buf_block_t *m_block;
-  /** mtr savepoint of the current block */
-  ulint m_savepoint;
   /** Page search mode, can differ from m_mode for non-leaf pages, see c-tor
   comments for details */
   page_cur_mode_t m_page_mode;
@@ -4724,7 +4731,6 @@ public:
   bool fetch_child(ulint level, mtr_t &mtr, const buf_block_t *right_parent)
   {
     buf_block_t *parent_block= m_block;
-    ulint parent_savepoint= m_savepoint;
 
     m_block= btr_block_get(*index(), m_page_id.page_no(), RW_S_LATCH,
                            &mtr, nullptr);
@@ -4732,9 +4738,10 @@ public:
       return false;
 
     if (parent_block && parent_block != right_parent)
-      mtr.rollback_to_savepoint(parent_savepoint, parent_savepoint + 1);
-
-    m_savepoint= mtr.get_savepoint() - 1;
+    {
+      ut_ad(mtr.get_savepoint() >= 2);
+      mtr.rollback_to_savepoint(1, 2);
+    }
 
     return level == ULINT_UNDEFINED ||
       btr_page_get_level(m_block->page.frame) == level;
@@ -4796,10 +4803,10 @@ public:
     return true;
   }
 
-  /** Gets page id of the current record child.
+  /** Read page id of the current record child.
   @param offsets offsets array.
   @param heap heap for offsets array */
-  void get_child(rec_offs **offsets, mem_heap_t **heap)
+  void read_child_page_id(rec_offs **offsets, mem_heap_t **heap)
   {
     const rec_t *node_ptr= page_cur_get_rec(&m_page_cur);
 
@@ -4869,11 +4876,7 @@ public:
   /** Copies block pointer and savepoint from another btr_est_cur_t in the case
   if both left and right border cursors point to the same block.
   @param o reference to the other btr_est_cur_t object. */
-  void set_block(const btr_est_cur_t &o)
-  {
-    m_block= o.m_block;
-    m_savepoint= o.m_savepoint;
-  }
+  void set_block(const btr_est_cur_t &o) { m_block= o.m_block; }
 
   /** @return current record number. */
   ulint nth_rec() const { return m_nth_rec; }
@@ -4912,7 +4915,6 @@ static ha_rows btr_estimate_n_rows_in_range_on_level(
   pages before reaching right_page_no, then we estimate the average from the
   pages scanned so far. */
   static constexpr uint n_pages_read_limit= 9;
-  ulint savepoint= 0;
   buf_block_t *block= nullptr;
   const dict_index_t *index= left_cur.index();
 
@@ -4942,18 +4944,17 @@ static ha_rows btr_estimate_n_rows_in_range_on_level(
   {
     page_t *page;
     buf_block_t *prev_block= block;
-    ulint prev_savepoint= savepoint;
-
-    savepoint= mtr.get_savepoint();
 
     /* Fetch the page. */
     block= btr_block_get(*index, page_id.page_no(), RW_S_LATCH, &mtr, nullptr);
 
     if (prev_block)
     {
-      mtr.rollback_to_savepoint(prev_savepoint, prev_savepoint + 1);
-      if (block)
-        savepoint--;
+      ulint savepoint = mtr.get_savepoint();
+      /* Index s-lock, p1, p2 latches, can also be p1 and p2 parent latch if
+      they are not diverged */
+      ut_ad(savepoint >= 3);
+      mtr.rollback_to_savepoint(savepoint - 2, savepoint - 1);
     }
 
     if (!block || btr_page_get_level(buf_block_get_frame(block)) != level)
@@ -4984,8 +4985,8 @@ static ha_rows btr_estimate_n_rows_in_range_on_level(
 
   if (block)
   {
-    ut_ad(block == mtr.at_savepoint(savepoint));
-    mtr.rollback_to_savepoint(savepoint, savepoint + 1);
+    ut_ad(block == mtr.at_savepoint(mtr.get_savepoint() - 1));
+    mtr.rollback_to_savepoint(mtr.get_savepoint() - 1);
   }
 
   return (n_rows);
@@ -4994,8 +4995,8 @@ inexact:
 
   if (block)
   {
-    ut_ad(block == mtr.at_savepoint(savepoint));
-    mtr.rollback_to_savepoint(savepoint, savepoint + 1);
+    ut_ad(block == mtr.at_savepoint(mtr.get_savepoint() - 1));
+    mtr.rollback_to_savepoint(mtr.get_savepoint() - 1);
   }
 
   is_n_rows_exact= false;
@@ -5189,8 +5190,12 @@ search_loop:
   {
     ut_ad(height > 0);
     height--;
-    p1.get_child(&offsets, &heap);
-    p2.get_child(&offsets, &heap);
+    ut_ad(mtr.memo_contains(p1.index()->lock, MTR_MEMO_S_LOCK));
+    ut_ad(mtr.memo_contains_flagged(p1.block(), MTR_MEMO_PAGE_S_FIX));
+    p1.read_child_page_id(&offsets, &heap);
+    ut_ad(mtr.memo_contains(p2.index()->lock, MTR_MEMO_S_LOCK));
+    ut_ad(mtr.memo_contains_flagged(p2.block(), MTR_MEMO_PAGE_S_FIX));
+    p2.read_child_page_id(&offsets, &heap);
     goto search_loop;
   }
 

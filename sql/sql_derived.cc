@@ -351,24 +351,6 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
     DBUG_RETURN(FALSE);
   }
 
-  if (dt_select->uncacheable & UNCACHEABLE_RAND)
-  {
-    /* There is random function => fall back to materialization. */
-    cause= "Random function in the select";
-    if (unlikely(thd->trace_started()))
-    {
-      OPT_TRACE_VIEWS_TRANSFORM(thd, trace_wrapper, trace_derived,
-                          derived->is_derived() ? "derived" : "view",
-                          derived->alias.str ? derived->alias.str : "<NULL>",
-                          derived->get_unit()->first_select()->select_number,
-                          "materialized");
-      trace_derived.add("cause", cause);
-    }
-    derived->change_refs_to_fields();
-    derived->set_materialized_derived();
-    DBUG_RETURN(FALSE);
-  }
-
   if (derived->dt_handler)
   {
     derived->change_refs_to_fields();
@@ -821,6 +803,9 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
         cursor->outer_join|= JOIN_TYPE_OUTER;
     }
   }
+  // Prevent it for possible ORDER BY clause
+  if (unit->fake_select_lex)
+    unit->fake_select_lex->context.outer_context= 0;
 
   if (unlikely(thd->trace_started()))
   {
@@ -909,22 +894,6 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
     first_select->mark_as_belong_to_derived(derived);
 
   derived->dt_handler= derived->find_derived_handler(thd);
-  if (derived->dt_handler)
-  {
-    char query_buff[4096];
-    String derived_query(query_buff, sizeof(query_buff), thd->charset());
-    derived_query.length(0);
-    derived->derived->print(&derived_query,
-                            enum_query_type(QT_VIEW_INTERNAL | 
-                                            QT_ITEM_ORIGINAL_FUNC_NULLIF |
-                                            QT_PARSABLE));
-    if (!thd->make_lex_string(&derived->derived_spec,
-                              derived_query.ptr(), derived_query.length()))
-    {
-      delete derived->dt_handler;
-      derived->dt_handler= NULL;
-    }
-  }
 
 exit:
   /* Hide "Unknown column" or "Unknown function" error */

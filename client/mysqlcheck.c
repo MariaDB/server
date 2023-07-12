@@ -57,16 +57,15 @@ DYNAMIC_ARRAY tables4repair, tables4rebuild, alter_table_cmds;
 DYNAMIC_ARRAY views4repair;
 static uint opt_protocol=0;
 
-static uint protocol_to_force= MYSQL_PROTOCOL_DEFAULT;
-
 enum operations { DO_CHECK=1, DO_REPAIR, DO_ANALYZE, DO_OPTIMIZE, DO_FIX_NAMES };
 const char *operation_name[]=
 {
   "???", "check", "repair", "analyze", "optimize", "fix names"
 };
 
-typedef enum { DO_VIEWS_NO, DO_VIEWS_YES, DO_VIEWS_FROM_MYSQL } enum_do_views;
-const char *do_views_opts[]= {"NO", "YES", "UPGRADE_FROM_MYSQL", NullS};
+typedef enum { DO_VIEWS_NO, DO_VIEWS_YES, DO_UPGRADE, DO_VIEWS_FROM_MYSQL } enum_do_views;
+const char *do_views_opts[]= {"NO", "YES", "UPGRADE", "UPGRADE_FROM_MYSQL",
+  NullS};
 TYPELIB do_views_typelib= { array_elements(do_views_opts) - 1, "",
     do_views_opts, NULL };
 static ulong opt_do_views= DO_VIEWS_NO;
@@ -215,8 +214,9 @@ static struct my_option my_long_options[] =
   {"process-views", 0,
    "Perform the requested operation (check or repair) on views. "
    "One of: NO, YES (correct the checksum, if necessary, add the "
-   "mariadb-version field), UPGRADE_FROM_MYSQL (same as YES and toggle "
-   "the algorithm MERGE<->TEMPTABLE.", &opt_do_views, &opt_do_views,
+   "mariadb-version field), UPGRADE (run from mariadb-upgrade), "
+   "UPGRADE_FROM_MYSQL (same as YES and toggle the algorithm "
+   "MERGE<->TEMPTABLE.", &opt_do_views, &opt_do_views,
    &do_views_typelib, GET_ENUM, OPT_ARG, 0, 0, 0, 0, 0, 0},
   {"process-tables", 0, "Perform the requested operation on tables.",
    &opt_do_tables, &opt_do_tables, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
@@ -283,10 +283,6 @@ get_one_option(const struct my_option *opt,
                const char *filename)
 {
   int orig_what_to_do= what_to_do;
-
-  /* Track when protocol is set via CLI to not force overrides */
-  static my_bool ignore_protocol_override = FALSE;
-
   DBUG_ENTER("get_one_option");
 
   switch(opt->id) {
@@ -349,13 +345,6 @@ get_one_option(const struct my_option *opt,
   case 'W':
 #ifdef _WIN32
     opt_protocol = MYSQL_PROTOCOL_PIPE;
-
-    /* Prioritize pipe if explicit via command line */
-    if (filename[0] == '\0')
-    {
-      ignore_protocol_override = TRUE;
-      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
-    }
 #endif
     break;
   case '#':
@@ -379,45 +368,26 @@ get_one_option(const struct my_option *opt,
       sf_leaking_memory= 1; /* no memory leak reports here */
       exit(1);
     }
-
-    /* Specification of protocol via CLI trumps implicit overrides */
-    if (filename[0] == '\0')
-    {
-      ignore_protocol_override = TRUE;
-      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
-    }
-
     break;
   case 'P':
-    /* If port and socket are set, fall back to default behavior */
-    if (protocol_to_force == SOCKET_PROTOCOL_TO_FORCE)
+    if (filename[0] == '\0')
     {
-      ignore_protocol_override = TRUE;
-      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
-    }
-
-    /* If port is set via CLI, try to force protocol to TCP */
-    if (filename[0] == '\0' &&
-        !ignore_protocol_override &&
-        protocol_to_force == MYSQL_PROTOCOL_DEFAULT)
-    {
-      protocol_to_force = MYSQL_PROTOCOL_TCP;
+      /* Port given on command line, switch protocol to use TCP */
+      opt_protocol= MYSQL_PROTOCOL_TCP;
     }
     break;
   case 'S':
-    /* If port and socket are set, fall back to default behavior */
-    if (protocol_to_force == MYSQL_PROTOCOL_TCP)
+    if (filename[0] == '\0')
     {
-      ignore_protocol_override = TRUE;
-      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
-    }
-
-    /* Prioritize socket if set via command line */
-    if (filename[0] == '\0' &&
-        !ignore_protocol_override &&
-        protocol_to_force == MYSQL_PROTOCOL_DEFAULT)
-    {
-      protocol_to_force = SOCKET_PROTOCOL_TO_FORCE;
+      /*
+        Socket given on command line, switch protocol to use SOCKETSt
+        Except on Windows if 'protocol= pipe' has been provided in
+        the config file or command line.
+      */
+      if (opt_protocol != MYSQL_PROTOCOL_PIPE)
+      {
+        opt_protocol= MYSQL_PROTOCOL_SOCKET;
+      }
     }
     break;
   }
@@ -954,7 +924,10 @@ static int handle_request_for_tables(char *tables, size_t length,
     op= opt_write_binlog ?  "REPAIR" : "REPAIR NO_WRITE_TO_BINLOG";
     if (view)
     {
-      if (opt_do_views == DO_VIEWS_FROM_MYSQL) end = strmov(end, " FROM MYSQL");
+      if (opt_do_views == DO_VIEWS_FROM_MYSQL)
+        end = strmov(end, " FROM MYSQL");
+      else if (opt_do_views == DO_UPGRADE)
+        end = strmov(end, " FOR UPGRADE");
     }
     else
     {
@@ -994,6 +967,7 @@ static int handle_request_for_tables(char *tables, size_t length,
     DBUG_RETURN(1);
   if (dont_quote)
   {
+    DBUG_ASSERT(op);
     DBUG_ASSERT(strlen(op)+strlen(tables)+strlen(options)+8+1 <= query_size);
 
     /* No backticks here as we added them before */
@@ -1239,14 +1213,6 @@ int main(int argc, char **argv)
   defaults_argv= argv;
   if (get_options(&argc, &argv))
     goto end1;
-
-
-  /* Command line options override configured protocol */
-  if (protocol_to_force > MYSQL_PROTOCOL_DEFAULT
-      && protocol_to_force != opt_protocol)
-  {
-    warn_protocol_override(current_host, &opt_protocol, protocol_to_force);
-  }
 
   sf_leaking_memory=0; /* from now on we cleanup properly */
 

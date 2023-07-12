@@ -1,0 +1,123 @@
+connection node_2;
+connection node_1;
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4;
+connection node_2;
+call mtr.add_suppression("WSREP: Ignoring server id for non bootstrap node.");
+connection node_4;
+call mtr.add_suppression("WSREP: Ignoring server id for non bootstrap node.");
+connection node_3;
+CHANGE MASTER TO master_host='127.0.0.1', master_user='root', master_port=NODE_MYPORT_1, master_use_gtid=current_pos;;
+Warnings:
+Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release. Please use master_demote_to_slave=1 instead
+START SLAVE;
+include/wait_for_slave_to_start.inc
+connection node_1;
+CREATE TABLE t1 (id bigint primary key, msg varchar(100)) engine=innodb;
+SET AUTOCOMMIT=1;
+INSERT INTO t1 VALUES (4000000, 'foobar');
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+50001
+connection node_3;
+connection node_1;
+# node_1
+SELECT * FROM t1 WHERE msg='foobar';
+id	msg
+4000000	foobar
+SELECT * FROM t1 WHERE msg='foobar';
+id	msg
+4000000	foobar
+connection node_2;
+# node_2
+SELECT * FROM t1 WHERE msg='foobar';
+id	msg
+4000000	foobar
+SELECT * FROM t1 WHERE msg='foobar';
+id	msg
+4000000	foobar
+connection node_3;
+# node_3
+SELECT * FROM t1 WHERE msg='foobar';
+id	msg
+4000000	foobar
+SELECT * FROM t1 WHERE msg='foobar';
+id	msg
+4000000	foobar
+connection node_4;
+# node_4
+SELECT * FROM t1 WHERE msg='foobar';
+id	msg
+4000000	foobar
+SELECT * FROM t1 WHERE msg='foobar';
+id	msg
+4000000	foobar
+connection node_1;
+# node_1 insert new
+INSERT INTO t1 values (5000000, 'foobar');
+connection node_3;
+SELECT * FROM t1 WHERE msg='foobar';
+id	msg
+4000000	foobar
+5000000	foobar
+SELECT * FROM t1 WHERE msg='foobar';
+id	msg
+4000000	foobar
+5000000	foobar
+connection node_2;
+# node_2
+SELECT * FROM t1 WHERE msg='foobar';
+id	msg
+4000000	foobar
+5000000	foobar
+SELECT * FROM t1 WHERE msg='foobar';
+id	msg
+4000000	foobar
+5000000	foobar
+connection node_3;
+# node_3
+SELECT * FROM t1 WHERE msg='foobar';
+id	msg
+4000000	foobar
+5000000	foobar
+SELECT * FROM t1 WHERE msg='foobar';
+id	msg
+4000000	foobar
+5000000	foobar
+connection node_4;
+# node_4
+SELECT * FROM t1 WHERE msg='foobar';
+id	msg
+4000000	foobar
+5000000	foobar
+SELECT * FROM t1 WHERE msg='foobar';
+id	msg
+4000000	foobar
+5000000	foobar
+connection node_2;
+# node_3 different query same table
+SELECT id, msg FROM t1 WHERE msg='foobar';
+id	msg
+4000000	foobar
+5000000	foobar
+connection node_4;
+# node_6 different query same table
+SELECT id, msg FROM t1 WHERE msg='foobar';
+id	msg
+4000000	foobar
+5000000	foobar
+connection node_1;
+drop table t1;
+connection node_3;
+connection node_3;
+STOP SLAVE;
+RESET SLAVE ALL;
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'Current_Pos' to 'Slave_Pos'
+connection node_1;
+SET SESSION WSREP_ON=OFF;
+RESET MASTER;
+SET SESSION WSREP_ON=ON;
+disconnect node_2;
+disconnect node_1;
+# End of test

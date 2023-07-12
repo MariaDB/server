@@ -281,6 +281,12 @@ extern "C" sig_handler handle_fatal_signal(int sig);
 
 int init_io_cache_encryption();
 
+extern "C"
+{
+  static void my_malloc_size_cb_func(long long size,
+                                     my_bool is_thread_specific);
+}
+
 /* Constants */
 
 #include <welcome_copyright_notice.h> // ORACLE_WELCOME_COPYRIGHT_NOTICE
@@ -332,6 +338,7 @@ static my_bool opt_debugging= 0, opt_external_locking= 0, opt_console= 0;
 static my_bool opt_short_log_format= 0, opt_silent_startup= 0;
 
 ulong max_used_connections;
+time_t max_used_connections_time;
 static const char *mysqld_user, *mysqld_chroot;
 static char *default_character_set_name;
 static char *character_set_filesystem_name;
@@ -1747,6 +1754,11 @@ static void close_connections(void)
       (void) unlink(mysqld_unix_port);
     }
   }
+  /*
+    The following is needed to the threads stuck in
+    setup_connection_thread_globals()
+    to continue.
+  */
   listen_sockets.free_memory();
   mysql_mutex_unlock(&LOCK_start_thread);
 
@@ -2034,6 +2046,7 @@ static void clean_up(bool print_message)
   end_ssl();
 #ifndef EMBEDDED_LIBRARY
   vio_end();
+  listen_sockets.free_memory();
 #endif /*!EMBEDDED_LIBRARY*/
 #if defined(ENABLED_DEBUG_SYNC)
   /* End the debug sync facility. See debug_sync.cc. */
@@ -4704,7 +4717,10 @@ static void init_ssl()
     {
       sql_print_error("Failed to setup SSL");
       sql_print_error("SSL error: %s", sslGetErrString(error));
-      unireg_abort(1);
+      if (!opt_bootstrap)
+        unireg_abort(1);
+      opt_use_ssl = 0;
+      have_ssl= SHOW_OPTION_DISABLED;
     }
     else
       ssl_acceptor_stats.init();
@@ -6182,7 +6198,10 @@ void create_new_thread(CONNECT *connect)
 
   uint sum= connection_count + extra_connection_count;
   if (sum > max_used_connections)
+  {
     max_used_connections= sum;
+    max_used_connections_time= time(nullptr);
+  }
 
   /*
     The initialization of thread_id is done in create_embedded_thd() for
@@ -6514,8 +6533,6 @@ struct my_option my_long_options[]=
   {"console", OPT_CONSOLE, "Write error output on screen; don't remove the console window on windows.",
    &opt_console, &opt_console, 0, GET_BOOL, NO_ARG, 0, 0, 0,
    0, 0, 0},
-  {"core-file", OPT_WANT_CORE, "Write core on errors.", 0, 0, 0, GET_NO_ARG,
-   NO_ARG, 0, 0, 0, 0, 0, 0},
 #ifdef DBUG_OFF
   {"debug", '#', "Built in DBUG debugger. Disabled in this build.",
    &current_dbug_option, &current_dbug_option, 0, GET_STR, OPT_ARG,
@@ -7015,8 +7032,19 @@ static int show_heartbeat_period(THD *thd, SHOW_VAR *var, char *buff,
   return 0;
 }
 
-
 #endif /* HAVE_REPLICATION */
+
+
+static int show_max_used_connections_time(THD *thd, SHOW_VAR *var, char *buff,
+                                 enum enum_var_type scope)
+{
+  var->type= SHOW_CHAR;
+  var->value= buff;
+
+  get_date(buff, GETDATE_DATE_TIME | GETDATE_FIXEDLENGTH, max_used_connections_time);
+  return 0;
+}
+
 
 static int show_open_tables(THD *thd, SHOW_VAR *var, char *buff,
                             enum enum_var_type scope)
@@ -7493,6 +7521,7 @@ SHOW_VAR status_vars[]= {
   {"Master_gtid_wait_timeouts", (char*) offsetof(STATUS_VAR, master_gtid_wait_timeouts), SHOW_LONG_STATUS},
   {"Master_gtid_wait_time",    (char*) offsetof(STATUS_VAR, master_gtid_wait_time), SHOW_LONG_STATUS},
   {"Max_used_connections",     (char*) &max_used_connections,  SHOW_LONG},
+  {"Max_used_connections_time",(char*) &show_max_used_connections_time, SHOW_SIMPLE_FUNC},
   {"Memory_used",              (char*) &show_memory_used, SHOW_SIMPLE_FUNC},
   {"Memory_used_initial",      (char*) &start_memory_used, SHOW_LONGLONG},
   {"Resultset_metadata_skipped", (char *) offsetof(STATUS_VAR, skip_metadata_count),SHOW_LONG_STATUS},
@@ -7831,6 +7860,7 @@ static int mysql_init_variables(void)
   specialflag= 0;
   binlog_cache_use=  binlog_cache_disk_use= 0;
   max_used_connections= slow_launch_threads = 0;
+  max_used_connections_time= 0;
   mysqld_user= mysqld_chroot= opt_init_file= opt_bin_logname = 0;
   prepared_stmt_count= 0;
   mysqld_unix_port= opt_mysql_tmpdir= my_bind_addr_str= NullS;
@@ -8268,9 +8298,6 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
     break;
   case (int) OPT_SKIP_HOST_CACHE:
     opt_specialflag|= SPECIAL_NO_HOST_CACHE;
-    break;
-  case (int) OPT_WANT_CORE:
-    test_flags |= TEST_CORE_ON_SIGNAL;
     break;
   case OPT_CONSOLE:
     if (opt_console)
@@ -9209,6 +9236,7 @@ void refresh_status(THD *thd)
     connections.  This is not perfect, but status data is not exact anyway.
   */
   max_used_connections= connection_count + extra_connection_count;
+  max_used_connections_time= time(nullptr);
 }
 
 #ifdef HAVE_PSI_INTERFACE

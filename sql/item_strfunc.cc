@@ -1373,13 +1373,13 @@ bool Item_func_sformat::fix_length_and_dec(THD *thd)
 
   for (uint i=0 ; i < arg_count ; i++)
   {
-    char_length+= args[i]->max_char_length();
     if (args[i]->result_type() == STRING_RESULT &&
         Type_std_attributes::agg_item_set_converter(c, func_name_cstring(),
                                                     args+i, 1, flags, 1))
       return TRUE;
   }
 
+  char_length= MAX_BLOB_WIDTH;
   fix_char_length_ulonglong(char_length);
   return FALSE;
 }
@@ -3970,6 +3970,7 @@ String *Item_func_weight_string::val_str(String *str)
                            weigth_flags);
   DBUG_ASSERT(frm_length <= tmp_length);
 
+  str->set_charset(&my_charset_bin);
   str->length(frm_length);
   null_value= 0;
   return str;
@@ -4049,6 +4050,7 @@ String *Item_func_unhex::val_str(String *str)
 
   from= res->ptr();
   null_value= 0;
+  str->set_charset(&my_charset_bin);
   str->length(length);
   to= (char*) str->ptr();
   if (res->length() % 2)

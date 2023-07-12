@@ -268,28 +268,6 @@ ERROR 42000: Incorrect table name ''
 rename table t1 to ``;
 ERROR 42000: Incorrect table name ''
 drop table t1;
-drop table if exists t1, t2;
-Warnings:
-Note	1051	Unknown table 'test.t1,test.t2'
-create table t1 ( a varchar(10) not null primary key ) engine=myisam;
-create table t2 ( a varchar(10) not null primary key ) engine=merge union=(t1);
-flush tables;
-alter table t1 modify a varchar(10);
-show create table t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` varchar(10) NOT NULL,
-  PRIMARY KEY (`a`)
-) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci UNION=(`t1`)
-flush tables;
-alter table t1 modify a varchar(10) not null;
-show create table t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` varchar(10) NOT NULL,
-  PRIMARY KEY (`a`)
-) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci UNION=(`t1`)
-drop table if exists t1, t2;
 create table t1 (a int, b int, c int, d int, e int, f int, g int, h int,i int, primary key (a,b,c,d,e,f,g,i,h)) engine=MyISAM;
 insert ignore into t1 (a) values(1);
 Warnings:

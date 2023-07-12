@@ -63,6 +63,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN EXTENDED INSERT INTO t1(id1,val1) VALUES(9,'j') RETURNING id1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	INSERT	t1	ALL	NULL	NULL	NULL	NULL	NULL	100.00	NULL
+Warnings:
+Note	1003	insert into `test`.`t1`(id1,val1) values (9,'j')
 EXPLAIN FORMAT="json" INSERT INTO t1(id1,val1) VALUES (10,'k') RETURNING id1;
 EXPLAIN
 {
@@ -151,6 +153,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN EXTENDED INSERT INTO t1 VALUES (17,'s'),(18,'t') RETURNING *;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	INSERT	t1	ALL	NULL	NULL	NULL	NULL	NULL	100.00	NULL
+Warnings:
+Note	1003	insert into `test`.`t1` values (17,'s'),(18,'t')
 EXPLAIN FORMAT="json" INSERT INTO t1 VALUES(19,'u'),(20,'v') RETURNING id1;
 EXPLAIN
 {
@@ -236,6 +240,8 @@ EXPLAIN EXTENDED INSERT INTO ins_duplicate(id,val) VALUES (2,'b')
 ON DUPLICATE KEY UPDATE val='i' RETURNING val;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	INSERT	ins_duplicate	ALL	NULL	NULL	NULL	NULL	NULL	100.00	NULL
+Warnings:
+Note	1003	insert into `test`.`ins_duplicate`(id,val) values (2,'b') on duplicate key update `test`.`ins_duplicate`.`val` = 'i'
 EXPLAIN FORMAT="json" INSERT INTO ins_duplicate(id,val) VALUES (2,'b')
 ON DUPLICATE KEY UPDATE val='j' RETURNING val;
 EXPLAIN
@@ -320,6 +326,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN EXTENDED INSERT INTO t1 SET id1=10, val1='j' RETURNING val1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	INSERT	t1	ALL	NULL	NULL	NULL	NULL	NULL	100.00	NULL
+Warnings:
+Note	1003	insert into `test`.`t1`(id1,val1) values (10,'j')
 EXPLAIN FORMAT="json" INSERT INTO t1 SET id1=11, val1='k' RETURNING val1;
 EXPLAIN
 {
@@ -404,6 +412,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN EXTENDED INSERT INTO t1 SELECT * FROM t1 WHERE id1=9 RETURNING val1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+Warnings:
+Note	1003	insert into `test`.`t1` select sql_buffer_result NULL AS `id1`,NULL AS `val1` from `test`.`t1` where 0
 EXPLAIN FORMAT="json" INSERT INTO t1 SELECT * FROM t1 WHERE id1=10 RETURNING val1;
 EXPLAIN
 {

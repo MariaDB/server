@@ -63,8 +63,10 @@ public:
   char               *conn_keys_first_ptr;
   char               **conn_keys;
   SPIDER_CONN        **conns;
-  /* for active-standby mode */
+  /* array of indexes of active servers */
   uint               *conn_link_idx;
+  /* A bitmap indicating whether each active server have some higher
+  numbered server in the same "group" left to try (can fail over) */
   uchar              *conn_can_fo;
   void               **quick_targets;
   int                *need_mons;

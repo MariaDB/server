@@ -563,7 +563,7 @@ bool String::append(const char *s,size_t size)
   }
 
   /*
-    For an ASCII compatinble string we can just append.
+    For an ASCII compatible string we can just append.
   */
   return Binary_string::append(s, arg_length);
 }

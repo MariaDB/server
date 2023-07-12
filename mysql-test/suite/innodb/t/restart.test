@@ -1,9 +1,11 @@
 --source include/innodb_page_size.inc
 --source include/not_embedded.inc
 --source include/have_symlink.inc
+--source include/not_as_root.inc
 
 let datadir= `select @@datadir`;
 let page_size= `select @@innodb_page_size`;
+let tmp_in_vardir=$MYSQLTEST_VARDIR/tmp;
 
 --echo #
 --echo # MDEV-15333 MariaDB (still) slow start
@@ -27,19 +29,19 @@ call mtr.add_suppression("\\[Warning\\] InnoDB: Ignoring tablespace for test/td 
 CREATE TABLE tr(a INT)ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
 CREATE TABLE tc(a INT)ENGINE=InnoDB ROW_FORMAT=COMPACT
 PAGE_COMPRESSED=1 PAGE_COMPRESSION_LEVEL=9;
---replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--replace_result $tmp_in_vardir MYSQL_TMP_DIR
 eval CREATE TABLE td(a INT)ENGINE=InnoDB ROW_FORMAT=DYNAMIC
-STATS_PERSISTENT=0 DATA DIRECTORY='$MYSQL_TMP_DIR';
+STATS_PERSISTENT=0 DATA DIRECTORY='$tmp_in_vardir';
 
 --source include/shutdown_mysqld.inc
 
 --move_file $datadir/test/tr.ibd $datadir/test/tr0.ibd
 --move_file $datadir/test/tc.ibd $datadir/test/tc0.ibd
---move_file $MYSQL_TMP_DIR/test/td.ibd $datadir/test/td0.ibd
+--move_file $tmp_in_vardir/test/td.ibd $datadir/test/td0.ibd
 # TODO: test that MariaDB does not even attempt to open the files
 #--mkdir $datadir/test/tr.ibd
 #--mkdir $datadir/test/tc.ibd
-#--mkdir $MYSQL_TMP_DIR/test/td.ibd
+#--mkdir $tmp_in_vardir/test/td.ibd
 
 perl;
 die unless open OUT, ">", "$ENV{datadir}/test/tr.ibd";
@@ -48,7 +50,7 @@ close OUT or die;
 die unless open OUT, ">", "$ENV{datadir}/test/tc.ibd";
 print OUT "bar " x $ENV{page_size};
 close OUT or die;
-die unless open OUT, ">", "$ENV{MYSQL_TMP_DIR}/test/td.ibd";
+die unless open OUT, ">", "$ENV{tmp_in_vardir}/test/td.ibd";
 print OUT "Xyz " x $ENV{page_size};
 close OUT or die;
 die unless open ISL, "+<", "$ENV{datadir}/test/td.isl";
@@ -75,14 +77,14 @@ AND support IN ('YES', 'DEFAULT', 'ENABLED');
 # TODO: test that MariaDB does not even attempt to open the files
 #--rmdir $datadir/test/tr.ibd
 #--rmdir $datadir/test/tc.ibd
-#--rmdir $MYSQL_TMP_DIR/test/td.ibd
+#--rmdir $tmp_in_vardir/test/td.ibd
 --remove_file $datadir/test/tr.ibd
 --remove_file $datadir/test/tc.ibd
---remove_file $MYSQL_TMP_DIR/test/td.ibd
+--remove_file $tmp_in_vardir/test/td.ibd
 
 --move_file $datadir/test/tr0.ibd $datadir/test/tr.ibd
 --move_file $datadir/test/tc0.ibd $datadir/test/tc.ibd
---move_file $datadir/test/td0.ibd $MYSQL_TMP_DIR/test/td.ibd
+--move_file $datadir/test/td0.ibd $tmp_in_vardir/test/td.ibd
 
 --source include/start_mysqld.inc
 SELECT * FROM tr;
@@ -118,8 +120,6 @@ SET GLOBAL innodb_buffer_pool_size = @innodb_buffer_pool_size_orig;
 --echo #
 
 --let MYSQLD_DATADIR= `SELECT @@datadir`
---let SERVER_ID= `SELECT @@server_id`
---let EXPECT_FILE_NAME= $MYSQLTEST_VARDIR/tmp/mysqld.$SERVER_ID.expect
 
 --source include/shutdown_mysqld.inc
 
@@ -154,13 +154,13 @@ if ($MTR_COMBINATION_64K)
 }
 
 --error 1
-exec $MYSQLD --no-defaults --skip-networking --innodb_data_file_path=ibdata1:$ibdata_size --innodb-page-size=$page_size --datadir=$MYSQLD_DATADIR --log-error=$MYSQL_TMP_DIR/attempted_start.err;
+exec $MYSQLD --no-defaults --skip-networking --innodb_data_file_path=ibdata1:$ibdata_size --innodb-page-size=$page_size --datadir=$MYSQLD_DATADIR --log-error=$tmp_in_vardir/attempted_start.err;
 
-let SEARCH_FILE= $MYSQL_TMP_DIR/attempted_start.err;
+let SEARCH_FILE= $tmp_in_vardir/attempted_start.err;
 let SEARCH_PATTERN= InnoDB: MySQL-8\.0 tablespace in \./ibdata1;
 source include/search_pattern_in_file.inc;
 
---remove_file $MYSQL_TMP_DIR/attempted_start.err
+--remove_file $tmp_in_vardir/attempted_start.err
 --remove_file $MYSQLD_DATADIR/ibdata1
 --move_file $MYSQLD_DATADIR/ibdata1.bak $MYSQLD_DATADIR/ibdata1
 

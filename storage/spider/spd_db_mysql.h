@@ -434,9 +434,7 @@ public:
   bool is_xa_nota_error(
     int error_num
   );
-  int print_warnings(
-    struct tm *l_time
-  );
+  int fetch_and_print_warnings(struct tm *l_time);
   spider_db_result *store_result(
     spider_db_result_buffer **spider_res_buf,
     st_spider_db_request_key *request_key,
@@ -515,6 +513,10 @@ public:
     int wait_timeout,
     int *need_mon
   );
+
+  /** Reset the global lock wait time out */
+  int reset_lock_wait_timeout();
+
   bool set_sql_mode_in_bulk_sql();
   int set_sql_mode(
     sql_mode_t sql_mode,

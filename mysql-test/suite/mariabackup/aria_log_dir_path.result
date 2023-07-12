@@ -1,0 +1,41 @@
+#
+# MDEV-30968 mariadb-backup does not copy Aria logs if aria_log_dir_path is used
+#
+# Restart mariadbd with the test specific parameters
+# restart: --aria-log-file-size=8388608 --aria-log-purge-type=external --loose-aria-log-dir-path=MYSQLTEST_VARDIR/tmp/backup_aria_log_dir_path
+# Create and populate an Aria table (and Aria logs)
+CREATE TABLE t1 (id INT, txt LONGTEXT) ENGINE=Aria;
+BEGIN NOT ATOMIC
+FOR id IN 0..9 DO
+INSERT INTO test.t1 (id, txt) VALUES (id, REPEAT(id,1024*1024));
+END FOR;
+END;
+$$
+# Testing aria log files before --backup
+SET @@global.aria_checkpoint_interval=DEFAULT /*Force checkpoint*/;
+SHOW ENGINE aria logs;
+Type	Name	Status
+Aria	aria_log.00000001	free
+Aria	aria_log.00000002	in use
+# mariadb-backup --backup
+# mariadb-backup --prepare
+# shutdown server
+# remove datadir
+# remove aria-log-dir-path
+# mariadb-backup --copy-back
+# with parameters: --defaults-file=MYSQLTEST_VARDIR/my.cnf --copy-back --datadir=MYSQLTEST_VARDIR/mysqld.1/data/ --target-dir=MYSQLTEST_VARDIR/tmp/backup --parallel=2 --throttle=1 --aria-log-dir-path=MYSQLTEST_VARDIR/tmp/backup_aria_log_dir_path
+# starting server
+# restart: --aria-log-file-size=8388608 --aria-log-purge-type=external --loose-aria-log-dir-path=MYSQLTEST_VARDIR/tmp/backup_aria_log_dir_path
+# Check that the table is there after --copy-back
+SELECT COUNT(*) from t1;
+COUNT(*)
+10
+DROP TABLE t1;
+# Testing aria log files after --copy-back
+SET @@global.aria_checkpoint_interval=DEFAULT /*Force checkpoint*/;
+SHOW ENGINE aria logs;
+Type	Name	Status
+Aria	aria_log.00000001	free
+Aria	aria_log.00000002	in use
+# Restarting mariadbd with default parameters
+# restart

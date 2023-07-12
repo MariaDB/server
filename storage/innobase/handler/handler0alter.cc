@@ -1387,7 +1387,8 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
     for (unsigned i= 0; i < index->n_fields; i++)
     {
       const char *field_name= index->fields[i].name();
-      if (!field_name || !dtype_is_string_type(index->fields[i].col->mtype))
+      if (!field_name || !dtype_is_string_type(index->fields[i].col->mtype) ||
+	  index->fields[i].col->is_virtual())
         continue;
       for (uint j= 0; j < altered_table.s->fields; j++)
       {
@@ -11604,8 +11605,12 @@ foreign_fail:
 		ut_d(dict_table_check_for_dup_indexes(
 			     ctx->new_table, CHECK_ABORTED_OK));
 
-		ut_ad(!ctx->new_table->fts
-		      || fts_check_cached_index(ctx->new_table));
+#ifdef UNIV_DEBUG
+		if (!(ctx->new_table->fts != NULL
+			&& ctx->new_table->fts->cache->sync->in_progress)) {
+			ut_a(fts_check_cached_index(ctx->new_table));
+		}
+#endif
 	}
 
 	unlock_and_close_files(deleted, trx);

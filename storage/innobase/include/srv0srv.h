@@ -317,6 +317,9 @@ extern my_bool  srv_immediate_scrub_data_uncompressed;
 enum srv_operation_mode {
 	/** Normal mode (MariaDB Server) */
 	SRV_OPERATION_NORMAL,
+	/** Mariabackup is executing server to export already restored
+	tablespaces */
+	SRV_OPERATION_EXPORT_RESTORED,
 	/** Mariabackup taking a backup */
 	SRV_OPERATION_BACKUP,
 	/** Mariabackup restoring a backup for subsequent --copy-back */
@@ -597,6 +600,8 @@ struct export_var_t{
 #ifdef UNIV_DEBUG
 	ulint innodb_buffer_pool_pages_latched;	/*!< Latched pages */
 #endif /* UNIV_DEBUG */
+	/** buf_pool.stat.n_page_gets (a sharded counter) */
+	ulint innodb_buffer_pool_read_requests;
 	ulint innodb_checkpoint_age;
 	ulint innodb_checkpoint_max_age;
 	ulint innodb_data_pending_reads;	/*!< Pending reads */

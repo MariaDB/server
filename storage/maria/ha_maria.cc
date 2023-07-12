@@ -188,7 +188,7 @@ static MYSQL_SYSVAR_BOOL(page_checksum, maria_page_checksums, 0,
 
 /* It is only command line argument */
 static MYSQL_SYSVAR_CONST_STR(log_dir_path, maria_data_root,
-       PLUGIN_VAR_NOSYSVAR | PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+       PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
        "Path to the directory where to store transactional log",
        NULL, NULL, mysql_real_data_home);
 
@@ -1082,7 +1082,8 @@ const char *ha_maria::index_type(uint key_number)
 ulong ha_maria::index_flags(uint inx, uint part, bool all_parts) const
 {
   ulong flags;
-  if (table_share->key_info[inx].algorithm == HA_KEY_ALG_FULLTEXT)
+  if (table_share->key_info[inx].algorithm == HA_KEY_ALG_FULLTEXT ||
+      table_share->key_info[inx].algorithm == HA_KEY_ALG_UNIQUE_HASH)
     flags= 0;
   else
   if ((table_share->key_info[inx].flags & HA_SPATIAL ||

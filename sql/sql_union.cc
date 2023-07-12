@@ -32,6 +32,9 @@
 #include "sql_cte.h"
 #include "item_windowfunc.h"
 
+select_handler *find_partial_select_handler(THD *thd, SELECT_LEX *select_lex,
+                                            SELECT_LEX_UNIT *lex_unit);
+
 bool mysql_union(THD *thd, LEX *lex, select_result *result,
                  SELECT_LEX_UNIT *unit, ulonglong setup_tables_done_option)
 {
@@ -1282,6 +1285,94 @@ bool init_item_int(THD* thd, Item_int* &item)
   return true;
 }
 
+/**
+  @brief
+    Recursive subroutine to be called from find_unit_handler() (see below).
+    Must not be called directly, only from find_unit_handler().
+*/
+static select_handler *find_unit_handler_for_lex(THD *thd,
+                                                 SELECT_LEX *sel_lex,
+                                                 SELECT_LEX_UNIT* unit)
+{
+  if (!(sel_lex->join))
+    return nullptr;
+  for (TABLE_LIST *tbl= sel_lex->join->tables_list; tbl; tbl= tbl->next_local)
+  {
+    if (!tbl->table)
+      continue;
+    if (tbl->derived)
+    {
+      /*
+        Skip derived table for now as they will be checked
+        in the subsequent loop
+      */
+      continue;
+    }
+    handlerton *ht= tbl->table->file->partition_ht();
+    if (!ht->create_unit)
+      continue;
+    select_handler *sh= ht->create_unit(thd, unit);
+    if (sh)
+      return sh;
+  }
+
+  for (SELECT_LEX_UNIT *un= sel_lex->first_inner_unit(); un;
+       un= un->next_unit())
+  {
+    for (SELECT_LEX *sl= un->first_select(); sl; sl= sl->next_select())
+    {
+      select_handler *uh= find_unit_handler_for_lex(thd, sl, unit);
+      if (uh)
+        return uh;
+    }
+  }
+  return nullptr;
+}
+
+
+/**
+  @brief
+    Look for provision of the select_handler interface by a foreign engine.
+    This interface must support processing UNITs (multiple SELECTs combined
+    with UNION/EXCEPT/INTERSECT operators)
+
+  @param
+    thd   The thread handler
+    unit  UNIT (one or more SELECTs combined with UNION/EXCEPT/INTERSECT
+
+  @details
+    The function checks that this is an upper level UNIT and if so looks
+    through its tables searching for one whose handlerton owns a
+    create_unit call-back function. If the call of this function returns
+    a select_handler interface object then the server will push the
+    query into this engine.
+    This is a responsibility of the create_unit call-back function to
+    check whether the engine can execute the query.
+
+    The function recursively scans subqueries (see find_unit_handler_for_lex())
+    to get down to real tables and process queries like this:
+      (SELECT a FROM t1 UNION SELECT b FROM t2) UNION
+        (SELECT c FROM t3 UNION select d FROM t4)
+
+  @retval the found select_handler if the search is successful
+          nullptr  otherwise
+*/
+
+static select_handler *find_unit_handler(THD *thd,
+                                         SELECT_LEX_UNIT *unit)
+{
+  if (unit->outer_select())
+    return nullptr;
+
+  for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
+  {
+    select_handler *uh= find_unit_handler_for_lex(thd, sl, unit);
+    if (uh)
+      return uh;
+  }
+  return nullptr;
+}
+
 
 bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
                                  select_result *sel_result,
@@ -1297,6 +1388,7 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
   bool have_except= false, have_intersect= false,
     have_except_all_or_intersect_all= false;
   bool instantiate_tmp_table= false;
+  bool use_direct_union_result= false;
   bool single_tvc= !first_sl->next_select() && first_sl->tvc;
   bool single_tvc_wo_order= single_tvc && !first_sl->order_list.elements;
   bool distinct_key= 0;
@@ -1420,23 +1512,18 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
     }
   }
 
-  /* Global option */
-
   if (is_union_select || is_recursive)
   {
     if ((single_tvc_wo_order && !fake_select_lex) ||
         (is_unit_op() && !union_needs_tmp_table() &&
-	 !have_except && !have_intersect && !single_tvc))
+         !have_except && !have_intersect && !single_tvc))
     {
-      SELECT_LEX *last= first_select();
-      while (last->next_select())
-        last= last->next_select();
-      if (!(tmp_result= union_result=
-              new (thd->mem_root) select_union_direct(thd, sel_result,
-                                                          last)))
-        goto err; /* purecov: inspected */
+      if (unlikely(set_direct_union_result(sel_result)))
+        goto err;
+      tmp_result= union_result;
       fake_select_lex= NULL;
       instantiate_tmp_table= false;
+      use_direct_union_result= true;
     }
     else
     {
@@ -1814,37 +1901,6 @@ cont:
 
       if (unlikely(saved_error))
         goto err;
-
-      if (fake_select_lex != NULL &&
-          (thd->stmt_arena->is_stmt_prepare() ||
-           (thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW)))
-      {
-        /* Validate the global parameters of this union */
-
-	init_prepare_fake_select_lex(thd, TRUE);
-        /* Should be done only once (the only item_list per statement) */
-        DBUG_ASSERT(fake_select_lex->join == 0);
-	if (!(fake_select_lex->join= new JOIN(thd, item_list, thd->variables.option_bits,
-					      result)))
-	{
-	  fake_select_lex->table_list.empty();
-	  DBUG_RETURN(TRUE);
-	}
-
-        /*
-          Fake st_select_lex should have item list for correct ref_array
-          allocation.
-        */
-	fake_select_lex->item_list= item_list;
-
-	thd->lex->current_select= fake_select_lex;
-
-        /*
-          We need to add up n_sum_items in order to make the correct
-          allocation in setup_ref_array().
-        */
-        fake_select_lex->n_child_sum_items+= global_parameters()->n_sum_items;
-      }
     }
     else
     {
@@ -1854,23 +1910,45 @@ cont:
       */
       table->reset_item_list(&item_list, hidden);
     }
-    if (fake_select_lex != NULL &&
-        (thd->stmt_arena->is_stmt_prepare() ||
-         (thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW)))
+
+    if (fake_select_lex != NULL)
     {
-      if (!fake_select_lex->join &&
-          !(fake_select_lex->join=
-            new JOIN(thd, item_list, thd->variables.option_bits, result)))
+      init_prepare_fake_select_lex(thd, TRUE);
+
+      DBUG_ASSERT(fake_select_lex->join == 0);
+      if (!(fake_select_lex->join= new JOIN(thd, item_list, options, result)))
       {
-         fake_select_lex->table_list.empty();
-         DBUG_RETURN(TRUE);
+        fake_select_lex->table_list.empty();
+        DBUG_RETURN(TRUE);
       }
-      saved_error= fake_select_lex->join->
-        prepare(fake_select_lex->table_list.first, 0,
+
+      /*
+        Fake st_select_lex should have item list for correct ref_array
+        allocation.
+      */
+      fake_select_lex->item_list= item_list;
+
+      thd->lex->current_select= fake_select_lex;
+
+      /*
+        We need to add up n_sum_items in order to make the correct
+        allocation in setup_ref_array().
+      */
+      fake_select_lex->n_child_sum_items+= global_parameters()->n_sum_items;
+      fake_select_lex->join->no_const_tables= TRUE;
+      saved_error= fake_select_lex->join->prepare(
+          fake_select_lex->table_list.first, 0,
                 global_parameters()->order_list.elements, // og_num
                 global_parameters()->order_list.first,    // order
                 false, NULL, NULL, NULL, fake_select_lex, this);
-      fake_select_lex->table_list.empty();
+    }
+
+    if (!thd->lex->is_view_context_analysis())
+      pushdown_unit= find_unit_handler(thd, this);
+    if (pushdown_unit)
+    {
+      if (prepare_pushdown(use_direct_union_result, sel_result))
+        goto err;
     }
   }
 
@@ -1884,6 +1962,45 @@ err:
   DBUG_RETURN(TRUE);
 }
 
+/**
+  @brief
+    Prepare st_select_lex_unit for the pushdown handler processing
+  @details
+    Creates and initializes data structures required for processing of the
+    pushdown handler. Validates fake_select_lex then discards it and sets
+    direct union result which is necessary for pushed down statements
+  @return
+    false - success
+    true - failure
+*/
+bool st_select_lex_unit::prepare_pushdown(bool use_direct_union_result,
+                                          select_result *sel_result)
+{
+  if (unlikely(pushdown_unit->prepare()))
+    return true;
+
+  if(!use_direct_union_result)
+  {
+    /*
+      Always use select_union_direct result for pushed down units, overwrite
+      the previous union_result unless select_union_direct is already used
+    */
+    if (unlikely(set_direct_union_result(sel_result)))
+      return true;
+  }
+  return false;
+}
+
+
+bool st_select_lex_unit::set_direct_union_result(select_result *sel_result)
+{
+  SELECT_LEX *last= first_select();
+  while (last->next_select())
+    last= last->next_select();
+  union_result= new (thd->mem_root) select_union_direct(thd, sel_result,
+                                                      last);
+  return (union_result == nullptr);
+}
 
 /**
   @brief
@@ -2133,6 +2250,15 @@ bool st_select_lex_unit::optimize()
           (lim.is_unlimited() || sl->braces) ?
           sl->options & ~OPTION_FOUND_ROWS : sl->options | found_rows_for_union;
 
+        if (!this->pushdown_unit)
+        {
+          /*
+            If the UNIT hasn't been pushed down to the engine as a whole,
+            try to push down partial SELECTs of this UNIT separately
+          */
+          sl->pushdown_select= find_partial_select_handler(thd, sl, this);
+        }
+
 	saved_error= sl->join->optimize();
       }
 
@@ -2152,16 +2278,30 @@ bool st_select_lex_unit::optimize()
 
 bool st_select_lex_unit::exec()
 {
+  DBUG_ENTER("st_select_lex_unit::exec");
+  if (executed && !uncacheable && !describe)
+    DBUG_RETURN(FALSE);
+
+  if (pushdown_unit)
+  {
+    create_explain_query_if_not_exists(thd->lex, thd->mem_root);
+    if (!executed)
+      save_union_explain(thd->lex->explain);
+    DBUG_RETURN(pushdown_unit->execute());
+  }
+  DBUG_RETURN(exec_inner());
+}
+
+
+bool st_select_lex_unit::exec_inner()
+{
   SELECT_LEX *lex_select_save= thd->lex->current_select;
   SELECT_LEX *select_cursor=first_select();
   ulonglong add_rows=0;
   ha_rows examined_rows= 0;
   bool first_execution= !executed;
   bool was_executed= executed;
-  DBUG_ENTER("st_select_lex_unit::exec");
 
-  if (executed && !uncacheable && !describe)
-    DBUG_RETURN(FALSE);
   executed= 1;
   if (!(uncacheable & ~UNCACHEABLE_EXPLAIN) && item &&
       !item->with_recursive_reference)
@@ -2175,7 +2315,7 @@ bool st_select_lex_unit::exec()
     save_union_explain(thd->lex->explain);
 
   if (unlikely(saved_error))
-    DBUG_RETURN(saved_error);
+    return saved_error;
 
   if (union_result)
   {
@@ -2192,6 +2332,7 @@ bool st_select_lex_unit::exec()
   {
     if (!fake_select_lex && !(with_element && with_element->is_recursive))
       union_result->cleanup();
+
     for (SELECT_LEX *sl= select_cursor; sl; sl= sl->next_select())
     {
       ha_rows records_at_start= 0;
@@ -2251,8 +2392,8 @@ bool st_select_lex_unit::exec()
 	{
           // This is UNION DISTINCT, so there should be a fake_select_lex
           DBUG_ASSERT(fake_select_lex != NULL);
-	  if (unlikely(table->file->ha_disable_indexes(HA_KEY_SWITCH_ALL)))
-	    DBUG_RETURN(TRUE);
+          if (unlikely(table->file->ha_disable_indexes(HA_KEY_SWITCH_ALL)))
+            return true;
 	  table->no_keyread=1;
 	}
 	if (likely(!saved_error))
@@ -2262,14 +2403,14 @@ bool st_select_lex_unit::exec()
 	  if (union_result->flush())
 	  {
 	    thd->lex->current_select= lex_select_save;
-	    DBUG_RETURN(1);
+	    return true;
 	  }
 	}
       }
       if (unlikely(saved_error))
       {
 	thd->lex->current_select= lex_select_save;
-	DBUG_RETURN(saved_error);
+	return saved_error;
       }
       if (fake_select_lex != NULL)
       {
@@ -2278,7 +2419,7 @@ bool st_select_lex_unit::exec()
         if (unlikely(error))
         {
           table->file->print_error(error, MYF(0));
-          DBUG_RETURN(1);
+          return true;
         }
       }
       if (found_rows_for_union && !sl->braces &&
@@ -2328,45 +2469,13 @@ bool st_select_lex_unit::exec()
        saved_error= true;
 
       set_limit(global_parameters());
-      init_prepare_fake_select_lex(thd, first_execution);
       JOIN *join= fake_select_lex->join;
       saved_error= false;
-      if (!join)
+      if (!(thd->stmt_arena->is_stmt_prepare() ||
+           (thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW)) &&
+          first_execution)
       {
-	/*
-	  allocate JOIN for fake select only once (prevent
-	  mysql_select automatic allocation)
-          TODO: The above is nonsense. mysql_select() will not allocate the
-          join if one already exists. There must be some other reason why we
-          don't let it allocate the join. Perhaps this is because we need
-          some special parameter values passed to join constructor?
-	*/
-	if (unlikely(!(fake_select_lex->join=
-                       new JOIN(thd, item_list, fake_select_lex->options,
-                                result))))
-	{
-	  fake_select_lex->table_list.empty();
-	  goto err;
-	}
-        fake_select_lex->join->no_const_tables= TRUE;
-
-        /*
-          Fake st_select_lex should have item list for correct ref_array
-          allocation.
-        */
-        fake_select_lex->item_list= item_list;
-
-        /*
-          We need to add up n_sum_items in order to make the correct
-          allocation in setup_ref_array().
-          Don't add more sum_items if we have already done JOIN::prepare
-          for this (with a different join object)
-        */
-        if (fake_select_lex->ref_pointer_array.is_null())
-          fake_select_lex->n_child_sum_items+= global_parameters()->n_sum_items;
-        
-        if (!was_executed)
-          save_union_explain_part2(thd->lex->explain);
+        save_union_explain_part2(thd->lex->explain);
 
         saved_error= mysql_select(thd, &result_table_list,
                                   item_list, NULL,
@@ -2389,7 +2498,6 @@ bool st_select_lex_unit::exec()
             subquery execution rather than EXPLAIN line production. In order 
             to reset them back, we re-do all of the actions (yes it is ugly):
           */ // psergey-todo: is the above really necessary anymore?? 
-	  join->init(thd, item_list, fake_select_lex->options, result);
           saved_error= mysql_select(thd, &result_table_list, item_list, NULL,
 				    global_parameters()->order_list.elements,
 				    global_parameters()->order_list.first,
@@ -2419,9 +2527,8 @@ bool st_select_lex_unit::exec()
     }
   }
   thd->lex->current_select= lex_select_save;
-err:
   thd->lex->set_limit_rows_examined();
-  DBUG_RETURN(saved_error);
+  return saved_error;
 }
 
 
@@ -2648,6 +2755,9 @@ bool st_select_lex_unit::cleanup()
     }
   }
 
+  delete pushdown_unit;
+  pushdown_unit= nullptr;
+
   DBUG_RETURN(error);
 }
 
@@ -2681,12 +2791,9 @@ bool st_select_lex_unit::change_result(select_result_interceptor *new_result,
       if (sl->join->change_result(new_result, old_result))
 	return true; /* purecov: inspected */
   }
-  /*
-    If there were a fake_select_lex->join, we would have to change the
-    result of that also, but change_result() is called before such an
-    object is created.
-  */
-  DBUG_ASSERT(fake_select_lex == NULL || fake_select_lex->join == NULL);
+
+  if (fake_select_lex && fake_select_lex->join)
+    fake_select_lex->join->change_result(new_result, old_result);
   return false;
 }
 
@@ -2811,6 +2918,8 @@ bool st_select_lex::cleanup()
   inner_refs_list.empty();
   exclude_from_table_unique_test= FALSE;
   hidden_bit_fields= 0;
+  delete pushdown_select;
+  pushdown_select= nullptr;
   DBUG_RETURN(error);
 }
 

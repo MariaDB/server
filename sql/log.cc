@@ -418,7 +418,7 @@ private:
   Rows_log_event *m_pending;
 
   /*
-    Bit flags for what has been writting to cache. Used to
+    Bit flags for what has been writing to cache. Used to
     discard logs without any data changes.
     see enum_logged_status;
   */
@@ -5662,7 +5662,7 @@ bool MYSQL_BIN_LOG::write_event_buffer(uchar* buf, uint len)
   {
     DBUG_ASSERT(crypto.scheme == 1);
 
-    uint elen;
+    uint elen= len - 4;
     uchar iv[BINLOG_IV_LENGTH];
 
     ebuf= (uchar*)my_safe_alloca(len);
@@ -11980,7 +11980,10 @@ get_gtid_list_event(IO_CACHE *cache, Gtid_list_log_event **out_gtid_list)
     if (typ == START_ENCRYPTION_EVENT)
     {
       if (fdle->start_decryption((Start_encryption_log_event*) ev))
+      {
         errormsg= "Could not set up decryption for binlog.";
+        break;
+      }
     }
     delete ev;
     if (typ == ROTATE_EVENT || typ == STOP_EVENT ||

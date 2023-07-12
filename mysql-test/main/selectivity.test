@@ -1262,7 +1262,6 @@ insert into t2 select seq,seq,seq from seq_1_to_100;
 analyze table t1,t2 persistent for all;
 
 set optimizer_switch='exists_to_in=off';
-set optimizer_use_condition_selectivity=2;
 
 let $query= SELECT * FROM t1
             WHERE
@@ -1270,14 +1269,16 @@ let $query= SELECT * FROM t1
                       WHERE A.a=t1.a AND t2.b < 20);
 
 eval $query;
-eval explain $query;
+eval set statement optimizer_use_condition_selectivity=2 for explain $query;
+eval set statement optimizer_use_condition_selectivity=4 for explain $query;
 
-EXPLAIN  SELECT * FROM t1 A, t1 B WHERE A.a = B.a and A.id = 65;
+set @query="EXPLAIN  SELECT * FROM t1 A, t1 B WHERE A.a = B.a and A.id = 65";
+eval set statement optimizer_use_condition_selectivity=2 for explain $query;
+eval set statement optimizer_use_condition_selectivity=4 for explain $query;
 
 eval explain $query;
 
 set optimizer_switch= @save_optimizer_switch;
-set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
 drop table t1,t2;
 
 --echo #
@@ -1331,17 +1332,18 @@ EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2;
 FLUSH TABLES;
 
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2;
-set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
-set histogram_size=@save_histogram_size;
-set use_stat_tables= @save_use_stat_tables;
 
 DROP TABLE t1;
 
 --echo # End of 10.2 tests
 
+
 #
 # Clean up
 #
+set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+set histogram_size=@save_histogram_size;
+set use_stat_tables= @save_use_stat_tables;
 --source include/restore_charset.inc
 set @@global.histogram_size=@save_histogram_size;
 

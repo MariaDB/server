@@ -145,7 +145,6 @@ my $opt_start_exit;
 my $start_only;
 my $file_wsrep_provider;
 my $num_saved_cores= 0;  # Number of core files saved in vardir/log/ so far.
-my $test_name_for_report;
 
 our @global_suppressions;
 
@@ -187,6 +186,7 @@ my @DEFAULT_SUITES= qw(
     compat/mssql-
     compat/maxdb-
     encryption-
+    events-
     federated-
     funcs_1-
     funcs_2-
@@ -201,6 +201,7 @@ my @DEFAULT_SUITES= qw(
     json-
     maria-
     mariabackup-
+    merge-
     multi_source-
     optimizer_unfixed_bugs-
     parts-
@@ -402,10 +403,18 @@ sub main {
 
   mtr_report("Collecting tests...");
   my $tests= collect_test_cases($opt_reorder, $opt_suites, \@opt_cases, \@opt_skip_test_list);
+  if (@$tests == 0) {
+    mtr_report("No tests to run...");
+    exit 0;
+  }
+
   mark_time_used('collect');
 
-  mysql_install_db(default_mysqld(), "$opt_vardir/install.db") unless using_extern();
-
+  if (!using_extern())
+  {
+    mysql_install_db(default_mysqld(), "$opt_vardir/install.db");
+    make_readonly("$opt_vardir/install.db");
+  }
   if ($opt_dry_run)
   {
     for (@$tests) {
@@ -516,13 +525,13 @@ sub main {
   }
 
   if ( not @$completed ) {
-    if ($test_name_for_report)
-    {
-      my $tinfo = My::Test->new(name => $test_name_for_report);
-      $tinfo->{result}= 'MTR_RES_FAILED';
-      $tinfo->{comment}=' ';
-      mtr_report_test($tinfo);
-    }
+    my $test_name= mtr_grab_file($path_testlog);
+    $test_name =~ s/^CURRENT_TEST:\s//;
+    chomp($test_name);
+    my $tinfo = My::Test->new(name => $test_name);
+    $tinfo->{result}= 'MTR_RES_FAILED';
+    $tinfo->{comment}=' ';
+    mtr_report_test($tinfo);
     mtr_error("Test suite aborted");
   }
 
@@ -1787,7 +1796,7 @@ sub collect_mysqld_features {
 
 sub collect_mysqld_features_from_running_server ()
 {
-  my $mysql= mtr_exe_exists("$path_client_bindir/mysql");
+  my $mysql= mtr_exe_exists("$path_client_bindir/mariadb");
 
   my $args;
   mtr_init_args(\$args);
@@ -3749,8 +3758,8 @@ sub resfile_report_test ($) {
 sub run_testcase ($$) {
   my ($tinfo, $server_socket)= @_;
   my $print_freq=20;
-  $test_name_for_report= $tinfo->{name};
-  mtr_verbose("Running test:", $test_name_for_report);
+
+  mtr_verbose("Running test:", $tinfo->{name});
   $ENV{'MTR_TEST_NAME'} = $tinfo->{name};
   resfile_report_test($tinfo) if $opt_resfile;
 
@@ -5139,10 +5148,12 @@ sub mysqld_start ($$) {
   if (!$rc)
   {
     # Report failure about the last test case before exit
-    my $tinfo = My::Test->new(name => $test_name_for_report);
+    my $test_name= mtr_grab_file($path_current_testlog);
+    $test_name =~ s/^CURRENT_TEST:\s//;
+    my $tinfo = My::Test->new(name => $test_name);
     $tinfo->{result}= 'MTR_RES_FAILED';
     $tinfo->{failures}= 1;
-    $tinfo->{logfile}=get_log_from_proc($mysqld->{'proc'}, $test_name_for_report);
+    $tinfo->{logfile}=get_log_from_proc($mysqld->{'proc'}, $tinfo->{name});
     report_option('verbose', 1);
     mtr_report_test($tinfo);
   }
@@ -5961,7 +5972,7 @@ Misc options
                         phases of test execution.
   stress=ARGS           Run stress test, providing options to
                         mysql-stress-test.pl. Options are separated by comma.
-  xml-report=<file>     Output jUnit xml file of the results.
+  xml-report=<file>     Output xml file of the results.
   tail-lines=N          Number of lines of the result to include in a failure
                         report.
 

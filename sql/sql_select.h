@@ -227,7 +227,7 @@ enum sj_strategy_enum
 
 typedef enum_nested_loop_state
 (*Next_select_func)(JOIN *, struct st_join_table *, bool);
-Next_select_func setup_end_select_func(JOIN *join, JOIN_TAB *tab);
+Next_select_func setup_end_select_func(JOIN *join);
 int rr_sequential(READ_RECORD *info);
 int read_record_func_for_rr_and_unpack(READ_RECORD *info);
 Item *remove_pushed_top_conjuncts(THD *thd, Item *cond);
@@ -310,6 +310,7 @@ typedef struct st_join_table {
 
   Table_access_tracker *jbuf_tracker;
   Time_and_counter_tracker *jbuf_unpack_tracker;
+  Counter_tracker  *jbuf_loops_tracker;
 
   //  READ_RECORD::Setup_func materialize_table;
   READ_RECORD::Setup_func read_first_record;
@@ -367,8 +368,10 @@ typedef struct st_join_table {
 
   /* set by estimate_scan_time() */
   double        cached_scan_and_compare_time;
-  double        cached_forced_index_cost;
+  ALL_READ_COST cached_scan_and_compare_cost;
 
+  /* Used with force_index_join */
+  ALL_READ_COST cached_forced_index_cost;
   /*
     dependent is the table that must be read before the current one
     Used for example with STRAIGHT_JOIN or outer joins
@@ -440,6 +443,8 @@ typedef struct st_join_table {
   */
   bool          idx_cond_fact_out;
   bool          use_join_cache;
+  /* TRUE <=> it is prohibited to join this table using join buffer */
+  bool          no_forced_join_cache;
   uint          used_join_cache_level;
   ulong         join_buffer_size_limit;
   JOIN_CACHE	*cache;
@@ -565,6 +570,16 @@ typedef struct st_join_table {
   uint n_sj_tables;
 
   bool preread_init_done;
+
+  /* true <=> split optimization has been applied to this materialized table */
+  bool is_split_derived;
+
+  /*
+    Bitmap of split materialized derived tables that can be filled just before
+    this join table is to be joined. All parameters of the split derived tables
+    belong to tables preceding this join table.
+  */
+  table_map split_derived_to_update;
 
   /*
     Cost info to the range filter used when joining this join table
@@ -729,9 +744,11 @@ typedef struct st_join_table {
 
   void partial_cleanup();
   void add_keyuses_for_splitting();
-  SplM_plan_info *choose_best_splitting(double record_count,
-                                        table_map remaining_tables);
-  bool fix_splitting(SplM_plan_info *spl_plan, table_map remaining_tables,
+  SplM_plan_info *choose_best_splitting(uint idx,
+                                        table_map remaining_tables,
+                                        const POSITION *join_positions,
+                                        table_map *spl_pd_boundary);
+  bool fix_splitting(SplM_plan_info *spl_plan, table_map excluded_tables,
                      bool is_const_table);
 } JOIN_TAB;
 
@@ -1039,8 +1056,20 @@ public:
   */
   KEYUSE *key;
 
+  /* Cardinality of current partial join ending with this position */
+  double partial_join_cardinality;
+
   /* Info on splitting plan used at this position */
   SplM_plan_info *spl_plan;
+
+  /*
+    If spl_plan is NULL the value of spl_pd_boundary is 0. Otherwise
+    spl_pd_boundary contains the bitmap of the table from the current
+    partial join ending at this position that starts the sub-sequence of
+    tables S from which no conditions are allowed to be used in the plan
+    spl_plan for the split table joined at this position.
+  */
+  table_map spl_pd_boundary;
 
   /* Cost info for the range filter used at this position */
   Range_rowid_filter_cost_info *range_rowid_filter_info;
@@ -1567,6 +1596,8 @@ public:
   */
   bool impossible_where; 
 
+  bool prepared;
+
   /*
     All fields used in the query processing.
 
@@ -1783,7 +1814,8 @@ public:
   void join_free();
   /** Cleanup this JOIN, possibly for reuse */
   void cleanup(bool full);
-  void clear();
+  void clear(table_map *cleared_tables);
+  void inline clear_sum_funcs();
   bool send_row_on_empty_set()
   {
     return (do_send_rows && implicit_grouping && !group_optimized_away &&

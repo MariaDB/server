@@ -36,6 +36,11 @@ const char *unit_operation_text[4]=
    "UNIT RESULT","UNION RESULT","INTERSECT RESULT","EXCEPT RESULT"
 };
 
+const char *pushed_unit_operation_text[4]=
+{
+  "PUSHED UNIT", "PUSHED UNION", "PUSHED INTERSECT", "PUSHED EXCEPT"
+};
+
 const char *pushed_derived_text= "PUSHED DERIVED";
 const char *pushed_select_text= "PUSHED SELECT";
 
@@ -188,7 +193,7 @@ void Explain_query::notify_tables_are_closed()
   Send EXPLAIN output to the client.
 */
 
-int Explain_query::send_explain(THD *thd)
+int Explain_query::send_explain(THD *thd, bool extended)
 {
   select_result *result;
   LEX *lex= thd->lex;
@@ -201,8 +206,22 @@ int Explain_query::send_explain(THD *thd)
   if (thd->lex->explain_json)
     print_explain_json(result, thd->lex->analyze_stmt, false /*is_show_cmd*/);
   else
+  {
     res= print_explain(result, lex->describe, thd->lex->analyze_stmt);
-
+    if (extended)
+    {
+      char buff[1024];
+      String str(buff,(uint32) sizeof(buff), system_charset_info);
+                 str.length(0);
+     /*
+       The warnings system requires input in utf8, @see
+        mysqld_show_warnings().
+     */
+     lex->unit.print(&str, QT_EXPLAIN_EXTENDED);
+                     push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
+                     ER_YES, str.c_ptr_safe());
+    }
+  }
   if (res)
     result->abort_result_set();
   else
@@ -210,6 +229,7 @@ int Explain_query::send_explain(THD *thd)
 
   return res;
 }
+
 
 
 /*
@@ -577,7 +597,22 @@ uint Explain_union::make_union_table_name(char *buf)
 }
 
 
-int Explain_union::print_explain(Explain_query *query, 
+int Explain_union::print_explain(Explain_query *query,
+                                 select_result_sink *output,
+                                 uint8 explain_flags, bool is_analyze)
+{
+  if (is_pushed_down_to_engine)
+    return print_explain_pushed_down(output, explain_flags, is_analyze);
+  else
+    return print_explain_regular(query, output, explain_flags, is_analyze);
+}
+
+/*
+  Prints EXPLAIN plan for a regular UNIT (UNION/EXCEPT/INTERSECT),
+  i.e. UNIT that has not been pushed down to a storage engine
+*/
+
+int Explain_union::print_explain_regular(Explain_query *query,
                                  select_result_sink *output,
                                  uint8 explain_flags, 
                                  bool is_analyze)
@@ -594,7 +629,15 @@ int Explain_union::print_explain(Explain_query *query,
   }
 
   if (!using_tmp)
+  {
+    /*
+      The union operation may not employ a temporary table, for example,
+      for UNION ALL, in that case the results of the query are sent directly
+      to the output. So there is no actual UNION operation and we don't need
+      to print the line in the EXPLAIN output.
+    */
     return 0;
+  }
 
   /* Print a line with "UNIT RESULT" */
   List<Item> item_list;
@@ -611,7 +654,7 @@ int Explain_union::print_explain(Explain_query *query,
   item_list.push_back(new (mem_root)
                       Item_string_sys(thd, table_name_buffer, len),
                       mem_root);
-  
+
   /* `partitions` column */
   if (explain_flags & DESCRIBE_PARTITIONS)
     item_list.push_back(item_null, mem_root);
@@ -667,7 +710,6 @@ int Explain_union::print_explain(Explain_query *query,
                                       extra_buf.length()),
                       mem_root);
 
-  //output->unit.offset_limit_cnt= 0; 
   if (output->send_data(item_list))
     return 1;
   
@@ -679,9 +721,89 @@ int Explain_union::print_explain(Explain_query *query,
 }
 
 
-void Explain_union::print_explain_json(Explain_query *query, 
+/*
+  Prints EXPLAIN plan for a UNIT (UNION/EXCEPT/INTERSECT) that
+  has been pushed down to a storage engine
+*/
+
+int Explain_union::print_explain_pushed_down(select_result_sink *output,
+                                             uint8 explain_flags,
+                                             bool is_analyze)
+{
+  THD *thd= output->thd;
+  MEM_ROOT *mem_root= thd->mem_root;
+  List<Item> item_list;
+  Item *item_null= new (mem_root) Item_null(thd);
+
+  /* `id` column */
+  item_list.push_back(item_null, mem_root);
+
+  /* `select_type` column */
+  push_str(thd, &item_list, fake_select_type);
+
+  /* `table` column */
+  item_list.push_back(item_null, mem_root);
+
+  /* `partitions` column */
+  if (explain_flags & DESCRIBE_PARTITIONS)
+    item_list.push_back(item_null, mem_root);
+
+  /* `type` column */
+  item_list.push_back(item_null, mem_root);
+
+  /* `possible_keys` column */
+  item_list.push_back(item_null, mem_root);
+
+  /* `key` */
+  item_list.push_back(item_null, mem_root);
+
+  /* `key_len` */
+  item_list.push_back(item_null, mem_root);
+
+  /* `ref` */
+  item_list.push_back(item_null, mem_root);
+
+  /* `rows` */
+  item_list.push_back(item_null, mem_root);
+
+  /* `r_rows` */
+  if (is_analyze)
+    item_list.push_back(item_null, mem_root);
+
+  /* `filtered` */
+  if (explain_flags & DESCRIBE_EXTENDED || is_analyze)
+    item_list.push_back(item_null, mem_root);
+
+  /* `r_filtered` */
+  if (is_analyze)
+    item_list.push_back(item_null, mem_root);
+
+  /* `Extra` */
+  item_list.push_back(item_null, mem_root);
+
+  if (output->send_data(item_list))
+    return 1;
+  return 0;
+}
+
+
+void Explain_union::print_explain_json(Explain_query *query,
                                        Json_writer *writer, bool is_analyze,
                                        bool no_tmp_tbl)
+{
+  if (is_pushed_down_to_engine)
+    print_explain_json_pushed_down(query, writer, is_analyze, no_tmp_tbl);
+  else
+    print_explain_json_regular(query, writer, is_analyze, no_tmp_tbl);
+}
+
+/*
+  Prints EXPLAIN plan in JSON format for a regular UNIT (UNION/EXCEPT/INTERSECT),
+  i.e. UNIT that has not been pushed down to a storage engine
+*/
+
+void Explain_union::print_explain_json_regular(
+  Explain_query *query, Json_writer *writer, bool is_analyze, bool no_tmp_tbl)
 {
   Json_writer_nesting_guard guard(writer);
   char table_name_buffer[SAFE_NAME_LEN];
@@ -738,6 +860,31 @@ void Explain_union::print_explain_json(Explain_query *query,
 
   if (started_object)
     writer->end_object();
+}
+
+/*
+  Prints EXPLAIN plan in JSON format for a UNIT (UNION/EXCEPT/INTERSECT) that
+  has been pushed down to a storage engine
+*/
+
+void Explain_union::print_explain_json_pushed_down(Explain_query *query,
+                                                   Json_writer *writer,
+                                                   bool is_analyze,
+                                                   bool no_tmp_tbl)
+{
+  Json_writer_nesting_guard guard(writer);
+
+  writer->add_member("query_block").start_object();
+
+  if (is_recursive_cte)
+    writer->add_member("recursive_union").start_object();
+  else
+    writer->add_member("union_result").start_object();
+
+  writer->add_member("message").add_str(fake_select_type);
+
+  writer->end_object(); // union_result
+  writer->end_object(); // query_block
 }
 
 
@@ -2027,7 +2174,8 @@ void Explain_table_access::print_explain_json(Explain_query *query,
 
     if (is_analyze)
     {
-      //writer->add_member("r_loops").add_ll(jbuf_tracker.get_loops());
+      writer->add_member("r_loops").add_ll(jbuf_loops_tracker.get_loops());
+
       writer->add_member("r_filtered");
       if (jbuf_tracker.has_scans())
         writer->add_double(jbuf_tracker.get_filtered_after_where()*100.0);
@@ -2036,6 +2184,26 @@ void Explain_table_access::print_explain_json(Explain_query *query,
 
       writer->add_member("r_unpack_time_ms");
       writer->add_double(jbuf_unpack_tracker.get_time_ms());
+
+      writer->add_member("r_other_time_ms").
+        add_double(jbuf_extra_time_tracker.get_time_ms());
+      /*
+        effective_rows is average number of matches we got for an incoming
+        row. The row is stored in the join buffer and then is read
+        from there, possibly multiple times. We can't count this number
+        directly. Infer it as:
+         total_number_of_row_combinations_considered / r_loops.
+      */
+      writer->add_member("r_effective_rows");
+      if (jbuf_loops_tracker.has_scans())
+      {
+        double loops= (double)jbuf_loops_tracker.get_loops();
+        double row_combinations= (double)jbuf_tracker.r_rows;
+        writer->add_double(row_combinations / loops);
+      }
+      else
+        writer->add_null();
+
     }
   }
 

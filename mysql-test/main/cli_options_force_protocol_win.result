@@ -1,24 +1,23 @@
 #
 # MDEV-14974: --port ignored for --host=localhost
 #
-#
-# The following group of tests should produce no warnings
-#
-# exec MYSQL --host=localhost -e "status" 2>&1 | findstr /c:"Connection:" /c:"WARNING:"
+# exec MYSQL --host=localhost -e "status" 2>&1 | findstr /c:"Connection:"
 Connection:		localhost via TCP/IP
-# exec MYSQL --host=localhost --port=MASTER_MYPORT -e "status" 2>&1 | findstr /c:"Connection:" /c:"WARNING:"
+# exec MYSQL --host=localhost --port=MASTER_MYPORT -e "status" 2>&1 | findstr /c:"Connection:"
 Connection:		localhost via TCP/IP
-# exec MYSQL --host=localhost --port=MASTER_MYPORT --socket=MASTER_MYSOCK -e "status" 2>&1 | findstr /c:"Connection:" /c:"WARNING:"
+# exec MYSQL --host=localhost --port=MASTER_MYPORT --socket=MASTER_MYSOCK -e "status" 2>&1 | findstr /c:"Connection:"
 Connection:		localhost via TCP/IP
-# exec MYSQL --host=localhost --protocol=pipe -e "status" 2>&1 | findstr /c:"Connection:" /c:"WARNING:"
+# exec MYSQL --host=localhost --protocol=pipe -e "status" 2>&1 | findstr /c:"Connection:"
 Connection:		localhost via named pipe
-# exec MYSQL --host=localhost -W -e "status" 2>&1 | findstr /c:"Connection:" /c:"WARNING:"
+# exec MYSQL --host=localhost -W -e "status" 2>&1 | findstr /c:"Connection:"
 Connection:		localhost via named pipe
-# exec MYSQL --host=localhost -W --socket=MASTER_MYSOCK -e "status" 2>&1 | findstr /c:"Connection:" /c:"WARNING:"
+# exec MYSQL --host=localhost -W --socket=MASTER_MYSOCK -e "status" 2>&1 | findstr /c:"Connection:"
 Connection:		localhost via named pipe
+# exec MYSQL --host=localhost --socket=MASTER_MYSOCK -e "status" 2>&1 | findstr /c:"Connection:"
+Connection:		localhost via TCP/IP
 #
-# The remaining tests should produce warnings
+# MDEV-30639: Upgrade to 10.8 and later does not work on Windows
+#             due to connection protocol overwrite
 #
-# exec MYSQL --host=localhost --socket=MASTER_MYSOCK -e "status" 2>&1 | findstr /c:"Connection:" /c:"WARNING:"
-WARNING: Forcing protocol to  PIPE  due to option specification. Please explicitly state intended protocol.
+# exec MYSQL --host=localhost --protocol=pipe --socket=MASTER_MYSOCK -e "status" 2>&1 | findstr /c:"Connection:"
 Connection:		localhost via named pipe

@@ -59,7 +59,7 @@ select * from v1	{
             }
           },
           {
-            "expanded_query": "/* select#1 */ select t1.a AS a,t1.b AS b from v1"
+            "expanded_query": "/* select#1 */ select v1.a AS a,v1.b AS b from v1"
           }
         ]
       }
@@ -230,7 +230,7 @@ select * from (select * from t1 where t1.a=1)q	{
             }
           },
           {
-            "expanded_query": "/* select#1 */ select t1.a AS a,t1.b AS b from (/* select#2 */ select t1.a AS a,t1.b AS b from t1 where t1.a = 1) q"
+            "expanded_query": "/* select#1 */ select q.a AS a,q.b AS b from (/* select#2 */ select t1.a AS a,t1.b AS b from t1 where t1.a = 1) q"
           }
         ]
       }
@@ -515,6 +515,11 @@ select * from v2	{
                   ]
                 },
                 {
+                  "check_split_materialized": {
+                    "not_applicable": "no candidate field can be accessed through ref"
+                  }
+                },
+                {
                   "best_join_order": ["t1"],
                   "rows": 1,
                   "cost": 0.010978597
@@ -690,7 +695,7 @@ explain select * from v2	{
             }
           },
           {
-            "expanded_query": "/* select#1 */ select t2.a AS a from v2"
+            "expanded_query": "/* select#1 */ select v2.a AS a from v2"
           }
         ]
       }
@@ -899,6 +904,11 @@ explain select * from v1	{
                       "cost_for_sorting": 0.006368384
                     }
                   ]
+                },
+                {
+                  "check_split_materialized": {
+                    "not_applicable": "group list has no candidates"
+                  }
                 },
                 {
                   "best_join_order": ["t1"],
@@ -1227,6 +1237,7 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                               "rows_after_filter": 100,
                               "rows_out": 1,
                               "cost": 0.9604227,
+                              "cost_without_join_buffer": 2.56761,
                               "index_only": false,
                               "chosen": false
                             }
@@ -1281,6 +1292,7 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                               "rows_after_filter": 100,
                               "rows_out": 1,
                               "cost": 0.9604227,
+                              "cost_without_join_buffer": 2.56761,
                               "index_only": false,
                               "chosen": false
                             }
@@ -3455,6 +3467,7 @@ explain extended select * from t1 where a in (select p from t2)	{
                               "rows_after_filter": 101,
                               "rows_out": 101,
                               "cost": 0.063593833,
+                              "cost_without_join_buffer": 0.10333002,
                               "index_only": false,
                               "chosen": true
                             }
@@ -4266,7 +4279,7 @@ explain delete from t0 where t0.a<3	{
         "select_id": 1,
         "steps": [
           {
-            "expanded_query": "select  from dual where t0.a < 3"
+            "expanded_query": "delete  from t0 using dual where t0.a < 3"
           }
         ]
       }
@@ -4346,7 +4359,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
         "select_id": 1,
         "steps": [
           {
-            "expanded_query": "select  from t0 join t1 where t0.a = t1.a and t1.a < 3"
+            "expanded_query": "delete  from t0,t1 using t0 join t1 where t0.a = t1.a and t1.a < 3"
           }
         ]
       }
@@ -4792,7 +4805,7 @@ explain select * from (select rand() from t1)q	{
             "derived": {
               "table": "q",
               "select_id": 2,
-              "algorithm": "merged"
+              "algorithm": "materialized"
             }
           },
           {
@@ -4806,7 +4819,7 @@ explain select * from (select rand() from t1)q	{
             }
           },
           {
-            "expanded_query": "/* select#1 */ select rand() AS `rand()` from (/* select#2 */ select rand() AS `rand()` from t1) q"
+            "expanded_query": "/* select#1 */ select q.`rand()` AS `rand()` from (/* select#2 */ select rand() AS `rand()` from t1) q"
           }
         ]
       }
@@ -4815,14 +4828,6 @@ explain select * from (select rand() from t1)q	{
       "join_optimization": {
         "select_id": 1,
         "steps": [
-          {
-            "derived": {
-              "table": "q",
-              "select_id": 2,
-              "algorithm": "materialized",
-              "cause": "Random function in the select"
-            }
-          },
           {
             "join_optimization": {
               "select_id": 2,
@@ -5244,6 +5249,7 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
                                     "rows_after_filter": 3,
                                     "rows_out": 3,
                                     "cost": 0.011523207,
+                                    "cost_without_join_buffer": 0.031514445,
                                     "index_only": false,
                                     "chosen": true
                                   }
@@ -5387,6 +5393,7 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
                               "rows_after_filter": 3,
                               "rows_out": 3,
                               "cost": 0.011523207,
+                              "cost_without_join_buffer": 0.031514445,
                               "index_only": false,
                               "chosen": true
                             }
@@ -5413,6 +5420,7 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
                               "rows_after_filter": 3,
                               "rows_out": 3,
                               "cost": 0.011523207,
+                              "cost_without_join_buffer": 0.031514445,
                               "index_only": false,
                               "chosen": true
                             }
@@ -5451,6 +5459,7 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
                                   "rows_after_filter": 3,
                                   "rows_out": 3,
                                   "cost": 0.015203373,
+                                  "cost_without_join_buffer": 0.094543335,
                                   "index_only": false,
                                   "chosen": true
                                 }
@@ -6015,6 +6024,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               "rows_after_filter": 3,
                               "rows_out": 3,
                               "cost": 0.011523207,
+                              "cost_without_join_buffer": 0.031514445,
                               "index_only": false,
                               "chosen": true
                             }
@@ -6041,6 +6051,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               "rows_after_filter": 9,
                               "rows_out": 9,
                               "cost": 0.014133225,
+                              "cost_without_join_buffer": 0.034329735,
                               "index_only": false,
                               "chosen": true
                             }
@@ -6067,6 +6078,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               "rows_after_filter": 9,
                               "rows_out": 9,
                               "cost": 0.014133225,
+                              "cost_without_join_buffer": 0.034329735,
                               "index_only": false,
                               "chosen": true
                             }
@@ -6093,6 +6105,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               "rows_after_filter": 3,
                               "rows_out": 3,
                               "cost": 0.011523207,
+                              "cost_without_join_buffer": 0.031514445,
                               "index_only": false,
                               "chosen": true
                             }
@@ -6119,6 +6132,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               "rows_after_filter": 9,
                               "rows_out": 9,
                               "cost": 0.014133225,
+                              "cost_without_join_buffer": 0.034329735,
                               "index_only": false,
                               "chosen": true
                             }
@@ -6157,6 +6171,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   "rows_after_filter": 9,
                                   "rows_out": 9,
                                   "cost": 0.050443503,
+                                  "cost_without_join_buffer": 0.308967615,
                                   "index_only": false,
                                   "chosen": true
                                 }
@@ -6183,6 +6198,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   "rows_after_filter": 3,
                                   "rows_out": 3,
                                   "cost": 0.024600489,
+                                  "cost_without_join_buffer": 0.283630005,
                                   "index_only": false,
                                   "chosen": true
                                 }
@@ -6209,6 +6225,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   "rows_after_filter": 3,
                                   "rows_out": 3,
                                   "cost": 0.024600489,
+                                  "cost_without_join_buffer": 0.283630005,
                                   "index_only": false,
                                   "chosen": true
                                 }
@@ -6235,6 +6252,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   "rows_after_filter": 9,
                                   "rows_out": 9,
                                   "cost": 0.050443503,
+                                  "cost_without_join_buffer": 0.308967615,
                                   "index_only": false,
                                   "chosen": true
                                 }
@@ -6273,6 +6291,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       "rows_after_filter": 9,
                                       "rows_out": 9,
                                       "cost": 0.172815333,
+                                      "cost_without_join_buffer": 0.926902845,
                                       "index_only": false,
                                       "chosen": true
                                     }
@@ -6299,6 +6318,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       "rows_after_filter": 3,
                                       "rows_out": 3,
                                       "cost": 0.067582275,
+                                      "cost_without_join_buffer": 0.850890015,
                                       "index_only": false,
                                       "chosen": true
                                     }
@@ -6325,6 +6345,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       "rows_after_filter": 9,
                                       "rows_out": 9,
                                       "cost": 0.172815333,
+                                      "cost_without_join_buffer": 0.926902845,
                                       "index_only": false,
                                       "chosen": true
                                     }
@@ -6386,6 +6407,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows_after_filter": 3,
                                           "rows_out": 3,
                                           "cost": 0.034460781,
+                                          "cost_without_join_buffer": 0.283630005,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -6412,6 +6434,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows_after_filter": 9,
                                           "rows_out": 9,
                                           "cost": 0.080024379,
+                                          "cost_without_join_buffer": 0.308967615,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -6450,6 +6473,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                               "rows_after_filter": 9,
                                               "rows_out": 9,
                                               "cost": 0.261557961,
+                                              "cost_without_join_buffer": 0.926902845,
                                               "index_only": false,
                                               "chosen": true
                                             }
@@ -6530,6 +6554,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows_after_filter": 9,
                                           "rows_out": 9,
                                           "cost": 0.628673451,
+                                          "cost_without_join_buffer": 2.780708535,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -6556,6 +6581,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows_after_filter": 9,
                                           "rows_out": 9,
                                           "cost": 0.628673451,
+                                          "cost_without_join_buffer": 2.780708535,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -6594,6 +6620,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                               "rows_after_filter": 9,
                                               "rows_out": 9,
                                               "cost": 6.764540577,
+                                              "cost_without_join_buffer": 25.02637682,
                                               "index_only": false,
                                               "chosen": true
                                             }
@@ -6713,6 +6740,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   "rows_after_filter": 9,
                                   "rows_out": 9,
                                   "cost": 0.024443331,
+                                  "cost_without_join_buffer": 0.102989205,
                                   "index_only": false,
                                   "chosen": true
                                 }
@@ -6739,6 +6767,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   "rows_after_filter": 9,
                                   "rows_out": 9,
                                   "cost": 0.024443331,
+                                  "cost_without_join_buffer": 0.102989205,
                                   "index_only": false,
                                   "chosen": true
                                 }
@@ -6765,6 +6794,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   "rows_after_filter": 3,
                                   "rows_out": 3,
                                   "cost": 0.015203373,
+                                  "cost_without_join_buffer": 0.094543335,
                                   "index_only": false,
                                   "chosen": true
                                 }
@@ -6791,6 +6821,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   "rows_after_filter": 9,
                                   "rows_out": 9,
                                   "cost": 0.024443331,
+                                  "cost_without_join_buffer": 0.102989205,
                                   "index_only": false,
                                   "chosen": true
                                 }
@@ -6829,6 +6860,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       "rows_after_filter": 9,
                                       "rows_out": 9,
                                       "cost": 0.172815333,
+                                      "cost_without_join_buffer": 0.926902845,
                                       "index_only": false,
                                       "chosen": true
                                     }
@@ -6855,6 +6887,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       "rows_after_filter": 3,
                                       "rows_out": 3,
                                       "cost": 0.067582275,
+                                      "cost_without_join_buffer": 0.850890015,
                                       "index_only": false,
                                       "chosen": true
                                     }
@@ -6881,6 +6914,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       "rows_after_filter": 9,
                                       "rows_out": 9,
                                       "cost": 0.172815333,
+                                      "cost_without_join_buffer": 0.926902845,
                                       "index_only": false,
                                       "chosen": true
                                     }
@@ -6937,6 +6971,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows_after_filter": 3,
                                           "rows_out": 3,
                                           "cost": 0.034460781,
+                                          "cost_without_join_buffer": 0.283630005,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -6963,6 +6998,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows_after_filter": 9,
                                           "rows_out": 9,
                                           "cost": 0.080024379,
+                                          "cost_without_join_buffer": 0.308967615,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -7001,6 +7037,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                               "rows_after_filter": 9,
                                               "rows_out": 9,
                                               "cost": 0.261557961,
+                                              "cost_without_join_buffer": 0.926902845,
                                               "index_only": false,
                                               "chosen": true
                                             }
@@ -7081,6 +7118,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows_after_filter": 9,
                                           "rows_out": 9,
                                           "cost": 0.628673451,
+                                          "cost_without_join_buffer": 2.780708535,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -7107,6 +7145,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows_after_filter": 9,
                                           "rows_out": 9,
                                           "cost": 0.628673451,
+                                          "cost_without_join_buffer": 2.780708535,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -7145,6 +7184,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                               "rows_after_filter": 9,
                                               "rows_out": 9,
                                               "cost": 6.764540577,
+                                              "cost_without_join_buffer": 25.02637682,
                                               "index_only": false,
                                               "chosen": true
                                             }
@@ -7256,6 +7296,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       "rows_after_filter": 9,
                                       "rows_out": 9,
                                       "cost": 0.017419989,
+                                      "cost_without_join_buffer": 0.034329735,
                                       "index_only": false,
                                       "chosen": true
                                     }
@@ -7282,6 +7323,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       "rows_after_filter": 3,
                                       "rows_out": 3,
                                       "cost": 0.012618795,
+                                      "cost_without_join_buffer": 0.031514445,
                                       "index_only": false,
                                       "chosen": true
                                     }
@@ -7308,6 +7350,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       "rows_after_filter": 9,
                                       "rows_out": 9,
                                       "cost": 0.017419989,
+                                      "cost_without_join_buffer": 0.034329735,
                                       "index_only": false,
                                       "chosen": true
                                     }
@@ -7346,6 +7389,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows_after_filter": 3,
                                           "rows_out": 3,
                                           "cost": 0.034460781,
+                                          "cost_without_join_buffer": 0.283630005,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -7372,6 +7416,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows_after_filter": 9,
                                           "rows_out": 9,
                                           "cost": 0.080024379,
+                                          "cost_without_join_buffer": 0.308967615,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -7410,6 +7455,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                               "rows_after_filter": 9,
                                               "rows_out": 9,
                                               "cost": 0.261557961,
+                                              "cost_without_join_buffer": 0.926902845,
                                               "index_only": false,
                                               "chosen": true
                                             }
@@ -7490,6 +7536,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows_after_filter": 9,
                                           "rows_out": 9,
                                           "cost": 0.034303623,
+                                          "cost_without_join_buffer": 0.102989205,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -7516,6 +7563,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows_after_filter": 9,
                                           "rows_out": 9,
                                           "cost": 0.034303623,
+                                          "cost_without_join_buffer": 0.102989205,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -7554,6 +7602,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                               "rows_after_filter": 9,
                                               "rows_out": 9,
                                               "cost": 0.261557961,
+                                              "cost_without_join_buffer": 0.926902845,
                                               "index_only": false,
                                               "chosen": true
                                             }
@@ -7639,6 +7688,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       "rows_after_filter": 9,
                                       "rows_out": 9,
                                       "cost": 0.065233941,
+                                      "cost_without_join_buffer": 0.308967615,
                                       "index_only": false,
                                       "chosen": true
                                     }
@@ -7665,6 +7715,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       "rows_after_filter": 9,
                                       "rows_out": 9,
                                       "cost": 0.065233941,
+                                      "cost_without_join_buffer": 0.308967615,
                                       "index_only": false,
                                       "chosen": true
                                     }
@@ -7691,6 +7742,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       "rows_after_filter": 9,
                                       "rows_out": 9,
                                       "cost": 0.065233941,
+                                      "cost_without_join_buffer": 0.308967615,
                                       "index_only": false,
                                       "chosen": true
                                     }
@@ -7729,6 +7781,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows_after_filter": 9,
                                           "rows_out": 9,
                                           "cost": 0.628673451,
+                                          "cost_without_join_buffer": 2.780708535,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -7755,6 +7808,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows_after_filter": 9,
                                           "rows_out": 9,
                                           "cost": 0.628673451,
+                                          "cost_without_join_buffer": 2.780708535,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -8271,6 +8325,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     "rows_after_filter": 9,
                                     "rows_out": 9,
                                     "cost": 0.014133225,
+                                    "cost_without_join_buffer": 0.034329735,
                                     "index_only": false,
                                     "chosen": true
                                   }
@@ -8384,6 +8439,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     "rows_after_filter": 9,
                                     "rows_out": 9,
                                     "cost": 0.014133225,
+                                    "cost_without_join_buffer": 0.034329735,
                                     "index_only": false,
                                     "chosen": true
                                   }
@@ -8605,6 +8661,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               "rows_after_filter": 3,
                               "rows_out": 3,
                               "cost": 0.011523207,
+                              "cost_without_join_buffer": 0.031514445,
                               "index_only": false,
                               "chosen": true
                             }
@@ -8631,6 +8688,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               "rows_after_filter": 9,
                               "rows_out": 9,
                               "cost": 0.014133225,
+                              "cost_without_join_buffer": 0.034329735,
                               "index_only": false,
                               "chosen": true
                             }
@@ -8657,6 +8715,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               "rows_after_filter": 9,
                               "rows_out": 9,
                               "cost": 0.014133225,
+                              "cost_without_join_buffer": 0.034329735,
                               "index_only": false,
                               "chosen": true
                             }
@@ -8683,6 +8742,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               "rows_after_filter": 3,
                               "rows_out": 3,
                               "cost": 0.011523207,
+                              "cost_without_join_buffer": 0.031514445,
                               "index_only": false,
                               "chosen": true
                             }
@@ -8709,6 +8769,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               "rows_after_filter": 9,
                               "rows_out": 9,
                               "cost": 0.014133225,
+                              "cost_without_join_buffer": 0.034329735,
                               "index_only": false,
                               "chosen": true
                             }
@@ -8747,6 +8808,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   "rows_after_filter": 9,
                                   "rows_out": 9,
                                   "cost": 0.050443503,
+                                  "cost_without_join_buffer": 0.308967615,
                                   "index_only": false,
                                   "chosen": true
                                 }
@@ -8773,6 +8835,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   "rows_after_filter": 3,
                                   "rows_out": 3,
                                   "cost": 0.024600489,
+                                  "cost_without_join_buffer": 0.283630005,
                                   "index_only": false,
                                   "chosen": true
                                 }
@@ -8799,6 +8862,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   "rows_after_filter": 3,
                                   "rows_out": 3,
                                   "cost": 0.024600489,
+                                  "cost_without_join_buffer": 0.283630005,
                                   "index_only": false,
                                   "chosen": true
                                 }
@@ -8825,6 +8889,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   "rows_after_filter": 9,
                                   "rows_out": 9,
                                   "cost": 0.050443503,
+                                  "cost_without_join_buffer": 0.308967615,
                                   "index_only": false,
                                   "chosen": true
                                 }
@@ -8863,6 +8928,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       "rows_after_filter": 9,
                                       "rows_out": 9,
                                       "cost": 0.172815333,
+                                      "cost_without_join_buffer": 0.926902845,
                                       "index_only": false,
                                       "chosen": true
                                     }
@@ -8889,6 +8955,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       "rows_after_filter": 3,
                                       "rows_out": 3,
                                       "cost": 0.067582275,
+                                      "cost_without_join_buffer": 0.850890015,
                                       "index_only": false,
                                       "chosen": true
                                     }
@@ -8915,6 +8982,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       "rows_after_filter": 9,
                                       "rows_out": 9,
                                       "cost": 0.172815333,
+                                      "cost_without_join_buffer": 0.926902845,
                                       "index_only": false,
                                       "chosen": true
                                     }
@@ -8981,6 +9049,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows_after_filter": 3,
                                           "rows_out": 3,
                                           "cost": 0.034460781,
+                                          "cost_without_join_buffer": 0.283630005,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -9007,6 +9076,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows_after_filter": 9,
                                           "rows_out": 9,
                                           "cost": 0.080024379,
+                                          "cost_without_join_buffer": 0.308967615,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -9045,6 +9115,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                               "rows_after_filter": 9,
                                               "rows_out": 9,
                                               "cost": 0.261557961,
+                                              "cost_without_join_buffer": 0.926902845,
                                               "index_only": false,
                                               "chosen": true
                                             }
@@ -9178,6 +9249,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   "rows_after_filter": 9,
                                   "rows_out": 9,
                                   "cost": 0.024443331,
+                                  "cost_without_join_buffer": 0.102989205,
                                   "index_only": false,
                                   "chosen": true
                                 }
@@ -9204,6 +9276,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   "rows_after_filter": 9,
                                   "rows_out": 9,
                                   "cost": 0.024443331,
+                                  "cost_without_join_buffer": 0.102989205,
                                   "index_only": false,
                                   "chosen": true
                                 }
@@ -9230,6 +9303,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   "rows_after_filter": 3,
                                   "rows_out": 3,
                                   "cost": 0.015203373,
+                                  "cost_without_join_buffer": 0.094543335,
                                   "index_only": false,
                                   "chosen": true
                                 }
@@ -9256,6 +9330,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   "rows_after_filter": 9,
                                   "rows_out": 9,
                                   "cost": 0.024443331,
+                                  "cost_without_join_buffer": 0.102989205,
                                   "index_only": false,
                                   "chosen": true
                                 }
@@ -9294,6 +9369,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       "rows_after_filter": 9,
                                       "rows_out": 9,
                                       "cost": 0.172815333,
+                                      "cost_without_join_buffer": 0.926902845,
                                       "index_only": false,
                                       "chosen": true
                                     }
@@ -9320,6 +9396,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       "rows_after_filter": 3,
                                       "rows_out": 3,
                                       "cost": 0.067582275,
+                                      "cost_without_join_buffer": 0.850890015,
                                       "index_only": false,
                                       "chosen": true
                                     }
@@ -9346,6 +9423,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       "rows_after_filter": 9,
                                       "rows_out": 9,
                                       "cost": 0.172815333,
+                                      "cost_without_join_buffer": 0.926902845,
                                       "index_only": false,
                                       "chosen": true
                                     }
@@ -9412,6 +9490,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows_after_filter": 9,
                                           "rows_out": 9,
                                           "cost": 0.628673451,
+                                          "cost_without_join_buffer": 2.780708535,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -9438,6 +9517,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows_after_filter": 9,
                                           "rows_out": 9,
                                           "cost": 0.628673451,
+                                          "cost_without_join_buffer": 2.780708535,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -9498,6 +9578,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                               "rows_after_filter": 9,
                                               "rows_out": 9,
                                               "cost": 0.261557961,
+                                              "cost_without_join_buffer": 0.926902845,
                                               "index_only": false,
                                               "chosen": true
                                             }
@@ -9608,6 +9689,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       "rows_after_filter": 9,
                                       "rows_out": 9,
                                       "cost": 0.017419989,
+                                      "cost_without_join_buffer": 0.034329735,
                                       "index_only": false,
                                       "chosen": true
                                     }
@@ -9634,6 +9716,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       "rows_after_filter": 3,
                                       "rows_out": 3,
                                       "cost": 0.012618795,
+                                      "cost_without_join_buffer": 0.031514445,
                                       "index_only": false,
                                       "chosen": true
                                     }
@@ -9660,6 +9743,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       "rows_after_filter": 9,
                                       "rows_out": 9,
                                       "cost": 0.017419989,
+                                      "cost_without_join_buffer": 0.034329735,
                                       "index_only": false,
                                       "chosen": true
                                     }
@@ -9698,6 +9782,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows_after_filter": 3,
                                           "rows_out": 3,
                                           "cost": 0.034460781,
+                                          "cost_without_join_buffer": 0.283630005,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -9724,6 +9809,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows_after_filter": 9,
                                           "rows_out": 9,
                                           "cost": 0.080024379,
+                                          "cost_without_join_buffer": 0.308967615,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -9762,6 +9848,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                               "rows_after_filter": 9,
                                               "rows_out": 9,
                                               "cost": 0.261557961,
+                                              "cost_without_join_buffer": 0.926902845,
                                               "index_only": false,
                                               "chosen": true
                                             }
@@ -9849,6 +9936,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows_after_filter": 9,
                                           "rows_out": 9,
                                           "cost": 0.034303623,
+                                          "cost_without_join_buffer": 0.102989205,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -9875,6 +9963,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows_after_filter": 9,
                                           "rows_out": 9,
                                           "cost": 0.034303623,
+                                          "cost_without_join_buffer": 0.102989205,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -9913,6 +10002,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                               "rows_after_filter": 9,
                                               "rows_out": 9,
                                               "cost": 0.261557961,
+                                              "cost_without_join_buffer": 0.926902845,
                                               "index_only": false,
                                               "chosen": true
                                             }
@@ -10001,6 +10091,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       "rows_after_filter": 9,
                                       "rows_out": 9,
                                       "cost": 0.065233941,
+                                      "cost_without_join_buffer": 0.308967615,
                                       "index_only": false,
                                       "chosen": true
                                     }
@@ -10027,6 +10118,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       "rows_after_filter": 9,
                                       "rows_out": 9,
                                       "cost": 0.065233941,
+                                      "cost_without_join_buffer": 0.308967615,
                                       "index_only": false,
                                       "chosen": true
                                     }
@@ -10053,6 +10145,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       "rows_after_filter": 9,
                                       "rows_out": 9,
                                       "cost": 0.065233941,
+                                      "cost_without_join_buffer": 0.308967615,
                                       "index_only": false,
                                       "chosen": true
                                     }
@@ -10091,6 +10184,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows_after_filter": 9,
                                           "rows_out": 9,
                                           "cost": 0.628673451,
+                                          "cost_without_join_buffer": 2.780708535,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -10117,6 +10211,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows_after_filter": 9,
                                           "rows_out": 9,
                                           "cost": 0.628673451,
+                                          "cost_without_join_buffer": 2.780708535,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -10955,7 +11050,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                                         "rows": 1000,
                                         "rows_after_filter": 800,
                                         "rows_out": 800,
-                                        "cost": 0.834607,
+                                        "cost": 0.8329686,
                                         "index_only": false,
                                         "chosen": true
                                     }
@@ -10965,7 +11060,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                                     "type": "scan",
                                     "rows_read": 800,
                                     "rows_out": 800,
-                                    "cost": 0.834607,
+                                    "cost": 0.8329686,
                                     "uses_join_buffering": false
                                 }
                             }
@@ -10976,7 +11071,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                     "plan_prefix": "A",
                     "table": "B",
                     "rows_for_plan": 4000,
-                    "cost_for_plan": 0.84620665
+                    "cost_for_plan": 0.84456825
                 }
             ]
         },
@@ -11404,6 +11499,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                                         "rows_after_filter": 10,
                                         "rows_out": 1,
                                         "cost": 0.11055225,
+                                        "cost_without_join_buffer": 1.159965,
                                         "index_only": false,
                                         "chosen": true
                                     }
@@ -11585,6 +11681,519 @@ INSERT INTO t1 VALUES (0,0);
 SELECT a FROM t1 WHERE (a,b) in (SELECT @c,@d);
 a
 DROP TABLE t1;
+#
+# MDEV-31085: multi-update using view with optimizer trace enabled
+#
+SET SESSION optimizer_trace = 'enabled=on';
+CREATE TABLE t (a int, b int);
+CREATE VIEW v AS SELECT 1 AS c UNION SELECT 2 AS c;
+INSERT INTO t VALUES (0,4),(5,6);
+UPDATE t, v SET t.b = t.a, t.a = v.c WHERE v.c < t.a;
+SELECT * FROM information_schema.optimizer_trace;
+QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
+UPDATE t, v SET t.b = t.a, t.a = v.c WHERE v.c < t.a	{
+  "steps": [
+    {
+      "view": {
+        "table": "v",
+        "select_id": 2,
+        "algorithm": "materialized"
+      }
+    },
+    {
+      "join_preparation": {
+        "select_id": 2,
+        "steps": [
+          {
+            "expanded_query": "/* select#2 */ select 1 AS c"
+          }
+        ]
+      }
+    },
+    {
+      "join_preparation": {
+        "select_id": 3,
+        "steps": [
+          {
+            "expanded_query": "/* select#3 */ select 2 AS c"
+          }
+        ]
+      }
+    },
+    {
+      "join_preparation": {
+        "select_id": "fake",
+        "steps": [
+          {
+            "expanded_query": "select c AS c from dual"
+          }
+        ]
+      }
+    },
+    {
+      "join_preparation": {
+        "select_id": 1,
+        "steps": [
+          {
+            "expanded_query": "/* select#1 */ update t join v set t.b = t.a,t.a = v.c where v.c < t.a"
+          }
+        ]
+      }
+    },
+    {
+      "join_optimization": {
+        "select_id": 1,
+        "steps": [
+          {
+            "condition_processing": {
+              "condition": "WHERE",
+              "original_condition": "v.c < t.a",
+              "steps": [
+                {
+                  "transformation": "equality_propagation",
+                  "resulting_condition": "v.c < t.a"
+                },
+                {
+                  "transformation": "constant_propagation",
+                  "resulting_condition": "v.c < t.a"
+                },
+                {
+                  "transformation": "trivial_condition_removal",
+                  "resulting_condition": "v.c < t.a"
+                }
+              ]
+            }
+          },
+          {
+            "join_optimization": {
+              "select_id": 2,
+              "steps": []
+            }
+          },
+          {
+            "join_optimization": {
+              "select_id": 3,
+              "steps": []
+            }
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "t",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
+              },
+              {
+                "table": "<derived2>",
+                "row_may_be_null": false,
+                "map_bit": 1,
+                "depends_on_map_bits": []
+              }
+            ]
+          },
+          {
+            "ref_optimizer_key_uses": []
+          },
+          {
+            "rows_estimation": [
+              {
+                "table": "t",
+                "table_scan": {
+                  "rows": 2,
+                  "read_cost": 0.01028441,
+                  "read_and_compare_cost": 0.01034841
+                }
+              },
+              {
+                "table": "<derived2>",
+                "table_scan": {
+                  "rows": 2,
+                  "read_cost": 0.012350033,
+                  "read_and_compare_cost": 0.012418701
+                }
+              }
+            ]
+          },
+          {
+            "considered_execution_plans": [
+              {
+                "plan_prefix": "",
+                "get_costs_for_tables": [
+                  {
+                    "best_access_path": {
+                      "table": "t",
+                      "plan_details": {
+                        "record_count": 1
+                      },
+                      "considered_access_paths": [
+                        {
+                          "access_type": "scan",
+                          "rows": 2,
+                          "rows_after_filter": 2,
+                          "rows_out": 2,
+                          "cost": 0.01034841,
+                          "index_only": false,
+                          "chosen": true
+                        }
+                      ],
+                      "chosen_access_method": {
+                        "type": "scan",
+                        "rows_read": 2,
+                        "rows_out": 2,
+                        "cost": 0.01034841,
+                        "uses_join_buffering": false
+                      }
+                    }
+                  },
+                  {
+                    "best_access_path": {
+                      "table": "<derived2>",
+                      "plan_details": {
+                        "record_count": 1
+                      },
+                      "considered_access_paths": [
+                        {
+                          "access_type": "scan",
+                          "rows": 2,
+                          "rows_after_filter": 2,
+                          "rows_out": 2,
+                          "cost": 0.012418701,
+                          "index_only": false,
+                          "chosen": true
+                        }
+                      ],
+                      "chosen_access_method": {
+                        "type": "scan",
+                        "rows_read": 2,
+                        "rows_out": 2,
+                        "cost": 0.012418701,
+                        "uses_join_buffering": false
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "plan_prefix": "",
+                "table": "t",
+                "rows_for_plan": 2,
+                "cost_for_plan": 0.01034841,
+                "rest_of_plan": [
+                  {
+                    "plan_prefix": "t",
+                    "get_costs_for_tables": [
+                      {
+                        "best_access_path": {
+                          "table": "<derived2>",
+                          "plan_details": {
+                            "record_count": 2
+                          },
+                          "considered_access_paths": [
+                            {
+                              "access_type": "scan_with_join_cache",
+                              "rows": 2,
+                              "rows_after_filter": 2,
+                              "rows_out": 2,
+                              "cost": 0.012911897,
+                              "cost_without_join_buffer": 0.024837402,
+                              "index_only": false,
+                              "chosen": true
+                            }
+                          ],
+                          "chosen_access_method": {
+                            "type": "scan",
+                            "rows_read": 2,
+                            "rows_out": 2,
+                            "cost": 0.012911897,
+                            "uses_join_buffering": true
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "plan_prefix": "t",
+                    "table": "<derived2>",
+                    "rows_for_plan": 4,
+                    "cost_for_plan": 0.023260307
+                  }
+                ]
+              },
+              {
+                "plan_prefix": "",
+                "table": "<derived2>",
+                "rows_for_plan": 2,
+                "cost_for_plan": 0.012418701,
+                "pruned_by_heuristic": true
+              }
+            ]
+          },
+          {
+            "best_join_order": ["t", "<derived2>"],
+            "rows": 4,
+            "cost": 0.023260307
+          },
+          {
+            "substitute_best_equal": {
+              "condition": "WHERE",
+              "resulting_condition": "v.c < t.a"
+            }
+          },
+          {
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "t",
+                  "attached_condition": null
+                },
+                {
+                  "table": "<derived2>",
+                  "attached_condition": "v.c < t.a"
+                }
+              ]
+            }
+          },
+          {
+            "make_join_readinfo": []
+          }
+        ]
+      }
+    },
+    {
+      "join_execution": {
+        "select_id": 1,
+        "steps": [
+          {
+            "join_execution": {
+              "select_id": 2,
+              "steps": []
+            }
+          },
+          {
+            "join_execution": {
+              "select_id": 3,
+              "steps": []
+            }
+          },
+          {
+            "join_optimization": {
+              "select_id": "fake",
+              "steps": [
+                {
+                  "table_dependencies": [
+                    {
+                      "table": "union",
+                      "row_may_be_null": false,
+                      "map_bit": 0,
+                      "depends_on_map_bits": []
+                    }
+                  ]
+                },
+                {
+                  "rows_estimation": [
+                    {
+                      "table": "union",
+                      "table_scan": {
+                        "rows": 2,
+                        "read_cost": 0.010020701,
+                        "read_and_compare_cost": 0.010084701
+                      }
+                    }
+                  ]
+                },
+                {
+                  "considered_execution_plans": [
+                    {
+                      "plan_prefix": "",
+                      "get_costs_for_tables": [
+                        {
+                          "best_access_path": {
+                            "table": "union",
+                            "plan_details": {
+                              "record_count": 1
+                            },
+                            "considered_access_paths": [
+                              {
+                                "access_type": "scan",
+                                "rows": 2,
+                                "rows_after_filter": 2,
+                                "rows_out": 2,
+                                "cost": 0.010084701,
+                                "index_only": false,
+                                "chosen": true
+                              }
+                            ],
+                            "chosen_access_method": {
+                              "type": "scan",
+                              "rows_read": 2,
+                              "rows_out": 2,
+                              "cost": 0.010084701,
+                              "uses_join_buffering": false
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "plan_prefix": "",
+                      "table": "union",
+                      "rows_for_plan": 2,
+                      "cost_for_plan": 0.010084701
+                    }
+                  ]
+                },
+                {
+                  "best_join_order": ["union"],
+                  "rows": 2,
+                  "cost": 0.010084701
+                },
+                {
+                  "attaching_conditions_to_tables": {
+                    "attached_conditions_computation": [],
+                    "attached_conditions_summary": [
+                      {
+                        "table": "union",
+                        "attached_condition": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "make_join_readinfo": []
+                }
+              ]
+            }
+          },
+          {
+            "join_execution": {
+              "select_id": "fake",
+              "steps": []
+            }
+          }
+        ]
+      }
+    }
+  ]
+}	0	0
+SELECT * FROM t;
+a	b
+0	4
+1	5
+SET optimizer_trace=DEFAULT;
+DROP VIEW v;
+DROP TABLE t;
+#
+# MDEV-26301: Split optimization improvements: Optimizer Trace coverage
+#
+create table t1(a int, b int);
+insert into t1 select seq,seq from seq_1_to_5;
+create table t2(a int, b int, key(a));
+insert into t2
+select A.seq,B.seq from seq_1_to_25 A, seq_1_to_2 B;
+create table t3(a int, b int, key(a));
+insert into t3
+select A.seq,B.seq from seq_1_to_5 A, seq_1_to_3 B;
+analyze table t1,t2,t3 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	Table is already up to date
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	Table is already up to date
+create table t10 (
+grp_id int,
+col1 int,
+key(grp_id)
+);
+insert into t10
+select
+A.seq,
+B.seq
+from
+seq_1_to_100 A,
+seq_1_to_100 B;
+create table t11 (
+col1 int,
+col2 int
+);
+insert into t11
+select A.seq, A.seq from seq_1_to_10 A;
+analyze table t10,t11 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t10	analyze	status	Engine-independent statistics collected
+test.t10	analyze	status	Table is already up to date
+test.t11	analyze	status	Engine-independent statistics collected
+test.t11	analyze	status	OK
+set optimizer_trace=1;
+explain
+select * from
+(
+(t1 left join t2 on t2.a=t1.b)
+left join t3 on t3.a=t1.b
+) left join (select grp_id, count(*)
+from t10 left join t11 on t11.col1=t10.col1
+group by grp_id) T on T.grp_id=t1.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	
+1	PRIMARY	t2	ref	a	a	5	test.t1.b	2	Using where
+1	PRIMARY	t3	ref	a	a	5	test.t1.b	3	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.b	10	Using where
+2	LATERAL DERIVED	t10	ref	grp_id	grp_id	5	test.t1.b	100	
+2	LATERAL DERIVED	t11	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+select json_detailed(json_extract(trace, '$**.check_split_materialized')) as JS
+from information_schema.optimizer_trace;
+JS
+[
+    {
+        "split_candidates": 
+        ["t10.grp_id"]
+    }
+]
+select 
+json_detailed(
+json_remove(
+json_extract(trace, '$**.choose_best_splitting')
+, '$[0].split_plan_search[0]'
+    )
+) as JS
+from information_schema.optimizer_trace;
+JS
+[
+    {
+        "considered_keys": 
+        [
+            {
+                "table_name": "t10",
+                "index": "grp_id",
+                "rec_per_key": 100,
+                "param_tables": 1
+            }
+        ],
+        "refills": 5,
+        "spl_pd_boundary": 2,
+        "split_plan_search": 
+        [],
+        "split_materialized": 
+        {
+            "table": "t10",
+            "key": "grp_id",
+            "org_cost": 1.159965,
+            "postjoin_cost": 4.020888502,
+            "one_splitting_cost": 5.180853502,
+            "unsplit_postjoin_cost": 32.78652054,
+            "unsplit_cost": 148.7830205,
+            "rows": 100,
+            "refills": 5,
+            "total_splitting_cost": 25.90426751,
+            "chosen": true
+        }
+    }
+]
+drop table t1,t2,t3,t10,t11;
+set optimizer_trace=DEFAULT;
 #
 # End of 10.4 tests
 #
@@ -12017,84 +12626,94 @@ from
 information_schema.optimizer_trace;
 json_detailed(json_extract(trace, '$**.choose_best_splitting'))
 [
-    [
-        {
-            "considered_execution_plans": 
-            [
-                {
-                    "plan_prefix": "",
-                    "get_costs_for_tables": 
-                    [
-                        {
-                            "best_access_path": 
+    {
+        "considered_keys": 
+        []
+    },
+    {
+        "considered_keys": 
+        [
+            {
+                "table_name": "t2",
+                "index": "idx_a",
+                "rec_per_key": 1.8367,
+                "param_tables": 1
+            }
+        ],
+        "refills": 4,
+        "spl_pd_boundary": 2,
+        "split_plan_search": 
+        [
+            {
+                "considered_execution_plans": 
+                [
+                    {
+                        "plan_prefix": "",
+                        "get_costs_for_tables": 
+                        [
                             {
-                                "table": "t2",
-                                "plan_details": 
+                                "best_access_path": 
                                 {
-                                    "record_count": 1
-                                },
-                                "considered_access_paths": 
-                                [
+                                    "table": "t2",
+                                    "plan_details": 
                                     {
-                                        "access_type": "ref",
-                                        "index": "idx_a",
-                                        "used_range_estimates": false,
-                                        "reason": "not available",
-                                        "rows": 1.8367,
-                                        "cost": 0.002051185,
-                                        "chosen": true
+                                        "record_count": 1
                                     },
+                                    "considered_access_paths": 
+                                    [
+                                        {
+                                            "access_type": "ref",
+                                            "index": "idx_a",
+                                            "used_range_estimates": false,
+                                            "reason": "not available",
+                                            "rows": 1.8367,
+                                            "cost": 0.002051185,
+                                            "chosen": true
+                                        },
+                                        {
+                                            "type": "scan",
+                                            "chosen": false,
+                                            "cause": "cost"
+                                        }
+                                    ],
+                                    "chosen_access_method": 
                                     {
-                                        "type": "scan",
-                                        "chosen": false,
-                                        "cause": "cost"
+                                        "type": "ref",
+                                        "rows_read": 1.8367,
+                                        "rows_out": 1.8367,
+                                        "cost": 0.002051185,
+                                        "uses_join_buffering": false
                                     }
-                                ],
-                                "chosen_access_method": 
-                                {
-                                    "type": "ref",
-                                    "rows_read": 1.8367,
-                                    "rows_out": 1.8367,
-                                    "cost": 0.002051185,
-                                    "uses_join_buffering": false
                                 }
                             }
-                        }
-                    ]
-                },
-                {
-                    "plan_prefix": "",
-                    "table": "t2",
-                    "rows_for_plan": 1.8367,
-                    "cost_for_plan": 0.002051185,
-                    "cost_for_sorting": 0.001155201
-                }
-            ]
-        },
-        {
-            "split_materialized": 
-            {
-                "table": "t2",
-                "key": "idx_a",
-                "org_cost": 0.002051185,
-                "postjoin_cost": 0.001135418,
-                "one_splitting_cost": 0.003186603,
-                "unsplit_postjoin_cost": 0.036032575,
-                "unsplit_cost": 0.060625425,
-                "rows": 1.8367,
-                "outer_rows": 4,
-                "total_splitting_cost": 0.012746412,
-                "chosen": true
+                        ]
+                    },
+                    {
+                        "plan_prefix": "",
+                        "table": "t2",
+                        "rows_for_plan": 1.8367,
+                        "cost_for_plan": 0.002051185,
+                        "cost_for_sorting": 0.001155201
+                    }
+                ]
             }
+        ],
+        "split_materialized": 
+        {
+            "table": "t2",
+            "key": "idx_a",
+            "org_cost": 0.002051185,
+            "postjoin_cost": 0.001135418,
+            "one_splitting_cost": 0.003186603,
+            "unsplit_postjoin_cost": 0.036032575,
+            "unsplit_cost": 0.060625425,
+            "rows": 1.8367,
+            "refills": 4,
+            "total_splitting_cost": 0.012746412,
+            "chosen": true
         }
-    ]
+    }
 ]
-select
-json_detailed(json_extract(trace, '$**.lateral_derived')) 
-from
-information_schema.optimizer_trace;
-json_detailed(json_extract(trace, '$**.lateral_derived'))
-NULL
 drop table t1,t2;
 #
 # Test table functions.
@@ -12349,7 +12968,7 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
                           "rows": 9,
                           "rows_after_filter": 0.189,
                           "rows_out": 0.017766,
-                          "cost": 0.005814057,
+                          "cost": 0.006364199,
                           "chosen": true
                         }
                       ],
@@ -12357,7 +12976,7 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
                         "type": "range",
                         "rows_read": 0.189,
                         "rows_out": 0.017766,
-                        "cost": 0.005814057,
+                        "cost": 0.006364199,
                         "uses_join_buffering": false,
                         "rowid_filter_index": "b"
                       }
@@ -12369,7 +12988,7 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
                 "plan_prefix": "",
                 "table": "t1",
                 "rows_for_plan": 0.017766,
-                "cost_for_plan": 0.005814057,
+                "cost_for_plan": 0.006364199,
                 "pushdown_cond_selectivity": 0.094,
                 "filtered": 0.1974,
                 "rows_out": 0.017766
@@ -12379,7 +12998,7 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
           {
             "best_join_order": ["t1"],
             "rows": 0.017766,
-            "cost": 0.005814057
+            "cost": 0.006364199
           },
           {
             "table": "t1",
@@ -12808,6 +13427,7 @@ explain format=json select * from three, t1 where t1.a=three.a and t1.b<5000 and
                               "rows_after_filter": 430.7688,
                               "rows_out": 323.0766,
                               "cost": 1.701731924,
+                              "cost_without_join_buffer": 4.7319164,
                               "index_only": false,
                               "chosen": true
                             }

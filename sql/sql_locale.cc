@@ -29,15 +29,16 @@
 
 enum err_msgs_index
 {
-  en_US= 0, cs_CZ, da_DK, nl_NL, et_EE, fr_FR, de_DE, el_GR, hu_HU, it_IT,
+  en_US= 0, zh_CN, cs_CZ, da_DK, nl_NL, et_EE, fr_FR, de_DE, el_GR, hu_HU, it_IT,
   ja_JP, ko_KR, no_NO, nn_NO, pl_PL, pt_PT, ro_RO, ru_RU, sr_RS,  sk_SK,
-  es_ES, sv_SE, uk_UA, hi_IN, ka_GE
+  es_ES, sv_SE, uk_UA, hi_IN, ka_GE, sw_KE
 } ERR_MSGS_INDEX;
 
 
 MY_LOCALE_ERRMSGS global_errmsgs[]=
 {
   {"english", NULL},
+  {"chinese", NULL},
   {"czech", NULL},
   {"danish", NULL},
   {"dutch", NULL},
@@ -62,6 +63,7 @@ MY_LOCALE_ERRMSGS global_errmsgs[]=
   {"ukrainian", NULL},
   {"hindi", NULL},
   {"georgian", NULL},
+  {"swahili", NULL},
   {NULL, NULL}
 };
 
@@ -2096,7 +2098,7 @@ MY_LOCALE my_locale_zh_CN
   '.',        /* decimal point zh_CN */
   ',',        /* thousands_sep zh_CN */
   "\x03",     /* grouping      zh_CN */
-  &global_errmsgs[en_US]
+  &global_errmsgs[zh_CN]
 );
 /***** LOCALE END zh_CN *****/
 
@@ -3320,7 +3322,21 @@ MY_LOCALE my_locale_rm_CH
 
 /***** LOCALE BEGIN ka_GE: Georgian - Georgia *****/
 static const char *my_locale_month_names_ka_GE[13] =
- {"იანვარი","თებერვალი","მარტი","აპრილი","მაისი","ივნისი","ივლისი","სექტემბერი","ოქტომბერი","ნოემბერი","დეკემბერი", NullS };
+{
+  "იანვარი",    // January
+  "თებერვალი",  // February
+  "მარტი",      // March
+  "აპრილი",     // April
+  "მაისი",      // May
+  "ივნისი",     // June
+  "ივლისი",     // July
+  "აგვისტო",    // August
+  "სექტემბერი", // September
+  "ოქტომბერი",  // October
+  "ნოემბერი",   // November
+  "დეკემბერი",  // December
+  NullS
+};
 
 static const char *my_locale_ab_month_names_ka_GE[13] =
  {"იან","თებ","მარ","აპრ","მაი","ივნ","ივლ","აგვ","სექტ","ოქტ","ნოე","დეკ", NullS };
@@ -3361,6 +3377,42 @@ MY_LOCALE my_locale_ka_GE
   &global_errmsgs[ka_GE]
 );
 /***** LOCALE END ka_GE *****/
+
+/***** LOCALE BEGIN sw_KE: Swahili - Kenya *****/
+static const char *my_locale_month_names_sw_KE[13] = 
+ {"Januari","Februari","Machi","Aprili","Mei","Juni","Julai","Agosti","Septemba","Oktoba","Novemba","Desemba", NullS };
+static const char *my_locale_ab_month_names_sw_KE[13] = 
+ {"Jan","Feb","Mac","Apr","Mei","Jun","Jul","Ago","Sep","Okt","Nov","Des", NullS };
+static const char *my_locale_day_names_sw_KE[8] = 
+ {"Jumatatu", "Jumanne", "Jumatano", "Alhamisi", "Ijumaa", "Jumamosi", "Jumapili", NullS };
+static const char *my_locale_ab_day_names_sw_KE[8] = 
+ {"Jumatatu", "Jumanne", "Jumatano", "Alhamisi", "Ijumaa", "Jumamosi", "Jumapili", NullS };
+static TYPELIB my_locale_typelib_month_names_sw_KE = 
+ { array_elements(my_locale_month_names_sw_KE)-1, "", my_locale_month_names_sw_KE, NULL };
+static TYPELIB my_locale_typelib_ab_month_names_sw_KE = 
+ { array_elements(my_locale_ab_month_names_sw_KE)-1, "", my_locale_ab_month_names_sw_KE, NULL };
+static TYPELIB my_locale_typelib_day_names_sw_KE = 
+ { array_elements(my_locale_day_names_sw_KE)-1, "", my_locale_day_names_sw_KE, NULL };
+static TYPELIB my_locale_typelib_ab_day_names_sw_KE = 
+ { array_elements(my_locale_ab_day_names_sw_KE)-1, "", my_locale_ab_day_names_sw_KE, NULL };
+MY_LOCALE my_locale_sw_KE
+(
+  112,
+  "sw_KE",
+  "Swahili - Kenya",
+  TRUE,
+  &my_locale_typelib_month_names_sw_KE,
+  &my_locale_typelib_ab_month_names_sw_KE,
+  &my_locale_typelib_day_names_sw_KE,
+  &my_locale_typelib_ab_day_names_sw_KE,
+  8,
+  8,
+  '.',        /* decimal point sw_KE */
+  ',',        /* thousands_sep sw_KE */
+  "\x03\x03", /* grouping      sw_KE */
+  &global_errmsgs[sw_KE]
+);
+/***** LOCALE END sw_KE *****/
 
 
 /*
@@ -3483,6 +3535,7 @@ MY_LOCALE *my_locales[]=
     &my_locale_el_GR,
     &my_locale_rm_CH,
     &my_locale_ka_GE,
+    &my_locale_sw_KE,
     NULL 
   };
 

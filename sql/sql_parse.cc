@@ -1334,7 +1334,7 @@ dispatch_command_return do_command(THD *thd, bool blocking)
       in wsrep_before_command().
     */
     WSREP_LOG_THD(thd, "enter found BF aborted");
-    DBUG_ASSERT(!thd->mdl_context.has_locks());
+    DBUG_ASSERT(!thd->mdl_context.has_transactional_locks());
     DBUG_ASSERT(!thd->get_stmt_da()->is_set());
     /* We let COM_QUIT and COM_STMT_CLOSE to execute even if wsrep aborted. */
     if (command == COM_STMT_EXECUTE)
@@ -4455,7 +4455,10 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       thd->protocol= save_protocol;
     }
     if (!res && thd->lex->analyze_stmt)
-      res= thd->lex->explain->send_explain(thd);
+    {
+      bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
+      res= thd->lex->explain->send_explain(thd, extended);
+    }
     delete sel_result;
     MYSQL_INSERT_DONE(res, (ulong) thd->get_row_count_func());
     /*
@@ -4635,7 +4638,10 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
         thd->protocol= save_protocol;
       }
       if (!res && (explain || lex->analyze_stmt))
-        res= thd->lex->explain->send_explain(thd);
+      {
+        bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
+        res= thd->lex->explain->send_explain(thd, extended);
+      }
 
       /* revert changes for SP */
       MYSQL_INSERT_SELECT_DONE(res, (ulong) thd->get_row_count_func());
@@ -6033,7 +6039,10 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
           thd->protocol= save_protocol;
         }
         if (!res)
-          res= thd->lex->explain->send_explain(thd);
+	{
+          bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
+          res= thd->lex->explain->send_explain(thd, extended);
+        }
       }
     }
   }
@@ -6058,6 +6067,11 @@ static bool __attribute__ ((noinline))
 execute_show_status(THD *thd, TABLE_LIST *all_tables)
 {
   bool res;
+
+#if defined(__GNUC__) && (__GNUC__ >= 13)
+#pragma GCC diagnostic ignored "-Wdangling-pointer"
+#endif
+
   system_status_var old_status_var= thd->status_var;
   thd->initial_status_var= &old_status_var;
   WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
@@ -7609,7 +7623,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
           thd->wsrep_retry_counter < thd->variables.wsrep_retry_autocommit)
       {
 #ifdef ENABLED_DEBUG_SYNC
-	DBUG_EXECUTE_IF("sync.wsrep_retry_autocommit",
+        DBUG_EXECUTE_IF("sync.wsrep_retry_autocommit",
                     {
                       const char act[]=
                         "now "
@@ -8970,23 +8984,20 @@ kill_one_thread(THD *thd, my_thread_id id, killed_state kill_signal, killed_type
         thd->security_ctx->user_matches(tmp->security_ctx))
 #endif /* WITH_WSREP */
     {
+      {
 #ifdef WITH_WSREP
-      DEBUG_SYNC(thd, "before_awake_no_mutex");
-      if (tmp->wsrep_aborter && tmp->wsrep_aborter != thd->thread_id)
-      {
-        /* victim is in hit list already, bail out */
-	WSREP_DEBUG("victim %lld has wsrep aborter: %lu, skipping awake()",
-		    id, tmp->wsrep_aborter);
-        error= 0;
-      }
-      else
+        if (WSREP(tmp))
+        {
+          error = wsrep_kill_thd(thd, tmp, kill_signal);
+        }
+        else
+        {
 #endif /* WITH_WSREP */
-      {
-        WSREP_DEBUG("kill_one_thread victim: %lld wsrep_aborter %lu"
-                    " by signal %d",
-                    id, tmp->wsrep_aborter, kill_signal);
         tmp->awake_no_mutex(kill_signal);
         error= 0;
+#ifdef WITH_WSREP
+        }
+#endif /* WITH_WSREP */
       }
     }
     else
@@ -9039,7 +9050,9 @@ static my_bool kill_threads_callback(THD *thd, kill_threads_callback_arg *arg)
       if (!(arg->thd->security_ctx->master_access &
             PRIV_KILL_OTHER_USER_PROCESS) &&
           !arg->thd->security_ctx->user_matches(thd->security_ctx))
-        return 1;
+      {
+        return MY_TEST(arg->thd->security_ctx->master_access & PROCESS_ACL);
+      }
       if (!arg->threads_to_kill.push_back(thd, arg->thd->mem_root))
       {
         mysql_mutex_lock(&thd->LOCK_thd_kill); // Lock from delete
@@ -9107,18 +9120,6 @@ static
 void sql_kill(THD *thd, my_thread_id id, killed_state state, killed_type type)
 {
   uint error;
-#ifdef WITH_WSREP
-  if (WSREP(thd))
-  {
-    WSREP_DEBUG("sql_kill called");
-    if (thd->wsrep_applier)
-    {
-      WSREP_DEBUG("KILL in applying, bailing out here");
-      return;
-    }
-    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
-  }
-#endif /* WITH_WSREP */
   if (likely(!(error= kill_one_thread(thd, id, state, type))))
   {
     if (!thd->killed)
@@ -9128,11 +9129,6 @@ void sql_kill(THD *thd, my_thread_id id, killed_state state, killed_type type)
   }
   else
     my_error(error, MYF(0), id);
-#ifdef WITH_WSREP
-  return;
- wsrep_error_label:
-  my_error(ER_KILL_DENIED_ERROR, MYF(0), (long long) thd->thread_id);
-#endif /* WITH_WSREP */
 }
 
 
@@ -9141,35 +9137,21 @@ sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
 {
   uint error;
   ha_rows rows;
-#ifdef WITH_WSREP
-  if (WSREP(thd))
-  {
-    WSREP_DEBUG("sql_kill_user called");
-    if (thd->wsrep_applier)
-    {
-      WSREP_DEBUG("KILL in applying, bailing out here");
-      return;
-    }
-    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
-  }
-#endif /* WITH_WSREP */
   switch (error= kill_threads_for_user(thd, user, state, &rows))
   {
   case 0:
     my_ok(thd, rows);
     break;
   case ER_KILL_DENIED_ERROR:
-    my_error(error, MYF(0), (long long) thd->thread_id);
+    char buf[DEFINER_LENGTH+1];
+    strxnmov(buf, sizeof(buf), user->user.str, "@", user->host.str, NULL);
+    my_printf_error(ER_KILL_DENIED_ERROR, ER_THD(thd, ER_CANNOT_USER), MYF(0),
+                    "KILL USER", buf);
     break;
   case ER_OUT_OF_RESOURCES:
   default:
     my_error(error, MYF(0));
   }
-#ifdef WITH_WSREP
-  return;
- wsrep_error_label:
-  my_error(ER_KILL_DENIED_ERROR, MYF(0), (long long) thd->thread_id);
-#endif /* WITH_WSREP */
 }
 
 

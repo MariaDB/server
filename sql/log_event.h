@@ -721,7 +721,7 @@ enum Log_event_type
 
 
 /*
-  Bit flags for what has been writting to cache. Used to
+  Bit flags for what has been writing to cache. Used to
   discard logs with table map events but not row events and
   nothing else important. This is stored by cache.
 */
@@ -2716,7 +2716,7 @@ private:
   virtual int do_commit()= 0;
   virtual int do_apply_event(rpl_group_info *rgi);
   int do_record_gtid(THD *thd, rpl_group_info *rgi, bool in_trans,
-                     void **out_hton);
+                     void **out_hton, bool force_err= false);
   enum_skip_reason do_shall_skip(rpl_group_info *rgi);
   virtual const char* get_query()= 0;
 #endif
@@ -4739,6 +4739,51 @@ protected:
   KEY      *m_key_info; /* Pointer to KEY info for m_key_nr */
   uint      m_key_nr;   /* Key number */
   bool master_had_triggers;     /* set after tables opening */
+
+  /*
+    RAII helper class to automatically handle the override/restore of thd->db
+    when applying row events, so it will be visible in SHOW PROCESSLIST.
+
+    If triggers will be invoked, their logic frees the current thread's db,
+    so we use set_db() to use a copy of the table share's database.
+
+    If not using triggers, the db is never freed, and we can reference the
+    same memory owned by the table share.
+  */
+  class Db_restore_ctx
+  {
+  private:
+    THD *thd;
+    LEX_CSTRING restore_db;
+    bool db_copied;
+
+    Db_restore_ctx(Rows_log_event *rev)
+        : thd(rev->thd), restore_db(rev->thd->db)
+    {
+      TABLE *table= rev->m_table;
+
+      if (table->triggers && rev->do_invoke_trigger())
+      {
+        thd->reset_db(&null_clex_str);
+        thd->set_db(&table->s->db);
+        db_copied= true;
+      }
+      else
+      {
+        thd->reset_db(&table->s->db);
+        db_copied= false;
+      }
+    }
+
+    ~Db_restore_ctx()
+    {
+      if (db_copied)
+        thd->set_db(&null_clex_str);
+      thd->reset_db(&restore_db);
+    }
+
+    friend class Rows_log_event;
+  };
 
   int find_key(); // Find a best key to use in find_row()
   int find_row(rpl_group_info *);
