@@ -1099,7 +1099,7 @@ static void execute_rename_table(DDL_LOG_ENTRY *ddl_log_entry, handler *file,
   {
     fr_length= build_table_filename(from_path, FN_REFLEN,
                                     from_db->str, from_table->str, "",
-                                    flags & FN_TO_IS_TMP);
+                                    flags & FN_FROM_IS_TMP);
     to_length= build_table_filename(to_path, FN_REFLEN,
                                     to_db->str, to_table->str, "",
                                     flags & FN_TO_IS_TMP);
