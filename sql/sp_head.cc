@@ -3678,6 +3678,7 @@ sp_head::add_used_tables_to_table_list(THD *thd,
                                            belong_to_view,
                                            stab->trg_event_map,
                                            query_tables_last_ptr,
+                                           NULL,
                                            stab->for_insert_data);
       tab_buff+= ALIGN_SIZE(sizeof(TABLE_LIST));
       result= TRUE;
