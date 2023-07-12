@@ -13969,14 +13969,6 @@ int spider_mbase_handler::push_back_upds(
 }
 #endif
 
-bool spider_mbase_handler::need_lock_before_set_sql_for_exec(
-  ulong sql_type
-) {
-  DBUG_ENTER("spider_mbase_handler::need_lock_before_set_sql_for_exec");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_RETURN(FALSE);
-}
-
 #ifdef SPIDER_HAS_GROUP_BY_HANDLER
 int spider_mbase_handler::set_sql_for_exec(
   ulong sql_type,
