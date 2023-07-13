@@ -1890,4 +1890,25 @@ SET @@debug_dbug=@orig_dbug;
 DROP TABLE t1;
 DROP TABLE t2;
 DROP VIEW v1;
+#
+# MDEV-31661: Assertion `thd->lex == sp_instr_lex' failed in LEX* sp_lex_instr::parse_expr(THD*, sp_head*, LEX*)
+#
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+DECLARE c CURSOR FOR SELECT * FROM t1;
+OPEN c;
+CLOSE c;
+END;
+$
+CALL p1;
+ERROR 42S02: Table 'test.t1' doesn't exist
+CREATE TABLE t1 (id INT);
+CALL p1;
+# Second execution of the stored procedure p1() after the dependent
+# table t1 has been created resulted in assert failure for server built
+# with debug
+CALL p1;
+# Clean up
+DROP PROCEDURE p1;
+DROP TABLE t1;
 SET sql_mode = default;
