@@ -409,23 +409,23 @@ set debug_sync= 'now SIGNAL start_replication';
 set debug_sync= 'now WAIT_FOR applied';
 select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
 stage	progress
-3	51.220
+3	53.390
 set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
 select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
 stage	progress
-3	61.789
+3	63.559
 set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
 select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
 stage	progress
-3	70.325
+3	71.610
 set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
 select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
 stage	progress
-3	80.894
+3	81.780
 set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
 select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
 stage	progress
-3	89.431
+3	89.831
 set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
 select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
 stage	progress
@@ -1157,7 +1157,7 @@ a	b
 30	30
 drop table t;
 set debug_sync= reset;
-set debug_dbug= @old_debug;
+set debug_dbug= @old_dbug;
 connection default;
 #
 # MDEV-30902 Server crash in LEX::first_lists_tables_same
@@ -1362,9 +1362,58 @@ b
 556
 drop table t;
 set debug_sync= reset;
+NOT FOUND /Slave SQL/ in mysqld.1.err
+#
+# MDEV-31646 Online alter applies binlog cache limit to cache writes
+#
+create table t (pk int primary key, a varchar(100)) engine=MyISAM;
+insert into t select seq, repeat('x', 100) from seq_1_to_500;
+set @cache.size= @@max_binlog_cache_size;
+set global max_binlog_cache_size= 4096;
+set debug_sync= 'now wait_for do_updates';
+connection con1;
+set debug_sync= 'alter_table_online_progress signal do_updates wait_for go';
+alter table t add b int, algorithm=copy, lock=none;
+connection default;
+update t set a = repeat('y', 100);
+show warnings;
+Level	Code	Message
+set debug_sync= 'now signal go';
+connection con1;
+show warnings;
+Level	Code	Message
+connection default;
+drop table t;
+set debug_sync= reset;
+# Now make sure that smaller limits will be processed fine
+set @old_dbug=@@debug_dbug;
+set debug_dbug="+d,online_alter_small_cache";
+create table t (pk int primary key, a varchar(100)) engine=MyISAM;
+insert into t select seq, repeat('x', 100) from seq_1_to_500;
+set @cache.size= @@max_binlog_cache_size;
+set global max_binlog_cache_size= 4096;
+connection con1;
+set debug_sync= 'alter_table_online_progress signal do_updates wait_for go';
+alter table t add b int, algorithm=copy, lock=none;
+connection default;
+set debug_sync= 'now wait_for do_updates';
+update t set a = repeat('y', 100);
+ERROR HY000: Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage; increase this mariadbd variable and try again
+show warnings;
+Level	Code	Message
+Error	1197	Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage; increase this mariadbd variable and try again
+Error	1534	Writing one row to the row-based binary log failed
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+set debug_sync= 'now signal go';
+connection con1;
+show warnings;
+Level	Code	Message
+connection default;
+drop table t;
+set debug_sync= reset;
+set debug_dbug= @old_dbug;
 disconnect con1;
 disconnect con2;
-NOT FOUND /Slave SQL/ in mysqld.1.err
 #
 # End of 10.10 tests
 #
