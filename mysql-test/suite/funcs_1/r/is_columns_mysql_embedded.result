@@ -157,9 +157,9 @@ def	mysql	slow_log	insert_id	9	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)
 def	mysql	slow_log	last_insert_id	8	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)					NEVER	NULL
 def	mysql	slow_log	lock_time	4	NULL	NO	time	NULL	NULL	NULL	NULL	6	NULL	NULL	time(6)					NEVER	NULL
 def	mysql	slow_log	query_time	3	NULL	NO	time	NULL	NULL	NULL	NULL	6	NULL	NULL	time(6)					NEVER	NULL
-def	mysql	slow_log	rows_affected	13	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)					NEVER	NULL
-def	mysql	slow_log	rows_examined	6	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)					NEVER	NULL
-def	mysql	slow_log	rows_sent	5	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)					NEVER	NULL
+def	mysql	slow_log	rows_affected	13	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned					NEVER	NULL
+def	mysql	slow_log	rows_examined	6	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned					NEVER	NULL
+def	mysql	slow_log	rows_sent	5	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned					NEVER	NULL
 def	mysql	slow_log	server_id	10	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned					NEVER	NULL
 def	mysql	slow_log	sql_text	11	NULL	NO	mediumtext	16777215	16777215	NULL	NULL	NULL	utf8	utf8_general_ci	mediumtext					NEVER	NULL
 def	mysql	slow_log	start_time	1	current_timestamp(6)	NO	timestamp	NULL	NULL	NULL	NULL	6	NULL	NULL	timestamp(6)		on update current_timestamp(6)			NEVER	NULL
@@ -480,15 +480,15 @@ NULL	mysql	slow_log	start_time	timestamp	NULL	NULL	NULL	NULL	timestamp(6)
 1.0000	mysql	slow_log	user_host	mediumtext	16777215	16777215	utf8	utf8_general_ci	mediumtext
 NULL	mysql	slow_log	query_time	time	NULL	NULL	NULL	NULL	time(6)
 NULL	mysql	slow_log	lock_time	time	NULL	NULL	NULL	NULL	time(6)
-NULL	mysql	slow_log	rows_sent	int	NULL	NULL	NULL	NULL	int(11)
-NULL	mysql	slow_log	rows_examined	int	NULL	NULL	NULL	NULL	int(11)
+NULL	mysql	slow_log	rows_sent	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
+NULL	mysql	slow_log	rows_examined	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
 3.0000	mysql	slow_log	db	varchar	512	1536	utf8	utf8_general_ci	varchar(512)
 NULL	mysql	slow_log	last_insert_id	int	NULL	NULL	NULL	NULL	int(11)
 NULL	mysql	slow_log	insert_id	int	NULL	NULL	NULL	NULL	int(11)
 NULL	mysql	slow_log	server_id	int	NULL	NULL	NULL	NULL	int(10) unsigned
 1.0000	mysql	slow_log	sql_text	mediumtext	16777215	16777215	utf8	utf8_general_ci	mediumtext
 NULL	mysql	slow_log	thread_id	bigint	NULL	NULL	NULL	NULL	bigint(21) unsigned
-NULL	mysql	slow_log	rows_affected	int	NULL	NULL	NULL	NULL	int(11)
+NULL	mysql	slow_log	rows_affected	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
 3.0000	mysql	tables_priv	Host	char	60	180	utf8	utf8_bin	char(60)
 3.0000	mysql	tables_priv	Db	char	64	192	utf8	utf8_bin	char(64)
 3.0000	mysql	tables_priv	User	char	80	240	utf8	utf8_bin	char(80)

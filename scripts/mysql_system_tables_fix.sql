@@ -252,8 +252,8 @@ ALTER TABLE slow_log
   MODIFY user_host MEDIUMTEXT NOT NULL,
   MODIFY query_time TIME(6) NOT NULL,
   MODIFY lock_time TIME(6) NOT NULL,
-  MODIFY rows_sent INTEGER NOT NULL,
-  MODIFY rows_examined INTEGER NOT NULL,
+  MODIFY rows_sent BIGINT UNSIGNED NOT NULL,
+  MODIFY rows_examined BIGINT UNSIGNED NOT NULL,
   MODIFY db VARCHAR(512) NOT NULL,
   MODIFY last_insert_id INTEGER NOT NULL,
   MODIFY insert_id INTEGER NOT NULL,
@@ -263,7 +263,7 @@ ALTER TABLE slow_log
   ADD COLUMN thread_id BIGINT(21) UNSIGNED NOT NULL AFTER sql_text;
 ALTER TABLE slow_log
   MODIFY thread_id BIGINT(21) UNSIGNED NOT NULL,
-  ADD COLUMN rows_affected INTEGER NOT NULL AFTER thread_id;
+  ADD COLUMN rows_affected BIGINT UNSIGNED NOT NULL AFTER thread_id;
 SET GLOBAL slow_query_log = @old_log_state;
 
 ALTER TABLE plugin

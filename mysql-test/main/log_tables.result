@@ -73,15 +73,15 @@ slow_log	CREATE TABLE `slow_log` (
   `user_host` mediumtext NOT NULL,
   `query_time` time(6) NOT NULL,
   `lock_time` time(6) NOT NULL,
-  `rows_sent` int(11) NOT NULL,
-  `rows_examined` int(11) NOT NULL,
+  `rows_sent` bigint(20) unsigned NOT NULL,
+  `rows_examined` bigint(20) unsigned NOT NULL,
   `db` varchar(512) NOT NULL,
   `last_insert_id` int(11) NOT NULL,
   `insert_id` int(11) NOT NULL,
   `server_id` int(10) unsigned NOT NULL,
   `sql_text` mediumtext NOT NULL,
   `thread_id` bigint(21) unsigned NOT NULL,
-  `rows_affected` int(11) NOT NULL
+  `rows_affected` bigint(20) unsigned NOT NULL
 ) ENGINE=CSV DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci COMMENT='Slow log'
 show fields from mysql.slow_log;
 Field	Type	Null	Key	Default	Extra
@@ -89,15 +89,15 @@ start_time	timestamp(6)	NO		current_timestamp(6)	on update current_timestamp(6)
 user_host	mediumtext	NO		NULL	
 query_time	time(6)	NO		NULL	
 lock_time	time(6)	NO		NULL	
-rows_sent	int(11)	NO		NULL	
-rows_examined	int(11)	NO		NULL	
+rows_sent	bigint(20) unsigned	NO		NULL	
+rows_examined	bigint(20) unsigned	NO		NULL	
 db	varchar(512)	NO		NULL	
 last_insert_id	int(11)	NO		NULL	
 insert_id	int(11)	NO		NULL	
 server_id	int(10) unsigned	NO		NULL	
 sql_text	mediumtext	NO		NULL	
 thread_id	bigint(21) unsigned	NO		NULL	
-rows_affected	int(11)	NO		NULL	
+rows_affected	bigint(20) unsigned	NO		NULL	
 flush logs;
 flush tables;
 SET GLOBAL GENERAL_LOG=ON;
@@ -180,15 +180,15 @@ slow_log	CREATE TABLE `slow_log` (
   `user_host` mediumtext NOT NULL,
   `query_time` time(6) NOT NULL,
   `lock_time` time(6) NOT NULL,
-  `rows_sent` int(11) NOT NULL,
-  `rows_examined` int(11) NOT NULL,
+  `rows_sent` bigint(20) unsigned NOT NULL,
+  `rows_examined` bigint(20) unsigned NOT NULL,
   `db` varchar(512) NOT NULL,
   `last_insert_id` int(11) NOT NULL,
   `insert_id` int(11) NOT NULL,
   `server_id` int(10) unsigned NOT NULL,
   `sql_text` mediumtext NOT NULL,
   `thread_id` bigint(21) unsigned NOT NULL,
-  `rows_affected` int(11) NOT NULL
+  `rows_affected` bigint(20) unsigned NOT NULL
 ) ENGINE=CSV DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci COMMENT='Slow log'
 alter table mysql.general_log engine=myisam;
 alter table mysql.slow_log engine=myisam;
@@ -209,15 +209,15 @@ slow_log	CREATE TABLE `slow_log` (
   `user_host` mediumtext NOT NULL,
   `query_time` time(6) NOT NULL,
   `lock_time` time(6) NOT NULL,
-  `rows_sent` int(11) NOT NULL,
-  `rows_examined` int(11) NOT NULL,
+  `rows_sent` bigint(20) unsigned NOT NULL,
+  `rows_examined` bigint(20) unsigned NOT NULL,
   `db` varchar(512) NOT NULL,
   `last_insert_id` int(11) NOT NULL,
   `insert_id` int(11) NOT NULL,
   `server_id` int(10) unsigned NOT NULL,
   `sql_text` mediumtext NOT NULL,
   `thread_id` bigint(21) unsigned NOT NULL,
-  `rows_affected` int(11) NOT NULL
+  `rows_affected` bigint(20) unsigned NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci COMMENT='Slow log'
 set global general_log='ON';
 set global slow_query_log='ON';
