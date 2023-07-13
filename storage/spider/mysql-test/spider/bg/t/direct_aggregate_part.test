@@ -132,8 +132,13 @@ if ($HAVE_PARTITION)
     (4, 'd', '2003-11-30 05:01:03'),
     (5, 'c', '2001-12-31 23:59:59');
   --enable_query_log
+  set @old_spider_direct_aggregate=@@session.spider_direct_aggregate;
+  set spider_direct_aggregate=1;
+
   eval $MASTER_1_CHECK_DIRECT_AGGREGATE_STATUS;
   SELECT COUNT(*) FROM ta_l2;
+  eval $MASTER_1_CHECK_DIRECT_AGGREGATE_STATUS;
+  SELECT SUM(a) FROM ta_l2;
   eval $MASTER_1_CHECK_DIRECT_AGGREGATE_STATUS;
   SELECT MAX(a) FROM ta_l2;
   eval $MASTER_1_CHECK_DIRECT_AGGREGATE_STATUS;
@@ -143,6 +148,17 @@ if ($HAVE_PARTITION)
   eval $MASTER_1_CHECK_DIRECT_AGGREGATE_STATUS;
   SELECT MIN(a) FROM ta_l2 WHERE a > 1;
   eval $MASTER_1_CHECK_DIRECT_AGGREGATE_STATUS;
+
+  SET spider_direct_aggregate=0;
+  SELECT COUNT(*) FROM ta_l2;
+  SELECT SUM(a) FROM ta_l2;
+  SELECT MAX(a) FROM ta_l2;
+  SELECT MIN(a) FROM ta_l2;
+  SELECT MAX(a) FROM ta_l2 WHERE a < 5;
+  SELECT MIN(a) FROM ta_l2 WHERE a > 1;
+  eval $MASTER_1_CHECK_DIRECT_AGGREGATE_STATUS;
+
+  set spider_direct_aggregate=@old_spider_direct_aggregate;
   if ($USE_CHILD_GROUP2)
   {
     if (!$OUTPUT_CHILD_GROUP2)

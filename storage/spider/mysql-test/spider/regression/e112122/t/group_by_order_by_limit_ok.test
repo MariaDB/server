@@ -67,7 +67,12 @@ TRUNCATE TABLE mysql.general_log;
 TRUNCATE TABLE mysql.general_log;
 
 --connection master_1
+set @old_spider_direct_aggregate=@@session.spider_direct_aggregate;
+set spider_direct_aggregate=1;
+SHOW STATUS LIKE 'Spider_direct_aggregate';
 SELECT skey, count(*) cnt FROM tbl_a GROUP BY skey ORDER BY cnt DESC, skey DESC LIMIT 5;
+SHOW STATUS LIKE 'Spider_direct_aggregate';
+set spider_direct_aggregate=@old_spider_direct_aggregate;
 
 --connection child2_1
 eval $CHILD2_1_SELECT_ARGUMENT1;
