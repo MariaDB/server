@@ -2,6 +2,7 @@
 --source include/not_embedded.inc
 --source include/binlog_combinations.inc
 --source include/have_innodb.inc
+--source include/have_sequence.inc
 --source include/have_partition.inc
 set default_storage_engine= innodb;
 
@@ -1331,7 +1332,7 @@ select a, b from t;
 # Cleanup
 drop table t;
 set debug_sync= reset;
-set debug_dbug= @old_debug;
+set debug_dbug= @old_dbug;
 --connection default
 
 --echo #
@@ -1551,11 +1552,73 @@ drop table t;
 
 
 set debug_sync= reset;
---disconnect con1
---disconnect con2
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
 let SEARCH_PATTERN= Slave SQL;
 --source include/search_pattern_in_file.inc
+
+
+--echo #
+--echo # MDEV-31646 Online alter applies binlog cache limit to cache writes
+--echo #
+create table t (pk int primary key, a varchar(100)) engine=MyISAM;
+insert into t select seq, repeat('x', 100) from seq_1_to_500;
+
+set @cache.size= @@max_binlog_cache_size;
+set global max_binlog_cache_size= 4096;
+
+send set debug_sync= 'now wait_for do_updates';
+
+--connection con1
+set debug_sync= 'alter_table_online_progress signal do_updates wait_for go';
+send alter table t add b int, algorithm=copy, lock=none;
+
+--connection default
+--reap
+update t set a = repeat('y', 100);
+show warnings;
+
+set debug_sync= 'now signal go';
+
+--connection con1
+--reap
+show warnings;
+
+--connection default
+drop table t;
+set debug_sync= reset;
+set global max_binlog_cache_size= @cache.size;
+
+--echo # Now make sure that smaller limits will be processed fine
+
+set @old_dbug=@@debug_dbug;
+create table t (pk int primary key, a text) engine=MyISAM;
+insert into t select seq, repeat('x', 1000) from seq_1_to_50;
+
+--connection con1
+set debug_sync= 'alter_table_online_progress signal do_updates wait_for go';
+--send
+alter table t add b int, algorithm=copy, lock=none;
+
+--connection default
+set debug_sync= 'now wait_for do_updates';
+set debug_dbug="+d,online_alter_small_cache";
+--error ER_STMT_CACHE_FULL
+update t set a = repeat('y', 1000);
+show warnings;
+
+set debug_sync= 'now signal go';
+
+--connection con1
+--reap
+show warnings;
+
+--connection default
+drop table t;
+set debug_sync= reset;
+set debug_dbug= @old_dbug;
+
+--disconnect con1
+--disconnect con2
 --echo #
 --echo # End of 11.2 tests
 --echo #
