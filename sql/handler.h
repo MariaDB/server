@@ -2325,12 +2325,14 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
 {
   /* TODO: remove after MDEV-20865 */
   Alter_info *alter_info;
-
+  bool table_exists;
+  LEX_CSTRING table_path;
   void init()
   {
     Table_scope_and_contents_source_st::init();
     Schema_specification_st::init();
     alter_info= NULL;
+    table_exists= false;
   }
   ulong table_options_with_row_type()
   {
@@ -5592,7 +5594,8 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
                      const LEX_CSTRING *table_name,
                      LEX_CUSTRING *table_version= 0,
                      LEX_CSTRING *partition_engine_name= 0,
-                     handlerton **hton= 0, bool *is_sequence= 0);
+                     handlerton **hton= 0, bool *is_sequence= 0,
+                     HA_CREATE_INFO *ha_create_info= 0);
 bool ha_check_if_updates_are_ignored(THD *thd, handlerton *hton,
                                      const char *op);
 #endif /* MYSQL_SERVER */
