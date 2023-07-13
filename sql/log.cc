@@ -3843,9 +3843,8 @@ bool Event_log::open(enum cache_type io_cache_type_arg)
   if (error)
     return error;
 
-  longlong bytes_written= write_description_event(
-                              (enum_binlog_checksum_alg)binlog_checksum_options,
-                              encrypt_binlog, true, false);
+  longlong bytes_written= write_description_event(BINLOG_CHECKSUM_ALG_OFF,
+                                                  false, true, false);
   return bytes_written < 0;
 }
 
@@ -6421,6 +6420,8 @@ write_err:
 #ifdef HAVE_REPLICATION
 static online_alter_cache_data *binlog_setup_cache_data(MEM_ROOT *root, TABLE_SHARE *share)
 {
+  static ulong online_alter_cache_use= 0, online_alter_cache_disk_use= 0;
+
   auto cache= new (root) online_alter_cache_data();
   if (!cache || open_cached_file(&cache->cache_log, mysql_tmpdir,
                          LOG_PREFIX, (size_t)binlog_cache_size, MYF(MY_WME)))
@@ -6432,8 +6433,13 @@ static online_alter_cache_data *binlog_setup_cache_data(MEM_ROOT *root, TABLE_SH
   share->online_alter_binlog->acquire();
   cache->hton= share->db_type();
   cache->sink_log= share->online_alter_binlog;
-  cache->set_binlog_cache_info(max_binlog_cache_size, &binlog_cache_use,
-                               &binlog_cache_disk_use);
+
+  my_off_t binlog_max_size= SIZE_T_MAX; // maximum possible cache size
+  DBUG_EXECUTE_IF("online_alter_small_cache", binlog_max_size= 4096;);
+
+  cache->set_binlog_cache_info(binlog_max_size,
+                               &online_alter_cache_use,
+                               &online_alter_cache_disk_use);
   cache->store_prev_position();
   return cache;
 }
@@ -7748,7 +7754,7 @@ static int binlog_online_alter_end_trans(THD *thd, bool all, bool commit)
       {
         DBUG_ASSERT(cache.cache_log.type != READ_CACHE);
         mysql_mutex_lock(binlog->get_log_lock());
-        error= binlog->write_cache(thd, &cache.cache_log);
+        error= binlog->write_cache_raw(thd, &cache.cache_log);
         mysql_mutex_unlock(binlog->get_log_lock());
       }
     }
@@ -7835,6 +7841,27 @@ int online_alter_savepoint_rollback(THD *thd, LEX_CSTRING name)
   }
 
 #endif
+  DBUG_RETURN(0);
+}
+
+int Event_log::write_cache_raw(THD *thd, IO_CACHE *cache)
+{
+  DBUG_ENTER("Event_log::write_cache_raw");
+  mysql_mutex_assert_owner(&LOCK_log);
+  if (reinit_io_cache(cache, READ_CACHE, 0, 0, 0))
+    DBUG_RETURN(ER_ERROR_ON_WRITE);
+
+  IO_CACHE *file= get_log_file();
+  IF_DBUG(size_t total= cache->end_of_file,);
+  do
+  {
+    size_t read_len= cache->read_end - cache->read_pos;
+    int res= my_b_safe_write(file, cache->read_pos, read_len);
+    if (unlikely(res))
+      DBUG_RETURN(res);
+    IF_DBUG(total-= read_len,);
+  } while (my_b_fill(cache));
+  DBUG_ASSERT(total == 0);
   DBUG_RETURN(0);
 }
 

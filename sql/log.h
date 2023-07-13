@@ -403,6 +403,7 @@ public:
   void set_write_error(THD *thd, bool is_transactional);
   static bool check_write_error(THD *thd);
   int write_cache(THD *thd, IO_CACHE *cache);
+  int write_cache_raw(THD *thd, IO_CACHE *cache);
   char* get_name() { return name; }
   void cleanup()
   {
