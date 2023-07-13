@@ -141,23 +141,23 @@ static st_ddl_recovery   recovery_state;
 mysql_mutex_t LOCK_gdl;
 
 /* Positions to different data in a ddl log block */
-#define DDL_LOG_ENTRY_TYPE_POS 0
+static constexpr unsigned DDL_LOG_ENTRY_TYPE_POS= 0;
 /*
   Note that ACTION_TYPE and PHASE_POS must be after each other.
   See update_phase()
 */
-#define DDL_LOG_ACTION_TYPE_POS 1
-#define DDL_LOG_PHASE_POS 2
-#define DDL_LOG_NEXT_ENTRY_POS 4
+static constexpr unsigned DDL_LOG_ACTION_TYPE_POS= 1;
+static constexpr unsigned DDL_LOG_PHASE_POS= 2;
+static constexpr unsigned DDL_LOG_NEXT_ENTRY_POS= 4;
 /* Flags to remember something unique about the query, like if .frm was used */
-#define DDL_LOG_FLAG_POS 8
+static constexpr unsigned DDL_LOG_FLAG_POS= 8;
 /* Used to store XID entry that was written to binary log */
-#define DDL_LOG_XID_POS 10
+static constexpr unsigned DDL_LOG_XID_POS= 10;
 /* Used to store unique uuid from the .frm file */
-#define DDL_LOG_UUID_POS 18
+static constexpr unsigned DDL_LOG_UUID_POS= 18;
 /* ID_POS can be used to store something unique, like file size (4 bytes) */
-#define DDL_LOG_ID_POS DDL_LOG_UUID_POS + MY_UUID_SIZE
-#define DDL_LOG_END_POS DDL_LOG_ID_POS + 8
+static constexpr unsigned DDL_LOG_ID_POS= DDL_LOG_UUID_POS + MY_UUID_SIZE;
+static constexpr unsigned DDL_LOG_END_POS= DDL_LOG_ID_POS + 8;
 
 /*
   Position to where names are stored in the ddl log blocks. The current
@@ -165,19 +165,19 @@ mysql_mutex_t LOCK_gdl;
   space for constants in the header than what is between DDL_LOG_ID_POS and
   DDL_LOG_TMP_NAME_POS.
 */
-#define DDL_LOG_TMP_NAME_POS 56
+static constexpr unsigned DDL_LOG_TMP_NAME_POS= 56;
 
 /* Definitions for the ddl log header, the first block in the file */
 /* IO_SIZE is stored in the header and can thus be changed */
-#define DDL_LOG_IO_SIZE IO_SIZE
+static constexpr unsigned DDL_LOG_IO_SIZE= IO_SIZE;
 
 /* Header is stored in positions 0-3 */
-#define DDL_LOG_IO_SIZE_POS 4
-#define DDL_LOG_NAME_OFFSET_POS 6
+static constexpr unsigned DDL_LOG_IO_SIZE_POS= 4;
+static constexpr unsigned DDL_LOG_NAME_OFFSET_POS= 6;
 /* Marks if we have done a backup of the ddl log */
-#define DDL_LOG_BACKUP_OFFSET_POS 8
+static constexpr unsigned DDL_LOG_BACKUP_OFFSET_POS= 8;
 /* Sum of the above variables */
-#define DDL_LOG_HEADER_SIZE 4+2+2+1
+static constexpr unsigned DDL_LOG_HEADER_SIZE= 4+2+2+1;
 
 /**
   Sync the ddl log file.
