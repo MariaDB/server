@@ -4452,7 +4452,6 @@ without_overlaps_err:
   create_info->null_bits= null_fields;
 
   /* Check fields. */
-  Item::Check_table_name_prm walk_prm(alter_info->db, alter_info->table_name);
   it.rewind();
   while ((sql_field=it++))
   {
@@ -4510,33 +4509,22 @@ without_overlaps_err:
 
     if (create_simple)
     {
-      /*
-        NOTE: we cannot do this in check_vcol_func_processor() as there is
-        already no table name qualifier in expression.
-      */
       if (sql_field->vcol_info && sql_field->vcol_info->expr &&
-          sql_field->vcol_info->expr->walk(&Item::check_table_name_processor,
-                                           false, &walk_prm))
-      {
-        my_error(ER_BAD_FIELD_ERROR, MYF(0), walk_prm.field.c_ptr(), "GENERATED ALWAYS");
+          check_expression(sql_field->vcol_info, &sql_field->field_name,
+                           sql_field->vcol_info->stored_in_db
+                           ? VCOL_GENERATED_STORED : VCOL_GENERATED_VIRTUAL,
+                           alter_info))
         DBUG_RETURN(TRUE);
-      }
 
       if (sql_field->default_value &&
-          sql_field->default_value->expr->walk(&Item::check_table_name_processor,
-                                               false, &walk_prm))
-      {
-        my_error(ER_BAD_FIELD_ERROR, MYF(0), walk_prm.field.c_ptr(), "DEFAULT");
+          check_expression(sql_field->default_value, &sql_field->field_name,
+                           VCOL_DEFAULT, alter_info))
         DBUG_RETURN(TRUE);
-      }
 
       if (sql_field->check_constraint &&
-          sql_field->check_constraint->expr->walk(&Item::check_table_name_processor,
-                                                  false, &walk_prm))
-      {
-        my_error(ER_BAD_FIELD_ERROR, MYF(0), walk_prm.field.c_ptr(), "CHECK");
+          check_expression(sql_field->check_constraint, &sql_field->field_name,
+                           VCOL_CHECK_FIELD, alter_info))
         DBUG_RETURN(TRUE);
-      }
     }
   }
 
@@ -4546,12 +4534,6 @@ without_overlaps_err:
     List_iterator_fast<Virtual_column_info> c_it(alter_info->check_constraint_list);
     while (Virtual_column_info *check= c_it++)
     {
-      if (create_simple && check->expr->walk(&Item::check_table_name_processor,
-                                             false, &walk_prm))
-      {
-        my_error(ER_BAD_FIELD_ERROR, MYF(0), walk_prm.field.c_ptr(), "CHECK");
-        DBUG_RETURN(TRUE);
-      }
       if (check->name.length && !check->automatic_name)
       {
         /* Check that there's no repeating table CHECK constraint names. */
@@ -8438,6 +8420,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   List<Create_field> new_create_tail;
   /* New key definitions are added here */
   List<Key> new_key_list;
+  List<FOREIGN_KEY_INFO> fk_list;
   List<Alter_rename_key> rename_key_list(alter_info->alter_rename_key_list);
   List_iterator<Alter_drop> drop_it(alter_info->drop_list);
   List_iterator<Create_field> def_it(alter_info->create_list);
@@ -8460,12 +8443,13 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   bool drop_period= false;
   LEX_CSTRING period_start_name= {nullptr, 0};
   LEX_CSTRING period_end_name= {nullptr, 0};
+  DBUG_ENTER("mysql_prepare_alter_table");
+
   if (table->s->period.name)
   {
     period_start_name= table->s->period_start_field()->field_name;
     period_end_name= table->s->period_end_field()->field_name;
   }
-  DBUG_ENTER("mysql_prepare_alter_table");
 
   /*
     Merge incompatible changes flag in case of upgrade of a table from an
@@ -8525,6 +8509,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
 
   create_info->option_list= merge_engine_table_options(table->s->option_list,
                                         create_info->option_list, thd->mem_root);
+
+  table->file->get_foreign_key_list(thd, &fk_list);
 
   /*
     First collect all fields from table which isn't in drop_list
@@ -9169,6 +9155,30 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     }
   }
   {
+    // add existing foreign keys
+    for (auto &fk : fk_list)
+    {
+      Alter_drop *drop;
+      for(drop_it.rewind(); (drop=drop_it++); )
+        if (drop->type == Alter_drop::FOREIGN_KEY &&
+            !my_strcasecmp(system_charset_info, fk.foreign_id->str, drop->name))
+          break;
+      if (drop)
+        continue;
+      List<Key_part_spec> cols, ref_cols;
+      for (LEX_CSTRING &c : fk.foreign_fields)
+        cols.push_back(new (thd->mem_root) Key_part_spec(&c, 0));
+      for (LEX_CSTRING &c : fk.referenced_fields)
+        ref_cols.push_back(new (thd->mem_root) Key_part_spec(&c, 0));
+      auto key= new (thd->mem_root)
+        Foreign_key(fk.foreign_id, &cols, fk.foreign_id, fk.referenced_db,
+          fk.referenced_table, &ref_cols, fk.delete_method, fk.update_method,
+          Foreign_key::FK_MATCH_UNDEF, DDL_options());
+      key->old= true;
+      new_key_list.push_back(key, thd->mem_root);
+    }
+  }
+  {
     Key *key;
     while ((key=key_it++))			// Add new keys
     {
@@ -9291,10 +9301,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   if (!alter_info->check_constraint_list.is_empty())
   {
     /* Check the table FOREIGN KEYs for name duplications. */
-    List <FOREIGN_KEY_INFO> fk_child_key_list;
     FOREIGN_KEY_INFO *f_key;
-    table->file->get_foreign_key_list(thd, &fk_child_key_list);
-    List_iterator<FOREIGN_KEY_INFO> fk_key_it(fk_child_key_list);
+    List_iterator<FOREIGN_KEY_INFO> fk_key_it(fk_list);
     while ((f_key= fk_key_it++))
     {
       List_iterator_fast<Virtual_column_info>

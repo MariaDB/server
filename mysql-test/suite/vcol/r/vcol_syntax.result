@@ -54,22 +54,22 @@ set session sql_mode=@OLD_SQL_MODE;
 #
 create table t2 (x int);
 create table t1 (x int, y int generated always as (t2.x));
-ERROR 42S22: Unknown column '`t2`.`x`' in 'GENERATED ALWAYS'
+ERROR HY000: Function or expression 't2.x' cannot be used in the GENERATED ALWAYS AS clause of `y`
 create table t1 (x int, y int check (y > t2.x));
-ERROR 42S22: Unknown column '`t2`.`x`' in 'CHECK'
+ERROR HY000: Function or expression 't2.x' cannot be used in the CHECK clause of `y`
 create table t1 (x int, y int default t2.x);
-ERROR 42S22: Unknown column '`t2`.`x`' in 'DEFAULT'
+ERROR HY000: Function or expression 't2.x' cannot be used in the DEFAULT clause of `y`
 create table t1 (x int, check (t2.x > 0));
-ERROR 42S22: Unknown column '`t2`.`x`' in 'CHECK'
+ERROR HY000: Function or expression 't2.x' cannot be used in the CHECK clause of `CONSTRAINT_1`
 create table t1 (x int);
 alter table t1 add column y int generated always as (t2.x);
-ERROR 42S22: Unknown column '`t2`.`x`' in 'GENERATED ALWAYS'
+ERROR HY000: Function or expression 't2.x' cannot be used in the GENERATED ALWAYS AS clause of `y`
 alter table t1 add column y int check (z > t2.x);
-ERROR 42S22: Unknown column '`t2`.`x`' in 'CHECK'
+ERROR HY000: Function or expression 't2.x' cannot be used in the CHECK clause of `y`
 alter table t1 add column y int default t2.x;
-ERROR 42S22: Unknown column '`t2`.`x`' in 'DEFAULT'
+ERROR HY000: Function or expression 't2.x' cannot be used in the DEFAULT clause of `y`
 alter table t1 add constraint check (t2.x > 0);
-ERROR 42S22: Unknown column '`t2`.`x`' in 'CHECK'
+ERROR HY000: Function or expression 't2.x' cannot be used in the CHECK clause of `CONSTRAINT_1`
 create or replace table t1 (x int, y int generated always as (t1.x));
 create or replace table t1 (x int, y int check (y > t1.x));
 create or replace table t1 (x int, y int default t1.x);
@@ -80,13 +80,13 @@ create or replace table t1 (x int, y int default test.t1.x);
 create or replace table t1 (x int, check (test.t1.x > 0));
 drop tables t1, t2;
 create table t1 (x int, y int generated always as (test2.t1.x));
-ERROR 42S22: Unknown column '`test2`.`t1`.`x`' in 'GENERATED ALWAYS'
+ERROR HY000: Function or expression 'test2.t1.x' cannot be used in the GENERATED ALWAYS AS clause of `y`
 create table t1 (x int, y int check (y > test2.t1.x));
-ERROR 42S22: Unknown column '`test2`.`t1`.`x`' in 'CHECK'
+ERROR HY000: Function or expression 'test2.t1.x' cannot be used in the CHECK clause of `y`
 create table t1 (x int, y int default test2.t1.x);
-ERROR 42S22: Unknown column '`test2`.`t1`.`x`' in 'DEFAULT'
+ERROR HY000: Function or expression 'test2.t1.x' cannot be used in the DEFAULT clause of `y`
 create table t1 (x int, check (test2.t1.x > 0));
-ERROR 42S22: Unknown column '`test2`.`t1`.`x`' in 'CHECK'
+ERROR HY000: Function or expression 'test2.t1.x' cannot be used in the CHECK clause of `CONSTRAINT_1`
 #
 # MDEV-25672 table alias from previous statement interferes later commands
 #
