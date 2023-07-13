@@ -3187,7 +3187,7 @@ static void check_duplicate_key(THD *thd, const Key *key, const KEY *key_info,
     Check is requested if the key was explicitly created or altered
     by the user (unless it's a foreign key).
   */
-  if (!key->key_create_info.check_for_duplicate_indexes || key->generated)
+  if (key->old || key->type == Key::FOREIGN_KEY || key->generated)
     return;
 
   for (const Key &k : *key_list)
@@ -9127,12 +9127,6 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       if (key_info->flags & HA_USES_COMMENT)
         key_create_info.comment= key_info->comment;
 
-      /*
-        We're refreshing an already existing index. Since the index is not
-        modified, there is no need to check for duplicate indexes again.
-      */
-      key_create_info.check_for_duplicate_indexes= false;
-
       if (key_info->flags & HA_SPATIAL)
         key_type= Key::SPATIAL;
       else if (key_info->flags & HA_NOSAME)
@@ -9165,6 +9159,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                    &key_parts, key_info->option_list, DDL_options());
       key->without_overlaps= key_info->without_overlaps;
       key->period= table->s->period.name;
+      key->old= true;
       new_key_list.push_back(key, thd->mem_root);
     }
     if (long_hash_key)
@@ -9716,7 +9711,7 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
 
     while (Key *key= fk_list_it++)
     {
-      if (key->type != Key::FOREIGN_KEY)
+      if (key->type != Key::FOREIGN_KEY || key->old)
         continue;
 
       Foreign_key *fk= static_cast<Foreign_key*>(key);

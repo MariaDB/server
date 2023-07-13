@@ -2550,12 +2550,6 @@ typedef struct st_key_create_information
   uint flags;                                   /* HA_USE.. flags */
   LEX_CSTRING parser_name;
   LEX_CSTRING comment;
-  /**
-    A flag to determine if we will check for duplicate indexes.
-    This typically means that the key information was specified
-    directly by the user (set by the parser).
-  */
-  bool check_for_duplicate_indexes;
 } KEY_CREATE_INFO;
 
 

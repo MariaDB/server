@@ -423,6 +423,7 @@ public:
   bool generated;
   bool invisible;
   bool without_overlaps;
+  bool old;
   Lex_ident period;
 
   Key(enum Keytype type_par, const LEX_CSTRING *name_arg,
@@ -430,7 +431,7 @@ public:
     :DDL_options(ddl_options),
      type(type_par), key_create_info(default_key_create_info),
     name(*name_arg), option_list(NULL), generated(generated_arg),
-    invisible(false), without_overlaps(false)
+    invisible(false), without_overlaps(false), old(false)
   {
     key_create_info.algorithm= algorithm_arg;
   }
@@ -441,7 +442,7 @@ public:
     :DDL_options(ddl_options),
      type(type_par), key_create_info(*key_info_arg), columns(*cols),
     name(*name_arg), option_list(create_opt), generated(generated_arg),
-    invisible(false), without_overlaps(false)
+    invisible(false), without_overlaps(false), old(false)
   {}
   Key(const Key &rhs, MEM_ROOT *mem_root);
   virtual ~Key() = default;
@@ -479,9 +480,7 @@ public:
     ref_db(*ref_db_arg), ref_table(*ref_table_arg), ref_columns(*ref_cols),
     delete_opt(delete_opt_arg), update_opt(update_opt_arg),
     match_opt(match_opt_arg)
-   {
-    // We don't check for duplicate FKs.
-    key_create_info.check_for_duplicate_indexes= false;
+  {
   }
  Foreign_key(const Foreign_key &rhs, MEM_ROOT *mem_root);
   /**
