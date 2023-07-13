@@ -5449,9 +5449,7 @@ warn:
     -1 Table was used with IF NOT EXISTS and table existed (warning, not error)
 */
 
-int mysql_create_table_no_lock(THD *thd, const LEX_CSTRING *db,
-                               const LEX_CSTRING *table_name,
-                               Table_specification_st *create_info,
+int mysql_create_table_no_lock(THD *thd, Table_specification_st *create_info,
                                Alter_info *alter_info, bool *is_trans,
                                int create_table_mode, TABLE_LIST *table_list)
 {
@@ -5459,6 +5457,8 @@ int mysql_create_table_no_lock(THD *thd, const LEX_CSTRING *db,
   uint not_used_2;
   int res;
   char path[FN_REFLEN + 1];
+  const LEX_CSTRING *db= &table_list->db;
+  const LEX_CSTRING *table_name= &table_list->table_name;
   LEX_CUSTRING frm= {0,0};
 
   if (create_info->tmp_table())
@@ -5635,11 +5635,8 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   /* We can abort create table for any table type */
   thd->abort_on_warning= thd->is_strict_mode();
 
-  if (mysql_create_table_no_lock(thd, &create_table->db,
-                                 &create_table->table_name, create_info,
-                                 alter_info,
-                                 &is_trans, create_table_mode,
-                                 create_table) > 0)
+  if (mysql_create_table_no_lock(thd, create_info, alter_info, &is_trans,
+                                 create_table_mode, create_table) > 0)
   {
     result= 1;
     goto err;
@@ -6116,10 +6113,8 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     pos_in_locked_tables= local_create_info.table->pos_in_locked_tables;    
 
   res= ((create_res=
-         mysql_create_table_no_lock(thd, &table->db, &table->table_name,
-                                    &local_create_info, &local_alter_info,
-                                    &is_trans, C_ORDINARY_CREATE,
-                                    table)) > 0);
+         mysql_create_table_no_lock(thd, &local_create_info, &local_alter_info,
+                                    &is_trans, C_ORDINARY_CREATE, table)) > 0);
   /* Remember to log if we deleted something */
   do_logging= thd->log_current_statement;
   if (res)
