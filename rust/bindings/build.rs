@@ -1,4 +1,12 @@
-//! This file runs `cmake` as needed, then `bindgen` to produce the rust bindings
+//! This file runs `cmake` as needed, then `bindgen` to produce the rust
+//! bindings
+//!
+//! Since we want to avoid configuring if possible, we try a few things in
+//! order:
+//!
+//! - Check if cmake args are present, if so use that built output
+//! - Check if the source directory root can be used, use that if so
+//! - Configure it outselves, output in a temp directory
 
 use std::collections::HashSet;
 use std::env;
@@ -6,7 +14,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use bindgen::callbacks::{DeriveInfo, MacroParsingBehavior, ParseCallbacks};
-use bindgen::EnumVariation;
+use bindgen::{BindgenError, Bindings, EnumVariation};
 
 // `math.h` seems to double define some things, To avoid this, we ignore them.
 const IGNORE_MACROS: [&str; 20] = [
@@ -67,27 +75,51 @@ impl BuildCallbacks {
     }
 }
 
-fn main() {
-    // Tell cargo to invalidate the built crate whenever the wrapper changes
-    println!("cargo:rerun-if-changed=src/wrapper.h");
+/// Get the root of our mariadb project
+fn mariadb_root() -> String {
+    format!("{}/../../", env::var("CARGO_MANIFEST_DIR").unwrap())
+}
+
+/// Find paths provided by CMake environment variables
+fn include_paths_from_cmake() -> Option<[String; 2]> {
+    if let Ok(src_dir) = env::var("CMAKE_SOURCE_DIR") {
+        let Ok(dst_dir) = env::var("CMAKE_BINARY_DIR") else {
+            panic!("CMAKE_SOURCE_DIR set but CMAKE_BINARY_DIR unset");
+        };
+        Some([src_dir, dst_dir])
+    } else {
+        None
+    }
+}
+
+/// Run cmake in our temp directory
+fn configure_returning_incl_paths() -> [String; 2] {
+    let root = mariadb_root();
+    let output_dir = format!("{}/cmake", env::var("OUT_DIR").unwrap());
 
     // Run cmake to configure only
     Command::new("cmake")
-        .args(["../../", "-B../../"])
+        .arg(format!("-S{root}"))
+        .arg(format!("-B{output_dir}"))
         .output()
         .expect("failed to invoke cmake");
 
-    // The bindgen::Builder is the main entry point
-    // to bindgen, and lets you build up options for
-    // the resulting bindings.
-    let bindings = bindgen::Builder::default()
+    [root, output_dir]
+}
+
+/// Given some include directories, see if bindgen works
+fn run_bindgen_with_includes(search_paths: &[String]) -> Result<Bindings, BindgenError> {
+    let incl_args = search_paths
+        .iter()
+        .flat_map(|path| [format!("-I{path}/sql"), format!("-I{path}/include")]);
+
+    bindgen::Builder::default()
         // The input header we would like to generate
         // bindings for.
         .header("src/wrapper.h")
         // Fix math.h double defines
         .parse_callbacks(Box::new(BuildCallbacks::new()))
-        .clang_arg("-I../../include")
-        .clang_arg("-I../../sql")
+        .clang_args(incl_args)
         .clang_arg("-xc++")
         .clang_arg("-std=c++17")
         // Don't derive copy for structs
@@ -115,7 +147,16 @@ fn main() {
         .blocklist_item("__gnu_cxx.*")
         // Finish the builder and generate the bindings.
         .generate()
-        // Unwrap the Result and panic on failure.
+}
+
+fn main() {
+    // Tell cargo to invalidate the built crate whenever the wrapper changes
+    println!("cargo:rerun-if-changed=src/wrapper.h");
+
+    let bindings = include_paths_from_cmake()
+        .and_then(|paths| run_bindgen_with_includes(&paths).ok())
+        .or_else(|| run_bindgen_with_includes(&[mariadb_root()]).ok())
+        .or_else(|| run_bindgen_with_includes(&configure_returning_incl_paths()).ok())
         .expect("Unable to generate bindings");
 
     // Write the bindings to the $OUT_DIR/bindings.rs file.

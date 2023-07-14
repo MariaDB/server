@@ -8,7 +8,7 @@ edition = '2021'
 mariadb-sys = { path = "../bindings" }
 mariadb-macros = { path = "../macros" }
 cstr = "0.2.11"
-concat-idents = "1.1.4"
-time = { version = "0.3.17", features = ["formatting"]}
-log = "0.4.17"
+concat-idents = "1.1.5"
+time = { version = "0.3.23", features = ["formatting"]}
+log = "0.4.19"
 env_logger = "0.10.0"

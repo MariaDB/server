@@ -18,11 +18,13 @@ pub fn expect_bool(field_opt: &Option<Expr>) -> syn::Result<bool> {
 /// Expect a literal string, error if that's not the case
 pub fn expect_litstr(field_opt: &Option<Expr>) -> syn::Result<&LitStr> {
     let field = field_opt.as_ref().unwrap();
-    let Expr::Lit(lit) = field else { // got non-literal
+    let Expr::Lit(lit) = field else {
+        // got non-literal
         let msg = "expected literal expression for this field";
         return Err(Error::new_spanned(field, msg));
     };
-    let Lit::Str(litstr) = &lit.lit else { // got literal that wasn't a string
+    let Lit::Str(litstr) = &lit.lit else {
+        // got literal that wasn't a string
         let msg = "only literal strings are allowed for this field";
         return Err(Error::new_spanned(field, msg));
     };

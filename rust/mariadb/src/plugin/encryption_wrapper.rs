@@ -138,7 +138,10 @@ pub trait WrapEncryption: Encryption {
 
         let this: &mut Self = &mut *ctx.cast();
         let (ret, written) = match this.update(sbuf, dbuf) {
-            Ok(v) => (bindings::MY_AES_OK.try_into().unwrap(), v.try_into().unwrap()),
+            Ok(v) => (
+                bindings::MY_AES_OK.try_into().unwrap(),
+                v.try_into().unwrap(),
+            ),
             Err(e) => (e as c_int, 0),
         };
         *dlen = written;
@@ -155,7 +158,10 @@ pub trait WrapEncryption: Encryption {
 
         let this: &mut Self = &mut *ctx.cast();
         let (ret, written) = match this.finish(dbuf) {
-            Ok(v) => (bindings::MY_AES_OK.try_into().unwrap(), v.try_into().unwrap()),
+            Ok(v) => (
+                bindings::MY_AES_OK.try_into().unwrap(),
+                v.try_into().unwrap(),
+            ),
             Err(e) => (e as c_int, 0),
         };
         *dlen = written;

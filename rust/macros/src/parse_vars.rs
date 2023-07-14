@@ -167,7 +167,10 @@ impl VariableInfo {
 
     fn make_sysvar(&self) -> syn::Result<(Ident, TokenStream)> {
         let Some(vtype) = &self.vtype else {
-            return Err(Error::new_spanned(&self.vtype, "missing required field 'vtype'"));
+            return Err(Error::new_spanned(
+                &self.vtype,
+                "missing required field 'vtype'",
+            ));
         };
 
         self.validate_correct_fields(REQ_FIELDS, OPT_FIELDS)?;
@@ -329,7 +332,10 @@ fn process_default_override(field: &Option<Expr>, fname: &str) -> syn::Result<To
     };
 
     let Expr::Lit(exprlit) = f_inner else {
-        return Err(Error::new_spanned(f_inner, "only literal values are allowed in this position"));
+        return Err(Error::new_spanned(
+            f_inner,
+            "only literal values are allowed in this position",
+        ));
     };
 
     let fid = Ident::new(fname, f_inner.span());

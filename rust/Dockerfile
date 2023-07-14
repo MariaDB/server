@@ -8,8 +8,8 @@ RUN apt-get update \
         build-essential \
         cmake \
         cmake-curses-gui \
-        less \
         libboost-all-dev \
+        less \
         liblz4-dev \
         liblzo2-dev \
         libsnappy-dev \
@@ -18,7 +18,11 @@ RUN apt-get update \
         vim-tiny \
         wget \
         xxd \
+        clang \
     && export RUST_BACKTRACE=1 \
     && export CARGO_TARGET_DIR=/obj/build-cargo
+    && export BUILD_DIR=/obj/build-mariadb
+
+# ^ clang has to go last because it doesn't play well with other installs
 
 RUN apt-get install -y \

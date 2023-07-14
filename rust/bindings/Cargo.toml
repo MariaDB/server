@@ -5,6 +5,6 @@ edition = '2021'
 
 
 [build-dependencies]
-bindgen = "0.63.0"
-cmake = "0.1"
-doxygen-rs = "0.2"
+bindgen = "0.66.1"
+cmake = "0.1.50"
+doxygen-rs = "0.4.2"
