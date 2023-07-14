@@ -3913,6 +3913,10 @@ public:
   {
     return strmake_lex_cstring(from.str, from.length);
   }
+  LEX_CSTRING strmake_lex_cstring_trim_whitespace(const LEX_CSTRING &from)
+  {
+    return strmake_lex_cstring(Lex_cstring(from).trim_whitespace(charset()));
+  }
 
   LEX_STRING *make_lex_string(LEX_STRING *lex_str, const char* str, size_t length)
   {

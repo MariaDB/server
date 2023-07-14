@@ -558,7 +558,7 @@ sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
    m_next_cached_sp(0),
    m_param_begin(NULL),
    m_param_end(NULL),
-   m_body_begin(NULL),
+   m_cpp_body_begin(NULL),
    m_thd_root(NULL),
    m_thd(NULL),
    m_pcont(new (&main_mem_root) sp_pcontext()),
@@ -819,18 +819,18 @@ sp_head::init_psi_share()
 
 
 void
-sp_head::set_body_start(THD *thd, const char *begin_ptr)
+sp_head::set_body_start(THD *thd, const char *cpp_body_start)
 {
-  m_body_begin= begin_ptr;
-  thd->m_parser_state->m_lip.body_utf8_start(thd, begin_ptr);
+  m_cpp_body_begin= cpp_body_start;
+  if (!m_parent)
+    thd->m_parser_state->m_lip.body_utf8_start(thd, cpp_body_start);
 }
 
 
 void
-sp_head::set_stmt_end(THD *thd)
+sp_head::set_stmt_end(THD *thd, const char *cpp_body_end)
 {
   Lex_input_stream *lip= & thd->m_parser_state->m_lip; /* shortcut */
-  const char *end_ptr= lip->get_cpp_tok_start(); /* shortcut */
 
   /* Make the string of parameters. */
 
@@ -842,30 +842,27 @@ sp_head::set_stmt_end(THD *thd)
 
   /* Remember end pointer for further dumping of whole statement. */
 
-  thd->lex->stmt_definition_end= end_ptr;
+  thd->lex->stmt_definition_end= cpp_body_end;
 
   /* Make the string of body (in the original character set). */
 
-  m_body.length= end_ptr - m_body_begin;
-  m_body.str= thd->strmake(m_body_begin, m_body.length);
-  trim_whitespace(thd->charset(), &m_body);
+  m_body= thd->strmake_lex_cstring_trim_whitespace(
+                 Lex_cstring(m_cpp_body_begin, cpp_body_end));
 
   /* Make the string of UTF-body. */
 
-  lip->body_utf8_append(end_ptr);
+  lip->body_utf8_append(cpp_body_end);
 
-  m_body_utf8.length= lip->get_body_utf8_length();
-  m_body_utf8.str= thd->strmake(lip->get_body_utf8_str(), m_body_utf8.length);
-  trim_whitespace(thd->charset(), &m_body_utf8);
+  if (!m_parent)
+    m_body_utf8= thd->strmake_lex_cstring_trim_whitespace(lip->body_utf8());
 
   /*
     Make the string of whole stored-program-definition query (in the
     original character set).
   */
 
-  m_defstr.length= end_ptr - lip->get_cpp_buf();
-  m_defstr.str= thd->strmake(lip->get_cpp_buf(), m_defstr.length);
-  trim_whitespace(thd->charset(), &m_defstr);
+  m_defstr= thd->strmake_lex_cstring_trim_whitespace(
+                   Lex_cstring(lip->get_cpp_buf(), cpp_body_end));
 }
 
 

@@ -43,7 +43,10 @@ comment
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
 db_collation	latin1_swedish_ci
-body_utf8	
+body_utf8	AS
+FUNCTION f1 RETURN INT;
+PROCEDURE p1;
+END
 aggregate	NONE
 db	test
 name	pack
@@ -73,7 +76,16 @@ comment
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
 db_collation	latin1_swedish_ci
-body_utf8	
+body_utf8	AS
+FUNCTION f1 RETURN INT AS
+BEGIN
+RETURN 10;
+END;
+PROCEDURE p1 AS
+BEGIN
+SELECT f1();
+END;
+END
 aggregate	NONE
 SELECT * FROM mysql.proc WHERE db='test' AND name LIKE 'pack.%';
 SET @@sql_mode=ORACLE;

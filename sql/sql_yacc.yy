@@ -19118,8 +19118,6 @@ create_routine:
           }
         | create_or_replace definer_opt PACKAGE_ORACLE_SYM
           opt_if_not_exists sp_name opt_create_package_chistics_init
-          sp_tail_is
-          remember_name
           {
             sp_package *pkg;
             if (unlikely(!(pkg= Lex->
@@ -19129,17 +19127,17 @@ create_routine:
                                                 $5, $1 | $4))))
               MYSQL_YYABORT;
             pkg->set_c_chistics(Lex->sp_chistics);
+            Lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
           }
+          sp_tail_is
           opt_package_specification_element_list END
           remember_end_opt opt_sp_name
           {
-            if (unlikely(Lex->create_package_finalize(thd, $5, $13, $8, $12)))
+            if (unlikely(Lex->create_package_finalize(thd, $5, $12, $11)))
               MYSQL_YYABORT;
           }
         | create_or_replace definer_opt PACKAGE_ORACLE_SYM BODY_ORACLE_SYM
           opt_if_not_exists sp_name opt_create_package_chistics_init
-          sp_tail_is
-          remember_name
           {
             sp_package *pkg;
             if (unlikely(!(pkg= Lex->
@@ -19149,8 +19147,10 @@ create_routine:
                                                 $6, $1 | $5))))
               MYSQL_YYABORT;
             pkg->set_c_chistics(Lex->sp_chistics);
+            Lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
             Lex->sp_block_init(thd);
           }
+          sp_tail_is
           package_implementation_declare_section
           {
             if (unlikely(Lex->sp_block_with_exceptions_finalize_declarations(thd)))
@@ -19158,13 +19158,13 @@ create_routine:
           }
           package_implementation_executable_section
           {
-            $11.hndlrs+= $13.hndlrs;
-            if (unlikely(Lex->sp_block_finalize(thd, $11)))
+            $10.hndlrs+= $12.hndlrs;
+            if (unlikely(Lex->sp_block_finalize(thd, $10)))
               MYSQL_YYABORT;
           }
           remember_end_opt opt_sp_name
           {
-            if (unlikely(Lex->create_package_finalize(thd, $6, $16, $9, $15)))
+            if (unlikely(Lex->create_package_finalize(thd, $6, $15, $14)))
               MYSQL_YYABORT;
           }
         ;
