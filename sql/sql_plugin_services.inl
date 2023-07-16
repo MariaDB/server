@@ -18,6 +18,7 @@
 #include <service_versions.h>
 #include <mysql/service_wsrep.h>
 #include <mysql/service_thd_mdl.h>
+#include <mysql/service_thd_catalog.h>
 
 struct st_service_ref {
   const char *name;
@@ -233,6 +234,12 @@ static struct thd_mdl_service_st thd_mdl_handler=
   thd_mdl_context
 };
 
+static struct thd_catalog_service_st thd_catalog_handler=
+{
+  thd_catalog_context,
+  thd_catalog_path
+};
+
 struct sql_service_st sql_service_handler=
 {
   mysql_init,
@@ -349,6 +356,7 @@ static struct st_service_ref list_of_services[]=
   { "wsrep_service",               VERSION_wsrep,               &wsrep_handler },
   { "json_service",                VERSION_json,                &json_handler },
   { "thd_mdl_service",             VERSION_thd_mdl,             &thd_mdl_handler },
+  { "thd_catalog_service",         VERSION_thd_catalog,         &thd_catalog_handler },
   { "sql_service",                 VERSION_sql_service,         &sql_service_handler },
   { "provider_service_bzip2",      VERSION_provider_bzip2,      &provider_handler_bzip2 },
   { "provider_service_lz4",        VERSION_provider_lz4,        &provider_handler_lz4 },

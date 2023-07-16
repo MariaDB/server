@@ -31,6 +31,7 @@ SET(MYSQLSERVICES_SOURCES
   progress_report_service.c
   thd_alloc_service.c
   thd_autoinc_service.c
+  thd_catalog_service.c
   thd_error_context_service.c
   thd_rnd_service.c
   thd_specifics_service.c

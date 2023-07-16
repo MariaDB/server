@@ -5670,6 +5670,21 @@ extern "C" void *thd_mdl_context(MYSQL_THD thd)
   return &thd->mdl_context;
 }
 
+/**
+  Catalog accessor
+  @param thd   the current session
+  @return pointer of thd->catalog
+*/
+extern "C" SQL_CATALOG *thd_catalog_context(MYSQL_THD thd)
+{
+  return thd->catalog;
+}
+
+extern "C" const char *thd_catalog_path(MYSQL_THD thd)
+{
+  return thd->catalog->path.str;
+}
+
 
 /****************************************************************************
   Handling of statement states in functions and triggers.
