@@ -67,12 +67,16 @@ private:
   {
     for (uint j= to_index(i + 1); hash_array[j] != nullptr; j= to_index(j + 1))
     {
-      auto key= to_index(get_key(hash_array[j])->tc_hash_value());
+      auto temp_el= hash_array[j];
+      hash_array[j]= nullptr;
+      //size--;
+      insert_helper(get_key(temp_el), temp_el);
+      /*auto key= to_index(get_key(hash_array[j])->tc_hash_value());
       if (key <= i || key > j)
       {
         hash_array[i]= hash_array[j];
         i= j;
-      }
+      }*/
     }
 
     return i;
@@ -85,8 +89,9 @@ private:
     {
       if (trait::is_equal(hash_array[key], value))
       {
-        hash_array[rehash_subsequence(key)]= nullptr;
+        hash_array[key]= nullptr;
         size--;
+        rehash_subsequence(key);
         return true;
       }
     }
@@ -108,6 +113,7 @@ private:
         {
           auto temp_el= hash_array[i];
           hash_array[i]= nullptr;
+          //erase_helper(temp_el);
           insert_helper(get_key(temp_el), temp_el);
         }
       }
@@ -123,12 +129,13 @@ private:
       }
       size= 0;
 
-      for (uint i = 0; i < past_capacity; i++)
+      for (uint i = 0; i < capacity; i++)
       {
         if (hash_array[i])
         {
           auto temp_el= hash_array[i];
           hash_array[i]= nullptr;
+          //erase_helper(temp_el);
           insert_helper(get_key(temp_el), temp_el);
         }
       }

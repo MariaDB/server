@@ -7,7 +7,7 @@ CREATE TABLE parent_test_table
 ) engine=InnoDB;
 
 let $i=1;
-while($i < 1000) {
+while($i < 2000) {
     EVAL CREATE TABLE t_$i
   (
     Id INT PRIMARY KEY AUTO_INCREMENT,
@@ -23,7 +23,7 @@ Insert parent_test_table(Age)
 VALUES(20);
 
 let $i=1;
-while($i < 1000) {
+while($i < 2000) {
     EVAL Insert t_$i(parent_test_tableId$i, Sum)
     VALUES(1, 300);
 
