@@ -1367,7 +1367,7 @@ NOT FOUND /Slave SQL/ in mysqld.1.err
 # MDEV-31646 Online alter applies binlog cache limit to cache writes
 #
 create table t (pk int primary key, a varchar(100)) engine=MyISAM;
-insert into t select seq, repeat('x', 100) from seq_1_to_500;
+insert into t select seq, repeat('x', 100) from seq_1_to_50;
 set @cache.size= @@max_binlog_cache_size;
 set global max_binlog_cache_size= 4096;
 set debug_sync= 'now wait_for do_updates';
@@ -1385,29 +1385,56 @@ Level	Code	Message
 connection default;
 drop table t;
 set debug_sync= reset;
+set global max_binlog_cache_size= @cache.size;
 # Now make sure that smaller limits will be processed fine
-set @old_dbug=@@debug_dbug;
-set debug_dbug="+d,online_alter_small_cache";
+set debug_dbug="+d,online_alter_small_cache_2";
 create table t (pk int primary key, a varchar(100)) engine=MyISAM;
-insert into t select seq, repeat('x', 100) from seq_1_to_500;
-set @cache.size= @@max_binlog_cache_size;
-set global max_binlog_cache_size= 4096;
+insert into t select seq, repeat('x', 100) from seq_1_to_50;
 connection con1;
-set debug_sync= 'alter_table_online_progress signal do_updates wait_for go';
+set debug_dbug="+d,online_alter_small_cache_2";
+set debug_sync= 'alter_table_online_before_lock signal do_updates wait_for go';
 alter table t add b int, algorithm=copy, lock=none;
 connection default;
 set debug_sync= 'now wait_for do_updates';
 update t set a = repeat('y', 100);
-ERROR HY000: Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage; increase this mariadbd variable and try again
+Warnings:
+Warning	1026	Error writing file 'online-alter-binlog' (errno: 27 "File too large")
 show warnings;
 Level	Code	Message
-Error	1197	Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage; increase this mariadbd variable and try again
-Error	1534	Writing one row to the row-based binary log failed
-Warning	1196	Some non-transactional changed tables couldn't be rolled back
+Warning	1026	Error writing file 'online-alter-binlog' (errno: 27 "File too large")
 set debug_sync= 'now signal go';
 connection con1;
+ERROR HY000: IO Write error: (27, File too large) 
 show warnings;
 Level	Code	Message
+Error	1811	IO Write error: (27, File too large) 
+set debug_dbug= @old_dbug;
+connection default;
+drop table t;
+set debug_sync= reset;
+set debug_dbug= @old_dbug;
+set debug_dbug="+d,online_alter_small_cache_1";
+create table t (pk int primary key, a varchar(100)) engine=MyISAM;
+insert into t select seq, repeat('x', 100) from seq_1_to_50;
+connection con1;
+set debug_dbug="+d,online_alter_small_cache_1";
+set debug_sync= 'alter_table_online_before_lock signal do_updates wait_for go';
+alter table t add b int, algorithm=copy, lock=none;
+connection default;
+set debug_sync= 'now wait_for do_updates';
+update t set a = repeat('y', 100);
+Warnings:
+Warning	1026	Error writing file 'online-alter-binlog' (errno: 27 "File too large")
+show warnings;
+Level	Code	Message
+Warning	1026	Error writing file 'online-alter-binlog' (errno: 27 "File too large")
+set debug_sync= 'now signal go';
+connection con1;
+ERROR HY000: IO Write error: (27, File too large) 
+show warnings;
+Level	Code	Message
+Error	1811	IO Write error: (27, File too large) 
+set debug_dbug= @old_dbug;
 connection default;
 drop table t;
 set debug_sync= reset;

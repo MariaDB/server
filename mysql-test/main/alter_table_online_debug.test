@@ -1561,7 +1561,7 @@ let SEARCH_PATTERN= Slave SQL;
 --echo # MDEV-31646 Online alter applies binlog cache limit to cache writes
 --echo #
 create table t (pk int primary key, a varchar(100)) engine=MyISAM;
-insert into t select seq, repeat('x', 100) from seq_1_to_500;
+insert into t select seq, repeat('x', 100) from seq_1_to_50;
 
 set @cache.size= @@max_binlog_cache_size;
 set global max_binlog_cache_size= 4096;
@@ -1586,38 +1586,39 @@ show warnings;
 --connection default
 drop table t;
 set debug_sync= reset;
+set global max_binlog_cache_size= @cache.size;
 
 --echo # Now make sure that smaller limits will be processed fine
+let $i=2;
+while ($i) {
+  eval set debug_dbug="+d,online_alter_small_cache_$i";
+  create table t (pk int primary key, a varchar(100)) engine=MyISAM;
+  insert into t select seq, repeat('x', 100) from seq_1_to_50;
 
-set @old_dbug=@@debug_dbug;
-set debug_dbug="+d,online_alter_small_cache";
-create table t (pk int primary key, a varchar(100)) engine=MyISAM;
-insert into t select seq, repeat('x', 100) from seq_1_to_500;
+  --connection con1
+  eval set debug_dbug="+d,online_alter_small_cache_$i";
+  set debug_sync= 'alter_table_online_before_lock signal do_updates wait_for go';
+  send alter table t add b int, algorithm=copy, lock=none;
 
-set @cache.size= @@max_binlog_cache_size;
-set global max_binlog_cache_size= 4096;
+  --connection default
+  set debug_sync= 'now wait_for do_updates';
+  update t set a = repeat('y', 100);
+  show warnings;
 
---connection con1
-set debug_sync= 'alter_table_online_progress signal do_updates wait_for go';
---send
-alter table t add b int, algorithm=copy, lock=none;
+  set debug_sync= 'now signal go';
 
---connection default
-set debug_sync= 'now wait_for do_updates';
---error ER_TRANS_CACHE_FULL
-update t set a = repeat('y', 100);
-show warnings;
+  --connection con1
+  --error ER_IO_WRITE_ERROR
+  --reap
+  show warnings;
 
-set debug_sync= 'now signal go';
-
---connection con1
---reap
-show warnings;
-
---connection default
-drop table t;
-set debug_sync= reset;
-set debug_dbug= @old_dbug;
+  set debug_dbug= @old_dbug;
+  --connection default
+  drop table t;
+  set debug_sync= reset;
+  set debug_dbug= @old_dbug;
+  dec $i;
+}
 
 --disconnect con1
 --disconnect con2

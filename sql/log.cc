@@ -2273,7 +2273,7 @@ int binlog_log_row_online_alter(TABLE* table, const uchar *before_record,
 {
   THD *thd= table->in_use;
 
-  if (!table->online_alter_cache)
+  if (unlikely(!table->online_alter_cache))
   {
     table->online_alter_cache= online_alter_binlog_get_cache_data(thd, table);
     trans_register_ha(thd, false, binlog_hton, 0);
@@ -2284,6 +2284,9 @@ int binlog_log_row_online_alter(TABLE* table, const uchar *before_record,
   // We need to log all columns for the case if alter table changes primary key
   DBUG_ASSERT(!before_record || bitmap_is_set_all(table->read_set));
   MY_BITMAP *old_rpl_write_set= table->rpl_write_set;
+
+  Dummy_error_handler dummy_handler;
+  thd->push_internal_handler(&dummy_handler);
   table->rpl_write_set= &table->s->all_set;
 
   int error= (*log_func)(thd, table, table->s->online_alter_binlog,
@@ -2291,8 +2294,14 @@ int binlog_log_row_online_alter(TABLE* table, const uchar *before_record,
                          before_record, after_record);
 
   table->rpl_write_set= old_rpl_write_set;
+  thd->pop_internal_handler();
 
-  return unlikely(error) ? HA_ERR_RBR_LOGGING_FAILED : 0;
+  if (unlikely(error))
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_DISK_FULL,
+                        "Broken online alter log. "
+                        "ALTER TABLE will finish with error.");
+
+  return 0;
 }
 
 static void
@@ -2487,7 +2496,7 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
     thd->reset_binlog_for_next_statement();
     DBUG_RETURN(error);
   }
-  if (!wsrep_emulate_bin_log && Event_log::check_write_error(thd))
+  if (!wsrep_emulate_bin_log && MYSQL_BIN_LOG::check_write_error(thd))
   {
     /*
       "all == true" means that a "rollback statement" triggered the error and
@@ -2552,7 +2561,7 @@ void binlog_reset_cache(THD *thd)
 }
 
 
-void Event_log::set_write_error(THD *thd, bool is_transactional)
+void MYSQL_BIN_LOG::set_write_error(THD *thd, bool is_transactional)
 {
   DBUG_ENTER("MYSQL_BIN_LOG::set_write_error");
 
@@ -2592,7 +2601,7 @@ void Event_log::set_write_error(THD *thd, bool is_transactional)
   DBUG_VOID_RETURN;
 }
 
-bool Event_log::check_write_error(THD *thd)
+bool MYSQL_BIN_LOG::check_write_error(THD *thd)
 {
   DBUG_ENTER("MYSQL_BIN_LOG::check_write_error");
 
@@ -3833,9 +3842,9 @@ bool MYSQL_BIN_LOG::open_index_file(const char *index_file_name_arg,
 }
 
 
-bool Event_log::open(enum cache_type io_cache_type_arg)
+bool Event_log::open(enum cache_type io_cache_type_arg, size_t buffer_size)
 {
-  bool error= init_io_cache(&log_file, -1, LOG_BIN_IO_SIZE, io_cache_type_arg,
+  bool error= init_io_cache(&log_file, -1, buffer_size, io_cache_type_arg,
                             0, 0, MYF(MY_WME | MY_NABP | MY_WAIT_IF_FULL));
 
   log_state= LOG_OPENED;
@@ -6422,9 +6431,14 @@ static online_alter_cache_data *binlog_setup_cache_data(MEM_ROOT *root, TABLE_SH
 {
   static ulong online_alter_cache_use= 0, online_alter_cache_disk_use= 0;
 
+  my_off_t file_size= SIZE_T_MAX; // maximum possible cache size
+  size_t cache_size= binlog_cache_size;
+  DBUG_EXECUTE_IF("online_alter_small_cache_1",
+                  cache_size= file_size= IO_SIZE;);
+
   auto cache= new (root) online_alter_cache_data();
   if (!cache || open_cached_file(&cache->cache_log, mysql_tmpdir,
-                         LOG_PREFIX, (size_t)binlog_cache_size, MYF(MY_WME)))
+                         LOG_PREFIX, cache_size, MYF(MY_WME)))
   {
     delete cache;
     return NULL;
@@ -6434,10 +6448,8 @@ static online_alter_cache_data *binlog_setup_cache_data(MEM_ROOT *root, TABLE_SH
   cache->hton= share->db_type();
   cache->sink_log= share->online_alter_binlog;
 
-  my_off_t binlog_max_size= SIZE_T_MAX; // maximum possible cache size
-  DBUG_EXECUTE_IF("online_alter_small_cache", binlog_max_size= 4096;);
 
-  cache->set_binlog_cache_info(binlog_max_size,
+  cache->set_binlog_cache_info(file_size,
                                &online_alter_cache_use,
                                &online_alter_cache_disk_use);
   cache->store_prev_position();
@@ -6577,7 +6589,8 @@ Event_log::flush_and_set_pending_rows_event(THD *thd, Rows_log_event* event,
     if (writer.write(pending))
     {
       set_write_error(thd, is_transactional);
-      if (check_write_error(thd) && cache_data &&
+      if (dynamic_cast<MYSQL_BIN_LOG*>(this) &&
+          MYSQL_BIN_LOG::check_write_error(thd) && cache_data &&
           stmt_has_updated_non_trans_table(thd))
         cache_data->set_incident();
       delete pending;
@@ -7723,7 +7736,6 @@ private:
 static int binlog_online_alter_end_trans(THD *thd, bool all, bool commit)
 {
   DBUG_ENTER("binlog_online_alter_end_trans");
-  int error= 0;
 #ifdef HAVE_REPLICATION
   if (thd->online_alter_cache_list.empty())
     DBUG_RETURN(0);
@@ -7732,11 +7744,21 @@ static int binlog_online_alter_end_trans(THD *thd, bool all, bool commit)
 
   for (auto &cache: thd->online_alter_cache_list)
   {
+    int error= 0;
     auto *binlog= cache.sink_log;
     DBUG_ASSERT(binlog);
+
+    if (binlog->get_write_error())
+      continue;
+
     bool non_trans= cache.hton->flags & HTON_NO_ROLLBACK // Aria
                     || !cache.hton->rollback;
     bool do_commit= (commit && is_ending_transaction) || non_trans;
+
+    // Ignore any potential error on the DML side. It should be handled by
+    // the ALTER TABLE side.
+    Dummy_error_handler dh;
+    thd->push_internal_handler(&dh);
 
     if (commit || non_trans)
     {
@@ -7756,6 +7778,9 @@ static int binlog_online_alter_end_trans(THD *thd, bool all, bool commit)
         mysql_mutex_lock(binlog->get_log_lock());
         error= binlog->write_cache_raw(thd, &cache.cache_log);
         mysql_mutex_unlock(binlog->get_log_lock());
+
+        if (unlikely(error))
+          binlog->set_write_error(my_errno);
       }
     }
     else if (!commit) // rollback
@@ -7769,14 +7794,14 @@ static int binlog_online_alter_end_trans(THD *thd, bool all, bool commit)
       cache.store_prev_position();
     }
 
+    thd->pop_internal_handler();
 
     if (error)
     {
-      my_error(ER_ERROR_ON_WRITE, MYF(ME_ERROR_LOG),
-               binlog->get_name(), errno);
-      binlog_online_alter_cleanup(thd->online_alter_cache_list,
-                                  is_ending_transaction);
-      DBUG_RETURN(error);
+      push_warning_printf(thd, Sql_state_errno_level::WARN_LEVEL_WARN,
+                          ER_ERROR_ON_WRITE, ER_THD(thd, ER_ERROR_ON_WRITE),
+                          binlog->get_name(), errno);
+      DBUG_ASSERT(binlog->get_write_error());
     }
   }
 
@@ -7786,7 +7811,7 @@ static int binlog_online_alter_end_trans(THD *thd, bool all, bool commit)
   for (TABLE *table= thd->open_tables; table; table= table->next)
     table->online_alter_cache= NULL;
 #endif // HAVE_REPLICATION
-  DBUG_RETURN(error);
+  DBUG_RETURN(0);
 }
 
 SAVEPOINT** find_savepoint_in_list(THD *thd, LEX_CSTRING name,
@@ -12391,6 +12416,11 @@ get_gtid_list_event(IO_CACHE *cache, Gtid_list_log_event **out_gtid_list)
   delete fdle;
   *out_gtid_list= static_cast<Gtid_list_log_event *>(ev);
   return errormsg;
+}
+
+void Cache_flip_event_log::set_write_error(THD *thd, bool is_transactional)
+{
+  set_write_error(my_errno);
 }
 
 

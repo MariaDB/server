@@ -11664,6 +11664,14 @@ static int online_alter_read_from_binlog(THD *thd, rpl_group_info *rgi,
   thd->push_internal_handler(&hdeh);
   do
   {
+    error= log->get_write_error();
+    if (unlikely(error))
+    {
+      my_error(ER_IO_WRITE_ERROR, MYF(0), (ulong)error, strerror(error), "");
+      error= 1;
+      break;
+    }
+
     const auto *descr_event= rgi->rli->relay_log.description_event_for_exec;
     auto *ev= Log_event::read_log_event(log_file, descr_event, false);
     error= log_file->error;
@@ -11891,7 +11899,10 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       if (!from->s->online_alter_binlog)
         DBUG_RETURN(1);
       from->s->online_alter_binlog->init_pthread_objects();
-      error= from->s->online_alter_binlog->open(WRITE_CACHE);
+
+      size_t buffer_size= LOG_BIN_IO_SIZE;
+      DBUG_EXECUTE_IF("online_alter_small_cache_2", buffer_size= IO_SIZE;);
+      error= from->s->online_alter_binlog->open(buffer_size);
 
       if (error)
       {
@@ -12101,6 +12112,9 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
     error= online_alter_read_from_binlog(thd, &rgi, binlog);
 
+    // flip() makes reinit_io_cache, so it should be here
+    DBUG_EXECUTE_IF("online_alter_small_cache_2",
+                  from->s->online_alter_binlog->current->end_of_file= IO_SIZE;);
     DEBUG_SYNC(thd, "alter_table_online_before_lock");
 
     int lock_error=

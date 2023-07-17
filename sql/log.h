@@ -400,8 +400,7 @@ public:
   int flush_and_set_pending_rows_event(THD *thd, Rows_log_event* event,
                                        binlog_cache_data *cache_data,
                                        bool is_transactional);
-  void set_write_error(THD *thd, bool is_transactional);
-  static bool check_write_error(THD *thd);
+  virtual void set_write_error(THD *thd, bool is_transactional) = 0;
   int write_cache(THD *thd, IO_CACHE *cache);
   int write_cache_raw(THD *thd, IO_CACHE *cache);
   char* get_name() { return name; }
@@ -420,7 +419,8 @@ public:
                      MY_MUTEX_INIT_SLOW);
   }
 
-  bool open(enum cache_type io_cache_type_arg);
+  bool open(enum cache_type io_cache_type_arg,
+            size_t buffer_size= LOG_BIN_IO_SIZE);
   virtual IO_CACHE *get_log_file() { return &log_file; }
 
   longlong write_description_event(enum_binlog_checksum_alg checksum_alg,
@@ -445,17 +445,20 @@ public:
  */
 class Cache_flip_event_log: public Event_log {
   IO_CACHE alt_buf;
+IF_DBUG(public:,)
   IO_CACHE *current, *alt;
   std::atomic<uint> ref_count;
+  std::atomic<int> online_write_error;
 public:
 
   Cache_flip_event_log() : Event_log(), alt_buf{},
-                           current(&log_file), alt(&alt_buf), ref_count(1) {}
-  bool open(enum cache_type io_cache_type_arg)
+                           current(&log_file), alt(&alt_buf), ref_count(1),
+                           online_write_error(0) {}
+  bool open(size_t buffer_size)
   {
     log_file.dir= mysql_tmpdir;
     alt_buf.dir= log_file.dir;
-    bool res= Event_log::open(io_cache_type_arg);
+    bool res= Event_log::open(WRITE_CACHE);
     if (res)
       return res;
 
@@ -464,7 +467,7 @@ public:
     if (!name)
       return false;
 
-    res= init_io_cache(&alt_buf, -1, LOG_BIN_IO_SIZE, io_cache_type_arg, 0, 0,
+    res= init_io_cache(&alt_buf, -1, buffer_size, WRITE_CACHE, 0, 0,
                        MYF(MY_WME | MY_NABP | MY_WAIT_IF_FULL)) != 0;
     return res;
   }
@@ -508,6 +511,17 @@ public:
       cleanup();
       delete this;
     }
+  }
+  void set_write_error(THD *thd, bool is_transactional) override;
+
+  void set_write_error(int error)
+  {
+    online_write_error.store(error, std::memory_order_relaxed);
+  }
+
+  int get_write_error() const
+  {
+    return online_write_error.load(std::memory_order_relaxed);
   }
 
 private:
@@ -986,6 +1000,8 @@ public:
   bool write_incident(THD *thd);
   void write_binlog_checkpoint_event_already_locked(const char *name, uint len);
   bool write_table_map(THD *thd, TABLE *table, bool with_annotate);
+  void set_write_error(THD *thd, bool is_transactional) override;
+  static bool check_write_error(THD *thd);
   void start_union_events(THD *thd, query_id_t query_id_param);
   void stop_union_events(THD *thd);
   bool is_query_in_union(THD *thd, query_id_t query_id_param);
