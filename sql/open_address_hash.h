@@ -1,19 +1,7 @@
-#ifndef OPEN_ADDRESS_HASH
-#define OPEN_ADDRESS_HASH
+#pragma once
 
 #include <string.h>
-
-class key_type_pair
-{
-public:
-  key_type_pair(MDL_key *_mdl_key, enum_mdl_type _type)
-  {
-    mdl_key= _mdl_key;
-    type= _type;
-  }
-  MDL_key *mdl_key;
-  enum_mdl_type type;
-};
+#include <my_dbug.h>
 
 template <typename trait, typename key_trait> class open_address_hash
 {
@@ -24,7 +12,7 @@ public:
   using hash_value_type= typename key_trait::hash_value_type;
   using key_type= typename key_trait::key_type;
 
-  MDL_key *get_key(const T &elem) { return key_trait::get_key(elem); }
+  key_type *get_key(const T &elem) { return key_trait::get_key(elem); }
   bool is_empty(const T &el) { return trait::is_empty(el); }
   void set_null(T &el) { trait::set_null(el); }
 
@@ -37,8 +25,11 @@ public:
 
   ~open_address_hash()
   {
-    if (hash_array && !first.mark())
-      delete[] hash_array;
+    if (!first.mark())
+    {
+      DBUG_ASSERT(hash_array);
+      free(hash_array);
+    }
   }
 
 private:
@@ -47,19 +38,25 @@ private:
     return hash_value & (capacity - 1);
   }
 
-  bool insert_helper(MDL_key *mdl_key, T value)
+  hash_value_type hash_from_value(const T &value)
   {
-    auto key= to_index(mdl_key->tc_hash_value());
+    return key_trait::get_hash_value(trait::get_key(value));
+  }
 
-    while (hash_array[key] != nullptr)
+  bool insert_helper(const T &value)
+  {
+
+    auto hash_val= to_index(hash_from_value(value));
+
+    while (hash_array[hash_val] != nullptr)
     {
-      if (hash_array[key] == value)
+      if (hash_array[hash_val] == value)
         return false;
-      key= to_index(key + 1);
+      hash_val= to_index(hash_val + 1);
     }
 
-    hash_array[key]= value;
-    size++;
+    hash_array[hash_val]= value;
+    _size++;
     return true;
   };
 
@@ -69,9 +66,9 @@ private:
     {
       auto temp_el= hash_array[j];
       hash_array[j]= nullptr;
-      //size--;
+      //_size--;
       insert_helper(get_key(temp_el), temp_el);
-      /*auto key= to_index(get_key(hash_array[j])->tc_hash_value());
+      /*auto key= to_index(key_trait::get_hash_value(trait::get_key(hash_array[j])));
       if (key <= i || key > j)
       {
         hash_array[i]= hash_array[j];
@@ -84,13 +81,13 @@ private:
 
   bool erase_helper(const erase_type &value)
   {
-    for (auto key= to_index(key_trait::get_key(value)->tc_hash_value());
+    for (auto key= to_index(key_trait::get_hash_value(trait::get_key(value)));
          hash_array[key] != nullptr; key= to_index(key + 1))
     {
       if (trait::is_equal(hash_array[key], value))
       {
         hash_array[key]= nullptr;
-        size--;
+        _size--;
         rehash_subsequence(key);
         return true;
       }
@@ -106,7 +103,7 @@ private:
 
     if (past_capacity > capacity)
     {
-      size= 0;
+      _size= 0;
       for (uint i= capacity; i < past_capacity; i++)
       {
         if (hash_array[i])
@@ -114,7 +111,7 @@ private:
           auto temp_el= hash_array[i];
           hash_array[i]= nullptr;
           //erase_helper(temp_el);
-          insert_helper(get_key(temp_el), temp_el);
+          insert_helper(temp_el);
         }
       }
 
@@ -127,7 +124,7 @@ private:
       {
         hash_array[i]= nullptr;
       }
-      size= 0;
+      _size= 0;
 
       for (uint i = 0; i < capacity; i++)
       {
@@ -136,7 +133,7 @@ private:
           auto temp_el= hash_array[i];
           hash_array[i]= nullptr;
           //erase_helper(temp_el);
-          insert_helper(get_key(temp_el), temp_el);
+          insert_helper(temp_el);
         }
       }
     }
@@ -150,22 +147,22 @@ private:
     T _second= second;
 
     capacity= CAPACITY_INITIAL;
-    size= 0;
-    hash_array= new T[capacity]{};
+    _size= 0;
+    hash_array= (T*)calloc(capacity, sizeof (T*));
 
-    insert_helper(get_key(_first), _first);
-    insert_helper(get_key(_second), _second);
+    insert_helper(_first);
+    insert_helper(_second);
   }
 
 public:
   T find(const T &elem)
   {
-    return find(key_trait::get_key(elem),
+    return find(trait::get_key(elem),
                 [&elem](const T &rhs) { return rhs == elem; });
   }
 
   template <typename Func>
-  T find(const MDL_key *mdl_key, const Func &elem_suits)
+  T find(const key_type &key, const Func &elem_suits)
   {
     if (first.mark())
     {
@@ -177,11 +174,11 @@ public:
       return nullptr;
     }
 
-    for (auto key= to_index(mdl_key->tc_hash_value());
-         hash_array[key] != nullptr; key= to_index(key + 1))
+    for (auto idx= to_index(key_trait::get_hash_value(key));
+         hash_array[idx] != nullptr; idx= to_index(idx + 1))
     {
-      if (elem_suits(hash_array[key]))
-        return hash_array[key];
+      if (elem_suits(hash_array[idx]))
+        return hash_array[idx];
     }
 
     return nullptr;
@@ -207,14 +204,14 @@ public:
       }
     }
 
-    if (capacity > 7 && static_cast<double>(size - 1) <
+    if (capacity > 7 && static_cast<double>(_size - 1) <
                             LOW_LOAD_FACTOR * static_cast<double>(capacity))
       rehash(0.5 * capacity);
 
     return erase_helper(value);
   }
 
-  bool insert(key_type *mdl_key, T value)
+  bool insert(const T &value)
   {
     if (first.mark())
     {
@@ -235,10 +232,10 @@ public:
       }
     }
 
-    if (size + 1 > MAX_LOAD_FACTOR * capacity)
+    if (_size + 1 > MAX_LOAD_FACTOR * capacity)
       rehash(capacity << 1);
 
-    return insert_helper(mdl_key, value);
+    return insert_helper(value);
   };
 
   bool clear()
@@ -260,6 +257,9 @@ public:
     capacity= CAPACITY_INITIAL;
     return true;
   }
+
+  uint32 size(){ return _size; }
+  uint32 buffer_size(){ return first.mark() ? 0 : capacity; }
 
 private:
   static constexpr uint power2_start= 2;
@@ -291,10 +291,8 @@ private:
     struct
     {
       T *hash_array;
-      uint32 size;
+      uint32 _size;
       uint32 capacity;
     };
   };
 };
-
-#endif
