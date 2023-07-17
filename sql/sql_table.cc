@@ -1420,11 +1420,20 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
     }
     else
     {
-      if (WSREP(thd) && hton && !wsrep_should_replicate_ddl(thd, hton))
+#ifdef WITH_WSREP
+      if (WSREP(thd) && hton)
       {
-        error= 1;
-        goto err;
+        handlerton *ht= hton;
+        // For partitioned tables resolve underlying handlerton
+        if (table->table && table->table->file->partition_ht())
+          ht= table->table->file->partition_ht();
+        if (!wsrep_should_replicate_ddl(thd, ht))
+        {
+          error= 1;
+          goto err;
+        }
       }
+#endif /* WITH_WSREP */
 
       if (thd->locked_tables_mode == LTM_LOCK_TABLES ||
           thd->locked_tables_mode == LTM_PRELOCKED_UNDER_LOCK_TABLES)
@@ -9562,9 +9571,20 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   if (WSREP(thd) &&
       (thd->lex->sql_command == SQLCOM_ALTER_TABLE ||
        thd->lex->sql_command == SQLCOM_CREATE_INDEX ||
-       thd->lex->sql_command == SQLCOM_DROP_INDEX) &&
-      !wsrep_should_replicate_ddl(thd, table_list->table->s->db_type()))
-    DBUG_RETURN(true);
+       thd->lex->sql_command == SQLCOM_DROP_INDEX))
+  {
+    handlerton *ht= table->s->db_type();
+
+    // If alter used ENGINE= we use that
+    if (create_info->used_fields & HA_CREATE_USED_ENGINE)
+      ht= create_info->db_type;
+    // For partitioned tables resolve underlying handlerton
+    else if (table->file->partition_ht())
+      ht= table->file->partition_ht();
+
+    if (!wsrep_should_replicate_ddl(thd, ht))
+      DBUG_RETURN(true);
+  }
 #endif
 
   DEBUG_SYNC(thd, "alter_table_after_open_tables");
