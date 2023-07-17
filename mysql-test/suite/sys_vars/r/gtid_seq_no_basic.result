@@ -8,6 +8,7 @@ SELECT @@session.gtid_seq_no;
 20
 SET GLOBAL gtid_seq_no= DEFAULT;
 ERROR HY000: Variable 'gtid_seq_no' is a SESSION variable and can't be used with SET GLOBAL
+SET SESSION gtid_seq_no= DEFAULT;
 SET SESSION gtid_seq_no= -1;
 Warnings:
 Warning	1292	Truncated incorrect gtid_seq_no value: '-1'
