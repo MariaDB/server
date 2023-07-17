@@ -7243,7 +7243,9 @@ int spider_db_mbase_util::append_from_and_tables(
 ) {
   int error_num;
   uint current_pos = 0, roop_count, backup_pos, outer_join_backup;
-  TABLE *table;
+  /*
+    TABLE *table;
+   */
   TABLE_LIST **used_table_list, *prev_table_list = NULL,
     *cond_table_list = NULL;
   DBUG_ENTER("spider_db_mbase_util::append_from_and_tables");
@@ -7264,9 +7266,13 @@ int spider_db_mbase_util::append_from_and_tables(
   }
 
   do {
-    table = table_list->table;
-    if (table->const_table)
-      continue;
+    /*
+      table = table_list->table;
+     */
+    /*
+      if (table->const_table)
+        continue;
+     */
 
     for (roop_count = 0; roop_count < current_pos; ++roop_count)
     {
