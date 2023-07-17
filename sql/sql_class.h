@@ -7102,10 +7102,8 @@ class multi_update :public select_result_interceptor
   TABLE_LIST *all_tables; /* query/update command tables */
   List<TABLE_LIST> *leaves;     /* list of leaves of join table tree */
   List<TABLE_LIST> updated_leaves;  /* list of of updated leaves */
-  TABLE_LIST *update_tables;
-  TABLE **tmp_tables, *main_table, *table_to_update;
+  TABLE **tmp_tables, *main_table;
   TMP_TABLE_PARAM *tmp_table_param;
-  ha_rows updated, found;
   List <Item> *fields, *values;
   List <Item> **fields_for_table, **values_for_table;
   uint table_count;
@@ -7135,6 +7133,9 @@ class multi_update :public select_result_interceptor
   bool has_vers_fields;
 
 public:
+  TABLE_LIST *update_tables;
+  TABLE *table_to_update;
+  ha_rows updated, found;
   multi_update(THD *thd_arg, TABLE_LIST *ut, List<TABLE_LIST> *leaves_list,
 	       List<Item> *fields, List<Item> *values,
 	       enum_duplicates handle_duplicates, bool ignore);
