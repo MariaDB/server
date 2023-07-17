@@ -4284,7 +4284,6 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
               thd,
               STRING_WITH_LEN(
                   "now SIGNAL paused_on_event WAIT_FOR sql_thread_continue")));
-          DBUG_SET("-d,pause_sql_thread_on_next_event");
           mysql_mutex_lock(&rli->data_lock);
         });
 
