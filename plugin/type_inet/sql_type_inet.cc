@@ -1303,14 +1303,22 @@ public:
   {
     return &type_handler_inet6;
   }
-  void set(uint pos, Item *item) override
+  bool set(uint pos, Item *item) override
   {
+    /*
+      A 10.5->10.6 merge hint:
+      This method migrated to sql/sql_type_fixedbin.h,
+      to the class in_fbt.
+    */
     Inet6 *buff= &((Inet6 *) base)[pos];
     Inet6_null value(item);
     if (value.is_null())
+    {
       *buff= Inet6_zero();
-    else
-      *buff= value;
+      return true;
+    }
+    *buff= value;
+    return false;
   }
   uchar *get_value(Item *item) override
   {

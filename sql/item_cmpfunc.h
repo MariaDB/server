@@ -1349,7 +1349,14 @@ public:
      size(element_length), compare(cmp_func), collation(cmp_coll),
      count(elements), used_count(elements) {}
   virtual ~in_vector() = default;
-  virtual void set(uint pos,Item *item)=0;
+  /*
+    Store an Item value at the given position.
+    @returns false - the Item was not NULL, and the conversion from the
+                     Item data type to the cmp_item data type went without
+                     errors
+    @returns true  - the Item was NULL, or data type conversion returned NULL
+  */
+  virtual bool set(uint pos, Item *item)=0;
   virtual uchar *get_value(Item *item)=0;
   void sort()
   {
@@ -1404,7 +1411,7 @@ class in_string :public in_vector
 public:
   in_string(THD *thd, uint elements, qsort2_cmp cmp_func, CHARSET_INFO *cs);
   ~in_string();
-  void set(uint pos,Item *item);
+  bool set(uint pos, Item *item);
   uchar *get_value(Item *item);
   Item* create_item(THD *thd);
   void value_to_item(uint pos, Item *item)
@@ -1431,7 +1438,7 @@ protected:
   } tmp;
 public:
   in_longlong(THD *thd, uint elements);
-  void set(uint pos,Item *item);
+  bool set(uint pos, Item *item);
   uchar *get_value(Item *item);
   Item* create_item(THD *thd);
   void value_to_item(uint pos, Item *item)
@@ -1451,7 +1458,7 @@ class in_timestamp :public in_vector
   Timestamp_or_zero_datetime tmp;
 public:
   in_timestamp(THD *thd, uint elements);
-  void set(uint pos,Item *item);
+  bool set(uint pos, Item *item);
   uchar *get_value(Item *item);
   Item* create_item(THD *thd);
   void value_to_item(uint pos, Item *item);
@@ -1486,7 +1493,7 @@ public:
   in_datetime(THD *thd, uint elements)
    :in_temporal(thd, elements)
   {}
-  void set(uint pos,Item *item);
+  bool set(uint pos, Item *item);
   uchar *get_value(Item *item);
   const Type_handler *type_handler() const { return &type_handler_datetime2; }
 };
@@ -1498,7 +1505,7 @@ public:
   in_time(THD *thd, uint elements)
    :in_temporal(thd, elements)
   {}
-  void set(uint pos,Item *item);
+  bool set(uint pos, Item *item);
   uchar *get_value(Item *item);
   const Type_handler *type_handler() const { return &type_handler_time2; }
 };
@@ -1509,7 +1516,7 @@ class in_double :public in_vector
   double tmp;
 public:
   in_double(THD *thd, uint elements);
-  void set(uint pos,Item *item);
+  bool set(uint pos, Item *item);
   uchar *get_value(Item *item);
   Item *create_item(THD *thd);
   void value_to_item(uint pos, Item *item)
@@ -1525,7 +1532,7 @@ class in_decimal :public in_vector
   my_decimal val;
 public:
   in_decimal(THD *thd, uint elements);
-  void set(uint pos, Item *item);
+  bool set(uint pos, Item *item);
   uchar *get_value(Item *item);
   Item *create_item(THD *thd);
   void value_to_item(uint pos, Item *item)
@@ -1558,10 +1565,14 @@ public:
   // for optimized IN with row
   virtual int compare(cmp_item *item)= 0;
   virtual cmp_item *make_same()= 0;
-  virtual void store_value_by_template(THD *thd, cmp_item *tmpl, Item *item)
-  {
-    store_value(item);
-  }
+  /*
+    Store a scalar or a ROW value into "this".
+    @returns false - the value (or every component in case of ROW) was
+                     not NULL and the data type conversion went without errors.
+    @returns true  - the value (or some of its components) was NULL, or the
+                     data type conversion of a not-NULL value returned NULL.
+  */
+  virtual bool store_value_by_template(THD *thd, cmp_item *tmpl, Item *item)=0;
 };
 
 /// cmp_item which stores a scalar (i.e. non-ROW).
@@ -1569,6 +1580,11 @@ class cmp_item_scalar : public cmp_item
 {
 protected:
   bool m_null_value;                            ///< If stored value is NULL
+  bool store_value_by_template(THD *thd, cmp_item *tmpl, Item *item) override
+  {
+    store_value(item);
+    return m_null_value;
+  }
 };
 
 class cmp_item_string : public cmp_item_scalar
@@ -2504,18 +2520,18 @@ class cmp_item_row :public cmp_item
 public:
   cmp_item_row(): comparators(0), n(0) {}
   ~cmp_item_row();
-  void store_value(Item *item);
+  void store_value(Item *item) override;
   bool prepare_comparators(THD *, const char *funcname,
                            const Item_args *args, uint level);
-  int cmp(Item *arg);
-  int cmp_not_null(const Value *val)
+  int cmp(Item *arg) override;
+  int cmp_not_null(const Value *val) override
   {
     DBUG_ASSERT(false);
     return TRUE;
   }
-  int compare(cmp_item *arg);
-  cmp_item *make_same();
-  void store_value_by_template(THD *thd, cmp_item *tmpl, Item *);
+  int compare(cmp_item *arg) override;
+  cmp_item *make_same() override;
+  bool store_value_by_template(THD *thd, cmp_item *tmpl, Item *) override;
   friend class Item_func_in;
   cmp_item *get_comparator(uint i) { return comparators[i]; }
 };
@@ -2527,7 +2543,7 @@ class in_row :public in_vector
 public:
   in_row(THD *thd, uint elements, Item *);
   ~in_row();
-  void set(uint pos,Item *item);
+  bool set(uint pos, Item *item);
   uchar *get_value(Item *item);
   friend class Item_func_in;
   const Type_handler *type_handler() const { return &type_handler_row; }
