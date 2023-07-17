@@ -1,7 +1,6 @@
 debian/additions/debian-start etc/mysql
 debian/additions/debian-start.inc.sh usr/share/mariadb
 debian/additions/echo_stderr usr/share/mariadb
-debian/additions/mariadb.conf.d/50-mariadb_safe.cnf etc/mysql/mariadb.conf.d
 debian/additions/mariadb.conf.d/50-server.cnf etc/mysql/mariadb.conf.d
 debian/additions/source_mariadb.py usr/share/apport/package-hooks
 etc/apparmor.d/usr.sbin.mariadbd

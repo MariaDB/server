@@ -50,9 +50,8 @@ bind-address            = 127.0.0.1
 #general_log_file       = /var/log/mysql/mysql.log
 #general_log            = 1
 
-# When running under systemd, error logging goes via stdout/stderr to journald
-# and when running legacy init error logging goes to syslog due to
-# /etc/mysql/conf.d/mariadb.conf.d/50-mariadb_safe.cnf
+# Error logging goes via stdout/stderr, which on systemd systems goes to
+# journald.
 # Enable this if you want to have error logging into a separate file
 #log_error = /var/log/mysql/error.log
 # Enable the slow query log to see queries with especially long duration
