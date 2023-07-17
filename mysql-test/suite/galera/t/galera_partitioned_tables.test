@@ -3,9 +3,11 @@
 --source include/have_innodb.inc
 --source include/have_aria.inc
 
---echo # wsrep-strict_ddl = OFF
-SET GLOBAL wsrep_strict_ddl = OFF;
-SELECT @@wsrep_strict_ddl;
+call mtr.add_suppression("WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine partition for table.*");
+
+--echo # wsrep-mode= DEFAULT
+SET GLOBAL wsrep_mode = "";
+SELECT @@wsrep_mode;
 CREATE OR REPLACE TABLE t1 (v1 INT NOT NULL PRIMARY KEY) ENGINE=InnoDB
   PARTITION BY KEY (v1)
   PARTITIONS 2;
@@ -54,13 +56,13 @@ DROP TRIGGER increment_before_t2;
 DROP TABLE t1_v2;
 DROP TABLE t2_v2;
 
-SET GLOBAL wsrep_strict_ddl = OFF;
+SET GLOBAL wsrep_mode = "";
 CREATE OR REPLACE TABLE t2 (v1 INT NOT NULL PRIMARY KEY) ENGINE=MyISAM
   PARTITION BY KEY (v1)
   PARTITIONS 2;
---echo # wsrep-strict_ddl = ON
-SET GLOBAL wsrep_strict_ddl = ON;
-SELECT @@wsrep_strict_ddl;
+--echo # wsrep-mode= STRICT_REPLICATION
+SET GLOBAL wsrep_mode = "STRICT_REPLICATION";
+SELECT @@wsrep_mode;
 CREATE OR REPLACE TABLE t1 (v1 INT NOT NULL PRIMARY KEY) ENGINE=InnoDB
   PARTITION BY KEY (v1)
   PARTITIONS 2;
@@ -117,15 +119,15 @@ DROP TRIGGER increment_before_t1;
 DROP TABLE t1_v2;
 # We allow dropping table
 DROP TABLE t2;
-SET GLOBAL wsrep_strict_ddl=OFF;
+SET GLOBAL wsrep_mode = "";
 
 CREATE OR REPLACE TABLE t2 (v1 INT NOT NULL PRIMARY KEY) ENGINE=MyISAM
   PARTITION BY KEY (v1)
   PARTITIONS 2;
---echo # wsrep-strict_ddl = ON
-SET GLOBAL wsrep_strict_ddl = ON;
-SELECT @@wsrep_strict_ddl;
+--echo # wsrep-mode= STRICT_REPLICATION
+SET GLOBAL wsrep_mode = "STRICT_REPLICATION";
+SELECT @@wsrep_mode;
 ALTER TABLE t2 ENGINE=InnoDB;
 DROP TABLE t2;
 
-SET GLOBAL wsrep_strict_ddl = DEFAULT;
+SET GLOBAL wsrep_mode = DEFAULT;
