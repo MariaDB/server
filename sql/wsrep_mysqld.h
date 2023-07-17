@@ -339,7 +339,7 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
                              const wsrep::key_array *fk_tables= nullptr,
                              const HA_CREATE_INFO* create_info= nullptr);
 
-bool wsrep_should_replicate_ddl(THD* thd, const enum legacy_db_type db_type);
+bool wsrep_should_replicate_ddl(THD* thd,const handlerton *hton);
 bool wsrep_should_replicate_ddl_iterate(THD* thd, const TABLE_LIST* table_list);
 
 void wsrep_to_isolation_end(THD *thd);

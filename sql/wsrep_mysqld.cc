@@ -1,5 +1,5 @@
-/* Copyright (c) 2008, 2023 Codership Oy <http://www.codership.com>
-   Copyright (c) 2020, 2022, MariaDB
+/* Copyright (c) 2008, 2024, Codership Oy <http://www.codership.com>
+   Copyright (c) 2020, 2024, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2027,25 +2027,20 @@ static int wsrep_drop_table_query(THD* thd, uchar** buf, size_t* buf_len)
 /* Forward declarations. */
 int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len);
 
-bool wsrep_should_replicate_ddl_iterate(THD* thd, const TABLE_LIST* table_list)
-{
-  if (WSREP(thd))
-  {
-    for (const TABLE_LIST* it= table_list; it; it= it->next_global)
-    {
-      if (it->table &&
-          !wsrep_should_replicate_ddl(thd, it->table->s->db_type()->db_type))
-        return false;
-    }
-  }
-  return true;
-}
+/*! Should DDL be replicated by Galera
+ *
+ * @param thd            thread handle
+ * @param hton           real storage engine handlerton
+ *
+ * @retval true if we should replicate DDL, false if not */
 
-bool wsrep_should_replicate_ddl(THD* thd,
-                                const enum legacy_db_type db_type)
+bool wsrep_should_replicate_ddl(THD* thd, const handlerton *hton)
 {
   if (!wsrep_strict_ddl)
     return true;
+
+  DBUG_ASSERT(hton != nullptr);
+  const enum legacy_db_type db_type= hton->db_type;
 
   switch (db_type)
   {
@@ -2058,6 +2053,11 @@ bool wsrep_should_replicate_ddl(THD* thd,
       else
         WSREP_DEBUG("wsrep OSU failed for %s", wsrep_thd_query(thd));
       break;
+    case DB_TYPE_PARTITION_DB:
+      /* In most cases this means we could not find out
+         table->file->partition_ht() */
+      return true;
+      break;
     case DB_TYPE_ARIA:
       /* if (wsrep_replicate_aria) */
       /* fallthrough */
@@ -2069,10 +2069,33 @@ bool wsrep_should_replicate_ddl(THD* thd,
   /* STRICT, treat as error */
   my_error(ER_GALERA_REPLICATION_NOT_SUPPORTED, MYF(0));
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-	  ER_ILLEGAL_HA,
-	  "WSREP: wsrep_strict_ddl=true and storage engine does not support Galera replication.");
+                      ER_ILLEGAL_HA,
+                      "WSREP: wsrep_strict_dll enabled. "
+                      "Storage engine %s not supported.",
+                      ha_resolve_storage_engine_name(hton));
   return false;
 }
+
+bool wsrep_should_replicate_ddl_iterate(THD* thd, const TABLE_LIST* table_list)
+{
+  for (const TABLE_LIST* it= table_list; it; it= it->next_global)
+  {
+    if (it->table)
+    {
+      /* If this is partitioned table we need to find out
+	 implementing storage engine handlerton.
+      */
+      const handlerton *ht= it->table->file->partition_ht() ?
+                              it->table->file->partition_ht() :
+                              it->table->s->db_type();
+
+      if (!wsrep_should_replicate_ddl(thd, ht))
+	return false;
+    }
+  }
+  return true;
+}
+
 /*
   Decide if statement should run in TOI.
 
@@ -2101,7 +2124,7 @@ bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
     {
       return false;
     }
-    if (!wsrep_should_replicate_ddl(thd, create_info->db_type->db_type))
+    if (!wsrep_should_replicate_ddl(thd, create_info->db_type))
     {
       return false;
     }
@@ -2180,16 +2203,11 @@ bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
   {
     if (create_info)
     {
-      enum legacy_db_type db_type;
+      const handlerton *hton= create_info->db_type;
 
-      if (create_info->db_type)
-        db_type= create_info->db_type->db_type;
-      else
-      {
-	const handlerton *hton= ha_default_handlerton(thd);
-	db_type= hton->db_type;
-      }
-      if (!wsrep_should_replicate_ddl(thd, db_type))
+      if (!hton)
+	hton= ha_default_handlerton(thd);
+      if (!wsrep_should_replicate_ddl(thd, hton))
         return false;
     }
   }
