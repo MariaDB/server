@@ -1,0 +1,167 @@
+connection node_2;
+connection node_1;
+# wsrep-strict_ddl = OFF
+SET GLOBAL wsrep_strict_ddl = OFF;
+SELECT @@wsrep_strict_ddl;
+@@wsrep_strict_ddl
+0
+CREATE OR REPLACE TABLE t1 (v1 INT NOT NULL PRIMARY KEY) ENGINE=InnoDB
+PARTITION BY KEY (v1)
+PARTITIONS 2;
+CREATE OR REPLACE TABLE t2 (v1 INT NOT NULL PRIMARY KEY) ENGINE=MyISAM
+PARTITION BY KEY (v1)
+PARTITIONS 2;
+ALTER TABLE t1 ADD COLUMN v2 int;
+ALTER TABLE t2 ADD COLUMN v2 int;
+INSERT INTO t1 VALUES (1,1),(2,2);
+INSERT INTO t2 VALUES (1,1),(2,2);
+ALTER TABLE t1 ADD COLUMN v3 int, ENGINE=MyISAM;
+ALTER TABLE t2 ADD COLUMN v3 int, ENGINE=Aria;
+UPDATE t1 SET v3 = 3;
+UPDATE t2 SET v3 = 3;
+CREATE INDEX xx1 ON t1(v2);
+CREATE INDEX xx2 ON t2(v2);
+DROP INDEX xx1 ON t1;
+DROP INDEX xx2 ON t2;
+TRUNCATE TABLE t1;
+TRUNCATE TABLE t2;
+RENAME TABLE t1 TO t1_v2;
+RENAME TABLE t2 TO t2_v2;
+CREATE VIEW x1 AS SELECT * FROM t1_v2;
+CREATE VIEW x2 AS SELECT * FROM t2_v2;
+CREATE DEFINER=`root`@`localhost` TRIGGER increment_before_t1
+AFTER INSERT ON t1_v2 FOR EACH ROW
+UPDATE t1_v2 SET t1_v2.v3 = t1_v2.v3+1;
+CREATE DEFINER=`root`@`localhost` TRIGGER increment_before_t2
+AFTER INSERT ON t2_v2 FOR EACH ROW
+UPDATE t2_v2 SET t2_v2.v3 = t2_v2.v3+1;
+connection node_2;
+SHOW CREATE TABLE t1_v2;
+Table	Create Table
+t1_v2	CREATE TABLE `t1_v2` (
+  `v1` int(11) NOT NULL,
+  `v2` int(11) DEFAULT NULL,
+  `v3` int(11) DEFAULT NULL,
+  PRIMARY KEY (`v1`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY KEY (`v1`)
+PARTITIONS 2
+SHOW CREATE TABLE t2_v2;
+Table	Create Table
+t2_v2	CREATE TABLE `t2_v2` (
+  `v1` int(11) NOT NULL,
+  `v2` int(11) DEFAULT NULL,
+  `v3` int(11) DEFAULT NULL,
+  PRIMARY KEY (`v1`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY KEY (`v1`)
+PARTITIONS 2
+SHOW CREATE VIEW x1;
+View	Create View	character_set_client	collation_connection
+x1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `x1` AS select `t1_v2`.`v1` AS `v1`,`t1_v2`.`v2` AS `v2`,`t1_v2`.`v3` AS `v3` from `t1_v2`	latin1	latin1_swedish_ci
+SHOW CREATE VIEW x2;
+View	Create View	character_set_client	collation_connection
+x2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `x2` AS select `t2_v2`.`v1` AS `v1`,`t2_v2`.`v2` AS `v2`,`t2_v2`.`v3` AS `v3` from `t2_v2`	latin1	latin1_swedish_ci
+SELECT * FROM t1_v2;
+v1	v2	v3
+SELECT * FROM t2_v2;
+v1	v2	v3
+connection node_1;
+DROP VIEW x1;
+DROP VIEW x2;
+DROP TRIGGER increment_before_t1;
+DROP TRIGGER increment_before_t2;
+DROP TABLE t1_v2;
+DROP TABLE t2_v2;
+SET GLOBAL wsrep_strict_ddl = OFF;
+CREATE OR REPLACE TABLE t2 (v1 INT NOT NULL PRIMARY KEY) ENGINE=MyISAM
+PARTITION BY KEY (v1)
+PARTITIONS 2;
+# wsrep-strict_ddl = ON
+SET GLOBAL wsrep_strict_ddl = ON;
+SELECT @@wsrep_strict_ddl;
+@@wsrep_strict_ddl
+1
+CREATE OR REPLACE TABLE t1 (v1 INT NOT NULL PRIMARY KEY) ENGINE=InnoDB
+PARTITION BY KEY (v1)
+PARTITIONS 2;
+CREATE OR REPLACE TABLE t3 (v1 INT NOT NULL PRIMARY KEY) ENGINE=MyISAM
+PARTITION BY KEY (v1)
+PARTITIONS 2;
+ERROR HY000: DDL-statement is forbidden as table storage engine does not support Galera replication
+ALTER TABLE t1 ADD COLUMN v2 int;
+ALTER TABLE t2 ADD COLUMN v2 int;
+ERROR HY000: DDL-statement is forbidden as table storage engine does not support Galera replication
+INSERT INTO t1 VALUES (1,1),(2,2);
+INSERT INTO t2 VALUES (1),(2);
+ALTER TABLE t1 ADD COLUMN v3 int, ENGINE=MyISAM;
+ERROR HY000: DDL-statement is forbidden as table storage engine does not support Galera replication
+ALTER TABLE t2 ADD COLUMN v3 int, ENGINE=Aria;
+ERROR HY000: DDL-statement is forbidden as table storage engine does not support Galera replication
+UPDATE t1 SET v2 = v2 + 3;
+UPDATE t2 SET v1 = v1 + 3;
+CREATE INDEX xx1 ON t1(v2);
+CREATE INDEX xx2 ON t2(v2);
+ERROR HY000: DDL-statement is forbidden as table storage engine does not support Galera replication
+DROP INDEX xx1 ON t1;
+DROP INDEX xx2 on t2;
+ERROR HY000: DDL-statement is forbidden as table storage engine does not support Galera replication
+TRUNCATE TABLE t1;
+TRUNCATE TABLE t2;
+ERROR HY000: DDL-statement is forbidden as table storage engine does not support Galera replication
+RENAME TABLE t1 TO t1_v2;
+RENAME TABLE t2 TO t2_v2;
+RENAME TABLE t2_v2 TO t2;
+CREATE VIEW x1 AS SELECT * FROM t1_v2;
+CREATE VIEW x2 AS SELECT * FROM t2;
+ERROR HY000: DDL-statement is forbidden as table storage engine does not support Galera replication
+CREATE DEFINER=`root`@`localhost` TRIGGER increment_before_t1
+AFTER INSERT ON t1_v2 FOR EACH ROW
+UPDATE t1_v2 SET t1_v2.v2 = t1_v2.v2+1;
+CREATE DEFINER=`root`@`localhost` TRIGGER increment_before_t2
+AFTER INSERT ON t2 FOR EACH ROW
+UPDATE t2 SET t2.v1 = t2.v1+1;
+ERROR HY000: DDL-statement is forbidden as table storage engine does not support Galera replication
+connection node_2;
+SHOW CREATE TABLE t1_v2;
+Table	Create Table
+t1_v2	CREATE TABLE `t1_v2` (
+  `v1` int(11) NOT NULL,
+  `v2` int(11) DEFAULT NULL,
+  PRIMARY KEY (`v1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY KEY (`v1`)
+PARTITIONS 2
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `v1` int(11) NOT NULL,
+  `v2` int(11) DEFAULT NULL,
+  PRIMARY KEY (`v1`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY KEY (`v1`)
+PARTITIONS 2
+SHOW CREATE VIEW x1;
+View	Create View	character_set_client	collation_connection
+x1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `x1` AS select `t1_v2`.`v1` AS `v1`,`t1_v2`.`v2` AS `v2` from `t1_v2`	latin1	latin1_swedish_ci
+SELECT * FROM t1_v2;
+v1	v2
+SELECT * FROM t2;
+v1	v2
+connection node_1;
+DROP VIEW x1;
+DROP TRIGGER increment_before_t1;
+DROP TABLE t1_v2;
+DROP TABLE t2;
+SET GLOBAL wsrep_strict_ddl=OFF;
+CREATE OR REPLACE TABLE t2 (v1 INT NOT NULL PRIMARY KEY) ENGINE=MyISAM
+PARTITION BY KEY (v1)
+PARTITIONS 2;
+# wsrep-strict_ddl = ON
+SET GLOBAL wsrep_strict_ddl = ON;
+SELECT @@wsrep_strict_ddl;
+@@wsrep_strict_ddl
+1
+ALTER TABLE t2 ENGINE=InnoDB;
+DROP TABLE t2;
+SET GLOBAL wsrep_strict_ddl = DEFAULT;
