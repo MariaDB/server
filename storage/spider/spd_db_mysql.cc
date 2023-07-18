@@ -117,6 +117,8 @@ static const char *name_quote_str = SPIDER_SQL_NAME_QUOTE_STR;
 #define SPIDER_SQL_UNLOCK_TABLE_STR "unlock tables"
 #define SPIDER_SQL_UNLOCK_TABLE_LEN (sizeof(SPIDER_SQL_UNLOCK_TABLE_STR) - 1)
 
+#define SPIDER_SQL_SELECT_1_STR " (select 1) "
+#define SPIDER_SQL_SELECT_1_LEN (sizeof(SPIDER_SQL_SELECT_1_STR) - 1)
 #define SPIDER_SQL_LEFT_JOIN_STR " left join "
 #define SPIDER_SQL_LEFT_JOIN_LEN (sizeof(SPIDER_SQL_LEFT_JOIN_STR) - 1)
 #define SPIDER_SQL_RIGHT_JOIN_STR " right join "
@@ -6816,6 +6818,10 @@ int spider_db_mbase_util::append_table(
   SPIDER_TABLE_HOLDER *table_holder;
   TABLE_LIST *cond_table_list = *cond_table_list_ptr;
   ha_spider *spd;
+  const TABLE_LIST *prev_table = *current_pos > 0 ?
+    used_table_list[*current_pos - 1] : NULL;
+  const bool prev_right_join = *current_pos > 0 && prev_table &&
+    (prev_table->outer_join & JOIN_TYPE_RIGHT);
   DBUG_ENTER("spider_db_mbase_util::append_table");
   DBUG_PRINT("info",("spider table_list=%p", table_list));
   DBUG_PRINT("info",("spider table_list->outer_join=%u",
@@ -6838,7 +6844,17 @@ int spider_db_mbase_util::append_table(
       used_table_list, current_pos, cond_table_list_ptr)))
       DBUG_RETURN(error_num);
   } else {
-    if (
+    if (prev_right_join)
+    {
+      if (str)
+      {
+        if (str->reserve(SPIDER_SQL_RIGHT_JOIN_LEN))
+        {
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+        }
+        str->q_append(SPIDER_SQL_RIGHT_JOIN_STR, SPIDER_SQL_RIGHT_JOIN_LEN);
+      }
+    } else if (
       table_list->outer_join ||
       table_list->on_expr ||
       table_list->join_using_fields
@@ -6854,7 +6870,8 @@ int spider_db_mbase_util::append_table(
           }
           str->q_append(SPIDER_SQL_LEFT_JOIN_STR, SPIDER_SQL_LEFT_JOIN_LEN);
         }
-      } else {
+      } else if (table_list->outer_join & JOIN_TYPE_RIGHT)
+        ; else {
         if (str)
         {
           if (str->reserve(SPIDER_SQL_JOIN_LEN))
@@ -6884,6 +6901,7 @@ int spider_db_mbase_util::append_table(
           str->q_append(SPIDER_SQL_LEFT_JOIN_STR, SPIDER_SQL_LEFT_JOIN_LEN);
         }
       } else {
+        /* fixme: should probably remove this too, like in table_list */
         if (str)
         {
           if (str->reserve(SPIDER_SQL_JOIN_LEN))
@@ -6927,11 +6945,19 @@ int spider_db_mbase_util::append_table(
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
       }
 
-      if ((error_num = db_share->append_table_name_with_adjusting(str,
-        spd->conn_link_idx[dbton_hdl->first_link_idx])))
+      if (table_list->table->const_table)
       {
+        if (str)
+        {
+          if (str->reserve(SPIDER_SQL_SELECT_1_LEN))
+          {
+            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          }
+          str->q_append(SPIDER_SQL_SELECT_1_STR, SPIDER_SQL_SELECT_1_LEN);
+        }
+      } else if ((error_num = db_share->append_table_name_with_adjusting(
+            str, spd->conn_link_idx[dbton_hdl->first_link_idx])))
         DBUG_RETURN(error_num);
-      }
       str->q_append(SPIDER_SQL_SPACE_STR, SPIDER_SQL_SPACE_LEN);
       str->q_append(table_holder->alias->ptr(),
         table_holder->alias->length() - SPIDER_SQL_DOT_LEN);
@@ -6976,7 +7002,9 @@ int spider_db_mbase_util::append_table(
       }
     }
 
-    Item *on_expr = table_list->on_expr;
+    Item *on_expr = prev_right_join ?
+      prev_table->on_expr : (table_list->outer_join & JOIN_TYPE_RIGHT ?
+                             NULL : table_list->on_expr);
     if (!on_expr && cond_table_list)
     {
       on_expr = cond_table_list->on_expr;
@@ -7243,6 +7271,7 @@ int spider_db_mbase_util::append_from_and_tables(
 ) {
   int error_num;
   uint current_pos = 0, roop_count, backup_pos, outer_join_backup;
+  bool prev_right_join = FALSE, next_left_join = FALSE;
   TABLE *table;
   TABLE_LIST **used_table_list, *prev_table_list = NULL,
     *cond_table_list = NULL;
@@ -7265,8 +7294,17 @@ int spider_db_mbase_util::append_from_and_tables(
 
   do {
     table = table_list->table;
-    if (table->const_table)
+    /* t1 left join t2: t1->outer_join == 0 && t2->outer_join ==
+    JOIN_TYPE_LEFT */
+    next_left_join = table_list->next_local &&
+      table_list->next_local->outer_join == JOIN_TYPE_LEFT;
+    /* Skip if the table is a const table and not part of an outer join. */
+    if (table->const_table && !table_list->outer_join &&
+        !next_left_join && !prev_right_join)
       continue;
+    /* t1 right join t2: t1->outer_join == JOIN_TYPE_RIGHT &&
+    t2->outer_join == 0 */
+    prev_right_join = table_list->outer_join == JOIN_TYPE_RIGHT;
 
     for (roop_count = 0; roop_count < current_pos; ++roop_count)
     {
