@@ -1526,6 +1526,43 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
     delete $$;
 } <expr_lex>
 
+
+/*
+
+// COMMENT_FOR_DESCTRUCTOR:
+//
+// %destructor is only invoked if the rule parsing fails in the middle.
+// If we call YYABORT from the last code block %destructor is not called,
+// because Bison's stack already contains the reduced upper level rule.
+// If we need to invoke the %destructor after the YYABORT in the last code
+// block, we have to add another dummy empty end-of-rule action {} at the end.
+
+// So to have a %destructor work properly with YYABORT,
+// make sure to turn a grammar like this:
+
+rule:
+        KEYWORD expr_lex
+        {
+          if (condition) // End-of-rule action
+            YYABORT;
+        }
+        ;
+
+// into:
+
+rule:
+        KEYWORD expr_lex
+        {
+          if (condition) // This is now a mid-rule action
+            YYABORT;
+        }
+        {
+          // A dummy empty end-of-rule action.
+        }
+        ;
+*/
+
+
 %type <assignment_lex>
         assignment_source_lex
         assignment_source_expr
@@ -3731,6 +3768,7 @@ sp_proc_stmt_return:
                                                           $2->get_item(), $2)))
               MYSQL_YYABORT;
           }
+          { /* See the comment 'COMMENT_FOR_DESCTRUCTOR' near %destructor */ }
         | RETURN_ORACLE_SYM
           {
             LEX *lex= Lex;
@@ -3757,11 +3795,13 @@ sp_proc_stmt_exit_oracle:
             if (unlikely($3->sp_exit_statement(thd, $3->get_item())))
               MYSQL_YYABORT;
           }
+          { /* See the comment 'COMMENT_FOR_DESCTRUCTOR' near %destructor */ }
         | EXIT_ORACLE_SYM label_ident WHEN_SYM expr_lex
           {
             if (unlikely($4->sp_exit_statement(thd, &$2, $4->get_item())))
               MYSQL_YYABORT;
           }
+          { /* See the comment 'COMMENT_FOR_DESCTRUCTOR' near %destructor */ }
         ;
 
 sp_proc_stmt_continue_oracle:
@@ -3780,11 +3820,13 @@ sp_proc_stmt_continue_oracle:
             if (unlikely($3->sp_continue_when_statement(thd)))
               MYSQL_YYABORT;
           }
+          { /* See the comment 'COMMENT_FOR_DESCTRUCTOR' near %destructor */ }
         | CONTINUE_ORACLE_SYM label_ident WHEN_SYM expr_lex
           {
             if (unlikely($4->sp_continue_when_statement(thd, &$2)))
               MYSQL_YYABORT;
           }
+          { /* See the comment 'COMMENT_FOR_DESCTRUCTOR' near %destructor */ }
         ;
 
 
