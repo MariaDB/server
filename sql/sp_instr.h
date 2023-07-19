@@ -201,6 +201,9 @@ public:
 }; // class sp_instr : public Sql_alloc
 
 
+class sp_instr;
+class sp_lex_instr;
+
 /**
   Auxilary class to which instructions delegate responsibility
   for handling LEX and preparations before executing statement
@@ -225,7 +228,8 @@ public:
     : m_lex(lex),
       m_lex_resp(lex_resp),
       prelocking_tables(nullptr),
-      lex_query_tables_own_last(nullptr)
+      lex_query_tables_own_last(nullptr),
+      m_first_execution(true)
   {
     lex->sp_lex_in_use= true;
   }
@@ -251,8 +255,42 @@ public:
   int reset_lex_and_exec_core(THD *thd, uint *nextp, bool open_tables,
                               sp_instr* instr);
 
+
+  /**
+    Do several attempts to execute an instruction.
+
+    This method installs Reprepare_observer to catch possible metadata changes
+    on depending database objects, then calls reset_lex_and_exec_core()
+    to execute the instruction. If execution of the instruction fails, does
+    re-parsing of the instruction and re-execute it.
+
+    @param      thd           Thread context.
+    @param[out] nextp         Pointer for storing a next instruction to execute
+    @param      open_tables   Flag to specify if the function should check read
+                              access to tables in LEX's table list and open and
+                              lock them (used in instructions which need to
+                              calculate some expression and don't execute
+                              complete statement).
+    @param      instr         instruction which we prepare context and run.
+
+    @return 0 on success, 1 on error
+  */
+  int validate_lex_and_exec_core(THD *thd, uint *nextp, bool open_tables,
+                                 sp_lex_instr* instr);
+
   int cursor_reset_lex_and_exec_core(THD *thd, uint *nextp, bool open_tables,
                                      sp_instr *instr);
+
+  /**
+    (Re-)parse the query corresponding to this instruction and return a new
+    LEX-object.
+
+    @param thd  Thread context.
+    @param sp   The stored program.
+
+    @return new LEX-object or NULL in case of failure.
+  */
+  LEX *parse_expr(THD *thd, const sp_head *sp);
 
   inline uint sql_command() const
   {
@@ -263,6 +301,22 @@ public:
   {
     m_lex->safe_to_cache_query= 0;
   }
+
+private:
+  /**
+    Clean up and destroy owned LEX object.
+  */
+  void free_lex(THD *thd);
+
+  /**
+    Set LEX object.
+
+    @param lex           LEX-object
+    @param is_lex_owner  this flag specifies whether this LEX object is owned
+                         by the sp_lex_keeper and so should deleted when
+                         needed.
+  */
+  void set_lex(LEX *lex, bool is_lex_owner);
 
 private:
   LEX *m_lex;
@@ -291,6 +345,8 @@ private:
     statement enters/leaves prelocked mode on its own.
   */
   TABLE_LIST **lex_query_tables_own_last;
+
+  bool m_first_execution;
 };
 
 
@@ -319,6 +375,18 @@ public:
   */
   virtual void get_query(String *sql_query) const;
 
+
+  /**
+    (Re-)parse the query corresponding to this instruction and return a new
+    LEX-object.
+
+    @param thd  Thread context.
+    @param sp   The stored program.
+
+    @return new LEX-object or NULL in case of failure.
+  */
+  LEX *parse_expr(THD *thd, sp_head *sp);
+
 protected:
   /**
     @return the expression query string. This string can't be passed directly
@@ -326,7 +394,36 @@ protected:
   */
   virtual LEX_CSTRING get_expr_query() const = 0;
 
+  /**
+    Some expressions may be re-parsed as SELECT statements.
+    This method is overridden in derived classes for instructions
+    those SQL command should be adjusted.
+  */
+  virtual void adjust_sql_command(LEX *)
+  {}
+
+  /**
+    Callback method which is called after an expression string successfully
+    parsed and the thread context has not been switched to the outer context.
+    The thread context contains new LEX-object corresponding to the parsed
+    expression string.
+
+    @param thd  Thread context.
+
+    @return Error flag.
+  */
+  virtual bool on_after_expr_parsing(THD *)
+  {
+    return false;
+  }
+
   sp_lex_keeper m_lex_keeper;
+
+private:
+  /**
+    Clean up items previously created on behalf of the current instruction.
+  */
+  void cleanup_before_parsing();
 };
 
 
@@ -383,6 +480,13 @@ protected:
     return LEX_CSTRING{m_query.str, m_query.length};
   }
 
+protected:
+  bool on_after_expr_parsing(THD *) override
+  {
+    m_valid= true;
+    return false;
+  }
+
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
@@ -429,6 +533,23 @@ protected:
   LEX_CSTRING get_expr_query() const override
   {
     return m_expr_str;
+  }
+
+  void adjust_sql_command(LEX *lex) override
+  {
+    DBUG_ASSERT(lex->sql_command == SQLCOM_SELECT);
+    lex->sql_command= SQLCOM_SET_OPTION;
+  }
+
+  bool on_after_expr_parsing(THD *thd) override
+  {
+    DBUG_ASSERT(thd->lex->current_select->item_list.elements == 1);
+
+    m_value= thd->lex->current_select->item_list.head();
+    DBUG_ASSERT(m_value != nullptr);
+
+    // Return error in release version if m_value == nullptr
+    return m_value == nullptr;
   }
 
   sp_rcontext *get_rcontext(THD *thd) const;
@@ -538,7 +659,11 @@ public:
       trigger_field(trg_fld),
       value(val),
       m_expr_str(value_query)
-  {}
+  {
+    m_trigger_field_name=
+      LEX_CSTRING{strdup_root(current_thd->mem_root, trg_fld->field_name.str),
+                              trg_fld->field_name.length};
+  }
 
   virtual ~sp_instr_set_trigger_field() = default;
 
@@ -564,6 +689,8 @@ protected:
     return m_expr_str;
   }
 
+  bool on_after_expr_parsing(THD *thd) override;
+
 private:
   Item_trigger_field *trigger_field;
   Item *value;
@@ -571,6 +698,8 @@ private:
     SQL clause corresponding to the expression value.
   */
   LEX_CSTRING m_expr_str;
+
+  LEX_CSTRING m_trigger_field_name;
 
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
@@ -741,6 +870,23 @@ protected:
     return m_expr_str;
   }
 
+  void adjust_sql_command(LEX *lex) override
+  {
+    assert(lex->sql_command == SQLCOM_SELECT);
+    lex->sql_command= SQLCOM_END;
+  }
+
+  bool on_after_expr_parsing(THD *thd) override
+  {
+    DBUG_ASSERT(thd->lex->current_select->item_list.elements == 1);
+
+    m_expr= thd->lex->current_select->item_list.head();
+    DBUG_ASSERT(m_expr != nullptr);
+
+    // Return error in release version if m_expr == nullptr
+    return m_expr == nullptr;
+  }
+
 private:
   Item *m_expr;			///< The condition
   LEX_CSTRING m_expr_str;
@@ -821,6 +967,16 @@ protected:
   LEX_CSTRING get_expr_query() const override
   {
     return m_expr_str;
+  }
+
+  bool on_after_expr_parsing(THD *thd) override
+  {
+    DBUG_ASSERT(thd->lex->current_select->item_list.elements == 1);
+    m_value= thd->lex->current_select->item_list.head();
+    DBUG_ASSERT(m_value != nullptr);
+
+    // Return error in release version if m_value == nullptr
+    return m_value == nullptr;
   }
 
   Item *m_value;
@@ -1161,6 +1317,12 @@ protected:
     return m_cursor_stmt;
   }
 
+  bool on_after_expr_parsing(THD *) override
+  {
+    m_valid= true;
+    return false;
+  }
+
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
@@ -1339,6 +1501,23 @@ protected:
   LEX_CSTRING get_expr_query() const override
   {
     return m_expr_str;
+  }
+
+  void adjust_sql_command(LEX *lex) override
+  {
+    assert(lex->sql_command == SQLCOM_SELECT);
+    lex->sql_command= SQLCOM_END;
+  }
+
+  bool on_after_expr_parsing(THD *thd) override
+  {
+    DBUG_ASSERT(thd->lex->current_select->item_list.elements == 1);
+
+    m_case_expr= thd->lex->current_select->item_list.head();
+    DBUG_ASSERT(m_case_expr != nullptr);
+
+    // Return error in release version if m_case_expr == nullptr
+    return m_case_expr == nullptr;
   }
 
 private:
