@@ -1496,7 +1496,10 @@ SELECT HEX(RPAD(_utf8 0xD18F, 3, 0x20));
 SELECT HEX(LPAD(_utf8 0xD18F, 3, 0x20));
 
 SELECT HEX(INSERT(_utf8 0xD18F, 2, 1, 0x20));
+#Enable after fix MDEV-31512
+--disable_cursor_protocol
 SELECT HEX(INSERT(_utf8 0xD18FD18E, 2, 1, 0x20));
+--enable_cursor_protocol
 
 --echo #
 --echo # Bug#11752408 - 43593: DUMP/BACKUP/RESTORE/UPGRADE TOOLS FAILS BECAUSE OF UTF8_GENERAL_CI
@@ -1574,12 +1577,15 @@ CREATE TABLE t1 (
   s4 LONGTEXT CHARACTER SET utf8
 );
 --enable_metadata
+#Check after fix MDEV-31512
+--disable_cursor_protocol
 SET NAMES utf8, @@character_set_results=NULL;
 SELECT *, HEX(s1) FROM t1;
 SET NAMES latin1;
 SELECT *, HEX(s1) FROM t1;
 SET NAMES utf8;
 SELECT *, HEX(s1) FROM t1;
+--enable_cursor_protocol
 --disable_metadata
 CREATE TABLE t2 AS SELECT CONCAT(s1) FROM t1;
 SHOW CREATE TABLE t2;

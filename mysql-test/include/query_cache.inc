@@ -28,6 +28,7 @@ drop table if exists t1,t2,t3;
 set @save_query_cache_size = @@global.query_cache_size;
 set GLOBAL query_cache_size = 1355776;
 
+--disable_cursor_protocol
 #
 # Without auto_commit.
 #
@@ -86,6 +87,7 @@ show status like "Qcache_hits";
 commit;
 show status like "Qcache_queries_in_cache";
 drop table t3,t2,t1;
+--enable_cursor_protocol
 
 eval CREATE TABLE t1 (id int(11) NOT NULL auto_increment, PRIMARY KEY (id))$partitions_id;
 select count(*) from t1;
@@ -128,6 +130,7 @@ connection default;
 # This should be 'YES'.
 SHOW VARIABLES LIKE 'have_query_cache';
 
+--disable_cursor_protocol
 SET GLOBAL query_cache_size = 204800;
 flush status;
 SET @@autocommit=1;
@@ -190,6 +193,7 @@ disconnect connection1;
 connection default;
 set @@global.query_cache_size = @save_query_cache_size;
 drop table t2;
+--enable_cursor_protocol
 
 SET global query_cache_type=default;
 --enable_view_protocol

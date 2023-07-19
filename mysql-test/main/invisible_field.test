@@ -251,9 +251,11 @@ DROP TABLE t1;
 create or replace table t1 (a int, b int invisible);
 insert into t1 values (1),(2);
 
+--disable_cursor_protocol
 --disable_ps2_protocol
 select * from t1 into outfile 'f';
 --enable_ps2_protocol
+--enable_cursor_protocol
 load data infile 'f' into table t1;
 select a,b from t1;
 load data infile 'f' into table t1 (a,@v) SET b=@v;
@@ -263,9 +265,11 @@ select a,b from t1;
 truncate table t1;
 
 insert into t1(a,b) values (1,1),(2,2);
+--disable_cursor_protocol
 --disable_ps2_protocol
 select a,b from t1 into outfile 'a';
 --enable_ps2_protocol
+--enable_cursor_protocol
 load data infile 'a' into table t1(a,b);
 select a,b from t1;
 load data infile 'a' into table t1 (a,@v) SET b=@v;

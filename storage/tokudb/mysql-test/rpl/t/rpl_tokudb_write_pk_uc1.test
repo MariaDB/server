@@ -22,7 +22,9 @@ connection master;
 # select @@autocommit;
 eval create table t (a bigint not null, primary key(a)) engine=$engine;
 # show create table t;
+--disable_cursor_protocol
 select unix_timestamp() into @tstart;
+--enable_cursor_protocol
 insert into t values (1);
 insert into t values (2),(3);
 insert into t values (4);

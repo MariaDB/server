@@ -21,7 +21,9 @@ SELECT COUNT(@@GLOBAL.innodb_log_optimize_ddl);
 SELECT COUNT(@@SESSION.innodb_log_optimize_ddl);
 --echo Expected error 'Variable is a GLOBAL variable'
 
+--disable_cursor_protocol
 SELECT @@GLOBAL.innodb_log_optimize_ddl INTO @innodb_log_optimize_ddl_save;
+--enable_cursor_protocol
 #### Check if the value can be set
 SET @@GLOBAL.innodb_log_optimize_ddl = ON;
 SET @@GLOBAL.innodb_log_optimize_ddl = OFF;

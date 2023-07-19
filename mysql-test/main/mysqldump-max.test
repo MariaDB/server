@@ -81,7 +81,9 @@ drop table t6;
 # type to avoid Inno's column-number limits (~1000 columns) etc.
 # Here because it needs Inno-engine.
 
+--disable_cursor_protocol
 SELECT @@global.storage_engine INTO @old_engine;
+--enable_cursor_protocol
 SET GLOBAL storage_engine=InnoDB;
 
 --disable_query_log

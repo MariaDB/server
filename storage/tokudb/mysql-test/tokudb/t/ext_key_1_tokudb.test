@@ -8,7 +8,9 @@ create table t (id int not null, x int not null, y int not null, primary key(id)
 
 insert into t values (0,0,0),(1,1,1),(2,2,2),(3,2,3),(4,2,4);
 
+--disable_cursor_protocol
 --disable_ps2_protocol
+
 explain select x,id from t force index (x) where x=0 and id=0;
 flush status;
 select x,id from t force index (x) where x=0 and id=0;
@@ -39,5 +41,6 @@ flush status;
 select x,id from t force index (x) where x=2 and id=0;
 show status like 'handler_read%';
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 drop table t;

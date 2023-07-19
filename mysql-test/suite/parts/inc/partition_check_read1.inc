@@ -26,7 +26,9 @@ if ($no_debug)
 {
 --disable_query_log
 }
+--disable_cursor_protocol
 SELECT COUNT(*) <> 1 INTO @aux FROM t1 WHERE f_date = '1000-02-10';
+--enable_cursor_protocol
 --enable_query_log
 let $run= `SELECT @aux`;
 if ($run)
@@ -43,7 +45,9 @@ if ($no_debug)
 {
 --disable_query_log
 }
+--disable_cursor_protocol
 eval SELECT COUNT(*) <> @exp_row_count INTO @aux FROM t1;
+--enable_cursor_protocol
 --enable_query_log
 let $run= `SELECT @aux`;
 if ($run)
@@ -63,8 +67,10 @@ while ($num)
    {
    --disable_query_log
    }
+   --disable_cursor_protocol
    eval SELECT COUNT(*) <> 1 INTO @aux FROM t1
         WHERE f_date = CONCAT(CAST(999 + $num AS CHAR),'-02-10');
+   --enable_cursor_protocol
    --enable_query_log
    let $run= `SELECT @aux`;
    if ($run)

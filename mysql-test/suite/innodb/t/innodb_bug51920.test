@@ -22,9 +22,11 @@ let $wait_condition =
   WHERE INFO="UPDATE bug51920 SET i=2";
 -- source include/wait_condition.inc
 
+--disable_cursor_protocol
 SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST
 WHERE INFO="UPDATE bug51920 SET i=2"
 INTO @thread_id;
+--enable_cursor_protocol
 
 KILL @thread_id;
 let $wait_condition =

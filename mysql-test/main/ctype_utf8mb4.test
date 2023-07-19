@@ -1798,12 +1798,15 @@ CREATE TABLE t1 (
   s4 LONGTEXT CHARACTER SET utf8mb4
 );
 --enable_metadata
+#Check after fix MDEV-31512
+--disable_cursor_protocol
 SET NAMES utf8mb4, @@character_set_results=NULL;
 SELECT *, HEX(s1) FROM t1;
 SET NAMES latin1;
 SELECT *, HEX(s1) FROM t1;
 SET NAMES utf8mb4;
 SELECT *, HEX(s1) FROM t1;
+--enable_cursor_protocol
 --disable_metadata
 CREATE TABLE t2 AS SELECT CONCAT(s1) FROM t1;
 SHOW CREATE TABLE t2;
@@ -1953,7 +1956,9 @@ DROP TABLE t1;
 
 SET NAMES utf8mb4;
 SELECT COLUMN_JSON(COLUMN_CREATE(_utf8mb4 0xF09F988E, 1));
+--disable_cursor_protocol
 SELECT COLUMN_LIST(COLUMN_CREATE(_utf8mb4 0xF09F988E, 1));
+--enable_cursor_protocol
 SELECT COLUMN_GET(COLUMN_CREATE(_utf8mb4 0xF09F988E, 1), _utf8mb4 0xF09F988E
 as int);
 

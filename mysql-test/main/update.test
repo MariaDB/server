@@ -236,9 +236,11 @@ insert into t1 (a) values (0),(0),(0),(0),(0),(0),(0),(0);
 # the view protocol creates an additional statistics data
 --disable_ps2_protocol
 --disable_view_protocol
+--disable_cursor_protocol
 flush status;
 select a from t1 order by a limit 1;
 show status like 'handler_read%';
+--enable_cursor_protocol
 --enable_view_protocol
 --enable_ps2_protocol
 
@@ -346,6 +348,7 @@ INSERT INTO t1(user_id) SELECT user_id FROM t1;
 INSERT INTO t1(user_id) SELECT user_id FROM t1;
 INSERT INTO t1(user_id) SELECT user_id FROM t1;
 
+--disable_cursor_protocol
 --disable_ps2_protocol
 flush status;
 SELECT user_id FROM t1 WHERE request_id=9999999999999; 
@@ -357,6 +360,7 @@ show status like '%Handler_read%';
 UPDATE t1 SET user_id=null WHERE request_id=999999999999999999999999999999;
 show status like '%Handler_read%';
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 DROP TABLE t1;
 

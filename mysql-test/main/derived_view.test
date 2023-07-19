@@ -42,6 +42,7 @@ explain extended
 select * from (select * from t1 where f1 in (2,3)) tt join
   (select * from t1 where f1 in (1,2)) aa on tt.f1=aa.f1;
 
+--disable_cursor_protocol
 --disable_ps2_protocol
 flush status;
 explain extended 
@@ -51,6 +52,7 @@ flush status;
 select * from (select * from t1 where f1 in (2,3)) tt where f11=2;
 show status like 'Handler_read%';
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 --echo for merged views
 create view v1 as select * from t1;
@@ -72,12 +74,14 @@ explain extended
 select * from v3 join v4 on f1=f2;
 
 --disable_ps2_protocol
+--disable_cursor_protocol
 flush status;
 explain extended select * from v4 where f2 in (1,3);
 show status like 'Handler_read%';
 flush status;
 select * from v4 where f2 in (1,3);
 show status like 'Handler_read%';
+--enable_cursor_protocol
 
 --echo for materialized derived tables
 --echo  explain for simple derived
@@ -92,8 +96,10 @@ flush status;
 explain select * from t1 join (select * from t2 group by f2) tt on f1=f2;
 show status like 'Handler_read%';
 flush status;
+--disable_cursor_protocol
 select * from t1 join (select * from t2 group by f2) tt on f1=f2;
 show status like 'Handler_read%';
+--enable_cursor_protocol
 --enable_ps2_protocol
 
 --echo for materialized views
@@ -110,6 +116,7 @@ explain extended select * from t1 join v2 on f1=f2;
 select * from t1 join v2 on f1=f2;
 explain extended
   select * from t1,v3 as v31,v3 where t1.f1=v31.f1 and t1.f1=v3.f1;
+--disable_cursor_protocol
 --disable_ps2_protocol
 flush status;
 select * from t1,v3 as v31,v3 where t1.f1=v31.f1 and t1.f1=v3.f1;
@@ -122,6 +129,7 @@ flush status;
 select * from t1 join v2 on f1=f2;
 show status like 'Handler_read%';
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 explain extended select * from v1 join v4 on f1=f2;
 explain format=json select * from v1 join v4 on f1=f2; 
@@ -165,6 +173,7 @@ join
  (select * from (select * from t1 where f1 < 7 group by f1) tt where f1 > 2) z
  on x.f1 = z.f1;
 
+--disable_cursor_protocol
 --disable_ps2_protocol
 flush status;
 select * from 
@@ -175,6 +184,7 @@ join
 show status like 'Handler_read%';
 flush status;
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 --echo merged in merged derived join merged in merged derived
 explain extended  select * from 

@@ -388,9 +388,12 @@ select (asWKT(geomfromwkb((0x010100000000000000000024400000000000002440))));
 
 --enable_metadata
 --disable_view_protocol
+#check after fix MDEV-31540
+--disable_cursor_protocol
 create table t1 (g GEOMETRY);
 select * from t1;
 select asbinary(g) from t1;
+--enable_cursor_protocol
 --enable_view_protocol
 --disable_metadata
 drop table t1;

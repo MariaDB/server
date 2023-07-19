@@ -1653,7 +1653,7 @@ DROP TABLE t1, t2;
 # an additional util connection and other statistics data
 --disable_ps2_protocol
 --disable_view_protocol
-
+--disable_cursor_protocol
 FLUSH STATUS; # this test case *must* use Aria temp tables
 
 CREATE TABLE t1 (f1 INT, f2 decimal(20,1), f3 blob);
@@ -1663,6 +1663,7 @@ DROP TABLE t1;
 
 --echo the value below *must* be 1
 show status like 'Created_tmp_disk_tables';
+--enable_cursor_protocol
 --enable_view_protocol
 --enable_ps2_protocol
 

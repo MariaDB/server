@@ -18,6 +18,7 @@ set GLOBAL query_cache_size=1355776;
 flush status;
 create table t1 (a int, b int);
 
+--disable_cursor_protocol
 # queries with following views should not be in query cache
 create view v1 (c,d) as select sql_no_cache a,b from t1;
 create view v2 (c,d) as select a+rand(),b from t1;
@@ -66,6 +67,7 @@ show status like "Qcache_hits";
 drop view v1;
 set query_cache_type=default;
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 drop table t1;
 
@@ -110,6 +112,7 @@ drop table t1;
 #
 # BUG#15119: returning temptable view from the query cache.
 #
+--disable_cursor_protocol
 --disable_ps2_protocol
 flush status;
 create table t1 (a int, b int);
@@ -137,6 +140,7 @@ show status like "Qcache_inserts";
 show status like "Qcache_hits";
 drop table t1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 --echo #
 --echo # Bug46615 Assertion in Query_cache::invalidate in INSERT in a VIEW of a MERGE table

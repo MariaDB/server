@@ -60,8 +60,11 @@ SELECT count(*) as total_rows, min(c3) as min_value, max(c3) as max_value, sum(c
 ## Full table scan ##
 --sorted_result
 SELECT * FROM t1;
+#Check after fix MDEV-31730
+--disable_cursor_protocol
 --sorted_result
 SELECT count(*) as total_rows, min(c1) as min_value, max(c1) FROM t1;
+--enable_cursor_protocol
 --sorted_result
 SELECT * FROM t1 WHERE c3 = '0.0';
 
@@ -134,8 +137,11 @@ SELECT * FROM t1 WHERE c1 IS NOT NULL ORDER BY c1,c2 DESC LIMIT 2;
 ## Full table scan ##
 --sorted_result
 SELECT * FROM t1;
+#Check after fix MDEV-31730
+--disable_cursor_protocol
 --sorted_result
 SELECT count(*) as total_rows, min(c1) as min_value, max(c1) FROM t1;
+--enable_cursor_protocol
 --sorted_result
 SELECT * FROM t1 WHERE c3 = '-0.0';
 
@@ -388,8 +394,11 @@ SELECT count(*) as total_rows, min(c3) as min_value, max(c3) as max_value, sum(c
 ## Full table scan ##
 --sorted_result
 SELECT * FROM t1;
+#Check after fix MDEV-31730
+--disable_cursor_protocol
 --sorted_result
 SELECT count(*) as total_rows, min(c1) as min_value, max(c1) FROM t1;
+--enable_cursor_protocol
 --sorted_result
 SELECT * FROM t1 WHERE c3 = '0.0';
 
@@ -462,8 +471,11 @@ SELECT * FROM t1 WHERE c1 IS NOT NULL ORDER BY c1,c2 DESC LIMIT 2;
 ## Full table scan ##
 --sorted_result
 SELECT * FROM t1;
+#Check after fix MDEV-31730
+--disable_cursor_protocol
 --sorted_result
 SELECT count(*) as total_rows, min(c1) as min_value, max(c1) FROM t1;
+--enable_cursor_protocol
 --sorted_result
 SELECT * FROM t1 WHERE c3 = '-0.0';
 
@@ -711,8 +723,11 @@ SELECT count(*) as total_rows, min(c3) as min_value, max(c3) as max_value, sum(c
 ## Full table scan ##
 --sorted_result
 SELECT * FROM t1;
+#Check after fix MDEV-31730
+--disable_cursor_protocol
 --sorted_result
 SELECT count(*) as total_rows, min(c1) as min_value, max(c1) FROM t1;
+--enable_cursor_protocol
 --sorted_result
 SELECT * FROM t1 WHERE c3 = '0.0';
 
@@ -785,8 +800,11 @@ SELECT * FROM t1 WHERE c1 IS NOT NULL ORDER BY c1,c2 DESC LIMIT 2;
 ## Full table scan ##
 --sorted_result
 SELECT * FROM t1;
+#Check after fix MDEV-31730
+--disable_cursor_protocol
 --sorted_result
 SELECT count(*) as total_rows, min(c1) as min_value, max(c1) FROM t1;
+--enable_cursor_protocol
 --sorted_result
 SELECT * FROM t1 WHERE c3 = '-0.0';
 

@@ -4,7 +4,10 @@
 # Save the initial number of concurrent sessions
 --source include/count_sessions.inc
 
+--disable_cursor_protocol
 select priv into @root_priv from mysql.global_priv where user='root' and host='localhost';
+--enable_cursor_protocol
+
 set GLOBAL sql_mode="";
 set LOCAL sql_mode="";
 SET NAMES binary;
@@ -655,8 +658,10 @@ DROP DATABASE db1;
 
 # work out who we are.
 USE mysql;
+--disable_cursor_protocol
 SELECT LEFT(CURRENT_USER(),INSTR(CURRENT_USER(),'@')-1) INTO @u;
 SELECT MID(CURRENT_USER(),INSTR(CURRENT_USER(),'@')+1)  INTO @h;
+--enable_cursor_protocol
 
 # show current privs.
 SELECT user,host,password,plugin,authentication_string,insert_priv FROM user WHERE user=@u AND host=@h;
@@ -838,9 +843,11 @@ SHOW CREATE TABLE t1;
 --echo #
 INSERT INTO t1 VALUES (1), (2), (3);
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--disable_cursor_protocol
 --disable_ps2_protocol
 --eval SELECT a INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/bug27480.txt' FROM t1 
 --enable_ps2_protocol
+--enable_cursor_protocol
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/bug27480.txt' INTO TABLE t1
 --remove_file $MYSQLTEST_VARDIR/tmp/bug27480.txt

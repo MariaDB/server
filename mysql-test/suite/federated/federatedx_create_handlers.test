@@ -7,6 +7,9 @@ connection default;
 
 set global federated_pushdown=1;
 
+#Enable after fix MDEV-31846 or in v. 10.5 and later
+--disable_cursor_protocol
+
 connection slave;
 
 DROP TABLE IF EXISTS federated.t1;
@@ -377,6 +380,8 @@ SELECT * FROM t10 LEFT JOIN
   ) ON t10.a=t11.a;
 
 set global federated_pushdown=0;
+
+--enable_cursor_protocol
 
 source include/federated_cleanup.inc;
 

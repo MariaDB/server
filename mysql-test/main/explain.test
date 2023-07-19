@@ -48,7 +48,9 @@ set names latin1;
 #
 # Bug#15463: EXPLAIN SELECT..INTO hangs the client (QB, command line)
 #
+--disable_cursor_protocol
 select 3 into @v1;
+--enable_cursor_protocol
 explain select 3 into @v1;
 
 #
@@ -154,7 +156,9 @@ DROP TABLE t1;
 
 CREATE TABLE t1 (f1 INT not null);
 
+--disable_cursor_protocol
 SELECT @@session.sql_mode INTO @old_sql_mode;
+--enable_cursor_protocol
 SET SESSION sql_mode='ONLY_FULL_GROUP_BY';
 
 # EXPLAIN EXTENDED (with subselect). used to crash. should give NOTICE.

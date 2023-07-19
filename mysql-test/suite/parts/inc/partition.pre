@@ -57,7 +57,9 @@ let $ER_NO_PARTITION_FOR_GIVEN_VALUE=     1526;
 
 # Set the variable $engine_other to a storage engine <> $engine
 --disable_query_log
+--disable_cursor_protocol
 eval SELECT UPPER($engine) = 'MEMORY' INTO @aux;
+--enable_cursor_protocol
 let $aux= `SELECT @aux`;
 if ($aux)
 {
@@ -69,6 +71,7 @@ if (!$aux)
 }
 --enable_query_log
 
+--disable_cursor_protocol
 # Numbers used for
 # - partitioning           Example: ... PARTITION part1 VALUES LESS THAN ($max_row_div2)
 # - INSERT/SELECT/UPDATE/DELETE    Example: ... WHERE f_int1 > @max_row_div3
@@ -102,6 +105,7 @@ WHERE f_int1 BETWEEN 2 * @max_row_div3 AND @max_row;
 #
 let $insert_all= INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template;
+--enable_cursor_protocol
 
 # Column list with definition for all tables to be checked
 let $column_list= f_int1 INTEGER DEFAULT 0,

@@ -229,15 +229,19 @@ SET INSERT_ID=2;
 SET @c=2;
 SET @@rand_seed1=10000000, @@rand_seed2=1000000;
 INSERT INTO t5 VALUES (NULL, RAND(), @c); # to be ignored
+--disable_cursor_protocol
 SELECT b into @b FROM test.t5;
+--enable_cursor_protocol
 --let $b_master=`select @b`
 UPDATE test.t1 SET a=2; # to run trigger on slave
 
 --sync_slave_with_master
 
 # The proof:
+--disable_cursor_protocol
 SELECT a AS 'ONE' into @a FROM test.t_slave;
 SELECT c AS 'NULL' into @c FROM test.t_slave;
+--enable_cursor_protocol
 
 let $count= 1;
 let $table= test.t_slave;
@@ -249,7 +253,9 @@ if (`SELECT @a != 2 and @c != NULL`)
     --die Intvar or user var from replication events unexpetedly escaped out to screw a following query applying context.
 }
 
+--disable_cursor_protocol
 SELECT b into @b FROM test.t_slave;
+--enable_cursor_protocol
 --let $b_slave=`select @b`
 
 --let $assert_text= Random values from master and slave must be different

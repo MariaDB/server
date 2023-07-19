@@ -21,11 +21,13 @@
 # be able to use the correct --replace_result statement. Using this only the
 # one pair of 'wrong' values is replaced and not all occurrencies of all
 # possible pairs of values. See bug #12777 for details.
+--disable_cursor_protocol
 SELECT character_maximum_length INTO @CML
 FROM information_schema.columns
 WHERE table_schema = 'information_schema'
   AND table_name   = 'columns'
   AND column_name  = 'table_catalog';
+--enable_cursor_protocol
 
 let $bug_12777_0512= `SELECT @CML =  512`;
 let $bug_12777_1023= `SELECT @CML = 1023`;

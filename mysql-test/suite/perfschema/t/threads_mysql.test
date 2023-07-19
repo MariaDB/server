@@ -64,7 +64,9 @@ TRUNCATE t1;
 INSERT INTO t1
 SELECT thread_id FROM performance_schema.threads
 WHERE name LIKE 'thread/sql%';
+--disable_cursor_protocol
 SELECT COUNT(*) INTO @aux FROM t1;
+--enable_cursor_protocol
 
 # Attention:
 #    Just waiting for some new thread showing up is not sufficient because

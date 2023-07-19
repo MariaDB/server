@@ -42,7 +42,9 @@ eval create or replace table t1(
   with system versioning;
 
 insert into t1(x) values (1);
+--disable_cursor_protocol
 select sys_start into @sys_start from t1;
+--disable_cursor_protocol
 delete from t1;
 select * from t1;
 select x = 1 as A, sys_start = @sys_start as B, sys_end > sys_start as C from t1 for system_time all;

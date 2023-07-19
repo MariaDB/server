@@ -33,6 +33,8 @@ DROP TABLE t1;
 SELECT LAST_VALUE(@last_a:=1,@last_b:=1);
 select @last_b;
 --enable_ps_protocol
+#Check after fix MDEV-31540
+--disable_cursor_protocol
 SELECT LAST_VALUE(@last_a:=1,@last_b:=1.0);
 select @last_b;
 SELECT LAST_VALUE(@last_a:=1,@last_b:="hello");
@@ -41,6 +43,7 @@ SELECT date(LAST_VALUE(@last_a:=1,@last_b:="2001-02-03"));
 select @last_b;
 SELECT LAST_VALUE(@last_a:=1,@last_b:="2001-02-03",NULL);
 select @last_b;
+--enable_cursor_protocol
 --disable_metadata
 --error ER_PARSE_ERROR
 SELECT LAST_VALUE();

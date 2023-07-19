@@ -14,7 +14,9 @@ set global userstat=1;
 
 --disable_ps2_protocol
 connect(foo, localhost, foo, foo);
+--disable_cursor_protocol
 select 1;
+--enable_cursor_protocol
 disconnect foo;
 connection default;
 

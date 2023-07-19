@@ -12,9 +12,11 @@ insert into t1 () values
 (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),
 (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),
 (),(),(),();
+--disable_cursor_protocol
 --disable_ps2_protocol
 select * into outfile 'load.data' from t1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 create temporary table tmp (a varchar(1024), b int, c int, d int, e linestring, unique (e));
 load data infile 'load.data' into table tmp;
 delete from tmp;
@@ -225,9 +227,11 @@ drop table t1;
 --echo #
 CREATE TABLE t1 (data VARCHAR(4), unique(data) using hash) with system versioning;
 INSERT INTO t1 VALUES ('A');
+--disable_cursor_protocol
 --disable_ps2_protocol
 SELECT * INTO OUTFILE 'load.data' from t1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 --error ER_DUP_ENTRY
 LOAD DATA INFILE 'load.data'  INTO TABLE t1;
 select * from t1;
@@ -241,9 +245,11 @@ DROP TABLE t1;
 CREATE TABLE t1 (data VARCHAR(7961)) ENGINE=InnoDB;
 
 INSERT INTO t1 VALUES ('f'), ('o'), ('o');
+--disable_cursor_protocol
 --disable_ps2_protocol
 SELECT * INTO OUTFILE 'load.data' from t1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 ALTER IGNORE TABLE t1 ADD UNIQUE INDEX (data);
 SELECT * FROM t1;

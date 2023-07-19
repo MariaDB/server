@@ -287,7 +287,9 @@ EOF
 --connection server_2
 --enable_reconnect
 --source include/wait_until_connected_again.inc
+--disable_cursor_protocol
 SELECT max(seq_no) FROM mysql.gtid_slave_pos_InnoDB into @seq_no;
+--enable_cursor_protocol
 
 --connection server_1
 INSERT INTO t2(a) SELECT 1+MAX(a) FROM t2;

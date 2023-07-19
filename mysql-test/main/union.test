@@ -1114,6 +1114,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1);
 
+--disable_cursor_protocol
 -- echo # Tests fix in parser rule select_derived_union.
 SELECT a INTO @v FROM (
   SELECT a FROM t1
@@ -1153,6 +1154,7 @@ SELECT a INTO DUMPFILE 'union.out.file8' FROM t1 UNION SELECT a FROM t1;
 SELECT ( SELECT a UNION SELECT a ) INTO @v FROM t1;
 SELECT ( SELECT a UNION SELECT a ) INTO OUTFILE  'union.out.file3' FROM t1;
 SELECT ( SELECT a UNION SELECT a ) INTO DUMPFILE 'union.out.file4' FROM t1;
+--enable_cursor_protocol
 
 DROP TABLE t1;
 remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.1/data/test union.out.fil*;
