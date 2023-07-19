@@ -761,16 +761,21 @@ Log_event::Log_event(const uchar *buf,
 
 int Log_event::read_log_event(IO_CACHE* file, String* packet,
                               const Format_description_log_event *fdle,
-                              enum enum_binlog_checksum_alg checksum_alg_arg)
+                              enum enum_binlog_checksum_alg checksum_alg_arg,
+                              size_t max_allowed_packet)
 {
   ulong data_len;
   char buf[LOG_EVENT_MINIMAL_HEADER_LEN];
   uchar ev_offset= packet->length();
 #if !defined(MYSQL_CLIENT)
-  THD *thd=current_thd;
-  ulong max_allowed_packet= thd ? thd->slave_thread ? slave_max_allowed_packet
-                                                    : thd->variables.max_allowed_packet
-                                : ~(uint)0;
+  if (max_allowed_packet == 0)
+  {
+    THD *thd=current_thd;
+    max_allowed_packet= thd ? thd->slave_thread
+                              ? slave_max_allowed_packet
+                              : thd->variables.max_allowed_packet
+                            : ~(uint)0;
+  }
 #endif
   DBUG_ENTER("Log_event::read_log_event(IO_CACHE*,String*...)");
 
@@ -882,7 +887,8 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
 
 Log_event* Log_event::read_log_event(IO_CACHE* file,
                                      const Format_description_log_event *fdle,
-                                     my_bool crc_check)
+                                     my_bool crc_check,
+                                     size_t max_allowed_packet)
 {
   DBUG_ENTER("Log_event::read_log_event(IO_CACHE*,Format_description_log_event*...)");
   DBUG_ASSERT(fdle != 0);
@@ -890,7 +896,8 @@ Log_event* Log_event::read_log_event(IO_CACHE* file,
   const char *error= 0;
   Log_event *res= 0;
 
-  switch (read_log_event(file, &event, fdle, BINLOG_CHECKSUM_ALG_OFF))
+  switch (read_log_event(file, &event, fdle, BINLOG_CHECKSUM_ALG_OFF,
+                         max_allowed_packet))
   {
     case 0:
       break;
