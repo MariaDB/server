@@ -231,3 +231,38 @@ def	test	t1	BASE TABLE	MyISAM	10	Fixed	1	7	X	X	X	X	NULL	X	X	NULL	latin1_swedish_
 def	test	t2	TEMPORARY	MRG_MyISAM	10	Fixed	0	0	X	X	X	X	NULL	X	X	NULL	latin1_swedish_ci	NULL			X	Y
 def	test	t3	BASE TABLE	MRG_MyISAM	10	Fixed	1	5	X	X	X	X	NULL	X	X	NULL	latin1_swedish_ci	NULL			X	N
 DROP TABLE t1,t2,t3;
+#
+# MDEV-31618: Server crashes in
+#             process_i_s_table_temporary_tables/get_all_tables
+#
+CREATE TEMPORARY SEQUENCE seq1;
+SHOW FULL TABLES;
+Tables_in_test	Table_type
+seq1	TEMPORARY SEQUENCE
+SELECT table_schema, table_name FROM  INFORMATION_SCHEMA.TABLES WHERE table_type='temporary sequence';
+table_schema	table_name
+test	seq1
+mysqltest	s2
+mysqltest	s1
+ALTER TABLE `seq1` CHANGE `cache_size` cache_size int;
+ERROR HY000: Sequence 'test.seq1' table structure is invalid (cache_size)
+SHOW FULL TABLES;
+Tables_in_test	Table_type
+seq1	TEMPORARY SEQUENCE
+SELECT table_schema, table_name FROM  INFORMATION_SCHEMA.TABLES WHERE table_type='temporary sequence';
+table_schema	table_name
+test	seq1
+mysqltest	s2
+mysqltest	s1
+CREATE OR REPLACE TEMPORARY SEQUENCE seq1;
+SHOW FULL TABLES;
+Tables_in_test	Table_type
+seq1	TEMPORARY SEQUENCE
+SELECT table_schema, table_name FROM  INFORMATION_SCHEMA.TABLES WHERE table_type='temporary sequence';
+table_schema	table_name
+test	seq1
+mysqltest	s2
+mysqltest	s1
+DROP TABLE seq1;
+DROP TABLE mysqltest.s1;
+DROP TABLE mysqltest.s2;
