@@ -554,6 +554,16 @@ INSERT INTO t1 VALUES (1),(2);
 SELECT DISTINCT 1 FROM t1 GROUP BY 0 >> NULL WITH ROLLUP;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-30710 Incorrect operator when comparing large unsigned integers.
+--echo #
+
+create table t1(c0 tinyint unique);
+insert into t1 values (127);
+insert into t1 values (-128);
+select * from t1 where 18446744073700599371 > c0;
+select * from t1 ignore index (c0) where 18446744073700599371 > c0;
+drop table t1;
 
 --echo #
 --echo # End of 10.5 tests
