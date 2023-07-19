@@ -1620,6 +1620,33 @@ while ($i) {
   dec $i;
 }
 
+
+
+
+create table t (id int, a int, b text, primary key (id));
+insert into t values (1,10,''),(2,20,'');
+
+set debug_sync= 'alter_table_online_progress signal do_update wait_for go';
+send alter table t force, algorithm=copy, lock=none;
+
+--connection con1
+set @old_binlog_row_image= @@binlog_row_image;
+set binlog_row_image= noblob;
+set debug_sync= 'now wait_for do_update';
+
+update t set a = 1;
+delete from t where id = 1;
+
+set debug_sync= 'now signal go';
+set binlog_row_image= @old_binlog_row_image;
+
+--connection default
+--reap
+select * from t;
+
+drop table t;
+set debug_sync= reset;
+
 --disconnect con1
 --disconnect con2
 --echo #

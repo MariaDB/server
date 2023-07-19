@@ -7053,6 +7053,7 @@ int THD::binlog_write_row(TABLE* table, Event_log *bin_log,
 
 int THD::binlog_update_row(TABLE* table,  Event_log *bin_log,
                            binlog_cache_data *cache_data, bool is_trans,
+                           enum_binlog_row_image row_image,
                            const uchar *before_record,
                            const uchar *after_record)
 {
@@ -7070,7 +7071,7 @@ int THD::binlog_update_row(TABLE* table,  Event_log *bin_log,
      not needed for binlogging. This is done according to the:
      binlog-row-image option.
    */
-  binlog_prepare_row_images(table);
+  binlog_prepare_row_images(table, row_image);
 
   size_t const before_maxlen= max_row_length(table, table->read_set,
                                              before_record);
@@ -7122,6 +7123,7 @@ int THD::binlog_update_row(TABLE* table,  Event_log *bin_log,
 
 int THD::binlog_delete_row(TABLE* table, Event_log *bin_log,
                            binlog_cache_data *cache_data, bool is_trans,
+                           enum_binlog_row_image row_image,
                            uchar const *record)
 {
   /**
@@ -7138,7 +7140,7 @@ int THD::binlog_delete_row(TABLE* table, Event_log *bin_log,
      not needed for binlogging. This is done according to the:
      binlog-row-image option.
    */
-  binlog_prepare_row_images(table);
+  binlog_prepare_row_images(table, row_image);
 
   /*
      Pack records into format for transfer. We are allocating more
@@ -7179,8 +7181,7 @@ int THD::binlog_delete_row(TABLE* table, Event_log *bin_log,
    Remove from read_set spurious columns. The write_set has been
    handled before in table->mark_columns_needed_for_update.
 */
-
-void THD::binlog_prepare_row_images(TABLE *table)
+void binlog_prepare_row_images(TABLE *table, enum_binlog_row_image row_image)
 {
   DBUG_ENTER("THD::binlog_prepare_row_images");
 
@@ -7194,7 +7195,7 @@ void THD::binlog_prepare_row_images(TABLE *table)
     and the handler involved supports this.
    */
   if (table->s->primary_key < MAX_KEY &&
-      (thd->variables.binlog_row_image < BINLOG_ROW_IMAGE_FULL) &&
+      row_image < BINLOG_ROW_IMAGE_FULL &&
       !ha_check_storage_engine_flag(table->s->db_type(),
                                     HTON_NO_BINLOG_ROW_OPT))
   {

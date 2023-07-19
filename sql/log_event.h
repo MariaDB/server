@@ -4922,7 +4922,7 @@ public:
   static bool binlog_row_logging_function(THD *thd, TABLE *table,
                                           Event_log *bin_log,
                                           binlog_cache_data *cache_data,
-                                          bool is_transactional,
+                                          bool is_transactional, ulong,
                                           const uchar *before_record
                                           __attribute__((unused)),
                                           const uchar *after_record)
@@ -5006,11 +5006,13 @@ public:
                                           Event_log *bin_log,
                                           binlog_cache_data *cache_data,
                                           bool is_transactional,
+                                          ulong row_image,
                                           const uchar *before_record,
                                           const uchar *after_record)
   {
     DBUG_ASSERT(!table->versioned(VERS_TRX_ID));
     return thd->binlog_update_row(table, bin_log, cache_data, is_transactional,
+                                  (enum_binlog_row_image)row_image,
                                   before_record, after_record);
   }
 #endif
@@ -5094,12 +5096,14 @@ public:
                                           Event_log *bin_log,
                                           binlog_cache_data *cache_data,
                                           bool is_transactional,
+                                          ulong row_image,
                                           const uchar *before_record,
                                           const uchar *after_record
                                           __attribute__((unused)))
   {
     DBUG_ASSERT(!table->versioned(VERS_TRX_ID));
     return thd->binlog_delete_row(table, bin_log, cache_data, is_transactional,
+                                  (enum_binlog_row_image)row_image,
                                   before_record);
   }
 #endif
