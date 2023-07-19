@@ -1238,6 +1238,12 @@ protected:
     return m_cursor_stmt;
   }
 
+  bool on_after_expr_parsing(THD *) override
+  {
+    m_metadata_changed= false;
+    return false;
+  }
+
 private:
   uint m_cursor;                /**< Frame offset (for debugging) */
   /**

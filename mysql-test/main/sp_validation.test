@@ -2682,4 +2682,35 @@ SET @@debug_dbug=@orig_dbug;
 DROP TABLE t1;
 DROP TABLE t2;
 DROP VIEW v1;
+
+--echo #
+--echo # MDEV-31661: Assertion `thd->lex == sp_instr_lex' failed in LEX* sp_lex_instr::parse_expr(THD*, sp_head*, LEX*)
+--echo #
+
+--delimiter $
+
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+  DECLARE c CURSOR FOR SELECT * FROM t1;
+  OPEN c;
+  CLOSE c;
+END;
+$
+
+--delimiter ;
+
+--error ER_NO_SUCH_TABLE
+CALL p1;
+CREATE TABLE t1 (id INT);
+
+CALL p1;
+--echo # Second execution of the stored procedure p1() after the dependent
+--echo # table t1 has been created resulted in assert failure for server built
+--echo # with debug
+CALL p1;
+
+--echo # Clean up
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
 SET sql_mode = default;

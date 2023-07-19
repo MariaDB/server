@@ -1209,19 +1209,21 @@ bool sp_instr_set_trigger_field::on_after_expr_parsing(THD *thd)
 {
   DBUG_ASSERT(thd->lex->current_select->item_list.elements == 1);
 
-  value= thd->lex->current_select->item_list.head();
-  DBUG_ASSERT(value != nullptr);
+  Item *val= thd->lex->current_select->item_list.head();
+  DBUG_ASSERT(val != nullptr);
 
   trigger_field = new (thd->mem_root)
     Item_trigger_field(thd, thd->lex->current_context(),
                        Item_trigger_field::NEW_ROW,
                        m_trigger_field_name, UPDATE_ACL, false);
 
-  if (!value || !trigger_field)
+  if (!val || !trigger_field)
     return true;
 
   thd->spcont->m_sp->m_cur_instr_trig_field_items.link_in_list(
     trigger_field, &trigger_field->next_trg_field);
+
+  value= val;
 
   return false;
 }
