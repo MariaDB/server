@@ -2962,15 +2962,15 @@ public:
                        const uchar *buf);
   int binlog_delete_row(TABLE* table,  Event_log *bin_log,
                         binlog_cache_data *cache_data, bool is_transactional,
-                        const uchar *buf);
+                        enum_binlog_row_image row_image, const uchar *buf);
   int binlog_update_row(TABLE* table, Event_log *bin_log,
                         binlog_cache_data *cache_data, bool is_transactional,
+                        enum_binlog_row_image row_image,
                         const uchar *old_data, const uchar *new_data);
   bool prepare_handlers_for_update(uint flag);
   bool binlog_write_annotated_row(Log_event_writer *writer);
   void binlog_prepare_for_row_logging();
   bool binlog_write_table_maps();
-  static void binlog_prepare_row_images(TABLE* table);
 
   void set_server_id(uint32 sid) { variables.server_id = sid; }
 
@@ -7648,6 +7648,8 @@ inline bool binlog_should_compress(size_t len)
     len >= opt_bin_log_compress_min_len;
 }
 
+void binlog_prepare_row_images(TABLE* table,
+                               enum_binlog_row_image row_image);
 
 /**
    Save thd sql_mode on instantiation.
