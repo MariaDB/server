@@ -2290,7 +2290,7 @@ int binlog_log_row_online_alter(TABLE* table, const uchar *before_record,
   table->rpl_write_set= &table->s->all_set;
 
   int error= (*log_func)(thd, table, table->s->online_alter_binlog,
-                         table->online_alter_cache, true,
+                         table->online_alter_cache, true, BINLOG_ROW_IMAGE_FULL,
                          before_record, after_record);
 
   table->rpl_write_set= old_rpl_write_set;

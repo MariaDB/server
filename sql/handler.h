@@ -660,7 +660,7 @@ class Cache_flip_event_log;
 class binlog_cache_data;
 class online_alter_cache_data;
 typedef bool Log_func(THD*, TABLE*, Event_log *, binlog_cache_data *, bool,
-                      const uchar*, const uchar*);
+                      ulong, const uchar*, const uchar*);
 
 /*
   These flags are set by the parser and describes the type of

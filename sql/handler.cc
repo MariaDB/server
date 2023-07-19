@@ -7274,7 +7274,8 @@ static int binlog_log_row_to_binlog(TABLE* table,
                                      use_trans_cache(thd, has_trans));
 
     error= (*log_func)(thd, table, mysql_bin_log.as_event_log(), cache,
-                       has_trans, before_record, after_record);
+                       has_trans, thd->variables.binlog_row_image,
+                       before_record, after_record);
   DBUG_RETURN(error ? HA_ERR_RBR_LOGGING_FAILED : 0);
 }
 
