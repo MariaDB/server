@@ -43,6 +43,7 @@
 #include "lex_symbol.h"
 #include "item_create.h"
 #include "sp_head.h"
+#include "sp_instr.h"                          // classes sp_instr,...
 #include "sp_rcontext.h"
 #include "sp.h"
 #include "sql_show.h"

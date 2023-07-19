@@ -23,6 +23,7 @@
 #include "mysql.h"
 #include "sp_head.h"
 #include "sql_cursor.h"
+#include "sp_instr.h"                       // class sp_instr, ...
 #include "sp_rcontext.h"
 #include "sp_pcontext.h"
 #include "sql_select.h"                     // create_virtual_tmp_table
