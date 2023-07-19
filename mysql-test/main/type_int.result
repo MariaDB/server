@@ -1675,5 +1675,20 @@ SELECT DISTINCT 1 FROM t1 GROUP BY 0 >> NULL WITH ROLLUP;
 1
 DROP TABLE t1;
 #
+# MDEV-30710 Incorrect operator when comparing large unsigned integers.
+#
+create table t1(c0 tinyint unique);
+insert into t1 values (127);
+insert into t1 values (-128);
+select * from t1 where 18446744073700599371 > c0;
+c0
+-128
+127
+select * from t1 ignore index (c0) where 18446744073700599371 > c0;
+c0
+127
+-128
+drop table t1;
+#
 # End of 10.5 tests
 #
