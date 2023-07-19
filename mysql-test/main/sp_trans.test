@@ -610,7 +610,9 @@ drop table t3|
 # BUG#11758414: Default storage_engine not honored when set
 #               from within a stored procedure
 #
+--disable_cursor_protocol
 SELECT @@GLOBAL.storage_engine INTO @old_engine|
+--enable_cursor_protocol
 SET @@GLOBAL.storage_engine=InnoDB|
 SET @@SESSION.storage_engine=InnoDB|
 # show defaults at define-time

@@ -48,10 +48,12 @@ let $wait_condition=
   INFO = "INSERT INTO t1(id) SELECT id  FROM t2";
 --source include/wait_condition.inc
 
+--disable_cursor_protocol
 SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST
 WHERE STATE = 'wait_in_enable_indexes' AND 
 INFO = "INSERT INTO t1(id) SELECT id  FROM t2" 
 INTO @thread_id;
+--enable_cursor_protocol
 
 KILL QUERY @thread_id;
 CHECK TABLE t1; 

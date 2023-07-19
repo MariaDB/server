@@ -41,10 +41,12 @@ SET GLOBAL innodb_buffer_pool_dump_pct=100;
 #***********************************************************
 
 # Read the current value to compare with the new value.
+--disable_cursor_protocol
 SELECT variable_value INTO @IBPDS
 FROM information_schema.global_status
 WHERE variable_name = 'INNODB_BUFFER_POOL_DUMP_STATUS';
 SET GLOBAL innodb_buffer_pool_dump_now=ON;
+--enable_cursor_protocol
 
 # Sleep one second in order to ensure that the time stamp is
 # different at next dump
@@ -62,11 +64,13 @@ SET GLOBAL innodb_buffer_pool_dump_pct=1;
 SELECT @@global.innodb_buffer_pool_dump_pct;
 
 # Read the current value to compare with the new value.
+--disable_cursor_protocol
 --disable_warnings
 SELECT variable_value INTO @IBPDS
 FROM information_schema.global_status
 WHERE variable_name = 'INNODB_BUFFER_POOL_DUMP_STATUS';
 --enable_warnings
+--enable_cursor_protocol
 
 SET GLOBAL innodb_buffer_pool_dump_now=ON;
 

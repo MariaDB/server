@@ -10,9 +10,11 @@ drop database if exists mysqltest1;
 create database mysqltest1;
 create table mysqltest1.t1 (n int);
 insert into mysqltest1.t1 values (1);
+--disable_cursor_protocol
 --disable_ps2_protocol
 select * from mysqltest1.t1 into outfile 'mysqltest1/f1.txt';
 --enable_ps2_protocol
+--enable_cursor_protocol
 create table mysqltest1.t2 (n int);
 create table mysqltest1.t3 (n int);
 --replace_result \\ / 66 39 93 39 17 39 247 39 41 39 "File exists" "Directory not empty"

@@ -21,6 +21,7 @@ SET LOCAL query_cache_type= ON;
 
 # Reset query cache variables.
 
+--disable_cursor_protocol
 flush query cache; # This crashed in some versions
 flush query cache; # This crashed in some versions
 reset query cache;
@@ -1802,6 +1803,7 @@ SELECT foo( LAST_INSERT_ID() ) from t1;
 show status like "Qcache_queries_in_cache";
 DROP FUNCTION foo;
 drop table t1;
+--enable_cursor_protocol
 
 --echo restore defaults
 SET GLOBAL query_cache_type= default;

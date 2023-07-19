@@ -1647,7 +1647,10 @@ SELECT GROUP_CONCAT(IFNULL(a,'')) FROM t1;
 SELECT GROUP_CONCAT(IF(a,a,'')) FROM t1;
 SELECT GROUP_CONCAT(CASE WHEN a THEN a ELSE '' END) FROM t1;
 --enable_metadata
+#Check after fix MDEV-31512
+--disable_cursor_protocol
 SELECT COALESCE(a,'') FROM t1 GROUP BY 1;
+--enable_cursor_protocol
 --disable_metadata
 --echo # All columns must be VARCHAR(9) with the same length:
 --disable_warnings

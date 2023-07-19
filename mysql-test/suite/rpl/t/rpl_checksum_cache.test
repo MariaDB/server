@@ -119,7 +119,9 @@ let $1=100;
 begin;
 while ($1)
 {
+ --disable_cursor_protocol
  eval select round($t2_aver_size + RAND() * $t2_max_rand) into @act_size;
+ --enable_cursor_protocol
  set @data = repeat('a', @act_size);
  insert into t2 set data = @data;
  dec $1;
@@ -162,7 +164,9 @@ let $1= 300;
 begin;
 while ($1)
 {
+ --disable_cursor_protocol
  eval select round($t3_aver_size + RAND() * $t3_max_rand) into @act_size;
+ --enable_cursor_protocol
  insert into t3 set data= repeat('a', @act_size);
  dec $1;
 }

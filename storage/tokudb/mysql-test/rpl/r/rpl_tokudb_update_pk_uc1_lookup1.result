@@ -21,8 +21,10 @@ update t set b=b+2 where a=1;
 update t set b=b+3 where a=4;
 update t set b=b+4 where a=3;
 update t set b=b+1 where 1<=a and a<=3;
+--disable_cursor_protocol
 select unix_timestamp() into @tstart;
 select unix_timestamp() into @tend;
+--enable_cursor_protocol
 select @tend-@tstart <= 5;
 @tend-@tstart <= 5
 0

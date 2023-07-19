@@ -310,7 +310,9 @@ if(`$check_statement`)
 }
 --echo #    pass
 
+--disable_cursor_protocol
 SELECT COUNT(*) INTO @sx_count FROM my_metrics;
+--enable_cursor_protocol
 
 --echo # TC-02 Counting is now enabled. ALL = @sx_count entries show that.
 let $check_statement=
@@ -413,8 +415,10 @@ SET AUTOCOMMIT = OFF;
 CALL proc_fill_t1 (@max_row_count, @load_unit);
 --echo #    pass
 SET AUTOCOMMIT = ON;
+--disable_cursor_protocol
 SELECT col_int0 INTO @t1_half FROM t1
 WHERE col_int0 >= (@val DIV 2) ORDER BY col_int0 LIMIT 1;
+--enable_cursor_protocol
 
 --disable_result_log
 if($test_debug)

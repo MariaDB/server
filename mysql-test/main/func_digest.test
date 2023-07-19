@@ -489,6 +489,8 @@ SELECT LENGTH(SHA2( 'computed', 512 )) / 2 * 8   = 512;
 --echo # Bug#54661 sha2() returns BINARY result
 --echo #
 
+#Check after fix MDEV-31540
+--disable_cursor_protocol
 --disable_view_protocol
 --enable_metadata
 SET NAMES binary;
@@ -499,6 +501,7 @@ SET NAMES latin1;
 SELECT sha2('1',224);
 --disable_metadata
 --disable_view_protocol
+--enable_cursor_protocol
 
 --echo #
 --echo # Start of 10.1 tests

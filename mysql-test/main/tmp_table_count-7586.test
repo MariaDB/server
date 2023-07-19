@@ -11,6 +11,7 @@ create table t2 (a int);
 insert into t2 values (1),(2),(3);
 create view v2 as select a from t2;
 
+--disable_cursor_protocol
 flush status;
 select * from v2;
 --disable_ps_protocol
@@ -23,6 +24,7 @@ select * from (select * from t2) T1;
 --disable_ps_protocol
 show status like '%Created_tmp%';
 --enable_ps_protocol
+--enable_cursor_protocol
 
 explain select * from (select * from t2) T1;
 

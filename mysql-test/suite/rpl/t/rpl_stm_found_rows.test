@@ -35,18 +35,22 @@ SELECT SQL_CALC_FOUND_ROWS * FROM t1 WHERE a > 5 ORDER BY a LIMIT 1;
 # Instead of
 #   INSERT INTO logtbl VALUES(1, 1, FOUND_ROWS());
 # we write
+--disable_cursor_protocol
 --disable_ps2_protocol
 SELECT FOUND_ROWS() INTO @a;
 --enable_ps2_protocol
+--enable_cursor_protocol
 INSERT INTO logtbl VALUES(1,1,@a);
 
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 WHERE a < 5 ORDER BY a LIMIT 1;
 # Instead of
 #   INSERT INTO logtbl VALUES(1, 2, FOUND_ROWS());
 # we write
+--disable_cursor_protocol
 --disable_ps2_protocol
 SELECT FOUND_ROWS() INTO @a;
 --enable_ps2_protocol
+--enable_cursor_protocol
 INSERT INTO logtbl VALUES(1,2,@a);
 
 SELECT * FROM logtbl WHERE sect = 1 ORDER BY sect,test;
@@ -82,9 +86,11 @@ END $$
 --delimiter ;
 
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 WHERE a > 5 ORDER BY a LIMIT 1;
+--disable_cursor_protocol
 --disable_ps2_protocol
 SELECT FOUND_ROWS() INTO @found_rows;
 --enable_ps2_protocol
+--enable_cursor_protocol
 CALL just_log(2,3,@found_rows);
 
 SELECT * FROM logtbl WHERE sect = 2 ORDER BY sect,test;
@@ -105,7 +111,9 @@ END $$
 
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 WHERE a > 5 ORDER BY a LIMIT 1;
 --disable_ps2_protocol
+--disable_cursor_protocol
 SELECT FOUND_ROWS() INTO @found_rows;
+--enable_cursor_protocol
 SELECT log_rows(3,1,@found_rows), log_rows(3,2,@found_rows);
 --enable_ps2_protocol
 

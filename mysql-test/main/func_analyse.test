@@ -24,7 +24,10 @@ EXPLAIN SELECT 1 FROM (SELECT 1) a PROCEDURE ANALYSE();
 
 create table t1 (v varchar(128));
 insert into t1 values ('abc'),('abc\'def\\hij\"klm\0opq'),('\''),('\"'),('\\'),('a\0'),('b\''),('c\"'),('d\\'),('\'b'),('\"c'),('\\d'),('a\0\0\0b'),('a\'\'\'\'b'),('a\"\"\"\"b'),('a\\\\\\\\b'),('\'\0\\\"'),('\'\''),('\"\"'),('\\\\'),('The\ZEnd');
+#Enable after fix MDEV-31538
+--disable_cursor_protocol
 select * from t1 procedure analyse();
+--enable_cursor_protocol
 drop table t1;
 
 #decimal-related test

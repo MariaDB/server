@@ -17,7 +17,9 @@
 --source ../include/wait_for_pfs_thread_count.inc
 --source ../include/hostcache_set_state.inc
 
+--disable_cursor_protocol
 select @@global.max_connect_errors into @saved_max_connect_errors;
+--enable_cursor_protocol
 
 set global max_connect_errors = 3;
 

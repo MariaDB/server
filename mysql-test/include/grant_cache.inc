@@ -55,6 +55,7 @@ set LOCAL query_cache_type=ON;
 set GLOBAL query_cache_size=1355776;
 
 --disable_ps2_protocol
+--disable_cursor_protocol
 
 reset query cache;
 flush status;
@@ -173,6 +174,7 @@ show status like "Qcache_queries_in_cache";
 show status like "Qcache_hits";
 show status like "Qcache_not_cached";
 
+--enable_cursor_protocol
 --enable_ps2_protocol
 
 # Cleanup

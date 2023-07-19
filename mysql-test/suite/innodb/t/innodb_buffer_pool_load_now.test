@@ -30,8 +30,10 @@ ENGINE=INNODB;
 SELECT PAGE_NUMBER FROM information_schema.innodb_buffer_page_lru
 WHERE table_name = '`test`.`ib_bp_test`';
 
+--disable_cursor_protocol
 SELECT SPACE INTO @space FROM information_schema.innodb_buffer_page_lru
 WHERE table_name = '`test`.`ib_bp_test`' AND PAGE_NUMBER=3;
+--enable_cursor_protocol
 
 let SPACE=`SELECT @space`;
 

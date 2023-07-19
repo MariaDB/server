@@ -10,12 +10,14 @@
 # different connections simultaneously, to force queueing occurs.
 # Verify connections are intact, even if queueing time exceeds wait_timeout
 
+--disable_cursor_protocol
 SELECT
   @@global.wait_timeout, @@global.thread_pool_max_threads, @@global.thread_pool_size,
   @@global.thread_pool_oversubscribe,  @@global.thread_pool_stall_limit
 INTO
   @_wait_timeout,@_thread_pool_max_threads,@_thread_pool_size,
   @_thread_pool_oversubscribe,@_thread_pool_stall_limit;
+--enable_cursor_protocol
 
 SET @@global.wait_timeout=1,
     @@global.thread_pool_max_threads=2,

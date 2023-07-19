@@ -42,14 +42,18 @@ update t set b=b+2 where a=1;
 update t set b=b+3 where a=4;
 update t set b=b+4 where a=3;
 update t set b=b+1 where 1<=a and a<=3;
+--disable_cursor_protocol
 select unix_timestamp() into @tstart;
+--enable_cursor_protocol
 
 # wait for the delete to finish on the slave
 connection master;
 sync_slave_with_master;
 # source include/sync_slave_sql_with_master.inc;
 connection master;
+--disable_cursor_protocol
 select unix_timestamp() into @tend;
+--enable_cursor_protocol
 select @tend-@tstart <= 5; # assert no delay in the delete time
 
 connection slave;

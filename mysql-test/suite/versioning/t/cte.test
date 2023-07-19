@@ -31,7 +31,9 @@ insert into emp (emp_id, name, salary, dept_id, mgr) values
 (20, "john", 500, 10, 1),
 (30, "jane", 750, 10,1 );
 
+--disable_cursor_protocol
 select row_start into @ts_1 from emp where name="jane";
+--enable_cursor_protocol
 
 update emp set mgr=30 where name ="john";
 
@@ -42,7 +44,9 @@ with ancestors as (
   select e.emp_id, e.name, e.mgr, e.salary from emp as e
 ) select * from ancestors for system_time as of @ts_1;
 
+--disable_cursor_protocol
 select row_start into @ts_2 from emp where name="john";
+--enable_cursor_protocol
 
 let $q=
 /* All report to 'Bill' */

@@ -43,7 +43,9 @@ SELECT @@log_slow_disabled_statements;
 TRUNCATE TABLE mysql.slow_log;
 ALTER TABLE t1 add column extra int;
 CALL slow2();
+--disable_cursor_protocol
 SELECT count(if(sleep(1) >= 0,0,NULL)) from t1 where j>'b and part2';
+--enable_cursor_protocol
 
 --echo -->
 SELECT sql_text FROM mysql.slow_log where sql_text <> "Close stmt" and sql_text <> "Prepare";
@@ -53,7 +55,9 @@ SET SESSION log_slow_disabled_statements="call,admin";
 TRUNCATE TABLE mysql.slow_log;
 ALTER TABLE t1 add column extra2 int;
 CALL slow2();
+--disable_cursor_protocol
 SELECT count(if(sleep(1) >= 0,0,NULL)) from t1 where j>'b and part3';
+--enable_cursor_protocol
 
 --echo -->
 SELECT sql_text FROM mysql.slow_log where sql_text <> "Close stmt" and sql_text <> "Prepare";
@@ -63,7 +67,9 @@ SET SESSION log_slow_disabled_statements="";
 TRUNCATE TABLE mysql.slow_log;
 ALTER TABLE t1 add column extra3 int;
 CALL slow2();
+--disable_cursor_protocol
 SELECT count(if(sleep(1) >= 0,0,NULL)) from t1 where j>'b and part4';
+--enable_cursor_protocol
 
 --echo -->
 SELECT sql_text FROM mysql.slow_log where sql_text <> "Close stmt" and sql_text <> "Prepare";
@@ -73,7 +79,9 @@ SET SESSION log_slow_disabled_statements="call,admin,slave,sp";
 TRUNCATE TABLE mysql.slow_log;
 ALTER TABLE t1 add column extra4 int;
 CALL slow2();
+--disable_cursor_protocol
 SELECT count(if(sleep(1) >= 0,0,NULL)) from t1 where j>'b and part5';
+--enable_cursor_protocol
 
 --echo -->
 SELECT sql_text FROM mysql.slow_log where sql_text <> "Close stmt" and sql_text <> "Prepare";

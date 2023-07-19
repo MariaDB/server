@@ -5,9 +5,11 @@ create table t1 ( c1 varchar(10), c2 varchar(10), c3 int );
 insert into t1 values ("a" , "b", 1),   ("a" , "b", 2);
 create table t2 like t1 ;
 alter table t2 add column c4 bigint unsigned as (CONV(LEFT(MD5(concat(c1,c2,c3)), 16), 16, 10)) persistent unique key;
+--disable_cursor_protocol
 --disable_ps2_protocol
 select * into outfile 't1.csv' from t1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 load data infile 't1.csv' ignore into table t2 ;
 select * from t2;
 insert into t2 (c1,c2,c3) values ("a" , "b", 4);

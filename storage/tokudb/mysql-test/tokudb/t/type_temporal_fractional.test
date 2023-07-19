@@ -1907,7 +1907,9 @@ SELECT * FROM t1 WHERE a=@a;
 SET @a=112233.123456e0;
 SELECT * FROM t1 WHERE a=@a;
 SET @a=NULL;
+--disable_cursor_protocol
 SELECT a INTO @a FROM t1 LIMIT 1;
+--enable_cursor_protocol
 SELECT @a;
 DROP TABLE t1;
 
@@ -3896,7 +3898,9 @@ SELECT * FROM t1 WHERE a=@a;
 SET @a=0.123456e0;
 SELECT * FROM t1 WHERE a=@a;
 SET @a=NULL;
+--disable_cursor_protocol
 SELECT a INTO @a FROM t1 LIMIT 1;
+--enable_cursor_protocol
 SELECT @a;
 DROP TABLE t1;
 # MEMORY does not support BLOB
@@ -5716,7 +5720,9 @@ SELECT @a;
 # Nothing is found, not enough precision for DOUBLE
 SELECT * FROM t1 WHERE a=@a;
 SET @a=NULL;
+--disable_cursor_protocol
 SELECT a INTO @a FROM t1 LIMIT 1;
+--enable_cursor_protocol
 SELECT @a;
 DROP TABLE t1;
 # MEMORY does not support BLOB

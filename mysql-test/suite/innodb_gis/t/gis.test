@@ -396,11 +396,14 @@ drop table t1;
 select (ST_asWKT(ST_geomfromwkb((0x000000000140240000000000004024000000000000))));
 select (ST_asWKT(ST_geomfromwkb((0x010100000000000000000024400000000000002440))));
 
+#check after fix MDEV-31540
+--disable_cursor_protocol
 --enable_metadata
 create table t1 (g GEOMETRY);
 select * from t1;
 select ST_asbinary(g) from t1;
 --disable_metadata
+--enable_cursor_protocol
 drop table t1;
 
 create table t1 (a TEXT, b GEOMETRY NOT NULL, SPATIAL KEY(b));
@@ -1437,7 +1440,9 @@ SELECT ST_Union('', ''), md5(1);
 --echo #	fields after MDEV-25459
 --echo #
 CREATE TABLE t1(l LINESTRING NOT NULL, SPATIAL INDEX(l))ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
+--disable_cursor_protocol
 SELECT GROUP_CONCAT(CONCAT(seq, ' ', seq) SEPARATOR ',') INTO @g FROM seq_0_to_190;
+--enable_cursor_protocol
 INSERT INTO t1 SET l=ST_GeomFromText(CONCAT('LINESTRING(',@g,',0 0)'));
 SELECT COUNT(*) FROM t1 WHERE MBRIntersects(GeomFromText('Polygon((0 0,0 10,10 10,10 0,0 0))'), l);
 DROP TABLE t1;

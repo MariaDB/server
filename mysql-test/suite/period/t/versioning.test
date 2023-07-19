@@ -12,7 +12,9 @@ eval create table t (
 insert into t values('1999-01-01', '2018-12-12'),
                     ('1999-01-01', '1999-12-12');
 
+--disable_cursor_protocol
 select row_start into @ins_time from t limit 1;
+--enable_cursor_protocol
 select * from t order by s, e;
 
 delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
@@ -28,7 +30,9 @@ insert into t values('1999-01-01', '2018-12-12'),
 --let $trig_table=t
 --source suite/period/create_triggers.inc
 
+--disable_cursor_protocol
 select row_start into @ins_time from t limit 1;
+--enable_cursor_protocol
 select * from t order by s, e;
 
 delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
@@ -47,7 +51,9 @@ eval create or replace table t (x int, s date, e date,
 insert into t values(1, '1999-01-01', '2018-12-12'),
                     (2, '1999-01-01', '1999-12-12');
 
+--disable_cursor_protocol
 select row_start into @ins_time from t limit 1;
+--enable_cursor_protocol
 --sorted_result
 select * from t;
 

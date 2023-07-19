@@ -272,6 +272,7 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 use test;
 let $benchmark_file= `select replace(concat("benchmark_",uuid(),".out"),"-","_")`;
 --replace_regex /benchmark_.*.out/benchmark.out/
+--disable_cursor_protocol
 --disable_ps2_protocol
 eval select * from test1.benchmark into outfile  '$benchmark_file';
 --enable_ps2_protocol
@@ -289,6 +290,7 @@ eval select time_to_sec(@m_1) - time_to_sec(@m_0) as 'delta_m',
        time_to_sec(@s_1) - time_to_sec(@s_0) as 'delta_s',
        time_to_sec(@s_m1) - time_to_sec(@s_m0) as 'delta_sm'  into outfile '$delta_file';
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 #
 # Consistency verification

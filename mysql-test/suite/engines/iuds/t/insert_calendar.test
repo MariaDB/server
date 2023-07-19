@@ -78,8 +78,11 @@ SELECT * FROM t4;
 ## Full table scan ##
 --sorted_result
 SELECT * FROM t1;
+#Check after fix MDEV-31730
+--disable_cursor_protocol
 --sorted_result
 SELECT count(*) as total_rows, min(c1) as min_value, max(c1) FROM t1;
+--enable_cursor_protocol
 --sorted_result
 SELECT * FROM t1 WHERE c3 = '2007-05-24';
 
@@ -152,8 +155,11 @@ SELECT * FROM t1 WHERE c1 IS NOT NULL ORDER BY c1 DESC LIMIT 2;
 ## Full table scan ##
 --sorted_result
 SELECT * FROM t1;
+#Check after fix MDEV-31730
+--disable_cursor_protocol
 --sorted_result
 SELECT count(*) as total_rows, min(c1) as min_value, max(c1) FROM t1;
+--enable_cursor_protocol
 --sorted_result
 SELECT * FROM t1 WHERE c3 = '2007-05-26';
 
@@ -868,8 +874,11 @@ SELECT * FROM t4;
 ## Full table scan ##
 --sorted_result
 SELECT * FROM t1;
+#Check after fix MDEV-31730
+--disable_cursor_protocol
 --sorted_result
 SELECT count(*) as total_rows, min(c1) as min_value, max(c1) FROM t1;
+--enable_cursor_protocol
 --sorted_result
 SELECT * FROM t1 WHERE c3 = '2007-05-24 09:15:28';
 
@@ -942,8 +951,11 @@ SELECT * FROM t1 WHERE c1 IS NOT NULL ORDER BY c1 DESC LIMIT 2;
 ## Full table scan ##
 --sorted_result
 SELECT * FROM t1;
+#Check after fix MDEV-31730
+--disable_cursor_protocol
 --sorted_result
 SELECT count(*) as total_rows, min(c1) as min_value, max(c1) FROM t1;
+--enable_cursor_protocol
 --sorted_result
 SELECT * FROM t1 WHERE c3 = '2007-05-26 00:00:00';
 
@@ -1016,8 +1028,11 @@ SELECT * FROM t1 WHERE c1 IS NOT NULL ORDER BY c1 DESC LIMIT 2;
 ## Full table scan ##
 --sorted_result
 SELECT * FROM t1;
+#Check after fix MDEV-31730
+--disable_cursor_protocol
 --sorted_result
 SELECT count(*) as total_rows, min(c1) as min_value, max(c1) FROM t1;
+--enable_cursor_protocol
 --sorted_result
 SELECT * FROM t1 WHERE c3 = '1998-12-28 00:00:00';
 
@@ -2070,8 +2085,11 @@ SELECT * FROM t4;
 ## Full table scan ##
 --sorted_result
 SELECT * FROM t1;
+#Check after fix MDEV-31730
+--disable_cursor_protocol
 --sorted_result
 SELECT count(*) as total_rows, min(c1) as min_value, max(c1) FROM t1;
+--enable_cursor_protocol
 --sorted_result
 SELECT * FROM t1 WHERE c3 = '2007-05-24';
 
@@ -2144,8 +2162,11 @@ SELECT * FROM t1 WHERE c1 IS NOT NULL ORDER BY c1 DESC LIMIT 2;
 ## Full table scan ##
 --sorted_result
 SELECT * FROM t1;
+#Check after fix MDEV-31730
+--disable_cursor_protocol
 --sorted_result
 SELECT count(*) as total_rows, min(c1) as min_value, max(c1) FROM t1;
+--enable_cursor_protocol
 --sorted_result
 SELECT * FROM t1 WHERE c3 = '2007-05-26';
 
@@ -2864,8 +2885,11 @@ SELECT * FROM t4;
 ## Full table scan ##
 --sorted_result
 SELECT * FROM t1;
+#Check after fix MDEV-31730
+--disable_cursor_protocol
 --sorted_result
 SELECT count(*) as total_rows, min(c1) as min_value, max(c1) FROM t1;
+--enable_cursor_protocol
 --sorted_result
 SELECT * FROM t1 WHERE c3 = '2007-05-24';
 
@@ -2938,8 +2962,11 @@ SELECT * FROM t1 WHERE c1 IS NOT NULL ORDER BY c1 DESC LIMIT 2;
 ## Full table scan ##
 --sorted_result
 SELECT * FROM t1;
+#Check after fix MDEV-31730
+--disable_cursor_protocol
 --sorted_result
 SELECT count(*) as total_rows, min(c1) as min_value, max(c1) FROM t1;
+--enable_cursor_protocol
 --sorted_result
 SELECT * FROM t1 WHERE c3 = '2007-05-26';
 
@@ -3012,8 +3039,11 @@ SELECT * FROM t1 WHERE c1 IS NOT NULL ORDER BY c1 DESC LIMIT 2;
 ## Full table scan ##
 --sorted_result
 SELECT * FROM t1;
+#Check after fix MDEV-31730
+--disable_cursor_protocol
 --sorted_result
 SELECT count(*) as total_rows, min(c1) as min_value, max(c1) FROM t1;
+--enable_cursor_protocol
 --sorted_result
 SELECT * FROM t1 WHERE c3 = '1998-12-28';
 
@@ -4067,8 +4097,11 @@ SELECT * FROM t4;
 ## Full table scan ##
 --sorted_result
 SELECT * FROM t1;
+#Check after fix MDEV-31730
+--disable_cursor_protocol
 --sorted_result
 SELECT count(*) as total_rows, min(c1) as min_value, max(c1) FROM t1;
+--enable_cursor_protocol
 --sorted_result
 SELECT * FROM t1 WHERE c3 = '2007-05-24';
 
@@ -4141,8 +4174,11 @@ SELECT * FROM t1 WHERE c1 IS NOT NULL ORDER BY c1 DESC LIMIT 2;
 ## Full table scan ##
 --sorted_result
 SELECT * FROM t1;
+#Check after fix MDEV-31730
+--disable_cursor_protocol
 --sorted_result
 SELECT count(*) as total_rows, min(c1) as min_value, max(c1) FROM t1;
+--enable_cursor_protocol
 --sorted_result
 SELECT * FROM t1 WHERE c3 = '2007-05-26';
 
@@ -4854,8 +4890,11 @@ SELECT * FROM t4;
 ## Full table scan ##
 --sorted_result
 SELECT * FROM t1;
+#Check after fix MDEV-31730
+--disable_cursor_protocol
 --sorted_result
 SELECT count(*) as total_rows, min(c1) as min_value, max(c1) FROM t1;
+--enable_cursor_protocol
 --sorted_result
 SELECT * FROM t1 WHERE c3 = '2007-05-24';
 
@@ -4928,8 +4967,11 @@ SELECT * FROM t1 WHERE c1 IS NOT NULL ORDER BY c1 DESC LIMIT 2;
 ## Full table scan ##
 --sorted_result
 SELECT * FROM t1;
+#Check after fix MDEV-31730
+--disable_cursor_protocol
 --sorted_result
 SELECT count(*) as total_rows, min(c1) as min_value, max(c1) FROM t1;
+--enable_cursor_protocol
 --sorted_result
 SELECT * FROM t1 WHERE c3 = '2007-05-26';
 
@@ -5002,8 +5044,11 @@ SELECT * FROM t1 WHERE c1 IS NOT NULL ORDER BY c1 DESC LIMIT 2;
 ## Full table scan ##
 --sorted_result
 SELECT * FROM t1;
+#Check after fix MDEV-31730
+--disable_cursor_protocol
 --sorted_result
 SELECT count(*) as total_rows, min(c1) as min_value, max(c1) FROM t1;
+--enable_cursor_protocol
 --sorted_result
 SELECT * FROM t1 WHERE c3 = '1998-12-28';
 
