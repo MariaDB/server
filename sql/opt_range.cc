@@ -8995,7 +8995,8 @@ SEL_ARG *Field::stored_field_make_mm_leaf_bounded_int(RANGE_OPT_PARAM *param,
     DBUG_RETURN(new (param->mem_root) SEL_ARG_IMPOSSIBLE(this));
   longlong item_val= value->val_int();
 
-  if (op == SCALAR_CMP_LT && item_val > 0)
+  if (op == SCALAR_CMP_LT && ((item_val > 0)
+                   || (value->unsigned_flag && (ulonglong)item_val > 0 )))
     op= SCALAR_CMP_LE; // e.g. rewrite (tinyint < 200) to (tinyint <= 127)
   else if (op == SCALAR_CMP_GT && !unsigned_field &&
            !value->unsigned_flag && item_val < 0)
