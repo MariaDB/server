@@ -1377,7 +1377,8 @@ public:
   static Log_event* read_log_event(IO_CACHE* file,
                                    const Format_description_log_event
                                    *description_event,
-                                   my_bool crc_check);
+                                   my_bool crc_check,
+                                   size_t max_allowed_packet= 0);
 
   /**
     Reads an event from a binlog or relay log. Used by the dump thread
@@ -1404,7 +1405,8 @@ public:
    */
   static int read_log_event(IO_CACHE* file, String* packet,
                             const Format_description_log_event *fdle,
-                            enum enum_binlog_checksum_alg checksum_alg_arg);
+                            enum enum_binlog_checksum_alg checksum_alg_arg,
+                            size_t max_allowed_packet= 0);
   /* 
      The value is set by caller of FD constructor and
      Log_event::write_header() for the rest.
