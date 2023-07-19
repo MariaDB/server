@@ -3394,5 +3394,49 @@ INSERT INTO t VALUES (0,0);
 DELETE FROM t WHERE c2<c1;
 DROP TABLE t;
 #
+# MDEV-28835 Assertion `(length % 4) == 0' failed in my_lengthsp_utf32 on INSERT
+#
+SET NAMES latin1,character_set_connection=binary;
+# Binary format, binary result
+SELECT DATE_FORMAT('2004-02-02','%W');
+DATE_FORMAT('2004-02-02','%W')
+Monday
+SELECT HEX(DATE_FORMAT('2004-02-02','%W'));
+HEX(DATE_FORMAT('2004-02-02','%W'))
+4D6F6E646179
+SELECT DATE_FORMAT(TIME'-01:01:01','%h');
+DATE_FORMAT(TIME'-01:01:01','%h')
+-01
+SELECT HEX(DATE_FORMAT(TIME'-01:01:01','%h'));
+HEX(DATE_FORMAT(TIME'-01:01:01','%h'))
+2D3031
+# latin1 format, binary result
+SELECT DATE_FORMAT('2004-02-02',_latin1'%W');
+DATE_FORMAT('2004-02-02',_latin1'%W')
+Monday
+SELECT HEX(DATE_FORMAT('2004-02-02',_latin1'%W'));
+HEX(DATE_FORMAT('2004-02-02',_latin1'%W'))
+4D6F6E646179
+SELECT DATE_FORMAT(TIME'-01:01:01',_latin1'%h');
+DATE_FORMAT(TIME'-01:01:01',_latin1'%h')
+-01
+SELECT HEX(DATE_FORMAT(TIME'-01:01:01',_latin1'%h'));
+HEX(DATE_FORMAT(TIME'-01:01:01',_latin1'%h'))
+2D3031
+# Binary format, latin1 result
+SET NAMES latin1;
+SELECT DATE_FORMAT('2004-02-02',_binary'%W');
+DATE_FORMAT('2004-02-02',_binary'%W')
+Monday
+SELECT HEX(DATE_FORMAT('2004-02-02',_binary'%W'));
+HEX(DATE_FORMAT('2004-02-02',_binary'%W'))
+4D6F6E646179
+SELECT DATE_FORMAT(TIME'-01:01:01',_binary'%h');
+DATE_FORMAT(TIME'-01:01:01',_binary'%h')
+-01
+SELECT HEX(DATE_FORMAT(TIME'-01:01:01',_binary'%h'));
+HEX(DATE_FORMAT(TIME'-01:01:01',_binary'%h'))
+2D3031
+#
 # End of 10.4 tests
 #
