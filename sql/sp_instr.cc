@@ -417,6 +417,27 @@ int sp_instr::exec_core(THD *thd, uint *nextp)
   return 0;
 }
 
+void sp_lex_instr::get_query(String *sql_query) const
+{
+  LEX_CSTRING expr_query= get_expr_query();
+
+  /*
+    the expression string must me initialized in constructor of a derived class
+  */
+  DBUG_ASSERT(expr_query.str != null_clex_str.str &&
+              expr_query.length != null_clex_str.length);
+
+  /*
+    Leave the method in case of empty query string.
+  */
+  if (!expr_query.length)
+    return;
+
+  sql_query->append(C_STRING_WITH_LEN("SELECT "));
+  sql_query->append(expr_query);
+}
+
+
 /*
   sp_instr_stmt class functions
 */

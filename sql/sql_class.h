@@ -8035,5 +8035,21 @@ public:
   }
 };
 
+
+/**
+  Make a new string allocated on THD's mem-root.
+
+  @param thd        thread handler.
+  @param start_ptr  start of the new string.
+  @param end_ptr    end of the new string.
+
+  @return LEX_CSTRING object, containing a pointer to a newly
+  constructed/allocated string, and its length. The data member
+  LEX_CSTRING::str has the value nullptr in case of out-of-memory error.
+*/
+
+LEX_CSTRING make_string(THD *thd, const char *start_ptr,
+                        const char *end_ptr);
+
 #endif /* MYSQL_SERVER */
 #endif /* SQL_CLASS_INCLUDED */
