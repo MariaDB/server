@@ -1363,6 +1363,20 @@ public:
 #endif
 #endif
 
+private:
+  static size_t get_max_packet()
+  {
+    size_t max_packet= ~0UL;
+#if !defined(MYSQL_CLIENT)
+    THD *thd=current_thd;
+    if (thd)
+      max_packet= thd->slave_thread ? slave_max_allowed_packet
+                                    : thd->variables.max_allowed_packet;
+#endif
+    return max_packet;
+  }
+public:
+
   /*
     read_log_event() functions read an event from a binlog or relay
     log; used by SHOW BINLOG EVENTS, the binlog_dump thread on the
@@ -1377,7 +1391,15 @@ public:
   static Log_event* read_log_event(IO_CACHE* file,
                                    const Format_description_log_event
                                    *description_event,
-                                   my_bool crc_check);
+                                   my_bool crc_check,
+                                   size_t max_allowed_packet);
+  static Log_event* read_log_event(IO_CACHE* file,
+                                   const Format_description_log_event
+                                   *description_event,
+                                   my_bool crc_check)
+  {
+    return read_log_event(file, description_event, crc_check, get_max_packet());
+  }
 
   /**
     Reads an event from a binlog or relay log. Used by the dump thread
@@ -1404,7 +1426,16 @@ public:
    */
   static int read_log_event(IO_CACHE* file, String* packet,
                             const Format_description_log_event *fdle,
-                            enum enum_binlog_checksum_alg checksum_alg_arg);
+                            enum enum_binlog_checksum_alg checksum_alg_arg,
+                            size_t max_allowed_packet);
+
+  static int read_log_event(IO_CACHE* file, String* packet,
+                            const Format_description_log_event *fdle,
+                            enum enum_binlog_checksum_alg checksum_alg)
+  {
+    return read_log_event(file, packet, fdle, checksum_alg, get_max_packet());
+  }
+
   /* 
      The value is set by caller of FD constructor and
      Log_event::write_header() for the rest.
