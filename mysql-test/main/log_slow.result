@@ -133,3 +133,54 @@ drop table t;
 #
 # End of 10.3 tests
 #
+#
+# MDEV-31742: incorrect examined rows in case of stored function usage
+#
+CREATE TABLE `tab_MDEV_30820` (
+`ID` int(11) NOT NULL AUTO_INCREMENT,
+`NAME_F` varchar(50) DEFAULT NULL,
+PRIMARY KEY (`ID`)
+);
+CREATE TABLE `tab2` (
+`ID` int(11) NOT NULL AUTO_INCREMENT,
+`TAB1_ID` int(11) DEFAULT NULL,
+PRIMARY KEY (`id`)
+);
+CREATE FUNCTION `get_zero`() RETURNS int(11)
+BEGIN
+RETURN(0) ;
+END
+//
+for i in 1..100 do insert into tab_MDEV_30820 values (i,'qwerty'); end for ; //
+for i in 1..1000 do insert into tab2 values (i,i+300); end for ; //
+SET @old_slow_query_log= @@global.slow_query_log;
+SET @old_log_output= @@global.log_output;
+SET @old_long_query_time= @@long_query_time;
+SET GLOBAL log_output= "TABLE";
+SET GLOBAL slow_query_log= ON;
+SET SESSION slow_query_log=ON;
+SET SESSION long_query_time= 0;
+SELECT 0 as zero, (SELECT ID FROM tab2 where tab2.TAB1_ID =
+tab_MDEV_30820.ID ORDER BY 1 LIMIT 1 ) AS F1 FROM tab_MDEV_30820 ORDER BY 2 DESC LIMIT 2;
+zero	F1
+0	NULL
+0	NULL
+SELECT get_zero() as zero, (SELECT ID FROM tab2 where tab2.TAB1_ID =
+tab_MDEV_30820.ID ORDER BY 1 LIMIT 1) AS F1 FROM tab_MDEV_30820 ORDER BY 2 DESC LIMIT 2;
+zero	F1
+0	NULL
+0	NULL
+# should be the same rows_examined
+SELECT rows_examined FROM mysql.slow_log WHERE sql_text LIKE '%SELECT%tab_MDEV_30820%';
+rows_examined
+100202
+100202
+SET @@long_query_time= @old_long_query_time;
+SET @@global.log_output= @old_log_output;
+SET @@global.slow_query_log= @old_slow_query_log;
+SET SESSION slow_query_log=default;
+drop table tab_MDEV_30820, tab2;
+drop function get_zero;
+#
+# End of 10.4 tests
+#
