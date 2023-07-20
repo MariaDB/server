@@ -60,6 +60,16 @@ void Session_sysvars_tracker::vars_list::copy(vars_list* from, THD *thd)
   from->init();
 }
 
+Session_sysvars_tracker::
+sysvar_node_st *Session_sysvars_tracker::vars_list::search(const sys_var *svar)
+{
+  return reinterpret_cast<sysvar_node_st*>(
+           my_hash_search(&m_registered_sysvars,
+                         reinterpret_cast<const uchar*>(&svar->offset),
+                         sizeof(svar->offset)));
+}
+
+
 /**
   Inserts the variable to be tracked into m_registered_sysvars hash.
 
@@ -559,8 +569,9 @@ uchar *Session_sysvars_tracker::sysvars_get_key(const char *entry,
                                                 size_t *length,
                                                 my_bool not_used __attribute__((unused)))
 {
-  *length= sizeof(sys_var *);
-  return (uchar *) &(((sysvar_node_st *) entry)->m_svar);
+  auto key=&(((sysvar_node_st *) entry)->m_svar->offset);
+  *length= sizeof(*key);
+  return (uchar *) key;
 }
 
 
