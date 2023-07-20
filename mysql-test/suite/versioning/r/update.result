@@ -437,4 +437,18 @@ update t1 set a = 3 where b <= 9;
 update t2 set a = 3 where b <= 9;
 update t1, t2 set t1.a = 3, t2.a = 3 where t1.b <= 10 and t2.b <= 10 and t1.b = t2.b;
 drop tables t1, t2;
+#
+# MDEV-23100 ODKU of non-versioning column inserts history row
+#
+create table t1 (
+x int unique,
+y int without system versioning
+) with system versioning;
+insert into t1 (x, y) values ('1', '1');
+insert into t1 (x, y) values ('1', '2')
+on duplicate key update y = 3;
+select x, y, check_row_ts(row_start, row_end) from t1 for system_time all order by row_end;
+x	y	check_row_ts(row_start, row_end)
+1	3	CURRENT ROW
+drop table t1;
 # End of 10.4 tests

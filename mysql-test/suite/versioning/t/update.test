@@ -373,6 +373,22 @@ update t1, t2 set t1.a = 3, t2.a = 3 where t1.b <= 10 and t2.b <= 10 and t1.b = 
 # cleanup
 drop tables t1, t2;
 
+--echo #
+--echo # MDEV-23100 ODKU of non-versioning column inserts history row
+--echo #
+create table t1 (
+  x int unique,
+  y int without system versioning
+) with system versioning;
+
+insert into t1 (x, y) values ('1', '1');
+insert into t1 (x, y) values ('1', '2')
+  on duplicate key update y = 3;
+
+select x, y, check_row_ts(row_start, row_end) from t1 for system_time all order by row_end;
+
+drop table t1;
+
 --echo # End of 10.4 tests
 
 source suite/versioning/common_finish.inc;
