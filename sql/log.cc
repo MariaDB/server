@@ -7587,7 +7587,7 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
 
         Setting this flag may or may not be seen by the other thread, but we
         are safe in any case: The other thread will set queued_by_other under
-        its LOCK_wait_commit, and we will not check queued_by_other only after
+        its LOCK_wait_commit, and we will not check queued_by_other until after
         we have been woken up.
       */
       wfc->opaque_pointer= orig_entry;
@@ -7684,7 +7684,7 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
     is pointed to by `last` (we do not use NULL to terminate the list).
 
     As we process an entry, any waiters for that entry are added at the end of
-    the list, to be processed in subsequent iterations. The the entry is added
+    the list, to be processed in subsequent iterations. Then the entry is added
     to the group_commit_queue.  This continues until the list is exhausted,
     with all entries ever added eventually processed.
 

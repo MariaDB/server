@@ -786,12 +786,27 @@ static int search_default_file_with_ext(Process_option_func opt_handler,
     if (!my_stat(name,&stat_info,MYF(0)))
       return 1;
     /*
-      Ignore world-writable regular files.
-      This is mainly done to protect us to not read a file created by
-      the mysqld server, but the check is still valid in most context. 
+      Ignore world-writable regular files (exceptions apply).
+      This is mainly done to protect us to not read a file that may be
+      modified by anyone.
+
+      Also check access so that read only mounted (EROFS)
+      or immutable files (EPERM) that are suitable protections.
+
+      The main case we are allowing is a container readonly volume mount
+      from a filesystem that doesn't have unix permissions. This will
+      have a 0777 permission and access will set errno = EROFS.
+
+      Note if a ROFS has a file with permissions 04n6, access sets errno
+      EACCESS, rather the ROFS, so in this case we'll error, even though
+      the ROFS is protecting the file.
+
+      An ideal, race free, implementation would do fstat / fstatvfs / ioctl
+      for permission, read only filesystem, and immutability resprectively.
     */
     if ((stat_info.st_mode & S_IWOTH) &&
-	(stat_info.st_mode & S_IFMT) == S_IFREG)
+	(stat_info.st_mode & S_IFMT) == S_IFREG &&
+	(access(name, W_OK) == 0 || (errno != EROFS && errno != EPERM)))
     {
       fprintf(stderr, "Warning: World-writable config file '%s' is ignored\n",
               name);

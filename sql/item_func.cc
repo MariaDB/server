@@ -2233,6 +2233,16 @@ bool Item_func_int_val::fix_length_and_dec()
 }
 
 
+bool Item_func_int_val::native_op(THD *thd, Native *to)
+{
+  // TODO: turn Item_func_int_val into Item_handled_func eventually.
+  if (type_handler()->mysql_timestamp_type() == MYSQL_TIMESTAMP_TIME)
+    return Time(thd, this).to_native(to, decimals);
+  DBUG_ASSERT(0);
+  return true;
+}
+
+
 longlong Item_func_ceiling::int_op()
 {
   switch (args[0]->result_type()) {
@@ -2658,6 +2668,16 @@ bool Item_func_round::date_op(THD *thd, MYSQL_TIME *to, date_mode_t fuzzydate)
   null_value= !tm->is_valid_datetime() || dec.is_null();
   DBUG_ASSERT(maybe_null || !null_value);
   return null_value;
+}
+
+
+bool Item_func_round::native_op(THD *thd, Native *to)
+{
+  // TODO: turn Item_func_round into Item_handled_func eventually.
+  if (type_handler()->mysql_timestamp_type() == MYSQL_TIMESTAMP_TIME)
+    return Time(thd, this).to_native(to, decimals);
+  DBUG_ASSERT(0);
+  return true;
 }
 
 

@@ -1898,13 +1898,22 @@ int ha_rollback_trans(THD *thd, bool all)
       attempt. Otherwise those following transactions can run too early, and
       possibly cause replication to fail. See comments in retry_event_group().
 
+      (This concerns rollbacks due to temporary errors where the transaction
+      will be retried afterwards. For non-recoverable errors, following
+      transactions will not start but just be skipped as the worker threads
+      perform the error stop).
+
       There were several bugs with this in the past that were very hard to
       track down (MDEV-7458, MDEV-8302). So we add here an assertion for
       rollback without signalling following transactions. And in release
       builds, we explicitly do the signalling before rolling back.
     */
-    DBUG_ASSERT(!(thd->rgi_slave && thd->rgi_slave->did_mark_start_commit));
-    if (thd->rgi_slave && thd->rgi_slave->did_mark_start_commit)
+    DBUG_ASSERT( !(thd->rgi_slave &&
+                   !thd->rgi_slave->worker_error &&
+                   thd->rgi_slave->did_mark_start_commit));
+    if (thd->rgi_slave &&
+        !thd->rgi_slave->worker_error &&
+        thd->rgi_slave->did_mark_start_commit)
       thd->rgi_slave->unmark_start_commit();
   }
 #endif
