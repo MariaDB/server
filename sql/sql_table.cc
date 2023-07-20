@@ -86,7 +86,7 @@ static int copy_data_between_tables(THD *, TABLE *,TABLE *,
                                     List<Create_field> &, bool, uint, ORDER *,
                                     ha_rows *, ha_rows *,
                                     Alter_info::enum_enable_or_disable,
-                                    Alter_table_ctx *, bool);
+                                    Alter_table_ctx *, bool, uint64);
 static int append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
                                    Key *key);
 static int mysql_prepare_create_table(THD *, HA_CREATE_INFO *, Alter_info *,
@@ -11140,7 +11140,7 @@ do_continue:;
                                  alter_info->create_list, ignore,
                                  order_num, order, &copied, &deleted,
                                  alter_info->keys_onoff,
-                                 &alter_ctx, online))
+                                 &alter_ctx, online, start_alter_id))
       goto err_new_table_cleanup;
   }
   else
@@ -11700,7 +11700,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
                          uint order_num, ORDER *order,
                          ha_rows *copied, ha_rows *deleted,
                          Alter_info::enum_enable_or_disable keys_onoff,
-                         Alter_table_ctx *alter_ctx, bool online)
+                         Alter_table_ctx *alter_ctx, bool online,
+                         uint64 start_alter_id)
 {
   int error= 1;
   Copy_field *copy= NULL, *copy_end;
@@ -12111,6 +12112,14 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     thd->lock= NULL;
 
     error= online_alter_read_from_binlog(thd, &rgi, binlog);
+    if (start_alter_id)
+    {
+      DBUG_ASSERT(thd->slave_thread);
+
+      int rpl_error= wait_for_master(thd);
+      if (rpl_error)
+        error= 1;
+    }
 
     // flip() makes reinit_io_cache, so it should be here
     DBUG_EXECUTE_IF("online_alter_small_cache_2",

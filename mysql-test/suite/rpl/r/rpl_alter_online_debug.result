@@ -1,0 +1,39 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+set global slave_parallel_threads=3;
+set global slave_parallel_mode= optimistic;
+connection master;
+#
+# MDEV-31755 Replica's DML event deadlocks wit online alter table
+#
+# Three threads for SA,U,CA
+create table t (id int, a int, primary key (id)) engine=innodb;
+insert into t values (1,10), (2,20);
+set @@session.binlog_alter_two_phase=1;
+set debug_sync= 'alter_table_online_downgraded signal ready wait_for go';
+alter table t add c text default('qqq') after id, algorithm=copy, lock=none;
+connect  con1,localhost,root,,;
+set debug_sync= 'now wait_for ready';
+update t set a = 1;
+set debug_sync= 'now signal go';
+connection master;
+include/save_master_gtid.inc
+connection slave;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+select * from t;
+id	c	a
+1	qqq	1
+2	qqq	1
+connection master;
+drop table t;
+connection slave;
+connection master;
+connection slave;
+include/stop_slave.inc
+set global slave_parallel_threads=0;
+set global slave_parallel_mode=   optimistic;
+include/start_slave.inc
+include/rpl_end.inc
