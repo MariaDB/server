@@ -1,0 +1,27 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+set global slave_parallel_threads=3;
+set global slave_parallel_mode= optimistic;
+connection master;
+create table t (id int, a int, b text, primary key (id));
+insert into t values (1,10,''),(2,20,'');
+set @@session.binlog_alter_two_phase=1;
+set debug_sync= 'alter_table_online_progress signal ready wait_for go';
+alter table t force, algorithm=copy, lock=none;
+connect  con1,localhost,root,,;
+set debug_sync= 'now wait_for ready';
+update t set a = 1;
+set debug_sync= 'now signal go';
+connection master;
+include/save_master_gtid.inc
+connection slave;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+connection master;
+drop table t;
+connection slave;
+include/stop_slave.inc
+include/start_slave.inc
+include/rpl_end.inc
