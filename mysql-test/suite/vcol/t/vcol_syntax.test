@@ -162,3 +162,14 @@ create table t1 (a int , b date as (1 in ('x' ,(database ()) ))) ;
 select b from t1;
 select a from t1 order by 'x' = b;
 drop table t1;
+
+--echo #
+--echo # MDEV-31319 Assertion const_item_cache == true failed in Item_func::fix_fields
+--echo #
+create table t (f1 int, f2 int, fv int generated always as (case user() when 'foo' or 'bar' then f1 else f2 end) virtual);
+select * from t;
+create table tmp as select * from information_schema.tables where table_name = 't';
+select * from t;
+
+# cleanup
+drop table t, tmp;

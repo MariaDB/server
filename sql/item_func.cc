@@ -353,7 +353,10 @@ Item_func::fix_fields(THD *thd, Item **ref)
 	We shouldn't call fix_fields() twice, so check 'fixed' field first
       */
       if ((*arg)->fix_fields_if_needed(thd, arg))
+      {
+        cleanup();
 	return TRUE;				/* purecov: inspected */
+      }
       item= *arg;
 
       if (item->maybe_null)
@@ -369,9 +372,15 @@ Item_func::fix_fields(THD *thd, Item **ref)
     }
   }
   if (check_arguments())
+  {
+    cleanup();
     return true;
+  }
   if (fix_length_and_dec())
+  {
+    cleanup();
     return TRUE;
+  }
   fixed= 1;
   return FALSE;
 }
