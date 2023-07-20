@@ -27,8 +27,6 @@ IF(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
    "None" "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 ENDIF()
 
-PROJECT(MySQL)
-
 # Remove the following comment if you don't want to have striped binaries
 # in RPM's:
 
@@ -49,6 +47,8 @@ ENDIF()
 IF(POLICY CMP0069)
  CMAKE_POLICY(SET CMP0069 NEW)
 ENDIF()
+
+PROJECT(MySQL)
 
 MESSAGE(STATUS "Running cmake version ${CMAKE_VERSION}")
 

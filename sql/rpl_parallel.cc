@@ -2330,9 +2330,7 @@ rpl_parallel::find(uint32 domain_id)
     mysql_cond_init(key_COND_parallel_entry, &e->COND_parallel_entry, NULL);
     if (my_hash_insert(&domain_hash, (uchar *)e))
     {
-      mysql_cond_destroy(&e->COND_parallel_entry);
-      mysql_mutex_destroy(&e->LOCK_parallel_entry);
-      my_free(e);
+      free_rpl_parallel_entry(e);
       return NULL;
     }
   }

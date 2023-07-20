@@ -7322,7 +7322,7 @@ int parse_args(int argc, char **argv)
   if (argc == 1)
     opt_db= *argv;
   if (tty_password)
-    opt_pass= get_tty_password(NullS);          /* purify tested */
+    opt_pass= my_get_tty_password(NullS);          /* purify tested */
   if (debug_info_flag)
     my_end_arg= MY_CHECK_ERROR | MY_GIVE_INFO;
   if (debug_check_flag)
@@ -8998,6 +8998,8 @@ int util_query(MYSQL* org_mysql, const char* query){
           org_mysql->unix_socket);
 
       cur_con->util_mysql= mysql;
+      if (mysql->charset != org_mysql->charset)
+        mysql_set_character_set(mysql, org_mysql->charset->csname);
     }
   }
   else

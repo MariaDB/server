@@ -45,6 +45,9 @@
 #include "ha_sequence.h"
 #include "sql_show.h"
 #include "opt_trace.h"
+#ifdef WITH_WSREP
+#include "wsrep_schema.h"
+#endif
 
 /* For MySQL 5.7 virtual fields */
 #define MYSQL57_GENERATED_FIELD 128
@@ -267,10 +270,14 @@ TABLE_CATEGORY get_table_category(const LEX_CSTRING *db,
 
 #ifdef WITH_WSREP
   if (db->str &&
-      my_strcasecmp(system_charset_info, db->str, "mysql") == 0 &&
-      my_strcasecmp(system_charset_info, name->str, "wsrep_streaming_log") == 0)
+      my_strcasecmp(system_charset_info, db->str, WSREP_SCHEMA) == 0)
   {
-    return TABLE_CATEGORY_INFORMATION;
+    if ((my_strcasecmp(system_charset_info, name->str, WSREP_STREAMING_TABLE) == 0 ||
+         my_strcasecmp(system_charset_info, name->str, WSREP_CLUSTER_TABLE) == 0 ||
+         my_strcasecmp(system_charset_info, name->str, WSREP_MEMBERS_TABLE) == 0))
+    {
+      return TABLE_CATEGORY_INFORMATION;
+    }
   }
 #endif /* WITH_WSREP */
   if (is_infoschema_db(db))

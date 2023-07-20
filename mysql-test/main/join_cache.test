@@ -4207,3 +4207,20 @@ set @@optimizer_switch=@save_optimizer_switch;
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
 set global innodb_stats_persistent_sample_pages=
              @innodb_stats_persistent_sample_pages_save;
+
+--echo #
+--echo # MDEV-31226 Server crash or assertion failure with row size close to
+--echo # join_buffer_size
+--echo #
+
+set @org_optimizer_switch=@@optimizer_switch;
+set @org_join_buffer_size=@@join_buffer_size;
+CREATE TABLE t (f VARCHAR(16384)) ENGINE=MyISAM CHARACTER SET utf8;
+INSERT INTO t VALUES (REPEAT('a',16384)),(REPEAT('b',16384));
+SET OPTIMIZER_SWITCH = 'optimize_join_buffer_size=off';
+SET JOIN_BUFFER_SIZE = 16384;
+explain SELECT length(concat(t1.f,t2.f)) FROM t t1, t t2;
+SELECT length(concat(t1.f,t2.f)) FROM t t1, t t2;
+DROP TABLE t;
+set @@optimizer_switch=@org_optimizer_switch;
+set @@join_buffer_size=@org_join_buffer_size;

@@ -677,6 +677,39 @@ INSERT INTO t1 VALUES (0,0);
 SELECT a FROM t1 WHERE (a,b) in (SELECT @c,@d);
 DROP TABLE t1;
 
+
+--echo #
+--echo # MDEV-30964: MAX_SEL_ARG memory exhaustion is not visible in the optimizer trace
+--echo #
+create table t1 (
+  c1 int,
+  c2 int,
+  c3 int,
+  c4 int,
+  c5 int,
+  c6 int,
+  c7 int,
+  c8 int,
+  key(c1,c2,c3,c4,c5,c6,c7,c8)
+);
+insert into t1 () values (),(),();
+
+explain select *
+from t1
+where
+  (c1 in (1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16) and c2=1) and
+  c3 in (1,2,3,4,5,6,7,8,9,10) and
+  c4 in (1,2,3,4,5,6,7,8,9,10) and
+  c5 in (1,2,3,4,5,6,7,8,9,10) and
+  c6 in (1,2,3,4);
+
+select
+  json_detailed(json_extract(trace, '$**.setup_range_conditions'))
+from
+  information_schema.optimizer_trace;
+
+drop table t1;
+
 --echo #
 --echo # MDEV-31085: multi-update using view with optimizer trace enabled
 --echo #
@@ -751,6 +784,11 @@ select * from
                from t10 left join t11 on t11.col1=t10.col1
                group by grp_id) T on T.grp_id=t1.b;
 
+# Not sure how MDEV-27871 is related but this test uses this reason
+# all over the place:
+#enable after fix MDEV-27871
+--disable_view_protocol
+
 select json_detailed(json_extract(trace, '$**.check_split_materialized')) as JS
 from information_schema.optimizer_trace;
 
@@ -763,6 +801,7 @@ select
   ) as JS
 from information_schema.optimizer_trace;
 
+--enable_view_protocol
 drop table t1,t2,t3,t10,t11;
 set optimizer_trace=DEFAULT;
 

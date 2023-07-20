@@ -1481,7 +1481,7 @@ bool is_lex_native_function(const LEX_CSTRING *name)
 
 bool is_native_function(THD *thd, const LEX_CSTRING *name)
 {
-  if (find_native_function_builder(thd, name))
+  if (native_functions_hash.find(thd, *name))
     return true;
 
   if (is_lex_native_function(name))
@@ -9448,7 +9448,7 @@ Item *LEX::make_item_func_call_native_or_parse_error(THD *thd,
                                                      Lex_ident_cli_st &name,
                                                      List<Item> *args)
 {
-  Create_func *builder= find_native_function_builder(thd, &name);
+  Create_func *builder= native_functions_hash.find(thd, name);
   DBUG_EXECUTE_IF("make_item_func_call_native_simulate_not_found",
                   builder= NULL;);
   if (builder)

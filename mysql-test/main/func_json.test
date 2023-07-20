@@ -665,11 +665,6 @@ SELECT 1 + JSON_VALUE('{"nulltest": null}', '$.nulltest');
 SELECT NULL;
 SELECT JSON_EXTRACT('{"a":null, "b":10, "c":"null"}', '$.a');
 
-
---echo #
---echo # End of 10.3 tests
---echo #
-
 --echo #
 --echo # Start of 10.4 tests
 --echo #
@@ -925,6 +920,16 @@ drop table t200;
 SELECT JSON_LENGTH('{"a":"b"}','$','$', 'foo');
 --error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
 SELECT JSON_LENGTH();
+
+--echo # MDEV-23187: Assorted assertion failures in json_find_path with certain collations
+
+
+SET @old_collation_connection= @@COLLATION_CONNECTION;
+
+SET COLLATION_CONNECTION= ucs2_unicode_ci;
+SELECT JSON_VALUE('["foo"]', '$**[0]') AS f;
+
+SET @@COLLATION_CONNECTION= @old_collation_connection;
 
 --echo #
 --echo # End of 10.4 tests

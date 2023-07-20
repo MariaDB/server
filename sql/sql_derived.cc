@@ -1142,7 +1142,14 @@ bool TABLE_LIST::fill_recursive(THD *thd)
   while (!rc && !with->all_are_stabilized())
   {
     if (with->level > thd->variables.max_recursive_iterations)
+    {
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_QUERY_RESULT_INCOMPLETE,
+                          ER_THD(thd, ER_QUERY_RESULT_INCOMPLETE),
+                          "max_recursive_iterations =",
+                          (ulonglong)thd->variables.max_recursive_iterations);
       break;
+    }
     with->prepare_for_next_iteration();
     rc= unit->exec_recursive();
   }

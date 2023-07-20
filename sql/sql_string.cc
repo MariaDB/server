@@ -1137,22 +1137,28 @@ String_copier::well_formed_copy(CHARSET_INFO *to_cs,
   characters with backslashes as necessary.
   Does not add the enclosing quotes, this is left up to caller.
 */
-#define APPEND(X)   if (append(X)) return 1; else break
+#define APPEND(...)   if (append(__VA_ARGS__)) return 1;
 bool String::append_for_single_quote(const char *st, size_t len)
 {
   const char *end= st+len;
+  int chlen;
   for (; st < end; st++)
   {
-    uchar c= *st;
-    switch (c)
+    switch (*st)
     {
-    case '\\':   APPEND(STRING_WITH_LEN("\\\\"));
-    case '\0':   APPEND(STRING_WITH_LEN("\\0"));
-    case '\'':   APPEND(STRING_WITH_LEN("\\'"));
-    case '\n':   APPEND(STRING_WITH_LEN("\\n"));
-    case '\r':   APPEND(STRING_WITH_LEN("\\r"));
-    case '\032': APPEND(STRING_WITH_LEN("\\Z"));
-    default:     APPEND(c);
+    case '\\':   APPEND(STRING_WITH_LEN("\\\\")); break;
+    case '\0':   APPEND(STRING_WITH_LEN("\\0")); break;
+    case '\'':   APPEND(STRING_WITH_LEN("\\'")); break;
+    case '\n':   APPEND(STRING_WITH_LEN("\\n")); break;
+    case '\r':   APPEND(STRING_WITH_LEN("\\r")); break;
+    case '\032': APPEND(STRING_WITH_LEN("\\Z")); break;
+    default:     if ((chlen=charset()->charlen(st, end)) > 0)
+                 {
+                   APPEND(st, chlen);
+                   st+= chlen-1;
+                 }
+                 else
+                   APPEND(*st);
     }
   }
   return 0;

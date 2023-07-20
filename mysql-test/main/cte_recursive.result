@@ -1214,6 +1214,8 @@ generation	name
 2	Grandma Ann
 2	Grandma Sally
 2	Grandpa Ben
+Warnings:
+Warning	1931	Query execution was interrupted. The query exceeded max_recursive_iterations = 1. The query result may be incomplete
 # query with recursive tables using key access
 alter table folks add primary key (id);
 explain
@@ -2594,6 +2596,8 @@ select * from applied_modules;
 m
 m1
 m2
+Warnings:
+Warning	1931	Query execution was interrupted. The query exceeded max_recursive_iterations = 2. The query result may be incomplete
 drop table value_nodes, module_nodes, module_arguments, module_results;
 #
 # mdev-12519: recursive references in subqueries 

@@ -343,7 +343,7 @@ int main(int argc,char *argv[])
   }
   commands = temp_argv;
   if (tty_password)
-    opt_password = get_tty_password(NullS);
+    opt_password = my_get_tty_password(NullS);
 
   (void) signal(SIGINT,endprog);			/* Here if abort */
   (void) signal(SIGTERM,endprog);		/* Here if abort */
@@ -1132,8 +1132,8 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
       else if (argc == 1)
       {
         /* prompt for password */
-        typed_password= get_tty_password("New password: ");
-        verified= get_tty_password("Confirm new password: ");
+        typed_password= my_get_tty_password("New password: ");
+        verified= my_get_tty_password("Confirm new password: ");
         if (strcmp(typed_password, verified) != 0)
         {
           my_printf_error(0,"Passwords don't match",MYF(ME_BELL));

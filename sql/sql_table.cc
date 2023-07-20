@@ -5546,6 +5546,51 @@ int mysql_create_table_no_lock(THD *thd, const LEX_CSTRING *db,
   return res;
 }
 
+#ifdef WITH_WSREP
+/** Additional sequence checks for Galera cluster.
+
+@param thd    thread handle
+@param seq    sequence definition
+@retval 0     failure
+@retval 1     success
+*/
+bool wsrep_check_sequence(THD* thd, const sequence_definition *seq)
+{
+    enum legacy_db_type db_type;
+    if (thd->lex->create_info.used_fields & HA_CREATE_USED_ENGINE)
+    {
+      db_type= thd->lex->create_info.db_type->db_type;
+    }
+    else
+    {
+      const handlerton *hton= ha_default_handlerton(thd);
+      db_type= hton->db_type;
+    }
+
+    // In Galera cluster we support only InnoDB sequences
+    if (db_type != DB_TYPE_INNODB)
+    {
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+               "Galera cluster does support only InnoDB sequences");
+      return(true);
+    }
+
+    // In Galera cluster it is best to use INCREMENT BY 0 with CACHE
+    // or NOCACHE
+    if (seq &&
+	seq->increment &&
+        seq->cache)
+    {
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+               "In Galera if you use CACHE you should set INCREMENT BY 0"
+	       " to behave correctly in a cluster");
+      return(true);
+    }
+
+    return (false);
+}
+#endif /* WITH_WSREP */
+
 /**
   Implementation of SQLCOM_CREATE_TABLE.
 
@@ -5609,6 +5654,15 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
 
   if (!(thd->variables.option_bits & OPTION_EXPLICIT_DEF_TIMESTAMP))
     promote_first_timestamp_column(&alter_info->create_list);
+
+#ifdef WITH_WSREP
+  if (thd->lex->sql_command == SQLCOM_CREATE_SEQUENCE &&
+      WSREP(thd) && wsrep_thd_is_local_toi(thd))
+  {
+    if (wsrep_check_sequence(thd, create_info->seq_create_info))
+      DBUG_RETURN(true);
+  }
+#endif /* WITH_WSREP */
 
   /* We can abort create table for any table type */
   thd->abort_on_warning= thd->is_strict_mode();
@@ -9472,17 +9526,12 @@ fk_check_column_changes(THD *thd, Alter_info *alter_info,
           ((new_field->flags & NOT_NULL_FLAG) &&
            !(old_field->flags & NOT_NULL_FLAG)))
       {
-        if (!(thd->variables.option_bits & OPTION_NO_FOREIGN_KEY_CHECKS))
-        {
-          /*
-            Column in a FK has changed significantly. Unless
-            foreign_key_checks are off we prohibit this since this
-            means values in this column might be changed by ALTER
-            and thus referential integrity might be broken,
-          */
-          *bad_column_name= column->str;
-          return FK_COLUMN_DATA_CHANGE;
-        }
+        /*
+          Column in a FK has changed significantly and it
+          may break referential intergrity.
+        */
+        *bad_column_name= column->str;
+        return FK_COLUMN_DATA_CHANGE;
       }
     }
     else
@@ -10638,6 +10687,15 @@ do_continue:;
                                            &alter_ctx.table_name));
   }
 #endif
+
+#ifdef WITH_WSREP
+  if (table->s->sequence && WSREP(thd) &&
+      wsrep_thd_is_local_toi(thd))
+  {
+    if (wsrep_check_sequence(thd, create_info->seq_create_info))
+      DBUG_RETURN(TRUE);
+  }
+#endif /* WITH_WSREP */
 
   /*
     Use copy algorithm if:

@@ -6,13 +6,6 @@
 #
 
 --connection node_1
-CALL mtr.add_suppression("SEQUENCES declared without `NOCACHE` will not behave correctly in galera cluster.");
-CALL mtr.add_suppression("WSREP: CREATE TABLE isolation failure");
---connection node_2
-
-CALL mtr.add_suppression("SEQUENCES declared without `NOCACHE` will not behave correctly in galera cluster.");
-
---connection node_1
 CREATE SEQUENCE `seq` start with 1 minvalue 1 maxvalue 1000000 increment by 0 cache 1000 nocycle ENGINE=InnoDB;
 SHOW CREATE SEQUENCE seq;
 
@@ -20,7 +13,7 @@ SHOW CREATE SEQUENCE seq;
 SHOW CREATE SEQUENCE seq;
 
 --connection node_1
-ALTER SEQUENCE seq MAXVALUE = 10000;
+ALTER SEQUENCE seq MAXVALUE = 10000 NOCACHE;
 SHOW CREATE SEQUENCE seq;
 
 --connection node_2
@@ -39,8 +32,9 @@ SHOW CREATE SEQUENCE seq;
 # MDEV-18848 : Galera: 10.4 node crashed with Assertion `client_state.transaction().active()` after altering SEQUENCE table's engine to myisam and back to innodb
 #
 --connection node_1
-CREATE SEQUENCE Seq1_1     START WITH 1     INCREMENT BY 1;
+CREATE SEQUENCE Seq1_1     START WITH 1     INCREMENT BY 1 NOCACHE;
 select NEXT VALUE FOR Seq1_1;
+--error ER_NOT_SUPPORTED_YET
 alter table Seq1_1 engine=myisam;
 select NEXT VALUE FOR Seq1_1;
 alter table Seq1_1 engine=innodb;
@@ -78,23 +72,247 @@ DROP TABLE t2;
 #
 # Case2
 #
+--connection node_2
 SET SESSION AUTOCOMMIT=0;
 SET SESSION wsrep_OSU_method='RSU';
 CREATE TABLE t1(c1 VARCHAR(10));
-INSERT INTO t1 (c1) VALUES('');
 create temporary sequence sq1 NOCACHE engine=innodb;
 create sequence sq2 NOCACHE engine=innodb;
 COMMIT;
+SET SESSION wsrep_OSU_method='TOI';
 SHOW CREATE SEQUENCE sq1;
-SHOW CREATE SEQUENCE sq2;
---connection node_2
---error ER_NO_SUCH_TABLE
-SHOW CREATE SEQUENCE sq1;
---error ER_NO_SUCH_TABLE
 SHOW CREATE SEQUENCE sq2;
 --connection node_1
+--error ER_NO_SUCH_TABLE
+SHOW CREATE SEQUENCE sq1;
+--error ER_NO_SUCH_TABLE
+SHOW CREATE SEQUENCE sq2;
+--connection node_2
 SET SESSION AUTOCOMMIT=1;
 DROP TABLE t1;
 DROP SEQUENCE sq1;
 DROP SEQUENCE sq2;
-SET SESSION wsrep_OSU_method='TOI';
+
+#
+# MDEV-30388 Assertion `!wsrep_has_changes(thd) || (thd->lex->sql_command == SQLCOM_CREATE_TABLE
+# && !thd->is_current_stmt_binlog_format_row()) ||
+# thd->wsrep_cs().transaction().state() == wsrep::transaction::s_aborted' failed
+#
+--connection node_1
+CREATE TABLE t (f INT) engine=innodb;
+LOCK TABLE t WRITE;
+CREATE OR REPLACE SEQUENCE t MAXVALUE=13 INCREMENT BY 1 NOCACHE engine=innodb;
+--error ER_NOT_SUPPORTED_YET
+LOCK TABLE t WRITE;
+INSERT INTO t VALUES (0,0,1,1,1,0,0,0);
+SELECT * from t;
+SELECT NEXTVAL(t);
+UNLOCK TABLES;
+DROP TABLE t;
+
+CREATE SEQUENCE t INCREMENT BY 0 NOCACHE ENGINE=INNODB;
+CREATE TABLE t1(a int not null primary key default nextval(t),
+b int) engine=innodb;
+INSERT INTO t1(b) VALUES (1),(2),(3);
+SELECT * FROM t1;
+
+--connection node_2
+SELECT * FROM t1;
+INSERT INTO t1(b) VALUES (4),(5),(6);
+SELECT * FROM t1;
+
+--connection node_1
+SELECT * FROM t1;
+DROP TABLE t1;
+DROP SEQUENCE t;
+
+#
+# Test Galera SEQUENCE support
+#
+#
+# No MyISAM SEQUENCES
+#
+--error ER_NOT_SUPPORTED_YET
+CREATE SEQUENCE t ENGINE=MYISAM;
+CREATE SEQUENCE t INCREMENT BY 1 NOCACHE ENGINE=INNODB;
+CREATE TABLE t1(a int not null primary key default nextval(t), b int) engine=innodb;
+
+--connection node_2
+--echo # Wait DDL to replicate
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't'
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1'
+--source include/wait_condition.inc
+
+#
+# Below we do not care order of INSERTs we care only that values are unique
+#
+--connection node_1
+SELECT @@auto_increment_increment;
+SELECT @@auto_increment_offset;
+--let $wsrep_sync_wait_orig_1 = `SELECT @@wsrep_sync_wait`
+SET SESSION wsrep_sync_wait=0;
+
+--connection node_2
+SELECT @@auto_increment_increment;
+SELECT @@auto_increment_offset;
+--let $wsrep_sync_wait_orig_2 = `SELECT @@wsrep_sync_wait`
+SET SESSION wsrep_sync_wait=0;
+
+--let $count = 20
+--disable_query_log
+while ($count)
+{
+--connection node_1
+--error 0,ER_LOCK_WAIT_TIMEOUT
+INSERT INTO t1(b) values (1);
+--connection node_2
+--error 0,ER_LOCK_WAIT_TIMEOUT
+INSERT INTO t1(b) values (2);
+--error 0,ER_LOCK_WAIT_TIMEOUT
+INSERT INTO t1(b) values (2);
+--connection node_1
+--error 0,ER_LOCK_WAIT_TIMEOUT
+INSERT INTO t1(b) values (1);
+--dec $count
+}
+--enable_query_log
+
+--connection node_1
+--disable_query_log
+--eval SET SESSION wsrep_sync_wait = $wsrep_sync_wait_orig_1
+--enable_query_log
+
+--connection node_2
+--disable_query_log
+--eval SET SESSION wsrep_sync_wait = $wsrep_sync_wait_orig_2
+--enable_query_log
+
+--connection node_1
+DROP SEQUENCE t;
+DROP TABLE t1;
+CREATE SEQUENCE t INCREMENT BY 0 NOCACHE ENGINE=INNODB;
+DROP SEQUENCE t;
+--error ER_NOT_SUPPORTED_YET
+CREATE SEQUENCE t INCREMENT BY 1 CACHE=20 ENGINE=INNODB;
+
+CREATE SEQUENCE t INCREMENT BY 0 CACHE=20 ENGINE=INNODB;
+CREATE TABLE t1(a int not null primary key default nextval(t), b int) engine=innodb;
+
+--connection node_2
+--echo # Wait DDL to replicate
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't'
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1'
+--source include/wait_condition.inc
+
+#
+# Below we do not care order of INSERTs we care only that values are unique
+#
+--connection node_1
+--let $wsrep_sync_wait_orig_1 = `SELECT @@wsrep_sync_wait`
+SET SESSION wsrep_sync_wait=0;
+
+--connection node_2
+--let $wsrep_sync_wait_orig_2 = `SELECT @@wsrep_sync_wait`
+SET SESSION wsrep_sync_wait=0;
+
+--let $count = 5
+--disable_query_log
+while ($count)
+{
+--connection node_1
+--error 0,ER_LOCK_WAIT_TIMEOUT
+INSERT INTO t1(b) values (1),(2),(3),(4),(5),(6),(7),(8),(9);
+--connection node_2
+--error 0,ER_LOCK_WAIT_TIMEOUT
+INSERT INTO t1(b) values (21),(22),(23),(24),(25),(26),(27),(28),(29);
+--error 0,ER_LOCK_WAIT_TIMEOUT
+INSERT INTO t1(b) values (21),(22),(23),(24),(25),(26),(27),(28),(29);
+--connection node_1
+--error 0,ER_LOCK_WAIT_TIMEOUT
+INSERT INTO t1(b) values (1),(2),(3),(4),(5),(6),(7),(8),(9);
+--dec $count
+}
+--enable_query_log
+
+--connection node_1
+--disable_query_log
+--eval SET SESSION wsrep_sync_wait = $wsrep_sync_wait_orig_1
+--enable_query_log
+
+--connection node_2
+--disable_query_log
+--eval SET SESSION wsrep_sync_wait = $wsrep_sync_wait_orig_2
+--enable_query_log
+
+--connection node_1
+DROP SEQUENCE t;
+DROP TABLE t1;
+
+#
+# Test ALTER table to sequence and ALTER SEQUENCE
+#
+CREATE SEQUENCE t INCREMENT BY 0 CACHE=20 ENGINE=INNODB;
+--error ER_NOT_SUPPORTED_YET
+ALTER TABLE t ENGINE=MYISAM;
+--error ER_NOT_SUPPORTED_YET
+ALTER SEQUENCE t INCREMENT BY 1 CACHE=10;
+ALTER SEQUENCE t INCREMENT BY 1 NOCACHE;
+ALTER SEQUENCE t INCREMENT BY 0 NOCACHE;
+ALTER SEQUENCE t INCREMENT BY 0 CACHE=10;
+DROP SEQUENCE t;
+
+#
+# Test transactions
+#
+CREATE SEQUENCE t INCREMENT BY 0 CACHE=20 ENGINE=INNODB;
+CREATE TABLE t1(a int not null primary key default nextval(t), b int) engine=innodb;
+#
+# ROLLBACK TRX
+#
+BEGIN;
+INSERT INTO t1(b) VALUES (1);
+INSERT INTO t1(b) VALUES (2);
+INSERT INTO t1(b) VALUES (3);
+INSERT INTO t1(b) VALUES (4);
+INSERT INTO t1(a,b) VALUES (2,2);
+--error ER_DUP_ENTRY
+INSERT INTO t1(a,b) VALUES (3,2);
+ROLLBACK;
+SELECT * FROM t1;
+SELECT NEXTVAL(t);
+
+--connection node_2
+SELECT * FROM t1;
+SELECT NEXTVAL(t);
+
+--connection node_1
+DROP TABLE t1;
+DROP SEQUENCE t;
+
+CREATE SEQUENCE t INCREMENT BY 0 CACHE=20 ENGINE=INNODB;
+CREATE TABLE t1(a int not null primary key default nextval(t), b int) engine=innodb;
+#
+# COMMIT TRX
+#
+BEGIN;
+INSERT INTO t1(b) VALUES (1);
+INSERT INTO t1(b) VALUES (2);
+INSERT INTO t1(b) VALUES (3);
+INSERT INTO t1(b) VALUES (4);
+INSERT INTO t1(a,b) VALUES (2,2);
+--error ER_DUP_ENTRY
+INSERT INTO t1(a,b) VALUES (3,2);
+COMMIT;
+
+SELECT * FROM t1;
+SELECT NEXTVAL(t);
+
+--connection node_2
+SELECT * FROM t1;
+SELECT NEXTVAL(t);
+
+--connection node_1
+DROP TABLE t1;
+DROP SEQUENCE t;

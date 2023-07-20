@@ -12,7 +12,7 @@ PSWD=''
 # If these parameters are not set, then the values
 # passed by the server are taken:
 #
-HOST="127.0.0.1"
+HOST="::1"
 PORT=$NODE_MYPORT_1
 #
 # Edit parameters below to specify SSL parameters:

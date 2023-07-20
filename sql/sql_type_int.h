@@ -36,6 +36,12 @@ protected:
 public:
   longlong value() const { return m_value; }
   Longlong(longlong nr) :m_value(nr) { }
+  ulonglong abs()
+  {
+    if (m_value == LONGLONG_MIN) // avoid undefined behavior
+      return ((ulonglong) LONGLONG_MAX) + 1;
+    return m_value < 0 ? -m_value : m_value;
+  }
 };
 
 
@@ -104,6 +110,86 @@ public:
 };
 
 
+class ULonglong
+{
+protected:
+  ulonglong m_value;
+public:
+  ulonglong value() const { return m_value; }
+  explicit ULonglong(ulonglong nr) :m_value(nr) { }
+
+  static bool test_if_sum_overflows_ull(ulonglong arg1, ulonglong arg2)
+  {
+    return ULONGLONG_MAX - arg1 < arg2;
+  }
+
+  Longlong_null operator-() const
+  {
+    if (m_value > (ulonglong) LONGLONG_MAX) // Avoid undefined behaviour
+    {
+      return m_value == (ulonglong) LONGLONG_MAX + 1 ?
+             Longlong_null(LONGLONG_MIN, false) :
+             Longlong_null(0, true);
+    }
+    return Longlong_null(-(longlong) m_value, false);
+  }
+
+  // Convert to Longlong_null with the range check
+  Longlong_null to_longlong_null() const
+  {
+    if (m_value > (ulonglong) LONGLONG_MAX)
+      return Longlong_null(0, true);
+    return Longlong_null((longlong) m_value, false);
+  }
+
+};
+
+
+class ULonglong_null: public ULonglong, public Null_flag
+{
+public:
+  ULonglong_null(ulonglong nr, bool is_null)
+   :ULonglong(nr), Null_flag(is_null)
+  { }
+
+  /*
+    Multiply two ulonglong values.
+
+    Let a = a1 * 2^32 + a0 and b = b1 * 2^32 + b0. Then
+    a * b = (a1 * 2^32 + a0) * (b1 * 2^32 + b0) = a1 * b1 * 2^64 +
+            + (a1 * b0 + a0 * b1) * 2^32 + a0 * b0;
+    We can determine if the above sum overflows the ulonglong range by
+    sequentially checking the following conditions:
+    1. If both a1 and b1 are non-zero.
+    2. Otherwise, if (a1 * b0 + a0 * b1) is greater than ULONG_MAX.
+    3. Otherwise, if (a1 * b0 + a0 * b1) * 2^32 + a0 * b0 is greater than
+    ULONGLONG_MAX.
+  */
+  static ULonglong_null ullmul(ulonglong a, ulonglong b)
+  {
+    ulong a1= (ulong)(a >> 32);
+    ulong b1= (ulong)(b >> 32);
+
+    if (a1 && b1)
+      return ULonglong_null(0, true);
+
+    ulong a0= (ulong)(0xFFFFFFFFUL & a);
+    ulong b0= (ulong)(0xFFFFFFFFUL & b);
+
+    ulonglong res1= (ulonglong) a1 * b0 + (ulonglong) a0 * b1;
+    if (res1 > 0xFFFFFFFFUL)
+      return ULonglong_null(0, true);
+
+    res1= res1 << 32;
+    ulonglong res0= (ulonglong) a0 * b0;
+
+    if (test_if_sum_overflows_ull(res1, res0))
+      return ULonglong_null(0, true);
+    return ULonglong_null(res1 + res0, false);
+  }
+};
+
+
 // A longlong/ulonglong hybrid. Good to store results of val_int().
 class Longlong_hybrid: public Longlong
 {
@@ -132,9 +218,7 @@ public:
   {
     if (m_unsigned)
       return (ulonglong) m_value;
-    if (m_value == LONGLONG_MIN) // avoid undefined behavior
-      return ((ulonglong) LONGLONG_MAX) + 1;
-    return m_value < 0 ? -m_value : m_value;
+    return Longlong(m_value).abs();
   }
   /*
     Convert to an unsigned number:
@@ -152,6 +236,33 @@ public:
   {
     return (uint) to_ulonglong(upper_bound);
   }
+
+
+  Longlong_null val_int_signed() const
+  {
+    if (m_unsigned)
+      return ULonglong((ulonglong) m_value).to_longlong_null();
+    return Longlong_null(m_value, false);
+  }
+
+  Longlong_null val_int_unsigned() const
+  {
+    if (!m_unsigned && m_value < 0)
+      return Longlong_null(0, true);
+    return Longlong_null(m_value, false);
+  }
+
+  /*
+    Return in Item compatible val_int() format:
+    - signed numbers as a straight longlong value
+    - unsigned numbers as a ulonglong value reinterpreted to longlong
+  */
+  Longlong_null val_int(bool want_unsigned_value) const
+  {
+    return want_unsigned_value ? val_int_unsigned() :
+                                 val_int_signed();
+  }
+
   int cmp(const Longlong_hybrid& other) const
   {
     if (m_unsigned == other.m_unsigned)
@@ -198,6 +309,52 @@ public:
    :Longlong_hybrid(nr.value(), unsigned_flag),
     Null_flag(nr.is_null())
   { }
+};
+
+
+/*
+  Stores the absolute value of a number, and the sign.
+  Value range: -ULONGLONG_MAX .. +ULONGLONG_MAX.
+
+  Provides a wider range for negative numbers than Longlong_hybrid does.
+  Usefull to store intermediate results of an expression whose value
+  is further needed to be negated. For example, these methods:
+    - Item_func_mul::int_op()
+    - Item_func_int_div::val_int()
+    - Item_func_mod::int_op()
+  calculate the result of absolute values of the arguments,
+  then optionally negate the result.
+*/
+class ULonglong_hybrid: public ULonglong
+{
+  bool m_neg;
+public:
+  ULonglong_hybrid(ulonglong value, bool neg)
+   :ULonglong(value), m_neg(neg)
+  {
+    if (m_neg && !m_value)
+      m_neg= false;        // convert -0 to +0
+  }
+  Longlong_null val_int_unsigned() const
+  {
+    return m_neg ? Longlong_null(0, true) :
+                   Longlong_null((longlong) m_value, false);
+  }
+  Longlong_null val_int_signed() const
+  {
+    return m_neg ? -ULonglong(m_value) : ULonglong::to_longlong_null();
+  }
+
+  /*
+    Return in Item compatible val_int() format:
+    - signed numbers as a straight longlong value
+    - unsigned numbers as a ulonglong value reinterpreted to longlong
+  */
+  Longlong_null val_int(bool want_unsigned_value) const
+  {
+    return want_unsigned_value ? val_int_unsigned() :
+                                 val_int_signed();
+  }
 };
 
 

@@ -11084,7 +11084,7 @@ get_gtid_list_event(IO_CACHE *cache, Gtid_list_log_event **out_gtid_list)
       if (fdle->start_decryption((Start_encryption_log_event*) ev))
       {
         errormsg= "Could not set up decryption for binlog.";
-        break;
+        typ= UNKNOWN_EVENT; // to cleanup and abort below
       }
     }
     delete ev;

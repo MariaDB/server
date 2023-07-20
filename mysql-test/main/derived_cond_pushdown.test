@@ -3997,7 +3997,7 @@ select
      (select a, sum(b) as s from t2 group by a) as dt,
      t3
    where dt.a=t1.a and t3.a < 3
-  )
+  ) as SUBQ
 from t1 limit 5;
 
 eval explain $q;
