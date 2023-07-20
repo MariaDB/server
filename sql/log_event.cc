@@ -14759,6 +14759,11 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
     return error;
   }
 
+  const bool history_change= m_table->versioned() ?
+    !m_table->vers_end_field()->is_max() : false;
+  TABLE_LIST *tl= m_table->pos_in_table_list;
+  uint8 trg_event_map_save= tl->trg_event_map;
+
   /*
     This is the situation after locating BI:
 
@@ -14816,9 +14821,17 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
     goto err;
   }
 
-  if (m_vers_from_plain && m_table->versioned(VERS_TIMESTAMP))
-    m_table->vers_update_fields();
+  if (m_table->versioned())
+  {
+    if (m_vers_from_plain && m_table->versioned(VERS_TIMESTAMP))
+      m_table->vers_update_fields();
+    if (!history_change && !m_table->vers_end_field()->is_max())
+    {
+      tl->trg_event_map|= trg2bit(TRG_EVENT_DELETE);
+    }
+  }
   error= m_table->file->ha_update_row(m_table->record[1], m_table->record[0]);
+  tl->trg_event_map= trg_event_map_save;
   if (unlikely(error == HA_ERR_RECORD_IS_THE_SAME))
     error= 0;
   if (m_vers_from_plain && m_table->versioned(VERS_TIMESTAMP))
