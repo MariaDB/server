@@ -1,0 +1,46 @@
+--echo #
+--echo # Test that udf created by inserting into mysql_func works as expected
+--echo #
+
+evalp CREATE SERVER s_1 FOREIGN DATA WRAPPER mysql OPTIONS (
+HOST 'localhost',
+DATABASE 'auto_test_local',
+USER 'root',
+PASSWORD '',
+SOCKET '$MASTER_1_MYSOCK'
+    );
+evalp CREATE SERVER s_2_1 FOREIGN DATA WRAPPER mysql OPTIONS (
+HOST 'localhost',
+DATABASE 'auto_test_remote',
+USER 'root',
+PASSWORD '',
+SOCKET '$CHILD2_1_MYSOCK'
+    );
+ 
+--connect (master_1, localhost, root, , , $MASTER_1_MYPORT, $MASTER_1_MYSOCK)
+--connect (child2_1, localhost, root, , , $CHILD2_1_MYPORT, $CHILD2_1_MYSOCK)
+
+--connection child2_1
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+eval CREATE TABLE tbl_a (
+    a INT
+) $CHILD2_1_ENGINE $CHILD2_1_CHARSET;
+insert into tbl_a values (42);
+ 
+--connection master_1
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+eval CREATE TABLE tbl_a (
+    a INT
+) $MASTER_1_ENGINE $MASTER_1_CHARSET COMMENT='table "tbl_a", srv "s_2_1"';
+
+create temporary table results (a int);
+SELECT SPIDER_DIRECT_SQL('select * from tbl_a', 'results', 'srv "s_2_1", database "auto_test_remote"');
+select * from results;
+
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+ 
+--connection child2_1
+DROP DATABASE IF EXISTS auto_test_remote;
