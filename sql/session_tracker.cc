@@ -167,7 +167,7 @@ bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_WRONG_VALUE_FOR_VAR,
-                          "%.*s is not a valid system variable and will"
+                          "%.*s is not a valid system variable and will "
                           "be ignored.", (int)var.length, token);
     }
     else
