@@ -7173,12 +7173,12 @@ uint Rows_log_event::find_key_parts(const KEY *key) const
 
   if (!online_alter)
   {
-    if (m_cols.n_bits >= m_table->s->fields)
+    if (m_cols.n_bits >= m_table->s->fields) // replicated more than slave has
       return key->user_defined_key_parts;
-    if (m_table->s->virtual_fields + m_table->s->stored_fields == 0)
+    if (m_table->s->virtual_fields == 0)
     {
       for (p= 0; p < key->user_defined_key_parts; p++)
-        if (key->key_part[p].fieldnr > m_cols.n_bits)
+        if (key->key_part[p].fieldnr > m_cols.n_bits) // extra
           break;
       return p;
     }
@@ -7244,7 +7244,7 @@ int Rows_log_event::find_key(const rpl_group_info *rgi)
 
     if (tl->m_online_alter_copy_fields ||
         (m_cols.n_bits < m_table->s->fields &&
-         m_table->s->virtual_fields + m_table->s->stored_fields))
+         m_table->s->virtual_fields))
     {
       const uchar *curr_row_end= m_curr_row_end;
       Check_level_instant_set clis(m_table->in_use, CHECK_FIELD_IGNORE);
