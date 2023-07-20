@@ -173,3 +173,15 @@ select * from t;
 
 # cleanup
 drop table t, tmp;
+
+--echo #
+--echo # MDEV-29357 Assertion (fixed) in Item_func_dayname on INSERT
+--echo #
+set sql_mode='';
+create table t (c1 blob ,c2 int,c3 char(10) as (dayname (c2)));
+create trigger tr before insert on t for each row set new.c2=0;
+insert into t values (0, 0, 0);
+insert into t values (1, 1, 1);
+
+drop trigger tr;
+drop table t;

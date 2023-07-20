@@ -216,3 +216,21 @@ Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: 'foo'
 Warning	1292	Truncated incorrect DOUBLE value: 'bar'
 drop table t, tmp;
+#
+# MDEV-29357 Assertion (fixed) in Item_func_dayname on INSERT
+#
+set sql_mode='';
+create table t (c1 blob ,c2 int,c3 char(10) as (dayname (c2)));
+create trigger tr before insert on t for each row set new.c2=0;
+insert into t values (0, 0, 0);
+Warnings:
+Warning	1906	The value specified for generated column 'c3' in table 't' has been ignored
+Warning	1292	Incorrect datetime value: '0' for column `test`.`t`.`c2` at row 1
+Warning	1292	Incorrect datetime value: '0' for column `test`.`t`.`c2` at row 1
+insert into t values (1, 1, 1);
+Warnings:
+Warning	1906	The value specified for generated column 'c3' in table 't' has been ignored
+Warning	1292	Incorrect datetime value: '1' for column `test`.`t`.`c2` at row 1
+Warning	1292	Incorrect datetime value: '0' for column `test`.`t`.`c2` at row 1
+drop trigger tr;
+drop table t;

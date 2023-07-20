@@ -913,7 +913,12 @@ void close_thread_tables(THD *thd)
           !thd->stmt_arena->is_stmt_prepare())
         table->part_info->vers_check_limit(thd);
 #endif
-      table->vcol_cleanup_expr(thd);
+      /*
+        For simple locking we cleanup it here because we don't close thread
+        tables. For prelocking we close it when we do close thread tables.
+      */
+      if (thd->locked_tables_mode != LTM_PRELOCKED)
+        table->vcol_cleanup_expr(thd);
     }
 
     /* Detach MERGE children after every statement. Even under LOCK TABLES. */
