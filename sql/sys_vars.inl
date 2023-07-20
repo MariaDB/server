@@ -1039,7 +1039,7 @@ public:
     option.var_type|= GET_ASK_ADDR;
     option.value= (uchar**)1; // crash me, please
     // fix an offset from global_system_variables to be an offset in KEY_CACHE
-    offset= global_var_ptr() - (uchar*)dflt_key_cache;
+    tracking_id.offset= global_var_ptr() - (uchar*)dflt_key_cache;
     SYSVAR_ASSERT(scope() == GLOBAL);
   }
   bool global_update(THD *thd, set_var *var)
@@ -1070,14 +1070,14 @@ public:
     if (key_cache->in_init)
       return true;
 
-    return keycache_update(thd, key_cache, offset, new_value);
+    return keycache_update(thd, key_cache, tracking_id.offset, new_value);
   }
   const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   {
     KEY_CACHE *key_cache= get_key_cache(base);
     if (!key_cache)
       key_cache= &zero_key_cache;
-    return keycache_var_ptr(key_cache, offset);
+    return keycache_var_ptr(key_cache, tracking_id.offset);
   }
 };
 
@@ -1327,7 +1327,7 @@ class Sys_var_engine_optimizer_cost: public Sys_var_optimizer_cost
     option.var_type|= GET_ASK_ADDR;
     option.value= (uchar**)1; // crash me, please
     // fix an offset from global_system_variables to be an offset in OPTIMIZER_COSTS
-    offset= global_var_ptr() - (uchar*) &default_optimizer_costs;
+    tracking_id.offset= global_var_ptr() - (uchar*) &default_optimizer_costs;
     SYSVAR_ASSERT(scope() == GLOBAL);
   }
   bool global_update(THD *thd, set_var *var)
@@ -1347,7 +1347,7 @@ class Sys_var_engine_optimizer_cost: public Sys_var_optimizer_cost
       mysql_mutex_unlock(&LOCK_optimizer_costs);
       return true;
     }
-    cost_var(optimizer_costs, offset)= new_value / cost_adjust;
+    cost_var(optimizer_costs, tracking_id.offset)= new_value / cost_adjust;
     mysql_mutex_unlock(&LOCK_optimizer_costs);
     return 0;
   }
@@ -1356,7 +1356,7 @@ class Sys_var_engine_optimizer_cost: public Sys_var_optimizer_cost
     OPTIMIZER_COSTS *optimizer_costs= get_optimizer_costs(base);
     if (!optimizer_costs)
       optimizer_costs= &default_optimizer_costs;
-    thd->sys_var_tmp.double_value= cost_var(optimizer_costs, offset);
+    thd->sys_var_tmp.double_value= cost_var(optimizer_costs, tracking_id.offset);
     return tmp_ptr(thd);
   }
 };
@@ -1958,14 +1958,13 @@ public:
 */
 class Sys_var_bit: public Sys_var_typelib
 {
-  ulonglong bitmask;
   bool reverse_semantics;
   void set(uchar *ptr, ulonglong value)
   {
     if ((value != 0) ^ reverse_semantics)
-      (*(ulonglong *)ptr)|= bitmask;
+      (*(ulonglong *)ptr)|= tracking_id.bitmask;
     else
-      (*(ulonglong *)ptr)&= ~bitmask;
+      (*(ulonglong *)ptr)&= ~tracking_id.bitmask;
   }
 public:
   Sys_var_bit(const char *name_arg,
@@ -1983,12 +1982,14 @@ public:
   {
     option.var_type|= GET_BIT;
     reverse_semantics= my_count_bits(bitmask_arg) > 1;
-    bitmask= reverse_semantics ? ~bitmask_arg : bitmask_arg;
-    option.block_size= reverse_semantics ? -(long) bitmask : (long)bitmask;
+    tracking_id.bitmask= reverse_semantics ? ~bitmask_arg : bitmask_arg;
+    option.block_size= reverse_semantics ? -(long) tracking_id.bitmask : (long) tracking_id.bitmask;
     set(global_var_ptr(), def_val);
     SYSVAR_ASSERT(def_val < 2);
     SYSVAR_ASSERT(size == sizeof(ulonglong));
   }
+  const void *tracking_id_key() const override final { return &tracking_id; }
+  size_t tracking_id_key_len() const override final { return sizeof(tracking_id); }
   bool session_update(THD *thd, set_var *var)
   {
     set(session_var_ptr(thd), var->save_result.ulonglong_value);
@@ -2002,14 +2003,14 @@ public:
   void session_save_default(THD *thd, set_var *var)
   {
     var->save_result.ulonglong_value=
-      (reverse_semantics == !(global_var(ulonglong) & bitmask));
+      (reverse_semantics == !(global_var(ulonglong) & tracking_id.bitmask));
   }
   void global_save_default(THD *thd, set_var *var)
   { var->save_result.ulonglong_value= option.def_value; }
 
   uchar *valptr(THD *thd, ulonglong val) const
   {
-    thd->sys_var_tmp.my_bool_value= (reverse_semantics == !(val & bitmask));
+    thd->sys_var_tmp.my_bool_value= (reverse_semantics == !(val & tracking_id.bitmask));
     return (uchar*) &thd->sys_var_tmp.my_bool_value;
   }
   const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
@@ -2548,7 +2549,7 @@ public:
   const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   {
     ulonglong *tmp, res;
-    tmp= (ulonglong*) (((uchar*)&(thd->variables)) + offset);
+    tmp= (ulonglong*) (((uchar*)&(thd->variables)) + tracking_id.offset);
     res= get_master_info_ulonglong_value(thd, master_info_offset);
     *tmp= res;
     return (uchar*) tmp;

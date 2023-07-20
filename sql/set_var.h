@@ -48,6 +48,13 @@ struct sys_var_chain
 int mysql_add_sys_var_chain(sys_var *chain);
 int mysql_del_sys_var_chain(sys_var *chain);
 
+typedef struct
+{
+  ptrdiff_t offset;     //< offset to the value from global_system_variables
+  ulonglong bitmask;    //< bitmask used in Sys_var_bit only, but co-location to
+                        // offset need for the working of the session tracking
+                        // hash.
+} sys_var_tracking_id;
 
 /**
   A class representing one system variable - that is something
@@ -86,7 +93,7 @@ protected:
   int flags;            ///< or'ed flag_enum values
   SHOW_TYPE show_val_type; ///< what value_ptr() returns for sql_show.cc
   PolyLock *guard;      ///< *second* lock that protects the variable
-  ptrdiff_t offset;     ///< offset to the value from global_system_variables
+  sys_var_tracking_id tracking_id;
   on_check_function on_check;
   on_update_function on_update;
   const char *const deprecation_substitute;
@@ -105,6 +112,10 @@ public:
     All the cleanup procedures should be performed here
   */
   virtual void cleanup() {}
+
+  virtual const void *tracking_id_key() const { return &tracking_id.offset; }
+
+  virtual size_t tracking_id_key_len() const { return sizeof(tracking_id.offset); }
   /**
     downcast for sys_var_pluginvar. Returns this if it's an instance
     of sys_var_pluginvar, and 0 otherwise.
@@ -250,14 +261,14 @@ protected:
     for example, for ENUM, that is printed as a string, but stored as a number.
   */
   uchar *session_var_ptr(THD *thd) const
-  { return ((uchar*)&(thd->variables)) + offset; }
+  { return ((uchar*)&(thd->variables)) + tracking_id.offset; }
 
   uchar *global_var_ptr() const
-  { return ((uchar*)&global_system_variables) + offset; }
+  { return ((uchar*)&global_system_variables) + tracking_id.offset; }
 
   void *max_var_ptr()
   {
-    return scope() == SESSION ? (((uchar*)&max_system_variables) + offset) :
+    return scope() == SESSION ? (((uchar*)&max_system_variables) + tracking_id.offset) :
                                 0;
   }
 

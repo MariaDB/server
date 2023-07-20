@@ -153,7 +153,7 @@ sys_var::sys_var(sys_var_chain *chain, const char *name_arg,
                  const char *substitute) :
   next(0), binlog_status(binlog_status_arg), value_origin(COMPILE_TIME),
   flags(flags_arg), show_val_type(show_val_type_arg),
-  guard(lock), offset(off), on_check(on_check_func), on_update(on_update_func),
+  guard(lock), tracking_id{off, 0}, on_check(on_check_func), on_update(on_update_func),
   deprecation_substitute(substitute)
 {
   /*

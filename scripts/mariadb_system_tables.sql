@@ -18,7 +18,7 @@
 -- The system tables of MySQL Server
 --
 
-set sql_mode='';
+set session_track_system_variables='', sql_mode='';
 
 set @orig_storage_engine=@@default_storage_engine;
 set default_storage_engine=Aria;

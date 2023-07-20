@@ -22,6 +22,7 @@
 #include "sql_show.h"
 #include "sql_plugin.h"
 #include "set_var.h"
+#include "hash.h"
 
 void State_tracker::set_changed(THD *thd)
 {
@@ -69,9 +70,19 @@ void Session_sysvars_tracker::vars_list::copy(vars_list* from, THD *thd)
   @retval true  error
 */
 
-bool Session_sysvars_tracker::vars_list::insert(const sys_var *svar)
+bool Session_sysvars_tracker::vars_list::insert(const sys_var *svar, bool changed)
 {
   sysvar_node_st *node;
+  HASH_SEARCH_STATE current;
+  const sysvar_node_st *existing= search_first(svar, &current);
+
+  while (existing && existing->m_svar != svar)
+  {
+    existing= search_next(svar, &current);
+  }
+  if (existing && existing->m_svar == svar)
+    return false; /* ignore duplicates by not inserting them */
+
   if (!(node= (sysvar_node_st *) my_malloc(PSI_INSTRUMENT_ME,
                                            sizeof(sysvar_node_st),
                                            MYF(MY_WME |
@@ -81,17 +92,48 @@ bool Session_sysvars_tracker::vars_list::insert(const sys_var *svar)
 
   node->m_svar= (sys_var *)svar;
   node->test_load= node->m_svar->test_load;
-  node->m_changed= false;
+  node->m_changed= changed;
   if (my_hash_insert(&m_registered_sysvars, (uchar *) node))
   {
     my_free(node);
-    if (!search((sys_var *)svar))
-    {
-      //EOF (error is already reported)
-      return true;
-    }
   }
   return false;
+}
+
+/**
+  searchs for the first key match for the svar, which may not be svar,
+  it could be an alias.
+
+  returns 0 if not found otherwise the node
+*/
+
+Session_sysvars_tracker::sysvar_node_st *
+Session_sysvars_tracker::vars_list::search_first(const sys_var *svar,
+                                                 HASH_SEARCH_STATE *current_record)
+{
+  return reinterpret_cast<sysvar_node_st*>(
+           my_hash_first(&m_registered_sysvars,
+                         reinterpret_cast<const uchar*>(svar->tracking_id_key()),
+                         svar->tracking_id_key_len(),
+                         current_record));
+}
+
+/**
+  searchs for the next key match for the svar, which may not be svar,
+  it could be an alias. The same svar key from search_first is assumed.
+
+  returns 0 if not found otherwise the node
+*/
+
+Session_sysvars_tracker::sysvar_node_st *
+Session_sysvars_tracker::vars_list::search_next(const sys_var *svar,
+                                                HASH_SEARCH_STATE *current_record)
+{
+  return reinterpret_cast<sysvar_node_st*>(
+           my_hash_next(&m_registered_sysvars,
+                        reinterpret_cast<const uchar*>(svar->tracking_id_key()),
+                        svar->tracking_id_key_len(),
+                        current_record));
 }
 
 /**
@@ -160,7 +202,7 @@ bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
     }
     else if ((svar= find_sys_var(thd, var.str, var.length, throw_error)))
     {
-      if (insert(svar) == TRUE)
+      if (insert(svar, false) == TRUE)
         return true;
     }
     else if (throw_error && thd)
@@ -516,8 +558,6 @@ bool Session_sysvars_tracker::store(THD *thd, String *buf)
 
 void Session_sysvars_tracker::mark_as_changed(THD *thd, const sys_var *var)
 {
-  sysvar_node_st *node;
-
   if (!is_enabled())
     return;
 
@@ -538,11 +578,8 @@ void Session_sysvars_tracker::mark_as_changed(THD *thd, const sys_var *var)
     Check if the specified system variable is being tracked, if so
     mark it as changed and also set the class's m_changed flag.
   */
-  if (orig_list.is_enabled() && (node= orig_list.insert_or_search(var)))
-  {
-    node->m_changed= true;
+  if (orig_list.is_enabled() && orig_list.insert_and_mark_all(var))
     set_changed(thd);
-  }
 }
 
 
@@ -560,8 +597,9 @@ uchar *Session_sysvars_tracker::sysvars_get_key(const char *entry,
                                                 size_t *length,
                                                 my_bool not_used __attribute__((unused)))
 {
-  *length= sizeof(sys_var *);
-  return (uchar *) &(((sysvar_node_st *) entry)->m_svar);
+  const sys_var *s= ((sysvar_node_st *) entry)->m_svar;
+  *length= s->tracking_id_key_len();
+  return (uchar *) s->tracking_id_key();
 }
 
 

@@ -146,7 +146,7 @@ class Session_sysvars_tracker: public State_tracker
     {
       my_hash_init(PSI_INSTRUMENT_ME, &m_registered_sysvars, &my_charset_bin,
                    0, 0, 0, (my_hash_get_key) sysvars_get_key, my_free,
-                   HASH_UNIQUE | (mysqld_server_initialized ?  HASH_THREAD_SPECIFIC : 0));
+                   mysqld_server_initialized ?  HASH_THREAD_SPECIFIC : 0);
     }
     void free_hash()
     {
@@ -154,13 +154,9 @@ class Session_sysvars_tracker: public State_tracker
       my_hash_free(&m_registered_sysvars);
     }
 
-    sysvar_node_st *search(const sys_var *svar)
-    {
-      return reinterpret_cast<sysvar_node_st*>(
-               my_hash_search(&m_registered_sysvars,
-                             reinterpret_cast<const uchar*>(&svar),
-                             sizeof(sys_var*)));
-    }
+    sysvar_node_st *search_first(const sys_var *svar, HASH_SEARCH_STATE *current_record);
+
+    sysvar_node_st *search_next(const sys_var *svar, HASH_SEARCH_STATE *current_record);
 
     sysvar_node_st *at(ulong i)
     {
@@ -173,21 +169,31 @@ class Session_sysvars_tracker: public State_tracker
     ~vars_list() { if (my_hash_inited(&m_registered_sysvars)) free_hash(); }
     void deinit() { free_hash(); }
 
-    sysvar_node_st *insert_or_search(const sys_var *svar)
+    int insert_and_mark_all(const sys_var *svar)
     {
-      sysvar_node_st *res= search(svar);
+      HASH_SEARCH_STATE state;
+      sysvar_node_st *res= search_first(svar, &state);
       if (!res)
       {
         if (track_all)
         {
-          insert(svar);
-          return search(svar);
+          insert(svar, true);
+          return true;
         }
+        return false;
       }
-      return res;
+      do
+      {
+        res->m_changed= true;
+        /* if that wasn't us, its an alias, and add ourselves */
+        if (track_all && res->m_svar != svar)
+          insert(svar, true);
+        res= search_next(svar, &state);
+      } while (res);
+      return true;
     }
 
-    bool insert(const sys_var *svar);
+    bool insert(const sys_var *svar, bool changed);
     void reinit();
     void reset();
     inline bool is_enabled()
