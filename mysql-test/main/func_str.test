@@ -2456,6 +2456,13 @@ select aes_decrypt(x'9E6F76516B4DE68FED7A77632FC0913D', 'bar', 'abcdefghabcdefgh
 # but ctr doesn't use padding, so:
 select hex(aes_decrypt(x'9E6F76516B4DE68FED7A77632FC0913D', 'bar', 'abcdefghabcdefgh', 'aes-128-ctr')) `expected garbage`;
 
+set @@block_encryption_mode=default;
+
+--echo #
+--echo # MDEV-31633 Assertion `!item->null_value' failed in Type_handler::Item_send_str
+--echo #
+select aes_encrypt(a,a) is null from (values('a'),(NULL),('b')) x;
+
 --echo #
 --echo # End of 11.2 tests
 --echo #
