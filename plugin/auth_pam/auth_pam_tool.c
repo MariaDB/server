@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
+#include <arpa/inet.h>
 #include <mysql/plugin_auth_common.h>
 
 struct param {
@@ -56,7 +57,13 @@ typedef struct st_mysql_server_auth_info
     A plugin can override it with another name that will be
     used by MySQL for authorization, and shown in CURRENT_USER()
   */
-  char authenticated_as[MYSQL_USERNAME_LENGTH+1]; 
+  char authenticated_as[MYSQL_USERNAME_LENGTH+1];
+
+  /**
+    Set to the name of the connected client host, if it can be resolved, 
+    or to its IP address otherwise.
+  */
+  const char *host_or_ip;
 } MYSQL_SERVER_AUTH_INFO;
 
 
@@ -70,6 +77,7 @@ int main(int argc __attribute__((unused)), char **argv __attribute__((unused)))
   unsigned char field;
   int res;
   char a_buf[MYSQL_USERNAME_LENGTH + 1 + 1024];
+  char ip_addr[INET6_ADDRSTRLEN];
 
   if ((res= setreuid(0, 0)))
     fprintf(stderr, "Got error %d from setreuid()\n", (int) errno);
@@ -93,6 +101,20 @@ int main(int argc __attribute__((unused)), char **argv __attribute__((unused)))
     return -1;
 
   PAM_DEBUG((stderr, "PAM: sandbox auth string [%s].\n", info.auth_string));
+
+  if ((res= read_string(0, ip_addr, INET6_ADDRSTRLEN - 1) < 0))
+    return -1;
+
+  if (ip_addr[0] == '\0')
+  {
+    info.host_or_ip = NULL;
+    PAM_DEBUG((stderr, "PAM: no client IP address.\n"));
+  }
+  else
+  {
+    info.host_or_ip = ip_addr;
+    PAM_DEBUG((stderr, "PAM: client IP address [%s].\n", ip_addr));
+  }
 
   if ((res= pam_auth_base(&param, &info)) != CR_OK)
   {

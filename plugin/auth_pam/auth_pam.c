@@ -21,6 +21,9 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <errno.h>
 #include <spawn.h>
 #include <mysql/plugin_auth.h>
 #include "auth_pam_tool.h"
@@ -46,6 +49,7 @@ static const unsigned int sleep_limit= 5;
 
 static int pam_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 {
+  MYSQL_PLUGIN_VIO_INFO vio_info;
   int p_to_c[2], c_to_p[2]; /* Parent-to-child and child-to-parent pipes. */
   pid_t proc_id;
   int result= CR_ERROR, pkt_len= 0;
@@ -57,6 +61,7 @@ static int pam_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
   size_t plugin_dir_len= strlen(opt_plugin_dir);
   char *const argv[2]= {toolpath, 0};
   int res;
+  const char *ip_str_ptr = NULL;
 
   PAM_DEBUG((stderr, "PAM: opening pipes.\n"));
   if (pipe(p_to_c) < 0 || pipe(c_to_p) < 0)
@@ -107,8 +112,34 @@ static int pam_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
   else
     pkt= NULL;
 
-  PAM_DEBUG((stderr, "PAM: parent sends user data [%s], [%s].\n",
-               info->user_name, info->auth_string));
+  vio->info(vio, &vio_info);
+  if (vio_info.protocol == MYSQL_VIO_TCP)
+  {
+    int err_code;
+    char ip_str[INET6_ADDRSTRLEN];
+    struct sockaddr_storage addr;
+    socklen_t addr_length= sizeof (addr);
+    /* Get sockaddr by socked fd. */
+
+    err_code= getpeername(vio_info.socket,  (struct sockaddr*) &addr, &addr_length);
+
+    if (err_code)
+    {
+      PAM_DEBUG((stderr, "getpeername() gave error: %d", errno));
+    }
+    else
+    {
+      struct sockaddr_in *s4= (struct sockaddr_in *) &addr;
+      struct sockaddr_in6 *s6= (struct sockaddr_in6 *) &addr;
+      ip_str_ptr= inet_ntop(addr.ss_family,
+                            addr.ss_family==AF_INET ? (const void *) &s4->sin_addr : (const void *) &s6->sin6_addr,
+                            ip_str,
+                            sizeof(ip_str));
+    }
+  }
+
+  PAM_DEBUG((stderr, "PAM: parent sends user data [%s], [%s], [%s].\n",
+               info->user_name, info->auth_string, ip_str_ptr ? ip_str_ptr : "No IP"));
 
 #ifndef DBUG_OFF
   field= pam_debug ? 1 : 0;
@@ -123,6 +154,17 @@ static int pam_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
       write_string(p_to_c[1], (const uchar *) info->auth_string,
                                       info->auth_string_length))
     goto error_ret;
+  if (ip_str_ptr)
+  {
+    if (write_string(p_to_c[1], (const uchar *) ip_str_ptr, strlen(ip_str_ptr)))
+      goto error_ret;
+  }
+  else
+  {
+    if (write_string(p_to_c[1], (const uchar *) "\0", 1))
+      goto error_ret;
+  }
+
 
   for (;;)
   {
@@ -235,7 +277,7 @@ maria_declare_plugin(pam)
   0x0200,
   NULL,
   vars,
-  "2.0",
+  "2.1",
   MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
