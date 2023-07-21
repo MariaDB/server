@@ -3551,10 +3551,20 @@ sub run_on_all($$)
   mtr_error("INTERNAL_ERROR: run_on_all");
 }
 
+use Time::localtime;
+
+sub _timestamp {
+  my $tm= localtime();
+  return sprintf("%02d%02d%02d %2d:%02d:%02d",
+		 $tm->year % 100, $tm->mon+1, $tm->mday,
+		 $tm->hour, $tm->min, $tm->sec);
+}
 
 sub mark_log {
   my ($log, $tinfo)= @_;
   my $log_msg= "CURRENT_TEST: $tinfo->{name}\n";
+#  print _timestamp() . " CURRENT_TEST: $tinfo->{name}\n";
+  print STDERR _timestamp() . " CURRENT_TEST: $tinfo->{name}\n";
   pre_write_errorlog($log, $tinfo->{name});
   mtr_tofile($log, $log_msg);
 }
