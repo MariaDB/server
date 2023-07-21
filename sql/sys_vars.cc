@@ -4530,21 +4530,7 @@ Sys_threadpool_dedicated_listener(
 );
 #endif /* HAVE_POOL_OF_THREADS */
 
-/**
-  Can't change the 'next' transaction_isolation if we are already in a
-  transaction.
-*/
-
-static bool check_tx_isolation(sys_var *self, THD *thd, set_var *var)
-{
-  if (var->type == OPT_DEFAULT && thd->in_active_multi_stmt_transaction())
-  {
-    DBUG_ASSERT(thd->in_multi_stmt_transaction_mode());
-    my_error(ER_CANT_SET_IN_TRANSACTION, MYF(0), "TRANSACTION ISOLATION");
-    return TRUE;
-  }
-  return FALSE;
-}
+static bool check_tx_isolation(sys_var *self, THD *thd, set_var *var);
 
 // NO_CMD_LINE - different name of the option
 static Sys_var_tx_isolation Sys_tx_isolation(
@@ -4560,6 +4546,31 @@ static Sys_var_tx_isolation Sys_transaction_isolation(
        tx_isolation_names, DEFAULT(ISO_REPEATABLE_READ),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_tx_isolation));
 
+// for Sys_var_tx_isolation::session_update to handle SHOW_OPT_ONESHOT
+export bool tx_isolation_oneshot(set_var *var)
+{
+  /*
+    @@tx_isolation behaved like the oneshort SET TRANSACTION ISOLATION ..
+    for so long we preserve its behaviour, but not @@transaction_isolation
+  */
+  return (var->type == OPT_DEFAULT && var->var == &Sys_tx_isolation)
+         || (var->type == SHOW_OPT_ONESHOT);
+}
+
+/**
+  Can't change the 'next' transaction_isolation if we are already in a
+  transaction.
+*/
+static bool check_tx_isolation(sys_var *self, THD *thd, set_var *var)
+{
+  if (tx_isolation_oneshot(var) && thd->in_active_multi_stmt_transaction())
+  {
+    DBUG_ASSERT(thd->in_multi_stmt_transaction_mode());
+    my_error(ER_CANT_SET_IN_TRANSACTION, MYF(0), "SET TRANSACTION ISOLATION");
+    return TRUE;
+  }
+  return FALSE;
+}
 
 /**
   Can't change the transaction_read_only state if we are already in a

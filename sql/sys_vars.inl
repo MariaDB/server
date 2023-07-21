@@ -2416,6 +2416,9 @@ public:
 
   where the last statement sets isolation level for the next transaction only
 */
+
+bool tx_isolation_oneshot(set_var *var);
+
 class Sys_var_tx_isolation: public Sys_var_enum
 {
 public:
@@ -2433,9 +2436,15 @@ public:
   {}
   bool session_update(THD *thd, set_var *var) override
   {
-    if (var->type == OPT_SESSION && Sys_var_enum::session_update(thd, var))
-      return TRUE;
-    if (var->type == OPT_DEFAULT || !thd->in_active_multi_stmt_transaction())
+    bool one_shot = tx_isolation_oneshot(var);
+
+    if (!one_shot)
+    {
+      var->type= OPT_SESSION; /* so session tracking can occur on @@transaction_isolation */
+      if (Sys_var_enum::session_update(thd, var))
+        return true;
+    }
+    if (one_shot || !thd->in_active_multi_stmt_transaction())
     {
       thd->tx_isolation= (enum_tx_isolation) var->save_result.ulonglong_value;
 

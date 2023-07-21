@@ -699,3 +699,31 @@ rollback;
 drop table t1;
 
 --echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-31751) SET @@tx_isolation=X behaves like SET TRANSACATION ISOLATION LEVEL X instead of SET SESSSION tx_isolation=X
+--echo #
+
+--echo #
+--echo # @@tx_isolation behaviour is preserved but @@transaction_isolation behaves like a true session.
+--echo #
+
+# from test2
+
+START TRANSACTION;
+--echo # Not allowed inside a transaction
+--error ER_CANT_SET_IN_TRANSACTION
+SET @@tx_isolation='READ-COMMITTED';
+--echo # But these are allowed.
+SET @@transaction_isolation='READ-COMMITTED';
+SET SESSION TRANSACTION READ ONLY;
+SET GLOBAL TRANSACTION READ ONLY;
+COMMIT;
+
+# Reset to defaults
+SET SESSION TRANSACTION READ WRITE;
+SET GLOBAL TRANSACTION READ WRITE;
+
+--echo #
+--echo # end of 12.2 tests
+--echo #

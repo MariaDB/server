@@ -808,6 +808,7 @@ int set_var::check(THD *thd)
   switch (type) {
   case SHOW_OPT_DEFAULT:
   case SHOW_OPT_SESSION:
+  case SHOW_OPT_ONESHOT:
     DBUG_ASSERT(var->scope() != sys_var::GLOBAL);
     if (var->on_check_access_session(thd))
       return -1;

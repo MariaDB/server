@@ -17673,6 +17673,8 @@ isolation_level:
             Item *item= new (thd->mem_root) Item_int(thd, (int32) $3);
             if (unlikely(item == NULL))
               MYSQL_YYABORT;
+            if (lex->option_type == SHOW_OPT_DEFAULT)
+              lex->option_type= SHOW_OPT_ONESHOT;
             set_var *var= (new (thd->mem_root)
                            set_var(thd, lex->option_type,
                                    find_sys_var(thd, "transaction_isolation"),

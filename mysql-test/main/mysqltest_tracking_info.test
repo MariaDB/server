@@ -178,4 +178,32 @@ SET SESSION transaction_isolation='REPEATABLE-READ';
 # no tests yet.
 --disable_session_track_info
 
---echo # End of 11.1 tests
+--echo #
+--echo # MDEV-31751 SET @@tx_isolation=X behaves like SET TRANSACATION ISOLATION LEVEL X instead of SET SESSSION tx_isolation=X
+--echo #
+
+--enable_session_track_info
+SET session_track_system_variables='tx_isolation';
+
+--echo not tracked @@tx_isolation (for compatibility)
+SET @@tx_isolation='SERIALIZABLE';
+
+--echo is tracked
+SET @@transaction_isolation='READ-COMMITTED';
+SET SESSION tx_isolation='READ-UNCOMMITTED';
+SET SESSION transaction_isolation='REPEATABLE-READ';
+
+# Same while tracking transaction_isolation
+SET session_track_system_variables='transaction_isolation';
+
+--echo not tracked @@tx_isolation (for compatibility)
+SET @@tx_isolation='SERIALIZABLE';
+
+--echo is tracked
+SET @@transaction_isolation='READ-COMMITTED';
+SET SESSION tx_isolation='READ-UNCOMMITTED';
+SET SESSION transaction_isolation='REPEATABLE-READ';
+
+--disable_session_track_info
+
+--echo # End of 12.2 tests

@@ -13,7 +13,7 @@ INSERT INTO t1 VALUES (1),(2);
 COMMIT;
 START TRANSACTION;
 SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
-ERROR 25001: TRANSACTION ISOLATION can't be set while a transaction is in progress
+ERROR 25001: SET TRANSACTION ISOLATION can't be set while a transaction is in progress
 COMMIT;
 SET @@autocommit=0;
 COMMIT;
@@ -601,3 +601,23 @@ connection default;
 rollback;
 drop table t1;
 # End of 10.6 tests
+#
+# MDEV-31751) SET @@tx_isolation=X behaves like SET TRANSACATION ISOLATION LEVEL X instead of SET SESSSION tx_isolation=X
+#
+#
+# @@tx_isolation behaviour is preserved but @@transaction_isolation behaves like a true session.
+#
+START TRANSACTION;
+# Not allowed inside a transaction
+SET @@tx_isolation='READ-COMMITTED';
+ERROR 25001: SET TRANSACTION ISOLATION can't be set while a transaction is in progress
+# But these are allowed.
+SET @@transaction_isolation='READ-COMMITTED';
+SET SESSION TRANSACTION READ ONLY;
+SET GLOBAL TRANSACTION READ ONLY;
+COMMIT;
+SET SESSION TRANSACTION READ WRITE;
+SET GLOBAL TRANSACTION READ WRITE;
+#
+# end of 12.2 tests
+#
