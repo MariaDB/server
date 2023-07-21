@@ -3,6 +3,7 @@
 
 --source include/have_64bit.inc
 --source include/not_asan.inc
+--source include/not_msan.inc
 --source include/have_innodb.inc
 
 --echo #
