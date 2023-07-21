@@ -579,3 +579,23 @@ a
 # This statement should work, since last statement committed.
 INSERT INTO t1 VALUES (1);
 DROP TABLE t1;
+#
+# MDEV-31751) SET @@tx_isolation=X behaves like SET TRANSACATION ISOLATION LEVEL X instead of SET SESSSION tx_isolation=X
+#
+#
+# @@tx_isolation behaviour is preserved but @@transaction_isolation behaves like a true session.
+#
+START TRANSACTION;
+# Not allowed inside a transaction
+SET @@tx_isolation='READ-COMMITTED';
+ERROR 25001: Transaction characteristics can't be changed while a transaction is in progress
+# But these are allowed.
+SET @@transaction_isolation='READ-COMMITTED';
+SET SESSION TRANSACTION READ ONLY;
+SET GLOBAL TRANSACTION READ ONLY;
+COMMIT;
+SET SESSION TRANSACTION READ WRITE;
+SET GLOBAL TRANSACTION READ WRITE;
+#
+# end of 11.1 tests
+#
