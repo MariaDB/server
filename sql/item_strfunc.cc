@@ -405,6 +405,7 @@ String *Item_aes_crypt::val_str(String *str2)
         str2->length((uint) aes_length);
         DBUG_ASSERT(collation.collation == &my_charset_bin);
         str2->set_charset(&my_charset_bin);
+        null_value= 0;
         return str2;
       }
     }

@@ -5511,6 +5511,15 @@ NULL
 select hex(aes_decrypt(x'9E6F76516B4DE68FED7A77632FC0913D', 'bar', 'abcdefghabcdefgh', 'aes-128-ctr')) `expected garbage`;
 expected garbage
 98D7BC3151620F384B0A953686AF37C9
+set @@block_encryption_mode=default;
+#
+# MDEV-31633 Assertion `!item->null_value' failed in Type_handler::Item_send_str
+#
+select aes_encrypt(a,a) is null from (values('a'),(NULL),('b')) x;
+aes_encrypt(a,a) is null
+0
+1
+0
 #
 # End of 11.2 tests
 #
