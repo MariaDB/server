@@ -1485,6 +1485,12 @@ public:
     int link_idx,
     ulong sql_type
   );
+  void append_table_list(THD *thd, spider_fields *fields, TABLE_LIST *table,
+                         spider_string *str);
+  void append_table_array(THD *thd, spider_fields *fields, TABLE_LIST **table,
+                          TABLE_LIST **end, spider_string *str);
+  int append_join(THD *thd, spider_fields *fields, List<TABLE_LIST> *tables,
+                  spider_string *str);
   int append_from_and_tables_part(
     spider_fields *fields,
     ulong sql_type
