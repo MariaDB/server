@@ -14959,6 +14959,128 @@ int spider_mbase_handler::reset_union_table_name(
   DBUG_RETURN(0);
 }
 
+/*
+  static char print_buf[2048];
+ */
+
+void spider_mbase_handler::append_table_list(THD *thd,
+                                             spider_fields *fields,
+                                             TABLE_LIST *table,
+                                             spider_string *str)
+{
+  if (table->nested_join)
+  {
+    str->append("(");
+    append_join(thd, fields, &table->nested_join->join_list, str);
+    str->append(")");
+  } else                        /* fixme: assuming normal table for now */
+  {
+    SPIDER_TABLE_HOLDER *table_holder = fields->get_table_holder(table->table);
+    ha_spider *spd = table_holder->spider;
+    spider_mbase_share *db_share =
+      (spider_mbase_share *) spd->share->dbton_share[dbton_id];
+    spider_mbase_handler *dbton_hdl =
+      (spider_mbase_handler *) spd->dbton_handler[dbton_id];
+    db_share->append_table_name(
+      str, spd->conn_link_idx[dbton_hdl->first_link_idx]);
+    str->append(" ");
+    str->append(table_holder->alias->ptr(),
+                /* Don't append the trailing dot */
+                table_holder->alias->length() - 1);
+  }
+}
+
+void spider_mbase_handler::append_table_array(THD *thd,
+                                              spider_fields *fields,
+                                              TABLE_LIST **table,
+                                              TABLE_LIST **end,
+                                              spider_string *str)
+{
+  append_table_list(thd, fields, *table, str);
+
+  for (TABLE_LIST **tbl= table + 1; tbl < end; tbl++)
+  {
+    TABLE_LIST *curr= *tbl;
+
+    /* JOIN_TYPE_OUTER is just a marker unrelated to real join */
+    if (curr->outer_join & (JOIN_TYPE_LEFT|JOIN_TYPE_RIGHT))
+    {
+      /* MySQL converts right to left joins */
+      str->append(STRING_WITH_LEN(" left join "));
+    }
+    else if (curr->straight)
+      str->append(STRING_WITH_LEN(" straight_join "));
+    else if (curr->sj_inner_tables)
+      str->append(STRING_WITH_LEN(" semi join "));
+    else
+      str->append(STRING_WITH_LEN(" join "));
+
+    append_table_list(thd, fields, curr, str);
+    // /* fixme: print on_expr */
+    if (curr->on_expr)
+    {
+      str->append(STRING_WITH_LEN(" on "));
+      spider_db_print_item_type(curr->on_expr, NULL, spider, str, NULL, 0,
+                                dbton_id, TRUE, fields);
+      /*
+        curr->on_expr->print(&str->str, QT_EXPLAIN);
+       */
+      // str->append("");
+    }
+  }
+}
+
+int spider_mbase_handler::append_join(THD *thd, spider_fields *fields,
+                                      List<TABLE_LIST> *tables,
+                                      spider_string *str)
+{
+  /* List is reversed => we should reverse it before using */
+  List_iterator_fast<TABLE_LIST> ti(*tables);
+  TABLE_LIST **table;
+  DBUG_ENTER("spider_print_join");
+
+  size_t tables_to_print= 0;
+
+  for (TABLE_LIST *t= ti++; t ; t= ti++)
+    tables_to_print++;
+  if (tables_to_print == 0)
+  {
+    str->q_append(STRING_WITH_LEN("dual"));
+    DBUG_RETURN(0);
+  }
+  ti.rewind();
+
+  if (!(table= static_cast<TABLE_LIST **>(thd->alloc(sizeof(TABLE_LIST*) *
+                                                     tables_to_print))))
+    DBUG_RETURN(1);                   // out of memory
+
+  TABLE_LIST *tmp, **t= table + (tables_to_print - 1);
+  while ((tmp= ti++))
+    *t--= tmp;
+
+  DBUG_ASSERT(tables->elements >= 1);
+  /*
+    If the first table is a semi-join nest, swap it with something that is
+    not a semi-join nest.
+  */
+  if ((*table)->sj_inner_tables)
+  {
+    TABLE_LIST **end= table + tables_to_print;
+    for (TABLE_LIST **t2= table; t2!=end; t2++)
+    {
+      if (!(*t2)->sj_inner_tables)
+      {
+        tmp= *t2;
+        *t2= *table;
+        *table= tmp;
+        break;
+      }
+    }
+  }
+  append_table_array(thd, fields, table, table + tables_to_print, str);
+  DBUG_RETURN(0);
+}
+
 int spider_mbase_handler::append_from_and_tables_part(
   spider_fields *fields,
   ulong sql_type
@@ -14980,9 +15102,21 @@ int spider_mbase_handler::append_from_and_tables_part(
   fields->set_pos_to_first_table_holder();
   table_holder = fields->get_next_table_holder();
   table_list = table_holder->table->pos_in_table_list;
-  error_num = spider_db_mbase_utility->append_from_and_tables(
-    table_holder->spider, fields, str,
-    table_list, fields->get_table_count());
+  /*
+    spider_string str2(print_buf, strlen(print_buf), system_charset_info);
+    str2.init_calc_mem(248);
+    str2.length(0);
+   */
+  str->append(" from ");
+  table_name_pos = str->length();
+  error_num = append_join(table_holder->spider->wide_handler->trx->thd,
+                          fields,
+                          table_list->select_lex->join_list, str);
+  /*
+    error_num = spider_db_mbase_utility->append_from_and_tables(
+      table_holder->spider, fields, str,
+      table_list, fields->get_table_count());
+   */
   DBUG_RETURN(error_num);
 }
 
