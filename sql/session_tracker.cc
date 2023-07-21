@@ -167,7 +167,7 @@ bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_WRONG_VALUE_FOR_VAR,
-                          "%.*s is not a valid system variable and will"
+                          "%.*s is not a valid system variable and will "
                           "be ignored.", (int)var.length, token);
     }
     else
@@ -221,7 +221,7 @@ bool sysvartrack_validate_value(THD *thd, const char *str, size_t len)
     /* Remove leading/trailing whitespace. */
     trim_whitespace(system_charset_info, &var);
 
-    if (!strcmp(var.str, "*") && !find_sys_var(thd, var.str, var.length))
+    if (strcmp(var.str, "*") && !find_sys_var(thd, var.str, var.length))
       return true;
 
     if (lasts)
@@ -331,9 +331,8 @@ void Session_sysvars_tracker::init(THD *thd)
   mysql_mutex_assert_owner(&LOCK_global_system_variables);
   DBUG_ASSERT(thd->variables.session_track_system_variables ==
               global_system_variables.session_track_system_variables);
-  DBUG_ASSERT(global_system_variables.session_track_system_variables);
   thd->variables.session_track_system_variables=
-    my_strdup(global_system_variables.session_track_system_variables,
+    my_strdup(safe_str(global_system_variables.session_track_system_variables),
               MYF(MY_WME | MY_THREAD_SPECIFIC));
 }
 
@@ -572,6 +571,12 @@ bool sysvartrack_global_update(THD *thd, char *str, size_t len)
 {
   LEX_STRING tmp= { str, len };
   Session_sysvars_tracker::vars_list dummy;
+  DBUG_EXECUTE_IF("dbug_session_tracker_parse_error",
+                  {
+                    my_error(ER_OUTOFMEMORY, MYF(0), 1);
+                    return true;
+                  });
+
   if (!dummy.parse_var_list(thd, tmp, false, system_charset_info))
   {
     dummy.construct_var_list(str, len + 1);

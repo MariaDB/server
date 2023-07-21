@@ -1748,11 +1748,7 @@ public:
   }
   bool fix_length_and_dec();
   String *str_op(String *str) { DBUG_ASSERT(0); return 0; }
-  bool native_op(THD *thd, Native *to)
-  {
-    DBUG_ASSERT(0);
-    return true;
-  }
+  bool native_op(THD *thd, Native *to);
 };
 
 
@@ -1804,11 +1800,7 @@ public:
   my_decimal *decimal_op(my_decimal *);
   bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   bool time_op(THD *thd, MYSQL_TIME *ltime);
-  bool native_op(THD *thd, Native *to)
-  {
-    DBUG_ASSERT(0);
-    return true;
-  }
+  bool native_op(THD *thd, Native *to);
   String *str_op(String *str)
   {
     DBUG_ASSERT(0);

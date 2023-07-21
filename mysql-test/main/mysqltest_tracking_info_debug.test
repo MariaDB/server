@@ -1,0 +1,30 @@
+
+--source include/have_debug.inc
+--source include/no_protocol.inc
+--source include/not_embedded.inc
+
+
+set @save_session_track_system_variables=@@session_track_system_variables;
+
+--echo #
+--echo # MDEV-25237: Assertion `global_system_variables.
+--echo # session_track_system_variables' failed in
+--echo # Session_sysvars_tracker::init | SIGSEGV's in __strlen_avx2 |
+--echo # UBSAN: runtime error: null pointer passed as argument 1, which
+--echo # is declared to never be null in my_strdup
+--echo #
+
+--echo # check that that parser problems do not lead to crash
+SET @old_debug= @@session.debug;
+set debug_dbug="+d,dbug_session_tracker_parse_error";
+--error ER_OUTOFMEMORY
+SET GLOBAL session_track_system_variables='query_cache_size';
+set debug_dbug=@old_debug;
+SELECT @@global.session_track_system_variables;
+
+SET GLOBAL event_scheduler=1;
+
+SET GLOBAL session_track_system_variables=default;
+SET GLOBAL event_scheduler=default;
+
+--echo # End of 10.4 test
