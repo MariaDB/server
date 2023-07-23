@@ -1,0 +1,129 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+
+drop and create databases
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+
+create table select test
+connection master_1;
+DROP TABLE IF EXISTS ta_l;
+CREATE TABLE ta_l (
+a INT,
+b CHAR(1),
+c DATETIME,
+PRIMARY KEY(a)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+INSERT INTO ta_l (a, b, c) VALUES
+(1, 'a', '2018-11-01 10:21:39'),
+(2, 'b', '2015-06-30 23:59:59'),
+(3, 'c', '2013-11-01 01:01:01');
+
+spider pushdown timestamp_diff test
+interval year
+connection master_1;
+select a, b, timestampdiff(year, '2000-01-01 00:00:00', c) from ta_l;
+a	b	timestampdiff(year, '2000-01-01 00:00:00', c)
+1	a	18
+2	b	15
+3	c	13
+interval quarter
+connection master_1;
+select a, b, timestampdiff(quarter, '2000-01-01 00:00:00', c) from ta_l;
+a	b	timestampdiff(quarter, '2000-01-01 00:00:00', c)
+1	a	75
+2	b	61
+3	c	55
+interval month
+connection master_1;
+select a, b, timestampdiff(month, '2000-01-01 00:00:00', c) from ta_l;
+a	b	timestampdiff(month, '2000-01-01 00:00:00', c)
+1	a	226
+2	b	185
+3	c	166
+interval week
+connection master_1;
+select a, b, timestampdiff(week, '2000-01-01 00:00:00', c) from ta_l;
+a	b	timestampdiff(week, '2000-01-01 00:00:00', c)
+1	a	982
+2	b	808
+3	c	721
+interval day
+connection master_1;
+select a, b, timestampdiff(day, '2000-01-01 00:00:00', c) from ta_l;
+a	b	timestampdiff(day, '2000-01-01 00:00:00', c)
+1	a	6879
+2	b	5659
+3	c	5053
+internal hour
+connection master_1;
+select a, b, timestampdiff(hour, '2000-01-01 00:00:00', c) from ta_l;
+a	b	timestampdiff(hour, '2000-01-01 00:00:00', c)
+1	a	165106
+2	b	135839
+3	c	121273
+internal minute
+connection master_1;
+select a, b, timestampdiff(minute, '2000-01-01 00:00:00', c) from ta_l;
+a	b	timestampdiff(minute, '2000-01-01 00:00:00', c)
+1	a	9906381
+2	b	8150399
+3	c	7276381
+internal second
+connection master_1;
+select a, b, timestampdiff(second, '2000-01-01 00:00:00', c) from ta_l;
+a	b	timestampdiff(second, '2000-01-01 00:00:00', c)
+1	a	594382899
+2	b	489023999
+3	c	436582861
+internal microsecond
+connection master_1;
+select a, b, timestampdiff(microsecond, '2000-01-01 00:00:00', c) from ta_l;
+a	b	timestampdiff(microsecond, '2000-01-01 00:00:00', c)
+1	a	594382899000000
+2	b	489023999000000
+3	c	436582861000000
+connection child2_1;
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%timestampdiff%';
+argument
+select t0.`a` `a`,t0.`b` `b`,timestampdiff(year,_latin1'2000-01-01 00:00:00',t0.`c`) `timestampdiff(year, '2000-01-01 00:00:00', c)` from `auto_test_remote`.`ta_r` t0
+select t0.`a` `a`,t0.`b` `b`,timestampdiff(quarter,_latin1'2000-01-01 00:00:00',t0.`c`) `timestampdiff(quarter, '2000-01-01 00:00:00', c)` from `auto_test_remote`.`ta_r` t0
+select t0.`a` `a`,t0.`b` `b`,timestampdiff(month,_latin1'2000-01-01 00:00:00',t0.`c`) `timestampdiff(month, '2000-01-01 00:00:00', c)` from `auto_test_remote`.`ta_r` t0
+select t0.`a` `a`,t0.`b` `b`,timestampdiff(week,_latin1'2000-01-01 00:00:00',t0.`c`) `timestampdiff(week, '2000-01-01 00:00:00', c)` from `auto_test_remote`.`ta_r` t0
+select t0.`a` `a`,t0.`b` `b`,timestampdiff(day,_latin1'2000-01-01 00:00:00',t0.`c`) `timestampdiff(day, '2000-01-01 00:00:00', c)` from `auto_test_remote`.`ta_r` t0
+select t0.`a` `a`,t0.`b` `b`,timestampdiff(hour,_latin1'2000-01-01 00:00:00',t0.`c`) `timestampdiff(hour, '2000-01-01 00:00:00', c)` from `auto_test_remote`.`ta_r` t0
+select t0.`a` `a`,t0.`b` `b`,timestampdiff(minute,_latin1'2000-01-01 00:00:00',t0.`c`) `timestampdiff(minute, '2000-01-01 00:00:00', c)` from `auto_test_remote`.`ta_r` t0
+select t0.`a` `a`,t0.`b` `b`,timestampdiff(second,_latin1'2000-01-01 00:00:00',t0.`c`) `timestampdiff(second, '2000-01-01 00:00:00', c)` from `auto_test_remote`.`ta_r` t0
+select t0.`a` `a`,t0.`b` `b`,timestampdiff(microsecond,_latin1'2000-01-01 00:00:00',t0.`c`) `timestampdiff(microsecond, '2000-01-01 00:00:00', c)` from `auto_test_remote`.`ta_r` t0
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%timestampdiff%'
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+SET GLOBAL log_output = @old_log_output;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+
+end of test
