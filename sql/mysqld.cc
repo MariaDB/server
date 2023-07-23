@@ -9239,6 +9239,7 @@ PSI_stage_info stage_waiting_for_work_from_sql_thread= { 0, "Waiting for work fr
 PSI_stage_info stage_waiting_for_prior_transaction_to_commit= { 0, "Waiting for prior transaction to commit", 0};
 PSI_stage_info stage_waiting_for_prior_transaction_to_start_commit= { 0, "Waiting for prior transaction to start commit", 0};
 PSI_stage_info stage_waiting_for_room_in_worker_thread= { 0, "Waiting for room in worker thread event queue", 0};
+PSI_stage_info stage_waiting_for_worker_stop= { 0, "Waiting for worker thread to stop", 0};
 PSI_stage_info stage_waiting_for_workers_idle= { 0, "Waiting for worker threads to be idle", 0};
 PSI_stage_info stage_waiting_for_ftwrl= { 0, "Waiting due to global read lock", 0};
 PSI_stage_info stage_waiting_for_ftwrl_threads_to_pause= { 0, "Waiting for worker threads to pause for global read lock", 0};

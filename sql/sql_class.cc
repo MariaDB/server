@@ -6223,6 +6223,10 @@ void start_new_trans::restore_old_transaction()
      than one engine is involved and at least one engine is
      self-logging.
 
+  8. Parallel slave has found being stopped while the current transaction
+     is going to modify a slave's non-transactional table which
+     is transactional on master.
+
   For each error case above, the statement is prevented from being
   logged, we report an error, and roll back the statement.  For
   warnings, we set the thd->binlog_flags variable: the warning will be
@@ -6234,7 +6238,7 @@ void start_new_trans::restore_old_transaction()
   @param[in] tables Tables involved in the query
 
   @retval 0 No error; statement can be logged.
-  @retval -1 One of the error conditions above applies (1, 2, 4, 5, or 6).
+  @retval -1 One of the error conditions above applies (1, 2, 4, 5, or 6 or 8).
 */
 
 int THD::decide_logging_format(TABLE_LIST *tables)
@@ -6464,6 +6468,36 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         else
           lex->set_stmt_accessed_table(trans ? LEX::STMT_WRITES_TRANS_TABLE :
                                                LEX::STMT_WRITES_NON_TRANS_TABLE);
+
+#ifndef EMBEDDED_LIBRARY
+        if (rgi_slave && rgi_slave->is_parallel_exec &&
+            likely(rgi_slave->gtid_ev_flags2 &
+                   Gtid_log_event::FL_TRANSACTIONAL) &&
+            unlikely(!trans) &&
+            rgi_slave->parallel_entry->unsafe_rollback_marker_sub_id.load(
+                std::memory_order_relaxed) < rgi_slave->gtid_sub_id)
+        {
+          DBUG_ASSERT(!transaction->all.modified_non_trans_table);
+
+          // slave altered a transactional engine to non-transactional
+          struct rpl_parallel_entry *e= rgi_slave->parallel_entry;
+
+          mysql_mutex_lock(&e->LOCK_parallel_entry);
+          if (!e->force_abort)
+          {
+            e->unsafe_rollback_marker_sub_id=
+              std::max(rgi_slave->gtid_sub_id, e->unsafe_rollback_marker_sub_id.
+                       load(std::memory_order_relaxed));
+          }
+          else
+          {
+            // todo: issue a warning/errror
+            mysql_mutex_unlock(&e->LOCK_parallel_entry);
+            DBUG_RETURN(-1);
+          }
+          mysql_mutex_unlock(&e->LOCK_parallel_entry);
+        }
+#endif
 
         flags_write_all_set &= flags;
         flags_write_some_set |= flags;
@@ -7976,7 +8010,7 @@ wait_for_commit::register_wait_for_prior_commit(wait_for_commit *waitee)
 */
 
 int
-wait_for_commit::wait_for_prior_commit2(THD *thd)
+wait_for_commit::wait_for_prior_commit2(THD *thd, bool force_wait)
 {
   PSI_stage_info old_stage;
   wait_for_commit *loc_waitee;
@@ -8001,9 +8035,25 @@ wait_for_commit::wait_for_prior_commit2(THD *thd)
                   &stage_waiting_for_prior_transaction_to_commit,
                   &old_stage);
   while ((loc_waitee= this->waitee.load(std::memory_order_relaxed)) &&
-         likely(!thd->check_killed(1)))
+         (likely(!thd->check_killed(1)) || force_wait))
     mysql_cond_wait(&COND_wait_commit, &LOCK_wait_commit);
-  if (!loc_waitee)
+
+  /*
+    If this worker has been killed prior to this wait, e.g. in do_gco_wait(),
+    then it should not perform thread cleanup if there are threads which
+    have yet to commit. This is to prevent the cleanup of resources that
+    the prior RGI may need, e.g. its GCO. This is achieved by skipping
+    the unregistration of the waitee, such that each subsequent call to
+    wait_for_prior_commit() will exit early (while maintaining the
+    dependence), thus allowing the final call to
+    thd->wait_for_prior_commit() within finish_event_group() to wait.
+  */
+  if (!loc_waitee
+#ifndef EMBEDDED_LIBRARY
+      || (thd->rgi_slave && (thd->rgi_slave->worker_error &&
+                             !thd->rgi_slave->did_mark_start_commit))
+#endif
+  )
   {
     if (wakeup_error)
       my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
