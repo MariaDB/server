@@ -1997,27 +1997,27 @@ MDL_context::find_ticket_using_hash(MDL_request *mdl_request,
                t->m_duration != MDL_EXPLICIT;
       };
 
-  MDL_ticket *ret_value= NULL;
+  MDL_ticket *success= NULL;
 
   if (mdl_request->duration != MDL_EXPLICIT)
   {
-    ret_value=
+    success=
         ticket_hash.find(&mdl_request->key, ticket_fits_with_transaction);
-    if (ret_value)
+    if (success)
     {
       goto ret_not_null_value;
     }
   }
 
-  ret_value= ticket_hash.find(&mdl_request->key, ticket_fits);
-  if (ret_value)
+  success= ticket_hash.find(&mdl_request->key, ticket_fits);
+  if (success)
     goto ret_not_null_value;
 
   return NULL;
 
 ret_not_null_value:
-  *result_duration= ret_value->m_duration;
-  return ret_value;
+  *result_duration= success->m_duration;
+  return success;
 }
 
 
@@ -2172,7 +2172,7 @@ MDL_context::try_acquire_lock_impl(MDL_request *mdl_request,
 
     mysql_prlock_unlock(&lock->m_rwlock);
 
-    ticket_hash.insert(ticket); // TODO error handling
+    ticket_hash.insert(ticket);
     m_tickets[mdl_request->duration].push_front(ticket);
 
     mdl_request->ticket= ticket;
@@ -2498,7 +2498,7 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
   DBUG_ASSERT(wait_status == MDL_wait::GRANTED);
 
   m_tickets[mdl_request->duration].push_front(ticket);
-  ticket_hash.insert(ticket); // TODO error handling
+  ticket_hash.insert(ticket);
   mdl_request->ticket= ticket;
 
   mysql_mdl_set_status(ticket->m_psi, MDL_ticket::GRANTED);
@@ -2660,7 +2660,10 @@ MDL_context::upgrade_shared_lock(MDL_ticket *mdl_ticket,
 
   if (is_new_ticket)
   {
-    ticket_hash.erase(mdl_xlock_request.ticket);
+    bool success= ticket_hash.erase(mdl_xlock_request.ticket);
+    DBUG_ASSERT(success);
+    DBUG_ASSERT(ticket_hash.find(mdl_xlock_request.ticket) == NULL);
+
     m_tickets[MDL_TRANSACTION].remove(mdl_xlock_request.ticket);
     MDL_ticket::destroy(mdl_xlock_request.ticket);
   }

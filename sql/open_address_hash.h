@@ -5,7 +5,7 @@
 
 
 
-template <typename trait, typename key_trait> class open_address_hash
+template <typename key_trait, typename trait> class open_address_hash
 {
 public:
   using T= typename trait::elem_type;

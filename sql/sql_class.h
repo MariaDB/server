@@ -2735,7 +2735,7 @@ public:
   */
   mutable mysql_mutex_t LOCK_thd_kill;
 
-  open_address_hash<table_trait, table_key> pr_table_hash;
+  open_address_hash<table_key, hash_trait<TABLE_LIST, TABLE_LIST*>> pr_table_hash;
 
   /* all prepared statements and cursors of this connection */
   Statement_map stmt_map;

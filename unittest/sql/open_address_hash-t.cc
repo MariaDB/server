@@ -39,7 +39,7 @@ struct test_value_trait: public pointer_trait<uint32>
   }
 };
 
-open_address_hash<test_value_trait, test_key_trait> hashie;
+open_address_hash<test_key_trait, test_value_trait> hashie;
 
 uint32 data[4][10]= {
         {0,1,2,3,4,5,6,7,8,9,},

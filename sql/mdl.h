@@ -910,6 +910,31 @@ public:
   static my_hash_value_type get_hash_value_from_key(const MDL_key *key) { return key->tc_hash_value(); }
 };
 
+template <typename T, typename K> class hash_trait
+{
+public:
+  using elem_type= T *;
+  using find_type= K;
+  using erase_type= T *;
+  static bool is_equal(const elem_type &lhs, const elem_type rhs)
+  {
+    return lhs == rhs;
+  }
+  static bool is_equal(const elem_type &lhs, const K &rhs)
+  {
+    return lhs->get_key()->is_equal(rhs.mdl_key) &&
+           lhs->has_stronger_or_equal_type(rhs.type);
+  }
+
+  static bool is_empty(const elem_type &el) { return el == nullptr; }
+  static void set_null(elem_type &el) { el= nullptr; }
+
+  static my_hash_value_type get_hash_value(T *t)
+  {
+    return t->get_key()->tc_hash_value();
+  }
+};
+
 /**
   Context of the owner of metadata locks. I.e. each server
   connection has such a context.
@@ -1113,7 +1138,7 @@ private:
                              MDL_ticket **out_ticket);
   bool fix_pins();
 
-  open_address_hash<ticket_trait, ticket_key> ticket_hash;
+  open_address_hash<ticket_key, hash_trait<MDL_ticket, key_type_pair>> ticket_hash;
 
 public:
   THD *get_thd() const { return m_owner->get_thd(); }
