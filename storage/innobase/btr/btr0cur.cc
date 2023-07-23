@@ -2190,15 +2190,17 @@ btr_cur_ins_lock_and_undo(
 			wsrep high priority threads. To avoid this
 			GAP-locking we mark that this transaction
 			is using unique key scan here. */
-			if ((type & (DICT_CLUSTERED | DICT_UNIQUE)) == DICT_UNIQUE
-			    && trx->is_wsrep()
-			    && wsrep_thd_is_BF(trx->mysql_thd, false)) {
-				trx->wsrep = 3;
+			if ((type & (DICT_CLUSTERED | DICT_UNIQUE)) == DICT_UNIQUE) {
+				trx->wsrep_begin_UK_scan();
 			}
 #endif /* WITH_WSREP */
-			if (dberr_t err = lock_rec_insert_check_and_lock(
-				    rec, btr_cur_get_block(cursor),
-				    index, thr, mtr, inherit)) {
+			dberr_t err = lock_rec_insert_check_and_lock(
+				rec, btr_cur_get_block(cursor),
+				index, thr, mtr, inherit);
+#ifdef WITH_WSREP
+			trx->wsrep_end_UK_scan();
+#endif /* WITH_WSREP */
+			if (err) {
 				return err;
 			}
 		}

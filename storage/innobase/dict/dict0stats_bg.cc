@@ -170,9 +170,8 @@ void dict_stats_update_if_needed_func(dict_table_t *table)
 			generated row locks and allow BF thread
 			lock waits to be enqueued at head of waiting
 			queue. */
-			if (trx.is_wsrep()
-			    && !wsrep_thd_is_applying(trx.mysql_thd)
-			    && wsrep_thd_is_BF(trx.mysql_thd, 0)) {
+			if (trx.is_wsrep_BF()
+			    && !wsrep_thd_is_applying(trx.mysql_thd)) {
 				WSREP_DEBUG("Avoiding background statistics"
 					    " calculation for table %s.",
 					table->name.m_name);

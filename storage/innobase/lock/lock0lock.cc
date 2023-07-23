@@ -518,8 +518,8 @@ static void wsrep_assert_no_bf_bf_wait(const lock_t *lock, const trx_t *trx)
 
 	if (!trx->is_wsrep() || !lock_trx->is_wsrep())
 		return;
-	if (UNIV_LIKELY(!wsrep_thd_is_BF(trx->mysql_thd, FALSE))
-	    || UNIV_LIKELY(!wsrep_thd_is_BF(lock_trx->mysql_thd, FALSE)))
+	if (UNIV_LIKELY(!trx->is_wsrep_BF())
+	    || UNIV_LIKELY(!lock_trx->is_wsrep_BF()))
 		return;
 
 	ut_ad(trx->state == TRX_STATE_ACTIVE);
@@ -577,7 +577,7 @@ ATTRIBUTE_NOINLINE static bool wsrep_is_BF_lock_timeout(const trx_t &trx)
   ut_ad(trx.is_wsrep());
 
   if (trx.error_state == DB_DEADLOCK || !srv_monitor_timer ||
-      !wsrep_thd_is_BF(trx.mysql_thd, false))
+      !trx.is_wsrep_BF())
     return false;
 
   ib::info() << "WSREP: BF lock wait long for trx:" << ib::hex(trx.id)
@@ -700,7 +700,7 @@ lock_rec_has_to_wait(
 	ordering of these transactions is already decided and
 	conflicting transaction will be later replayed. */
 	if (trx->is_wsrep_UK_scan()
-	    && wsrep_thd_is_BF(lock2->trx->mysql_thd, false)) {
+	    && lock2->trx->is_wsrep_BF()) {
 		return false;
 	}
 
@@ -934,7 +934,7 @@ ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
 static void lock_wait_wsrep(trx_t *trx)
 {
   DBUG_ASSERT(wsrep_on(trx->mysql_thd));
-  if (!wsrep_thd_is_BF(trx->mysql_thd, false))
+  if (!trx->is_wsrep_BF())
     return;
 
   std::set<trx_t*> victims;
@@ -958,7 +958,7 @@ func_exit:
          lock= UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock))
       /* if victim has also BF status, but has earlier seqno, we have to wait */
       if (lock->trx != trx &&
-          !(wsrep_thd_is_BF(lock->trx->mysql_thd, false) &&
+          !(lock->trx->is_wsrep_BF() &&
             wsrep_thd_order_before(lock->trx->mysql_thd, trx->mysql_thd)))
       {
         victims.emplace(lock->trx);
@@ -978,7 +978,7 @@ func_exit:
       do
         /* if victim has also BF status, but has earlier seqno, we have to wait */
         if (lock->trx != trx &&
-            !(wsrep_thd_is_BF(lock->trx->mysql_thd, false) &&
+            !(lock->trx->is_wsrep_BF() &&
               wsrep_thd_order_before(lock->trx->mysql_thd, trx->mysql_thd)))
         {
           victims.emplace(lock->trx);
@@ -1398,8 +1398,8 @@ static void lock_rec_add_to_queue(unsigned type_mode, hash_cell_t &cell,
 		if (UNIV_LIKELY_NULL(other_lock) && trx->is_wsrep()) {
 			/* Only BF transaction may be granted lock
 			before other conflicting lock request. */
-			if (!wsrep_thd_is_BF(trx->mysql_thd, FALSE)
-			    && !wsrep_thd_is_BF(other_lock->trx->mysql_thd, FALSE)) {
+			if (!trx->is_wsrep_BF()
+			    && !other_lock->trx->is_wsrep_BF()) {
 				/* If it is not BF, this case is a bug. */
 				wsrep_report_bf_lock_wait(trx->mysql_thd, trx->id);
 				wsrep_report_bf_lock_wait(other_lock->trx->mysql_thd, other_lock->trx->id);
@@ -4828,8 +4828,8 @@ func_exit:
 				/* Only BF transaction may be granted
 				lock before other conflicting lock
 				request. */
-				if (!wsrep_thd_is_BF(lock->trx->mysql_thd, FALSE)
-				    && !wsrep_thd_is_BF(other_lock->trx->mysql_thd, FALSE)) {
+				if (!lock->trx->is_wsrep_BF()
+				    && !other_lock->trx->is_wsrep_BF()) {
 					/* If no BF, this case is a bug. */
 					wsrep_report_bf_lock_wait(lock->trx->mysql_thd, lock->trx->id);
 					wsrep_report_bf_lock_wait(other_lock->trx->mysql_thd, other_lock->trx->id);
@@ -5438,8 +5438,7 @@ lock_sec_rec_modify_check_and_lock(
 	there is a probability for lock conflicts between two wsrep
 	high priority threads. To avoid this GAP-locking we mark that
 	this transaction is using unique key scan here. */
-	if (trx->is_wsrep() && wsrep_thd_is_BF(trx->mysql_thd, false))
-		trx->wsrep = 3;
+	trx->wsrep_begin_UK_scan();
 #endif /* WITH_WSREP */
 
 	/* Another transaction cannot have an implicit lock on the record,
@@ -5449,9 +5448,8 @@ lock_sec_rec_modify_check_and_lock(
 
 	err = lock_rec_lock(true, LOCK_X | LOCK_REC_NOT_GAP,
 			    block, heap_no, index, thr);
-
 #ifdef WITH_WSREP
-	if (trx->wsrep == 3) trx->wsrep = 1;
+	trx->wsrep_end_UK_scan();
 #endif /* WITH_WSREP */
 
 #ifdef UNIV_DEBUG
@@ -5546,7 +5544,6 @@ lock_sec_rec_read_check_and_lock(
 		return DB_SUCCESS;
 	}
 
-#ifdef WITH_WSREP
 	/* If transaction scanning an unique secondary key is wsrep
 	high priority thread (brute force) this scanning may involve
 	GAP-locking in the index. As this locking happens also when
@@ -5554,16 +5551,12 @@ lock_sec_rec_read_check_and_lock(
 	there is a probability for lock conflicts between two wsrep
 	high priority threads. To avoid this GAP-locking we mark that
 	this transaction is using unique key scan here. */
-	if (trx->is_wsrep() && wsrep_thd_is_BF(trx->mysql_thd, false))
-		trx->wsrep = 3;
-#endif /* WITH_WSREP */
+	trx->wsrep_begin_UK_scan();
 
 	err = lock_rec_lock(false, gap_mode | mode,
 			    block, page_rec_get_heap_no(rec), index, thr);
 
-#ifdef WITH_WSREP
-	if (trx->wsrep == 3) trx->wsrep = 1;
-#endif /* WITH_WSREP */
+	trx->wsrep_end_UK_scan();
 
 	ut_ad(lock_rec_queue_validate(false, block->page.id(),
 				      rec, index, offsets));
@@ -6275,7 +6268,7 @@ namespace Deadlock
       (trx->mysql_thd &&
 #ifdef WITH_WSREP
        (thd_has_edited_nontrans_tables(trx->mysql_thd) ||
-        (trx->is_wsrep() && wsrep_thd_is_BF(trx->mysql_thd, false)))
+        (trx->is_wsrep_BF()))
 #else
        thd_has_edited_nontrans_tables(trx->mysql_thd)
 #endif /* WITH_WSREP */
@@ -6310,7 +6303,7 @@ namespace Deadlock
           (next->mysql_thd &&
 #ifdef WITH_WSREP
            (thd_has_edited_nontrans_tables(next->mysql_thd) ||
-            (next->is_wsrep() && wsrep_thd_is_BF(next->mysql_thd, false)))
+            (next->is_wsrep_BF()))
 #else
            thd_has_edited_nontrans_tables(next->mysql_thd)
 #endif /* WITH_WSREP */
