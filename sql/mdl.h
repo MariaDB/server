@@ -910,6 +910,20 @@ public:
   static my_hash_value_type get_hash_value_from_key(const MDL_key *key) { return key->tc_hash_value(); }
 };
 
+template <typename T>
+class MDL_key_trait
+{
+public:
+  using hash_value_type= decltype(MDL_key().tc_hash_value());
+  using key_type= MDL_key;
+
+  static MDL_key *get_key(T *t) { return t->get_key(); }
+  static my_hash_value_type get_hash_value_from_key(const MDL_key *key)
+  {
+    return key->tc_hash_value();
+  }
+};
+
 template <typename T, typename K> class hash_trait
 {
 public:
@@ -1138,7 +1152,7 @@ private:
                              MDL_ticket **out_ticket);
   bool fix_pins();
 
-  open_address_hash<ticket_key, hash_trait<MDL_ticket, key_type_pair>> ticket_hash;
+  open_address_hash<MDL_key_trait<MDL_ticket>, hash_trait<MDL_ticket, key_type_pair>> ticket_hash;
 
 public:
   THD *get_thd() const { return m_owner->get_thd(); }
