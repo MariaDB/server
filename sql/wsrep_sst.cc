@@ -107,8 +107,7 @@ static void* wsrep_sst_donor_monitor_thread(void *arg __attribute__((unused)))
 
   WSREP_INFO("Donor monitor thread started to monitor");
 
-  wsp::thd thd(FALSE); // we turn off wsrep_on for this THD so that it can
-                       // operate with wsrep_ready == OFF
+  wsp::thd thd;
 
   while (!sst_donor_completed)
   {
@@ -144,8 +143,7 @@ static void* wsrep_sst_joiner_monitor_thread(void *arg __attribute__((unused)))
 
   WSREP_INFO("Joiner monitor thread started to monitor");
 
-  wsp::thd thd(FALSE); // we turn off wsrep_on for this THD so that it can
-                       // operate with wsrep_ready == OFF
+  wsp::thd thd;
 
   while (!sst_joiner_completed)
   {
@@ -642,9 +640,9 @@ static void* sst_joiner_thread (void* a)
 
     wsp::process proc (arg->cmd, "r", arg->env);
 
-    if (proc.pipe() && !proc.error())
+    if (proc.from() && !proc.error())
     {
-      const char* tmp= my_fgets (out, out_len, proc.pipe());
+      const char* tmp= my_fgets (out, out_len, proc.from());
 
       if (!tmp || strlen(tmp) < (magic_len + 2) ||
           strncasecmp (tmp, magic, magic_len))
@@ -698,7 +696,7 @@ static void* sst_joiner_thread (void* a)
     err= EINVAL;
 
   wait_signal:
-    tmp= my_fgets (out, out_len, proc.pipe());
+    tmp= my_fgets (out, out_len, proc.from());
 
     if (tmp)
     {
@@ -1534,7 +1532,7 @@ static int sst_run_shell (const char* cmd_str, char** env, int max_tries)
   {
     wsp::process proc (cmd_str, "r", env);
 
-    if (NULL != proc.pipe())
+    if (NULL != proc.from())
     {
       proc.wait();
     }
@@ -1847,10 +1845,16 @@ static void* sst_donor_thread (void* a)
   // We turn off wsrep_on for this THD so that it can
   // operate with wsrep_ready == OFF
   // We also set this SST thread THD as system thread
-  wsp::thd thd(FALSE, true);
+  wsp::thd thd(true, true);
   wsp::process proc(arg->cmd, "r", arg->env);
 
   err= -proc.error();
+
+  if (proc.to() && !err)
+  {
+    // Close the pipe, so that the SST process gets an EOF
+    proc.close_to();
+  }
 
 /* Inform server about SST script startup and release TO isolation */
   mysql_mutex_lock   (&arg->lock);
@@ -1858,7 +1862,7 @@ static void* sst_donor_thread (void* a)
   mysql_cond_signal  (&arg->cond);
   mysql_mutex_unlock (&arg->lock); //! @note arg is unusable after that.
 
-  if (proc.pipe() && !err)
+  if (proc.from() && !err)
   {
     long long total= 0;
     long long complete= 0;
@@ -1866,7 +1870,7 @@ static void* sst_donor_thread (void* a)
     long long total_prev= 0;
 
 wait_signal:
-    out= my_fgets (out_buf, out_len, proc.pipe());
+    out= my_fgets (out_buf, out_len, proc.from());
 
     if (out)
     {
