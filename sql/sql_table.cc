@@ -11894,7 +11894,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     {
       from->s->online_alter_binlog= new Cache_flip_event_log();
       if (!from->s->online_alter_binlog)
-        DBUG_RETURN(1);
+        goto err;
       from->s->online_alter_binlog->init_pthread_objects();
       error= from->s->online_alter_binlog->open(WRITE_CACHE);
 
