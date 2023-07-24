@@ -1152,7 +1152,7 @@ private:
                              MDL_ticket **out_ticket);
   bool fix_pins();
 
-  open_address_hash<MDL_key_trait<MDL_ticket>, hash_trait<MDL_ticket, key_type_pair>> ticket_hash;
+  open_address_hash<MDL_key_trait<MDL_ticket>, hash_trait<MDL_ticket, key_type_pair> > ticket_hash;
 
 public:
   THD *get_thd() const { return m_owner->get_thd(); }

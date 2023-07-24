@@ -2172,7 +2172,9 @@ MDL_context::try_acquire_lock_impl(MDL_request *mdl_request,
 
     mysql_prlock_unlock(&lock->m_rwlock);
 
-    ticket_hash.insert(ticket);
+    bool success= ticket_hash.insert(ticket);
+    DBUG_ASSERT(success);
+
     m_tickets[mdl_request->duration].push_front(ticket);
 
     mdl_request->ticket= ticket;
@@ -2498,7 +2500,9 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
   DBUG_ASSERT(wait_status == MDL_wait::GRANTED);
 
   m_tickets[mdl_request->duration].push_front(ticket);
-  ticket_hash.insert(ticket);
+  bool success = ticket_hash.insert(ticket);
+  DBUG_ASSERT(success);
+
   mdl_request->ticket= ticket;
 
   mysql_mdl_set_status(ticket->m_psi, MDL_ticket::GRANTED);

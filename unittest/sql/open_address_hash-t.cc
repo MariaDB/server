@@ -55,12 +55,14 @@ int main(int argc __attribute__((unused)),char *argv[])
   auto *found= hashie.find(data[0]);
   ok(found == nullptr, "Something found in a empty hash!");
   hashie.insert(data[0] + 1); // 1
+
+  found= hashie.find(data[1] + 1);
+  ok(found == nullptr, "wrong val with key=1 is found");
+
   found= hashie.find(data[0] + 1);
   ok(*found == 1, "1 is not found");
 
 
-  found= hashie.find(data[1] + 1);
-  ok(found == nullptr, "wrong val with key=1 is found");
 
   // expand
   hashie.insert(data[0]+4);
@@ -69,8 +71,6 @@ int main(int argc __attribute__((unused)),char *argv[])
   hashie.insert(data[0]+5);
   ok(hashie.size() == 3, "wrong size, %u", hashie.size());
   // collision
-  hashie.insert(data[1] + 1); 
-  found= hashie.find(data[1] + 1);
   hashie.insert(data[1] + 1); // 1
   auto found2= hashie.find(data[1] + 1);
   ok(found2 != found && *found == *found2, "collision misbehavior");

@@ -2621,8 +2621,6 @@ public:
   }
 };
 
-
-
 /**
   @class THD
   For each client connection we create a separate thread with THD serving as
@@ -2737,7 +2735,7 @@ public:
   */
   mutable mysql_mutex_t LOCK_thd_kill;
 
-  open_address_hash<MDL_key_trait<TABLE_LIST>, hash_trait<TABLE_LIST, TABLE_LIST *>> pr_table_hash;
+  open_address_hash<MDL_key_trait<TABLE_LIST>, hash_trait<TABLE_LIST, TABLE_LIST *> > pr_table_hash;
 
   /* all prepared statements and cursors of this connection */
   Statement_map stmt_map;
