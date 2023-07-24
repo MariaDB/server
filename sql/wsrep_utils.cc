@@ -43,6 +43,11 @@
 #include <ifaddrs.h>
 #endif /* HAVE_GETIFADDRS */
 
+#define MY_MALLOC(arg) my_malloc(key_memory_WSREP, arg, MYF(0))
+#define MY_REALLOC(p, arg) my_realloc(key_memory_WSREP, p, arg, MYF(MY_ALLOW_ZERO_PTR))
+#define MY_STRDUP(arg) my_strdup(key_memory_WSREP, arg, MYF(0))
+#define MY_FREE(arg) my_free(arg)
+
 extern char** environ; // environment variables
 
 static wsp::string wsrep_PATH;
@@ -96,16 +101,14 @@ namespace wsp
 bool
 env::ctor_common(char** e)
 {
-    env_= static_cast<char**>(my_malloc(key_memory_WSREP,
-                                        (len_ + 1) * sizeof(char*),
-                                        0));
+    env_= static_cast<char**>(MY_MALLOC((len_ + 1) * sizeof(char*)));
 
     if (env_)
     {
         for (size_t i(0); i < len_; ++i)
         {
             assert(e[i]); // caller should make sure about len_
-            env_[i]= my_strdup(key_memory_WSREP, e[i], MYF(0));
+            env_[i]= MY_STRDUP(e[i]);
             if (!env_[i])
             {
                 errno_= errno;
@@ -131,8 +134,8 @@ env::dtor()
     if (env_)
     {
         /* don't need to go beyond the first NULL */
-        for (size_t i(0); env_[i] != NULL; ++i) { my_free(env_[i]); }
-        my_free(env_);
+        for (size_t i(0); env_[i] != NULL; ++i) { MY_FREE(env_[i]); }
+        MY_FREE(env_);
         env_= NULL;
     }
     len_= 0;
@@ -159,13 +162,12 @@ env::~env() { dtor(); }
 int
 env::append(const char* val)
 {
-    char** tmp= static_cast<char**>(my_realloc(key_memory_WSREP,
-                                               env_, (len_ + 2)*sizeof(char*),
-                                               0));
+    char** tmp= static_cast<char**>(MY_REALLOC(env_, (len_ + 2)*sizeof(char*)));
+
     if (tmp)
     {
         env_= tmp;
-        env_[len_]= my_strdup(key_memory_WSREP, val, 0);
+        env_[len_]= MY_STRDUP(val);
 
         if (env_[len_])
         {
@@ -178,7 +180,6 @@ env::append(const char* val)
 
     return errno_;
 }
-
 
 #define READ_END  0
 #define WRITE_END 1
@@ -267,7 +268,7 @@ process::close_io(io_direction const direction, bool const warn)
 
 process::process (const char* cmd, const char* type, char** env)
     :
-    str_(cmd ? strdup(cmd) : strdup("")),
+    str_(cmd ? MY_STRDUP(cmd) : MY_STRDUP("")),
     io_{ NULL, NULL },
     err_(EINVAL),
     pid_(0)
@@ -300,7 +301,7 @@ process::process (const char* cmd, const char* type, char** env)
     int read_pipe[2]=  { -1, -1 };
     int write_pipe[2]= { -1, -1 };
 
-    char* const pargv[4]= { strdup("sh"), strdup("-c"), strdup(str_), NULL };
+    char* const pargv[4]= { MY_STRDUP("sh"), MY_STRDUP("-c"), MY_STRDUP(str_), NULL };
     if (!(pargv[0] && pargv[1] && pargv[2]))
     {
         err_= ENOMEM;
@@ -434,9 +435,9 @@ cleanup_pipes:
     if (write_pipe[1] >= 0) close (write_pipe[1]);
 
 cleanup_pargv:
-    free (pargv[0]);
-    free (pargv[1]);
-    free (pargv[2]);
+    MY_FREE(pargv[0]);
+    MY_FREE(pargv[1]);
+    MY_FREE(pargv[2]);
 }
 
 process::~process ()
@@ -444,7 +445,7 @@ process::~process ()
     close_io(READ, true);
     close_io(WRITE, true);
 
-    if (str_) free (const_cast<char*>(str_));
+    if (str_) MY_FREE(const_cast<char*>(str_));
 }
 
 int
