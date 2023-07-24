@@ -5980,6 +5980,8 @@ public:
 };
 
 
+class sp_instr_cpush;
+
 /* A mediator between stored procedures and server side cursors */
 class sp_lex_keeper;
 class sp_cursor: public sp_cursor_statistics
@@ -6016,19 +6018,17 @@ private:
 public:
   sp_cursor()
    :result(NULL, false),
-    m_lex_keeper(NULL),
     server_side_cursor(NULL)
   { }
-  sp_cursor(THD *thd_arg, sp_lex_keeper *lex_keeper, bool view_structure_only)
+  sp_cursor(THD *thd_arg, bool view_structure_only)
    :result(thd_arg, view_structure_only),
-    m_lex_keeper(lex_keeper),
     server_side_cursor(NULL)
   {}
 
   virtual ~sp_cursor()
   { destroy(); }
 
-  sp_lex_keeper *get_lex_keeper() { return m_lex_keeper; }
+  virtual sp_lex_keeper *get_lex_keeper() { return nullptr; }
 
   int open(THD *thd);
 
@@ -6041,17 +6041,16 @@ public:
 
   bool export_structure(THD *thd, Row_definition_list *list);
 
-  void reset(THD *thd_arg, sp_lex_keeper *lex_keeper)
+  void reset(THD *thd_arg)
   {
     sp_cursor_statistics::reset();
     result.reset(thd_arg);
-    m_lex_keeper= lex_keeper;
     server_side_cursor= NULL;
   }
 
+  virtual sp_instr_cpush *get_push_instr() { return nullptr; }
 private:
   Select_fetch_into_spvars result;
-  sp_lex_keeper *m_lex_keeper;
   Server_side_cursor *server_side_cursor;
   void destroy();
 };
@@ -8038,6 +8037,22 @@ public:
 #endif
   }
 };
+
+
+/**
+  Make a new string allocated on THD's mem-root.
+
+  @param thd        thread handler.
+  @param start_ptr  start of the new string.
+  @param end_ptr    end of the new string.
+
+  @return LEX_CSTRING object, containing a pointer to a newly
+  constructed/allocated string, and its length. The data member
+  LEX_CSTRING::str has the value nullptr in case of out-of-memory error.
+*/
+
+LEX_CSTRING make_string(THD *thd, const char *start_ptr,
+                        const char *end_ptr);
 
 #endif /* MYSQL_SERVER */
 #endif /* SQL_CLASS_INCLUDED */

@@ -165,6 +165,7 @@ SET (SQL_SOURCE
                rpl_gtid.cc rpl_parallel.cc
                semisync.cc semisync_master.cc semisync_slave.cc
                semisync_master_ack_receiver.cc
+               sp_instr.cc
                sql_schema.cc
                lex_charset.cc charset_collations.cc
                sql_type.cc sql_mode.cc sql_type_json.cc

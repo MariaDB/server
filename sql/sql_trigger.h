@@ -113,7 +113,7 @@ class Trigger :public Sql_alloc
 {
 public:
     Trigger(Table_triggers_list *base_arg, sp_head *code):
-    base(base_arg), body(code), next(0), trigger_fields(0), action_order(0)
+    base(base_arg), body(code), next(0), action_order(0)
   {
     bzero((char *)&subject_table_grants, sizeof(subject_table_grants));
   }
@@ -122,11 +122,6 @@ public:
   sp_head *body;
   Trigger *next;                                /* Next trigger of same type */
 
-  /**
-    Heads of the lists linking items for all fields used in triggers
-    grouped by event and action_time.
-  */
-  Item_trigger_field *trigger_fields;
   LEX_CSTRING name;
   LEX_CSTRING on_table_name;                     /* Raw table name */
   LEX_CSTRING definition;
@@ -145,7 +140,6 @@ public:
   trg_action_time_type action_time;
   uint action_order;
 
-  bool is_fields_updated_in_trigger(MY_BITMAP *used_fields);
   void get_trigger_info(LEX_CSTRING *stmt, LEX_CSTRING *body,
                         LEX_STRING *definer);
   /* Functions executed over each active trigger */
@@ -343,6 +337,12 @@ private:
       return true;
     }
     return false;
+  }
+
+public:
+  TABLE *get_subject_table()
+  {
+    return trigger_table;
   }
 };
 

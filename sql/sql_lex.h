@@ -3213,6 +3213,8 @@ public:
 };
 
 
+class sp_lex_cursor;
+
 struct LEX: public Query_tables_list
 {
   SELECT_LEX_UNIT unit;                         /* most upper unit */
@@ -3318,7 +3320,8 @@ private:
                                    class sp_label **splabel);
   bool sp_change_context(THD *thd, const sp_pcontext *ctx, bool exclusive);
   bool sp_exit_block(THD *thd, sp_label *lab);
-  bool sp_exit_block(THD *thd, sp_label *lab, Item *when);
+  bool sp_exit_block(THD *thd, sp_label *lab, Item *when,
+                     const LEX_CSTRING &expr_str);
 
   bool sp_continue_loop(THD *thd, sp_label *lab);
 
@@ -3333,7 +3336,8 @@ private:
   bool check_expr_allows_fields_or_error(THD *thd, const char *name) const;
 
 protected:
-  bool sp_continue_loop(THD *thd, sp_label *lab, Item *when);
+  bool sp_continue_loop(THD *thd, sp_label *lab, Item *when,
+                        const LEX_CSTRING &expr_str);
 
 public:
   void parse_error(uint err_number= ER_SYNTAX_ERROR);
@@ -3527,6 +3531,7 @@ public:
   TABLE_LIST *create_last_non_select_table;
   sp_head *sphead;
   sp_name *spname;
+  MEM_ROOT sp_mem_root, *sp_mem_root_ptr;
 
   sp_pcontext *spcont;
 
@@ -3536,14 +3541,6 @@ public:
 
   /* Characterstics of trigger being created */
   st_trg_chistics trg_chistics;
-  /*
-    List of all items (Item_trigger_field objects) representing fields in
-    old/new version of row in trigger. We use this list for checking whenever
-    all such fields are valid at trigger creation time and for binding these
-    fields to TABLE object at table open (altough for latter pointer to table
-    being opened is probably enough).
-  */
-  SQL_I_List<Item_trigger_field> trg_table_fields;
 
   /*
     stmt_definition_begin is intended to point to the next word after
@@ -3896,9 +3893,10 @@ public:
   bool set_names(const char *pos,
                  const Lex_exact_charset_opt_extended_collate &cs,
                  bool no_lookahead);
-  bool set_trigger_new_row(const LEX_CSTRING *name, Item *val);
+  bool set_trigger_new_row(const LEX_CSTRING *name, Item *val,
+                           const LEX_CSTRING &expr_str);
   bool set_trigger_field(const LEX_CSTRING *name1, const LEX_CSTRING *name2,
-                         Item *val);
+                         Item *val, const LEX_CSTRING &expr_str);
   bool set_system_variable(enum_var_type var_type, sys_var *var,
                            const Lex_ident_sys_st *base_name, Item *val);
   bool set_system_variable(enum_var_type var_type,
@@ -3954,40 +3952,52 @@ public:
     sp_pcontext *not_used_ctx;
     return find_variable(name, &not_used_ctx, rh);
   }
-  bool set_variable(const Lex_ident_sys_st *name, Item *item);
+  bool set_variable(const Lex_ident_sys_st *name, Item *item,
+                    const LEX_CSTRING &expr_str);
   bool set_variable(const Lex_ident_sys_st *name1,
-                    const Lex_ident_sys_st *name2, Item *item);
+                    const Lex_ident_sys_st *name2, Item *item,
+                    const LEX_CSTRING &expr_str);
   void sp_variable_declarations_init(THD *thd, int nvars);
   bool sp_variable_declarations_finalize(THD *thd, int nvars,
                                          const Column_definition *cdef,
-                                         Item *def);
-  bool sp_variable_declarations_set_default(THD *thd, int nvars, Item *def);
+                                         Item *def,
+                                         const LEX_CSTRING &expr_str);
+  bool sp_variable_declarations_set_default(THD *thd, int nvars, Item *def,
+                                            const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_row_finalize(THD *thd, int nvars,
                                              Row_definition_list *row,
-                                             Item *def);
+                                             Item *def,
+                                             const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_with_ref_finalize(THD *thd, int nvars,
                                                   Qualified_column_ident *col,
-                                                  Item *def);
+                                                  Item *def,
+                                                  const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_rowtype_finalize(THD *thd, int nvars,
                                                  Qualified_column_ident *,
-                                                 Item *def);
+                                                 Item *def,
+                                                 const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_cursor_rowtype_finalize(THD *thd, int nvars,
                                                         uint offset,
-                                                        Item *def);
+                                                        Item *def,
+                                                        const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_table_rowtype_finalize(THD *thd, int nvars,
                                                        const LEX_CSTRING &db,
                                                        const LEX_CSTRING &table,
-                                                       Item *def);
+                                                       Item *def,
+                                                       const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_column_type_finalize(THD *thd, int nvars,
                                                      Qualified_column_ident *ref,
-                                                     Item *def);
+                                                     Item *def,
+                                                     const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_vartype_finalize(THD *thd, int nvars,
                                                  const LEX_CSTRING &name,
-                                                 Item *def);
+                                                 Item *def,
+                                                 const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_copy_type_finalize(THD *thd, int nvars,
                                                    const Column_definition &ref,
                                                    Row_definition_list *fields,
-                                                   Item *def);
+                                                   Item *def,
+                                                   const LEX_CSTRING &expr_str);
 
   LEX_USER *current_user_for_set_password(THD *thd);
   bool sp_create_set_password_instr(THD *thd,
@@ -4275,8 +4285,9 @@ public:
                                                   uint executable_section_ip,
                                                   uint exception_count);
   bool sp_block_with_exceptions_add_empty(THD *thd);
-  bool sp_exit_statement(THD *thd, Item *when);
-  bool sp_exit_statement(THD *thd, const LEX_CSTRING *label_name, Item *item);
+  bool sp_exit_statement(THD *thd, Item *when, const LEX_CSTRING &expr_str);
+  bool sp_exit_statement(THD *thd, const LEX_CSTRING *label_name, Item *item,
+                         const LEX_CSTRING &expr_str);
   bool sp_leave_statement(THD *thd, const LEX_CSTRING *label_name);
   bool sp_goto_statement(THD *thd, const LEX_CSTRING *label_name);
 
@@ -4289,7 +4300,8 @@ public:
   bool sp_push_loop_empty_label(THD *thd);
   bool sp_pop_loop_label(THD *thd, const LEX_CSTRING *label_name);
   void sp_pop_loop_empty_label(THD *thd);
-  bool sp_while_loop_expression(THD *thd, Item *expr);
+  bool sp_while_loop_expression(THD *thd, Item *expr,
+                                const LEX_CSTRING &expr_str);
   bool sp_while_loop_finalize(THD *thd);
   bool sp_if_after_statements(THD *thd);
   bool sp_push_goto_label(THD *thd, const LEX_CSTRING *label_name);
@@ -4299,11 +4311,13 @@ public:
 
   /* Integer range FOR LOOP methods */
   sp_variable *sp_add_for_loop_variable(THD *thd, const LEX_CSTRING *name,
-                                        Item *value);
-  sp_variable *sp_add_for_loop_target_bound(THD *thd, Item *value)
+                                        Item *value,
+                                        const LEX_CSTRING &expr_str);
+  sp_variable *sp_add_for_loop_target_bound(THD *thd, Item *value,
+                                            const LEX_CSTRING &expr_str)
   {
     LEX_CSTRING name= { STRING_WITH_LEN("[target_bound]") };
-    return sp_add_for_loop_variable(thd, &name, value);
+    return sp_add_for_loop_variable(thd, &name, value, expr_str);
   }
   bool sp_for_loop_intrange_declarations(THD *thd, Lex_for_loop_st *loop,
                                         const LEX_CSTRING *index,
@@ -4902,6 +4916,20 @@ public:
       builtin_select.options |= SELECT_DESCRIBE;
   }
 
+
+  /**
+    Check if the current statement uses meta-data (uses a table or a stored
+    routine).
+  */
+  bool is_metadata_used() const
+  {
+    return query_tables != nullptr || sroutines.records > 0;
+  }
+
+  virtual sp_lex_cursor* get_lex_for_cursor()
+  {
+    return nullptr;
+  }
 };
 
 
@@ -5102,7 +5130,6 @@ public:
     spcont= oldlex->spcont;
     /* Keep the parent trigger stuff too */
     trg_chistics= oldlex->trg_chistics;
-    trg_table_fields.empty();
     sp_lex_in_use= false;
   }
 };
@@ -5127,10 +5154,12 @@ public:
 class sp_expr_lex: public sp_lex_local
 {
   Item *m_item;       // The expression
+  LEX_CSTRING m_expr_str;
 public:
   sp_expr_lex(THD *thd, LEX *oldlex)
    :sp_lex_local(thd, oldlex),
-    m_item(NULL)
+    m_item(nullptr),
+    m_expr_str(empty_clex_str)
   { }
   void set_item(Item *item)
   {
@@ -5146,10 +5175,18 @@ public:
   int case_stmt_action_when(bool simple);
   bool sp_while_loop_expression(THD *thd)
   {
-    return LEX::sp_while_loop_expression(thd, get_item());
+    return LEX::sp_while_loop_expression(thd, get_item(), m_expr_str);
   }
   bool sp_repeat_loop_finalize(THD *thd);
   bool sp_if_expr(THD *thd);
+  void set_expr_str(const LEX_CSTRING &expr_str)
+  {
+    m_expr_str= expr_str;
+  }
+  const LEX_CSTRING &get_expr_str() const
+  {
+    return m_expr_str;
+  }
 };
 
 
@@ -5180,11 +5217,13 @@ class sp_assignment_lex: public sp_lex_local
 {
   Item *m_item;       // The expression
   Item *m_free_list;  // The associated free_list (sub-expressions)
+  LEX_CSTRING m_expr_str;
 public:
   sp_assignment_lex(THD *thd, LEX *oldlex)
    :sp_lex_local(thd, oldlex),
     m_item(NULL),
-    m_free_list(NULL)
+    m_free_list(nullptr),
+    m_expr_str(empty_clex_str)
   { }
   void set_item_and_free_list(Item *item, Item *free_list)
   {
@@ -5198,6 +5237,14 @@ public:
   Item *get_free_list() const
   {
     return m_free_list;
+  }
+  void set_expr_str(const LEX_CSTRING &expr_str)
+  {
+    m_expr_str= expr_str;
+  }
+  const LEX_CSTRING &get_expr_str() const
+  {
+    return m_expr_str;
   }
 };
 

@@ -23,6 +23,7 @@
 #include "mysql.h"
 #include "sp_head.h"
 #include "sql_cursor.h"
+#include "sp_instr.h"                       // class sp_instr, ...
 #include "sp_rcontext.h"
 #include "sp_pcontext.h"
 #include "sql_select.h"                     // create_virtual_tmp_table
@@ -62,11 +63,11 @@ const LEX_CSTRING *Sp_rcontext_handler_package_body::get_name_prefix() const
 ///////////////////////////////////////////////////////////////////////////
 
 
-sp_rcontext::sp_rcontext(const sp_head *owner,
+sp_rcontext::sp_rcontext(sp_head *owner,
                          const sp_pcontext *root_parsing_ctx,
                          Field *return_value_fld,
                          bool in_sub_stmt)
-  :end_partial_result_set(false),
+  :callers_arena(nullptr), end_partial_result_set(false),
    pause_state(false), quit_func(false), instr_ptr(0),
    m_sp(owner),
    m_root_parsing_ctx(root_parsing_ctx),
@@ -90,7 +91,7 @@ sp_rcontext::~sp_rcontext()
 
 
 sp_rcontext *sp_rcontext::create(THD *thd,
-                                 const sp_head *owner,
+                                 sp_head *owner,
                                  const sp_pcontext *root_parsing_ctx,
                                  Field *return_value_fld,
                                  Row_definition_list &field_def_lst)
