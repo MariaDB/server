@@ -218,9 +218,10 @@ ATTRIBUTE_COLD void btr_decryption_failed(const dict_index_t &index)
 @param[out]	err	error code
 @return block */
 buf_block_t *btr_block_get(const dict_index_t &index,
-                           uint32_t page, ulint mode, bool merge,
+                           uint32_t page, rw_lock_type_t mode, bool merge,
                            mtr_t *mtr, dberr_t *err)
 {
+  ut_ad(mode != RW_NO_LATCH);
   dberr_t local_err;
   if (!err)
     err= &local_err;
@@ -281,11 +282,13 @@ btr_root_block_get(
 
   if (UNIV_LIKELY(block != nullptr))
   {
-    if (!!page_is_comp(block->page.frame) != index->table->not_redundant() ||
-        btr_page_get_index_id(block->page.frame) != index->id ||
-        !fil_page_index_page_check(block->page.frame) ||
-        index->is_spatial() !=
-        (fil_page_get_type(block->page.frame) == FIL_PAGE_RTREE))
+    if (UNIV_UNLIKELY(mode == RW_NO_LATCH));
+    else if (!!page_is_comp(block->page.frame) !=
+             index->table->not_redundant() ||
+             btr_page_get_index_id(block->page.frame) != index->id ||
+             !fil_page_index_page_check(block->page.frame) ||
+             index->is_spatial() !=
+             (fil_page_get_type(block->page.frame) == FIL_PAGE_RTREE))
     {
       *err= DB_PAGE_CORRUPTED;
       block= nullptr;
@@ -515,18 +518,16 @@ static buf_block_t *btr_get_latched_root(const dict_index_t &index, mtr_t *mtr)
 mini-transaction. */
 static buf_block_t *
 btr_block_reget(mtr_t *mtr, const dict_index_t &index,
-                const page_id_t id, rw_lock_type_t rw_latch,
-                dberr_t *err)
+                const page_id_t id, dberr_t *err)
 {
-  if (buf_block_t *block=
-      mtr->get_already_latched(id, mtr_memo_type_t(rw_latch)))
+  if (buf_block_t *block= mtr->get_already_latched(id, MTR_MEMO_PAGE_X_FIX))
   {
     *err= DB_SUCCESS;
     return block;
   }
 
   ut_ad(mtr->memo_contains_flagged(&index.lock, MTR_MEMO_X_LOCK));
-  return btr_block_get(index, id.page_no(), rw_latch, true, mtr, err);
+  return btr_block_get(index, id.page_no(), RW_X_LATCH, true, mtr, err);
 }
 
 /**************************************************************//**
@@ -585,21 +586,15 @@ btr_page_alloc_low(
   if (UNIV_UNLIKELY(!root))
     return root;
 
-  if (mtr->have_u_or_x_latch(*root))
-  {
+  const bool have_latch= mtr->have_u_or_x_latch(*root);
 #ifdef BTR_CUR_HASH_ADAPT
-    ut_ad(!root->index || !root->index->freed());
+  ut_ad(!have_latch || !root->index || !root->index->freed());
 #endif
-    mtr->rollback_to_savepoint(savepoint);
-  }
-  else
-  {
-    mtr->lock_register(savepoint, MTR_MEMO_PAGE_SX_FIX);
-    root->page.lock.u_lock();
-#ifdef BTR_CUR_HASH_ADAPT
-    btr_search_drop_page_hash_index(root, true);
-#endif
-  }
+  mtr->rollback_to_savepoint(savepoint);
+
+  if (!have_latch &&
+      UNIV_UNLIKELY(!(root= btr_root_block_get(index, RW_SX_LATCH, mtr, err))))
+    return root;
 
   fseg_header_t *seg_header= root->page.frame +
     (level ? PAGE_HEADER + PAGE_BTR_SEG_TOP : PAGE_HEADER + PAGE_BTR_SEG_LEAF);
@@ -696,26 +691,18 @@ dberr_t btr_page_free(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
   const auto savepoint= mtr->get_savepoint();
   if (buf_block_t *root= btr_root_block_get(index, RW_NO_LATCH, mtr, &err))
   {
-    if (mtr->have_u_or_x_latch(*root))
-    {
+    const bool have_latch= mtr->have_u_or_x_latch(*root);
 #ifdef BTR_CUR_HASH_ADAPT
-      ut_ad(!root->index || !root->index->freed());
+    ut_ad(!have_latch || !root->index || !root->index->freed());
 #endif
-      mtr->rollback_to_savepoint(savepoint);
-    }
-    else
-    {
-      mtr->lock_register(savepoint, MTR_MEMO_PAGE_SX_FIX);
-      root->page.lock.u_lock();
-#ifdef BTR_CUR_HASH_ADAPT
-      btr_search_drop_page_hash_index(root, true);
-#endif
-    }
-    err= fseg_free_page(&root->page.frame[blob ||
-                                          page_is_leaf(block->page.frame)
-                                          ? PAGE_HEADER + PAGE_BTR_SEG_LEAF
-                                          : PAGE_HEADER + PAGE_BTR_SEG_TOP],
-                        space, page, mtr, space_latched);
+    mtr->rollback_to_savepoint(savepoint);
+    if (have_latch ||
+        (root= btr_root_block_get(index, RW_SX_LATCH, mtr, &err)))
+      err= fseg_free_page(&root->page.frame[blob ||
+                                            page_is_leaf(block->page.frame)
+                                            ? PAGE_HEADER + PAGE_BTR_SEG_LEAF
+                                            : PAGE_HEADER + PAGE_BTR_SEG_TOP],
+                          space, page, mtr, space_latched);
   }
   if (err == DB_SUCCESS)
     buf_page_free(space, page, mtr);
@@ -4293,7 +4280,7 @@ btr_discard_page(
 	if (left_page_no != FIL_NULL) {
 		merge_page_id.set_page_no(left_page_no);
 		merge_block = btr_block_reget(mtr, *index, merge_page_id,
-					      RW_X_LATCH, &err);
+					      &err);
 		if (UNIV_UNLIKELY(!merge_block)) {
 			return err;
 		}
@@ -4319,7 +4306,7 @@ btr_discard_page(
 	} else if (right_page_no != FIL_NULL) {
 		merge_page_id.set_page_no(right_page_no);
 		merge_block = btr_block_reget(mtr, *index, merge_page_id,
-                                              RW_X_LATCH, &err);
+                                              &err);
 		if (UNIV_UNLIKELY(!merge_block)) {
 			return err;
 		}
