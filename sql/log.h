@@ -458,7 +458,7 @@ public:
   {
     log_file.dir= mysql_tmpdir;
     alt_buf.dir= log_file.dir;
-    bool res= Event_log::open(WRITE_CACHE);
+    bool res= Event_log::open(WRITE_CACHE, buffer_size);
     if (res)
       return res;
 
