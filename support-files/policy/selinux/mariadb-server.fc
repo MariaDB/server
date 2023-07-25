@@ -6,5 +6,6 @@
 /var/lib/mysql/.*\.err --  gen_context(system_u:object_r:mysqld_log_t,s0)
 /var/lib/mysql/.*\.pid -- gen_context(system_u:object_r:mysqld_var_run_t,s0)
 /var/lib/mysql/.*\.cnf	--  gen_context(system_u:object_r:mysqld_etc_t,s0)
-/usr/bin/mariabackup.* -- gen_context(system_u:object_r:mysqld_exec_t,s0)
+/usr/sbin/mariadbd -- gen_context(system_u:object_r:mysqld_exec_t,s0)
+/usr/bin/mariadb-backup -- gen_context(system_u:object_r:mysqld_exec_t,s0)
 /usr/bin/wsrep.*  -- gen_context(system_u:object_r:mysqld_safe_exec_t,s0)
