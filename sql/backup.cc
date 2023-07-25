@@ -292,6 +292,7 @@ static bool backup_block_ddl(THD *thd)
   thd->clear_error();
 
 #ifdef WITH_WSREP
+  DBUG_ASSERT(thd->wsrep_desynced_backup_stage == false);
   /*
     if user is specifically choosing to allow BF aborting for BACKUP STAGE BLOCK_DDL lock
     holder, then do not desync and pause the node from cluster replication.
@@ -303,6 +304,7 @@ static bool backup_block_ddl(THD *thd)
   if (WSREP_NNULL(thd))
   {
     Wsrep_server_state &server_state= Wsrep_server_state::instance();
+
     if (!wsrep_check_mode(WSREP_MODE_BF_MARIABACKUP) ||
         server_state.state() == Wsrep_server_state::s_donor)
     {
@@ -352,17 +354,17 @@ static bool backup_block_ddl(THD *thd)
   /* There can't be anything more that needs to be logged to ddl log */
   THD_STAGE_INFO(thd, org_stage);
   stop_ddl_logging();
-#ifdef WITH_WSREP
-  // Allow tests to block the applier thread using the DBUG facilities
-  DBUG_EXECUTE_IF("sync.wsrep_after_mdl_block_ddl",
+
+  // Allow tests to block the backup thread
+  DBUG_EXECUTE_IF("sync.after_mdl_block_ddl",
                   {
                    const char act[]=
-                     "now "
-                     "signal signal.wsrep_apply_toi";
+                      "now "
+                     "SIGNAL sync.after_mdl_block_ddl_reached "
+                     "WAIT_FOR signal.after_mdl_block_ddl_continue";
                    DBUG_ASSERT(!debug_sync_set_action(thd,
                                                       STRING_WITH_LEN(act)));
                   };);
-#endif /* WITH_WSREP */
 
   DBUG_RETURN(0);
 err:
@@ -423,8 +425,8 @@ bool backup_end(THD *thd)
     thd->current_backup_stage= BACKUP_FINISHED;
     thd->mdl_context.release_lock(old_ticket);
 #ifdef WITH_WSREP
-    if (WSREP_NNULL(thd) && thd->wsrep_desynced_backup_stage &&
-	!wsrep_check_mode(WSREP_MODE_BF_MARIABACKUP))
+    // If node was desynced, resume and resync
+    if (thd->wsrep_desynced_backup_stage)
     {
       Wsrep_server_state &server_state= Wsrep_server_state::instance();
       server_state.resume_and_resync();
