@@ -7767,15 +7767,19 @@ MYSQL_BIN_LOG::
 write_binlog_checkpoint_event_already_locked(const char *name_arg, uint len)
 {
   my_off_t offset;
+  bool err;
   Binlog_checkpoint_log_event ev(name_arg, len);
+
   /*
     Note that we must sync the binlog checkpoint to disk.
     Otherwise a subsequent log purge could delete binlogs that XA recovery
     thinks are needed (even though they are not really).
   */
-  if (!write_event(&ev) && !flush_and_sync(0))
+  err= write_event(&ev) || flush_and_sync(0);
+  offset= my_b_tell(&log_file);
+  if (!err)
   {
-    update_binlog_end_pos();
+    update_binlog_end_pos(offset);
   }
   else
   {
@@ -7789,10 +7793,6 @@ write_binlog_checkpoint_event_already_locked(const char *name_arg, uint len)
     */
     sql_print_error("Failed to write binlog checkpoint event to binary log");
   }
-
-  offset= my_b_tell(&log_file);
-
-  update_binlog_end_pos(offset);
 
   /*
     Take mutex to protect against a reader seeing partial writes of 64-bit
