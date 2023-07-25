@@ -3854,6 +3854,7 @@ bool Event_log::open(enum cache_type io_cache_type_arg)
 
   longlong bytes_written= write_description_event(BINLOG_CHECKSUM_ALG_OFF,
                                                   false, true, false);
+  status_var_add(current_thd->status_var.binlog_bytes_written, bytes_written);
   return bytes_written < 0;
 }
 
