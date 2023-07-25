@@ -9916,6 +9916,10 @@ const char *online_alter_check_supported(const THD *thd,
   if (!*online)
     return NULL;
 
+  *online= table->s->sequence == NULL;
+  if (!*online)
+    return "SEQUENCE";
+
   *online= (alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING) == 0;
   if (!*online)
     return "DROP SYSTEM VERSIONING";

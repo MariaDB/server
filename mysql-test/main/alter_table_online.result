@@ -219,3 +219,8 @@ create temporary table t (f int);
 alter table t force, algorithm=instant;
 ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=COPY
 drop table t;
+create sequence s engine=MyISAM;
+alter table s engine=Aria, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: SEQUENCE. Try LOCK=SHARED
+alter table s engine=Aria;
+drop sequence  s;
