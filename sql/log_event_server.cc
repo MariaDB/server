@@ -4583,12 +4583,11 @@ Rows_log_event::Rows_log_event(THD *thd_arg, TABLE *tbl_arg, ulong tid,
                                MY_BITMAP const *cols, bool is_transactional,
                                Log_event_type event_type)
   : Log_event(thd_arg, 0, is_transactional),
-    m_row_count(0),
     m_table(tbl_arg),
     m_table_id(tid),
     m_width(tbl_arg ? tbl_arg->s->fields : 1),
     m_rows_buf(0), m_rows_cur(0), m_rows_end(0), m_flags(0),
-    m_type(event_type), m_extra_row_data(0)
+    m_type(event_type), m_row_count(0), m_extra_row_data(0)
 #ifdef HAVE_REPLICATION
     , m_curr_row(NULL), m_curr_row_end(NULL),
     m_key(NULL), m_key_info(NULL), m_key_nr(0),
@@ -5184,6 +5183,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
           thd->transaction->stmt.modified_non_trans_table= TRUE;
       if (likely(error == 0))
       {
+        m_row_count++;
         error= thd->killed_errno();
         if (error && !thd->is_error())
           my_error(error, MYF(0));

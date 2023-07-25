@@ -4670,8 +4670,6 @@ public:
   }
   bool is_part_of_group() { return get_flags(STMT_END_F) != 0; }
 
-  uint     m_row_count;         /* The number of rows added to the event */
-
   const uchar* get_extra_row_data() const   { return m_extra_row_data; }
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
@@ -4738,10 +4736,12 @@ protected:
 
   Log_event_type m_type;        /* Actual event type */
 
+  bool m_vers_from_plain;
+
+  uint     m_row_count;         /* The number of rows added to the event */
+
   uchar    *m_extra_row_data;   /* Pointer to extra row data if any */
                                 /* If non null, first byte is length */
-
-  bool m_vers_from_plain;
 
 
   /* helper functions */
