@@ -65,6 +65,11 @@ TRUNCATE TABLE mysql.general_log;
 --connection master_1
 SELECT * FROM tbl_a;
 SELECT * FROM tbl_a WHERE pkey = 1;
+
+--connection child2_1
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+
+--connection master_1
 SELECT * FROM tbl_a;
 SELECT * FROM tbl_a WHERE pkey = 2;
 SELECT * FROM tbl_a;
