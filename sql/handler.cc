@@ -550,6 +550,7 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
 {
   handlerton *hton;
   static const char *no_exts[]= { 0 };
+  int ret= 0;
   DBUG_ENTER("ha_initialize_handlerton");
   DBUG_PRINT("plugin", ("initialize plugin: '%s'", plugin->name.str));
 
@@ -559,6 +560,7 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
   {
     sql_print_error("Unable to allocate memory for plugin '%s' handlerton.",
                     plugin->name.str);
+    ret= 1;
     goto err_no_hton_memory;
   }
 
@@ -568,12 +570,16 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
   hton->slot= HA_SLOT_UNDEF;
   /* Historical Requirement */
   plugin->data= hton; // shortcut for the future
-  if (plugin->plugin->init && plugin->plugin->init(hton))
-  {
-    sql_print_error("Plugin '%s' init function returned error.",
-		    plugin->name.str);
+  /* [remove after merge] notes on merge conflict (MDEV-31400):
+  10.5: 81cd93bbb81d75e7cf14dedede0c9ec0712ace68
+  10.6-10.11: 13ba00ff4933cfc1712676f323587504e453d1b5
+  11.0-11.2: 42f8be10f18163c4025710cf6a212e82bddb2f62
+  The 10.11->11.0 conflict is trivial, but the reference commit also
+  contains different non-conflict changes needs to be applied to 11.0
+  (and beyond).
+  */
+  if (plugin->plugin->init && (ret= plugin->plugin->init(hton)))
     goto err;
-  }
 
   // hton_ext_based_table_discovery() works only when discovery
   // is supported and the engine if file-based.
@@ -616,6 +622,7 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
         if (idx == (int) DB_TYPE_DEFAULT)
         {
           sql_print_warning("Too many storage engines!");
+          ret= 1;
 	  goto err_deinit;
         }
         if (hton->db_type != DB_TYPE_UNKNOWN)
@@ -643,6 +650,7 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
         {
           sql_print_error("Too many plugins loaded. Limit is %lu. "
                           "Failed on '%s'", (ulong) MAX_HA, plugin->name.str);
+          ret= 1;
           goto err_deinit;
         }
         hton->slot= total_ha++;
@@ -699,7 +707,7 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
   resolve_sysvar_table_options(hton);
   update_discovery_counters(hton, 1);
 
-  DBUG_RETURN(0);
+  DBUG_RETURN(ret);
 
 err_deinit:
   /* 
@@ -717,7 +725,7 @@ err:
   my_free(hton);
 err_no_hton_memory:
   plugin->data= NULL;
-  DBUG_RETURN(1);
+  DBUG_RETURN(ret);
 }
 
 int ha_init()
