@@ -340,6 +340,28 @@ public:
   THD* const ptr;
 };
 
+/* local server connection */
+class mysql
+{
+  MYSQL* mysql_;
+public:
+  mysql();
+  ~mysql();
+  int execute(const std::string& query) {
+    if (mysql_real_query(mysql_, query.c_str(), query.length())) {
+       return mysql_errno(mysql_);
+    }
+    return 0;
+  }
+  int errnum() {
+    return (mysql_errno(mysql_));
+  }
+  const char* errstr() {
+    return mysql_error(mysql_);
+  }
+  int disable_replication();
+};
+
 class string
 {
 public:

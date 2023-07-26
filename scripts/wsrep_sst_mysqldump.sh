@@ -62,12 +62,20 @@ fi
 # whereas (at least on Linux) unprivileged user can't see process environment
 # that he does not own. So while it may be not secure in the NSA sense of the
 # word, it is arguably more secure than passing password on the command line.
-if [ -n "$WSREP_SST_OPT_PSWD" ]; then
-    export MYSQL_PWD="$WSREP_SST_OPT_PSWD"
+if [ -n "$WSREP_SST_OPT_REMOTE_PSWD" ]; then
+    export MYSQL_PWD="$WSREP_SST_OPT_REMOTE_PSWD"
 elif [ $usrst -eq 1 ]; then
     # Empty password, used for testing, debugging etc.
     unset MYSQL_PWD
 fi
+
+# The above also means that both donor and joiner must have the same
+# wsrep_sst_auth configuration and and different (and thus automatically
+# generated) authentication credentials can't be used for this type of SST
+# In this case the SST will fail if joiner does not provide correct
+# authentication.
+[ -n "$WSREP_SST_OPT_REMOTE_USER" ] && REMOTE_AUTH="-u$WSREP_SST_OPT_REMOTE_USER" || REMOTE_AUTH=
+[ -n "$REMOTE_AUTH" ] && AUTH="$REMOTE_AUTH" || AUTH=
 
 STOP_WSREP='SET wsrep_on=OFF;'
 
@@ -91,6 +99,7 @@ PREPARE stmt FROM @stmt;
 EXECUTE stmt;
 DROP PREPARE stmt;"
 
+STATE="$WSREP_SST_OPT_GTID $WSREP_SST_OPT_GTID_DOMAIN_ID"
 SET_START_POSITION="SET GLOBAL wsrep_start_position='$WSREP_SST_OPT_GTID';"
 
 SET_WSREP_GTID_DOMAIN_ID=""
@@ -104,7 +113,7 @@ if [ -n "$WSREP_SST_OPT_GTID_DOMAIN_ID" ]; then
 fi
 
 MYSQL="$MYSQL_CLIENT$WSREP_SST_OPT_CONF_UNQUOTED "\
-"$AUTH -h$WSREP_SST_OPT_HOST_UNESCAPED "\
+"$REMOTE_AUTH -h$WSREP_SST_OPT_HOST_UNESCAPED "\
 "-P$WSREP_SST_OPT_PORT --disable-reconnect --connect_timeout=10"
 
 # Check if binary logging is enabled on the joiner node.
@@ -168,6 +177,8 @@ else
     wsrep_log_info "Bypassing state dump."
     echo "$SET_START_POSITION" | $MYSQL || exit $?
 fi
+
+echo "done $STATE"
 
 wsrep_log_info "$WSREP_METHOD $WSREP_TRANSFER_TYPE completed on $WSREP_SST_OPT_ROLE"
 exit 0
