@@ -3943,7 +3943,8 @@ void Query_tables_list::destroy_query_tables_list()
 
 LEX::LEX()
   : explain(NULL), result(0), part_info(NULL), arena_for_set_stmt(0),
-    mem_root_for_set_stmt(0), json_table(NULL), default_used(0),
+    mem_root_for_set_stmt(0), json_table(NULL), analyze_stmt(0),
+    default_used(0),
     with_rownum(0), is_lex_started(0), option_type(OPT_DEFAULT),
     context_analysis_only(0), sphead(0), limit_rows_examined_cnt(ULONGLONG_MAX)
 {

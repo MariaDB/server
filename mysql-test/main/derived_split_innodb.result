@@ -380,6 +380,7 @@ ANALYZE
           "r_rows": 5,
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
           "filtered": 100,
           "r_filtered": 100
         }
@@ -398,6 +399,7 @@ ANALYZE
           "r_rows": 2,
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
           "filtered": 100,
           "r_filtered": 100,
           "attached_condition": "trigcond(trigcond(t1.b is not null))"
@@ -417,6 +419,7 @@ ANALYZE
           "r_rows": 3,
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
           "filtered": 100,
           "r_filtered": 100,
           "attached_condition": "trigcond(trigcond(t1.b is not null))"
@@ -461,6 +464,7 @@ ANALYZE
                     "r_rows": 100,
                     "r_table_time_ms": "REPLACED",
                     "r_other_time_ms": "REPLACED",
+                    "r_engine_stats": REPLACED,
                     "filtered": 100,
                     "r_filtered": 100
                   }
@@ -475,6 +479,7 @@ ANALYZE
                       "r_rows": 10,
                       "r_table_time_ms": "REPLACED",
                       "r_other_time_ms": "REPLACED",
+                      "r_engine_stats": REPLACED,
                       "filtered": 100,
                       "r_filtered": 100
                     },

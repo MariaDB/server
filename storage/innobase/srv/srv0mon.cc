@@ -1619,21 +1619,20 @@ srv_mon_process_existing_counter(
 	/* innodb_row_lock_time */
 	case MONITOR_OVLD_LOCK_WAIT_TIME:
 		// dirty read without lock_sys.wait_mutex
-		value = lock_sys.get_wait_time_cumulative() / 1000;
+		value = lock_sys.get_wait_time_cumulative();
 		break;
 
 	/* innodb_row_lock_time_max */
 	case MONITOR_OVLD_LOCK_MAX_WAIT_TIME:
 		// dirty read without lock_sys.wait_mutex
-		value = lock_sys.get_wait_time_max() / 1000;
+		value = lock_sys.get_wait_time_max();
 		break;
 
 	/* innodb_row_lock_time_avg */
 	case MONITOR_OVLD_LOCK_AVG_WAIT_TIME:
 		mysql_mutex_lock(&lock_sys.wait_mutex);
 		if (auto count = lock_sys.get_wait_cumulative()) {
-			value = lock_sys.get_wait_time_cumulative() / 1000
-				/ count;
+			value = lock_sys.get_wait_time_cumulative() / count;
 		} else {
 			value = 0;
 		}
