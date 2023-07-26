@@ -1164,8 +1164,9 @@ ATTRIBUTE_COLD static dberr_t ibuf_log_rebuild_if_needed()
   if (recv_sys.is_corrupt_log() || recv_sys.is_corrupt_fs())
     return DB_CORRUPTION;
 
+  dberr_t err= srv_log_rebuild_if_needed();
   recv_sys.debug_free();
-  return srv_log_rebuild_if_needed();
+  return err;
 }
 
 static tpool::task_group rollback_all_recovered_group(1);

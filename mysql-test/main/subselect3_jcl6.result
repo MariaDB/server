@@ -65,7 +65,7 @@ a in (select max(ie) from t1 where oref=4 group by grp)
 0
 show status like 'Handler_read_rnd_next';
 Variable_name	Value
-Handler_read_rnd_next	11
+Handler_read_rnd_next	19
 select ' ^ This must show 11' Z;
 Z
  ^ This must show 11

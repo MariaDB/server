@@ -19,9 +19,15 @@
 #define LOG_SLOW_INCLUDED
 
 #define LOG_SLOW_VERBOSITY_INIT           0
-#define LOG_SLOW_VERBOSITY_INNODB         (1U << 0)
+#define LOG_SLOW_VERBOSITY_INNODB         (1U << 0) /* Old option */
 #define LOG_SLOW_VERBOSITY_QUERY_PLAN     (1U << 1)
 #define LOG_SLOW_VERBOSITY_EXPLAIN        (1U << 2)
+#define LOG_SLOW_VERBOSITY_STORAGE_ENGINE (1U << 3) /* Replaces InnoDB */
+#define LOG_SLOW_VERBOSITY_FULL           (1U << 4)
+
+#define LOG_SLOW_VERBOSITY_ENGINE         (LOG_SLOW_VERBOSITY_FULL | \
+                                           LOG_SLOW_VERBOSITY_INNODB | \
+                                           LOG_SLOW_VERBOSITY_STORAGE_ENGINE)
 
 #define QPLAN_INIT            QPLAN_QC_NO
 

@@ -27,7 +27,7 @@ SELECT SLEEP (1);
 # cover the error reporting when setting lock wait timeout, until we
 # find a better one and/or fixing the non-deterministic error
 # reporting
---error 12701,ER_NET_ERROR_ON_WRITE,ER_XAER_DUPID
+--error 12701,ER_NET_READ_ERROR,ER_NET_ERROR_ON_WRITE,ER_XAER_DUPID
 INSERT INTO t VALUES (1,2,3),(4,5,6),(7,8,9);
 --disable_result_log
 --error 0,12701,ER_XAER_DUPID

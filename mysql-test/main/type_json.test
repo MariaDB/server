@@ -122,5 +122,19 @@ SELECT json_object('a', (SELECT json_objectagg(b, c) FROM (SELECT 'b','c') d)) A
 --enable_view_protocol
 
 --echo #
+--echo # MDEV-26506 Over-quoted JSON when combining JSON_ARRAYAGG with JSON_OBJECT
+--echo #
+--echo # maintain JSON property through internal temporary tables
+create table t1 (a varchar(30));
+insert into t1 values ('root');
+select json_object('attr2',o) from (select a, json_arrayagg(json_object('attr1', a)) as o from t1) u;
+drop table t1;
+
+create view v1 as select json_object(_latin1 'a', _latin1'b') as v1_json;
+select v1_json from v1;
+select json_arrayagg(v1_json) from v1;
+drop view v1;
+
+--echo #
 --echo # End of 10.5 tests
 --echo #

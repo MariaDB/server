@@ -997,7 +997,10 @@ class Item_func_tochar :public Item_str_func
 
   bool check_arguments() const override
   {
-    return check_argument_types_can_return_text(1, arg_count);
+    return
+      (args[0]->check_type_can_return_date(func_name_cstring()) &&
+       args[0]->check_type_can_return_time(func_name_cstring())) ||
+      check_argument_types_can_return_text(1, arg_count);
   }
 
 public:

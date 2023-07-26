@@ -3384,17 +3384,12 @@ public:
 class Name: private LEX_CSTRING
 {
 public:
-  Name(const char *str_arg, uint length_arg)
-  {
-    DBUG_ASSERT(length_arg < UINT_MAX32);
-    LEX_CSTRING::str= str_arg;
-    LEX_CSTRING::length= length_arg;
-  }
-  Name(const LEX_CSTRING &lcs)
-  {
-    LEX_CSTRING::str= lcs.str;
-    LEX_CSTRING::length= lcs.length;
-  }
+  constexpr Name(const char *str_arg, uint length_arg) :
+    LEX_CSTRING({str_arg, length_arg})
+  { }
+  constexpr Name(const LEX_CSTRING &lcs) :
+    LEX_CSTRING(lcs)
+  { }
   const char *ptr() const { return LEX_CSTRING::str; }
   uint length() const { return (uint) LEX_CSTRING::length; }
   const LEX_CSTRING &lex_cstring() const { return *this; }
@@ -7396,7 +7391,6 @@ class Type_collection
 public:
   virtual ~Type_collection() = default;
   virtual bool init(Type_handler_data *) { return false; }
-  virtual const Type_handler *handler_by_name(const LEX_CSTRING &name) const= 0;
   virtual const Type_handler *aggregate_for_result(const Type_handler *h1,
                                                    const Type_handler *h2)
                                                    const= 0;

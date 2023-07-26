@@ -62,6 +62,7 @@ void set_malloc_size_cb(MALLOC_SIZE_CB func)
 
   @return A pointer to the allocated memory block, or NULL on failure.
 */
+ATTRIBUTE_MALLOC
 void *my_malloc(PSI_memory_key key, size_t size, myf my_flags)
 {
   my_memory_header *mh;

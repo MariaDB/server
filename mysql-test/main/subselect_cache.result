@@ -64,6 +64,7 @@ ANALYZE
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
           "filtered": 100,
           "r_filtered": 100
         }
@@ -91,6 +92,7 @@ ANALYZE
                   "cost": "REPLACED",
                   "r_table_time_ms": "REPLACED",
                   "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
                   "filtered": 100,
                   "r_filtered": 18.75,
                   "attached_condition": "t1.b = t2.c"
@@ -127,6 +129,7 @@ ANALYZE
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
           "filtered": 100,
           "r_filtered": 100
         }
@@ -162,6 +165,7 @@ ANALYZE
                           "cost": "REPLACED",
                           "r_table_time_ms": "REPLACED",
                           "r_other_time_ms": "REPLACED",
+                          "r_engine_stats": REPLACED,
                           "filtered": 100,
                           "r_filtered": 18.75,
                           "attached_condition": "t1.b = t2.c"
@@ -205,6 +209,7 @@ ANALYZE
                   "cost": "REPLACED",
                   "r_table_time_ms": "REPLACED",
                   "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
                   "filtered": 100,
                   "r_filtered": 18.75,
                   "attached_condition": "t1.b = t2.c"
@@ -1734,7 +1739,7 @@ Subquery_cache_miss	18
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	32
+Handler_read_key	29
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
@@ -1799,7 +1804,7 @@ Subquery_cache_miss	10
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	13
+Handler_read_key	12
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0

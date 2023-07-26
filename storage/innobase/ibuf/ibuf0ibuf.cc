@@ -156,7 +156,7 @@ dtype_new_read_for_order_and_null_size(
 		<< 16;
 
 	if (dtype_is_string_type(type->mtype)) {
-		type->prtype |= charset_coll << 16;
+		type->prtype |= charset_coll;
 
 		if (charset_coll == 0) {
 			/* This insert buffer record was inserted before
@@ -663,7 +663,7 @@ ATTRIBUTE_COLD static dberr_t ibuf_move_to_next(btr_cur_t *cur, mtr_t *mtr)
 
   dberr_t err;
   buf_block_t *next=
-    btr_block_get(*cur->index(), next_page_no, BTR_MODIFY_LEAF, mtr, &err);
+    btr_block_get(*cur->index(), next_page_no, RW_X_LATCH, mtr, &err);
   if (!next)
     return err;
 
@@ -709,7 +709,7 @@ static dberr_t ibuf_merge(fil_space_t *space, btr_cur_t *cur, mtr_t *mtr)
     rec_t *rec= cur->page_cur.rec;
     ulint n_fields= rec_get_n_fields_old(rec);
 
-    if (n_fields <= IBUF_REC_FIELD_USER + 1 || rec[4])
+    if (n_fields < IBUF_REC_FIELD_USER + 1 || rec[4])
       return DB_CORRUPTION;
 
     n_fields-= IBUF_REC_FIELD_USER;
@@ -910,7 +910,17 @@ ATTRIBUTE_COLD dberr_t ibuf_upgrade()
         prev_space_id= space_id;
         space= fil_space_t::get(space_id);
         if (space)
+        {
+          /* Move to the next user tablespace. We buffer-fix the current
+          change buffer leaf page to prevent it from being evicted
+          before we have started a new mini-transaction. */
+          cur.page_cur.block->fix();
+          mtr.commit();
+          log_free_check();
+          mtr.start();
+          mtr.page_lock(cur.page_cur.block, RW_X_LATCH);
           mtr.set_named_space(space);
+        }
         spaces++;
       }
       pages++;

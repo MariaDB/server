@@ -94,7 +94,7 @@ ATTRIBUTE_COLD void btr_decryption_failed(const dict_index_t &index);
 @param[out]	err	error code
 @return block */
 buf_block_t *btr_block_get(const dict_index_t &index,
-                           uint32_t page, ulint mode,
+                           uint32_t page, rw_lock_type_t mode,
                            mtr_t *mtr, dberr_t *err= nullptr);
 
 /**************************************************************//**
