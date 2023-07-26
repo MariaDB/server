@@ -915,5 +915,17 @@ select distinct a from t1 where t1.a=1 and t1.a in (select a+0 from t2 where t2.
 drop table t1,t2;
 
 --echo #
+--echo # MDEV-31743 Server crash in store_length, assertion failure in
+--echo #            Type_handler_string_result::sort_length
+--echo #
+
+create table t1 (a int, b longtext, c varchar(18));
+insert into t1 values (1, 'Aa123456', 'abc'), (2, 'Bb7897777', 'def'),
+  (3, 'Cc01287', 'xyz'), (5, 'd12345', 'efg');
+
+select distinct if(sum(a), b, 0) from t1 group by value(c) with rollup;
+drop table t1;
+
+--echo #
 --echo # end of 10.5 tests
 --echo #
