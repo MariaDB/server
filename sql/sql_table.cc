@@ -12531,7 +12531,9 @@ bool HA_CREATE_INFO::
   else
   {
     // Make sure we don't do double resolution in direct SQL execution
-    DBUG_ASSERT(!default_table_charset || thd->stmt_arena->is_stmt_execute());
+    DBUG_ASSERT(!default_table_charset ||
+                thd->stmt_arena->is_stmt_execute() ||
+                thd->stmt_arena->state == Query_arena::STMT_INITIALIZED_FOR_SP);
     if (!(default_table_charset=
             default_cscl.resolved_to_context(ctx)))
       return true;
@@ -12543,7 +12545,8 @@ bool HA_CREATE_INFO::
   {
     // Make sure we don't do double resolution in direct SQL execution
     DBUG_ASSERT(!alter_table_convert_to_charset ||
-                thd->stmt_arena->is_stmt_execute());
+                thd->stmt_arena->is_stmt_execute() ||
+                thd->stmt_arena->state == Query_arena::STMT_INITIALIZED_FOR_SP);
     if (!(alter_table_convert_to_charset=
             convert_cscl.resolved_to_context(ctx)))
       return true;

@@ -3224,6 +3224,7 @@ handler *handler::clone(const char *name, MEM_ROOT *mem_root)
   if (new_handler->ha_open(table, name, table->db_stat,
                            HA_OPEN_IGNORE_IF_LOCKED, mem_root))
     goto err;
+  new_handler->handler_stats= handler_stats;
 
   return new_handler;
 

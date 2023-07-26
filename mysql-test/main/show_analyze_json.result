@@ -115,6 +115,7 @@ SHOW ANALYZE
           "r_rows": 1000,
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
           "filtered": 99.90000153,
           "r_filtered": 100,
           "attached_condition": "t1.a < 10"
@@ -293,6 +294,7 @@ SHOW ANALYZE
                   "r_rows": 10,
                   "r_table_time_ms": "REPLACED",
                   "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
                   "filtered": 100,
                   "r_filtered": 60,
                   "attached_condition": "a.a <= 5"
@@ -313,6 +315,7 @@ SHOW ANALYZE
                   "r_loops": 0,
                   "rows": 10,
                   "r_rows": null,
+                  "r_engine_stats": REPLACED,
                   "filtered": 100,
                   "r_filtered": null,
                   "attached_condition": "b.a >= 9"
@@ -362,6 +365,7 @@ SHOW ANALYZE
                   "r_rows": 10,
                   "r_table_time_ms": "REPLACED",
                   "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
                   "filtered": 100,
                   "r_filtered": 60,
                   "attached_condition": "a.a <= 5"
@@ -386,6 +390,7 @@ SHOW ANALYZE
                   "r_rows": 10,
                   "r_table_time_ms": "REPLACED",
                   "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
                   "filtered": 100,
                   "r_filtered": 10,
                   "attached_condition": "b.a >= 9"
@@ -486,6 +491,7 @@ SHOW ANALYZE
           "r_rows": 10,
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
           "filtered": 100,
           "r_filtered": 20,
           "attached_condition": "a.a < 2"
@@ -508,6 +514,7 @@ SHOW ANALYZE
                 "r_rows": 10,
                 "r_table_time_ms": "REPLACED",
                 "r_other_time_ms": "REPLACED",
+                "r_engine_stats": REPLACED,
                 "filtered": 100,
                 "r_filtered": 30,
                 "attached_condition": "b.a > 6"
@@ -669,6 +676,7 @@ SHOW ANALYZE
           "r_rows": 10,
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
           "filtered": 100,
           "r_filtered": 20,
           "attached_condition": "a.a < 2"
@@ -694,6 +702,7 @@ SHOW ANALYZE
                   "r_rows": 10,
                   "r_table_time_ms": "REPLACED",
                   "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
                   "filtered": 100,
                   "r_filtered": 95,
                   "attached_condition": "b.a + a.a < 10"

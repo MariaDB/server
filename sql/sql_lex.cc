@@ -486,11 +486,15 @@ bool sp_create_assignment_instr(THD *thd, bool no_lookahead,
         be deleted by the destructor ~sp_instr_xxx().
         So we should remove "lex" from the stack sp_head::m_lex,
         to avoid double free.
-        Note, in case "lex" is not owned by any sp_instr_xxx,
-        it's also safe to remove it from the stack right now.
-        So we can remove it unconditionally, without testing lex->sp_lex_in_use.
       */
       lex->sphead->restore_lex(thd);
+      /*
+        No needs for "delete lex" here: "lex" is already linked
+        to the sp_instr_stmt (using sp_lex_keeper) instance created by
+        the call for new_sp_instr_stmt() above. It will be freed
+        by ~sp_head/~sp_instr/~sp_lex_keeper during THD::end_statement().
+      */
+      DBUG_ASSERT(lex->sp_lex_in_use); // used by sp_instr_stmt
       return true;
     }
     enum_var_type inner_option_type= lex->option_type;
@@ -3939,7 +3943,8 @@ void Query_tables_list::destroy_query_tables_list()
 
 LEX::LEX()
   : explain(NULL), result(0), part_info(NULL), arena_for_set_stmt(0),
-    mem_root_for_set_stmt(0), json_table(NULL), default_used(0),
+    mem_root_for_set_stmt(0), json_table(NULL), analyze_stmt(0),
+    default_used(0),
     with_rownum(0), is_lex_started(0), option_type(OPT_DEFAULT),
     context_analysis_only(0), sphead(0), limit_rows_examined_cnt(ULONGLONG_MAX)
 {
@@ -6831,7 +6836,6 @@ bool LEX::sp_for_loop_implicit_cursor_statement(THD *thd,
   if (unlikely(!(bounds->m_index=
                  new (thd->mem_root) sp_assignment_lex(thd, this))))
     return true;
-  bounds->m_index->sp_lex_in_use= true;
   sphead->reset_lex(thd, bounds->m_index);
   DBUG_ASSERT(thd->lex != this);
   /*

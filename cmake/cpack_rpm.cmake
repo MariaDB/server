@@ -299,6 +299,7 @@ ENDIF()
 # MDEV-24629, we need it outside of ELSIFs
 IF(RPM MATCHES "fedora")
   ALTERNATIVE_NAME("common" "mariadb-connector-c-config" ${MARIADB_CONNECTOR_C_VERSION}-1)
+  ALTERNATIVE_NAME("shared" "mariadb-connector-c" ${MARIADB_CONNECTOR_C_VERSION}-1)
 ENDIF()
 
 SET(PYTHON_SHEBANG "/usr/bin/python3" CACHE STRING "python shebang")

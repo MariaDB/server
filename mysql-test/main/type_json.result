@@ -159,5 +159,23 @@ def					j	250 (format=json)	9437283	16	Y	0	39	33
 j
 {"a": {"b":"c"}}
 #
+# MDEV-26506 Over-quoted JSON when combining JSON_ARRAYAGG with JSON_OBJECT
+#
+# maintain JSON property through internal temporary tables
+create table t1 (a varchar(30));
+insert into t1 values ('root');
+select json_object('attr2',o) from (select a, json_arrayagg(json_object('attr1', a)) as o from t1) u;
+json_object('attr2',o)
+{"attr2": [{"attr1": "root"}]}
+drop table t1;
+create view v1 as select json_object(_latin1 'a', _latin1'b') as v1_json;
+select v1_json from v1;
+v1_json
+{"a": "b"}
+select json_arrayagg(v1_json) from v1;
+json_arrayagg(v1_json)
+[{"a": "b"}]
+drop view v1;
+#
 # End of 10.5 tests
 #

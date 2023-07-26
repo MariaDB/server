@@ -591,11 +591,11 @@ print OUT pack("x[470]N", 0x677700cf);
 # invalid (all-zero) checkpoint page 1 and an empty log page
 print OUT chr(0) x 1024;
 # valid checkpoint block 2
-print OUT pack("x[12]NNNx[264]", 0x12860c, 0, 0x80c);
+print OUT pack("x[12]NNNx[264]", 0x12860c, 0, 0x120c);
 # pointer to the FILE_CHECKPOINT record, and checkpoint page checksum
-print OUT pack("H*x[204]NNN", "590DBAACFE922582", 0x128612, 0, 0x101741b);
+print OUT pack("H*x[204]NNN", "590DBAACFE922582", 0x128612, 0, 0x3b4ce62d);
 # log page
-print OUT pack("NnnNx[496]N", 0x80000944, 12, 12, 1, 0x46c8a2a2);
+print OUT pack("x[2560]NnnNx[496]N", 0x80000944, 12, 12, 1, 0x46c8a2a2);
 close OUT or die;
 EOF
 

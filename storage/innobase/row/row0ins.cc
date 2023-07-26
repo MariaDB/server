@@ -3026,8 +3026,8 @@ row_ins_sec_index_entry_low(
 			search_mode = btr_latch_mode(
 				search_mode
 				| (thr_get_trx(thr)->check_unique_secondary
-				   ? BTR_INSERT | BTR_IGNORE_SEC_UNIQUE
-				   : BTR_INSERT));
+				   ? BTR_INSERT
+				   : BTR_INSERT | BTR_IGNORE_SEC_UNIQUE));
 		}
 
 		err = cursor.search_leaf(entry, PAGE_CUR_LE, search_mode,
