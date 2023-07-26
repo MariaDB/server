@@ -206,8 +206,7 @@ public:
       }
     }
 
-    if (capacity > 7 && static_cast<double>(_size - 1) <
-                            LOW_LOAD_FACTOR * static_cast<double>(capacity))
+    if (unlikely(capacity > 7 && (_size - 1) * LOW_LOAD_FACTOR < capacity))
       rehash(0.5 * capacity);
 
     return erase_helper(value);
@@ -234,7 +233,7 @@ public:
       }
     }
 
-    if (_size + 1 > MAX_LOAD_FACTOR * capacity)
+    if (unlikely((_size + 1) * MAX_LOAD_FACTOR > capacity))
       rehash(capacity << 1);
 
     return insert_helper(value);
@@ -281,8 +280,10 @@ public:
 private:
   static constexpr uint power2_start= 2;
   static constexpr uint CAPACITY_INITIAL= 1 << power2_start;
-  static constexpr double MAX_LOAD_FACTOR= 0.5f;
-  static constexpr double LOW_LOAD_FACTOR= 0.1f;
+  /*static constexpr double MAX_LOAD_FACTOR= 0.5f;
+  static constexpr double LOW_LOAD_FACTOR= 0.1f;*/
+  static constexpr int MAX_LOAD_FACTOR= 2;
+  static constexpr int LOW_LOAD_FACTOR= 10;
 
   class markable_reference
   {
