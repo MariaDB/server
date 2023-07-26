@@ -566,9 +566,7 @@ Description: MariaDB database client binaries
 Package: mariadb-client-compat
 Architecture: all
 Depends: mariadb-client (>= ${source:Version})
-Multi-Arch: foreign
-Description: MySQL compatibility links to mariadb-client binaries/scripts.
-Conflicts: mariadb-client (< 11.0.0),
+Conflicts: mariadb-client (<< 11.0.0),
            mariadb-client-10.0,
            mariadb-client-10.1,
            mariadb-client-10.2,
@@ -582,7 +580,7 @@ Conflicts: mariadb-client (< 11.0.0),
            mariadb-client-5.2,
            mariadb-client-5.3,
            mariadb-client-5.5,
-           mariadb-client-core (< 11.0.0),
+           mariadb-client-core (<< 11.0.0),
            mariadb-client-core-10.0,
            mariadb-client-core-10.1,
            mariadb-client-core-10.2,
@@ -610,7 +608,7 @@ Conflicts: mariadb-client (< 11.0.0),
            mysql-client-core-5.6,
            mysql-client-core-5.7,
            mysql-client-core-8.0,
-           mariadb-server (< 11.0.0),
+           mariadb-server (<< 11.0.0),
            mariadb-server-10.0,
            mariadb-server-10.1,
            mariadb-server-10.2,
@@ -620,7 +618,7 @@ Conflicts: mariadb-client (< 11.0.0),
            mariadb-server-10.6,
            mariadb-server-10.7,
            mariadb-server-10.8,
-           mariadb-server-core (< 11.0.0),
+           mariadb-server-core (<< 11.0.0),
            mariadb-server-core-10.0,
            mariadb-server-core-10.1,
            mariadb-server-core-10.2,
@@ -637,6 +635,13 @@ Conflicts: mariadb-client (< 11.0.0),
            percona-xtradb-cluster-server-5.6,
            percona-xtradb-cluster-server-5.7,
            percona-xtradb-cluster-server
+Multi-Arch: foreign
+Description: MySQL compatibility links to mariadb-client binaries/scripts.
+ The package contains links and binaries that are needed by MySQL centric
+ tools which also works with MariaDB.
+ .
+ This package is also useful for users with strong  background in MySQL
+ maintenance, but wants to switch to MariaDB
 
 Package: mariadb-server-core
 Architecture: any
@@ -861,9 +866,7 @@ Description: MariaDB database server binaries
 Package: mariadb-server-compat
 Architecture: all
 Depends: mariadb-server (>= ${source:Version}),
-Multi-Arch: foreign
-Description: MySQL compatibility links to mariadb-server binaries/scripts.
-Conflicts: mariadb-server-core (< 11.0.0),
+Conflicts: mariadb-server-core (<< 11.0.0),
            mariadb-server-core-10.0,
            mariadb-server-core-10.1,
            mariadb-server-core-10.2,
@@ -877,7 +880,7 @@ Conflicts: mariadb-server-core (< 11.0.0),
            mariadb-server-core-5.2,
            mariadb-server-core-5.3,
            mariadb-server-core-5.5,
-           mariadb-server (< 11.0.0),
+           mariadb-server (<< 11.0.0),
            mariadb-server-10.0,
            mariadb-server-10.1,
            mariadb-server-10.2,
@@ -904,6 +907,13 @@ Conflicts: mariadb-server-core (< 11.0.0),
            percona-xtradb-cluster-server-5.6,
            percona-xtradb-cluster-server-5.7,
            percona-xtradb-cluster-server
+Multi-Arch: foreign
+Description: MySQL compatibility links to mariadb-server binaries/scripts.
+ The package contains links and binaries that are needed by MySQL centric
+ tools which also works with MariaDB.
+ .
+ This package is also useful for users with strong  background in MySQL
+ maintenance, but wants to switch to MariaDB
 
 Package: mariadb-backup
 Architecture: any

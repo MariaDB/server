@@ -2944,6 +2944,7 @@ ANALYZE
               "cost": "REPLACED",
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
               "filtered": 100,
               "r_filtered": 100
             }
@@ -2971,6 +2972,7 @@ ANALYZE
                       "cost": "REPLACED",
                       "r_table_time_ms": "REPLACED",
                       "r_other_time_ms": "REPLACED",
+                      "r_engine_stats": REPLACED,
                       "filtered": 100,
                       "r_filtered": 50,
                       "attached_condition": "<nop>(<in_optimizer>(t1.b,(subquery#3) >= 4))"
@@ -2996,6 +2998,7 @@ ANALYZE
                             "cost": "REPLACED",
                             "r_table_time_ms": "REPLACED",
                             "r_other_time_ms": "REPLACED",
+                            "r_engine_stats": REPLACED,
                             "filtered": 100,
                             "r_filtered": 100
                           }

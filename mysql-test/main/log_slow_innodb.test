@@ -1,0 +1,75 @@
+#
+# Test the extended slow query log output format for various log_slow_verbosity values.
+# Test that InnoDB stats for the extended slow query log are collected.
+#
+# This test file is based on tests from Percona server
+#
+
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/log_slow_prepare.inc
+# Cannot be used with view protocol as number of temporary tables changes
+--source include/no_view_protocol.inc
+
+--let $log_slow_prefix=log_slow_innodb
+
+# Force cold buffer pool
+#--let $restart_parameters=--innodb_buffer_pool_load_at_startup=OFF
+#--source include/restart_mysqld.inc
+
+CREATE TABLE t1(a INT primary key, b int) ENGINE=InnoDB;
+INSERT INTO t1 select seq, seq from seq_1_to_1000;
+
+SET SESSION min_examined_row_limit=0;
+SET SESSION long_query_time=0;
+
+#
+# Test all enabled options with InnoDB-involving query
+#
+SET SESSION log_slow_verbosity='innodb,query_plan';
+--let log_file=$log_slow_prefix-verbosity_1
+
+--source include/log_slow_start.inc
+SELECT sum(a+b) FROM t1;
+UPDATE t1 set b=b+1 where a=1 or a=999;
+--source include/log_slow_stop.inc
+
+--let log_slow_verbosity_expected_matches= 3
+--let log_slow_verbosity_queryplan_matches= 1
+--let log_slow_verbosity_innodb_expected_matches= 2
+--let log_slow_verbosity_tmptable_expected_matches= 0
+--source include/log_slow_grep.inc
+
+#
+# Test for "No InnoDB statistics available" in output when InnoDB stats are requested
+# but the query does not involve InnoDB tables
+#
+
+SET SESSION log_slow_verbosity='innodb,query_plan';
+--let log_file=$log_slow_prefix-verbosity_2
+
+--source include/log_slow_start.inc
+SELECT 1;
+--source include/log_slow_stop.inc
+
+--let log_slow_verbosity_expected_matches= 2
+--let log_slow_verbosity_queryplan_matches= 1
+--let log_slow_verbosity_innodb_expected_matches= 0
+--source include/log_slow_grep.inc
+
+#
+# Test 'query_plan'
+#
+
+SET SESSION log_slow_verbosity='query_plan';
+let log_file=$log_slow_prefix-verbosity_3
+
+--source include/log_slow_start.inc
+INSERT INTO t1 VALUE(1000);
+--source include/log_slow_stop.inc
+
+--let log_slow_verbosity_innodb_expected_matches= 1
+--source include/log_slow_grep.inc
+
+DROP TABLE t1;
+--source include/log_slow_cleanup.inc

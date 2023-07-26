@@ -6619,8 +6619,9 @@ static Sys_var_ulong Sys_log_slow_rate_limit(
        SESSION_VAR(log_slow_rate_limit), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, UINT_MAX), DEFAULT(1), BLOCK_SIZE(1));
 
-static const char *log_slow_verbosity_names[]= { "innodb", "query_plan", 
-                                                 "explain", 0 };
+static const char *log_slow_verbosity_names[]=
+{ "innodb", "query_plan", "explain", "engine", "full", 0};
+
 static Sys_var_set Sys_log_slow_verbosity(
        "log_slow_verbosity",
        "Verbosity level for the slow log",

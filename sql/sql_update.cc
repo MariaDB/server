@@ -589,7 +589,7 @@ bool Sql_cmd_update::update_single_table(THD *thd)
   */
   if (thd->lex->describe)
     goto produce_explain_and_leave;
-  if (!(explain= query_plan.save_explain_update_data(query_plan.mem_root, thd)))
+  if (!(explain= query_plan.save_explain_update_data(thd, query_plan.mem_root)))
     goto err;
 
   ANALYZE_START_TRACKING(thd, &explain->command_tracker);
@@ -1275,7 +1275,7 @@ produce_explain_and_leave:
     We come here for various "degenerate" query plans: impossible WHERE,
     no-partitions-used, impossible-range, etc.
   */
-  if (unlikely(!query_plan.save_explain_update_data(query_plan.mem_root, thd)))
+  if (unlikely(!query_plan.save_explain_update_data(thd, query_plan.mem_root)))
     goto err;
 
 emit_explain_and_leave:

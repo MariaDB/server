@@ -40,7 +40,15 @@
 /* GNU C/C++ */
 #if defined __GNUC__
 # define MY_ALIGN_EXT
-# define MY_ASSERT_UNREACHABLE()   __builtin_unreachable()
+
+/*
+  __builtin_unreachable() removes the "statement may fall through" warning-as-
+  error when MY_ASSERT_UNREACHABLE() is used in "case xxx:" in switch (...)
+  statements.
+  abort() is there to prevent the execution from reaching the
+  __builtin_unreachable() as this may cause misleading stack traces.
+*/
+# define MY_ASSERT_UNREACHABLE()  { abort(); __builtin_unreachable(); }
 
 /* Microsoft Visual C++ */
 #elif defined _MSC_VER
@@ -88,7 +96,7 @@
 #endif
 
 #ifndef MY_ASSERT_UNREACHABLE
-# define MY_ASSERT_UNREACHABLE()  do { assert(0); } while (0)
+# define MY_ASSERT_UNREACHABLE()  do { abort(); } while (0)
 #endif
 
 /**

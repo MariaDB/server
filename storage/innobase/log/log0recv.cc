@@ -1547,7 +1547,10 @@ static dberr_t recv_log_recover_10_5(lsn_t lsn_offset)
   if (lsn_offset < (log_sys.is_pmem() ? log_sys.file_size : 4096))
     memcpy_aligned<512>(buf, &log_sys.buf[lsn_offset & ~511], 512);
   else
-    recv_sys.read(lsn_offset & ~lsn_t{511}, {buf, 512});
+  {
+    recv_sys.read(lsn_offset & ~lsn_t{4095}, {buf, 4096});
+    buf+= lsn_offset & 0xe00;
+  }
 
   if (!recv_check_log_block(buf))
   {
@@ -1665,7 +1668,7 @@ dberr_t recv_sys_t::find_checkpoint()
     if (dberr_t err= recv_log_recover_pre_10_2())
       return err;
   upgrade:
-    memset_aligned<512>(const_cast<byte*>(field_ref_zero), 0, 512);
+    memset_aligned<4096>(const_cast<byte*>(field_ref_zero), 0, 4096);
     /* Mark the redo log for upgrading. */
     log_sys.last_checkpoint_lsn= log_sys.next_checkpoint_lsn;
     log_sys.set_recovered_lsn(log_sys.next_checkpoint_lsn);
