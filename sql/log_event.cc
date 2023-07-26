@@ -2963,12 +2963,11 @@ Rows_log_event::Rows_log_event(const uchar *buf, uint event_len,
                                const Format_description_log_event
                                *description_event)
   : Log_event(buf, description_event),
-    m_row_count(0),
 #ifndef MYSQL_CLIENT
     m_table(NULL),
 #endif
     m_table_id(0), m_rows_buf(0), m_rows_cur(0), m_rows_end(0),
-    m_extra_row_data(0)
+    m_row_count(0), m_extra_row_data(0)
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
     , m_curr_row(NULL), m_curr_row_end(NULL),
     m_key(NULL), m_key_info(NULL), m_key_nr(0),
