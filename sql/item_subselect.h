@@ -365,6 +365,13 @@ public:
   void no_rows_in_result() override;
 };
 
+typedef struct st_eq_field_outer
+{
+  Item **eq_ref;
+  Item_ident *local_field;
+  Item *outer_exp;
+} EQ_FIELD_OUTER;
+
 /* exists subselect */
 
 class Item_exists_subselect :public Item_subselect
@@ -375,7 +382,12 @@ protected:
 
   void init_length_and_dec();
   bool select_prepare_to_be_in();
-
+  bool exists2in_prepare(THD *thd, Dynamic_array<EQ_FIELD_OUTER> &eqs,
+                         bool *will_be_correlated);
+  bool exists2in_create_or_update_in(THD *thd,
+                                     const Dynamic_array<EQ_FIELD_OUTER> &eqs,
+                                     Item** left_exp_ref);
+  bool exists2in_and_is_not_nulls(uint offset, Item **left_exp_ref);
 public:
   /*
     Used by subquery optimizations to keep track about in which clause this
@@ -616,6 +628,14 @@ public:
     SET to TRUE if IN subquery is converted from an IN predicate
   */
   bool converted_from_in_predicate;
+  
+  /*
+    -1 means "do nothing"
+    Other value means that we can assume that left_expr->element_index(i) 
+    cannot be NULL (because decorrelation code has added IS NOT NULL before
+    the subquery predicate).
+  */
+  int  not_nulls_after;
 
   Item_in_subselect(THD *thd_arg, Item * left_expr, st_select_lex *select_lex);
   Item_in_subselect(THD *thd_arg):
@@ -623,7 +643,8 @@ public:
     in_strategy(SUBS_NOT_TRANSFORMED),
     pushed_cond_guards(NULL), func(NULL), do_not_convert_to_sj(FALSE),
     is_jtbm_merged(FALSE), is_jtbm_const_tab(FALSE), upper_item(0),
-    converted_from_in_predicate(FALSE) {}
+    converted_from_in_predicate(FALSE),
+    not_nulls_after(-1) {}
   void cleanup() override;
   subs_type substype() override { return IN_SUBS; }
   void reset() override
@@ -757,10 +778,7 @@ public:
            Item_subselect::walk(processor, walk_subquery, arg);
   }
 
-  bool exists2in_processor(void *opt_arg __attribute__((unused))) override
-  {
-    return 0;
-  };
+  bool exists2in_processor(void *opt_arg) override;
 
   bool pushdown_cond_for_in_subquery(THD *thd, Item *cond);
 
@@ -804,6 +822,7 @@ public:
   bool is_maxmin_applicable(JOIN *join);
   bool transform_into_max_min(JOIN *join);
   void no_rows_in_result();
+  bool exists2in_processor(void *arg) override { return FALSE; }
 };
 
 
