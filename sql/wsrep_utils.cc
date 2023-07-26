@@ -404,11 +404,13 @@ process::process (const char* cmd, const char* type, char** env)
     if (read_from_child)
     {
         setup_parent_pipe_end(READ, read_pipe, READ_END, "r");
+        assert(from());
     }
 
     if (write_to_child)
     {
         setup_parent_pipe_end(WRITE, write_pipe, WRITE_END, "w");
+        assert(to());
     }
 
 cleanup_fact:
@@ -530,6 +532,40 @@ thd::~thd ()
     delete ptr;
     set_current_thd(nullptr);
   }
+}
+
+mysql::mysql() :
+  mysql_(mysql_init(NULL))
+{
+  int err = 0;
+  if (mysql_real_connect_local(mysql_) == NULL) {
+      err = mysql_errno(mysql_);
+      WSREP_ERROR("mysql::mysql() mysql_real_connect() failed: %d (%s)",
+                  err, mysql_error(mysql_));
+  }
+}
+
+mysql::~mysql()
+{
+  mysql_close(mysql_);
+}
+
+int
+mysql::disable_replication()
+{
+  int err = execute("SET SESSION sql_log_bin = OFF;");
+  if (err) {
+    WSREP_ERROR("sst_user::user() disabling log_bin failed: %d (%s)",
+                err, errstr());
+  }
+  else {
+    err = execute("SET SESSION wsrep_on = OFF;");
+    if (err) {
+      WSREP_ERROR("sst_user::user() disabling wsrep replication failed: %d (%s)",
+                  err, errstr());
+    }
+  }
+  return err;
 }
 
 } // namespace wsp
