@@ -97,6 +97,9 @@ int wsrep_check_opts()
       return 1;
     }
   }
+
+  wsrep_sst_auth_set(wsrep_sst_auth);
+
   return 0;
 }
 

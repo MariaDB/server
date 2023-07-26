@@ -6163,7 +6163,7 @@ static Sys_var_charptr Sys_wsrep_sst_receive_address(
 static Sys_var_charptr Sys_wsrep_sst_auth(
        "wsrep_sst_auth", "Authentication for SST connection",
        PREALLOCATED GLOBAL_VAR(wsrep_sst_auth), CMD_LINE(REQUIRED_ARG),
-       DEFAULT(NULL), NO_MUTEX_GUARD,
+       DEFAULT(WSREP_SST_AUTH_DEFAULT), NO_MUTEX_GUARD,
        NOT_IN_BINLOG,
        ON_CHECK(wsrep_sst_auth_check),
        ON_UPDATE(wsrep_sst_auth_update)); 

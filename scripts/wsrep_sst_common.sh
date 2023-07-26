@@ -1057,19 +1057,55 @@ if ! wsrep_auth_not_set; then
     fi
 fi
 
-readonly WSREP_SST_OPT_USER
-readonly WSREP_SST_OPT_PSWD
-readonly WSREP_SST_OPT_AUTH
-
+WSREP_SST_OPT_REMOTE_USER=
+WSREP_SST_OPT_REMOTE_PSWD=
 if [ -n "$WSREP_SST_OPT_REMOTE_AUTH" ]; then
     # Split auth string at the last ':'
     readonly WSREP_SST_OPT_REMOTE_USER="${WSREP_SST_OPT_REMOTE_AUTH%%:*}"
     readonly WSREP_SST_OPT_REMOTE_PSWD="${WSREP_SST_OPT_REMOTE_AUTH#*:}"
-else
-    readonly WSREP_SST_OPT_REMOTE_USER=
-    readonly WSREP_SST_OPT_REMOTE_PSWD=
 fi
 
+# Reads incoming data from STDIN and sets the variables
+#
+# Globals:
+#   WSREP_SST_OPT_USER (sets this variable)
+#   WSREP_SST_OPT_PSWD (sets this variable)
+#
+# Parameters:
+#   None
+#
+read_variables_from_stdin()
+{
+    while read line; do
+        key=${line%%=*}
+        value=${line#*=}
+        case "$key" in
+            'sst_user')
+                WSREP_SST_OPT_USER="$value"
+                ;;
+            'sst_password')
+                WSREP_SST_OPT_PSWD="$value"
+                ;;
+            'sst_remote_user')
+                WSREP_SST_OPT_REMOTE_USER="$value"
+                ;;
+            'sst_remote_password')
+                WSREP_SST_OPT_REMOTE_PSWD="$value"
+                ;;
+            *)
+                wsrep_log_warning "Unrecognized input: $line"
+        esac
+    done
+    return 0
+}
+
+[ "$WSREP_SST_OPT_ROLE" = "donor" ] && read_variables_from_stdin || :
+
+readonly WSREP_SST_OPT_USER
+readonly WSREP_SST_OPT_PSWD
+readonly WSREP_SST_OPT_AUTH
+readonly WSREP_SST_OPT_REMOTE_USER
+readonly WSREP_SST_OPT_REMOTE_PSWD
 readonly WSREP_SST_OPT_REMOTE_AUTH
 
 if [ -n "$WSREP_SST_OPT_DATA" ]; then
