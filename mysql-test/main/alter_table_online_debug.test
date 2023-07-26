@@ -33,7 +33,9 @@ insert into t1 values (123), (456), (789);
 set debug_sync= 'now SIGNAL end';
 
 --connection default
+--enable_info
 --reap
+--disable_info
 select * from t1;
 
 --echo # Insert, error
@@ -167,7 +169,9 @@ update t1 set b= 55 where a = 1;
 set debug_sync= 'now SIGNAL end';
 
 --connection default
+--enable_info
 --reap
+--disable_info
 select * from t1;
 
 --echo # Update and add a column in the middle

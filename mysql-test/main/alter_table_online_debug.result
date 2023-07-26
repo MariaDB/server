@@ -16,6 +16,8 @@ connection con2;
 insert into t1 values (123), (456), (789);
 set debug_sync= 'now SIGNAL end';
 connection default;
+affected rows: 4
+info: Records: 4  Duplicates: 0  Warnings: 0
 select * from t1;
 a	b
 5	NULL
@@ -123,6 +125,8 @@ connection con2;
 update t1 set b= 55 where a = 1;
 set debug_sync= 'now SIGNAL end';
 connection default;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
 select * from t1;
 a	b	c
 1	55	1

@@ -5184,6 +5184,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
           thd->transaction->stmt.modified_non_trans_table= TRUE;
       if (likely(error == 0))
       {
+        m_row_count++;
         error= thd->killed_errno();
         if (error && !thd->is_error())
           my_error(error, MYF(0));

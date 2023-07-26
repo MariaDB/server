@@ -1565,6 +1565,12 @@ public:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
 
   /**
+    Increase or decrease the rows inserted during ALTER TABLE based on the event
+    type.
+  */
+  virtual void online_alter_update_row_count(ha_rows *) const {}
+
+  /**
      Apply the event to the database.
 
      This function represents the public interface for applying an
@@ -4973,6 +4979,11 @@ public:
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   uint8 get_trg_event_map() const override;
+
+  void online_alter_update_row_count(ha_rows *rows) const override
+  {
+    *rows += m_row_count;
+  }
 #endif
 
 private:
@@ -5148,6 +5159,11 @@ public:
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   uint8 get_trg_event_map() const override;
+
+  void online_alter_update_row_count(ha_rows *rows) const override
+  {
+    *rows -= m_row_count;
+  }
 #endif
 
 protected:

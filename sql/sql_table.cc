@@ -11656,7 +11656,8 @@ public:
 
 
 static int online_alter_read_from_binlog(THD *thd, rpl_group_info *rgi,
-                                         Cache_flip_event_log *log)
+                                         Cache_flip_event_log *log,
+                                         ha_rows *found_rows)
 {
   int error= 0;
 
@@ -11681,8 +11682,11 @@ static int online_alter_read_from_binlog(THD *thd, rpl_group_info *rgi,
 
     ev->thd= thd;
     error= ev->apply_event(rgi);
-    if (thd->is_error())
-      error= 1;
+
+    error= error || thd->is_error();
+    if(likely(!error))
+      ev->online_alter_update_row_count(found_rows);
+
     if (ev != rgi->rli->relay_log.description_event_for_exec)
       delete ev;
     thd_progress_report(thd, my_b_tell(log_file), thd->progress.max_counter);
@@ -12108,7 +12112,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     mysql_unlock_tables(thd, thd->lock);
     thd->lock= NULL;
 
-    error= online_alter_read_from_binlog(thd, &rgi, binlog);
+    error= online_alter_read_from_binlog(thd, &rgi, binlog, &found_count);
     if (start_alter_id)
     {
       DBUG_ASSERT(thd->slave_thread);
@@ -12129,7 +12133,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     if (!error)
     {
       thd_progress_next_stage(thd);
-      error= online_alter_read_from_binlog(thd, &rgi, binlog);
+      error= online_alter_read_from_binlog(thd, &rgi, binlog, &found_count);
     }
     if (error)
       from->s->tdc->flush_unused(1); // to free the binlog
