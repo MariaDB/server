@@ -638,11 +638,9 @@ struct export_var_t{
 	ulint innodb_row_lock_current_waits;	/*!< srv_n_lock_wait_current_count */
 	int64_t innodb_row_lock_time;		/*!< srv_n_lock_wait_time
 						/ 1000 */
-	ulint innodb_row_lock_time_avg;		/*!< srv_n_lock_wait_time
-						/ 1000
-						/ srv_n_lock_wait_count */
-	ulint innodb_row_lock_time_max;		/*!< srv_n_lock_max_wait_time
-						/ 1000 */
+	uint64_t innodb_row_lock_time_avg;	/*!< srv_n_lock_wait_time
+						     / srv_n_lock_wait_count */
+	uint64_t innodb_row_lock_time_max;	/*!< srv_n_lock_max_wait_time */
 
 	/** Number of undo tablespace truncation operations */
 	ulong innodb_undo_truncations;

@@ -44,7 +44,7 @@ public:
 
 
 #include "sql_type_fixedbin.h"
-typedef FixedBinTypeBundle<Inet6> Inet6Bundle;
+typedef Type_handler_fbt<Inet6> Type_handler_inet6;
 
 /***********************************************************************/
 
@@ -57,7 +57,7 @@ public:
   static const Name &default_value();
 };
 
-typedef FixedBinTypeBundle<Inet4> Inet4Bundle;
+typedef Type_handler_fbt<Inet4> Type_handler_inet4;
 
 
 #endif /* SQL_TYPE_INET_H */

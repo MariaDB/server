@@ -42,6 +42,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "srv0start.h"
 #include "srv0srv.h"
 #include "log.h"
+#include "mariadb_stats.h"
 
 TRANSACTIONAL_TARGET
 bool buf_pool_t::page_hash_contains(const page_id_t page_id, hash_chain &chain)
@@ -234,9 +235,12 @@ buf_read_page_low(
 	}
 
 	ut_ad(bpage->in_file());
+	ulonglong mariadb_timer= 0;
 
 	if (sync) {
 		thd_wait_begin(nullptr, THD_WAIT_DISKIO);
+		if (mariadb_stats_active())
+		  mariadb_timer= mariadb_measure();
 	}
 
 	DBUG_LOG("ib_buf",
@@ -261,6 +265,8 @@ buf_read_page_low(
 		if (fio.err == DB_FAIL) {
 			fio.err = DB_PAGE_CORRUPTED;
 		}
+		if (mariadb_timer)
+		  mariadb_increment_pages_read_time(mariadb_timer);
 	}
 
 	return fio.err;

@@ -663,7 +663,7 @@ ATTRIBUTE_COLD static dberr_t ibuf_move_to_next(btr_cur_t *cur, mtr_t *mtr)
 
   dberr_t err;
   buf_block_t *next=
-    btr_block_get(*cur->index(), next_page_no, BTR_MODIFY_LEAF, mtr, &err);
+    btr_block_get(*cur->index(), next_page_no, RW_X_LATCH, mtr, &err);
   if (!next)
     return err;
 

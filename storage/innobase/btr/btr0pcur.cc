@@ -534,7 +534,8 @@ btr_pcur_move_to_next_page(
 
 	dberr_t err;
 	buf_block_t* next_block = btr_block_get(
-		*cursor->index(), next_page_no, cursor->latch_mode & ~12,
+		*cursor->index(), next_page_no,
+		rw_lock_type_t(cursor->latch_mode & (RW_X_LATCH | RW_S_LATCH)),
 		mtr, &err);
 
 	if (UNIV_UNLIKELY(!next_block)) {

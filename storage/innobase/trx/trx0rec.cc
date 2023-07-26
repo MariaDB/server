@@ -39,6 +39,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "row0row.h"
 #include "row0mysql.h"
 #include "row0ins.h"
+#include "mariadb_stats.h"
 
 /** The search tuple corresponding to TRX_UNDO_INSERT_METADATA. */
 const dtuple_t trx_undo_metadata = {
@@ -2182,6 +2183,7 @@ trx_undo_prev_version_build(
 		return DB_SUCCESS;
 	}
 
+	mariadb_increment_undo_records_read();
 	rec_trx_id = row_get_rec_trx_id(rec, index, offsets);
 
 	ut_ad(!index->table->skip_alter_undo);

@@ -23,7 +23,7 @@
 #include <m_string.h>
 #include <signal.h>
 
-pthread_key(struct st_my_thread_var*, THR_KEY_mysys);
+pthread_key(struct st_my_thread_var*, THR_KEY_mysys=-1);
 mysql_mutex_t THR_LOCK_malloc, THR_LOCK_open,
               THR_LOCK_lock, THR_LOCK_myisam, THR_LOCK_heap,
               THR_LOCK_net, THR_LOCK_charset, THR_LOCK_threads,

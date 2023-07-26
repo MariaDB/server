@@ -259,9 +259,9 @@ bool Inet6::ascii_to_fbt(const char *str, size_t str_length)
         return true;
       }
 
-      Inet4Bundle::Fbt_null tmp(group_start_ptr,
-                                (size_t) (str_end - group_start_ptr),
-                                &my_charset_latin1);
+      Type_handler_inet4::Fbt_null tmp(group_start_ptr,
+                                       (size_t) (str_end - group_start_ptr),
+                                       &my_charset_latin1);
       if (tmp.is_null())
       {
         DBUG_PRINT("error", ("ascii_to_ipv6(%.*s): invalid IPv6 address: "
