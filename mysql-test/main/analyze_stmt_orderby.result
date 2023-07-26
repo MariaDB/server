@@ -55,7 +55,8 @@ ANALYZE
         "rows": 10000,
         "r_rows": 10000,
         "r_filtered": 100,
-        "r_total_time_ms": "REPLACED"
+        "r_total_time_ms": "REPLACED",
+        "r_engine_stats": REPLACED
       }
     }
   }
@@ -111,6 +112,7 @@ ANALYZE
         "r_rows": 10,
         "r_filtered": 100,
         "r_total_time_ms": "REPLACED",
+        "r_engine_stats": REPLACED,
         "attached_condition": "t2.a < 10"
       }
     }
@@ -163,7 +165,8 @@ ANALYZE
         "rows": 10000,
         "r_rows": 10000,
         "r_filtered": 100,
-        "r_total_time_ms": "REPLACED"
+        "r_total_time_ms": "REPLACED",
+        "r_engine_stats": REPLACED
       }
     }
   }
@@ -243,6 +246,7 @@ ANALYZE
               "r_rows": 10,
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
               "filtered": 100,
               "r_filtered": 100,
               "attached_condition": "t0.a is not null"
@@ -262,6 +266,7 @@ ANALYZE
               "r_rows": 0.4,
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
               "filtered": 100,
               "r_filtered": 100
             }
@@ -347,6 +352,7 @@ ANALYZE
               "r_rows": 10,
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
               "filtered": 100,
               "r_filtered": 100,
               "attached_condition": "t0.a is not null"
@@ -368,6 +374,7 @@ ANALYZE
           "r_rows": 0.4,
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
           "filtered": 100,
           "r_filtered": 100
         }
@@ -417,6 +424,7 @@ ANALYZE
               "r_rows": 1000,
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
               "filtered": 100,
               "r_filtered": 50,
               "attached_condition": "t2.a MOD 2 = 0"
@@ -473,6 +481,7 @@ ANALYZE
               "r_rows": 10,
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
               "filtered": 100,
               "r_filtered": 100
             }
@@ -487,6 +496,7 @@ ANALYZE
                 "r_rows": 10,
                 "r_table_time_ms": "REPLACED",
                 "r_other_time_ms": "REPLACED",
+                "r_engine_stats": REPLACED,
                 "filtered": 100,
                 "r_filtered": 100
               },
@@ -560,6 +570,7 @@ ANALYZE
                   "r_rows": 5,
                   "r_table_time_ms": "REPLACED",
                   "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
                   "filtered": 100,
                   "r_filtered": 80,
                   "attached_condition": "t6.b > 0 and t6.a <= 5"
@@ -575,6 +586,7 @@ ANALYZE
                     "r_rows": 7,
                     "r_table_time_ms": "REPLACED",
                     "r_other_time_ms": "REPLACED",
+                    "r_engine_stats": REPLACED,
                     "filtered": 100,
                     "r_filtered": 100
                   },
@@ -687,6 +699,7 @@ ANALYZE
           "r_rows": 20,
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
           "filtered": 100,
           "r_filtered": 100,
           "using_index_for_group_by": true

@@ -3323,6 +3323,10 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
     char buff[80], *end;
     char query_time_buff[22+7], lock_time_buff[22+7];
     size_t buff_len;
+    ulonglong log_slow_verbosity= thd->variables.log_slow_verbosity;
+    if (log_slow_verbosity & LOG_SLOW_VERBOSITY_FULL)
+      log_slow_verbosity= ~(ulonglong) 0;
+
     end= buff;
 
     if (!(specialflag & SPECIAL_SHORT_LOG_FORMAT))
@@ -3349,7 +3353,6 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
           my_b_write(&log_file, (uchar*) "\n", 1))
         goto err;
 
-    /* For slow query log */
     sprintf(query_time_buff, "%.6f", ulonglong2double(query_utime)/1000000.0);
     sprintf(lock_time_buff,  "%.6f", ulonglong2double(lock_utime)/1000000.0);
     if (my_b_printf(&log_file,
@@ -3365,8 +3368,33 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
                     (ulong) (thd->status_var.bytes_sent - thd->bytes_sent_old)))
       goto err;
 
-    if ((thd->variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_QUERY_PLAN)
-        && thd->tmp_tables_used &&
+    if (unlikely(log_slow_verbosity &
+                 LOG_SLOW_VERBOSITY_ENGINE) &&
+        thd->handler_stats.has_stats())
+    {
+      ha_handler_stats *stats= &thd->handler_stats;
+      double tracker_frequency= timer_tracker_frequency();
+      sprintf(query_time_buff, "%.4f",
+              1000.0 * ulonglong2double(stats->pages_read_time)/
+              tracker_frequency);
+      sprintf(lock_time_buff,  "%.4f",
+              1000.0 * ulonglong2double(stats->engine_time)/
+              tracker_frequency);
+
+      if (my_b_printf(&log_file,
+                      "# Pages_accessed: %lu  Pages_read: %lu  "
+                      "Pages_updated: %lu  Old_rows_read: %lu\n"
+                      "# Pages_read_time: %s  Engine_time: %s\n",
+                      (ulong) stats->pages_accessed,
+                      (ulong) stats->pages_read_count,
+                      (ulong) stats->pages_updated,
+                      (ulong) stats->undo_records_read,
+                      query_time_buff, lock_time_buff))
+      goto err;
+    }
+
+    if ((log_slow_verbosity & LOG_SLOW_VERBOSITY_QUERY_PLAN) &&
+        thd->tmp_tables_used &&
         my_b_printf(&log_file,
                     "# Tmp_tables: %lu  Tmp_disk_tables: %lu  "
                     "Tmp_table_sizes: %s\n",
@@ -3380,7 +3408,7 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
                     ErrConvDQName(thd->spcont->m_sp).ptr()))
       goto err;
 
-     if ((thd->variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_QUERY_PLAN) &&
+     if ((log_slow_verbosity & LOG_SLOW_VERBOSITY_QUERY_PLAN) &&
          (thd->query_plan_flags &
           (QPLAN_FULL_SCAN | QPLAN_FULL_JOIN | QPLAN_TMP_TABLE |
            QPLAN_TMP_DISK | QPLAN_FILESORT | QPLAN_FILESORT_DISK |
@@ -3402,8 +3430,7 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
                        "Yes" : "No")
                      ))
       goto err;
-    if (thd->variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_EXPLAIN &&
-        thd->lex->explain)
+    if (log_slow_verbosity & LOG_SLOW_VERBOSITY_EXPLAIN && thd->lex->explain)
     {
       StringBuffer<128> buf;
       DBUG_ASSERT(!thd->free_list);

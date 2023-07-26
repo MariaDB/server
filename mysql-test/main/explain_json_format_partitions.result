@@ -47,6 +47,7 @@ ANALYZE
           "r_rows": 10,
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
           "filtered": 100,
           "r_filtered": 30,
           "attached_condition": "t1.a in (2,3,4)"
@@ -74,6 +75,7 @@ ANALYZE
         "r_rows": 10,
         "r_filtered": 30,
         "r_total_time_ms": "REPLACED",
+        "r_engine_stats": REPLACED,
         "attached_condition": "t1.a in (2,3,4)"
       }
     }
@@ -97,6 +99,7 @@ ANALYZE
       "r_rows": 10,
       "r_filtered": 0,
       "r_total_time_ms": "REPLACED",
+      "r_engine_stats": REPLACED,
       "attached_condition": "t1.a in (20,30,40)"
     }
   }

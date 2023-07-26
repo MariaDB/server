@@ -1,3 +1,6 @@
+# MariaDB use high enough debhelper so this is should
+# be considered as bug in lintia
+missing-build-dependency-for-dh-addon systemd *
 # Necessary for drop-in-place-replacement upgrades on mysql-server/-client
 # since package breaks/replaces these but at the same time also provides them
 version-substvar-for-external-package mariadb-client-core -> mysql-client-5.5
@@ -7,22 +10,11 @@ version-substvar-for-external-package libmariadb-dev -> libmysqld-dev
 version-substvar-for-external-package Replaces ${source:Version} libmariadb-dev -> libmysqlclient-dev [debian/control:74]
 version-substvar-for-external-package Replaces ${source:Version} libmariadb-dev -> libmysqld-dev [debian/control:74]
 version-substvar-for-external-package libmariadbd-dev -> libmariadbclient-dev
-version-substvar-for-external-package Replaces ${source:Version} libmariadbd-dev -> libmariadbclient-dev [debian/control:232]
-version-substvar-for-external-package Conflicts (line 408) ${source:Version} mariadb-client -> mariadb-client-10.11
-version-substvar-for-external-package Conflicts (line 575) ${source:Version} mariadb-server-core -> mariadb-server-core-10.11
-version-substvar-for-external-package Conflicts (line 711) ${source:Version} mariadb-server -> mariadb-server-10.11
+# These are left for reason version-substvar-for-external-package 
 version-substvar-for-external-package Conflicts (line 95) ${source:Version} libmariadb-dev-compat -> libmariadbclient-dev
 version-substvar-for-external-package Replaces (line 109) ${source:Version} libmariadb-dev-compat -> libmariadbclient-dev
-version-substvar-for-external-package Replaces (line 330) ${source:Version} mariadb-client-core -> mariadb-client-10.11
-version-substvar-for-external-package Replaces (line 330) ${source:Version} mariadb-client-core -> mariadb-server-core-10.11
-version-substvar-for-external-package Replaces (line 481) ${source:Version} mariadb-client -> mariadb-client-10.11
-version-substvar-for-external-package Replaces (line 481) ${source:Version} mariadb-client -> mariadb-client-core-10.11
-version-substvar-for-external-package Replaces (line 481) ${source:Version} mariadb-client -> mariadb-server-10.11
-version-substvar-for-external-package Replaces (line 481) ${source:Version} mariadb-client -> mariadb-server-core-10.11
-version-substvar-for-external-package Replaces (line 626) ${source:Version} mariadb-server-core -> mariadb-client-10.11
-version-substvar-for-external-package Replaces (line 626) ${source:Version} mariadb-server-core -> mariadb-server-10.11
-version-substvar-for-external-package Replaces (line 748) ${source:Version} mariadb-server -> mariadb-client-10.11
-version-substvar-for-external-package Replaces (line 748) ${source:Version} mariadb-server -> mariadb-server-10.11
+version-substvar-for-external-package Conflicts ${source:Version} libmariadb-dev-compat -> libmariadbclient-dev [*]
+version-substvar-for-external-package Replaces ${source:Version} libmariadb-dev-compat -> libmariadbclient-dev [*]
 # ColumnStore not used in Debian, safe to ignore. Reported upstream in https://jira.mariadb.org/browse/MDEV-24124
 source-is-missing storage/columnstore/columnstore/utils/jemalloc/libjemalloc.so.2
 source-is-missing [storage/columnstore/columnstore/utils/jemalloc/libjemalloc.so.2]

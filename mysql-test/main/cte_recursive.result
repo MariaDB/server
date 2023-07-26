@@ -3881,6 +3881,7 @@ ANALYZE
           "r_rows": 3,
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
           "filtered": 100,
           "r_filtered": 100,
           "attached_condition": "t1.a1 is not null"
@@ -3929,6 +3930,7 @@ ANALYZE
                             "r_loops": 0,
                             "rows": 1,
                             "r_rows": null,
+                            "r_engine_stats": REPLACED,
                             "filtered": 100,
                             "r_filtered": null,
                             "using_index": true
@@ -3972,6 +3974,7 @@ ANALYZE
                             "r_rows": 1,
                             "r_table_time_ms": "REPLACED",
                             "r_other_time_ms": "REPLACED",
+                            "r_engine_stats": REPLACED,
                             "filtered": 100,
                             "r_filtered": 100
                           }
@@ -4181,6 +4184,7 @@ ANALYZE
                                     "r_rows": 4,
                                     "r_table_time_ms": "REPLACED",
                                     "r_other_time_ms": "REPLACED",
+                                    "r_engine_stats": REPLACED,
                                     "filtered": 100,
                                     "r_filtered": 100
                                   }
@@ -4204,6 +4208,7 @@ ANALYZE
                                     "r_rows": 4,
                                     "r_table_time_ms": "REPLACED",
                                     "r_other_time_ms": "REPLACED",
+                                    "r_engine_stats": REPLACED,
                                     "filtered": 100,
                                     "r_filtered": 100,
                                     "attached_condition": "t1.c is not null"
@@ -4311,6 +4316,7 @@ ANALYZE
           "r_rows": 4,
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
           "filtered": 100,
           "r_filtered": 100
         }
