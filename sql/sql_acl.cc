@@ -13135,7 +13135,6 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
   if (ssl_acceptor_fd)
   {
     thd->client_capabilities |= CLIENT_SSL;
-    thd->client_capabilities |= CLIENT_SSL_VERIFY_SERVER_CERT;
   }
 
   if (data_len)

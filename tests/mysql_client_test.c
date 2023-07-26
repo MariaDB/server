@@ -21580,6 +21580,48 @@ static void test_mdev20261()
   myquery(rc);
 }
 
+static void test_mdev_30159()
+{
+  MYSQL_RES *result;
+  int rc;
+
+  myheader("test_mdev_30159");
+
+  rc= mysql_query(mysql, "create table t1 ("
+                          "  name  varchar(100),"
+                          "  typ varchar(100)"
+                          ")");
+  myquery(rc);
+  rc= mysql_query(mysql, "insert into t1 values (1,1),(2,2),(3,3),(4,4),(5,5),"
+                          "(6,6),(7,7),(8,8),(9,9),(10,10)");
+  myquery(rc);
+  rc= mysql_query(mysql, "insert into t1 values ('', 'value'),('', 'value')");
+  myquery(rc);
+  rc= mysql_query(mysql, "create table t2 ("
+                         "  servername varchar(100)"
+                         ")");
+  myquery(rc);
+  rc= mysql_query(mysql, "insert into t2 values (1),(2),(3),(4),(5),"
+                          "(6),(7),(8),(9),(10)");
+  myquery(rc);
+  rc= mysql_query(mysql, "create view v1 as"
+                         "  select * from t2"
+                         "    where"
+                         "      `t2`.`servername` regexp (  select"
+                         "          group_concat(`t1`.`name` separator '|')"
+                         "          from `t1`"
+                         "          where `t1`.`typ`"
+                         "          like 'value')");
+  myquery(rc);
+
+  result= mysql_list_fields(mysql, "v1", NULL);
+  mytest(result);
+
+  rc= mysql_query(mysql, "drop view v1");
+  myquery(rc);
+  rc= mysql_query(mysql, "drop table t1, t2");
+  myquery(rc);
+}
 
 static struct my_tests_st my_tests[]= {
   { "test_mdev_20516", test_mdev_20516 },
@@ -21885,6 +21927,7 @@ static struct my_tests_st my_tests[]= {
   { "test_mdev_16128", test_mdev_16128 },
   { "test_mdev18408", test_mdev18408 },
   { "test_mdev20261", test_mdev20261 },
+  { "test_mdev_30159", test_mdev_30159 },
   { 0, 0 }
 };
 

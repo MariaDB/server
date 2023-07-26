@@ -2402,6 +2402,28 @@ progress
 # End of 10.3 tests
 #
 #
+# MDEV-MDEV-31064 Changes of the procedure are not immediatly seen in queries to I_S.parameter from other connections
+#
+CREATE PROCEDURE sp1(IN p1 INT, IN p2 INT)
+BEGIN
+END;
+connect con2, localhost, root,,;
+CALL sp1(10, 20);
+connection default;
+CREATE OR REPLACE PROCEDURE sp1(p1 INT)
+BEGIN
+END;
+connection con2;
+SELECT COUNT(*) FROM information_schema.parameters WHERE SPECIFIC_NAME = 'sp1';
+COUNT(*)
+1
+disconnect con2;
+connection default;
+DROP PROCEDURE sp1;
+#
+# End of 10.4 tests
+#
+#
 # Start of 10.5 tests
 #
 #

@@ -2564,8 +2564,6 @@ class derived_handler;
 
 class Pushdown_derived: public Sql_alloc
 {
-private:
-  bool is_analyze;
 public:
   TABLE_LIST *derived;
   derived_handler *handler;

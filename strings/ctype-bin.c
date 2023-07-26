@@ -84,7 +84,7 @@ static int my_strnncoll_binary(CHARSET_INFO * cs __attribute__((unused)),
                                my_bool t_is_prefix)
 {
   size_t len=MY_MIN(slen,tlen);
-  int cmp= memcmp(s,t,len);
+  int cmp= len ? memcmp(s, t, len) : 0;
   return cmp ? cmp : (int)((t_is_prefix ? len : slen) - tlen);
 }
 
@@ -145,7 +145,7 @@ static int my_strnncoll_8bit_bin(CHARSET_INFO * cs __attribute__((unused)),
                                  my_bool t_is_prefix)
 {
   size_t len=MY_MIN(slen,tlen);
-  int cmp= memcmp(s,t,len);
+  int cmp= len ? memcmp(s, t, len) : 0;
   return cmp ? cmp : (int)((t_is_prefix ? len : slen) - tlen);
 }
 

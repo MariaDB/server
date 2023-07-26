@@ -6159,7 +6159,9 @@ void Regexp_processor_pcre::fix_owner(Item_func *owner,
                                       Item *subject_arg,
                                       Item *pattern_arg)
 {
-  if (!is_compiled() && pattern_arg->const_item())
+  if (!is_compiled() &&
+      pattern_arg->const_item() &&
+      !pattern_arg->is_expensive())
   {
     if (compile(pattern_arg, true))
     {

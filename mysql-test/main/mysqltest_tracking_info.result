@@ -58,6 +58,36 @@ SET SESSION session_track_system_variables=NULL;
 ERROR 42000: Variable 'session_track_system_variables' can't be set to the value of 'NULL'
 # End of 10.3 tests
 #
+# MDEV-25237: crash after setting global session_track_system_variables
+# to an invalid value
+#
+SET GLOBAL session_track_system_variables='a';
+ERROR HY000: Unknown system variable 'a'
+SET GLOBAL event_scheduler=1;
+# check that value really returns as it was
+set GLOBAL session_track_system_variables='character_set_connection';
+SET GLOBAL session_track_system_variables='a';
+ERROR HY000: Unknown system variable 'a'
+connect  con,localhost,root,,test;
+SET NAMES 'utf8';
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- character_set_connection
+-- utf8
+
+SET NAMES 'big5';
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- character_set_connection
+-- big5
+
+select @@session_track_system_variables;
+@@session_track_system_variables
+character_set_connection
+connection default;
+disconnect con;
+SET GLOBAL session_track_system_variables=default;
+SET GLOBAL event_scheduler=default;
+# End of 10.4 test
+#
 # MDEV-16470 - Session user variables tracker
 #
 # End of 10.5 tests

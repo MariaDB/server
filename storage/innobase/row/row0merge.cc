@@ -504,7 +504,8 @@ row_merge_buf_add(
 	VCOL_STORAGE		vcol_storage;
 	DBUG_ENTER("row_merge_buf_add");
 
-	if (buf->n_tuples >= buf->max_tuples) {
+	if (buf->n_tuples >= buf->max_tuples
+	    || (history_fts && (buf->index->type & DICT_FTS))) {
 error:
 		n_row_added = 0;
 		goto end;
@@ -597,7 +598,8 @@ error:
 
 
 			/* Tokenize and process data for FTS */
-			if (!history_fts && (index->type & DICT_FTS)) {
+			if (index->type & DICT_FTS) {
+				ut_ad(!history_fts);
 				fts_doc_item_t*	doc_item;
 				byte*		value;
 				void*		ptr;
@@ -1872,6 +1874,7 @@ row_merge_read_clustered_index(
 	mach_write_to_8(new_sys_trx_start, trx->id);
 	mach_write_to_8(new_sys_trx_end, TRX_ID_MAX);
 	uint64_t	n_rows = 0;
+	bool history_row = false;
 
 	/* Scan the clustered index. */
 	for (;;) {
@@ -1888,7 +1891,7 @@ row_merge_read_clustered_index(
 		dtuple_t*	row;
 		row_ext_t*	ext;
 		page_cur_t*	cur	= btr_pcur_get_page_cur(&pcur);
-		bool history_row, history_fts = false;
+		bool history_fts = false;
 
 		page_cur_move_to_next(cur);
 
@@ -2514,7 +2517,8 @@ write_buffers:
 						ut_ad(i == 0);
 						break;
 					}
-				} else if (dict_index_is_unique(buf->index)) {
+				} else if (!history_row
+					   && dict_index_is_unique(buf->index)) {
 					row_merge_dup_t	dup = {
 						buf->index, table, col_map, 0};
 

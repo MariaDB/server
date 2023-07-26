@@ -6399,9 +6399,11 @@ execute_show_status(THD *thd, TABLE_LIST *all_tables)
   memcpy(&thd->status_var, &old_status_var,
          offsetof(STATUS_VAR, last_cleared_system_status_var));
   mysql_mutex_unlock(&LOCK_status);
+  thd->initial_status_var= NULL;
   return res;
 #ifdef WITH_WSREP
 wsrep_error_label: /* see WSREP_SYNC_WAIT() macro above */
+  thd->initial_status_var= NULL;
   return true;
 #endif /* WITH_WSREP */
 }

@@ -77,15 +77,28 @@ SET DEBUG_SYNC = 'now SIGNAL continue_worker';
 --source include/stop_slave.inc
 RESET MASTER;
 SET @@global.gtid_slave_pos="";
---let $slave_gtid_strict_mode=`select @@global.gtid_strict_mode`
-SET @@global.gtid_strict_mode=1;
 --connection master
 RESET MASTER;
 
 # Load from master
 CREATE TABLE ti (a INT) ENGINE=innodb;
 CREATE SEQUENCE s2 ENGINE=innodb;
+--source include/save_master_gtid.inc
 
+--connection slave
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+--let $rpl_server_number= 2
+--source include/rpl_restart_server.inc
+# upon restart
+SET @@global.slave_parallel_threads=2;
+SET @@global.slave_parallel_mode=optimistic;
+SET @@global.debug_dbug="+d,hold_worker_on_schedule";
+--let $slave_gtid_strict_mode=`select @@global.gtid_strict_mode`
+SET @@global.gtid_strict_mode=1;
+
+--connection master
 SET @@gtid_seq_no=100;
 ALTER SEQUENCE s2 restart with 1;
 INSERT INTO ti SET a=1;
@@ -93,6 +106,10 @@ INSERT INTO ti SET a=1;
 SELECT @@global.gtid_binlog_state "Master gtid state";
 
 --connection slave
+# The following FT complicates the opening table time with committing
+# an internal transaction. The rest of the test also proves
+# MDEV-31503 "branch" of the OOO error is fixed.
+SET STATEMENT sql_log_bin=0 FOR FLUSH TABLES;
 --source include/start_slave.inc
 
 --let $wait_condition= SELECT count(*) = 1 FROM information_schema.processlist WHERE state LIKE "Waiting for prior transaction to commit"

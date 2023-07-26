@@ -5799,4 +5799,52 @@ a	a
 9	9
 10	10
 drop table t1;
+#
+# MDEV-20010 Equal on two RANK window functions create wrong result
+#
+create table t1 (a int, b int) engine= innodb;
+insert into t1 values (4, -2), (3, -1);
+SELECT RANK() OVER (ORDER BY D.C) = RANK() OVER (ORDER BY B.a) FROM
+(SELECT 5 AS C FROM t1) as D, (SELECT t1.b AS A FROM t1) AS B;
+RANK() OVER (ORDER BY D.C) = RANK() OVER (ORDER BY B.a)
+1
+1
+0
+0
+select b, rank() over (order by c) , rank() over (order by dt1.b)
+from
+(select 5 as c from t1) as dt,
+(select b from t1) as dt1;
+b	rank() over (order by c)	rank() over (order by dt1.b)
+-2	1	1
+-2	1	1
+-1	1	3
+-1	1	3
+select b, rank() over (order by c) , rank() over (order by dt1.b),
+rank() over (order by c) = rank() over (order by dt1.b)
+from
+(select 5 as c from t1) as dt,
+(select b from t1) as dt1;
+b	rank() over (order by c)	rank() over (order by dt1.b)	rank() over (order by c) = rank() over (order by dt1.b)
+-2	1	1	1
+-2	1	1	1
+-1	1	3	0
+-1	1	3	0
+alter table t1 engine=myisam;
+select b, rank() over (order by c) , rank() over (order by dt1.b)
+from
+(select 5 as c from t1) as dt,
+(select b from t1) as dt1;
+b	rank() over (order by c)	rank() over (order by dt1.b)
+-2	1	1
+-2	1	1
+-1	1	3
+-1	1	3
+create view v1 as select b,5 as c from t1;
+select b, rank() over (order by c) from v1 order by b;
+b	rank() over (order by c)
+-2	1
+-1	1
+drop view v1;
+drop table t1;
 # End of 10.4 tests

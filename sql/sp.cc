@@ -3056,7 +3056,9 @@ Sp_handler::sp_load_for_information_schema(THD *thd, TABLE *proc_table,
   sp_cache **spc= get_cache(thd);
   sp_name sp_name_obj(&db, &name, true); // This can change "name"
   *free_sp_head= 0;
-  if ((sp= sp_cache_lookup(spc, &sp_name_obj)))
+  sp= sp_cache_lookup(spc, &sp_name_obj);
+
+  if (sp && !(sp->sp_cache_version() < sp_cache_version()))
   {
     return sp;
   }
