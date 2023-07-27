@@ -94,7 +94,6 @@ CALL insert_1m ();;
 connection node_1_insert_10m;
 CALL insert_10m ();;
 connection node_2;
-call mtr.add_suppression("Error in Log_event::read_log_event\(\):.*");
 SET SESSION wsrep_sync_wait = 0;
 Killing server ...
 connection node_1;

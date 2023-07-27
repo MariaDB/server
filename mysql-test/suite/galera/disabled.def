@@ -11,13 +11,7 @@
 ##############################################################################
 
 galera_as_slave_ctas : MDEV-28378 timeout
-galera_pc_recovery : MDEV-25199 cluster fails to start up
 galera_sst_encrypted : MDEV-29876 Galera test failure on galera_sst_encrypted
-galera_binlog_checksum : MDEV-29861 Galera test case hangs
 galera_var_node_address : MDEV-20485 Galera test failure
-MDEV-26575 : MDEV-29878 Galera test failure on MDEV-26575
-galera_bf_abort_shutdown : MDEV-29918 Assertion failure on galera_bf_abort_shutdown
-galera_var_ignore_apply_errors : 28: "Server did not transition to READY state"
-versioning_trx_id : MDEV-18590: galera.versioning_trx_id: Test failure: mysqltest: Result content mismatch
-MDEV-27713 : test is using get_lock(), which is now rejected in cluster
 galera_bf_abort_group_commit : MDEV-30855 PR to remove the test exists
+MDEV-27713 : test is using get_lock(), which is now rejected in cluster

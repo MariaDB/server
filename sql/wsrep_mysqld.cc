@@ -3227,6 +3227,7 @@ void* start_wsrep_THD(void *arg)
   thd->thr_create_utime=  microsecond_interval_timer();
 
   DBUG_EXECUTE_IF("wsrep_simulate_failed_connection_1", goto error; );
+
 // </5.1.17>
   /*
     handle_one_connection() is normally the only way a thread would
