@@ -1497,6 +1497,14 @@ static bool multi_update_check_table_access(THD *thd, TABLE_LIST *table,
   else
   {
     /* Must be a base or derived table. */
+    /*
+      Derived tables do not need the check below.
+      Besides one have take into account that for mergeable derived tables
+      TABLE_LIST::TABLE is set to NULL after the first execution of the query.
+    */
+    if (table->is_derived())
+      return false;
+
     const bool updated= table->table->map & tables_for_update;
     if (check_table_access(thd, updated ? UPDATE_ACL : SELECT_ACL, table,
                            FALSE, 1, FALSE))
