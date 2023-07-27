@@ -6,6 +6,7 @@ usr/bin/mysql_client_test
 usr/bin/mysql_client_test_embedded
 usr/bin/mysqltest
 usr/bin/mysqltest_embedded
+usr/bin/test-connect-t
 usr/lib/*/libmariadb3/plugin/auth_test_plugin.so
 usr/lib/*/libmariadb3/plugin/qa_auth_client.so
 usr/lib/*/libmariadb3/plugin/qa_auth_interface.so
@@ -27,6 +28,7 @@ usr/lib/mysql/plugin/qa_auth_server.so
 usr/lib/mysql/plugin/test_sql_service.so
 usr/lib/mysql/plugin/test_versioning.so
 usr/lib/mysql/plugin/type_mysql_timestamp.so
+usr/lib/mysql/plugin/type_test.so
 usr/share/man/man1/mariadb-client-test-embedded.1
 usr/share/man/man1/mariadb-client-test.1
 usr/share/man/man1/mariadb-test-embedded.1
