@@ -4267,7 +4267,7 @@ bool mysql_show_binlog_events(THD* thd)
 
     if (lex_mi->pos > BIN_LOG_HEADER_SIZE)
     {
-      checksum_alg= description_event->checksum_alg;
+      checksum_alg= description_event->used_checksum_alg;
       /* Validate user given position using checksum */
       if (checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
           checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)

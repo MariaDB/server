@@ -829,12 +829,18 @@ public:
   void stop_union_events(THD *thd);
   bool is_query_in_union(THD *thd, query_id_t query_id_param);
 
+  bool write_event(Log_event *ev, enum enum_binlog_checksum_alg checksum_alg,
+                   binlog_cache_data *data, IO_CACHE *file);
   bool write_event(Log_event *ev, binlog_cache_data *data, IO_CACHE *file);
-  bool write_event(Log_event *ev) { return write_event(ev, 0, &log_file); }
+  bool write_event(Log_event *ev, enum enum_binlog_checksum_alg checksum_alg)
+  {
+    return write_event(ev, checksum_alg, 0, &log_file);
+  }
+  bool write_event(Log_event *ev);
 
   bool write_event_buffer(uchar* buf,uint len);
-  bool append(Log_event* ev);
-  bool append_no_lock(Log_event* ev);
+  bool append(Log_event* ev, enum enum_binlog_checksum_alg checksum_alg);
+  bool append_no_lock(Log_event* ev, enum enum_binlog_checksum_alg checksum_alg);
 
   void mark_xids_active(ulong cookie, uint xid_count);
   void mark_xid_done(ulong cookie, bool write_checkpoint);

@@ -346,14 +346,14 @@ bool Log_event::print_header(IO_CACHE* file,
 
   /* print the checksum */
 
-  if (checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
-      checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)
+  if (read_checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
+      read_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)
   {
     char checksum_buf[BINLOG_CHECKSUM_LEN * 2 + 4]; // to fit to "%p "
     size_t const bytes_written=
-      my_snprintf(checksum_buf, sizeof(checksum_buf), "0x%08x ", crc);
+      my_snprintf(checksum_buf, sizeof(checksum_buf), "0x%08x ", read_checksum_value);
     if (my_b_printf(file, "%s ", get_type(&binlog_checksum_typelib,
-                                          checksum_alg)) ||
+                                          read_checksum_alg)) ||
         my_b_printf(file, checksum_buf, bytes_written))
       goto err;
   }
@@ -1604,8 +1604,8 @@ bool Log_event::print_base64(IO_CACHE* file,
     uint tmp_size= size;
     Rows_log_event *ev= NULL;
     Log_event_type ev_type = (enum Log_event_type) ptr[EVENT_TYPE_OFFSET];
-    if (checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF &&
-        checksum_alg != BINLOG_CHECKSUM_ALG_OFF)
+    if (read_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF &&
+        read_checksum_alg != BINLOG_CHECKSUM_ALG_OFF)
       tmp_size-= BINLOG_CHECKSUM_LEN; // checksum is displayed through the header
     switch (ev_type) {
       case WRITE_ROWS_EVENT:
@@ -1672,8 +1672,8 @@ bool Log_event::print_base64(IO_CACHE* file,
     Rows_log_event *ev= NULL;
     Log_event_type et= (Log_event_type) ptr[EVENT_TYPE_OFFSET];
 
-    if (checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF &&
-        checksum_alg != BINLOG_CHECKSUM_ALG_OFF)
+    if (read_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF &&
+        read_checksum_alg != BINLOG_CHECKSUM_ALG_OFF)
       size-= BINLOG_CHECKSUM_LEN; // checksum is displayed through the header
 
     switch (et)
@@ -3680,7 +3680,7 @@ bool Write_rows_compressed_log_event::print(FILE *file,
   ulong len;
   bool is_malloc = false;
   if(!row_log_event_uncompress(glob_description_event,
-                               checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
+                               read_checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
                                temp_buf, UINT_MAX32, NULL, 0, &is_malloc,
                                &new_buf, &len))
   {
@@ -3717,7 +3717,7 @@ bool Delete_rows_compressed_log_event::print(FILE *file,
   ulong len;
   bool is_malloc = false;
   if(!row_log_event_uncompress(glob_description_event,
-                               checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
+                               read_checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
                                temp_buf, UINT_MAX32, NULL, 0, &is_malloc,
                                &new_buf, &len))
   {
@@ -3754,7 +3754,7 @@ Update_rows_compressed_log_event::print(FILE *file,
   ulong len;
   bool is_malloc= false;
   if(!row_log_event_uncompress(glob_description_event,
-                               checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
+                               read_checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
                                temp_buf, UINT_MAX32, NULL, 0, &is_malloc,
                                &new_buf, &len))
   {

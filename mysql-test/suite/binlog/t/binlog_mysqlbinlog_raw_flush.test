@@ -21,6 +21,8 @@
 --source include/linux.inc
 --source include/have_log_bin.inc
 
+RESET MASTER;
+
 --echo #
 --echo # MDEV-30698 Cover missing test cases for mariadb-binlog options
 --echo #            --raw [and] --flashback

@@ -991,6 +991,13 @@ class Log_event_writer
 public:
   ulonglong bytes_written;
   void *ctx;         ///< Encryption context or 0 if no encryption is needed
+  /*
+    The length of a checksum written at the end of the event, if any.
+    Currently this is always either 0, when checksums are disabled, or
+    BINLOG_CHECKSUM_LEN when using BINLOG_CHECKSUM_ALG_CRC32.
+    (If we ever add another checksum algorithm, we will need to instead store
+    here the algorithm to use instead of just the length).
+  */
   uint checksum_len;
   int write(Log_event *ev);
   int write_header(uchar *pos, size_t len);
@@ -1001,11 +1008,29 @@ public:
   void set_incident();
   void set_encrypted_writer()
   { encrypt_or_write= &Log_event_writer::encrypt_and_write; }
+  /*
+    Set a specific checksum setting. Used to ensure that
+    Format_description_log_event is always written with a checksum.
+  */
+  enum enum_binlog_checksum_alg set_checksum_alg(enum enum_binlog_checksum_alg alg)
+  {
+    /* Must be adapted to store the actual algorithm if we add another. */
+    enum enum_binlog_checksum_alg orig=
+      (checksum_len ? BINLOG_CHECKSUM_ALG_CRC32 : BINLOG_CHECKSUM_ALG_OFF);
+    checksum_len=
+      (alg != BINLOG_CHECKSUM_ALG_OFF && alg != BINLOG_CHECKSUM_ALG_UNDEF) ?
+      BINLOG_CHECKSUM_LEN : 0;
+    return orig;
+  }
 
   Log_event_writer(IO_CACHE *file_arg, binlog_cache_data *cache_data_arg,
-                   Binlog_crypt_data *cr= 0)
+                   enum enum_binlog_checksum_alg checksum_alg,
+                   Binlog_crypt_data *cr)
     :encrypt_or_write(&Log_event_writer::write_internal),
     bytes_written(0), ctx(0),
+    checksum_len(( checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
+                   checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF) ?
+                 BINLOG_CHECKSUM_LEN : 0),
     file(file_arg), cache_data(cache_data_arg), crypto(cr) { }
 
 private:
@@ -1323,7 +1348,9 @@ public:
   }
 #else
   Log_event() : temp_buf(0), when(0), flags(0) {}
-  ha_checksum crc;
+  /* The checksum algorithm used (if any) when the event was read. */
+  enum enum_binlog_checksum_alg read_checksum_alg;
+  ha_checksum read_checksum_value;
   /* print*() functions are used by mysqlbinlog */
   virtual bool print(FILE* file, PRINT_EVENT_INFO* print_event_info) = 0;
   bool print_timestamp(IO_CACHE* file, time_t *ts = 0);
@@ -1405,16 +1432,6 @@ public:
   static int read_log_event(IO_CACHE* file, String* packet,
                             const Format_description_log_event *fdle,
                             enum enum_binlog_checksum_alg checksum_alg_arg);
-  /* 
-     The value is set by caller of FD constructor and
-     Log_event::write_header() for the rest.
-     In the FD case it's propagated into the last byte 
-     of post_header_len[] at FD::write().
-     On the slave side the value is assigned from post_header_len[last] 
-     of the last seen FD event.
-  */
-  enum enum_binlog_checksum_alg checksum_alg;
-
   static void *operator new(size_t size)
   {
     extern PSI_memory_key key_memory_log_event;
@@ -1439,7 +1456,7 @@ public:
   bool write_footer(Log_event_writer *writer)
   { return writer->write_footer(); }
 
-  my_bool need_checksum();
+  enum enum_binlog_checksum_alg select_checksum_alg();
 
   virtual bool write(Log_event_writer *writer)
   {
@@ -2877,8 +2894,15 @@ public:
   master_version_split server_version_split;
   const uint8 *event_type_permutation;
   uint32 options_written_to_bin_log;
+  /*
+    The checksum algorithm used in the binlog or relaylog following this
+    Format_description_event. Or BINLOG_CHECKSUM_ALG_UNDEF for a
+    Format_description_event which is not part of a binlog or relaylog file.
+  */
+  enum enum_binlog_checksum_alg used_checksum_alg;
 
-  Format_description_log_event(uint8 binlog_ver, const char* server_ver=0);
+  Format_description_log_event(uint8 binlog_ver, const char* server_ver= 0,
+      enum enum_binlog_checksum_alg checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF);
   Format_description_log_event(const uchar *buf, uint event_len,
                                const Format_description_log_event
                                *description_event);
