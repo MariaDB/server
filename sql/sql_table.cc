@@ -9953,6 +9953,33 @@ const char *online_alter_check_supported(const THD *thd,
     }
   }
 
+  for (auto &c: alter_info->create_list)
+  {
+    *online= c.field || !(c.flags & AUTO_INCREMENT_FLAG);
+    if (!*online)
+      return "ADD COLUMN ... AUTO_INCREMENT";
+
+    auto *def= c.default_value;
+    *online= !(def && def->flags & VCOL_NEXTVAL
+            // either it's a new field, or a NULL -> NOT NULL change
+             && (!c.field || (!(c.field->flags & NOT_NULL_FLAG)
+                              && (c.flags & NOT_NULL_FLAG))));
+    if (!*online)
+    {
+      if (alter_info->requested_lock != Alter_info::ALTER_TABLE_LOCK_NONE)
+        return NULL; // Avoid heavy string op
+      const char *fmt= ER_THD(thd, ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED);
+
+      LEX_CSTRING dflt{STRING_WITH_LEN("DEFAULT")};
+      LEX_CSTRING nxvl{STRING_WITH_LEN("NEXTVAL()")};
+      size_t len= strlen(fmt) + nxvl.length + c.field_name.length + dflt.length;
+      char *resp= (char*)thd->alloc(len);
+      // expression %s cannot be used in the %s clause of %`s
+      my_snprintf(resp, len, fmt, nxvl.str, dflt.str, c.field_name.str);
+      return resp;
+    }
+  }
+
   *online= online_alter_check_autoinc(thd, alter_info, table);
   if (!*online)
     return "CHANGE COLUMN ... AUTO_INCREMENT";
