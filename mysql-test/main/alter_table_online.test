@@ -228,3 +228,21 @@ create sequence s engine=MyISAM;
 alter table s engine=Aria, lock=none;
 alter table s engine=Aria;
 drop sequence  s;
+
+
+--echo # MDEV-31631 Adding auto-increment column to a table with history online
+--echo # behaves differently from non-online
+create sequence s;
+create table t1(a int, x int NULL default(nextval(s)));
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t1 add b int default (nextval(s)), lock=none;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t1 add b int primary key auto_increment, lock=none;
+
+create table t2(a int, b int NULL default(nextval(s)));
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t2 modify b int not null default (nextval(s)), lock=none;
+
+drop table t2;
+drop table t1;
+drop sequence s;

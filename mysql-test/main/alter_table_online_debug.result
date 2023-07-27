@@ -990,23 +990,6 @@ set debug_sync= reset;
 #
 set @old_dbug=@@debug_dbug;
 set debug_dbug="+d,rpl_report_chosen_key";
-create table t (a int);
-insert into t values (10),(20),(30);
-set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
-alter table t add pk int auto_increment primary key, algorithm=copy, lock=none;
-connection con2;
-set debug_sync= 'now wait_for downgraded';
-delete from t where a = 20;
-update t set a = a + 1 where a = 10;
-set debug_sync= 'now signal goforit';
-connection default;
-Warnings:
-Note	1105	Key chosen: -1
-Note	1105	Key chosen: -1
-select * from t;
-a	pk
-11	1
-30	3
 #
 # Add clumsy DEFAULT
 #

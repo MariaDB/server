@@ -224,3 +224,17 @@ alter table s engine=Aria, lock=none;
 ERROR 0A000: LOCK=NONE is not supported. Reason: SEQUENCE. Try LOCK=SHARED
 alter table s engine=Aria;
 drop sequence  s;
+# MDEV-31631 Adding auto-increment column to a table with history online
+# behaves differently from non-online
+create sequence s;
+create table t1(a int, x int NULL default(nextval(s)));
+alter table t1 add b int default (nextval(s)), lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: Function or expression 'NEXTVAL()' cannot be used in the DEFAULT clause of `b`. Try LOCK=SHARED
+alter table t1 add b int primary key auto_increment, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: ADD COLUMN ... AUTO_INCREMENT. Try LOCK=SHARED
+create table t2(a int, b int NULL default(nextval(s)));
+alter table t2 modify b int not null default (nextval(s)), lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: Function or expression 'NEXTVAL()' cannot be used in the DEFAULT clause of `b`. Try LOCK=SHARED
+drop table t2;
+drop table t1;
+drop sequence s;
