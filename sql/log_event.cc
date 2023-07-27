@@ -718,11 +718,10 @@ const char* Log_event::get_type_str()
 
 Log_event::Log_event(const uchar *buf,
                      const Format_description_log_event* description_event)
-  :temp_buf(0), exec_time(0), cache_type(Log_event::EVENT_INVALID_CACHE),
+  :temp_buf(0), exec_time(0), cache_type(Log_event::EVENT_INVALID_CACHE)
 #ifndef MYSQL_CLIENT
-    slave_exec_mode(SLAVE_EXEC_MODE_STRICT),
+    , slave_exec_mode(SLAVE_EXEC_MODE_STRICT),
 #endif
-    checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF)
 {
 #ifndef MYSQL_CLIENT
   thd= 0;
@@ -764,7 +763,7 @@ Log_event::Log_event(const uchar *buf,
 
 int Log_event::read_log_event(IO_CACHE* file, String* packet,
                               const Format_description_log_event *fdle,
-                              enum enum_binlog_checksum_alg checksum_alg_arg,
+                              enum_binlog_checksum_alg checksum_alg_arg,
                               size_t max_allowed_packet)
 {
   ulong data_len;
@@ -966,7 +965,7 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
                                      my_bool crc_check)
 {
   Log_event* ev;
-  enum enum_binlog_checksum_alg alg;
+  enum_binlog_checksum_alg alg;
   DBUG_ENTER("Log_event::read_log_event(char*,...)");
   DBUG_ASSERT(fdle != 0);
   DBUG_PRINT("info", ("binlog_version: %d", fdle->binlog_version));
@@ -985,7 +984,8 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
   uint event_type= buf[EVENT_TYPE_OFFSET];
   // all following START events in the current file are without checksum
   if (event_type == START_EVENT_V3)
-    (const_cast< Format_description_log_event *>(fdle))->checksum_alg= BINLOG_CHECKSUM_ALG_OFF;
+    (const_cast< Format_description_log_event *>(fdle))->used_checksum_alg=
+      BINLOG_CHECKSUM_ALG_OFF;
   /*
     CRC verification by SQL and Show-Binlog-Events master side.
     The caller has to provide @fdle->checksum_alg to
@@ -1006,7 +1006,7 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
     Notice, a pre-checksum FD version forces alg := BINLOG_CHECKSUM_ALG_UNDEF.
   */
   alg= (event_type != FORMAT_DESCRIPTION_EVENT) ?
-    fdle->checksum_alg : get_checksum_alg(buf, event_len);
+    fdle->used_checksum_alg : get_checksum_alg(buf, event_len);
   // Emulate the corruption during reading an event
   DBUG_EXECUTE_IF("corrupt_read_log_event_char",
     if (event_type != FORMAT_DESCRIPTION_EVENT)
@@ -1210,11 +1210,10 @@ exit:
 
   if (ev)
   {
-    ev->checksum_alg= alg;
 #ifdef MYSQL_CLIENT
-    if (ev->checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
-        ev->checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)
-      ev->crc= uint4korr(buf + (event_len));
+    ev->read_checksum_alg= alg;
+    if (alg != BINLOG_CHECKSUM_ALG_OFF && alg != BINLOG_CHECKSUM_ALG_UNDEF)
+      ev->read_checksum_value= uint4korr(buf + (event_len));
 #endif
   }
 
@@ -1781,7 +1780,7 @@ Query_compressed_log_event::Query_compressed_log_event(const uchar *buf,
 */
 int
 Query_log_event::dummy_event(String *packet, ulong ev_offset,
-                             enum enum_binlog_checksum_alg checksum_alg)
+                             enum_binlog_checksum_alg checksum_alg)
 {
   uchar *p= (uchar *)packet->ptr() + ev_offset;
   size_t data_len= packet->length() - ev_offset;
@@ -1873,7 +1872,7 @@ Query_log_event::dummy_event(String *packet, ulong ev_offset,
 */
 int
 Query_log_event::begin_event(String *packet, ulong ev_offset,
-                             enum enum_binlog_checksum_alg checksum_alg)
+                             enum_binlog_checksum_alg checksum_alg)
 {
   uchar *p= (uchar *)packet->ptr() + ev_offset;
   uchar *q= p + LOG_EVENT_HEADER_LEN;
@@ -1955,9 +1954,11 @@ Query_log_event::begin_event(String *packet, ulong ev_offset,
 */
 
 Format_description_log_event::
-Format_description_log_event(uint8 binlog_ver, const char* server_ver)
+Format_description_log_event(uint8 binlog_ver, const char* server_ver,
+                             enum_binlog_checksum_alg checksum_alg)
   :Log_event(), created(0), binlog_version(binlog_ver),
-   dont_set_created(0), event_type_permutation(0)
+   dont_set_created(0), event_type_permutation(0),
+   used_checksum_alg(checksum_alg)
 {
   switch (binlog_version) {
   case 4: /* MySQL 5.0 */
@@ -2083,7 +2084,6 @@ Format_description_log_event(uint8 binlog_ver, const char* server_ver)
   }
   calc_server_version_split();
   deduct_options_written_to_bin_log();
-  checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF;
   reset_crypto();
 }
 
@@ -2114,6 +2114,7 @@ Format_description_log_event(const uchar *buf, uint event_len,
    common_header_len(0), post_header_len(NULL), event_type_permutation(0)
 {
   DBUG_ENTER("Format_description_log_event::Format_description_log_event(char*,...)");
+  used_checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF;
   if (event_len < LOG_EVENT_MINIMAL_HEADER_LEN + ST_COMMON_HEADER_LEN_OFFSET)
   {
     server_version[0]= 0;
@@ -2147,11 +2148,11 @@ Format_description_log_event(const uchar *buf, uint event_len,
   {
     /* the last bytes are the checksum alg desc and value (or value's room) */
     number_of_event_types -= BINLOG_CHECKSUM_ALG_DESC_LEN;
-    checksum_alg= (enum_binlog_checksum_alg)post_header_len[number_of_event_types];
+    used_checksum_alg= (enum_binlog_checksum_alg)post_header_len[number_of_event_types];
   }
   else
   {
-    checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF;
+    used_checksum_alg= BINLOG_CHECKSUM_ALG_OFF;
   }
   deduct_options_written_to_bin_log();
   reset_crypto();
@@ -2274,9 +2275,9 @@ Format_description_log_event::is_version_before_checksum(const master_version_sp
             checksum-unaware (effectively no checksum) and the actuall
             [1-254] range alg descriptor.
 */
-enum enum_binlog_checksum_alg get_checksum_alg(const uchar *buf, ulong len)
+enum_binlog_checksum_alg get_checksum_alg(const uchar *buf, ulong len)
 {
-  enum enum_binlog_checksum_alg ret;
+  enum_binlog_checksum_alg ret;
   char version[ST_SERVER_VER_LEN];
 
   DBUG_ENTER("get_checksum_alg");
@@ -2540,7 +2541,7 @@ Gtid_list_log_event::Gtid_list_log_event(const uchar *buf, uint event_len,
 */
 bool
 Gtid_list_log_event::peek(const char *event_start, size_t event_len,
-                          enum enum_binlog_checksum_alg checksum_alg,
+                          enum_binlog_checksum_alg checksum_alg,
                           rpl_gtid **out_gtid_list, uint32 *out_list_len,
                           const Format_description_log_event *fdev)
 {

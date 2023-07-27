@@ -3863,23 +3863,21 @@ Event_log::write_description_event(enum_binlog_checksum_alg checksum_alg,
                                    bool encrypt, bool dont_set_created,
                                    bool is_relay_log)
 {
-  Format_description_log_event s(BINLOG_VERSION);
+  Format_description_log_event s(BINLOG_VERSION, NULL, checksum_alg);
   /*
     don't set LOG_EVENT_BINLOG_IN_USE_F for SEQ_READ_APPEND io_cache
     as we won't be able to reset it later
   */
   if (io_cache_type == WRITE_CACHE)
     s.flags |= LOG_EVENT_BINLOG_IN_USE_F;
-  s.checksum_alg= checksum_alg;
   if (is_relay_log)
     s.set_relay_log_event();
 
   crypto.scheme = 0;
-  DBUG_ASSERT(s.checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF);
   if (!s.is_valid())
     return -1;
   s.dont_set_created= dont_set_created;
-  if (write_event(&s, 0, &log_file))
+  if (write_event(&s, checksum_alg, 0, &log_file))
     return -1;
 
   if (encrypt)
@@ -3897,8 +3895,7 @@ Event_log::write_description_event(enum_binlog_checksum_alg checksum_alg,
         return -1;
 
       Start_encryption_log_event sele(1, key_version, crypto.nonce);
-      sele.checksum_alg= s.checksum_alg;
-      if (write_event(&sele, 0, &log_file))
+      if (write_event(&sele, checksum_alg, 0, &log_file))
         return -1;
 
       // Start_encryption_log_event is written, enable the encryption
@@ -4172,7 +4169,8 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
       /* Don't set log_pos in event header */
       description_event_for_queue->set_artificial_event();
 
-      if (write_event(description_event_for_queue))
+      if (write_event(description_event_for_queue,
+                      description_event_for_queue->used_checksum_alg))
         goto err;
       bytes_written+= description_event_for_queue->data_written;
     }
@@ -5616,17 +5614,19 @@ int MYSQL_BIN_LOG::new_file_impl()
     */
     Rotate_log_event r(new_name + dirname_length(new_name), 0, LOG_EVENT_OFFSET,
                        is_relay_log ? Rotate_log_event::RELAY_LOG : 0);
+    enum_binlog_checksum_alg checksum_alg = BINLOG_CHECKSUM_ALG_UNDEF;
     /*
       The current relay-log's closing Rotate event must have checksum
       value computed with an algorithm of the last relay-logged FD event.
     */
     if (is_relay_log)
-      r.checksum_alg= relay_log_checksum_alg;
-    DBUG_ASSERT(!is_relay_log ||
-                relay_log_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF);
+      checksum_alg= relay_log_checksum_alg;
+    else
+      checksum_alg= (enum_binlog_checksum_alg)binlog_checksum_options;
+    DBUG_ASSERT(checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF);
     if ((DBUG_IF("fault_injection_new_file_rotate_event") &&
                          (error= close_on_error= TRUE)) ||
-        (error= write_event(&r)))
+        (error= write_event(&r, checksum_alg)))
     {
       DBUG_EXECUTE_IF("fault_injection_new_file_rotate_event", errno= 2;);
       close_on_error= TRUE;
@@ -5743,10 +5743,22 @@ end2:
   DBUG_RETURN(error);
 }
 
-bool Event_log::write_event(Log_event *ev, binlog_cache_data *cache_data,
+bool Event_log::write_event(Log_event *ev, binlog_cache_data *data,
                                 IO_CACHE *file)
 {
-  Log_event_writer writer(file, 0, &crypto);
+  return write_event(ev, ev->select_checksum_alg(), data, file);
+}
+
+bool MYSQL_BIN_LOG::write_event(Log_event *ev)
+{
+  return write_event(ev, ev->select_checksum_alg(), 0, &log_file);
+}
+
+bool MYSQL_BIN_LOG::write_event(Log_event *ev,
+                                enum_binlog_checksum_alg checksum_alg,
+                                binlog_cache_data *cache_data, IO_CACHE *file)
+{
+  Log_event_writer writer(file, 0, checksum_alg, &crypto);
   if (crypto.scheme && file == &log_file)
   {
     writer.ctx= alloca(crypto.ctx_size);
@@ -5757,17 +5769,19 @@ bool Event_log::write_event(Log_event *ev, binlog_cache_data *cache_data,
   return writer.write(ev);
 }
 
-bool MYSQL_BIN_LOG::append(Log_event *ev)
+bool MYSQL_BIN_LOG::append(Log_event *ev,
+                           enum_binlog_checksum_alg checksum_alg)
 {
   bool res;
   mysql_mutex_lock(&LOCK_log);
-  res= append_no_lock(ev);
+  res= append_no_lock(ev, checksum_alg);
   mysql_mutex_unlock(&LOCK_log);
   return res;
 }
 
 
-bool MYSQL_BIN_LOG::append_no_lock(Log_event* ev)
+bool MYSQL_BIN_LOG::append_no_lock(Log_event* ev,
+                                   enum_binlog_checksum_alg checksum_alg)
 {
   bool error = 0;
   DBUG_ENTER("MYSQL_BIN_LOG::append");
@@ -5775,7 +5789,7 @@ bool MYSQL_BIN_LOG::append_no_lock(Log_event* ev)
   mysql_mutex_assert_owner(&LOCK_log);
   DBUG_ASSERT(log_file.type == SEQ_READ_APPEND);
 
-  if (write_event(ev))
+  if (write_event(ev, checksum_alg))
   {
     error=1;
     goto err;
@@ -6175,7 +6189,8 @@ THD::binlog_start_trans_and_stmt()
       uchar *buf= 0;
       size_t len= 0;
       IO_CACHE tmp_io_cache;
-      Log_event_writer writer(&tmp_io_cache, 0);
+        // Replicated events in writeset doesn't have checksum
+      Log_event_writer writer(&tmp_io_cache, 0, BINLOG_CHECKSUM_ALG_OFF, NULL);
       if(!open_cached_file(&tmp_io_cache, mysql_tmpdir, TEMP_PREFIX,
                           128, MYF(MY_WME)))
       {
@@ -6190,8 +6205,6 @@ THD::binlog_start_trans_and_stmt()
         }
         Gtid_log_event gtid_event(this, seqno, domain_id, true,
                                   LOG_EVENT_SUPPRESS_USE_F, true, 0);
-        // Replicated events in writeset doesn't have checksum
-        gtid_event.checksum_alg= BINLOG_CHECKSUM_ALG_OFF;
         gtid_event.server_id= server_id;
         writer.write(&gtid_event);
         wsrep_write_cache_buf(&tmp_io_cache, &buf, &len);
@@ -6392,7 +6405,7 @@ bool MYSQL_BIN_LOG::write_table_map(THD *thd, TABLE *table, bool with_annotate)
   binlog_cache_data *cache_data= (cache_mngr->
                                   get_binlog_cache_data(is_transactional));
   IO_CACHE *file= &cache_data->cache_log;
-  Log_event_writer writer(file, cache_data);
+  Log_event_writer writer(file, cache_data, the_event.select_checksum_alg(), NULL);
 
   if (with_annotate)
     if (thd->binlog_write_annotated_row(&writer))
@@ -6578,7 +6591,8 @@ Event_log::flush_and_set_pending_rows_event(THD *thd, Rows_log_event* event,
 
   if (Rows_log_event* pending= cache_data->pending())
   {
-    Log_event_writer writer(&cache_data->cache_log, cache_data);
+    Log_event_writer writer(&cache_data->cache_log, cache_data,
+                            pending->select_checksum_alg(), NULL);
 
     /*
       Write pending event to the cache.
@@ -7704,11 +7718,13 @@ class CacheWriter: public Log_event_writer
 public:
   size_t remains;
 
-  CacheWriter(THD *thd_arg, IO_CACHE *file_arg, bool do_checksum,
+  CacheWriter(THD *thd_arg, IO_CACHE *file_arg,
+              enum_binlog_checksum_alg checksum_alg,
               Binlog_crypt_data *cr)
-    : Log_event_writer(file_arg, 0, cr), remains(0), thd(thd_arg),
+    : Log_event_writer(file_arg, 0, checksum_alg, cr), remains(0), thd(thd_arg),
       first(true)
-  { checksum_len= do_checksum ? BINLOG_CHECKSUM_LEN : 0; }
+  {
+  }
 
   ~CacheWriter()
   { status_var_add(thd->status_var.binlog_bytes_written, bytes_written); }
@@ -7904,7 +7920,9 @@ int Event_log::write_cache(THD *thd, IO_CACHE *cache)
   size_t val;
   size_t end_log_pos_inc= 0; // each event processed adds BINLOG_CHECKSUM_LEN 2 t
   uchar header[LOG_EVENT_HEADER_LEN];
-  CacheWriter writer(thd, get_log_file(), binlog_checksum_options, &crypto);
+  CacheWriter writer(thd, get_log_file(),
+                     (enum_binlog_checksum_alg)binlog_checksum_options,
+                     &crypto);
 
   if (crypto.scheme)
   {
@@ -9447,11 +9465,11 @@ void MYSQL_BIN_LOG::close(uint exiting)
     {
       Stop_log_event s;
       // the checksumming rule for relay-log case is similar to Rotate
-        s.checksum_alg= is_relay_log ? relay_log_checksum_alg
-                                     : (enum_binlog_checksum_alg)binlog_checksum_options;
-      DBUG_ASSERT(!is_relay_log ||
-                  relay_log_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF);
-      write_event(&s);
+      enum_binlog_checksum_alg checksum_alg= is_relay_log ?
+        relay_log_checksum_alg :
+        (enum_binlog_checksum_alg)binlog_checksum_options;
+      DBUG_ASSERT(checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF);
+      write_event(&s, checksum_alg);
       bytes_written+= s.data_written;
       flush_io_cache(&log_file);
       update_binlog_end_pos();
@@ -11619,7 +11637,7 @@ bool Recovery_context::decide_or_assess(xid_recovery_member *member, int round,
           if (truncate_gtid.seq_no == 0 /* was reset or never set */ ||
               (truncate_set_in_1st && round == 2 /* reevaluted at round turn */))
           {
-            if (set_truncate_coord(linfo, round, fdle->checksum_alg))
+            if (set_truncate_coord(linfo, round, fdle->used_checksum_alg))
               return true;
           }
           else

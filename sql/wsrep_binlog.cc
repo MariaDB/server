@@ -236,7 +236,9 @@ void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
 
   File file;
   IO_CACHE cache;
-  Log_event_writer writer(&cache, 0);
+  enum_binlog_checksum_alg checksum_alg=
+    (enum_binlog_checksum_alg) binlog_checksum_options;
+  Log_event_writer writer(&cache, 0, checksum_alg, NULL);
   Format_description_log_event *ev= 0;
 
   longlong thd_trx_seqno= (long long)wsrep_thd_trx_seqno(thd);
@@ -288,7 +290,7 @@ void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
     to the dump file).
   */
   ev= (thd->wsrep_applier) ? wsrep_get_apply_format(thd) :
-    (new Format_description_log_event(4));
+    (new Format_description_log_event(4, NULL, checksum_alg));
 
   if (writer.write(ev) || my_b_write(&cache, (uchar*)rbr_buf, buf_len) ||
       flush_io_cache(&cache))

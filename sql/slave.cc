@@ -1790,7 +1790,8 @@ static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
         master is 3.23, 4.0, etc.
       */
       mi->rli.relay_log.description_event_for_queue= new
-        Format_description_log_event(4, mysql->server_version);
+        Format_description_log_event(4, mysql->server_version,
+                                     mi->rli.relay_log.relay_log_checksum_alg);
       break;
     }
   }
@@ -1849,10 +1850,8 @@ static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
 
     until it has received a new FD_m.
   */
-  mi->rli.relay_log.description_event_for_queue->checksum_alg=
-    mi->rli.relay_log.relay_log_checksum_alg;
 
-  DBUG_ASSERT(mi->rli.relay_log.description_event_for_queue->checksum_alg !=
+  DBUG_ASSERT(mi->rli.relay_log.description_event_for_queue->used_checksum_alg !=
               BINLOG_CHECKSUM_ALG_UNDEF);
   DBUG_ASSERT(mi->rli.relay_log.relay_log_checksum_alg !=
               BINLOG_CHECKSUM_ALG_UNDEF); 
@@ -2741,7 +2740,7 @@ static void write_ignored_events_info_to_relay_log(THD *thd, Master_info *mi)
     {
       DBUG_PRINT("info",("writing a Rotate event to track down ignored events"));
       rev->server_id= 0; // don't be ignored by slave SQL thread
-      if (unlikely(rli->relay_log.append(rev)))
+      if (unlikely(rli->relay_log.append(rev, rli->relay_log.relay_log_checksum_alg)))
         mi->report(ERROR_LEVEL, ER_SLAVE_RELAY_LOG_WRITE_FAILURE, NULL,
                    ER_THD(thd, ER_SLAVE_RELAY_LOG_WRITE_FAILURE),
                    "failed to write a Rotate event"
@@ -2754,7 +2753,7 @@ static void write_ignored_events_info_to_relay_log(THD *thd, Master_info *mi)
       DBUG_PRINT("info",("writing a Gtid_list event to track down ignored events"));
       glev->server_id= 0; // don't be ignored by slave SQL thread
       glev->set_artificial_event(); // Don't mess up Exec_Master_Log_Pos
-      if (unlikely(rli->relay_log.append(glev)))
+      if (unlikely(rli->relay_log.append(glev, rli->relay_log.relay_log_checksum_alg)))
         mi->report(ERROR_LEVEL, ER_SLAVE_RELAY_LOG_WRITE_FAILURE, NULL,
                    ER_THD(thd, ER_SLAVE_RELAY_LOG_WRITE_FAILURE),
                    "failed to write a Gtid_list event to the relay log, "
@@ -5963,7 +5962,7 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
     Show-up of FD:s affects checksum_alg at once because
     that changes FD_queue.
   */
-  enum enum_binlog_checksum_alg checksum_alg=
+  enum_binlog_checksum_alg checksum_alg=
     mi->checksum_alg_before_fd != BINLOG_CHECKSUM_ALG_UNDEF ?
     mi->checksum_alg_before_fd : mi->rli.relay_log.relay_log_checksum_alg;
 
@@ -5987,7 +5986,7 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
   {
     // checksum behaviour is similar to the pre-checksum FD handling
     mi->checksum_alg_before_fd= BINLOG_CHECKSUM_ALG_UNDEF;
-    mi->rli.relay_log.description_event_for_queue->checksum_alg=
+    mi->rli.relay_log.description_event_for_queue->used_checksum_alg=
       mi->rli.relay_log.relay_log_checksum_alg= checksum_alg=
       BINLOG_CHECKSUM_ALG_OFF;
   }
@@ -6112,8 +6111,7 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
         We detect this case by noticing a change of server_id and in this
         case likewise rollback the partially received event group.
       */
-      Format_description_log_event fdle(4);
-      fdle.checksum_alg= checksum_alg;
+      Format_description_log_event fdle(4, NULL, checksum_alg);
 
       /*
         Possible crash is flagged in being created FD' common header
@@ -6145,7 +6143,7 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
                             rev.new_log_ident);
       }
       mysql_mutex_lock(log_lock);
-      if (likely(!rli->relay_log.write_event(&fdle) &&
+      if (likely(!rli->relay_log.write_event(&fdle, checksum_alg) &&
                  !rli->relay_log.flush_and_sync(NULL)))
       {
         rli->relay_log.harvest_bytes_written(&rli->log_space_total);
@@ -6194,7 +6192,7 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
                            event_len - BINLOG_CHECKSUM_LEN);
       int4store(&rot_buf[event_len - BINLOG_CHECKSUM_LEN], rot_crc);
       DBUG_ASSERT(event_len == uint4korr(&rot_buf[EVENT_LEN_OFFSET]));
-      DBUG_ASSERT(mi->rli.relay_log.description_event_for_queue->checksum_alg ==
+      DBUG_ASSERT(mi->rli.relay_log.description_event_for_queue->used_checksum_alg ==
                   mi->rli.relay_log.relay_log_checksum_alg);
       /* the first one */
       DBUG_ASSERT(mi->checksum_alg_before_fd != BINLOG_CHECKSUM_ALG_UNDEF);
@@ -6214,7 +6212,7 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
         int4store(&rot_buf[EVENT_LEN_OFFSET],
                   uint4korr(&rot_buf[EVENT_LEN_OFFSET]) - BINLOG_CHECKSUM_LEN);
         DBUG_ASSERT(event_len == uint4korr(&rot_buf[EVENT_LEN_OFFSET]));
-        DBUG_ASSERT(mi->rli.relay_log.description_event_for_queue->checksum_alg ==
+        DBUG_ASSERT(mi->rli.relay_log.description_event_for_queue->used_checksum_alg ==
                     mi->rli.relay_log.relay_log_checksum_alg);
         /* the first one */
         DBUG_ASSERT(mi->checksum_alg_before_fd != BINLOG_CHECKSUM_ALG_UNDEF);
@@ -6254,11 +6252,11 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
     tmp->copy_crypto_data(mi->rli.relay_log.description_event_for_queue);
     delete mi->rli.relay_log.description_event_for_queue;
     mi->rli.relay_log.description_event_for_queue= tmp;
-    if (tmp->checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF)
-      tmp->checksum_alg= BINLOG_CHECKSUM_ALG_OFF;
+    if (tmp->used_checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF)
+      tmp->used_checksum_alg= BINLOG_CHECKSUM_ALG_OFF;
 
     /* installing new value of checksum Alg for relay log */
-    mi->rli.relay_log.relay_log_checksum_alg= tmp->checksum_alg;
+    mi->rli.relay_log.relay_log_checksum_alg= tmp->used_checksum_alg;
 
     /*
       Do not queue any format description event that we receive after a
@@ -6823,7 +6821,8 @@ dbug_gtid_accept:
       rli->relay_log.description_event_for_queue->created= 0;
       rli->relay_log.description_event_for_queue->set_artificial_event();
       if (rli->relay_log.append_no_lock
-          (rli->relay_log.description_event_for_queue))
+          (rli->relay_log.description_event_for_queue,
+           rli->relay_log.relay_log_checksum_alg))
         error= ER_SLAVE_RELAY_LOG_WRITE_FAILURE;
       else
         rli->relay_log.harvest_bytes_written(&rli->log_space_total);
@@ -6836,7 +6835,8 @@ dbug_gtid_accept:
       */
       Rotate_log_event fake_rev(mi->master_log_name, 0, mi->master_log_pos, 0);
       fake_rev.server_id= mi->master_id;
-      if (rli->relay_log.append_no_lock(&fake_rev))
+      if (rli->relay_log.append_no_lock(&fake_rev,
+                                        rli->relay_log.relay_log_checksum_alg))
         error= ER_SLAVE_RELAY_LOG_WRITE_FAILURE;
       else
         rli->relay_log.harvest_bytes_written(&rli->log_space_total);

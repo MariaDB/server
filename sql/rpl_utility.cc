@@ -296,7 +296,7 @@ table_def::~table_def()
 
 */
 bool event_checksum_test(uchar *event_buf, ulong event_len,
-                         enum enum_binlog_checksum_alg alg)
+                         enum_binlog_checksum_alg alg)
 {
   bool res= FALSE;
   uint16 flags= 0; // to store in FD's buffer flags orig value

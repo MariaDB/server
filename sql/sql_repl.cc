@@ -52,7 +52,7 @@ extern TYPELIB binlog_checksum_typelib;
 static int
 fake_event_header(String* packet, Log_event_type event_type, ulong extra_len,
                   my_bool *do_checksum, ha_checksum *crc, const char** errmsg,
-                  enum enum_binlog_checksum_alg checksum_alg_arg, uint32 end_pos)
+                  enum_binlog_checksum_alg checksum_alg_arg, uint32 end_pos)
 {
   char header[LOG_EVENT_HEADER_LEN];
   ulong event_len;
@@ -133,7 +133,7 @@ struct binlog_send_info {
   enum_gtid_skip_type gtid_skip_group;
   enum_gtid_until_state gtid_until_group;
   ushort flags;
-  enum enum_binlog_checksum_alg current_checksum_alg;
+  enum_binlog_checksum_alg current_checksum_alg;
   bool slave_gtid_strict_mode;
   bool send_fake_gtid_list;
   bool slave_gtid_ignore_duplicates;
@@ -211,7 +211,7 @@ static int reset_transmit_packet(struct binlog_send_info *info, ushort flags,
 */
 
 static int fake_rotate_event(binlog_send_info *info, ulonglong position,
-                             const char** errmsg, enum enum_binlog_checksum_alg checksum_alg_arg)
+                             const char** errmsg, enum_binlog_checksum_alg checksum_alg_arg)
 {
   DBUG_ENTER("fake_rotate_event");
   ulong ev_offset;
@@ -495,12 +495,12 @@ static bool is_slave_checksum_aware(THD * thd)
   @param[in]    thd  THD to access a user variable
 
   @return       value of @@binlog_checksum alg according to
-                @c enum enum_binlog_checksum_alg
+                @c enum_binlog_checksum_alg
 */
 
-static enum enum_binlog_checksum_alg get_binlog_checksum_value_at_connect(THD * thd)
+static enum_binlog_checksum_alg get_binlog_checksum_value_at_connect(THD * thd)
 {
-  enum enum_binlog_checksum_alg ret;
+  enum_binlog_checksum_alg ret;
 
   DBUG_ENTER("get_binlog_checksum_value_at_connect");
   user_var_entry *entry= get_binlog_checksum_uservar(thd);
@@ -826,7 +826,7 @@ get_slave_until_gtid(THD *thd, String *out_str)
 static int send_heartbeat_event(binlog_send_info *info,
                                 NET* net, String* packet,
                                 const struct event_coordinates *coord,
-                                enum enum_binlog_checksum_alg checksum_alg_arg)
+                                enum_binlog_checksum_alg checksum_alg_arg)
 {
   DBUG_ENTER("send_heartbeat_event");
 
@@ -1452,7 +1452,7 @@ gtid_state_from_pos(const char *name, uint32 offset,
   bool found_gtid_list_event= false;
   bool found_format_description_event= false;
   bool valid_pos= false;
-  enum enum_binlog_checksum_alg current_checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF;
+  enum_binlog_checksum_alg current_checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF;
   int err;
   String packet;
   Format_description_log_event *fdev= NULL;
@@ -1722,7 +1722,7 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
   String* const packet= info->packet;
   size_t len= packet->length();
   int mariadb_slave_capability= info->mariadb_slave_capability;
-  enum enum_binlog_checksum_alg current_checksum_alg= info->current_checksum_alg;
+  enum_binlog_checksum_alg current_checksum_alg= info->current_checksum_alg;
   slave_connection_state *gtid_state= &info->gtid_state;
   slave_connection_state *until_gtid_state= info->until_gtid_state;
   bool need_sync= false;
@@ -4129,7 +4129,7 @@ bool mysql_show_binlog_events(THD* thd)
   Master_info *mi= 0;
   LOG_INFO linfo;
   LEX_MASTER_INFO *lex_mi= &thd->lex->mi;
-  enum enum_binlog_checksum_alg checksum_alg;
+  enum_binlog_checksum_alg checksum_alg;
   my_off_t binlog_size;
   MY_STAT s;
 
@@ -4265,7 +4265,7 @@ bool mysql_show_binlog_events(THD* thd)
 
     if (lex_mi->pos > BIN_LOG_HEADER_SIZE)
     {
-      checksum_alg= description_event->checksum_alg;
+      checksum_alg= description_event->used_checksum_alg;
       /* Validate user given position using checksum */
       if (checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
           checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)

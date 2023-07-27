@@ -991,6 +991,13 @@ class Log_event_writer
 public:
   ulonglong bytes_written;
   void *ctx;         ///< Encryption context or 0 if no encryption is needed
+  /*
+    The length of a checksum written at the end of the event, if any.
+    Currently this is always either 0, when checksums are disabled, or
+    BINLOG_CHECKSUM_LEN when using BINLOG_CHECKSUM_ALG_CRC32.
+    (If we ever add another checksum algorithm, we will need to instead store
+    here the algorithm to use instead of just the length).
+  */
   uint checksum_len;
   int write(Log_event *ev);
   int write_header(uchar *pos, size_t len);
@@ -1003,9 +1010,13 @@ public:
   { encrypt_or_write= &Log_event_writer::encrypt_and_write; }
 
   Log_event_writer(IO_CACHE *file_arg, binlog_cache_data *cache_data_arg,
-                   Binlog_crypt_data *cr= 0)
+                   enum_binlog_checksum_alg checksum_alg,
+                   Binlog_crypt_data *cr)
     :encrypt_or_write(&Log_event_writer::write_internal),
     bytes_written(0), ctx(0),
+    checksum_len(( checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
+                   checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF) ?
+                 BINLOG_CHECKSUM_LEN : 0),
     file(file_arg), cache_data(cache_data_arg), crypto(cr) { }
 
 private:
@@ -1294,16 +1305,6 @@ public:
   */
   enum_slave_exec_mode slave_exec_mode;
 
-  /**
-     The value is set by caller of FD constructor and
-     Log_event::write_header() for the rest.
-     In the FD case it's propagated into the last byte
-     of post_header_len[] at FD::write().
-     On the slave side the value is assigned from post_header_len[last]
-     of the last seen FD event.
-  */
-  enum enum_binlog_checksum_alg checksum_alg;
-
 #ifdef MYSQL_SERVER
   THD* thd;
 
@@ -1333,7 +1334,9 @@ public:
   }
 #else
   Log_event() : temp_buf(0), when(0), flags(0) {}
-  ha_checksum crc;
+  /* The checksum algorithm used (if any) when the event was read. */
+  enum_binlog_checksum_alg read_checksum_alg;
+  ha_checksum read_checksum_value;
   /* print*() functions are used by mysqlbinlog */
   virtual bool print(FILE* file, PRINT_EVENT_INFO* print_event_info) = 0;
   bool print_timestamp(IO_CACHE* file, time_t *ts = 0);
@@ -1470,7 +1473,7 @@ public:
   bool write_footer(Log_event_writer *writer)
   { return writer->write_footer(); }
 
-  my_bool need_checksum();
+  enum_binlog_checksum_alg select_checksum_alg();
 
   virtual bool write(Log_event_writer *writer)
   {
@@ -2226,9 +2229,9 @@ public:
   }
   Log_event_type get_type_code() { return QUERY_EVENT; }
   static int dummy_event(String *packet, ulong ev_offset,
-                         enum enum_binlog_checksum_alg checksum_alg);
+                         enum_binlog_checksum_alg checksum_alg);
   static int begin_event(String *packet, ulong ev_offset,
-                         enum enum_binlog_checksum_alg checksum_alg);
+                         enum_binlog_checksum_alg checksum_alg);
 #ifdef MYSQL_SERVER
   bool write(Log_event_writer *writer);
   virtual bool write_post_header_for_derived(Log_event_writer *writer) { return FALSE; }
@@ -2252,7 +2255,7 @@ public:        /* !!! Public in this patch to allow old usage */
                        uint32 q_len_arg);
   static bool peek_is_commit_rollback(const uchar *event_start,
                                       size_t event_len,
-                                      enum enum_binlog_checksum_alg
+                                      enum_binlog_checksum_alg
                                       checksum_alg);
   int handle_split_alter_query_log_event(rpl_group_info *rgi,
                                          bool &skip_error_check);
@@ -2524,8 +2527,15 @@ public:
   master_version_split server_version_split;
   const uint8 *event_type_permutation;
   uint32 options_written_to_bin_log;
+  /*
+    The checksum algorithm used in the binlog or relaylog following this
+    Format_description_event. Or BINLOG_CHECKSUM_ALG_UNDEF for a
+    Format_description_event which is not part of a binlog or relaylog file.
+  */
+  enum_binlog_checksum_alg used_checksum_alg;
 
-  Format_description_log_event(uint8 binlog_ver, const char* server_ver=0);
+  Format_description_log_event(uint8 binlog_ver, const char* server_ver= 0,
+      enum_binlog_checksum_alg checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF);
   Format_description_log_event(const uchar *buf, uint event_len,
                                const Format_description_log_event
                                *description_event);
@@ -3384,9 +3394,9 @@ public:
 #ifdef MYSQL_SERVER
   bool write(Log_event_writer *writer);
   static int make_compatible_event(String *packet, bool *need_dummy_event,
-                                    ulong ev_offset, enum enum_binlog_checksum_alg checksum_alg);
+                                    ulong ev_offset, enum_binlog_checksum_alg checksum_alg);
   static bool peek(const uchar *event_start, size_t event_len,
-                   enum enum_binlog_checksum_alg checksum_alg,
+                   enum_binlog_checksum_alg checksum_alg,
                    uint32 *domain_id, uint32 *server_id, uint64 *seq_no,
                    uchar *flags2, const Format_description_log_event *fdev);
 #endif
@@ -3505,7 +3515,7 @@ public:
   enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 #endif
   static bool peek(const char *event_start, size_t event_len,
-                   enum enum_binlog_checksum_alg checksum_alg,
+                   enum_binlog_checksum_alg checksum_alg,
                    rpl_gtid **out_gtid_list, uint32 *out_list_len,
                    const Format_description_log_event *fdev);
 };
@@ -5432,7 +5442,7 @@ bool slave_execute_deferred_events(THD *thd);
 bool event_that_should_be_ignored(const uchar *buf);
 bool event_checksum_test(uchar *buf, ulong event_len,
                          enum_binlog_checksum_alg alg);
-enum enum_binlog_checksum_alg get_checksum_alg(const uchar *buf, ulong len);
+enum_binlog_checksum_alg get_checksum_alg(const uchar *buf, ulong len);
 extern TYPELIB binlog_checksum_typelib;
 #ifdef WITH_WSREP
 enum Log_event_type wsrep_peak_event(rpl_group_info *rgi, ulonglong* event_size);
