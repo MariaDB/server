@@ -861,6 +861,30 @@ int spider_free_conn(
   DBUG_RETURN(0);
 }
 
+/**
+  May get or create a connection spawning a background thread
+
+  For each link (data node, formally representable as the tuple
+  (spider, link_idx)), there is an associated casual read value
+  (`spider->result_list.casual_read[link_idx]').
+
+  If the CRV is 0, do nothing. Otherwise, An casual read id
+  (`conn->casual_read_current_id`) is associated with the link and
+  query id. The CRI starts from 2, and is used only when CRV is 1, to
+  update the CRV (see below). The updated CRV is then used to
+  construct the connection key used for get or create a connection
+  that spawns a background thread to execute queries.
+
+  If the CRV is 1, it is assigned CRI. The latter is then incremented
+  by 1. The CRI will only go up to 63, before "wrapping" back to 2.
+
+  If 2 <= CRV <= 63, it is left alone.
+
+  Note that this function relies on the assumption that the CRV is
+  reset (e.g. using `spider_param_casual_read()') between consecutive
+  calls of this function for the CRV == 1 case to auto-increment as
+  expected.
+*/
 int spider_check_and_get_casual_read_conn(
   THD *thd,
   ha_spider *spider,
@@ -868,38 +892,34 @@ int spider_check_and_get_casual_read_conn(
 ) {
   int error_num;
   DBUG_ENTER("spider_check_and_get_casual_read_conn");
-  if (spider->result_list.casual_read[link_idx])
+  if (!spider->result_list.casual_read[link_idx])
+    DBUG_RETURN(0);
+  SPIDER_CONN *conn = spider->conns[link_idx];
+  if (conn->casual_read_query_id != thd->query_id)
   {
-    SPIDER_CONN *conn = spider->conns[link_idx];
-    if (conn->casual_read_query_id != thd->query_id)
-    {
-      conn->casual_read_query_id = thd->query_id;
-      conn->casual_read_current_id = 2;
-    }
-    if (spider->result_list.casual_read[link_idx] == 1)
-    {
-      spider->result_list.casual_read[link_idx] = conn->casual_read_current_id;
-      ++conn->casual_read_current_id;
-      if (conn->casual_read_current_id > 63)
-      {
-        conn->casual_read_current_id = 2;
-      }
-    }
-    char first_byte_bak = *spider->conn_keys[link_idx];
-    *spider->conn_keys[link_idx] =
-      '0' + spider->result_list.casual_read[link_idx];
-    if (!(spider->conns[link_idx]= spider_get_conn(
-              spider->share, link_idx, spider->conn_keys[link_idx],
-              spider->wide_handler->trx, spider, FALSE, TRUE, &error_num)))
-    {
-      *spider->conn_keys[link_idx] = first_byte_bak;
-      DBUG_RETURN(error_num);
-    }
-    *spider->conn_keys[link_idx] = first_byte_bak;
-    spider->conns[link_idx]->casual_read_base_conn = conn;
-    conn = spider->conns[link_idx];
-    spider_check_and_set_autocommit(thd, conn, NULL);
+    conn->casual_read_query_id = thd->query_id;
+    conn->casual_read_current_id = 2;
   }
+  if (spider->result_list.casual_read[link_idx] == 1)
+  {
+    spider->result_list.casual_read[link_idx] = conn->casual_read_current_id;
+    ++conn->casual_read_current_id;
+    if (conn->casual_read_current_id > 63)
+      conn->casual_read_current_id = 2;
+  }
+  char first_byte_bak = *spider->conn_keys[link_idx];
+  *spider->conn_keys[link_idx] =
+    '0' + spider->result_list.casual_read[link_idx];
+  if (!(spider->conns[link_idx]= spider_get_conn(
+          spider->share, link_idx, spider->conn_keys[link_idx],
+          spider->wide_handler->trx, spider, FALSE, TRUE, &error_num)))
+  {
+    *spider->conn_keys[link_idx] = first_byte_bak;
+    DBUG_RETURN(error_num);
+  }
+  *spider->conn_keys[link_idx] = first_byte_bak;
+  spider->conns[link_idx]->casual_read_base_conn = conn;
+  spider_check_and_set_autocommit(thd, spider->conns[link_idx], NULL);
   DBUG_RETURN(0);
 }
 
@@ -1781,6 +1801,12 @@ int spider_set_conn_bg_param(
   DBUG_RETURN(0);
 }
 
+/**
+  Creates a background thread on `conn' to run `spider_bg_conn_action()'
+
+  Does not create when `conn' is NULL or a bg thread has already been
+  created for `conn'.
+*/
 int spider_create_conn_thread(
   SPIDER_CONN *conn
 ) {
