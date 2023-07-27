@@ -10792,6 +10792,7 @@ do_continue:;
   else
     alter_info->flags|= ALTER_INDEX_ORDER;
   create_info->alias= alter_ctx.table_name;
+  thd->abort_on_warning= !ignore && thd->is_strict_mode();
   /*
     Partitioning: part_info is passed via thd->work_part_info
   */
@@ -10801,6 +10802,7 @@ do_continue:;
                            thd->lex->create_info, create_info, alter_info,
                            C_ALTER_TABLE_FRM_ONLY, NULL,
                            &key_info, &key_count, &frm);
+  thd->abort_on_warning= false;
   reenable_binlog(thd);
   if (unlikely(error))
   {

@@ -1549,6 +1549,17 @@ show create table t1;
 drop tables t1;
 
 --echo #
+--echo # MDEV-29727 ALTER and CREATE with default partitioning
+--echo #            differently react to SQL_MODE => unusable SHOW CREATE
+--echo #
+create table t (a int) with system versioning;
+--error WARN_VERS_PARAMETERS
+alter table t partition by system_time partitions 3;
+drop table t;
+--error WARN_VERS_PARAMETERS
+create table t (a int) with system versioning partition by system_time partitions 3;
+
+--echo #
 --echo # End of 10.5 tests
 --echo #
 
