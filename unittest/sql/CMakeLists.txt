@@ -34,3 +34,7 @@ MY_ADD_TEST(mf_iocache)
 ADD_EXECUTABLE(my_json_writer-t my_json_writer-t.cc dummy_builtins.cc)
 TARGET_LINK_LIBRARIES(my_json_writer-t sql mytap)
 MY_ADD_TEST(my_json_writer)
+
+ADD_EXECUTABLE(open_address_hash-t open_address_hash-t.cc)
+TARGET_LINK_LIBRARIES(open_address_hash-t mytap dbug)
+MY_ADD_TEST(open_address_hash)

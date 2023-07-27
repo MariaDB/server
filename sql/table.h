@@ -2504,6 +2504,11 @@ struct TABLE_LIST
       table->map= table_map(1) << new_tablenr;
     }
   }
+
+  MDL_key *get_key() 
+  { 
+    return &mdl_request.key;
+  }
   /*
     Reference from aux_tables to local list entry of main select of
     multi-delete statement:

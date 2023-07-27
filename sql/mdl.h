@@ -737,14 +737,14 @@ private:
   friend class MDL_context;
 
   MDL_ticket(MDL_context *ctx_arg, enum_mdl_type type_arg
-#ifndef DBUG_OFF
+//#ifndef DBUG_OFF
              , enum_mdl_duration duration_arg
-#endif
+//#endif
             )
    : m_type(type_arg),
-#ifndef DBUG_OFF
+//#ifndef DBUG_OFF
      m_duration(duration_arg),
-#endif
+//#endif
      m_ctx(ctx_arg),
      m_lock(NULL),
      m_psi(NULL)
@@ -756,21 +756,21 @@ private:
   }
 
   static MDL_ticket *create(MDL_context *ctx_arg, enum_mdl_type type_arg
-#ifndef DBUG_OFF
+//#ifndef DBUG_OFF
                             , enum_mdl_duration duration_arg
-#endif
+//#endif
                             );
   static void destroy(MDL_ticket *ticket);
 private:
   /** Type of metadata lock. Externally accessible. */
   enum enum_mdl_type m_type;
-#ifndef DBUG_OFF
+//#ifndef DBUG_OFF
   /**
     Duration of lock represented by this ticket.
     Context private. Debug-only.
   */
   enum_mdl_duration m_duration;
-#endif
+//#endif
   /**
     Context of the owner of the metadata lock ticket. Externally accessible.
   */
@@ -860,6 +860,94 @@ typedef I_P_List<MDL_request, I_P_List_adapter<MDL_request,
                  &MDL_request::prev_in_list>,
                  I_P_List_counter>
         MDL_request_list;
+
+class key_type_pair
+{
+public:
+  key_type_pair(MDL_key *_mdl_key, enum_mdl_type _type)
+  {
+    mdl_key= _mdl_key;
+    type= _type;
+  }
+  MDL_key *mdl_key;
+  enum_mdl_type type;
+};
+
+#include "open_address_hash.h"
+
+class ticket_trait
+{
+public:
+  using elem_type= MDL_ticket *;
+  using find_type= key_type_pair;
+  using erase_type= MDL_ticket *;
+  static bool is_equal(const elem_type &lhs, const MDL_ticket *rhs)
+  {
+    return lhs == rhs;
+  }
+  static bool is_equal(const elem_type &lhs, const key_type_pair &rhs)
+  {
+    return lhs->get_key()->is_equal(rhs.mdl_key) &&
+           lhs->has_stronger_or_equal_type(rhs.type);
+  }
+
+  static bool is_empty(const elem_type &el) { return el == nullptr; }
+  static void set_null(elem_type &el) { el= nullptr; }
+
+  static my_hash_value_type get_hash_value(const MDL_ticket *t)
+  {
+    return t->get_key()->tc_hash_value();
+  }
+};
+
+class ticket_key
+{
+public:
+  using hash_value_type= decltype(MDL_key().tc_hash_value());
+  using key_type= MDL_key;
+
+  static MDL_key *get_key(const MDL_ticket *t) { return t->get_key(); }
+  static my_hash_value_type get_hash_value_from_key(const MDL_key *key) { return key->tc_hash_value(); }
+};
+
+template <typename T>
+class MDL_key_trait
+{
+public:
+  using hash_value_type= decltype(MDL_key().tc_hash_value());
+  using key_type= MDL_key;
+
+  static MDL_key *get_key(T *t) { return t->get_key(); }
+  static my_hash_value_type get_hash_value_from_key(const MDL_key *key)
+  {
+    return key->tc_hash_value();
+  }
+};
+
+template <typename T, typename K> class hash_trait
+{
+public:
+  using elem_type= T *;
+  using find_type= K;
+  using erase_type= T *;
+  static bool is_equal(const elem_type &lhs, const elem_type rhs)
+  {
+    return lhs == rhs;
+  }
+  static bool is_equal(const elem_type &lhs, const K &rhs)
+  {
+    return lhs->get_key()->is_equal(rhs.mdl_key) &&
+           lhs->has_stronger_or_equal_type(rhs.type);
+  }
+
+  static bool is_empty(const elem_type &el) { return el == nullptr; }
+  static void set_null(elem_type &el) { el= nullptr; }
+
+  static my_hash_value_type get_hash_value(T *t)
+  {
+    return t->get_key()->tc_hash_value();
+  }
+};
 
 /**
   Context of the owner of metadata locks. I.e. each server
@@ -1056,11 +1144,15 @@ private:
 private:
   MDL_ticket *find_ticket(MDL_request *mdl_req,
                           enum_mdl_duration *duration);
+  MDL_ticket *find_ticket_using_hash(MDL_request *mdl_request,
+                                     enum_mdl_duration *result_duration);
   void release_locks_stored_before(enum_mdl_duration duration, MDL_ticket *sentinel);
   void release_lock(enum_mdl_duration duration, MDL_ticket *ticket);
   bool try_acquire_lock_impl(MDL_request *mdl_request,
                              MDL_ticket **out_ticket);
   bool fix_pins();
+
+  open_address_hash<MDL_key_trait<MDL_ticket>, hash_trait<MDL_ticket, key_type_pair> > ticket_hash;
 
 public:
   THD *get_thd() const { return m_owner->get_thd(); }
