@@ -3406,4 +3406,11 @@ f()
 drop procedure p;
 drop function f;
 drop table t;
+#
+# MDEV-29873 MSAN uninitialized value errors in bcmp /
+#            prep_alter_part_table upon re-partitioning by system time
+#
+create table t (a int) with system versioning partition by system_time interval 5 week;
+alter table t partition by system_time interval 10 week;
+drop table t;
 set global innodb_stats_persistent= @save_persistent;
