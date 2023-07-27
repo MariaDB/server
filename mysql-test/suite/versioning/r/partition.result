@@ -3387,4 +3387,23 @@ insert into t () values (),(),(),(),(),();
 update t set a = 1;
 update t set a = 2 limit 0;
 drop table t;
+#
+# MDEV-31244 Assertion "not SELECT" in vers_set_hist_part()
+#
+create table t (a int) with system versioning partition by system_time;
+create function f() returns int
+begin
+update t set a = 1;
+return 1;
+end $
+create procedure p() select f();
+call p();
+f()
+1
+call p();
+f()
+1
+drop procedure p;
+drop function f;
+drop table t;
 set global innodb_stats_persistent= @save_persistent;

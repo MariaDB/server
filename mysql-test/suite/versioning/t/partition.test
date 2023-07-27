@@ -2605,6 +2605,25 @@ update t set a = 2 limit 0;
 # cleanup
 drop table t;
 
+--echo #
+--echo # MDEV-31244 Assertion "not SELECT" in vers_set_hist_part()
+--echo #
+create table t (a int) with system versioning partition by system_time;
+--delimiter $
+create function f() returns int
+begin
+  update t set a = 1;
+  return 1;
+end $
+--delimiter ;
+create procedure p() select f();
+call p();
+call p();
+# cleanup
+drop procedure p;
+drop function f;
+drop table t;
+
 --disable_prepare_warnings
 set global innodb_stats_persistent= @save_persistent;
 --source suite/versioning/common_finish.inc

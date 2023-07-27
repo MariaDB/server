@@ -799,9 +799,6 @@ bool partition_info::has_unique_name(partition_element *element)
 */
 bool partition_info::vers_set_hist_part(THD *thd, uint *create_count)
 {
-  DBUG_ASSERT(!thd->lex->last_table() ||
-              !thd->lex->last_table()->vers_conditions.delete_history);
-
   const bool auto_hist= create_count && vers_info->auto_hist;
 
   if (vers_info->limit)
