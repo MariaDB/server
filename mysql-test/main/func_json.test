@@ -1017,8 +1017,11 @@ DROP TABLE t1;
 set group_concat_max_len=64;
 create table t1 (a varchar(254));
 insert into t1 values (concat('x64-', repeat('a', 60)));
-insert into t1 values (concat('x64-', repeat('b', 60)));                                            insert into t1 values (concat('x64-', repeat('c', 60)));
-select json_arrayagg(a) from t1; 
+insert into t1 values (concat('x64-', repeat('b', 60)));
+insert into t1 values (concat('x64-', repeat('c', 60)));
+--disable_ps2_protocol
+select json_arrayagg(a) from t1;
+--enable_ps2_protocol
 drop table t1;
 SET group_concat_max_len= default;
 

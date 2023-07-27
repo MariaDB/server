@@ -41,7 +41,9 @@ DELIMITER ;|
 
 
 call mtr.add_suppression("Unsafe statement written to the binary log using");
+--disable_ps2_protocol
 select f1() from t2;
+--enable_ps2_protocol
 
 --replace_column 1 x 2 x 3 x 4 x 5 x
 show binlog events limit 16, 100;
@@ -71,7 +73,9 @@ BEGIN
 end|
 DELIMITER ;|
 
+--disable_ps2_protocol
 select f1() from t2;
+--enable_ps2_protocol
 
 --replace_column 1 x 2 x 3 x 4 x 5 x
 show binlog events limit 13, 100;

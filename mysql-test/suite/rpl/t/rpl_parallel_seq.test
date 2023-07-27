@@ -16,7 +16,9 @@ SET @@session.binlog_row_image=FULL;
 SET @@session.debug_dbug="+d,binlog_force_commit_id";
 SET @commit_id=7;
 SET @@gtid_seq_no=100;
+--disable_ps2_protocol
 SELECT NEXT VALUE FOR s1;
+--enable_ps2_protocol
 INSERT INTO s1 VALUES(2, 1, 10, 1, 2, 1, 1, 0);
 SET @@session.debug_dbug="";
 

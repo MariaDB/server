@@ -211,6 +211,7 @@ SELECT * FROM t1;
 
 --echo *** Test @@LAST_GTID and MASTER_GTID_WAIT() ***
 
+--disable_ps2_protocol
 --connection server_1
 DROP TABLE t1;
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
@@ -396,7 +397,7 @@ INSERT INTO t1 VALUES (7);
 reap;
 --connection s7
 reap;
-
+--enable_ps2_protocol
 
 --echo *** Test gtid_slave_pos when used with GTID ***
 

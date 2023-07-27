@@ -7,6 +7,7 @@ drop table if exists t1;
 --echo # Test alter sequence
 --echo #
 
+--disable_ps2_protocol
 CREATE SEQUENCE t1 nocache engine=myisam;
 select * from t1;
 select next value for t1;
@@ -161,3 +162,4 @@ CREATE SEQUENCE s;
 ALTER TABLE s ORDER BY cache_size;
 SELECT NEXTVAL(s);
 DROP SEQUENCE s;
+--enable_ps2_protocol

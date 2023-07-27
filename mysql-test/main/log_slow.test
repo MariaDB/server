@@ -44,6 +44,7 @@ show fields from mysql.slow_log;
 #
 # Check flush command
 #
+--disable_ps2_protocol
 
 flush slow logs;
 
@@ -115,6 +116,7 @@ select * from t;
 show session status like 'Slow_queries';
 
 drop table t;
+--enable_ps2_protocol
 
 --echo #
 --echo # End of 10.3 tests

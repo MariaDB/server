@@ -2811,6 +2811,7 @@ drop database d;
 --echo # MDEV-21786:
 --echo # mysqldump will forget sequence definition details on --no-data dump
 --echo #
+--disable_ps2_protocol
 create database d;
 
 CREATE SEQUENCE d.s1 START WITH 100 INCREMENT BY 10 MINVALUE=100 MAXVALUE=1100 CYCLE;
@@ -2861,6 +2862,7 @@ show create sequence d2.s1;
 drop sequence d.s1, d.s2, d.s3, d.s4;
 drop database d;
 drop database d2;
+--enable_ps2_protocol
 
 --echo #
 --echo # MDEV-20070

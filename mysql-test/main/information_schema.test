@@ -1406,12 +1406,13 @@ set global init_connect="";
 #
 # Bug#34517 SHOW GLOBAL STATUS does not work properly in embedded server.
 #
-
+--disable_ps2_protocol
 create table t0 select * from information_schema.global_status where VARIABLE_NAME='COM_SELECT';
 SELECT 1;
 select a.VARIABLE_VALUE - b.VARIABLE_VALUE from t0 b, information_schema.global_status a
    where a.VARIABLE_NAME = b.VARIABLE_NAME;
 drop table t0;
+--enable_ps2_protocol
 
 #
 # Bug#35275 INFORMATION_SCHEMA.TABLES.CREATE_OPTIONS omits KEY_BLOCK_SIZE

@@ -2184,6 +2184,7 @@ drop table t2;
 #
 # Bug #11745: SELECT ... FROM DUAL with WHERE condition
 #
+--disable_ps2_protocol
 --disable_view_protocol
 CREATE TABLE t1 (a int, b int, c int);
 INSERT INTO t1
@@ -2203,8 +2204,9 @@ select count(*) from t1 limit 2,3;
 select found_rows();
 select SQL_CALC_FOUND_ROWS count(*) from t1 limit 2,3;
 select found_rows();
---enable_view_protocol
 DROP TABLE t1;
+--enable_view_protocol
+--enable_ps2_protocol
 
 #
 # Bug 7672 Unknown column error in order clause
@@ -3731,6 +3733,7 @@ DROP TABLE t1;
 #
 # Bug #32942 now() - interval '7200' second is NOT pre-calculated, causing "full table scan"
 #
+--disable_ps2_protocol
 --disable_view_protocol
 CREATE TABLE t1 (a INT, b INT);
 CREATE TABLE t2 (a INT, c INT, KEY(a));
@@ -3746,6 +3749,8 @@ SELECT DISTINCT b FROM t1 LEFT JOIN t2 USING(a) WHERE c <= 3;
 SHOW STATUS LIKE 'Handler_read%';
 DROP TABLE t1, t2;
 --enable_view_protocol
+--enable_ps2_protocol
+
 #
 # Bug#40953 SELECT query throws "ERROR 1062 (23000): Duplicate entry..." error
 #
@@ -4104,7 +4109,9 @@ END;|
 delimiter ;|
 
 SET @cnt := 0;
+--disable_ps2_protocol
 SELECT * FROM t1 WHERE a = f1();
+--enable_ps2_protocol
 SELECT @cnt;
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a = f1();
 DROP TABLE t1, t2;

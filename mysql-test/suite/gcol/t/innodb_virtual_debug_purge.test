@@ -258,6 +258,10 @@ disconnect truncate;
 connection default;
 DROP TABLE t1, t2;
 
+--disable_ps2_protocol
+--enable_ps2_protocol
+--disable_ps2_protocol
+--enable_ps2_protocol
 --source include/wait_until_count_sessions.inc
 set debug_sync=reset;
 

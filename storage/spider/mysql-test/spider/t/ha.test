@@ -477,7 +477,9 @@ if ($USE_CHILD_GROUP3)
 }
 
 --connection master_1
+--disable_ps2_protocol
 eval $MASTER_1_CHANGE_HA_MON;
+--enable_ps2_protocol
 
 --echo
 --echo active standby test
@@ -841,7 +843,9 @@ if ($USE_CHILD_GROUP3)
 }
 
 --connection master_1
+--disable_ps2_protocol
 eval $MASTER_1_CHANGE_HA_MON;
+--enable_ps2_protocol
 
 --echo
 --echo deinit

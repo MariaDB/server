@@ -995,7 +995,9 @@ create or replace table t1 (
 
 insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
 
+--disable_ps2_protocol
 select * into outfile 'load.data' from t1;
+--enable_ps2_protocol
 load data infile 'load.data' replace into table t1;
 --error ER_RECORD_FILE_FULL
 load data infile 'load.data' replace into table t1;
@@ -1337,7 +1339,9 @@ partition by system_time limit 100 (
   partition pn current);
 
 insert into t1 select seq from seq_0_to_49;
+--disable_ps2_protocol
 select x into outfile 'MDEV-20077.data' from t1;
+--enable_ps2_protocol
 
 load data infile 'MDEV-20077.data' replace into table t1 (x);
 load data infile 'MDEV-20077.data' replace into table t1 (x);

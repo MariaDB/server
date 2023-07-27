@@ -7,6 +7,7 @@ if (!$SERVER_AUDIT_SO) {
 
 install plugin server_audit soname 'server_audit';
 
+--disable_ps2_protocol
 show variables like 'server_audit%';
 set global server_audit_file_path=null;
 set global server_audit_incl_users=null;
@@ -140,6 +141,7 @@ set global server_audit_file_path='nonexisting_dir/';
 show status like 'server_audit_current_log';
 show variables like 'server_audit%';
 uninstall plugin server_audit;
+--enable_ps2_protocol
 
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
 # replace the timestamp and the hostname with constant values

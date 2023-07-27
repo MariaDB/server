@@ -233,6 +233,8 @@ SET(CPACK_RPM_shared_POST_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/
 SET(CPACK_RPM_shared_POST_UNINSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/shared-post.sh)
 SET(CPACK_RPM_compat_POST_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/shared-post.sh)
 SET(CPACK_RPM_compat_POST_UNINSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/shared-post.sh)
+SET(CPACK_RPM_cracklib-password-check_POST_INSTALL_SCRIPT_FILE 
+  ${CMAKE_SOURCE_DIR}/plugin/cracklib_password_check/support-files/rpm/mariadb-plugin-cracklib-password-check-postin.sh)
 
 MACRO(ALTERNATIVE_NAME real alt)
   IF(${ARGC} GREATER 2)
