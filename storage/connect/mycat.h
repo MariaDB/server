@@ -39,6 +39,7 @@ struct ha_table_option_struct {
   const char *tabname;
   const char *tablist;
   const char *dbname;
+  const char *catname;
   const char *separator;
 //const char *connect;
   const char *qchar;

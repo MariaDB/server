@@ -1,5 +1,4 @@
-let $MYSQLD_DATADIR= `select @@datadir`;
---copy_file $MTR_SUITE_DIR/std_data/emp.txt $MYSQLD_DATADIR/test/emp.txt
+--copy_file $MTR_SUITE_DIR/std_data/emp.txt $MARIADB_DATADIR/test/emp.txt
 
 --echo #
 --echo # Show MRR setting. The way it is done is because the t3 table cannot be directly based on
@@ -63,4 +62,4 @@ DROP TABLE t3;
 # Clean up
 #
 SET @@LOCAL.OPTIMIZER_SWITCH='mrr=off';
---remove_file $MYSQLD_DATADIR/test/emp.txt
+--remove_file $MARIADB_DATADIR/test/emp.txt

@@ -1934,13 +1934,32 @@ int IsArgJson(UDF_ARGS *args, uint i)
 } // end of IsArgJson
 
 /*********************************************************************************/
+/*  Prefix file name with catalog if catlogs are used                            */
+/*********************************************************************************/
+
+#include <mysql/service_thd_catalog.h>
+
+static char *adjust_file_name(char *fn, char *buffer)
+{
+  if (using_catalogs && fn && !test_if_hard_path(fn))
+  {
+    const char *catalog= thd_catalog_path(current_thd);
+    strxnmov(buffer, FN_REFLEN-1, catalog, fn, NullS);
+    return buffer;
+  }
+  return fn;
+}
+
+/*********************************************************************************/
 /*  GetFileLength: returns file size in number of bytes.                         */
 /*********************************************************************************/
 static long GetFileLength(char *fn)
 {
 	int  h;
 	long len;
+        char file_buffer[FN_REFLEN];
 
+        fn= adjust_file_name(fn, file_buffer);
 	h= open(fn, _O_RDONLY);
 
 	if (h != -1) {
@@ -4734,7 +4753,8 @@ my_bool bfile_bjson_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
 
 char *bfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char*, char *error) {
-	char   *buf, *str = NULL, fn[_MAX_PATH], ofn[_MAX_PATH];
+  char    *buf, *str = NULL, *fn, *ofn;
+        char    file_buffer[FN_REFLEN], file_buffer2[FN_REFLEN];
 	bool    loop;
 	ssize_t len, newloc;
 	size_t  lrecl, binszp;
@@ -4742,8 +4762,8 @@ char *bfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 	BDOC    doc(g);
 
-	strcpy(fn, MakePSZ(g, args, 0));
-	strcpy(ofn, MakePSZ(g, args, 1));
+        fn=  adjust_file_name(MakePSZ(g, args, 0), file_buffer);
+        ofn= adjust_file_name(MakePSZ(g, args, 1), file_buffer2);
 
 	if (args->arg_count == 3)
 		lrecl = (size_t)*(longlong*)args->args[2];

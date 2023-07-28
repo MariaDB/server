@@ -3,8 +3,7 @@
 SET GLOBAL time_zone='+0:00';
 SET time_zone='+0:00';
 
-let $MYSQLD_DATADIR= `select @@datadir`;
---copy_file $MTR_SUITE_DIR/std_data/girls.txt $MYSQLD_DATADIR/test/girls.txt
+--copy_file $MTR_SUITE_DIR/std_data/girls.txt $MARIADB_DATADIR/test/girls.txt
 
 let $PORT= `select @@port`;
 
@@ -49,7 +48,7 @@ DROP TABLE t1, connect.t2;
 --echo # Testing JDBC write operations
 --echo #
 USE connect;
---copy_file $MTR_SUITE_DIR/std_data/boys.txt $MYSQLD_DATADIR/connect/boys.txt
+--copy_file $MTR_SUITE_DIR/std_data/boys.txt $MARIADB_DATADIR/connect/boys.txt
 CREATE TABLE boys (
   name CHAR(12) NOT NULL,
   city CHAR(11),
@@ -92,7 +91,7 @@ DROP TABLE t1, t3, connect.boys;
 --echo # Testing MariaDB JDBC driver
 --echo #
 USE connect;
---copy_file $MTR_SUITE_DIR/std_data/employee.dat $MYSQLD_DATADIR/connect/employee.dat
+--copy_file $MTR_SUITE_DIR/std_data/employee.dat $MARIADB_DATADIR/connect/employee.dat
 CREATE TABLE emp (
   serialno CHAR(5) NOT NULL,
   name VARCHAR(12) NOT NULL FLAG=6,
@@ -141,10 +140,10 @@ DROP TABLE connect.tx1;
 #
 # Clean up
 #
---remove_file $MYSQLD_DATADIR/connect/boys.txt
---remove_file $MYSQLD_DATADIR/connect/employee.dat
+--remove_file $MARIADB_DATADIR/connect/boys.txt
+--remove_file $MARIADB_DATADIR/connect/employee.dat
 DROP DATABASE connect;
---remove_file $MYSQLD_DATADIR/test/girls.txt
+--remove_file $MARIADB_DATADIR/test/girls.txt
 SET GLOBAL time_zone=SYSTEM;
 SET time_zone=SYSTEM;
 -- source jdbconn_cleanup.inc

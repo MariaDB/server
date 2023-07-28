@@ -10,27 +10,27 @@ NULL	NULL
 #
 # Testing errors
 #
-CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root1,port=PORT';
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root1,port=PORT';
 ERROR HY000: (1045) Access denied for user 'root1'@'localhost' (using password: NO)
-CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL DBNAME='unknown' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB DBNAME='unknown' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
 ERROR HY000: (1049) Unknown database 'unknown'
-CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL OPTION_LIST='host=localhost,user=root,port=PORT' DBNAME='unknown' TABNAME='t1';
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB OPTION_LIST='host=localhost,user=root,port=PORT' DBNAME='unknown' TABNAME='t1';
 ERROR HY000: (1049) Unknown database 'unknown'
-CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='unknown' OPTION_LIST='host=localhost,user=root,port=PORT';
-ERROR HY000: (1146) Table 'test.unknown' doesn't exist [SHOW FULL COLUMNS FROM `unknown` FROM test]
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='unknown' OPTION_LIST='host=localhost,user=root,port=PORT';
+ERROR HY000: (1146) Table 'test.unknown' doesn't exist [SHOW FULL COLUMNS FROM `unknown` FROM `test`]
 SHOW CREATE TABLE t2;
 ERROR 42S02: Table 'test.t2' doesn't exist
-CREATE TABLE t2 (x int, y char(10)) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
+CREATE TABLE t2 (x int, y char(10)) ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `x` int(11) DEFAULT NULL,
   `y` char(10) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`=MYSQL `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`=MARIADB `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
 SELECT * FROM t2;
 ERROR HY000: Got error 174 '(1054) Unknown column 'x' in 'field list' [SELECT `x`, `y` FROM `t1`]' from CONNECT
 DROP TABLE t2;
-CREATE TABLE t2 (a int, b char(10)) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
+CREATE TABLE t2 (a int, b char(10)) ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
 ALTER TABLE t1 RENAME t1backup;
 SELECT * FROM t2;
 ERROR HY000: Got error 174 '(1146) Table 'test.t1' doesn't exist [SELECT `a`, `b` FROM `t1`]' from CONNECT
@@ -39,13 +39,13 @@ DROP TABLE t2;
 #
 # Testing SELECT, etc.
 #
-CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` char(10) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`='MYSQL' `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`='MARIADB' `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
 SELECT * FROM t2;
 a	b
 NULL	NULL
@@ -54,13 +54,13 @@ NULL	NULL
 2	test02
 3	test03
 DROP TABLE t2;
-CREATE TABLE t2 (a int, b char(10)) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
+CREATE TABLE t2 (a int, b char(10)) ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` char(10) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`=MYSQL `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`=MARIADB `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
 SELECT * FROM t2;
 a	b
 NULL	NULL
@@ -69,13 +69,13 @@ NULL	NULL
 2	test02
 3	test03
 DROP TABLE t2;
-CREATE TABLE t2 (a INT NOT NULL, b CHAR(10) NOT NULL) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
+CREATE TABLE t2 (a INT NOT NULL, b CHAR(10) NOT NULL) ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) NOT NULL,
   `b` char(10) NOT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`=MYSQL `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`=MARIADB `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
 SELECT * FROM t2;
 a	b
 0	
@@ -84,13 +84,13 @@ a	b
 2	test02
 3	test03
 DROP TABLE t2;
-CREATE TABLE t2 (a char(10), b int) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
+CREATE TABLE t2 (a char(10), b int) ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` char(10) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`=MYSQL `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`=MARIADB `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
 SELECT * FROM t2;
 a	b
 NULL	NULL
@@ -104,7 +104,7 @@ DROP TABLE t1;
 # Testing numeric data types
 #
 CREATE TABLE t1 (a smallint);
-CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -114,12 +114,12 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` smallint(6) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`='MYSQL' `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`='MARIADB' `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
 SELECT * FROM t2;
 a
 DROP TABLE t2, t1;
 CREATE TABLE t1 (a mediumint);
-CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -129,12 +129,12 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(9) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`='MYSQL' `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`='MARIADB' `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
 SELECT * FROM t2;
 a
 DROP TABLE t2, t1;
 CREATE TABLE t1 (a int);
-CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -144,12 +144,12 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`='MYSQL' `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`='MARIADB' `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
 SELECT * FROM t2;
 a
 DROP TABLE t2, t1;
 CREATE TABLE t1 (a bigint);
-CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -159,7 +159,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` bigint(20) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`='MYSQL' `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`='MARIADB' `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
 SELECT * FROM t2;
 a
 DROP TABLE t2, t1;
@@ -167,7 +167,7 @@ DROP TABLE t2, t1;
 # Testing character data types
 #
 CREATE TABLE t1 (a char(10));
-CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -177,12 +177,12 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` char(10) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`='MYSQL' `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`='MARIADB' `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
 SELECT * FROM t2;
 a
 DROP TABLE t2, t1;
 CREATE TABLE t1 (a varchar(10));
-CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -192,7 +192,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` varchar(10) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`='MYSQL' `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`='MARIADB' `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
 SELECT * FROM t2;
 a
 DROP TABLE t2, t1;
@@ -203,7 +203,7 @@ DROP TABLE t2, t1;
 # Testing temporal data types
 #
 CREATE TABLE t1 (a date);
-CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -213,7 +213,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` date DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`='MYSQL' `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`='MARIADB' `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
 SELECT * FROM t2;
 a
 DROP TABLE t2, t1;
@@ -222,7 +222,7 @@ DROP TABLE t2, t1;
 #
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (10),(20),(30);
-CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL CONNECTION='mysql://root@localhost:PORT/test/t1';
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB CONNECTION='mysql://root@localhost:PORT/test/t1';
 SELECT * FROM t2;
 a
 10
@@ -233,7 +233,7 @@ a
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci CONNECTION='mysql://root@localhost:PORT/test/t1' `TABLE_TYPE`='MYSQL';
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci CONNECTION='mysql://root@localhost:PORT/test/t1' `TABLE_TYPE`='MARIADB';
 /*!40101 SET character_set_client = @saved_cs_client */;
 # End of mysqldump ------
 DROP TABLE t2;
@@ -260,7 +260,7 @@ INSERT INTO t1(a,b,c,d) VALUES(255,65535,4294967295,18446744073709551615);
 SELECT * FROM t1;
 a	b	c	d	e
 255	65535	4294967295	18446744073709551615	Hello
-CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME=t1;
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME=t1;
 DESCRIBE t2;
 Field	Type	Null	Key	Default	Extra
 a	tinyint(3) unsigned	NO		NULL	
@@ -275,7 +275,7 @@ DROP TABLE t2;
 DROP TABLE t1;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (10),(20),(30);
-CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL CONNECTION='mysql://root@localhost:PORT/test/t1';
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB CONNECTION='mysql://root@localhost:PORT/test/t1';
 SELECT * FROM t2;
 a
 10
@@ -286,7 +286,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` tinyint(4) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci CONNECTION='mysql://root@localhost:PORT/test/t1' `TABLE_TYPE`='MYSQL'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci CONNECTION='mysql://root@localhost:PORT/test/t1' `TABLE_TYPE`='MARIADB'
 SELECT * FROM t2;
 a
 10
@@ -299,7 +299,7 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (a INT PRIMARY KEY);
 INSERT INTO t1 VALUES (10),(20),(30);
-CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL CONNECTION='mysql://root@localhost:PORT/test/t1' OPTION_LIST="Delayed=1,Ignored=1";
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB CONNECTION='mysql://root@localhost:PORT/test/t1' OPTION_LIST="Delayed=1,Ignored=1";
 INSERT INTO t2 VALUES (10),(20),(30),(40);
 DROP TABLE t2;
 DROP TABLE t1;
@@ -312,7 +312,7 @@ SELECT * from t1;
 id	spaced col	nospace
 1	1	x1
 2	C-003	x2
-CREATE TABLE t2 (id int, `spaced col` varchar(10), `nospace` varchar(10)) ENGINE=CONNECT TABLE_TYPE=MYSQL DBNAME='test' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
+CREATE TABLE t2 (id int, `spaced col` varchar(10), `nospace` varchar(10)) ENGINE=CONNECT TABLE_TYPE=MARIADB DBNAME='test' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
 SELECT * from t2;
 id	spaced col	nospace
 1	1	x1
@@ -330,7 +330,7 @@ DROP TABLE t2;
 #
 CREATE TABLE t1 (name varchar(20)) CHARSET=utf8;
 INSERT INTO t1 (name) VALUES ('Иванова'), ('Ivanova');
-CREATE TABLE t2 (name varchar(1)) ENGINE=CONNECT TABLE_TYPE=MYSQL DBNAME='test' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT' CHARSET=utf8;
+CREATE TABLE t2 (name varchar(1)) ENGINE=CONNECT TABLE_TYPE=MARIADB DBNAME='test' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT' CHARSET=utf8;
 SELECT hex(name) from t1;
 hex(name)
 C390CB9CC390C2B2C390C2B0C390C2BDC390C2BEC390C2B2C390C2B0
@@ -352,7 +352,7 @@ CREATE TABLE t1 (col char(5)) CHARSET=utf8;
 INSERT INTO t1 (col) VALUES ('glace'), ('glacé');
 Warnings:
 Warning	1406	Data too long for column 'col' at row 2
-CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL DBNAME='test' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT' CHARSET=utf8;
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB DBNAME='test' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT' CHARSET=utf8;
 SELECT hex(col) from t1;
 hex(col)
 676C616365
@@ -367,7 +367,7 @@ DROP TABLE t1;
 # MDEV-29782 CONNECT engine converted YEAR to DATETIME, causing INSERT to fail
 #
 CREATE TABLE t1 (id year);
-CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL DBNAME='test' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB DBNAME='test' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
 INSERT INTO t2 VALUES (1999);
 SELECT * FROM t2;
 id

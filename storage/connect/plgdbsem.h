@@ -80,7 +80,8 @@ enum TABTYPE {TAB_UNDEF =  0,   /* Table of undefined type             */
 							TAB_MONGO = 28,   /* Table retrieved from MongoDB        */
 							TAB_REST  = 29,   /* Table retrieved from Rest           */
               TAB_BSON  = 30,   /* BSON Table (development)            */
-              TAB_NIY   = 31};  /* Table not implemented yet           */
+              TAB_MARIADB= 31,   /* MariaDB table accessed via MariaDB API  */
+              TAB_NIY   = 32};  /* Table not implemented yet           */
 
 enum AMT {TYPE_AM_ERROR =   0,        /* Type not defined              */
           TYPE_AM_ROWID =   1,        /* ROWID type (special column)   */
@@ -590,7 +591,7 @@ PPARM    Vcolist(PGLOBAL, PTDB, PSZ, bool);
 void     PlugPutOut(PGLOBAL, FILE *, short, void *, uint);
 void     PlugLineDB(PGLOBAL, PSZ, short, void *, uint);
 //ar    *PlgGetDataPath(PGLOBAL g);
-char    *SetPath(PGLOBAL g, const char *path);
+char    *SetPath(PGLOBAL g, const char *cat, const char *path);
 char    *ExtractFromPath(PGLOBAL, char *, char *, OPVAL);
 void     AddPointer(PTABS, void *);
 PDTP     MakeDateFormat(PGLOBAL, PCSZ, bool, bool, int);
@@ -637,6 +638,13 @@ DllExport int     GetIntegerTableOption(PGLOBAL, PTOS, PCSZ, int);
 #define MSGID_OPEN_ERROR_AND_STRERROR      4
 #define MSGID_OPEN_MODE_STRERROR           5
 #define MSGID_OPEN_EMPTY_FILE              6
+
+/* Functions used by plgdbutl.cpp */
+
+extern const char *GetCatalog(size_t *length);
+extern "C" {
+extern	char *strxmov(char *dst, const char *src, ...);
+}
 
 FILE *global_fopen(GLOBAL *g, int msgid, const char *path, const char *mode);
 int global_open(GLOBAL *g, int msgid, const char *filename, int flags);

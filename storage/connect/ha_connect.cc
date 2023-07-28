@@ -173,11 +173,10 @@ extern "C" {
        char version[]= "Version 1.07.0002 March 22, 2021";
 #if defined(_WIN32)
        char compver[]= "Version 1.07.0002 " __DATE__ " "  __TIME__;
-       static char slash= '\\';
-#else   // !_WIN32
-       static char slash= '/';
 #endif  // !_WIN32
 } // extern "C"
+
+static char slash= FN_LIBCHAR;
 
 #if MYSQL_VERSION_ID > 100200
 #define stored_in_db stored_in_db()
@@ -276,8 +275,8 @@ static handler *connect_create_handler(handlerton *hton,
                                        MEM_ROOT *mem_root);
 
 static bool checkPrivileges(THD* thd, TABTYPE type, PTOS options,
-                            const char* db, TABLE* table = NULL,
-                            bool quick = false);
+                            const char *catalog, const char* db,
+                            TABLE* table = NULL, bool quick = false);
 
 static int connect_assisted_discovery(handlerton *hton, THD* thd,
                                       TABLE_SHARE *table_s,
@@ -629,6 +628,7 @@ ha_create_table_option connect_table_option_list[]=
   HA_TOPTION_STRING("TABNAME", tabname),
   HA_TOPTION_STRING("TABLE_LIST", tablist),
   HA_TOPTION_STRING("DBNAME", dbname),
+  HA_TOPTION_STRING("CATNAME", catname),
   HA_TOPTION_STRING("SEP_CHAR", separator),
   HA_TOPTION_STRING("QCHAR", qchar),
   HA_TOPTION_STRING("MODULE", module),
@@ -747,6 +747,13 @@ static void init_connect_psi_keys() {}
 
 DllExport LPCSTR PlugSetPath(LPSTR to, LPCSTR name, LPCSTR dir)
 {
+  char path[FN_REFLEN];
+  if (using_catalogs && dir && !strchr(dir, FN_LIBCHAR))
+  {
+    /* Add catalog before the path for simple database names */
+    strxnmov(path, sizeof(path)-1, current_thd->catalog->path.str, dir, NullS);
+    dir= path;
+  }
   const char *res= PlugSetPath(to, mysql_data_home, name, dir);
   return res;
 }
@@ -1085,7 +1092,7 @@ TABTYPE ha_connect::GetRealType(PTOS pos)
     type= GetTypeID(pos->type);
 
     if (type == TAB_UNDEF && !pos->http)
-      type= pos->srcdef ? TAB_MYSQL : pos->tabname ? TAB_PRX : TAB_DOS;
+      type= pos->srcdef ? TAB_MARIADB : pos->tabname ? TAB_PRX : TAB_DOS;
 #if defined(REST_SUPPORT)
 		else if (pos->http)
 			switch (type) {
@@ -1279,6 +1286,9 @@ PCSZ GetStringTableOption(PGLOBAL g, PTOS options, PCSZ opname, PCSZ sdef)
   else if (!stricmp(opname, "Database") ||
            !stricmp(opname, "DBname"))
     opval= options->dbname;
+  else if (!stricmp(opname, "Catalog") ||
+           !stricmp(opname, "Catname"))
+    opval= options->catname;
   else if (!stricmp(opname, "Separator"))
     opval= options->separator;
   else if (!stricmp(opname, "Qchar"))
@@ -1455,7 +1465,7 @@ PCSZ ha_connect::GetStringOption(PCSZ opname, PCSZ sdef)
     if (sdef && !strcmp(sdef, "*")) {
       // Return the handler default value
       if (!stricmp(opname, "Dbname") || !stricmp(opname, "Database"))
-        opval= (char*)GetDBName(NULL);    // Current database
+        opval= (char*) GetDBNameNoCatalog(NULL);    // Current database
       else if (!stricmp(opname, "Type"))  // Default type
         opval= (!options) ? NULL :
                (options->srcdef)  ? (char*)"MYSQL" :
@@ -1464,6 +1474,12 @@ PCSZ ha_connect::GetStringOption(PCSZ opname, PCSZ sdef)
         opval= (char *) "root";
       else if (!stricmp(opname, "Host"))  // Connected user host
         opval= (char *) "localhost";
+      else if (!stricmp(opname, "catalog"))  // Catalog
+      {
+        opval= 0;
+        if (using_catalogs)
+          opval= table->s->catalog->name.str;
+      }
       else
         opval= sdef;                      // Caller default
 
@@ -1896,8 +1912,73 @@ bool ha_connect::IsPartitioned(void)
 
 PCSZ ha_connect::GetDBName(PCSZ name)
 {
-  return (name) ? name : table->s->db.str;
+  THD *thd;
+  if (name)
+    return name;
+  if (!using_catalogs)
+    return table->s->db.str;
+  thd= table->in_use;
+  if (!(name= (PCSZ) thd->alloc(table->s->catalog->path.length +
+                                table->s->db.length +1)))
+    return "";                                  // errno is set
+  strxmov((char*) name, table->s->catalog->path.str, table->s->db.str, NullS);
+  return (name);
 } // end of GetDBName
+
+PCSZ ha_connect::GetDBNameNoCatalog(PCSZ name)
+{
+  if (name)
+    return name;
+  return table->s->db.str;
+} // end of GetDBNameNoCatalog
+
+PCSZ ha_connect::GetCatalog(PCSZ name)
+{
+  const char *sep;
+  if (!using_catalogs)
+    return 0;
+  if (name && (sep= strchr(name, FN_LIBCHAR)))
+    return (PCSZ) table->in_use->strmake(name, (size_t) (sep - name));
+
+  return using_catalogs ? table->s->catalog->name.str : NullS;
+} // end of GetCatalog
+
+
+const char *GetCatalog(size_t *name_length)
+{
+  SQL_CATALOG *catalog;
+  if (!using_catalogs)
+  {
+    *name_length= 0;
+    return "";
+  }
+  catalog= current_thd->catalog;
+  *name_length= catalog->path.length;
+  return catalog->path.str;
+} // end of GetCatalog
+
+
+static PCSZ AddCatalog(THD *thd, PCSZ cat, PCSZ db, PCSZ buff,
+                       size_t buff_length)
+{
+  PCSZ name;
+  if (!using_catalogs)
+    return db;
+  if (!cat)
+    cat= thd->catalog->name.str;                // Use current catalog
+  strxnmov((char*) buff, buff_length-1, cat, ".", db, NullS);
+  return (buff);
+} // end of AddCatalog
+
+
+PCSZ RemoveCatalog(SQL_CATALOG *catalog, PCSZ name)
+{
+  if (using_catalogs &&
+      !strncmp(name, catalog->path.str, catalog->path.length))
+    return name + catalog->path.length;
+  return name;
+}  // end of RemoveCatalog
+
 
 const char *ha_connect::GetTableName(void)
 {
@@ -1961,7 +2042,7 @@ void ha_connect::AddColName(char *cp, Field *fp)
 /***********************************************************************/
 bool ha_connect::SetDataPath(PGLOBAL g, PCSZ path) 
 {
-  return (!(datapath= SetPath(g, path)));
+  return (!(datapath= SetPath(g, NullS, path)));
 } // end of SetDataPath
 
 /****************************************************************************/
@@ -4386,7 +4467,7 @@ int ha_connect::info(uint flag)
 
     // This is necessary for getting file length
 		if (table) {
-			if (SetDataPath(g, table->s->db.str)) {
+                  if (SetDataPath(g, GetDBName(NULL))) {
 				my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
 				DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 			}	// endif SetDataPath
@@ -4518,7 +4599,8 @@ int ha_connect::delete_all_rows()
 
 
 static bool checkPrivileges(THD *thd, TABTYPE type, PTOS options, 
-                            const char *db, TABLE *table, bool quick)
+                            const char *catalog, const char *db, TABLE *table,
+                            bool quick)
 {
   switch (type) {
     case TAB_UNDEF:
@@ -4546,33 +4628,34 @@ static bool checkPrivileges(THD *thd, TABTYPE type, PTOS options,
     case TAB_BSON:
 #endif   // BSON_SUPPORT
       if (options->filename && *options->filename) {
-				if (!quick) {
-					char path[FN_REFLEN], dbpath[FN_REFLEN];
+        if (!quick) {
+          char path[FN_REFLEN], dbpath[FN_REFLEN], dirsep[2];
+          dirsep[0]= FN_LIBCHAR; dirsep[1]= 0;
 
- 					strcpy(dbpath, mysql_real_data_home);
-
-					if (db)
-#if defined(_WIN32)
-						strcat(strcat(dbpath, db), "\\");
-#else   // !_WIN32
-						strcat(strcat(dbpath, db), "/");
-#endif  // !_WIN32
-
-					(void)fn_format(path, options->filename, dbpath, "",
-						MY_RELATIVE_PATH | MY_UNPACK_FILENAME);
-
-					if (!is_secure_file_path(path)) {
-						my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--secure-file-priv");
-						return true;
-					} // endif path
-
-				}	// endif !quick
+          strxnmov(dbpath, sizeof(dbpath)-1,
+                   mysql_real_data_home,
+                   catalog ? catalog : "",
+                   catalog ? dirsep : "",
+                   db ? db : "",
+                   db ? dirsep : "",
+                   NullS);
+          (void)fn_format(path, options->filename, dbpath, "",
+                          MY_RELATIVE_PATH | MY_UNPACK_FILENAME);
+          if (!is_secure_file_path(path)) {
+            my_printf_error(ER_OPTION_PREVENTS_STATEMENT,
+                            "--secure-file-priv prevents CONNECT from "
+                            "createing file '%s'",  MYF(0),
+                            path);
+            return true;
+          } // endif path
+        }	// endif !quick
 
 			} else
         return false;
 
 			// Fall through
 		case TAB_MYSQL:
+                case TAB_MARIADB:
 		case TAB_DIR:
 		case TAB_ZIP:
 		case TAB_OEM:
@@ -4605,13 +4688,13 @@ static bool checkPrivileges(THD *thd, TABTYPE type, PTOS options,
 } // end of checkPrivileges
 
 // Check whether the user has required (file) privileges
-bool ha_connect::check_privileges(THD *thd, PTOS options, const char *dbn,
-				  bool quick)
+bool ha_connect::check_privileges(THD *thd, PTOS options, const char *catalog,
+                                  const char *dbn, bool quick)
 {
   const char *db= (dbn && *dbn) ? dbn : NULL;
   TABTYPE     type=GetRealType(options);
 
-  return checkPrivileges(thd, type, options, db, table, quick);
+  return checkPrivileges(thd, type, options, catalog, db, table, quick);
 } // end of check_privileges
 
 // Check that two indexes are equivalent
@@ -4791,7 +4874,8 @@ int ha_connect::start_stmt(THD *thd, thr_lock_type lock_type)
   PGLOBAL g= GetPlug(thd, xp);
   DBUG_ENTER("ha_connect::start_stmt");
 
-  if (check_privileges(thd, GetTableOptionStruct(), table->s->db.str, true))
+  if (check_privileges(thd, GetTableOptionStruct(), GetCatalog(NULL),
+                       GetDBNameNoCatalog(NULL), true))
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
   // Action will depend on lock_type
@@ -5023,7 +5107,8 @@ int ha_connect::external_lock(THD *thd, int lock_type)
     locked= 0;
     xmod= MODE_ANY;              // For info commands
     DBUG_RETURN(rc);
-	} else if (check_privileges(thd, options, table->s->db.str)) {
+  } else if (check_privileges(thd, options, GetCatalog(NULL),
+                              GetDBNameNoCatalog(NULL))) {
 		strcpy(g->Message, "This operation requires the FILE privilege");
 		htrc("%s\n", g->Message);
 		DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
@@ -5164,7 +5249,8 @@ strnrchr(LEX_CSTRING *ls, const char *src, size_t length, int c)
 static bool
 filename_to_dbname_and_tablename(const char *filename,
                                  char *database, size_t database_size,
-                                 char *table, size_t table_size)
+                                 char *table, size_t table_size,
+                                 bool use_catalogs)
 {
   LEX_CSTRING d, t;
   size_t length= strlen(filename);
@@ -5182,6 +5268,19 @@ filename_to_dbname_and_tablename(const char *filename,
   /* Find database name - the second rightmost directory part */
   if (strnrchr(&d, filename, length, slash) || d.length + 1 > database_size)
     return true;
+  if (use_catalogs && d.str > filename+1)
+  {
+    const char *ptr;
+    /* Add the directory before the db name */
+    for (ptr= d.str-2 ; ptr >= filename ; ptr--)
+    {
+      if (*ptr == slash)
+        break;
+    }
+    ptr++;                                  // Skip slash or point to filename
+    d.length+= (size_t) (d.str - ptr);
+    d.str= ptr;
+  }
   memcpy(database, d.str, d.length);
   database[d.length]= '\0';
   return false;
@@ -5211,7 +5310,7 @@ filename_to_dbname_and_tablename(const char *filename,
 int ha_connect::delete_or_rename_table(const char *name, const char *to)
 {
   DBUG_ENTER("ha_connect::delete_or_rename_table");
-  char db[128], tabname[128];
+  char db[NAME_LEN+MAX_CATALOG_NAME+1], tabname[NAME_LEN];
   int  rc= 0;
   bool ok= false;
   THD *thd= current_thd;
@@ -5228,12 +5327,12 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
     } // endif trace
 
   if (to && (filename_to_dbname_and_tablename(to, db, sizeof(db),
-                                             tabname, sizeof(tabname))
+                                              tabname, sizeof(tabname),0)
       || (*tabname == '#' && sqlcom == SQLCOM_CREATE_INDEX)))
     DBUG_RETURN(0);
 
   if (filename_to_dbname_and_tablename(name, db, sizeof(db),
-                                       tabname, sizeof(tabname))
+                                       tabname, sizeof(tabname), 0)
       || (*tabname == '#' && sqlcom == SQLCOM_CREATE_INDEX))
     DBUG_RETURN(0);
 
@@ -5258,7 +5357,8 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
     key_length= tdc_create_key(key, thd->catalog, db, tabname);
 
     // share contains the option struct that we need
-    if (!(share= alloc_table_share(thd->catalog, db, tabname, key, key_length)))
+    if (!(share= alloc_table_share(thd->catalog, db,
+                                   tabname, key, key_length)))
       DBUG_RETURN(rc);
 
     // Get the share info from the .frm file
@@ -5277,7 +5377,9 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
     if (!got_error) {
       // Now we can work
       if ((pos= share->option_struct)) {
-        if (check_privileges(thd, pos, db))
+        if (check_privileges(thd, pos,
+                             using_catalogs ? thd->catalog->name.str : 0,
+                             db))
           rc= HA_ERR_INTERNAL_ERROR;         // ???
         else
           if (IsFileType(GetRealType(pos)) && !pos->filename)
@@ -5626,9 +5728,10 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 {
   char     v=0;
 	PCSZ     fncn= "?";
-	PCSZ     user, fn, db, host, pwd, sep, tbl, src;
+	PCSZ     user, fn, cat, schema, db, host, pwd, sep, tbl, src;
 	PCSZ     col, ocl, rnk, pic, fcl, skc, zfn;
 	char    *tab, *dsn, *shm, *dpath, *url;
+	char     dbname[NAME_LEN+MAX_CATALOG_NAME+1];
 #if defined(_WIN32)
 	PCSZ     nsp= NULL, cls= NULL;
 #endif   // _WIN32
@@ -5670,6 +5773,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   tab= (char*)topt->tabname;
   src= topt->srcdef;
   db=  topt->dbname;
+  cat= topt->catname;
   fncn= topt->catfunc;
   fnc= GetFuncID(fncn);
   sep= topt->separator;
@@ -5683,6 +5787,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
           ((ttp == TAB_ODBC || ttp == TAB_JDBC) ? NULL : "root"));
     // Default value db can come from the DBNAME=xxx option.
     db= GetListOption(g, "database", topt->oplist, db);
+    cat= GetListOption(g, "catalog", topt->oplist, cat);
     col= GetListOption(g, "colist", topt->oplist, col);
     ocl= GetListOption(g, "occurcol", topt->oplist, NULL);
     pic= GetListOption(g, "pivotcol", topt->oplist, NULL);
@@ -5720,6 +5825,8 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
   if (!(shm= (char*)db))
     db= table_s->db.str;                   // Default value
+  if (using_catalogs && !cat)
+    cat= thd->catalog->name.str;
 
 	try {
 		// Check table type
@@ -5768,7 +5875,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #if defined(BSON_SUPPORT)
         case TAB_BSON:
 #endif   // BSON_SUPPORT
-          if (checkPrivileges(thd, ttp, topt, db)) {
+          if (checkPrivileges(thd, ttp, topt, cat, db)) {
             strcpy(g->Message, "This operation requires the FILE privilege");
             rc= HA_ERR_INTERNAL_ERROR;
             goto err;
@@ -5886,6 +5993,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
 				break;
 			case TAB_MYSQL:
+                        case TAB_MARIADB:
 				ok= true;
 
 				if (create_info->connect_string.str &&
@@ -5913,6 +6021,8 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
 						if (mydef->GetPortnumber())
 							port= mydef->GetPortnumber();
+                                                if (mydef->GetTabcatalog())
+                                                   cat= mydef->GetTabcatalog();
 
 					} else
 						ok= false;
@@ -6008,13 +6118,13 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 			char *dft, *xtra, *key, *fmt;
 			int   i, len, prec, dec, typ, flg;
 
-			if (!(dpath= SetPath(g, table_s->db.str))) {
+			if (!(dpath= SetPath(g, cat, db))) {
 				rc= HA_ERR_INTERNAL_ERROR;
 				goto err;
 			}	// endif dpath
 
 			if (src && ttp != TAB_PIVOT && ttp != TAB_ODBC && ttp != TAB_JDBC) {
-				qrp= SrcColumns(g, host, db, user, pwd, src, port);
+				qrp= SrcColumns(g, host, cat, db, user, pwd, src, port);
 
 				if (qrp && ttp == TAB_OCCUR)
 					if (OcrSrcCols(g, qrp, col, ocl, rnk)) {
@@ -6086,8 +6196,9 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
 					break;
 #endif   // JAVA_SUPPORT
+                                case TAB_MARIADB:
 				case TAB_MYSQL:
-					qrp= MyColumns(g, thd, host, db, user, pwd, tab,
+					qrp= MyColumns(g, thd, host, cat, db, user, pwd, tab,
 						NULL, port, fnc == FNC_COL);
 					break;
 				case TAB_CSV:
@@ -6106,7 +6217,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 					qrp= TabColumns(g, thd, db, tab, bif);
 
 					if (!qrp && bif && fnc != FNC_COL)         // tab is a view
-						qrp= MyColumns(g, thd, host, db, user, pwd, tab, NULL, port, false);
+						qrp= MyColumns(g, thd, host, cat, db, user, pwd, tab, NULL, port, false);
 
 					if (qrp && ttp == TAB_OCCUR && fnc != FNC_COL)
 						if (OcrColumns(g, qrp, col, ocl, rnk)) {
@@ -6116,7 +6227,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
 					break;
 				case TAB_PIVOT:
-					qrp= PivotColumns(g, tab, src, pic, fcl, skc, host, db, user, pwd, port);
+                                  qrp= PivotColumns(g, tab, src, pic, fcl, skc, host, cat, db, user, pwd, port);
 					break;
 				case TAB_VIR:
 					qrp= VirColumns(g, fnc == FNC_COL);
@@ -6139,7 +6250,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #endif   // JAVA_SUPPORT
 #if defined(LIBXML2_SUPPORT) || defined(DOMDOC_SUPPORT)
 				case TAB_XML:
-					qrp= XMLColumns(g, (char*)db, tab, topt, fnc == FNC_COL);
+					qrp= XMLColumns(g, (char*) dpath, tab, topt, fnc == FNC_COL);
 					break;
 #endif   // LIBXML2_SUPPORT  ||         DOMDOC_SUPPORT
 #if defined(REST_SUPPORT)
@@ -6412,10 +6523,12 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 */
 char *ha_connect::GetDBfromName(const char *name)
 {
-  char *db, dbname[128], tbname[128];
+  char *db;
+  char dbname[NAME_LEN+MAX_CATALOG_NAME+1], tbname[NAME_LEN];
 
   if (filename_to_dbname_and_tablename(name, dbname, sizeof(dbname),
-                                             tbname, sizeof(tbname)))
+                                       tbname, sizeof(tbname),
+                                       using_catalogs))
     *dbname= 0;
 
   if (*dbname) {
@@ -6428,6 +6541,52 @@ char *ha_connect::GetDBfromName(const char *name)
   return db;
 } // end of GetDBfromName
 
+
+
+static const char *rstrchr(const char *str, const char *start, pchar c)
+{
+  for (;;)
+  {
+    if (*str == (char) c)
+      return str;
+    if (str-- == start)
+      return 0;
+  }
+}
+
+
+/**
+  Get catalog and database name from a qualified table name.
+*/
+
+static void get_catalog_and_db_from_name(const char *name,
+                                         char *catalog, char *db)
+{
+  const char *pos, *start, *end;
+  *catalog= *db = 0;
+
+  /* Find filename - the rightmost directory part */
+  if (!(end= strrchr(name, slash)) || end == name)
+    return;                                     // No catalog or db
+
+  /* Get database */
+  pos= rstrchr(end-1, name, slash);
+  start= pos ? pos + 1 : name;
+  if ((end - start) > NAME_LEN || end == start)
+    return;
+  strmake(db, start, (end - start));
+  if (!pos)
+    return;
+
+  /* Get catalog */
+  end= pos;
+  pos= rstrchr(end-1, name, slash);
+  start= pos ? pos+1 : name;
+  if ((end - start) > NAME_LEN || end == start)
+    return;
+  strmake(catalog, start, (end - start));
+  return;
+}
 
 /**
   @brief
@@ -6473,8 +6632,10 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 #endif  // !WITH_PARTITION_STORAGE_ENGINE
   xp= GetUser(thd, xp);
   PGLOBAL g= xp->g;
-
+  char     dbname[NAME_LEN+MAX_CATALOG_NAME+1];
+  char     catalog[MAX_CATALOG_NAME+1];
   DBUG_ENTER("ha_connect::create");
+
   /*
     This assignment fixes test failures if some
     "ALTER TABLE t1 ADD KEY(a)" query exits on ER_ACCESS_DENIED_ERROR
@@ -6515,7 +6676,8 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
   } // endif ttp
 
-  if (check_privileges(thd, options, GetDBfromName(name)))
+  get_catalog_and_db_from_name(name, catalog, dbname);
+  if (check_privileges(thd, options, catalog, dbname))
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
   inward= IsFileType(type) && !options->filename &&
@@ -6573,15 +6735,19 @@ int ha_connect::create(const char *name, TABLE *table_arg,
           DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
         } // endif tabname
 
-				// fall through
+	// fall through
+      case TAB_MARIADB:
       case TAB_MYSQL:
         if (!part_info)
-       {const char *src= options->srcdef;
-				PCSZ host, db, tab= options->tabname;
-        int  port;
+        {
+          const char *src= options->srcdef;
+          PCSZ host, catalog, db, tab= options->tabname;
+          int  port;
 
         host= GetListOption(g, "host", options->oplist, NULL);
         db= GetStringOption("database", NULL);
+	catalog= GetStringOption("catalog", NULL);
+	db= AddCatalog(thd, catalog, db, dbname, sizeof(dbname));
         port= atoi(GetListOption(g, "port", options->oplist, "0"));
 
         if (create_info->connect_string.str &&
@@ -6595,8 +6761,8 @@ int ha_connect::create(const char *name, TABLE *table_arg,
             if (mydef->GetHostname())
               host= mydef->GetHostname();
 
-						if (mydef->GetTabschema())
-							db= mydef->GetTabschema();
+	    if (mydef->GetTabschema())
+	      db= mydef->GetTabschema();
 
             if (mydef->GetTabname())
               tab= mydef->GetTabname();
@@ -6854,7 +7020,11 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       if (sqlcom == SQLCOM_CREATE_TABLE)
         push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, g->Message);
   
-      strcat(strcat(strcpy(dbpath, "./"), table->s->db.str), "/");
+      if (using_catalogs)
+        strxnmov(dbpath, sizeof(dbpath)-1, "./", table->s->catalog->path.str,
+                table->s->db.str, "/", NullS);
+      else
+        strxnmov(dbpath, sizeof(dbpath)-1, "./", table->s->db.str, "/", NullS);
     } // endif part_info
 
     PlugSetPath(fn, buf, dbpath);
@@ -6891,7 +7061,13 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 			PCSZ m= GetListOption(g, "Mulentries", options->oplist, "NO");
 			bool mul= *m == '1' || *m == 'Y' || *m == 'y' || !stricmp(m, "ON");
 
-			strcat(strcat(strcpy(dbpath, "./"), table->s->db.str), "/");
+                        if (using_catalogs)
+                          strxnmov(dbpath, sizeof(dbpath)-1,
+                                   "./", table->s->catalog->path.str,
+                                   table->s->db.str, "/", NullS);
+                        else
+                          strxnmov(dbpath, sizeof(dbpath)-1,
+                                   "./", table->s->db.str, "/", NullS);
 			PlugSetPath(zbuf, options->filename, dbpath);
 			PlugSetPath(buf, fn, dbpath);
 
@@ -6955,24 +7131,27 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       } else if (GetIndexType(type) == 1) {
         PDBUSER dup= PlgGetUser(g);
         PCATLG  cat= (dup) ? dup->Catalog : NULL;
+	char db_buff[NAME_LEN+MAX_CATALOG_NAME+1];
 
-				if (SetDataPath(g, table_arg->s->db.str)) {
-					my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-					rc= HA_ERR_INTERNAL_ERROR;
-				} else if (cat) {
-          if (part_info)
-            strncpy(partname, 
-                    decode(g, strrchr(name, (inward ? slash : '#')) + 1),
-										sizeof(partname) - 1);
+	// Doesn't need catalog here, that is added during SetDataPath
+	if (SetDataPath(g, table_arg->s->db.str)) {
+		my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+		rc= HA_ERR_INTERNAL_ERROR;
+	}
+	else if (cat) {
+		if (part_info)
+			strncpy(partname,
+				decode(g, strrchr(name,
+                                                  (inward ? slash : '#')) + 1),
+				sizeof(partname) - 1);
 
-          if ((rc= optimize(table->in_use, NULL))) {
-            htrc("Create rc=%d %s\n", rc, g->Message);
-            my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-            rc= HA_ERR_INTERNAL_ERROR;
-          } else
-            CloseTable(g);
-
-          } // endif cat
+		if ((rc= optimize(table->in_use, NULL))) {
+			htrc("Create rc=%d %s\n", rc, g->Message);
+			my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+			rc= HA_ERR_INTERNAL_ERROR;
+		} else
+			CloseTable(g);
+        } // endif cat
     
       } else if (GetIndexType(type) == 3) {
         if (CheckVirtualIndex(table_arg->s)) {
@@ -7034,7 +7213,11 @@ bool ha_connect::FileExists(const char *fn, bool bf)
     } else
       strcpy(tfn, fn);
 
-    strcat(strcat(strcat(strcpy(path, "."), s), table->s->db.str), s);
+    if (using_catalogs)
+      strxnmov(path, sizeof(path)-1, table->s->catalog->path.str,
+               table->s->db.str, s, NullS);
+    else
+      strxnmov(path, sizeof(path)-1, table->s->db.str, s, NullS);
     PlugSetPath(filename, tfn, path);
     n= stat(filename, &info);
 

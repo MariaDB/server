@@ -1,6 +1,5 @@
-let $MYSQLD_DATADIR= `select @@datadir`;
---copy_file $MTR_SUITE_DIR/std_data/funny.txt $MYSQLD_DATADIR/test/funny.txt
---copy_file $MTR_SUITE_DIR/std_data/funny2.txt $MYSQLD_DATADIR/test/funny2.txt
+--copy_file $MTR_SUITE_DIR/std_data/funny.txt $MARIADB_DATADIR/test/funny.txt
+--copy_file $MTR_SUITE_DIR/std_data/funny2.txt $MARIADB_DATADIR/test/funny2.txt
 
 --echo #
 --echo # Testing errors
@@ -32,7 +31,7 @@ INSERT INTO t1 VALUES (10),(20);
 #DELETE FROM t1 WHERE id=10;
 #SELECT * FROM t1;
 DROP TABLE t1;
-#--remove_file $MYSQLD_DATADIR/test/t1.txt
+#--remove_file $MARIADB_DATADIR/test/t1.txt
 
 
 --echo #
@@ -81,5 +80,5 @@ DROP TABLE t1;
 #
 # Clean up
 #
---remove_file $MYSQLD_DATADIR/test/funny.txt
---remove_file $MYSQLD_DATADIR/test/funny2.txt
+--remove_file $MARIADB_DATADIR/test/funny.txt
+--remove_file $MARIADB_DATADIR/test/funny2.txt

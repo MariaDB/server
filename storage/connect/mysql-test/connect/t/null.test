@@ -1,5 +1,3 @@
-let $MYSQLD_DATADIR= `select @@datadir`;
-
 --echo #
 --echo # Testing FIX null columns
 --echo #

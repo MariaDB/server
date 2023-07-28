@@ -308,6 +308,7 @@ char *RELDEF::GetStringCatInfo(PGLOBAL g, PCSZ what, PCSZ sdef)
 TABDEF::TABDEF(void)
   {
   Schema = NULL;
+  Catalog = NULL;
   Desc = NULL;
 	Recfm = RECFM_DFLT;
   Catfunc = FNC_NO;
@@ -357,7 +358,8 @@ bool TABDEF::Define(PGLOBAL g, PCATLG cat,
 {
   Hc = ((MYCAT*)cat)->GetHandler();
   Name = (PSZ)name;
-  Schema = (PSZ)Hc->GetDBName(schema);
+  Schema = (PSZ)Hc->GetDBNameNoCatalog(schema);
+  Catalog= (PSZ)Hc->GetCatalog(schema);
   Cat = cat;
   Catfunc = GetFuncID(GetStringCatInfo(g, "Catfunc", NULL));
   Elemt = GetIntCatInfo("Elements", 0);

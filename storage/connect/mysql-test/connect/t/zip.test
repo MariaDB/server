@@ -1,7 +1,6 @@
 --source have_zip.inc
-let $MYSQLD_DATADIR= `select @@datadir`;
 
---copy_file $MTR_SUITE_DIR/std_data/bios.json $MYSQLD_DATADIR/test/bios.json
+--copy_file $MTR_SUITE_DIR/std_data/bios.json $MARIADB_DATADIR/test/bios.json
 
 --echo #
 --echo # Testing zipped DOS tables
@@ -129,8 +128,8 @@ DROP TABLE t1,t2,t3,t4;
 #
 # Clean up
 #
---remove_file $MYSQLD_DATADIR/test/newdos.zip
---remove_file $MYSQLD_DATADIR/test/newcsv.zip
---remove_file $MYSQLD_DATADIR/test/bios.zip
---remove_file $MYSQLD_DATADIR/test/bios.json
+--remove_file $MARIADB_DATADIR/test/newdos.zip
+--remove_file $MARIADB_DATADIR/test/newcsv.zip
+--remove_file $MARIADB_DATADIR/test/bios.zip
+--remove_file $MARIADB_DATADIR/test/bios.json
 

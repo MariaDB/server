@@ -1,5 +1,4 @@
-let datadir= `select @@datadir`;
---copy_file $MTR_SUITE_DIR/std_data/boys.txt $datadir/test/boys.txt
+--copy_file $MTR_SUITE_DIR/std_data/boys.txt $MARIADB_DATADIR/test/boys.txt
 
 create table t1 (
   #linenum int(6) not null default 0 special=rowid,
@@ -28,4 +27,4 @@ engine=CONNECT table_type=FIX file_name='boys.txt' mapped=YES lrecl=47 ending=1;
 #
 # Clean up
 #
---remove_file $datadir/test/boys.txt
+--remove_file $MARIADB_DATADIR/test/boys.txt

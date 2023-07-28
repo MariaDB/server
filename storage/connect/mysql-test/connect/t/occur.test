@@ -1,8 +1,7 @@
 -- source include/not_embedded.inc
 
-let $MYSQLD_DATADIR= `select @@datadir`;
 let $PORT= `select @@port`;
---copy_file $MTR_SUITE_DIR/std_data/employee.dat $MYSQLD_DATADIR/test/employee.dat
+--copy_file $MTR_SUITE_DIR/std_data/employee.dat $MARIADB_DATADIR/test/employee.dat
 
 CREATE TABLE employee (
 serialno CHAR(5) NOT NULL,
@@ -58,4 +57,4 @@ SELECT name, number, count(*) FROM xpet GROUP BY name, number;
 
 DROP TABLE xpet;
 DROP TABLE pets;
---remove_file $MYSQLD_DATADIR/test/employee.dat
+--remove_file $MARIADB_DATADIR/test/employee.dat

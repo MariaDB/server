@@ -30,6 +30,7 @@ class MYSQLDEF : public EXTDEF           {/* Logical table description */
   // Implementation
   virtual const char *GetType(void) {return "MYSQL";}
   inline  PSZ  GetHostname(void) {return Hostname;};
+  inline  PSZ  GetTabcatalog(void) {return Tabcatalog;}
 //inline  PSZ  GetDatabase(void) {return Tabschema;};
 //inline  PSZ  GetTabname(void) {return Tabname;}
 //inline  PSZ  GetSrcdef(void) {return Srcdef;}
@@ -48,6 +49,7 @@ class MYSQLDEF : public EXTDEF           {/* Logical table description */
   // Members
   PSZ     Hostname;           /* Host machine to use                   */
 //PSZ     Tabschema;          /* Database to be used by server         */
+  PSZ     Tabcatalog;         /* Catalog to be used by server          */
 //PSZ     Tabname;            /* External table name                   */
 //PSZ     Srcdef;             /* The source table SQL definition       */
 //PSZ     Username;           /* User logon name                       */
@@ -125,6 +127,7 @@ class TDBMYSQL : public TDBEXT {
 //char       *User;           // User logon info
 //char       *Pwd;            // Password logon info
 //char       *Schema;         // Database to be used by server
+  char       *Catalog;        // Catalog to be used by server
 //char       *TableName;      // External table name
 //char       *Srcdef;         // The source table SQL definition
   char       *Server;         // The server ID
@@ -247,6 +250,7 @@ class TDBMCL : public TDBCAT {
   // Members
   PCSZ Host;                      // Host machine to use            
 	PCSZ Db;                        // Database to be used by server  
+	PCSZ Cat;			// Catalog to be used by server
 	PCSZ Tab;                       // External table name            
 	PCSZ User;                      // User logon name                
 	PCSZ Pwd;                       // Password logon info            

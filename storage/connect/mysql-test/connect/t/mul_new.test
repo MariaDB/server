@@ -1,5 +1,4 @@
-let $MYSQLD_DATADIR= `select @@datadir`;
---mkdir $MYSQLD_DATADIR/test/subdir/
+--mkdir $MARIADB_DATADIR/test/subdir/
 
 --echo #
 --echo # Testing multiple 1
@@ -58,10 +57,10 @@ DROP TABLE t4;
 DROP TABLE t5;
 DROP TABLE t_all;
 
---remove_file $MYSQLD_DATADIR/test/subdir/num2.csv
---remove_file $MYSQLD_DATADIR/test/subdir/num4.csv
---rmdir $MYSQLD_DATADIR/test/subdir/
---remove_file $MYSQLD_DATADIR/test/num1.csv
---remove_file $MYSQLD_DATADIR/test/num3.csv
---remove_file $MYSQLD_DATADIR/test/num5.csv
+--remove_file $MARIADB_DATADIR/test/subdir/num2.csv
+--remove_file $MARIADB_DATADIR/test/subdir/num4.csv
+--rmdir $MARIADB_DATADIR/test/subdir/
+--remove_file $MARIADB_DATADIR/test/num1.csv
+--remove_file $MARIADB_DATADIR/test/num3.csv
+--remove_file $MARIADB_DATADIR/test/num5.csv
 

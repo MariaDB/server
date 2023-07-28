@@ -1,5 +1,3 @@
-let $MYSQLD_DATADIR= `select @@datadir`;
-
 CREATE TABLE dir1 (
   spath VARCHAR(256) NOT NULL flag=1,
   fname VARCHAR(256) NOT NULL,
@@ -21,11 +19,11 @@ INSERT INTO t1 VALUES (0,'test01'), (1,'test01'), (2,'test02'), (3,'test03');
 SELECT * FROM t1;
 SELECT a FROM t1;
 SELECT b FROM t1;
---replace_result $MYSQLD_DATADIR DATADIR/
+--replace_result $MARIADB_DATADIR DATADIR/
 SELECT fname, ftype, size FROM dir1 ORDER BY fname, ftype;
 DROP TABLE t1;
---remove_file $MYSQLD_DATADIR/test/t1vec1
---remove_file $MYSQLD_DATADIR/test/t1vec2
+--remove_file $MARIADB_DATADIR/test/t1vec1
+--remove_file $MARIADB_DATADIR/test/t1vec2
 
 
 CREATE TABLE t1
@@ -45,7 +43,7 @@ INSERT INTO t1 VALUES (0,'test01'), (1,'test01'), (2,'test02'), (3,'test03');
 SELECT * FROM t1;
 SELECT a FROM t1;
 SELECT b FROM t1;
---replace_result $MYSQLD_DATADIR DATADIR/
+--replace_result $MARIADB_DATADIR DATADIR/
 SELECT fname, ftype, size FROM dir1 ORDER BY fname, ftype;
 --echo #
 --echo # Testing READONLY
@@ -70,8 +68,8 @@ TRUNCATE TABLE t1;
 SELECT fname, ftype, size FROM dir1 ORDER BY fname, ftype;
 SELECT * FROM t1;
 DROP TABLE t1;
---remove_file $MYSQLD_DATADIR/test/t1vec
---remove_file $MYSQLD_DATADIR/test/t1vec.blk
+--remove_file $MARIADB_DATADIR/test/t1vec
+--remove_file $MARIADB_DATADIR/test/t1vec.blk
 
 
 --echo #

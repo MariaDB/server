@@ -168,8 +168,8 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
   tdp = new(g) XMLDEF;
   tdp->Fn = fn;
 
-	if (!(tdp->Database = SetPath(g, db)))
-		return NULL;
+  if (!(tdp->Database = SetPath(g, NullS, db)))
+    return NULL;
 
   tdp->Tabname = tab;
 	tdp->Tabname = (char*)GetStringTableOption(g, topt, "Tabname", tab);

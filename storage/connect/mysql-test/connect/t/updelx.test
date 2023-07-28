@@ -1,5 +1,4 @@
 -- source include/not_embedded.inc
-let $MYSQLD_DATADIR= `select @@datadir`;
 
 --echo #
 --echo # Testing indexed UPDATE and DELETE for all table types
@@ -92,5 +91,5 @@ ALTER TABLE t1 MAPPED=YES;
 DROP TABLE t1;
 
 # Cleanup
---remove_file $MYSQLD_DATADIR/test/tx1.vec
---remove_file $MYSQLD_DATADIR/test/tx2.vec
+--remove_file $MARIADB_DATADIR/test/tx1.vec
+--remove_file $MARIADB_DATADIR/test/tx2.vec

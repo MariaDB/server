@@ -1,5 +1,4 @@
-let $MYSQLD_DATADIR= `select @@datadir`;
---copy_file $MTR_SUITE_DIR/std_data/employee.dat $MYSQLD_DATADIR/test/employee.dat
+--copy_file $MTR_SUITE_DIR/std_data/employee.dat $MARIADB_DATADIR/test/employee.dat
 
 SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
 
@@ -154,4 +153,4 @@ DROP TABLE employee;
 
 SET sql_mode = DEFAULT;
 
---remove_file $MYSQLD_DATADIR/test/employee.dat
+--remove_file $MARIADB_DATADIR/test/employee.dat

@@ -109,6 +109,7 @@ public:
  protected:
   // Members
   PCSZ    Schema;               /* Table schema (for ODBC)             */
+  PCSZ    Catalog;              /* Catalog (for MariaDB)               */
   PCSZ    Desc;                 /* Table description                   */
 	RECFM   Recfm;                /* File or table format                */
 	uint    Catfunc;              /* Catalog function ID                 */

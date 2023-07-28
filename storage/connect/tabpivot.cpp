@@ -57,12 +57,16 @@
 PQRYRES PivotColumns(PGLOBAL g, const char *tab,   const char *src, 
                                 const char *picol, const char *fncol,
                                 const char *skcol, const char *host,  
+                                const char *cat,
                                 const char *db,    const char *user,
                                 const char *pwd,   int port)
   {
-  PIVAID pvd(tab, src, picol, fncol, skcol, host, db, user, pwd, port);
+    const char *pos;
+    if (using_catalogs && (pos= strchr(db, FN_LIBCHAR)))
+      db= pos+1;                                // Skip catalog
+    PIVAID pvd(tab, src, picol, fncol, skcol, host, cat, db, user, pwd, port);
 
-  return pvd.MakePivotColumns(g);
+    return pvd.MakePivotColumns(g);
   } // end of PivotColumns
 
 /* --------------- Implementation of the PIVAID classe --------------- */
@@ -72,6 +76,7 @@ PQRYRES PivotColumns(PGLOBAL g, const char *tab,   const char *src,
 /***********************************************************************/
 PIVAID::PIVAID(const char *tab,   const char *src,   const char *picol,
                const char *fncol, const char *skcol, const char *host,
+               const char *cat,
                const char *db,    const char *user,  const char *pwd,
                int port) : CSORT(false)
   {
@@ -79,6 +84,7 @@ PIVAID::PIVAID(const char *tab,   const char *src,   const char *picol,
   User = (char*)user;
   Pwd = (char*)pwd;
   Qryp = NULL;
+  Catalog = (char*) cat;
   Database = (char*)db;
   Tabname = (char*)tab;
   Tabsrc = (char*)src;
@@ -141,7 +147,7 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
 			query = (char*)Tabsrc;
 
 		// Open a MySQL connection for this table
-		if (!Myc.Open(g, Host, Database, User, Pwd, Port)) {
+		if (!Myc.Open(g, Host, Catalog, Database, User, Pwd, Port)) {
 			b = true;
 
 			// Returned values must be in their original character set

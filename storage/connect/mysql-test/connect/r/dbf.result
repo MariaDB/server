@@ -135,7 +135,7 @@ INSERT INTO t1 VALUES ('test');
 SELECT * FROM t1;
 a
 test
-CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+CALL dbf_header('MARIADB_DATADIR/test/t1.dbf');
 --------	--------
 FileSize	77
 DBF_Version	03
@@ -169,7 +169,7 @@ SELECT * FROM t1;
 a	b	c
 1	1	1
 2	2	2
-CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+CALL dbf_header('MARIADB_DATADIR/test/t1.dbf');
 --------	--------
 FileSize	194
 DBF_Version	03
@@ -262,7 +262,7 @@ SELECT * FROM t1;
 a
 9223372036854775807
 -9223372036854775808
-CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+CALL dbf_header('MARIADB_DATADIR/test/t1.dbf');
 --------	--------
 FileSize	108
 DBF_Version	03
@@ -306,7 +306,7 @@ SELECT * FROM t1;
 a
 32767
 -32768
-CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+CALL dbf_header('MARIADB_DATADIR/test/t1.dbf');
 --------	--------
 FileSize	80
 DBF_Version	03
@@ -336,7 +336,7 @@ INSERT INTO t1 VALUES (REPEAT('a',255));
 SELECT LENGTH(a) FROM t1;
 LENGTH(a)
 255
-CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+CALL dbf_header('MARIADB_DATADIR/test/t1.dbf');
 --------	--------
 FileSize	322
 DBF_Version	03
@@ -417,7 +417,7 @@ INSERT INTO t1 VALUES ('2001-01-01');
 SELECT * FROM t1;
 a
 2001-01-01
-CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+CALL dbf_header('MARIADB_DATADIR/test/t1.dbf');
 --------	--------
 FileSize	75
 DBF_Version	03
@@ -447,7 +447,7 @@ INSERT INTO t1 VALUES (123);
 SELECT * FROM t1;
 a
 123.0000
-CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+CALL dbf_header('MARIADB_DATADIR/test/t1.dbf');
 --------	--------
 FileSize	79
 DBF_Version	03
@@ -479,7 +479,7 @@ SELECT * FROM t1;
 a
 123.00000
 123456789.12345
-CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+CALL dbf_header('MARIADB_DATADIR/test/t1.dbf');
 --------	--------
 FileSize	108
 DBF_Version	03
@@ -509,7 +509,7 @@ INSERT INTO t1 VALUES ('10');
 SELECT * FROM t1;
 a
 10
-CALL dbf_header('MYSQLD_DATADIR/test/t1c.dbf');
+CALL dbf_header('MARIADB_DATADIR/test/t1c.dbf');
 --------	--------
 FileSize	77
 DBF_Version	03
@@ -536,7 +536,7 @@ t1	CREATE TABLE `t1` (
 SELECT * FROM t1;
 a
 10
-CALL dbf_header('MYSQLD_DATADIR/test/t1c.dbf');
+CALL dbf_header('MARIADB_DATADIR/test/t1c.dbf');
 --------	--------
 FileSize	77
 DBF_Version	03
@@ -565,7 +565,7 @@ t1	CREATE TABLE `t1` (
 SELECT * FROM t1;
 a
 10
-CALL dbf_header('MYSQLD_DATADIR/test/t1c.dbf');
+CALL dbf_header('MARIADB_DATADIR/test/t1c.dbf');
 --------	--------
 FileSize	77
 DBF_Version	03
@@ -602,7 +602,7 @@ c1	c2	i1	i2
 10	10	10	10
 20	def	20	123
 30	def	30	123
-CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+CALL dbf_header('MARIADB_DATADIR/test/t1.dbf');
 --------	--------
 FileSize	291
 DBF_Version	03

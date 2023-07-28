@@ -1,14 +1,12 @@
 --source include/not_embedded.inc
 --source include/have_partition.inc
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-
---copy_file $MTR_SUITE_DIR/std_data/biblio.json $MYSQLD_DATADIR/test/biblio.json
---copy_file $MTR_SUITE_DIR/std_data/bib0.json $MYSQLD_DATADIR/test/bib0.json
---copy_file $MTR_SUITE_DIR/std_data/expense.json $MYSQLD_DATADIR/test/expense.json
---copy_file $MTR_SUITE_DIR/std_data/mulexp3.json $MYSQLD_DATADIR/test/mulexp3.json
---copy_file $MTR_SUITE_DIR/std_data/mulexp4.json $MYSQLD_DATADIR/test/mulexp4.json
---copy_file $MTR_SUITE_DIR/std_data/mulexp5.json $MYSQLD_DATADIR/test/mulexp5.json
+--copy_file $MTR_SUITE_DIR/std_data/biblio.json $MARIADB_DATADIR/test/biblio.json
+--copy_file $MTR_SUITE_DIR/std_data/bib0.json $MARIADB_DATADIR/test/bib0.json
+--copy_file $MTR_SUITE_DIR/std_data/expense.json $MARIADB_DATADIR/test/expense.json
+--copy_file $MTR_SUITE_DIR/std_data/mulexp3.json $MARIADB_DATADIR/test/mulexp3.json
+--copy_file $MTR_SUITE_DIR/std_data/mulexp4.json $MARIADB_DATADIR/test/mulexp4.json
+--copy_file $MTR_SUITE_DIR/std_data/mulexp5.json $MARIADB_DATADIR/test/mulexp5.json
 
 --echo #
 --echo # Testing doc samples
@@ -308,10 +306,10 @@ DROP TABLE t1;
 #
 # Clean up
 #
---remove_file $MYSQLD_DATADIR/test/biblio.json
---remove_file $MYSQLD_DATADIR/test/bib0.dnx
---remove_file $MYSQLD_DATADIR/test/bib0.json
---remove_file $MYSQLD_DATADIR/test/expense.json
---remove_file $MYSQLD_DATADIR/test/mulexp3.json
---remove_file $MYSQLD_DATADIR/test/mulexp4.json
---remove_file $MYSQLD_DATADIR/test/mulexp5.json
+--remove_file $MARIADB_DATADIR/test/biblio.json
+--remove_file $MARIADB_DATADIR/test/bib0.dnx
+--remove_file $MARIADB_DATADIR/test/bib0.json
+--remove_file $MARIADB_DATADIR/test/expense.json
+--remove_file $MARIADB_DATADIR/test/mulexp3.json
+--remove_file $MARIADB_DATADIR/test/mulexp4.json
+--remove_file $MARIADB_DATADIR/test/mulexp5.json

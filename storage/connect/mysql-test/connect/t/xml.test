@@ -1,14 +1,12 @@
 --source windows.inc
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-
 SET NAMES utf8;
 
 --vertical_results
 
---copy_file $MTR_SUITE_DIR/std_data/xsample.xml $MYSQLD_DATADIR/test/xsample.xml
---copy_file $MTR_SUITE_DIR/std_data/latin1.xml $MYSQLD_DATADIR/test/latin1.xml
---copy_file $MTR_SUITE_DIR/std_data/cp1251.xml $MYSQLD_DATADIR/test/cp1251.xml
+--copy_file $MTR_SUITE_DIR/std_data/xsample.xml $MARIADB_DATADIR/test/xsample.xml
+--copy_file $MTR_SUITE_DIR/std_data/latin1.xml $MARIADB_DATADIR/test/latin1.xml
+--copy_file $MTR_SUITE_DIR/std_data/cp1251.xml $MARIADB_DATADIR/test/cp1251.xml
 
 #--echo $MYSQL_TEST_DIR
 #--exec pwd
@@ -95,8 +93,8 @@ DROP TABLE t1;
 --echo #
 --echo # Testing INSERT on mixed tag and attribute values
 --echo #
---copy_file $MTR_SUITE_DIR/std_data/xsample.xml $MYSQLD_DATADIR/test/xsample2.xml
---chmod 0644 $MYSQLD_DATADIR/test/xsample2.xml
+--copy_file $MTR_SUITE_DIR/std_data/xsample.xml $MARIADB_DATADIR/test/xsample2.xml
+--chmod 0644 $MARIADB_DATADIR/test/xsample2.xml
 CREATE TABLE t1 (
   ISBN CHAR(15) FIELD_FORMAT='@',
   LANG CHAR(2)  FIELD_FORMAT='@',
@@ -113,10 +111,10 @@ INSERT INTO t1 (ISBN, LANG, SUBJECT, AUTHOR, TITLE, PUBLISHEr, DATEPUB)
 VALUES('9782212090529','fr','général','Alain Michard',
 'XML, Langage et Applications','Eyrolles Paris',1998);
 SELECT * FROM t1;
---replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
---eval SELECT LOAD_FILE('$MYSQLD_DATADIR/test/xsample2.xml') AS xml
+--replace_result $MARIADB_DATADIR MARIADB_DATADIR
+--eval SELECT LOAD_FILE('$MARIADB_DATADIR/test/xsample2.xml') AS xml
 DROP TABLE t1;
---remove_file $MYSQLD_DATADIR/test/xsample2.xml
+--remove_file $MARIADB_DATADIR/test/xsample2.xml
 
 
 --echo #
@@ -270,12 +268,12 @@ CREATE TABLE t1 (node VARCHAR(50))
 INSERT INTO t1 VALUES (_latin1 0xC0C1C2C3);
 SELECT node, hex(node) FROM t1;
 DROP TABLE t1;
-#--chmod 0777 $MYSQLD_DATADIR/test/t1.xml
---replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
---eval SET @a=LOAD_FILE('$MYSQLD_DATADIR/test/t1.xml')
+#--chmod 0777 $MARIADB_DATADIR/test/t1.xml
+--replace_result $MARIADB_DATADIR MARIADB_DATADIR
+--eval SET @a=LOAD_FILE('$MARIADB_DATADIR/test/t1.xml')
 SELECT LEFT(@a,38);
 SELECT HEX(EXTRACTVALUE(@a,'/t1/line/node'));
---remove_file $MYSQLD_DATADIR/test/t1.xml
+--remove_file $MARIADB_DATADIR/test/t1.xml
 
 CREATE TABLE t1 (node VARCHAR(50))
   CHARACTER SET latin1
@@ -284,12 +282,12 @@ CREATE TABLE t1 (node VARCHAR(50))
 INSERT INTO t1 VALUES (_latin1 0xC0C1C2C3);
 SELECT node, hex(node) FROM t1;
 DROP TABLE t1;
-#--chmod 0777 $MYSQLD_DATADIR/test/t1.xml
---replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
---eval SET @a=LOAD_FILE('$MYSQLD_DATADIR/test/t1.xml')
+#--chmod 0777 $MARIADB_DATADIR/test/t1.xml
+--replace_result $MARIADB_DATADIR MARIADB_DATADIR
+--eval SET @a=LOAD_FILE('$MARIADB_DATADIR/test/t1.xml')
 SELECT LEFT(@a,43);
 SELECT HEX(EXTRACTVALUE(@a,'/t1/line/node'));
---remove_file $MYSQLD_DATADIR/test/t1.xml
+--remove_file $MARIADB_DATADIR/test/t1.xml
 
 
 --echo #
@@ -305,17 +303,17 @@ INSERT INTO t1 VALUES (_cp1251 0xC0C1C2C3);
 INSERT INTO t1 VALUES ('&<>"\'');
 SELECT node, hex(node) FROM t1;
 DROP TABLE t1;
-#--chmod 0777 $MYSQLD_DATADIR/test/t1.xml
---replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
---eval SET @a=LOAD_FILE('$MYSQLD_DATADIR/test/t1.xml')
+#--chmod 0777 $MARIADB_DATADIR/test/t1.xml
+--replace_result $MARIADB_DATADIR MARIADB_DATADIR
+--eval SET @a=LOAD_FILE('$MARIADB_DATADIR/test/t1.xml')
 SELECT CAST(@a AS CHAR CHARACTER SET latin1);
---remove_file $MYSQLD_DATADIR/test/t1.xml
+--remove_file $MARIADB_DATADIR/test/t1.xml
 
 
 
 #
 # Clean up
 #
---remove_file $MYSQLD_DATADIR/test/xsample.xml
---remove_file $MYSQLD_DATADIR/test/latin1.xml
---remove_file $MYSQLD_DATADIR/test/cp1251.xml
+--remove_file $MARIADB_DATADIR/test/xsample.xml
+--remove_file $MARIADB_DATADIR/test/latin1.xml
+--remove_file $MARIADB_DATADIR/test/cp1251.xml

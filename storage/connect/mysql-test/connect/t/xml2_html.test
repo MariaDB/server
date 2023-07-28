@@ -1,11 +1,9 @@
 --source have_libxml2.inc
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-
 SET NAMES utf8;
 
---copy_file $MTR_SUITE_DIR/std_data/beers.xml $MYSQLD_DATADIR/test/beers.xml
---copy_file $MTR_SUITE_DIR/std_data/coffee.htm $MYSQLD_DATADIR/test/coffee.htm
+--copy_file $MTR_SUITE_DIR/std_data/beers.xml $MARIADB_DATADIR/test/beers.xml
+--copy_file $MTR_SUITE_DIR/std_data/coffee.htm $MARIADB_DATADIR/test/coffee.htm
 
 --echo #
 --echo # Testing HTML like XML file
@@ -35,5 +33,5 @@ DROP TABLE coffee;
 #
 # Clean up
 #
---remove_file $MYSQLD_DATADIR/test/beers.xml
---remove_file $MYSQLD_DATADIR/test/coffee.htm
+--remove_file $MARIADB_DATADIR/test/beers.xml
+--remove_file $MARIADB_DATADIR/test/coffee.htm

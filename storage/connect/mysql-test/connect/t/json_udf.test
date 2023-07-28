@@ -1,9 +1,7 @@
 --source json_udf.inc
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-
---copy_file $MTR_SUITE_DIR/std_data/biblio.json $MYSQLD_DATADIR/test/biblio.json
---copy_file $MTR_SUITE_DIR/std_data/employee.dat $MYSQLD_DATADIR/test/employee.dat
+--copy_file $MTR_SUITE_DIR/std_data/biblio.json $MARIADB_DATADIR/test/biblio.json
+--copy_file $MTR_SUITE_DIR/std_data/employee.dat $MARIADB_DATADIR/test/employee.dat
 
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=VIR BLOCK_SIZE=5;
 
@@ -33,6 +31,7 @@ SELECT Json_Array_Add(Json_Make_Array(56, 3.1416, 'foo', NULL), 'One more') Arra
 SELECT Json_Array_Add(JsonValue('one value'), 'One more');
 #--error ER_CANT_INITIALIZE_UDF
 SELECT Json_Array_Add('one value', 'One more');
+--replace_catalog
 SELECT Json_Array_Add('one value' json_, 'One more');
 #--error ER_CANT_INITIALIZE_UDF
 SELECT Json_Array_Add(5 json_, 'One more');
@@ -65,6 +64,7 @@ SELECT Json_Object_Key('qty', 56, 'price', 3.1416, 'truc', 'machin', 'garanty');
 #
 SELECT Json_Object_Add(Json_Make_Object(56 qty, 3.1416 price, 'machin' truc,  NULL garanty),  'blue' color);
 SELECT Json_Object_Add(Json_Make_Object(56 qty, 3.1416 price, 'machin' truc,  NULL garanty),  45.99 price);
+--replace_catalog
 SELECT Json_Object_Add(Json_File('notexist.json'), 'cheese' item, '[1]', 1);
 #
 SELECT Json_Object_Delete(Json_Make_Object(56 qty, 3.1416 price, 'machin' truc,  NULL garanty),  'truc');
@@ -261,8 +261,8 @@ DROP TABLE t3;
 # Clean up
 #
 --source json_udf2.inc
---remove_file $MYSQLD_DATADIR/test/biblio.json
---remove_file $MYSQLD_DATADIR/test/employee.dat
---remove_file $MYSQLD_DATADIR/test/fx.json
+--remove_file $MARIADB_DATADIR/test/biblio.json
+--remove_file $MARIADB_DATADIR/test/employee.dat
+--remove_file $MARIADB_DATADIR/test/fx.json
 
 

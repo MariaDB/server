@@ -1,6 +1,4 @@
-let $MYSQLD_DATADIR= `select @@datadir`;
-
---copy_file $MTR_SUITE_DIR/std_data/Testbal.dat $MYSQLD_DATADIR/test/Testbal.dat
+--copy_file $MTR_SUITE_DIR/std_data/Testbal.dat $MARIADB_DATADIR/test/Testbal.dat
 
 SET time_zone='+00:00';
 
@@ -84,5 +82,5 @@ DROP TABLE t1, t2;
 #
 # Clean up
 #
---remove_file $MYSQLD_DATADIR/test/Testbal.dat
---remove_file $MYSQLD_DATADIR/test/Testbal.bin
+--remove_file $MARIADB_DATADIR/test/Testbal.dat
+--remove_file $MARIADB_DATADIR/test/Testbal.bin

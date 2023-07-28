@@ -1,6 +1,4 @@
-let $MYSQLD_DATADIR= `select @@datadir`;
-
---copy_file $MTR_SUITE_DIR/std_data/people.csv $MYSQLD_DATADIR/test/people.csv
+--copy_file $MTR_SUITE_DIR/std_data/people.csv $MARIADB_DATADIR/test/people.csv
 
 SET NAMES utf8;
 
@@ -31,9 +29,9 @@ SELECT * FROM t1;
 INSERT INTO t1 VALUES ('RONALD','1980-02-26',4);
 SELECT * FROM t1;
 DROP TABLE t1;
---chmod 0777 $MYSQLD_DATADIR/test/people.csv
---replace_result $MYSQLD_DATADIR DATADIR
---eval SELECT REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/people.csv'),'\r\n','\n');
+--chmod 0777 $MARIADB_DATADIR/test/people.csv
+--replace_result $MARIADB_DATADIR DATADIR
+--eval SELECT REPLACE(LOAD_FILE('$MARIADB_DATADIR/test/people.csv'),'\r\n','\n');
 
 --echo #
 --echo # Testing READONLY tables
@@ -78,9 +76,9 @@ CREATE TABLE t1
 INSERT INTO t1 VALUES (10,10),(20,20),(300,300),(4000,4000), ('a b','c d');
 SELECT * FROM t1;
 DROP TABLE t1;
---chmod 0777 $MYSQLD_DATADIR/test/tmp.csv
---replace_result $MYSQLD_DATADIR DATADIR
---eval SELECT REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/tmp.csv'),'\r\n','\n');
+--chmod 0777 $MARIADB_DATADIR/test/tmp.csv
+--replace_result $MARIADB_DATADIR DATADIR
+--eval SELECT REPLACE(LOAD_FILE('$MARIADB_DATADIR/test/tmp.csv'),'\r\n','\n');
 
 --echo #
 --echo # Creating a CSV table from a MyISAM table
@@ -92,10 +90,10 @@ CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='t2.csv'
 SELECT * FROM t2;
 DROP TABLE t2;
 DROP TABLE t1;
---chmod 0777 $MYSQLD_DATADIR/test/t2.csv
---replace_result $MYSQLD_DATADIR DATADIR
---eval SELECT REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t2.csv'),'\r\n','\n');
---remove_file $MYSQLD_DATADIR/test/t2.csv
+--chmod 0777 $MARIADB_DATADIR/test/t2.csv
+--replace_result $MARIADB_DATADIR DATADIR
+--eval SELECT REPLACE(LOAD_FILE('$MARIADB_DATADIR/test/t2.csv'),'\r\n','\n');
+--remove_file $MARIADB_DATADIR/test/t2.csv
 
 --echo #
 --echo # Testing international data
@@ -108,10 +106,10 @@ CREATE TABLE t1
 INSERT INTO t1 VALUES ('á');
 SELECT * FROM t1;
 DROP TABLE t1;
---chmod 0777 $MYSQLD_DATADIR/test/t1.csv
---replace_result $MYSQLD_DATADIR DATADIR
---eval SELECT HEX(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t1.csv'),'\r\n','\n'));
---remove_file $MYSQLD_DATADIR/test/t1.csv
+--chmod 0777 $MARIADB_DATADIR/test/t1.csv
+--replace_result $MARIADB_DATADIR DATADIR
+--eval SELECT HEX(REPLACE(LOAD_FILE('$MARIADB_DATADIR/test/t1.csv'),'\r\n','\n'));
+--remove_file $MARIADB_DATADIR/test/t1.csv
 
 CREATE TABLE t1
 (
@@ -121,10 +119,10 @@ CREATE TABLE t1
 INSERT INTO t1 VALUES ('á');
 SELECT * FROM t1;
 DROP TABLE t1;
---chmod 0777 $MYSQLD_DATADIR/test/t1.csv
---replace_result $MYSQLD_DATADIR DATADIR
---eval SELECT HEX(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t1.csv'),'\r\n','\n'));
---remove_file $MYSQLD_DATADIR/test/t1.csv
+--chmod 0777 $MARIADB_DATADIR/test/t1.csv
+--replace_result $MARIADB_DATADIR DATADIR
+--eval SELECT HEX(REPLACE(LOAD_FILE('$MARIADB_DATADIR/test/t1.csv'),'\r\n','\n'));
+--remove_file $MARIADB_DATADIR/test/t1.csv
 
 CREATE TABLE t1
 (
@@ -133,10 +131,10 @@ CREATE TABLE t1
 INSERT INTO t1 VALUES ('á');
 SELECT * FROM t1;
 DROP TABLE t1;
---chmod 0777 $MYSQLD_DATADIR/test/t1.csv
---replace_result $MYSQLD_DATADIR DATADIR
---eval SELECT HEX(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t1.csv'),'\r\n','\n'));
---remove_file $MYSQLD_DATADIR/test/t1.csv
+--chmod 0777 $MARIADB_DATADIR/test/t1.csv
+--replace_result $MARIADB_DATADIR DATADIR
+--eval SELECT HEX(REPLACE(LOAD_FILE('$MARIADB_DATADIR/test/t1.csv'),'\r\n','\n'));
+--remove_file $MARIADB_DATADIR/test/t1.csv
 
 CREATE TABLE t1
 (
@@ -146,10 +144,10 @@ CREATE TABLE t1
 INSERT INTO t1 VALUES ('á');
 SELECT * FROM t1;
 DROP TABLE t1;
---chmod 0777 $MYSQLD_DATADIR/test/t1.csv
---replace_result $MYSQLD_DATADIR DATADIR
---eval SELECT HEX(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t1.csv'),'\r\n','\n'));
---remove_file $MYSQLD_DATADIR/test/t1.csv
+--chmod 0777 $MARIADB_DATADIR/test/t1.csv
+--replace_result $MARIADB_DATADIR DATADIR
+--eval SELECT HEX(REPLACE(LOAD_FILE('$MARIADB_DATADIR/test/t1.csv'),'\r\n','\n'));
+--remove_file $MARIADB_DATADIR/test/t1.csv
 
 CREATE TABLE t1
 (
@@ -159,10 +157,10 @@ CREATE TABLE t1
 INSERT INTO t1 VALUES ('á');
 SELECT * FROM t1;
 DROP TABLE t1;
---chmod 0777 $MYSQLD_DATADIR/test/t1.csv
---replace_result $MYSQLD_DATADIR DATADIR
---eval SELECT HEX(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t1.csv'),'\r\n','\n'));
---remove_file $MYSQLD_DATADIR/test/t1.csv
+--chmod 0777 $MARIADB_DATADIR/test/t1.csv
+--replace_result $MARIADB_DATADIR DATADIR
+--eval SELECT HEX(REPLACE(LOAD_FILE('$MARIADB_DATADIR/test/t1.csv'),'\r\n','\n'));
+--remove_file $MARIADB_DATADIR/test/t1.csv
 
 CREATE TABLE t1
 (
@@ -172,14 +170,14 @@ CREATE TABLE t1
 INSERT INTO t1 VALUES ('á','á');
 SELECT * FROM t1;
 DROP TABLE t1;
---chmod 0777 $MYSQLD_DATADIR/test/t1.csv
---replace_result $MYSQLD_DATADIR DATADIR
---eval SELECT HEX(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t1.csv'),'\r\n','\n'));
---remove_file $MYSQLD_DATADIR/test/t1.csv
+--chmod 0777 $MARIADB_DATADIR/test/t1.csv
+--replace_result $MARIADB_DATADIR DATADIR
+--eval SELECT HEX(REPLACE(LOAD_FILE('$MARIADB_DATADIR/test/t1.csv'),'\r\n','\n'));
+--remove_file $MARIADB_DATADIR/test/t1.csv
 
 
 #
 # Clean up
 #
---remove_file $MYSQLD_DATADIR/test/people.csv
---remove_file $MYSQLD_DATADIR/test/tmp.csv
+--remove_file $MARIADB_DATADIR/test/people.csv
+--remove_file $MARIADB_DATADIR/test/tmp.csv

@@ -1,0 +1,35 @@
+--source include/have_catalogs.inc
+
+#
+# Test CONNECT engine with catalogs
+#
+
+create catalog cat1;
+use catalog cat1;
+create database foo;
+use foo;
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+create catalog cat2;
+use catalog cat2;
+create database bar;
+use bar;
+# Test using catname param
+create table tc1 (a int) engine=connect table_type=MariaDB tabname=t1 catname=cat1 dbname=foo connection='mysql://root@localhost';
+select * from tc1;
+# Test using URI
+create table tc2 (a int) engine=connect table_type=MariaDB connection='mariadb://root@localhost/cat1.foo/t1';
+select * from tc2;
+# Test using catalog.db in dbname param
+create table tc3 (a int) engine=connect table_type=MariaDB tabname=t1 dbname='cat1.foo' connection='mariadb://root@localhost';
+select * from tc3;
+# Test using column auto discovery
+create table tc4 engine=connect table_type=MariaDB connection='mariadb://root@localhost/cat1.foo/t1';
+select * from tc4;
+# Cleanup
+drop database bar;
+use catalog cat1;
+drop database foo;
+use catalog def;
+drop catalog cat2;
+drop catalog cat1;

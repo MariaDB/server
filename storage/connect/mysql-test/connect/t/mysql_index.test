@@ -67,8 +67,7 @@ SELECT * FROM t2;
 DROP TABLE t2;
 DROP TABLE t1;
 
-let $MYSQLD_DATADIR= `select @@datadir`;
---copy_file $MTR_SUITE_DIR/std_data/emp.txt $MYSQLD_DATADIR/test/emp.txt
+--copy_file $MTR_SUITE_DIR/std_data/emp.txt $MARIADB_DATADIR/test/emp.txt
 
 --echo #
 --echo # Make local FIX table with indices matricule and nom/prenom
@@ -142,5 +141,5 @@ DROP TABLE t1;
 #
 # Clean up
 #
---remove_file $MYSQLD_DATADIR/test/emp.txt
---remove_file $MYSQLD_DATADIR/test/emp.fnx
+--remove_file $MARIADB_DATADIR/test/emp.txt
+--remove_file $MARIADB_DATADIR/test/emp.fnx

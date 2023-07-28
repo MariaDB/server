@@ -1414,15 +1414,35 @@ static my_bool CheckPath(PGLOBAL g, UDF_ARGS *args, PJSON jsp, PJVAL& jvp, int n
 } // end of CheckPath
 
 /*********************************************************************************/
+/*  Prefix file name with catalog if catlogs are used                            */
+/*********************************************************************************/
+
+#include <mysql/service_thd_catalog.h>
+
+static char *adjust_file_name(char *fn, char *buffer)
+{
+  if (using_catalogs && fn && !test_if_hard_path(fn))
+  {
+    const char *catalog= thd_catalog_path(current_thd);
+    strxnmov(buffer, FN_REFLEN-1, catalog, fn, NullS);
+    return buffer;
+  }
+  return fn;
+}
+
+
+/*********************************************************************************/
 /*  Make the result according to the first argument type.                        */
 /*********************************************************************************/
 static char *MakeResult(PGLOBAL g, UDF_ARGS *args, PJSON top, uint n = 2)
 {
 	char *str;
+        char file_buffer[FN_REFLEN];
 
 	if (IsJson(args, 0) == 2) {
 		// Make the change in the json file
 		int pretty = 2;
+                char *fn;
 
 		for (uint i = n; i < args->arg_count; i++)
 			if (args->arg_type[i] == INT_RESULT) {
@@ -1430,7 +1450,8 @@ static char *MakeResult(PGLOBAL g, UDF_ARGS *args, PJSON top, uint n = 2)
 				break;
 			} // endif type
 
-		if (!Serialize(g, top, MakePSZ(g, args, 0), pretty))
+                fn= adjust_file_name(MakePSZ(g, args, 0), file_buffer);
+		if (!Serialize(g, top, fn, pretty))
 			PUSH_WARNING(g->Message);
 
 		str = NULL;
@@ -1438,8 +1459,9 @@ static char *MakeResult(PGLOBAL g, UDF_ARGS *args, PJSON top, uint n = 2)
 		PBSON bsp = (PBSON)args->args[0];
 
 		if (bsp->Filename) {
+                        char *fn= adjust_file_name(bsp->Filename, file_buffer);
 			// Make the change in the json file
-			if (!Serialize(g, top, bsp->Filename, bsp->Pretty))
+			if (!Serialize(g, top, fn, bsp->Pretty))
 				PUSH_WARNING(g->Message);
 
 			str = bsp->Filename;
@@ -1582,7 +1604,9 @@ static long GetFileLength(char *fn)
 {
 	int  h;
 	long len;
+        char file_buffer[FN_REFLEN];
 
+        fn= adjust_file_name(fn, file_buffer);
 	h= open(fn, _O_RDONLY);
 
 	if (h != -1) {
@@ -1836,6 +1860,7 @@ static PCSZ MakeKey(PGLOBAL g, UDF_ARGS *args, int i)
   return (PCSZ) "Key";
 } // end of MakeKey
 
+
 /*********************************************************************************/
 /*  Parse a json file.                                                 */
 /*********************************************************************************/
@@ -1845,6 +1870,8 @@ static PJSON ParseJsonFile(PGLOBAL g, char *fn, int *pretty, size_t& len)
 	HANDLE  hFile;
 	MEMMAP  mm;
 	PJSON   jsp;
+        char    file_buffer[FN_REFLEN];
+        fn= adjust_file_name(fn, file_buffer);
 
 	/*******************************************************************************/
 	/*  Create the mapping file object.                                            */
@@ -1895,10 +1922,13 @@ static PJSON ParseJsonFile(PGLOBAL g, char *fn, int *pretty, size_t& len)
 /*********************************************************************************/
 /*  Return a json file contains.                                                 */
 /*********************************************************************************/
+
 char *GetJsonFile(PGLOBAL g, char *fn)
 {
 	char   *str;
 	int     h, n, len;
+        char    file_buffer[FN_REFLEN];
+        fn= adjust_file_name(fn, file_buffer);
 
 #if defined(UNIX) || defined(UNIV_LINUX)
 	h= open(fn, O_RDONLY);
@@ -3435,7 +3465,7 @@ my_bool json_get_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		CalcLen(args, false, reslen, memlen);
 
 	if (n == 2 && args->args[0]) {
-		char fn[_MAX_PATH];
+                char fn[_MAX_PATH];
 		long fl;
 
 		memcpy(fn, args->args[0], args->lengths[0]);
@@ -4639,11 +4669,12 @@ my_bool jfile_make_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 char *jfile_make(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *)
 {
-	char   *p, *str = NULL, *fn = NULL;
+        char   *p, *str = NULL, *fn = NULL, *cat_fn= NULL;
 	int     n, pretty = 2;
 	PJSON   jsp;
 	PJVAL   jvp;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
+        char file_buffer[FN_REFLEN];
 
 	if (g->N) {
 		str = (char*)g->Activityp;
@@ -4706,8 +4737,11 @@ char *jfile_make(UDF_INIT *initid, UDF_ARGS *args, char *result,
 				PUSH_WARNING("Unexpected argument type in jfile_make");
 			}	// endswitch arg_type
 
-	if (fn) {
-		if (!Serialize(g, jvp->GetJson(), fn, pretty))
+        cat_fn= fn;
+        if (cat_fn)
+          cat_fn= adjust_file_name(cat_fn, file_buffer);
+        if (cat_fn) {
+		if (!Serialize(g, jvp->GetJson(), cat_fn, pretty))
 			PUSH_WARNING(g->Message);
 	} else
 		PUSH_WARNING("Missing file name");
@@ -6004,10 +6038,14 @@ char *jfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	PJSON		jsp;
 	SWAP   *swp;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
+        char    file_buffer[FN_REFLEN];
+        char    file_buffer2[FN_REFLEN];
 
 	PlugSubSet(g->Sarea, g->Sarea_Size);
 	fn = MakePSZ(g, args, 0);
+        fn = adjust_file_name(fn, file_buffer);
 	ofn = MakePSZ(g, args, 1);
+        ofn = adjust_file_name(ofn, file_buffer2);
 
 	if (args->arg_count == 3)
 		lrecl = (size_t)*(longlong*)args->args[2];
@@ -6120,6 +6158,9 @@ char* JUP::UnprettyJsonFile(PGLOBAL g, char *fn, char *outfn, int lrecl) {
 	char   *ret = NULL;
 	HANDLE  hFile;
 	MEMMAP  mm;
+        char    file_buffer[FN_REFLEN], file_buffer2[FN_REFLEN];
+        fn= adjust_file_name(fn, file_buffer);
+        outfn= adjust_file_name(outfn, file_buffer);
 
 	/*******************************************************************************/
 	/*  Create the mapping file object.                                            */

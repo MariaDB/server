@@ -20,6 +20,7 @@ class PIVAID : public CSORT {
   // Constructor
   PIVAID(const char *tab,   const char *src,   const char *picol,
          const char *fncol, const char *skcol, const char *host, 
+         const char *cat,
          const char *db,    const char *user,  const char *pwd,  int port);
 
   // Methods
@@ -36,6 +37,7 @@ class PIVAID : public CSORT {
 	PCSZ    User;                     // User logon info
 	PCSZ    Pwd;                      // Password logon info
 	PCSZ    Database;                 // Database to be used by server
+        PCSZ    Catalog;                  // Catalog to be used by server
   PQRYRES Qryp;                     // Points to Query result block
 	PCSZ    Tabname;                  // Name of source table
 	PCSZ    Tabsrc;                   // SQL of source table
@@ -196,5 +198,6 @@ class SRCCOL : public PRXCOL {
 PQRYRES PivotColumns(PGLOBAL g, const char *tab,   const char *src,
                                 const char *picol, const char *fncol,
                                 const char *skcol, const char *host,
+                                const char *cat,
                                 const char *db,    const char *user,
                                 const char *pwd,   int port);

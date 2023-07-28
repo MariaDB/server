@@ -159,7 +159,8 @@ TABTYPE GetTypeID(const char *type)
                  : (!stricmp(type, "MONGO") && MongoEnabled()) ? TAB_MONGO
 #endif   // JAVA_SUPPORT  ||         CMGO_SUPPORT
                  : (!stricmp(type, "MYSQL")) ? TAB_MYSQL
-                 : (!stricmp(type, "MYPRX")) ? TAB_MYSQL
+                 : (!stricmp(type, "MARIADB")) ? TAB_MARIADB
+                 : (!stricmp(type, "MYPRX")) ? TAB_MARIADB
                  : (!stricmp(type, "DIR"))   ? TAB_DIR
 #if defined(_WIN32)
                  : (!stricmp(type, "MAC"))   ? TAB_MAC
@@ -333,6 +334,7 @@ int GetIndexType(TABTYPE type)
       xtyp= 1;
       break;
     case TAB_MYSQL:
+    case TAB_MARIADB:
     case TAB_ODBC:
     case TAB_JDBC:
     case TAB_MONGO:
@@ -490,6 +492,7 @@ PTABDEF MYCAT::MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am)
     case TAB_XCL: tdp= new(g) XCLDEF;   break;
     case TAB_PRX: tdp= new(g) PRXDEF;   break;
     case TAB_OCCUR: tdp= new(g) OCCURDEF; break;
+    case TAB_MARIADB:
     case TAB_MYSQL: tdp= new(g) MYSQLDEF; break;
     case TAB_PIVOT: tdp= new(g) PIVOTDEF; break;
     case TAB_VIR: tdp= new(g) VIRDEF;   break;
@@ -553,7 +556,7 @@ PTDB MYCAT::GetTable(PGLOBAL g, PTABLE tablep, MODE mode, LPCSTR type)
       htrc("tdb=%p type=%s\n", tdp, tdp->GetType());
 
     if (tablep->GetSchema())
-      tdp->Database = SetPath(g, tablep->GetSchema());
+      tdp->Database = SetPath(g, NullS, tablep->GetSchema());
 
     if (trace(2))
       htrc("Going to get table...\n");

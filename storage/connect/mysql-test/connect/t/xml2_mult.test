@@ -1,10 +1,8 @@
 --source have_libxml2.inc
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-
 SET NAMES utf8;
 
---copy_file $MTR_SUITE_DIR/std_data/bookstore.xml $MYSQLD_DATADIR/test/bookstore.xml
+--copy_file $MTR_SUITE_DIR/std_data/bookstore.xml $MARIADB_DATADIR/test/bookstore.xml
 
 #--echo $MYSQL_TEST_DIR
 #--exec pwd
@@ -61,4 +59,4 @@ DROP TABLE bookstore;
 #
 # Clean up
 #
---remove_file $MYSQLD_DATADIR/test/bookstore.xml
+--remove_file $MARIADB_DATADIR/test/bookstore.xml

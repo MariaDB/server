@@ -7,5 +7,4 @@ create trigger tr after insert on tin for each row insert into tcon values (new.
 insert into tin values (1);
 drop table tin,tcon;
 
-let datadir=`select @@datadir`;
-remove_file $datadir/test/tcon.dos;
+remove_file $MARIADB_DATADIR/test/tcon.dos;

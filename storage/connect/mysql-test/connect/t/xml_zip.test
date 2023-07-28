@@ -1,11 +1,9 @@
 --source have_zip.inc
 --source windows.inc
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-
 --vertical_results
 
---copy_file $MTR_SUITE_DIR/std_data/xsample2.xml $MYSQLD_DATADIR/test/xsample2.xml
+--copy_file $MTR_SUITE_DIR/std_data/xsample2.xml $MARIADB_DATADIR/test/xsample2.xml
 
 --echo #
 --echo # Testing zipped XML tables
@@ -37,5 +35,5 @@ DROP TABLE t1,t2;
 #
 # Clean up
 #
---remove_file $MYSQLD_DATADIR/test/xsample2.xml
---remove_file $MYSQLD_DATADIR/test/xsample2.zip
+--remove_file $MARIADB_DATADIR/test/xsample2.xml
+--remove_file $MARIADB_DATADIR/test/xsample2.zip

@@ -122,8 +122,8 @@ static MYSQL_RES *connect_use_result(MYSQL *mysql)
 /*  of a MySQL table or view.                                           */
 /*  info = TRUE to get catalog column information.                     */
 /************************************************************************/
-PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
-                  const char *user, const char *pwd,
+PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *catalog,
+                  const char *db, const char *user, const char *pwd,
                   const char *table, const char *colpat,
                   int port, bool info)
   {
@@ -153,19 +153,21 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
     /********************************************************************/
     /*  Open the connection with the MySQL server.                      */
     /********************************************************************/
-    if (myc.Open(g, host, db, user, pwd, port))
+    if (myc.Open(g, host, catalog, db, user, pwd, port))
       return NULL;
 
     /********************************************************************/
     /*  Do an evaluation of the result size.                            */
     /********************************************************************/
     STRING cmd(g, 64, "SHOW FULL COLUMNS FROM ");
-		b = cmd.Append('`');
+    b = cmd.Append('`');
     b |= cmd.Append((PSZ)table);
-		b |= cmd.Append('`');
+    b |= cmd.Append('`');
 
     b |= cmd.Append(" FROM ");
+    b |= cmd.Append('`');
     b |= cmd.Append((PSZ)(db ? db : PlgGetUser(g)->DBName));
+    b |= cmd.Append('`');
 
     if (colpat) {
       b |= cmd.Append(" LIKE ");
@@ -391,8 +393,8 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
 /*  SrcColumns: constructs the result blocks containing all columns     */
 /*  resulting from an SQL source definition query execution.            */
 /************************************************************************/
-PQRYRES SrcColumns(PGLOBAL g, const char *host, const char *db,
-                   const char *user, const char *pwd,
+PQRYRES SrcColumns(PGLOBAL g, const char *host, const char *catalog,
+                   const char *db, const char *user, const char *pwd,
                    const char *srcdef, int port)
   {
   char   *query;
@@ -424,7 +426,7 @@ PQRYRES SrcColumns(PGLOBAL g, const char *host, const char *db,
     query = (char *)srcdef;
 
   // Open a MySQL connection for this table
-  if (myc.Open(g, host, db, user, pwd, port))
+  if (myc.Open(g, host, catalog, db, user, pwd, port))
     return NULL;
 
   // Send the source command to MySQL
@@ -473,13 +475,14 @@ int MYSQLC::GetResultSize(PGLOBAL g, PSZ sql)
 /***********************************************************************/
 /*  Open a MySQL (remote) connection.                                  */
 /***********************************************************************/
-int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
-                            const char *user, const char *pwd,
+int MYSQLC::Open(PGLOBAL g, const char *host, const char *catalog,
+                            const char *db, const char *user, const char *pwd,
                             int pt, const char *csname)
   {
   const char *pipe = NULL;
   //uint      cto = 10, nrt = 20;
   my_bool     my_true= 1;
+  char catalog_db[SAFE_NAME_LEN*2+3];
 
   m_DB = mysql_init(NULL);
 
@@ -530,6 +533,18 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
   // Don't know what this one do but FEDERATED does it
   mysql_options(m_DB, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
                   (char*)&my_true);
+
+  if (using_catalogs && catalog)
+  {
+    // We might have stored 'def' as a catalog when catalog.db format was
+    // provided, ignore the 'def'.
+    // TODO: Remove the 'if' when 'db' does not contain catalogs
+    if (!strchr(db, '.'))
+    {
+      strxnmov(catalog_db, sizeof(catalog_db)-1, catalog, ".", db, NullS);
+      db= catalog_db;
+    }
+  }
 
   if (!mysql_real_connect(m_DB, host, user, pwd, db, pt, pipe,
 		CLIENT_MULTI_RESULTS | CLIENT_REMEMBER_OPTIONS)) {

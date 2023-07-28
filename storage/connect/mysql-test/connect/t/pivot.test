@@ -1,8 +1,7 @@
 -- source include/not_embedded.inc
 
-let $MYSQLD_DATADIR= `select @@datadir`;
 let $PORT= `select @@port`;
---copy_file $MTR_SUITE_DIR/std_data/expenses.txt $MYSQLD_DATADIR/test/expenses.txt
+--copy_file $MTR_SUITE_DIR/std_data/expenses.txt $MARIADB_DATADIR/test/expenses.txt
 
 --echo #
 --echo # Testing the PIVOT table type
@@ -160,4 +159,4 @@ SELECT * FROM fruit_pivot;
 
 DROP TABLE fruit_pivot;
 DROP TABLE fruit;
---remove_file $MYSQLD_DATADIR/test/expenses.txt
+--remove_file $MARIADB_DATADIR/test/expenses.txt

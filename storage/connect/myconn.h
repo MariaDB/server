@@ -34,13 +34,13 @@ typedef class MYSQLC *PMYC;
 /***********************************************************************/
 /*  Prototypes of info functions.                                      */
 /***********************************************************************/
-PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
-                  const char *user, const char *pwd,
+PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *catalog,
+                  const char *db, const char *user, const char *pwd,
                   const char *table, const char *colpat,
                   int port, bool info);
 
-PQRYRES SrcColumns(PGLOBAL g, const char *host, const char *db,
-                   const char *user, const char *pwd,
+PQRYRES SrcColumns(PGLOBAL g, const char *host, const char *catalog,
+                   const char *db, const char *user, const char *pwd,
                    const char *srcdef, int port);
 
 uint GetDefaultPort(void);
@@ -65,9 +65,10 @@ class DllItem MYSQLC {
   // Methods
   int     GetResultSize(PGLOBAL g, PSZ sql);
   int     GetTableSize(PGLOBAL g, PSZ query);
-  int     Open(PGLOBAL g, const char *host, const char *db,
-                          const char *user= "root", const char *pwd= "*",
-                          int pt= 0, const char *csname = NULL);
+  int     Open(PGLOBAL g, const char *host, const char *catalog,
+                          const char *db, const char *user= "root",
+			  const char *pwd= "*", int pt= 0,
+			  const char *csname = NULL);
   int     KillQuery(ulong id);
   int     ExecSQL(PGLOBAL g, const char *query, int *w = NULL);
   int     ExecSQLcmd(PGLOBAL g, const char *query, int *w);

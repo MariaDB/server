@@ -85,6 +85,7 @@ MYSQLDEF::MYSQLDEF(void)
   {
   Pseudo = 2;                            // SERVID is Ok but not ROWID
   Hostname = NULL;
+  Tabcatalog = NULL;
 //Tabschema = NULL;
 //Tabname = NULL;
 //Srcdef = NULL;
@@ -220,8 +221,8 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url, bool b)
 
     scheme[Username - scheme] = 0;
 
-    if (stricmp(scheme, "mysql")) {
-      strcpy(g->Message, "scheme must be mysql");
+    if (stricmp(scheme, "mysql") && stricmp(scheme, "mariadb")) {
+      strcpy(g->Message, "scheme must be mysql or mariadb");
       return true;
       } // endif scheme
 
@@ -272,11 +273,19 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url, bool b)
           return true;
           } // endif /
 
-				Tabname = tabn;
-        } // endif TableName
+        Tabname = tabn;
+      } // endif TableName
 
-			Tabschema = schema;
-		} // endif database
+      if (!(Tabschema= strchr(schema, '.')))
+        Tabschema= schema;
+      else
+      {
+        Tabcatalog= (char*) PlugSubAlloc(g, NULL, (Tabschema - schema)+1);
+        if (Tabcatalog)
+          strmake(Tabcatalog, schema, (Tabschema - schema));
+        Tabschema++;                            // Skip '.'
+      }
+    } // endif database
 
     if ((sport = strchr(Hostname, ':')))
       *sport++ = 0;
@@ -294,6 +303,9 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url, bool b)
 
     if (!Tabschema || !*Tabschema)
       Tabschema = (b) ? GetStringCatInfo(g, "Database", "*") : NULL;
+
+    if (!Tabcatalog || !*Tabcatalog)
+      Tabcatalog = (b) ? GetStringCatInfo(g, "Catalog", "def") : NULL;
 
     if (!Tabname || !*Tabname)
       Tabname = (b) ? GetStringCatInfo(g, "Tabname", Name) : NULL;
@@ -333,6 +345,8 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
       // Not using the connection URL
       Hostname = GetStringCatInfo(g, "Host", "localhost");
       Tabschema = GetStringCatInfo(g, "Database", "*");
+      if (using_catalogs)
+        Tabcatalog = GetStringCatInfo(g, "Catalog", "def");
       Tabname = GetStringCatInfo(g, "Name", Name); // Deprecated
       Tabname = GetStringCatInfo(g, "Tabname", Tabname);
       Username = GetStringCatInfo(g, "User", "*");
@@ -417,6 +431,7 @@ TDBMYSQL::TDBMYSQL(PMYDEF tdp) : TDBEXT(tdp)
   if (tdp) {
     Host = tdp->Hostname;
 //  Schema = tdp->Tabschema;
+    Catalog = tdp->Tabcatalog;
 //  TableName = tdp->Tabname;
 //  Srcdef = tdp->Srcdef;
 //  User = tdp->Username;
@@ -796,7 +811,7 @@ int TDBMYSQL::Cardinality(PGLOBAL g)
     char   query[96];
     MYSQLC myc;
 
-    if (myc.Open(g, Host, Schema, User, Pwd, Port, csname))
+    if (myc.Open(g, Host, Catalog, Schema, User, Pwd, Port, csname))
       return -1;
 
     strcpy(query, "SELECT COUNT(*) FROM ");
@@ -894,7 +909,7 @@ bool TDBMYSQL::OpenDB(PGLOBAL g)
   /*  servers allowing concurency in getting results ???               */
   /*********************************************************************/
   if (!Myc.Connected()) {
-    if (Myc.Open(g, Host, Schema, User, Pwd, Port, csname))
+    if (Myc.Open(g, Host, Catalog, Schema, User, Pwd, Port, csname))
       return true;
 
     } // endif Connected
@@ -1573,7 +1588,7 @@ bool TDBMYEXC::OpenDB(PGLOBAL g)
   /*  servers allowing concurency in getting results ???               */
   /*********************************************************************/
   if (!Myc.Connected())
-    if (Myc.Open(g, Host, Schema, User, Pwd, Port))
+    if (Myc.Open(g, Host, Catalog, Schema, User, Pwd, Port))
       return true;
 
   Use = USE_OPEN;       // Do it now in case we are recursively called
@@ -1739,6 +1754,7 @@ void MYXCOL::WriteColumn(PGLOBAL)
 TDBMCL::TDBMCL(PMYDEF tdp) : TDBCAT(tdp)
   {
   Host = tdp->Hostname;
+  Cat  = tdp->Tabcatalog;
   Db   = tdp->Tabschema;
   Tab  = tdp->Tabname;
   User = tdp->Username;
@@ -1751,5 +1767,5 @@ TDBMCL::TDBMCL(PMYDEF tdp) : TDBCAT(tdp)
 /***********************************************************************/
 PQRYRES TDBMCL::GetResult(PGLOBAL g)
   {
-  return MyColumns(g, NULL, Host, Db, User, Pwd, Tab, NULL, Port, false);
+  return MyColumns(g, NULL, Host, Cat, Db, User, Pwd, Tab, NULL, Port, false);
   } // end of GetResult

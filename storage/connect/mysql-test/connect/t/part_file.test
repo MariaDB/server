@@ -1,5 +1,4 @@
 --source include/have_partition.inc
-let $MYSQLD_DATADIR= `select @@datadir`;
 
 set @@global.connect_exact_info=ON;
 
@@ -64,7 +63,7 @@ CREATE TABLE t1 (
   id   INT KEY NOT NULL,
   msg  VARCHAR(32)
 ) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='part%s.txt';
---replace_result $MYSQLD_DATADIR "DATADIR/"
+--replace_result $MARIADB_DATADIR "DATADIR/"
 ALTER TABLE t1
 PARTITION by range columns(id) (
 PARTITION `1` VALUES LESS THAN(10),
@@ -157,10 +156,10 @@ DROP TABLE dr1;
 #
 set @@global.connect_exact_info=OFF;
 
---remove_file $MYSQLD_DATADIR/test/part1.txt
---remove_file $MYSQLD_DATADIR/test/part2.txt
---remove_file $MYSQLD_DATADIR/test/part3.txt
-#--remove_file $MYSQLD_DATADIR/test/part%s.fnx
-#--remove_file $MYSQLD_DATADIR/test/part1.fnx
-#--remove_file $MYSQLD_DATADIR/test/part2.fnx
-#--remove_file $MYSQLD_DATADIR/test/part3.fnx
+--remove_file $MARIADB_DATADIR/test/part1.txt
+--remove_file $MARIADB_DATADIR/test/part2.txt
+--remove_file $MARIADB_DATADIR/test/part3.txt
+#--remove_file $MARIADB_DATADIR/test/part%s.fnx
+#--remove_file $MARIADB_DATADIR/test/part1.fnx
+#--remove_file $MARIADB_DATADIR/test/part2.fnx
+#--remove_file $MARIADB_DATADIR/test/part3.fnx

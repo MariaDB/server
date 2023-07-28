@@ -1,7 +1,5 @@
 --source rest.inc
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-
 --echo #
 --echo # Testing REST query
 --echo #
@@ -14,4 +12,4 @@ DROP TABLE t1;
 #
 # Clean up
 #
---remove_file $MYSQLD_DATADIR/test/users.json
+--remove_file $MARIADB_DATADIR/test/users.json

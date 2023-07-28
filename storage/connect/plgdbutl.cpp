@@ -369,33 +369,43 @@ char *PlgGetDataPath(PGLOBAL g)
 
 /***********************************************************************/
 /*  This function returns a database path.                             */
+/*   Note that cat is without end '/' !                                */
 /***********************************************************************/
-char *SetPath(PGLOBAL g, const char *path)
+
+static const char dirsep[2]= { FN_LIBCHAR, 0 };
+
+char *SetPath(PGLOBAL g, const char *cat, const char *path)
 {
   char *buf= NULL;
+  DBUG_ASSERT(!cat || !strchr(cat, FN_LIBCHAR));
 
-	if (path) {
-		size_t len = strlen(path) + (*path != '.' ? 4 : 1);
+  if (path)
+  {
+    const char *catalog_name= cat ? cat : "";
+    size_t catalog_length= cat ? strlen(cat) : 0;
+    const char *cat_sep_char= cat ? dirsep : "";
+    size_t len;
+    if (!cat && using_catalogs && !strchr(path, FN_LIBCHAR))
+      catalog_name= GetCatalog(&catalog_length);
 
-		if (!(buf = (char*)PlgDBSubAlloc(g, NULL, len)))
-			return NULL;
+    len = (strlen(path) + (*path != '.' ? 4 : 1) +
+           catalog_length + 1);
 
-		if (PlugIsAbsolutePath(path)) {
-			strcpy(buf, path);
-			return buf;
-		} // endif path
+    if (!(buf = (char*)PlgDBSubAlloc(g, NULL, len)))
+      return NULL;
 
-		if (*path != '.') {
-#if defined(_WIN32)
-			const char *s = "\\";
-#else   // !_WIN32
-			const char *s = "/";
-#endif  // !_WIN32
-			strcat(strcat(strcat(strcpy(buf, "."), s), path), s);
-		} else
-			strcpy(buf, path);
+    if (PlugIsAbsolutePath(path)) {
+      strcpy(buf, path);
+      return buf;
+    } // endif path
 
-	} // endif path
+    if (*path != '.') {
+      strxmov(buf, ".", dirsep, catalog_name, cat_sep_char, path,
+              dirsep, NullS);
+    } else
+      strcpy(buf, path);
+
+  } // endif path
 
   return buf;
 } // end of SetPath

@@ -193,6 +193,8 @@ public:
   PIXDEF   GetIndexInfo(TABLE_SHARE *s= NULL);
   bool     CheckVirtualIndex(TABLE_SHARE *s);
   PCSZ     GetDBName(PCSZ name);
+  PCSZ     GetDBNameNoCatalog(PCSZ name);
+  PCSZ     GetCatalog(PCSZ name);
   PCSZ     GetTableName(void);
   char    *GetPartName(void);
 //int      GetColNameLen(Field *fp);
@@ -517,7 +519,8 @@ private:
   DsMrr_impl ds_mrr;
 
 protected:
-  bool check_privileges(THD *thd, PTOS options, const char *dbn, bool quick=false);
+  bool check_privileges(THD *thd, PTOS options, const char *catalog,
+                        const char *dbn, bool quick=false);
   MODE CheckMode(PGLOBAL g, THD *thd, MODE newmode, bool *chk, bool *cras);
 	int  check_stmt(PGLOBAL g, MODE newmode, bool cras);
 	char *GetDBfromName(const char *name);
@@ -561,6 +564,8 @@ public:
 #if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
 bool MongoEnabled(void);
 #endif   // JAVA_SUPPORT || CMGO_SUPPORT
+
+extern PCSZ RemoveCatalog(SQL_CATALOG *catalog, PCSZ name);
 
 /* This is a hack for ASAN
  * Libraries such as libxml2 and libodbc do not like being unloaded before

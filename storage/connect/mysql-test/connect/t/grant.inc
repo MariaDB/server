@@ -24,7 +24,7 @@ DROP VIEW v1;
 DROP TABLE t1;
 # Making sure DROP erased the data file
 --error 1
---remove_file $MYSQLD_DATADIR/test/t1.$FILE_EXT
+--remove_file $MARIADB_DATADIR/test/t1.$FILE_EXT
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
 --eval CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT $TABLE_OPTIONS FILE_NAME='t1.EXT'
 --connection default
@@ -69,7 +69,7 @@ DELETE FROM v1;
 SELECT user();
 DROP VIEW v1;
 DROP TABLE t1;
---remove_file $MYSQLD_DATADIR/test/t1.EXT
+--remove_file $MARIADB_DATADIR/test/t1.EXT
 --eval CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT $TABLE_OPTIONS
 INSERT INTO t1 VALUES (10);
 --connection user

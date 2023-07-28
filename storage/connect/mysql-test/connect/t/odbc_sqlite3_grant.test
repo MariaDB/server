@@ -8,9 +8,6 @@
 
 SET NAMES utf8;
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-
-
 GRANT ALL PRIVILEGES ON *.* TO user@localhost;
 REVOKE FILE ON *.* FROM user@localhost;
 --connect(user,localhost,user,,)

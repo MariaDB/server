@@ -1,7 +1,5 @@
 -- source include/not_embedded.inc
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-
 --echo #
 --echo # Checking FILE privileges
 --echo #
@@ -28,7 +26,7 @@ DROP VIEW v1;
 DROP TABLE t1;
 # Making sure DROP erased the data file
 --error 1
---remove_file $MYSQLD_DATADIR/test/t1.ini
+--remove_file $MARIADB_DATADIR/test/t1.ini
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
 CREATE TABLE t1 (sec CHAR(10) NOT NULL FLAG=1, val CHAR(10) NOT NULL) ENGINE=CONNECT TABLE_TYPE=INI FILE_NAME='t1.EXT';
 --connection default
@@ -71,7 +69,7 @@ DELETE FROM v1;
 --connection default
 DROP VIEW v1;
 DROP TABLE t1;
---remove_file $MYSQLD_DATADIR/test/t1.EXT
+--remove_file $MARIADB_DATADIR/test/t1.EXT
 DROP USER user@localhost;
 
 --echo #

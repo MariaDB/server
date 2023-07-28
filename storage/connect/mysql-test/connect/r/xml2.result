@@ -157,7 +157,7 @@ TITLE	XML, Langage et Applications
 TRANSLATOR	NULL
 PUBLISHER	Eyrolles Paris
 DATEPUB	1998
-SELECT LOAD_FILE('MYSQLD_DATADIR/test/xsample2.xml') AS xml;
+SELECT LOAD_FILE('MARIADB_DATADIR/test/xsample2.xml') AS xml;
 xml	<?xml version="1.0" encoding="UTF-8"?>
 <BIBLIO SUBJECT="XML">
   <BOOK ISBN="9782212090819" LANG="fr" SUBJECT="applications">
@@ -343,7 +343,7 @@ SELECT node, hex(node) FROM t1;
 node	ÀÁÂÃ
 hex(node)	C0C1C2C3
 DROP TABLE t1;
-SET @a=LOAD_FILE('MYSQLD_DATADIR/test/t1.xml');
+SET @a=LOAD_FILE('MARIADB_DATADIR/test/t1.xml');
 SELECT LEFT(@a,38);
 LEFT(@a,38)	<?xml version="1.0" encoding="utf-8"?>
 SELECT HEX(EXTRACTVALUE(@a,'/t1/line/node'));
@@ -357,7 +357,7 @@ SELECT node, hex(node) FROM t1;
 node	ÀÁÂÃ
 hex(node)	C0C1C2C3
 DROP TABLE t1;
-SET @a=LOAD_FILE('MYSQLD_DATADIR/test/t1.xml');
+SET @a=LOAD_FILE('MARIADB_DATADIR/test/t1.xml');
 SELECT LEFT(@a,43);
 LEFT(@a,43)	<?xml version="1.0" encoding="iso-8859-1"?>
 SELECT HEX(EXTRACTVALUE(@a,'/t1/line/node'));
@@ -380,7 +380,7 @@ hex(node)	D090D091D092D093
 node	&<>"'
 hex(node)	263C3E2227
 DROP TABLE t1;
-SET @a=LOAD_FILE('MYSQLD_DATADIR/test/t1.xml');
+SET @a=LOAD_FILE('MARIADB_DATADIR/test/t1.xml');
 SELECT CAST(@a AS CHAR CHARACTER SET latin1);
 CAST(@a AS CHAR CHARACTER SET latin1)	<?xml version="1.0" encoding="iso-8859-1"?>
 <!-- Created by the MariaDB CONNECT Storage Engine-->

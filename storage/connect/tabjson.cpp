@@ -197,7 +197,7 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
     topt->subtype = NULL;
   } // endif fn
 
-  if (!(tdp->Database = SetPath(g, db)))
+  if (!(tdp->Database = SetPath(g, NullS, db)))
     return 0;
 
   if ((tdp->Objname = GetStringTableOption(g, topt, "Object", NULL))) {

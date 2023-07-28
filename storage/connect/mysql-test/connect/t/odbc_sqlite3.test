@@ -41,9 +41,6 @@
 
 SET NAMES utf8;
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-
-
 #
 # For some reasons Windows does not allow to remove the data base
 # file after "DROP TABLE t1". So unlike in odbc_xls.test we won't copy

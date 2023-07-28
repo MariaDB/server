@@ -1,0 +1,46 @@
+create catalog cat1;
+use catalog cat1;
+create database foo;
+use foo;
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+create catalog cat2;
+use catalog cat2;
+create database bar;
+use bar;
+create table tc1 (a int) engine=connect table_type=MariaDB tabname=t1 catname=cat1 dbname=foo connection='mysql://root@localhost';
+select * from tc1;
+a
+1
+2
+3
+create table tc2 (a int) engine=connect table_type=MariaDB connection='mariadb://root@localhost/cat1.foo/t1';
+select * from tc2;
+a
+1
+2
+3
+create table tc3 (a int) engine=connect table_type=MariaDB tabname=t1 dbname='cat1.foo' connection='mariadb://root@localhost';
+select * from tc3;
+a
+1
+2
+3
+create table tc4 engine=connect table_type=MariaDB connection='mariadb://root@localhost/cat1.foo/t1';
+select * from tc4;
+a
+1
+2
+3
+drop database bar;
+Warnings:
+Error	1146	Table 'mysql.proc' doesn't exist
+Error	1146	Table 'mysql.event' doesn't exist
+use catalog cat1;
+drop database foo;
+Warnings:
+Error	1146	Table 'mysql.proc' doesn't exist
+Error	1146	Table 'mysql.event' doesn't exist
+use catalog def;
+drop catalog cat2;
+drop catalog cat1;

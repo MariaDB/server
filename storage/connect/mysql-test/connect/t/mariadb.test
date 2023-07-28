@@ -10,13 +10,13 @@ let $PORT= `select @@port`;
 --disable_query_log
 --replace_result $PORT PORT
 --error 0,ER_UNKNOWN_ERROR
---eval CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='tx1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--eval CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='tx1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 if (!`SELECT count(*) FROM INFORMATION_SCHEMA.TABLES
   WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1'
   AND ENGINE='CONNECT'
-  AND CREATE_OPTIONS LIKE '%`table_type`=MySQL%'`)
+  AND CREATE_OPTIONS LIKE '%`table_type`=MARIADB%'`)
 {
-  Skip Need MySQL support;
+  Skip Need MariaDB support;
 }
 DROP TABLE t1;
 --enable_query_log
@@ -35,28 +35,28 @@ SELECT * FROM t1;
 # Suppress "mysql_real_connect failed:" (printed in _DEBUG build)
 --replace_result $PORT PORT "mysql_real_connect failed: " ""
 --error ER_UNKNOWN_ERROR
---eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root1,port=$PORT'
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root1,port=$PORT'
 
 # Bad database name
 --replace_result $PORT PORT "mysql_real_connect failed: " ""
 --error ER_UNKNOWN_ERROR
---eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL DBNAME='unknown' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB DBNAME='unknown' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 
 # Bad database name, with OPTION_LIST going first.
 --replace_result $PORT PORT "mysql_real_connect failed: " ""
 --error ER_UNKNOWN_ERROR
---eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL OPTION_LIST='host=localhost,user=root,port=$PORT' DBNAME='unknown' TABNAME='t1'
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB OPTION_LIST='host=localhost,user=root,port=$PORT' DBNAME='unknown' TABNAME='t1'
 
 # Bad table name
 --replace_result $PORT PORT
 --error ER_UNKNOWN_ERROR
---eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='unknown' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='unknown' OPTION_LIST='host=localhost,user=root,port=$PORT'
 --error ER_NO_SUCH_TABLE
 SHOW CREATE TABLE t2;
 
 # Bad column name
 --replace_result $PORT PORT
---eval CREATE TABLE t2 (x int, y char(10)) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--eval CREATE TABLE t2 (x int, y char(10)) ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 --replace_result $PORT PORT
 SHOW CREATE TABLE t2;
 --error ER_GET_ERRMSG
@@ -65,7 +65,7 @@ DROP TABLE t2;
 
 # The remote table disappeared
 --replace_result $PORT PORT
---eval CREATE TABLE t2 (a int, b char(10)) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--eval CREATE TABLE t2 (a int, b char(10)) ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 ALTER TABLE t1 RENAME t1backup;
 --error ER_GET_ERRMSG
 SELECT * FROM t2;
@@ -79,7 +79,7 @@ DROP TABLE t2;
 
 # Automatic table structure
 --replace_result $PORT PORT
---eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 --replace_result $PORT PORT
 SHOW CREATE TABLE t2;
 SELECT * FROM t2;
@@ -88,7 +88,7 @@ DROP TABLE t2;
 
 # Explicit table structure
 --replace_result $PORT PORT
---eval CREATE TABLE t2 (a int, b char(10)) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--eval CREATE TABLE t2 (a int, b char(10)) ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 --replace_result $PORT PORT
 SHOW CREATE TABLE t2;
 SELECT * FROM t2;
@@ -97,7 +97,7 @@ DROP TABLE t2;
 
 # Explicit table structure: remote NULL, local NOT NULL
 --replace_result $PORT PORT
---eval CREATE TABLE t2 (a INT NOT NULL, b CHAR(10) NOT NULL) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--eval CREATE TABLE t2 (a INT NOT NULL, b CHAR(10) NOT NULL) ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 --replace_result $PORT PORT
 SHOW CREATE TABLE t2;
 SELECT * FROM t2;
@@ -106,7 +106,7 @@ DROP TABLE t2;
 
 # Explicit table structure with wrong column types
 --replace_result $PORT PORT
---eval CREATE TABLE t2 (a char(10), b int) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--eval CREATE TABLE t2 (a char(10), b int) ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 --replace_result $PORT PORT
 SHOW CREATE TABLE t2;
 SELECT * FROM t2;
@@ -121,7 +121,7 @@ DROP TABLE t1;
 # TODO: tinyint is mapped to smallint
 #CREATE TABLE t1 (a tinyint);
 #--replace_result $PORT PORT
-#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 #--replace_result $PORT PORT
 #SHOW CREATE TABLE t1;
 #--replace_result $PORT PORT
@@ -132,7 +132,7 @@ DROP TABLE t1;
 # TODO: unsigned does not work
 #CREATE TABLE t1 (a tinyint unsigned);
 #--replace_result $PORT PORT
-#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 #SHOW CREATE TABLE t1;
 #--replace_result $PORT PORT
 #SHOW CREATE TABLE t2;
@@ -141,7 +141,7 @@ DROP TABLE t1;
 
 CREATE TABLE t1 (a smallint);
 --replace_result $PORT PORT
---eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 --replace_result $PORT PORT
 SHOW CREATE TABLE t1;
 --replace_result $PORT PORT
@@ -151,7 +151,7 @@ DROP TABLE t2, t1;
 
 CREATE TABLE t1 (a mediumint);
 --replace_result $PORT PORT
---eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 --replace_result $PORT PORT
 SHOW CREATE TABLE t1;
 --replace_result $PORT PORT
@@ -161,7 +161,7 @@ DROP TABLE t2, t1;
 
 CREATE TABLE t1 (a int);
 --replace_result $PORT PORT
---eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 --replace_result $PORT PORT
 SHOW CREATE TABLE t1;
 --replace_result $PORT PORT
@@ -173,7 +173,7 @@ DROP TABLE t2, t1;
 # TODO: bigint is mapped to double(20,0)
 CREATE TABLE t1 (a bigint);
 --replace_result $PORT PORT
---eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 --replace_result $PORT PORT
 SHOW CREATE TABLE t1;
 --replace_result $PORT PORT
@@ -185,7 +185,7 @@ DROP TABLE t2, t1;
 # TODO: ERROR 1439: Display width out of range for 'a' (max = 255)
 #CREATE TABLE t1 (a float);
 #--replace_result $PORT PORT
-#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 #--replace_result $PORT PORT
 #SHOW CREATE TABLE t1;
 #--replace_result $PORT PORT
@@ -196,7 +196,7 @@ DROP TABLE t2, t1;
 # TODO: ERROR 1439: Display width out of range for 'a' (max = 255)
 #CREATE TABLE t1 (a double);
 #--replace_result $PORT PORT
-#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 #--replace_result $PORT PORT
 #SHOW CREATE TABLE t1;
 #--replace_result $PORT PORT
@@ -207,7 +207,7 @@ DROP TABLE t2, t1;
 # TODO: decimal is converted to double
 #CREATE TABLE t1 (a decimal(20,5));
 #--replace_result $PORT PORT
-#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 #--replace_result $PORT PORT
 #SHOW CREATE TABLE t1;
 #--replace_result $PORT PORT
@@ -224,7 +224,7 @@ DROP TABLE t2, t1;
 # TODO: char is mapped to varchar
 CREATE TABLE t1 (a char(10));
 --replace_result $PORT PORT
---eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 --replace_result $PORT PORT
 SHOW CREATE TABLE t1;
 --replace_result $PORT PORT
@@ -234,7 +234,7 @@ DROP TABLE t2, t1;
 
 CREATE TABLE t1 (a varchar(10));
 --replace_result $PORT PORT
---eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 --replace_result $PORT PORT
 SHOW CREATE TABLE t1;
 --replace_result $PORT PORT
@@ -245,7 +245,7 @@ DROP TABLE t2, t1;
 # TODO: ERROR 1105: Unsupported column type tinytext
 #CREATE TABLE t1 (a tinytext);
 #--replace_result $PORT PORT
-#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 #--replace_result $PORT PORT
 #SHOW CREATE TABLE t1;
 #--replace_result $PORT PORT
@@ -256,7 +256,7 @@ DROP TABLE t2, t1;
 # TODO: ERROR 1105: Unsupported column type mediumtext
 #CREATE TABLE t1 (a mediumtext);
 #--replace_result $PORT PORT
-#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 #--replace_result $PORT PORT
 #SHOW CREATE TABLE t1;
 #--replace_result $PORT PORT
@@ -267,7 +267,7 @@ DROP TABLE t2, t1;
 # TODO: text is converted to varchar(256)
 #CREATE TABLE t1 (a text);
 #--replace_result $PORT PORT
-#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 #--replace_result $PORT PORT
 #SHOW CREATE TABLE t1;
 #--replace_result $PORT PORT
@@ -278,7 +278,7 @@ DROP TABLE t2, t1;
 # TODO: ERROR 1105: Unsupported column type longtext
 #CREATE TABLE t1 (a longtext);
 #--replace_result $PORT PORT
-#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 #--replace_result $PORT PORT
 #SHOW CREATE TABLE t1;
 #--replace_result $PORT PORT
@@ -296,7 +296,7 @@ DROP TABLE t2, t1;
 # TODO: ERROR 1105: Unsupported column type binary
 #CREATE TABLE t1 (a binary(10));
 #--replace_result $PORT PORT
-#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 #--replace_result $PORT PORT
 #SHOW CREATE TABLE t1;
 #--replace_result $PORT PORT
@@ -307,7 +307,7 @@ DROP TABLE t2, t1;
 # TODO: ERROR 1105: Unsupported column type varbinary
 #CREATE TABLE t1 (a varbinary(10));
 #--replace_result $PORT PORT
-#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 #--replace_result $PORT PORT
 #SHOW CREATE TABLE t1;
 #--replace_result $PORT PORT
@@ -318,7 +318,7 @@ DROP TABLE t2, t1;
 # TODO: ERROR 1105: Unsupported column type tinyblob
 #CREATE TABLE t1 (a tinyblob);
 #--replace_result $PORT PORT
-#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 #--replace_result $PORT PORT
 #SHOW CREATE TABLE t1;
 #--replace_result $PORT PORT
@@ -329,7 +329,7 @@ DROP TABLE t2, t1;
 # TODO: ERROR 1105: Unsupported column type mediumblob
 #CREATE TABLE t1 (a mediumblob);
 #--replace_result $PORT PORT
-#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 #--replace_result $PORT PORT
 #SHOW CREATE TABLE t1;
 #--replace_result $PORT PORT
@@ -340,7 +340,7 @@ DROP TABLE t2, t1;
 # TODO: blob is converted to varchar(256)
 #CREATE TABLE t1 (a blob);
 #--replace_result $PORT PORT
-#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 #--replace_result $PORT PORT
 #SHOW CREATE TABLE t1;
 #--replace_result $PORT PORT
@@ -351,7 +351,7 @@ DROP TABLE t2, t1;
 # TODO: ERROR 1105: Unsupported column type longblob
 #CREATE TABLE t1 (a longblob);
 #--replace_result $PORT PORT
-#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 #--replace_result $PORT PORT
 #SHOW CREATE TABLE t1;
 #--replace_result $PORT PORT
@@ -362,7 +362,7 @@ DROP TABLE t2, t1;
 # TODO: ERROR 1105: Unsupported column type geometry
 #CREATE TABLE t1 (a geometry);
 #--replace_result $PORT PORT
-#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 #--replace_result $PORT PORT
 #SHOW CREATE TABLE t1;
 #--replace_result $PORT PORT
@@ -377,7 +377,7 @@ DROP TABLE t2, t1;
 # TODO: time is converted to date
 #CREATE TABLE t1 (a time);
 #--replace_result $PORT PORT
-#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 #--replace_result $PORT PORT
 #SHOW CREATE TABLE t1;
 #--replace_result $PORT PORT
@@ -387,7 +387,7 @@ DROP TABLE t2, t1;
 
 CREATE TABLE t1 (a date);
 --replace_result $PORT PORT
---eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 --replace_result $PORT PORT
 SHOW CREATE TABLE t1;
 --replace_result $PORT PORT
@@ -398,7 +398,7 @@ DROP TABLE t2, t1;
 # TODO: datetime is converted to date
 #CREATE TABLE t1 (a datetime);
 #--replace_result $PORT PORT
-#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 #--replace_result $PORT PORT
 #SHOW CREATE TABLE t1;
 #--replace_result $PORT PORT
@@ -409,7 +409,7 @@ DROP TABLE t2, t1;
 # TODO: timestamp is converted to date
 #CREATE TABLE t1 (a timestamp);
 #--replace_result $PORT PORT
-#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 #--replace_result $PORT PORT
 #SHOW CREATE TABLE t1;
 #--replace_result $PORT PORT
@@ -426,7 +426,7 @@ DROP TABLE t2, t1;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (10),(20),(30);
 --replace_result $PORT PORT
---eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL CONNECTION='mysql://root@localhost:$PORT/test/t1'
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB CONNECTION='mysql://root@localhost:$PORT/test/t1'
 SELECT * FROM t2;
 --echo # Start of mysqldump ------
 --replace_result $PORT PORT
@@ -448,7 +448,7 @@ DESCRIBE t1;
 INSERT INTO t1(a,b,c,d) VALUES(255,65535,4294967295,18446744073709551615);
 SELECT * FROM t1;
 
-CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME=t1;
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB TABNAME=t1;
 DESCRIBE t2;
 SELECT * FROM t2;
 
@@ -461,7 +461,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (10),(20),(30);
 --replace_result $PORT PORT
---eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL CONNECTION='mysql://root@localhost:$PORT/test/t1'
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB CONNECTION='mysql://root@localhost:$PORT/test/t1'
 SELECT * FROM t2;
 ALTER TABLE t2 MODIFY a TINYINT;
 --replace_result $PORT PORT
@@ -478,7 +478,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT PRIMARY KEY);
 INSERT INTO t1 VALUES (10),(20),(30);
 --replace_result $PORT PORT
---eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL CONNECTION='mysql://root@localhost:$PORT/test/t1' OPTION_LIST="Delayed=1,Ignored=1"
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB CONNECTION='mysql://root@localhost:$PORT/test/t1' OPTION_LIST="Delayed=1,Ignored=1"
 INSERT INTO t2 VALUES (10),(20),(30),(40);
 DROP TABLE t2;
 DROP TABLE t1;
@@ -493,7 +493,7 @@ insert into t1 values (1,1,'x1'),(2,'C-003','x2');
 SELECT * from t1;
 
 --replace_result $PORT PORT
---eval CREATE TABLE t2 (id int, `spaced col` varchar(10), `nospace` varchar(10)) ENGINE=CONNECT TABLE_TYPE=MYSQL DBNAME='test' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--eval CREATE TABLE t2 (id int, `spaced col` varchar(10), `nospace` varchar(10)) ENGINE=CONNECT TABLE_TYPE=MARIADB DBNAME='test' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 
 SELECT * from t2;
 SELECT `id` FROM t2 WHERE t2.`nospace` = 'x1';
@@ -511,7 +511,7 @@ CREATE TABLE t1 (name varchar(20)) CHARSET=utf8;
 INSERT INTO t1 (name) VALUES ('Иванова'), ('Ivanova');
 
 --replace_result $PORT PORT
---eval CREATE TABLE t2 (name varchar(1)) ENGINE=CONNECT TABLE_TYPE=MYSQL DBNAME='test' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT' CHARSET=utf8
+--eval CREATE TABLE t2 (name varchar(1)) ENGINE=CONNECT TABLE_TYPE=MARIADB DBNAME='test' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT' CHARSET=utf8
 
 SELECT hex(name) from t1;
 # This will warn as we are truncating data
@@ -524,7 +524,7 @@ CREATE TABLE t1 (col char(5)) CHARSET=utf8;
 INSERT INTO t1 (col) VALUES ('glace'), ('glacé');
 
 --replace_result $PORT PORT
---eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL DBNAME='test' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT' CHARSET=utf8
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB DBNAME='test' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT' CHARSET=utf8
 
 SELECT hex(col) from t1;
 SELECT hex(col) from t2;
@@ -540,7 +540,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (id year);
 
 --replace_result $PORT PORT
---eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL DBNAME='test' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MARIADB DBNAME='test' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 
 INSERT INTO t2 VALUES (1999);
 SELECT * FROM t2;

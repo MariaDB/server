@@ -1,6 +1,4 @@
-let $MYSQLD_DATADIR= `select @@datadir`;
-
---copy_file $MTR_SUITE_DIR/std_data/contact.ini $MYSQLD_DATADIR/test/contact.ini
+--copy_file $MTR_SUITE_DIR/std_data/contact.ini $MARIADB_DATADIR/test/contact.ini
 
 --echo #
 --echo # Testing errors
@@ -39,9 +37,9 @@ SELECT * FROM t1 WHERE contact='UK1';
 INSERT INTO t1 (contact,forename) VALUES ('UK2','John');
 SELECT * FROM t1 WHERE contact='UK2';
 DROP TABLE t1;
---chmod 0777 $MYSQLD_DATADIR/test/contact.ini
---replace_result $MYSQLD_DATADIR DATADIR
---eval SELECT REPLACE(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/contact.ini'),'\r\n','\n'),'\n\n','\n');
+--chmod 0777 $MARIADB_DATADIR/test/contact.ini
+--replace_result $MARIADB_DATADIR DATADIR
+--eval SELECT REPLACE(REPLACE(LOAD_FILE('$MARIADB_DATADIR/test/contact.ini'),'\r\n','\n'),'\n\n','\n');
 
 CREATE TABLE t1
 (
@@ -53,9 +51,9 @@ CREATE TABLE t1
 UPDATE t1 SET value='Paul' WHERE section='UK2' AND keyname='forename';
 SELECT * FROM t1;
 DROP TABLE t1;
---chmod 0777 $MYSQLD_DATADIR/test/contact.ini
---replace_result $MYSQLD_DATADIR DATADIR
---eval SELECT REPLACE(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/contact.ini'),'\r\n','\n'),'\n\n','\n');
+--chmod 0777 $MARIADB_DATADIR/test/contact.ini
+--replace_result $MARIADB_DATADIR DATADIR
+--eval SELECT REPLACE(REPLACE(LOAD_FILE('$MARIADB_DATADIR/test/contact.ini'),'\r\n','\n'),'\n\n','\n');
 
 
 --echo #
@@ -69,9 +67,9 @@ CREATE TABLE t1
 INSERT INTO t1 VALUES (10,10),(20,20),(300,300),(4000,4000), ('a b','c d');
 SELECT * FROM t1;
 DROP TABLE t1;
---chmod 0777 $MYSQLD_DATADIR/test/tmp.ini
---replace_result $MYSQLD_DATADIR DATADIR
---eval SELECT REPLACE(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/tmp.ini'),'\r\n','\n'),'\n\n','\n');
+--chmod 0777 $MARIADB_DATADIR/test/tmp.ini
+--replace_result $MARIADB_DATADIR DATADIR
+--eval SELECT REPLACE(REPLACE(LOAD_FILE('$MARIADB_DATADIR/test/tmp.ini'),'\r\n','\n'),'\n\n','\n');
 
 
 --echo #
@@ -112,14 +110,14 @@ SHOW CREATE TABLE t1;
 INSERT INTO t1 VALUES ('US',40);
 SELECT * FROM t1;
 DROP TABLE t1;
---remove_file $MYSQLD_DATADIR/test/t1.ini
+--remove_file $MARIADB_DATADIR/test/t1.ini
 
 
 #
 # Clean up
 #
---remove_file $MYSQLD_DATADIR/test/contact.ini
---remove_file $MYSQLD_DATADIR/test/tmp.ini
+--remove_file $MARIADB_DATADIR/test/contact.ini
+--remove_file $MARIADB_DATADIR/test/tmp.ini
 
 
 --echo #
@@ -134,9 +132,9 @@ CREATE TABLE t1 (sec2 CHAR(10) NOT NULL FLAG=1, val2 CHAR(10) NOT NULL)
 ENGINE=CONNECT TABLE_TYPE=INI;
 INSERT INTO t1 VALUES ('sec1','val11'),('sec2','val22');
 SELECT sec2 AS s, val2 AS v FROM t1;
---chmod 0777 $MYSQLD_DATADIR/test/t1.ini
---replace_result $MYSQLD_DATADIR DATADIR
---eval SELECT REPLACE(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t1.ini'),'\r\n','\n'),'\n\n','\n');
+--chmod 0777 $MARIADB_DATADIR/test/t1.ini
+--replace_result $MARIADB_DATADIR DATADIR
+--eval SELECT REPLACE(REPLACE(LOAD_FILE('$MARIADB_DATADIR/test/t1.ini'),'\r\n','\n'),'\n\n','\n');
 DROP TABLE t1;
 
 CREATE TABLE t1 (sec CHAR(10) NOT NULL FLAG=1, val CHAR(10) NOT NULL)
@@ -146,11 +144,11 @@ ENGINE=CONNECT TABLE_TYPE=INI;
 INSERT INTO t1 VALUES('1sec1','1val1'),('1sec2','1val2');
 INSERT INTO t2 VALUES('2sec1','2val1'),('2sec2','2val2');
 SELECT sec AS s, val AS v FROM t1;
---chmod 0777 $MYSQLD_DATADIR/test/t1.ini
---replace_result $MYSQLD_DATADIR DATADIR
---eval SELECT REPLACE(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t1.ini'),'\r\n','\n'),'\n\n','\n');
+--chmod 0777 $MARIADB_DATADIR/test/t1.ini
+--replace_result $MARIADB_DATADIR DATADIR
+--eval SELECT REPLACE(REPLACE(LOAD_FILE('$MARIADB_DATADIR/test/t1.ini'),'\r\n','\n'),'\n\n','\n');
 SELECT sec AS s, val AS v FROM t2;
---chmod 0777 $MYSQLD_DATADIR/test/t2.ini
---replace_result $MYSQLD_DATADIR DATADIR
---eval SELECT REPLACE(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t2.ini'),'\r\n','\n'),'\n\n','\n');
+--chmod 0777 $MARIADB_DATADIR/test/t2.ini
+--replace_result $MARIADB_DATADIR DATADIR
+--eval SELECT REPLACE(REPLACE(LOAD_FILE('$MARIADB_DATADIR/test/t2.ini'),'\r\n','\n'),'\n\n','\n');
 DROP TABLE t1, t2;

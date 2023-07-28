@@ -1,8 +1,6 @@
 --source json_udf.inc
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-
---copy_file $MTR_SUITE_DIR/std_data/gloss.json $MYSQLD_DATADIR/gloss.json
+--copy_file $MTR_SUITE_DIR/std_data/gloss.json $MARIADB_DATADIR/gloss.json
 
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=VIR BLOCK_SIZE=3;
 
@@ -107,6 +105,7 @@ SELECT Json_File('bt1.json', 0);
 SELECT Json_File('bt1.json', 1);
 SELECT Json_File('bt1.json', 2);
 SELECT Json_Serialize(Jbin_Array('a','b','c'));
+--replace_catalog
 SELECT Json_Serialize(Jbin_Array_Add(Jbin_File('not_exist.json'), 'd'));
 --echo # This does not modify the file
 SELECT Json_Serialize(Jbin_Array_Add(Jbin_File('bt1.json'), 'd'));
@@ -206,8 +205,8 @@ DROP TABLE t1, t2;
 # Clean up
 #
 --source json_udf2.inc
---remove_file $MYSQLD_DATADIR/gloss.json
---remove_file $MYSQLD_DATADIR/bt1.json
---remove_file $MYSQLD_DATADIR/bt2.json
---remove_file $MYSQLD_DATADIR/bt3.json
+--remove_file $MARIADB_DATADIR/gloss.json
+--remove_file $MARIADB_DATADIR/bt1.json
+--remove_file $MARIADB_DATADIR/bt2.json
+--remove_file $MARIADB_DATADIR/bt3.json
 

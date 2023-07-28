@@ -1,6 +1,3 @@
-let $MYSQLD_DATADIR= `select @@datadir`;
-
-
 CREATE TABLE t1 (
   path VARCHAR(256) NOT NULL flag=1,
   fname VARCHAR(256) NOT NULL,
@@ -9,19 +6,19 @@ CREATE TABLE t1 (
 ) ENGINE=CONNECT TABLE_TYPE=DIR FILE_NAME='*.txt'
   OPTION_LIST='subdir=1';
 
---replace_result $MYSQLD_DATADIR DATADIR/
+--replace_result $MARIADB_DATADIR DATADIR/
 SELECT * FROM t1;
 
---copy_file $MTR_SUITE_DIR/std_data/boys.txt $MYSQLD_DATADIR/test/boys.txt
---copy_file $MTR_SUITE_DIR/std_data/boyswin.txt $MYSQLD_DATADIR/test/boyswin.txt
+--copy_file $MTR_SUITE_DIR/std_data/boys.txt $MARIADB_DATADIR/test/boys.txt
+--copy_file $MTR_SUITE_DIR/std_data/boyswin.txt $MARIADB_DATADIR/test/boyswin.txt
 
---mkdir $MYSQLD_DATADIR/test/subdir/
---copy_file $MYSQLD_DATADIR/test/boys.txt  $MYSQLD_DATADIR/test/subdir/boys2.txt
---replace_result $MYSQLD_DATADIR DATADIR/
+--mkdir $MARIADB_DATADIR/test/subdir/
+--copy_file $MARIADB_DATADIR/test/boys.txt  $MARIADB_DATADIR/test/subdir/boys2.txt
+--replace_result $MARIADB_DATADIR DATADIR/
 SELECT fname, ftype, size FROM t1 ORDER BY fname, ftype, size;
 ALTER TABLE t1 OPTION_LIST='subdir=0';
 SHOW CREATE TABLE t1;
---replace_result $MYSQLD_DATADIR DATADIR/
+--replace_result $MARIADB_DATADIR DATADIR/
 SELECT fname, ftype, size FROM t1 ORDER BY fname, ftype, size;
 --error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
 INSERT INTO t1 VALUES ('','','','');
@@ -47,7 +44,7 @@ CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=DIR FILE_NAME='*.txt';
 #SELECT * FROM t1;
 #DROP TABLE t1;
 
---remove_file $MYSQLD_DATADIR/test/subdir/boys2.txt
---rmdir $MYSQLD_DATADIR/test/subdir/
---remove_file $MYSQLD_DATADIR/test/boys.txt
---remove_file $MYSQLD_DATADIR/test/boyswin.txt
+--remove_file $MARIADB_DATADIR/test/subdir/boys2.txt
+--rmdir $MARIADB_DATADIR/test/subdir/
+--remove_file $MARIADB_DATADIR/test/boys.txt
+--remove_file $MARIADB_DATADIR/test/boyswin.txt

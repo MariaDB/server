@@ -1,8 +1,6 @@
 -- source include/not_embedded.inc
 -- source have_libxml2.inc
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-
 let $TABLE_OPTIONS=TABLE_TYPE=XML OPTION_LIST='xmlsup=libxml2,rownode=row';
 let $FILE_EXT=XML;
 --source grant.inc

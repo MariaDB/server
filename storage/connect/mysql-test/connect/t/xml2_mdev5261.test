@@ -1,7 +1,5 @@
 --source have_libxml2.inc
 
-let $MYSQLD_DATADIR= `select @@datadir`;
-
 SET NAMES utf8;
 
 #
@@ -24,4 +22,4 @@ ALTER TABLE t1 DROP INDEX i;
 --error ER_CANT_DROP_FIELD_OR_KEY
 DROP INDEX i ON t1;
 DROP TABLE t1;
---remove_file $MYSQLD_DATADIR/test/xt1.xml
+--remove_file $MARIADB_DATADIR/test/xt1.xml

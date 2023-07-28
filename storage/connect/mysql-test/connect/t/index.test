@@ -1,7 +1,6 @@
-let $MYSQLD_DATADIR= `select @@datadir`;
---copy_file $MTR_SUITE_DIR/std_data/emp.txt $MYSQLD_DATADIR/test/emp.txt
---copy_file $MTR_SUITE_DIR/std_data/sexe.csv $MYSQLD_DATADIR/test/sexe.csv
---copy_file $MTR_SUITE_DIR/std_data/sitmat.csv $MYSQLD_DATADIR/test/sitmat.csv
+--copy_file $MTR_SUITE_DIR/std_data/emp.txt $MARIADB_DATADIR/test/emp.txt
+--copy_file $MTR_SUITE_DIR/std_data/sexe.csv $MARIADB_DATADIR/test/sexe.csv
+--copy_file $MTR_SUITE_DIR/std_data/sitmat.csv $MARIADB_DATADIR/test/sitmat.csv
 
 --echo #
 --echo # Testing indexing
@@ -120,6 +119,6 @@ CREATE TABLE t1 (
 #
 # Clean up
 #
---remove_file $MYSQLD_DATADIR/test/emp.txt
---remove_file $MYSQLD_DATADIR/test/sexe.csv
---remove_file $MYSQLD_DATADIR/test/sitmat.csv
+--remove_file $MARIADB_DATADIR/test/emp.txt
+--remove_file $MARIADB_DATADIR/test/sexe.csv
+--remove_file $MARIADB_DATADIR/test/sitmat.csv
