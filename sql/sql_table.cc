@@ -9908,13 +9908,18 @@ bool online_alter_check_autoinc(const THD *thd, const Alter_info *alter_info,
 static
 const char *online_alter_check_supported(const THD *thd,
                                          const Alter_info *alter_info,
-                                         const TABLE *table, bool *online)
+                                         const TABLE *table,
+                                         const TABLE *new_table, bool *online)
 {
   DBUG_ASSERT(*online);
 
   *online= thd->locked_tables_mode != LTM_LOCK_TABLES && !table->s->tmp_table;
   if (!*online)
     return NULL;
+
+  *online= (new_table->file->ha_table_flags() & HA_NO_ONLINE_ALTER) == 0;
+  if (!*online)
+    return new_table->file->engine_name()->str;
 
   *online= table->s->sequence == NULL;
   if (!*online)
@@ -11023,20 +11028,6 @@ do_continue:;
   if (fk_prepare_copy_alter_table(thd, table, alter_info, &alter_ctx))
     goto err_new_table_cleanup;
 
-  if (online)
-  {
-    const char *reason= online_alter_check_supported(thd, alter_info, table,
-                                                     &online);
-    if (reason &&
-        alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_NONE)
-    {
-      DBUG_ASSERT(!online);
-      my_error(ER_ALTER_OPERATION_NOT_SUPPORTED_REASON, MYF(0),
-               "LOCK=NONE", reason, "LOCK=SHARED");
-      goto err_new_table_cleanup;
-    }
-  }
-
   if (!table->s->tmp_table)
   {
     // If EXCLUSIVE lock is requested, upgrade already.
@@ -11106,6 +11097,21 @@ do_continue:;
   {
     /* in case of alter temp table send the tracker in OK packet */
     thd->session_tracker.state_change.mark_as_changed(thd);
+  }
+
+  if (online)
+  {
+    const char *reason= online_alter_check_supported(thd, alter_info, table,
+                                                     new_table,
+                                                     &online);
+    if (reason &&
+        alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_NONE)
+    {
+      DBUG_ASSERT(!online);
+      my_error(ER_ALTER_OPERATION_NOT_SUPPORTED_REASON, MYF(0),
+               "LOCK=NONE", reason, "LOCK=SHARED");
+      goto err_new_table_cleanup;
+    }
   }
 
   /*

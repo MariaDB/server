@@ -371,7 +371,10 @@ enum chf_create_flags {
 /* Implements SELECT ... FOR UPDATE SKIP LOCKED */
 #define HA_CAN_SKIP_LOCKED  (1ULL << 61)
 
-#define HA_LAST_TABLE_FLAG HA_CAN_SKIP_LOCKED
+/* This engine is not compatible with Online ALTER TABLE */
+#define HA_NO_ONLINE_ALTER  (1ULL << 62)
+
+#define HA_LAST_TABLE_FLAG HA_NO_ONLINE_ALTER
 
 
 /* bits in index_flags(index_number) for what you can do with index */
