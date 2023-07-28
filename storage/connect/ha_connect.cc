@@ -706,7 +706,7 @@ bool PushWarning(PGLOBAL g, PTDB tdbp, int level)
     return true;
 
   PushWarning(g, thd, level);
-  return false;
+  return thd->is_error();
 } // end of PushWarning
 
 void PushWarning(PGLOBAL g, THD *thd, int level)
@@ -6420,7 +6420,7 @@ char *ha_connect::GetDBfromName(const char *name)
 
   if (*dbname) {
     assert(xp && xp->g);
-    db= (char*)PlugSubAlloc(xp->g, NULL, strlen(dbname + 1));
+    db= (char*)PlugSubAlloc(xp->g, NULL, strlen(dbname) + 1);
     strcpy(db, dbname);
   } else
     db= NULL;
