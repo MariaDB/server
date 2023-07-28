@@ -2483,9 +2483,8 @@ static int initialize_variables_for_repair(HA_CHECK *param,
   tmp= (size_t) MY_MIN(sort_info->filelength,
                        (my_off_t) (SIZE_T_MAX/10/threads));
   tmp= MY_MAX(tmp * 8 * threads, (size_t) 65536);         /* Some margin */
-  param->sort_buffer_length= MY_MIN(param->orig_sort_buffer_length,
-                                    tmp);
-  set_if_smaller(param->sort_buffer_length, tmp);
+  param->sort_buffer_length= MY_MIN(param->orig_sort_buffer_length,                                    tmp);
+  set_if_bigger(param->sort_buffer_length, MARIA_MIN_SORT_MEMORY);
   /* Protect against too big sort buffer length */
 #if SIZEOF_SIZE_T >= 8
   set_if_smaller(param->sort_buffer_length, 16LL*1024LL*1024LL*1024LL);
@@ -3985,16 +3984,6 @@ int maria_repair_by_sort(HA_CHECK *param, register MARIA_HA *info,
     {
       sort_param.key_read=  sort_key_read;
       sort_param.key_write= sort_key_write;
-
-      /*
-        Limit usage of sort memory
-        We assume we don't need more memory than data file length * 2
-        (There is a pointer overhead for each key, but this is hard to
-        estimae as we cannot be sure how many records we have in file to
-        be repaired).
-      */
-      set_if_smaller(param->sort_buffer_length, sort_info.filelength*2);
-      set_if_bigger(param->sort_buffer_length, MARIA_MIN_SORT_MEMORY);
     }
 
     if (sort_info.new_info->s->data_file_type == BLOCK_RECORD)
@@ -4596,16 +4585,6 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
                                new_data_cache);
     DBUG_PRINT("io_cache_share", ("thread: %u  read_cache: %p",
                                   i, &sort_param[i].read_cache));
-
-    /*
-      Limit usage of sort memory
-      We assume we don't need more memory than data file length * 2
-      (There is a pointer overhead for each key, but this is hard to
-      estimae as we cannot be sure how many records we have in file to
-      be repaired).
-     */
-    set_if_smaller(param->sort_buffer_length, sort_info.filelength*2);
-    set_if_bigger(param->sort_buffer_length, MARIA_MIN_SORT_MEMORY);
 
     /*
       two approaches: the same amount of memory for each thread
