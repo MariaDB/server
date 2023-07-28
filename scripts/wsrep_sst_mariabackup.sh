@@ -35,6 +35,7 @@ ekeyfile=""
 encrypt=0
 ssyslog=""
 ssystag=""
+sst_stream_pid=""
 BACKUP_PID=""
 tcert=""
 tcap=""
@@ -692,6 +693,11 @@ cleanup_at_exit()
                 cleanup_pid $CHECK_PID "$BACKUP_PID"
             fi
         fi
+        if [ -n "$sst_stream_pid" ]; then
+           wsrep_log_error \
+               "streamer process is still running. Killing..."
+           cleanup_pid "$sst_stream_pid"
+        fi
         [ -f "$DATA/$IST_FILE" ] && rm -f "$DATA/$IST_FILE" || :
     fi
 
@@ -887,8 +893,6 @@ send_donor()
 
 monitor_process()
 {
-    local sst_stream_pid=$1
-
     while :; do
         if ! ps -p "$WSREP_SST_OPT_PARENT" >/dev/null 2>&1; then
             wsrep_log_error \
@@ -902,6 +906,7 @@ monitor_process()
         fi
         sleep 0.1
     done
+    sst_stream_pid=""
 }
 
 [ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE"
@@ -1393,7 +1398,7 @@ else # joiner
         fi
         mkdir -p "$DATA/.sst"
         (recv_joiner "$DATA/.sst" "$stagemsg-SST" 0 0 0) &
-        jpid=$!
+        sst_stream_pid=$!
         wsrep_log_info "Proceeding with SST"
 
         get_binlog
@@ -1449,7 +1454,7 @@ else # joiner
 
         MAGIC_FILE="$DATA/$INFO_FILE"
         wsrep_log_info "Waiting for SST streaming to complete!"
-        monitor_process $jpid
+        monitor_process
 
         if [ ! -s "$DATA/xtrabackup_checkpoints" ]; then
             wsrep_log_error "xtrabackup_checkpoints missing," \

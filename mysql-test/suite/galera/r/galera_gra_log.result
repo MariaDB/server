@@ -1,5 +1,7 @@
 connection node_2;
 connection node_1;
+connection node_1;
+connection node_2;
 connection node_2;
 SET SESSION wsrep_on=OFF;
 CREATE TABLE t1 (f1 INTEGER);
@@ -35,3 +37,4 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
 CALL mtr.add_suppression("Slave SQL: Error 'Table 't1' already exists' on query");
 DROP TABLE t1;
+CALL mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on");

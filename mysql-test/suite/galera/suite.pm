@@ -65,6 +65,7 @@ push @::global_suppressions,
      qr|WSREP: Sending JOIN failed: -107 \(Transport endpoint is not connected\). Will retry in new primary component.|,
      qr|WSREP: Trying to continue unpaused monitor|,
      qr|WSREP: Wait for gtid returned error 3 while waiting for prior transactions to commit before setting position|,
+     qr|WSREP: Failed to report last committed|,
    );
 
 sub which($) { return `sh -c "command -v $_[0]"` }

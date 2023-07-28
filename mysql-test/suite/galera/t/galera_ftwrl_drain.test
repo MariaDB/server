@@ -40,7 +40,7 @@ SELECT COUNT(*) AS EXPECT_0 FROM t1;
 
 --connection node_2
 --sleep 1
---let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'Init' AND INFO = 'FLUSH TABLES WITH READ LOCK'
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE (STATE = 'Init' OR STATE = 'starting') AND INFO = 'FLUSH TABLES WITH READ LOCK'
 --source include/wait_condition.inc
 
 --source include/galera_clear_sync_point.inc

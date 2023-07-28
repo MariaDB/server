@@ -11,12 +11,7 @@
 ##############################################################################
 
 galera_as_slave_ctas : MDEV-28378 timeout
-galera_pc_recovery : MDEV-25199 cluster fails to start up
 galera_sst_encrypted : MDEV-29876 Galera test failure on galera_sst_encrypted
-galera.MW-284 : MDEV-29861 Galera test case hangs
-galera.galera_binlog_checksum : MDEV-29861 Galera test case hangs
+galera_var_node_address : MDEV-20485 Galera test failure
 galera_var_notify_ssl_ipv6 : MDEV-29861 Galera test case hangs
 galera_var_notify_cmd: MDEV-29861 Galera test case hangs
-galera_var_node_address : MDEV-20485 Galera test failure
-MDEV-26575 : MDEV-29878 Galera test failure on MDEV-26575
-galera_bf_abort_group_commit : MDEV-30855 PR to remove the test exists
