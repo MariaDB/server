@@ -1001,9 +1001,6 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
     table->file->ha_reset();
   }
 
-  /*
-    Clear prelocked tables hash
-  */
   thd->pr_table_hash.clear();
 
   /*

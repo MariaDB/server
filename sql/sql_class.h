@@ -51,6 +51,7 @@
 #include "backup.h"
 #include "xa.h"
 #include "ddl_log.h"                            /* DDL_LOG_STATE */
+#include "open_address_hash.h"
 
 extern "C"
 void set_thd_stage_info(void *thd,
@@ -2586,40 +2587,6 @@ struct thd_async_state
   }
 };
 
-#include "open_address_hash.h"
-
-class table_trait
-{
-public:
-  using elem_type= TABLE_LIST *;
-  using find_type= TABLE_LIST *;
-  using erase_type= TABLE_LIST *;
-
-  static bool is_equal(const TABLE_LIST *lhs, const TABLE_LIST *rhs)
-  {
-    return lhs == rhs;
-  }
-  static bool is_empty(const elem_type el) { return el == nullptr; }
-  static void set_null(elem_type &el) { el= nullptr; }
-
-  static my_hash_value_type get_hash_value(TABLE_LIST *elem)
-  {
-    return elem->mdl_request.key.tc_hash_value();
-  }
-};
-
-class table_key
-{
-public:
-  using hash_value_type= decltype(MDL_key().tc_hash_value());
-  using key_type= MDL_key;
-
-  static MDL_key *get_key(TABLE_LIST *elem) { return &elem->mdl_request.key; }
-  static my_hash_value_type get_hash_value_from_key(const MDL_key *key)
-  {
-    return key->tc_hash_value();
-  }
-};
 
 /**
   @class THD
@@ -2735,7 +2702,7 @@ public:
   */
   mutable mysql_mutex_t LOCK_thd_kill;
 
-  open_address_hash<MDL_key_trait<TABLE_LIST>, hash_trait<TABLE_LIST, TABLE_LIST *> > pr_table_hash;
+  open_address_hash<MDL_key_trait<TABLE_LIST>, hash_trait<TABLE_LIST> > pr_table_hash;
 
   /* all prepared statements and cursors of this connection */
   Statement_map stmt_map;

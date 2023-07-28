@@ -9,8 +9,8 @@ template <typename key_trait, typename trait> class open_address_hash
 {
 public:
   using T= typename trait::elem_type;
-  using find_type= typename trait::find_type;
-  using erase_type= typename trait::erase_type;
+  using find_type= typename trait::elem_type;
+  using erase_type= typename trait::elem_type;
   using hash_value_type= typename key_trait::hash_value_type;
   using key_type= typename key_trait::key_type;
 
@@ -112,7 +112,6 @@ private:
         {
           auto temp_el= hash_array[i];
           hash_array[i]= nullptr;
-          //erase_helper(temp_el);
           insert_helper(temp_el);
         }
       }
@@ -134,7 +133,6 @@ private:
         {
           auto temp_el= hash_array[i];
           hash_array[i]= nullptr;
-          //erase_helper(temp_el);
           insert_helper(temp_el);
         }
       }
@@ -280,8 +278,6 @@ public:
 private:
   static constexpr uint power2_start= 2;
   static constexpr uint CAPACITY_INITIAL= 1 << power2_start;
-  /*static constexpr double MAX_LOAD_FACTOR= 0.5f;
-  static constexpr double LOW_LOAD_FACTOR= 0.1f;*/
   static constexpr int MAX_LOAD_FACTOR= 2;
   static constexpr int LOW_LOAD_FACTOR= 10;
 
