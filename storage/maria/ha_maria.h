@@ -67,7 +67,7 @@ public:
   ~ha_maria() = default;
   handler *clone(const char *name, MEM_ROOT *mem_root) override final;
   const char *index_type(uint key_number) override final;
-  ulonglong table_flags() const override final
+  ulonglong table_flags() const override
   { return int_table_flags; }
   ulong index_flags(uint inx, uint part, bool all_parts) const override final;
   uint max_supported_keys() const override final

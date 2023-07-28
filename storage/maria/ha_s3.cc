@@ -238,6 +238,7 @@ ha_s3::ha_s3(handlerton *hton, TABLE_SHARE *table_arg)
   /* Remove things that S3 doesn't support */
   int_table_flags&= ~(HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE |
                       HA_CAN_EXPORT);
+  int_table_flags|= HA_NO_ONLINE_ALTER;
   can_enable_indexes= 0;
 }
 
