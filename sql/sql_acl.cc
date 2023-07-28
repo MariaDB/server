@@ -7632,6 +7632,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
   LEX_CSTRING username;
   LEX_CSTRING hostname;
   ACL_ROLE *role, *role_as_user;
+  Security_context *sctx= thd->security_context();
 
   List_iterator <LEX_USER> user_list(list);
   granted_role= user_list++;
@@ -7667,6 +7668,9 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
     DBUG_RETURN(TRUE);
   }
 
+  LEX_CSTRING priv_user_cstr= {sctx->priv_user, strlen(sctx->priv_user)};
+  LEX_CSTRING priv_host_cstr= {sctx->priv_host, strlen(sctx->priv_host)};
+  LEX_CSTRING priv_role_cstr= {sctx->priv_role, strlen(sctx->priv_role)};
   while ((user= user_list++))
   {
     role_as_user= NULL;
@@ -7697,16 +7701,13 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
         result= 1;
         continue;
       }
-      username.str= thd->security_ctx->priv_role;
-      username.length= strlen(username.str);
+      username= priv_role_cstr;
       hostname= empty_clex_str;
     }
     else if (user->user.str == current_user.str)
     {
-      username.str= thd->security_ctx->priv_user;
-      username.length= strlen(username.str);
-      hostname.str= thd->security_ctx->priv_host;
-      hostname.length= strlen(hostname.str);
+      username= priv_user_cstr;
+      hostname= priv_host_cstr;
     }
     else
     {
