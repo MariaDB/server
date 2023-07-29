@@ -51,7 +51,8 @@
 #define fseeko64 fseek
 #else
 #if defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__) || \
-    defined(__OpenBSD__) || defined(__DragonFly__)
+    defined(__OpenBSD__) || defined(__DragonFly__) || defined(__HAIKU__) || \
+    defined(MINIZIP_FOPEN_NO_64)
 #define fopen64 fopen
 #define ftello64 ftello
 #define fseeko64 fseeko
