@@ -1099,6 +1099,9 @@ private:
                              MDL_ticket **out_ticket);
   bool fix_pins();
 
+  /**
+    Ticket hash. Stores only locked tickets.
+  */
   open_address_hash<MDL_key_trait<MDL_ticket>, hash_trait<MDL_ticket> > ticket_hash;
 
 public:

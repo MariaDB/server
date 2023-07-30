@@ -58,7 +58,7 @@ private:
     }
 
     hash_array[hash_val]= value;
-    _size++;
+    //_size++;
     return true;
   };
 
@@ -89,7 +89,7 @@ private:
       if (trait::is_equal(hash_array[key], value))
       {
         hash_array[key]= nullptr;
-        _size--;
+       // _size--;
         rehash_subsequence(key);
         return true;
       }
@@ -98,48 +98,48 @@ private:
     return false;
   }
 
-  void rehash(const uint _capacity)
+  void grow(const uint _capacity)
+  {
+    uint past_capacity= capacity;
+    capacity= _capacity;
+    hash_array= (T *) realloc(hash_array, capacity * sizeof(T));
+
+    for (uint i= past_capacity; i < capacity; i++)
+    {
+      hash_array[i]= nullptr;
+    }
+    //_size= 0;
+
+    for (uint i= 0; i < capacity; i++)
+    {
+      if (hash_array[i])
+      {
+        auto temp_el= hash_array[i];
+        hash_array[i]= nullptr;
+        insert_helper(temp_el);
+      }
+    }
+  }
+
+  void shrink(const uint _capacity)
   {
     uint past_capacity= capacity;
     capacity= _capacity;
 
-    if (past_capacity > capacity)
+    //_size= 0;
+    for (uint i= capacity; i < past_capacity; i++)
     {
-      _size= 0;
-      for (uint i= capacity; i < past_capacity; i++)
+      if (hash_array[i])
       {
-        if (hash_array[i])
-        {
-          auto temp_el= hash_array[i];
-          hash_array[i]= nullptr;
-          insert_helper(temp_el);
-        }
-      }
-
-      hash_array= (T *) realloc(hash_array, capacity * sizeof(T));
-    }
-    else
-    {
-      hash_array= (T *) realloc(hash_array, capacity * sizeof(T));
-      for (uint i = past_capacity; i < capacity; i++)
-      {
+        auto temp_el= hash_array[i];
         hash_array[i]= nullptr;
-      }
-      _size= 0;
-
-      for (uint i = 0; i < capacity; i++)
-      {
-        if (hash_array[i])
-        {
-          auto temp_el= hash_array[i];
-          hash_array[i]= nullptr;
-          insert_helper(temp_el);
-        }
+        insert_helper(temp_el);
       }
     }
 
-    return;
+    hash_array= (T *) realloc(hash_array, capacity * sizeof(T));
   }
+
 
   void init_hash_array()
   {
@@ -150,8 +150,17 @@ private:
     _size= 0;
     hash_array= (T*)calloc(capacity, sizeof (T*));
 
-    insert_helper(_first);
-    insert_helper(_second);
+    if (_first)
+    {
+      insert_helper(_first);
+      _size++;
+    }
+
+    if (_second)
+    {
+      insert_helper(_second);
+      _size;
+    }
   }
 
 public:
@@ -205,9 +214,18 @@ public:
     }
 
     if (unlikely(capacity > 7 && (_size - 1) * LOW_LOAD_FACTOR < capacity))
-      rehash(0.5 * capacity);
+      shrink(capacity >> 1);
 
-    return erase_helper(value);
+    if (erase_helper(value))
+    {
+      _size--;
+      return true;
+    }
+    else
+    {
+      return false;
+    }
+    //return erase_helper(value);
   }
 
   bool insert(const T &value)
@@ -232,9 +250,18 @@ public:
     }
 
     if (unlikely((_size + 1) * MAX_LOAD_FACTOR > capacity))
-      rehash(capacity << 1);
+      grow(capacity << 1);
 
-    return insert_helper(value);
+    if (insert_helper(value))
+    {
+      _size++;
+      return true;
+    }
+    else
+    {
+      return false;
+    }
+    //return insert_helper(value);
   };
 
   bool clear()
@@ -252,8 +279,9 @@ public:
     {
       hash_array[i]= nullptr;
     }
-
+    _size= 0;
     capacity= CAPACITY_INITIAL;
+
     return true;
   }
 
