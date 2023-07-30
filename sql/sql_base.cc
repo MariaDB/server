@@ -4752,7 +4752,13 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
           TABLE_LIST::PRELOCK_FK, table_list->belong_to_view, op,
           &prelocking_ctx->query_tables_last, table_list->for_insert_data);
       bool success= thd->pr_table_hash.insert(tl);
-      DBUG_ASSERT(success);
+      if (!success)
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0));
+        if (arena)
+          thd->restore_active_arena(arena, &backup);
+        DBUG_RETURN(TRUE);
+      }
     }
 
   }

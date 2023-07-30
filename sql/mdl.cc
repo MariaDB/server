@@ -2173,7 +2173,11 @@ MDL_context::try_acquire_lock_impl(MDL_request *mdl_request,
     mysql_prlock_unlock(&lock->m_rwlock);
 
     bool success= ticket_hash.insert(ticket);
-    DBUG_ASSERT(success);
+    if (!success)
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0));
+      return TRUE;
+    }
 
     m_tickets[mdl_request->duration].push_front(ticket);
 
