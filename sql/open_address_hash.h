@@ -89,7 +89,6 @@ private:
       if (trait::is_equal(hash_array[key], value))
       {
         hash_array[key]= nullptr;
-       // _size--;
         rehash_subsequence(key);
         return true;
       }
@@ -108,11 +107,10 @@ private:
     {
       hash_array[i]= nullptr;
     }
-    //_size= 0;
 
     for (uint i= 0; i < capacity; i++)
     {
-      if (hash_array[i])
+      if (hash_array[i] && i != to_index(hash_from_value(hash_array[i])))
       {
         auto temp_el= hash_array[i];
         hash_array[i]= nullptr;
@@ -126,7 +124,6 @@ private:
     uint past_capacity= capacity;
     capacity= _capacity;
 
-    //_size= 0;
     for (uint i= capacity; i < past_capacity; i++)
     {
       if (hash_array[i])
