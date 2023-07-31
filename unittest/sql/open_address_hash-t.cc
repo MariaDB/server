@@ -32,11 +32,8 @@ struct pointer_trait
 
 struct test_value_trait: public pointer_trait<uint32>
 {
-  static const uint32* get_key(uint32 *elem) { return elem; }
-  static uint32 get_hash_value(uint32* elem)
-  { 
-      return *elem;
-  }
+  static const uint32 *get_key(const uint32 *elem) { return elem; }
+  static uint32 get_hash_value(const uint32* elem) { return *elem; }
 };
 
 open_address_hash<test_key_trait, test_value_trait> hashie;
