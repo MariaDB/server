@@ -1,0 +1,26 @@
+--source include/have_debug_sync.inc
+--source include/master-slave.inc
+
+--echo # MDEV-31804 Assertion `thd->m_transaction_psi == __null' fails upon
+--echo # replicating online ALTER
+--connection master
+create table t (a char(8)) engine=myisam;
+insert into t values ('foo'),('bar');
+
+set debug_sync= 'alter_table_online_progress signal go_dml wait_for go_alter';
+send alter table t force;
+
+--connection master1
+set debug_sync= 'now wait_for go_dml';
+insert into t (a) values ('qux');
+set debug_sync= 'now signal go_alter';
+
+--connection master
+--reap
+--sync_slave_with_master
+
+# Cleanup
+--connection master
+drop table t;
+set debug_sync= reset;
+--source include/rpl_end.inc

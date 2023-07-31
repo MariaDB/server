@@ -1459,7 +1459,7 @@ void trans_register_ha(THD *thd, bool all, handlerton *ht_arg, ulonglong trxid)
   Do not register transactions in which binary log is the only participating
   transactional storage engine.
 */
-  if (thd->m_transaction_psi == NULL && ht_arg->db_type != DB_TYPE_BINLOG)
+  if (thd->m_transaction_psi == NULL && ht_arg != binlog_hton)
   {
     thd->m_transaction_psi= MYSQL_START_TRANSACTION(&thd->m_transaction_state,
           thd->get_xid(), trxid, thd->tx_isolation, thd->tx_read_only,

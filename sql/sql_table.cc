@@ -65,6 +65,7 @@
 #include "rpl_rli.h"
 #include "log.h"
 #include "sql_debug.h"
+#include "mysql/psi/mysql_transaction.h"
 
 #ifdef _WIN32
 #include <io.h>
@@ -11652,6 +11653,9 @@ bool mysql_trans_commit_alter_copy_data(THD *thd)
   save_unsafe_rollback_flags= thd->transaction->stmt.m_unsafe_rollback_flags;
 
   DEBUG_SYNC(thd, "alter_table_copy_trans_commit");
+
+  MYSQL_COMMIT_TRANSACTION(thd->m_transaction_psi);
+  thd->m_transaction_psi= NULL;
 
   if (ha_enable_transaction(thd, TRUE))
     DBUG_RETURN(TRUE);
