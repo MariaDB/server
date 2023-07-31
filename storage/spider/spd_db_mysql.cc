@@ -13429,7 +13429,7 @@ int spider_mbase_handler::sts_mode_exchange(
 static int spider_set_lock_wait_timeout(uint seconds, SPIDER_CONN *conn,
                                         int *need_mon)
 {
-  char query[512];;
+  char query[512];
   int error_num;
   DBUG_ENTER("spider_db_set_lock_wait_timeout");
   size_t query_len =
@@ -13437,6 +13437,7 @@ static int spider_set_lock_wait_timeout(uint seconds, SPIDER_CONN *conn,
               "set @old_lock_wait_timeout=@@session.lock_wait_timeout;"
               "set session lock_wait_timeout=%d;",
               seconds);
+  DEBUG_SYNC(conn->thd, "spider_set_lock_wait_timeout_before_query");
   if (spider_db_query(conn, query, query_len, -1, need_mon))
     DBUG_RETURN(spider_db_errorno(conn));
   spider_db_result *result;
