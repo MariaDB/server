@@ -21616,6 +21616,7 @@ static void test_mdev_30159()
 
   result= mysql_list_fields(mysql, "v1", NULL);
   mytest(result);
+  mysql_free_result(result);
 
   rc= mysql_query(mysql, "drop view v1");
   myquery(rc);
