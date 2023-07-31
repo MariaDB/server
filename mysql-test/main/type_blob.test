@@ -757,5 +757,15 @@ DROP TABLE t1, t2;
 SET @@sql_mode=@save_sql_mode;
 
 --echo #
+--echo # MDEV-31800 Problem with open ranges on prefix blobs keys
+--echo #
+create table t1 (d text not null, key a (d(6))) ;
+insert into t1 values ('prefix 2' ), ('prefix 0' );
+select d from t1 where d >= 'prefix 1' and d < 'prefix 3';
+alter table t1 drop index a;
+select d from t1 where d >= 'prefix 1' and d < 'prefix 3';
+drop table t1;
+
+--echo #
 --echo # End of 10.4 test
 --echo #
