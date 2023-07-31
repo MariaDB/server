@@ -886,6 +886,9 @@ int spider_check_and_get_casual_read_conn(
 ) {
   int error_num;
   DBUG_ENTER("spider_check_and_get_casual_read_conn");
+  if (spider->conns[link_idx]->debug_query_id == thd->query_id)
+    abort();
+  spider->conns[link_idx]->debug_query_id = thd->query_id;
   if (spider->result_list.casual_read[link_idx])
   {
     SPIDER_CONN *conn = spider->conns[link_idx];
@@ -930,9 +933,6 @@ int spider_check_and_init_casual_read(
   SPIDER_RESULT_LIST *result_list = &spider->result_list;
   SPIDER_SHARE *share = spider->share;
   DBUG_ENTER("spider_check_and_init_casual_read");
-  if (spider->conns[link_idx]->debug_query_id == thd->query_id)
-    abort();
-  spider->conns[link_idx]->debug_query_id = thd->query_id;
   if (
     spider_param_sync_autocommit(thd) &&
     (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) &&
