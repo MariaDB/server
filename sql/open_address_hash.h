@@ -127,7 +127,6 @@ private:
       if (hash_array[i])
       {
         auto temp_el= hash_array[i];
-        hash_array[i]= nullptr;
         insert_helper(temp_el);
       }
     }
