@@ -936,6 +936,7 @@ int spider_check_and_get_casual_read_conn(
     DBUG_RETURN(error_num);
   }
   *spider->conn_keys[link_idx] = first_byte_bak;
+  spider->conns[link_idx]->casual_read_query_id = thd->query_id;
   spider->conns[link_idx]->casual_read_base_conn = conn;
   spider_check_and_set_autocommit(thd, spider->conns[link_idx], NULL);
   DBUG_RETURN(0);
