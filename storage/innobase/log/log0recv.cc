@@ -2747,7 +2747,8 @@ restart:
       case INIT_PAGE:
         last_offset= FIL_PAGE_TYPE;
       free_or_init_page:
-        store_freed_or_init_rec(id, (b & 0x70) == FREE_PAGE);
+        if (store)
+          store_freed_or_init_rec(id, (b & 0x70) == FREE_PAGE);
         if (UNIV_UNLIKELY(rlen != 0))
           goto record_corrupted;
         break;
