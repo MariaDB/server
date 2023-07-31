@@ -877,7 +877,7 @@ public:
   }
 };
 
-template <typename T, typename key_trait> class hash_trait
+template <typename T, typename key_type> class hash_trait
 {
 public:
   using elem_type= T *;
@@ -890,7 +890,7 @@ public:
   static bool is_empty(const elem_type &el) { return el == nullptr; }
   static void set_null(elem_type &el) { el= nullptr; }
 
-  static const typename key_trait::key_type *get_key(T *value) 
+  static const typename key_type *get_key(T *value) 
   {
     return value->get_key();
   }
@@ -1102,7 +1102,7 @@ private:
   /**
     Ticket hash. Stores only locked tickets.
   */
-  open_address_hash<MDL_key_trait<MDL_ticket>, hash_trait<MDL_ticket, MDL_key_trait<MDL_ticket> > > ticket_hash;
+  open_address_hash<MDL_key_trait<MDL_ticket>, hash_trait<MDL_ticket,MDL_key> > ticket_hash;
 
 public:
   THD *get_thd() const { return m_owner->get_thd(); }

@@ -2706,7 +2706,7 @@ public:
     Prelocked tables hash. Stores only tables with FK_PRELOCK tag to speed up
     table access during prelocking. Deinitializes in close_thread_tables.
   */
-  open_address_hash<MDL_key_trait<TABLE_LIST>, hash_trait<TABLE_LIST, MDL_key_trait<TABLE_LIST> > > pr_table_hash;
+  open_address_hash<MDL_key_trait<TABLE_LIST>, hash_trait<TABLE_LIST, MDL_key> > pr_table_hash;
 
   /* all prepared statements and cursors of this connection */
   Statement_map stmt_map;
