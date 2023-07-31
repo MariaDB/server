@@ -58,7 +58,6 @@ private:
     }
 
     hash_array[hash_val]= value;
-    //_size++;
     return true;
   };
 
@@ -68,7 +67,6 @@ private:
     {
       auto temp_el= hash_array[j];
       hash_array[j]= nullptr;
-      //_size--;
       insert_helper(temp_el);
       /*auto key= to_index(key_trait::get_hash_value(trait::get_key(hash_array[j])));
       if (key <= i || key > j)
@@ -138,26 +136,25 @@ private:
   }
 
 
-  void init_hash_array()
+  bool init_hash_array()
   {
     T _first= first.ptr();
     T _second= second;
 
     capacity= CAPACITY_INITIAL;
-    _size= 0;
     hash_array= (T*)calloc(capacity, sizeof (T*));
+    _size= 0;
 
-    if (_first)
-    {
-      insert_helper(_first);
+    if (insert_helper(_first))
       _size++;
-    }
+    else
+      return false;
+    if (insert_helper(_second))
+      _size++;
+    else
+      return false;
 
-    if (_second)
-    {
-      insert_helper(_second);
-      _size;
-    }
+    return true;
   }
 
 public:
@@ -222,7 +219,6 @@ public:
     {
       return false;
     }
-    //return erase_helper(value);
   }
 
   bool insert(const T &value)
@@ -242,7 +238,8 @@ public:
       else
       {
         first.set_mark(false);
-        init_hash_array();
+        if (!init_hash_array())
+          return false;
       }
     }
 
@@ -272,12 +269,12 @@ public:
     if (!hash_array)
       return false;
 
-    for (uint i= 0; i < capacity; i++)
-    {
-      hash_array[i]= nullptr;
-    }
-    _size= 0;
+    delete hash_array;
     capacity= CAPACITY_INITIAL;
+
+    first.set_mark(true);
+    first.set_ptr(nullptr);
+    second= nullptr;
 
     return true;
   }
