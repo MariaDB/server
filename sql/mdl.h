@@ -871,13 +871,13 @@ public:
   using key_type= MDL_key;
 
   static MDL_key *get_key(T *t) { return t->get_key(); }
-  static my_hash_value_type get_hash_value_from_key(const MDL_key *key)
+  static my_hash_value_type get_hash_value(const MDL_key *key)
   {
     return key->tc_hash_value();
   }
 };
 
-template <typename T> class hash_trait
+template <typename T, typename key_trait> class hash_trait
 {
 public:
   using elem_type= T *;
@@ -890,9 +890,9 @@ public:
   static bool is_empty(const elem_type &el) { return el == nullptr; }
   static void set_null(elem_type &el) { el= nullptr; }
 
-  static my_hash_value_type get_hash_value(T *t)
+  static const typename key_trait::key_type *get_key(T *value) 
   {
-    return MDL_key_trait<T>::get_hash_value_from_key(t->get_key());
+    return value->get_key();
   }
 };
 
@@ -1102,7 +1102,7 @@ private:
   /**
     Ticket hash. Stores only locked tickets.
   */
-  open_address_hash<MDL_key_trait<MDL_ticket>, hash_trait<MDL_ticket> > ticket_hash;
+  open_address_hash<MDL_key_trait<MDL_ticket>, hash_trait<MDL_ticket, MDL_key_trait<MDL_ticket> > > ticket_hash;
 
 public:
   THD *get_thd() const { return m_owner->get_thd(); }
