@@ -5,10 +5,7 @@ if (!$ADT_NULL_SO) {
   skip No NULL_AUDIT plugin;
 }
 
-set @old_sql_mode= @@sql_mode;
-set @@sql_mode= '';
 alter table mysql.plugin engine=myisam;
-set @@sql_mode= @old_sql_mode;
 
 set @old_dbug=@@debug_dbug;
 call mtr.add_suppression("Index for table.*mysql.plugin.MYI");

@@ -4577,15 +4577,10 @@ without_overlaps_err:
   }
 
   /* Give warnings for not supported table options */
-  extern handlerton *maria_hton;
-  if (file->partition_ht() != maria_hton && create_info->transactional &&
-      !file->has_transaction_manager())
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_ILLEGAL_HA_CREATE_OPTION,
-                          ER_THD(thd, ER_ILLEGAL_HA_CREATE_OPTION),
-                          file->engine_name()->str,
-                          create_info->transactional == HA_CHOICE_YES
-                          ? "TRANSACTIONAL=1" : "TRANSACTIONAL=0");
+  if (create_info->used_fields & HA_CREATE_USED_TRANSACTIONAL &&
+      !file->has_transactional_option())
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_OPTION,
+                        ER_THD(thd, ER_UNKNOWN_OPTION), "transactional");
 
   if (parse_option_list(thd, file->partition_ht(), &create_info->option_struct,
                           &create_info->option_list,
