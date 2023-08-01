@@ -135,6 +135,8 @@ if ($HAVE_PARTITION)
   set @old_spider_direct_aggregate=@@session.spider_direct_aggregate;
   set spider_direct_aggregate=1;
 
+  set spider_casual_read=23;
+
   eval $MASTER_1_CHECK_DIRECT_AGGREGATE_STATUS;
   SELECT COUNT(*) FROM ta_l2;
   eval $MASTER_1_CHECK_DIRECT_AGGREGATE_STATUS;
