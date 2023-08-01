@@ -494,14 +494,18 @@ DROP TABLE IF EXISTS t2;
 CREATE TABLE t2 (fruit_id INT NOT NULL, fruit_name varchar(20)
 default NULL);
 
+--disable_ps2_protocol
 SELECT DISTINCT fruit_id, fruit_name INTO OUTFILE 
 '../../tmp/data1.tmp' FROM t1 WHERE fruit_name = 'APPLE';
+--enable_ps2_protocol
 LOAD DATA INFILE '../../tmp/data1.tmp' INTO TABLE t2;
 --error 0,1
 --remove_file $MYSQLTEST_VARDIR/tmp/data1.tmp
 
+--disable_ps2_protocol
 SELECT DISTINCT @v19:= fruit_id, @v20:= fruit_name INTO OUTFILE 
 '../../tmp/data2.tmp' FROM t1 WHERE fruit_name = 'APPLE';
+--enable_ps2_protocol
 LOAD DATA INFILE '../../tmp/data2.tmp' INTO TABLE t2;
 --remove_file $MYSQLTEST_VARDIR/tmp/data2.tmp
 

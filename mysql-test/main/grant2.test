@@ -840,7 +840,9 @@ SHOW CREATE TABLE t1;
 --echo #
 INSERT INTO t1 VALUES (1), (2), (3);
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--disable_ps2_protocol
 --eval SELECT a INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/bug27480.txt' FROM t1 
+--enable_ps2_protocol
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/bug27480.txt' INTO TABLE t1
 --remove_file $MYSQLTEST_VARDIR/tmp/bug27480.txt

@@ -1991,7 +1991,8 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
           if (error != HA_ERR_RECORD_IS_THE_SAME)
           {
             info->updated++;
-            if (table->versioned())
+            if (table->versioned() &&
+                table->vers_check_update(*info->update_fields))
             {
               if (table->versioned(VERS_TIMESTAMP))
               {

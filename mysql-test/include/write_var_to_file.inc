@@ -46,7 +46,9 @@ if (`SELECT LENGTH(@@secure_file_priv) > 0`)
   --let $_wvtf_suffix= `SELECT UUID()`
   --let $_wvtf_tmp_file= $MYSQLTEST_VARDIR/_wvtf_$_wvtf_suffix
 
+  --disable_ps2_protocol
   --eval SELECT '$write_var' INTO DUMPFILE '$_wvtf_tmp_file'
+  --enable_ps2_protocol
   --copy_file $_wvtf_tmp_file $write_to_file
   --remove_file $_wvtf_tmp_file
 }

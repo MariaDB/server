@@ -822,14 +822,18 @@ from t1
 group by a, b
 order by a
 fetch first 1 rows with ties;
+--disable_ps2_protocol
 SELECT FOUND_ROWS();
+--enable_ps2_protocol
 
 --sorted_result
 select SQL_CALC_FOUND_ROWS a, b
 from t1
 order by a
 fetch first 1 rows with ties;
+--disable_ps2_protocol
 SELECT FOUND_ROWS();
+--enable_ps2_protocol
 --enable_view_protocol
 
 --echo #

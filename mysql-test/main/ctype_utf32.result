@@ -2940,3 +2940,23 @@ DROP TABLE t1;
 #
 # End of 10.2 tests
 #
+#
+# Start of 10.4 tests
+#
+#
+# MDEV-29019 Assertion `(length % 4) == 0' failed in my_lengthsp_utf32 on SELECT
+#
+CREATE TABLE t (a INT);
+SET collation_connection=utf32_unicode_ci;
+INSERT INTO t VALUES (0);
+SELECT * FROM t ORDER BY (OCT(a));
+a
+0
+SELECT HEX(OCT(a)) FROM t;
+HEX(OCT(a))
+00000030
+DROP TABLE t;
+SET NAMES utf8;
+#
+# End of 10.4 tests
+#

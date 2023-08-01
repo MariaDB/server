@@ -6,6 +6,7 @@
 --echo # MDEV-28263: mariadb-tzinfo-to-sql improve wsrep and binlog cases
 --echo #
 
+--exec rm -rf $MYSQLTEST_VARDIR/zoneinfo
 --exec mkdir $MYSQLTEST_VARDIR/zoneinfo
 --exec ln -s $MYSQLTEST_VARDIR/zoneinfo $MYSQLTEST_VARDIR/zoneinfo/posix
 --copy_file std_data/zoneinfo/GMT $MYSQLTEST_VARDIR/zoneinfo/GMT
@@ -19,8 +20,8 @@ CREATE TABLE time_zone_name LIKE mysql.time_zone_name;
 CREATE TABLE time_zone_transition LIKE mysql.time_zone_transition;
 CREATE TABLE time_zone_transition_type LIKE mysql.time_zone_transition_type;
 CREATE TABLE time_zone_leap_second LIKE mysql.time_zone_leap_second;
-ALTER TABLE time_zone_name ENGINE=MyISAM;
-ALTER TABLE time_zone_transition_type ENGINE=MyISAM;
+ALTER TABLE time_zone_name ENGINE=MyISAM TRANSACTIONAL=default;
+ALTER TABLE time_zone_transition_type ENGINE=MyISAM TRANSACTIONAL=default;
 
 SET @save_wsrep_mode=@@WSREP_MODE;
 

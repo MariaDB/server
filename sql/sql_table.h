@@ -221,4 +221,8 @@ extern MYSQL_PLUGIN_IMPORT const LEX_CSTRING primary_key_name;
 
 bool check_engine(THD *, const char *, const char *, HA_CREATE_INFO *);
 
+#ifdef WITH_WSREP
+bool wsrep_check_sequence(THD* thd, const class sequence_definition *seq);
+#endif
+
 #endif /* SQL_TABLE_INCLUDED */

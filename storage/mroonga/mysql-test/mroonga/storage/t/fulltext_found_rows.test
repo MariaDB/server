@@ -41,7 +41,9 @@ INSERT INTO diaries VALUES(6, 2011, 12, 2, "初雪", "今日の天気は雪！")
 
 SELECT SQL_CALC_FOUND_ROWS * FROM diaries WHERE MATCH(content) AGAINST("今日 天気" IN BOOLEAN MODE) ORDER BY day LIMIT 0,5;
 
+--disable_ps2_protocol
 SELECT FOUND_ROWS();
+--enable_ps2_protocol
 
 DROP TABLE diaries;
 

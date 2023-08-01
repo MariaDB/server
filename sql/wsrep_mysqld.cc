@@ -2515,6 +2515,15 @@ bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
 
     return !(table || table_list);
     break;
+  case SQLCOM_CREATE_SEQUENCE:
+    /* No TOI for temporary sequences as they are
+       not replicated */
+    if (thd->lex->tmp_table())
+    {
+      return false;
+    }
+    return true;
+
   }
 }
 
@@ -2801,6 +2810,13 @@ static int wsrep_RSU_begin(THD *thd, const char *db_, const char *table_)
   WSREP_DEBUG("RSU BEGIN: %lld, : %s", wsrep_thd_trx_seqno(thd),
               wsrep_thd_query(thd));
 
+  /* For CREATE TEMPORARY SEQUENCE we do not start RSU because
+     object is local only and actually CREATE TABLE + INSERT
+  */
+  if (thd->lex->sql_command == SQLCOM_CREATE_SEQUENCE &&
+      thd->lex->tmp_table())
+    return 1;
+
   if (thd->variables.wsrep_OSU_method == WSREP_OSU_RSU &&
       thd->variables.sql_log_bin == 1 &&
       wsrep_check_mode(WSREP_MODE_DISALLOW_LOCAL_GTID))
@@ -2900,9 +2916,20 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
     return -1;
   }
 
+  /* If we are inside LOCK TABLE we release it and give warning. */
+  if (thd->variables.option_bits & OPTION_TABLE_LOCK &&
+      thd->lex->sql_command == SQLCOM_CREATE_SEQUENCE)
+  {
+    thd->locked_tables_list.unlock_locked_tables(thd);
+    thd->variables.option_bits&= ~(OPTION_TABLE_LOCK);
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+			HA_ERR_UNSUPPORTED,
+			"Galera cluster does not support LOCK TABLE on "
+			"SEQUENCES. Lock is released.");
+  }
   if (wsrep_debug && thd->mdl_context.has_locks())
   {
-    WSREP_DEBUG("thread holds MDL locks at TI begin: %s %llu",
+    WSREP_DEBUG("thread holds MDL locks at TO begin: %s %llu",
                 wsrep_thd_query(thd), thd->thread_id);
   }
 

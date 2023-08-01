@@ -2401,7 +2401,10 @@ row_ins_duplicate_error_in_clust(
 duplicate:
 				trx->error_info = cursor->index();
 				err = DB_DUPLICATE_KEY;
-				if (cursor->index()->table->versioned()
+				if (thr->prebuilt
+				    && thr->prebuilt->upd_node
+				    && thr->prebuilt->upd_node->is_delete
+					== VERSIONED_DELETE
 				    && entry->vers_history_row())
 				{
 					ulint trx_id_len;

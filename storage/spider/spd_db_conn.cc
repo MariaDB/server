@@ -12103,7 +12103,7 @@ int spider_db_udf_copy_tables(
         error_num = result->get_errno();
         if (error_num == HA_ERR_END_OF_FILE)
         {
-          if (roop_count < copy_tables->bulk_insert_rows)
+          if (roop_count < bulk_insert_rows)
           {
             end_of_file = TRUE;
             if (roop_count)
@@ -12127,8 +12127,6 @@ int spider_db_udf_copy_tables(
               pthread_mutex_unlock(&tmp_conn->mta_conn_mutex);
               goto error_db_query;
             }
-            bulk_insert_rows = spider_param_udf_ct_bulk_insert_rows(
-              copy_tables->bulk_insert_rows);
             if (
               select_ct->append_key_order_str(key_info, 0, FALSE) ||
               select_ct->append_limit(0, bulk_insert_rows) ||

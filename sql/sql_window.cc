@@ -3081,7 +3081,7 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
     spec= win_func->window_spec;
     int win_func_order_elements= spec->partition_list->elements +
                                   spec->order_list->elements;
-    if (win_func_order_elements > longest_order_elements)
+    if (win_func_order_elements >= longest_order_elements)
     {
       win_func_with_longest_order= win_func;
       longest_order_elements= win_func_order_elements;

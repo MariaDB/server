@@ -1133,11 +1133,15 @@ print_summary(
 	fprintf(fil_out, "index_id\t#pages\t\t#leaf_pages\t#recs_per_page"
 		"\t#bytes_per_page\n");
 
-	for (std::map<unsigned long long, per_index_stats>::const_iterator it = index_ids.begin();
-	     it != index_ids.end(); it++) {
-		const per_index_stats& index = it->second;
+	for (const auto &ids : index_ids) {
+		const per_index_stats& index = ids.second;
+		if (!index.pages) {
+			DBUG_ASSERT(index.free_pages);
+			continue;
+		}
+
 		fprintf(fil_out, "%lld\t\t%lld\t\t%lld\t\t%lld\t\t%lld\n",
-			it->first, index.pages, index.leaf_pages,
+			ids.first, index.pages, index.leaf_pages,
 			index.total_n_recs / index.pages,
 			index.total_data_bytes / index.pages);
 	}

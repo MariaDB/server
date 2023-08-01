@@ -63,6 +63,11 @@ DELIMITER ;//
 CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
 SHOW CREATE TABLE t1;
 INSERT INTO t1 VALUES (10),(20);
+--chmod 0777 $MYSQLD_DATADIR/test/t1.dbf
+--vertical_results
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
+--horizontal_results
 SELECT * FROM t1;
 ALTER TABLE t1 READONLY=Yes;
 SHOW CREATE TABLE t1;
@@ -77,6 +82,11 @@ TRUNCATE TABLE t1;
 ALTER TABLE t1 READONLY=NO;
 SHOW CREATE TABLE t1;
 INSERT INTO t1 VALUES (30);
+--chmod 0777 $MYSQLD_DATADIR/test/t1.dbf
+--vertical_results
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
+--horizontal_results
 SELECT * FROM t1;
 DROP TABLE t1;
 --remove_file $MYSQLD_DATADIR/test/t1.dbf

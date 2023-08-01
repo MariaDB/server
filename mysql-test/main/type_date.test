@@ -787,6 +787,7 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-29890 Update with inner join false row count result
 --echo #
+--disable_ps2_protocol
 set sql_mode='NO_ZERO_DATE';
 create table t1 (a1 bigint primary key, a2 date not null, a3 bigint not null);
 create table t2 (b1 bigint primary key);
@@ -800,6 +801,7 @@ set sql_mode='NO_ZERO_DATE';
 update t1 inner join t2 on t1.a3 = t2.b1 set t1.a2 = t1.a2 + interval 1 day;
 drop table t1, t2;
 set sql_mode=default;
+--enable_ps2_protocol
 
 --echo #
 --echo # End of 10.4 tests

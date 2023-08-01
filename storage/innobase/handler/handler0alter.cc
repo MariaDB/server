@@ -7726,6 +7726,71 @@ static bool alter_templ_needs_rebuild(const TABLE* altered_table,
                                       const Alter_inplace_info* ha_alter_info,
                                       const dict_table_t* table);
 
+/** Check whether the column is present in table foreign key
+relations.
+@param table     table which has foreign key relation
+@param col       column to be checked
+@param col_name  column name to be display during error
+@param drop_fk   Drop foreign key constraint
+@param n_drop_fk number of drop foreign keys
+@param add_fk    Newly added foreign key constraint
+@param n_add_fk  number of newly added foreign constraint */
+static
+bool check_col_is_in_fk_indexes(
+  const dict_table_t *table, const dict_col_t *col,
+  const char* col_name,
+  span<const dict_foreign_t *> drop_fk,
+  span<const dict_foreign_t *> add_fk)
+{
+  char *fk_id= nullptr;
+
+  for (dict_foreign_set::iterator it= table->foreign_set.begin();
+       it!= table->foreign_set.end();)
+  {
+    if (std::find(drop_fk.begin(), drop_fk.end(), (*it))
+        != drop_fk.end())
+      goto next_item;
+    for (ulint i= 0; i < (*it)->n_fields; i++)
+      if ((*it)->foreign_index->fields[i].col == col)
+      {
+	fk_id= (*it)->id;
+	goto err_exit;
+      }
+next_item:
+    it++;
+  }
+
+  for (const auto &a : add_fk)
+  {
+    for (ulint i= 0; i < a->n_fields; i++)
+    {
+      if (a->foreign_index->fields[i].col == col)
+      {
+        fk_id= a->id;
+	goto err_exit;
+      }
+    }
+  }
+
+  for (const auto &f : table->referenced_set)
+  {
+    for (ulint i= 0; i < f->n_fields; i++)
+    {
+      if (f->referenced_index->fields[i].col == col)
+      {
+        my_error(ER_FK_COLUMN_CANNOT_CHANGE_CHILD, MYF(0),
+                 col_name, f->id, f->foreign_table_name);
+        return true;
+      }
+    }
+  }
+  return false;
+err_exit:
+  my_error(ER_FK_COLUMN_CANNOT_CHANGE, MYF(0), col_name,
+           fk_id ? fk_id :
+	   (std::string(table->name.m_name) + "_ibfk_0").c_str());
+  return true;
+}
 
 /** Allows InnoDB to update internal structures with concurrent
 writes blocked (provided that check_if_supported_inplace_alter()
@@ -7751,7 +7816,7 @@ ha_innobase::prepare_inplace_alter_table(
 	dict_foreign_t**drop_fk;	/*!< Foreign key constraints to drop */
 	ulint		n_drop_fk;	/*!< Number of foreign keys to drop */
 	dict_foreign_t**add_fk = NULL;	/*!< Foreign key constraints to drop */
-	ulint		n_add_fk;	/*!< Number of foreign keys to drop */
+	ulint		n_add_fk= 0;	/*!< Number of foreign keys to drop */
 	dict_table_t*	indexed_table;	/*!< Table where indexes are created */
 	mem_heap_t*	heap;
 	const char**	col_names;
@@ -8269,8 +8334,6 @@ check_if_can_drop_indexes:
 		}
 	}
 
-	n_add_fk = 0;
-
 	if (ha_alter_info->handler_flags
 	    & ALTER_ADD_FOREIGN_KEY) {
 		ut_ad(!m_prebuilt->trx->check_foreigns);
@@ -8304,6 +8367,12 @@ err_exit:
 					m_prebuilt->trx);
 			}
 
+			for (uint i = 0; i < n_add_fk; i++) {
+				if (add_fk[i]) {
+					dict_foreign_free(add_fk[i]);
+				}
+			}
+
 			if (heap) {
 				mem_heap_free(heap);
 			}
@@ -8319,6 +8388,33 @@ err_exit:
 		if (s_cols != NULL) {
 			UT_DELETE(s_cols);
 			mem_heap_free(s_heap);
+		}
+	}
+
+	/** Alter shouldn't support if the foreign and referenced
+	index columns are modified */
+	if (ha_alter_info->handler_flags
+			& ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE) {
+		List_iterator<Create_field> it(
+			ha_alter_info->alter_info->create_list);
+		for (uint i = 0; i < table->s->fields; i++) {
+			Field* field = table->field[i];
+			Create_field *f= it++;
+			if (!f->field || field->is_equal(*f))
+				continue;
+
+			const char* col_name= field->field_name.str;
+			dict_col_t *col= dict_table_get_nth_col(
+				m_prebuilt->table, i);
+			if (check_col_is_in_fk_indexes(
+				m_prebuilt->table, col, col_name,
+				span<const dict_foreign_t*>(
+				  const_cast<const dict_foreign_t**>(
+				    drop_fk), n_drop_fk),
+				span<const dict_foreign_t*>(
+				  const_cast<const dict_foreign_t**>(
+				    add_fk), n_add_fk)))
+				goto err_exit;
 		}
 	}
 

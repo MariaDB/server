@@ -1065,6 +1065,8 @@ int maria_create(const char *name, enum data_file_type datafile_type,
 
   if (encrypted)
   {
+    DBUG_ASSERT(share.data_file_name.length == 0);
+    share.data_file_name.str= (char*) name;  /* For error reporting */
     if (ma_crypt_create(&share) ||
         ma_crypt_write(&share, file))
       goto err;

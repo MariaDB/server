@@ -443,6 +443,30 @@ SET NAMES latin1;
 --echo #
 
 --echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-28384 UBSAN: null pointer passed as argument 1, which is declared to never be null in my_strnncoll_binary on SELECT ... COUNT or GROUP_CONCAT
+--echo #
+
+CREATE TABLE t (c TEXT CHARACTER SET latin1 COLLATE latin1_bin NOT NULL);
+INSERT IGNORE INTO t VALUES (0);
+SELECT COUNT(*) FROM t WHERE EXTRACTVALUE(c,'a')='a';
+DROP TABLE t;
+
+SET sql_mode='';
+CREATE TABLE t (c TEXT CHARACTER SET latin1 COLLATE latin1_bin NOT NULL);
+INSERT INTO t VALUES();
+INSERT IGNORE INTO t VALUES (NULL);
+SELECT GROUP_CONCAT(c ORDER BY BINARY c) FROM t GROUP BY c;
+DROP TABLE t;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
+
+--echo #
 --echo # Start of 10.5 tests
 --echo #
 

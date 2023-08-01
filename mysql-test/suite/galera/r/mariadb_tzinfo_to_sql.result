@@ -11,12 +11,8 @@ CREATE TABLE time_zone_name LIKE mysql.time_zone_name;
 CREATE TABLE time_zone_transition LIKE mysql.time_zone_transition;
 CREATE TABLE time_zone_transition_type LIKE mysql.time_zone_transition_type;
 CREATE TABLE time_zone_leap_second LIKE mysql.time_zone_leap_second;
-ALTER TABLE time_zone_name ENGINE=MyISAM;
-Warnings:
-Warning	1478	Table storage engine 'MyISAM' does not support the create option 'TRANSACTIONAL=1'
-ALTER TABLE time_zone_transition_type ENGINE=MyISAM;
-Warnings:
-Warning	1478	Table storage engine 'MyISAM' does not support the create option 'TRANSACTIONAL=1'
+ALTER TABLE time_zone_name ENGINE=MyISAM TRANSACTIONAL=default;
+ALTER TABLE time_zone_transition_type ENGINE=MyISAM TRANSACTIONAL=default;
 SET @save_wsrep_mode=@@WSREP_MODE;
 #
 # Run on zoneinfo directory --skip-write-binlog
@@ -24,8 +20,6 @@ SET @save_wsrep_mode=@@WSREP_MODE;
 
 # Apply on node_1
 
-Warnings:
-Warning	1478	Table storage engine 'MyISAM' does not support the create option 'TRANSACTIONAL=1'
 'binlog stationary as expected'
 SELECT @wsrep_is_on,  @wsrep_cannot_replicate_tz, @save_wsrep_on, @save_sql_log_bin, @@WSREP_ON, @@SQL_LOG_BIN;
 @wsrep_is_on	@wsrep_cannot_replicate_tz	@save_wsrep_on	@save_sql_log_bin	@@WSREP_ON	@@SQL_LOG_BIN
@@ -79,8 +73,6 @@ COUNT(*)
 
 connection node_1;
 SET GLOBAL WSREP_MODE='REPLICATE_ARIA,REPLICATE_MYISAM';
-Warnings:
-Warning	1478	Table storage engine 'MyISAM' does not support the create option 'TRANSACTIONAL=1'
 'binlog stationary as expected'
 SELECT @wsrep_is_on,  @wsrep_cannot_replicate_tz, @save_wsrep_on, @save_sql_log_bin, @@WSREP_ON, @@SQL_LOG_BIN;
 @wsrep_is_on	@wsrep_cannot_replicate_tz	@save_wsrep_on	@save_sql_log_bin	@@WSREP_ON	@@SQL_LOG_BIN
@@ -136,8 +128,6 @@ COUNT(*)
 # Apply on node_1
 
 connection node_1;
-Warnings:
-Warning	1478	Table storage engine 'MyISAM' does not support the create option 'TRANSACTIONAL=1'
 'binlog advanced as expected'
 SELECT @wsrep_is_on,  @wsrep_cannot_replicate_tz, @save_wsrep_on, @save_sql_log_bin, @@WSREP_ON, @@SQL_LOG_BIN;
 @wsrep_is_on	@wsrep_cannot_replicate_tz	@save_wsrep_on	@save_sql_log_bin	@@WSREP_ON	@@SQL_LOG_BIN
@@ -196,10 +186,6 @@ TRUNCATE TABLE time_zone_leap_second;
 
 connection node_1;
 SET GLOBAL WSREP_MODE='';
-Warnings:
-Warning	1478	Table storage engine 'MyISAM' does not support the create option 'TRANSACTIONAL=1'
-Warnings:
-Warning	1478	Table storage engine 'MyISAM' does not support the create option 'TRANSACTIONAL=1'
 'binlog advanced as expected'
 SELECT @wsrep_is_on, @wsrep_cannot_replicate_tz, @save_wsrep_on, @save_sql_log_bin, @@WSREP_ON, @@SQL_LOG_BIN;
 @wsrep_is_on	@wsrep_cannot_replicate_tz	@save_wsrep_on	@save_sql_log_bin	@@WSREP_ON	@@SQL_LOG_BIN

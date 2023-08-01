@@ -45,9 +45,7 @@ rpl_slave_state::update_state_hash(uint64 sub_id, rpl_gtid *gtid, void *hton,
     there will not be an attempt to delete the corresponding table row before
     it is even committed.
   */
-  mysql_mutex_lock(&LOCK_slave_state);
   err= update(gtid->domain_id, gtid->server_id, sub_id, gtid->seq_no, hton, rgi);
-  mysql_mutex_unlock(&LOCK_slave_state);
   if (err)
   {
     sql_print_warning("Slave: Out of memory during slave state maintenance. "
@@ -292,10 +290,23 @@ int
 rpl_slave_state::update(uint32 domain_id, uint32 server_id, uint64 sub_id,
                         uint64 seq_no, void *hton, rpl_group_info *rgi)
 {
+  int res;
+  mysql_mutex_lock(&LOCK_slave_state);
+  res= update_nolock(domain_id, server_id, sub_id, seq_no, hton, rgi);
+  mysql_mutex_unlock(&LOCK_slave_state);
+  return res;
+}
+
+
+int
+rpl_slave_state::update_nolock(uint32 domain_id, uint32 server_id, uint64 sub_id,
+                               uint64 seq_no, void *hton, rpl_group_info *rgi)
+{
   element *elem= NULL;
   list_element *list_elem= NULL;
 
   DBUG_ASSERT(hton || !loaded);
+  mysql_mutex_assert_owner(&LOCK_slave_state);
   if (!(elem= get_element(domain_id)))
     return 1;
 
@@ -309,7 +320,6 @@ rpl_slave_state::update(uint32 domain_id, uint32 server_id, uint64 sub_id,
       of all pending MASTER_GTID_WAIT(), so we do not slow down the
       replication SQL thread.
     */
-    mysql_mutex_assert_owner(&LOCK_slave_state);
     elem->gtid_waiter= NULL;
     mysql_cond_broadcast(&elem->COND_wait_gtid);
   }
@@ -1360,6 +1370,7 @@ rpl_slave_state::load(THD *thd, const char *state_from_master, size_t len,
 {
   const char *end= state_from_master + len;
 
+  mysql_mutex_assert_not_owner(&LOCK_slave_state);
   if (reset)
   {
     if (truncate_state_table(thd))

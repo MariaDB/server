@@ -6510,7 +6510,7 @@ int ha_partition::multi_range_key_create_key(RANGE_SEQ_IF *seq,
     m_mrr_range_current->ptr= m_mrr_range_current->key_multi_range.ptr;
     m_mrr_range_current->key_multi_range.ptr= m_mrr_range_current;
 
-    if (start_key->key && (start_key->flag & HA_READ_KEY_EXACT))
+    if (start_key->key && (start_key->flag == HA_READ_KEY_EXACT))
       get_partition_set(table, table->record[0], active_index,
                         start_key, &m_part_spec);
     else

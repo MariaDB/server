@@ -1989,7 +1989,7 @@ static int get_options(int argc, char **argv)
     current_db= my_strdup(PSI_NOT_INSTRUMENTED, *argv, MYF(MY_WME));
   }
   if (tty_password)
-    opt_password= get_tty_password(NullS);
+    opt_password= my_get_tty_password(NullS);
   if (debug_info_flag)
     my_end_arg= MY_CHECK_ERROR | MY_GIVE_INFO;
   if (debug_check_flag)
@@ -4701,7 +4701,7 @@ char *mysql_authentication_dialog_ask(MYSQL *mysql, int type,
 
   if (type == 2) /* password */
   {
-    s= get_tty_password("");
+    s= my_get_tty_password("");
     strnmov(buf, s, buf_len);
     buf[buf_len-1]= 0;
     my_free(s);

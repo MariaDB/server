@@ -1932,7 +1932,7 @@ rpl_load_gtid_slave_state(THD *thd)
   for (i= 0; i < array.elements; ++i)
   {
     get_dynamic(&array, (uchar *)&tmp_entry, i);
-    if ((err= rpl_global_gtid_slave_state->update(tmp_entry.gtid.domain_id,
+    if ((err= rpl_global_gtid_slave_state->update_nolock(tmp_entry.gtid.domain_id,
                                                   tmp_entry.gtid.server_id,
                                                   tmp_entry.sub_id,
                                                   tmp_entry.gtid.seq_no,

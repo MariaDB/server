@@ -4,6 +4,7 @@
 # tests with auto_increment_increment and auto_increment_offset
 #
 
+--disable_ps2_protocol
 set global auto_increment_increment= 2, auto_increment_offset= 2;
 
 create sequence s start with -3 minvalue= -1000 increment 0;
@@ -24,6 +25,7 @@ select nextval(s);
 flush tables;
 select nextval(s);
 drop sequence s;
+--enable_ps2_protocol
 
 # Clean up
 

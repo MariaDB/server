@@ -2137,7 +2137,7 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
      If the server does not support ssl, we abort the connection.
   */
   if (mysql->options.use_ssl &&
-      (mysql->client_flag & CLIENT_SSL_VERIFY_SERVER_CERT) &&
+      (mysql->options.extension && mysql->options.extension->tls_verify_server_cert) &&
       !(mysql->server_capabilities & CLIENT_SSL))
   {
     set_mysql_extended_error(mysql, CR_SSL_CONNECTION_ERROR, unknown_sqlstate,
@@ -2207,7 +2207,7 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
     DBUG_PRINT("info", ("IO layer change done!"));
 
     /* Verify server cert */
-    if ((mysql->client_flag & CLIENT_SSL_VERIFY_SERVER_CERT) &&
+    if ((mysql->options.extension && mysql->options.extension->tls_verify_server_cert) &&
         ssl_verify_server_cert(net->vio, mysql->host, &cert_error))
     {
       set_mysql_extended_error(mysql, CR_SSL_CONNECTION_ERROR, unknown_sqlstate,
@@ -3820,10 +3820,13 @@ mysql_options(MYSQL *mysql,enum mysql_option option, const void *arg)
     mysql->options.use_thread_specific_memory= *(my_bool *) arg;
     break;
   case MYSQL_OPT_SSL_VERIFY_SERVER_CERT:
-    if (*(my_bool*) arg)
-      mysql->options.client_flag|= CLIENT_SSL_VERIFY_SERVER_CERT;
-    else
-      mysql->options.client_flag&= ~CLIENT_SSL_VERIFY_SERVER_CERT;
+    if (!mysql->options.extension)
+      mysql->options.extension= (struct st_mysql_options_extention *)
+        my_malloc(PSI_INSTRUMENT_ME,
+                  sizeof(struct st_mysql_options_extention),
+                  MYF(MY_WME | MY_ZEROFILL));
+    if (mysql->options.extension)
+      mysql->options.extension->tls_verify_server_cert= *(my_bool*) arg;
     break;
   case MYSQL_PLUGIN_DIR:
     EXTENSION_SET_STRING(&mysql->options, plugin_dir, arg);
