@@ -855,6 +855,7 @@ relocate_compressed:
 			ut_d(uint32_t s=) b->fix();
 			ut_ad(s == buf_page_t::FREED
 			      || s == buf_page_t::UNFIXED
+			      || s == buf_page_t::IBUF_EXIST
 			      || s == buf_page_t::REINIT);
 		}
 		break;
