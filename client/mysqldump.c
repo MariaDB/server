@@ -2770,11 +2770,7 @@ static uint dump_routines_for_db(char *db)
                     routine_type[i], routine_name);
 
         if (mysql_query_with_error_report(mysql, &routine_res, query_buff))
-        {
-          mysql_free_result(routine_list_res);
-          routine_list_res= 0;
-          DBUG_RETURN(1);
-        }
+          continue;
 
         while ((row= mysql_fetch_row(routine_res)))
         {

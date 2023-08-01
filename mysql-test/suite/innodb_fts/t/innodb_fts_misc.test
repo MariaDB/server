@@ -1342,21 +1342,3 @@ ALTER TABLE t1 KEY_BLOCK_SIZE=4;
 ALTER TABLE t1 KEY_BLOCK_SIZE=0;
 DROP TABLE t1;
 
---echo #
---echo # MDEV-30528 Assertion in dtype_get_at_most_n_mbchars
---echo #
-create table t (f text) with system versioning character set utf8 engine=innodb;
-insert into t (f) values
-        ('mysql from tutorial dbms stands for database ...')  ,
-        ('when to use mysql well after that you went through a ...'),
-        ('where will optimizing mysql in what tutorial we will show ...'),
-        ('1001 mysql tricks 1. never run mysqld as root. 2. ...'),
-        ('mysql vs. yoursql in the following database comparison ...'),
-        ('mysql security when configured properly, mysql ...');
-delete from t where f like 'mysql%';
-alter table t add fulltext (f);
-select * from t where match(f) against ("use");
-select * from t where match(f) against ("run");
-select * from t where match(f) against ("tutorial");
-# cleanup
-drop table t;

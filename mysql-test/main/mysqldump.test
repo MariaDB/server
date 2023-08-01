@@ -2922,6 +2922,7 @@ DROP DATABASE test1;
 DROP DATABASE test2;
 SET sql_mode=@save_sql_mode;
 --remove_file $MYSQLTEST_VARDIR/tmp/dumptest1.sql
+use test;
 
 --echo #
 --echo # MDEV-4875 Can't restore a mysqldump if --add-drop-database meets general_log
@@ -2982,4 +2983,27 @@ TRUNCATE TABLE mysql.general_log;
 DROP DATABASE test1;
 --remove_file $MYSQLTEST_VARDIR/tmp/dumptest1.sql
 
+--echo #
 --echo # End of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-31092 mysqldump --force doesn't ignore error as it should
+--echo #
+create function f1() returns int return 1;
+create function f2() returns int return 2;
+update mysql.proc set body='return no_such_var' where db='test' and name='f1';
+create event e1 on schedule every 1 year starts '2030-01-01' do select 1;
+update mysql.event set body ='select not_a_value' where db='test' and name='e1';
+create table t1 (i int);
+--replace_result mariadb-dump.exe mariadb-dump
+--error 2
+--exec $MYSQL_DUMP --compact --events --routines --force test 2>&1
+drop function f1;
+drop function f2;
+drop event e1;
+drop table t1;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
