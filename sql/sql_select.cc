@@ -27755,12 +27755,16 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
                LOG_SLOW_VERBOSITY_ENGINE))
   {
     table->file->set_time_tracker(&eta->op_tracker);
+
     /*
       Set handler_for_stats even if we are not running an ANALYZE command.
       There's no harm, and in case somebody runs a SHOW ANALYZE command we'll
       be able to print the engine statistics.
     */
-    eta->handler_for_stats= table->file;
+    if (table->file->handler_stats &&
+        table->s->tmp_table != INTERNAL_TMP_TABLE)
+      eta->handler_for_stats= table->file;
+
     if (likely(thd->lex->analyze_stmt))
     {
       eta->op_tracker.set_gap_tracker(&eta->extra_time_tracker);

@@ -62,3 +62,23 @@ select cast(json_extract(@out,'$[0]') as DOUBLE) > 0 as PAGES_UPDATED_MORE_THAN_
 
 drop table t1;
 
+--echo #
+--echo # MDEV-31764: ASAN use-after-poison in trace_engine_stats upon ANALYZE FORMAT=JSON
+--echo #
+
+--disable_result_log
+ANALYZE FORMAT=JSON SELECT count(*) FROM information_schema.GLOBAL_STATUS;
+--enable_result_log
+
+--echo # Another testcase without I_S:
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 SELECT seq FROM seq_1_to_100;
+CREATE TABLE t2 (s INT);
+INSERT INTO t2 SELECT seq FROM seq_1_to_10;
+
+--echo # Must use SJ-Materialization to hit the issue with temp.table:
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON SELECT * FROM t1 WHERE a IN (SELECT s FROM t2);
+
+DROP TABLE t1, t2;
