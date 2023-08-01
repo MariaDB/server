@@ -100,6 +100,7 @@ SysTablespace::parse_params(
 
 	ut_ad(m_last_file_size_max == 0);
 	ut_ad(!m_auto_extend_last_file);
+	ut_ad(!m_auto_shrink);
 
 	char*	new_str = mem_strdup(filepath_spec);
 	char*	str = new_str;
@@ -144,6 +145,11 @@ SysTablespace::parse_params(
 				str += (sizeof ":max:") - 1;
 
 				str = parse_units(str, &size);
+			}
+
+		        if (0 == strncmp(str, ":autoshrink",
+	                         (sizeof ":autoshrink") - 1)) {
+			   str += (sizeof ":autoshrink") - 1;
 			}
 
 			if (*str != '\0') {
@@ -266,6 +272,12 @@ SysTablespace::parse_params(
 				str = parse_units(str, &m_last_file_size_max);
 			}
 
+		        if (0 == strncmp(str, ":autoshrink",
+	                         (sizeof ":autoshrink") - 1)) {
+			   str += (sizeof ":autoshrink") - 1;
+			   m_auto_shrink = true;
+			}
+
 			if (*str != '\0') {
 				ut_free(new_str);
 				ib::error() << "syntax error in file path or"
@@ -333,6 +345,7 @@ SysTablespace::shutdown()
 	m_created_new_raw = 0;
 	m_is_tablespace_full = false;
 	m_sanity_checks_done = false;
+	m_auto_shrink = false;
 }
 
 /** Verify the size of the physical file.
@@ -974,6 +987,7 @@ SysTablespace::normalize_size()
 	for (files_t::iterator it = m_files.begin(); it != end; ++it) {
 
 		it->m_size <<= (20U - srv_page_size_shift);
+		it->m_user_param_size = it->m_size;
 	}
 
 	m_last_file_size_max <<= (20U - srv_page_size_shift);

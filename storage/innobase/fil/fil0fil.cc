@@ -668,6 +668,19 @@ fil_space_extend_must_retry(
 	return false;
 }
 
+bool recv_sys_t::check_sys_truncate()
+{
+  mysql_mutex_assert_owner(&fil_system.mutex);
+  if (!truncated_sys_space.lsn)
+    return false;
+  if (fil_system.sys_space->size <= fil_system.sys_space->recv_size)
+  {
+    truncated_sys_space={0,0};
+    return false;
+  }
+  return true;
+}
+
 /** @return whether the file is usable for io() */
 ATTRIBUTE_COLD bool fil_space_t::prepare_acquired()
 {
@@ -684,6 +697,8 @@ ATTRIBUTE_COLD bool fil_space_t::prepare_acquired()
   else if (node->deferred);
   else if (auto desired_size= recv_size)
   {
+    if (id == TRX_SYS_SPACE && recv_sys.check_sys_truncate())
+      goto clear;
     bool success;
     while (fil_space_extend_must_retry(this, node, desired_size, &success))
       mysql_mutex_lock(&fil_system.mutex);

@@ -119,6 +119,12 @@ public:
 		return(m_auto_extend_last_file);
 	}
 
+	/** @return auto shrink */
+	bool can_auto_shrink() const
+	{
+		return m_auto_shrink;
+	}
+
 	/** Set the last file size.
 	@param[in]	size	the size to set */
 	void set_last_file_size(uint32_t size)
@@ -141,6 +147,16 @@ public:
 	{
 		return sys_tablespace_auto_extend_increment
 			<< (20 - srv_page_size_shift);
+	}
+
+	/**
+	@return user specified tablespace size */
+	uint32_t get_min_size() const
+	{
+	  uint32_t full_size= 0;
+	  for (uint32_t i= 0; i < m_files.size(); i++)
+	    full_size+= m_files.at(i).m_user_param_size;
+	  return full_size;
 	}
 
 	/**
@@ -251,6 +267,10 @@ private:
 
 	/** if false, then sanity checks are still pending */
 	bool		m_sanity_checks_done;
+
+	/** Shrink the system tablespace if the value is
+	enabled */
+	bool		m_auto_shrink;
 };
 
 /* GLOBAL OBJECTS */

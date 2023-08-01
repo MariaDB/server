@@ -235,7 +235,10 @@ private:
     lsn_t lsn;
     /** truncated size of the tablespace, or 0 if not truncated */
     unsigned pages;
-  } truncated_undo_spaces[127];
+  };
+
+  trunc truncated_undo_spaces[127];
+  trunc truncated_sys_space;
 
 public:
   /** The contents of the doublewrite buffer */
@@ -259,6 +262,12 @@ public:
     if (pages_it != pages.end() && pages_it->first.space() == space_id)
       pages_it= pages.end();
   }
+
+  /** Allow to apply system tablespace truncate redo log only
+  if the size to be extended is lesser than current size.
+  @retval true  To apply the truncate shrink redo log record
+  @retval false otherwise */
+  bool check_sys_truncate();
 
 private:
   /** Attempt to initialize a page based on redo log records.

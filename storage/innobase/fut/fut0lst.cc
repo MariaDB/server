@@ -35,8 +35,8 @@ Created 11/28/1995 Heikki Tuuri
 @param[in]      page    page number
 @param[in]      boffset byte offset
 @param[in,out]  mtr     mini-transaction */
-static void flst_write_addr(const buf_block_t& block, byte *faddr,
-                            uint32_t page, uint16_t boffset, mtr_t* mtr)
+void flst_write_addr(const buf_block_t &block, byte *faddr,
+                     uint32_t page, uint16_t boffset, mtr_t *mtr)
 {
   ut_ad(mtr->memo_contains_page_flagged(faddr, MTR_MEMO_PAGE_X_FIX |
                                         MTR_MEMO_PAGE_SX_FIX));

@@ -1733,6 +1733,13 @@ dberr_t srv_start(bool create_new_db)
 		ut_ad(high_level_read_only
 		      || srv_force_recovery < SRV_FORCE_NO_UNDO_LOG_SCAN);
 
+		if (!high_level_read_only
+		    && srv_sys_space.can_auto_shrink()) {
+			fsp_system_tablespace_truncate();
+			DBUG_EXECUTE_IF("crash_after_sys_truncate",
+					return srv_init_abort(DB_ERROR););
+		}
+
 		/* Validate a few system page types that were left
 		uninitialized before MySQL or MariaDB 5.5. */
 		if (!high_level_read_only

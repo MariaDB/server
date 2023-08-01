@@ -148,6 +148,15 @@ inline fil_addr_t flst_get_prev_addr(const flst_node_t *node)
   return flst_read_addr(node + FLST_PREV);
 }
 
+/** Write a file address.
+@param[in]      block   file page
+@param[in,out]  faddr   file address location
+@param[in]      page    page number
+@param[in]      boffset byte offset
+@param[in,out]  mtr     mini-transaction */
+void flst_write_addr(const buf_block_t &block, byte *faddr,
+                     uint32_t page, uint16_t boffset, mtr_t *mtr);
+
 # ifdef UNIV_DEBUG
 /** Validate a file-based list. */
 void flst_validate(const buf_block_t *base, uint16_t boffset, mtr_t *mtr);

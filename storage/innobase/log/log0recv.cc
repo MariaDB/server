@@ -1319,6 +1319,7 @@ void recv_sys_t::create()
 	recv_max_page_lsn = 0;
 
 	memset(truncated_undo_spaces, 0, sizeof truncated_undo_spaces);
+	truncated_sys_space= {0, 0};
 	UT_LIST_INIT(blocks, &buf_block_t::unzip_LRU);
 }
 
@@ -2665,23 +2666,28 @@ restart:
         cl= l.copy_if_needed(iv, decrypt_buf, recs, rlen);
         if (rlen == 1 && *cl == TRIM_PAGES)
         {
-#if 0 /* For now, we can only truncate an undo log tablespace */
-          if (UNIV_UNLIKELY(!space_id || !page_no))
-            goto record_corrupted;
-#else
-          if (!srv_is_undo_tablespace(space_id) ||
-              page_no != SRV_UNDO_TABLESPACE_SIZE_IN_PAGES)
-            goto record_corrupted;
+          if (srv_is_undo_tablespace(space_id))
+	  {
+	    if (page_no != SRV_UNDO_TABLESPACE_SIZE_IN_PAGES)
+              goto record_corrupted;
+            /* The entire undo tablespace will be reinitialized by
+            innodb_undo_log_truncate=ON. Discard old log for all
+	    pages. */
+	    trim({space_id, 0}, start_lsn);
+	    truncated_undo_spaces[space_id - srv_undo_space_id_start]=
+              { start_lsn, page_no};
+	  }
+	  else if (space_id != 0) goto record_corrupted;
+	  else
+	  {
+	    /* Shrink the system tablespace */
+            trim({space_id, page_no}, start_lsn);
+            truncated_sys_space= {start_lsn, page_no};
+	  }
           static_assert(UT_ARR_SIZE(truncated_undo_spaces) ==
                         TRX_SYS_MAX_UNDO_SPACES, "compatibility");
-          /* The entire undo tablespace will be reinitialized by
-          innodb_undo_log_truncate=ON. Discard old log for all pages. */
-          trim({space_id, 0}, start_lsn);
-          truncated_undo_spaces[space_id - srv_undo_space_id_start]=
-            { start_lsn, page_no };
-          if (!store && undo_space_trunc)
+          if (!store && undo_space_trunc && space_id)
             undo_space_trunc(space_id);
-#endif
           last_offset= 1; /* the next record must not be same_page  */
           continue;
         }
@@ -3722,6 +3728,30 @@ void recv_sys_t::apply(bool last_batch)
     report_progress();
 
     apply_log_recs= true;
+
+    if (truncated_sys_space.lsn)
+    {
+      trim({0, truncated_sys_space.pages}, truncated_sys_space.lsn);
+      fil_node_t *file= UT_LIST_GET_LAST(fil_system.sys_space->chain);
+      ut_ad(file->is_open());
+
+      /* Last file new size after truncation */
+      uint32_t new_last_file_size=
+        truncated_sys_space.pages -
+          (srv_sys_space.get_min_size()
+           - srv_sys_space.m_files.at(
+               srv_sys_space.m_files.size() - 1). param_size());
+
+      os_file_truncate(
+        file->name, file->handle,
+        os_offset_t{new_last_file_size} << srv_page_size_shift, true);
+      mysql_mutex_lock(&fil_system.mutex);
+      fil_system.sys_space->size= truncated_sys_space.pages;
+      fil_system.sys_space->chain.end->size= new_last_file_size;
+      srv_sys_space.set_last_file_size(new_last_file_size);
+      truncated_sys_space={0, 0};
+      mysql_mutex_unlock(&fil_system.mutex);
+    }
 
     for (auto id= srv_undo_tablespaces_open; id--;)
     {
