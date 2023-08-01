@@ -8315,6 +8315,25 @@ void Item_ref::cleanup()
   DBUG_VOID_RETURN;
 }
 
+/**
+  Return true if `target' is reacheable from `start' by a chain of
+  dereferencing `Item_ref's. Useful for detecting self-referencing.
+*/
+static bool ref_reacheable(Item* const start, Item** const target)
+{
+  Item *cur= start, **next;
+  while (cur && cur->type() == Item::REF_ITEM)
+  {
+    next= ((Item_ref *) cur)->ref;
+    if (next == target)
+      return true;
+    if (next)
+      cur= *next;
+    else
+      break;
+  }
+  return false;
+}
 
 /**
   Transform an Item_ref object with a transformer callback function.
@@ -8349,7 +8368,7 @@ Item* Item_ref::transform(THD *thd, Item_transformer transformer, uchar *arg)
     Otherwise we'll be allocating a lot of unnecessary memory for
     change records at each execution.
   */
-  if (*ref != new_item)
+  if (*ref != new_item && !ref_reacheable(new_item, ref))
     thd->change_item_tree(ref, new_item);
 
   /* Transform the item ref object. */
