@@ -2836,7 +2836,7 @@ func_exit:
 
 #include <tpool.h>
 
-void IORequest::write_complete() const
+void IORequest::write_complete(int io_error) const
 {
   ut_ad(fil_validate_skip());
   ut_ad(node);
@@ -2851,13 +2851,13 @@ void IORequest::write_complete() const
       ut_ad(type == IORequest::WRITE_ASYNC);
   }
   else
-    buf_page_write_complete(*this);
+    buf_page_write_complete(*this, io_error);
 
   node->complete_write();
   node->space->release();
 }
 
-void IORequest::read_complete() const
+void IORequest::read_complete(int io_error) const
 {
   ut_ad(fil_validate_skip());
   ut_ad(node);
@@ -2870,18 +2870,25 @@ void IORequest::read_complete() const
   and never issue asynchronous reads of change buffer pages. */
   const page_id_t id(bpage->id());
 
-  if (dberr_t err= bpage->read_complete(*node))
+  if (UNIV_UNLIKELY(io_error != 0))
   {
+    sql_print_error("InnoDB: Read error %d of page " UINT32PF " in file %s",
+                    io_error, id.page_no(), node->name);
+    buf_pool.corrupted_evict(bpage, buf_page_t::READ_FIX);
+  corrupted:
     if (recv_recovery_is_on() && !srv_force_recovery)
     {
       mysql_mutex_lock(&recv_sys.mutex);
       recv_sys.set_corrupt_fs();
       mysql_mutex_unlock(&recv_sys.mutex);
     }
-
+  }
+  else if (dberr_t err= bpage->read_complete(*node))
+  {
     if (err != DB_FAIL)
       ib::error() << "Failed to read page " << id.page_no()
                   << " from file '" << node->name << "': " << err;
+    goto corrupted;
   }
 
   node->space->release();

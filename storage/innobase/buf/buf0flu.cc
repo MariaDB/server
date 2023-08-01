@@ -312,11 +312,14 @@ buf_flush_relocate_on_flush_list(
 }
 
 /** Note that a block is no longer dirty, while not removing
-it from buf_pool.flush_list */
-inline void buf_page_t::write_complete(bool temporary)
+it from buf_pool.flush_list
+@param temporary   whether the page belongs to the temporary tablespace
+@param error       whether an error may have occurred while writing */
+inline void buf_page_t::write_complete(bool temporary, bool error)
 {
   ut_ad(temporary == fsp_is_system_temporary(id().space()));
-  if (temporary)
+  if (UNIV_UNLIKELY(error));
+  else if (temporary)
   {
     ut_ad(oldest_modification() == 2);
     oldest_modification_= 0;
@@ -353,8 +356,9 @@ inline void buf_pool_t::n_flush_dec()
 }
 
 /** Complete write of a file page from buf_pool.
-@param request write request */
-void buf_page_write_complete(const IORequest &request)
+@param request write request
+@param error   whether the write may have failed */
+void buf_page_write_complete(const IORequest &request, bool error)
 {
   ut_ad(request.is_write());
   ut_ad(!srv_read_only_mode);
@@ -387,8 +391,9 @@ void buf_page_write_complete(const IORequest &request)
     /* We must hold buf_pool.mutex while releasing the block, so that
     no other thread can access it before we have freed it. */
     mysql_mutex_lock(&buf_pool.mutex);
-    bpage->write_complete(temp);
-    buf_LRU_free_page(bpage, true);
+    bpage->write_complete(temp, error);
+    if (!error)
+      buf_LRU_free_page(bpage, true);
     mysql_mutex_unlock(&buf_pool.mutex);
 
     buf_pool.n_flush_dec();
@@ -398,7 +403,7 @@ void buf_page_write_complete(const IORequest &request)
     if (state < buf_page_t::WRITE_FIX_REINIT &&
         request.node->space->use_doublewrite())
       buf_dblwr.write_completed();
-    bpage->write_complete(false);
+    bpage->write_complete(false, error);
   }
 }
 

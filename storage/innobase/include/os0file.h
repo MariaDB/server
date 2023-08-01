@@ -221,8 +221,8 @@ public:
   bool is_LRU() const { return (type & (WRITE_LRU ^ WRITE_ASYNC)) != 0; }
   bool is_async() const { return (type & (READ_SYNC ^ READ_ASYNC)) != 0; }
 
-  void write_complete() const;
-  void read_complete() const;
+  void write_complete(int io_error) const;
+  void read_complete(int io_error) const;
   void fake_read_complete(os_offset_t offset) const;
 
   /** If requested, free storage space associated with a section of the file.
