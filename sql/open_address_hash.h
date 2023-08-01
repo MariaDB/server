@@ -2,6 +2,7 @@
 
 #include <string.h>
 #include <my_dbug.h>
+#include <m_string.h>
 
 
 
@@ -100,11 +101,11 @@ private:
     uint past_capacity= capacity;
     capacity= _capacity;
     hash_array= (T *) realloc(hash_array, capacity * sizeof(T));
-
-    for (uint i= past_capacity; i < capacity; i++)
+    bzero(hash_array + past_capacity, (capacity - past_capacity)*sizeof(T*));
+   /* for (uint i= past_capacity; i < capacity; i++)
     {
       hash_array[i]= nullptr;
-    }
+    }*/
 
     for (uint i= 0; i < capacity; i++)
     {
