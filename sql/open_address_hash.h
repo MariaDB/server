@@ -15,7 +15,10 @@ public:
   using hash_value_type= typename key_trait::hash_value_type;
   using key_type= typename key_trait::key_type;
 
-  //key_type *get_key(const T &elem) { return key_trait::get_key(elem); }
+  const key_type *get_key(const T &elem)
+  {
+    return value_trait::template get_key<key_type>(elem);
+  }
   bool is_empty(const T &el) { return value_trait::is_empty(el); }
   void set_null(T &el) { value_trait::set_null(el); }
 
@@ -43,7 +46,7 @@ private:
 
   hash_value_type hash_from_value(const T &value)
   {
-    return key_trait::get_hash_value(value_trait::get_key(value));
+    return key_trait::get_hash_value(get_key(value));
   }
 
   bool insert_helper(const T &value)
@@ -82,7 +85,7 @@ private:
 
   bool erase_helper(const erase_type &value)
   {
-    for (auto key= to_index(key_trait::get_hash_value(value_trait::get_key(value)));
+    for (auto key= to_index(key_trait::get_hash_value(get_key(value)));
          hash_array[key] != nullptr; key= to_index(key + 1))
     {
       if (value_trait::is_equal(hash_array[key], value))

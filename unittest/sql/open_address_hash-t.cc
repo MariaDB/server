@@ -12,7 +12,7 @@ struct test_key_trait
   using hash_value_type= uint32;
   using key_type= hash_value_type;
 
-  static uint32 get_key(const key_type* elem) { return *elem; }
+  static uint32 get_key(const key_type *elem) { return *elem; }
   static hash_value_type get_hash_value(const key_type* elem) { return *elem; }
 };
 
@@ -32,7 +32,8 @@ struct pointer_trait
 
 struct test_value_trait: public pointer_trait<uint32>
 {
-  static const uint32 *get_key(const uint32 *elem) { return elem; }
+  template <typename key_type>
+  static const key_type *get_key(const uint32 *elem) { return elem; }
   static uint32 get_hash_value(const uint32* elem) { return *elem; }
 };
 
