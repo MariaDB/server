@@ -2395,8 +2395,6 @@ struct recv_ring : public recv_buf
   const byte *copy_if_needed(const byte *iv, byte *tmp, recv_ring start,
                              size_t len)
   {
-    if (!len)
-      return ptr;
     const size_t s(*this - start);
     ut_ad(s + len <= srv_page_size);
     if (!log_sys.is_encrypted())
@@ -2751,6 +2749,8 @@ restart:
           store_freed_or_init_rec(id, (b & 0x70) == FREE_PAGE);
         if (UNIV_UNLIKELY(rlen != 0))
           goto record_corrupted;
+      copy_if_needed:
+        cl= l.copy_if_needed(iv, decrypt_buf, recs, rlen);
         break;
       case EXTENDED:
         if (UNIV_UNLIKELY(!rlen))
@@ -2782,10 +2782,7 @@ restart:
         break;
       case OPTION:
         if (rlen == 5 && *l == OPT_PAGE_CHECKSUM)
-        {
-          cl= l.copy_if_needed(iv, decrypt_buf, recs, rlen);
-          break;
-        }
+          goto copy_if_needed;
         /* fall through */
       case RESERVED:
         continue;
