@@ -33,6 +33,8 @@ int myrg_status(MYRG_INFO *info,register MYMERGE_INFO *x,int flag)
   MYRG_TABLE *current_table;
   DBUG_ENTER("myrg_status");
 
+  x->errkey= 0;
+  x->dupp_key_pos= 0;
   if (!(current_table = info->current_table) &&
       info->open_tables != info->end_table)
     current_table = info->open_tables;
@@ -71,11 +73,6 @@ int myrg_status(MYRG_INFO *info,register MYMERGE_INFO *x,int flag)
           the duplicate key is located.
         */
         x->dupp_key_pos= current_table->file_offset + current_table->table->dupp_key_pos;
-      }
-      else
-      {
-        x->errkey= 0;
-        x->dupp_key_pos= 0;
       }
     }
     x->records= info->records;
