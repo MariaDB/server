@@ -4147,7 +4147,8 @@ static bool recv_scan_log(bool last_phase)
     if (recv_sys.is_corrupt_log())
       break;
 
-    if (recv_sys.offset < log_sys.get_block_size())
+    if (recv_sys.offset < log_sys.get_block_size() &&
+        recv_sys.lsn == recv_sys.scanned_lsn)
       goto got_eof;
 
     if (recv_sys.offset > buf_size / 4 ||
@@ -4662,6 +4663,13 @@ err_exit:
 	}
 
 	mysql_mutex_lock(&recv_sys.mutex);
+	if (UNIV_UNLIKELY(recv_sys.scanned_lsn != recv_sys.lsn)
+	    && log_sys.is_latest()) {
+		ut_ad("log parsing error" == 0);
+		mysql_mutex_unlock(&recv_sys.mutex);
+		err = DB_CORRUPTION;
+		goto early_exit;
+	}
 	recv_sys.apply_log_recs = true;
 	recv_no_ibuf_operations = false;
 	ut_d(recv_no_log_write = srv_operation == SRV_OPERATION_RESTORE
