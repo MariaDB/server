@@ -29,23 +29,23 @@ set session sql_mode=@OLD_SQL_MODE;
 --echo #
 create table t2 (x int);
 
---error ER_BAD_FIELD_ERROR
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create table t1 (x int, y int generated always as (t2.x));
---error ER_BAD_FIELD_ERROR
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create table t1 (x int, y int check (y > t2.x));
---error ER_BAD_FIELD_ERROR
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create table t1 (x int, y int default t2.x);
---error ER_BAD_FIELD_ERROR
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create table t1 (x int, check (t2.x > 0));
 
 create table t1 (x int);
---error ER_BAD_FIELD_ERROR
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 alter table t1 add column y int generated always as (t2.x);
---error ER_BAD_FIELD_ERROR
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 alter table t1 add column y int check (z > t2.x);
---error ER_BAD_FIELD_ERROR
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 alter table t1 add column y int default t2.x;
---error ER_BAD_FIELD_ERROR
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 alter table t1 add constraint check (t2.x > 0);
 
 create or replace table t1 (x int, y int generated always as (t1.x));
@@ -60,13 +60,13 @@ create or replace table t1 (x int, check (test.t1.x > 0));
 
 drop tables t1, t2;
 
---error ER_BAD_FIELD_ERROR
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create table t1 (x int, y int generated always as (test2.t1.x));
---error ER_BAD_FIELD_ERROR
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create table t1 (x int, y int check (y > test2.t1.x));
---error ER_BAD_FIELD_ERROR
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create table t1 (x int, y int default test2.t1.x);
---error ER_BAD_FIELD_ERROR
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create table t1 (x int, check (test2.t1.x > 0));
 
 --echo #

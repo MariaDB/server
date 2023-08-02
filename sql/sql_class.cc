@@ -177,7 +177,7 @@ Key::Key(const Key &rhs, MEM_ROOT *mem_root)
   name(rhs.name),
   option_list(rhs.option_list),
   generated(rhs.generated), invisible(false),
-  without_overlaps(rhs.without_overlaps), period(rhs.period)
+  without_overlaps(rhs.without_overlaps), old(rhs.old), period(rhs.period)
 {
   list_copy_and_replace_each_value(columns, mem_root);
 }
@@ -213,11 +213,11 @@ Foreign_key::Foreign_key(const Foreign_key &rhs, MEM_ROOT *mem_root)
     We only compare field names
 
   RETURN
-    0	Generated key is a prefix of other key
-    1	Not equal
+    true        Generated key is a prefix of other key
+    false       Not a prefix
 */
 
-bool foreign_key_prefix(Key *a, Key *b)
+bool is_foreign_key_prefix(Key *a, Key *b)
 {
   /* Ensure that 'a' is the generated key */
   if (a->generated)
@@ -228,13 +228,13 @@ bool foreign_key_prefix(Key *a, Key *b)
   else
   {
     if (!b->generated)
-      return TRUE;                              // No foreign key
+      return false;                             // No foreign key
     swap_variables(Key*, a, b);                 // Put generated key in 'a'
   }
 
   /* Test if 'a' is a prefix of 'b' */
   if (a->columns.elements > b->columns.elements)
-    return TRUE;                                // Can't be prefix
+    return false;                                // Can't be prefix
 
   List_iterator<Key_part_spec> col_it1(a->columns);
   List_iterator<Key_part_spec> col_it2(b->columns);
@@ -254,17 +254,17 @@ bool foreign_key_prefix(Key *a, Key *b)
       }
     }
     if (!found)
-      return TRUE;                              // Error
+      return false;                             // Error
   }
-  return FALSE;                                 // Is prefix
+  return true;                                  // Is prefix
 #else
   while ((col1= col_it1++))
   {
     col2= col_it2++;
     if (!(*col1 == *col2))
-      return TRUE;
+      return false;
   }
-  return FALSE;                                 // Is prefix
+  return true;                                 // Is prefix
 #endif
 }
 
@@ -285,6 +285,8 @@ bool Foreign_key::validate(List<Create_field> &table_fields)
   List_iterator<Key_part_spec> cols(columns);
   List_iterator<Create_field> it(table_fields);
   DBUG_ENTER("Foreign_key::validate");
+  if (old)
+    DBUG_RETURN(FALSE); // must be good
   while ((column= cols++))
   {
     it.rewind();

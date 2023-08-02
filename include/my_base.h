@@ -270,17 +270,15 @@ enum ha_base_keytype {
 
 #define HA_NOSAME		 1U	/* Set if not dupplicated records */
 #define HA_PACK_KEY		 2U	/* Pack string key to previous key */
-#define HA_AUTO_KEY		 16U
+#define HA_AUTO_KEY		 16U    /* MEMORY/MyISAM/Aria internal */
 #define HA_BINARY_PACK_KEY	 32U	/* Packing of all keys to prev key */
 #define HA_FULLTEXT		128U    /* For full-text search */
-#define HA_UNIQUE_CHECK		256U	/* Check the key for uniqueness */
 #define HA_SPATIAL		1024U   /* For spatial search */
 #define HA_NULL_ARE_EQUAL	2048U	/* NULL in key are cmp as equal */
 #define HA_GENERATED_KEY	8192U	/* Automatically generated key */
 
         /* The combination of the above can be used for key type comparison. */
-#define HA_KEYFLAG_MASK (HA_NOSAME | HA_AUTO_KEY | \
-                         HA_FULLTEXT | HA_UNIQUE_CHECK | \
+#define HA_KEYFLAG_MASK (HA_NOSAME | HA_AUTO_KEY | HA_FULLTEXT | \
                          HA_SPATIAL | HA_NULL_ARE_EQUAL | HA_GENERATED_KEY)
 
 /*
