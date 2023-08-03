@@ -1,26 +1,31 @@
 --echo #
---echo # Start of 10.10 tests
---echo #
-
---echo #
 --echo # MDEV-23287 The INET4 data type
 --echo #
 
-# Mixing INET6 and INET4 is not implemented yet
+create table t1 (i4 inet4 not null);
+create table t2 (i6 inet6 not null);
 
-CREATE TABLE t1 (i4 INET4, i6 INET6);
---error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
-SELECT * FROM t1 WHERE i4=i6;
---error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
-SELECT COALESCE(i4,i6) FROM t1 WHERE i4=i6;
---error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
-SELECT LEAST(i4,i6) FROM t1 WHERE i4=i6;
---error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
-SELECT i4 FROM t1 UNION ALL SELECT i6 FROM t1;
+insert t1 values ('127.0.0.1'), ('192.168.1.2'), ('1.2.3.4'), ('8.8.8.8');
+insert t2 values ('2001:db8::ff00:42:8329'), ('fe80::42:70ff:fe94:6b97');
 
-DROP TABLE t1;
+select * from t1;
+select * from t2;
 
+select * from t1 union select * from t2;
+
+insert t2 select * from t1;
+select * from t2;
+
+select * from t1, t2 where t1.i4=t2.i6;
+
+select coalesce(i4,i6) from t1, t2 where i4=i6;
+select least(i4,i6) from t1, t2 where i4=i6;
+
+alter table t1 modify i4 inet6;
+select * from t1;
+
+drop table t1, t2;
 
 --echo #
---echo # End of 10.10 tests
+--echo # End of 11.2 tests
 --echo #

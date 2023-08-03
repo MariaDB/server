@@ -269,6 +269,12 @@ bool Inet6::ascii_to_fbt(const char *str, size_t str_length)
         return true;
       }
 
+      if (group_start_ptr == str)
+      {
+        dst[10]= dst[11]= (unsigned char) 0xff;
+        dst+= 12;
+      }
+
       tmp.to_record(dst, IN_ADDR_SIZE);
       dst += IN_ADDR_SIZE;
       chars_in_group= 0;
@@ -518,4 +524,36 @@ const Name &Inet4::default_value()
 {
   static Name def(STRING_WITH_LEN("0.0.0.0"));
   return def;
+}
+
+static const Type_handler *inet4()
+{ return Type_handler_inet4::singleton(); }
+
+static const Type_handler *inet6()
+{ return Type_handler_inet6::singleton(); }
+
+const Type_handler *Type_collection_inet::find_in_array(const Type_handler *a,
+                                                        const Type_handler *b,
+                                                        int start) const
+{
+  if (a == b) return a;
+  if (a != inet6() && b->type_collection() == this) // inet6 or inet4
+    std::swap(a, b);
+
+  /*
+    Search in the array for an element, equal to `b`.
+    If found - return `a`, if not found - return NULL.
+    Array is terminated by `a`.
+    Start the search from `start`
+  */
+  static const Type_handler *arr[]={ &type_handler_varchar,
+    &type_handler_string, &type_handler_tiny_blob, &type_handler_blob,
+    &type_handler_medium_blob, &type_handler_hex_hybrid,
+    // in aggregate_for_comparison() all types above cannot happen
+    &type_handler_null, &type_handler_long_blob, inet4(), inet6() };
+
+  for (int i= start; arr[i] != a; i++)
+    if (arr[i] == b)
+      return a;
+  return NULL;
 }
