@@ -3364,7 +3364,8 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
     my_snprintf(query_buff, sizeof(query_buff),
                 "select column_name, extra, generation_expression, data_type "
                 "from information_schema.columns where table_schema=database() "
-                "and table_name=%s", quote_for_equal(table, temp_buff));
+                "and table_name=%s order by ordinal_position",
+                quote_for_equal(table, temp_buff));
     if (mysql_query_with_error_report(mysql, &result, query_buff))
     {
       if (path)
@@ -3449,7 +3450,8 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
                                   "`EXTRA` AS `Extra`, "
                                   "`COLUMN_COMMENT` AS `Comment` "
                                   "FROM `INFORMATION_SCHEMA`.`COLUMNS` WHERE "
-                                  "TABLE_SCHEMA = %s AND TABLE_NAME = %s";
+                                  "TABLE_SCHEMA = %s AND TABLE_NAME = %s "
+                                  "ORDER BY ORDINAL_POSITION";
 
     verbose_msg("%s: Warning: Can't set SQL_QUOTE_SHOW_CREATE option (%s)\n",
                 my_progname_short, mysql_error(mysql));
