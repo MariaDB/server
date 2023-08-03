@@ -5081,7 +5081,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     else
     if (get_general_type_code() == WRITE_ROWS_EVENT)
       bitmap_copy(table->write_set, &m_cols); // for sequences
-    else
+    else // If online alter, leave all columns set (i.e. skip intersects)
+    if (!thd->slave_thread || !table->s->online_alter_binlog)
     {
       bitmap_intersect(table->read_set,&m_cols);
       if (get_general_type_code() == UPDATE_ROWS_EVENT)

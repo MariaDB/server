@@ -2,13 +2,19 @@ source include/have_debug_sync.inc;
 source include/have_innodb.inc;
 source include/master-slave.inc;
 
+--connection master
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format");
 
 --connection slave
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format");
+
 source include/stop_slave.inc;
 --let $slave_parallel_threads=`select @@global.slave_parallel_threads`
 --let $slave_parallel_mode=   `select @@global.slave_parallel_mode`
+--let $binlog_row_image= `select @@global.binlog_row_image`
 set global slave_parallel_threads=3;
 set global slave_parallel_mode= optimistic;
+set global binlog_row_image=MINIMAL;
 --connection master
 
 
@@ -43,6 +49,26 @@ select * from t;
 # Cleanup
 --connection master
 drop table t;
+
+--echo # MDEV-31838 Assertion fails on replica upon parallel
+--echo # replication with two-phase alter and MINIMAL row image
+create table t (id int, a int, primary key(id)) engine=aria;
+insert into t values (1,0);
+
+set @@session.binlog_alter_two_phase=1;
+set debug_sync= 'alter_table_online_progress signal go_dml wait_for go_alter';
+send alter table t force, algorithm=copy, lock=none;
+
+--connection master1
+set binlog_row_image=MINIMAL;
+set debug_sync= 'now wait_for go_dml';
+update ignore t set a = 1;
+set debug_sync= 'now signal go_alter';
+
+# Cleanup
+--connection master
+--reap
+drop table t;
 --sync_slave_with_master
 --connection master
 
@@ -52,6 +78,7 @@ drop table t;
 
 --connection slave
 source include/stop_slave.inc;
+--eval set global binlog_row_image=$binlog_row_image
 --eval set global slave_parallel_threads=$slave_parallel_threads
 --eval set global slave_parallel_mode=   $slave_parallel_mode
 source include/start_slave.inc;
