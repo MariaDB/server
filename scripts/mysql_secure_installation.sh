@@ -207,7 +207,15 @@ validate_reply () {
 	reply=y
 	return $ret
     fi
-    case $1 in
+    #
+    # Convert user input to lower case. After that we get case independent response from 
+    # the validate_reply function. if tr binary not available or corrupted on targeted host,
+    # it will fallback to previous behaviour mean case dependent behaviour.   
+    yes_or_no=$(echo $1 | tr '[:lower:]' '[:upper:]')
+    if [[ $yes_or_no != "yes" ]] && [[ $yes_or_no != "no" ]]; then
+            yes_or_no=$1
+    fi
+    case $yes_or_no in
         y|Y|yes|Yes|YES) reply=y ;;
         n|N|no|No|NO)    reply=n ;;
         *) ret=1 ;;
