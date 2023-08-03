@@ -473,15 +473,24 @@ err:
   Create a formatted date/time value in a string.
 */
 
-static bool make_date_time(const String *format, const MYSQL_TIME *l_time,
-                           timestamp_type type, const MY_LOCALE *locale,
-                           String *str)
+static bool make_date_time(THD *thd, const String *format,
+                           const MYSQL_TIME *l_time, timestamp_type type,
+                           const MY_LOCALE *locale, String *str)
 {
   char intbuff[15];
   uint hours_i;
   uint weekday;
   ulong length;
   const char *ptr, *end;
+  int diff_hr=0, diff_min=0;
+  char abbrevation[8];
+  struct tz tmp;
+  tmp.is_inited= false;
+
+  Time_zone* curr_timezone= my_tz_find(thd,
+                               thd->variables.time_zone->get_name());
+  memset(abbrevation, 0, sizeof(abbrevation));
+
 
   str->length(0);
 
@@ -699,6 +708,44 @@ static bool make_date_time(const String *format, const MYSQL_TIME *l_time,
 	str->append_with_prefill(intbuff, length, 1, '0');
 	break;
 
+      case 'z':
+      {
+        if (!tmp.is_inited)
+        {
+          curr_timezone->get_timezone_information(&tmp, l_time);
+          tmp.is_inited= true;
+        }
+        ulonglong seconds= abs(tmp.seconds_offset);
+        diff_hr= (int)(seconds/3600L);
+        int temp= (int)(seconds%3600L);
+        diff_min= temp/60L;
+
+        if (tmp.is_behind)
+          str->append("-", 1);
+        else
+          str->append("+", 1);
+
+        if (diff_hr/10 == 0)
+          str->append("0", 1);
+        length= (uint) (int10_to_str(diff_hr, intbuff, 10) - intbuff);
+        str->append(intbuff, length);
+        if (diff_min/10 == 0)
+          str->append("0", 1);
+        length= (uint) (int10_to_str(diff_min, intbuff, 10) - intbuff);
+        str->append(intbuff, length);
+      }
+        break;
+
+      case 'Z':
+      {
+        if (!tmp.is_inited)
+        {
+          curr_timezone->get_timezone_information(&tmp, l_time);
+          tmp.is_inited= true;
+        }
+        str->append(tmp.abbrevation, strlen(tmp.abbrevation));
+      }
+        break;
       default:
 	str->append(*ptr);
 	break;
@@ -1912,7 +1959,7 @@ String *Item_func_date_format::val_str(String *str)
 
   /* Create the result string */
   str->set_charset(collation.collation);
-  if (!make_date_time(format, &l_time,
+  if (!make_date_time(thd, format, &l_time,
                       is_time_format ? MYSQL_TIMESTAMP_TIME :
                                        MYSQL_TIMESTAMP_DATE,
                       lc, str))

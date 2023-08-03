@@ -96,29 +96,29 @@ USE mysql;
 LOCK TABLES `column_stats` WRITE;
 /*!40000 ALTER TABLE `column_stats` DISABLE KEYS */;
 REPLACE INTO `column_stats` VALUES
-('mysql','tz','Time_zone_id','1','5',0.0000,4.0000,98.2500,4,'JSON_HB','{\"target_histogram_size\": 254, \"collected_at\": \"2022-01-07 07:07:00\", \"collected_by\": \"version\", \"histogram_hb\": [{\"start\": \"1\", \"size\": 0.340966921, \"ndv\": 1}, {\"start\": \"3\", \"size\": 0.328244275, \"ndv\": 1}, {\"start\": \"4\", \"size\": 0.328244275, \"ndv\": 1}, {\"start\": \"5\", \"end\": \"5\", \"size\": 0.002544529, \"ndv\": 1}]}');
+('mysql','tz','Time_zone_id','1','6',0.0000,4.0000,78.8000,4,'JSON_HB','{\"target_histogram_size\": 254, \"collected_at\": \"2022-01-07 07:07:00\", \"collected_by\": \"version\", \"histogram_hb\": [{\"start\": \"1\", \"size\": 0.340101523, \"ndv\": 1}, {\"start\": \"3\", \"size\": 0.327411168, \"ndv\": 1}, {\"start\": \"4\", \"size\": 0.327411168, \"ndv\": 1}, {\"start\": \"5\", \"end\": \"6\", \"size\": 0.005076142, \"ndv\": 2}]}');
 /*!40000 ALTER TABLE `column_stats` ENABLE KEYS */;
 UNLOCK TABLES;
 
 LOCK TABLES `index_stats` WRITE;
 /*!40000 ALTER TABLE `index_stats` DISABLE KEYS */;
 REPLACE INTO `index_stats` VALUES
-('mysql','tz','PRIMARY',1,98.2500);
+('mysql','tz','PRIMARY',1,78.8000);
 /*!40000 ALTER TABLE `index_stats` ENABLE KEYS */;
 UNLOCK TABLES;
 
 LOCK TABLES `table_stats` WRITE;
 /*!40000 ALTER TABLE `table_stats` DISABLE KEYS */;
 REPLACE INTO `table_stats` VALUES
-('mysql','tz',393);
+('mysql','tz',394);
 /*!40000 ALTER TABLE `table_stats` ENABLE KEYS */;
 UNLOCK TABLES;
 
 LOCK TABLES `innodb_index_stats` WRITE;
 /*!40000 ALTER TABLE `innodb_index_stats` DISABLE KEYS */;
 REPLACE INTO `innodb_index_stats` VALUES
-('mysql','tz','PRIMARY','2019-12-31 21:00:00','n_diff_pfx01',4,1,'Time_zone_id'),
-('mysql','tz','PRIMARY','2019-12-31 21:00:00','n_diff_pfx02',393,1,'Time_zone_id,Transition_time'),
+('mysql','tz','PRIMARY','2019-12-31 21:00:00','n_diff_pfx01',5,1,'Time_zone_id'),
+('mysql','tz','PRIMARY','2019-12-31 21:00:00','n_diff_pfx02',394,1,'Time_zone_id,Transition_time'),
 ('mysql','tz','PRIMARY','2019-12-31 21:00:00','n_leaf_pages',1,NULL,'Number of leaf pages in the index'),
 ('mysql','tz','PRIMARY','2019-12-31 21:00:00','size',1,NULL,'Number of pages in the index');
 /*!40000 ALTER TABLE `innodb_index_stats` ENABLE KEYS */;
@@ -127,7 +127,7 @@ UNLOCK TABLES;
 LOCK TABLES `innodb_table_stats` WRITE;
 /*!40000 ALTER TABLE `innodb_table_stats` DISABLE KEYS */;
 REPLACE INTO `innodb_table_stats` VALUES
-('mysql','tz','2019-12-31 21:00:00',393,1,0);
+('mysql','tz','2019-12-31 21:00:00',394,1,0);
 /*!40000 ALTER TABLE `innodb_table_stats` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -140,7 +140,8 @@ REPLACE INTO `time_zone` VALUES
 (2,'N'),
 (3,'N'),
 (4,'Y'),
-(5,'N');
+(5,'N'),
+(6,'Y');
 /*!40000 ALTER TABLE `time_zone` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -148,6 +149,7 @@ LOCK TABLES `time_zone_name` WRITE;
 /*!40000 ALTER TABLE `time_zone_name` DISABLE KEYS */;
 REPLACE INTO `time_zone_name` VALUES
 ('Europe/Moscow',3),
+('India/Kolkata',6),
 ('Japan',5),
 ('leap/Europe/Moscow',4),
 ('MET',1),
@@ -159,6 +161,7 @@ UNLOCK TABLES;
 LOCK TABLES `time_zone_leap_second` WRITE;
 /*!40000 ALTER TABLE `time_zone_leap_second` DISABLE KEYS */;
 REPLACE INTO `time_zone_leap_second` VALUES
+(174834660,1),
 (78796800,1),
 (94694401,2),
 (126230402,3),
@@ -579,7 +582,8 @@ REPLACE INTO `time_zone_transition` VALUES
 (4,2108588422,8),
 (4,2121894022,9),
 (4,2140038022,8),
-(5,-1009875600,1);
+(5,-1009875600,1),
+(6,174834660,1);
 /*!40000 ALTER TABLE `time_zone_transition` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -616,7 +620,8 @@ REPLACE INTO `time_zone_transition_type` VALUES
 (4,10,10800,1,'EEST'),
 (4,11,7200,0,'EET'),
 (5,0,32400,0,'CJT'),
-(5,1,32400,0,'JST');
+(5,1,32400,0,'JST'),
+(6,1,19800,0,'IST');
 /*!40000 ALTER TABLE `time_zone_transition_type` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -710,29 +715,29 @@ USE mysql;
 LOCK TABLES `column_stats` WRITE;
 /*!40000 ALTER TABLE `column_stats` DISABLE KEYS */;
 REPLACE INTO `column_stats` VALUES
-('mysql','tz','Time_zone_id','1','5',0.0000,4.0000,98.2500,4,'JSON_HB','{\"target_histogram_size\": 254, \"collected_at\": \"2022-01-07 07:07:00\", \"collected_by\": \"version\", \"histogram_hb\": [{\"start\": \"1\", \"size\": 0.340966921, \"ndv\": 1}, {\"start\": \"3\", \"size\": 0.328244275, \"ndv\": 1}, {\"start\": \"4\", \"size\": 0.328244275, \"ndv\": 1}, {\"start\": \"5\", \"end\": \"5\", \"size\": 0.002544529, \"ndv\": 1}]}');
+('mysql','tz','Time_zone_id','1','6',0.0000,4.0000,78.8000,4,'JSON_HB','{\"target_histogram_size\": 254, \"collected_at\": \"2022-01-07 07:07:00\", \"collected_by\": \"version\", \"histogram_hb\": [{\"start\": \"1\", \"size\": 0.340101523, \"ndv\": 1}, {\"start\": \"3\", \"size\": 0.327411168, \"ndv\": 1}, {\"start\": \"4\", \"size\": 0.327411168, \"ndv\": 1}, {\"start\": \"5\", \"end\": \"6\", \"size\": 0.005076142, \"ndv\": 2}]}');
 /*!40000 ALTER TABLE `column_stats` ENABLE KEYS */;
 UNLOCK TABLES;
 
 LOCK TABLES `index_stats` WRITE;
 /*!40000 ALTER TABLE `index_stats` DISABLE KEYS */;
 REPLACE INTO `index_stats` VALUES
-('mysql','tz','PRIMARY',1,98.2500);
+('mysql','tz','PRIMARY',1,78.8000);
 /*!40000 ALTER TABLE `index_stats` ENABLE KEYS */;
 UNLOCK TABLES;
 
 LOCK TABLES `table_stats` WRITE;
 /*!40000 ALTER TABLE `table_stats` DISABLE KEYS */;
 REPLACE INTO `table_stats` VALUES
-('mysql','tz',393);
+('mysql','tz',394);
 /*!40000 ALTER TABLE `table_stats` ENABLE KEYS */;
 UNLOCK TABLES;
 
 LOCK TABLES `innodb_index_stats` WRITE;
 /*!40000 ALTER TABLE `innodb_index_stats` DISABLE KEYS */;
 REPLACE INTO `innodb_index_stats` VALUES
-('mysql','tz','PRIMARY','2019-12-31 21:00:00','n_diff_pfx01',4,1,'Time_zone_id'),
-('mysql','tz','PRIMARY','2019-12-31 21:00:00','n_diff_pfx02',393,1,'Time_zone_id,Transition_time'),
+('mysql','tz','PRIMARY','2019-12-31 21:00:00','n_diff_pfx01',5,1,'Time_zone_id'),
+('mysql','tz','PRIMARY','2019-12-31 21:00:00','n_diff_pfx02',394,1,'Time_zone_id,Transition_time'),
 ('mysql','tz','PRIMARY','2019-12-31 21:00:00','n_leaf_pages',1,NULL,'Number of leaf pages in the index'),
 ('mysql','tz','PRIMARY','2019-12-31 21:00:00','size',1,NULL,'Number of pages in the index');
 /*!40000 ALTER TABLE `innodb_index_stats` ENABLE KEYS */;
@@ -741,7 +746,7 @@ UNLOCK TABLES;
 LOCK TABLES `innodb_table_stats` WRITE;
 /*!40000 ALTER TABLE `innodb_table_stats` DISABLE KEYS */;
 REPLACE INTO `innodb_table_stats` VALUES
-('mysql','tz','2019-12-31 21:00:00',393,1,0);
+('mysql','tz','2019-12-31 21:00:00',394,1,0);
 /*!40000 ALTER TABLE `innodb_table_stats` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -754,7 +759,8 @@ REPLACE INTO `time_zone` VALUES
 (2,'N'),
 (3,'N'),
 (4,'Y'),
-(5,'N');
+(5,'N'),
+(6,'Y');
 /*!40000 ALTER TABLE `time_zone` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -762,6 +768,7 @@ LOCK TABLES `time_zone_name` WRITE;
 /*!40000 ALTER TABLE `time_zone_name` DISABLE KEYS */;
 REPLACE INTO `time_zone_name` VALUES
 ('Europe/Moscow',3),
+('India/Kolkata',6),
 ('Japan',5),
 ('leap/Europe/Moscow',4),
 ('MET',1),
@@ -773,6 +780,7 @@ UNLOCK TABLES;
 LOCK TABLES `time_zone_leap_second` WRITE;
 /*!40000 ALTER TABLE `time_zone_leap_second` DISABLE KEYS */;
 REPLACE INTO `time_zone_leap_second` VALUES
+(174834660,1),
 (78796800,1),
 (94694401,2),
 (126230402,3),
@@ -1193,7 +1201,8 @@ REPLACE INTO `time_zone_transition` VALUES
 (4,2108588422,8),
 (4,2121894022,9),
 (4,2140038022,8),
-(5,-1009875600,1);
+(5,-1009875600,1),
+(6,174834660,1);
 /*!40000 ALTER TABLE `time_zone_transition` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -1230,7 +1239,8 @@ REPLACE INTO `time_zone_transition_type` VALUES
 (4,10,10800,1,'EEST'),
 (4,11,7200,0,'EET'),
 (5,0,32400,0,'CJT'),
-(5,1,32400,0,'JST');
+(5,1,32400,0,'JST'),
+(6,1,19800,0,'IST');
 /*!40000 ALTER TABLE `time_zone_transition_type` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -1301,29 +1311,29 @@ USE mysql;
 LOCK TABLES `column_stats` WRITE;
 /*!40000 ALTER TABLE `column_stats` DISABLE KEYS */;
 INSERT  IGNORE INTO `column_stats` VALUES
-('mysql','tz','Time_zone_id','1','5',0.0000,4.0000,98.2500,4,'JSON_HB','{\"target_histogram_size\": 254, \"collected_at\": \"2022-01-07 07:07:00\", \"collected_by\": \"version\", \"histogram_hb\": [{\"start\": \"1\", \"size\": 0.340966921, \"ndv\": 1}, {\"start\": \"3\", \"size\": 0.328244275, \"ndv\": 1}, {\"start\": \"4\", \"size\": 0.328244275, \"ndv\": 1}, {\"start\": \"5\", \"end\": \"5\", \"size\": 0.002544529, \"ndv\": 1}]}');
+('mysql','tz','Time_zone_id','1','6',0.0000,4.0000,78.8000,4,'JSON_HB','{\"target_histogram_size\": 254, \"collected_at\": \"2022-01-07 07:07:00\", \"collected_by\": \"version\", \"histogram_hb\": [{\"start\": \"1\", \"size\": 0.340101523, \"ndv\": 1}, {\"start\": \"3\", \"size\": 0.327411168, \"ndv\": 1}, {\"start\": \"4\", \"size\": 0.327411168, \"ndv\": 1}, {\"start\": \"5\", \"end\": \"6\", \"size\": 0.005076142, \"ndv\": 2}]}');
 /*!40000 ALTER TABLE `column_stats` ENABLE KEYS */;
 UNLOCK TABLES;
 
 LOCK TABLES `index_stats` WRITE;
 /*!40000 ALTER TABLE `index_stats` DISABLE KEYS */;
 INSERT  IGNORE INTO `index_stats` VALUES
-('mysql','tz','PRIMARY',1,98.2500);
+('mysql','tz','PRIMARY',1,78.8000);
 /*!40000 ALTER TABLE `index_stats` ENABLE KEYS */;
 UNLOCK TABLES;
 
 LOCK TABLES `table_stats` WRITE;
 /*!40000 ALTER TABLE `table_stats` DISABLE KEYS */;
 INSERT  IGNORE INTO `table_stats` VALUES
-('mysql','tz',393);
+('mysql','tz',394);
 /*!40000 ALTER TABLE `table_stats` ENABLE KEYS */;
 UNLOCK TABLES;
 
 LOCK TABLES `innodb_index_stats` WRITE;
 /*!40000 ALTER TABLE `innodb_index_stats` DISABLE KEYS */;
 INSERT  IGNORE INTO `innodb_index_stats` VALUES
-('mysql','tz','PRIMARY','2019-12-31 21:00:00','n_diff_pfx01',4,1,'Time_zone_id'),
-('mysql','tz','PRIMARY','2019-12-31 21:00:00','n_diff_pfx02',393,1,'Time_zone_id,Transition_time'),
+('mysql','tz','PRIMARY','2019-12-31 21:00:00','n_diff_pfx01',5,1,'Time_zone_id'),
+('mysql','tz','PRIMARY','2019-12-31 21:00:00','n_diff_pfx02',394,1,'Time_zone_id,Transition_time'),
 ('mysql','tz','PRIMARY','2019-12-31 21:00:00','n_leaf_pages',1,NULL,'Number of leaf pages in the index'),
 ('mysql','tz','PRIMARY','2019-12-31 21:00:00','size',1,NULL,'Number of pages in the index');
 /*!40000 ALTER TABLE `innodb_index_stats` ENABLE KEYS */;
@@ -1332,7 +1342,7 @@ UNLOCK TABLES;
 LOCK TABLES `innodb_table_stats` WRITE;
 /*!40000 ALTER TABLE `innodb_table_stats` DISABLE KEYS */;
 INSERT  IGNORE INTO `innodb_table_stats` VALUES
-('mysql','tz','2019-12-31 21:00:00',393,1,0);
+('mysql','tz','2019-12-31 21:00:00',394,1,0);
 /*!40000 ALTER TABLE `innodb_table_stats` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -1345,7 +1355,8 @@ INSERT  IGNORE INTO `time_zone` VALUES
 (2,'N'),
 (3,'N'),
 (4,'Y'),
-(5,'N');
+(5,'N'),
+(6,'Y');
 /*!40000 ALTER TABLE `time_zone` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -1353,6 +1364,7 @@ LOCK TABLES `time_zone_name` WRITE;
 /*!40000 ALTER TABLE `time_zone_name` DISABLE KEYS */;
 INSERT  IGNORE INTO `time_zone_name` VALUES
 ('Europe/Moscow',3),
+('India/Kolkata',6),
 ('Japan',5),
 ('leap/Europe/Moscow',4),
 ('MET',1),
@@ -1364,6 +1376,7 @@ UNLOCK TABLES;
 LOCK TABLES `time_zone_leap_second` WRITE;
 /*!40000 ALTER TABLE `time_zone_leap_second` DISABLE KEYS */;
 INSERT  IGNORE INTO `time_zone_leap_second` VALUES
+(174834660,1),
 (78796800,1),
 (94694401,2),
 (126230402,3),
@@ -1784,7 +1797,8 @@ INSERT  IGNORE INTO `time_zone_transition` VALUES
 (4,2108588422,8),
 (4,2121894022,9),
 (4,2140038022,8),
-(5,-1009875600,1);
+(5,-1009875600,1),
+(6,174834660,1);
 /*!40000 ALTER TABLE `time_zone_transition` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -1821,7 +1835,8 @@ INSERT  IGNORE INTO `time_zone_transition_type` VALUES
 (4,10,10800,1,'EEST'),
 (4,11,7200,0,'EET'),
 (5,0,32400,0,'CJT'),
-(5,1,32400,0,'JST');
+(5,1,32400,0,'JST'),
+(6,1,19800,0,'IST');
 /*!40000 ALTER TABLE `time_zone_transition_type` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -1845,12 +1860,12 @@ CHECKSUM TABLE mysql.roles_mapping, mysql.time_zone_transition, mysql.plugin,
 mysql.servers, mysql.func, mysql.innodb_table_stats, mysql.table_stats;
 Table	Checksum
 mysql.roles_mapping	2510045525
-mysql.time_zone_transition	3895294076
+mysql.time_zone_transition	3719776009
 mysql.plugin	1587119305
 mysql.servers	2079085450
 mysql.func	3241572444
-mysql.innodb_table_stats	347867921
-mysql.table_stats	664320059
+mysql.innodb_table_stats	1285726777
+mysql.table_stats	2836905944
 # Opps....
 CREATE USER mariadb_test_restore IDENTIFIED BY 'getitback';
 GRANT ALL ON *.* TO mariadb_test_restore WITH GRANT OPTION;
@@ -1880,12 +1895,12 @@ CHECKSUM TABLE mysql.roles_mapping, mysql.time_zone_transition, mysql.plugin,
 mysql.servers, mysql.func, mysql.innodb_table_stats, mysql.table_stats;
 Table	Checksum
 mysql.roles_mapping	2510045525
-mysql.time_zone_transition	3895294076
+mysql.time_zone_transition	3719776009
 mysql.plugin	1587119305
 mysql.servers	2079085450
 mysql.func	3241572444
-mysql.innodb_table_stats	347867921
-mysql.table_stats	664320059
+mysql.innodb_table_stats	1285726777
+mysql.table_stats	2836905944
 DROP FUNCTION IF EXISTS metaphon;
 DROP SERVER s1;
 DELETE FROM mysql.column_stats WHERE db_name='mysql' and table_name in ('tz', 'gtid_slave_pos');
