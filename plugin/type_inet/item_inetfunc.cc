@@ -246,7 +246,8 @@ longlong Item_func_is_ipv6::val_int()
 {
   DBUG_ASSERT(fixed());
   String_ptr_and_buffer<STRING_BUFFER_USUAL_SIZE> tmp(args[0]);
-  return !tmp.is_null() && !Type_handler_inet6::Fbt_null(*tmp.string()).is_null();
+  return !tmp.is_null() && tmp.string()->strstr(STRING_WITH_LEN(":")) >= 0 &&
+         !Type_handler_inet6::Fbt_null(*tmp.string()).is_null();
 }
 
 /**
