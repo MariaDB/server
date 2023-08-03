@@ -1,9 +1,13 @@
 include/master-slave.inc
 [connection master]
+connection master;
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format");
 connection slave;
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format");
 include/stop_slave.inc
 set global slave_parallel_threads=3;
 set global slave_parallel_mode= optimistic;
+set global binlog_row_image=MINIMAL;
 connection master;
 #
 # MDEV-31755 Replica's DML event deadlocks wit online alter table
@@ -29,10 +33,25 @@ id	c	a
 2	qqq	1
 connection master;
 drop table t;
+# MDEV-31838 Assertion fails on replica upon parallel
+# replication with two-phase alter and MINIMAL row image
+create table t (id int, a int, primary key(id)) engine=aria;
+insert into t values (1,0);
+set @@session.binlog_alter_two_phase=1;
+set debug_sync= 'alter_table_online_progress signal go_dml wait_for go_alter';
+alter table t force, algorithm=copy, lock=none;
+connection master1;
+set binlog_row_image=MINIMAL;
+set debug_sync= 'now wait_for go_dml';
+update ignore t set a = 1;
+set debug_sync= 'now signal go_alter';
+connection master;
+drop table t;
 connection slave;
 connection master;
 connection slave;
 include/stop_slave.inc
+set global binlog_row_image=FULL;
 set global slave_parallel_threads=0;
 set global slave_parallel_mode=   optimistic;
 include/start_slave.inc
