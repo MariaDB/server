@@ -63,7 +63,7 @@ static struct st_mariadb_data_type plugin_descriptor_type_uuid=
 
 const Type_handler *Type_collection_uuid::find_in_array(const Type_handler *a,
                                                         const Type_handler *b,
-                                                        bool for_cmp) const
+                                                        int start) const
 {
   if (a == b) return a;
 
@@ -83,6 +83,7 @@ const Type_handler *Type_collection_uuid::find_in_array(const Type_handler *a,
     Search in the array for an element, equal to `b`.
     If found - return `a`, if not found - return NULL.
     Array is terminated by `a`.
+    Start the search from `start`
   */
   static const Type_handler *arr[]={ &type_handler_varchar,
     &type_handler_string, &type_handler_tiny_blob, &type_handler_blob,
@@ -92,7 +93,7 @@ const Type_handler *Type_collection_uuid::find_in_array(const Type_handler *a,
     &type_handler_null, &type_handler_long_blob,
     Type_handler_uuid_old::singleton(), Type_handler_uuid_new::singleton() };
 
-  for (int i= for_cmp ? 6 : 0; arr[i] != a; i++)
+  for (int i= start; arr[i] != a; i++)
     if (arr[i] == b)
       return a;
   return NULL;
