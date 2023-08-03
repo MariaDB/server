@@ -2,7 +2,6 @@
 # Bug 42074 concurrent optimize table and 
 # alter table = Assertion failed: thd->is_error()
 #
-DROP TABLE IF EXISTS t1;
 # Create InnoDB table
 CREATE TABLE t1 (id INT) engine=innodb;
 connect  con2, localhost, root;
@@ -451,11 +450,9 @@ ALTER TABLE t1 ENGINE=INNODB;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
 #ALTER TABLE FORCE, ALTER TABLE ENGINE and OPTIMIZE TABLE uses
-#table copy when the old_alter_table enabled.
-SET SESSION old_alter_table= TRUE;
+#table copy when the alter_algorithm enabled.
+SET SESSION alter_algorithm= TRUE;
 affected rows: 0
-Warnings:
-Warning	1287	'@@old_alter_table' is deprecated and will be removed in a future release. Please use '@@alter_algorithm' instead
 ALTER TABLE t1 FORCE;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
@@ -478,10 +475,8 @@ test.t1	optimize	status	OK
 affected rows: 2
 SET DEBUG_SYNC= 'RESET';
 affected rows: 0
-SET SESSION old_alter_table= FALSE;
+SET SESSION alter_algorithm= FALSE;
 affected rows: 0
-Warnings:
-Warning	1287	'@@old_alter_table' is deprecated and will be removed in a future release. Please use '@@alter_algorithm' instead
 #ALTER TABLE FORCE and ALTER TABLE ENGINE uses table copy
 #when ALGORITHM COPY is used.
 ALTER TABLE t1 FORCE, ALGORITHM= COPY;

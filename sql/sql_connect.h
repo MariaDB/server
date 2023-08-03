@@ -102,7 +102,6 @@ int thd_set_peer_addr(THD *thd, sockaddr_storage *addr,
                       bool check_proxy_networks,
                       uint *host_errors);
 
-bool login_connection(THD *thd);
 void prepare_new_connection_state(THD* thd);
 void end_connection(THD *thd);
 void update_global_user_stats(THD* thd, bool create_user, time_t now);

@@ -1650,12 +1650,10 @@ ALTER TABLE m1 ENABLE KEYS, ALGORITHM= INPLACE;
 affected rows: 0
 ALTER TABLE t1 DROP INDEX i1, DROP INDEX i2, DROP INDEX i3, DROP INDEX i4;
 #
-# 2: Test ALGORITHM + old_alter_table
+# 2: Test ALGORITHM + alter_algorithm
 #
-SET SESSION old_alter_table= 1;
+SET SESSION alter_algorithm= 1;
 affected rows: 0
-Warnings:
-Warning	1287	'@@old_alter_table' is deprecated and will be removed in a future release. Please use '@@alter_algorithm' instead
 ALTER TABLE t1 ADD INDEX i1(b);
 affected rows: 2
 info: Records: 2  Duplicates: 0  Warnings: 0
@@ -1674,10 +1672,8 @@ affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 1
 Warnings:
 Note	1831	Duplicate index `i4`. This is deprecated and will be disallowed in a future release
-SET SESSION old_alter_table= 0;
+SET SESSION alter_algorithm= 0;
 affected rows: 0
-Warnings:
-Warning	1287	'@@old_alter_table' is deprecated and will be removed in a future release. Please use '@@alter_algorithm' instead
 ALTER TABLE t1 DROP INDEX i1, DROP INDEX i2, DROP INDEX i3, DROP INDEX i4;
 #
 # 3: Test unsupported in-place operation

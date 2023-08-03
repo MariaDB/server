@@ -1462,16 +1462,16 @@ ALTER TABLE m1 ENABLE KEYS, ALGORITHM= INPLACE;
 ALTER TABLE t1 DROP INDEX i1, DROP INDEX i2, DROP INDEX i3, DROP INDEX i4;
 
 --echo #
---echo # 2: Test ALGORITHM + old_alter_table
+--echo # 2: Test ALGORITHM + alter_algorithm
 --echo #
 
 --enable_info
-SET SESSION old_alter_table= 1;
+SET SESSION alter_algorithm= 1;
 ALTER TABLE t1 ADD INDEX i1(b);
 ALTER TABLE t1 ADD INDEX i2(b), ALGORITHM= DEFAULT;
 ALTER TABLE t1 ADD INDEX i3(b), ALGORITHM= COPY;
 ALTER TABLE t1 ADD INDEX i4(b), ALGORITHM= INPLACE;
-SET SESSION old_alter_table= 0;
+SET SESSION alter_algorithm= 0;
 --disable_info
 
 ALTER TABLE t1 DROP INDEX i1, DROP INDEX i2, DROP INDEX i3, DROP INDEX i4;

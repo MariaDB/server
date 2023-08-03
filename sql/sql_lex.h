@@ -403,15 +403,6 @@ enum enum_sp_data_access
   SP_MODIFIES_SQL_DATA
 };
 
-const LEX_CSTRING sp_data_access_name[]=
-{
-  { STRING_WITH_LEN("") },
-  { STRING_WITH_LEN("CONTAINS SQL") },
-  { STRING_WITH_LEN("NO SQL") },
-  { STRING_WITH_LEN("READS SQL DATA") },
-  { STRING_WITH_LEN("MODIFIES SQL DATA") }
-};
-
 #define DERIVED_SUBQUERY        1
 #define DERIVED_VIEW            2
 #define DERIVED_WITH            4

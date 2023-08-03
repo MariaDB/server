@@ -141,10 +141,11 @@ protected:
 };
 
 
-class Create_func_aes_encrypt : public Create_func_arg2
+class Create_func_aes_encrypt : public Create_native_func
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_aes_encrypt s_singleton;
 
@@ -154,10 +155,11 @@ protected:
 };
 
 
-class Create_func_aes_decrypt : public Create_func_arg2
+class Create_func_aes_decrypt : public Create_native_func
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list);
 
   static Create_func_aes_decrypt s_singleton;
 
@@ -2953,18 +2955,48 @@ Create_func_addtime::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 Create_func_aes_encrypt Create_func_aes_encrypt::s_singleton;
 
 Item*
-Create_func_aes_encrypt::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+Create_func_aes_encrypt::create_native(THD *thd, const LEX_CSTRING *name,
+                                       List<Item> *item_list)
 {
-  return new (thd->mem_root) Item_func_aes_encrypt(thd, arg1, arg2);
+  uint arg_count= item_list->elements;
+  Item *a[4];
+  for (uint i=0; i < MY_MIN(array_elements(a), arg_count); i++)
+    a[i]= item_list->pop();
+  switch (arg_count)
+  {
+  case 2:
+    return new (thd->mem_root) Item_func_aes_encrypt(thd, a[0], a[1]);
+  case 3:
+    return new (thd->mem_root) Item_func_aes_encrypt(thd, a[0], a[1], a[2]);
+  case 4:
+    return new (thd->mem_root) Item_func_aes_encrypt(thd, a[0], a[1], a[2], a[3]);
+  }
+  my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+  return NULL;
 }
 
 
 Create_func_aes_decrypt Create_func_aes_decrypt::s_singleton;
 
 Item*
-Create_func_aes_decrypt::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+Create_func_aes_decrypt::create_native(THD *thd, const LEX_CSTRING *name,
+                                       List<Item> *item_list)
 {
-  return new (thd->mem_root) Item_func_aes_decrypt(thd, arg1, arg2);
+  uint arg_count= item_list->elements;
+  Item *a[4];
+  for (uint i=0; i < MY_MIN(array_elements(a), arg_count); i++)
+    a[i]= item_list->pop();
+  switch (arg_count)
+  {
+  case 2:
+    return new (thd->mem_root) Item_func_aes_decrypt(thd, a[0], a[1]);
+  case 3:
+    return new (thd->mem_root) Item_func_aes_decrypt(thd, a[0], a[1], a[2]);
+  case 4:
+    return new (thd->mem_root) Item_func_aes_decrypt(thd, a[0], a[1], a[2], a[3]);
+  }
+  my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+  return NULL;
 }
 
 

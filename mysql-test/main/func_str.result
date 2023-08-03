@@ -5448,3 +5448,78 @@ Warning	1292	Truncated incorrect BINARY(2) value: '...random bytes...'
 #
 # End of 10.10 tests
 #
+#
+# MDEV-9069 extend AES_ENCRYPT() and AES_DECRYPT() to support IV and the algorithm
+#
+select aes_encrypt('foo', 'bar', '1234') = aes_encrypt('foo', 'bar') `expected 1`;
+expected 1
+1
+select aes_encrypt('foo', 'bar', NULL, 'aes-128-ecb') = aes_encrypt('foo', 'bar') `expected 1`;
+expected 1
+1
+select aes_encrypt(1);
+ERROR 42000: Incorrect parameter count in the call to native function 'aes_encrypt'
+select aes_encrypt(1,2,3,4,5);
+ERROR 42000: Incorrect parameter count in the call to native function 'aes_encrypt'
+select aes_encrypt('foo', 'bar', '0123', 'something');
+aes_encrypt('foo', 'bar', '0123', 'something')
+NULL
+select aes_encrypt('foo', 'bar', '0123', 'aes-111-ecb');
+aes_encrypt('foo', 'bar', '0123', 'aes-111-ecb')
+NULL
+select aes_encrypt('foo', 'bar', '0123', 'aes-128-bar');
+aes_encrypt('foo', 'bar', '0123', 'aes-128-bar')
+NULL
+select aes_encrypt('foo', 'bar', '0123', 'aes-128-cbc');
+aes_encrypt('foo', 'bar', '0123', 'aes-128-cbc')
+NULL
+select hex(aes_encrypt('foo', 'bar', '0123456789abcdef', 'aes-256-cbc')) `x`;
+x
+42A3EB91E6DFC40A900D278F99E0726E
+select aes_decrypt(x'42A3EB91E6DFC40A900D278F99E0726E', 'bar', '0123456789abcdef###', 'AES-256-CBC') `expected foo`;
+expected foo
+foo
+select hex(aes_encrypt('foo', 'bar', '0123456789abcdef', 'aes-128-ctr')) `x`;
+x
+C57C4B
+select aes_decrypt(x'C57C4B', 'bar', '0123456789abcdef', 'aes-128-ctr') `expected foo`;
+expected foo
+foo
+set @@block_encryption_mode='aes-128-ctr';
+select aes_decrypt(x'C57C4B', 'bar', '0123456789abcdef');
+aes_decrypt(x'C57C4B', 'bar', '0123456789abcdef')
+foo
+set @@block_encryption_mode='aes-192-cbc';
+select hex(aes_encrypt('foo', 'bar'));
+hex(aes_encrypt('foo', 'bar'))
+NULL
+select hex(aes_encrypt('foo', 'bar', 'abcdefghabcdefgh'));
+hex(aes_encrypt('foo', 'bar', 'abcdefghabcdefgh'))
+9E6F76516B4DE68FED7A77632FC0913D
+select aes_decrypt(x'9E6F76516B4DE68FED7A77632FC0913D', 'bar', 'abcdefghabcdefgh') `expected foo`;
+expected foo
+foo
+select aes_decrypt(x'00000000000000011111111111111111', 'bar', 'abcdefghabcdefgh') `expected NULL`;
+expected NULL
+NULL
+select aes_decrypt(x'9E6F76516B4DE68FED7A77632FC0913D', 'bar', '0000000011111111') `expected NULL`;
+expected NULL
+NULL
+select aes_decrypt(x'9E6F76516B4DE68FED7A77632FC0913D', 'bar', 'abcdefghabcdefgh', 'aes-128-ecb') `expected NULL`;
+expected NULL
+NULL
+select hex(aes_decrypt(x'9E6F76516B4DE68FED7A77632FC0913D', 'bar', 'abcdefghabcdefgh', 'aes-128-ctr')) `expected garbage`;
+expected garbage
+98D7BC3151620F384B0A953686AF37C9
+set @@block_encryption_mode=default;
+#
+# MDEV-31633 Assertion `!item->null_value' failed in Type_handler::Item_send_str
+#
+select aes_encrypt(a,a) is null from (values('a'),(NULL),('b')) x;
+aes_encrypt(a,a) is null
+0
+1
+0
+#
+# End of 11.2 tests
+#

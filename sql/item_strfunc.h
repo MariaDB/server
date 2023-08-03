@@ -129,6 +129,10 @@ public:
    :Item_str_func(thd, a) { }
   Item_str_binary_checksum_func(THD *thd, Item *a, Item *b)
    :Item_str_func(thd, a, b) { }
+  Item_str_binary_checksum_func(THD *thd, Item *a, Item *b, Item *c)
+   :Item_str_func(thd, a, b, c) { }
+  Item_str_binary_checksum_func(THD *thd, Item *a, Item *b, Item *c, Item *d)
+   :Item_str_func(thd, a, b, c, d) { }
   bool eq(const Item *item, bool binary_cmp) const
   {
     /*
@@ -229,23 +233,39 @@ public:
 
 class Item_aes_crypt :public Item_str_binary_checksum_func
 {
-  enum { AES_KEY_LENGTH = 128 };
   void create_key(String *user_key, uchar* key);
-
-protected:
-  int what;
+  int parse_mode();
   String tmp_value;
+  const int what;
+  uint aes_key_length;
+  enum my_aes_mode aes_mode;
+
 public:
-  Item_aes_crypt(THD *thd, Item *a, Item *b)
-   :Item_str_binary_checksum_func(thd, a, b) {}
-  String *val_str(String *);
+  Item_aes_crypt(THD *thd, int what, Item *a, Item *b)
+   : Item_str_binary_checksum_func(thd, a, b), what(what) {}
+  Item_aes_crypt(THD *thd, int what, Item *a, Item *b, Item *c)
+   : Item_str_binary_checksum_func(thd, a, b, c), what(what) {}
+  Item_aes_crypt(THD *thd, int what, Item *a, Item *b, Item *c, Item *d)
+   : Item_str_binary_checksum_func(thd, a, b, c, d), what(what) {}
+  bool fix_fields(THD *thd, Item **ref) override;
+  String *val_str(String *) override;
+  bool check_vcol_func_processor(void *arg) override
+  {
+    if (arg_count > 3)
+      return FALSE;
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
+  }
 };
 
 class Item_func_aes_encrypt :public Item_aes_crypt
 {
 public:
   Item_func_aes_encrypt(THD *thd, Item *a, Item *b)
-   :Item_aes_crypt(thd, a, b) {}
+   :Item_aes_crypt(thd, ENCRYPTION_FLAG_ENCRYPT, a, b) {}
+  Item_func_aes_encrypt(THD *thd, Item *a, Item *b, Item *c)
+   :Item_aes_crypt(thd, ENCRYPTION_FLAG_ENCRYPT, a, b, c) {}
+  Item_func_aes_encrypt(THD *thd, Item *a, Item *b, Item *c, Item *d)
+   :Item_aes_crypt(thd, ENCRYPTION_FLAG_ENCRYPT, a, b, c, d) {}
   bool fix_length_and_dec(THD *thd) override;
   LEX_CSTRING func_name_cstring() const override
   {
@@ -260,7 +280,11 @@ class Item_func_aes_decrypt :public Item_aes_crypt
 {
 public:
   Item_func_aes_decrypt(THD *thd, Item *a, Item *b):
-    Item_aes_crypt(thd, a, b) {}
+    Item_aes_crypt(thd, ENCRYPTION_FLAG_DECRYPT, a, b) {}
+  Item_func_aes_decrypt(THD *thd, Item *a, Item *b, Item *c):
+    Item_aes_crypt(thd, ENCRYPTION_FLAG_DECRYPT, a, b, c) {}
+  Item_func_aes_decrypt(THD *thd, Item *a, Item *b, Item *c, Item *d):
+    Item_aes_crypt(thd, ENCRYPTION_FLAG_DECRYPT, a, b, c, d) {}
   bool fix_length_and_dec(THD *thd) override;
   LEX_CSTRING func_name_cstring() const override
   {
