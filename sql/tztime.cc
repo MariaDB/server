@@ -55,15 +55,10 @@
 
 /*
   Now we don't use abbreviations in server but we will do this in future.
+  Edit: Started needing abbrevation in server as part of task MDEV-31684.
 */
-#if defined(TZINFO2SQL) || defined(TESTTIME)
-#define ABBR_ARE_USED
-#else
-#if !defined(DBUG_OFF)
-/* Let use abbreviations for debug purposes */
-#undef ABBR_ARE_USED
-#define ABBR_ARE_USED
-#endif /* !defined(DBUG_OFF) */
+#ifndef ABBR_ARE_USED
+#define  ABBR_ARE_USED
 #endif /* defined(TZINFO2SQL) || defined(TESTTIME) */
 
 /* Structure describing local time type (e.g. Moscow summer time (MSD)) */
@@ -1031,6 +1026,7 @@ public:
   virtual my_time_t TIME_to_gmt_sec(const MYSQL_TIME *t, uint *error_code) const;
   virtual void gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const;
   virtual const String * get_name() const;
+  virtual void get_timezone_information(struct tz* curr_tz, const MYSQL_TIME *local_TIME) const;
 };
 
 
@@ -1097,6 +1093,25 @@ Time_zone_system::gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const
   adjust_leap_second(tmp);
 }
 
+void
+Time_zone_system::get_timezone_information(struct tz* curr_tz, const MYSQL_TIME *local_TIME) const
+{
+  uint error;
+  struct tm tm_local_time;
+
+  time_t time_sec= this->TIME_to_gmt_sec(local_TIME,  &error);
+
+  localtime_r(&time_sec, &tm_local_time);
+# ifdef	__USE_MISC
+    int len= strlen((tm_local_time.tm_zone));
+     strmake(curr_tz->abbrevation, tm_local_time.tm_zone, sizeof(tm_local_time.tm_zone)-1);
+    curr_tz->abbrevation[len]= '\0';
+# endif
+    curr_tz->seconds_offset= tm_local_time.tm_gmtoff;
+    curr_tz->is_behind= tm_local_time.tm_gmtoff < 0;
+
+}
+
 
 /*
   Get name of time zone
@@ -1128,6 +1143,7 @@ public:
                                     uint *error_code) const;
   virtual void gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const;
   virtual const String * get_name() const;
+  virtual void get_timezone_information(struct tz* curr_tz, const MYSQL_TIME *local_TIME) const;
 };
 
 
@@ -1175,6 +1191,22 @@ Time_zone_utc::gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const
   adjust_leap_second(tmp);
 }
 
+void
+Time_zone_utc::get_timezone_information(struct tz* curr_tz, const MYSQL_TIME *local_TIME) const
+{
+  uint error;
+  struct tm tm_local_time;
+
+  time_t time_sec= this->TIME_to_gmt_sec(local_TIME,  &error);
+
+  localtime_r(&time_sec, &tm_local_time);
+# ifdef	__USE_MISC
+    strmake(curr_tz->abbrevation, "UTC", 3);
+# endif
+    curr_tz->seconds_offset= tm_local_time.tm_gmtoff;
+    curr_tz->is_behind= tm_local_time.tm_gmtoff < 0;
+}
+
 
 /*
   Get name of time zone
@@ -1210,6 +1242,7 @@ public:
   virtual my_time_t TIME_to_gmt_sec(const MYSQL_TIME *t, uint *error_code) const;
   virtual void gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const;
   virtual const String * get_name() const;
+  virtual void get_timezone_information(struct tz* curr_tz, const MYSQL_TIME *local_TIME) const;
 private:
   TIME_ZONE_INFO *tz_info;
   const String *tz_name;
@@ -1280,6 +1313,24 @@ Time_zone_db::gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const
   adjust_leap_second(tmp);
 }
 
+void
+Time_zone_db::get_timezone_information(struct tz* curr_tz, const MYSQL_TIME *local_TIME) const
+{
+  uint error;
+  my_time_t sec_in_utc;
+  const TRAN_TYPE_INFO *ttisp;
+
+  /* Get seconds since epoch. */
+  sec_in_utc= this->TIME_to_gmt_sec(local_TIME, &error);
+  /* Get local timezone information. */
+  ttisp= find_transition_type(sec_in_utc, tz_info);
+
+  curr_tz->seconds_offset= ttisp->tt_gmtoff;
+  curr_tz->is_behind= tz_info->revtis->rt_offset < 0 ? true : false;
+
+  strmake(curr_tz->abbrevation, &(tz_info->chars[ttisp->tt_abbrind]), tz_info->charcnt-1);
+}
+
 
 /*
   Get name of time zone
@@ -1309,6 +1360,7 @@ public:
                                     uint *error_code) const;
   virtual void   gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const;
   virtual const String * get_name() const;
+  virtual void get_timezone_information(struct tz* curr_tz, const MYSQL_TIME *local_TIME) const;
   /*
     This have to be public because we want to be able to access it from
     my_offset_tzs_get_key() function
@@ -1432,6 +1484,15 @@ const String *
 Time_zone_offset::get_name() const
 {
   return &name;
+}
+
+void
+Time_zone_offset::get_timezone_information(struct tz* curr_tz, const MYSQL_TIME *local_TIME) const
+{
+  curr_tz->seconds_offset= offset;
+  const char *name= get_name()->ptr();
+  curr_tz->is_behind= name[0] == '+' ? false : true;
+  strmake(curr_tz->abbrevation, name, sizeof(curr_tz->abbrevation)-1);
 }
 
 

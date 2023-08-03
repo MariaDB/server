@@ -256,3 +256,51 @@ select time_format('2001-01-01 02:02:02', '%d %T');
 select time_format('01 02:02:02', '%d %T');
 select time_format('01 02:02:02', '%T');
 select time_format('2001-01-01 02:02:02', '%T');
+
+--echo #
+--echo # Beginning of 11.3 test
+--echo #
+--echo # MDEV-31684: Add timezone information to DATE_FORMAT
+--echo #
+
+SET @old_timezone= @@time_zone;
+
+
+--echo # Using named timezones
+
+SET TIME_ZONE='Japan';
+SELECT DATE_FORMAT('2009-10-04 22:23:00', '%z %Z') AS current_timezone;
+
+SET @@time_zone='Europe/Moscow';
+SELECT DATE_FORMAT('1965-02-17 22:23:00', '%z %Z') AS current_timezone;
+SELECT DATE_FORMAT('1965-12-31 22:23:00', '%z %Z') AS current_timezone;
+SELECT DATE_FORMAT('1985-06-01', '%z %Z');
+
+--echo # Using positive and negative offset
+
+SET TIME_ZONE= '-05:30';
+SELECT DATE_FORMAT('2009-10-04 22:23:00', '%z %Z') AS current_timezone;
+
+SET TIME_ZONE= '+04:30';
+SELECT DATE_FORMAT('2009-10-04 22:23:00', '%z %Z') AS current_timezone;
+
+
+--echo # Using UTC
+
+SET TIME_ZONE='UTC';
+SELECT DATE_FORMAT('2009-10-04 22:23:00', '%z %Z') AS current_timezone;
+
+--echo # using system time
+--echo #
+--echo # output depends on system time information. Hence replacing
+--echo # to avoid result diff test failures.
+--echo #
+
+SET @@time_zone= default;
+
+--replace_regex /[+-][0-9]* [A-Z]*/+|-HH:MM ABC/
+SELECT DATE_FORMAT('2009-10-04 22:23:00', '%z %Z') AS current_timezone;
+
+SET @@time_zone= @old_timezone;
+
+--echo # End of 11.3 test
