@@ -39,11 +39,11 @@ struct test_value_trait: public pointer_trait<uint32>
 
 open_address_hash<test_key_trait, test_value_trait> hashie;
 
-uint32 data[4][10]= {
-        {0,1,2,3,4,5,6,7,8,9,},
-        {0,1,2,3,4,5,6,7,8,9,},
-        {0,1,2,3,4,5,6,7,8,9,},
-        {0,1,2,3,4,5,6,7,8,9,},
+uint32 data[4][16]= {
+    {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
+    {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
+    {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
+    {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
 };
 
 int main(int argc __attribute__((unused)),char *argv[])
@@ -61,16 +61,40 @@ int main(int argc __attribute__((unused)),char *argv[])
   ok(*found == 1, "1 is not found");
 
 
-
   // expand
   hashie.insert(data[0]+4);
   ok(hashie.size() == 2, "wrong size");
   ok(hashie.buffer_size() == 0, "two elements, why buffer?");
   hashie.insert(data[0]+5);
   ok(hashie.size() == 3, "wrong size, %u", hashie.size());
+
   // collision
   hashie.insert(data[1] + 1); // 1
   auto found2= hashie.find(data[1] + 1);
   ok(found2 != found && *found == *found2, "collision misbehavior");
+
+
+  //expand on special occasion (offset elements to the beginning)
+  hashie.clear();
+  hashie.insert(data[0]+14);
+  hashie.insert(data[0] + 15);
+  hashie.insert(data[1] + 15);
+  hashie.insert(data[1] + 14);
+  hashie.insert(data[2] + 15);
+  hashie.insert(data[2] + 14);
+  hashie.insert(data[0] + 1);
+  hashie.insert(data[3] + 14);
+  hashie.insert(data[0]+2);
+  hashie.insert(data[0] + 3);
+  ok(hashie.find(data[0]+14) != nullptr, "expand misbehavior");
+  ok(hashie.find(data[0] + 15) != nullptr, "expand misbehavior");
+  ok(hashie.find(data[1] + 15) != nullptr, "expand misbehavior");
+  ok(hashie.find(data[1] + 14) != nullptr, "expand misbehavior");
+  ok(hashie.find(data[2] + 15) != nullptr, "expand misbehavior");
+  ok(hashie.find(data[2] + 14) != nullptr, "expand misbehavior");
+  ok(hashie.find(data[3] + 14) != nullptr, "expand misbehavior");
+  ok(hashie.find(data[0] + 1) != nullptr, "expand misbehavior");
+  ok(hashie.find(data[0] + 2) != nullptr, "expand misbehavior");
+  ok(hashie.find(data[0] + 3) != nullptr, "expand misbehavior");
 }
 
