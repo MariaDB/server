@@ -399,7 +399,7 @@ select
 json_extract(trace, '$**.join_optimization.steps[*].transformation.to') as JS
 from information_schema.OPTIMIZER_TRACE;
 JS
-["decorrelation", "materialization", "semijoin"]
+["materialization", "semijoin"]
 EXECUTE st2;
 a	b	c
 1	r	r

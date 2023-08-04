@@ -3096,17 +3096,6 @@ alloc_err:
   return TRUE;
 }
 
-
-/* Check whether item tree intersects with the free list */
-static bool intersects_free_list(Item *item, THD *thd)
-{
-  for (const Item *to_find= thd->free_list; to_find; to_find= to_find->next)
-    if (item->walk(&Item::find_item_processor, 1, (void *) to_find))
-      return true;
-  return false;
-}
-
-
 /*
   Prepare exists2in / decorrelation transformation
 
@@ -3133,19 +3122,9 @@ bool Item_exists_subselect::exists2in_prepare(
     DBUG_RETURN(TRUE);
   DBUG_ASSERT(eqs.elements() != 0);
 
-  /*
-    If we are in a ps/sp execution, check for and skip on
-    intersection with the temporary free list to avoid 2nd ps execution
-    segfault
-  */
+  /* A workaround to avoid 2nd ps execution segfault (MDEV-31269). */
   if (!thd->stmt_arena->is_conventional())
-  {
-    for (uint i= 0; i < (uint) eqs.elements(); i++)
-    {
-      if (intersects_free_list(*eqs.at(i).eq_ref, thd))
-        DBUG_RETURN(TRUE);
-    }
-  }
+    DBUG_RETURN(TRUE);
 
   /* Determine whether the result will be correlated */
   {
