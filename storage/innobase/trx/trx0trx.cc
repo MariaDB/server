@@ -419,7 +419,6 @@ void trx_t::free()
   MEM_NOACCESS(&active_commit_ordered, sizeof active_commit_ordered);
   MEM_NOACCESS(&check_unique_secondary, sizeof check_unique_secondary);
   MEM_NOACCESS(&flush_log_later, sizeof flush_log_later);
-  MEM_NOACCESS(&must_flush_log_later, sizeof must_flush_log_later);
   MEM_NOACCESS(&duplicates, sizeof duplicates);
   MEM_NOACCESS(&dict_operation, sizeof dict_operation);
   MEM_NOACCESS(&dict_operation_lock_mode, sizeof dict_operation_lock_mode);
@@ -1086,10 +1085,10 @@ extern "C" void  thd_decrement_pending_ops(MYSQL_THD);
   @param trx   transaction; if trx->state is PREPARED, the function will
   also wait for the flush to complete.
 */
-static void trx_flush_log_if_needed_low(lsn_t lsn, const trx_t *trx)
+static void trx_flush_log_if_needed(lsn_t lsn, trx_t *trx)
 {
-  if (!srv_flush_log_at_trx_commit)
-    return;
+  ut_ad(srv_flush_log_at_trx_commit);
+  ut_ad(trx->state != TRX_STATE_PREPARED);
 
   if (log_sys.get_flushed_lsn() > lsn)
     return;
@@ -1097,39 +1096,18 @@ static void trx_flush_log_if_needed_low(lsn_t lsn, const trx_t *trx)
   const bool flush= srv_file_flush_method != SRV_NOSYNC &&
     (srv_flush_log_at_trx_commit & 1);
 
-  if (trx->state == TRX_STATE_PREPARED)
-  {
-    /* XA, which is used with binlog as well.
-    Be conservative, use synchronous wait.*/
-sync:
-    log_write_up_to(lsn, flush);
-    return;
-  }
-
   completion_callback cb;
-  if ((cb.m_param = thd_increment_pending_ops(trx->mysql_thd)))
+  if ((cb.m_param= thd_increment_pending_ops(trx->mysql_thd)))
   {
     cb.m_callback = (void (*)(void *)) thd_decrement_pending_ops;
     log_write_up_to(lsn, flush, false, &cb);
   }
   else
-    goto sync;
-}
-
-/**********************************************************************//**
-If required, flushes the log to disk based on the value of
-innodb_flush_log_at_trx_commit. */
-static
-void
-trx_flush_log_if_needed(
-/*====================*/
-	lsn_t	lsn,	/*!< in: lsn up to which logs are to be
-			flushed. */
-	trx_t*	trx)	/*!< in/out: transaction */
-{
-	trx->op_info = "flushing log";
-	trx_flush_log_if_needed_low(lsn, trx);
-	trx->op_info = "";
+  {
+    trx->op_info= "flushing log";
+    log_write_up_to(lsn, flush);
+    trx->op_info= "";
+  }
 }
 
 /** Process tables that were modified by the committing transaction. */
@@ -1239,7 +1217,6 @@ TRANSACTIONAL_INLINE inline void trx_t::commit_in_memory(const mtr_t *mtr)
 {
   /* We already detached from rseg in trx_write_serialisation_history() */
   ut_ad(!rsegs.m_redo.undo);
-  must_flush_log_later= false;
   read_view.close();
 
   if (is_autocommit_non_locking())
@@ -1342,12 +1319,7 @@ TRANSACTIONAL_INLINE inline void trx_t::commit_in_memory(const mtr_t *mtr)
     gathering. */
 
     commit_lsn= undo_no || !xid.is_null() ? mtr->commit_lsn() : 0;
-    if (!commit_lsn)
-      /* Nothing to be done. */;
-    else if (flush_log_later)
-      /* Do nothing yet */
-      must_flush_log_later= true;
-    else if (srv_flush_log_at_trx_commit)
+    if (commit_lsn && !flush_log_later && srv_flush_log_at_trx_commit)
       trx_flush_log_if_needed(commit_lsn, this);
   }
 
@@ -1603,16 +1575,14 @@ trx_commit_complete_for_mysql(
 /*==========================*/
 	trx_t*	trx)	/*!< in/out: transaction */
 {
-	if (trx->id != 0
-	    || !trx->must_flush_log_later
-	    || (srv_flush_log_at_trx_commit == 1 && trx->active_commit_ordered)) {
-
-		return;
-	}
-
-	trx_flush_log_if_needed(trx->commit_lsn, trx);
-
-	trx->must_flush_log_later = false;
+  switch (srv_flush_log_at_trx_commit) {
+  case 0:
+    return;
+  case 1:
+    if (trx->active_commit_ordered)
+      return;
+  }
+  trx_flush_log_if_needed(trx->commit_lsn, trx);
 }
 
 /**********************************************************************//**
@@ -1873,8 +1843,10 @@ trx_prepare(
 		gather behind one doing the physical log write to disk.
 
 		We must not be holding any mutexes or latches here. */
-
-		trx_flush_log_if_needed(lsn, trx);
+		if (auto f = srv_flush_log_at_trx_commit) {
+			log_write_up_to(lsn, (f & 1) && srv_file_flush_method
+					!= SRV_NOSYNC);
+		}
 
 		if (!UT_LIST_GET_LEN(trx->lock.trx_locks)
 		    || trx->isolation_level == TRX_ISO_SERIALIZABLE) {
