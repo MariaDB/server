@@ -1116,7 +1116,9 @@ struct buf_buddy_free_t {
 protected by buf_pool.mutex unless otherwise noted. */
 struct buf_pool_stat_t{
 	/** Initialize the counters */
-	void init() { memset((void*) this, 0, sizeof *this); }
+	void init() {
+          *this= {};
+        }
 
 	ib_counter_t<ulint, ib_counter_element_t>	n_page_gets;
 				/*!< number of page gets performed;

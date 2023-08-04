@@ -31,12 +31,41 @@ Created 2012/04/12 by Sunny Bains
 #include "univ.i"
 #include "my_rdtsc.h"
 
+
+#ifdef __GLIBC__
+struct libc_version_t
+{
+  int major;
+  int minor;
+};
+
+#include <gnu/libc-version.h>
+
+
+static libc_version_t get_libc_version() {
+  libc_version_t ver;
+  sscanf(gnu_get_libc_version(), "%d.%d", &ver.major, &ver.minor);
+
+  return ver;
+}
+static const libc_version_t libc_version= get_libc_version();
+#endif
+
 /** Use the result of my_timer_cycles(), which mainly uses RDTSC for cycles
 as a random value. See the comments for my_timer_cycles() */
 /** @return result from RDTSC or similar functions. */
 static inline size_t
 get_rnd_value()
 {
+#if defined(__GLIBC__) && defined(__linux)
+#if __GLIBC__ < 2 || __GLIBC_MINOR__ < 35
+#if !defined(HAVE_POWER8) && !defined(__x86_64__) && !defined(__riscv)
+        // Build-time glibc is older, but the runtime is fresh enough
+        if (libc_version.major >= 2 && libc_version.minor >= 35)
+#endif
+#endif
+        return sched_getcpu();
+#endif
 	size_t c = static_cast<size_t>(my_timer_cycles());
 
 	if (c != 0) {
@@ -72,43 +101,41 @@ struct ib_counter_element_t {
   alignas(CPU_LEVEL1_DCACHE_LINESIZE) Type value;
 };
 
+static const auto ncpus= std::thread::hardware_concurrency();
 
 /** Class for using fuzzy counters. The counter is multi-instance relaxed atomic
 so the results are not guaranteed to be 100% accurate but close
 enough. */
 template <typename Type,
           template <typename T> class Element = ib_atomic_counter_element_t,
-          int N = 128 >
+        int N = 128 >
 struct ib_counter_t {
+
 	/** Increment the counter by 1. */
 	void inc() { add(1); }
 	ib_counter_t& operator++() { inc(); return *this; }
-
-	/** Increment the counter by 1.
-	@param[in]	index	a reasonably thread-unique identifier */
-	void inc(size_t index) { add(index, 1); }
 
 	/** Add to the counter.
 	@param[in]	n	amount to be added */
 	void add(Type n) { add(get_rnd_value(), n); }
 
+private:
 	/** Add to the counter.
 	@param[in]	index	a reasonably thread-unique identifier
 	@param[in]	n	amount to be added */
 	TPOOL_SUPPRESS_TSAN void add(size_t index, Type n) {
-		index = index % N;
-
-		ut_ad(index < UT_ARR_SIZE(m_counter));
+		index = index % ncpus;
 
 		m_counter[index].value += n;
 	}
+public:
 
 	/* @return total value - not 100% accurate, since it is relaxed atomic*/
 	operator Type() const {
 		Type	total = 0;
 
-		for (const auto &counter : m_counter) {
-			total += counter.value;
+		for (size_t i = 0; i < ncpus; i++) {
+			total += m_counter[i].value;
 		}
 
 		return(total);
