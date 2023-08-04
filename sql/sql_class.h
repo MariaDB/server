@@ -4221,7 +4221,7 @@ public:
       tests fail and so force them to propagate the
       lex->binlog_row_based_if_mixed upwards to the caller.
     */
-    if ((wsrep_binlog_format() == BINLOG_FORMAT_MIXED) && (in_sub_stmt == 0))
+    if ((wsrep_binlog_format(variables.binlog_format) == BINLOG_FORMAT_MIXED) && (in_sub_stmt == 0))
       set_current_stmt_binlog_format_row();
 
     DBUG_VOID_RETURN;
@@ -4277,7 +4277,7 @@ public:
                 show_system_thread(system_thread)));
     if (in_sub_stmt == 0)
     {
-      if (wsrep_binlog_format() == BINLOG_FORMAT_ROW)
+      if (wsrep_binlog_format(variables.binlog_format) == BINLOG_FORMAT_ROW)
         set_current_stmt_binlog_format_row();
       else if (!has_temporary_tables())
         set_current_stmt_binlog_format_stmt();
@@ -4924,9 +4924,18 @@ public:
   */
   bool is_awaiting_semisync_ack;
 
-  inline ulong wsrep_binlog_format() const
+  inline ulong wsrep_binlog_format(ulong binlog_format) const
   {
-    return WSREP_BINLOG_FORMAT(variables.binlog_format);
+#ifdef WITH_WSREP
+    // During CTAS we force ROW format
+    if (wsrep_ctas)
+      return BINLOG_FORMAT_ROW;
+    else
+      return ((wsrep_forced_binlog_format != BINLOG_FORMAT_UNSPEC) ?
+               wsrep_forced_binlog_format : binlog_format);
+#else
+    return (binlog_format);
+#endif
   }
 
 #ifdef WITH_WSREP
@@ -4969,11 +4978,9 @@ public:
   void                      *wsrep_apply_format;
   uchar*                    wsrep_rbr_buf;
   wsrep_gtid_t              wsrep_sync_wait_gtid;
-  //  wsrep_gtid_t              wsrep_last_written_gtid;
   ulong                     wsrep_affected_rows;
   bool                      wsrep_has_ignored_error;
   bool                      wsrep_replicate_GTID;
-
   /*
     When enabled, do not replicate/binlog updates from the current table that's
     being processed. At the moment, it is used to keep mysql.gtid_slave_pos
@@ -4993,7 +5000,8 @@ public:
   /* true if BF abort is observed in do_command() right after reading
   client's packet, and if the client has sent PS execute command. */
   bool                      wsrep_delayed_BF_abort;
-
+  // true if this transaction is CREATE TABLE AS SELECT (CTAS)
+  bool                      wsrep_ctas;
   /*
     Transaction id:
     * m_wsrep_next_trx_id is assigned on the first query after

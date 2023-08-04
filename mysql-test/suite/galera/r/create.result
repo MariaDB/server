@@ -18,6 +18,8 @@ USE test;
 CREATE TABLE t1(i INT) ENGINE=INNODB;
 INSERT INTO t1 VALUES(1);
 CREATE TEMPORARY TABLE `t1_temp` AS SELECT * FROM `t1` WHERE i = 1;
+Warnings:
+Warning	1105	Galera does not support wsrep_forced_binlog_format = STMT in CREATE TABLE AS SELECT
 SELECT * FROM t1;
 i
 1

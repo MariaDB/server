@@ -57,7 +57,33 @@
 #include <algorithm>
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
-#endif
+
+/** RAII class for temporarily enabling wsrep_ctas in the connection. */
+class Enable_wsrep_ctas_guard
+{
+ public:
+  /**
+    @param thd  - pointer to the context of connection in which
+                  wsrep_ctas mode needs to be enabled.
+    @param ctas - true if this is CREATE TABLE AS SELECT and
+                  wsrep_on
+  */
+  explicit Enable_wsrep_ctas_guard(THD *thd, const bool ctas)
+    : m_thd(thd)
+  {
+    if (ctas)
+      thd->wsrep_ctas= true;
+  }
+
+  ~Enable_wsrep_ctas_guard()
+  {
+    m_thd->wsrep_ctas= false;
+  }
+ private:
+  THD* m_thd;
+};
+
+#endif /* WITH_WSREP */
 #include "sql_debug.h"
 
 #ifdef __WIN__
@@ -11520,6 +11546,7 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
   int res= 0;
 
   const bool used_engine= lex->create_info.used_fields & HA_CREATE_USED_ENGINE;
+  ulong binlog_format= thd->wsrep_binlog_format(thd->variables.binlog_format);
   DBUG_ASSERT((m_storage_engine_name.str != NULL) == used_engine);
   if (used_engine)
   {
@@ -11558,6 +11585,14 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
     copy.
   */
   Alter_info alter_info(lex->alter_info, thd->mem_root);
+
+#ifdef WITH_WSREP
+  // If CREATE TABLE AS SELECT and wsrep_on
+  const bool wsrep_ctas= (select_lex->item_list.elements && WSREP(thd));
+
+  // This will be used in THD::decide_logging_format if CTAS
+  Enable_wsrep_ctas_guard wsrep_ctas_guard(thd, wsrep_ctas);
+#endif
 
   if (unlikely(thd->is_fatal_error))
   {
@@ -11628,15 +11663,17 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
 #endif
 
 #ifdef WITH_WSREP
-  if (select_lex->item_list.elements && // With SELECT
-      WSREP(thd) && thd->variables.wsrep_trx_fragment_size > 0)
+  if (wsrep_ctas)
   {
-    my_message(
+    if (thd->variables.wsrep_trx_fragment_size > 0)
+    {
+      my_message(
         ER_NOT_ALLOWED_COMMAND,
         "CREATE TABLE AS SELECT is not supported with streaming replication",
         MYF(0));
-    res= 1;
-    goto end_with_restore_list;
+      res= 1;
+      goto end_with_restore_list;
+    }
   }
 #endif /* WITH_WSREP */
 
@@ -11666,7 +11703,7 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
       (see 'NAME_CONST issues' in 'Binary Logging of Stored Programs')
      */
     if (thd->query_name_consts && mysql_bin_log.is_open() &&
-        thd->wsrep_binlog_format() == BINLOG_FORMAT_STMT &&
+        binlog_format == BINLOG_FORMAT_STMT &&
         !mysql_bin_log.is_query_in_union(thd, thd->query_id))
     {
       List_iterator_fast<Item> it(select_lex->item_list);
@@ -11803,10 +11840,11 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
 #ifdef WITH_WSREP
           WSREP_TO_ISOLATION_BEGIN_ALTER(create_table->db.str, create_table->table_name.str,
                                          first_table, &alter_info, NULL)
-	  {
-	    WSREP_WARN("CREATE TABLE isolation failure");
-	    DBUG_RETURN(true);
-	  }
+          {
+            WSREP_WARN("CREATE TABLE isolation failure");
+            res= true;
+            goto end_with_restore_list;
+          }
 #endif /* WITH_WSREP */
         }
         // check_engine will set db_type to  NULL if e.g. TEMPORARY is

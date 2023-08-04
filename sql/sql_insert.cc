@@ -474,7 +474,7 @@ void upgrade_lock_type(THD *thd, thr_lock_type *lock_type,
     }
 
     bool log_on= (thd->variables.option_bits & OPTION_BIN_LOG);
-    if (WSREP_BINLOG_FORMAT(global_system_variables.binlog_format) == BINLOG_FORMAT_STMT &&
+    if (thd->wsrep_binlog_format(global_system_variables.binlog_format) == BINLOG_FORMAT_STMT &&
         log_on && mysql_bin_log.is_open())
     {
       /*
