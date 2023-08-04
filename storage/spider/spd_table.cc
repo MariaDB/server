@@ -3902,16 +3902,12 @@ int spider_set_connect_info_default(
 #endif
     if (share->access_balances[roop_count] == -1)
       share->access_balances[roop_count] = 100;
-    if (share->strict_group_bys[roop_count] == -1)
-      share->strict_group_bys[roop_count] = 1;
   }
 
   if (share->query_cache == -1)
     share->query_cache = 0;
   if (share->query_cache_sync == -1)
     share->query_cache_sync = 0;
-  if (share->buffer_size == -1)
-    share->buffer_size = 16000;
   if (share->scan_rate == -1)
     share->scan_rate = 1;
   if (share->read_rate == -1)
