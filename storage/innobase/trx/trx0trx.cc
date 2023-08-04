@@ -968,6 +968,23 @@ trx_start_low(
 	ut_a(trx->error_state == DB_SUCCESS);
 }
 
+/** Release an empty undo log that was associated with a transaction. */
+ATTRIBUTE_COLD
+static void trx_write_nothing(trx_rseg_t *rseg, trx_undo_t *&undo, mtr_t *mtr)
+{
+  if (buf_block_t *u=
+      buf_page_get(page_id_t(rseg->space->id, undo->hdr_page_no), 0,
+                   RW_X_LATCH, mtr))
+    mtr->write<2,mtr_t::MAYBE_NOP>
+      (*u, TRX_UNDO_SEG_HDR + TRX_UNDO_STATE + u->page.frame, TRX_UNDO_CACHED);
+
+  ut_ad(undo->size == 1);
+  UT_LIST_REMOVE(rseg->undo_list, undo);
+  UT_LIST_ADD_FIRST(rseg->undo_cached, undo);
+  undo->state= TRX_UNDO_CACHED;
+  undo= nullptr;
+}
+
 /** Assign the transaction its history serialisation number and write the
 UNDO log to the assigned rollback segment.
 @param trx   persistent transaction
@@ -988,7 +1005,17 @@ static void trx_write_serialisation_history(trx_t *trx, mtr_t *mtr)
     ut_ad(undo->rseg == rseg);
     /* Assign the transaction serialisation number and add any
     undo log to the purge queue. */
-    if (rseg->last_page_no == FIL_NULL)
+    if (UNIV_UNLIKELY(!trx->undo_no))
+    {
+      /* The transaction was rolled back. */
+      trx_write_nothing(rseg, undo, mtr);
+      /* We must assign an "end" identifier even though we are not going
+      to write it anywhere, to make sure that the purge of history will
+      not be stuck. */
+      trx_sys.assign_new_trx_no(trx);
+      goto done;
+    }
+    else if (rseg->last_page_no == FIL_NULL)
     {
       mysql_mutex_lock(&purge_sys.pq_mutex);
       trx_sys.assign_new_trx_no(trx);
@@ -1008,6 +1035,7 @@ static void trx_write_serialisation_history(trx_t *trx, mtr_t *mtr)
     define the transaction as committed in the file based domain,
     at mtr->commit_lsn() obtained in mtr->commit() below. */
     trx_purge_add_undo_to_history(trx, undo, mtr);
+  done:
     rseg->release();
     rseg->latch.wr_unlock();
   }
