@@ -338,6 +338,8 @@ public:
   /* Condition for UNTIL master_gtid_pos. */
   slave_connection_state until_gtid_pos;
 
+  bool is_until_before_gtids;
+
   /*
     retried_trans is a cumulative counter: how many times the slave
     has retried a transaction (any) since slave started.

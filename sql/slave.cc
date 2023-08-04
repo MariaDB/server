@@ -2521,6 +2521,42 @@ after_set_capability:
           goto err;
         }
       }
+
+      query_str.length(0);
+      if (query_str.append(
+              STRING_WITH_LEN("SET @slave_gtid_until_before_gtids="),
+              system_charset_info) ||
+          query_str.append_ulonglong(mi->rli.is_until_before_gtids))
+      {
+        err_code= ER_OUTOFMEMORY;
+        errmsg=
+            "The slave I/O thread stops because a fatal out-of-memory error "
+            "is encountered when it tries to set "
+            "@slave_gtid_until_before_gtids.";
+        sprintf(err_buff, "%s Error: Out of memory", errmsg);
+        goto err;
+      }
+
+      rc= mysql_real_query(mysql, query_str.ptr(), query_str.length());
+      if (unlikely(rc))
+      {
+        err_code= mysql_errno(mysql);
+        if (is_network_error(err_code))
+        {
+          mi->report(ERROR_LEVEL, err_code, NULL,
+                     "Setting @slave_gtid_until_before_gtids failed with "
+                     "error: %s", mysql_error(mysql));
+          goto network_err;
+        }
+        else
+        {
+          /* Fatal error */
+          errmsg= "The slave I/O thread stops because a fatal error is "
+            "encountered when it tries to set @slave_gtid_until_before_gtids.";
+          sprintf(err_buff, "%s Error: %s", errmsg, mysql_error(mysql));
+          goto err;
+        }
+      }
     }
   }
   else

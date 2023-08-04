@@ -60,7 +60,8 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery, const char* thread_name)
    abort_pos_wait(0), slave_run_id(0), sql_driver_thd(),
    gtid_skip_flag(GTID_SKIP_NOT), inited(0), abort_slave(0), stop_for_until(0),
    slave_running(MYSQL_SLAVE_NOT_RUN), until_condition(UNTIL_NONE),
-   until_log_pos(0), retried_trans(0), executed_entries(0),
+   until_log_pos(0), is_until_before_gtids(false),
+   retried_trans(0), executed_entries(0),
    last_trans_retry_count(0), sql_delay(0), sql_delay_end(0),
    until_relay_log_names_defer(false),
    m_flags(0)
