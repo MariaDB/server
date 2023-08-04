@@ -592,6 +592,16 @@ private:
   bool has_sql_condition(const char *message_str, size_t message_length) const;
 
   /**
+    Checks if Warning_info contains SQL-condition with the given error id
+
+    @param sql_errno SQL-condition error number
+
+    @return true if the Warning_info contains an SQL-condition with the given
+    error id.
+  */
+  bool has_sql_condition(uint sql_errno) const;
+
+  /**
     Reset the warning information. Clear all warnings,
     the number of warnings, reset current row counter
     to point to the first row.
@@ -1125,6 +1135,9 @@ public:
 
   bool has_sql_condition(const char *message_str, size_t message_length) const
   { return get_warning_info()->has_sql_condition(message_str, message_length); }
+
+  bool has_sql_condition(uint sql_errno) const
+  { return get_warning_info()->has_sql_condition(sql_errno); }
 
   void reset_for_next_command()
   { get_warning_info()->reset_for_next_command(); }
