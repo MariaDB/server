@@ -2289,7 +2289,8 @@ sortlength(THD *thd, Sort_keys *sort_keys, bool *allow_packing_for_sortkeys)
       set_if_smaller(sortorder->length, thd->variables.max_sort_length);
       set_if_smaller(sortorder->original_length, thd->variables.max_sort_length);
     }
-    length+=sortorder->length;
+    DBUG_ASSERT(length < UINT_MAX32 - sortorder->length);
+    length+= sortorder->length;
 
     sort_keys->increment_size_of_packable_fields(sortorder->length_bytes);
     sort_keys->increment_original_sort_length(sortorder->original_length);

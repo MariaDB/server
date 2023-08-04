@@ -25165,6 +25165,9 @@ JOIN_TAB::remove_duplicates()
       {
         /* Item is not stored in temporary table, remember it */
         sorder->item= item;
+        sorder->type= sorder->item->type_handler()->is_packable() ?
+                      SORT_FIELD_ATTR::VARIABLE_SIZE :
+                      SORT_FIELD_ATTR::FIXED_SIZE;
         /* Calculate sorder->length */
         item->type_handler()->sort_length(thd, item, sorder);
         sorder++;
