@@ -2354,6 +2354,8 @@ public:
     If there is some, sets a bit for this key in the proper key map.
   */
   virtual bool check_index_dependence(void *arg) { return 0; }
+  virtual bool uses_item_ref_processor(void *arg) { return false; }
+
   /*============== End of Item processor list ======================*/
 
   /*
@@ -5800,6 +5802,10 @@ public:
         ((Item_field *) item)->field && item->const_item())
       return 0;
     return cleanup_processor(arg);
+  }
+  bool uses_item_ref_processor(void *arg) override
+  {
+    return true;
   }
   Item *field_transformer_for_having_pushdown(THD *thd, uchar *arg) override
   { return (*ref)->field_transformer_for_having_pushdown(thd, arg); }

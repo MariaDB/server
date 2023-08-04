@@ -3096,17 +3096,6 @@ alloc_err:
   return TRUE;
 }
 
-
-/* Check whether item tree intersects with the free list */
-static bool intersects_free_list(Item *item, THD *thd)
-{
-  for (const Item *to_find= thd->free_list; to_find; to_find= to_find->next)
-    if (item->walk(&Item::find_item_processor, 1, (void *) to_find))
-      return true;
-  return false;
-}
-
-
 /*
   Prepare exists2in / decorrelation transformation
 
@@ -3134,15 +3123,17 @@ bool Item_exists_subselect::exists2in_prepare(
   DBUG_ASSERT(eqs.elements() != 0);
 
   /*
-    If we are in a ps/sp execution, check for and skip on
-    intersection with the temporary free list to avoid 2nd ps execution
-    segfault
+    A workaround to avoid 2nd ps execution segfault (MDEV-31269):
+    The transformation we're doing is permanent. Don't apply it if
+    the involved conditions use Item_ref-based items (which are not
+    permanent).
   */
-  if (!thd->stmt_arena->is_conventional())
+  if (!thd->stmt_arena->is_conventional() && substype()==IN_SUBS)
   {
     for (uint i= 0; i < (uint) eqs.elements(); i++)
     {
-      if (intersects_free_list(*eqs.at(i).eq_ref, thd))
+      Item *item= *eqs.at(i).eq_ref;
+      if (item->walk(&Item::uses_item_ref_processor, TRUE, NULL))
         DBUG_RETURN(TRUE);
     }
   }
