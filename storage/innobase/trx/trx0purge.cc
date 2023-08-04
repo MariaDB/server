@@ -267,12 +267,7 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
   trx_ulogf_t *undo_header= undo_page->page.frame + undo->hdr_offset;
 
   ut_ad(rseg->needs_purge > trx->id);
-
-  if (rseg->last_page_no == FIL_NULL)
-  {
-    rseg->last_page_no= undo->hdr_page_no;
-    rseg->set_last_commit(undo->hdr_offset, trx->rw_trx_hash_element->no);
-  }
+  ut_ad(rseg->last_page_no != FIL_NULL);
 
   rseg->history_size++;
 
@@ -311,11 +306,7 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 
   undo= nullptr;
 
-  /* After the purge thread has been given permission to exit,
-  we may roll back transactions (trx->undo_no==0)
-  in THD::cleanup() invoked from unlink_thd() in fast shutdown,
-  or in trx_rollback_recovered() in slow shutdown.
-
+  /*
   Before any transaction-generating background threads or the purge
   have been started, we can start transactions in
   row_merge_drop_temp_indexes(), and roll back recovered transactions.
@@ -327,12 +318,10 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 
   During fast shutdown, we may also continue to execute user
   transactions. */
-  ut_ad(srv_undo_sources || trx->undo_no == 0 ||
+  ut_ad(srv_undo_sources || srv_fast_shutdown ||
         (!purge_sys.enabled() &&
          (srv_is_being_started ||
-          trx_rollback_is_active ||
-          srv_force_recovery >= SRV_FORCE_NO_BACKGROUND)) ||
-        srv_fast_shutdown);
+          srv_force_recovery >= SRV_FORCE_NO_BACKGROUND)));
 
 #ifdef WITH_WSREP
   if (wsrep_is_wsrep_xid(&trx->xid))

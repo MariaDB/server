@@ -808,12 +808,6 @@ public:
 					defer flush of the logs to disk
 					until after we release the
 					mutex. */
-	bool		must_flush_log_later;/*!< set in commit()
-					if flush_log_later was
-					set and redo log was written;
-					in that case we will
-					flush the log in
-					trx_commit_complete_for_mysql() */
 	ulint		duplicates;	/*!< TRX_DUP_IGNORE | TRX_DUP_REPLACE */
   /** whether this modifies InnoDB dictionary tables */
   bool dict_operation;
