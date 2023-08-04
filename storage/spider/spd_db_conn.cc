@@ -9493,7 +9493,6 @@ int spider_db_udf_copy_tables(
   spider_db_copy_table *select_ct = src_tbl_conn->copy_table;
   spider_db_copy_table *insert_ct = NULL;
   KEY *key_info = &table->key_info[table->s->primary_key];
-  int bulk_insert_interval;
   DBUG_ENTER("spider_db_udf_copy_tables");
   if (!(last_row_pos = (ulong *)
     spider_bulk_malloc(spider_current_trx, 30, MYF(MY_WME),
@@ -9946,8 +9945,7 @@ int spider_db_udf_copy_tables(
         insert_ct->set_sql_to_pos();
       }
       DBUG_PRINT("info",("spider sleep"));
-      bulk_insert_interval= copy_tables->bulk_insert_interval;
-      my_sleep(bulk_insert_interval);
+      my_sleep(copy_tables->bulk_insert_interval);
     }
   }
   spider_free(spider_current_trx, last_row_pos, MYF(0));

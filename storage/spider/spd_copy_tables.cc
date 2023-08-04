@@ -60,6 +60,10 @@ int spider_udf_set_copy_tables_param_default(
     }
   }
 
+  if (copy_tables->bulk_insert_interval == -1)
+    copy_tables->bulk_insert_interval = 10;
+  if (copy_tables->bulk_insert_rows == -1)
+    copy_tables->bulk_insert_rows = 100;
   if (copy_tables->use_transaction == -1)
     copy_tables->use_transaction = 1;
   if (copy_tables->bg_mode == -1)

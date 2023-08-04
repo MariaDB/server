@@ -219,8 +219,8 @@ static void spider_var_deprecated_int(THD *thd, st_mysql_sys_var *,
   {
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         HA_ERR_UNSUPPORTED,
-                        "The option value -1 (use table value) is deprecated "
-                        "and will be removed in a future release");
+                        "The option value -1 (fallback to default) is "
+                        "deprecated and will be removed in a future release");
   }
 }
 
@@ -233,8 +233,8 @@ static void spider_var_deprecated_longlong(THD *thd, st_mysql_sys_var *,
   {
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         HA_ERR_UNSUPPORTED,
-                        "The option value -1 (use table value) is deprecated "
-                        "and will be removed in a future release");
+                        "The option value -1 (fallback to default) is "
+                        "deprecated and will be removed in a future release");
   }
 }
 
@@ -580,11 +580,6 @@ static MYSQL_THDVAR_INT(
 
 SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(int, reset_sql_alloc)
 
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-
-SPIDER_THDVAR_OVERRIDE_VALUE_FUN(longlong, hs_result_free_size)
-#endif
-
 /*
  -1 :fallback to default
   0 :off
@@ -912,14 +907,6 @@ static MYSQL_THDVAR_INT(
 
 SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(int, buffer_size)
 
-/*
-  Notes on merge conflicts (remove after merging):
-  10.5: 48faa20db848012e2187a09e05aba832078cb82e
-  10.6: 51ff9eddf7c0aaf1e022fcb3b48ec36835df7785
-  10.9: 06a61b8e453126c2de1649073f247d34e85f9702
-  10.10: 90cd0c156f5bb53fd058d2bbfb83f850ffae6722
-  10.11+: 124eb662700708f3c4b0fb77968f8b854d6bb4aa
-*/
 /*
  -1 :fallback to default
   0 :off
@@ -1894,7 +1881,7 @@ static MYSQL_THDVAR_LONGLONG(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Send 'ORDER BY' and 'LIMIT' to remote server directly", /* comment */
   NULL, /* check */
-  spider_var_deprecated_int, /* update */
+  spider_var_deprecated_longlong, /* update */
   9223372036854775807LL, /* def */
   -1, /* min */
   9223372036854775807LL, /* max */
@@ -2346,7 +2333,7 @@ static MYSQL_THDVAR_BOOL(
 SPIDER_THDVAR_VALUE_FUNC(bool, sync_sql_mode)
 
 /*
- -1 : use table parameter
+ -1 : fallback to default
   0 : do not strict
   1 : do strict
  */
@@ -2362,14 +2349,7 @@ static MYSQL_THDVAR_INT(
   0 /* blk */
 );
 
-int spider_param_strict_group_by(
-  THD *thd,
-  int strict_group_by
-) {
-  DBUG_ENTER("spider_param_strict_group_by");
-  DBUG_RETURN(THDVAR(thd, strict_group_by) == -1 ?
-    strict_group_by : THDVAR(thd, strict_group_by));
-}
+SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(int, strict_group_by)
 
 static struct st_mysql_storage_engine spider_storage_engine =
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
