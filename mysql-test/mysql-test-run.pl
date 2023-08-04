@@ -579,6 +579,7 @@ sub run_test_server ($$$) {
 
   my $s= IO::Select->new();
   my $childs= 0;
+  my %names;
   $s->add($server);
   while (1) {
     if ($opt_stop_file)
@@ -592,14 +593,18 @@ sub run_test_server ($$$) {
 
     mark_time_used('admin');
     my @ready = $s->can_read(1); # Wake up once every second
-    mtr_debug("Got ". (0 + @ready). " connection(s)");
+    if (@ready > 0) {
+      mtr_verbose2("Got ". (0 + @ready). " connection(s)");
+    }
     mark_time_idle();
+    my $i= 0;
     foreach my $sock (@ready) {
+      ++$i;
       if ($sock == $server) {
 	# New client connected
         ++$childs;
 	my $child= $sock->accept();
-        mtr_verbose2("Client connected (got ${childs} childs)");
+        mtr_verbose2("Connection ${i}: Worker connected (got ${childs} childs)");
 	$s->add($child);
 	print $child "HELLO\n";
       }
@@ -608,7 +613,7 @@ sub run_test_server ($$$) {
 	if (!defined $line) {
 	  # Client disconnected
 	  --$childs;
-	  mtr_verbose2("Child closed socket (left ${childs} childs)");
+	  mtr_verbose2((exists $names{$sock} ? $names{$sock} : "Worker"). " closed socket (left ${childs} childs)");
 	  $s->remove($sock);
 	  $sock->close;
 	  next;
@@ -744,8 +749,9 @@ sub run_test_server ($$$) {
 	  push(@$completed, $result);
 
 	}
-	elsif ($line eq 'START'){
-	  ; # Send first test
+	elsif ($line=~ /^START (.*)$/){
+	  # Send first test
+	  $names{$sock}= $1;
 	}
 	elsif ($line eq 'WARNINGS'){
           my $fake_test= My::Test::read_test($sock);
@@ -828,7 +834,7 @@ sub run_test_server ($$$) {
 	  # At this point we have found next suitable test
 	  $next= splice(@$tests, $i, 1);
 	  last;
-	}
+	} # for(my $i= 0; $i <= @$tests; $i++)
 
 	# Use second best choice if no other test has been found
 	if (!$next and defined $second_best){
@@ -847,11 +853,11 @@ sub run_test_server ($$$) {
 	}
 	else {
 	  # No more test, tell child to exit
-	  #mtr_report("Saying BYE to child");
+	  mtr_verbose2("Saying BYE to ". $names{$sock});
 	  print $sock "BYE\n";
-	}
-      }
-    }
+	} # else (!$next)
+      } # else ($sock != $server)
+    } # foreach my $sock (@ready)
 
     if (!IS_WINDOWS) {
       foreach my $pid (keys %$children)
@@ -911,7 +917,10 @@ sub run_worker ($) {
   # --------------------------------------------------------------------------
   # Set worker name
   # --------------------------------------------------------------------------
-  report_option('name',"worker[$thread_num]");
+  report_option('name',"worker[". sprintf("%02d", $thread_num). "]");
+  my $proc_title= basename($0). " ${mtr_report::name} :". $server->sockport(). " -> :${server_port}";
+  $0= $proc_title;
+  mtr_verbose2("Running at PID $$");
 
   # --------------------------------------------------------------------------
   # Set different ports per thread
@@ -937,7 +946,7 @@ sub run_worker ($) {
   }
 
   # Ask server for first test
-  print $server "START\n";
+  print $server "START ${mtr_report::name}\n";
 
   mark_time_used('init');
 
@@ -945,6 +954,7 @@ sub run_worker ($) {
     chomp($line);
     if ($line eq 'TESTCASE'){
       my $test= My::Test::read_test($server);
+      $0= $proc_title. " ". $test->{name};
 
       # Clear comment and logfile, to avoid
       # reusing them from previous test
@@ -961,11 +971,12 @@ sub run_worker ($) {
       run_testcase($test, $server);
       #$test->{result}= 'MTR_RES_PASSED';
       # Send it back, now with results set
+      mtr_verbose2('Writing TESTRESULT');
       $test->write_test($server, 'TESTRESULT');
       mark_time_used('restart');
     }
     elsif ($line eq 'BYE'){
-      mtr_report("Server said BYE");
+      mtr_verbose2("Manager said BYE");
       # We need to gracefully shut down the servers to see any
       # Valgrind memory leak errors etc. since last server restart.
       if ($opt_warnings) {
@@ -1856,7 +1867,7 @@ sub client_debug_arg($$) {
 
   if ( $opt_debug ) {
     mtr_add_arg($args,
-		"--loose-debug=$debug_d:t:A,%s/log/%s.trace",
+		"--loose-debug=d,info,warning,warnings:t:A,%s/log/%s.trace",
 		$path_vardir_trace, $client_name)
   }
 }
@@ -4046,9 +4057,8 @@ sub run_testcase ($$) {
       }
 
       return ($res == 62) ? 0 : $res;
-    }
-
-    if ($proc)
+    } # if ($proc and $proc eq $test)
+    elsif ($proc)
     {
       # It was not mysqltest that exited, add to a wait-to-be-started-again list.
       $keep_waiting_proc{$proc} = 1;
@@ -4077,7 +4087,7 @@ sub run_testcase ($$) {
       {
         # do nothing
       }
-    }
+    } # foreach my $wait_for_proc
 
     next;
 
@@ -5457,7 +5467,11 @@ sub start_mysqltest ($) {
   mtr_init_args(\$args);
 
   mtr_add_arg($args, "--defaults-file=%s", $path_config_file);
-  mtr_add_arg($args, "--silent");
+  if ($opt_verbose > 1) {
+    mtr_add_arg($args, "--verbose");
+  } else {
+    mtr_add_arg($args, "--silent");
+  }
   mtr_add_arg($args, "--tmpdir=%s", $opt_tmpdir);
   mtr_add_arg($args, "--character-sets-dir=%s", $path_charsetsdir);
   mtr_add_arg($args, "--logdir=%s/log", $opt_vardir);
