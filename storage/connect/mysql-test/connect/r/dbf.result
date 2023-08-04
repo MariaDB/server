@@ -64,6 +64,24 @@ t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`=DBF `FILE_NAME`='t1.dbf'
 INSERT INTO t1 VALUES (10),(20);
+CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+--------	--------
+FileSize	91
+DBF_Version	03
+NRecords	2
+FirstRecPos	66
+RecLength	12
+TableFlags	0000
+CodePageMark	00
+---	---
+FieldN	0
+Name	a
+Type	N
+Offset	0
+Length	11
+Dec	0
+Flags	00
+--------	--------
 SELECT * FROM t1;
 a
 10
@@ -89,6 +107,24 @@ t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`=DBF `FILE_NAME`='t1.dbf' `READONLY`=NO
 INSERT INTO t1 VALUES (30);
+CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+--------	--------
+FileSize	103
+DBF_Version	03
+NRecords	3
+FirstRecPos	66
+RecLength	12
+TableFlags	0000
+CodePageMark	00
+---	---
+FieldN	0
+Name	a
+Type	N
+Offset	0
+Length	11
+Dec	0
+Flags	00
+--------	--------
 SELECT * FROM t1;
 a
 10
@@ -137,7 +173,7 @@ a
 test
 CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
 --------	--------
-FileSize	77
+FileSize	78
 DBF_Version	03
 NRecords	1
 FirstRecPos	66
@@ -171,7 +207,7 @@ a	b	c
 2	2	2
 CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
 --------	--------
-FileSize	194
+FileSize	195
 DBF_Version	03
 NRecords	2
 FirstRecPos	130
@@ -264,7 +300,7 @@ a
 -9223372036854775808
 CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
 --------	--------
-FileSize	108
+FileSize	109
 DBF_Version	03
 NRecords	2
 FirstRecPos	66
@@ -308,7 +344,7 @@ a
 -32768
 CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
 --------	--------
-FileSize	80
+FileSize	81
 DBF_Version	03
 NRecords	2
 FirstRecPos	66
@@ -338,7 +374,7 @@ LENGTH(a)
 255
 CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
 --------	--------
-FileSize	322
+FileSize	323
 DBF_Version	03
 NRecords	1
 FirstRecPos	66
@@ -419,7 +455,7 @@ a
 2001-01-01
 CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
 --------	--------
-FileSize	75
+FileSize	76
 DBF_Version	03
 NRecords	1
 FirstRecPos	66
@@ -449,7 +485,7 @@ a
 123.0000
 CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
 --------	--------
-FileSize	79
+FileSize	80
 DBF_Version	03
 NRecords	1
 FirstRecPos	66
@@ -481,7 +517,7 @@ a
 123456789.12345
 CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
 --------	--------
-FileSize	108
+FileSize	109
 DBF_Version	03
 NRecords	2
 FirstRecPos	66
@@ -511,7 +547,7 @@ a
 10
 CALL dbf_header('MYSQLD_DATADIR/test/t1c.dbf');
 --------	--------
-FileSize	77
+FileSize	78
 DBF_Version	03
 NRecords	1
 FirstRecPos	66
@@ -538,7 +574,7 @@ a
 10
 CALL dbf_header('MYSQLD_DATADIR/test/t1c.dbf');
 --------	--------
-FileSize	77
+FileSize	78
 DBF_Version	03
 NRecords	1
 FirstRecPos	66
@@ -567,7 +603,7 @@ a
 10
 CALL dbf_header('MYSQLD_DATADIR/test/t1c.dbf');
 --------	--------
-FileSize	77
+FileSize	78
 DBF_Version	03
 NRecords	1
 FirstRecPos	66
@@ -604,7 +640,7 @@ c1	c2	i1	i2
 30	def	30	123
 CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
 --------	--------
-FileSize	291
+FileSize	292
 DBF_Version	03
 NRecords	3
 FirstRecPos	162

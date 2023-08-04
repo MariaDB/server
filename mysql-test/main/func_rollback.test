@@ -90,12 +90,16 @@ delimiter ;//
 
 --echo
 --echo # One f1_simple_insert execution per row, no NOT NULL violation
+--disable_ps2_protocol
 SELECT f1_simple_insert(1);
+--enable_ps2_protocol
 SELECT * FROM t1_not_null ORDER BY f1,f2;
 ROLLBACK;
 SELECT * FROM t1_not_null;
 #
+--disable_ps2_protocol
 SELECT f1_simple_insert(1) FROM t1_select;
+--enable_ps2_protocol
 SELECT * FROM t1_not_null ORDER BY f1,f2;
 ROLLBACK;
 SELECT * FROM t1_not_null;
@@ -219,7 +223,9 @@ eval $f1_insert_select;
 --echo # - t1_not_null gets a row inserted
 --echo # is covered by the manual.
 # Non strict sqlmode + INSERT SELECT --> NULL adjusted to default
+--disable_ps2_protocol
 SELECT f1_insert_select(2);
+--enable_ps2_protocol
 SELECT * FROM t1_not_null ORDER BY f1,f2;
 ROLLBACK;
 SELECT * FROM t1_not_null ORDER BY f1,f2;
@@ -295,7 +301,9 @@ eval $f1_insert_with_two_rows;
 --echo # - t1_not_null gets a row inserted
 --echo # is covered by the manual.
 # Non strict sqlmode + multiple-row INSERT --> NULL adjusted to default
+--disable_ps2_protocol
 SELECT f1_insert_with_two_rows();
+--enable_ps2_protocol
 SELECT * FROM t1_not_null ORDER BY f1,f2;
 ROLLBACK;
 SELECT * FROM t1_not_null ORDER BY f1,f2;

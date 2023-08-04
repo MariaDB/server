@@ -3387,4 +3387,43 @@ insert into t () values (),(),(),(),(),();
 update t set a = 1;
 update t set a = 2 limit 0;
 drop table t;
+#
+# MDEV-31244 Assertion "not SELECT" in vers_set_hist_part()
+#
+create table t (a int) with system versioning partition by system_time;
+create function f() returns int
+begin
+update t set a = 1;
+return 1;
+end $
+create procedure p() select f();
+call p();
+f()
+1
+call p();
+f()
+1
+drop procedure p;
+drop function f;
+drop table t;
+#
+# MDEV-29873 MSAN uninitialized value errors in bcmp /
+#            prep_alter_part_table upon re-partitioning by system time
+#
+create table t (a int) with system versioning partition by system_time interval 5 week;
+alter table t partition by system_time interval 10 week;
+drop table t;
+#
+# MDEV-29727 ALTER and CREATE with default partitioning
+#            differently react to SQL_MODE => unusable SHOW CREATE
+#
+create table t (a int) with system versioning;
+alter table t partition by system_time partitions 3;
+ERROR HY000: Maybe missing parameters: no rotation condition for multiple HISTORY partitions.
+drop table t;
+create table t (a int) with system versioning partition by system_time partitions 3;
+ERROR HY000: Maybe missing parameters: no rotation condition for multiple HISTORY partitions.
+#
+# End of 10.5 tests
+#
 set global innodb_stats_persistent= @save_persistent;

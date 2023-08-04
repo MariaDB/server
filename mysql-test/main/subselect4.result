@@ -2760,7 +2760,7 @@ from t2 join t1 on
 ('i','w') not in (select t1.v1,t4.v2 from t4,t1,t3 where t3.v2 = t1.v1) LIMIT ROWS EXAMINED 500;
 1
 Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 3020 rows, which exceeds LIMIT ROWS EXAMINED (500). The query result may be incomplete
+Warning	1931	Query execution was interrupted. The query exceeded LIMIT ROWS EXAMINED 500. The query result may be incomplete
 SET join_cache_level= @save_join_cache_level;
 DROP TABLE t1,t2,t3,t4;
 #

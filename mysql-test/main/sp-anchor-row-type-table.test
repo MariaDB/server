@@ -884,3 +884,58 @@ $$
 DELIMITER ;$$
 DROP TABLE t1;
 --disable_prepare_warnings
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-31250 ROW variables do not get assigned from subselects
+--echo #
+
+CREATE TABLE t1 (a INT, b TEXT);
+INSERT INTO t1 VALUES (1,'b1');
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE r ROW TYPE OF t1;
+  SELECT * INTO r FROM t1 WHERE a=1;
+  SELECT r.a, r.b;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a INT, b TEXT);
+INSERT INTO t1 VALUES (1,'b1');
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE r ROW TYPE OF t1;
+  SET r=(SELECT * FROM t1 WHERE a=1);
+  SELECT r.a, r.b;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a INT, b TEXT);
+INSERT INTO t1 VALUES (1,'b1');
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE r ROW TYPE OF t1 DEFAULT (SELECT * FROM t1 WHERE a=1);
+  SELECT r.a, r.b;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

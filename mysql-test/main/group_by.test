@@ -284,23 +284,27 @@ drop table t1;
 CREATE TABLE t1 (a char(1));
 INSERT INTO t1 VALUES ('A'),('B'),('A'),('B'),('A'),('B'),(NULL),('a'),('b'),(NULL),('A'),('B'),(NULL);
 flush status;
+--disable_ps2_protocol
 SELECT a FROM t1 GROUP BY a;
 SELECT a,count(*) FROM t1 GROUP BY a;
 SELECT a FROM t1 GROUP BY binary a;
 SELECT a,count(*) FROM t1 GROUP BY binary a;
 SELECT binary a FROM t1 GROUP BY 1;
 SELECT binary a,count(*) FROM t1 GROUP BY 1;
+--enable_ps2_protocol
 --disable_ps_protocol
 show status like 'Created%tables';
 --enable_ps_protocol
 # Do the same tests with on-disk temporary tables
 set tmp_memory_table_size=0;
+--disable_ps2_protocol
 SELECT a FROM t1 GROUP BY a;
 SELECT a,count(*) FROM t1 GROUP BY a;
 SELECT a FROM t1 GROUP BY binary a;
 SELECT a,count(*) FROM t1 GROUP BY binary a;
 SELECT binary a FROM t1 GROUP BY 1;
 SELECT binary a,count(*) FROM t1 GROUP BY 1;
+--enable_ps2_protocol
 --disable_ps_protocol
 show status like 'Created%tables';
 --enable_ps_protocol
@@ -1041,9 +1045,11 @@ EXPLAIN SELECT a FROM t1 IGNORE INDEX FOR JOIN (PRIMARY,i2);
 EXPLAIN SELECT a FROM t1 IGNORE INDEX FOR GROUP BY (PRIMARY,i2) GROUP BY a;
 --echo #  Here's a proof it is really doing sorting:
 flush status;
+--disable_ps2_protocol
 --disable_result_log
 SELECT a FROM t1 IGNORE INDEX FOR GROUP BY (PRIMARY,i2) GROUP BY a;
 --enable_result_log
+--enable_ps2_protocol
 show status like 'Sort_%';
 --echo # Proof ends.
 --echo # 
@@ -1054,9 +1060,11 @@ show status like 'Sort_%';
 EXPLAIN SELECT a FROM t1 IGNORE INDEX FOR ORDER BY (PRIMARY,i2) ORDER BY a;
 --echo #  Here's a proof it is really doing sorting:
 flush status;
+--disable_ps2_protocol
 --disable_result_log
 SELECT a FROM t1 IGNORE INDEX FOR ORDER BY (PRIMARY,i2) ORDER BY a;
 --enable_result_log
+--enable_ps2_protocol
 show status like 'Sort_%';
 --echo # Proof ends.
 --echo # 
@@ -1409,7 +1417,9 @@ let $query0=SELECT col1 AS field1, col1 AS field2
 # Needs to be range to exercise bug
 --eval EXPLAIN $query0;
 FLUSH STATUS;
+--disable_ps2_protocol
 --eval $query0;
+--enable_ps2_protocol
 SHOW SESSION STATUS LIKE 'Sort_scan%';
 
 let $query=SELECT SQL_BIG_RESULT col1 AS field1, col1 AS field2
@@ -1418,7 +1428,9 @@ let $query=SELECT SQL_BIG_RESULT col1 AS field1, col1 AS field2
 # Needs to be range to exercise bug
 --eval EXPLAIN $query
 FLUSH STATUS;
+--disable_ps2_protocol
 --eval $query
+--enable_ps2_protocol
 SHOW SESSION STATUS LIKE 'Sort_scan%';
 
 CREATE VIEW v1 AS SELECT * FROM t1;
@@ -1652,6 +1664,7 @@ DROP TABLE t1, t2;
 
 #the view protocol creates 
 # an additional util connection and other statistics data
+--disable_ps2_protocol
 --disable_view_protocol
 
 FLUSH STATUS; # this test case *must* use Aria temp tables
@@ -1664,6 +1677,7 @@ DROP TABLE t1;
 --echo the value below *must* be 1
 show status like 'Created_tmp_disk_tables';
 --enable_view_protocol
+--enable_ps2_protocol
 
 --echo #
 --echo #  Bug #1002146: Unneeded filesort if usage of join buffer is not allowed

@@ -1,0 +1,15 @@
+--source include/galera_cluster.inc
+
+if (!$HA_ARCHIVE_SO) {
+  skip Needs Archive loadable plugin;
+}
+
+INSTALL PLUGIN ARCHIVE SONAME 'ha_archive.so';
+CREATE TABLE t (a CHAR(1)) ENGINE=ARCHIVE;
+SHOW CREATE TABLE t;
+INSERT INTO t VALUES ('A');
+UNINSTALL SONAME 'ha_archive';
+ALTER TABLE t CHANGE COLUMN a a CHAR(2);
+--error ER_UNKNOWN_STORAGE_ENGINE
+INSERT INTO t (a) VALUES ('AB');
+DROP TABLE t;

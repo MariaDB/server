@@ -845,10 +845,13 @@ static ulint btr_node_ptr_max_size(const dict_index_t* index)
 					break;
 				}
 				/* fall through */
+			case DATA_FIXBINARY:
+			case DATA_BINARY:
 			case DATA_VARMYSQL:
 			case DATA_CHAR:
 			case DATA_MYSQL:
-				/* CHAR(0) and VARCHAR(0) are possible
+				/* BINARY(0), VARBINARY(0),
+				CHAR(0) and VARCHAR(0) are possible
 				data type definitions in MariaDB.
 				The InnoDB internal SQL parser maps
 				CHAR to DATA_VARCHAR, so DATA_CHAR (or

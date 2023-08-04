@@ -54,7 +54,9 @@ FLUSH LOGS;
 
 --echo # Pt.2 Ensure NEXTVAL replicates and binlogs correctly
 --connection server_1
+--disable_ps2_protocol
 SELECT NEXTVAL(s1);
+--enable_ps2_protocol
 --source include/save_master_gtid.inc
 
 --echo # Validate NEXTVAL replicated correctly to other servers

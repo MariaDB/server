@@ -2360,7 +2360,7 @@ SCHEMA_NAME
 SELECT * FROM INFORMATION_SCHEMA.`COLUMNS` LIMIT ROWS EXAMINED 10;
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION
 Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least ### rows, which exceeds LIMIT ROWS EXAMINED (10). The query result may be incomplete
+Warning	1931	Query execution was interrupted. The query exceeded LIMIT ROWS EXAMINED 10. The query result may be incomplete
 #
 # MDEV-24179: AAssertion `m_status == DA_ERROR || m_status == DA_OK ||
 # m_status == DA_OK_BULK' failed in Diagnostics_area::message()
@@ -2532,6 +2532,28 @@ progress
 0.000
 #
 # End of 10.3 tests
+#
+#
+# MDEV-MDEV-31064 Changes of the procedure are not immediatly seen in queries to I_S.parameter from other connections
+#
+CREATE PROCEDURE sp1(IN p1 INT, IN p2 INT)
+BEGIN
+END;
+connect con2, localhost, root,,;
+CALL sp1(10, 20);
+connection default;
+CREATE OR REPLACE PROCEDURE sp1(p1 INT)
+BEGIN
+END;
+connection con2;
+SELECT COUNT(*) FROM information_schema.parameters WHERE SPECIFIC_NAME = 'sp1';
+COUNT(*)
+1
+disconnect con2;
+connection default;
+DROP PROCEDURE sp1;
+#
+# End of 10.4 tests
 #
 #
 # Start of 10.5 tests

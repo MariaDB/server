@@ -1457,6 +1457,7 @@ SELECT * FROM t1 WHERE f1>10 ORDER BY f2, f0 LIMIT 0;
 SELECT * FROM t1 WHERE f1>10 ORDER BY f2, f0 LIMIT 10 OFFSET 10;
 SELECT * FROM t1 WHERE f1>10 ORDER BY f2, f0 LIMIT 0 OFFSET 10;
 
+--disable_ps2_protocol
 ################
 ## Test with SQL_CALC_FOUND_ROWS
 set sort_buffer_size= 32768;
@@ -1503,6 +1504,7 @@ SELECT SQL_CALC_FOUND_ROWS * FROM t1 JOIN tmp on t1.f2=tmp.f2
 WHERE t1.f2>20
 ORDER BY tmp.f1, f0 LIMIT 30 OFFSET 30;
 SELECT FOUND_ROWS();
+--enable_ps2_protocol
 
 ################
 ## Test views
@@ -1527,6 +1529,7 @@ GROUP BY 1 ORDER BY 2,1 LIMIT 0;
 
 ################
 ## Test SP
+--disable_ps2_protocol
 delimiter |;
 CREATE PROCEDURE wl1393_sp_test()
 BEGIN
@@ -1540,6 +1543,7 @@ END|
 CALL wl1393_sp_test()|
 DROP PROCEDURE wl1393_sp_test|
 delimiter ;|
+--enable_ps2_protocol
 
 ################
 ## Test with subqueries
@@ -1874,6 +1878,7 @@ insert into t1
 analyze table t1;
 --enable_result_log
 
+--disable_ps2_protocol
 explain
 select b, count(*) num_cnt from t1
    where a > 9750 group by b order by num_cnt;
@@ -1893,6 +1898,7 @@ select b, count(*) num_cnt from t1
   where a > 9750 group by b order by num_cnt limit 1;
 --enable_result_log
 show status like '%Handler_read%';
+--enable_ps2_protocol
 
 drop table t0, t1;
 
