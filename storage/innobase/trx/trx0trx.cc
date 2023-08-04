@@ -992,12 +992,14 @@ static void trx_write_serialisation_history(trx_t *trx, mtr_t *mtr)
     {
       mysql_mutex_lock(&purge_sys.pq_mutex);
       trx_sys.assign_new_trx_no(trx);
+      const trx_id_t end{trx->rw_trx_hash_element->no};
       /* If the rollback segment is not empty, trx->no cannot be less
       than any trx_t::no already in rseg. User threads only produce
       events when a rollback segment is empty. */
-      purge_sys.purge_queue.push(TrxUndoRsegs(trx->rw_trx_hash_element->no,
-                                              *rseg));
+      purge_sys.purge_queue.push(TrxUndoRsegs{end, *rseg});
       mysql_mutex_unlock(&purge_sys.pq_mutex);
+      rseg->last_page_no= undo->hdr_page_no;
+      rseg->set_last_commit(undo->hdr_offset, end);
     }
     else
       trx_sys.assign_new_trx_no(trx);

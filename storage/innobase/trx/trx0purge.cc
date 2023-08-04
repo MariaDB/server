@@ -268,12 +268,7 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 
   ut_ad(mach_read_from_2(undo_header + TRX_UNDO_NEEDS_PURGE) <= 1);
   ut_ad(rseg->needs_purge > trx->id);
-
-  if (rseg->last_page_no == FIL_NULL)
-  {
-    rseg->last_page_no= undo->hdr_page_no;
-    rseg->set_last_commit(undo->hdr_offset, trx->rw_trx_hash_element->no);
-  }
+  ut_ad(rseg->last_page_no != FIL_NULL);
 
   rseg->history_size++;
 
