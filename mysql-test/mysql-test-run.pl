@@ -483,7 +483,7 @@ sub main {
   mark_time_used('init');
 
   my ($prefix, $fail, $completed, $extra_warnings)=
-    run_test_server($server, $tests, \%children);
+    Manager::run($server, $tests, \%children);
 
   exit(0) if $opt_start_exit;
 
@@ -562,24 +562,205 @@ sub main {
 }
 
 
-sub run_test_server ($$$) {
+package Manager;
+use POSIX ":sys_wait_h";
+use File::Basename;
+use File::Find;
+use IO::Socket::INET;
+use IO::Select;
+use mtr_report;
+use My::Platform;
+
+my $num_saved_datadir;  # Number of datadirs saved in vardir/log/ so far.
+my $num_failed_test; # Number of tests failed so far
+my $test_failure;    # Set true if test suite failed
+my $extra_warnings; # Warnings found during server shutdowns
+
+my $completed;
+my %running;
+my $result;
+my $exe_mysqld; # Used as hint to CoreDump
+my %names;
+
+sub parse_protocol($$) {
+  my $sock= shift;
+  my $line= shift;
+
+  if ($line eq 'TESTRESULT'){
+    mtr_verbose2("Got TESTRESULT from ". $names{$sock});
+    $result= My::Test::read_test($sock);
+
+    # Report test status
+    mtr_report_test($result);
+
+    if ( $result->is_failed() ) {
+
+      # Save the workers "savedir" in var/log
+      my $worker_savedir= $result->{savedir};
+      my $worker_savename= basename($worker_savedir);
+      my $savedir= "$opt_vardir/log/$worker_savename";
+
+      # Move any core files from e.g. mysqltest
+      foreach my $coref (glob("core*"), glob("*.dmp"))
+      {
+        mtr_report(" - found '$coref', moving it to '$worker_savedir'");
+        move($coref, $worker_savedir);
+      }
+
+      find(
+      {
+        no_chdir => 1,
+        wanted => sub
+        {
+          My::CoreDump::core_wanted(\$num_saved_cores,
+                                    $opt_max_save_core,
+                                    @opt_cases == 0,
+                                    $exe_mysqld, $opt_parallel);
+        }
+      },
+      $worker_savedir);
+
+      if ($num_saved_datadir >= $opt_max_save_datadir)
+      {
+        mtr_report(" - skipping '$worker_savedir/'");
+        main::rmtree($worker_savedir);
+      }
+      else
+      {
+        mtr_report(" - saving '$worker_savedir/' to '$savedir/'");
+        rename($worker_savedir, $savedir);
+        $num_saved_datadir++;
+      }
+      main::resfile_print_test();
+      $num_failed_test++ unless ($result->{retries} ||
+                                $result->{exp_fail});
+
+      $test_failure= 1;
+      if ( !$opt_force ) {
+        # Test has failed, force is off
+        push(@$completed, $result);
+        if ($result->{'dont_kill_server'})
+        {
+          mtr_verbose2("${line}: saying BYE to ". $names{$sock});
+          print $sock "BYE\n";
+          return 1;
+        }
+        return ["Failure", 1, $completed, $extra_warnings];
+      }
+      elsif ($opt_max_test_fail > 0 and
+            $num_failed_test >= $opt_max_test_fail) {
+        push(@$completed, $result);
+        mtr_report("Too many tests($num_failed_test) failed!",
+                  "Terminating...");
+        return ["Too many failed", 1, $completed, $extra_warnings];
+      }
+    }
+
+    main::resfile_print_test();
+    # Retry test run after test failure
+    my $retries= $result->{retries} || 2;
+    my $test_has_failed= $result->{failures} || 0;
+    if ($test_has_failed and $retries <= $opt_retry){
+      # Test should be run one more time unless it has failed
+      # too many times already
+      my $tname= $result->{name};
+      my $failures= $result->{failures};
+      if ($opt_retry > 1 and $failures >= $opt_retry_failure){
+        mtr_report("\nTest $tname has failed $failures times,",
+                  "no more retries!\n");
+      }
+      else {
+        mtr_report("\nRetrying test $tname, ".
+                  "attempt($retries/$opt_retry)...\n");
+        #saving the log file as filename.failed in case of retry
+        if ( $result->is_failed() ) {
+          my $worker_logdir= $result->{savedir};
+          my $log_file_name=dirname($worker_logdir)."/".$result->{shortname}.".log";
+
+          if (-e $log_file_name) {
+            $result->{'logfile-failed'} = mtr_lastlinesfromfile($log_file_name, 20);
+          } else {
+            $result->{'logfile-failed'} = "";
+          }
+
+          rename $log_file_name, $log_file_name.".failed";
+        }
+        {
+          local @$result{'retries', 'result'};
+          delete $result->{result};
+          $result->{retries}= $retries+1;
+          $result->write_test($sock, 'TESTCASE');
+        }
+        push(@$completed, $result);
+        return 1;
+      }
+    }
+
+    # Repeat test $opt_repeat number of times
+    my $repeat= $result->{repeat} || 1;
+    if ($repeat < $opt_repeat)
+    {
+      $result->{retries}= 0;
+      $result->{rep_failures}++ if $result->{failures};
+      $result->{failures}= 0;
+      delete($result->{result});
+      $result->{repeat}= $repeat+1;
+      $result->write_test($sock, 'TESTCASE');
+      return 1;
+    }
+
+    # Remove from list of running
+    mtr_error("'", $result->{name},"' is not known to be running")
+      unless delete $running{$result->key()};
+
+    # Save result in completed list
+    push(@$completed, $result);
+
+  } # if ($line eq 'TESTRESULT')
+  elsif ($line=~ /^START (.*)$/){
+    # Send first test
+    $names{$sock}= $1;
+  }
+  elsif ($line eq 'WARNINGS'){
+    my $fake_test= My::Test::read_test($sock);
+    my $test_list= join (" ", @{$fake_test->{testnames}});
+    push @$extra_warnings, $test_list;
+    my $report= $fake_test->{'warnings'};
+    mtr_report("***Warnings generated in error logs during shutdown ".
+              "after running tests: $test_list\n\n$report");
+    $test_failure= 1;
+    if ( !$opt_force ) {
+      # Test failure due to warnings, force is off
+      mtr_verbose2("Socket loop exiting 3");
+      return ["Warnings in log", 1, $completed, $extra_warnings];
+    }
+    return 1;
+  }
+  elsif ($line =~ /^SPENT/) {
+    main::add_total_times($line);
+  }
+  elsif ($line eq 'VALGREP' && $opt_valgrind) {
+    $valgrind_reports= 1;
+  }
+  else {
+    mtr_error("Unknown response: '$line' from client");
+  }
+  return 0;
+}
+
+sub run ($$$) {
   my ($server, $tests, $children) = @_;
-
-  my $num_saved_datadir= 0;  # Number of datadirs saved in vardir/log/ so far.
-  my $num_failed_test= 0; # Number of tests failed so far
-  my $test_failure= 0;    # Set true if test suite failed
-  my $extra_warnings= []; # Warnings found during server shutdowns
-
-  my $completed= [];
-  my %running;
-  my $result;
-  my $exe_mysqld= find_mysqld($bindir) || ""; # Used as hint to CoreDump
-
-  my $suite_timeout= start_timer(suite_timeout());
+  my $suite_timeout= main::start_timer(main::suite_timeout());
+  $exe_mysqld= main::find_mysqld($bindir) || ""; # Used as hint to CoreDump
+  $num_saved_datadir= 0;  # Number of datadirs saved in vardir/log/ so far.
+  $num_failed_test= 0; # Number of tests failed so far
+  $test_failure= 0;    # Set true if test suite failed
+  $extra_warnings= []; # Warnings found during server shutdowns
+  $completed= [];
 
   my $s= IO::Select->new();
   my $childs= 0;
-  my %names;
+
   $s->add($server);
   while (1) {
     if ($opt_stop_file)
@@ -587,16 +768,16 @@ sub run_test_server ($$$) {
       if (mtr_wait_lock_file($opt_stop_file, $opt_stop_keep_alive))
       {
         # We were waiting so restart timer process
-        my $suite_timeout= start_timer(suite_timeout());
+        my $suite_timeout= main::start_timer(main::suite_timeout());
       }
     }
 
-    mark_time_used('admin');
+    main::mark_time_used('admin');
     my @ready = $s->can_read(1); # Wake up once every second
     if (@ready > 0) {
       mtr_verbose2("Got ". (0 + @ready). " connection(s)");
     }
-    mark_time_idle();
+    main::mark_time_idle();
     my $i= 0;
     foreach my $sock (@ready) {
       ++$i;
@@ -619,163 +800,14 @@ sub run_test_server ($$$) {
 	  next;
 	}
 	chomp($line);
+        mtr_verbose2("Connection ${i}". (exists $names{$sock} ? " from $names{$sock}" : "") .": $line");
 
-	if ($line eq 'TESTRESULT'){
-	  $result= My::Test::read_test($sock);
-
-	  # Report test status
-	  mtr_report_test($result);
-
-	  if ( $result->is_failed() ) {
-
-	    # Save the workers "savedir" in var/log
-	    my $worker_savedir= $result->{savedir};
-	    my $worker_savename= basename($worker_savedir);
-	    my $savedir= "$opt_vardir/log/$worker_savename";
-
-            # Move any core files from e.g. mysqltest
-            foreach my $coref (glob("core*"), glob("*.dmp"))
-            {
-              mtr_report(" - found '$coref', moving it to '$worker_savedir'");
-              move($coref, $worker_savedir);
-            }
-
-            find(
-            {
-              no_chdir => 1,
-              wanted => sub
-              {
-                My::CoreDump::core_wanted(\$num_saved_cores,
-                                          $opt_max_save_core,
-                                          @opt_cases == 0,
-                                          $exe_mysqld, $opt_parallel);
-              }
-            },
-            $worker_savedir);
-
-	    if ($num_saved_datadir >= $opt_max_save_datadir)
-	    {
-	      mtr_report(" - skipping '$worker_savedir/'");
-	      rmtree($worker_savedir);
-	    }
-            else
-            {
-	      mtr_report(" - saving '$worker_savedir/' to '$savedir/'");
-	      rename($worker_savedir, $savedir);
-	      $num_saved_datadir++;
-	    }
-	    resfile_print_test();
-	    $num_failed_test++ unless ($result->{retries} ||
-                                       $result->{exp_fail});
-
-            $test_failure= 1;
-	    if ( !$opt_force ) {
-	      # Test has failed, force is off
-	      push(@$completed, $result);
-	      if ($result->{'dont_kill_server'})
-              {
-	        print $sock "BYE\n";
-	        next;
-              }
-	      return ("Failure", 1, $completed, $extra_warnings);
-	    }
-	    elsif ($opt_max_test_fail > 0 and
-		   $num_failed_test >= $opt_max_test_fail) {
-	      push(@$completed, $result);
-	      mtr_report("Too many tests($num_failed_test) failed!",
-			 "Terminating...");
-	      return ("Too many failed", 1, $completed, $extra_warnings);
-	    }
-	  }
-
-	  resfile_print_test();
-	  # Retry test run after test failure
-	  my $retries= $result->{retries} || 2;
-	  my $test_has_failed= $result->{failures} || 0;
-	  if ($test_has_failed and $retries <= $opt_retry){
-	    # Test should be run one more time unless it has failed
-	    # too many times already
-	    my $tname= $result->{name};
-	    my $failures= $result->{failures};
-	    if ($opt_retry > 1 and $failures >= $opt_retry_failure){
-	      mtr_report("\nTest $tname has failed $failures times,",
-			 "no more retries!\n");
-	    }
-	    else {
-	      mtr_report("\nRetrying test $tname, ".
-			 "attempt($retries/$opt_retry)...\n");
-              #saving the log file as filename.failed in case of retry
-              if ( $result->is_failed() ) {
-                my $worker_logdir= $result->{savedir};
-                my $log_file_name=dirname($worker_logdir)."/".$result->{shortname}.".log";
-
-                if (-e $log_file_name) {
-                  $result->{'logfile-failed'} = mtr_lastlinesfromfile($log_file_name, 20);
-                } else {
-                  $result->{'logfile-failed'} = "";
-                }
-
-                rename $log_file_name, $log_file_name.".failed";
-              }
-            {
-              local @$result{'retries', 'result'};
-              delete $result->{result};
-              $result->{retries}= $retries+1;
-              $result->write_test($sock, 'TESTCASE');
-            }
-            push(@$completed, $result);
-	      next;
-	    }
-	  }
-
-	  # Repeat test $opt_repeat number of times
-	  my $repeat= $result->{repeat} || 1;
-	  if ($repeat < $opt_repeat)
-	  {
-	    $result->{retries}= 0;
-	    $result->{rep_failures}++ if $result->{failures};
-	    $result->{failures}= 0;
-	    delete($result->{result});
-	    $result->{repeat}= $repeat+1;
-	    $result->write_test($sock, 'TESTCASE');
-	    next;
-	  }
-
-	  # Remove from list of running
-	  mtr_error("'", $result->{name},"' is not known to be running")
-	    unless delete $running{$result->key()};
-
-	  # Save result in completed list
-	  push(@$completed, $result);
-
-	}
-	elsif ($line=~ /^START (.*)$/){
-	  # Send first test
-	  $names{$sock}= $1;
-	}
-	elsif ($line eq 'WARNINGS'){
-          my $fake_test= My::Test::read_test($sock);
-          my $test_list= join (" ", @{$fake_test->{testnames}});
-          push @$extra_warnings, $test_list;
-          my $report= $fake_test->{'warnings'};
-          mtr_report("***Warnings generated in error logs during shutdown ".
-                     "after running tests: $test_list\n\n$report");
-          $test_failure= 1;
-          if ( !$opt_force ) {
-            # Test failure due to warnings, force is off
-            return ("Warnings in log", 1, $completed, $extra_warnings);
-          }
-          next;
+        my $res= parse_protocol($sock, $line);
+        if (ref $res eq 'ARRAY') {
+          return @$res;
+        } elsif ($res == 1) {
+            next;
         }
-	elsif ($line =~ /^SPENT/) {
-	  add_total_times($line);
-	}
-	elsif ($line eq 'VALGREP' && $opt_valgrind) {
-	  $valgrind_reports= 1;
-	}
-	else {
-	  mtr_error("Unknown response: '$line' from client");
-	}
 
 	# Find next test to schedule
 	# - Try to use same configuration as worker used last time
@@ -788,7 +820,7 @@ sub run_test_server ($$$) {
 
 	  last unless defined $t;
 
-	  if (run_testcase_check_skip_test($t)){
+	  if (main::run_testcase_check_skip_test($t)){
 	    # Move the test to completed list
 	    #mtr_report("skip - Moving test $i to completed");
 	    push(@$completed, splice(@$tests, $i, 1));
@@ -889,7 +921,7 @@ sub run_test_server ($$$) {
     # ----------------------------------------------------
     # Check if test suite timer expired
     # ----------------------------------------------------
-    if ( has_expired($suite_timeout) )
+    if ( main::has_expired($suite_timeout) )
     {
       mtr_report("Test suite timeout! Terminating...");
       return ("Timeout", 1, $completed, $extra_warnings);
@@ -897,6 +929,9 @@ sub run_test_server ($$$) {
   }
 }
 
+1;
+
+package main;
 
 sub run_worker ($) {
   my ($server_port, $thread_num)= @_;
