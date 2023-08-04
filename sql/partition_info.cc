@@ -986,6 +986,8 @@ bool vers_create_partitions(THD *thd, TABLE_LIST* tl, uint num_parts)
       goto exit;
     }
 
+    alter_info.db= alter_ctx.db;
+    alter_info.table_name= alter_ctx.table_name;
     if (fast_alter_partition_table(thd, table, &alter_info, &alter_ctx,
                                    &create_info, tl))
     {

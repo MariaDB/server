@@ -49,7 +49,7 @@ Warnings:
 Warning	1287	'@@spider_udf_ds_bulk_insert_rows' is deprecated and will be removed in a future release
 SHOW VARIABLES LIKE "spider_udf_ds_bulk_insert_rows";
 Variable_name	Value
-spider_udf_ds_bulk_insert_rows	-1
+spider_udf_ds_bulk_insert_rows	3000
 SET spider_udf_ds_table_loop_mode = 1;
 Warnings:
 Warning	1287	'@@spider_udf_ds_table_loop_mode' is deprecated and will be removed in a future release

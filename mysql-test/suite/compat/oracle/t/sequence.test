@@ -2,6 +2,7 @@
 
 SET sql_mode=ORACLE;
 
+--disable_ps2_protocol
 CREATE SEQUENCE s1;
 SHOW CREATE SEQUENCE s1;
 SELECT s1.currval;
@@ -13,12 +14,14 @@ SELECT nextval(s1);
 EXPLAIN EXTENDED SELECT s1.currval;
 SELECT lastval(s1);
 DROP SEQUENCE s1;
-
+--enable_ps2_protocol
 
 CREATE SEQUENCE s1;
 CREATE VIEW v1 AS SELECT s1.nextval AS a;
 SELECT VIEW_DEFINITION FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_NAME='v1';
+--disable_ps2_protocol
 SELECT * FROM v1;
+--enable_ps2_protocol
 SHOW CREATE VIEW v1;
 DROP VIEW v1;
 DROP SEQUENCE s1;
@@ -35,9 +38,11 @@ DROP SEQUENCE s1;
 --echo #
 --echo # MDEV-12533 sql_mode=ORACLE: Add support for database qualified sequence names in NEXTVAL and CURRVAL
 --echo #
+--disable_ps2_protocol
 CREATE SEQUENCE s1;
 SELECT test.s1.nextval;
 SELECT test.s1.currval;
 SELECT .s1.nextval;
 SELECT .s1.currval;
 DROP SEQUENCE s1;
+--enable_ps2_protocol

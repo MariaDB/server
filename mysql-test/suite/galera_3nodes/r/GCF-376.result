@@ -1,10 +1,9 @@
 connection node_2;
 connection node_1;
-connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
-connection node_1;
 connection node_1;
 connection node_2;
 connection node_3;
+connection node_1;
 CREATE TABLE test.t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1)) ENGINE=InnoDB;
 connection node_2;
 SET GLOBAL wsrep_on=OFF;
@@ -16,6 +15,12 @@ INSERT INTO t1 VALUES (1, 'b');
 SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
 SET SESSION wsrep_sync_wait=0;
 connection node_3;
+SHOW STATUS LIKE 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	2
+SHOW STATUS LIKE 'wsrep_cluster_status';
+Variable_name	Value
+wsrep_cluster_status	Primary
 connection node_2;
 UNLOCK TABLES;
 SET SESSION wsrep_on = ON;
@@ -24,6 +29,9 @@ connection node_1;
 SHOW STATUS LIKE 'wsrep_cluster_status';
 Variable_name	Value
 wsrep_cluster_status	non-Primary
+SHOW STATUS LIKE 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	1
 connection node_2;
 SET SESSION wsrep_sync_wait=0;
 SHOW STATUS LIKE 'wsrep_cluster_status';
@@ -47,10 +55,21 @@ wsrep_cluster_size	1
 SELECT * FROM t1;
 f1	f2
 1	b
+# reconnect node #1
 connection node_1;
 SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
+# reconnect node #2
 connection node_2;
 # restart
+SHOW STATUS LIKE 'wsrep_cluster_status';
+Variable_name	Value
+wsrep_cluster_status	Primary
+SHOW STATUS LIKE 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	3
+SELECT * FROM t1;
+f1	f2
+1	b
 connection node_1;
 SELECT * FROM t1;
 f1	f2

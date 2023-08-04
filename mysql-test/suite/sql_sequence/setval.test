@@ -7,6 +7,7 @@ drop table if exists t1;
 --echo # Test setval function
 --echo #
 
+--disable_ps2_protocol
 CREATE SEQUENCE t1 cache 10 engine=myisam;
 select next_not_cached_value,cycle_count from t1;
 do setval(t1,10);
@@ -151,6 +152,6 @@ SELECT SETVAL(s, 10);
 
 # Cleanup
 DROP SEQUENCE s;
-
+--enable_ps2_protocol
 
 --echo # End of 10.3 tests

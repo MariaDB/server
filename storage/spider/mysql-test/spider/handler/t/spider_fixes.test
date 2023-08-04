@@ -152,8 +152,10 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --connection master_1
+--disable_ps2_protocol
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l
 WHERE a < 5 ORDER BY a DESC LIMIT 3;
+--enable_ps2_protocol
 if ($USE_CHILD_GROUP2)
 {
   if (!$OUTPUT_CHILD_GROUP2)
@@ -194,8 +196,10 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --connection master_1
+--disable_ps2_protocol
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l
 WHERE a <= 5 ORDER BY a DESC LIMIT 3;
+--enable_ps2_protocol
 if ($USE_CHILD_GROUP2)
 {
   if (!$OUTPUT_CHILD_GROUP2)
@@ -916,10 +920,11 @@ SELECT a, b, c FROM ta_l_int ORDER BY a;
 --echo 2.25
 --echo direct order limit
 --connection master_1
+--disable_ps2_protocol
 eval $MASTER_1_CHECK_DIRECT_ORDER_LIMIT_STATUS;
 SELECT a, b, c FROM ta_l_int ORDER BY a LIMIT 3;
 eval $MASTER_1_CHECK_DIRECT_ORDER_LIMIT_STATUS;
-
+--enable_ps2_protocol
 
 --echo
 --echo 2.26

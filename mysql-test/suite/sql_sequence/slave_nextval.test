@@ -5,6 +5,7 @@
 # MDEV-14092  NEXTVAL() fails on slave
 #
 
+--disable_ps2_protocol
 CREATE SEQUENCE s;
 INSERT INTO s VALUES (1,1,4,1,1,1,0,0);
 show create sequence s;
@@ -125,6 +126,7 @@ END $
 --connection master
 DROP SEQUENCE s;
 DROP PROCEDURE pr;
+--enable_ps2_protocol
 
 #
 # Cleanup

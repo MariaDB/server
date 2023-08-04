@@ -57,7 +57,9 @@ select a, oref, a in (
 create table t3 (a int);
 insert into t3 values (NULL), (NULL);
 flush status;
+--disable_ps2_protocol
 select a in (select max(ie) from t1 where oref=4 group by grp) from t3;
+--enable_ps2_protocol
 show status like 'Handler_read_rnd_next';
 select ' ^ This must show 11' Z;
 
@@ -92,6 +94,7 @@ select oref, a, a in (select a from t1 where oref=t2.oref) Z from t2;
 explain extended 
 select oref, a, a in (select a from t1 where oref=t2.oref) Z from t2;
 
+--disable_ps2_protocol
 flush status;
 select oref, a from t2 where a in (select a from t1 where oref=t2.oref);
 # This will only show access to t2:
@@ -107,6 +110,7 @@ select oref, a, a in (select a from t1 where oref=t2.oref) Z from t2;
 show status like '%Handler_read%';
 select 'No key lookups, seq reads: 29= 5 reads from t2 + 4 * 6 reads from t1.' Z;
 set @@optimizer_switch=@save_optimizer_switch;
+--enable_ps2_protocol
 
 drop table t1, t2;
 
@@ -637,7 +641,9 @@ DROP TABLE t1, t2;
 
 create table t1 (a int, b decimal(13, 3)); 
 insert into t1 values (1, 0.123);
+--disable_ps2_protocol
 select a, (select max(b) from t1) into outfile "subselect.out.file.1" from t1;
+--enable_ps2_protocol
 delete from t1;
 load data infile "subselect.out.file.1" into table t1;
 select * from t1;
@@ -805,6 +811,7 @@ FLUSH STATUS;
 set @save_optimizer_switch2=@@optimizer_switch;
 set optimizer_switch='subquery_cache=off';
 
+--disable_ps2_protocol
 --echo 
 SELECT i1, i2
 FROM t1
@@ -831,6 +838,7 @@ WHERE (i1, i2)
 --echo # Handler_read_rnd_next should be one more than baseline 
 --echo # (read record from t1, but do not read from t2)
 SHOW STATUS LIKE '%Handler_read_rnd_next';
+--enable_ps2_protocol
 
 set @@optimizer_switch=@save_optimizer_switch2;
 DROP TABLE t1,t2;
@@ -969,7 +977,9 @@ set @@max_heap_table_size= 16384;
 
 explain select count(*) from t0 A, t0 B, t0 C, t0 D where D.a in (select a from t1 E where a+1 < 10000 + A.a + B.a +C.a+D.a);
 flush status;
+--disable_ps2_protocol
 select count(*) from t0 A, t0 B, t0 C, t0 D where D.a in (select a from t1 E where a+1 < 10000 + A.a + B.a +C.a+D.a);
+--enable_ps2_protocol
 show status like 'Created_tmp_disk_tables';
 set @save_max_heap_table_size=@@max_heap_table_size;
 set @@optimizer_switch=@save_optimizer_switch;

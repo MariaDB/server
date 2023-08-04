@@ -1349,3 +1349,4 @@ ALTER TABLE t1 KEY_BLOCK_SIZE=0;
 SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
 --enable_query_log
 DROP TABLE t1;
+

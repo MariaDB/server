@@ -3411,21 +3411,6 @@ os_file_get_status(
 	return(ret);
 }
 
-static void io_callback_errorcheck(const tpool::aiocb *cb)
-{
-  if (cb->m_err != DB_SUCCESS)
-  {
-    const IORequest &request= *static_cast<const IORequest*>
-      (static_cast<const void*>(cb->m_userdata));
-    ib::fatal() << "IO Error: " << cb->m_err << " during " <<
-      (request.is_async() ? "async " : "sync ") <<
-      (request.is_LRU() ? "lru " : "") <<
-      (cb->m_opcode == tpool::aio_opcode::AIO_PREAD ? "read" : "write") <<
-      " of " << cb->m_len << " bytes, for file " << cb->m_fh << ", returned " <<
-      cb->m_ret_len;
-  }
-}
-
 static void fake_io_callback(void *c)
 {
   tpool::aiocb *cb= static_cast<tpool::aiocb*>(c);
@@ -3439,10 +3424,10 @@ static void read_io_callback(void *c)
 {
   tpool::aiocb *cb= static_cast<tpool::aiocb*>(c);
   ut_ad(cb->m_opcode == tpool::aio_opcode::AIO_PREAD);
-  io_callback_errorcheck(cb);
   ut_ad(read_slots->contains(cb));
-  static_cast<const IORequest*>
-    (static_cast<const void*>(cb->m_userdata))->read_complete();
+  const IORequest &request= *static_cast<const IORequest*>
+    (static_cast<const void*>(cb->m_userdata));
+  request.read_complete(cb->m_err);
   read_slots->release(cb);
 }
 
@@ -3451,8 +3436,17 @@ static void write_io_callback(void *c)
   tpool::aiocb *cb= static_cast<tpool::aiocb*>(c);
   ut_ad(cb->m_opcode == tpool::aio_opcode::AIO_PWRITE);
   ut_ad(write_slots->contains(cb));
-  static_cast<const IORequest*>
-    (static_cast<const void*>(cb->m_userdata))->write_complete();
+  const IORequest &request= *static_cast<const IORequest*>
+    (static_cast<const void*>(cb->m_userdata));
+
+  if (UNIV_UNLIKELY(cb->m_err != 0))
+    ib::info () << "IO Error: " << cb->m_err
+                << "during write of "
+                << cb->m_len << " bytes, for file "
+                << request.node->name << "(" << cb->m_fh << "), returned "
+                << cb->m_ret_len;
+
+  request.write_complete(cb->m_err);
   write_slots->release(cb);
 }
 

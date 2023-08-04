@@ -1,0 +1,21 @@
+set @save_session_track_system_variables=@@session_track_system_variables;
+#
+# MDEV-25237: Assertion `global_system_variables.
+# session_track_system_variables' failed in
+# Session_sysvars_tracker::init | SIGSEGV's in __strlen_avx2 |
+# UBSAN: runtime error: null pointer passed as argument 1, which
+# is declared to never be null in my_strdup
+#
+# check that that parser problems do not lead to crash
+SET @old_debug= @@session.debug;
+set debug_dbug="+d,dbug_session_tracker_parse_error";
+SET GLOBAL session_track_system_variables='query_cache_size';
+ERROR HY001: Out of memory; restart server and try again (needed 1 bytes)
+set debug_dbug=@old_debug;
+SELECT @@global.session_track_system_variables;
+@@global.session_track_system_variables
+NULL
+SET GLOBAL event_scheduler=1;
+SET GLOBAL session_track_system_variables=default;
+SET GLOBAL event_scheduler=default;
+# End of 10.4 test

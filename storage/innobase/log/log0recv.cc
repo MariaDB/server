@@ -3785,25 +3785,51 @@ inline fil_space_t *fil_system_t::find(const char *path) const
 /** Thread-safe function which sorts flush_list by oldest_modification */
 static void log_sort_flush_list()
 {
-  mysql_mutex_lock(&buf_pool.flush_list_mutex);
+  /* Ensure that oldest_modification() cannot change during std::sort() */
+  for (;;)
+  {
+    os_aio_wait_until_no_pending_writes(false);
+    mysql_mutex_lock(&buf_pool.flush_list_mutex);
+    if (buf_pool.flush_list_active())
+      my_cond_wait(&buf_pool.done_flush_list,
+                   &buf_pool.flush_list_mutex.m_mutex);
+    else if (!os_aio_pending_writes())
+      break;
+    mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+  }
 
   const size_t size= UT_LIST_GET_LEN(buf_pool.flush_list);
   std::unique_ptr<buf_page_t *[]> list(new buf_page_t *[size]);
 
+  /* Copy the dirty blocks from buf_pool.flush_list to an array for sorting. */
   size_t idx= 0;
-  for (buf_page_t *p= UT_LIST_GET_FIRST(buf_pool.flush_list); p;
-       p= UT_LIST_GET_NEXT(list, p))
-    list.get()[idx++]= p;
+  for (buf_page_t *p= UT_LIST_GET_FIRST(buf_pool.flush_list); p; )
+  {
+    const lsn_t lsn{p->oldest_modification()};
+    ut_ad(lsn > 2 || lsn == 1);
+    buf_page_t *n= UT_LIST_GET_NEXT(list, p);
+    if (lsn > 1)
+      list.get()[idx++]= p;
+    else
+      buf_pool.delete_from_flush_list(p);
+    p= n;
+  }
 
-  std::sort(list.get(), list.get() + size,
+  std::sort(list.get(), list.get() + idx,
             [](const buf_page_t *lhs, const buf_page_t *rhs) {
-              return rhs->oldest_modification() < lhs->oldest_modification();
+              const lsn_t l{lhs->oldest_modification()};
+              const lsn_t r{rhs->oldest_modification()};
+              DBUG_ASSERT(l > 2); DBUG_ASSERT(r > 2);
+              return r < l;
             });
 
   UT_LIST_INIT(buf_pool.flush_list, &buf_page_t::list);
 
-  for (size_t i= 0; i < size; i++)
+  for (size_t i= 0; i < idx; i++)
+  {
     UT_LIST_ADD_LAST(buf_pool.flush_list, list[i]);
+    DBUG_ASSERT(list[i]->oldest_modification() > 2);
+  }
 
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 }

@@ -1,6 +1,7 @@
 --source include/have_profiling.inc
 --source include/no_view_protocol.inc
 
+--disable_ps2_protocol
 # Verify that the protocol isn't violated if we ask for profiling info
 # before profiling has recorded anything.
 show profiles;
@@ -257,7 +258,7 @@ drop function if exists f1;
 #--eval select 1; select 2; select 3;
 ## two continuations, one starting
 #select state from information_schema.profiling where seq=1 order by query_id desc limit 3;
-
+--enable_ps2_protocol
 
 ## last thing in the file
 set session profiling = OFF;

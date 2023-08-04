@@ -14,6 +14,7 @@
 #               old name was innodb_cache.test
 #               main code went into include/query_cache.inc
 #
+--disable_ps2_protocol
 --disable_view_protocol
 SET global query_cache_type=ON;
 SET local query_cache_type=ON;
@@ -192,3 +193,4 @@ drop table t2;
 
 SET global query_cache_type=default;
 --enable_view_protocol
+--enable_ps2_protocol

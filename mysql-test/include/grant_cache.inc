@@ -54,6 +54,8 @@ set GLOBAL query_cache_type=ON;
 set LOCAL query_cache_type=ON;
 set GLOBAL query_cache_size=1355776;
 
+--disable_ps2_protocol
+
 reset query cache;
 flush status;
 connect (root,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK);
@@ -170,6 +172,8 @@ select a from mysqltest.t1;
 show status like "Qcache_queries_in_cache";
 show status like "Qcache_hits";
 show status like "Qcache_not_cached";
+
+--enable_ps2_protocol
 
 # Cleanup
 

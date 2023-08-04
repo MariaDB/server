@@ -14,3 +14,92 @@ select * from t1;
 select * from t2;
 drop table t2;
 drop table t1;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-18114 Foreign Key Constraint actions don't affect Virtual Column
+--echo #
+create table t1 (id int primary key);
+
+# note that RESTRICT, NO ACTION, and DELETE CASCADE are fine
+# because they don't change values of referenced columns
+
+# virtual indexed
+create or replace table t2 (id int, id2 int as (id) virtual, key(id2), foreign key (id) references t1 (id) on update restrict);
+create or replace table t2 (id int, id2 int as (id) virtual, key(id2), foreign key (id) references t1 (id) on update no action);
+create or replace table t2 (id int, id2 int as (id) virtual, key(id2), foreign key (id) references t1 (id) on delete cascade);
+create or replace table t2 (id int, id2 int as (id) virtual, key(id2), foreign key (id) references t1 (id) on update cascade);
+create or replace table t2 (id int, id2 int as (id) virtual, key(id2), foreign key (id) references t1 (id) on delete set null);
+create or replace table t2 (id int, id2 int as (id) virtual, key(id2), foreign key (id) references t1 (id) on update set null);
+
+# stored
+create or replace table t2 (id int, id2 int as (id) stored, foreign key (id) references t1 (id) on update restrict);
+create or replace table t2 (id int, id2 int as (id) stored, foreign key (id) references t1 (id) on update no action);
+create or replace table t2 (id int, id2 int as (id) stored, foreign key (id) references t1 (id) on delete cascade);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create or replace table t2 (id int, id2 int as (id) stored, foreign key (id) references t1 (id) on update cascade);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create or replace table t2 (id int, id2 int as (id) stored, foreign key (id) references t1 (id) on delete set null);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create or replace table t2 (id int, id2 int as (id) stored, foreign key (id) references t1 (id) on update set null);
+
+# stored indirect
+create or replace table t2 (id int, id2 int as (id) virtual, id3 int as (id2) stored, foreign key (id) references t1 (id) on update restrict);
+create or replace table t2 (id int, id2 int as (id) virtual, id3 int as (id2) stored, foreign key (id) references t1 (id) on update no action);
+create or replace table t2 (id int, id2 int as (id) virtual, id3 int as (id2) stored, foreign key (id) references t1 (id) on delete cascade);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create or replace table t2 (id int, id2 int as (id) virtual, id3 int as (id2) stored, foreign key (id) references t1 (id) on update cascade);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create or replace table t2 (id int, id2 int as (id) virtual, id3 int as (id2) stored, foreign key (id) references t1 (id) on delete set null);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create or replace table t2 (id int, id2 int as (id) virtual, id3 int as (id2) stored, foreign key (id) references t1 (id) on update set null);
+
+# default
+create or replace table t2 (id int, id2 int default (id), foreign key (id) references t1 (id) on update restrict);
+create or replace table t2 (id int, id2 int default (id), foreign key (id) references t1 (id) on update no action);
+create or replace table t2 (id int, id2 int default (id), foreign key (id) references t1 (id) on delete cascade);
+create or replace table t2 (id int, id2 int default (id), foreign key (id) references t1 (id) on update cascade);
+create or replace table t2 (id int, id2 int default (id), foreign key (id) references t1 (id) on delete set null);
+create or replace table t2 (id int, id2 int default (id), foreign key (id) references t1 (id) on update set null);
+
+# field check
+create or replace table t2 (id int, id2 int check (id), foreign key (id) references t1 (id) on update restrict);
+create or replace table t2 (id int, id2 int check (id), foreign key (id) references t1 (id) on update no action);
+create or replace table t2 (id int, id2 int check (id), foreign key (id) references t1 (id) on delete cascade);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create or replace table t2 (id int, id2 int check (id), foreign key (id) references t1 (id) on update cascade);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create or replace table t2 (id int, id2 int check (id), foreign key (id) references t1 (id) on delete set null);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create or replace table t2 (id int, id2 int check (id), foreign key (id) references t1 (id) on update set null);
+
+# table check
+create or replace table t2 (id int, id2 int, check (id), foreign key (id) references t1 (id) on update restrict);
+create or replace table t2 (id int, id2 int, check (id), foreign key (id) references t1 (id) on update no action);
+create or replace table t2 (id int, id2 int, check (id), foreign key (id) references t1 (id) on delete cascade);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create or replace table t2 (id int, id2 int, check (id), foreign key (id) references t1 (id) on update cascade);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create or replace table t2 (id int, id2 int, check (id), foreign key (id) references t1 (id) on delete set null);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create or replace table t2 (id int, id2 int, check (id), foreign key (id) references t1 (id) on update set null);
+
+# table check indirect
+create or replace table t2 (id int, id2 int as (id) virtual, check (id2), foreign key (id) references t1 (id) on update restrict);
+create or replace table t2 (id int, id2 int as (id) virtual, check (id2), foreign key (id) references t1 (id) on update no action);
+create or replace table t2 (id int, id2 int as (id) virtual, check (id2), foreign key (id) references t1 (id) on delete cascade);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create or replace table t2 (id int, id2 int as (id) virtual, check (id2), foreign key (id) references t1 (id) on update cascade);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create or replace table t2 (id int, id2 int as (id) virtual, check (id2), foreign key (id) references t1 (id) on delete set null);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create or replace table t2 (id int, id2 int as (id) virtual, check (id2), foreign key (id) references t1 (id) on update set null);
+
+drop table if exists t2, t1;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

@@ -2545,7 +2545,7 @@ get_one_option(const struct my_option *opt, const char *argument,
     break;
   }
   if (tty_password)
-    pass= get_tty_password(NullS);
+    pass= my_get_tty_password(NullS);
 
   return 0;
 }

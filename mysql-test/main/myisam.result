@@ -2414,13 +2414,13 @@ DROP TABLE t1;
 set statement sql_mode='' for
 create table t1 (n int not null, c char(1)) transactional=1;
 Warnings:
-Warning	1478	Table storage engine 'MyISAM' does not support the create option 'TRANSACTIONAL=1'
+Warning	1911	Unknown option 'transactional'
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `n` int(11) NOT NULL,
   `c` char(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci TRANSACTIONAL=1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci /* TRANSACTIONAL=1 */
 drop table t1;
 CREATE TABLE t1 (line LINESTRING NOT NULL) engine=myisam;
 INSERT INTO t1 VALUES (GeomFromText("LINESTRING(0 0)"));
@@ -2555,9 +2555,6 @@ INSERT INTO t1 VALUES
 ('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
 ('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
 ('0'),('0'),('0'),('0'),('0'),('0'),('0');
-Warnings:
-Error	1034	myisam_sort_buffer_size is too small. X
-Warning	1034	Number of rows changed from 0 to 157
 SET myisam_sort_buffer_size=@@global.myisam_sort_buffer_size;
 INSERT INTO t1 VALUES('1');
 SELECT * FROM t1, t1 AS a1 WHERE t1.a=1 AND a1.a=1;

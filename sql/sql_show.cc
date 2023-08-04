@@ -1980,8 +1980,13 @@ static void add_table_options(THD *thd, TABLE *table,
   }
   if (share->transactional != HA_CHOICE_UNDEF)
   {
+    bool do_comment= !table->file->has_transactional_option() && check_options;
+    if (do_comment)
+      packet->append(STRING_WITH_LEN(" /*"));
     packet->append(STRING_WITH_LEN(" TRANSACTIONAL="));
     packet->append(ha_choice_values[(uint) share->transactional]);
+    if (do_comment)
+      packet->append(STRING_WITH_LEN(" */"));
   }
   if (share->table_type == TABLE_TYPE_SEQUENCE)
     packet->append(STRING_WITH_LEN(" SEQUENCE=1"));

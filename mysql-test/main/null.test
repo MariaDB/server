@@ -1086,6 +1086,7 @@ DROP TABLE t1;
 
 # Testing with side effects
 
+--disable_ps2_protocol
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1),(2),(3);
 SET @a=0;
@@ -1094,6 +1095,7 @@ SELECT @a;
 SET @a=0;
 SELECT NULLIF(AVG(a),0), NULLIF(AVG(LAST_VALUE(@a:=@a+1,a)),0) FROM t1;
 SELECT @a;
+--enable_ps2_protocol
 
 # There should not be cache in here:
 
