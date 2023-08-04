@@ -1090,6 +1090,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  SONAME_SYM
 %token  <kwd>  SOUNDS_SYM
 %token  <kwd>  SOURCE_SYM
+%token  <kwd>  SQL_AFTER_GTIDS_SYM
+%token  <kwd>  SQL_BEFORE_GTIDS_SYM
 %token  <kwd>  SQL_BUFFER_RESULT
 %token  <kwd>  SQL_CACHE_SYM
 %token  <kwd>  SQL_CALC_FOUND_ROWS
@@ -8007,6 +8009,17 @@ slave_until:
         | UNTIL_SYM MASTER_GTID_POS_SYM '=' TEXT_STRING_sys
           {
             Lex->mi.gtid_pos_str = $4;
+            Lex->mi.is_until_before_gtids= false;
+          }
+        | UNTIL_SYM SQL_AFTER_GTIDS_SYM '=' TEXT_STRING_sys
+          {
+            Lex->mi.gtid_pos_str = $4;
+            Lex->mi.is_until_before_gtids= false;
+          }
+        | UNTIL_SYM SQL_BEFORE_GTIDS_SYM '=' TEXT_STRING_sys
+          {
+            Lex->mi.gtid_pos_str = $4;
+            Lex->mi.is_until_before_gtids= true;
           }
         ;
 

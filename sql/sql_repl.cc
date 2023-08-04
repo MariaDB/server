@@ -162,6 +162,7 @@ struct binlog_send_info {
   bool clear_initial_log_pos;
   bool should_stop;
   size_t dirlen;
+  bool is_until_before_gtids;
 
   binlog_send_info(THD *thd_arg, String *packet_arg, ushort flags_arg,
                    char *lfn)
@@ -180,7 +181,7 @@ struct binlog_send_info {
       hb_info_counter(0),
 #endif
       clear_initial_log_pos(false),
-      should_stop(false)
+      should_stop(false), is_until_before_gtids(false)
   {
     error_text[0] = 0;
     bzero(&error_gtid, sizeof(error_gtid));
@@ -806,6 +807,18 @@ get_slave_until_gtid(THD *thd, String *out_str)
     (user_var_entry*) my_hash_search(&thd->user_vars, (uchar*) name.str,
                                   name.length);
   return entry && entry->val_str(&null_value, out_str, 0) && !null_value;
+}
+
+static bool
+get_slave_gtid_until_before_gtids(THD *thd)
+{
+  bool null_value;
+
+  const LEX_CSTRING name= { STRING_WITH_LEN("slave_gtid_until_before_gtids") };
+  user_var_entry *entry=
+    (user_var_entry*) my_hash_search(&thd->user_vars, (uchar*) name.str,
+                                     name.length);
+  return entry && entry->val_int(&null_value) && !null_value;
 }
 
 
@@ -1863,12 +1876,16 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
         gtid= until_gtid_state->find(event_gtid.domain_id);
         if (gtid == NULL)
         {
-          /*
-            This domain already reached the START SLAVE UNTIL stop condition,
-            so skip this event group.
-          */
-          info->gtid_skip_group = (flags2 & Gtid_log_event::FL_STANDALONE ?
-                              GTID_SKIP_STANDALONE : GTID_SKIP_TRANSACTION);
+          if (!info->is_until_before_gtids)
+          {
+            /*
+              This domain already reached the START SLAVE UNTIL stop condition,
+              so skip this event group.
+            */
+            info->gtid_skip_group= (flags2 & Gtid_log_event::FL_STANDALONE
+                                        ? GTID_SKIP_STANDALONE
+                                        : GTID_SKIP_TRANSACTION);
+          }
         }
         else if (event_gtid.server_id == gtid->server_id &&
                  event_gtid.seq_no >= gtid->seq_no)
@@ -1880,19 +1897,34 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
             done.
           */
           uint64 until_seq_no= gtid->seq_no;
-          until_gtid_state->remove(gtid);
+
+          if (info->is_until_before_gtids)
+          {
+            until_gtid_state->reset();
+            DBUG_ASSERT(!until_gtid_state->count());
+          }
+          else
+          {
+            until_gtid_state->remove(gtid);
+          }
+
           if (until_gtid_state->count() == 0)
             info->gtid_until_group= (flags2 & Gtid_log_event::FL_STANDALONE ?
                                      GTID_UNTIL_STOP_AFTER_STANDALONE :
                                      GTID_UNTIL_STOP_AFTER_TRANSACTION);
-          if (event_gtid.seq_no > until_seq_no)
+          if (event_gtid.seq_no > until_seq_no ||
+              info->is_until_before_gtids)
           {
             /*
+              Stop processing events now and skip the current event group
+              because either:
+
               The GTID in START SLAVE UNTIL condition is missing in our binlog.
               This should normally not happen (user error), but since we can be
               sure that we are now beyond the position that the UNTIL condition
-              should be in, we can just stop now. And we also need to skip this
-              event group (as it is beyond the UNTIL condition).
+              should be in, we can just stop now.
+
+              Or the until condition is specified as SQL_BEFORE_GTIDS
             */
             info->gtid_skip_group = (flags2 & Gtid_log_event::FL_STANDALONE ?
                                 GTID_SKIP_STANDALONE : GTID_SKIP_TRANSACTION);
@@ -2139,7 +2171,10 @@ static int init_binlog_sender(binlog_send_info *info,
     info->slave_gtid_strict_mode= get_slave_gtid_strict_mode(thd);
     info->slave_gtid_ignore_duplicates= get_slave_gtid_ignore_duplicates(thd);
     if (get_slave_until_gtid(thd, &slave_until_gtid_str))
+    {
       info->until_gtid_state= &info->until_gtid_state_obj;
+      info->is_until_before_gtids= get_slave_gtid_until_before_gtids(thd);
+    }
   }
 
   DBUG_EXECUTE_IF("binlog_force_reconnect_after_22_events",
@@ -3228,6 +3263,7 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
             goto err;
           }
           mi->rli.until_condition= Relay_log_info::UNTIL_GTID;
+          mi->rli.is_until_before_gtids= thd->lex->mi.is_until_before_gtids;
         }
         else
           mi->rli.clear_until_condition();
