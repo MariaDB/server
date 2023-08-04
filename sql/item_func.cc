@@ -740,7 +740,7 @@ Item *Item_func::get_tmp_table_item(THD *thd)
   {
     auto item_field= new (thd->mem_root) Item_field(thd, result_field);
     if (item_field)
-      item_field->set_refers_to_temp_table(true);
+      item_field->set_refers_to_temp_table();
     return item_field;
   }
   return copy_or_same(thd);

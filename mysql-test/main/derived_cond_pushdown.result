@@ -19179,7 +19179,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 Warnings:
-Note	1003	with cte as (/* select#2 */ select `test`.`t1`.`pk` AS `pk` from `test`.`t1` where 0 group by `test`.`t1`.`pk`)/* select#1 */ select `cte`.`pk` AS `pk` from `cte`
+Note	1003	with cte as (/* select#2 */ select `test`.`t1`.`pk` AS `pk` from `test`.`t1` where 0 group by `test`.`t1`.`pk`)/* select#1 */ select NULL AS `pk` from `cte`
 DROP TABLE t1;
 #
 # MDEV-14880: assertion failure in optimizer when splitting is applied

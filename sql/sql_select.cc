@@ -19526,7 +19526,7 @@ bool Create_tmp_table::add_fields(THD *thd,
           if (!(tmp_item= new (thd->mem_root)
                 Item_field(thd, new_field)))
             goto err;
-          ((Item_field*) tmp_item)->set_refers_to_temp_table(true);
+          ((Item_field*) tmp_item)->set_refers_to_temp_table();
           arg= sum_item->set_arg(i, thd, tmp_item);
           thd->mem_root= &table->mem_root;
 
@@ -26795,7 +26795,7 @@ change_to_use_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
         Item_field *new_field= new (thd->mem_root) Item_field(thd, field);
         if (!suv || !new_field)
           DBUG_RETURN(true);                  // Fatal error
-        new_field->set_refers_to_temp_table(true);
+        new_field->set_refers_to_temp_table();
         List<Item> list;
         list.push_back(new_field, thd->mem_root);
         suv->set_arguments(thd, list);
@@ -26814,7 +26814,7 @@ change_to_use_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
       {
         item_field= (Item*) new (thd->mem_root) Item_field(thd, field);
         if (item_field)
-          ((Item_field*) item_field)->set_refers_to_temp_table(true);
+          ((Item_field*) item_field)->set_refers_to_temp_table();
       }
       if (!item_field)
         DBUG_RETURN(true);                    // Fatal error

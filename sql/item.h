@@ -3603,7 +3603,11 @@ private:
     To resolve this, we use refers_to_temp_table member to refer to items 
     in temporary (work) tables.
   */
-  bool refers_to_temp_table= false;
+  enum {
+    NO_TEMP_TABLE= 0,
+    REFERS_TO_DERIVED_TMP= 1,
+    REFERS_TO_OTHER_TMP=2
+  } refers_to_temp_table = NO_TEMP_TABLE;
 
 public:
   Item_field(THD *thd, Name_resolution_context *context_arg,
@@ -3837,7 +3841,7 @@ public:
     return field->table->pos_in_table_list->outer_join;
   }
   bool check_index_dependence(void *arg) override;
-  void set_refers_to_temp_table(bool value);
+  void set_refers_to_temp_table();
   friend class Item_default_value;
   friend class Item_insert_value;
   friend class st_select_lex_unit;

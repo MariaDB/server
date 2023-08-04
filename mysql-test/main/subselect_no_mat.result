@@ -65,7 +65,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1276	Field or reference 'b.a' of SELECT #3 was resolved in SELECT #1
 Note	1276	Field or reference 'b.a' of SELECT #3 was resolved in SELECT #1
-Note	1003	/* select#1 */ select 1 AS `1` from dual having (/* select#3 */ select `b`.`a`) = 1
+Note	1003	/* select#1 */ select 1 AS `1` from dual having (/* select#3 */ select 1) = 1
 SELECT 1 FROM (SELECT 1 as a) as b HAVING (SELECT a)=1;
 1
 1

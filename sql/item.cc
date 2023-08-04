@@ -3152,7 +3152,7 @@ void Item_field::set_field(Field *field_par)
 
   if (field->table->s->tmp_table == SYSTEM_TMP_TABLE ||
       field->table->s->tmp_table == INTERNAL_TMP_TABLE)
-    set_refers_to_temp_table(true);
+    set_refers_to_temp_table();
 }
 
 
@@ -3629,7 +3629,7 @@ Item *Item_field::get_tmp_table_item(THD *thd)
   if (new_item)
   {
     new_item->field= new_item->result_field;
-    new_item->set_refers_to_temp_table(true);
+    new_item->set_refers_to_temp_table();
   }
   return new_item;
 }
@@ -3640,9 +3640,10 @@ longlong Item_field::val_int_endpoint(bool left_endp, bool *incl_endp)
   return null_value? LONGLONG_MIN : res;
 }
 
-void Item_field::set_refers_to_temp_table(bool value)
+void Item_field::set_refers_to_temp_table()
 {
-  refers_to_temp_table= value;
+  refers_to_temp_table= (field->table->derived_select_number != 0)?
+                        REFERS_TO_DERIVED_TMP : REFERS_TO_OTHER_TMP;
 }
 
 
@@ -6305,7 +6306,7 @@ void Item_field::cleanup()
   field= 0;
   item_equal= NULL;
   null_value= FALSE;
-  refers_to_temp_table= FALSE;
+  refers_to_temp_table= NO_TEMP_TABLE;
   DBUG_VOID_RETURN;
 }
 
@@ -7875,12 +7876,24 @@ void Item_field::print(String *str, enum_query_type query_type)
     If the field refers to a constant table, print the value.
     But there are exceptions:
     1. For temporary (aka "work") tables, we can access the the table only
-       if QT_ACCESS_TMP_TABLES is specified (if not, the table might have
+       if QT_DONT_ACCESS_TMP_TABLES is specified (if not, the table might have AAAA
        already been freed).
     2. Don't print constants if QT_NO_DATA_EXPANSION or QT_VIEW_INTERNAL is
        specified.
   */
-  if ((!refers_to_temp_table || (query_type & QT_ACCESS_TMP_TABLES)) && // (1)
+  bool skip_print_tmp= false;
+  if (refers_to_temp_table == REFERS_TO_OTHER_TMP)
+  {
+    skip_print_tmp= true;  // It's never safe to access non-derived tmp.tables
+  }
+  else if (refers_to_temp_table == REFERS_TO_DERIVED_TMP)
+  {
+    // Derived tmp table: can only access if it isn't freed, yet.
+    if ((query_type & QT_DONT_ACCESS_TMP_TABLES))
+      skip_print_tmp= true;
+  }
+
+  if (!skip_print_tmp && // (1)
       !(query_type & (QT_NO_DATA_EXPANSION | QT_VIEW_INTERNAL)) &&      // (2)
       field && field->table->const_table)
   {
@@ -9160,7 +9173,7 @@ Item* Item_cache_wrapper::get_tmp_table_item(THD *thd)
   {
     auto item_field= new (thd->mem_root) Item_field(thd, result_field);
     if (item_field)
-      item_field->set_refers_to_temp_table(true);
+      item_field->set_refers_to_temp_table();
     return item_field;
   }
   return copy_or_same(thd);

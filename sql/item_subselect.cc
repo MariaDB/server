@@ -1030,7 +1030,7 @@ Item *Item_subselect::get_tmp_table_item(THD *thd_arg)
     auto item_field=
         new (thd->mem_root) Item_field(thd_arg, result_field);
     if (item_field)
-      item_field->set_refers_to_temp_table(true);
+      item_field->set_refers_to_temp_table();
     return item_field;
   }
   return copy_or_same(thd_arg);
@@ -5313,7 +5313,7 @@ bool subselect_hash_sj_engine::make_semi_join_conds()
     Item_field *right_col_item= new (thd->mem_root)
         Item_field(thd, context, tmp_table->field[i]);
     if (right_col_item)
-      right_col_item->set_refers_to_temp_table(true);
+      right_col_item->set_refers_to_temp_table();
 
     if (!right_col_item ||
         !(eq_cond= new (thd->mem_root)
