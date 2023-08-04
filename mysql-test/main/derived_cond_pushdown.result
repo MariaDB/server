@@ -8159,7 +8159,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "const_condition": "0 or <in_optimizer>(t1.a,<exists>(subquery#3))",
+    "const_condition": "0 or <in_optimizer>(2,<exists>(subquery#3))",
     "nested_loop": [
       {
         "table": {
@@ -8175,7 +8175,7 @@ EXPLAIN
           "access_type": "ALL",
           "rows": 2,
           "filtered": 100,
-          "attached_condition": "t2.b = t1.a",
+          "attached_condition": "t2.b = 2",
           "first_match": "t1"
         }
       }
@@ -8206,7 +8206,7 @@ EXPLAIN
                           "access_type": "ALL",
                           "rows": 4,
                           "filtered": 100,
-                          "attached_condition": "t3.c = t1.a"
+                          "attached_condition": "t3.c = 2"
                         }
                       }
                     ]
@@ -8257,7 +8257,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "const_condition": "0 or <in_optimizer>(t1.a,<exists>(subquery#3))",
+    "const_condition": "0 or <in_optimizer>(2,<exists>(subquery#3))",
     "nested_loop": [
       {
         "table": {
@@ -8273,7 +8273,7 @@ EXPLAIN
           "access_type": "ALL",
           "rows": 2,
           "filtered": 100,
-          "attached_condition": "t2.b = t1.a",
+          "attached_condition": "t2.b = 2",
           "first_match": "t1"
         }
       }
@@ -8297,7 +8297,7 @@ EXPLAIN
                 "materialized": {
                   "query_block": {
                     "select_id": 5,
-                    "having_condition": "s > t1.a",
+                    "having_condition": "s > 2",
                     "filesort": {
                       "sort_key": "t4.d",
                       "temporary_table": {
@@ -8368,7 +8368,7 @@ EXPLAIN
                 "access_type": "ALL",
                 "rows": 2,
                 "filtered": 100,
-                "attached_condition": "v2.b = t1.a",
+                "attached_condition": "v2.b = 1",
                 "materialized": {
                   "query_block": {
                     "select_id": 4,
@@ -8379,7 +8379,7 @@ EXPLAIN
                           "access_type": "ALL",
                           "rows": 2,
                           "filtered": 100,
-                          "attached_condition": "t2.b = t1.a"
+                          "attached_condition": "t2.b = 1"
                         }
                       }
                     ]
@@ -8685,7 +8685,7 @@ EXPLAIN
                 "access_type": "ALL",
                 "rows": 2,
                 "filtered": 100,
-                "attached_condition": "v1.a = t2.b",
+                "attached_condition": "v1.a = 50",
                 "materialized": {
                   "query_block": {
                     "select_id": 3,
@@ -8696,7 +8696,7 @@ EXPLAIN
                           "access_type": "ALL",
                           "rows": 2,
                           "filtered": 100,
-                          "attached_condition": "t1.a = t2.b"
+                          "attached_condition": "t1.a = 50"
                         }
                       }
                     ]
@@ -8743,11 +8743,11 @@ EXPLAIN
                 "access_type": "ALL",
                 "rows": 5,
                 "filtered": 100,
-                "attached_condition": "v2.s < t2.b",
+                "attached_condition": "v2.s < 50",
                 "materialized": {
                   "query_block": {
                     "select_id": 3,
-                    "having_condition": "s < t2.b",
+                    "having_condition": "s < 50",
                     "filesort": {
                       "sort_key": "t3.a",
                       "temporary_table": {

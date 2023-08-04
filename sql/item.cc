@@ -7873,13 +7873,16 @@ void Item_field::print(String *str, enum_query_type query_type)
 {
   /*
     If the field refers to a constant table, print the value.
-    (1): But don't attempt to do that if
-          * the field refers to a temporary (work) table, and
-          * temp. tables might already have been dropped.
+    But there are exceptions:
+    1. For temporary (aka "work") tables, we can access the the table only
+       if QT_ACCESS_TMP_TABLES is specified (if not, the table might have
+       already been freed).
+    2. Don't print constants if QT_NO_DATA_EXPANSION or QT_VIEW_INTERNAL is
+       specified.
   */
-  if (!refers_to_temp_table &&
-      field && field->table->const_table && !(query_type &
-        (QT_NO_DATA_EXPANSION | QT_VIEW_INTERNAL | QT_ACCESS_TMP_TABLES)))
+  if ((!refers_to_temp_table || (query_type & QT_ACCESS_TMP_TABLES)) && // (1)
+      !(query_type & (QT_NO_DATA_EXPANSION | QT_VIEW_INTERNAL)) &&      // (2)
+      field && field->table->const_table)
   {
     print_value(str);
     return;
