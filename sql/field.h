@@ -1011,7 +1011,8 @@ public:
       field                  statistical table field
       str                    value buffer
   */
-  virtual int store_from_statistical_minmax_field(Field *field, String *str);
+  virtual int store_from_statistical_minmax_field(Field *field, String *str,
+                                                  MEM_ROOT *mem);
 
 #ifdef HAVE_MEM_CHECK
   /**
@@ -4469,6 +4470,8 @@ public:
   }
   bool make_empty_rec_store_default_value(THD *thd, Item *item) override;
   int store(const char *to, size_t length, CHARSET_INFO *charset) override;
+  int store_from_statistical_minmax_field(Field *stat_field, String *str,
+                                          MEM_ROOT *mem) override;
   using Field_str::store;
   void hash_not_null(Hasher *hasher) override;
   double val_real() override;

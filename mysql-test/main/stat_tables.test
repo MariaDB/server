@@ -1,9 +1,9 @@
 # Tests will be skipped for the view protocol because the view protocol creates 
 # an additional util connection and other statistics data
--- source include/no_view_protocol.inc
-
+--source include/no_view_protocol.inc
 --source include/have_stat_tables.inc
 --source include/have_partition.inc
+--source include/have_sequence.inc
 
 select @@global.use_stat_tables;
 select @@session.use_stat_tables;
@@ -640,4 +640,64 @@ drop table t1;
 
 set @@global.histogram_size=@save_histogram_size;
 
+--echo #
 --echo # End of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-29693 ANALYZE TABLE still flushes table definition cache
+--echo # when engine-independent statistics is used
+--echo #
+
+create table t1 (a int);
+insert into t1 select seq from seq_0_to_99;
+analyze table t1 persistent for all;
+analyze table t1 persistent for all;
+
+explain extended select count(*) from t1 where a < 50;
+
+connect (con1, localhost, root,,);
+--connection con1
+explain extended select count(*) from t1 where a < 50;
+
+let $open_tables=`select variable_value from information_schema.global_status where variable_name="OPENED_TABLES"`;
+
+--connection default
+update t1 set a= a +100;
+
+--echo # Explain shows outdated statistics:
+explain extended select count(*) from t1 where a < 50;
+--connection con1
+explain extended select count(*) from t1 where a < 50;
+
+--connection default
+analyze table t1 persistent for all;
+--echo # Now explain shows updated statistics:
+explain extended select count(*) from t1 where a < 50;
+--connection con1
+explain extended select count(*) from t1 where a < 50;
+
+--connection con1
+--echo # Run update and analyze in con1:
+update t1 set a= a - 150;
+analyze table t1 persistent for all;
+
+--connection default
+--echo # Explain shows updated statistics:
+explain extended select count(*) from t1 where a < 50;
+
+disconnect con1;
+
+let $new_open_tables=`select variable_value from information_schema.global_status where variable_name="OPENED_TABLES"`;
+
+if ($open_tables != $new_open_tables)
+{
+--let $diff=`select $new_open_tables - $open_tables`
+--echo "Fail: Test opened $diff new tables, 0 was expected"
+}
+
+drop table t1;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #

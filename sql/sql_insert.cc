@@ -580,7 +580,8 @@ bool open_and_lock_for_insert_delayed(THD *thd, TABLE_LIST *table_list)
       Open tables used for sub-selects or in stored functions, will also
       cache these functions.
     */
-    if (open_and_lock_tables(thd, table_list->next_global, TRUE, 0))
+    if (open_and_lock_tables(thd, table_list->next_global, TRUE,
+                             MYSQL_OPEN_IGNORE_ENGINE_STATS))
     {
       end_delayed_insert(thd);
       error= TRUE;
@@ -2750,6 +2751,9 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
 
   /* Ensure we don't use the table list of the original table */
   copy->pos_in_table_list= 0;
+
+  /* We don't need statistics for insert delayed */
+  copy->stats_cb= 0;
 
   /*
     Make a copy of all fields.

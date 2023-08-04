@@ -116,9 +116,9 @@ bool check_eits_preferred(THD *thd)
 }
 
 int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables);
-int read_statistics_for_tables(THD *thd, TABLE_LIST *tables);
+int read_statistics_for_tables(THD *thd, TABLE_LIST *tables,
+                               bool force_reload);
 int collect_statistics_for_table(THD *thd, TABLE *table);
-void delete_stat_values_for_table_share(TABLE_SHARE *table_share);
 int alloc_statistics_for_table(THD *thd, TABLE *table);
 int update_statistics_for_table(THD *thd, TABLE *table);
 int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *tab);
@@ -308,7 +308,7 @@ public:
 
   /* Array of records per key for index prefixes */
   ulonglong *idx_avg_frequency;
-  uchar *histograms;                /* Sequence of histograms       */                    
+  uchar *histograms;                /* Sequence of histograms */
 };
 
 

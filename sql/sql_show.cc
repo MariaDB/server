@@ -6750,7 +6750,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
     KEY *key_info=show_table->s->key_info;
     if (show_table->file)
     {
-      (void) read_statistics_for_tables(thd, tables);
+      (void) read_statistics_for_tables(thd, tables, false);
       show_table->file->info(HA_STATUS_VARIABLE |
                              HA_STATUS_NO_LOCK |
                              HA_STATUS_CONST |
