@@ -11511,7 +11511,7 @@ fail:
 	DEBUG_SYNC(m_user_thd, "innodb_alter_inplace_before_commit");
 
 	if (new_clustered) {
-		ut_ad(trx->has_logged());
+		ut_ad(trx->has_logged_persistent());
 		for (inplace_alter_handler_ctx** pctx = ctx_array; *pctx;
 		     pctx++) {
 			auto ctx= static_cast<ha_innobase_inplace_ctx*>(*pctx);
