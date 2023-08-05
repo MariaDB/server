@@ -326,7 +326,7 @@ do_rename(THD *thd, TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
 
 #ifdef WITH_WSREP
   if (WSREP(thd) && hton && hton != view_pseudo_hton &&
-      !wsrep_should_replicate_ddl(thd, hton->db_type))
+      !wsrep_should_replicate_ddl(thd, hton))
     DBUG_RETURN(1);
 #endif
 
