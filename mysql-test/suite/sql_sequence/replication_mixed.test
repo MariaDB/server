@@ -9,7 +9,9 @@
 --echo #
 
 CREATE SEQUENCE s1 ENGINE=InnoDB;
+--disable_ps2_protocol
 SELECT NEXTVAL(s1);
+--enable_ps2_protocol
 CREATE TABLE t1 ENGINE=InnoDB SELECT LASTVAL(s1) AS a;
 INSERT INTO t1 VALUES (NEXTVAL(s1));
 INSERT INTO t1 VALUES (LASTVAL(s1));

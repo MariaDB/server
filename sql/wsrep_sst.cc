@@ -299,6 +299,15 @@ void wsrep_sst_auth_init ()
 
 bool  wsrep_sst_donor_check (sys_var *self, THD* thd, set_var* var)
 {
+  if ((! var->save_result.string_value.str) ||
+      (var->save_result.string_value.length > (FN_REFLEN -1))) // safety
+  {
+    my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), var->var->name.str,
+             var->save_result.string_value.str ?
+             var->save_result.string_value.str : "NULL");
+    return 1;
+  }
+
   return 0;
 }
 

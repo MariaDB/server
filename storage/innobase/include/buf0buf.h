@@ -774,8 +774,10 @@ public:
   dberr_t read_complete(const fil_node_t &node);
 
   /** Note that a block is no longer dirty, while not removing
-  it from buf_pool.flush_list */
-  inline void write_complete(bool temporary);
+  it from buf_pool.flush_list
+  @param temporary   whether the page belongs to the temporary tablespace
+  @param error       whether an error may have occurred while writing */
+  inline void write_complete(bool temporary, bool error);
 
   /** Write a flushable page to a file or free a freeable block.
   @param evict       whether to evict the page on write completion

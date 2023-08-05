@@ -34,7 +34,9 @@ begin
 end//
 delimiter ;//
 
+--disable_ps2_protocol
 select multi_part_pk_with_autoinc (3);
+--enable_ps2_protocol
 --echo *** autoincrement field is not the first in PK warning must be there: ***
 show warnings;
 

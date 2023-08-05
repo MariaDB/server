@@ -1,0 +1,77 @@
+#
+#  MDEV-31086 MODIFY COLUMN can break FK constraints, and
+#        lead to unrestorable dumps
+#
+CREATE TABLE t1(
+id SERIAL,
+msg VARCHAR(100) CHARACTER SET utf8mb3,
+KEY(msg))ENGINE=InnoDB;
+CREATE TABLE t2(
+id SERIAL,
+msg varchar(100) CHARACTER SET utf8mb4,
+CONSTRAINT fk_t1 FOREIGN KEY (msg) REFERENCES t1 (msg))ENGINE=InnoDB;
+ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+CREATE TABLE t2(
+id SERIAL,
+msg varchar(100) CHARACTER SET utf8mb3,
+msg_1 varchar(100) CHARACTER SET utf8mb3,
+INDEX (msg_1),
+INDEX (msg),
+CONSTRAINT fk_t1 FOREIGN KEY (msg) REFERENCES t1 (msg)
+ON DELETE CASCADE)ENGINE=InnoDB;
+SET FOREIGN_KEY_CHECKS=1;
+ALTER TABLE t2 MODIFY COLUMN msg VARCHAR(200) character set utf8mb3, ALGORITHM=COPY;
+ERROR HY000: Cannot change column 'msg': used in a foreign key constraint 'fk_t1'
+ALTER TABLE t2 MODIFY COLUMN msg VARCHAR(200) character set utf8mb3, ALGORITHM=INPLACE;
+ERROR HY000: Cannot change column 'msg': used in a foreign key constraint 'test/fk_t1'
+SET FOREIGN_KEY_CHECKS=0;
+ALTER TABLE t2 MODIFY COLUMN msg VARCHAR(200) character set utf8mb3, ALGORITHM=COPY;
+ERROR HY000: Cannot change column 'msg': used in a foreign key constraint 'fk_t1'
+ALTER TABLE t2 MODIFY COLUMN msg VARCHAR(400) character set utf8mb3, ALGORITHM=INPLACE;
+ERROR HY000: Cannot change column 'msg': used in a foreign key constraint 'test/fk_t1'
+SET FOREIGN_KEY_CHECKS=1;
+ALTER TABLE t2 MODIFY COLUMN msg VARCHAR(100) CHARACTER SET utf8mb4, ALGORITHM=COPY;
+ERROR HY000: Cannot change column 'msg': used in a foreign key constraint 'fk_t1'
+ALTER TABLE t2 MODIFY COLUMN msg VARCHAR(100) CHARACTER SET utf8mb4, ALGORITHM=INPLACE;
+ERROR HY000: Cannot change column 'msg': used in a foreign key constraint 'test/fk_t1'
+SET FOREIGN_KEY_CHECKS=0;
+ALTER TABLE t2 MODIFY COLUMN msg VARCHAR(100) CHARACTER SET utf8mb4,ALGORITHM=COPY;
+ERROR HY000: Cannot change column 'msg': used in a foreign key constraint 'fk_t1'
+ALTER TABLE t2 MODIFY COLUMN msg VARCHAR(100) CHARACTER SET utf8mb4,ALGORITHM=INPLACE;
+ERROR HY000: Cannot change column 'msg': used in a foreign key constraint 'test/fk_t1'
+SET FOREIGN_KEY_CHECKS=1;
+ALTER TABLE t2 ADD CONSTRAINT FOREIGN KEY(msg_1) REFERENCES t1(msg),MODIFY COLUMN msg_1 VARCHAR(100) CHARACTER SET utf8mb4, ALGORITHM=COPY;
+ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+ALTER TABLE t2 ADD CONSTRAINT FOREIGN KEY(msg_1) REFERENCES t1(msg),MODIFY COLUMN msg_1 VARCHAR(100) CHARACTER SET utf8mb4, ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Adding foreign keys needs foreign_key_checks=OFF. Try ALGORITHM=COPY
+SET FOREIGN_KEY_CHECKS=0;
+ALTER TABLE t2 ADD CONSTRAINT FOREIGN KEY(msg_1) REFERENCES t1(msg),MODIFY COLUMN msg_1 VARCHAR(100) CHARACTER SET utf8mb4, ALGORITHM=COPY;
+ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+ALTER TABLE t2 ADD CONSTRAINT FOREIGN KEY(msg_1) REFERENCES t1(msg),MODIFY COLUMN msg_1 VARCHAR(100) CHARACTER SET utf8mb4, ALGORITHM=INPLACE;
+ERROR HY000: Cannot change column 'msg_1': used in a foreign key constraint 'test/t2_ibfk_0'
+ALTER TABLE t2 ADD CONSTRAINT FOREIGN KEY(msg_1) REFERENCES t1(msg),MODIFY COLUMN msg_1 VARCHAR(200) CHARACTER SET utf8mb3, ALGORITHM=INPLACE;
+ERROR HY000: Cannot change column 'msg_1': used in a foreign key constraint 'test/t2_ibfk_0'
+SET FOREIGN_KEY_CHECKS=1;
+ALTER TABLE t1 MODIFY msg VARCHAR(200) CHARSET utf8mb3, ALGORITHM=COPY;
+ERROR HY000: Cannot change column 'msg': used in a foreign key constraint 'fk_t1' of table 'test.t2'
+ALTER TABLE t1 MODIFY msg VARCHAR(200) CHARSET utf8mb3, ALGORITHM=INPLACE;
+ERROR HY000: Cannot change column 'msg': used in a foreign key constraint 'test/fk_t1' of table 'test/t2'
+ALTER TABLE t1 MODIFY msg VARCHAR(200) CHARSET utf8mb4, ALGORITHM=COPY;
+ERROR HY000: Cannot change column 'msg': used in a foreign key constraint 'fk_t1' of table 'test.t2'
+ALTER TABLE t1 MODIFY msg VARCHAR(200) CHARSET utf8mb4, ALGORITHM=INPLACE;
+ERROR HY000: Cannot change column 'msg': used in a foreign key constraint 'test/fk_t1' of table 'test/t2'
+SET FOREIGN_KEY_CHECKS=0;
+ALTER TABLE t1 MODIFY msg VARCHAR(200) CHARSET utf8mb3, ALGORITHM=COPY;
+ERROR HY000: Cannot change column 'msg': used in a foreign key constraint 'fk_t1' of table 'test.t2'
+ALTER TABLE t1 MODIFY msg VARCHAR(400) CHARSET utf8mb3, ALGORITHM=INPLACE;
+ERROR HY000: Cannot change column 'msg': used in a foreign key constraint 'test/fk_t1' of table 'test/t2'
+ALTER TABLE t1 MODIFY msg VARCHAR(200) CHARSET utf8mb4, ALGORITHM=COPY;
+ERROR HY000: Cannot change column 'msg': used in a foreign key constraint 'fk_t1' of table 'test.t2'
+ALTER TABLE t1 MODIFY msg VARCHAR(200) CHARSET utf8mb4, ALGORITHM=INPLACE;
+ERROR HY000: Cannot change column 'msg': used in a foreign key constraint 'test/fk_t1' of table 'test/t2'
+SET FOREIGN_KEY_CHECKS=0;
+ALTER TABLE t2 DROP FOREIGN KEY fk_t1, MODIFY msg VARCHAR(200) CHARSET utf8mb4, ALGORITHM=COPY;
+ALTER TABLE t1 MODIFY msg VARCHAR(200) CHARSET utf8mb4, ALGORITHM=COPY;
+ALTER TABLE t2 ADD CONSTRAINT FOREIGN KEY (msg) REFERENCES t1(msg), aLGORITHM=INPLACE;
+SET FOREIGN_KEY_CHECKS=1;
+DROP TABLE t2, t1;

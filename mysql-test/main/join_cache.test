@@ -1645,6 +1645,7 @@ insert into t2 values (3,1, 'qwerty'),(3,4, 'qwerty');
 insert into t2 values (4,1, 'qwerty'),(4,2, 'qwerty'),(4,3, 'qwerty'),
                       (4,4, 'qwerty');
 
+--disable_ps2_protocol
 flush status;
 set join_cache_level=5;
 select t2.f1, t2.f2, t2.f3 from t1,t2
@@ -1677,6 +1678,8 @@ where t1.f1=t2.f1 and t2.f2 between t1.f1 and t1.f2 and t2.f2 + 1 >= t1.f1 + 1;
 explain select t2.f1, t2.f2, t2.f3 from t1,t2
 where t1.f1=t2.f1 and t2.f2 between t1.f1 and t2.f2;
 show status like "Handler_icp%";
+
+--enable_ps2_protocol
 
 drop table t1,t2;
 set join_cache_level=@save_join_cache_level;
@@ -4031,6 +4034,7 @@ insert into t3 values (2);
 
 set @counter=0;
 
+--disable_ps2_protocol
 explain
 select count(*) from t1 straight_join t2
 where c1 = c2-0 and c2 <= (select max(c3) from t3 where c3 = 2 and @counter:=@counter+1);
@@ -4054,6 +4058,8 @@ where c1 = c2-0 and
       c2 / 2 = 1;
 
 select @counter;
+
+--enable_ps2_protocol
 
 drop table t1,t2,t3;
 set expensive_subquery_limit=@save_expensive_subquery_limit;
@@ -4207,3 +4213,20 @@ set @@optimizer_switch=@save_optimizer_switch;
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
 set global innodb_stats_persistent_sample_pages=
              @innodb_stats_persistent_sample_pages_save;
+
+--echo #
+--echo # MDEV-31226 Server crash or assertion failure with row size close to
+--echo # join_buffer_size
+--echo #
+
+set @org_optimizer_switch=@@optimizer_switch;
+set @org_join_buffer_size=@@join_buffer_size;
+CREATE TABLE t (f VARCHAR(16384)) ENGINE=MyISAM CHARACTER SET utf8;
+INSERT INTO t VALUES (REPEAT('a',16384)),(REPEAT('b',16384));
+SET OPTIMIZER_SWITCH = 'optimize_join_buffer_size=off';
+SET JOIN_BUFFER_SIZE = 16384;
+explain SELECT length(concat(t1.f,t2.f)) FROM t t1, t t2;
+SELECT length(concat(t1.f,t2.f)) FROM t t1, t t2;
+DROP TABLE t;
+set @@optimizer_switch=@org_optimizer_switch;
+set @@join_buffer_size=@org_join_buffer_size;

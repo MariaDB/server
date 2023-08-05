@@ -27,6 +27,7 @@ let $schema_to_dump= 'test','test1';
 # Start event recording
 update performance_schema.setup_consumers set enabled = 'YES';
 
+--disable_ps2_protocol
 # INSERT ... SELECT ...
 insert into test1.t2 select * from test.t1;
 insert into marker set a = 1;
@@ -42,6 +43,7 @@ insert into marker set a = 1;
 # DELETE
 delete from test.t1, test1.t2 using test.t1 inner join test1.t2
 where test.t1.col1 = test1.t2.col1;
+--enable_ps2_protocol
 
 # Stop event recording + pull results
 --source ../include/table_io_result_helper.inc

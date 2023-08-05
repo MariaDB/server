@@ -170,6 +170,7 @@ if ($USE_CHILD_GROUP2)
 }
 
 --connection master_1
+--disable_ps2_protocol
 SELECT a.a, c.b, c.c, d.a FROM tbl_a a right join tbl_b b on a.a = b.a left join tbl_c c on b.c = c.c right join tbl_d d on c.b = d.b ORDER BY d.a DESC;
 
 if ($USE_CHILD_GROUP2)
@@ -191,6 +192,7 @@ if ($USE_CHILD_GROUP2)
     --enable_result_log
   }
 }
+--enable_ps2_protocol
 
 --echo
 --echo deinit

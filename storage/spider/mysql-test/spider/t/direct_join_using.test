@@ -155,6 +155,7 @@ if ($USE_CHILD_GROUP2)
 }
 
 --connection master_1
+--disable_ps2_protocol
 SELECT a.a, c.b, c.c FROM tbl_a a join tbl_b b using(a) join tbl_c c using(a) ORDER BY a.b DESC;
 
 if ($USE_CHILD_GROUP2)
@@ -176,6 +177,7 @@ if ($USE_CHILD_GROUP2)
     --enable_result_log
   }
 }
+--enable_ps2_protocol
 
 --echo
 --echo deinit

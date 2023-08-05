@@ -59,7 +59,7 @@
 #if defined(_DEBUG)
 #define CheckType(V)    if (Type != V->GetType()) { \
     PGLOBAL& g = Global; \
-    strcpy(g->Message, MSG(VALTYPE_NOMATCH)); \
+    snprintf(g->Message, sizeof(g->Message), MSG(VALTYPE_NOMATCH)); \
     throw Type;
 #else
 #define CheckType(V)
@@ -556,7 +556,7 @@ BYTE VALUE::TestValue(PVAL vp)
 /***********************************************************************/
 bool VALUE::Compute(PGLOBAL g, PVAL *, int, OPVAL)
 {
-  strcpy(g->Message, "Compute not implemented for this value type");
+  snprintf(g->Message, sizeof(g->Message), "Compute not implemented for this value type");
   return true;
 } // end of Compute
 
@@ -1051,11 +1051,11 @@ TYPE TYPVAL<TYPE>::SafeAdd(TYPE n1, TYPE n2)
 
   if ((n2 > 0) && (n < n1)) {
     // Overflow
-    strcpy(g->Message, MSG(FIX_OVFLW_ADD));
+    snprintf(g->Message, sizeof(g->Message), MSG(FIX_OVFLW_ADD));
 		throw 138;
 	} else if ((n2 < 0) && (n > n1)) {
     // Underflow
-    strcpy(g->Message, MSG(FIX_UNFLW_ADD));
+    snprintf(g->Message, sizeof(g->Message), MSG(FIX_UNFLW_ADD));
 		throw 138;
 	} // endif's n2
 
@@ -1079,11 +1079,11 @@ TYPE TYPVAL<TYPE>::SafeMult(TYPE n1, TYPE n2)
 
   if (n > MinMaxVal(true)) {
     // Overflow
-    strcpy(g->Message, MSG(FIX_OVFLW_TIMES));
+    snprintf(g->Message, sizeof(g->Message), MSG(FIX_OVFLW_TIMES));
 		throw 138;
 	} else if (n < MinMaxVal(false)) {
     // Underflow
-    strcpy(g->Message, MSG(FIX_UNFLW_TIMES));
+    snprintf(g->Message, sizeof(g->Message), MSG(FIX_UNFLW_TIMES));
 		throw 138;
 	} // endif's n2
 
@@ -1119,7 +1119,7 @@ bool TYPVAL<TYPE>::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
       break;
     case OP_DIV:
       if (!val[1]) {
-        strcpy(g->Message, MSG(ZERO_DIVIDE));
+        snprintf(g->Message, sizeof(g->Message),MSG(ZERO_DIVIDE));
         return true;
         } // endif
 
@@ -1173,7 +1173,7 @@ bool TYPVAL<TYPE>::Compall(PGLOBAL g, PVAL *vp, int np, OPVAL op)
     case OP_DIV:
       if (val[0]) {
         if (!val[1]) {
-          strcpy(g->Message, MSG(ZERO_DIVIDE));
+          snprintf(g->Message, sizeof(g->Message), MSG(ZERO_DIVIDE));
           return true;
           } // endif
     
@@ -1190,7 +1190,7 @@ bool TYPVAL<TYPE>::Compall(PGLOBAL g, PVAL *vp, int np, OPVAL op)
       break;
     default:
 //    snprintf(g->Message, sizeof(g->Message), MSG(BAD_EXP_OPER), op);
-      strcpy(g->Message, "Function not supported");
+      snprintf(g->Message, sizeof(g->Message), "Function not supported");
       return true;
   } // endswitch op
 
@@ -1701,7 +1701,7 @@ bool TYPVAL<PSZ>::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
 			break;
 		default:
 			//    snprintf(g->Message, sizeof(g->Message), MSG(BAD_EXP_OPER), op);
-			strcpy(g->Message, "Function not supported");
+			snprintf(g->Message, sizeof(g->Message), "Function not supported");
 			return true;
 	} // endswitch op
 
@@ -2616,7 +2616,7 @@ bool DTVAL::MakeDate(PGLOBAL g, int *val, int nval)
   if (MakeTime(&datm))
   {
     if (g) {
-      strcpy(g->Message, MSG(BAD_DATETIME));
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_DATETIME));
       rc = true;
     } else
       Tval = 0;

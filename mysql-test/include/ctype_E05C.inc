@@ -76,6 +76,15 @@ INSERT INTO t1 VALUES (_BINARY'\\''à\'),(_BINARY'à\''\\');
 SELECT a, HEX(a) FROM t1;
 DROP TABLE t1;
 
+#
+# test how strings are written into view's frm
+#
+disable_view_protocol;
+create view v1 as select hex('à\'), hex('à\t');
+select * from v1;
+drop view v1;
+enable_view_protocol;
+
 # Checking that with character_set_client=binary 0x5C in 0xE05C
 # is treated as escape rather than the second byte of a multi-byte character,
 # even if character_set_connection is big5/cp932/gbk/sjis.
@@ -109,5 +118,5 @@ SELECT HEX(a) FROM t1;
 DROP TABLE t1;
 --enable_view_protocol
 
---echo # Start of ctype_E05C.inc
+--echo # End of ctype_E05C.inc
 
