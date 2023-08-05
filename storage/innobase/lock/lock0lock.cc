@@ -63,6 +63,7 @@ ulong innodb_deadlock_report;
 extern "C" void thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd);
 extern "C" int thd_need_wait_reports(const MYSQL_THD thd);
 extern "C" int thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd);
+extern "C" int thd_deadlock_victim_preference(const MYSQL_THD thd1, const MYSQL_THD thd2);
 #endif
 
 /** Functor for accessing the embedded node within a table lock. */
@@ -1958,6 +1959,14 @@ check_trx_error:
 
 end_wait:
   mysql_mutex_unlock(&lock_sys.wait_mutex);
+  DBUG_EXECUTE_IF("small_sleep_after_lock_wait",
+    {
+      if (!(type_mode & LOCK_TABLE) &&
+	  (type_mode & LOCK_MODE_MASK) == LOCK_X &&
+	  trx->error_state != DB_DEADLOCK && !trx_is_interrupted(trx)) {
+	      my_sleep(20000);
+      }
+    });
   thd_wait_end(trx->mysql_thd);
 
   return trx->error_state;
@@ -6310,6 +6319,28 @@ namespace Deadlock
   }
 
   ATTRIBUTE_COLD
+  /** Calculate a number used to compare deadlock victim candidates.
+Bit 62 is used to prefer transaction that did not modified non-transactional
+tables. Bits 1-61 are set to TRX_WEIGHT to prefer transactions with less locks
+and less modified rows. Bit 0 is used to prefer orig_trx in case of a tie.
+  @param trx  Transaction
+  @return a 64-bit unsigned, the lower the more preferred TRX is as a deadlock
+          victim */
+  static undo_no_t calc_victim_weight(trx_t *trx, const trx_t *orig_trx)
+  {
+    const undo_no_t trx_weight= (trx != orig_trx) | (TRX_WEIGHT(trx) << 1) |
+      (trx->mysql_thd &&
+#ifdef WITH_WSREP
+       (thd_has_edited_nontrans_tables(trx->mysql_thd) ||
+        (trx->is_wsrep() && wsrep_thd_is_BF(trx->mysql_thd, false)))
+#else
+       thd_has_edited_nontrans_tables(trx->mysql_thd)
+#endif /* WITH_WSREP */
+       ? 1ULL << 62 : 0);
+    return trx_weight;
+  }
+
+  ATTRIBUTE_COLD
   /** Report a deadlock (cycle in the waits-for graph).
   @param trx        transaction waiting for a lock in this thread
   @param current_trx whether trx belongs to the current thread
@@ -6332,24 +6363,7 @@ namespace Deadlock
 
     static const char rollback_msg[]= "*** WE ROLL BACK TRANSACTION (%u)\n";
     char buf[9 + sizeof rollback_msg];
-
-    /* If current_trx=true, trx is owned by this thread, and we can
-    safely invoke these without holding trx->mutex or lock_sys.latch.
-    If current_trx=false, a concurrent commit is protected by both
-    lock_sys.latch and lock_sys.wait_mutex. */
-    const undo_no_t trx_weight= TRX_WEIGHT(trx) |
-      (trx->mysql_thd &&
-#ifdef WITH_WSREP
-       (thd_has_edited_nontrans_tables(trx->mysql_thd) ||
-        (trx->is_wsrep() && wsrep_thd_is_BF(trx->mysql_thd, false)))
-#else
-       thd_has_edited_nontrans_tables(trx->mysql_thd)
-#endif /* WITH_WSREP */
-       ? 1ULL << 63 : 0);
-
     trx_t *victim= nullptr;
-    undo_no_t victim_weight= ~0ULL;
-    unsigned victim_pos= 0, trx_pos= 0;
 
     /* Here, lock elision does not make sense, because
     for the output we are going to invoke system calls,
@@ -6362,41 +6376,50 @@ namespace Deadlock
     }
 
     {
-      unsigned l= 0;
+      unsigned l= 1;
       /* Now that we are holding lock_sys.wait_mutex again, check
       whether a cycle still exists. */
       trx_t *cycle= find_cycle(trx);
       if (!cycle)
         goto func_exit; /* One of the transactions was already aborted. */
+
+      victim= cycle;
+      undo_no_t victim_weight= calc_victim_weight(victim, trx);
+      unsigned victim_pos= l;
       for (trx_t *next= cycle;;)
       {
         next= next->lock.wait_trx;
         l++;
-        const undo_no_t next_weight= TRX_WEIGHT(next) |
-          (next->mysql_thd &&
-#ifdef WITH_WSREP
-           (thd_has_edited_nontrans_tables(next->mysql_thd) ||
-            (next->is_wsrep() && wsrep_thd_is_BF(next->mysql_thd, false)))
+        const undo_no_t next_weight= calc_victim_weight(next, trx);
+#ifdef HAVE_REPLICATION
+        const int pref=
+          thd_deadlock_victim_preference(victim->mysql_thd, next->mysql_thd);
+        /* Set bit 63 for any non-preferred victim to make such preference take
+        priority in the weight comparison.
+        -1 means victim is preferred. 1 means next is preferred. */
+        undo_no_t victim_not_pref= (1ULL << 63) & (undo_no_t)(int64_t)(-pref);
+        undo_no_t next_not_pref= (1ULL << 63) & (undo_no_t)(int64_t)pref;
 #else
-           thd_has_edited_nontrans_tables(next->mysql_thd)
-#endif /* WITH_WSREP */
-           ? 1ULL << 63 : 0);
-        if (next_weight < victim_weight)
+        undo_no_t victim_not_pref= 0;
+        undo_no_t next_not_pref= 0;
+#endif
+        /* Single comparison to decide which of two transactions is preferred
+        as a deadlock victim.
+         - If thd_deadlock_victim_preference() returned non-zero, bit 63
+           comparison will decide the preferred one.
+         - Else if exactly one of them modified non-transactional tables,
+           bit 62 will decide.
+         - Else the TRX_WEIGHT in bits 1-61 will decide, if not equal.
+         - Else, if one of them is the original trx, bit 0 will decide.
+         - If all is equal, previous victim will arbitrarily be chosen. */
+        if ((next_weight|next_not_pref) < (victim_weight|victim_not_pref))
         {
           victim_weight= next_weight;
           victim= next;
           victim_pos= l;
         }
-        if (next == victim)
-          trx_pos= l;
         if (next == cycle)
           break;
-      }
-
-      if (trx_pos && trx_weight == victim_weight)
-      {
-        victim= trx;
-        victim_pos= trx_pos;
       }
 
       /* Finally, display the deadlock */
