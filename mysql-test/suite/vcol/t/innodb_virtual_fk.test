@@ -101,5 +101,15 @@ create or replace table t2 (id int, id2 int as (id) virtual, check (id2), foreig
 drop table if exists t2, t1;
 
 --echo #
+--echo # MDEV-31853 Assertion failure in Column_definition::check_vcol_for_key upon adding FK
+--echo #
+create table t (a int, b int, c int generated always as (a), key(b), key(c));
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t add foreign key (a) references t (b) on update set null, algorithm=nocopy;
+alter table t add foreign key (a) references t (b);
+show create table t;
+drop table t;
+
+--echo #
 --echo # End of 10.5 tests
 --echo #
