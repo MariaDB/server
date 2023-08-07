@@ -96,8 +96,13 @@ sub mixed_path {
 
 sub native_path {
   my ($path)= @_;
-  $path=~ s/\//\\/g
-    if (IS_CYGWIN or IS_WIN32PERL);
+  if (IS_CYGWIN) {
+    # \\\\ protects against 2 expansions (just for the case)
+    $path=~ s/\/+|\\+/\\\\\\\\/g;
+  }
+  elsif (IS_WINDOWS) {
+    $path=~ s/\/+/\\/g;
+  }
   return $path;
 }
 

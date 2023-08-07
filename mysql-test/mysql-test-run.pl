@@ -343,7 +343,7 @@ $| = 1; # Automatically flush STDOUT
 main();
 
 sub main {
-  $ENV{MTR_PERL}=$^X;
+  $ENV{MTR_PERL}= mixed_path($^X);
 
   # Default, verbosity on
   report_option('verbose', 0);
@@ -1758,11 +1758,12 @@ sub collect_mysqld_features {
   # to simplify the parsing, we'll merge all nicely formatted --help texts
   $list =~ s/\n {22}(\S)/ $1/g;
 
-  my @list= split '\n', $list;
+  my @list= split '\R', $list;
 
   $mysql_version_id= 0;
+  my $exe= basename($exe_mysqld);
   while (defined(my $line = shift @list)){
-     if ($line =~ /^\Q$exe_mysqld\E\s+Ver\s(\d+)\.(\d+)\.(\d+)(\S*)/ ) {
+     if ($line =~ /\W\Q$exe\E\s+Ver\s(\d+)\.(\d+)\.(\d+)(\S*)/ ) {
       $mysql_version_id= $1*10000 + $2*100 + $3;
       mtr_report("MariaDB Version $1.$2.$3$4");
       last;
@@ -1786,7 +1787,7 @@ sub collect_mysqld_features {
       next;
     }
 
-    last if /^$/; # then goes a list of variables, it ends with an empty line
+    last if /^\r?$/; # then goes a list of variables, it ends with an empty line
 
     # Put a variable into hash
     /^([\S]+)[ \t]+(.*?)\r?$/ or die "Could not parse mysqld --help: $_\n";
@@ -1817,7 +1818,7 @@ sub collect_mysqld_features_from_running_server ()
 
   my $list = `$cmd` or
     mtr_error("Could not connect to extern server using command: '$cmd'");
-  foreach my $line (split('\n', $list ))
+  foreach my $line (split('\R', $list ))
   {
     # Put variables into hash
     if ( $line =~ /^([\S]+)[ \t]+(.*?)\r?$/ )
@@ -2939,7 +2940,7 @@ sub initialize_servers {
 #
 sub sql_to_bootstrap {
   my ($sql) = @_;
-  my @lines= split(/\n/, $sql);
+  my @lines= split(/\R/, $sql);
   my $result= "\n";
   my $delimiter= ';';
 
