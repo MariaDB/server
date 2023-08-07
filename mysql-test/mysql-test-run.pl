@@ -643,7 +643,7 @@ sub parse_protocol($$) {
         {
           mtr_verbose2("${line}: saying BYE to ". $names{$sock});
           print $sock "BYE\n";
-          return 1;
+          return 2;
         }
         return ["Failure", 1, $completed, $extra_warnings];
       }
@@ -692,7 +692,7 @@ sub parse_protocol($$) {
           $result->write_test($sock, 'TESTCASE');
         }
         push(@$completed, $result);
-        return 1;
+        return 2;
       }
     }
 
@@ -706,7 +706,7 @@ sub parse_protocol($$) {
       delete($result->{result});
       $result->{repeat}= $repeat+1;
       $result->write_test($sock, 'TESTCASE');
-      return 1;
+      return 2;
     }
 
     # Remove from list of running
@@ -779,7 +779,7 @@ sub run ($$$) {
     }
     main::mark_time_idle();
     my $i= 0;
-    foreach my $sock (@ready) {
+    sock_loop: foreach my $sock (@ready) {
       ++$i;
       if ($sock == $server) {
 	# New client connected
@@ -790,23 +790,37 @@ sub run ($$$) {
 	print $child "HELLO\n";
       }
       else {
-	my $line= <$sock>;
-	if (!defined $line) {
-	  # Client disconnected
-	  --$childs;
-	  mtr_verbose2((exists $names{$sock} ? $names{$sock} : "Worker"). " closed socket (left ${childs} childs)");
-	  $s->remove($sock);
-	  $sock->close;
-	  next;
-	}
-	chomp($line);
-        mtr_verbose2("Connection ${i}". (exists $names{$sock} ? " from $names{$sock}" : "") .": $line");
+        my $j= 0;
+        $sock->blocking(0);
+        while (my $line= <$sock>) {
+          ++$j;
+          chomp($line);
+          mtr_verbose2("Connection ${i}.${j}". (exists $names{$sock} ? " from $names{$sock}" : "") .": $line");
 
-        my $res= parse_protocol($sock, $line);
-        if (ref $res eq 'ARRAY') {
-          return @$res;
-        } elsif ($res == 1) {
-            next;
+          $sock->blocking(1);
+          my $res= parse_protocol($sock, $line);
+          $sock->blocking(0);
+          if (ref $res eq 'ARRAY') {
+            return @$res;
+          } elsif ($res == 1) {
+             next;
+          } elsif ($res == 2) {
+             next sock_loop;
+          }
+          if (IS_WINDOWS and !IS_CYGWIN) {
+            # Strawberry and ActiveState don't support blocking(0), the next iteration will be blocked!
+            # If there is next response now in the buffer and it is TESTRESULT we are affected by MDEV-30836 and the manager will hang.
+            last;
+          }
+        }
+        $sock->blocking(1);
+        if ($j == 0) {
+          # Client disconnected
+          --$childs;
+          mtr_verbose2((exists $names{$sock} ? $names{$sock} : "Worker"). " closed socket (left ${childs} childs)");
+          $s->remove($sock);
+          $sock->close;
+          next;
         }
 
 	# Find next test to schedule
