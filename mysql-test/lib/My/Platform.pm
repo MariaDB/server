@@ -23,7 +23,7 @@ use File::Path;
 use Carp;
 
 use base qw(Exporter);
-our @EXPORT= qw(IS_CYGWIN IS_WINDOWS IS_WIN32PERL IS_AIX
+our @EXPORT= qw(IS_CYGWIN IS_MSYS IS_WINDOWS IS_WIN32PERL IS_AIX
 		native_path posix_path mixed_path
                 check_socket_path_length process_alive open_for_append);
 
@@ -34,9 +34,15 @@ BEGIN {
       die "Could not execute 'cygpath': $!";
     }
     eval 'sub IS_CYGWIN { 1 }';
+    eval 'sub IS_MSYS { 0 }';
+  }
+  elsif ($^O eq "msys") {
+    eval 'sub IS_CYGWIN { 1 }';
+    eval 'sub IS_MSYS { 1 }';
   }
   else {
     eval 'sub IS_CYGWIN { 0 }';
+    eval 'sub IS_MSYS { 0 }';
   }
   if ($^O eq "MSWin32") {
     eval 'sub IS_WIN32PERL { 1 }';
