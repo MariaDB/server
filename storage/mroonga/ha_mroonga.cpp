@@ -4955,6 +4955,17 @@ int ha_mroonga::wrapper_close()
   MRN_DBUG_ENTER_METHOD();
   MRN_SET_WRAP_SHARE_KEY(share, table->s);
   MRN_SET_WRAP_TABLE_KEY(this, table);
+#ifdef MRN_HANDLER_HAVE_CHECK_IF_SUPPORTED_INPLACE_ALTER
+  if (alter_key_info_buffer) {
+    my_free(alter_key_info_buffer);
+    alter_key_info_buffer = NULL;
+  }
+#else
+  if (wrap_alter_key_info) {
+    my_free(wrap_alter_key_info);
+    wrap_alter_key_info = NULL;
+  }
+#endif
 #ifdef MRN_HANDLER_HAVE_HA_CLOSE
   error = wrap_handler->ha_close();
 #else
