@@ -78,5 +78,24 @@ drop table if exists t2, t1;
 Warnings:
 Note	1051	Unknown table 'test.t2'
 #
+# MDEV-31853 Assertion failure in Column_definition::check_vcol_for_key upon adding FK
+#
+create table t (a int, b int, c int generated always as (a), key(b), key(c));
+alter table t add foreign key (a) references t (b) on update set null, algorithm=nocopy;
+ERROR 0A000: ALGORITHM=NOCOPY is not supported. Reason: Adding foreign keys needs foreign_key_checks=OFF. Try ALGORITHM=COPY
+alter table t add foreign key (a) references t (b);
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) GENERATED ALWAYS AS (`a`) VIRTUAL,
+  KEY `b` (`b`),
+  KEY `c` (`c`),
+  KEY `a` (`a`),
+  CONSTRAINT `t_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t` (`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+drop table t;
+#
 # End of 10.5 tests
 #

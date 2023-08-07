@@ -258,6 +258,13 @@ Alter_info::algorithm(const THD *thd) const
 
 uint Alter_info::check_vcol_field(Item_field *item) const
 {
+  /*
+    vcol->flags are modified in-place, so we'll need to reset them
+    if ALTER fails for any reason
+  */
+  if (item->field && !item->field->table->needs_reopen())
+    item->field->table->mark_table_for_reopen();
+
   if (!item->field &&
       ((item->db_name.length && !db.streq(item->db_name)) ||
        (item->table_name.length && !table_name.streq(item->table_name))))
