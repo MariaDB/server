@@ -12116,6 +12116,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     MEM_UNDEFINED(from->record[0], from->s->rec_buff_length * 2);
     MEM_UNDEFINED(to->record[0], to->s->rec_buff_length * 2);
     thd_progress_next_stage(thd);
+    enum_sql_command saved_sql_command= thd->lex->sql_command;
     Table_map_log_event table_event(thd, from, from->s->table_map_id,
                                     from->file->has_transactions());
     Relay_log_info rli(false);
@@ -12171,6 +12172,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     if (error)
       from->s->tdc->flush_unused(1); // to free the binlog
     to->pos_in_table_list= NULL; // Safety
+    DBUG_ASSERT(thd->lex->sql_command == saved_sql_command);
+    thd->lex->sql_command= saved_sql_command; // Just in case
   }
   else if (online) // error was on copy stage
   {

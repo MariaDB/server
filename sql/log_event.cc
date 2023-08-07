@@ -719,6 +719,9 @@ const char* Log_event::get_type_str()
 Log_event::Log_event(const uchar *buf,
                      const Format_description_log_event* description_event)
   :temp_buf(0), exec_time(0), cache_type(Log_event::EVENT_INVALID_CACHE),
+#ifndef MYSQL_CLIENT
+    slave_exec_mode(SLAVE_EXEC_MODE_STRICT),
+#endif
     checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF)
 {
 #ifndef MYSQL_CLIENT

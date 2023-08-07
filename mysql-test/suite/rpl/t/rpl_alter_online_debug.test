@@ -8,6 +8,46 @@ call mtr.add_suppression("Unsafe statement written to the binary log using state
 --connection slave
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format");
 
+#
+# Single-phase alter
+#
+
+--echo # MDEV-31804 Assertion `thd->m_transaction_psi == __null' fails upon
+--echo # replicating online ALTER
+--connection master
+create table t (a char(8)) engine=myisam;
+insert into t values ('foo'),('bar');
+
+set debug_sync= 'alter_table_online_progress signal go_dml wait_for go_alter';
+set @old_slave_exec_mode= @@global.slave_exec_mode;
+set @@global.slave_exec_mode= idempotent;
+send alter table t force;
+
+--connection master1
+set debug_sync= 'now wait_for go_dml';
+insert into t (a) values ('qux');
+set debug_sync= 'now signal go_alter';
+
+--connection master
+--reap
+--sync_slave_with_master
+
+# Cleanup
+--connection master
+drop table t;
+set global slave_exec_mode= @old_slave_exec_mode;
+set debug_sync= reset;
+
+
+--echo #
+--echo # End of 11.2 tests (Single-phase alter)
+--echo #
+
+
+#
+# Two-phase alter
+#
+--connection slave
 source include/stop_slave.inc;
 --let $slave_parallel_threads=`select @@global.slave_parallel_threads`
 --let $slave_parallel_mode=   `select @@global.slave_parallel_mode`
@@ -75,7 +115,7 @@ drop table t;
 --connection master
 
 --echo #
---echo # End of 11.2 tests
+--echo # End of 11.2 tests (Two-phase alter)
 --echo #
 
 --connection slave
