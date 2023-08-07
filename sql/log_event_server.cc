@@ -544,8 +544,8 @@ int append_query_string(CHARSET_INFO *csinfo, String *to,
 **************************************************************************/
 
 Log_event::Log_event(THD* thd_arg, uint16 flags_arg, bool using_trans)
-  :log_pos(0), temp_buf(0), exec_time(0), thd(thd_arg),
-   checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF)
+  :log_pos(0), temp_buf(0), exec_time(0),
+   checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF), thd(thd_arg)
 {
   server_id=	thd->variables.server_id;
   when=         thd->start_time;
@@ -569,7 +569,7 @@ Log_event::Log_event(THD* thd_arg, uint16 flags_arg, bool using_trans)
 
 Log_event::Log_event()
   :temp_buf(0), exec_time(0), flags(0), cache_type(EVENT_INVALID_CACHE),
-   thd(0), checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF)
+   checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF), thd(0)
 {
   server_id=	global_system_variables.server_id;
   /*
@@ -5099,7 +5099,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       bitmap_set_bit(table->write_set, table->s->vers.end_fieldno);
     }
 
-    this->slave_exec_mode= slave_exec_mode_options; // fix the mode
+    this->slave_exec_mode= (enum_slave_exec_mode)slave_exec_mode_options;
 
     // Do event specific preparations 
     error= do_before_row_operations(rgi);

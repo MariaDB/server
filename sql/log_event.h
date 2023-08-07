@@ -54,6 +54,8 @@
 #include "rpl_record.h"
 #include "rpl_reporting.h"
 #include "sql_class.h"                          /* THD */
+#else
+typedef ulong enum_slave_exec_mode;
 #endif
 
 #include "rpl_gtid.h"
@@ -1249,12 +1251,6 @@ public:
      event's type, and its content is distributed in the event-specific fields.
   */
   uchar *temp_buf;
-  
-  /*
-    TRUE <=> this event 'owns' temp_buf and should call my_free() when done
-    with it
-  */
-  bool event_owns_temp_buf;
 
   /*
     Timestamp on the master(for debugging and replication of
@@ -1284,13 +1280,29 @@ public:
   */
   uint16 flags;
 
+  /**
+    true <=> this event 'owns' temp_buf and should call my_free() when done
+    with it
+  */
+  bool event_owns_temp_buf;
+
   enum_event_cache_type cache_type;
 
   /**
     A storage to cache the global system variable's value.
     Handling of a separate event will be governed its member.
   */
-  ulong slave_exec_mode;
+  enum_slave_exec_mode slave_exec_mode;
+
+  /**
+     The value is set by caller of FD constructor and
+     Log_event::write_header() for the rest.
+     In the FD case it's propagated into the last byte
+     of post_header_len[] at FD::write().
+     On the slave side the value is assigned from post_header_len[last]
+     of the last seen FD event.
+  */
+  enum enum_binlog_checksum_alg checksum_alg;
 
   Log_event_writer *writer;
 
@@ -1435,16 +1447,6 @@ public:
   {
     return read_log_event(file, packet, fdle, checksum_alg, get_max_packet());
   }
-
-  /* 
-     The value is set by caller of FD constructor and
-     Log_event::write_header() for the rest.
-     In the FD case it's propagated into the last byte 
-     of post_header_len[] at FD::write().
-     On the slave side the value is assigned from post_header_len[last] 
-     of the last seen FD event.
-  */
-  enum enum_binlog_checksum_alg checksum_alg;
 
   static void *operator new(size_t size)
   {
