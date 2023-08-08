@@ -1611,8 +1611,7 @@ static void write_item(Json_writer *writer, Item *item, bool no_tmp_tbl)
   ulonglong save_option_bits= thd->variables.option_bits;
   thd->variables.option_bits &= ~OPTION_QUOTE_SHOW_CREATE;
 
-  auto qtype= QT_EXPLAIN | (no_tmp_tbl? QT_DONT_ACCESS_TMP_TABLES: 0);
-  item->print(&str, (enum_query_type)qtype);
+  item->print(&str, QT_EXPLAIN);
 
   thd->variables.option_bits= save_option_bits;
   writer->add_str(str.c_ptr_safe());
@@ -1624,8 +1623,8 @@ static void append_item_to_str(String *out, Item *item, bool no_tmp_tbl)
   ulonglong save_option_bits= thd->variables.option_bits;
   thd->variables.option_bits &= ~OPTION_QUOTE_SHOW_CREATE;
 
-  auto qtype= QT_EXPLAIN | (no_tmp_tbl? QT_DONT_ACCESS_TMP_TABLES: 0);
-  item->print(out, (enum_query_type)qtype);
+  item->print(out, QT_EXPLAIN);
+
   thd->variables.option_bits= save_option_bits;
 }
 

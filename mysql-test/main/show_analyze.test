@@ -368,9 +368,37 @@ DROP TABLE t1;
 --echo # MDEV-31432 tmp_table field accessed after free
 --echo # torture for the above (MDEV-28201) caused use after free error
 --echo #
---disable_warnings
-# warnings are unstable in this query, Warning	1052	Column 'x' in {IN/ALL/ANY subquery,having clause} is ambiguous
+create table t1 ( x int);
+insert into t1 values(1);
+
+SELECT
+  1 IN
+  ((
+     SELECT
+       1 IN (SELECT 1 AS x0
+             FROM
+               (
+                SELECT *
+                FROM (SELECT 1 AS x) AS x5
+                GROUP BY x,x
+                HAVING
+                  x IN (
+                    SELECT *
+                    FROM t1 AS x1
+                    WHERE
+                      x IN (SELECT 1 AS x
+                            FROM t1 AS x3
+                            GROUP BY x
+                            HAVING
+                              x IN (SELECT 0 FROM t1 AS x4)
+                           )
+                  )
+               ) AS x6
+            )
+     FROM
+       t1
+  )) as VAL;
+drop table t1;
 
 SELECT * FROM (SELECT x,0 FROM (SELECT * FROM (SELECT * FROM (SELECT x,0 FROM (SELECT 1 AS x) AS x WHERE x IN (SELECT 1 AS x FROM (SELECT 1 AS x FROM (SELECT 1 AS x) AS x WHERE x IN (1)) AS x WHERE x IN (SELECT * FROM (SELECT 1 AS x) AS x WHERE x IN (SELECT x IN ((SELECT * FROM (SELECT 1 AS x FROM (SELECT 1 AS x) AS x WHERE x IN (1)) AS x GROUP BY x HAVING NOT x)) GROUP BY x HAVING NOT x)) GROUP BY x HAVING NOT NOT x)) AS x) AS x GROUP BY x,x IN (SELECT 1 WHERE x IN (SELECT 1 WHERE NOT x IN (1)))) AS x WHERE x IN (1)) AS x GROUP BY NOT x IN (SELECT (SELECT 1 AS x FROM (SELECT * FROM (SELECT * FROM (SELECT 1 AS x GROUP BY x HAVING NOT 1) AS x WHERE x IN (1) GROUP BY x,x) AS x) AS x) IN ((SELECT (SELECT * FROM (SELECT 1 AS x FROM (SELECT 1 AS x) AS x WHERE x IN (1)) AS x GROUP BY x HAVING NOT x) IN (SELECT 1 AS x FROM (SELECT 1 AS x FROM (SELECT * FROM (SELECT 1 AS x) AS x WHERE x IN (SELECT x) GROUP BY x,x HAVING x IN (SELECT x IN (SELECT 1 AS x FROM (SELECT 1 AS x) AS x WHERE x IN (SELECT * FROM (SELECT 1 AS x) AS x WHERE x IN (SELECT 1 AS x FROM (SELECT 1 AS x FROM (SELECT 1 AS x) AS x WHERE x IN (1)) AS x WHERE x IN (1) GROUP BY x HAVING x IN (SELECT NOT (SELECT * FROM (SELECT * FROM (SELECT x IN (SELECT 1 AS x WHERE x IN ((SELECT 1 AS x FROM (SELECT 1 AS x) AS x WHERE x IN (SELECT 1 IN (1) AS x)))) AS x FROM (SELECT 1 AS x FROM (SELECT * FROM (SELECT * FROM (SELECT x,0 FROM (SELECT 1 AS x) AS x WHERE x IN (SELECT 1 AS x FROM (SELECT 1 AS x FROM (SELECT 1 AS x) AS x WHERE x IN (1)) AS x WHERE x IN (1) GROUP BY x HAVING NOT NOT x)) AS x) AS x) AS x) AS x) AS x WHERE x IN (1)) AS x) FROM (SELECT 1 AS x) AS x)))) WHERE NOT x IN (1))) AS x WHERE x IN (1)) AS x WHERE x IN (1) GROUP BY x HAVING NOT NOT x) AS x FROM (SELECT * FROM (SELECT * FROM (SELECT 1 AS x FROM (SELECT 1 AS x) AS x) AS x WHERE x IN (1)) AS x) AS x WHERE x IN (1))));
-
 

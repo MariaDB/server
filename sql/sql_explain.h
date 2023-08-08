@@ -448,19 +448,19 @@ class Explain_insert;
 
   (1) - Query plan construction is finished and it is available for reading.
 
-  (2) - Temporary tables are freed. After this point,
-        we dont need to pass QT_ACCESS_TMP_TABLES to item->print(). Since
-        we don't track when #2 happens for each temp.table, we pass this
-        flag whenever we're printing the query plan for a SHOW command.
-        Also, we pass it when printing ANALYZE (?)
+  (2) - Temporary tables are freed (with exception of derived tables
+        which are freed at step (4)).
+        The tables are no longer accessible but one can still call
+        item->print(), even for items that refer to temp.tables (see
+        Item_field::print() for details)
 
   (3) - Notification about (4).
   (4) - Tables used by the query are closed. One known consequence of this is
         that the values of the const tables' fields are not available anymore.
-        We could use the same approach as in QT_ACCESS_TMP_TABLES to work
-        around that, but instead we disallow producing FORMAT=JSON output at
-        step #3. We also processing of SHOW command. The rationale is that
-        query is close to finish anyway.
+        We could use the same apporach as with Items that refer to temporary
+        tables (see Item::REFERS_TO_OTHER_TMP) but instead we disallow producing
+        FORMAT=JSON output at step #3. We also disallow processing of SHOW
+        EXPLAIN|ANALYZE. the query is close to finish anyway.
 
   (5) - Item objects are freed. After this, it's certainly not possible to
         print them into FORMAT=JSON output.

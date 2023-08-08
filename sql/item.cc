@@ -7874,27 +7874,14 @@ void Item_field::print(String *str, enum_query_type query_type)
 {
   /*
     If the field refers to a constant table, print the value.
-    But there are exceptions:
-    1. For temporary (aka "work") tables, we can access the the table only
-       if QT_DONT_ACCESS_TMP_TABLES is specified (if not, the table might have AAAA
-       already been freed).
+    There are two exceptions:
+    1. For temporary (aka "work") tables, we can only access the derived temp.
+       tables. Other kinds of tables might already have been dropped.
     2. Don't print constants if QT_NO_DATA_EXPANSION or QT_VIEW_INTERNAL is
        specified.
   */
-  bool skip_print_tmp= false;
-  if (refers_to_temp_table == REFERS_TO_OTHER_TMP)
-  {
-    skip_print_tmp= true;  // It's never safe to access non-derived tmp.tables
-  }
-  else if (refers_to_temp_table == REFERS_TO_DERIVED_TMP)
-  {
-    // Derived tmp table: can only access if it isn't freed, yet.
-    if ((query_type & QT_DONT_ACCESS_TMP_TABLES))
-      skip_print_tmp= true;
-  }
-
-  if (!skip_print_tmp && // (1)
-      !(query_type & (QT_NO_DATA_EXPANSION | QT_VIEW_INTERNAL)) &&      // (2)
+  if ((refers_to_temp_table != REFERS_TO_OTHER_TMP) &&             // (1)
+      !(query_type & (QT_NO_DATA_EXPANSION | QT_VIEW_INTERNAL)) && // (2)
       field && field->table->const_table)
   {
     print_value(str);
