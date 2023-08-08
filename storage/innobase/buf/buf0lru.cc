@@ -849,7 +849,13 @@ relocate_compressed:
 		mysql_mutex_lock(&buf_pool.flush_list_mutex);
 		new (b) buf_page_t(*bpage);
 		b->frame = nullptr;
-		b->set_state(buf_page_t::UNFIXED + 1);
+		{
+			ut_d(uint32_t s=) b->fix();
+			ut_ad(s == buf_page_t::FREED
+			      || s == buf_page_t::UNFIXED
+			      || s == buf_page_t::IBUF_EXIST
+			      || s == buf_page_t::REINIT);
+		}
 		break;
 	default:
 		if (zip || !bpage->zip.data || !bpage->frame) {

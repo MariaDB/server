@@ -1,0 +1,95 @@
+connection node_2;
+connection node_1;
+# Lets first see that we can access wsrep schema tables
+# Node1
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+EXPECT_0
+0
+SELECT COUNT(*) AS EXPECT_1 from mysql.wsrep_cluster;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM mysql.wsrep_cluster_members;
+EXPECT_2
+2
+connection node_2;
+# Node2
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+EXPECT_0
+0
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_cluster;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM mysql.wsrep_cluster_members;
+EXPECT_2
+2
+connection node_1;
+SET GLOBAL wsrep_provider_options = 'pc.ignore_sb=true';
+SET GLOBAL wsrep_provider_options = 'pc.weight=2';
+connection node_2;
+# Desync and disconnect node_2
+SET @@global.wsrep_desync = 1;
+SET SESSION wsrep_dirty_reads=1;
+SET SESSION wsrep_sync_wait=0;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+VARIABLE_VALUE
+non-Primary
+connection node_1;
+# Waiting until node_2 is not part of cluster anymore
+# Verify that we can access wsrep schema tables
+# Node1
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+EXPECT_0
+0
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_cluster;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_cluster_members;
+EXPECT_1
+1
+connection node_2;
+# Node2
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+EXPECT_0
+0
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_cluster;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM mysql.wsrep_cluster_members;
+EXPECT_2
+2
+connection node_2;
+# Reconnect node_2 back to cluster
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
+SET wsrep_dirty_reads=0;
+SHOW STATUS LIKE 'wsrep_desync_count';
+Variable_name	Value
+wsrep_desync_count	0
+SET @@global.wsrep_desync = 0;
+CALL mtr.add_suppression("WSREP: Protocol violation. JOIN message sender (.*) is not in state transfer \\(SYNCED\\). Message ignored.");
+connection node_1;
+# Wait until both nodes are back to cluster
+SET GLOBAL wsrep_provider_options = 'pc.ignore_sb=false';
+SET GLOBAL wsrep_provider_options = 'pc.weight=1';
+# Verify that we can access wsrep schema tables
+# Node1
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+EXPECT_0
+0
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_cluster;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM mysql.wsrep_cluster_members;
+EXPECT_2
+2
+connection node_2;
+# Node2
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+EXPECT_0
+0
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_cluster;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM mysql.wsrep_cluster_members;
+EXPECT_2
+2

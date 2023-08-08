@@ -94,9 +94,12 @@ DEFAULT CHARSET=latin1;
 INSERT INTO federated.t3 VALUES
   ('yyy'), ('www'), ('yyy'), ('xxx'), ('www'), ('yyy'), ('www');
 
+#Enable after fix MDEV-31361
+--disable_ps2_protocol
 SELECT *
 FROM federated.t3, (SELECT * FROM federated.t1 WHERE id > 3) t
 WHERE federated.t3.name=t.name;
+--enable_ps2_protocol
 
 EXPLAIN
 SELECT *
@@ -113,11 +116,14 @@ SELECT *
 FROM federated.t3, (SELECT * FROM federated.t1 WHERE id > 3) t
 WHERE federated.t3.name=t.name;
 
+#Check after fix MDEV-31361
+--disable_ps2_protocol
 SELECT *
 FROM federated.t3, (SELECT t1.name FROM federated.t1
                     WHERE id IN (SELECT count(*)
                                  FROM federated.t2 GROUP BY name)) t
 WHERE federated.t3.name=t.name;
+--enable_ps2_protocol
 
 EXPLAIN
 SELECT *
@@ -164,7 +170,9 @@ select * from federated.t4;
 
 select name into @var from federated.t1 where id=3 limit 1 ;
 select @var;
+--disable_ps2_protocol
 select name into outfile 'tmp.txt' from federated.t1;
+--enable_ps2_protocol
 
 let $path=`select concat(@@datadir, 'test/tmp.txt')`;
 remove_file $path;

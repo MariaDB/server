@@ -238,7 +238,9 @@ begin
   return 100;
 end|
 delimiter ;|
+--disable_ps2_protocol
 select foo4();
+--enable_ps2_protocol
 
 prepare stmt1 from 'select foo4()';
 execute stmt1;
@@ -253,7 +255,9 @@ begin
   return 100;
 end|
 delimiter ;|
+--disable_ps2_protocol
 select foo5();
+--enable_ps2_protocol
 
 prepare stmt1 from 'select foo5()';
 execute stmt1;
@@ -268,8 +272,10 @@ begin
   return 100;
 end|
 delimiter ;|
+--disable_ps2_protocol
 select foo6("foo6_1_");
 select foo6(concat("foo6_2_",SYS_GUID()));
+--enable_ps2_protocol
 
 prepare stmt1 from 'select foo6(concat("foo6_3_",SYS_GUID()))';
 execute stmt1;
@@ -376,7 +382,9 @@ begin
  return 1;
 end|
 delimiter ;|
+--disable_ps2_protocol
 select f("try_41_");
+--enable_ps2_protocol
 # Two operations which compensate each other except that their net
 # effect is that they advance the auto_increment counter of t2 on slave:
 sync_slave_with_master;
@@ -386,7 +394,9 @@ delete from t2 where a>=2;
 
 connection master;
 # this is the call which didn't replicate well
+--disable_ps2_protocol
 select f("try_42_");
+--enable_ps2_protocol
 sync_slave_with_master;
 
 # now use prepared statement and test again, just to see that the RBB
@@ -410,7 +420,9 @@ connection master;
 create table t12 select * from t1; # save for comparing later
 drop table t1;
 create table t1 (a int, b varchar(100), key(a));
+--disable_ps2_protocol
 select f("try_45_");
+--enable_ps2_protocol
 
 # restore table's key
 create table t13 select * from t1;
@@ -435,7 +447,9 @@ begin
  return 1;
 end|
 delimiter ;|
+--disable_ps2_protocol
 select f1("try_46_"),f2("try_47_");
+--enable_ps2_protocol
 
 sync_slave_with_master;
 insert into t2 values(2,null),(3,null),(4,null);
@@ -443,7 +457,9 @@ delete from t2 where a>=2;
 
 connection master;
 # Test with SELECT and INSERT
+--disable_ps2_protocol
 select f1("try_48_"),f2("try_49_");
+--enable_ps2_protocol
 insert into t3 values(concat("try_50_",f1("try_51_"),f2("try_52_")));
 sync_slave_with_master;
 
@@ -460,7 +476,9 @@ begin
  return y;
 end|
 delimiter ;|
+--disable_ps2_protocol
 select f1("try_53_"),f2("try_54_");
+--enable_ps2_protocol
 sync_slave_with_master;
 
 # And now, a normal statement with a trigger (no stored functions)

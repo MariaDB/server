@@ -103,10 +103,12 @@ call before_payload();
 
 # Payload query to analyse: should do batch io on t3
 
+--disable_ps2_protocol
 --disable_result_log
 select t1.*, t2.*, t3.*
   from t1 join t2 using (id1) join t3 using (id2);
 --enable_result_log
+--enable_ps2_protocol
 
 call after_payload();
 
@@ -127,10 +129,12 @@ call before_payload();
 
 # Payload query to analyse: should do batch io on t3
 
+--disable_ps2_protocol
 --disable_result_log
 select t1.*, t2.*, t3.*
   from t1 join t2 using (id1) join t3 using (id2);
 --enable_result_log
+--enable_ps2_protocol
 
 call after_payload();
 

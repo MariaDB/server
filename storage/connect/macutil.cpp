@@ -57,12 +57,11 @@ void MACINFO::MakeErrorMsg(PGLOBAL g, DWORD drc)
       "GetAdaptersInfo: Buffer Overflow buflen=%d nbofadap=%d",
       Buflen, N);
   else if (drc == ERROR_INVALID_PARAMETER)
-    strcpy(g->Message, "GetAdaptersInfo: Invalid parameters");
+    snprintf(g->Message, sizeof(g->Message), "GetAdaptersInfo: Invalid parameters");
   else if (drc == ERROR_NO_DATA)
-    strcpy(g->Message,
-           "No adapter information exists for the local computer");
+    snprintf(g->Message, sizeof(g->Message), "No adapter information exists for the local computer");
   else if (drc == ERROR_NOT_SUPPORTED)
-    strcpy(g->Message, "GetAdaptersInfo is not supported");
+    snprintf(g->Message, sizeof(g->Message), "GetAdaptersInfo is not supported");
   else
     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
                   FORMAT_MESSAGE_IGNORE_INSERTS, NULL, GetLastError(),

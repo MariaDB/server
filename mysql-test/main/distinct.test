@@ -494,14 +494,18 @@ DROP TABLE IF EXISTS t2;
 CREATE TABLE t2 (fruit_id INT NOT NULL, fruit_name varchar(20)
 default NULL);
 
+--disable_ps2_protocol
 SELECT DISTINCT fruit_id, fruit_name INTO OUTFILE 
 '../../tmp/data1.tmp' FROM t1 WHERE fruit_name = 'APPLE';
+--enable_ps2_protocol
 LOAD DATA INFILE '../../tmp/data1.tmp' INTO TABLE t2;
 --error 0,1
 --remove_file $MYSQLTEST_VARDIR/tmp/data1.tmp
 
+--disable_ps2_protocol
 SELECT DISTINCT @v19:= fruit_id, @v20:= fruit_name INTO OUTFILE 
 '../../tmp/data2.tmp' FROM t1 WHERE fruit_name = 'APPLE';
+--enable_ps2_protocol
 LOAD DATA INFILE '../../tmp/data2.tmp' INTO TABLE t2;
 --remove_file $MYSQLTEST_VARDIR/tmp/data2.tmp
 
@@ -909,6 +913,18 @@ explain select distinct a from t1 where t1.a=1 and t1.a in (select a+0 from t2 w
 select distinct a from t1 where t1.a=1 and t1.a in (select a+0 from t2 where t2.b in (1,2)) limit 10,10;
 select distinct a from t1 where t1.a=1 and t1.a in (select a+0 from t2 where t2.b in (1,2)) limit 0,1;
 drop table t1,t2;
+
+--echo #
+--echo # MDEV-31743 Server crash in store_length, assertion failure in
+--echo #            Type_handler_string_result::sort_length
+--echo #
+
+create table t1 (a int, b longtext, c varchar(18));
+insert into t1 values (1, 'Aa123456', 'abc'), (2, 'Bb7897777', 'def'),
+  (3, 'Cc01287', 'xyz'), (5, 'd12345', 'efg');
+
+select distinct if(sum(a), b, 0) from t1 group by value(c) with rollup;
+drop table t1;
 
 --echo #
 --echo # end of 10.5 tests

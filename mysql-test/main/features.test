@@ -9,6 +9,8 @@ drop table if exists t1;
 
 set sql_mode="";
 
+--disable_ps2_protocol
+
 flush status;
 
 show status like "feature%";
@@ -115,7 +117,7 @@ select updatexml('<div><div><span>1</span><span>2</span></div></div>',
                  '/','<tr><td>1</td><td>2</td></tr>') as upd1;
 --replace_result 4 2
 show status like "feature_xml";
-
+--enable_ps2_protocol
 
 --echo #
 --echo # Feature delayed_keys

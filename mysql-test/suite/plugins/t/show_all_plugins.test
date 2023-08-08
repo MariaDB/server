@@ -12,7 +12,9 @@ show status like '%libraries%';
 #show status like '%libraries%';
 --replace_result .dll .so
 --replace_column 5 MYSQL_VERSION_ID
+--disable_ps2_protocol
 eval select * from information_schema.all_plugins where plugin_library='$HA_EXAMPLE_SO';
+--enable_ps2_protocol
 show status like '%libraries%';
 --sorted_result
 --replace_result .dll .so

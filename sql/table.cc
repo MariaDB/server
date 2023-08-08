@@ -46,6 +46,9 @@
 #include "sql_show.h"
 #include "opt_trace.h"
 #include "sql_db.h"              // get_default_db_collation
+#ifdef WITH_WSREP
+#include "wsrep_schema.h"
+#endif
 
 /* For MySQL 5.7 virtual fields */
 #define MYSQL57_GENERATED_FIELD 128
@@ -281,10 +284,14 @@ TABLE_CATEGORY get_table_category(const LEX_CSTRING *db,
 
 #ifdef WITH_WSREP
   if (db->str &&
-      my_strcasecmp(system_charset_info, db->str, "mysql") == 0 &&
-      my_strcasecmp(system_charset_info, name->str, "wsrep_streaming_log") == 0)
+      my_strcasecmp(system_charset_info, db->str, WSREP_SCHEMA) == 0)
   {
-    return TABLE_CATEGORY_INFORMATION;
+    if ((my_strcasecmp(system_charset_info, name->str, WSREP_STREAMING_TABLE) == 0 ||
+         my_strcasecmp(system_charset_info, name->str, WSREP_CLUSTER_TABLE) == 0 ||
+         my_strcasecmp(system_charset_info, name->str, WSREP_MEMBERS_TABLE) == 0))
+    {
+      return TABLE_CATEGORY_INFORMATION;
+    }
   }
 #endif /* WITH_WSREP */
   if (is_infoschema_db(db))
@@ -3541,17 +3548,18 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   if (thd->lex->create_info.resolve_to_charset_collation_context(thd, ctx))
     DBUG_RETURN(true);
 
-  thd->lex->create_info.db_type= hton;
+  tmp_lex.create_info.db_type= hton;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   thd->work_part_info= 0;                       // For partitioning
 #endif
 
   if (tabledef_version.str)
-    thd->lex->create_info.tabledef_version= tabledef_version;
+    tmp_lex.create_info.tabledef_version= tabledef_version;
 
-  promote_first_timestamp_column(&thd->lex->alter_info.create_list);
-  file= mysql_create_frm_image(thd, db, table_name,
-                               &thd->lex->create_info, &thd->lex->alter_info,
+  tmp_lex.alter_info.db= db;
+  tmp_lex.alter_info.table_name= table_name;
+  promote_first_timestamp_column(&tmp_lex.alter_info.create_list);
+  file= mysql_create_frm_image(thd, &tmp_lex.create_info, &tmp_lex.alter_info,
                                C_ORDINARY_CREATE, &unused1, &unused2, &frm);
   error|= file == 0;
   delete file;
@@ -3565,7 +3573,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
 
 ret:
   my_free(const_cast<uchar*>(frm.str));
-  lex_end(thd->lex);
+  lex_end(&tmp_lex);
   thd->reset_db(&db_backup);
   thd->lex= old_lex;
   reenable_binlog(thd);
@@ -9992,18 +10000,12 @@ LEX_CSTRING *fk_option_name(enum_fk_option opt)
   {
     { STRING_WITH_LEN("???") },
     { STRING_WITH_LEN("RESTRICT") },
+    { STRING_WITH_LEN("NO ACTION") },
     { STRING_WITH_LEN("CASCADE") },
     { STRING_WITH_LEN("SET NULL") },
-    { STRING_WITH_LEN("NO ACTION") },
     { STRING_WITH_LEN("SET DEFAULT") }
   };
   return names + opt;
-}
-
-bool fk_modifies_child(enum_fk_option opt)
-{
-  static bool can_write[]= { false, false, true, true, false, true };
-  return can_write[opt];
 }
 
 enum TR_table::enabled TR_table::use_transaction_registry= TR_table::MAYBE;

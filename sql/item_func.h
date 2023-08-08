@@ -243,12 +243,23 @@ public:
   */
   inline longlong check_integer_overflow(longlong value, bool val_unsigned)
   {
-    if ((unsigned_flag && !val_unsigned && value < 0) ||
-        (!unsigned_flag && val_unsigned &&
-         (ulonglong) value > (ulonglong) LONGLONG_MAX))
-      return raise_integer_overflow();
-    return value;
+    return check_integer_overflow(Longlong_hybrid(value, val_unsigned));
   }
+
+  // Check if the value is compatible with Item::unsigned_flag.
+  inline longlong check_integer_overflow(const Longlong_hybrid &sval)
+  {
+    Longlong_null res= sval.val_int(unsigned_flag);
+    return res.is_null() ? raise_integer_overflow() : res.value();
+  }
+
+  // Check if the value is compatible with Item::unsigned_flag.
+  longlong check_integer_overflow(const ULonglong_hybrid &uval)
+  {
+    Longlong_null res= uval.val_int(unsigned_flag);
+    return res.is_null() ? raise_integer_overflow() : res.value();
+  }
+
   /**
      Throw an error if the error code of a DECIMAL operation is E_DEC_OVERFLOW.
   */
@@ -2005,11 +2016,7 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override;
   String *str_op(String *str) override { DBUG_ASSERT(0); return 0; }
-  bool native_op(THD *thd, Native *to) override
-  {
-    DBUG_ASSERT(0);
-    return true;
-  }
+  bool native_op(THD *thd, Native *to) override;
 };
 
 
@@ -2074,11 +2081,7 @@ public:
   my_decimal *decimal_op(my_decimal *) override;
   bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
   bool time_op(THD *thd, MYSQL_TIME *ltime) override;
-  bool native_op(THD *thd, Native *to) override
-  {
-    DBUG_ASSERT(0);
-    return true;
-  }
+  bool native_op(THD *thd, Native *to) override;
   String *str_op(String *str) override
   {
     DBUG_ASSERT(0);

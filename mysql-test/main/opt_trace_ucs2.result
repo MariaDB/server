@@ -24,8 +24,8 @@ EXPLAIN
     ]
   }
 }
-select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
-JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JS
 [
     {
         "range_scan_alternatives": 

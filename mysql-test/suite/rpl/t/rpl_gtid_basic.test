@@ -211,6 +211,7 @@ SELECT * FROM t1;
 
 --echo *** Test @@LAST_GTID and MASTER_GTID_WAIT() ***
 
+--disable_ps2_protocol
 --connection server_1
 DROP TABLE t1;
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
@@ -396,7 +397,7 @@ INSERT INTO t1 VALUES (7);
 reap;
 --connection s7
 reap;
-
+--enable_ps2_protocol
 
 --echo *** Test gtid_slave_pos when used with GTID ***
 
@@ -562,6 +563,50 @@ SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
 --connection server_4
 --sync_with_master
 SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+
+
+--echo *** MDEV-31723: Crash on SET SESSION gtid_seq_no= DEFAULT
+--connection server_1
+
+# Setting gtid_seq_no forces the GTID logged, but only once.
+SET SESSION gtid_seq_no= 2000;
+SELECT @@SESSION.gtid_seq_no;
+INSERT INTO t1 VALUES (40);
+SELECT @@SESSION.gtid_seq_no;
+SELECT REGEXP_REPLACE(@@gtid_binlog_pos, ".*\\b(0-1-[0-9]+)\\b.*", "\\1") AS dom0_pos;
+INSERT INTO t1 VALUES (41);
+SELECT REGEXP_REPLACE(@@gtid_binlog_pos, ".*\\b(0-1-[0-9]+)\\b.*", "\\1") AS dom0_pos;
+
+# Setting to 0 has no effect.
+SET SESSION gtid_seq_no= 2010;
+INSERT INTO t1 VALUES (42);
+SELECT REGEXP_REPLACE(@@gtid_binlog_pos, ".*\\b(0-1-[0-9]+)\\b.*", "\\1") AS dom0_pos;
+SET @old_strict= @@GLOBAL.gtid_strict_mode;
+SET GLOBAL gtid_strict_mode= 1;
+SET SESSION gtid_seq_no= 0;
+INSERT INTO t1 VALUES (43);
+SELECT REGEXP_REPLACE(@@gtid_binlog_pos, ".*\\b(0-1-[0-9]+)\\b.*", "\\1") AS dom0_pos;
+SET GLOBAL gtid_strict_mode= @old_strict;
+INSERT INTO t1 VALUES (44);
+SELECT REGEXP_REPLACE(@@gtid_binlog_pos, ".*\\b(0-1-[0-9]+)\\b.*", "\\1") AS dom0_pos;
+
+# Setting gtid_seq_no multiple times.
+SET SESSION gtid_seq_no= 2020;
+SET SESSION gtid_seq_no= 2030;
+INSERT INTO t1 VALUES (45);
+SELECT REGEXP_REPLACE(@@gtid_binlog_pos, ".*\\b(0-1-[0-9]+)\\b.*", "\\1") AS dom0_pos;
+
+# Setting to DEFAULT or 0 disables prior setting.
+SET SESSION gtid_seq_no= 2040;
+SET SESSION gtid_seq_no= DEFAULT;
+INSERT INTO t1 VALUES (46);
+SELECT REGEXP_REPLACE(@@gtid_binlog_pos, ".*\\b(0-1-[0-9]+)\\b.*", "\\1") AS dom0_pos;
+INSERT INTO t1 VALUES (47);
+SELECT REGEXP_REPLACE(@@gtid_binlog_pos, ".*\\b(0-1-[0-9]+)\\b.*", "\\1") AS dom0_pos;
+SET SESSION gtid_seq_no= 2050;
+SET SESSION gtid_seq_no= 0;
+INSERT INTO t1 VALUES (48);
+SELECT REGEXP_REPLACE(@@gtid_binlog_pos, ".*\\b(0-1-[0-9]+)\\b.*", "\\1") AS dom0_pos;
 
 
 # Clean up.

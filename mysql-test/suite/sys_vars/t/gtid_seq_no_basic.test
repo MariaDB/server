@@ -9,5 +9,7 @@ SELECT @@session.gtid_seq_no;
 --error ER_LOCAL_VARIABLE
 SET GLOBAL gtid_seq_no= DEFAULT;
 
+SET SESSION gtid_seq_no= DEFAULT;
+
 SET SESSION gtid_seq_no= -1;
 SELECT @@session.gtid_seq_no;

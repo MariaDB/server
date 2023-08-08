@@ -1214,6 +1214,8 @@ generation	name
 2	Grandma Ann
 2	Grandma Sally
 2	Grandpa Ben
+Warnings:
+Warning	1931	Query execution was interrupted. The query exceeded max_recursive_iterations = 1. The query result may be incomplete
 # query with recursive tables using key access
 alter table folks add primary key (id);
 explain
@@ -2433,6 +2435,8 @@ DROP TABLE edges;
 #             in a heap table
 #
 create table t1 (id int, test_data varchar(36));
+set @save_max_recursive_iterations= @@max_recursive_iterations;
+set max_recursive_iterations= 200000;
 insert into t1(id, test_data)
 select id, test_data
 from (
@@ -2444,6 +2448,7 @@ select id + 1, uuid() from data_generator where id < 150000
 select * from data_generator
 ) as a;
 drop table t1;
+set max_recursive_iterations= @save_max_recursive_iterations;
 #
 # MDEV-10773: ANALYZE for query with recursive CTE
 #
@@ -2663,6 +2668,8 @@ select * from applied_modules;
 m
 m1
 m2
+Warnings:
+Warning	1931	Query execution was interrupted. The query exceeded max_recursive_iterations = 2. The query result may be incomplete
 drop table value_nodes, module_nodes, module_arguments, module_results;
 #
 # mdev-12519: recursive references in subqueries 
@@ -5912,5 +5919,53 @@ a	a
 8	8
 9	9
 10	10
+drop table t1;
+#
+# MDEV-20010 Equal on two RANK window functions create wrong result
+#
+create table t1 (a int, b int) engine= innodb;
+insert into t1 values (4, -2), (3, -1);
+SELECT RANK() OVER (ORDER BY D.C) = RANK() OVER (ORDER BY B.a) FROM
+(SELECT 5 AS C FROM t1) as D, (SELECT t1.b AS A FROM t1) AS B;
+RANK() OVER (ORDER BY D.C) = RANK() OVER (ORDER BY B.a)
+1
+1
+0
+0
+select b, rank() over (order by c) , rank() over (order by dt1.b)
+from
+(select 5 as c from t1) as dt,
+(select b from t1) as dt1;
+b	rank() over (order by c)	rank() over (order by dt1.b)
+-2	1	1
+-2	1	1
+-1	1	3
+-1	1	3
+select b, rank() over (order by c) , rank() over (order by dt1.b),
+rank() over (order by c) = rank() over (order by dt1.b)
+from
+(select 5 as c from t1) as dt,
+(select b from t1) as dt1;
+b	rank() over (order by c)	rank() over (order by dt1.b)	rank() over (order by c) = rank() over (order by dt1.b)
+-2	1	1	1
+-2	1	1	1
+-1	1	3	0
+-1	1	3	0
+alter table t1 engine=myisam;
+select b, rank() over (order by c) , rank() over (order by dt1.b)
+from
+(select 5 as c from t1) as dt,
+(select b from t1) as dt1;
+b	rank() over (order by c)	rank() over (order by dt1.b)
+-2	1	1
+-2	1	1
+-1	1	3
+-1	1	3
+create view v1 as select b,5 as c from t1;
+select b, rank() over (order by c) from v1 order by b;
+b	rank() over (order by c)
+-2	1
+-1	1
+drop view v1;
 drop table t1;
 # End of 10.4 tests

@@ -8924,6 +8924,33 @@ DROP TABLE t1;
 # End of 10.2 tests
 #
 #
+# Start of 10.4 tests
+#
+#
+# MDEV-28384 UBSAN: null pointer passed as argument 1, which is declared to never be null in my_strnncoll_binary on SELECT ... COUNT or GROUP_CONCAT
+#
+CREATE TABLE t (c TEXT CHARACTER SET latin1 COLLATE latin1_bin NOT NULL);
+INSERT IGNORE INTO t VALUES (0);
+SELECT COUNT(*) FROM t WHERE EXTRACTVALUE(c,'a')='a';
+COUNT(*)
+0
+DROP TABLE t;
+SET sql_mode='';
+CREATE TABLE t (c TEXT CHARACTER SET latin1 COLLATE latin1_bin NOT NULL);
+INSERT INTO t VALUES();
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+INSERT IGNORE INTO t VALUES (NULL);
+Warnings:
+Warning	1048	Column 'c' cannot be null
+SELECT GROUP_CONCAT(c ORDER BY BINARY c) FROM t GROUP BY c;
+GROUP_CONCAT(c ORDER BY BINARY c)
+,
+DROP TABLE t;
+#
+# End of 10.4 tests
+#
+#
 # Start of 10.5 tests
 #
 #
@@ -8935,9 +8962,9 @@ CREATE OR REPLACE TABLE t1 AS SELECT CAST(1 AS BINARY), CAST(@a AS BINARY), CAST
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `CAST(1 AS BINARY)` varbinary(1) DEFAULT NULL,
+  `CAST(1 AS BINARY)` varbinary(1) NOT NULL,
   `CAST(@a AS BINARY)` varbinary(20) DEFAULT NULL,
-  `CAST(@b:=3 AS BINARY)` varbinary(1) DEFAULT NULL
+  `CAST(@b:=3 AS BINARY)` varbinary(1) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 #
