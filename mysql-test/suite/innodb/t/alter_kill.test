@@ -160,10 +160,14 @@ let SEARCH_PATTERN= \[ERROR\] InnoDB: Tablespace [0-9]+ was not found at .*test.
 -- source include/restart_mysqld.inc
 
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+--disable_ps2_protocol
 SELECT * FROM bug16735660;
+--enable_ps2_protocol
 
 XA RECOVER;
 XA ROLLBACK 'x';
 
+--disable_ps2_protocol
 SELECT * FROM bug16735660;
+--enable_ps2_protocol
 DROP TABLE bug16735660;

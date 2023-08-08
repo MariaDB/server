@@ -2740,15 +2740,9 @@ public:
     return p;
   }
   /** Get the utf8-body string. */
-  const char *get_body_utf8_str() const
+  LEX_CSTRING body_utf8() const
   {
-    return m_body_utf8;
-  }
-
-  /** Get the utf8-body length. */
-  size_t get_body_utf8_length() const
-  {
-    return (size_t) (m_body_utf8_ptr - m_body_utf8);
+    return LEX_CSTRING({m_body_utf8, (size_t) (m_body_utf8_ptr - m_body_utf8)});
   }
 
   void body_utf8_start(THD *thd, const char *begin_ptr);
@@ -3475,13 +3469,6 @@ public:
   TABLE_LIST *create_last_non_select_table;
   sp_head *sphead;
   sp_name *spname;
-
-  void delete_if_not_sp_lex_in_use()
-  {
-    if (!sp_lex_in_use)
-      delete this;
-  }
-
   sp_pcontext *spcont;
 
   st_sp_chistics sp_chistics;
@@ -3889,8 +3876,7 @@ public:
   bool create_package_finalize(THD *thd,
                                const sp_name *name,
                                const sp_name *name2,
-                               const char *body_start,
-                               const char *body_end);
+                               const char *cpp_body_end);
   bool call_statement_start(THD *thd, sp_name *name);
   bool call_statement_start(THD *thd, const Lex_ident_sys_st *name);
   bool call_statement_start(THD *thd, const Lex_ident_sys_st *name1,
@@ -5163,7 +5149,12 @@ int init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex);
 extern int MYSQLlex(union YYSTYPE *yylval, THD *thd);
 extern int ORAlex(union YYSTYPE *yylval, THD *thd);
 
-extern void trim_whitespace(CHARSET_INFO *cs, LEX_CSTRING *str, size_t * prefix_length = 0);
+inline void trim_whitespace(CHARSET_INFO *cs, LEX_CSTRING *str,
+                            size_t * prefix_length = 0)
+{
+  *str= Lex_cstring(*str).trim_whitespace(cs, prefix_length);
+}
+
 
 extern bool is_lex_native_function(const LEX_CSTRING *name); 
 extern bool is_native_function(THD *thd, const LEX_CSTRING *name);

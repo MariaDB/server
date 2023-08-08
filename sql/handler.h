@@ -2664,12 +2664,6 @@ typedef struct st_key_create_information
   uint flags;                                   /* HA_USE.. flags */
   LEX_CSTRING parser_name;
   LEX_CSTRING comment;
-  /**
-    A flag to determine if we will check for duplicate indexes.
-    This typically means that the key information was specified
-    directly by the user (set by the parser).
-  */
-  bool check_for_duplicate_indexes;
   bool is_ignored;
 } KEY_CREATE_INFO;
 
@@ -3880,7 +3874,7 @@ public:
     - How things are tracked in trx and in add_changed_table().
     - If we can combine several statements under one commit in the binary log.
   */
-  bool has_transactions()
+  bool has_transactions() const
   {
     return ((ha_table_flags() & (HA_NO_TRANSACTIONS | HA_PERSISTENT_TABLE))
             == 0);
@@ -3891,16 +3885,25 @@ public:
     we don't have to write failed statements to the log as they can be
     rolled back.
   */
-  bool has_transactions_and_rollback()
+  bool has_transactions_and_rollback() const
   {
     return has_transactions() && has_rollback();
   }
   /*
     True if the underlaying table support transactions and rollback
   */
-  bool has_transaction_manager()
+  bool has_transaction_manager() const
   {
     return ((ha_table_flags() & HA_NO_TRANSACTIONS) == 0 && has_rollback());
+  }
+
+  /*
+    True if the underlaying table support TRANSACTIONAL table option
+  */
+  bool has_transactional_option() const
+  {
+    extern handlerton *maria_hton;
+    return partition_ht() == maria_hton || has_transaction_manager();
   }
 
   /*
@@ -3908,7 +3911,7 @@ public:
     can be killed fast.
   */
 
-  bool has_rollback()
+  bool has_rollback() const
   {
     return ((ht->flags & HTON_NO_ROLLBACK) == 0);
   }

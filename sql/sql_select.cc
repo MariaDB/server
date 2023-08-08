@@ -651,9 +651,9 @@ bool handle_select(THD *thd, LEX *lex, select_result *result,
     bool saved_abort_on_warning= thd->abort_on_warning;
     thd->abort_on_warning= false;
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT,
-                        ER_THD(thd, ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT),
-                        thd->accessed_rows_and_keys,
+                        ER_QUERY_RESULT_INCOMPLETE,
+                        ER_THD(thd, ER_QUERY_RESULT_INCOMPLETE),
+                        "LIMIT ROWS EXAMINED",
                         thd->lex->limit_rows_examined->val_uint());
     thd->abort_on_warning= saved_abort_on_warning;
     thd->reset_killed();
@@ -9257,6 +9257,7 @@ best_access_path(JOIN      *join,
       !(s->quick &&
         s->quick->get_type() != QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX && // (2)
         best.key && s->quick->index == best.key->key &&                  // (2)
+        table->opt_range_keys.is_set(best.key->key) &&                  // (2)
         best.max_key_part >= table->opt_range[best.key->key].key_parts) &&// (2)
       !((file->ha_table_flags() & HA_TABLE_SCAN_ON_INDEX) &&      // (3)
         !table->covering_keys.is_clear_all() && best.key && !s->quick) &&// (3)
@@ -15892,7 +15893,7 @@ void JOIN_TAB::estimate_scan_time()
 double JOIN_TAB::get_examined_rows()
 {
   double examined_rows;
-  SQL_SELECT *sel= filesort? filesort->select : this->select;
+  const SQL_SELECT *sel= get_sql_select();
 
   if (sel && sel->quick && use_quick != 2)
   {
@@ -26899,6 +26900,9 @@ JOIN_TAB::remove_duplicates()
       {
         /* Item is not stored in temporary table, remember it */
         sorder->item= item;
+        sorder->type= sorder->item->type_handler()->is_packable() ?
+                      SORT_FIELD_ATTR::VARIABLE_SIZE :
+                      SORT_FIELD_ATTR::FIXED_SIZE;
         /* Calculate sorder->length */
         item->type_handler()->sort_length(thd, item, sorder);
         sorder++;
@@ -29492,13 +29496,12 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
   eta->cost= join_read_time;
   eta->loops= join_loops;
 
-  SQL_SELECT *tab_select;
   /* 
     We assume that if this table does pre-sorting, then it doesn't do filtering
     with SQL_SELECT.
   */
   DBUG_ASSERT(!(select && filesort));
-  tab_select= (filesort)? filesort->select : select;
+  const SQL_SELECT *tab_select= get_sql_select();
 
   if (filesort)
   {
@@ -29520,12 +29523,16 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
                LOG_SLOW_VERBOSITY_ENGINE))
   {
     table->file->set_time_tracker(&eta->op_tracker);
+
     /*
       Set handler_for_stats even if we are not running an ANALYZE command.
       There's no harm, and in case somebody runs a SHOW ANALYZE command we'll
       be able to print the engine statistics.
     */
-    eta->handler_for_stats= table->file;
+    if (table->file->handler_stats &&
+        table->s->tmp_table != INTERNAL_TMP_TABLE)
+      eta->handler_for_stats= table->file;
+
     if (likely(thd->lex->analyze_stmt))
     {
       eta->op_tracker.set_gap_tracker(&eta->extra_time_tracker);

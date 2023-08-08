@@ -524,6 +524,8 @@ where a1 in (select substring(b1,1,512) from t2_512 where b1 > '0');
 # group_concat with a blob argument - depends on
 # the variable group_concat_max_len, and
 # convert_blob_length == max_len*collation->mbmaxlen > CONVERT_IF_BIGGER_TO_BLOB
+#Check after fix MDEV-31276
+--disable_ps2_protocol
 explain extended select left(a1,7), left(a2,7)
 from t1_512
 where a1 in (select group_concat(b1) from t2_512 group by b2);
@@ -541,6 +543,7 @@ where a1 in (select group_concat(b1) from t2_512 group by b2);
 select left(a1,7), left(a2,7)
 from t1_512
 where a1 in (select group_concat(b1) from t2_512 group by b2);
+--enable_ps2_protocol
 
 drop table t1_512, t2_512, t3_512;
 
@@ -606,6 +609,8 @@ where a1 in (select substring(b1,1,1024) from t2_1024 where b1 > '0');
 # group_concat with a blob argument - depends on
 # the variable group_concat_max_len, and
 # convert_blob_length == max_len*collation->mbmaxlen > CONVERT_IF_BIGGER_TO_BLOB
+#Check after fix MDEV-31276
+--disable_ps2_protocol
 explain extended select left(a1,7), left(a2,7)
 from t1_1024
 where a1 in (select group_concat(b1) from t2_1024 group by b2);
@@ -623,6 +628,7 @@ where a1 in (select group_concat(b1) from t2_1024 group by b2);
 select left(a1,7), left(a2,7)
 from t1_1024
 where a1 in (select group_concat(b1) from t2_1024 group by b2);
+--enable_ps2_protocol
 
 drop table t1_1024, t2_1024, t3_1024;
 
@@ -688,6 +694,8 @@ where a1 in (select substring(b1,1,1025) from t2_1025 where b1 > '0');
 # group_concat with a blob argument - depends on
 # the variable group_concat_max_len, and
 # convert_blob_length == max_len*collation->mbmaxlen > CONVERT_IF_BIGGER_TO_BLOB
+#Check after fix MDEV-31276
+--disable_ps2_protocol
 explain extended select left(a1,7), left(a2,7)
 from t1_1025
 where a1 in (select group_concat(b1) from t2_1025 group by b2);
@@ -705,6 +713,7 @@ where a1 in (select group_concat(b1) from t2_1025 group by b2);
 select left(a1,7), left(a2,7)
 from t1_1025
 where a1 in (select group_concat(b1) from t2_1025 group by b2);
+--enable_ps2_protocol
 
 drop table t1_1025, t2_1025, t3_1025;
 

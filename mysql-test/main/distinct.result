@@ -1183,5 +1183,16 @@ a
 1
 drop table t1,t2;
 #
+# MDEV-31743 Server crash in store_length, assertion failure in
+#            Type_handler_string_result::sort_length
+#
+create table t1 (a int, b longtext, c varchar(18));
+insert into t1 values (1, 'Aa123456', 'abc'), (2, 'Bb7897777', 'def'),
+(3, 'Cc01287', 'xyz'), (5, 'd12345', 'efg');
+select distinct if(sum(a), b, 0) from t1 group by value(c) with rollup;
+if(sum(a), b, 0)
+Aa123456
+drop table t1;
+#
 # end of 10.5 tests
 #

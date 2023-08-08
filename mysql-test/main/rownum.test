@@ -307,6 +307,7 @@ drop table t1;
 create table t1 (a int);
 insert into t1 select seq from seq_1_to_100;
 
+--disable_ps2_protocol
 flush status;
 select * from t1 where rownum() <= 3;
 show status like "Rows_read";
@@ -371,6 +372,7 @@ show status like "Rows_read";
 flush status;
 select * from t1 where rownum() < 10 limit 4;
 show status like "Rows_read";
+--enable_ps2_protocol
 
 drop table t1;
 
@@ -445,7 +447,9 @@ insert into t1 values (1),(2),(3),(4),(5);
 let $query=
 select * from (select a from t1 where a < 1000) as tt where rownum() <= 2;
 flush status;
+--disable_ps2_protocol
 eval $query;
+--enable_ps2_protocol
 show status like "Rows_read";
 eval explain extended $query;
 eval prepare stmt from "$query";
@@ -461,7 +465,9 @@ deallocate prepare stmt;
 let $query=
 select * from (select a from t1 where a < 1000 group by a) as tt where rownum() <= 2;
 flush status;
+--disable_ps2_protocol
 eval $query;
+--enable_ps2_protocol
 show status like "Rows_read";
 eval explain extended $query;
 eval prepare stmt from "$query";
@@ -472,7 +478,9 @@ deallocate prepare stmt;
 let $query=
 select * from (select a from t1 where a < 1000 group by a order by 1) as tt where rownum() <= 2;
 flush status;
+--disable_ps2_protocol
 eval $query;
+--enable_ps2_protocol
 show status like "Rows_read";
 eval explain extended $query;
 eval prepare stmt from "$query";
@@ -483,7 +491,9 @@ deallocate prepare stmt;
 let $query=
 select * from (select a from t1 where a < 1000 union select 10) as tt where rownum() <= 2;
 flush status;
+--disable_ps2_protocol
 eval $query;
+--enable_ps2_protocol
 show status like "Rows_read";
 eval explain extended $query;
 eval prepare stmt from "$query";

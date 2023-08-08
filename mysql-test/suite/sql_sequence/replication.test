@@ -9,6 +9,7 @@
 --source include/master-slave.inc
 --source include/have_innodb.inc
 
+--disable_ps2_protocol
 connection master;
 create database s_db;
 use s_db;
@@ -868,6 +869,7 @@ select * from t1;
 select * from s1;
 connection master;
 drop table t1,s1;
+--enable_ps2_protocol
 
 #
 # Cleanup

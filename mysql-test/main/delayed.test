@@ -611,7 +611,6 @@ disconnect con1;
 --source include/wait_until_disconnected.inc
 connection default;
 drop tables tm, t1, t2;
---enable_view_protocol
 
 --echo #
 --echo # MDEV-9621 INSERT DELAYED fails on insert for tables with many columns
@@ -660,3 +659,4 @@ INSERT DELAYED INTO t1 VALUES (0);
 INSERT DELAYED INTO t1 VALUES (0);
 DROP TABLE t1;
 
+--enable_view_protocol

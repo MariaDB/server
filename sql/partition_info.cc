@@ -799,9 +799,6 @@ bool partition_info::has_unique_name(partition_element *element)
 */
 bool partition_info::vers_set_hist_part(THD *thd, uint *create_count)
 {
-  DBUG_ASSERT(!thd->lex->last_table() ||
-              !thd->lex->last_table()->vers_conditions.delete_history);
-
   const bool auto_hist= create_count && vers_info->auto_hist;
 
   if (vers_info->limit)
@@ -989,6 +986,8 @@ bool vers_create_partitions(THD *thd, TABLE_LIST* tl, uint num_parts)
       goto exit;
     }
 
+    alter_info.db= alter_ctx.db;
+    alter_info.table_name= alter_ctx.table_name;
     if (fast_alter_partition_table(thd, table, &alter_info, &alter_ctx,
                                    &create_info, tl))
     {
