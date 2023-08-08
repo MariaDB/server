@@ -114,8 +114,8 @@ SET @@global.old_mode = 4;
 SELECT @@global.old_mode;
 @@global.old_mode
 ZERO_DATE_TIME_CAST
-SET @@global.old_mode = 64;
-ERROR 42000: Variable 'old_mode' can't be set to the value of '64'
+SET @@global.old_mode = 128;
+ERROR 42000: Variable 'old_mode' can't be set to the value of '128'
 SELECT @@global.old_mode;
 @@global.old_mode
 ZERO_DATE_TIME_CAST

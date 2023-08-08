@@ -10172,7 +10172,9 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   */
   table_list->required_type= TABLE_TYPE_NORMAL;
 
-  if (alter_info->requested_lock > Alter_info::ALTER_TABLE_LOCK_NONE
+  if ((alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_DEFAULT
+       && (thd->variables.old_behavior & OLD_MODE_LOCK_ALTER_TABLE_COPY))
+      || alter_info->requested_lock > Alter_info::ALTER_TABLE_LOCK_NONE
       || thd->lex->sql_command == SQLCOM_OPTIMIZE
       || alter_info->algorithm(thd) > Alter_info::ALTER_TABLE_ALGORITHM_COPY)
     online= false;

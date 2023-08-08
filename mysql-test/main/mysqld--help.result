@@ -709,7 +709,8 @@ The following specify which files/extra groups are read (specified before remain
  MySQL versions. Any combination of: 
  NO_DUP_KEY_WARNINGS_WITH_IGNORE, NO_PROGRESS_INFO, 
  ZERO_DATE_TIME_CAST, UTF8_IS_UTF8MB3, 
- IGNORE_INDEX_ONLY_FOR_JOIN, COMPAT_5_1_CHECKSUM
+ IGNORE_INDEX_ONLY_FOR_JOIN, COMPAT_5_1_CHECKSUM, 
+ LOCK_ALTER_TABLE_COPY
  --old-passwords     Use old password encryption method (needed for 4.0 and
  older clients)
  --old-style-user-limits 

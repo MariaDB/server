@@ -1650,6 +1650,52 @@ select * from t;
 drop table t;
 set debug_sync= reset;
 
+--echo #
+--echo # MDEV-31812 Add switch to old_mode to disable non-locking ALTER
+--echo #
+set @old_old_mode= @@old_mode;
+create or replace table t1 (a int primary key, b int);
+set debug_sync= 'alter_table_copy_end SIGNAL copy_end WAIT_FOR proceed';
+send alter table t1 drop primary key, add primary key(b), algorithm= copy;
+
+--connection con2
+set debug_sync= 'now WAIT_FOR copy_end';
+select if(max_stage = 4, "online", "old") as mode
+        from information_schema.processlist where id = @con;
+set debug_sync= 'now SIGNAL proceed';
+
+--connection default
+--reap
+
+set old_mode= LOCK_ALTER_TABLE_COPY;
+set debug_sync= 'alter_table_copy_end SIGNAL copy_end WAIT_FOR proceed';
+send alter table t1 drop primary key, add primary key(b), algorithm= copy;
+--connection con2
+set debug_sync= 'now WAIT_FOR copy_end';
+select if(max_stage = 4, "online", "old") as mode
+        from information_schema.processlist where id = @con;
+set debug_sync= 'now SIGNAL proceed';
+
+--connection default
+--reap
+
+set debug_sync= 'alter_table_copy_end SIGNAL copy_end WAIT_FOR proceed';
+send alter table t1 drop primary key, add primary key(b),
+        algorithm= copy, lock=none;
+--connection con2
+set debug_sync= 'now WAIT_FOR copy_end';
+
+select if(max_stage = 4, "online", "old") as mode
+        from information_schema.processlist where id = @con;
+set debug_sync= 'now SIGNAL proceed';
+
+--connection default
+--reap
+set old_mode= @old_old_mode;
+drop table t1;
+set debug_sync= reset;
+
+
 --disconnect con1
 --disconnect con2
 --echo #
