@@ -8347,7 +8347,8 @@ best_access_path(JOIN      *join,
   best.records= DBL_MAX;
   best.records_read= DBL_MAX;
   best.records_after_filter= DBL_MAX;
-  best.records_out= table->stat_records() * table->cond_selectivity;
+  best.records_out= MY_MIN(table->stat_records() * table->cond_selectivity,
+                           table->opt_range_condition_rows);
   best.prev_record_reads= best.identical_keys= 0;
   best.filter= 0;
   best.key= 0;
@@ -13945,18 +13946,19 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 	      join->best_positions[i].records_read=
                 (double) sel->quick->records;
               set_if_smaller(join->best_positions[i].records_out,
-                             join->best_positions[i].records_read);
+                             rows2double(sel->head->opt_range_condition_rows));
             }
             else
             {
               /*
-                sel->head->opt_range_condition_rows may have been updated to a smaller number than
-                before by a call to test_quick_select. This can happen even if the range optimizer
-                decided to not use the range (sel->quick was not set).
+                sel->head->opt_range_condition_rows may have been
+                updated to a smaller number than before by a call to
+                test_quick_select. This can happen even if the range
+                optimizer decided to not use the range (sel->quick was
+                not set).
               */
               set_if_smaller(join->best_positions[i].records_out,
                              rows2double(sel->head->opt_range_condition_rows));
-
             }
 	  }
 	  else
