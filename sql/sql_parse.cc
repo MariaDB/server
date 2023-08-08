@@ -6146,7 +6146,11 @@ static TABLE *find_temporary_table_for_rename(THD *thd,
     }
   }
   if (!found)
+  {
+    if (thd->has_temporary_tables())
+      thd->open_temporary_table(table);
     res= thd->find_temporary_table(table, THD::TMP_TABLE_ANY);
+  }
   DBUG_RETURN(res);
 }
 
