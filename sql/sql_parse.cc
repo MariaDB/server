@@ -6225,8 +6225,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
         result->remove_offset_limit();
         if (lex->explain_json)
         {
-          lex->explain->print_explain_json(result, lex->analyze_stmt,
-                                           false /* is_show_cmd */);
+          lex->explain->print_explain_json(result, lex->analyze_stmt);
         }
         else
         {

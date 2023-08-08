@@ -134,13 +134,12 @@ public:
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
                             uint8 explain_flags, bool is_analyze)=0;
   virtual void print_explain_json(Explain_query *query, Json_writer *writer, 
-                                  bool is_analyze, bool no_tmp_tbl)= 0;
+                                  bool is_analyze)= 0;
 
   int print_explain_for_children(Explain_query *query, select_result_sink *output, 
                                  uint8 explain_flags, bool is_analyze);
   void print_explain_json_for_children(Explain_query *query,
-                                       Json_writer *writer, bool is_analyze,
-                                       bool no_tmp_tbl);
+                                       Json_writer *writer, bool is_analyze);
   bool print_explain_json_cache(Json_writer *writer, bool is_analyze);
   virtual ~Explain_node() = default;
 };
@@ -174,10 +173,10 @@ public:
   int print_explain(Explain_query *query, select_result_sink *output,
                     uint8 explain_flags, bool is_analyze);
   void print_explain_json(Explain_query *query, Json_writer *writer, 
-                          bool is_analyze, bool no_tmp_tbl);
+                          bool is_analyze);
 
   void print_explain_json_interns(Explain_query *query, Json_writer *writer,
-                                  bool is_analyze, bool no_tmp_tbl);
+                                  bool is_analyze);
 
   /* A flat array of Explain structs for tables. */
   Explain_table_access** join_tabs;
@@ -261,7 +260,7 @@ public:
   int print_explain(Explain_query *query, select_result_sink *output, 
                     uint8 explain_flags, bool is_analyze);
   void print_explain_json(Explain_query *query, Json_writer *writer, 
-                          bool is_analyze, bool no_tmp_tbl);
+                          bool is_analyze);
   
   Table_access_tracker *get_using_temporary_read_tracker()
   {
@@ -304,8 +303,7 @@ public:
   Explain_aggr_filesort(MEM_ROOT *mem_root, bool is_analyze, 
                         Filesort *filesort);
 
-  void print_json_members(Json_writer *writer, bool is_analyze,
-                          bool no_tmp_tbl);
+  void print_json_members(Json_writer *writer, bool is_analyze);
 };
 
 class Explain_aggr_tmp_table : public Explain_aggr_node
@@ -326,8 +324,7 @@ class Explain_aggr_window_funcs : public Explain_aggr_node
 public:
   enum_explain_aggr_node_type get_type() { return AGGR_OP_WINDOW_FUNCS; }
 
-  void print_json_members(Json_writer *writer, bool is_analyze,
-                          bool no_tmp_tbl);
+  void print_json_members(Json_writer *writer, bool is_analyze);
   friend class Window_funcs_computation;
 };
 
@@ -380,7 +377,7 @@ public:
   int print_explain(Explain_query *query, select_result_sink *output, 
                     uint8 explain_flags, bool is_analyze);
   void print_explain_json(Explain_query *query, Json_writer *writer, 
-                          bool is_analyze, bool no_tmp_tbl);
+                          bool is_analyze);
 
   const char *fake_select_type;
   bool using_filesort;
@@ -499,7 +496,6 @@ public:
   bool print_explain_str(THD *thd, String *out_str, bool is_analyze);
 
   int print_explain_json(select_result_sink *output, bool is_analyze,
-                         bool is_show_cmd,
                          ulonglong query_time_in_progress_ms= 0);
 
   /* If true, at least part of EXPLAIN can be printed */
@@ -891,15 +887,14 @@ public:
                     uint select_id, const char *select_type,
                     bool using_temporary, bool using_filesort);
   void print_explain_json(Explain_query *query, Json_writer *writer,
-                          bool is_analyze, bool no_tmp_tbl);
+                          bool is_analyze);
 
 private:
   void append_tag_name(String *str, enum explain_extra_tag tag);
   void fill_key_str(String *key_str, bool is_json) const;
   void fill_key_len_str(String *key_len_str, bool is_json) const;
   double get_r_filtered();
-  void tag_to_json(Json_writer *writer, enum explain_extra_tag tag,
-                   bool no_tmp_tbl);
+  void tag_to_json(Json_writer *writer, enum explain_extra_tag tag);
 };
 
 
@@ -982,7 +977,7 @@ public:
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
                             uint8 explain_flags, bool is_analyze);
   virtual void print_explain_json(Explain_query *query, Json_writer *writer,
-                                  bool is_analyze, bool no_tmp_tbl);
+                                  bool is_analyze);
 };
 
 
@@ -1008,7 +1003,7 @@ public:
   int print_explain(Explain_query *query, select_result_sink *output, 
                     uint8 explain_flags, bool is_analyze);
   void print_explain_json(Explain_query *query, Json_writer *writer, 
-                          bool is_analyze, bool no_tmp_tbl);
+                          bool is_analyze);
 };
 
 
@@ -1035,7 +1030,7 @@ public:
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
                             uint8 explain_flags, bool is_analyze);
   virtual void print_explain_json(Explain_query *query, Json_writer *writer,
-                                  bool is_analyze, bool no_tmp_tbl);
+                                  bool is_analyze);
 };
 
 

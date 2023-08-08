@@ -5825,7 +5825,6 @@ int LEX::print_explain(select_result_sink *output, uint8 explain_flags,
         query_time_in_progress_ms=
           (now - start_time) / (HRTIME_RESOLUTION / 1000);
       res= explain->print_explain_json(output, is_analyze,
-                                       true /* is_show_cmd */,
                                        query_time_in_progress_ms);
     }
     else
