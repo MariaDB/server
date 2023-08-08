@@ -2,6 +2,7 @@
 --source include/have_stat_tables.inc
 --source include/have_sequence.inc
 --source include/default_charset.inc
+--source include/have_partition.inc
 
 --disable_warnings
 drop table if exists t0,t1,t2,t3;
@@ -1429,3 +1430,23 @@ truncate table t1;
 insert into t1 select * from t2;
 explain select * from t1 where t1.c2 in (select a.c2 from t1 a) and c2 >= 3 order by c2;
 drop table t1,t2;
+
+--echo #
+--echo # MDEV-31864 Assertion `d >= 0' failed in COST_ADD with join_cache_level
+--echo # > 2 and partitions
+--echo #
+
+SET join_cache_level= 3;
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT, c INT);
+INSERT INTO t2 VALUES (3,4),(5,6);
+CREATE TABLE t3 (d INT, e INT) PARTITION BY RANGE COLUMNS (d) (p1 VALUES LESS THAN (1000), pn VALUES LESS THAN (MAXVALUE));
+ANALYZE TABLE t1, t2, t3 PERSISTENT FOR ALL;
+
+explain SELECT * FROM t1 LEFT JOIN (t2 JOIN t3 ON t2.b = t3.e) ON t2.c = 1;
+SELECT * FROM t1 LEFT JOIN (t2 JOIN t3 ON t2.b = t3.e) ON t2.c = 1;
+
+set join_cache_level= default;
+DROP TABLE t1, t2, t3;

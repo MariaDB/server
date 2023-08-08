@@ -8145,6 +8145,7 @@ double hash_join_fanout(JOIN *join, JOIN_TAB *tab, table_map remaining_tables,
   bool found_not_usable_field= 0;
   bool found_usable_field __attribute__((unused))= 0;
   DBUG_ENTER("hash_join_cardinality");
+  DBUG_ASSERT(rnd_records > 0 && min_freq > 0);
 
   Json_writer_object trace_obj(thd, "hash_join_cardinality");
 
@@ -9128,7 +9129,8 @@ best_access_path(JOIN      *join,
     DBUG_ASSERT(hj_start_key);
 
     fanout= rnd_records;
-    if (optimizer_flag(thd, OPTIMIZER_SWITCH_HASH_JOIN_CARDINALITY))
+    if (optimizer_flag(thd, OPTIMIZER_SWITCH_HASH_JOIN_CARDINALITY) &&
+        rnd_records > 0)
     {
       /*
         Starting from this point, rnd_records should not be used anymore.
