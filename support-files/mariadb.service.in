@@ -70,9 +70,6 @@ ProtectSystem=full
 # Prevent accessing /home, /root and /run/user
 ProtectHome=true
 
-# Use an environment file to pass variable _WSREP_NEW_CLUSTER
-EnvironmentFile=-@mysqlunixdir@/wsrep-new-cluster-%N
-
 # Use an environment file to pass variable _WSREP_START_POSITION
 EnvironmentFile=-@mysqlunixdir@/wsrep-start-position
 
