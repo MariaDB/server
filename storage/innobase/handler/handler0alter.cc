@@ -8411,14 +8411,21 @@ err_exit:
 	index columns are modified */
 	if (ha_alter_info->handler_flags
 			& ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE) {
-		List_iterator<Create_field> it(
-			ha_alter_info->alter_info->create_list);
-		for (uint i = 0; i < table->s->fields; i++) {
-			Field* field = table->field[i];
-			Create_field *f= it++;
-			if (!f->field || field->is_equal(*f))
-				continue;
 
+		for (uint i= 0; i < table->s->fields; i++) {
+			Field* field = table->field[i];
+			for (const Create_field& new_field :
+				ha_alter_info->alter_info->create_list) {
+				if (new_field.field == field) {
+					if (!field->is_equal(new_field)) {
+						goto field_changed;
+					}
+					break;
+				}
+			}
+
+			continue;
+field_changed:
 			const char* col_name= field->field_name.str;
 			dict_col_t *col= dict_table_get_nth_col(
 				m_prebuilt->table, i);
