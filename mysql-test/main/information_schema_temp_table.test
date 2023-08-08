@@ -242,3 +242,39 @@ SELECT table_schema, table_name FROM  INFORMATION_SCHEMA.TABLES WHERE table_type
 DROP TABLE seq1;
 DROP TABLE mysqltest.s1;
 DROP TABLE mysqltest.s2;
+
+--echo #
+--echo # MDEV-31618: Server crashes in
+--echo #             process_i_s_table_temporary_tables/get_all_tables after alter in rename
+--echo #
+# Check on temporary tables
+CREATE  table seq1 (a bigint, b int);
+CREATE  TEMPORARY TABLE tmp LIKE seq1;
+INSERT  tmp SELECT * FROM seq1;
+ALTER  TABLE tmp RENAME TO seq1;
+--error 4086,1060
+ALTER TABLE seq1 CHANGE a b int ;
+--error 1050
+RENAME  TABLE seq1 TO seq1;
+show  full tables;
+drop table seq1;
+drop table seq1;
+
+# Check on sequences
+CREATE  SEQUENCE seq2;
+CREATE  TEMPORARY sequence tmp;
+show  full tables;
+ALTER  table `tmp` RENAME TO seq1;
+show  full tables;
+--error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
+ALTER TABLE `seq1` CHANGE `cache_size` cache_size int ;
+show  full tables;
+--error ER_TABLE_EXISTS_ERROR
+RENAME  TABLE seq1 TO seq1;
+show  full tables;
+RENAME  TABLE seq1 TO seq3;
+show  full tables;
+drop table seq2;
+show  full tables;
+drop table seq3;
+show  full tables;

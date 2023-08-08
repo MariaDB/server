@@ -1086,8 +1086,13 @@ TABLE *THD::find_temporary_table(const char *key, uint key_length,
       {
         share->all_tmp_tables.remove(table);
         free_temporary_table(table);
-        it.rewind();
-        continue;
+        if (share->all_tmp_tables.is_empty())
+          table= open_temporary_table(share, share->table_name.str);
+        else
+        {
+          it.rewind();
+          continue;
+        }
       }
       result= table;
       break;
