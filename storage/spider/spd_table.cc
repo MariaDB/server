@@ -3806,12 +3806,6 @@ int spider_set_connect_info_default(
     if (share->monitoring_sid[roop_count] == -1)
       share->monitoring_sid[roop_count] = global_system_variables.server_id;
 
-    if (share->connect_timeouts[roop_count] == -1)
-      share->connect_timeouts[roop_count] = 6;
-    if (share->net_read_timeouts[roop_count] == -1)
-      share->net_read_timeouts[roop_count] = 600;
-    if (share->net_write_timeouts[roop_count] == -1)
-      share->net_write_timeouts[roop_count] = 600;
     if (share->access_balances[roop_count] == -1)
       share->access_balances[roop_count] = 100;
   }
