@@ -104,3 +104,11 @@ ALTER TABLE t2 ADD CONSTRAINT FOREIGN KEY (msg) REFERENCES t1(msg), aLGORITHM=IN
 SET FOREIGN_KEY_CHECKS=1;
 
 DROP TABLE t2, t1;
+
+--echo #
+--echo # MDEV-31869 Server aborts when table does drop column
+--echo #
+CREATE TABLE t (a VARCHAR(40), b INT, C INT) ENGINE=InnoDB;
+ALTER TABLE t MODIFY a VARCHAR(50), DROP b;
+DROP TABLE t;
+--echo # End of 10.4 tests
