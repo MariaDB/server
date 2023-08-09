@@ -1237,7 +1237,8 @@ sub command_line_setup {
              'xml-report=s'             => \$opt_xml_report,
 
              My::Debugger::options(),
-             My::CoreDump::options()
+             My::CoreDump::options(),
+             My::Platform::options()
            );
 
   # fix options (that take an optional argument and *only* after = sign
@@ -1273,6 +1274,9 @@ sub command_line_setup {
   }
   if (IS_CYGWIN)
   {
+    if (My::Platform::check_cygwin_subshell()) {
+      die("Cygwin /bin/sh subshell requires fix with --cygwin-subshell-fix=do\n");
+    }
     # Use mixed path format i.e c:/path/to/
     $glob_mysql_test_dir= mixed_path($glob_mysql_test_dir);
   }
