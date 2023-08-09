@@ -1236,7 +1236,9 @@ DELIMITER ;$$
 
 select * from Persons;
 set @a = 6;
+--disable_ps2_protocol
 select pkg2.func_main(@a);
+--enable_ps2_protocol
 select * from Persons;
 DROP TABLE Persons;
 DROP PACKAGE pkg2;
@@ -1374,7 +1376,9 @@ DELIMITER ;$$
 
 select * from Persons;
 set @a = 6;
+--disable_ps2_protocol
 select pkg2.func_main(@a);
+--enable_ps2_protocol
 select * from Persons;
 DROP TABLE Persons;
 DROP PACKAGE pkg2;

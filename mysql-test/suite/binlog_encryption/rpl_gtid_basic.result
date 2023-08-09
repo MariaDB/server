@@ -561,6 +561,62 @@ a
 32
 33
 34
+*** MDEV-31723: Crash on SET SESSION gtid_seq_no= DEFAULT
+connection server_1;
+SET SESSION gtid_seq_no= 2000;
+SELECT @@SESSION.gtid_seq_no;
+@@SESSION.gtid_seq_no
+2000
+INSERT INTO t1 VALUES (40);
+SELECT @@SESSION.gtid_seq_no;
+@@SESSION.gtid_seq_no
+0
+SELECT REGEXP_REPLACE(@@gtid_binlog_pos, ".*\\b(0-1-[0-9]+)\\b.*", "\\1") AS dom0_pos;
+dom0_pos
+0-1-2000
+INSERT INTO t1 VALUES (41);
+SELECT REGEXP_REPLACE(@@gtid_binlog_pos, ".*\\b(0-1-[0-9]+)\\b.*", "\\1") AS dom0_pos;
+dom0_pos
+0-1-2001
+SET SESSION gtid_seq_no= 2010;
+INSERT INTO t1 VALUES (42);
+SELECT REGEXP_REPLACE(@@gtid_binlog_pos, ".*\\b(0-1-[0-9]+)\\b.*", "\\1") AS dom0_pos;
+dom0_pos
+0-1-2010
+SET @old_strict= @@GLOBAL.gtid_strict_mode;
+SET GLOBAL gtid_strict_mode= 1;
+SET SESSION gtid_seq_no= 0;
+INSERT INTO t1 VALUES (43);
+SELECT REGEXP_REPLACE(@@gtid_binlog_pos, ".*\\b(0-1-[0-9]+)\\b.*", "\\1") AS dom0_pos;
+dom0_pos
+0-1-2011
+SET GLOBAL gtid_strict_mode= @old_strict;
+INSERT INTO t1 VALUES (44);
+SELECT REGEXP_REPLACE(@@gtid_binlog_pos, ".*\\b(0-1-[0-9]+)\\b.*", "\\1") AS dom0_pos;
+dom0_pos
+0-1-2012
+SET SESSION gtid_seq_no= 2020;
+SET SESSION gtid_seq_no= 2030;
+INSERT INTO t1 VALUES (45);
+SELECT REGEXP_REPLACE(@@gtid_binlog_pos, ".*\\b(0-1-[0-9]+)\\b.*", "\\1") AS dom0_pos;
+dom0_pos
+0-1-2030
+SET SESSION gtid_seq_no= 2040;
+SET SESSION gtid_seq_no= DEFAULT;
+INSERT INTO t1 VALUES (46);
+SELECT REGEXP_REPLACE(@@gtid_binlog_pos, ".*\\b(0-1-[0-9]+)\\b.*", "\\1") AS dom0_pos;
+dom0_pos
+0-1-2031
+INSERT INTO t1 VALUES (47);
+SELECT REGEXP_REPLACE(@@gtid_binlog_pos, ".*\\b(0-1-[0-9]+)\\b.*", "\\1") AS dom0_pos;
+dom0_pos
+0-1-2032
+SET SESSION gtid_seq_no= 2050;
+SET SESSION gtid_seq_no= 0;
+INSERT INTO t1 VALUES (48);
+SELECT REGEXP_REPLACE(@@gtid_binlog_pos, ".*\\b(0-1-[0-9]+)\\b.*", "\\1") AS dom0_pos;
+dom0_pos
+0-1-2033
 connection server_1;
 DROP TABLE t1;
 include/rpl_end.inc

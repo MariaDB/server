@@ -30,7 +30,9 @@
 
 flush status;
 eval EXPLAIN $query;
+--disable_ps2_protocol
 eval $query;
+--enable_ps2_protocol
 
 let $cost=
  query_get_value(SHOW STATUS LIKE 'Last_query_cost', Value, 1);

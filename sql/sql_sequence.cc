@@ -312,11 +312,6 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *org_table_list)
       DBUG_RETURN(TRUE);
   }
 
-#ifdef WITH_WSREP
-  if (WSREP_ON && seq->cache != 0)
-    WSREP_WARN("CREATE SEQUENCES declared without `NOCACHE` will not behave correctly in galera cluster.");
-#endif
-
   /* If not temporary table */
   if (!temporary_table)
   {
@@ -902,6 +897,20 @@ end:
   DBUG_RETURN(error);
 }
 
+#if defined(HAVE_REPLICATION)
+class wait_for_commit_raii
+{
+private:
+  THD *m_thd;
+  wait_for_commit *m_wfc;
+
+public:
+  wait_for_commit_raii(THD* thd) :
+      m_thd(thd), m_wfc(thd->suspend_subsequent_commits())
+    {}
+  ~wait_for_commit_raii() { m_thd->resume_subsequent_commits(m_wfc); }
+};
+#endif
 
 bool Sql_cmd_alter_sequence::execute(THD *thd)
 {
@@ -914,7 +923,10 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
   SEQUENCE *seq;
   No_such_table_error_handler no_such_table_handler;
   DBUG_ENTER("Sql_cmd_alter_sequence::execute");
-
+#if defined(HAVE_REPLICATION)
+  /* No wakeup():s of subsequent commits is allowed in this function. */
+  wait_for_commit_raii suspend_wfc(thd);
+#endif
 
   if (check_access(thd, ALTER_ACL, first_table->db.str,
                    &first_table->grant.privilege,
@@ -922,21 +934,24 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
                    0, 0))
     DBUG_RETURN(TRUE);                  /* purecov: inspected */
 
-#ifdef WITH_WSREP
-  if (WSREP_ON && new_seq->cache != 0)
-    WSREP_WARN("ALTER SEQUENCES declared without `NOCACHE` will not behave correctly in galera cluster.");
-#endif
-
   if (check_grant(thd, ALTER_ACL, first_table, FALSE, 1, FALSE))
     DBUG_RETURN(TRUE);                  /* purecov: inspected */
 
 #ifdef WITH_WSREP
-  if (WSREP_ON && WSREP(thd) &&
-      wsrep_to_isolation_begin(thd, first_table->db.str,
-	                       first_table->table_name.str,
-		               first_table))
-    DBUG_RETURN(TRUE);
+  if (WSREP(thd) && wsrep_thd_is_local(thd))
+  {
+    if (wsrep_check_sequence(thd, new_seq))
+      DBUG_RETURN(TRUE);
+
+    if (wsrep_to_isolation_begin(thd, first_table->db.str,
+                                 first_table->table_name.str,
+                                 first_table))
+    {
+      DBUG_RETURN(TRUE);
+    }
+  }
 #endif /* WITH_WSREP */
+
   if (if_exists())
     thd->push_internal_handler(&no_such_table_handler);
   error= open_and_lock_tables(thd, first_table, FALSE, 0);
@@ -1011,19 +1026,15 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
   else
     table->file->print_error(error, MYF(0));
   seq->write_unlock(table);
-  {
-    wait_for_commit* suspended_wfc= thd->suspend_subsequent_commits();
-    if (trans_commit_stmt(thd))
-      error= 1;
-    if (trans_commit_implicit(thd))
-      error= 1;
-    thd->resume_subsequent_commits(suspended_wfc);
-    DBUG_EXECUTE_IF("hold_worker_on_schedule",
-                    {
-                      /* delay binlogging of a parent trx in rpl_parallel_seq */
-                      my_sleep(100000);
-                    });
-  }
+  if (trans_commit_stmt(thd))
+    error= 1;
+  if (trans_commit_implicit(thd))
+    error= 1;
+  DBUG_EXECUTE_IF("hold_worker_on_schedule",
+                  {
+                    /* delay binlogging of a parent trx in rpl_parallel_seq */
+                    my_sleep(100000);
+                  });
   if (likely(!error))
     error= write_bin_log(thd, 1, thd->query(), thd->query_length());
   if (likely(!error))

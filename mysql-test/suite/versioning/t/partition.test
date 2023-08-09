@@ -1019,7 +1019,9 @@ create or replace table t1 (
 
 insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
 
+--disable_ps2_protocol
 select * into outfile 'MDEV-17891.data' from t1;
+--enable_ps2_protocol
 load data infile 'MDEV-17891.data' replace into table t1;
 --error ER_RECORD_FILE_FULL
 load data infile 'MDEV-17891.data' replace into table t1;
@@ -1365,7 +1367,9 @@ partition by system_time limit 100 (
   partition pn current);
 
 insert into t1 select seq from seq_0_to_49;
+--disable_ps2_protocol
 select x into outfile 'MDEV-20077.data' from t1;
+--enable_ps2_protocol
 
 load data infile 'MDEV-20077.data' replace into table t1 (x);
 load data infile 'MDEV-20077.data' replace into table t1 (x);
@@ -2204,7 +2208,9 @@ create or replace table t1 (x int primary key) with system versioning
 partition by system_time interval 1 hour auto;
 
 insert t1 values (1), (2), (3);
+--disable_ps2_protocol
 select x into outfile 'MDEV-17554.data' from t1;
+--enable_ps2_protocol
 
 set timestamp= unix_timestamp('2000-01-01 01:00:00');
 load data infile 'MDEV-17554.data' replace into table t1 (x);
@@ -2606,6 +2612,34 @@ update t set a = 2 limit 0;
 drop table t;
 
 --echo #
+--echo # MDEV-31244 Assertion "not SELECT" in vers_set_hist_part()
+--echo #
+create table t (a int) with system versioning partition by system_time;
+--delimiter $
+create function f() returns int
+begin
+  update t set a = 1;
+  return 1;
+end $
+--delimiter ;
+create procedure p() select f();
+call p();
+call p();
+# cleanup
+drop procedure p;
+drop function f;
+drop table t;
+
+--echo #
+--echo # MDEV-29873 MSAN uninitialized value errors in bcmp /
+--echo #            prep_alter_part_table upon re-partitioning by system time
+--echo #
+create table t (a int) with system versioning partition by system_time interval 5 week;
+alter table t partition by system_time interval 10 week;
+# cleanup
+drop table t;
+
+--echo #
 --echo # MDEV-16546 System versioning setting to allow history modification
 --echo #
 create table t1 (a varchar(100)) with system versioning
@@ -2623,5 +2657,21 @@ drop table t1;
 set system_versioning_insert_history=0;
 
 --disable_prepare_warnings
+
+--echo #
+--echo # MDEV-29727 ALTER and CREATE with default partitioning
+--echo #            differently react to SQL_MODE => unusable SHOW CREATE
+--echo #
+create table t (a int) with system versioning;
+--error WARN_VERS_PARAMETERS
+alter table t partition by system_time partitions 3;
+drop table t;
+--error WARN_VERS_PARAMETERS
+create table t (a int) with system versioning partition by system_time partitions 3;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
+
 set global innodb_stats_persistent= @save_persistent;
 --source suite/versioning/common_finish.inc

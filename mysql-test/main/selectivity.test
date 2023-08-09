@@ -1095,14 +1095,18 @@ set @save_use_stat_tables= @@use_stat_tables;
 set @@use_stat_tables='complementary';
 set @@optimizer_use_condition_selectivity=4;
 SET @cnt= 0;
+--disable_ps2_protocol
 SELECT * FROM t1 WHERE a = f1();
+--enable_ps2_protocol
 SELECT @cnt;
 
 set @@use_stat_tables='preferably';
 analyze table t1 persistent for all;
 SET @cnt := 0;
 set @@optimizer_use_condition_selectivity=4;
+--disable_ps2_protocol
 SELECT * FROM t1 WHERE a = f1();
+--enable_ps2_protocol
 SELECT @cnt;
 alter table  t1 force;
 drop table t1;

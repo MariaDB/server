@@ -36,6 +36,7 @@ insert into t1 values(3,30,"ii si ii se ii");
 insert into t1 values(4,40,"ta ti tu te to");
 insert into t1 values(5,50,"aa ii uu ii oo");
 
+--disable_ps2_protocol
 select c3, match(c3) against("ii") from t1
   where match(c3) against("ii") order by match(c3) against("ii") desc;
 show status like 'mroonga_fast_order_limit';
@@ -54,6 +55,7 @@ show status like 'mroonga_fast_order_limit';
 
 select count(*) from t1 where match(c3) against("ii") limit 1;
 show status like 'mroonga_fast_order_limit';
+--enable_ps2_protocol
 
 drop table t1;
 

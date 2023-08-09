@@ -49,7 +49,9 @@ XA PREPARE 'test';
 XA COMMIT 'test';
 
 --connection child2_1
+--disable_ps2_protocol
 eval $CHILD2_1_SELECT_ARGUMENT1;
+--enable_ps2_protocol
 eval $CHILD2_1_SELECT_TABLES;
 
 --echo

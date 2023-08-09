@@ -178,7 +178,7 @@ Key::Key(const Key &rhs, MEM_ROOT *mem_root)
   name(rhs.name),
   option_list(rhs.option_list),
   generated(rhs.generated), invisible(false),
-  without_overlaps(rhs.without_overlaps), period(rhs.period)
+  without_overlaps(rhs.without_overlaps), old(rhs.old), period(rhs.period)
 {
   list_copy_and_replace_each_value(columns, mem_root);
 }
@@ -214,11 +214,11 @@ Foreign_key::Foreign_key(const Foreign_key &rhs, MEM_ROOT *mem_root)
     We only compare field names
 
   RETURN
-    0	Generated key is a prefix of other key
-    1	Not equal
+    true        Generated key is a prefix of other key
+    false       Not a prefix
 */
 
-bool foreign_key_prefix(Key *a, Key *b)
+bool is_foreign_key_prefix(Key *a, Key *b)
 {
   /* Ensure that 'a' is the generated key */
   if (a->generated)
@@ -229,13 +229,13 @@ bool foreign_key_prefix(Key *a, Key *b)
   else
   {
     if (!b->generated)
-      return TRUE;                              // No foreign key
+      return false;                             // No foreign key
     swap_variables(Key*, a, b);                 // Put generated key in 'a'
   }
 
   /* Test if 'a' is a prefix of 'b' */
   if (a->columns.elements > b->columns.elements)
-    return TRUE;                                // Can't be prefix
+    return false;                                // Can't be prefix
 
   List_iterator<Key_part_spec> col_it1(a->columns);
   List_iterator<Key_part_spec> col_it2(b->columns);
@@ -255,17 +255,17 @@ bool foreign_key_prefix(Key *a, Key *b)
       }
     }
     if (!found)
-      return TRUE;                              // Error
+      return false;                             // Error
   }
-  return FALSE;                                 // Is prefix
+  return true;                                  // Is prefix
 #else
   while ((col1= col_it1++))
   {
     col2= col_it2++;
     if (!(*col1 == *col2))
-      return TRUE;
+      return false;
   }
-  return FALSE;                                 // Is prefix
+  return true;                                 // Is prefix
 #endif
 }
 
@@ -286,6 +286,8 @@ bool Foreign_key::validate(List<Create_field> &table_fields)
   List_iterator<Key_part_spec> cols(columns);
   List_iterator<Create_field> it(table_fields);
   DBUG_ENTER("Foreign_key::validate");
+  if (old)
+    DBUG_RETURN(FALSE); // must be good
   while ((column= cols++))
   {
     it.rewind();
@@ -8034,15 +8036,22 @@ wait_for_commit::register_wait_for_prior_commit(wait_for_commit *waitee)
   with register_wait_for_prior_commit(). If the commit already completed,
   returns immediately.
 
+  If ALLOW_KILL is set to true (the default), the wait can be aborted by a
+  kill. In case of kill, the wait registration is still removed, so another
+  call of unregister_wait_for_prior_commit() is needed to later retry the
+  wait. If ALLOW_KILL is set to false, then kill will be ignored and this
+  function will not return until the prior commit (if any) has called
+  wakeup_subsequent_commits().
+
   If thd->backup_commit_lock is set, release it while waiting for other threads
 */
 
 int
-wait_for_commit::wait_for_prior_commit2(THD *thd)
+wait_for_commit::wait_for_prior_commit2(THD *thd, bool allow_kill)
 {
   PSI_stage_info old_stage;
   wait_for_commit *loc_waitee;
-  bool backup_lock_released= 0;
+  bool backup_lock_released= false;
 
   /*
     Release MDL_BACKUP_COMMIT LOCK while waiting for other threads to commit
@@ -8052,7 +8061,7 @@ wait_for_commit::wait_for_prior_commit2(THD *thd)
   */
   if (thd->backup_commit_lock && thd->backup_commit_lock->ticket)
   {
-    backup_lock_released= 1;
+    backup_lock_released= true;
     thd->mdl_context.release_lock(thd->backup_commit_lock->ticket);
     thd->backup_commit_lock->ticket= 0;
   }
@@ -8063,7 +8072,7 @@ wait_for_commit::wait_for_prior_commit2(THD *thd)
                   &stage_waiting_for_prior_transaction_to_commit,
                   &old_stage);
   while ((loc_waitee= this->waitee.load(std::memory_order_relaxed)) &&
-         likely(!thd->check_killed(1)))
+         (!allow_kill || likely(!thd->check_killed(1))))
     mysql_cond_wait(&COND_wait_commit, &LOCK_wait_commit);
   if (!loc_waitee)
   {
@@ -8105,14 +8114,14 @@ wait_for_commit::wait_for_prior_commit2(THD *thd)
     use within enter_cond/exit_cond.
   */
   DEBUG_SYNC(thd, "wait_for_prior_commit_killed");
-  if (backup_lock_released)
+  if (unlikely(backup_lock_released))
     thd->mdl_context.acquire_lock(thd->backup_commit_lock,
                                   thd->variables.lock_wait_timeout);
   return wakeup_error;
 
 end:
   thd->EXIT_COND(&old_stage);
-  if (backup_lock_released)
+  if (unlikely(backup_lock_released))
     thd->mdl_context.acquire_lock(thd->backup_commit_lock,
                                   thd->variables.lock_wait_timeout);
   return wakeup_error;

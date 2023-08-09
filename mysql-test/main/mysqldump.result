@@ -6493,6 +6493,7 @@ END	utf8mb3	utf8mb3_general_ci	latin1_swedish_ci
 DROP DATABASE test1;
 DROP DATABASE test2;
 SET sql_mode=@save_sql_mode;
+use test;
 #
 # MDEV-4875 Can't restore a mysqldump if --add-drop-database meets general_log
 #
@@ -6586,5 +6587,68 @@ TABLE	1
 SET GLOBAL LOG_OUTPUT=DEFAULT, GLOBAL GENERAL_LOG=@save_general_log;
 TRUNCATE TABLE mysql.general_log;
 DROP DATABASE test1;
+#
 # End of 10.3 tests
+#
+#
+# MDEV-31092 mysqldump --force doesn't ignore error as it should
+#
+create function f1() returns int return 1;
+create function f2() returns int return 2;
+update mysql.proc set body='return no_such_var' where db='test' and name='f1';
+create event e1 on schedule every 1 year starts '2030-01-01' do select 1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
+update mysql.event set body ='select not_a_value' where db='test' and name='e1';
+create table t1 (i int);
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+mariadb-dump: Couldn't execute 'SHOW CREATE FUNCTION `f1`': Undeclared variable: no_such_var (1327)
+/*!50106 SET @save_time_zone= @@TIME_ZONE */ ;
+DELIMITER ;;
+/*!50003 SET @saved_cs_client      = @@character_set_client */ ;;
+/*!50003 SET @saved_cs_results     = @@character_set_results */ ;;
+/*!50003 SET @saved_col_connection = @@collation_connection */ ;;
+/*!50003 SET character_set_client  = utf8mb3 */ ;;
+/*!50003 SET character_set_results = utf8mb3 */ ;;
+/*!50003 SET collation_connection  = utf8mb3_general_ci */ ;;
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;;
+/*!50003 SET sql_mode              = '' */ ;;
+/*!50003 SET @saved_time_zone      = @@time_zone */ ;;
+/*!50003 SET time_zone             = 'SYSTEM' */ ;;
+/*!50106 CREATE*/ /*!50117 DEFINER=`root`@`localhost`*/ /*!50106 EVENT `e1` ON SCHEDULE EVERY 1 YEAR STARTS '2030-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO select not_a_value */ ;;
+/*!50003 SET time_zone             = @saved_time_zone */ ;;
+/*!50003 SET sql_mode              = @saved_sql_mode */ ;;
+/*!50003 SET character_set_client  = @saved_cs_client */ ;;
+/*!50003 SET character_set_results = @saved_cs_results */ ;;
+/*!50003 SET collation_connection  = @saved_col_connection */ ;;
+DELIMITER ;
+/*!50106 SET TIME_ZONE= @save_time_zone */ ;
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
+/*!50003 SET sql_mode              = '' */ ;
+/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
+/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
+/*!50003 SET @saved_col_connection = @@collation_connection */ ;
+/*!50003 SET character_set_client  = utf8mb3 */ ;
+/*!50003 SET character_set_results = utf8mb3 */ ;
+/*!50003 SET collation_connection  = utf8mb3_general_ci */ ;
+DELIMITER ;;
+CREATE DEFINER=`root`@`localhost` FUNCTION `f2`() RETURNS int(11)
+return 2 ;;
+DELIMITER ;
+/*!50003 SET sql_mode              = @saved_sql_mode */ ;
+/*!50003 SET character_set_client  = @saved_cs_client */ ;
+/*!50003 SET character_set_results = @saved_cs_results */ ;
+/*!50003 SET collation_connection  = @saved_col_connection */ ;
+drop function f1;
+drop function f2;
+drop event e1;
+drop table t1;
+#
+# End of 10.4 tests
+#
 mariadb-dump: --xml can't be used with --tab.

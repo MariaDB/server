@@ -10,6 +10,7 @@ create database s_db;
 create sequence s_db.s1;
 grant select on s_db.s1 to normal_1@'%' identified by 'pass';
 
+--disable_ps2_protocol
 connect(m_normal_1, localhost, normal_1, pass, s_db);
 select * from s1;
 --error ER_TABLEACCESS_DENIED_ERROR
@@ -30,6 +31,7 @@ alter sequence s1 restart 50;
 select nextval(s1);
 --error ER_TABLEACCESS_DENIED_ERROR
 drop sequence s1;
+--enable_ps2_protocol
 
 connection default;
 disconnect m_normal_1;

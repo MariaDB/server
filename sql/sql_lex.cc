@@ -1462,7 +1462,7 @@ bool is_lex_native_function(const LEX_CSTRING *name)
 
 bool is_native_function(THD *thd, const LEX_CSTRING *name)
 {
-  if (find_native_function_builder(thd, name))
+  if (native_functions_hash.find(thd, *name))
     return true;
 
   if (is_lex_native_function(name))
@@ -2840,34 +2840,6 @@ int Lex_input_stream::scan_ident_delimited(THD *thd,
   // QQQ: shouldn't it add unescaped version ????
   body_utf8_append_ident(thd, str, m_cpp_text_end);
   return IDENT_QUOTED;
-}
-
-
-void trim_whitespace(CHARSET_INFO *cs, LEX_CSTRING *str, size_t * prefix_length)
-{
-  /*
-    TODO:
-    This code assumes that there are no multi-bytes characters
-    that can be considered white-space.
-  */
-
-  size_t plen= 0;
-  while ((str->length > 0) && (my_isspace(cs, str->str[0])))
-  {
-    plen++;
-    str->length --;
-    str->str ++;
-  }
-  if (prefix_length)
-    *prefix_length= plen;
-  /*
-    FIXME:
-    Also, parsing backward is not safe with multi bytes characters
-  */
-  while ((str->length > 0) && (my_isspace(cs, str->str[str->length-1])))
-  {
-    str->length --;
-  }
 }
 
 
@@ -7394,7 +7366,7 @@ bool LEX::sp_body_finalize_routine(THD *thd)
 {
   if (sphead->check_unresolved_goto())
     return true;
-  sphead->set_stmt_end(thd);
+  sphead->set_stmt_end(thd, thd->m_parser_state->m_lip.get_cpp_tok_start());
   sphead->restore_thd_mem_root(thd);
   return false;
 }
@@ -9326,8 +9298,7 @@ sp_package *LEX::create_package_start(THD *thd,
 bool LEX::create_package_finalize(THD *thd,
                                   const sp_name *name,
                                   const sp_name *name2,
-                                  const char *body_start,
-                                  const char *body_end)
+                                  const char *cpp_body_end)
 {
   if (name2 &&
       (name2->m_explicit_name != name->m_explicit_name ||
@@ -9340,18 +9311,8 @@ bool LEX::create_package_finalize(THD *thd,
              exp ? ErrConvDQName(name).ptr() : name->m_name.str);
     return true;
   }
-  // TODO: reuse code in LEX::create_package_finalize and sp_head::set_stmt_end
-  sphead->m_body.length= body_end - body_start;
-  if (unlikely(!(sphead->m_body.str= thd->strmake(body_start,
-                                                  sphead->m_body.length))))
-    return true;
 
-  size_t not_used;
-  Lex_input_stream *lip= & thd->m_parser_state->m_lip;
-  sphead->m_defstr.length= lip->get_cpp_ptr() - lip->get_cpp_buf();
-  sphead->m_defstr.str= thd->strmake(lip->get_cpp_buf(), sphead->m_defstr.length);
-  trim_whitespace(thd->charset(), &sphead->m_defstr, &not_used);
-
+  sphead->set_stmt_end(thd, cpp_body_end);
   sphead->restore_thd_mem_root(thd);
   sp_package *pkg= sphead->get_package();
   DBUG_ASSERT(pkg);
@@ -9565,7 +9526,7 @@ Item *LEX::make_item_func_call_native_or_parse_error(THD *thd,
                                                      Lex_ident_cli_st &name,
                                                      List<Item> *args)
 {
-  Create_func *builder= find_native_function_builder(thd, &name);
+  Create_func *builder= native_functions_hash.find(thd, name);
   DBUG_EXECUTE_IF("make_item_func_call_native_simulate_not_found",
                   builder= NULL;);
   if (builder)

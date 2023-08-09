@@ -2284,9 +2284,11 @@ delimiter ;//
 
 SET @sav_slow_query_log= @@session.slow_query_log;
 
+--disable_ps2_protocol
 # @@slow_query_log ON check
 SET @@session.slow_query_log= ON;
 SELECT current_timestamp(6),fn_sleep_before_now() INTO @ts_cur, @ts_func;
+--enable_ps2_protocol
 
 --enable_prepare_warnings
 SELECT a FROM t_ts   LIMIT 1 into @ts_func;
@@ -2299,9 +2301,11 @@ if (!`SELECT @ts_cur = @ts_func and @ts_func = @ts_trig`)
 DELETE FROM t_ts;
 DELETE FROM t_trig;
 
+--disable_ps2_protocol
 # @@slow_query_log OFF check
 SET @@session.slow_query_log= OFF;
 SELECT current_timestamp(6),fn_sleep_before_now() INTO @ts_cur, @func_ts;
+--enable_ps2_protocol
 SELECT a FROM t_ts   LIMIT 1 into @ts_func;
 SELECT a FROM t_trig LIMIT 1 into @ts_trig;
 --disable_prepare_warnings
@@ -2355,9 +2359,11 @@ SELECT
 --echo # MDEV-14032 SEC_TO_TIME executes side effect two times
 --echo #
 
+--disable_ps2_protocol
 SET @a=10000000;
 SELECT SEC_TO_TIME(@a:=@a+1);
 SELECT @a;
+--enable_ps2_protocol
 
 CREATE TABLE t1 (a TEXT);
 DELIMITER $$;
@@ -2368,7 +2374,9 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
+--disable_ps2_protocol
 SELECT SEC_TO_TIME(f1());
+--enable_ps2_protocol
 SELECT * FROM t1;
 DROP TABLE t1;
 DROP FUNCTION f1;

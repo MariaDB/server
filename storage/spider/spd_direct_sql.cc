@@ -1368,12 +1368,6 @@ int spider_udf_set_direct_sql_param_default(
     direct_sql->table_loop_mode = 0;
   if (direct_sql->priority == -1)
     direct_sql->priority = 1000000;
-  if (direct_sql->connect_timeout == -1)
-    direct_sql->connect_timeout = 6;
-  if (direct_sql->net_read_timeout == -1)
-    direct_sql->net_read_timeout = 600;
-  if (direct_sql->net_write_timeout == -1)
-    direct_sql->net_write_timeout = 600;
   if (direct_sql->bulk_insert_rows == -1)
     direct_sql->bulk_insert_rows = 3000;
   if (direct_sql->connection_channel == -1)

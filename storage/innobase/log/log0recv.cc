@@ -2303,8 +2303,6 @@ struct recv_ring : public recv_buf
   const byte *copy_if_needed(const byte *iv, byte *tmp, recv_ring start,
                              size_t len)
   {
-    if (!len)
-      return ptr;
     const size_t s(*this - start);
     ut_ad(s + len <= srv_page_size);
     if (!log_sys.is_encrypted())
@@ -2655,9 +2653,12 @@ restart:
       case INIT_PAGE:
         last_offset= FIL_PAGE_TYPE;
       free_or_init_page:
-        store_freed_or_init_rec(id, (b & 0x70) == FREE_PAGE);
+        if (store)
+          store_freed_or_init_rec(id, (b & 0x70) == FREE_PAGE);
         if (UNIV_UNLIKELY(rlen != 0))
           goto record_corrupted;
+      copy_if_needed:
+        cl= l.copy_if_needed(iv, decrypt_buf, recs, rlen);
         break;
       case EXTENDED:
         if (UNIV_UNLIKELY(!rlen))
@@ -2689,10 +2690,7 @@ restart:
         break;
       case OPTION:
         if (rlen == 5 && *l == OPT_PAGE_CHECKSUM)
-        {
-          cl= l.copy_if_needed(iv, decrypt_buf, recs, rlen);
-          break;
-        }
+          goto copy_if_needed;
         /* fall through */
       case RESERVED:
         continue;
@@ -3680,25 +3678,51 @@ inline fil_space_t *fil_system_t::find(const char *path) const
 /** Thread-safe function which sorts flush_list by oldest_modification */
 static void log_sort_flush_list()
 {
-  mysql_mutex_lock(&buf_pool.flush_list_mutex);
+  /* Ensure that oldest_modification() cannot change during std::sort() */
+  for (;;)
+  {
+    os_aio_wait_until_no_pending_writes(false);
+    mysql_mutex_lock(&buf_pool.flush_list_mutex);
+    if (buf_pool.flush_list_active())
+      my_cond_wait(&buf_pool.done_flush_list,
+                   &buf_pool.flush_list_mutex.m_mutex);
+    else if (!os_aio_pending_writes())
+      break;
+    mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+  }
 
   const size_t size= UT_LIST_GET_LEN(buf_pool.flush_list);
   std::unique_ptr<buf_page_t *[]> list(new buf_page_t *[size]);
 
+  /* Copy the dirty blocks from buf_pool.flush_list to an array for sorting. */
   size_t idx= 0;
-  for (buf_page_t *p= UT_LIST_GET_FIRST(buf_pool.flush_list); p;
-       p= UT_LIST_GET_NEXT(list, p))
-    list.get()[idx++]= p;
+  for (buf_page_t *p= UT_LIST_GET_FIRST(buf_pool.flush_list); p; )
+  {
+    const lsn_t lsn{p->oldest_modification()};
+    ut_ad(lsn > 2 || lsn == 1);
+    buf_page_t *n= UT_LIST_GET_NEXT(list, p);
+    if (lsn > 1)
+      list.get()[idx++]= p;
+    else
+      buf_pool.delete_from_flush_list(p);
+    p= n;
+  }
 
-  std::sort(list.get(), list.get() + size,
+  std::sort(list.get(), list.get() + idx,
             [](const buf_page_t *lhs, const buf_page_t *rhs) {
-              return rhs->oldest_modification() < lhs->oldest_modification();
+              const lsn_t l{lhs->oldest_modification()};
+              const lsn_t r{rhs->oldest_modification()};
+              DBUG_ASSERT(l > 2); DBUG_ASSERT(r > 2);
+              return r < l;
             });
 
   UT_LIST_INIT(buf_pool.flush_list, &buf_page_t::list);
 
-  for (size_t i= 0; i < size; i++)
+  for (size_t i= 0; i < idx; i++)
+  {
     UT_LIST_ADD_LAST(buf_pool.flush_list, list[i]);
+    DBUG_ASSERT(list[i]->oldest_modification() > 2);
+  }
 
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 }
@@ -4029,7 +4053,8 @@ static bool recv_scan_log(bool last_phase)
     if (recv_sys.is_corrupt_log())
       break;
 
-    if (recv_sys.offset < log_sys.get_block_size())
+    if (recv_sys.offset < log_sys.get_block_size() &&
+        recv_sys.lsn == recv_sys.scanned_lsn)
       goto got_eof;
 
     if (recv_sys.offset > buf_size / 4 ||
@@ -4544,6 +4569,13 @@ err_exit:
 	}
 
 	mysql_mutex_lock(&recv_sys.mutex);
+	if (UNIV_UNLIKELY(recv_sys.scanned_lsn != recv_sys.lsn)
+	    && log_sys.is_latest()) {
+		ut_ad("log parsing error" == 0);
+		mysql_mutex_unlock(&recv_sys.mutex);
+		err = DB_CORRUPTION;
+		goto early_exit;
+	}
 	recv_sys.apply_log_recs = true;
 	ut_d(recv_no_log_write = srv_operation == SRV_OPERATION_RESTORE
 	     || srv_operation == SRV_OPERATION_RESTORE_EXPORT);

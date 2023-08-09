@@ -846,7 +846,12 @@ int close_thread_tables(THD *thd)
           !thd->stmt_arena->is_stmt_prepare())
         table->part_info->vers_check_limit(thd);
 #endif
-      table->vcol_cleanup_expr(thd);
+      /*
+        For simple locking we cleanup it here because we don't close thread
+        tables. For prelocking we close it when we do close thread tables.
+      */
+      if (thd->locked_tables_mode != LTM_PRELOCKED)
+        table->vcol_cleanup_expr(thd);
     }
 
     /* Detach MERGE children after every statement. Even under LOCK TABLES. */
@@ -1781,6 +1786,8 @@ bool TABLE::vers_switch_partition(THD *thd, TABLE_LIST *table_list,
         }
         break;
     }
+    DBUG_ASSERT(!thd->lex->last_table() ||
+                !thd->lex->last_table()->vers_conditions.delete_history);
   }
 
   if (table_list->partition_names)
