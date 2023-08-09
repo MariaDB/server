@@ -263,6 +263,11 @@ CREATE TABLE t2 (a varchar(4), b varchar(50), PRIMARY KEY (b,a), KEY (a)) ENGINE
 INSERT INTO t2 VALUES
 ('BERM','African Methodist Episcopal'),('AUS','Anglican'),('BERM','Anglican'),('BS','Anglican'),('BS','Baptist'),('BS','Methodist');
 
+-- disable_result_log
+ANALYZE TABLE t1;
+ANALYZE TABLE t2;
+-- enable_result_log
+
 let query=
 SELECT t1.a
 FROM (SELECT a FROM t2 GROUP BY a ORDER BY COUNT(DISTINCT b) LIMIT 1) dt

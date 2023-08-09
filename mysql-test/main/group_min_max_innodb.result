@@ -317,6 +317,8 @@ INSERT INTO t1 VALUES
 CREATE TABLE t2 (a varchar(4), b varchar(50), PRIMARY KEY (b,a), KEY (a)) ENGINE=InnoDB;
 INSERT INTO t2 VALUES
 ('BERM','African Methodist Episcopal'),('AUS','Anglican'),('BERM','Anglican'),('BS','Anglican'),('BS','Baptist'),('BS','Methodist');
+ANALYZE TABLE t1;
+ANALYZE TABLE t2;
 EXPLAIN SELECT t1.a
 FROM (SELECT a FROM t2 GROUP BY a ORDER BY COUNT(DISTINCT b) LIMIT 1) dt
 JOIN t1 ON dt.a=t1.b;
