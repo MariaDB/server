@@ -3807,7 +3807,6 @@ int
 sp_instr_set::exec_core(THD *thd, uint *nextp)
 {
   int res= get_rcontext(thd)->set_variable(thd, m_offset, &m_value);
-  delete_explain_query(thd->lex);
   *nextp = m_ip+1;
   return res;
 }
@@ -3849,7 +3848,6 @@ sp_instr_set_row_field::exec_core(THD *thd, uint *nextp)
   int res= get_rcontext(thd)->set_variable_row_field(thd, m_offset,
                                                      m_field_offset,
                                                      &m_value);
-  delete_explain_query(thd->lex);
   *nextp= m_ip + 1;
   return res;
 }
@@ -3897,7 +3895,6 @@ sp_instr_set_row_field_by_name::exec_core(THD *thd, uint *nextp)
   int res= get_rcontext(thd)->set_variable_row_field_by_name(thd, m_offset,
                                                              m_field_name,
                                                              &m_value);
-  delete_explain_query(thd->lex);
   *nextp= m_ip + 1;
   return res;
 }
