@@ -4457,8 +4457,8 @@ int create_table_impl(THD *thd,
       If a table exists, it must have been pre-opened. Try looking for one
       in-use in THD::all_temp_tables list of TABLE_SHAREs.
     */
-    TABLE *tmp_table= thd->find_temporary_table(db.str, table_name.str,
-                                                THD::TMP_TABLE_ANY);
+    TABLE *tmp_table= internal_tmp_table ? NULL :
+      thd->find_temporary_table(db.str, table_name.str, THD::TMP_TABLE_ANY);
 
     if (tmp_table)
     {
@@ -11328,7 +11328,7 @@ end_inplace:
                 thd->is_current_stmt_binlog_format_row() &&
                 (create_info->tmp_table())));
 
-  if(start_alter_id)
+  if (start_alter_id)
   {
     if (!is_reg_table)
     {
