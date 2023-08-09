@@ -1,4 +1,4 @@
-/* Copyright 2008-2022 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2023 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -355,7 +355,7 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
                              const wsrep::key_array *fk_tables= nullptr,
                              const HA_CREATE_INFO* create_info= nullptr);
 
-bool wsrep_should_replicate_ddl(THD* thd, const handlerton *db_type);
+bool wsrep_should_replicate_ddl(THD* thd, const handlerton *hton);
 bool wsrep_should_replicate_ddl_iterate(THD* thd, const TABLE_LIST* table_list);
 
 void wsrep_to_isolation_end(THD *thd);
@@ -612,7 +612,6 @@ wsrep::key wsrep_prepare_key_for_toi(const char* db, const char* table,
 #define wsrep_thr_deinit() do {} while(0)
 #define wsrep_init_globals() do {} while(0)
 #define wsrep_create_appliers(X) do {} while(0)
-#define wsrep_should_replicate_ddl(X,Y) (1)
 #define wsrep_cluster_address_exists() (false)
 #define WSREP_MYSQL_DB (0)
 #define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_) do { } while(0)
