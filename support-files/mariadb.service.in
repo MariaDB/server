@@ -65,9 +65,6 @@ PrivateDevices=true
 # Prevent accessing /home, /root and /run/user
 ProtectHome=true
 
-# Execute pre and post scripts as root, otherwise it does it as User=
-PermissionsStartOnly=true
-
 @SYSTEMD_EXECSTARTPRE@
 
 # Perform automatic wsrep recovery. When server is started without wsrep,
