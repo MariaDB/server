@@ -6324,3 +6324,19 @@ length(concat(t1.f,t2.f))
 DROP TABLE t;
 set @@optimizer_switch=@org_optimizer_switch;
 set @@join_buffer_size=@org_join_buffer_size;
+#
+# MDEV-31348 Assertion `last_key_entry >= end_pos' failed in
+# virtual bool JOIN_CACHE_HASHED::put_record()
+#
+SET JOIN_buffer_size=1;
+Warnings:
+Warning	1292	Truncated incorrect join_buffer_size value: '1'
+SET SESSION JOIN_cache_level=4;
+SET SESSION optimizer_switch='optimize_JOIN_buffer_size=OFF';
+SELECT * FROM information_schema.statistics JOIN information_schema.COLUMNS USING (table_name,column_name);
+ERROR HY001: Could not create a join buffer. Please check and adjust the value of the variables 'JOIN_BUFFER_SIZE (128)' and 'JOIN_BUFFER_SPACE_LIMIT (2097152)'
+SET JOIN_buffer_size=16384;
+SELECT * FROM information_schema.statistics JOIN information_schema.COLUMNS USING (table_name,column_name);
+#
+# End of 10.4 tests
+#
