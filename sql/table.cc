@@ -508,7 +508,7 @@ void TABLE_SHARE::destroy()
 #ifdef HAVE_REPLICATION
   if (online_alter_binlog)
   {
-    online_alter_binlog->cleanup();
+    online_alter_binlog->release();
     online_alter_binlog= NULL;
   }
 #endif
