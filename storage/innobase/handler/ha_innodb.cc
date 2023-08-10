@@ -4499,11 +4499,7 @@ innobase_commit_ordered_2(
 #endif /* WITH_WSREP */
 
 	innobase_commit_low(trx);
-
-	if (!read_only) {
-		trx->mysql_log_file_name = NULL;
-		trx->flush_log_later = false;
-	}
+	trx->mysql_log_file_name = NULL;
 
 	DBUG_VOID_RETURN;
 }
