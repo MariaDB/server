@@ -130,6 +130,7 @@ protected:
     case 4: int4store(ptr, (uint32) ofs); return;
     }
   }
+  size_t calc_avg_record_length();
   
   /* 
     The maximum total length of the fields stored for a record in the cache.
