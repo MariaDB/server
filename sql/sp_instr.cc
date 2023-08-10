@@ -722,7 +722,21 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
     sp_instr_cursor_copy_struct) and in some cases for sp_instr_set.
   */
   if (sp_instr_lex == nullptr)
+  {
     thd->lex= new (thd->mem_root) st_lex_local;
+    lex_start(thd);
+    if (sp->m_handler->type() == SP_TYPE_TRIGGER)
+    {
+      /*
+        In case the trigger's statement being re-parsed, the correct trigger's
+        context (trigger event type and action time) should be copied from
+        trigger's sp_head to the new lex object.
+      */
+      thd->lex->trg_chistics.action_time=
+        thd->spcont->m_sp->m_trg->action_time;
+      thd->lex->trg_chistics.event= thd->spcont->m_sp->m_trg->event;
+    }
+  }
   else
   {
     sp_lex_cursor* cursor_lex= sp_instr_lex->get_lex_for_cursor();
@@ -741,8 +755,6 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
     cursor_free_list= &cursor_lex->free_list;
     DBUG_ASSERT(thd->lex == sp_instr_lex);
   }
-
-  lex_start(thd);
 
   thd->lex->sphead= sp;
   thd->lex->spcont= m_ctx;

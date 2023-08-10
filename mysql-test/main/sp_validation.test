@@ -2713,4 +2713,50 @@ CALL p1;
 DROP PROCEDURE p1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-31799 Unexpected ER_TRG_NO_SUCH_ROW_IN_TRG and server crash after ALTER TABLE
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3),(4);
+CREATE TABLE t2 (b INT);
+--echo # Check that AFTER DELETE trigger is re-compiled on changing table's metadata
+CREATE TRIGGER tr AFTER DELETE ON t1 FOR EACH ROW INSERT INTO t2 (b) VALUES (OLD.a);
+
+DELETE FROM t1 LIMIT 1;
+SELECT * FROM t2;
+
+ALTER TABLE t2 FORCE;
+
+DELETE FROM t1 LIMIT 1;
+SELECT * FROM t2;
+
+DELETE FROM t1 LIMIT 1;
+SELECT * FROM t2;
+
+DROP TRIGGER tr;
+--echo # Check that AFTER UPDATE trigger is re-compiled on changing table's metadata
+CREATE TRIGGER tr AFTER UPDATE ON t1 FOR EACH ROW INSERT INTO t2 (b) VALUES (OLD.a);
+--echo # Remove records interted by AFTER DELETE trogger
+TRUNCATE TABLE t1;
+TRUNCATE TABLE t2;
+INSERT INTO t1 VALUES (1);
+UPDATE t1 SET a = 2;
+--echo # Above statement should insert the row (1) into the table t2
+--echo # Expected output contains one row: (1)
+SELECT * FROM t2;
+ALTER TABLE t2 FORCE;
+
+--echo # The following statement should insert the row (2) into the table t2
+UPDATE t1 SET a = 3;
+--echo # Expected output contains two rows: (1), (2)
+SELECT * FROM t2;
+--echo # The following statement should insert the row (3) into the table t2
+UPDATE t1 SET a = 5;
+--echo # Expected output contains three rows: (1), (2), (3)
+SELECT * FROM t2;
+
+# Cleanup
+
+DROP TABLE t1, t2;
+
 SET sql_mode = default;
