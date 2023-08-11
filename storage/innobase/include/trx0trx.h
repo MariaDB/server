@@ -181,13 +181,9 @@ note that the trx may have been committed before the caller acquires
 trx_t::mutex
 @retval	NULL if no match */
 trx_t* trx_get_trx_by_xid(const XID* xid);
-/**********************************************************************//**
-If required, flushes the log to disk if we called trx_commit_for_mysql()
-with trx->flush_log_later == TRUE. */
-void
-trx_commit_complete_for_mysql(
-/*==========================*/
-	trx_t*	trx);	/*!< in/out: transaction */
+/** Durably write log until trx->commit_lsn
+(if trx_t::commit_in_memory() was invoked with flush_log_later=true). */
+void trx_commit_complete_for_mysql(trx_t *trx);
 /**********************************************************************//**
 Marks the latest SQL statement ended. */
 void

@@ -4467,9 +4467,7 @@ innobase_commit_ordered_2(
 {
 	DBUG_ENTER("innobase_commit_ordered_2");
 
-	const bool read_only = trx->read_only || trx->id == 0;
-
-	if (!read_only) {
+	if (trx->id) {
 		/* The following call reads the binary log position of
 		the transaction being committed.
 
@@ -4500,6 +4498,7 @@ innobase_commit_ordered_2(
 
 	innobase_commit_low(trx);
 	trx->mysql_log_file_name = NULL;
+	trx->flush_log_later = false;
 
 	DBUG_VOID_RETURN;
 }

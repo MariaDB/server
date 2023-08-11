@@ -1442,11 +1442,11 @@ TRANSACTIONAL_INLINE inline void trx_t::commit_in_memory(const mtr_t *mtr)
     gathering. */
 
     commit_lsn= undo_no || !xid.is_null() ? mtr->commit_lsn() : 0;
-    if (!commit_lsn)
-      flush_log_later= false;
-    else if (flush_log_later);
-    else if (!(flush_log_later= !srv_flush_log_at_trx_commit))
+    if (commit_lsn && !flush_log_later && srv_flush_log_at_trx_commit)
+    {
       trx_flush_log_if_needed(commit_lsn, this);
+      commit_lsn= 0;
+    }
   }
 
   savepoints_discard();
@@ -1693,18 +1693,13 @@ trx_commit_for_mysql(
 	return(DB_CORRUPTION);
 }
 
-/**********************************************************************//**
-If required, flushes the log to disk if we called trx_commit_for_mysql()
-with trx->flush_log_later == TRUE. */
-void
-trx_commit_complete_for_mysql(
-/*==========================*/
-	trx_t*	trx)	/*!< in/out: transaction */
+/** Durably write log until trx->commit_lsn
+(if trx_t::commit_in_memory() was invoked with flush_log_later=true). */
+void trx_commit_complete_for_mysql(trx_t *trx)
 {
-  if (!trx->flush_log_later)
+  const lsn_t lsn= trx->commit_lsn;
+  if (!lsn)
     return;
-  trx->flush_log_later= false;
-
   switch (srv_flush_log_at_trx_commit) {
   case 0:
     return;
@@ -1712,7 +1707,7 @@ trx_commit_complete_for_mysql(
     if (trx->active_commit_ordered)
       return;
   }
-  trx_flush_log_if_needed(trx->commit_lsn, trx);
+  trx_flush_log_if_needed(lsn, trx);
 }
 
 /**********************************************************************//**
