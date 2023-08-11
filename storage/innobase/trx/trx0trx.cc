@@ -1035,6 +1035,34 @@ void trx_t::commit_empty(mtr_t *mtr)
                       page_offset(prev));
         mtr->write<2>(*u, prev + TRX_UNDO_NEXT_LOG, 0U);
         mtr->memset(u, free, srv_page_size - FIL_PAGE_DATA_END - free, 0);
+
+        /* We may have updated PAGE_MAX_TRX_ID on secondary index pages
+        to this->id. Ensure that trx_sys.m_max_trx_id will be recovered
+        correctly, even though we removed our undo log record along
+        with the TRX_UNDO_TRX_ID above. */
+
+        /* Below, we are acquiring rseg_header->page.lock after
+        u->page.lock (the opposite of trx_purge_add_undo_to_history()).
+        This is fine, because both functions are holding exclusive
+        rseg->latch. */
+
+        if (mach_read_from_8(prev + TRX_UNDO_TRX_NO) >= id);
+        else if (buf_block_t *rseg_header= rseg->get(mtr, nullptr))
+        {
+          byte *m= TRX_RSEG + TRX_RSEG_MAX_TRX_ID + rseg_header->page.frame;
+
+          do
+          {
+            if (UNIV_UNLIKELY(mach_read_from_4(TRX_RSEG + TRX_RSEG_FORMAT +
+                                               rseg_header->page.frame)))
+              /* This must have been upgraded from before MariaDB 10.3.5. */
+              trx_rseg_format_upgrade(rseg_header, mtr);
+            else if (mach_read_from_8(m) >= id)
+              continue;
+            mtr->write<8>(*rseg_header, m, id);
+          }
+          while (0);
+        }
       }
       else
         mtr->write<2>(*u, TRX_UNDO_SEG_HDR + TRX_UNDO_STATE + u->page.frame,
