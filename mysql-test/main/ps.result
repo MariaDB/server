@@ -4094,9 +4094,16 @@ DROP TABLE t1, t2;
 #
 CREATE TABLE t1 (a INT);
 PREPARE stmt FROM "SELECT 1 FROM t1 GROUP BY 0 OR 18446744073709551615+1";
+execute stmt;
+1
+SELECT 1 FROM t1 GROUP BY 0 OR 18446744073709551615+1;
+1
+insert into t1 values(1),(2);
+execute stmt;
 ERROR 22003: BIGINT UNSIGNED value is out of range in '18446744073709551615 + 1'
 SELECT 1 FROM t1 GROUP BY 0 OR 18446744073709551615+1;
 ERROR 22003: BIGINT UNSIGNED value is out of range in '18446744073709551615 + 1'
+deallocate prepare stmt;
 drop table t1;
 # End of 5.3 tests
 #

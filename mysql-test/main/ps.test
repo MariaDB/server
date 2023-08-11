@@ -3632,12 +3632,16 @@ DROP TABLE t1, t2;
 --echo # with out of range in GROUP BY
 --echo #
 CREATE TABLE t1 (a INT);
-
---error ER_DATA_OUT_OF_RANGE
 PREPARE stmt FROM "SELECT 1 FROM t1 GROUP BY 0 OR 18446744073709551615+1";
+execute stmt;
+SELECT 1 FROM t1 GROUP BY 0 OR 18446744073709551615+1;
+insert into t1 values(1),(2);
+--error ER_DATA_OUT_OF_RANGE
+execute stmt;
 --error ER_DATA_OUT_OF_RANGE
 SELECT 1 FROM t1 GROUP BY 0 OR 18446744073709551615+1;
 
+deallocate prepare stmt;
 drop table t1;
 
 --echo # End of 5.3 tests

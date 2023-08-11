@@ -787,7 +787,8 @@ enum class item_with_t : item_flags_t
   FIELD=       (1<<2), // If any item except Item_sum contains a field.
   SUM_FUNC=    (1<<3), // If item contains a sum func
   SUBQUERY=    (1<<4), // If item containts a sub query
-  ROWNUM_FUNC= (1<<5)
+  ROWNUM_FUNC= (1<<5), // If ROWNUM function was used
+  PARAM=       (1<<6)  // If user parameter was used
 };
 
 
@@ -1087,6 +1088,8 @@ public:
   { return (bool) (with_flags & item_with_t::SUBQUERY); }
   inline bool with_rownum_func() const
   { return (bool) (with_flags & item_with_t::ROWNUM_FUNC); }
+  inline bool with_param() const
+  { return (bool) (with_flags & item_with_t::PARAM); }
   inline void copy_flags(const Item *org, item_base_t mask)
   {
     base_flags= (item_base_t) (((item_flags_t) base_flags &
@@ -5304,17 +5307,17 @@ public:
    :used_tables_cache(other->used_tables_cache),
     const_item_cache(other->const_item_cache)
   { }
-  void used_tables_and_const_cache_init()
+  inline void used_tables_and_const_cache_init()
   {
     used_tables_cache= 0;
     const_item_cache= true;
   }
-  void used_tables_and_const_cache_join(const Item *item)
+  inline void used_tables_and_const_cache_join(const Item *item)
   {
     used_tables_cache|= item->used_tables();
     const_item_cache&= item->const_item();
   }
-  void used_tables_and_const_cache_update_and_join(Item *item)
+  inline void used_tables_and_const_cache_update_and_join(Item *item)
   {
     item->update_used_tables();
     used_tables_and_const_cache_join(item);
