@@ -437,8 +437,10 @@ DROP TABLE t1;
 # MDEV-31432 tmp_table field accessed after free
 # torture for the above (MDEV-28201) caused use after free error
 #
-create table t1 ( x int);
+create table t1 (x int) engine=myisam;
 insert into t1 values(1);
+set @tmp=@@optimizer_trace;
+set @@optimizer_trace=1;
 SELECT
 1 IN
 ((
@@ -468,18 +470,5 @@ t1
 )) as VAL;
 VAL
 0
-Warnings:
-Warning	1052	Column 'x' in group statement is ambiguous
-Warning	1052	Column 'x' in IN/ALL/ANY subquery is ambiguous
+set optimizer_trace=@tmp;
 drop table t1;
-SELECT * FROM (SELECT x,0 FROM (SELECT * FROM (SELECT * FROM (SELECT x,0 FROM (SELECT 1 AS x) AS x WHERE x IN (SELECT 1 AS x FROM (SELECT 1 AS x FROM (SELECT 1 AS x) AS x WHERE x IN (1)) AS x WHERE x IN (SELECT * FROM (SELECT 1 AS x) AS x WHERE x IN (SELECT x IN ((SELECT * FROM (SELECT 1 AS x FROM (SELECT 1 AS x) AS x WHERE x IN (1)) AS x GROUP BY x HAVING NOT x)) GROUP BY x HAVING NOT x)) GROUP BY x HAVING NOT NOT x)) AS x) AS x GROUP BY x,x IN (SELECT 1 WHERE x IN (SELECT 1 WHERE NOT x IN (1)))) AS x WHERE x IN (1)) AS x GROUP BY NOT x IN (SELECT (SELECT 1 AS x FROM (SELECT * FROM (SELECT * FROM (SELECT 1 AS x GROUP BY x HAVING NOT 1) AS x WHERE x IN (1) GROUP BY x,x) AS x) AS x) IN ((SELECT (SELECT * FROM (SELECT 1 AS x FROM (SELECT 1 AS x) AS x WHERE x IN (1)) AS x GROUP BY x HAVING NOT x) IN (SELECT 1 AS x FROM (SELECT 1 AS x FROM (SELECT * FROM (SELECT 1 AS x) AS x WHERE x IN (SELECT x) GROUP BY x,x HAVING x IN (SELECT x IN (SELECT 1 AS x FROM (SELECT 1 AS x) AS x WHERE x IN (SELECT * FROM (SELECT 1 AS x) AS x WHERE x IN (SELECT 1 AS x FROM (SELECT 1 AS x FROM (SELECT 1 AS x) AS x WHERE x IN (1)) AS x WHERE x IN (1) GROUP BY x HAVING x IN (SELECT NOT (SELECT * FROM (SELECT * FROM (SELECT x IN (SELECT 1 AS x WHERE x IN ((SELECT 1 AS x FROM (SELECT 1 AS x) AS x WHERE x IN (SELECT 1 IN (1) AS x)))) AS x FROM (SELECT 1 AS x FROM (SELECT * FROM (SELECT * FROM (SELECT x,0 FROM (SELECT 1 AS x) AS x WHERE x IN (SELECT 1 AS x FROM (SELECT 1 AS x FROM (SELECT 1 AS x) AS x WHERE x IN (1)) AS x WHERE x IN (1) GROUP BY x HAVING NOT NOT x)) AS x) AS x) AS x) AS x) AS x WHERE x IN (1)) AS x) FROM (SELECT 1 AS x) AS x)))) WHERE NOT x IN (1))) AS x WHERE x IN (1)) AS x WHERE x IN (1) GROUP BY x HAVING NOT NOT x) AS x FROM (SELECT * FROM (SELECT * FROM (SELECT 1 AS x FROM (SELECT 1 AS x) AS x) AS x WHERE x IN (1)) AS x) AS x WHERE x IN (1))));
-x	0
-Warnings:
-Warning	1052	Column 'x' in group statement is ambiguous
-Warning	1052	Column 'x' in having clause is ambiguous
-Warning	1052	Column 'x' in group statement is ambiguous
-Warning	1052	Column 'x' in IN/ALL/ANY subquery is ambiguous
-Warning	1052	Column 'x' in group statement is ambiguous
-Warning	1052	Column 'x' in having clause is ambiguous
-Warning	1052	Column 'x' in group statement is ambiguous
-Warning	1052	Column 'x' in having clause is ambiguous
