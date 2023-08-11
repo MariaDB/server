@@ -295,7 +295,7 @@ buf_block_t* buf_LRU_get_free_only()
 
 			block->page.set_state(buf_page_t::MEMORY);
 			MEM_MAKE_ADDRESSABLE(block->page.frame, srv_page_size);
-			break;
+			return block;
 		}
 
 		/* This should be withdrawn */
@@ -306,7 +306,20 @@ buf_block_t* buf_LRU_get_free_only()
 			UT_LIST_GET_FIRST(buf_pool.free));
 	}
 
-	return(block);
+	return buf_pool.lazy_allocate();
+}
+
+ulint buf_pool_t::lazy_allocate_size()
+{
+  mysql_mutex_assert_owner(&mutex);
+  ulint size= 0;
+  for (const chunk_t *chunk= chunks,
+         *const end= chunks + std::min(n_chunks, n_chunks_new);
+       chunk != end; chunk++)
+    size+= chunk->size - (chunk->blocks_end - chunk->blocks);
+  if (!size)
+    fully_initialized= true;
+  return size;
 }
 
 /******************************************************************//**
@@ -321,7 +334,9 @@ static void buf_LRU_check_size_of_non_data_objects()
   if (recv_recovery_is_on() || buf_pool.n_chunks_new != buf_pool.n_chunks)
     return;
 
-  const auto s= UT_LIST_GET_LEN(buf_pool.free) + UT_LIST_GET_LEN(buf_pool.LRU);
+  auto s= UT_LIST_GET_LEN(buf_pool.free) + UT_LIST_GET_LEN(buf_pool.LRU);
+  if (s < buf_pool.curr_size / 3 && !buf_pool.fully_initialized)
+    s+= buf_pool.lazy_allocate_size();
 
   if (s < buf_pool.curr_size / 20)
     ib::fatal() << "Over 95 percent of the buffer pool is"

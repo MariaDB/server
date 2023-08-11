@@ -1515,9 +1515,9 @@ inline void recv_sys_t::free(const void *data)
       continue;
     const size_t offs= (reinterpret_cast<const byte*>(data) -
                         chunk->blocks->page.frame) >> srv_page_size_shift;
-    if (offs >= chunk->size)
-      continue;
     buf_block_t *block= &chunk->blocks[offs];
+    if (block >= chunk->blocks_end)
+      continue;
     ut_ad(block->page.frame == data);
     ut_ad(block->page.state() == buf_page_t::MEMORY);
     ut_ad(static_cast<uint16_t>(block->page.access_time - 1) <
@@ -2169,7 +2169,8 @@ ATTRIBUTE_COLD buf_block_t *recv_sys_t::add_block()
     const auto rs= UT_LIST_GET_LEN(blocks) * 2;
     mysql_mutex_lock(&buf_pool.mutex);
     const auto bs=
-      UT_LIST_GET_LEN(buf_pool.free) + UT_LIST_GET_LEN(buf_pool.LRU);
+      UT_LIST_GET_LEN(buf_pool.free) + UT_LIST_GET_LEN(buf_pool.LRU) +
+      buf_pool.lazy_allocate_size();
     if (UNIV_LIKELY(bs > BUF_LRU_MIN_LEN || rs < bs))
     {
       buf_block_t *block= buf_LRU_get_free_block(true);
@@ -3321,7 +3322,8 @@ bool recv_sys_t::apply_batch(uint32_t space_id, fil_space_t *&space,
   mysql_mutex_lock(&buf_pool.mutex);
   size_t n= 0, max_n= std::min<size_t>(BUF_LRU_MIN_LEN,
                                        UT_LIST_GET_LEN(buf_pool.LRU) +
-                                       UT_LIST_GET_LEN(buf_pool.free));
+                                       UT_LIST_GET_LEN(buf_pool.free) +
+                                       buf_pool.lazy_allocate_size());
   mysql_mutex_unlock(&buf_pool.mutex);
 
   map::iterator begin= pages.end();

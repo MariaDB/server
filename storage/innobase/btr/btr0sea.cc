@@ -956,8 +956,8 @@ inline void buf_pool_t::clear_hash_index()
 
   for (chunk_t *chunk= chunks + n_chunks; chunk-- != chunks; )
   {
-    for (buf_block_t *block= chunk->blocks, * const end= block + chunk->size;
-         block != end; block++)
+    for (buf_block_t *block= chunk->blocks; block != chunk->blocks_end;
+         block++)
     {
       dict_index_t *index= block->index;
       assert_block_ahi_valid(block);
@@ -1014,7 +1014,7 @@ inline buf_block_t* buf_pool_t::block_from_ahi(const byte *ptr) const
 
   const size_t offs= size_t(ptr - chunk->blocks->page.frame) >>
     srv_page_size_shift;
-  ut_a(offs < chunk->size);
+  ut_a(ptrdiff_t(offs) < chunk->blocks_end - chunk->blocks);
 
   buf_block_t *block= &chunk->blocks[offs];
   /* buf_pool_t::chunk_t::init() invokes buf_block_init() so that

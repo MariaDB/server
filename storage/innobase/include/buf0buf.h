@@ -1203,8 +1203,11 @@ class buf_pool_t
     unsigned char *mem;
     /** descriptor of mem */
     ut_new_pfx_t mem_pfx;
-    /** array of buffer control blocks */
+    /** array of buffer control blocks (initialized up to blocks_end) */
     buf_block_t *blocks;
+    /** the first uninitialized buffer control block, or blocks+size if all
+    blocks have been initialized */
+    buf_block_t *blocks_end;
 
     /** Map of first page frame address to chunks[] */
     using map= std::map<const void*, chunk_t*, std::less<const void*>,
@@ -1270,7 +1273,7 @@ private:
     currently remain during resize()) */
     for (; chunk < echunk; chunk++)
       if (ptr >= reinterpret_cast<const void*>(chunk->blocks) &&
-          ptr < reinterpret_cast<const void*>(chunk->blocks + chunk->size))
+          ptr < reinterpret_cast<const void*>(chunk->blocks_end))
         return true;
     return false;
   }
@@ -1286,6 +1289,14 @@ public:
   /** Create the buffer pool.
   @return whether the creation failed */
   bool create();
+
+  /** @return number of blocks available to lazy_allocate() */
+  ulint lazy_allocate_size();
+
+  /** Lazily initialize a block after create().
+  @return freshly initialized buffer block
+  @retval if all of the buffer pool has been initialized */
+  buf_block_t *lazy_allocate();
 
   /** Clean up after successful create() */
   void close();
@@ -1324,7 +1335,7 @@ public:
          * const echunk= chunks + n_chunks;
          chunk != echunk; chunk++)
       if (ptr >= chunk->blocks->page.frame &&
-          ptr < (chunk->blocks + chunk->size - 1)->page.frame + srv_page_size)
+          ptr < (chunk->blocks_end - 1)->page.frame + srv_page_size)
         return true;
     return false;
   }
@@ -1344,7 +1355,7 @@ public:
          * const echunk= chunks + n_chunks;
          chunk != echunk; chunk++)
       if (&bpage >= &chunk->blocks->page &&
-          &bpage < &chunk->blocks[chunk->size].page)
+          &bpage < &chunk->blocks_end->page)
         return true;
     return false;
   }
@@ -1494,7 +1505,7 @@ public:
   TPOOL_SUPPRESS_TSAN
   bool running_out() const
   {
-    return !recv_recovery_is_on() &&
+    return !recv_recovery_is_on() && fully_initialized &&
       UT_LIST_GET_LEN(free) + UT_LIST_GET_LEN(LRU) <
         n_chunks_new / 4 * chunks->size;
   }
@@ -1502,7 +1513,10 @@ public:
   /** @return whether the buffer pool has run out */
   TPOOL_SUPPRESS_TSAN
   bool ran_out() const
-  { return UNIV_UNLIKELY(!try_LRU_scan || !UT_LIST_GET_LEN(free)); }
+  {
+    return UNIV_UNLIKELY(!try_LRU_scan ||
+                         (fully_initialized && !UT_LIST_GET_LEN(free)));
+  }
 
   /** @return whether the buffer pool is shrinking */
   inline bool is_shrinking() const
@@ -1809,6 +1823,9 @@ public:
   Set whenever the free list grows, along with a broadcast of done_free.
   Protected by buf_pool.mutex. */
   Atomic_relaxed<bool> try_LRU_scan;
+
+  /** Whether lazy_allocate_size() == 0 */
+  Atomic_relaxed<bool> fully_initialized;
 	/* @} */
 
 	/** @name LRU replacement algorithm fields */

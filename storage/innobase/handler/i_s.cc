@@ -4148,7 +4148,7 @@ static int i_s_innodb_buffer_page_fill(THD *thd, TABLE_LIST *tables, Item *)
 
 		/* Get buffer block of the nth chunk */
 		block = buf_pool.chunks[n].blocks;
-		chunk_size = buf_pool.chunks[n].size;
+		chunk_size = buf_pool.chunks[n].blocks_end - block;
 		num_page = 0;
 
 		while (chunk_size > 0) {
