@@ -38,7 +38,7 @@
   build by doing the following during your build process:<br> ./configure
   --with-example-storage-engine
 
-  Once this is done, MySQL will let you create tables with:<br>
+  Once this is done, MariaDB will let you create tables with:<br>
   CREATE TABLE <table name> (...) ENGINE=EXAMPLE;
 
   The example storage engine is set up to use table locks. It
@@ -51,9 +51,9 @@
   of this file.
 
   @note
-  When you create an EXAMPLE table, the MySQL Server creates a table .frm
+  When you create an EXAMPLE table, the MariaDB Server creates a table .frm
   (format) file in the database directory, using the table name as the file
-  name as is customary with MySQL. No other files are created. To get an idea
+  name as is customary with MariaDB. No other files are created. To get an idea
   of what occurs, here is an example select that would do a scan of an entire
   table:
 
@@ -771,7 +771,7 @@ int ha_example::external_lock(THD *thd, int lock_type)
   Before adding the lock into the table lock handler (see thr_lock.c),
   mysqld calls store lock with the requested locks. Store lock can now
   modify a write lock to a read lock (or some other lock), ignore the
-  lock (if we don't want to use MySQL table locks at all), or add locks
+  lock (if we don't want to use MariaDB table locks at all), or add locks
   for many tables (like we do when we are using a MERGE handler).
 
   Berkeley DB, for example, changes all WRITE locks to TL_WRITE_ALLOW_WRITE
@@ -781,7 +781,7 @@ int ha_example::external_lock(THD *thd, int lock_type)
   When releasing locks, store_lock() is also called. In this case one
   usually doesn't have to do anything.
 
-  In some exceptional cases MySQL may send a request for a TL_IGNORE;
+  In some exceptional cases MariaDB may send a request for a TL_IGNORE;
   This means that we are requesting the same lock as last time and this
   should also be ignored. (This may happen when someone does a flush
   table when we have opened a part of the tables, in which case mysqld
