@@ -86,10 +86,6 @@
   ha_example::open() would also have been necessary. Calls to
   ha_example::extra() are hints as to what will be occuring to the request.
 
-  A Longer Example can be found called the "Skeleton Engine" which can be 
-  found on TangentOrg. It has both an engine and a full build environment
-  for building a pluggable storage engine.
-
   Happy coding!<br>
     -Brian
 */
