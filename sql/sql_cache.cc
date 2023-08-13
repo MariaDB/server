@@ -4876,6 +4876,9 @@ my_bool Query_cache::check_integrity(bool locked)
   uint i;
   DBUG_ENTER("check_integrity");
 
+  if (is_disabled())
+    DBUG_RETURN(0);
+
   if (!locked)
     lock_and_suspend();
 
