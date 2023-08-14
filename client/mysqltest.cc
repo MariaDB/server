@@ -119,6 +119,7 @@ static my_bool opt_mark_progress= 0;
 static my_bool ps_protocol= 0, ps_protocol_enabled= 0, ps2_protocol_enabled= 0;
 static my_bool sp_protocol= 0, sp_protocol_enabled= 0;
 static my_bool view_protocol= 0, view_protocol_enabled= 0;
+static my_bool cte_protocol= 0, cte_protocol_enabled= 0;
 static my_bool service_connection_enabled= 1;
 static my_bool cursor_protocol= 0, cursor_protocol_enabled= 0;
 static my_bool parsing_disabled= 0;
@@ -159,6 +160,7 @@ static struct property prop_list[] = {
   { &ps_protocol_enabled, 0, 0, 0, "$ENABLED_PS_PROTOCOL" },
   { &ps2_protocol_enabled, 0, 0, 0, "$ENABLED_PS2_PROTOCOL" },
   { &view_protocol_enabled, 0, 0, 0, "$ENABLED_VIEW_PROTOCOL"},
+  { &cte_protocol_enabled, 0, 0, 0, "$ENABLED_CTE_PROTOCOL"},
   { &service_connection_enabled, 0, 1, 0, "$ENABLED_SERVICE_CONNECTION"},
   { &disable_query_log, 0, 0, 1, "$ENABLED_QUERY_LOG" },
   { &disable_result_log, 0, 0, 1, "$ENABLED_RESULT_LOG" },
@@ -176,6 +178,7 @@ enum enum_prop {
   P_PS,
   P_PS2,
   P_VIEW,
+  P_CTE,
   P_CONN,
   P_QUERY,
   P_RESULT,
@@ -268,6 +271,7 @@ static regex_t ps_re;     /* the query can be run using PS protocol */
 static regex_t ps2_re;    /* the query can be run using PS protocol with second execution*/
 static regex_t sp_re;     /* the query can be run as a SP */
 static regex_t view_re;   /* the query can be run as a view*/
+static regex_t cte_re;    /* the query can be run as a cte*/
 
 static void init_re(void);
 static int match_re(regex_t *, char *);
@@ -386,6 +390,7 @@ enum enum_commands {
   Q_CHARACTER_SET, Q_DISABLE_PS_PROTOCOL, Q_ENABLE_PS_PROTOCOL,
   Q_DISABLE_PS2_PROTOCOL, Q_ENABLE_PS2_PROTOCOL,
   Q_DISABLE_VIEW_PROTOCOL, Q_ENABLE_VIEW_PROTOCOL,
+  Q_DISABLE_CTE_PROTOCOL, Q_ENABLE_CTE_PROTOCOL,
   Q_DISABLE_SERVICE_CONNECTION, Q_ENABLE_SERVICE_CONNECTION,
   Q_ENABLE_NON_BLOCKING_API, Q_DISABLE_NON_BLOCKING_API,
   Q_DISABLE_RECONNECT, Q_ENABLE_RECONNECT,
@@ -482,6 +487,8 @@ const char *command_names[]=
   "enable_ps2_protocol",
   "disable_view_protocol",
   "enable_view_protocol",
+  "disable_cte_protocol",
+  "enable_cte_protocol",
   "disable_service_connection",
   "enable_service_connection",
   "enable_non_blocking_api",
@@ -7096,6 +7103,9 @@ static struct my_option my_long_options[] =
   {"view-protocol", 0, "Use views for select.",
    &view_protocol, &view_protocol, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"cte-protocol", 0, "Use cte for select.",
+   &cte_protocol, &cte_protocol, 0,
+   GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"connect_timeout", 0,
    "Number of seconds before connection timeout.",
    &opt_connect_timeout, &opt_connect_timeout, 0, GET_UINT, REQUIRED_ARG,
@@ -9165,6 +9175,26 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
     dynstr_free(&query_str);
   }
 
+  if (cte_protocol_enabled && mysql &&
+      complete_query &&
+      match_re(&cte_re, query))
+  {
+    /*
+      Create the query as a common table expression
+    */
+    DYNAMIC_STRING query_str;
+    init_dynamic_string(&query_str,
+			"WITH mysqltest_tmp_cte AS (",
+			query_len+64, 256);
+    dynstr_append(&query_str, query);
+    dynstr_append(&query_str, ") SELECT * FROM mysqltest_tmp_cte");
+
+    size_t alloc_length;
+    dynstr_reassociate(&query_str, &query, &query_len, &alloc_length);
+
+    dynstr_free(&query_str);
+  }
+
   if (display_result_sorted)
   {
     /*
@@ -9338,10 +9368,18 @@ void init_re(void)
     "^("
     "[[:space:]]*SELECT[[:space:]])";
 
+ /*
+    Filter for queries that can be run as cte
+  */
+  const char *cte_re_str =
+    "^("
+    "[[:space:]]*SELECT[[:space:]])";
+
   init_re_comp(&ps_re, ps_re_str);
   init_re_comp(&ps2_re, ps2_re_str);
   init_re_comp(&sp_re, sp_re_str);
   init_re_comp(&view_re, view_re_str);
+  init_re_comp(&cte_re, cte_re_str);
 }
 
 
@@ -9379,6 +9417,7 @@ void free_re(void)
   regfree(&ps2_re);
   regfree(&sp_re);
   regfree(&view_re);
+  regfree(&cte_re);
 }
 
 /****************************************************************************/
@@ -9696,6 +9735,7 @@ int main(int argc, char **argv)
   var_set_int("$NON_BLOCKING_API", non_blocking_api_enabled);
   var_set_int("$SP_PROTOCOL", sp_protocol);
   var_set_int("$VIEW_PROTOCOL", view_protocol);
+  var_set_int("$CTE_PROTOCOL", cte_protocol);
   var_set_int("$CURSOR_PROTOCOL", cursor_protocol);
 
   var_set_int("$ENABLED_QUERY_LOG", 1);
@@ -9734,6 +9774,7 @@ int main(int argc, char **argv)
   ps_protocol_enabled= ps_protocol;
   sp_protocol_enabled= sp_protocol;
   view_protocol_enabled= view_protocol;
+  cte_protocol_enabled= cte_protocol;
   cursor_protocol_enabled= cursor_protocol;
 
   st_connection *con= connections;
@@ -10171,6 +10212,12 @@ int main(int argc, char **argv)
         break;
       case Q_ENABLE_VIEW_PROTOCOL:
         set_property(command, P_VIEW, view_protocol);
+        break;
+      case Q_DISABLE_CTE_PROTOCOL:
+        set_property(command, P_CTE, 0);
+        break;
+      case Q_ENABLE_CTE_PROTOCOL:
+        set_property(command, P_CTE, cte_protocol);
         break;
       case Q_DISABLE_SERVICE_CONNECTION:
         set_property(command, P_CONN, 0);

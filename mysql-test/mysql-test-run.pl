@@ -244,6 +244,7 @@ my $opt_ps_protocol;
 my $opt_sp_protocol;
 my $opt_cursor_protocol;
 my $opt_view_protocol;
+my $opt_cte_protocol;
 my $opt_non_blocking_api;
 
 our $opt_debug;
@@ -1033,6 +1034,7 @@ sub print_global_resfile {
   resfile_global("ps-protocol", $opt_ps_protocol ? 1 : 0);
   resfile_global("sp-protocol", $opt_sp_protocol ? 1 : 0);
   resfile_global("view-protocol", $opt_view_protocol ? 1 : 0);
+  resfile_global("cte-protocol", $opt_cte_protocol ? 1 : 0);
   resfile_global("cursor-protocol", $opt_cursor_protocol ? 1 : 0);
   resfile_global("ssl", $opt_ssl ? 1 : 0);
   resfile_global("compress", $opt_compress ? 1 : 0);
@@ -1081,6 +1083,7 @@ sub command_line_setup {
              'ps-protocol'              => \$opt_ps_protocol,
              'sp-protocol'              => \$opt_sp_protocol,
              'view-protocol'            => \$opt_view_protocol,
+             'cte-protocol'            => \$opt_cte_protocol,
              'cursor-protocol'          => \$opt_cursor_protocol,
              'non-blocking-api'         => \$opt_non_blocking_api,
              'ssl|with-openssl'         => \$opt_ssl,
@@ -5483,6 +5486,11 @@ sub start_mysqltest ($) {
     mtr_add_arg($args, "--view-protocol");
   }
 
+  if ( $opt_cte_protocol )
+  {
+    mtr_add_arg($args, "--cte-protocol");
+  }
+
   if ( $opt_cursor_protocol )
   {
     mtr_add_arg($args, "--cursor-protocol");
@@ -5692,6 +5700,7 @@ Options to control what engine/variation to run:
   cursor-protocol       Use the cursor protocol between client and server
                         (implies --ps-protocol)
   view-protocol         Create a view to execute all non updating queries
+  cte-protocol          Create a cte to execute all non updating queries
   sp-protocol           Create a stored procedure to execute all queries
   non-blocking-api      Use the non-blocking client API
   compress              Use the compressed protocol between client and server
