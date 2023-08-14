@@ -357,6 +357,9 @@ uint opt_safe_slave_backup_timeout = 0;
 
 const char *opt_history = NULL;
 
+/* Whether xtrabackup_binlog_info should be created on recovery */
+static bool recover_binlog_info;
+
 
 char mariabackup_exe[FN_REFLEN];
 char orig_argv1[FN_REFLEN];
@@ -2250,6 +2253,7 @@ xtrabackup_read_metadata(char *filename)
 {
 	FILE	*fp;
 	my_bool	 r = TRUE;
+	int	 t;
 
 	fp = fopen(filename,"r");
 	if(!fp) {
@@ -2280,6 +2284,9 @@ xtrabackup_read_metadata(char *filename)
 	}
 	/* Optional fields */
 
+	if (fscanf(fp, "recover_binlog_info = %d\n", &t) == 1) {
+		recover_binlog_info = (t == 1);
+	}
 end:
 	fclose(fp);
 
@@ -2298,11 +2305,13 @@ xtrabackup_print_metadata(char *buf, size_t buf_len)
 		 "backup_type = %s\n"
 		 "from_lsn = " UINT64PF "\n"
 		 "to_lsn = " UINT64PF "\n"
-		 "last_lsn = " UINT64PF "\n",
+		 "last_lsn = " UINT64PF "\n"
+		 "recover_binlog_info = %d\n",
 		 metadata_type,
 		 metadata_from_lsn,
 		 metadata_to_lsn,
-		 metadata_last_lsn);
+		 metadata_last_lsn,
+		 MY_TEST(opt_binlog_info == BINLOG_INFO_LOCKLESS));
 }
 
 /***********************************************************************
@@ -5933,6 +5942,26 @@ static ibool prepare_handle_del_files(const char *datadir, const char *db, const
 	return TRUE;
 }
 
+
+/**************************************************************************
+Store the current binary log coordinates in a specified file.
+@return 'false' on error. */
+static bool
+store_binlog_info(const char *filename, const char* name, ulonglong pos)
+{
+	FILE *fp = fopen(filename, "w");
+
+	if (!fp) {
+		msg("mariabackup: failed to open '%s'\n", filename);
+		return(false);
+	}
+
+	fprintf(fp, "%s\t%llu\n", name, pos);
+	fclose(fp);
+
+	return(true);
+}
+
 /** Implement --prepare
 @return	whether the operation succeeded */
 static bool xtrabackup_prepare_func(char** argv)
@@ -6179,6 +6208,20 @@ static bool xtrabackup_prepare_func(char** argv)
 		msg("Last binlog file %s, position %lld",
 		    trx_sys.recovered_binlog_filename,
 		    longlong(trx_sys.recovered_binlog_offset));
+
+                /* output to xtrabackup_binlog_pos_innodb and (if
+                backup_safe_binlog_info was available on the server) to
+                xtrabackup_binlog_info. In the latter case
+                xtrabackup_binlog_pos_innodb becomes redundant and is created
+                only for compatibility. */
+                ok = store_binlog_info(
+                        "xtrabackup_binlog_pos_innodb",
+                        trx_sys.recovered_binlog_filename,
+                        trx_sys.recovered_binlog_offset)
+                        && (!recover_binlog_info || store_binlog_info(
+                                    XTRABACKUP_BINLOG_INFO,
+                                    trx_sys.recovered_binlog_filename,
+                                    trx_sys.recovered_binlog_offset));
 	}
 
 	/* Check whether the log is applied enough or not. */
