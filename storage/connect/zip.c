@@ -63,9 +63,6 @@
 #ifndef ALLOC
 # define ALLOC(size) (malloc(size))
 #endif
-#ifndef TRYFREE
-# define TRYFREE(p) {if (p) free(p);}
-#endif
 
 /*
 #define SIZECENTRALDIRITEM (0x2e)
@@ -205,7 +202,7 @@ local void free_datablock(linkedlist_datablock_internal* ldi) {
     while (ldi!=NULL)
     {
         linkedlist_datablock_internal* ldinext = ldi->next_datablock;
-        TRYFREE(ldi);
+        free(ldi);
         ldi = ldinext;
     }
 }
@@ -506,7 +503,7 @@ local ZPOS64_T zip64local_SearchCentralDir(const zlib_filefunc64_32_def* pzlib_f
     if (uPosFound!=0)
       break;
   }
-  TRYFREE(buf);
+  free(buf);
   return uPosFound;
 }
 
@@ -569,7 +566,7 @@ local ZPOS64_T zip64local_SearchCentralDir64(const zlib_filefunc64_32_def* pzlib
         break;
   }
 
-  TRYFREE(buf);
+  free(buf);
   if (uPosFound == 0)
     return 0;
 
@@ -803,7 +800,7 @@ static int LoadCentralDirectoryRecord(zip64_internal* pziinit) {
 
       size_central_dir_to_read-=read_this;
     }
-    TRYFREE(buf_read);
+    free(buf_read);
   }
   pziinit->begin_pos = byte_before_the_zipfile;
   pziinit->number_entry = number_entry_CD;
@@ -877,9 +874,9 @@ static zipFile zipOpen3(const void *pathname, int append, zipcharpc* globalcomme
     if (err != ZIP_OK)
     {
 #    ifndef NO_ADDFILEINEXISTINGZIP
-        TRYFREE(ziinit.globalcomment);
+        free(ziinit.globalcomment);
 #    endif /* !NO_ADDFILEINEXISTINGZIP*/
-        TRYFREE(zi);
+        free(zi);
         return NULL;
     }
     else
@@ -1885,9 +1882,9 @@ extern int ZEXPORT zipClose(zipFile file, const char* global_comment) {
             err = ZIP_ERRNO;
 
 #ifndef NO_ADDFILEINEXISTINGZIP
-    TRYFREE(zi->globalcomment);
+    free(zi->globalcomment);
 #endif
-    TRYFREE(zi);
+    free(zi);
 
     return err;
 }
@@ -1944,7 +1941,7 @@ extern int ZEXPORT zipRemoveExtraInfoBlock(char* pData, int* dataLen, short sHea
   else
     retVal = ZIP_ERRNO;
 
-  TRYFREE(pNewHeader);
+  free(pNewHeader);
 
   return retVal;
 }
