@@ -137,7 +137,7 @@ in
       replace_uring_with_aio
     fi
     ;&
-  "sid")
+  "trixie"|"sid")
     # The default packaging should always target Debian Sid, so in this case
     # there is intentionally no customizations whatsoever.
     ;;
