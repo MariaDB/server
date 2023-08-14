@@ -903,11 +903,7 @@ enum enum_query_type
   // don't reveal values.
   QT_NO_DATA_EXPANSION= (1 << 9),
   // Remove wrappers added for TVC when creating or showing view
-  QT_NO_WRAPPERS_FOR_TVC_IN_VIEW= (1 << 12),
-
-  // The temporary tables used by the query might be freed by the time
-  // this print() call is made.
-  QT_DONT_ACCESS_TMP_TABLES= (1 << 13)
+  QT_NO_WRAPPERS_FOR_TVC_IN_VIEW= (1 << 12)
 };
 
 
