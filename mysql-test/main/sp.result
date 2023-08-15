@@ -8972,6 +8972,18 @@ select @counter;
 5
 drop function f1;
 drop table t1,t2;
+# 
+# MDEV-31877: ASAN errors in Exec_time_tracker::get_cycles with innodb slow log verbosity
+# 
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,2);
+SET @tmp=@@log_slow_verbosity;
+SET SESSION log_slow_verbosity= 'innodb';
+BEGIN NOT ATOMIC DECLARE r ROW TYPE OF t1 DEFAULT (SELECT * FROM t1); SELECT r.a; END $
+r.a
+1
+SET SESSION log_slow_verbosity= @tmp;
+DROP TABLE t1;
 #
 # MDEV-28129: MariaDB UAF issue at lex_end_nops(LEX*)
 #
