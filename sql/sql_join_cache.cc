@@ -800,6 +800,18 @@ size_t JOIN_CACHE::get_min_join_buffer_size()
 }
 
 
+size_t JOIN_CACHE::calc_avg_record_length()
+{
+  size_t len= 0;
+  for (JOIN_TAB *tab= start_tab; tab != join_tab;
+       tab= next_linear_tab(join, tab, WITHOUT_BUSH_ROOTS))
+  {
+    len+= tab->get_used_fieldlength();
+  }
+  len+= get_record_max_affix_length();
+  return len;
+}
+
 /* 
   Get the maximum possible size of the cache join buffer 
 
@@ -822,9 +834,9 @@ size_t JOIN_CACHE::get_min_join_buffer_size()
     'max_buff_size' in order to use it directly at the next
     invocations of the function.
 
-
   RETURN VALUE
-    The maximum possible size of the join buffer of this cache 
+    The maximum possible size of the join buffer of this cache
+    avg_record_length is also updated if optimize_buff_size != 0
 */
 
 size_t JOIN_CACHE::get_max_join_buffer_size(bool optimize_buff_size,
@@ -839,19 +851,13 @@ size_t JOIN_CACHE::get_max_join_buffer_size(bool optimize_buff_size,
     return max_buff_size= limit_sz;
 
   size_t max_sz;
-  size_t len= 0;
+  size_t len;
   double max_records, partial_join_cardinality=
     (join_tab-1)->get_partial_join_cardinality();
   /* Expected join buffer space used for one record */
   size_t space_per_record;
 
-  for (JOIN_TAB *tab= start_tab; tab != join_tab;
-       tab= next_linear_tab(join, tab, WITHOUT_BUSH_ROOTS))
-  {
-    len+= tab->get_used_fieldlength();
-  }
-  len+= get_record_max_affix_length();
-  avg_record_length= len;
+  len= avg_record_length= calc_avg_record_length();
   len+= get_max_key_addon_space_per_record() + avg_aux_buffer_incr;
   space_per_record= len;
     
@@ -2794,7 +2800,6 @@ bool JOIN_CACHE_BKAH::save_explain_data(EXPLAIN_BKA_TYPE *explain)
 int JOIN_CACHE_HASHED::init(bool for_explain)
 {
   TABLE_REF *ref= &join_tab->ref;
-
   DBUG_ENTER("JOIN_CACHE_HASHED::init");
 
   hash_table= 0;
@@ -2880,6 +2885,8 @@ int JOIN_CACHE_HASHED::init_hash_table()
 {
   hash_table= 0;
   key_entries= 0;
+
+  avg_record_length= calc_avg_record_length();
 
   /* Calculate the minimal possible value of size_of_key_ofs greater than 1 */
   uint max_size_of_key_ofs= MY_MAX(2, get_size_of_rec_offset());  
