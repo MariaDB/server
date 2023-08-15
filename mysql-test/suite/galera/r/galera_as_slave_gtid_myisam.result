@@ -17,12 +17,15 @@ SELECT LENGTH(@@global.gtid_binlog_state) > 1;
 LENGTH(@@global.gtid_binlog_state) > 1
 1
 connection node_1;
+SELECT COUNT(*) AS EXPECT_1 FROM t1;
+EXPECT_1
+1
 gtid_binlog_state_equal
 0
 connection node_2;
-SELECT COUNT(*) AS EXPECT_0 FROM t1;
-EXPECT_0
-0
+SELECT COUNT(*) AS EXPECT_1 FROM t1;
+EXPECT_1
+1
 gtid_binlog_state_equal
 0
 #cleanup
