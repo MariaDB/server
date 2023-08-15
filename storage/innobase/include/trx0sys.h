@@ -867,8 +867,6 @@ public:
   uint64_t recovered_binlog_offset;
   /** Latest recovered binlog file name */
   char recovered_binlog_filename[TRX_SYS_MYSQL_LOG_NAME_LEN];
-  /** FIL_PAGE_LSN of the page with the latest recovered binlog metadata */
-  lsn_t recovered_binlog_lsn;
 
 
   /**
