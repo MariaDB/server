@@ -1,4 +1,4 @@
-/* Copyright 2008-2022 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2023 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -598,6 +598,8 @@ enum wsrep::streaming_context::fragment_unit wsrep_fragment_unit(ulong unit);
 wsrep::key wsrep_prepare_key_for_toi(const char* db, const char* table,
                                      enum wsrep::key::type type);
 
+void wsrep_wait_ready(THD *thd);
+void wsrep_ready_set(bool ready_value);
 #else /* !WITH_WSREP */
 
 /* These macros are needed to compile MariaDB without WSREP support

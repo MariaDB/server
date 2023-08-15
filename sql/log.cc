@@ -4062,7 +4062,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
       bytes_written+= description_event_for_queue->data_written;
     }
     if (flush_io_cache(&log_file) ||
-        mysql_file_sync(log_file.file, MYF(MY_WME|MY_SYNC_FILESIZE)))
+        mysql_file_sync(log_file.file, MYF(MY_WME)))
       goto err;
 
     my_off_t offset= my_b_tell(&log_file);
@@ -4100,7 +4100,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
                      strlen(log_file_name)) ||
           my_b_write(&index_file, (uchar*) "\n", 1) ||
           flush_io_cache(&index_file) ||
-          mysql_file_sync(index_file.file, MYF(MY_WME|MY_SYNC_FILESIZE)))
+          mysql_file_sync(index_file.file, MYF(MY_WME)))
         goto err;
 
 #ifdef HAVE_REPLICATION
@@ -4240,7 +4240,7 @@ static bool copy_up_file_and_fill(IO_CACHE *index_file, my_off_t offset)
   }
   /* The following will either truncate the file or fill the end with \n' */
   if (mysql_file_chsize(file, offset - init_offset, '\n', MYF(MY_WME)) ||
-      mysql_file_sync(file, MYF(MY_WME|MY_SYNC_FILESIZE)))
+      mysql_file_sync(file, MYF(MY_WME)))
     goto err;
 
   /* Reset data in old index cache */
@@ -5036,7 +5036,7 @@ int MYSQL_BIN_LOG::sync_purge_index_file()
 
   if (unlikely((error= flush_io_cache(&purge_index_file))) ||
       unlikely((error= my_sync(purge_index_file.file,
-                               MYF(MY_WME | MY_SYNC_FILESIZE)))))
+                               MYF(MY_WME)))))
     DBUG_RETURN(error);
 
   DBUG_RETURN(error);
@@ -5748,7 +5748,7 @@ bool MYSQL_BIN_LOG::flush_and_sync(bool *synced)
   if (sync_period && ++sync_counter >= sync_period)
   {
     sync_counter= 0;
-    err= mysql_file_sync(fd, MYF(MY_WME|MY_SYNC_FILESIZE));
+    err= mysql_file_sync(fd, MYF(MY_WME));
     if (synced)
       *synced= 1;
 #ifndef DBUG_OFF
@@ -6563,7 +6563,7 @@ MYSQL_BIN_LOG::write_state_to_file()
   log_inited= false;
   if ((err= end_io_cache(&cache)))
     goto err;
-  if ((err= mysql_file_sync(file_no, MYF(MY_WME|MY_SYNC_FILESIZE))))
+  if ((err= mysql_file_sync(file_no, MYF(MY_WME))))
     goto err;
   goto end;
 
@@ -10332,7 +10332,7 @@ bool MYSQL_BIN_LOG::truncate_and_remove_binlogs(const char *file_name,
     error= mysql_file_chsize(index_file.file, index_file_offset, '\n',
                              MYF(MY_WME));
     if (!error)
-      error= mysql_file_sync(index_file.file, MYF(MY_WME|MY_SYNC_FILESIZE));
+      error= mysql_file_sync(index_file.file, MYF(MY_WME));
     if (error)
     {
       sql_print_error("Failed to truncate binlog index "
@@ -10374,7 +10374,7 @@ bool MYSQL_BIN_LOG::truncate_and_remove_binlogs(const char *file_name,
   /* Change binlog file size to truncate_pos */
   error= mysql_file_chsize(file, pos, 0, MYF(MY_WME));
   if (!error)
-    error= mysql_file_sync(file, MYF(MY_WME|MY_SYNC_FILESIZE));
+    error= mysql_file_sync(file, MYF(MY_WME));
   if (error)
   {
     sql_print_error("Failed to truncate the "
