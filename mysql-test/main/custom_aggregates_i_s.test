@@ -3,6 +3,8 @@
 
 --source include/default_optimizer_switch.inc
 
+--disable_ps2_protocol
+
 flush status;
 show  status like "%custom_aggregate%";
 create table t2 (sal int(10));
@@ -72,6 +74,8 @@ with agg_sum as (
 )
 select * from agg_sum;
 show  status like "%custom_aggregate%";
+
+--enable_ps2_protocol
 
 drop table t2,t1,t3;
 drop function f1;

@@ -119,17 +119,17 @@ insert into t1 (key1, key2, key3, key4, filler1) values (100, 100, -1, -1, 'key1
 insert into t1 (key1, key2, key3, key4, filler1) values (-1, -1, 100, 100, 'key4-key3');
 set optimizer_trace='enabled=on';
 
-#check after fix MDEV-27871
+# Enable after fix MDEV-31408
 --disable_view_protocol
 --echo #  3-way ROR-intersection
 explain select key1,key2,key3 from t1 where key1=100 and key2=100 and key3=100;
-select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
-select JSON_DETAILED(JSON_EXTRACT(trace, '$**.chosen_range_access_summary')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.chosen_range_access_summary')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 
 --echo # ROR-union(ROR-intersection, ROR-range)
 explain select key1,key2,key3,key4 from t1 where key1=100 and key2=100 or key3=100 and key4=100;
-select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
-select JSON_DETAILED(JSON_EXTRACT(trace, '$**.chosen_range_access_summary')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.chosen_range_access_summary')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 --enable_view_protocol
 
 drop table t0,t1;

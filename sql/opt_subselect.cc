@@ -4349,6 +4349,7 @@ bool setup_sj_materialization_part1(JOIN_TAB *sjm_tab)
   
   sjm->materialized= FALSE;
   sjm_tab->table= sjm->table;
+  sjm_tab->tab_list= emb_sj_nest;
   sjm->table->pos_in_table_list= emb_sj_nest;
  
   DBUG_RETURN(FALSE);

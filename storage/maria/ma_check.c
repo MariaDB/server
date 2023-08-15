@@ -2485,9 +2485,8 @@ static int initialize_variables_for_repair(HA_CHECK *param,
   tmp= (size_t) MY_MIN(sort_info->filelength,
                        (my_off_t) (SIZE_T_MAX/10/threads));
   tmp= MY_MAX(tmp * 8 * threads, (size_t) 65536);         /* Some margin */
-  param->sort_buffer_length= MY_MIN(param->orig_sort_buffer_length,
-                                    tmp);
-  set_if_smaller(param->sort_buffer_length, tmp);
+  param->sort_buffer_length= MY_MIN(param->orig_sort_buffer_length,                                    tmp);
+  set_if_bigger(param->sort_buffer_length, MARIA_MIN_SORT_MEMORY);
   /* Protect against too big sort buffer length */
 #if SIZEOF_SIZE_T >= 8
   set_if_smaller(param->sort_buffer_length, 16LL*1024LL*1024LL*1024LL);
@@ -4622,6 +4621,8 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
 #else
       param->sort_buffer_length*sort_param[i].key_length/total_key_length;
 #endif
+    set_if_bigger(sort_param[i].sortbuff_size, MARIA_MIN_SORT_MEMORY);
+
     if (mysql_thread_create(key_thread_find_all_keys,
                             &sort_param[i].thr, &thr_attr,
 	                    _ma_thr_find_all_keys, (void *) (sort_param+i)))

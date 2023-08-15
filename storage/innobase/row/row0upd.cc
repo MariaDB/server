@@ -2906,9 +2906,8 @@ error_handling:
 void thd_get_query_start_data(THD *thd, char *buf);
 
 /** Appends row_start or row_end field to update vector and sets a
-CURRENT_TIMESTAMP/trx->id value to it.
-Supposed to be called only by make_versioned_update() and
-make_versioned_delete().
+CURRENT_TIMESTAMP/trx->id value to it. Called by vers_make_update() and
+vers_make_delete().
 @param[in]	trx	transaction
 @param[in]	vers_sys_idx	table->row_start or table->row_end */
 void upd_node_t::vers_update_fields(const trx_t *trx, ulint idx)

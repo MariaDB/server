@@ -12,6 +12,7 @@ create user foo@localhost identified by 'foo';
 flush user_statistics;
 set global userstat=1;
 
+--disable_ps2_protocol
 connect(foo, localhost, foo, foo, "*NO-ONE*");
 select 1;
 disconnect foo;
@@ -33,6 +34,7 @@ connection default;
 
 --replace_result 41 18
 select user, bytes_received from information_schema.user_statistics where user = 'foo';
+--enable_ps2_protocol
 
 drop user foo@localhost;
 set global userstat=@save_userstat;

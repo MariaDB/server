@@ -1,6 +1,4 @@
 alter table mysql.plugin engine=myisam;
-Warnings:
-Warning	1478	Table storage engine 'MyISAM' does not support the create option 'TRANSACTIONAL=1'
 set @old_dbug=@@debug_dbug;
 call mtr.add_suppression("Index for table.*mysql.plugin.MYI");
 call mtr.add_suppression("Index for table 'plugin' is corrupt; try to repair it");

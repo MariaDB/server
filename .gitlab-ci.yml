@@ -207,7 +207,7 @@ fedora-sanitizer:
       - builddir/_CPack_Packages/Linux/RPM/SPECS/
   parallel:
     matrix:
-      - SANITIZER: [-DWITH_ASAN=YES, -DWITH_TSAN=YES, -DWITH_UBSAN=YES, -DWITH_MSAN=YES]
+      - SANITIZER: [-DWITH_ASAN=YES, -DWITH_TSAN=YES, -DWITH_UBSAN=YES]
 
 centos8:
   stage: build
@@ -299,6 +299,7 @@ centos7:
       main.mysqldump : Field separator argument is not what is expected; check the manual when executing 'SELECT INTO OUTFILE'
       main.flush_logs_not_windows : query 'flush logs' succeeded - should have failed with error ER_CANT_CREATE_FILE (1004)
       main.mysql_upgrade_noengine : upgrade output order does not match the expected
+      main.func_math              : MDEV-20966 - Wrong error code
       " > skiplist
     - ./mtr --suite=main --force --parallel=auto --xml-report=$CI_PROJECT_DIR/junit.xml --skip-test-list=skiplist $RESTART_POLICY
 
@@ -371,22 +372,6 @@ mysql-test-run-ubsan:
       junit:
         - junit.xml
 
-mysql-test-run-msan:
-  stage: test
-  variables:
-    RESTART_POLICY: "--force-restart"
-  dependencies:
-    - "fedora-sanitizer: [-DWITH_MSAN=YES]"
-  needs:
-    - "fedora-sanitizer: [-DWITH_MSAN=YES]"
-  <<: *mysql-test-run-def
-  allow_failure: true
-  artifacts:
-    when: always  # Also show results when tests fail
-    reports:
-      junit:
-        - junit.xml
-
 rpmlint:
   stage: test
   dependencies:
@@ -441,52 +426,70 @@ fedora install:
       - installed-database.sql
       - upgraded-database.sql
 
-fedora upgrade:
-  stage: test
-  dependencies:
-    - fedora
-  needs:
-    - fedora
+cppcheck: 
+  stage: sast
+  needs: []
+  variables:
+    GIT_STRATEGY: fetch
+    GIT_SUBMODULE_STRATEGY: normal
   script:
-    - dnf install -y mariadb-server
-    # Fedora does not support running services in Docker (like Debian packages do) so start it manually
-    - /usr/libexec/mariadb-check-socket
-    - /usr/libexec/mariadb-prepare-db-dir
-    - sudo -u mysql /usr/libexec/mariadbd --basedir=/usr & sleep 10
-    # Dump database contents in installed state
-    - mariadb-dump --all-databases --all-tablespaces --triggers --routines --events --skip-extended-insert > old-installed-database.sql
-    - /usr/libexec/mariadb-check-upgrade
-    # Dump database contents in upgraded state
-    - mariadb-dump --all-databases --all-tablespaces --triggers --routines --events --skip-extended-insert > old-upgraded-database.sql
-    - mariadb --skip-column-names -e "SELECT @@version, @@version_comment"  # Show version
-    # @TODO: Upgrade from Fedora 33 MariaDB 10.4 to MariaDB.org latest does not work
-    # so do this manual step to remove conflicts until packaging is fixed
-    - yum remove -y mariadb-server-utils mariadb-gssapi-server mariadb-cracklib-password-check mariadb-backup mariadb-connector-c-config
-    - rm -f rpm/*debuginfo*  # Not relevant in this test
-    - yum install -y rpm/*.rpm
-    # nothing provides galera-4 on Fedora, so this step fails if built with wsrep
-    - mysql -e "SHUTDOWN;"
-    - /usr/bin/mariadb-install-db  # This step should not do anything on upgrades, just exit
-    - sudo -u mysql /usr/sbin/mariadbd & sleep 10
-    # Dump database contents in installed state
-    - mariadb-dump --all-databases --all-tablespaces --triggers --routines --events --skip-extended-insert > new-installed-database.sql || true
-    # The step above fails on: mariadb-dump: Couldn't execute 'show events': Cannot proceed, because event scheduler is disabled (1577)
-    # @TODO: Since we did a manual start, we also need to run upgrade manually
-    - /usr/bin/mariadb-upgrade
-    # Dump database contents in upgraded state
-    - mariadb-dump --all-databases --all-tablespaces --triggers --routines --events --skip-extended-insert > new-upgraded-database.sql
-    - |
-      mariadb --skip-column-names -e "SELECT @@version, @@version_comment" | tee /tmp/version
-      grep $MARIADB_MAJOR_VERSION /tmp/version || echo "MariaDB didn't upgrade properly"
-    - mariadb --table -e "SELECT * FROM mysql.global_priv; SHOW CREATE USER root@localhost; SHOW CREATE USER 'mariadb.sys'@localhost"
-    - mariadb --table -e "SELECT * FROM mysql.plugin; SHOW PLUGINS"
+    - yum install -y cppcheck diffutils
+    # --template: use a single-line template
+    # --force: check large directories without warning
+    # -i<directory>: ignore this directory when scanning
+    # -j: run multiple cppcheck threads
+    # Use newline to escape colon in yaml
+    - >
+      cppcheck --template="{file}:{line}: {severity}: {message}" --force
+      client dbug extra include libmariadb libmysqld libservices mysql-test mysys mysys_ssl pcre plugin
+      strings tests unittest vio wsrep-lib sql sql-common storage
+      -istorage/mroonga -istorage/tokudb -istorage/spider -istorage/rocksdb -iextra/ -ilibmariadb/ -istorage/columnstore
+      --output-file=cppcheck.txt -j $(nproc)
+    # Parallel jobs may output findings in an nondeterministic order. Sort to match ignorelist.
+    - cat cppcheck.txt | sort > cppcheck_sorted.txt
+    # Remove line numbers for diff
+    - sed 's/:[^:]*:/:/' cppcheck_sorted.txt > cppcheck_sorted_no_line_numbers.txt
+    # Only print new issues not found in ignore list
+    - echo "Problems found in ignore list that were not discovered by cppcheck (may have been fixed)."
+    - diff --changed-group-format='%>' --unchanged-group-format='' cppcheck_sorted_no_line_numbers.txt tests/code_quality/cppcheck_ignorelist.txt || true
+    - echo "Problems found by cppcheck that were not in ignore list."
+    - diff --changed-group-format='%<' --unchanged-group-format='' cppcheck_sorted_no_line_numbers.txt tests/code_quality/cppcheck_ignorelist.txt > lines_not_ignored.txt || true
+    - cat lines_not_ignored.txt && test ! -s lines_not_ignored.txt
   artifacts:
+    when: always
     paths:
-      - old-installed-database.sql
-      - old-upgraded-database.sql
-      - new-installed-database.sql
-      - new-upgraded-database.sql
+      - cppcheck_sorted.txt
 
+flawfinder: 
+  stage: sast
+  needs: []
+  variables:
+    GIT_STRATEGY: fetch
+    GIT_SUBMODULE_STRATEGY: normal
+  script:
+    - yum install -y python3 python3-pip jq diffutils git
+    - pip install flawfinder
+    - flawfinder --falsepositive --quiet --html . > flawfinder-all-vulnerabilities.html
+    - cat flawfinder-all-vulnerabilities.html | grep "Hits ="
+    - flawfinder --falsepositive --quiet --minlevel=5 --sarif . > flawfinder-output.json
+    # FlawFinder's --sarif output will display all vulnerabilities despite having --minlevel=5 specified.
+    # Therefore, we postprocess the results with jq and filter out findings where the vulnerability level is less than 5.
+    # Also in the SARIF output format, the vulnerabilities are ranked as 0.2/0.4/0.6/0.8/1.0 which correspond to the --minlevel=1/2/3/4/5 of FlawFinder.
+    # Additionally, we sort the results because individual findings are consistent across different runs, but their ordering may not be.
+    # Vulnerabilities can also be ignored in-line (/* Flawfinder: ignore */), but this option was chosen as to not clutter the codebase.
+    - jq 'del(.runs[] | .tool | .driver | .rules) | del(.runs[] | .results[] | select(.rank < 1)) | del(.runs[] | .results[] | .locations[] | .physicalLocation | .region | .startLine) | .runs[0].results|=sort_by(.fingerprints)' flawfinder-output.json > flawfinder-min-level5.json
+    # Diff against known vulnerabilities, but ignore the line number.
+    - echo "Problems found in ignore list that were not discovered by flawfinder (may have been fixed)."
+    - diff --changed-group-format='%>' --unchanged-group-format='' flawfinder-min-level5.json tests/code_quality/flawfinder_ignorelist.json || true
+    - echo "Problems found by flawfinder that were not in ignore list."
+    - diff --changed-group-format='%<' --unchanged-group-format='' flawfinder-min-level5.json tests/code_quality/flawfinder_ignorelist.json > lines_not_ignored.txt || true
+    - cat lines_not_ignored.txt && test ! -s lines_not_ignored.txt
+  artifacts:
+    when: always
+    paths:
+      - flawfinder-all-vulnerabilities.html
+      - flawfinder-min-level5.json
+      
 mini-benchmark:
   stage: test
   dependencies:

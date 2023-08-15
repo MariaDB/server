@@ -481,7 +481,7 @@ static int get_options(int *argc, char ***argv)
     DBUG_RETURN(1);
   }
   if (tty_password)
-    opt_password = get_tty_password(NullS);
+    opt_password = my_get_tty_password(NullS);
   if (debug_info_flag)
     my_end_arg= MY_CHECK_ERROR | MY_GIVE_INFO;
   if (debug_check_flag)
