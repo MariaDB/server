@@ -266,13 +266,194 @@ INSERT INTO t1 VALUES('aa');
 SET column_compression_threshold=DEFAULT;
 DROP TABLE t1;
 
+
 --echo #
---echo # End of 10.3 tests
+--echo # MDEV-31724 Compressed varchar values lost on joins when sorting on columns from joined table(s)
 --echo #
+
+CREATE TABLE t1 (
+  id  int(10) unsigned not null,
+  txt varchar(5000) COMPRESSED NOT NULL DEFAULT '',
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin;
+
+CREATE TABLE t2 (
+  id int(10) unsigned not null,
+  n1 bigint(20) NOT NULL,
+  n2 bigint(20) NOT NULL,
+  n3 bigint(20) NOT NULL,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin;
+
+INSERT INTO t1 VALUES
+(1, 'short string < 100 chars'),
+(2, 'long string =  99 chars                                                                            '),
+(3, 'long string = 100 chars                                                                            !'),
+(4, 'long string = 101 chars                                                                             !');
+
+INSERT INTO t2 VALUES
+(1, 24, 1, 1),
+(2, 99, 2, 2),
+(3, 100, 3, 3),
+(4, 101, 4, 4);
+
+SELECT txt, v.* FROM t1 LEFT JOIN t2 v ON t1.id = v.id;
+SELECT txt, v.* FROM t1 LEFT JOIN t2 v ON t1.id = v.id ORDER BY v.n1;
+SELECT txt, v.* FROM t1 JOIN t2 v ON t1.id = v.id;
+SELECT txt, v.* FROM t1 JOIN t2 v ON t1.id = v.id ORDER BY v.n1;
+
+DROP TABLE t1, t2;
+
+CREATE OR REPLACE TABLE t1 (
+  id INT NOT NULL PRIMARY KEY,
+  txt varchar(5000) COMPRESSED NOT NULL DEFAULT ''
+) CHARSET=utf8mb3;
+
+INSERT INTO t1 VALUES
+(1, REPEAT('a', 10)),
+(2, REPEAT('b', 99)),
+(3, REPEAT('c', 100)),
+(4, REPEAT('d', 121));
+
+--replace_column 2 <sysdate>
+--sorted_result
+SELECT txt, sysdate(6) FROM t1 ORDER BY 2;
+DROP TABLE t1;
+
+
+DELIMITER $$;
+CREATE FUNCTION f1(imax INT, jmax INT) RETURNS TEXT
+BEGIN
+  DECLARE res TEXT DEFAULT 'x';
+  FOR i IN 0..imax
+  DO
+    FOR j IN 0..jmax
+    DO
+      SET res=CONCAT(res, ' ', i, ' ', j);
+    END FOR;
+  END FOR;
+  RETURN res;
+END;
+$$
+DELIMITER ;$$
+
+
+# Let's override the default threshold (100) to force
+# comression for VARCHAR1+MB, for example, for:
+# VARCHAR(80) CHARACTER SET utf8mb3
+
+SET @@column_compression_threshold=32;
+
+--echo # VARCHAR1, 8bit, truncation
+CREATE TABLE t1 (a VARCHAR(254) COMPRESSED CHARACTER SET latin1);
+INSERT INTO t1 VALUES (f1(6,6));
+SELECT LENGTH(a), LEFT(a,30), RIGHT(a,30) FROM t1;
+FLUSH STATUS;
+ALTER IGNORE TABLE t1 MODIFY a VARCHAR(4) COMPRESSED CHARACTER SET latin1;
+SHOW STATUS LIKE 'Column%compressions';
+SELECT LENGTH(a), a FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(254) COMPRESSED CHARACTER SET latin1);
+INSERT INTO t1 VALUES (REPEAT('a',254));
+SELECT LENGTH(a), LEFT(a,30), RIGHT(a,30) FROM t1;
+FLUSH STATUS;
+ALTER IGNORE TABLE t1 MODIFY a VARCHAR(4) COMPRESSED CHARACTER SET latin1;
+SHOW STATUS LIKE 'Column%compressions';
+SELECT LENGTH(a), a FROM t1;
+DROP TABLE t1;
+
+--echo # VARCHAR1, 8bit, no truncation
+CREATE TABLE t1 (a VARCHAR(250) COMPRESSED CHARACTER SET latin1);
+INSERT INTO t1 VALUES (f1(6,6));
+SELECT LENGTH(a), LEFT(a,30), RIGHT(a,30) FROM t1;
+FLUSH STATUS;
+ALTER IGNORE TABLE t1 MODIFY a VARCHAR(254) COMPRESSED CHARACTER SET latin1;
+SHOW STATUS LIKE 'Column%compressions';
+SELECT LENGTH(a), LEFT(a,30), RIGHT(a,30) FROM t1;
+DROP TABLE t1;
+
+--echo # VARCHAR2, 8bit, truncation
+CREATE TABLE t1 (a VARCHAR(32000) COMPRESSED CHARACTER SET latin1);
+INSERT INTO t1 VALUES (f1(31,31));
+SELECT LENGTH(a), LEFT(a,30), RIGHT(a,30) FROM t1;
+FLUSH STATUS;
+ALTER IGNORE TABLE t1 MODIFY a VARCHAR(256) COMPRESSED CHARACTER SET latin1;
+SHOW STATUS LIKE 'Column%compressions';
+SELECT LENGTH(a), LEFT(a,30), RIGHT(a,30) FROM t1;
+DROP TABLE t1;
+
+--echo # VARCHAR2, 8bit, no truncation
+CREATE TABLE t1 (a VARCHAR(32000) COMPRESSED CHARACTER SET latin1);
+INSERT INTO t1 VALUES (f1(31,31));
+SELECT LENGTH(a), LEFT(a,30), RIGHT(a, 30) FROM t1;
+FLUSH STATUS;
+ALTER IGNORE TABLE t1 MODIFY a VARCHAR(32001) COMPRESSED CHARACTER SET latin1;
+SHOW STATUS LIKE 'Column%compressions';
+SELECT LENGTH(a), LEFT(a,30), RIGHT(a, 30) FROM t1;
+DROP TABLE t1;
+
+--echo # VARCHAR1, multi-byte, truncation
+CREATE TABLE t1 (a VARCHAR(80) COMPRESSED CHARACTER SET utf8mb3);
+INSERT INTO t1 VALUES (f1(3,3));
+SELECT LENGTH(a), LEFT(a,30), RIGHT(a,30) FROM t1;
+FLUSH STATUS;
+ALTER IGNORE TABLE t1 MODIFY a VARCHAR(1) COMPRESSED CHARACTER SET utf8mb3;
+SHOW STATUS LIKE 'Column%compressions';
+SELECT LENGTH(a), a FROM t1;
+DROP TABLE t1;
+
+--echo # VARCHAR1, multi-byte, no truncation
+CREATE TABLE t1 (a VARCHAR(80) COMPRESSED CHARACTER SET utf8mb3);
+INSERT INTO t1 VALUES (f1(3,3));
+SELECT LENGTH(a), LEFT(a,30), RIGHT(a,30) FROM t1;
+FLUSH STATUS;
+ALTER IGNORE TABLE t1 MODIFY a VARCHAR(81) COMPRESSED CHARACTER SET utf8mb3;
+SHOW STATUS LIKE 'Column%compressions';
+SELECT LENGTH(a), LEFT(a,30), RIGHT(a,30) FROM t1;
+DROP TABLE t1;
+
+--echo # VARCHAR2, multi-byte, truncation
+CREATE TABLE t1 (a VARCHAR(10000) COMPRESSED CHARACTER SET utf8mb3);
+INSERT INTO t1 VALUES (f1(31,31));
+SELECT LENGTH(a), LEFT(a,30), RIGHT(a,30) FROM t1;
+FLUSH STATUS;
+ALTER IGNORE TABLE t1 MODIFY a VARCHAR(256) COMPRESSED CHARACTER SET utf8mb3;
+SHOW STATUS LIKE 'Column%compressions';
+SELECT LENGTH(a), LEFT(a,30), RIGHT(a,30) FROM t1;
+DROP TABLE t1;
+
+--echo # VARCHAR2, multi-byte, no truncation
+CREATE TABLE t1 (a VARCHAR(10000) COMPRESSED CHARACTER SET utf8mb3);
+INSERT INTO t1 VALUES (f1(31,31));
+SELECT LENGTH(a), LEFT(a,30), RIGHT(a,30) FROM t1;
+FLUSH STATUS;
+ALTER IGNORE TABLE t1 MODIFY a VARCHAR(10001) COMPRESSED CHARACTER SET utf8mb3;
+SHOW STATUS LIKE 'Column%compressions';
+SELECT LENGTH(a), LEFT(a,30), RIGHT(a,30) FROM t1;
+DROP TABLE t1;
+
+SET @@column_compression_threshold=DEFAULT;
+
+DROP FUNCTION f1;
+
+--echo #
+--echo # MDEV-24797 Column Compression - ERROR 1265 (01000): Data truncated for column
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(500) COMPRESSED CHARACTER SET utf8mb3) ENGINE=MyISAM;
+INSERT INTO t1 SET a=REPEAT('x',127);
+ALTER TABLE t1 FORCE, ALGORITHM=COPY;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(500) COMPRESSED CHARACTER SET utf8mb3) ENGINE=InnoDB;
+INSERT INTO t1 SET a=REPEAT('x',127);
+ALTER TABLE t1 FORCE, ALGORITHM=COPY;
+DROP TABLE t1;
 
 
 --echo #
---echo # Start of 10.5 tests
+--echo # End of 10.4 tests
 --echo #
 
 --echo #

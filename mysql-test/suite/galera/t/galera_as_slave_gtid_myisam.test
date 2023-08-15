@@ -44,12 +44,20 @@ SELECT LENGTH(@@global.gtid_binlog_state) > 1;
 --let $wait_condition = SELECT COUNT(*) = 1 FROM t1;
 --source include/wait_condition.inc
 
+SELECT COUNT(*) AS EXPECT_1 FROM t1;
+
 --disable_query_log
 --eval SELECT '$gtid_binlog_state_node1' = @@global.gtid_binlog_state AS gtid_binlog_state_equal;
 --enable_query_log
 
 --connection node_2
-SELECT COUNT(*) AS EXPECT_0 FROM t1;
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1;
+--source include/wait_condition.inc
+
+SELECT COUNT(*) AS EXPECT_1 FROM t1;
 
 --disable_query_log
 --eval SELECT '$gtid_binlog_state_node1' = @@global.gtid_binlog_state AS gtid_binlog_state_equal;
@@ -58,8 +66,6 @@ SELECT COUNT(*) AS EXPECT_0 FROM t1;
 --echo #cleanup
 --connection node_3
 DROP TABLE t1;
-
---sleep 1
 
 --connection node_1
 --let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';

@@ -1,0 +1,122 @@
+connection node_2;
+connection node_1;
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+create user repl@'%' identified by 'repl';
+grant all on *.* to  repl@'%';
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+connection node_1;
+connection node_2;
+connection node_2;
+START SLAVE;
+connection node_3;
+CREATE TABLE t1 (id bigint primary key, msg varchar(100)) engine=innodb;
+SELECT COUNT(*) AS EXPECT_10000 FROM t1;
+EXPECT_10000
+10000
+connection node_2;
+SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_10000 FROM t1;
+EXPECT_10000
+10000
+connection node_1;
+SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_10000 FROM t1;
+EXPECT_10000
+10000
+connection node_2;
+# Verify that graceful shutdown succeeds.
+# Force SST
+connection node_1;
+# Waiting until node_2 is not part of cluster anymore
+connection node_2;
+# Start node_2 again
+¤ Wait until node_2 is back on cluster
+connection node_2;
+SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_10000 FROM t1;
+EXPECT_10000
+10000
+connection node_1;
+SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_10000 FROM t1;
+EXPECT_10000
+10000
+connection node_3;
+SELECT COUNT(*) AS EXPECT_10000 FROM t1;
+EXPECT_10000
+10000
+connection node_3;
+drop table t1;
+connection node_2;
+connection node_1;
+connection node_3;
+CREATE TABLE t1 (id bigint primary key, msg varchar(100)) engine=innodb;
+SELECT COUNT(*) AS EXPECT_10000 FROM t1;
+EXPECT_10000
+10000
+connection node_2;
+SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_10000 FROM t1;
+EXPECT_10000
+10000
+connection node_1;
+SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_10000 FROM t1;
+EXPECT_10000
+10000
+connection node_2;
+# Verify that graceful shutdown succeeds.
+# Force SST
+connection node_1;
+# Waiting until node_2 is not part of cluster anymore
+connection node_3;
+SELECT COUNT(*) AS EXPECT_20000 FROM t1;
+EXPECT_20000
+20000
+connection node_2;
+# Start node_2 again
+¤ Wait until node_2 is back on cluster
+connection node_2;
+SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_20000 FROM t1;
+EXPECT_20000
+20000
+connection node_1;
+SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_20000 FROM t1;
+EXPECT_20000
+20000
+connection node_3;
+SELECT COUNT(*) AS EXPECT_20000 FROM t1;
+EXPECT_20000
+20000
+connection node_3;
+drop table t1;
+connection node_2;
+connection node_1;
+connection node_2;
+STOP SLAVE;
+RESET SLAVE ALL;
+connection node_3;
+RESET MASTER;
+connection node_1;
+disconnect node_3;
+disconnect node_2;
+disconnect node_1;
+# End of test

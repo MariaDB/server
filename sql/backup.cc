@@ -331,8 +331,7 @@ static bool backup_block_commit(THD *thd)
   if (mysql_bin_log.is_open())
   {
     mysql_mutex_lock(mysql_bin_log.get_log_lock());
-    mysql_file_sync(mysql_bin_log.get_log_file()->file,
-                    MYF(MY_WME|MY_SYNC_FILESIZE));
+    mysql_file_sync(mysql_bin_log.get_log_file()->file, MYF(MY_WME));
     mysql_mutex_unlock(mysql_bin_log.get_log_lock());
   }
   thd->clear_error();

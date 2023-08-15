@@ -84,7 +84,6 @@ C_MODE_START
 #define MY_THREADSAFE 2048U     /* my_seek(): lock fd mutex */
 #define MY_SYNC       4096U     /* my_copy(): sync dst file */
 #define MY_SYNC_DIR   32768U    /* my_create/delete/rename: sync directory */
-#define MY_SYNC_FILESIZE 65536U /* my_sync(): safe sync when file is extended */
 #define MY_THREAD_SPECIFIC 0x10000U /* my_malloc(): thread specific */
 /* Tree that should delete things automatically */
 #define MY_TREE_WITH_DELETE 0x40000U
