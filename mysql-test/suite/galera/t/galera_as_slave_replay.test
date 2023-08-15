@@ -17,6 +17,8 @@
 --source include/galera_cluster.inc
 #--source suite/galera/include/galera_have_debug_sync.inc
 
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+
 #
 # node 3 is native MariaDB server operating as async replication master
 #
