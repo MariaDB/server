@@ -71,6 +71,9 @@ static void lock_grant_after_reset(lock_t* lock);
 extern "C" void thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd);
 extern "C" int thd_need_wait_reports(const MYSQL_THD thd);
 extern "C" int thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd);
+#ifdef HAVE_REPLICATION
+extern "C" int thd_deadlock_victim_preference(const MYSQL_THD thd1, const MYSQL_THD thd2);
+#endif
 
 /** Pretty-print a table lock.
 @param[in,out]	file	output stream
@@ -1477,6 +1480,20 @@ static bool has_higher_priority(lock_t *lock1, lock_t *lock2)
 	} else if (!lock_get_wait(lock2)) {
 		return false;
 	}
+
+#ifdef HAVE_REPLICATION
+	// Ask the upper server layer if any of the two trx should be prefered.
+	int preference = thd_deadlock_victim_preference(lock1->trx->mysql_thd,
+							lock2->trx->mysql_thd);
+	if (preference == -1) {
+		// lock1 is preferred as a victim, so lock2 has higher priority
+		return false;
+	} else if (preference == 1) {
+		// lock2 is preferred as a victim, so lock1 has higher priority
+		return true;
+	}
+#endif
+
 	return lock1->trx->start_time_micro <= lock2->trx->start_time_micro;
 }
 
@@ -6756,13 +6773,7 @@ DeadlockChecker::search()
 			return m_start;
 		}
 
-		/* We do not need to report autoinc locks to the upper
-		layer. These locks are released before commit, so they
-		can not cause deadlocks with binlog-fixed commit
-		order. */
-		if (m_report_waiters
-		    && (lock_get_type_low(lock) != LOCK_TABLE
-			|| lock_get_mode(lock) != LOCK_AUTO_INC)) {
+		if (m_report_waiters) {
 			thd_rpl_deadlock_check(m_start->mysql_thd,
 					       lock->trx->mysql_thd);
 		}

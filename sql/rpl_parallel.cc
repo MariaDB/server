@@ -1286,6 +1286,11 @@ handle_rpl_parallel_thread(void *arg)
         bool did_enter_cond= false;
         PSI_stage_info old_stage;
 
+        DBUG_EXECUTE_IF("rpl_parallel_delay_gtid_0_x_100_start", {
+            if (rgi->current_gtid.domain_id==0 &&
+                rgi->current_gtid.seq_no == 100)
+              my_sleep(10000);
+          });
 #ifdef ENABLED_DEBUG_SYNC
         DBUG_EXECUTE_IF("hold_worker_on_schedule", {
             if (rgi->current_gtid.domain_id == 0 &&
@@ -1465,8 +1470,13 @@ handle_rpl_parallel_thread(void *arg)
                         err= dbug_simulate_tmp_error(rgi, thd););
         if (unlikely(err))
         {
+          ulong max_retries= slave_trans_retries;
           convert_kill_to_deadlock_error(rgi);
-          if (has_temporary_error(thd) && slave_trans_retries > 0)
+          DBUG_EXECUTE_IF("rpl_mdev31655_zero_retries",
+                          if ((rgi->current_gtid.seq_no % 1000) == 0)
+                            max_retries= 0;
+                          );
+          if (has_temporary_error(thd) && max_retries > 0)
             err= retry_event_group(rgi, rpt, qev);
         }
       }

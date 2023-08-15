@@ -77,6 +77,7 @@
 #include "sql_audit.h"
 #include "sql_derived.h"                        // mysql_handle_derived
 #include "sql_prepare.h"
+#include "rpl_rli.h"
 #include <my_bit.h>
 
 #include "debug_sync.h"
@@ -1822,6 +1823,12 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
   save_read_set= table->read_set;
   save_write_set= table->write_set;
 
+  DBUG_EXECUTE_IF("rpl_write_record_small_sleep_gtid_100_200",
+    {
+      if (thd->rgi_slave && (thd->rgi_slave->current_gtid.seq_no == 100 ||
+                             thd->rgi_slave->current_gtid.seq_no == 200))
+        my_sleep(20000);
+    });
   if (info->handle_duplicates == DUP_REPLACE ||
       info->handle_duplicates == DUP_UPDATE)
   {
