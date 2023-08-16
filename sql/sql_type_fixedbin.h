@@ -778,10 +778,12 @@ public:
       Fbt *buff= &((Fbt *) base)[pos];
       Fbt_null value(item);
       if (value.is_null())
+      {
         *buff= Fbt::zero();
-      else
-        *buff= value;
-      return FALSE;
+        return true;
+      }
+      *buff= value;
+      return false;
     }
     uchar *get_value(Item *item) override
     {
