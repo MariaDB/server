@@ -266,8 +266,24 @@ buf_read_ahead_random(const page_id_t page_id, ulint zip_size, bool ibuf)
 		* buf_read_ahead_random_area;
 
 	if (fil_space_t* space = fil_space_acquire(page_id.space())) {
-		high = space->max_page_number_for_io(high);
+		ulint space_size = space->committed_size;
+		ulint zip_size = space->zip_size();
 		space->release();
+		/* Avoid read-ahead of the last page(s) of
+		small-page-size ROW_FORMAT=COMPRESSED tablespaces,
+		because fil_space_extend_must_retry() would invoke
+		os_file_set_size() on integer multiples of 4 KiB. */
+		switch (UNIV_EXPECT(zip_size, 0)) {
+		case 1024:
+			space_size &= ~ulint{3};
+			break;
+		case 2048:
+			space_size &= ~ulint{1};
+			break;
+		}
+		if (high > space_size) {
+			high = space_size;
+		}
 	} else {
 		return(0);
 	}
@@ -531,7 +547,20 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 
 	if (fil_space_t* space = fil_space_acquire(page_id.space())) {
 		space_size = space->committed_size;
+		ulint zip_size = space->zip_size();
 		space->release();
+		/* Avoid read-ahead of the last page(s) of
+		small-page-size ROW_FORMAT=COMPRESSED tablespaces,
+		because fil_space_extend_must_retry() would invoke
+		os_file_set_size() on integer multiples of 4 KiB. */
+		switch (UNIV_EXPECT(zip_size, 0)) {
+		case 1024:
+			space_size &= ~ulint{3};
+			break;
+		case 2048:
+			space_size &= ~ulint{1};
+			break;
+		}
 
 		if (high > space_size) {
 			/* The area is not whole */
