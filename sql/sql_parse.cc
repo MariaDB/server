@@ -6265,21 +6265,14 @@ static bool generate_incident_event(THD *thd)
 static int __attribute__ ((noinline))
 show_create_db(THD *thd, LEX *lex)
 {
-  char db_name_buff[NAME_LEN+1];
-  LEX_CSTRING db_name;
   DBUG_EXECUTE_IF("4x_server_emul",
                   my_error(ER_UNKNOWN_ERROR, MYF(0)); return 1;);
 
-  db_name.str= db_name_buff;
-  db_name.length= lex->name.length;
-  strmov(db_name_buff, lex->name.str);
-
-  if (check_db_name((LEX_STRING*) &db_name))
-  {
-    my_error(ER_WRONG_DB_NAME, MYF(0), db_name.str);
+  DBNameBuffer dbbuf(lex->name, lower_case_table_names);
+  if (Lex_ident_fs(dbbuf.to_lex_cstring()).check_db_name_with_error())
     return 1;
-  }
-  return mysqld_show_create_db(thd, &db_name, &lex->name, lex->create_info);
+  LEX_CSTRING db= dbbuf.to_lex_cstring();
+  return mysqld_show_create_db(thd, &db, &lex->name, lex->create_info);
 }
 
 

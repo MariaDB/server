@@ -142,3 +142,43 @@ delete from mysql.proc where name = '';
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+--echo #
+--echo # Start of 11.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-31948 Add class DBNameBuffer, split check_db_name() into stages
+--echo #
+
+SET NAMES utf8;
+
+# U+FFED HALFWIDTH BLACK SQUARE
+SET @mb3char= _utf8 0xEFBFAD;
+
+# Database names fitting into the NAME_CHAR_LEN characters limit
+
+--error ER_BAD_DB_ERROR
+EXECUTE IMMEDIATE CONCAT('use `', REPEAT(@mb3char, 64), '`');
+--error ER_BAD_DB_ERROR
+EXECUTE IMMEDIATE CONCAT('use `#mysql50#', REPEAT(@mb3char, 64), '`');
+--error ER_BAD_DB_ERROR
+EXECUTE IMMEDIATE CONCAT('SHOW CREATE DATABASE `', REPEAT(@mb3char, 64), '`');
+--error ER_BAD_DB_ERROR
+EXECUTE IMMEDIATE CONCAT('SHOW CREATE DATABASE `#mysql50#', REPEAT(@mb3char, 64), '`');
+
+
+# Database names longer than NAME_CHAR_LEN characters
+
+--error ER_WRONG_DB_NAME
+EXECUTE IMMEDIATE CONCAT('use `', REPEAT(@mb3char, 65), '`');
+--error ER_WRONG_DB_NAME
+EXECUTE IMMEDIATE CONCAT('use `#mysql50#', REPEAT(@mb3char, 65), '`');
+--error ER_WRONG_DB_NAME
+EXECUTE IMMEDIATE CONCAT('SHOW CREATE DATABASE `', REPEAT(@mb3char, 65), '`');
+--error ER_WRONG_DB_NAME
+EXECUTE IMMEDIATE CONCAT('SHOW CREATE DATABASE `#mysql50#', REPEAT(@mb3char, 65), '`');
+
+--echo #
+--echo # End of 11.3 tests
+--echo #

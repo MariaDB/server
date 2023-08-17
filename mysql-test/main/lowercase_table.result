@@ -164,3 +164,30 @@ delete from mysql.proc where name = '';
 #
 # End of 10.3 tests
 #
+#
+# Start of 11.3 tests
+#
+#
+# MDEV-31948 Add class DBNameBuffer, split check_db_name() into stages
+#
+SET NAMES utf8;
+SET @mb3char= _utf8 0xEFBFAD;
+EXECUTE IMMEDIATE CONCAT('use `', REPEAT(@mb3char, 64), '`');
+ERROR 42000: Unknown database '￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭'
+EXECUTE IMMEDIATE CONCAT('use `#mysql50#', REPEAT(@mb3char, 64), '`');
+ERROR 42000: Unknown database '#mysql50#￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭'
+EXECUTE IMMEDIATE CONCAT('SHOW CREATE DATABASE `', REPEAT(@mb3char, 64), '`');
+ERROR 42000: Unknown database '￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭'
+EXECUTE IMMEDIATE CONCAT('SHOW CREATE DATABASE `#mysql50#', REPEAT(@mb3char, 64), '`');
+ERROR 42000: Unknown database '#mysql50#￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭'
+EXECUTE IMMEDIATE CONCAT('use `', REPEAT(@mb3char, 65), '`');
+ERROR 42000: Incorrect database name '￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭...'
+EXECUTE IMMEDIATE CONCAT('use `#mysql50#', REPEAT(@mb3char, 65), '`');
+ERROR 42000: Incorrect database name '#mysql50#￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭...'
+EXECUTE IMMEDIATE CONCAT('SHOW CREATE DATABASE `', REPEAT(@mb3char, 65), '`');
+ERROR 42000: Incorrect database name '￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭...'
+EXECUTE IMMEDIATE CONCAT('SHOW CREATE DATABASE `#mysql50#', REPEAT(@mb3char, 65), '`');
+ERROR 42000: Incorrect database name '#mysql50#￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭...'
+#
+# End of 11.3 tests
+#

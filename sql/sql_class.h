@@ -24,6 +24,7 @@
 #include "dur_prop.h"
 #include <waiting_threads.h>
 #include "sql_const.h"
+#include "lex_ident.h"
 #include "sql_used.h"
 #include <mysql/plugin_audit.h>
 #include "log.h"

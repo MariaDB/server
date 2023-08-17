@@ -5240,10 +5240,6 @@ bool check_db_name(LEX_STRING *org_name)
 
 bool check_table_name(const char *name, size_t length, bool disallow_path_chars)
 {
-  // name length in symbols
-  size_t char_length= 0;
-  const char *end= name+length;
-
   if (!disallow_path_chars &&
       (disallow_path_chars= check_mysql50_prefix(name)))
   {
@@ -5251,8 +5247,20 @@ bool check_table_name(const char *name, size_t length, bool disallow_path_chars)
     length-= MYSQL50_TABLE_NAME_PREFIX_LENGTH;
   }
 
+  return Lex_ident_fs::check_body(name, length, disallow_path_chars);
+}
+
+
+bool Lex_ident_fs::check_body(const char *name, size_t length,
+                              bool disallow_path_chars)
+{
   if (!length || length > NAME_LEN)
     return 1;
+
+  // name length in symbols
+  size_t char_length= 0;
+  const char *end= name + length;
+
 #if defined(USE_MB) && defined(USE_MB_IDENT)
   bool last_char_is_space= FALSE;
 #else
@@ -5299,6 +5307,42 @@ bool check_table_name(const char *name, size_t length, bool disallow_path_chars)
 #else
   return FALSE;
 #endif
+}
+
+
+/**
+  Check if the name is a valid database name
+  @returns false - on success (valid)
+  @returns true - on error (invalid)
+*/
+bool Lex_ident_fs::check_db_name() const
+{
+  DBUG_ASSERT(str);
+  if (check_mysql50_prefix(str))
+  {
+    Lex_ident_fs name(Lex_cstring(str + MYSQL50_TABLE_NAME_PREFIX_LENGTH,
+                                  length - MYSQL50_TABLE_NAME_PREFIX_LENGTH));
+    return db_name_is_in_ignore_db_dirs_list(name.str) ||
+           check_body(name.str, name.length, true);
+  }
+  return db_name_is_in_ignore_db_dirs_list(str) ||
+         check_body(str, length, false);
+}
+
+
+/**
+  Check if the name is a valid database name
+  and raise an error in case of an invalid name.
+
+  @returns false - on success (valid)
+  @returns true - on error (invalid)
+*/
+bool Lex_ident_fs::check_db_name_with_error() const
+{
+  if (!check_db_name())
+    return false;
+  my_error(ER_WRONG_DB_NAME ,MYF(0), safe_str(str));
+  return true;
 }
 
 

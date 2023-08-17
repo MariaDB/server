@@ -1697,6 +1697,7 @@ static void backup_current_db_name(THD *thd,
 uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
                      bool force_switch)
 {
+  DBNameBuffer new_db_buff;
   LEX_CSTRING new_db_file_name;
 
   Security_context *sctx= thd->security_ctx;
@@ -1739,19 +1740,10 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
     goto done;
   }
 
-  /*
-    Now we need to make a copy because check_db_name requires a
-    non-constant argument. Actually, it takes database file name.
-
-    TODO: fix check_db_name().
-  */
-
-  new_db_file_name.str= my_strndup(key_memory_THD_db, new_db_name->str,
-                                   new_db_name->length, MYF(MY_WME));
-  new_db_file_name.length= new_db_name->length;
-
-  if (new_db_file_name.str == NULL)
-    DBUG_RETURN(ER_OUT_OF_RESOURCES);                             /* the error is set */
+  new_db_file_name= lower_case_table_names ?
+                    new_db_buff.copy_casedn(&my_charset_utf8mb3_general_ci,
+                                            *new_db_name).to_lex_cstring() :
+                    *new_db_name;
 
   /*
     NOTE: if check_db_name() fails, we should throw an error in any case,
@@ -1763,11 +1755,8 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
     The cast below ok here as new_db_file_name was just allocated
   */
 
-  if (check_db_name((LEX_STRING*) &new_db_file_name))
+  if (Lex_ident_fs(new_db_file_name).check_db_name_with_error())
   {
-    my_error(ER_WRONG_DB_NAME, MYF(0), new_db_file_name.str);
-    my_free(const_cast<char*>(new_db_file_name.str));
-
     if (force_switch)
       mysql_change_db_impl(thd, NULL, NO_ACL, thd->variables.collation_server);
 
@@ -1797,7 +1786,6 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
              new_db_file_name.str);
     general_log_print(thd, COM_INIT_DB, ER_THD(thd, ER_DBACCESS_DENIED_ERROR),
                       sctx->priv_user, sctx->priv_host, new_db_file_name.str);
-    my_free(const_cast<char*>(new_db_file_name.str));
     DBUG_RETURN(ER_DBACCESS_DENIED_ERROR);
   }
 #endif
@@ -1814,8 +1802,6 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
                           ER_BAD_DB_ERROR, ER_THD(thd, ER_BAD_DB_ERROR),
                           new_db_file_name.str);
 
-      my_free(const_cast<char*>(new_db_file_name.str));
-
       /* Change db to NULL. */
 
       mysql_change_db_impl(thd, NULL, NO_ACL, thd->variables.collation_server);
@@ -1828,7 +1814,6 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
       /* Report an error and free new_db_file_name. */
 
       my_error(ER_BAD_DB_ERROR, MYF(0), new_db_file_name.str);
-      my_free(const_cast<char*>(new_db_file_name.str));
 
       /* The operation failed. */
 
@@ -1836,14 +1821,23 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
     }
   }
 
+  db_default_cl= get_default_db_collation(thd, new_db_file_name.str);
+
   /*
+    new_db_file_name allocated memory on the stack.
+    mysql_change_db_impl() expects a my_alloc-ed memory.
     NOTE: in mysql_change_db_impl() new_db_file_name is assigned to THD
     attributes and will be freed in THD::~THD().
   */
-
-  db_default_cl= get_default_db_collation(thd, new_db_file_name.str);
-
-  mysql_change_db_impl(thd, &new_db_file_name, db_access, db_default_cl);
+  if (const char *tmp= my_strndup(key_memory_THD_db,
+                                  new_db_file_name.str,
+                                  new_db_file_name.length, MYF(MY_WME)))
+  {
+    LEX_CSTRING new_db_malloced({tmp, new_db_file_name.length});
+    mysql_change_db_impl(thd, &new_db_malloced, db_access, db_default_cl);
+  }
+  else
+    DBUG_RETURN(ER_OUT_OF_RESOURCES); /* the error is set */
 
 done:
   thd->session_tracker.current_schema.mark_as_changed(thd);
