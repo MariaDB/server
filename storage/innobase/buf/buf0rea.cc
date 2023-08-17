@@ -128,9 +128,6 @@ buf_read_page_low(
 
 	if (page_id.space() == TRX_SYS_SPACE
 	    && buf_dblwr_page_inside(page_id.page_no())) {
-
-		ib::error() << "Trying to read doublewrite buffer page "
-			<< page_id;
 		return(0);
 	}
 
