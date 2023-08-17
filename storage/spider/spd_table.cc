@@ -3165,7 +3165,7 @@ int spider_parse_connect_info(
       {
         if (
           spider_dbton[roop_count2].wrapper &&
-          !strcmp(share->tgt_wrappers[roop_count],
+          !strcasecmp(share->tgt_wrappers[roop_count],
             spider_dbton[roop_count2].wrapper)
         ) {
           break;
@@ -4004,7 +4004,7 @@ int spider_create_conn_keys(
           spider_dbton[dbton_idx].wrapper : "NULL"));
       if (
         spider_dbton[dbton_idx].wrapper &&
-        !strcmp(share->tgt_wrappers[all_link_idx],
+        !strcasecmp(share->tgt_wrappers[all_link_idx],
           spider_dbton[dbton_idx].wrapper)
       ) {
         spider_set_bit(share->dbton_bitmap, dbton_idx);

@@ -6931,6 +6931,7 @@ ha_rows ha_spider::records_in_range(
   dbton_id = share->sql_dbton_ids[search_link_idx];
   dbton_hdl = dbton_handler[dbton_id];
   crd_mode = dbton_hdl->crd_mode_exchange(crd_mode);
+  DBUG_ASSERT(share->static_key_cardinality[inx] == -1);
   if (crd_mode == 1 || crd_mode == 2)
   {
     DBUG_PRINT("info", ("spider static_key_cardinality[%u]=%lld", inx,

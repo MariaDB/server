@@ -1,0 +1,152 @@
+--echo #
+--echo # MDEV-28856 Spider: Implement more engine-defined options
+--echo #
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+# This test covers some table params under consideration for inclusion
+# in the engine-defined options to be implemented in MDEV-28856.
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+
+--echo # testing monitoring_*
+INSERT INTO mysql.spider_link_mon_servers
+(db_name, table_name, link_id, sid, server) VALUES
+('test', 't1', '0', 1, 'srv');
+
+create table t1 (c int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", monitoring_kind "2"';
+
+--error 12511
+/* 1 */ insert into t1 values (42);
+--error 12514
+/* 2 */ insert into t1 values (42);
+create table t2 (c int);
+# Even though the table is available now, we still get "all links
+# failed" error
+--error 12514
+/* 3 */ insert into t1 values (42);
+drop table t1, t2;
+
+create table t1 (c int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", monitoring_bg_kind "2",
+         monitoring_bg_interval "500000"';
+
+# The monitoring thread was killed before it could ping the remote
+# table, so the error is not 12511 or 12514
+--error ER_NO_SUCH_TABLE
+/* 4 */ insert into t1 values (42);
+drop table t1;
+
+--echo # testing query_cache_sync
+create table t1 (c int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", query_cache_sync "3"';
+create table t2 (c int);
+/* 5 */ insert into t1 values (42);
+select sql_cache * from t1;
+select sql_no_cache * from t1;
+
+drop table t1, t2;
+
+--echo # testing tgt_pk_names
+# can insert duplicates...
+create table t2 (c int);
+create table t1 (c int, primary key (c)) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+/* 6 */ insert ignore into t1 values (42), (42);
+select * from t1;
+
+drop table t1, t2;
+
+# pk_names not used because no key declared in t1, 1022
+create table t2 (c int, primary key (c));
+create table t1 (c int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+/* 7 */ insert ignore into t1 values (42), (42);
+select * from t1;
+
+drop table t1, t2;
+
+# pk_name is the default "PRIMARY", 1062
+create table t2 (c int, primary key (c));
+create table t1 (c int, primary key (c)) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+/* 8 */ insert ignore into t1 values (42), (42);
+select * from t1;
+
+drop table t1, t2;
+
+# key name c does not match PRIMARY, 1022
+create table t2 (c int, primary key (c));
+create table t1 (c int, primary key (c)) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", pk_name "c"';
+/* 9 */ insert ignore into t1 values (42), (42);
+select * from t1;
+
+drop table t1, t2;
+
+# local primary key name c matches remote unique key name c, 1062 but
+# warning says PRIMARY instead of c, because key->name is PRIMARY
+# instead of c
+create table t2 (c int, unique key (c));
+create table t1 (c int, primary key (c)) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", pk_name "c"';
+/* 9.1 */ insert ignore into t1 values (42), (42);
+select * from t1;
+
+drop table t1, t2;
+
+# key name f does not match t2 key name, but it is not used any way
+# because there's no primary key, 1062
+create table t2 (c int, unique key (c));
+create table t1 (c int, key (c)) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", pk_name "f"';
+/* 10 */ insert ignore into t1 values (42), (42);
+select * from t1;
+
+drop table t1, t2;
+
+# key name blah does not match t2 error key name PRIMARY, and the
+# non-primary key-route does not return PRIMARY, 1022
+create table t2 (c int, primary key (c));
+create table t1 (c int, key (c)) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", pk_name "blah"';
+/* 11 */ insert ignore into t1 values (42), (42);
+select * from t1;
+
+drop table t1, t2;
+
+# key name blah does not match t2 key name, but still 1062, because we
+# go through the non-primary key route
+create table t2 (c int, d int, unique key (c), unique key (d));
+create table t1 (c int, d int, key (c), key (d)) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", pk_name "blah"';
+/* 12 */ insert ignore into t1 values (42, 43), (43, 43);
+select * from t1;
+
+drop table t1, t2;
+
+--echo # Testing idx000
+create table t2 (c int, d int, primary key (c), key (d));
+show create table t2;
+create table t1 (c int, d int, primary key (c), key (d)) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", idx000 "f d"';
+show create table t1;
+/* 13 */ insert into t1 values (42, 23), (37, 93);
+select max(d) from t1;
+
+drop table t1, t2;
+
+drop server srv;
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log
+--echo #
+--echo # end of test MDEV-28856
+--echo #
