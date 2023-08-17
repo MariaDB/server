@@ -201,18 +201,22 @@ drop table t1;
 # MDEV-31319 Assertion const_item_cache == true failed in Item_func::fix_fields
 #
 create table t (f1 int, f2 int, fv int generated always as (case user() when 'foo' or 'bar' then f1 else f2 end) virtual);
-Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'foo'
-Warning	1292	Truncated incorrect DOUBLE value: 'bar'
 select * from t;
 f1	f2	fv
+insert into t (f1,f2) values(1,1);
+select * from t;
+f1	f2	fv
+1	1	1
 Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: 'root@localhost'
 Warning	1292	Truncated incorrect DOUBLE value: 'foo'
 Warning	1292	Truncated incorrect DOUBLE value: 'bar'
 create table tmp as select * from information_schema.tables where table_name = 't';
 select * from t;
 f1	f2	fv
+1	1	1
 Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: 'root@localhost'
 Warning	1292	Truncated incorrect DOUBLE value: 'foo'
 Warning	1292	Truncated incorrect DOUBLE value: 'bar'
 drop table t, tmp;

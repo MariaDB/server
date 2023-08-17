@@ -2509,6 +2509,8 @@ JOIN::optimize_inner()
         COND *table_independent_conds=
           make_cond_for_table(thd, conds, PSEUDO_TABLE_BITS, 0, -1,
                               FALSE, FALSE);
+        if (!table_independent_conds && thd->is_error())
+          DBUG_RETURN(1);
         DBUG_EXECUTE("where",
                      print_where(table_independent_conds,
                                  "where after opt_sum_query()",
@@ -2847,6 +2849,8 @@ int JOIN::optimize_stage2()
 
   if (make_join_select(this, select, conds))
   {
+    if (thd->is_error())
+      DBUG_RETURN(1);
     zero_result_cause=
       "Impossible WHERE noticed after reading const tables";
     select_lex->mark_const_derived(zero_result_cause);
@@ -3451,9 +3455,13 @@ bool JOIN::add_having_as_table_cond(JOIN_TAB *tab)
 
     having= make_cond_for_table(thd, tmp_having, ~ (table_map) 0,
                                 ~used_tables, 0, false, false);
+    if (!having && thd->is_error())
+      DBUG_RETURN(true);
     DBUG_EXECUTE("where",
                  print_where(having, "having after sort", QT_ORDINARY););
   }
+  else if (thd->is_error())
+    DBUG_RETURN(true);
 
   DBUG_RETURN(false);
 }
@@ -10988,17 +10996,22 @@ int JOIN_TAB::make_scan_filter()
   Item *cond= is_inner_table_of_outer_join() ?
                 *get_first_inner_table()->on_expr_ref : join->conds;
   
-  if (cond &&
-      (tmp= make_cond_for_table(join->thd, cond,
-                               join->const_table_map | table->map,
-			       table->map, -1, FALSE, TRUE)))
+  if (cond)
   {
-     DBUG_EXECUTE("where",print_where(tmp,"cache", QT_ORDINARY););
-     if (!(cache_select=
-          (SQL_SELECT*) join->thd->memdup((uchar*) select, sizeof(SQL_SELECT))))
-	DBUG_RETURN(1);
-     cache_select->cond= tmp;
-     cache_select->read_tables=join->const_table_map;
+    if ((tmp= make_cond_for_table(join->thd, cond,
+                                  join->const_table_map | table->map,
+                                  table->map, -1, FALSE, TRUE)))
+    {
+      DBUG_EXECUTE("where",print_where(tmp,"cache", QT_ORDINARY););
+      if (!(cache_select=
+            (SQL_SELECT*) join->thd->memdup((uchar*) select,
+                                            sizeof(SQL_SELECT))))
+        DBUG_RETURN(1);
+      cache_select->cond= tmp;
+      cache_select->read_tables=join->const_table_map;
+    }
+    else if (join->thd->is_error())
+      DBUG_RETURN(1);
   }
   DBUG_RETURN(0);
 }
@@ -12578,6 +12591,9 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
         const_cond= make_cond_for_table(thd, cond,
                               join->const_table_map,
                               (table_map) 0, -1, FALSE, FALSE);
+        if (!const_cond && thd->is_error())
+          DBUG_RETURN(1);
+
         /* Add conditions added by add_not_null_conds(). */
         for (uint i= 0 ; i < join->const_tables ; i++)
           add_cond_and_fix(thd, &const_cond,
@@ -12626,6 +12642,8 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
             add_cond_and_fix(thd, &outer_ref_cond, join->outer_ref_cond);
             join->outer_ref_cond= outer_ref_cond;
           }
+          else if (thd->is_error())
+            DBUG_RETURN(1);
         }
         else
         {
@@ -12641,6 +12659,8 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
                              join->pseudo_bits_cond);
             join->pseudo_bits_cond= pseudo_bits_cond;
           }
+          else if (thd->is_error())
+            DBUG_RETURN(1);
         }
       }
     }
@@ -12744,6 +12764,9 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
         {
           tmp= make_cond_for_table(thd, cond, used_tables, current_map, i,
                                    FALSE, FALSE);
+          if (!tmp && thd->is_error())
+            DBUG_RETURN(1);
+
           if (tab == join->join_tab + last_top_base_tab_idx)
           {
             /*
@@ -12756,7 +12779,10 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
             COND *rand_cond= make_cond_for_table(thd, cond, used_tables,
                                                  rand_table_bit, -1,
                                                  FALSE, FALSE);
-            add_cond_and_fix(thd, &tmp, rand_cond);
+            if (rand_cond)
+              add_cond_and_fix(thd, &tmp, rand_cond);
+            else if (thd->is_error())
+              DBUG_RETURN(1);
           }
         }
         /* Add conditions added by add_not_null_conds(). */
@@ -12841,8 +12867,8 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
               trace_cp.add_table_name(tab->table);
 
               COND *push_cond= 
-              make_cond_for_table(thd, tmp_cond, current_map, current_map,
-                                  -1, FALSE, FALSE);
+                make_cond_for_table(thd, tmp_cond, current_map, current_map,
+                                    -1, FALSE, FALSE);
               if (push_cond)
               {
                 trace_cp.add("push_cond", push_cond);
@@ -12850,6 +12876,8 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
                 if (!tab->table->file->cond_push(push_cond))
                   tab->table->file->pushed_cond= push_cond;
               }
+              else if (thd->is_error())
+                DBUG_RETURN(1);
             }
           }
         }
@@ -13058,7 +13086,11 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
                                               join->const_table_map,
                                               (table_map) 0, -1, FALSE, FALSE);
           if (!tmp_cond)
-            continue;
+          {
+            if (!thd->is_error())
+              continue;
+            DBUG_RETURN(1);
+          }
           tmp_cond= new (thd->mem_root) Item_func_trig_cond(thd, tmp_cond,
                                             &cond_tab->not_null_compl);
           if (!tmp_cond)
@@ -13112,6 +13144,8 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
                                               current_map,
                                               /*(inner_tab - first_tab)*/ -1,
 					      FALSE, FALSE);
+          if (!tmp_cond && thd->is_error())
+            DBUG_RETURN(1);
           if (tab == last_tab)
           {
             /*
@@ -13125,7 +13159,10 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
             COND *rand_cond= make_cond_for_table(thd, on_expr, used_tables2,
                                                  rand_table_bit, -1,
                                                  FALSE, FALSE);
-            add_cond_and_fix(thd, &tmp_cond, rand_cond);
+            if (rand_cond)
+              add_cond_and_fix(thd, &tmp_cond, rand_cond);
+            else if (thd->is_error())
+              DBUG_RETURN(1);
           }
           bool is_sjm_lookup_tab= FALSE;
           if (inner_tab->bush_children)
@@ -19977,7 +20014,7 @@ bool Create_tmp_table::add_fields(THD *thd,
           if (!(tmp_item= new (thd->mem_root)
                 Item_field(thd, new_field)))
             goto err;
-          ((Item_field*) tmp_item)->set_refers_to_temp_table(true);
+          ((Item_field*) tmp_item)->set_refers_to_temp_table();
           arg= sum_item->set_arg(i, thd, tmp_item);
           thd->mem_root= &table->mem_root;
 
@@ -24149,6 +24186,8 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
                                                 retain_ref_cond, false);
 	if (fix)
 	  new_cond->argument_list()->push_back(fix, thd->mem_root);
+        else if (thd->is_error())
+          return ((COND*) 0);
       }
       switch (new_cond->argument_list()->elements) {
       case 0:
@@ -24191,7 +24230,7 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
                                                 exclude_expensive_cond,
                                                 retain_ref_cond, false);
 	if (!fix)
-	  return (COND*) 0;			// Always true
+	  return (COND*) 0;			// Always true or error
 	new_cond->argument_list()->push_back(fix, thd->mem_root);
       }
       /*
@@ -24199,7 +24238,8 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
         the new parent Item. This should not be expensive because all
         children of Item_cond_and should be fixed by now.
       */
-      new_cond->fix_fields(thd, 0);
+      if (new_cond->fix_fields(thd, 0))
+        return (COND*) 0;
       new_cond->used_tables_cache= ((Item_cond_or*) cond)->used_tables_cache;
       new_cond->top_level_item();
       return new_cond;
@@ -27250,7 +27290,7 @@ change_to_use_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
         Item_field *new_field= new (thd->mem_root) Item_field(thd, field);
         if (!suv || !new_field)
           DBUG_RETURN(true);                  // Fatal error
-        new_field->set_refers_to_temp_table(true);
+        new_field->set_refers_to_temp_table();
         List<Item> list;
         list.push_back(new_field, thd->mem_root);
         suv->set_arguments(thd, list);
@@ -27269,7 +27309,7 @@ change_to_use_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
       {
         item_field= (Item*) new (thd->mem_root) Item_field(thd, field);
         if (item_field)
-          ((Item_field*) item_field)->set_refers_to_temp_table(true);
+          ((Item_field*) item_field)->set_refers_to_temp_table();
       }
       if (!item_field)
         DBUG_RETURN(true);                    // Fatal error

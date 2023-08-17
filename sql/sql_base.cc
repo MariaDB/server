@@ -871,6 +871,9 @@ int close_thread_tables(THD *thd)
     TODO: Probably even better approach is to simply associate list of
           derived tables with (sub-)statement instead of thread and destroy
           them at the end of its execution.
+
+    Note: EXPLAIN/ANALYZE depends on derived tables being freed here. See
+    sql_explain.h:ExplainDataStructureLifetime.
   */
   if (thd->derived_tables)
   {

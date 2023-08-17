@@ -562,7 +562,7 @@ Item *Item_sum::get_tmp_table_item(THD *thd)
           auto item_field=
             new (thd->mem_root) Item_field(thd, result_field_tmp++);
           if (item_field)
-            item_field->set_refers_to_temp_table(true);
+            item_field->set_refers_to_temp_table();
           sum_item->args[i]= item_field;
         }
       }
