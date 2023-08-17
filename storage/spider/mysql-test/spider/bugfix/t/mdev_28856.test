@@ -1,0 +1,50 @@
+--echo #
+--echo # MDEV-28856 Spider: Implement more engine-defined options
+--echo #
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+
+INSERT INTO mysql.spider_link_mon_servers
+(db_name, table_name, link_id, sid, server) VALUES
+('test', 't1', '0', 1, 'srv');
+
+create table t1 (c int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", monitoring_kind "2"';
+
+--error 12511
+/* 1 */ insert into t1 values (42);
+--error 12514
+/* 2 */ insert into t1 values (42);
+create table t2 (c int);
+# Even though the table is available now, we still get "all links
+# failed" error
+--error 12514
+/* 3 */ insert into t1 values (42);
+drop table t1, t2;
+
+create table t1 (c int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", monitoring_bg_kind "2",
+         monitoring_bg_interval "500000"';
+
+# The monitoring thread was killed before it could ping the remote
+# table, so the error is not 12511 or 12514
+--error ER_NO_SUCH_TABLE
+/* 4 */ insert into t1 values (42);
+drop table t1;
+
+drop server srv;
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log
+--echo #
+--echo # end of test MDEV-28856
+--echo #
