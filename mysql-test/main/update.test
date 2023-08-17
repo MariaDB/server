@@ -708,6 +708,7 @@ drop table t1;
 --echo # MDEV-29189: Second execution of SF using UPDATE?DELETE
 --echo #             after reported error by the first execution
 --echo #
+--disable_ps2_protocol # because SELECT with side effects
 
 CREATE TABLE t1 (c int);
 
@@ -739,5 +740,6 @@ SELECT * FROM t1;
 DROP FUNCTION f1;
 DROP FUNCTION f2;
 DROP TABLE t1;
+--enable_ps2_protocol
 
 --echo # End of MariaDB 10.10 tests
