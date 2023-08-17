@@ -1,0 +1,27 @@
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-26186 280 Bytes lost in mysys/array.c, mysys/hash.c, sql/sp.cc, sql/sp.cc, sql/item_create.cc, sql/item_create.cc, sql/sql_yacc.yy:10748 when using oracle sql_mode
+#
+SET sql_mode= 'oracle';
+BEGIN CONTINUE WHEN f0();
+ERROR 42000: CONTINUE with no matching label: 
+SET sql_mode= 'oracle';
+BEGIN CONTINUE label WHEN f0();
+ERROR 42000: CONTINUE with no matching label: label
+SET sql_mode= 'oracle';
+BEGIN EXIT WHEN f0();
+ERROR 42000: EXIT with no matching label: 
+SET sql_mode= 'oracle';
+BEGIN EXIT label WHEN f0();
+ERROR 42000: EXIT with no matching label: label
+SET sql_mode= 'oracle';
+WHILE f(8)<1 DO SELECT 1;;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'DO SELECT 1' at line 1
+SET sql_mode= 'oracle';
+BEGIN DECLARE CONTINUE HANDLER FOR SQLEXCEPTION RETURN f0();
+ERROR 42000: RETURN is only allowed in a FUNCTION
+#
+# End of 10.5 tests
+#

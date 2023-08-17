@@ -773,7 +773,7 @@ public:
     {
       return singleton();
     }
-    void set(uint pos, Item *item) override
+    bool set(uint pos, Item *item) override
     {
       Fbt *buff= &((Fbt *) base)[pos];
       Fbt_null value(item);
@@ -781,6 +781,7 @@ public:
         *buff= Fbt::zero();
       else
         *buff= value;
+      return FALSE;
     }
     uchar *get_value(Item *item) override
     {

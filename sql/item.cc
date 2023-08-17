@@ -1519,7 +1519,7 @@ int Item::save_in_field_no_warnings(Field *field, bool no_conversions)
 
 #ifndef DBUG_OFF
 static inline
-void mark_unsupported_func(const char *where, const char *processor_name)
+void dbug_mark_unsupported_func(const char *where, const char *processor_name)
 {
   char buff[64];
   my_snprintf(buff, sizeof(buff), "%s::%s", where ? where: "", processor_name);
@@ -1529,7 +1529,7 @@ void mark_unsupported_func(const char *where, const char *processor_name)
   DBUG_VOID_RETURN;
 }
 #else
-#define mark_unsupported_func(X,Y) {}
+#define dbug_mark_unsupported_func(X,Y) {}
 #endif
 
 bool mark_unsupported_function(const char *where, void *store, uint result)
@@ -1537,7 +1537,7 @@ bool mark_unsupported_function(const char *where, void *store, uint result)
   Item::vcol_func_processor_result *res=
     (Item::vcol_func_processor_result*) store;
   uint old_errors= res->errors;
-  mark_unsupported_func(where, "check_vcol_func_processor");
+  dbug_mark_unsupported_func(where, "check_vcol_func_processor");
   res->errors|= result;  /* Store type of expression */
   /* Store the name to the highest violation (normally VCOL_IMPOSSIBLE) */
   if (result > old_errors)
@@ -1558,33 +1558,19 @@ bool mark_unsupported_function(const char *w1, const char *w2,
 
 bool Item_field::check_vcol_func_processor(void *arg)
 {
+  uint r= VCOL_FIELD_REF;
   context= 0;
   vcol_func_processor_result *res= (vcol_func_processor_result *) arg;
   if (res->alter_info)
+    r|= res->alter_info->check_vcol_field(this);
+  else if (field)
   {
-    for (Key &k: res->alter_info->key_list)
-    {
-      if (k.type != Key::FOREIGN_KEY)
-        continue;
-      Foreign_key *fk= (Foreign_key*) &k;
-      if (fk->update_opt != FK_OPTION_CASCADE)
-        continue;
-      for (Key_part_spec& kp: fk->columns)
-      {
-        if (!lex_string_cmp(system_charset_info, &kp.field_name, &field_name))
-        {
-          return mark_unsupported_function(field_name.str, arg, VCOL_IMPOSSIBLE);
-        }
-      }
-    }
+    if (field->unireg_check == Field::NEXT_NUMBER)
+      r|= VCOL_AUTO_INC;
+    if (field->vcol_info &&
+        field->vcol_info->flags & (VCOL_NOT_STRICTLY_DETERMINISTIC | VCOL_AUTO_INC))
+      r|= VCOL_NON_DETERMINISTIC;
   }
-
-  uint r= VCOL_FIELD_REF;
-  if (field && field->unireg_check == Field::NEXT_NUMBER)
-    r|= VCOL_AUTO_INC;
-  if (field && field->vcol_info &&
-      field->vcol_info->flags & (VCOL_NOT_STRICTLY_DETERMINISTIC | VCOL_AUTO_INC))
-    r|= VCOL_NON_DETERMINISTIC;
   return mark_unsupported_function(field_name.str, arg, r);
 }
 

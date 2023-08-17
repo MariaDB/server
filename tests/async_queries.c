@@ -371,7 +371,7 @@ main(int argc, char *argv[])
   if (err)
     exit(err);
   if (tty_password)
-    opt_password= get_tty_password(NullS);
+    opt_password= my_get_tty_password(NullS);
 
   if (opt_query_file)
   {

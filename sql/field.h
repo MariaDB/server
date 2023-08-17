@@ -5249,7 +5249,7 @@ class Column_definition: public Sql_alloc,
   const Type_handler *field_type() const; // Prevent using this
   Compression_method *compression_method_ptr;
 public:
-  LEX_CSTRING field_name;
+  Lex_ident   field_name;
   LEX_CSTRING comment;			// Comment for field
   enum enum_column_versioning
   {

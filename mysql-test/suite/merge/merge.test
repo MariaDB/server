@@ -2001,7 +2001,9 @@ BEGIN
   RETURN (SELECT MAX(c1) FROM tm1);
 END|
 DELIMITER ;|
+--disable_ps2_protocol
 SELECT f1() FROM (SELECT 1 UNION SELECT 1) c1;
+--enable_ps2_protocol
 DROP FUNCTION f1;
 DROP TABLE tm1, t1, t2;
 #

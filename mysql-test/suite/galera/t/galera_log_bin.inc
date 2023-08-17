@@ -1,11 +1,11 @@
 --source include/galera_cluster.inc
 --source include/force_restart.inc
 
---connection node_1
+--connection node_2
 set global wsrep_on=OFF;
 reset master;
 set global wsrep_on=ON;
---connection node_2
+--connection node_1
 set global wsrep_on=OFF;
 reset master;
 set global wsrep_on=ON;

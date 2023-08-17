@@ -6,11 +6,11 @@
 --let $node_2=node_2
 --source include/auto_increment_offset_save.inc
 
---connection node_1
+--connection node_2
 set global wsrep_on=OFF;
 reset master;
 set global wsrep_on=ON;
---connection node_2
+--connection node_1
 set global wsrep_on=OFF;
 reset master;
 set global wsrep_on=ON;

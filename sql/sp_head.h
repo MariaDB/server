@@ -315,7 +315,13 @@ public:
   const char *m_param_end;
 
 private:
-  const char *m_body_begin;
+  /*
+    A pointer to the body start inside the cpp buffer.
+    Used only during parsing. Should be removed eventually.
+    The affected functions/methods should be fixed to get the cpp body start
+    as a parameter, rather than through this member.
+  */
+  const char *m_cpp_body_begin;
 
 public:
   /*
@@ -344,12 +350,11 @@ public:
 
   /** Set the body-definition start position. */
   void
-  set_body_start(THD *thd, const char *begin_ptr);
+  set_body_start(THD *thd, const char *cpp_body_start);
 
   /** Set the statement-definition (body-definition) end position. */
   void
-  set_stmt_end(THD *thd);
-
+  set_stmt_end(THD *thd, const char *cpp_body_end);
 
   bool
   execute_trigger(THD *thd,

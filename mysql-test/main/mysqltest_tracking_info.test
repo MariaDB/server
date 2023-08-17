@@ -62,6 +62,38 @@ SET SESSION session_track_system_variables=NULL;
 --echo # End of 10.3 tests
 
 --echo #
+--echo # MDEV-25237: crash after setting global session_track_system_variables
+--echo # to an invalid value
+--echo #
+
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET GLOBAL session_track_system_variables='a';
+SET GLOBAL event_scheduler=1;
+
+
+--echo # check that value really returns as it was
+
+set GLOBAL session_track_system_variables='character_set_connection';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET GLOBAL session_track_system_variables='a';
+
+connect (con,localhost,root,,test);
+--enable_session_track_info
+SET NAMES 'utf8';
+SET NAMES 'big5';
+--disable_session_track_info
+
+select @@session_track_system_variables;
+
+connection default;
+disconnect con;
+
+SET GLOBAL session_track_system_variables=default;
+SET GLOBAL event_scheduler=default;
+
+--echo # End of 10.4 test
+
+--echo #
 --echo # MDEV-16470 - Session user variables tracker
 --echo #
 #SET @@session.session_track_user_variables=1;
@@ -91,3 +123,59 @@ SET SESSION session_track_system_variables=NULL;
 #SET @inserted_value=REPEAT(1,16777180);  # Only crashes when >=16777180 (max = 16777216)
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-31746 Problems with tx_isolation after MDEV-21921
+--echo #
+
+--echo # tracking info on
+
+--enable_session_track_info
+
+SET session_track_system_variables='max_insert_delayed_threads';
+SET max_delayed_threads=0;
+SET @@max_delayed_threads=0;
+SET SESSION max_delayed_threads=0;
+
+SET session_track_system_variables='max_delayed_threads';
+SET max_insert_delayed_threads=@@global.max_delayed_threads;
+
+SET session_track_system_variables='tx_isolation';
+
+SET @@session.tx_isolation='READ-COMMITTED';
+SET SESSION tx_isolation='READ-UNCOMMITTED';
+SET SESSION transaction_isolation='REPEATABLE-READ';
+
+--echo Track 2, get 2
+SET session_track_system_variables='tx_isolation,transaction_isolation';
+select @@session_track_system_variables;
+
+SET @@session.tx_isolation='READ-COMMITTED';
+SET SESSION tx_isolation='READ-UNCOMMITTED';
+SET SESSION transaction_isolation='REPEATABLE-READ';
+
+SET session_track_system_variables='transaction_isolation';
+
+SET @@session.tx_isolation='READ-COMMITTED';
+SET SESSION tx_isolation='READ-UNCOMMITTED';
+SET SESSION transaction_isolation='REPEATABLE-READ';
+
+SET session_track_system_variables='tx_isolation,transaction_isolation,tx_isolation';
+
+SELECT @@session_track_system_variables;
+
+SET @@session.tx_isolation='READ-COMMITTED';
+SET SESSION tx_isolation='READ-UNCOMMITTED';
+SET SESSION transaction_isolation='REPEATABLE-READ';
+
+--echo accumulate as we encounter duplicates
+SET session_track_system_variables='*';
+
+SET @@session.tx_isolation='READ-COMMITTED';
+SET SESSION tx_isolation='READ-UNCOMMITTED';
+SET SESSION transaction_isolation='REPEATABLE-READ';
+# TEST GAP, there are no aliases of Sys_var_bit variables, implemented but
+# no tests yet.
+--disable_session_track_info
+
+--echo # End of 11.1 tests

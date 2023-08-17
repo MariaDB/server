@@ -1,4 +1,14 @@
 #
+#   Ensure that Seconds_Behind_Master works correctly on the parallel replica.
+#
+--source include/master-slave.inc
+--source include/have_log_bin.inc
+--source include/have_debug.inc
+
+--echo #
+--echo # MDEV-29639: Seconds_Behind_Master is incorrect for Delayed, Parallel Replicas
+--echo #
+
 #   This test ensures that after a delayed parallel slave has idled, i.e.
 # executed everything in its relay log, the next event group that the SQL
 # thread reads from the relay log will immediately be used in the
@@ -6,26 +16,21 @@
 # Seconds_Behind_Master is based on the timestamp of the new transaction,
 # rather than the last committed transaction.
 #
-# References:
-#   MDEV-29639: Seconds_Behind_Master is incorrect for Delayed, Parallel
-#               Replicas
-#
-
---source include/master-slave.inc
---source include/have_debug.inc
---source include/have_debug_sync.inc
 
 --connection slave
 --source include/stop_slave.inc
---let $old_debug_dbug= `SELECT @@global.debug_dbug`
+--let $save_dbug= `SELECT @@GLOBAL.debug_dbug`
+--let $save_parallel_mode= `SELECT @@GLOBAL.slave_parallel_mode`
+set @@GLOBAL.debug_dbug= "d,negate_clock_diff_with_master";
+set @@GLOBAL.slave_parallel_mode= CONSERVATIVE;
 --let $master_delay= 3
 --eval change master to master_delay=$master_delay, master_use_gtid=Slave_Pos
---let $old_slave_threads= `SELECT @@GLOBAL.slave_parallel_threads`
-set @@GLOBAL.slave_parallel_threads=2;
 --source include/start_slave.inc
 
 --connection master
+--let insert_ctr= 0
 create table t1 (a int);
+create table t2 (a int);
 --source include/sync_slave_sql_with_master.inc
 
 --echo #
@@ -40,7 +45,6 @@ LOCK TABLES t1 WRITE;
 sleep 2;
 
 --let $ts_trx_before_ins= `SELECT UNIX_TIMESTAMP()`
---let insert_ctr= 0
 --eval insert into t1 values ($insert_ctr)
 --inc $insert_ctr
 --source include/save_master_gtid.inc
@@ -66,15 +70,13 @@ UNLOCK TABLES;
 --source include/sync_with_master_gtid.inc
 
 --echo #
---echo # Pt 2) If the SQL thread has not entered an idle state, ensure
+--echo # Pt 2) If the worker threads have not entered an idle state, ensure
 --echo # following events do not update SBM
 
---echo # Stop slave IO thread so it receives both events together on restart
 --connection slave
---source include/stop_slave_io.inc
+LOCK TABLES t1 WRITE;
 
 --connection master
-
 --echo # Sleep 2 to allow a buffer between events for SBM check
 sleep 2;
 --let $ts_trxpt2_before_ins= `SELECT UNIX_TIMESTAMP()`
@@ -88,29 +90,14 @@ sleep 3;
 --source include/save_master_pos.inc
 
 --connection slave
-LOCK TABLES t1 WRITE;
-
-SET @@global.debug_dbug="+d,pause_sql_thread_on_next_event";
-
-START SLAVE IO_THREAD;
-
---echo # Before we start processing the events, we ensure both transactions
---echo # were written into the relay log. Otherwise, if the IO thread takes too
---echo # long to queue the events, the sql thread can think it has caught up
---echo # too quickly.
-SET DEBUG_SYNC='now WAIT_FOR paused_on_event';
---source include/sync_io_with_master.inc
-SET @@global.debug_dbug="-d,pause_sql_thread_on_next_event";
-SET DEBUG_SYNC='now SIGNAL sql_thread_continue';
-
 --echo # Wait for first transaction to complete SQL delay and begin execution..
 --let $wait_condition= SELECT count(*) FROM information_schema.processlist WHERE state LIKE 'Waiting for table metadata lock%' AND command LIKE 'Slave_Worker';
 --source include/wait_condition.inc
 
---echo # Validate SBM calculation doesn't use the second transaction because SQL thread shouldn't have gone idle..
+--echo # Validate SBM calculation doesn't use the second transaction because worker threads shouldn't have gone idle..
 --let $sbm_after_trx_no_idle= query_get_value(SHOW SLAVE STATUS, Seconds_Behind_Master, 1)
 --let $timestamp_trxpt2_arrive= `SELECT UNIX_TIMESTAMP()`
-if (`SELECT $sbm_after_trx_no_idle < $timestamp_trxpt2_arrive - $ts_trx_after_ins`)
+if (`SELECT $sbm_after_trx_no_idle < $timestamp_trxpt2_arrive - $ts_trx_after_ins - 1`)
 {
     --let $cmpv= `SELECT $timestamp_trxpt2_arrive - $ts_trx_after_ins`
     --echo # SBM $sbm_after_trx_no_idle was more recent than time since last transaction ($cmpv seconds)
@@ -127,24 +114,86 @@ if (`SELECT $sbm_after_trx_no_idle > ($seconds_since_idling + 1)`)
 
 --connection slave
 UNLOCK TABLES;
+--source include/sync_with_master.inc
+
+--echo # Cleanup
+--source include/stop_slave.inc
+--eval CHANGE MASTER TO master_delay=0
+--source include/start_slave.inc
+
+
+--echo #
+--echo # MDEV-30619: Parallel Slave SQL Thread Can Update Seconds_Behind_Master with Active Workers
+--echo #
+
+#   This test ensures that a parallel slave will not update
+# Seconds_Behind_Master after the SQL Thread has idled if the worker threads
+# are still executing events. To test this, two events are executed on the
+# primary with $sleep seconds in-between them. Once the second event begins
+# execution on the replica, Seconds_Behind_Master is queried to ensure it
+# reflects the value of the first transaction, rather than the second.
+
+--connection slave
+--echo # Ensure the replica is fully idle before starting transactions
+--let $wait_condition= SELECT count(*) FROM information_schema.processlist WHERE state LIKE 'Slave has read all relay log%';
+--source include/wait_condition.inc
+--let $wait_condition= SELECT count(*)=2 FROM information_schema.processlist WHERE state LIKE 'Waiting for work from SQL thread';
+--source include/wait_condition.inc
+
+--echo # Lock t1 on slave so the first received transaction does not complete/commit
+LOCK TABLES t1 WRITE;
+
+--connection master
+--let $ts_t1_before_master_ins= `SELECT UNIX_TIMESTAMP()`
+--eval insert into t1 values ($insert_ctr)
+--inc $insert_ctr
+--source include/save_master_gtid.inc
+
+--connection slave
+--echo # Waiting for first transaction to begin..
+--let $wait_condition= SELECT count(*) FROM information_schema.processlist WHERE state LIKE 'Waiting for table metadata lock';
+--source include/wait_condition.inc
+
+--let $sbm_1= query_get_value(SHOW SLAVE STATUS, Seconds_Behind_Master, 1)
+
+--connection master
+--let $sleep = 2
+--echo # Sleep $sleep sec to create a gap between events
+sleep $sleep;
+INSERT INTO t2 VALUES (1);
+--source include/save_master_gtid.inc
+
+--connection slave
+--echo # Waiting for second transaction to begin..
+--let $wait_condition= SELECT count(*) FROM information_schema.processlist WHERE state LIKE 'Waiting for prior transaction to start commit%';
+--source include/wait_condition.inc
+
+--let $sbm_2= query_get_value(SHOW SLAVE STATUS, Seconds_Behind_Master, 1)
+
+if (`SELECT $sbm_1 + $sleep > $sbm_2`)
+{
+    --echo # Seconds_Behind_Masters: $sbm_1 $sbm_2_0
+    --die Two successive Seconds_Behind_Master timestamps must be separated by the sleep parameter value or greater
+}
+
+--connection slave
+UNLOCK TABLES;
+--source include/sync_with_master_gtid.inc
+
 
 --echo #
 --echo # Cleanup
 
---echo # Reset master_delay
---source include/stop_slave.inc
---eval CHANGE MASTER TO master_delay=0
---eval set @@GLOBAL.slave_parallel_threads=$old_slave_threads
---eval SET @@global.debug_dbug="$old_debug_dbug"
-SET DEBUG_SYNC='RESET';
---source include/start_slave.inc
-
 --connection master
-DROP TABLE t1;
+DROP TABLE t1, t2;
 --source include/save_master_gtid.inc
 
 --connection slave
 --source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+--eval  set @@GLOBAL.debug_dbug= "$save_dbug"
+--evalp set @@GLOBAL.slave_parallel_mode= "$save_parallel_mode"
+--source include/start_slave.inc
 
 --source include/rpl_end.inc
---echo # End of rpl_delayed_parallel_slave_sbm.test
+--echo # End of rpl_parallel_sbm.test

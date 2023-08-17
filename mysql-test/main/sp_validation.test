@@ -19,6 +19,7 @@
 --echo
 
 --source include/have_debug.inc
+--disable_ps2_protocol # lots of SELECTs with side effects below
 
 ###########################################################################
 ###########################################################################
@@ -2760,3 +2761,4 @@ SELECT * FROM t2;
 DROP TABLE t1, t2;
 
 SET sql_mode = default;
+--enable_ps2_protocol

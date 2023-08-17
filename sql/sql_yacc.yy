@@ -1572,6 +1572,42 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <expr_and_query_str> sp_opt_default set_expr_or_default
 
+/*
+
+// COMMENT_FOR_DESCTRUCTOR:
+//
+// %destructor is only invoked if the rule parsing fails in the middle.
+// If we call YYABORT from the last code block %destructor is not called,
+// because Bison's stack already contains the reduced upper level rule.
+// If we need to invoke the %destructor after the YYABORT in the last code
+// block, we have to add another dummy empty end-of-rule action {} at the end.
+
+// So to have a %destructor work properly with YYABORT,
+// make sure to turn a grammar like this:
+
+rule:
+        KEYWORD expr_lex
+        {
+          if (condition) // End-of-rule action
+            YYABORT;
+        }
+        ;
+
+// into:
+
+rule:
+        KEYWORD expr_lex
+        {
+          if (condition) // This is now a mid-rule action
+            YYABORT;
+        }
+        {
+          // A dummy empty end-of-rule action.
+        }
+        ;
+*/
+
+
 %type <assignment_lex>
         assignment_source_lex
         assignment_source_expr
@@ -3812,6 +3848,7 @@ sp_proc_stmt_return:
                                                           $2->get_item(), $2)))
               MYSQL_YYABORT;
           }
+          { /* See the comment 'COMMENT_FOR_DESCTRUCTOR' near %destructor */ }
         | RETURN_ORACLE_SYM
           {
             LEX *lex= Lex;
@@ -3840,12 +3877,14 @@ sp_proc_stmt_exit_oracle:
                                                $3->get_expr_str())))
               MYSQL_YYABORT;
           }
+          { /* See the comment 'COMMENT_FOR_DESCTRUCTOR' near %destructor */ }
         | EXIT_ORACLE_SYM label_ident WHEN_SYM expr_lex
           {
             if (unlikely($4->sp_exit_statement(thd, &$2, $4->get_item(),
                                                $4->get_expr_str())))
               MYSQL_YYABORT;
           }
+          { /* See the comment 'COMMENT_FOR_DESCTRUCTOR' near %destructor */ }
         ;
 
 sp_proc_stmt_continue_oracle:
@@ -3864,11 +3903,13 @@ sp_proc_stmt_continue_oracle:
             if (unlikely($3->sp_continue_when_statement(thd)))
               MYSQL_YYABORT;
           }
+          { /* See the comment 'COMMENT_FOR_DESCTRUCTOR' near %destructor */ }
         | CONTINUE_ORACLE_SYM label_ident WHEN_SYM expr_lex
           {
             if (unlikely($4->sp_continue_when_statement(thd, &$2)))
               MYSQL_YYABORT;
           }
+          { /* See the comment 'COMMENT_FOR_DESCTRUCTOR' near %destructor */ }
         ;
 
 
@@ -10612,7 +10653,7 @@ function_call_generic:
 
               This will be revised with WL#2128 (SQL PATH)
             */
-            if ((builder= find_native_function_builder(thd, &$1)))
+            if ((builder= native_functions_hash.find(thd, $1)))
             {
               item= builder->create_func(thd, &$1, $4);
             }
@@ -19425,8 +19466,6 @@ create_routine:
           }
         | create_or_replace definer_opt PACKAGE_ORACLE_SYM
           opt_if_not_exists sp_name opt_create_package_chistics_init
-          sp_tail_is
-          remember_name
           {
             sp_package *pkg;
             if (unlikely(!(pkg= Lex->
@@ -19436,17 +19475,17 @@ create_routine:
                                                 $5, $1 | $4))))
               MYSQL_YYABORT;
             pkg->set_c_chistics(Lex->sp_chistics);
+            Lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
           }
+          sp_tail_is
           opt_package_specification_element_list END
           remember_end_opt opt_sp_name
           {
-            if (unlikely(Lex->create_package_finalize(thd, $5, $13, $8, $12)))
+            if (unlikely(Lex->create_package_finalize(thd, $5, $12, $11)))
               MYSQL_YYABORT;
           }
         | create_or_replace definer_opt PACKAGE_ORACLE_SYM BODY_ORACLE_SYM
           opt_if_not_exists sp_name opt_create_package_chistics_init
-          sp_tail_is
-          remember_name
           {
             sp_package *pkg;
             if (unlikely(!(pkg= Lex->
@@ -19456,8 +19495,10 @@ create_routine:
                                                 $6, $1 | $5))))
               MYSQL_YYABORT;
             pkg->set_c_chistics(Lex->sp_chistics);
+            Lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
             Lex->sp_block_init(thd);
           }
+          sp_tail_is
           package_implementation_declare_section
           {
             if (unlikely(Lex->sp_block_with_exceptions_finalize_declarations(thd)))
@@ -19465,13 +19506,13 @@ create_routine:
           }
           package_implementation_executable_section
           {
-            $11.hndlrs+= $13.hndlrs;
-            if (unlikely(Lex->sp_block_finalize(thd, $11)))
+            $10.hndlrs+= $12.hndlrs;
+            if (unlikely(Lex->sp_block_finalize(thd, $10)))
               MYSQL_YYABORT;
           }
           remember_end_opt opt_sp_name
           {
-            if (unlikely(Lex->create_package_finalize(thd, $6, $16, $9, $15)))
+            if (unlikely(Lex->create_package_finalize(thd, $6, $15, $14)))
               MYSQL_YYABORT;
           }
         ;

@@ -85,6 +85,7 @@ public:
     ALTER_TABLE_LOCK_EXCLUSIVE
   };
 
+  Lex_table_name db, table_name;
 
   // Columns and keys to be dropped.
   List<Alter_drop>              drop_list;
@@ -234,6 +235,8 @@ public:
    */
   enum_alter_table_algorithm algorithm(const THD *thd) const;
   bool algorithm_is_nocopy(const THD *thd) const;
+
+  uint check_vcol_field(Item_field *f) const;
 
 private:
   Alter_info &operator=(const Alter_info &rhs); // not implemented
