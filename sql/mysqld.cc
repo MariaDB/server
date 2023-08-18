@@ -8261,6 +8261,13 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
   case OPT_SERVER_ID:
     ::server_id= global_system_variables.server_id;
     break;
+  case OPT_SEQURE_FILE_PRIV:
+    if (argument == disabled_my_option)
+    {
+      my_free(opt_secure_file_priv);
+      opt_secure_file_priv= 0;
+    }
+    break;
   case OPT_LOWER_CASE_TABLE_NAMES:
     lower_case_table_names_used= 1;
     break;

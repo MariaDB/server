@@ -842,6 +842,7 @@ enum options_mysqld
   OPT_MYSQL_COMPATIBILITY,
   OPT_TLS_VERSION,
   OPT_MYSQL_TO_BE_IMPLEMENTED,
+  OPT_SEQURE_FILE_PRIV,
   OPT_which_is_always_the_last
 };
 #endif
