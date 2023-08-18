@@ -4469,7 +4469,7 @@ row_merge_build_indexes(
 			we need to build a "fts sort index" indexing
 			on above three 'fields' */
 			fts_sort_idx = row_merge_create_fts_sort_index(
-				indexes[i], old_table, &opt_doc_id_size);
+				indexes[i], new_table, &opt_doc_id_size);
 
 			row_merge_dup_t*	dup
 				= static_cast<row_merge_dup_t*>(

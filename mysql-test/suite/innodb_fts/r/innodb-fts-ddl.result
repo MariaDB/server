@@ -318,3 +318,13 @@ DROP TABLE t1;
 disconnect con1;
 SET GLOBAL innodb_optimize_fulltext_only=OFF;
 SET GLOBAL innodb_ft_aux_table = default;
+#
+#  MDEV-31892 Server crash upon moving InnoDB table
+#	with fulltext index between databases
+#
+CREATE DATABASE db;
+CREATE TABLE db.t (pk INT PRIMARY KEY, c CHAR(120), FULLTEXT KEY(c)) ENGINE=InnoDB;
+INSERT INTO db.t VALUES (1,'foo'),(2,'bar');
+ALTER TABLE db.t FORCE, RENAME to test.t;
+DROP DATABASE db;
+DROP TABLE IF EXISTS test.t;

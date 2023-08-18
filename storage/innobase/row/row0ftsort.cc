@@ -122,7 +122,7 @@ row_merge_create_fts_sort_index(
 	if (DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_ADD_DOC_ID)) {
 		/* If Doc ID column is being added by this create
 		index, then just check the number of rows in the table */
-		if (dict_table_get_n_rows(table) < MAX_DOC_ID_OPT_VAL) {
+		if (table->stat_n_rows < MAX_DOC_ID_OPT_VAL) {
 			*opt_doc_id_size = TRUE;
 		}
 	} else {
