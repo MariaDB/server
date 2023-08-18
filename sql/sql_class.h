@@ -1254,6 +1254,107 @@ public:
     return ptr;
   }
 
+  /*
+    Methods to copy a string to the memory root
+    and return the value as a LEX_CSTRING.
+  */
+  LEX_CSTRING strmake_lex_cstring(const char *str, size_t length) const
+  {
+    const char *tmp= strmake_root(mem_root, str, length);
+    if (!tmp)
+      return {0,0};
+    return {tmp, length};
+  }
+  LEX_CSTRING strmake_lex_cstring(const LEX_CSTRING &from) const
+  {
+    return strmake_lex_cstring(from.str, from.length);
+  }
+
+  /*
+    Methods to copy a string to memory root,
+    write the result to the out parameter,
+    and return as a LEX_STRING/LEX_CSTRING pointer.
+  */
+  LEX_STRING *make_lex_string(LEX_STRING *lex_str, const char* str,
+                              size_t length) const
+  {
+    if (!(lex_str->str= strmake_root(mem_root, str, length)))
+    {
+      lex_str->length= 0;
+      return 0;
+    }
+    lex_str->length= length;
+    return lex_str;
+  }
+  LEX_CSTRING *make_lex_string(LEX_CSTRING *lex_str, const char* str,
+                               size_t length) const
+  {
+    if (!(lex_str->str= strmake_root(mem_root, str, length)))
+    {
+      lex_str->length= 0;
+      return 0;
+    }
+    lex_str->length= length;
+    return lex_str;
+  }
+
+  /*
+    Methods to copy a string value on memory root,
+    but also allocate on memory root LEX_CSTRING itself
+    and return a pointer to it.
+  */
+  LEX_CSTRING *make_clex_string(const char* str, size_t length) const
+  {
+    LEX_CSTRING *lex_str;
+    char *tmp;
+    if (unlikely(!(lex_str= (LEX_CSTRING *)alloc_root(mem_root,
+                                                      sizeof(LEX_CSTRING) +
+                                                      length+1))))
+      return 0;
+    tmp= (char*) (lex_str+1);
+    lex_str->str= tmp;
+    memcpy(tmp, str, length);
+    tmp[length]= 0;
+    lex_str->length= length;
+    return lex_str;
+  }
+  LEX_CSTRING *make_clex_string(const LEX_CSTRING from) const
+  {
+    return make_clex_string(from.str, from.length);
+  }
+
+  // Allocate LEX_STRING for character set conversion
+  bool alloc_lex_string(LEX_STRING *dst, size_t length) const
+  {
+    if (likely((dst->str= (char*) alloc(length))))
+      return false;
+    dst->length= 0;  // Safety
+    return true;     // EOM
+  }
+
+  // Remove double quotes:  aaa""bbb -> aaa"bbb
+  bool quote_unescape(LEX_CSTRING *dst, const LEX_CSTRING *src,
+                      char quote) const
+  {
+    const char *tmp= src->str;
+    const char *tmpend= src->str + src->length;
+    char *to;
+    if (!(dst->str= to= (char *) alloc(src->length + 1)))
+    {
+      dst->length= 0; // Safety
+      return true;
+    }
+    for ( ; tmp < tmpend; )
+    {
+      if ((*to++= *tmp++) == quote)
+        tmp++;                                  // Skip double quotes
+    }
+    *to= 0;                                     // End null for safety
+    dst->length= to - dst->str;
+    return false;
+  }
+
+
   void set_query_arena(Query_arena *set);
 
   void free_items();
@@ -4164,90 +4265,6 @@ public:
     return alloc_root(&transaction->mem_root,size);
   }
 
-  LEX_CSTRING strmake_lex_cstring(const char *str, size_t length) const
-  {
-    const char *tmp= strmake_root(mem_root, str, length);
-    if (!tmp)
-      return {0,0};
-    return {tmp, length};
-  }
-  LEX_CSTRING strmake_lex_cstring(const LEX_CSTRING &from) const
-  {
-    return strmake_lex_cstring(from.str, from.length);
-  }
-
-  LEX_STRING *make_lex_string(LEX_STRING *lex_str, const char* str,
-                              size_t length) const
-  {
-    if (!(lex_str->str= strmake_root(mem_root, str, length)))
-    {
-      lex_str->length= 0;
-      return 0;
-    }
-    lex_str->length= length;
-    return lex_str;
-  }
-  LEX_CSTRING *make_lex_string(LEX_CSTRING *lex_str, const char* str,
-                               size_t length) const
-  {
-    if (!(lex_str->str= strmake_root(mem_root, str, length)))
-    {
-      lex_str->length= 0;
-      return 0;
-    }
-    lex_str->length= length;
-    return lex_str;
-  }
-  // Remove double quotes:  aaa""bbb -> aaa"bbb
-  bool quote_unescape(LEX_CSTRING *dst, const LEX_CSTRING *src,
-                      char quote) const
-  {
-    const char *tmp= src->str;
-    const char *tmpend= src->str + src->length;
-    char *to;
-    if (!(dst->str= to= (char *) alloc(src->length + 1)))
-    {
-      dst->length= 0; // Safety
-      return true;
-    }
-    for ( ; tmp < tmpend; )
-    {
-      if ((*to++= *tmp++) == quote)
-        tmp++;                                  // Skip double quotes
-    }
-    *to= 0;                                     // End null for safety
-    dst->length= to - dst->str;
-    return false;
-  }
-
-  LEX_CSTRING *make_clex_string(const char* str, size_t length) const
-  {
-    LEX_CSTRING *lex_str;
-    char *tmp;
-    if (unlikely(!(lex_str= (LEX_CSTRING *)alloc_root(mem_root,
-                                                      sizeof(LEX_CSTRING) +
-                                                      length+1))))
-      return 0;
-    tmp= (char*) (lex_str+1);
-    lex_str->str= tmp;
-    memcpy(tmp, str, length);
-    tmp[length]= 0;
-    lex_str->length= length;
-    return lex_str;
-  }
-  LEX_CSTRING *make_clex_string(const LEX_CSTRING from) const
-  {
-    return make_clex_string(from.str, from.length);
-  }
-
-  // Allocate LEX_STRING for character set conversion
-  bool alloc_lex_string(LEX_STRING *dst, size_t length) const
-  {
-    if (likely((dst->str= (char*) alloc(length))))
-      return false;
-    dst->length= 0;  // Safety
-    return true;     // EOM
-  }
   bool convert_string(LEX_STRING *to, CHARSET_INFO *to_cs,
 		      const char *from, size_t from_length,
 		      CHARSET_INFO *from_cs) const;
