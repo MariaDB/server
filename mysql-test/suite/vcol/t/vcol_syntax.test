@@ -168,6 +168,8 @@ drop table t1;
 --echo #
 create table t (f1 int, f2 int, fv int generated always as (case user() when 'foo' or 'bar' then f1 else f2 end) virtual);
 select * from t;
+insert into t (f1,f2) values(1,1);
+select * from t;
 create table tmp as select * from information_schema.tables where table_name = 't';
 select * from t;
 
