@@ -97,5 +97,290 @@ set use_stat_tables=default;
 set histogram_type=default;
 set histogram_size=default;
 #
+# MDEV-31957 Concurrent ALTER and ANALYZE collecting statistics can
+# result in stale statistical data
+#
+CREATE TABLE t1 (a INT, b VARCHAR(128));
+INSERT INTO t1 SELECT seq, CONCAT('s',seq) FROM seq_1_to_100;
+connect  con1,localhost,root,,;
+ALTER TABLE t1 MODIFY b BLOB;
+connection default;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+connection con1;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+connection default;
+disconnect con1;
+select db_name,table_name,column_name from mysql.column_stats;
+db_name	table_name	column_name
+test	t1	a
+drop table t1;
+#
+# Testing swapping columns
+#
+create or replace table t1 (a int primary key, b varchar(100), c varchar(100), d varchar(100)) engine=innodb;
+insert into t1 select seq, repeat('b',seq),repeat('c',mod(seq,5)), repeat('d',mod(seq,10))  from seq_1_to_100;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select db_name,table_name,column_name,avg_length from mysql.column_stats order by column_name;
+db_name	table_name	column_name	avg_length
+test	t1	a	4.0000
+test	t1	b	50.5000
+test	t1	c	2.0000
+test	t1	d	4.5000
+alter table t1 change b c varchar(200), change c b varchar(200);
+select db_name,table_name,column_name,avg_length from mysql.column_stats order by column_name;
+db_name	table_name	column_name	avg_length
+test	t1	a	4.0000
+test	t1	b	2.0000
+test	t1	c	50.5000
+test	t1	d	4.5000
+alter table t1 change b c varchar(200), change c d varchar(200), change d b varchar(200) ;
+select db_name,table_name,column_name,avg_length from mysql.column_stats order by column_name;
+db_name	table_name	column_name	avg_length
+test	t1	a	4.0000
+test	t1	b	4.5000
+test	t1	c	2.0000
+test	t1	d	50.5000
+alter table t1 change b c varchar(200), change c d varchar(200), change d e varchar(200) ;
+select db_name,table_name,column_name,avg_length from mysql.column_stats order by column_name;
+db_name	table_name	column_name	avg_length
+test	t1	a	4.0000
+test	t1	c	4.5000
+test	t1	d	2.0000
+test	t1	e	50.5000
+alter table t1 change e d varchar(200), drop column d;
+select db_name,table_name,column_name,avg_length from mysql.column_stats order by column_name;
+db_name	table_name	column_name	avg_length
+test	t1	a	4.0000
+test	t1	c	4.5000
+test	t1	d	50.5000
+# Test having non existing column in column_stats
+insert into mysql.column_stats (db_name,table_name,column_name) values ("test","t1","b");
+alter table t1 change c d varchar(200), change d b varchar(200);
+select db_name,table_name,column_name,avg_length from mysql.column_stats order by column_name;
+db_name	table_name	column_name	avg_length
+test	t1	a	4.0000
+test	t1	b	50.5000
+test	t1	d	4.5000
+# Test having a conflicting temporary name
+insert into mysql.column_stats (db_name,table_name,column_name) values ("test","t1",concat("#sql_tmp_name#1",char(0)));
+alter table t1 change d b varchar(200), change b d varchar(200);
+select db_name,table_name,column_name,avg_length from mysql.column_stats order by column_name;
+db_name	table_name	column_name	avg_length
+test	t1	a	4.0000
+test	t1	b	4.5000
+test	t1	d	50.5000
+drop table t1;
+truncate table mysql.column_stats;
+create or replace table t1 (a int primary key, b varchar(100), c varchar(100), d varchar(100)) engine=myisam;
+insert into t1 select seq, repeat('b',seq),repeat('c',mod(seq,5)), repeat('d',mod(seq,10))  from seq_1_to_100;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select db_name,table_name,column_name,avg_length from mysql.column_stats order by column_name;
+db_name	table_name	column_name	avg_length
+test	t1	a	4.0000
+test	t1	b	50.5000
+test	t1	c	2.0000
+test	t1	d	4.5000
+alter table t1 change b c varchar(200), change c b varchar(200);
+select db_name,table_name,column_name,avg_length from mysql.column_stats order by column_name;
+db_name	table_name	column_name	avg_length
+test	t1	a	4.0000
+test	t1	d	4.5000
+analyze table t1 persistent for columns(b,c) indexes all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+alter table t1 change b c varchar(200), change c d varchar(200), change d b varchar(200) ;
+select db_name,table_name,column_name,avg_length from mysql.column_stats order by column_name;
+db_name	table_name	column_name	avg_length
+test	t1	a	4.0000
+test	t1	b	50.5000
+test	t1	c	2.0000
+analyze table t1 persistent for columns(d) indexes all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+alter table t1 change b c varchar(200), change c d varchar(200), change d e varchar(200) ;
+select db_name,table_name,column_name,avg_length from mysql.column_stats order by column_name;
+db_name	table_name	column_name	avg_length
+test	t1	a	4.0000
+test	t1	c	50.5000
+test	t1	d	2.0000
+test	t1	e	50.5000
+alter table t1 change e d varchar(200), drop column d;
+select db_name,table_name,column_name,avg_length from mysql.column_stats order by column_name;
+db_name	table_name	column_name	avg_length
+test	t1	a	4.0000
+test	t1	c	50.5000
+test	t1	d	50.5000
+drop table t1;
+truncate table mysql.column_stats;
+create table t1 (a int, b blob, unique(b)) engine= innodb;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'b'
+test.t1	analyze	status	OK
+select column_name from mysql.column_stats where table_name = 't1';
+column_name
+a
+drop table t1;
+create table t1 (a int, b blob, c int generated always as (length(b)) virtual) engine= innodb;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'b'
+test.t1	analyze	status	OK
+select column_name from mysql.column_stats where table_name = 't1';
+column_name
+a
+c
+drop table t1;
+CREATE or replace TABLE t1 (a INT, b CHAR(8));
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+ALTER TABLE t1 CHANGE b c INT, ORDER BY b;
+SELECT db_name, table_name, column_name FROM mysql.column_stats where table_name = 't1';
+db_name	table_name	column_name
+test	t1	a
+test	t1	c
+drop table t1;
+CREATE or replace TABLE t1 (a INT, b CHAR(8));
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+ALTER TABLE t1 RENAME COLUMN b to c, ALGORITHM=COPY;
+SELECT db_name, table_name, column_name FROM mysql.column_stats where table_name = 't1';
+db_name	table_name	column_name
+test	t1	a
+test	t1	c
+drop table t1;
+#
+# Testing swapping indexes
+#
+create or replace table t1 (a int primary key, b varchar(100), c varchar(100), d varchar(100), index (b), index(c), index(d,b)) engine=innodb;
+insert into t1 select seq, repeat('b',seq),repeat('c',mod(seq,5)), repeat('d',mod(seq,10))  from seq_1_to_100;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select * from mysql.index_stats order by index_name, prefix_arity;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	b	1	1.0000
+test	t1	b	2	1.0000
+test	t1	c	1	20.0000
+test	t1	c	2	1.0000
+test	t1	d	1	10.0000
+test	t1	d	2	1.0000
+test	t1	d	3	1.0000
+alter table t1 rename index b to c, rename index c to d, rename index d to b;
+select * from mysql.index_stats order by index_name;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	b	1	10.0000
+test	t1	b	2	1.0000
+test	t1	b	3	1.0000
+test	t1	c	1	1.0000
+test	t1	c	2	1.0000
+test	t1	d	1	20.0000
+test	t1	d	2	1.0000
+alter table t1 rename index b to c, rename index c to d, rename index d to e;
+select * from mysql.index_stats order by index_name, prefix_arity;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	c	1	10.0000
+test	t1	c	2	1.0000
+test	t1	c	3	1.0000
+test	t1	d	1	1.0000
+test	t1	d	2	1.0000
+test	t1	e	1	20.0000
+test	t1	e	2	1.0000
+alter table t1 rename index e to b;
+alter table t1 change b c varchar(200), change c d varchar(200), change d e varchar(200) ;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `c` varchar(200) DEFAULT NULL,
+  `d` varchar(200) DEFAULT NULL,
+  `e` varchar(200) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `d` (`c`),
+  KEY `b` (`d`),
+  KEY `c` (`e`,`c`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+select * from mysql.index_stats order by index_name, prefix_arity;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	b	1	20.0000
+test	t1	b	2	1.0000
+test	t1	c	1	10.0000
+test	t1	c	2	1.0000
+test	t1	c	3	1.0000
+test	t1	d	1	1.0000
+test	t1	d	2	1.0000
+# Test having a conflicting temporary name
+insert into mysql.index_stats (db_name,table_name,index_name,prefix_arity) values ("test","t1",concat("#sql_tmp_name#1",char(0)),1);
+alter table t1 rename index c to d, rename index d to c;
+select * from mysql.index_stats order by index_name, prefix_arity;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	b	1	20.0000
+test	t1	b	2	1.0000
+test	t1	c	1	1.0000
+test	t1	c	2	1.0000
+test	t1	d	1	10.0000
+test	t1	d	2	1.0000
+test	t1	d	3	1.0000
+drop table t1;
+select * from mysql.index_stats order by index_name, prefix_arity;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+#
+# Test of adding key that replaces foreign key
+#
+CREATE TABLE t1 (aaaa INT, b INT, KEY(b), FOREIGN KEY(aaaa) REFERENCES t1(b)) ENGINE=InnoDB;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SELECT index_name FROM mysql.index_stats WHERE table_name = 't1' order by index_name;
+index_name
+aaaa
+b
+ALTER TABLE t1 ADD KEY idx(aaaa);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `aaaa` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `b` (`b`),
+  KEY `idx` (`aaaa`),
+  CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`aaaa`) REFERENCES `t1` (`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT index_name FROM mysql.index_stats WHERE table_name = 't1' order by index_name;
+index_name
+b
+truncate table mysql.index_stats;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SELECT index_name FROM mysql.index_stats WHERE table_name = 't1' order by index_name;
+index_name
+b
+idx
+ALTER TABLE t1 DROP KEY idx;
+ERROR HY000: Cannot drop index 'idx': needed in a foreign key constraint
+DROP TABLE t1;
+#
 # End of 10.6 tests
 #

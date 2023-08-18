@@ -119,16 +119,21 @@ int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables);
 int read_statistics_for_tables(THD *thd, TABLE_LIST *tables,
                                bool force_reload);
 int collect_statistics_for_table(THD *thd, TABLE *table);
-int alloc_statistics_for_table(THD *thd, TABLE *table);
+int alloc_statistics_for_table(THD *thd, TABLE *table, MY_BITMAP *stat_fields);
 int update_statistics_for_table(THD *thd, TABLE *table);
-int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *tab);
+int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db,
+                                const LEX_CSTRING *tab);
 int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col);
 int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info,
                                 bool ext_prefixes_only);
-int rename_table_in_stat_tables(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *tab,
-                                const LEX_CSTRING *new_db, const LEX_CSTRING *new_tab);
-int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
-                                  const char *new_name);
+int rename_table_in_stat_tables(THD *thd, const LEX_CSTRING *db,
+                                const LEX_CSTRING *tab,
+                                const LEX_CSTRING *new_db,
+                                const LEX_CSTRING *new_tab);
+int rename_columns_in_stat_table(THD *thd, TABLE *tab,
+                                 List<Alter_info::RENAME_COLUMN_STAT_PARAMS> *fields);
+int rename_indexes_in_stat_table(THD *thd, TABLE *tab,
+                                 List<Alter_info::RENAME_INDEX_STAT_PARAMS> *indexes);
 void set_statistics_for_table(THD *thd, TABLE *table);
 
 double get_column_avg_frequency(Field * field);

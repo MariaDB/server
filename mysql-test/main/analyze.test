@@ -1,4 +1,5 @@
 --source include/have_sequence.inc
+--source include/have_innodb.inc
 
 #
 # Bug #10901 Analyze Table on new table destroys table
@@ -111,6 +112,148 @@ set use_stat_tables=default;
 set histogram_type=default;
 set histogram_size=default;
 
+--echo #
+--echo # MDEV-31957 Concurrent ALTER and ANALYZE collecting statistics can
+--echo # result in stale statistical data
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(128));
+INSERT INTO t1 SELECT seq, CONCAT('s',seq) FROM seq_1_to_100;
+
+# We have to disable query log as the ANALYZE TABLE can be run in different
+# order. The important thing is what is finally in column_stats
+--disable_result_log
+--connect (con1,localhost,root,,)
+--send ALTER TABLE t1 MODIFY b BLOB
+
+--connection default
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+
+--connection con1
+--reap
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+--connection default
+--disconnect con1
+--enable_result_log
+select db_name,table_name,column_name from mysql.column_stats;
+drop table t1;
+
+--echo #
+--echo # Testing swapping columns
+--echo #
+
+create or replace table t1 (a int primary key, b varchar(100), c varchar(100), d varchar(100)) engine=innodb;
+insert into t1 select seq, repeat('b',seq),repeat('c',mod(seq,5)), repeat('d',mod(seq,10))  from seq_1_to_100;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+select db_name,table_name,column_name,avg_length from mysql.column_stats order by column_name;
+alter table t1 change b c varchar(200), change c b varchar(200);
+select db_name,table_name,column_name,avg_length from mysql.column_stats order by column_name;
+alter table t1 change b c varchar(200), change c d varchar(200), change d b varchar(200) ;
+select db_name,table_name,column_name,avg_length from mysql.column_stats order by column_name;
+alter table t1 change b c varchar(200), change c d varchar(200), change d e varchar(200) ;
+select db_name,table_name,column_name,avg_length from mysql.column_stats order by column_name;
+alter table t1 change e d varchar(200), drop column d;
+select db_name,table_name,column_name,avg_length from mysql.column_stats order by column_name;
+
+--echo # Test having non existing column in column_stats
+
+insert into mysql.column_stats (db_name,table_name,column_name) values ("test","t1","b");
+alter table t1 change c d varchar(200), change d b varchar(200);
+select db_name,table_name,column_name,avg_length from mysql.column_stats order by column_name;
+
+--echo # Test having a conflicting temporary name
+insert into mysql.column_stats (db_name,table_name,column_name) values ("test","t1",concat("#sql_tmp_name#1",char(0)));
+alter table t1 change d b varchar(200), change b d varchar(200);
+select db_name,table_name,column_name,avg_length from mysql.column_stats order by column_name;
+
+drop table t1;
+truncate table mysql.column_stats;
+
+create or replace table t1 (a int primary key, b varchar(100), c varchar(100), d varchar(100)) engine=myisam;
+insert into t1 select seq, repeat('b',seq),repeat('c',mod(seq,5)), repeat('d',mod(seq,10))  from seq_1_to_100;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+select db_name,table_name,column_name,avg_length from mysql.column_stats order by column_name;
+alter table t1 change b c varchar(200), change c b varchar(200);
+select db_name,table_name,column_name,avg_length from mysql.column_stats order by column_name;
+analyze table t1 persistent for columns(b,c) indexes all;
+alter table t1 change b c varchar(200), change c d varchar(200), change d b varchar(200) ;
+select db_name,table_name,column_name,avg_length from mysql.column_stats order by column_name;
+analyze table t1 persistent for columns(d) indexes all;
+alter table t1 change b c varchar(200), change c d varchar(200), change d e varchar(200) ;
+select db_name,table_name,column_name,avg_length from mysql.column_stats order by column_name;
+alter table t1 change e d varchar(200), drop column d;
+select db_name,table_name,column_name,avg_length from mysql.column_stats order by column_name;
+drop table t1;
+truncate table mysql.column_stats;
+
+create table t1 (a int, b blob, unique(b)) engine= innodb;
+analyze table t1 persistent for all;
+select column_name from mysql.column_stats where table_name = 't1';
+drop table t1;
+
+create table t1 (a int, b blob, c int generated always as (length(b)) virtual) engine= innodb;
+analyze table t1 persistent for all;
+select column_name from mysql.column_stats where table_name = 't1';
+drop table t1;
+
+CREATE or replace TABLE t1 (a INT, b CHAR(8));
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ALTER TABLE t1 CHANGE b c INT, ORDER BY b;
+SELECT db_name, table_name, column_name FROM mysql.column_stats where table_name = 't1';
+drop table t1;
+
+CREATE or replace TABLE t1 (a INT, b CHAR(8));
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ALTER TABLE t1 RENAME COLUMN b to c, ALGORITHM=COPY;
+SELECT db_name, table_name, column_name FROM mysql.column_stats where table_name = 't1';
+drop table t1;
+
+--echo #
+--echo # Testing swapping indexes
+--echo #
+
+create or replace table t1 (a int primary key, b varchar(100), c varchar(100), d varchar(100), index (b), index(c), index(d,b)) engine=innodb;
+insert into t1 select seq, repeat('b',seq),repeat('c',mod(seq,5)), repeat('d',mod(seq,10))  from seq_1_to_100;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+select * from mysql.index_stats order by index_name, prefix_arity;
+alter table t1 rename index b to c, rename index c to d, rename index d to b;
+select * from mysql.index_stats order by index_name;
+
+alter table t1 rename index b to c, rename index c to d, rename index d to e;
+select * from mysql.index_stats order by index_name, prefix_arity;
+alter table t1 rename index e to b;
+alter table t1 change b c varchar(200), change c d varchar(200), change d e varchar(200) ;
+show create table t1;
+select * from mysql.index_stats order by index_name, prefix_arity;
+
+--echo # Test having a conflicting temporary name
+insert into mysql.index_stats (db_name,table_name,index_name,prefix_arity) values ("test","t1",concat("#sql_tmp_name#1",char(0)),1);
+alter table t1 rename index c to d, rename index d to c;
+select * from mysql.index_stats order by index_name, prefix_arity;
+drop table t1;
+select * from mysql.index_stats order by index_name, prefix_arity;
+
+--echo #
+--echo # Test of adding key that replaces foreign key
+--echo #
+
+CREATE TABLE t1 (aaaa INT, b INT, KEY(b), FOREIGN KEY(aaaa) REFERENCES t1(b)) ENGINE=InnoDB;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+
+SELECT index_name FROM mysql.index_stats WHERE table_name = 't1' order by index_name;
+
+ALTER TABLE t1 ADD KEY idx(aaaa);
+SHOW CREATE TABLE t1;
+
+SELECT index_name FROM mysql.index_stats WHERE table_name = 't1' order by index_name;
+
+truncate table mysql.index_stats;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+SELECT index_name FROM mysql.index_stats WHERE table_name = 't1' order by index_name;
+
+--error ER_DROP_INDEX_FK
+ALTER TABLE t1 DROP KEY idx;
+DROP TABLE t1;
 --echo #
 --echo # End of 10.6 tests
 --echo #

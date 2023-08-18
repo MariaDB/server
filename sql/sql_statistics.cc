@@ -32,6 +32,7 @@
 #include "uniques.h"
 #include "sql_show.h"
 #include "sql_partition.h"
+#include "sql_alter.h"                          // RENAME_STAT_PARAMS
 
 /*
   The system variable 'use_stat_tables' can take one of the
@@ -440,7 +441,7 @@ private:
   
   uint stat_key_length; /* Length of the key to access stat_table */
   uchar *record[2];     /* Record buffers used to access/update stat_table */
-  uint stat_key_idx;    /* The number of the key to access stat_table */
+
 
   /* This is a helper function used only by the Stat_table constructors */
   void common_init_stat_table()
@@ -450,6 +451,7 @@ private:
     stat_key_idx= 0;
     stat_key_info= &stat_table->key_info[stat_key_idx];
     stat_key_length= stat_key_info->key_length;
+    last_key_length= last_prefix_parts= 0;
     record[0]= stat_table->record[0];
     record[1]= stat_table->record[1];
   }
@@ -466,29 +468,31 @@ protected:
   const LEX_CSTRING *db_name;      /* Name of the database containing 'table' */
   const LEX_CSTRING *table_name;   /* Name of the table 'table' */
 
-  void store_record_for_update()
-  {
-    store_record(stat_table, record[1]);
-  }
+  uchar last_key[MAX_KEY_LENGTH];
+  uint last_key_length;
+  uint last_prefix_parts;
 
   void store_record_for_lookup()
   {
     DBUG_ASSERT(record[0] == stat_table->record[0]);
   }
 
-  bool update_record()
+  int update_record()
   {
     int err;
     if ((err= stat_file->ha_update_row(record[1], record[0])) &&
          err != HA_ERR_RECORD_IS_THE_SAME)
-      return TRUE;
-    /* Make change permanent and avoid 'table is marked as crashed' errors */
-    stat_file->extra(HA_EXTRA_FLUSH);
-    return FALSE;
+      return err;
+    return 0;
   }
 
 public:
 
+  uint stat_key_idx;    /* The number of the key to access stat_table */
+  void store_record_for_update()
+  {
+    store_record(stat_table, record[1]);
+  }
 
   /**
     @details
@@ -579,13 +583,22 @@ public:
 
   bool find_stat()
   {
-    uchar key[MAX_KEY_LENGTH];
-    key_copy(key, record[0], stat_key_info, stat_key_length);
-    return !stat_file->ha_index_read_idx_map(record[0], stat_key_idx, key,
+    last_key_length= stat_key_length;
+    key_copy(last_key, record[0], stat_key_info, stat_key_length);
+    return !stat_file->ha_index_read_idx_map(record[0], stat_key_idx, last_key,
                                              HA_WHOLE_KEY, HA_READ_KEY_EXACT);
   }
 
- 
+  void create_key_for_read(uint prefix_parts)
+  {
+    last_key_length= 0;
+    last_prefix_parts= prefix_parts;
+    for (uint i= 0; i < prefix_parts; i++)
+      last_key_length+= stat_key_info->key_part[i].store_length;
+    key_copy(last_key, record[0], stat_key_info, last_key_length);
+  }
+
+
   /**
     @brief
     Find a record in the statistical table by a key prefix value 
@@ -604,16 +617,32 @@ public:
 
   bool find_next_stat_for_prefix(uint prefix_parts)
   {
-    uchar key[MAX_KEY_LENGTH];
-    uint prefix_key_length= 0;
-    for (uint i= 0; i < prefix_parts; i++)
-      prefix_key_length+= stat_key_info->key_part[i].store_length;
-    key_copy(key, record[0], stat_key_info, prefix_key_length);
+    create_key_for_read(prefix_parts);
     key_part_map prefix_map= (key_part_map) ((1 << prefix_parts) - 1);
-    return !stat_file->ha_index_read_idx_map(record[0], stat_key_idx, key,
-                                             prefix_map, HA_READ_KEY_EXACT);
+    return !stat_file->ha_index_read_idx_map(record[0], stat_key_idx, last_key,
+                                         prefix_map, HA_READ_KEY_EXACT);
   }
    
+  bool find_next_stat_for_prefix_with_next(uint prefix_parts)
+  {
+    create_key_for_read(prefix_parts);
+    key_part_map prefix_map= (key_part_map) ((1 << prefix_parts) - 1);
+    return !stat_file->ha_index_read_map(record[0], last_key,
+                                         prefix_map,
+                                         HA_READ_KEY_EXACT);
+  }
+
+  /*
+    Read row with same key parts as last find_next_stat_for_prefix_with_next()
+  */
+
+  bool find_stat_with_next()
+  {
+    key_copy(last_key, record[0], stat_key_info, last_key_length);
+    key_part_map prefix_map= (key_part_map) ((1 << last_prefix_parts) - 1);
+    return !stat_file->ha_index_read_map(record[0], last_key,
+                                         prefix_map, HA_READ_KEY_EXACT);
+  }
 
   /**
     @brief
@@ -646,7 +675,7 @@ public:
       bool res;
       store_record_for_update();
       store_stat_fields();
-      res= update_record();
+      res= update_record() != 0;
       DBUG_ASSERT(res == 0);
       return res;
     }
@@ -659,14 +688,11 @@ public:
         DBUG_ASSERT(0);
 	return TRUE;
       }
-      /* Make change permanent and avoid 'table is marked as crashed' errors */
-      stat_file->extra(HA_EXTRA_FLUSH);
-    } 
+    }
     return FALSE;
   }
 
-
-  /** 
+  /**
     @brief
     Update the table name fields in the current record of stat_table
 
@@ -690,7 +716,7 @@ public:
   {
     store_record_for_update();
     change_full_table_name(db, tab);
-    bool rc= update_record();
+    bool rc= update_record() != 0;
     store_record_for_lookup();
     return rc;
   }   
@@ -715,10 +741,13 @@ public:
     int err;
     if ((err= stat_file->ha_delete_row(record[0])))
       return TRUE;
-    /* Make change permanent and avoid 'table is marked as crashed' errors */
-    stat_file->extra(HA_EXTRA_FLUSH);
     return FALSE;
-  } 
+  }
+
+  void flush()
+  {
+    stat_file->extra(HA_EXTRA_FLUSH);
+  }
 
   friend class Stat_table_write_iter;
 };
@@ -751,8 +780,8 @@ private:
   void change_full_table_name(const LEX_CSTRING *db,
                               const LEX_CSTRING *tab) override
   {
-    db_name_field->store(db->str, db->length, system_charset_info);
-    table_name_field->store(tab->str, tab->length, system_charset_info);
+    db_name_field->store(db, system_charset_info);
+    table_name_field->store(tab, system_charset_info);
   }
 
 public:
@@ -802,9 +831,8 @@ public:
 
   void set_key_fields()
   {
-    db_name_field->store(db_name->str, db_name->length, system_charset_info);
-    table_name_field->store(table_name->str, table_name->length,
-                            system_charset_info);
+    db_name_field->store(db_name, system_charset_info);
+    table_name_field->store(table_name, system_charset_info);
   }
 
 
@@ -894,8 +922,8 @@ private:
   void change_full_table_name(const LEX_CSTRING *db,
                               const LEX_CSTRING *tab) override
   {
-     db_name_field->store(db->str, db->length, system_charset_info);
-     table_name_field->store(tab->str, tab->length, system_charset_info);
+    db_name_field->store(db, system_charset_info);
+     table_name_field->store(tab, system_charset_info);
   }
 
 public:
@@ -939,9 +967,8 @@ public:
 
   void set_full_table_name()
   {
-    db_name_field->store(db_name->str, db_name->length, system_charset_info);
-    table_name_field->store(table_name->str, table_name->length,
-                            system_charset_info);
+    db_name_field->store(db_name, system_charset_info);
+    table_name_field->store(table_name, system_charset_info);
   }
 
 
@@ -959,16 +986,22 @@ public:
     It also sets table_field to the passed parameter.
 
     @note
-    The function is supposed to be called before any use of the  
+    The function is supposed to be called before any use of the
     method find_stat for an object of the Column_stat class.
   */
 
   void set_key_fields(Field *col)
   {
     set_full_table_name();
-    column_name_field->store(col->field_name.str, col->field_name.length,
-                             system_charset_info);  
+    column_name_field->store(&col->field_name, system_charset_info);
     table_field= col;
+  }
+
+  void set_key_fields(LEX_CSTRING *field_name)
+  {
+    set_full_table_name();
+    column_name_field->store(field_name, system_charset_info);
+    table_field= 0;                             // Safety
   }
 
 
@@ -980,22 +1013,27 @@ public:
     The function updates the primary key fields containing database name,
     table name, and column name for the last found record in the statistical
     table column_stats.
-    
+
     @retval
-    FALSE    success with the update of the record
+    0        success with the update of the record
     @retval
-    TRUE     failure with the update of the record
+    #        handler error in case of failure
   */
 
-  bool update_column_key_part(const char *col)
+  int update_column_key_part(LEX_CSTRING *col)
   {
+    int rc;
     store_record_for_update();
-    set_full_table_name();
-    column_name_field->store(col, strlen(col), system_charset_info);
-    bool rc= update_record();
+    rc= update_column(col);
     store_record_for_lookup();
     return rc;
-  }   
+  }
+
+  int update_column(LEX_CSTRING *col)
+  {
+    column_name_field->store(col, system_charset_info);
+    return update_record();
+  }
 
 
   /** 
@@ -1025,7 +1063,8 @@ public:
   {
     StringBuffer<MAX_FIELD_WIDTH> val;
 
-    MY_BITMAP *old_map= dbug_tmp_use_all_columns(stat_table, &stat_table->read_set);
+    MY_BITMAP *old_map= dbug_tmp_use_all_columns(stat_table,
+                                                 &stat_table->read_set);
     for (uint i= COLUMN_STAT_MIN_VALUE; i <= COLUMN_STAT_HISTOGRAM; i++)
     {  
       Field *stat_field= stat_table->field[i];
@@ -1210,8 +1249,7 @@ private:
   Field *table_name_field;   /* Field for the column index_stats.table_name */
   Field *index_name_field;   /* Field for the column index_stats.table_name */
   Field *prefix_arity_field; /* Field for the column index_stats.prefix_arity */
-
-  KEY *table_key_info;  /* Info on the index to read/update statistics on */
+  const KEY *table_key_info; /* Info on the index to read/update statistics on */
   uint prefix_arity; /* Number of components of the index prefix of interest */
 
   void common_init_index_stat_table()
@@ -1225,8 +1263,8 @@ private:
   void change_full_table_name(const LEX_CSTRING *db,
                               const LEX_CSTRING *tab) override
   {
-     db_name_field->store(db->str, db->length, system_charset_info);
-     table_name_field->store(tab->str, tab->length, system_charset_info);
+     db_name_field->store(db, system_charset_info);
+     table_name_field->store(tab, system_charset_info);
   }
 
 public:
@@ -1273,9 +1311,13 @@ public:
 
   void set_full_table_name()
   {
-    db_name_field->store(db_name->str, db_name->length, system_charset_info);
-    table_name_field->store(table_name->str, table_name->length,
-                            system_charset_info);
+    db_name_field->store(db_name, system_charset_info);
+    table_name_field->store(table_name, system_charset_info);
+  }
+
+  inline void set_index_name(const LEX_CSTRING *name)
+  {
+    index_name_field->store(name, system_charset_info);
   }
 
   /** 
@@ -1295,12 +1337,10 @@ public:
     find_next_stat_for_prefix for an object of the Index_stat class.
   */
 
-  void set_index_prefix_key_fields(KEY *index_info)
+  void set_index_prefix_key_fields(const KEY *index_info)
   {
     set_full_table_name();
-    const char *index_name= index_info->name.str;
-    index_name_field->store(index_name, index_info->name.length,
-                            system_charset_info);
+    set_index_name(&index_info->name);
     table_key_info= index_info;
   }
 
@@ -1331,6 +1371,20 @@ public:
     prefix_arity_field->store(index_prefix_arity, TRUE);  
   }
 
+
+  int update_index_name(const LEX_CSTRING *name)
+  {
+    index_name_field->store(name, system_charset_info);
+    return update_record();
+  }
+
+
+  int read_next()
+  {
+    return stat_table->file->ha_index_next_same(stat_table->record[0],
+                                                last_key,
+                                                last_key_length);
+  }
 
   /** 
     @brief
@@ -1937,8 +1991,9 @@ public:
   @brief 
   Create fields for min/max values to collect column statistics
 
-  @param
-  table       Table the fields are created for
+  @param thd    The thread handle
+  @param table  Table the fields are created for
+  @param fields Fields for which we want to have statistics
 
   @details
   The function first allocates record buffers to store min/max values
@@ -1958,7 +2013,8 @@ public:
 */      
 
 static
-void create_min_max_statistical_fields_for_table(THD *thd, TABLE *table)
+void create_min_max_statistical_fields_for_table(THD *thd, TABLE *table,
+                                                 MY_BITMAP *fields)
 {
   uint rec_buff_length= table->s->rec_buff_length;
 
@@ -1975,7 +2031,7 @@ void create_min_max_statistical_fields_for_table(THD *thd, TABLE *table)
         Field *fld;
         Field *table_field= *field_ptr;
         my_ptrdiff_t diff= record-table->record[0];
-        if (!bitmap_is_set(table->read_set, table_field->field_index))
+        if (!bitmap_is_set(fields, table_field->field_index))
           continue; 
         if (!(fld= table_field->clone(thd->mem_root, table, diff)))
           continue;
@@ -2062,8 +2118,9 @@ create_min_max_statistical_fields(THD *thd,
   @brief 
   Allocate memory for the table's statistical data to be collected
 
-  @param
-  table       Table for which the memory for statistical data is allocated
+  @param thd          The thread handle
+  @param table        Table for which we should allocate statistical data
+  @param stat_fields  Fields for which we want to have statistics
 
   @note
   The function allocates the memory for the statistical data on 'table' with
@@ -2082,10 +2139,10 @@ create_min_max_statistical_fields(THD *thd,
   of the same table in parallel. 
 */      
 
-int alloc_statistics_for_table(THD* thd, TABLE *table)
+int alloc_statistics_for_table(THD* thd, TABLE *table, MY_BITMAP *stat_fields)
 { 
   Field **field_ptr;
-  uint fields= bitmap_bits_set(table->read_set);
+  uint fields= bitmap_bits_set(stat_fields);
   uint keys= table->s->keys;
   uint key_parts= table->s->ext_key_parts;
   uint hist_size= thd->variables.histogram_size;
@@ -2122,7 +2179,7 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
 
   for (field_ptr= table->field; *field_ptr; field_ptr++)
   {
-    if (bitmap_is_set(table->read_set, (*field_ptr)->field_index))
+    if (bitmap_is_set(stat_fields, (*field_ptr)->field_index))
     {
       column_stats->histogram.set_size(hist_size);
       column_stats->histogram.set_type(hist_type);
@@ -2154,7 +2211,7 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
   */
   DBUG_ASSERT(idx_avg_frequency <= table_stats->idx_avg_frequency + key_parts);
 
-  create_min_max_statistical_fields_for_table(thd, table);
+  create_min_max_statistical_fields_for_table(thd, table, stat_fields);
 
   DBUG_RETURN(0);
 }
@@ -2196,7 +2253,7 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
   Here the second and the third threads try to allocate the memory for
   statistical data at the same time. The precautions are taken to
   guarantee the correctness of the allocation.
-*/      
+*/
 
 static int
 alloc_engine_independent_statistics(THD *thd, const TABLE_SHARE *table_share,
@@ -2686,10 +2743,8 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
   @brief
   Update statistics for a table in the persistent statistical tables
 
-  @param
-  thd         The thread handle
-  @param
-  table       The table to collect statistics on
+  @param thd    The thread handle
+  @param table  The table to collect statistics on
 
   @details
   For each statistical table st the function looks for the rows from this
@@ -2734,7 +2789,10 @@ int update_statistics_for_table(THD *thd, TABLE *table)
   start_new_trans new_trans(thd);
 
   if (open_stat_tables(thd, tables, TRUE))
-    DBUG_RETURN(rc);
+  {
+    new_trans.restore_old_transaction();
+    DBUG_RETURN(0);
+  }
    
   /*
     Ensure that no one is reading satistics while we are writing them
@@ -2788,12 +2846,16 @@ int update_statistics_for_table(THD *thd, TABLE *table)
     }
   }
 
+  tables[TABLE_STAT].table->file->extra(HA_EXTRA_FLUSH);
+  tables[COLUMN_STAT].table->file->extra(HA_EXTRA_FLUSH);
+  tables[INDEX_STAT].table->file->extra(HA_EXTRA_FLUSH);
+
   thd->restore_stmt_binlog_format(save_binlog_format);
   if (thd->commit_whole_transaction_and_close_tables())
     rc= 1;
-  new_trans.restore_old_transaction();
 
   mysql_mutex_unlock(&table->s->LOCK_statistics);
+  new_trans.restore_old_transaction();
   DBUG_RETURN(rc);
 }
 
@@ -3058,6 +3120,7 @@ void TABLE_STATISTICS_CB::update_stats_in_table(TABLE *table)
 int
 read_statistics_for_tables(THD *thd, TABLE_LIST *tables, bool force_reload)
 {
+  int rc= 0;
   TABLE_LIST stat_tables[STATISTICS_TABLES];
   bool found_stat_table= false;
   bool statistics_for_tables_is_needed= false;
@@ -3122,7 +3185,10 @@ read_statistics_for_tables(THD *thd, TABLE_LIST *tables, bool force_reload)
   start_new_trans new_trans(thd);
 
   if (open_stat_tables(thd, stat_tables, FALSE))
-    DBUG_RETURN(1);
+  {
+    rc= 1;
+    goto end;
+  }
 
   for (TABLE_LIST *tl= tables; tl; tl= tl->next_global)
   {
@@ -3174,9 +3240,10 @@ read_statistics_for_tables(THD *thd, TABLE_LIST *tables, bool force_reload)
   }
 
   thd->commit_whole_transaction_and_close_tables();
-  new_trans.restore_old_transaction();
 
-  DBUG_RETURN(0);
+end:
+  new_trans.restore_old_transaction();
+  DBUG_RETURN(rc);
 }
 
 
@@ -3216,9 +3283,12 @@ int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db,
   DBUG_ENTER("delete_statistics_for_table");
 
   start_new_trans new_trans(thd);
-   
+
   if (open_stat_tables(thd, tables, TRUE))
+  {
+    new_trans.restore_old_transaction();
     DBUG_RETURN(0);
+  }
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
@@ -3259,10 +3329,14 @@ int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db,
   if (err & !rc)
       rc= 1;
 
+  tables[TABLE_STAT].table->file->extra(HA_EXTRA_FLUSH);
+  tables[COLUMN_STAT].table->file->extra(HA_EXTRA_FLUSH);
+  tables[INDEX_STAT].table->file->extra(HA_EXTRA_FLUSH);
+
   thd->restore_stmt_binlog_format(save_binlog_format);
   thd->commit_whole_transaction_and_close_tables();
-  new_trans.restore_old_transaction();
 
+  new_trans.restore_old_transaction();
   DBUG_RETURN(rc);
 }
 
@@ -3299,7 +3373,10 @@ int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col)
   start_new_trans new_trans(thd);
 
   if (open_stat_table_for_ddl(thd, &tables, &stat_table_name[1]))
-    DBUG_RETURN(0);
+  {
+    new_trans.restore_old_transaction();
+    DBUG_RETURN(0);                             // Not an error
+  }
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
@@ -3313,11 +3390,202 @@ int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col)
       rc= 1;
   }
 
+  column_stat.flush();
   thd->restore_stmt_binlog_format(save_binlog_format);
   if (thd->commit_whole_transaction_and_close_tables())
     rc= 1;
-  new_trans.restore_old_transaction();
 
+  new_trans.restore_old_transaction();
+  DBUG_RETURN(rc);
+}
+
+
+/**
+   Generate tempoary column or index name for renames
+*/
+
+static LEX_CSTRING *generate_tmp_name(LEX_CSTRING *to, uint counter)
+{
+  char *res=int10_to_str(counter, strmov((char*) to->str, "#sql_tmp_name#"),
+                         10);
+  /*
+    Include an end zero in the tmp name to avoid any possible conflict
+    with existing column names.
+   */
+  to->length= (size_t) (res - to->str) + 1;
+  return to;
+}
+
+
+/**
+  Rename a set of columns in the statistical table column_stats
+
+  @param thd         The thread handle
+  @param tab         The table the column belongs to
+  @param fields      List of fields and names to be renamed
+
+  @details
+  The function replaces the names of the columns in fields that belongs
+  to the table 'tab' in the statistical table column_stats.
+
+  @retval 0   If update was successful, tmp table or could not open stat table
+  @retval -1  Commit failed
+  @retval >0  Error number from engine
+
+  @note
+  The function is called when executing any statement that renames a column,
+  but does not change the column definition.
+*/
+
+int rename_columns_in_stat_table(THD *thd, TABLE *tab,
+                                 List<Alter_info::RENAME_COLUMN_STAT_PARAMS>
+                                 *fields)
+{
+  int err;
+  enum_binlog_format save_binlog_format;
+  TABLE *stat_table;
+  TABLE_LIST tables;
+  int rc= 0;
+  uint duplicate_counter= 0;
+  uint org_elements= fields->elements+1;
+  List_iterator<Alter_info::RENAME_COLUMN_STAT_PARAMS> it(*fields);
+  char tmp_name_buffer[32];
+  LEX_CSTRING tmp_name= {tmp_name_buffer, 0};
+  DBUG_ENTER("rename_column_in_stat_tables");
+
+  if (tab->s->tmp_table != NO_TMP_TABLE)
+    DBUG_RETURN(0);
+
+  start_new_trans new_trans(thd);
+
+  if (open_stat_table_for_ddl(thd, &tables, &stat_table_name[1]))
+  {
+    new_trans.restore_old_transaction();
+    DBUG_RETURN(0);
+  }
+
+  save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
+
+  /* Rename column in the statistical table table_stat */
+
+  stat_table= tables.table;
+
+  /* Loop until fields is empty or previous round did nothing */
+  while (!fields->is_empty() && fields->elements != org_elements)
+  {
+    Alter_info::RENAME_COLUMN_STAT_PARAMS *field;
+    org_elements= fields->elements;
+    it.rewind();
+    while ((field= it++))
+    {
+      Column_stat column_stat(stat_table, tab);
+      LEX_CSTRING *from_name;
+      from_name= (!field->duplicate_counter ?
+                  &field->field->field_name :
+                  generate_tmp_name(&tmp_name,
+                                    field->duplicate_counter));
+      column_stat.set_key_fields(from_name);
+      if (column_stat.find_stat())
+      {
+        err= column_stat.update_column_key_part(field->name);
+        if (likely(err != HA_ERR_FOUND_DUPP_KEY))
+          it.remove();
+        else if (!field->duplicate_counter)
+        {
+          /*
+            This is probably an ALTER TABLE of type rename a->b, b->a
+            Rename the column to a temporary name
+          */
+          LEX_CSTRING *new_name=
+            generate_tmp_name(&tmp_name, ++duplicate_counter);
+          field->duplicate_counter= duplicate_counter;
+
+          if ((err= column_stat.update_column(new_name)))
+          {
+            if (likely(err != HA_ERR_FOUND_DUPP_KEY))
+            {
+              DBUG_ASSERT(0);
+              it.remove();                      // Unknown error, ignore column
+            }
+            else
+            {
+              /*
+                The only way this could happen is if the table has a column
+                with same name as the temporary column name, probably from a
+                failed alter table.
+                Remove the conflicting row and update it again.
+              */
+              if (!column_stat.find_stat())
+                DBUG_ASSERT(0);
+              else if (column_stat.delete_stat())
+                DBUG_ASSERT(0);
+              else
+              {
+                column_stat.set_key_fields(from_name);
+                if (!column_stat.find_stat())
+                  DBUG_ASSERT(0);
+                else if (column_stat.update_column_key_part(&tmp_name))
+                  DBUG_ASSERT(0);
+              }
+            }
+          }
+        }
+      }
+      else /* column_stat.find_stat() */
+      {
+        /* Statistics for the field did not exists */
+        it.remove();
+      }
+    }
+  }
+
+  if (!fields->is_empty())
+  {
+    /*
+      All unhandled renamed fields has now a temporary name.
+      Remove all conflicing rows and rename the temporary name to
+      the final name.
+    */
+
+    Alter_info::RENAME_COLUMN_STAT_PARAMS *field;
+    it.rewind();
+    while ((field= it++))
+    {
+      Column_stat column_stat(stat_table, tab);
+      DBUG_ASSERT(field->duplicate_counter);
+
+      /* Remove the conflicting row */
+      column_stat.set_key_fields(field->name);
+      if (column_stat.find_stat())
+      {
+        int err __attribute__((unused));
+        err= column_stat.delete_stat();
+        DBUG_ASSERT(err == 0);
+      }
+
+      /* Restore saved row with old statistics to new name */
+      column_stat.
+        set_key_fields(generate_tmp_name(&tmp_name,
+                                         field->duplicate_counter));
+      if (column_stat.find_stat())
+      {
+        int err __attribute__((unused));
+        err= column_stat.update_column_key_part(field->name);
+        DBUG_ASSERT(err == 0);
+      }
+      else
+      {
+        DBUG_ASSERT(0);
+      }
+    }
+  }
+
+  stat_table->file->extra(HA_EXTRA_FLUSH);
+  thd->restore_stmt_binlog_format(save_binlog_format);
+  if (thd->commit_whole_transaction_and_close_tables())
+    rc= -1;
+
+  new_trans.restore_old_transaction();
   DBUG_RETURN(rc);
 }
 
@@ -3359,7 +3627,10 @@ int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info,
   start_new_trans new_trans(thd);
 
   if (open_stat_table_for_ddl(thd, &tables, &stat_table_name[2]))
-    DBUG_RETURN(0);
+  {
+    new_trans.restore_old_transaction();
+    DBUG_RETURN(0);                             // Not an error
+  }
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
@@ -3393,11 +3664,194 @@ int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info,
   if (err && !rc)
     rc= 1;
 
+  /* Make change permanent and avoid 'table is marked as crashed' errors */
+  index_stat.flush();
+
   thd->restore_stmt_binlog_format(save_binlog_format);
   if (thd->commit_whole_transaction_and_close_tables())
     rc= 1;
-  new_trans.restore_old_transaction();
 
+  new_trans.restore_old_transaction();
+  DBUG_RETURN(rc);
+}
+
+
+/**
+  Rename a set of indexes in the statistical table index_stats
+
+  @param thd         The thread handle
+  @param tab         The table the indexes belongs to
+  @param fields      List of indexes to be renamed
+
+  @details
+  The function replaces the names of the indexe in fields that belongs
+  to the table 'tab' in the statistical table index_stats.
+
+  @retval 0   If update was successful, tmp table or could not open stat table
+  @retval -1  Commit failed
+  @retval >0  Error number from engine
+
+  @note
+  The function is called when executing any statement that renames a column,
+  but does not change the column definition.
+*/
+
+int rename_indexes_in_stat_table(THD *thd, TABLE *tab,
+                                 List<Alter_info::RENAME_INDEX_STAT_PARAMS>
+                                 *indexes)
+{
+  int err;
+  enum_binlog_format save_binlog_format;
+  TABLE *stat_table;
+  TABLE_LIST tables;
+  int rc= 0;
+  uint duplicate_counter= 0;
+  List_iterator<Alter_info::RENAME_INDEX_STAT_PARAMS> it(*indexes);
+  Alter_info::RENAME_INDEX_STAT_PARAMS *index;
+  char tmp_name_buffer[32];
+  LEX_CSTRING tmp_name= {tmp_name_buffer, 0};
+  DBUG_ENTER("rename_indexes_in_stat_tables");
+
+  if (tab->s->tmp_table != NO_TMP_TABLE)
+    DBUG_RETURN(0);
+
+  start_new_trans new_trans(thd);
+
+  if (open_stat_table_for_ddl(thd, &tables, &stat_table_name[2]))
+  {
+    new_trans.restore_old_transaction();
+    DBUG_RETURN(0);
+  }
+
+  save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
+
+  /* Rename index in the statistical table index_stat */
+
+  stat_table= tables.table;
+
+  /*
+    Loop over all indexes and rename to new name or temp name in case of
+    conflicts
+  */
+
+  while ((index= it++))
+  {
+    Index_stat index_stat(stat_table, tab);
+    uint found= 0;
+
+    /* We have to make a loop as one index may have many entries */
+    for (;;)
+    {
+      index_stat.set_index_prefix_key_fields(index->key);
+      if (!index_stat.find_next_stat_for_prefix(3))
+        break;
+      index_stat.store_record_for_update();
+      err= index_stat.update_index_name(index->name);
+
+      if (unlikely(err == HA_ERR_FOUND_DUPP_KEY))
+      {
+        /*
+          This is probably an ALTER TABLE of type rename a->b, b->a
+          Rename the column to a temporary name
+        */
+        if (!found++)
+          ++duplicate_counter;
+        index->duplicate_counter= duplicate_counter;
+        index->usage_count++;
+        if ((err= index_stat.update_index_name(generate_tmp_name(&tmp_name, duplicate_counter))))
+        {
+          if (err != HA_ERR_FOUND_DUPP_KEY)
+          {
+            DBUG_ASSERT(0);
+          }
+          else
+          {
+            /*
+              The only way this could happen is if the table has an index
+              with same name as the temporary column index, probably from a
+              failed alter table.
+              Remove the conflicting row and update it again.
+            */
+            if (!index_stat.find_stat())
+              DBUG_ASSERT(0);
+            else if (index_stat.delete_stat())
+              DBUG_ASSERT(0);
+            else
+            {
+              index_stat.set_index_prefix_key_fields(index->key);
+              if (!index_stat.find_stat())
+                DBUG_ASSERT(0);
+              else
+              {
+                index_stat.store_record_for_update();
+                if (index_stat.update_index_name(&tmp_name))
+                  DBUG_ASSERT(0);
+              }
+            }
+          }
+        }
+      }
+    }
+    if (!found)
+      it.remove();                              // All renames succeded
+  }
+
+  if (!indexes->is_empty())
+  {
+    /*
+      All unhandled renamed index has now a temporary name.
+      Remove all conflicing rows and rename the temporary name to
+      the final name.
+    */
+
+    Alter_info::RENAME_INDEX_STAT_PARAMS *index;
+    it.rewind();
+    Index_stat index_stat(stat_table, tab);
+    stat_table->file->ha_index_init(index_stat.stat_key_idx, 0);
+
+    while ((index= it++))
+    {
+      int err __attribute__((unused));
+
+      /* Remove the conflicting rows */
+      index_stat.set_index_prefix_key_fields(index->key);
+      index_stat.set_index_name(index->name);
+
+      if (index_stat.find_next_stat_for_prefix_with_next(3))
+      {
+        do
+        {
+          err= index_stat.delete_stat();
+          DBUG_ASSERT(err == 0);
+        }
+        while (index_stat.read_next() == 0);
+      }
+
+      /* Restore saved row with old statistics to new name */
+      index_stat.set_index_name(generate_tmp_name(&tmp_name,
+                                                  index->duplicate_counter));
+      if (!index_stat.find_stat_with_next())
+        DBUG_ASSERT(0);
+      else
+      {
+        uint updated= 0;
+        do
+        {
+          index_stat.store_record_for_update();
+          err= index_stat.update_index_name(index->name);
+          DBUG_ASSERT(err == 0);
+        } while (++updated < index->usage_count && index_stat.read_next() == 0);
+      }
+    }
+    stat_table->file->ha_index_end();
+  }
+
+  stat_table->file->extra(HA_EXTRA_FLUSH);
+  thd->restore_stmt_binlog_format(save_binlog_format);
+  if (thd->commit_whole_transaction_and_close_tables())
+    rc= -1;
+
+  new_trans.restore_old_transaction();
   DBUG_RETURN(rc);
 }
 
@@ -3444,7 +3898,10 @@ int rename_table_in_stat_tables(THD *thd, const LEX_CSTRING *db,
   start_new_trans new_trans(thd);
 
   if (open_stat_tables(thd, tables, TRUE))
-    DBUG_RETURN(0); // not an error
+  {
+    new_trans.restore_old_transaction();
+    DBUG_RETURN(0);
+  }
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
@@ -3492,71 +3949,15 @@ int rename_table_in_stat_tables(THD *thd, const LEX_CSTRING *db,
       rc= 1;
   }
 
-  thd->restore_stmt_binlog_format(save_binlog_format);
-  if (thd->commit_whole_transaction_and_close_tables())
-    rc= 1;
-  new_trans.restore_old_transaction();
-
-  DBUG_RETURN(rc);
-}
-
-
-/**
-  Rename a column in the statistical table column_stats
-
-  @param thd         The thread handle
-  @param tab         The table the column belongs to
-  @param col         The column to be renamed
-  @param new_name    The new column name
-
-  @details
-  The function replaces the name of the column 'col' belonging to the table 
-  'tab' for 'new_name' in the statistical table column_stats.
-
-  @retval 0  If all updates of the table name are successful
-  @retval 1  Otherwise
-
-  @note
-  The function is called when executing any statement that renames a column,
-  but does not change the column definition.
-*/
-
-int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
-                                 const char *new_name)
-{
-  int err;
-  enum_binlog_format save_binlog_format;
-  TABLE *stat_table;
-  TABLE_LIST tables;
-  int rc= 0;
-  DBUG_ENTER("rename_column_in_stat_tables");
-  
-  if (tab->s->tmp_table != NO_TMP_TABLE)
-    DBUG_RETURN(0);
-
-  start_new_trans new_trans(thd);
-
-  if (open_stat_table_for_ddl(thd, &tables, &stat_table_name[1]))
-    DBUG_RETURN(rc);
-
-  save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
-
-  /* Rename column in the statistical table table_stat */
-  stat_table= tables.table;
-  Column_stat column_stat(stat_table, tab);
-  column_stat.set_key_fields(col);
-  if (column_stat.find_stat())
-  { 
-    err= column_stat.update_column_key_part(new_name);
-    if (err & !rc)
-      rc= 1;
-  }
+  tables[TABLE_STAT].table->file->extra(HA_EXTRA_FLUSH);
+  tables[COLUMN_STAT].table->file->extra(HA_EXTRA_FLUSH);
+  tables[INDEX_STAT].table->file->extra(HA_EXTRA_FLUSH);
 
   thd->restore_stmt_binlog_format(save_binlog_format);
   if (thd->commit_whole_transaction_and_close_tables())
     rc= 1;
-  new_trans.restore_old_transaction();
 
+  new_trans.restore_old_transaction();
   DBUG_RETURN(rc);
 }
 
