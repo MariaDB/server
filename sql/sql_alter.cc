@@ -18,6 +18,7 @@
 #include "sql_parse.h"                       // check_access
 #include "sql_table.h"                       // mysql_alter_table,
                                              // mysql_exchange_partition
+#include "sql_statistics.h"                  // delete_statistics_for_column
 #include "sql_alter.h"
 #include "wsrep_mysqld.h"
 
@@ -294,6 +295,37 @@ uint Alter_info::check_vcol_field(Item_field *item) const
       return cf.vcol_info ? cf.vcol_info->flags : 0;
   }
   return 0;
+}
+
+
+void Alter_info::delete_statistics(THD *thd, TABLE *table)
+{
+  List_iterator<Field>                it(drop_stat_fields);
+  List_iterator<KEY_DROP_STAT_PARAMS> it2(drop_stat_indexes);
+  List_iterator<RENAME_STAT_PARAMS>   it3(rename_stat_fields);
+
+  while (Field *field= it++)
+  {
+    bool skip= 0;
+    /* Do not delete fields we will rename later */
+    it3.rewind();
+    while (RENAME_STAT_PARAMS *rename_field= it3++)
+    {
+      if (rename_field->field == field)
+      {
+        skip=1;
+        break;
+      }
+    }
+    if (!skip)
+      delete_statistics_for_column(thd, table, field);
+  }
+
+  if (!rename_stat_fields.is_empty())
+    (void) rename_columns_in_stat_table(thd, table, &rename_stat_fields);
+
+  while (KEY_DROP_STAT_PARAMS *key= it2++)
+    (void) delete_statistics_for_index(thd, table, key->key, key->flag);
 }
 
 

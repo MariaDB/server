@@ -517,8 +517,6 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   List<Item> field_list;
   Protocol *protocol= thd->protocol;
   LEX *lex= thd->lex;
-  int result_code;
-  int compl_result_code;
   bool need_repair_or_alter= 0;
   wait_for_commit* suspended_wfc;
   bool is_table_modified= false;
@@ -562,7 +560,9 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     bool collect_eis=  FALSE;
     bool open_for_modify= org_open_for_modify;
     Recreate_info recreate_info;
+    int compl_result_code, result_code;
 
+    compl_result_code= result_code= HA_ADMIN_FAILED;
     storage_engine_name[0]= 0;                  // Marker that's not used
 
     DBUG_PRINT("admin", ("table: '%s'.'%s'", db, table->table_name.str));
@@ -880,6 +880,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       DBUG_PRINT("admin", ("operator_func returned: %d", result_code));
     }
 
+    /* Note: compl_result_code can be different from result_code here */
     if (compl_result_code == HA_ADMIN_OK && collect_eis)
     {
       if (result_code == HA_ERR_TABLE_READONLY)

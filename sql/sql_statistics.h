@@ -127,8 +127,9 @@ int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info,
                                 bool ext_prefixes_only);
 int rename_table_in_stat_tables(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *tab,
                                 const LEX_CSTRING *new_db, const LEX_CSTRING *new_tab);
-int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
-                                  const char *new_name);
+struct RENAME_STAT_PARAMS;
+int rename_columns_in_stat_table(THD *thd, TABLE *tab,
+                                 List<RENAME_STAT_PARAMS> *fields);
 void set_statistics_for_table(THD *thd, TABLE *table);
 
 double get_column_avg_frequency(Field * field);
