@@ -5208,9 +5208,9 @@ bool check_db_name(LEX_STRING *org_name)
 {
   char *name= org_name->str;
   size_t name_length= org_name->length;
-  bool check_for_path_chars;
+  bool disallow_path_chars;
 
-  if ((check_for_path_chars= check_mysql50_prefix(name)))
+  if ((disallow_path_chars= check_mysql50_prefix(name)))
   {
     name+= MYSQL50_TABLE_NAME_PREFIX_LENGTH;
     name_length-= MYSQL50_TABLE_NAME_PREFIX_LENGTH;
@@ -5222,13 +5222,13 @@ bool check_db_name(LEX_STRING *org_name)
   if (lower_case_table_names == 1 && name != any_db.str)
   {
     org_name->length= name_length= my_casedn_str(files_charset_info, name);
-    if (check_for_path_chars)
+    if (disallow_path_chars)
       org_name->length+= MYSQL50_TABLE_NAME_PREFIX_LENGTH;
   }
   if (db_name_is_in_ignore_db_dirs_list(name))
     return 1;
 
-  return check_table_name(name, name_length, check_for_path_chars);
+  return check_table_name(name, name_length, disallow_path_chars);
 }
 
 
@@ -5238,14 +5238,14 @@ bool check_db_name(LEX_STRING *org_name)
   returns 1 on error
 */
 
-bool check_table_name(const char *name, size_t length, bool check_for_path_chars)
+bool check_table_name(const char *name, size_t length, bool disallow_path_chars)
 {
   // name length in symbols
-  size_t name_length= 0;
+  size_t char_length= 0;
   const char *end= name+length;
 
-  if (!check_for_path_chars &&
-      (check_for_path_chars= check_mysql50_prefix(name)))
+  if (!disallow_path_chars &&
+      (disallow_path_chars= check_mysql50_prefix(name)))
   {
     name+= MYSQL50_TABLE_NAME_PREFIX_LENGTH;
     length-= MYSQL50_TABLE_NAME_PREFIX_LENGTH;
@@ -5260,7 +5260,7 @@ bool check_table_name(const char *name, size_t length, bool check_for_path_chars
     return 1;
 #endif
 
-  while (name != end)
+  for ( ; name != end ; char_length++)
   {
 #if defined(USE_MB) && defined(USE_MB_IDENT)
     last_char_is_space= my_isspace(system_charset_info, *name);
@@ -5270,12 +5270,11 @@ bool check_table_name(const char *name, size_t length, bool check_for_path_chars
       if (len)
       {
         name+= len;
-        name_length++;
         continue;
       }
     }
 #endif
-    if (check_for_path_chars &&
+    if (disallow_path_chars &&
         (*name == '/' || *name == '\\' || *name == '~' || *name == FN_EXTCHAR))
       return 1;
     /*
@@ -5294,10 +5293,9 @@ bool check_table_name(const char *name, size_t length, bool check_for_path_chars
     if (*name == 0x00)
       return 1;
     name++;
-    name_length++;
   }
 #if defined(USE_MB) && defined(USE_MB_IDENT)
-  return last_char_is_space || (name_length > NAME_CHAR_LEN);
+  return last_char_is_space || (char_length > NAME_CHAR_LEN);
 #else
   return FALSE;
 #endif
