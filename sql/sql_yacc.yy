@@ -1765,8 +1765,8 @@ rule:
         repair analyze opt_with_admin opt_with_admin_option
         analyze_table_list analyze_table_elem_spec
         opt_persistent_stat_clause persistent_stat_spec
-        persistent_column_stat_spec persistent_index_stat_spec
-        table_column_list table_index_list table_index_name
+        persistent_index_stat_spec
+        table_index_list table_index_name
         check start checksum opt_returning
         field_list field_list_item kill key_def constraint_def
         keycache_list keycache_list_or_parts assign_to_keycache
@@ -1914,8 +1914,10 @@ rule:
 
 %type <ident_sys_list>
         comma_separated_ident_list
-        opt_with_column_list
         with_column_list
+        derived_column_list
+        opt_column_name_list
+        persistent_column_stat_spec
         opt_cycle
 
 %type <vers_range_unit> opt_history_unit
@@ -12009,11 +12011,17 @@ table_primary_ident:
           }
         ;
 
+derived_column_list:
+        opt_column_name_list
+        ;
+
 table_primary_derived:
           subquery
-          opt_for_system_time_clause table_alias_clause
+          opt_for_system_time_clause
+          table_alias_clause
+          derived_column_list
           {
-            if (!($$= Lex->parsed_derived_table($1->master_unit(), $2, $3)))
+            if (!($$= Lex->parsed_derived_table($1->master_unit(), $2, $3, $4)))
               MYSQL_YYABORT;
           }
 %ifdef ORACLE
@@ -15392,10 +15400,13 @@ with_list:
 	| with_list ',' with_list_element
 	;
 
+with_column_list:
+        opt_column_name_list
+        ;
 
 with_list_element:
           with_element_head
-	  opt_with_column_list 
+	  with_column_list
           AS '(' query_expression ')' opt_cycle
  	  {
             LEX *lex= thd->lex;
@@ -15433,19 +15444,14 @@ opt_cycle:
          }
          ;
 
-
-opt_with_column_list:
+opt_column_name_list:
           /* empty */
           {
             if (($$= new (thd->mem_root) List<Lex_ident_sys>) == NULL)
               MYSQL_YYABORT;
           }
-        | '(' with_column_list ')'
+        | '(' comma_separated_ident_list ')'
           { $$= $2; }
-        ;
-
-with_column_list:
-          comma_separated_ident_list
         ;
 
 ident_sys_alloc:

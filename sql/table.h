@@ -2273,6 +2273,7 @@ struct vers_select_conds_t
 
 struct LEX;
 class Index_hint;
+class Lex_ident_sys;
 
 /*
   @struct TABLE_CHAIN
@@ -2523,9 +2524,18 @@ struct TABLE_LIST
      @note Inside views, a subquery in the @c FROM clause is not allowed.
      @note Do not use this field to separate views/base tables/anonymous
      derived tables. Use TABLE_LIST::is_anonymous_derived_table().
+     @note _column_names_ below are associated with these derived tables
+       SELECT * FROM (SELECT a FROM t1) b (list of column names)
+     @note _original_names_ below are used to save *item_list.name in the
+       select_lex for multiple executions
   */
   st_select_lex_unit *derived;		/* SELECT_LEX_UNIT of derived table */
   With_element *with;          /* With element defining this table (if any) */
+  List<Lex_ident_sys>   *column_names;  /* list of correlation column names */
+  List<Lex_ident_sys>   *original_names;/* list of original column names    */
+  bool original_names_are_set:1;
+  bool set_original_names(st_select_lex *derived);
+
   /* Bitmap of the defining with element */
   table_map with_internal_reference_map;
   TABLE_LIST * next_with_rec_ref;

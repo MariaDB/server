@@ -10184,6 +10184,49 @@ bool TABLE_LIST::is_the_same_definition(THD* thd, TABLE_SHARE *s)
 }
 
 
+/*
+  @brief
+    Copy derived->item_list names to this->original_names
+
+  @param
+    derived     pointer to a select_lex containing the names to be saved.
+
+  @details
+    This is used in derived tables to optionally set the names of the resultant
+    columns.  Called before first st_select_lex::set_item_list_names().
+
+  @retval
+    true on failure, false otherwise
+*/
+bool TABLE_LIST::set_original_names(st_select_lex *derived)
+{
+  if (unlikely(derived->with_wild))
+    return false;
+  if (original_names_are_set)
+    return false;
+
+  // these elements allocated in LEX::parsed_derived_table
+  if (original_names->elements != derived->item_list.elements)
+  {
+    my_error(ER_INCORRECT_COLUMN_NAME_COUNT, MYF(0));
+    return true;
+  }
+
+  List_iterator_fast<Lex_ident_sys> overwrite_iterator(*original_names);
+  Lex_ident_sys *original_name;
+
+  List_iterator_fast<Item> item_list_iterator(derived->item_list);
+  Item *item_list_element;
+
+  while ((item_list_element= item_list_iterator++) &&
+         (original_name= overwrite_iterator++))
+    lex_string_set( original_name, item_list_element->name.str);
+
+  original_names_are_set= true;
+  return false;
+}
+
+
 uint TABLE_SHARE::actual_n_key_parts(THD *thd)
 {
   return use_ext_keys &&

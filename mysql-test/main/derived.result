@@ -1862,3 +1862,878 @@ pk	a
 deallocate prepare stmt;
 drop table t1,t2,t3;
 # End of MariaDB 11.1 tests
+#
+#     MDEV-31466 Add optional correlation column list for derived tables
+#
+select * from (values (3,4),(5,6)) as tvc(c1, c2);
+c1	c2
+3	4
+5	6
+select c1, c2 from (values (3,4),(5,6)) as tvc(c1, c2);
+c1	c2
+3	4
+5	6
+select * from (values (3,4),(5,6)) as tvc(c1, `柱`);
+c1	柱
+3	4
+5	6
+select * from (select concat(c1, c2) as col from (values (3,4)) as tvc(c1, c2))
+as derived;
+col
+34
+select outmost from
+(
+select outercol1, outercol2 from
+(
+select concat(col1, col2), 1 from
+(
+values (3,4),(5,6),(7,8)
+)
+as tvc(col1,col2)
+)
+as derived ( outercol1, outercol2 )
+)
+derived2 (outmost, outmost1);
+outmost
+34
+56
+78
+create table t1 (c1 int, c2 int, c3 int);
+insert into t1 values (1,2,3),(4,5,6);
+create table t2 like t1;
+insert into t2 values (7,8,9),(10,11,12);
+create table t3 like t1;
+insert into t3 values (10,11,12),(13,14,15);
+create view v1 as select * from (select * from t1) as d1 (a1, a2, a3);
+create view v2 as select * from (select c1, c2, sum(c3) from t2 group by c1, c2)
+as d2 (b1, b2, b3);
+create view v3 as select * from (select * from t3 where c1=10)
+as d3 (d1, d2, d3);
+select * from v1;
+a1	a2	a3
+1	2	3
+4	5	6
+select * from v2;
+b1	b2	b3
+7	8	9
+10	11	12
+select * from v1 union select * from v2;
+a1	a2	a3
+1	2	3
+4	5	6
+7	8	9
+10	11	12
+select * from v3 intersect select * from v2 union select * from v1;
+d1	d2	d3
+10	11	12
+1	2	3
+4	5	6
+# check out merge derived action.
+analyze format=json select * from t1, v3 where t1.c1+9 = v3.d1;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 2,
+          "r_rows": 2,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 50,
+          "attached_condition": "t1.c1 + 9 = 10"
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t3",
+            "access_type": "ALL",
+            "loops": 2,
+            "r_loops": 1,
+            "rows": 2,
+            "r_rows": 2,
+            "cost": "REPLACED",
+            "r_table_time_ms": "REPLACED",
+            "r_other_time_ms": "REPLACED",
+            "r_engine_stats": REPLACED,
+            "filtered": 100,
+            "r_filtered": 50,
+            "attached_condition": "t3.c1 = 10"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "173",
+          "join_type": "BNL",
+          "r_loops": 1,
+          "r_filtered": 100,
+          "r_unpack_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_effective_rows": 1
+        }
+      }
+    ]
+  }
+}
+with cte (ct1, ct2, ct3 )
+as (select * from v3 intersect select * from v2 union select * from v1)
+select * from cte where ct1 = 1;
+ct1	ct2	ct3
+1	2	3
+prepare stmt from "with cte (ct1, ct2, ct3 )
+as (select * from v3 intersect select * from v2 union select * from v1)
+select * from cte where ct1 = 1";
+execute stmt;
+ct1	ct2	ct3
+1	2	3
+execute stmt;
+ct1	ct2	ct3
+1	2	3
+deallocate prepare stmt;
+create procedure p1(a int) with cte (ct1, ct2, ct3)
+as (select * from v3 intersect select * from v2 union select * from v1)
+select * from cte where ct1 = a;
+call p1(1);
+ct1	ct2	ct3
+1	2	3
+call p1(1);
+ct1	ct2	ct3
+1	2	3
+call p1(4);
+ct1	ct2	ct3
+4	5	6
+call p1(7);
+ct1	ct2	ct3
+drop procedure p1;
+select * from (select c1, c2, c3 from t1 ) as d1 (a1, a2, a3) where a1 = 1;
+a1	a2	a3
+1	2	3
+select * from (select c1, c2, c3 from t1 ) 
+as d1 (a1, a2, a3) where a1 = 1 group by a1 order by a1 desc;
+a1	a2	a3
+1	2	3
+select * from (select c1, c2, c3 from t1 where c1 = 1 ) as d1 (a1, a2, a3);
+a1	a2	a3
+1	2	3
+select * from 
+(select c1, sum(c2), sum(c3) from t1 where c1 = 1 
+group by c1 order by c1 desc) as d1 (a1, a2, a3)
+where a3=3;
+a1	a2	a3
+1	2	3
+select * from
+(select * from t1 union select * from t2 order by c1) as d3 (a1, a2, a3);
+c1	c2	c3
+1	2	3
+4	5	6
+7	8	9
+10	11	12
+select a1, count(*) from
+( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+group by a1 order by a1;
+a1	count(*)
+1	1
+4	1
+select a1, count(*) from
+( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+where a1 in (select c1 from t2);
+a1	count(*)
+NULL	0
+select a1, count(*) from
+( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+where exists (select c1 from t2 where c1 = a1);
+a1	count(*)
+NULL	0
+select * from
+( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+join t2 on a1=c1;
+a1	a2	a3	c1	c2	c3
+select * from
+( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+join (values (1, 2, 3), (4, 5, 6)) as d2 (b1, b2, b3)
+on a1=b1;
+a1	a2	a3	b1	b2	b3
+1	2	3	1	2	3
+4	5	6	4	5	6
+select * from
+( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+join (values (1, 2, 3), (4, 5, 6)) as d1 (b1, b2, b3)
+on a1=b1;
+ERROR 42000: Not unique table/alias: 'd1'
+select * from (values (3,4),(5,6)) as foo(Col1, Col1);
+ERROR 42S21: Duplicate column name 'Col1'
+select * from ( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3) where c1 = 1;
+ERROR 42S22: Unknown column 'c1' in 'where clause'
+select * from ( select c1, c2, c3 from t1 ) as d1 (a1, a2) where c1 = 1;
+ERROR HY000: Incorrect column name count for derived table
+select * from ( select c1, c2, c3 from t1 ) as d1 () where c1 = 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ') where c1 = 1' at line 1
+select * from ( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+join ( select c1, c2, c3 from t1 ) as d2 (a1, a2, a3)
+where d1.a1=a1;
+ERROR 23000: Column 'a1' in where clause is ambiguous
+select * from
+(select c1, c2, c3 from t1)
+as d1 (a1, a2, a3)
+union
+select * from t2;
+a1	a2	a3
+1	2	3
+4	5	6
+7	8	9
+10	11	12
+select * from
+(select c1, c2, c3 from t1)
+as d1 (a1, a2, a3)
+union
+select * from
+(select c1, c2, c3 from t2)
+as d2;
+a1	a2	a3
+1	2	3
+4	5	6
+7	8	9
+10	11	12
+select * from
+(
+select * from
+(select c1, c2, c3 from t1)
+as d1 (cr1, cr2, cr3)
+union
+select * from
+(select c1, c2, c3 from t2)
+as d2
+) as d3 (a1, a2, a3);
+cr1	cr2	cr3
+1	2	3
+4	5	6
+7	8	9
+10	11	12
+select * from
+(
+select * from
+(select c1, c2, c3 from t1 where c1=1)
+as d1 (cr1, cr2, cr3)
+union
+select * from
+(select c1, min(c2), max(c3) from t2 group by c1)
+as d2
+order by cr1
+limit 1
+) as d3 (a1, a2, a3);
+cr1	cr2	cr3
+1	2	3
+insert into t2 values (1,2,3);
+select * from
+( select c1, c2, c3 from t1)
+as d1 (a1, a2, a3)
+intersect
+select * from t2;
+a1	a2	a3
+1	2	3
+prepare stmt from "select * from (select * from t1) as d1 (a1, a2, a3)";
+execute stmt;
+a1	a2	a3
+1	2	3
+4	5	6
+execute stmt;
+a1	a2	a3
+1	2	3
+4	5	6
+deallocate prepare stmt;
+prepare stmt from 
+"select * from (select * from t1) as d1 (a1, a2, a3) union select * from "
+"(select * from t1) as d1 (na1, na2, na3)";
+execute stmt;
+a1	a2	a3
+1	2	3
+4	5	6
+execute stmt;
+a1	a2	a3
+1	2	3
+4	5	6
+deallocate prepare stmt;
+select * from 
+(select c1 as co1, sum(c2) as co2 from t1 group by co1  order by co1)
+as foo (col1, col2);
+col1	col2
+1	2
+4	5
+select c1 as col, sum(c2) as s from t1 group by c1;
+col	s
+1	2
+4	5
+select c1 as col, sum(c2) as s from t1 group by col;
+col	s
+1	2
+4	5
+select * from 
+(select c1 as col, sum(c2) as s from t1 group by c1) as dt (d1,d2);
+d1	d2
+1	2
+4	5
+select * from
+(select c1 as col, sum(c2) as s from t1 group by col) as dt (d1,d2);
+d1	d2
+1	2
+4	5
+select * from 
+(select * from (select * from t1 where c1 < 7) tt (d1, d2, d3)
+where d1 > 2 group by d1) zz;
+d1	d2	d3
+4	5	6
+select * from 
+(select * from (select * from t1 where c1 < 7) tt (d1, d2, d3)
+where d1 > 2 group by d1 having sum(d3) > 4 order by d2) zz;
+d1	d2	d3
+4	5	6
+select d1, row_number() over (partition by d1 order by d2) 
+from (select * from t1) dt (d1, d2, d3);
+d1	row_number() over (partition by d1 order by d2)
+1	1
+4	1
+select
+d1, d2,
+count(*) over w1 as dc1,
+count(*) over w2 as dc2,
+count(*) over w3 as dc3
+from (select * from t1)  dt (d1, d2, d3)
+window
+w1 as (partition by d2),
+w2 as (w1 order by d1),
+w3 as (w2 rows between 2 preceding and 2 following);
+d1	d2	dc1	dc2	dc3
+1	2	1	1	1
+4	5	1	1	1
+with
+cte1 as 
+(select * from (select * from t1 group by c1)
+as dt2 (d1,d2,d3)),
+cte as 
+(select cte1.d1, sum(cte1.d2) over (partition by cte1.d1 order by cte1.d1)
+as k from cte1)
+select * from cte;
+d1	k
+1	2
+4	5
+update t1, (select * from t2) as dt (d1,d2,d3)
+set c1=c1+1 where d1= c1+6;
+delete t1 from t1, (select * from t2) as dt (d1,d2,d3) where d1= c1+5;
+insert into t1 values (1,2,3),(4,5,6);
+delete from t1 using t1, (select * from t2) as dt (d1,d2,d3) where d1= c1+6;
+insert into t1 select * from (select c1-6, c2-6, c3-6 from t2) as dt (d1,d2,d3);
+replace into t1 select * from (select c1-6, c2-6, c3-6 from t2) as dt (d1,d2,d3)
+returning c1, (select c1 from (select * from t1) as dt (d4,d5,d6)
+where c1=d1 limit 1);
+c1	(select c1 from (select * from t1) as dt (d4,d5,d6)
+where c1=d1 limit 1)
+1	1
+4	4
+-5	-5
+replace into t1 select * from (select c1-6, c2-6, c3-6 from t2) as dt (d1,d2,d3)
+returning c1, (select c1 from (select * from t1) as dt (d4,d5,d6)
+where c1=d2 limit 1);
+c1	(select c1 from (select * from t1) as dt (d4,d5,d6)
+where c1=d2 limit 1)
+1	NULL
+4	NULL
+-5	NULL
+execute immediate 
+"select * from (select c1 as col, sum(c2) as s from t1 "
+  "group by c1) as dt (d1,d2)";
+d1	d2
+-5	-12
+1	6
+4	15
+execute immediate 
+"select * from (select c1 as col, sum(c2) as s from t1 "
+  "group by col) as dt (d1,d2)";
+d1	d2
+-5	-12
+1	6
+4	15
+alter table t1 rename column c1 to cc1;
+select * from v1;
+ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+drop view v1, v2, v3;
+drop table t1, t2, t3;
+create table t1 (a int, b int, c int);
+create table t2 (a int, b int, c int, d decimal);
+insert into t1 values
+(1,21,345), (1,33,7), (8,33,114), (1,21,500), (1,19,107), (5,14,787),
+(8,33,123), (9,10,211), (5,16,207), (1,33,988), (5,27,132), (1,21,104),
+(6,20,309), (6,20,315), (1,21,101), (8,33,404), (9,10,800), (1,21,123),
+(7,11,708), (6,20,214);
+insert into t2 values
+(2,3,207,207.0000), (1,21,909,12.0000), (7,13,312,406.0000),
+(8,64,248,107.0000), (6,20,315,279.3333), (1,19,203,107.0000),
+(8,80,800,314.0000), (3,12,231,190.0000), (6,23,303,909.0000);
+Warnings:
+Note	1265	Data truncated for column 'd' at row 5
+analyze format=json select * from
+(select a, b, max(c) as max_c, avg(c) as avg_c from t1
+where t1.a>5 group by a,b having max_c < 707) v1 (d1,d2,d3,d4),
+(select a, b, min(c) as min_c from t1 
+where t1.a>5 group by a,b having min_c < 707) v2 (d5,d6,d7),
+(select a, b, avg(c) as avg_c from t1
+where t1.a<8 group by a,b) v3 (d8, d9, d10),
+t2 where (v1.d1=v2.d5) and (v1.d2=v3.d9) and ((v3.d10>170) or (v3.d8<5))
+and ((v1.d4<400) or (v1.d1>1)) and (v2.d7<200);
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 9,
+          "r_rows": 9,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "<derived2>",
+            "access_type": "ALL",
+            "loops": 9,
+            "r_loops": 1,
+            "rows": 20,
+            "r_rows": 2,
+            "cost": "REPLACED",
+            "r_table_time_ms": "REPLACED",
+            "r_other_time_ms": "REPLACED",
+            "filtered": 100,
+            "r_filtered": 100,
+            "attached_condition": "v1.d4 < 400 or v1.d1 > 1"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "238",
+          "join_type": "BNL",
+          "attached_condition": "(v1.d4 < 400 or v1.d1 > 1) and v1.d1 is not null and v1.d2 is not null",
+          "r_loops": 9,
+          "r_filtered": 100,
+          "r_unpack_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_effective_rows": 2,
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "REPLACED",
+              "r_loops": 1,
+              "r_total_time_ms": "REPLACED",
+              "having_condition": "d3 < 707 and (d4 < 400 or d1 > 1)",
+              "filesort": {
+                "sort_key": "t1.a, t1.b",
+                "r_loops": 1,
+                "r_total_time_ms": "REPLACED",
+                "r_used_priority_queue": false,
+                "r_output_rows": 2,
+                "r_buffer_size": "REPLACED",
+                "r_sort_mode": "sort_key,rowid",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "r_loops": 1,
+                        "rows": 20,
+                        "r_rows": 20,
+                        "cost": "REPLACED",
+                        "r_table_time_ms": "REPLACED",
+                        "r_other_time_ms": "REPLACED",
+                        "r_engine_stats": REPLACED,
+                        "filtered": 100,
+                        "r_filtered": 45,
+                        "attached_condition": "t1.a > 5"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived3>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "5",
+          "used_key_parts": ["d5"],
+          "ref": ["v1.d1"],
+          "loops": 180,
+          "r_loops": 18,
+          "rows": 2,
+          "r_rows": 0.5,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100,
+          "attached_condition": "v2.d7 < 200",
+          "materialized": {
+            "query_block": {
+              "select_id": 3,
+              "cost": "REPLACED",
+              "r_loops": 1,
+              "r_total_time_ms": "REPLACED",
+              "having_condition": "d7 < 707 and d7 < 200",
+              "filesort": {
+                "sort_key": "t1.a, t1.b",
+                "r_loops": 1,
+                "r_total_time_ms": "REPLACED",
+                "r_used_priority_queue": false,
+                "r_output_rows": 1,
+                "r_buffer_size": "REPLACED",
+                "r_sort_mode": "sort_key,rowid",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "r_loops": 1,
+                        "rows": 20,
+                        "r_rows": 20,
+                        "cost": "REPLACED",
+                        "r_table_time_ms": "REPLACED",
+                        "r_other_time_ms": "REPLACED",
+                        "r_engine_stats": REPLACED,
+                        "filtered": 100,
+                        "r_filtered": 45,
+                        "attached_condition": "t1.a > 5"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived4>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "5",
+          "used_key_parts": ["d9"],
+          "ref": ["v1.d2"],
+          "loops": 360,
+          "r_loops": 9,
+          "rows": 2,
+          "r_rows": 1,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100,
+          "attached_condition": "v3.d10 > 170 or v3.d8 < 5",
+          "materialized": {
+            "query_block": {
+              "select_id": 4,
+              "cost": "REPLACED",
+              "r_loops": 1,
+              "r_total_time_ms": "REPLACED",
+              "having_condition": "d10 > 170 or d8 < 5",
+              "filesort": {
+                "sort_key": "t1.a, t1.b",
+                "r_loops": 1,
+                "r_total_time_ms": "REPLACED",
+                "r_used_priority_queue": false,
+                "r_output_rows": 7,
+                "r_buffer_size": "REPLACED",
+                "r_sort_mode": "sort_key,rowid",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "r_loops": 1,
+                        "rows": 20,
+                        "r_rows": 20,
+                        "cost": "REPLACED",
+                        "r_table_time_ms": "REPLACED",
+                        "r_other_time_ms": "REPLACED",
+                        "r_engine_stats": REPLACED,
+                        "filtered": 100,
+                        "r_filtered": 75,
+                        "attached_condition": "t1.a < 8"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+set statement optimizer_switch='condition_pushdown_for_derived=off' for 
+analyze format=json select * from
+(select a, b, max(c) as max_c, avg(c) as avg_c from t1
+where t1.a>5 group by a,b having max_c < 707) v1 (d1,d2,d3,d4),
+(select a, b, min(c) as min_c from t1 
+where t1.a>5 group by a,b having min_c < 707) v2 (d5,d6,d7),
+(select a, b, avg(c) as avg_c from t1
+where t1.a<8 group by a,b) v3 (d8, d9, d10),
+t2 where (v1.d1=v2.d5) and (v1.d2=v3.d9) and ((v3.d10>170) or (v3.d8<5))
+and ((v1.d4<400) or (v1.d1>1)) and (v2.d7<200);
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 9,
+          "r_rows": 9,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "<derived3>",
+            "access_type": "ALL",
+            "loops": 9,
+            "r_loops": 1,
+            "rows": 20,
+            "r_rows": 2,
+            "cost": "REPLACED",
+            "r_table_time_ms": "REPLACED",
+            "r_other_time_ms": "REPLACED",
+            "filtered": 100,
+            "r_filtered": 100,
+            "attached_condition": "v1.d4 < 400 or v1.d1 > 1"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "238",
+          "join_type": "BNL",
+          "attached_condition": "(v1.d4 < 400 or v1.d1 > 1) and v1.d1 is not null and v1.d2 is not null",
+          "r_loops": 9,
+          "r_filtered": 100,
+          "r_unpack_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_effective_rows": 2,
+          "materialized": {
+            "query_block": {
+              "select_id": 3,
+              "cost": "REPLACED",
+              "r_loops": 1,
+              "r_total_time_ms": "REPLACED",
+              "having_condition": "d3 < 707",
+              "filesort": {
+                "sort_key": "t1.a, t1.b",
+                "r_loops": 1,
+                "r_total_time_ms": "REPLACED",
+                "r_used_priority_queue": false,
+                "r_output_rows": 2,
+                "r_buffer_size": "REPLACED",
+                "r_sort_mode": "sort_key,rowid",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "r_loops": 1,
+                        "rows": 20,
+                        "r_rows": 20,
+                        "cost": "REPLACED",
+                        "r_table_time_ms": "REPLACED",
+                        "r_other_time_ms": "REPLACED",
+                        "r_engine_stats": REPLACED,
+                        "filtered": 100,
+                        "r_filtered": 45,
+                        "attached_condition": "t1.a > 5"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived4>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "5",
+          "used_key_parts": ["d5"],
+          "ref": ["v1.d1"],
+          "loops": 180,
+          "r_loops": 18,
+          "rows": 2,
+          "r_rows": 1,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 50,
+          "attached_condition": "v2.d7 < 200",
+          "materialized": {
+            "query_block": {
+              "select_id": 4,
+              "cost": "REPLACED",
+              "r_loops": 1,
+              "r_total_time_ms": "REPLACED",
+              "having_condition": "d7 < 707",
+              "filesort": {
+                "sort_key": "t1.a, t1.b",
+                "r_loops": 1,
+                "r_total_time_ms": "REPLACED",
+                "r_used_priority_queue": false,
+                "r_output_rows": 3,
+                "r_buffer_size": "REPLACED",
+                "r_sort_mode": "sort_key,rowid",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "r_loops": 1,
+                        "rows": 20,
+                        "r_rows": 20,
+                        "cost": "REPLACED",
+                        "r_table_time_ms": "REPLACED",
+                        "r_other_time_ms": "REPLACED",
+                        "r_engine_stats": REPLACED,
+                        "filtered": 100,
+                        "r_filtered": 45,
+                        "attached_condition": "t1.a > 5"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived5>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "5",
+          "used_key_parts": ["d9"],
+          "ref": ["v1.d2"],
+          "loops": 360,
+          "r_loops": 9,
+          "rows": 2,
+          "r_rows": 1,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100,
+          "attached_condition": "v3.d10 > 170 or v3.d8 < 5",
+          "materialized": {
+            "query_block": {
+              "select_id": 5,
+              "cost": "REPLACED",
+              "r_loops": 1,
+              "r_total_time_ms": "REPLACED",
+              "filesort": {
+                "sort_key": "t1.a, t1.b",
+                "r_loops": 1,
+                "r_total_time_ms": "REPLACED",
+                "r_used_priority_queue": false,
+                "r_output_rows": 8,
+                "r_buffer_size": "REPLACED",
+                "r_sort_mode": "sort_key,rowid",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "r_loops": 1,
+                        "rows": 20,
+                        "r_rows": 20,
+                        "cost": "REPLACED",
+                        "r_table_time_ms": "REPLACED",
+                        "r_other_time_ms": "REPLACED",
+                        "r_engine_stats": REPLACED,
+                        "filtered": 100,
+                        "r_filtered": 75,
+                        "attached_condition": "t1.a < 8"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+drop table t1, t2;
+#
+# End of 11.3 tests
+#

@@ -12280,3 +12280,6 @@ ER_SEQUENCE_TABLE_CANNOT_HAVE_ANY_CONSTRAINTS
         eng "Sequence tables cannot have any constraints"
 ER_SEQUENCE_TABLE_ORDER_BY
         eng "ORDER BY"
+ER_INCORRECT_COLUMN_NAME_COUNT
+        eng "Incorrect column name count for derived table"
+        chi "派生表的列名计数不正确"
