@@ -4004,7 +4004,7 @@ int spider_create_conn_keys(
           spider_dbton[dbton_idx].wrapper : "NULL"));
       if (
         spider_dbton[dbton_idx].wrapper &&
-        !strcmp(share->tgt_wrappers[all_link_idx],
+        !strcasecmp(share->tgt_wrappers[all_link_idx],
           spider_dbton[dbton_idx].wrapper)
       ) {
         spider_set_bit(share->dbton_bitmap, dbton_idx);
