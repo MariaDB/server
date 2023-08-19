@@ -2416,6 +2416,14 @@ public:
   */
   const char *proc_info;
 
+  inline bool is_first_query_execution()
+  {
+    return  (stmt_arena->is_conventional() ||
+             stmt_arena->is_stmt_prepare_or_first_stmt_execute() ||
+             stmt_arena->is_stmt_prepare_or_first_sp_execute()) &&
+            !stmt_arena->is_stmt_prepare();
+  }
+
 private:
   unsigned int m_current_stage_key;
 

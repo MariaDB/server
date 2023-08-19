@@ -102,6 +102,16 @@ void Item_subselect::init(st_select_lex *select_lex,
       unit->item= this;
       engine->change_result(this, result, FALSE);
     }
+    else if ((unit->item->substype() == ALL_SUBS ||
+              unit->item->substype() == ANY_SUBS) &&
+	     (((Item_in_subselect*) unit->item)->
+                  test_set_strategy(SUBS_MAXMIN_INJECTED) ||
+              ((Item_in_subselect*) unit->item)->
+	          test_set_strategy(SUBS_MAXMIN_ENGINE)))
+    {
+      unit->item= this;
+      engine->change_result(this, result, FALSE);
+    }
     else
     {
       /*
@@ -198,15 +208,6 @@ void Item_in_subselect::cleanup()
 
 void Item_allany_subselect::cleanup()
 {
-  /*
-    The MAX/MIN transformation through injection is reverted through the
-    change_item_tree() mechanism. Revert the select_lex object of the
-    query to its initial state.
-  */
-  for (SELECT_LEX *sl= unit->first_select();
-       sl; sl= sl->next_select())
-    if (test_set_strategy(SUBS_MAXMIN_INJECTED))
-      sl->with_sum_func= false;
   Item_in_subselect::cleanup();
 }
 
@@ -399,6 +400,8 @@ bool Item_subselect::mark_as_dependent(THD *thd, st_select_lex *select,
   is_correlated= TRUE;
   if (thd->lex->is_ps_or_view_context_analysis())
     return FALSE;
+  if (!thd->is_first_query_execution())
+    return FALSE;
   DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
   if (inside_first_fix_fields)
   {
@@ -495,6 +498,9 @@ void Item_subselect::recalc_used_tables(st_select_lex *new_parent,
   Ref_to_outside *upper;
   DBUG_ENTER("recalc_used_tables");
   
+  if (!unit->thd->is_first_query_execution())
+    DBUG_VOID_RETURN;
+
   used_tables_cache= 0;
   while ((upper= it++))
   {
@@ -1029,6 +1035,7 @@ Item_singlerow_subselect::Item_singlerow_subselect(THD *thd, st_select_lex *sele
   init(select_lex, new (thd->mem_root) select_singlerow_subselect(thd, this));
   maybe_null= 1;
   max_columns= UINT_MAX;
+  strategy= UNKNOWN_SUBS;
   DBUG_VOID_RETURN;
 }
 
@@ -2086,11 +2093,11 @@ bool Item_allany_subselect::transform_into_max_min(JOIN *join)
     }
     if (upper_item)
       upper_item->set_sum_test(item);
-    thd->change_item_tree(&select_lex->ref_pointer_array[0], item);
+    select_lex->ref_pointer_array[0]= item;
     {
       List_iterator<Item> it(select_lex->item_list);
       it++;
-      thd->change_item_tree(it.ref(), item);
+      it.replace(item);
     }
 
     DBUG_EXECUTE("where",
@@ -2111,32 +2118,33 @@ bool Item_allany_subselect::transform_into_max_min(JOIN *join)
                       0);
     if (join->prepare_stage2())
       DBUG_RETURN(true);
-    subs= new (thd->mem_root) Item_singlerow_subselect(thd, select_lex);
-
     /*
       Remove other strategies if any (we already changed the query and
       can't apply other strategy).
     */
     set_strategy(SUBS_MAXMIN_INJECTED);
+    subs= new (thd->mem_root) Item_singlerow_subselect(thd, select_lex);
+    ((Item_singlerow_subselect *)subs)->set_strategy(SUBS_MAXMIN_INJECTED);
   }
   else
   {
     Item_maxmin_subselect *item;
-    subs= item= new (thd->mem_root) Item_maxmin_subselect(thd, this, select_lex, func->l_op());
-    if (upper_item)
-      upper_item->set_sub_test(item);
     /*
       Remove other strategies if any (we already changed the query and
       can't apply other strategy).
     */
     set_strategy(SUBS_MAXMIN_ENGINE);
+    subs= item= new (thd->mem_root) Item_maxmin_subselect(thd, this, select_lex, func->l_op());
+    ((Item_maxmin_subselect *)subs)->set_strategy(SUBS_MAXMIN_ENGINE);
+    if (upper_item)
+      upper_item->set_sub_test(item);
   }
   /*
     The swap is needed for expressions of type 'f1 < ALL ( SELECT ....)'
     where we want to evaluate the sub query even if f1 would be null.
   */
   subs= func->create_swap(thd, expr, subs);
-  thd->change_item_tree(place, subs);
+  *place= subs;
   if (subs->fix_fields(thd, &subs))
     DBUG_RETURN(true);
   DBUG_ASSERT(subs == (*place)); // There was no substitutions
@@ -3802,6 +3810,7 @@ int subselect_single_select_engine::prepare(THD *thd)
   if (!join || !result)
     return 1; /* Fatal error is set already. */
   prepared= 1;
+  bool rc= 0;
   SELECT_LEX *save_select= thd->lex->current_select;
   thd->lex->current_select= select_lex;
   if (join->prepare(select_lex->table_list.first,
@@ -3815,9 +3824,12 @@ int subselect_single_select_engine::prepare(THD *thd)
 		    select_lex->having,
 		    NULL, select_lex,
 		    select_lex->master_unit()))
-    return 1;
+  {
+    select_lex->save_ref_ptrs_if_needed(thd);
+    rc= 1;
+  }
   thd->lex->current_select= save_select;
-  return 0;
+  return rc;
 }
 
 int subselect_union_engine::prepare(THD *thd_arg)
@@ -6907,4 +6919,21 @@ void Item_subselect::init_expr_cache_tracker(THD *thd)
     return;
   DBUG_ASSERT(expr_cache->type() == Item::EXPR_CACHE_ITEM);
   node->cache_tracker= ((Item_cache_wrapper *)expr_cache)->init_tracker(qw->mem_root);
+}
+
+bool Item_singlerow_subselect::test_set_strategy(uchar strategy_arg)
+{
+  DBUG_ASSERT(strategy_arg == SUBS_MAXMIN_INJECTED ||
+              strategy_arg == SUBS_MAXMIN_ENGINE);
+  return ((strategy & SUBS_STRATEGY_CHOSEN) &&
+          (strategy & ~SUBS_STRATEGY_CHOSEN) == strategy_arg);
+}
+
+void Item_singlerow_subselect::set_strategy(uchar strategy_arg)
+{
+  DBUG_ENTER("Item_in_subselect::set_strategy");
+  DBUG_ASSERT(strategy_arg == SUBS_MAXMIN_INJECTED ||
+              strategy_arg == SUBS_MAXMIN_ENGINE);
+  strategy= (SUBS_STRATEGY_CHOSEN | strategy_arg);
+  DBUG_VOID_RETURN;
 }

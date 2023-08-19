@@ -674,6 +674,8 @@ bool st_select_lex_unit::prepare_join(THD *thd_arg, SELECT_LEX *sl,
                               thd_arg->lex->proc_list.first),
                              sl, this);
 
+  sl->save_ref_ptrs_if_needed(thd);
+
   /* There are no * in the statement anymore (for PS) */
   sl->with_wild= 0;
   last_procedure= join->procedure;

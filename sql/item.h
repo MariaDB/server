@@ -5372,7 +5372,8 @@ protected:
   void set_properties();
   bool set_properties_only; // the item doesn't need full fix_fields
 public:
-  enum Ref_Type { REF, DIRECT_REF, VIEW_REF, OUTER_REF, AGGREGATE_REF };
+  enum Ref_Type
+  { REF, DIRECT_REF, VIEW_REF, OUTER_REF, AGGREGATE_REF, DIRECT_ITEM_REF };
   Item **ref;
   bool reference_trough_name;
   Item_ref(THD *thd, Name_resolution_context *context_arg,
@@ -5658,6 +5659,12 @@ public:
   { return get_item_copy<Item_direct_ref>(thd, this); }
   Item *remove_item_direct_ref()
   { return (*ref)->remove_item_direct_ref(); }
+  void cleanup()
+  {
+    if (ref && *ref)
+      (*ref)->cleanup();
+    Item_ref::cleanup();
+  }
 };
 
 
@@ -7706,6 +7713,7 @@ public:
   void bring_value()
   {}
 
+  virtual Ref_Type ref_type() { return DIRECT_ITEM_REF; }
   Item_equal *get_item_equal() { return m_item->get_item_equal(); }
   void set_item_equal(Item_equal *item_eq) { m_item->set_item_equal(item_eq); }
   Item_equal *find_item_equal(COND_EQUAL *cond_equal)
@@ -7730,6 +7738,7 @@ public:
       if (!copy)
         return 0;
       copy->set_item(clone_item);
+      copy->ref= &copy->m_item;
       return copy;
     }
     return 0;

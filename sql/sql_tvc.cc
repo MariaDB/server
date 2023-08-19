@@ -898,7 +898,7 @@ static bool cmp_row_types(Item* item1, Item* item2)
 Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
 							uchar *arg)
 {
-  if (!transform_into_subq)
+  if (!transform_into_subq || block_transform_into_subq)
     return this;
   
   List<List_item> values;
@@ -1057,6 +1057,9 @@ uint32 Item_func_in::max_length_of_left_expr()
 
 bool Item_func_in::to_be_transformed_into_in_subq(THD *thd)
 {
+  if (block_transform_into_subq)
+    return false;
+
   bool is_row_list= args[1]->type() == Item::ROW_ITEM;
   uint values_count= arg_count-1;
 

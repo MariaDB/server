@@ -4495,7 +4495,9 @@ bool Item_func_in::value_list_convert_const_to_int(THD *thd)
           */
           if (arg[0]->type() != Item::NULL_ITEM &&
               !convert_const_to_int(thd, field_item, &arg[0]))
-           all_converted= false;
+            all_converted= false;
+          else
+            block_transform_into_subq= true;
       }
       if (all_converted)
         m_comparator.set_handler(&type_handler_longlong);

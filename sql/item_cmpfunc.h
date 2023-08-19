@@ -2340,6 +2340,7 @@ class Item_func_in :public Item_func_opt_neg,
   {
     return check_argument_types_like_args0();
   }
+  bool block_transform_into_subq;
 protected:
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
                              Field *field, Item *value);
@@ -2366,6 +2367,7 @@ public:
   Item_func_in(THD *thd, List<Item> &list):
     Item_func_opt_neg(thd, list),
     Predicant_to_list_comparator(thd, arg_count - 1),
+    block_transform_into_subq(false),
     transform_into_subq(false),
     transform_into_subq_checked(false),
     array(0), have_null(0),

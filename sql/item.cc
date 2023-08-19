@@ -2585,26 +2585,33 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
       return TRUE;
     }
 
+    if ((*arg)->type() == Item::REF_ITEM &&
+        ((Item_ref *)(*arg))->ref_type() == Item_ref::DIRECT_ITEM_REF)
+      continue;
+
     if (conv->fix_fields_if_needed(thd, arg))
       return TRUE;
 
     Query_arena *arena, backup;
-    arena= thd->activate_stmt_arena_if_needed(&backup);
-    if (arena)
+    if (thd->lex->current_select->first_cond_optimization)
     {
-      Item_direct_ref_to_item *ref=
-        new (thd->mem_root) Item_direct_ref_to_item(thd, *arg);
-      if ((ref == NULL) || ref->fix_fields(thd, (Item **)&ref))
+      arena= thd->activate_stmt_arena_if_needed(&backup);
+      if (arena)
       {
+        Item_direct_ref_to_item *ref=
+          new (thd->mem_root) Item_direct_ref_to_item(thd, *arg);
+        if ((ref == NULL) || ref->fix_fields(thd, (Item **)&ref))
+        {
+          thd->restore_active_arena(arena, &backup);
+          return TRUE;
+        }
+        *arg= ref;
         thd->restore_active_arena(arena, &backup);
-        return TRUE;
+        ref->change_item(thd, conv);
       }
-      *arg= ref;
-      thd->restore_active_arena(arena, &backup);
-      ref->change_item(thd, conv);
+      else
+        thd->change_item_tree(arg, conv);
     }
-    else
-      thd->change_item_tree(arg, conv);
   }
   return FALSE;
 }
@@ -2952,7 +2959,11 @@ Item* Item_ref::build_clone(THD *thd)
       unlikely(!(copy->ref= (Item**) alloc_root(thd->mem_root,
                                                 sizeof(Item*)))) ||
       unlikely(!(*copy->ref= (* ref)->build_clone(thd))))
+  {
+    if (copy)
+      copy->ref= 0;
     return 0;
+  }
   return copy;
 }
 
@@ -5636,22 +5647,37 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
               select->group_list.elements &&
               (place == SELECT_LIST || place == IN_HAVING))
           {
-            Item_outer_ref *rf;
-            /*
-              If an outer field is resolved in a grouping select then it
-              is replaced for an Item_outer_ref object. Otherwise an
-              Item_field object is used.
-              The new Item_outer_ref object is saved in the inner_refs_list of
-              the outer select. Here it is only created. It can be fixed only
-              after the original field has been fixed and this is done in the
-              fix_inner_refs() function.
-            */
-            ;
-            if (!(rf= new (thd->mem_root) Item_outer_ref(thd, context, this)))
-              return -1;
-            thd->change_item_tree(reference, rf);
-            select->inner_refs_list.push_back(rf, thd->mem_root);
-            rf->in_sum_func= thd->lex->in_sum_func;
+            if (thd->is_first_query_execution() ||
+                thd->stmt_arena->is_stmt_prepare())
+	    {
+              int rc= 0;
+              Query_arena *arena, backup;
+              Item_outer_ref *rf;
+              arena= 0;
+              if (thd->is_first_query_execution())
+                arena= thd->activate_stmt_arena_if_needed(&backup);
+              /*
+                If an outer field is resolved in a grouping select then it
+                is replaced for an Item_outer_ref object. Otherwise an
+                Item_field object is used.
+                The new Item_outer_ref object is saved in the inner_refs_list of
+                the outer select. Here it is only created. It can be fixed only
+                after the original field has been fixed and this is done in the
+                fix_inner_refs() function.
+              */
+              if (!(rf= new (thd->mem_root) Item_outer_ref(thd, context, this)))
+                rc= -1;
+              select->inner_refs_list.push_back(rf, thd->mem_root);
+              if (thd->is_first_query_execution())
+                *reference= rf;
+              else
+                thd->change_item_tree(reference, rf);
+              if (arena)
+                thd->restore_active_arena(arena, &backup);
+              if (rc)
+                return rc;
+              rf->in_sum_func= thd->lex->in_sum_func;
+            }
           }
           /*
             A reference is resolved to a nest level that's outer or the same as
@@ -5763,35 +5789,50 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
     */
     save= *ref;
     *ref= NULL;                             // Don't call set_properties()
-    rf= (place == IN_HAVING ?
-         new (thd->mem_root)
-         Item_ref(thd, context, ref, table_name,
-                  &field_name, alias_name_used) :
-         (!select->group_list.elements ?
-         new (thd->mem_root)
-          Item_direct_ref(thd, context, ref, table_name,
-                          &field_name, alias_name_used) :
-         new (thd->mem_root)
-          Item_outer_ref(thd, context, ref, table_name,
-                         &field_name, alias_name_used)));
-    *ref= save;
-    if (!rf)
-      return -1;
-
-    if (place != IN_HAVING && select->group_list.elements)
+    if (thd->is_first_query_execution() ||
+        thd->stmt_arena->is_stmt_prepare())
     {
-      outer_context->select_lex->inner_refs_list.push_back((Item_outer_ref*)rf,
-                                                           thd->mem_root);
-      ((Item_outer_ref*)rf)->in_sum_func= thd->lex->in_sum_func;
+      int rc= 0;
+      Query_arena *arena, backup;
+      arena= 0;
+      if (thd->is_first_query_execution())
+        arena= thd->activate_stmt_arena_if_needed(&backup);
+      rf= (place == IN_HAVING ?
+           new (thd->mem_root)
+           Item_ref(thd, context, ref, table_name,
+                    &field_name, alias_name_used) :
+           (!select->group_list.elements ?
+           new (thd->mem_root)
+            Item_direct_ref(thd, context, ref, table_name,
+                            &field_name, alias_name_used) :
+           new (thd->mem_root)
+            Item_outer_ref(thd, context, ref, table_name,
+                           &field_name, alias_name_used)));
+      *ref= save;
+      if (!rf)
+        rc= -1;
+      if (!rc && place != IN_HAVING && select->group_list.elements)
+      {
+        outer_context->select_lex->inner_refs_list.push_back(
+                                   (Item_outer_ref*)rf, thd->mem_root);
+        ((Item_outer_ref*)rf)->in_sum_func= thd->lex->in_sum_func;
+      }
+      if (thd->is_first_query_execution())
+       *reference= rf;
+      else
+        thd->change_item_tree(reference, rf);
+      if (arena)
+        thd->restore_active_arena(arena, &backup);
+      if (rc)
+        return rc;
+      /*
+        rf is Item_ref => never substitute other items (in this case)
+        during fix_fields() => we can use rf after fix_fields()
+      */
+      DBUG_ASSERT(!rf->fixed);                // Assured by Item_ref()
+      if (rf->fix_fields(thd, reference) || rf->check_cols(1))
+        return -1;
     }
-    thd->change_item_tree(reference, rf);
-    /*
-      rf is Item_ref => never substitute other items (in this case)
-      during fix_fields() => we can use rf after fix_fields()
-    */
-    DBUG_ASSERT(!rf->fixed);                // Assured by Item_ref()
-    if (rf->fix_fields(thd, reference) || rf->check_cols(1))
-      return -1;
 
     /*
       We can not "move" aggregate function in the place where
@@ -5817,20 +5858,36 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
     if (last_checked_context->select_lex->having_fix_field)
     {
       Item_ref *rf;
-      rf= new (thd->mem_root) Item_ref(thd, context,
-                                       (*from_field)->table->s->db.str,
-                                       (*from_field)->table->alias.c_ptr(),
-                                       &field_name);
-      if (!rf)
-        return -1;
-      thd->change_item_tree(reference, rf);
-      /*
-        rf is Item_ref => never substitute other items (in this case)
-        during fix_fields() => we can use rf after fix_fields()
-      */
-      DBUG_ASSERT(!rf->fixed);                // Assured by Item_ref()
-      if (rf->fix_fields(thd, reference) || rf->check_cols(1))
-        return -1;
+      if (thd->is_first_query_execution() ||
+          thd->stmt_arena->is_stmt_prepare())
+      {
+        int rc= 0;
+        Query_arena *arena, backup;
+        arena= 0;
+        if (thd->is_first_query_execution())
+          arena= thd->activate_stmt_arena_if_needed(&backup);
+        rf= new (thd->mem_root) Item_ref(thd, context,
+                                         (*from_field)->table->s->db.str,
+                                         (*from_field)->table->alias.c_ptr(),
+                                         &field_name);
+        if (!rf)
+          rc= -1;
+        if (thd->is_first_query_execution())
+          *reference= rf;
+        else
+          thd->change_item_tree(reference, rf);
+        if (arena)
+          thd->restore_active_arena(arena, &backup);
+        if (rc)
+          return rc;
+        /*
+          rf is Item_ref => never substitute other items (in this case)
+          during fix_fields() => we can use rf after fix_fields()
+        */
+        DBUG_ASSERT(!rf->fixed);                // Assured by Item_ref()
+        if (rf->fix_fields(thd, reference) || rf->check_cols(1))
+          return -1;
+      }
       return 0;
     }
   }
@@ -8112,6 +8169,9 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
     goto error;
   }
 
+    if ((*ref)->fix_fields_if_needed(thd, reference))
+      goto error;
+
   set_properties();
 
   if ((*ref)->check_cols(1))
@@ -9072,8 +9132,22 @@ bool Item_direct_view_ref::fix_fields(THD *thd, Item **reference)
         bitmap_set_bit(fld->table->read_set, fld->field_index);
     }
   }
-  else if ((*ref)->fix_fields_if_needed(thd, ref))
-    return TRUE;
+  else
+  {
+    if (!thd->is_first_query_execution()  &&
+        !thd->stmt_arena->is_stmt_prepare())
+    {
+      bool rc= false;
+      bool save_wrapper= thd->lex->current_select->no_wrap_view_item;
+      thd->lex->current_select->no_wrap_view_item= TRUE;
+      rc= (*ref)->fix_fields_if_needed(thd, ref);
+      thd->lex->current_select->no_wrap_view_item= save_wrapper;
+      if (rc)
+        return TRUE;
+    }
+    else if ((*ref)->fix_fields_if_needed(thd, ref))
+      return TRUE;
+  }
 
   if (Item_direct_ref::fix_fields(thd, reference))
     return TRUE;

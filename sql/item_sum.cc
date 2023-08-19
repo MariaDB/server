@@ -92,10 +92,14 @@ bool Item_sum::init_sum_func_check(THD *thd)
   thd->lex->in_sum_func= this;
   nest_level= thd->lex->current_select->nest_level;
   ref_by= 0;
+  if (thd->is_first_query_execution() ||
+      thd->stmt_arena->is_stmt_prepare())
+  {
   aggr_level= -1;
   aggr_sel= NULL;
   max_arg_level= -1;
   max_sum_func_level= -1;
+  }
   outer_fields.empty();
   return FALSE;
 }

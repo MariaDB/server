@@ -596,15 +596,32 @@ fix_inner_refs(THD *thd, List<Item> &all_fields, SELECT_LEX *select,
     else if (ref->found_in_group_by)
       direct_ref= TRUE;
 
-    new_ref= direct_ref ?
-              new (thd->mem_root) Item_direct_ref(thd, ref->context, item_ref, ref->table_name,
-                          &ref->field_name, ref->alias_name_used) :
-              new (thd->mem_root) Item_ref(thd, ref->context, item_ref, ref->table_name,
-                          &ref->field_name, ref->alias_name_used);
-    if (!new_ref)
-      return TRUE;
-    ref->outer_ref= new_ref;
-    ref->ref= &ref->outer_ref;
+    if (thd->is_first_query_execution() ||
+        thd->stmt_arena->is_stmt_prepare())
+    {
+      Query_arena *arena, backup;
+      arena= 0;
+      if (thd->is_first_query_execution())
+        arena= thd->activate_stmt_arena_if_needed(&backup);
+      new_ref= direct_ref ?
+                new (thd->mem_root) Item_direct_ref(thd, ref->context,
+                                                    item_ref, ref->table_name,
+                                                    &ref->field_name,
+                                                    ref->alias_name_used) :
+                new (thd->mem_root) Item_ref(thd, ref->context,
+                                             item_ref, ref->table_name,
+                                             &ref->field_name,
+                                             ref->alias_name_used);
+      if (arena)
+        thd->restore_active_arena(arena, &backup);
+      if (!new_ref)
+        return TRUE;
+      if (thd->is_first_query_execution())
+        ref->outer_ref= new_ref;
+      else
+        thd->change_item_tree(&ref->outer_ref, new_ref);
+      ref->ref= &ref->outer_ref;
+    }
 
     if (ref->fix_fields_if_needed(thd, 0))
       return TRUE;
@@ -747,8 +764,6 @@ setup_without_group(THD *thd, Ref_ptr_array ref_pointer_array,
   {
     if (!res && *conds && ! thd->lex->current_select->merged_into)
       (*reserved)= (*conds)->exists2in_reserved_items();
-    else
-      (*reserved)= 0;
   }
 
   /* it's not wrong to have non-aggregated columns in a WHERE */
@@ -1321,6 +1336,9 @@ JOIN::prepare(TABLE_LIST *tables_init,
   if (select_lex->setup_ref_array(thd, real_og_num))
     DBUG_RETURN(-1);
 
+  if (!thd->is_first_query_execution() &&
+      !thd->stmt_arena->is_stmt_prepare())
+    copy_ref_ptr_array(ref_ptr_array_slice(0), select_lex->save_ref_ptrs);
   ref_ptrs= ref_ptr_array_slice(0);
   
   enum_parsing_place save_place=
@@ -1438,6 +1456,37 @@ JOIN::prepare(TABLE_LIST *tables_init,
   if (res)
     DBUG_RETURN(res);
 
+  if (thd->is_first_query_execution() ||
+      thd->lex->is_ps_or_view_context_analysis())
+  {
+    if (fix_inner_refs(thd, all_fields, select_lex, ref_ptrs))
+      DBUG_RETURN(-1);
+    if (thd->is_first_query_execution() &&
+        all_fields.elements > select_lex->item_list.elements)
+      select_lex->fields_added_by_fix_inner_refs=
+	all_fields.elements - select_lex->item_list.elements;
+  }
+  else
+  {
+    select_lex->uncacheable= select_lex->save_uncacheable;
+    select_lex->master_unit()->uncacheable= select_lex->save_master_uncacheable;
+  }
+
+  {
+     Item *item;
+     List_iterator<Item> it(fields_list);
+     while ((item= it++))
+     {
+       if (&all_fields &&
+            ((item->with_sum_func() && item->type() != Item::SUM_FUNC_ITEM) ||
+              item->with_window_func))
+       {
+         item->split_sum_func(thd, select_lex->ref_pointer_array, all_fields,
+                              SPLIT_SUM_SELECT);
+       }
+     }
+  }
+
   if (order)
   {
     bool real_order= FALSE;
@@ -1486,10 +1535,6 @@ JOIN::prepare(TABLE_LIST *tables_init,
     } while (item_sum != end);
   }
 
-  if (select_lex->inner_refs_list.elements &&
-      fix_inner_refs(thd, all_fields, select_lex, ref_ptrs))
-    DBUG_RETURN(-1);
-
   if (group_list)
   {
     /*
@@ -1518,18 +1563,21 @@ JOIN::prepare(TABLE_LIST *tables_init,
     Check if there are references to un-aggregated columns when computing 
     aggregate functions with implicit grouping (there is no GROUP BY).
   */
-  if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY && !group_list &&
-      !(select_lex->master_unit()->item &&
-        select_lex->master_unit()->item->is_in_predicate() &&
-        ((Item_in_subselect*)select_lex->master_unit()->item)->
-        test_set_strategy(SUBS_MAXMIN_INJECTED)) &&
-      select_lex->non_agg_field_used() &&
-      select_lex->agg_func_used())
+  if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY && !group_list)
   {
-    my_message(ER_MIX_OF_GROUP_FUNC_AND_FIELDS,
-               ER_THD(thd, ER_MIX_OF_GROUP_FUNC_AND_FIELDS), MYF(0));
-    DBUG_RETURN(-1);
+    Item_subselect *subs= select_lex->master_unit()->item;
+    if (!(subs && subs->substype() == Item_subselect::SINGLEROW_SUBS &&
+	  ((Item_singlerow_subselect *) subs)->
+            test_set_strategy(SUBS_MAXMIN_INJECTED)) &&
+        select_lex->non_agg_field_used() &&
+        select_lex->agg_func_used())
+    {
+      my_message(ER_MIX_OF_GROUP_FUNC_AND_FIELDS,
+                 ER_THD(thd, ER_MIX_OF_GROUP_FUNC_AND_FIELDS), MYF(0));
+      DBUG_RETURN(-1);
+    }
   }
+
   {
     /* Caclulate the number of groups */
     send_group_parts= 0;
@@ -1599,6 +1647,7 @@ JOIN::prepare(TABLE_LIST *tables_init,
 err:
   delete procedure;                /* purecov: inspected */
   procedure= 0;
+  select_lex->save_ref_ptrs_if_needed(thd);
   DBUG_RETURN(-1);                /* purecov: inspected */
 }
 
@@ -1917,7 +1966,6 @@ JOIN::optimize_inner()
   Json_writer_object trace_prepare(thd, "join_optimization");
   trace_prepare.add_select_number(select_lex->select_number);
   Json_writer_array trace_steps(thd, "steps");
-
   /*
     Needed in case optimizer short-cuts,
     set properly in make_aggr_tables_info()
@@ -1937,7 +1985,12 @@ JOIN::optimize_inner()
     DBUG_RETURN(1);
 
   // Update used tables after all handling derived table procedures
+#if 0
   select_lex->update_used_tables();
+#else
+  if (select_lex->first_cond_optimization)
+    select_lex->update_used_tables();
+#endif
 
   /*
     In fact we transform underlying subqueries after their 'prepare' phase and
@@ -1958,7 +2011,7 @@ JOIN::optimize_inner()
   }
   */
 
-  if (transform_max_min_subquery())
+  if (select_lex->first_cond_optimization && transform_max_min_subquery())
     DBUG_RETURN(1); /* purecov: inspected */
 
   if (select_lex->first_cond_optimization)
@@ -2043,6 +2096,11 @@ JOIN::optimize_inner()
 
     if (arena)
       thd->restore_active_arena(arena, &backup);
+
+    if (select_lex->save_ref_ptrs_after_persistent_rewrites(thd))
+      DBUG_RETURN(1);
+    select_lex->save_uncacheable= select_lex->uncacheable;
+    select_lex->save_master_uncacheable= select_lex->master_unit()->uncacheable;
   }
 
   if (optimize_constant_subqueries())
@@ -4763,6 +4821,7 @@ mysql_select(THD *thd,
                                 conds, og_num, order, false, group, having,
                                 proc_param, select_lex, unit)))
 	{
+          select_lex->save_ref_ptrs_if_needed(thd);
 	  goto err;
 	}
       }
@@ -4790,6 +4849,7 @@ mysql_select(THD *thd,
                             conds, og_num, order, false, group, having, proc_param,
                             select_lex, unit)))
     {
+      select_lex->save_ref_ptrs_if_needed(thd);
       goto err;
     }
   }
@@ -24863,6 +24923,12 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array,
     if (found_item != not_found_item)
     {
       order->item= &ref_pointer_array[all_fields.elements-1-counter];
+      if (!thd->is_first_query_execution() &&
+          !thd->lex->is_ps_or_view_context_analysis())
+      {
+        if ((*order->item)->fix_fields_if_needed_for_order_by(thd, order->item))
+          return TRUE;
+      }
       order->in_field_list= 0;
       return FALSE;
     }
@@ -24903,7 +24969,10 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array,
   if (order_item->type() == Item::SUM_FUNC_ITEM)
     ((Item_sum *)order_item)->ref_by= all_fields.head_ref();
 
+#if 1
   order->item= &ref_pointer_array[el];
+#else
+#endif
   return FALSE;
 }
 

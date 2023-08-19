@@ -3967,12 +3967,16 @@ void Query_arena::free_items()
   Item *next;
   DBUG_ENTER("Query_arena::free_items");
   /* This works because items are allocated on THD::mem_root */
+  for (next= free_list; next; next= next->next)
+  {
+    next->cleanup();
+  }
   for (; free_list; free_list= next)
   {
     next= free_list->next;
     DBUG_ASSERT(free_list != next);
     DBUG_PRINT("info", ("free item: %p", free_list));
-    free_list->delete_self();
+    delete(free_list);
   }
   /* Postcondition: free_list is 0 */
   DBUG_VOID_RETURN;
