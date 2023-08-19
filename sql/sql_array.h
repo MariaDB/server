@@ -137,7 +137,7 @@ public:
   */
   Elem& at(size_t idx)
   {
-    DBUG_ASSERT(idx < array.elements);
+    DBUG_ASSERT(idx < max_size());
     return *(((Elem*)array.buffer) + idx);
   }
   /// Const variant of at(), which cannot change data
@@ -171,6 +171,8 @@ public:
   }
 
   size_t size() const { return array.elements; }
+
+  size_t max_size() const { return array.max_element; }
 
   const Elem *end() const
   {

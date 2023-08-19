@@ -1055,7 +1055,7 @@ PSI_cond_key key_BINLOG_COND_xid_list,
   key_BINLOG_COND_queue_busy;
 PSI_cond_key key_RELAYLOG_COND_relay_log_updated,
   key_RELAYLOG_COND_bin_log_updated, key_COND_wakeup_ready,
-  key_COND_wait_commit;
+  key_COND_wait_commit, key_COND_wait_commit_dep;
 PSI_cond_key key_RELAYLOG_COND_queue_busy;
 PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
 PSI_cond_key key_COND_rpl_thread_queue, key_COND_rpl_thread,
@@ -1083,6 +1083,7 @@ static PSI_cond_info all_server_conds[]=
   { &key_RELAYLOG_COND_queue_busy, "MYSQL_RELAY_LOG::COND_queue_busy", 0},
   { &key_COND_wakeup_ready, "THD::COND_wakeup_ready", 0},
   { &key_COND_wait_commit, "wait_for_commit::COND_wait_commit", 0},
+  { &key_COND_wait_commit, "wait_for_commit::COND_wait_commit_dep", 0},
   { &key_COND_cache_status_changed, "Query_cache::COND_cache_status_changed", 0},
   { &key_COND_manager, "COND_manager", PSI_FLAG_GLOBAL},
   { &key_COND_server_started, "COND_server_started", PSI_FLAG_GLOBAL},
@@ -9224,6 +9225,7 @@ PSI_stage_info stage_waiting_for_deadlock_kill= { 0, "Waiting for parallel repli
 PSI_stage_info stage_starting= { 0, "starting", 0};
 PSI_stage_info stage_waiting_for_flush= { 0, "Waiting for non trans tables to be flushed", 0};
 PSI_stage_info stage_waiting_for_ddl= { 0, "Waiting for DDLs", 0};
+PSI_stage_info stage_waiting_for_prior_xa_transaction= { 0, "Waiting for prior xa transaction", 0};
 
 PSI_memory_key key_memory_DATE_TIME_FORMAT;
 PSI_memory_key key_memory_DDL_LOG_MEMORY_ENTRY;

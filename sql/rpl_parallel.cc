@@ -9,6 +9,8 @@
 #ifdef WITH_WSREP
 #include "wsrep_trans_observer.h"
 #endif
+#include <algorithm>
+using std::max;
 
 /*
   Code for optional parallel execution of replicated events on the slave.
@@ -760,7 +762,8 @@ convert_kill_to_deadlock_error(rpl_group_info *rgi)
     return;
   err_code= thd->get_stmt_da()->sql_errno();
   if ((rgi->speculation == rpl_group_info::SPECULATE_OPTIMISTIC &&
-       err_code != ER_PRIOR_COMMIT_FAILED) ||
+       (err_code != ER_PRIOR_COMMIT_FAILED &&
+        err_code != ER_XAER_NOTA)) ||
       ((err_code == ER_QUERY_INTERRUPTED || err_code == ER_CONNECTION_KILLED) &&
        rgi->killed_for_retry))
   {
@@ -2364,16 +2367,9 @@ rpl_parallel_entry::choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
   idx= rpl_thread_idx;
   if (gtid_ev)
   {
-    if (gtid_ev->flags2 &
-        (Gtid_log_event::FL_COMPLETED_XA | Gtid_log_event::FL_PREPARED_XA))
-      idx= my_hash_sort(&my_charset_bin, gtid_ev->xid.key(),
-                        gtid_ev->xid.key_length()) % rpl_thread_max;
-    else
-    {
-      ++idx;
-      if (idx >= rpl_thread_max)
-        idx= 0;
-    }
+    ++idx;
+    if (idx >= rpl_thread_max)
+      idx= 0;
     rpl_thread_idx= idx;
   }
   thr= rpl_threads[idx];
@@ -2467,6 +2463,7 @@ free_rpl_parallel_entry(void *element)
   }
   mysql_cond_destroy(&e->COND_parallel_entry);
   mysql_mutex_destroy(&e->LOCK_parallel_entry);
+  e->concurrent_xaps_window.~Dynamic_array();
   my_free(e);
 }
 
@@ -2521,6 +2518,19 @@ rpl_parallel::find(uint32 domain_id)
     e->domain_id= domain_id;
     e->stop_on_error_sub_id= (uint64)ULONGLONG_MAX;
     e->pause_sub_id= (uint64)ULONGLONG_MAX;
+
+    e->concurrent_xaps_window.init((PSI_memory_key) PSI_INSTRUMENT_ME,
+                                   max((decltype(e->rpl_thread_max)) 2,
+                                        2*e->rpl_thread_max));
+    e->cxap_lhs= e->cxap_rhs= 0;
+
+    /*
+      0 initialize each element
+    */
+    for (size_t i= 0; i < e->concurrent_xaps_window.max_size(); i++)
+    {
+      e->concurrent_xaps_window.at(i)= {0, 0};
+    }
     mysql_mutex_init(key_LOCK_parallel_entry, &e->LOCK_parallel_entry,
                      MY_MUTEX_INIT_FAST);
     mysql_cond_init(key_COND_parallel_entry, &e->COND_parallel_entry, NULL);
@@ -2798,6 +2808,90 @@ abandon_worker_thread(THD *thd, rpl_parallel_thread *cur_thread,
   mysql_cond_signal(&cur_thread->COND_rpl_thread);
 }
 
+/**
+  Check the concurrency status of @c xid with ones in progress.
+  Any new @c xid of XA-prepare (@c is_xap is true then) is appended to
+  a sliding window designed as circular buffer. Through search in the window
+  the return result is computed.
+
+  @param  e      parallel entry pointer
+  @param  xid    a pointer to the xid of either XA-prepare of XA-"complete"
+  @param  is_xap
+                 true when xid belongs to XA-prepare
+  @return true   when there exists a duplicate xid hash value,
+          false  otherwise.
+*/
+static bool
+handle_xa_prepera_duplicate_xid(rpl_parallel_entry *e, XID *xid, bool is_xap)
+{
+  DBUG_ASSERT(e->current_group_info ||
+              (e->count_queued_event_groups == 0 &&
+               e->cxap_lhs == e->cxap_rhs && e->cxap_lhs == 0));
+  DBUG_ASSERT(xid);
+  DBUG_ASSERT(!xid->is_null());
+  DBUG_ASSERT(xid->key());
+  DBUG_ASSERT(xid->key_length());
+
+  uint64 curr_event_count= e->count_queued_event_groups;
+  uint32 i;
+  bool rc= false;
+  /*
+    We've seen XAP's before, so move the LHS up to a relevant spot.
+    LHS = RHS indicates the empty buffer (which implies RHS is exclusive "edge"
+    of the window.
+    Otherwise RHS always points to a free cell of which one at least must
+    exist at this point.
+    While transaction disribution is Round-robin, potential conflicts with
+    the current input xid can come only from
+    the preceeding 2*|W| - 1 xids, the 2*|W|th in the past is safe.
+  */
+  for (i= e->cxap_lhs; i != e->cxap_rhs;
+       i= (i+1) % (e->concurrent_xaps_window.max_size()))
+  {
+    uint64 old_event_count= e->concurrent_xaps_window.at(i).second;
+    uint64 queued_event_diff= curr_event_count - old_event_count;
+    if (queued_event_diff >= e->rpl_thread_max)
+    {
+      /*
+        Squeeze the window from the left
+        as this XAP can't run in parallel with us.
+      */
+      e->cxap_lhs= (i+1) % (e->concurrent_xaps_window.max_size());
+    }
+    else
+    {
+      // new LHS is determined
+      DBUG_ASSERT(e->cxap_lhs != e->cxap_rhs);
+      break;
+    }
+  }
+
+  std::size_t xid_hash=  std::hash<XID>{}(*xid);
+  for (; i != e->cxap_rhs; i= (i+1) % (e->concurrent_xaps_window.max_size()))
+  {
+    std::size_t old_xid_hash= e->concurrent_xaps_window.at(i).first;
+    if (old_xid_hash == xid_hash)
+    {
+      rc= true;
+      break;
+    }
+  }
+
+  // Add the XAP to the sliding window
+  if (is_xap)
+  {
+    e->concurrent_xaps_window.at(e->cxap_rhs).first= xid_hash;
+    e->concurrent_xaps_window.at(e->cxap_rhs).second= curr_event_count;
+    e->cxap_rhs= (e->cxap_rhs + 1) % (e->concurrent_xaps_window.max_size());
+    if (e->cxap_rhs == e->cxap_lhs)
+    {
+      // the entire array is full therefore the lhs has become stale
+      e->cxap_lhs= (e->cxap_lhs + 1) % (e->concurrent_xaps_window.max_size());
+    }
+  }
+
+  return rc;
+}
 
 /*
   do_event() is executed by the sql_driver_thd thread.
@@ -3046,6 +3140,18 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
     new_gco= true;
     force_switch_flag= 0;
     gco= e->current_gco;
+    /*
+      Take care of duplicate xids in XA-prepare, XA-"complete" should not
+      race its XA-prepare parent either. When the current transaction's xid
+      was seen and its transaction may still be in process this event group
+      gets flagged to wait for prior commits at the start of execution.
+    */
+    if ((gtid_flags & (Gtid_log_event::FL_PREPARED_XA |
+                       Gtid_log_event::FL_COMPLETED_XA)) &&
+        handle_xa_prepera_duplicate_xid(e, &gtid_ev->xid,
+                                        gtid_flags &
+                                        Gtid_log_event::FL_PREPARED_XA))
+      gtid_flags &= ~Gtid_log_event::FL_ALLOW_PARALLEL;
     if (likely(gco))
     {
       uint8 flags= gco->flags;

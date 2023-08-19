@@ -324,6 +324,14 @@ struct rpl_parallel_thread_pool {
   void release_thread(rpl_parallel_thread *rpt);
 };
 
+template <>
+struct std::hash<XID>
+{
+  std::size_t operator()(const XID& xid) const
+  {
+    return my_hash_sort(&my_charset_bin, xid.key(), xid.key_length());
+  }
+};
 
 struct rpl_parallel_entry {
   mysql_mutex_t LOCK_parallel_entry;
@@ -418,6 +426,14 @@ struct rpl_parallel_entry {
   uint64 count_committing_event_groups;
   /* The group_commit_orderer object for the events currently being queued. */
   group_commit_orderer *current_gco;
+
+  /*
+    Circular buffer of size slave_parallel_threads to hold XIDs of XA-prepare
+    group of events which may be processed concurrently.
+    See how handle_xa_prepera_duplicate_xid operates on it.
+  */
+  Dynamic_array<std::pair<std::size_t, uint32>> concurrent_xaps_window;
+  uint32 cxap_lhs, cxap_rhs;
 
   rpl_parallel_thread * choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
                                       PSI_stage_info *old_stage,

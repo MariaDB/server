@@ -101,6 +101,8 @@ static int binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
                               Log_event *end_ev, bool all, bool using_stmt,
                               bool using_trx, bool is_ro_1pc);
 
+XID_cache_element *xid_cache_search_maybe_wait(THD *thd);
+
 static const LEX_CSTRING write_error_msg=
     { STRING_WITH_LEN("error writing to the binary log") };
 
@@ -1751,7 +1753,8 @@ binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
 
   if ((using_stmt && !cache_mngr->stmt_cache.empty()) ||
       (using_trx && !cache_mngr->trx_cache.empty())   ||
-      thd->transaction->xid_state.is_explicit_XA())
+      (thd->transaction->xid_state.is_explicit_XA() ||
+       (thd->rgi_slave && thd->rgi_slave->is_async_xac)))
   {
     if (using_stmt && thd->binlog_flush_pending_rows_event(TRUE, FALSE))
       DBUG_RETURN(1);
@@ -1858,11 +1861,19 @@ binlog_commit_flush_trx_cache(THD *thd, bool all, binlog_cache_mngr *cache_mngr,
   if (thd->lex->sql_command == SQLCOM_XA_COMMIT &&
       thd->lex->xa_opt != XA_ONE_PHASE)
   {
-    DBUG_ASSERT(thd->transaction->xid_state.is_explicit_XA());
+    bool is_async_xac= (thd->rgi_slave && thd->rgi_slave->is_async_xac);
+    DBUG_ASSERT(thd->transaction->xid_state.is_explicit_XA() || is_async_xac);
     DBUG_ASSERT(thd->transaction->xid_state.get_state_code() ==
-                XA_PREPARED);
-
-    buflen= serialize_with_xid(thd->transaction->xid_state.get_xid(),
+                XA_PREPARED || is_async_xac);
+    DBUG_ASSERT(is_async_xac ||
+                thd->lex->xid->eq(thd->transaction->xid_state.get_xid()));
+    /*
+      While xid_state.get_xid() is a robust method to access `xid`
+      it can't be used on slave by the asynchronously running XA-"complete".
+      In the latter case thd->lex->xid is safely accessible.
+    */
+    buflen= serialize_with_xid(is_async_xac? thd->lex->xid :
+                               thd->transaction->xid_state.get_xid(),
                                buf, query, q_len);
   }
   Query_log_event end_evt(thd, buf, buflen, TRUE, TRUE, TRUE, 0);
@@ -1888,13 +1899,19 @@ binlog_rollback_flush_trx_cache(THD *thd, bool all,
   const size_t q_len= sizeof(query) - 1; // do not count trailing 0
   char buf[q_len + ser_buf_size]= "ROLLBACK";
   size_t buflen= sizeof("ROLLBACK") - 1;
+  bool is_async_xac= false;
 
-  if (thd->transaction->xid_state.is_explicit_XA())
+  if (thd->transaction->xid_state.is_explicit_XA() ||
+      (is_async_xac= (thd->rgi_slave && thd->rgi_slave->is_async_xac)))
   {
     /* for not prepared use plain ROLLBACK */
-    if (thd->transaction->xid_state.get_state_code() == XA_PREPARED)
-      buflen= serialize_with_xid(thd->transaction->xid_state.get_xid(),
+    if (thd->transaction->xid_state.get_state_code() == XA_PREPARED ||
+        is_async_xac)
+    {
+      buflen= serialize_with_xid(is_async_xac? thd->lex->xid :
+                                 thd->transaction->xid_state.get_xid(),
                                  buf, query, q_len);
+    }
   }
   Query_log_event end_evt(thd, buf, buflen, TRUE, TRUE, TRUE, 0);
 
@@ -1985,10 +2002,70 @@ inline bool is_preparing_xa(THD *thd)
 
 static int binlog_prepare(handlerton *hton, THD *thd, bool all)
 {
+  int rc;
+
   /* Do nothing unless the transaction is a user XA. */
-  return is_preparing_xa(thd) ? binlog_commit(thd, all, FALSE) : 0;
+  if (is_preparing_xa(thd))
+  {
+    DBUG_EXECUTE_IF(
+        "stop_before_binlog_prepare",
+        DBUG_ASSERT(!debug_sync_set_action(
+            thd, STRING_WITH_LEN("now WAIT_FOR binlog_xap"))););
+
+    rc= binlog_commit(thd, all, FALSE);
+
+#ifdef ENABLED_DEBUG_SYNC
+    DBUG_EXECUTE_IF(
+        "stop_after_binlog_prepare",
+        DBUG_ASSERT(!debug_sync_set_action(
+            thd,
+            STRING_WITH_LEN(
+                "now SIGNAL xa_prepare_binlogged WAIT_FOR continue_xap"))););
+#endif
+  }
+  else
+  {
+    rc= 0;
+  }
+
+  return rc;
 }
 
+
+/**
+  @c acquire_xid takes control by slave worker's THD over a xid record the system
+  xid cache. Implicitly provided @c xid corresponds to a being asynchronously
+  handled XA-"complete".
+
+  @param  thd   the thread handler
+  @return false as success, true otherwise
+*/
+static bool acquire_xid(THD *thd)
+{
+  bool rc= false;
+
+  if (thd->rgi_slave && thd->rgi_slave->is_async_xac &&
+      thd->rgi_slave->gtid_ev_flags2 & Gtid_log_event::FL_COMPLETED_XA)
+  {
+    XID_STATE &xid_state= thd->transaction->xid_state;
+
+    auto xs= xid_cache_search_maybe_wait(thd);
+    xid_state.xid_cache_element= xs;
+    if (!xs)
+    {
+      DBUG_ASSERT(thd->is_killed());
+
+      rpl_gtid *gtid= &thd->rgi_slave->current_gtid;
+      my_error(ER_XAER_RMERR, MYF(0));
+      sql_print_error("XA COMMIT of GTID %u-%u-%ll could not complete "
+                      "after having been logged into binary log",
+                      gtid->domain_id, gtid->server_id, gtid->seq_no);
+      rc= true;
+    }
+  }
+
+  return rc;
+}
 
 int binlog_commit_by_xid(handlerton *hton, XID *xid)
 {
@@ -1997,28 +2074,38 @@ int binlog_commit_by_xid(handlerton *hton, XID *xid)
 
   if (thd->is_current_stmt_binlog_disabled())
   {
-    return thd->wait_for_prior_commit();
+    rc= thd->wait_for_prior_commit();
   }
+  else
+  {
+    /* the asserted state can't be reachable with xa commit */
+    DBUG_ASSERT(!thd->get_stmt_da()->is_error() ||
+                thd->get_stmt_da()->sql_errno() != ER_XA_RBROLLBACK);
+    /*
+      This is a recovered user xa transaction commit.
+      Create a "temporary" binlog transaction to write the commit record
+      into binlog.
+    */
+    THD_TRANS trans;
+    trans.ha_list= NULL;
 
-  /* the asserted state can't be reachable with xa commit */
-  DBUG_ASSERT(!thd->get_stmt_da()->is_error() ||
-              thd->get_stmt_da()->sql_errno() != ER_XA_RBROLLBACK);
-  /*
-    This is a recovered user xa transaction commit.
-    Create a "temporary" binlog transaction to write the commit record
-    into binlog.
-  */
-  THD_TRANS trans;
-  trans.ha_list= NULL;
+    thd->ha_data[hton->slot].ha_info[1].register_ha(&trans, hton);
+    thd->ha_data[binlog_hton->slot].ha_info[1].set_trx_read_write();
+    (void) thd->binlog_setup_trx_data();
 
-  thd->ha_data[hton->slot].ha_info[1].register_ha(&trans, hton);
-  thd->ha_data[binlog_hton->slot].ha_info[1].set_trx_read_write();
-  (void) thd->binlog_setup_trx_data();
+    DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_COMMIT);
 
-  DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_COMMIT);
-
-  rc= binlog_commit(thd, TRUE, FALSE);
-  thd->ha_data[binlog_hton->slot].ha_info[1].reset();
+    rc= binlog_commit(thd, TRUE, FALSE);
+    thd->ha_data[binlog_hton->slot].ha_info[1].reset();
+  }
+  if (!rc)
+  {
+    rc= acquire_xid(thd);
+  }
+  if (thd->is_current_stmt_binlog_disabled())
+  {
+    thd->wakeup_subsequent_commits(rc);
+  }
 
   return rc;
 }
@@ -2031,33 +2118,54 @@ int binlog_rollback_by_xid(handlerton *hton, XID *xid)
 
   if (thd->is_current_stmt_binlog_disabled())
   {
-    return thd->wait_for_prior_commit();
+    rc= thd->wait_for_prior_commit();
   }
+  else if (thd->get_stmt_da()->is_error() &&
+           thd->get_stmt_da()->sql_errno() == ER_XA_RBROLLBACK)
+    rc= true;
+  else
+  {
+    THD_TRANS trans;
+    trans.ha_list= NULL;
 
-  if (thd->get_stmt_da()->is_error() &&
-      thd->get_stmt_da()->sql_errno() == ER_XA_RBROLLBACK)
-    return rc;
+    thd->ha_data[hton->slot].ha_info[1].register_ha(&trans, hton);
+    thd->ha_data[hton->slot].ha_info[1].set_trx_read_write();
+    (void) thd->binlog_setup_trx_data();
 
-  THD_TRANS trans;
-  trans.ha_list= NULL;
+    DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_ROLLBACK ||
+                (thd->transaction->xid_state.get_state_code() == XA_ROLLBACK_ONLY));
 
-  thd->ha_data[hton->slot].ha_info[1].register_ha(&trans, hton);
-  thd->ha_data[hton->slot].ha_info[1].set_trx_read_write();
-  (void) thd->binlog_setup_trx_data();
-
-  DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_ROLLBACK ||
-              (thd->transaction->xid_state.get_state_code() == XA_ROLLBACK_ONLY));
-
-  rc= binlog_rollback(hton, thd, TRUE);
-  thd->ha_data[hton->slot].ha_info[1].reset();
+    rc= binlog_rollback(hton, thd, TRUE);
+    thd->ha_data[hton->slot].ha_info[1].reset();
+  }
+  if (!rc)
+  {
+    rc= acquire_xid(thd);
+  }
+  if (thd->is_current_stmt_binlog_disabled())
+  {
+    thd->wakeup_subsequent_commits(rc);
+  }
 
   return rc;
 }
 
-
+/**
+  @param  thd    thread handler
+  @return true   when thd carries an XA transaction in prepared state,
+                 or the XA transaction is being completed by
+                 asynchronously running "COMPLETE" by slave parallel thread;
+          false  otherwise
+*/
 inline bool is_prepared_xa(THD *thd)
 {
-  return thd->transaction->xid_state.is_explicit_XA() &&
+  bool is_async_xac= (thd->rgi_slave && thd->rgi_slave->is_async_xac);
+  DBUG_ASSERT(!is_async_xac ||
+              thd->lex->sql_command == SQLCOM_XA_ROLLBACK ||
+              thd->lex->sql_command == SQLCOM_XA_COMMIT);
+
+  return is_async_xac ? true :
+    thd->transaction->xid_state.is_explicit_XA() &&
     thd->transaction->xid_state.get_state_code() == XA_PREPARED;
 }
 
@@ -2185,7 +2293,9 @@ int binlog_commit(THD *thd, bool all, bool ro_1pc)
   }
 
   if (cache_mngr->trx_cache.empty() &&
-      (thd->transaction->xid_state.get_state_code() != XA_PREPARED ||
+      ((thd->transaction->xid_state.get_state_code() != XA_PREPARED &&
+       !(thd->rgi_slave && thd->rgi_slave->is_parallel_exec &&
+         thd->lex->sql_command == SQLCOM_XA_COMMIT)) ||
        !(thd->ha_data[binlog_hton->slot].ha_info[1].is_started() &&
          thd->ha_data[binlog_hton->slot].ha_info[1].is_trx_read_write())))
   {
@@ -2279,7 +2389,9 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
   }
 
   if (!cache_mngr->trx_cache.has_incident() && cache_mngr->trx_cache.empty() &&
-      (thd->transaction->xid_state.get_state_code() != XA_PREPARED ||
+      ((thd->transaction->xid_state.get_state_code() != XA_PREPARED &&
+        !(thd->rgi_slave && thd->rgi_slave->is_parallel_exec &&
+          thd->lex->sql_command == SQLCOM_XA_ROLLBACK)) ||
        !(thd->ha_data[binlog_hton->slot].ha_info[1].is_started() &&
          thd->ha_data[binlog_hton->slot].ha_info[1].is_trx_read_write())))
   {
@@ -8382,7 +8494,9 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       */
       DBUG_ASSERT(!cache_mngr->stmt_cache.empty() ||
                   !cache_mngr->trx_cache.empty()  ||
-                  current->thd->transaction->xid_state.is_explicit_XA());
+                  (current->thd->transaction->xid_state.is_explicit_XA() ||
+                   (current->thd->rgi_slave &&
+                    current->thd->rgi_slave->is_async_xac)));
 
       if (unlikely((current->error= write_transaction_or_stmt(current,
                                                               commit_id))))
@@ -10510,13 +10624,20 @@ int TC_LOG_BINLOG::unlog_xa_prepare(THD *thd, bool all)
 
   binlog_cache_mngr *cache_mngr= thd->binlog_setup_trx_data();
   int cookie= 0;
+  int rc= 0;
+
+  if (thd->rgi_slave && thd->is_current_stmt_binlog_disabled())
+  {
+    rc= thd->wait_for_prior_commit();
+    if (rc == 0)
+      thd->wakeup_subsequent_commits(rc);
+    return rc;
+  }
 
   if (!cache_mngr->need_unlog)
   {
     Ha_trx_info *ha_info;
     uint rw_count= ha_count_rw_all(thd, &ha_info);
-    bool rc= false;
-
     /*
       This transaction has not been binlogged as indicated by need_unlog.
       Such exceptional cases include transactions with no effect to engines,

@@ -7960,6 +7960,7 @@ wait_for_commit::wait_for_commit()
 {
   mysql_mutex_init(key_LOCK_wait_commit, &LOCK_wait_commit, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_COND_wait_commit, &COND_wait_commit, 0);
+  mysql_cond_init(key_COND_wait_commit_dep, &COND_wait_commit_dep, 0);
   reinit();
 }
 
@@ -7989,6 +7990,7 @@ wait_for_commit::~wait_for_commit()
 
   mysql_mutex_destroy(&LOCK_wait_commit);
   mysql_cond_destroy(&COND_wait_commit);
+  mysql_cond_destroy(&COND_wait_commit_dep);
 }
 
 

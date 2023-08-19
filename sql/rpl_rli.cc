@@ -2155,12 +2155,14 @@ rpl_group_info::reinit(Relay_log_info *rli)
   gtid_ignore_duplicate_state= GTID_DUPLICATE_NULL;
   speculation= SPECULATE_NO;
   commit_orderer.reinit();
+  is_async_xac= false;
 }
 
 rpl_group_info::rpl_group_info(Relay_log_info *rli)
   : thd(0), wait_commit_sub_id(0),
     wait_commit_group_info(0), parallel_entry(0),
-    deferred_events(NULL), m_annotate_event(0), is_parallel_exec(false)
+    deferred_events(NULL), m_annotate_event(0), is_parallel_exec(false),
+    is_async_xac(false)
 {
   reinit(rli);
   bzero(&current_gtid, sizeof(current_gtid));
@@ -2291,7 +2293,7 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
     if (thd->transaction->xid_state.is_explicit_XA() &&
         thd->transaction->xid_state.get_state_code() != XA_PREPARED)
       xa_trans_force_rollback(thd);
-
+    is_async_xac= false;
     thd->release_transactional_locks();
 
     if (thd == rli->sql_driver_thd)

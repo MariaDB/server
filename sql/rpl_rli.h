@@ -835,6 +835,14 @@ struct rpl_group_info
   };
   uchar killed_for_retry;
 
+  /*
+    When true indicates that the user xa transaction is going to
+    complete (with COMMIT or ROLLBACK) by the worker thread,
+    *while* another worker is still preparing it. Once the latter is done
+    the xid will be acquired and the flag gets reset.
+  */
+  bool is_async_xac;
+
   rpl_group_info(Relay_log_info *rli_);
   ~rpl_group_info();
   void reinit(Relay_log_info *rli);

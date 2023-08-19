@@ -2367,6 +2367,15 @@ struct wait_for_commit
     event group is fully done.
   */
   bool wakeup_blocked;
+  /*
+    The condition variable servers as a part of facilities to handle various
+    commit time additional dependency between groups of replication events, e.g
+    XA-Prepare -> XA-Commit, or XA-Prepare -> XA-Prepare all with the same xid.
+  */
+  mysql_cond_t COND_wait_commit_dep;
+#ifndef DBUG_OFF
+  bool debug_done;
+#endif
 
   void register_wait_for_prior_commit(wait_for_commit *waitee);
   int wait_for_prior_commit(THD *thd, bool allow_kill=true)

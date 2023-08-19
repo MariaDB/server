@@ -376,7 +376,7 @@ extern PSI_cond_key key_BINLOG_COND_xid_list, key_BINLOG_update_cond,
   key_COND_start_thread;
 extern PSI_cond_key key_RELAYLOG_COND_relay_log_updated,
   key_RELAYLOG_COND_bin_log_updated, key_COND_wakeup_ready,
-  key_COND_wait_commit;
+  key_COND_wait_commit, key_COND_wait_commit_dep;
 extern PSI_cond_key key_RELAYLOG_COND_queue_busy;
 extern PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
 extern PSI_cond_key key_COND_rpl_thread, key_COND_rpl_thread_queue,
@@ -679,7 +679,7 @@ extern PSI_stage_info stage_slave_background_process_request;
 extern PSI_stage_info stage_slave_background_wait_request;
 extern PSI_stage_info stage_waiting_for_deadlock_kill;
 extern PSI_stage_info stage_starting;
-
+extern PSI_stage_info stage_waiting_for_prior_xa_transaction;
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
 /**
   Statement instrumentation keys (sql).
