@@ -325,6 +325,7 @@ struct rpl_parallel_thread_pool {
 };
 
 
+class Sliding_window;
 struct rpl_parallel_entry {
   mysql_mutex_t LOCK_parallel_entry;
   mysql_cond_t COND_parallel_entry;
@@ -418,6 +419,13 @@ struct rpl_parallel_entry {
   uint64 count_committing_event_groups;
   /* The group_commit_orderer object for the events currently being queued. */
   group_commit_orderer *current_gco;
+
+  /*
+    Circular buffer of size slave_parallel_threads to hold XIDs of XA-prepare
+    group of events which may be processed concurrently.
+    See how handle_xa_prepera_duplicate_xid operates on it.
+  */
+  Sliding_window *xap_window;
 
   rpl_parallel_thread * choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
                                       PSI_stage_info *old_stage,

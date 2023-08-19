@@ -9,6 +9,7 @@
 #ifdef WITH_WSREP
 #include "wsrep_trans_observer.h"
 #endif
+#include <algorithm>
 
 /*
   Code for optional parallel execution of replicated events on the slave.
@@ -749,6 +750,10 @@ dbug_simulate_tmp_error(rpl_group_info *rgi, THD *thd)
   safe, we convert any error to a deadlock error, but then at retry we will
   wait for prior transactions to commit first, so that the retries can be
   done non-speculative.
+
+  XA-PREPARE (group of events) is vulnerable to ER_XAER_DUPID and if that
+  occurs in the optimistic mode it will be possibly (depends on the slave setting)
+  re-tried.
 */
 static void
 convert_kill_to_deadlock_error(rpl_group_info *rgi)
@@ -759,7 +764,8 @@ convert_kill_to_deadlock_error(rpl_group_info *rgi)
   if (!thd->get_stmt_da()->is_error())
     return;
   err_code= thd->get_stmt_da()->sql_errno();
-  if ((rgi->speculation == rpl_group_info::SPECULATE_OPTIMISTIC &&
+  if (((rgi->speculation == rpl_group_info::SPECULATE_OPTIMISTIC ||
+        rgi->gtid_ev_flags2 & Gtid_log_event::FL_PREPARED_XA) &&
        err_code != ER_PRIOR_COMMIT_FAILED) ||
       ((err_code == ER_QUERY_INTERRUPTED || err_code == ER_CONNECTION_KILLED) &&
        rgi->killed_for_retry))
@@ -1418,6 +1424,8 @@ handle_rpl_parallel_thread(void *arg)
           particular event group should not run in parallel with what came
           before, then wait now for the prior transaction to complete its
           commit.
+          XA transactions can be tagged with SPECULATE_WAIT in other than
+          the optimistic mode.
         */
         if (rgi->speculation == rpl_group_info::SPECULATE_WAIT &&
             (err= thd->wait_for_prior_commit()))
@@ -2363,16 +2371,9 @@ rpl_parallel_entry::choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
   idx= rpl_thread_idx;
   if (gtid_ev)
   {
-    if (gtid_ev->flags2 &
-        (Gtid_log_event::FL_COMPLETED_XA | Gtid_log_event::FL_PREPARED_XA))
-      idx= my_hash_sort(&my_charset_bin, gtid_ev->xid.key(),
-                        gtid_ev->xid.key_length()) % rpl_thread_max;
-    else
-    {
-      ++idx;
-      if (idx >= rpl_thread_max)
-        idx= 0;
-    }
+    ++idx;
+    if (idx >= rpl_thread_max)
+      idx= 0;
     rpl_thread_idx= idx;
   }
   thr= rpl_threads[idx];
@@ -2454,6 +2455,28 @@ rpl_parallel_entry::choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
   return thr;
 }
 
+/**
+   The class implements rpl_parallel_entry::xap_window.
+   See @c handle_xa_prepera_duplicate_xid its main user.
+*/
+class Sliding_window
+  :public Dynamic_array<std::pair<std::size_t, uint64>>
+{
+public:
+  uint32 cxap_lhs, cxap_rhs;
+  Sliding_window(PSI_memory_key psi_key, uint prealloc) :
+    Dynamic_array<std::pair<std::size_t, uint64>>(psi_key, prealloc)
+    {
+      DBUG_ASSERT(prealloc == max_size());
+
+      elements(max_size());
+      cxap_lhs= cxap_rhs= 0;
+      for (size_t i= 0; i < max_size(); i++)
+        at(i)= {0, 0};
+    }
+};
+
+
 static void
 free_rpl_parallel_entry(void *element)
 {
@@ -2466,6 +2489,7 @@ free_rpl_parallel_entry(void *element)
   }
   mysql_cond_destroy(&e->COND_parallel_entry);
   mysql_mutex_destroy(&e->LOCK_parallel_entry);
+  delete e->xap_window;
   my_free(e);
 }
 
@@ -2520,6 +2544,7 @@ rpl_parallel::find(uint32 domain_id)
     e->domain_id= domain_id;
     e->stop_on_error_sub_id= (uint64)ULONGLONG_MAX;
     e->pause_sub_id= (uint64)ULONGLONG_MAX;
+    e->xap_window= NULL;
     mysql_mutex_init(key_LOCK_parallel_entry, &e->LOCK_parallel_entry,
                      MY_MUTEX_INIT_FAST);
     mysql_cond_init(key_COND_parallel_entry, &e->COND_parallel_entry, NULL);
@@ -2786,6 +2811,107 @@ abandon_worker_thread(THD *thd, rpl_parallel_thread *cur_thread,
   mysql_cond_signal(&cur_thread->COND_rpl_thread);
 }
 
+/**
+  Check the concurrency status of an input @c xid with ones
+  that are already in progress.
+  Any new @c xid of XA-prepare (@c is_xap is true then) is appended to
+  a sliding window. It's released "naturally" as the window is designed
+  as circular buffer.
+  The size of the window array is determined by the fact that due to
+  the round-robin distribution the maximum range of transactions prone to
+  a (execution time) conflict on a xid value is the number of workers.
+
+  The function returns the result of the search of the input xid.
+
+  @param  e      parallel entry pointer
+  @param  xid    a pointer to the xid of either XA-prepare of XA-"complete"
+  @param  is_xap
+                 true when xid belongs to XA-prepare
+  @return true   when there exists a duplicate xid hash value,
+          false  otherwise.
+*/
+static bool
+handle_xa_prepare_duplicate_xid(rpl_parallel_entry *e, XID *xid, bool is_xap)
+{
+  if (!e->xap_window)
+    e->xap_window=
+      new Sliding_window((PSI_memory_key) PSI_INSTRUMENT_ME,
+                         std::max((decltype(e->rpl_thread_max)) 2,
+                                  e->rpl_thread_max));
+
+  DBUG_ASSERT(e->current_group_info ||
+              (e->count_queued_event_groups == 0 &&
+               e->xap_window->cxap_lhs == e->xap_window->cxap_rhs &&
+               e->xap_window->cxap_lhs == 0));
+  DBUG_ASSERT(xid);
+  DBUG_ASSERT(!xid->is_null());
+  DBUG_ASSERT(xid->key());
+  DBUG_ASSERT(xid->key_length());
+
+  auto curr_event_count= e->count_queued_event_groups;
+  uint32 i;
+  bool rc= false;
+  /*
+    Before to search the window it is first updated to remove stale
+    elements. The stale ones are elements with (group) event count number
+    less than the current one by |W|-1.
+    Indeed while transaction disribution is Round-Robin, potential
+    conflicts with the current input xid can come only from the range
+    of the preceeding |W| - 1 xids, the |W|th in the past is safe so stale.
+
+    At squeezing (to the right) observe LHS = RHS indicates the empty
+    buffer, as RHS is an outside of window, its "frame" (LHS then
+    could be seen as an "internal" frame).
+  */
+  for (i= e->xap_window->cxap_lhs; i != e->xap_window->cxap_rhs;
+       i= (i+1) % (e->xap_window->max_size()))
+  {
+    auto old_event_count= e->xap_window->at(i).second;
+    auto queued_event_diff= curr_event_count - old_event_count;
+    if (queued_event_diff >= e->rpl_thread_max)
+    {
+      /*
+        Squeeze the window from the left
+        as this XAP can't run in parallel with us.
+      */
+      e->xap_window->cxap_lhs= (i+1) % (e->xap_window->max_size());
+    }
+    else
+    {
+      // new LHS is determined
+      DBUG_ASSERT(e->xap_window->cxap_lhs != e->xap_window->cxap_rhs);
+      break;
+    }
+  }
+  std::size_t xid_hash=
+    my_hash_sort(&my_charset_bin, xid->key(), xid->key_length());
+  for (; i != e->xap_window->cxap_rhs; i= (i+1) % (e->xap_window->max_size()))
+  {
+    std::size_t old_xid_hash= e->xap_window->at(i).first;
+    if (old_xid_hash == xid_hash)
+    {
+      rc= true;
+      break;
+    }
+  }
+
+  // Add the XAP to the sliding window
+  if (is_xap)
+  {
+    e->xap_window->at(e->xap_window->cxap_rhs).first= xid_hash;
+    e->xap_window->at(e->xap_window->cxap_rhs).second= curr_event_count;
+    e->xap_window->cxap_rhs= (e->xap_window->cxap_rhs + 1) %
+      (e->xap_window->max_size());
+    if (e->xap_window->cxap_rhs == e->xap_window->cxap_lhs)
+    {
+      // the entire array is full therefore the lhs has become stale
+      e->xap_window->cxap_lhs= (e->xap_window->cxap_lhs + 1) %
+        (e->xap_window->max_size());
+    }
+  }
+
+  return rc;
+}
 
 /*
   do_event() is executed by the sql_driver_thd thread.
@@ -3004,6 +3130,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
     group_commit_orderer *gco;
     uint8 force_switch_flag;
     enum rpl_group_info::enum_speculation speculation;
+    bool is_dup_xac= false; // duplicate xid status of XA
 
     if (!(rgi= cur_thread->get_rgi(rli, gtid_ev, e, event_size)))
     {
@@ -3034,6 +3161,19 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
     new_gco= true;
     force_switch_flag= 0;
     gco= e->current_gco;
+    /*
+      Take care of duplicate xids in multiple XA_prepare_log_event:s,
+      XA-"complete" should not race its XA-prepare parent either.
+      When the current transaction's xid has been seen and its transaction may
+      still be in process this event group gets flagged for synchronization, i.e
+      to wait for prior commits at its execution start.
+    */
+    if ((gtid_flags & (Gtid_log_event::FL_PREPARED_XA |
+                       Gtid_log_event::FL_COMPLETED_XA)) &&
+        (is_dup_xac= handle_xa_prepare_duplicate_xid(e, &gtid_ev->xid,
+                                                     gtid_flags &
+                                                     Gtid_log_event::FL_PREPARED_XA)))
+      gtid_flags &= ~Gtid_log_event::FL_ALLOW_PARALLEL;
     if (likely(gco))
     {
       uint8 flags= gco->flags;
@@ -3053,6 +3193,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
 
       if (!(flags & group_commit_orderer::MULTI_BATCH))
       {
+        DBUG_ASSERT(!is_dup_xac);
         /*
           Still the same batch of event groups that group-committed together
           on the master, so we can run in parallel.
@@ -3102,7 +3243,14 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
       if (gtid_flags & Gtid_log_event::FL_DDL)
         force_switch_flag= group_commit_orderer::FORCE_SWITCH;
     }
-    rgi->speculation= speculation;
+    /*
+      When DDL flagged XA sees an ongoing one with "duplicate" xid
+      its execution will have to wait for the xid owner full completion.
+      SPECULATE_WAIT provides that, regardless of the parallel mode.
+    */
+    rgi->speculation=
+      is_dup_xac && (gco->flags & group_commit_orderer::FORCE_SWITCH) ?
+      rpl_group_info::SPECULATE_WAIT : speculation;
 
     if (gtid_flags & Gtid_log_event::FL_GROUP_COMMIT_ID)
       e->last_commit_id= gtid_ev->commit_id;

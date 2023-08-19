@@ -1,6 +1,7 @@
 include/master-slave.inc
 [connection master]
 connection slave;
+set statement sql_log_bin=0 for call mtr.add_suppression("Commit failed due to failure of an earlier commit on which this one depends");
 include/stop_slave.inc
 set @save_par_thds= @@global.slave_parallel_threads;
 set @save_strict_mode= @@global.gtid_strict_mode;
@@ -42,7 +43,7 @@ connection master;
 drop table t1;
 connection slave;
 # TODO: Remove after fixing MDEV-21777
-set @@global.gtid_slave_pos= "0-1-100";
+set @@global.gtid_slave_pos= "0-1-101";
 set @@global.slave_parallel_threads= @save_par_thds;
 set @@global.gtid_strict_mode= @save_strict_mode;
 set @@global.innodb_lock_wait_timeout= @save_innodb_lock_wait_timeout;

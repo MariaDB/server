@@ -9243,6 +9243,7 @@ PSI_stage_info stage_waiting_for_deadlock_kill= { 0, "Waiting for parallel repli
 PSI_stage_info stage_starting= { 0, "starting", 0};
 PSI_stage_info stage_waiting_for_flush= { 0, "Waiting for non trans tables to be flushed", 0};
 PSI_stage_info stage_waiting_for_ddl= { 0, "Waiting for DDLs", 0};
+PSI_stage_info stage_waiting_for_prior_xa_transaction= { 0, "Waiting for prior xa transaction", 0};
 
 PSI_memory_key key_memory_DATE_TIME_FORMAT;
 PSI_memory_key key_memory_DDL_LOG_MEMORY_ENTRY;

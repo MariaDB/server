@@ -4179,9 +4179,6 @@ int XA_prepare_log_event::do_commit()
   thd->lex->xid= &xid;
   if (!one_phase)
   {
-    if ((res= thd->wait_for_prior_commit()))
-      return res;
-
     thd->lex->sql_command= SQLCOM_XA_PREPARE;
     res= trans_xa_prepare(thd);
   }

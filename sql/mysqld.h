@@ -679,7 +679,7 @@ extern PSI_stage_info stage_slave_background_process_request;
 extern PSI_stage_info stage_slave_background_wait_request;
 extern PSI_stage_info stage_waiting_for_deadlock_kill;
 extern PSI_stage_info stage_starting;
-
+extern PSI_stage_info stage_waiting_for_prior_xa_transaction;
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
 /**
   Statement instrumentation keys (sql).

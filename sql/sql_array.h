@@ -172,6 +172,8 @@ public:
 
   size_t size() const { return array.elements; }
 
+  size_t max_size() const { return array.max_element; }
+
   const Elem *end() const
   {
     return back() + 1;

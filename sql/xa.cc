@@ -22,7 +22,7 @@
 #include "my_cpu.h"
 #include <pfs_transaction_provider.h>
 #include <mysql/psi/mysql_transaction.h>
-
+#include "rpl_rli.h"  // rpl_group_info
 static bool slave_applier_reset_xa_trans(THD *thd);
 
 /***************************************************************************
@@ -79,6 +79,15 @@ public:
   uint rm_error;
   enum xa_states xa_state;
   XID xid;
+  /*
+    Parallel slave worker waiter mark. `c` in the name stands for complete.
+    XA-"COMPLETE" (-COMMIT or -ROLLBACK) can race with its XA-PREPARE parent
+    to reach to a point of xid acquisition while the xid is still on the parent.
+    In this arguably unlikely situation XA-"COMPLETE" worker stores its
+    THD::rgi_slave pointer for the parent use it to signal at the xid releasing.
+  */
+  std::atomic<rpl_group_info *> c_waiter;
+
   bool is_set(int32_t flag)
   { return m_state.load(std::memory_order_relaxed) & flag; }
   void set(int32_t flag)
@@ -134,6 +143,7 @@ public:
     element->rm_error= 0;
     element->xa_state= new_element->xa_state;
     element->xid.set(new_element->xid);
+    element->c_waiter= NULL;
     new_element->xid_cache_element= element;
   }
   static void lf_alloc_constructor(uchar *ptr)
@@ -262,6 +272,111 @@ static XID_cache_element *xid_cache_search(THD *thd, XID *xid)
     DEBUG_SYNC(thd, "xa_after_search");
   }
   return element;
+}
+
+const int SPIN_MAX= 20;
+
+/**
+  XA-"complete" run by parallel slave gets access to its xid.
+  Analogously to @c xid_cache_insert_maybe_wait, it is expecting, here its, xid
+  supplied through the THD argument, will be soon (the parent XAP has already
+  waken up transactions before the current one) released for acquisition.
+
+  @param  thd               thread handler
+  @return XID_cache_element pointer or NULL when the search is interruped
+                                      by kill.
+*/
+XID_cache_element * xid_cache_search_maybe_wait(THD* thd)
+{
+  if (thd->fix_xid_hash_pins())
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return NULL;
+  }
+
+  XID_cache_element *xs;
+  XID *xid= thd->lex->xid;
+  int i= 0;
+  do
+  {
+    if (!(xs= xid_cache_search(thd, thd->lex->xid)))
+      ut_delay(1 + i++);
+  }
+  while (!xs && i < SPIN_MAX);
+
+  if (!xs)
+  {
+    XID_cache_element *element=
+      (XID_cache_element*) lf_hash_search(&xid_cache, thd->xid_hash_pins,
+                                          xid->key(), xid->key_length());
+    if (element)
+    {
+      lf_hash_search_unpin(thd->xid_hash_pins);
+      if (!element->acquire_recovered())
+      {
+        rpl_group_info *exp= NULL, *waiter= thd->rgi_slave;
+        bool waiter_done= true;  // assumption
+
+
+        /*
+          Set itself to wait for xid owner while taking care of race with it on
+          marking the xid element. When the element is found to be marked not
+          by us that indicates xid has been released.
+        */
+        while (unlikely(!element->
+                        c_waiter.
+                        compare_exchange_weak(exp, waiter,
+                                              std::memory_order_acq_rel)))
+        {
+          if (exp)
+          {
+            DBUG_ASSERT(exp != waiter);
+            waiter= NULL; // notifier is seen
+
+            break;
+          }
+          else
+          {
+            (void) LF_BACKOFF();
+          }
+        }
+
+        if (waiter) // notifier was not seen
+        {
+          PSI_stage_info old_stage;
+          mysql_mutex_lock(&waiter->sleep_lock);
+          thd->ENTER_COND(&waiter->sleep_cond, &waiter->sleep_lock,
+                          &stage_waiting_for_prior_xa_transaction,
+                          &old_stage);
+          if (element->c_waiter.load(std::memory_order_relaxed) &&
+              likely(!thd->check_killed(1)))
+            mysql_cond_wait(&waiter->sleep_cond,
+                            &waiter->sleep_lock);
+
+          if (element->c_waiter.load(std::memory_order_relaxed))
+          {
+            waiter_done= false;
+            DBUG_ASSERT(thd->check_killed(1));
+          }
+          thd->EXIT_COND(&old_stage);
+        }
+
+        if (waiter_done &&
+            likely(element->is_set(XID_cache_element::RECOVERED |
+                                   XID_cache_element::ACQUIRED)))
+          xs= element;
+        else
+          goto end;
+      }
+      else
+      {
+        xs= element;
+      }
+    }
+  }
+
+end:
+  return xs;
 }
 
 
@@ -603,7 +718,14 @@ bool trans_xa_commit(THD *thd)
       DBUG_RETURN(TRUE);
     }
 
-    if (auto xs= xid_cache_search(thd, thd->lex->xid))
+    /*
+      Parallel slave may wait for xid which is about be released by
+      XA-PREPARE parent.
+    */
+    XID_cache_element *xs;
+    if ((xs= thd->rgi_slave && thd->rgi_slave->is_parallel_exec ?
+         xid_cache_search_maybe_wait(thd) :
+         xid_cache_search(thd, thd->lex->xid)))
     {
       bool xid_deleted= false;
       MDL_request mdl_request;
@@ -790,7 +912,10 @@ bool trans_xa_rollback(THD *thd)
       DBUG_RETURN(TRUE);
     }
 
-    if (auto xs= xid_cache_search(thd, thd->lex->xid))
+    XID_cache_element *xs;
+    if ((xs= thd->rgi_slave && thd->rgi_slave->is_parallel_exec ?
+         xid_cache_search_maybe_wait(thd) :
+         xid_cache_search(thd, thd->lex->xid)))
     {
       bool res;
       bool xid_deleted= false;
@@ -1146,7 +1271,7 @@ static bool slave_applier_reset_xa_trans(THD *thd)
   {
     thd->transaction->xid_state.set_error(ER_XA_RBROLLBACK);
   }
-  thd->transaction->xid_state.xid_cache_element->acquired_to_recovered();
+  auto element= thd->transaction->xid_state.xid_cache_element;
   thd->transaction->xid_state.xid_cache_element= 0;
 
   for (Ha_trx_info *ha_info= thd->transaction->all.ha_list, *ha_info_next;
@@ -1158,6 +1283,34 @@ static bool slave_applier_reset_xa_trans(THD *thd)
   thd->transaction->all.ha_list= 0;
 
   ha_close_connection(thd);
+  element->acquired_to_recovered();
+  if (thd->rgi_slave && thd->rgi_slave->is_parallel_exec)
+  {
+    /* make the xid available to a possible (xa-"complete") waiter */
+    rpl_group_info *xac_waiter= NULL,
+      *notifier= thd->rgi_slave;
+    while (unlikely(!element->
+                    c_waiter.compare_exchange_weak(xac_waiter, notifier,
+                                                   std::memory_order_acq_rel)))
+    {
+      if (xac_waiter)
+      {
+        break;
+      }
+      else
+      {
+        (void) LF_BACKOFF();
+      }
+    }
+    if (xac_waiter)
+    {
+      // unmark and signal
+      mysql_mutex_lock(&xac_waiter->sleep_lock);
+      element->c_waiter.store(NULL, std::memory_order_relaxed);
+      mysql_cond_signal(&xac_waiter->sleep_cond);
+      mysql_mutex_unlock(&xac_waiter->sleep_lock);
+    }
+  }
   thd->transaction->cleanup();
   thd->transaction->all.reset();
 

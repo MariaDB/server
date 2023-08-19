@@ -101,6 +101,8 @@ static int binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
                               Log_event *end_ev, bool all, bool using_stmt,
                               bool using_trx, bool is_ro_1pc);
 
+XID_cache_element *xid_cache_search_maybe_wait(THD *thd);
+
 static const LEX_CSTRING write_error_msg=
     { STRING_WITH_LEN("error writing to the binary log") };
 
@@ -1985,8 +1987,33 @@ inline bool is_preparing_xa(THD *thd)
 
 static int binlog_prepare(handlerton *hton, THD *thd, bool all)
 {
+  int rc;
+
   /* Do nothing unless the transaction is a user XA. */
-  return is_preparing_xa(thd) ? binlog_commit(thd, all, FALSE) : 0;
+  if (is_preparing_xa(thd))
+  {
+    DBUG_EXECUTE_IF(
+        "stop_before_binlog_prepare",
+        DBUG_ASSERT(!debug_sync_set_action(
+            thd, STRING_WITH_LEN("now WAIT_FOR binlog_xap"))););
+
+    rc= binlog_commit(thd, all, FALSE);
+
+#ifdef ENABLED_DEBUG_SYNC
+    DBUG_EXECUTE_IF(
+        "stop_after_binlog_prepare",
+        DBUG_ASSERT(!debug_sync_set_action(
+            thd,
+            STRING_WITH_LEN(
+                "now SIGNAL xa_prepare_binlogged WAIT_FOR continue_xap"))););
+#endif
+  }
+  else
+  {
+    rc= 0;
+  }
+
+  return rc;
 }
 
 
@@ -10548,13 +10575,20 @@ int TC_LOG_BINLOG::unlog_xa_prepare(THD *thd, bool all)
 
   binlog_cache_mngr *cache_mngr= thd->binlog_setup_trx_data();
   int cookie= 0;
+  int rc= 0;
+
+  if (thd->rgi_slave && thd->is_current_stmt_binlog_disabled())
+  {
+    rc= thd->wait_for_prior_commit();
+    if (rc == 0)
+      thd->wakeup_subsequent_commits(rc);
+    return rc;
+  }
 
   if (!cache_mngr->need_unlog)
   {
     Ha_trx_info *ha_info;
     uint rw_count= ha_count_rw_all(thd, &ha_info);
-    bool rc= false;
-
     /*
       This transaction has not been binlogged as indicated by need_unlog.
       Such exceptional cases include transactions with no effect to engines,
