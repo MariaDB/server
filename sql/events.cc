@@ -823,9 +823,6 @@ Events::show_create_event(THD *thd, const LEX_CSTRING *dbname,
 int
 Events::fill_schema_events(THD *thd, TABLE_LIST *tables, COND * /* cond */)
 {
-  const char *db= NULL;
-  int ret;
-  char db_tmp[SAFE_NAME_LEN];
   DBUG_ENTER("Events::fill_schema_events");
 
   /*
@@ -849,11 +846,11 @@ Events::fill_schema_events(THD *thd, TABLE_LIST *tables, COND * /* cond */)
     if (!is_infoschema_db(lexdb) && !is_perfschema_db(lexdb) &&
         check_access(thd, EVENT_ACL, lexdb->str, NULL, NULL, 0, 0))
       DBUG_RETURN(1);
-    db= normalize_db_name(lexdb->str, db_tmp, sizeof(db_tmp));
+    const DBNameBuffer db_tmp(*lexdb, lower_case_table_names);
+    const char *db= db_tmp.to_lex_cstring().str;
+    DBUG_RETURN(db_repository->fill_schema_events(thd, tables, db));
   }
-  ret= db_repository->fill_schema_events(thd, tables, db);
-
-  DBUG_RETURN(ret);
+  DBUG_RETURN(db_repository->fill_schema_events(thd, tables, NULL));
 }
 
 

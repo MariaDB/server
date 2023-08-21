@@ -744,10 +744,9 @@ mysql_create_db_internal(THD *thd, const LEX_CSTRING *db,
     DBUG_RETURN(-1);
   }
 
-  char db_tmp[SAFE_NAME_LEN+1];
-  const char *dbnorm= normalize_db_name(db->str, db_tmp, sizeof(db_tmp));
+  const DBNameBuffer db_tmp(*db, lower_case_table_names);
 
-  if (lock_schema_name(thd, dbnorm))
+  if (lock_schema_name(thd, db_tmp.to_lex_cstring().str))
     DBUG_RETURN(-1);
 
   /* Check directory */
@@ -1047,16 +1046,13 @@ mysql_rm_db_internal(THD *thd, const LEX_CSTRING *db, bool if_exists,
   TABLE_LIST *table;
   DDL_LOG_STATE ddl_log_state;
   Drop_table_error_handler err_handler;
-  LEX_CSTRING rm_db;
-  char db_tmp[SAFE_NAME_LEN+1];
-  const char *dbnorm;
   DBUG_ENTER("mysql_rm_db");
 
-  dbnorm= normalize_db_name(db->str, db_tmp, sizeof(db_tmp));
-  lex_string_set(&rm_db, dbnorm);
+  const DBNameBuffer db_tmp(*db, lower_case_table_names);
+  const LEX_CSTRING rm_db= db_tmp.to_lex_cstring();
   bzero(&ddl_log_state, sizeof(ddl_log_state));
 
-  if (lock_schema_name(thd, dbnorm))
+  if (lock_schema_name(thd, rm_db.str))
     DBUG_RETURN(true);
 
   path_length= build_table_filename(path, sizeof(path) - 1, db->str, "", "", 0);
@@ -1079,7 +1075,7 @@ mysql_rm_db_internal(THD *thd, const LEX_CSTRING *db, bool if_exists,
     }
   }
 
-  if (find_db_tables_and_rm_known_files(thd, dirp, dbnorm, path, &tables))
+  if (find_db_tables_and_rm_known_files(thd, dirp, rm_db.str, path, &tables))
     goto exit;
 
   /*
@@ -1097,7 +1093,7 @@ mysql_rm_db_internal(THD *thd, const LEX_CSTRING *db, bool if_exists,
   /* Lock all tables and stored routines about to be dropped. */
   if (lock_table_names(thd, tables, NULL, thd->variables.lock_wait_timeout,
                        0) ||
-      lock_db_routines(thd, dbnorm))
+      lock_db_routines(thd, rm_db.str))
     goto exit;
 
   if (!rm_mysql_schema)
@@ -2138,15 +2134,4 @@ bool check_db_dir_existence(const char *db_name)
     dbname_cache->insert(db_name);
   mysql_rwlock_unlock(&rmdir_lock);
   return ret;
-}
-
-
-const char *normalize_db_name(const char *db, char *buffer, size_t buffer_size)
-{
-  DBUG_ASSERT(buffer_size > 1);
-  if (!lower_case_table_names)
-    return db;
-  strmake(buffer, db, buffer_size - 1);
-  my_casedn_str(system_charset_info, buffer);
-  return buffer;
 }
