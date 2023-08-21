@@ -1,0 +1,14 @@
+--- main/ssl_autoverify.reject
++++ main/ssl_autoverify.result
+@@ -18,9 +18,9 @@
+ yes
+ # mysql -uroot --ssl-verify-server-cert -e "select test.have_ssl()"
+ ERROR 2026 (HY000): TLS/SSL error: Failed to verify the server certificate
+-# mysql --protocol socket -uroot --ssl-verify-server-cert -e "select test.have_ssl()"
++# mysql --protocol pipe -uroot --ssl-verify-server-cert -e "select test.have_ssl()"
+ test.have_ssl()
+-yes
++no
+ # mysql -unative -pfoo --ssl-verify-server-cert -e "select test.have_ssl()"
+ test.have_ssl()
+ yes
