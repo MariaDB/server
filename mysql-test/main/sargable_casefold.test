@@ -83,8 +83,7 @@ create table t3 (
 insert into t3 values ('abc','ABC'), ('xyz','XYZ');
 
 explain extended
-select a from t3 where a=b and b='ABC';
-select a from t3 where a=b and b='ABC';
+select a from t3 ignore index(a) where a=b and upper(b)='ABC';
 
 --echo #
 --echo # Check that rewrite isn't applied for non-applicable collations
@@ -127,6 +126,15 @@ select * from t1 where upper(col1) IN ('A-3','A-4','a-5');
 --echo # Will not use the rewrite:
 explain
 select * from t1 where upper(col1) IN ('A-3','A-4',col2);
+
+--echo #
+--echo # MDEV-31946: Optimizer handle UCASE(varchar_col)=... does not work for UPDATE/DELETE
+--echo #
+explain delete from t1 where upper(col1)='A';
+explain delete from t1 where upper(col1) IN ('A','B');
+
+explain update t1 set col2='ABC' where upper(col1)='A';
+explain update t1 set col2='ABC' where upper(col1) IN ('A','B');
 
 drop table t1,t2,t3,t4;
 
