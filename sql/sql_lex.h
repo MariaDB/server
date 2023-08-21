@@ -3908,10 +3908,11 @@ public:
                                    Item *val);
   bool set_user_variable(THD *thd, const LEX_CSTRING *name, Item *val);
   void set_stmt_init();
-  sp_name *make_sp_name(THD *thd, const LEX_CSTRING *name);
-  sp_name *make_sp_name(THD *thd, const LEX_CSTRING *name1,
-                                  const LEX_CSTRING *name2);
-  sp_name *make_sp_name_package_routine(THD *thd, const LEX_CSTRING *name);
+  sp_name *make_sp_name(THD *thd, const Lex_ident_sys_st &name);
+  sp_name *make_sp_name(THD *thd, const Lex_ident_sys_st &name1,
+                                  const Lex_ident_sys_st &name2);
+  sp_name *make_sp_name_package_routine(THD *thd,
+                                        const Lex_ident_sys_st &name);
   sp_head *make_sp_head(THD *thd, const sp_name *name, const Sp_handler *sph,
                         enum_sp_aggregate_type agg_type);
   sp_head *make_sp_head_no_recursive(THD *thd, const sp_name *name,

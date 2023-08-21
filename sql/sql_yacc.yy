@@ -3016,12 +3016,12 @@ sp_handler:
 sp_name:
           ident '.' ident
           {
-            if (unlikely(!($$= Lex->make_sp_name(thd, &$1, &$3))))
+            if (unlikely(!($$= Lex->make_sp_name(thd, $1, $3))))
               MYSQL_YYABORT;
           }
         | ident
           {
-            if (unlikely(!($$= Lex->make_sp_name(thd, &$1))))
+            if (unlikely(!($$= Lex->make_sp_name(thd, $1))))
               MYSQL_YYABORT;
           }
         ;
@@ -19098,7 +19098,7 @@ package_specification_function:
           {
             DBUG_ASSERT($1->sphead->get_package());
             $2->sql_command= SQLCOM_CREATE_FUNCTION;
-            sp_name *spname= $1->make_sp_name_package_routine(thd, &$3);
+            sp_name *spname= $1->make_sp_name_package_routine(thd, $3);
             if (unlikely(!spname))
               MYSQL_YYABORT;
             thd->lex= $2;
@@ -19125,7 +19125,7 @@ package_specification_procedure:
           {
             DBUG_ASSERT($1->sphead->get_package());
             $2->sql_command= SQLCOM_CREATE_PROCEDURE;
-            sp_name *spname= $1->make_sp_name_package_routine(thd, &$3);
+            sp_name *spname= $1->make_sp_name_package_routine(thd, $3);
             if (unlikely(!spname))
               MYSQL_YYABORT;
             thd->lex= $2;

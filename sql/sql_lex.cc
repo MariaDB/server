@@ -7346,13 +7346,13 @@ bool LEX::sp_block_finalize(THD *thd, const Lex_spblock_st spblock,
 }
 
 
-sp_name *LEX::make_sp_name(THD *thd, const LEX_CSTRING *name)
+sp_name *LEX::make_sp_name(THD *thd, const Lex_ident_sys_st &name)
 {
   sp_name *res;
   LEX_CSTRING db;
-  if (unlikely(check_routine_name(name)) ||
+  if (unlikely(check_routine_name(&name)) ||
       unlikely(copy_db_to(&db)) ||
-      unlikely((!(res= new (thd->mem_root) sp_name(&db, name, false)))))
+      unlikely((!(res= new (thd->mem_root) sp_name(&db, &name, false)))))
     return NULL;
   return res;
 }
@@ -7371,7 +7371,8 @@ sp_name *LEX::make_sp_name(THD *thd, const LEX_CSTRING *name)
     b.  package 'p1'    + routine 'p1.p1'
   m_name='p1.p1.p1' will always mean (a).
 */
-sp_name *LEX::make_sp_name_package_routine(THD *thd, const LEX_CSTRING *name)
+sp_name *LEX::make_sp_name_package_routine(THD *thd,
+                                           const Lex_ident_sys_st &name)
 {
   sp_name *res= make_sp_name(thd, name);
   if (likely(res) && unlikely(strchr(res->m_name.str, '.')))
@@ -7383,21 +7384,20 @@ sp_name *LEX::make_sp_name_package_routine(THD *thd, const LEX_CSTRING *name)
 }
 
 
-sp_name *LEX::make_sp_name(THD *thd, const LEX_CSTRING *name1,
-                                     const LEX_CSTRING *name2)
+sp_name *LEX::make_sp_name(THD *thd, const Lex_ident_sys_st &name1,
+                                     const Lex_ident_sys_st &name2)
 {
+  DBUG_ASSERT(name1.str);
   sp_name *res;
   LEX_CSTRING norm_name1;
-  if (unlikely(!name1->str) ||
-      unlikely(!thd->make_lex_string(&norm_name1, name1->str,
-                                     name1->length)) ||
+  if (unlikely(!thd->make_lex_string(&norm_name1, name1.str, name1.length)) ||
       unlikely(check_db_name((LEX_STRING *) &norm_name1)))
   {
-    my_error(ER_WRONG_DB_NAME, MYF(0), name1->str);
+    my_error(ER_WRONG_DB_NAME, MYF(0), name1.str);
     return NULL;
   }
-  if (unlikely(check_routine_name(name2)) ||
-      unlikely(!(res= new (thd->mem_root) sp_name(&norm_name1, name2, true))))
+  if (unlikely(check_routine_name(&name2)) ||
+      unlikely(!(res= new (thd->mem_root) sp_name(&norm_name1, &name2, true))))
     return NULL;
   return res;
 }
@@ -9291,7 +9291,7 @@ bool LEX::call_statement_start(THD *thd, sp_name *name)
 
 bool LEX::call_statement_start(THD *thd, const Lex_ident_sys_st *name)
 {
-  sp_name *spname= make_sp_name(thd, name);
+  sp_name *spname= make_sp_name(thd, *name);
   return unlikely(!spname) || call_statement_start(thd, spname);
 }
 
@@ -9299,7 +9299,7 @@ bool LEX::call_statement_start(THD *thd, const Lex_ident_sys_st *name)
 bool LEX::call_statement_start(THD *thd, const Lex_ident_sys_st *name1,
                                          const Lex_ident_sys_st *name2)
 {
-  sp_name *spname= make_sp_name(thd, name1, name2);
+  sp_name *spname= make_sp_name(thd, *name1, *name2);
   return unlikely(!spname) || call_statement_start(thd, spname);
 }
 
