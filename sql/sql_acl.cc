@@ -14731,10 +14731,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
     sctx->external_user= my_strdup(key_memory_MPVIO_EXT_auth_info,
                                    mpvio.auth_info.external_user, MYF(0));
 
-  if (res == CR_OK_HANDSHAKE_COMPLETE)
-    thd->get_stmt_da()->disable_status();
-  else
-    my_ok(thd);
+  my_ok(thd);
 
   PSI_CALL_set_thread_account
     (thd->main_security_ctx.user, static_cast<uint>(strlen(thd->main_security_ctx.user)),
