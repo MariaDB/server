@@ -25,7 +25,7 @@ Created 2011/12/19
 *******************************************************/
 
 #include "buf0dblwr.h"
-#include "buf0buf.h"
+#include "buf0flu.h"
 #include "buf0checksum.h"
 #include "srv0start.h"
 #include "srv0srv.h"

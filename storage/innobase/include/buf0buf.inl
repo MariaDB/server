@@ -31,11 +31,7 @@ The database buffer buf_pool
 Created 11/5/1995 Heikki Tuuri
 *******************************************************/
 
-#include "mtr0mtr.h"
-#include "buf0flu.h"
 #include "buf0lru.h"
-#include "buf0rea.h"
-#include "fsp0types.h"
 
 /** Determine if a block is still close enough to the MRU end of the LRU list
 meaning that it is not in danger of getting evicted and also implying
@@ -141,4 +137,3 @@ buf_block_get_modify_clock(
 	ut_ad(block->page.lock.have_any());
 	return(block->modify_clock);
 }
-

@@ -51,6 +51,7 @@ Created 10/16/1994 Heikki Tuuri
 #include "rem0rec.h"
 #include "rem0cmp.h"
 #include "buf0lru.h"
+#include "buf0rea.h"
 #include "btr0btr.h"
 #include "btr0sea.h"
 #include "row0log.h"

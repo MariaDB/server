@@ -31,6 +31,7 @@ Created 9/17/2000 Heikki Tuuri
 #include <spatial.h>
 
 #include "row0mysql.h"
+#include "buf0flu.h"
 #include "btr0sea.h"
 #include "dict0boot.h"
 #include "dict0crea.h"

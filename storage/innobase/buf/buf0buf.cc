@@ -34,18 +34,21 @@ Created 11/5/1995 Heikki Tuuri
 #include "assume_aligned.h"
 #include "mtr0types.h"
 #include "mach0data.h"
-#include "buf0buf.h"
 #include "buf0checksum.h"
 #include "ut0crc32.h"
 #include "mariadb_stats.h"
 #include <string.h>
 
-#ifndef UNIV_INNOCHECKSUM
+#ifdef UNIV_INNOCHECKSUM
+# include "buf0buf.h"
+#else
 #include "my_cpu.h"
 #include "mem0mem.h"
 #include "btr0btr.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
+#include "buf0rea.h"
+#include "buf0flu.h"
 #include "buf0buddy.h"
 #include "buf0dblwr.h"
 #include "lock0lock.h"
