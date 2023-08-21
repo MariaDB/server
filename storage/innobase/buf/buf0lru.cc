@@ -1186,25 +1186,6 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 			return true;
 		}
 
-		/* Question: If we release hash_lock here
-		then what protects us against:
-		1) Some other thread buffer fixing this page
-		2) Some other thread trying to read this page and
-		not finding it in buffer pool attempting to read it
-		from the disk.
-		Answer:
-		1) Cannot happen because the page is no longer in the
-		page_hash. Only possibility is when while invalidating
-		a tablespace we buffer fix the prev_page in LRU to
-		avoid relocation during the scan. But that is not
-		possible because we are holding buf_pool mutex.
-
-		2) Not possible because in buf_page_init_for_read()
-		we do a look up of page_hash while holding buf_pool
-		mutex and since we are holding buf_pool mutex here
-		and by the time we'll release it in the caller we'd
-		have inserted the compressed only descriptor in the
-		page_hash. */
 		hash_lock->write_unlock();
 
 		if (bpage->zip.data) {
