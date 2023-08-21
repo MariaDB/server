@@ -201,15 +201,11 @@ public:
 };
 
 
-class ACL_USER :public ACL_USER_BASE,
-                public ACL_USER_PARAM
+class ACL_USER :public ACL_USER_BASE, public ACL_USER_PARAM
 {
 public:
-
   ACL_USER() = default;
-  ACL_USER(THD *thd, const LEX_USER &combo,
-           const Account_options &options,
-           const privilege_t privileges);
+  ACL_USER(THD *, const LEX_USER &, const Account_options &, const privilege_t);
 
   ACL_USER *copy(MEM_ROOT *root)
   {
@@ -14277,6 +14273,37 @@ static bool acl_check_ssl(THD *thd, const ACL_USER *acl_user)
   return 1;
 }
 
+static void make_ssl_info(THD *thd, LEX_CSTRING salt, char *info)
+{
+#ifdef HAVE_OPENSSL
+  uchar digest[256/8];
+  if (!salt.length)
+    return;
+
+  /*
+    mark that it's after-auth mysql->info version 1.
+    meaning, it contains sha2(salt, scramble, sha2_cert_fingerprint)
+    encoded in 64 lowercase letters 'a'..'p', one letter per 4 bits (0..15)
+  */
+  *info++= 1; // Version 1
+
+  DBUG_ASSERT(thd->scramble[SCRAMBLE_LENGTH] == 0);
+
+  LEX_CUSTRING fp= ssl_acceptor_fingerprint();
+  my_sha256_multi(digest, salt.str, salt.length,
+                  thd->scramble, (size_t)SCRAMBLE_LENGTH,
+                  fp.str, fp.length,
+                  NULL);
+
+  for (uint i=0; i < sizeof(digest); i++)
+  {
+    /* not a conventional hexadecimal but something easier to decode */
+    *info++= (digest[i] >> 4) + 'a';
+    *info++= (digest[i] & 15) + 'a';
+  }
+  *info= 0;
+#endif
+}
 
 static int do_auth_once(THD *thd, const LEX_CSTRING *auth_plugin_name,
                         MPVIO_EXT *mpvio)
@@ -14394,6 +14421,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
 {
   int res= CR_OK;
   MPVIO_EXT mpvio;
+  char ssl_info[256/4 + 2]= {0}; // '\1', SHA256 (1 char per 4 bits), '\0'
   enum  enum_server_command command= com_change_user_pkt_len ? COM_CHANGE_USER
                                                              : COM_CONNECT;
   DBUG_ENTER("acl_authenticate");
@@ -14731,7 +14759,10 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
     sctx->external_user= my_strdup(key_memory_MPVIO_EXT_auth_info,
                                    mpvio.auth_info.external_user, MYF(0));
 
-  my_ok(thd);
+  if (initialized && !com_change_user_pkt_len)
+    make_ssl_info(thd, acl_user->auth[mpvio.curr_auth-1].salt, ssl_info);
+
+  my_ok(thd, 0, 0, ssl_info[0] == '\1' ? ssl_info : NULL);
 
   PSI_CALL_set_thread_account
     (thd->main_security_ctx.user, static_cast<uint>(strlen(thd->main_security_ctx.user)),

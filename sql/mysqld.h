@@ -720,6 +720,7 @@ extern pthread_t signal_thread;
 
 #ifdef HAVE_OPENSSL
 extern struct st_VioSSLFd * ssl_acceptor_fd;
+extern LEX_CUSTRING ssl_acceptor_fingerprint();
 #endif /* HAVE_OPENSSL */
 
 /*

@@ -4658,6 +4658,7 @@ struct SSL_ACCEPTOR_STATS
   long verify_depth;
   long zero;
   const char *session_cache_mode;
+  uchar fprint[256/8];
 
   SSL_ACCEPTOR_STATS():
     accept(),accept_good(),cache_size(),verify_mode(),verify_depth(),zero(),
@@ -4667,7 +4668,8 @@ struct SSL_ACCEPTOR_STATS
 
   void init()
   {
-    DBUG_ASSERT(ssl_acceptor_fd !=0 && ssl_acceptor_fd->ssl_context != 0);
+    DBUG_ASSERT(ssl_acceptor_fd !=0);
+    DBUG_ASSERT(ssl_acceptor_fd->ssl_context != 0);
     SSL_CTX *ctx= ssl_acceptor_fd->ssl_context;
     accept= 0;
     accept_good= 0;
@@ -4691,6 +4693,9 @@ struct SSL_ACCEPTOR_STATS
     default:
       session_cache_mode= "Unknown"; break;
     }
+    X509 *cert= SSL_CTX_get0_certificate(ctx);
+    uint fplen= sizeof(fprint);
+    X509_digest(cert, EVP_sha256(), fprint, &fplen);
   }
 };
 
@@ -4700,6 +4705,11 @@ void ssl_acceptor_stats_update(int sslaccept_ret)
   statistic_increment(ssl_acceptor_stats.accept, &LOCK_status);
   if (!sslaccept_ret)
     statistic_increment(ssl_acceptor_stats.accept_good,&LOCK_status);
+}
+
+LEX_CUSTRING ssl_acceptor_fingerprint()
+{
+  return { ssl_acceptor_stats.fprint, sizeof(ssl_acceptor_stats.fprint) };
 }
 
 static void init_ssl()

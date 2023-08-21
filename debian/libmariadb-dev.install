@@ -20,7 +20,6 @@ usr/include/mariadb/mysql.h
 usr/include/mariadb/mysql/
 usr/include/mariadb/mysql/client_plugin.h
 usr/include/mariadb/mysql/plugin_auth.h
-usr/include/mariadb/mysql/plugin_auth_common.h
 usr/include/mariadb/mysql_com.h
 usr/include/mariadb/mysql_version.h
 usr/include/mariadb/mysqld_error.h
