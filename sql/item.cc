@@ -9407,7 +9407,10 @@ Item *Item_direct_view_ref::propagate_equal_fields(THD *thd,
   set_item_equal(field_item->get_item_equal());
   field_item->set_item_equal(NULL);
   if (item != field_item)
+  {
+    DBUG_ASSERT(item->const_item());
     return item;
+  }
   return this;
 }
 
@@ -9415,12 +9418,25 @@ Item *Item_direct_view_ref::propagate_equal_fields(THD *thd,
 Item *Item_ref::propagate_equal_fields(THD *thd, const Context &ctx,
                                        COND_EQUAL *cond)
 {
-  Item *field_item= real_item();
-  if (field_item->type() != FIELD_ITEM)
+  /*
+    Don't use the value of real_item() here: *ref may point to an
+    Item_direct_view_ref, and we must not walk inside it.
+  */
+  Item *derefed = *ref;
+
+  if (derefed->type() != REF_ITEM && derefed->type() != FIELD_ITEM)
     return this;
-  Item *item= field_item->propagate_equal_fields(thd, ctx, cond);
-  if (item != field_item)
+  Item *item= derefed->propagate_equal_fields(thd, ctx, cond);
+  if (item != derefed)
+  {
+    /*
+      We only get here if we've got a constant. It is not necessary to
+      wrap it in *this (and convert val_XXX to val_XXX_result() calls).
+      Return the constant.
+    */
+    DBUG_ASSERT(item->const_item());
     return item;
+  }
   return this;
 }
 
