@@ -423,6 +423,9 @@ int federatedx_io_mysql::query(const char *buffer, size_t length)
 int federatedx_io_mysql::actual_query(const char *buffer, size_t length)
 {
   int error;
+  char dbname[NAME_LEN+MAX_CATALOG_NAME+1];
+  const char *db;
+  const char *catalog;
   DBUG_ENTER("federatedx_io_mysql::actual_query");
 
   if (!mysql.net.vio)
@@ -442,11 +445,27 @@ int federatedx_io_mysql::actual_query(const char *buffer, size_t length)
     mysql_options(&mysql, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
                   (char*) &my_true);
 
+    /* This can probably change to a MARIADB_OPT to set the catalog when the
+     * internal server client API supports a catalog opt.
+     */
+    catalog= get_catalog();
+    if (catalog && catalog[0] != '\0')
+    {
+      strxnmov((char*) dbname, NAME_LEN+MAX_CATALOG_NAME, catalog, ".",
+               get_database(), NullS);
+      db= dbname;
+    }
+    else
+    {
+      db= get_database();
+    }
+
+
     if (!mysql_real_connect(&mysql,
                             get_hostname(),
                             get_username(),
                             get_password(),
-                            get_database(),
+                            db,
                             get_port(),
                             get_socket(), 0))
       DBUG_RETURN(ER_CONNECT_TO_FOREIGN_DATA_SOURCE);

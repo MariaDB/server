@@ -5786,8 +5786,11 @@ void safe_connect(MYSQL* mysql, const char *name, const char *host,
   mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
                  "program_name", "mysqltest");
+
+#ifdef MARIADB_DEFAULT_CATALOG
   if (catalog)
     mysql_optionsv(mysql, MARIADB_OPT_CATALOG, catalog);
+#endif
 
   while(!mysql_real_connect(mysql, host,user, pass, db, port, sock,
                             CLIENT_MULTI_STATEMENTS | CLIENT_REMEMBER_OPTIONS))

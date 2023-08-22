@@ -464,11 +464,12 @@ typedef Mem_root_array<ORDER*, true> Group_list_ptrs;
 typedef struct st_lex_server_options
 {
   long port;
-  LEX_CSTRING server_name, host, db, username, password, scheme, socket, owner;
+  LEX_CSTRING server_name, host, catalog, db, username, password, scheme,
+              socket, owner;
   void reset(LEX_CSTRING name)
   {
     server_name= name;
-    host= db= username= password= scheme= socket= owner= null_clex_str;
+    host= catalog= db= username= password= scheme= socket= owner= null_clex_str;
     port= -1;
   }
 } LEX_SERVER_OPTIONS;

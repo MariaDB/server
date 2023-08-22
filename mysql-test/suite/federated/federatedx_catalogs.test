@@ -1,0 +1,57 @@
+--source include/have_catalogs.inc
+--source have_federatedx.inc
+--source include/not_embedded.inc
+
+let $mariadb_install_db= $MYSQL_BINDIR/scripts/mariadb-install-db;
+let $datadir= $MYSQLTEST_VARDIR/mysqld.1/data;
+let $basedir= $MYSQL_BINDIR;
+let $conf= $MYSQLTEST_VARDIR/my.cnf;
+--exec $mariadb_install_db --defaults-file=$conf --srcdir=$basedir --datadir=$datadir --catalogs="cat1 cat2" --debug
+let $restart_parameters="";
+--source include/restart_mysqld.inc
+
+CONNECT(master,127.0.0.1,root,,test,$MASTER_MYPORT,);
+CONNECTION master;
+USE CATALOG cat1;
+CREATE DATABASE foo;
+CREATE USER 'root'@'localhost' IDENTIFIED BY '';
+GRANT ALL ON *.* TO 'root'@'localhost';
+CONNECT(con1,localhost,root,,cat1.foo);
+CONNECTION con1;
+USE foo;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (3),(2),(3);
+CONNECTION master;
+USE CATALOG cat2;
+CREATE USER 'root'@'localhost' IDENTIFIED BY '';
+GRANT ALL ON *.* TO 'root'@'localhost';
+CREATE DATABASE bar;
+CONNECT(con2,localhost,root,,cat2.bar);
+CONNECTION con2;
+USE bar;
+--replace_result $MASTER_MYPORT MASTER_PORT
+EVAL CREATE SERVER s FOREIGN DATA WRAPPER MYSQL OPTIONS (host "127.0.0.1", database "cat1.foo", user "root", port $MASTER_MYPORT);
+SELECT * FROM mysql.servers;
+CREATE TABLE t1_fed ENGINE=FEDERATED CONNECTION='s/t1';
+SELECT * FROM t1_fed;
+--replace_result $MASTER_MYPORT MASTER_PORT
+EVAL CREATE SERVER s2 FOREIGN DATA WRAPPER MYSQL OPTIONS (host "127.0.0.1", catalog "cat1", database "foo", user "root", port $MASTER_MYPORT);
+SELECT * FROM mysql.servers;
+CREATE TABLE t2_fed ENGINE=FEDERATED CONNECTION='s2/t1';
+SELECT * FROM t2_fed;
+
+# Cleanup
+DROP DATABASE IF EXISTS bar;
+DROP DATABASE IF EXISTS test;
+DROP DATABASE IF EXISTS sys;
+DROP DATABASE IF EXISTS performance_schema;
+DROP DATABASE IF EXISTS mysql;
+CONNECTION con1;
+DROP DATABASE IF EXISTS foo;
+DROP DATABASE IF EXISTS test;
+DROP DATABASE IF EXISTS sys;
+DROP DATABASE IF EXISTS performance_schema;
+DROP DATABASE IF EXISTS mysql;
+CONNECTION master;
+DROP CATALOG cat2;
+DROP CATALOG cat1;

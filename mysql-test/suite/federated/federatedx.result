@@ -54,7 +54,7 @@ CREATE TABLE federated.t1 (
     )
 ENGINE="FEDERATED" DEFAULT CHARSET=latin1
 CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/t3';
-ERROR HY000: Can't create federated table. Foreign data src error:  database: 'federated'  username: 'root'  hostname: '127.0.0.1'
+ERROR HY000: Can't create federated table. Foreign data src error:  catalog: '(null)'  database: 'federated'  username: 'root'  host
 DROP TABLE IF EXISTS federated.t1;
 Warnings:
 Note	1051	Unknown table 'federated.t1'
@@ -67,7 +67,7 @@ CREATE TABLE federated.t1 (
     )
 ENGINE="FEDERATED" DEFAULT CHARSET=latin1
 CONNECTION='mysql://user:pass@127.0.0.1:SLAVE_PORT/federated/t1';
-ERROR HY000: Can't create federated table. Foreign data src error:  database: 'federated'  username: 'user'  hostname: '127.0.0.1'
+ERROR HY000: Can't create federated table. Foreign data src error:  catalog: '(null)'  database: 'federated'  username: 'user'  host
 DROP TABLE IF EXISTS federated.t1;
 Warnings:
 Note	1051	Unknown table 'federated.t1'
@@ -2282,7 +2282,7 @@ connection default;
 #
 connection master;
 CREATE TABLE t1 (a INT) ENGINE=FEDERATED CONNECTION='mysql://@127.0.0.1:SLAVE_PORT/federated/t1';
-ERROR HY000: Can't create federated table. Foreign data src error:  database: 'federated'  username: ''  hostname: '127.0.0.1'
+ERROR HY000: Can't create federated table. Foreign data src error:  catalog: '(null)'  database: 'federated'  username: ''  hostname
 #
 # MDEV-17573 Assertion in federatedx on multi-update
 #
@@ -2315,7 +2315,7 @@ drop table t3;
 connection master;
 CREATE TABLE federated.t1 (x int) ENGINE=FEDERATED
 CONNECTION='mysql://root@:SLAVE_PORT/federated/t1';
-ERROR HY000: Can't create federated table. Foreign data src error:  database: 'federated'  username: 'root'  hostname: 'localhost'
+ERROR HY000: Can't create federated table. Foreign data src error:  catalog: '(null)'  database: 'federated'  username: 'root'  host
 connection slave;
 CREATE TABLE federated.t1(x int);
 connection master;

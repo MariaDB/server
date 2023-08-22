@@ -62,6 +62,7 @@ typedef struct st_fedrated_server {
   const char *hostname;
   const char *username;
   const char *password;
+  const char *catalog;
   const char *database;
   const char *socket;
   ushort port;
@@ -114,6 +115,7 @@ typedef struct st_federatedx_share {
   char *hostname;
   char *username;
   char *password;
+  char *catalog;
   char *database;
   char *table_name;
   char *table;
@@ -161,6 +163,7 @@ public:
   const char * get_hostname() const { return server->hostname; }
   const char * get_username() const { return server->username; }
   const char * get_password() const { return server->password; }
+  const char * get_catalog() const  { return server->catalog; }
   const char * get_database() const { return server->database; }
   ushort       get_port() const     { return server->port; }
   const char * get_socket() const   { return server->socket; }

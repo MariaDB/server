@@ -23,13 +23,30 @@ class SQL_CATALOG;
 typedef struct st_lex_server_options LEX_SERVER_OPTIONS;
 typedef struct st_mem_root MEM_ROOT;
 
+/* Field numbers for the servers table, should align with the definition in
+ * mysql_system_tables.sql
+ */
+enum federated_field_numbers
+{
+  FEDERATED_FIELD_NAME,
+  FEDERATED_FIELD_HOST,
+  FEDERATED_FIELD_CATALOG,
+  FEDERATED_FIELD_DB,
+  FEDERATED_FIELD_USER,
+  FEDERATED_FIELD_PASS,
+  FEDERATED_FIELD_PORT,
+  FEDERATED_FIELD_SOCK,
+  FEDERATED_FIELD_WRAPPER,
+  FEDERATED_FIELD_OWNER,
+};
+
 /* structs */
 typedef struct st_federated_server
 {
   const char *server_name;
   long port;
   size_t server_name_length;
-  const char *db, *scheme, *username, *password, *socket, *owner, *host, *sport;
+  const char *catalog, *db, *scheme, *username, *password, *socket, *owner, *host, *sport;
 } FOREIGN_SERVER;
 
 /* cache handlers */

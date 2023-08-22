@@ -855,6 +855,10 @@ ALTER TABLE servers
   MODIFY Host varchar(2048) NOT NULL DEFAULT '',
   MODIFY Owner varchar(512) NOT NULL DEFAULT '';
 
+# MDEV-31706 - add Catalogs support
+ALTER TABLE servers
+  ADD COLUMN Catalog char(64) NOT NULL DEFAULT '' AFTER Host;
+
 --
 -- Drop some tables not used anymore in MariaDB
 --

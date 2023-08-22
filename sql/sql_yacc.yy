@@ -2789,6 +2789,11 @@ server_option:
             MYSQL_YYABORT_UNLESS(Lex->server_options.host.str == 0);
             Lex->server_options.host= $2;
           }
+        | CATALOG_SYM TEXT_STRING_sys
+          {
+            MYSQL_YYABORT_UNLESS(Lex->server_options.catalog.str == 0);
+            Lex->server_options.catalog= $2;
+          }
         | DATABASE TEXT_STRING_sys
           {
             MYSQL_YYABORT_UNLESS(Lex->server_options.db.str == 0);

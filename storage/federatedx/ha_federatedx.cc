@@ -596,6 +596,7 @@ int get_connection(MEM_ROOT *mem_root, FEDERATEDX_SHARE *share)
   share->server_name= const_cast<char*>(server->server_name);
   share->username= const_cast<char*>(server->username);
   share->password= const_cast<char*>(server->password);
+  share->catalog= const_cast<char*>(server->catalog);
   share->database= const_cast<char*>(server->db);
   share->port= server->port > MIN_PORT && server->port < 65536 ? 
                (ushort) server->port : MYSQL_PORT;
@@ -608,6 +609,7 @@ int get_connection(MEM_ROOT *mem_root, FEDERATEDX_SHARE *share)
   DBUG_PRINT("info", ("share->username: %s", share->username));
   DBUG_PRINT("info", ("share->password: %s", share->password));
   DBUG_PRINT("info", ("share->hostname: %s", share->hostname));
+  DBUG_PRINT("info", ("share->catalog:  %s", share->catalog));
   DBUG_PRINT("info", ("share->database: %s", share->database));
   DBUG_PRINT("info", ("share->port:     %d", share->port));
   DBUG_PRINT("info", ("share->socket:   %s", share->socket));
@@ -684,6 +686,7 @@ static int parse_url(MEM_ROOT *mem_root, FEDERATEDX_SHARE *share,
 
   share->port= 0;
   share->socket= 0;
+  share->catalog= NULL;
   DBUG_PRINT("info", ("share at %p", share));
   DBUG_PRINT("info", ("Length: %u", (uint) table_s->connect_string.length));
   DBUG_PRINT("info", ("String: '%.*s'", (int) table_s->connect_string.length,
@@ -1454,10 +1457,12 @@ static void fill_server(MEM_ROOT *mem_root, FEDERATEDX_SERVER *server,
   char buffer[STRING_BUFFER_USUAL_SIZE];
   const char *socket_arg= share->socket ? share->socket : "";
   const char *password_arg= share->password ? share->password : "";
+  const char *catalog_arg= share->catalog ? share->catalog : "";
 
   String key(buffer, sizeof(buffer), &my_charset_bin);  
   String scheme(share->scheme, strlen(share->scheme), &my_charset_latin1);
   String hostname(share->hostname, strlen(share->hostname), &my_charset_latin1);
+  String catalog(catalog_arg, strlen(catalog_arg), system_charset_info);
   String database(share->database, strlen(share->database), system_charset_info);
   String username(share->username, strlen(share->username), system_charset_info);
   String socket(socket_arg, strlen(socket_arg), files_charset_info);
@@ -1473,6 +1478,10 @@ static void fill_server(MEM_ROOT *mem_root, FEDERATEDX_SERVER *server,
   
   if (lower_case_table_names)
   {
+#ifdef CATALOG_SUPPORTSLOWER_CASE_NAMES
+    catalog.reserve(catalog.length());
+    catalog.length(my_casedn_str(system_charset_info, catalog.c_ptr_safe()));
+#endif
     database.reserve(database.length());
     database.length(my_casedn_str(system_charset_info, database.c_ptr_safe()));
   }
@@ -1493,13 +1502,16 @@ static void fill_server(MEM_ROOT *mem_root, FEDERATEDX_SERVER *server,
   bzero(server, sizeof(*server));
 
   key.length(0);
-  key.reserve(scheme.length() + hostname.length() + database.length() +
-              socket.length() + username.length() + password.length() +
-       sizeof(int) + 8);
+  key.reserve(scheme.length() + hostname.length() + catalog.length() +
+              database.length() + socket.length() + username.length() +
+              password.length() + sizeof(int) + 8);
   key.append(scheme);
   key.q_append('\0');
   server->hostname= (const char *) (intptr) key.length();
   key.append(hostname);
+  key.q_append('\0');
+  server->catalog= (const char*) (intptr) key.length();
+  key.append(catalog);
   key.q_append('\0');
   server->database= (const char *) (intptr) key.length();
   key.append(database);
@@ -1522,6 +1534,7 @@ static void fill_server(MEM_ROOT *mem_root, FEDERATEDX_SERVER *server,
   /* pointer magic */
   server->scheme+= (intptr) server->key;
   server->hostname+= (intptr) server->key;
+  server->catalog+= (intptr) server->key;
   server->database+= (intptr) server->key;
   server->username+= (intptr) server->key;
   server->password+= (intptr) server->key;
@@ -1547,10 +1560,12 @@ static FEDERATEDX_SERVER *get_server(FEDERATEDX_SHARE *share, TABLE *table)
   char buffer[STRING_BUFFER_USUAL_SIZE];
   const char *socket_arg= share->socket ? share->socket : "";
   const char *password_arg= share->password ? share->password : "";
+  const char *catalog_arg = share->catalog ? share->catalog : "";
 
   String key(buffer, sizeof(buffer), &my_charset_bin);  
   String scheme(share->scheme, strlen(share->scheme), &my_charset_latin1);
   String hostname(share->hostname, strlen(share->hostname), &my_charset_latin1);
+  String catalog(catalog_arg, strlen(catalog_arg), system_charset_info);
   String database(share->database, strlen(share->database), system_charset_info);
   String username(share->username, strlen(share->username), system_charset_info);
   String socket(socket_arg, strlen(socket_arg), files_charset_info);
@@ -3382,8 +3397,9 @@ static int test_connection(MYSQL_THD thd, federatedx_io *io,
 
   if ((retval= io->query(str.ptr(), str.length())))
   {
-    snprintf(buffer, sizeof(buffer), "database: '%s'  username: '%s'  hostname: '%s'",
-            share->database, share->username, share->hostname);
+    snprintf(buffer, sizeof(buffer),
+             "catalog: '%s'  database: '%s'  username: '%s'  hostname: '%s'",
+             share->catalog, share->database, share->username, share->hostname);
     DBUG_PRINT("info", ("error-code: %d", io->error_code()));
     my_error(ER_CANT_CREATE_FEDERATED_TABLE, MYF(0), buffer);
   }
@@ -3640,6 +3656,8 @@ int ha_federatedx::discover_assisted(handlerton *hton, THD* thd,
   CHARSET_INFO *cs= system_charset_info;
   MYSQL mysql;
   char buf[1024];
+  char dbname[NAME_LEN+MAX_CATALOG_NAME+1];
+  char *db;
   String query(buf, sizeof(buf), cs);
   static LEX_CSTRING cut_clause={STRING_WITH_LEN(" WITH SYSTEM VERSIONING")};
   static LEX_CSTRING cut_start={STRING_WITH_LEN("GENERATED ALWAYS AS ROW START")};
@@ -3658,11 +3676,28 @@ int ha_federatedx::discover_assisted(handlerton *hton, THD* thd,
   mysql_options(&mysql, MYSQL_SET_CHARSET_NAME, cs->cs_name.str);
   mysql_options(&mysql, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY, (char*)&my_true);
 
+  /* No using_catalogs guard here because we could be not using catalogs but
+   * connecting to a server that does.
+   *
+   * This can probably change to a MARIADB_OPT to set the catalog when the
+   * internal server client API supports a catalog opt.
+   */
+  if (tmp_share.catalog && tmp_share.catalog[0] != '\0')
+  {
+    strxnmov((char*) dbname, NAME_LEN+MAX_CATALOG_NAME, tmp_share.catalog, ".",
+             tmp_share.database, NullS);
+    db= dbname;
+  }
+  else
+  {
+    db= tmp_share.database;
+  }
+
   if (!mysql_real_connect(&mysql, tmp_share.hostname, tmp_share.username,
-                          tmp_share.password, tmp_share.database,
+                          tmp_share.password, db,
                           tmp_share.port, tmp_share.socket, 0))
     goto err1;
-  
+
   if (mysql_real_query(&mysql, STRING_WITH_LEN("SET SQL_MODE=NO_TABLE_OPTIONS")))
     goto err1;
 

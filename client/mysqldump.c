@@ -5010,10 +5010,10 @@ static int dump_all_servers()
   {
     fprintf(md_result_file,"CREATE %sSERVER %s%s FOREIGN DATA WRAPPER %s OPTIONS (",
             opt_replace_into ? "/*M!100103 OR REPLACE */ ": "",
-            opt_ignore ? "/*M!100103 IF NOT EXISTS */ " : "", row[0], row[7]);
+            opt_ignore ? "/*M!100103 IF NOT EXISTS */ " : "", row[0], row[8]);
     for (i= 1; i < num_fields; i++)
     {
-      if (i == 7 || row[i][0] == '\0') /* Wrapper or empty string */
+      if (i == 8 || row[i][0] == '\0') /* Wrapper or empty string */
         continue;
       f= &tableres->fields[i];
       qstring= (f->type == MYSQL_TYPE_STRING || f->type == MYSQL_TYPE_VAR_STRING) ? "'" : "";

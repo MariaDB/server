@@ -163,6 +163,7 @@ Table	Create Table
 servers	CREATE TABLE `servers` (
   `Server_name` char(64) NOT NULL DEFAULT '',
   `Host` varchar(2048) NOT NULL DEFAULT '',
+  `Catalog` char(64) NOT NULL DEFAULT '',
   `Db` char(64) NOT NULL DEFAULT '',
   `Username` char(128) NOT NULL DEFAULT '',
   `Password` char(64) NOT NULL DEFAULT '',

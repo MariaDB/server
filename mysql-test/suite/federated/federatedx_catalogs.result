@@ -1,0 +1,61 @@
+Adding new catalogs to running MariaDB server at /mnt/3tb/maria-cat/build/mysql-test/var/mysqld.1/data
+OK
+# restart: 
+CONNECT master,127.0.0.1,root,,test,$MASTER_MYPORT,;
+connection master;
+USE CATALOG cat1;
+CREATE DATABASE foo;
+CREATE USER 'root'@'localhost' IDENTIFIED BY '';
+GRANT ALL ON *.* TO 'root'@'localhost';
+CONNECT con1,localhost,root,,cat1.foo;
+connection con1;
+USE foo;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (3),(2),(3);
+connection master;
+USE CATALOG cat2;
+CREATE USER 'root'@'localhost' IDENTIFIED BY '';
+GRANT ALL ON *.* TO 'root'@'localhost';
+CREATE DATABASE bar;
+CONNECT con2,localhost,root,,cat2.bar;
+connection con2;
+USE bar;
+CREATE SERVER s FOREIGN DATA WRAPPER MYSQL OPTIONS (host "127.0.0.1", database "cat1.foo", user "root", port MASTER_PORT);
+SELECT * FROM mysql.servers;
+Server_name	Host	Catalog	Db	Username	Password	Port	Socket	Wrapper	Owner
+s	127.0.0.1		cat1.foo	root		16000		MYSQL	
+CREATE TABLE t1_fed ENGINE=FEDERATED CONNECTION='s/t1';
+SELECT * FROM t1_fed;
+a
+3
+2
+3
+CREATE SERVER s2 FOREIGN DATA WRAPPER MYSQL OPTIONS (host "127.0.0.1", catalog "cat1", database "foo", user "root", port MASTER_PORT);
+SELECT * FROM mysql.servers;
+Server_name	Host	Catalog	Db	Username	Password	Port	Socket	Wrapper	Owner
+s	127.0.0.1		cat1.foo	root		16000		MYSQL	
+s2	127.0.0.1	cat1	foo	root		16000		MYSQL	
+CREATE TABLE t2_fed ENGINE=FEDERATED CONNECTION='s2/t1';
+SELECT * FROM t2_fed;
+a
+3
+2
+3
+DROP DATABASE IF EXISTS bar;
+DROP DATABASE IF EXISTS test;
+DROP DATABASE IF EXISTS sys;
+DROP DATABASE IF EXISTS performance_schema;
+Warnings:
+Note	1051	Unknown table 'performance_schema.accounts,performance_schema.cond_instances,performance_schema.events_stages_cu...'
+DROP DATABASE IF EXISTS mysql;
+connection con1;
+DROP DATABASE IF EXISTS foo;
+DROP DATABASE IF EXISTS test;
+DROP DATABASE IF EXISTS sys;
+DROP DATABASE IF EXISTS performance_schema;
+Warnings:
+Note	1051	Unknown table 'performance_schema.accounts,performance_schema.cond_instances,performance_schema.events_stages_cu...'
+DROP DATABASE IF EXISTS mysql;
+connection master;
+DROP CATALOG cat2;
+DROP CATALOG cat1;
