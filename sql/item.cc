@@ -9406,9 +9406,10 @@ Item *Item_direct_view_ref::propagate_equal_fields(THD *thd,
   Item *item= field_item->propagate_equal_fields(thd, ctx, cond);
   set_item_equal(field_item->get_item_equal());
   field_item->set_item_equal(NULL);
-  if (item != field_item)
-    return item;
-  return this;
+  if (item == field_item)
+    item= this;
+  DBUG_ASSERT(item->type() == REF_ITEM || item->const_item());
+  return item;
 }
 
 
@@ -9419,9 +9420,10 @@ Item *Item_ref::propagate_equal_fields(THD *thd, const Context &ctx,
   if (derefed->type() != REF_ITEM && derefed->type() != FIELD_ITEM)
       return this;
   Item *item= derefed->propagate_equal_fields(thd, ctx, cond);
-  if (item != derefed)
-    return item;
-  return this;
+  if (item == derefed)
+    item= this;
+  DBUG_ASSERT(item->type() == REF_ITEM || item->const_item());
+  return item;
 }
 
 
