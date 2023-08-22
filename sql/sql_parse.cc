@@ -3178,13 +3178,8 @@ wsrep_error_label:
   This can be done by testing thd->is_error().
 */
 static bool prepare_db_action(THD *thd, privilege_t want_access,
-                              LEX_CSTRING *dbname)
+                              const Lex_ident_db &dbname)
 {
-  if (check_db_name((LEX_STRING*)dbname))
-  {
-    my_error(ER_WRONG_DB_NAME, MYF(0), dbname->str);
-    return true;
-  }
   /*
     If in a slave thread :
     - CREATE DATABASE DB was certainly not preceded by USE DB.
@@ -3194,21 +3189,8 @@ static bool prepare_db_action(THD *thd, privilege_t want_access,
     do_db/ignore_db. And as this query involves no tables, tables_ok()
     was not called. So we have to check rules again here.
   */
-#ifdef HAVE_REPLICATION
-  if (thd->slave_thread)
-  {
-    Rpl_filter *rpl_filter;
-    rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter;
-    if (!rpl_filter->db_ok(dbname->str) ||
-        !rpl_filter->db_ok_with_wild_table(dbname->str))
-    {
-      my_message(ER_SLAVE_IGNORED_TABLE,
-                 ER_THD(thd, ER_SLAVE_IGNORED_TABLE), MYF(0));
-      return true;
-    }
-  }
-#endif
-  return check_access(thd, want_access, dbname->str, NULL, NULL, 1, 0);
+  return thd->check_slave_ignored_db_with_error(dbname) ||
+         check_access(thd, want_access, dbname.str, NULL, NULL, 1, 0);
 }
 
 
@@ -3453,11 +3435,6 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   TABLE_LIST *all_tables;
   /* most outer SELECT_LEX_UNIT of query */
   SELECT_LEX_UNIT *unit= &lex->unit;
-#ifdef HAVE_REPLICATION
-  /* have table map for update for multi-update statement (BUG#37051) */
-  /* */
-  Rpl_filter *rpl_filter;
-#endif
   DBUG_ENTER("mysql_execute_command");
 
   // check that we correctly marked first table for data insertion
@@ -4923,19 +4900,20 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     break;
   case SQLCOM_CREATE_DB:
   {
-    if (prepare_db_action(thd, lex->create_info.or_replace() ?
-                          (CREATE_ACL | DROP_ACL) : CREATE_ACL,
-                          &lex->name))
-      break;
+    const DBNameBuffer dbbuf(lex->name, lower_case_table_names);
+    const Lex_ident_db db= dbbuf.to_lex_ident_db_with_error();
 
-    if ((res= lex->create_info.resolve_to_charset_collation_context(thd,
+    if (!db.str ||
+        prepare_db_action(thd, lex->create_info.or_replace() ?
+                          (CREATE_ACL | DROP_ACL) : CREATE_ACL,
+                          db) ||
+        (res= lex->create_info.resolve_to_charset_collation_context(thd,
                                  thd->charset_collation_context_create_db())))
       break;
 
-    WSREP_TO_ISOLATION_BEGIN(lex->name.str, NULL, NULL);
+    WSREP_TO_ISOLATION_BEGIN(db.str, NULL, NULL);
 
-    res= mysql_create_db(thd, &lex->name,
-                         lex->create_info, &lex->create_info);
+    res= mysql_create_db(thd, db, lex->create_info, &lex->create_info);
     break;
   }
   case SQLCOM_DROP_DB:
@@ -4943,44 +4921,33 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     if (thd->variables.option_bits & OPTION_IF_EXISTS)
       lex->create_info.set(DDL_options_st::OPT_IF_EXISTS);
 
-    if (prepare_db_action(thd, DROP_ACL, &lex->name))
+    const DBNameBuffer dbbuf(lex->name, lower_case_table_names);
+    const Lex_ident_db db= dbbuf.to_lex_ident_db_with_error();
+
+    if (!db.str || prepare_db_action(thd, DROP_ACL, db))
       break;
 
-    WSREP_TO_ISOLATION_BEGIN(lex->name.str, NULL, NULL);
+    WSREP_TO_ISOLATION_BEGIN(db.str, NULL, NULL);
 
-    res= mysql_rm_db(thd, &lex->name, lex->if_exists());
+    res= mysql_rm_db(thd, db, lex->if_exists());
     break;
   }
   case SQLCOM_ALTER_DB_UPGRADE:
   {
-    LEX_CSTRING *db= &lex->name;
-#ifdef HAVE_REPLICATION
-    if (thd->slave_thread)
-    {
-      rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter;
-      if (!rpl_filter->db_ok(db->str) ||
-          !rpl_filter->db_ok_with_wild_table(db->str))
-      {
-        res= 1;
-        my_message(ER_SLAVE_IGNORED_TABLE, ER_THD(thd, ER_SLAVE_IGNORED_TABLE), MYF(0));
-        break;
-      }
-    }
-#endif
-    if (check_db_name((LEX_STRING*) db))
-    {
-      my_error(ER_WRONG_DB_NAME, MYF(0), db->str);
-      break;
-    }
-    if (check_access(thd, ALTER_ACL, db->str, NULL, NULL, 1, 0) ||
-        check_access(thd, DROP_ACL, db->str, NULL, NULL, 1, 0) ||
-        check_access(thd, CREATE_ACL, db->str, NULL, NULL, 1, 0))
+    const DBNameBuffer dbbuf(lex->name, lower_case_table_names);
+    const Lex_ident_db db= dbbuf.to_lex_ident_db_with_error();
+
+    if (!db.str ||
+        thd->check_slave_ignored_db_with_error(db) ||
+        check_access(thd, ALTER_ACL, db.str, NULL, NULL, 1, 0) ||
+        check_access(thd, DROP_ACL, db.str, NULL, NULL, 1, 0) ||
+        check_access(thd, CREATE_ACL, db.str, NULL, NULL, 1, 0))
     {
       res= 1;
       break;
     }
 
-    WSREP_TO_ISOLATION_BEGIN(db->str, NULL, NULL);
+    WSREP_TO_ISOLATION_BEGIN(db.str, NULL, NULL);
 
     res= mysql_upgrade_db(thd, db);
     if (!res)
@@ -4989,15 +4956,16 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   }
   case SQLCOM_ALTER_DB:
   {
-    LEX_CSTRING *db= &lex->name;
-    if (prepare_db_action(thd, ALTER_ACL, db))
+    const DBNameBuffer dbbuf(lex->name, lower_case_table_names);
+    const Lex_ident_db db= dbbuf.to_lex_ident_db_with_error();
+
+    if (!db.str ||
+        prepare_db_action(thd, ALTER_ACL, db) ||
+        (res= lex->create_info.resolve_to_charset_collation_context(thd,
+                     thd->charset_collation_context_alter_db(db.str))))
       break;
 
-    if ((res= lex->create_info.resolve_to_charset_collation_context(thd,
-                     thd->charset_collation_context_alter_db(lex->name.str))))
-      break;
-
-    WSREP_TO_ISOLATION_BEGIN(db->str, NULL, NULL);
+    WSREP_TO_ISOLATION_BEGIN(db.str, NULL, NULL);
 
     res= mysql_alter_db(thd, db, &lex->create_info);
     break;

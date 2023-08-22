@@ -5356,6 +5356,8 @@ public:
   bool is_binlog_dump_thread();
 #endif
 
+  bool check_slave_ignored_db_with_error(const Lex_ident_db &db) const;
+
   /*
     Indicates if this thread is suspended due to awaiting an ACK from a
     replica. True if suspended, false otherwise.

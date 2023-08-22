@@ -47,6 +47,26 @@ public:
 };
 
 
+/**
+  A normalized database name identifier.
+  - Converted to lower case if lower_case_table_names say so
+  - Checked to be a valid database name
+*/
+class Lex_ident_db: public Lex_ident_fs
+{
+public:
+  Lex_ident_db()
+   :Lex_ident_fs(NULL, 0)
+  { }
+  Lex_ident_db(const char *str, size_t length)
+   :Lex_ident_fs(str, length)
+  {
+    DBUG_SLOW_ASSERT(ok_for_lower_case_names());
+    DBUG_SLOW_ASSERT(!check_db_name());
+  }
+};
+
+
 /*
   A helper class to store temporary database names in a buffer.
   After constructing it's typically should be checked using
@@ -66,6 +86,13 @@ public:
   DBNameBuffer(const LEX_CSTRING &db, bool casedn)
   {
     copy_casedn(&my_charset_utf8mb3_general_ci, db, casedn);
+  }
+  Lex_ident_db to_lex_ident_db_with_error() const
+  {
+    LEX_CSTRING tmp= to_lex_cstring();
+    if (Lex_ident_fs(tmp).check_db_name_with_error())
+      return Lex_ident_db();
+    return Lex_ident_db(tmp.str, tmp.length);
   }
 };
 

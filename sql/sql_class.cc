@@ -6078,6 +6078,26 @@ void THD::get_definer(LEX_USER *definer, bool role)
 }
 
 
+bool THD::check_slave_ignored_db_with_error(const Lex_ident_db &db) const
+{
+#ifdef HAVE_REPLICATION
+  if (slave_thread)
+  {
+    Rpl_filter *rpl_filter;
+    rpl_filter= system_thread_info.rpl_sql_info->rpl_filter;
+    if (!rpl_filter->db_ok(db.str) ||
+        !rpl_filter->db_ok_with_wild_table(db.str))
+    {
+      my_message(ER_SLAVE_IGNORED_TABLE,
+                 ER_THD(this, ER_SLAVE_IGNORED_TABLE), MYF(0));
+      return true;
+    }
+  }
+#endif
+  return false;
+}
+
+
 /**
   Mark transaction to rollback and mark error as fatal to a sub-statement.
 
