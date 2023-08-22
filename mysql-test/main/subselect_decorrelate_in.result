@@ -399,7 +399,7 @@ select
 json_extract(trace, '$**.join_optimization.steps[*].transformation.to') as JS
 from information_schema.OPTIMIZER_TRACE;
 JS
-["decorrelation", "materialization", "semijoin"]
+["materialization", "semijoin"]
 EXECUTE st2;
 a	b	c
 1	r	r
@@ -656,7 +656,7 @@ EXPLAIN
           "rows": 21,
           "cost": "COST_REPLACED",
           "filtered": 100,
-          "attached_condition": "!(t1.b is not null and <in_optimizer>((t1.a,t1.b),<exists>(subquery#2)))"
+          "attached_condition": "!(<in_optimizer>((t1.a,t1.b),<exists>(subquery#2)) and t1.b is not null)"
         }
       }
     ],
@@ -716,7 +716,7 @@ EXPLAIN
           "rows": 21,
           "cost": "COST_REPLACED",
           "filtered": 100,
-          "attached_condition": "!(t1.b is not null and <in_optimizer>((t1.a,t1.b),<exists>(subquery#2)))"
+          "attached_condition": "!(<in_optimizer>((t1.a,t1.b),<exists>(subquery#2)) and t1.b is not null)"
         }
       }
     ],

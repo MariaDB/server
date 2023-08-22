@@ -9415,11 +9415,11 @@ Item *Item_direct_view_ref::propagate_equal_fields(THD *thd,
 Item *Item_ref::propagate_equal_fields(THD *thd, const Context &ctx,
                                        COND_EQUAL *cond)
 {
-  Item *field_item= real_item();
-  if (field_item->type() != FIELD_ITEM)
-    return this;
-  Item *item= field_item->propagate_equal_fields(thd, ctx, cond);
-  if (item != field_item)
+  Item *derefed = *ref;
+  if (derefed->type() != REF_ITEM && derefed->type() != FIELD_ITEM)
+      return this;
+  Item *item= derefed->propagate_equal_fields(thd, ctx, cond);
+  if (item != derefed)
     return item;
   return this;
 }
