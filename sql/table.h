@@ -3365,7 +3365,6 @@ static inline void dbug_tmp_restore_column_maps(MY_BITMAP **read_set,
 #endif
 }
 
-bool ok_for_lower_case_names(const char *names);
 
 enum get_table_share_flags {
   GTS_TABLE                = 1,

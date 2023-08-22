@@ -7844,7 +7844,7 @@ public:
             (int) m_db.length, (m_db.length ? m_db.str : ""),
             dot, ".",
             (int) m_name.length, m_name.str);
-    DBUG_SLOW_ASSERT(ok_for_lower_case_names(m_db.str));
+    DBUG_SLOW_ASSERT(Lex_ident_fs(m_db).ok_for_lower_case_names());
     return false;
   }
 

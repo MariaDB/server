@@ -485,7 +485,7 @@ protected:
 		  my_bool using_transactions);
 
   /* Remove all queries that uses any of the tables in following database */
-  void invalidate(THD *thd, const char *db);
+  void invalidate(THD *thd, const LEX_CSTRING &db);
 
   /* Remove all queries that uses any of the listed following table */
   void invalidate_by_MyISAM_filename(const char *filename);

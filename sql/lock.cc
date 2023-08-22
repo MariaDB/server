@@ -935,14 +935,14 @@ bool lock_schema_name(THD *thd, const char *db)
 */
 
 bool lock_object_name(THD *thd, MDL_key::enum_mdl_namespace mdl_type,
-                       const char *db, const char *name)
+                      const LEX_CSTRING &db, const LEX_CSTRING &name)
 {
   MDL_request_list mdl_requests;
   MDL_request global_request;
   MDL_request schema_request;
   MDL_request mdl_request;
 
-  DBUG_SLOW_ASSERT(ok_for_lower_case_names(db));
+  DBUG_SLOW_ASSERT(Lex_ident_fs(db).ok_for_lower_case_names());
 
   if (thd->locked_tables_mode)
   {
@@ -951,16 +951,16 @@ bool lock_object_name(THD *thd, MDL_key::enum_mdl_namespace mdl_type,
     return TRUE;
   }
 
-  DBUG_ASSERT(name);
+  DBUG_ASSERT(name.str);
   DEBUG_SYNC(thd, "before_wait_locked_pname");
 
   if (thd->has_read_only_protection())
     return TRUE;
   MDL_REQUEST_INIT(&global_request, MDL_key::BACKUP, "", "", MDL_BACKUP_DDL,
                    MDL_STATEMENT);
-  MDL_REQUEST_INIT(&schema_request, MDL_key::SCHEMA, db, "",
+  MDL_REQUEST_INIT(&schema_request, MDL_key::SCHEMA, db.str, "",
                    MDL_INTENTION_EXCLUSIVE, MDL_TRANSACTION);
-  MDL_REQUEST_INIT(&mdl_request, mdl_type, db, name, MDL_EXCLUSIVE,
+  MDL_REQUEST_INIT(&mdl_request, mdl_type, db.str, name.str, MDL_EXCLUSIVE,
                    MDL_TRANSACTION);
 
   mdl_requests.push_front(&mdl_request);

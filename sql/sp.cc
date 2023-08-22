@@ -1277,7 +1277,7 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
   retstr.set_charset(system_charset_info);
 
   /* Grab an exclusive MDL lock. */
-  if (lock_object_name(thd, mdl_type, sp->m_db.str, sp->m_name.str))
+  if (lock_object_name(thd, mdl_type, sp->m_db, sp->m_name))
   {
     my_error(ER_BAD_DB_ERROR, MYF(0), sp->m_db.str);
     DBUG_RETURN(TRUE);
@@ -1647,7 +1647,7 @@ Sp_handler::sp_drop_routine(THD *thd,
   MDL_key::enum_mdl_namespace mdl_type= get_mdl_type();
 
   /* Grab an exclusive MDL lock. */
-  if (lock_object_name(thd, mdl_type, name->m_db.str, name->m_name.str))
+  if (lock_object_name(thd, mdl_type, name->m_db, name->m_name))
     DBUG_RETURN(SP_DELETE_ROW_FAILED);
 
   if (!(table= open_proc_table_for_update(thd)))
@@ -1694,7 +1694,7 @@ Sp_handler::sp_update_routine(THD *thd, const Database_qualified_name *name,
   MDL_key::enum_mdl_namespace mdl_type= get_mdl_type();
 
   /* Grab an exclusive MDL lock. */
-  if (lock_object_name(thd, mdl_type, name->m_db.str, name->m_name.str))
+  if (lock_object_name(thd, mdl_type, name->m_db, name->m_name))
     DBUG_RETURN(SP_OPEN_TABLE_FAILED);
 
   if (!(table= open_proc_table_for_update(thd)))
@@ -1795,7 +1795,7 @@ public:
          cases.
  */
 
-bool lock_db_routines(THD *thd, const char *db)
+bool lock_db_routines(THD *thd, const LEX_CSTRING &db)
 {
   TABLE *table;
   uint key_len;
@@ -1804,7 +1804,7 @@ bool lock_db_routines(THD *thd, const char *db)
   uchar keybuf[MAX_KEY_LENGTH];
   DBUG_ENTER("lock_db_routines");
 
-  DBUG_SLOW_ASSERT(ok_for_lower_case_names(db));
+  DBUG_SLOW_ASSERT(Lex_ident_fs(db).ok_for_lower_case_names());
 
   start_new_trans new_trans(thd);
 
@@ -1827,7 +1827,7 @@ bool lock_db_routines(THD *thd, const char *db)
     DBUG_RETURN(thd->is_error() || thd->killed);
   }
 
-  table->field[MYSQL_PROC_FIELD_DB]->store(db, strlen(db), system_charset_info);
+  table->field[MYSQL_PROC_FIELD_DB]->store(db, system_charset_info);
   key_len= table->key_info->key_part[0].store_length;
   table->field[MYSQL_PROC_FIELD_DB]->get_key_image(keybuf, key_len, Field::itRAW);
   int nxtres= table->file->ha_index_init(0, 1);
@@ -1853,7 +1853,7 @@ bool lock_db_routines(THD *thd, const char *db)
                                                  sp_type);
       if (!sph)
         sph= &sp_handler_procedure;
-      MDL_REQUEST_INIT(mdl_request, sph->get_mdl_type(), db, sp_name,
+      MDL_REQUEST_INIT(mdl_request, sph->get_mdl_type(), db.str, sp_name,
                         MDL_EXCLUSIVE, MDL_TRANSACTION);
       mdl_requests.push_front(mdl_request);
     } while (! (nxtres= table->file->ha_index_next_same(table->record[0], keybuf, key_len)));
@@ -1870,7 +1870,7 @@ bool lock_db_routines(THD *thd, const char *db)
   /* We should already hold a global IX lock and a schema X lock. */
   DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::BACKUP, "", "",
                                              MDL_BACKUP_DDL) &&
-              thd->mdl_context.is_lock_owner(MDL_key::SCHEMA, db, "",
+              thd->mdl_context.is_lock_owner(MDL_key::SCHEMA, db.str, "",
                                              MDL_EXCLUSIVE));
   DBUG_RETURN(thd->mdl_context.acquire_locks(&mdl_requests,
                                              thd->variables.lock_wait_timeout));
@@ -1889,23 +1889,22 @@ error:
 */
 
 int
-sp_drop_db_routines(THD *thd, const char *db)
+sp_drop_db_routines(THD *thd, const LEX_CSTRING &db)
 {
   TABLE *table;
   int ret;
   uint key_len;
   MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
   uchar keybuf[MAX_KEY_LENGTH];
-  size_t db_length= strlen(db);
   Sql_mode_instant_remove smir(thd, MODE_PAD_CHAR_TO_FULL_LENGTH); // see below
   DBUG_ENTER("sp_drop_db_routines");
-  DBUG_PRINT("enter", ("db: %s", db));
+  DBUG_PRINT("enter", ("db: %s", db.str));
 
   ret= SP_OPEN_TABLE_FAILED;
   if (!(table= open_proc_table_for_update(thd)))
     goto err;
 
-  table->field[MYSQL_PROC_FIELD_DB]->store(db, db_length, system_charset_info);
+  table->field[MYSQL_PROC_FIELD_DB]->store(db, system_charset_info);
   key_len= table->key_info->key_part[0].store_length;
   table->field[MYSQL_PROC_FIELD_DB]->get_key_image(keybuf, key_len, Field::itRAW);
 
@@ -1933,7 +1932,8 @@ sp_drop_db_routines(THD *thd, const char *db)
 
         enum_sp_type sp_type= (enum_sp_type) table->field[MYSQL_PROC_MYSQL_TYPE]->ptr[0];
         /* Drop statistics for this stored program from performance schema. */
-        MYSQL_DROP_SP(sp_type, db, static_cast<uint>(db_length), name->ptr(), name->length());
+        MYSQL_DROP_SP(sp_type, db.str, static_cast<uint>(db.length),
+                      name->ptr(), name->length());
 #endif
       }
       else

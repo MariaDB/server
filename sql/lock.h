@@ -39,7 +39,7 @@ MYSQL_LOCK *mysql_lock_merge(MYSQL_LOCK *a, MYSQL_LOCK *b, THD *thd= NULL);
 bool lock_schema_name(THD *thd, const char *db);
 /* Lock based on stored routine name */
 bool lock_object_name(THD *thd, MDL_key::enum_mdl_namespace mdl_type,
-                      const char *db, const char *name);
+                      const LEX_CSTRING &db, const LEX_CSTRING &name);
 
 /* flags for get_lock_data */
 #define GET_LOCK_UNLOCK         0

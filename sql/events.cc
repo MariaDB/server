@@ -347,7 +347,7 @@ Events::create_event(THD *thd, Event_parse_data *parse_data)
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   if (lock_object_name(thd, MDL_key::EVENT,
-                       parse_data->dbname.str, parse_data->name.str))
+                       parse_data->dbname, parse_data->name))
     DBUG_RETURN(TRUE);
 
   if (check_db_dir_existence(parse_data->dbname.str))
@@ -475,7 +475,7 @@ Events::update_event(THD *thd, Event_parse_data *parse_data,
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   if (lock_object_name(thd, MDL_key::EVENT,
-                       parse_data->dbname.str, parse_data->name.str))
+                       parse_data->dbname, parse_data->name))
     DBUG_RETURN(TRUE);
 
   if (check_db_dir_existence(parse_data->dbname.str))
@@ -509,8 +509,7 @@ Events::update_event(THD *thd, Event_parse_data *parse_data,
     /*
      Acquire mdl exclusive lock on target database name.
     */
-    if (lock_object_name(thd, MDL_key::EVENT,
-                         new_dbname->str, new_name->str))
+    if (lock_object_name(thd, MDL_key::EVENT, *new_dbname, *new_name))
       DBUG_RETURN(TRUE);
 
     /* Check that the target database exists */
@@ -611,8 +610,7 @@ Events::drop_event(THD *thd, const LEX_CSTRING *dbname,
   */
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
-  if (lock_object_name(thd, MDL_key::EVENT,
-                       dbname->str, name->str))
+  if (lock_object_name(thd, MDL_key::EVENT, *dbname, *name))
     DBUG_RETURN(TRUE);
   /* On error conditions my_error() is called so no need to handle here */
   if (!(ret= db_repository->drop_event(thd, dbname, name, if_exists)))
@@ -648,14 +646,12 @@ wsrep_error_label:
 */
 
 void
-Events::drop_schema_events(THD *thd, const char *db)
+Events::drop_schema_events(THD *thd, const LEX_CSTRING &db_lex)
 {
-  const LEX_CSTRING db_lex= { db, strlen(db) };
-
   DBUG_ENTER("Events::drop_schema_events");
-  DBUG_PRINT("enter", ("dropping events from %s", db));
+  DBUG_PRINT("enter", ("dropping events from %s", db_lex.str));
 
-  DBUG_SLOW_ASSERT(ok_for_lower_case_names(db));
+  DBUG_SLOW_ASSERT(Lex_ident_fs(db_lex).ok_for_lower_case_names());
 
   /*
     Sic: no check if the scheduler is disabled or system tables

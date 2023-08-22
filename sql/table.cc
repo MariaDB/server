@@ -5176,15 +5176,12 @@ uint calculate_key_len(TABLE *table, uint key, const uchar *buf,
 
   This is supposed to be used only inside DBUG_ASSERT()
 */
-bool ok_for_lower_case_names(const char *name)
+bool Lex_ident_fs::ok_for_lower_case_names() const
 {
-  if (!lower_case_table_names || !name)
+  if (!lower_case_table_names || !str)
     return true;
-
-  char buf[SAFE_NAME_LEN];
-  strmake_buf(buf, name);
-  my_casedn_str(files_charset_info, buf);
-  return strcmp(name, buf) == 0;
+  DBNameBuffer buf(*this, lower_case_table_names);
+  return cmp(*this, buf.to_lex_cstring()) == 0;
 }
 #endif
 

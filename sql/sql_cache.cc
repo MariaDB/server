@@ -2351,13 +2351,13 @@ void Query_cache::invalidate(THD *thd, const char *key, size_t  key_length,
    Remove all cached queries that uses the given database.
 */
 
-void Query_cache::invalidate(THD *thd, const char *db)
+void Query_cache::invalidate(THD *thd, const LEX_CSTRING &db)
 {
   DBUG_ENTER("Query_cache::invalidate (db)");
   if (is_disabled())
     DBUG_VOID_RETURN;
 
-  DBUG_SLOW_ASSERT(ok_for_lower_case_names(db));
+  DBUG_SLOW_ASSERT(Lex_ident_fs(db).ok_for_lower_case_names());
 
   bool restart= FALSE;
   /*
@@ -2377,7 +2377,7 @@ void Query_cache::invalidate(THD *thd, const char *db)
         {
           Query_cache_block *next= table_block->next;
           Query_cache_table *table = table_block->table();
-          if (strcmp(table->db(),db) == 0)
+          if (strcmp(table->db(), db.str) == 0)
           {
             Query_cache_block_table *list_root= table_block->table(0);
             invalidate_query_block_list(list_root);

@@ -41,6 +41,9 @@ public:
                          bool disallow_path_chars);
   bool check_db_name() const;
   bool check_db_name_with_error() const;
+#ifndef DBUG_OFF
+  bool ok_for_lower_case_names() const;
+#endif
 };
 
 
@@ -55,7 +58,7 @@ public:
   (SYSTEM_CHARSET_MBMAXLEN bytes), so check_db_name() can still
   detect too long names even if the constructor cuts the data.
 */
-class DBNameBuffer: public CharBuffer<SAFE_NAME_LEN + SYSTEM_CHARSET_MBMAXLEN>
+class DBNameBuffer: public CharBuffer<SAFE_NAME_LEN + MY_CS_MBMAXLEN>
 {
 public:
   DBNameBuffer()

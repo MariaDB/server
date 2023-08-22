@@ -1003,14 +1003,14 @@ void drop_database_objects(THD *thd, const LEX_CSTRING *path,
 
   debug_crash_here("ddl_log_drop_before_drop_db_routines");
 
-  query_cache_invalidate1(thd, db->str);
+  query_cache_invalidate1(thd, *db);
 
   if (!rm_mysql_schema)
   {
     tmp_disable_binlog(thd);
-    (void) sp_drop_db_routines(thd, db->str); /* @todo Do not ignore errors */
+    (void) sp_drop_db_routines(thd, *db); /* @todo Do not ignore errors */
 #ifdef HAVE_EVENT_SCHEDULER
-    Events::drop_schema_events(thd, db->str);
+    Events::drop_schema_events(thd, *db);
 #endif
     reenable_binlog(thd);
   }
@@ -1093,7 +1093,7 @@ mysql_rm_db_internal(THD *thd, const LEX_CSTRING *db, bool if_exists,
   /* Lock all tables and stored routines about to be dropped. */
   if (lock_table_names(thd, tables, NULL, thd->variables.lock_wait_timeout,
                        0) ||
-      lock_db_routines(thd, rm_db.str))
+      lock_db_routines(thd, rm_db))
     goto exit;
 
   if (!rm_mysql_schema)

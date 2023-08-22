@@ -22,13 +22,13 @@
 #include <m_string.h>
 #include <mysql_com.h>
 #include <lf.h>
+#include "lex_ident.h"
 
 class THD;
 
 class MDL_context;
 class MDL_lock;
 class MDL_ticket;
-bool  ok_for_lower_case_names(const char *name);
 
 typedef unsigned short mdl_bitmap_t;
 #define MDL_BIT(A) static_cast<mdl_bitmap_t>(1U << A)
@@ -435,7 +435,9 @@ public:
                                           NAME_LEN) - m_ptr + 1);
     m_hash_value= my_hash_sort(&my_charset_bin, (uchar*) m_ptr + 1,
                                m_length - 1);
-    DBUG_SLOW_ASSERT(mdl_namespace_arg == USER_LOCK || ok_for_lower_case_names(db));
+    DBUG_SLOW_ASSERT(mdl_namespace_arg == USER_LOCK ||
+                     Lex_ident_fs(db, m_db_name_length).
+                       ok_for_lower_case_names());
   }
   void mdl_key_init(const MDL_key *rhs)
   {
