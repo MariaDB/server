@@ -95,6 +95,51 @@ sslGetErrString(enum enum_ssl_init_error e)
   return ssl_error_string[e];
 }
 
+static EVP_PKEY *vio_keygen()
+{
+  EVP_PKEY_CTX *ctx;
+  EVP_PKEY *pkey = NULL;
+
+  if (!(ctx= EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, NULL)))
+    return NULL;
+
+  if (EVP_PKEY_keygen_init(ctx) <= 0)
+    goto end;
+
+  if (EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, 4096) <= 0)
+    goto end;
+
+  if (EVP_PKEY_keygen(ctx, &pkey) <= 0)
+    pkey= NULL; /* just in case */
+
+end:
+  EVP_PKEY_CTX_free(ctx);
+  return pkey;
+}
+
+static X509 *vio_gencert(EVP_PKEY *pkey)
+{
+  X509 *x;
+
+  if (!(x= X509_new()))
+    goto err;
+
+  if (!(X509_gmtime_adj(X509_get_notBefore(x), 0)))
+    goto err;
+  if (!(X509_gmtime_adj(X509_get_notAfter(x), 60*60*24*365*10)))
+    goto err;
+  if (!(X509_set_pubkey(x, pkey)))
+    goto err;
+  if (!(X509_sign(x, pkey, EVP_sha256())))
+    goto err;
+
+  return x;
+
+err:
+  X509_free(x);
+  return NULL;
+}
+
 static int
 vio_set_cert_stuff(SSL_CTX *ctx, const char *cert_file, const char *key_file,
                    my_bool is_client, enum enum_ssl_init_error* error)
@@ -107,9 +152,21 @@ vio_set_cert_stuff(SSL_CTX *ctx, const char *cert_file, const char *key_file,
   {
     if (!is_client)
     {
-      *error= SSL_INITERR_CERT;
-      fprintf(stderr, "SSL error: %s\n", sslGetErrString(*error));
-      DBUG_RETURN(1);
+      EVP_PKEY *pkey;
+      X509 *x509;
+      if (!(pkey= vio_keygen()) || SSL_CTX_use_PrivateKey(ctx, pkey) < 1)
+      {
+        *error= SSL_INITERR_KEY;
+        fprintf(stderr, "SSL error: %s\n", sslGetErrString(*error));
+        DBUG_RETURN(1);
+      }
+
+      if (!(x509= vio_gencert(pkey)) || SSL_CTX_use_certificate(ctx, x509) < 1)
+      {
+        *error= SSL_INITERR_CERT;
+        fprintf(stderr, "SSL error: %s\n", sslGetErrString(*error));
+        DBUG_RETURN(1);
+      }
     }
     DBUG_RETURN(0);
   }
@@ -250,6 +307,8 @@ new_VioSSLFd(const char *key_file, const char *cert_file, const char *ca_file,
   long ssl_ctx_options;
   DBUG_ENTER("new_VioSSLFd");
 
+  fix_value(key_file);
+  fix_value(cert_file);
   fix_value(ca_file);
   fix_value(ca_path);
   fix_value(crl_file);

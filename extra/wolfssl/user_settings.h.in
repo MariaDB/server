@@ -24,6 +24,8 @@
 #define OPENSSL_ALL
 #define WOLFSSL_ALLOW_TLSV10
 #define NO_OLD_TIMEVAL_NAME
+#define WOLFSSL_KEY_GEN
+#define WOLFSSL_CERT_GEN
 
 /* TLSv1.3 definitions (all needed to build) */
 #define WOLFSSL_TLS13

@@ -1,0 +1,8 @@
+[pem]
+loose-enable-named-pipe
+
+[auto]
+ssl-key=
+ssl-cert=
+ssl-ca=
+loose-enable-named-pipe
