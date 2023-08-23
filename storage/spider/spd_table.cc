@@ -990,11 +990,6 @@ int spider_create_string_list(
   DBUG_ENTER("spider_create_string_list");
 
   *list_length = 0;
-<<<<<<< HEAD
-  if (param_string_parse)
-    param_string_parse->init_param_value();
-=======
->>>>>>> c966d67cef2 (MDEV-31117 Fix spider connection info parsing)
   if (!str)
   {
     *string_list = NULL;
@@ -1194,13 +1189,6 @@ int spider_create_string_list(
     }
   }
 
-<<<<<<< HEAD
-  if (param_string_parse)
-    param_string_parse->set_param_value(tmp_ptr3,
-                                        tmp_ptr3 + strlen(tmp_ptr3) + 1);
-
-=======
->>>>>>> c966d67cef2 (MDEV-31117 Fix spider connection info parsing)
   DBUG_PRINT("info",("spider string_list[%d]=%s", roop_count,
     (*string_list)[roop_count]));
 
@@ -1615,65 +1603,37 @@ static int spider_set_ll_value(
 #define SPIDER_PARAM_STR_LENS(name) name ## _lengths
 #define SPIDER_PARAM_STR_CHARLEN(name) name ## _charlen
 #define SPIDER_PARAM_STR_LIST(title_name, param_name) \
-<<<<<<< HEAD
   SPIDER_PARAM_STR_LIST_CHECK(title_name, param_name, FALSE)
 #define SPIDER_PARAM_STR_LIST_CHECK(title_name, param_name, already_set) \
-  if (!strncasecmp(tmp_ptr, title_name, title_length))                        \
-  {                                                                           \
-    DBUG_PRINT("info", ("spider " title_name " start"));                      \
-    if (already_set)                                    \
-    {                                                   \
-      error_num= ER_SPIDER_INVALID_CONNECT_INFO_NUM;    \
-      goto error;                                       \
-    }                                                   \
-    if (!share->param_name)                                                   \
-    {                                                                         \
-      if ((tmp_ptr2= spider_get_string_between_quote(start_ptr, FALSE)))      \
-      {                                                                       \
-        share->SPIDER_PARAM_STR_CHARLEN(param_name)= strlen(tmp_ptr2);        \
-        if ((error_num= spider_create_string_list(                            \
-                 &share->param_name,                                          \
-                 &share->SPIDER_PARAM_STR_LENS(param_name),                   \
-                 &share->SPIDER_PARAM_STR_LEN(param_name), tmp_ptr2,          \
-                 share->SPIDER_PARAM_STR_CHARLEN(param_name),                 \
-                 &connect_string_parse)))                                     \
-        {                                                                     \
-          goto error;                                                         \
-        }                                                                     \
-        THD *thd= current_thd;                                                \
-        if (share->SPIDER_PARAM_STR_LEN(param_name) > 1 && create_table)      \
-        {                                                                     \
-          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,            \
-                              HA_ERR_UNSUPPORTED,                             \
-                              "The high availability feature of Spider "      \
-                              "has been deprecated "                          \
-                              "and will be removed in a future release");     \
-        }                                                                     \
-      }                                                                       \
-      else                                                                    \
-      {                                                                       \
-        error_num= connect_string_parse.print_param_error();                  \
-        goto error;                                                           \
-      }                                                                       \
-    }                                                                         \
-    break;                                                                    \
-=======
-  if (!strncasecmp(parse.start_title, title_name, title_length)) \
-  { \
-    DBUG_PRINT("info", ("spider " title_name " start")); \
-    if (!share->param_name) \
-    { \
-      share->SPIDER_PARAM_STR_CHARLEN(param_name)= value_length; \
-      if ((error_num= spider_create_string_list( \
-             &share->param_name, \
-             &share->SPIDER_PARAM_STR_LENS(param_name), \
-             &share->SPIDER_PARAM_STR_LEN(param_name), \
-             parse.start_value, \
-             share->SPIDER_PARAM_STR_CHARLEN(param_name)))) \
-        goto error; \
-    } \
-    break; \
->>>>>>> c966d67cef2 (MDEV-31117 Fix spider connection info parsing)
+  if (!strncasecmp(parse.start_title, title_name, title_length))        \
+  {                                                                     \
+    DBUG_PRINT("info", ("spider " title_name " start"));                \
+    if (already_set)                                                    \
+    {                                                                   \
+      error_num= ER_SPIDER_INVALID_CONNECT_INFO_NUM;                    \
+      goto error;                                                       \
+    }                                                                   \
+    if (!share->param_name)                                             \
+    {                                                                   \
+      share->SPIDER_PARAM_STR_CHARLEN(param_name)= value_length;        \
+      if ((error_num= spider_create_string_list(                        \
+             &share->param_name,                                        \
+             &share->SPIDER_PARAM_STR_LENS(param_name),                 \
+             &share->SPIDER_PARAM_STR_LEN(param_name),                  \
+             parse.start_value,                                         \
+             share->SPIDER_PARAM_STR_CHARLEN(param_name))))             \
+        goto error;                                                     \
+      THD *thd= current_thd;                                            \
+      if (share->SPIDER_PARAM_STR_LEN(param_name) > 1 && create_table)  \
+      {                                                                 \
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,        \
+                            HA_ERR_UNSUPPORTED,                         \
+                            "The high availability feature of Spider "  \
+                            "has been deprecated "                      \
+                            "and will be removed in a future release"); \
+      }                                                                 \
+    }                                                                   \
+    break;                                                              \
   }
 #define SPIDER_PARAM_HINT(title_name, param_name, check_length, max_size, append_method) \
   if (!strncasecmp(parse.start_title, title_name, check_length)) \
@@ -1821,83 +1781,37 @@ static int spider_set_ll_value(
     } \
     break; \
   }
-#define SPIDER_PARAM_DEPRECATED_WARNING(title_name)                           \
-  if (!strncasecmp(tmp_ptr, title_name, title_length) && create_table)        \
-  {                                                                           \
-    THD *thd= current_thd;                                                    \
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,                  \
-                        ER_WARN_DEPRECATED_SYNTAX,                            \
+#define SPIDER_PARAM_DEPRECATED_WARNING(title_name)                     \
+  if (!strncasecmp(parse.start_title, title_name, title_length) && create_table) \
+  {                                                                     \
+    THD *thd= current_thd;                                              \
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,            \
+                        ER_WARN_DEPRECATED_SYNTAX,                      \
                         "The table parameter '%s' is deprecated and will be " \
-                        "removed in a future release",                        \
-                        title_name);                                          \
+                        "removed in a future release",                  \
+                        title_name);                                    \
   }
 
 /*
   Set a given engine-defined option, which holds a string list, to the
   corresponding attribute of SPIDER_SHARE.
 */
-#define SPIDER_OPTION_STR_LIST(title_name, option_name, param_name) \
-  if (option_struct && option_struct->option_name)                            \
-  {                                                                           \
-    DBUG_PRINT("info", ("spider " title_name " start overwrite"));            \
-    share->SPIDER_PARAM_STR_CHARLEN(param_name)=                              \
-        strlen(option_struct->option_name);                                   \
-    if ((error_num= spider_create_string_list(                                \
-             &share->param_name, &share->SPIDER_PARAM_STR_LENS(param_name),   \
-             &share->SPIDER_PARAM_STR_LEN(param_name),                        \
-             option_struct->option_name,                                      \
-             share->SPIDER_PARAM_STR_CHARLEN(param_name), NULL)))             \
-      goto error;                                                             \
+#define SPIDER_OPTION_STR_LIST(title_name, option_name, param_name)     \
+  if (option_struct && option_struct->option_name)                      \
+  {                                                                     \
+    DBUG_PRINT("info", ("spider " title_name " start overwrite"));      \
+    share->SPIDER_PARAM_STR_CHARLEN(param_name)=                        \
+      strlen(option_struct->option_name);                               \
+    if ((error_num= spider_create_string_list(                          \
+           &share->param_name, &share->SPIDER_PARAM_STR_LENS(param_name), \
+           &share->SPIDER_PARAM_STR_LEN(param_name),                    \
+           option_struct->option_name,                                  \
+           share->SPIDER_PARAM_STR_CHARLEN(param_name))))               \
+      goto error;                                                       \
   }
 
-/*
-  Parse connection information specified by COMMENT, CONNECT, or engine-defined
-  options.
-
-<<<<<<< HEAD
-  TODO: Deprecate the connection specification by COMMENT and CONNECT,
-  and then solely utilize engine-defined options.
-*/
-int spider_parse_connect_info(
-  SPIDER_SHARE *share,
-  TABLE_SHARE *table_share,
-  partition_info *part_info,
-  uint create_table
-) {
-  int error_num = 0;
-  char *connect_string = NULL;
-  char *sprit_ptr;
-  char *tmp_ptr, *tmp_ptr2, *start_ptr;
-  int roop_count;
-  int title_length;
-  SPIDER_PARAM_STRING_PARSE connect_string_parse;
-  SPIDER_ALTER_TABLE *share_alter;
-  ha_table_option_struct *option_struct;
-  partition_element *part_elem;
-  partition_element *sub_elem;
-  DBUG_ENTER("spider_parse_connect_info");
-  DBUG_PRINT("info",("spider partition_info=%s",
-    table_share->partition_info_str));
-  DBUG_PRINT("info",("spider part_info=%p", part_info));
-  DBUG_PRINT("info",("spider s->db=%s", table_share->db.str));
-  DBUG_PRINT("info",("spider s->table_name=%s", table_share->table_name.str));
-  DBUG_PRINT("info",("spider s->path=%s", table_share->path.str));
-  DBUG_PRINT("info",
-    ("spider s->normalized_path=%s", table_share->normalized_path.str));
-  spider_get_partition_info(share->table_name, share->table_name_length,
-    table_share, part_info, &part_elem, &sub_elem);
-  if (part_info)
-    if (part_info->is_sub_partitioned())
-      option_struct= sub_elem->option_struct;
-    else
-      option_struct= part_elem->option_struct;
-  else
-    option_struct= table_share->option_struct;
-=======
 static void spider_minus_1(SPIDER_SHARE *share, TABLE_SHARE *table_share)
 {
-#ifndef WITHOUT_SPIDER_BG_SEARCH
->>>>>>> c966d67cef2 (MDEV-31117 Fix spider connection info parsing)
   share->sts_bg_mode = -1;
   share->sts_interval = -1;
   share->sts_mode = -1;
@@ -1974,9 +1888,6 @@ static void spider_minus_1(SPIDER_SHARE *share, TABLE_SHARE *table_share)
   }
 }
 
-<<<<<<< HEAD
-  for (roop_count = 4; roop_count > 0; roop_count--)
-=======
 /**
   Get the connect info of a certain type.
 
@@ -1996,7 +1907,6 @@ static int spider_get_connect_info(const int type,
 {
   switch (type)
   {
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   case 4:
     if (!sub_elem || !sub_elem->part_comment)
       return 1;
@@ -2011,7 +1921,6 @@ static int spider_get_connect_info(const int type,
             part_elem->part_comment, strlen(part_elem->part_comment))))
       return HA_ERR_OUT_OF_MEM;
     break;
-#endif
   case 2:
     if (table_share->comment.length == 0)
       return 1;
@@ -2224,6 +2133,7 @@ int spider_parse_connect_info(
   int title_length, value_length;
   SPIDER_PARAM_STRING_PARSE parse;
   SPIDER_ALTER_TABLE *share_alter;
+  ha_table_option_struct *option_struct;
   partition_element *part_elem;
   partition_element *sub_elem;
   DBUG_ENTER("spider_parse_connect_info");
@@ -2237,13 +2147,15 @@ int spider_parse_connect_info(
     ("spider s->normalized_path=%s", table_share->normalized_path.str));
   spider_get_partition_info(share->table_name, share->table_name_length,
     table_share, part_info, &part_elem, &sub_elem);
+  if (part_info)
+    if (part_info->is_sub_partitioned())
+      option_struct= sub_elem->option_struct;
+    else
+      option_struct= part_elem->option_struct;
+  else
+    option_struct= table_share->option_struct;
   spider_minus_1(share, table_share);
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   for (int i = 4; i > 0; i--)
-#else
-  for (roop_count = 2; roop_count > 0; roop_count--)
-#endif
->>>>>>> c966d67cef2 (MDEV-31117 Fix spider connection info parsing)
   {
     if (connect_string)
     {
@@ -2257,67 +2169,8 @@ int spider_parse_connect_info(
       continue;
     if (error_num_1 == HA_ERR_OUT_OF_MEM)
     {
-<<<<<<< HEAD
-      case 4:
-        if (!sub_elem || !sub_elem->part_comment)
-          continue;
-        DBUG_PRINT("info",("spider create sub comment string"));
-        if (
-          !(connect_string = spider_create_string(
-            sub_elem->part_comment,
-            strlen(sub_elem->part_comment)))
-        ) {
-          error_num = HA_ERR_OUT_OF_MEM;
-          goto error_alloc_conn_string;
-        }
-        DBUG_PRINT("info",("spider sub comment string=%s", connect_string));
-        break;
-      case 3:
-        if (!part_elem || !part_elem->part_comment)
-          continue;
-        DBUG_PRINT("info",("spider create part comment string"));
-        if (
-          !(connect_string = spider_create_string(
-            part_elem->part_comment,
-            strlen(part_elem->part_comment)))
-        ) {
-          error_num = HA_ERR_OUT_OF_MEM;
-          goto error_alloc_conn_string;
-        }
-        DBUG_PRINT("info",("spider part comment string=%s", connect_string));
-        break;
-      case 2:
-        if (table_share->comment.length == 0)
-          continue;
-        DBUG_PRINT("info",("spider create comment string"));
-        if (
-          !(connect_string = spider_create_string(
-            table_share->comment.str,
-            table_share->comment.length))
-        ) {
-          error_num = HA_ERR_OUT_OF_MEM;
-          goto error_alloc_conn_string;
-        }
-        DBUG_PRINT("info",("spider comment string=%s", connect_string));
-        break;
-      default:
-        if (table_share->connect_string.length == 0)
-          continue;
-        DBUG_PRINT("info",("spider create connect_string string"));
-        if (
-          !(connect_string = spider_create_string(
-            table_share->connect_string.str,
-            table_share->connect_string.length))
-        ) {
-          error_num = HA_ERR_OUT_OF_MEM;
-          goto error_alloc_conn_string;
-        }
-        DBUG_PRINT("info",("spider connect_string=%s", connect_string));
-        break;
-=======
       error_num= HA_ERR_OUT_OF_MEM;
       goto error_alloc_conn_string;
->>>>>>> c966d67cef2 (MDEV-31117 Fix spider connection info parsing)
     }
     DBUG_ASSERT(error_num_1 == 0);
 
@@ -2473,15 +2326,10 @@ int spider_parse_connect_info(
           error_num = parse.fail(true);
           goto error;
         case 5:
-<<<<<<< HEAD
           SPIDER_PARAM_STR_LIST_CHECK("table", tgt_table_names,
                                       option_struct &&
                                           option_struct->remote_table);
-          error_num = connect_string_parse.print_param_error();
-=======
-          SPIDER_PARAM_STR_LIST("table", tgt_table_names);
           error_num = parse.fail(true);
->>>>>>> c966d67cef2 (MDEV-31117 Fix spider connection info parsing)
           goto error;
         case 6:
           SPIDER_PARAM_STR_LIST("driver", tgt_drivers);
@@ -2555,17 +2403,7 @@ int spider_parse_connect_info(
           SPIDER_PARAM_DOUBLE("crd_interval", crd_interval, 0);
           SPIDER_PARAM_INT_WITH_MAX("low_mem_read", low_mem_read, 0, 1);
           SPIDER_PARAM_STR_LIST("default_file", tgt_default_files);
-<<<<<<< HEAD
-          error_num = connect_string_parse.print_param_error();
-=======
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-          SPIDER_PARAM_LONG_LIST_WITH_MAX(
-            "use_hs_write", use_hs_writes, 0, 1);
-          SPIDER_PARAM_LONG_LIST_WITH_MAX(
-            "hs_read_port", hs_read_ports, 0, 65535);
-#endif
           error_num = parse.fail(true);
->>>>>>> c966d67cef2 (MDEV-31117 Fix spider connection info parsing)
           goto error;
         case 13:
           SPIDER_PARAM_STR_LIST("default_group", tgt_default_groups);

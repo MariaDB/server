@@ -141,11 +141,7 @@ static void spider_minus_1(SPIDER_COPY_TABLES *copy_tables)
   copy_tables->use_table_charset = -1;
   copy_tables->use_transaction = -1;
   copy_tables->bg_mode = -1;
-<<<<<<< HEAD
-=======
-#endif
 }
->>>>>>> c966d67cef2 (MDEV-31117 Fix spider connection info parsing)
 
 int spider_udf_parse_copy_tables_param(
   SPIDER_COPY_TABLES *copy_tables,

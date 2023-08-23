@@ -1025,14 +1025,7 @@ int spider_udf_parse_direct_sql_param(
         error_num= parse.fail(true);
         goto error;
       case 11:
-<<<<<<< HEAD
-        error_num = param_string_parse.print_param_error();
-=======
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-        SPIDER_PARAM_INT_WITH_MAX("access_mode", access_mode, 0, 2);
-#endif
         error_num= parse.fail(true);
->>>>>>> c966d67cef2 (MDEV-31117 Fix spider connection info parsing)
         goto error;
       case 12:
         SPIDER_PARAM_STR("default_file", tgt_default_file);
@@ -1045,12 +1038,7 @@ int spider_udf_parse_direct_sql_param(
         goto error;
       case 14:
         SPIDER_PARAM_INT_WITH_MAX("use_real_table", use_real_table, 0, 1);
-<<<<<<< HEAD
-        error_num = param_string_parse.print_param_error();
-=======
-#endif
-        error_num= parse.fail(true);
->>>>>>> c966d67cef2 (MDEV-31117 Fix spider connection info parsing)
+        error_num = parse.fail(true);
         goto error;
       case 15:
         SPIDER_PARAM_INT_WITH_MAX("table_loop_mode", table_loop_mode, 0, 2);
