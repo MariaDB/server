@@ -137,7 +137,7 @@ vio_set_cert_stuff(SSL_CTX *ctx, const char *cert_file, const char *key_file,
     If certificate is used check if private key matches.
     Note, that server side has to use certificate.
   */
-  if ((cert_file != NULL || !is_client) && !SSL_CTX_check_private_key(ctx))
+  if ((cert_file || !is_client) && !SSL_CTX_check_private_key(ctx))
   {
     *error= SSL_INITERR_NOMATCH;
     DBUG_PRINT("error", ("%s",sslGetErrString(*error)));
@@ -221,52 +221,35 @@ static long vio_tls_protocol_options(ulonglong tls_version)
   return (disabled_tls_protocols | disabled_ssl_protocols);
 }
 
+/*
+  If some optional parameters indicate empty strings, then
+  for compatibility with SSL libraries, replace them with NULL,
+  otherwise these libraries will try to open files with an empty
+  name, etc., and they will return an error code instead of performing
+  the necessary operations:
+*/
+#define fix_value(X) if (X && !X[0]) X= NULL
+
 /************************ VioSSLFd **********************************/
 static struct st_VioSSLFd *
-new_VioSSLFd(const char *key_file, const char *cert_file,
-             const char *ca_file, const char *ca_path,
-             const char *cipher, my_bool is_client_method,
-             enum enum_ssl_init_error *error,
-             const char *crl_file, const char *crl_path, ulonglong tls_version)
+new_VioSSLFd(const char *key_file, const char *cert_file, const char *ca_file,
+             const char *ca_path, const char *cipher, my_bool is_client_method,
+             enum enum_ssl_init_error *error, const char *crl_file,
+             const char *crl_path, ulonglong tls_version)
 {
   struct st_VioSSLFd *ssl_fd;
   long ssl_ctx_options;
   DBUG_ENTER("new_VioSSLFd");
 
-  /*
-    If some optional parameters indicate empty strings, then
-    for compatibility with SSL libraries, replace them with NULL,
-    otherwise these libraries will try to open files with an empty
-    name, etc., and they will return an error code instead performing
-    the necessary operations:
-  */
-  if (ca_file && !ca_file[0])
-  {
-    ca_file  = NULL;
-  }
-  if (ca_path && !ca_path[0])
-  {
-    ca_path  = NULL;
-  }
-  if (crl_file && !crl_file[0])
-  {
-    crl_file = NULL;
-  }
-  if (crl_path && !crl_path[0])
-  {
-    crl_path = NULL;
-  }
+  fix_value(ca_file);
+  fix_value(ca_path);
+  fix_value(crl_file);
+  fix_value(crl_path);
 
   DBUG_PRINT("enter",
              ("key_file: '%s'  cert_file: '%s'  ca_file: '%s'  ca_path: '%s'  "
-              "cipher: '%s' crl_file: '%s' crl_path: '%s'",
-              key_file ? key_file : "NULL",
-              cert_file ? cert_file : "NULL",
-              ca_file ? ca_file : "NULL",
-              ca_path ? ca_path : "NULL",
-              cipher ? cipher : "NULL",
-              crl_file ? crl_file : "NULL",
-              crl_path ? crl_path : "NULL"));
+              "cipher: '%s' crl_file: '%s' crl_path: '%s'", key_file,
+              cert_file, ca_file, ca_path, cipher, crl_file, crl_path));
 
   vio_check_ssl_init();
 
@@ -406,50 +389,19 @@ new_VioSSLConnectorFd(const char *key_file, const char *cert_file,
   struct st_VioSSLFd *ssl_fd;
   int verify= SSL_VERIFY_PEER;
 
-  if (ca_file  && ! ca_file[0])  ca_file  = NULL;
-  if (ca_path  && ! ca_path[0])  ca_path  = NULL;
-  if (crl_file && ! crl_file[0]) crl_file = NULL;
-  if (crl_path && ! crl_path[0]) crl_path = NULL;
-
-  /*
-    If some optional parameters indicate empty strings, then
-    for compatibility with SSL libraries, replace them with NULL,
-    otherwise these libraries will try to open files with an empty
-    name, etc., and they will return an error code instead performing
-    the necessary operations:
-  */
-  if (ca_file && !ca_file[0])
-  {
-    ca_file  = NULL;
-  }
-  if (ca_path && !ca_path[0])
-  {
-    ca_path  = NULL;
-  }
-  if (crl_file && !crl_file[0])
-  {
-    crl_file = NULL;
-  }
-  if (crl_path && !crl_path[0])
-  {
-    crl_path = NULL;
-  }
-
   /*
     Turn off verification of servers certificate if both
     ca_file and ca_path is set to NULL
   */
-  if (ca_file == 0 && ca_path == 0)
+  if ((ca_file == 0 || ca_file[0] == 0) && (ca_path == 0 || ca_path[0] == 0))
     verify= SSL_VERIFY_NONE;
 
-  if (!(ssl_fd= new_VioSSLFd(key_file, cert_file, ca_file,
-                             ca_path, cipher, TRUE, error,
-                             crl_file, crl_path, 0)))
+  /* Init the VioSSLFd as a "connector" ie. the client side */
+  if (!(ssl_fd= new_VioSSLFd(key_file, cert_file, ca_file, ca_path, cipher,
+                             TRUE, error, crl_file, crl_path, 0)))
   {
     return 0;
   }
-
-  /* Init the VioSSLFd as a "connector" ie. the client side */
 
   SSL_CTX_set_verify(ssl_fd->ssl_context, verify, NULL);
 
@@ -468,38 +420,12 @@ new_VioSSLAcceptorFd(const char *key_file, const char *cert_file,
   struct st_VioSSLFd *ssl_fd;
   int verify= SSL_VERIFY_PEER | SSL_VERIFY_CLIENT_ONCE;
 
-  /*
-    If some optional parameters indicate empty strings, then
-    for compatibility with SSL libraries, replace them with NULL,
-    otherwise these libraries will try to open files with an empty
-    name, etc., and they will return an error code instead performing
-    the necessary operations:
-  */
-  if (ca_file && !ca_file[0])
-  {
-    ca_file  = NULL;
-  }
-  if (ca_path && !ca_path[0])
-  {
-    ca_path  = NULL;
-  }
-  if (crl_file && !crl_file[0])
-  {
-    crl_file = NULL;
-  }
-  if (crl_path && !crl_path[0])
-  {
-    crl_path = NULL;
-  }
-
-  if (!(ssl_fd= new_VioSSLFd(key_file, cert_file, ca_file,
-                             ca_path, cipher, FALSE, error,
-                             crl_file, crl_path, tls_version)))
+  /* Init the the VioSSLFd as a "acceptor" ie. the server side */
+  if (!(ssl_fd= new_VioSSLFd(key_file, cert_file, ca_file, ca_path, cipher,
+                             FALSE, error, crl_file, crl_path, tls_version)))
   {
     return 0;
   }
-  /* Init the the VioSSLFd as a "acceptor" ie. the server side */
-
   /* Set max number of cached sessions, returns the previous size */
   SSL_CTX_sess_set_cache_size(ssl_fd->ssl_context, 128);
 
