@@ -103,14 +103,24 @@ vio_set_cert_stuff(SSL_CTX *ctx, const char *cert_file, const char *key_file,
   DBUG_PRINT("enter", ("ctx: %p cert_file: %s  key_file: %s",
 		       ctx, cert_file, key_file));
 
-  if (!cert_file &&  key_file)
+  if (!cert_file && !key_file)
+  {
+    if (!is_client)
+    {
+      *error= SSL_INITERR_CERT;
+      fprintf(stderr, "SSL error: %s\n", sslGetErrString(*error));
+      DBUG_RETURN(1);
+    }
+    DBUG_RETURN(0);
+  }
+
+  /* cert and key can be combined in one file */
+  if (!cert_file)
     cert_file= key_file;
-  
-  if (!key_file &&  cert_file)
+  else if (!key_file)
     key_file= cert_file;
 
-  if (cert_file &&
-      SSL_CTX_use_certificate_chain_file(ctx, cert_file) <= 0)
+  if (SSL_CTX_use_certificate_chain_file(ctx, cert_file) <= 0)
   {
     *error= SSL_INITERR_CERT;
     DBUG_PRINT("error",("%s from file '%s'", sslGetErrString(*error), cert_file));
@@ -121,8 +131,7 @@ vio_set_cert_stuff(SSL_CTX *ctx, const char *cert_file, const char *key_file,
     DBUG_RETURN(1);
   }
 
-  if (key_file &&
-      SSL_CTX_use_PrivateKey_file(ctx, key_file, SSL_FILETYPE_PEM) <= 0)
+  if (SSL_CTX_use_PrivateKey_file(ctx, key_file, SSL_FILETYPE_PEM) <= 0)
   {
     *error= SSL_INITERR_KEY;
     DBUG_PRINT("error", ("%s from file '%s'", sslGetErrString(*error), key_file));
@@ -137,7 +146,7 @@ vio_set_cert_stuff(SSL_CTX *ctx, const char *cert_file, const char *key_file,
     If certificate is used check if private key matches.
     Note, that server side has to use certificate.
   */
-  if ((cert_file || !is_client) && !SSL_CTX_check_private_key(ctx))
+  if (!SSL_CTX_check_private_key(ctx))
   {
     *error= SSL_INITERR_NOMATCH;
     DBUG_PRINT("error", ("%s",sslGetErrString(*error)));
