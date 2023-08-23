@@ -6,6 +6,7 @@ for child2
 for child3
 CREATE SERVER srv FOREIGN DATA WRAPPER mysql
 OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+# testing monitoring_*
 INSERT INTO mysql.spider_link_mon_servers
 (db_name, table_name, link_id, sid, server) VALUES
 ('test', 't1', '0', 1, 'srv');
@@ -25,6 +26,18 @@ COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", monitoring_bg_kind "2",
 /* 4 */ insert into t1 values (42);
 ERROR 42S02: Table 'test.t2' doesn't exist
 drop table t1;
+# testing query_cache_sync
+create table t1 (c int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", query_cache_sync "3"';
+create table t2 (c int);
+/* 5 */ insert into t1 values (42);
+select sql_cache * from t1;
+c
+42
+select sql_no_cache * from t1;
+c
+42
+drop table t1, t2;
 drop server srv;
 for master_1
 for child2
