@@ -5258,27 +5258,17 @@ bool Lex_ident_fs::check_body(const char *name, size_t length,
   size_t char_length= 0;
   const char *end= name + length;
 
-#if defined(USE_MB) && defined(USE_MB_IDENT)
-  bool last_char_is_space= FALSE;
-#else
   if (name[length-1]==' ')
     return 1;
-#endif
 
   for ( ; name != end ; char_length++)
   {
-#if defined(USE_MB) && defined(USE_MB_IDENT)
-    last_char_is_space= my_isspace(system_charset_info, *name);
-    if (system_charset_info->use_mb())
+    int len= my_ismbchar(&my_charset_utf8mb3_general_ci, name, end);
+    if (len)
     {
-      int len=my_ismbchar(system_charset_info, name, end);
-      if (len)
-      {
-        name+= len;
-        continue;
-      }
+      name+= len;
+      continue;
     }
-#endif
     if (disallow_path_chars &&
         (*name == '/' || *name == '\\' || *name == '~' || *name == FN_EXTCHAR))
       return 1;
@@ -5299,11 +5289,7 @@ bool Lex_ident_fs::check_body(const char *name, size_t length,
       return 1;
     name++;
   }
-#if defined(USE_MB) && defined(USE_MB_IDENT)
-  return last_char_is_space || (char_length > NAME_CHAR_LEN);
-#else
-  return FALSE;
-#endif
+  return char_length > NAME_CHAR_LEN;
 }
 
 
