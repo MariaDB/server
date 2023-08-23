@@ -5,13 +5,15 @@
 #include "mariadb.h"
 #include "sql_priv.h"
 #include <m_ctype.h>
+#include "sql_partition.h"
 #include "sql_select.h"
 
 #include "opt_trace.h"
 
 /*
   @brief
-    Check if passed item is "UCASE(table.key_part_col)"
+    Check if passed item is "UCASE(table.colX)" where colX is either covered
+    by some index or is a part of partition expression.
 
   @return
      Argument of the UCASE if passed item matches
@@ -27,18 +29,30 @@ static Item* is_upper_key_col(Item *item)
     Item *arg_real= arg->real_item();
     if (arg_real->type() == Item::FIELD_ITEM)
     {
-      Item_field *item_field= (Item_field*)arg_real;
-      if ((item_field->field->flags & PART_KEY_FLAG) &&
-          dynamic_cast<const Type_handler_longstr*>(arg_real->type_handler()))
+      if (dynamic_cast<const Type_handler_longstr*>(arg_real->type_handler()))
       {
-        /*
-          Make sure COERCIBILITY(UPPER(col))=COERCIBILITY(col)
-        */
-        DBUG_ASSERT(arg->collation.derivation ==
-                    item_func->collation.derivation);
+        Field *field= ((Item_field*)arg_real)->field;
+        bool appl= (field->flags & PART_KEY_FLAG);
 
-        /* Return arg, not arg_real. Do not walk into Item_ref objects */
-        return arg;
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+        partition_info *part_info;
+        if (!appl && ((part_info= field->table->part_info)))
+        {
+          appl= bitmap_is_set(&part_info->full_part_field_set,
+                              field->field_index);
+        }
+#endif
+        if (appl)
+        {
+          /*
+            Make sure COERCIBILITY(UPPER(col))=COERCIBILITY(col)
+          */
+          DBUG_ASSERT(arg->collation.derivation ==
+                      item_func->collation.derivation);
+
+          /* Return arg, not arg_real. Do not walk into Item_ref objects */
+          return arg;
+        }
       }
     }
   }
