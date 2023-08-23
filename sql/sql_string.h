@@ -1052,13 +1052,6 @@ public:
   }
 
   // Append with optional character set conversion from ASCII (e.g. to UCS2)
-  bool append(const LEX_STRING *ls)
-  {
-    DBUG_ASSERT(ls->length < UINT_MAX32 &&
-                ((ls->length == 0 && !ls->str) ||
-                 ls->length == strlen(ls->str)));
-    return append(ls->str, (uint32) ls->length);
-  }
   bool append(const LEX_CSTRING *ls)
   {
     DBUG_ASSERT(ls->length < UINT_MAX32 &&

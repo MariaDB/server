@@ -301,18 +301,22 @@ void my_sha512_input(void *context, const unsigned char *buf, size_t len);
 void my_sha512_result(void *context, unsigned char *digest);
 }
 extern "C" {
-struct st_mysql_lex_string
-{
-  char *str;
-  size_t length;
-};
-typedef struct st_mysql_lex_string MYSQL_LEX_STRING;
 struct st_mysql_const_lex_string
 {
   const char *str;
   size_t length;
 };
 typedef struct st_mysql_const_lex_string MYSQL_CONST_LEX_STRING;
+struct st_mysql_lex_string
+{
+  char *str;
+  size_t length;
+  operator struct st_mysql_const_lex_string() const
+  {
+    return {str, length};
+  }
+};
+typedef struct st_mysql_lex_string MYSQL_LEX_STRING;
 extern struct thd_alloc_service_st {
   void *(*thd_alloc_func)(const THD*, size_t);
   void *(*thd_calloc_func)(const THD*, size_t);

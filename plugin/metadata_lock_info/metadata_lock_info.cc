@@ -70,7 +70,7 @@ int i_s_metadata_lock_info_fill_row(
     DBUG_RETURN(0);
   table->field[0]->store((longlong) mdl_ctx->get_thread_id(), TRUE);
   table->field[1]->set_notnull();
-  table->field[1]->store(mdl_ticket->get_type_name(), system_charset_info);
+  table->field[1]->store(*mdl_ticket->get_type_name(), system_charset_info);
   table->field[2]->set_null();
   table->field[3]->set_notnull();
   table->field[3]->store(

@@ -514,7 +514,7 @@ public:
 protected:
   LEX_CSTRING get_expr_query() const override
   {
-    return LEX_CSTRING{m_query.str, m_query.length};
+    return m_query;
   }
 
   bool on_after_expr_parsing(THD *) override

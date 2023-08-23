@@ -57,9 +57,6 @@ public:
   Lex_cstring_with_compare(const char *_str, size_t _len) :
     Lex_cstring(_str, _len)
   { }
-  Lex_cstring_with_compare(const LEX_STRING src) :
-    Lex_cstring(src.str, src.length)
-  { }
   Lex_cstring_with_compare(const LEX_CSTRING src) : Lex_cstring(src.str, src.length)
   { }
   Lex_cstring_with_compare(const char *_str) : Lex_cstring(_str, strlen(_str))

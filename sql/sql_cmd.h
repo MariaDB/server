@@ -133,11 +133,6 @@ public:
   Storage_engine_name(const LEX_CSTRING &name)
    :m_storage_engine_name(name)
   { }
-  Storage_engine_name(const LEX_STRING &name)
-  {
-    m_storage_engine_name.str= name.str;
-    m_storage_engine_name.length= name.length;
-  }
   bool resolve_storage_engine_with_error(THD *thd,
                                          handlerton **ha,
                                          bool tmp_table);

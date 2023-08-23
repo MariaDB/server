@@ -35,19 +35,26 @@
 extern "C" {
 #endif
 
-struct st_mysql_lex_string
-{
-  char *str;
-  size_t length;
-};
-typedef struct st_mysql_lex_string MYSQL_LEX_STRING;
-
 struct st_mysql_const_lex_string
 {
   const char *str;
   size_t length;
 };
 typedef struct st_mysql_const_lex_string MYSQL_CONST_LEX_STRING;
+
+struct st_mysql_lex_string
+{
+  char *str;
+  size_t length;
+#ifdef __cplusplus
+  // Allow automatic cast from LEX_STRING to LEX_CSTRING in c++.
+  operator struct st_mysql_const_lex_string() const
+  {
+    return {str, length};
+  }
+#endif
+};
+typedef struct st_mysql_lex_string MYSQL_LEX_STRING;
 
 extern struct thd_alloc_service_st {
   void *(*thd_alloc_func)(const MYSQL_THD, size_t);

@@ -981,11 +981,6 @@ public:
             enum_check_fields check_level);
   int store_text(const char *to, size_t length, CHARSET_INFO *cs,
                  enum_check_fields check_level);
-  int store(const LEX_STRING *ls, CHARSET_INFO *cs)
-  {
-    DBUG_ASSERT(ls->length < UINT_MAX32);
-    return store(ls->str, (uint) ls->length, cs);
-  }
   int store(const LEX_CSTRING *ls, CHARSET_INFO *cs)
   {
     DBUG_ASSERT(ls->length < UINT_MAX32);
