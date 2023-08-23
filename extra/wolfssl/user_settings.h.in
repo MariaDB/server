@@ -28,6 +28,8 @@
 #define NO_OLD_TIMEVAL_NAME
 #define HAVE_SECURE_RENEGOTIATION
 #define HAVE_EXTENDED_MASTER
+#define WOLFSSL_KEY_GEN
+#define WOLFSSL_CERT_GEN
 
 /* TLSv1.3 definitions (all needed to build) */
 #define WOLFSSL_TLS13
