@@ -976,7 +976,6 @@ int find_field_in_list(List<Item> &fields_list, Item *field)
 
 /*
   Find sum_func_to_remove in the JOIN::sum_funcs list and remove it.
-  OLEGS: add logging of the removal to opt_trace or dbug_print (or both)
 */
 static
 void remove_item_from_sum_funcs_list(JOIN *join, Item *sum_func_to_remove)

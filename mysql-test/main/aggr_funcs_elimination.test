@@ -177,8 +177,8 @@ select avgb from v1;
 select json_detailed(json_extract(trace, '$**.aggregate_functions_eliminated')) as elim_func
   from information_schema.optimizer_trace;
 
-select group_id, sum(max_suma) from 
-  (select group_id, max(suma) as max_suma, min(sumb) as min_sumb, sum(avgb) sum_avgb 
+select group_id, sum(max_suma) from
+  (select group_id, max(suma) as max_suma, min(sumb) as min_sumb, sum(avgb) sum_avgb
    from v1 group by group_id
   ) as T;
 
@@ -237,7 +237,7 @@ explain select T.group_id, T.maxa
               group by group_id
            ) as T
   where T.group_id = t2.a;
-  
+
 select json_detailed(json_extract(trace, '$**.aggregate_functions_eliminated')) as elim_func,
        json_detailed(json_extract(trace, '$**.eliminated_tables'))  as elim_tables
   from information_schema.optimizer_trace;

@@ -6399,9 +6399,58 @@ find_field_in_table(THD *thd, TABLE *table, const char *name, size_t length,
   DBUG_RETURN(field);
 }
 
+static
+void mark_column_if_needed(enum_column_usage column_usage,
+                           TABLE_LIST *table_list, Field *fld,
+                           Item **ref, field_index_t view_field_index)
+{
+  if (!should_mark_column(column_usage))
+    return;
+
+  /*
+    Get rw_set correct for this field so that the handler
+    knows that this field is involved in the query and gets
+    retrieved/updated
+   */
+  Field *field_to_set= NULL;
+  if (fld == view_ref_found)
+  {
+    if (!ref)
+      return;
+    Item *it= (*ref)->real_item();
+    if (it->type() == Item::FIELD_ITEM)
+      field_to_set= ((Item_field*)it)->field;
+    else
+    {
+      if (column_usage == MARK_COLUMNS_READ)
+      {
+        if (!table_list->is_merged_derived() && table_list->table)
+          bitmap_set_bit(table_list->table->read_set, view_field_index);
+        it->walk(&Item::register_field_in_read_map, 0, 0);
+      }
+      else
+      {
+        if (!table_list->is_merged_derived() && table_list->table)
+          bitmap_set_bit(table_list->table->write_set, view_field_index);
+        it->walk(&Item::register_field_in_write_map, 0, 0);
+      }
+    }
+  }
+  else
+    field_to_set= fld;
+  if (field_to_set)
+  {
+    TABLE *table= field_to_set->table;
+    DBUG_ASSERT(table);
+    if (column_usage == MARK_COLUMNS_READ)
+      field_to_set->register_field_in_read_map();
+    else
+      bitmap_set_bit(table->write_set, field_to_set->field_index);
+  }
+}
 
 /*
-  Find field in a table reference.
+  Find field in a table reference and marks it in read_set/write_set if found.
 
   SYNOPSIS
     find_field_in_table_ref()
@@ -6509,7 +6558,7 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list, const char *name,
     DBUG_RETURN(0);
 
   *actual_table= NULL;
-  field_index_t view_field_index;
+  field_index_t view_field_index= NO_CACHED_FIELD_INDEX;
   if (table_list->field_translation)
   {
     /* 'table_list' is a view or an information schema table. */
@@ -6576,49 +6625,8 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list, const char *name,
       fld= WRONG_GRANT;
     else
 #endif
-      if (should_mark_column(thd->column_usage))
-      {
-        /*
-          Get rw_set correct for this field so that the handler
-          knows that this field is involved in the query and gets
-          retrieved/updated
-         */
-        Field *field_to_set= NULL;
-        if (fld == view_ref_found)
-        {
-          if (!ref)
-            DBUG_RETURN(fld);
-          Item *it= (*ref)->real_item();
-          if (it->type() == Item::FIELD_ITEM)
-            field_to_set= ((Item_field*)it)->field;
-          else
-          {
-            if (thd->column_usage == MARK_COLUMNS_READ)
-            {
-              if (!table_list->is_merged_derived() && table_list->table)
-                bitmap_set_bit(table_list->table->read_set, view_field_index);
-              it->walk(&Item::register_field_in_read_map, 0, 0);
-            }
-            else
-            {
-              if (!table_list->is_merged_derived() && table_list->table)
-                bitmap_set_bit(table_list->table->write_set, view_field_index);
-              it->walk(&Item::register_field_in_write_map, 0, 0);
-            }
-          }
-        }
-        else
-          field_to_set= fld;
-        if (field_to_set)
-        {
-          TABLE *table= field_to_set->table;
-          DBUG_ASSERT(table);
-          if (thd->column_usage == MARK_COLUMNS_READ)
-            field_to_set->register_field_in_read_map();
-          else
-            bitmap_set_bit(table->write_set, field_to_set->field_index);
-        }
-      }
+      mark_column_if_needed(thd->column_usage, table_list, fld, ref,
+                            view_field_index);
   }
   DBUG_RETURN(fld);
 }

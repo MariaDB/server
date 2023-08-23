@@ -253,8 +253,8 @@ elim_func
         "sum(`t1`.`b`)"
     ]
 ]
-select group_id, sum(max_suma) from 
-(select group_id, max(suma) as max_suma, min(sumb) as min_sumb, sum(avgb) sum_avgb 
+select group_id, sum(max_suma) from
+(select group_id, max(suma) as max_suma, min(sumb) as min_sumb, sum(avgb) sum_avgb
 from v1 group by group_id
 ) as T;
 group_id	sum(max_suma)

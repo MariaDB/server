@@ -8674,12 +8674,11 @@ bool Item_ref::find_item_in_ref_ptr_array(void *arg)
   JOIN *join= param->first;
   MY_BITMAP *bitmap= param->second;
 
-  long offset= static_cast<long>(this->ref -
-                                 &join->select_lex->ref_pointer_array[0]);
-  if(offset < 0 || offset >= join->all_fields.elements)
+  long long offset= this->ref - &join->select_lex->ref_pointer_array[0];
+  if(offset < 0 || offset >= static_cast<long>(join->all_fields.elements))
     return true;
 
-  bitmap_set_bit(bitmap, offset);
+  bitmap_set_bit(bitmap, static_cast<uint>(offset));
   return false;
 }
 
