@@ -1053,85 +1053,6 @@ void spider_free_tmp_share_alloc(
   DBUG_VOID_RETURN;
 }
 
-<<<<<<< HEAD
-char *spider_get_string_between_quote(
-  char *ptr,
-  bool alloc,
-  SPIDER_PARAM_STRING_PARSE *param_string_parse
-) {
-  char *start_ptr, *end_ptr, *tmp_ptr, *esc_ptr;
-  bool find_flg = FALSE;
-  DBUG_ENTER("spider_get_string_between_quote");
-
-  start_ptr = strchr(ptr, '\'');
-  end_ptr = strchr(ptr, '"');
-  if (start_ptr && (!end_ptr || start_ptr < end_ptr))
-  {
-    tmp_ptr = ++start_ptr;
-    while (!find_flg)
-    {
-      if (!(end_ptr = strchr(tmp_ptr, '\'')))
-        DBUG_RETURN(NULL);
-      esc_ptr = tmp_ptr;
-      while (!find_flg)
-      {
-        esc_ptr = strchr(esc_ptr, '\\');
-        if (!esc_ptr || esc_ptr > end_ptr)
-          find_flg = TRUE;
-        else if (esc_ptr == end_ptr - 1)
-        {
-          tmp_ptr = end_ptr + 1;
-          break;
-        } else {
-          esc_ptr += 2;
-        }
-      }
-    }
-  } else if (end_ptr)
-  {
-    start_ptr = end_ptr;
-    tmp_ptr = ++start_ptr;
-    while (!find_flg)
-    {
-      if (!(end_ptr = strchr(tmp_ptr, '"')))
-        DBUG_RETURN(NULL);
-      esc_ptr = tmp_ptr;
-      while (!find_flg)
-      {
-        esc_ptr = strchr(esc_ptr, '\\');
-        if (!esc_ptr || esc_ptr > end_ptr)
-          find_flg = TRUE;
-        else if (esc_ptr == end_ptr - 1)
-        {
-          tmp_ptr = end_ptr + 1;
-          break;
-        } else {
-          esc_ptr += 2;
-        }
-      }
-    }
-  } else
-    DBUG_RETURN(NULL);
-
-  *end_ptr = '\0';
-
-  if (param_string_parse)
-    param_string_parse->set_param_value(start_ptr, start_ptr + strlen(start_ptr) + 1);
-
-  if (alloc)
-  {
-    DBUG_RETURN(
-      spider_create_string(
-      start_ptr,
-      strlen(start_ptr))
-    );
-  } else {
-    DBUG_RETURN(start_ptr);
-  }
-}
-
-=======
->>>>>>> e9f3ca61252 (MDEV-31117 Fix spider connection info parsing)
 int spider_create_string_list(
   char ***string_list,
   uint **string_length_list,
@@ -2535,12 +2456,8 @@ int spider_parse_connect_info(
           SPIDER_PARAM_LONG_LIST_WITH_MAX("use_hs_read", use_hs_reads, 0, 1);
 #endif
           SPIDER_PARAM_INT_WITH_MAX("casual_read", casual_read, 0, 63);
-<<<<<<< HEAD
           SPIDER_PARAM_INT("buffer_size", buffer_size, 0);
-          error_num = connect_string_parse.print_param_error();
-=======
           error_num = parse.fail(true);
->>>>>>> e9f3ca61252 (MDEV-31117 Fix spider connection info parsing)
           goto error;
         case 12:
           SPIDER_PARAM_DOUBLE("sts_interval", sts_interval, 0);
