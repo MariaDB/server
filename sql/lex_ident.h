@@ -87,9 +87,16 @@ public:
   {
     copy_casedn(&my_charset_utf8mb3_general_ci, db, casedn);
   }
+  Lex_ident_db to_lex_ident_db() const
+  {
+    const LEX_CSTRING tmp= to_lex_cstring();
+    if (Lex_ident_fs(tmp).check_db_name())
+      return Lex_ident_db();
+    return Lex_ident_db(tmp.str, tmp.length);
+  }
   Lex_ident_db to_lex_ident_db_with_error() const
   {
-    LEX_CSTRING tmp= to_lex_cstring();
+    const LEX_CSTRING tmp= to_lex_cstring();
     if (Lex_ident_fs(tmp).check_db_name_with_error())
       return Lex_ident_db();
     return Lex_ident_db(tmp.str, tmp.length);

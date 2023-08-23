@@ -1621,7 +1621,8 @@ struct handlerton
 
      Returns 0 on success and 1 on error.
    */
-   int (*discover_table_names)(handlerton *hton, LEX_CSTRING *db, MY_DIR *dir,
+   int (*discover_table_names)(handlerton *hton, const LEX_CSTRING *db,
+                               MY_DIR *dir,
                                discovered_list *result);
 
    /*
@@ -5574,7 +5575,7 @@ public:
 };
 
 int ha_discover_table(THD *thd, TABLE_SHARE *share);
-int ha_discover_table_names(THD *thd, LEX_CSTRING *db, MY_DIR *dirp,
+int ha_discover_table_names(THD *thd, const LEX_CSTRING *db, MY_DIR *dirp,
                             Discovered_table_list *result, bool reusable);
 bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
                      const LEX_CSTRING *table_name,

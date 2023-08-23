@@ -948,7 +948,8 @@ enum find_files_result {
 
 
 static find_files_result
-find_files(THD *thd, Dynamic_array<LEX_CSTRING*> *files, LEX_CSTRING *db,
+find_files(THD *thd, Dynamic_array<LEX_CSTRING*> *files,
+           const Lex_ident_db *db,
            const char *path, const LEX_CSTRING *wild)
 {
   MY_DIR *dirp;
@@ -4537,7 +4538,7 @@ int schema_tables_add(THD *thd, Dynamic_array<LEX_CSTRING*> *files,
 static int
 make_table_name_list(THD *thd, Dynamic_array<LEX_CSTRING*> *table_names,
                      LEX *lex, LOOKUP_FIELD_VALUES *lookup_field_vals,
-                     LEX_CSTRING *db_name)
+                     const LEX_CSTRING *db_name)
 {
   char path[FN_REFLEN + 1];
   build_table_filename(path, sizeof(path) - 1, db_name->str, "", "", 0);
@@ -4583,10 +4584,12 @@ make_table_name_list(THD *thd, Dynamic_array<LEX_CSTRING*> *table_names,
     return (schema_tables_add(thd, table_names,
                               lookup_field_vals->table_value.str));
 
-  if (check_db_name((LEX_STRING*)db_name))
+  DBNameBuffer dbbuf(*db_name, lower_case_table_names);
+  const Lex_ident_db dbnorm= dbbuf.to_lex_ident_db();
+  if (!dbnorm.str)
     return 0; // Impossible TABLE_SCHEMA name
 
-  find_files_result res= find_files(thd, table_names, db_name, path,
+  find_files_result res= find_files(thd, table_names, &dbnorm, path,
                                     &lookup_field_vals->table_value);
   if (res != FIND_FILES_OK)
   {

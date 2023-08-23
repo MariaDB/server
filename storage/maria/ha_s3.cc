@@ -827,7 +827,7 @@ static int s3_discover_table_existence(handlerton *hton, const char *db,
 */
 
 static int s3_discover_table_names(handlerton *hton __attribute__((unused)),
-                                   LEX_CSTRING *db,
+                                   const LEX_CSTRING *db,
                                    MY_DIR *dir __attribute__((unused)),
                                    handlerton::discovered_list *result)
 {

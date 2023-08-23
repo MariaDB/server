@@ -619,7 +619,7 @@ struct PFS_triple_index
 bool pfs_show_status(handlerton *hton, THD *thd,
                      stat_print_fn *print, enum ha_stat_type stat);
 
-int pfs_discover_table_names(handlerton *hton, LEX_CSTRING *db,
+int pfs_discover_table_names(handlerton *hton, const LEX_CSTRING *db,
                              MY_DIR *dir,
                              handlerton::discovered_list *result);
 

@@ -532,7 +532,8 @@ static int full_discover_for_existence(handlerton *, const char *, const char *)
 static int ext_based_existence(handlerton *, const char *, const char *)
 { return 0; }
 
-static int hton_ext_based_table_discovery(handlerton *hton, LEX_CSTRING *db,
+static int hton_ext_based_table_discovery(handlerton *hton,
+                             const LEX_CSTRING *db,
                              MY_DIR *dir, handlerton::discovered_list *result)
 {
   /*
@@ -6679,7 +6680,7 @@ void Discovered_table_list::remove_duplicates()
 
 struct st_discover_names_args
 {
-  LEX_CSTRING *db;
+  const LEX_CSTRING *db;
   MY_DIR *dirp;
   Discovered_table_list *result;
   uint possible_duplicates;
@@ -6724,7 +6725,7 @@ static my_bool discover_names(THD *thd, plugin_ref plugin,
   for DROP DATABASE (as it needs to know and delete non-table files).
 */
 
-int ha_discover_table_names(THD *thd, LEX_CSTRING *db, MY_DIR *dirp,
+int ha_discover_table_names(THD *thd, const LEX_CSTRING *db, MY_DIR *dirp,
                             Discovered_table_list *result, bool reusable)
 {
   int error;
