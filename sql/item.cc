@@ -2786,11 +2786,11 @@ Item_sp::func_name_cstring(THD *thd, bool is_package_function) const
       quoted `pkg` and `func` separately, so the entire result looks like:
          `db`.`pkg`.`func`
     */
-    Database_qualified_name tmp= Database_qualified_name::split(m_name->m_name);
-    DBUG_ASSERT(tmp.m_db.length);
-    append_identifier(thd, &qname, &tmp.m_db);
+    Identifier_chain2 tmp= Identifier_chain2::split(m_name->m_name);
+    DBUG_ASSERT(tmp[0].length);
+    append_identifier(thd, &qname, &tmp[0]);
     qname.append('.');
-    append_identifier(thd, &qname, &tmp.m_name);
+    append_identifier(thd, &qname, &tmp[1]);
   }
   else
     append_identifier(thd, &qname, &m_name->m_name);

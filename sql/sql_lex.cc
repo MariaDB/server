@@ -9310,7 +9310,7 @@ bool LEX::call_statement_start(THD *thd,
                                const Lex_ident_sys_st *proc)
 {
   Database_qualified_name q_db_pkg(db, pkg);
-  Database_qualified_name q_pkg_proc(pkg, proc);
+  Identifier_chain2 q_pkg_proc(*pkg, *proc);
   sp_name *spname;
 
   sql_command= SQLCOM_CALL;
@@ -9603,7 +9603,7 @@ Item *LEX::make_item_func_call_generic(THD *thd,
   static Lex_cstring dot(".", 1);
   Lex_ident_sys db(thd, cdb), pkg(thd, cpkg), func(thd, cfunc);
   Database_qualified_name q_db_pkg(db, pkg);
-  Database_qualified_name q_pkg_func(pkg, func);
+  Identifier_chain2 q_pkg_func(pkg, func);
   sp_name *qname;
 
   if (db.is_null() || pkg.is_null() || func.is_null())

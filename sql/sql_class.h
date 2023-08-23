@@ -7773,6 +7773,61 @@ public:
 };
 
 
+class Identifier_chain2
+{
+  LEX_CSTRING m_name[2];
+public:
+  Identifier_chain2()
+   :m_name{Lex_cstring(), Lex_cstring()}
+  { }
+  Identifier_chain2(const LEX_CSTRING &a, const LEX_CSTRING &b)
+   :m_name{a, b}
+  { }
+
+  const LEX_CSTRING& operator [] (size_t i) const
+  {
+    return m_name[i];
+  }
+
+  static Identifier_chain2 split(const LEX_CSTRING &txt)
+  {
+    DBUG_ASSERT(txt.str[txt.length] == '\0'); // Expect 0-terminated input
+    const char *dot= strchr(txt.str, '.');
+    if (!dot)
+      return Identifier_chain2(Lex_cstring(), txt);
+    size_t length0= dot - txt.str;
+    Lex_cstring name0(txt.str, length0);
+    Lex_cstring name1(txt.str + length0 + 1, txt.length - length0 - 1);
+    return Identifier_chain2(name0, name1);
+  }
+
+  // Export as a qualified name string: 'db.name'
+  size_t make_qname(char *dst, size_t dstlen) const
+  {
+    return my_snprintf(dst, dstlen, "%.*s.%.*s",
+                       (int) m_name[0].length, m_name[0].str,
+                       (int) m_name[1].length, m_name[1].str);
+  }
+
+  // Export as a qualified name string, allocate on mem_root.
+  bool make_qname(MEM_ROOT *mem_root, LEX_CSTRING *dst) const
+  {
+    const uint dot= !!m_name[0].length;
+    char *tmp;
+    /* format: [pkg + dot] + name + '\0' */
+    dst->length= m_name[0].length + dot + m_name[1].length;
+    if (unlikely(!(dst->str= tmp= (char*) alloc_root(mem_root,
+                                                     dst->length + 1))))
+      return true;
+    snprintf(tmp, dst->length + 1, "%.*s%.*s%.*s",
+            (int) m_name[0].length, (m_name[0].length ? m_name[0].str : ""),
+            dot, ".",
+            (int) m_name[1].length, m_name[1].str);
+    return false;
+  }
+};
+
+
 /**
   This class resembles the SQL Standard schema qualified object name:
   <schema qualified name> ::= [ <schema name> <period> ] <qualified identifier>
@@ -7813,41 +7868,15 @@ public:
   void copy(MEM_ROOT *mem_root, const LEX_CSTRING &db,
                                 const LEX_CSTRING &name);
 
-  static Database_qualified_name split(const LEX_CSTRING &txt)
-  {
-    DBUG_ASSERT(txt.str[txt.length] == '\0'); // Expect 0-terminated input
-    const char *dot= strchr(txt.str, '.');
-    if (!dot)
-      return Database_qualified_name(NULL, 0, txt.str, txt.length);
-    size_t dblen= dot - txt.str;
-    Lex_cstring db(txt.str, dblen);
-    Lex_cstring name(txt.str + dblen + 1, txt.length - dblen - 1);
-    return Database_qualified_name(db, name);
-  }
-
   // Export db and name as a qualified name string: 'db.name'
   size_t make_qname(char *dst, size_t dstlen) const
   {
-    return my_snprintf(dst, dstlen, "%.*s.%.*s",
-                       (int) m_db.length, m_db.str,
-                       (int) m_name.length, m_name.str);
+    return Identifier_chain2(m_db, m_name).make_qname(dst, dstlen);
   }
   // Export db and name as a qualified name string, allocate on mem_root.
   bool make_qname(MEM_ROOT *mem_root, LEX_CSTRING *dst) const
   {
-    const uint dot= !!m_db.length;
-    char *tmp;
-    /* format: [database + dot] + name + '\0' */
-    dst->length= m_db.length + dot + m_name.length;
-    if (unlikely(!(dst->str= tmp= (char*) alloc_root(mem_root,
-                                                     dst->length + 1))))
-      return true;
-    snprintf(tmp, dst->length + 1, "%.*s%.*s%.*s",
-            (int) m_db.length, (m_db.length ? m_db.str : ""),
-            dot, ".",
-            (int) m_name.length, m_name.str);
-    DBUG_SLOW_ASSERT(Lex_ident_fs(m_db).ok_for_lower_case_names());
-    return false;
+    return Identifier_chain2(m_db, m_name).make_qname(mem_root, dst);
   }
 
   bool make_package_routine_name(MEM_ROOT *mem_root,
@@ -7858,9 +7887,7 @@ public:
     size_t length= package.length + 1 + routine.length + 1;
     if (unlikely(!(tmp= (char *) alloc_root(mem_root, length))))
       return true;
-    m_name.length= my_snprintf(tmp, length, "%.*s.%.*s",
-                               (int) package.length, package.str,
-                               (int) routine.length, routine.str);
+    m_name.length= Identifier_chain2(package, routine).make_qname(tmp, length);
     m_name.str= tmp;
     return false;
   }
