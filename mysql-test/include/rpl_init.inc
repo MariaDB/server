@@ -7,14 +7,15 @@
 #    well as extra connections server_1_1, server_2_1, ...,
 #    server_N_1. server_I and server_I_1 are connections to the same
 #    server.
-#  - Verifies that @@server_id of all servers are different.
 #  - Calls RESET MASTER, RESET SLAVE, USE test, CHANGE MASTER, START SLAVE.
 #  - Sets the connection to server_1 before exiting.
+# With $rpl_check_server_ids parameter, the script does the following:
+#  - Verifies that @@server_id of all servers are different.
 #
 # ==== Usage ====
 #
 # 1. If you are going to use more than two servers, create
-#    rpl_test.cfg with the following contents:
+#    rpl_test.cnf with the following contents:
 #
 #    !include ../my.cnf
 #    [mysqld.1]
@@ -189,7 +190,7 @@ if ($rpl_check_server_ids)
     while ($_rpl_server2)
     {
       --let $assert_text= Servers $_rpl_server and $_rpl_server2 should have different @@server_id
-      --let $assert_condition= [$_rpl_server:SELECT @@server_id AS i, i, 1] != [$_rpl_server2:SELECT @@server_id AS i, i, 1]
+      --let $assert_cond= [SELECT @@server_id AS i, i, 1] != $_rpl_server
 
       --source include/assert.inc
       --dec $_rpl_server2
