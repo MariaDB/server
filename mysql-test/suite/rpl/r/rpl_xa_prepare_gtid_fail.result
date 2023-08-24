@@ -6,10 +6,7 @@ change master to master_use_gtid=slave_pos;
 set @@global.slave_parallel_threads= 4;
 set @@global.slave_parallel_mode= optimistic;
 set @@global.gtid_strict_mode=ON;
-set sql_log_bin= 0;
-alter table mysql.gtid_slave_pos engine=innodb;
-call mtr.add_suppression("Deadlock found.*");
-set sql_log_bin= 1;
+set statement sql_log_bin=0 for alter table mysql.gtid_slave_pos engine=innodb;
 include/start_slave.inc
 connection master;
 create table t1 (a int primary key, b int) engine=innodb;
@@ -27,21 +24,21 @@ xa end '1';
 xa prepare '1';
 xa commit '1';
 include/save_master_gtid.inc
-connection slave;
 connection slave1;
 BEGIN;
 SELECT * FROM mysql.gtid_slave_pos WHERE seq_no=100 FOR UPDATE;
 domain_id	sub_id	server_id	seq_no
 connection slave;
 include/start_slave.inc
-include/wait_for_slave_sql_error.inc [errno=1942,1213]
+include/wait_for_slave_sql_error.inc [errno=1942]
+include/stop_slave_io.inc
 connection slave1;
 ROLLBACK;
 # Cleanup
 connection master;
 drop table t1;
 connection slave;
-include/stop_slave.inc
+# TODO: Remove after fixing MDEV-29642
 set @@global.gtid_slave_pos= "0-1-100";
 set @@global.slave_parallel_threads= 0;
 set @@global.gtid_strict_mode= 0;
