@@ -1902,8 +1902,7 @@ srv_active_wake_master_thread_low()
 void
 srv_wake_purge_thread_if_not_active()
 {
-	ut_ad(!srv_read_only_mode);
-	ut_ad(!mutex_own(&srv_sys.mutex));
+	ut_ad(srv_read_only_mode || !mutex_own(&srv_sys.mutex));
 
 	if (purge_sys.enabled() && !purge_sys.paused()
 	    && !srv_sys.n_threads_active[SRV_PURGE]

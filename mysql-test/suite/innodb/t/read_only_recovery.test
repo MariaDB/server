@@ -37,6 +37,7 @@ UPDATE t SET a=3 WHERE a=1;
 SELECT * FROM t;
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT * FROM t;
+SET GLOBAL innodb_max_purge_lag_wait=0;
 --let $restart_parameters=
 --source include/restart_mysqld.inc
 SELECT * FROM t;
