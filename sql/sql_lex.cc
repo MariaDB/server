@@ -827,6 +827,7 @@ Lex_input_stream::reset(char *buffer, size_t length)
   ignore_space= MY_TEST(m_thd->variables.sql_mode & MODE_IGNORE_SPACE);
   stmt_prepare_mode= FALSE;
   multi_statements= TRUE;
+  analyze_state= LEX_STATE_NOT_ANALYZE;
   in_comment=NO_COMMENT;
   m_underscore_cs= NULL;
   m_cpp_ptr= m_cpp_buf;
@@ -1863,6 +1864,8 @@ int Lex_input_stream::lex_token(YYSTYPE *yylval, THD *thd)
     lookahead_token= -1;
     *yylval= *(lookahead_yylval);
     lookahead_yylval= NULL;
+    if (token == ANALYZE_SYM)
+      analyze_state= LEX_STATE_ANALYZE;
     return token;
   }
 
@@ -1870,6 +1873,41 @@ int Lex_input_stream::lex_token(YYSTYPE *yylval, THD *thd)
   add_digest_token(token, yylval);
 
   SELECT_LEX *curr_sel= thd->lex->current_select;
+
+  // track progression of tokens
+  // ANALYZE_SYM TABLE_SYM
+  // IDENT || .IDENT || IDENT.IDENT -- handled in sql_yacc.yy:^IDENT_cli
+  // SEE_NEXT_COMMENT
+  switch (analyze_state) {
+  case LEX_STATE_NOT_ANALYZE:
+  case LEX_STATE_ANALYZE_TABLE:
+    break;
+  case LEX_STATE_ANALYZE:
+    analyze_state= (token == TABLE_SYM)?LEX_STATE_ANALYZE_TABLE:
+                                        LEX_STATE_NOT_ANALYZE;
+    break;
+  case LEX_STATE_ANALYZE_TABLE_IDENT:
+    switch (token) {
+    // each of these tokens match cases in analyze_table_no_binlog:
+    // reduction rule in sql_yacc.yy, so we emit ANALYZE_TABLE_FLAG
+    case PERSISTENT_SYM:
+    case (int)',':
+    case END_OF_INPUT:
+      lookahead_token= token;
+      lookahead_yylval= yylval;
+      analyze_state= LEX_STATE_NOT_ANALYZE;
+
+      return ANALYZE_TABLE_FLAG;
+    case (int)'.':              // more IDENT to come.
+    case IDENT:
+    case IDENT_QUOTED:
+      break;
+    default:
+    // by NOT emitting ANALYZE_TABLE_FLAG we match rule analyze_stmt_command:
+      analyze_state= LEX_STATE_NOT_ANALYZE;
+    }
+    break;
+  }
 
   switch(token) {
   case WITH:
@@ -1979,6 +2017,9 @@ int Lex_input_stream::lex_token(YYSTYPE *yylval, THD *thd)
       return LEFT_PAREN_ALT;
     else
       return left_paren;
+    break;
+  case ANALYZE_SYM:
+    analyze_state= LEX_STATE_ANALYZE;
     break;
   default:
     break;
@@ -2958,6 +2999,7 @@ void st_select_lex::init_query()
   context.select_lex= this;
   context.init();
   cond_count= between_count= with_wild= 0;
+  is_explicit_table= false;
   max_equal_elems= 0;
   ref_pointer_array.reset();
   select_n_where_fields= 0;
@@ -2998,6 +3040,7 @@ void st_select_lex::init_select()
   table_join_options= 0;
   select_lock= select_lock_type::NONE;
   in_sum_expr= with_wild= 0;
+  is_explicit_table= false;
   options= 0;
   ftfunc_list_alloc.empty();
   inner_sum_func_list= 0;
@@ -10404,6 +10447,43 @@ SELECT_LEX *LEX::parsed_TVC_end()
   return res;
 }
 
+
+bool LEX::parsed_explicit_table(Table_ident *tab)
+{
+  TABLE_LIST *res;
+  // emulate select * from table
+
+  SELECT_LEX *sel;
+  if (!(sel= alloc_select(TRUE)) || push_select(sel))
+    return true;
+
+  sel->braces= FALSE; // just initialisation
+
+  Item *item= new(thd->mem_root)
+          Item_field(thd, &thd->lex->current_select->context, star_clex_str);
+
+  thd->lex->current_select->with_wild++;
+  thd->lex->current_select->is_explicit_table= true;
+
+  if (unlikely(item == NULL))
+    return true;
+  if (unlikely(add_item_to_list(thd, item)))
+    return true;
+
+  if (!(res= thd->lex->current_select->add_table_to_list(thd, tab,
+          (LEX_CSTRING *) 0x0, 0, TL_READ, MDL_SHARED_READ)))
+    return true;
+
+  thd->lex->current_select->context.table_list=
+    thd->lex->current_select->context.first_name_resolution_table=
+      thd->lex->current_select->table_list.first;
+
+  thd->lex->current_select->add_joined_table(
+                                thd->lex->current_select->table_list.first);
+
+  return false;
+
+}
 
 
 TABLE_LIST *LEX::parsed_derived_table(SELECT_LEX_UNIT *unit,

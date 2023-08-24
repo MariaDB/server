@@ -390,6 +390,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <NONE> WITH_CUBE_SYM          /* INTERNAL */
 %token  <NONE> WITH_ROLLUP_SYM        /* INTERNAL */
 %token  <NONE> WITH_SYSTEM_SYM        /* INTERNAL */
+%token  <NONE> ANALYZE_TABLE_FLAG     /* INTERNAL */
 
 /*
   Identifiers
@@ -1424,7 +1425,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <num>
         order_dir lock_option
-        udf_type opt_local opt_no_write_to_binlog
+        udf_type opt_local opt_no_write_to_binlog no_write_to_binlog
         opt_temporary all_or_any opt_distinct opt_glimit_clause
         opt_ignore_leaves fulltext_options union_option
         opt_not
@@ -1617,6 +1618,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <select_lex> subselect
         query_specification
         table_value_constructor
+        explicit_table
         simple_table
         query_simple
         query_primary
@@ -1664,14 +1666,15 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <NONE>
         directly_executable_statement
-        analyze_stmt_command backup backup_statements
+        analyze_stmt_command analyze_stmt_command_json backup backup_statements
         query verb_clause create create_routine change select select_into
         do drop drop_routine insert replace insert_start stmt_end
         insert_values update delete truncate rename compound_statement
         show describe load alter optimize keycache preload flush
         reset purge begin_stmt_mariadb commit rollback savepoint release
         slave master_def master_defs master_file_def slave_until_opts
-        repair analyze opt_with_admin opt_with_admin_option
+        repair analyze_table_with_binlog analyze_table_no_binlog analyze_tables 
+        opt_with_admin opt_with_admin_option
         analyze_table_list analyze_table_elem_spec
         opt_persistent_stat_clause persistent_stat_spec
         persistent_column_stat_spec persistent_index_stat_spec
@@ -1953,8 +1956,11 @@ directly_executable_statement:
 /* Verb clauses, except begin and compound_statement */
 verb_clause:
           alter
-        | analyze
+        | analyze_table_no_binlog
+        | analyze_table_with_binlog
+        | analyze_tables
         | analyze_stmt_command
+        | analyze_stmt_command_json
         | backup
         | binlog_base64_event
         | call
@@ -7987,8 +7993,39 @@ opt_view_repair_type:
         | FROM MYSQL_SYM { Lex->check_opt.sql_flags|= TT_FROM_MYSQL; }
         ;
 
-analyze:
-          ANALYZE_SYM opt_no_write_to_binlog table_or_tables
+analyze_table_no_binlog:
+          ANALYZE_SYM
+          TABLE_SYM
+          table_ident
+          ANALYZE_TABLE_FLAG
+          opt_persistent_stat_clause
+          {
+            if (!thd->lex->current_select_or_default()->
+                   add_table_to_list(thd, $3, NULL, TL_OPTION_UPDATING,
+                                     YYPS->m_lock_type, YYPS->m_mdl_type))
+              MYSQL_YYABORT;
+          }
+          opt_analyze_table_list
+          {
+            LEX *lex=Lex;
+            lex->sql_command = SQLCOM_ANALYZE;
+            lex->no_write_to_binlog= 0;
+            lex->check_opt.init();
+            lex->alter_info.reset();
+            /* Will be overridden during execution. */
+            YYPS->m_lock_type= TL_UNLOCK;
+
+            DBUG_ASSERT(!lex->m_sql_cmd);
+            lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_analyze_table();
+            if (unlikely(lex->m_sql_cmd == NULL))
+              MYSQL_YYABORT;
+          }
+          ;
+
+analyze_table_with_binlog:
+          ANALYZE_SYM 
+          no_write_to_binlog 
+          TABLE_SYM
           {
             LEX *lex=Lex;
             lex->sql_command = SQLCOM_ANALYZE;
@@ -8006,6 +8043,32 @@ analyze:
             if (unlikely(lex->m_sql_cmd == NULL))
               MYSQL_YYABORT;
           }
+        ;
+
+analyze_tables:
+          ANALYZE_SYM opt_no_write_to_binlog TABLES
+          {
+            LEX *lex=Lex;
+            lex->sql_command = SQLCOM_ANALYZE;
+            lex->no_write_to_binlog= $2;
+            lex->check_opt.init();
+            lex->alter_info.reset();
+            /* Will be overridden during execution. */
+            YYPS->m_lock_type= TL_UNLOCK;
+          }
+          analyze_table_list
+          {
+            LEX* lex= thd->lex;
+            DBUG_ASSERT(!lex->m_sql_cmd);
+            lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_analyze_table();
+            if (unlikely(lex->m_sql_cmd == NULL))
+              MYSQL_YYABORT;
+          }
+        ;
+
+opt_analyze_table_list:
+          /* empty */
+        | ',' analyze_table_list
         ;
 
 analyze_table_list:
@@ -8191,10 +8254,14 @@ optimize:
           }
         ;
 
+no_write_to_binlog:
+          NO_WRITE_TO_BINLOG { $$= 1; }
+        | LOCAL_SYM { $$= 1; }
+        ;
+
 opt_no_write_to_binlog:
           /* empty */ { $$= 0; }
-        | NO_WRITE_TO_BINLOG { $$= 1; }
-        | LOCAL_SYM { $$= 1; }
+        | no_write_to_binlog { $$= 1; }
         ;
 
 rename:
@@ -8451,6 +8518,7 @@ select_into:
 simple_table:
           query_specification      { $$= $1; }
         | table_value_constructor  { $$= $1; }
+        | explicit_table           { $$= $1; }
         ;
 
 table_value_constructor:
@@ -8465,6 +8533,17 @@ table_value_constructor:
 	      MYSQL_YYABORT;
 	  }
 	;
+
+
+explicit_table:
+         TABLE_SYM table_ident
+         {
+            if (Lex->parsed_explicit_table($2))
+              MYSQL_YYABORT;
+
+            $$= Lex->pop_select();
+         }
+         ;
 
 query_specification_start:
           SELECT_SYM
@@ -14179,8 +14258,23 @@ describe_command:
         ;
 
 analyze_stmt_command:
-          ANALYZE_SYM opt_format_json explainable_command
+          ANALYZE_SYM explainable_command
           {
+            Lex->analyze_stmt= true;
+          }
+        ;
+
+analyze_stmt_command_json:
+          ANALYZE_SYM FORMAT_SYM '=' ident_or_text explainable_command
+          {
+            if (lex_string_eq(&$4, STRING_WITH_LEN("JSON")))
+              Lex->explain_json= true;
+            else if (lex_string_eq(&$4, STRING_WITH_LEN("TRADITIONAL")))
+              DBUG_ASSERT(Lex->explain_json==false);
+            else
+              my_yyabort_error((ER_UNKNOWN_EXPLAIN_FORMAT, MYF(0),
+                                "EXPLAIN/ANALYZE", $4.str));
+
             Lex->analyze_stmt= true;
           }
         ;
@@ -15347,6 +15441,10 @@ ident_cli:
 IDENT_sys:
           IDENT_cli
           {
+            Lex_input_stream::analyze_state_t *l_state= &YYLIP->analyze_state;
+            if (*l_state >= Lex_input_stream::LEX_STATE_ANALYZE_TABLE)
+              *l_state= Lex_input_stream::LEX_STATE_ANALYZE_TABLE_IDENT;
+
             if (unlikely(thd->to_ident_sys_alloc(&$$, &$1)))
               MYSQL_YYABORT;
           }

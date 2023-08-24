@@ -1,0 +1,32 @@
+#
+#privileges
+#
+connect  master,localhost,root,,;
+connection master;
+create database explicit_test;
+use explicit_test;
+create table master (selc int, upc int, insc int, delc int);
+create view public as table master;
+alter table master add column privc int;
+create user user_explicit_test@localhost;
+grant select(selc) on explicit_test.public to user_explicit_test@localhost;
+grant update(upc) on explicit_test.public to user_explicit_test@localhost;
+grant insert on explicit_test.public to user_explicit_test@localhost;
+connect  connect_explicit_test, localhost, user_explicit_test,,explicit_test;
+connection connect_explicit_test;
+table public;
+ERROR 42000: SELECT command denied to user 'user_explicit_test'@'localhost' for table `explicit_test`.`public`
+# OK
+select selc from public;
+selc
+select privc from public;
+ERROR 42S22: Unknown column 'privc' in 'field list'
+# OK
+insert into public (selc) values (1);
+update public set selc = 2 where selc = 1;
+ERROR 42000: UPDATE command denied to user 'user_explicit_test'@'localhost' for column 'selc' in table 'public'
+update public set upc = 2;
+connection master;
+revoke all privileges, grant option from user_explicit_test@localhost;
+drop user user_explicit_test@localhost;
+drop database explicit_test;

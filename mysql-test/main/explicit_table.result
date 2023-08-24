@@ -1,0 +1,715 @@
+#
+# start with simple stuff to illustrate explicit tables and make
+# sure we are working OK.
+#
+# MyISAM
+create table t1 (col1 int,col2 char(22)) engine=MyISAM;
+insert into t1 values (10,'Hello >');
+insert into t1 values (20,'How are you? >');
+insert into t1 values (30,'Farewell >');
+table t1;
+col1	col2
+10	Hello >
+20	How are you? >
+30	Farewell >
+drop table t1;
+# Aria
+create table t1 (col1 int,col2 char(22)) engine=Aria;
+insert into t1 values (10,'Hello >');
+insert into t1 values (20,'How are you? >');
+insert into t1 values (30,'Farewell >');
+table t1;
+col1	col2
+10	Hello >
+20	How are you? >
+30	Farewell >
+drop table t1;
+set global query_cache_type= ON;
+set query_cache_type=on;
+# InnoDB
+create table t1 (col1 int,col2 char(22)) engine=InnoDB;
+insert into t1 values (10,'Hello >');
+insert into t1 values (20,'How are you? >');
+insert into t1 values (30,'Farewell >');
+table t1;
+col1	col2
+10	Hello >
+20	How are you? >
+30	Farewell >
+# query cache, query should be cached.
+show status like "Qcache_queries_in_cache";
+Variable_name	Value
+Qcache_queries_in_cache	1
+set global query_cache_type= OFF;
+SET LOCAL query_cache_type= 0;
+# In derived table
+select * from (table t1) as t0;
+col1	col2
+10	Hello >
+20	How are you? >
+30	Farewell >
+# views
+create view v1 as table t1;
+table v1;
+col1	col2
+10	Hello >
+20	How are you? >
+30	Farewell >
+check table t1,v1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.v1	check	status	OK
+check table v1,t1;
+Table	Op	Msg_type	Msg_text
+test.v1	check	status	OK
+test.t1	check	status	OK
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`col1` AS `col1`,`t1`.`col2` AS `col2` from `t1`	latin1	latin1_swedish_ci
+create index i1 on v1 (col1);
+ERROR HY000: 'test.v1' is not of type 'BASE TABLE'
+# view of a view
+create view v2 as table v1;
+table v2;
+col1	col2
+10	Hello >
+20	How are you? >
+30	Farewell >
+show create view v2;
+View	Create View	character_set_client	collation_connection
+v2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select `v1`.`col1` AS `col1`,`v1`.`col2` AS `col2` from `v1`	latin1	latin1_swedish_ci
+# t1 into t2
+create table t2 (col1 int,col2 char(22));
+insert into t2 table t1;
+table t2;
+col1	col2
+10	Hello >
+20	How are you? >
+30	Farewell >
+# one row this way
+set sql_select_limit=1;
+table t2;
+col1	col2
+10	Hello >
+set sql_select_limit=default;
+# and another way
+table t2 limit 1;
+col1	col2
+10	Hello >
+# with an offset
+table t2 limit 1 offset 1;
+col1	col2
+20	How are you? >
+# in a different order
+table t2 order by col1 desc;
+col1	col2
+30	Farewell >
+20	How are you? >
+10	Hello >
+table t2 order by 1;
+col1	col2
+10	Hello >
+20	How are you? >
+30	Farewell >
+table t2 order by 2 limit 1 offset 2;
+col1	col2
+20	How are you? >
+# simple set operations
+#
+create table t3 as select * from t1 where col1=30;
+table t1 union table t2;
+col1	col2
+10	Hello >
+20	How are you? >
+30	Farewell >
+table t1 union all table t2;
+col1	col2
+10	Hello >
+20	How are you? >
+30	Farewell >
+10	Hello >
+20	How are you? >
+30	Farewell >
+table t1 intersect table t2;
+col1	col2
+10	Hello >
+20	How are you? >
+30	Farewell >
+table t1 except table t3;
+col1	col2
+10	Hello >
+20	How are you? >
+table t1 union values (40, 'Hello again >');
+col1	col2
+10	Hello >
+20	How are you? >
+30	Farewell >
+40	Hello again >
+# union with a TVC
+table t1 union values (15, '< Hello'),(25, '<I am well, you?'),
+(35, '< See you next time') order by 1;
+col1	col2
+10	Hello >
+15	< Hello
+20	How are you? >
+25	<I am well, you?
+30	Farewell >
+35	< See you next time
+# re-ordered union
+create table t4 like t1;
+insert into t4 values (15, '< Hello'),(25, '<I am well, you?'),
+(35, '< See you next time') order by 1;
+table t1 intersect table t4;
+col1	col2
+table t1 union table t4 order by 1;
+col1	col2
+10	Hello >
+15	< Hello
+20	How are you? >
+25	<I am well, you?
+30	Farewell >
+35	< See you next time
+table t2 union all table t3 union table t4 order by 1;
+col1	col2
+10	Hello >
+15	< Hello
+20	How are you? >
+25	<I am well, you?
+30	Farewell >
+35	< See you next time
+table t2 union all table t3 union all table t4 order by 1;
+col1	col2
+10	Hello >
+15	< Hello
+20	How are you? >
+25	<I am well, you?
+30	Farewell >
+30	Farewell >
+35	< See you next time
+# add a column to t1
+alter table t1 add column col3 timestamp not null default "2000-01-01";
+# should create error, t1 now has 3 columns, t2 has 2.
+table t1 union table t2;
+ERROR 21000: The used SELECT statements have a different number of columns
+create view v3 as table t1;
+table t1 union table v3;
+col1	col2	col3
+10	Hello >	2000-01-01 00:00:00
+20	How are you? >	2000-01-01 00:00:00
+30	Farewell >	2000-01-01 00:00:00
+# but view structures are immutable so this is OK.
+table v1 union table t2;
+col1	col2
+10	Hello >
+20	How are you? >
+30	Farewell >
+table v1 union table v2;
+col1	col2
+10	Hello >
+20	How are you? >
+30	Farewell >
+# we can update this view
+update v1 set col2 = 'Gidday >' where col1 = 10;
+table t1;
+col1	col2	col3
+10	Gidday >	2000-01-01 00:00:00
+20	How are you? >	2000-01-01 00:00:00
+30	Farewell >	2000-01-01 00:00:00
+delete from v1 where col1 = 10;
+table t1;
+col1	col2	col3
+20	How are you? >	2000-01-01 00:00:00
+30	Farewell >	2000-01-01 00:00:00
+insert into v1 values (10, 'Hello >');
+table t1;
+col1	col2	col3
+20	How are you? >	2000-01-01 00:00:00
+30	Farewell >	2000-01-01 00:00:00
+10	Hello >	2000-01-01 00:00:00
+alter table t1 drop column col3;
+#
+# derived tables
+#
+select * from (table t1) a join (table t2) b on a.col1 = b.col1;
+col1	col2	col1	col2
+10	Hello >	10	Hello >
+20	How are you? >	20	How are you? >
+30	Farewell >	30	Farewell >
+select * from (table t1) a
+join (table t2) b on a.col1 = b.col1
+join (table t3) c on b.col1 = c.col1;
+col1	col2	col1	col2	col1	col2
+30	Farewell >	30	Farewell >	30	Farewell >
+select * from (table t1) a
+left join (table t3) b on a.col1 = b.col1;
+col1	col2	col1	col2
+30	Farewell >	30	Farewell >
+20	How are you? >	NULL	NULL
+10	Hello >	NULL	NULL
+select * from t2 where row(col1, col2) in (table t3);
+col1	col2
+30	Farewell >
+#
+# subselects
+#
+create view vcol1 as select col1 from t1;
+create view vcol4 as select col1 from t4;
+select * from t2 where col1 in (table vcol1);
+col1	col2
+20	How are you? >
+30	Farewell >
+10	Hello >
+select cast((table vcol1 limit 1 offset 2)/15 as integer);
+cast((table vcol1 limit 1 offset 2)/15 as integer)
+1
+select * from t2 where col1 in (table vcol1) order by 2;
+col1	col2
+30	Farewell >
+10	Hello >
+20	How are you? >
+#
+# false then true tests with derived tables
+#
+select 10 < all (table vcol1);
+10 < all (table vcol1)
+0
+select 9 < all (table vcol1);
+9 < all (table vcol1)
+1
+select 30 < any (table vcol1);
+30 < any (table vcol1)
+0
+select 25 < any (table vcol1);
+25 < any (table vcol1)
+1
+select 11 in (table vcol1);
+11 in (table vcol1)
+0
+select 10 in (table vcol1);
+10 in (table vcol1)
+1
+select col1, col1 in (table vcol4) from t1;
+col1	col1 in (table vcol4)
+20	0
+30	0
+10	0
+select col1, col1 in (table vcol1) from t1;
+col1	col1 in (table vcol1)
+20	1
+30	1
+10	1
+# used as a single value expression
+create table t5 (a integer);
+select (table t5)+1;
+(table t5)+1
+NULL
+insert into t5 values (1);
+select (table t5)+1;
+(table t5)+1
+2
+insert into t5 values (2);
+select (table t5)+1;
+ERROR 21000: Subquery returns more than 1 row
+# gather stats for the table t1 in various permutations
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+analyze table .t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+analyze table test.t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+analyze table t1, test.t2;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+analyze table t1, t2 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	Table is already up to date
+analyze table t1 persistent for all, t2;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	Table is already up to date
+analyze tables t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+analyze tables .t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+analyze tables test.t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+analyze tables t1, test.t2;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	Table is already up to date
+analyze tables t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+analyze tables t1, t2 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	Table is already up to date
+analyze tables t1 persistent for all, t2;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	Table is already up to date
+analyze table;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
+analyze table .;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
+analyze table . select;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'select' at line 1
+# analyze sql command involving "table t1"
+analyze table t1 UNION table t3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	3.00	100.00	100.00	
+2	UNION	t3	system	NULL	NULL	NULL	NULL	1	NULL	100.00	NULL	
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	3.00	NULL	NULL	
+analyze table t1 where col1 = 'a';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'where col1 = 'a'' at line 1
+analyze format=json table t1;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 3,
+          "r_rows": 3,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    ]
+  }
+}
+analyze format='json' table t1 limit 1;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 3,
+          "r_rows": 1,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    ]
+  }
+}
+#
+# prepared statements
+#
+prepare stmt1 from "table vcol1 limit 1 offset ?";
+prepare stmt2 from "table v2 union all table t3 union table t4 order by 1";
+prepare stmt3 from "analyze table t1";
+prepare stmt4 from "analyze table t1 persistent for all";
+prepare stmt5 from "analyze table t1 UNION table t3";
+execute stmt1 using 1;
+col1
+30
+execute stmt1 using 1;
+col1
+30
+execute stmt2;
+col1	col2
+10	Hello >
+15	< Hello
+20	How are you? >
+25	<I am well, you?
+30	Farewell >
+35	< See you next time
+execute stmt2;
+col1	col2
+10	Hello >
+15	< Hello
+20	How are you? >
+25	<I am well, you?
+30	Farewell >
+35	< See you next time
+execute stmt3;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+execute stmt3;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+execute stmt4;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+execute stmt4;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+execute stmt5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	3.00	100.00	100.00	
+2	UNION	t3	system	NULL	NULL	NULL	NULL	1	NULL	100.00	NULL	
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	3.00	NULL	NULL	
+execute stmt5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	3.00	100.00	100.00	
+2	UNION	t3	system	NULL	NULL	NULL	NULL	1	NULL	100.00	NULL	
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	3.00	NULL	NULL	
+execute stmt1 using 2;
+col1
+10
+execute stmt1 using 2;
+col1
+10
+#
+# cte
+#
+with cte1 as ((table v2 union table t4) order by 1) table cte1;
+col1	col2
+10	Hello >
+15	< Hello
+20	How are you? >
+25	<I am well, you?
+30	Farewell >
+35	< See you next time
+with cte1 as ((table v2 union table t4) order by 1) select * from cte1
+where col1 in (table vcol1);
+col1	col2
+20	How are you? >
+30	Farewell >
+10	Hello >
+#
+# procedures
+#
+create procedure test_proc1 () table t1;
+create procedure test_proc2 () analyze table t1;
+call test_proc1();
+col1	col2
+20	How are you? >
+30	Farewell >
+10	Hello >
+call test_proc2();
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+drop procedure test_proc1;
+drop procedure test_proc2;
+#
+# window functions
+#
+select col1, count(*) from (table t1) a group by col1;
+col1	count(*)
+10	1
+20	1
+30	1
+drop view v1, v2, v3, vcol1, vcol4;
+drop table t1, t2, t3, t4, t5;
+#
+# Changing of underlying table
+#
+create table t1 (col1 char(5),col2 char(5));
+create view v1 as table t1;
+drop table t1;
+create table t1 (col1 char(5),newcol2 char(5));
+insert into v1 values('a','aa');
+ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+drop table t1;
+table v1;
+ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+drop view v1;
+#
+# updateability should be transitive
+#
+create table t1 (col1 int,col2 char(22));
+insert into t1 values(5,'Hello, world of views');
+create view v1 as table t1;
+create view v2 as table v1;
+update v2 set col2='Hello, view world';
+select is_updatable from information_schema.views where table_schema <> 'sys';
+is_updatable
+YES
+YES
+YES
+table t1;
+col1	col2
+5	Hello, view world
+drop view v2, v1;
+drop table t1;
+#
+# VIEW of VIEW with column renaming
+#
+create table t1 (col1 bigint not null, primary key (col1));
+create table t2 (col1 bigint not null, key (col1));
+create view v1 as table t1;
+create view v2 as table t2;
+insert into v1 values (1);
+insert into v2 values (1);
+create view v3 (a,b) as select v1.col1 as a, v2.col1 as b from v1, v2
+where v1.col1 = v2.col1;
+table v3;
+a	b
+1	1
+show create view v3;
+View	Create View	character_set_client	collation_connection
+v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS select `v1`.`col1` AS `a`,`v2`.`col1` AS `b` from (`v1` join `v2`) where `v1`.`col1` = `v2`.`col1`	latin1	latin1_swedish_ci
+drop view v3, v2, v1;
+drop table t2, t1;
+#
+# HANDLER with VIEW
+#
+create table t1 (s1 int);
+create view v1 as table t1;
+handler v1 open as xx;
+ERROR HY000: 'test.v1' is not of type 'BASE TABLE'
+drop view v1;
+drop table t1;
+#
+# check cyclic referencing protection on altering view
+#
+create table t1 (s1 int);
+create view v1 as table t1;
+create view v2 as table v1;
+alter view v1 as table v2;
+ERROR 42S02: Table 'test.v1' doesn't exist
+alter view v1 as table v1;
+ERROR 42S02: Table 'test.v1' doesn't exist
+create or replace view v1 as table v2;
+ERROR 42S02: Table 'test.v1' doesn't exist
+create or replace view v1 as table v1;
+ERROR 42S02: Table 'test.v1' doesn't exist
+drop view v2,v1;
+drop table t1;
+#
+# check altering differ options
+#
+create table t1 (a int);
+create view v1 as table t1;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1`	latin1	latin1_swedish_ci
+alter algorithm=undefined view v1 as table t1 with check option;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1` WITH CASCADED CHECK OPTION	latin1	latin1_swedish_ci
+alter algorithm=merge view v1 as table t1 with cascaded check option;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=MERGE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1` WITH CASCADED CHECK OPTION	latin1	latin1_swedish_ci
+alter algorithm=temptable view v1 as table t1;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=TEMPTABLE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1`	latin1	latin1_swedish_ci
+drop view v1;
+drop table t1;
+create table t1 (f1 int, f2 int,f3 int);
+insert into t1 values (1,10,20),(2,0,0);
+create view v1 as table t1;
+select if(sum(f1)>1,f2,f3) from v1 group by f1;
+if(sum(f1)>1,f2,f3)
+20
+0
+drop view v1;
+drop table t1;
+create table t1 (a int);
+create view v1 as table t1;
+create view v2 as table v1;
+drop table t1;
+rename table v2 to t1;
+table v1;
+ERROR HY000: `test`.`v1` contains view recursion
+drop view t1, v1;
+# using SP function
+create table t1 (a int);
+create function f1() returns int
+begin
+declare mx int;
+select max(a) from t1 into mx;
+return mx;
+end//
+create view v1 as select f1() as a;
+create view v2 as table v1;
+drop table t1;
+rename table v2 to t1;
+table v1;
+ERROR HY000: Recursive stored functions and triggers are not allowed
+drop function f1;
+drop view t1, v1;
+set @tdc= @@table_definition_cache, @tc= @@table_open_cache;
+set global table_definition_cache= 400, table_open_cache= 400;
+create table tt (a int, primary key(a)) engine=MyISAM;
+create view v as table tt;
+insert into tt values(1),(2),(3),(4);
+prepare stmt from 'table tt';
+#fill table definition cache
+execute stmt;
+a
+1
+2
+3
+4
+prepare stmt from 'table v';
+execute stmt;
+a
+1
+2
+3
+4
+# Cleanup
+drop database db;
+drop view v;
+drop table tt;
+set global table_definition_cache= @tdc, table_open_cache= @tc;

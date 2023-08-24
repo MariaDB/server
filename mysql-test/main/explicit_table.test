@@ -1,0 +1,418 @@
+--source include/have_innodb.inc
+--source include/have_query_cache.inc
+--enable_ps_protocol
+
+--echo #
+--echo # start with simple stuff to illustrate explicit tables and make
+--echo # sure we are working OK.
+--echo #
+
+--echo # MyISAM
+create table t1 (col1 int,col2 char(22)) engine=MyISAM;
+insert into t1 values (10,'Hello >');
+insert into t1 values (20,'How are you? >');
+insert into t1 values (30,'Farewell >');
+table t1;
+
+drop table t1;
+
+--echo # Aria
+create table t1 (col1 int,col2 char(22)) engine=Aria;
+insert into t1 values (10,'Hello >');
+insert into t1 values (20,'How are you? >');
+insert into t1 values (30,'Farewell >');
+table t1;
+
+drop table t1;
+
+set global query_cache_type= ON;
+set query_cache_type=on;
+
+--echo # InnoDB
+create table t1 (col1 int,col2 char(22)) engine=InnoDB;
+insert into t1 values (10,'Hello >');
+insert into t1 values (20,'How are you? >');
+insert into t1 values (30,'Farewell >');
+table t1;
+
+--echo # query cache, query should be cached.
+show status like "Qcache_queries_in_cache";
+set global query_cache_type= OFF;
+SET LOCAL query_cache_type= 0;
+
+--echo # In derived table
+select * from (table t1) as t0;
+
+--echo # views
+
+create view v1 as table t1;
+table v1;
+
+check table t1,v1;
+check table v1,t1;
+
+show create view v1;
+
+-- error ER_WRONG_OBJECT
+create index i1 on v1 (col1);
+
+--echo # view of a view
+create view v2 as table v1;
+table v2;
+
+show create view v2;
+
+--echo # t1 into t2
+create table t2 (col1 int,col2 char(22));
+insert into t2 table t1;
+table t2;
+
+--echo # one row this way
+set sql_select_limit=1;
+table t2;
+set sql_select_limit=default;
+
+--echo # and another way
+table t2 limit 1;
+--echo # with an offset
+table t2 limit 1 offset 1;
+--echo # in a different order
+table t2 order by col1 desc;
+table t2 order by 1;
+table t2 order by 2 limit 1 offset 2;
+
+--echo # simple set operations
+--echo #
+create table t3 as select * from t1 where col1=30;
+
+table t1 union table t2;
+table t1 union all table t2;
+table t1 intersect table t2;
+table t1 except table t3;
+
+table t1 union values (40, 'Hello again >');
+
+--echo # union with a TVC
+table t1 union values (15, '< Hello'),(25, '<I am well, you?'),
+  (35, '< See you next time') order by 1;
+
+--echo # re-ordered union
+create table t4 like t1;
+insert into t4 values (15, '< Hello'),(25, '<I am well, you?'),
+  (35, '< See you next time') order by 1;
+
+table t1 intersect table t4;
+table t1 union table t4 order by 1;
+
+table t2 union all table t3 union table t4 order by 1;
+table t2 union all table t3 union all table t4 order by 1;
+
+--echo # add a column to t1
+alter table t1 add column col3 timestamp not null default "2000-01-01";
+--echo # should create error, t1 now has 3 columns, t2 has 2.
+-- error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
+table t1 union table t2;
+
+create view v3 as table t1;
+table t1 union table v3;
+
+--echo # but view structures are immutable so this is OK.
+table v1 union table t2;
+table v1 union table v2;
+
+--echo # we can update this view
+update v1 set col2 = 'Gidday >' where col1 = 10;
+table t1;
+delete from v1 where col1 = 10;
+table t1;
+insert into v1 values (10, 'Hello >');
+table t1;
+
+alter table t1 drop column col3;
+
+--echo #
+--echo # derived tables
+--echo #
+select * from (table t1) a join (table t2) b on a.col1 = b.col1;
+select * from (table t1) a
+  join (table t2) b on a.col1 = b.col1
+  join (table t3) c on b.col1 = c.col1;
+select * from (table t1) a
+  left join (table t3) b on a.col1 = b.col1;
+select * from t2 where row(col1, col2) in (table t3);
+
+--echo #
+--echo # subselects
+--echo #
+create view vcol1 as select col1 from t1;
+create view vcol4 as select col1 from t4;
+select * from t2 where col1 in (table vcol1);
+
+select cast((table vcol1 limit 1 offset 2)/15 as integer);
+select * from t2 where col1 in (table vcol1) order by 2;
+
+--echo #
+--echo # false then true tests with derived tables
+--echo #
+select 10 < all (table vcol1);
+select 9 < all (table vcol1);
+
+select 30 < any (table vcol1);
+select 25 < any (table vcol1);
+
+select 11 in (table vcol1);
+select 10 in (table vcol1);
+
+select col1, col1 in (table vcol4) from t1;
+select col1, col1 in (table vcol1) from t1;
+
+--echo # used as a single value expression
+create table t5 (a integer);
+select (table t5)+1;
+insert into t5 values (1);
+select (table t5)+1;
+insert into t5 values (2);
+--error ER_SUBQUERY_NO_1_ROW
+select (table t5)+1;
+
+--echo # gather stats for the table t1 in various permutations
+analyze table t1;
+analyze table .t1;
+analyze table test.t1;
+analyze table t1, test.t2;
+analyze table t1 persistent for all;
+analyze table t1, t2 persistent for all;
+analyze table t1 persistent for all, t2;
+analyze tables t1;
+analyze tables .t1;
+analyze tables test.t1;
+analyze tables t1, test.t2;
+analyze tables t1 persistent for all;
+analyze tables t1, t2 persistent for all;
+analyze tables t1 persistent for all, t2;
+--error ER_PARSE_ERROR
+analyze table;
+--error ER_PARSE_ERROR
+analyze table .;
+--error ER_PARSE_ERROR
+analyze table . select;
+
+--echo # analyze sql command involving "table t1"
+analyze table t1 UNION table t3;
+--error ER_PARSE_ERROR
+analyze table t1 where col1 = 'a';
+
+--source include/analyze-format.inc
+eval analyze format=json table t1;
+
+--source include/analyze-format.inc
+eval analyze format='json' table t1 limit 1;
+
+--echo #
+--echo # prepared statements
+--echo #
+prepare stmt1 from "table vcol1 limit 1 offset ?";
+prepare stmt2 from "table v2 union all table t3 union table t4 order by 1";
+prepare stmt3 from "analyze table t1";
+prepare stmt4 from "analyze table t1 persistent for all";
+prepare stmt5 from "analyze table t1 UNION table t3";
+
+execute stmt1 using 1;
+execute stmt1 using 1;
+execute stmt2;
+execute stmt2;
+execute stmt3;
+execute stmt3;
+execute stmt4;
+execute stmt4;
+execute stmt5;
+execute stmt5;
+execute stmt1 using 2;
+execute stmt1 using 2;
+
+--echo #
+--echo # cte
+--echo #
+with cte1 as ((table v2 union table t4) order by 1) table cte1;
+with cte1 as ((table v2 union table t4) order by 1) select * from cte1
+  where col1 in (table vcol1);
+
+--echo #
+--echo # procedures
+--echo #
+
+create procedure test_proc1 () table t1;
+create procedure test_proc2 () analyze table t1;
+
+call test_proc1();
+call test_proc2();
+
+drop procedure test_proc1;
+drop procedure test_proc2;
+
+--echo #
+--echo # window functions
+--echo #
+
+select col1, count(*) from (table t1) a group by col1;
+
+drop view v1, v2, v3, vcol1, vcol4;
+drop table t1, t2, t3, t4, t5;
+
+--echo #
+--echo # Changing of underlying table
+--echo #
+create table t1 (col1 char(5),col2 char(5));
+create view v1 as table t1;
+drop table t1;
+create table t1 (col1 char(5),newcol2 char(5));
+-- error ER_VIEW_INVALID
+insert into v1 values('a','aa');
+drop table t1;
+-- error ER_VIEW_INVALID
+table v1;
+drop view v1;
+
+--echo #
+--echo # updateability should be transitive
+--echo #
+create table t1 (col1 int,col2 char(22));
+insert into t1 values(5,'Hello, world of views');
+create view v1 as table t1;
+create view v2 as table v1;
+update v2 set col2='Hello, view world';
+select is_updatable from information_schema.views where table_schema <> 'sys';
+table t1;
+drop view v2, v1;
+drop table t1;
+
+
+--echo #
+--echo # VIEW of VIEW with column renaming
+--echo #
+create table t1 (col1 bigint not null, primary key (col1));
+create table t2 (col1 bigint not null, key (col1));
+create view v1 as table t1;
+create view v2 as table t2;
+insert into v1 values (1);
+insert into v2 values (1);
+create view v3 (a,b) as select v1.col1 as a, v2.col1 as b from v1, v2
+where v1.col1 = v2.col1;
+table v3;
+show create view v3;
+drop view v3, v2, v1;
+drop table t2, t1;
+
+--echo #
+--echo # HANDLER with VIEW
+--echo #
+create table t1 (s1 int);
+create view v1 as table t1;
+-- error ER_WRONG_OBJECT
+handler v1 open as xx;
+drop view v1;
+drop table t1;
+
+--echo #
+--echo # check cyclic referencing protection on altering view
+--echo #
+create table t1 (s1 int);
+create view v1 as table t1;
+create view v2 as table v1;
+-- error ER_NO_SUCH_TABLE
+alter view v1 as table v2;
+-- error ER_NO_SUCH_TABLE
+alter view v1 as table v1;
+-- error ER_NO_SUCH_TABLE
+create or replace view v1 as table v2;
+-- error ER_NO_SUCH_TABLE
+create or replace view v1 as table v1;
+drop view v2,v1;
+drop table t1;
+
+--echo #
+--echo # check altering differ options
+--echo #
+create table t1 (a int);
+create view v1 as table t1;
+show create view v1;
+alter algorithm=undefined view v1 as table t1 with check option;
+show create view v1;
+alter algorithm=merge view v1 as table t1 with cascaded check option;
+show create view v1;
+alter algorithm=temptable view v1 as table t1;
+show create view v1;
+drop view v1;
+drop table t1;
+
+create table t1 (f1 int, f2 int,f3 int);
+insert into t1 values (1,10,20),(2,0,0);
+create view v1 as table t1;
+select if(sum(f1)>1,f2,f3) from v1 group by f1;
+drop view v1;
+drop table t1;
+
+create table t1 (a int);
+create view v1 as table t1;
+create view v2 as table v1;
+drop table t1;
+rename table v2 to t1;
+-- error ER_VIEW_RECURSIVE
+table v1;
+drop view t1, v1;
+--echo # using SP function
+create table t1 (a int);
+delimiter //;
+--enable_prepare_warnings
+create function f1() returns int
+begin
+  declare mx int;
+  select max(a) from t1 into mx;
+  return mx;
+end//
+delimiter ;//
+--disable_prepare_warnings
+create view v1 as select f1() as a;
+create view v2 as table v1;
+drop table t1;
+rename table v2 to t1;
+-- error ER_SP_NO_RECURSION
+table v1;
+drop function f1;
+drop view t1, v1;
+
+
+set @tdc= @@table_definition_cache, @tc= @@table_open_cache;
+set global table_definition_cache= 400, table_open_cache= 400;
+
+create table tt (a int, primary key(a)) engine=MyISAM;
+create view v as table tt;
+insert into tt values(1),(2),(3),(4);
+
+prepare stmt from 'table tt';
+--echo #fill table definition cache
+--disable_query_log
+--disable_result_log
+create database db;
+use db;
+--let $tables=401
+while ($tables)
+{
+  --eval create table t$tables (i int) engine=MyISAM
+  --eval select * from t$tables
+  --dec $tables
+}
+
+use test;
+
+--enable_query_log
+--enable_result_log
+execute stmt;
+prepare stmt from 'table v';
+execute stmt;
+
+--echo # Cleanup
+drop database db;
+drop view v;
+drop table tt;
+set global table_definition_cache= @tdc, table_open_cache= @tc;
