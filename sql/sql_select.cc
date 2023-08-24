@@ -30741,21 +30741,9 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
 
     if (my_strcasecmp(table_alias_charset, cmp_name, alias.str))
     {
-      char t_alias_buff[MAX_ALIAS_NAME];
-      LEX_CSTRING t_alias= alias;
-
       str->append(' ');
-      if (lower_case_table_names == 1)
-      {
-        if (alias.str && alias.str[0])
-        {
-          strmov(t_alias_buff, alias.str);
-          t_alias.length= my_casedn_str(files_charset_info, t_alias_buff);
-          t_alias.str= t_alias_buff;
-        }
-      }
-
-      append_identifier(thd, str, &t_alias);
+      append_identifier_opt_casedn(thd, str, alias,
+                                   lower_case_table_names == 1);
     }
 
     if (index_hints)
