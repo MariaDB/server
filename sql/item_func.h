@@ -4139,6 +4139,7 @@ class Item_func_nextval :public Item_longlong_func
 protected:
   TABLE_LIST *table_list;
   TABLE *table;
+  bool print_table_list_identifier(THD *thd, String *to) const;
 public:
   Item_func_nextval(THD *thd, TABLE_LIST *table_list_arg):
   Item_longlong_func(thd), table_list(table_list_arg) {}

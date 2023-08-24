@@ -3261,9 +3261,6 @@ LEX_CSTRING Item_ident::full_name_cstring() const
 void Item_ident::print(String *str, enum_query_type query_type)
 {
   THD *thd= current_thd;
-  char d_name_buff[MAX_ALIAS_NAME], t_name_buff[MAX_ALIAS_NAME];
-  LEX_CSTRING d_name= db_name;
-  LEX_CSTRING t_name= table_name;
   bool use_table_name= table_name.str && table_name.str[0];
   bool use_db_name= use_table_name && db_name.str && db_name.str[0] &&
                     !alias_name_used;
@@ -3304,32 +3301,18 @@ void Item_ident::print(String *str, enum_query_type query_type)
     return;
   }
 
-  if (lower_case_table_names== 1 ||
-      (lower_case_table_names == 2 && !alias_name_used))
-  {
-    if (use_table_name)
-    {
-      strmov(t_name_buff, table_name.str);
-      my_casedn_str(files_charset_info, t_name_buff);
-      t_name= Lex_cstring_strlen(t_name_buff);
-    }
-    if (use_db_name)
-    {
-      strmov(d_name_buff, db_name.str);
-      my_casedn_str(files_charset_info, d_name_buff);
-      d_name= Lex_cstring_strlen(d_name_buff);
-    }
-  }
+  bool casedn= lower_case_table_names== 1 ||
+               (lower_case_table_names == 2 && !alias_name_used);
 
   if (use_db_name)
   {
-    append_identifier(thd, str, d_name.str, (uint) d_name.length);
+    append_identifier_opt_casedn(thd, str, db_name, casedn);
     str->append('.');
     DBUG_ASSERT(use_table_name);
   }
   if (use_table_name)
   {
-    append_identifier(thd, str, t_name.str, (uint) t_name.length);
+    append_identifier_opt_casedn(thd, str, table_name, casedn);
     str->append('.');
   }
   append_identifier(thd, str, &field_name);

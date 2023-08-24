@@ -96,6 +96,10 @@ static inline bool append_identifier(THD *thd, String *packet, const LEX_CSTRING
 {
   return append_identifier(thd, packet, name->str, name->length);
 }
+
+bool append_identifier_opt_casedn(THD *thd, String *to,
+                                  const LEX_CSTRING &ident, bool casedn);
+
 void mysqld_list_fields(THD *thd,TABLE_LIST *table, const char *wild);
 int mysqld_dump_create_info(THD *thd, TABLE_LIST *table_list, int fd);
 bool mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,

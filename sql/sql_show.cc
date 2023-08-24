@@ -1630,6 +1630,20 @@ append_identifier(THD *thd, String *packet, const char *name, size_t length)
 }
 
 
+/**
+  Similar to append_identifier(), but with optional casedn conversion.
+*/
+bool append_identifier_opt_casedn(THD *thd, String *to,
+                                  const LEX_CSTRING &ident, bool casedn)
+{
+  if (!casedn)
+    return append_identifier(thd, to, &ident);
+  CharBuffer<MAX_ALIAS_NAME> buff;
+  LEX_CSTRING ls= buff.copy_casedn(system_charset_info, ident).to_lex_cstring();
+  return append_identifier(thd, to, &ls);
+}
+
+
 /*
   Get the quote character for displaying an identifier.
 
