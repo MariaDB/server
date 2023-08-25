@@ -253,17 +253,24 @@ static PSI_thread_info all_spider_threads[] = {
 };
 #endif
 
-struct ha_table_option_struct
-{
-  char *remote_server;
-  char *remote_database;
-  char *remote_table;
-};
+#define HA_TOPTION_PLACEHOLDER HA_TOPTION_END
 
-ha_create_table_option spider_table_option_list[]= {
+static ha_create_table_option spider_table_option_list[]= {
     HA_TOPTION_STRING("REMOTE_SERVER", remote_server),
     HA_TOPTION_STRING("REMOTE_DATABASE", remote_database),
-    HA_TOPTION_STRING("REMOTE_TABLE", remote_table), HA_TOPTION_END};
+    HA_TOPTION_STRING("REMOTE_TABLE", remote_table),
+    HA_TOPTION_PLACEHOLDER,
+    HA_TOPTION_END
+};
+
+static void spider_append_option_lists(ha_create_table_option *from)
+{
+  ha_create_table_option *to = spider_table_option_list;
+  while (to->name)
+    to++;
+  while (from->name)
+    *to++ = *from++;
+}
 
 /**
   Determines how to populate sts (stat) / crd (cardinality) of a
@@ -1820,6 +1827,17 @@ static int spider_set_ll_value(
       goto error;                                                       \
   }
 
+/*
+  Set a given engine-defined option, which holds an int, to the
+  corresponding attribute of SPIDER_SHARE.
+*/
+#define SPIDER_OPTION_INT(title_name, option_name, param_name)      \
+  if (option_struct)                                                \
+  {                                                                 \
+    DBUG_PRINT("info", ("spider " title_name " start overwrite"));  \
+    share->param_name = option_struct->option_name;                 \
+  }                                                                 \
+
 static void spider_minus_1(SPIDER_SHARE *share, TABLE_SHARE *table_share)
 {
   share->sts_bg_mode = -1;
@@ -1878,7 +1896,6 @@ static void spider_minus_1(SPIDER_SHARE *share, TABLE_SHARE *table_share)
   share->direct_dup_insert = -1;
   share->direct_order_limit = -1;
   share->bka_mode = -1;
-  share->read_only_mode = -1;
   share->error_read_mode = -1;
   share->error_write_mode = -1;
   share->active_link_count = -1;
@@ -2578,6 +2595,7 @@ int spider_parse_connect_info(
   SPIDER_OPTION_STR_LIST("server", remote_server, server_names);
   SPIDER_OPTION_STR_LIST("database", remote_database, tgt_dbs);
   SPIDER_OPTION_STR_LIST("table", remote_table, tgt_table_names);
+  SPIDER_OPTION_INT("read_only", read_only, read_only_mode);
 
   /* check all_link_count */
   share->all_link_count = 1;
@@ -6124,6 +6142,7 @@ int spider_db_init(
   spider_hton->drop_database = spider_drop_database;
   spider_hton->show_status = spider_show_status;
   spider_hton->create_group_by = spider_create_group_by_handler;
+  spider_append_option_lists(spider_sysvar_table_options());
   spider_hton->table_options= spider_table_option_list;
   spider_hton->update_optimizer_costs= spider_update_optimizer_costs;
 

@@ -7876,7 +7876,7 @@ int ha_spider::write_row(
   backup_error_status();
   DBUG_ENTER("ha_spider::write_row");
   DBUG_PRINT("info",("spider this=%p", this));
-  if (spider_param_read_only_mode(thd, share->read_only_mode))
+  if (share->read_only_mode)
   {
     my_printf_error(ER_SPIDER_READ_ONLY_NUM, ER_SPIDER_READ_ONLY_STR, MYF(0),
       table_share->db.str, table_share->table_name.str);
@@ -8044,11 +8044,10 @@ int ha_spider::update_row(
 #endif
 {
   int error_num;
-  THD *thd = ha_thd();
   backup_error_status();
   DBUG_ENTER("ha_spider::update_row");
   DBUG_PRINT("info",("spider this=%p", this));
-  if (spider_param_read_only_mode(thd, share->read_only_mode))
+  if (share->read_only_mode)
   {
     my_printf_error(ER_SPIDER_READ_ONLY_NUM, ER_SPIDER_READ_ONLY_STR, MYF(0),
       table_share->db.str, table_share->table_name.str);
@@ -8241,11 +8240,10 @@ int ha_spider::direct_update_rows(
   ha_rows *found_rows
 ) {
   int error_num;
-  THD *thd = ha_thd();
   backup_error_status();
   DBUG_ENTER("ha_spider::direct_update_rows");
   DBUG_PRINT("info",("spider this=%p", this));
-  if (spider_param_read_only_mode(thd, share->read_only_mode))
+  if (share->read_only_mode)
   {
     my_printf_error(ER_SPIDER_READ_ONLY_NUM, ER_SPIDER_READ_ONLY_STR, MYF(0),
       table_share->db.str, table_share->table_name.str);
@@ -8280,12 +8278,11 @@ int ha_spider::end_bulk_delete(
 int ha_spider::delete_row(
   const uchar *buf
 ) {
-  THD *thd = ha_thd();
   int error_num;
   backup_error_status();
   DBUG_ENTER("ha_spider::delete_row");
   DBUG_PRINT("info",("spider this=%p", this));
-  if (spider_param_read_only_mode(thd, share->read_only_mode))
+  if (share->read_only_mode)
   {
     my_printf_error(ER_SPIDER_READ_ONLY_NUM, ER_SPIDER_READ_ONLY_STR, MYF(0),
       table_share->db.str, table_share->table_name.str);
@@ -8384,11 +8381,10 @@ int ha_spider::direct_delete_rows(
   ha_rows *delete_rows
 ) {
   int error_num;
-  THD *thd = ha_thd();
   backup_error_status();
   DBUG_ENTER("ha_spider::direct_delete_rows");
   DBUG_PRINT("info",("spider this=%p", this));
-  if (spider_param_read_only_mode(thd, share->read_only_mode))
+  if (share->read_only_mode)
   {
     my_printf_error(ER_SPIDER_READ_ONLY_NUM, ER_SPIDER_READ_ONLY_STR, MYF(0),
       table_share->db.str, table_share->table_name.str);
@@ -8410,7 +8406,7 @@ int ha_spider::delete_all_rows()
   DBUG_PRINT("info",("spider this=%p", this));
   if (spider_param_delete_all_rows_type(thd, share->delete_all_rows_type))
     DBUG_RETURN(HA_ERR_WRONG_COMMAND);
-  if (spider_param_read_only_mode(thd, share->read_only_mode))
+  if (share->read_only_mode)
   {
     my_printf_error(ER_SPIDER_READ_ONLY_NUM, ER_SPIDER_READ_ONLY_STR, MYF(0),
       table_share->db.str, table_share->table_name.str);
@@ -8443,7 +8439,7 @@ int ha_spider::truncate()
   backup_error_status();
   DBUG_ENTER("ha_spider::truncate");
   DBUG_PRINT("info",("spider this=%p", this));
-  if (spider_param_read_only_mode(thd, share->read_only_mode))
+  if (share->read_only_mode)
   {
     my_printf_error(ER_SPIDER_READ_ONLY_NUM, ER_SPIDER_READ_ONLY_STR, MYF(0),
       table_share->db.str, table_share->table_name.str);
