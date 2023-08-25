@@ -3404,7 +3404,6 @@ bool check_period_name(const char *name);
 bool check_table_name(const char *name, size_t length, bool check_for_path_chars);
 int rename_file_ext(const char * from,const char * to,const char * ext);
 char *get_field(MEM_ROOT *mem, Field *field);
-bool get_field(MEM_ROOT *mem, Field *field, class String *res);
 
 bool validate_comment_length(THD *thd, LEX_CSTRING *comment, size_t max_len,
                              uint err_code, const char *name);

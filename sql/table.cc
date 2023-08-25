@@ -5091,40 +5091,6 @@ rename_file_ext(const char * from,const char * to,const char * ext)
 
 
 /*
-  Allocate string field in MEM_ROOT and return it as String
-
-  SYNOPSIS
-    get_field()
-    mem   	MEM_ROOT for allocating
-    field 	Field for retrieving of string
-    res         result String
-
-  RETURN VALUES
-    1   string is empty
-    0	all ok
-*/
-
-bool get_field(MEM_ROOT *mem, Field *field, String *res)
-{
-  const char *to;
-  StringBuffer<MAX_FIELD_WIDTH> str;
-  bool rc;
-  THD *thd= field->get_thd();
-  Sql_mode_instant_remove sms(thd, MODE_PAD_CHAR_TO_FULL_LENGTH);
-
-  field->val_str(&str);
-  if ((rc= !str.length() ||
-           !(to= strmake_root(mem, str.ptr(), str.length()))))
-  {
-    res->length(0);
-    return rc;
-  }
-  res->set(to, str.length(), field->charset());
-  return false;
-}
-
-
-/*
   Allocate string field in MEM_ROOT and return it as NULL-terminated string
 
   SYNOPSIS
@@ -5139,10 +5105,12 @@ bool get_field(MEM_ROOT *mem, Field *field, String *res)
 
 char *get_field(MEM_ROOT *mem, Field *field)
 {
-  String str;
-  bool rc= get_field(mem, field, &str);
-  DBUG_ASSERT(rc || str.ptr()[str.length()] == '\0');
-  return  rc ? NullS : (char *) str.ptr();
+  THD *thd= field->get_thd();
+  Sql_mode_instant_remove sms(thd, MODE_PAD_CHAR_TO_FULL_LENGTH);
+  LEX_STRING ls= field->val_lex_string_strmake(mem);
+  DBUG_ASSERT((!ls.str && !ls.length) || ls.str[ls.length] == '\0');
+  // Empty string "" is intentionally returned as NullS
+  return ls.length == 0 ? NullS : ls.str;
 }
 
 /*

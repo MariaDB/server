@@ -11380,6 +11380,15 @@ void Field::register_field_in_read_map()
 }
 
 
+LEX_STRING Field::val_lex_string_strmake(MEM_ROOT *mem)
+{
+  StringBuffer<MAX_FIELD_WIDTH> str;
+  val_str(&str);
+  char *to= strmake_root(mem, str.ptr(), str.length());
+  return to ? LEX_STRING{to, str.length()} : LEX_STRING{NULL, 0};
+}
+
+
 bool Field::val_str_nopad(MEM_ROOT *mem_root, LEX_CSTRING *to)
 {
   StringBuffer<MAX_FIELD_WIDTH> str;

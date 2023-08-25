@@ -1055,6 +1055,20 @@ public:
     return to->copy((const char *) ptr, pack_length());
   }
   String *val_int_as_str(String *val_buffer, bool unsigned_flag);
+
+  /*
+    Copy the Field::val_str() value to MEM_ROOT as a 0x00-teminated string.
+
+    @param    mem_root   The memory root to put the value to.
+    @returns             {NULL,0} in case of EOM, or the field value otherwise.
+
+    Only one 0x00 terminating byte is put in the end, even in case
+    of complex character sets like UCS2/UTF16/UTF32.
+    This is OK, since this method is used to read system tables,
+    which are in utf8.
+  */
+  LEX_STRING val_lex_string_strmake(MEM_ROOT *mem_root);
+
   /*
     Return the field value as a LEX_CSTRING, without padding to full length
     (MODE_PAD_CHAR_TO_FULL_LENGTH is temporarily suppressed during the call).

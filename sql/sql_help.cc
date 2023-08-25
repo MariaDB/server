@@ -70,6 +70,29 @@ enum enum_used_fields
 
 
 /*
+  Allocate string field in MEM_ROOT and return it as String
+
+  SYNOPSIS
+    get_field()
+    mem         MEM_ROOT for allocating
+    field       Field for retrieving of string
+    res         result String
+*/
+
+static void get_field(MEM_ROOT *mem, Field *field, String *res)
+{
+  THD *thd= field->get_thd();
+  Sql_mode_instant_remove sms(thd, MODE_PAD_CHAR_TO_FULL_LENGTH);
+  LEX_STRING ls= field->val_lex_string_strmake(mem);
+  DBUG_ASSERT((!ls.str && !ls.length) || ls.str[ls.length] == '\0');
+  if (!ls.str)
+    res->length(0); // EOM
+  else
+    res->set((const char *) ls.str, ls.length, field->charset());
+}
+
+
+/*
   Fill st_find_field structure with pointers to fields
 
   SYNOPSIS

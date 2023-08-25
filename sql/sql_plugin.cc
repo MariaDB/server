@@ -1883,12 +1883,11 @@ static void plugin_load(MEM_ROOT *tmp_root)
   while (!(error= read_record_info.read_record()))
   {
     DBUG_PRINT("info", ("init plugin record"));
-    String str_name, str_dl;
-    get_field(tmp_root, table->field[0], &str_name);
-    get_field(tmp_root, table->field[1], &str_dl);
-
-    LEX_CSTRING name= {str_name.ptr(), str_name.length()};
-    LEX_CSTRING dl=   {str_dl.ptr(), str_dl.length()};
+    DBUG_ASSERT(new_thd == table->field[0]->get_thd());
+    DBUG_ASSERT(new_thd == table->field[1]->get_thd());
+    DBUG_ASSERT(!(new_thd->variables.sql_mode & MODE_PAD_CHAR_TO_FULL_LENGTH));
+    LEX_CSTRING name= table->field[0]->val_lex_string_strmake(tmp_root);
+    LEX_CSTRING dl= table->field[1]->val_lex_string_strmake(tmp_root);
 
     if (!name.length || !dl.length)
       continue;

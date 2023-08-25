@@ -208,10 +208,11 @@ void udf_init()
   while (!(error= read_record_info.read_record()))
   {
     DBUG_PRINT("info",("init udf record"));
-    LEX_CSTRING name;
-    name.str=get_field(&mem, table->field[0]);
-    name.length = (uint) safe_strlen(name.str);
-    char *dl_name= get_field(&mem, table->field[2]);
+    DBUG_ASSERT(!(new_thd->variables.sql_mode & MODE_PAD_CHAR_TO_FULL_LENGTH));
+    DBUG_ASSERT(table->field[0]->get_thd() == new_thd);
+    DBUG_ASSERT(table->field[2]->get_thd() == new_thd);
+    LEX_CSTRING name= table->field[0]->val_lex_string_strmake(&mem);
+    LEX_CSTRING dl_name= table->field[2]->val_lex_string_strmake(&mem);
     bool new_dl=0;
     Item_udftype udftype=UDFTYPE_FUNCTION;
     if (table->s->fields >= 4)			// New func table
@@ -224,7 +225,8 @@ void udf_init()
 
       On windows we must check both FN_LIBCHAR and '/'.
     */
-    if (!name.str || !dl_name || check_valid_path(dl_name, strlen(dl_name)) ||
+    if (!name.length || !dl_name.length ||
+        check_valid_path(dl_name.str, dl_name.length) ||
         check_string_char_length(&name, 0, NAME_CHAR_LEN,
                                  system_charset_info, 1))
     {
@@ -234,7 +236,7 @@ void udf_init()
     }
 
     if (!(tmp= add_udf(&name,(Item_result) table->field[1]->val_int(),
-                       dl_name, udftype)))
+                       dl_name.str, udftype)))
     {
       sql_print_error("Can't alloc memory for udf function: '%.64s'", name.str);
       continue;
