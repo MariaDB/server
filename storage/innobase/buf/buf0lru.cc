@@ -1092,59 +1092,57 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 
 	buf_pool.freed_page_clock += 1;
 
-	if (UNIV_LIKELY(bpage->frame != nullptr)) {
+	if (UNIV_LIKELY(!bpage->zip.data)) {
 		MEM_CHECK_ADDRESSABLE(bpage, sizeof(buf_block_t));
 		MEM_CHECK_ADDRESSABLE(bpage->frame, srv_page_size);
 		buf_block_modify_clock_inc((buf_block_t*) bpage);
-		if (UNIV_LIKELY_NULL(bpage->zip.data)) {
-			const page_t*	page = bpage->frame;
+	} else if (const page_t *page = bpage->frame) {
+		MEM_CHECK_ADDRESSABLE(bpage, sizeof(buf_block_t));
+		MEM_CHECK_ADDRESSABLE(bpage->frame, srv_page_size);
+		buf_block_modify_clock_inc((buf_block_t*) bpage);
 
-			ut_a(!zip || !bpage->oldest_modification());
-			ut_ad(bpage->zip_size());
-			/* Skip consistency checks if the page was freed.
-			In recovery, we could get a sole FREE_PAGE record
-			and nothing else, for a ROW_FORMAT=COMPRESSED page.
-			Its contents would be garbage. */
-			if (!bpage->is_freed())
-			switch (fil_page_get_type(page)) {
-			case FIL_PAGE_TYPE_ALLOCATED:
-			case FIL_PAGE_INODE:
-			case FIL_PAGE_IBUF_BITMAP:
-			case FIL_PAGE_TYPE_FSP_HDR:
-			case FIL_PAGE_TYPE_XDES:
-				/* These are essentially uncompressed pages. */
-				if (!zip) {
-					/* InnoDB writes the data to the
-					uncompressed page frame.  Copy it
-					to the compressed page, which will
-					be preserved. */
-					memcpy(bpage->zip.data, page,
-					       bpage->zip_size());
-				}
-				break;
-			case FIL_PAGE_TYPE_ZBLOB:
-			case FIL_PAGE_TYPE_ZBLOB2:
-			case FIL_PAGE_INDEX:
-			case FIL_PAGE_RTREE:
-				break;
-			default:
-				ib::error() << "The compressed page to be"
-					" evicted seems corrupt:";
-				ut_print_buf(stderr, page, srv_page_size);
-
-				ib::error() << "Possibly older version of"
-					" the page:";
-
-				ut_print_buf(stderr, bpage->zip.data,
-					     bpage->zip_size());
-				putc('\n', stderr);
-				ut_error;
+		ut_a(!zip || !bpage->oldest_modification());
+		ut_ad(bpage->zip_size());
+		/* Skip consistency checks if the page was freed.
+		In recovery, we could get a sole FREE_PAGE record
+		and nothing else, for a ROW_FORMAT=COMPRESSED page.
+		Its contents would be garbage. */
+		if (!bpage->is_freed())
+		switch (fil_page_get_type(page)) {
+		case FIL_PAGE_TYPE_ALLOCATED:
+		case FIL_PAGE_INODE:
+		case FIL_PAGE_IBUF_BITMAP:
+		case FIL_PAGE_TYPE_FSP_HDR:
+		case FIL_PAGE_TYPE_XDES:
+			/* These are essentially uncompressed pages. */
+			if (!zip) {
+				/* InnoDB writes the data to the
+				uncompressed page frame.  Copy it
+				to the compressed page, which will
+				be preserved. */
+				memcpy(bpage->zip.data, page,
+				       bpage->zip_size());
 			}
-		} else {
-			goto evict_zip;
+			break;
+		case FIL_PAGE_TYPE_ZBLOB:
+		case FIL_PAGE_TYPE_ZBLOB2:
+		case FIL_PAGE_INDEX:
+		case FIL_PAGE_RTREE:
+			break;
+		default:
+			ib::error() << "The compressed page to be"
+				" evicted seems corrupt:";
+			ut_print_buf(stderr, page, srv_page_size);
+
+			ib::error() << "Possibly older version of"
+				" the page:";
+
+			ut_print_buf(stderr, bpage->zip.data,
+				     bpage->zip_size());
+			putc('\n', stderr);
+			ut_error;
 		}
 	} else {
-evict_zip:
 		ut_a(!bpage->oldest_modification());
 		MEM_CHECK_ADDRESSABLE(bpage->zip.data, bpage->zip_size());
 	}
