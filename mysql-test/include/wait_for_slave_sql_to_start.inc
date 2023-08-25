@@ -11,6 +11,7 @@
 #
 # Parameters:
 #   $slave_timeout
+#     Timeout used when waiting for the slave SQL thread to start.
 #     See include/wait_for_slave_param.inc
 #
 #   $rpl_debug
@@ -25,7 +26,7 @@ let $slave_param= Slave_SQL_Running;
 let $slave_param_value= Yes;
 
 # Unfortunately, the slave sql thread sets Slave_SQL_Running=Yes
-# *before* it clears Last_SQL_Errno.  So we have to allow errors in
+# *before* it clears Last_SQL_Errno. So we have to allow errors in
 # the SQL thread here.
 
 #--let $slave_error_param= Last_SQL_Errno

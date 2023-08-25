@@ -5,15 +5,15 @@
 # need to change topology after they have sourced include/rpl_init.inc
 #
 # This file sets up variables needed by include/rpl_sync.inc and many
-# other replication scripts in the include/ directory.  It also issues
+# other replication scripts in the include/ directory. It also issues
 # CHANGE MASTER on all servers where the configuration changes from
-# what it was before.  It does not issue START SLAVE (use
+# what it was before. It does not issue START SLAVE (use
 # include/rpl_start_slaves.inc for that).
 #
 # Note: it is not currently possible to change the number of servers
 # after the rpl_init.inc, without first calling rpl_end.inc. So the
 # test has to set $rpl_server_count to the total number of servers
-# that the test uses, before it sources include/rpl_init.inc.  After
+# that the test uses, before it sources include/rpl_init.inc. After
 # that, $rpl_server_count must not change until after next time the
 # test sources include/rpl_end.inc.
 #
@@ -37,7 +37,7 @@
 #     By default, CHANGE MASTER is executed with MASTER_LOG_FILE set
 #     to the name of the last binlog file on the master (retrieved by
 #     executing SHOW MASTER STATUS). This variable can be set to
-#     specify another filename.  This variable should be a
+#     specify another filename. This variable should be a
 #     comma-separated list of the following form:
 #
 #       SERVER_NUMBER_1:FILE_NAME_1,SERVER_NUMBER_2:FILE_NAME_2,...
@@ -45,7 +45,7 @@
 #     Before CHANGE MASTER is executed on server N, this script checks
 #     if $rpl_master_log_file contains the text N:FILE_NAME. If it
 #     does, then MASTER_LOG_FILE is set to FILE_NAME. Otherwise,
-#     MASTER_LOG_FILE is set to the last binlog on the master.  For
+#     MASTER_LOG_FILE is set to the last binlog on the master. For
 #     example, to specify that server_1 should start replicate from
 #     master-bin.000007 and server_5 should start replicate from
 #     master-bin.012345, do:
@@ -53,9 +53,9 @@
 #
 #   $rpl_master_log_pos
 #     By default, CHANGE MASTER is executed without specifying the
-#     MASTER_LOG_POS parameter.  This variable can be set to set a
-#     specific position.  It has the same form as $rpl_master_log_file
-#     (see above).  For example, to specify that server_3 should start
+#     MASTER_LOG_POS parameter. This variable can be set to set a
+#     specific position. It has the same form as $rpl_master_log_file
+#     (see above). For example, to specify that server_3 should start
 #     replicate from position 4711 of its master, do:
 #       --let $rpl_master_log_pos= 3:4711
 #
@@ -72,7 +72,7 @@
 #   include/rpl_stop_slaves.inc
 #   include/rpl_end.inc
 #
-# $rpl_server_count_length:
+# $rpl_server_count_length
 #   Set to LENGTH($rpl_server_count). So if $rpl_server_count < 10,
 #   then $rpl_server_count_length = 1; if 10 <= $rpl_server_count <
 #   100, then $rpl_server_count_length = 2, etc.
@@ -83,12 +83,12 @@
 #   server N is a slave, then the N'th number is the master of server
 #   N. If server N is not a slave, then the N'th number is just spaces
 #   (so in fact it is not a number). For example, if $rpl_topology is
-#   '1->2,2->3,3->1,2->4,5->6', then $rpl_master_list is '3122 6'.
+#   '1->2,2->3,3->1,2->4,5->6', then $rpl_master_list is '3122 5'.
 #
 # $rpl_sync_chain_dirty
-#   This variable is set to 1.  This tells include/rpl_sync.inc to
+#   This variable is set to 1. This tells include/rpl_sync.inc to
 #   compute a new value for $rpl_sync_chain next time that
-#   include/rpl_sync.inc is sourced.  See
+#   include/rpl_sync.inc is sourced. See
 #   include/rpl_generate_sync_chain.inc and include/rpl_sync.inc for
 #   details.
 
@@ -124,7 +124,7 @@ if ($rpl_master_list == '')
 if ($rpl_debug)
 {
   --echo \$rpl_server_count='$rpl_server_count'
-  --echo \$rpl_server_count_length='$rpl_server_count_length'
+  --echo old \$rpl_server_count_length='$rpl_server_count_length'
   --echo new \$rpl_topology='$_rpl_topology'
   --echo old \$rpl_master_list='$rpl_master_list'
   --echo old \$rpl_sync_chain='$rpl_sync_chain'
@@ -210,6 +210,10 @@ if (!$rpl_skip_change_master)
         --let $rpl_connection_name= server_$_rpl_master
         --source include/rpl_connection.inc
         --let $_rpl_master_log_file= query_get_value(SHOW MASTER STATUS, File, 1)
+        if ($rpl_debug)
+        {
+          --echo "\$rpl_master_log_file parameter not set for the master: $_rpl_master, use the latest binlog file by executing SHOW MASTER STATUS."
+        }
       }
       # Change connection.
       --let $rpl_connection_name= server_$_rpl_server
@@ -224,6 +228,10 @@ if (!$rpl_skip_change_master)
       if (!$_rpl_master_log_pos_index)
       {
         --let $_rpl_master_log_pos=
+        if ($rpl_debug)
+        {
+          --echo "\$rpl_master_log_pos parameter not set for the master: $_rpl_master. Set log position to empty."
+        }
       }
       eval CHANGE MASTER TO MASTER_HOST = '127.0.0.1', MASTER_PORT = $_rpl_port, MASTER_USER = 'root', MASTER_LOG_FILE = '$_rpl_master_log_file'$_rpl_master_log_pos, MASTER_CONNECT_RETRY = 1;
     }
