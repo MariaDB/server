@@ -15732,13 +15732,6 @@ ha_innobase::extra(
 	case HA_EXTRA_RESET_STATE:
 		reset_template();
 		trx->duplicates = 0;
-		/* fall through */
-	case HA_EXTRA_IGNORE_INSERT:
-		/* HA_EXTRA_IGNORE_INSERT is very similar to
-		HA_EXTRA_IGNORE_DUP_KEY, but with one crucial difference:
-		we want !trx->duplicates for INSERT IGNORE so that
-		row_ins_duplicate_error_in_clust() will acquire a
-		shared lock instead of an exclusive lock. */
 	stmt_boundary:
 		trx->end_bulk_insert(*m_prebuilt->table);
 		trx->bulk_insert = false;

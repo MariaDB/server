@@ -11301,9 +11301,6 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     }
     else
     {
-      /* In case of alter ignore, notify the engine about it. */
-      if (ignore)
-        to->file->extra(HA_EXTRA_IGNORE_INSERT);
       DEBUG_SYNC(thd, "copy_data_between_tables_before");
       found_count++;
       mysql_stage_set_work_completed(thd->m_stage_progress_psi, found_count);
