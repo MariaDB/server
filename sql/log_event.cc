@@ -13529,7 +13529,8 @@ Rows_log_event::write_row(rpl_group_info *rgi,
     DBUG_RETURN(error);
   }
 
-  if (m_curr_row == m_rows_buf && !invoke_triggers)
+  if (m_curr_row == m_rows_buf && !invoke_triggers &&
+      !table->s->long_unique_table)
   {
     /*
        This table has no triggers so we can do bulk insert.

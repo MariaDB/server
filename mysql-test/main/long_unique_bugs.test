@@ -480,5 +480,13 @@ check table t1 extended;
 drop table t1;
 
 --echo #
+--echo # MDEV-32015 insert into an empty table fails with hash unique
+--echo #
+create table t1 (f1 varchar(25), unique (f1) using hash);
+insert ignore t1 (f1) values ('new york'),('virginia'),('spouse'),(null),('zqekmqpwutxnzddrbjycyo'),('nebraska'),('illinois'),('qe'),('ekmqpwut'),('arizona'),('arizona');
+check table t1 extended;
+drop table t1;
+
+--echo #
 --echo # End of 10.4 tests
 --echo #

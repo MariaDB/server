@@ -478,5 +478,16 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 drop table t1;
 #
+# MDEV-32015 insert into an empty table fails with hash unique
+#
+create table t1 (f1 varchar(25), unique (f1) using hash);
+insert ignore t1 (f1) values ('new york'),('virginia'),('spouse'),(null),('zqekmqpwutxnzddrbjycyo'),('nebraska'),('illinois'),('qe'),('ekmqpwut'),('arizona'),('arizona');
+Warnings:
+Warning	1062	Duplicate entry 'arizona' for key 'f1'
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+drop table t1;
+#
 # End of 10.4 tests
 #

@@ -901,7 +901,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
       same table in the same connection.
     */
     if (thd->locked_tables_mode <= LTM_LOCK_TABLES &&
-       values_list.elements > 1)
+        !table->s->long_unique_table && values_list.elements > 1)
     {
       using_bulk_insert= 1;
       table->file->ha_start_bulk_insert(values_list.elements);
@@ -3930,7 +3930,7 @@ int select_insert::prepare2(JOIN *)
   DBUG_ENTER("select_insert::prepare2");
   if (thd->lex->current_select->options & OPTION_BUFFER_RESULT &&
       thd->locked_tables_mode <= LTM_LOCK_TABLES &&
-      !thd->lex->describe)
+      !table->s->long_unique_table && !thd->lex->describe)
     table->file->ha_start_bulk_insert((ha_rows) 0);
   if (table->validate_default_values_of_unset_fields(thd))
     DBUG_RETURN(1);
@@ -4664,7 +4664,8 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
     table->file->extra(HA_EXTRA_WRITE_CAN_REPLACE);
   if (info.handle_duplicates == DUP_UPDATE)
     table->file->extra(HA_EXTRA_INSERT_WITH_UPDATE);
-  if (thd->locked_tables_mode <= LTM_LOCK_TABLES)
+  if (thd->locked_tables_mode <= LTM_LOCK_TABLES &&
+      !table->s->long_unique_table)
     table->file->ha_start_bulk_insert((ha_rows) 0);
   thd->abort_on_warning= !info.ignore && thd->is_strict_mode();
   if (check_that_all_fields_are_given_values(thd, table, table_list))
