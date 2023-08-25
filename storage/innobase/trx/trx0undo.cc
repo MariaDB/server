@@ -497,8 +497,7 @@ trx_undo_seg_create(fil_space_t *space, buf_block_t *rseg_hdr, ulint *id,
 
 	ut_ad(slot_no < TRX_RSEG_N_SLOTS);
 
-	*err = fsp_reserve_free_extents(&n_reserved, space, 2, FSP_UNDO,
-					   mtr);
+	*err = fsp_reserve_free_extents(&n_reserved, space, 2, FSP_UNDO, mtr);
 	if (UNIV_UNLIKELY(*err != DB_SUCCESS)) {
 		return NULL;
 	}
@@ -569,6 +568,7 @@ static uint16_t trx_undo_header_create(buf_block_t *undo_page, trx_id_t trx_id,
               start, 2);
   uint16_t prev_log= mach_read_from_2(TRX_UNDO_SEG_HDR + TRX_UNDO_LAST_LOG +
                                       undo_page->page.frame);
+  ut_ad(prev_log < free);
   alignas(4) byte buf[4];
   mach_write_to_2(buf, TRX_UNDO_ACTIVE);
   mach_write_to_2(buf + 2, free);
@@ -1022,7 +1022,6 @@ corrupted_type:
 	case TRX_UNDO_ACTIVE:
 	case TRX_UNDO_PREPARED:
 		if (UNIV_LIKELY(type != 1)) {
-			trx_no = trx_id + 1;
 			break;
 		}
 		sql_print_error("InnoDB: upgrade from older version than"

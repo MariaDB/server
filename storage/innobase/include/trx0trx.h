@@ -959,10 +959,18 @@ private:
   /** Commit the transaction in a mini-transaction.
   @param mtr  mini-transaction (if there are any persistent modifications) */
   void commit_low(mtr_t *mtr= nullptr);
+  /** Commit an empty transaction.
+  @param mtr   mini-transaction */
+  void commit_empty(mtr_t *mtr);
+  /** Commit an empty transaction.
+  @param mtr   mini-transaction */
+  /** Assign the transaction its history serialisation number and write the
+  UNDO log to the assigned rollback segment.
+  @param mtr   mini-transaction */
+  inline void write_serialisation_history(mtr_t *mtr);
 public:
   /** Commit the transaction. */
   void commit();
-
 
   /** Try to drop a persistent table.
   @param table       persistent table
