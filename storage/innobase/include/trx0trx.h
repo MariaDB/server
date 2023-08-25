@@ -532,6 +532,13 @@ public:
   {
     return bulk_store && is_bulk_insert();
   }
+
+  /** Free bulk insert operation */
+  void clear_bulk_buffer()
+  {
+    delete bulk_store;
+    bulk_store= nullptr;
+  }
 };
 
 /** Collection of persistent tables and their first modification
