@@ -5357,6 +5357,16 @@ pthread_handler_t handle_slave_sql(void *arg)
   mysql_mutex_unlock(&rli->run_lock);
   mysql_cond_broadcast(&rli->start_cond);
 
+#ifdef ENABLED_DEBUG_SYNC
+  DBUG_EXECUTE_IF("delay_sql_thread_after_release_run_lock", {
+    const char act[]= "now "
+                      "signal sql_thread_run_lock_released "
+                      "wait_for sql_thread_continue";
+    DBUG_ASSERT(debug_sync_service);
+    DBUG_ASSERT(!debug_sync_set_action(current_thd, STRING_WITH_LEN(act)));
+  };);
+#endif
+
   /*
     Reset errors for a clean start (otherwise, if the master is idle, the SQL
     thread may execute no Query_log_event, so the error will remain even

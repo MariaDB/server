@@ -34,15 +34,26 @@ include/wait_for_slave_sql_error.inc [errno=1942]
 include/stop_slave_io.inc
 connection slave1;
 ROLLBACK;
+#
+# MDEV-31177: Ensure that when the slave restarts, the last error code
+# displayed by SHOW SLAVE STATUS does not present along a true value for
+# Slave_SQL_Running
+set @@global.gtid_slave_pos= "0-1-100";
+set @@global.debug_dbug= "+d,delay_sql_thread_after_release_run_lock";
+include/start_slave.inc
+set debug_sync= "now wait_for sql_thread_run_lock_released";
+set debug_sync= "now signal sql_thread_continue";
 # Cleanup
 connection master;
 drop table t1;
 connection slave;
+include/stop_slave.inc
 # TODO: Remove after fixing MDEV-29642
-set @@global.gtid_slave_pos= "0-1-100";
 set @@global.slave_parallel_threads= 0;
 set @@global.gtid_strict_mode= 0;
 set @@global.innodb_lock_wait_timeout= 50;
+set @@global.debug_dbug= "";
+set debug_sync= "RESET";
 include/start_slave.inc
 include/rpl_end.inc
 # End of rpl_xa_prepare_gtid_fail.test

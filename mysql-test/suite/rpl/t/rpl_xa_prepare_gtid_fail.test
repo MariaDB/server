@@ -19,6 +19,8 @@
 source include/master-slave.inc;
 source include/have_binlog_format_row.inc;
 source include/have_innodb.inc;
+source include/have_debug.inc;
+source include/have_debug_sync.inc;
 
 --connection slave
 --source include/stop_slave.inc
@@ -26,6 +28,7 @@ source include/have_innodb.inc;
 --let $save_par_thds= `SELECT @@global.slave_parallel_threads`
 --let $save_strict_mode= `SELECT @@global.gtid_strict_mode`
 --let $save_innodb_lock_wait_timeout= `SELECT @@global.innodb_lock_wait_timeout`
+--let $save_debug= `SELECT @@global.debug_dbug`
 
 change master to master_use_gtid=slave_pos;
 set @@global.slave_parallel_threads= 4;
@@ -85,17 +88,38 @@ if ($retried_tx_initial != $retried_tx_test)
 --connection slave1
 ROLLBACK;
 
+--echo #
+--echo # MDEV-31177: Ensure that when the slave restarts, the last error code
+--echo # displayed by SHOW SLAVE STATUS does not present along a true value for
+--echo # Slave_SQL_Running
+--eval set @@global.gtid_slave_pos= "$new_gtid"
+set @@global.debug_dbug= "+d,delay_sql_thread_after_release_run_lock";
+--source include/start_slave.inc
+set debug_sync= "now wait_for sql_thread_run_lock_released";
+--let $last_error = query_get_value("SHOW SLAVE STATUS", Last_SQL_Errno, 1)
+set debug_sync= "now signal sql_thread_continue";
+if ($last_error)
+{
+    --echo # Last_SQL_Errno: $last_error
+    --die SHOW SLAVE STATUS shows the error from the last session on startup
+}
+
+#--echo # witing for mysig
+#set debug_sync="now wait_for mysig";
+
 --echo # Cleanup
 
 --connection master
 drop table t1;
 
 --connection slave
+--source include/stop_slave.inc
 --echo # TODO: Remove after fixing MDEV-29642
---eval set @@global.gtid_slave_pos= "$new_gtid"
 --eval set @@global.slave_parallel_threads= $save_par_thds
 --eval set @@global.gtid_strict_mode= $save_strict_mode
 --eval set @@global.innodb_lock_wait_timeout= $save_innodb_lock_wait_timeout
+--eval set @@global.debug_dbug= "$save_debug"
+set debug_sync= "RESET";
 --source include/start_slave.inc
 
 --source include/rpl_end.inc
