@@ -456,5 +456,29 @@ insert into t1 (f) select 'f';
 drop table t1;
 
 --echo #
+--echo # MDEV-32012 hash unique corrupts index on virtual blobs
+--echo #
+create table t1 (
+  f1 varchar(25),
+  v1 mediumtext generated always as (concat('f1:', f1)) virtual,
+  unique key (f1) using hash,
+  key (v1(1000))
+);
+flush status;
+insert ignore t1 (f1) values (9599),(94410);
+# handler_read_next must be 1 below, meaning there was a hash collision above.
+# if a change in the hash function causes these values not to collide anymore,
+# the test must be adjusted to use some other values that collide.
+# to find a collision add an assert into check_duplicate_long_entry_key()
+# and run, like, insert...select * seq_from_1_to_1000000000
+show status like 'handler_read_next';
+--echo # the above MUST BE =1
+check table t1 extended;
+update t1 set f1=100 where f1=9599;
+update t1 set f1=9599 where f1=100;
+check table t1 extended;
+drop table t1;
+
+--echo #
 --echo # End of 10.4 tests
 --echo #
