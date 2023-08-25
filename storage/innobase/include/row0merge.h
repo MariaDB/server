@@ -441,6 +441,8 @@ class row_merge_bulk_t
   ut_new_pfx_t m_crypt_pfx;
   /** Block for encryption */
   row_merge_block_t *m_crypt_block= nullptr;
+  /** Persistent autoinc value */
+  uint64_t m_autoinc;
 public:
   /** Constructor.
   Create all merge files, merge buffer for all the table indexes

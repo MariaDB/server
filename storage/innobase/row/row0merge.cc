@@ -5114,6 +5114,7 @@ row_merge_bulk_t::row_merge_bulk_t(dict_table_t *table)
   m_blob_file.fd= OS_FILE_CLOSED;
   m_blob_file.offset= 0;
   m_blob_file.n_rec= 0;
+  m_autoinc= 0;
 }
 
 row_merge_bulk_t::~row_merge_bulk_t()
@@ -5229,6 +5230,8 @@ dberr_t row_merge_bulk_t::bulk_insert_buffered(const dtuple_t &row,
       continue;
     }
     row_merge_buf_t *buf= &m_merge_buf[i];
+    if (index->is_primary() && index->table->persistent_autoinc)
+      m_autoinc= index->table->autoinc;
 add_to_buf:
     if (row_merge_bulk_buf_add(buf, *ind.table, row))
     {
@@ -5337,7 +5340,7 @@ func_exit:
   if (err != DB_SUCCESS)
     trx->error_info= index;
   else if (index->is_primary() && table->persistent_autoinc)
-    btr_write_autoinc(index, table->autoinc);
+    btr_write_autoinc(index, m_autoinc);
   err= btr_bulk.finish(err);
   return err;
 }
