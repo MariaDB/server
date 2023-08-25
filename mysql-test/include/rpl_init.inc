@@ -3,10 +3,7 @@
 # Set up replication on several servers in a specified topology.
 #
 # By default, this script does the following:
-#  - Creates the connections server_1, server_2, ..., server_N, as
-#    well as extra connections server_1_1, server_2_1, ...,
-#    server_N_1. server_I and server_I_1 are connections to the same
-#    server.
+#  - Creates the connections server_1, server_2, ..., server_N.
 #  - Calls RESET MASTER, RESET SLAVE, USE test, CHANGE MASTER, START SLAVE.
 #  - Sets the connection to server_1 before exiting.
 # With $rpl_check_server_ids parameter, the script does the following:
@@ -143,17 +140,14 @@ if (!$rpl_debug)
 }
 
 
-# Create two connections to each server; reset master/slave, select
+# Create connection to the server; reset master/slave, select
 # database, set autoinc variables.
 --let $_rpl_server= $rpl_server_count
---let $_rpl_one= _1
 while ($_rpl_server)
 {
   # Connect.
   --let $rpl_server_number= $_rpl_server
   --let $rpl_connection_name= server_$_rpl_server
-  --source include/rpl_connect.inc
-  --let $rpl_connection_name= server_$_rpl_server$_rpl_one
   --source include/rpl_connect.inc
 
   # Configure server.
