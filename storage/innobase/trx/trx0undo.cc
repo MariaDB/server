@@ -961,47 +961,6 @@ done:
 	goto loop;
 }
 
-/** Frees an undo log segment which is not in the history list.
-@param undo	temporary undo log */
-static void trx_undo_seg_free(const trx_undo_t *undo)
-{
-  ut_ad(undo->id < TRX_RSEG_N_SLOTS);
-
-  trx_rseg_t *const rseg= undo->rseg;
-  bool finished;
-  mtr_t mtr;
-  ut_ad(rseg->space == fil_system.temp_space);
-
-  do
-  {
-    mtr.start();
-    mtr.set_log_mode(MTR_LOG_NO_REDO);
-
-    finished= true;
-
-    if (buf_block_t *block=
-        buf_page_get(page_id_t(SRV_TMP_SPACE_ID, undo->hdr_page_no), 0,
-                     RW_X_LATCH, &mtr))
-    {
-      fseg_header_t *file_seg= TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER +
-        block->page.frame;
-
-      finished= fseg_free_step(file_seg, &mtr);
-
-      if (!finished);
-      else if (buf_block_t* rseg_header = rseg->get(&mtr, nullptr))
-      {
-        static_assert(FIL_NULL == 0xffffffff, "compatibility");
-        mtr.memset(rseg_header, TRX_RSEG + TRX_RSEG_UNDO_SLOTS +
-                   undo->id * TRX_RSEG_SLOT_SIZE, 4, 0xff);
-      }
-    }
-
-    mtr.commit();
-  }
-  while (!finished);
-}
-
 /*========== UNDO LOG MEMORY COPY INITIALIZATION =====================*/
 
 /** Read an undo log when starting up the database.
@@ -1506,27 +1465,6 @@ void trx_undo_set_state_at_prepare(trx_t *trx, trx_undo_t *undo, bool rollback,
 		      1U);
 
 	trx_undo_write_xid(block, offset, undo->xid, mtr);
-}
-
-/** Free temporary undo log after commit or rollback.
-The information is not needed after a commit or rollback, therefore
-the data can be discarded.
-@param undo     temporary undo log */
-void trx_undo_commit_cleanup(trx_undo_t *undo)
-{
-  trx_rseg_t *rseg= undo->rseg;
-  ut_ad(rseg->space == fil_system.temp_space);
-  rseg->latch.wr_lock(SRW_LOCK_CALL);
-
-  UT_LIST_REMOVE(rseg->undo_list, undo);
-  ut_ad(undo->state == TRX_UNDO_TO_PURGE);
-  /* Delete first the undo log segment in the file */
-  trx_undo_seg_free(undo);
-  ut_ad(rseg->curr_size > undo->size);
-  rseg->curr_size-= undo->size;
-
-  rseg->latch.wr_unlock();
-  ut_free(undo);
 }
 
 /** At shutdown, frees the undo logs of a transaction. */
