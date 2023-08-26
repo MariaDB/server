@@ -9135,8 +9135,7 @@ enum fk_column_change_type
   @retval FK_COLUMN_NO_CHANGE    No significant changes are to be done on
                                  foreign key columns.
   @retval FK_COLUMN_DATA_CHANGE  ALTER TABLE might result in value
-                                 change in foreign key column (and
-                                 foreign_key_checks is on).
+                                 change in foreign key column.
   @retval FK_COLUMN_RENAMED      Foreign key column is renamed.
   @retval FK_COLUMN_DROPPED      Foreign key column is dropped.
 */
@@ -9172,7 +9171,18 @@ fk_check_column_changes(THD *thd, Alter_info *alter_info,
         return FK_COLUMN_RENAMED;
       }
 
-      if ((old_field->is_equal(*new_field) == IS_EQUAL_NO) ||
+      /*
+        Field_{num|decimal}::is_equal evaluates to IS_EQUAL_NO where
+        the new_field adds an AUTO_INCREMENT flag on a column due to a
+	limitation in MyISAM/ARIA. For the purposes of FK determination
+        it doesn't matter if AUTO_INCREMENT is there or not.
+      */
+      const uint flags= new_field->flags;
+      new_field->flags&= ~AUTO_INCREMENT_FLAG;
+      const bool equal_result= old_field->is_equal(*new_field);
+      new_field->flags= flags;
+
+      if ((equal_result == IS_EQUAL_NO) ||
           ((new_field->flags & NOT_NULL_FLAG) &&
            !(old_field->flags & NOT_NULL_FLAG)))
       {
