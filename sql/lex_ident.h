@@ -67,6 +67,35 @@ public:
 };
 
 
+template<size_t buff_sz>
+class IdentBuffer: public CharBuffer<buff_sz>
+{
+  constexpr static CHARSET_INFO *charset()
+  {
+    return &my_charset_utf8mb3_general_ci;
+  }
+public:
+  IdentBuffer()
+  { }
+  IdentBuffer<buff_sz> & copy_casedn(const LEX_CSTRING &str)
+  {
+    CharBuffer<buff_sz>::copy_casedn(charset(), str);
+    return *this;
+  }
+};
+
+
+template<size_t buff_sz>
+class IdentBufferCasedn: public IdentBuffer<buff_sz>
+{
+public:
+  IdentBufferCasedn(const LEX_CSTRING &str)
+  {
+    IdentBuffer<buff_sz>::copy_casedn(str);
+  }
+};
+
+
 /*
   A helper class to store temporary database names in a buffer.
   After constructing it's typically should be checked using

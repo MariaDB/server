@@ -7849,31 +7849,30 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
 }
 
 
-bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
+static
+bool mysql_grant(THD *thd, LEX_CSTRING db, List <LEX_USER> &list,
                  privilege_t rights, bool revoke_grant, bool is_proxy)
 {
   List_iterator <LEX_USER> str_list (list);
   LEX_USER *Str, *tmp_Str, *proxied_user= NULL;
-  char tmp_db[SAFE_NAME_LEN+1];
+  IdentBuffer<SAFE_NAME_LEN + MY_CS_MBMAXLEN> tmp_db;
   bool create_new_users=0;
   int result;
   DBUG_ENTER("mysql_grant");
 
-  if (lower_case_table_names && db)
+  if (lower_case_table_names && db.str)
   {
-    char *end= strnmov(tmp_db,db, sizeof(tmp_db));
-    if (end >= tmp_db + sizeof(tmp_db))
+    if (tmp_db.copy_casedn(db).length() > SAFE_NAME_LEN)
     {
-      my_error(ER_WRONG_DB_NAME ,MYF(0), db);
+      my_error(ER_WRONG_DB_NAME ,MYF(0), db.str);
       DBUG_RETURN(TRUE);
     }
-    my_casedn_str(files_charset_info, tmp_db);
-    db=tmp_db;
+    db= tmp_db.to_lex_cstring();
   }
 
   if (is_proxy)
   {
-    DBUG_ASSERT(!db);
+    DBUG_ASSERT(!db.str);
     proxied_user= str_list++;
   }
 
@@ -7909,20 +7908,20 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
 
     if (copy_and_check_auth(Str, tmp_Str, thd) ||
         replace_user_table(thd, tables.user_table(), Str,
-                           (!db ? rights : NO_ACL),
+                           (!db.str ? rights : NO_ACL),
                            revoke_grant, create_new_users,
                            MY_TEST(!is_public(Str) &&
                                    (thd->variables.sql_mode &
                                     MODE_NO_AUTO_CREATE_USER))))
       result= true;
-    else if (db)
+    else if (db.str)
     {
       privilege_t db_rights(rights & DB_ACLS);
       if (db_rights  == rights)
       {
-	if (replace_db_table(tables.db_table().table(), db, *Str, db_rights,
-			     revoke_grant))
-	  result= true;
+        if (replace_db_table(tables.db_table().table(), db.str,
+                             *Str, db_rights, revoke_grant))
+          result= true;
       }
       else
       {
@@ -7938,8 +7937,9 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
     }
     if (Str->is_role())
       propagate_role_grants(find_acl_role(Str->user.str, true),
-                            db ? PRIVS_TO_MERGE::DB : PRIVS_TO_MERGE::GLOBAL,
-                            db);
+                            db.str ? PRIVS_TO_MERGE::DB :
+                                     PRIVS_TO_MERGE::GLOBAL,
+                            db.str);
   }
   mysql_mutex_unlock(&acl_cache->lock);
 
@@ -12269,7 +12269,7 @@ bool Sql_cmd_grant_proxy::execute(THD *thd)
 
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
   /* Conditionally writes to binlog */
-  if (mysql_grant(thd, NULL/*db*/, lex->users_list, m_grant_option,
+  if (mysql_grant(thd, null_clex_str/*db*/, lex->users_list, m_grant_option,
                   is_revoke(), true/*proxy*/))
     return true;
 
@@ -12370,7 +12370,7 @@ bool Sql_cmd_grant_table::execute_table_mask(THD *thd)
 
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
   /* Conditionally writes to binlog */
-  if (mysql_grant(thd, m_db.str, lex->users_list, m_object_privilege,
+  if (mysql_grant(thd, m_db, lex->users_list, m_object_privilege,
                   is_revoke(), false/*not proxy*/))
     return true;
 

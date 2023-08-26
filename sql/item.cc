@@ -5324,7 +5324,7 @@ static Item** find_field_in_group_list(Item *find_item, ORDER *group_list)
   LEX_CSTRING field_name;
   ORDER      *found_group= NULL;
   int         found_match_degree= 0;
-  char        name_buff[SAFE_NAME_LEN+1];
+  IdentBuffer<SAFE_NAME_LEN> db_name_buff;
 
   if (find_item->type() == Item::FIELD_ITEM ||
       find_item->type() == Item::REF_ITEM)
@@ -5339,9 +5339,7 @@ static Item** find_field_in_group_list(Item *find_item, ORDER *group_list)
   if (db_name.str && lower_case_table_names)
   {
     /* Convert database to lower case for comparison */
-    strmake_buf(name_buff, db_name.str);
-    my_casedn_str(files_charset_info, name_buff);
-    db_name= Lex_cstring_strlen(name_buff);
+    db_name= db_name_buff.copy_casedn(db_name).to_lex_cstring();
   }
 
   DBUG_ASSERT(field_name.str != 0);

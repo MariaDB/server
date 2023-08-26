@@ -5024,7 +5024,7 @@ static int fill_schema_table_from_frm(THD *thd, TABLE *table,
   TABLE tbl;
   TABLE_LIST table_list;
   uint res= 0;
-  char db_name_buff[NAME_LEN + 1], table_name_buff[NAME_LEN + 1];
+  IdentBuffer<NAME_LEN> db_name_buff, table_name_buff;
 
   bzero((char*) &table_list, sizeof(TABLE_LIST));
   bzero((char*) &tbl, sizeof(TABLE));
@@ -5039,12 +5039,9 @@ static int fill_schema_table_from_frm(THD *thd, TABLE *table,
       cache subsystems require normalized (lowercased) database and table
       names as input.
     */
-    strmov(db_name_buff, db_name->str);
-    strmov(table_name_buff, table_name->str);
-    table_list.db.length=         my_casedn_str(files_charset_info, db_name_buff);
-    table_list.table_name.length= my_casedn_str(files_charset_info, table_name_buff);
-    table_list.db.str= db_name_buff;
-    table_list.table_name.str= table_name_buff;
+    table_list.db= db_name_buff.copy_casedn(*db_name).to_lex_cstring();
+    table_list.table_name= table_name_buff.copy_casedn(*table_name).
+                             to_lex_cstring();
   }
   else
   {

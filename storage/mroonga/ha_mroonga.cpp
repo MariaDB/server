@@ -3638,7 +3638,7 @@ bool ha_mroonga::storage_create_foreign_key(TABLE *table,
   Alter_info *alter_info = &lex->alter_info;
   List_iterator<Key> key_iterator(alter_info->key_list);
   Key *key;
-  char ref_db_buff[NAME_LEN + 1], ref_table_buff[NAME_LEN + 1];
+  IdentBuffer<NAME_LEN> ref_db_buff, ref_table_buff;
   while ((key = key_iterator++))
   {
     if (key->type != MRN_KEYTYPE_FOREIGN)
@@ -3673,9 +3673,7 @@ bool ha_mroonga::storage_create_foreign_key(TABLE *table,
 #endif
     DBUG_PRINT("info", ("mroonga: ref_db_name=%s", ref_db_name.str));
     if (ref_db_name.str && lower_case_table_names) {
-      strmake(ref_db_buff, ref_db_name.str, sizeof(ref_db_buff) - 1);
-      my_casedn_str(system_charset_info, ref_db_buff);
-      ref_db_name.str = ref_db_buff;
+      ref_db_name= ref_db_buff.copy_casedn(ref_db_name).to_lex_cstring();
       DBUG_PRINT("info", ("mroonga: casedn ref_db_name=%s", ref_db_name.str));
     }
 #ifdef MRN_FOREIGN_KEY_USE_CONST_STRING
@@ -3685,9 +3683,7 @@ bool ha_mroonga::storage_create_foreign_key(TABLE *table,
 #endif
     DBUG_PRINT("info", ("mroonga: ref_table_name=%s", ref_table_name.str));
     if (ref_table_name.str && lower_case_table_names) {
-      strmake(ref_table_buff, ref_table_name.str, sizeof(ref_table_buff) - 1);
-      my_casedn_str(system_charset_info, ref_table_buff);
-      ref_table_name.str = ref_table_buff;
+      ref_table_name= ref_table_buff.copy_casedn(ref_table_name).to_lex_cstring();
       DBUG_PRINT("info", ("mroonga: casedn ref_table_name=%s", ref_table_name.str));
     }
     if (ref_db_name.str && strcmp(table->s->db.str, ref_db_name.str))

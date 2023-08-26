@@ -233,19 +233,12 @@ static void inline slave_rows_error_report(enum loglevel level, int ha_error,
 
 #if defined(HAVE_REPLICATION)
 static void set_thd_db(THD *thd, Rpl_filter *rpl_filter,
-                       const char *db, uint32 db_len)
+                       const LEX_CSTRING &db)
 {
-  char lcase_db_buf[NAME_LEN +1];
-  LEX_CSTRING new_db;
-  new_db.length= db_len;
-  if (lower_case_table_names == 1)
-  {
-    strmov(lcase_db_buf, db);
-    my_casedn_str(system_charset_info, lcase_db_buf);
-    new_db.str= lcase_db_buf;
-  }
-  else
-    new_db.str= db;
+  IdentBuffer<NAME_LEN> lcase_db_buf;
+  LEX_CSTRING new_db= lower_case_table_names == 1 ?
+                      lcase_db_buf.copy_casedn(db).to_lex_cstring() :
+                      db;
   /* TODO WARNING this makes rewrite_db respect lower_case_table_names values
    * for more info look MDEV-17446 */
   new_db.str= rpl_filter->get_rewrite_db(new_db.str, &new_db.length);
@@ -1890,7 +1883,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
     goto end;
   }
 
-  set_thd_db(thd, rpl_filter, db, db_len);
+  set_thd_db(thd, rpl_filter, LEX_CSTRING{db, db_len});
 
   /*
     Setting the character set and collation of the current database thd->db.

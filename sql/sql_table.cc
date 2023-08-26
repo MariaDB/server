@@ -647,20 +647,11 @@ void build_lower_case_table_filename(char *buff, size_t bufflen,
                                      const LEX_CSTRING *table,
                                      uint flags)
 {
-  char table_name[SAFE_NAME_LEN+1], db_name[SAFE_NAME_LEN+1];
-
   DBUG_ASSERT(db->length <= SAFE_NAME_LEN && table->length <= SAFE_NAME_LEN);
-
-  memcpy(db_name, db->str, db->length);
-  db_name[db->length]= 0;
-  my_casedn_str(files_charset_info, db_name);
-
-  memcpy(table_name, table->str, table->length);
-  table_name[table->length]= 0;
-  my_casedn_str(files_charset_info, table_name);
-
-  build_table_filename(buff, bufflen, db_name, table_name, "",
-                       flags & FN_IS_TMP);
+  build_table_filename(buff, bufflen,
+          IdentBufferCasedn<SAFE_NAME_LEN>(*db).to_lex_cstring().str,
+          IdentBufferCasedn<SAFE_NAME_LEN>(*table).to_lex_cstring().str, "",
+          flags & FN_IS_TMP);
 }
 
 
@@ -9382,25 +9373,19 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
         continue;
 
       Foreign_key *fk= static_cast<Foreign_key*>(key);
-      char dbuf[NAME_LEN];
-      char tbuf[NAME_LEN];
-      const char *ref_db= (fk->ref_db.str ?
-                           fk->ref_db.str :
-                           alter_ctx->new_db.str);
-      const char *ref_table= fk->ref_table.str;
+      IdentBuffer<NAME_LEN> dbuf, tbuf;
+      LEX_CSTRING ref_db= fk->ref_db.str ? fk->ref_db : alter_ctx->new_db;
+      LEX_CSTRING ref_table= fk->ref_table;
       MDL_request mdl_request;
 
       if (lower_case_table_names)
       {
-        strmake_buf(dbuf, ref_db);
-        my_casedn_str(system_charset_info, dbuf);
-        strmake_buf(tbuf, ref_table);
-        my_casedn_str(system_charset_info, tbuf);
-        ref_db= dbuf;
-        ref_table= tbuf;
+        ref_db= dbuf.copy_casedn(ref_db).to_lex_cstring();
+        ref_table= tbuf.copy_casedn(ref_table).to_lex_cstring();
       }
 
-      MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE, ref_db, ref_table,
+      MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE,
+                       ref_db.str, ref_table.str,
                        MDL_SHARED_NO_WRITE, MDL_TRANSACTION);
       if (thd->mdl_context.acquire_lock(&mdl_request,
                                         thd->variables.lock_wait_timeout))

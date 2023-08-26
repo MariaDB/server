@@ -67,6 +67,10 @@ public:
   {
     return LEX_CSTRING{m_buff, m_length};
   }
+
+  const char *ptr() const { return m_buff; }
+  size_t length() const { return m_length; }
+
 };
 
 #endif // CHAR_BUFFER_INCLUDED

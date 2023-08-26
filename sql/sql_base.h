@@ -176,7 +176,7 @@ bool fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
                                           bool ignore_errors,
                                           enum trg_event_type event);
 bool insert_fields(THD *thd, Name_resolution_context *context,
-		   const char *db_name, const char *table_name,
+                   const LEX_CSTRING &db_name, const LEX_CSTRING &table_name,
                    List_iterator<Item> *it, bool any_privileges,
                    uint *hidden_bit_fields, bool returning_field);
 void make_leaves_list(THD *thd, List<TABLE_LIST> &list, TABLE_LIST *tables,

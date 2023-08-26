@@ -837,7 +837,7 @@ Events::fill_schema_events(THD *thd, TABLE_LIST *tables, COND * /* cond */)
   */
   if (thd->lex->sql_command == SQLCOM_SHOW_EVENTS)
   {
-    LEX_CSTRING *lexdb= &thd->lex->first_select_lex()->db;
+    const LEX_CSTRING *lexdb= &thd->lex->first_select_lex()->db;
     DBUG_ASSERT(lexdb);
     if (!is_infoschema_db(lexdb) && !is_perfschema_db(lexdb) &&
         check_access(thd, EVENT_ACL, lexdb->str, NULL, NULL, 0, 0))
