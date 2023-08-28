@@ -376,5 +376,8 @@ struct ha_table_option_struct
   char *remote_server;
   char *remote_database;
   char *remote_table;
-  ulonglong read_only;
+  /*
+    char *wrapper;
+   */
+  bool read_only;
 };

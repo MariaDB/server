@@ -75,6 +75,19 @@ a	b
 connection master_1;
 DELETE FROM tbl_a;
 DROP TABLE tbl_a;
+# read only
+connection master_1;
+CREATE TABLE tbl_a (
+a INT,
+b VARCHAR(255),
+PRIMARY KEY(a)
+) ENGINE=Spider DEFAULT CHARSET=utf8
+REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a" SPIDER_READ_ONLY=1;
+INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
+ERROR HY000: Table 'auto_test_local.tbl_a' is read only
+SELECT * FROM tbl_a;
+a	b
+DROP TABLE tbl_a;
 # Multiple data nodes with partition options
 connection master_1;
 CREATE TABLE tbl_a (

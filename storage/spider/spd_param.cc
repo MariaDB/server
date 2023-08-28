@@ -1896,21 +1896,14 @@ SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(longlong, direct_order_limit)
   0 :writable
   1 :read only
  */
-static MYSQL_THDVAR_UINT(
+static MYSQL_THDVAR_BOOL(
   read_only_mode, /* name */
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Read only", /* comment */
   NULL, /* check */
-  spider_var_deprecated_int, /* update */
-  0, /* def */
-  0, /* min */
-  1, /* max */
-  0 /* blk */
+  NULL, /* update */
+  FALSE /* def */
 );
-
-/*
-  SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(uint, read_only_mode)
- */
 
 static my_bool spider_general_log;
 static MYSQL_SYSVAR_BOOL(
