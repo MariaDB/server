@@ -2683,14 +2683,14 @@ fseg_free_extent(
 			      not_full_n_used - descr_n_used);
 	}
 
-	fsp_free_extent(space, page, mtr);
-
 	for (uint32_t i = 0; i < FSP_EXTENT_SIZE; i++) {
 		if (!xdes_is_free(descr, i)) {
 			buf_page_free(space, first_page_in_extent + i, mtr,
 				      __FILE__, __LINE__);
 		}
 	}
+
+	fsp_free_extent(space, page, mtr);
 }
 
 /**********************************************************************//**
