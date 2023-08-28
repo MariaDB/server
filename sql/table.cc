@@ -10088,7 +10088,6 @@ bool TR_table::update(ulonglong start_id, ulonglong end_id)
     table->file->print_error(error, MYF(0));
   /* extra() is used to apply the bulk insert operation
   on mysql/transaction_registry table */
-  table->file->extra(HA_EXTRA_IGNORE_INSERT);
   return error;
 }
 

@@ -2210,9 +2210,6 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
     goto after_trg_or_ignored_err;
   }
 
-  /* Notify the engine about insert ignore operation */
-  if (info->handle_duplicates == DUP_ERROR && info->ignore)
-    table->file->extra(HA_EXTRA_IGNORE_INSERT);
 after_trg_n_copied_inc:
   info->copied++;
   thd->record_first_successful_insert_id_in_cur_stmt(table->file->insert_id_for_cur_row);

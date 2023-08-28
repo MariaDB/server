@@ -281,10 +281,10 @@ row_merge_insert_index_tuples(
 	ut_stage_alter_t*	stage= nullptr,
 	merge_file_t*		blob_file= nullptr);
 
-/******************************************************//**
-Encode an index record. */
+/** Encode an index record.
+@return size of the record */
 static MY_ATTRIBUTE((nonnull))
-void
+ulint
 row_merge_buf_encode(
 /*=================*/
 	byte**			b,		/*!< in/out: pointer to
@@ -315,6 +315,7 @@ row_merge_buf_encode(
 				   entry->fields, n_fields);
 
 	*b += size;
+	return size;
 }
 
 static MY_ATTRIBUTE((malloc, nonnull))
@@ -1175,7 +1176,13 @@ dberr_t row_merge_buf_write(const row_merge_buf_t *buf,
 			}
 		}
 
-		row_merge_buf_encode(&b, index, entry, n_fields);
+		ulint rec_size= row_merge_buf_encode(
+				&b, index, entry, n_fields);
+		if (blob_file && rec_size > srv_page_size) {
+			err = DB_TOO_BIG_RECORD;
+			goto func_exit;
+		}
+
 		ut_ad(b < &block[srv_sort_buf_size]);
 
 		DBUG_LOG("ib_merge_sort",
@@ -5390,6 +5397,7 @@ bulk_rollback:
       if (t.second.get_first() < low_limit)
         low_limit= t.second.get_first();
       delete t.second.bulk_store;
+      t.second.bulk_store= nullptr;
     }
   }
   trx_savept_t bulk_save{low_limit};

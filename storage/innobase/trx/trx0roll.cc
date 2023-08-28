@@ -146,7 +146,10 @@ inline void trx_t::rollback_low(trx_savept_t *savept)
       trx_mod_tables_t::iterator j= i++;
       ut_ad(j->second.valid());
       if (j->second.rollback(limit))
+      {
+        j->second.clear_bulk_buffer();
         mod_tables.erase(j);
+      }
       else if (!apply_online_log)
         apply_online_log= j->first->is_active_ddl();
     }
