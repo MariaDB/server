@@ -2,6 +2,9 @@ include/master-slave.inc
 [connection master]
 connection slave;
 include/stop_slave.inc
+set @save_par_thds= @@global.slave_parallel_threads;
+set @save_strict_mode= @@global.gtid_strict_mode;
+set @save_innodb_lock_wait_timeout= @@global.innodb_lock_wait_timeout;
 change master to master_use_gtid=slave_pos;
 set @@global.slave_parallel_threads= 4;
 set @@global.slave_parallel_mode= optimistic;
@@ -39,11 +42,12 @@ ROLLBACK;
 # displayed by SHOW SLAVE STATUS does not present along a true value for
 # Slave_SQL_Running
 set @@global.gtid_slave_pos= "0-1-100";
+set @save_dbug = @@global.debug_dbug;
 set @@global.debug_dbug= "+d,delay_sql_thread_after_release_run_lock";
 include/start_slave.inc
 set debug_sync= "now wait_for sql_thread_run_lock_released";
 set debug_sync= "now signal sql_thread_continue";
-set @@global.debug_dbug= "";
+set @@global.debug_dbug= @saved_dbug;
 set debug_sync= "RESET";
 # Cleanup
 connection master;
@@ -51,9 +55,9 @@ drop table t1;
 connection slave;
 include/stop_slave.inc
 # TODO: Remove after fixing MDEV-21777
-set @@global.slave_parallel_threads= 0;
-set @@global.gtid_strict_mode= 0;
-set @@global.innodb_lock_wait_timeout= 50;
+set @@global.slave_parallel_threads= @save_par_thds;
+set @@global.gtid_strict_mode= @save_strict_mode;
+set @@global.innodb_lock_wait_timeout= @save_innodb_lock_wait_timeout;
 include/start_slave.inc
 include/rpl_end.inc
 # End of rpl_xa_prepare_gtid_fail.test

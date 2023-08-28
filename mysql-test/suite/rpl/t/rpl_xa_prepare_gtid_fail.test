@@ -25,9 +25,9 @@ source include/have_debug_sync.inc;
 --connection slave
 --source include/stop_slave.inc
 
---let $save_par_thds= `SELECT @@global.slave_parallel_threads`
---let $save_strict_mode= `SELECT @@global.gtid_strict_mode`
---let $save_innodb_lock_wait_timeout= `SELECT @@global.innodb_lock_wait_timeout`
+set @save_par_thds= @@global.slave_parallel_threads;
+set @save_strict_mode= @@global.gtid_strict_mode;
+set @save_innodb_lock_wait_timeout= @@global.innodb_lock_wait_timeout;
 
 change master to master_use_gtid=slave_pos;
 set @@global.slave_parallel_threads= 4;
@@ -92,7 +92,7 @@ ROLLBACK;
 --echo # displayed by SHOW SLAVE STATUS does not present along a true value for
 --echo # Slave_SQL_Running
 --eval set @@global.gtid_slave_pos= "$new_gtid"
---let $save_debug= `SELECT @@global.debug_dbug`
+set @save_dbug = @@global.debug_dbug;
 set @@global.debug_dbug= "+d,delay_sql_thread_after_release_run_lock";
 --source include/start_slave.inc
 set debug_sync= "now wait_for sql_thread_run_lock_released";
@@ -104,7 +104,7 @@ if ($last_error)
     --die SHOW SLAVE STATUS shows the error from the last session on startup
 }
 
---eval set @@global.debug_dbug= "$save_debug"
+set @@global.debug_dbug= @saved_dbug;
 set debug_sync= "RESET";
 
 --echo # Cleanup
@@ -114,9 +114,9 @@ drop table t1;
 --connection slave
 --source include/stop_slave.inc
 --echo # TODO: Remove after fixing MDEV-21777
---eval set @@global.slave_parallel_threads= $save_par_thds
---eval set @@global.gtid_strict_mode= $save_strict_mode
---eval set @@global.innodb_lock_wait_timeout= $save_innodb_lock_wait_timeout
+set @@global.slave_parallel_threads= @save_par_thds;
+set @@global.gtid_strict_mode= @save_strict_mode;
+set @@global.innodb_lock_wait_timeout= @save_innodb_lock_wait_timeout;
 --source include/start_slave.inc
 
 --source include/rpl_end.inc
