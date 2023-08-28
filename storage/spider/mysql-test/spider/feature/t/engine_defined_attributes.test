@@ -37,7 +37,7 @@ eval CREATE TABLE tbl_a (
   b VARCHAR(255),
   PRIMARY KEY(a)
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET
-REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a" READ_ONLY=1;
+REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a";
 
 INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
 SELECT * FROM tbl_a;
@@ -67,21 +67,20 @@ SELECT * FROM tbl_a;
 DELETE FROM tbl_a;
 DROP TABLE tbl_a;
 
-# --echo # read only
-# --connection master_1
-# eval CREATE TABLE tbl_a (
-#   a INT,
-#   b VARCHAR(255),
-#   PRIMARY KEY(a)
-# ) $MASTER_1_ENGINE $MASTER_1_CHARSET
-# REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a" READ_ONLY=1;
+--echo # read only
+--connection master_1
+eval CREATE TABLE tbl_a (
+  a INT,
+  b VARCHAR(255),
+  PRIMARY KEY(a)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET
+REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a" SPIDER_READ_ONLY=1;
 
-# --error 12518
-# INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
-# SELECT * FROM tbl_a;
+--error 12518
+INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
+SELECT * FROM tbl_a;
 
-# DELETE FROM tbl_a;
-# DROP TABLE tbl_a;
+DROP TABLE tbl_a;
 
 --echo # Multiple data nodes with partition options
 --connection master_1

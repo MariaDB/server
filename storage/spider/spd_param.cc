@@ -2489,7 +2489,7 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
 };
 
 static ha_create_table_option spider_sysvar_table_option_list[]= {
-    HA_TOPTION_SYSVAR("READ_ONLY", read_only, read_only_mode),
+    HA_TOPTION_SYSVAR("SPIDER_READ_ONLY", read_only, read_only_mode),
     HA_TOPTION_END
 };
 
