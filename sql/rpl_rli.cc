@@ -1685,7 +1685,7 @@ scan_all_gtid_slave_pos_table(THD *thd, int (*cb)(THD *, LEX_CSTRING *, void *),
   MY_DIR *dirp;
 
   thd->reset_for_next_command();
-  if (lock_schema_name(thd, MYSQL_SCHEMA_NAME.str))
+  if (lock_schema_name(thd, Lex_ident_db_normalized(MYSQL_SCHEMA_NAME)))
     return 1;
 
   build_table_filename(path, sizeof(path) - 1, MYSQL_SCHEMA_NAME.str, "", "", 0);

@@ -881,7 +881,7 @@ MYSQL_LOCK *get_lock_data(THD *thd, TABLE **table_ptr, uint count, uint flags)
                  or this connection was killed.
 */
 
-bool lock_schema_name(THD *thd, const char *db)
+bool lock_schema_name(THD *thd, const Lex_ident_db_normalized &db)
 {
   MDL_request_list mdl_requests;
   MDL_request global_request;
@@ -898,7 +898,7 @@ bool lock_schema_name(THD *thd, const char *db)
     return TRUE;
   MDL_REQUEST_INIT(&global_request, MDL_key::BACKUP, "", "", MDL_BACKUP_DDL,
                    MDL_STATEMENT);
-  MDL_REQUEST_INIT(&mdl_request, MDL_key::SCHEMA, db, "", MDL_EXCLUSIVE,
+  MDL_REQUEST_INIT(&mdl_request, MDL_key::SCHEMA, db.str, "", MDL_EXCLUSIVE,
                    MDL_TRANSACTION);
 
   mdl_requests.push_front(&mdl_request);

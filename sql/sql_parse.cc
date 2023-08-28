@@ -4900,7 +4900,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     break;
   case SQLCOM_CREATE_DB:
   {
-    const DBNameBuffer dbbuf(lex->name, lower_case_table_names);
+    const DBNameBuffer dbbuf(lex->name, lower_case_table_names == 1);
     const Lex_ident_db db= dbbuf.to_lex_ident_db_with_error();
 
     if (!db.str ||
@@ -4921,7 +4921,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     if (thd->variables.option_bits & OPTION_IF_EXISTS)
       lex->create_info.set(DDL_options_st::OPT_IF_EXISTS);
 
-    const DBNameBuffer dbbuf(lex->name, lower_case_table_names);
+    const DBNameBuffer dbbuf(lex->name, lower_case_table_names == 1);
     const Lex_ident_db db= dbbuf.to_lex_ident_db_with_error();
 
     if (!db.str || prepare_db_action(thd, DROP_ACL, db))
@@ -4934,7 +4934,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   }
   case SQLCOM_ALTER_DB_UPGRADE:
   {
-    const DBNameBuffer dbbuf(lex->name, lower_case_table_names);
+    const DBNameBuffer dbbuf(lex->name, lower_case_table_names == 1);
     const Lex_ident_db db= dbbuf.to_lex_ident_db_with_error();
 
     if (!db.str ||
@@ -4956,7 +4956,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   }
   case SQLCOM_ALTER_DB:
   {
-    const DBNameBuffer dbbuf(lex->name, lower_case_table_names);
+    const DBNameBuffer dbbuf(lex->name, lower_case_table_names == 1);
     const Lex_ident_db db= dbbuf.to_lex_ident_db_with_error();
 
     if (!db.str ||
@@ -6236,7 +6236,7 @@ show_create_db(THD *thd, LEX *lex)
   DBUG_EXECUTE_IF("4x_server_emul",
                   my_error(ER_UNKNOWN_ERROR, MYF(0)); return 1;);
 
-  DBNameBuffer dbbuf(lex->name, lower_case_table_names);
+  const DBNameBuffer dbbuf(lex->name, lower_case_table_names == 1);
   if (Lex_ident_fs(dbbuf.to_lex_cstring()).check_db_name_with_error())
     return 1;
   LEX_CSTRING db= dbbuf.to_lex_cstring();

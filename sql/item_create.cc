@@ -2768,7 +2768,6 @@ Create_sp_func::create_with_db(THD *thd,
   sp_name *qname;
   const Sp_handler *sph= &sp_handler_function;
   Database_qualified_name pkgname(&null_clex_str, &null_clex_str);
-  DBUG_ASSERT(Lex_ident_fs(*db).ok_for_lower_case_names());
 
   if (unlikely(has_named_parameters(item_list)))
   {

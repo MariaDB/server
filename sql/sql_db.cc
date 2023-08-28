@@ -55,7 +55,8 @@ const char *del_exts[]= {".BAK", ".opt", NullS};
 static TYPELIB deletable_extensions=
 {array_elements(del_exts)-1,"del_exts", del_exts, NULL};
 
-static bool find_db_tables_and_rm_known_files(THD *, MY_DIR *, const char *,
+static bool find_db_tables_and_rm_known_files(THD *, MY_DIR *,
+                                              const Lex_ident_db_normalized &db,
                                               const char *, TABLE_LIST **);
 
 long mysql_rm_arc_files(THD *thd, MY_DIR *dirp, const char *org_path);
@@ -744,7 +745,10 @@ mysql_create_db_internal(THD *thd, const Lex_ident_db &db,
     DBUG_RETURN(-1);
   }
 
-  if (lock_schema_name(thd, db.str))
+  const DBNameBuffer dbnorm_buffer(db, lower_case_table_names);
+  Lex_ident_db_normalized dbnorm(dbnorm_buffer.to_lex_cstring());
+
+  if (lock_schema_name(thd, dbnorm))
     DBUG_RETURN(-1);
 
   /* Check directory */
@@ -880,7 +884,10 @@ mysql_alter_db_internal(THD *thd, const Lex_ident_db &db,
   int error= 0;
   DBUG_ENTER("mysql_alter_db");
 
-  if (lock_schema_name(thd, db.str))
+  const DBNameBuffer dbnorm_buffer(db, lower_case_table_names);
+  Lex_ident_db_normalized dbnorm(dbnorm_buffer.to_lex_cstring());
+
+  if (lock_schema_name(thd, dbnorm))
     DBUG_RETURN(TRUE);
 
   /* 
@@ -1046,9 +1053,11 @@ mysql_rm_db_internal(THD *thd, const Lex_ident_db &db, bool if_exists,
   Drop_table_error_handler err_handler;
   DBUG_ENTER("mysql_rm_db");
 
+  const DBNameBuffer dbnorm_buffer(db, lower_case_table_names);
+  Lex_ident_db_normalized dbnorm(dbnorm_buffer.to_lex_cstring());
   bzero(&ddl_log_state, sizeof(ddl_log_state));
 
-  if (lock_schema_name(thd, db.str))
+  if (lock_schema_name(thd, dbnorm))
     DBUG_RETURN(true);
 
   path_length= build_table_filename(path, sizeof(path) - 1, db.str, "", "", 0);
@@ -1071,7 +1080,7 @@ mysql_rm_db_internal(THD *thd, const Lex_ident_db &db, bool if_exists,
     }
   }
 
-  if (find_db_tables_and_rm_known_files(thd, dirp, db.str, path, &tables))
+  if (find_db_tables_and_rm_known_files(thd, dirp, dbnorm, path, &tables))
     goto exit;
 
   /*
@@ -1089,7 +1098,7 @@ mysql_rm_db_internal(THD *thd, const Lex_ident_db &db, bool if_exists,
   /* Lock all tables and stored routines about to be dropped. */
   if (lock_table_names(thd, tables, NULL, thd->variables.lock_wait_timeout,
                        0) ||
-      lock_db_routines(thd, db))
+      lock_db_routines(thd, dbnorm))
     goto exit;
 
   if (!rm_mysql_schema)
@@ -1115,15 +1124,15 @@ mysql_rm_db_internal(THD *thd, const Lex_ident_db &db, bool if_exists,
   thd->push_internal_handler(&err_handler);
   if (!thd->killed &&
       !(tables &&
-        mysql_rm_table_no_locks(thd, tables, &db, &ddl_log_state, true, false,
+        mysql_rm_table_no_locks(thd, tables, &dbnorm, &ddl_log_state, true, false,
                                 true, false, true, false)))
   {
     debug_crash_here("ddl_log_drop_after_drop_tables");
 
     LEX_CSTRING cpath{ path, path_length};
-    ddl_log_drop_db(&ddl_log_state, &db, &cpath);
+    ddl_log_drop_db(&ddl_log_state, &dbnorm, &cpath);
 
-    drop_database_objects(thd, &cpath, &db, rm_mysql_schema);
+    drop_database_objects(thd, &cpath, &dbnorm, rm_mysql_schema);
 
     /*
       Now remove the db.opt file.
@@ -1303,12 +1312,11 @@ bool mysql_rm_db(THD *thd, const Lex_ident_db &db, bool if_exists)
 
 
 static bool find_db_tables_and_rm_known_files(THD *thd, MY_DIR *dirp,
-                                              const char *dbname,
+                                              const Lex_ident_db_normalized &db,
                                               const char *path,
                                               TABLE_LIST **tables)
 {
   char filePath[FN_REFLEN];
-  LEX_CSTRING db= { dbname, strlen(dbname) };
   TABLE_LIST *tot_list=0, **tot_list_next_local, **tot_list_next_global;
   DBUG_ENTER("find_db_tables_and_rm_known_files");
   DBUG_PRINT("enter",("path: %s", path));
@@ -1732,7 +1740,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
     goto done;
   }
 
-  new_db_file_name= lower_case_table_names ?
+  new_db_file_name= lower_case_table_names == 1 ?
                     new_db_buff.copy_casedn(&my_charset_utf8mb3_general_ci,
                                             *new_db_name).to_lex_cstring() :
                     *new_db_name;
@@ -1917,8 +1925,11 @@ bool mysql_upgrade_db(THD *thd, const Lex_ident_db &old_db)
   new_db= Lex_ident_db(old_db.str + MYSQL50_TABLE_NAME_PREFIX_LENGTH,
                        old_db.length - MYSQL50_TABLE_NAME_PREFIX_LENGTH);
 
+  const DBNameBuffer dbnorm_buffer_old(old_db, lower_case_table_names);
+  Lex_ident_db_normalized old_dbnorm(dbnorm_buffer_old.to_lex_cstring());
+
   /* Lock the old name, the new name will be locked by mysql_create_db().*/
-  if (lock_schema_name(thd, old_db.str))
+  if (lock_schema_name(thd, old_dbnorm))
     DBUG_RETURN(1);
 
   /*

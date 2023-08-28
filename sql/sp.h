@@ -594,7 +594,7 @@ sp_drop_db_routines(THD *thd, const LEX_CSTRING &db);
    @retval  false  Success
    @retval  true   Failure
  */
-bool lock_db_routines(THD *thd, const LEX_CSTRING &db);
+bool lock_db_routines(THD *thd, const Lex_ident_db_normalized &db);
 
 /**
   Structure that represents element in the set of stored routines
