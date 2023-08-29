@@ -41,6 +41,7 @@
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
+#include "spd_param.h"
 #include "sql_partition.h"
 #include <my_getopt.h>
 #include "spd_err.h"
@@ -1895,19 +1896,14 @@ SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(longlong, direct_order_limit)
   0 :writable
   1 :read only
  */
-static MYSQL_THDVAR_INT(
+static MYSQL_THDVAR_BOOL(
   read_only_mode, /* name */
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Read only", /* comment */
   NULL, /* check */
-  spider_var_deprecated_int, /* update */
-  0, /* def */
-  -1, /* min */
-  1, /* max */
-  0 /* blk */
+  NULL, /* update */
+  FALSE /* def */
 );
-
-SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(int, read_only_mode)
 
 static my_bool spider_general_log;
 static MYSQL_SYSVAR_BOOL(
@@ -2484,6 +2480,16 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(direct_aggregate),
   NULL
 };
+
+static ha_create_table_option spider_sysvar_table_option_list[]= {
+    HA_TOPTION_SYSVAR("SPIDER_READ_ONLY", read_only, read_only_mode),
+    HA_TOPTION_END
+};
+
+ha_create_table_option *spider_sysvar_table_options()
+{
+  return spider_sysvar_table_option_list;
+}
 
 mysql_declare_plugin(spider)
 {

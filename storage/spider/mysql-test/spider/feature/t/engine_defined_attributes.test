@@ -67,6 +67,21 @@ SELECT * FROM tbl_a;
 DELETE FROM tbl_a;
 DROP TABLE tbl_a;
 
+--echo # read only
+--connection master_1
+eval CREATE TABLE tbl_a (
+  a INT,
+  b VARCHAR(255),
+  PRIMARY KEY(a)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET
+REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a" SPIDER_READ_ONLY=1;
+
+--error 12518
+INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
+SELECT * FROM tbl_a;
+
+DROP TABLE tbl_a;
+
 --echo # Multiple data nodes with partition options
 --connection master_1
 eval CREATE TABLE tbl_a (
@@ -134,17 +149,15 @@ DROP TABLE tbl_a;
 --echo # COMMENT + engine-defined option (invalid)
 --connection master_1
 
---replace_result error: error
---error ER_CANT_CREATE_TABLE
 eval CREATE TABLE tbl_a (
   a INT,
   b VARCHAR(255),
   PRIMARY KEY(a)
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET
 REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a" COMMENT='tbl "tbl_b"';
+select table_name, server, tgt_table_name from mysql.spider_tables;
+drop table tbl_a;
 
---replace_result error: error
---error ER_CANT_CREATE_TABLE
 eval CREATE TABLE tbl_a (
   a INT,
   b VARCHAR(255),
@@ -155,6 +168,8 @@ PARTITION BY RANGE (a) (
     PARTITION p1 VALUES LESS THAN (3),
     PARTITION p2 VALUES LESS THAN MAXVALUE REMOTE_SERVER="s_2_2"
 );
+select table_name, server, tgt_table_name from mysql.spider_tables;
+drop table tbl_a;
 
 --echo # Various combinations of COMMENTs and options
 eval CREATE TABLE tbl_a (

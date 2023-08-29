@@ -75,6 +75,19 @@ a	b
 connection master_1;
 DELETE FROM tbl_a;
 DROP TABLE tbl_a;
+# read only
+connection master_1;
+CREATE TABLE tbl_a (
+a INT,
+b VARCHAR(255),
+PRIMARY KEY(a)
+) ENGINE=Spider DEFAULT CHARSET=utf8
+REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a" SPIDER_READ_ONLY=1;
+INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
+ERROR HY000: Table 'auto_test_local.tbl_a' is read only
+SELECT * FROM tbl_a;
+a	b
+DROP TABLE tbl_a;
 # Multiple data nodes with partition options
 connection master_1;
 CREATE TABLE tbl_a (
@@ -157,7 +170,10 @@ b VARCHAR(255),
 PRIMARY KEY(a)
 ) ENGINE=Spider DEFAULT CHARSET=utf8
 REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a" COMMENT='tbl "tbl_b"';
-ERROR HY000: Can't create table `auto_test_local`.`tbl_a` (errno: 12501 "Unknown error 12501")
+select table_name, server, tgt_table_name from mysql.spider_tables;
+table_name	server	tgt_table_name
+tbl_a	s_2_1	tbl_b
+drop table tbl_a;
 CREATE TABLE tbl_a (
 a INT,
 b VARCHAR(255),
@@ -168,7 +184,11 @@ PARTITION BY RANGE (a) (
 PARTITION p1 VALUES LESS THAN (3),
 PARTITION p2 VALUES LESS THAN MAXVALUE REMOTE_SERVER="s_2_2"
 );
-ERROR HY000: Can't create table `auto_test_local`.`tbl_a` (errno: 12501 "Unknown error 12501")
+select table_name, server, tgt_table_name from mysql.spider_tables;
+table_name	server	tgt_table_name
+tbl_a#P#p1	s_2_1	tbl_a
+tbl_a#P#p2	s_2_2	tbl_a
+drop table tbl_a;
 # Various combinations of COMMENTs and options
 CREATE TABLE tbl_a (
 a INT,
