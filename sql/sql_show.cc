@@ -5605,6 +5605,14 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
 }
 
 
+static int store_yesno(Field *field, bool predicate)
+{
+  static const LEX_CSTRING yes{STRING_WITH_LEN("YES")};
+  static const LEX_CSTRING no {STRING_WITH_LEN("NO")};
+  return field->store(predicate ? yes : no, system_charset_info);
+}
+
+
 static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
 				    TABLE *table, bool res,
 				    const LEX_CSTRING *db_name,
@@ -6264,9 +6272,7 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
       table->field[5]->store(type.ptr(), type.length(), cs);
       table->field[5]->set_notnull();
     }
-    pos=(uchar*) ((field->flags & NOT_NULL_FLAG) ?  "NO" : "YES");
-    table->field[6]->store((const char*) pos,
-                           strlen((const char*) pos), cs);
+    store_yesno(table->field[6], (field->flags & NOT_NULL_FLAG) == 0);
     store_column_type(table, field, cs, 7);
     pos=(uchar*) ((field->flags & PRI_KEY_FLAG) ? "PRI" :
                  (field->flags & UNIQUE_KEY_FLAG) ? "UNI" :
@@ -6402,10 +6408,7 @@ static my_bool iter_schema_engines(THD *thd, plugin_ref plugin,
     if (!(wild && wild[0] &&
           wild_case_compare(scs, name->str,wild)))
     {
-      LEX_CSTRING yesno[2]= {{ STRING_WITH_LEN("NO") },
-                             { STRING_WITH_LEN("YES") }};
-      LEX_CSTRING *tmp;
-      const char *option_name= default_type != hton ? yesno[1].str
+      const char *option_name= default_type != hton ? "YES"
                                                     : "DEFAULT";
       restore_record(table, s->default_values);
 
@@ -6413,14 +6416,12 @@ static my_bool iter_schema_engines(THD *thd, plugin_ref plugin,
       table->field[1]->store(option_name, strlen(option_name), scs);
       table->field[2]->store(plugin_decl(plugin)->descr,
                              strlen(plugin_decl(plugin)->descr), scs);
-      tmp= &yesno[MY_TEST(hton->commit && !(hton->flags & HTON_NO_ROLLBACK))];
-      table->field[3]->store(tmp->str, tmp->length, scs);
+      store_yesno(table->field[3],
+                  hton->commit && !(hton->flags & HTON_NO_ROLLBACK));
       table->field[3]->set_notnull();
-      tmp= &yesno[MY_TEST(hton->prepare)];
-      table->field[4]->store(tmp->str, tmp->length, scs);
+      store_yesno(table->field[4], hton->prepare);
       table->field[4]->set_notnull();
-      tmp= &yesno[MY_TEST(hton->savepoint_set)];
-      table->field[5]->store(tmp->str, tmp->length, scs);
+      store_yesno(table->field[5], hton->savepoint_set);
       table->field[5]->set_notnull();
 
       if (schema_table_store_record(thd, table))
@@ -7127,8 +7128,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
                                   key_info->comment.length, cs);
 
         // IGNORED column
-        const char *is_ignored= key_info->is_ignored ? "YES" : "NO";
-        table->field[16]->store(is_ignored, strlen(is_ignored), cs);
+        store_yesno(table->field[16], key_info->is_ignored);
         table->field[16]->set_notnull();
 
         if (schema_table_store_record(thd, table))
@@ -7247,10 +7247,7 @@ static int get_schema_views_record(THD *thd, TABLE_LIST *tables,
         if (updatable_view && !tables->view->can_be_merged())
           updatable_view= 0;
       }
-      if (updatable_view)
-        table->field[5]->store(STRING_WITH_LEN("YES"), cs);
-      else
-        table->field[5]->store(STRING_WITH_LEN("NO"), cs);
+      store_yesno(table->field[5], updatable_view);
     }
 
     definer_len= (uint)(strxmov(definer, tables->definer.user.str, "@",
