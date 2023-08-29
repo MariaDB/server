@@ -2,6 +2,8 @@ create table t (id int primary key, s date, e date, period for mytime(s,e));
 --echo # CONSTRAINT CHECK (s < e) is added implicitly, and shouldn't be shown
 --echo # this is important for correct command-based replication
 show create table t;
+select * from information_schema.periods;
+
 create or replace table t (id int primary key, s timestamp(6), e timestamp(6),
                            period for mytime(s,e));
 show create table t;

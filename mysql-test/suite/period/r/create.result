@@ -10,6 +10,9 @@ t	CREATE TABLE `t` (
   PERIOD FOR `mytime` (`s`, `e`),
   PRIMARY KEY (`id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+select * from information_schema.periods;
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD	START_COLUMN_NAME	END_COLUMN_NAME
+def	test	t	mytime	s	e
 create or replace table t (id int primary key, s timestamp(6), e timestamp(6),
 period for mytime(s,e));
 show create table t;

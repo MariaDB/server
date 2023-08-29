@@ -4628,7 +4628,8 @@ make_table_name_list(THD *thd, Dynamic_array<LEX_CSTRING*> *table_names,
 
 
 static void get_table_engine_for_i_s(THD *thd, char *buf, TABLE_LIST *tl,
-                                     LEX_CSTRING *db, LEX_CSTRING *table)
+                                     const LEX_CSTRING *db,
+                                     const LEX_CSTRING *table)
 {
   LEX_CSTRING engine_name= { buf, 0 };
 
@@ -6166,11 +6167,83 @@ static void store_variable_type(THD *thd, const sp_variable *spvar,
   }
 }
 
+static int store_schema_period_record(THD *thd, TABLE_LIST *tl,
+                                      TABLE *schema_table,
+                                      const LEX_CSTRING *db_name,
+                                      const LEX_CSTRING *table_name,
+                                      const TABLE_SHARE::period_info_t &period)
+{
+  TABLE_SHARE *s= tl->table->s;
+  const CHARSET_INFO *cs= system_charset_info;
 
-static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
-				    TABLE *table, bool res,
-				    const LEX_CSTRING *db_name,
-				    const LEX_CSTRING *table_name)
+  int err=      schema_table->field[0]->store(STRING_WITH_LEN("def"), cs);
+  if(!err) err= schema_table->field[1]->store(db_name, cs);
+  if(!err) err= schema_table->field[2]->store(table_name, cs);
+  if(!err) err= schema_table->field[3]->store(period.name, cs);
+
+  if (err) return err;
+
+  int period_field= 4;
+  for (auto *field: {period.start_field(s), period.end_field(s)})
+  {
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+    bool col_granted= get_column_grant(thd, &tl->grant,
+                                       db_name->str, table_name->str,
+                                       field->field_name.str) & COL_ACLS;
+    if (col_granted)
+#endif
+    {
+      schema_table->field[period_field]->set_notnull();
+      err= schema_table->field[period_field]->store(field->field_name, cs);
+    }
+
+    if (err)
+      return err;
+    period_field++;
+  }
+
+  return schema_table_store_record(thd, schema_table);
+}
+
+
+static int
+get_schema_period_records(THD *thd, TABLE_LIST *tl,
+                          TABLE *schema_table, //!< @ref
+                                               //!< Show::periods_fields_info
+                          bool res,
+                          const LEX_CSTRING *db_name,
+                          const LEX_CSTRING *table_name)
+{
+  TABLE *table= tl->table;
+
+  if (!table || (!table->s->period.name && !table->versioned()))
+    return 0;
+
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  check_access(thd, SELECT_ACL, db_name->str,
+               &tl->grant.privilege, 0, 0, MY_TEST(tl->schema_table));
+  if (is_temporary_table(tl))
+  {
+    tl->grant.privilege|= TMP_TABLE_ACLS;
+  }
+#endif
+  int err= 0;
+  if (table->versioned())
+    err= store_schema_period_record(thd, tl, schema_table, db_name, table_name,
+                                    table->s->vers);
+  if (!err && table->s->period.name)
+    err= store_schema_period_record(thd, tl, schema_table, db_name, table_name,
+                                    table->s->period);
+
+  return err;
+}
+
+static
+int get_schema_column_record(THD *thd, TABLE_LIST *tables,
+                             TABLE *table, //!< @ref Show::columns_fields_info
+                             bool res,
+                             const LEX_CSTRING *db_name,
+                             const LEX_CSTRING *table_name)
 {
   LEX *lex= thd->lex;
   const char *wild= lex->wild ? lex->wild->ptr() : NullS;
@@ -6321,6 +6394,12 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     }
     table->field[17]->store(buf.ptr(), buf.length(), cs);
     table->field[19]->store(field->comment.str, field->comment.length, cs);
+    const auto &vers= show_table->s->vers;
+    table->field[22]->store_yesno(show_table->versioned() &&
+                                  vers.start_fieldno == field->field_index, cs);
+    table->field[23]->store_yesno(show_table->versioned() &&
+                                  vers.end_fieldno == field->field_index, cs);
+
     if (schema_table_store_record(thd, table))
       DBUG_RETURN(1);
   }
@@ -7519,30 +7598,41 @@ ret:
   DBUG_RETURN(0);
 }
 
+static int
+store_key_column_usage(TABLE *table, const LEX_CSTRING &db_name,
+                       const LEX_CSTRING &table_name,
+                       const LEX_CSTRING &key_name,
+                       const LEX_CSTRING &col_name)
+{
+  CHARSET_INFO *cs= system_charset_info;
+  static const LEX_CSTRING def{STRING_WITH_LEN("def")};
+  const LEX_CSTRING *values[] { &def, &db_name, &key_name,
+                                &def, &db_name, &table_name, &col_name };
+  int err = 0;
+  for (uint i = 0; i < array_elements(values) && !err; i++)
+    table->field[i]->store(values[i], cs);
+  return 0;
+}
 
 static void
 store_key_column_usage(TABLE *table, const LEX_CSTRING *db_name,
                        const LEX_CSTRING *table_name, const char *key_name,
-                       size_t key_len, const char *con_type, size_t con_len,
+                       size_t key_len, const char *col_name, size_t col_len,
                        longlong idx)
 {
-  CHARSET_INFO *cs= system_charset_info;
-  table->field[0]->store(STRING_WITH_LEN("def"), cs);
-  table->field[1]->store(db_name->str, db_name->length, cs);
-  table->field[2]->store(key_name, key_len, cs);
-  table->field[3]->store(STRING_WITH_LEN("def"), cs);
-  table->field[4]->store(db_name->str, db_name->length, cs);
-  table->field[5]->store(table_name->str, table_name->length, cs);
-  table->field[6]->store(con_type, con_len, cs);
+  store_key_column_usage(table, *db_name, *table_name, {key_name, key_len},
+                         {col_name, col_len});
   table->field[7]->store((longlong) idx, TRUE);
 }
 
 
-static int get_schema_key_column_usage_record(THD *thd,
-					      TABLE_LIST *tables,
-					      TABLE *table, bool res,
-					      const LEX_CSTRING *db_name,
-					      const LEX_CSTRING *table_name)
+static int
+get_schema_key_column_usage_record(THD *thd, TABLE_LIST *tables,
+                                   TABLE *table,
+                                   //!< @ref Show::key_column_usage_fields_info
+                                   bool res,
+                                   const LEX_CSTRING *db_name,
+                                   const LEX_CSTRING *table_name)
 {
   DBUG_ENTER("get_schema_key_column_usage_record");
   if (res)
@@ -7625,6 +7715,35 @@ static int get_schema_key_column_usage_record(THD *thd,
     }
   }
   DBUG_RETURN(res);
+}
+
+
+static
+int get_schema_key_period_usage_record(THD *thd, TABLE_LIST *tables,
+                                       TABLE *schema_table, //!< @ref
+                                       //!< Show::key_period_usage_fields_info
+                                       bool res,
+                                       const LEX_CSTRING *db_name,
+                                       const LEX_CSTRING *table_name)
+{
+  const uint keys_total= tables->table->s->keys;
+  const KEY *keys= tables->table->s->key_info;
+  if (!tables->table)
+    return 0;
+  const Lex_ident &period_name= tables->table->s->period.name;
+  if (!period_name)
+    return 0;
+
+  bool err= false;
+  for (uint k= 0; !err && k < keys_total; k++)
+  {
+    if (!keys[k].without_overlaps)
+      continue;
+    err= store_key_column_usage(schema_table, *db_name, *table_name,
+                                keys[k].name, period_name);
+    err= err || schema_table_store_record(thd, schema_table);
+  }
+  return err;
 }
 
 
@@ -9445,7 +9564,9 @@ ST_FIELD_INFO columns_fields_info[]=
                                                                  OPEN_FRM_ONLY),
   Column("IS_GENERATED",            Varchar(6),  NOT_NULL,       OPEN_FRM_ONLY),
   Column("GENERATION_EXPRESSION",   Longtext(MAX_FIELD_VARCHARLENGTH),
-                                                 NULLABLE,       OPEN_FRM_ONLY),
+                                                 NULLABLE,       OPEN_FRM_ONLY), // 21
+  Column("IS_SYSTEM_TIME_PERIOD_START", Varchar(3),  NOT_NULL,   OPEN_FRM_ONLY), // 22
+  Column("IS_SYSTEM_TIME_PERIOD_END",   Varchar(3),  NOT_NULL,   OPEN_FRM_ONLY), // 23
   CEnd()
 };
 
@@ -9709,6 +9830,18 @@ ST_FIELD_INFO key_column_usage_fields_info[]=
   CEnd()
 };
 
+ST_FIELD_INFO key_period_usage_fields_info[]=
+{
+  Column("CONSTRAINT_CATALOG", Catalog(), NOT_NULL, OPEN_FULL_TABLE),
+  Column("CONSTRAINT_SCHEMA",  Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  Column("CONSTRAINT_NAME",    Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  Column("TABLE_CATALOG",      Catalog(), NOT_NULL, OPEN_FULL_TABLE),
+  Column("TABLE_SCHEMA",       Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  Column("TABLE_NAME",         Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  Column("PERIOD_NAME",        Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  CEnd()
+};
+
 
 ST_FIELD_INFO table_names_fields_info[]=
 {
@@ -9819,6 +9952,17 @@ ST_FIELD_INFO sysvars_fields_info[]=
   Column("READ_ONLY",            Yes_or_empty(),                   NOT_NULL),
   Column("COMMAND_LINE_ARGUMENT",Name(),                           NULLABLE),
   Column("GLOBAL_VALUE_PATH",    Varchar(2048),                    NULLABLE),
+  CEnd()
+};
+
+ST_FIELD_INFO periods_fields_info[]=
+{
+  Column("TABLE_CATALOG", Catalog(), NOT_NULL, OPEN_FRM_ONLY),
+  Column("TABLE_SCHEMA",      Name(), NOT_NULL, OPEN_FRM_ONLY),
+  Column("TABLE_NAME",        Name(), NOT_NULL, OPEN_FRM_ONLY),
+  Column("PERIOD",            Name(), NOT_NULL, OPEN_FRM_ONLY),
+  Column("START_COLUMN_NAME", Name(), NULLABLE, OPEN_FRM_ONLY),
+  Column("END_COLUMN_NAME",   Name(), NULLABLE, OPEN_FRM_ONLY),
   CEnd()
 };
 
@@ -10153,6 +10297,9 @@ ST_SCHEMA_TABLE schema_tables[]=
   {"KEY_COLUMN_USAGE", Show::key_column_usage_fields_info, 0,
    get_all_tables, 0, get_schema_key_column_usage_record, 4, 5, 0,
    OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
+  {"KEY_PERIOD_USAGE", Show::key_period_usage_fields_info, 0,
+   get_all_tables, 0, get_schema_key_period_usage_record, 1, 2, 0,
+   OPTIMIZE_I_S_TABLE | OPEN_VIEW_FULL},
   {"OPEN_TABLES", Show::open_tables_fields_info, 0,
    fill_open_tables, make_old_format, 0, -1, -1, 1, 0},
   {"OPTIMIZER_COSTS", Show::optimizer_costs_fields_info, 0,
@@ -10164,6 +10311,9 @@ ST_SCHEMA_TABLE schema_tables[]=
   {"PARTITIONS", Show::partitions_fields_info, 0,
    get_all_tables, 0, get_schema_partitions_record, 1, 2, 0,
    OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
+  {"PERIODS", Show::periods_fields_info, 0,
+   get_all_tables, 0, get_schema_period_records, 1, 2, 0,
+   OPTIMIZE_I_S_TABLE | OPEN_VIEW_FULL},
   {"PLUGINS", Show::plugin_fields_info, 0,
    fill_plugins, make_old_format, 0, -1, -1, 0, 0},
   {"PROCESSLIST", Show::processlist_fields_info, 0,
@@ -10214,6 +10364,8 @@ ST_SCHEMA_TABLE schema_tables[]=
   {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 };
 
+static_assert(array_elements(schema_tables) == SCH_ENUM_SIZE + 1,
+              "Update enum_schema_tables as well.");
 
 int initialize_schema_table(st_plugin_int *plugin)
 {
