@@ -4442,6 +4442,42 @@ bool Item_func_in::fix_length_and_dec()
     return TRUE;
   }
 
+  if (!arg_types_compatible && comparator_count() == 2)
+  {
+    /*
+      Catch a special case: a mixture of signed and unsigned integer types.
+      in_longlong can handle such cases.
+
+      Note, prepare_predicant_and_values() aggregates this mixture as follows:
+      - signed+unsigned produce &type_handler_newdecimal.
+      - signed+signed or unsigned+unsigned produce &type_handler_slonglong
+      So we have extactly two distinct handlers.
+
+      The code below assumes that unsigned longlong is handled
+      by &type_handler_slonglong in comparison context,
+      which may change in the future to &type_handler_ulonglong.
+      The DBUG_ASSERT is needed to address this change here properly.
+    */
+    DBUG_ASSERT(type_handler_ulonglong.type_handler_for_comparison() ==
+                &type_handler_slonglong);
+    // Let's check if all arguments are of integer types
+    uint found_int_args= 0;
+    for (uint i= 0; i < arg_count; i++, found_int_args++)
+    {
+      if (args[i]->type_handler_for_comparison() != &type_handler_slonglong)
+        break;
+    }
+    if (found_int_args == arg_count)
+    {
+      // All arguments are integers. Switch to integer comparison.
+      arg_types_compatible= true;
+      DBUG_EXECUTE_IF("Item_func_in",
+                      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                      ER_UNKNOWN_ERROR, "DBUG: found a mix of UINT and SINT"););
+      m_comparator.set_handler(&type_handler_slonglong);
+    }
+  }
+
   if (arg_types_compatible) // Bisection condition #1
   {
     if (m_comparator.type_handler()->
