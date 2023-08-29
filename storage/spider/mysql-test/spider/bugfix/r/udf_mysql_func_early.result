@@ -41,5 +41,7 @@ a
 42
 connection master_1;
 DROP DATABASE IF EXISTS auto_test_local;
+drop server s_1;
+drop server s_2_1;
 connection child2_1;
 DROP DATABASE IF EXISTS auto_test_remote;
