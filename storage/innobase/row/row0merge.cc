@@ -5344,7 +5344,7 @@ func_exit:
   if (err != DB_SUCCESS)
     trx->error_info= index;
   else if (index->is_primary() && table->persistent_autoinc)
-    btr_write_autoinc(index, table->autoinc);
+    btr_write_autoinc(index, table->autoinc - 1);
   err= btr_bulk.finish(err);
   return err;
 }
