@@ -48,9 +48,10 @@ public:
 
 
 /**
-  A normalized database name identifier.
-  - Converted to lower case if lower_case_table_names say so
-  - Checked to be a valid database name
+  A valid database name identifier,
+  checked with check_db_name().
+  It's not known if it was lower-cased or is
+  in the user typed way.
 */
 class Lex_ident_db: public Lex_ident_fs
 {
@@ -61,8 +62,28 @@ public:
   Lex_ident_db(const char *str, size_t length)
    :Lex_ident_fs(str, length)
   {
-    DBUG_SLOW_ASSERT(ok_for_lower_case_names());
     DBUG_SLOW_ASSERT(!check_db_name());
+  }
+};
+
+
+/**
+  A normalized database name:
+  - checked with check_db_name()
+  - lower-cased if lower_case_table_names>0
+*/
+class Lex_ident_db_normalized: public Lex_ident_db
+{
+public:
+  Lex_ident_db_normalized(const char *str, size_t length)
+   :Lex_ident_db(str, length)
+  {
+    DBUG_SLOW_ASSERT(ok_for_lower_case_names());
+  }
+  explicit Lex_ident_db_normalized(const LEX_CSTRING &str)
+   :Lex_ident_db(str.str, str.length)
+  {
+    DBUG_SLOW_ASSERT(ok_for_lower_case_names());
   }
 };
 

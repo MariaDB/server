@@ -4598,7 +4598,7 @@ make_table_name_list(THD *thd, Dynamic_array<LEX_CSTRING*> *table_names,
     return (schema_tables_add(thd, table_names,
                               lookup_field_vals->table_value.str));
 
-  DBNameBuffer dbbuf(*db_name, lower_case_table_names);
+  const DBNameBuffer dbbuf(*db_name, lower_case_table_names == 1);
   const Lex_ident_db dbnorm= dbbuf.to_lex_ident_db();
   if (!dbnorm.str)
     return 0; // Impossible TABLE_SCHEMA name

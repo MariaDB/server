@@ -288,3 +288,38 @@ show create database mysql_TEST;
 show create table mysql_TEST.T1;
 show create table mysql_test.t1;
 drop database mysql_TEST;
+
+--echo #
+--echo # MDEV-32026 lowercase_table2.test failures in 11.3
+--echo #
+
+CREATE DATABASE Db1;
+SHOW CREATE DATABASE Db1;
+USE Db1;
+SELECT DATABASE();
+DROP DATABASE Db1;
+
+CREATE DATABASE Db1;
+CREATE FUNCTION Db1.f1() RETURNS INT RETURN 10;
+CREATE FUNCTION db1.f2() RETURNS INT RETURN 10;
+SELECT db, name FROM mysql.proc WHERE name LIKE '^f[12]';
+SELECT Db1.f1();
+SELECT db1.f2();
+DROP DATABASE Db1;
+
+
+--echo #
+--echo # MDEV-32025 Crashes in MDL_key::mdl_key_init with lower-case-table-names=2
+--echo #
+
+CREATE DATABASE `#mysql50#D+b1`;
+ALTER DATABASE `#mysql50#D+b1` UPGRADE DATA DIRECTORY NAME;
+SHOW CREATE DATABASE `D+b1`;
+SHOW CREATE DATABASE `d+b1`;
+DROP DATABASE `D+b1`;
+
+CREATE DATABASE Db1;
+ALTER DATABASE Db1 DEFAULT CHARACTER SET utf8;
+SHOW CREATE DATABASE Db1;
+SHOW CREATE DATABASE db1;
+DROP DATABASE Db1;
