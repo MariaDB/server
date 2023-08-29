@@ -1224,13 +1224,7 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
     }
 
     // READ_ONLY
-    static const LEX_CSTRING yesno[]=
-    {
-      { STRING_WITH_LEN("NO") },
-      { STRING_WITH_LEN("YES") }
-    };
-    const LEX_CSTRING *yn = yesno + var->is_readonly();
-    fields[12]->store(yn->str, yn->length, scs);
+    fields[12]->store_yesno(var->is_readonly(), scs);
 
     // COMMAND_LINE_ARGUMENT
     if (var->option.id >= 0)

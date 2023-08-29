@@ -167,7 +167,7 @@ public:
     bzero(&role_grants, sizeof(role_grants));
   }
   uchar flags;           // field used to store various state information
-  LEX_CSTRING user;
+  Lex_ident user;
   /* list to hold references to granted roles (ACL_ROLE instances) */
   DYNAMIC_ARRAY role_grants;
   const char *get_username() { return user.str; }
@@ -12103,19 +12103,14 @@ applicable_roles_insert(ACL_USER_BASE *grantee, ACL_ROLE *role, void *ptr)
     find_role_grant_pair(&grantee->user, host, &role->user);
   DBUG_ASSERT(pair);
 
-  if (pair->with_admin)
-    table->field[2]->store(STRING_WITH_LEN("YES"), cs);
-  else
-    table->field[2]->store(STRING_WITH_LEN("NO"), cs);
+  table->field[2]->store_yesno(pair->with_admin, cs);
 
   /* Default role is only valid when looking at a role granted to a user. */
   if (!is_role)
   {
-    if (data->user->default_rolename.length &&
-        lex_string_eq(&data->user->default_rolename, &role->user))
-      table->field[3]->store(STRING_WITH_LEN("YES"), cs);
-    else
-      table->field[3]->store(STRING_WITH_LEN("NO"), cs);
+    table->field[3]->store_yesno(data->user->default_rolename.length &&
+                                 role->user.streq(data->user->default_rolename),
+                                 cs);
     table->field[3]->set_notnull();
   }
 

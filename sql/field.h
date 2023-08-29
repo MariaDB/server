@@ -991,6 +991,12 @@ public:
     DBUG_ASSERT(ls.length < UINT_MAX32);
     return store(ls.str, (uint) ls.length, cs);
   }
+  int store_yesno(bool predicate, CHARSET_INFO *cs)
+  {
+    static const LEX_CSTRING yes{STRING_WITH_LEN("YES")};
+    static const LEX_CSTRING no {STRING_WITH_LEN("NO")};
+    return store(predicate ? yes : no, cs);
+  }
 
   /*
     @brief
