@@ -1,0 +1,45 @@
+--source include/not_embedded.inc
+
+select * from information_schema.periods;
+
+create or replace table t1 (id int primary key, s timestamp(6), e timestamp(6),
+                            period for mytime(s,e));
+
+create or replace table t2 (id int primary key, s timestamp(6), e timestamp(6),
+                            period for mytime(s,e),
+                            vs timestamp(6) as row start,
+                            ve timestamp(6) as row end,
+                            period for system_time(vs, ve))
+                            with system versioning;
+
+show columns from t1;
+
+select * from information_schema.periods where table_schema = 'test';
+
+create user periods_hidden@localhost;
+# Give it a privilege to connect
+grant create on test.nonexist to periods_hidden@localhost;
+
+--connect (chopped,localhost,periods_hidden,,test)
+select * from information_schema.periods where table_schema = 'test';
+--connection default
+grant select(id) on test.t1 to periods_hidden@localhost;
+--connection chopped
+select * from information_schema.periods where table_schema = 'test';
+--connection default
+grant select(s) on test.t1 to periods_hidden@localhost;
+--connection chopped
+select * from information_schema.periods where table_schema = 'test';
+--connection default
+grant select(e) on test.t2 to periods_hidden@localhost;
+--connection chopped
+--sorted_result
+select * from information_schema.periods where table_schema = 'test';
+--connection default
+grant update on test.t2 to periods_hidden@localhost;
+--connection chopped
+--sorted_result
+select * from information_schema.periods where table_schema = 'test';
+--connection default
+drop user periods_hidden@localhost;
+drop tables t1, t2;

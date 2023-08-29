@@ -13,6 +13,15 @@ create or replace table t(id int, s date, e date,
 --replace_result $default_engine DEFAULT_ENGINE
 show create table t;
 
+select * from information_schema.key_period_usage;
+create or replace table t_multi(id int, id2 int, s date, e date,
+                                period for very_interesting_period(s,e),
+                                primary key(id, very_interesting_period without overlaps),
+                                unique(id2, very_interesting_period without overlaps)
+);
+select * from information_schema.key_period_usage;
+drop table t_multi;
+
 
 insert into t values (1, '2003-01-01', '2003-03-01'),
                      (1, '2003-05-01', '2003-07-01');

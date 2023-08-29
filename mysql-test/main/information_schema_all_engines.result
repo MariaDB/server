@@ -42,10 +42,12 @@ INNODB_TRX
 KEYWORDS
 KEY_CACHES
 KEY_COLUMN_USAGE
+KEY_PERIOD_USAGE
 OPTIMIZER_COSTS
 OPTIMIZER_TRACE
 PARAMETERS
 PARTITIONS
+PERIODS
 PLUGINS
 PROCESSLIST
 PROFILING
@@ -124,10 +126,12 @@ INNODB_TRX	trx_id
 KEYWORDS	WORD
 KEY_CACHES	KEY_CACHE_NAME
 KEY_COLUMN_USAGE	CONSTRAINT_SCHEMA
+KEY_PERIOD_USAGE	CONSTRAINT_SCHEMA
 OPTIMIZER_COSTS	ENGINE
 OPTIMIZER_TRACE	QUERY
 PARAMETERS	SPECIFIC_SCHEMA
 PARTITIONS	TABLE_SCHEMA
+PERIODS	TABLE_SCHEMA
 PLUGINS	PLUGIN_NAME
 PROCESSLIST	ID
 PROFILING	QUERY_ID
@@ -206,10 +210,12 @@ INNODB_TRX	trx_id
 KEYWORDS	WORD
 KEY_CACHES	KEY_CACHE_NAME
 KEY_COLUMN_USAGE	CONSTRAINT_SCHEMA
+KEY_PERIOD_USAGE	CONSTRAINT_SCHEMA
 OPTIMIZER_COSTS	ENGINE
 OPTIMIZER_TRACE	QUERY
 PARAMETERS	SPECIFIC_SCHEMA
 PARTITIONS	TABLE_SCHEMA
+PERIODS	TABLE_SCHEMA
 PLUGINS	PLUGIN_NAME
 PROCESSLIST	ID
 PROFILING	QUERY_ID
@@ -292,10 +298,12 @@ INNODB_TABLESPACES_ENCRYPTION	information_schema.INNODB_TABLESPACES_ENCRYPTION	1
 INNODB_TRX	information_schema.INNODB_TRX	1
 KEY_CACHES	information_schema.KEY_CACHES	1
 KEY_COLUMN_USAGE	information_schema.KEY_COLUMN_USAGE	1
+KEY_PERIOD_USAGE	information_schema.KEY_PERIOD_USAGE	1
 OPTIMIZER_COSTS	information_schema.OPTIMIZER_COSTS	1
 OPTIMIZER_TRACE	information_schema.OPTIMIZER_TRACE	1
 PARAMETERS	information_schema.PARAMETERS	1
 PARTITIONS	information_schema.PARTITIONS	1
+PERIODS	information_schema.PERIODS	1
 PLUGINS	information_schema.PLUGINS	1
 PROCESSLIST	information_schema.PROCESSLIST	1
 PROFILING	information_schema.PROFILING	1
@@ -363,10 +371,12 @@ Database: information_schema
 | KEYWORDS                              |
 | KEY_CACHES                            |
 | KEY_COLUMN_USAGE                      |
+| KEY_PERIOD_USAGE                      |
 | OPTIMIZER_COSTS                       |
 | OPTIMIZER_TRACE                       |
 | PARAMETERS                            |
 | PARTITIONS                            |
+| PERIODS                               |
 | PLUGINS                               |
 | PROCESSLIST                           |
 | PROFILING                             |
@@ -435,10 +445,12 @@ Database: INFORMATION_SCHEMA
 | KEYWORDS                              |
 | KEY_CACHES                            |
 | KEY_COLUMN_USAGE                      |
+| KEY_PERIOD_USAGE                      |
 | OPTIMIZER_COSTS                       |
 | OPTIMIZER_TRACE                       |
 | PARAMETERS                            |
 | PARTITIONS                            |
+| PERIODS                               |
 | PLUGINS                               |
 | PROCESSLIST                           |
 | PROFILING                             |
@@ -469,5 +481,5 @@ Wildcard: inf_rmation_schema
 | information_schema |
 SELECT table_schema, count(*) FROM information_schema.TABLES WHERE table_schema IN ('mysql', 'INFORMATION_SCHEMA', 'test', 'mysqltest') GROUP BY TABLE_SCHEMA;
 table_schema	count(*)
-information_schema	67
+information_schema	69
 mysql	31

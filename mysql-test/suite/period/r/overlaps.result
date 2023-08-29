@@ -12,6 +12,20 @@ t	CREATE TABLE `t` (
   PRIMARY KEY (`id`,`p` WITHOUT OVERLAPS)
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`id`)
+select * from information_schema.key_period_usage;
+CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD_NAME
+def	test	PRIMARY	def	test	t	p
+create or replace table t_multi(id int, id2 int, s date, e date,
+period for very_interesting_period(s,e),
+primary key(id, very_interesting_period without overlaps),
+unique(id2, very_interesting_period without overlaps)
+);
+select * from information_schema.key_period_usage;
+CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD_NAME
+def	test	PRIMARY	def	test	t_multi	very_interesting_period
+def	test	id2	def	test	t_multi	very_interesting_period
+def	test	PRIMARY	def	test	t	p
+drop table t_multi;
 insert into t values (1, '2003-01-01', '2003-03-01'),
 (1, '2003-05-01', '2003-07-01');
 insert into t values (1, '2003-02-01', '2003-04-01');
