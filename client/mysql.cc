@@ -1496,18 +1496,7 @@ static bool do_connect(MYSQL *mysql, const char *host, const char *user,
 {
   if (opt_secure_auth)
     mysql_options(mysql, MYSQL_SECURE_AUTH, (char *) &opt_secure_auth);
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
-  if (opt_use_ssl && opt_protocol <= MYSQL_PROTOCOL_SOCKET)
-  {
-    mysql_ssl_set(mysql, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
-		  opt_ssl_capath, opt_ssl_cipher);
-    mysql_options(mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
-    mysql_options(mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
-    mysql_options(mysql, MARIADB_OPT_TLS_VERSION, opt_tls_version);
-  }
-  mysql_options(mysql,MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
-                (char*)&opt_ssl_verify_server_cert);
-#endif
+  SET_SSL_OPTS(mysql);
   if (opt_protocol)
     mysql_options(mysql,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
   if (opt_plugin_dir && *opt_plugin_dir)
