@@ -60,7 +60,7 @@
   {"ssl-verify-server-cert", OPT_SSL_VERIFY_SERVER_CERT,
    "Verify server's certificate to prevent man-in-the-middle attacks",
    &opt_ssl_verify_server_cert, &opt_ssl_verify_server_cert,
-   0, GET_BOOL, OPT_ARG, 0, 0, 0, 0, 0, 0},
+   0, GET_BOOL, OPT_ARG, 1, 0, 0, 0, 0, 0},
 #endif
 #endif /* HAVE_OPENSSL */
 #endif /* SSLOPT_LONGOPTS_INCLUDED */
