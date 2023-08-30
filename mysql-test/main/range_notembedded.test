@@ -26,8 +26,11 @@ explain select * from t2 where key1 in (1,2,3) and pk not in (1,2,3);
 
 --echo # This should show only ranges in form "(1) <= (key1) <= (1)"
 --echo #  ranges over "pk" should not be constructed.
+# Enable after fix MDEV-31408
+--disable_view_protocol
 select json_detailed(JSON_EXTRACT(trace, '$**.ranges'))
 from information_schema.optimizer_trace;
+--enable_view_protocol
 set optimizer_trace=@tmp_21958;
 
 drop table t2;
