@@ -98,9 +98,12 @@ set @tmp=@@optimizer_trace;
 set optimizer_trace=1;
 explain select * from t10  where a in (91303);
 
+#Enable after fix MDEV-32034
+--disable_view_protocol
 --echo # Must have selectivity_from_histogram <= 1.0:
 select json_detailed(json_extract(trace, '$**.selectivity_for_columns')) as sel
 from information_schema.optimizer_trace;
+--enable_view_protocol
 
 set optimizer_trace=@tmp;
 drop table t0,t1,t10;
@@ -169,17 +172,23 @@ while ($i < $N_CONDS) {
 #echo $query_tbl;
 evalp $query_tbl;
 
+#Enable after fix MDEV-32034
+--disable_view_protocol
 select 
   json_detailed(json_extract(trace,'$**.selectivity_for_columns[0]')) as JS
 from 
  information_schema.optimizer_trace;
 
+--enable_view_protocol
+
 evalp $query_tbl;
+#Enable after fix MDEV-32034
+--disable_view_protocol
 eval select
   json_detailed(json_extract(trace,'\$**.selectivity_for_columns[$N_LAST_COND]')) as JS
 from 
  information_schema.optimizer_trace;
-
+--enable_view_protocol
 
 --echo # 
 --echo # Check if not being able to infer anything for the first MAX_KEY
@@ -200,10 +209,13 @@ let $query_tbl= $query_tbl) and col$N_LAST_COND>1;
 #echo $query_tbl;
 evalp $query_tbl;
 
+#Enable after fix MDEV-32034
+--disable_view_protocol
 select 
   json_detailed(json_extract(trace,'$**.selectivity_for_columns')) as JS
 from 
  information_schema.optimizer_trace;
+--enable_view_protocol
 
 set optimizer_trace=@trace_tmp;
 drop table t1;
