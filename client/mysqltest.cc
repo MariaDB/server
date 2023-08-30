@@ -282,6 +282,13 @@ DYNAMIC_ARRAY q_lines;
 
 #include "sslopt-vars.h"
 
+#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+static void set_ssl_opts(MYSQL *mysql, my_bool opt_use_ssl, char *opt_ssl_cipher)
+{
+  SET_SSL_OPTS(mysql);
+}
+#endif
+
 struct Parser
 {
   int read_lines,current_line;
@@ -6148,19 +6155,9 @@ void do_connect(struct st_command *command)
                   opt_charsets_dir);
 
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
-  if (con_ssl == USE_SSL_IF_POSSIBLE && opt_use_ssl)
-    con_ssl= USE_SSL_REQUIRED;
-
-  if (con_ssl == USE_SSL_REQUIRED)
-  {
-    mysql_ssl_set(con_slot->mysql, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
-		  opt_ssl_capath, ssl_cipher ? ssl_cipher : opt_ssl_cipher);
-    mysql_options(con_slot->mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
-    mysql_options(con_slot->mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
-    mysql_options(con_slot->mysql, MARIADB_OPT_TLS_VERSION, opt_tls_version);
-    mysql_options(con_slot->mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
-                  &opt_ssl_verify_server_cert);
-  }
+  set_ssl_opts(con_slot->mysql, con_ssl == USE_SSL_FORBIDDEN ? 0 :
+                                con_ssl == USE_SSL_REQUIRED ? 1 : opt_use_ssl,
+                                ssl_cipher ? ssl_cipher : opt_ssl_cipher);
 #endif
 
   if (protocol)
@@ -9893,19 +9890,7 @@ int main(int argc, char **argv)
   if (opt_plugin_dir && *opt_plugin_dir)
     mysql_options(con->mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir);
 
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
-
-  if (opt_use_ssl)
-  {
-    mysql_ssl_set(con->mysql, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
-		  opt_ssl_capath, opt_ssl_cipher);
-    mysql_options(con->mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
-    mysql_options(con->mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
-    mysql_options(con->mysql, MARIADB_OPT_TLS_VERSION, opt_tls_version);
-    mysql_options(con->mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
-                  &opt_ssl_verify_server_cert);
-  }
-#endif
+  SET_SSL_OPTS(con->mysql);
 
   if (!(con->name = my_strdup(PSI_NOT_INSTRUMENTED, "default", MYF(MY_WME))))
     die("Out of memory");
