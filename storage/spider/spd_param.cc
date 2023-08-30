@@ -1905,6 +1905,8 @@ static MYSQL_THDVAR_BOOL(
   FALSE /* def */
 );
 
+SPIDER_THDVAR_VALUE_FUNC(bool, read_only_mode)
+
 static my_bool spider_general_log;
 static MYSQL_SYSVAR_BOOL(
   general_log,
@@ -2363,6 +2365,21 @@ static MYSQL_THDVAR_BOOL(
 
 SPIDER_THDVAR_VALUE_FUNC(bool, direct_aggregate)
 
+/*
+ FALSE: Parse comments only
+ TRUE: Parse options only
+*/
+static MYSQL_THDVAR_BOOL(
+  options_or_comments,          /* name */
+  PLUGIN_VAR_RQCMDARG,          /* opt */
+  "Whether to parse comments or options only",
+  NULL,                         /* check */
+  NULL,                         /* update */
+  FALSE                         /* def */
+);
+
+SPIDER_THDVAR_VALUE_FUNC(bool, options_or_comments)
+
 static struct st_mysql_storage_engine spider_storage_engine =
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
@@ -2478,6 +2495,7 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(sync_sql_mode),
   MYSQL_SYSVAR(strict_group_by),
   MYSQL_SYSVAR(direct_aggregate),
+  MYSQL_SYSVAR(options_or_comments),
   NULL
 };
 

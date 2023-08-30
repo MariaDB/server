@@ -306,12 +306,7 @@ longlong spider_param_direct_order_limit(
   THD *thd,
   longlong direct_order_limit
 );
-/*
-  int spider_param_read_only_mode(
-    THD *thd,
-    int read_only_mode
-  );
- */
+bool spider_param_read_only_mode(THD *thd);
 my_bool spider_param_general_log();
 my_bool spider_param_index_hint_pushdown(
   THD *thd
@@ -368,6 +363,7 @@ int spider_param_strict_group_by(
   int strict_group_by
 );
 bool spider_param_direct_aggregate(THD *thd);
+bool spider_param_options_or_comments(THD *thd);
 
 ha_create_table_option *spider_sysvar_table_options();
 

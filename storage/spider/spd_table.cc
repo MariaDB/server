@@ -1818,7 +1818,7 @@ static int spider_set_ll_value(
   corresponding attribute of SPIDER_SHARE.
   */
 #define SPIDER_OPTION_STR_LIST(title_name, option_name, param_name)     \
-  if (option_struct && option_struct->option_name)                      \
+  if (option_struct->option_name)                      \
   {                                                                     \
     if (share->param_name)                                              \
     {                                                                   \
@@ -1838,8 +1838,7 @@ static int spider_set_ll_value(
       goto error;                                                       \
   }                                                                     \
 
-static void spider_minus_1(SPIDER_SHARE *share, TABLE_SHARE *table_share,
-                          ha_table_option_struct* option_struct)
+static void spider_minus_1(SPIDER_SHARE *share, TABLE_SHARE *table_share)
 {
   share->sts_bg_mode = -1;
   share->sts_interval = -1;
@@ -1897,8 +1896,7 @@ static void spider_minus_1(SPIDER_SHARE *share, TABLE_SHARE *table_share,
   share->direct_dup_insert = -1;
   share->direct_order_limit = -1;
   share->bka_mode = -1;
-  share->read_only_mode = option_struct->read_only;
-  share->error_read_mode = -1;
+  share->read_only_mode = spider_param_read_only_mode(current_thd);
   share->error_write_mode = -1;
   share->active_link_count = -1;
 #ifdef HA_CAN_FORCE_BULK_UPDATE
@@ -1929,6 +1927,7 @@ static void spider_minus_1(SPIDER_SHARE *share, TABLE_SHARE *table_share,
   @retval HA_ERR_OUT_OF_MEM Failure
 */
 static int spider_get_connect_info(const int type,
+                                   const bool options_or_comments,
                                    const partition_element *part_elem,
                                    const partition_element *sub_elem,
                                    const TABLE_SHARE* table_share,
@@ -1942,7 +1941,7 @@ static int spider_get_connect_info(const int type,
   case 4:
     if (sub_elem)
     {
-      if (sub_elem->part_comment &&
+      if (!options_or_comments && sub_elem->part_comment &&
           !(out = spider_create_string(
               sub_elem->part_comment, strlen(sub_elem->part_comment))))
         return HA_ERR_OUT_OF_MEM;
@@ -1952,7 +1951,7 @@ static int spider_get_connect_info(const int type,
   case 3:
     if (part_elem)
     {
-      if (part_elem->part_comment &&
+      if (!options_or_comments && part_elem->part_comment &&
           !(out = spider_create_string(
               part_elem->part_comment, strlen(part_elem->part_comment))))
         return HA_ERR_OUT_OF_MEM;
@@ -1960,18 +1959,18 @@ static int spider_get_connect_info(const int type,
     }
     break;
   case 2:
-    if (table_share->comment.length > 0 &&
+    if (!options_or_comments && table_share->comment.length > 0 &&
         !(out = spider_create_string(
             table_share->comment.str, table_share->comment.length)))
       return HA_ERR_OUT_OF_MEM;
+    option_struct= table_share->option_struct;
     break;
   default:
-    if (table_share->connect_string.length > 0 &&
+    if (!options_or_comments && table_share->connect_string.length > 0 &&
         !(out = spider_create_string(
             table_share->connect_string.str,
             table_share->connect_string.length)))
       return HA_ERR_OUT_OF_MEM;
-    option_struct= table_share->option_struct;
     break;
   }
   return 0;
@@ -2173,6 +2172,7 @@ int spider_parse_connect_info(
   ha_table_option_struct *option_struct;
   partition_element *part_elem;
   partition_element *sub_elem;
+  bool options_or_comments= spider_param_options_or_comments(current_thd);
   DBUG_ENTER("spider_parse_connect_info");
   DBUG_PRINT("info",("spider partition_info=%s",
     table_share->partition_info_str));
@@ -2184,7 +2184,7 @@ int spider_parse_connect_info(
     ("spider s->normalized_path=%s", table_share->normalized_path.str));
   spider_get_partition_info(share->table_name, share->table_name_length,
     table_share, part_info, &part_elem, &sub_elem);
-  spider_minus_1(share, table_share, table_share->option_struct);
+  spider_minus_1(share, table_share);
 
   for (int i = 1; i <= 4; i++)
   {
@@ -2194,7 +2194,8 @@ int spider_parse_connect_info(
       connect_string = NULL;
     }
 
-    int error_num_1 = spider_get_connect_info(i, part_elem, sub_elem,
+    int error_num_1 = spider_get_connect_info(i, options_or_comments,
+                                              part_elem, sub_elem,
                                               table_share, connect_string,
                                               option_struct);
     if (error_num_1 == HA_ERR_OUT_OF_MEM)
@@ -2204,7 +2205,14 @@ int spider_parse_connect_info(
     }
     DBUG_ASSERT(error_num_1 == 0);
 
-    if (option_struct)
+    if (!options_or_comments && option_struct &&
+        (option_struct->remote_database || option_struct->remote_database ||
+         option_struct->remote_table))
+          push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                              ER_SPIDER_TABLE_OPTIONS_IGNORED_NUM,
+                              ER_SPIDER_TABLE_OPTIONS_IGNORED_STR);
+
+    if (options_or_comments && option_struct)
     {
       SPIDER_OPTION_STR_LIST("server", remote_server, server_names);
       SPIDER_OPTION_STR_LIST("database", remote_database, tgt_dbs);
@@ -2212,6 +2220,7 @@ int spider_parse_connect_info(
       share->read_only_mode = option_struct->read_only;
     }
 
+    /* If options_or_comments is false, connect_string is NULL. */
     if (!connect_string)
       continue;
     start_param = connect_string;
