@@ -343,7 +343,10 @@ CREATE TABLE `t1` (
 SELECT (SELECT numeropost FROM t1 HAVING numreponse=a),numreponse FROM (SELECT * FROM t1) as a;
 -- error ER_BAD_FIELD_ERROR
 SELECT numreponse, (SELECT numeropost FROM t1 HAVING numreponse=a) FROM (SELECT * FROM t1) as a;
+#Enable after fix MDEV-31937
+--disable_ps2_protocol
 SELECT numreponse, (SELECT numeropost FROM t1 HAVING numreponse=1) FROM (SELECT * FROM t1) as a;
+--enable_ps2_protocol
 INSERT INTO t1 (numeropost,numreponse,pseudo) VALUES (1,1,'joce'),(1,2,'joce'),(1,3,'test');
 -- error ER_SUBQUERY_NO_1_ROW
 EXPLAIN EXTENDED SELECT numreponse FROM t1 WHERE numeropost='1' AND numreponse=(SELECT 1 FROM t1 WHERE numeropost='1');
@@ -3016,10 +3019,13 @@ SELECT a, AVG(b),
   (SELECT t.c FROM t1 AS t WHERE t1.a=t.a AND t.b=AVG(t1.b)) AS test
   FROM t1 WHERE t1.d=0 GROUP BY a;
 
+# Enable after fix MDEV-32038
+--disable_ps2_protocol
 SELECT tt.a,
  (SELECT (SELECT c FROM t1 as t WHERE t1.a=t.a AND t.d=MAX(t1.b + tt.a)
   LIMIT 1) FROM t1 WHERE t1.a=tt.a GROUP BY a LIMIT 1) as test
   FROM t1 as tt;
+--enable_ps2_protocol
 
 SELECT tt.a,
  (SELECT (SELECT t.c FROM t1 AS t WHERE t1.a=t.a AND t.d=MAX(t1.b + tt.a)
