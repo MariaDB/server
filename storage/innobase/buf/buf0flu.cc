@@ -355,6 +355,13 @@ inline void buf_pool_t::n_flush_dec()
   mysql_mutex_unlock(&flush_list_mutex);
 }
 
+inline void buf_pool_t::n_flush_dec_holding_mutex()
+{
+  mysql_mutex_assert_owner(&flush_list_mutex);
+  ut_ad(page_cleaner_status >= LRU_FLUSH);
+  page_cleaner_status-= LRU_FLUSH;
+}
+
 /** Complete write of a file page from buf_pool.
 @param request write request
 @param error   whether the write may have failed */
@@ -1076,6 +1083,8 @@ static ulint buf_flush_try_neighbors(fil_space_t *space,
                                      bool contiguous, bool evict,
                                      ulint n_flushed, ulint n_to_flush)
 {
+  mysql_mutex_unlock(&buf_pool.mutex);
+
   ut_ad(space->id == page_id.space());
   ut_ad(bpage->id() == page_id);
 
@@ -1337,24 +1346,22 @@ static void buf_flush_LRU_list_batch(ulint max, bool evict,
         continue;
       }
 
-      if (neighbors && space->is_rotational())
-      {
-        mysql_mutex_unlock(&buf_pool.mutex);
-        n->flushed+= buf_flush_try_neighbors(space, page_id, bpage,
-                                             neighbors == 1,
-                                             do_evict, n->flushed, max);
-        goto reacquire_mutex;
-      }
-      else if (n->flushed >= max && !recv_recovery_is_on())
+      if (n->flushed >= max && !recv_recovery_is_on())
       {
         bpage->lock.u_unlock(true);
         break;
       }
+
+      if (neighbors && space->is_rotational())
+        n->flushed+= buf_flush_try_neighbors(space, page_id, bpage,
+                                             neighbors == 1,
+                                             do_evict, n->flushed, max);
       else if (bpage->flush(do_evict, space))
-      {
         ++n->flushed;
-        goto reacquire_mutex;
-      }
+      else
+        continue;
+
+      goto reacquire_mutex;
     }
     else
       /* Can't evict or dispatch this block. Go to previous. */
@@ -1492,19 +1499,18 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn)
     else
     {
       mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-      if (neighbors && space->is_rotational())
+      do
       {
-        mysql_mutex_unlock(&buf_pool.mutex);
-        count+= buf_flush_try_neighbors(space, page_id, bpage, neighbors == 1,
-                                        false, count, max_n);
-      reacquire_mutex:
+        if (neighbors && space->is_rotational())
+          count+= buf_flush_try_neighbors(space, page_id, bpage,
+                                          neighbors == 1, false, count, max_n);
+        else if (bpage->flush(false, space))
+          ++count;
+        else
+          continue;
         mysql_mutex_lock(&buf_pool.mutex);
       }
-      else if (bpage->flush(false, space))
-      {
-        ++count;
-        goto reacquire_mutex;
-      }
+      while (0);
     }
 
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
@@ -1723,8 +1729,7 @@ The caller must invoke buf_dblwr.flush_buffered_writes()
 after releasing buf_pool.mutex.
 @param max_n    wished maximum mumber of blocks flushed
 @param evict    whether to evict pages after flushing
-@return evict ? number of processed pages : number of pages written
-@retval 0 if a buf_pool.LRU batch is already running */
+@return evict ? number of processed pages : number of pages written */
 ulint buf_flush_LRU(ulint max_n, bool evict)
 {
   mysql_mutex_assert_owner(&buf_pool.mutex);
@@ -1867,7 +1872,9 @@ static void buf_flush_wait(lsn_t lsn)
 {
   ut_ad(lsn <= log_sys.get_lsn());
 
-  while (buf_pool.get_oldest_modification(lsn) < lsn)
+  lsn_t oldest_lsn;
+
+  while ((oldest_lsn= buf_pool.get_oldest_modification(lsn)) < lsn)
   {
     if (buf_flush_sync_lsn < lsn)
     {
@@ -1876,12 +1883,19 @@ static void buf_flush_wait(lsn_t lsn)
       pthread_cond_signal(&buf_pool.do_flush_list);
       my_cond_wait(&buf_pool.done_flush_list,
                    &buf_pool.flush_list_mutex.m_mutex);
-      if (buf_pool.get_oldest_modification(lsn) >= lsn)
+      oldest_lsn= buf_pool.get_oldest_modification(lsn);
+      if (oldest_lsn >= lsn)
         break;
     }
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
     os_aio_wait_until_no_pending_writes(false);
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
+  }
+
+  if (oldest_lsn >= buf_flush_sync_lsn)
+  {
+    buf_flush_sync_lsn= 0;
+    pthread_cond_broadcast(&buf_pool.done_flush_list);
   }
 }
 
@@ -2272,24 +2286,19 @@ static void buf_flush_page_cleaner()
     set_timespec(abstime, 1);
 
     lsn_limit= buf_flush_sync_lsn;
-    const lsn_t oldest_lsn= buf_pool.get_oldest_modification(0);
+    lsn_t oldest_lsn= buf_pool.get_oldest_modification(0);
 
     if (!oldest_lsn)
     {
-      if (UNIV_UNLIKELY(lsn_limit != 0))
-      {
-        buf_flush_sync_lsn= 0;
-        /* wake up buf_flush_wait() */
-        pthread_cond_broadcast(&buf_pool.done_flush_list);
-      }
-    unemployed:
-      buf_flush_async_lsn= 0;
+    fully_unemployed:
+      buf_flush_sync_lsn= 0;
     set_idle:
       buf_pool.page_cleaner_set_idle(true);
+    set_almost_idle:
+      pthread_cond_broadcast(&buf_pool.done_flush_list);
       if (UNIV_UNLIKELY(srv_shutdown_state > SRV_SHUTDOWN_INITIATED))
         break;
       mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-    end_of_batch:
       buf_dblwr.flush_buffered_writes();
 
       do
@@ -2307,6 +2316,7 @@ static void buf_flush_page_cleaner()
       if (!buf_pool.ran_out())
         continue;
       mysql_mutex_lock(&buf_pool.flush_list_mutex);
+      oldest_lsn= buf_pool.get_oldest_modification(0);
     }
 
     lsn_t soft_lsn_limit= buf_flush_async_lsn;
@@ -2335,7 +2345,17 @@ static void buf_flush_page_cleaner()
     else if (buf_pool.ran_out())
     {
       buf_pool.page_cleaner_set_idle(false);
-      buf_pool.get_oldest_modification(0);
+      buf_pool.n_flush_inc();
+      /* Remove clean blocks from buf_pool.flush_list before the LRU scan. */
+      for (buf_page_t *p= UT_LIST_GET_FIRST(buf_pool.flush_list); p; )
+      {
+        const lsn_t lsn{p->oldest_modification()};
+        ut_ad(lsn > 2 || lsn == 1);
+        buf_page_t *n= UT_LIST_GET_NEXT(list, p);
+        if (lsn <= 1)
+          buf_pool.delete_from_flush_list(p);
+        p= n;
+      }
       mysql_mutex_unlock(&buf_pool.flush_list_mutex);
       n= srv_max_io_capacity;
       mysql_mutex_lock(&buf_pool.mutex);
@@ -2343,15 +2363,16 @@ static void buf_flush_page_cleaner()
       n= buf_flush_LRU(n, false);
       mysql_mutex_unlock(&buf_pool.mutex);
       last_pages+= n;
-
-      if (pct_lwm == 0.0)
-        goto end_of_batch;
-
-      /* when idle flushing kicks in page_cleaner is marked active.
-      reset it back to idle since the it was made active as part of
-      idle flushing stage. */
+    check_oldest_and_set_idle:
       mysql_mutex_lock(&buf_pool.flush_list_mutex);
-      goto set_idle;
+      buf_pool.n_flush_dec_holding_mutex();
+      oldest_lsn= buf_pool.get_oldest_modification(0);
+      if (!oldest_lsn)
+        goto fully_unemployed;
+      if (oldest_lsn >= buf_flush_async_lsn)
+        buf_flush_async_lsn= 0;
+      buf_pool.page_cleaner_set_idle(false);
+      goto set_almost_idle;
     }
     else if (UNIV_UNLIKELY(srv_shutdown_state > SRV_SHUTDOWN_INITIATED))
       break;
@@ -2379,6 +2400,7 @@ static void buf_flush_page_cleaner()
            - page cleaner is idle (dirty_pct < srv_max_dirty_pages_pct_lwm)
            - there are no pending reads but there are dirty pages to flush */
         buf_pool.update_last_activity_count(activity_count);
+        buf_pool.n_flush_inc();
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
         goto idle_flush;
       }
@@ -2394,9 +2416,10 @@ static void buf_flush_page_cleaner()
     else if (dirty_pct < srv_max_buf_pool_modified_pct)
     possibly_unemployed:
       if (!soft_lsn_limit && !af_needed_for_redo(oldest_lsn))
-        goto unemployed;
+        goto set_idle;
 
     buf_pool.page_cleaner_set_idle(false);
+    buf_pool.n_flush_inc();
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
     if (UNIV_UNLIKELY(soft_lsn_limit != 0))
@@ -2434,10 +2457,7 @@ static void buf_flush_page_cleaner()
                                    n_flushed);
     }
     else if (buf_flush_async_lsn <= oldest_lsn)
-    {
-      mysql_mutex_lock(&buf_pool.flush_list_mutex);
-      goto unemployed;
-    }
+      goto check_oldest_and_set_idle;
 
     n= n >= n_flushed ? n - n_flushed : 0;
     goto LRU_flush;

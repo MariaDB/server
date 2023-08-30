@@ -3581,16 +3581,24 @@ inline fil_space_t *fil_system_t::find(const char *path) const
 static void log_sort_flush_list()
 {
   /* Ensure that oldest_modification() cannot change during std::sort() */
-  for (;;)
   {
-    os_aio_wait_until_no_pending_writes(false);
-    mysql_mutex_lock(&buf_pool.flush_list_mutex);
-    if (buf_pool.flush_list_active())
-      my_cond_wait(&buf_pool.done_flush_list,
-                   &buf_pool.flush_list_mutex.m_mutex);
-    else if (!os_aio_pending_writes())
-      break;
-    mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+    const double pct_lwm= srv_max_dirty_pages_pct_lwm;
+    /* Disable "idle" flushing in order to minimize the wait time below. */
+    srv_max_dirty_pages_pct_lwm= 0.0;
+
+    for (;;)
+    {
+      os_aio_wait_until_no_pending_writes(false);
+      mysql_mutex_lock(&buf_pool.flush_list_mutex);
+      if (buf_pool.page_cleaner_active())
+        my_cond_wait(&buf_pool.done_flush_list,
+                     &buf_pool.flush_list_mutex.m_mutex);
+      else if (!os_aio_pending_writes())
+        break;
+      mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+    }
+
+    srv_max_dirty_pages_pct_lwm= pct_lwm;
   }
 
   const size_t size= UT_LIST_GET_LEN(buf_pool.flush_list);

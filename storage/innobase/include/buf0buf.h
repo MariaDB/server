@@ -1753,6 +1753,10 @@ public:
   /** Decrement the number of pending LRU flush */
   inline void n_flush_dec();
 
+  /** Decrement the number of pending LRU flush
+  while holding flush_list_mutex */
+  inline void n_flush_dec_holding_mutex();
+
   /** @return whether flush_list flushing is active */
   bool flush_list_active() const
   {
@@ -1777,6 +1781,15 @@ public:
     mysql_mutex_assert_owner(&flush_list_mutex);
     return page_cleaner_status & PAGE_CLEANER_IDLE;
   }
+
+  /** @return whether the page cleaner may be initiating writes */
+  bool page_cleaner_active() const
+  {
+    mysql_mutex_assert_owner(&flush_list_mutex);
+    static_assert(PAGE_CLEANER_IDLE == 1, "efficiency");
+    return page_cleaner_status > PAGE_CLEANER_IDLE;
+  }
+
   /** Wake up the page cleaner if needed.
   @param for_LRU  whether to wake up for LRU eviction */
   void page_cleaner_wakeup(bool for_LRU= false);
