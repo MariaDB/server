@@ -335,7 +335,7 @@ exec $MYSQL_BINLOG $MYSQL_TEST_DIR/std_data/corrupt-relay-bin.000624 > $MYSQLTES
 FLUSH LOGS;
 
 --error 1
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000017 >/dev/null 2>/dev/null
+--exec $MYSQL_BINLOG --disable-force-if-open $MYSQLD_DATADIR/master-bin.000017 >/dev/null 2>/dev/null
 --exec $MYSQL_BINLOG --force-if-open $MYSQLD_DATADIR/master-bin.000017 >/dev/null 2>/dev/null
 
 --echo Bug#31611 Security risk with BINLOG statement

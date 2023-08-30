@@ -1,3 +1,5 @@
+!include include/default_my.cnf
+
 [mysqld.1]
 log-slave-updates
 loose-innodb
