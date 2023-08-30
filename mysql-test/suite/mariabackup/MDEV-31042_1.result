@@ -19,5 +19,10 @@ RENAME TABLE test.z_tmp_u1332929658s TO ztest.z_tmp_u1332929658s;
 select count(*) from ztest.z_tmp_u1332929658s;
 count(*)
 0
+db.opt
+t1.frm
+t1.ibd
+z_tmp_u1332929658s.frm
+z_tmp_u1332929658s.ibd
 drop table t1;
 drop database ztest;

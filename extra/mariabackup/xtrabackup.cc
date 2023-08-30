@@ -5666,10 +5666,10 @@ static void rename_force(const char *from, const char *to) {
 /**
  * Given an ibd file path, this returns the space id.
  * @param file The ibd file
- * @return space id for the ibd file, -1 if an error.
+ * @return space id for the ibd file.
  */
 static
-ulint get_space_id(const char *file) {
+uint32_t get_space_id(const char *file) {
 	// make sure this is an ibd file ...
 	if (!ends_with(file, ".ibd"))
 		die("Error: Requesting space id for a non-ibd file: %s", file);;
@@ -5688,7 +5688,7 @@ ulint get_space_id(const char *file) {
 	ulong bytes_read;
 	if ((bytes_read = read(fd, page, srv_page_size)) == srv_page_size) {
 		// read the space id ...
-		ulint space_id = mach_read_from_4(
+		uint32_t space_id = mach_read_from_4(
 				page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 
 		delete[] page;
@@ -5710,11 +5710,11 @@ ulint get_space_id(const char *file) {
 static
 void safe_rename(const char *from, const char *to, const char *dest_db_dir) {
 	if (access(to, R_OK) == 0) {
-		ulint to_space_id = get_space_id(to);
+		uint32_t to_space_id = get_space_id(to);
 
 		// do the rename ...
 		char new_to_name[FN_REFLEN];
-		snprintf(new_to_name, FN_REFLEN, "%s/xtrabackup_tmp_#" ULINTPF ".ibd",
+		snprintf(new_to_name, FN_REFLEN, "%s/xtrabackup_tmp_#" UINT32PF ".ibd",
 				dest_db_dir, to_space_id);
 
 		msg("mariabackup: .new file found for %s. Renaming existing %s to %s.ibd",

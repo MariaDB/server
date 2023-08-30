@@ -1,6 +1,5 @@
 # First online alter on a non-empty table, then optimize table on the same table while incremental backup is going.
 --source include/have_file_key_management.inc
---source include/have_debug.inc
 
 let $basedir=$MYSQLTEST_VARDIR/tmp/backup;
 let $incremental_dir=$MYSQLTEST_VARDIR/tmp/backup_inc1;
@@ -44,6 +43,8 @@ let $targetdir=$basedir;
 create database ztest;
 RENAME TABLE test.z_tmp_u1332929658s TO ztest.z_tmp_u1332929658s;
 select count(*) from ztest.z_tmp_u1332929658s;
+# should not see xtrabackup_tmp_#* files ...
+--list_files $basedir/test/
 
 #Cleanup ...
 drop table t1;
