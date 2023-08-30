@@ -119,7 +119,7 @@ recovery test
 connection master_1;
 ALTER TABLE ta_l
 CONNECTION='host "localhost", user "root", password "",
-  msi "5", mkd "2",
+  msi "6", mkd "2",
   database "auto_test_remote auto_test_remote2", lst "0 2"';
 Warnings:
 Warning	138	The high availability feature of Spider has been deprecated and will be removed in a future release
@@ -136,7 +136,7 @@ spider_copy_tables('ta_l', '0', '1')
 connection master_1;
 ALTER TABLE ta_l
 CONNECTION='host "localhost", user "root", password "",
-  msi "5", mkd "2",
+  msi "6", mkd "2",
   database "auto_test_remote auto_test_remote2", lst "0 1"';
 Warnings:
 Warning	138	The high availability feature of Spider has been deprecated and will be removed in a future release
@@ -227,7 +227,7 @@ recovery test
 connection master_1;
 ALTER TABLE ta_l
 CONNECTION='host "localhost", user "root", password "",
-  msi "5", mkd "2", alc "1",
+  msi "6", mkd "2", alc "1",
   database "auto_test_remote auto_test_remote2", lst "1 0"';
 Warnings:
 Warning	138	The high availability feature of Spider has been deprecated and will be removed in a future release

@@ -27,9 +27,6 @@
 # Run tests with the performance schema instrumentation
 loose-enable-performance-schema
 
-[mysqlbinlog]
-disable-force-if-open
-
 [ENV]
 MASTER_MYPORT=           @mysqld.1.port
 MASTER_MYSOCK=           @mysqld.1.socket
