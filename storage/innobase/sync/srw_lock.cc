@@ -117,8 +117,13 @@ bool transactional_lock_enabled()
 __attribute__((target("htm"),hot))
 bool xtest()
 {
+# ifdef __s390x__
+  return have_transactional_memory &&
+    __builtin_tx_nesting_depth() > 0;
+# else
   return have_transactional_memory &&
     _HTM_STATE (__builtin_ttest ()) == _HTM_TRANSACTIONAL;
+# endif
 }
 # endif
 #endif
