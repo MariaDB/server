@@ -80,6 +80,7 @@
 #include "debug_sync.h"                         // DEBUG_SYNC
 #include "debug.h"                              // debug_crash_here
 #include <my_bit.h>
+#include "rpl_rli.h"
 
 #ifdef WITH_WSREP
 #include "wsrep_trans_observer.h" /* wsrep_start_transction() */
@@ -579,7 +580,8 @@ bool open_and_lock_for_insert_delayed(THD *thd, TABLE_LIST *table_list)
       Open tables used for sub-selects or in stored functions, will also
       cache these functions.
     */
-    if (open_and_lock_tables(thd, table_list->next_global, TRUE, 0))
+    if (open_and_lock_tables(thd, table_list->next_global, TRUE,
+                             MYSQL_OPEN_IGNORE_ENGINE_STATS))
     {
       end_delayed_insert(thd);
       error= TRUE;
@@ -1828,6 +1830,12 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
   save_read_set= table->read_set;
   save_write_set= table->write_set;
 
+  DBUG_EXECUTE_IF("rpl_write_record_small_sleep_gtid_100_200",
+    {
+      if (thd->rgi_slave && (thd->rgi_slave->current_gtid.seq_no == 100 ||
+                             thd->rgi_slave->current_gtid.seq_no == 200))
+        my_sleep(20000);
+    });
   if (info->handle_duplicates == DUP_REPLACE ||
       info->handle_duplicates == DUP_UPDATE)
   {
@@ -2168,9 +2176,6 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
     goto after_trg_or_ignored_err;
   }
 
-  /* Notify the engine about insert ignore operation */
-  if (info->handle_duplicates == DUP_ERROR && info->ignore)
-    table->file->extra(HA_EXTRA_IGNORE_INSERT);
 after_trg_n_copied_inc:
   info->copied++;
   thd->record_first_successful_insert_id_in_cur_stmt(table->file->insert_id_for_cur_row);
@@ -2743,6 +2748,9 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
 
   /* Ensure we don't use the table list of the original table */
   copy->pos_in_table_list= 0;
+
+  /* We don't need statistics for insert delayed */
+  copy->stats_cb= 0;
 
   /*
     Make a copy of all fields.

@@ -181,13 +181,9 @@ note that the trx may have been committed before the caller acquires
 trx_t::mutex
 @retval	NULL if no match */
 trx_t* trx_get_trx_by_xid(const XID* xid);
-/**********************************************************************//**
-If required, flushes the log to disk if we called trx_commit_for_mysql()
-with trx->flush_log_later == TRUE. */
-void
-trx_commit_complete_for_mysql(
-/*==========================*/
-	trx_t*	trx);	/*!< in/out: transaction */
+/** Durably write log until trx->commit_lsn
+(if trx_t::commit_in_memory() was invoked with flush_log_later=true). */
+void trx_commit_complete_for_mysql(trx_t *trx);
 /**********************************************************************//**
 Marks the latest SQL statement ended. */
 void
@@ -772,12 +768,6 @@ public:
 					defer flush of the logs to disk
 					until after we release the
 					mutex. */
-	bool		must_flush_log_later;/*!< set in commit()
-					if flush_log_later was
-					set and redo log was written;
-					in that case we will
-					flush the log in
-					trx_commit_complete_for_mysql() */
 	ulint		duplicates;	/*!< TRX_DUP_IGNORE | TRX_DUP_REPLACE */
   /** whether this modifies InnoDB dictionary tables */
   bool dict_operation;
@@ -969,10 +959,18 @@ private:
   /** Commit the transaction in a mini-transaction.
   @param mtr  mini-transaction (if there are any persistent modifications) */
   void commit_low(mtr_t *mtr= nullptr);
+  /** Commit an empty transaction.
+  @param mtr   mini-transaction */
+  void commit_empty(mtr_t *mtr);
+  /** Commit an empty transaction.
+  @param mtr   mini-transaction */
+  /** Assign the transaction its history serialisation number and write the
+  UNDO log to the assigned rollback segment.
+  @param mtr   mini-transaction */
+  inline void write_serialisation_history(mtr_t *mtr);
 public:
   /** Commit the transaction. */
   void commit();
-
 
   /** Try to drop a persistent table.
   @param table       persistent table

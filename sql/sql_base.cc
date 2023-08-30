@@ -5323,7 +5323,8 @@ bool open_and_lock_tables(THD *thd, const DDL_options_st &options,
     goto err;
 
   /* Don't read statistics tables when opening internal tables */
-  if (!(flags & MYSQL_OPEN_IGNORE_LOGGING_FORMAT))
+  if (!(flags & (MYSQL_OPEN_IGNORE_LOGGING_FORMAT |
+                 MYSQL_OPEN_IGNORE_ENGINE_STATS)))
     (void) read_statistics_for_tables_if_needed(thd, tables);
   
   if (derived)

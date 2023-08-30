@@ -263,12 +263,33 @@ BEGIN;
 START SLAVE IO_THREAD;
 --source include/wait_for_slave_io_to_start.inc
 
-# The following test sets the stop coordinate is set to inside the first event
+# The following test sets the stop coordinate to inside the first event
 # of a relay log that holds events of a transaction started in an earlier log.
 # Peek the stop position in the middle of trx1, not even on a event boundary.
 --let $pos_until=255
 --let $file_rl=slave-relay-bin.000003
 --let $binlog_file=$file_rl
+
+# Wait for the IO thread to write the trx1 to the relaylog before querying it.
+# (wait_for_slave_param.inc isn't flexible enough, so do it manually.)
+--let $continue= 1
+--let $count=600
+while ($continue)
+{
+  --let $cur_file= query_get_value(SHOW SLAVE STATUS, 'Master_Log_File', 1)
+  --let $cur_pos= query_get_value(SHOW SLAVE STATUS, 'Read_Master_Log_Pos', 1)
+  --let $continue= `SELECT '$cur_file' = '$fil_1' AND $cur_pos < $pos_trx1`
+  if ($continue)
+  {
+    --dec $count
+    if (!$count)
+    {
+      --echo **** ERROR: timeout waiting for Read_Master_Log_Pos($cur_pos) >= $pos_trx1 (file='$cur_file') ****"
+      --die Timeout waiting for IO thread to write master events to the relaylog
+    }
+    --sleep 0.1
+  }
+}
 
 --let $pos_xid=508
 --let $info= query_get_value(SHOW RELAYLOG EVENTS IN '$file_rl' FROM $pos_xid LIMIT 1, Info, 1)

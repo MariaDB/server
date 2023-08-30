@@ -1656,3 +1656,22 @@ SELECT * FROM v1 ORDER BY a;
 SELECT * FROM t2 ORDER BY a;
 DROP VIEW v1;
 DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-27207 Assertion `!m_null_value' failed in int FixedBinTypeBundle<FbtImpl>::cmp_item_fbt::compare or in cmp_item_inet6::compare
+--echo #
+
+CREATE TABLE t1 (a CHAR,b INET6);
+SELECT * FROM t1 WHERE (a,b) IN (('',''),('',''));
+INSERT INTO t1 VALUES ('','::'),('','::');
+SELECT * FROM t1 WHERE (a,b) IN (('',''),('',''));
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-31719 Wrong result of: WHERE inet6_column IN ('','::1')
+--echo #
+
+CREATE OR REPLACE TABLE t1 (a INET6);
+INSERT INTO t1 VALUES ('::');
+SELECT * FROM t1 WHERE a IN ('','::1');
+DROP TABLE t1;

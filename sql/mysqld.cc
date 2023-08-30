@@ -919,6 +919,7 @@ PSI_mutex_key key_LOCK_gtid_waiting;
 PSI_mutex_key key_LOCK_after_binlog_sync;
 PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered;
 PSI_mutex_key key_TABLE_SHARE_LOCK_share;
+PSI_mutex_key key_TABLE_SHARE_LOCK_statistics;
 PSI_mutex_key key_LOCK_ack_receiver;
 
 PSI_mutex_key key_TABLE_SHARE_LOCK_rotation;
@@ -986,6 +987,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_structure_guard_mutex, "Query_cache::structure_guard_mutex", 0},
   { &key_TABLE_SHARE_LOCK_ha_data, "TABLE_SHARE::LOCK_ha_data", 0},
   { &key_TABLE_SHARE_LOCK_share, "TABLE_SHARE::LOCK_share", 0},
+  { &key_TABLE_SHARE_LOCK_statistics, "TABLE_SHARE::LOCK_statistics", 0},
   { &key_TABLE_SHARE_LOCK_rotation, "TABLE_SHARE::LOCK_rotation", 0},
   { &key_LOCK_error_messages, "LOCK_error_messages", PSI_FLAG_GLOBAL},
   { &key_LOCK_prepare_ordered, "LOCK_prepare_ordered", PSI_FLAG_GLOBAL},

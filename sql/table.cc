@@ -373,14 +373,13 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
         table_alias_charset->strnncoll(key, 6, "mysql", 6) == 0)
       share->not_usable_by_query_cache= 1;
 
-    init_sql_alloc(PSI_INSTRUMENT_ME, &share->stats_cb.mem_root,
-                   TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
-
     memcpy((char*) &share->mem_root, (char*) &mem_root, sizeof(mem_root));
     mysql_mutex_init(key_TABLE_SHARE_LOCK_share,
                      &share->LOCK_share, MY_MUTEX_INIT_SLOW);
     mysql_mutex_init(key_TABLE_SHARE_LOCK_ha_data,
                      &share->LOCK_ha_data, MY_MUTEX_INIT_FAST);
+    mysql_mutex_init(key_TABLE_SHARE_LOCK_statistics,
+                     &share->LOCK_statistics, MY_MUTEX_INIT_SLOW);
 
     DBUG_EXECUTE_IF("simulate_big_table_id",
                     if (last_table_id < UINT_MAX32)
@@ -481,15 +480,19 @@ void TABLE_SHARE::destroy()
     ha_share= NULL;                             // Safety
   }
 
-  delete_stat_values_for_table_share(this);
+  if (stats_cb)
+  {
+    stats_cb->usage_count--;
+    delete stats_cb;
+  }
   delete sequence;
-  free_root(&stats_cb.mem_root, MYF(0));
 
   /* The mutexes are initialized only for shares that are part of the TDC */
   if (tmp_table == NO_TMP_TABLE)
   {
     mysql_mutex_destroy(&LOCK_share);
     mysql_mutex_destroy(&LOCK_ha_data);
+    mysql_mutex_destroy(&LOCK_statistics);
   }
   my_hash_free(&name_hash);
 
@@ -4527,6 +4530,72 @@ partititon_err:
 }
 
 
+/**
+  Free engine stats
+
+  This is only called from closefrm() when the TABLE object is destroyed
+**/
+
+void TABLE::free_engine_stats()
+{
+  bool free_stats= 0;
+  TABLE_STATISTICS_CB *stats= stats_cb;
+  mysql_mutex_lock(&s->LOCK_share);
+  free_stats= --stats->usage_count == 0;
+  mysql_mutex_unlock(&s->LOCK_share);
+  if (free_stats)
+    delete stats;
+}
+
+
+/*
+  Use engine stats from table_share if table_share has been updated
+*/
+
+void TABLE::update_engine_independent_stats()
+{
+  bool free_stats= 0;
+  TABLE_STATISTICS_CB *org_stats= stats_cb;
+  DBUG_ASSERT(stats_cb != s->stats_cb);
+
+  if (stats_cb != s->stats_cb)
+  {
+    mysql_mutex_lock(&s->LOCK_share);
+    if (org_stats)
+      free_stats= --org_stats->usage_count == 0;
+    if ((stats_cb= s->stats_cb))
+      stats_cb->usage_count++;
+    mysql_mutex_unlock(&s->LOCK_share);
+    if (free_stats)
+      delete org_stats;
+  }
+}
+
+
+/*
+  Update engine stats in table share to use new stats
+*/
+
+void
+TABLE_SHARE::update_engine_independent_stats(TABLE_STATISTICS_CB *new_stats)
+{
+  TABLE_STATISTICS_CB *free_stats= 0;
+  DBUG_ASSERT(new_stats->usage_count == 0);
+
+  mysql_mutex_lock(&LOCK_share);
+  if (stats_cb)
+  {
+    if (!--stats_cb->usage_count)
+      free_stats= stats_cb;
+  }
+  stats_cb= new_stats;
+  new_stats->usage_count++;
+  mysql_mutex_unlock(&LOCK_share);
+  if (free_stats)
+    delete free_stats;
+}
+
+
 /*
   Free information allocated by openfrm
 
@@ -4565,6 +4634,12 @@ int closefrm(TABLE *table)
     table->part_info= 0;
   }
 #endif
+  if (table->stats_cb)
+  {
+    DBUG_ASSERT(table->s->tmp_table == NO_TMP_TABLE);
+    table->free_engine_stats();
+  }
+
   free_root(&table->mem_root, MYF(0));
   DBUG_RETURN(error);
 }

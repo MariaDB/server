@@ -1301,6 +1301,11 @@ handle_rpl_parallel_thread(void *arg)
         bool did_enter_cond= false;
         PSI_stage_info old_stage;
 
+        DBUG_EXECUTE_IF("rpl_parallel_delay_gtid_0_x_100_start", {
+            if (rgi->current_gtid.domain_id==0 &&
+                rgi->current_gtid.seq_no == 100)
+              my_sleep(10000);
+          });
 #ifdef ENABLED_DEBUG_SYNC
         DBUG_EXECUTE_IF("hold_worker_on_schedule", {
             if (rgi->current_gtid.domain_id == 0 &&
@@ -1480,8 +1485,13 @@ handle_rpl_parallel_thread(void *arg)
                         err= dbug_simulate_tmp_error(rgi, thd););
         if (unlikely(err))
         {
+          ulong max_retries= slave_trans_retries;
           convert_kill_to_deadlock_error(rgi);
-          if (has_temporary_error(thd) && slave_trans_retries > 0)
+          DBUG_EXECUTE_IF("rpl_mdev31655_zero_retries",
+                          if ((rgi->current_gtid.seq_no % 1000) == 0)
+                            max_retries= 0;
+                          );
+          if (has_temporary_error(thd) && max_retries > 0)
             err= retry_event_group(rgi, rpt, qev);
         }
       }
@@ -2359,21 +2369,6 @@ rpl_parallel_entry::choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
         /* The thread is ready to queue into. */
         break;
       }
-      else if (unlikely(rli->sql_driver_thd->check_killed(1)))
-      {
-        unlock_or_exit_cond(rli->sql_driver_thd, &thr->LOCK_rpl_thread,
-                            did_enter_cond, old_stage);
-        my_error(ER_CONNECTION_KILLED, MYF(0));
-#ifdef ENABLED_DEBUG_SYNC
-        DBUG_EXECUTE_IF("rpl_parallel_wait_queue_max",
-          {
-            debug_sync_set_action(rli->sql_driver_thd,
-                      STRING_WITH_LEN("now SIGNAL wait_queue_killed"));
-          };);
-#endif
-        slave_output_error_info(rgi, rli->sql_driver_thd);
-        return NULL;
-      }
       else
       {
         /*
@@ -2401,6 +2396,23 @@ rpl_parallel_entry::choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
                                           old_stage);
           *did_enter_cond= true;
         }
+
+        if (unlikely(rli->sql_driver_thd->check_killed(1)))
+        {
+          unlock_or_exit_cond(rli->sql_driver_thd, &thr->LOCK_rpl_thread,
+                              did_enter_cond, old_stage);
+          my_error(ER_CONNECTION_KILLED, MYF(0));
+#ifdef ENABLED_DEBUG_SYNC
+          DBUG_EXECUTE_IF("rpl_parallel_wait_queue_max",
+            {
+              debug_sync_set_action(rli->sql_driver_thd,
+                        STRING_WITH_LEN("now SIGNAL wait_queue_killed"));
+            };);
+#endif
+          slave_output_error_info(rgi, rli->sql_driver_thd);
+          return NULL;
+        }
+
         mysql_cond_wait(&thr->COND_rpl_thread_queue, &thr->LOCK_rpl_thread);
       }
     }

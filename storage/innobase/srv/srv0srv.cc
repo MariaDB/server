@@ -1297,8 +1297,6 @@ static tpool::timer *purge_coordinator_timer;
 /** Wake up the purge threads if there is work to do. */
 void srv_wake_purge_thread_if_not_active()
 {
-  ut_ad(!srv_read_only_mode);
-
   if (purge_sys.enabled() && !purge_sys.paused() &&
       (srv_undo_log_truncate || trx_sys.history_exists()) &&
       ++purge_state.m_running == 1)

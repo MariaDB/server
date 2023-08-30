@@ -1,14 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2008, Google Inc.
 Copyright (c) 2014, 2021, MariaDB Corporation.
-
-Portions of this file contain modifications contributed and copyrighted by
-Google, Inc. Those modifications are gratefully acknowledged and are described
-briefly in the InnoDB documentation. The contributions by Google are
-incorporated with their permission, and subject to the conditions contained in
-the file COPYING.Google.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -31,11 +24,7 @@ The database buffer buf_pool
 Created 11/5/1995 Heikki Tuuri
 *******************************************************/
 
-#include "mtr0mtr.h"
-#include "buf0flu.h"
 #include "buf0lru.h"
-#include "buf0rea.h"
-#include "fsp0types.h"
 
 /** Determine if a block is still close enough to the MRU end of the LRU list
 meaning that it is not in danger of getting evicted and also implying
@@ -141,4 +130,3 @@ buf_block_get_modify_clock(
 	ut_ad(block->page.lock.have_any());
 	return(block->modify_clock);
 }
-

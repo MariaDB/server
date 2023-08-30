@@ -497,8 +497,7 @@ trx_undo_seg_create(fil_space_t *space, buf_block_t *rseg_hdr, ulint *id,
 
 	ut_ad(slot_no < TRX_RSEG_N_SLOTS);
 
-	*err = fsp_reserve_free_extents(&n_reserved, space, 2, FSP_UNDO,
-					   mtr);
+	*err = fsp_reserve_free_extents(&n_reserved, space, 2, FSP_UNDO, mtr);
 	if (UNIV_UNLIKELY(*err != DB_SUCCESS)) {
 		return NULL;
 	}
@@ -569,6 +568,7 @@ static uint16_t trx_undo_header_create(buf_block_t *undo_page, trx_id_t trx_id,
               start, 2);
   uint16_t prev_log= mach_read_from_2(TRX_UNDO_SEG_HDR + TRX_UNDO_LAST_LOG +
                                       undo_page->page.frame);
+  ut_ad(prev_log < free);
   alignas(4) byte buf[4];
   mach_write_to_2(buf, TRX_UNDO_ACTIVE);
   mach_write_to_2(buf + 2, free);
@@ -961,47 +961,6 @@ done:
 	goto loop;
 }
 
-/** Frees an undo log segment which is not in the history list.
-@param undo	temporary undo log */
-static void trx_undo_seg_free(const trx_undo_t *undo)
-{
-  ut_ad(undo->id < TRX_RSEG_N_SLOTS);
-
-  trx_rseg_t *const rseg= undo->rseg;
-  bool finished;
-  mtr_t mtr;
-  ut_ad(rseg->space == fil_system.temp_space);
-
-  do
-  {
-    mtr.start();
-    mtr.set_log_mode(MTR_LOG_NO_REDO);
-
-    finished= true;
-
-    if (buf_block_t *block=
-        buf_page_get(page_id_t(SRV_TMP_SPACE_ID, undo->hdr_page_no), 0,
-                     RW_X_LATCH, &mtr))
-    {
-      fseg_header_t *file_seg= TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER +
-        block->page.frame;
-
-      finished= fseg_free_step(file_seg, &mtr);
-
-      if (!finished);
-      else if (buf_block_t* rseg_header = rseg->get(&mtr, nullptr))
-      {
-        static_assert(FIL_NULL == 0xffffffff, "compatibility");
-        mtr.memset(rseg_header, TRX_RSEG + TRX_RSEG_UNDO_SLOTS +
-                   undo->id * TRX_RSEG_SLOT_SIZE, 4, 0xff);
-      }
-    }
-
-    mtr.commit();
-  }
-  while (!finished);
-}
-
 /*========== UNDO LOG MEMORY COPY INITIALIZATION =====================*/
 
 /** Read an undo log when starting up the database.
@@ -1063,7 +1022,6 @@ corrupted_type:
 	case TRX_UNDO_ACTIVE:
 	case TRX_UNDO_PREPARED:
 		if (UNIV_LIKELY(type != 1)) {
-			trx_no = trx_id + 1;
 			break;
 		}
 		sql_print_error("InnoDB: upgrade from older version than"
@@ -1506,27 +1464,6 @@ void trx_undo_set_state_at_prepare(trx_t *trx, trx_undo_t *undo, bool rollback,
 		      1U);
 
 	trx_undo_write_xid(block, offset, undo->xid, mtr);
-}
-
-/** Free temporary undo log after commit or rollback.
-The information is not needed after a commit or rollback, therefore
-the data can be discarded.
-@param undo     temporary undo log */
-void trx_undo_commit_cleanup(trx_undo_t *undo)
-{
-  trx_rseg_t *rseg= undo->rseg;
-  ut_ad(rseg->space == fil_system.temp_space);
-  rseg->latch.wr_lock(SRW_LOCK_CALL);
-
-  UT_LIST_REMOVE(rseg->undo_list, undo);
-  ut_ad(undo->state == TRX_UNDO_TO_PURGE);
-  /* Delete first the undo log segment in the file */
-  trx_undo_seg_free(undo);
-  ut_ad(rseg->curr_size > undo->size);
-  rseg->curr_size-= undo->size;
-
-  rseg->latch.wr_unlock();
-  ut_free(undo);
 }
 
 /** At shutdown, frees the undo logs of a transaction. */

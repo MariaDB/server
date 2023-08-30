@@ -71,3 +71,31 @@ optimize table t1 extended;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'extended' at line 1
 drop table t1;
 End of 5.0 tests
+#
+# Test analyze of text column (not yet supported)
+#
+set optimizer_use_condition_selectivity=4;
+set histogram_type='single_prec_hb';
+set histogram_size=255;
+create table t1 (a int not null, t tinytext, tx text);
+insert into t1 select seq+1, repeat('X',seq*5), repeat('X',seq*10) from seq_0_to_50;
+insert into t1 select seq+100, repeat('X',5), "" from seq_1_to_10;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 't'
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'tx'
+test.t1	analyze	status	OK
+explain select count(*) from t1 where t='XXXXXX';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	61	Using where
+select column_name, min_value, max_value, hist_size from mysql.column_stats where table_name='t1';
+column_name	min_value	max_value	hist_size
+a	1	110	255
+drop table t1;
+set use_stat_tables=default;
+set histogram_type=default;
+set histogram_size=default;
+#
+# End of 10.6 tests
+#

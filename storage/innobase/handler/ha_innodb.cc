@@ -1,16 +1,9 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2020, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
 Copyright (c) 2013, 2023, MariaDB Corporation.
-
-Portions of this file contain modifications contributed and copyrighted by
-Google, Inc. Those modifications are gratefully acknowledged and are described
-briefly in the InnoDB documentation. The contributions by Google are
-incorporated with their permission, and subject to the conditions contained in
-the file COPYING.Google.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -227,6 +220,8 @@ static uint innodb_max_purge_lag_wait;
 static void innodb_max_purge_lag_wait_update(THD *thd, st_mysql_sys_var *,
                                              void *, const void *limit)
 {
+  if (high_level_read_only)
+    return;
   const uint l= *static_cast<const uint*>(limit);
   if (!trx_sys.history_exceeds(l))
     return;
@@ -4467,9 +4462,7 @@ innobase_commit_ordered_2(
 {
 	DBUG_ENTER("innobase_commit_ordered_2");
 
-	const bool read_only = trx->read_only || trx->id == 0;
-
-	if (!read_only) {
+	if (trx->id) {
 		/* The following call reads the binary log position of
 		the transaction being committed.
 
@@ -4499,11 +4492,8 @@ innobase_commit_ordered_2(
 #endif /* WITH_WSREP */
 
 	innobase_commit_low(trx);
-
-	if (!read_only) {
-		trx->mysql_log_file_name = NULL;
-		trx->flush_log_later = false;
-	}
+	trx->mysql_log_file_name = NULL;
+	trx->flush_log_later = false;
 
 	DBUG_VOID_RETURN;
 }
@@ -15742,13 +15732,6 @@ ha_innobase::extra(
 	case HA_EXTRA_RESET_STATE:
 		reset_template();
 		trx->duplicates = 0;
-		/* fall through */
-	case HA_EXTRA_IGNORE_INSERT:
-		/* HA_EXTRA_IGNORE_INSERT is very similar to
-		HA_EXTRA_IGNORE_DUP_KEY, but with one crucial difference:
-		we want !trx->duplicates for INSERT IGNORE so that
-		row_ins_duplicate_error_in_clust() will acquire a
-		shared lock instead of an exclusive lock. */
 	stmt_boundary:
 		trx->end_bulk_insert(*m_prebuilt->table);
 		trx->bulk_insert = false;

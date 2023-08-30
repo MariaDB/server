@@ -506,6 +506,7 @@ static void bg_rpl_load_gtid_slave_state(void *)
 static void bg_slave_kill(void *victim)
 {
   THD *to_kill= (THD *)victim;
+  DBUG_EXECUTE_IF("rpl_delay_deadlock_kill", my_sleep(1500000););
   to_kill->awake(KILL_CONNECTION);
   mysql_mutex_lock(&to_kill->LOCK_wakeup_ready);
   to_kill->rgi_slave->killed_for_retry= rpl_group_info::RETRY_KILL_KILLED;
@@ -5563,6 +5564,8 @@ pthread_handler_t handle_slave_sql(void *arg)
   mysql_mutex_unlock(&rli->data_lock);
 #ifdef WITH_WSREP
   wsrep_open(thd);
+  if (WSREP_ON_)
+    wsrep_wait_ready(thd);
   if (wsrep_before_command(thd))
   {
     WSREP_WARN("Slave SQL wsrep_before_command() failed");

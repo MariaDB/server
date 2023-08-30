@@ -603,12 +603,15 @@ int _mi_mark_file_changed(MI_INFO *info)
 {
   uchar buff[3];
   register MYISAM_SHARE *share=info->s;
+  uint32 state;
   DBUG_ENTER("_mi_mark_file_changed");
 
-  if (!(share->state.changed & STATE_CHANGED) || ! share->global_changed)
+  state= share->state.changed;
+  share->state.changed|= (STATE_CHANGED | STATE_NOT_ANALYZED |
+                          STATE_NOT_OPTIMIZED_KEYS);
+
+  if (!(state & STATE_CHANGED) || ! share->global_changed)
   {
-    share->state.changed|=(STATE_CHANGED | STATE_NOT_ANALYZED |
-			   STATE_NOT_OPTIMIZED_KEYS);
     if (!share->global_changed)
     {
       share->global_changed=1;

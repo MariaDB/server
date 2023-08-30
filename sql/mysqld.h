@@ -334,6 +334,7 @@ extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_relay_log_info_log_space_lock, key_relay_log_info_run_lock,
   key_rpl_group_info_sleep_lock,
   key_structure_guard_mutex, key_TABLE_SHARE_LOCK_ha_data,
+  key_TABLE_SHARE_LOCK_statistics,
   key_LOCK_start_thread,
   key_LOCK_error_messages,
   key_PARTITION_LOCK_auto_inc;

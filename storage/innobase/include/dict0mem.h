@@ -43,6 +43,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "trx0types.h"
 #include "fts0fts.h"
 #include "buf0buf.h"
+#include "mtr0mtr.h"
 #include "gis0type.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"

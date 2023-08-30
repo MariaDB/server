@@ -4068,6 +4068,7 @@ Item_param::Item_param(THD *thd, const LEX_CSTRING *name_arg,
     value is set.
   */
   set_maybe_null();
+  with_flags= with_flags | item_with_t::PARAM;
 }
 
 

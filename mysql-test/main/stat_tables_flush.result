@@ -1,0 +1,91 @@
+#
+# Check that ANALYZE TABLE is remembered by MyISAM and Aria
+#
+create table t1 (a int) engine=myisam;
+insert into t1 select seq from seq_0_to_99;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+flush tables;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+update t1 set a=100 where a=1;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+update t1 set a=100 where a=2;
+flush tables;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+# Aria transactional=0
+ALTER TABLE t1 ENGINE=aria transactional=0;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+update t1 set a=100 where a=10;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+flush tables;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+update t1 set a=100 where a=11;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+update t1 set a=100 where a=12;
+flush tables;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+# Aria transactional=1
+ALTER TABLE t1 ENGINE=aria transactional=1;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+update t1 set a=100 where a=20;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+flush tables;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+update t1 set a=100 where a=21;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+update t1 set a=100 where a=22;
+flush tables;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+drop table t1;
+#
+# End of 10.5 tests
+#

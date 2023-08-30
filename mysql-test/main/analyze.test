@@ -1,3 +1,5 @@
+--source include/have_sequence.inc
+
 #
 # Bug #10901 Analyze Table on new table destroys table
 # This is minimal test case to get error
@@ -87,3 +89,28 @@ optimize table t1 extended;
 drop table t1;
 
 --echo End of 5.0 tests
+
+--echo #
+--echo # Test analyze of text column (not yet supported)
+--echo #
+
+set optimizer_use_condition_selectivity=4;
+set histogram_type='single_prec_hb';
+set histogram_size=255;
+
+create table t1 (a int not null, t tinytext, tx text);
+insert into t1 select seq+1, repeat('X',seq*5), repeat('X',seq*10) from seq_0_to_50;
+insert into t1 select seq+100, repeat('X',5), "" from seq_1_to_10;
+analyze table t1;
+explain select count(*) from t1 where t='XXXXXX';
+select column_name, min_value, max_value, hist_size from mysql.column_stats where table_name='t1';
+
+drop table t1;
+
+set use_stat_tables=default;
+set histogram_type=default;
+set histogram_size=default;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #
