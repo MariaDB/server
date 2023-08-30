@@ -4965,6 +4965,7 @@ sub mysqld_stop {
   mtr_add_arg($args, "--host=%s", $mysqld->value('#host'));
   mtr_add_arg($args, "--connect_timeout=20");
   mtr_add_arg($args, "--protocol=tcp");
+  mtr_add_arg($args, "--disable-ssl-verify-server-cert");
 
   mtr_add_arg($args, "shutdown");
 

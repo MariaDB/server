@@ -25,8 +25,8 @@ int main (int argc, char **argv)
   MYSQL conn;
   int OK __attribute__((unused));
 
-  const char* query4= "INSERT INTO federated.t1 SET Value=54";
-  const char* query5= "INSERT INTO federated.t1 SET Value=55";
+  const char* query4= "INSERT INTO t1 SET Value=54";
+  const char* query5= "INSERT INTO t1 SET Value=55";
 
   MY_INIT(argv[0]);
 
@@ -41,9 +41,9 @@ int main (int argc, char **argv)
   if (!mysql_real_connect(
                           &conn,
                           "127.0.0.1",
-                          "root",
-                          "",
-                          "test",
+                          "fed",
+                          "def",
+                          "federated",
                           atoi(argv[1]),
                           NULL,
                           CLIENT_FOUND_ROWS))

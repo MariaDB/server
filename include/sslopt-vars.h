@@ -34,7 +34,7 @@ SSL_STATIC char *opt_tls_version = 0;
 #ifdef MYSQL_CLIENT
 SSL_STATIC char *opt_tls_fp      = 0;
 SSL_STATIC char *opt_tls_fplist  = 0;
-SSL_STATIC my_bool opt_ssl_verify_server_cert= 0;
+SSL_STATIC my_bool opt_ssl_verify_server_cert= 1;
 
 #define SET_SSL_OPTS(M)                                                 \
   do {                                                                  \
