@@ -98,9 +98,12 @@ set @tmp=@@optimizer_trace;
 set optimizer_trace=1;
 explain select * from t10  where a in (91303);
 
+#Enable after fix MDEV-32034
+--disable_view_protocol
 --echo # Must have selectivity_from_histogram <= 1.0:
 select json_detailed(json_extract(trace, '$**.selectivity_for_columns')) as sel
 from information_schema.optimizer_trace;
+--enable_view_protocol
 
 set optimizer_trace=@tmp;
 drop table t0,t1,t10;
