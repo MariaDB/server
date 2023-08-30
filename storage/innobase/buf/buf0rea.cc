@@ -147,14 +147,18 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
     bpage= &block->page;
 
     /* Insert into the hash table of file pages */
+    if (hash_page)
     {
       transactional_lock_guard<page_hash_latch> g
         {buf_pool.page_hash.lock_get(chain)};
-
-      if (hash_page)
-        bpage->set_state(buf_pool.watch_remove(hash_page, chain) +
-                         (buf_page_t::READ_FIX - buf_page_t::UNFIXED));
-
+      bpage->set_state(buf_pool.watch_remove(hash_page, chain) +
+                       (buf_page_t::READ_FIX - buf_page_t::UNFIXED));
+      buf_pool.page_hash.append(chain, &block->page);
+    }
+    else
+    {
+      transactional_lock_guard<page_hash_latch> g
+        {buf_pool.page_hash.lock_get(chain)};
       buf_pool.page_hash.append(chain, &block->page);
     }
 
@@ -561,11 +565,16 @@ fail:
   for (page_id_t i= low; i <= high_1; ++i)
   {
     buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(i.fold());
-    transactional_shared_lock_guard<page_hash_latch> g
-      {buf_pool.page_hash.lock_get(chain)};
+    page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
+    /* It does not make sense to use transactional_lock_guard here,
+    because we would have many complex conditions inside the memory
+    transaction. */
+    hash_lock.lock_shared();
+
     const buf_page_t* bpage= buf_pool.page_hash.get(i, chain);
     if (!bpage)
     {
+      hash_lock.unlock_shared();
       if (i == page_id)
         goto fail;
 failed:
@@ -573,6 +582,7 @@ failed:
         continue;
       goto fail;
     }
+    const unsigned accessed= bpage->is_accessed();
     if (i == page_id)
     {
       /* Read the natural predecessor and successor page addresses from
@@ -583,6 +593,7 @@ failed:
       const byte *f= bpage->frame ? bpage->frame : bpage->zip.data;
       uint32_t prev= mach_read_from_4(my_assume_aligned<4>(f + FIL_PAGE_PREV));
       uint32_t next= mach_read_from_4(my_assume_aligned<4>(f + FIL_PAGE_NEXT));
+      hash_lock.unlock_shared();
       if (prev == FIL_NULL || next == FIL_NULL)
         goto fail;
       page_id_t id= page_id;
@@ -612,8 +623,9 @@ failed:
         /* The area is not whole */
         goto fail;
     }
+    else
+      hash_lock.unlock_shared();
 
-    const unsigned accessed= bpage->is_accessed();
     if (!accessed)
       goto failed;
     /* Note that buf_page_t::is_accessed() returns the time of the
