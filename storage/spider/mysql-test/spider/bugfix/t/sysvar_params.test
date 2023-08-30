@@ -12,14 +12,19 @@
 # including a mix of different levels (partition vs table), see
 # spider/features.engine_defined_attributes.
 SET @old_spider_read_only_mode = @@session.spider_read_only_mode;
+SET @old_spider_options_or_comments = @@session.spider_options_or_comments;
 evalp CREATE SERVER srv FOREIGN DATA WRAPPER MYSQL OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
 
 --echo # Cases where table params/options are not set
+set session spider_options_or_comments=0;
 # when the user does not set var nor the table param/option, the default
 # value (0 in this case) takes effect.
 set session spider_read_only_mode = default;
 create table t2 (c int);
 create table t1 (c int) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+show create table t1;
+set session spider_read_only_mode = 1;
+show create table t1;
 /* 1 */ insert into t1 values (42);
 drop table t1, t2;
 
@@ -59,6 +64,9 @@ drop table t1, t2;
 set session spider_read_only_mode = 1;
 create table t2 (c int);
 create table t1 (c int) ENGINE=Spider COMMENT='read_only_mode "0", WRAPPER "mysql", srv "srv",TABLE "t2"';
+show create table t1;
+set session spider_read_only_mode = 0;
+show create table t1;
 /* 5 */ insert into t1 values (42);
 drop table t1, t2;
 
@@ -72,11 +80,13 @@ drop table t1, t2;
 #drop table t1, t2;
 
 --echo # Cases where table options are set
+set session spider_options_or_comments=1;
 # when the user does not set the var, but sets the table option, the
 # table option should take effect
 SET session spider_read_only_mode = default;
 create table t2 (c int);
-create table t1 (c int) ENGINE=Spider SPIDER_READ_ONLY=1 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+create table t1 (c int) ENGINE=Spider SPIDER_READ_ONLY=1 REMOTE_SERVER="srv" REMOTE_TABLE="t2";
+# show create table t1;
 --error 12518
 /* 7 */ insert into t1 values (42);
 drop table t1, t2;
@@ -85,12 +95,14 @@ drop table t1, t2;
 # should take precedence
 set session spider_read_only_mode = 1;
 create table t2 (c int);
-create table t1 (c int) ENGINE=Spider SPIDER_READ_ONLY=0 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+create table t1 (c int) ENGINE=Spider SPIDER_READ_ONLY=0 REMOTE_SERVER="srv" REMOTE_TABLE="t2";
+# show create table t1;
 /* 8 */ insert into t1 values (42);
 drop table t1, t2;
 
 drop server srv;
 
+set session spider_options_or_comments=@old_spider_options_or_comments;
 SET session spider_read_only_mode = @old_spider_read_only_mode;
 --disable_query_log
 --disable_result_log

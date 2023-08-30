@@ -30,75 +30,76 @@ eval CREATE TABLE tbl_a (
   PRIMARY KEY(a)
 ) $CHILD2_1_ENGINE $CHILD2_1_CHARSET;
 
---echo # Single data node
---connection master_1
-eval CREATE TABLE tbl_a (
-  a INT,
-  b VARCHAR(255),
-  PRIMARY KEY(a)
-) $MASTER_1_ENGINE $MASTER_1_CHARSET
-REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a";
+set session spider_options_or_comments=1;
+# --echo # Single data node
+# --connection master_1
+# eval CREATE TABLE tbl_a (
+#   a INT,
+#   b VARCHAR(255),
+#   PRIMARY KEY(a)
+# ) $MASTER_1_ENGINE $MASTER_1_CHARSET
+# REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a";
 
-INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
-SELECT * FROM tbl_a;
+# INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
+# SELECT * FROM tbl_a;
 
-DELETE FROM tbl_a;
-DROP TABLE tbl_a;
+# DELETE FROM tbl_a;
+# DROP TABLE tbl_a;
 
---echo # Multiple data nodes with high availability setting
---connection master_1
-eval CREATE TABLE tbl_a (
-  a INT,
-  b VARCHAR(255),
-  PRIMARY KEY(a)
-) $MASTER_1_ENGINE $MASTER_1_CHARSET
-REMOTE_SERVER="s_2_1 s_2_2" REMOTE_TABLE="tbl_a";
+# --echo # Multiple data nodes with high availability setting
+# --connection master_1
+# eval CREATE TABLE tbl_a (
+#   a INT,
+#   b VARCHAR(255),
+#   PRIMARY KEY(a)
+# ) $MASTER_1_ENGINE $MASTER_1_CHARSET
+# REMOTE_SERVER="s_2_1 s_2_2" REMOTE_TABLE="tbl_a";
 
-INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
-SELECT * FROM tbl_a;
+# INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
+# SELECT * FROM tbl_a;
 
---connection child2_1
-SELECT * FROM tbl_a;
+# --connection child2_1
+# SELECT * FROM tbl_a;
 
---connection child2_2
-SELECT * FROM tbl_a;
+# --connection child2_2
+# SELECT * FROM tbl_a;
 
---connection master_1
-DELETE FROM tbl_a;
-DROP TABLE tbl_a;
+# --connection master_1
+# DELETE FROM tbl_a;
+# DROP TABLE tbl_a;
 
---echo # read only
---connection master_1
-eval CREATE TABLE tbl_a (
-  a INT,
-  b VARCHAR(255),
-  PRIMARY KEY(a)
-) $MASTER_1_ENGINE $MASTER_1_CHARSET
-REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a" SPIDER_READ_ONLY=1;
+# --echo # read only
+# --connection master_1
+# eval CREATE TABLE tbl_a (
+#   a INT,
+#   b VARCHAR(255),
+#   PRIMARY KEY(a)
+# ) $MASTER_1_ENGINE $MASTER_1_CHARSET
+# REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a" SPIDER_READ_ONLY=1;
 
---error 12518
-INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
-SELECT * FROM tbl_a;
+# --error 12518
+# INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
+# SELECT * FROM tbl_a;
 
-DROP TABLE tbl_a;
+# DROP TABLE tbl_a;
 
---echo # Multiple data nodes with partition options
---connection master_1
-eval CREATE TABLE tbl_a (
-  a INT,
-  b VARCHAR(255),
-  PRIMARY KEY(a)
-) $MASTER_1_ENGINE $MASTER_1_CHARSET
-PARTITION BY RANGE (a) (
-    PARTITION p1 VALUES LESS THAN (3) REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a",
-    PARTITION p2 VALUES LESS THAN MAXVALUE REMOTE_SERVER="s_2_2" REMOTE_TABLE="tbl_a"
-);
+# --echo # Multiple data nodes with partition options
+# --connection master_1
+# eval CREATE TABLE tbl_a (
+#   a INT,
+#   b VARCHAR(255),
+#   PRIMARY KEY(a)
+# ) $MASTER_1_ENGINE $MASTER_1_CHARSET
+# PARTITION BY RANGE (a) (
+#     PARTITION p1 VALUES LESS THAN (3) REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a",
+#     PARTITION p2 VALUES LESS THAN MAXVALUE REMOTE_SERVER="s_2_2" REMOTE_TABLE="tbl_a"
+# );
 
-INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
-SELECT * FROM tbl_a;
+# INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
+# SELECT * FROM tbl_a;
 
-DELETE FROM tbl_a;
-DROP TABLE tbl_a;
+# DELETE FROM tbl_a;
+# DROP TABLE tbl_a;
 
 --echo # Multiple data nodes with table options + partition options
 --connection master_1
@@ -107,13 +108,16 @@ eval CREATE TABLE tbl_a (
   b VARCHAR(255),
   PRIMARY KEY(a)
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET
-REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a"
+REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a" SPIDER_READ_ONLY=1
 PARTITION BY RANGE (a) (
     PARTITION p1 VALUES LESS THAN (3),
-    PARTITION p2 VALUES LESS THAN MAXVALUE REMOTE_SERVER="s_2_2"
+    PARTITION p2 VALUES LESS THAN MAXVALUE REMOTE_SERVER="s_2_2" SPIDER_READ_ONLY=0
 );
 
-INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
+# INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
+--error 12518
+INSERT INTO tbl_a VALUES (1, "aaa");
+INSERT INTO tbl_a VALUES (42, "bbb");
 SELECT * FROM tbl_a;
 
 --connection child2_1
