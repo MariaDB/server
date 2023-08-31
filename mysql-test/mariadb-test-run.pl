@@ -1877,8 +1877,8 @@ sub executable_setup () {
   if ( $opt_embedded_server )
   {
     $exe_mysqltest=
-      mtr_exe_exists("$bindir/libmysqld/examples$multiconfig/mysqltest_embedded",
-                     "$path_client_bindir/mysqltest_embedded");
+      mtr_exe_exists("$bindir/libmysqld/examples$multiconfig/mariadb-test-embedded",
+                     "$path_client_bindir/mariadb-test-embedded");
   }
   else
   {
