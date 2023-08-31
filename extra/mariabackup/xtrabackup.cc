@@ -6778,6 +6778,12 @@ int main(int argc, char **argv)
 		}
 		if(strcmp(argv[1], "--innobackupex") == 0)
 		{
+			/*
+			  my_init() prints a "Deprecated program name"
+			  warning if argv[0] does not start with "mariadb".
+			  So pass the original argv[0] as the new argv[0].
+			*/
+			argv[1]= argv[0];
 			argv++;
 			argc--;
 			innobackupex_mode = true;
@@ -6853,6 +6859,8 @@ int main(int argc, char **argv)
 static int main_low(char** argv)
 {
 	if (innobackupex_mode) {
+		msg(ER_DEFAULT(ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT),
+			"--innobackupex");
 		if (!ibx_init()) {
 			return(EXIT_FAILURE);
 		}
