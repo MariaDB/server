@@ -370,7 +370,6 @@ static void trx_purge_free_segment(buf_block_t *block, mtr_t &mtr)
 
     This does not matter when using multiple innodb_undo_tablespaces;
     innodb_undo_log_truncate=ON will be able to reclaim the space. */
-    log_free_check();
     mtr.start();
     block->page.lock.x_lock();
     ut_ad(block->page.id() == id);
@@ -393,7 +392,6 @@ trx_purge_truncate_rseg_history(trx_rseg_t &rseg,
   fil_addr_t hdr_addr;
   mtr_t mtr;
 
-  log_free_check();
   mtr.start();
 
   dberr_t err;
@@ -495,7 +493,6 @@ loop:
   mtr.commit();
   ut_ad(rseg.history_size > 0);
   rseg.history_size--;
-  log_free_check();
   mtr.start();
   rseg_hdr->page.lock.x_lock();
   ut_ad(rseg_hdr->page.id() == rseg.page_id());
@@ -571,6 +568,7 @@ TRANSACTIONAL_TARGET void trx_purge_truncate_history()
     if (rseg.space)
     {
       ut_ad(rseg.is_persistent());
+      log_free_check();
       rseg.latch.wr_lock(SRW_LOCK_CALL);
       if (dberr_t e=
           trx_purge_truncate_rseg_history(rseg, head,
