@@ -857,6 +857,14 @@ public:
     len= err_conv(err_buffer, (uint) sizeof(err_buffer), str, (uint) len, cs);
     return {err_buffer, len};
   }
+  LEX_CSTRING set_strq(const char *str, size_t len, CHARSET_INFO *cs) const
+  {
+    DBUG_ASSERT(len < UINT_MAX32);
+    len= err_conv(err_buffer+1, (uint) sizeof(err_buffer)-2, str, (uint) len, cs);
+    err_buffer[0]= err_buffer[len+1]= '\'';
+    err_buffer[len+2]= 0;
+    return {err_buffer, len+2};
+  }
   LEX_CSTRING set_mysql_time(const MYSQL_TIME *ltime) const
   {
     int length= my_TIME_to_str(ltime, err_buffer, AUTO_SEC_PART_DIGITS);
@@ -880,6 +888,7 @@ public:
 
 class ErrConvString : public ErrConv
 {
+protected:
   const char *str;
   size_t len;
   CHARSET_INFO *cs;
@@ -893,6 +902,16 @@ public:
   LEX_CSTRING lex_cstring() const override
   {
     return set_str(str, len, cs);
+  }
+};
+
+class ErrConvStringQ : public ErrConvString
+{
+public:
+  using ErrConvString::ErrConvString;
+  LEX_CSTRING lex_cstring() const override
+  {
+    return set_strq(str, len, cs);
   }
 };
 
