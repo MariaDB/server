@@ -32,6 +32,8 @@ SSL_STATIC char *opt_ssl_crl     = 0;
 SSL_STATIC char *opt_ssl_crlpath = 0;
 SSL_STATIC char *opt_tls_version = 0;
 #ifdef MYSQL_CLIENT
+SSL_STATIC char *opt_tls_fp      = 0;
+SSL_STATIC char *opt_tls_fplist  = 0;
 SSL_STATIC my_bool opt_ssl_verify_server_cert= 0;
 
 #define SET_SSL_OPTS(M)                                                 \
@@ -43,6 +45,8 @@ SSL_STATIC my_bool opt_ssl_verify_server_cert= 0;
       mysql_options((M), MYSQL_OPT_SSL_CRL, opt_ssl_crl);               \
       mysql_options((M), MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);       \
       mysql_options((M), MARIADB_OPT_TLS_VERSION, opt_tls_version);     \
+      mysql_options((M), MARIADB_OPT_TLS_PEER_FP, opt_tls_fp);          \
+      mysql_options((M), MARIADB_OPT_TLS_PEER_FP_LIST, opt_tls_fplist); \
     }                                                                   \
     mysql_options((M),MYSQL_OPT_SSL_VERIFY_SERVER_CERT,                 \
                   &opt_ssl_verify_server_cert);                         \

@@ -215,10 +215,10 @@ static ulong max_buf_pool_modified_pct;
 /* Ignored option (--log) for MySQL option compatibility */
 static char*	log_ignored_opt;
 
-
 extern my_bool opt_use_ssl;
 extern char *opt_tls_version;
 my_bool opt_ssl_verify_server_cert;
+char *opt_tls_fp, *opt_tls_fplist;
 my_bool opt_extended_validation;
 my_bool opt_encrypted_backup;
 

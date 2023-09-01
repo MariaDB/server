@@ -111,6 +111,7 @@ enum options_client
   OPT_DO_DOMAIN_IDS,
   OPT_IGNORE_SERVER_IDS,
   OPT_DO_SERVER_IDS,
+  OPT_TLS_FP, OPT_TLS_FPLIST,
   OPT_MAX_CLIENT_OPTION /* should be always the last */
 };
 
