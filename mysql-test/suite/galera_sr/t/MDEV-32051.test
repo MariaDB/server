@@ -1,0 +1,72 @@
+#
+# MDEV-32051 : Failed to insert streaming client
+#
+# Test outline:
+# To reproduce we need a autocommit INSERT with streaming enabled,
+# and a conflicting TRUNCATE.
+# The INSERT is BF aborted by TRUNCATE during replication of the commit
+# fragment, so that the INSERT must be rolled back replayed. During
+# replay it fails certification, finally the statement is retried and
+# succeeds. If bug is present, the streaming client for the INSERT does
+# not get deleted after replay, causing the warning (or assert in debug builds)
+# when retrying attempts to create the same streaming client with the same id.
+# 
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1);
+
+#
+# Issue an INSERT and block it right before certification
+# of the commit fragment. This is needed to setup for
+# before_replicate_sync in galera, to make sure we catch
+# the commit fragment.
+#
+--connection node_1
+SET SESSION wsrep_trx_fragment_size=1;
+SET DEBUG_SYNC='wsrep_before_certification SIGNAL before_fragment WAIT_FOR continue';
+--send INSERT INTO t1 VALUES (2)
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+SET SESSION wsrep_sync_wait=0;
+SET DEBUG_SYNC='now WAIT_FOR before_fragment';
+--let galera_sync_point = before_replicate_sync
+--source include/galera_set_sync_point.inc
+SET DEBUG_SYNC='now SIGNAL continue';
+--source include/galera_wait_sync_point.inc
+SET DEBUG_SYNC='RESET';
+
+#
+# Commit fragment of INSERT is now parked in galera side
+# before replication. Issue the conflicting DDL
+#
+--connection node_2
+TRUNCATE TABLE t1;
+
+--connection node_1a
+--source include/galera_signal_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+# INSERT is first aborted, but ultimately succeeds because of wsrep_autocommit_retry
+# If bug is present:
+# [Warning] WSREP: Failed to insert streaming client
+# server_state.cpp:1152: void wsrep::server_state::start_streaming_client(wsrep::client_state*): Assertion `0' failed.
+--connection node_1
+--reap
+
+SELECT * FROM t1;
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+
+--connection node_2
+
+SELECT * FROM t1;
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+
+
+DROP TABLE t1;
