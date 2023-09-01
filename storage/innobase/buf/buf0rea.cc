@@ -673,6 +673,43 @@ failed:
   return count;
 }
 
+/** Apply logical read-ahead to a number of pages.
+@param space    tablespace
+@param begin    first page number
+@param end      last page number
+@param ibuf     whether we are inside the ibuf routine */
+void
+buf_read_ahead_logical(fil_space_t *space,
+                       const uint32_t *begin, const uint32_t *end, bool ibuf)
+{
+  if (recv_recovery_is_on())
+    return;
+  const ulint ibuf_mode= ibuf ? BUF_READ_IBUF_PAGES_ONLY : BUF_READ_ANY_PAGE;
+  page_id_t id{space->id, 0};
+  const unsigned zip_size{space->zip_size()};
+  ulint count= 0;
+  do
+  {
+    id.set_page_no(*begin++);
+    if (!space->acquire())
+      return;
+    if (buf_read_page_low(space, false, ibuf_mode, id, zip_size, false) ==
+        DB_SUCCESS)
+      count++;
+  }
+  while (begin != end);
+
+  if (count)
+  {
+    mysql_mutex_lock(&buf_pool.mutex);
+    /* Read ahead is considered one I/O operation for the purpose of
+    LRU policy decision. */
+    buf_LRU_stat_inc_io();
+    buf_pool.stat.n_ra_pages_read+= count;
+    mysql_mutex_unlock(&buf_pool.mutex);
+  }
+}
+
 /** Schedule a page for recovery.
 @param space    tablespace
 @param page_id  page identifier

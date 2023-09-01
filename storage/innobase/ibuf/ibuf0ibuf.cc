@@ -309,8 +309,14 @@ ibuf_header_page_get(
 	buf_block_t* block = buf_page_get(
 		page_id_t(IBUF_SPACE_ID, FSP_IBUF_HEADER_PAGE_NO),
 		0, RW_X_LATCH, mtr);
+	if (UNIV_UNLIKELY(!block)) {
+		return nullptr;
+	}
 
-	return block ? block->page.frame : nullptr;
+	block->page.set_accessed();
+	buf_page_make_young_if_needed(&block->page);
+
+	return block->page.frame;
 }
 
 /** Acquire the change buffer root page.
@@ -326,7 +332,13 @@ static buf_block_t *ibuf_tree_root_get(mtr_t *mtr, dberr_t *err= nullptr)
   buf_block_t *block=
     buf_page_get_gen(page_id_t{IBUF_SPACE_ID, FSP_IBUF_TREE_ROOT_PAGE_NO},
                      0, RW_SX_LATCH, nullptr, BUF_GET, mtr, err);
-  ut_ad(!block || ibuf.empty == page_is_empty(block->page.frame));
+  if (block)
+  {
+    ut_ad(ibuf.empty == page_is_empty(block->page.frame));
+    block->page.set_accessed();
+    buf_page_make_young_if_needed(&block->page);
+  }
+
   return block;
 }
 

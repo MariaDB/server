@@ -102,6 +102,15 @@ which could result in a deadlock if the OS does not support asynchronous io.
 ulint
 buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf);
 
+/** Apply logical read-ahead to a number of pages.
+@param space    tablespace
+@param begin    first page number
+@param end      last page number
+@param ibuf     whether we are inside the ibuf routine */
+void
+buf_read_ahead_logical(fil_space_t *space,
+                       const uint32_t *begin, const uint32_t *end, bool ibuf);
+
 /** Schedule a page for recovery.
 @param space    tablespace
 @param page_id  page identifier

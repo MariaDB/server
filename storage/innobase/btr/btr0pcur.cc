@@ -25,9 +25,10 @@ Created 2/23/1996 Heikki Tuuri
 *******************************************************/
 
 #include "btr0pcur.h"
-#include "ut0byte.h"
+#include "buf0rea.h"
 #include "rem0cmp.h"
 #include "trx0trx.h"
+#include "ibuf0ibuf.h"
 
 /**************************************************************//**
 Resets a persistent cursor object, freeing ::old_rec_buf if it is
@@ -261,12 +262,17 @@ static bool btr_pcur_optimistic_latch_leaves(buf_block_t *block,
         buf_page_get_gen(page_id_t(id.space(), left_page_no), zip_size,
                          mode, nullptr, BUF_GET_POSSIBLY_FREED, mtr);
 
-      if (left_block &&
-          btr_page_get_next(left_block->page.frame) != id.page_no())
+      if (!left_block);
+      else if (btr_page_get_next(left_block->page.frame) != id.page_no())
       {
 release_left_block:
         mtr->release_last_page();
         return false;
+      }
+      else
+      {
+        left_block->page.set_accessed();
+        buf_page_make_young_if_needed(&left_block->page);
       }
     }
 
@@ -539,10 +545,11 @@ btr_pcur_move_to_next_page(
 	}
 
 	dberr_t err;
+        bool first_access = false;
 	buf_block_t* next_block = btr_block_get(
 		*cursor->index(), next_page_no,
 		rw_lock_type_t(cursor->latch_mode & (RW_X_LATCH | RW_S_LATCH)),
-		page_is_leaf(page), mtr, &err);
+		page_is_leaf(page), mtr, &err, &first_access);
 
 	if (UNIV_UNLIKELY(!next_block)) {
 		return err;
@@ -561,6 +568,11 @@ btr_pcur_move_to_next_page(
 
 	const auto s = mtr->get_savepoint();
 	mtr->rollback_to_savepoint(s - 2, s - 1);
+	if (first_access) {
+		buf_read_ahead_linear(next_block->page.id(),
+				      next_block->zip_size(),
+				      ibuf_inside(mtr));
+	}
 	return DB_SUCCESS;
 }
 

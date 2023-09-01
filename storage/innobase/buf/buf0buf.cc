@@ -2885,18 +2885,6 @@ get_latch_valid:
 		ut_ad(page_id_t(page_get_space_id(block->page.frame),
 				page_get_page_no(block->page.frame))
 		      == page_id);
-
-		if (mode == BUF_GET_POSSIBLY_FREED
-		    || mode == BUF_PEEK_IF_IN_POOL) {
-			return block;
-		}
-
-		const bool not_first_access{block->page.set_accessed()};
-		buf_page_make_young_if_needed(&block->page);
-		if (!not_first_access) {
-			buf_read_ahead_linear(page_id, block->zip_size(),
-					      ibuf_inside(mtr));
-		}
 	}
 
 	return block;

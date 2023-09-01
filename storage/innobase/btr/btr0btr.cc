@@ -216,10 +216,11 @@ ATTRIBUTE_COLD void btr_decryption_failed(const dict_index_t &index)
 @param[in]	merge	whether change buffer merge should be attempted
 @param[in,out]	mtr	mini-transaction
 @param[out]	err	error code
+@param[out]	first	set if this is a first-time access to the page
 @return block */
 buf_block_t *btr_block_get(const dict_index_t &index,
                            uint32_t page, rw_lock_type_t mode, bool merge,
-                           mtr_t *mtr, dberr_t *err)
+                           mtr_t *mtr, dberr_t *err, bool *first)
 {
   ut_ad(mode != RW_NO_LATCH);
   dberr_t local_err;
@@ -241,6 +242,12 @@ buf_block_t *btr_block_get(const dict_index_t &index,
     {
       *err= DB_PAGE_CORRUPTED;
       block= nullptr;
+    }
+    else
+    {
+      if (!block->page.set_accessed() && first)
+        *first= true;
+      buf_page_make_young_if_needed(&block->page);
     }
   }
   else if (*err == DB_DECRYPTION_FAILED)
@@ -301,6 +308,11 @@ btr_root_block_get(
     {
       *err= DB_CORRUPTION;
       block= nullptr;
+    }
+    else
+    {
+      block->page.set_accessed();
+      buf_page_make_young_if_needed(&block->page);
     }
   }
   else if (*err == DB_DECRYPTION_FAILED)
@@ -553,8 +565,12 @@ btr_page_alloc_for_ibuf(
                                                 root->page.frame)),
                      0, RW_X_LATCH, nullptr, BUF_GET, mtr, err);
   if (new_block)
+  {
+    new_block->page.set_accessed();
+    buf_page_make_young_if_needed(&new_block->page);
     *err= flst_remove(root, PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST, new_block,
                 PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST_NODE, mtr);
+  }
   ut_d(if (*err == DB_SUCCESS)
          flst_validate(root, PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST, mtr));
   return new_block;
@@ -1351,6 +1367,8 @@ btr_write_autoinc(dict_index_t* index, ib_uint64_t autoinc, bool reset)
   if (buf_block_t *root= buf_page_get(page_id_t(space->id, index->page),
 				      space->zip_size(), RW_SX_LATCH, &mtr))
   {
+    root->page.set_accessed();
+    buf_page_make_young_if_needed(&root->page);
     mtr.set_named_space(space);
     page_set_autoinc(root, autoinc, &mtr, reset);
   }

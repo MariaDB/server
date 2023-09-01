@@ -1223,6 +1223,8 @@ re_scan:
 			if (!cur_block) {
 				goto func_end;
 			}
+			cur_block->page.set_accessed();
+			buf_page_make_young_if_needed(&cur_block->page);
 		} else {
 			mtr->start();
 			goto func_end;
