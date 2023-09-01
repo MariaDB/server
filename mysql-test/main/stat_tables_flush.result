@@ -87,5 +87,76 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 drop table t1;
 #
-# End of 10.5 tests
+# Test that histograms are read after flush
+#
+create table t1 (a int);
+insert into t1 select seq from seq_1_to_10;
+insert into t1 select A.seq from seq_10_to_20 A, seq_1_to_9 B;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+explain format=json select * from t1 where a between 2 and 5;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 109,
+      "filtered": 5,
+      "attached_condition": "t1.a between 2 and 5"
+    }
+  }
+}
+explain format=json select * from t1 where a between 12 and 15;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 109,
+      "filtered": 33.59375,
+      "attached_condition": "t1.a between 12 and 15"
+    }
+  }
+}
+flush tables;
+set @@optimizer_use_condition_selectivity=3;
+explain format=json select * from t1 where a between 2 and 5;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 109,
+      "filtered": 15.78947353,
+      "attached_condition": "t1.a between 2 and 5"
+    }
+  }
+}
+set @@optimizer_use_condition_selectivity=4;
+explain format=json select * from t1 where a between 2 and 5;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 109,
+      "filtered": 5,
+      "attached_condition": "t1.a between 2 and 5"
+    }
+  }
+}
+drop table t1;
+set @@optimizer_use_condition_selectivity=default;
+#
+# End of 10.6 tests
 #

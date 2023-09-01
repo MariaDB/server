@@ -1161,6 +1161,7 @@ struct TABLE_SHARE
                                       MEM_ROOT *mem_root,
                                       List<Item> *field_list) const;
   void update_engine_independent_stats(TABLE_STATISTICS_CB *stat);
+  bool histograms_exists();
 };
 
 /* not NULL, but cannot be dereferenced */

@@ -46,5 +46,27 @@ analyze table t1 persistent for all;
 drop table t1;
 
 --echo #
---echo # End of 10.5 tests
+--echo # Test that histograms are read after flush
+--echo #
+
+create table t1 (a int);
+insert into t1 select seq from seq_1_to_10;
+
+insert into t1 select A.seq from seq_10_to_20 A, seq_1_to_9 B;
+analyze table t1 persistent for all;
+
+explain format=json select * from t1 where a between 2 and 5;
+explain format=json select * from t1 where a between 12 and 15;
+
+flush tables;
+set @@optimizer_use_condition_selectivity=3;
+explain format=json select * from t1 where a between 2 and 5;
+set @@optimizer_use_condition_selectivity=4;
+explain format=json select * from t1 where a between 2 and 5;
+
+drop table t1;
+set @@optimizer_use_condition_selectivity=default;
+
+--echo #
+--echo # End of 10.6 tests
 --echo #

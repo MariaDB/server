@@ -2102,7 +2102,7 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
                         &column_stats, sizeof(*column_stats) * fields,
                         &index_stats, sizeof(*index_stats) * keys,
                         &idx_avg_frequency,
-                        sizeof(idx_avg_frequency) * key_parts,
+                        sizeof(*idx_avg_frequency) * key_parts,
                         &histogram, hist_size * fields,
                         NullS))
     DBUG_RETURN(1);
@@ -2145,6 +2145,14 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
     key_info->collected_stats->init_avg_frequency(idx_avg_frequency);
     idx_avg_frequency+= key_info->ext_key_parts;
   }
+  /*
+    idx_avg_frequency can be less than
+    table_stats->idx_avg_frequency + key_parts
+    in the case of LONG_UNIQUE_HASH_FIELD as these has a hidden
+    ext_key_part which is counted in table_share->ext_keyparts but not
+    in keyinfo->ext_key_parts.
+  */
+  DBUG_ASSERT(idx_avg_frequency <= table_stats->idx_avg_frequency + key_parts);
 
   create_min_max_statistical_fields_for_table(thd, table);
 
@@ -2208,7 +2216,7 @@ alloc_engine_independent_statistics(THD *thd, const TABLE_SHARE *table_share,
                         &column_stats, sizeof(Column_statistics) * fields,
                         &index_stats, sizeof(Index_statistics) * keys,
                         &idx_avg_frequency,
-                        sizeof(idx_avg_frequency) * key_parts,
+                        sizeof(*idx_avg_frequency) * key_parts,
                         NullS))
     DBUG_RETURN(1);
 
@@ -2232,6 +2240,7 @@ alloc_engine_independent_statistics(THD *thd, const TABLE_SHARE *table_share,
     index_stats->init_avg_frequency(idx_avg_frequency);
     idx_avg_frequency+= key_info->ext_key_parts;
   }
+  DBUG_ASSERT(idx_avg_frequency <= table_stats->idx_avg_frequency + key_parts);
   DBUG_RETURN(0);
 }
 
@@ -2840,11 +2849,12 @@ read_statistics_for_table(THD *thd, TABLE *table,
   TABLE_SHARE *table_share= table->s;
   DBUG_ENTER("read_statistics_for_table");
 
-  if (!force_reload && table_share->stats_cb)
+  if (!force_reload && table_share->stats_cb &&
+      (!want_histograms || !table_share->histograms_exists()))
   {
     if (table->stats_cb == table_share->stats_cb)
-      DBUG_RETURN(table->stats_cb);      // Use current
-    table->update_engine_independent_stats();        // Copy table_share->stats_cb
+      DBUG_RETURN(table->stats_cb);		// Use current
+    table->update_engine_independent_stats();	// Copy table_share->stats_cb
     DBUG_RETURN(table->stats_cb);
   }
 
