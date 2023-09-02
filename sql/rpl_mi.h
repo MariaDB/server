@@ -221,7 +221,7 @@ class Master_info : public Slave_reporting_capability
   char ssl_ca[FN_REFLEN], ssl_capath[FN_REFLEN], ssl_cert[FN_REFLEN];
   char ssl_cipher[FN_REFLEN], ssl_key[FN_REFLEN];
   char ssl_crl[FN_REFLEN], ssl_crlpath[FN_REFLEN];
-  bool ssl_verify_server_cert;
+  my_bool ssl_verify_server_cert; /* MUST be my_bool, see mysql_option() */
 
   my_off_t master_log_pos;
   File fd; // we keep the file open, so we need to remember the file pointer

@@ -32,7 +32,11 @@ select * from t1;
 stop slave;
 --source include/wait_for_slave_to_stop.inc
 --replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
-eval change master to master_ssl=1 , master_ssl_ca ='$MYSQL_TEST_DIR/std_data/cacert.pem', master_ssl_cert='$MYSQL_TEST_DIR/std_data/client-cert.pem', master_ssl_key='$MYSQL_TEST_DIR/std_data/client-key.pem';
+eval change master to
+  master_ssl=1,
+  master_ssl_ca ='$MYSQL_TEST_DIR/std_data/cacert.pem',
+  master_ssl_cert='$MYSQL_TEST_DIR/std_data/client-cert.pem',
+  master_ssl_key='$MYSQL_TEST_DIR/std_data/client-key.pem';
 start slave;
 --source include/wait_for_slave_to_start.inc
 
@@ -83,9 +87,6 @@ create table t1 (t int);
 insert into t1 values (1);
 
 sync_slave_with_master;
-
-echo on slave;
-#checking that replication is ok
 select * from t1;
 
 #checking show slave status

@@ -313,6 +313,7 @@ new_VioSSLFd(const char *key_file, const char *cert_file, const char *ca_file,
   fix_value(ca_path);
   fix_value(crl_file);
   fix_value(crl_path);
+  fix_value(cipher);
 
   DBUG_PRINT("enter",
              ("key_file: '%s'  cert_file: '%s'  ca_file: '%s'  ca_path: '%s'  "
