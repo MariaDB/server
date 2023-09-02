@@ -59,7 +59,6 @@ MACRO (MYSQL_USE_BUNDLED_SSL)
   SET(HAVE_ERR_remove_thread_state ON CACHE INTERNAL "wolfssl doesn't have ERR_remove_thread_state")
   SET(HAVE_EncryptAes128Ctr ON CACHE INTERNAL "wolfssl does support AES-CTR")
   SET(HAVE_EncryptAes128Gcm OFF CACHE INTERNAL "wolfssl does not support AES-GCM")
-  SET(HAVE_X509_check_host ON CACHE INTERNAL  "wolfssl does support X509_check_host")
   SET(HAVE_hkdf ON CACHE INTERNAL "wolfssl does support EVP_PKEY API")
   CHANGE_SSL_SETTINGS("bundled")
   ADD_SUBDIRECTORY(extra/wolfssl)
@@ -157,8 +156,6 @@ MACRO (MYSQL_CHECK_SSL)
                           HAVE_EncryptAes128Ctr)
       CHECK_SYMBOL_EXISTS(EVP_aes_128_gcm "openssl/evp.h"
                           HAVE_EncryptAes128Gcm)
-      CHECK_SYMBOL_EXISTS(X509_check_host "openssl/x509v3.h"
-                          HAVE_X509_check_host)
       CHECK_SYMBOL_EXISTS(EVP_PKEY_CTX_set_hkdf_md "openssl/kdf.h"
                           HAVE_hkdf)
       SET(CMAKE_REQUIRED_INCLUDES)
