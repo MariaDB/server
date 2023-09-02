@@ -31,7 +31,7 @@ static void init_master_log_pos(Master_info* mi);
 Master_info::Master_info(LEX_CSTRING *connection_name_arg,
                          bool is_slave_recovery)
   :Slave_reporting_capability("I/O"),
-   ssl(0), ssl_verify_server_cert(1), fd(-1), io_thd(0), 
+   ssl(0), ssl_verify_server_cert(0), fd(-1), io_thd(0),
    rli(is_slave_recovery), port(MYSQL_PORT),
    checksum_alg_before_fd(BINLOG_CHECKSUM_ALG_UNDEF),
    connect_retry(DEFAULT_CONNECT_RETRY), inited(0), abort_slave(0),
@@ -219,8 +219,6 @@ void init_master_log_pos(Master_info* mi)
   mi->gtid_reconnect_event_skip_count= 0;
   mi->gtid_event_seen= false;
 
-  /* Intentionally init ssl_verify_server_cert to 0, no option available  */
-  mi->ssl_verify_server_cert= 0;
   /* 
     always request heartbeat unless master_heartbeat_period is set
     explicitly zero.  Here is the default value for heartbeat period

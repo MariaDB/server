@@ -2118,7 +2118,7 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
   if (mysql->client_flag & CLIENT_PROTOCOL_41)
   {
     /* 4.1 server and 4.1 client has a 32 byte option flag */
-    int4store(buff,mysql->client_flag);
+    int4store(buff,mysql->client_flag & ~CLIENT_SSL_VERIFY_SERVER_CERT);
     int4store(buff+4, net->max_packet_size);
     buff[8]= (char) mysql->charset->number;
     bzero(buff+9, 32-9);

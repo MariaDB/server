@@ -16,7 +16,11 @@ select * from t1;
 t
 stop slave;
 include/wait_for_slave_to_stop.inc
-change master to master_ssl=1 , master_ssl_ca ='MYSQL_TEST_DIR/std_data/cacert.pem', master_ssl_cert='MYSQL_TEST_DIR/std_data/client-cert.pem', master_ssl_key='MYSQL_TEST_DIR/std_data/client-key.pem';
+change master to
+master_ssl=1,
+master_ssl_ca ='MYSQL_TEST_DIR/std_data/cacert.pem',
+master_ssl_cert='MYSQL_TEST_DIR/std_data/client-cert.pem',
+master_ssl_key='MYSQL_TEST_DIR/std_data/client-key.pem';
 start slave;
 include/wait_for_slave_to_start.inc
 connection master;
@@ -61,7 +65,6 @@ connection master;
 create table t1 (t int);
 insert into t1 values (1);
 connection slave;
-on slave
 select * from t1;
 t
 1
