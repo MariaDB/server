@@ -1583,21 +1583,12 @@ mysql_get_ssl_cipher(MYSQL *mysql __attribute__((unused)))
 
 #if defined(HAVE_OPENSSL)
 
-#ifdef HAVE_X509_check_host
 #include <openssl/x509v3.h>
-#endif
 
 static int ssl_verify_server_cert(Vio *vio, const char* server_hostname, const char **errptr)
 {
   SSL *ssl;
   X509 *server_cert= NULL;
-#ifndef HAVE_X509_check_host
-  char *cn= NULL;
-  int cn_loc= -1;
-  ASN1_STRING *cn_asn1= NULL;
-  X509_NAME_ENTRY *cn_entry= NULL;
-  X509_NAME *subject= NULL;
-#endif
   int ret_validation= 1;
 
   DBUG_ENTER("ssl_verify_server_cert");
@@ -1632,59 +1623,13 @@ static int ssl_verify_server_cert(Vio *vio, const char* server_hostname, const c
     are what we expect.
   */
 
-#ifdef HAVE_X509_check_host
-  ret_validation=
-    X509_check_host(server_cert, server_hostname,
-       strlen(server_hostname), 0, 0) != 1;
-#ifndef HAVE_WOLFSSL
-   if (ret_validation)
-   {
-     ret_validation=
-         X509_check_ip_asc(server_cert, server_hostname, 0) != 1;
-   }
-#endif
-#else
-  subject= X509_get_subject_name(server_cert);
-  cn_loc= X509_NAME_get_index_by_NID(subject, NID_commonName, -1);
-  if (cn_loc < 0)
-  {
-    *errptr= "Failed to get CN location in the certificate subject";
-    goto error;
-  }
-  cn_entry= X509_NAME_get_entry(subject, cn_loc);
-  if (cn_entry == NULL)
-  {
-    *errptr= "Failed to get CN entry using CN location";
-    goto error;
-  }
-
-  cn_asn1 = X509_NAME_ENTRY_get_data(cn_entry);
-  if (cn_asn1 == NULL)
-  {
-    *errptr= "Failed to get CN from CN entry";
-    goto error;
-  }
-
-  cn= (char *) ASN1_STRING_get0_data(cn_asn1);
-
-  if ((size_t)ASN1_STRING_length(cn_asn1) != strlen(cn))
-  {
-    *errptr= "NULL embedded in the certificate CN";
-    goto error;
-  }
-
-  DBUG_PRINT("info", ("Server hostname in cert: %s", cn));
-  if (!strcmp(cn, server_hostname))
-  {
-    /* Success */
-    ret_validation= 0;
-  }
-#endif
+  ret_validation= X509_check_host(server_cert, server_hostname,
+                                  strlen(server_hostname), 0, 0) != 1 &&
+                  X509_check_ip_asc(server_cert, server_hostname, 0) != 1;
   *errptr= "SSL certificate validation failure";
 
 error:
-  if (server_cert != NULL)
-    X509_free (server_cert);
+  X509_free(server_cert);
   DBUG_RETURN(ret_validation);
 }
 
