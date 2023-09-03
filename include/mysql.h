@@ -290,7 +290,8 @@ typedef struct st_mysql
   /* session-wide random string */
   char	        scramble[SCRAMBLE_LENGTH+1];
   my_bool       auto_local_infile;
-  void *unused2, *unused3, *unused4, *unused5;
+  void          *unused2, *unused3, *unused4;
+  const char    *tls_self_signed_error;
 
   LIST  *stmts;                     /* list of all statements */
   const struct st_mysql_methods *methods;
