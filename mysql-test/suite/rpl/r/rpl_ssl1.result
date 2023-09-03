@@ -75,14 +75,42 @@ Master_SSL_Cert = 'MYSQL_TEST_DIR/std_data/client-cert.pem'
 Master_SSL_Key = 'MYSQL_TEST_DIR/std_data/client-key.pem'
 include/check_slave_is_running.inc
 connection master;
+create user replssl@127.0.0.1 identified by "sslrepl";
+grant replication slave on *.* to replssl@127.0.0.1 require ssl;
+connection slave;
+stop slave;
+include/wait_for_slave_to_stop.inc
+change master to
+master_host="127.0.0.1",
+master_user='replssl',
+master_password="sslrepl",
+master_ssl=1,
+master_ssl_verify_server_cert=1,
+master_ssl_ca ='',
+master_ssl_cert='',
+master_ssl_key='';
+start slave;
+include/wait_for_slave_to_start.inc
+show tables;
+Tables_in_test
+t1
+connection master;
 drop table t1;
 connection slave;
+show tables;
+Tables_in_test
 include/stop_slave.inc
 CHANGE MASTER TO
 master_host="127.0.0.1",
+master_user='root',
+master_password='',
 master_ssl_ca ='',
 master_ssl_cert='',
 master_ssl_key='',
 master_ssl_verify_server_cert=0,
 master_ssl=0;
+connection master;
+drop user replssl@127.0.0.1;
+connection slave;
+drop user replssl@127.0.0.1;
 include/rpl_end.inc
