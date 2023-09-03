@@ -447,6 +447,10 @@ err0:
   DBUG_RETURN(0);
 }
 
+int always_ok(int preverify, X509_STORE_CTX* store)
+{
+    return 1;
+}
 
 /************************ VioSSLConnectorFd **********************************/
 struct st_VioSSLFd *
@@ -456,14 +460,14 @@ new_VioSSLConnectorFd(const char *key_file, const char *cert_file,
                       const char *crl_file, const char *crl_path)
 {
   struct st_VioSSLFd *ssl_fd;
-  int verify= SSL_VERIFY_PEER;
+  int (*cb)(int, X509_STORE_CTX *) = NULL;
 
   /*
-    Turn off verification of servers certificate if both
-    ca_file and ca_path is set to NULL
+    Don't abort when the certificate cannot be verified if neither
+    ca_file nor ca_path were set.
   */
   if ((ca_file == 0 || ca_file[0] == 0) && (ca_path == 0 || ca_path[0] == 0))
-    verify= SSL_VERIFY_NONE;
+    cb= always_ok;
 
   /* Init the VioSSLFd as a "connector" ie. the client side */
   if (!(ssl_fd= new_VioSSLFd(key_file, cert_file, ca_file, ca_path, cipher,
@@ -472,8 +476,7 @@ new_VioSSLConnectorFd(const char *key_file, const char *cert_file,
     return 0;
   }
 
-  SSL_CTX_set_verify(ssl_fd->ssl_context, verify, NULL);
-
+  SSL_CTX_set_verify(ssl_fd->ssl_context, SSL_VERIFY_PEER, cb);
   return ssl_fd;
 }
 
