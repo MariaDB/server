@@ -7,3 +7,7 @@ FLUSH PRIVILEGES;
 # xtrabackup move back
 # restart
 DROP USER backup_user;
+#
+# MDEV-31855 validate ssl certificates using client password in the internal client
+#
+# tcp ssl ssl-verify-server-cert
