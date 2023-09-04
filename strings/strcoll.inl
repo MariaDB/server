@@ -694,7 +694,7 @@ MY_FUNCTION_NAME(strnxfrm_internal)(CHARSET_INFO *cs __attribute__((unused)),
   }
   return my_strnxfrm_ret_construct(dst - dst0, src - src0,
               warnings |
-              (src - se ? MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR : 0));
+              ((src - se) ? MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR : 0));
 }
 
 

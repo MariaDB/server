@@ -12283,3 +12283,8 @@ ER_VARIABLE_IGNORED
 ER_INCORRECT_COLUMN_NAME_COUNT
         eng "Incorrect column name count for derived table"
         chi "派生表的列名计数不正确"
+WARN_SORTING_ON_TRUNCATED_LENGTH
+        eng "%llu values were longer than max_sort_length. Sorting used only the first %lu bytes"
+        ger "%llu Werte waren länger als max_sort_length. Sie wurden anhand der ersten %lu Bytes verglichen"
+        rus "%llu значений были длиннее, чем max_sort_length. Их сортировка проведена по первым %lu байтам"
+        swe "%llu värden var längre än max_sort_length=%lu"

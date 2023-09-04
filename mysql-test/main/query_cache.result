@@ -834,6 +834,8 @@ xxxxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxw
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxy
+Warnings:
+Warning	4202	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
 set max_sort_length=200;
 select c from t1 order by c, id;
 c
@@ -877,7 +879,7 @@ Variable_name	Value
 Qcache_queries_in_cache	0
 show status like "Qcache_inserts";
 Variable_name	Value
-Qcache_inserts	19
+Qcache_inserts	18
 show status like "Qcache_hits";
 Variable_name	Value
 Qcache_hits	6
@@ -890,7 +892,7 @@ Variable_name	Value
 Qcache_queries_in_cache	1
 show status like "Qcache_inserts";
 Variable_name	Value
-Qcache_inserts	20
+Qcache_inserts	19
 show status like "Qcache_hits";
 Variable_name	Value
 Qcache_hits	7
