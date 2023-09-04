@@ -9,16 +9,18 @@
 #wsrep_cluster_name       = "MariaDB Galera Cluster"
 
 # Mandatory settings
-#wsrep_provider           = /usr/lib/galera/libgalera_smm.so
+# per https://mariadb.com/docs/galera-cluster/readme/mariadb-galera-cluster-usage-guide#general-configuration
+wsrep_provider           = /usr/lib/galera/libgalera_smm.so
 #wsrep_cluster_address    = gcomm://
-#binlog_format            = ROW
-#wsrep_on                 = ON
-#default_storage_engine   = InnoDB
+binlog_format            = ROW
+wsrep_on                 = ON
+binlog_format            = row
+innodb_autoinc_lock_mode = 2
 
 # Allow server to accept connections on all interfaces.
-#bind-address = 0.0.0.0
+bind-address = 0.0.0.0
 
 # Performance related settings
-#innodb_autoinc_lock_mode = 2
+# https://mariadb.com/docs/galera-cluster/galera-management/configuration/configuring-mariadb-galera-cluster#performance-related-options
 #innodb_flush_log_at_trx_commit = 0
-#wsrep_slave_threads = 1
+#wsrep_slave_threads = 4

@@ -972,6 +972,26 @@ Description: MySQL compatibility links to mariadb-server binaries/scripts.
  This package is also useful for users with strong  background in MySQL
  maintenance, but wants to switch to MariaDB
 
+Package: mariadb-server-galera
+Architecture: any
+Depends: galera-4 (>= 26.4),
+         gawk,
+         iproute2 [linux-any],
+         lsof [linux-any],
+         mariadb-server,
+         pv,
+         rsync,
+         socat,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Conflicts: mariadb-server (<< 12.3)
+Breaks: mariadb-server (<< 1:12.3)
+Description: MariaDB scripts and configuration needed by Galera cluster
+ MariaDB Galera Cluster is a virtually synchronous multi-primary
+ cluster for MariaDB.
+ .
+ Galera Cluster needs this package
+
 Package: mariadb-backup
 Architecture: any
 Breaks:
