@@ -565,7 +565,7 @@ int ha_drop_table(THD *thd, handlerton *hton, const char *path)
 
 static int hton_drop_table(handlerton *hton, const char *path)
 {
-  char tmp_path[FN_REFLEN];
+  Table_path_buffer tmp_path;
   handler *file= get_new_handler(nullptr, current_thd->mem_root, hton);
   if (!file)
   {
@@ -575,7 +575,7 @@ static int hton_drop_table(handlerton *hton, const char *path)
     */
     return my_errno == ENOMEM ? ENOMEM : ENOENT;
   }
-  path= get_canonical_filename(file, path, tmp_path);
+  path= file->get_canonical_filename(Lex_cstring_strlen(path), &tmp_path).str;
   int error= file->delete_table(path);
   delete file;
   return error;
@@ -3118,9 +3118,8 @@ bool ha_flush_logs()
 /**
   @brief make canonical filename
 
-  @param[in]  file     table handler
   @param[in]  path     original path
-  @param[out] tmp_path buffer for canonized path
+  @param[out] buff     buffer for canonized path
 
   @details Lower case db name and table name path parts for
            non file based tables when lower_case_table_names
@@ -3128,8 +3127,7 @@ bool ha_flush_logs()
            Filesystem path prefix (mysql_data_home or tmpdir)
            is left intact.
 
-  @note tmp_path may be left intact if no conversion was
-        performed.
+  @note buff may be left intact if no conversion was performed.
 
   @retval canonized path
 
@@ -3137,29 +3135,40 @@ bool ha_flush_logs()
         gets built. Convert this function to something like
         ASSERT_CANONICAL_FILENAME.
 */
-const char *get_canonical_filename(handler *file, const char *path,
-                                   char *tmp_path)
+
+Lex_cstring handler::get_canonical_filename(const Lex_cstring &path,
+                                            Table_path_buffer *buff) const
 {
+  /* Ensure that table handler get path in lower case */
   uint i;
-  if (!file->needs_lower_case_filenames())
+  if (!needs_lower_case_filenames())
     return path;
 
   for (i= 0; i <= mysql_tmpdir_list.max; i++)
   {
-    if (is_prefix(path, mysql_tmpdir_list.list[i]))
+    if (is_prefix(path.str, mysql_tmpdir_list.list[i]))
       return path;
   }
-
-  /* Ensure that table handler get path in lower case */
-  if (tmp_path != path)
-    strmov(tmp_path, path);
-
   /*
     we only should turn into lowercase database/table part
-    so start the process after homedirectory
+    so start lower-casing after homedirectory
   */
-  my_casedn_str(files_charset_info, tmp_path + mysql_data_home_len);
-  return tmp_path;
+  DBUG_ASSERT(path.starts_with({mysql_data_home, mysql_data_home_len}));
+  /*
+    QQ: important for upgrade from MySQL-5.0 with --lower-case-table-names=2
+
+    In case if both the table name and the database name are encoded
+    using tablename_to_filename(), the it's ok to lower-case the entire
+    "/db/table" part using files_charset_info.
+
+    Otherwise, in case if either of the table name or the database name
+    starts with '#mysql50#', it's probably not correct to lower-case using
+    files_charset_info. Shoudn't we lower-case '#mysql50#name' using
+    character_set_filesystem instead?
+  */
+  return buff->set_casedn(path.left(mysql_data_home_len),
+                          files_charset_info,
+                          path.substr(mysql_data_home_len)).to_lex_cstring();
 }
 
 
@@ -6092,7 +6101,7 @@ int ha_create_table(THD *thd, const char *path, const char *db,
 {
   int error= 1;
   TABLE table;
-  char name_buff[FN_REFLEN];
+  Table_path_buffer name_buff;
   const char *name;
   TABLE_SHARE share;
   Abort_on_warning_instant_set old_abort_on_warning(thd, 0);
@@ -6131,7 +6140,7 @@ int ha_create_table(THD *thd, const char *path, const char *db,
 
   update_create_info_from_table(create_info, &table);
 
-  name= get_canonical_filename(table.file, share.path.str, name_buff);
+  name= table.file->get_canonical_filename(share.path, &name_buff).str;
 
   error= table.file->ha_create(name, &table, create_info);
 

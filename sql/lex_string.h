@@ -50,6 +50,31 @@ class Lex_cstring : public LEX_CSTRING
     str= _str;
     length= _len;
   }
+  /*
+    Return the "n" leftmost bytes if this[0] is longer than "n" bytes,
+    or return this[0] itself otherwise.
+  */
+  Lex_cstring left(size_t n) const
+  {
+    return Lex_cstring(str, MY_MIN(length, n));
+  }
+  /*
+    If this[0] is shorter than "pos" bytes, then return an empty string.
+    Otherwise, return a substring of this[0] starting from
+    the byte position "pos" until the end.
+  */
+  Lex_cstring substr(size_t pos) const
+  {
+    return length <= pos ? Lex_cstring(str + length, (size_t) 0) :
+                           Lex_cstring(str + pos, length - pos);
+  }
+  // Check if a prefix of this[0] is equal to "rhs".
+  bool starts_with(const LEX_CSTRING &rhs) const
+  {
+    DBUG_ASSERT(str);
+    DBUG_ASSERT(rhs.str);
+    return length >= rhs.length && !memcmp(str, rhs.str, rhs.length);
+  }
 };
 
 

@@ -3113,6 +3113,39 @@ enum class Compare_keys : uint32_t
 };
 
 
+/*
+  This class stores a table file name in the format:
+     homedir/db/table
+  where db and table use tablename_to_filename() compatible encoding.
+*/
+class Table_path_buffer: public CharBuffer<FN_REFLEN>
+{
+public:
+  Table_path_buffer()
+  { }
+  /**
+    Make a lower-cased path for a table.
+    @homedir      - home directory, get copied to the buffer as is
+                    (without lower-casing)
+    @db_and_table - the database and the table name part in the format
+                    "/db/table", can be in arbitrary letter case. It gets
+                    converted to lower case during copying to the buffer.
+                    The "db" and "table" parts can be prefixed with '#myql50#'.
+
+    Makes the path in the format "homedir/db/table".
+  */
+  Table_path_buffer & set_casedn(const Lex_cstring &homedir,
+                                 CHARSET_INFO *db_and_table_charset,
+                                 const Lex_cstring &db_and_table)
+  {
+    DBUG_ASSERT(homedir.length + db_and_table.length <= max_data_size());
+    copy_bin(homedir);
+    append_casedn(db_and_table_charset, db_and_table);
+    return *this;
+  }
+};
+
+
 /**
   The handler class is the interface for dynamically loadable
   storage engines. Do not add ifdefs and take care when adding or
@@ -5441,9 +5474,19 @@ public:
   file system) and the storage is not HA_FILE_BASED, we need to provide
   a lowercase file name for the engine.
 */
-  inline bool needs_lower_case_filenames()
+  inline bool needs_lower_case_filenames() const
   {
     return (lower_case_table_names == 2 && !(ha_table_flags() & HA_FILE_BASED));
+  }
+
+  Lex_cstring get_canonical_filename(const Lex_cstring &path,
+                                     Table_path_buffer *tmp_path)
+                                     const;
+
+  bool is_canonical_filename(const LEX_CSTRING &path) const
+  {
+    Table_path_buffer cpath;
+    return !strcmp(path.str, get_canonical_filename(path, &cpath).str);
   }
 
   bool log_not_redoable_operation(const char *operation);
@@ -5627,8 +5670,7 @@ void trans_register_ha(THD *thd, bool all, handlerton *ht,
 #define trans_need_2pc(thd, all)                   ((total_ha_2pc > 1) && \
         !((all ? &thd->transaction.all : &thd->transaction.stmt)->no_2pc))
 
-const char *get_canonical_filename(handler *file, const char *path,
-                                   char *tmp_path);
+
 void commit_checkpoint_notify_ha(void *cookie);
 
 inline const LEX_CSTRING *table_case_name(HA_CREATE_INFO *info, const LEX_CSTRING *name)

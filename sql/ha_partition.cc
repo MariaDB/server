@@ -99,19 +99,19 @@ int ha_partition::notify_tabledef_changed(LEX_CSTRING *db,
                                           LEX_CUSTRING *frm,
                                           LEX_CUSTRING *version)
 {
-  char from_buff[FN_REFLEN + 1], from_lc_buff[FN_REFLEN + 1];
-  const char *from_path, *name_buffer_ptr, *from;
+  char from_buff[FN_REFLEN + 1];
+  Table_path_buffer from_lc_buff;
+  const char *from_path, *name_buffer_ptr;
   int res= 0;
   handler **file= m_file;
   DBUG_ENTER("ha_partition::notify_tabledef_changed");
-
-  from= table->s->normalized_path.str;
 
   /* setup m_name_buffer_ptr */
   if (read_par_file(table->s->normalized_path.str))
     DBUG_RETURN(1);
 
-  from_path= get_canonical_filename(*file, from, from_lc_buff);
+  from_path= file[0]->get_canonical_filename(table->s->normalized_path,
+                                             &from_lc_buff).str;
   name_buffer_ptr= m_name_buffer_ptr;
   do
   {
@@ -769,7 +769,8 @@ int ha_partition::create(const char *name, TABLE *table_arg,
 {
   int error;
   THD *thd= ha_thd();
-  char name_buff[FN_REFLEN + 1], name_lc_buff[FN_REFLEN];
+  char name_buff[FN_REFLEN + 1];
+  Table_path_buffer name_lc_buff;
   char *name_buffer_ptr;
   const char *path;
   uint i;
@@ -819,7 +820,8 @@ int ha_partition::create(const char *name, TABLE *table_arg,
     The appended #P#<partname>[#SP#<subpartname>] will remain in current case.
     Using the first partitions handler, since mixing handlers is not allowed.
   */
-  path= get_canonical_filename(*file, name, name_lc_buff);
+  path= file[0]->get_canonical_filename(Lex_cstring_strlen(name),
+                                        &name_lc_buff).str;
   for (i= 0; i < m_part_info->num_parts; i++)
   {
     part_elem= part_it++;
@@ -911,8 +913,8 @@ int ha_partition::drop_partitions(const char *path)
     Assert that it works without HA_FILE_BASED and lower_case_table_name = 2.
     We use m_file[0] as long as all partitions have the same storage engine.
   */
-  DBUG_ASSERT(!strcmp(path, get_canonical_filename(m_file[0], path,
-                                                   part_name_buff)));
+  DBUG_ASSERT(m_file[0]->is_canonical_filename(Lex_cstring_strlen(path)));
+
   do
   {
     partition_element *part_elem= part_it++;
@@ -1016,8 +1018,7 @@ int ha_partition::rename_partitions(const char *path)
     Assert that it works without HA_FILE_BASED and lower_case_table_name = 2.
     We use m_file[0] as long as all partitions have the same storage engine.
   */
-  DBUG_ASSERT(!strcmp(path, get_canonical_filename(m_file[0], path,
-                                                   norm_name_buff)));
+  DBUG_ASSERT(m_file[0]->is_canonical_filename(Lex_cstring_strlen(path)));
 
   DEBUG_SYNC(ha_thd(), "before_rename_partitions");
   if (temp_partitions)
@@ -1855,8 +1856,8 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
     Assert that it works without HA_FILE_BASED and lower_case_table_name = 2.
     We use m_file[0] as long as all partitions have the same storage engine.
   */
-  DBUG_ASSERT(!strcmp(path, get_canonical_filename(m_file[0], path,
-                                                   part_name_buff)));
+  DBUG_ASSERT(m_file[0]->is_canonical_filename(Lex_cstring_strlen(path)));
+
   m_reorged_parts= 0;
   if (!m_part_info->is_sub_partitioned())
     num_subparts= 1;
@@ -2448,8 +2449,8 @@ uint ha_partition::del_ren_table(const char *from, const char *to)
 {
   int save_error= 0;
   int error;
-  char from_buff[FN_REFLEN + 1], to_buff[FN_REFLEN + 1],
-       from_lc_buff[FN_REFLEN], to_lc_buff[FN_REFLEN];
+  char from_buff[FN_REFLEN + 1], to_buff[FN_REFLEN + 1];
+  Table_path_buffer from_lc_buff, to_lc_buff;
   char *name_buffer_ptr;
   const char *from_path;
   const char *to_path= NULL;
@@ -2489,9 +2490,11 @@ uint ha_partition::del_ren_table(const char *from, const char *to)
     The appended #P#<partname>[#SP#<subpartname>] will remain in current case.
     Using the first partitions handler, since mixing handlers is not allowed.
   */
-  from_path= get_canonical_filename(*file, from, from_lc_buff);
+  from_path= file[0]->get_canonical_filename(Lex_cstring_strlen(from),
+                                             &from_lc_buff).str;
   if (to != NULL)
-    to_path= get_canonical_filename(*file, to, to_lc_buff);
+    to_path= file[0]->get_canonical_filename(Lex_cstring_strlen(to),
+                                             &to_lc_buff).str;
   do
   {
     if (unlikely((error= create_partition_name(from_buff, sizeof(from_buff),
