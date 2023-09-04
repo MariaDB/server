@@ -47,7 +47,7 @@ start slave;
 eval change master to master_host='127.0.0.1',master_port=$MASTER_MYPORT, master_user='root';
 reset slave;
 --replace_result $MASTER_MYPORT MASTER_PORT
-eval change master to master_host='127.0.0.1',master_port=$MASTER_MYPORT, master_user='root'; 
+eval change master to master_host='127.0.0.1',master_port=$MASTER_MYPORT, master_user='root', master_ssl_verify_server_cert=0; 
 connection master;
 reset master;
 connection slave;

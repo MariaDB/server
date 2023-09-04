@@ -3655,6 +3655,7 @@ int ha_federatedx::discover_assisted(handlerton *hton, THD* thd,
   MYSQL_ROW rdata;
   ulong *rlen;
   my_bool my_true= 1;
+  my_bool my_false= 0;
 
   if (parse_url(thd->mem_root, &tmp_share, table_s, 1))
     return HA_WRONG_CREATE_OPTION;
@@ -3662,6 +3663,7 @@ int ha_federatedx::discover_assisted(handlerton *hton, THD* thd,
   mysql_init(&mysql);
   mysql_options(&mysql, MYSQL_SET_CHARSET_NAME, cs->cs_name.str);
   mysql_options(&mysql, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY, (char*)&my_true);
+  mysql_options(&mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT, &my_false);
 
   if (!mysql_real_connect(&mysql, tmp_share.hostname, tmp_share.username,
                           tmp_share.password, tmp_share.database,

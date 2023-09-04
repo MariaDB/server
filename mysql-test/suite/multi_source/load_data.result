@@ -2,8 +2,8 @@ connect  slave,127.0.0.1,root,,,$SERVER_MYPORT_3;
 connect  master1,127.0.0.1,root,,,$SERVER_MYPORT_1;
 connect  master2,127.0.0.1,root,,,$SERVER_MYPORT_2;
 connection slave;
-change master '' to master_port=MYPORT_1, master_host='127.0.0.1', master_user='root';
-change master 'master2' to master_port=MYPORT_2, master_host='127.0.0.1', master_user='root';
+change master '' to master_port=MYPORT_1, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0;
+change master 'master2' to master_port=MYPORT_2, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0;
 start all slaves;
 Warnings:
 Note	1937	SLAVE 'master2' started

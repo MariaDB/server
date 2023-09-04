@@ -22,9 +22,9 @@
 --echo # Connect the slave (server_3) to two masters (server_1 and server_2)
 --connection server_3
 --replace_result $SERVER_MYPORT_1 MYPORT_1
-eval CHANGE MASTER 'm1' TO master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root';
+eval CHANGE MASTER 'm1' TO master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0;
 --replace_result $SERVER_MYPORT_2 MYPORT_2
-eval CHANGE MASTER 'm2' TO master_port=$SERVER_MYPORT_2, master_host='127.0.0.1', master_user='root';
+eval CHANGE MASTER 'm2' TO master_port=$SERVER_MYPORT_2, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0;
 
 --echo # Apply events from server_1 (m1) into m1_test
 create database m1_test;

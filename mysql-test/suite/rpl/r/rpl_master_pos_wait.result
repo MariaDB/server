@@ -27,7 +27,7 @@ NULL
 connection slave;
 include/stop_slave.inc
 reset slave all;
-change master 'my_slave' to master_port=MASTER_MYPORT, master_host='127.0.0.1', master_user='root';
+change master 'my_slave' to master_port=MASTER_MYPORT, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0;
 set default_master_connection = 'my_slave';
 include/start_slave.inc
 # Call without connection name -- works (expected -1)

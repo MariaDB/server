@@ -107,7 +107,7 @@ connection slave;
 set @@global.slave_net_timeout= 10;
 --replace_result $MASTER_MYPORT MASTER_PORT
 # no error this time but rather a warning
-eval change master to master_host='127.0.0.1',master_port=$MASTER_MYPORT, master_user='root', master_heartbeat_period= 0.5;
+eval change master to master_host='127.0.0.1',master_port=$MASTER_MYPORT, master_user='root', master_ssl_verify_server_cert=0, master_heartbeat_period= 0.5;
 --query_vertical show status like 'Slave_heartbeat_period';
 
 start slave;

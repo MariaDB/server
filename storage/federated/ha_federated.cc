@@ -3140,6 +3140,7 @@ int ha_federated::real_connect()
 {
   char buffer[FEDERATED_QUERY_BUFFER_SIZE];
   String sql_query(buffer, sizeof(buffer), &my_charset_bin);
+  my_bool my_false= 0;
   DBUG_ENTER("ha_federated::real_connect");
 
   DBUG_ASSERT(mysql == NULL);
@@ -3156,16 +3157,12 @@ int ha_federated::real_connect()
     of table
   */
   /* this sets the csname like 'set names utf8' */
-  mysql_options(mysql,MYSQL_SET_CHARSET_NAME,
-                this->table->s->table_charset->cs_name.str);
+  mysql_options(mysql,MYSQL_SET_CHARSET_NAME, table->s->table_charset->cs_name.str);
+  mysql_options(mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT, &my_false);
 
   sql_query.length(0);
-  if (!mysql_real_connect(mysql,
-                          share->hostname,
-                          share->username,
-                          share->password,
-                          share->database,
-                          share->port,
+  if (!mysql_real_connect(mysql, share->hostname, share->username,
+                          share->password, share->database, share->port,
                           share->socket, 0))
   {
     stash_remote_error();

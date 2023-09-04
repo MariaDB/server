@@ -67,9 +67,9 @@ SET GLOBAL gtid_strict_mode=1;
 --disable_warnings
 --disable_query_log
 --replace_result $SERVER_MYPORT_1 MYPORT_1
-eval CHANGE MASTER 'm1' TO MASTER_PORT=$SERVER_MYPORT_1, MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_USE_GTID=slave_pos;
+eval CHANGE MASTER 'm1' TO MASTER_PORT=$SERVER_MYPORT_1, MASTER_HOST='127.0.0.1', MASTER_USER='root', master_ssl_verify_server_cert=0, MASTER_USE_GTID=slave_pos;
 --replace_result $SERVER_MYPORT_2 MYPORT_2
-eval CHANGE MASTER 'm2' TO MASTER_PORT=$SERVER_MYPORT_2, MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_USE_GTID=slave_pos;
+eval CHANGE MASTER 'm2' TO MASTER_PORT=$SERVER_MYPORT_2, MASTER_HOST='127.0.0.1', MASTER_USER='root', master_ssl_verify_server_cert=0, MASTER_USE_GTID=slave_pos;
 --enable_query_log
 --enable_warnings
 

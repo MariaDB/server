@@ -2,8 +2,8 @@ connect  slave,127.0.0.1,root,,,$SERVER_MYPORT_3;
 connect  master1,127.0.0.1,root,,,$SERVER_MYPORT_1;
 connect  master2,127.0.0.1,root,,,$SERVER_MYPORT_2;
 connection slave;
-CHANGE MASTER 'slave1' TO MASTER_PORT=MYPORT_1, MASTER_HOST='127.0.0.1', MASTER_USER='root';
-CHANGE MASTER 'slave2' TO MASTER_PORT=MYPORT_2, MASTER_HOST='127.0.0.1', MASTER_USER='root';
+CHANGE MASTER 'slave1' TO MASTER_PORT=MYPORT_1, MASTER_HOST='127.0.0.1', MASTER_USER='root', master_ssl_verify_server_cert=0;
+CHANGE MASTER 'slave2' TO MASTER_PORT=MYPORT_2, MASTER_HOST='127.0.0.1', MASTER_USER='root', master_ssl_verify_server_cert=0;
 START REPLICA 'slave1';
 SET default_master_connection = 'slave1';
 include/wait_for_slave_to_start.inc
@@ -49,7 +49,7 @@ Relay_Log_Space	<relay_log_space1>
 Until_Condition	None
 Until_Log_File	
 Until_Log_Pos	0
-Master_SSL_Allowed	No
+Master_SSL_Allowed	Yes
 Master_SSL_CA_File	
 Master_SSL_CA_Path	
 Master_SSL_Cert	
@@ -111,7 +111,7 @@ Relay_Log_Space	<relay_log_space1>
 Until_Condition	None
 Until_Log_File	
 Until_Log_Pos	0
-Master_SSL_Allowed	No
+Master_SSL_Allowed	Yes
 Master_SSL_CA_File	
 Master_SSL_CA_Path	
 Master_SSL_Cert	

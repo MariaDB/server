@@ -17,6 +17,7 @@ select n from t1;
 connection master;
 drop table t1;
 sync_slave_with_master;
+source include/wait_for_slave_to_start.inc;
 
 # End of 4.1 tests
 --source include/rpl_end.inc

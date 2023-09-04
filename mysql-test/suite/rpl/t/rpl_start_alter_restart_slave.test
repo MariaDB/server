@@ -6,8 +6,8 @@
 #
 --source include/have_log_bin.inc
 --source include/have_innodb.inc
---source include/master-slave.inc
 --source include/have_debug.inc
+--source include/master-slave.inc
 
 --connection slave
 SET @old_debug_slave= @@global.debug;
@@ -112,10 +112,10 @@ SET GLOBAL debug_dbug= @old_debug_master;
 set DEBUG_SYNC= 'RESET';
 
 --sync_slave_with_master
-stop slave;
+--source include/stop_slave.inc
 --eval set global slave_parallel_threads = $slave_parallel_threads;
 --eval set global slave_parallel_mode = $slave_parallel_mode;
 --eval set global gtid_strict_mode = $gtid_strict_mode;
 set DEBUG_SYNC= 'RESET';
-start slave;
+--source include/start_slave.inc
 --source include/rpl_end.inc

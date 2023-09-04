@@ -31,7 +31,7 @@ static void init_master_log_pos(Master_info* mi);
 Master_info::Master_info(LEX_CSTRING *connection_name_arg,
                          bool is_slave_recovery)
   :Slave_reporting_capability("I/O"),
-   ssl(0), ssl_verify_server_cert(0), fd(-1), io_thd(0),
+   ssl(1), ssl_verify_server_cert(1), fd(-1), io_thd(0),
    rli(is_slave_recovery), port(MYSQL_PORT),
    checksum_alg_before_fd(BINLOG_CHECKSUM_ALG_UNDEF),
    connect_retry(DEFAULT_CONNECT_RETRY), inited(0), abort_slave(0),

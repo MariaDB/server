@@ -24,7 +24,7 @@ Heartbeat event has received
 *** Clean up ***
 include/stop_slave.inc
 CHANGE MASTER TO 
-MASTER_SSL=0,
+MASTER_SSL=1,
 MASTER_SSL_CA='',
 MASTER_SSL_CERT='',
 MASTER_SSL_KEY='';

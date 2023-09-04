@@ -1903,12 +1903,10 @@ int spider_db_mbase::connect(
       mysql_options(db_conn, MYSQL_OPT_SSL_CA, conn->tgt_ssl_ca);
       mysql_options(db_conn, MYSQL_OPT_SSL_CAPATH, conn->tgt_ssl_capath);
       mysql_options(db_conn, MYSQL_OPT_SSL_CIPHER, conn->tgt_ssl_cipher);
-      if (conn->tgt_ssl_vsc)
-      {
-        my_bool verify_flg = TRUE;
-        mysql_options(db_conn, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
-          &verify_flg);
-      }
+    }
+    {
+      my_bool verify_flg = conn->tgt_ssl_vsc != 0;
+      mysql_options(db_conn, MYSQL_OPT_SSL_VERIFY_SERVER_CERT, &verify_flg);
     }
 
     if (conn->tgt_default_file)

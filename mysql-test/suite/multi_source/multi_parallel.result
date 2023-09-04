@@ -5,11 +5,11 @@ set global slave_parallel_threads=10;
 change master 'master1' to
 master_port=MYPORT_1,
 master_host='127.0.0.1',
-master_user='root';
+master_user='root', master_ssl_verify_server_cert=0;
 change master 'master2' to
 master_port=MYPORT_2,
 master_host='127.0.0.1',
-master_user='root';
+master_user='root', master_ssl_verify_server_cert=0;
 start all slaves;
 set default_master_connection = 'master1';
 include/wait_for_slave_to_start.inc

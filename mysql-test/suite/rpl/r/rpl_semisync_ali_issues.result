@@ -352,6 +352,4 @@ SET GLOBAL rpl_semi_sync_master_enabled = 0;
 DROP TABLE t1;
 connection slave;
 SET GLOBAL rpl_semi_sync_slave_enabled = 0;
-stop slave;
-start slave;
 include/rpl_end.inc

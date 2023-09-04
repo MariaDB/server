@@ -133,7 +133,7 @@ connection slave;
 --let $rpl_server_number= 2
 --source include/rpl_restart_server.inc
 --replace_result $MASTER_MYPORT MASTER_MYPORT
-eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$MASTER_MYPORT, MASTER_USER='root';
+eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$MASTER_MYPORT, MASTER_USER='root', MASTER_SSL_VERIFY_SERVER_CERT=0;
 
 # New value
 connection slave;

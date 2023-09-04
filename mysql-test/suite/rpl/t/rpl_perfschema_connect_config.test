@@ -232,7 +232,7 @@ CHANGE MASTER TO
  master_ssl_cert= '',
  master_ssl_key= '',
  master_ssl_verify_server_cert=0,
- master_ssl=0,
+ master_ssl=1,
  master_use_gtid=no;
 --source include/start_slave.inc
 

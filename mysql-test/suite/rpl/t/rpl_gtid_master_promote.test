@@ -221,7 +221,8 @@ SELECT * FROM t4 ORDER BY a,b;
 --connection server_1
 --replace_result $SERVER_MYPORT_2 SERVER_MYPORT_2
 eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SERVER_MYPORT_2,
-     master_user = "root", master_use_gtid = slave_pos, master_demote_to_slave=1;
+     master_user = "root", master_ssl_verify_server_cert=0,
+     master_use_gtid = slave_pos, master_demote_to_slave=1;
 --source include/start_slave.inc
 --sync_with_master
 SELECT * FROM t1 ORDER BY a;

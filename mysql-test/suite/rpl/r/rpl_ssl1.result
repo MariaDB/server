@@ -108,7 +108,7 @@ master_ssl_ca ='',
 master_ssl_cert='',
 master_ssl_key='',
 master_ssl_verify_server_cert=0,
-master_ssl=0;
+master_ssl=1;
 connection master;
 drop user replssl@127.0.0.1;
 connection slave;
