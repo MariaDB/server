@@ -21,6 +21,7 @@
 #include "rpl_constants.h"
 
 class Relay_log_info;
+class Gtid_index_writer;
 
 class Format_description_log_event;
 
@@ -711,6 +712,9 @@ class MYSQL_BIN_LOG: public TC_LOG, private Event_log
   /* The reason why the group commit was grouped */
   ulonglong group_commit_trigger_count, group_commit_trigger_timeout;
   ulonglong group_commit_trigger_lock_wait;
+
+  /* Binlog GTID index. */
+  Gtid_index_writer *gtid_index;
 
   /* pointer to the sync period variable, for binlog this will be
      sync_binlog_period, for relay log this will be
