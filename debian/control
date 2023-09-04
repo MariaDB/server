@@ -972,6 +972,39 @@ Description: MySQL compatibility links to mariadb-server binaries/scripts.
  This package is also useful for users with strong  background in MySQL
  maintenance, but wants to switch to MariaDB
 
+Package: mariadb-server-galera
+Architecture: any
+Depends:
+ galera-4 (>= 26.4),
+ gawk,
+ iproute2 [linux-any],
+ lsof [linux-any],
+ mariadb-server,
+ rsync,
+ socat,
+ ${misc:Depends},
+ ${shlibs:Depends},
+Recommends:
+ pv,
+Conflicts:
+ mariadb-galera-server-10.0,
+ mariadb-galera-server-5.5,
+ mariadb-server (<< 1:12.3.2),
+Breaks:
+ mariadb-server (<< 1:12.3.2),
+Description: MariaDB scripts and configuration needed by Galera cluster
+ MariaDB Galera Cluster is a virtually synchronous multi-primary
+ cluster for MariaDB.
+ .
+ Galera is the underlying replication plugin that makes this clustering
+ possible. It provides write-set replication with group communication
+ primitives to ensure data consistency across all nodes in real-time.
+ .
+ The library enables active-active multi-master topologies with automatic
+ membership control, supports both incremental (IST) and snapshot (SST)
+ state transfers, and guarantees no transaction loss on node failures
+ through its virtually synchronous replication protocol.
+
 Package: mariadb-backup
 Architecture: any
 Breaks:
@@ -1317,7 +1350,7 @@ Architecture: any
 Depends:
  libnet-ssleay-perl,
  mariadb-client (= ${binary:Version}),
- mariadb-server (= ${server:Version}),
+ mariadb-server-galera (= ${server:Version}),
  mariadb-test-data (= ${source:Version}),
  virtual-mysql-testsuite,
  ${misc:Depends},
