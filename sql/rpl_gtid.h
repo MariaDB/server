@@ -26,6 +26,10 @@
 extern const LEX_CSTRING rpl_gtid_slave_state_table_name;
 
 class String;
+#ifdef MYSQL_SERVER
+class TABLE;
+#endif
+
 #define PARAM_GTID(G) G.domain_id, G.server_id, G.seq_no
 
 #define GTID_MAX_STR_LENGTH (10+1+10+1+20)
@@ -327,6 +331,7 @@ struct rpl_binlog_state
   void free();
   bool load(struct rpl_gtid *list, uint32 count);
   bool load(rpl_slave_state *slave_pos);
+  bool load(rpl_binlog_state *orig_state);
   int update_nolock(const struct rpl_gtid *gtid, bool strict);
   int update(const struct rpl_gtid *gtid, bool strict);
   int update_with_next_gtid(uint32 domain_id, uint32 server_id,

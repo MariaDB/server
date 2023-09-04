@@ -40,6 +40,7 @@
 #include "sql_audit.h"
 #include "mysqld.h"
 #include "ddl_log.h"
+#include "gtid_index.h"
 
 #include <my_dir.h>
 #include <m_ctype.h>				// For test_if_number
@@ -3628,7 +3629,7 @@ MYSQL_BIN_LOG::MYSQL_BIN_LOG(uint *sync_period)
    group_commit_queue(0), group_commit_queue_busy(FALSE),
    num_commits(0), num_group_commits(0),
    group_commit_trigger_count(0), group_commit_trigger_timeout(0),
-   group_commit_trigger_lock_wait(0),
+   group_commit_trigger_lock_wait(0), gtid_index(nullptr),
    sync_period_ptr(sync_period), sync_counter(0),
    state_file_deleted(false), binlog_state_recover_done(false),
    is_relay_log(0), relay_signal_cnt(0),
@@ -4048,6 +4049,18 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
         Gtid_list_log_event gl_ev(&rpl_global_gtid_binlog_state, 0);
         if (write_event(&gl_ev))
           goto err;
+
+        /* Open an index file for this binlog file. */
+        DBUG_ASSERT(!gtid_index); /* Binlog close should clear it. */
+        if (gtid_index)
+          delete gtid_index;
+        my_off_t offset= my_b_tell(&log_file);
+        gtid_index= new Gtid_index_writer(log_file_name, offset,
+                                          &rpl_global_gtid_binlog_state);
+        if (!gtid_index)
+          sql_print_information("Could not create GTID index for binlog "
+                                "file '%s'. Accesses to this binlog file will "
+                                "fallback to slower sequential scan.");
 
         /* Output a binlog checkpoint event at the start of the binlog file. */
 
@@ -7067,6 +7080,12 @@ err:
       {
         bool synced;
 
+        if (likely(gtid_index))
+        {
+          rpl_gtid gtid= thd->get_last_commit_gtid();
+          gtid_index->process_gtid(offset, &gtid);
+        }
+
         if ((error= flush_and_sync(&synced)))
         {
         }
@@ -8593,6 +8612,11 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
 
       strmake_buf(cache_mngr->last_commit_pos_file, log_file_name);
       commit_offset= my_b_write_tell(&log_file);
+      if (likely(gtid_index))
+      {
+        rpl_gtid gtid= current->thd->get_last_commit_gtid();
+        gtid_index->process_gtid(commit_offset, &gtid);
+      }
       cache_mngr->last_commit_pos_offset= commit_offset;
       if ((cache_mngr->using_xa && cache_mngr->xa_xid) || current->need_unlog)
       {
@@ -9167,10 +9191,14 @@ void MYSQL_BIN_LOG::close(uint exiting)
     }
 #endif /* HAVE_REPLICATION */
 
+    my_off_t org_position= mysql_file_tell(log_file.file, MYF(0));
+    if (likely(gtid_index))
+      gtid_index->close(org_position);
+    gtid_index= nullptr;
+
     /* don't pwrite in a file opened with O_APPEND - it doesn't work */
     if (log_file.type == WRITE_CACHE && !(exiting & LOG_CLOSE_DELAYED_CLOSE))
     {
-      my_off_t org_position= mysql_file_tell(log_file.file, MYF(0));
       if (!failed_to_save_state)
         clear_inuse_flag_when_closing(log_file.file);
       /*

@@ -1627,6 +1627,35 @@ rpl_binlog_state::load(rpl_slave_state *slave_pos)
 }
 
 
+/* ToDo: Is this needed? If not, remove. */
+bool
+rpl_binlog_state::load(rpl_binlog_state *orig_state)
+{
+  ulong i, j;
+  HASH *h1= &orig_state->hash;
+
+  reset_nolock();
+  for (i= 0; i < h1->records; ++i)
+  {
+    element *e= (element *)my_hash_element(h1, i);
+    HASH *h2= &e->hash;
+    const rpl_gtid *last_gtid= e->last_gtid;
+    for (j= 0; j < h2->records; ++j)
+    {
+      const rpl_gtid *gtid= (const rpl_gtid *)my_hash_element(h2, j);
+      if (gtid == last_gtid)
+        continue;
+      if (update_nolock(gtid, false))
+        return true;
+    }
+    if (likely(last_gtid) && update_nolock(last_gtid, false))
+      return true;
+  }
+
+  return false;
+}
+
+
 rpl_binlog_state::~rpl_binlog_state()
 {
   free();

@@ -410,7 +410,7 @@ extern PSI_file_key key_file_relaylog, key_file_relaylog_index,
                     key_file_relaylog_cache, key_file_relaylog_index_cache;
 extern PSI_socket_key key_socket_tcpip, key_socket_unix,
   key_socket_client_connection;
-extern PSI_file_key key_file_binlog_state;
+extern PSI_file_key key_file_binlog_state, key_file_gtid_index;
 
 #ifdef HAVE_PSI_INTERFACE
 void init_server_psi_keys();

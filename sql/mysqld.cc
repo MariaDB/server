@@ -894,7 +894,7 @@ PSI_file_key key_file_binlog,  key_file_binlog_cache, key_file_binlog_index,
 PSI_file_key key_file_query_log, key_file_slow_log;
 PSI_file_key key_file_relaylog, key_file_relaylog_index,
              key_file_relaylog_cache, key_file_relaylog_index_cache;
-PSI_file_key key_file_binlog_state;
+PSI_file_key key_file_binlog_state, key_file_gtid_index;
 
 #ifdef HAVE_PSI_INTERFACE
 #ifdef HAVE_MMAP
@@ -9159,7 +9159,8 @@ static PSI_file_info all_server_files[]=
   { &key_file_trg, "trigger_name", 0},
   { &key_file_trn, "trigger", 0},
   { &key_file_init, "init", 0},
-  { &key_file_binlog_state, "binlog_state", 0}
+  { &key_file_binlog_state, "binlog_state", 0},
+  { &key_file_gtid_index, "gtid_index", 0}
 };
 #endif /* HAVE_PSI_INTERFACE */
 

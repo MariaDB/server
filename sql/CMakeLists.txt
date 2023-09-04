@@ -159,7 +159,7 @@ SET (SQL_SOURCE
                gcalc_slicescan.cc gcalc_tools.cc
                my_apc.cc mf_iocache_encr.cc item_jsonfunc.cc
                my_json_writer.cc
-               rpl_gtid.cc rpl_parallel.cc
+               rpl_gtid.cc gtid_index.cc rpl_parallel.cc
                semisync.cc semisync_master.cc semisync_slave.cc
                semisync_master_ack_receiver.cc
                sql_schema.cc

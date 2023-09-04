@@ -21,6 +21,7 @@
 #include "rpl_constants.h"
 
 class Relay_log_info;
+class Gtid_index_writer;
 
 class Format_description_log_event;
 
@@ -544,6 +545,9 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
 
   /* binlog encryption data */
   struct Binlog_crypt_data crypto;
+
+  /* Binlog GTID index. */
+  Gtid_index_writer *gtid_index;
 
   /* pointer to the sync period variable, for binlog this will be
      sync_binlog_period, for relay log this will be
