@@ -7370,6 +7370,35 @@ sp_name *LEX::make_sp_name(THD *thd, const Lex_ident_sys_st &name1,
 }
 
 
+sp_lex_local *LEX::package_routine_start(THD *thd,
+                                         const Sp_handler *sph,
+                                         const Lex_ident_sys_st &name)
+{
+  DBUG_ASSERT(sphead);
+  DBUG_ASSERT(sphead->get_package());
+  thd->m_parser_state->m_yacc.reset_before_substatement();
+
+  sp_lex_local *sublex= new (thd->mem_root) sp_lex_local(thd, this);
+  if (!unlikely(sublex))
+    return NULL;
+
+  sublex->sql_command= sph->sqlcom_create();
+  sp_name *spname= make_sp_name_package_routine(thd, name);
+  if (unlikely(!spname))
+    return NULL;
+
+  if (sublex->sql_command == SQLCOM_CREATE_FUNCTION)
+    (void) is_native_function_with_warn(thd, &name);
+
+  enum_sp_aggregate_type atype= sublex->sql_command == SQLCOM_CREATE_FUNCTION ?
+                                NOT_AGGREGATE : DEFAULT_AGGREGATE;
+  if (unlikely(!sublex->make_sp_head_no_recursive(thd, spname, sph, atype)))
+    return NULL;
+  sphead->get_package()->m_current_routine= sublex;
+  return sublex;
+}
+
+
 sp_head *LEX::make_sp_head(THD *thd, const sp_name *name,
                            const Sp_handler *sph,
                            enum_sp_aggregate_type agg_type)
@@ -9311,10 +9340,10 @@ sp_package *LEX::get_sp_package() const
 
 
 sp_package *LEX::create_package_start(THD *thd,
-                                      enum_sql_command command,
                                       const Sp_handler *sph,
                                       const sp_name *name_arg,
-                                      DDL_options_st options)
+                                      DDL_options_st options,
+                                      const st_sp_chistics &chistics)
 {
   sp_package *pkg;
 
@@ -9323,7 +9352,7 @@ sp_package *LEX::create_package_start(THD *thd,
     my_error(ER_SP_NO_RECURSIVE_CREATE, MYF(0), sph->type_str());
     return NULL;
   }
-  if (unlikely(set_command_with_check(command, options)))
+  if (unlikely(set_command_with_check(sph->sqlcom_create(), options)))
     return NULL;
   if (sph->type() == SP_TYPE_PACKAGE_BODY)
   {
@@ -9359,6 +9388,7 @@ sp_package *LEX::create_package_start(THD *thd,
   pkg->reset_thd_mem_root(thd);
   pkg->init(this);
   pkg->make_qname(pkg->get_main_mem_root(), &pkg->m_qname);
+  pkg->set_c_chistics(chistics);
   sphead= pkg;
   return pkg;
 }

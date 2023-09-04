@@ -1,0 +1,46 @@
+#
+# CREATE PACKAGE for sql_mode='';
+# Resebmles SQL Standard 'CREATE MODULE'.
+#
+
+SET sql_mode='';
+
+DELIMITER $$;
+CREATE OR REPLACE PACKAGE pkg
+  PROCEDURE p1();
+  FUNCTION f1() RETURNS INT;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+CREATE OR REPLACE PACKAGE BODY pkg
+  -- variable declarations
+  DECLARE a INT DEFAULT 11;
+  DECLARE b INT DEFAULT 10;
+
+  -- routine declarations
+  PROCEDURE p1()
+  BEGIN
+    SELECT CURRENT_USER;
+  END;
+  FUNCTION f1() RETURNS INT
+  BEGIN
+    RETURN a;
+  END;
+
+  -- initialization section
+  SET a=a-b;
+END;
+$$
+DELIMITER ;$$
+
+
+SHOW CREATE PACKAGE pkg;
+SHOW CREATE PACKAGE BODY pkg;
+
+CALL pkg.p1();
+SELECT pkg.f1();
+
+DROP PACKAGE pkg;

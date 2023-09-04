@@ -3201,6 +3201,7 @@ public:
 };
 
 
+class sp_lex_local;
 class sp_lex_cursor;
 
 struct LEX: public Query_tables_list
@@ -3904,6 +3905,9 @@ public:
                                   const Lex_ident_sys_st &name2);
   sp_name *make_sp_name_package_routine(THD *thd,
                                         const Lex_ident_sys_st &name);
+  sp_lex_local *package_routine_start(THD *thd,
+                                      const Sp_handler *sph,
+                                      const Lex_ident_sys_st &name);
   sp_head *make_sp_head(THD *thd, const sp_name *name, const Sp_handler *sph,
                         enum_sp_aggregate_type agg_type);
   sp_head *make_sp_head_no_recursive(THD *thd, const sp_name *name,
@@ -3916,10 +3920,10 @@ public:
   bool sp_body_finalize_procedure(THD *);
   bool sp_body_finalize_procedure_standalone(THD *, const sp_name *end_name);
   sp_package *create_package_start(THD *thd,
-                                   enum_sql_command command,
                                    const Sp_handler *sph,
                                    const sp_name *name,
-                                   DDL_options_st options);
+                                   DDL_options_st options,
+                                   const st_sp_chistics &chistics);
   bool create_package_finalize(THD *thd,
                                const sp_name *name,
                                const sp_name *name2,
