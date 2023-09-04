@@ -765,9 +765,7 @@ Recommends: libhtml-template-perl,
 Pre-Depends: adduser (>= 3.40),
              debconf,
              mariadb-common (>= ${source:Version})
-Depends: galera-4 (>= 26.4),
-         gawk,
-         iproute2 [linux-any],
+Depends: gawk,
          libdbi-perl,
          lsof [linux-any],
          mariadb-client (>= ${source:Version}),
@@ -776,8 +774,6 @@ Depends: galera-4 (>= 26.4),
          perl (>= 5.6),
          procps,
          psmisc,
-         rsync,
-         socat,
          ${misc:Depends},
          ${perl:Depends},
          ${shlibs:Depends}
@@ -915,6 +911,27 @@ Description: MySQL compatibility links to mariadb-server binaries/scripts.
  .
  This package is also useful for users with strong  background in MySQL
  maintenance, but wants to switch to MariaDB
+
+Package: mariadb-server-galera
+Architecture: any
+Depends: galera-4 (>= 26.4),
+         gawk,
+         iproute2 [linux-any],
+         lsof [linux-any],
+         mariadb-server,
+         pv,
+         rsync,
+         socat,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Conflicts: mariadb-server (<< 11.3)
+Breaks: mariadb-server (<< 1:11.3)
+Description: MariaDB database scripts needed by Galera cluster
+ MariaDB Galera Cluster is a virtually synchronous multi-primary
+ cluster for MariaDB. It is available on Linux only, and only supports
+ the InnoDB storage engine.
+ .
+ Galera Cluster needs this package
 
 Package: mariadb-backup
 Architecture: any
