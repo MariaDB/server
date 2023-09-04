@@ -398,7 +398,7 @@ a) void make_sort_key(uchar *buff, uint length);
    make_sort_key is a non-virtual function which handles encoding of
    SQL null values.
 
-b) virtual void sort_string(uchar *buff,uint length)=0;
+b) virtual void sort_string(uchar *buff,uint length, uint original_length)=0;
     sort_string produces mem-comparable image of the field value
     for each datatype.
 

@@ -132,8 +132,10 @@ show status like "binlog_cache_disk_use";
 
 sync_slave_with_master;
 
+--disable_warnings # To hide warning 4197 "Comparison limited during sorting/grouping"
 let $diff_tables=master:test.t2, slave:test.t2;
 source include/diff_tables.inc;
+--enable_warnings
 
 # undoing changes with verifying the above once again
 connection master;
@@ -175,7 +177,9 @@ show status like "binlog_cache_disk_use";
 sync_slave_with_master;
 
 let $diff_tables=master:test.t3, slave:test.t3;
+--disable_warnings # To hide warning 4197 "Comparison limited during sorting/grouping"
 source include/diff_tables.inc;
+--enable_warnings
 
 # undoing changes with verifying the above once again
 connection master;
@@ -233,6 +237,7 @@ show status like "binlog_cache_disk_use";
 
 sync_slave_with_master;
 
+--disable_warnings # To hide warning 4197 "Comparison limited during sorting/grouping"
 let $diff_tables=master:test.t1, slave:test.t1;
 source include/diff_tables.inc;
 
@@ -241,7 +246,7 @@ source include/diff_tables.inc;
 
 let $diff_tables=master:test.t3, slave:test.t3;
 source include/diff_tables.inc;
-
+--enable_warnings
 
 --echo *** Test switching checksum algorithm while ongoing transactions have pre-computed checksum in their binlog cache ***
 

@@ -1062,11 +1062,12 @@ CPP_UNNAMED_NS_END
   @brief
     Create a fixed size sort key part
 
-  @param  buff           buffer where values are written
-  @param  length         fixed size of the sort column
+  @param  buff             buffer where values are written
+  @param  length           fixed size of the sort column
+  @param  original_length  original size of the field
 */
 
-void Field::make_sort_key_part(uchar *buff,uint length)
+void Field::make_sort_key_part(uchar *buff,uint length, uint original_length)
 {
   if (maybe_null())
   {
@@ -1077,7 +1078,7 @@ void Field::make_sort_key_part(uchar *buff,uint length)
     }
     *buff++= 1;
   }
-  sort_string(buff, length);
+  sort_string(buff, length, original_length);
 }
 
 
@@ -1132,7 +1133,8 @@ Field_longstr::pack_sort_string(uchar *to, const SORT_FIELD_ATTR *sort_field)
 {
   StringBuffer<LONGLONG_BUFFER_SIZE+1> buf;
   val_str(&buf, &buf);
-  return to + sort_field->pack_sort_string(to, &buf, field_charset());
+  return to + sort_field->pack_sort_string(to, &buf,
+                                           field_charset());
 }
 
 
@@ -3335,7 +3337,7 @@ int Field_decimal::cmp(const uchar *a_ptr,const uchar *b_ptr) const
 }
 
 
-void Field_decimal::sort_string(uchar *to,uint length)
+void Field_decimal::sort_string(uchar *to,uint length, uint original_length)
 {
   uchar *str,*end;
   for (str=ptr,end=ptr+length;
@@ -3689,7 +3691,8 @@ int Field_new_decimal::cmp(const uchar *a,const uchar*b) const
 }
 
 
-void Field_new_decimal::sort_string(uchar *buff, uint length)
+void Field_new_decimal::sort_string(uchar *buff, uint length,
+                                    uint original_length)
 {
   memcpy(buff, ptr, length);
 }
@@ -4030,7 +4033,8 @@ int Field_tiny::cmp(const uchar *a_ptr, const uchar *b_ptr) const
   return (a < b) ? -1 : (a > b) ? 1 : 0;
 }
 
-void Field_tiny::sort_string(uchar *to,uint length __attribute__((unused)))
+void Field_tiny::sort_string(uchar *to,uint length __attribute__((unused)),
+                             uint original_length)
 {
   if (unsigned_flag)
     *to= *ptr;
@@ -4198,7 +4202,8 @@ int Field_short::cmp(const uchar *a_ptr, const uchar *b_ptr) const
   return (a < b) ? -1 : (a > b) ? 1 : 0;
 }
 
-void Field_short::sort_string(uchar *to,uint length __attribute__((unused)))
+void Field_short::sort_string(uchar *to,uint length __attribute__((unused)),
+                              uint original_length)
 {
   if (unsigned_flag)
     to[0] = ptr[1];
@@ -4389,7 +4394,8 @@ int Field_medium::cmp(const uchar *a_ptr, const uchar *b_ptr) const
   return (a < b) ? -1 : (a > b) ? 1 : 0;
 }
 
-void Field_medium::sort_string(uchar *to,uint length __attribute__((unused)))
+void Field_medium::sort_string(uchar *to,uint length __attribute__((unused)),
+                               uint original_length)
 {
   if (unsigned_flag)
     to[0] = ptr[2];
@@ -4557,7 +4563,8 @@ int Field_long::cmp(const uchar *a_ptr, const uchar *b_ptr) const
   return (a < b) ? -1 : (a > b) ? 1 : 0;
 }
 
-void Field_long::sort_string(uchar *to,uint length __attribute__((unused)))
+void Field_long::sort_string(uchar *to,uint length __attribute__((unused)),
+                             uint original_length)
 {
   if (unsigned_flag)
     to[0] = ptr[3];
@@ -4699,7 +4706,8 @@ int Field_longlong::cmp(const uchar *a_ptr, const uchar *b_ptr) const
   return (a < b) ? -1 : (a > b) ? 1 : 0;
 }
 
-void Field_longlong::sort_string(uchar *to,uint length __attribute__((unused)))
+void Field_longlong::sort_string(uchar *to,uint length __attribute__((unused)),
+                                 uint original_length)
 {
   if (unsigned_flag)
     to[0] = ptr[7];
@@ -4825,7 +4833,8 @@ int Field_float::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 
 #define FLT_EXP_DIG (sizeof(float)*8-FLT_MANT_DIG)
 
-void Field_float::sort_string(uchar *to,uint length __attribute__((unused)))
+void Field_float::sort_string(uchar *to,uint length __attribute__((unused)),
+                              uint original_length)
 {
   float nr;
   float4get(nr,ptr);
@@ -5181,7 +5190,8 @@ int Field_double::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 
 /* The following should work for IEEE */
 
-void Field_double::sort_string(uchar *to,uint length __attribute__((unused)))
+void Field_double::sort_string(uchar *to,uint length __attribute__((unused)),
+                               uint original_length)
 {
   double nr;
   float8get(nr,ptr);
@@ -5595,7 +5605,8 @@ int Field_timestamp0::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 }
 
 
-void Field_timestamp0::sort_string(uchar *to,uint length __attribute__((unused)))
+void Field_timestamp0::sort_string(uchar *to,uint length __attribute__((unused)),
+                                   uint original_length)
 {
   to[0] = ptr[3];
   to[1] = ptr[2];
@@ -6288,7 +6299,8 @@ int Field_time0::cmp(const uchar *a_ptr, const uchar *b_ptr) const
   return (a < b) ? -1 : (a > b) ? 1 : 0;
 }
 
-void Field_time0::sort_string(uchar *to,uint length __attribute__((unused)))
+void Field_time0::sort_string(uchar *to,uint length __attribute__((unused)),
+                              uint original_length)
 {
   to[0] = (uchar) (ptr[2] ^ 128);
   to[1] = ptr[1];
@@ -6463,7 +6475,8 @@ int Field_time_hires::cmp(const uchar *a_ptr, const uchar *b_ptr) const
   return (a < b) ? -1 : (a > b) ? 1 : 0;
 }
 
-void Field_time_hires::sort_string(uchar *to,uint length __attribute__((unused)))
+void Field_time_hires::sort_string(uchar *to,uint length __attribute__((unused)),
+                                   uint original_length)
 {
   DBUG_ASSERT(length == Field_time_hires::pack_length());
   memcpy(to, ptr, length);
@@ -6835,7 +6848,8 @@ int Field_date::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 }
 
 
-void Field_date::sort_string(uchar *to,uint length __attribute__((unused)))
+void Field_date::sort_string(uchar *to,uint length __attribute__((unused)),
+                             uint original_length)
 {
   to[0] = ptr[3];
   to[1] = ptr[2];
@@ -6947,7 +6961,8 @@ int Field_newdate::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 }
 
 
-void Field_newdate::sort_string(uchar *to,uint length __attribute__((unused)))
+void Field_newdate::sort_string(uchar *to,uint length __attribute__((unused)),
+                                uint original_length)
 {
   to[0] = ptr[2];
   to[1] = ptr[1];
@@ -7136,7 +7151,8 @@ int Field_datetime0::cmp(const uchar *a_ptr, const uchar *b_ptr) const
     ((ulonglong) a > (ulonglong) b) ? 1 : 0;
 }
 
-void Field_datetime0::sort_string(uchar *to,uint length __attribute__((unused)))
+void Field_datetime0::sort_string(uchar *to,uint length __attribute__((unused)),
+                                  uint original_length)
 {
   to[0] = ptr[7];
   to[1] = ptr[6];
@@ -7734,7 +7750,7 @@ int Field_string::cmp_prefix(const uchar *a_ptr, const uchar *b_ptr,
 }
 
 
-void Field_string::sort_string(uchar *to,uint length)
+void Field_string::sort_string(uchar *to,uint length, uint original_length)
 {
 #ifdef DBUG_ASSERT_EXISTS
   size_t tmp=
@@ -7745,6 +7761,8 @@ void Field_string::sort_string(uchar *to,uint length)
                               MY_STRXFRM_PAD_WITH_SPACE |
                               MY_STRXFRM_PAD_TO_MAXLEN);
   DBUG_ASSERT(tmp == length);
+  if (original_length < value_length())
+    get_thd()->num_of_strings_sorted_on_truncated_length++;
 }
 
 
@@ -8176,7 +8194,7 @@ int Field_varstring::key_cmp(const uchar *a,const uchar *b) const
 }
 
 
-void Field_varstring::sort_string(uchar *to,uint length)
+void Field_varstring::sort_string(uchar *to,uint length, uint original_length)
 {
   String buf;
 
@@ -8201,6 +8219,8 @@ void Field_varstring::sort_string(uchar *to,uint length)
                             MY_STRXFRM_PAD_WITH_SPACE |
                             MY_STRXFRM_PAD_TO_MAXLEN);
   DBUG_ASSERT(rc == length);
+  if (original_length < value_length())
+    get_thd()->num_of_strings_sorted_on_truncated_length++;
 }
 
 
@@ -9064,7 +9084,7 @@ uint32 Field_blob::sort_suffix_length() const
 }
 
 
-void Field_blob::sort_string(uchar *to,uint length)
+void Field_blob::sort_string(uchar *to,uint length, uint original_length)
 {
   String buf;
 
@@ -9090,6 +9110,8 @@ void Field_blob::sort_string(uchar *to,uint length)
                               MY_STRXFRM_PAD_WITH_SPACE |
                               MY_STRXFRM_PAD_TO_MAXLEN);
     DBUG_ASSERT(rc == length);
+    if (original_length < value_length())
+      get_thd()->num_of_strings_sorted_on_truncated_length++;
   }
 }
 
@@ -9481,7 +9503,8 @@ int Field_enum::cmp(const uchar *a_ptr, const uchar *b_ptr) const
   return (a < b) ? -1 : (a > b) ? 1 : 0;
 }
 
-void Field_enum::sort_string(uchar *to,uint length __attribute__((unused)))
+void Field_enum::sort_string(uchar *to,uint length __attribute__((unused)),
+                             uint original_length)
 {
   ulonglong value=Field_enum::val_int();
   to+=packlength-1;

@@ -1386,6 +1386,7 @@ void THD::init()
   first_successful_insert_id_in_cur_stmt= 0;
   current_backup_stage= BACKUP_FINISHED;
   backup_commit_lock= 0;
+  num_of_strings_sorted_on_truncated_length= 0;
 #ifdef WITH_WSREP
   wsrep_last_query_id= 0;
   wsrep_xid.null();

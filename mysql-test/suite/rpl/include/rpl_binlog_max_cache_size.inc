@@ -97,7 +97,9 @@ eval UPDATE t2, t1 SET t2.data = CONCAT($data, $data, $data, $data),
 --source include/wait_for_slave_sql_error_and_skip.inc
 
 --let $diff_tables= master:t1,slave:t1
+--disable_warnings # To hide warning 4201 "strings were longer than max_sort_length"
 --source include/diff_tables.inc
+--enable_warnings
 
 --echo ########################################################################################
 --echo #                             2 - BEGIN - IMPLICIT COMMIT by DDL
@@ -180,7 +182,9 @@ CREATE TABLE t5 (a int);
 
 --sync_slave_with_master
 --let $diff_tables= master:t1,slave:t1
+--disable_warnings # To hide warning 4201 "strings were longer than max_sort_length"
 --source include/diff_tables.inc
+--enable_warnings
 
 --echo ########################################################################################
 --echo #                                     3 - BEGIN - COMMIT
@@ -210,7 +214,9 @@ COMMIT;
 
 --sync_slave_with_master
 --let $diff_tables= master:t1,slave:t1
+--disable_warnings # To hide warning 4201 "strings were longer than max_sort_length"
 --source include/diff_tables.inc
+--enable_warnings
 
 --echo ########################################################################################
 --echo #                                      4 - BEGIN - ROLLBACK
@@ -240,7 +246,9 @@ ROLLBACK;
 
 --sync_slave_with_master
 --let $diff_tables= master:t1,slave:t1
+--disable_warnings # To hide warning 4201 "strings were longer than max_sort_length"
 --source include/diff_tables.inc
+--enable_warnings
 
 --echo ########################################################################################
 --echo #                                         5 - PROCEDURE 
@@ -290,7 +298,9 @@ ROLLBACK;
 
 --sync_slave_with_master
 --let $diff_tables= master:t1,slave:t1
+--disable_warnings # To hide warning 4201 "strings were longer than max_sort_length"
 --source include/diff_tables.inc
+--enable_warnings
 
 --echo ########################################################################################
 --echo #                                           6 - XID
@@ -322,7 +332,9 @@ COMMIT;
 
 --sync_slave_with_master
 --let $diff_tables= master:t1,slave:t1
+--disable_warnings # To hide warning 4201 "strings were longer than max_sort_length"
 --source include/diff_tables.inc
+--enable_warnings
 
 --echo ########################################################################################
 --echo #                                        7 - NON-TRANS TABLE
@@ -366,7 +378,9 @@ COMMIT;
 
 --sync_slave_with_master
 --let $diff_tables= master:t1,slave:t1
+--disable_warnings # To hide warning 4201 "strings were longer than max_sort_length"
 --source include/diff_tables.inc
+--enable_warnings
 
 --echo ########################################################################
 --echo #      8 - Bug#55375(Regression Bug) Transaction bigger than

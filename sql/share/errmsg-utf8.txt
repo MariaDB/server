@@ -12280,3 +12280,8 @@ ER_SEQUENCE_TABLE_ORDER_BY
         eng "ORDER BY"
 ER_VARIABLE_IGNORED
         eng "The variable '%s' is ignored. It only exists for compatibility with old installations and will be removed in a future release"
+WARN_SORTING_ON_TRUNCATED_LENGTH
+        eng "%llu strings were longer than max_sort_length. Sorting used only the first %lu bytes"
+        ger "%llu Zeichenketten waren länger als max_sort_length. Sie wurden anhand der ersten %lu Bytes verglichen"
+        rus "%llu строк были длиннее, чем max_sort_length. Их сортировка проведена по первым %lu байтам"
+        swe "%llu sträng var längre än max_sort_length=%lu"

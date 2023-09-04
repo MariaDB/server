@@ -391,7 +391,7 @@ public:
     int cmp(const uchar *a, const uchar *b) const override
     { return memcmp(a, b, pack_length()); }
 
-    void sort_string(uchar *to, uint length) override
+    void sort_string(uchar *to, uint length, uint original_length) override
     {
       DBUG_ASSERT(length == pack_length());
       memcpy(to, ptr, length);

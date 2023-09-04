@@ -826,6 +826,8 @@ xxxxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxw
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxy
+Warnings:
+Warning	4201	4 strings were longer than max_sort_length. Sorting used only the first 200 bytes
 reset query cache;
 set max_sort_length=64;
 select c from t1 order by c, id;
@@ -834,6 +836,8 @@ xxxxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxw
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxy
+Warnings:
+Warning	4201	4 strings were longer than max_sort_length. Sorting used only the first 64 bytes
 set max_sort_length=200;
 select c from t1 order by c, id;
 c
@@ -841,6 +845,8 @@ xxxxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxw
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxy
+Warnings:
+Warning	4201	4 strings were longer than max_sort_length. Sorting used only the first 200 bytes
 set max_sort_length=default;
 select '1' || '3' from t1;
 '1' || '3'
@@ -877,7 +883,7 @@ Variable_name	Value
 Qcache_queries_in_cache	0
 show status like "Qcache_inserts";
 Variable_name	Value
-Qcache_inserts	19
+Qcache_inserts	16
 show status like "Qcache_hits";
 Variable_name	Value
 Qcache_hits	6
@@ -890,7 +896,7 @@ Variable_name	Value
 Qcache_queries_in_cache	1
 show status like "Qcache_inserts";
 Variable_name	Value
-Qcache_inserts	20
+Qcache_inserts	17
 show status like "Qcache_hits";
 Variable_name	Value
 Qcache_hits	7

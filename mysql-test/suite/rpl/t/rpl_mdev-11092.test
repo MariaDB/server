@@ -124,7 +124,9 @@ if(`SELECT COUNT(*)!=1 FROM t2`)
 --source include/sync_with_master_gtid.inc
 --echo # Validating the first insert into t2 replicated to slave..
 --let $diff_tables= master:test.t2,slave:test.t2
+--disable_warnings # To hide warning 4197 "Comparison limited during sorting/grouping"
 --source include/diff_tables.inc
+--enable_warnings
 --echo # ..success
 
 # Testing mixed engine UPDATE statement scenario. In the following multi

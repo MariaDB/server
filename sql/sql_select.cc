@@ -5348,7 +5348,7 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
   }
 
 err:
-
+  thd->push_final_warnings();
   if (select_lex->pushdown_select)
   {
     delete select_lex->pushdown_select;
@@ -27598,7 +27598,7 @@ static int remove_dup_with_hash_index(THD *thd, TABLE *table,
     field_length=field_lengths;
     for (Field **ptr= first_field ; *ptr ; ptr++)
     {
-      (*ptr)->make_sort_key_part(key_pos, *field_length);
+      (*ptr)->make_sort_key_part(key_pos, *field_length, *field_length);
       key_pos+= (*ptr)->maybe_null() + *field_length++;
     }
     /* Copy result fields not stored in table to key buffer */

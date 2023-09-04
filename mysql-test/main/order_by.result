@@ -859,6 +859,8 @@ xxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxab
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxaa
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxz
+Warnings:
+Warning	4201	2 strings were longer than max_sort_length. Sorting used only the first 64 bytes
 drop table t1;
 create table t1 (
 `sid` decimal(8,0) default null,
@@ -4122,6 +4124,8 @@ a	substr(b, @save_max_sort_length+1)
 3	ABE
 2	AB
 1	A
+Warnings:
+Warning	4201	5 strings were longer than max_sort_length. Sorting used only the first 1024 bytes
 analyze format=json
 select a, substr(b, @save_max_sort_length+1) from t1 order by b desc;
 ANALYZE
@@ -4167,6 +4171,8 @@ ANALYZE
     ]
   }
 }
+Warnings:
+Warning	4201	5 strings were longer than max_sort_length. Sorting used only the first 1024 bytes
 drop table t1;
 #
 # Packing sort keys with complex collations
