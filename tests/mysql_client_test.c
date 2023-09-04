@@ -16338,25 +16338,25 @@ static void test_bug32265()
   mysql_free_result(metadata);
   mysql_stmt_close(stmt);
 
-  stmt= open_cursor("SELECT a '' FROM t1 ``");
+  stmt= open_cursor("SELECT a '' FROM t1 `alias`");
   rc= mysql_stmt_execute(stmt);
   check_execute(stmt, rc);
 
   metadata= mysql_stmt_result_metadata(stmt);
   field= mysql_fetch_field(metadata);
-  DIE_UNLESS(strcmp(field->table, "") == 0);
+  DIE_UNLESS(strcmp(field->table, "alias") == 0);
   DIE_UNLESS(strcmp(field->org_table, "t1") == 0);
   DIE_UNLESS(strcmp(field->db, "client_test_db") == 0);
   mysql_free_result(metadata);
   mysql_stmt_close(stmt);
 
-  stmt= open_cursor("SELECT a '' FROM t1 ``");
+  stmt= open_cursor("SELECT a '' FROM t1 `alias`");
   rc= mysql_stmt_execute(stmt);
   check_execute(stmt, rc);
 
   metadata= mysql_stmt_result_metadata(stmt);
   field= mysql_fetch_field(metadata);
-  DIE_UNLESS(strcmp(field->table, "") == 0);
+  DIE_UNLESS(strcmp(field->table, "alias") == 0);
   DIE_UNLESS(strcmp(field->org_table, "t1") == 0);
   DIE_UNLESS(strcmp(field->db, "client_test_db") == 0);
   mysql_free_result(metadata);

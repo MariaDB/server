@@ -388,3 +388,13 @@ drop table t1,t2;
 #
 # End of 10.4 tests
 #
+#
+# MDEV-32080
+#
+create table t1 (a int);
+select * from (select * from t1) as ``;
+ERROR 42000: Incorrect table name ''
+drop table t1;
+#
+# End of 10.6 tests
+#

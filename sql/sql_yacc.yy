@@ -1319,6 +1319,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <ident_sys>
         IDENT_sys
+        IDENT_nonempty_alias
         ident
         label_ident
         sp_decl_ident
@@ -15650,6 +15651,16 @@ IDENT_sys:
           }
         ;
 
+IDENT_nonempty_alias:
+          IDENT_cli
+          {
+            if (unlikely($1.length == 0))
+              my_yyabort_error((ER_WRONG_TABLE_NAME, MYF(0), ""));
+            if (unlikely(thd->to_ident_sys_alloc(&$$, &$1)))
+              MYSQL_YYABORT;
+          }
+        ;
+
 TEXT_STRING_sys:
           TEXT_STRING
           {
@@ -15675,7 +15686,7 @@ TEXT_STRING_filesystem:
         ;
 
 ident_table_alias:
-          IDENT_sys
+          IDENT_nonempty_alias
         | keyword_table_alias
           {
             if (unlikely($$.copy_keyword(thd, &$1)))

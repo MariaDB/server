@@ -327,3 +327,16 @@ drop table t1,t2;
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+--echo #
+--echo # MDEV-32080
+--echo #
+
+create table t1 (a int);
+--error ER_WRONG_TABLE_NAME
+select * from (select * from t1) as ``;
+drop table t1;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #
