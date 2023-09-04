@@ -27,7 +27,7 @@ usr/share/doc/mariadb-server/COPYING (related file: "debian/tmp/usr/share/mariad
 usr/share/doc/mariadb-server/CREDITS
 usr/share/doc/mariadb-server/INSTALL-BINARY
 usr/share/doc/mariadb-server/README.md
-usr/share/doc/mariadb-server/README-wsrep
+usr/share/doc/mariadb-Server_Galera/README-wsrep
 usr/share/doc/mariadb-server/THIRDPARTY
 usr/share/groonga/COPYING
 usr/share/groonga-normalizer-mysql/lgpl-2.0.txt
