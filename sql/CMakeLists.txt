@@ -179,8 +179,8 @@ SET (SQL_SOURCE
                ${MYSYS_LIBWRAP_SOURCE}
 )
 
-IF(CMAKE_C_COMPILER_ID MATCHES "Clang" AND
-   NOT CMAKE_C_COMPILER_VERSION VERSION_LESS "13.0.0")
+MY_CHECK_CXX_COMPILER_FLAG(-Wno-unused-but-set-variable)
+IF(have_CXX__Wno_unused_but_set_variable)
   ADD_COMPILE_FLAGS(${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc
     ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.cc
     COMPILE_FLAGS "-Wno-unused-but-set-variable")

@@ -7776,6 +7776,8 @@ next_item:
   {
     for (ulint i= 0; i < f->n_fields; i++)
     {
+      if (!f->referenced_index)
+        continue;
       if (f->referenced_index->fields[i].col == col)
       {
         my_error(ER_FK_COLUMN_CANNOT_CHANGE_CHILD, MYF(0),

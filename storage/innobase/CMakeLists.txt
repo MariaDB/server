@@ -510,8 +510,9 @@ IF(MSVC)
   # on generated file.
   TARGET_COMPILE_OPTIONS(innobase PRIVATE "/wd4065")
 ENDIF()
-IF(CMAKE_C_COMPILER_ID MATCHES "Clang" AND
-   NOT CMAKE_C_COMPILER_VERSION VERSION_LESS "13.0.0")
+
+MY_CHECK_CXX_COMPILER_FLAG(-Wno-unused-but-set-variable)
+IF(have_CXX__Wno_unused_but_set_variable)
   ADD_COMPILE_FLAGS(pars/pars0grm.cc fts/fts0pars.cc
     COMPILE_FLAGS "-Wno-unused-but-set-variable")
 ENDIF()
