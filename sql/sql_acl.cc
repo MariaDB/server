@@ -1551,7 +1551,11 @@ class User_table_json: public User_table
       if (access & SUPER_ACL)
         access|= ALLOWED_BY_SUPER_BEFORE_101100;
     }
-    if (version_id >= 100509)
+    if (version_id >= 110300)
+    {
+      mask= ALL_KNOWN_ACL_110300;
+    }
+    else if (version_id >= 100509)
     {
       mask= ALL_KNOWN_ACL_100509;
     }
@@ -8980,7 +8984,8 @@ err:
    1            error
 */
 
-bool check_routine_level_acl(THD *thd, const char *db, const char *name,
+bool check_routine_level_acl(THD *thd, privilege_t acl,
+                             const char *db, const char *name,
                              const Sp_handler *sph)
 {
   bool no_routine_acl= 1;
@@ -8991,7 +8996,7 @@ bool check_routine_level_acl(THD *thd, const char *db, const char *name,
                                        sctx->ip, db,
                                        sctx->priv_user,
                                        name, sph, 0)))
-    no_routine_acl= !(grant_proc->privs & SHOW_PROC_ACLS);
+    no_routine_acl= !(grant_proc->privs & acl);
 
   if (no_routine_acl && sctx->priv_role[0]) /* current set role check */
   {
@@ -8999,7 +9004,7 @@ bool check_routine_level_acl(THD *thd, const char *db, const char *name,
                                          NULL, db,
                                          sctx->priv_role,
                                          name, sph, 0)))
-      no_routine_acl= !(grant_proc->privs & SHOW_PROC_ACLS);
+      no_routine_acl= !(grant_proc->privs & SHOW_PROC_WITHOUT_DEFINITION_ACLS);
   }
   mysql_rwlock_unlock(&LOCK_grant);
   return no_routine_acl;
@@ -9233,7 +9238,7 @@ static const char *command_array[]=
   "CREATE USER", "EVENT", "TRIGGER", "CREATE TABLESPACE", "DELETE HISTORY",
   "SET USER", "FEDERATED ADMIN", "CONNECTION ADMIN", "READ_ONLY ADMIN",
   "REPLICATION SLAVE ADMIN", "REPLICATION MASTER ADMIN", "BINLOG ADMIN",
-  "BINLOG REPLAY", "SLAVE MONITOR"
+  "BINLOG REPLAY", "SLAVE MONITOR", "SHOW CREATE ROUTINE"
 };
 
 static uint command_lengths[]=
@@ -9246,7 +9251,7 @@ static uint command_lengths[]=
   11, 5, 7, 17, 14,
   8, 15, 16, 15,
   23, 24, 12,
-  13, 13
+  13, 13, 19
 };
 
 
@@ -12962,7 +12967,8 @@ void fill_effective_table_privileges(THD *thd, GRANT_INFO *grant,
  Dummy wrappers when we don't have any access checks
 ****************************************************************************/
 
-bool check_routine_level_acl(THD *thd, const char *db, const char *name,
+bool check_routine_level_acl(THD *thd, privilege_t acl,
+                             const char *db, const char *name,
                              const Sp_handler *sph)
 {
   return FALSE;

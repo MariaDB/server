@@ -3941,6 +3941,8 @@ use test;
 create database mysqldump_test_db;
 grant all privileges on mysqldump_test_db.*  to user1;
 grant all privileges on mysqldump_test_db.*  to user2;
+revoke SHOW CREATE ROUTINE on  mysqldump_test_db.* from user1;
+revoke SHOW CREATE ROUTINE on  mysqldump_test_db.* from user2;
 connect  user27293,localhost,user1,,mysqldump_test_db,$MASTER_MYPORT,$MASTER_MYSOCK;
 connection user27293;
 create procedure mysqldump_test_db.sp1() select 'hello';
@@ -5179,6 +5181,7 @@ END
 # Test to check 'Insufficient privileges' error.
 
 GRANT ALL PRIVILEGES ON BUG52792.* TO user1;
+REVOKE SHOW CREATE ROUTINE ON BUG52792.* FROM user1;
 connect  conn_1, localhost, user1, , BUG52792, $MASTER_MYPORT, $MASTER_MYSOCK;
 connection conn_1;
 # Running 'replace_regex on timestamp'

@@ -39,6 +39,7 @@ def	mysql	db	Insert_priv	5	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8mb3	utf8mb3_genera
 def	mysql	db	Lock_tables_priv	15	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	enum('N','Y')			select,insert,update,references		NEVER	NULL
 def	mysql	db	References_priv	11	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	enum('N','Y')			select,insert,update,references		NEVER	NULL
 def	mysql	db	Select_priv	4	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	enum('N','Y')			select,insert,update,references		NEVER	NULL
+def	mysql	db	Show_create_routine_priv	24	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	enum('N','Y')			select,insert,update,references		NEVER	NULL
 def	mysql	db	Show_view_priv	17	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	enum('N','Y')			select,insert,update,references		NEVER	NULL
 def	mysql	db	Trigger_priv	22	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	enum('N','Y')			select,insert,update,references		NEVER	NULL
 def	mysql	db	Update_priv	6	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	enum('N','Y')			select,insert,update,references		NEVER	NULL
@@ -141,7 +142,7 @@ def	mysql	proc	type	3	NULL	NO	enum	12	36	NULL	NULL	NULL	utf8mb3	utf8mb3_general_
 def	mysql	procs_priv	Db	2	''	NO	char	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	char(64)	PRI		select,insert,update,references		NEVER	NULL
 def	mysql	procs_priv	Grantor	6	''	NO	varchar	384	1152	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	varchar(384)	MUL		select,insert,update,references		NEVER	NULL
 def	mysql	procs_priv	Host	1	''	NO	char	255	765	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	char(255)	PRI		select,insert,update,references		NEVER	NULL
-def	mysql	procs_priv	Proc_priv	7	''	NO	set	27	81	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	set('Execute','Alter Routine','Grant')			select,insert,update,references		NEVER	NULL
+def	mysql	procs_priv	Proc_priv	7	''	NO	set	47	141	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	set('Execute','Alter Routine','Grant','Show Create Routine')			select,insert,update,references		NEVER	NULL
 def	mysql	procs_priv	Routine_name	4	''	NO	char	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	char(64)	PRI		select,insert,update,references		NEVER	NULL
 def	mysql	procs_priv	Routine_type	5	NULL	NO	enum	12	36	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	enum('FUNCTION','PROCEDURE','PACKAGE','PACKAGE BODY')	PRI		select,insert,update,references		NEVER	NULL
 def	mysql	procs_priv	Timestamp	8	current_timestamp()	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp		on update current_timestamp()	select,insert,update,references		NEVER	NULL
@@ -370,6 +371,7 @@ NULL	mysql	column_stats	hist_size	tinyint	NULL	NULL	NULL	NULL	tinyint(3) unsigne
 3.0000	mysql	db	Event_priv	enum	1	3	utf8mb3	utf8mb3_general_ci	enum('N','Y')
 3.0000	mysql	db	Trigger_priv	enum	1	3	utf8mb3	utf8mb3_general_ci	enum('N','Y')
 3.0000	mysql	db	Delete_history_priv	enum	1	3	utf8mb3	utf8mb3_general_ci	enum('N','Y')
+3.0000	mysql	db	Show_create_routine_priv	enum	1	3	utf8mb3	utf8mb3_general_ci	enum('N','Y')
 3.0000	mysql	event	db	char	64	192	utf8mb3	utf8mb3_bin	char(64)
 3.0000	mysql	event	name	char	64	192	utf8mb3	utf8mb3_general_ci	char(64)
 1.0000	mysql	event	body	longblob	4294967295	4294967295	NULL	NULL	longblob
@@ -471,7 +473,7 @@ NULL	mysql	proc	modified	timestamp	NULL	NULL	NULL	NULL	timestamp
 3.0000	mysql	procs_priv	Routine_name	char	64	192	utf8mb3	utf8mb3_general_ci	char(64)
 3.0000	mysql	procs_priv	Routine_type	enum	12	36	utf8mb3	utf8mb3_bin	enum('FUNCTION','PROCEDURE','PACKAGE','PACKAGE BODY')
 3.0000	mysql	procs_priv	Grantor	varchar	384	1152	utf8mb3	utf8mb3_bin	varchar(384)
-3.0000	mysql	procs_priv	Proc_priv	set	27	81	utf8mb3	utf8mb3_general_ci	set('Execute','Alter Routine','Grant')
+3.0000	mysql	procs_priv	Proc_priv	set	47	141	utf8mb3	utf8mb3_general_ci	set('Execute','Alter Routine','Grant','Show Create Routine')
 NULL	mysql	procs_priv	Timestamp	timestamp	NULL	NULL	NULL	NULL	timestamp
 3.0000	mysql	proxies_priv	Host	char	255	765	utf8mb3	utf8mb3_bin	char(255)
 3.0000	mysql	proxies_priv	User	char	128	384	utf8mb3	utf8mb3_bin	char(128)

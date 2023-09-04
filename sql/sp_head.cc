@@ -2828,6 +2828,36 @@ sp_head::restore_thd_mem_root(THD *thd)
   DBUG_VOID_RETURN;
 }
 
+/**
+  Check Global-DB-procedure access
+
+  @param thd                    Thread handler
+  @param privilege              requested privilege
+  @param sp                     SP to check
+  @param no_errors              FALSE/TRUE - report/don't report error to
+                                the client (using my_error() call).
+
+  @retval
+    0   OK
+  @retval
+    1   access denied, error is sent to client
+*/
+
+bool check_db_routine_access(THD *thd, privilege_t privilege,
+                             const char *db, const char *name,
+                             const Sp_handler *sph,
+                             bool no_errors)
+{
+  privilege_t db_priv;
+  if (check_access(thd, privilege, db,
+                   &db_priv, NULL, 0, no_errors))
+    return 1;
+  if ((db_priv & privilege) == privilege)
+    return 0;
+
+  return check_routine_level_acl(thd, (privilege & ~db_priv),
+                                 db, name, sph);
+}
 
 /**
   Check if a user has access right to a routine.
@@ -2850,7 +2880,10 @@ bool check_show_routine_access(THD *thd, sp_head *sp, bool *full_access)
   tables.table_name= MYSQL_PROC_NAME;
   tables.alias= MYSQL_PROC_NAME;
 
-  *full_access= ((!check_table_access(thd, SELECT_ACL, &tables, FALSE,
+  *full_access= (!check_db_routine_access(thd, SHOW_CREATE_ROUTINE_ACL,
+                                          sp->m_db.str, sp->m_name.str,
+                                          sp->m_handler, TRUE) ||
+                  (!check_table_access(thd, SELECT_ACL, &tables, FALSE,
                                      1, TRUE) &&
                   (tables.grant.privilege & SELECT_ACL) != NO_ACL) ||
                  /* Check if user owns the routine. */

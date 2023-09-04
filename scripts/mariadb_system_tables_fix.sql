@@ -414,7 +414,7 @@ ALTER TABLE procs_priv
   CONVERT TO CHARACTER SET utf8mb3 COLLATE utf8mb3_bin;
 
 ALTER TABLE procs_priv
-  MODIFY Proc_priv set('Execute','Alter Routine','Grant')
+  MODIFY Proc_priv set('Execute','Alter Routine','Grant','Show Create Routine')
     COLLATE utf8mb3_general_ci DEFAULT '' NOT NULL;
 
 ALTER IGNORE TABLE procs_priv
@@ -705,6 +705,8 @@ ALTER TABLE db add Delete_history_priv enum('N','Y') COLLATE utf8mb3_general_ci 
 ALTER TABLE db modify Delete_history_priv enum('N','Y') COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N';
 
 UPDATE user SET Delete_history_priv = Super_priv WHERE @had_user_delete_history_priv = 0;
+
+ALTER TABLE db ADD    Show_create_routine_priv enum('N','Y') COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N' AFTER Delete_history_priv;
 
 ALTER TABLE user ADD plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL AFTER max_user_connections,
                  ADD authentication_string TEXT NOT NULL AFTER plugin;

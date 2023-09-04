@@ -389,21 +389,32 @@ connect  user2,localhost,mysqltest_1,,;
 connection user2;
 select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES WHERE ROUTINE_SCHEMA <> 'sys';
 ROUTINE_NAME	ROUTINE_DEFINITION
-sel2	NULL
-sub1	NULL
+sel2	begin
+select * from t1;
+select * from t2;
+end
+sub1	return i+1
 create function sub2(i int) returns int
 return i+1;
 select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES WHERE ROUTINE_SCHEMA <> 'sys';
 ROUTINE_NAME	ROUTINE_DEFINITION
-sel2	NULL
-sub1	NULL
+sel2	begin
+select * from t1;
+select * from t2;
+end
+sub1	return i+1
 sub2	return i+1
 show create procedure sel2;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-sel2		NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+sel2		CREATE DEFINER=`root`@`localhost` PROCEDURE `sel2`()
+begin
+select * from t1;
+select * from t2;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci
 show create function sub1;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-sub1		NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+sub1		CREATE DEFINER=`root`@`localhost` FUNCTION `sub1`(i int) RETURNS int(11)
+return i+1	latin1	latin1_swedish_ci	latin1_swedish_ci
 show create function sub2;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
 sub2		CREATE DEFINER=`mysqltest_1`@`localhost` FUNCTION `sub2`(i int) RETURNS int(11)
@@ -501,6 +512,7 @@ GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE	IS_GRANTABLE
 'mysqltest_1'@'localhost'	def	test	EVENT	YES
 'mysqltest_1'@'localhost'	def	test	TRIGGER	YES
 'mysqltest_1'@'localhost'	def	test	DELETE HISTORY	YES
+'mysqltest_1'@'localhost'	def	test	SHOW CREATE ROUTINE	YES
 select * from information_schema.TABLE_PRIVILEGES where grantee like '%mysqltest_1%';
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
 'mysqltest_1'@'localhost'	def	test	t1	SELECT	NO

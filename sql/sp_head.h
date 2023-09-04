@@ -1104,6 +1104,10 @@ public:
 
 
 bool check_show_routine_access(THD *thd, sp_head *sp, bool *full_access);
+bool check_db_routine_access(THD *thd, privilege_t privilege,
+                             const char *db, const char *name,
+                             const Sp_handler *sph,
+                             bool no_errors);
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 bool
