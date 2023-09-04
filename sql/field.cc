@@ -1058,8 +1058,8 @@ CPP_UNNAMED_NS_END
   @brief
     Create a fixed size sort key part
 
-  @param  buff           buffer where values are written
-  @param  length         fixed size of the sort column
+  @param  buff             buffer where values are written
+  @param  length           fixed size of the sort column
 */
 
 void Field::make_sort_key_part(uchar *buff,uint length)
@@ -7810,13 +7810,21 @@ int Field_string::cmp_prefix(const uchar *a_ptr, const uchar *b_ptr,
 
 void Field_string::sort_string(uchar *to,uint length)
 {
+  /*
+    Let's find the real value length to truncate trailing padding spaces.
+    This is needed to avoid redundant WARN_SORTING_ON_TRUNCATED_LENGTH
+    warnings.
+  */
+  const LEX_CSTRING str= to_lex_cstring();
   my_strnxfrm_ret_t rc=
     field_charset()->strnxfrm(to, length,
                               char_length() * field_charset()->strxfrm_multiply,
-                              ptr, field_length,
+                              (const uchar *) str.str, str.length,
                               MY_STRXFRM_PAD_WITH_SPACE |
                               MY_STRXFRM_PAD_TO_MAXLEN);
   DBUG_ASSERT(rc.m_result_length == length);
+  if (rc.m_warnings & MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR)
+    get_thd()->num_of_strings_sorted_on_truncated_length++;
 }
 
 
@@ -8265,12 +8273,14 @@ void Field_varstring::sort_string(uchar *to,uint length)
   }
 
   my_strnxfrm_ret_t rc=
-  field_charset()->strnxfrm(to, length,
-                            char_length() * field_charset()->strxfrm_multiply,
-                            (const uchar *) buf.ptr(), buf.length(),
-                            MY_STRXFRM_PAD_WITH_SPACE |
-                            MY_STRXFRM_PAD_TO_MAXLEN);
+    field_charset()->strnxfrm(to, length,
+                              char_length() * field_charset()->strxfrm_multiply,
+                              (const uchar *) buf.ptr(), buf.length(),
+                              MY_STRXFRM_PAD_WITH_SPACE |
+                              MY_STRXFRM_PAD_TO_MAXLEN);
   DBUG_ASSERT(rc.m_result_length == length);
+  if (rc.m_warnings & MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR)
+    get_thd()->num_of_strings_sorted_on_truncated_length++;
 }
 
 
@@ -9153,11 +9163,13 @@ void Field_blob::sort_string(uchar *to,uint length)
     }
 
     my_strnxfrm_ret_t rc=
-    field_charset()->strnxfrm(to, length, length,
-                              (const uchar *) buf.ptr(), buf.length(),
-                              MY_STRXFRM_PAD_WITH_SPACE |
-                              MY_STRXFRM_PAD_TO_MAXLEN);
+      field_charset()->strnxfrm(to, length, length,
+                                (const uchar *) buf.ptr(), buf.length(),
+                                MY_STRXFRM_PAD_WITH_SPACE |
+                                MY_STRXFRM_PAD_TO_MAXLEN);
     DBUG_ASSERT(rc.m_result_length == length);
+    if (rc.m_warnings & MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR)
+      get_thd()->num_of_strings_sorted_on_truncated_length++;
   }
 }
 

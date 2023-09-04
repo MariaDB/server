@@ -438,11 +438,19 @@ typedef struct
 #define MY_STRNXFRM_TRUNCATED_WEIGHT_TRAILING_SPACE  1
 #define MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR       2
 
-typedef struct
+typedef struct my_strnxfrm_ret_t
 {
   size_t m_result_length;
   size_t m_source_length_used;
   uint   m_warnings;
+
+#ifdef __cplusplus
+  /*
+    Allow casting this type to size_t for backward compatibility
+    with external code, e.g. ColumnStore SE.
+  */
+  operator size_t() const { return m_result_length; }
+#endif
 } my_strnxfrm_ret_t;
 
 

@@ -5868,6 +5868,13 @@ public:
   /* Handling of timeouts for commands */
   thr_timer_t query_timer;
 
+  /*
+    Number of strings which were involved in sorting or grouping and whose
+    lengths were truncated according to the max_sort_length system variable
+    setting
+  */
+  ulonglong  num_of_strings_sorted_on_truncated_length;
+
 public:
   void set_query_timer()
   {
@@ -6068,6 +6075,23 @@ public:
   bool need_report_unit_results();
   bool report_collected_unit_results();
   bool init_collecting_unit_results();
+
+  /*
+    Push post-execution warnings, which may be some kinds of aggregate messages
+    like number of times max_sort_length was reached during sorting/grouping
+  */
+  void push_final_warnings()
+  {
+    if (num_of_strings_sorted_on_truncated_length)
+    {
+      push_warning_printf(this, Sql_condition::WARN_LEVEL_WARN,
+                          WARN_SORTING_ON_TRUNCATED_LENGTH,
+                          ER_THD(this, WARN_SORTING_ON_TRUNCATED_LENGTH),
+                          num_of_strings_sorted_on_truncated_length,
+                          variables.max_sort_length);
+      num_of_strings_sorted_on_truncated_length= 0;
+    }
+  }
 };
 
 

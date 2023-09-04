@@ -5348,7 +5348,7 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
   }
 
 err:
-
+  thd->push_final_warnings();
   if (select_lex->pushdown_select)
   {
     delete select_lex->pushdown_select;

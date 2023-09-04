@@ -1240,15 +1240,15 @@ Type_handler_string_result::make_sort_key_part(uchar *to, Item *item,
 
   if (use_strnxfrm(cs))
   {
-#ifdef DBUG_ASSERT_EXISTS
     my_strnxfrm_ret_t rc=
-#endif
-    cs->strnxfrm(to, sort_field->length,
-                 item->max_char_length() * cs->strxfrm_multiply,
-                 (uchar*) res->ptr(), res->length(),
-                 MY_STRXFRM_PAD_WITH_SPACE |
-                 MY_STRXFRM_PAD_TO_MAXLEN);
+      cs->strnxfrm(to, sort_field->length,
+                   item->max_char_length() * cs->strxfrm_multiply,
+                   (uchar*) res->ptr(), res->length(),
+                   MY_STRXFRM_PAD_WITH_SPACE |
+                   MY_STRXFRM_PAD_TO_MAXLEN);
     DBUG_ASSERT(rc.m_result_length == sort_field->length);
+    if (rc.m_warnings & MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR)
+      current_thd->num_of_strings_sorted_on_truncated_length++;
   }
   else
   {
@@ -1268,7 +1268,10 @@ Type_handler_string_result::make_sort_key_part(uchar *to, Item *item,
       store_length(to + sort_field_length, length, sort_field->suffix_length);
     }
     /* apply cs->sort_order for case-insensitive comparison if needed */
-    cs->strnxfrm((uchar*)to, length, (const uchar*) res->ptr(), length);
+    my_strnxfrm_ret_t rc= cs->strnxfrm((uchar*)to, length,
+                                     (const uchar*) res->ptr(), res->length());
+    if (rc.m_warnings & MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR)
+      current_thd->num_of_strings_sorted_on_truncated_length++;
     char fill_char= ((cs->state & MY_CS_BINSORT) ? (char) 0 : ' ');
     cs->fill((char *) to + length, diff, fill_char);
   }
@@ -2937,9 +2940,14 @@ SORT_FIELD_ATTR::pack_sort_string(uchar *to, const Binary_string *str,
   length= (uint32) str->length();
 
   if (length + suffix_length <= original_length)
+  {
     data_length= length;
+  }
   else
+  {
     data_length= original_length - suffix_length;
+    current_thd->num_of_strings_sorted_on_truncated_length++;
+  }
 
   // length stored in lowendian form
   store_key_part_length(data_length + suffix_length, to, length_bytes);
