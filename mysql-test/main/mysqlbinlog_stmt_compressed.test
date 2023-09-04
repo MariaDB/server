@@ -4,7 +4,7 @@
 
 --source include/have_log_bin.inc
 --source include/have_binlog_format_statement.inc
-
+--source include/have_normal_bzip.inc
 #
 #  
 # mysqlbinlog: compressed query event 

@@ -1,6 +1,7 @@
 --source include/have_innodb.inc
 --source include/have_sequence.inc
 --source include/innodb_page_size_small.inc
+--source include/have_normal_bzip.inc
 
 call mtr.add_suppression("InnoDB: Cannot add field .* in table .* because after adding it, the row size is .* which is greater than maximum allowed size (.*) for a record on index leaf page.");
 
