@@ -541,6 +541,7 @@ static struct show_privileges_st sys_privileges[]=
   {"Connection admin", "Server", "To bypass connection limits and kill other users' connections"},
   {"Read_only admin", "Server", "To perform write operations even if @@read_only=ON"},
   {"Usage","Server Admin","No privileges - allow connect only"},
+  {"Show Create Routine","Databases,Functions,Procedures","To allow SHOW CREATE PROCEDURE/FUNCTION/PACKAGE"},
   {NullS, NullS, NullS}
 };
 
@@ -6676,7 +6677,9 @@ int store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
     DBUG_RETURN(0);
 
   if (!full_access)
-    full_access= !strcmp(sp_user, definer.str);
+    full_access= !strcmp(sp_user, definer.str) ||
+                 !check_db_routine_access(thd, SHOW_CREATE_ROUTINE_ACL,
+                                          db.str, name.str, sph, TRUE);
   if (!full_access &&
       check_some_routine_access(thd, db.str, name.str, sph))
     DBUG_RETURN(0);
@@ -6795,7 +6798,9 @@ int store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
     return 0;
 
   if (!full_access)
-    full_access= !strcmp(sp_user, definer.str);
+    full_access= !strcmp(sp_user, definer.str) ||
+                 !check_db_routine_access(thd, SHOW_CREATE_ROUTINE_ACL,
+                                          db.str, name.str, sph, TRUE);
   if (!full_access &&
       check_some_routine_access(thd, db.str, name.str, sph))
     return 0;
@@ -6915,7 +6920,8 @@ int fill_schema_proc(THD *thd, TABLE_LIST *tables, COND *cond)
   proc_tables.alias= MYSQL_PROC_NAME;
   proc_tables.lock_type= TL_READ;
   full_access= !check_table_access(thd, SELECT_ACL, &proc_tables, FALSE,
-                                   1, TRUE);
+                                   1, TRUE) ||
+               !check_global_access(thd, SHOW_CREATE_ROUTINE_ACL, TRUE);
 
   LOOKUP_FIELD_VALUES lookup;
   if (get_lookup_field_values(thd, cond, false, tables, &lookup))

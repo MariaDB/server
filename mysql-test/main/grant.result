@@ -225,7 +225,7 @@ revoke LOCK TABLES, ALTER on mysqltest.* from mysqltest_1@localhost;
 show grants for mysqltest_1@localhost;
 Grants for mysqltest_1@localhost
 GRANT USAGE ON *.* TO `mysqltest_1`@`localhost`
-GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, REFERENCES, INDEX, CREATE TEMPORARY TABLES, EXECUTE, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, EVENT, TRIGGER, DELETE HISTORY ON `mysqltest`.* TO `mysqltest_1`@`localhost` WITH GRANT OPTION
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, REFERENCES, INDEX, CREATE TEMPORARY TABLES, EXECUTE, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, EVENT, TRIGGER, DELETE HISTORY, SHOW CREATE ROUTINE ON `mysqltest`.* TO `mysqltest_1`@`localhost` WITH GRANT OPTION
 revoke all privileges on mysqltest.* from mysqltest_1@localhost;
 delete from mysql.user where user='mysqltest_1';
 flush privileges;
@@ -639,6 +639,7 @@ Federated admin	Server	To execute the CREATE SERVER, ALTER SERVER, DROP SERVER s
 Connection admin	Server	To bypass connection limits and kill other users' connections
 Read_only admin	Server	To perform write operations even if @@read_only=ON
 Usage	Server Admin	No privileges - allow connect only
+Show Create Routine	Databases,Functions,Procedures	To allow SHOW CREATE PROCEDURE/FUNCTION/PACKAGE
 connect  root,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
 connection root;
 create database mysqltest;
@@ -776,7 +777,7 @@ flush privileges;
 use test;
 set @user123="non-existent";
 select * from mysql.db where user=@user123;
-Host	Db	User	Select_priv	Insert_priv	Update_priv	Delete_priv	Create_priv	Drop_priv	Grant_priv	References_priv	Index_priv	Alter_priv	Create_tmp_table_priv	Lock_tables_priv	Create_view_priv	Show_view_priv	Create_routine_priv	Alter_routine_priv	Execute_priv	Event_priv	Trigger_priv	Delete_history_priv
+Host	Db	User	Select_priv	Insert_priv	Update_priv	Delete_priv	Create_priv	Drop_priv	Grant_priv	References_priv	Index_priv	Alter_priv	Create_tmp_table_priv	Lock_tables_priv	Create_view_priv	Show_view_priv	Create_routine_priv	Alter_routine_priv	Execute_priv	Event_priv	Trigger_priv	Delete_history_priv	Show_create_routine_priv
 set names koi8r;
 create database ÂÄ;
 grant select on ÂÄ.* to root@localhost;
@@ -2841,11 +2842,11 @@ CREATE USER ten2;
 GRANT ALL ON *.* TO ten2;
 SHOW GRANTS FOR ten2;
 Grants for ten2@%
-GRANT ALL PRIVILEGES ON *.* TO `ten2`@`%`
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, RELOAD, SHUTDOWN, PROCESS, FILE, REFERENCES, INDEX, ALTER, SHOW DATABASES, SUPER, CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, REPLICATION SLAVE, BINLOG MONITOR, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, CREATE USER, EVENT, TRIGGER, CREATE TABLESPACE, DELETE HISTORY, SET USER, FEDERATED ADMIN, CONNECTION ADMIN, READ_ONLY ADMIN, REPLICATION SLAVE ADMIN, REPLICATION MASTER ADMIN, BINLOG ADMIN, BINLOG REPLAY, SLAVE MONITOR ON *.* TO `ten2`@`%`
 FLUSH PRIVILEGES;
 SHOW GRANTS FOR ten2;
 Grants for ten2@%
-GRANT ALL PRIVILEGES ON *.* TO `ten2`@`%`
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, RELOAD, SHUTDOWN, PROCESS, FILE, REFERENCES, INDEX, ALTER, SHOW DATABASES, SUPER, CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, REPLICATION SLAVE, BINLOG MONITOR, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, CREATE USER, EVENT, TRIGGER, CREATE TABLESPACE, DELETE HISTORY, SET USER, FEDERATED ADMIN, CONNECTION ADMIN, READ_ONLY ADMIN, REPLICATION SLAVE ADMIN, REPLICATION MASTER ADMIN, BINLOG ADMIN, BINLOG REPLAY, SLAVE MONITOR ON *.* TO `ten2`@`%`
 DROP USER ten2;
 # switching back from mysql.user to mysql.global_priv
 #
