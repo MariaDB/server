@@ -16,7 +16,7 @@ call mtr.add_suppression("Master is configured to log replication events");
 
 --connection slave
 --source include/wait_for_slave_to_stop.inc
-start slave;
+--source include/start_slave.inc
 
 --connection master
 --source include/rpl_end.inc

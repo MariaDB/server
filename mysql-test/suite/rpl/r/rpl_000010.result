@@ -16,4 +16,5 @@ n
 connection master;
 drop table t1;
 connection slave;
+include/wait_for_slave_to_start.inc
 include/rpl_end.inc

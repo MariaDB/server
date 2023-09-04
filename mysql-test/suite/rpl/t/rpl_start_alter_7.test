@@ -32,9 +32,9 @@ set global gtid_strict_mode=1;
 --disable_warnings
 --disable_query_log
 --replace_result $SERVER_MYPORT_1 MYPORT_1
-eval change master 'm1' to master_port=$SERVER_MYPORT_1 , master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+eval change master 'm1' to master_port=$SERVER_MYPORT_1 , master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos;
 --replace_result $SERVER_MYPORT_2 MYPORT_2
-eval change master 'm2' to master_port=$SERVER_MYPORT_2 , master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+eval change master 'm2' to master_port=$SERVER_MYPORT_2 , master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos;
 --enable_query_log
 --enable_warnings
 

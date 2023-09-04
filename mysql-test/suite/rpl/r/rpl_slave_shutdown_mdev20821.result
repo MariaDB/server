@@ -5,7 +5,7 @@ include/start_slave.inc
 Warnings:
 Note	1254	Slave is already running
 set default_master_connection = 'm2';
-change master to master_host='127.0.0.1', master_port=SERVER_MYPORT_2, master_user='root', master_use_gtid=slave_pos;
+change master to master_host='127.0.0.1', master_port=SERVER_MYPORT_2, master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos;
 include/start_slave.inc
 select @@global.slave_parallel_workers as two;
 two

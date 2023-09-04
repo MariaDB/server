@@ -3,7 +3,7 @@ call mtr.add_suppression("Connection 'master1' already exists");
 change master 'master1' to 
 master_port=MYPORT_1, 
 master_host='127.0.0.1', 
-master_user='root',
+master_user='root', master_ssl_verify_server_cert=0,
 master_heartbeat_period = 25;
 start slave 'master1';
 set default_master_connection = 'master1';
@@ -12,7 +12,7 @@ set default_master_connection = '';
 change master to
 master_port=MYPORT_2,
 master_host='127.0.0.1',
-master_user='root',
+master_user='root', master_ssl_verify_server_cert=0,
 master_heartbeat_period=35;
 start slave;
 include/wait_for_slave_to_start.inc

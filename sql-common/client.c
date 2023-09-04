@@ -1439,6 +1439,8 @@ mysql_init(MYSQL *mysql)
     bzero((char*) (mysql), sizeof(*(mysql)));
   mysql->options.connect_timeout= CONNECT_TIMEOUT;
   mysql->charset=default_client_charset_info;
+  mysql->options.use_ssl= 1;
+  mysql->options.client_flag|= CLIENT_SSL_VERIFY_SERVER_CERT;
   strmov(mysql->net.sqlstate, not_error_sqlstate);
 
   /*
@@ -2116,9 +2118,6 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
     enum enum_ssl_init_error ssl_init_error;
     const char *cert_error;
     unsigned long ssl_error;
-#ifdef EMBEDDED_LIBRARY
-    DBUG_ASSERT(0); // embedded should not do SSL connect
-#endif
 
     /*
       Send mysql->client_flag, max_packet_size - unencrypted otherwise

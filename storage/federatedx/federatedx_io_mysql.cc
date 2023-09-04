@@ -429,6 +429,7 @@ int federatedx_io_mysql::actual_query(const char *buffer, size_t length)
   if (!mysql.net.vio)
   {
     my_bool my_true= 1;
+    my_bool my_false= 0;
 
     if (!(mysql_init(&mysql)))
       DBUG_RETURN(-1);
@@ -440,15 +441,11 @@ int federatedx_io_mysql::actual_query(const char *buffer, size_t length)
     */
     /* this sets the csname like 'set names utf8' */
     mysql_options(&mysql, MYSQL_SET_CHARSET_NAME, get_charsetname());
-    mysql_options(&mysql, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
-                  (char*) &my_true);
+    mysql_options(&mysql, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY, &my_true);
+    mysql_options(&mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT, &my_false);
 
-    if (!mysql_real_connect(&mysql,
-                            get_hostname(),
-                            get_username(),
-                            get_password(),
-                            get_database(),
-                            get_port(),
+    if (!mysql_real_connect(&mysql, get_hostname(), get_username(),
+                            get_password(), get_database(), get_port(),
                             get_socket(), 0))
       DBUG_RETURN(ER_CONNECT_TO_FOREIGN_DATA_SOURCE);
     mysql.reconnect= 1;

@@ -227,11 +227,11 @@ if (!$rpl_skip_change_master)
       }
       if ($rpl_master_log_file)
       {
-        eval CHANGE MASTER TO MASTER_HOST = '127.0.0.1', MASTER_PORT = $_rpl_port, MASTER_USER = 'root', MASTER_LOG_FILE = '$_rpl_master_log_file'$_rpl_master_log_pos, MASTER_CONNECT_RETRY = 1, MASTER_USE_GTID=NO;
+        eval CHANGE MASTER TO MASTER_HOST = '127.0.0.1', MASTER_PORT = $_rpl_port, MASTER_USER = 'root', MASTER_LOG_FILE = '$_rpl_master_log_file'$_rpl_master_log_pos, MASTER_CONNECT_RETRY = 1, MASTER_SSL_VERIFY_SERVER_CERT=0, MASTER_USE_GTID=NO;
       }
       if (!$rpl_master_log_file)
       {
-        eval CHANGE MASTER TO MASTER_HOST = '127.0.0.1', MASTER_PORT = $_rpl_port, MASTER_USER = 'root', MASTER_CONNECT_RETRY=1;
+        eval CHANGE MASTER TO MASTER_HOST = '127.0.0.1', MASTER_PORT = $_rpl_port, MASTER_USER = 'root', MASTER_CONNECT_RETRY=1, MASTER_SSL_VERIFY_SERVER_CERT=0;
       }
     }
     if ($_rpl_master == '')
