@@ -480,6 +480,7 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
   const char *pipe = NULL;
   //uint      cto = 10, nrt = 20;
   my_bool     my_true= 1;
+  my_bool     my_false= 0;
 
   m_DB = mysql_init(NULL);
 
@@ -528,8 +529,8 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
     mysql_options(m_DB, MYSQL_SET_CHARSET_NAME, csname);
 
   // Don't know what this one do but FEDERATED does it
-  mysql_options(m_DB, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
-                  (char*)&my_true);
+  mysql_options(m_DB, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY, &my_true);
+  mysql_options(m_DB, MYSQL_OPT_SSL_VERIFY_SERVER_CERT, &my_false);
 
   if (!mysql_real_connect(m_DB, host, user, pwd, db, pt, pipe,
 		CLIENT_MULTI_RESULTS | CLIENT_REMEMBER_OPTIONS)) {

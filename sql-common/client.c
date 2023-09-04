@@ -1439,6 +1439,7 @@ mysql_init(MYSQL *mysql)
     bzero((char*) (mysql), sizeof(*(mysql)));
   mysql->options.connect_timeout= CONNECT_TIMEOUT;
   mysql->charset=default_client_charset_info;
+  mysql->options.use_ssl= 1;
   strmov(mysql->net.sqlstate, not_error_sqlstate);
 
   /*
@@ -2100,9 +2101,9 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
      certificate, a ssl connection is required.
      If the server does not support ssl, we abort the connection.
   */
-  if (mysql->options.use_ssl &&
-      (mysql->options.extension && mysql->options.extension->tls_verify_server_cert) &&
-      !(mysql->server_capabilities & CLIENT_SSL))
+  if (mysql->options.use_ssl && !(mysql->server_capabilities & CLIENT_SSL) &&
+      (!mysql->options.extension ||
+       !mysql->options.extension->tls_allow_invalid_server_cert))
   {
     set_mysql_extended_error(mysql, CR_SSL_CONNECTION_ERROR, unknown_sqlstate,
                              ER(CR_SSL_CONNECTION_ERROR),
@@ -2120,9 +2121,6 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
     enum enum_ssl_init_error ssl_init_error;
     const char *cert_error;
     unsigned long ssl_error;
-#ifdef EMBEDDED_LIBRARY
-    DBUG_ASSERT(0); // embedded should not do SSL connect
-#endif
 
     /*
       Send mysql->client_flag, max_packet_size - unencrypted otherwise
@@ -2171,7 +2169,8 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
     DBUG_PRINT("info", ("IO layer change done!"));
 
     /* Verify server cert */
-    if ((mysql->options.extension && mysql->options.extension->tls_verify_server_cert) &&
+    if ((!mysql->options.extension ||
+         !mysql->options.extension->tls_allow_invalid_server_cert) &&
         ssl_verify_server_cert(mysql, &cert_error))
     {
       set_mysql_extended_error(mysql, CR_SSL_CONNECTION_ERROR, unknown_sqlstate,
@@ -2604,7 +2603,8 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
   /* Last attempt to validate the cert: compare cert info packet */
   DBUG_ASSERT(mysql->options.use_ssl);
   DBUG_ASSERT(mysql->net.vio->ssl_arg);
-  DBUG_ASSERT(mysql->options.extension->tls_verify_server_cert);
+  DBUG_ASSERT(!mysql->options.extension ||
+              !mysql->options.extension->tls_allow_invalid_server_cert);
   DBUG_ASSERT(!mysql->options.ssl_ca || !mysql->options.ssl_ca[0]);
   DBUG_ASSERT(!mysql->options.ssl_capath || !mysql->options.ssl_capath[0]);
   DBUG_ASSERT(auth_plugin->hash_password_bin);
@@ -3849,7 +3849,7 @@ mysql_options(MYSQL *mysql,enum mysql_option option, const void *arg)
                   sizeof(struct st_mysql_options_extention),
                   MYF(MY_WME | MY_ZEROFILL));
     if (mysql->options.extension)
-      mysql->options.extension->tls_verify_server_cert= *(my_bool*) arg;
+      mysql->options.extension->tls_allow_invalid_server_cert= !*(my_bool*) arg;
     break;
   case MYSQL_PLUGIN_DIR:
     EXTENSION_SET_STRING(&mysql->options, plugin_dir, arg);

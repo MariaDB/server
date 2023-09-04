@@ -40,6 +40,6 @@ let $master_user= query_get_value(SHOW SLAVE STATUS, Master_User, 1);
 
 
 # Reset
-CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root';
+CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_SSL_VERIFY_SERVER_CERT=0;
 
 --echo # End of test

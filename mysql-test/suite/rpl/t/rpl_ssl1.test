@@ -16,7 +16,7 @@ sync_slave_with_master;
 #trying to use this user without ssl
 stop slave;
 --source include/wait_for_slave_to_stop.inc
-change master to master_user='replssl',master_password='';
+change master to master_user='replssl',master_password='',master_ssl=0;
 start slave;
 
 #showing that replication don't work
@@ -131,7 +131,7 @@ CHANGE MASTER TO
  master_ssl_cert='',
  master_ssl_key='',
  master_ssl_verify_server_cert=0,
- master_ssl=0;
+ master_ssl=1;
 connection master;
 drop user replssl@127.0.0.1;
 connection slave;

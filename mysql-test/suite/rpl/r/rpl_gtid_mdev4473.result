@@ -12,7 +12,8 @@ include/wait_for_slave_to_stop.inc
 reset slave all;
 connection server_1;
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_2,
-master_user='root', MASTER_USE_GTID=SLAVE_POS, master_demote_to_slave=1;
+master_user='root', master_ssl_verify_server_cert=0,
+MASTER_USE_GTID=SLAVE_POS, master_demote_to_slave=1;
 include/start_slave.inc
 include/wait_for_slave_to_start.inc
 connection server_2;

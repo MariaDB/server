@@ -10,7 +10,7 @@ ERROR HY000: Could not initialize master info structure for ''; more error messa
 change master to master_host='127.0.0.1',master_port=MASTER_PORT, master_user='root';
 ERROR HY000: Could not initialize master info structure for ''; more error messages can be found in the MariaDB error log
 reset slave;
-change master to master_host='127.0.0.1',master_port=MASTER_PORT, master_user='root';
+change master to master_host='127.0.0.1',master_port=MASTER_PORT, master_user='root', master_ssl_verify_server_cert=0;
 connection master;
 reset master;
 connection slave;

@@ -29,7 +29,7 @@ if (`SELECT strcmp("$ignore_domain_ids","") != 0`)
 --echo # gtid_current_pos calculation
 --let $current_pos= `SELECT @@gtid_current_pos`
 --replace_result $SLAVE_MYPORT SLAVE_PORT
---eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$SLAVE_MYPORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1 $extra_cm_args
+--eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$SLAVE_MYPORT, master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos, master_demote_to_slave=1 $extra_cm_args
 SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
 --let $slave_pos= `SELECT @@gtid_slave_pos`
 --echo # Validating gtid_slave_pos == gtid_binlog_pos..
