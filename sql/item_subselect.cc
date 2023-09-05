@@ -3122,9 +3122,21 @@ bool Item_exists_subselect::exists2in_prepare(
     DBUG_RETURN(TRUE);
   DBUG_ASSERT(eqs.elements() != 0);
 
-  /* A workaround to avoid 2nd ps execution segfault (MDEV-31269). */
-  if (!thd->stmt_arena->is_conventional())
-    DBUG_RETURN(TRUE);
+  /*
+    A workaround to avoid 2nd ps execution segfault (MDEV-31269):
+    The transformation we're doing is permanent. Don't apply it if
+    the involved conditions use Item_ref-based items (which are not
+    permanent).
+  */
+  if (!thd->stmt_arena->is_conventional() && substype()==IN_SUBS)
+  {
+    for (uint i= 0; i < (uint) eqs.elements(); i++)
+    {
+      Item *item= *eqs.at(i).eq_ref;
+      if (item->walk(&Item::uses_item_ref_processor, TRUE, NULL))
+        DBUG_RETURN(TRUE);
+    }
+  }
 
   /* Determine whether the result will be correlated */
   {
