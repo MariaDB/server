@@ -288,6 +288,9 @@ enum enum_indicator_type
 /* Do not resend metadata for prepared statements, since 10.6*/
 #define MARIADB_CLIENT_CACHE_METADATA (1ULL << 36)
 
+/* Always send Result-set intermediate EOF whatever CLIENT_DEPRECATE_EOF is set or not*/
+#define MARIADB_CLIENT_SEND_INTERMEDIATE_EOF (1ULL << 37)
+
 #ifdef HAVE_COMPRESS
 #define CAN_CLIENT_COMPRESS CLIENT_COMPRESS
 #else
@@ -329,7 +332,8 @@ enum enum_indicator_type
                            MARIADB_CLIENT_STMT_BULK_OPERATIONS |\
                            MARIADB_CLIENT_EXTENDED_METADATA|\
                            MARIADB_CLIENT_CACHE_METADATA |\
-                           CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS)
+                           CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS |\
+                           MARIADB_CLIENT_SEND_INTERMEDIATE_EOF)
 /*
   Switch off the flags that are optional and depending on build flags
   If any of the optional flags is supported by the build it will be switched

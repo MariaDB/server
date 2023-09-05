@@ -1220,21 +1220,28 @@ bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
     }
   }
 
-  if (flags & SEND_EOF)
-  {
+  /*
+    There is 2 possibles use for EOF ending metadata:
+    * PREPARE Metadata eof
+    * Result-set intermediate EOF (between meta and rows)
 
-    /* if it is new client do not send EOF packet */
-    if (!(thd->client_capabilities & CLIENT_DEPRECATE_EOF))
-    {
-      /*
-        Mark the end of meta-data result set, and store thd->server_status,
-        to show that there is no cursor.
-        Send no warning information, as it will be sent at statement end.
-      */
-      if (write_eof_packet(thd, &thd->net, thd->server_status,
-                           thd->get_stmt_da()->current_statement_warn_count()))
-        DBUG_RETURN(1);
-    }
+    EOF must be sent if:
+    * Send PREPARE EOF if not deprecated
+    * Send Result-set intermediary EOF if required (MARIADB_CLIENT_SEND_INTERMEDIATE_EOF) or not deprecated
+  */
+  if (((flags & SEND_PREPARE_EOF) && !(thd->client_capabilities & CLIENT_DEPRECATE_EOF))
+      || (flags & SEND_EOF
+          && ((thd->client_capabilities & MARIADB_CLIENT_SEND_INTERMEDIATE_EOF)
+              || !(thd->client_capabilities & CLIENT_DEPRECATE_EOF))))
+  {
+    /*
+      Mark the end of meta-data result set, and store thd->server_status,
+      to show that there is no cursor.
+      Send no warning information, as it will be sent at statement end.
+    */
+    if (write_eof_packet(thd, &thd->net, thd->server_status,
+                         thd->get_stmt_da()->current_statement_warn_count()))
+      DBUG_RETURN(1);
   }
   DBUG_RETURN(prepare_for_send(list->elements));
 

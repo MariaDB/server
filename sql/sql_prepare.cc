@@ -358,7 +358,7 @@ static bool send_prep_stmt(Prepared_statement *stmt, uint columns)
     */
     error= thd->protocol_text.send_result_set_metadata(
                 (List<Item> *)&stmt->lex->param_list,
-                Protocol::SEND_EOF | Protocol::SEND_FORCE_COLUMN_INFO);
+                Protocol::SEND_PREPARE_EOF | Protocol::SEND_FORCE_COLUMN_INFO);
   }
 
   if (likely(!error))
@@ -1488,7 +1488,7 @@ static int mysql_test_select(Prepared_statement *stmt,
       unit->prepare call above.
     */
     if (send_prep_stmt(stmt, lex->result->field_count(fields)) ||
-        lex->result->send_result_set_metadata(fields, Protocol::SEND_EOF) ||
+        lex->result->send_result_set_metadata(fields, Protocol::SEND_PREPARE_EOF) ||
         thd->protocol->flush())
       goto error;
     DBUG_RETURN(2);
@@ -1755,7 +1755,7 @@ static int send_stmt_metadata(THD *thd, Prepared_statement *stmt, List<Item> *fi
     return 0;
 
   if (send_prep_stmt(stmt, fields->elements) ||
-      thd->protocol->send_result_set_metadata(fields, Protocol::SEND_EOF) ||
+      thd->protocol->send_result_set_metadata(fields, Protocol::SEND_PREPARE_EOF) ||
       thd->protocol->flush())
     return 1;
 
@@ -2102,7 +2102,7 @@ static int mysql_test_handler_read(Prepared_statement *stmt,
       DBUG_RETURN(1);
 
     if (send_prep_stmt(stmt, ha_table->fields.elements) ||
-        lex->result->send_result_set_metadata(ha_table->fields, Protocol::SEND_EOF) ||
+        lex->result->send_result_set_metadata(ha_table->fields, Protocol::SEND_PREPARE_EOF) ||
         thd->protocol->flush())
       DBUG_RETURN(1);
     DBUG_RETURN(2);
@@ -2482,8 +2482,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
          res= thd->prepare_explain_fields(&result, &field_list,
                                           lex->describe, lex->analyze_stmt) ||
               send_prep_stmt(stmt, result.field_count(field_list)) ||
-              result.send_result_set_metadata(field_list,
-                                                    Protocol::SEND_EOF);
+              result.send_result_set_metadata(field_list, Protocol::SEND_PREPARE_EOF);
        }
        else
          res= send_prep_stmt(stmt, 0);
