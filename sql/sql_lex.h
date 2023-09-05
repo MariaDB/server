@@ -1324,6 +1324,7 @@ public:
   uint in_sum_expr;
   uint select_number; /* number of select (used for EXPLAIN) */
   uint with_wild;     /* item list contain '*' ; Counter */
+  bool is_explicit_table;   /* specified as 'TABLE xyz' in query */
   /* Number of Item_sum-derived objects in this SELECT */
   uint n_sum_items;
   /* Number of Item_sum-derived objects in children and descendant SELECTs */
@@ -4785,6 +4786,7 @@ public:
   void restore_values_list_state();
   bool parsed_TVC_start();
   SELECT_LEX *parsed_TVC_end();
+  bool parsed_explicit_table(Table_ident *tab);
   TABLE_LIST *parsed_derived_table(SELECT_LEX_UNIT *unit,
                                    int for_system_time,
                                    LEX_CSTRING *alias);

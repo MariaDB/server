@@ -28,7 +28,7 @@ show analyze format = json for $thr1;
 ERROR HY000: Target is not executing an operation with a query plan
 show analyze FORMAT=HTML for $thr1;
 ERROR HY000: Unknown EXPLAIN/ANALYZE format name: 'HTML'
-analyze FORMAT=XML for connection $thr1;
+show analyze FORMAT=XML for connection $thr1;
 ERROR HY000: Unknown EXPLAIN/ANALYZE format name: 'XML'
 connection con1;
 set @show_explain_probe_select_id=1;

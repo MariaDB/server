@@ -83,7 +83,7 @@ evalp show analyze format = json for $thr1;
 evalp show analyze FORMAT=HTML for $thr1;
 
 --error ER_UNKNOWN_EXPLAIN_FORMAT
-evalp analyze FORMAT=XML for connection $thr1;
+evalp show analyze FORMAT=XML for connection $thr1;
 
 let $wait_condition= select State='show_explain_trap' from information_schema.processlist where id=$thr2;
 

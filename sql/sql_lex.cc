@@ -2990,6 +2990,7 @@ void st_select_lex::init_query()
   context.select_lex= this;
   context.init();
   cond_count= between_count= with_wild= 0;
+  is_explicit_table= false;
   max_equal_elems= 0;
   ref_pointer_array.reset();
   select_n_where_fields= 0;
@@ -3030,6 +3031,7 @@ void st_select_lex::init_select()
   table_join_options= 0;
   select_lock= select_lock_type::NONE;
   in_sum_expr= with_wild= 0;
+  is_explicit_table= false;
   options= 0;
   ftfunc_list_alloc.empty();
   inner_sum_func_list= 0;
@@ -10432,6 +10434,43 @@ SELECT_LEX *LEX::parsed_TVC_end()
   return res;
 }
 
+
+bool LEX::parsed_explicit_table(Table_ident *tab)
+{
+  TABLE_LIST *res;
+  // emulate select * from table
+
+  SELECT_LEX *sel;
+  if (!(sel= alloc_select(TRUE)) || push_select(sel))
+    return true;
+
+  sel->braces= FALSE; // just initialisation
+
+  Item *item= new(thd->mem_root)
+          Item_field(thd, &thd->lex->current_select->context, star_clex_str);
+
+  thd->lex->current_select->with_wild++;
+  thd->lex->current_select->is_explicit_table= true;
+
+  if (unlikely(item == NULL))
+    return true;
+  if (unlikely(add_item_to_list(thd, item)))
+    return true;
+
+  if (!(res= thd->lex->current_select->add_table_to_list(thd, tab,
+          (LEX_CSTRING *) 0x0, 0, TL_READ, MDL_SHARED_READ)))
+    return true;
+
+  thd->lex->current_select->context.table_list=
+    thd->lex->current_select->context.first_name_resolution_table=
+      thd->lex->current_select->table_list.first;
+
+  thd->lex->current_select->add_joined_table(
+                                thd->lex->current_select->table_list.first);
+
+  return false;
+
+}
 
 
 TABLE_LIST *LEX::parsed_derived_table(SELECT_LEX_UNIT *unit,

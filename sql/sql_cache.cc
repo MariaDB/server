@@ -1838,7 +1838,10 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
        my_toupper(system_charset_info, sql[2]) != 'L') &&
       (my_toupper(system_charset_info, sql[0]) != 'W' ||
        my_toupper(system_charset_info, sql[1]) != 'I' ||
-       my_toupper(system_charset_info, sql[2]) != 'T'))
+       my_toupper(system_charset_info, sql[2]) != 'T') &&
+      (my_toupper(system_charset_info, sql[0]) != 'T' ||
+       my_toupper(system_charset_info, sql[1]) != 'A' ||
+       my_toupper(system_charset_info, sql[2]) != 'B'))
   {
     DBUG_PRINT("qcache", ("The statement is not a SELECT; Not cached"));
     goto err;

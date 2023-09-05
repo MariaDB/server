@@ -346,9 +346,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 */
 
 %ifdef MARIADB
-%expect 64
-%else
 %expect 65
+%else
+%expect 66
 %endif
 
 /*
@@ -1433,7 +1433,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <num>
         order_dir lock_option
-        udf_type opt_local opt_no_write_to_binlog
+        udf_type opt_local opt_no_write_to_binlog no_write_to_binlog
         opt_temporary all_or_any opt_distinct opt_glimit_clause
         opt_ignore_leaves fulltext_options union_option
         opt_not
@@ -1656,6 +1656,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <select_lex> subselect
         query_specification
         table_value_constructor
+        explicit_table
         simple_table
         query_simple
         query_primary
@@ -1710,7 +1711,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         show describe load alter optimize keycache preload flush
         reset purge begin_stmt_mariadb commit rollback savepoint release
         slave master_def master_defs master_file_def slave_until_opts
-        repair analyze opt_with_admin opt_with_admin_option
+        repair analyze analyze_table_cmd opt_with_admin opt_with_admin_option
         analyze_table_list analyze_table_elem_spec
         opt_persistent_stat_clause persistent_stat_spec
         persistent_column_stat_spec persistent_index_stat_spec
@@ -1994,6 +1995,7 @@ directly_executable_statement:
 verb_clause:
           alter
         | analyze
+        | analyze_table_cmd
         | analyze_stmt_command
         | backup
         | binlog_base64_event
@@ -8083,8 +8085,33 @@ opt_view_repair_type:
         | FROM MYSQL_SYM { Lex->check_opt.sql_flags|= TT_FROM_MYSQL; }
         ;
 
+/*
+ * Override reduce/reduce conflict caused by "analyze table t1" by providing
+ * a shorter unambiguous command
+ */
+analyze_table_cmd:
+          ANALYZE_SYM table_or_tables
+          {
+            LEX *lex=Lex;
+            lex->sql_command = SQLCOM_ANALYZE;
+            lex->no_write_to_binlog= 0;
+            lex->check_opt.init();
+            lex->alter_info.reset();
+            /* Will be overridden during execution. */
+            YYPS->m_lock_type= TL_UNLOCK;
+          }
+          analyze_table_list
+          {
+            LEX* lex= thd->lex;
+            DBUG_ASSERT(!lex->m_sql_cmd);
+            lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_analyze_table();
+            if (unlikely(lex->m_sql_cmd == NULL))
+              MYSQL_YYABORT;
+          }
+        ;
+
 analyze:
-          ANALYZE_SYM opt_no_write_to_binlog table_or_tables
+          ANALYZE_SYM no_write_to_binlog table_or_tables
           {
             LEX *lex=Lex;
             lex->sql_command = SQLCOM_ANALYZE;
@@ -8290,6 +8317,11 @@ optimize:
 opt_no_write_to_binlog:
           /* empty */ { $$= 0; }
         | NO_WRITE_TO_BINLOG { $$= 1; }
+        | LOCAL_SYM { $$= 1; }
+        ;
+
+no_write_to_binlog:
+          NO_WRITE_TO_BINLOG { $$= 1; }
         | LOCAL_SYM { $$= 1; }
         ;
 
@@ -8547,6 +8579,7 @@ select_into:
 simple_table:
           query_specification      { $$= $1; }
         | table_value_constructor  { $$= $1; }
+        | explicit_table           { $$= $1; }
         ;
 
 table_value_constructor:
@@ -8561,6 +8594,16 @@ table_value_constructor:
 	      MYSQL_YYABORT;
 	  }
 	;
+
+explicit_table:
+         TABLE_SYM table_ident
+         {
+            if (Lex->parsed_explicit_table($2))
+              MYSQL_YYABORT;
+
+            $$= Lex->pop_select();
+         }
+         ;
 
 query_specification_start:
           SELECT_SYM
