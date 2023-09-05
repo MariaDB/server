@@ -133,7 +133,7 @@
 */
 
 
-class Gtid_index_writer
+class Gtid_index_base
 {
 public:
   enum enum_page_flags {
@@ -150,6 +150,7 @@ public:
     */
     PAGE_FLAG_ROOT= 8,
   };
+
   /*
     Minor version increment represents a backwards-compatible format (can be
     read by any server version that knows the format of the major version).
@@ -160,10 +161,6 @@ public:
   static constexpr uchar GTID_INDEX_VERSION_MINOR= 0;
   static constexpr size_t GTID_INDEX_FILE_HEADER_SIZE= 16;
   static constexpr size_t GTID_INDEX_PAGE_HEADER_SIZE= 8;
-  /* ToDo: configurable. */
-  static constexpr uint32 gtid_threshold= 1; // ToDo 10;
-  static constexpr my_off_t offset_min_threshold= 1; // ToDo 4096;
-  static constexpr my_off_t offset_max_threshold= 65536;
 
   struct Node_page
   {
@@ -174,25 +171,52 @@ public:
     uchar page[];
   };
 
-  struct Index_node
+  struct Index_node_base
   {
-    rpl_binlog_state state;
     Node_page *first_page;
     Node_page *current_page;
     /* The current_ptr is only valid if current_page != 0. */
     uchar *current_ptr;
+
+    Index_node_base();
+    ~Index_node_base();
+    void free_pages();
+    void reset();
+  };
+
+  Node_page *alloc_page();
+  virtual int give_error(const char *msg) = 0;
+
+  size_t page_size;
+
+protected:
+  Gtid_index_base() { };
+  virtual ~Gtid_index_base() { };
+};
+
+
+class Gtid_index_writer : public Gtid_index_base
+{
+public:
+  /* ToDo: configurable. */
+  static constexpr uint32 gtid_threshold= 1; // ToDo 10;
+  static constexpr my_off_t offset_min_threshold= 1; // ToDo 4096;
+  static constexpr my_off_t offset_max_threshold= 65536;
+
+  struct Index_node : public Index_node_base
+  {
+    rpl_binlog_state state;
     uint32 num_records;
     uint32 level;
     bool force_spill_page;
 
     Index_node(uint32 level_);
     ~Index_node();
-    void free_pages();
     void reset();
   };
   Gtid_index_writer(const char *filename, my_off_t offset,
                     rpl_binlog_state *binlog_state);
-  ~Gtid_index_writer();
+  virtual ~Gtid_index_writer();
   void process_gtid(my_off_t offset, const rpl_gtid *gtid);
   void close(my_off_t offset);
   uint32 write_current_node(uint32 level, bool is_root);
@@ -206,11 +230,9 @@ public:
   int alloc_level_if_missing(uint32 level);
   rpl_gtid *gtid_list_buffer(uint32 count);
   uchar *init_header(Node_page *page, bool is_leaf, bool is_first);
-  Node_page *alloc_page();
-  int give_error(const char *msg);
+  int give_error(const char *msg) override;
 
   rpl_binlog_state pending_state;
-  size_t page_size;
   /* The currently being built index nodes, from leaf[0] to root[max_level]. */
   Index_node **nodes;
   /*
@@ -236,6 +258,29 @@ public:
   /* Flag to help put the file header at the start of the very first page. */
   bool file_header_written;
   char index_file_name[FN_REFLEN+4];  // +4 for ".idx" prefix
+};
+
+
+class Gtid_index_reader : public Gtid_index_base
+{
+public:
+  Gtid_index_reader();
+  virtual ~Gtid_index_reader();
+
+  void free_pages();
+  int open_index_file(const char *binlog_filename);
+  void close_index_file();
+  int read_file_header();
+  int read_root_node();
+  int read_node(uint32 page_ptr);
+  int give_error(const char *msg) override;
+
+  Index_node_base n;
+  File index_file;
+  bool file_open;
+  bool index_valid;
+  uchar version_major;
+  uchar version_minor;
 };
 
 #endif  /* GTID_INDEX_H */

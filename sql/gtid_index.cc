@@ -26,12 +26,12 @@ static const uchar GTID_INDEX_MAGIC[8]= {
 
 Gtid_index_writer::Gtid_index_writer(const char *filename, my_off_t offset,
                                      rpl_binlog_state *binlog_state)
-  : page_size(4096) /* ToDo: init from config */,
-    nodes(nullptr), gtid_buffer(nullptr), previous_offset(0),
+  : nodes(nullptr), gtid_buffer(nullptr), previous_offset(0),
     gtid_buffer_alloc(0),
     max_level(0), pending_gtid_count(0), index_file(-1),
     error_state(false), file_header_written(false)
 {
+  page_size= 4096;   /* ToDo: init from config */
   pending_state.init();
 
   char *p= strmake(index_file_name, filename, sizeof(index_file_name)-1);
@@ -172,9 +172,40 @@ Gtid_index_writer::close(my_off_t offset)
 }
 
 
+Gtid_index_base::Index_node_base::Index_node_base()
+  : first_page(nullptr), current_page(nullptr), current_ptr(nullptr)
+{
+}
+
+
+Gtid_index_base::Index_node_base::~Index_node_base()
+{
+  free_pages();
+}
+
+
+void
+Gtid_index_base::Index_node_base::free_pages()
+{
+  for (Node_page *p= first_page; p; )
+  {
+    Node_page *q= p->next;
+    my_free(p);
+    p= q;
+  }
+}
+
+
+void
+Gtid_index_base::Index_node_base::reset()
+{
+  free_pages();
+  first_page= current_page= nullptr;
+}
+
+
 Gtid_index_writer::Index_node::Index_node(uint32 level_)
-  : first_page(nullptr), current_page(nullptr), current_ptr(nullptr),
-    num_records(0), level(level_), force_spill_page(false)
+  : num_records(0), level(level_), force_spill_page(false)
 {
   state.init();
 }
@@ -213,23 +244,10 @@ Gtid_index_writer::write_current_node(uint32 level, bool is_root)
 
 
 void
-Gtid_index_writer::Index_node::free_pages()
-{
-  for (Node_page *p= first_page; p; )
-  {
-    Node_page *q= p->next;
-    my_free(p);
-    p= q;
-  }
-}
-
-
-void
 Gtid_index_writer::Index_node::reset()
 {
+  Index_node_base::reset();
   state.reset();
-  free_pages();
-  first_page= current_page= nullptr;
   num_records= 0;
   force_spill_page= false;
 }
@@ -505,7 +523,7 @@ Gtid_index_writer::init_header(Node_page *page, bool is_leaf, bool is_first)
 }
 
 
-Gtid_index_writer::Node_page *Gtid_index_writer::alloc_page()
+Gtid_index_base::Node_page *Gtid_index_base::alloc_page()
 {
   Node_page *new_node= (Node_page *)
     my_malloc(PSI_INSTRUMENT_ME,
@@ -526,5 +544,174 @@ int Gtid_index_writer::give_error(const char *msg)
                           "Error is: %s", msg);
     error_state= true;
   }
+  return 1;
+}
+
+
+Gtid_index_reader::Gtid_index_reader()
+  : index_file(-1),
+    file_open(false), index_valid(false),
+    version_major(0), version_minor(0)
+{
+}
+
+
+Gtid_index_reader::~Gtid_index_reader()
+{
+  if (file_open)
+    mysql_file_close(index_file, MYF(0));
+}
+
+
+void
+Gtid_index_reader::close_index_file()
+{
+  if (!file_open)
+    return;
+  mysql_file_close(index_file, MYF(0));
+  file_open= false;
+  index_valid= false;
+}
+
+
+int
+Gtid_index_reader::read_file_header()
+{
+  index_valid= false;
+  if (!file_open)
+    return 1;
+
+  /*
+    Read the file header and check that it's valid and that the format is not
+    too new a version for us to be able to read it.
+  */
+  uchar buf[GTID_INDEX_FILE_HEADER_SIZE + GTID_INDEX_PAGE_HEADER_SIZE];
+
+  if (MY_FILEPOS_ERROR == mysql_file_seek(index_file, 0, MY_SEEK_SET, MYF(0)) ||
+      mysql_file_read(index_file, buf,
+                      GTID_INDEX_FILE_HEADER_SIZE + GTID_INDEX_PAGE_HEADER_SIZE,
+                      MYF(MY_NABP)))
+    return 1;
+  if (memcmp(&buf[0], GTID_INDEX_MAGIC, sizeof(GTID_INDEX_MAGIC)))
+    return 1;
+  version_major= buf[8];
+  version_minor= buf[9];
+  /* We cannot safely read a major version we don't know about. */
+  if (version_major > GTID_INDEX_VERSION_MAJOR)
+    return 1;
+  page_size= uint4korr(&buf[12]);
+
+  /*
+    Check that there is a valid root node at the end of the file.
+    (If there is not, the index was only partially written before server crash).
+  */
+  uchar flags= buf[GTID_INDEX_PAGE_HEADER_SIZE];
+  constexpr uchar needed_flags= PAGE_FLAG_ROOT|PAGE_FLAG_LAST;
+  if ((flags & needed_flags) == needed_flags)
+  {
+    /* Special case: the index is a single page, which is the root node. */
+  }
+  else
+  {
+    uchar buf2[GTID_INDEX_PAGE_HEADER_SIZE];
+    if (MY_FILEPOS_ERROR == mysql_file_seek(index_file, -(my_off_t)page_size,
+                                            MY_SEEK_END, MYF(0)) ||
+        mysql_file_read(index_file, buf2, GTID_INDEX_PAGE_HEADER_SIZE,
+                        MYF(MY_NABP)))
+      return 1;
+    flags= buf2[0];
+    if (!((flags & needed_flags) == needed_flags))
+      return 1;
+  }
+  index_valid= true;
+  return 0;
+}
+
+
+int
+Gtid_index_reader::read_root_node()
+{
+  if (!index_valid)
+    return 1;
+
+  n.reset();
+  /*
+    Read pages one by one from the back of the file until we have a complete
+    root node.
+  */
+  if (MY_FILEPOS_ERROR == mysql_file_seek(index_file, -(my_off_t)page_size,
+                                          MY_SEEK_END, MYF(0)))
+    return 1;
+
+  for (;;)
+  {
+    Node_page *page= alloc_page();
+    if (!page)
+      return 1;
+    if (mysql_file_read(index_file, page->page, page_size, MYF(MY_NABP)))
+    {
+      my_free(page);
+      return 1;
+    }
+    page->next= n.first_page;
+    n.first_page= page;
+    uchar flags= page->page[0];
+    if (unlikely(!(flags & PAGE_FLAG_ROOT)))
+      return 1;                        // Corrupt index, no start of root node
+    if (!(flags & PAGE_FLAG_IS_CONT))
+      break;                           // Found start of root node
+    if (MY_FILEPOS_ERROR == mysql_file_seek(index_file, -(my_off_t)page_size,
+                                            MY_SEEK_CUR, MYF(0)))
+      return 1;
+  }
+
+  return 0;
+}
+
+
+int
+Gtid_index_reader::read_node(uint32 page_ptr)
+{
+  if (!index_valid || !page_ptr)
+    return 1;
+
+  if (MY_FILEPOS_ERROR == mysql_file_seek(index_file, (page_ptr-1)*page_size,
+                                          MY_SEEK_SET, MYF(0)))
+    return 1;
+
+  bool file_header= (page_ptr == 1);
+  n.reset();
+  Node_page **next_ptr_ptr= &n.first_page;
+  for (;;)
+  {
+    Node_page *page= alloc_page();
+    if (!page)
+      return 1;
+    if (mysql_file_read(index_file, page->page, page_size, MYF(MY_NABP)))
+    {
+      my_free(page);
+      return 1;
+    }
+    page->flag_ptr= &page->page[file_header ? GTID_INDEX_PAGE_HEADER_SIZE : 0];
+    file_header= false;
+    /* Insert the page at the end of the list. */
+    page->next= nullptr;
+    *next_ptr_ptr= page;
+    next_ptr_ptr= &page->next;
+
+    uchar flags= *(page->flag_ptr);
+    if (flags & PAGE_FLAG_LAST)
+      break;
+  }
+
+  return 0;
+}
+
+
+int Gtid_index_reader::give_error(const char *msg)
+{
+  sql_print_information("Error reading binlog GTID index, will "
+                        "fallback to slower sequential binlog scan. "
+                        "Error is: %s", msg);
   return 1;
 }
