@@ -77,6 +77,9 @@ void init_alloc_root(PSI_memory_key key, MEM_ROOT *mem_root, size_t block_size,
   mem_root->block_num= 4;			/* We shift this with >>2 */
   mem_root->first_block_usage= 0;
   mem_root->m_psi_key= key;
+#ifdef PROTECT_STATEMENT_MEMROOT
+  mem_root->read_only= 0;
+#endif
 
 #if !(defined(HAVE_valgrind) && defined(EXTRA_DEBUG))
   if (pre_alloc_size)
@@ -215,6 +218,10 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
   DBUG_ENTER("alloc_root");
   DBUG_PRINT("enter",("root: %p", mem_root));
   DBUG_ASSERT(alloc_root_inited(mem_root));
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+  DBUG_ASSERT(mem_root->read_only == 0);
+#endif
 
   DBUG_EXECUTE_IF("simulate_out_of_memory",
                   {
