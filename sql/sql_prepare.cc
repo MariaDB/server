@@ -172,6 +172,16 @@ public:
   Server_side_cursor *cursor;
   uchar *packet;
   uchar *packet_end;
+#ifdef PROTECT_STATEMENT_MEMROOT
+  /*
+    The following data member is wholly for debugging purpose.
+    It can be used for possible crash analysis to determine how many times
+    the stored routine was executed before the mem_root marked read_only
+    was requested for a memory chunk. Additionally, a value of this data
+    member is output to the log with DBUG_PRINT.
+  */
+  ulong executed_counter;
+#endif
   uint param_count;
   uint last_errno;
   uint flags;
@@ -4004,6 +4014,9 @@ Prepared_statement::Prepared_statement(THD *thd_arg)
   cursor(0),
   packet(0),
   packet_end(0),
+#ifdef PROTECT_STATEMENT_MEMROOT
+  executed_counter(0),
+#endif
   param_count(0),
   last_errno(0),
   flags((uint) IS_IN_USE),
@@ -4078,8 +4091,13 @@ void Prepared_statement::setup_set_params()
 Prepared_statement::~Prepared_statement()
 {
   DBUG_ENTER("Prepared_statement::~Prepared_statement");
+#ifdef PROTECT_STATEMENT_MEMROOT
+  DBUG_PRINT("enter",("stmt: %p  cursor: %p executed_counter: %lu",
+                      this, cursor, executed_counter));
+#else
   DBUG_PRINT("enter",("stmt: %p  cursor: %p",
                       this, cursor));
+#endif
 
   MYSQL_DESTROY_PS(m_prepared_stmt);
 
@@ -4260,6 +4278,10 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     DBUG_RETURN(true);
   }
   lex->set_trg_event_type_for_tables();
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+  executed_counter= 0;
+#endif
 
   /*
     While doing context analysis of the query (in check_prepared_statement)
@@ -4532,9 +4554,31 @@ reexecute:
     error= reprepare();
 
     if (likely(!error))                         /* Success */
+    {
+#ifdef PROTECT_STATEMENT_MEMROOT
+      // There was reprepare so the counter of runs should be reset
+      executed_counter= 0;
+      mem_root->read_only= 0;
+#endif
       goto reexecute;
+    }
   }
   reset_stmt_params(this);
+#ifdef PROTECT_STATEMENT_MEMROOT
+  if (!error)
+  {
+    mem_root->read_only= 1;
+    ++executed_counter;
+
+    DBUG_PRINT("info", ("execute counter: %lu", executed_counter));
+  }
+  else
+  {
+    // Error on call shouldn't be counted as a normal run
+    executed_counter= 0;
+    mem_root->read_only= 0;
+  }
+#endif
 
   return error;
 }

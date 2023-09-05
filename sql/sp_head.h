@@ -140,6 +140,16 @@ class sp_head :private Query_arena,
 
 protected:
   MEM_ROOT main_mem_root;
+#ifdef PROTECT_STATEMENT_MEMROOT
+  /*
+    The following data member is wholly for debugging purpose.
+    It can be used for possible crash analysis to determine how many times
+    the stored routine was executed before the mem_root marked read_only
+    was requested for a memory chunk. Additionally, a value of this data
+    member is output to the log with DBUG_PRINT.
+  */
+  ulong executed_counter;
+#endif
 public:
   /** Possible values of m_flags */
   enum {
@@ -823,6 +833,11 @@ public:
     return ip;
   }
 
+#ifdef PROTECT_STATEMENT_MEMROOT
+  int has_all_instrs_executed();
+  void reset_instrs_executed_counter();
+#endif
+
   /* Add tables used by routine to the table list. */
   bool add_used_tables_to_table_list(THD *thd,
                                      TABLE_LIST ***query_tables_last_ptr,
@@ -1109,6 +1124,9 @@ public:
   /// Should give each a name or type code for debugging purposes?
   sp_instr(uint ip, sp_pcontext *ctx)
     :Query_arena(0, STMT_INITIALIZED_FOR_SP), marked(0), m_ip(ip), m_ctx(ctx)
+#ifdef PROTECT_STATEMENT_MEMROOT
+  , m_has_been_run(false)
+#endif
   {}
 
   virtual ~sp_instr()
@@ -1199,6 +1217,25 @@ public:
   }
   virtual PSI_statement_info* get_psi_info() = 0;
 
+#ifdef PROTECT_STATEMENT_MEMROOT
+  bool has_been_run() const
+  {
+    return m_has_been_run;
+  }
+
+  void mark_as_run()
+  {
+    m_has_been_run= true;
+  }
+
+  void mark_as_not_run()
+  {
+    m_has_been_run= false;
+  }
+
+private:
+  bool m_has_been_run;
+#endif
 }; // class sp_instr : public Sql_alloc
 
 

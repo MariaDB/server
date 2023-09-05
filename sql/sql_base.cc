@@ -1918,15 +1918,15 @@ retry_share:
       goto err_lock;
     }
 
-    /* Open view */
-    if (mysql_make_view(thd, share, table_list, false))
-      goto err_lock;
-
     /*
       This table is a view. Validate its metadata version: in particular,
       that it was a view when the statement was prepared.
     */
     if (check_and_update_table_version(thd, table_list, share))
+      goto err_lock;
+
+    /* Open view */
+    if (mysql_make_view(thd, share, table_list, false))
       goto err_lock;
 
     /* TODO: Don't free this */
@@ -3863,6 +3863,12 @@ open_and_process_table(THD *thd, TABLE_LIST *tables, uint *counter, uint flags,
   if (tables->open_strategy && !tables->table)
     goto end;
 
+  /* Check and update metadata version of a base table. */
+  error= check_and_update_table_version(thd, tables, tables->table->s);
+
+  if (unlikely(error))
+    goto end;
+
   error= extend_table_list(thd, tables, prelocking_strategy, has_prelocking_list);
   if (unlikely(error))
     goto end;
@@ -3870,11 +3876,6 @@ open_and_process_table(THD *thd, TABLE_LIST *tables, uint *counter, uint flags,
   /* Copy grant information from TABLE_LIST instance to TABLE one. */
   tables->table->grant= tables->grant;
 
-  /* Check and update metadata version of a base table. */
-  error= check_and_update_table_version(thd, tables, tables->table->s);
-
-  if (unlikely(error))
-    goto end;
   /*
     After opening a MERGE table add the children to the query list of
     tables, so that they are opened too.
