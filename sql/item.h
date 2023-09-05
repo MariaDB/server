@@ -6034,9 +6034,16 @@ public:
 
 
 /*
-  Class for view fields, the same as Item_direct_ref, but call fix_fields
-  of reference if it is not called yet
+  This represents a field of a merged VIEW (or a derived table, or a CTE).
+
+  "ref" points to an entry in the VIEW's field_translation table. There can
+  be multiple Item_direct_view_ref objects pointing to the same place.
+
+  Item_direct_view_ref objects have some common properties with Item_field:
+  - They participate in multiple equalities
+  - They can be "null-complemented", see null_ref_table.
 */
+
 class Item_direct_view_ref :public Item_direct_ref
 {
   Item_equal *item_equal;
