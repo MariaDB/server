@@ -336,7 +336,10 @@ struct trx_lock_t
 
 #if  defined(UNIV_DEBUG) || !defined(DBUG_OFF)
   /** 2=high priority WSREP thread has marked this trx to abort;
-  1=another transaction chose this as a victim in deadlock resolution. */
+  1=another transaction chose this as a victim in deadlock resolution.
+
+  Other threads than the one that is executing the transaction may set
+  flags in this while holding lock_sys.wait_mutex. */
   Atomic_relaxed<byte> was_chosen_as_deadlock_victim;
 
   /** Flag the lock owner as a victim in Galera conflict resolution. */
@@ -355,13 +358,14 @@ struct trx_lock_t
 #else /* defined(UNIV_DEBUG) || !defined(DBUG_OFF) */
 
   /** High priority WSREP thread has marked this trx to abort or
-  another transaction chose this as a victim in deadlock resolution. */
+  another transaction chose this as a victim in deadlock resolution.
+
+  Other threads than the one that is executing the transaction may set
+  this while holding lock_sys.wait_mutex. */
   Atomic_relaxed<bool> was_chosen_as_deadlock_victim;
 
   /** Flag the lock owner as a victim in Galera conflict resolution. */
-  void set_wsrep_victim() {
-    was_chosen_as_deadlock_victim= true;
-  }
+  void set_wsrep_victim() { was_chosen_as_deadlock_victim= true; }
 #endif /* defined(UNIV_DEBUG) || !defined(DBUG_OFF) */
 
   /** Next available rec_pool[] entry */
@@ -806,11 +810,13 @@ public:
 					/*!< how many tables the current SQL
 					statement uses, except those
 					in consistent read */
-	dberr_t		error_state;	/*!< 0 if no error, otherwise error
-					number; NOTE That ONLY the thread
-					doing the transaction is allowed to
-					set this field: this is NOT protected
-					by any mutex */
+
+  /** DB_SUCCESS or error code; usually only the thread that is running
+  the transaction is allowed to modify this field. The only exception is
+  when a thread invokes lock_sys_t::cancel() in order to abort a
+  lock_wait(). That is protected by lock_sys.wait_mutex and lock.wait_lock. */
+  dberr_t error_state;
+
 	const dict_index_t*error_info;	/*!< if the error number indicates a
 					duplicate key error, a pointer to
 					the problematic index is stored here */
