@@ -208,36 +208,6 @@ bool wsrep_on_check(sys_var *self, THD* thd, set_var* var)
   return false;
 }
 
-bool wsrep_causal_reads_update (sys_var *self, THD* thd, enum_var_type var_type)
-{
-  if (thd->variables.wsrep_causal_reads) {
-    thd->variables.wsrep_sync_wait |= WSREP_SYNC_WAIT_BEFORE_READ;
-  } else {
-    thd->variables.wsrep_sync_wait &= ~WSREP_SYNC_WAIT_BEFORE_READ;
-  }
-
-  // update global settings too.
-  if (global_system_variables.wsrep_causal_reads) {
-      global_system_variables.wsrep_sync_wait |= WSREP_SYNC_WAIT_BEFORE_READ;
-  } else {
-      global_system_variables.wsrep_sync_wait &= ~WSREP_SYNC_WAIT_BEFORE_READ;
-  }
-
-  return false;
-}
-
-bool wsrep_sync_wait_update (sys_var* self, THD* thd, enum_var_type var_type)
-{
-  thd->variables.wsrep_causal_reads= thd->variables.wsrep_sync_wait &
-          WSREP_SYNC_WAIT_BEFORE_READ;
-
-  // update global settings too
-  global_system_variables.wsrep_causal_reads= global_system_variables.wsrep_sync_wait &
-          WSREP_SYNC_WAIT_BEFORE_READ;
-
-  return false;
-}
-
 template<typename T>
 static T parse_value(char** startptr, char** endptr)
 {

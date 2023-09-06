@@ -5,7 +5,7 @@ include/stop_slave.inc
 CHANGE MASTER TO MASTER_USE_GTID=NO;
 include/start_slave.inc
 connection slave;
-SET @old_debug_slave= @@global.debug;
+SET @old_debug_slave= @@global.debug_dbug;
 stop slave;
 SET GLOBAL slave_parallel_threads=4;
 set global slave_parallel_mode=optimistic;
@@ -13,7 +13,7 @@ set global gtid_strict_mode=1;
 start slave;
 connection master;
 call mtr.add_suppression("ALTER query started at .+ could not be completed");
-SET @old_debug_master= @@global.debug;
+SET @old_debug_master= @@global.debug_dbug;
 set binlog_alter_two_phase=true;
 create table t3( a int primary key, b int) engine=innodb;
 connection master;

@@ -19,12 +19,12 @@ insert into t2 select a,a,a,a from t1;
 create table t3 like t2;
 insert into t3 select * from t2;
 include/sync_slave_sql_with_master.inc
-set global debug= 'd,dbug.rocksdb.get_row_by_rowid';
+set global debug_dbug= 'd,dbug.rocksdb.get_row_by_rowid';
 include/stop_slave.inc
 include/start_slave.inc
 update t2 set col1=100 where kp1 between 1 and 3 and mod(kp2,2)=0;
 set debug_sync= 'now WAIT_FOR Reached';
-set global debug = '';
+set global debug_dbug = '';
 set sql_log_bin=0;
 delete from t2 where pk=2;
 delete from t2 where pk=3;
@@ -35,13 +35,13 @@ pk	kp1	kp2	col1
 0	0	0	0
 1	1	1	1
 4	4	4	4
-set global debug= 'd,dbug.rocksdb.get_row_by_rowid';
+set global debug_dbug= 'd,dbug.rocksdb.get_row_by_rowid';
 include/stop_slave.inc
 include/start_slave.inc
 update t3 set col1=100 where kp1 between 1 and 4 and mod(kp2,2)=0;
 call mtr.add_suppression("Deadlock found when trying to get lock");
 set debug_sync= 'now WAIT_FOR Reached';
-set global debug = '';
+set global debug_dbug = '';
 set sql_log_bin=0;
 delete from t3 where pk=2;
 delete from t3 where pk=3;

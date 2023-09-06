@@ -5,7 +5,7 @@ insert into t1 values (1,1),(2,2),(3,3);
 
 # auto commit failure at engine commit, crash and restart (roll forward with binlog)
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-eval set session debug= $myrocks_debug_set_code;
+eval set session debug_dbug= $myrocks_debug_set_code;
 --error 2013
 insert into t1 values (4,4);
 
@@ -26,7 +26,7 @@ select * from t1 order by id;
 connection master;
 # tx failure at engine commit, crash and restart (roll forward with binlog)
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-eval set session debug= $myrocks_debug_set_code;
+eval set session debug_dbug= $myrocks_debug_set_code;
 begin;
 insert into t1 values (5,5);
 insert into t1 values (6,6);

@@ -1055,12 +1055,6 @@ static Sys_var_charptr_fscs Sys_datadir(
        CMD_LINE(REQUIRED_ARG, 'h'), DEFAULT(mysql_real_data_home));
 
 #ifndef DBUG_OFF
-static Sys_var_dbug Sys_dbug(
-       "debug", "Built-in DBUG debugger", sys_var::SESSION,
-       CMD_LINE(OPT_ARG, '#'), DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       ON_CHECK(check_has_super), ON_UPDATE(0),
-       DEPRECATED("'@@debug_dbug'")); // since 5.5.37
-
 static Sys_var_dbug Sys_debug_dbug(
        "debug_dbug", "Built-in DBUG debugger", sys_var::SESSION,
        CMD_LINE(OPT_ARG, '#'), DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG,
@@ -2633,13 +2627,6 @@ static Sys_var_max_user_conn Sys_max_user_connections(
        VALID_RANGE(-1, INT_MAX), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(if_checking_enabled));
 
-static Sys_var_ulong Sys_max_tmp_tables(
-       "max_tmp_tables", "Unused, will be removed.",
-       SESSION_VAR(max_tmp_tables), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1, UINT_MAX), DEFAULT(32), BLOCK_SIZE(1),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
-       DEPRECATED("")); // since 10.1.2
-
 static Sys_var_ulong Sys_max_write_lock_count(
        "max_write_lock_count",
        "After this many write locks, allow some read locks to run in between",
@@ -2866,7 +2853,6 @@ export const char *optimizer_switch_names[]=
 {
   "index_merge","index_merge_union","index_merge_sort_union",
   "index_merge_intersection","index_merge_sort_intersection",
-  "engine_condition_pushdown",
   "index_condition_pushdown",
   "derived_merge", "derived_with_keys",
   "firstmatch","loosescan","materialization","in_to_exists","semijoin",
@@ -2897,17 +2883,6 @@ export const char *optimizer_switch_names[]=
   "default", 
   NullS
 };
-static bool fix_optimizer_switch(sys_var *self, THD *thd,
-                                 enum_var_type type)
-{
-  SV *sv= (type == OPT_GLOBAL) ? &global_system_variables : &thd->variables;
-  if (sv->optimizer_switch & deprecated_ENGINE_CONDITION_PUSHDOWN)
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT,
-                        ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT),
-                        "engine_condition_pushdown=on"); // since 10.1.1
-  return false;
-}
 static bool check_legal_optimizer_switch(sys_var *self, THD *thd,
                                          set_var *var)
 {
@@ -2924,8 +2899,7 @@ static Sys_var_flagset Sys_optimizer_switch(
        "Fine-tune the optimizer behavior",
        SESSION_VAR(optimizer_switch), CMD_LINE(REQUIRED_ARG),
        optimizer_switch_names, DEFAULT(OPTIMIZER_SWITCH_DEFAULT),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_legal_optimizer_switch),
-       ON_UPDATE(fix_optimizer_switch));
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_legal_optimizer_switch));
 
 static Sys_var_flagset Sys_optimizer_trace(
     "optimizer_trace",
@@ -4491,39 +4465,6 @@ static Sys_var_debug_sync Sys_debug_sync(
        NO_SET_STMT sys_var::ONLY_SESSION, NO_CMD_LINE,
        DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_has_super));
 #endif /* defined(ENABLED_DEBUG_SYNC) */
-
-/**
- "time_format" "date_format" "datetime_format"
-
-  the following three variables are unused, and the source of confusion
-  (bug reports like "I've changed date_format, but date format hasn't changed.
-  I've made them read-only, to alleviate the situation somewhat.
-
-  @todo make them NO_CMD_LINE ?
-*/
-static Sys_var_charptr Sys_date_format(
-       "date_format", "The DATE format (ignored)",
-       READ_ONLY GLOBAL_VAR(global_date_format.format.str),
-       CMD_LINE(REQUIRED_ARG),
-       DEFAULT(known_date_time_formats[ISO_FORMAT].date_format),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
-       DEPRECATED("")); // since 10.1.2
-
-static Sys_var_charptr Sys_datetime_format(
-       "datetime_format", "The DATETIME format (ignored)",
-       READ_ONLY GLOBAL_VAR(global_datetime_format.format.str),
-       CMD_LINE(REQUIRED_ARG),
-       DEFAULT(known_date_time_formats[ISO_FORMAT].datetime_format),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
-       DEPRECATED("")); // since 10.1.2
-
-static Sys_var_charptr Sys_time_format(
-       "time_format", "The TIME format (ignored)",
-       READ_ONLY GLOBAL_VAR(global_time_format.format.str),
-       CMD_LINE(REQUIRED_ARG),
-       DEFAULT(known_date_time_formats[ISO_FORMAT].time_format),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
-       DEPRECATED("")); //  since 10.1.2
 
 static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
 {
@@ -6232,25 +6173,15 @@ static Sys_var_enum Sys_wsrep_certification_rules(
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(0));
 
-static Sys_var_mybool Sys_wsrep_causal_reads(
-       "wsrep_causal_reads", "Setting this variable is equivalent "
-       "to setting wsrep_sync_wait READ flag",
-       SESSION_VAR(wsrep_causal_reads),
-       CMD_LINE(OPT_ARG, OPT_WSREP_CAUSAL_READS), DEFAULT(FALSE),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(wsrep_causal_reads_update),
-       DEPRECATED("'@@wsrep_sync_wait=1'")); // since 10.1.3
-
 static Sys_var_uint Sys_wsrep_sync_wait(
        "wsrep_sync_wait", "Ensure \"synchronous\" read view before executing "
        "an operation of the type specified by bitmask: 1 - READ(includes "
        "SELECT, SHOW and BEGIN/START TRANSACTION); 2 - UPDATE and DELETE; 4 - "
        "INSERT and REPLACE",
-       SESSION_VAR(wsrep_sync_wait), CMD_LINE(OPT_ARG, OPT_WSREP_SYNC_WAIT),
+       SESSION_VAR(wsrep_sync_wait), CMD_LINE(OPT_ARG),
        VALID_RANGE(WSREP_SYNC_WAIT_NONE, WSREP_SYNC_WAIT_MAX),
        DEFAULT(WSREP_SYNC_WAIT_NONE), BLOCK_SIZE(1),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(wsrep_sync_wait_update));
+       NO_MUTEX_GUARD, NOT_IN_BINLOG);
 
 static const char *wsrep_mode_names[]=
 {

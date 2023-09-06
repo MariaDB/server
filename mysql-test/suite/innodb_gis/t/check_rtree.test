@@ -9,7 +9,7 @@
 create table t1 (i int, g geometry not null, spatial index (g))engine=innodb;
 
 # Turn on the geometry data print.
-SET SESSION debug="+d,rtree_test_check_count";
+SET SESSION debug_dbug="+d,rtree_test_check_count";
 
 # Insert values.
 insert into t1 values (1, POINT(1,1));

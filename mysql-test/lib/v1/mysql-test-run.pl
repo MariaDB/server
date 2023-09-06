@@ -1497,7 +1497,7 @@ sub mysql_client_test_arguments()
   if ( $opt_debug )
   {
     mtr_add_arg($args,
-      "--debug=d:t:A,$path_vardir_trace/log/mysql_client_test.trace");
+      "--debug-dbug=d:t:A,$path_vardir_trace/log/mysql_client_test.trace");
   }
 
   if ( $glob_use_embedded_server )
@@ -1535,7 +1535,7 @@ sub mysql_upgrade_arguments()
   if ( $opt_debug )
   {
     mtr_add_arg($args,
-      "--debug=d:t:A,$path_vardir_trace/log/mysql_upgrade.trace");
+      "--debug-dbug=d:t:A,$path_vardir_trace/log/mysql_upgrade.trace");
   }
 
   return join(" ", $exe, @$args);
@@ -1663,7 +1663,7 @@ sub environment_setup () {
   if ( $opt_debug )
   {
     $cmdline_mysqlcheck .=
-      " --debug=d:t:A,$path_vardir_trace/log/mysqlcheck.trace";
+      " --debug-dbug=d:t:A,$path_vardir_trace/log/mysqlcheck.trace";
   }
   $ENV{'MYSQL_CHECK'}=              $cmdline_mysqlcheck;
 
@@ -1676,9 +1676,9 @@ sub environment_setup () {
   if ( $opt_debug )
   {
     $cmdline_mysqldump .=
-      " --debug=d:t:A,$path_vardir_trace/log/mysqldump-master.trace";
+      " --debug-dbug=d:t:A,$path_vardir_trace/log/mysqldump-master.trace";
     $cmdline_mysqldumpslave .=
-      " --debug=d:t:A,$path_vardir_trace/log/mysqldump-slave.trace";
+      " --debug-dbug=d:t:A,$path_vardir_trace/log/mysqldump-slave.trace";
   }
   $ENV{'MYSQL_DUMP'}= $cmdline_mysqldump;
   $ENV{'MYSQL_DUMP_SLAVE'}= $cmdline_mysqldumpslave;
@@ -1698,7 +1698,7 @@ sub environment_setup () {
     if ( $opt_debug )
    {
       $cmdline_mysqlslap .=
-	" --debug=d:t:A,$path_vardir_trace/log/mysqlslap.trace";
+	" --debug-dbug=d:t:A,$path_vardir_trace/log/mysqlslap.trace";
     }
     $ENV{'MYSQL_SLAP'}= $cmdline_mysqlslap;
   }
@@ -1715,7 +1715,7 @@ sub environment_setup () {
   if ( $opt_debug )
   {
     $cmdline_mysqlimport .=
-      " --debug=d:t:A,$path_vardir_trace/log/mysqlimport.trace";
+      " --debug-dbug=d:t:A,$path_vardir_trace/log/mysqlimport.trace";
   }
   $ENV{'MYSQL_IMPORT'}= $cmdline_mysqlimport;
 
@@ -1732,7 +1732,7 @@ sub environment_setup () {
   if ( $opt_debug )
   {
     $cmdline_mysqlshow .=
-      " --debug=d:t:A,$path_vardir_trace/log/mysqlshow.trace";
+      " --debug-dbug=d:t:A,$path_vardir_trace/log/mysqlshow.trace";
   }
   $ENV{'MYSQL_SHOW'}= $cmdline_mysqlshow;
 
@@ -1753,7 +1753,7 @@ sub environment_setup () {
   if ( $opt_debug )
   {
     $cmdline_mysqlbinlog .=
-      " --debug=d:t:A,$path_vardir_trace/log/mysqlbinlog.trace";
+      " --debug-dbug=d:t:A,$path_vardir_trace/log/mysqlbinlog.trace";
   }
   $ENV{'MYSQL_BINLOG'}= $cmdline_mysqlbinlog;
 
@@ -2460,7 +2460,7 @@ sub install_db ($$) {
 
   if ( $opt_debug )
   {
-    mtr_add_arg($args, "--debug=d:t:i:A,%s/log/bootstrap_%s.trace",
+    mtr_add_arg($args, "--debug-dbug=d:t:i:A,%s/log/bootstrap_%s.trace",
 		$path_vardir_trace, $type);
   }
 
@@ -3186,7 +3186,7 @@ sub mysqld_arguments ($$$$) {
   {
     if ( $opt_debug )
     {
-      mtr_add_arg($args, "%s--debug=d:t:i:A,%s/log/%s%s.trace",
+      mtr_add_arg($args, "%s--debug-dbug=d:t:i:A,%s/log/%s%s.trace",
                   $prefix, $path_vardir_trace, $mysqld->{'type'}, $sidx);
     }
     else
@@ -3825,7 +3825,7 @@ sub run_mysqltest ($) {
 
   if ( $opt_debug )
   {
-    mtr_add_arg($args, "--debug=d:t:A,%s/log/mysqltest.trace",
+    mtr_add_arg($args, "--debug-dbug=d:t:A,%s/log/mysqltest.trace",
 		$path_vardir_trace);
   }
 

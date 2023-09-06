@@ -10,7 +10,7 @@
 --source include/master-slave.inc
 
 --connection slave
-SET @old_debug_slave= @@global.debug;
+SET @old_debug_slave= @@global.debug_dbug;
 --source include/stop_slave.inc
 --let $gtid_strict_mode= `select @@gtid_strict_mode`
 --let $slave_parallel_threads= `select @@slave_parallel_threads`
@@ -25,7 +25,7 @@ set global debug_dbug="+d,rpl_slave_stop_CA_before_binlog";
 #
 # SLAVE Shutdown
 --connection master
-SET @old_debug_master= @@global.debug;
+SET @old_debug_master= @@global.debug_dbug;
 set global debug_dbug="+d,start_alter_delay_master";
 --let $binlog_alter_two_phase= `select @@binlog_alter_two_phase`
 set global binlog_alter_two_phase=true;

@@ -5,11 +5,11 @@ Note	####	Storing MySQL user name or password information in the master info rep
 [connection master]
 create table t1 (a int primary key) engine=rocksdb;
 insert into t1 values(1);
-SET GLOBAL debug = '+d,crash_before_writing_xid';
+SET GLOBAL debug_dbug = '+d,crash_before_writing_xid';
 insert into t1 values(2);
 ERROR HY000: Lost connection to server during query
 include/rpl_reconnect.inc
-SET GLOBAL debug = ``;
+SET GLOBAL debug_dbug = ``;
 include/start_slave.inc
 RocksDB: Last MySQL Gtid master_uuid:2
 drop table t1;
