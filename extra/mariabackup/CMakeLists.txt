@@ -76,6 +76,7 @@ MYSQL_ADD_EXECUTABLE(mariadb-backup
   ${PROJECT_BINARY_DIR}/sql/sql_builtin.cc
   ${PROJECT_SOURCE_DIR}/sql/net_serv.cc
   ${PROJECT_SOURCE_DIR}/libmysqld/libmysql.c
+  ${PROJECT_SOURCE_DIR}/sql-common/client_connect.c
   COMPONENT Backup
   )
 

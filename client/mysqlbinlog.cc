@@ -38,7 +38,6 @@
 #include "client_priv.h"
 #undef MYSQL_TYPE_TIME2
 #include <my_time.h>
-#include <sslopt-vars.h>
 /* That one is necessary for defines of OPTION_NO_FOREIGN_KEY_CHECKS etc */
 #include "sql_priv.h"
 #include "sql_basic_types.h"
@@ -55,8 +54,8 @@
 #include "charset_collations.h"
 
 #include "mysqld.h"
-
 #include <algorithm>
+#include <client_connect.h>
 
 #define my_net_write ma_net_write
 #define net_flush ma_net_flush
@@ -94,7 +93,6 @@ ulong open_files_limit;
 ulong opt_binlog_rows_event_max_size;
 ulonglong test_flags = 0;
 ulong opt_binlog_rows_event_max_encoded_size= MAX_MAX_ALLOWED_PACKET;
-static uint opt_protocol= 0;
 static FILE *result_file;
 static char *result_file_name= 0;
 static const char *output_prefix= "";
@@ -133,15 +131,9 @@ my_bool opt_gtid_strict_mode= true;
 static ulong opt_stop_never_slave_server_id= 0;
 static my_bool opt_verify_binlog_checksum= 1;
 static ulonglong offset = 0;
-static char* host = 0;
-static int port= 0;
 static uint my_end_arg;
-static const char* sock= 0;
-static char *opt_plugindir= 0, *opt_default_auth= 0;
-
-static char* user = 0;
-static char* pass = 0;
 static char *charset= 0;
+static CLNT_CONNECT_OPTIONS cl_opts= CLNT_INIT_OPTS_WITH_PRG_NAME("mariadb-binlog");
 
 static uint verbose= 0;
 
@@ -1178,6 +1170,7 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
         destroy_evt= FALSE;
         goto end;
       }
+
 #ifdef WHEN_FLASHBACK_REVIEW_READY
       /* Create review table for Flashback */
       if (opt_flashback_review)
@@ -1196,8 +1189,8 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
           int  tmp_sql_offset;
 
           conn = mysql_init(NULL);
-          if (!mysql_real_connect(conn, host, user, pass,
-                map->get_db_name(), port, sock, 0))
+          cl_opts.database= (char*)map->get_db_name();
+          if (!do_client_connect(mysql, &cl_opts, 0))
           {
             fprintf(stderr, "%s\n", mysql_error(conn));
             exit(1);
@@ -1435,6 +1428,10 @@ static struct my_option my_options[] =
    "are processed for re-execution.",
    &opt_base64_output_mode_str, &opt_base64_output_mode_str,
    0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"bind-address", 0,
+   "IP address to bind to.",
+   &cl_opts.bind_address, &cl_opts.bind_address, 0,
+   GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   /*
     mysqlbinlog needs charsets knowledge, to be able to convert a charset
     number found in binlog to a charset name (to be able to print things
@@ -1442,8 +1439,8 @@ static struct my_option my_options[] =
     SET @`a`:=_cp850 0x4DFC6C6C6572 COLLATE `cp850_general_ci`;
   */
   {"character-sets-dir", OPT_CHARSETS_DIR,
-   "Directory for character set files.", &charsets_dir,
-   &charsets_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   "Directory for character set files.", &cl_opts.charsets_dir,
+   &cl_opts.charsets_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"database", 'd', "List entries for just this database (local log only).",
    &database, &database, 0, GET_STR_ALLOC, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0},
@@ -1459,7 +1456,7 @@ static struct my_option my_options[] =
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"default_auth", OPT_DEFAULT_AUTH,
    "Default authentication client-side plugin to use.",
-   &opt_default_auth, &opt_default_auth, 0,
+   &cl_opts.default_auth, &cl_opts.default_auth, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"disable-log-bin", 'D', "Disable binary log. This is useful, if you "
     "enabled --to-last-log and are sending the output to the same MariaDB server. "
@@ -1484,7 +1481,7 @@ static struct my_option my_options[] =
   {"hexdump", 'H', "Augment output with hexadecimal and ASCII event dump.",
    &opt_hexdump, &opt_hexdump, 0, GET_BOOL, NO_ARG,
    0, 0, 0, 0, 0, 0},
-  {"host", 'h', "Get the binlog from server.", &host, &host,
+  {"host", 'h', "Get the binlog from server.", &cl_opts.host, &cl_opts.host,
    0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"local-load", 'l', "Prepare local temporary files for LOAD DATA INFILE in the specified directory.",
    &dirname_for_local_load, &dirname_for_local_load, 0,
@@ -1494,7 +1491,7 @@ static struct my_option my_options[] =
   {"password", 'p', "Password to connect to remote server.",
    0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
   {"plugin_dir", OPT_PLUGIN_DIR, "Directory for client-side plugins.",
-    &opt_plugindir, &opt_plugindir, 0,
+    &cl_opts.plugin_dir, &cl_opts.plugin_dir, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"port", 'P', "Port number to use for connection or 0 for default to, in "
    "order of preference, my.cnf, $MYSQL_TCP_PORT, "
@@ -1502,7 +1499,7 @@ static struct my_option my_options[] =
    "/etc/services, "
 #endif
    "built-in default (" STRINGIFY_ARG(MYSQL_PORT) ").",
-   &port, &port, 0, GET_INT, REQUIRED_ARG,
+   &cl_opts.port, &cl_opts.port, 0, GET_INT, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0},
   {"protocol", OPT_MYSQL_PROTOCOL,
    "The protocol to use for connection (tcp, socket, pipe).",
@@ -1587,9 +1584,10 @@ static struct my_option my_options[] =
    &short_form, &short_form, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
    0, 0},
   {"socket", 'S', "The socket file to use for connection.",
-   &sock, &sock, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0,
+   &cl_opts.socket, &cl_opts.socket, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0,
    0, 0},
 #include <sslopt-longopts.h>
+  SSL_LONGOPTS_EMBED(cl_opts)
   {"start-datetime", OPT_START_DATETIME,
    "Start reading the binlog at first event having a datetime equal or "
    "posterior to the argument; the argument must be a date and time "
@@ -1650,7 +1648,7 @@ that may lead to an endless loop.",
    &to_last_remote_log, &to_last_remote_log, 0, GET_BOOL,
    NO_ARG, 0, 0, 0, 0, 0, 0},
   {"user", 'u', "Connect to the remote server as username.",
-   &user, &user, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0,
+   &cl_opts.user, &cl_opts.user, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0,
    0, 0},
   {"verbose", 'v', "Reconstruct SQL statements out of row events. "
                    "-v -v adds comments on column data types. "
@@ -1769,11 +1767,11 @@ static void warning(const char *format,...)
 static void cleanup()
 {
   DBUG_ENTER("cleanup");
-  my_free(pass);
+  my_free(cl_opts.password);
   my_free(database);
   my_free(table);
-  my_free(host);
-  my_free(user);
+  my_free(cl_opts.host);
+  my_free(cl_opts.user);
   my_free(const_cast<char*>(dirname_for_local_load));
   my_free(start_datetime_str);
   my_free(stop_datetime_str);
@@ -2075,6 +2073,7 @@ get_one_option(const struct my_option *opt, const char *argument,
     break;
 #endif
 #include <sslopt-case.h>
+  SSLOPT_CASE_EMBED(cl_opts)
   case 'B':
     opt_flashback= 1;
     break;
@@ -2090,9 +2089,9 @@ get_one_option(const struct my_option *opt, const char *argument,
         One should not really change the argument, but we make an
         exception for passwords
       */
-      my_free(pass);
+      my_free(cl_opts.password);
       char *start= (char*) argument;
-      pass= my_strdup(PSI_NOT_INSTRUMENTED, argument,MYF(MY_FAE));
+      cl_opts.password= my_strdup(PSI_NOT_INSTRUMENTED, argument,MYF(MY_FAE));
       while (*argument)
         *(char*)argument++= 'x';		/* Destroy argument */
       if (*start)
@@ -2108,8 +2107,8 @@ get_one_option(const struct my_option *opt, const char *argument,
     one_table= 1;
     break;
   case OPT_MYSQL_PROTOCOL:
-    if ((opt_protocol= find_type_with_warning(argument, &sql_protocol_typelib,
-                                              opt->name)) <= 0)
+    if ((cl_opts.protocol= find_type_with_warning(argument, &sql_protocol_typelib,
+                                                  opt->name)) <= 0)
     {
       sf_leaking_memory= 1; /* no memory leak reports here */
       die(1);
@@ -2157,7 +2156,7 @@ get_one_option(const struct my_option *opt, const char *argument,
     if (filename[0] == '\0')
     {
       /* Port given on command line, switch protocol to use TCP */
-      opt_protocol= MYSQL_PROTOCOL_TCP;
+      cl_opts.protocol= MYSQL_PROTOCOL_TCP;
     }
     break;
   case 'S':
@@ -2168,9 +2167,9 @@ get_one_option(const struct my_option *opt, const char *argument,
         Except on Windows if 'protocol= pipe' has been provided in
         the config file or command line.
       */
-      if (opt_protocol != MYSQL_PROTOCOL_PIPE)
+      if (cl_opts.protocol != MYSQL_PROTOCOL_PIPE)
       {
-        opt_protocol= MYSQL_PROTOCOL_SOCKET;
+        cl_opts.protocol= MYSQL_PROTOCOL_SOCKET;
       }
     }
     break;
@@ -2261,7 +2260,7 @@ get_one_option(const struct my_option *opt, const char *argument,
     break;
   }
   if (tty_password)
-    pass= my_get_tty_password(NullS);
+    cl_opts.password= my_get_tty_password(NullS);
 
   return 0;
 }
@@ -2351,31 +2350,8 @@ static Exit_status safe_connect()
     return ERROR_STOP;
   }
 
-#ifdef HAVE_OPENSSL
-  if (opt_use_ssl)
-  {
-    mysql_ssl_set(mysql, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
-                  opt_ssl_capath, opt_ssl_cipher);
-    mysql_options(mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
-    mysql_options(mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
-    mysql_options(mysql, MARIADB_OPT_TLS_VERSION, opt_tls_version);
-  }
-  mysql_options(mysql,MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
-                (char*)&opt_ssl_verify_server_cert);
-#endif /*HAVE_OPENSSL*/
-
-  if (opt_plugindir && *opt_plugindir)
-    mysql_options(mysql, MYSQL_PLUGIN_DIR, opt_plugindir);
-
-  if (opt_default_auth && *opt_default_auth)
-    mysql_options(mysql, MYSQL_DEFAULT_AUTH, opt_default_auth);
-
-  if (opt_protocol)
-    mysql_options(mysql, MYSQL_OPT_PROTOCOL, (char*) &opt_protocol);
-  mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
-  mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
-                 "program_name", "mysqlbinlog");
-  if (!mysql_real_connect(mysql, host, user, pass, 0, port, sock, 0))
+  cl_opts.database= NULL;
+  if (!do_client_connect(mysql, &cl_opts, 0))
   {
     error("Failed on connect: %s", mysql_error(mysql));
     return ERROR_STOP;

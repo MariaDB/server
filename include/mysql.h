@@ -190,7 +190,10 @@ enum mysql_option
   /* MariaDB options */
   MYSQL_PROGRESS_CALLBACK=5999,
   MYSQL_OPT_NONBLOCK,
-  MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY
+  MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
+
+  /* Libmariadb compatibility */
+  MARIADB_OPT_TLS_VERSION
 };
 
 /**
@@ -221,6 +224,7 @@ struct st_mysql_options {
   my_bool unused4;
   enum mysql_option methods_to_use;
   char *client_ip;
+  char *bind_address;
   /* Refuse client connecting to server if it uses old (pre-4.1.1) protocol */
   my_bool secure_auth;
   /* 0 - never report, 1 - always report (default) */

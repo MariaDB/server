@@ -28,31 +28,28 @@
 #include <my_rnd.h>
 #include <password.h>
 #include <my_sys.h>
+#include <client_connect.h>
 
 #define MAX_MYSQL_VAR 512
 #define SHUTDOWN_DEF_TIMEOUT 3600		/* Wait for shutdown */
 
-char *host= NULL, *user= 0, *opt_password= 0,
-     *default_charset= (char*) MYSQL_AUTODETECT_CHARSET_NAME;
 ulonglong last_values[MAX_MYSQL_VAR+100];
 static int interval=0;
 static my_bool option_force=0,interrupted=0,new_line=0,
-               opt_compress= 0, opt_local= 0, opt_relative= 0, opt_verbose= 0,
+               opt_local= 0, opt_relative= 0, opt_verbose= 0,
                tty_password= 0, opt_nobeep, opt_shutdown_wait_for_slaves= 0;
 static my_bool debug_info_flag= 0, debug_check_flag= 0;
-static uint tcp_port = 0, option_wait = 0, option_silent=0, nr_iterations;
+static uint option_wait= 0, option_silent= 0, nr_iterations= 0;
 static uint opt_count_iterations= 0, my_end_arg;
-static ulong opt_connect_timeout, opt_shutdown_timeout;
-static char * unix_port=0;
-static char *opt_plugin_dir= 0, *opt_default_auth= 0;
+static ulong opt_shutdown_timeout;
 static bool sql_log_bin_off= false;
+static CLNT_CONNECT_OPTIONS cl_opts= CLNT_INIT_OPTS_WITH_PRG_NAME_DEFCHAR(
+  "mariadb-admin",
+  (char*) MYSQL_AUTODETECT_CHARSET_NAME);
 
-static uint opt_protocol=0;
 static myf error_flags; /* flags to pass to my_printf_error, like ME_BELL */
 
 static my_bool ex_status_printed = 0; /* First output is not relative. */
-
-#include <sslopt-vars.h>
 
 static void print_version(void);
 static void usage(void);
@@ -116,6 +113,10 @@ static TYPELIB command_typelib=
 
 static struct my_option my_long_options[] =
 {
+  {"bind-address", 0,
+   "IP address to bind to.",
+   &cl_opts.bind_address, &cl_opts.bind_address, 0,
+   GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"count", 'c',
    "Number of iterations to make. This works with -i (--sleep) only.",
    &nr_iterations, &nr_iterations, 0, GET_UINT,
@@ -136,17 +137,17 @@ static struct my_option my_long_options[] =
    &option_force, &option_force, 0, GET_BOOL, NO_ARG, 0, 0,
    0, 0, 0, 0},
   {"compress", 'C', "Use compression in server/client protocol.",
-   &opt_compress, &opt_compress, 0, GET_BOOL, NO_ARG, 0, 0, 0,
+   &cl_opts.compress, &cl_opts.compress, 0, GET_BOOL, NO_ARG, 0, 0, 0,
    0, 0, 0},
   {"character-sets-dir", OPT_CHARSETS_DIR,
-   "Directory for character set files.", &charsets_dir,
-   &charsets_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   "Directory for character set files.", &cl_opts.charsets_dir,
+   &cl_opts.charsets_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"default-character-set", OPT_DEFAULT_CHARSET,
-   "Set the default character set.", &default_charset,
-   &default_charset, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   "Set the default character set.", &cl_opts.default_charset,
+   &cl_opts.default_charset, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"help", '?', "Display this help and exit.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"host", 'h', "Connect to host.", &host, &host, 0, GET_STR,
+  {"host", 'h', "Connect to host.", &cl_opts.host, &cl_opts.host, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"local", 'l', "Local command, don't write to binlog.",
    &opt_local, &opt_local, 0, GET_BOOL, NO_ARG, 0, 0, 0,
@@ -166,26 +167,27 @@ static struct my_option my_long_options[] =
    "/etc/services, "
 #endif
    "built-in default (" STRINGIFY_ARG(MYSQL_PORT) ").",
-   &tcp_port, &tcp_port, 0, GET_UINT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   &cl_opts.port, &cl_opts.port, 0, GET_UINT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"protocol", OPT_MYSQL_PROTOCOL, "The protocol to use for connection (tcp, socket, pipe).",
-    0, 0, 0, GET_STR,  REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   0, 0, 0, GET_STR,  REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"relative", 'r',
    "Show difference between current and previous values when used with -i. "
    "Currently only works with extended-status.",
    &opt_relative, &opt_relative, 0, GET_BOOL, NO_ARG, 0, 0, 0,
-  0, 0, 0},
+   0, 0, 0},
   {"silent", 's', "Silently exit if one can't connect to server.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"socket", 'S', "The socket file to use for connection.",
-   &unix_port, &unix_port, 0, GET_STR, REQUIRED_ARG, 0, 0, 0,
+   &cl_opts.socket, &cl_opts.socket, 0, GET_STR, REQUIRED_ARG, 0, 0, 0,
    0, 0, 0},
   {"sleep", 'i', "Execute commands repeatedly with a sleep between.",
    &interval, &interval, 0, GET_INT, REQUIRED_ARG, 0, 0, 0, 0,
    0, 0},
 #include <sslopt-longopts.h>
+   SSL_LONGOPTS_EMBED(cl_opts)
 #ifndef DONT_ALLOW_USER_CHANGE
-  {"user", 'u', "User for login if not current user.", &user,
-   &user, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"user", 'u', "User for login if not current user.", &cl_opts.user,
+   &cl_opts.user, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #endif
   {"verbose", 'v', "Write more information.", &opt_verbose,
    &opt_verbose, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -193,8 +195,8 @@ static struct my_option my_long_options[] =
    NO_ARG, 0, 0, 0, 0, 0, 0},
   {"wait", 'w', "Wait and retry if connection is down.", 0, 0, 0, GET_UINT,
    OPT_ARG, 0, 0, 0, 0, 0, 0},
-  {"connect_timeout", OPT_CONNECT_TIMEOUT, "", &opt_connect_timeout,
-   &opt_connect_timeout, 0, GET_ULONG, REQUIRED_ARG, 3600*12, 0,
+  {"connect_timeout", OPT_CONNECT_TIMEOUT, "", &cl_opts.connect_timeout,
+   &cl_opts.connect_timeout, 0, GET_ULONG, REQUIRED_ARG, 3600*12, 0,
    3600*12, 0, 1, 0},
   {"shutdown_timeout", OPT_SHUTDOWN_TIMEOUT, "", &opt_shutdown_timeout,
    &opt_shutdown_timeout, 0, GET_ULONG, REQUIRED_ARG,
@@ -205,11 +207,11 @@ static struct my_option my_long_options[] =
    &opt_shutdown_wait_for_slaves, 0, GET_BOOL, NO_ARG, 0, 0, 0,
    0, 0, 0},
   {"plugin_dir", OPT_PLUGIN_DIR, "Directory for client-side plugins.",
-    &opt_plugin_dir, &opt_plugin_dir, 0,
+   &cl_opts.plugin_dir, &cl_opts.plugin_dir, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"default_auth", OPT_DEFAULT_AUTH,
    "Default authentication client-side plugin to use.",
-   &opt_default_auth, &opt_default_auth, 0,
+   &cl_opts.default_auth, &cl_opts.default_auth, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
@@ -237,8 +239,8 @@ get_one_option(const struct my_option *opt, const char *argument,
         exception for passwords
       */
       char *start= (char*) argument;
-      my_free(opt_password);
-      opt_password=my_strdup(PSI_NOT_INSTRUMENTED, argument,MYF(MY_FAE));
+      my_free(cl_opts.password);
+      cl_opts.password= my_strdup(PSI_NOT_INSTRUMENTED, argument,MYF(MY_FAE));
       while (*argument)
         *(char*) argument++= 'x';		/* Destroy argument */
       if (*start)
@@ -253,13 +255,14 @@ get_one_option(const struct my_option *opt, const char *argument,
     break;
   case 'W':
 #ifdef _WIN32
-    opt_protocol = MYSQL_PROTOCOL_PIPE;
+    cl_opts.protocol= MYSQL_PROTOCOL_PIPE;
 #endif
     break;
   case '#':
     DBUG_PUSH(argument ? argument : "d:t:o,/tmp/mysqladmin.trace");
     break;
 #include <sslopt-case.h>
+  SSLOPT_CASE_EMBED(cl_opts)
   case 'V':
     print_version();
     exit(0);
@@ -279,12 +282,12 @@ get_one_option(const struct my_option *opt, const char *argument,
     exit(0);
   case OPT_CHARSETS_DIR:
 #if MYSQL_VERSION_ID > 32300
-    charsets_dir = argument;
+    cl_opts.charsets_dir= (char*)argument;
 #endif
     break;
   case OPT_MYSQL_PROTOCOL:
-    if ((opt_protocol= find_type_with_warning(argument, &sql_protocol_typelib,
-                                              opt->name)) <= 0)
+    if ((cl_opts.protocol= find_type_with_warning(argument, &sql_protocol_typelib,
+                                                  opt->name)) <= 0)
     {
       sf_leaking_memory= 1; /* no memory leak reports here */
       exit(1);
@@ -294,7 +297,7 @@ get_one_option(const struct my_option *opt, const char *argument,
     if (filename[0] == '\0')
     {
       /* Port given on command line, switch protocol to use TCP */
-      opt_protocol= MYSQL_PROTOCOL_TCP;
+      cl_opts.protocol= MYSQL_PROTOCOL_TCP;
     }
     break;
   case 'S':
@@ -305,9 +308,9 @@ get_one_option(const struct my_option *opt, const char *argument,
         Except on Windows if 'protocol= pipe' has been provided in
         the config file or command line.
       */
-      if (opt_protocol != MYSQL_PROTOCOL_PIPE)
+      if (cl_opts.protocol != MYSQL_PROTOCOL_PIPE)
       {
-        opt_protocol= MYSQL_PROTOCOL_SOCKET;
+        cl_opts.protocol= MYSQL_PROTOCOL_SOCKET;
       }
     }
     break;
@@ -346,9 +349,9 @@ int main(int argc,char *argv[])
     usage();
     exit(1);
   }
-  commands = temp_argv;
+  commands= temp_argv;
   if (tty_password)
-    opt_password = my_get_tty_password(NullS);
+    cl_opts.password= my_get_tty_password(NullS);
 
   (void) signal(SIGINT,endprog);			/* Here if abort */
   (void) signal(SIGTERM,endprog);		/* Here if abort */
@@ -356,42 +359,12 @@ int main(int argc,char *argv[])
   sf_leaking_memory=0; /* from now on we cleanup properly */
 
   mysql_init(&mysql);
-  if (opt_compress)
-    mysql_options(&mysql,MYSQL_OPT_COMPRESS,NullS);
-  if (opt_connect_timeout)
-  {
-    uint tmp=opt_connect_timeout;
-    mysql_options(&mysql,MYSQL_OPT_CONNECT_TIMEOUT, (char*) &tmp);
-  }
-#ifdef HAVE_OPENSSL
-  if (opt_use_ssl)
-  {
-    mysql_ssl_set(&mysql, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
-		  opt_ssl_capath, opt_ssl_cipher);
-    mysql_options(&mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
-    mysql_options(&mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
-    mysql_options(&mysql, MARIADB_OPT_TLS_VERSION, opt_tls_version);
-  }
-  mysql_options(&mysql,MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
-                (char*)&opt_ssl_verify_server_cert);
-#endif
-  if (opt_protocol)
-    mysql_options(&mysql,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
-  if (!strcmp(default_charset,MYSQL_AUTODETECT_CHARSET_NAME))
-    default_charset= (char *)my_default_csname();
-  my_set_console_cp(default_charset);
-  mysql_options(&mysql, MYSQL_SET_CHARSET_NAME, default_charset);
+
+  if (!strcmp(cl_opts.default_charset,MYSQL_AUTODETECT_CHARSET_NAME))
+    cl_opts.default_charset= (char *)my_default_csname();
+  my_set_console_cp(cl_opts.default_charset);
   error_flags= (myf)(opt_nobeep ? 0 : ME_BELL);
 
-  if (opt_plugin_dir && *opt_plugin_dir)
-    mysql_options(&mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir);
-
-  if (opt_default_auth && *opt_default_auth)
-    mysql_options(&mysql, MYSQL_DEFAULT_AUTH, opt_default_auth);
-
-  mysql_options(&mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
-  mysql_options4(&mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
-                 "program_name", "mysqladmin");
   if (sql_connect(&mysql, option_wait))
   {
     /*
@@ -503,8 +476,8 @@ int main(int argc,char *argv[])
   my_free(temp_argv);
 err2:
   mysql_library_end();
-  my_free(opt_password);
-  my_free(user);
+  my_free(cl_opts.password);
+  my_free(cl_opts.user);
   free_defaults(save_argv);
   my_end(my_end_arg);
   return error;
@@ -534,8 +507,7 @@ static my_bool sql_connect(MYSQL *mysql, uint wait)
 
   for (;;)
   {
-    if (mysql_real_connect(mysql,host,user,opt_password,NullS,tcp_port,
-			   unix_port, CLIENT_REMEMBER_OPTIONS))
+    if (do_client_connect(mysql, &cl_opts, CLIENT_REMEMBER_OPTIONS))
     {
       my_bool reconnect= 1;
       mysql_options(mysql, MYSQL_OPT_RECONNECT, &reconnect);
@@ -551,24 +523,24 @@ static my_bool sql_connect(MYSQL *mysql, uint wait)
     {
       if (!option_silent)                       // print diagnostics
       {
-	if (!host)
-	  host= (char*) LOCAL_HOST;
+	if (!cl_opts.host)
+          cl_opts.host= (char*) LOCAL_HOST;
 	my_printf_error(0,"connect to server at '%s' failed\nerror: '%s'",
-			error_flags, host, mysql_error(mysql));
+			error_flags, cl_opts.host, mysql_error(mysql));
 	if (mysql_errno(mysql) == CR_CONNECTION_ERROR)
 	{
 	  fprintf(stderr,
 		  "Check that mariadbd is running and that the socket: '%s' exists!\n",
-		  unix_port ? unix_port : mysql_unix_port);
+                  cl_opts.socket ? cl_opts.socket : mysql_unix_port);
 	}
 	else if (mysql_errno(mysql) == CR_CONN_HOST_ERROR ||
 		 mysql_errno(mysql) == CR_UNKNOWN_HOST)
 	{
-	  fprintf(stderr,"Check that mariadbd is running on %s",host);
+	  fprintf(stderr,"Check that mariadbd is running on %s",cl_opts.host);
 	  fprintf(stderr," and that the port is %d.\n",
-		  tcp_port ? tcp_port: mysql_port);
+                  cl_opts.port ?  cl_opts.port: mysql_port);
 	  fprintf(stderr,"You can check this by doing 'telnet %s %d'\n",
-		  host, tcp_port ? tcp_port: mysql_port);
+                  cl_opts.host, cl_opts.port ? cl_opts.port: mysql_port);
 	}
       }
       return 1;

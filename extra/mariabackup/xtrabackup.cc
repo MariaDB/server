@@ -114,6 +114,9 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include <derror.h>
 #include <thr_timer.h>
 #include "backup_debug.h"
+#define MYSQL_CLIENT
+#include <client_connect.h>
+#undef MYSQL_CLIENT
 
 #define MB_CORRUPTED_PAGES_FILE "innodb_corrupted_pages"
 
@@ -216,9 +219,7 @@ static ulong max_buf_pool_modified_pct;
 static char*	log_ignored_opt;
 
 
-extern my_bool opt_use_ssl;
 extern char *opt_tls_version;
-my_bool opt_ssl_verify_server_cert;
 my_bool opt_extended_validation;
 my_bool opt_encrypted_backup;
 
@@ -392,6 +393,8 @@ char *opt_defaults_group;
 char *opt_socket;
 uint opt_port;
 char *opt_log_bin;
+char *opt_bind_address;
+extern CLNT_CONNECT_OPTIONS cl_opts;
 
 const char *query_type_names[] = { "ALL", "UPDATE", "SELECT", NullS};
 
@@ -1444,6 +1447,9 @@ struct my_option xb_client_options[]= {
      "The option accepts a string argument. See mysql --help for details.",
      (uchar *) &opt_socket, (uchar *) &opt_socket, 0, GET_STR, REQUIRED_ARG, 0,
      0, 0, 0, 0, 0},
+    {"bind-address", 0, "IP address to bind to.",
+     &opt_bind_address, &opt_bind_address, 0,
+     GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 
     {"incremental-history-name", OPT_INCREMENTAL_HISTORY_NAME,
      "This option specifies the name of the backup series stored in the "
@@ -1556,6 +1562,7 @@ struct my_option xb_client_options[]= {
 
 #define MYSQL_CLIENT
 #include "sslopt-longopts.h"
+    SSL_LONGOPTS_EMBED(cl_opts)
 #undef MYSQL_CLIENT
     {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}};
 
@@ -2103,7 +2110,7 @@ xb_get_one_option(const struct my_option *opt,
     }
     break;
   case 'p':
-    opt_password = argument;
+    opt_password= (char*)argument;
     break;
   case OPT_PROTOCOL:
     if (argument)
@@ -2118,6 +2125,7 @@ xb_get_one_option(const struct my_option *opt,
     break;
 #define MYSQL_CLIENT
 #include "sslopt-case.h"
+  SSLOPT_CASE_EMBED(cl_opts)
 #undef MYSQL_CLIENT
 
   case '?':

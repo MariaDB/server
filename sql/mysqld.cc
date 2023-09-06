@@ -8106,7 +8106,10 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
   case OPT_BINLOG_FORMAT:
     binlog_format_used= true;
     break;
+#define SSL_VARS_NON_STATIC
 #include <sslopt-case.h>
+  SSLOPT_CASE_EMBED_VARS
+#undef SSL_VARS_NON_STATIC
   case 'V':
     if (argument)
     {

@@ -17,7 +17,6 @@
 */
 
 #include "client_priv.h"
-#include <sslopt-vars.h>
 #include <../scripts/mariadb_fix_privilege_tables_sql.c>
 
 #define VER "2.1"
@@ -35,6 +34,8 @@
 # endif
 #endif
 
+#define SSL_VARS_STATIC
+#include <sslopt-vars.h>
 static int phase = 0;
 static int info_file= -1;
 static const int phases_total = 8;
@@ -56,6 +57,7 @@ static DYNAMIC_STRING ds_plugin_data_types;
 
 static char *opt_password= 0;
 static char *opt_plugin_dir= 0, *opt_default_auth= 0;
+static char *opt_bind_address;
 
 static char *cnf_file_path= 0, defaults_file[FN_REFLEN + 32];
 
@@ -86,6 +88,9 @@ static struct my_option my_long_options[]=
   {"basedir", 'b',
    "Not used by mysql_upgrade. Only for backward compatibility.",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"bind-address", 0, "IP address to bind to.",
+   &opt_bind_address, &opt_bind_address, 0,
+   GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"character-sets-dir", OPT_CHARSETS_DIR,
    "Not used by mysql_upgrade. Only for backward compatibility.",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
@@ -149,6 +154,7 @@ static struct my_option my_long_options[]=
   {"socket", 'S', "The socket file to use for connection.",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #include <sslopt-longopts.h>
+   SSL_LONGOPTS_EMBED_VARS
   {"tmpdir", 't', "Directory for temporary files.",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"upgrade-system-tables", 's', "Only upgrade the system tables in the mysql database. Tables in other databases are not checked or touched.",
@@ -176,7 +182,7 @@ static struct my_option my_long_options[]=
    0, 0, 0, 0, 0, 0},
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
-
+#undef SSL_VARS_STATIC
 
 static const char *load_default_groups[]=
 {
@@ -1464,6 +1470,9 @@ int main(int argc, char **argv)
   }
   /* add user to defaults file */
   add_one_option_cnf_file(&ds_args, "user", opt_user);
+
+  if(opt_bind_address && *opt_bind_address)
+    add_one_option_cnf_file(&ds_args, "bind-address", opt_bind_address);
 
   cnf_file_path= strmov(defaults_file, "--defaults-file=");
   {

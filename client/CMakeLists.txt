@@ -34,29 +34,31 @@ INCLUDE_DIRECTORIES(BEFORE
 COPY_OPENSSL_DLLS(copy_openssl_client)
 
 SET(CLIENT_LIB mariadbclient mysys)
+SET(SQL_COMMON_DIR ../sql-common)
+SET(CLIENT_CONNECT_SRC ${SQL_COMMON_DIR}/client_connect.c)
 
 ADD_DEFINITIONS(${SSL_DEFINES})
 MYSQL_ADD_EXECUTABLE(mariadb completion_hash.cc mysql.cc readline.cc
-                           ${CMAKE_SOURCE_DIR}/sql/sql_string.cc)
+                           ${CMAKE_SOURCE_DIR}/sql/sql_string.cc ${CLIENT_CONNECT_SRC})
 TARGET_LINK_LIBRARIES(mariadb ${CLIENT_LIB})
 IF(UNIX)
   TARGET_LINK_LIBRARIES(mariadb ${MY_READLINE_LIBRARY})
   SET_TARGET_PROPERTIES(mariadb PROPERTIES ENABLE_EXPORTS TRUE)
 ENDIF(UNIX)
 
-MYSQL_ADD_EXECUTABLE(mariadb-test mysqltest.cc ${CMAKE_SOURCE_DIR}/sql/sql_string.cc COMPONENT Test)
+MYSQL_ADD_EXECUTABLE(mariadb-test mysqltest.cc ${CMAKE_SOURCE_DIR}/sql/sql_string.cc ${CLIENT_CONNECT_SRC} COMPONENT Test)
 SET_SOURCE_FILES_PROPERTIES(mysqltest.cc PROPERTIES COMPILE_FLAGS "-DTHREADS ${PCRE2_DEBIAN_HACK}")
 TARGET_LINK_LIBRARIES(mariadb-test  ${CLIENT_LIB} pcre2-posix pcre2-8)
 SET_TARGET_PROPERTIES(mariadb-test PROPERTIES ENABLE_EXPORTS TRUE)
 
 
-MYSQL_ADD_EXECUTABLE(mariadb-check mysqlcheck.c)
+MYSQL_ADD_EXECUTABLE(mariadb-check mysqlcheck.c ${CLIENT_CONNECT_SRC})
 TARGET_LINK_LIBRARIES(mariadb-check ${CLIENT_LIB})
 
-MYSQL_ADD_EXECUTABLE(mariadb-dump mysqldump.c ../sql-common/my_user.c)
+MYSQL_ADD_EXECUTABLE(mariadb-dump mysqldump.c ${SQL_COMMON_DIR}/my_user.c ${CLIENT_CONNECT_SRC})
 TARGET_LINK_LIBRARIES(mariadb-dump ${CLIENT_LIB})
 
-MYSQL_ADD_EXECUTABLE(mariadb-import mysqlimport.c)
+MYSQL_ADD_EXECUTABLE(mariadb-import mysqlimport.c ${CLIENT_CONNECT_SRC})
 SET_SOURCE_FILES_PROPERTIES(mysqlimport.c PROPERTIES COMPILE_FLAGS "-DTHREADS")
 TARGET_LINK_LIBRARIES(mariadb-import ${CLIENT_LIB})
 
@@ -64,19 +66,19 @@ MYSQL_ADD_EXECUTABLE(mariadb-upgrade mysql_upgrade.c COMPONENT Server)
 TARGET_LINK_LIBRARIES(mariadb-upgrade ${CLIENT_LIB})
 ADD_DEPENDENCIES(mariadb-upgrade GenFixPrivs)
 
-MYSQL_ADD_EXECUTABLE(mariadb-show mysqlshow.c)
+MYSQL_ADD_EXECUTABLE(mariadb-show mysqlshow.c ${CLIENT_CONNECT_SRC})
 TARGET_LINK_LIBRARIES(mariadb-show ${CLIENT_LIB})
 
 MYSQL_ADD_EXECUTABLE(mariadb-plugin mysql_plugin.c)
 TARGET_LINK_LIBRARIES(mariadb-plugin ${CLIENT_LIB})
 
-MYSQL_ADD_EXECUTABLE(mariadb-binlog mysqlbinlog.cc)
+MYSQL_ADD_EXECUTABLE(mariadb-binlog mysqlbinlog.cc ${CLIENT_CONNECT_SRC})
 TARGET_LINK_LIBRARIES(mariadb-binlog ${CLIENT_LIB} mysys_ssl)
 
-MYSQL_ADD_EXECUTABLE(mariadb-admin mysqladmin.cc ../sql/password.c)
+MYSQL_ADD_EXECUTABLE(mariadb-admin mysqladmin.cc ../sql/password.c ${CLIENT_CONNECT_SRC})
 TARGET_LINK_LIBRARIES(mariadb-admin ${CLIENT_LIB} mysys_ssl)
 
-MYSQL_ADD_EXECUTABLE(mariadb-slap mysqlslap.c)
+MYSQL_ADD_EXECUTABLE(mariadb-slap mysqlslap.c ${CLIENT_CONNECT_SRC})
 SET_SOURCE_FILES_PROPERTIES(mysqlslap.c PROPERTIES COMPILE_FLAGS "-DTHREADS")
 TARGET_LINK_LIBRARIES(mariadb-slap ${CLIENT_LIB})
 

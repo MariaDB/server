@@ -379,6 +379,22 @@ Adds 'STOP SLAVE' prior to 'CHANGE MASTER' and 'START SLAVE' to bottom of dump\&
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mysql: bind-address option
+.\" bind-address option: mysql
+\fB\-\-bind\-address=\fR\fB\fIip_address\fR\fR
+.sp
+On a computer having multiple network interfaces, use this option to select
+which interface to use for connecting to the MariaDB server\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" mysqldump: character-sets-dir option
 .\" character-sets-dir option: mysqldump
 \fB\-\-character\-sets\-dir=\fR\fB\fIpath\fR\fR

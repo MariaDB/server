@@ -58,6 +58,9 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include <sstream>
 #include <sql_error.h>
 #include "page0zip.h"
+#define MYSQL_CLIENT
+#include <client_connect.h>
+#undef MYSQL_CLIENT
 
 char *tool_name;
 char tool_args[2048];
@@ -89,8 +92,10 @@ time_t history_end_time;
 time_t history_lock_time;
 
 MYSQL *mysql_connection;
-
-extern my_bool opt_ssl_verify_server_cert, opt_use_ssl;
+CLNT_CONNECT_OPTIONS cl_opts= CLNT_INIT_OPTS_WITH_PRG_NAME_DEFCHAR(
+    XB_TOOL_NAME,
+    (char*)"utf8"
+);
 
 MYSQL *
 xb_mysql_connect()
@@ -112,45 +117,25 @@ xb_mysql_connect()
 		opt_password=getenv("MYSQL_PWD");
 	}
 #endif
-
-	if (!opt_secure_auth) {
-		mysql_options(connection, MYSQL_SECURE_AUTH,
-			      (char *) &opt_secure_auth);
-	}
-
-	if (xb_plugin_dir && *xb_plugin_dir){
-		mysql_options(connection, MYSQL_PLUGIN_DIR, xb_plugin_dir);
-	}
-	mysql_options(connection, MYSQL_OPT_PROTOCOL, &opt_protocol);
-	mysql_options(connection,MYSQL_SET_CHARSET_NAME, "utf8");
+        cl_opts.host=         opt_host ? opt_host : (char*)"localhost";
+        cl_opts.plugin_dir=   xb_plugin_dir;
+        cl_opts.password=     (char*)opt_password;
+        cl_opts.user=         opt_user;
+        cl_opts.secure_auth=  opt_secure_auth;
+        cl_opts.protocol=     opt_protocol;
+        cl_opts.socket=       opt_socket;
+        cl_opts.port=         opt_port;
+        cl_opts.bind_address= opt_bind_address;
+        cl_opts.database=     (char*)"";
 
 	msg("Connecting to MariaDB server host: %s, user: %s, password: %s, "
-	       "port: %s, socket: %s", opt_host ? opt_host : "localhost",
-	       opt_user ? opt_user : "not set",
-	       opt_password ? "set" : "not set",
-	       opt_port != 0 ? mysql_port_str : "not set",
-	       opt_socket ? opt_socket : "not set");
+	       "port: %s, socket: %s", cl_opts.host,
+            cl_opts.user ? cl_opts.user : "not set",
+	       cl_opts.password ? "set" : "not set",
+	       cl_opts.port != 0 ? mysql_port_str : "not set",
+	       cl_opts.socket ? cl_opts.socket : "not set");
 
-#ifdef HAVE_OPENSSL
-	if (opt_use_ssl && opt_protocol <= MYSQL_PROTOCOL_SOCKET)
-	{
-		mysql_ssl_set(connection, opt_ssl_key, opt_ssl_cert,
-			      opt_ssl_ca, opt_ssl_capath,
-			      opt_ssl_cipher);
-		mysql_options(connection, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
-		mysql_options(connection, MYSQL_OPT_SSL_CRLPATH,
-			      opt_ssl_crlpath);
-	}
-	mysql_options(connection,MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
-		      (char*)&opt_ssl_verify_server_cert);
-#endif
-
-	if (!mysql_real_connect(connection,
-				opt_host ? opt_host : "localhost",
-				opt_user,
-				opt_password,
-				"" /*database*/, opt_port,
-				opt_socket, 0)) {
+        if (!do_client_connect(connection, &cl_opts, 0)) {
 		msg("Failed to connect to MariaDB server: %s.", mysql_error(connection));
 		mysql_close(connection);
 		return(NULL);
@@ -205,7 +190,7 @@ struct mysql_variable {
 static
 void
 read_mysql_variables(MYSQL *connection, const char *query, mysql_variable *vars,
-	bool vertical_result)
+                     bool vertical_result)
 {
 	MYSQL_RES *mysql_result;
 	MYSQL_ROW row;

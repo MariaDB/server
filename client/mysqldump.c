@@ -59,6 +59,7 @@
 #include "mysql.h"
 #include "mysql_version.h"
 #include "mysqld_error.h"
+#include <client_connect.h>
 
 #include <welcome_copyright_notice.h> /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
 
@@ -152,8 +153,7 @@ static ulong opt_max_allowed_packet, opt_net_buffer_length;
 static double opt_max_statement_time= 0.0;
 static MYSQL mysql_connection,*mysql=0;
 static DYNAMIC_STRING insert_pat, select_field_names, select_field_names_for_header;
-static char  *opt_password=0,*current_user=0,
-             *current_host=0,*path=0,*fields_terminated=0,
+static char  *path=0,*fields_terminated=0,
              *lines_terminated=0, *enclosed=0, *opt_enclosed=0, *escaped=0,
              *where=0, *order_by=0,
              *err_ptr= 0,
@@ -169,12 +169,12 @@ static ulong opt_compatible_mode= 0;
 #define MYSQL_OPT_MAX_STATEMENT_TIME 0
 #define MYSQL_OPT_SLAVE_DATA_EFFECTIVE_SQL 1
 #define MYSQL_OPT_SLAVE_DATA_COMMENTED_SQL 2
-static uint opt_mysql_port= 0, opt_master_data;
+static uint opt_master_data;
 static uint opt_slave_data;
 static uint opt_use_gtid;
 static uint my_end_arg;
-static char * opt_mysql_unix_port=0;
-static int   first_error=0;
+static int  first_error= 0;
+static CLNT_CONNECT_OPTIONS cl_opts= CLNT_INIT_OPTS_WITH_PRG_NAME("mariadb-dump");
 /*
   multi_source is 0 if old server or 2 if server that support multi source 
   This is chosen this was as multi_source has 2 extra columns first in
@@ -188,12 +188,8 @@ static MEM_ROOT glob_root;
 static MYSQL_RES *routine_res, *routine_list_res;
 
 
-#include <sslopt-vars.h>
 FILE *md_result_file= 0;
 FILE *stderror_file=0;
-
-static uint opt_protocol= 0;
-static char *opt_plugin_dir= 0, *opt_default_auth= 0;
 
 /*
   Dynamic_string wrapper functions. In this file use these
@@ -216,7 +212,6 @@ static int do_start_slave_sql(MYSQL *mysql_con);
 */
 static const char *mysql_universal_client_charset=
   MYSQL_UNIVERSAL_CLIENT_CHARSET;
-static char *default_charset;
 static CHARSET_INFO *charset_info= &my_charset_latin1;
 const char *default_dbug_option="d:t:o,/tmp/mariadb-dump.trace";
 /* have we seen any VIEWs during table scanning? */
@@ -284,6 +279,10 @@ static struct my_option my_long_options[] =
    "Argument is interpreted according to the --tz-utc setting. "
    "Table structures are always dumped as of current timestamp.",
    &opt_asof_timestamp, &opt_asof_timestamp, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"bind-address", 0,
+   "IP address to bind to.",
+   &cl_opts.bind_address, &cl_opts.bind_address, 0,
+   GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"character-sets-dir", OPT_CHARSETS_DIR,
    "Directory for character set files.", (char **)&charsets_dir,
    (char **)&charsets_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -338,8 +337,8 @@ static struct my_option my_long_options[] =
    &debug_info_flag, &debug_info_flag,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"default-character-set", OPT_DEFAULT_CHARSET,
-   "Set the default character set.", &default_charset,
-   &default_charset, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   "Set the default character set.", &cl_opts.default_charset,
+   &cl_opts.default_charset, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"delayed-insert", OPT_DELAYED, "Insert rows with INSERT DELAYED.",
    &opt_delayed, &opt_delayed, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
    0, 0},
@@ -424,8 +423,8 @@ static struct my_option my_long_options[] =
   {"hex-blob", OPT_HEXBLOB, "Dump binary strings (BINARY, "
     "VARBINARY, BLOB) in hexadecimal format.",
    &opt_hex_blob, &opt_hex_blob, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"host", 'h', "Connect to host.", &current_host,
-   &current_host, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"host", 'h', "Connect to host.", &cl_opts.host,
+   &cl_opts.host, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"ignore-database", OPT_IGNORE_DATABASE,
    "Do not dump the specified database. To specify more than one database to ignore, "
    "use the directive multiple times, once for each database. Only takes effect "
@@ -530,8 +529,8 @@ static struct my_option my_long_options[] =
   {"pipe", 'W', "Use named pipes to connect to server.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
 #endif
-  {"port", 'P', "Port number to use for connection.", &opt_mysql_port,
-   &opt_mysql_port, 0, GET_UINT, REQUIRED_ARG, 0, 0, 0, 0, 0,
+  {"port", 'P', "Port number to use for connection.", &cl_opts.port,
+   &cl_opts.port, 0, GET_UINT, REQUIRED_ARG, 0, 0, 0, 0, 0,
    0},
   {"protocol", OPT_MYSQL_PROTOCOL, 
    "The protocol to use for connection (tcp, socket, pipe).",
@@ -577,9 +576,10 @@ static struct my_option my_long_options[] =
    "Disable --opt. Disables --add-drop-table, --add-locks, --create-options, --quick, --extended-insert, --lock-tables, --set-charset, and --disable-keys.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"socket", 'S', "The socket file to use for connection.",
-   &opt_mysql_unix_port, &opt_mysql_unix_port, 0, 
+   &cl_opts.socket, &cl_opts.socket, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #include <sslopt-longopts.h>
+   SSL_LONGOPTS_EMBED(cl_opts)
   {"system", 256, "Dump system tables as portable SQL",
    &opt_system, &opt_system, &opt_system_types, GET_SET, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"tab",'T',
@@ -598,7 +598,7 @@ static struct my_option my_long_options[] =
     &opt_tz_utc, &opt_tz_utc, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
 #ifndef DONT_ALLOW_USER_CHANGE
   {"user", 'u', "User for login if not current user.",
-   &current_user, &current_user, 0, GET_STR, REQUIRED_ARG,
+   &cl_opts.user, &cl_opts.user, 0, GET_STR, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0},
 #endif
   {"verbose", 'v', "Print info about the various stages.",
@@ -610,11 +610,11 @@ static struct my_option my_long_options[] =
   {"xml", 'X', "Dump a database as well formed XML.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
   {"plugin_dir", OPT_PLUGIN_DIR, "Directory for client-side plugins.",
-   &opt_plugin_dir, &opt_plugin_dir, 0,
+   &cl_opts.plugin_dir, &cl_opts.plugin_dir, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"default_auth", OPT_DEFAULT_AUTH,
    "Default authentication client-side plugin to use.",
-   &opt_default_auth, &opt_default_auth, 0,
+   &cl_opts.default_auth, &cl_opts.default_auth, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
@@ -770,7 +770,7 @@ static void write_header(FILE *sql_file, const char *db_name)
                   VER, MYSQL_SERVER_VERSION, SYSTEM_TYPE,
                   MACHINE_TYPE);
     print_comment(sql_file, 0, "-- Host: %s    ",
-                  fix_for_comment(current_host ? current_host : "localhost"));
+                  fix_for_comment(cl_opts.host ? cl_opts.host : "localhost"));
     print_comment(sql_file, 0, "Database: %s\n",
                   fix_for_comment(db_name ? db_name : ""));
     print_comment(sql_file, 0,
@@ -788,7 +788,7 @@ static void write_header(FILE *sql_file, const char *db_name)
 "\n/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;"
 "\n/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;"
 "\n/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;"
-"\n/*!40101 SET NAMES %s */;\n",default_charset);
+"\n/*!40101 SET NAMES %s */;\n",cl_opts.default_charset);
 
     if (opt_tz_utc)
     {
@@ -889,8 +889,8 @@ get_one_option(const struct my_option *opt,
         exception for passwords
       */
       char *start= (char*) argument;
-      my_free(opt_password);
-      opt_password= my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_FAE));
+      my_free(cl_opts.password);
+      cl_opts.password= my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_FAE));
       while (*argument)
         *(char*) argument++= 'x';               /* Destroy argument */
       if (*start)
@@ -907,7 +907,7 @@ get_one_option(const struct my_option *opt,
     break;
   case 'W':
 #ifdef _WIN32
-    opt_protocol= MYSQL_PROTOCOL_PIPE;
+    cl_opts.protocol= MYSQL_PROTOCOL_PIPE;
 #endif
     break;
   case 'N':
@@ -933,6 +933,7 @@ get_one_option(const struct my_option *opt,
     debug_check_flag= 1;
     break;
 #include <sslopt-case.h>
+  SSLOPT_CASE_EMBED(cl_opts)
   case 'V': print_version(); exit(0);
   case 'X':
     opt_xml= 1;
@@ -1047,27 +1048,27 @@ get_one_option(const struct my_option *opt,
         Set charset to the default compiled value if it hasn't
         been reset yet by --default-character-set=xxx.
       */
-      if (default_charset == mysql_universal_client_charset)
-        default_charset= (char*) MYSQL_DEFAULT_CHARSET_NAME;
+      if (cl_opts.default_charset == mysql_universal_client_charset)
+        cl_opts.default_charset= (char*) MYSQL_DEFAULT_CHARSET_NAME;
       break;
     }
   case (int) OPT_MYSQL_PROTOCOL:
-    if ((opt_protocol= find_type_with_warning(argument, &sql_protocol_typelib,
-                                              opt->name)) <= 0)
+    if ((cl_opts.protocol= find_type_with_warning(argument, &sql_protocol_typelib,
+                                                  opt->name)) <= 0)
     {
       sf_leaking_memory= 1; /* no memory leak reports here */
       exit(1);
     }
     break;
   case (int) OPT_DEFAULT_CHARSET:
-    if (default_charset == disabled_my_option)
-      default_charset= (char *)mysql_universal_client_charset;
+    if (cl_opts.default_charset == disabled_my_option)
+      cl_opts.default_charset= (char*)mysql_universal_client_charset;
     break;
   case 'P':
     if (filename[0] == '\0')
     {
       /* Port given on command line, switch protocol to use TCP */
-      opt_protocol= MYSQL_PROTOCOL_TCP;
+      cl_opts.protocol= MYSQL_PROTOCOL_TCP;
     }
     break;
   case 'S':
@@ -1078,9 +1079,9 @@ get_one_option(const struct my_option *opt,
         Except on Windows if 'protocol= pipe' has been provided in
         the config file or command line.
       */
-      if (opt_protocol != MYSQL_PROTOCOL_PIPE)
+      if (cl_opts.protocol != MYSQL_PROTOCOL_PIPE)
       {
-        opt_protocol= MYSQL_PROTOCOL_SOCKET;
+        cl_opts.protocol= MYSQL_PROTOCOL_SOCKET;
       }
     }
     break;
@@ -1335,8 +1336,8 @@ static int get_options(int *argc, char ***argv)
     return(EX_USAGE);
   }
 
-  if (strcmp(default_charset, MYSQL_AUTODETECT_CHARSET_NAME) &&
-      !(charset_info= get_charset_by_csname(default_charset, MY_CS_PRIMARY,
+  if (strcmp(cl_opts.default_charset, MYSQL_AUTODETECT_CHARSET_NAME) &&
+      !(charset_info= get_charset_by_csname(cl_opts.default_charset, MY_CS_PRIMARY,
                                             MYF(MY_UTF8_IS_UTF8MB3 | MY_WME))))
     exit(1);
   if (opt_order_by_size && (*argc > 1 && !opt_databases))
@@ -1351,7 +1352,7 @@ static int get_options(int *argc, char ***argv)
     return EX_USAGE;
   }
   if (tty_password)
-    opt_password=my_get_tty_password(NullS);
+    cl_opts.password= my_get_tty_password(NullS);
   return(0);
 } /* get_options */
 
@@ -1926,8 +1927,8 @@ static void free_resources()
     mysql= 0;
   }
   my_free(order_by);
-  my_free(opt_password);
-  my_free(current_host);
+  my_free(cl_opts.password);
+  my_free(cl_opts.host);
   free_root(&glob_root, MYF(0));
   if (my_hash_inited(&ignore_database))
     my_hash_free(&ignore_database);
@@ -1965,44 +1966,17 @@ static void maybe_exit(int error)
   db_connect -- connects to the host and selects DB.
 */
 
-static int connect_to_db(char *host, char *user,char *passwd)
+static int connect_to_db()
 {
   char buff[20+FN_REFLEN];
   my_bool reconnect;
   DBUG_ENTER("connect_to_db");
 
-  verbose_msg("-- Connecting to %s...\n", host ? host : "localhost");
+  verbose_msg("-- Connecting to %s...\n", cl_opts.host ? cl_opts.host : "localhost");
   mysql_init(&mysql_connection);
-  if (opt_compress)
-    mysql_options(&mysql_connection,MYSQL_OPT_COMPRESS,NullS);
-#ifdef HAVE_OPENSSL
-  if (opt_use_ssl)
-  {
-    mysql_ssl_set(&mysql_connection, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
-                  opt_ssl_capath, opt_ssl_cipher);
-    mysql_options(&mysql_connection, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
-    mysql_options(&mysql_connection, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
-    mysql_options(&mysql_connection, MARIADB_OPT_TLS_VERSION, opt_tls_version);
-  }
-  mysql_options(&mysql_connection,MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
-                (char*)&opt_ssl_verify_server_cert);
-#endif
-  if (opt_protocol)
-    mysql_options(&mysql_connection,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
-  mysql_options(&mysql_connection, MYSQL_SET_CHARSET_NAME, default_charset);
 
-  if (opt_plugin_dir && *opt_plugin_dir)
-    mysql_options(&mysql_connection, MYSQL_PLUGIN_DIR, opt_plugin_dir);
-
-  if (opt_default_auth && *opt_default_auth)
-    mysql_options(&mysql_connection, MYSQL_DEFAULT_AUTH, opt_default_auth);
-
-  mysql_options(&mysql_connection, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
-  mysql_options4(&mysql_connection, MYSQL_OPT_CONNECT_ATTR_ADD,
-                 "program_name", "mysqldump");
   mysql= &mysql_connection;          /* So we can mysql_close() it properly */
-  if (!mysql_real_connect(&mysql_connection,host,user,passwd,
-                          NULL,opt_mysql_port,opt_mysql_unix_port, 0))
+  if (!do_client_connect(&mysql_connection, &cl_opts, 0))
   {
     DB_error(&mysql_connection, "when trying to connect");
     DBUG_RETURN(1);
@@ -2015,7 +1989,7 @@ static int connect_to_db(char *host, char *user,char *passwd)
 
     /* Don't switch charsets for 4.1 and earlier.  (bug#34192). */
     server_supports_switching_charsets= FALSE;
-  } 
+  }
   /*
     As we're going to set SQL_MODE, it would be lost on reconnect, so we
     cannot reconnect.
@@ -2729,7 +2703,7 @@ static uint dump_events_for_db(char *db)
       fprintf(sql_file, "/*!50106 SET TIME_ZONE= @save_time_zone */ ;\n");
     }
 
-    if (switch_character_set_results(mysql, default_charset))
+    if (switch_character_set_results(mysql, cl_opts.default_charset))
       DBUG_RETURN(1);
   }
   mysql_free_result(event_list_res);
@@ -2864,9 +2838,9 @@ static uint dump_routines_for_db(char *db)
                           query_buff);
             print_comment(sql_file, 1,
                           "-- does %s have permissions on mysql.proc?\n\n",
-                          fix_for_comment(current_user));
+                          fix_for_comment(cl_opts.user));
             maybe_die(EX_MYSQLERR,"%s has insufficient privileges to %s!",
-                      current_user, query_buff);
+                      cl_opts.user, query_buff);
           }
           else if (strlen(row[2]))
           {
@@ -2959,7 +2933,7 @@ static uint dump_routines_for_db(char *db)
     check_io(sql_file);
   }
 
-  if (switch_character_set_results(mysql, default_charset))
+  if (switch_character_set_results(mysql, cl_opts.default_charset))
     DBUG_RETURN(1);
 
   if (lock_tables)
@@ -3164,7 +3138,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
 
       if (switch_character_set_results(mysql, "binary") ||
           mysql_query_with_error_report(mysql, &result, buff) ||
-          switch_character_set_results(mysql, default_charset))
+          switch_character_set_results(mysql, cl_opts.default_charset))
       {
         my_free(order_by);
         order_by= 0;
@@ -3233,7 +3207,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
                     "SHOW FIELDS FROM %s", result_table);
         if (switch_character_set_results(mysql, "binary") ||
             mysql_query_with_error_report(mysql, &result, query_buff) ||
-            switch_character_set_results(mysql, default_charset))
+            switch_character_set_results(mysql, cl_opts.default_charset))
         {
           /*
             View references invalid or privileged table/col/fun (err 1356),
@@ -3934,7 +3908,7 @@ static int dump_triggers_for_table(char *table_name, char *db_name)
   }
 
 skip:
-  if (switch_character_set_results(mysql, default_charset))
+  if (switch_character_set_results(mysql, cl_opts.default_charset))
     goto done;
 
   /*
@@ -4168,9 +4142,9 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     dynstr_append_checked(&query_string, "'");
 
     dynstr_append_checked(&query_string, " /*!50138 CHARACTER SET ");
-    dynstr_append_checked(&query_string, default_charset == mysql_universal_client_charset ?
+    dynstr_append_checked(&query_string, cl_opts.default_charset == mysql_universal_client_charset ?
                                          my_charset_bin.coll_name.str : /* backward compatibility */
-                                         default_charset);
+                                         cl_opts.default_charset);
     dynstr_append_checked(&query_string, " */");
 
     if (fields_terminated || enclosed || opt_enclosed || escaped)
@@ -6861,7 +6835,7 @@ static my_bool get_view_structure(char *table, char* db)
 
   if (mysql_query_with_error_report(mysql, &table_res, query))
   {
-    switch_character_set_results(mysql, default_charset);
+    switch_character_set_results(mysql, cl_opts.default_charset);
     DBUG_RETURN(0);
   }
 
@@ -6870,7 +6844,7 @@ static my_bool get_view_structure(char *table, char* db)
   if (strcmp(field->name, "View") != 0)
   {
     mysql_free_result(table_res);
-    switch_character_set_results(mysql, default_charset);
+    switch_character_set_results(mysql, cl_opts.default_charset);
     verbose_msg("-- It's base table, skipped\n");
     DBUG_RETURN(0);
   }
@@ -7009,7 +6983,7 @@ static my_bool get_view_structure(char *table, char* db)
     dynstr_free(&ds_view);
   }
 
-  switch_character_set_results(mysql, default_charset);
+  switch_character_set_results(mysql, cl_opts.default_charset);
 
   /* If a separate .sql file was opened, close it now */
   if (sql_file != md_result_file)
@@ -7072,7 +7046,7 @@ int main(int argc, char **argv)
 
   sf_leaking_memory=1; /* don't report memory leaks on early exits */
   compatible_mode_normal_str[0]= 0;
-  default_charset= (char *)mysql_universal_client_charset;
+  cl_opts.default_charset= (char*)mysql_universal_client_charset;
 
   exit_code= get_options(&argc, &argv);
   if (exit_code)
@@ -7097,7 +7071,7 @@ int main(int argc, char **argv)
     }
   }
 
-  if (connect_to_db(current_host, current_user, opt_password))
+  if (connect_to_db())
   {
     free_resources();
     exit(EX_MYSQLERR);
@@ -7268,7 +7242,7 @@ err:
   if (opt_slave_data)
     do_start_slave_sql(mysql);
 
-  dbDisconnect(current_host);
+  dbDisconnect(cl_opts.host);
   if (!path)
     write_footer(md_result_file);
   free_resources();

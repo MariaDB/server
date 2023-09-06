@@ -31,7 +31,7 @@
 
 #include "client_priv.h"
 #include <my_sys.h>
-
+#include <client_connect.h>
 #include "mysql_version.h"
 
 #include <welcome_copyright_notice.h>   /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
@@ -49,39 +49,41 @@ static char *field_escape(char *to,const char *from,uint length);
 static char *add_load_option(char *ptr,const char *object,
 			     const char *statement);
 
-static my_bool	verbose=0,lock_tables=0,ignore_errors=0,opt_delete=0,
+static my_bool	verbose= 0;
+static my_bool	lock_tables= 0, ignore_errors= 0, opt_delete= 0,
                 replace, silent, ignore, ignore_foreign_keys,
-                opt_compress, opt_low_priority, tty_password;
-static my_bool debug_info_flag= 0, debug_check_flag= 0;
-static uint opt_use_threads=0, opt_local_file=0, my_end_arg= 0;
-static char	*opt_password=0, *current_user=0,
-		*current_host=0, *current_db=0, *fields_terminated=0,
-		*lines_terminated=0, *enclosed=0, *opt_enclosed=0,
-		*escaped=0, *opt_columns=0, 
-		*default_charset= (char*) MYSQL_AUTODETECT_CHARSET_NAME;
-static uint     opt_mysql_port= 0, opt_protocol= 0;
-static char * opt_mysql_unix_port=0;
-static char *opt_plugin_dir= 0, *opt_default_auth= 0;
+                opt_low_priority, tty_password;
+static my_bool  debug_info_flag= 0, debug_check_flag= 0;
+static uint     opt_use_threads= 0, opt_local_file=0, my_end_arg= 0;
+static char     *fields_terminated= 0,
+		*lines_terminated= 0, *enclosed= 0, *opt_enclosed= 0,
+		*escaped= 0, *opt_columns= 0;
 static longlong opt_ignore_lines= -1;
+static CLNT_CONNECT_OPTIONS cl_opts= CLNT_INIT_OPTS_WITH_PRG_NAME_DEFCHAR(
+  "mariadb-import",
+  (char*) MYSQL_AUTODETECT_CHARSET_NAME);
 
-#include <sslopt-vars.h>
 
 static char **argv_to_free;
 
 static struct my_option my_long_options[] =
 {
+  {"bind-address", 0,
+   "IP address to bind to.",
+   &cl_opts.bind_address, &cl_opts.bind_address, 0,
+   GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"character-sets-dir", OPT_CHARSETS_DIR,
-   "Directory for character set files.", (char**) &charsets_dir,
-   (char**) &charsets_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   "Directory for character set files.", (char**) &cl_opts.charsets_dir,
+   (char**) &cl_opts.charsets_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"default-character-set", OPT_DEFAULT_CHARSET,
-   "Set the default character set.", &default_charset,
-   &default_charset, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   "Set the default character set.", &cl_opts.default_charset,
+   &cl_opts.default_charset, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"columns", 'c',
    "Use only these columns to import the data to. Give the column names in a comma separated list. This is same as giving columns to LOAD DATA INFILE.",
    &opt_columns, &opt_columns, 0, GET_STR, REQUIRED_ARG, 0, 0, 0,
    0, 0, 0},
   {"compress", 'C', "Use compression in server/client protocol.",
-   &opt_compress, &opt_compress, 0, GET_BOOL, NO_ARG, 0, 0, 0,
+   &cl_opts.compress, &cl_opts.compress, 0, GET_BOOL, NO_ARG, 0, 0, 0,
    0, 0, 0},
   {"debug",'#', "Output debug log. Often this is 'd:t:o,filename'.", 0, 0, 0,
    GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
@@ -93,7 +95,7 @@ static struct my_option my_long_options[] =
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"default_auth", OPT_DEFAULT_AUTH,
    "Default authentication client-side plugin to use.",
-   &opt_default_auth, &opt_default_auth, 0,
+   &cl_opts.default_auth, &cl_opts.default_auth, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"delete", 'd', "First delete all rows from table.", &opt_delete,
    &opt_delete, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -118,8 +120,8 @@ static struct my_option my_long_options[] =
    0, 0, 0, 0},
   {"help", '?', "Displays this help and exits.", 0, 0, 0, GET_NO_ARG, NO_ARG,
    0, 0, 0, 0, 0, 0},
-  {"host", 'h', "Connect to host.", &current_host,
-   &current_host, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"host", 'h', "Connect to host.", &cl_opts.host,
+   &cl_opts.host, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"ignore", 'i', "If duplicate unique key was found, keep old row.",
    &ignore, &ignore, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"ignore-foreign-keys", 'k',
@@ -149,7 +151,7 @@ static struct my_option my_long_options[] =
    NO_ARG, 0, 0, 0, 0, 0, 0},
 #endif
   {"plugin_dir", OPT_PLUGIN_DIR, "Directory for client-side plugins.",
-   &opt_plugin_dir, &opt_plugin_dir, 0,
+   &cl_opts.plugin_dir, &cl_opts.plugin_dir, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"port", 'P', "Port number to use for connection or 0 for default to, in "
    "order of preference, my.cnf, $MYSQL_TCP_PORT, "
@@ -157,9 +159,7 @@ static struct my_option my_long_options[] =
    "/etc/services, "
 #endif
    "built-in default (" STRINGIFY_ARG(MYSQL_PORT) ").",
-   &opt_mysql_port,
-   &opt_mysql_port, 0, GET_UINT, REQUIRED_ARG, 0, 0, 0, 0, 0,
-   0},
+   &cl_opts.port, &cl_opts.port, 0, GET_UINT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"protocol", OPT_MYSQL_PROTOCOL, "The protocol to use for connection (tcp, socket, pipe).",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"replace", 'r', "If duplicate unique key was found, replace old row.",
@@ -167,17 +167,18 @@ static struct my_option my_long_options[] =
   {"silent", 's', "Be more silent.", &silent, &silent, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"socket", 'S', "The socket file to use for connection.",
-   &opt_mysql_unix_port, &opt_mysql_unix_port, 0, GET_STR,
+   &cl_opts.socket, &cl_opts.socket, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #include <sslopt-longopts.h>
+   SSL_LONGOPTS_EMBED(cl_opts)
   {"use-threads", OPT_USE_THREADS,
    "Load files in parallel. The argument is the number "
    "of threads to use for loading data.",
    &opt_use_threads, &opt_use_threads, 0, 
    GET_UINT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #ifndef DONT_ALLOW_USER_CHANGE
-  {"user", 'u', "User for login if not current user.", &current_user,
-   &current_user, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"user", 'u', "User for login if not current user.", &cl_opts.user,
+   &cl_opts.user, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #endif
   {"verbose", 'v', "Print info about the various stages.", &verbose,
    &verbose, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -229,8 +230,8 @@ get_one_option(const struct my_option *opt, const char *argument,
         exception for passwords
       */
       char *start= (char*) argument;
-      my_free(opt_password);
-      opt_password=my_strdup(PSI_NOT_INSTRUMENTED, argument,MYF(MY_FAE));
+      my_free(cl_opts.password);
+      cl_opts.password=my_strdup(PSI_NOT_INSTRUMENTED, argument,MYF(MY_FAE));
       while (*argument)
         *(char*) argument++= 'x';               /* Destroy argument */
       if (*start)
@@ -242,12 +243,12 @@ get_one_option(const struct my_option *opt, const char *argument,
     break;
 #ifdef _WIN32
   case 'W':
-    opt_protocol = MYSQL_PROTOCOL_PIPE;
+    cl_opts.protocol= MYSQL_PROTOCOL_PIPE;
     opt_local_file=1;
     break;
 #endif
   case OPT_MYSQL_PROTOCOL:
-    if ((opt_protocol= find_type_with_warning(argument, &sql_protocol_typelib,
+    if ((cl_opts.protocol= find_type_with_warning(argument, &sql_protocol_typelib,
                                               opt->name)) <= 0)
     {
       sf_leaking_memory= 1; /* no memory leak reports here */
@@ -258,7 +259,7 @@ get_one_option(const struct my_option *opt, const char *argument,
     if (filename[0] == '\0')
     {
       /* Port given on command line, switch protocol to use TCP */
-      opt_protocol= MYSQL_PROTOCOL_TCP;
+      cl_opts.protocol= MYSQL_PROTOCOL_TCP;
     }
     break;
   case 'S':
@@ -269,9 +270,9 @@ get_one_option(const struct my_option *opt, const char *argument,
         Except on Windows if 'protocol= pipe' has been provided in
         the config file or command line.
       */
-      if (opt_protocol != MYSQL_PROTOCOL_PIPE)
+      if (cl_opts.protocol != MYSQL_PROTOCOL_PIPE)
       {
-        opt_protocol= MYSQL_PROTOCOL_SOCKET;
+        cl_opts.protocol= MYSQL_PROTOCOL_SOCKET;
       }
     }
     break;
@@ -280,6 +281,7 @@ get_one_option(const struct my_option *opt, const char *argument,
     debug_check_flag= 1;
     break;
 #include <sslopt-case.h>
+  SSLOPT_CASE_EMBED(cl_opts)
   case 'V': print_version(); exit(0);
   case 'I':
   case '?':
@@ -316,10 +318,10 @@ static int get_options(int *argc, char ***argv)
     usage();
     return 1;
   }
-  current_db= *((*argv)++);
+  cl_opts.database= *((*argv)++);
   (*argc)--;
   if (tty_password)
-    opt_password=my_get_tty_password(NullS);
+    cl_opts.password= my_get_tty_password(NullS);
   return(0);
 }
 
@@ -404,7 +406,7 @@ static int write_to_table(char *filename, MYSQL *mysql)
   {
     if (mysql_info(mysql)) /* If NULL-pointer, print nothing */
     {
-      fprintf(stdout, "%s.%s: %s\n", current_db, tablename,
+      fprintf(stdout, "%s.%s: %s\n", cl_opts.database, tablename,
 	      mysql_info(mysql));
     }
   }
@@ -435,13 +437,12 @@ static void lock_table(MYSQL *mysql, int tablecount, char **raw_tablename)
 
 
 
-static MYSQL *db_connect(char *host, char *database,
-                         char *user, char *passwd)
+static MYSQL *db_connect()
 {
   MYSQL *mysql;
   my_bool reconnect;
   if (verbose)
-    fprintf(stdout, "Connecting to %s\n", host ? host : "localhost");
+    fprintf(stdout, "Connecting to %s\n", cl_opts.host ? cl_opts.host : "localhost");
   if (opt_use_threads && !lock_tables)
   {
     pthread_mutex_lock(&init_mutex);
@@ -455,41 +456,15 @@ static MYSQL *db_connect(char *host, char *database,
   else
     if (!(mysql= mysql_init(NULL)))
       return 0;
-  if (opt_compress)
-    mysql_options(mysql,MYSQL_OPT_COMPRESS,NullS);
   if (opt_local_file)
-    mysql_options(mysql,MYSQL_OPT_LOCAL_INFILE,
-		  (char*) &opt_local_file);
-#ifdef HAVE_OPENSSL
-  if (opt_use_ssl)
-  {
-    mysql_ssl_set(mysql, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
-		  opt_ssl_capath, opt_ssl_cipher);
-    mysql_options(mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
-    mysql_options(mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
-    mysql_options(mysql, MARIADB_OPT_TLS_VERSION, opt_tls_version);
-  }
-  mysql_options(mysql,MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
-                (char*)&opt_ssl_verify_server_cert);
-#endif
-  if (opt_protocol)
-    mysql_options(mysql,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
+      mysql_options(mysql,MYSQL_OPT_LOCAL_INFILE,
+                    (char*) &opt_local_file);
 
-  if (opt_plugin_dir && *opt_plugin_dir)
-    mysql_options(mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir);
+  if (!strcmp(cl_opts.default_charset,MYSQL_AUTODETECT_CHARSET_NAME))
+      cl_opts.default_charset= (char*)my_default_csname();
+  my_set_console_cp(cl_opts.default_charset);
 
-  if (opt_default_auth && *opt_default_auth)
-    mysql_options(mysql, MYSQL_DEFAULT_AUTH, opt_default_auth);
-  if (!strcmp(default_charset,MYSQL_AUTODETECT_CHARSET_NAME))
-    default_charset= (char *)my_default_csname();
-  my_set_console_cp(default_charset);
-  mysql_options(mysql, MYSQL_SET_CHARSET_NAME, my_default_csname());
-  mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
-  mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
-                 "program_name", "mysqlimport");
-  if (!(mysql_real_connect(mysql,host,user,passwd,
-                           database,opt_mysql_port,opt_mysql_unix_port,
-                           0)))
+  if (!(do_client_connect(mysql, &cl_opts, 0)))
   {
     ignore_errors=0;	  /* NO RETURN FROM db_error */
     db_error(mysql);
@@ -497,8 +472,8 @@ static MYSQL *db_connect(char *host, char *database,
   reconnect= 0;
   mysql_options(mysql, MYSQL_OPT_RECONNECT, &reconnect);
   if (verbose)
-    fprintf(stdout, "Selecting database %s\n", database);
-  if (mysql_select_db(mysql, database))
+    fprintf(stdout, "Selecting database %s\n", cl_opts.database);
+  if (mysql_select_db(mysql, cl_opts.database))
   {
     ignore_errors=0;
     db_error(mysql);
@@ -541,7 +516,7 @@ static void safe_exit(int error, MYSQL *mysql)
 
   mysql_library_end();
   free_defaults(argv_to_free);
-  my_free(opt_password);
+  my_free(cl_opts.password);
   my_end(my_end_arg); /* clean exit */
   exit(error);
 }
@@ -624,7 +599,7 @@ pthread_handler_t worker_thread(void *arg)
   if (mysql_thread_init())
     goto error;
   
-  if (!(mysql= db_connect(current_host,current_db,current_user,opt_password)))
+  if (!(mysql= db_connect()))
   {
     goto error;
   }
@@ -644,7 +619,7 @@ pthread_handler_t worker_thread(void *arg)
 
 error:
   if (mysql)
-    db_disconnect(current_host, mysql);
+    db_disconnect(cl_opts.host, mysql);
 
   pthread_mutex_lock(&counter_mutex);
   counter--;
@@ -756,7 +731,7 @@ int main(int argc, char **argv)
   else
   {
     MYSQL *mysql= 0;
-    if (!(mysql= db_connect(current_host,current_db,current_user,opt_password)))
+    if (!(mysql= db_connect()))
     {
       free_defaults(argv_to_free);
       return(1); /* purecov: deadcode */
@@ -774,7 +749,7 @@ int main(int argc, char **argv)
       if ((error= write_to_table(*argv, mysql)))
         if (exitcode == 0)
           exitcode= error;
-    db_disconnect(current_host, mysql);
+    db_disconnect(cl_opts.host, mysql);
   }
   safe_exit(0, 0);
   return(exitcode);

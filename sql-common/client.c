@@ -95,6 +95,7 @@ my_bool	net_flush(NET *net);
 
 
 #define CONNECT_TIMEOUT 0
+#define DNS_TIMEOUT 30
 
 #include "client_settings.h"
 #include <ssl_compat.h>
@@ -167,6 +168,15 @@ static void mysql_close_free_options(MYSQL *mysql);
 static void mysql_close_free(MYSQL *mysql);
 static void mysql_prune_stmt_list(MYSQL *mysql);
 static int cli_report_progress(MYSQL *mysql, char *packet, uint length);
+/*
+ * Resolve an address info using getaddrinfo() function
+ * and timeout loop for temporarily failed resolutions (if needed)
+ */
+static int client_connect_getaddrinfo(const char *name, uint port,
+                                      unsigned int connect_timeout,
+                                      const struct addrinfo *hints,
+                                      struct addrinfo **res,
+                                      time_t connect_start);
 
 CHARSET_INFO *default_client_charset_info = &my_charset_latin1;
 
@@ -1070,6 +1080,10 @@ void mysql_read_default_options(struct st_mysql_options *options,
           EXTENSION_SET_STRING(options, default_auth, opt_arg);
           break;
         case OPT_enable_cleartext_plugin:
+          break;
+        case OPT_bind_address:
+          my_free(options->bind_address);
+          options->bind_address = opt_strdup(opt_arg, MYF(MY_WME));
           break;
 	default:
 	  DBUG_PRINT("warning",("unknown option: %s",option[0]));
@@ -2660,19 +2674,59 @@ set_connect_attributes(MYSQL *mysql, char *buff, size_t buf_len)
   return rc > 0 ? 1 : 0;
 }
 
-
-MYSQL * STDCALL 
-CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
-		       const char *passwd, const char *db,
-		       uint port, const char *unix_socket,ulong client_flag)
+static int
+client_connect_getaddrinfo(const char *name, uint port,
+                           unsigned int connect_timeout,
+                           const struct addrinfo *hints,
+                           struct addrinfo **res,
+                           time_t connect_start)
 {
-  char		buff[NAME_LEN+USERNAME_LENGTH+100];
+  unsigned int timeout;
+  char server_port[NI_MAXSERV];
+  int gai_rc;
+#ifdef _WIN32
+  DWORD wait_gai;
+#else
+  unsigned int wait_gai;
+#endif
+
+  if(port)
+    my_snprintf(server_port, NI_MAXSERV, "%d", port);
+
+  timeout= connect_timeout ? connect_timeout : DNS_TIMEOUT;
+  wait_gai= 1;
+  while ((gai_rc= getaddrinfo(name, port ? server_port : NULL,
+                              hints, res)) == EAI_AGAIN)
+  {
+    if (time(NULL) - connect_start > (time_t)timeout)
+      break;
+#ifndef _WIN32
+    usleep(wait_gai);
+#else
+    Sleep(wait_gai);
+#endif
+    wait_gai*= 2;
+  }
+  return gai_rc;
+}
+
+
+
+MYSQL * STDCALL
+CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
+                       const char *passwd, const char *db,
+                       uint port, const char *unix_socket,ulong client_flag)
+{
+  char	        buff[NAME_LEN+USERNAME_LENGTH+100];
   int           scramble_data_len, UNINIT_VAR(pkt_scramble_len);
   char          *end,*host_info= 0, *server_version_end, *pkt_end;
   char          *scramble_data;
   const char    *scramble_plugin;
   ulong		pkt_length;
-  NET		*net= &mysql->net;
+  NET	        *net= &mysql->net;
+  int           rc= 0;
+  time_t        start_t= time(NULL);
+
 #ifdef _WIN32
   HANDLE	hPipe=INVALID_HANDLE_VALUE;
 #endif
@@ -2828,9 +2882,8 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
       (!mysql->options.protocol ||
        mysql->options.protocol == MYSQL_PROTOCOL_TCP))
   {
-    struct addrinfo *res_lst, hints, *t_res;
+    struct addrinfo   *res_lst, hints, *t_res, *bind_addr= 0, *bres= 0;
     int gai_errno;
-    char port_buf[NI_MAXSERV];
     my_socket sock= INVALID_SOCKET;
     int saved_error= 0, status= -1;
 
@@ -2851,11 +2904,26 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
     hints.ai_protocol= IPPROTO_TCP;
     hints.ai_family= AF_UNSPEC;
 
-    DBUG_PRINT("info",("IPV6 getaddrinfo %s", host));
-    my_snprintf(port_buf, NI_MAXSERV, "%d", port);
-    gai_errno= getaddrinfo(host, port_buf, &hints, &res_lst);
+    /* if client has multiple interfaces, we will bind socket to given
+    * bind_address */
+    if (mysql->options.bind_address)
+    {
+      gai_errno= client_connect_getaddrinfo(mysql->options.bind_address, 0,
+                                            mysql->options.connect_timeout,
+                                            &hints, &bind_addr, start_t);
 
-    if (gai_errno != 0) 
+      if (gai_errno != 0 || !bind_addr)
+      {
+        DBUG_PRINT("info", ("getaddrinfo error %d", gai_errno));
+        goto error;
+      }
+    }
+
+    DBUG_PRINT("info",("IPV6 getaddrinfo %s", host));
+    gai_errno= client_connect_getaddrinfo(host, port, mysql->options.connect_timeout,
+                               &hints, &res_lst, start_t);
+
+    if (gai_errno != 0)
     { 
       /* 
         For DBUG we are keeping the right message but for client we default to
@@ -2864,7 +2932,8 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
       DBUG_PRINT("info",("IPV6 getaddrinfo error %d", gai_errno));
       set_mysql_extended_error(mysql, CR_UNKNOWN_HOST, unknown_sqlstate,
                                ER(CR_UNKNOWN_HOST), host, gai_errno);
-
+      if(bind_addr)
+        freeaddrinfo(bind_addr);
       goto error;
     }
 
@@ -2883,6 +2952,22 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
       {
         saved_error= socket_errno;
         continue;
+      }
+
+      if (bind_addr)
+      {
+        for (bres= bind_addr; bres; bres= bres->ai_next)
+        {
+          if (!(rc= bind(sock, bres->ai_addr, (int)bres->ai_addrlen)))
+            break;
+        }
+        if (rc)
+        {
+          closesocket(sock);
+          sock= INVALID_SOCKET;
+          saved_error= socket_errno;
+          continue;
+        }
       }
 
       net->vio= vio_new(sock, VIO_TYPE_TCPIP, VIO_BUFFERED_READ);
@@ -2920,6 +3005,8 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
                 (int)sock, status, saved_error));
 
     freeaddrinfo(res_lst);
+    if (bind_addr)
+      freeaddrinfo(bind_addr);
 
     if (sock == INVALID_SOCKET)
     {
@@ -3897,6 +3984,10 @@ mysql_options(MYSQL *mysql,enum mysql_option option, const void *arg)
         }
       }
     }
+    break;
+  case MYSQL_OPT_BIND:
+    my_free(mysql->options.bind_address);
+    mysql->options.bind_address= opt_strdup(arg, MYF(MY_WME));
     break;
   case MYSQL_SHARED_MEMORY_BASE_NAME:
   default:

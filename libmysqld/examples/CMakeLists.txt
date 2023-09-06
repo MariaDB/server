@@ -25,7 +25,8 @@ ADD_DEFINITIONS(-DEMBEDDED_LIBRARY -UMYSQL_CLIENT)
 
 
 MYSQL_ADD_EXECUTABLE(mariadb-embedded ../../client/completion_hash.cc
-               ../../client/mysql.cc ../../client/readline.cc
+               ../../client/mysql.cc ../../sql-common/client_connect.c
+               ../../client/readline.cc
                COMPONENT Client)
 TARGET_LINK_LIBRARIES(mariadb-embedded mysqlserver)
 IF(UNIX)
@@ -33,6 +34,7 @@ IF(UNIX)
 ENDIF(UNIX)
 
 MYSQL_ADD_EXECUTABLE(mariadb-test-embedded ../../client/mysqltest.cc
+  ../../sql-common/client_connect.c
   COMPONENT Test)
 TARGET_LINK_LIBRARIES(mariadb-test-embedded mysqlserver pcre2-posix pcre2-8)
 SET_SOURCE_FILES_PROPERTIES(../../client/mysqltest.cc PROPERTIES COMPILE_FLAGS "${PCRE2_DEBIAN_HACK}")

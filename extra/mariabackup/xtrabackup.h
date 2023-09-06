@@ -80,11 +80,11 @@ extern char		*innobase_buffer_pool_filename;
 extern char		*aria_log_dir_path;
 extern char		*xb_plugin_dir;
 extern char		*xb_rocksdb_datadir;
-extern my_bool	xb_backup_rocksdb;
+extern my_bool	        xb_backup_rocksdb;
 
 extern uint		opt_protocol;
 
-extern xb_page_bitmap *changed_page_bitmap;
+extern xb_page_bitmap   *changed_page_bitmap;
 
 extern char		*xtrabackup_incremental;
 extern my_bool		xtrabackup_incremental_force_scan;
@@ -140,7 +140,7 @@ extern my_bool		opt_remove_original;
 extern my_bool		opt_extended_validation;
 extern my_bool		opt_encrypted_backup;
 extern my_bool		opt_lock_ddl_per_table;
-extern my_bool    opt_log_innodb_page_corruption;
+extern my_bool          opt_log_innodb_page_corruption;
 
 extern char		*opt_incremental_history_name;
 extern char		*opt_incremental_history_uuid;
@@ -152,6 +152,7 @@ extern char		*opt_defaults_group;
 extern char		*opt_socket;
 extern uint		opt_port;
 extern char		*opt_log_bin;
+extern char             *opt_bind_address;
 
 extern const char 	*query_type_names[];
 
@@ -210,10 +211,6 @@ Check if parameter is set in defaults file or via command line argument
 @return true if parameter is set. */
 bool
 check_if_param_set(const char *param);
-
-#if defined(HAVE_OPENSSL)
-extern my_bool opt_ssl_verify_server_cert;
-#endif
 
 
 my_bool

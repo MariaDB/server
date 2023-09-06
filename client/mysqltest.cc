@@ -55,6 +55,7 @@
 #endif
 #include <signal.h>
 #include <my_stacktrace.h>
+#include <client_connect.h>
 
 #include <welcome_copyright_notice.h> // ORACLE_WELCOME_COPYRIGHT_NOTICE
 
@@ -103,16 +104,14 @@ enum {
 };
 
 static int record= 0, opt_sleep= -1;
-static char *opt_db= 0, *opt_pass= 0;
-const char *opt_user= 0, *opt_host= 0, *unix_sock= 0, *opt_basedir= "./";
+const char *opt_basedir= "./";
 const char *opt_logdir= "";
-const char *opt_prologue= 0, *opt_charsets_dir;
-static int opt_port= 0;
+const char *opt_prologue= 0;
 static int opt_max_connect_retries;
 static int opt_result_format_version;
 static int opt_max_connections= DEFAULT_MAX_CONN;
 static int error_count= 0;
-static my_bool opt_compress= 0, silent= 0, verbose= 0;
+static my_bool silent= 0, verbose= 0;
 static my_bool debug_info_flag= 0, debug_check_flag= 0;
 static my_bool tty_password= 0;
 static my_bool opt_mark_progress= 0;
@@ -135,6 +134,7 @@ static my_bool server_initialized= 0;
 static my_bool is_windows= 0;
 static my_bool optimizer_trace_active= 0;
 static char **default_argv;
+static CLNT_CONNECT_OPTIONS cl_opts= CLNT_INIT_OPTS_WITH_PRG_NAME("mariadb-test");
 static const char *load_default_groups[]=
 { "mysqltest", "mariadb-test", "client", "client-server", "client-mariadb",
   0 };
@@ -189,7 +189,6 @@ static uint my_end_arg= 0;
 /* Number of lines of the result to include in failure report */
 static uint opt_tail_lines= 0;
 
-static uint opt_connect_timeout= 0;
 static uint opt_wait_for_pos_timeout= 0;
 static const  uint default_wait_for_pos_timeout= 300;
 static char delimiter[MAX_DELIMITER_LENGTH]= ";";
@@ -259,7 +258,6 @@ static ulonglong timer_now(void);
 
 static ulong connection_retry_sleep= 100000; /* Microseconds */
 
-static const char *opt_plugin_dir;
 static const char *opt_suite_dir, *opt_overlay_dir;
 static size_t suite_dir_len, overlay_dir_len;
 
@@ -279,11 +277,7 @@ static int replace(DYNAMIC_STRING *ds_str,
                    const char *search_str, size_t search_len,
                    const char *replace_str, size_t replace_len);
 
-static uint opt_protocol=0;
-
 DYNAMIC_ARRAY q_lines;
-
-#include "sslopt-vars.h"
 
 struct Parser
 {
@@ -1488,7 +1482,7 @@ void free_used_memory()
   if (ds_warn)
     dynstr_free(ds_warn);
   free_all_replace();
-  my_free(opt_pass);
+  my_free(cl_opts.password);
   free_defaults(default_argv);
   free_root(&require_file_root, MYF(0));
   free_re();
@@ -5763,9 +5757,7 @@ void do_close_connection(struct st_command *command)
 
 */
 
-void safe_connect(MYSQL* mysql, const char *name, const char *host,
-                  const char *user, const char *pass, const char *db,
-                  int port, const char *sock)
+void safe_connect(MYSQL* mysql, const char *name, CLNT_CONNECT_OPTIONS *opts)
 {
   int failed_attempts= 0;
 
@@ -5773,13 +5765,9 @@ void safe_connect(MYSQL* mysql, const char *name, const char *host,
 
   verbose_msg("Connecting to server %s:%d (socket %s) as '%s'"
               ", connection '%s', attempt %d ...", 
-              host, port, sock, user, name, failed_attempts);
+              opts->host, opts->port, opts->socket, opts->user, name, failed_attempts);
 
-  mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
-  mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
-                 "program_name", "mysqltest");
-  while(!mysql_real_connect(mysql, host,user, pass, db, port, sock,
-                            CLIENT_MULTI_STATEMENTS | CLIENT_REMEMBER_OPTIONS))
+  while(!do_client_connect(mysql, opts, CLIENT_MULTI_STATEMENTS | CLIENT_REMEMBER_OPTIONS))
   {
     /*
       Connect failed
@@ -5839,9 +5827,9 @@ void safe_connect(MYSQL* mysql, const char *name, const char *host,
 */
 
 int connect_n_handle_errors(struct st_command *command,
-                            MYSQL* con, const char* host,
-                            const char* user, const char* pass,
-                            const char* db, int port, const char* sock,
+                            MYSQL* con,
+                            CLNT_CONNECT_OPTIONS *opts,
+                            const char* db,
                             my_bool default_db)
 {
   DYNAMIC_STRING *ds;
@@ -5857,19 +5845,19 @@ int connect_n_handle_errors(struct st_command *command,
       Log the connect to result log
     */
     dynstr_append_mem(ds, "connect(", 8);
-    replace_dynstr_append(ds, host);
+    replace_dynstr_append(ds, opts->host);
     dynstr_append_mem(ds, ",", 1);
-    replace_dynstr_append(ds, user);
+    replace_dynstr_append(ds, opts->user);
     dynstr_append_mem(ds, ",", 1);
-    replace_dynstr_append(ds, pass);
+    replace_dynstr_append(ds, opts->password);
     dynstr_append_mem(ds, ",", 1);
     if (db)
       replace_dynstr_append(ds, db);
     dynstr_append_mem(ds, ",", 1);
-    replace_dynstr_append_uint(ds, port);
+    replace_dynstr_append_uint(ds, opts->port);
     dynstr_append_mem(ds, ",", 1);
-    if (sock)
-      replace_dynstr_append(ds, sock);
+    if (opts->socket)
+      replace_dynstr_append(ds, opts->socket);
     dynstr_append_mem(ds, ")", 1);
     dynstr_append_mem(ds, delimiter, delimiter_length);
     dynstr_append_mem(ds, "\n", 1);
@@ -5881,12 +5869,8 @@ int connect_n_handle_errors(struct st_command *command,
     dynstr_append_mem(ds, ";\n", 2);
   }
 
-  mysql_options(con, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
-  mysql_options4(con, MYSQL_OPT_CONNECT_ATTR_ADD, "program_name", "mysqltest");
-  while (!mysql_real_connect(con, host, user, pass,
-                             (default_db ? "" : db),
-                             port, (sock ? sock : 0),
-                             CLIENT_MULTI_STATEMENTS))
+  opts->database= (char*)(default_db ? "" : db);
+  while (!do_client_connect(con, opts, CLIENT_MULTI_STATEMENTS))
   {
     /*
       If we have used up all our connections check whether this
@@ -5975,15 +5959,10 @@ enum use_ssl
 
 void do_connect(struct st_command *command)
 {
-  uint protocol= opt_protocol;
-  int con_port= opt_port;
   char *con_options;
   char *ssl_cipher __attribute__((unused))= 0;
   enum use_ssl con_ssl __attribute__((unused))= USE_SSL_IF_POSSIBLE;
-  my_bool con_compress= 0;
-  int read_timeout= 0;
-  int write_timeout= 0;
-  int connect_timeout= 0;
+  CLNT_CONNECT_OPTIONS opts= cl_opts;
   char *csname=0;
   struct st_connection* con_slot;
   my_bool default_db;
@@ -6020,8 +5999,8 @@ void do_connect(struct st_command *command)
   /* Port */
   if (ds_port.length)
   {
-    con_port= atoi(ds_port.str);
-    if (con_port == 0)
+    opts.port= atoi(ds_port.str);
+    if (opts.port == 0)
       die("Illegal argument for port: '%s'", ds_port.str);
   }
 
@@ -6043,7 +6022,7 @@ void do_connect(struct st_command *command)
   else
   {
     /* No socket specified, use default */
-    dynstr_set(&ds_sock, unix_sock);
+    dynstr_set(&ds_sock, opts.socket);
   }
   DBUG_PRINT("info", ("socket: %s", ds_sock.str));
 
@@ -6072,43 +6051,43 @@ void do_connect(struct st_command *command)
       ssl_cipher=con_options + 11;
     }
     else if (length == 8 && !strncmp(con_options, "COMPRESS", 8))
-      con_compress= 1;
+      opts.compress= 1;
     else if (length == 3 && !strncmp(con_options, "TCP", 3))
-      protocol= MYSQL_PROTOCOL_TCP;
+      opts.protocol= MYSQL_PROTOCOL_TCP;
     else if (length == 7 && !strncmp(con_options, "DEFAULT", 7))
-      protocol= MYSQL_PROTOCOL_DEFAULT;
+      opts.protocol= MYSQL_PROTOCOL_DEFAULT;
     else if (length == 4 && !strncmp(con_options, "PIPE", 4))
     {
 #ifdef _WIN32
-      protocol= MYSQL_PROTOCOL_PIPE;
+      opts.protocol= MYSQL_PROTOCOL_PIPE;
 #endif
     }
     else if (length == 6 && !strncmp(con_options, "SOCKET", 6))
     {
 #ifndef _WIN32
-      protocol= MYSQL_PROTOCOL_SOCKET;
+      opts.protocol= MYSQL_PROTOCOL_SOCKET;
 #endif
     }
     else if (length == 6 && !strncmp(con_options, "MEMORY", 6))
     {
 #ifdef _WIN32
-      protocol= MYSQL_PROTOCOL_MEMORY;
+      opts.protocol= MYSQL_PROTOCOL_MEMORY;
 #endif
     }
     else if (strncasecmp(con_options, "read_timeout=",
                          sizeof("read_timeout=")-1) == 0)
     {
-      read_timeout= atoi(con_options + sizeof("read_timeout=")-1);
+      opts.read_timeout= atoi(con_options + sizeof("read_timeout=")-1);
     }
     else if (strncasecmp(con_options, "write_timeout=",
                          sizeof("write_timeout=")-1) == 0)
     {
-      write_timeout= atoi(con_options + sizeof("write_timeout=")-1);
+      opts.write_timeout= atoi(con_options + sizeof("write_timeout=")-1);
     }
     else if (strncasecmp(con_options, "connect_timeout=",
                          sizeof("connect_timeout=")-1) == 0)
     {
-      connect_timeout= atoi(con_options + sizeof("connect_timeout=")-1);
+      opts.connect_timeout= atoi(con_options + sizeof("connect_timeout=")-1);
     }
     else if (strncasecmp(con_options, "CHARSET=",
       sizeof("CHARSET=") - 1) == 0)
@@ -6141,79 +6120,42 @@ void do_connect(struct st_command *command)
   if (!(con_slot->mysql= mysql_init(0)))
     die("Failed on mysql_init()");
 
-  if (opt_connect_timeout)
-    mysql_options(con_slot->mysql, MYSQL_OPT_CONNECT_TIMEOUT,
-                  (void *) &opt_connect_timeout);
   if (mysql_options(con_slot->mysql, MYSQL_OPT_NONBLOCK, 0))
     die("Failed to initialise non-blocking API");
-  if (opt_compress || con_compress)
-    mysql_options(con_slot->mysql, MYSQL_OPT_COMPRESS, NullS);
-  mysql_options(con_slot->mysql, MYSQL_SET_CHARSET_NAME,
-                csname ? csname : charset_info->cs_name.str);
-  if (opt_charsets_dir)
-    mysql_options(con_slot->mysql, MYSQL_SET_CHARSET_DIR,
-                  opt_charsets_dir);
+  opts.default_charset= (char*)(csname ? csname : charset_info->cs_name.str);
 
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
-  if (con_ssl == USE_SSL_IF_POSSIBLE && opt_use_ssl)
-    con_ssl= USE_SSL_REQUIRED;
+  if (con_ssl == USE_SSL_FORBIDDEN)
+    opts.opt_use_ssl= 0;
+  else if (con_ssl == USE_SSL_REQUIRED)
+    opts.opt_use_ssl= 1;
 
-  if (con_ssl == USE_SSL_REQUIRED)
-  {
-    mysql_ssl_set(con_slot->mysql, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
-		  opt_ssl_capath, ssl_cipher ? ssl_cipher : opt_ssl_cipher);
-    mysql_options(con_slot->mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
-    mysql_options(con_slot->mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
-    mysql_options(con_slot->mysql, MARIADB_OPT_TLS_VERSION, opt_tls_version);
-    mysql_options(con_slot->mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
-                  &opt_ssl_verify_server_cert);
-  }
+  if (ssl_cipher)
+    opts.opt_ssl_cipher= ssl_cipher;
 #endif
-
-  if (protocol)
-    mysql_options(con_slot->mysql, MYSQL_OPT_PROTOCOL, (char*) &protocol);
-
-  if (read_timeout)
-  {
-    mysql_options(con_slot->mysql, MYSQL_OPT_READ_TIMEOUT,
-                  (char*)&read_timeout);
-  }
-
-  if (write_timeout)
-  {
-    mysql_options(con_slot->mysql, MYSQL_OPT_WRITE_TIMEOUT,
-                  (char*)&write_timeout);
-  }
-
-  if (connect_timeout)
-  {
-    mysql_options(con_slot->mysql, MYSQL_OPT_CONNECT_TIMEOUT,
-                  (char*)&connect_timeout);
-  }
 
   /* Use default db name */
   if (ds_database.length == 0)
   {
-    dynstr_set(&ds_database, opt_db);
+    dynstr_set(&ds_database, opts.database);
     default_db= 1;
   }
   else
     default_db= 0;
 
-  if (opt_plugin_dir && *opt_plugin_dir)
-    mysql_options(con_slot->mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir);
-
   if (ds_default_auth.length)
-    mysql_options(con_slot->mysql, MYSQL_DEFAULT_AUTH, ds_default_auth.str);
+    opts.default_auth= ds_default_auth.str;
 
   /* Special database to allow one to connect without a database name */
   if (ds_database.length && !strcmp(ds_database.str,"*NO-ONE*"))
     dynstr_set(&ds_database, "");
 
+  opts.host=     ds_host.str;
+  opts.user=     ds_user.str;
+  opts.password= ds_password.str;
+  opts.socket=   ds_sock.str;
   if (connect_n_handle_errors(command, con_slot->mysql,
-                              ds_host.str,ds_user.str,
-                              ds_password.str, ds_database.str,
-                              con_port, ds_sock.str, default_db))
+                              &opts, ds_database.str, default_db))
   {
     DBUG_PRINT("info", ("Inserting connection %s in connection pool",
                         ds_connection_name.str));
@@ -7112,11 +7054,14 @@ static struct my_option my_long_options[] =
    0, 0, 0, 0, 0, 0},
   {"basedir", 'b', "Basedir for tests.", &opt_basedir,
    &opt_basedir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"bind-address", 0, "IP address to bind to.",
+   &cl_opts.bind_address, &cl_opts.bind_address, 0,
+   GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"character-sets-dir", 0,
-   "Directory for character set files.", &opt_charsets_dir,
-   &opt_charsets_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   "Directory for character set files.", &cl_opts.charsets_dir,
+   &cl_opts.charsets_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"compress", 'C', "Use the compressed server/client protocol.",
-   &opt_compress, &opt_compress, 0, GET_BOOL, NO_ARG, 0, 0, 0,
+   &cl_opts.compress, &cl_opts.compress, 0, GET_BOOL, NO_ARG, 0, 0, 0,
    0, 0, 0},
   {"continue-on-error", 0,
    "Continue test even if we got an error. "
@@ -7127,7 +7072,7 @@ static struct my_option my_long_options[] =
   {"cursor-protocol", 0, "Use cursors for prepared statements.",
    &cursor_protocol, &cursor_protocol, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"database", 'D', "Database to use.", &opt_db, &opt_db, 0,
+  {"database", 'D', "Database to use.", &cl_opts.database, &cl_opts.database, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #ifdef DBUG_OFF
   {"debug", '#', "This is a non-debug version. Catch this and exit",
@@ -7142,7 +7087,7 @@ static struct my_option my_long_options[] =
   {"debug-info", 0, "Print some debug info at exit.",
    &debug_info_flag, &debug_info_flag,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"host", 'h', "Connect to host.", &opt_host, &opt_host, 0,
+  {"host", 'h', "Connect to host.", &cl_opts.host, &cl_opts.host, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"prologue", 0, "Include SQL before each test case.", &opt_prologue,
    &opt_prologue, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -7170,7 +7115,7 @@ static struct my_option my_long_options[] =
    "/etc/services, "
 #endif
    "built-in default (" STRINGIFY_ARG(MYSQL_PORT) ").",
-   &opt_port, &opt_port, 0, GET_INT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   &cl_opts.port, &cl_opts.port, 0, GET_INT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"ps-protocol", 0, 
    "Use prepared-statement protocol for communication.",
    &ps_protocol, &ps_protocol, 0,
@@ -7201,12 +7146,13 @@ static struct my_option my_long_options[] =
    &opt_sleep, &opt_sleep, 0, GET_INT, REQUIRED_ARG, -1, -1, 0,
    0, 0, 0},
   {"socket", 'S', "The socket file to use for connection.",
-   &unix_sock, &unix_sock, 0, GET_STR, REQUIRED_ARG, 0, 0, 0,
+   &cl_opts.socket, &cl_opts.socket, 0, GET_STR, REQUIRED_ARG, 0, 0, 0,
    0, 0, 0},
   {"sp-protocol", 0, "Use stored procedures for select.",
    &sp_protocol, &sp_protocol, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 #include "sslopt-longopts.h"
+   SSL_LONGOPTS_EMBED(cl_opts)
   {"tail-lines", 0,
    "Number of lines of the result to include in a failure report.",
    &opt_tail_lines, &opt_tail_lines, 0,
@@ -7217,7 +7163,7 @@ static struct my_option my_long_options[] =
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"tmpdir", 't', "Temporary directory where sockets are put.",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"user", 'u', "User for login.", &opt_user, &opt_user, 0,
+  {"user", 'u', "User for login.", &cl_opts.user, &cl_opts.user, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"verbose", 'v', "Write more.", &verbose, &verbose, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -7228,14 +7174,14 @@ static struct my_option my_long_options[] =
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"connect_timeout", 0,
    "Number of seconds before connection timeout.",
-   &opt_connect_timeout, &opt_connect_timeout, 0, GET_UINT, REQUIRED_ARG,
+   &cl_opts.connect_timeout, &cl_opts.connect_timeout, 0, GET_UINT, REQUIRED_ARG,
    120, 0, 3600 * 12, 0, 0, 0},
   {"wait_for_pos_timeout", 0,
    "Number of seconds to wait for master_pos_wait",
    &opt_wait_for_pos_timeout, &opt_wait_for_pos_timeout, 0, GET_UINT,
    REQUIRED_ARG, default_wait_for_pos_timeout, 0, 3600 * 12, 0, 0, 0},
   {"plugin_dir", 0, "Directory for client-side plugins.",
-    &opt_plugin_dir, &opt_plugin_dir, 0,
+    &cl_opts.plugin_dir, &cl_opts.plugin_dir, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"overlay-dir", 0, "Overlay directory.", &opt_overlay_dir,
     &opt_overlay_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -7357,8 +7303,8 @@ get_one_option(const struct my_option *opt, const char *argument, const char *)
         One should not really change the argument, but we make an
         exception for passwords
       */
-      my_free(opt_pass);
-      opt_pass= my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_FAE));
+      my_free(cl_opts.password);
+      cl_opts.password= my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_FAE));
       while (*argument)
         *(char*)argument++= 'x';		/* Destroy argument */
       tty_password= 0;
@@ -7367,6 +7313,7 @@ get_one_option(const struct my_option *opt, const char *argument, const char *)
       tty_password= 1;
     break;
 #include <sslopt-case.h>
+  SSLOPT_CASE_EMBED(cl_opts)
   case 't':
     strnmov(TMPDIR, argument, sizeof(TMPDIR));
     break;
@@ -7399,8 +7346,8 @@ get_one_option(const struct my_option *opt, const char *argument, const char *)
     exit(0);
   case OPT_MYSQL_PROTOCOL:
 #ifndef EMBEDDED_LIBRARY
-    if ((opt_protocol= find_type_with_warning(argument, &sql_protocol_typelib,
-                                              opt->name)) <= 0)
+    if ((cl_opts.protocol= find_type_with_warning(argument, &sql_protocol_typelib,
+                                                  opt->name)) <= 0)
       exit(1);
 #endif
     break;
@@ -7426,9 +7373,9 @@ int parse_args(int argc, char **argv)
     exit(1);
   }
   if (argc == 1)
-    opt_db= *argv;
+    cl_opts.database= *argv;
   if (tty_password)
-    opt_pass= my_get_tty_password(NullS);          /* purify tested */
+    cl_opts.password= my_get_tty_password(NullS);          /* purify tested */
   if (debug_info_flag)
     my_end_arg= MY_CHECK_ERROR | MY_GIVE_INFO;
   if (debug_check_flag)
@@ -9127,16 +9074,18 @@ int util_query(MYSQL* org_mysql, const char* query){
       if (!(mysql= mysql_init(mysql)))
         die("Failed in mysql_init()");
 
-      if (opt_connect_timeout)
-        mysql_options(mysql, MYSQL_OPT_CONNECT_TIMEOUT,
-            (void *) &opt_connect_timeout);
-
       /* enable local infile, in non-binary builds often disabled by default */
       mysql_options(mysql, MYSQL_OPT_LOCAL_INFILE, 0);
       mysql_options(mysql, MYSQL_OPT_NONBLOCK, 0);
-      safe_connect(mysql, "util", org_mysql->host, org_mysql->user,
-          org_mysql->passwd, org_mysql->db, org_mysql->port,
-          org_mysql->unix_socket);
+
+      CLNT_CONNECT_OPTIONS opts= cl_opts;
+      opts.password= org_mysql->passwd;
+      opts.database= org_mysql->db;
+      opts.host=     org_mysql->host;
+      opts.user=     org_mysql->user;
+      opts.port=     org_mysql->port;
+      opts.socket=   org_mysql->unix_socket;
+      safe_connect(mysql, "util", &opts);
 
       cur_con->util_mysql= mysql;
       if (mysql->charset != org_mysql->charset)
@@ -9934,47 +9883,17 @@ int main(int argc, char **argv)
   view_protocol_enabled= view_protocol;
   cursor_protocol_enabled= cursor_protocol;
 
+  CLNT_CONNECT_OPTIONS opts= cl_opts;
   st_connection *con= connections;
   init_connection_thd(con);
   if (! (con->mysql= mysql_init(0)))
     die("Failed in mysql_init()");
-  if (opt_connect_timeout)
-    mysql_options(con->mysql, MYSQL_OPT_CONNECT_TIMEOUT,
-                  (void *) &opt_connect_timeout);
-  if (opt_compress)
-    mysql_options(con->mysql,MYSQL_OPT_COMPRESS,NullS);
-  mysql_options(con->mysql, MYSQL_SET_CHARSET_NAME,
-                charset_info->cs_name.str);
-  if (opt_charsets_dir)
-    mysql_options(con->mysql, MYSQL_SET_CHARSET_DIR,
-                  opt_charsets_dir);
 
-  if (opt_protocol)
-    mysql_options(con->mysql,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
-
-  if (opt_plugin_dir && *opt_plugin_dir)
-    mysql_options(con->mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir);
-
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
-
-  if (opt_use_ssl)
-  {
-    mysql_ssl_set(con->mysql, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
-		  opt_ssl_capath, opt_ssl_cipher);
-    mysql_options(con->mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
-    mysql_options(con->mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
-    mysql_options(con->mysql, MARIADB_OPT_TLS_VERSION, opt_tls_version);
-    mysql_options(con->mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
-                  &opt_ssl_verify_server_cert);
-  }
-#endif
-
+  opts.default_charset= (char*)charset_info->cs_name.str;
   if (!(con->name = my_strdup(PSI_NOT_INSTRUMENTED, "default", MYF(MY_WME))))
     die("Out of memory");
   mysql_options(con->mysql, MYSQL_OPT_NONBLOCK, 0);
-
-  safe_connect(con->mysql, con->name, opt_host, opt_user, opt_pass,
-               opt_db, opt_port, unix_sock);
+  safe_connect(con->mysql, con->name, &opts);
 
   /* Use all time until exit if no explicit 'start_timer' */
   timer_start= timer_now();
