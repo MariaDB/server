@@ -46,6 +46,10 @@ analyze table t1 persistent for all;
 drop table t1;
 
 --echo #
+--echo # End of 10.5 tests
+--echo #
+
+--echo #
 --echo # Test that histograms are read after flush
 --echo #
 
