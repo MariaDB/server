@@ -199,9 +199,6 @@ The following specify which files/extra groups are read (specified before remain
  window on windows.
  --core-file         Write core on crashes
  -h, --datadir=name  Path to the database root directory
- --date-format=name  The DATE format (ignored)
- --datetime-format=name 
- The DATETIME format (ignored)
  --deadlock-search-depth-long=# 
  Long search depth for the two-step deadlock detection
  --deadlock-search-depth-short=# 
@@ -645,7 +642,6 @@ The following specify which files/extra groups are read (specified before remain
  seconds will be aborted. The argument will be treated as
  a decimal value with microsecond precision. A value of 0
  (default) means no timeout
- --max-tmp-tables=#  Unused, will be removed.
  --max-user-connections=# 
  The maximum number of active connections for a single
  user (0 = no limit)
@@ -791,14 +787,13 @@ The following specify which files/extra groups are read (specified before remain
  list of option=value pairs, where value is on, off, or
  default, and options are: index_merge, index_merge_union,
  index_merge_sort_union, index_merge_intersection, 
- index_merge_sort_intersection, engine_condition_pushdown,
- index_condition_pushdown, derived_merge, 
- derived_with_keys, firstmatch, loosescan, materialization,
- in_to_exists, semijoin, partial_match_rowid_merge, 
- partial_match_table_scan, subquery_cache, mrr, 
- mrr_cost_based, mrr_sort_keys, outer_join_with_cache, 
- semijoin_with_cache, join_cache_incremental, 
- join_cache_hashed, join_cache_bka, 
+ index_merge_sort_intersection, index_condition_pushdown, 
+ derived_merge, derived_with_keys, firstmatch, loosescan, 
+ materialization, in_to_exists, semijoin, 
+ partial_match_rowid_merge, partial_match_table_scan, 
+ subquery_cache, mrr, mrr_cost_based, mrr_sort_keys, 
+ outer_join_with_cache, semijoin_with_cache, 
+ join_cache_incremental, join_cache_hashed, join_cache_bka,
  optimize_join_buffer_size, table_elimination, 
  extended_keys, exists_to_in, orderby_uses_equalities, 
  condition_pushdown_for_derived, split_materialized, 
@@ -1499,7 +1494,6 @@ The following specify which files/extra groups are read (specified before remain
  worker thread is stalled, additional worker thread may be
  created to handle remaining clients.
  --thread-stack=#    The stack size for each thread
- --time-format=name  The TIME format (ignored)
  --tls-version=name  TLS protocol version for secure connections.. Any
  combination of: TLSv1.0, TLSv1.1, TLSv1.2, TLSv1.3
  --tmp-disk-table-size=# 
@@ -1591,8 +1585,6 @@ completion-type NO_CHAIN
 concurrent-insert AUTO
 console TRUE
 core-file TRUE
-date-format %Y-%m-%d
-datetime-format %Y-%m-%d %H:%i:%s
 deadlock-search-depth-long 15
 deadlock-search-depth-short 4
 deadlock-timeout-long 50000000
@@ -1720,7 +1712,6 @@ max-session-mem-used 9223372036854775807
 max-sort-length 1024
 max-sp-recursion-depth 0
 max-statement-time 0
-max-tmp-tables 32
 max-user-connections 0
 max-write-lock-count 18446744073709551615
 memlock FALSE
@@ -1764,7 +1755,7 @@ optimizer-rowid-copy-cost 0.002653
 optimizer-scan-setup-cost 10
 optimizer-search-depth 62
 optimizer-selectivity-sampling-limit 100
-optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=on,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on,condition_pushdown_for_subquery=on,rowid_filter=on,condition_pushdown_from_having=on,not_null_range_scan=off,hash_join_cardinality=on,sargable_casefold=on
+optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=on,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on,condition_pushdown_for_subquery=on,rowid_filter=on,condition_pushdown_from_having=on,not_null_range_scan=off,hash_join_cardinality=on,sargable_casefold=on
 optimizer-trace 
 optimizer-trace-max-mem-size 1048576
 optimizer-use-condition-selectivity 4
@@ -1939,7 +1930,6 @@ thread-pool-prio-kickup-timer 1000
 thread-pool-priority auto
 thread-pool-stall-limit 500
 thread-stack 299008
-time-format %H:%i:%s
 tmp-disk-table-size 18446744073709551615
 tmp-memory-table-size 16777216
 tmp-table-size 16777216

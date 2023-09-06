@@ -44,10 +44,8 @@ bool wsrep_refresh_provider_options();
 #define DEFAULT_ARGS (THD* thd, enum_var_type var_type)
 #define INIT_ARGS    (const char* opt)
 
-extern bool wsrep_causal_reads_update        UPDATE_ARGS;
 extern bool wsrep_on_check                   CHECK_ARGS;
 extern bool wsrep_on_update                  UPDATE_ARGS;
-extern bool wsrep_sync_wait_update           UPDATE_ARGS;
 extern bool wsrep_start_position_check       CHECK_ARGS;
 extern bool wsrep_start_position_update      UPDATE_ARGS;
 extern bool wsrep_start_position_init        INIT_ARGS;

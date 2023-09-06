@@ -30,8 +30,6 @@ SELECT COUNT(*) FROM t1 WHERE MBRWithin(t1.c2, @g1);
 COUNT(*)
 0
 ALTER TABLE t1 DROP INDEX idx, ADD SPATIAL INDEX idx3(c2);
-SET SESSION debug="+d,row_merge_instrument_log_check_flush";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+SET SESSION debug_dbug="+d,row_merge_instrument_log_check_flush";
 ALTER TABLE t1  DROP INDEX idx3, ADD SPATIAL INDEX idx4(c2), ADD SPATIAL INDEX idx5(c3);
 DROP TABLE t1;

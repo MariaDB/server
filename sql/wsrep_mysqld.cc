@@ -1611,7 +1611,7 @@ bool wsrep_sync_wait (THD* thd, uint mask)
       {
       case wsrep::e_not_supported_error:
         msg= "synchronous reads by wsrep backend. "
-          "Please unset wsrep_causal_reads variable.";
+          "Please unset wsrep_sync_wait variable.";
         err= ER_NOT_SUPPORTED_YET;
         break;
       default:

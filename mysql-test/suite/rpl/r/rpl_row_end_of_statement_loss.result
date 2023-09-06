@@ -3,7 +3,7 @@ include/master-slave.inc
 connection slave;
 call mtr.add_suppression("Slave IO thread did not receive an expected Rows-log end-of-statement");
 call mtr.add_suppression("Relay log write failure: could not queue event from master");
-SET @save_debug= @@global.debug;
+SET @save_debug= @@global.debug_dbug;
 SET GLOBAL debug_dbug="+d,simulate_stmt_end_rows_event_loss";
 include/stop_slave.inc
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,  MASTER_USE_GTID=SLAVE_POS;

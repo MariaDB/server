@@ -1,5 +1,5 @@
 drop table if exists t0, t1;
-SET @old_debug= @@session.debug;
+SET @old_debug= @@session.debug_dbug;
 set debug_sync='RESET';
 connect  con2, localhost, root,,;
 connection con2;

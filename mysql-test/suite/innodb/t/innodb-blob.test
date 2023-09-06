@@ -50,7 +50,7 @@ connection con1;
 reap;
 connection default;
 reap;
-SET DEBUG='+d,row_ins_extern_checkpoint';
+SET DEBUG_DBUG='+d,row_ins_extern_checkpoint';
 SET DEBUG_SYNC='before_row_ins_extern_latch SIGNAL rec_not_blob WAIT_FOR crash';
 ROLLBACK;
 BEGIN;
@@ -126,7 +126,7 @@ connection default;
 # remain open while we are writing the off-page columns and are
 # stuck in the DEBUG_SYNC. A checkpoint involves a flush, which
 # would wait for the buffer-fix to cease.
-SET DEBUG='+d,row_upd_extern_checkpoint';
+SET DEBUG_DBUG='+d,row_upd_extern_checkpoint';
 SET DEBUG_SYNC='before_row_upd_extern SIGNAL have_latch WAIT_FOR crash';
 # This should move column b off-page.
 --send
@@ -174,7 +174,7 @@ connection default;
 # remain open while we are writing the off-page columns and are
 # stuck in the DEBUG_SYNC. A checkpoint involves a flush, which
 # would wait for the buffer-fix to cease.
-SET DEBUG='+d,row_upd_extern_checkpoint';
+SET DEBUG_DBUG='+d,row_upd_extern_checkpoint';
 SET DEBUG_SYNC='after_row_upd_extern SIGNAL have_latch WAIT_FOR crash';
 # This should move column b off-page.
 --send

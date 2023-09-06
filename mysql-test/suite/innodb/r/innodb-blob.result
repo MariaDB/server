@@ -19,9 +19,7 @@ a	RIGHT(b,20)
 1	aaaaaaaaaaaaaaaaaaaa
 2	bbbbbbbbbbbbbbbbbbbb
 connection default;
-SET DEBUG='+d,row_ins_extern_checkpoint';
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+SET DEBUG_DBUG='+d,row_ins_extern_checkpoint';
 SET DEBUG_SYNC='before_row_ins_extern_latch SIGNAL rec_not_blob WAIT_FOR crash';
 ROLLBACK;
 BEGIN;
@@ -87,9 +85,7 @@ connect  con2,localhost,root,,;
 BEGIN;
 INSERT INTO t2 VALUES (347);
 connection default;
-SET DEBUG='+d,row_upd_extern_checkpoint';
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+SET DEBUG_DBUG='+d,row_upd_extern_checkpoint';
 SET DEBUG_SYNC='before_row_upd_extern SIGNAL have_latch WAIT_FOR crash';
 UPDATE t3 SET c=REPEAT('i',3000) WHERE a=2;
 connection con2;
@@ -125,9 +121,7 @@ connect  con2,localhost,root,,;
 BEGIN;
 INSERT INTO t2 VALUES (33101);
 connection default;
-SET DEBUG='+d,row_upd_extern_checkpoint';
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+SET DEBUG_DBUG='+d,row_upd_extern_checkpoint';
 SET DEBUG_SYNC='after_row_upd_extern SIGNAL have_latch WAIT_FOR crash';
 UPDATE t3 SET c=REPEAT('j',3000) WHERE a=2;
 connection con2;

@@ -1563,7 +1563,7 @@ SPIDER_THDVAR_VALUE_FUNC(bool, local_lock_table)
 static MYSQL_THDVAR_INT(
   use_pushdown_udf, /* name */
   PLUGIN_VAR_RQCMDARG, /* opt */
-  "Remote server transmission existence when UDF is used at condition and \"engine_condition_pushdown=1\"", /* comment */
+  "Remote server transmission existence when UDF is used at condition", /* comment */
   NULL, /* check */
   NULL, /* update */
   0, /* def */

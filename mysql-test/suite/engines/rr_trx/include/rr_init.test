@@ -9,7 +9,6 @@ if (`SELECT @@default_storage_engine LIKE 'InnoDB' AND @@version LIKE '%6.%'`)
     # Not applicable to 5.1 server or earlier.
     --disable_query_log
     SET GLOBAL optimizer_use_mrr='disable';
-    SET GLOBAL engine_condition_pushdown=off;
     --enable_query_log
 }
 

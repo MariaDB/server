@@ -30,7 +30,7 @@
 # BUG#26395: if crash during autocommit update to transactional table on master, slave fails
 
 source include/have_innodb.inc;
-# have_debug is needed since we use the @@debug variable on master
+# have_debug is needed since we use the @@debug_dbug variable on master
 source include/have_debug.inc;
 source include/master-slave.inc;
 
@@ -43,7 +43,7 @@ CREATE TABLE tinnodb (a INT) ENGINE = INNODB;
 SHOW CREATE TABLE tinnodb;
 
 # do_not_write_xid stops the master from writing an XID event.
-set @old_debug= @@debug;
+set @old_debug= @@debug_dbug;
 set @@debug_dbug= 'd,do_not_write_xid';
 
 
