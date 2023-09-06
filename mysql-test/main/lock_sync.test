@@ -1108,7 +1108,7 @@ DROP TABLES t1, t2;
 --echo # MDEV-28567 Assertion `0' in open_tables upon function-related operation
 --echo #
 # To get MDL trace run this case like this:
-# mtr --mysqld=--debug=d,mdl,query:i:o,/tmp/mdl.log ...
+# mtr --mysqld=--debug-dbug=d,mdl,query:i:o,/tmp/mdl.log ...
 # Cleanup trace like this:
 # sed -i -re '/(mysql|performance_schema|sys|mtr)\// d; /MDL_BACKUP_|MDL_INTENTION_/ d; /\/(t2|tr1|tr2)/ d' /tmp/mdl.log
 

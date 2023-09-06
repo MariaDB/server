@@ -1,5 +1,3 @@
-DROP TABLE IF EXISTS t1;
-Start of 5.4 tests
 #
 # WL#4642 Greek locale for DAYNAME, MONTHNAME, DATE_FORMAT
 #
@@ -50,11 +48,7 @@ DROP TABLE t1;
 # Bug#46633 Obsolete Serbian locale name
 #
 SET lc_messages=sr_YU;
-Warnings:
-Warning	1287	'sr_YU' ist veraltet. Bitte benutzen Sie 'sr_RS'
-SHOW VARIABLES LIKE 'lc_messages';
-Variable_name	Value
-lc_messages	sr_RS
+ERROR HY000: Unbekannte Locale: 'sr_YU'
 SET lc_messages=sr_RS;
 SHOW VARIABLES LIKE 'lc_messages';
 Variable_name	Value

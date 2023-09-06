@@ -530,7 +530,6 @@ int mrn_add_index_param(MRN_SHARE *share, KEY *key_info, int i)
   char *sprit_ptr[2];
   char *tmp_ptr, *start_ptr;
 #endif
-  THD *thd = current_thd;
   MRN_DBUG_ENTER_FUNCTION();
 
 #if MYSQL_VERSION_ID >= 50500
@@ -591,13 +590,6 @@ int mrn_add_index_param(MRN_SHARE *share, KEY *key_info, int i)
     {
       case 5:
         MRN_PARAM_STR_LIST("table", index_table, i);
-        break;
-      case 6:
-        push_warning_printf(thd, MRN_SEVERITY_WARNING,
-                            ER_WARN_DEPRECATED_SYNTAX,
-                            ER(ER_WARN_DEPRECATED_SYNTAX),
-                            "parser", "tokenizer");
-        MRN_PARAM_STR_LIST("parser", key_tokenizer, i);
         break;
       case 9:
         MRN_PARAM_STR_LIST("tokenizer", key_tokenizer, i);

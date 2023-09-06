@@ -81,11 +81,6 @@ void make_truncated_value_warning(THD *thd,
                                   const char *db_name, const char *table_name,
                                   const char *field_name);
 
-extern DATE_TIME_FORMAT *date_time_format_make(timestamp_type format_type,
-					       const char *format_str,
-					       uint format_length);
-extern DATE_TIME_FORMAT *date_time_format_copy(THD *thd,
-					       DATE_TIME_FORMAT *format);
 const char *get_date_time_format_str(KNOWN_DATE_TIME_FORMAT *format,
 				     timestamp_type type);
 bool my_TIME_to_str(const MYSQL_TIME *ltime, String *str, uint dec);
@@ -128,24 +123,7 @@ void calc_time_from_sec(MYSQL_TIME *to, ulong seconds, ulong microseconds);
 uint calc_week(const MYSQL_TIME *l_time, uint week_behaviour, uint *year);
 
 int calc_weekday(long daynr,bool sunday_first_day_of_week);
-bool parse_date_time_format(timestamp_type format_type, 
-                            const char *format, uint format_length,
-                            DATE_TIME_FORMAT *date_time_format);
 
-/* convenience wrapper */
-inline bool parse_date_time_format(timestamp_type format_type, 
-                                   DATE_TIME_FORMAT *date_time_format)
-{
-  return parse_date_time_format(format_type,
-                                date_time_format->format.str,
-                                (uint) date_time_format->format.length,
-                                date_time_format);
-}
-
-
-extern DATE_TIME_FORMAT global_date_format;
-extern DATE_TIME_FORMAT global_datetime_format;
-extern DATE_TIME_FORMAT global_time_format;
 extern KNOWN_DATE_TIME_FORMAT known_date_time_formats[];
 extern LEX_CSTRING interval_type_to_name[];
 

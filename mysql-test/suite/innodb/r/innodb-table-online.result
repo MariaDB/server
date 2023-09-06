@@ -35,17 +35,11 @@ SET @saved_debug_dbug = @@SESSION.debug_dbug;
 SET DEBUG_DBUG = '+d,innodb_OOM_prepare_inplace_alter';
 ALTER TABLE t1 ROW_FORMAT=REDUNDANT, ALGORITHM=INPLACE, LOCK=NONE;
 ERROR HY000: Out of memory.
-SET SESSION DEBUG = @saved_debug_dbug;
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
-SET SESSION DEBUG = '+d,innodb_OOM_inplace_alter';
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+SET SESSION DEBUG_DBUG = @saved_debug_dbug;
+SET SESSION DEBUG_DBUG = '+d,innodb_OOM_inplace_alter';
 ALTER TABLE t1 ROW_FORMAT=REDUNDANT, ALGORITHM=INPLACE, LOCK=NONE;
 ERROR HY000: Out of memory.
-SET SESSION DEBUG = @saved_debug_dbug;
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+SET SESSION DEBUG_DBUG = @saved_debug_dbug;
 ALTER TABLE t1 ROW_FORMAT=REDUNDANT, ALGORITHM=INPLACE, LOCK=NONE;
 connection default;
 SHOW CREATE TABLE t1;

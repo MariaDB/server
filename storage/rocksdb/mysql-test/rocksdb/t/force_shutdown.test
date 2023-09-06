@@ -13,7 +13,7 @@ create table t1 (
 insert into t1 values (1,1),(2,2),(3,3);
 
 connection conn1;
-set session debug= "+d,myrocks_busy_loop_on_row_read";
+set session debug_dbug= "+d,myrocks_busy_loop_on_row_read";
 send select * from t1 where pk=1;
 
 --echo # testing unclean shutdown on stuck instance
@@ -70,7 +70,7 @@ SHUTDOWN 127;
 connect (conn2, localhost, root,,test);
 
 connection conn2;
-set session debug= "+d,myrocks_busy_loop_on_row_read";
+set session debug_dbug= "+d,myrocks_busy_loop_on_row_read";
 send select * from t1 where pk=1;
 
 connection default;

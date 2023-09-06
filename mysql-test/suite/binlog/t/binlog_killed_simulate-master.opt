@@ -1,1 +1,1 @@
---loose-debug=d,simulate_kill_bug27571
+--loose-debug-dbug=d,simulate_kill_bug27571

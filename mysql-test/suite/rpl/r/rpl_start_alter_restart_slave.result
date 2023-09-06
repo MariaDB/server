@@ -1,7 +1,7 @@
 include/master-slave.inc
 [connection master]
 connection slave;
-SET @old_debug_slave= @@global.debug;
+SET @old_debug_slave= @@global.debug_dbug;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=4;
 set global slave_parallel_mode=optimistic;
@@ -9,7 +9,7 @@ set global gtid_strict_mode=1;
 set global debug_dbug="+d,rpl_slave_stop_CA_before_binlog";
 include/start_slave.inc
 connection master;
-SET @old_debug_master= @@global.debug;
+SET @old_debug_master= @@global.debug_dbug;
 set global debug_dbug="+d,start_alter_delay_master";
 set global binlog_alter_two_phase=true;
 create table t1( a int primary key, b int) engine=myisam;

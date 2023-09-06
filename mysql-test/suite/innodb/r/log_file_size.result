@@ -31,7 +31,7 @@ connection default;
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
 FOUND 1 /syntax error in innodb_log_group_home_dir/ in mysqld.1.err
-# restart: --debug=d,innodb_log_abort_1
+# restart: --debug-dbug=d,innodb_log_abort_1
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
 FOUND 1 /InnoDB: Starting crash recovery from checkpoint LSN=.*/ in mysqld.1.err
@@ -39,7 +39,7 @@ FOUND 1 /InnoDB: Starting crash recovery from checkpoint LSN=.*/ in mysqld.1.err
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
 FOUND 1 /InnoDB: innodb_read_only prevents crash recovery/ in mysqld.1.err
-# restart: --debug=d,innodb_log_abort_5
+# restart: --debug-dbug=d,innodb_log_abort_5
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
 FOUND 1 /redo log from 5\.000MiB to [0-9.]*[KMGT]iB/ in mysqld.1.err

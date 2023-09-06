@@ -712,26 +712,6 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	NULL
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
-VARIABLE_NAME	DATETIME_FORMAT
-VARIABLE_SCOPE	GLOBAL
-VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	The DATETIME format (ignored)
-NUMERIC_MIN_VALUE	NULL
-NUMERIC_MAX_VALUE	NULL
-NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	NULL
-READ_ONLY	YES
-COMMAND_LINE_ARGUMENT	REQUIRED
-VARIABLE_NAME	DATE_FORMAT
-VARIABLE_SCOPE	GLOBAL
-VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	The DATE format (ignored)
-NUMERIC_MIN_VALUE	NULL
-NUMERIC_MAX_VALUE	NULL
-NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	NULL
-READ_ONLY	YES
-COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	DEADLOCK_SEARCH_DEPTH_LONG
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
@@ -2062,16 +2042,6 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
-VARIABLE_NAME	MAX_TMP_TABLES
-VARIABLE_SCOPE	SESSION
-VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Unused, will be removed.
-NUMERIC_MIN_VALUE	1
-NUMERIC_MAX_VALUE	4294967295
-NUMERIC_BLOCK_SIZE	1
-ENUM_VALUE_LIST	NULL
-READ_ONLY	NO
-COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	MAX_USER_CONNECTIONS
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	INT
@@ -2499,7 +2469,7 @@ VARIABLE_COMMENT	Fine-tune the optimizer behavior
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	index_merge,index_merge_union,index_merge_sort_union,index_merge_intersection,index_merge_sort_intersection,engine_condition_pushdown,index_condition_pushdown,derived_merge,derived_with_keys,firstmatch,loosescan,materialization,in_to_exists,semijoin,partial_match_rowid_merge,partial_match_table_scan,subquery_cache,mrr,mrr_cost_based,mrr_sort_keys,outer_join_with_cache,semijoin_with_cache,join_cache_incremental,join_cache_hashed,join_cache_bka,optimize_join_buffer_size,table_elimination,extended_keys,exists_to_in,orderby_uses_equalities,condition_pushdown_for_derived,split_materialized,condition_pushdown_for_subquery,rowid_filter,condition_pushdown_from_having,not_null_range_scan,hash_join_cardinality,sargable_casefold,default
+ENUM_VALUE_LIST	index_merge,index_merge_union,index_merge_sort_union,index_merge_intersection,index_merge_sort_intersection,index_condition_pushdown,derived_merge,derived_with_keys,firstmatch,loosescan,materialization,in_to_exists,semijoin,partial_match_rowid_merge,partial_match_table_scan,subquery_cache,mrr,mrr_cost_based,mrr_sort_keys,outer_join_with_cache,semijoin_with_cache,join_cache_incremental,join_cache_hashed,join_cache_bka,optimize_join_buffer_size,table_elimination,extended_keys,exists_to_in,orderby_uses_equalities,condition_pushdown_for_derived,split_materialized,condition_pushdown_for_subquery,rowid_filter,condition_pushdown_from_having,not_null_range_scan,hash_join_cardinality,sargable_casefold,default
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_TRACE
@@ -3832,16 +3802,6 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	NULL
-VARIABLE_NAME	TIME_FORMAT
-VARIABLE_SCOPE	GLOBAL
-VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	The TIME format (ignored)
-NUMERIC_MIN_VALUE	NULL
-NUMERIC_MAX_VALUE	NULL
-NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	NULL
-READ_ONLY	YES
-COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	TIME_ZONE
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	VARCHAR

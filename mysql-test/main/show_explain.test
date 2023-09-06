@@ -16,7 +16,7 @@
 drop table if exists t0, t1, t2, t3, t4;
 drop view if exists v1;
 --enable_warnings
-SET @old_debug= @@session.debug;
+SET @old_debug= @@session.debug_dbug;
 
 # 
 # Testcases in this file do not work with embedded server. The reason for this
@@ -84,7 +84,7 @@ let $thr1=`select connection_id()`;
 connect (con1, localhost, root,,);
 connection con1;
 let $thr2=`select connection_id()`;
-SET @old_debug= @@session.debug;
+SET @old_debug= @@session.debug_dbug;
 connection default;
 
 # SHOW EXPLAIN FOR <idle thread>

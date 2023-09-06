@@ -9,7 +9,7 @@ flush privileges;
 
 # Print critical setup
 
-#select @@global.debug;
+#select @@global.debug_dbug;
 #select @@global.max_connect_errors;
 #select @@global.max_user_connections;
 #select @@global.max_connections;

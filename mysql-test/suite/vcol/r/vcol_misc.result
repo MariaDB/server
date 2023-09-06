@@ -181,8 +181,8 @@ a	b	c
 2	3	y
 0	1	y,n
 drop table t1,t2;
-SET @old_debug= @@global.debug;
-SET @old_debug= @@global.debug;
+SET @old_debug= @@global.debug_dbug;
+SET @old_debug= @@global.debug_dbug;
 SET GLOBAL debug_dbug= "+d,write_delay_wakeup";
 CREATE TABLE t1 (a int,
 ts TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -749,7 +749,6 @@ typedef struct system_variables
   ulong max_length_for_sort_data;
   ulong max_recursive_iterations;
   ulong max_sort_length;
-  ulong max_tmp_tables;
   ulong max_insert_delayed_threads;
   ulong min_examined_row_limit;
   ulong net_buffer_length;
@@ -847,7 +846,6 @@ typedef struct system_variables
   my_bool column_compression_zlib_wrap;
   my_bool sysdate_is_now;
   my_bool wsrep_on;
-  my_bool wsrep_causal_reads;
   my_bool wsrep_dirty_reads;
   my_bool pseudo_slave_mode;
   my_bool session_track_schema;

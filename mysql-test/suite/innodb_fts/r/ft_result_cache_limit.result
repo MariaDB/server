@@ -19,9 +19,7 @@ END WHILE;
 END//
 CALL populate_t1;
 SET autocommit=1;
-SET SESSION debug="+d,fts_instrument_result_cache_limit";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+SET SESSION debug_dbug="+d,fts_instrument_result_cache_limit";
 ALTER TABLE t1 ADD FULLTEXT INDEX `text_content_idx` (`text_content`);
 SELECT FTS_DOC_ID, text_content
 FROM t1

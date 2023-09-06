@@ -43,7 +43,7 @@ let $wait_condition=
 SET @save_dbug = @@debug_dbug;
 SET DEBUG_DBUG = '+d,do_page_reorganize,do_lock_reverse_page_reorganize';
 insert into t1(f2) values (repeat('+', 100));
-SET DEBUG = @save_dbug;
+SET DEBUG_DBUG = @save_dbug;
 commit;
 
 connection con1;

@@ -596,7 +596,6 @@ uint reg_ext_length;
 const key_map key_map_empty(0);
 key_map key_map_full(0);                        // Will be initialized later
 
-DATE_TIME_FORMAT global_date_format, global_datetime_format, global_time_format;
 Time_zone *default_tz;
 
 const char *mysql_real_data_home_ptr= mysql_real_data_home;
@@ -3472,36 +3471,6 @@ static void init_libstrings()
 #endif
 }
 
-
-/**
-  Initialize one of the global date/time format variables.
-
-  @param format_type		What kind of format should be supported
-  @param var_ptr		Pointer to variable that should be updated
-
-  @retval
-    0 ok
-  @retval
-    1 error
-*/
-
-static bool init_global_datetime_format(timestamp_type format_type,
-                                        DATE_TIME_FORMAT *format)
-{
-  /*
-    Get command line option
-    format->format.str is already set by my_getopt
-  */
-  format->format.length= strlen(format->format.str);
-
-  if (parse_date_time_format(format_type, format))
-  {
-    fprintf(stderr, "Wrong date/time format specifier: %s\n",
-            format->format.str);
-    return true;
-  }
-  return false;
-}
 
 #define COM_STATUS(X)  (void*) offsetof(STATUS_VAR, X), SHOW_LONG_STATUS
 #define STMT_STATUS(X) COM_STATUS(com_stat[(uint) X])
@@ -8165,9 +8134,6 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
     test_flags= argument ? ((uint) atoi(argument) & ~TEST_BLOCKING) : 0;
     opt_endinfo=1;
     break;
-  case OPT_THREAD_CONCURRENCY:
-    WARN_DEPRECATED_NO_REPLACEMENT(NULL, "THREAD_CONCURRENCY");
-    break;
   case (int) OPT_ISAM_LOG:
     opt_myisam_log=1;
     break;
@@ -8463,37 +8429,6 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
 #endif
     break;
   }
-#ifdef WITH_WSREP
-  case OPT_WSREP_CAUSAL_READS:
-  {
-    if (global_system_variables.wsrep_causal_reads)
-    {
-      WSREP_WARN("option --wsrep-causal-reads is deprecated");
-      if (!(global_system_variables.wsrep_sync_wait & WSREP_SYNC_WAIT_BEFORE_READ))
-      {
-        WSREP_WARN("--wsrep-causal-reads=ON takes precedence over --wsrep-sync-wait=%u. "
-                     "WSREP_SYNC_WAIT_BEFORE_READ is on",
-                     global_system_variables.wsrep_sync_wait);
-        global_system_variables.wsrep_sync_wait |= WSREP_SYNC_WAIT_BEFORE_READ;
-      }
-    }
-    else
-    {
-      if (global_system_variables.wsrep_sync_wait & WSREP_SYNC_WAIT_BEFORE_READ) {
-          WSREP_WARN("--wsrep-sync-wait=%u takes precedence over --wsrep-causal-reads=OFF. "
-                     "WSREP_SYNC_WAIT_BEFORE_READ is on",
-                     global_system_variables.wsrep_sync_wait);
-          global_system_variables.wsrep_causal_reads = 1;
-      }
-    }
-    break;
-  }
-  case OPT_WSREP_SYNC_WAIT:
-    global_system_variables.wsrep_causal_reads=
-      MY_TEST(global_system_variables.wsrep_sync_wait &
-              WSREP_SYNC_WAIT_BEFORE_READ);
-    break;
-#endif /* WITH_WSREP */
   }
   return 0;
 }
@@ -8849,14 +8784,6 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
 
   if (opt_short_log_format)
     opt_specialflag|= SPECIAL_SHORT_LOG_FORMAT;
-
-  if (init_global_datetime_format(MYSQL_TIMESTAMP_DATE,
-                                  &global_date_format) ||
-      init_global_datetime_format(MYSQL_TIMESTAMP_TIME,
-                                  &global_time_format) ||
-      init_global_datetime_format(MYSQL_TIMESTAMP_DATETIME,
-                                  &global_datetime_format))
-    return 1;
 
 #ifdef EMBEDDED_LIBRARY
   one_thread_scheduler(thread_scheduler, &connection_count);

@@ -8,7 +8,7 @@
 #
 # If we are running with
 # - Valgrind           -> $VALGRIND_TEST <> 0
-# - debug tracing      -> @@session.debug LIKE '%trace%'
+# - debug tracing      -> @@session.debug_dbug LIKE '%trace%'
 # the resource consumption (storage space needed, runtime) will be extreme.
 # Therefore we require that the option "--big-test" is also set.
 #
@@ -16,12 +16,12 @@
 let $need_big= 0;
 --disable_query_log
 --error 0,ER_UNKNOWN_SYSTEM_VARIABLE
-SET @aux = @@session.debug;
+SET @aux = @@session.debug_dbug;
 if (!$mysql_errno)
 {
-  # We have returncode 0 = the server system variable @@session.debug exists.
+  # We have returncode 0 = the server system variable @@session.debug_dbug exists.
   # But we only need "--big-test" in case of tracing.
-  if (`SELECT @@session.debug LIKE '%trace%'`)
+  if (`SELECT @@session.debug_dbug LIKE '%trace%'`)
   {
     let $need_big= 1;
   }

@@ -31,7 +31,7 @@ connect (con2, localhost, root,,);
 connection con1;
 --echo 'con1'
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-SET SESSION debug="d,crash_commit_after_log";
+SET SESSION debug_dbug="d,crash_commit_after_log";
 SET DEBUG_SYNC='rocksdb.prepared SIGNAL parked WAIT_FOR go';
 --error 0,2013
 --send insert into t1 values (1, 1, "iamtheogthealphaandomega");

@@ -1,5 +1,5 @@
 call mtr.add_suppression("Allocation failed");
-SET @old_debug= @@session.debug;
+SET @old_debug= @@session.debug_dbug;
 set @old_thread_cache_size=@@global.thread_cache_size;
 set @@global.thread_cache_size=0;
 connect con1,localhost,root,,test,,;

@@ -4,7 +4,7 @@
 
 call mtr.add_suppression("Sort aborted.*");
 
-SET @old_debug= @@session.debug;
+SET @old_debug= @@session.debug_dbug;
 
 --echo #
 --echo # Bug#36022 please log more information about "Sort aborted" queries

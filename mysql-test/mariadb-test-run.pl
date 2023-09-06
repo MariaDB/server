@@ -1906,7 +1906,7 @@ sub client_debug_arg($$) {
 
   if ( $opt_debug ) {
     mtr_add_arg($args,
-		"--loose-debug=$debug_d:t:A,%s/log/%s.trace",
+		"--loose-debug-dbug=$debug_d:t:A,%s/log/%s.trace",
 		$path_vardir_trace, $client_name)
   }
 }
