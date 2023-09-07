@@ -385,9 +385,20 @@ analyze table .;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
 analyze table . select;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'select' at line 1
-# this is a feature NOT a bug
 analyze table t1 UNION table t3;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION table t3' at line 1
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	3.00	100.00	100.00	
+2	UNION	t3	system	NULL	NULL	NULL	NULL	1	NULL	100.00	NULL	
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	3.00	NULL	NULL	
+analyze table t1 UNION values(1,'a'),(2,'b');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	3.00	100.00	100.00	
+2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	5.00	NULL	NULL	
+analyze with t1 AS (select 'a') table t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	1	NULL	100.00	NULL	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 analyze table t1 where col1 = 'a';
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'where col1 = 'a'' at line 1
 analyze format=json table t1;

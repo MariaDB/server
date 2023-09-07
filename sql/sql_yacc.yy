@@ -346,9 +346,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 */
 
 %ifdef MARIADB
-%expect 65
+%expect 64
 %else
-%expect 66
+%expect 65
 %endif
 
 /*
@@ -1284,6 +1284,16 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %left   PREC_BELOW_IDENTIFIER_OPT_SPECIAL_CASE
 %left   TRANSACTION_SYM TIMESTAMP PERIOD_SYM SYSTEM USER COMMENT_SYM
 
+/*
+  PERSISTENT is ambiguous in ANALYZE:
+    ANALYZE SELECT 1 PERSISTENT;         -- select_alias
+    ANALYZE SELECT 1 PERSISTENT FOR ALL; -- opt_persistent_stat_clause
+
+    ANALYZE SELECT a FROM t1 PERSISTENT;         -- table_alias_clause
+    ANALYZE SELECT a FROM t1 PERSISTENT FOR ALL; -- opt_persistent_stat_clause
+*/
+%left   PREC_BELOW_PERSISTENT
+%left   PERSISTENT_SYM
 
 /*
   Tokens that can appear in a token contraction on the second place
@@ -1330,6 +1340,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         sp_decl_ident
         ident_or_empty
         ident_table_alias
+        table_alias_clause_ident_sys
         ident_sysvar_name
         ident_for_loop_index
 
@@ -1377,6 +1388,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <table>
         table_ident table_ident_nodb references xid
         table_ident_opt_wild create_like
+        explicit_table_ident
 
 %type <qualified_column_ident>
         optionally_qualified_column_ident
@@ -1704,14 +1716,14 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <NONE>
         directly_executable_statement
-        analyze_stmt_command backup backup_statements
+        analyze backup backup_statements
         query verb_clause create create_routine change select select_into
         do drop drop_routine insert replace insert_start stmt_end
         insert_values update delete truncate rename compound_statement
         show describe load alter optimize keycache preload flush
         reset purge begin_stmt_mariadb commit rollback savepoint release
         slave master_def master_defs master_file_def slave_until_opts
-        repair analyze analyze_table_cmd opt_with_admin opt_with_admin_option
+        repair opt_with_admin opt_with_admin_option
         analyze_table_list analyze_table_elem_spec
         opt_persistent_stat_clause persistent_stat_spec
         persistent_column_stat_spec persistent_index_stat_spec
@@ -1995,8 +2007,6 @@ directly_executable_statement:
 verb_clause:
           alter
         | analyze
-        | analyze_table_cmd
-        | analyze_stmt_command
         | backup
         | binlog_base64_event
         | call
@@ -8085,51 +8095,6 @@ opt_view_repair_type:
         | FROM MYSQL_SYM { Lex->check_opt.sql_flags|= TT_FROM_MYSQL; }
         ;
 
-/*
- * Override reduce/reduce conflict caused by "analyze table t1" by providing
- * a shorter unambiguous command
- */
-analyze_table_cmd:
-          ANALYZE_SYM table_or_tables
-          {
-            LEX *lex=Lex;
-            lex->sql_command = SQLCOM_ANALYZE;
-            lex->no_write_to_binlog= 0;
-            lex->check_opt.init();
-            lex->alter_info.reset();
-            /* Will be overridden during execution. */
-            YYPS->m_lock_type= TL_UNLOCK;
-          }
-          analyze_table_list
-          {
-            LEX* lex= thd->lex;
-            DBUG_ASSERT(!lex->m_sql_cmd);
-            lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_analyze_table();
-            if (unlikely(lex->m_sql_cmd == NULL))
-              MYSQL_YYABORT;
-          }
-        ;
-
-analyze:
-          ANALYZE_SYM no_write_to_binlog table_or_tables
-          {
-            LEX *lex=Lex;
-            lex->sql_command = SQLCOM_ANALYZE;
-            lex->no_write_to_binlog= $2;
-            lex->check_opt.init();
-            lex->alter_info.reset();
-            /* Will be overridden during execution. */
-            YYPS->m_lock_type= TL_UNLOCK;
-          }
-          analyze_table_list
-          {
-            LEX* lex= thd->lex;
-            DBUG_ASSERT(!lex->m_sql_cmd);
-            lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_analyze_table();
-            if (unlikely(lex->m_sql_cmd == NULL))
-              MYSQL_YYABORT;
-          }
-        ;
 
 analyze_table_list:
           analyze_table_elem_spec
@@ -8143,7 +8108,12 @@ analyze_table_elem_spec:
 opt_persistent_stat_clause:
           /* empty */
           {}        
-        | PERSISTENT_SYM FOR_SYM persistent_stat_spec  
+        | persistent_stat_clause
+          {}
+        ;
+
+persistent_stat_clause:
+          PERSISTENT_SYM FOR_SYM persistent_stat_spec
           { 
             thd->lex->with_persistent_for_clause= TRUE;
           }
@@ -8579,7 +8549,7 @@ select_into:
 simple_table:
           query_specification      { $$= $1; }
         | table_value_constructor  { $$= $1; }
-        | explicit_table           { $$= $1; }
+        | explicit_table           { $$= $1; } %prec PREC_BELOW_PERSISTENT
         ;
 
 table_value_constructor:
@@ -8595,15 +8565,19 @@ table_value_constructor:
 	  }
 	;
 
-explicit_table:
-         TABLE_SYM table_ident
-         {
-            if (Lex->parsed_explicit_table($2))
-              MYSQL_YYABORT;
+explicit_table_ident:
+          TABLE_SYM table_ident { $$= $2; }
+        ;
 
+explicit_table:
+          explicit_table_ident
+          {
+            if (Lex->parsed_explicit_table($1, true))
+              MYSQL_YYABORT;
             $$= Lex->pop_select();
-         }
-         ;
+          }
+        ;
+
 
 query_specification_start:
           SELECT_SYM
@@ -9184,7 +9158,7 @@ remember_start_opt:
         ;
 
 select_alias:
-          /* empty */ { $$=null_clex_str;}
+          /* empty */ { $$=null_clex_str;} %prec PREC_BELOW_PERSISTENT
         | AS ident { $$=$2; }
         | AS TEXT_STRING_sys { $$=$2; }
         | ident { $$=$1; }
@@ -11983,7 +11957,7 @@ table_primary_derived:
           }
 %ifdef ORACLE
         | subquery
-          opt_for_system_time_clause
+          opt_for_system_time_clause %prec PREC_BELOW_PERSISTENT
           {
             LEX_CSTRING alias;
             if ($1->make_unique_derived_name(thd, &alias) ||
@@ -12118,24 +12092,25 @@ date_time_type:
         | TIMESTAMP {$$=MYSQL_TIMESTAMP_DATETIME;}
         ;
 
-table_alias:
-          /* empty */
-        | AS
-        | '='
-        ;
 
 opt_table_alias_clause:
-          /* empty */ { $$=0; }
-        | table_alias_clause { $$= $1; }
+          /* empty */ { $$=0; } %prec PREC_BELOW_PERSISTENT
+        | table_alias_clause
         ;
 
 table_alias_clause:
-          table_alias ident_table_alias
+          table_alias_clause_ident_sys
           {
-            $$= (LEX_CSTRING*) thd->memdup(&$2,sizeof(LEX_STRING));
+            $$= (LEX_CSTRING*) thd->memdup(&$1,sizeof(LEX_STRING));
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
+        ;
+
+table_alias_clause_ident_sys:
+          ident_table_alias
+        | AS ident_table_alias { $$= $2; }
+        | '=' ident_table_alias { $$= $2; }
         ;
 
 opt_all:
@@ -14347,10 +14322,48 @@ describe_command:
         | DESCRIBE
         ;
 
-analyze_stmt_command:
-          ANALYZE_SYM opt_format_json explainable_command
+analyze:
+          ANALYZE_SYM format_json explainable_command
           {
-            Lex->analyze_stmt= true;
+            Lex->analyze_explainable_command_finalize();
+          }
+        | ANALYZE_SYM explainable_command
+          {
+            Lex->analyze_explainable_command_finalize();
+          }
+        | ANALYZE_SYM explicit_table_ident opt_persistent_stat_clause ','
+          {
+            if (Lex->analyze_table_start($2))
+              MYSQL_YYABORT;
+          }
+          analyze_table_list
+          {
+            if (unlikely(Lex->analyze_table_finalize()))
+              MYSQL_YYABORT;
+          }
+        | ANALYZE_SYM explicit_table_ident persistent_stat_clause
+          {
+            if (unlikely(Lex->analyze_table_start($2)) ||
+                unlikely(Lex->analyze_table_finalize()))
+              MYSQL_YYABORT;
+          }
+        | ANALYZE_SYM TABLES
+          {
+            Lex->analyze_table_start();
+          }
+          analyze_table_list
+          {
+            if (unlikely(Lex->analyze_table_finalize()))
+              MYSQL_YYABORT;
+          }
+        | ANALYZE_SYM no_write_to_binlog table_or_tables
+          {
+            Lex->analyze_table_start();
+          }
+          analyze_table_list
+          {
+            if (unlikely(Lex->analyze_table_finalize()))
+              MYSQL_YYABORT;
           }
         ;
 
@@ -14364,7 +14377,11 @@ opt_extended_describe:
 
 opt_format_json:
           /* empty */ {}
-        | FORMAT_SYM '=' ident_or_text
+        | format_json { }
+        ;
+
+format_json:
+          FORMAT_SYM '=' ident_or_text
           {
             if (lex_string_eq(&$3, STRING_WITH_LEN("JSON")))
               Lex->explain_json= true;

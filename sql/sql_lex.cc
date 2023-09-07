@@ -10435,13 +10435,13 @@ SELECT_LEX *LEX::parsed_TVC_end()
 }
 
 
-bool LEX::parsed_explicit_table(Table_ident *tab)
+bool LEX::parsed_explicit_table(Table_ident *tab, bool allocate_select_lex)
 {
   TABLE_LIST *res;
   // emulate select * from table
 
-  SELECT_LEX *sel;
-  if (!(sel= alloc_select(TRUE)) || push_select(sel))
+  SELECT_LEX *sel= first_select_lex();
+  if (allocate_select_lex && (!(sel= alloc_select(TRUE)) || push_select(sel)))
     return true;
 
   sel->braces= FALSE; // just initialisation
@@ -10456,6 +10456,9 @@ bool LEX::parsed_explicit_table(Table_ident *tab)
     return true;
   if (unlikely(add_item_to_list(thd, item)))
     return true;
+
+  DBUG_ASSERT(allocate_select_lex ||
+              thd->lex->current_select == thd->lex->first_select_lex());
 
   if (!(res= thd->lex->current_select->add_table_to_list(thd, tab,
           (LEX_CSTRING *) 0x0, 0, TL_READ, MDL_SHARED_READ)))
@@ -10535,6 +10538,88 @@ bool LEX::select_finalize(st_select_lex_unit *expr, Lex_select_lock l)
 {
   return expr->set_lock_to_the_last_select(l) ||
          select_finalize(expr);
+}
+
+
+/*
+  Check if the "TABLE t1" clause parsed by the "explicit_table" rule
+  does not have any extra clauses and therefore can be considered
+  as a "ANALYZE TABLE t1" candidate.
+*/
+bool SELECT_LEX::is_analyze_table_candidate() const
+{
+  return table_list.elements == 1 &&
+         !order_list.elements &&
+         !limit_params.select_limit &&
+         !limit_params.offset_limit &&
+         !master_unit()->with_clause;
+}
+
+
+bool LEX::analyze_explainable_command_finalize()
+{
+  /*
+    TODO:
+
+    - The grammar in "explicit_table" used parsed_explicit_table(), which calls:
+
+        add_table_to_list(thd, tab, (LEX_CSTRING *) 0x0,
+                          0, TL_READ, MDL_SHARED_READ)
+
+      The old grammar went through the "table_ident" rule, which calls:
+
+        add_table_to_list(thd, $1, NULL,
+                          TL_OPTION_UPDATING,
+                          YYPS->m_lock_type, // Should be TL_UNLOCK
+                          YYPS->m_mdl_type))
+      So perhaps we need to reset the last three parameters in TABLE_LIST.
+
+    - Produce an error on PERSISTENT FOR if this is
+      "<analyze explainable statement>" rather than <analyze table>:
+        ANALYZE TABLE t1 LIMIT 1 PERSISTENT FOR ALL;
+  */
+
+
+  /*
+    make sure we only rewrite pure 'ANALYZE TABLE t1' without
+    any extra clauses like FORMAT=JSON, UNION, ORDER BY and LIMIT.
+    Otherwise we should keep it as "<analyze explainable statement>"
+    without converting to "<analyze table>".
+  */
+  if (first_select_lex()->is_explicit_table &&
+      first_select_lex()->is_analyze_table_candidate() &&
+      // Filter out UNIONs. TODO: Is there a more reliable way???
+      !first_select_lex()->next_select() &&
+      !explain_json)
+  {
+    // The grammar for explicit_table does not have these clauses:
+    DBUG_ASSERT(!first_select_lex()->where);
+    DBUG_ASSERT(!first_select_lex()->having);
+    DBUG_ASSERT(first_select_lex()->group_list.elements == 0);
+    DBUG_ASSERT(first_select_lex()->window_specs.elements == 0);
+    analyze_table_start();
+    return analyze_table_finalize();
+  }
+  analyze_stmt= true;
+  return false;
+}
+
+
+void LEX::analyze_table_start()
+{
+  sql_command= SQLCOM_ANALYZE;
+  no_write_to_binlog= 0;
+  check_opt.init();
+  alter_info.reset();
+  /* Will be overridden during execution. */
+  thd->m_parser_state->m_yacc.m_lock_type= TL_UNLOCK;
+}
+
+
+bool LEX::analyze_table_finalize()
+{
+  DBUG_ASSERT(!m_sql_cmd);
+  return !(m_sql_cmd= new (thd->mem_root) Sql_cmd_analyze_table());
 }
 
 

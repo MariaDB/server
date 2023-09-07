@@ -197,9 +197,9 @@ analyze table .;
 --error ER_PARSE_ERROR
 analyze table . select;
 
---echo # this is a feature NOT a bug
---error ER_PARSE_ERROR
 analyze table t1 UNION table t3;
+analyze table t1 UNION values(1,'a'),(2,'b');
+analyze with t1 AS (select 'a') table t1;
 --error ER_PARSE_ERROR
 analyze table t1 where col1 = 'a';
 

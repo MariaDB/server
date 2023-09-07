@@ -1380,7 +1380,7 @@ public:
   int period_setup_conds(THD *thd, TABLE_LIST *table);
   void init_query();
   void init_select();
-  st_select_lex_unit* master_unit() { return (st_select_lex_unit*) master; }
+  st_select_lex_unit* master_unit() const { return (st_select_lex_unit*) master; }
   inline void set_master_unit(st_select_lex_unit *master_unit)
   {
     master= (st_select_lex_node *)master_unit;
@@ -1660,6 +1660,7 @@ public:
   bool is_unit_nest() { return (nest_flags & UNIT_NEST_FL); }
   void mark_as_unit_nest() { nest_flags= UNIT_NEST_FL; }
   bool is_sj_conversion_prohibited(THD *thd);
+  bool is_analyze_table_candidate() const;
 };
 typedef class st_select_lex SELECT_LEX;
 
@@ -4786,13 +4787,21 @@ public:
   void restore_values_list_state();
   bool parsed_TVC_start();
   SELECT_LEX *parsed_TVC_end();
-  bool parsed_explicit_table(Table_ident *tab);
+  bool parsed_explicit_table(Table_ident *tab, bool allocate_select_lex);
   TABLE_LIST *parsed_derived_table(SELECT_LEX_UNIT *unit,
                                    int for_system_time,
                                    LEX_CSTRING *alias);
   bool parsed_create_view(SELECT_LEX_UNIT *unit, int check);
   bool select_finalize(st_select_lex_unit *expr);
   bool select_finalize(st_select_lex_unit *expr, Lex_select_lock l);
+  void analyze_table_start();
+  bool analyze_table_start(Table_ident *explicit_table)
+  {
+    analyze_table_start();
+    return parsed_explicit_table(explicit_table, false);
+  }
+  bool analyze_table_finalize();
+  bool analyze_explainable_command_finalize();
   void relink_hack(st_select_lex *select_lex);
 
   bool stmt_install_plugin(const DDL_options_st &opt,
