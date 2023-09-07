@@ -7536,6 +7536,7 @@ wait_for_commit::reinit()
   wakeup_error= 0;
   wakeup_subsequent_commits_running= false;
   commit_started= false;
+  wakeup_blocked= false;
 #ifdef SAFE_MUTEX
   /*
     When using SAFE_MUTEX, the ordering between taking the LOCK_wait_commit
@@ -7807,6 +7808,9 @@ void
 wait_for_commit::wakeup_subsequent_commits2(int wakeup_error)
 {
   wait_for_commit *waiter;
+
+  if (unlikely(wakeup_blocked))
+    return;
 
   mysql_mutex_lock(&LOCK_wait_commit);
   wakeup_subsequent_commits_running= true;
