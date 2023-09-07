@@ -3124,7 +3124,9 @@ struct Account_options: public USER_RESOURCES
   }
 
   enum SSL_type ssl_type;                       // defined in violite.h
-  LEX_CSTRING x509_subject, x509_issuer, ssl_cipher;
+  LEX_CSTRING x509_subject, x509_issuer, ssl_cipher,
+              x509_fingerprint;
+  bool tls_verifycert;
   account_lock_type account_locked;
   password_exp_type password_expire;
   longlong num_expiration_days;

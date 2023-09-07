@@ -12307,3 +12307,6 @@ ER_CF_DROPPED
 ER_CANT_DROP_CF
         chi "不能删除列族 ('%s')，因为它正在使用或不存在。"
         eng "Cannot drop Column family ('%s') because it is in use or does not exist."
+ER_FINGERPRINT_SIZE
+        eng "Invalid fingerprint size. Fingerprint must be a SHA224, SHA256, SHA384 or SHA512 hexadecimal hash value"
+        ger "Ungültiger Fingerprint. Der Fingerprint muss ein SHA224, SHA256, SHA384 oder SHA512 hexadezimaler Hash sein"

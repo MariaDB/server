@@ -864,6 +864,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  FAULTS_SYM
 %token  <kwd>  FEDERATED_SYM                 /* MariaDB privilege */
 %token  <kwd>  FILE_SYM
+%token  <kwd>  FINGERPRINT_SYM
 %token  <kwd>  FIRST_SYM                     /* SQL-2003-N */
 %token  <kwd>  FIXED_SYM
 %token  <kwd>  FLUSH_SYM
@@ -15982,6 +15983,7 @@ keyword_sp_var_and_label:
         | FEDERATED_SYM
         | FULL
         | FILE_SYM
+        | FINGERPRINT_SYM
         | FIRST_SYM
         | GENERAL
         | GENERATED_SYM
@@ -17491,6 +17493,16 @@ require_list_element:
             if (lex->account_options.ssl_cipher.str)
               my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "CIPHER"));
             lex->account_options.ssl_cipher= $2;
+          }
+        | FINGERPRINT_SYM HEX_STRING
+          {
+            LEX *lex=Lex;
+            if (lex->account_options.x509_fingerprint.str)
+              my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "FINGERPRINT"));
+            if ($2.length != 56 && $2.length != 64 && 
+                $2.length != 96 && $2.length != 128)
+              my_yyabort_error((ER_FINGERPRINT_SIZE, MYF(0), "FINGERPRINT"));
+            lex->account_options.x509_fingerprint= $2;
           }
         ;
 

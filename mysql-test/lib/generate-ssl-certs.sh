@@ -64,3 +64,9 @@ rm -fv crldir/*
 cp -v client-cert.crl crldir/`openssl x509 -in client-cert.pem -noout -issuer_hash`.r0
 
 rm -rf demoCA
+
+echo Please update fingerprints in tls_fingerprint.test with the following values:
+openssl x509 -noout -fingerprint -sha224 -inform pem -in client-cert.pem | sed -e "s/^.*\(=\)/sha224 = /" -e "s/\(:\)//g"
+openssl x509 -noout -fingerprint -sha256 -inform pem -in client-cert.pem | sed -e "s/^.*\(=\)/sha256 = /" -e "s/\(:\)//g"
+openssl x509 -noout -fingerprint -sha384 -inform pem -in client-cert.pem | sed -e "s/^.*\(=\)/sha384 = /" -e "s/\(:\)//g"
+openssl x509 -noout -fingerprint -sha512 -inform pem -in client-cert.pem | sed -e "s/^.*\(=\)/sha512 = /" -e "s/\(:\)//g"
