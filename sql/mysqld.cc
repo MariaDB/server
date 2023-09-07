@@ -4259,6 +4259,8 @@ static int init_common_variables()
   myf utf8_flag= global_system_variables.old_behavior &
                  OLD_MODE_UTF8_IS_UTF8MB3 ? MY_UTF8_IS_UTF8MB3 : 0;
 
+  old_mode_deprecated_warnings(0, global_system_variables.old_behavior);
+
   if (character_set_collations_str[0])
   {
     Lex_cstring_strlen str(character_set_collations_str);

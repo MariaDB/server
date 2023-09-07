@@ -3860,25 +3860,45 @@ static Sys_var_set Sys_sql_mode(
 
 static const char *old_mode_names[]=
 {
-  "NO_DUP_KEY_WARNINGS_WITH_IGNORE",
-  "NO_PROGRESS_INFO",
-  "ZERO_DATE_TIME_CAST",
+  "NO_DUP_KEY_WARNINGS_WITH_IGNORE",    // deprecated since 11.3
+  "NO_PROGRESS_INFO",                   // deprecated since 11.3
+  "ZERO_DATE_TIME_CAST",                // deprecated since 11.3
   "UTF8_IS_UTF8MB3",
-  "IGNORE_INDEX_ONLY_FOR_JOIN",
-  "COMPAT_5_1_CHECKSUM",
-  "LOCK_ALTER_TABLE_COPY",
+  "IGNORE_INDEX_ONLY_FOR_JOIN",         // deprecated since 11.3
+  "COMPAT_5_1_CHECKSUM",                // deprecated since 11.3
+  "LOCK_ALTER_TABLE_COPY",              // deprecated since 11.3
   0
 };
 
-/*
-  sql_mode should *not* be IN_BINLOG as the slave can't remember this
-  anyway on restart.
-*/
+void old_mode_deprecated_warnings(THD *thd, ulonglong v)
+{
+  v &= ~OLD_MODE_DEFAULT_VALUE;
+  for (uint i=0; old_mode_names[i]; i++)
+    if ((1ULL<<i) & v)
+    {
+      if (thd)
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+          ER_WARN_DEPRECATED_SYNTAX,
+          ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT),
+          old_mode_names[i]);
+      else
+        sql_print_warning("--old-mode='%s' is deprecated and will be "
+                          "removed in a future release", old_mode_names[i]);
+    }
+}
+
+static bool old_mode_deprecated(sys_var *self, THD *thd, set_var *var)
+{
+  old_mode_deprecated_warnings(thd, var->save_result.ulonglong_value);
+  return false;
+}
+
 static Sys_var_set Sys_old_behavior(
        "old_mode",
        "Used to emulate old behavior from earlier MariaDB or MySQL versions",
        SESSION_VAR(old_behavior), CMD_LINE(REQUIRED_ARG),
-       old_mode_names, DEFAULT(OLD_MODE_UTF8_IS_UTF8MB3));
+       old_mode_names, DEFAULT(OLD_MODE_DEFAULT_VALUE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(old_mode_deprecated));
 
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
 #define SSL_OPT(X) CMD_LINE(REQUIRED_ARG,X)

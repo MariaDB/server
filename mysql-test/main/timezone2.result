@@ -373,6 +373,8 @@ DROP TABLE t1, t2, t3;
 # (an addition for the test for MDEV-4653)
 SET timestamp=unix_timestamp('2001-02-03 10:20:30');
 SET old_mode=ZERO_DATE_TIME_CAST;
+Warnings:
+Warning	1287	'ZERO_DATE_TIME_CAST' is deprecated and will be removed in a future release
 SELECT CONVERT_TZ(TIME('00:00:00'),'+00:00','+7:5');
 CONVERT_TZ(TIME('00:00:00'),'+00:00','+7:5')
 NULL

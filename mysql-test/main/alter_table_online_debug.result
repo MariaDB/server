@@ -1432,6 +1432,8 @@ online
 set debug_sync= 'now SIGNAL proceed';
 connection default;
 set old_mode= LOCK_ALTER_TABLE_COPY;
+Warnings:
+Warning	1287	'LOCK_ALTER_TABLE_COPY' is deprecated and will be removed in a future release
 set debug_sync= 'alter_table_copy_end SIGNAL copy_end WAIT_FOR proceed';
 alter table t1 drop primary key, add primary key(b), algorithm= copy;
 connection con2;
