@@ -32,7 +32,7 @@ struct st_mem_list
 
 LIST *mem_list;
 
-uchar *my_malloc_lock(uint size,myf MyFlags)
+uchar *my_malloc_lock(size_t size, myf MyFlags)
 {
   int success;
   uint pagesize=sysconf(_SC_PAGESIZE);
@@ -70,6 +70,7 @@ uchar *my_malloc_lock(uint size,myf MyFlags)
     mysql_mutex_lock(&THR_LOCK_malloc);
     mem_list=list_add(mem_list,&element->list);
     mysql_mutex_unlock(&THR_LOCK_malloc);
+    update_malloc_size((longlong) size, 0);
   }
   DBUG_RETURN(ptr);
 }
@@ -88,6 +89,7 @@ void my_free_lock(uchar *ptr)
     {						/* Found locked mem */
       (void) munlock((uchar*) ptr,element->size);
       mem_list=list_delete(mem_list,list);
+      update_malloc_size(- (longlong) element->size, 0);
       break;
     }
   }
