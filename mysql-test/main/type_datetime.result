@@ -936,6 +936,8 @@ SELECT STR_TO_DATE('0000-00-00 00:00:00.000001','%Y-%m-%d %H:%i:%s.%f');
 STR_TO_DATE('0000-00-00 00:00:00.000001','%Y-%m-%d %H:%i:%s.%f')
 0000-00-00 00:00:00.000001
 SET old_mode=zero_date_time_cast;
+Warnings:
+Warning	1287	'ZERO_DATE_TIME_CAST' is deprecated and will be removed in a future release
 SELECT CAST(TIME'10:20:30' AS DATETIME);
 CAST(TIME'10:20:30' AS DATETIME)
 0000-00-00 10:20:30
