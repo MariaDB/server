@@ -184,14 +184,25 @@ public:
     void reset();
   };
 
+  int update_gtid_state(rpl_binlog_state *state,
+                        const rpl_gtid *gtid_list, uint32 gtid_count);
   Node_page *alloc_page();
+  rpl_gtid *gtid_list_buffer(uint32 count);
+  void build_index_filename(const char *filename);
   virtual int give_error(const char *msg) = 0;
 
+  /*
+    A buffer to hold a gtid_list temporarily.
+    Increased as needed to hold largest needed list.
+  */
+  rpl_gtid *gtid_buffer;
+  uint32 gtid_buffer_alloc;
   size_t page_size;
+  char index_file_name[FN_REFLEN+4];  // +4 for ".idx" prefix
 
 protected:
-  Gtid_index_base() { };
-  virtual ~Gtid_index_base() { };
+  Gtid_index_base();
+  virtual ~Gtid_index_base();
 };
 
 
@@ -223,25 +234,18 @@ public:
   int reserve_space(Index_node *n, size_t bytes);
   int do_write_record(uint32 level, uint32 event_offset,
                       const rpl_gtid *gtid_list, uint32 gtid_count);
-  void add_child_ptr(uint32 level, my_off_t node_offset);
+  int add_child_ptr(uint32 level, my_off_t node_offset);
   int write_record(uint32 event_offset, const rpl_gtid *gtid_list,
                    uint32 gtid_count);
   bool check_room(uint32 level, uint32 gtid_count);
   int alloc_level_if_missing(uint32 level);
-  rpl_gtid *gtid_list_buffer(uint32 count);
   uchar *init_header(Node_page *page, bool is_leaf, bool is_first);
   int give_error(const char *msg) override;
 
   rpl_binlog_state pending_state;
   /* The currently being built index nodes, from leaf[0] to root[max_level]. */
   Index_node **nodes;
-  /*
-    A buffer to hold a gtid_list temporarily.
-    Increased as needed to hold largest needed list.
-  */
-  rpl_gtid *gtid_buffer;
   my_off_t previous_offset;
-  uint32 gtid_buffer_alloc;
   uint32 max_level;
   uint32 pending_gtid_count;
 
@@ -257,7 +261,6 @@ public:
   bool error_state;
   /* Flag to help put the file header at the start of the very first page. */
   bool file_header_written;
-  char index_file_name[FN_REFLEN+4];  // +4 for ".idx" prefix
 };
 
 
@@ -267,7 +270,35 @@ public:
   Gtid_index_reader();
   virtual ~Gtid_index_reader();
 
-  void free_pages();
+  /*
+    The search functions take either a binlog offset or GTID position to search
+    for. They return:
+      0   for "not found" (searched position is earlier than start of index).
+      1   for "found"
+     -1   for error.
+    When found, the returned position is the last position in the index that
+    lies at or before the searched position. The offset of the returned
+    position is written to *out_offset. The number of GTIDs in the returned
+    GTID state is written to *out_gtid_count; the list of found GTIDs can be
+    accessed with search_gtid_list() and is valid only until next search or
+    freeing of the Gtid_index_reader object.
+  */
+  int search_offset(uint32 in_offset, uint32 *out_offset,
+                    uint32 *out_gtid_count);
+  int search_gtid_pos(slave_connection_state *in_gtid_pos, uint32 *out_offset,
+                      uint32 *out_gtid_count);
+  rpl_gtid *search_gtid_list();
+
+  int search_cmp_offset(uint32 offset, rpl_binlog_state *state);
+  int search_cmp_gtid_pos(uint32 offset, rpl_binlog_state *state);
+  int do_index_search(uint32 *out_offset, uint32 *out_gtid_count);
+  int do_index_search_leaf(bool current_state_updated,
+                           uint32 *out_offset, uint32 *out_gtid_count);
+  int next_page();
+  int find_bytes(uint32 num_bytes);
+  int get_child_ptr(uint32 *out_child_ptr);
+  int get_offset_count(uint32 *out_offset, uint32 *out_gtid_count);
+  int get_gtid_list(rpl_gtid *out_gtid_list, uint32 count);
   int open_index_file(const char *binlog_filename);
   void close_index_file();
   int read_file_header();
@@ -275,8 +306,16 @@ public:
   int read_node(uint32 page_ptr);
   int give_error(const char *msg) override;
 
+  rpl_binlog_state current_state;
+  rpl_binlog_state compare_state;
   Index_node_base n;
+  int (Gtid_index_reader::* search_cmp_function)(uint32, rpl_binlog_state *);
+  slave_connection_state *in_search_gtid_pos;
+  Node_page *read_page;
+  uchar *read_ptr;
   File index_file;
+  uint32 current_offset;
+  uint32 in_search_offset;
   bool file_open;
   bool index_valid;
   uchar version_major;

@@ -26,17 +26,14 @@ static const uchar GTID_INDEX_MAGIC[8]= {
 
 Gtid_index_writer::Gtid_index_writer(const char *filename, my_off_t offset,
                                      rpl_binlog_state *binlog_state)
-  : nodes(nullptr), gtid_buffer(nullptr), previous_offset(0),
-    gtid_buffer_alloc(0),
+  : nodes(nullptr), previous_offset(0),
     max_level(0), pending_gtid_count(0), index_file(-1),
     error_state(false), file_header_written(false)
 {
-  page_size= 4096;   /* ToDo: init from config */
+  page_size= 64; // 4096;   /* ToDo: init from config */
   pending_state.init();
 
-  char *p= strmake(index_file_name, filename, sizeof(index_file_name)-1);
-  size_t remain= sizeof(index_file_name) - (p - index_file_name);
-  p= strmake(p, ".idx", remain-1);
+  build_index_filename(filename);
   index_file= mysql_file_create(key_file_gtid_index, index_file_name,
                                 CREATE_MODE, O_RDWR|O_TRUNC|O_BINARY,
                                 MYF(MY_WME));
@@ -79,7 +76,6 @@ Gtid_index_writer::~Gtid_index_writer()
     mysql_file_close(index_file, MYF(0));
   }
 
-  my_free(gtid_buffer);
   if (nodes)
   {
     for (uint32 i= 0; i <= max_level; ++i)
@@ -204,6 +200,47 @@ Gtid_index_base::Index_node_base::reset()
 }
 
 
+Gtid_index_base::Gtid_index_base()
+  : gtid_buffer(nullptr), gtid_buffer_alloc(0)
+{
+}
+
+
+Gtid_index_base::~Gtid_index_base()
+{
+  if (gtid_buffer_alloc > 0)
+    my_free(gtid_buffer);
+}
+
+
+void
+Gtid_index_base::build_index_filename(const char *filename)
+{
+  char *p= strmake(index_file_name, filename, sizeof(index_file_name)-1);
+  size_t remain= sizeof(index_file_name) - (p - index_file_name);
+  strmake(p, ".idx", remain-1);
+}
+
+
+rpl_gtid *
+Gtid_index_base::gtid_list_buffer(uint32 count)
+{
+  if (gtid_buffer_alloc >= count)
+    return gtid_buffer;
+  rpl_gtid *new_buffer= (rpl_gtid *)
+    my_malloc(PSI_INSTRUMENT_ME, count*sizeof(*new_buffer), MYF(0));
+  if (!new_buffer)
+  {
+    give_error("Out of memory allocating buffer for GTID list");
+    return NULL;
+  }
+  my_free(gtid_buffer);
+  gtid_buffer= new_buffer;
+  gtid_buffer_alloc= count;
+  return new_buffer;
+}
+
+
 Gtid_index_writer::Index_node::Index_node(uint32 level_)
   : num_records(0), level(level_), force_spill_page(false)
 {
@@ -290,7 +327,8 @@ Gtid_index_writer::do_write_record(uint32 level,
   Index_node *n= nodes[level];
   if (reserve_space(n, 8))
     return 1;
-  int4store(n->current_ptr, gtid_count);
+  /* Store the count as +1, so that 0 can mean "no more records". */
+  int4store(n->current_ptr, gtid_count+1);
   int4store(n->current_ptr+4, event_offset);
   n->current_ptr+= 8;
   for (uint32 i= 0; i < gtid_count; ++i)
@@ -314,22 +352,25 @@ Gtid_index_writer::do_write_record(uint32 level,
   a no/invalid value (effectively node_ptr points to the end of the target
   page, in unit of pages).
 
-  Adding a child pointer doesn't spill to a new page, code must make sure that
+  Adding a child pointer shouldn't spill to a new page, code must make sure that
   there is always room for the final child pointer in current non-leaf node.
 
   ToDo: A child pointer is 8 bytes for now to preserve 8-byte alignment.
 */
-void
+int
 Gtid_index_writer::add_child_ptr(uint32 level, my_off_t node_offset)
 {
   DBUG_ASSERT(level <= max_level);
-  DBUG_ASSERT(node_offset % page_size == 0);
+  DBUG_ASSERT(node_offset > 0);
   Index_node *n= nodes[level];
+  if (reserve_space(n, 8))
+    return 1;
   DBUG_ASSERT(n->current_page);
   DBUG_ASSERT((size_t)(n->current_ptr - n->current_page->page + 8) <= page_size);
 
-  int8store(n->current_ptr, (node_offset / page_size) + 1);
+  int8store(n->current_ptr, node_offset);
   n->current_ptr+= 8;
+  return 0;
 }
 
 
@@ -360,10 +401,9 @@ Gtid_index_writer::write_record(uint32 event_offset,
   for (;;)
   {
     Index_node *n= nodes[level];
-    for (uint32 i= 0; i < gtid_count; ++i)
-      if (n->state.update_nolock(&gtid_list[i], false))
-        /* ToDo: Something that doesn't call my_error() here? */
-        return give_error("Out of memory updating the local GTID state");
+    if (update_gtid_state(&n->state, gtid_list, gtid_count))
+      /* ToDo: Something that doesn't call my_error() here? */
+      return give_error("Out of memory updating the local GTID state");
 
     if (check_room(level, gtid_count))
     {
@@ -383,11 +423,13 @@ Gtid_index_writer::write_record(uint32 event_offset,
     uint32 node_ptr= write_current_node(level, false);
     if (!node_ptr)
       return 1;
-    if (alloc_level_if_missing(level+1))
+    if (alloc_level_if_missing(level+1) ||
+        add_child_ptr(level+1, node_ptr))
       return 1;
-    add_child_ptr(level+1, node_ptr);
     uint32 new_count= n->state.count();  /* ToDo faster count op? */
     rpl_gtid *new_gtid_list= gtid_list_buffer(new_count);
+    if (new_count > 0 && !new_gtid_list)
+      return 1;
     if (n->state.get_gtid_list(new_gtid_list, new_count))
       return give_error("Internal error processing GTID state");
     n->reset();
@@ -457,25 +499,6 @@ Gtid_index_writer::alloc_level_if_missing(uint32 level)
 }
 
 
-rpl_gtid *
-Gtid_index_writer::gtid_list_buffer(uint32 count)
-{
-  if (gtid_buffer_alloc >= count)
-    return gtid_buffer;
-  rpl_gtid *new_buffer= (rpl_gtid *)
-    my_malloc(PSI_INSTRUMENT_ME, count*sizeof(*new_buffer), MYF(0));
-  if (!new_buffer)
-  {
-    give_error("Out of memory allocating buffer for GTID list");
-    return NULL;
-  }
-  my_free(gtid_buffer);
-  gtid_buffer= new_buffer;
-  gtid_buffer_alloc= count;
-  return new_buffer;
-}
-
-
 /*
   Initialize the start of a data page.
   This is at the start of a page, except for the very first page where it
@@ -491,8 +514,9 @@ uchar *
 Gtid_index_writer::init_header(Node_page *page, bool is_leaf, bool is_first)
 {
   uchar *p= page->page;
+  bool is_file_header= !file_header_written;
 
-  if (unlikely(!file_header_written))
+  if (unlikely(is_file_header))
   {
     memcpy(p, GTID_INDEX_MAGIC, sizeof(GTID_INDEX_MAGIC));
     p+= sizeof(GTID_INDEX_MAGIC);
@@ -516,10 +540,22 @@ Gtid_index_writer::init_header(Node_page *page, bool is_leaf, bool is_first)
   *p++= flags;
   /* Padding/reserved. */
   p+= 7;
-  DBUG_ASSERT(p == page->page + GTID_INDEX_FILE_HEADER_SIZE +
+  DBUG_ASSERT(p == page->page +
+              (is_file_header ? GTID_INDEX_FILE_HEADER_SIZE : 0) +
               GTID_INDEX_PAGE_HEADER_SIZE);
   DBUG_ASSERT((size_t)(p - page->page) < page_size);
   return p;
+}
+
+
+int
+Gtid_index_base::update_gtid_state(rpl_binlog_state *state,
+                                   const rpl_gtid *gtid_list, uint32 gtid_count)
+{
+  for (uint32 i= 0; i < gtid_count; ++i)
+    if (state->update_nolock(&gtid_list[i], false))
+      return 1;
+  return 0;
 }
 
 
@@ -553,6 +589,8 @@ Gtid_index_reader::Gtid_index_reader()
     file_open(false), index_valid(false),
     version_major(0), version_minor(0)
 {
+  current_state.init();
+  compare_state.init();
 }
 
 
@@ -563,6 +601,146 @@ Gtid_index_reader::~Gtid_index_reader()
 }
 
 
+int
+Gtid_index_reader::search_offset(uint32 in_offset,
+                                 uint32 *out_offset, uint32 *out_gtid_count)
+{
+  in_search_offset= in_offset;
+  search_cmp_function= &Gtid_index_reader::search_cmp_offset;
+
+  return do_index_search(out_offset, out_gtid_count);
+}
+
+int
+Gtid_index_reader::search_gtid_pos(slave_connection_state *in_gtid_pos,
+                                   uint32 *out_offset, uint32 *out_gtid_count)
+{
+  in_search_gtid_pos= in_gtid_pos;
+  search_cmp_function= &Gtid_index_reader::search_cmp_gtid_pos;
+
+  int res= do_index_search(out_offset, out_gtid_count);
+  /* Let's not leave a dangling pointer to the caller's memory. */
+  in_search_gtid_pos= nullptr;
+
+  return res;
+}
+
+rpl_gtid *
+Gtid_index_reader::search_gtid_list()
+{
+  return gtid_buffer;
+}
+
+
+int
+Gtid_index_reader::search_cmp_offset(uint32 offset, rpl_binlog_state *state)
+{
+  if (offset <= in_search_offset)
+    return 0;
+  else
+    return -1;
+}
+
+
+int
+Gtid_index_reader::search_cmp_gtid_pos(uint32 offset, rpl_binlog_state *state)
+{
+  if (state->is_before_pos(in_search_gtid_pos))
+    return 0;
+  else
+    return -1;
+}
+
+
+int
+Gtid_index_reader::next_page()
+{
+  if (!read_page->next)
+    return 1;
+  read_page= read_page->next;
+  read_ptr= &read_page->page[8];
+  return 0;
+}
+
+
+int
+Gtid_index_reader::find_bytes(uint32 num_bytes)
+{
+  if (read_ptr - read_page->page + num_bytes <= (my_ptrdiff_t)page_size)
+    return 0;
+  return next_page();
+}
+
+
+int
+Gtid_index_reader::get_child_ptr(uint32 *out_child_ptr)
+{
+  if (find_bytes(8))
+    return 1;
+  *out_child_ptr= uint8korr(read_ptr);
+  read_ptr+= 8;
+  return 0;
+}
+
+
+/*
+  Read the start of an index record (count of GTIDs in the differential state
+  and offset).
+  Returns:
+     0  ok
+     1  EOF, no more data in this node
+    -1  error
+
+  ToDo: I don't think this can actually return error? Only EOF.
+*/
+int
+Gtid_index_reader::get_offset_count(uint32 *out_offset, uint32 *out_gtid_count)
+{
+  if (find_bytes(8))
+    return 1;
+  uint32 gtid_count= uint4korr(read_ptr);
+  if (gtid_count == 0)
+  {
+    /* 0 means invalid/no record (we store N+1 for N GTIDs in record). */
+    return 1;
+  }
+  *out_gtid_count= gtid_count - 1;
+  *out_offset= uint4korr(read_ptr + 4);
+  read_ptr+= 8;
+  return 0;
+}
+
+int
+Gtid_index_reader::get_gtid_list(rpl_gtid *out_gtid_list, uint32 count)
+{
+  for (uint32 i= 0; i < count; ++i)
+  {
+    if (find_bytes(16))
+      return 1;
+    out_gtid_list[i].domain_id= uint4korr(read_ptr);
+    out_gtid_list[i].server_id= uint4korr(read_ptr + 4);
+    out_gtid_list[i].seq_no= uint8korr(read_ptr + 8);
+    read_ptr+= 16;
+  }
+  return 0;
+}
+
+
+int
+Gtid_index_reader::open_index_file(const char *binlog_filename)
+{
+  build_index_filename(binlog_filename);
+  if ((index_file= mysql_file_open(key_file_gtid_index, index_file_name,
+                                   O_RDONLY|O_BINARY, MYF(0))) < 0)
+    return 1;
+
+  file_open= true;
+  if (read_file_header())
+    return 1;
+
+  return 0;
+}
+
 void
 Gtid_index_reader::close_index_file()
 {
@@ -571,6 +749,141 @@ Gtid_index_reader::close_index_file()
   mysql_file_close(index_file, MYF(0));
   file_open= false;
   index_valid= false;
+}
+
+
+int Gtid_index_reader::do_index_search(uint32 *out_offset,
+                                       uint32 *out_gtid_count)
+{
+  /* ToDo: if hot index, take the mutex. */
+
+  current_state.reset();
+  compare_state.reset();
+  /*
+    These states will be initialized to the full state stored at the start of
+    the root node and then incrementally updated.
+  */
+  bool current_state_updated= false;
+
+  if (read_root_node())
+    return -1;
+  for (;;)
+  {
+    if (*n.first_page->flag_ptr & PAGE_FLAG_IS_LEAF)
+      break;
+
+    if (compare_state.load(&current_state))
+      return -1;
+    uint32 child_ptr;
+    if (get_child_ptr(&child_ptr))
+      return -1;
+    DBUG_ASSERT(child_ptr != 0);
+
+    /* Scan over the keys in the node to find the child pointer to follow */
+    for (;;)
+    {
+      uint32 offset, gtid_count;
+      int res= get_offset_count(&offset, &gtid_count);
+      if (res < 0)
+        return -1;
+      if (res == 1)   // EOF?
+      {
+        /* Follow the right-most child pointer. */
+        if (read_node(child_ptr))
+          return -1;
+        break;
+      }
+      rpl_gtid *gtid_list= gtid_list_buffer(gtid_count);
+      uint32 child2_ptr;
+      if ((gtid_count > 0 && !gtid_list) ||
+          get_gtid_list(gtid_list, gtid_count) ||
+          get_child_ptr(&child2_ptr))
+        return -1;
+      /* ToDo: Handling of hot index, child2 is empty. */
+      if (update_gtid_state(&compare_state, gtid_list, gtid_count))
+        return -1;
+      int cmp= (this->*search_cmp_function)(offset, &compare_state);
+      if (cmp < 0)
+      {
+        /* Follow the left child of this key. */
+        if (read_node(child_ptr))
+          return -1;
+        break;
+      }
+      /* Continue to scan the next key. */
+      update_gtid_state(&current_state, gtid_list, gtid_count);
+      current_state_updated= true;
+      current_offset= offset;
+      child_ptr= child2_ptr;
+    }
+  }
+  return do_index_search_leaf(current_state_updated,
+                              out_offset, out_gtid_count);
+}
+
+int Gtid_index_reader::do_index_search_leaf(bool current_state_updated,
+                                            uint32 *out_offset,
+                                            uint32 *out_gtid_count)
+{
+  uint32 offset, gtid_count;
+  int res= get_offset_count(&offset, &gtid_count);
+  if (res < 0)
+    return -1;
+  if (res == 1)  // EOF?
+    DBUG_ASSERT(0 /* ToDo handle gtid_count==0 / EOF */);
+  rpl_gtid *gtid_list= gtid_list_buffer(gtid_count);
+  if ((gtid_count > 0 && !gtid_list) ||
+      get_gtid_list(gtid_list, gtid_count))
+    return -1;
+  /*
+    The first key is ignored (already included in the current state), unless
+    it is the very first state in the index.
+  */
+  if (!current_state_updated)
+    update_gtid_state(&current_state, gtid_list, gtid_count);
+  current_offset= offset;
+  if (compare_state.load(&current_state))
+    return -1;
+  int cmp= (this->*search_cmp_function)(offset, &compare_state);
+  if (cmp < 0)
+    return 0;  // Search position is before start of index.
+
+  /* Scan over the keys in the leaf node. */
+  for (;;)
+  {
+    uint32 offset, gtid_count;
+    int res= get_offset_count(&offset, &gtid_count);
+    if (res < 0)
+      return -1;
+    if (res == 1)  // EOF?
+    {
+      /* Reached end of leaf, last key is the one searched for. */
+      break;
+    }
+    gtid_list= gtid_list_buffer(gtid_count);
+    if ((gtid_count > 0 && !gtid_list) ||
+        get_gtid_list(gtid_list, gtid_count))
+      return -1;
+    if (update_gtid_state(&compare_state, gtid_list, gtid_count))
+      return -1;
+    cmp= (this->*search_cmp_function)(offset, &compare_state);
+    if (cmp < 0)
+    {
+      /* Next key is larger, so current state is the one searched for. */
+      break;
+    }
+    update_gtid_state(&current_state, gtid_list, gtid_count);
+    current_offset= offset;
+  }
+
+  *out_offset= current_offset;
+  *out_gtid_count= current_state.count();
+  /* Save the result in the shared gtid list buffer. */
+  if ((!(gtid_list= gtid_list_buffer(*out_gtid_count)) && *out_gtid_count > 0) ||
+      current_state.get_gtid_list(gtid_list, *out_gtid_count))
+    return -1;
+
+  return 1;
 }
 
 
@@ -653,6 +966,10 @@ Gtid_index_reader::read_root_node()
       my_free(page);
       return 1;
     }
+    if (mysql_file_tell(index_file, MYF(0)) == page_size)
+      page->flag_ptr= &page->page[GTID_INDEX_FILE_HEADER_SIZE];
+    else
+      page->flag_ptr= &page->page[0];
     page->next= n.first_page;
     n.first_page= page;
     uchar flags= page->page[0];
@@ -660,11 +977,13 @@ Gtid_index_reader::read_root_node()
       return 1;                        // Corrupt index, no start of root node
     if (!(flags & PAGE_FLAG_IS_CONT))
       break;                           // Found start of root node
-    if (MY_FILEPOS_ERROR == mysql_file_seek(index_file, -(my_off_t)page_size,
+    if (MY_FILEPOS_ERROR == mysql_file_seek(index_file, -(my_off_t)(2*page_size),
                                             MY_SEEK_CUR, MYF(0)))
       return 1;
   }
 
+  read_page= n.first_page;
+  read_ptr= read_page->flag_ptr + GTID_INDEX_PAGE_HEADER_SIZE;
   return 0;
 }
 
@@ -692,7 +1011,7 @@ Gtid_index_reader::read_node(uint32 page_ptr)
       my_free(page);
       return 1;
     }
-    page->flag_ptr= &page->page[file_header ? GTID_INDEX_PAGE_HEADER_SIZE : 0];
+    page->flag_ptr= &page->page[file_header ? GTID_INDEX_FILE_HEADER_SIZE : 0];
     file_header= false;
     /* Insert the page at the end of the list. */
     page->next= nullptr;
@@ -704,6 +1023,8 @@ Gtid_index_reader::read_node(uint32 page_ptr)
       break;
   }
 
+  read_page= n.first_page;
+  read_ptr= read_page->flag_ptr + GTID_INDEX_PAGE_HEADER_SIZE;
   return 0;
 }
 

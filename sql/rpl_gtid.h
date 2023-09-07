@@ -29,6 +29,7 @@ class String;
 #ifdef MYSQL_SERVER
 class TABLE;
 #endif
+class slave_connection_state;
 
 #define PARAM_GTID(G) G.domain_id, G.server_id, G.seq_no
 
@@ -350,6 +351,7 @@ struct rpl_binlog_state
   rpl_gtid *find_nolock(uint32 domain_id, uint32 server_id);
   rpl_gtid *find(uint32 domain_id, uint32 server_id);
   rpl_gtid *find_most_recent(uint32 domain_id);
+  bool is_before_pos(slave_connection_state *pos);
   const char* drop_domain(DYNAMIC_ARRAY *ids, Gtid_list_log_event *glev, char*);
 };
 
