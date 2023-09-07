@@ -5425,6 +5425,7 @@ lock_rec_convert_impl_to_expl_for_trx(
 	if (!trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY)
 	    && !lock_rec_has_expl(LOCK_X | LOCK_REC_NOT_GAP,
 				  block, heap_no, trx)) {
+		ut_a(lock_table_has(trx, index->table, LOCK_IX));
 		lock_rec_add_to_queue(LOCK_REC | LOCK_X | LOCK_REC_NOT_GAP,
 				      block, heap_no, index, trx, true);
 	}
