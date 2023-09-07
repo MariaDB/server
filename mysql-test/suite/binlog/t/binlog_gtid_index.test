@@ -1,0 +1,39 @@
+# ToDo maybe run for all 3 just to fuss the offsets a bit?
+--source include/have_binlog_format_mixed.inc
+
+--let $file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $pos1= query_get_value(SHOW MASTER STATUS, Position, 1)
+CREATE TABLE t1 (a INT PRIMARY KEY);
+--let $pos2= query_get_value(SHOW MASTER STATUS, Position, 1)
+INSERT INTO t1 VALUES (1);
+--let $pos3= query_get_value(SHOW MASTER STATUS, Position, 1)
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+--let $pos4= query_get_value(SHOW MASTER STATUS, Position, 1)
+INSERT INTO t1 VALUES (5);
+--let $pos5= query_get_value(SHOW MASTER STATUS, Position, 1)
+
+--disable_query_log
+--let $i=0
+while ($i < 100) {
+  eval INSERT INTO t1 VALUES (6 + $i);
+  inc $i;
+}
+--enable_query_log
+--let $pos6= query_get_value(SHOW MASTER STATUS, Position, 1)
+eval SELECT CONCAT('$pos6', " -> ", @@gtid_binlog_state) AS Source;
+
+INSERT INTO t1 VALUES (106);
+INSERT INTO t1 VALUES (107);
+
+FLUSH BINARY LOGS;
+
+eval SELECT BINLOG_GTID_POS('$file', $pos1);
+eval SELECT BINLOG_GTID_POS('$file', $pos2);
+eval SELECT BINLOG_GTID_POS('$file', $pos3);
+eval SELECT BINLOG_GTID_POS('$file', $pos4);
+eval SELECT BINLOG_GTID_POS('$file', $pos5);
+eval SELECT BINLOG_GTID_POS('$file', $pos6);
+
+DROP TABLE t1;

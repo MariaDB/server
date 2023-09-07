@@ -31,6 +31,7 @@
 #include "semisync_master.h"
 #include "semisync_slave.h"
 #include "mysys_err.h"
+#include "gtid_index.h"
 
 
 enum enum_gtid_until_state {
@@ -1463,6 +1464,41 @@ end:
 }
 
 
+static bool
+gtid_index_lookup_pos(const char *name, uint32 offset, uint32 *out_start_seek,
+                      slave_connection_state *out_gtid_state)
+{
+  Gtid_index_reader *reader= nullptr;
+  bool opened= false;
+  bool found= false;
+  uint32 found_offset, found_gtid_count;
+  rpl_gtid *found_gtids;
+  int res;
+
+  if (!(reader= new Gtid_index_reader()) ||
+      reader->open_index_file(name))
+    goto err;
+  opened= true;
+  res= reader->search_offset(offset, &found_offset, &found_gtid_count);
+  if (res <= 0)
+    goto err;
+
+  /* We found the position, initialize the state from the index. */
+  found_gtids= reader->search_gtid_list();
+  if (out_gtid_state->load(found_gtids, found_gtid_count))
+    goto err;
+  *out_start_seek= found_offset;
+  found= true;
+
+err:
+  if (opened)
+    reader->close_index_file();
+  if (reader)
+    delete reader;
+  return found;
+}
+
+
 /*
   Given an old-style binlog position with file name and file offset, find the
   corresponding gtid position. If the offset is not at an event boundary, give
@@ -1486,8 +1522,20 @@ gtid_state_from_pos(const char *name, uint32 offset,
   int err;
   String packet;
   Format_description_log_event *fdev= NULL;
+  bool found_in_index;
+  uint32 start_seek;
+  bool seek_done= false;
 
-  if (unlikely(gtid_state->load((const rpl_gtid *)NULL, 0)))
+  /*
+    Try to lookup the position in the binlog gtid index. If found (as it will
+    usually be unless the index is corrupted somehow), we can seek directly to
+    a point at or just before the desired location, saving an expensive scan
+    of the binlog file from the start.
+  */
+  found_in_index= gtid_index_lookup_pos(name, offset, &start_seek, gtid_state);
+  if (found_in_index)
+    found_gtid_list_event= true;
+  else if (unlikely(gtid_state->load((const rpl_gtid *)NULL, 0)))
   {
     errormsg= "Internal error (out of memory?) initializing slave state "
       "while scanning binlog to find start position";
@@ -1576,6 +1624,25 @@ gtid_state_from_pos(const char *name, uint32 offset,
         errormsg= "Could not start decryption of binlog.";
         goto end;
       }
+      if (found_in_index && !seek_done)
+      {
+        /*
+          Just to avoid a redundant event read before hitting the next branch.
+          ToDo: share this code with the below somehow.
+        */
+        my_b_seek(&cache, start_seek);
+        seek_done= true;
+      }
+    }
+    else if (found_in_index && !seek_done)
+    {
+      /*
+        After reading the format_description event and possibly
+        start_encryption, we can seek forward to avoid most or all of the scan
+        (depending on the sparseness of the index).
+      */
+      my_b_seek(&cache, start_seek);
+      seek_done= true;
     }
     else if (unlikely(typ != FORMAT_DESCRIPTION_EVENT &&
                       !found_format_description_event))
@@ -1587,7 +1654,7 @@ gtid_state_from_pos(const char *name, uint32 offset,
     else if (typ == ROTATE_EVENT || typ == STOP_EVENT ||
              typ == BINLOG_CHECKPOINT_EVENT)
       continue;                                 /* Continue looking */
-    else if (typ == GTID_LIST_EVENT)
+    else if (typ == GTID_LIST_EVENT && !found_in_index)
     {
       rpl_gtid *gtid_list;
       bool status;

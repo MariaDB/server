@@ -2027,6 +2027,63 @@ rpl_binlog_state::find_most_recent(uint32 domain_id)
 }
 
 
+/*
+  Return true if this binlog state is before the position specified by the
+  passed-in slave_connection_state, false otherwise.
+  Note that if the GTID D-S-N is the last GTID added to the state in the
+  domain D, then the state is considered to come before the position D-S-N
+  within domain D.
+*/
+bool
+rpl_binlog_state::is_before_pos(slave_connection_state *pos)
+{
+  /*
+    First check each GTID in the slave position, if it comes after what is
+    in the state.
+  */
+  for (uint32 i= 0; i < pos->hash.records; ++i)
+  {
+    const slave_connection_state::entry *e=
+      (const slave_connection_state::entry *)my_hash_element(&pos->hash, i);
+    /*
+      IF we have an entry with the same (domain_id, server_id),
+      AND either
+        (    we are ahead in that server_id
+          OR we are identical, but there's some other server_id after)
+      THEN that position lies before our state.
+    */
+    element *elem;
+    if ((elem= (element *)my_hash_search(&hash,
+                                         (const uchar *)&e->gtid.domain_id,
+                                         sizeof(e->gtid.domain_id))))
+    {
+      const rpl_gtid *g= (rpl_gtid *)
+        my_hash_search(&elem->hash, (const uchar *)&e->gtid.server_id,
+                       sizeof(e->gtid.server_id));
+      if (g != nullptr &&
+           ( g->seq_no > e->gtid.seq_no ||
+             ( g->seq_no == e->gtid.seq_no && g != elem->last_gtid) ))
+        return false;
+    }
+  }
+
+  /*
+    Then check the state, if there are any domains present that are missing
+    from the position.
+  */
+  for (uint32 i= 0; i < hash.records; ++i)
+  {
+    const element *elem= (const element *) my_hash_element(&hash, i);
+    if (likely(elem->hash.records > 0) &&
+        !pos->find(elem->domain_id))
+      return false;
+  }
+
+  /* Nothing in our state lies after anything in the position. */
+  return true;
+}
+
+
 uint32
 rpl_binlog_state::count()
 {
