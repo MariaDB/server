@@ -1,4 +1,3 @@
-drop table if exists t1,t2;
 create table t1 (a int, b varchar(200), c text not null) checksum=1;
 create table t2 (a int, b varchar(200), c text not null) checksum=0;
 insert t1 values (1, "aaa", "bbb"), (NULL, "", "ccccc"), (0, NULL, "");
@@ -23,6 +22,8 @@ Id	User	Host	db	Command	Time	State	Info
 # MDEV-5372 Make "CAST(time_expr AS DATETIME)" compatible with the SQL Standard)
 #
 set @@old_mode=zero_date_time_cast;
+Warnings:
+Warning	1287	'ZERO_DATE_TIME_CAST' is deprecated and will be removed in a future release
 SELECT CAST(TIME'-10:30:30' AS DATETIME);
 CAST(TIME'-10:30:30' AS DATETIME)
 NULL
@@ -106,6 +107,8 @@ DROP TABLE t1;
 #
 SET @@global.mysql56_temporal_format=true;
 SET @@old_mode=zero_date_time_cast;
+Warnings:
+Warning	1287	'ZERO_DATE_TIME_CAST' is deprecated and will be removed in a future release
 CREATE TABLE t1 (a TIME,b TIME(1));
 INSERT INTO t1 VALUES (TIME'830:20:30',TIME'830:20:30');
 SELECT TO_DAYS(a), TO_DAYS(b) FROM t1;
@@ -117,6 +120,8 @@ Warning	1264	Out of range value for column 'b' at row 1
 DROP TABLE t1;
 SET @@global.mysql56_temporal_format=false;
 SET @@old_mode=zero_date_time_cast;
+Warnings:
+Warning	1287	'ZERO_DATE_TIME_CAST' is deprecated and will be removed in a future release
 CREATE TABLE t1 (a TIME,b TIME(1));
 INSERT INTO t1 VALUES (TIME'830:20:30',TIME'830:20:30');
 SELECT TO_DAYS(a), TO_DAYS(b) FROM t1;
@@ -225,6 +230,8 @@ SET global mysql56_temporal_format=true;
 # MDEV-26765 UNIX_TIMESTAMP(CURRENT_TIME()) return null ?!?
 #
 SET old_mode=zero_date_time_cast;
+Warnings:
+Warning	1287	'ZERO_DATE_TIME_CAST' is deprecated and will be removed in a future release
 SET @@time_zone='+00:00';
 SET timestamp=1234567;
 SELECT CURRENT_TIMESTAMP;
