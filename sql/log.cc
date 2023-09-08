@@ -40,6 +40,7 @@
 #include "sql_audit.h"
 #include "mysqld.h"
 #include "ddl_log.h"
+#include "gtid_index.h"
 
 #include <my_dir.h>
 #include <m_ctype.h>				// For test_if_number
@@ -164,12 +165,44 @@ static SHOW_VAR binlog_status_vars_detail[]=
   Variables for the binlog background thread.
   Protected by the MYSQL_BIN_LOG::LOCK_binlog_background_thread mutex.
  */
+struct Binlog_background_job
+{
+  union
+  {
+    MYSQL_BIN_LOG::xid_count_per_binlog *notify_entry;
+    struct {
+      Gtid_index_writer *gi;
+      rpl_gtid *gtid_list;
+      uint32 gtid_count;
+      uint32 offset;
+    } gtid_index_data;
+  };
+  Binlog_background_job *next;
+  enum enum_job_type {
+    CHECKPOINT_NOTIFY,
+    GTID_INDEX_UPDATE,
+    GTID_INDEX_CLOSE,
+    SENTINEL
+  } job_type;
+};
 static bool binlog_background_thread_started= false;
 static bool binlog_background_thread_stop= false;
-static MYSQL_BIN_LOG::xid_count_per_binlog *
-    binlog_background_thread_queue= NULL;
+static bool binlog_background_thread_sentinel= false;
+static Binlog_background_job *binlog_background_thread_queue= NULL;
+static Binlog_background_job **binlog_background_thread_endptr=
+  &binlog_background_thread_queue;
+static Binlog_background_job *binlog_background_freelist= NULL;
 
 static bool start_binlog_background_thread();
+static int queue_binlog_background_checkpoint_notify(
+                MYSQL_BIN_LOG::xid_count_per_binlog *entry);
+static int queue_binlog_background_gtid_index_update(Gtid_index_writer *gi,
+                                                     uint32 offset,
+                                                     rpl_gtid *gtid_list,
+                                                     uint32 count);
+static int queue_binlog_background_gtid_index_close(Gtid_index_writer *gi);
+static int queue_binlog_background_sentinel();
+static void binlog_background_wait_for_sentinel();
 
 static rpl_binlog_state rpl_global_gtid_binlog_state;
 
@@ -3418,7 +3451,7 @@ MYSQL_BIN_LOG::MYSQL_BIN_LOG(uint *sync_period)
    group_commit_queue(0), group_commit_queue_busy(FALSE),
    num_commits(0), num_group_commits(0),
    group_commit_trigger_count(0), group_commit_trigger_timeout(0),
-   group_commit_trigger_lock_wait(0),
+   group_commit_trigger_lock_wait(0), gtid_index(nullptr),
    sync_period_ptr(sync_period), sync_counter(0),
    state_file_deleted(false), binlog_state_recover_done(false),
    is_relay_log(0), relay_signal_cnt(0),
@@ -3860,6 +3893,26 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
         Gtid_list_log_event gl_ev(&rpl_global_gtid_binlog_state, 0);
         if (write_event(&gl_ev))
           goto err;
+
+        /* Open an index file for this binlog file. */
+        DBUG_ASSERT(!gtid_index); /* Binlog close should clear it. */
+        if (gtid_index)
+          delete gtid_index;
+        if (opt_binlog_gtid_index)
+        {
+          my_off_t offset= my_b_tell(&log_file);
+          gtid_index=
+            new Gtid_index_writer(log_file_name, (uint32)offset,
+                                  &rpl_global_gtid_binlog_state,
+                                  (uint32)opt_binlog_gtid_index_page_size,
+                                  (my_off_t)opt_binlog_gtid_index_span_min);
+          if (!gtid_index)
+            sql_print_information("Could not create GTID index for binlog "
+                                  "file '%s'. Accesses to this binlog file will "
+                                  "fallback to slower sequential scan.");
+        }
+        else
+          gtid_index= nullptr;
 
         /* Output a binlog checkpoint event at the start of the binlog file. */
 
@@ -4410,12 +4463,31 @@ bool MYSQL_BIN_LOG::reset_logs(THD *thd, bool create_new_log,
       no new ones will be written. So we can proceed to delete the logs.
     */
     mysql_mutex_unlock(&LOCK_xid_list);
+
+    /*
+      Push a sentinel through the binlog background thread and wait for it to
+      return. When it does, we know that no more GTID index operations are
+      pending as we are holding LOCK_log.
+      (This is normally already the case as we pushed a binlog checkpoint
+      request through. But if no XID-capable engines are enabled (eg. running
+      without InnoDB), then that is a no-op).
+    */
+    queue_binlog_background_sentinel();
+    binlog_background_wait_for_sentinel();
   }
 
   /* Save variables so that we can reopen the log */
   save_name=name;
   name=0;					// Protect against free
-  close(LOG_CLOSE_TO_BE_OPENED);
+
+  /*
+    Close the active log.
+    Close the active GTID index synchroneously. We don't want the close
+    running in the background while we delete the gtid index file. And we just
+    pushed a sentinel through the binlog background thread while holding
+    LOCK_log, so no other GTID index operations can be pending.
+  */
+  close(LOG_CLOSE_TO_BE_OPENED|LOG_CLOSE_SYNC_GTID_INDEX);
 
   last_used_log_number= 0;                      // Reset log number cache
 
@@ -4440,6 +4512,28 @@ bool MYSQL_BIN_LOG::reset_logs(THD *thd, bool create_new_log,
 
   for (;;)
   {
+    /* Delete any GTID index file. */
+    char buf[Gtid_index_base::GTID_INDEX_FILENAME_MAX_SIZE];
+    Gtid_index_base::make_gtid_index_file_name(buf, sizeof(buf),
+                                               linfo.log_file_name);
+    if (my_delete(buf, MYF(0)))
+    {
+      /* If ENOENT, the GTID index file is already deleted or never existed. */
+      if (my_errno != ENOENT)
+      {
+        if (thd)
+        {
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                              ER_CANT_DELETE_FILE, ER_THD(thd, ER_CANT_DELETE_FILE),
+                              buf, my_errno);
+        }
+        sql_print_information("Failed to delete file '%s' (errno=%d)",
+                              buf, my_errno);
+      }
+      my_errno= 0;
+    }
+
+    /* Delete the binlog file. */
     if (unlikely((error= my_delete(linfo.log_file_name, MYF(0)))))
     {
       if (my_errno == ENOENT) 
@@ -4950,6 +5044,7 @@ int MYSQL_BIN_LOG::purge_index_entry(THD *thd, ulonglong *reclaimed_space,
   int error= 0;
   LOG_INFO log_info;
   LOG_INFO check_log_info;
+  char buf[Gtid_index_base::GTID_INDEX_FILENAME_MAX_SIZE];
 
   DBUG_ASSERT(my_b_inited(&purge_index_file));
 
@@ -4982,6 +5077,24 @@ int MYSQL_BIN_LOG::purge_index_entry(THD *thd, ulonglong *reclaimed_space,
 
     /* Get rid of the trailing '\n' */
     log_info.log_file_name[length-1]= 0;
+
+    Gtid_index_base::make_gtid_index_file_name(buf, sizeof(buf),
+                                               log_info.log_file_name);
+    if (my_delete(buf, MYF(0)))
+    {
+      /* If ENOENT, the GTID index file is already deleted or never existed. */
+      if (my_errno != ENOENT)
+      {
+        if (thd)
+        {
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                              ER_CANT_DELETE_FILE, ER_THD(thd, ER_CANT_DELETE_FILE),
+                              buf, my_errno);
+        }
+        sql_print_information("Failed to delete file '%s'", buf);
+      }
+      my_errno= 0;
+    }
 
     if (unlikely(!mysql_file_stat(m_key_file_log, log_info.log_file_name, &s,
                                   MYF(0))))
@@ -6962,6 +7075,8 @@ err:
       {
         bool synced;
 
+        update_gtid_index((uint32)offset, thd->get_last_commit_gtid());
+
         if ((error= flush_and_sync(&synced)))
         {
         }
@@ -7038,6 +7153,30 @@ err:
   DBUG_RETURN(error);
 }
 
+
+void
+MYSQL_BIN_LOG::update_gtid_index(uint32 offset, rpl_gtid gtid)
+{
+  if (!unlikely(gtid_index))
+    return;
+
+  rpl_gtid *gtid_list;
+  uint32 gtid_count;
+  int err= gtid_index->process_gtid_check_batch(offset, &gtid,
+                                                &gtid_list, &gtid_count);
+  if (err)
+    return;
+  if (gtid_list)
+  {
+    /*
+      Perform the GTID index update in the binlog background thread,
+      as we are running under the critical LOCK_log mutex.
+    */
+    if (queue_binlog_background_gtid_index_update(gtid_index, offset,
+                                                  gtid_list, gtid_count))
+      my_free(gtid_list);
+  }
+}
 
 int error_log_print(enum loglevel level, const char *format,
                     va_list args)
@@ -8477,6 +8616,8 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
 
       strmake_buf(cache_mngr->last_commit_pos_file, log_file_name);
       commit_offset= my_b_write_tell(&log_file);
+      update_gtid_index((uint32)commit_offset,
+                        current->thd->get_last_commit_gtid());
       cache_mngr->last_commit_pos_offset= commit_offset;
       if ((cache_mngr->using_xa && cache_mngr->xa_xid) || current->need_unlog)
       {
@@ -9062,6 +9203,33 @@ void MYSQL_BIN_LOG::close(uint exiting)
       }
     }
 #endif /* HAVE_REPLICATION */
+
+    if (!is_relay_log && likely(gtid_index))
+    {
+      if (exiting & (LOG_CLOSE_STOP_EVENT|LOG_CLOSE_SYNC_GTID_INDEX))
+      {
+        /*
+          The binlog background thread is already stopped just close the final
+          GTID index synchronously. Or caller explicitly requested synchronous
+          close of the GTID index.
+        */
+        gtid_index->close();
+        delete gtid_index;
+      }
+      else
+      {
+        /*
+          Queue a close on the current GTID index.
+          Important that this is queued _before_ the checkpoint request is sent
+          (and thus before chechpoint notifications can be queued); this way, if
+          we crash before the GTID index is synced to disk, the checkpoint will
+          still be pending and the binlog file will be scanned during crash
+          recovery and the GTID index recovered.
+        */
+        queue_binlog_background_gtid_index_close(gtid_index);
+      }
+      gtid_index= nullptr;
+    }
 
     /* don't pwrite in a file opened with O_APPEND - it doesn't work */
     if (log_file.type == WRITE_CACHE && !(exiting & LOG_CLOSE_DELAYED_CLOSE))
@@ -10656,22 +10824,7 @@ void
 TC_LOG_BINLOG::commit_checkpoint_notify(void *cookie)
 {
   xid_count_per_binlog *entry= static_cast<xid_count_per_binlog *>(cookie);
-  bool found_entry= false;
-  mysql_mutex_lock(&LOCK_binlog_background_thread);
-  /* count the same notification kind from different engines */
-  for (xid_count_per_binlog *link= binlog_background_thread_queue;
-       link && !found_entry; link= link->next_in_queue)
-  {
-    if ((found_entry= (entry == link)))
-      entry->notify_count++;
-  }
-  if (!found_entry)
-  {
-    entry->next_in_queue= binlog_background_thread_queue;
-    binlog_background_thread_queue= entry;
-  }
-  mysql_cond_signal(&COND_binlog_background_thread);
-  mysql_mutex_unlock(&LOCK_binlog_background_thread);
+  queue_binlog_background_checkpoint_notify(entry);
 }
 
 /*
@@ -10690,7 +10843,9 @@ pthread_handler_t
 binlog_background_thread(void *arg __attribute__((unused)))
 {
   bool stop;
-  MYSQL_BIN_LOG::xid_count_per_binlog *queue, *next;
+  Binlog_background_job *queue, *next;
+  Binlog_background_job *freelist= nullptr;
+  Binlog_background_job **freelist_endptr= &freelist;
   THD *thd;
   my_thread_init();
   DBUG_ENTER("binlog_background_thread");
@@ -10734,6 +10889,18 @@ binlog_background_thread(void *arg __attribute__((unused)))
     */
     THD_STAGE_INFO(thd, stage_binlog_waiting_background_tasks);
     mysql_mutex_lock(&mysql_bin_log.LOCK_binlog_background_thread);
+
+    /*
+      Put back our job objects in the freelist, now that we own the mutex again.
+    */
+    if (freelist)
+    {
+      *freelist_endptr= binlog_background_freelist;
+      binlog_background_freelist= freelist;
+      freelist= nullptr;
+      freelist_endptr= &freelist;
+    }
+
     for (;;)
     {
       stop= binlog_background_thread_stop;
@@ -10752,6 +10919,7 @@ binlog_background_thread(void *arg __attribute__((unused)))
     }
     /* Grab the queue, if any. */
     binlog_background_thread_queue= NULL;
+    binlog_background_thread_endptr= &binlog_background_thread_queue;
     mysql_mutex_unlock(&mysql_bin_log.LOCK_binlog_background_thread);
 
     /* Process any incoming commit_checkpoint_notify() calls. */
@@ -10767,17 +10935,40 @@ binlog_background_thread(void *arg __attribute__((unused)))
 #endif
     while (queue)
     {
-      long count= queue->notify_count;
-      THD_STAGE_INFO(thd, stage_binlog_processing_checkpoint_notify);
-      DEBUG_SYNC(thd, "binlog_background_thread_before_mark_xid_done");
-      /* Set the thread start time */
-      thd->set_time();
-      /* Grab next pointer first, as mark_xid_done() may free the element. */
-      next= queue->next_in_queue;
-      queue->notify_count= 0;
-      for (long i= 0; i <= count; i++)
-        mysql_bin_log.mark_xid_done(queue->binlog_id, true);
-      queue= next;
+      switch (queue->job_type)
+      {
+      case Binlog_background_job::CHECKPOINT_NOTIFY:
+        THD_STAGE_INFO(thd, stage_binlog_processing_checkpoint_notify);
+        DEBUG_SYNC(thd, "binlog_background_thread_before_mark_xid_done");
+        /* Set the thread start time */
+        thd->set_time();
+        mysql_bin_log.mark_xid_done(queue->notify_entry->binlog_id, true);
+        break;
+
+      case Binlog_background_job::GTID_INDEX_UPDATE:
+        queue->gtid_index_data.gi->
+          async_update(queue->gtid_index_data.offset,
+                       queue->gtid_index_data.gtid_list,
+                       queue->gtid_index_data.gtid_count);
+        break;
+
+      case Binlog_background_job::GTID_INDEX_CLOSE:
+        queue->gtid_index_data.gi->close();
+        delete queue->gtid_index_data.gi;
+        break;
+
+      case Binlog_background_job::SENTINEL:
+        /*
+          The sentinel is a way to signal to reset_logs() that all pending
+          background jobs prior to the sentinel have been processed.
+        */
+        mysql_mutex_lock(&mysql_bin_log.LOCK_binlog_background_thread);
+        DBUG_ASSERT(binlog_background_thread_sentinel);
+        binlog_background_thread_sentinel= false;
+        mysql_cond_signal(&mysql_bin_log.COND_binlog_background_thread_end);
+        mysql_mutex_unlock(&mysql_bin_log.LOCK_binlog_background_thread);
+        break;
+      }
 
 #ifdef ENABLED_DEBUG_SYNC
       DBUG_EXECUTE_IF("binlog_background_checkpoint_processed",
@@ -10786,6 +10977,12 @@ binlog_background_thread(void *arg __attribute__((unused)))
           STRING_WITH_LEN("now SIGNAL binlog_background_checkpoint_processed")));
         );
 #endif
+
+      next= queue->next;
+      queue->next= nullptr;
+      *freelist_endptr= queue;
+      freelist_endptr= &queue->next;
+      queue= next;
     }
 
     if (stop)
@@ -10793,6 +10990,13 @@ binlog_background_thread(void *arg __attribute__((unused)))
   }
 
   THD_STAGE_INFO(thd, stage_binlog_stopping_background_thread);
+
+  while (freelist)
+  {
+    next= freelist->next;
+    my_free(freelist);
+    freelist= next;
+  }
 
   /* No need to use mutex as thd is not linked into other threads */
   THD_count::count++;
@@ -10802,6 +11006,12 @@ binlog_background_thread(void *arg __attribute__((unused)))
 
   /* Signal that we are (almost) stopped. */
   mysql_mutex_lock(&mysql_bin_log.LOCK_binlog_background_thread);
+  while (binlog_background_freelist)
+  {
+    next= binlog_background_freelist->next;
+    my_free(binlog_background_freelist);
+    binlog_background_freelist= next;
+  }
   binlog_background_thread_stop= false;
   mysql_cond_signal(&mysql_bin_log.COND_binlog_background_thread_end);
   mysql_mutex_unlock(&mysql_bin_log.LOCK_binlog_background_thread);
@@ -10845,6 +11055,139 @@ start_binlog_background_thread()
 
   return 0;
 }
+
+
+static Binlog_background_job *
+get_binlog_background_job()
+{
+  Binlog_background_job *job;
+  mysql_mutex_assert_owner(&mysql_bin_log.LOCK_binlog_background_thread);
+
+  if ((job= binlog_background_freelist) != nullptr)
+    binlog_background_freelist= job->next;
+  else
+    job= (Binlog_background_job *)my_malloc(PSI_INSTRUMENT_ME, sizeof(*job),
+                                            MYF(MY_WME));
+
+  return job;
+}
+
+
+static void
+queue_binlog_background_job(Binlog_background_job *job)
+{
+  mysql_mutex_assert_owner(&mysql_bin_log.LOCK_binlog_background_thread);
+
+  job->next= nullptr;
+  *binlog_background_thread_endptr= job;
+  binlog_background_thread_endptr= &job->next;
+  mysql_cond_signal(&mysql_bin_log.COND_binlog_background_thread);
+}
+
+
+static int
+queue_binlog_background_checkpoint_notify(
+                MYSQL_BIN_LOG::xid_count_per_binlog *entry)
+{
+  int res;
+
+  mysql_mutex_lock(&mysql_bin_log.LOCK_binlog_background_thread);
+  Binlog_background_job *job= get_binlog_background_job();
+  if (!job)
+    res= 1;
+  else
+  {
+    job->job_type= Binlog_background_job::CHECKPOINT_NOTIFY;
+    job->notify_entry= entry;
+    queue_binlog_background_job(job);
+    res= 0;
+  }
+  mysql_mutex_unlock(&mysql_bin_log.LOCK_binlog_background_thread);
+  return res;
+}
+
+
+static int
+queue_binlog_background_gtid_index_update(Gtid_index_writer *gi, uint32 offset,
+                                          rpl_gtid *gtid_list, uint32 count)
+{
+  int res;
+
+  mysql_mutex_lock(&mysql_bin_log.LOCK_binlog_background_thread);
+  Binlog_background_job *job= get_binlog_background_job();
+  if (!unlikely(job))
+    res= 1;
+  else
+  {
+    job->job_type= Binlog_background_job::GTID_INDEX_UPDATE;
+    job->gtid_index_data.gi= gi;
+    job->gtid_index_data.gtid_list= gtid_list;
+    job->gtid_index_data.gtid_count= count;
+    job->gtid_index_data.offset= offset;
+    queue_binlog_background_job(job);
+    res= 0;
+  }
+  mysql_mutex_unlock(&mysql_bin_log.LOCK_binlog_background_thread);
+
+  return res;
+}
+
+
+static int
+queue_binlog_background_gtid_index_close(Gtid_index_writer *gi)
+{
+  int res;
+
+  mysql_mutex_lock(&mysql_bin_log.LOCK_binlog_background_thread);
+  Binlog_background_job *job= get_binlog_background_job();
+  if (!job)
+    return 1;
+  else
+  {
+    job->job_type= Binlog_background_job::GTID_INDEX_CLOSE;
+    job->gtid_index_data.gi= gi;
+    queue_binlog_background_job(job);
+    res= 0;
+  }
+  mysql_mutex_unlock(&mysql_bin_log.LOCK_binlog_background_thread);
+
+  return res;
+}
+
+
+static int
+queue_binlog_background_sentinel()
+{
+  int res;
+
+  mysql_mutex_lock(&mysql_bin_log.LOCK_binlog_background_thread);
+  DBUG_ASSERT(!binlog_background_thread_sentinel);
+  Binlog_background_job *job= get_binlog_background_job();
+  if (!job)
+    return 1;
+  else
+  {
+    binlog_background_thread_sentinel= true;
+    job->job_type= Binlog_background_job::SENTINEL;
+    queue_binlog_background_job(job);
+    res= 0;
+  }
+  mysql_mutex_unlock(&mysql_bin_log.LOCK_binlog_background_thread);
+
+  return res;
+}
+
+static void
+binlog_background_wait_for_sentinel()
+{
+  mysql_mutex_lock(&mysql_bin_log.LOCK_binlog_background_thread);
+  while(binlog_background_thread_sentinel)
+    mysql_cond_wait(&mysql_bin_log.COND_binlog_background_thread_end,
+                    &mysql_bin_log.LOCK_binlog_background_thread);
+  mysql_mutex_unlock(&mysql_bin_log.LOCK_binlog_background_thread);
+}
+
+
 #ifdef HAVE_REPLICATION
 class Recovery_context
 {
@@ -11111,7 +11454,7 @@ bool Recovery_context::reset_truncate_coord(my_off_t pos)
   for (uint i= 0; i < gtid_maybe_to_truncate->elements(); i++)
   {
     rpl_gtid gtid= gtid_maybe_to_truncate->at(i);
-    if (rpl_global_gtid_binlog_state.update_nolock(&gtid, false))
+    if (rpl_global_gtid_binlog_state.update_nolock(&gtid))
       return true;
   }
   gtid_maybe_to_truncate->clear();
@@ -11376,6 +11719,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
                            Format_description_log_event *fdle, bool do_xa)
 {
   Log_event *ev= NULL;
+  Gtid_index_writer *gtid_index_recover= NULL;
   HASH xids, ddl_log_ids;
   MEM_ROOT mem_root;
   char binlog_checkpoint_name[FN_REFLEN];
@@ -11512,6 +11856,8 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
           /* Initialise the binlog state from the Gtid_list event. */
           if (rpl_global_gtid_binlog_state.load(glev->list, glev->count))
             goto err2;
+          if (opt_binlog_gtid_index)
+            gtid_index_recover= recover_gtid_index_start(last_log_name, end_pos);
         }
         break;
 
@@ -11551,7 +11897,8 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
                      (((Query_log_event *)ev)->is_commit() ||
                       ((Query_log_event *)ev)->is_rollback()))));
 
-        if (rpl_global_gtid_binlog_state.update_nolock(&ctx.last_gtid, false))
+        recover_gtid_index_process(gtid_index_recover, end_pos, &ctx.last_gtid);
+        if (rpl_global_gtid_binlog_state.update_nolock(&ctx.last_gtid))
           goto err2;
         ctx.last_gtid_valid= false;
       }
@@ -11560,6 +11907,8 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
       delete ev;
       ev= NULL;
     } // end of while
+    recover_gtid_index_end(gtid_index_recover);
+    gtid_index_recover= NULL;
     cur_log= &log;
 
     /*
@@ -11645,6 +11994,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
 
 err2:
   delete ev;
+  recover_gtid_index_abort(gtid_index_recover);
   if (file >= 0)
   {
     end_io_cache(&log);
@@ -11662,6 +12012,104 @@ err1:
   DBUG_RETURN(1);
 }
 
+
+/*
+  Start recovery of the GTID index for a binlog file.
+  The old index is deleted and a new index is rebuilt while scanning the
+  binlog file during binlog recovery.
+  Errors are not fatal, as the code can fallback to slower full binlog file
+  scan when no GTID index is available.
+
+   @param  base_name  File name of the binlog file.
+   @param  offset     End log pos of the GTID_LIST log event of the binlog file.
+
+   @return Gtid_index_writer object or NULL.
+*/
+Gtid_index_writer *
+MYSQL_BIN_LOG::recover_gtid_index_start(const char *base_name, my_off_t offset)
+{
+  char buf[Gtid_index_base::GTID_INDEX_FILENAME_MAX_SIZE];
+
+  Gtid_index_base::make_gtid_index_file_name(buf, sizeof(buf), base_name);
+  if (my_delete(buf, MYF(0)))
+  {
+    /* If ENOENT, the GTID index file is already deleted or never existed. */
+    if (my_errno != ENOENT)
+    {
+      sql_print_information("Failed to delete file '%s' (errno=%d)", buf, my_errno);
+    }
+    my_errno= 0;
+  }
+  Gtid_index_writer *gi=
+    new Gtid_index_writer(base_name, (uint32)offset,
+                          &rpl_global_gtid_binlog_state,
+                          (uint32)opt_binlog_gtid_index_page_size,
+                          (my_off_t)opt_binlog_gtid_index_span_min);
+  return gi;
+}
+
+
+/*
+  Process one GTID during GTID index recovery.
+
+   @param  gi      Gtid_index_writer object or NULL.
+   @param  offset  End log pos of the GTID event.
+   @param  gev     GTID log event to process.
+
+   @return nothing
+*/
+void
+MYSQL_BIN_LOG::recover_gtid_index_process(Gtid_index_writer *gi,
+                                          my_off_t offset,
+                                          const rpl_gtid *gtid)
+{
+  if (gi)
+  {
+    gi->process_gtid((uint32)offset, gtid);
+  }
+}
+
+
+/*
+  Complete the recovery of one GTID index, syncing and closing it.
+
+   @param  gi      Gtid_index_writer object or NULL.
+
+   @return nothing
+*/
+void
+MYSQL_BIN_LOG::recover_gtid_index_end(Gtid_index_writer *gi)
+{
+  if (gi)
+  {
+    gi->close();
+    delete gi;
+  }
+}
+
+
+/*
+  Abort the recovery of one GTID index, deleting any partially recovered index.
+
+   @param  gi      Gtid_index_writer object or NULL.
+
+   @return nothing
+*/
+void
+MYSQL_BIN_LOG::recover_gtid_index_abort(Gtid_index_writer *gi)
+{
+  if (gi)
+  {
+    char buf[Gtid_index_base::GTID_INDEX_FILENAME_MAX_SIZE];
+    strmake(buf, gi->index_file_name, sizeof(buf)-1);
+    /*
+      Delete first the Gtid_index_writer object and then the partial index
+      (the writer still has the index file open and active until destructed).
+    */
+    delete(gi);
+    my_delete(buf, MYF(0));
+  }
+}
 
 
 int

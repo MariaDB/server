@@ -6844,6 +6844,36 @@ Sys_binlog_row_metadata(
        ON_UPDATE(NULL));
 
 
+static Sys_var_on_access_global<Sys_var_mybool,
+                           PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_GTID_INDEX>
+Sys_binlog_gtid_index(
+       "binlog_gtid_index",
+       "Enable the creation of a GTID index for every binlog file, and the use "
+       "of such index for speeding up GTID lookup in the binlog.",
+       GLOBAL_VAR(opt_binlog_gtid_index), CMD_LINE(OPT_ARG),
+       DEFAULT(TRUE));
+
+
+static Sys_var_on_access_global<Sys_var_uint,
+                        PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_GTID_INDEX_PAGE_SIZE>
+Sys_binlog_gtid_index_page_size(
+       "binlog_gtid_index_page_size",
+       "Page size to use for the binlog GTID index.",
+       GLOBAL_VAR(opt_binlog_gtid_index_page_size), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(64, 1<<24), DEFAULT(4096), BLOCK_SIZE(1));
+
+
+static Sys_var_on_access_global<Sys_var_uint,
+                        PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_GTID_INDEX_SPAN_MIN>
+Sys_binlog_gtid_index_span_min(
+       "binlog_gtid_index_span_min",
+       "Control sparseness of the binlog GTID index. If set to N, at most one "
+       "index record will be added for every N bytes of binlog file written, "
+       "to reduce the size of the index. Normally does not need tuning.",
+       GLOBAL_VAR(opt_binlog_gtid_index_span_min), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(1, 1024*1024L*1024L), DEFAULT(65536), BLOCK_SIZE(1));
+
+
 static bool check_pseudo_slave_mode(sys_var *self, THD *thd, set_var *var)
 {
   longlong previous_val= thd->variables.pseudo_slave_mode;

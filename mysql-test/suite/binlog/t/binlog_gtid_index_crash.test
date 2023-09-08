@@ -1,0 +1,66 @@
+--source include/have_innodb.inc
+# Don't test this under valgrind, memory leaks will occur
+--source include/not_valgrind.inc
+# Avoid CrashReporter popup on Mac
+--source include/not_crashrep.inc
+# Binary must be compiled with debug for crash to occur
+--source include/have_debug.inc
+--source include/have_binlog_format_row.inc
+
+# We have an .opt file that sets a small page size and disables sparseness,
+# so we get something non-trivial in the GTID index even with a small amount
+# of binlogged events.
+
+--echo *** Test that binlog GTID index is recovered after a crash.
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+
+--disable_query_log
+INSERT INTO t1 VALUES (0, 0);
+INSERT INTO t1 VALUES (1, 0);
+INSERT INTO t1 VALUES (2, 0);
+--let $i= 10
+while ($i < 20) {
+  eval INSERT INTO t1 VALUES ($i, 0);
+  inc $i;
+}
+--let $file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $pos1= query_get_value(SHOW MASTER STATUS, Position, 1)
+--let $gtid1= `SELECT @@gtid_binlog_pos`
+while ($i < 30) {
+  eval INSERT INTO t1 VALUES ($i, 0);
+  inc $i;
+}
+--let $pos2= query_get_value(SHOW MASTER STATUS, Position, 1)
+--let $gtid2= `SELECT @@gtid_binlog_pos`
+while ($i < 40) {
+  eval INSERT INTO t1 VALUES ($i, 0);
+  inc $i;
+}
+--let $pos3= query_get_value(SHOW MASTER STATUS, Position, 1)
+--let $gtid3= `SELECT @@gtid_binlog_pos`
+INSERT INTO t1 VALUES (50, 0);
+INSERT INTO t1 VALUES (51, 0);
+
+--disable_ps2_protocol
+FLUSH NO_WRITE_TO_BINLOG STATUS;
+eval SELECT BINLOG_GTID_POS('$file', $pos1) = "$gtid1" AS Ok;
+eval SELECT BINLOG_GTID_POS('$file', $pos2) = "$gtid2" AS Ok;
+eval SELECT BINLOG_GTID_POS('$file', $pos3) = "$gtid3" AS Ok;
+--enable_query_log
+SHOW STATUS LIKE 'binlog_gtid_index_%';
+--enable_ps2_protocol
+
+--echo *** Crash the server, check that GTID index can be used after restart.
+--source include/crash_mysqld.inc
+
+--disable_ps2_protocol
+FLUSH NO_WRITE_TO_BINLOG STATUS;
+--disable_query_log
+eval SELECT BINLOG_GTID_POS('$file', $pos1) = "$gtid1" AS Ok;
+eval SELECT BINLOG_GTID_POS('$file', $pos2) = "$gtid2" AS Ok;
+eval SELECT BINLOG_GTID_POS('$file', $pos3) = "$gtid3" AS Ok;
+--enable_query_log
+SHOW STATUS LIKE 'binlog_gtid_index_%';
+--enable_ps2_protocol
+
+DROP TABLE t1;

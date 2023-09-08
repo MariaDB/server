@@ -83,6 +83,7 @@
 #include "wsrep_server_state.h"
 #endif /* WITH_WSREP */
 #include "proxy_protocol.h"
+#include "gtid_index.h"
 
 #include "sql_callback.h"
 #include "threadpool.h"
@@ -443,6 +444,9 @@ my_bool sp_automatic_privileges= 1;
 
 ulong opt_binlog_rows_event_max_size;
 ulong binlog_row_metadata;
+my_bool opt_binlog_gtid_index= TRUE;
+uint opt_binlog_gtid_index_page_size= 4096;
+uint opt_binlog_gtid_index_span_min= 65536;
 my_bool opt_master_verify_checksum= 0;
 my_bool opt_slave_sql_verify_checksum= 1;
 const char *binlog_format_names[]= {"MIXED", "STATEMENT", "ROW", NullS};
@@ -491,6 +495,7 @@ ulong malloc_calls;
 ulong specialflag=0;
 ulong binlog_cache_use= 0, binlog_cache_disk_use= 0;
 ulong binlog_stmt_cache_use= 0, binlog_stmt_cache_disk_use= 0;
+ulong binlog_gtid_index_hit= 0, binlog_gtid_index_miss= 0;
 ulong max_connections, max_connect_errors;
 uint max_password_errors;
 ulong extra_max_connections;
@@ -896,7 +901,7 @@ PSI_file_key key_file_binlog,  key_file_binlog_cache, key_file_binlog_index,
 PSI_file_key key_file_query_log, key_file_slow_log;
 PSI_file_key key_file_relaylog, key_file_relaylog_index,
              key_file_relaylog_cache, key_file_relaylog_index_cache;
-PSI_file_key key_file_binlog_state;
+PSI_file_key key_file_binlog_state, key_file_gtid_index;
 
 #ifdef HAVE_PSI_INTERFACE
 #ifdef HAVE_MMAP
@@ -921,6 +926,7 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_status, key_LOCK_temp_pool,
   key_LOCK_system_variables_hash, key_LOCK_thd_data, key_LOCK_thd_kill,
   key_LOCK_user_conn, key_LOCK_uuid_short_generator, key_LOG_LOCK_log,
+  key_gtid_index_lock,
   key_master_info_data_lock, key_master_info_run_lock,
   key_master_info_sleep_lock, key_master_info_start_stop_lock,
   key_master_info_start_alter_lock,
@@ -1007,6 +1013,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_user_conn, "LOCK_user_conn", PSI_FLAG_GLOBAL},
   { &key_LOCK_uuid_short_generator, "LOCK_uuid_short_generator", PSI_FLAG_GLOBAL},
   { &key_LOG_LOCK_log, "LOG::LOCK_log", 0},
+  { &key_gtid_index_lock, "Gtid_index_writer::gtid_index_mutex", 0},
   { &key_master_info_data_lock, "Master_info::data_lock", 0},
   { &key_master_info_start_stop_lock, "Master_info::start_stop_lock", 0},
   { &key_master_info_run_lock, "Master_info::run_lock", 0},
@@ -2011,6 +2018,7 @@ static void clean_up(bool print_message)
 
   injector::free_instance();
   mysql_bin_log.cleanup();
+  Gtid_index_writer::gtid_index_cleanup();
 
   my_tz_free();
   my_dboptions_cache_free();
@@ -3962,6 +3970,7 @@ static int init_common_variables()
     inited before MY_INIT(). So we do it here.
   */
   mysql_bin_log.init_pthread_objects();
+  Gtid_index_writer::gtid_index_init();
 
   /* TODO: remove this when my_time_t is 64 bit compatible */
   if (!IS_TIME_T_VALID_FOR_TIMESTAMP(server_start_time))
@@ -7396,6 +7405,8 @@ SHOW_VAR status_vars[]= {
   {"Binlog_bytes_written",     (char*) offsetof(STATUS_VAR, binlog_bytes_written), SHOW_LONGLONG_STATUS},
   {"Binlog_cache_disk_use",    (char*) &binlog_cache_disk_use,  SHOW_LONG},
   {"Binlog_cache_use",         (char*) &binlog_cache_use,       SHOW_LONG},
+  {"Binlog_gtid_index_hit",    (char*) &binlog_gtid_index_hit, SHOW_LONG},
+  {"Binlog_gtid_index_miss",   (char*) &binlog_gtid_index_miss, SHOW_LONG},
   {"Binlog_stmt_cache_disk_use",(char*) &binlog_stmt_cache_disk_use,  SHOW_LONG},
   {"Binlog_stmt_cache_use",    (char*) &binlog_stmt_cache_use,       SHOW_LONG},
   {"Busy_time",                (char*) offsetof(STATUS_VAR, busy_time), SHOW_DOUBLE_STATUS},
@@ -7821,6 +7832,7 @@ static int mysql_init_variables(void)
   delayed_insert_errors= thread_created= 0;
   specialflag= 0;
   binlog_cache_use=  binlog_cache_disk_use= 0;
+  binlog_gtid_index_hit= binlog_gtid_index_miss= 0;
   max_used_connections= slow_launch_threads = 0;
   max_used_connections_time= 0;
   mysqld_user= mysqld_chroot= opt_init_file= opt_bin_logname = 0;
@@ -9219,7 +9231,8 @@ static PSI_file_info all_server_files[]=
   { &key_file_trg, "trigger_name", 0},
   { &key_file_trn, "trigger", 0},
   { &key_file_init, "init", 0},
-  { &key_file_binlog_state, "binlog_state", 0}
+  { &key_file_binlog_state, "binlog_state", 0},
+  { &key_file_gtid_index, "gtid_index", 0}
 };
 #endif /* HAVE_PSI_INTERFACE */
 
@@ -9413,6 +9426,7 @@ PSI_memory_key key_memory_acl_cache;
 PSI_memory_key key_memory_acl_mem;
 PSI_memory_key key_memory_acl_memex;
 PSI_memory_key key_memory_binlog_cache_mngr;
+PSI_memory_key key_memory_binlog_gtid_index;
 PSI_memory_key key_memory_binlog_pos;
 PSI_memory_key key_memory_binlog_recover_exec;
 PSI_memory_key key_memory_binlog_statement_buffer;
@@ -9652,6 +9666,7 @@ static PSI_memory_info all_server_memory[]=
 //  { &key_memory_Slave_job_group_group_relay_log_name, "Slave_job_group::group_relay_log_name", 0},
   { &key_memory_Relay_log_info_group_relay_log_name, "Relay_log_info::group_relay_log_name", 0},
   { &key_memory_binlog_cache_mngr, "binlog_cache_mngr", 0},
+  { &key_memory_binlog_gtid_index, "binlog_gtid_index", 0},
   { &key_memory_Row_data_memory_memory, "Row_data_memory::memory", 0},
 //  { &key_memory_Gtid_set_to_string, "Gtid_set::to_string", 0},
 //  { &key_memory_Gtid_state_to_string, "Gtid_state::to_string", 0},

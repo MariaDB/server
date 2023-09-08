@@ -98,6 +98,17 @@ The following specify which files/extra groups are read (specified before remain
  involve user-defined functions (i.e. UDFs) or the UUID()
  function; for those, row-based binary logging is
  automatically used.
+ --binlog-gtid-index Enable the creation of a GTID index for every binlog
+ file, and the use of such index for speeding up GTID
+ lookup in the binlog.
+ (Defaults to on; use --skip-binlog-gtid-index to disable.)
+ --binlog-gtid-index-page-size=# 
+ Page size to use for the binlog GTID index.
+ --binlog-gtid-index-span-min=# 
+ Control sparseness of the binlog GTID index. If set to N,
+ at most one index record will be added for every N bytes
+ of binlog file written, to reduce the size of the index.
+ Normally does not need tuning.
  --binlog-ignore-db=name 
  Tells the master that updates to the given database
  should not be logged to the binary log.
@@ -1597,6 +1608,9 @@ binlog-direct-non-transactional-updates FALSE
 binlog-expire-logs-seconds 0
 binlog-file-cache-size 16384
 binlog-format MIXED
+binlog-gtid-index TRUE
+binlog-gtid-index-page-size 4096
+binlog-gtid-index-span-min 65536
 binlog-legacy-event-pos FALSE
 binlog-optimize-thread-scheduling TRUE
 binlog-row-event-max-size 8192
