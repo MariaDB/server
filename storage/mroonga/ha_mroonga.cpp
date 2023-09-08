@@ -14660,7 +14660,8 @@ enum_alter_inplace_result ha_mroonga::storage_check_if_supported_inplace_alter(
     ALTER_COLUMN_NAME;
   if (ha_alter_info->handler_flags & explicitly_unsupported_flags) {
     DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
-  } else if (ha_alter_info->handler_flags & supported_flags) {
+  } else if ((ha_alter_info->handler_flags & supported_flags) ==
+              ha_alter_info->handler_flags) {
     DBUG_RETURN(HA_ALTER_INPLACE_EXCLUSIVE_LOCK);
   } else {
     DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
