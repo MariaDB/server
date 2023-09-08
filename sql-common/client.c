@@ -2052,6 +2052,9 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
   if (mpvio->db)
     mysql->client_flag|= CLIENT_CONNECT_WITH_DB;
 
+  if (mysql->net.vio->type == VIO_TYPE_NAMEDPIPE)
+    mysql->server_capabilities&= ~(CLIENT_SSL | CLIENT_SSL_VERIFY_SERVER_CERT);
+
   /* Remove options that server doesn't support */
   mysql->client_flag= mysql->client_flag &
                        (~(CLIENT_COMPRESS | CLIENT_SSL | CLIENT_PROTOCOL_41) 
