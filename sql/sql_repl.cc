@@ -1273,6 +1273,70 @@ end:
   return err;
 }
 
+
+/*
+  Helper function for gtid_find_binlog_file() below.
+  Check a binlog file against a slave position. Use a GTID index if present.
+  Returns:
+     0  This is the binlog file that contains the position. If *out_start_seek
+        is non-zero, it is the offset found in the GTID index at which to start
+        scanning the binlog file for events to send to the slave.
+     1  This binlog file is too new to contain the given slave position.
+    -1  Error, *out_errormsg contains error string.
+
+  The *out_glev event must be deleted by the caller if set non-null.
+ */
+static int
+gtid_check_binlog_file(slave_connection_state *state,
+                       const binlog_file_entry *list,
+                       char *out_name, Gtid_list_log_event **out_glev,
+                       const char **out_errormsg)
+{
+  Gtid_list_log_event *glev= nullptr;
+  char buf[FN_REFLEN];
+  File file;
+  IO_CACHE cache;
+  int res= -1;
+
+  *out_glev= nullptr;
+  *out_errormsg= nullptr;
+  /*
+    Read the Gtid_list_log_event at the start of the binlog file to
+    get the binlog state.
+  */
+  if (normalize_binlog_name(buf, list->name.str, false))
+  {
+    *out_errormsg= "Failed to determine binlog file name while looking for "
+      "GTID position in binlog";
+    goto err;
+  }
+  bzero((char*) &cache, sizeof(cache));
+  if (unlikely((file= open_binlog(&cache, buf, out_errormsg)) == (File)-1))
+    goto err;
+  *out_errormsg= get_gtid_list_event(&cache, &glev);
+  end_io_cache(&cache);
+  mysql_file_close(file, MYF(MY_WME));
+  if (unlikely(*out_errormsg))
+    goto err;
+
+  if (!glev || contains_all_slave_gtid(state, glev))
+  {
+    strmake(out_name, buf, FN_REFLEN);
+    *out_glev= glev;
+    *out_errormsg= nullptr;
+    res= 0;
+  }
+  else
+  {
+    delete glev;
+    res= 1;
+  }
+
+err:
+  return res;
+}
+
+
 /*
   Find the name of the binlog file to start reading for a slave that connects
   using GTID state.
@@ -1308,7 +1372,6 @@ gtid_find_binlog_file(slave_connection_state *state, char *out_name,
   binlog_file_entry *list;
   Gtid_list_log_event *glev= NULL;
   const char *errormsg= NULL;
-  char buf[FN_REFLEN];
 
   init_alloc_root(PSI_INSTRUMENT_ME, &memroot,
                   10*(FN_REFLEN+sizeof(binlog_file_entry)), 0,
@@ -1321,42 +1384,11 @@ gtid_find_binlog_file(slave_connection_state *state, char *out_name,
 
   while (list)
   {
-    File file;
-    IO_CACHE cache;
-
-    if (!list->next)
-    {
-      /*
-        It should be safe to read the currently used binlog, as we will only
-        read the header part that is already written.
-
-        But if that does not work on windows, then we will need to cache the
-        event somewhere in memory I suppose - that could work too.
-      */
-    }
-    /*
-      Read the Gtid_list_log_event at the start of the binlog file to
-      get the binlog state.
-    */
-    if (normalize_binlog_name(buf, list->name.str, false))
-    {
-      errormsg= "Failed to determine binlog file name while looking for "
-        "GTID position in binlog";
+    int res= gtid_check_binlog_file(state, list, out_name, &glev, &errormsg);
+    if (res < 0)
       goto end;
-    }
-    bzero((char*) &cache, sizeof(cache));
-    if (unlikely((file= open_binlog(&cache, buf, &errormsg)) == (File)-1))
-      goto end;
-    errormsg= get_gtid_list_event(&cache, &glev);
-    end_io_cache(&cache);
-    mysql_file_close(file, MYF(MY_WME));
-    if (unlikely(errormsg))
-      goto end;
-
-    if (!glev || contains_all_slave_gtid(state, glev))
+    if (res == 0)
     {
-      strmake(out_name, buf, FN_REFLEN);
-
       if (glev)
       {
         uint32 i;
@@ -1414,8 +1446,6 @@ gtid_find_binlog_file(slave_connection_state *state, char *out_name,
 
       goto end;
     }
-    delete glev;
-    glev= NULL;
     list= list->next;
   }
 
