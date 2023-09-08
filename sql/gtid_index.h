@@ -225,11 +225,20 @@ public:
     ~Index_node();
     void reset();
   };
+
+  static void gtid_index_init();
+  static void gtid_index_cleanup();
+  static void lock_gtid_index() { mysql_mutex_lock(&gtid_index_mutex); }
+  static void unlock_gtid_index() { mysql_mutex_unlock(&gtid_index_mutex); }
+  static const Gtid_index_writer *find_hot_index(const char *file_name);
+
   Gtid_index_writer(const char *filename, my_off_t offset,
                     rpl_binlog_state *binlog_state);
   virtual ~Gtid_index_writer();
+  void insert_in_hot_index();
+  void remove_from_hot_index();
   void process_gtid(my_off_t offset, const rpl_gtid *gtid);
-  void close(my_off_t offset);
+  void close();
   uint32 write_current_node(uint32 level, bool is_root);
   int reserve_space(Index_node *n, size_t bytes);
   int do_write_record(uint32 level, uint32 event_offset,
@@ -242,7 +251,12 @@ public:
   uchar *init_header(Node_page *page, bool is_leaf, bool is_first);
   int give_error(const char *msg) override;
 
+  static mysql_mutex_t gtid_index_mutex;
+  static Gtid_index_writer *hot_index_list;
+
   rpl_binlog_state pending_state;
+  /* Next pointer for the hot_index_list linked list. */
+  Gtid_index_writer *next_hot_index;
   /* The currently being built index nodes, from leaf[0] to root[max_level]. */
   Index_node **nodes;
   my_off_t previous_offset;
@@ -261,6 +275,8 @@ public:
   bool error_state;
   /* Flag to help put the file header at the start of the very first page. */
   bool file_header_written;
+  /* Flag set while this object is visible in the "hot index" list. */
+  bool in_hot_index_list;
 };
 
 
@@ -292,6 +308,7 @@ public:
   int search_cmp_offset(uint32 offset, rpl_binlog_state *state);
   int search_cmp_gtid_pos(uint32 offset, rpl_binlog_state *state);
   int do_index_search(uint32 *out_offset, uint32 *out_gtid_count);
+  int do_index_search_root(uint32 *out_offset, uint32 *out_gtid_count);
   int do_index_search_leaf(bool current_state_updated,
                            uint32 *out_offset, uint32 *out_gtid_count);
   int next_page();
@@ -303,12 +320,20 @@ public:
   void close_index_file();
   int read_file_header();
   int read_root_node();
+  int read_root_node_hot();
+  int read_root_node_cold();
   int read_node(uint32 page_ptr);
+  int read_node_hot();
+  int read_node_cold(uint32 page_ptr);
   int give_error(const char *msg) override;
 
   rpl_binlog_state current_state;
   rpl_binlog_state compare_state;
-  Index_node_base n;
+  Index_node_base cold_node;
+  /* n points to either cold node or hot node in writer. */
+  Index_node_base *n;
+  /* Pointer to the writer object, if we're reading a hot index. */
+  const Gtid_index_writer *hot_writer;
   int (Gtid_index_reader::* search_cmp_function)(uint32, rpl_binlog_state *);
   slave_connection_state *in_search_gtid_pos;
   Node_page *read_page;
@@ -316,8 +341,11 @@ public:
   File index_file;
   uint32 current_offset;
   uint32 in_search_offset;
+  /* The level we are currently reading in the hot writer .*/
+  uint32 hot_level;
   bool file_open;
   bool index_valid;
+  bool has_root_node;
   uchar version_major;
   uchar version_minor;
 };

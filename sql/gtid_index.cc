@@ -24,24 +24,21 @@ static const uchar GTID_INDEX_MAGIC[8]= {
   'M', 'D', 'B', 'B', 'L', 'I', 'D', 'X'
 };
 
+Gtid_index_writer *Gtid_index_writer::hot_index_list= nullptr;
+/* gtid_index_mutex is inited in MYSQL_LOG::init_pthread_objects(). */
+mysql_mutex_t Gtid_index_writer::gtid_index_mutex;
+
+
 Gtid_index_writer::Gtid_index_writer(const char *filename, my_off_t offset,
                                      rpl_binlog_state *binlog_state)
   : nodes(nullptr), previous_offset(0),
     max_level(0), pending_gtid_count(0), index_file(-1),
-    error_state(false), file_header_written(false)
+    error_state(false), file_header_written(false), in_hot_index_list(false)
 {
+  uint32 count;
+  rpl_gtid *gtid_list;
   page_size= 64; // 4096;   /* ToDo: init from config */
   pending_state.init();
-
-  build_index_filename(filename);
-  index_file= mysql_file_create(key_file_gtid_index, index_file_name,
-                                CREATE_MODE, O_RDWR|O_TRUNC|O_BINARY,
-                                MYF(MY_WME));
-  if (index_file < 0)
-  {
-    give_error("Failed to open new index file for writing");
-    return;
-  }
 
   if (alloc_level_if_missing(0))
   {
@@ -50,23 +47,53 @@ Gtid_index_writer::Gtid_index_writer(const char *filename, my_off_t offset,
   }
 
   /*
+    Lock the index mutex at this point just before we create the new index
+    file on disk. From this point on, and until the index is fully written,
+    the reader will find us in the "hot index" list and will be able to read
+    from the index while it's still being constructed.
+  */
+  lock_gtid_index();
+
+  build_index_filename(filename);
+  index_file= mysql_file_create(key_file_gtid_index, index_file_name,
+                                CREATE_MODE, O_RDWR|O_TRUNC|O_BINARY,
+                                MYF(MY_WME));
+  if (index_file < 0)
+  {
+    give_error("Failed to open new index file for writing");
+    goto err;
+  }
+
+  /*
     Write out an initial index record, i.e. corresponding to the GTID_LIST
     event / binlog state at the start of the binlog file.
   */
-  uint32 count= binlog_state->count();
-  rpl_gtid *gtid_list= gtid_list_buffer(count);
+  count= binlog_state->count();
+  gtid_list= gtid_list_buffer(count);
   if (count > 0)
   {
     if (!gtid_list)
-      return;
+      goto err;
     binlog_state->get_gtid_list(gtid_list, count);
   }
   write_record(offset, gtid_list, count);
+
+  insert_in_hot_index();
+
+err:
+  unlock_gtid_index();
 }
 
 
 Gtid_index_writer::~Gtid_index_writer()
 {
+  if (in_hot_index_list)
+  {
+    lock_gtid_index();
+    close();
+    unlock_gtid_index();
+  }
+
   if (index_file > 0)
   {
     /*
@@ -91,13 +118,77 @@ Gtid_index_writer::~Gtid_index_writer()
 
 
 void
+Gtid_index_writer::gtid_index_init()
+{
+  mysql_mutex_init(key_gtid_index_lock, &gtid_index_mutex, MY_MUTEX_INIT_SLOW);
+}
+
+void
+Gtid_index_writer::gtid_index_cleanup()
+{
+  mysql_mutex_destroy(&gtid_index_mutex);
+}
+
+
+const Gtid_index_writer *
+Gtid_index_writer::find_hot_index(const char *file_name)
+{
+  mysql_mutex_assert_owner(&gtid_index_mutex);
+
+  for (const Gtid_index_writer *p= hot_index_list; p; p= p->next_hot_index)
+  {
+    if (0 == strcmp(file_name, p->index_file_name))
+      return p;
+  }
+  return nullptr;
+}
+
+void
+Gtid_index_writer::insert_in_hot_index()
+{
+  mysql_mutex_assert_owner(&gtid_index_mutex);
+
+  next_hot_index= hot_index_list;
+  hot_index_list= this;
+  in_hot_index_list= true;
+}
+
+
+void
+Gtid_index_writer::remove_from_hot_index()
+{
+  mysql_mutex_assert_owner(&gtid_index_mutex);
+
+  Gtid_index_writer **next_ptr_ptr= &hot_index_list;
+  for (;;)
+  {
+    Gtid_index_writer *p= *next_ptr_ptr;
+    if (!p)
+      break;
+    if (p == this)
+    {
+      *next_ptr_ptr= p->next_hot_index;
+      break;
+    }
+    next_ptr_ptr= &p->next_hot_index;
+  }
+  next_hot_index= nullptr;
+  in_hot_index_list= false;
+}
+
+void
 Gtid_index_writer::process_gtid(my_off_t offset, const rpl_gtid *gtid)
 {
+  uint32 count;
+  rpl_gtid *gtid_list;
+
+  lock_gtid_index();
+
   ++pending_gtid_count;
   if (unlikely(pending_state.update_nolock(gtid, false)))
   {
     give_error("Out of memory processing GTID for binlog GTID index");
-    return;
+    goto err;
   }
   /*
     Sparse index; we record only selected GTIDs, and scan the binlog forward
@@ -106,23 +197,23 @@ Gtid_index_writer::process_gtid(my_off_t offset, const rpl_gtid *gtid)
   if (offset - previous_offset < offset_max_threshold &&
       (offset - previous_offset < offset_min_threshold ||
        pending_gtid_count < gtid_threshold))
-    return;
+    goto err;
 
-  uint32 count= pending_state.count();
+  count= pending_state.count();
   DBUG_ASSERT(count > 0 /* Since we just updated with a GTID. */);
-  rpl_gtid *gtid_list= (rpl_gtid *)
+  gtid_list= (rpl_gtid *)
     my_malloc(PSI_INSTRUMENT_ME, count*sizeof(*gtid_list), MYF(0));
   if (unlikely(!gtid_list))
   {
     give_error("Out of memory allocating GTID list for binlog GTID index");
-    return;
+    goto err;
   }
   if (unlikely(pending_state.get_gtid_list(gtid_list, count)))
   {
     /* Shouldn't happen as we allocated the list with the correct length. */
     DBUG_ASSERT(false);
     give_error("Internal error allocating GTID list for binlog GTID index");
-    return;
+    goto err;
   }
   pending_state.reset();
   previous_offset= offset;
@@ -132,16 +223,21 @@ Gtid_index_writer::process_gtid(my_off_t offset, const rpl_gtid *gtid)
   // Also, for recovery, we would still have direct call.
   write_record(offset, gtid_list, count);
   my_free(gtid_list);
+
+err:
+  unlock_gtid_index();
 }
 
 
 void
-Gtid_index_writer::close(my_off_t offset)
+Gtid_index_writer::close()
 {
   // ToDo: Enter the async path, send a requenst to the binlog background thread.
 
+  lock_gtid_index();
   if (!error_state)
   {
+
     /*
       Write out the remaining pending pages, and insert the final child pointer
       in interior nodes.
@@ -154,7 +250,12 @@ Gtid_index_writer::close(my_off_t offset)
         break;
       add_child_ptr(level+1, node_ptr);
     }
+  }
+  remove_from_hot_index();
+  unlock_gtid_index();
 
+  if (!error_state)
+  {
     if (mysql_file_sync(index_file, MYF(MY_WME)))
       give_error("Error syncing index file to disk");
     else
@@ -162,6 +263,9 @@ Gtid_index_writer::close(my_off_t offset)
       // ToDo: something with binlog checkpoints or something to mark that now this index file need no longer be crash recovered. Or alternatively, crash recovery at startup could scan binlog index files (even if no crashed main binlog), and just recover any that are not with a clean root page at the end (PAGE_FLAG_ROOT | PAGE_FLAG_LAST).
     }
   }
+
+  mysql_file_close(index_file, MYF(0));
+  index_file= (File)-1;
 
   // ToDo: Do this from outside instead in the async path.
   delete this;
@@ -585,8 +689,8 @@ int Gtid_index_writer::give_error(const char *msg)
 
 
 Gtid_index_reader::Gtid_index_reader()
-  : index_file(-1),
-    file_open(false), index_valid(false),
+  : n(nullptr), hot_writer(nullptr), index_file(-1),
+    file_open(false), index_valid(false), has_root_node(false),
     version_major(0), version_minor(0)
 {
   current_state.init();
@@ -658,7 +762,7 @@ Gtid_index_reader::next_page()
   if (!read_page->next)
     return 1;
   read_page= read_page->next;
-  read_ptr= &read_page->page[8];
+  read_ptr= read_page->flag_ptr + 8;
   return 0;
 }
 
@@ -676,7 +780,20 @@ int
 Gtid_index_reader::get_child_ptr(uint32 *out_child_ptr)
 {
   if (find_bytes(8))
-    return 1;
+  {
+    /*
+      If reading hot index, EOF or zero child ptr means the child pointer has
+      not yet been written. A zero out_child_ptr makes read_node() read the
+      hot node for the child.
+    */
+    if (hot_writer)
+    {
+      *out_child_ptr= 0;
+      return 0;
+    }
+    else
+      return 1;
+  }
   *out_child_ptr= uint8korr(read_ptr);
   read_ptr+= 8;
   return 0;
@@ -752,8 +869,28 @@ Gtid_index_reader::close_index_file()
 }
 
 
-int Gtid_index_reader::do_index_search(uint32 *out_offset,
-                                       uint32 *out_gtid_count)
+int
+Gtid_index_reader::do_index_search(uint32 *out_offset,
+                                   uint32 *out_gtid_count)
+{
+  /* Check for a "hot" index. */
+  Gtid_index_writer::lock_gtid_index();
+  hot_writer= Gtid_index_writer::find_hot_index(index_file_name);
+  if (!hot_writer)
+    Gtid_index_writer::unlock_gtid_index();
+  int res= do_index_search_root(out_offset, out_gtid_count);
+  if (hot_writer)
+  {
+    hot_writer= nullptr;
+    Gtid_index_writer::unlock_gtid_index();
+  }
+  return res;
+}
+
+
+int
+Gtid_index_reader::do_index_search_root(uint32 *out_offset,
+                                            uint32 *out_gtid_count)
 {
   /* ToDo: if hot index, take the mutex. */
 
@@ -769,7 +906,7 @@ int Gtid_index_reader::do_index_search(uint32 *out_offset,
     return -1;
   for (;;)
   {
-    if (*n.first_page->flag_ptr & PAGE_FLAG_IS_LEAF)
+    if (*n->first_page->flag_ptr & PAGE_FLAG_IS_LEAF)
       break;
 
     if (compare_state.load(&current_state))
@@ -777,7 +914,7 @@ int Gtid_index_reader::do_index_search(uint32 *out_offset,
     uint32 child_ptr;
     if (get_child_ptr(&child_ptr))
       return -1;
-    DBUG_ASSERT(child_ptr != 0);
+    DBUG_ASSERT(hot_writer || child_ptr != 0);
 
     /* Scan over the keys in the node to find the child pointer to follow */
     for (;;)
@@ -916,13 +1053,16 @@ Gtid_index_reader::read_file_header()
 
   /*
     Check that there is a valid root node at the end of the file.
-    (If there is not, the index was only partially written before server crash).
+    If there is not, the index may be a "hot index" that is currently being
+    constructed. Or it was only partially written before server crash and not
+    recovered for some reason.
   */
   uchar flags= buf[GTID_INDEX_PAGE_HEADER_SIZE];
   constexpr uchar needed_flags= PAGE_FLAG_ROOT|PAGE_FLAG_LAST;
   if ((flags & needed_flags) == needed_flags)
   {
     /* Special case: the index is a single page, which is the root node. */
+    has_root_node= true;
   }
   else
   {
@@ -933,8 +1073,7 @@ Gtid_index_reader::read_file_header()
                         MYF(MY_NABP)))
       return 1;
     flags= buf2[0];
-    if (!((flags & needed_flags) == needed_flags))
-      return 1;
+    has_root_node= ((flags & needed_flags) == needed_flags);
   }
   index_valid= true;
   return 0;
@@ -947,7 +1086,28 @@ Gtid_index_reader::read_root_node()
   if (!index_valid)
     return 1;
 
-  n.reset();
+  if (hot_writer)
+    return read_root_node_hot();
+  else if (has_root_node)
+    return read_root_node_cold();
+  else
+    return 1;
+}
+
+
+int
+Gtid_index_reader::read_root_node_hot()
+{
+  hot_level= hot_writer->max_level;
+  return read_node_hot();
+}
+
+
+int
+Gtid_index_reader::read_root_node_cold()
+{
+  cold_node.reset();
+  n= &cold_node;
   /*
     Read pages one by one from the back of the file until we have a complete
     root node.
@@ -970,8 +1130,8 @@ Gtid_index_reader::read_root_node()
       page->flag_ptr= &page->page[GTID_INDEX_FILE_HEADER_SIZE];
     else
       page->flag_ptr= &page->page[0];
-    page->next= n.first_page;
-    n.first_page= page;
+    page->next= n->first_page;
+    n->first_page= page;
     uchar flags= page->page[0];
     if (unlikely(!(flags & PAGE_FLAG_ROOT)))
       return 1;                        // Corrupt index, no start of root node
@@ -982,7 +1142,7 @@ Gtid_index_reader::read_root_node()
       return 1;
   }
 
-  read_page= n.first_page;
+  read_page= n->first_page;
   read_ptr= read_page->flag_ptr + GTID_INDEX_PAGE_HEADER_SIZE;
   return 0;
 }
@@ -991,16 +1151,64 @@ Gtid_index_reader::read_root_node()
 int
 Gtid_index_reader::read_node(uint32 page_ptr)
 {
-  if (!index_valid || !page_ptr)
+  if (!index_valid || (!page_ptr && !hot_writer))
     return 1;
 
+  if (hot_writer)
+  {
+    if (!page_ptr)
+    {
+      /*
+        The "hot" index is only partially written. Not yet written child pages
+        are indicated by zero child pointers. Such child pages are found from
+        the list of active nodes in the writer.
+      */
+      if (hot_level <= 0)
+      {
+        DBUG_ASSERT(0 /* Should be no child pointer to follow on leaf page. */);
+        return 1;
+      }
+      DBUG_ASSERT(n == hot_writer->nodes[hot_level]);
+      --hot_level;
+      return read_node_hot();
+    }
+
+    /*
+      We started searching the "hot" index, but now we've reached a "cold"
+      part of the index that's already fully written. So leave the "hot index"
+      mode and continue reading pages from the on-disk index from here.
+    */
+    hot_writer= nullptr;
+    Gtid_index_writer::unlock_gtid_index();
+  }
+
+  return read_node_cold(page_ptr);
+}
+
+
+int
+Gtid_index_reader::read_node_hot()
+{
+  if (hot_writer->error_state)
+    return 1;
+  n= hot_writer->nodes[hot_level];
+  read_page= n->first_page;
+  read_ptr= read_page->flag_ptr + GTID_INDEX_PAGE_HEADER_SIZE;
+  return 0;
+}
+
+
+int
+Gtid_index_reader::read_node_cold(uint32 page_ptr)
+{
   if (MY_FILEPOS_ERROR == mysql_file_seek(index_file, (page_ptr-1)*page_size,
                                           MY_SEEK_SET, MYF(0)))
     return 1;
 
   bool file_header= (page_ptr == 1);
-  n.reset();
-  Node_page **next_ptr_ptr= &n.first_page;
+  cold_node.reset();
+  n= &cold_node;
+  Node_page **next_ptr_ptr= &n->first_page;
   for (;;)
   {
     Node_page *page= alloc_page();
@@ -1023,7 +1231,7 @@ Gtid_index_reader::read_node(uint32 page_ptr)
       break;
   }
 
-  read_page= n.first_page;
+  read_page= n->first_page;
   read_ptr= read_page->flag_ptr + GTID_INDEX_PAGE_HEADER_SIZE;
   return 0;
 }
