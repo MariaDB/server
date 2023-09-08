@@ -81,6 +81,7 @@
 #include "wsrep_server_state.h"
 #endif /* WITH_WSREP */
 #include "proxy_protocol.h"
+#include "gtid_index.h"
 
 #include "sql_callback.h"
 #include "threadpool.h"
@@ -919,6 +920,7 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_status, key_LOCK_temp_pool,
   key_LOCK_system_variables_hash, key_LOCK_thd_data, key_LOCK_thd_kill,
   key_LOCK_user_conn, key_LOCK_uuid_short_generator, key_LOG_LOCK_log,
+  key_gtid_index_lock,
   key_master_info_data_lock, key_master_info_run_lock,
   key_master_info_sleep_lock, key_master_info_start_stop_lock,
   key_master_info_start_alter_lock,
@@ -1003,6 +1005,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_user_conn, "LOCK_user_conn", PSI_FLAG_GLOBAL},
   { &key_LOCK_uuid_short_generator, "LOCK_uuid_short_generator", PSI_FLAG_GLOBAL},
   { &key_LOG_LOCK_log, "LOG::LOCK_log", 0},
+  { &key_gtid_index_lock, "Gtid_index_writer::gtid_index_mutex", 0},
   { &key_master_info_data_lock, "Master_info::data_lock", 0},
   { &key_master_info_start_stop_lock, "Master_info::start_stop_lock", 0},
   { &key_master_info_run_lock, "Master_info::run_lock", 0},
@@ -1990,6 +1993,7 @@ static void clean_up(bool print_message)
 
   injector::free_instance();
   mysql_bin_log.cleanup();
+  Gtid_index_writer::gtid_index_cleanup();
 
   my_tz_free();
   my_dboptions_cache_free();
@@ -4031,6 +4035,7 @@ static int init_common_variables()
     inited before MY_INIT(). So we do it here.
   */
   mysql_bin_log.init_pthread_objects();
+  Gtid_index_writer::gtid_index_init();
 
   /* TODO: remove this when my_time_t is 64 bit compatible */
   if (!IS_TIME_T_VALID_FOR_TIMESTAMP(server_start_time))

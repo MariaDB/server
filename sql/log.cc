@@ -9191,14 +9191,14 @@ void MYSQL_BIN_LOG::close(uint exiting)
     }
 #endif /* HAVE_REPLICATION */
 
-    my_off_t org_position= mysql_file_tell(log_file.file, MYF(0));
     if (likely(gtid_index))
-      gtid_index->close(org_position);
+      gtid_index->close();
     gtid_index= nullptr;
 
     /* don't pwrite in a file opened with O_APPEND - it doesn't work */
     if (log_file.type == WRITE_CACHE && !(exiting & LOG_CLOSE_DELAYED_CLOSE))
     {
+      my_off_t org_position= mysql_file_tell(log_file.file, MYF(0));
       if (!failed_to_save_state)
         clear_inuse_flag_when_closing(log_file.file);
       /*

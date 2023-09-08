@@ -27,13 +27,20 @@ eval SELECT CONCAT('$pos6', " -> ", @@gtid_binlog_state) AS Source;
 INSERT INTO t1 VALUES (106);
 INSERT INTO t1 VALUES (107);
 
-FLUSH BINARY LOGS;
+# Test first the hot and then the cold index.
+--let $i= 0
+while ($i < 2) {
+  eval SELECT BINLOG_GTID_POS('$file', $pos1);
+  eval SELECT BINLOG_GTID_POS('$file', $pos2);
+  eval SELECT BINLOG_GTID_POS('$file', $pos3);
+  eval SELECT BINLOG_GTID_POS('$file', $pos4);
+  eval SELECT BINLOG_GTID_POS('$file', $pos5);
+  eval SELECT BINLOG_GTID_POS('$file', $pos6);
 
-eval SELECT BINLOG_GTID_POS('$file', $pos1);
-eval SELECT BINLOG_GTID_POS('$file', $pos2);
-eval SELECT BINLOG_GTID_POS('$file', $pos3);
-eval SELECT BINLOG_GTID_POS('$file', $pos4);
-eval SELECT BINLOG_GTID_POS('$file', $pos5);
-eval SELECT BINLOG_GTID_POS('$file', $pos6);
+  inc $i;
+  if ($i == 1) {
+    FLUSH BINARY LOGS;
+  }
+}
 
 DROP TABLE t1;
