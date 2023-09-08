@@ -10366,13 +10366,13 @@ int ha_mroonga::generic_store_bulk_variable_size_string(Field *field,
 {
   MRN_DBUG_ENTER_METHOD();
   int error = 0;
-  String value;
-  field->val_str(NULL, &value);
+  StringBuffer<MAX_FIELD_WIDTH> buffer(field->charset());
+  auto value = field->val_str(&buffer, &buffer);
   grn_obj_reinit(ctx, buf, GRN_DB_SHORT_TEXT, 0);
   DBUG_PRINT("info", ("mroonga: length=%" MRN_FORMAT_STRING_LENGTH,
-                      value.length()));
-  DBUG_PRINT("info", ("mroonga: value=%s", value.c_ptr_safe()));
-  GRN_TEXT_SET(ctx, buf, value.ptr(), value.length());
+                      value->length()));
+  DBUG_PRINT("info", ("mroonga: value=%s", value->c_ptr_safe()));
+  GRN_TEXT_SET(ctx, buf, value->ptr(), value->length());
   DBUG_RETURN(error);
 }
 
@@ -10739,9 +10739,8 @@ int ha_mroonga::generic_store_bulk_blob(Field *field, grn_obj *buf)
 {
   MRN_DBUG_ENTER_METHOD();
   int error = 0;
-  String buffer;
-  Field_blob *blob = (Field_blob *)field;
-  String *value = blob->val_str(0, &buffer);
+  StringBuffer<MAX_FIELD_WIDTH> buffer(field->charset());
+  auto value = field->val_str(&buffer, &buffer);
   grn_obj_reinit(ctx, buf, GRN_DB_TEXT, 0);
   GRN_TEXT_SET(ctx, buf, value->ptr(), value->length());
   DBUG_RETURN(error);
