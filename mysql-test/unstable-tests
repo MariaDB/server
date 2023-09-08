@@ -125,9 +125,6 @@ main.merge                                       : MDEV-10607 - sporadic "can't 
 main.myisam                                      : Modified in 10.5.9
 main.myisam_icp_notembedded                      : MDEV-23420 - Server crash
 main.mysql                                       : MDEV-20156 - Wrong result
-main.mysql_client_test                           : MDEV-19369 - error: 5888, status: 23, errno: 2; MDEV-19511 - Big endian issue
-main.mysql_client_test_comp                      : MDEV-16641 - Error in exec
-main.mysql_client_test_nonblock                  : CONC-208 - Error on Power; MDEV-15096 - exec failed
 main.mysql_cp932                                 : MDEV-21275 - Wrong result
 main.mysql_json_mysql_upgrade                    : Added in 10.5.9
 main.mysql_json_mysql_upgrade_with_plugin_loaded : Added in 10.5.9
