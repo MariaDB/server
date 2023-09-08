@@ -906,7 +906,7 @@ EXPLAIN
           "buffer_type": "flat",
           "buffer_size": "141",
           "join_type": "BNL",
-          "attached_condition": "t1.b = t2.b and t1.a = t2.a"
+          "attached_condition": "t1.a = t2.a and t1.b = t2.b"
         }
       }
     ]
@@ -921,7 +921,8 @@ explain
 select * from t2 where t2.a in ( select a from t1 where t1.b=t2.b);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	10	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	Using where; Start temporary; End temporary; Using join buffer (flat, BNL join)
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	func,func	1	
+2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	10	
 explain format=json
 select * from t2 where t2.a in ( select a from t1 where t1.b=t2.b);
 EXPLAIN
@@ -929,6 +930,7 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "cost": "COST_REPLACED",
+    "const_condition": "1",
     "nested_loop": [
       {
         "table": {
@@ -941,24 +943,35 @@ EXPLAIN
         }
       },
       {
-        "duplicates_removal": [
-          {
-            "block-nl-join": {
-              "table": {
-                "table_name": "t1",
-                "access_type": "ALL",
-                "loops": 10,
-                "rows": 10,
-                "cost": "COST_REPLACED",
-                "filtered": 10
-              },
-              "buffer_type": "flat",
-              "buffer_size": "206",
-              "join_type": "BNL",
-              "attached_condition": "t1.b = t2.b and t1.a = t2.a"
+        "table": {
+          "table_name": "<subquery2>",
+          "access_type": "eq_ref",
+          "possible_keys": ["distinct_key"],
+          "key": "distinct_key",
+          "key_length": "8",
+          "used_key_parts": ["a", "b"],
+          "ref": ["func", "func"],
+          "rows": 1,
+          "filtered": 100,
+          "materialized": {
+            "unique": 1,
+            "query_block": {
+              "select_id": 2,
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "loops": 1,
+                    "rows": 10,
+                    "cost": "COST_REPLACED",
+                    "filtered": 100
+                  }
+                }
+              ]
             }
           }
-        ]
+        }
       }
     ]
   }

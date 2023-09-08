@@ -357,12 +357,14 @@ WHERE EXISTS (
   WHERE a <= v.d AND b = v.b 
 );
 
+--disable_ps_protocol
 explain extended
 SELECT c FROM v  
 WHERE EXISTS ( 
   SELECT * FROM t1, t2 
   WHERE a <= v.d AND b = v.b 
 );
+--enable_ps_protocol
 
 set optimizer_switch=default;
 set optimizer_switch='exists_to_in=on';
@@ -796,7 +798,9 @@ set optimizer_switch='exists_to_in=off';
 eval explain extended $q;
 eval $q;
 set optimizer_switch='exists_to_in=on';
+--disable_ps_protocol
 eval explain extended $q;
+--enable_ps_protocol
 eval $q;
 --enable_view_protocol
 

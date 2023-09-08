@@ -431,3 +431,6 @@ void get_delayed_table_estimates(TABLE *table,
 
 enum_nested_loop_state join_tab_execution_startup(JOIN_TAB *tab);
 
+bool is_materialization_applicable(THD *thd, Item_in_subselect *in_subs,
+                                   st_select_lex *child_select);
+
