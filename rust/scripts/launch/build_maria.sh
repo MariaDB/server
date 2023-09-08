@@ -17,6 +17,8 @@ git config --global --add safe.directory '*'
 cmake \
     -S/checkout\
     -B/obj/build-mariadb \
+    -DCMAKE_C_COMPILER_LAUNCHER=sccache \
+    -DCMAKE_CXX_COMPILER_LAUNCHER=sccache \
     -DCMAKE_BUILD_TYPE=Debug \
     -DUPDATE_SUBMODULES=OFF \
     -DPLUGIN_MROONGA=NO \
@@ -25,7 +27,7 @@ cmake \
     -DPLUGIN_TOKUDB=NO \
     -G Ninja
 
-CMD_CCMAKE="ccmake -S/checkout -B${build_dir}"
+export CMD_CCMAKE="ccmake -S/checkout -B${build_dir}"
 
 # -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=/obj/lib \
 # -DCMAKE_LIBRARY_OUTPUT_DIRECTORY=/obj/lib \

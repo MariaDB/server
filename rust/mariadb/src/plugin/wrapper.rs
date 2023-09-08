@@ -1,7 +1,7 @@
 use std::ffi::{c_int, c_uint, c_void};
 use std::{env, ptr};
 
-use super::{Init, License, Maturity, PluginType};
+use super::{Init, InitError, License, Maturity, PluginType};
 use crate::{bindings, configure_logger};
 
 /// Trait for easily wrapping init/deinit functions
@@ -10,16 +10,16 @@ pub trait WrapInit: Init {
     unsafe extern "C" fn wrap_init(_: *mut c_void) -> c_int {
         init_common();
         match Self::init() {
-            Ok(_) => 0,
-            Err(_) => 1,
+            Ok(()) => 0,
+            Err(InitError) => 1,
         }
     }
 
     #[must_use]
     unsafe extern "C" fn wrap_deinit(_: *mut c_void) -> c_int {
         match Self::deinit() {
-            Ok(_) => 0,
-            Err(_) => 1,
+            Ok(()) => 0,
+            Err(InitError) => 1,
         }
     }
 }

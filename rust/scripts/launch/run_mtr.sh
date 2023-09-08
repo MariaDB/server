@@ -6,6 +6,6 @@ echo running tests
     --mem \
     --force \
     --max-test-fail=40 \
-    --parallel=12
+    "--parallel=$(nproc)"
 
 # --suite=unit

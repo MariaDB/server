@@ -18,6 +18,9 @@ specify a specific path to only document one crate).
 
 ## Testing with Docker
 
+NOTE: This section is out of date. Most of the time, `./rust/run.sh` is
+the entrypoint for docker/podman work.
+
 
 ```sh
 # Build the image. Change the directory (../) if not building in `rust/`
