@@ -604,7 +604,7 @@ sub parse_protocol($$) {
       foreach my $coref (glob("core*"), glob("*.dmp"))
       {
         mtr_report(" - found '$coref', moving it to '$worker_savedir'");
-        move($coref, $worker_savedir);
+        ::move($coref, $worker_savedir);
       }
 
       find(
@@ -678,7 +678,7 @@ sub parse_protocol($$) {
           my $log_file_name=dirname($worker_logdir)."/".$result->{shortname}.".log";
 
           if (-e $log_file_name) {
-            $result->{'logfile-failed'} = mtr_lastlinesfromfile($log_file_name, 20);
+            $result->{'logfile-failed'} = ::mtr_lastlinesfromfile($log_file_name, 20);
           } else {
             $result->{'logfile-failed'} = "";
           }
