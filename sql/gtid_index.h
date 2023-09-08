@@ -286,6 +286,8 @@ public:
   Gtid_index_reader();
   virtual ~Gtid_index_reader();
 
+  int open_index_file(const char *binlog_filename);
+  void close_index_file();
   /*
     The search functions take either a binlog offset or GTID position to search
     for. They return:
@@ -316,9 +318,9 @@ public:
   int get_child_ptr(uint32 *out_child_ptr);
   int get_offset_count(uint32 *out_offset, uint32 *out_gtid_count);
   int get_gtid_list(rpl_gtid *out_gtid_list, uint32 count);
-  int open_index_file(const char *binlog_filename);
-  void close_index_file();
   int read_file_header();
+  int read_file_header_hot();
+  int read_file_header_cold();
   int read_root_node();
   int read_root_node_hot();
   int read_root_node_cold();

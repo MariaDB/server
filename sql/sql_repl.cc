@@ -1276,7 +1276,7 @@ end:
 
 
 /*
-  Helper function for gtid_find_binlog_file() below.
+  Helper function for gtid_find_binlog_pos() below.
   Check a binlog file against a slave position. Use a GTID index if present.
   Returns:
      0  This is the binlog file that contains the position. If *out_start_seek
@@ -1289,7 +1289,10 @@ end:
  */
 static int
 gtid_check_binlog_file(slave_connection_state *state,
+                       Gtid_index_reader *reader,
                        const binlog_file_entry *list,
+                       bool *found_in_index, uint32 *out_start_seek,
+                       uint32 *found_count,
                        char *out_name, Gtid_list_log_event **out_glev,
                        const char **out_errormsg)
 {
@@ -1299,26 +1302,51 @@ gtid_check_binlog_file(slave_connection_state *state,
   IO_CACHE cache;
   int res= -1;
 
+  *found_in_index= false;
   *out_glev= nullptr;
   *out_errormsg= nullptr;
   /*
-    Read the Gtid_list_log_event at the start of the binlog file to
-    get the binlog state.
+    Try to lookup the GTID position in the gtid index.
+    If that doesn't work, read the Gtid_list_log_event at the start of the
+    binlog file to get the binlog state.
   */
   if (normalize_binlog_name(buf, list->name.str, false))
   {
     *out_errormsg= "Failed to determine binlog file name while looking for "
       "GTID position in binlog";
-    goto err;
+    goto end;
   }
+
+  if (reader && !reader->open_index_file(buf))
+  {
+    int lookup= reader->search_gtid_pos(state, out_start_seek, found_count);
+    reader->close_index_file();
+    if (lookup >= 0)
+    {
+      if (lookup == 0)
+        res= 1;
+      else
+      {
+        strmake(out_name, buf, FN_REFLEN);
+        *found_in_index= true;
+        res= 0;
+      }
+      goto end;
+    }
+    /*
+      Error in the index lookup; fall back to reading the GTID_LIST event from
+      the binlog file and scan it from the beginning.
+    */
+  }
+
   bzero((char*) &cache, sizeof(cache));
   if (unlikely((file= open_binlog(&cache, buf, out_errormsg)) == (File)-1))
-    goto err;
+    goto end;
   *out_errormsg= get_gtid_list_event(&cache, &glev);
   end_io_cache(&cache);
   mysql_file_close(file, MYF(MY_WME));
   if (unlikely(*out_errormsg))
-    goto err;
+    goto end;
 
   if (!glev || contains_all_slave_gtid(state, glev))
   {
@@ -1333,7 +1361,7 @@ gtid_check_binlog_file(slave_connection_state *state,
     res= 1;
   }
 
-err:
+end:
   return res;
 }
 
@@ -1366,13 +1394,17 @@ err:
   the requested GTID that was already purged.
 */
 static const char *
-gtid_find_binlog_file(slave_connection_state *state, char *out_name,
-                      slave_connection_state *until_gtid_state)
+gtid_find_binlog_pos(slave_connection_state *state, char *out_name,
+                     slave_connection_state *until_gtid_state,
+                     rpl_binlog_state *until_binlog_state,
+                     bool *found_in_index, uint32 *out_start_seek)
 {
   MEM_ROOT memroot;
   binlog_file_entry *list;
   Gtid_list_log_event *glev= NULL;
   const char *errormsg= NULL;
+  Gtid_index_reader *reader= NULL;
+  *found_in_index= false;
 
   init_alloc_root(PSI_INSTRUMENT_ME, &memroot,
                   10*(FN_REFLEN+sizeof(binlog_file_entry)), 0,
@@ -1383,17 +1415,40 @@ gtid_find_binlog_file(slave_connection_state *state, char *out_name,
     goto end;
   }
 
+  reader= new Gtid_index_reader();
+
   while (list)
   {
-    int res= gtid_check_binlog_file(state, list, out_name, &glev, &errormsg);
+    uint32 found_count;
+    int res= gtid_check_binlog_file(state, reader, list, found_in_index,
+                                    out_start_seek, &found_count,
+                                    out_name, &glev, &errormsg);
     if (res < 0)
       goto end;
     if (res == 0)
     {
-      if (glev)
+      if (*found_in_index || glev)
       {
         uint32 i;
+        uint32 count;
+        rpl_gtid *gtids;
 
+        if (*found_in_index)
+        {
+          count= found_count;
+          gtids= reader->search_gtid_list();
+          /*
+            Load the initial GTID state corresponding to the position found in
+            the GTID index, as we will not have a GTID_LIST event to load it
+            from.
+          */
+          until_binlog_state->load(gtids, count);
+        }
+        else
+        {
+          count= glev->count;
+          gtids= glev->list;
+        }
         /*
           As a special case, we allow to start from binlog file N if the
           requested GTID is the last event (in the corresponding domain) in
@@ -1405,9 +1460,9 @@ gtid_find_binlog_file(slave_connection_state *state, char *out_name,
           from the UNTIL hash, to mark that such domains have already reached
           their UNTIL condition.
         */
-        for (i= 0; i < glev->count; ++i)
+        for (i= 0; i < count; ++i)
         {
-          const rpl_gtid *gtid= state->find(glev->list[i].domain_id);
+          const rpl_gtid *gtid= state->find(gtids[i].domain_id);
           if (!gtid)
           {
             /*
@@ -1420,8 +1475,8 @@ gtid_find_binlog_file(slave_connection_state *state, char *out_name,
               further GTIDs in the Gtid_list.
             */
             DBUG_ASSERT(0);
-          } else if (gtid->server_id == glev->list[i].server_id &&
-                     gtid->seq_no == glev->list[i].seq_no)
+          } else if (gtid->server_id == gtids[i].server_id &&
+                     gtid->seq_no == gtids[i].seq_no)
           {
             /*
               The slave requested to start from the very beginning of this
@@ -1432,9 +1487,9 @@ gtid_find_binlog_file(slave_connection_state *state, char *out_name,
           }
 
           if (until_gtid_state &&
-              (gtid= until_gtid_state->find(glev->list[i].domain_id)) &&
-              gtid->server_id == glev->list[i].server_id &&
-              gtid->seq_no <= glev->list[i].seq_no)
+              (gtid= until_gtid_state->find(gtids[i].domain_id)) &&
+              gtid->server_id == gtids[i].server_id &&
+              gtid->seq_no <= gtids[i].seq_no)
           {
             /*
               We've already reached the stop position in UNTIL for this domain,
@@ -1458,6 +1513,9 @@ gtid_find_binlog_file(slave_connection_state *state, char *out_name,
 end:
   if (glev)
     delete glev;
+
+  if (reader)
+    delete reader;
 
   free_root(&memroot, MYF(0));
   return errormsg;
@@ -2273,6 +2331,8 @@ static int init_binlog_sender(binlog_send_info *info,
 
   char search_file_name[FN_REFLEN];
   const char *name=search_file_name;
+  bool found_in_index= false;
+  uint32 start_seek= 0;
   if (info->using_gtid_state)
   {
     if (info->gtid_state.load(connect_gtid_state.ptr(),
@@ -2298,16 +2358,26 @@ static int init_binlog_sender(binlog_send_info *info,
       info->error= error;
       return 1;
     }
-    if ((info->errmsg= gtid_find_binlog_file(&info->gtid_state,
-                                             search_file_name,
-                                             info->until_gtid_state)))
+    if ((info->errmsg= gtid_find_binlog_pos(&info->gtid_state,
+                                            search_file_name,
+                                            info->until_gtid_state,
+                                            &info->until_binlog_state,
+                                            &found_in_index, &start_seek)))
     {
       info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
       return 1;
     }
 
-    /* start from beginning of binlog file */
-    *pos = 4;
+    if (found_in_index)
+    {
+      /* Start from a position looked up in the binlog gtid index. */
+      *pos = start_seek;
+    }
+    else
+    {
+      /* start from beginning of binlog file */
+      *pos = 4;
+    }
   }
   else
   {
