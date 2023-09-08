@@ -538,8 +538,20 @@ Gtid_index_writer::write_record(uint32 event_offset,
       return give_error("Internal error processing GTID state");
     n->reset();
     if (level == 0)
+    {
       if (do_write_record(level, event_offset, new_gtid_list, new_count))
         return 1;
+    }
+    else
+    {
+      /*
+        Allocate a page for the node. This is mostly to help the reader of hot
+        index to not see NULL pointers, and we will need the page later anyway
+        to put at least one child pointer to the level below.
+      */
+      if (reserve_space(n, 8))
+        return 1;
+    }
     gtid_list= new_gtid_list;
     gtid_count= new_count;
     ++level;
@@ -877,8 +889,18 @@ Gtid_index_reader::do_index_search(uint32 *out_offset,
   Gtid_index_writer::lock_gtid_index();
   hot_writer= Gtid_index_writer::find_hot_index(index_file_name);
   if (!hot_writer)
+  {
     Gtid_index_writer::unlock_gtid_index();
+    /*
+      Check the index file header (and index end) again, in case it was
+      hot when open_index_file() was called, but became cold in the meantime.
+    */
+    if (!has_root_node && !read_file_header_cold())
+      return 1;
+  }
+
   int res= do_index_search_root(out_offset, out_gtid_count);
+
   if (hot_writer)
   {
     hot_writer= nullptr;
@@ -1031,6 +1053,48 @@ Gtid_index_reader::read_file_header()
   if (!file_open)
     return 1;
 
+  Gtid_index_writer::lock_gtid_index();
+  hot_writer= Gtid_index_writer::find_hot_index(index_file_name);
+  if (!hot_writer)
+    Gtid_index_writer::unlock_gtid_index();
+
+  int res;
+  if (hot_writer && hot_writer->max_level == 0)
+  {
+    /*
+      No pages from the hot index have been written to disk, there's just a
+      single incomplete node at level 0.
+      We have to read the file header from the in-memory page.
+    */
+    res= read_file_header_hot();
+  }
+  else
+    res= read_file_header_cold();
+
+  if (hot_writer)
+  {
+    hot_writer= nullptr;
+    Gtid_index_writer::unlock_gtid_index();
+  }
+  return res;
+}
+
+
+int
+Gtid_index_reader::read_file_header_hot()
+{
+  /* Hot index, no need to check the GTID_INDEX_MAGIC or version. */
+  uchar *p= hot_writer->nodes[0]->first_page->page;
+  page_size= uint4korr(p + 12);
+  has_root_node= false;
+  index_valid= true;
+  return 0;
+}
+
+
+int
+Gtid_index_reader::read_file_header_cold()
+{
   /*
     Read the file header and check that it's valid and that the format is not
     too new a version for us to be able to read it.
@@ -1193,6 +1257,10 @@ Gtid_index_reader::read_node_hot()
     return 1;
   n= hot_writer->nodes[hot_level];
   read_page= n->first_page;
+  /* The writer should allocate pages for all nodes. */
+  DBUG_ASSERT(read_page != nullptr);
+  if (!read_page)
+    return 1;
   read_ptr= read_page->flag_ptr + GTID_INDEX_PAGE_HEADER_SIZE;
   return 0;
 }
