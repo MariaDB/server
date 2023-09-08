@@ -217,6 +217,7 @@ extern ulonglong thd_startup_options;
 extern my_thread_id global_thread_id;
 extern ulong binlog_cache_use, binlog_cache_disk_use;
 extern ulong binlog_stmt_cache_use, binlog_stmt_cache_disk_use;
+extern ulong binlog_gtid_index_hit, binlog_gtid_index_miss;
 extern ulong aborted_threads, aborted_connects, aborted_connects_preauth;
 extern ulong delayed_insert_timeout;
 extern ulong delayed_insert_limit, delayed_queue_size;
@@ -249,6 +250,11 @@ extern ulonglong slave_max_statement_time;
 extern double slave_max_statement_time_double;
 extern ulong opt_binlog_rows_event_max_size;
 extern ulong binlog_row_metadata;
+extern my_bool opt_binlog_gtid_index;
+extern ulong opt_binlog_gtid_index_page_size;
+extern ulong opt_binlog_gtid_index_sparse;
+extern ulong opt_binlog_gtid_index_span_min;
+extern ulong opt_binlog_gtid_index_span_max;
 extern ulong thread_cache_size;
 extern ulong stored_program_cache_size;
 extern ulong opt_slave_parallel_threads;
@@ -333,7 +339,7 @@ extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_rpl_status, key_LOCK_server_started,
   key_LOCK_status, key_LOCK_optimizer_costs,
   key_LOCK_thd_data, key_LOCK_thd_kill,
-  key_LOCK_user_conn, key_LOG_LOCK_log,
+  key_LOCK_user_conn, key_LOG_LOCK_log, key_gtid_index_lock,
   key_master_info_data_lock, key_master_info_run_lock,
   key_master_info_sleep_lock, key_master_info_start_stop_lock,
   key_master_info_start_alter_lock,
@@ -411,7 +417,7 @@ extern PSI_file_key key_file_relaylog, key_file_relaylog_index,
                     key_file_relaylog_cache, key_file_relaylog_index_cache;
 extern PSI_socket_key key_socket_tcpip, key_socket_unix,
   key_socket_client_connection;
-extern PSI_file_key key_file_binlog_state;
+extern PSI_file_key key_file_binlog_state, key_file_gtid_index;
 
 #ifdef HAVE_PSI_INTERFACE
 void init_server_psi_keys();
@@ -456,6 +462,7 @@ extern PSI_memory_key key_memory_user_var_entry_value;
 extern PSI_memory_key key_memory_Slave_job_group_group_relay_log_name;
 extern PSI_memory_key key_memory_Relay_log_info_group_relay_log_name;
 extern PSI_memory_key key_memory_binlog_cache_mngr;
+extern PSI_memory_key key_memory_binlog_gtid_index;
 extern PSI_memory_key key_memory_Row_data_memory_memory;
 extern PSI_memory_key key_memory_errmsgs;
 extern PSI_memory_key key_memory_Event_queue_element_for_exec_names;

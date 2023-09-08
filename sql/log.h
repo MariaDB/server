@@ -21,8 +21,10 @@
 #include "rpl_constants.h"
 
 class Relay_log_info;
+class Gtid_index_writer;
 
 class Format_description_log_event;
+class Gtid_log_event;
 
 bool reopen_fstreams(const char *filename, FILE *outstream, FILE *errstream);
 void setup_log_handling();
@@ -240,6 +242,7 @@ extern TC_LOG_DUMMY tc_log_dummy;
 #define LOG_CLOSE_TO_BE_OPENED	2
 #define LOG_CLOSE_STOP_EVENT	4
 #define LOG_CLOSE_DELAYED_CLOSE 8
+#define LOG_CLOSE_SYNC_GTID_INDEX 16
 
 /* 
   Maximum unique log filename extension.
@@ -711,6 +714,9 @@ class MYSQL_BIN_LOG: public TC_LOG, private Event_log
   ulonglong group_commit_trigger_count, group_commit_trigger_timeout;
   ulonglong group_commit_trigger_lock_wait;
 
+  /* Binlog GTID index. */
+  Gtid_index_writer *gtid_index;
+
   /* pointer to the sync period variable, for binlog this will be
      sync_binlog_period, for relay log this will be
      sync_relay_log_period
@@ -719,6 +725,13 @@ class MYSQL_BIN_LOG: public TC_LOG, private Event_log
   uint sync_counter;
   bool state_file_deleted;
   bool binlog_state_recover_done;
+
+  Gtid_index_writer *recover_gtid_index_start(const char *base_name,
+                                              my_off_t offset);
+  void recover_gtid_index_process(Gtid_index_writer *gi, my_off_t offset,
+                                  Gtid_log_event *gev);
+  void recover_gtid_index_end(Gtid_index_writer *gi);
+  void recover_gtid_index_abort(Gtid_index_writer *gi);
 
   inline uint get_sync_period()
   {
@@ -739,6 +752,8 @@ class MYSQL_BIN_LOG: public TC_LOG, private Event_log
   bool write_transaction_to_binlog_events(group_commit_entry *entry);
   void trx_group_commit_leader(group_commit_entry *leader);
   bool is_xidlist_idle_nolock();
+  void update_gtid_index(uint32 offset, rpl_gtid gtid);
+
 public:
   int new_file_without_locking();
   /*
@@ -759,11 +774,8 @@ public:
     ulong binlog_id;
     /* Total prepared XIDs and pending checkpoint requests in this binlog. */
     long xid_count;
-    long notify_count;
-    /* For linking in requests to the binlog background thread. */
-    xid_count_per_binlog *next_in_queue;
     xid_count_per_binlog(char *log_file_name, uint log_file_name_len)
-      :binlog_id(0), xid_count(0), notify_count(0)
+      :binlog_id(0), xid_count(0)
     {
       binlog_name_len= log_file_name_len;
       binlog_name= (char *) my_malloc(PSI_INSTRUMENT_ME, binlog_name_len, MYF(MY_ZEROFILL));
