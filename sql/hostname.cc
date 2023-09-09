@@ -151,7 +151,7 @@ bool hostname_cache_init()
 
   if (!(hostname_cache= new Hash_filo<Host_entry>(key_memory_host_cache_hostname,
                              host_cache_size, key_offset, HOST_ENTRY_KEY_SIZE,
-                             NULL, (my_hash_free_key) free, &my_charset_bin)))
+                             NULL, (my_hash_free_key) my_free, &my_charset_bin)))
     return 1;
 
   hostname_cache->clear();
@@ -204,7 +204,8 @@ static void add_hostname_impl(const char *ip_key, const char *hostname,
 
   if (likely(entry == NULL))
   {
-    entry= (Host_entry *) malloc(sizeof (Host_entry));
+    entry= (Host_entry *) my_malloc(key_memory_host_cache_hostname,
+                                    sizeof (Host_entry), 0);
     if (entry == NULL)
       return;
 

@@ -96,14 +96,16 @@ namespace wsp
 bool
 env::ctor_common(char** e)
 {
-    env_= static_cast<char**>(malloc((len_ + 1) * sizeof(char*)));
+    env_= static_cast<char**>(my_malloc(key_memory_WSREP,
+                                        (len_ + 1) * sizeof(char*),
+                                        0));
 
     if (env_)
     {
         for (size_t i(0); i < len_; ++i)
         {
             assert(e[i]); // caller should make sure about len_
-            env_[i]= strdup(e[i]);
+            env_[i]= my_strdup(key_memory_WSREP, e[i], MYF(0));
             if (!env_[i])
             {
                 errno_= errno;
@@ -129,8 +131,8 @@ env::dtor()
     if (env_)
     {
         /* don't need to go beyond the first NULL */
-        for (size_t i(0); env_[i] != NULL; ++i) { free(env_[i]); }
-        free(env_);
+        for (size_t i(0); env_[i] != NULL; ++i) { my_free(env_[i]); }
+        my_free(env_);
         env_= NULL;
     }
     len_= 0;
@@ -157,12 +159,13 @@ env::~env() { dtor(); }
 int
 env::append(const char* val)
 {
-    char** tmp= static_cast<char**>(realloc(env_, (len_ + 2)*sizeof(char*)));
-
+    char** tmp= static_cast<char**>(my_realloc(key_memory_WSREP,
+                                               env_, (len_ + 2)*sizeof(char*),
+                                               0));
     if (tmp)
     {
         env_= tmp;
-        env_[len_]= strdup(val);
+        env_[len_]= my_strdup(key_memory_WSREP, val, 0);
 
         if (env_[len_])
         {
