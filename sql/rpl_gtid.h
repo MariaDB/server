@@ -27,9 +27,9 @@ extern const LEX_CSTRING rpl_gtid_slave_state_table_name;
 
 class String;
 #ifdef MYSQL_SERVER
-class TABLE;
+struct TABLE;
 #endif
-class slave_connection_state;
+struct slave_connection_state;
 
 #define PARAM_GTID(G) G.domain_id, G.server_id, G.seq_no
 
