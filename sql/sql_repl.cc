@@ -3010,6 +3010,7 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
                        ushort flags)
 {
   LOG_INFO linfo;
+  ulong ev_offset;
 
   IO_CACHE log;
   File file = -1;
@@ -3134,6 +3135,34 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
     */
     if (info->until_gtid_state && info->until_gtid_state->count() == 0)
       info->gtid_until_group= GTID_UNTIL_STOP_AFTER_STANDALONE;
+
+    if (info->using_gtid_state && pos > BIN_LOG_HEADER_SIZE &&
+        ( info->gtid_state.is_pos_reached() ||
+          info->gtid_until_group == GTID_UNTIL_STOP_AFTER_STANDALONE ) )
+    {
+      /*
+        We are starting a GTID connect from a point not at the start of the
+        binlog file (from a GTID index lookup). Send a fake GTID_LIST event
+        in place of the real GTID_LIST that would normally be sent from the
+        start of the binlog file.
+
+        If we already reached the gtid UNTIL position, then set the
+        FLAG_UNTIL_REACHED in the GTID_LIST event and stop immediately.
+      */
+      uint32 flag= 0;
+      if (info->gtid_until_group == GTID_UNTIL_STOP_AFTER_STANDALONE)
+      {
+        flag= Gtid_list_log_event::FLAG_UNTIL_REACHED;
+        info->should_stop= true;
+      }
+      Gtid_list_log_event glev(&info->until_binlog_state, flag);
+      if (reset_transmit_packet(info, info->flags, &ev_offset, &info->errmsg) ||
+          fake_gtid_list_event(info, &glev, &info->errmsg, pos))
+      {
+        info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
+        goto err;
+      }
+    }
 
     THD_STAGE_INFO(thd, stage_sending_binlog_event_to_slave);
     if (send_one_binlog_file(info, &log, &linfo, pos))

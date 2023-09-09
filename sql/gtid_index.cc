@@ -565,7 +565,7 @@ Gtid_index_writer::check_room(uint32 level, uint32 gtid_count)
 {
   Index_node *n= nodes[level];
   /* There's always room in an empty (to-be-allocated) page. */
-  if (!n->current_page)
+  if (!n->current_page || n->num_records == 0)
     return true;
   /*
     Make sure we use at least 1/2 a page of room after the initial record,
@@ -895,8 +895,8 @@ Gtid_index_reader::do_index_search(uint32 *out_offset,
       Check the index file header (and index end) again, in case it was
       hot when open_index_file() was called, but became cold in the meantime.
     */
-    if (!has_root_node && !read_file_header_cold())
-      return 1;
+    if (!has_root_node && read_file_header_cold())
+      return -1;
   }
 
   int res= do_index_search_root(out_offset, out_gtid_count);
