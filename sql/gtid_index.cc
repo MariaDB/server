@@ -29,7 +29,7 @@ Gtid_index_writer *Gtid_index_writer::hot_index_list= nullptr;
 mysql_mutex_t Gtid_index_writer::gtid_index_mutex;
 
 
-Gtid_index_writer::Gtid_index_writer(const char *filename, my_off_t offset,
+Gtid_index_writer::Gtid_index_writer(const char *filename, uint32 offset,
                                      rpl_binlog_state *binlog_state)
   : nodes(nullptr), previous_offset(0),
     max_level(0), pending_gtid_count(0), index_file(-1),
@@ -177,7 +177,7 @@ Gtid_index_writer::remove_from_hot_index()
 }
 
 void
-Gtid_index_writer::process_gtid(my_off_t offset, const rpl_gtid *gtid)
+Gtid_index_writer::process_gtid(uint32 offset, const rpl_gtid *gtid)
 {
   uint32 count;
   rpl_gtid *gtid_list;
@@ -363,7 +363,7 @@ Gtid_index_writer::write_current_node(uint32 level, bool is_root)
 {
   Index_node *n= nodes[level];
 
-  my_off_t node_pos= mysql_file_tell(index_file, MYF(0));
+  uint32 node_pos= (uint32)mysql_file_tell(index_file, MYF(0));
 
   for (Node_page *p= n->first_page; p ; p= p->next)
   {
@@ -380,7 +380,7 @@ Gtid_index_writer::write_current_node(uint32 level, bool is_root)
 
   DBUG_ASSERT(node_pos % page_size == 0);
   /* Page numbers are +1 just so that zero can denote invalid page pointer. */
-  return 1 + (node_pos / page_size);
+  return 1 + (node_pos / (uint32)page_size);
 }
 
 
@@ -806,7 +806,7 @@ Gtid_index_reader::get_child_ptr(uint32 *out_child_ptr)
     else
       return 1;
   }
-  *out_child_ptr= uint8korr(read_ptr);
+  *out_child_ptr= (uint32)uint8korr(read_ptr);
   read_ptr+= 8;
   return 0;
 }
@@ -1131,7 +1131,7 @@ Gtid_index_reader::read_file_header_cold()
   else
   {
     uchar buf2[GTID_INDEX_PAGE_HEADER_SIZE];
-    if (MY_FILEPOS_ERROR == mysql_file_seek(index_file, -(my_off_t)page_size,
+    if (MY_FILEPOS_ERROR == mysql_file_seek(index_file, -(int32)page_size,
                                             MY_SEEK_END, MYF(0)) ||
         mysql_file_read(index_file, buf2, GTID_INDEX_PAGE_HEADER_SIZE,
                         MYF(MY_NABP)))
@@ -1176,7 +1176,7 @@ Gtid_index_reader::read_root_node_cold()
     Read pages one by one from the back of the file until we have a complete
     root node.
   */
-  if (MY_FILEPOS_ERROR == mysql_file_seek(index_file, -(my_off_t)page_size,
+  if (MY_FILEPOS_ERROR == mysql_file_seek(index_file, -(int32)page_size,
                                           MY_SEEK_END, MYF(0)))
     return 1;
 
@@ -1201,7 +1201,7 @@ Gtid_index_reader::read_root_node_cold()
       return 1;                        // Corrupt index, no start of root node
     if (!(flags & PAGE_FLAG_IS_CONT))
       break;                           // Found start of root node
-    if (MY_FILEPOS_ERROR == mysql_file_seek(index_file, -(my_off_t)(2*page_size),
+    if (MY_FILEPOS_ERROR == mysql_file_seek(index_file, -(int32)(2*page_size),
                                             MY_SEEK_CUR, MYF(0)))
       return 1;
   }

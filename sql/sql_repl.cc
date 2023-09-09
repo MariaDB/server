@@ -3157,7 +3157,7 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
       }
       Gtid_list_log_event glev(&info->until_binlog_state, flag);
       if (reset_transmit_packet(info, info->flags, &ev_offset, &info->errmsg) ||
-          fake_gtid_list_event(info, &glev, &info->errmsg, pos))
+          fake_gtid_list_event(info, &glev, &info->errmsg, (int32)pos))
       {
         info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
         goto err;

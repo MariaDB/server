@@ -162,6 +162,12 @@ public:
   static constexpr size_t GTID_INDEX_FILE_HEADER_SIZE= 16;
   static constexpr size_t GTID_INDEX_PAGE_HEADER_SIZE= 8;
 
+#ifdef _MSC_VER
+/*
+  M$ compiler warns about flexible array member being non-standard (it's C99).
+*/
+#pragma warning(disable : 4200)
+#endif
   struct Node_page
   {
     Node_page *next;
@@ -232,12 +238,12 @@ public:
   static void unlock_gtid_index() { mysql_mutex_unlock(&gtid_index_mutex); }
   static const Gtid_index_writer *find_hot_index(const char *file_name);
 
-  Gtid_index_writer(const char *filename, my_off_t offset,
+  Gtid_index_writer(const char *filename, uint32 offset,
                     rpl_binlog_state *binlog_state);
   virtual ~Gtid_index_writer();
   void insert_in_hot_index();
   void remove_from_hot_index();
-  void process_gtid(my_off_t offset, const rpl_gtid *gtid);
+  void process_gtid(uint32 offset, const rpl_gtid *gtid);
   void close();
   uint32 write_current_node(uint32 level, bool is_root);
   int reserve_space(Index_node *n, size_t bytes);
