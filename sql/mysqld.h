@@ -537,6 +537,7 @@ extern PSI_memory_key key_memory_get_all_tables;
 extern PSI_memory_key key_memory_fill_schema_schemata;
 extern PSI_memory_key key_memory_native_functions;
 extern PSI_memory_key key_memory_JSON;
+extern PSI_memory_key key_memory_WSREP;
 
 /*
   MAINTAINER: Please keep this list in order, to limit merge collisions.

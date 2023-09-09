@@ -147,9 +147,21 @@ struct Table_cache_instance
     DBUG_ASSERT(records == 0);
   }
 
-  static void *operator new[](size_t size)
-  { return aligned_malloc(size, CPU_LEVEL1_DCACHE_LINESIZE); }
+  static void *operator new[](size_t size, size_t *allocated_size)
+  {
+    void *res= aligned_malloc(size, CPU_LEVEL1_DCACHE_LINESIZE);
+    if (res)
+    {
+      *allocated_size= size;
+      update_malloc_size(size, 0);
+    }
+    return res;
+  }
   static void operator delete[](void *ptr) { aligned_free(ptr); }
+  static void mark_memory_freed(size_t allocated_size)
+  {
+    update_malloc_size(-(longlong) allocated_size, 0);
+  }
 
   /**
     Lock table cache mutex and check contention.
@@ -216,6 +228,7 @@ struct Table_cache_instance
 
 
 static Table_cache_instance *tc;
+static size_t tc_allocated_size;
 
 
 static void intern_close_table(TABLE *table)
@@ -599,7 +612,7 @@ bool tdc_init(void)
   mysql_cond_register("sql", all_tc_conds, array_elements(all_tc_conds));
 #endif
   /* Extra instance is allocated to avoid false sharing */
-  if (!(tc= new Table_cache_instance[tc_instances + 1]))
+  if (!(tc= new (&tc_allocated_size) Table_cache_instance[tc_instances + 1]))
     DBUG_RETURN(true);
   tdc_inited= true;
   mysql_mutex_init(key_LOCK_unused_shares, &LOCK_unused_shares,
@@ -654,7 +667,12 @@ void tdc_deinit(void)
     tdc_inited= false;
     lf_hash_destroy(&tdc_hash);
     mysql_mutex_destroy(&LOCK_unused_shares);
-    delete [] tc;
+    if (tc)
+    {
+      tc->mark_memory_freed(tc_allocated_size);
+      delete [] tc;
+      tc= 0;
+    }
   }
   DBUG_VOID_RETURN;
 }
