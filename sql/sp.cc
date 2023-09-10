@@ -798,40 +798,6 @@ Sp_handler::db_find_and_cache_routine(THD *thd,
 
 
 /**
-  Silence DEPRECATED SYNTAX warnings when loading a stored procedure
-  into the cache.
-*/
-
-struct Silence_deprecated_warning : public Internal_error_handler
-{
-public:
-  virtual bool handle_condition(THD *thd,
-                                uint sql_errno,
-                                const char* sqlstate,
-                                Sql_condition::enum_warning_level *level,
-                                const char* msg,
-                                Sql_condition ** cond_hdl);
-};
-
-bool
-Silence_deprecated_warning::handle_condition(
-  THD *,
-  uint sql_errno,
-  const char*,
-  Sql_condition::enum_warning_level *level,
-  const char*,
-  Sql_condition ** cond_hdl)
-{
-  *cond_hdl= NULL;
-  if (sql_errno == ER_WARN_DEPRECATED_SYNTAX &&
-      *level == Sql_condition::WARN_LEVEL_WARN)
-    return TRUE;
-
-  return FALSE;
-}
-
-
-/**
   Make a copy of a SQL statement used for creation of a stored routine.
 
   @param defstr       Original SQL statement that is used for creation
@@ -893,7 +859,6 @@ static sp_head *sp_compile(THD *thd, String *defstr, sql_mode_t sql_mode,
   sql_mode_t old_sql_mode= thd->variables.sql_mode;
   ha_rows old_select_limit= thd->variables.select_limit;
   sp_rcontext *old_spcont= thd->spcont;
-  Silence_deprecated_warning warning_handler;
   Parser_state parser_state;
 
   thd->variables.sql_mode= sql_mode;
@@ -927,7 +892,6 @@ static sp_head *sp_compile(THD *thd, String *defstr, sql_mode_t sql_mode,
   }
 
   thd->lex->sphead= parent;
-  thd->push_internal_handler(&warning_handler);
   thd->spcont= 0;
 
   if (parse_sql(thd, & parser_state, creation_ctx) || thd->lex == NULL)
@@ -942,7 +906,6 @@ static sp_head *sp_compile(THD *thd, String *defstr, sql_mode_t sql_mode,
     sp->set_definition_string(definition_string);
   }
 
-  thd->pop_internal_handler();
   thd->spcont= old_spcont;
   thd->variables.sql_mode= old_sql_mode;
   thd->variables.select_limit= old_select_limit;
