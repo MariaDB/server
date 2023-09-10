@@ -2419,3 +2419,21 @@ WHERE alias1.i1 IN (
 );
 DROP TABLE t1;
 
+--echo #
+--echo #     MDEV-31983 jointable materialization subquery optimization ignoring errors, then failing ASSERT.
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (3),(4);
+CREATE TABLE t3 (c DATETIME, d INT, KEY(c));
+INSERT INTO t3 VALUES ('2012-11-11',5),('2012-12-12',6);
+
+--error ER_TRUNCATED_WRONG_VALUE
+UPDATE t1, t2 SET t1.a = 26 WHERE t2.b IN (SELECT MIN(d) FROM t3 WHERE c >= '2012-01');
+
+# Cleanup
+DROP TABLE t1, t2, t3;
+
+--echo # end of 10.6 tests

@@ -5861,6 +5861,8 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
             goto error;
           records= get_quick_record_count(join->thd, select, s->table,
                                           &s->const_keys, join->row_limit);
+          if (thd->is_error())
+            goto error;
 
           /*
             Range analyzer might have modified the condition. Put it the new
