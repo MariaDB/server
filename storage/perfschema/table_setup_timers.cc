@@ -87,12 +87,7 @@ table_setup_timers::m_share=
 
 PFS_engine_table* table_setup_timers::create(void)
 {
-  THD *thd = current_thd;
-  push_warning_printf(thd,
-                      Sql_condition::WARN_LEVEL_WARN,
-                      ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT,
-                      ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT),
-                      "performance_schema.setup_timers");
+  warn_deprecated<1005>(current_thd, "performance_schema.setup_timers");
 
   return new table_setup_timers();
 }

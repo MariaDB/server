@@ -161,7 +161,6 @@ grant replication slave on *.* to replssl@localhost require ssl;
 # Setup slave to use SSL for connection to master
 --source include/stop_slave.inc
 replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR;
-replace_column 2 ####;
 eval change master to
   master_user= 'replssl',
   master_password= '',
@@ -244,7 +243,6 @@ CHANGE MASTER TO
 --echo # 1) Test for MASTER_USE_GTID=NO
 --echo
 --source include/stop_slave.inc
-replace_column 2 ####;
 change master to
  master_user = 'root',
  master_use_gtid = NO;
@@ -258,7 +256,6 @@ source include/assert.inc;
 --echo
 --echo # 2) Test for Auto_position= CURRENT_POS.
 --echo
-replace_column 2 ####;
 change master to
  master_user = 'root',
  master_use_gtid= CURRENT_POS;
@@ -272,7 +269,6 @@ source include/assert.inc;
 --echo
 --echo # 3) Test for Auto_position= SLAVE_POS
 --echo
-replace_column 2 ####;
 change master to
  master_user = 'root',
  master_use_gtid= SLAVE_POS;
