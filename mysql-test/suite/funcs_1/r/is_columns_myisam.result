@@ -145,7 +145,7 @@ f116 VARBINARY(64) null,
 f117 VARBINARY(192) null
 ) engine = myisam;
 Warnings:
-Note	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
 load data infile '<MYSQLTEST_VARDIR>/std_data/funcs_1/myisam_tb2.txt'
 into table tb2;
 drop table if exists tb3 ;
@@ -286,7 +286,7 @@ f241 char(100),
 f242 bit(30)
 ) engine = myisam;
 Warnings:
-Note	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
 load data infile '<MYSQLTEST_VARDIR>/std_data/funcs_1/myisam_tb4.txt'
 into table tb4;
 USE test1;
@@ -353,7 +353,7 @@ f116 VARBINARY(64) null,
 f117 VARBINARY(192) null
 ) engine = myisam;
 Warnings:
-Note	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
 load data infile '<MYSQLTEST_VARDIR>/std_data/funcs_1/myisam_tb2.txt'
 into table tb2;
 USE test;

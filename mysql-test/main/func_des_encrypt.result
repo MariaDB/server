@@ -2,7 +2,7 @@ select des_encrypt('hello');
 des_encrypt('hello')
 €Ö2nV“Ø}
 Warnings:
-Note	1287	'des_encrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 #
 # Bug #11643: des_encrypt() causes server to die
 #
@@ -10,7 +10,7 @@ CREATE TABLE t1 (des VARBINARY(200) NOT NULL DEFAULT '') ENGINE=MyISAM;
 INSERT INTO t1 VALUES ('1234'), ('12345'), ('123456'), ('1234567');
 UPDATE t1 SET des=DES_ENCRYPT('1234');
 Warnings:
-Note	1287	'des_encrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 SELECT LENGTH(des) FROM t1;
 LENGTH(des)
 9
@@ -24,7 +24,7 @@ DES_DECRYPT(des)
 1234
 1234
 Warnings:
-Note	1287	'des_decrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_decrypt' is deprecated and will be removed in a future release
 SELECT 
 LENGTH(DES_ENCRYPT('1234')), 
 LENGTH(DES_ENCRYPT('12345')), 
@@ -33,10 +33,10 @@ LENGTH(DES_ENCRYPT('1234567'));
 LENGTH(DES_ENCRYPT('1234'))	LENGTH(DES_ENCRYPT('12345'))	LENGTH(DES_ENCRYPT('123456'))	LENGTH(DES_ENCRYPT('1234567'))
 9	9	9	9
 Warnings:
-Note	1287	'des_encrypt' is deprecated and will be removed in a future release
-Note	1287	'des_encrypt' is deprecated and will be removed in a future release
-Note	1287	'des_encrypt' is deprecated and will be removed in a future release
-Note	1287	'des_encrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 SELECT 
 DES_DECRYPT(DES_ENCRYPT('1234')), 
 DES_DECRYPT(DES_ENCRYPT('12345')), 
@@ -45,14 +45,14 @@ DES_DECRYPT(DES_ENCRYPT('1234567'));
 DES_DECRYPT(DES_ENCRYPT('1234'))	DES_DECRYPT(DES_ENCRYPT('12345'))	DES_DECRYPT(DES_ENCRYPT('123456'))	DES_DECRYPT(DES_ENCRYPT('1234567'))
 1234	12345	123456	1234567
 Warnings:
-Note	1287	'des_encrypt' is deprecated and will be removed in a future release
-Note	1287	'des_decrypt' is deprecated and will be removed in a future release
-Note	1287	'des_encrypt' is deprecated and will be removed in a future release
-Note	1287	'des_decrypt' is deprecated and will be removed in a future release
-Note	1287	'des_encrypt' is deprecated and will be removed in a future release
-Note	1287	'des_decrypt' is deprecated and will be removed in a future release
-Note	1287	'des_encrypt' is deprecated and will be removed in a future release
-Note	1287	'des_decrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_decrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_decrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_decrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_decrypt' is deprecated and will be removed in a future release
 DROP TABLE t1;
 End of 5.0 tests
 #
@@ -85,7 +85,7 @@ j	000000000009
 j	NULL
 NULL	NULL
 Warnings:
-Note	1287	'des_decrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_decrypt' is deprecated and will be removed in a future release
 DROP TABLE t1;
 CREATE TABLE t1 (a INT);
 INSERT t1 VALUES (1),(2);
@@ -94,19 +94,8 @@ CHAR_LENGTH(a)	DES_DECRYPT(a)
 1	¢
 1	¢
 Warnings:
-Note	1287	'des_decrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_decrypt' is deprecated and will be removed in a future release
 DROP TABLE t1;
 #
 # End of 10.5 tests
-#
-#
-# MDEV-27104 deprecate DES_ENCRYPT/DECRYPT functions
-#
-# just show how to disable deprecation note
-set sql_notes=0;
-select hex(des_encrypt('a'));
-hex(des_encrypt('a'))
-80E4DE4136BA6CD7F3
-#
-# End of 10.10 tests
 #

@@ -6,5 +6,5 @@ FROM t1 ;
 d
 2
 Warnings:
-Note	1287	'des_decrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_decrypt' is deprecated and will be removed in a future release
 DROP TABLE t1;

@@ -424,20 +424,7 @@ void sys_var::do_deprecated_warning(THD *thd)
   {
     char buf1[NAME_CHAR_LEN + 3];
     strxnmov(buf1, sizeof(buf1)-1, "@@", name.str, 0);
-
-    /* 
-       if deprecation_substitute is an empty string,
-       there is no replacement for the syntax
-    */
-    uint errmsg= deprecation_substitute[0] == '\0'
-      ? ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT
-      : ER_WARN_DEPRECATED_SYNTAX;
-    if (thd)
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_WARN_DEPRECATED_SYNTAX, ER_THD(thd, errmsg),
-                          buf1, deprecation_substitute);
-    else
-      sql_print_warning(ER_DEFAULT(errmsg), buf1, deprecation_substitute);
+    warn_deprecated<999999>(thd, buf1, deprecation_substitute);
   }
 }
 

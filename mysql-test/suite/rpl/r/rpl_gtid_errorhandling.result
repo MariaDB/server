@@ -76,7 +76,7 @@ SET sql_log_bin = 1;
 INSERT INTO t1 VALUES (3);
 CHANGE MASTER TO master_use_gtid=current_pos;
 Warnings:
-Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release. Please use master_demote_to_slave=1 instead
+Warning	1287	'master_use_gtid=current_pos' is deprecated and will be removed in a future release. Please use master_demote_to_slave=1 instead
 BEGIN;
 SET GLOBAL gtid_slave_pos = "100-100-100";
 ERROR 25000: You are not allowed to execute this command in a transaction

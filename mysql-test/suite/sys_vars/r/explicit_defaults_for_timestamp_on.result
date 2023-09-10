@@ -234,7 +234,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 set explicit_defaults_for_timestamp=1-@@explicit_defaults_for_timestamp;
 Warnings:
-Warning	1681	'explicit_defaults_for_timestamp=0' is deprecated and will be removed in a future release
+Warning	1287	'explicit_defaults_for_timestamp=0' is deprecated and will be removed in a future release
 execute stmt;
 show create table t1;
 Table	Create Table

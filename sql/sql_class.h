@@ -8149,5 +8149,7 @@ public:
 LEX_CSTRING make_string(THD *thd, const char *start_ptr,
                         const char *end_ptr);
 
+#include "deprecation.h"
+
 #endif /* MYSQL_SERVER */
 #endif /* SQL_CLASS_INCLUDED */

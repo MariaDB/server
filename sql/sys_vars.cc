@@ -736,10 +736,7 @@ static bool deprecated_explicit_defaults_for_timestamp(sys_var *self, THD *thd,
                                                        set_var *var)
 {
   if (var->value && var->save_result.ulonglong_value == 0)
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT,
-                        ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT),
-                        "explicit_defaults_for_timestamp=0"); // since 11.0.0
+    warn_deprecated<1100>(thd, "explicit_defaults_for_timestamp=0");
   return false;
 }
 static Sys_var_bit Sys_explicit_defaults_for_timestamp(
@@ -1455,7 +1452,7 @@ static Sys_var_uint Sys_large_page_size(
        READ_ONLY GLOBAL_VAR(opt_large_page_size), NO_CMD_LINE,
        VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
-       DEPRECATED(""));
+       DEPRECATED(1005, ""));
 
 static Sys_var_mybool Sys_large_pages(
        "large_pages", "Enable support for large pages",
@@ -1544,7 +1541,7 @@ static Sys_var_bit Sys_log_slow_admin_statements(
        SESSION_VAR(log_slow_disabled_statements),
        CMD_LINE(OPT_ARG), REVERSE(LOG_SLOW_DISABLE_ADMIN), DEFAULT(TRUE),
        0, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
-       DEPRECATED("'@@log_slow_filter'"));
+       DEPRECATED(1100, "'@@log_slow_filter'"));
 
 static Sys_var_bit Sys_log_slow_slave_statements(
        "log_slow_slave_statements",
@@ -2745,7 +2742,7 @@ static bool set_old_mode (sys_var *self, THD *thd, enum_var_type type)
 static Sys_var_mybool Sys_old_mode(
        "old", "Use compatible behavior from previous MariaDB version. See also --old-mode",
        SESSION_VAR(old_mode), CMD_LINE(OPT_ARG), DEFAULT(FALSE), 0, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(set_old_mode), DEPRECATED("'@@old_mode'"));
+       ON_UPDATE(set_old_mode), DEPRECATED(1009, "'@@old_mode'"));
 
 static Sys_var_mybool Sys_opt_allow_suspicious_udfs(
        "allow_suspicious_udfs",
@@ -3877,10 +3874,7 @@ void old_mode_deprecated_warnings(THD *thd, ulonglong v)
     if ((1ULL<<i) & v)
     {
       if (thd)
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-          ER_WARN_DEPRECATED_SYNTAX,
-          ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT),
-          old_mode_names[i]);
+        warn_deprecated<1103>(thd, old_mode_names[i]);
       else
         sql_print_warning("--old-mode='%s' is deprecated and will be "
                           "removed in a future release", old_mode_names[i]);
@@ -4223,7 +4217,7 @@ static Sys_var_tx_isolation Sys_tx_isolation(
        SESSION_VAR(tx_isolation), NO_CMD_LINE,
        tx_isolation_names, DEFAULT(ISO_REPEATABLE_READ),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_tx_isolation),
-       ON_UPDATE(0), DEPRECATED("'@@transaction_isolation'")); // since 11.1.0
+       ON_UPDATE(0), DEPRECATED(1101, "'@@transaction_isolation'"));
 
 static Sys_var_tx_isolation Sys_transaction_isolation(
        "transaction_isolation", "Default transaction isolation level",
@@ -4282,7 +4276,7 @@ static Sys_var_tx_read_only Sys_tx_read_only(
        "This variable is deprecated and will be removed in a future release.",
        SESSION_VAR(tx_read_only), NO_CMD_LINE, DEFAULT(0),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_tx_read_only),
-       ON_UPDATE(0), DEPRECATED("'@@transaction_read_only'")); // since 11.1.0
+       ON_UPDATE(0), DEPRECATED(1101, "'@@transaction_read_only'"));
 
 static Sys_var_tx_read_only Sys_transaction_read_only(
        "transaction_read_only", "Default transaction access mode. If set to OFF, "
@@ -4411,7 +4405,7 @@ static Sys_var_plugin Sys_storage_engine(
        SESSION_VAR(table_plugin), NO_CMD_LINE,
        MYSQL_STORAGE_ENGINE_PLUGIN, DEFAULT(&default_storage_engine),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_not_null), ON_UPDATE(0),
-       DEPRECATED("'@@default_storage_engine'")); // since 10.5.1
+       DEPRECATED(1005, "'@@default_storage_engine'"));
 
 static Sys_var_plugin Sys_default_tmp_storage_engine(
        "default_tmp_storage_engine", "The default storage engine for user-created temporary tables",
@@ -4558,7 +4552,7 @@ static Sys_var_mybool Sys_big_tables(
        "longer needed, as the server now handles this automatically.",
        SESSION_VAR(big_tables), CMD_LINE(OPT_ARG), DEFAULT(FALSE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
-       DEPRECATED("")); // since 10.5.0
+       DEPRECATED(1005, ""));
 
 static Sys_var_bit Sys_big_selects(
        "sql_big_selects", "If set to 0, MariaDB will not perform large SELECTs."
@@ -5028,7 +5022,7 @@ static Sys_var_mybool Sys_keep_files_on_create(
        SESSION_VAR(keep_files_on_create), CMD_LINE(OPT_ARG),
        DEFAULT(FALSE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
-       DEPRECATED("")); // since 10.8.0
+       DEPRECATED(1008, ""));
 
 static char *license;
 static Sys_var_charptr Sys_license(
@@ -6272,7 +6266,7 @@ static Sys_var_mybool Sys_wsrep_load_data_splitting(
        "transaction after every 10K rows inserted (deprecated)",
        GLOBAL_VAR(wsrep_load_data_splitting), 
        CMD_LINE(OPT_ARG), DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       ON_CHECK(0), ON_UPDATE(0), DEPRECATED("")); // since 10.4.3
+       ON_CHECK(0), ON_UPDATE(0), DEPRECATED(1004, ""));
 
 static Sys_var_mybool Sys_wsrep_slave_FK_checks(
        "wsrep_slave_FK_checks", "Should slave thread do "

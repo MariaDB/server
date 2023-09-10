@@ -6231,10 +6231,7 @@ field_type_temporal:
               {
                 char buff[sizeof("YEAR()") + MY_INT64_NUM_DECIMAL_DIGITS + 1];
                 my_snprintf(buff, sizeof(buff), "YEAR(%u)", (uint) $2.length());
-                push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                                    ER_WARN_DEPRECATED_SYNTAX,
-                                    ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX),
-                                    buff, "YEAR(4)");
+                warn_deprecated<1007>(thd, buff, "YEAR(4)");
               }
             }
             $$.set(&type_handler_year, $2);

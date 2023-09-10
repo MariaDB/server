@@ -311,8 +311,7 @@ int ha_oqgraph::oqgraph_check_table_structure (TABLE *table_arg)
       DBUG_PRINT( "oq-debug", ("Allowing integer latch anyway!"));
       isStringLatch = false;
       /* Make a warning */
-      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-            ER_WARN_DEPRECATED_SYNTAX, ER(ER_WARN_DEPRECATED_SYNTAX),
+      warn_deprecated<1004>(current_thd,
             "latch SMALLINT UNSIGNED NULL", "'latch VARCHAR(32) NULL'");
     } else
 #endif
