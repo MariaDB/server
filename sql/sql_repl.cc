@@ -3864,10 +3864,8 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   else if (lex_mi->use_gtid_opt == LEX_MASTER_INFO::LEX_GTID_CURRENT_POS)
   {
     mi->using_gtid= Master_info::USE_GTID_CURRENT_POS;
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT,
-                        ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX),
-                        "master_use_gtid=current_pos", "master_demote_to_slave=1");
+    warn_deprecated<1010>(thd, "master_use_gtid=current_pos",
+                          "master_demote_to_slave=1");
   }
   else if (lex_mi->use_gtid_opt == LEX_MASTER_INFO::LEX_GTID_NO ||
            lex_mi->log_file_name || lex_mi->pos ||

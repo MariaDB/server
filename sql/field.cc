@@ -11056,9 +11056,7 @@ bool Column_definition::set_compressed(const char *method)
 
 bool Column_definition::set_compressed_deprecated(THD *thd, const char *method)
 {
-  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                      ER_WARN_DEPRECATED_SYNTAX,
-                      ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX),
+  warn_deprecated<1004>(thd,
                       "<data type> <character set clause> ... COMPRESSED...",
                       "'<data type> COMPRESSED... <character set clause> ...'");
   return set_compressed(method);

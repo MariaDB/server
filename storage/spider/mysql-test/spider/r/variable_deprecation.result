@@ -22,10 +22,10 @@ Variable_name	Value
 spider_internal_offset	1
 CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='ios "1"';
 Warnings:
-Warning	1287	The table parameter 'ios' is deprecated and will be removed in a future release
+Warning	1287	'ios' is deprecated and will be removed in a future release
 CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='internal_offset "1"';
 Warnings:
-Warning	1287	The table parameter 'internal_offset' is deprecated and will be removed in a future release
+Warning	1287	'internal_offset' is deprecated and will be removed in a future release
 DROP TABLE tbl_a;
 DROP TABLE tbl_b;
 # MDEV-27981 Deprecate spider_internal_limit 
@@ -37,10 +37,10 @@ Variable_name	Value
 spider_internal_limit	1
 CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='ilm "1"';
 Warnings:
-Warning	1287	The table parameter 'ilm' is deprecated and will be removed in a future release
+Warning	1287	'ilm' is deprecated and will be removed in a future release
 CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='internal_limit "1"';
 Warnings:
-Warning	1287	The table parameter 'internal_limit' is deprecated and will be removed in a future release
+Warning	1287	'internal_limit' is deprecated and will be removed in a future release
 DROP TABLE tbl_a;
 DROP TABLE tbl_b;
 # MDEV-28244 Deprecate spider_xa_register_mode
@@ -86,10 +86,10 @@ Variable_name	Value
 spider_crd_mode	1
 CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='cmd "3"';
 Warnings:
-Warning	1287	The table parameter 'cmd' is deprecated and will be removed in a future release
+Warning	1287	'cmd' is deprecated and will be removed in a future release
 CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='crd_mode "3"';
 Warnings:
-Warning	1287	The table parameter 'crd_mode' is deprecated and will be removed in a future release
+Warning	1287	'crd_mode' is deprecated and will be removed in a future release
 DROP TABLE tbl_a;
 DROP TABLE tbl_b;
 SET spider_sts_mode = 1;
@@ -100,10 +100,10 @@ Variable_name	Value
 spider_sts_mode	1
 CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='smd "3"';
 Warnings:
-Warning	1287	The table parameter 'smd' is deprecated and will be removed in a future release
+Warning	1287	'smd' is deprecated and will be removed in a future release
 CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='sts_mode "3"';
 Warnings:
-Warning	1287	The table parameter 'sts_mode' is deprecated and will be removed in a future release
+Warning	1287	'sts_mode' is deprecated and will be removed in a future release
 DROP TABLE tbl_a;
 DROP TABLE tbl_b;
 # MDEV-28010 Deprecate spider_crd_type and spider_crd_weight
@@ -115,10 +115,10 @@ Variable_name	Value
 spider_crd_type	1
 CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='ctp "1"';
 Warnings:
-Warning	1287	The table parameter 'ctp' is deprecated and will be removed in a future release
+Warning	1287	'ctp' is deprecated and will be removed in a future release
 CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='crd_type "1"';
 Warnings:
-Warning	1287	The table parameter 'crd_type' is deprecated and will be removed in a future release
+Warning	1287	'crd_type' is deprecated and will be removed in a future release
 DROP TABLE tbl_a;
 DROP TABLE tbl_b;
 SET spider_crd_weight = 1;
@@ -129,10 +129,10 @@ Variable_name	Value
 spider_crd_weight	1
 CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='cwg "1"';
 Warnings:
-Warning	1287	The table parameter 'cwg' is deprecated and will be removed in a future release
+Warning	1287	'cwg' is deprecated and will be removed in a future release
 CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='crd_weight "1"';
 Warnings:
-Warning	1287	The table parameter 'crd_weight' is deprecated and will be removed in a future release
+Warning	1287	'crd_weight' is deprecated and will be removed in a future release
 DROP TABLE tbl_a;
 DROP TABLE tbl_b;
 # MDEV-28560 Deprecate spider_buffer_size
@@ -144,10 +144,10 @@ Variable_name	Value
 spider_buffer_size	1
 CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='bfz "1"';
 Warnings:
-Warning	1287	The table parameter 'bfz' is deprecated and will be removed in a future release
+Warning	1287	'bfz' is deprecated and will be removed in a future release
 CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='buffer_size "1"';
 Warnings:
-Warning	1287	The table parameter 'buffer_size' is deprecated and will be removed in a future release
+Warning	1287	'buffer_size' is deprecated and will be removed in a future release
 DROP TABLE tbl_a;
 DROP TABLE tbl_b;
 # MDEV-27926 Deprecate spider_init_sql_alloc_size
@@ -159,10 +159,10 @@ Variable_name	Value
 spider_init_sql_alloc_size	1
 CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='isa "1"';
 Warnings:
-Warning	1287	The table parameter 'isa' is deprecated and will be removed in a future release
+Warning	1287	'isa' is deprecated and will be removed in a future release
 CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='init_sql_alloc_size "1"';
 Warnings:
-Warning	1287	The table parameter 'init_sql_alloc_size' is deprecated and will be removed in a future release
+Warning	1287	'init_sql_alloc_size' is deprecated and will be removed in a future release
 DROP TABLE tbl_a;
 DROP TABLE tbl_b;
 # MDEV-28829 Deprecate spider_semi_table_lock and spider_semi_table_lock_connection
@@ -174,10 +174,10 @@ Variable_name	Value
 spider_semi_table_lock	1
 CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='stl "1"';
 Warnings:
-Warning	1287	The table parameter 'stl' is deprecated and will be removed in a future release
+Warning	1287	'stl' is deprecated and will be removed in a future release
 CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='semi_table_lock "1"';
 Warnings:
-Warning	1287	The table parameter 'semi_table_lock' is deprecated and will be removed in a future release
+Warning	1287	'semi_table_lock' is deprecated and will be removed in a future release
 DROP TABLE tbl_a;
 DROP TABLE tbl_b;
 SET spider_semi_table_lock_connection = 0;
@@ -188,10 +188,10 @@ Variable_name	Value
 spider_semi_table_lock_connection	0
 CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='stc "0"';
 Warnings:
-Warning	1287	The table parameter 'stc' is deprecated and will be removed in a future release
+Warning	1287	'stc' is deprecated and will be removed in a future release
 CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='semi_table_lock_connection "0"';
 Warnings:
-Warning	1287	The table parameter 'semi_table_lock_connection' is deprecated and will be removed in a future release
+Warning	1287	'semi_table_lock_connection' is deprecated and will be removed in a future release
 DROP TABLE tbl_a;
 DROP TABLE tbl_b;
 # MDEV-28795 Deprecate spider_bka_table_name_type
@@ -203,10 +203,10 @@ Variable_name	Value
 spider_bka_table_name_type	1
 CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='btt "1"';
 Warnings:
-Warning	1287	The table parameter 'btt' is deprecated and will be removed in a future release
+Warning	1287	'btt' is deprecated and will be removed in a future release
 CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='bka_table_name_type "1"';
 Warnings:
-Warning	1287	The table parameter 'bka_table_name_type' is deprecated and will be removed in a future release
+Warning	1287	'bka_table_name_type' is deprecated and will be removed in a future release
 DROP TABLE tbl_a;
 DROP TABLE tbl_b;
 DROP DATABASE auto_test_local;

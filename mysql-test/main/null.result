@@ -442,7 +442,7 @@ NOT NOT NULLIF(2,3)
 #
 CREATE TABLE t1 (a YEAR(2));
 Warnings:
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
 INSERT INTO t1 VALUES (0);
 SELECT a,NULLIF(a,2000),NULLIF(2000,a) FROM t1;
 a	NULLIF(a,2000)	NULLIF(2000,a)
