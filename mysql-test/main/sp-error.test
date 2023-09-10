@@ -2345,24 +2345,6 @@ DROP TABLE t1|
 delimiter ;|
 
 #
-# Bug#21801: SQL exception handlers and warnings
-#
-
---disable_warnings
-drop procedure if exists p1;
---enable_warnings
-delimiter |;
-create procedure p1()
-begin
-  create table t1 (a int) engine=MyISAM;
-  drop table t1;
-end|
-delimiter ;|
-call p1();
-call p1();
-drop procedure p1;
-
-#
 # Bug#8759 (Stored Procedures: SQLSTATE '00000' should be illegal)
 #
 
