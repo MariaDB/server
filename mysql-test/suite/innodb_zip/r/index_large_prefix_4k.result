@@ -105,7 +105,7 @@ ERROR 42000: Row size too large. The maximum row size for the used table type, n
 show warnings;
 Level	Code	Message
 Error	1118	Row size too large. The maximum row size for the used table type, not counting BLOBs, is 1982. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
-create index idx4 on worklog5743_1(a2(434));
+create index idx4 on worklog5743_1(a2(290));
 show warnings;
 Level	Code	Message
 create index idx5 on worklog5743_1(a1, a2(430));
@@ -113,7 +113,7 @@ ERROR 42000: Row size too large. The maximum row size for the used table type, n
 show warnings;
 Level	Code	Message
 Error	1118	Row size too large. The maximum row size for the used table type, not counting BLOBs, is 1982. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
-create index idx6 on worklog5743_1(a1, a2(428));
+create index idx6 on worklog5743_1(a1, a2(283));
 show warnings;
 Level	Code	Message
 SET sql_mode= '';
