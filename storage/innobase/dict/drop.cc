@@ -235,7 +235,9 @@ dberr_t trx_t::drop_table(const dict_table_t &table)
 void trx_t::commit(std::vector<pfs_os_file_t> &deleted)
 {
   ut_ad(dict_operation);
+  flush_log_later= true;
   commit_persist();
+  flush_log_later= false;
   if (dict_operation)
   {
     std::vector<uint32_t> space_ids;

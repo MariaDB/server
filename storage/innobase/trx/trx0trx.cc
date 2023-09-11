@@ -1236,7 +1236,7 @@ static void trx_flush_log_if_needed(lsn_t lsn, trx_t *trx)
   if (log_sys.get_flushed_lsn() > lsn)
     return;
 
-  const bool flush= trx->dict_operation ||
+  const bool flush=
     (srv_file_flush_method != SRV_NOSYNC &&
      (srv_flush_log_at_trx_commit & 1));
 

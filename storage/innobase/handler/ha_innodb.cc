@@ -14263,6 +14263,7 @@ ha_innobase::rename_table(
 	}
 
 	if (error == DB_SUCCESS) {
+		trx->flush_log_later = true;
 		innobase_commit_low(trx);
 	} else {
 		trx->rollback();
@@ -14278,6 +14279,7 @@ ha_innobase::rename_table(
 	if (error == DB_SUCCESS) {
 		log_write_up_to(trx->commit_lsn, true);
 	}
+	trx->flush_log_later = false;
 	trx->free();
 
 	if (error == DB_DUPLICATE_KEY) {
