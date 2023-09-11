@@ -1571,7 +1571,7 @@ static bool check_vers_constants(THD *thd, partition_info *part_info)
       my_tz_OFFSET0->TIME_to_gmt_sec(&ltime, &error);
     if (error)
       goto err;
-    if (vers_info->hist_part->range_value <= thd->query_start())
+    if (vers_info->hist_part->range_value <= (longlong) thd->query_start())
       vers_info->hist_part= el;
   }
   DBUG_ASSERT(el == vers_info->now_part);
@@ -3505,14 +3505,14 @@ int vers_get_partition_id(partition_info *part_info, uint32 *part_id,
       goto done; // fastpath
 
     ts= row_end->get_timestamp(&unused);
-    if ((loc_hist_id == 0 || range_value[loc_hist_id - 1] < ts) &&
-        (loc_hist_id == max_hist_id || range_value[loc_hist_id] >= ts))
+    if ((loc_hist_id == 0 || range_value[loc_hist_id - 1] < (longlong) ts) &&
+        (loc_hist_id == max_hist_id || range_value[loc_hist_id] >= (longlong) ts))
       goto done; // fastpath
 
     while (max_hist_id > min_hist_id)
     {
       loc_hist_id= (max_hist_id + min_hist_id) / 2;
-      if (range_value[loc_hist_id] <= ts)
+      if (range_value[loc_hist_id] <= (longlong) ts)
         min_hist_id= loc_hist_id + 1;
       else
         max_hist_id= loc_hist_id;
@@ -5412,7 +5412,7 @@ that are reorganised.
               tab_part_info->vers_info->interval.is_set())
           {
             partition_element *hist_part= tab_part_info->vers_info->hist_part;
-            if (hist_part->range_value <= thd->query_start())
+            if (hist_part->range_value <= (longlong) thd->query_start())
               hist_part->part_state= PART_CHANGED;
           }
         }

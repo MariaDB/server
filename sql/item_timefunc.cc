@@ -1280,8 +1280,7 @@ my_decimal *Item_func_unix_timestamp::decimal_op(my_decimal* buf)
   if (get_timestamp_value(&seconds, &second_part))
     return 0;
 
-  return seconds2my_decimal(seconds < 0, seconds < 0 ? -seconds : seconds,
-                            second_part, buf);
+  return seconds2my_decimal(0, seconds, second_part, buf);
 }
 
 

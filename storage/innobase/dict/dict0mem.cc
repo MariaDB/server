@@ -1319,7 +1319,7 @@ dict_index_t::vers_history_row(
 		return 0 != memcmp(data, trx_id_max_bytes, len);
 	}
 	ut_ad(len == sizeof timestamp_max_bytes);
-	return 0 != memcmp(data, timestamp_max_bytes, len);
+	return !IS_MAX_TIMESTAMP(data);
 }
 
 /** Check if record in secondary index is historical row.

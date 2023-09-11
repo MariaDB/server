@@ -117,6 +117,8 @@ let $script=
   s{SONAME ".*"}{SONAME "LIB"};
   s{DOLLARmysqltest_vardir}{MYSQLTEST_VARDIR}g;
   s{$binlog_database}{database};
+  s{2147483647.999999}{MAX_TIMESTAMP};
+  s{4294967295.999999}{MAX_TIMESTAMP};
   $modify_binlog_name
 ||
 

@@ -4,6 +4,7 @@ if (`SELECT $PS_PROTOCOL != 0`)
 }
 --source include/have_innodb.inc
 --source include/default_optimizer_switch.inc
+--source suite/versioning/sys_time.inc
 
 SET @saved_stats_persistent = @@GLOBAL.innodb_stats_persistent;
 SET GLOBAL innodb_stats_persistent = OFF;
@@ -104,6 +105,7 @@ as
 )
 select name from emp where emp_id in (select emp_id from ancestors for system_time as of timestamp @ts_1);
 
+--replace_result $sys_time_max SYS_TIME_MAX
 eval explain extended $q;
 eval $q;
 

@@ -8961,9 +8961,12 @@ static bool vers_update_or_validate_fields(TABLE *table)
          TIME_NO_ZERO_DATE, time_round_mode_t(time_round_mode_t::FRAC_NONE))))
     return 0;
 
-  StringBuffer<MAX_DATETIME_FULL_WIDTH+1> val;
-  row_start->val_str(&val);
-  my_error(ER_WRONG_VALUE, MYF(0), row_start->field_name.str, val.c_ptr());
+  StringBuffer<MAX_DATETIME_FULL_WIDTH+1> val_start, val_end;
+  row_start->val_str(&val_start);
+  row_end->val_str(&val_end);
+  my_error(ER_WRONG_VERSIONING_RANGE, MYF(0),
+           row_start->field_name.str, val_start.c_ptr(),
+           row_end->field_name.str, val_end.c_ptr());
   return 1;
 }
 

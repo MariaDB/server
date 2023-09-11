@@ -14485,7 +14485,8 @@ static bool check_password_lifetime(THD *thd, const ACL_USER &acl_user)
 
   thd->set_time();
 
-  if ((thd->query_start() - acl_user.password_last_changed)/3600/24 >= interval)
+  if ((((longlong) thd->query_start() - (longlong) acl_user.password_last_changed))/3600/24 >=
+      interval)
     return true;
 
   return false;
