@@ -2295,6 +2295,7 @@ static void buf_flush_page_cleaner()
     set_idle:
       buf_pool.page_cleaner_set_idle(true);
     set_almost_idle:
+      pthread_cond_broadcast(&buf_pool.done_flush_LRU);
       pthread_cond_broadcast(&buf_pool.done_flush_list);
       if (UNIV_UNLIKELY(srv_shutdown_state > SRV_SHUTDOWN_INITIATED))
         break;
