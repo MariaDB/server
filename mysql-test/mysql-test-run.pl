@@ -240,6 +240,7 @@ my $opt_ssl;
 my $opt_skip_ssl;
 my @opt_skip_test_list;
 our $opt_ssl_supported;
+my $opt_ps_protocol_switch= 0;
 my $opt_ps_protocol;
 my $opt_sp_protocol;
 my $opt_cursor_protocol;
@@ -1091,6 +1092,7 @@ sub print_global_resfile {
   resfile_global("user_id", $<);
   resfile_global("embedded-server", $opt_embedded_server ? 1 : 0);
   resfile_global("ps-protocol", $opt_ps_protocol ? 1 : 0);
+  resfile_global("ps-protocol-switch", $opt_ps_protocol_switch);
   resfile_global("sp-protocol", $opt_sp_protocol ? 1 : 0);
   resfile_global("view-protocol", $opt_view_protocol ? 1 : 0);
   resfile_global("cursor-protocol", $opt_cursor_protocol ? 1 : 0);
@@ -1139,6 +1141,7 @@ sub command_line_setup {
              # Control what engine/variation to run
              'embedded-server'          => \$opt_embedded_server,
              'ps-protocol'              => \$opt_ps_protocol,
+             'ps-protocol-switch=i'     => \$opt_ps_protocol_switch,
              'sp-protocol'              => \$opt_sp_protocol,
              'view-protocol'            => \$opt_view_protocol,
              'cursor-protocol'          => \$opt_cursor_protocol,
@@ -5541,6 +5544,11 @@ sub start_mysqltest ($) {
     mtr_add_arg($args, "--ps-protocol");
   }
 
+  if ( $opt_ps_protocol_switch )
+  {
+    mtr_add_arg($args, "--ps-protocol-switch=%d", $opt_ps_protocol_switch);
+  }
+
   if ( $opt_sp_protocol )
   {
     mtr_add_arg($args, "--sp-protocol");
@@ -5757,6 +5765,12 @@ Options to control what engine/variation to run:
 
   embedded-server       Use the embedded server, i.e. no mysqld daemons
   ps-protocol           Use the binary protocol between client and server
+  ps-protocol-switch=#  Set type of "--ps-protocol":
+                          0 - prepare statement with "SELECT" query is executed
+                              twice and result of 2nd execution is compared
+                              with verification file (use by default)
+                          1 - all prepare statements are executed only one
+                              time
   cursor-protocol       Use the cursor protocol between client and server
                         (implies --ps-protocol)
   view-protocol         Create a view to execute all non updating queries

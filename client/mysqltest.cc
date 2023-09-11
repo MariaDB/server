@@ -117,6 +117,7 @@ static my_bool debug_info_flag= 0, debug_check_flag= 0;
 static my_bool tty_password= 0;
 static my_bool opt_mark_progress= 0;
 static my_bool ps_protocol= 0, ps_protocol_enabled= 0, ps2_protocol_enabled= 0;
+static my_bool ps_protocol_switch= 0;
 static my_bool sp_protocol= 0, sp_protocol_enabled= 0;
 static my_bool view_protocol= 0, view_protocol_enabled= 0;
 static my_bool service_connection_enabled= 1;
@@ -7045,6 +7046,10 @@ static struct my_option my_long_options[] =
    "Use prepared-statement protocol for communication.",
    &ps_protocol, &ps_protocol, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"ps-protocol-switch", 0,
+   "Enable/disable 2nd execution of ps-protocol.",
+   &ps_protocol_switch, &ps_protocol_switch, 0,
+   GET_INT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"non-blocking-api", 0,
    "Use the non-blocking client API for communication.",
    &non_blocking_api_enabled, &non_blocking_api_enabled, 0,
@@ -9729,8 +9734,11 @@ int main(int argc, char **argv)
     ps_protocol= 1;
 
   /* Enable second execution of SELECT for ps-protocol
-     if ps-protocol is used */
-  ps2_protocol_enabled= ps_protocol;
+     if ps-protocol is used and no other execution option
+     is selected*/
+  if (ps_protocol_switch == 0){
+    ps2_protocol_enabled= ps_protocol;
+  }
   ps_protocol_enabled= ps_protocol;
   sp_protocol_enabled= sp_protocol;
   view_protocol_enabled= view_protocol;
