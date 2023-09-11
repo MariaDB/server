@@ -1,0 +1,23 @@
+create table t2 (f text, fulltext(f)) with system versioning character set utf8 engine=innodb;
+insert into t2 values ('foo');
+delete from t2;
+insert into t2 values ('bar');
+create table t3 (f text) with system versioning character set utf8 engine=innodb;
+insert into t3 values ('FOO');
+delete from t3;
+insert into t3 values ('BAR');
+alter table t3 add fulltext (f);
+
+let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
+let MYSQLD_DATADIR=`select @@datadir`;
+--list_files $MYSQLD_DATADIR
+
+--source include/shutdown_mysqld.inc
+--let dump_table= t2
+--source dump_doc_id.inc
+--let dump_table= t3
+--source dump_doc_id.inc
+--source include/start_mysqld.inc
+# cleanup
+drop tables t2, t3;
+
