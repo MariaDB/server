@@ -418,10 +418,14 @@ bool Item_func::setup_args_and_comparator(THD *thd, Arg_comparator *cmp)
   if (args[0]->cmp_type() == STRING_RESULT &&
       args[1]->cmp_type() == STRING_RESULT)
   {
-    DTCollation tmp;
-    if (agg_arg_charsets_for_comparison(tmp, args, 2))
+    CHARSET_INFO *tmp;
+    // Allow reinterpret superset as subset
+    bool allow_narrowing= MY_TEST(functype()==Item_func::EQ_FUNC || 
+                                  functype()==Item_func::EQUAL_FUNC);
+    if (agg_arg_charsets_for_comparison(&tmp, &args[0], &args[1],
+      allow_narrowing))
       return true;
-    cmp->m_compare_collation= tmp.collation;
+    cmp->m_compare_collation= tmp;
   }
   //  Convert constants when compared to int/year field
   DBUG_ASSERT(functype() != LIKE_FUNC);
@@ -539,9 +543,19 @@ bool Arg_comparator::set_cmp_func_string(THD *thd)
   {
     /*
       We must set cmp_collation here as we may be called from for an automatic
-      generated item, like in natural join
+      generated item, like in natural join.
+      Allow reinterpted superset as subset.
     */
-    if (owner->agg_arg_charsets_for_comparison(&m_compare_collation, a, b))
+    bool allow_narrowing= false;
+    if (owner->type() == Item::FUNC_ITEM)
+    {
+      auto ftype= ((Item_func*)owner)->functype();
+      if (ftype == Item_func::EQUAL_FUNC || ftype==Item_func::EQ_FUNC)
+        allow_narrowing= true;
+    }
+
+    if (owner->agg_arg_charsets_for_comparison(&m_compare_collation, a, b,
+                                               allow_narrowing))
       return true;
 
     if ((*a)->type() == Item::FUNC_ITEM &&

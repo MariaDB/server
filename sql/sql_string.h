@@ -117,7 +117,7 @@ public:
                      size_t nchars)
   {
     return my_convert_fix(dstcs, dst, dst_length,
-                          srccs, src, src_length, nchars, this, this);
+                          srccs, NULL, src, src_length, nchars, this, this);
   }
   /*
      Copy a string. Fix bad bytes/characters to '?'.

@@ -1,0 +1,60 @@
+set names utf8mb4;
+create table t1 (
+mb3name varchar(32),
+mb3 varchar(32) collate utf8mb3_general_ci,
+key(mb3)
+);
+insert into t1 select seq, seq from seq_1_to_10000;
+insert into t1 values ('mb3-question-mark', '?');
+insert into t1 values ('mb3-replacement-char', _utf8mb3 0xEFBFBD);
+create table t10 (
+pk int auto_increment primary key, 
+mb4name varchar(32),
+mb4 varchar(32) character set utf8mb4 collate utf8mb4_general_ci
+);
+insert into t10 (mb4name, mb4) values
+('mb4-question-mark','?'),
+('mb4-replacement-char', _utf8mb4 0xEFBFBD),
+('mb4-smiley', _utf8mb4 0xF09F988A),
+('1', '1');
+# Must use ref access
+explain format=json
+select * from t10,t1 where t10.mb4=t1.mb3;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t10",
+      "access_type": "ALL",
+      "rows": 4,
+      "filtered": 100,
+      "attached_condition": "t10.mb4 is not null"
+    },
+    "table": {
+      "table_name": "t1",
+      "access_type": "ref",
+      "possible_keys": ["mb3"],
+      "key": "mb3",
+      "key_length": "99",
+      "used_key_parts": ["mb3"],
+      "ref": ["test.t10.mb4"],
+      "rows": 1,
+      "filtered": 100,
+      "index_condition": "t10.mb4 = t1.mb3"
+    }
+  }
+}
+select * from t10,t1 where t10.mb4=t1.mb3;
+pk	mb4name	mb4	mb3name	mb3
+1	mb4-question-mark	?	mb3-question-mark	?
+2	mb4-replacement-char	�	mb3-replacement-char	�
+3	mb4-smiley	😊	mb3-replacement-char	�
+4	1	1	1	1
+select * from t10,t1 use index() where t10.mb4=t1.mb3;
+pk	mb4name	mb4	mb3name	mb3
+4	1	1	1	1
+1	mb4-question-mark	?	mb3-question-mark	?
+2	mb4-replacement-char	�	mb3-replacement-char	�
+3	mb4-smiley	😊	mb3-replacement-char	�
+drop table t1, t10;

@@ -5399,7 +5399,8 @@ protected:
 
 public:
   // This method is used by Arg_comparator
-  bool agg_arg_charsets_for_comparison(CHARSET_INFO **cs, Item **a, Item **b)
+  bool agg_arg_charsets_for_comparison(CHARSET_INFO **cs, Item **a, Item **b,
+                                       bool reinterpret_as_subset)
   {
     DTCollation tmp;
     if (tmp.set((*a)->collation, (*b)->collation, MY_COLL_CMP_CONV) ||
@@ -5413,10 +5414,31 @@ public:
                func_name());
       return true;
     }
-    if (agg_item_set_converter(tmp, func_name_cstring(),
-                               a, 1, MY_COLL_CMP_CONV, 1) ||
-        agg_item_set_converter(tmp, func_name_cstring(),
-                               b, 1, MY_COLL_CMP_CONV, 1))
+
+    if (reinterpret_as_subset &&
+        // e.g field_utf8mb3 == field_utf8mb4
+        (*a)->collation.derivation == (*b)->collation.derivation)
+    {
+      // We get here only for = and <=> comparisons.
+      if (Charset((*a)->collation.collation).
+            encoding_allows_reinterpret_as((*b)->collation.collation))
+      {
+        // a is a subset, b is a superset (e.g. utf8mb3 vs utf8mb4)
+        *cs= (*b)->collation.collation; // Compare using the wider cset 
+        return false;
+      }
+      else if (Charset((*b)->collation.collation).
+            encoding_allows_reinterpret_as((*a)->collation.collation))
+      {
+        // a is a superset, b is a subset (e.g. utf8mb4 vs utf8mb3)
+        *cs= (*a)->collation.collation; // Compare using the wider cset
+        return false;
+      }
+    }
+    else if (agg_item_set_converter(tmp, func_name_cstring(),
+                                    a, 1, MY_COLL_CMP_CONV, 1) ||
+             agg_item_set_converter(tmp, func_name_cstring(),
+                                    b, 1, MY_COLL_CMP_CONV, 1))
       return true;
     *cs= tmp.collation;
     return false;

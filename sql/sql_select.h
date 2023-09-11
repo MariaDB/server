@@ -1911,6 +1911,8 @@ public:
   virtual const char *name() const=0;
   virtual bool store_key_is_const() { return false; }
 
+  virtual void check_and_do_cset_narrowing() {}
+
   /**
     @brief sets ignore truncation warnings mode and calls the real copy method
 
@@ -1952,6 +1954,11 @@ class store_key_field: public store_key
       copy_field.set(to_field,from_field,0);
     }
   }  
+  void check_and_do_cset_narrowing() override {
+    if (copy_field.from_field->charset() == &my_charset_utf8mb4_general_ci &&
+        copy_field.to_field->charset() == &my_charset_utf8mb3_general_ci)
+    copy_field.do_cset_narrowing= true;
+  }
 
   enum Type type() const override { return FIELD_STORE_KEY; }
   const char *name() const override { return field_name; }
@@ -1960,6 +1967,8 @@ class store_key_field: public store_key
   {
     copy_field.set(to_field, fld_item->field, 0);
     field_name= fld_item->full_name();
+    //TODO: check_and_do_cset_narrowing() here?
+    // including disabling narrowing if needed?
   }
 
  protected: 
@@ -1994,6 +2003,8 @@ class store_key_item :public store_key
     item instead of save_in_field() method which saves result.
   */
   bool use_value;
+
+  bool do_cset_narrowing= false;
 public:
   store_key_item(THD *thd, Field *to_field_arg, uchar *ptr,
                  uchar *null_ptr_arg, uint length, Item *item_arg, bool val)
@@ -2008,6 +2019,12 @@ public:
 
   enum Type type() const override { return ITEM_STORE_KEY; }
   const char *name() const  override { return "func"; }
+
+  void check_and_do_cset_narrowing() override {
+    if (item->collation.collation == &my_charset_utf8mb4_general_ci &&
+        to_field->charset() == &my_charset_utf8mb3_general_ci)
+      do_cset_narrowing= true;
+  }
 
  protected:  
   enum store_key_result copy_inner() override
@@ -2024,7 +2041,17 @@ public:
       full version this statement probably should be removed.
     */  
     to_field->reset();
-
+    // psergey-todo: CharsetNarrowing #2
+    //  TODO: what exactly is this->use_value?
+    if (do_cset_narrowing)
+    {
+      StringBuffer<MAX_FIELD_WIDTH> buf;
+      String *res;
+      res= item->val_str(&buf);
+      /// Then, do what Item::save_str_in_field() does:
+      to_field->set_notnull();
+      to_field->store(res->ptr(),res->length(), &my_charset_utf8mb3_general_ci);
+    }
     if (use_value)
       item->save_val(to_field);
     else
@@ -2073,6 +2100,7 @@ protected:
       TABLE *table= to_field->table;
       MY_BITMAP *old_map= dbug_tmp_use_all_columns(table,
                                                    &table->write_set);
+      // psergey-todo: CharsetNarrowing #3
       if ((res= item->save_in_field(to_field, 1)))
       {       
         if (!err)

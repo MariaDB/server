@@ -5827,6 +5827,7 @@ public:
   Field *from_field,*to_field;
   String tmp;					// For items
 
+  bool do_cset_narrowing= false;
   Copy_field() = default;
   ~Copy_field() = default;
   void set(Field *to,Field *from,bool save);	// Field to field 

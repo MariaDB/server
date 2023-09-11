@@ -369,7 +369,37 @@ void Field::do_field_string(Copy_field *copy)
   res.length(0U);
 
   copy->from_field->val_str(&res);
-  copy->to_field->store(res.ptr(), res.length(), res.charset());
+
+  String *res_to_use= &res;
+
+  auto mb4_cs= &my_charset_utf8mb4_general_ci;
+  String narrowed_res(buff + res.length(), sizeof(buff) - res.length(),
+                      mb4_cs);
+
+  // CharsetNarrowing #1
+  if (copy->do_cset_narrowing)
+  {
+    // Narrowed string needs as much space as the original or less.
+    narrowed_res.alloc(res.length());
+
+    my_charset_conv_mb_wc mb_wc_func= my_mb_wc_utf8mb4_bmp_only;
+    size_t len;
+    MY_STRCOPY_STATUS copy_status;
+    MY_STRCONV_STATUS conv_status;
+    size_t n_chars= res.length(); // When each byte is a char we get max #chars.
+
+    len= my_convert_fix(mb4_cs,
+                        (char*)narrowed_res.ptr(), narrowed_res.length(),
+                        res.charset(), mb_wc_func,
+                        res.ptr(), res.length(), n_chars,
+                        &copy_status, &conv_status);
+
+
+    narrowed_res.length(len);
+    res_to_use= &narrowed_res;
+  }
+
+  copy->to_field->store(res_to_use->ptr(), res_to_use->length(), res_to_use->charset());
 }
 
 
@@ -697,6 +727,7 @@ void Copy_field::set(Field *to,Field *from,bool save)
     do_copy=do_skip;
     return;
   }
+  do_cset_narrowing= false;
   from_field=from;
   to_field=to;
   from_ptr=from->ptr;

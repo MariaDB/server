@@ -7433,6 +7433,9 @@ Field_longstr::cmp_to_string_with_stricter_collation(const Item_bool_func *cond,
 {
   return cmp_is_done_using_type_handler_of_this(cond, item) &&
          (charset() == cond->compare_collation() ||
+         // psergey-added: our value is MB3 while condition compares in MB4.
+          (charset() == &my_charset_utf8mb3_general_ci &&
+           cond->compare_collation() == &my_charset_utf8mb4_general_ci) ||
           cond->compare_collation()->state & MY_CS_BINSORT);
 }
 

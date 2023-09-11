@@ -7973,4 +7973,22 @@ struct charset_info_st my_charset_utf8mb4_nopad_bin=
   &my_collation_utf8mb4_nopad_bin_handler
 };
 
+/*
+  Take a Multi-Byte UTF8MB4 character and convert it into my_wc_t character.
+
+  Only convert Basic Multilingual Plane characters, non-BMP characters are
+  replaced with MY_CS_REPLACEMENT_CHARACTER.
+*/
+
+int
+my_mb_wc_utf8mb4_bmp_only(CHARSET_INFO *cs __attribute__((unused)),
+                     my_wc_t * pwc, const uchar *s, const uchar *e)
+{
+  int rc= my_mb_wc_utf8mb4_quick(pwc, s, e);
+  if (rc > 0 && *pwc > 0xFFFF)
+    *pwc= MY_CS_REPLACEMENT_CHARACTER;
+  return rc;
+}
+
+
 #endif /* HAVE_CHARSET_utf8mb4 */

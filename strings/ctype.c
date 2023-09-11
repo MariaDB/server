@@ -1279,16 +1279,22 @@ my_convert(char *to, uint32 to_length, CHARSET_INFO *to_cs,
 }
 
 
+/*
+   @param from_mb_wc  Custom function to decode character from from_cs.
+                      NULL means use the charset's default.
+*/
+
 size_t
 my_convert_fix(CHARSET_INFO *to_cs, char *to, size_t to_length,
-               CHARSET_INFO *from_cs, const char *from, size_t from_length,
+               CHARSET_INFO *from_cs, my_charset_conv_mb_wc from_mb_wc,
+               const char *from, size_t from_length,
                size_t nchars,
                MY_STRCOPY_STATUS *copy_status,
                MY_STRCONV_STATUS *conv_status)
 {
   int cnvres;
   my_wc_t wc;
-  my_charset_conv_mb_wc mb_wc= from_cs->cset->mb_wc;
+  my_charset_conv_mb_wc mb_wc= from_mb_wc ? from_mb_wc : from_cs->cset->mb_wc;
   my_charset_conv_wc_mb wc_mb= to_cs->cset->wc_mb;
   const uchar *from_end= (const uchar*) from + from_length;
   uchar *to_end= (uchar*) to + to_length;

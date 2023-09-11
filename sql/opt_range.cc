@@ -8951,7 +8951,46 @@ SEL_ARG *Field_str::get_mm_leaf(RANGE_OPT_PARAM *prm, KEY_PART *key_part,
   DBUG_ENTER("Field_str::get_mm_leaf");
   if (!can_optimize_scalar_range(prm, key_part, cond, op, value))
     DBUG_RETURN(0);
-  int err= value->save_in_field_no_warnings(this, 1);
+  int err;
+  // CharsetNarrowing #4
+  if (op == SCALAR_CMP_EQ /*and EQUAL?*/ &&
+      this->charset() == &my_charset_utf8mb3_general_ci &&
+      value->collation.collation == &my_charset_utf8mb4_general_ci)
+  {
+    String buf;
+    String *str;
+    str= value->val_str(&buf);
+    //TODO: SQL NULLs.
+    if (!str)
+      DBUG_RETURN(0);
+
+    auto mb4_cs= &my_charset_utf8mb4_general_ci;
+    StringBuffer<MAX_FIELD_WIDTH> narrowed_res;
+    // Narrowed string needs as much space as the original or less.
+    narrowed_res.alloc(str->length());
+    narrowed_res.length(str->length());
+
+    my_charset_conv_mb_wc mb_wc_func= my_mb_wc_utf8mb4_bmp_only;
+    size_t len;
+    MY_STRCOPY_STATUS copy_status;
+    MY_STRCONV_STATUS conv_status;
+    size_t n_chars= str->length(); // When each byte is a char we get max #chars.
+
+    len= my_convert_fix(mb4_cs,
+                        (char*)narrowed_res.ptr(), narrowed_res.length(),
+                        str->charset(), mb_wc_func,
+                        str->ptr(), str->length(), n_chars,
+                        &copy_status, &conv_status);
+
+    MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->write_set);
+    set_notnull();
+    store(narrowed_res.ptr(), len, charset());
+    dbug_tmp_restore_column_map(&table->write_set, old_map);
+    err= 0;
+  }
+  else
+    err= value->save_in_field_no_warnings(this, 1);
+
   if ((op != SCALAR_CMP_EQUAL && is_real_null()) || err < 0)
     DBUG_RETURN(&null_element);
   if (err > 0)

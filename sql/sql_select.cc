@@ -11695,15 +11695,18 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
                            FALSE);
         if (unlikely(thd->is_fatal_error))
           DBUG_RETURN(TRUE);
+        tmp.check_and_do_cset_narrowing();
         tmp.copy(thd);
         j->ref.const_ref_part_map |= key_part_map(1) << i ;
       }
       else
       {
-        *ref_key++= get_store_key(thd,
+        *ref_key= get_store_key(thd,
                                   keyuse,join->const_table_map,
                                   &keyinfo->key_part[i],
                                   key_buff, maybe_null);
+        (*ref_key)->check_and_do_cset_narrowing();
+        ref_key++;
         if (!keyuse->val->used_tables())
           j->ref.const_ref_part_map |= key_part_map(1) << i ;
       }
