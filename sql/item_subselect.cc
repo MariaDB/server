@@ -3232,6 +3232,7 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
       exp= (optimizer->arguments()[0]->maybe_null ?
             (Item*) new (thd->mem_root)
             Item_cond_and(thd,
+                          optimizer,
                           new (thd->mem_root)
                           Item_func_isnotnull(thd,
                                               new (thd->mem_root)
@@ -3239,8 +3240,7 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
                                                               &unit->outer_select()->context,
                                                               optimizer->arguments(),
                                                               (char *)"<no matter>",
-                                                              &exists_outer_expr_name)),
-                          optimizer) :
+                                                              &exists_outer_expr_name))) :
             (Item *)optimizer);
     }
     else
