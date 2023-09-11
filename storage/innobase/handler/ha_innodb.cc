@@ -12946,7 +12946,8 @@ bool create_table_info_t::row_size_is_acceptable(
         eow << "Cannot add field " << field->name << " in table ";
       else
         eow << "Cannot add an instantly dropped column in table ";
-      eow << index.table->name << " because after adding it, the row size is "
+      eow << "`" << m_form->s->db.str << "`.`" << m_form->s->table_name.str
+	  << "`" " because after adding it, the row size is "
           << info.get_overrun_size()
           << " which is greater than maximum allowed size ("
           << info.max_leaf_size << " bytes) for a record on index leaf page.";
@@ -17788,13 +17789,7 @@ innodb_monitor_validate_wildcard_name(
 Validate the passed in monitor name, find and save the
 corresponding monitor name in the function parameter "save".
 @return 0 if monitor name is valid */
-static
-int
-innodb_monitor_valid_byname(
-/*========================*/
-	void*			save,	/*!< out: immediate result
-					for update function */
-	const char*		name)	/*!< in: incoming monitor name */
+static int innodb_monitor_valid_byname(const char *name)
 {
 	ulint		use;
 	monitor_info_t*	monitor_info;
@@ -17842,9 +17837,6 @@ innodb_monitor_valid_byname(
 		}
 	}
 
-	/* Save the configure name for innodb_monitor_update() */
-	*static_cast<const char**>(save) = name;
-
 	return(0);
 }
 /*************************************************************//**
@@ -17860,41 +17852,18 @@ innodb_monitor_validate(
 						for update function */
 	struct st_mysql_value*		value)	/*!< in: incoming string */
 {
-	const char*	name;
-	char*		monitor_name;
-	char		buff[STRING_BUFFER_USUAL_SIZE];
-	int		len = sizeof(buff);
-	int		ret;
+  int ret= 0;
 
-	ut_a(save != NULL);
-	ut_a(value != NULL);
+  if (const char *name= value->val_str(value, nullptr, &ret))
+  {
+    ret= innodb_monitor_valid_byname(name);
+    if (!ret)
+      *static_cast<const char**>(save)= name;
+  }
+  else
+    ret= 1;
 
-	name = value->val_str(value, buff, &len);
-
-	/* monitor_name could point to memory from MySQL
-	or buff[]. Always dup the name to memory allocated
-	by InnoDB, so we can access it in another callback
-	function innodb_monitor_update() and free it appropriately */
-	if (name) {
-		monitor_name = my_strdup(PSI_INSTRUMENT_ME,
-                                         name, MYF(0));
-	} else {
-		return(1);
-	}
-
-	ret = innodb_monitor_valid_byname(save, monitor_name);
-
-	if (ret) {
-		/* Validation failed */
-		my_free(monitor_name);
-	} else {
-		/* monitor_name will be freed in separate callback function
-		innodb_monitor_update(). Assert "save" point to
-		the "monitor_name" variable */
-		ut_ad(*static_cast<char**>(save) == monitor_name);
-	}
-
-	return(ret);
+  return ret;
 }
 
 /****************************************************************//**
@@ -17910,11 +17879,9 @@ innodb_monitor_update(
 						formal string goes */
 	const void*		save,		/*!< in: immediate result
 						from check function */
-	mon_option_t		set_option,	/*!< in: the set option,
+	mon_option_t		set_option)	/*!< in: the set option,
 						whether to turn on/off or
 						reset the counter */
-	ibool			free_mem)	/*!< in: whether we will
-						need to free the memory */
 {
 	monitor_info_t*	monitor_info;
 	ulint		monitor_id;
@@ -17998,12 +17965,6 @@ exit:
 		sql_print_warning("InnoDB: Monitor %s is already enabled.",
 				  srv_mon_get_name((monitor_id_t) err_monitor));
 	}
-
-	if (free_mem && name) {
-		my_free((void*) name);
-	}
-
-	return;
 }
 
 #ifdef UNIV_DEBUG
@@ -18086,7 +18047,7 @@ innodb_enable_monitor_update(
 	const void*			save)	/*!< in: immediate result
 						from check function */
 {
-	innodb_monitor_update(thd, var_ptr, save, MONITOR_TURN_ON, TRUE);
+	innodb_monitor_update(thd, var_ptr, save, MONITOR_TURN_ON);
 }
 
 /****************************************************************//**
@@ -18103,7 +18064,7 @@ innodb_disable_monitor_update(
 	const void*			save)	/*!< in: immediate result
 						from check function */
 {
-	innodb_monitor_update(thd, var_ptr, save, MONITOR_TURN_OFF, TRUE);
+	innodb_monitor_update(thd, var_ptr, save, MONITOR_TURN_OFF);
 }
 
 /****************************************************************//**
@@ -18121,7 +18082,7 @@ innodb_reset_monitor_update(
 	const void*			save)	/*!< in: immediate result
 						from check function */
 {
-	innodb_monitor_update(thd, var_ptr, save, MONITOR_RESET_VALUE, TRUE);
+	innodb_monitor_update(thd, var_ptr, save, MONITOR_RESET_VALUE);
 }
 
 /****************************************************************//**
@@ -18139,8 +18100,7 @@ innodb_reset_all_monitor_update(
 	const void*			save)	/*!< in: immediate result
 						from check function */
 {
-	innodb_monitor_update(thd, var_ptr, save, MONITOR_RESET_ALL_VALUE,
-			      TRUE);
+	innodb_monitor_update(thd, var_ptr, save, MONITOR_RESET_ALL_VALUE);
 }
 
 static
@@ -18185,10 +18145,9 @@ innodb_enable_monitor_at_startup(
 	for (char* option = my_strtok_r(str, sep, &last);
 	     option;
 	     option = my_strtok_r(NULL, sep, &last)) {
-		char*	option_name;
-		if (!innodb_monitor_valid_byname(&option_name, option)) {
+		if (!innodb_monitor_valid_byname(option)) {
 			innodb_monitor_update(NULL, NULL, &option,
-					      MONITOR_TURN_ON, FALSE);
+					      MONITOR_TURN_ON);
 		} else {
 			sql_print_warning("Invalid monitor counter"
 					  " name: '%s'", option);

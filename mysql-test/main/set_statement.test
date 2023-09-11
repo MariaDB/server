@@ -1191,4 +1191,16 @@ SET STATEMENT max_statement_time=30 FOR DELETE FROM mysql.user where user = 'unk
 SET sql_mode=default;
 SET STATEMENT max_statement_time=30 FOR DELETE FROM mysql.user where user = 'unknown';
 
+--echo #
+--echo # MDEV-17711 Assertion `arena_for_set_stmt== 0' failed in LEX::set_arena_for_set_stmt upon SET STATEMENT
+--echo #
+
+--delimiter $
+set rand_seed1=1, rand_seed2=2;
+set statement rand_seed1=4 for select 2, @@rand_seed1, @@rand_seed2;
+set statement rand_seed2=5 for select 3, @@rand_seed1, @@rand_seed2 $
+--delimiter ;
+
+--echo #
 --echo # End of 10.4 tests
+--echo #

@@ -8969,7 +8969,7 @@ static int test_if_case_insensitive(const char *dir_name)
                                buff, 0666, O_RDWR, MYF(0))) < 0)
   {
     if (!opt_abort)
-      sql_print_warning("Can't create test file %s", buff);
+      sql_print_warning("Can't create test file '%s' (Errcode: %M)", buff, my_errno);
     DBUG_RETURN(-1);
   }
   mysql_file_close(file, MYF(0));

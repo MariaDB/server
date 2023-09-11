@@ -6879,6 +6879,7 @@ int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
   KEY *key_info= table->key_info + key_no;
   Field *hash_field= key_info->key_part->field;
   uchar ptr[HA_HASH_KEY_LENGTH_WITH_NULL];
+  String *blob_storage;
   DBUG_ENTER("handler::check_duplicate_long_entry_key");
 
   DBUG_ASSERT((key_info->flags & HA_NULL_PART_KEY &&
@@ -6893,9 +6894,11 @@ int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
   result= lookup_handler->ha_index_init(key_no, 0);
   if (result)
     DBUG_RETURN(result);
+  blob_storage= (String*)alloca(sizeof(String)*table->s->virtual_not_stored_blob_fields);
+  table->remember_blob_values(blob_storage);
   store_record(table, file->lookup_buffer);
-  result= lookup_handler->ha_index_read_map(table->record[0],
-                               ptr, HA_WHOLE_KEY, HA_READ_KEY_EXACT);
+  result= lookup_handler->ha_index_read_map(table->record[0], ptr,
+                                            HA_WHOLE_KEY, HA_READ_KEY_EXACT);
   if (!result)
   {
     bool is_same;
@@ -6903,6 +6906,13 @@ int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
     Item_func_hash * temp= (Item_func_hash *)hash_field->vcol_info->expr;
     Item ** arguments= temp->arguments();
     uint arg_count= temp->argument_count();
+    // restore pointers after swap_values in TABLE::update_virtual_fields()
+    for (Field **vf= table->vfield; *vf; vf++)
+    {
+      if (!(*vf)->stored_in_db() && (*vf)->flags & BLOB_FLAG &&
+          bitmap_is_set(table->read_set, (*vf)->field_index))
+        ((Field_blob*)*vf)->swap_value_and_read_value();
+    }
     do
     {
       my_ptrdiff_t diff= table->file->lookup_buffer - new_rec;
@@ -6950,6 +6960,7 @@ exit:
     }
   }
   restore_record(table, file->lookup_buffer);
+  table->restore_blob_values(blob_storage);
   lookup_handler->ha_index_end();
   DBUG_RETURN(error);
 }

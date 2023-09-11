@@ -455,6 +455,41 @@ create table t1 (f text not null, unique (f));
 insert into t1 (f) select 'f';
 drop table t1;
 #
+# MDEV-32012 hash unique corrupts index on virtual blobs
+#
+create table t1 (
+f1 varchar(25),
+v1 mediumtext generated always as (concat('f1:', f1)) virtual,
+unique key (f1) using hash,
+key (v1(1000))
+);
+flush status;
+insert ignore t1 (f1) values (9599),(94410);
+show status like 'handler_read_next';
+Variable_name	Value
+Handler_read_next	1
+# the above MUST BE =1
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+update t1 set f1=100 where f1=9599;
+update t1 set f1=9599 where f1=100;
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+drop table t1;
+#
+# MDEV-32015 insert into an empty table fails with hash unique
+#
+create table t1 (f1 varchar(25), unique (f1) using hash);
+insert ignore t1 (f1) values ('new york'),('virginia'),('spouse'),(null),('zqekmqpwutxnzddrbjycyo'),('nebraska'),('illinois'),('qe'),('ekmqpwut'),('arizona'),('arizona');
+Warnings:
+Warning	1062	Duplicate entry 'arizona' for key 'f1'
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+drop table t1;
+#
 # End of 10.4 tests
 #
 #
