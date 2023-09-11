@@ -202,7 +202,7 @@ tz_load(const char *name, TIME_ZONE_INFO *sp, MEM_ROOT *storage)
 
     if (!(tzinfo_buf= (char *)alloc_root(storage,
                                          ALIGN_SIZE(sp->timecnt *
-                                                    sizeof(my_time_t)) +
+                                                    sizeof(*sp->ats)) +
                                          ALIGN_SIZE(sp->timecnt) +
                                          ALIGN_SIZE(sp->typecnt *
                                                     sizeof(TRAN_TYPE_INFO)) +
@@ -473,9 +473,10 @@ prepare_tz_info(TIME_ZONE_INFO *sp, MEM_ROOT *storage)
 
   /* Allocate arrays of proper size in sp and copy result there */
   if (!(sp->revts= (my_time_t *)alloc_root(storage,
-                                  sizeof(my_time_t) * (sp->revcnt + 1))) ||
+                                           sizeof(*sp->revts) *
+                                           (sp->revcnt + 1))) ||
       !(sp->revtis= (REVT_INFO *)alloc_root(storage,
-                                  sizeof(REVT_INFO) * sp->revcnt)))
+                                            sizeof(REVT_INFO) * sp->revcnt)))
     return 1;
 
   memcpy(sp->revts, revts, sizeof(my_time_t) * (sp->revcnt + 1));
@@ -764,18 +765,16 @@ gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t sec_in_utc, const TIME_ZONE_INFO *sp)
   RETURN VALUE
     Seconds since epoch time representation.
 */
-static my_time_t
+static longlong
 sec_since_epoch(int year, int mon, int mday, int hour, int min ,int sec)
 {
-  /* Guard against my_time_t overflow(on system with 32 bit my_time_t) */
-  DBUG_ASSERT(!(year == TIMESTAMP_MAX_YEAR && mon == 1 && mday > 17));
 #ifndef WE_WANT_TO_HANDLE_UNORMALIZED_DATES
   /*
     It turns out that only whenever month is normalized or unnormalized
     plays role.
   */
   DBUG_ASSERT(mon > 0 && mon < 13);
-  long days= year * DAYS_PER_NYEAR - EPOCH_YEAR * DAYS_PER_NYEAR +
+  longlong days= year * DAYS_PER_NYEAR - EPOCH_YEAR * DAYS_PER_NYEAR +
              LEAPS_THRU_END_OF(year - 1) -
              LEAPS_THRU_END_OF(EPOCH_YEAR - 1);
   days+= mon_starts[isleap(year)][mon - 1];
@@ -790,8 +789,8 @@ sec_since_epoch(int year, int mon, int mday, int hour, int min ,int sec)
 #endif
   days+= mday - 1;
 
-  return ((days * HOURS_PER_DAY + hour) * MINS_PER_HOUR + min) *
-         SECS_PER_MIN + sec;
+  return ((longlong((days * HOURS_PER_DAY + hour) * MINS_PER_HOUR + min)) *
+          SECS_PER_MIN + sec);
 }
 
 /*
@@ -869,10 +868,14 @@ sec_since_epoch(int year, int mon, int mday, int hour, int min ,int sec)
     0 in case of error.
 */
 
+#if TIMESTAMP_MAX_DAY <= 2
+#error TIMESTAMP_MAX_DAY has to be > 2 for TIME_to_gmt_sec to work
+#endif
+
 static my_time_t
 TIME_to_gmt_sec(const MYSQL_TIME *t, const TIME_ZONE_INFO *sp, uint *error_code)
 {
-  my_time_t local_t;
+  longlong local_t;
   uint saved_seconds;
   uint i;
   int shift= 0;
@@ -894,7 +897,7 @@ TIME_to_gmt_sec(const MYSQL_TIME *t, const TIME_ZONE_INFO *sp, uint *error_code)
 
   /*
     NOTE: to convert full my_time_t range we do a shift of the
-    boundary dates here to avoid overflow of my_time_t.
+    boundary dates here to avoid overflow of my_time_t range.
     We use alike approach in my_system_gmt_sec().
 
     However in that function we also have to take into account
@@ -902,18 +905,18 @@ TIME_to_gmt_sec(const MYSQL_TIME *t, const TIME_ZONE_INFO *sp, uint *error_code)
     uses localtime_r(), which doesn't work with negative values correctly
     on platforms with unsigned time_t (QNX). Here we don't use localtime()
     => we negative values of local_t are ok.
-  */
+a  */
 
-  if ((t->year == TIMESTAMP_MAX_YEAR) && (t->month == 1) && t->day > 4)
+  if (t->year == TIMESTAMP_MAX_YEAR && t->month == TIMESTAMP_MAX_MONTH &&
+      t->day > 2)
   {
     /*
       We will pass (t->day - shift) to sec_since_epoch(), and
       want this value to be a positive number, so we shift
-      only dates > 4.01.2038 (to avoid owerflow).
+      only dates > max_day (to avoid owerflow).
     */
     shift= 2;
   }
-
 
   local_t= sec_since_epoch(t->year, t->month, (t->day - shift),
                            t->hour, t->minute,
@@ -942,8 +945,8 @@ TIME_to_gmt_sec(const MYSQL_TIME *t, const TIME_ZONE_INFO *sp, uint *error_code)
   */
   if (shift)
   {
-    if (local_t > (my_time_t) (TIMESTAMP_MAX_VALUE - shift * SECS_PER_DAY +
-                               sp->revtis[i].rt_offset - saved_seconds))
+    if (local_t > (longlong) (TIMESTAMP_MAX_VALUE - shift * SECS_PER_DAY +
+                              sp->revtis[i].rt_offset - saved_seconds))
     {
       *error_code= ER_WARN_DATA_OUT_OF_RANGE;
       DBUG_RETURN(0);                           /* my_time_t overflow */
@@ -965,14 +968,13 @@ TIME_to_gmt_sec(const MYSQL_TIME *t, const TIME_ZONE_INFO *sp, uint *error_code)
   else
     local_t= local_t - sp->revtis[i].rt_offset + saved_seconds;
 
-  /* check for TIMESTAMP_MAX_VALUE was already done above */
-  if (local_t < TIMESTAMP_MIN_VALUE)
+  if (local_t < TIMESTAMP_MIN_VALUE || local_t > TIMESTAMP_MAX_VALUE)
   {
     local_t= 0;
     *error_code= ER_WARN_DATA_OUT_OF_RANGE;
   }
 
-  DBUG_RETURN(local_t);
+  DBUG_RETURN((my_time_t) local_t);
 }
 
 

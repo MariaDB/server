@@ -1251,7 +1251,8 @@ my_time_t
 my_system_gmt_sec(const MYSQL_TIME *t_src, long *my_timezone, uint *error_code)
 {
   uint loop;
-  time_t tmp= 0;
+  longlong tmp= 0;
+  time_t temporary_time;
   int shift= 0;
   MYSQL_TIME tmp_time;
   MYSQL_TIME *t= &tmp_time;
@@ -1319,9 +1320,9 @@ my_system_gmt_sec(const MYSQL_TIME *t_src, long *my_timezone, uint *error_code)
     relevant to QNX.
 
     We are safe with shifts close to MAX_INT32, as there are no known
-    time switches on Jan 2038 yet :)
+    time switches on Febrary 2106 yet :)
   */
-  if ((t->year == TIMESTAMP_MAX_YEAR) && (t->month == 1) && (t->day > 4))
+  if ((t->year == TIMESTAMP_MAX_YEAR) && (t->month == 2) && (t->day > 17))
   {
     /*
       Below we will pass (uint) (t->day - shift) to calc_daynr.
@@ -1331,11 +1332,10 @@ my_system_gmt_sec(const MYSQL_TIME *t_src, long *my_timezone, uint *error_code)
     t->day-= 2;
     shift= 2;
   }
-#ifdef TIME_T_UNSIGNED
   else
   {
     /*
-      We can get 0 in time_t representaion only on 1969, 31 of Dec or on
+      We can get 0 in time_t representation only on 1969, 31 of Dec or on
       1970, 1 of Jan. For both dates we use shift, which is added
       to t->day in order to step out a bit from the border.
       This is required for platforms, where time_t is unsigned.
@@ -1343,6 +1343,7 @@ my_system_gmt_sec(const MYSQL_TIME *t_src, long *my_timezone, uint *error_code)
       Note: the order of below if-statements is significant.
     */
 
+    /* 1970 */
     if ((t->year == TIMESTAMP_MIN_YEAR + 1) && (t->month == 1)
         && (t->day <= 10))
     {
@@ -1350,6 +1351,7 @@ my_system_gmt_sec(const MYSQL_TIME *t_src, long *my_timezone, uint *error_code)
       shift= -2;
     }
 
+    /* 1969 */
     if ((t->year == TIMESTAMP_MIN_YEAR) && (t->month == 12)
         && (t->day == 31))
     {
@@ -1359,17 +1361,18 @@ my_system_gmt_sec(const MYSQL_TIME *t_src, long *my_timezone, uint *error_code)
       shift= -2;
     }
   }
-#endif
 
-  tmp= (time_t) (((calc_daynr((uint) t->year, (uint) t->month, (uint) t->day) -
-                   (long) days_at_timestart) * SECONDS_IN_24H +
-                   (long) t->hour*3600L +
-                  (long) (t->minute*60 + t->second)) + (time_t) my_time_zone -
-                 3600);
+  tmp= (((longlong) (calc_daynr((uint) t->year, (uint) t->month,
+                                (uint) t->day) -
+                     days_at_timestart) * SECONDS_IN_24H +
+         (long) t->hour*3600L +
+         (long) (t->minute*60 + t->second)) +
+        my_time_zone - 3600);
 
   current_timezone= my_time_zone;
-  localtime_r(&tmp,&tm_tmp);
-  l_time=&tm_tmp;
+  temporary_time= (time_t) tmp;
+  localtime_r(&temporary_time, &tm_tmp);
+  l_time= &tm_tmp;
   for (loop=0;
        loop < 2 &&
 	 (t->hour != (uint) l_time->tm_hour ||
@@ -1387,10 +1390,11 @@ my_system_gmt_sec(const MYSQL_TIME *t_src, long *my_timezone, uint *error_code)
           (long) (60*((int) t->minute - (int) l_time->tm_min)) +
           (long) ((int) t->second - (int) l_time->tm_sec));
     current_timezone+= diff+3600;		/* Compensate for -3600 above */
-    tmp+= (time_t) diff;
-    localtime_r(&tmp,&tm_tmp);
-    l_time=&tm_tmp;
+    tmp+= (longlong) diff;
+    temporary_time= (time_t) tmp;
+    localtime_r(&temporary_time, &tm_tmp);
   }
+
   /*
     Fix that if we are in the non existing daylight saving time hour
     we move the start of the next real hour.
@@ -1427,14 +1431,8 @@ my_system_gmt_sec(const MYSQL_TIME *t_src, long *my_timezone, uint *error_code)
   /*
     This is possible for dates, which slightly exceed boundaries.
     Conversion will pass ok for them, but we don't allow them.
-    First check will pass for platforms with signed time_t.
-    instruction above (tmp+= shift*86400L) could exceed
-    MAX_INT32 (== TIMESTAMP_MAX_VALUE) and overflow will happen.
-    So, tmp < TIMESTAMP_MIN_VALUE will be triggered. On platfroms
-    with unsigned time_t tmp+= shift*86400L might result in a number,
-    larger then TIMESTAMP_MAX_VALUE, so another check will work.
   */
-  if (!IS_TIME_T_VALID_FOR_TIMESTAMP(tmp))
+  if (tmp < 0 || (ulonglong) tmp > TIMESTAMP_MAX_VALUE)
   {
     tmp= 0;
     *error_code= ER_WARN_DATA_OUT_OF_RANGE;
