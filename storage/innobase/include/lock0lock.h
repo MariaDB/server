@@ -898,8 +898,6 @@ public:
   @retval DB_LOCK_WAIT  if the lock was canceled */
   template<bool check_victim>
   static dberr_t cancel(trx_t *trx, lock_t *lock);
-  /** Cancel a waiting lock request (if any) when killing a transaction */
-  static void cancel(trx_t *trx);
 
   /** Note that a record lock wait started */
   inline void wait_start();

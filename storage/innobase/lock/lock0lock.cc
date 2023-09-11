@@ -275,9 +275,12 @@ namespace Deadlock
   MY_ATTRIBUTE((nonnull, warn_unused_result))
   /** Check if a lock request results in a deadlock.
   Resolve a deadlock by choosing a transaction that will be rolled back.
-  @param trx    transaction requesting a lock
-  @return whether trx must report DB_DEADLOCK */
-  static bool check_and_resolve(trx_t *trx);
+  @param trx        transaction requesting a lock
+  @param wait_lock  the lock being requested
+  @return the lock that trx is or was waiting for
+  @retval nullptr if the lock wait was resolved
+  @retval -1 if trx must report DB_DEADLOCK */
+  static lock_t *check_and_resolve(trx_t *trx, lock_t *wait_lock);
 
   /** Quickly detect a deadlock using Brent's cycle detection algorithm.
   @param trx     transaction that is waiting for another transaction
@@ -1554,6 +1557,10 @@ lock_rec_lock(
   ut_ad(~mode & (LOCK_GAP | LOCK_REC_NOT_GAP));
   ut_ad(dict_index_is_clust(index) || !dict_index_is_online_ddl(index));
   DBUG_EXECUTE_IF("innodb_report_deadlock", return DB_DEADLOCK;);
+#ifdef ENABLED_DEBUG_SYNC
+  if (trx->mysql_thd)
+    DEBUG_SYNC_C("lock_rec");
+#endif
 
   ut_ad((LOCK_MODE_MASK & mode) != LOCK_S ||
         lock_table_has(trx, index->table, LOCK_IS));
@@ -1725,24 +1732,26 @@ void lock_sys_t::wait_resume(THD *thd, my_hrtime_t start, my_hrtime_t now)
 }
 
 #ifdef HAVE_REPLICATION
-ATTRIBUTE_NOINLINE MY_ATTRIBUTE((nonnull))
+ATTRIBUTE_NOINLINE MY_ATTRIBUTE((nonnull, warn_unused_result))
 /** Report lock waits to parallel replication. Sets
 trx->error_state= DB_DEADLOCK if trx->lock.was_chosen_as_deadlock_victim was
 set when lock_sys.wait_mutex was unlocked.
 @param trx       transaction that may be waiting for a lock
-@param wait_lock lock that is being waited for */
-static void lock_wait_rpl_report(trx_t *trx)
+@param wait_lock lock that is being waited for
+@return lock being waited for (may have been replaced by an equivalent one)
+@retval nullptr if no lock is being waited for */
+static lock_t *lock_wait_rpl_report(trx_t *trx)
 {
   mysql_mutex_assert_owner(&lock_sys.wait_mutex);
   ut_ad(trx->state == TRX_STATE_ACTIVE);
   THD *const thd= trx->mysql_thd;
   ut_ad(thd);
-  const lock_t *wait_lock= trx->lock.wait_lock;
+  lock_t *wait_lock= trx->lock.wait_lock;
   if (!wait_lock)
-    return;
+    return nullptr;
   /* This would likely be too large to attempt to use a memory transaction,
   even for wait_lock->is_table(). */
-  const bool nowait=  lock_sys.wr_lock_try();
+  const bool nowait= lock_sys.wr_lock_try();
   if (!nowait)
   {
     mysql_mutex_unlock(&lock_sys.wait_mutex);
@@ -1757,12 +1766,15 @@ func_exit:
       lock_sys.wait_mutex was unlocked, let's check it. */
       if (!nowait && trx->lock.was_chosen_as_deadlock_victim)
         trx->error_state= DB_DEADLOCK;
-      return;
+      return wait_lock;
     }
     ut_ad(wait_lock->is_waiting());
   }
   else if (!wait_lock->is_waiting())
+  {
+    wait_lock= nullptr;
     goto func_exit;
+  }
 
   if (wait_lock->is_table())
   {
@@ -1803,14 +1815,16 @@ dberr_t lock_wait(que_thr_t *thr)
 {
   trx_t *trx= thr_get_trx(thr);
 
+#ifdef ENABLED_DEBUG_SYNC
   if (trx->mysql_thd)
     DEBUG_SYNC_C("lock_wait_start");
 
   /* Create the sync point for any quit from the function. */
-  ut_d(SCOPE_EXIT([trx]() {
+  SCOPE_EXIT([trx]() {
     if (trx->mysql_thd)
       DEBUG_SYNC_C("lock_wait_end");
-  }));
+  });
+#endif
 
   /* InnoDB system transactions may use the global value of
   innodb_lock_wait_timeout, because trx->mysql_thd == NULL. */
@@ -1819,8 +1833,10 @@ dberr_t lock_wait(que_thr_t *thr)
   ut_ad(!trx->dict_operation_lock_mode);
 
   /* The wait_lock can be cleared by another thread in lock_grant(),
-  lock_rec_cancel(), or lock_cancel_waiting_and_release(). But, a wait
-  can only be initiated by the current thread which owns the transaction.
+  lock_rec_cancel(), lock_cancel_waiting_and_release(), which could be
+  invoked from the high-level function lock_sys_t::cancel().
+  But, a wait can only be initiated by the current thread which owns
+  the transaction.
 
   Even if trx->lock.wait_lock were changed, the object that it used to
   point to it will remain valid memory (remain allocated from
@@ -1835,16 +1851,25 @@ dberr_t lock_wait(que_thr_t *thr)
   wait_lock->type_mode & (LOCK_TABLE | LOCK_AUTO_INC), which will be
   unaffected by any page split or merge operation. (Furthermore,
   table lock objects will never be cloned or moved.) */
-  const lock_t *const wait_lock= trx->lock.wait_lock;
+  lock_t *wait_lock= trx->lock.wait_lock;
 
   if (!wait_lock)
   {
     /* The lock has already been released or this transaction
     was chosen as a deadlock victim: no need to wait */
-    trx->error_state=
-        trx->lock.was_chosen_as_deadlock_victim ? DB_DEADLOCK : DB_SUCCESS;
+    if (trx->lock.was_chosen_as_deadlock_victim)
+      trx->error_state= DB_DEADLOCK;
+    else if (trx->error_state == DB_LOCK_WAIT)
+      trx->error_state= DB_SUCCESS;
     return trx->error_state;
   }
+
+  /* Because we are not holding exclusive lock_sys.latch, the
+  wait_lock may be changed by other threads during a page split or
+  merge in case it is a record lock.
+
+  Because at this point we are not holding lock_sys.wait_mutex either,
+  another thread may set trx->lock.wait_lock == nullptr at any time. */
 
   trx->lock.suspend_time= suspend_time;
 
@@ -1861,7 +1886,7 @@ dberr_t lock_wait(que_thr_t *thr)
   is not being used. We want to be allow the user to skip
   lock_wait_rpl_report(). */
   const bool rpl= trx->mysql_thd && innodb_deadlock_detect &&
-          thd_need_wait_reports(trx->mysql_thd);
+    thd_need_wait_reports(trx->mysql_thd);
 #endif
   const bool row_lock_wait= thr->lock_state == QUE_THR_LOCK_ROW;
   timespec abstime;
@@ -1880,11 +1905,35 @@ dberr_t lock_wait(que_thr_t *thr)
 
   int err= 0;
   mysql_mutex_lock(&lock_sys.wait_mutex);
-  if (trx->lock.wait_lock)
+  /* Now that we are holding lock_sys.wait_mutex, we must reload
+  trx->lock.wait_mutex. It cannot be cleared as long as we are holding
+  lock_sys.wait_mutex, but as long as we do not hold exclusive
+  lock_sys.latch, a waiting record lock can be replaced with an
+  equivalent waiting record lock during a page split or merge by
+  another thread. See lock_sys_t::cancel(). */
+  wait_lock= trx->lock.wait_lock;
+
+  if (wait_lock)
   {
-    if (Deadlock::check_and_resolve(trx))
+    /* Dictionary transactions must ignore KILL, because they could
+    be executed as part of a multi-transaction DDL operation,
+    such as rollback_inplace_alter_table() or ha_innobase::delete_table(). */
+    if (!trx->dict_operation && trx_is_interrupted(trx))
     {
-      ut_ad(!trx->lock.wait_lock);
+      /* innobase_kill_query() can only set trx->error_state=DB_INTERRUPTED
+      for any transaction that is attached to a connection.
+
+      Furthermore, innobase_kill_query() could have been invoked before
+      this thread entered a lock wait. The thd_kill_level() or thd::killed
+      is only being checked every now and then. */
+      trx->error_state= DB_INTERRUPTED;
+      goto abort_wait;
+    }
+
+    wait_lock= Deadlock::check_and_resolve(trx, wait_lock);
+
+    if (wait_lock == reinterpret_cast<lock_t*>(-1))
+    {
       trx->error_state= DB_DEADLOCK;
       goto end_wait;
     }
@@ -1893,8 +1942,10 @@ dberr_t lock_wait(que_thr_t *thr)
   {
     /* trx->lock.was_chosen_as_deadlock_victim can be changed before
     lock_sys.wait_mutex is acquired, so let's check it once more. */
-    trx->error_state=
-        trx->lock.was_chosen_as_deadlock_victim ? DB_DEADLOCK : DB_SUCCESS;
+    if (trx->lock.was_chosen_as_deadlock_victim)
+      trx->error_state= DB_DEADLOCK;
+    else if (trx->error_state == DB_LOCK_WAIT)
+      trx->error_state= DB_SUCCESS;
     goto end_wait;
   }
   if (row_lock_wait)
@@ -1902,14 +1953,16 @@ dberr_t lock_wait(que_thr_t *thr)
 
 #ifdef HAVE_REPLICATION
   if (rpl)
-    lock_wait_rpl_report(trx);
+    wait_lock= lock_wait_rpl_report(trx);
 #endif
 
   if (trx->error_state != DB_SUCCESS)
     goto check_trx_error;
 
-  while (trx->lock.wait_lock)
+  while (wait_lock)
   {
+    ut_ad(trx->lock.wait_lock);
+
     DEBUG_SYNC_C("lock_wait_before_suspend");
 
     if (no_timeout)
@@ -1917,6 +1970,9 @@ dberr_t lock_wait(que_thr_t *thr)
     else
       err= my_cond_timedwait(&trx->lock.cond, &lock_sys.wait_mutex.m_mutex,
                              &abstime);
+
+    wait_lock= trx->lock.wait_lock;
+
 check_trx_error:
     switch (trx->error_state) {
     case DB_DEADLOCK:
@@ -1948,10 +2004,12 @@ check_trx_error:
   if (row_lock_wait)
     lock_sys.wait_resume(trx->mysql_thd, suspend_time, my_hrtime_coarse());
 
-  /* Cache trx->lock.wait_lock to avoid unnecessary atomic variable load */
-  if (lock_t *lock= trx->lock.wait_lock)
+  ut_ad(!wait_lock == !trx->lock.wait_lock);
+
+  if (wait_lock)
   {
-    lock_sys_t::cancel<false>(trx, lock);
+  abort_wait:
+    lock_sys_t::cancel<false>(trx, wait_lock);
     lock_sys.deadlock_check();
   }
 
@@ -3274,8 +3332,9 @@ lock_rec_store_on_page_infimum(
 
   ut_ad(block->page.frame == page_align(rec));
   const page_id_t id{block->page.id()};
-  ut_d(SCOPE_EXIT(
-      []() { DEBUG_SYNC_C("lock_rec_store_on_page_infimum_end"); }));
+#ifdef ENABLED_DEBUG_SYNC
+  SCOPE_EXIT([]() { DEBUG_SYNC_C("lock_rec_store_on_page_infimum_end"); });
+#endif
 
   LockGuard g{lock_sys.rec_hash, id};
   lock_rec_move(g.cell(), *block, id, g.cell(), id,
@@ -6002,25 +6061,7 @@ resolve_record_lock:
   return err;
 }
 
-/** Cancel a waiting lock request (if any) when killing a transaction */
-void lock_sys_t::cancel(trx_t *trx)
-{
-  mysql_mutex_lock(&lock_sys.wait_mutex);
-  /* Cache trx->lock.wait_lock to avoid unnecessary atomic variable load */
-  if (lock_t *lock= trx->lock.wait_lock)
-  {
-    /* Dictionary transactions must be immune to KILL, because they
-    may be executed as part of a multi-transaction DDL operation, such
-    as rollback_inplace_alter_table() or ha_innobase::delete_table(). */
-    if (!trx->dict_operation)
-    {
-      trx->error_state= DB_INTERRUPTED;
-      cancel<false>(trx, lock);
-    }
-  }
-  lock_sys.deadlock_check();
-  mysql_mutex_unlock(&lock_sys.wait_mutex);
-}
+template dberr_t lock_sys_t::cancel<false>(trx_t *, lock_t *);
 
 /*********************************************************************//**
 Unlocks AUTO_INC type locks that were possibly reserved by a trx. This
@@ -6507,30 +6548,40 @@ func_exit:
 
 /** Check if a lock request results in a deadlock.
 Resolve a deadlock by choosing a transaction that will be rolled back.
-@param trx    transaction requesting a lock
-@return whether trx must report DB_DEADLOCK */
-static bool Deadlock::check_and_resolve(trx_t *trx)
+@param trx        transaction requesting a lock
+@param wait_lock  the lock being requested
+@return the lock that trx is or was waiting for
+@retval nullptr if the lock wait was resolved
+@retval -1 if trx must report DB_DEADLOCK */
+static lock_t *Deadlock::check_and_resolve(trx_t *trx, lock_t *wait_lock)
 {
   mysql_mutex_assert_owner(&lock_sys.wait_mutex);
 
   ut_ad(!trx->mutex_is_owner());
   ut_ad(trx->state == TRX_STATE_ACTIVE);
   ut_ad(!srv_read_only_mode);
+  ut_ad(wait_lock);
 
   if (!innodb_deadlock_detect)
-    return false;
+    return wait_lock;
 
-  if (UNIV_LIKELY_NULL(find_cycle(trx)) && report(trx, true) == trx)
-    return true;
+  if (UNIV_LIKELY_NULL(find_cycle(trx)))
+  {
+    if (report(trx, true) == trx)
+      return reinterpret_cast<lock_t*>(-1);
+    /* Because report() released and reacquired lock_sys.wait_mutex,
+    another thread may have cleared trx->lock.wait_lock meanwhile. */
+    wait_lock= trx->lock.wait_lock;
+  }
 
   if (UNIV_LIKELY(!trx->lock.was_chosen_as_deadlock_victim))
-    return false;
+    return wait_lock;
 
-  if (lock_t *wait_lock= trx->lock.wait_lock)
+  if (wait_lock)
     lock_sys_t::cancel<false>(trx, wait_lock);
 
   lock_sys.deadlock_check();
-  return true;
+  return reinterpret_cast<lock_t*>(-1);
 }
 
 /** Check for deadlocks while holding only lock_sys.wait_mutex. */

@@ -5023,7 +5023,11 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
   if (trx_t* trx= thd_to_trx(thd))
   {
     ut_ad(trx->mysql_thd == thd);
-    if (!trx->lock.wait_lock);
+    mysql_mutex_lock(&lock_sys.wait_mutex);
+    lock_t *lock= trx->lock.wait_lock;
+
+    if (!lock)
+      /* The transaction is not waiting for any lock. */;
 #ifdef WITH_WSREP
     else if (trx->is_wsrep() && wsrep_thd_is_aborting(thd))
       /* if victim has been signaled by BF thread and/or aborting is already
@@ -5031,7 +5035,18 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
       Also, BF thread should own trx mutex for the victim. */;
 #endif /* WITH_WSREP */
     else
-      lock_sys_t::cancel(trx);
+    {
+      if (!trx->dict_operation)
+      {
+        /* Dictionary transactions must be immune to KILL, because they
+        may be executed as part of a multi-transaction DDL operation, such
+        as rollback_inplace_alter_table() or ha_innobase::delete_table(). */;
+        trx->error_state= DB_INTERRUPTED;
+        lock_sys_t::cancel<false>(trx, lock);
+      }
+      lock_sys.deadlock_check();
+    }
+    mysql_mutex_unlock(&lock_sys.wait_mutex);
   }
 
   DBUG_VOID_RETURN;
