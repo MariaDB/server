@@ -3109,7 +3109,7 @@ public:
         m_old_xdes_pages[m_index] != nullptr)
       return DB_SUCCESS;
 
-    DBUG_EXECUTE_IF("sys_shrink_buffer_pool_full",
+    DBUG_EXECUTE_IF("shrink_buffer_pool_full",
                     return DB_OUT_OF_MEMORY;);
     dberr_t err= DB_SUCCESS;
     buf_block_t *block= fsp_get_latched_xdes_page(page_no, mtr, &err);
