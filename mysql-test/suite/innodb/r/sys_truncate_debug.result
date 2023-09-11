@@ -19,7 +19,7 @@ InnoDB		0 transactions not purged
 SELECT NAME, FILE_SIZE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE SPACE = 0;
 NAME	FILE_SIZE
 innodb_system	540016640
-# restart: --debug_dbug=+d,sys_shrink_buffer_pool_full
+# restart: --debug_dbug=+d,shrink_buffer_pool_full
 FOUND 1 /\[Warning\] InnoDB: Cannot shrink the system tablespace/ in mysqld.1.err
 SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
