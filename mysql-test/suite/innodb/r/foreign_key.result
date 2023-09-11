@@ -1029,7 +1029,39 @@ CREATE OR REPLACE TABLE t1 (b INT) ENGINE=InnoDB;
 connection default;
 INSERT INTO t2 VALUES (1);
 connection con1;
-disconnect con1;
 connection default;
 DROP TABLE IF EXISTS t2, t1;
+#
+# MDEV-30531 Corrupt index(es) on busy table when using FOREIGN KEY
+#
+SET @freq=@@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+CREATE TABLE collections (
+id int(11) unsigned NOT NULL AUTO_INCREMENT,
+collectionhash varchar(255) NOT NULL DEFAULT '0',
+PRIMARY KEY (id),
+UNIQUE KEY ix_collection_collectionhash (collectionhash)
+) ENGINE=InnoDB;
+CREATE TABLE binaries (
+id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+collections_id int(11) unsigned NOT NULL DEFAULT 0,
+binaryhash binary(16) NOT NULL DEFAULT '0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0',
+PRIMARY KEY (id),
+UNIQUE KEY ix_binary_binaryhash (binaryhash),
+CONSTRAINT FK_collections FOREIGN KEY (collections_id) REFERENCES collections (id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+INSERT INTO collections (id) VALUES (NULL);
+connection con1;
+INSERT INTO binaries (id,collections_id) VALUES (NULL,1);
+REPLACE INTO collections (id) VALUES (NULL);
+connection default;
+REPLACE INTO binaries (id) VALUES (NULL);
+SET GLOBAL innodb_max_purge_lag_wait=0;
+CHECK TABLE binaries, collections EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.binaries	check	status	OK
+test.collections	check	status	OK
+SET GLOBAL innodb_purge_rseg_truncate_frequency=@freq;
+disconnect con1;
+DROP TABLE binaries, collections;
 # End of 10.6 tests
