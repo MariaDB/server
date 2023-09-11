@@ -707,7 +707,6 @@ bool Sql_cmd_update::update_single_table(THD *thd)
 
       if (!(file_sort= filesort(thd, table, &fsort, fs_tracker)))
 	goto err;
-      thd->inc_examined_row_count(file_sort->examined_rows);
 
       /*
 	Filesort has already found and selected the rows we want to update,
@@ -775,7 +774,7 @@ bool Sql_cmd_update::update_single_table(THD *thd)
       while (likely(!(error=info.read_record())) && likely(!thd->killed))
       {
         explain->buf_tracker.on_record_read();
-        thd->inc_examined_row_count(1);
+        thd->inc_examined_row_count();
 	if (!select || (error= select->skip_record(thd)) > 0)
 	{
           if (table->file->ha_was_semi_consistent_read())
@@ -912,7 +911,7 @@ update_begin:
   while (!(error=info.read_record()) && !thd->killed)
   {
     explain->tracker.on_record_read();
-    thd->inc_examined_row_count(1);
+    thd->inc_examined_row_count();
     if (!select || select->skip_record(thd) > 0)
     {
       if (table->file->ha_was_semi_consistent_read())

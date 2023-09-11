@@ -3516,12 +3516,13 @@ public:
 
   ha_rows    cuted_fields;
 
-private:
   /*
     number of rows we actually sent to the client, including "synthetic"
     rows in ROLLUP etc.
   */
   ha_rows    m_sent_row_count;
+  /* Number of rows for the total statement */
+  ha_rows    sent_row_count_for_statement;
 
   /**
     Number of rows read and/or evaluated for a statement. Used for
@@ -3534,8 +3535,9 @@ private:
     filesort() before reading it for e.g. update.
   */
   ha_rows    m_examined_row_count;
+  /* Number of rows for the top level query */
+  ha_rows    examined_row_count_for_statement;
 
-public:
   ha_rows get_sent_row_count() const
   { return m_sent_row_count; }
 
@@ -3548,8 +3550,24 @@ public:
   void set_sent_row_count(ha_rows count);
   void set_examined_row_count(ha_rows count);
 
-  void inc_sent_row_count(ha_rows count);
-  void inc_examined_row_count(ha_rows count);
+  inline void inc_sent_row_count(ha_rows count)
+  {
+    m_sent_row_count+= count;
+    sent_row_count_for_statement+= count;
+    MYSQL_SET_STATEMENT_ROWS_SENT(m_statement_psi, m_sent_row_count);
+  }
+  inline void inc_examined_row_count_fast()
+  {
+    m_examined_row_count++;
+    examined_row_count_for_statement++;
+  }
+  inline void inc_examined_row_count()
+  {
+    inc_examined_row_count_fast();
+    MYSQL_SET_STATEMENT_ROWS_EXAMINED(m_statement_psi, m_examined_row_count);
+  }
+
+  void ps_report_examined_row_count();
 
   void inc_status_created_tmp_disk_tables();
   void inc_status_created_tmp_files();

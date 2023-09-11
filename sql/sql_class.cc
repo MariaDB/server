@@ -641,7 +641,10 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    current_stmt_binlog_format(BINLOG_FORMAT_MIXED),
    bulk_param(0),
    table_map_for_update(0),
+   m_sent_row_count(0),
+   sent_row_count_for_statement(0),
    m_examined_row_count(0),
+   examined_row_count_for_statement(0),
    accessed_rows_and_keys(0),
    m_digest(NULL),
    m_statement_psi(NULL),
@@ -777,7 +780,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   my_hash_clear(&ull_hash);
   tmp_table=0;
   cuted_fields= 0L;
-  m_sent_row_count= 0L;
   limit_found_rows= 0;
   m_row_count_func= -1;
   statement_id_counter= 0UL;
@@ -5826,11 +5828,14 @@ void THD::restore_sub_statement_state(Sub_statement_state *backup)
   first_successful_insert_id_in_cur_stmt= 
     backup->first_successful_insert_id_in_cur_stmt;
   limit_found_rows= backup->limit_found_rows;
-  set_sent_row_count(backup->sent_row_count);
   client_capabilities= backup->client_capabilities;
 
   /* Restore statistic needed for slow log */
   add_slow_query_state(backup);
+  if (backup->sent_row_count)
+    MYSQL_SET_STATEMENT_ROWS_SENT(m_statement_psi, m_sent_row_count);
+  if (backup->examined_row_count)
+    MYSQL_SET_STATEMENT_ROWS_EXAMINED(m_statement_psi, m_examined_row_count);
 
   /*
     If we've left sub-statement mode, reset the fatal error flag.
@@ -5851,7 +5856,6 @@ void THD::restore_sub_statement_state(Sub_statement_state *backup)
     The following is added to the old values as we are interested in the
     total complexity of the query
   */
-  inc_examined_row_count(backup->examined_row_count);
   cuted_fields+=       backup->cuted_fields;
   DBUG_VOID_RETURN;
 }
@@ -5919,28 +5923,21 @@ void THD::set_statement(Statement *stmt)
   mysql_mutex_unlock(&LOCK_thd_data);
 }
 
+/*
+  This functions is only called when we send the result from the query
+  cache or in case of select_export().
+*/
 void THD::set_sent_row_count(ha_rows count)
 {
   m_sent_row_count= count;
+  sent_row_count_for_statement+= count;
   MYSQL_SET_STATEMENT_ROWS_SENT(m_statement_psi, m_sent_row_count);
 }
 
-void THD::set_examined_row_count(ha_rows count)
+void THD::ps_report_examined_row_count()
 {
-  m_examined_row_count= count;
-  MYSQL_SET_STATEMENT_ROWS_EXAMINED(m_statement_psi, m_examined_row_count);
-}
-
-void THD::inc_sent_row_count(ha_rows count)
-{
-  m_sent_row_count+= count;
-  MYSQL_SET_STATEMENT_ROWS_SENT(m_statement_psi, m_sent_row_count);
-}
-
-void THD::inc_examined_row_count(ha_rows count)
-{
-  m_examined_row_count+= count;
-  MYSQL_SET_STATEMENT_ROWS_EXAMINED(m_statement_psi, m_examined_row_count);
+  if (m_examined_row_count)
+    MYSQL_SET_STATEMENT_ROWS_EXAMINED(m_statement_psi, m_examined_row_count);
 }
 
 void THD::inc_status_created_tmp_disk_tables()

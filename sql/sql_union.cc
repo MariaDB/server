@@ -2298,7 +2298,6 @@ bool st_select_lex_unit::exec_inner()
   SELECT_LEX *lex_select_save= thd->lex->current_select;
   SELECT_LEX *select_cursor=first_select();
   ulonglong add_rows=0;
-  ha_rows examined_rows= 0;
   bool first_execution= !executed;
   bool was_executed= executed;
 
@@ -2398,8 +2397,6 @@ bool st_select_lex_unit::exec_inner()
 	}
 	if (likely(!saved_error))
 	{
-	  examined_rows+= thd->get_examined_row_count();
-          thd->set_examined_row_count(0);
 	  if (union_result->flush())
 	  {
 	    thd->lex->current_select= lex_select_save;
@@ -2507,7 +2504,6 @@ bool st_select_lex_unit::exec_inner()
         }
         else
         {
-          join->join_examined_rows= 0;
           saved_error= join->reinit();
           if (join->exec())
             saved_error= 1;
@@ -2518,7 +2514,6 @@ bool st_select_lex_unit::exec_inner()
       if (likely(!saved_error))
       {
 	thd->limit_found_rows = (ulonglong)table->file->stats.records + add_rows;
-        thd->inc_examined_row_count(examined_rows);
       }
       /*
 	Mark for slow query log if any of the union parts didn't use
@@ -2564,7 +2559,6 @@ bool st_select_lex_unit::exec_recursive()
   bool is_unrestricted= with_element->is_unrestricted();
   List_iterator_fast<TABLE_LIST> li(with_element->rec_result->rec_table_refs);
   TMP_TABLE_PARAM *tmp_table_param= &with_element->rec_result->tmp_table_param;
-  ha_rows examined_rows= 0;
   bool was_executed= executed;
   TABLE_LIST *rec_tbl;
 
@@ -2619,8 +2613,6 @@ bool st_select_lex_unit::exec_recursive()
     }
     if (likely(!saved_error))
     {
-       examined_rows+= thd->get_examined_row_count();
-       thd->set_examined_row_count(0);
        if (unlikely(union_result->flush()))
        {
 	 thd->lex->current_select= lex_select_save;
@@ -2633,8 +2625,6 @@ bool st_select_lex_unit::exec_recursive()
       goto err;
     }
   }
-
-  thd->inc_examined_row_count(examined_rows);
 
   incr_table->file->info(HA_STATUS_VARIABLE);
   if (with_element->level && incr_table->file->stats.records == 0)

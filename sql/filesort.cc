@@ -548,7 +548,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   else
     thd->inc_status_sort_rows(num_rows);
 
-  sort->examined_rows= param.examined_rows;
+  sort->m_examined_rows= param.examined_rows;
   sort->return_rows= num_rows;
 #ifdef SKIP_DBUG_IN_FILESORT
   DBUG_POP_EMPTY;		/* Ok to DBUG */
@@ -556,7 +556,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
 
   DBUG_PRINT("exit",
              ("num_rows: %lld examined_rows: %lld found_rows: %lld",
-              (longlong) sort->return_rows, (longlong) sort->examined_rows,
+              (longlong) sort->return_rows, (longlong) sort->m_examined_rows,
               (longlong) sort->found_rows));
   MYSQL_FILESORT_DONE(error, num_rows);
 
@@ -985,6 +985,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
     if (likely(error == 0))
     {
       param->examined_rows++;
+      thd->inc_examined_row_count_fast();
       if (select && select->cond)
       {
         /*

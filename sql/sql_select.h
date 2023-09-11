@@ -1385,7 +1385,7 @@ public:
   table_map eq_ref_tables;
 
   table_map allowed_top_level_tables;
-  ha_rows  send_records,found_records,join_examined_rows, accepted_rows;
+  ha_rows  send_records,found_records, accepted_rows;
 
   /*
     LIMIT for the JOIN operation. When not using aggregation or DISITNCT, this 

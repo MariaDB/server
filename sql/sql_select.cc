@@ -4762,7 +4762,6 @@ int JOIN::exec_inner()
     if (procedure->change_columns(thd, procedure_fields_list) ||
 	result->prepare(procedure_fields_list, unit))
     {
-      thd->set_examined_row_count(0);
       thd->limit_found_rows= 0;
       DBUG_RETURN(0);
     }
@@ -4820,7 +4819,6 @@ int JOIN::exec_inner()
     }
     /* Single select (without union) always returns 0 or 1 row */
     thd->limit_found_rows= send_records;
-    thd->set_examined_row_count(0);
     DBUG_RETURN(error);
   }
 
@@ -4918,13 +4916,6 @@ int JOIN::exec_inner()
     select_lex->mark_const_derived(zero_result_cause);
   }
 
-  /*
-    Initialize examined rows here because the values from all join parts
-    must be accumulated in examined_row_count. Hence every join
-    iteration must count from zero.
-  */
-  join_examined_rows= 0;
-
   /* XXX: When can we have here thd->is_error() not zero? */
   if (unlikely(thd->is_error()))
   {
@@ -4940,7 +4931,8 @@ int JOIN::exec_inner()
 
   error= result->view_structure_only() ? false : do_select(this, procedure);
   /* Accumulate the counts from all join iterations of all join parts. */
-  thd->inc_examined_row_count(join_examined_rows);
+  thd->ps_report_examined_row_count();
+
   DBUG_PRINT("counts", ("thd->examined_row_count: %lu",
                         (ulong) thd->get_examined_row_count()));
 
@@ -16924,7 +16916,6 @@ return_zero_rows(JOIN *join, select_result *result, List<TABLE_LIST> *tables,
   /* Update results for FOUND_ROWS */
   if (!join->send_row_on_empty_set())
   {
-    join->thd->set_examined_row_count(0);
     join->thd->limit_found_rows= 0;
   }
 
@@ -22895,8 +22886,7 @@ do_select(JOIN *join, Procedure *procedure)
         here.  join->send_records is increased on success in end_send(),
         so we don't touch it here.
       */
-      join->join_examined_rows++;
-      DBUG_ASSERT(join->join_examined_rows <= 1);
+      join->thd->inc_examined_row_count_fast();
     }
     else if (join->send_row_on_empty_set())
     {
@@ -23666,9 +23656,9 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
       of the newly activated predicates is evaluated as false
       (See above join->return_tab= tab).
     */
-    join->join_examined_rows++;
-    DBUG_PRINT("counts", ("join->examined_rows++: %lu  found: %d",
-                          (ulong) join->join_examined_rows, (int) found));
+    join->thd->inc_examined_row_count_fast();
+    DBUG_PRINT("counts", ("examined_rows: %llu  found: %d",
+                          (ulonglong) join->thd->m_examined_row_count, (int) found));
 
     if (found)
     {
@@ -23704,7 +23694,7 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
       The condition pushed down to the table join_tab rejects all rows
       with the beginning coinciding with the current partial join.
     */
-    join->join_examined_rows++;
+    join->thd->inc_examined_row_count_fast();
   }
 
   join->thd->get_stmt_da()->inc_current_row_for_warning();
@@ -26848,7 +26838,6 @@ create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort)
   {
     tab->records= join->select_options & OPTION_FOUND_ROWS ?
       file_sort->found_rows : file_sort->return_rows;
-    tab->join->join_examined_rows+= file_sort->examined_rows;
   }
 
   if (quick_created)
