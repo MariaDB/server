@@ -1695,6 +1695,47 @@ set old_mode= @old_old_mode;
 drop table t1;
 set debug_sync= reset;
 
+--echo #
+--echo # MDEV-32100 Online ALTER TABLE ends with 1032 under some isolation levels
+--echo #
+
+let $tx_iso_id=4;
+
+create table iso_levels(id int, level text);
+INSERT iso_levels VALUES (0, "READ UNCOMMITTED"),
+                         (1, "READ COMMITTED"),
+                         (2, "REPEATABLE READ"),
+                         (3, "SERIALIZABLE");
+
+while($tx_iso_id) {
+dec $tx_iso_id;
+let tx_iso= `select level from iso_levels where id = $tx_iso_id`;
+
+create table t1 (a int, b int, key(b)) engine=innodb;
+
+--connection con2
+insert into t1 values (1,1),(null,null),(3,3),(4,null),(null,5);
+
+--connection default
+
+eval set session transaction isolation level $tx_iso;
+set debug_sync= "alter_table_online_downgraded signal downgraded wait_for goalters";
+
+send alter table t1 force, algorithm=copy;
+
+--connection con2
+set debug_sync= "now wait_for downgraded";
+delete from t1 where b is null;
+set debug_sync= "now signal goalters";
+
+--connection default
+--reap
+drop table t1;
+}
+set debug_sync= reset;
+drop table iso_levels;
+
+
 
 --disconnect con1
 --disconnect con2
