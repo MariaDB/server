@@ -858,7 +858,7 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
     if (query_cache_send_result_to_client(thd, thd->query(),
                                           thd->query_length()) <= 0)
     {
-      thd->reset_slow_query_state();
+      thd->reset_slow_query_state(&backup_state);
       res= m_lex_keeper.validate_lex_and_exec_core(thd, nextp, false, this);
       bool log_slow= !res && thd->enable_slow_log;
 

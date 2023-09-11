@@ -3390,11 +3390,11 @@ static my_bool processlist_callback(THD *tmp, processlist_callback_arg *arg)
       arg->table->field[7]->set_notnull();
 
       /* INFO_BINARY */
-      arg->table->field[16]->store(tmp->query(),
+      arg->table->field[17]->store(tmp->query(),
                                    MY_MIN(PROCESS_LIST_INFO_WIDTH,
                                           tmp->query_length()),
                                    &my_charset_bin);
-      arg->table->field[16]->set_notnull();
+      arg->table->field[17]->set_notnull();
     }
 
     /*
@@ -3430,12 +3430,13 @@ static my_bool processlist_callback(THD *tmp, processlist_callback_arg *arg)
                                FALSE);
   arg->table->field[13]->store((longlong) tmp->status_var.max_local_memory_used,
                                FALSE);
-  arg->table->field[14]->store((longlong) tmp->get_examined_row_count(), TRUE);
+  arg->table->field[14]->store((longlong) tmp->examined_row_count_for_statement, TRUE);
+  arg->table->field[15]->store((longlong) tmp->sent_row_count_for_statement, TRUE);
 
   /* QUERY_ID */
-  arg->table->field[15]->store(tmp->query_id, TRUE);
+  arg->table->field[16]->store(tmp->query_id, TRUE);
 
-  arg->table->field[17]->store(tmp->os_thread_id);
+  arg->table->field[18]->store(tmp->os_thread_id);
 
   if (schema_table_store_record(arg->thd, arg->table))
     return 1;
@@ -9868,12 +9869,13 @@ ST_FIELD_INFO processlist_fields_info[]=
   Column("STAGE",          STiny(2),                  NOT_NULL, "Stage"),
   Column("MAX_STAGE",      STiny(2),                  NOT_NULL, "Max_stage"),
   Column("PROGRESS",       Decimal(703),              NOT_NULL, "Progress"),
-  Column("MEMORY_USED",    SLonglong(7),              NOT_NULL, "Memory_used"),
-  Column("MAX_MEMORY_USED",SLonglong(7),              NOT_NULL, "Max_memory_used"),
-  Column("EXAMINED_ROWS",  SLong(7),                  NOT_NULL, "Examined_rows"),
-  Column("QUERY_ID",       SLonglong(4),              NOT_NULL),
+  Column("MEMORY_USED",    SLonglong(10),             NOT_NULL, "Memory_used"),
+  Column("MAX_MEMORY_USED",SLonglong(10),             NOT_NULL, "Max_memory_used"),
+  Column("EXAMINED_ROWS",  SLonglong(10),             NOT_NULL, "Examined_rows"),
+  Column("SENT_ROWS",      SLonglong(10),             NOT_NULL, "Sent_rows"),
+  Column("QUERY_ID",       SLonglong(10),             NOT_NULL),
   Column("INFO_BINARY",Blob(PROCESS_LIST_INFO_WIDTH),NULLABLE, "Info_binary"),
-  Column("TID",            SLonglong(4),              NOT_NULL, "Tid"),
+  Column("TID",            SLonglong(10),             NOT_NULL, "Tid"),
   CEnd()
 };
 

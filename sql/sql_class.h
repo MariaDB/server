@@ -2033,6 +2033,7 @@ public:
   ulonglong tmp_tables_size;
   ulonglong client_capabilities;
   ulonglong cuted_fields, sent_row_count, examined_row_count;
+  ulonglong sent_row_count_for_statement, examined_row_count_for_statement;
   ulonglong affected_rows;
   ulonglong bytes_sent_old;
   ha_handler_stats handler_stats;
@@ -2043,6 +2044,7 @@ public:
   uint in_sub_stmt;    /* 0,  SUB_STMT_TRIGGER or SUB_STMT_FUNCTION */
   bool enable_slow_log;
   bool last_insert_id_used;
+  bool in_stored_procedure;
   enum enum_check_fields count_cuted_fields;
 };
 
@@ -3568,12 +3570,13 @@ public:
 
   ha_rows    cuted_fields;
 
-private:
   /*
     number of rows we actually sent to the client, including "synthetic"
     rows in ROLLUP etc.
   */
   ha_rows    m_sent_row_count;
+  /* Number of rows for the total statement */
+  ha_rows    sent_row_count_for_statement;
 
   /**
     Number of rows read and/or evaluated for a statement. Used for
@@ -3586,8 +3589,9 @@ private:
     filesort() before reading it for e.g. update.
   */
   ha_rows    m_examined_row_count;
+  /* Number of rows for the top level query */
+  ha_rows    examined_row_count_for_statement;
 
-public:
   ha_rows get_sent_row_count() const
   { return m_sent_row_count; }
 
@@ -3598,10 +3602,27 @@ public:
   { return affected_rows; }
 
   void set_sent_row_count(ha_rows count);
-  void set_examined_row_count(ha_rows count);
 
-  void inc_sent_row_count(ha_rows count);
-  void inc_examined_row_count(ha_rows count);
+  inline void inc_sent_row_count(ha_rows count)
+  {
+    m_sent_row_count+= count;
+    sent_row_count_for_statement+= count;
+    MYSQL_SET_STATEMENT_ROWS_SENT(m_statement_psi, m_sent_row_count);
+  }
+  inline void inc_examined_row_count_fast()
+  {
+    m_examined_row_count++;
+    examined_row_count_for_statement++;
+  }
+  inline void inc_examined_row_count()
+  {
+    inc_examined_row_count_fast();
+    DBUG_EXECUTE_IF("debug_huge_number_of_examined_rows",
+                    m_examined_row_count= (ULONGLONG_MAX - 1000000););
+    MYSQL_SET_STATEMENT_ROWS_EXAMINED(m_statement_psi, m_examined_row_count);
+  }
+
+  void ps_report_examined_row_count();
 
   void inc_status_created_tmp_disk_tables();
   void inc_status_created_tmp_files();
@@ -4728,7 +4749,7 @@ public:
   void reset_sub_statement_state(Sub_statement_state *backup, uint new_state);
   void restore_sub_statement_state(Sub_statement_state *backup);
   void store_slow_query_state(Sub_statement_state *backup);
-  void reset_slow_query_state();
+  void reset_slow_query_state(Sub_statement_state *backup);
   void add_slow_query_state(Sub_statement_state *backup);
   void set_n_backup_active_arena(Query_arena *set, Query_arena *backup);
   void restore_active_arena(Query_arena *set, Query_arena *backup);
@@ -5783,6 +5804,15 @@ public:
         lex->sql_command != SQLCOM_LOAD)
       return false;
     return !is_set_timestamp_forbidden(this);
+  }
+  /*
+    Return true if we are in stored procedure, not in a function or
+    trigger.
+  */
+  bool in_stored_procedure()
+  {
+    return (lex->sphead != 0 &&
+            !(in_sub_stmt & (SUB_STMT_FUNCTION | SUB_STMT_TRIGGER)));
   }
 };
 

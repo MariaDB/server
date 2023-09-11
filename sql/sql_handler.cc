@@ -988,6 +988,7 @@ retry:
       }
       goto ok;
     }
+    thd->inc_examined_row_count();
     if (cond && !cond->val_int())
     {
       if (thd->is_error())
@@ -1002,6 +1003,7 @@ retry:
         goto err;
 
       protocol->write();
+      thd->inc_sent_row_count(1);
     }
     num_rows++;
   }

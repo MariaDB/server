@@ -2433,7 +2433,8 @@ resume:
 
   /* Performance Schema Interface instrumentation, end */
   MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
-  thd->set_examined_row_count(0);                   // For processlist
+  /* Reset values shown in processlist */
+  thd->examined_row_count_for_statement= thd->sent_row_count_for_statement= 0;
   thd->set_command(COM_SLEEP);
 
   thd->m_statement_psi= NULL;
@@ -4428,6 +4429,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     res= mysql_insert(thd, all_tables, lex->field_list, lex->many_values,
                       lex->update_list, lex->value_list,
                       lex->duplicates, lex->ignore, sel_result);
+    status_var_add(thd->status_var.rows_sent, thd->get_sent_row_count());
     if (save_protocol)
     {
       delete thd->protocol;
@@ -4625,6 +4627,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       /* revert changes for SP */
       MYSQL_INSERT_SELECT_DONE(res, (ulong) thd->get_row_count_func());
       select_lex->table_list.first= first_table;
+
+      status_var_add(thd->status_var.rows_sent, thd->get_sent_row_count());
     }
     /*
       If we have inserted into a VIEW, and the base table has
@@ -5924,6 +5928,8 @@ finish:
   thd->wsrep_PA_safe= true;
 #endif /* WITH_WSREP */
 
+  if (lex->sql_command != SQLCOM_SET_OPTION)
+    DEBUG_SYNC(thd, "end_of_statement");
   DBUG_RETURN(res || thd->is_error());
  }
 
@@ -7320,10 +7326,10 @@ void THD::reset_for_next_command(bool do_clear_error)
   DBUG_ASSERT(user_var_events_alloc == &main_mem_root);
   enable_slow_log= true;
   get_stmt_da()->reset_for_next_command();
-  m_sent_row_count= m_examined_row_count= 0;
+  sent_row_count_for_statement= examined_row_count_for_statement= 0;
   accessed_rows_and_keys= 0;
 
-  reset_slow_query_state();
+  reset_slow_query_state(0);
 
   reset_current_stmt_binlog_format_row();
   binlog_unsafe_warning_flags= 0;

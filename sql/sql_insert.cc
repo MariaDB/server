@@ -1413,6 +1413,7 @@ abort:
   thd->abort_on_warning= 0;
   if (readbuff)
     my_free(readbuff);
+  status_var_add(thd->status_var.rows_sent, thd->get_sent_row_count());
   DBUG_RETURN(retval);
 }
 
