@@ -5290,14 +5290,14 @@ my_time_t Field_timestamp0::get_timestamp(const uchar *pos,
 {
   DBUG_ASSERT(marked_for_read());
   *sec_part= 0;
-  return sint4korr(pos);
+  return uint4korr(pos);
 }
 
 
 bool Field_timestamp0::val_native(Native *to)
 {
   DBUG_ASSERT(marked_for_read());
-  my_time_t sec= (my_time_t) sint4korr(ptr);
+  my_time_t sec= (my_time_t) uint4korr(ptr);
   return Timestamp_or_zero_datetime(Timestamp(sec, 0), sec == 0).
            to_native(to, 0);
 }
@@ -5493,7 +5493,7 @@ longlong Field_timestamp::val_int(void)
 String *Field_timestamp::val_str(String *val_buffer, String *val_ptr)
 {
   MYSQL_TIME ltime;
-  uint32 temp, temp2;
+  uint32 year, temp, temp2;
   uint dec;
   char *to;
 
@@ -5508,17 +5508,14 @@ String *Field_timestamp::val_str(String *val_buffer, String *val_ptr)
   }
   val_buffer->set_charset(&my_charset_numeric);	// Safety
    
-  temp= ltime.year % 100;
-  if (temp < YY_PART_YEAR - 1)
-  {
-    *to++= '2';
-    *to++= '0';
-  }
-  else
-  {
-    *to++= '1';
-    *to++= '9';
-  }
+  temp= ltime.year;
+  DBUG_ASSERT(temp >= 1969);
+
+  year= temp/100;
+  temp-= year*100;
+  temp2= year/10; year= year-temp2*10;
+  *to++= (char) ('0'+(char) (temp2));
+  *to++= (char) ('0'+(char) (year));
   temp2=temp/10; temp=temp-temp2*10;
   *to++= (char) ('0'+(char) (temp2));
   *to++= (char) ('0'+(char) (temp));
@@ -5591,10 +5588,10 @@ bool Field_timestamp0::send(Protocol *protocol)
 
 int Field_timestamp0::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
-  int32 a,b;
-  a=sint4korr(a_ptr);
-  b=sint4korr(b_ptr);
-  return ((uint32) a < (uint32) b) ? -1 : ((uint32) a > (uint32) b) ? 1 : 0;
+  time_t a,b;
+  a= uint4korr(a_ptr);
+  b= uint4korr(b_ptr);
+  return (a < b ) ? -1 : (a > b) ? 1 : 0;
 }
 
 
@@ -5793,11 +5790,14 @@ void Field_timestampf::set_max()
 
 bool Field_timestampf::is_max()
 {
+  longlong timestamp= mi_uint4korr(ptr);
   DBUG_ENTER("Field_timestampf::is_max");
   DBUG_ASSERT(marked_for_read());
 
-  DBUG_RETURN(mi_sint4korr(ptr) == TIMESTAMP_MAX_VALUE &&
-              mi_sint3korr(ptr + 4) == TIME_MAX_SECOND_PART);
+  /* Allow old max value and new max value */
+  DBUG_RETURN((timestamp == TIMESTAMP_MAX_VALUE ||
+               timestamp == INT_MAX32) &&
+              mi_uint3korr(ptr + 4) == TIME_MAX_SECOND_PART);
 }
 
 my_time_t Field_timestampf::get_timestamp(const uchar *pos,

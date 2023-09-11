@@ -3926,12 +3926,14 @@ static int init_common_variables()
   mysql_bin_log.init_pthread_objects();
   Gtid_index_writer::gtid_index_init();
 
+#if LONG_SIZE == 4
   /* TODO: remove this when my_time_t is 64 bit compatible */
   if (!IS_TIME_T_VALID_FOR_TIMESTAMP(server_start_time))
   {
     sql_print_error("This server doesn't support dates later than 2038");
     exit(1);
   }
+#endif
 
   opt_log_basename= const_cast<char *>("mysql");
 

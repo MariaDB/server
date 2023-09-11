@@ -179,7 +179,8 @@ set @now= now(6);
 insert into t1 values (1);
 set @str= concat('select x, row_start < @now as A, row_end > @now as B from t1 partition (p0)');
 prepare select_p0 from @str;
-set @str= concat('select x, row_start > @now as C, row_end = timestamp\'2038-01-19 03:14:07.999999\' as D from t1 partition (pn)');
+--replace_result $sys_time_max SYS_TIME_MAX
+--eval set @str= concat("select x, row_start > @now as C, row_end = $sys_time_max as D from t1 partition (pn)");
 prepare select_pn from @str;
 
 execute select_p0;
@@ -278,7 +279,7 @@ partition by system_time interval 6 day limit 98;
 
 --error ER_DATA_OUT_OF_RANGE
 create or replace table t1 (pk int) with system versioning
-partition by system_time interval 10 year partitions 3;
+partition by system_time interval 60 year partitions 3;
 
 --echo # INTERVAL and ALTER TABLE
 create or replace table t1 (i int) with system versioning
@@ -2646,11 +2647,12 @@ create table t1 (a varchar(100)) with system versioning
 partition by system_time interval 1 day
 starts '2021-09-30 00:00:00' partitions 3;
 set system_versioning_insert_history=1;
-insert into t1 (a,row_start,row_end) values
+--replace_result $sys_time_max SYS_TIME_MAX
+eval insert into t1 (a,row_start,row_end) values
 ('p0',                   '2021-09-30', '2021-09-30 10:00:00'),
 ('p1',                   '2021-09-30', '2021-10-01 10:00:00'),
 ('overflows, so also p1','2021-09-30', '2021-10-10 10:00:00'),
-('pn, current',          '2021-09-30', '2038-01-19 03:14:07.999999');
+('pn, current',          '2021-09-30', $sys_time_max);
 select table_name,partition_name,partition_ordinal_position,partition_method,partition_description,table_rows
 from information_schema.partitions where table_schema='test';
 drop table t1;

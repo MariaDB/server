@@ -411,7 +411,7 @@ fts_read_stopword(
 			}
 		} else {
 			ut_ad(len == sizeof timestamp_max_bytes);
-			if (0 != memcmp(data, timestamp_max_bytes, len)) {
+			if (!IS_MAX_TIMESTAMP(data)) {
 				return true;
 			}
 		}
@@ -3677,8 +3677,7 @@ fts_get_max_doc_id(
 					break;
 				}
 			} else {
-				if (0 == memcmp(data, timestamp_max_bytes,
-						sizeof timestamp_max_bytes)) {
+                                if (IS_MAX_TIMESTAMP(data)) {
 					break;
 				}
 			}
@@ -6008,7 +6007,7 @@ fts_init_get_doc_id(
 				}
 			} else {
 				ut_ad(len == sizeof timestamp_max_bytes);
-				if (0 != memcmp(data, timestamp_max_bytes, len)) {
+				if (!IS_MAX_TIMESTAMP(data)) {
 					return true;
 				}
 			}

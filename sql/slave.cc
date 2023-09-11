@@ -4354,9 +4354,8 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
     if ((!rli->mi->using_parallel()) &&
         event_can_update_last_master_timestamp(ev))
     {
-      rli->last_master_timestamp= ev->when + (time_t) ev->exec_time;
+      rli->last_master_timestamp= ev->when + ev->exec_time;
       rli->sql_thread_caught_up= false;
-      DBUG_ASSERT(rli->last_master_timestamp >= 0);
     }
 
     /*
@@ -4468,9 +4467,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
         */
         if (ev->get_type_code() != FORMAT_DESCRIPTION_EVENT &&
             rli->last_master_timestamp < ev->when + (time_t) ev->exec_time)
-          rli->last_master_timestamp= ev->when + (time_t) ev->exec_time;
-
-        DBUG_ASSERT(rli->last_master_timestamp >= 0);
+          rli->last_master_timestamp= ev->when + ev->exec_time;
       }
     }
 

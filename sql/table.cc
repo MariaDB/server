@@ -10416,7 +10416,7 @@ bool TR_table::update(ulonglong start_id, ulonglong end_id)
 
   store(FLD_BEGIN_TS, thd->transaction_time());
   thd->set_time();
-  timeval end_time= {thd->query_start(), int(thd->query_start_sec_part())};
+  timeval end_time= { (time_t) thd->query_start(), int(thd->query_start_sec_part())};
   store(FLD_TRX_ID, start_id);
   store(FLD_COMMIT_ID, end_id);
   store(FLD_COMMIT_TS, end_time);

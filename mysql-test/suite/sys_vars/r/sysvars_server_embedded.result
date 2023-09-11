@@ -9,7 +9,7 @@ where variable_name not like 'debug%' and
 variable_name not like 'wsrep%' and
 variable_name not like 's3%' and
 variable_name not in (
-'log_tc_size','have_sanitizer'
+'log_tc_size','have_sanitizer','timestamp'
         )
 order by variable_name;
 VARIABLE_NAME	ALLOW_SUSPICIOUS_UDFS
@@ -3892,16 +3892,6 @@ NUMERIC_BLOCK_SIZE	1024
 ENUM_VALUE_LIST	NULL
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
-VARIABLE_NAME	TIMESTAMP
-VARIABLE_SCOPE	SESSION ONLY
-VARIABLE_TYPE	DOUBLE
-VARIABLE_COMMENT	Set the time for this client
-NUMERIC_MIN_VALUE	0
-NUMERIC_MAX_VALUE	2147483647
-NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	NULL
-READ_ONLY	NO
-COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	TIME_ZONE
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	VARCHAR
