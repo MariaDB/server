@@ -831,7 +831,7 @@ bool partition_info::vers_set_hist_part(THD *thd, uint *create_count)
     return 0;
   }
   else if (vers_info->interval.is_set() &&
-           vers_info->hist_part->range_value <= thd->query_start())
+           vers_info->hist_part->range_value <= (longlong) thd->query_start())
   {
     partition_element *next= NULL;
     bool error= true;
@@ -842,7 +842,7 @@ bool partition_info::vers_set_hist_part(THD *thd, uint *create_count)
     while ((next= it++) != vers_info->now_part)
     {
       vers_info->hist_part= next;
-      if (next->range_value > thd->query_start())
+      if (next->range_value > (longlong) thd->query_start())
       {
         error= false;
         break;
@@ -2845,7 +2845,7 @@ bool partition_info::vers_set_interval(THD* thd, Item* interval,
       case DECIMAL_RESULT:
       case REAL_RESULT:
         /* When table member is defined, we are inside mysql_unpack_partition(). */
-        if (!table || starts->val_int() > TIMESTAMP_MAX_VALUE)
+        if (!table || (ulonglong) starts->val_int() > TIMESTAMP_MAX_VALUE)
           goto interval_starts_error;
         vers_info->interval.start= (my_time_t) starts->val_int();
         break;
