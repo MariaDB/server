@@ -11874,10 +11874,8 @@ ER_VERS_ENGINE_UNSUPPORTED
         spa "No se soporta versionado de sistema de transacción precisa para %`s"
         sw "Toleo la mfumo wa muamala kamili kwa %`s halitumiki"
 
-ER_UNUSED_23
-        eng "You should never see it"
-        spa "Nunca debería vd de ver esto"
-        sw "Hupaswi kuiona kamwe"
+ER_WRONG_VERSIONING_RANGE
+        eng "Incorrect system-version range '%-.32s' value: '%-.128T' and '%-.32s' value: '%-.128T'"
 
 ER_PARTITION_WRONG_TYPE
         chi "错误分区类型%`s，应当是%`s"
