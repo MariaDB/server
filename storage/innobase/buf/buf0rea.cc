@@ -302,7 +302,8 @@ wants to access
 TRANSACTIONAL_TARGET
 ulint buf_read_ahead_random(const page_id_t page_id, ulint zip_size)
 {
-  if (!srv_random_read_ahead)
+  if (!srv_random_read_ahead || page_id.space() >= SRV_TMP_SPACE_ID)
+    /* Disable the read-ahead for temporary tablespace */
     return 0;
 
   if (srv_startup_is_before_trx_rollback_phase)
@@ -508,8 +509,9 @@ latches!
 TRANSACTIONAL_TARGET
 ulint buf_read_ahead_linear(const page_id_t page_id, ulint zip_size)
 {
-  /* check if readahead is disabled */
-  if (!srv_read_ahead_threshold)
+  /* check if readahead is disabled.
+  Disable the read ahead logic for temporary tablespace */
+  if (!srv_read_ahead_threshold || page_id.space() >= SRV_TMP_SPACE_ID)
     return 0;
 
   if (srv_startup_is_before_trx_rollback_phase)
