@@ -95,7 +95,7 @@ CREATE TABLE `t1` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!101100 SET @old_system_versioning_insert_history=@@session.system_versioning_insert_history, @@session.system_versioning_insert_history=1 */;
 INSERT INTO `t1` (`x`, row_start, row_end) VALUES (1,'2010-10-10 10:10:10.101010','2011-11-11 11:11:11.111111'),
-(2,'2010-10-10 10:10:10.101010','2038-01-19 03:14:07.999999');
+(2,'2010-10-10 10:10:10.101010','MAX_TIME');
 /*!101100 SET system_versioning_insert_history=@old_system_versioning_insert_history */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
@@ -108,7 +108,7 @@ CREATE TABLE `t2` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!101100 SET @old_system_versioning_insert_history=@@session.system_versioning_insert_history, @@session.system_versioning_insert_history=1 */;
 INSERT INTO `t2` (`x`, `row_start`, `row_end`) VALUES (1,'2010-10-10 10:10:10.101010','2011-11-11 11:11:11.111111'),
-(2,'2010-10-10 10:10:10.101010','2038-01-19 03:14:07.999999');
+(2,'2010-10-10 10:10:10.101010','MAX_TIME');
 /*!101100 SET system_versioning_insert_history=@old_system_versioning_insert_history */;
 mariadb-dump: --dump-history can't be used with --as-of.
 mariadb-dump: --dump-history can't be used with --replace.

@@ -1,0 +1,52 @@
+--source include/have_partition.inc
+--source include/have_32bit_timestamp.inc
+
+--echo #
+--echo # Bug#28928: UNIX_TIMESTAMP() should be considered unary monotonic
+--echo #            by partition pruning
+--echo #            Testing end ranges
+
+SET @old_time_zone= @@session.time_zone;
+SET @@session.time_zone = 'UTC';
+--echo # Using MyISAM to get stable values on TABLE_ROWS in I_S.PARTITIONS
+CREATE TABLE t1
+(a TIMESTAMP NULL,
+ tz varchar(16))
+ENGINE = MyISAM;
+CREATE TABLE t2 LIKE t1;
+ALTER TABLE t2 PARTITION BY RANGE (UNIX_TIMESTAMP(a))
+(PARTITION `p0` VALUES LESS THAN (0),
+ PARTITION `p-2000` VALUES LESS THAN (UNIX_TIMESTAMP(20000101)),
+ PARTITION `p-2011-MSK` VALUES LESS THAN (UNIX_TIMESTAMP(20110326230000)),
+ PARTITION `p-2011-MSD-1` VALUES LESS THAN (UNIX_TIMESTAMP(20111029220000)),
+ PARTITION `p-2011-MSD-2` VALUES LESS THAN (UNIX_TIMESTAMP(20111029230000)),
+ PARTITION `p-2012-MSK-1` VALUES LESS THAN (UNIX_TIMESTAMP(20111030000000)),
+ PARTITION `p-2012-MSK-2` VALUES LESS THAN (UNIX_TIMESTAMP(20120324230000)),
+ PARTITION `pEnd` VALUES LESS THAN (UNIX_TIMESTAMP(20380119031407)),
+ PARTITION `pMax` VALUES LESS THAN MAXVALUE);
+
+--echo # Test invalid values
+INSERT IGNORE INTO t1 VALUES ('2038-01-19 03:14:08', 'UTCI');
+--echo # Test end range
+INSERT INTO t1 VALUES ('2038-01-19 03:14:07', 'UTCI');
+
+SET @@session.time_zone = 'Europe/Moscow';
+
+--echo # Test invalid values
+INSERT IGNORE INTO t1 VALUES ('2038-01-19 06:14:08', 'Moscow');
+--echo # Test end range
+INSERT INTO t1 VALUES ('2038-01-19 06:14:07', 'Moscow');
+
+SELECT * FROM t1 ORDER BY a, tz;
+
+SET @@session.time_zone = 'UTC';
+INSERT INTO t2 SELECT * FROM t1;
+SELECT * FROM t2 ORDER BY a DESC,tz;
+
+SELECT MIN(a), MAX(a) FROM t2;
+UPDATE IGNORE t2 SET a = TIMESTAMPADD(SECOND, 1, a);
+SELECT MIN(a), MAX(a) FROM t2;
+SELECT * FROM t2 ORDER BY a, tz;
+
+DROP TABLE t1,t2;
+SET @@session.time_zone= @old_time_zone;

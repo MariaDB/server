@@ -224,6 +224,7 @@ create or replace table child(
 
 insert into parent values(1);
 insert into child values(1);
+
 -- error ER_ROW_IS_REFERENCED_2
 delete from parent;
 -- error ER_ROW_IS_REFERENCED_2

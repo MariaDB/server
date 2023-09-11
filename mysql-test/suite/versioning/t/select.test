@@ -181,13 +181,15 @@ create or replace table t1(x int) with system versioning;
 select * from (t1 as r left join t1 as u using (x)), t1;
 
 # @end should be max
+set @@time_zone="+00:00";
 create or replace table t1 (a int) with system versioning;
 insert into t1 values (1);
 create trigger read_end after update on t1
   for each row set @end = old.row_end;
 update t1 set a=2;
---replace_result 18446744073709551615 MAX_RESULT "2038-01-19 03:14:07.999999" MAX_RESULT
+--replace_result 18446744073709551615 MAX_RESULT $sys_time_max_replace MAX_RESULT
 select @end;
+set @@time_zone=default;
 
 create or replace table t1 (a int) with system versioning;
 create or replace table t2 (b int) with system versioning;
@@ -218,6 +220,7 @@ create or replace table t1 (a int) with system versioning;
 insert into t1 values (1);
 insert into t1 values (2);
 insert into t1 values (3);
+--replace_result $sys_time_max SYS_TIME_MAX
 explain extended
 select * from t1 left outer join (t1 as t2 left join t1 as t3 using (a)) on t1.a>1;
 select * from t1 left outer join (t1 as t2 left join t1 as t3 using (a)) on t1.a>1;
@@ -372,6 +375,7 @@ select f1 from t1 join t2 left join t3 left join t4 on f3 = f4 on f3 = f2;
 insert t2 values (1),(2);
 insert t3 values (1),(2);
 insert t4 values (1),(2);
+--replace_result $sys_time_max SYS_TIME_MAX
 explain extended
 select f1 from t1 join t2 left join t3 left join t4 on f3 = f4 on f3 = f2;
 
