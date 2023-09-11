@@ -6,8 +6,6 @@ SET default_storage_engine=InnoDB;
 
 --disable_query_log
 call mtr.add_suppression("Cannot add field .* in table .* because after adding it, the row size is");
-SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
-SET GLOBAL innodb_read_only_compressed=OFF;
 --enable_query_log
 
 let $innodb_file_per_table_orig=`select @@innodb_file_per_table`;
@@ -144,37 +142,39 @@ show warnings;
 -- error ER_TOO_BIG_ROWSIZE
 create index idx3 on worklog5743_1(a2(436));
 show warnings;
-# Bug#13391353 Limit is one byte less on on 32bit-Linux only
-create index idx4 on worklog5743_1(a2(434));
+# MDEV-27634 innodb_zip tests failing on s390x
+create index idx4 on worklog5743_1(a2(290));
 show warnings;
 -- error ER_TOO_BIG_ROWSIZE
 create index idx5 on worklog5743_1(a1, a2(430));
 show warnings;
-# Bug#13391353 Limit is one byte less on on 32bit-Linux only
-create index idx6 on worklog5743_1(a1, a2(428));
+# MDEV-27634 innodb_zip tests failing on s390x
+create index idx6 on worklog5743_1(a1, a2(283));
 show warnings;
 
 # Test edge cases for indexes using key_block_size=2
 SET sql_mode= '';
---error ER_TOO_BIG_ROWSIZE
+set innodb_strict_mode=off;
 create index idx1 on worklog5743_2(a2(4000));
+set innodb_strict_mode=on;
+show warnings;
+show create table worklog5743_2;
+drop index idx1 on worklog5743_2;
 create index idx3 on worklog5743_2(a2(769));
 show warnings;
 create index idx4 on worklog5743_2(a2(768));
 show warnings;
-create index idx5 on worklog5743_2(a1, a2(765));
-show warnings;
-create index idx6 on worklog5743_2(a1, a2(764));
+create index idx6 on worklog5743_2(a1, a2(768));
 show warnings;
 # Test edge cases for indexes using key_block_size=4
+set innodb_strict_mode=off;
 create index idx1 on worklog5743_4(a2(4000));
+set innodb_strict_mode=on;
 show warnings;
 show create table worklog5743_4;
 create index idx3 on worklog5743_4(a2(769));
 show warnings;
 create index idx4 on worklog5743_4(a2(768));
-show warnings;
-create index idx5 on worklog5743_4(a1, a2(765));
 show warnings;
 create index idx6 on worklog5743_4(a1, a2(764));
 show warnings;
@@ -313,6 +313,9 @@ rollback;
 drop table worklog5743;
 
 -- echo ### Test 6 ###
+create table worklog5743(a TEXT not null, primary key (a(1000)));
+drop table worklog5743;
+
 create table worklog5743(a TEXT) ROW_FORMAT=COMPACT;
 
 # Excercise the column length check in ha_innobase::add_index()
@@ -376,9 +379,7 @@ create table worklog5743(a TEXT not null) ROW_FORMAT=COMPACT;
 -- error ER_INDEX_COLUMN_TOO_LONG
 create index idx on worklog5743(a(768));
 create index idx2 on worklog5743(a(767));
---disable_query_log
-SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
---enable_query_log
 drop table worklog5743;
+
 
 eval SET GLOBAL innodb_file_per_table=$innodb_file_per_table_orig;

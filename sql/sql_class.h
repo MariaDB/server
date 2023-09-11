@@ -2331,6 +2331,19 @@ struct wait_for_commit
     group commit as T1.
   */
   bool commit_started;
+  /*
+    Set to temporarily ignore calls to wakeup_subsequent_commits(). The
+    caller must arrange that another wakeup_subsequent_commits() gets called
+    later after wakeup_blocked has been set back to false.
+
+    This is used for parallel replication with temporary tables.
+    Temporary tables require strict single-threaded operation. The normal
+    optimization, of doing wakeup_subsequent_commits early and overlapping
+    part of the commit with the following transaction, is not safe. Thus
+    when temporary tables are replicated, wakeup is blocked until the
+    event group is fully done.
+  */
+  bool wakeup_blocked;
 
   void register_wait_for_prior_commit(wait_for_commit *waitee);
   int wait_for_prior_commit(THD *thd, bool allow_kill=true)

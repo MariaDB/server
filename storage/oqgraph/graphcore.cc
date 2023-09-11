@@ -146,17 +146,6 @@ namespace open_query
       HAVE_EDGE = 4,
     };
 
-    // Force assignment operator, so we can trace through in the debugger
-    inline reference& operator=(const reference& ref) 
-    {    
-      m_flags = ref.m_flags;
-      m_sequence = ref.m_sequence;
-      m_vertex = ref.m_vertex;
-      m_edge = ref.m_edge;
-      m_weight = ref.m_weight;
-      return *this;
-    }
-
     inline reference()
       : m_flags(0), m_sequence(0),
         m_vertex(graph_traits<Graph>::null_vertex()),

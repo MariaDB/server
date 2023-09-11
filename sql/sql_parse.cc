@@ -1937,6 +1937,8 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
         MYSQL_QUERY_DONE(thd->is_error());
       }
 
+      thd->lex->restore_set_statement_var();
+
 #if defined(ENABLED_PROFILING)
       thd->profiling.finish_current_query();
       thd->profiling.start_new_query("continuing");

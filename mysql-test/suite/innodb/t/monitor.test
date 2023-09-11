@@ -417,6 +417,8 @@ SELECT NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 LIKE 'buffer_page_written_index_leaf';
 
 SET GLOBAL innodb_monitor_enable='%';
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL innodb_monitor_reset_all= '%', innodb_compression_algorithm= foo;
 INSERT INTO t1 VALUES (5), (6), (7), (8); FLUSH TABLES t1 FOR EXPORT;
 UNLOCK TABLES;
 SELECT NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME

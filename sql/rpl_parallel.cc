@@ -218,6 +218,7 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
     waiting for this). In most cases (normal DML), it will be a no-op.
   */
   rgi->mark_start_commit_no_lock();
+  rgi->commit_orderer.wakeup_blocked= false;
 
   if (entry->last_committed_sub_id < sub_id)
   {
@@ -1442,7 +1443,22 @@ handle_rpl_parallel_thread(void *arg)
         if (!thd->killed)
         {
           DEBUG_SYNC(thd, "rpl_parallel_before_mark_start_commit");
-          rgi->mark_start_commit();
+          if (thd->lex->stmt_accessed_temp_table())
+          {
+            /*
+              Temporary tables are special, they require strict
+              single-threaded use as they have no locks protecting concurrent
+              access. Therefore, we cannot safely use the optimization of
+              overlapping the commit of this transaction with the start of the
+              following.
+              So we skip the early mark_start_commit() and also block any
+              wakeup_subsequent_commits() until this event group is fully
+              done, inside finish_event_group().
+            */
+            rgi->commit_orderer.wakeup_blocked= true;
+          }
+          else
+            rgi->mark_start_commit();
           DEBUG_SYNC(thd, "rpl_parallel_after_mark_start_commit");
         }
       }

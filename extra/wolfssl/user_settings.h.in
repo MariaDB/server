@@ -19,11 +19,15 @@
 #define HAVE_TLS_EXTENSIONS
 #define HAVE_AES_ECB
 #define HAVE_AESGCM
+#define HAVE_CHACHA
+#define HAVE_POLY1305
 #define WOLFSSL_AES_COUNTER
 #define NO_WOLFSSL_STUB
 #define OPENSSL_ALL
 #define WOLFSSL_ALLOW_TLSV10
 #define NO_OLD_TIMEVAL_NAME
+#define HAVE_SECURE_RENEGOTIATION
+#define HAVE_EXTENDED_MASTER
 
 /* TLSv1.3 definitions (all needed to build) */
 #define WOLFSSL_TLS13

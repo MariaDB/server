@@ -932,7 +932,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
       same table in the same connection.
     */
     if (thd->locked_tables_mode <= LTM_LOCK_TABLES &&
-       values_list.elements > 1)
+        !table->s->long_unique_table && values_list.elements > 1)
     {
       using_bulk_insert= 1;
       table->file->ha_start_bulk_insert(values_list.elements);
@@ -3528,7 +3528,7 @@ bool Delayed_insert::handle_inserts(void)
     we get a crash, then binary log will contain rows that are not yet
     written to disk, which will cause problems in replication.
   */
-  if (!using_bin_log)
+  if (!using_bin_log && !table->s->long_unique_table)
     table->file->extra(HA_EXTRA_WRITE_CACHE);
 
   mysql_mutex_lock(&mutex);
@@ -3688,7 +3688,7 @@ bool Delayed_insert::handle_inserts(void)
                    table->s->table_name.str);
           goto err;
 	}
-	if (!using_bin_log)
+	if (!using_bin_log && !table->s->long_unique_table)
 	  table->file->extra(HA_EXTRA_WRITE_CACHE);
         mysql_mutex_lock(&mutex);
 	THD_STAGE_INFO(&thd, stage_insert);
@@ -4065,7 +4065,8 @@ int select_insert::prepare2(JOIN *)
   if (thd->lex->describe)
     DBUG_RETURN(0);
   if (thd->lex->current_select->options & OPTION_BUFFER_RESULT &&
-      thd->locked_tables_mode <= LTM_LOCK_TABLES)
+      thd->locked_tables_mode <= LTM_LOCK_TABLES &&
+      !table->s->long_unique_table)
     table->file->ha_start_bulk_insert((ha_rows) 0);
 
   /* Same as the other variants of INSERT */
@@ -4824,17 +4825,18 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
     table->file->extra(HA_EXTRA_WRITE_CAN_REPLACE);
   if (info.handle_duplicates == DUP_UPDATE)
     table->file->extra(HA_EXTRA_INSERT_WITH_UPDATE);
-  if (thd->locked_tables_mode <= LTM_LOCK_TABLES)
+  if (thd->locked_tables_mode <= LTM_LOCK_TABLES &&
+      !table->s->long_unique_table)
   {
     table->file->ha_start_bulk_insert((ha_rows) 0);
     if (thd->lex->duplicates == DUP_ERROR && !thd->lex->ignore)
       table->file->extra(HA_EXTRA_BEGIN_ALTER_COPY);
+    table->file->extra(HA_EXTRA_WRITE_CACHE);
   }
   thd->abort_on_warning= !info.ignore && thd->is_strict_mode();
   if (check_that_all_fields_are_given_values(thd, table, table_list))
     DBUG_RETURN(1);
   table->mark_columns_needed_for_insert();
-  table->file->extra(HA_EXTRA_WRITE_CACHE);
   // Mark table as used
   table->query_id= thd->query_id;
   DBUG_RETURN(0);
