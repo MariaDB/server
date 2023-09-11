@@ -30,15 +30,26 @@ C_MODE_START
 extern MYSQL_PLUGIN_IMPORT ulonglong log_10_int[20];
 extern uchar days_in_month[];
 
+#if SIZEOF_LONG == 4
 #define MY_TIME_T_MAX LONG_MAX
 #define MY_TIME_T_MIN LONG_MIN
-
-/* Time handling defaults */
 #define TIMESTAMP_MAX_YEAR 2038
-#define TIMESTAMP_MIN_YEAR (1900 + YY_PART_YEAR - 1)
+#define TIMESTAMP_MAX_MONTH 1
+#define TIMESTAMP_MAX_DAY 19
 #define TIMESTAMP_MAX_VALUE INT_MAX32
 #define TIMESTAMP_MIN_VALUE 0
+#else
+/* Use 4 byte unsigned timestamp */
+#define MY_TIME_T_MAX ((longlong) UINT_MAX32)
+#define MY_TIME_T_MIN 0
+#define TIMESTAMP_MAX_YEAR 2106
+#define TIMESTAMP_MIN_VALUE 0
+#define TIMESTAMP_MAX_VALUE ((longlong) UINT_MAX32)
+#define TIMESTAMP_MAX_MONTH 2
+#define TIMESTAMP_MAX_DAY 7
+#endif /* SIZEOF_LONG */
 
+#define TIMESTAMP_MIN_YEAR (1900 + YY_PART_YEAR - 1)
 /* two-digit years < this are 20..; >= this are 19.. */
 #define YY_PART_YEAR	   70
 
@@ -48,8 +59,8 @@ extern uchar days_in_month[];
 */
 #if SIZEOF_TIME_T > 4 || defined(TIME_T_UNSIGNED)
 # define IS_TIME_T_VALID_FOR_TIMESTAMP(x) \
-    ((x) <= TIMESTAMP_MAX_VALUE && \
-     (x) >= TIMESTAMP_MIN_VALUE)
+  ((ulonglong) (x) <= TIMESTAMP_MAX_VALUE &&     \
+      ((x) >= TIMESTAMP_MIN_VALUE)
 #else
 # define IS_TIME_T_VALID_FOR_TIMESTAMP(x) \
     ((x) >= TIMESTAMP_MIN_VALUE)
@@ -181,7 +192,6 @@ void my_init_time(void);
 static inline my_bool validate_timestamp_range(const MYSQL_TIME *t)
 {
   if ((t->year > TIMESTAMP_MAX_YEAR || t->year < TIMESTAMP_MIN_YEAR) ||
-      (t->year == TIMESTAMP_MAX_YEAR && (t->month > 1 || t->day > 19)) ||
       (t->year == TIMESTAMP_MIN_YEAR && (t->month < 12 || t->day < 31)))
     return FALSE;
 

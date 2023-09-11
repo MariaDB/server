@@ -3487,7 +3487,7 @@ String *Item_func_binlog_gtid_pos::val_str(String *str)
   name= args[0]->val_str(&name_str);
   pos= args[1]->val_int();
 
-  if (pos < 0 || pos > UINT_MAX32)
+  if (pos < 0 || (ulonglong) pos > UINT_MAX32)
     goto err;
 
   if (gtid_state_from_binlog_pos(name->c_ptr_safe(), (uint32)pos, str))

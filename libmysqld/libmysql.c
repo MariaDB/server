@@ -1314,8 +1314,8 @@ static my_bool reset_stmt_handle(MYSQL_STMT *stmt, uint flags);
 /* A macro to check truncation errors */
 
 #define IS_TRUNCATED(value, is_unsigned, min, max, umax) \
-        ((is_unsigned) ? (((value) > (umax) || (value) < 0) ? 1 : 0) : \
-                         (((value) > (max)  || (value) < (min)) ? 1 : 0))
+  ((is_unsigned) ? (((unsigned) (value) > (umax)) ? 1 : 0) : \
+                    (((value) > (max)  || (value) < (min)) ? 1 : 0))
 
 #define BIND_RESULT_DONE 1
 /*

@@ -56,7 +56,20 @@ typedef ib_id_t		index_id_t;
 
 /** The bit pattern corresponding to TRX_ID_MAX */
 extern const byte trx_id_max_bytes[8];
-extern const byte timestamp_max_bytes[7];
+extern const byte timestamp_max_new_bytes[7];
+extern const byte timestamp_max_old_bytes[7];
+
+#if SIZEOF_LONG == 4
+#define timestamp_max_bytes timestamp_max_old_bytes
+#else
+#define timestamp_max_bytes timestamp_max_new_bytes
+#endif
+
+#define IS_MAX_TIMESTAMP(A)                                     \
+  (((unsigned char*) (A))[1] == 0xff &&                         \
+   (memcmp((void*) (A), timestamp_max_new_bytes, 7) == 0 ||     \
+    memcmp((void*) (A), timestamp_max_old_bytes, 7) == 0))
+
 
 /** Error to ignore when we load table dictionary into memory. However,
 the table and index will be marked as "corrupted", and caller will
