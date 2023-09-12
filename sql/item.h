@@ -6029,9 +6029,16 @@ public:
 
 
 /*
-  Class for view fields, the same as Item_direct_ref, but call fix_fields
-  of reference if it is not called yet
+  This represents a field of a merged VIEW (or a derived table, or a CTE).
+
+  "ref" points to an entry in the VIEW's field_translation table. There can
+  be multiple Item_direct_view_ref objects pointing to the same place.
+
+  Item_direct_view_ref objects have some common properties with Item_field:
+  - They participate in multiple equalities
+  - They can be "null-complemented", see null_ref_table.
 */
+
 class Item_direct_view_ref :public Item_direct_ref
 {
   Item_equal *item_equal;
@@ -6087,6 +6094,10 @@ public:
   void set_item_equal(Item_equal *item_eq) override { item_equal= item_eq; }
   Item_equal *find_item_equal(COND_EQUAL *cond_equal) override;
   Item* propagate_equal_fields(THD *, const Context &, COND_EQUAL *) override;
+  /*
+   Return an item in the multiple equality the Item participates, or
+   the Item itself if it does not participate in any.
+  */
   Item *replace_equal_field(THD *thd, uchar *arg) override;
   table_map used_tables() const override;
   void update_used_tables() override;
