@@ -1258,6 +1258,8 @@ trx_undo_reuse_cached(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** pundo,
 {
 	ut_ad(rseg->is_persistent());
 	ut_ad(rseg->is_referenced());
+	ut_ad(rseg == trx->rsegs.m_redo.rseg);
+
 	if (rseg->needs_purge <= trx->id) {
 		/* trx_purge_truncate_history() compares
 		rseg->needs_purge <= head.trx_no
@@ -1292,10 +1294,6 @@ trx_undo_reuse_cached(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** pundo,
 	uint16_t offset = trx_undo_header_create(block, trx->id, mtr);
 
 	trx_undo_mem_init_for_reuse(undo, trx->id, &trx->xid, offset);
-
-	if (rseg != trx->rsegs.m_redo.rseg) {
-		return block;
-	}
 
 	if (trx->dict_operation) {
 		undo->dict_operation = TRUE;
