@@ -47,6 +47,14 @@ void flst_write_addr(const buf_block_t &block, byte *faddr,
   static_assert(FIL_ADDR_BYTE == 4, "compatibility");
   static_assert(FIL_ADDR_SIZE == 6, "compatibility");
 
+  if (!mtr->is_logged())
+  {
+    mach_write_to_4(faddr + FIL_ADDR_PAGE, page);
+    mach_write_to_2(faddr + FIL_ADDR_BYTE, boffset);
+    mtr->set_modified(block);
+    return;
+  }
+
   const bool same_page= mach_read_from_4(faddr + FIL_ADDR_PAGE) == page;
   const bool same_offset= mach_read_from_2(faddr + FIL_ADDR_BYTE) == boffset;
   if (same_page)

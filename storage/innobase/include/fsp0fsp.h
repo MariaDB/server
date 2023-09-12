@@ -576,6 +576,9 @@ inline void fsp_init_file_page(
 /** Truncate the system tablespace */
 void fsp_system_tablespace_truncate();
 
+/** Truncate the temporary tablespace */
+void fsp_shrink_temp_space();
+
 #ifndef UNIV_DEBUG
 # define fsp_init_file_page(space, block, mtr) fsp_init_file_page(block, mtr)
 #endif
