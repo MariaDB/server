@@ -2764,18 +2764,13 @@ remove:
 			      not_full_n_used - descr_n_used);
 	}
 
-	err = fsp_free_extent(space, page, mtr);
-	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
-		return err;
-	}
-
 	for (uint32_t i = 0; i < FSP_EXTENT_SIZE; i++) {
 		if (!xdes_is_free(descr, i)) {
 			buf_page_free(space, first_page_in_extent + i, mtr);
 		}
 	}
 
-	return DB_SUCCESS;
+	return fsp_free_extent(space, page, mtr);
 }
 
 /** Frees part of a segment. This function can be used to free
