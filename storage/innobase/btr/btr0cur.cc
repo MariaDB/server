@@ -1259,7 +1259,8 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
 
   page_cur.block= block;
   ut_ad(block == mtr->at_savepoint(block_savepoint));
-  ut_ad(rw_latch != RW_NO_LATCH);
+  const bool not_first_access{block->page.set_accessed()};
+  buf_page_make_young_if_needed(&block->page);
 #ifdef UNIV_ZIP_DEBUG
   if (const page_zip_des_t *page_zip= buf_block_get_page_zip(block))
     ut_a(page_zip_validate(page_zip, block->page.frame, index()));
@@ -1538,6 +1539,9 @@ release_tree:
     case BTR_SEARCH_PREV: /* btr_pcur_move_to_prev() */
       ut_ad(rw_latch == RW_S_LATCH || rw_latch == RW_X_LATCH);
 
+      if (!not_first_access)
+        buf_read_ahead_linear(page_id, zip_size, false);
+
       if (page_has_prev(block->page.frame) &&
           page_rec_is_first(page_cur.rec, block->page.frame))
       {
@@ -1577,6 +1581,8 @@ release_tree:
         buf_mode= btr_op == BTR_DELETE_OP
           ? BUF_GET_IF_IN_POOL_OR_WATCH
           : BUF_GET_IF_IN_POOL;
+      else if (!not_first_access)
+        buf_read_ahead_linear(page_id, zip_size, false);
       break;
     case BTR_MODIFY_TREE:
       ut_ad(rw_latch == RW_X_LATCH);
@@ -1712,6 +1718,9 @@ dberr_t btr_cur_t::pessimistic_search_leaf(const dtuple_t *tuple,
   if (height != btr_page_get_level(block->page.frame))
     goto corrupted;
 
+  block->page.set_accessed();
+  buf_page_make_young_if_needed(&block->page);
+
 #ifdef UNIV_ZIP_DEBUG
   const page_zip_des_t *page_zip= buf_block_get_page_zip(block);
   ut_a(!page_zip || page_zip_validate(page_zip, block->page.frame, index()));
@@ -1797,6 +1806,11 @@ search_loop:
     if (err == DB_DECRYPTION_FAILED)
       btr_decryption_failed(*index);
     goto func_exit;
+  }
+  else
+  {
+    block->page.set_accessed();
+    buf_page_make_young_if_needed(&block->page);
   }
 
 #ifdef UNIV_ZIP_DEBUG
@@ -1933,18 +1947,15 @@ index_locked:
     ut_ad(n_blocks < BTR_MAX_LEVELS);
     ut_ad(savepoint + n_blocks == mtr->get_savepoint());
 
+    bool first_access= false;
     buf_block_t* block=
       btr_block_get(*index, page,
                     height ? upper_rw_latch : root_leaf_rw_latch,
-                    !height, mtr, &err);
+                    !height, mtr, &err, &first_access);
     ut_ad(!block == (err != DB_SUCCESS));
 
     if (!block)
-    {
-      if (err == DB_DECRYPTION_FAILED)
-        btr_decryption_failed(*index);
       break;
-    }
 
     if (first)
       page_cur_set_before_first(block, &page_cur);
@@ -2028,10 +2039,16 @@ index_locked:
 
     offsets= rec_get_offsets(page_cur.rec, index, offsets, 0, ULINT_UNDEFINED,
                              &heap);
+    page= btr_node_ptr_get_child_page_no(page_cur.rec, offsets);
 
     ut_ad(latch_mode != BTR_MODIFY_TREE || upper_rw_latch == RW_X_LATCH);
 
-    if (latch_mode != BTR_MODIFY_TREE);
+    if (latch_mode != BTR_MODIFY_TREE)
+    {
+      if (!height && first && first_access)
+        buf_read_ahead_linear(page_id_t(block->page.id().space(), page),
+                              block->page.zip_size(), false);
+    }
     else if (btr_cur_need_opposite_intention(block->page, index->is_clust(),
                                              lock_intention,
                                              node_ptr_max_size, compress_limit,
@@ -2069,7 +2086,6 @@ index_locked:
     }
 
     /* Go to the child node */
-    page= btr_node_ptr_get_child_page_no(page_cur.rec, offsets);
     n_blocks++;
   }
 
@@ -3836,21 +3852,13 @@ btr_cur_pess_upd_restore_supremum(
 
 	const page_id_t block_id{block->page.id()};
 	const page_id_t	prev_id(block_id.space(), prev_page_no);
-	dberr_t err;
 	buf_block_t* prev_block
-		= buf_page_get_gen(prev_id, 0, RW_NO_LATCH, nullptr,
-				   BUF_PEEK_IF_IN_POOL, mtr, &err);
-	/* Since we already held an x-latch on prev_block, it must
-	be available and not be corrupted unless the buffer pool got
-	corrupted somehow. */
+		= mtr->get_already_latched(prev_id, MTR_MEMO_PAGE_X_FIX);
 	if (UNIV_UNLIKELY(!prev_block)) {
-		return err;
+		return DB_CORRUPTION;
 	}
 	ut_ad(!memcmp_aligned<4>(prev_block->page.frame + FIL_PAGE_NEXT,
 				 block->page.frame + FIL_PAGE_OFFSET, 4));
-
-	/* We must already have an x-latch on prev_block! */
-	ut_ad(mtr->memo_contains_flagged(prev_block, MTR_MEMO_PAGE_X_FIX));
 
 	lock_rec_reset_and_inherit_gap_locks(*prev_block, block_id,
 					     PAGE_HEAP_NO_SUPREMUM,
@@ -6660,6 +6668,13 @@ btr_copy_blob_prefix(
 			mtr.commit();
 			return copied_len;
 		}
+		const bool not_first_access{block->page.set_accessed()};
+		buf_page_make_young_if_needed(&block->page);
+
+		if (!not_first_access) {
+			buf_read_ahead_linear(id, 0, false);
+		}
+
 		page = buf_block_get_frame(block);
 
 		blob_header = page + offset;

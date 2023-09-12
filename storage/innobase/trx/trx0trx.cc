@@ -582,6 +582,8 @@ static dberr_t trx_resurrect_table_locks(trx_t *trx, const trx_undo_t &undo)
                                  undo.top_page_no), 0, RW_S_LATCH, nullptr,
                        BUF_GET, &mtr, &err))
   {
+    block->page.set_accessed();
+    buf_page_make_young_if_needed(&block->page);
     buf_block_t *undo_block= block;
     const trx_undo_rec_t *undo_rec= block->page.frame + undo.top_offset;
 

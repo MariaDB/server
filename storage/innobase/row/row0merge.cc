@@ -2051,6 +2051,9 @@ end_of_index:
 					goto err_exit;
 				}
 
+				block->page.set_accessed();
+				buf_page_make_young_if_needed(&block->page);
+
 				page_cur_set_before_first(block, cur);
 				if (!page_cur_move_to_next(cur)
 				    || page_cur_is_after_last(cur)) {

@@ -304,6 +304,9 @@ rtr_pcur_getnext_from_path(
 			break;
 		}
 
+		block->page.set_accessed();
+		buf_page_make_young_if_needed(&block->page);
+
 		page = buf_block_get_frame(block);
 		page_ssn = page_get_ssn_id(page);
 
@@ -682,6 +685,9 @@ dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
 
     return err;
   }
+
+  block->page.set_accessed();
+  buf_page_make_young_if_needed(&block->page);
 
   const page_t *page= buf_block_get_frame(block);
 #ifdef UNIV_ZIP_DEBUG
@@ -1702,6 +1708,9 @@ corrupted:
 		ret = false;
 		goto func_exit;
 	}
+
+	page_cursor->block->page.set_accessed();
+	buf_page_make_young_if_needed(&page_cursor->block->page);
 
 	/* Get the page SSN */
 	page = buf_block_get_frame(page_cursor->block);

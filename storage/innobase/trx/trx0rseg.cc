@@ -295,8 +295,16 @@ buf_block_t *trx_rseg_t::get(mtr_t *mtr, dberr_t *err) const
     if (err) *err= DB_TABLESPACE_NOT_FOUND;
     return nullptr;
   }
-  return buf_page_get_gen(page_id(), 0, RW_X_LATCH, nullptr,
-                          BUF_GET, mtr, err);
+
+  buf_block_t *block= buf_page_get_gen(page_id(), 0, RW_X_LATCH, nullptr,
+                                       BUF_GET, mtr, err);
+  if (UNIV_LIKELY(block != nullptr))
+  {
+    block->page.set_accessed();
+    buf_page_make_young_if_needed(&block->page);
+  }
+
+  return block;
 }
 
 /** Upgrade a rollback segment header page to MariaDB 10.3 format.
