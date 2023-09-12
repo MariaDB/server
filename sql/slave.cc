@@ -3878,9 +3878,19 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
       default:
           WSREP_DEBUG("SQL apply failed, res %d conflict state: %s",
                       exec_res, wsrep_thd_transaction_state_str(thd));
-          rli->abort_slave= 1;
-          rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
-                      "Node has dropped from cluster");
+          /*
+            async replication thread should be stopped, if failure was
+            not due to optimistic parallel applying or if node
+            has dropped from cluster
+           */
+          if (thd->system_thread == SYSTEM_THREAD_SLAVE_SQL &&
+              ((rli->mi->using_parallel() &&
+                rli->mi->parallel_mode <= SLAVE_PARALLEL_CONSERVATIVE) ||
+               wsrep_ready == 0)) {
+            rli->abort_slave= 1;
+            rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
+                        "Node has dropped from cluster");
+          }
           break;
       }
       mysql_mutex_unlock(&thd->LOCK_thd_data);
