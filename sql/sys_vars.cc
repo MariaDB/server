@@ -1355,12 +1355,11 @@ static bool check_master_connection(sys_var *self, THD *thd, set_var *var)
   return false;
 }
 
-static Sys_var_session_lexstring Sys_default_master_connection(
+static Sys_var_lexstring Sys_default_master_connection(
        "default_master_connection",
        "Master connection to use for all slave variables and slave commands",
-       SESSION_ONLY(default_master_connection),
-       NO_CMD_LINE,
-       DEFAULT(""), MAX_CONNECTION_NAME, ON_CHECK(check_master_connection));
+       SESSION_ONLY(default_master_connection), NO_CMD_LINE, DEFAULT(""),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_master_connection));
 #endif
 
 static Sys_var_charptr_fscs Sys_init_file(

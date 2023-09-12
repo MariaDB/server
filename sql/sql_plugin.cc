@@ -3279,6 +3279,9 @@ void plugin_thdvar_init(THD *thd)
 #ifndef EMBEDDED_LIBRARY
   thd->session_tracker.sysvars.deinit(thd);
 #endif
+  my_free((char*) thd->variables.default_master_connection.str);
+  thd->variables.default_master_connection.str= 0;
+  thd->variables.default_master_connection.length= 0;
 
   thd->variables= global_system_variables;
 
@@ -3372,6 +3375,9 @@ void plugin_thdvar_cleanup(THD *thd)
 #ifndef EMBEDDED_LIBRARY
   thd->session_tracker.sysvars.deinit(thd);
 #endif
+  my_free((char*) thd->variables.default_master_connection.str);
+  thd->variables.default_master_connection.str= 0;
+  thd->variables.default_master_connection.length= 0;
 
   mysql_mutex_lock(&LOCK_plugin);
 

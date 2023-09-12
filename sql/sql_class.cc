@@ -1233,10 +1233,12 @@ void THD::init()
     avoid temporary tables replication failure.
   */
   variables.pseudo_thread_id= thread_id;
-  variables.default_master_connection.str= default_master_connection_buff;
-  ::strmake(default_master_connection_buff,
-            global_system_variables.default_master_connection.str,
-            variables.default_master_connection.length);
+  variables.default_master_connection.str=
+    my_strndup(key_memory_Sys_var_charptr_value,
+               global_system_variables.default_master_connection.str,
+               global_system_variables.default_master_connection.length,
+               MYF(MY_WME | MY_THREAD_SPECIFIC));
+
   mysql_mutex_unlock(&LOCK_global_system_variables);
 
   user_time.val= start_time= start_time_sec_part= 0;
