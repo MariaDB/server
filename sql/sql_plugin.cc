@@ -3278,6 +3278,8 @@ void plugin_thdvar_init(THD *thd)
   /* This and all other variable cleanups are here for COM_CHANGE_USER :( */
 #ifndef EMBEDDED_LIBRARY
   thd->session_tracker.sysvars.deinit(thd);
+  my_free(thd->variables.redirect_url);
+  thd->variables.redirect_url= 0;
 #endif
   my_free((char*) thd->variables.default_master_connection.str);
   thd->variables.default_master_connection.str= 0;
@@ -3306,7 +3308,12 @@ void plugin_thdvar_init(THD *thd)
 
 #ifndef EMBEDDED_LIBRARY
   thd->session_tracker.sysvars.init(thd);
+  thd->variables.redirect_url=
+    my_strdup(key_memory_Sys_var_charptr_value,
+              global_system_variables.redirect_url,
+              MYF(MY_WME | MY_THREAD_SPECIFIC));
 #endif
+
   DBUG_VOID_RETURN;
 }
 
@@ -3374,6 +3381,8 @@ void plugin_thdvar_cleanup(THD *thd)
 
 #ifndef EMBEDDED_LIBRARY
   thd->session_tracker.sysvars.deinit(thd);
+  my_free(thd->variables.redirect_url);
+  thd->variables.redirect_url= 0;
 #endif
   my_free((char*) thd->variables.default_master_connection.str);
   thd->variables.default_master_connection.str= 0;

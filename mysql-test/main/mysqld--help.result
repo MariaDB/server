@@ -1067,6 +1067,8 @@ The following specify which files/extra groups are read (specified before remain
  --read-rnd-buffer-size=# 
  When reading rows in sorted order after a sort, the rows
  are read through this buffer to avoid a disk seeks
+ --redirect-url=name URL of another server to redirect clients to. Empty
+ string means no redirection
  --relay-log=name    The location and name to use for relay logs.
  --relay-log-index=name 
  The location and name to use for the file that keeps a
@@ -1845,6 +1847,7 @@ read-binlog-speed-limit 0
 read-buffer-size 131072
 read-only FALSE
 read-rnd-buffer-size 262144
+redirect-url 
 relay-log (No default value)
 relay-log-index (No default value)
 relay-log-info-file relay-log.info
@@ -1876,7 +1879,7 @@ secure-timestamp NO
 server-id 1
 session-track-schema TRUE
 session-track-state-change FALSE
-session-track-system-variables autocommit,character_set_client,character_set_connection,character_set_results,time_zone
+session-track-system-variables autocommit,character_set_client,character_set_connection,character_set_results,redirect_url,time_zone
 session-track-transaction-info OFF
 show-slave-auth-info FALSE
 silent-startup FALSE

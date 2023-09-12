@@ -1,0 +1,1 @@
+--init-connect="set redirect_url='mysql://foobar'"

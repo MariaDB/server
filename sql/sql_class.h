@@ -878,6 +878,7 @@ typedef struct system_variables
 
   Time_zone *time_zone;
   char *session_track_system_variables;
+  char *redirect_url;
 
   /* Some wsrep variables */
   ulonglong wsrep_trx_fragment_size;
