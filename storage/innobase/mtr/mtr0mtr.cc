@@ -1624,62 +1624,60 @@ void mtr_t::free(const fil_space_t &space, uint32_t offset)
   ut_ad(is_named_space(&space));
   ut_ad(!m_freed_space || m_freed_space == &space);
 
-  if (is_logged())
-  {
-    buf_block_t *freed= nullptr;
-    const page_id_t id{space.id, offset};
+  buf_block_t *freed= nullptr;
+  const page_id_t id{space.id, offset};
 
-    for (auto it= m_memo.end(); it != m_memo.begin(); )
+  for (auto it= m_memo.end(); it != m_memo.begin(); )
+  {
+    it--;
+  next:
+    mtr_memo_slot_t &slot= *it;
+    buf_block_t *block= static_cast<buf_block_t*>(slot.object);
+    ut_ad(block);
+    if (block == freed)
     {
-      it--;
-    next:
-      mtr_memo_slot_t &slot= *it;
-      buf_block_t *block= static_cast<buf_block_t*>(slot.object);
-      ut_ad(block);
-      if (block == freed)
+      if (slot.type & (MTR_MEMO_PAGE_SX_FIX | MTR_MEMO_PAGE_X_FIX))
+        slot.type= MTR_MEMO_PAGE_X_FIX;
+      else
       {
-        if (slot.type & (MTR_MEMO_PAGE_SX_FIX | MTR_MEMO_PAGE_X_FIX))
-          slot.type= MTR_MEMO_PAGE_X_FIX;
-        else
-        {
-          ut_ad(slot.type == MTR_MEMO_BUF_FIX);
-          block->page.unfix();
-          m_memo.erase(it, it + 1);
-          goto next;
-        }
-      }
-      else if (slot.type & (MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX) &&
-               block->page.id() == id)
-      {
-        ut_ad(!block->page.is_freed());
-        ut_ad(!freed);
-        freed= block;
-        if (!(slot.type & MTR_MEMO_PAGE_X_FIX))
-        {
-          ut_d(bool upgraded=) block->page.lock.x_lock_upgraded();
-          ut_ad(upgraded);
-        }
-        if (id.space() >= SRV_TMP_SPACE_ID)
-        {
-          block->page.set_temp_modified();
-          slot.type= MTR_MEMO_PAGE_X_FIX;
-        }
-        else
-        {
-          slot.type= MTR_MEMO_PAGE_X_MODIFY;
-          if (!m_made_dirty)
-            m_made_dirty= block->page.oldest_modification() <= 1;
-        }
-#ifdef BTR_CUR_HASH_ADAPT
-        if (block->index)
-          btr_search_drop_page_hash_index(block, false);
-#endif /* BTR_CUR_HASH_ADAPT */
-        block->page.set_freed(block->page.state());
+        ut_ad(slot.type == MTR_MEMO_BUF_FIX);
+        block->page.unfix();
+        m_memo.erase(it, it + 1);
+        goto next;
       }
     }
-
-    m_log.close(log_write<FREE_PAGE>(id, nullptr));
+    else if (slot.type & (MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX) &&
+               block->page.id() == id)
+    {
+      ut_ad(!block->page.is_freed());
+      ut_ad(!freed);
+      freed= block;
+      if (!(slot.type & MTR_MEMO_PAGE_X_FIX))
+      {
+        ut_d(bool upgraded=) block->page.lock.x_lock_upgraded();
+        ut_ad(upgraded);
+      }
+      if (id.space() >= SRV_TMP_SPACE_ID)
+      {
+        block->page.set_temp_modified();
+        slot.type= MTR_MEMO_PAGE_X_FIX;
+      }
+      else
+      {
+        slot.type= MTR_MEMO_PAGE_X_MODIFY;
+        if (!m_made_dirty)
+          m_made_dirty= block->page.oldest_modification() <= 1;
+      }
+#ifdef BTR_CUR_HASH_ADAPT
+      if (block->index)
+        btr_search_drop_page_hash_index(block, false);
+#endif /* BTR_CUR_HASH_ADAPT */
+      block->page.set_freed(block->page.state());
+    }
   }
+
+  if (is_logged())
+    m_log.close(log_write<FREE_PAGE>(id, nullptr));
 }
 
 void small_vector_base::grow_by_1(void *small, size_t element_size)
