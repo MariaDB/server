@@ -5005,9 +5005,21 @@ class Item_timestamp_literal: public Item_literal
 public:
   Item_timestamp_literal(THD *thd)
    :Item_literal(thd)
-  { }
+  {
+    collation= DTCollation_numeric();
+  }
+  Item_timestamp_literal(THD *thd,
+                         const Timestamp_or_zero_datetime &value,
+                         decimal_digits_t dec)
+   :Item_literal(thd),
+    m_value(value)
+  {
+    collation= DTCollation_numeric();
+    decimals= dec;
+  }
   const Type_handler *type_handler() const override
   { return &type_handler_timestamp2; }
+  void print(String *str, enum_query_type query_type) override;
   int save_in_field(Field *field, bool) override
   {
     Timestamp_or_zero_datetime_native native(m_value, decimals);
@@ -5038,6 +5050,10 @@ public:
   bool val_native(THD *thd, Native *to) override
   {
     return m_value.to_native(to, decimals);
+  }
+  const Timestamp_or_zero_datetime &value() const
+  {
+    return m_value;
   }
   void set_value(const Timestamp_or_zero_datetime &value)
   {

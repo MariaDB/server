@@ -1207,6 +1207,63 @@ void thd_gmt_sec_to_TIME(MYSQL_THD thd, MYSQL_TIME *ltime, my_time_t t)
 }
 
 
+/*
+  @brief
+  Convert a non-zero DATETIME to its safe timeval based representation,
+  which guarantees a safe roundtrip DATETIME->timeval->DATETIME,
+  e.g. to optimize:
+
+     WHERE timestamp_arg0 = datetime_arg1
+
+  in the way that we replace "datetime_arg1" to its TIMESTAMP equivalent
+  "timestamp_arg1" and switch from DATETIME comparison to TIMESTAMP comparison:
+
+     WHERE timestamp_arg0 = timestamp_arg1
+
+  This helps to avoid slow TIMESTAMP->DATETIME data type conversion
+  for timestamp_arg0 per row.
+
+  @detail
+  Round trip is possible if the input "YYYY-MM-DD hh:mm:ss" value
+  satisfies the following conditions:
+
+    1. TIME_to_gmt_sec() returns no errors or warnings,
+       which means the input value
+       a. has no zeros in YYYYMMDD
+       b. fits into the TIMESTAMP range
+       c. does not fall into the spring forward gap
+          (because values inside gaps get adjusted to the beginning of the gap)
+
+    2. The my_time_t value returned by TIME_to_gmt_sec() must not be
+       near a DST change or near a leap second, to avoid anomalies:
+       - "YYYY-MM-DD hh:mm:ss" has more than one matching my_time_t values
+       - "YYYY-MM-DD hh:mm:ss" has no matching my_time_t values
+         (e.g. fall into the spring forward gap)
+
+  @param dt   The DATETIME value to convert.
+              Must not be zero '0000-00-00 00:00:00.000000'.
+              (The zero value must be handled by the caller).
+
+  @return     The conversion result
+  @retval     If succeeded, non-NULL Timeval value.
+  @retval     Timeval_null value representing SQL NULL if the argument
+              does not have a safe replacement.
+*/
+Timeval_null
+THD::safe_timeval_replacement_for_nonzero_datetime(const Datetime &dt)
+{
+  used|= THD::TIME_ZONE_USED;
+  DBUG_ASSERT(non_zero_date(dt.get_mysql_time()));
+  uint error= 0;
+  const MYSQL_TIME *ltime= dt.get_mysql_time();
+  my_time_t sec= variables.time_zone->TIME_to_gmt_sec(ltime, &error);
+  if (error /* (1) */ ||
+      !variables.time_zone->is_monotone_continuous_around(sec) /* (2) */)
+    return Timeval_null();
+  return Timeval_null(sec, ltime->second_part);
+}
+
+
 #ifdef _WIN32
 extern "C" my_thread_id next_thread_id_noinline()
 {

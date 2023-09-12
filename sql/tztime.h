@@ -80,6 +80,13 @@ public:
   */
   virtual ~Time_zone() = default;
 
+  /**
+    Check if the time zone does not have any anomalies around "sec", such as:
+    - DST changes (spring forward, fall back)
+    - leap seconds (the 60-th second)
+  */
+  bool is_monotone_continuous_around(my_time_t sec) const;
+
 protected:
   static inline void adjust_leap_second(MYSQL_TIME *t);
 };

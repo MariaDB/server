@@ -83,6 +83,8 @@ protected:
     return print_sql_mode_qualified_name(to, query_type, func_name_cstring());
   }
 
+  bool aggregate_args2_for_comparison_with_conversion(THD *thd,
+                                           Type_handler_hybrid_field_type *th);
 public:
 
   // Print an error message for a builtin-schema qualified function call

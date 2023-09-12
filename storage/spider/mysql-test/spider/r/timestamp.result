@@ -257,7 +257,7 @@ select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timest
 select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (_latin1'2018-10-28 01:30:00' > t0.`col_ts`)
 select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` between _latin1'2018-10-28 00:30:00'  and  _latin1'2018-10-28 01:30:00')
 select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where ((t0.`col_ts` >= _latin1'2018-10-28 00:30:00') and (t0.`col_ts` <= _latin1'2018-10-28 01:30:00'))
-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > '2018-03-25 01:00:00')
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > _latin1'2018-03-25 01:00:00')
 select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > '1970-01-01 00:00:01')
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT col_a, col_dt, col_ts, unix_timestamp(col_ts) FROM tbl_a ORDER BY col_a;
@@ -344,7 +344,7 @@ select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timest
 select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (_latin1'2018-10-28 01:30:00' > t0.`col_ts`)
 select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` between _latin1'2018-10-28 00:30:00'  and  _latin1'2018-10-28 01:30:00')
 select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where ((t0.`col_ts` >= _latin1'2018-10-28 00:30:00') and (t0.`col_ts` <= _latin1'2018-10-28 01:30:00'))
-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > '2018-03-25 01:00:00')
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > _latin1'2018-03-25 01:00:00')
 select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > '1970-01-01 00:00:01')
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT col_a, col_dt, col_ts, unix_timestamp(col_ts) FROM tbl_a ORDER BY col_a;

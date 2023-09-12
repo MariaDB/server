@@ -4283,6 +4283,8 @@ public:
     utime_after_query= current_utime();
   }
 
+  Timeval_null safe_timeval_replacement_for_nonzero_datetime(const Datetime &);
+
   /**
    Update server status after execution of a top level statement.
    Currently only checks if a query was slow, and assigns

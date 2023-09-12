@@ -7332,6 +7332,17 @@ void Item_datetime_literal::print(String *str, enum_query_type query_type)
 }
 
 
+void Item_timestamp_literal::print(String *str, enum_query_type query_type)
+{
+  str->append(STRING_WITH_LEN("TIMESTAMP/*WITH LOCAL TIME ZONE*/'"));
+  char buf[MAX_DATE_STRING_REP_LENGTH];
+  Datetime dt= m_value.to_datetime(current_thd);
+  int length= my_datetime_to_str(dt.get_mysql_time(), buf, decimals);
+  str->append(buf, length);
+  str->append('\'');
+}
+
+
 Item *Item_datetime_literal::clone_item(THD *thd)
 {
   return new (thd->mem_root) Item_datetime_literal(thd, &cached_time, decimals);
