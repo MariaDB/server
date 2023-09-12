@@ -220,6 +220,8 @@ enum default_row_format_enum {
 	DEFAULT_ROW_FORMAT_DYNAMIC = 2,
 };
 
+static my_bool innodb_trunc_temp_space_now;
+
 /** Whether ROW_FORMAT=COMPRESSED tables are read-only */
 static my_bool innodb_read_only_compressed;
 
@@ -18528,6 +18530,20 @@ innodb_encrypt_tables_update(THD*, st_mysql_sys_var*, void*, const void* save)
 	mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
+/** Truncate the temporary tablespace if the
+innodb_truncate_temporary_tablespace_now is enabled.
+@param	save	to-be-assigned value */
+static
+void
+innodb_trunc_temp_space_update(THD*, st_mysql_sys_var*, void*, const void* save)
+{
+  if (!*static_cast<const my_bool*>(save))
+    return;
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  fsp_shrink_temp_space();
+  mysql_mutex_lock(&LOCK_global_system_variables);
+}
+
 static SHOW_VAR innodb_status_variables_export[]= {
 	SHOW_FUNC_ENTRY("Innodb", &show_innodb_vars),
 	{NullS, NullS, SHOW_LONG}
@@ -19633,6 +19649,12 @@ static MYSQL_SYSVAR_BOOL(encrypt_temporary_tables, innodb_encrypt_temporary_tabl
   "Enrypt the temporary table data.",
   NULL, NULL, false);
 
+static MYSQL_SYSVAR_BOOL(truncate_temporary_tablespace_now,
+  innodb_trunc_temp_space_now,
+  PLUGIN_VAR_OPCMDARG,
+  "Shrink the temporary tablespace",
+  NULL, innodb_trunc_temp_space_update, false);
+
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(autoextend_increment),
   MYSQL_SYSVAR(buffer_pool_size),
@@ -19791,6 +19813,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(buf_dump_status_frequency),
   MYSQL_SYSVAR(background_thread),
   MYSQL_SYSVAR(encrypt_temporary_tables),
+  MYSQL_SYSVAR(truncate_temporary_tablespace_now),
 
   NULL
 };

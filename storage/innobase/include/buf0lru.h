@@ -129,6 +129,11 @@ buf_unzip_LRU_add_block(
 	ibool		old);	/*!< in: TRUE if should be put to the end
 				of the list, else put to the start */
 
+/** Evict the temporary tablespace pages above the given threshold
+@param threshold	Above this page to be removed from
+			LRU list */
+void buf_LRU_truncate_temp(uint32_t threshold);
+
 /** Update buf_pool.LRU_old_ratio.
 @param[in]	old_pct		Reserve this percentage of
 				the buffer pool for "old" blocks

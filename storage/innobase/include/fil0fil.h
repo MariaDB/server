@@ -911,6 +911,11 @@ public:
     freed_ranges.add_range(range);
   }
 
+  /** Clear the freed range in temporary tablespace
+  which are in shrinking ranges.
+  @param threshold  to be truncated value*/
+  inline void clear_freed_ranges(uint32_t threshold);
+
   /** Set the tablespace size in pages */
   void set_sizes(uint32_t s)
   {
