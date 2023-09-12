@@ -778,7 +778,9 @@ not_free:
         continue;
 
       ut_ad(!rseg.is_referenced());
-      ut_ad(!head.trx_no || rseg.needs_purge <= head.trx_no);
+      /* We may actually have rseg.needs_purge > head.trx_no here
+      if trx_t::commit_empty() had been executed in the past,
+      possibly before this server had been started up. */
 
       buf_block_t *rblock= trx_rseg_header_create(&space,
                                                   &rseg - trx_sys.rseg_array,
