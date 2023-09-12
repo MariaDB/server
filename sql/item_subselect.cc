@@ -3321,11 +3321,11 @@ bool Item_exists_subselect::exists2in_create_or_update_in(
   outer_expr IS NOT NULL so that the exists2in / decorrelate-in
   transformation is correct, i.e. new IN subquery evals to the same
   value as the as the old EXISTS/IN subquery.
-  
+
   @detail
   Example transformation, offset=2:
 
-  NOT ( (orig_expr1, orig_expr2, added_expr1, added_expr2) IN 
+  NOT ( (orig_expr1, orig_expr2, added_expr1, added_expr2) IN
         (SELECT ... FROM ...))
   ->
 
@@ -3390,20 +3390,12 @@ bool Item_exists_subselect::exists2in_and_is_not_nulls(uint offset,
         }
       }
     }
-    
-    if (and_list->elements > 1)
+
+    if (and_list->elements >= 1)
     {
       and_list->push_front(exp, thd->mem_root);
       exp= new (thd->mem_root) Item_cond_and(thd, *and_list);
     }
-    /*
-      If we do not single out this case, and merge it with the >1
-      case, we would get an infinite loop in resolving
-      Item_direct_view_ref::real_item() like in MDEV-3881 when
-      left_exp has scalar type
-    */
-    else if (and_list->elements == 1)
-      exp= new (thd->mem_root) Item_cond_and(thd, and_list->head(), exp);
 
     upper_not->arguments()[0]= exp;
     if (exp->fix_fields_if_needed(thd, upper_not->arguments()))
