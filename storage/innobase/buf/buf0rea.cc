@@ -335,7 +335,8 @@ nothing_read:
 	auto fio = space->io(IORequest(sync
 				       ? IORequest::READ_SYNC
 				       : IORequest::READ_ASYNC),
-			     page_id.page_no() * len, len, dst, bpage);
+			     os_offset_t{page_id.page_no()} * len, len,
+			     dst, bpage);
 	*err= fio.err;
 
 	if (UNIV_UNLIKELY(fio.err != DB_SUCCESS)) {
