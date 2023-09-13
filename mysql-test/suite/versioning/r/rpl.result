@@ -188,4 +188,53 @@ connection slave;
 include/diff_tables.inc [master:test.t1,slave:test.t1]
 connection master;
 drop table t1;
+#
+# MDEV-31313 SYSTEM VERSIONING and FOREIGN KEY CASCADE create orphan rows on replica
+#
+create table parent (
+id int(11) not null auto_increment,
+processdate datetime default null,
+primary key (id)
+) engine=innodb with system versioning;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert into parent values (1, now());
+create table child (
+id int(11) not null auto_increment,
+ch_name varchar(30),
+andreid int(11) default null,
+primary key (id),
+key andreid (andreid),
+constraint fk_andreid foreign key (andreid) references parent (id) on delete cascade
+) engine=innodb  with system versioning;
+set timestamp= unix_timestamp('2000-01-01 00:00:01');
+insert into child values (null, 'vimtomar', 1);
+set timestamp= unix_timestamp('2000-01-01 00:00:02');
+delete from parent where id = 1;
+select check_row(row_start, row_end) from parent for system_time all;
+check_row(row_start, row_end)
+HISTORICAL ROW
+select check_row(row_start, row_end) from child for system_time all;
+check_row(row_start, row_end)
+HISTORICAL ROW
+select * from child;
+id	ch_name	andreid
+select * from parent;
+id	processdate
+connection slave;
+select check_row_slave(row_start, row_end) from parent for system_time all;
+check_row_slave(row_start, row_end)
+HISTORICAL ROW
+select check_row_slave(row_start, row_end) from child for system_time all;
+check_row_slave(row_start, row_end)
+HISTORICAL ROW
+select * from child;
+id	ch_name	andreid
+select * from parent;
+id	processdate
+connection master;
+set timestamp= default;
+drop table child;
+drop table parent;
+connection slave;
+connection master;
 include/rpl_end.inc

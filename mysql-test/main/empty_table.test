@@ -7,9 +7,11 @@ drop table if exists t1;
 --enable_warnings
 
 create table t1 (nr int(5) not null auto_increment,b blob,str char(10), primary key (nr));
+--disable_ps2_protocol
 select count(*) from t1;
 select * from t1;
 select * from t1 limit 0;
+--enable_ps2_protocol
 show status like "Empty_queries";
 drop table t1;
 
@@ -17,8 +19,10 @@ drop table t1;
 # Accessing a non existing table should not increase Empty_queries
 #
 
+--disable_ps2_protocol
 --error 1146
 select * from t2;
+--enable_ps2_protocol
 show status like "Empty_queries";
 
 # End of 4.1 tests

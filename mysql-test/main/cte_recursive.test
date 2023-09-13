@@ -1,4 +1,5 @@
 --source include/default_optimizer_switch.inc
+--source include/have_innodb.inc
 
 create table t1 (a int, b varchar(32));
 insert into t1 values
@@ -4011,6 +4012,39 @@ with cte_e as (
   ) select * from cte_r
 ) select * from cte_e s1, cte_e s2 where s1.a=s2.a;
 
+drop table t1;
+
+--echo #
+--echo # MDEV-20010 Equal on two RANK window functions create wrong result
+--echo #
+
+create table t1 (a int, b int) engine= innodb;
+insert into t1 values (4, -2), (3, -1);
+
+SELECT RANK() OVER (ORDER BY D.C) = RANK() OVER (ORDER BY B.a) FROM
+(SELECT 5 AS C FROM t1) as D, (SELECT t1.b AS A FROM t1) AS B;
+
+select b, rank() over (order by c) , rank() over (order by dt1.b)
+from
+(select 5 as c from t1) as dt,
+(select b from t1) as dt1;
+
+select b, rank() over (order by c) , rank() over (order by dt1.b),
+rank() over (order by c) = rank() over (order by dt1.b)
+from
+(select 5 as c from t1) as dt,
+(select b from t1) as dt1;
+
+alter table t1 engine=myisam;
+select b, rank() over (order by c) , rank() over (order by dt1.b)
+from
+(select 5 as c from t1) as dt,
+(select b from t1) as dt1;
+
+create view v1 as select b,5 as c from t1;
+select b, rank() over (order by c) from v1 order by b;
+
+drop view v1;
 drop table t1;
 
 --echo # End of 10.4 tests

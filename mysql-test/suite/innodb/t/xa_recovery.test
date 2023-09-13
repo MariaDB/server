@@ -47,7 +47,9 @@ DROP TABLE t2;
 disconnect con1;
 
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+--disable_ps2_protocol
 SELECT * FROM t1;
+--enable_ps2_protocol
 XA ROLLBACK 'x';
 SELECT * FROM t1;
 

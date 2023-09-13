@@ -16,6 +16,7 @@ create table foo (a int, b int, c int, d int, e int, key(a,b,c)) engine=TokuDB;
 
 insert into foo (a,b,c) select * from a,b,c;
 
+--disable_ps2_protocol
 flush status;
 show status like '%Handler_read_next%';
 replace_column 9 NA;
@@ -43,5 +44,6 @@ replace_column 9 NA;
 explain select * from foo where a > 19 and c=10;
 select * from foo where a > 19 and c=10;
 show status like '%Handler_read_next%';
+--enable_ps2_protocol
 
 drop table foo,a,b,c;

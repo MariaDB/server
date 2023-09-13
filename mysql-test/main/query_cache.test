@@ -3,6 +3,7 @@
 -- source include/no_valgrind_without_big.inc
 -- source include/no_view_protocol.inc
 
+--disable_ps2_protocol
 set @save_query_cache_size=@@query_cache_size;
 #
 # Tests with query cache
@@ -1805,3 +1806,4 @@ drop table t1;
 --echo restore defaults
 SET GLOBAL query_cache_type= default;
 SET GLOBAL query_cache_size=@save_query_cache_size;
+--enable_ps2_protocol

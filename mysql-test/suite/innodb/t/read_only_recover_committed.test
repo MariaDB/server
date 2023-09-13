@@ -55,7 +55,9 @@ ROLLBACK;
 --disconnect con2
 SELECT * FROM t;
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+--disable_ps2_protocol
 SELECT * FROM t;
+--enable_ps2_protocol
 # refused on MySQL 5.6, MariaDB 10.0, 10.1, but not MariaDB 10.2+
 UPDATE t SET a=3 WHERE a=1;
 --let $restart_parameters= --innodb-read-only

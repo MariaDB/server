@@ -474,6 +474,7 @@ INSERT INTO `t2` VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10),(11),(12),(13),
 
 EXPLAIN PARTITIONS SELECT c1 FROM t1 WHERE (c1 > 10 AND c1 < 13) OR (c1 > 17 AND c1 < 20);
 
+--disable_ps2_protocol
 FLUSH STATUS;
 SELECT c1 FROM t1 WHERE (c1 > 10 AND c1 < 13) OR (c1 > 17 AND c1 < 20);
 SHOW STATUS LIKE 'Handler_read_%';
@@ -484,6 +485,7 @@ FLUSH STATUS;
 SELECT c1 FROM t2 WHERE (c1 > 10 AND c1 < 13) OR (c1 > 17 AND c1 < 20);
 SHOW STATUS LIKE 'Handler_read_%';
 DROP TABLE t1,t2;
+--enable_ps2_protocol
 
 # Bug#37329 Range scan on partitioned tables shows higher Handler_read_next
 # (marked as duplicate of Bug#35931)
@@ -505,6 +507,7 @@ INSERT INTO `t2` VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10),(11),(12),(13),
 
 EXPLAIN PARTITIONS SELECT c1 FROM t1 WHERE (c1 > 2 AND c1 < 5);
 
+--disable_ps2_protocol
 FLUSH STATUS;
 SELECT c1 FROM t1 WHERE (c1 > 2 AND c1 < 5);
 SHOW STATUS LIKE 'Handler_read_%';
@@ -527,6 +530,7 @@ FLUSH STATUS;
 SELECT c1 FROM t2 WHERE (c1 > 12 AND c1 < 15);
 SHOW STATUS LIKE 'Handler_read_%';
 DROP TABLE t1,t2;
+--enable_ps2_protocol
 
 --error ER_PARTITION_FUNCTION_IS_NOT_ALLOWED
 create table t1 (a int) partition by list ((a/3)*10 div 1)

@@ -144,6 +144,7 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --connection master_1
+--disable_ps2_protocol
 SELECT * FROM tbl_a;
 if ($USE_CHILD_GROUP2)
 {
@@ -164,6 +165,7 @@ if ($USE_CHILD_GROUP2)
     --enable_result_log
   }
 }
+--enable_ps2_protocol
 
 --echo
 --echo deinit

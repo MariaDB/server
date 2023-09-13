@@ -75,3 +75,23 @@ ALTER TABLE t1 MODIFY msg VARCHAR(200) CHARSET utf8mb4, ALGORITHM=COPY;
 ALTER TABLE t2 ADD CONSTRAINT FOREIGN KEY (msg) REFERENCES t1(msg), aLGORITHM=INPLACE;
 SET FOREIGN_KEY_CHECKS=1;
 DROP TABLE t2, t1;
+#
+# MDEV-31869 Server aborts when table does drop column
+#
+CREATE TABLE t (a VARCHAR(40), b INT, C INT) ENGINE=InnoDB;
+ALTER TABLE t MODIFY a VARCHAR(50), DROP b;
+DROP TABLE t;
+#
+#  MDEV-32060 Server aborts when table doesn't
+#		have referenced index
+#
+SET SESSION FOREIGN_KEY_CHECKS = OFF;
+CREATE TABLE t1 (a VARCHAR(16) KEY, FOREIGN KEY(a) REFERENCES t2(b)) ENGINE=InnoDB;
+CREATE TABLE t2 (b VARCHAR(8)) ENGINE=InnoDB;
+ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+SET SESSION FOREIGN_KEY_CHECKS = ON;
+ALTER TABLE t2 MODIFY b VARCHAR(16), ADD KEY(b);
+ERROR 42S02: Table 'test.t2' doesn't exist
+DROP TABLE t2, t1;
+ERROR 42S02: Unknown table 'test.t2'
+# End of 10.4 tests

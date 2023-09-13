@@ -493,6 +493,9 @@ sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
   :Query_arena(NULL, STMT_INITIALIZED_FOR_SP),
    Database_qualified_name(&null_clex_str, &null_clex_str),
    main_mem_root(*mem_root_arg),
+#ifdef PROTECT_STATEMENT_MEMROOT
+   executed_counter(0),
+#endif
    m_parent(parent),
    m_handler(sph),
    m_flags(0),
@@ -737,6 +740,10 @@ sp_head::init(LEX *lex)
     types of stored procedures to simplify reset_lex()/restore_lex() code.
   */
   lex->trg_table_fields.empty();
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+  executed_counter= 0;
+#endif
 
   DBUG_VOID_RETURN;
 }
@@ -1364,6 +1371,11 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
 #endif /* WITH_WSREP */
     err_status= i->execute(thd, &ip);
 
+#ifdef PROTECT_STATEMENT_MEMROOT
+    if (!err_status)
+      i->mark_as_run();
+#endif
+
 #ifdef WITH_WSREP
     if (WSREP(thd))
     {
@@ -1459,6 +1471,16 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
 
     /* Reset sp_rcontext::end_partial_result_set flag. */
     ctx->end_partial_result_set= FALSE;
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+    if (thd->is_error())
+    {
+      // Don't count a call ended with an error as normal run
+      executed_counter= 0;
+      main_mem_root.read_only= 0;
+      reset_instrs_executed_counter();
+    }
+#endif
 
   } while (!err_status && likely(!thd->killed) &&
            likely(!thd->is_fatal_error) &&
@@ -1571,6 +1593,20 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
 
     err_status|= mysql_change_db(thd, (LEX_CSTRING*)&saved_cur_db_name, TRUE) != 0;
   }
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+  if (!err_status)
+  {
+    if (!main_mem_root.read_only &&
+        has_all_instrs_executed())
+    {
+      main_mem_root.read_only= 1;
+    }
+    ++executed_counter;
+    DBUG_PRINT("info", ("execute counter: %lu", executed_counter));
+  }
+#endif
+
   m_flags&= ~IS_INVOKED;
   if (m_parent)
     m_parent->m_invoked_subroutine_count--;
@@ -3213,6 +3249,37 @@ void sp_head::add_mark_lead(uint ip, List<sp_instr> *leads)
   if (i && ! i->marked)
     leads->push_front(i);
 }
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+
+int sp_head::has_all_instrs_executed()
+{
+  sp_instr *ip;
+  uint count= 0;
+
+  for (uint i= 0; i < m_instr.elements; ++i)
+  {
+    get_dynamic(&m_instr, (uchar*)&ip, i);
+    if (ip->has_been_run())
+      ++count;
+  }
+
+  return count == m_instr.elements;
+}
+
+
+void sp_head::reset_instrs_executed_counter()
+{
+  sp_instr *ip;
+
+  for (uint i= 0; i < m_instr.elements; ++i)
+  {
+    get_dynamic(&m_instr, (uchar*)&ip, i);
+    ip->mark_as_not_run();
+  }
+}
+
+#endif
 
 void
 sp_head::opt_mark()

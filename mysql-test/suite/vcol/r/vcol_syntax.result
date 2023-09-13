@@ -197,3 +197,40 @@ Warnings:
 Warning	1292	Truncated incorrect DECIMAL value: 'x'
 Warning	1292	Truncated incorrect DECIMAL value: 'test'
 drop table t1;
+#
+# MDEV-31319 Assertion const_item_cache == true failed in Item_func::fix_fields
+#
+create table t (f1 int, f2 int, fv int generated always as (case user() when 'foo' or 'bar' then f1 else f2 end) virtual);
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'foo'
+Warning	1292	Truncated incorrect DOUBLE value: 'bar'
+select * from t;
+f1	f2	fv
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'foo'
+Warning	1292	Truncated incorrect DOUBLE value: 'bar'
+create table tmp as select * from information_schema.tables where table_name = 't';
+select * from t;
+f1	f2	fv
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'foo'
+Warning	1292	Truncated incorrect DOUBLE value: 'bar'
+drop table t, tmp;
+#
+# MDEV-29357 Assertion (fixed) in Item_func_dayname on INSERT
+#
+set sql_mode='';
+create table t (c1 blob ,c2 int,c3 char(10) as (dayname (c2)));
+create trigger tr before insert on t for each row set new.c2=0;
+insert into t values (0, 0, 0);
+Warnings:
+Warning	1906	The value specified for generated column 'c3' in table 't' has been ignored
+Warning	1292	Incorrect datetime value: '0' for column `test`.`t`.`c2` at row 1
+Warning	1292	Incorrect datetime value: '0' for column `test`.`t`.`c2` at row 1
+insert into t values (1, 1, 1);
+Warnings:
+Warning	1906	The value specified for generated column 'c3' in table 't' has been ignored
+Warning	1292	Incorrect datetime value: '1' for column `test`.`t`.`c2` at row 1
+Warning	1292	Incorrect datetime value: '0' for column `test`.`t`.`c2` at row 1
+drop trigger tr;
+drop table t;

@@ -83,7 +83,9 @@ create function bug10015_4(i int) returns int
     insert into t2 values (i, m);
     return m;
   end|
+--disable_ps2_protocol
 select *, bug10015_4(id) from t1|
+--enable_ps2_protocol
 select * from t2|
 drop function bug10015_4|
 # Now let us test how statement rollback works
@@ -327,10 +329,14 @@ commit|
 set autocommit= 1|
 # Let us test that savepoints work inside of functions
 # even in auto-commit mode
+--disable_ps2_protocol
 select bug13825_3(0)|
+--enable_ps2_protocol
 select * from t1|
 delete from t1|
+--disable_ps2_protocol
 select bug13825_3(1)|
+--enable_ps2_protocol
 select * from t1|
 delete from t1|
 # Curious case: rolling back to savepoint which is set by first

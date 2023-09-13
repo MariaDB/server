@@ -502,6 +502,7 @@ static void bg_rpl_load_gtid_slave_state(void *)
 static void bg_slave_kill(void *victim)
 {
   THD *to_kill= (THD *)victim;
+  DBUG_EXECUTE_IF("rpl_delay_deadlock_kill", my_sleep(1500000););
   to_kill->awake(KILL_CONNECTION);
   mysql_mutex_lock(&to_kill->LOCK_wakeup_ready);
   to_kill->rgi_slave->killed_for_retry= rpl_group_info::RETRY_KILL_KILLED;
@@ -1857,8 +1858,10 @@ static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
       (master_row= mysql_fetch_row(master_res)))
   {
     mysql_mutex_lock(&mi->data_lock);
-    mi->clock_diff_with_master=
-      (long) (time((time_t*) 0) - strtoul(master_row[0], 0, 10));
+    mi->clock_diff_with_master= DBUG_EVALUATE_IF(
+        "negate_clock_diff_with_master", 0,
+        (long) (time((time_t *) 0) - strtoul(master_row[0], 0, 10)));
+
     mysql_mutex_unlock(&mi->data_lock);
   }
   else if (check_io_slave_killed(mi, NULL))
@@ -3187,6 +3190,14 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
       else
       {
         idle= mi->rli.sql_thread_caught_up;
+
+        /*
+          The idleness of the SQL thread is needed for the parallel slave
+          because events can be ignored before distribution to a worker thread.
+          That is, Seconds_Behind_Master should still be calculated and visible
+          while the slave is processing ignored events, such as those skipped
+          due to slave_skip_counter.
+        */
         if (mi->using_parallel() && idle && !mi->rli.parallel.workers_idle())
           idle= false;
       }
@@ -4146,7 +4157,6 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
               thd,
               STRING_WITH_LEN(
                   "now SIGNAL paused_on_event WAIT_FOR sql_thread_continue")));
-          DBUG_SET("-d,pause_sql_thread_on_next_event");
           mysql_mutex_lock(&rli->data_lock);
         });
 
@@ -4163,7 +4173,8 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       the user might be surprised to see a claim that the slave is up to date
       long before those queued events are actually executed.
      */
-    if ((!rli->mi->using_parallel()) && event_can_update_last_master_timestamp(ev))
+    if ((!rli->mi->using_parallel()) &&
+        event_can_update_last_master_timestamp(ev))
     {
       rli->last_master_timestamp= ev->when + (time_t) ev->exec_time;
       rli->sql_thread_caught_up= false;
@@ -4218,9 +4229,22 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 
     if (rli->mi->using_parallel())
     {
-      if (unlikely((rli->last_master_timestamp == 0 ||
-                    rli->sql_thread_caught_up) &&
-                   event_can_update_last_master_timestamp(ev)))
+      /*
+        rli->sql_thread_caught_up is checked and negated here to ensure that
+        the value of Seconds_Behind_Master in SHOW SLAVE STATUS is consistent
+        with the update of last_master_timestamp. It was previously unset
+        immediately after reading an event from the relay log; however, for the
+        duration between that unset and the time that LMT would be updated
+        could lead to spikes in SBM.
+
+        The check for queued_count == dequeued_count ensures the worker threads
+        are all idle (i.e. all events have been executed).
+      */
+      if ((unlikely(rli->last_master_timestamp == 0) ||
+           (rli->sql_thread_caught_up &&
+            (rli->last_inuse_relaylog->queued_count ==
+             rli->last_inuse_relaylog->dequeued_count))) &&
+          event_can_update_last_master_timestamp(ev))
       {
         if (rli->last_master_timestamp < ev->when)
         {
@@ -5461,6 +5485,8 @@ pthread_handler_t handle_slave_sql(void *arg)
   mysql_mutex_unlock(&rli->data_lock);
 #ifdef WITH_WSREP
   wsrep_open(thd);
+  if (WSREP_ON_)
+    wsrep_wait_ready(thd);
   if (wsrep_before_command(thd))
   {
     WSREP_WARN("Slave SQL wsrep_before_command() failed");

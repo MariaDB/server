@@ -4495,7 +4495,10 @@ select 2 BETWEEN 1 AND 3 IN (SELECT 0 UNION SELECT 1), 2 BETWEEN 1 AND (3 IN (SE
 
 create or replace view v1 as select 2 LIKE 1 ESCAPE 3 IN (SELECT 0 UNION SELECT 1), 2 LIKE 1 ESCAPE (3 IN (SELECT 0 UNION SELECT 1)), (2 LIKE 1 ESCAPE 3) IN (SELECT 0 UNION SELECT 1);
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
+#Enable after fix MDEV-31282
+--disable_ps2_protocol
 select 2 LIKE 1 ESCAPE 3 IN (SELECT 0 UNION SELECT 1), 2 LIKE 1 ESCAPE (3 IN (SELECT 0 UNION SELECT 1)), (2 LIKE 1 ESCAPE 3) IN (SELECT 0 UNION SELECT 1) union select * from v1;
+--enable_ps2_protocol
 
 create or replace view v1 as select 3 BETWEEN 1 AND 2 AND NULL, 3 BETWEEN (1 AND 2) AND NULL, 3 BETWEEN 1 AND (2 AND NULL), (3 BETWEEN 1 AND 2) AND NULL;
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';

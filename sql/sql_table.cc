@@ -72,11 +72,9 @@ static bool make_unique_constraint_name(THD *, LEX_CSTRING *, const char *,
                                         List<Virtual_column_info> *, uint *);
 static const char *make_unique_invisible_field_name(THD *, const char *,
                                                     List<Create_field> *);
-static int copy_data_between_tables(THD *, TABLE *,TABLE *,
-                                    List<Create_field> &, bool, uint, ORDER *,
-                                    ha_rows *, ha_rows *,
-                                    Alter_info::enum_enable_or_disable,
-                                    Alter_table_ctx *);
+static int copy_data_between_tables(THD *, TABLE *,TABLE *, bool, uint,
+                                    ORDER *, ha_rows *, ha_rows *,
+                                    Alter_info *, Alter_table_ctx *);
 static int mysql_prepare_create_table(THD *, HA_CREATE_INFO *, Alter_info *,
                                       uint *, handler *, KEY **, uint *, int,
                                       const LEX_CSTRING db,
@@ -10548,10 +10546,8 @@ do_continue:;
         my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
         goto err_new_table_cleanup;
       });
-    if (copy_data_between_tables(thd, table, new_table,
-                                 alter_info->create_list, ignore,
-                                 order_num, order, &copied, &deleted,
-                                 alter_info->keys_onoff,
+    if (copy_data_between_tables(thd, table, new_table, ignore, order_num,
+                                 order, &copied, &deleted, alter_info,
                                  &alter_ctx))
     {
       goto err_new_table_cleanup;
@@ -10877,11 +10873,9 @@ bool mysql_trans_commit_alter_copy_data(THD *thd)
 
 
 static int
-copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
-			 List<Create_field> &create, bool ignore,
-			 uint order_num, ORDER *order,
-			 ha_rows *copied, ha_rows *deleted,
-                         Alter_info::enum_enable_or_disable keys_onoff,
+copy_data_between_tables(THD *thd, TABLE *from, TABLE *to, bool ignore,
+                         uint order_num, ORDER *order, ha_rows *copied,
+                         ha_rows *deleted, Alter_info *alter_info,
                          Alter_table_ctx *alter_ctx)
 {
   int error= 1;
@@ -10930,7 +10924,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   backup_set_alter_copy_lock(thd, from);
 
-  alter_table_manage_keys(to, from->file->indexes_are_disabled(), keys_onoff);
+  alter_table_manage_keys(to, from->file->indexes_are_disabled(),
+                          alter_info->keys_onoff);
 
   from->default_column_bitmaps();
 
@@ -10939,10 +10934,14 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   from->file->info(HA_STATUS_VARIABLE);
   to->file->extra(HA_EXTRA_PREPARE_FOR_ALTER_TABLE);
-  to->file->ha_start_bulk_insert(from->file->stats.records,
-                                 ignore ? 0 : HA_CREATE_UNIQUE_INDEX_BY_SORT);
-  bulk_insert_started= 1;
-  List_iterator<Create_field> it(create);
+  if (!to->s->long_unique_table || !(alter_info->flags &
+            (ALTER_ADD_INDEX|ALTER_CHANGE_COLUMN|ALTER_PARSER_DROP_COLUMN)))
+  {
+    to->file->ha_start_bulk_insert(from->file->stats.records,
+                                   ignore ? 0 : HA_CREATE_UNIQUE_INDEX_BY_SORT);
+    bulk_insert_started= 1;
+  }
+  List_iterator<Create_field> it(alter_info->create_list);
   Create_field *def;
   copy_end=copy;
   to->s->default_fields= 0;
@@ -11197,7 +11196,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     /* We are going to drop the temporary table */
     to->file->extra(HA_EXTRA_PREPARE_FOR_DROP);
   }
-  if (unlikely(to->file->ha_end_bulk_insert()) && error <= 0)
+  if (bulk_insert_started && to->file->ha_end_bulk_insert() && error <= 0)
   {
     /* Give error, if not already given */
     if (!thd->is_error())
@@ -11238,7 +11237,6 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   {
     /* This happens if we get an error during initialization of data */
     DBUG_ASSERT(error);
-    to->file->ha_end_bulk_insert();
     ha_enable_transaction(thd, TRUE);
   }
 

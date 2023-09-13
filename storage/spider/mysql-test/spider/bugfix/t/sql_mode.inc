@@ -44,12 +44,14 @@ INSERT INTO tbl_a (pkey) VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 --connection child2_1
 TRUNCATE TABLE mysql.general_log;
 
+--disable_ps2_protocol
 --connection master_1
 SELECT * FROM tbl_a ORDER BY pkey;
 
 --connection child2_1
 eval $CHILD2_1_SELECT_ARGUMENT1;
 eval $CHILD2_1_SELECT_TABLES;
+--enable_ps2_protocol
 
 --echo
 --echo deinit

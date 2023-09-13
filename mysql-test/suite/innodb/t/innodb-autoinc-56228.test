@@ -25,7 +25,9 @@ END //
 
 DELIMITER ;//
 
+--disable_ps_protocol
 SELECT bug56228();
+--enable_ps2_protocol
 
 DROP FUNCTION bug56228;
 DROP TEMPORARY TABLE t2_56228;

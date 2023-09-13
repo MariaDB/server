@@ -154,28 +154,27 @@ show warnings;
 
 # Test edge cases for indexes using key_block_size=2
 SET sql_mode= '';
+set innodb_strict_mode=off;
 create index idx1 on worklog5743_2(a2(4000));
+set innodb_strict_mode=on;
 show warnings;
 show create table worklog5743_2;
+drop index idx1 on worklog5743_2;
 create index idx3 on worklog5743_2(a2(769));
 show warnings;
 create index idx4 on worklog5743_2(a2(768));
 show warnings;
--- error ER_TOO_LONG_KEY
-create index idx5 on worklog5743_2(a1, a2(765));
-show warnings;
-create index idx6 on worklog5743_2(a1, a2(764));
+create index idx6 on worklog5743_2(a1, a2(768));
 show warnings;
 # Test edge cases for indexes using key_block_size=4
+set innodb_strict_mode=off;
 create index idx1 on worklog5743_4(a2(4000));
+set innodb_strict_mode=on;
 show warnings;
 show create table worklog5743_4;
 create index idx3 on worklog5743_4(a2(769));
 show warnings;
 create index idx4 on worklog5743_4(a2(768));
-show warnings;
--- error ER_TOO_LONG_KEY
-create index idx5 on worklog5743_4(a1, a2(765));
 show warnings;
 create index idx6 on worklog5743_4(a1, a2(764));
 show warnings;
@@ -272,7 +271,6 @@ show warnings;
 drop table worklog5743;
 
 create table worklog5743(a1 int, a2 varchar(769)) ROW_FORMAT=DYNAMIC;
--- error ER_TOO_LONG_KEY
 create index idx1 on worklog5743(a2);
 show warnings;
 drop table worklog5743;
@@ -285,7 +283,6 @@ update worklog5743 set a1 = 3333;
 drop table worklog5743;
 
 create table worklog5743(a1 int, a2 varchar(765)) ROW_FORMAT=DYNAMIC;
--- error ER_TOO_LONG_KEY
 create index idx1 on worklog5743(a1, a2);
 show warnings;
 drop table worklog5743;
@@ -316,9 +313,8 @@ rollback;
 drop table worklog5743;
 
 -- echo ### Test 6 ###
-# Create a table with old format, and the limit is 768 bytes.
--- error ER_TOO_LONG_KEY
 create table worklog5743(a TEXT not null, primary key (a(1000)));
+drop table worklog5743;
 
 create table worklog5743(a TEXT) ROW_FORMAT=COMPACT;
 

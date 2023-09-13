@@ -278,7 +278,9 @@ lock_wait_suspend_thread(
 	}
 
 	ulint	lock_type = ULINT_UNDEFINED;
-
+#ifndef DBUG_OFF
+	ulint	lock_mode = LOCK_NONE;
+#endif
 	/* The wait_lock can be cleared by another thread when the
 	lock is released. But the wait can only be initiated by the
 	current thread which owns the transaction. Only acquire the
@@ -288,6 +290,9 @@ lock_wait_suspend_thread(
 		wait_lock = trx->lock.wait_lock;
 		if (wait_lock) {
 			lock_type = lock_get_type_low(wait_lock);
+#ifndef DBUG_OFF
+			lock_mode = lock_get_mode(wait_lock);
+#endif
 		}
 		lock_mutex_exit();
 	}
@@ -336,6 +341,14 @@ lock_wait_suspend_thread(
 	}
 
 	os_event_wait(slot->event);
+	DBUG_EXECUTE_IF("small_sleep_after_lock_wait",
+		{
+			if (lock_type == LOCK_REC && lock_mode == LOCK_X &&
+			    trx->error_state != DB_DEADLOCK &&
+			    !trx_is_interrupted(trx)) {
+				my_sleep(20000);
+			}
+		});
 
 	thd_wait_end(trx->mysql_thd);
 

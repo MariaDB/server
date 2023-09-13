@@ -1947,18 +1947,25 @@ public:
     Use this constructor if value->save_in_field() went precisely,
     without any data rounding or truncation.
   */
-  SEL_ARG_LT(const uchar *key, Field *field)
+  SEL_ARG_LT(const uchar *key, const KEY_PART *key_part, Field *field)
    :SEL_ARG_LE(key, field)
-  { max_flag= NEAR_MAX; }
+  {
+    // Don't use open ranges for partial key_segments
+    if (!(key_part->flag & HA_PART_KEY_SEG))
+      max_flag= NEAR_MAX;
+  }
   /*
     Use this constructor if value->save_in_field() returned success,
     but we don't know if rounding or truncation happened
     (as some Field::store() do not report minor data changes).
   */
-  SEL_ARG_LT(THD *thd, const uchar *key, Field *field, Item *value)
+  SEL_ARG_LT(THD *thd, const uchar *key,
+             const KEY_PART *key_part, Field *field, Item *value)
    :SEL_ARG_LE(key, field)
   {
-    if (stored_field_cmp_to_item(thd, field, value) == 0)
+    // Don't use open ranges for partial key_segments
+    if (!(key_part->flag & HA_PART_KEY_SEG) &&
+        stored_field_cmp_to_item(thd, field, value) == 0)
       max_flag= NEAR_MAX;
   }
 };
@@ -9032,7 +9039,7 @@ SEL_ARG *Field::stored_field_make_mm_leaf(RANGE_OPT_PARAM *param,
   case SCALAR_CMP_LE:
     DBUG_RETURN(new (mem_root) SEL_ARG_LE(str, this));
   case SCALAR_CMP_LT:
-    DBUG_RETURN(new (mem_root) SEL_ARG_LT(thd, str, this, value));
+    DBUG_RETURN(new (mem_root) SEL_ARG_LT(thd, str, key_part, this, value));
   case SCALAR_CMP_GT:
     DBUG_RETURN(new (mem_root) SEL_ARG_GT(thd, str, key_part, this, value));
   case SCALAR_CMP_GE:
@@ -9061,7 +9068,7 @@ SEL_ARG *Field::stored_field_make_mm_leaf_exact(RANGE_OPT_PARAM *param,
   case SCALAR_CMP_LE:
     DBUG_RETURN(new (param->mem_root) SEL_ARG_LE(str, this));
   case SCALAR_CMP_LT:
-    DBUG_RETURN(new (param->mem_root) SEL_ARG_LT(str, this));
+    DBUG_RETURN(new (param->mem_root) SEL_ARG_LT(str, key_part, this));
   case SCALAR_CMP_GT:
     DBUG_RETURN(new (param->mem_root) SEL_ARG_GT(str, key_part, this));
   case SCALAR_CMP_GE:

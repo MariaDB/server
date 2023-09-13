@@ -23,6 +23,8 @@
 set GLOBAL query_cache_type=ON;
 set LOCAL query_cache_type=ON;
 
+--disable_ps2_protocol
+
 connect (con1,localhost,root,,test,$MASTER_MYPORT,);
 connection default;
 
@@ -252,6 +254,7 @@ set @a=10;
 execute stmt1 using @a;
 show status like 'Qcache_hits';
 
+--enable_ps2_protocol
 
 drop table t1;
 disconnect con1;

@@ -16,6 +16,7 @@ connect (con2,localhost,root,,);
 #
 # Bug #27638: slow logging to CSV table inserts bad query_time and lock_time values
 #
+--disable_ps2_protocol
 connection con1;
 set session long_query_time=10;
 select get_lock('bug27638', 1);
@@ -36,5 +37,6 @@ connection default;
 
 disconnect con1;
 disconnect con2;
+--enable_ps2_protocol
 
 set @@global.log_output = @log_output.saved;

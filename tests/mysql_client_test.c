@@ -6296,6 +6296,318 @@ static void test_date_dt()
   test_bind_date_conv(2);
 }
 
+static void test_simple_temporal() {
+
+  MYSQL_STMT *stmt = NULL;
+  uint rc;
+  ulong length = 0;
+  MYSQL_BIND my_bind[4], my_bind2;
+  my_bool is_null = FALSE;
+  MYSQL_TIME tm;
+  char string[100];
+  MYSQL_RES *rs;
+  MYSQL_FIELD *field;
+
+  myheader("test_simple_temporal");
+
+  /* Initialize param/fetch buffers for data, null flags, lengths */
+  memset(&my_bind, 0, sizeof(my_bind));
+  memset(&my_bind2, 0, sizeof(my_bind2));
+
+  /* Initialize the first input parameter */
+  my_bind[0].buffer_type = MYSQL_TYPE_DATETIME;
+  my_bind[0].buffer = &tm;
+  my_bind[0].is_null = &is_null;
+  my_bind[0].length = &length;
+  my_bind[0].buffer_length = sizeof(tm);
+
+  /* Clone the other input parameters */
+  my_bind[3] = my_bind[2] = my_bind[1] = my_bind[0];
+
+  my_bind[1].buffer_type = MYSQL_TYPE_TIMESTAMP;
+  my_bind[2].buffer_type = MYSQL_TYPE_DATE;
+  my_bind[3].buffer_type = MYSQL_TYPE_TIME;
+
+  /* Initialize fetch parameter */
+  my_bind2.buffer_type = MYSQL_TYPE_STRING;
+  my_bind2.length = &length;
+  my_bind2.is_null = &is_null;
+  my_bind2.buffer_length = sizeof(string);
+  my_bind2.buffer = string;
+
+  /* Prepare and bind simple SELECT with DATETIME parameter */
+  stmt = mysql_simple_prepare(mysql, "SELECT ?");
+  check_stmt(stmt);
+  verify_param_count(stmt, 1);
+
+  rc = mysql_stmt_bind_param(stmt, &my_bind[0]);
+  check_execute(stmt, rc);
+
+  rc = mysql_stmt_bind_result(stmt, &my_bind2);
+  check_execute(stmt, rc);
+
+  /* Initialize DATETIME value */
+  tm.neg = FALSE;
+  tm.time_type = MYSQL_TIMESTAMP_DATETIME;
+  tm.year = 2001;
+  tm.month = 10;
+  tm.day = 20;
+  tm.hour = 10;
+  tm.minute = 10;
+  tm.second = 59;
+  tm.second_part = 500000;
+
+  /* Execute and fetch */
+  rc = mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+
+  rs = mysql_stmt_result_metadata(stmt);
+  field = mysql_fetch_fields(rs);
+
+  rc = mysql_stmt_store_result(stmt);
+  check_execute(stmt, rc);
+
+  rc = mysql_stmt_fetch(stmt);
+  check_execute(stmt, rc);
+
+  DIE_UNLESS(field->type == MYSQL_TYPE_DATETIME);
+  DIE_UNLESS(strcmp(string, "2001-10-20 10:10:59.500000") == 0);
+
+  mysql_free_result(rs);
+
+  mysql_stmt_close(stmt);
+
+  /* Same test with explicit CAST */
+  stmt = mysql_simple_prepare(mysql, "SELECT CAST(? AS DATETIME(6))");
+  check_stmt(stmt);
+  verify_param_count(stmt, 1);
+
+  rc = mysql_stmt_bind_param(stmt, &my_bind[0]);
+  check_execute(stmt, rc);
+
+  rc = mysql_stmt_bind_result(stmt, &my_bind2);
+  check_execute(stmt, rc);
+
+  /* Execute and fetch */
+  rc = mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+
+  rs = mysql_stmt_result_metadata(stmt);
+  field = mysql_fetch_fields(rs);
+
+  rc = mysql_stmt_store_result(stmt);
+  check_execute(stmt, rc);
+
+  rc = mysql_stmt_fetch(stmt);
+  check_execute(stmt, rc);
+
+  DIE_UNLESS(field->type == MYSQL_TYPE_DATETIME);
+  DIE_UNLESS(strcmp(string, "2001-10-20 10:10:59.500000") == 0);
+
+  mysql_free_result(rs);
+
+  mysql_stmt_close(stmt);
+
+  /* Prepare and bind simple SELECT with TIMESTAMP parameter */
+  stmt = mysql_simple_prepare(mysql, "SELECT ?");
+  check_stmt(stmt);
+  verify_param_count(stmt, 1);
+
+  rc = mysql_stmt_bind_param(stmt, &my_bind[1]);
+  check_execute(stmt, rc);
+
+  rc = mysql_stmt_bind_result(stmt, &my_bind2);
+  check_execute(stmt, rc);
+
+  /* Initialize TIMESTAMP value */
+  tm.neg = FALSE;
+  tm.time_type = MYSQL_TIMESTAMP_DATETIME;
+  tm.year = 2001;
+  tm.month = 10;
+  tm.day = 20;
+  tm.hour = 10;
+  tm.minute = 10;
+  tm.second = 59;
+  tm.second_part = 500000;
+
+  /* Execute and fetch */
+  rc = mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+
+  rs = mysql_stmt_result_metadata(stmt);
+  field = mysql_fetch_fields(rs);
+
+  rc = mysql_stmt_store_result(stmt);
+  check_execute(stmt, rc);
+
+  rc = mysql_stmt_fetch(stmt);
+  check_execute(stmt, rc);
+
+  DIE_UNLESS(field->type == MYSQL_TYPE_TIMESTAMP);
+  DIE_UNLESS(strcmp(string, "2001-10-20 10:10:59.500000") == 0);
+
+  mysql_free_result(rs);
+
+  mysql_stmt_close(stmt);
+
+  /* Prepare and bind simple SELECT with DATE parameter */
+  stmt = mysql_simple_prepare(mysql, "SELECT ?");
+  check_stmt(stmt);
+  verify_param_count(stmt, 1);
+
+  rc = mysql_stmt_bind_param(stmt, &my_bind[2]);
+  check_execute(stmt, rc);
+
+  rc = mysql_stmt_bind_result(stmt, &my_bind2);
+  check_execute(stmt, rc);
+
+  /* Initialize DATE value */
+  tm.neg = FALSE;
+  tm.time_type = MYSQL_TIMESTAMP_DATE;
+  tm.year = 2001;
+  tm.month = 10;
+  tm.day = 20;
+  tm.hour = 0;
+  tm.minute = 0;
+  tm.second = 0;
+  tm.second_part = 0;
+
+  /* Execute and fetch */
+  rc = mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+
+  rs = mysql_stmt_result_metadata(stmt);
+  field = mysql_fetch_fields(rs);
+
+  rc = mysql_stmt_store_result(stmt);
+  check_execute(stmt, rc);
+
+  rc = mysql_stmt_fetch(stmt);
+  check_execute(stmt, rc);
+
+  DIE_UNLESS(field->type == MYSQL_TYPE_DATE);
+  DIE_UNLESS(strcmp(string, "2001-10-20") == 0);
+
+  mysql_free_result(rs);
+
+  mysql_stmt_close(stmt);
+
+  /* Same test with explicit CAST */
+  stmt = mysql_simple_prepare(mysql, "SELECT CAST(? AS DATE)");
+  check_stmt(stmt);
+  verify_param_count(stmt, 1);
+
+  rc = mysql_stmt_bind_param(stmt, &my_bind[2]);
+  check_execute(stmt, rc);
+
+  rc = mysql_stmt_bind_result(stmt, &my_bind2);
+  check_execute(stmt, rc);
+
+  /* Execute and fetch */
+  rc = mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+
+  rs = mysql_stmt_result_metadata(stmt);
+  field = mysql_fetch_fields(rs);
+
+  rc = mysql_stmt_store_result(stmt);
+  check_execute(stmt, rc);
+
+  rc = mysql_stmt_fetch(stmt);
+  check_execute(stmt, rc);
+
+  DIE_UNLESS(field->type == MYSQL_TYPE_DATE);
+  DIE_UNLESS(strcmp(string, "2001-10-20") == 0);
+
+  mysql_free_result(rs);
+
+  mysql_stmt_close(stmt);
+
+  /* Prepare and bind simple SELECT with TIME parameter */
+  stmt = mysql_simple_prepare(mysql, "SELECT ?");
+  check_stmt(stmt);
+  verify_param_count(stmt, 1);
+
+  rc = mysql_stmt_bind_param(stmt, &my_bind[3]);
+  check_execute(stmt, rc);
+
+  rc = mysql_stmt_bind_result(stmt, &my_bind2);
+  check_execute(stmt, rc);
+
+  /* Initialize TIME value */
+  tm.neg = FALSE;
+  tm.time_type = MYSQL_TIMESTAMP_TIME;
+  tm.year = 0;
+  tm.month = 0;
+  tm.day = 0;
+  tm.hour = 10;
+  tm.minute = 10;
+  tm.second = 59;
+  tm.second_part = 500000;
+
+  /* Execute and fetch */
+  rc = mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+
+  rs = mysql_stmt_result_metadata(stmt);
+  field = mysql_fetch_fields(rs);
+
+  rc = mysql_stmt_store_result(stmt);
+  check_execute(stmt, rc);
+
+  rc = mysql_stmt_fetch(stmt);
+  check_execute(stmt, rc);
+
+  DIE_UNLESS(field->type == MYSQL_TYPE_TIME);
+  DIE_UNLESS(strcmp(string, "10:10:59.500000") == 0);
+
+  mysql_free_result(rs);
+
+  mysql_stmt_close(stmt);
+
+  /* Same test with explicit CAST */
+  stmt = mysql_simple_prepare(mysql, "SELECT CAST(? AS TIME(6))");
+  check_stmt(stmt);
+  verify_param_count(stmt, 1);
+
+  rc = mysql_stmt_bind_param(stmt, &my_bind[3]);
+  check_execute(stmt, rc);
+
+  rc = mysql_stmt_bind_result(stmt, &my_bind2);
+  check_execute(stmt, rc);
+
+  /* Initialize TIME value */
+  tm.neg = FALSE;
+  tm.time_type = MYSQL_TIMESTAMP_TIME;
+  tm.year = 0;
+  tm.month = 0;
+  tm.day = 0;
+  tm.hour = 10;
+  tm.minute = 10;
+  tm.second = 59;
+  tm.second_part = 500000;
+
+  /* Execute and fetch */
+  rc = mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+
+  rs = mysql_stmt_result_metadata(stmt);
+  field = mysql_fetch_fields(rs);
+
+  rc = mysql_stmt_store_result(stmt);
+  check_execute(stmt, rc);
+
+  rc = mysql_stmt_fetch(stmt);
+  check_execute(stmt, rc);
+
+  DIE_UNLESS(field->type == MYSQL_TYPE_TIME);
+  DIE_UNLESS(strcmp(string, "10:10:59.500000") == 0);
+
+  mysql_free_result(rs);
+
+  mysql_stmt_close(stmt);
+}
+
 
 /* Misc tests to keep pure coverage happy */
 
@@ -21392,6 +21704,49 @@ static void test_mdev20261()
   myquery(rc);
 }
 
+static void test_mdev_30159()
+{
+  MYSQL_RES *result;
+  int rc;
+
+  myheader("test_mdev_30159");
+
+  rc= mysql_query(mysql, "create table t1 ("
+                          "  name  varchar(100),"
+                          "  typ varchar(100)"
+                          ")");
+  myquery(rc);
+  rc= mysql_query(mysql, "insert into t1 values (1,1),(2,2),(3,3),(4,4),(5,5),"
+                          "(6,6),(7,7),(8,8),(9,9),(10,10)");
+  myquery(rc);
+  rc= mysql_query(mysql, "insert into t1 values ('', 'value'),('', 'value')");
+  myquery(rc);
+  rc= mysql_query(mysql, "create table t2 ("
+                         "  servername varchar(100)"
+                         ")");
+  myquery(rc);
+  rc= mysql_query(mysql, "insert into t2 values (1),(2),(3),(4),(5),"
+                          "(6),(7),(8),(9),(10)");
+  myquery(rc);
+  rc= mysql_query(mysql, "create view v1 as"
+                         "  select * from t2"
+                         "    where"
+                         "      `t2`.`servername` regexp (  select"
+                         "          group_concat(`t1`.`name` separator '|')"
+                         "          from `t1`"
+                         "          where `t1`.`typ`"
+                         "          like 'value')");
+  myquery(rc);
+
+  result= mysql_list_fields(mysql, "v1", NULL);
+  mytest(result);
+  mysql_free_result(result);
+
+  rc= mysql_query(mysql, "drop view v1");
+  myquery(rc);
+  rc= mysql_query(mysql, "drop table t1, t2");
+  myquery(rc);
+}
 
 static struct my_tests_st my_tests[]= {
   { "test_mdev_20516", test_mdev_20516 },
@@ -21467,6 +21822,7 @@ static struct my_tests_st my_tests[]= {
   { "test_store_result2", test_store_result2 },
   { "test_subselect", test_subselect },
   { "test_date", test_date },
+  { "test_simple_temporal", test_simple_temporal },
   { "test_date_date", test_date_date },
   { "test_date_time", test_date_time },
   { "test_date_ts", test_date_ts },
@@ -21695,6 +22051,7 @@ static struct my_tests_st my_tests[]= {
   { "test_mdev_16128", test_mdev_16128 },
   { "test_mdev18408", test_mdev18408 },
   { "test_mdev20261", test_mdev20261 },
+  { "test_mdev_30159", test_mdev_30159 },
   { 0, 0 }
 };
 
