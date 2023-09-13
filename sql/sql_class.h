@@ -3695,7 +3695,6 @@ public:
     This is used for taging error messages in the log files.
   */
   LEX_CSTRING connection_name;
-  char       default_master_connection_buff[MAX_CONNECTION_NAME+1];
   uint8      password; /* 0, 1 or 2 */
   uint8      failed_com_change_user;
   bool       slave_thread;

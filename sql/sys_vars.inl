@@ -492,14 +492,18 @@ public:
   Backing store: char*
 
   @note
-  This class supports only GLOBAL variables, because THD on destruction
-  does not destroy individual members of SV, there's no way to free
-  allocated string variables for every thread.
+
+  Note that the memory management for SESSION_VAR's is manual, the
+  value must be strdup'ed in THD::init() and freed in
+  plugin_thdvar_cleanup(). TODO: it should be done automatically when
+  we'll have more session string variables to justify it. Maybe some
+  kind of a loop over all variables, like sys_var_end() in set_var.cc?
 */
-class Sys_var_charptr_base: public sys_var
+class Sys_var_charptr: public sys_var
 {
+  size_t max_length= 2000;
 public:
-  Sys_var_charptr_base(const char *name_arg,
+  Sys_var_charptr(const char *name_arg,
           const char *comment, int flag_args, ptrdiff_t off, size_t size,
           CMD_LINE getopt,
           const char *def_val, PolyLock *lock=0,
@@ -519,8 +523,9 @@ public:
     */
     option.var_type|= (flags & ALLOCATED) ? GET_STR_ALLOC : GET_STR;
     global_var(const char*)= def_val;
+    SYSVAR_ASSERT(size == sizeof(char *));
   }
-  void cleanup()
+  void cleanup() override
   {
     if (flags & ALLOCATED)
     {
@@ -558,23 +563,39 @@ public:
 
     return false;
   }
-  bool do_check(THD *thd, set_var *var)
-  { return do_string_check(thd, var, charset(thd)); }
-  bool session_update(THD *thd, set_var *var)= 0;
-  char *global_update_prepare(THD *thd, set_var *var)
+  bool do_check(THD *thd, set_var *var) override
+  {
+    if (do_string_check(thd, var, charset(thd)))
+      return true;
+    if (var->save_result.string_value.length > max_length)
+    {
+      my_error(ER_WRONG_STRING_LENGTH, MYF(0), var->save_result.string_value.str,
+               name.str, (int) max_length);
+      return true;
+    }
+    return false;
+  }
+  char *update_prepare(set_var *var, myf my_flags)
   {
     char *new_val, *ptr= var->save_result.string_value.str;
     size_t len=var->save_result.string_value.length;
     if (ptr)
     {
       new_val= (char*)my_memdup(key_memory_Sys_var_charptr_value,
-                                ptr, len+1, MYF(MY_WME));
+                                ptr, len+1, my_flags);
       if (!new_val) return 0;
       new_val[len]=0;
     }
     else
       new_val= 0;
     return new_val;
+  }
+  bool session_update(THD *thd, set_var *var) override
+  {
+    char *new_val= update_prepare(var, MYF(MY_WME | MY_THREAD_SPECIFIC));
+    my_free(session_var(thd, char*));
+    session_var(thd, char*)= new_val;
+    return (new_val == 0 && var->save_result.string_value.str != 0);
   }
   void global_update_finish(char *new_val)
   {
@@ -583,49 +604,25 @@ public:
     flags|= ALLOCATED;
     global_var(char*)= new_val;
   }
-  bool global_update(THD *thd, set_var *var)
+  bool global_update(THD *thd, set_var *var) override
   {
-    char *new_val= global_update_prepare(thd, var);
+    char *new_val= update_prepare(var, MYF(MY_WME));
     global_update_finish(new_val);
     return (new_val == 0 && var->save_result.string_value.str != 0);
   }
-  void session_save_default(THD *thd, set_var *var)= 0;
-  void global_save_default(THD *thd, set_var *var)
+  void session_save_default(THD *, set_var *var) override
+  {
+    var->save_result.string_value.str= global_var(char*);
+    var->save_result.string_value.length=
+      strlen(var->save_result.string_value.str);
+  }
+  void global_save_default(THD *, set_var *var) override
   {
     char *ptr= (char*)(intptr)option.def_value;
     var->save_result.string_value.str= ptr;
     var->save_result.string_value.length= ptr ? strlen(ptr) : 0;
   }
 };
-
-class Sys_var_charptr: public Sys_var_charptr_base
-{
-public:
-  Sys_var_charptr(const char *name_arg,
-          const char *comment, int flag_args, ptrdiff_t off, size_t size,
-          CMD_LINE getopt,
-          const char *def_val, PolyLock *lock=0,
-          enum binlog_status_enum binlog_status_arg=VARIABLE_NOT_IN_BINLOG,
-          on_check_function on_check_func=0,
-          on_update_function on_update_func=0,
-          const char *substitute=0) :
-    Sys_var_charptr_base(name_arg, comment, flag_args, off, size, getopt,
-                         def_val, lock, binlog_status_arg,
-                         on_check_func, on_update_func, substitute)
-  {
-    SYSVAR_ASSERT(scope() == GLOBAL);
-    SYSVAR_ASSERT(size == sizeof(char *));
-  }
-
-  bool session_update(THD *thd, set_var *var)
-  {
-    DBUG_ASSERT(FALSE);
-    return true;
-  }
-  void session_save_default(THD *thd, set_var *var)
-  { DBUG_ASSERT(FALSE); }
-};
-
 
 class Sys_var_charptr_fscs: public Sys_var_charptr
 {
@@ -637,23 +634,22 @@ public:
   }
 };
 
-
 #ifndef EMBEDDED_LIBRARY
-class Sys_var_sesvartrack: public Sys_var_charptr_base
+class Sys_var_sesvartrack: public Sys_var_charptr
 {
 public:
   Sys_var_sesvartrack(const char *name_arg,
                       const char *comment,
                       CMD_LINE getopt,
                       const char *def_val, PolyLock *lock= 0) :
-    Sys_var_charptr_base(name_arg, comment,
-                         SESSION_VAR(session_track_system_variables),
-                         getopt, def_val, lock,
-                         VARIABLE_NOT_IN_BINLOG, 0, 0, 0)
+    Sys_var_charptr(name_arg, comment,
+                    SESSION_VAR(session_track_system_variables),
+                    getopt, def_val, lock,
+                    VARIABLE_NOT_IN_BINLOG, 0, 0, 0)
     {}
   bool do_check(THD *thd, set_var *var)
   {
-     if (Sys_var_charptr_base::do_check(thd, var) ||
+     if (Sys_var_charptr::do_string_check(thd, var, charset(thd)) ||
          sysvartrack_validate_value(thd, var->save_result.string_value.str,
                                     var->save_result.string_value.length))
        return TRUE;
@@ -661,7 +657,7 @@ public:
   }
   bool global_update(THD *thd, set_var *var)
   {
-    char *new_val= global_update_prepare(thd, var);
+    char *new_val= update_prepare(var, MYF(MY_WME));
     if (new_val)
     {
       if (sysvartrack_global_update(thd, new_val,
@@ -854,7 +850,19 @@ public:
   Backing store: LEX_CSTRING
 
   @note
-  Behaves exactly as Sys_var_charptr, only the backing store is different.
+  Behaves exactly as Sys_var_charptr, only the backing store is
+  different.
+
+  Note that for global variables handle_options() only sets the
+  pointer, whereas the length must be updated manually to match, which
+  is done in mysqld.cc. See e.g. opt_init_connect. TODO: it should be
+  done automatically when we'll have more Sys_var_lexstring variables
+  to justify it. Maybe some kind of a loop over all variables, like
+  sys_var_end() in set_var.cc?
+
+  Note that as a subclass of Sys_var_charptr, the memory management
+  for session Sys_var_lexstring's is manual too, see notes of
+  Sys_var_charptr and for example default_master_connection.
 */
 class Sys_var_lexstring: public Sys_var_charptr
 {
@@ -882,87 +890,14 @@ public:
     global_var(LEX_CSTRING).length= var->save_result.string_value.length;
     return false;
   }
-};
-
-
-/*
-  A LEX_CSTRING stored only in thd->variables
-  Only to be used for small buffers
-*/
-
-class Sys_var_session_lexstring: public sys_var
-{
-  size_t max_length;
-public:
-  Sys_var_session_lexstring(const char *name_arg,
-                            const char *comment, int flag_args,
-                            ptrdiff_t off, size_t size, CMD_LINE getopt,
-                            const char *def_val, size_t max_length_arg,
-                            on_check_function on_check_func=0,
-                            on_update_function on_update_func=0)
-    : sys_var(&all_sys_vars, name_arg, comment, flag_args, off, getopt.id,
-              getopt.arg_type, SHOW_CHAR, (intptr)def_val,
-              0, VARIABLE_NOT_IN_BINLOG, on_check_func, on_update_func,
-              0),max_length(max_length_arg)
-  {
-    option.var_type|= GET_STR;
-    SYSVAR_ASSERT(scope() == ONLY_SESSION)
-    *const_cast<SHOW_TYPE*>(&show_val_type)= SHOW_LEX_STRING;
-  }
-  bool do_check(THD *thd, set_var *var)
-  {
-    char buff[STRING_BUFFER_USUAL_SIZE];
-    String str(buff, sizeof(buff), system_charset_info), *res;
-
-    if (!(res=var->value->val_str(&str)))
-    {
-      var->save_result.string_value.str= 0;     /* NULL */
-      var->save_result.string_value.length= 0;
-    }
-    else
-    {
-      if (res->length() > max_length)
-      {
-        my_error(ER_WRONG_STRING_LENGTH, MYF(0),
-                 res->ptr(), name.str, (int) max_length);
-        return true;
-      }
-      var->save_result.string_value.str= thd->strmake(res->ptr(),
-                                                      res->length());
-      var->save_result.string_value.length= res->length();
-    }
-    return false;
-  }
   bool session_update(THD *thd, set_var *var)
   {
-    LEX_CSTRING *tmp= &session_var(thd, LEX_CSTRING);
-    tmp->length= var->save_result.string_value.length;
-    /* Store as \0 terminated string (just to be safe) */
-    strmake((char*) tmp->str, var->save_result.string_value.str, tmp->length);
+    if (Sys_var_charptr::session_update(thd, var))
+      return true;
+    session_var(thd, LEX_CSTRING).length= var->save_result.string_value.length;
     return false;
-  }
-  bool global_update(THD *thd, set_var *var)
-  {
-    DBUG_ASSERT(FALSE);
-    return false;
-  }
-  void session_save_default(THD *thd, set_var *var)
-  {
-    char *ptr= (char*)(intptr)option.def_value;
-    var->save_result.string_value.str= ptr;
-    var->save_result.string_value.length= strlen(ptr);
-  }
-  void global_save_default(THD *thd, set_var *var)
-  {
-    DBUG_ASSERT(FALSE);
-  }
-  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
-  {
-    DBUG_ASSERT(FALSE);
-    return NULL;
   }
 };
-
 
 #ifndef DBUG_OFF
 /**
