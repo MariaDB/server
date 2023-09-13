@@ -2351,6 +2351,30 @@ static MYSQL_THDVAR_INT(
 
 SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(int, strict_group_by)
 
+static MYSQL_THDVAR_BOOL(
+  suppress_comment_ignored_warning,
+  PLUGIN_VAR_RQCMDARG,
+  "Whether to suppress warnings that table COMMENT or CONNECTION strings"
+  "are ignored due to specified table options",
+  NULL,
+  NULL,
+  FALSE
+);
+
+SPIDER_THDVAR_VALUE_FUNC(bool, suppress_comment_ignored_warning)
+
+static MYSQL_THDVAR_BOOL(
+  ignore_comments,
+  PLUGIN_VAR_RQCMDARG,
+  "Whether to unconditionally ignore COMMENT and CONNECTION strings"
+  "without checking whether table options are specified",
+  NULL,
+  NULL,
+  FALSE
+);
+
+SPIDER_THDVAR_VALUE_FUNC(bool, ignore_comments)
+
 static struct st_mysql_storage_engine spider_storage_engine =
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
@@ -2465,6 +2489,8 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(wait_timeout),
   MYSQL_SYSVAR(sync_sql_mode),
   MYSQL_SYSVAR(strict_group_by),
+  MYSQL_SYSVAR(suppress_comment_ignored_warning),
+  MYSQL_SYSVAR(ignore_comments),
   NULL
 };
 
