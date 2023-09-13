@@ -60,7 +60,7 @@ ha_spider::ha_spider(
   DBUG_PRINT("info",("spider this=%p", this));
   spider_alloc_calc_mem_init(mem_calc, 139);
   spider_alloc_calc_mem(spider_current_trx, mem_calc, sizeof(*this));
-  share = NULL;
+  share= NULL;
   conns = NULL;
   need_mons = NULL;
   blob_buff = NULL;
