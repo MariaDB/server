@@ -71,7 +71,7 @@ int spider_udf_set_copy_tables_param_default(
   DBUG_RETURN(0);
 }
 
-#define SPIDER_PARAM_STR_LEN(name) name ## _length
+#define SPIDER_PARAM_LEN(name) name ## _length
 #define SPIDER_PARAM_STR(title_name, param_name)                        \
   if (!strncasecmp(parse.start_title, title_name, title_length))        \
   {                                                                     \
@@ -80,7 +80,7 @@ int spider_udf_set_copy_tables_param_default(
     {                                                                   \
       if ((copy_tables->param_name = spider_create_string(parse.start_value, \
                                                           value_length))) \
-        copy_tables->SPIDER_PARAM_STR_LEN(param_name) = strlen(copy_tables->param_name); \
+        copy_tables->SPIDER_PARAM_LEN(param_name) = strlen(copy_tables->param_name); \
       else {                                                            \
         error_num= parse.fail(true);                                    \
         goto error;                                                     \
