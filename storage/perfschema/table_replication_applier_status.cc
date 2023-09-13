@@ -63,7 +63,12 @@ table_replication_applier_status::m_share=
   "CHANNEL_NAME VARCHAR(256) collate utf8_general_ci not null comment 'The replication channel name.',"
   "SERVICE_STATE ENUM('ON','OFF') not null comment 'Shows ON when the replication channel''s applier threads are active or idle, OFF means that the applier threads are not active.',"
   "REMAINING_DELAY INTEGER unsigned comment 'Seconds the replica needs to wait to reach the desired delay from master.',"
-  "COUNT_TRANSACTIONS_RETRIES BIGINT unsigned not null comment 'The number of retries that were made because the replication SQL thread failed to apply a transaction.')") },
+  "COUNT_TRANSACTIONS_RETRIES BIGINT unsigned not null comment 'The number of retries that were made because the replication SQL thread failed to apply a transaction.',"
+  "LOG_FILE VARCHAR(512) not null comment 'Name of the primary binary log file that the I/O thread is currently reading from.',"
+  "LOG_FILE_POS BIGINT unsigned not null comment 'Position up to which the I/O thread has read in the current primary binary log file.',"
+  "UNTIL_LOG_FILE VARCHAR(512) not null comment 'The MASTER_LOG_FILE value of the START SLAVE UNTIL condition.',"
+  "UNTIL_LOG_FILE_POS BIGINT unsigned not null comment 'The MASTER_LOG_POS value of the START SLAVE UNTIL condition.'"
+  ")") },
   false, /* m_perpetual */
   false, /* m_optional */
   &m_share_state
@@ -178,6 +183,14 @@ void table_replication_applier_status::make_row(Master_info *mi)
 
   m_row.count_transactions_retries= mi->rli.retried_trans;
 
+  m_row.log_file_length= static_cast<uint>(strlen(mi->master_log_name));
+  memcpy(m_row.log_file, mi->master_log_name, m_row.log_file_length);
+  m_row.log_file_pos= (ulonglong) mi->master_log_pos;
+
+  m_row.until_log_file_length= static_cast<uint>(strlen(mi->rli.until_log_name));
+  memcpy(m_row.until_log_file, mi->rli.until_log_name, m_row.until_log_file_length);
+  m_row.until_log_file_pos= (ulonglong) mi->rli.until_log_pos;
+
   mysql_mutex_unlock(&mi->rli.data_lock);
   mysql_mutex_unlock(&mi->data_lock);
 
@@ -217,6 +230,27 @@ int table_replication_applier_status::read_row_values(TABLE *table,
         break;
       case 3: /* total number of times transactions were retried */
         set_field_ulonglong(f, m_row.count_transactions_retries);
+        break;
+      case 4: /* log file name */
+        /* If the `MASTER_LOG_FILE` field is not set in `CHANGE MASTER TO`,
+         * then `SHOW SLAVE STATUS` outputs a blank/empty string for
+         * `Master_Log_File`, not a NULL.  Match that output here.
+         */
+        set_field_varchar_utf8(f, m_row.log_file, m_row.log_file_length);
+        break;
+      case 5: /* log file position */
+        set_field_ulonglong(f, m_row.log_file_pos);
+        break;
+      case 6: /* until log file name */
+        /* If `START SLAVE UNTIL` has not (yet) been invoked with a
+         * `MASTER_LOG_FILE` field, then `SHOW SLAVE STATUS` outputs a
+         * blank/empty string for `Until_Log_File`, not a NULL.  Match that
+         * output here.
+         */
+        set_field_varchar_utf8(f, m_row.until_log_file, m_row.until_log_file_length);
+        break;
+      case 7: /* until log file position */
+        set_field_ulonglong(f, m_row.until_log_file_pos);
         break;
       default:
         assert(false);

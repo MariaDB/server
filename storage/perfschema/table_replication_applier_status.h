@@ -60,6 +60,12 @@ struct st_row_applier_status {
   uint remaining_delay;
   bool remaining_delay_is_set;
   ulong count_transactions_retries;
+  char log_file[FN_REFLEN]; /* TODO verify size */
+  uint log_file_length;
+  ulonglong log_file_pos;
+  char until_log_file[FN_REFLEN]; /* TODO verify size */
+  uint until_log_file_length;
+  ulonglong until_log_file_pos;
 };
 
 /** Table PERFORMANCE_SCHEMA.replication_applier_status */
