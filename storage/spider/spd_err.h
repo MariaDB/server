@@ -70,6 +70,10 @@
 #define ER_SPIDER_INVALID_CONNECT_INFO_START_WITH_NUM_STR "The connect info '%-.64s' for %s cannot start with number"
 #define ER_SPIDER_INVALID_CONNECT_INFO_SAME_NUM 12527
 #define ER_SPIDER_INVALID_CONNECT_INFO_SAME_STR "The connect info '%-.64s' for %s cannot use same name in same table"
+#define ER_SPIDER_INVALID_TABLE_OPTION_NUM 12528
+#define ER_SPIDER_INVALID_TABLE_OPTION_STR "The table option %s=%s is invalid"
+#define ER_SPIDER_COMMENT_CONNECTION_IGNORED_BY_TABLE_OPTIONS_NUM 12529
+#define ER_SPIDER_COMMENT_CONNECTION_IGNORED_BY_TABLE_OPTIONS_STR "The table or partition COMMENT or CONNECTION string '%s' is not used as connection info because spider_ignore_comment is 1 or at least one table option has been specified"
 
 #define ER_SPIDER_CANT_USE_BOTH_INNER_XA_AND_SNAPSHOT_NUM 12601
 #define ER_SPIDER_CANT_USE_BOTH_INNER_XA_AND_SNAPSHOT_STR "Can't use both spider_use_consistent_snapshot = 1 and spider_internal_xa = 1"
