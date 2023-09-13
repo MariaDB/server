@@ -1932,7 +1932,8 @@ files_checked:
 
 			DBUG_PRINT("ib_log", ("apply completed"));
 
-			if (recv_needed_recovery) {
+			if (recv_needed_recovery
+			    && !is_mariabackup_restore_or_export()) {
 				trx_sys_print_mysql_binlog_offset();
 			}
 		}

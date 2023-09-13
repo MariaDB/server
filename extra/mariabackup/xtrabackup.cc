@@ -6255,12 +6255,6 @@ static bool xtrabackup_prepare_func(char** argv)
           my_free(xid_list);
         }
 
-	if (ok) {
-		msg("Last binlog file %s, position %lld",
-		    trx_sys.recovered_binlog_filename,
-		    longlong(trx_sys.recovered_binlog_offset));
-	}
-
 	/* Check whether the log is applied enough or not. */
 	if ((srv_start_lsn || fil_space_get(SRV_LOG_SPACE_FIRST_ID))
 	    && srv_start_lsn < target_lsn) {

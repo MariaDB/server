@@ -4059,23 +4059,10 @@ static int rocksdb_recover(handlerton* hton, XID* xid_list, uint len)
   if (binlog_file && binlog_pos) {
     char file_buf[FN_REFLEN + 1] = {0};
     my_off_t pos;
-    char gtid_buf[FN_REFLEN + 1] = {0};
     if (binlog_manager.read(file_buf, &pos, gtid_buf)) {
       if (is_binlog_advanced(binlog_file, *binlog_pos, file_buf, pos)) {
         memcpy(binlog_file, file_buf, FN_REFLEN + 1);
         *binlog_pos = pos;
-        // NO_LINT_DEBUG
-        fprintf(stderr,
-                "RocksDB: Last binlog file position %llu,"
-                " file name %s\n",
-                pos, file_buf);
-        if (*gtid_buf) {
-          global_sid_lock->rdlock();
-          binlog_max_gtid->parse(global_sid_map, gtid_buf);
-          global_sid_lock->unlock();
-          // NO_LINT_DEBUG
-          fprintf(stderr, "RocksDB: Last MySQL Gtid %s\n", gtid_buf);
-        }
       }
     }
   }
