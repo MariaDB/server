@@ -6938,13 +6938,69 @@ static Sys_var_ulonglong Sys_max_session_mem_used(
        DEFAULT(LONGLONG_MAX), BLOCK_SIZE(1));
 
 #ifndef EMBEDDED_LIBRARY
+/**
+ Validate a redirect_url string.
+
+ A valid string is either empty, or of the format mysql://host[:port],
+ where host is an arbitrary string without any colon ':'.
+
+ @param  str    A string to validate
+ @param  len    Length of the string
+ @retval false  The string is valid
+ @retval true   The string is invalid
+*/
+static bool sysvar_validate_redirect_url(sys_var *, THD *, set_var *var)
+{
+  char *str= var->save_result.string_value.str;
+  size_t len= var->save_result.string_value.length;
+  LEX_CSTRING mysql_prefix= {STRING_WITH_LEN("mysql://")};
+  LEX_CSTRING maria_prefix= {STRING_WITH_LEN("mariadb://")};
+  /* Empty string is valid */
+  if (len == 0)
+    return false;
+  const char* end= str + len;
+  if (!strncmp(str, mysql_prefix.str, mysql_prefix.length))
+    str+= mysql_prefix.length;
+  else if (!strncmp(str, maria_prefix.str, maria_prefix.length))
+    str+= maria_prefix.length;
+  else
+    return true;
+  /* Host name cannot be empty */
+  if (str == end)
+    return true;
+  /* Find the colon, if any */
+  while (str < end && *str != ':')
+    str++;
+  /* Found colon */
+  if (str < end)
+  {
+    /* Should have at least one number after the colon */
+    if (str + 1 == end)
+      return true;
+    int p= 0;
+    while (str < end && isdigit(*++str))
+      if ((p= p * 10 + (*str - '0')) > 65535)
+        return true;
+    /* Should be all numbers after the colon */
+    if (str < end)
+      return true;
+  }
+  return false;
+}
+
+static Sys_var_charptr Sys_redirect_url(
+       "redirect_url",
+       "URL of another server to redirect clients to. "
+       "Empty string means no redirection",
+       SESSION_VAR(redirect_url), CMD_LINE(REQUIRED_ARG), DEFAULT(""),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(sysvar_validate_redirect_url));
 
 static Sys_var_sesvartrack Sys_track_session_sys_vars(
        "session_track_system_variables",
        "Track changes in registered system variables. ",
        CMD_LINE(REQUIRED_ARG),
        DEFAULT("autocommit,character_set_client,character_set_connection,"
-       "character_set_results,time_zone"));
+       "character_set_results,redirect_url,time_zone"));
 
 static bool update_session_track_schema(sys_var *self, THD *thd,
                                         enum_var_type type)

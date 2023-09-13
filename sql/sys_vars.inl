@@ -495,9 +495,10 @@ public:
 
   Note that the memory management for SESSION_VAR's is manual, the
   value must be strdup'ed in THD::init() and freed in
-  plugin_thdvar_cleanup(). TODO: it should be done automatically when
-  we'll have more session string variables to justify it. Maybe some
-  kind of a loop over all variables, like sys_var_end() in set_var.cc?
+  plugin_thdvar_cleanup(), see e.g. redirect_url. TODO: it should be
+  done automatically when we'll have more session string variables to
+  justify it. Maybe some kind of a loop over all variables, like
+  sys_var_end() in set_var.cc?
 */
 class Sys_var_charptr: public sys_var
 {
