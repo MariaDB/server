@@ -1,0 +1,93 @@
+#
+# Ensure that when the slave restarts, the last error code displayed by
+# SHOW SLAVE STATUS is cleared before Slave_SQL_Running is set.
+#
+# To ensure that, this test uses the debug_sync mechanism to pause an errored
+# and restarting slave's SQL thread after it has set its running state to YES,
+# and then ensures that Last_SQL_Errno is 0. The slave error is a forced innodb
+# row lock timeout.
+#
+#
+# References
+#   MDEV-31177: SHOW SLAVE STATUS Last_SQL_Errno Race Condition on Errored
+#               Slave Restart
+#
+source include/have_binlog_format_row.inc;
+source include/have_innodb.inc;
+source include/have_debug.inc;
+source include/have_debug_sync.inc;
+source include/master-slave.inc;
+
+--connection master
+create table t1 (a int primary key, b int) engine=innodb;
+insert t1 values (1,1);
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+set @save_innodb_lock_wait_timeout= @@global.innodb_lock_wait_timeout;
+set @save_slave_trans_retries= @@global.slave_transaction_retries;
+set @@global.innodb_lock_wait_timeout= 1;
+set @@global.slave_transaction_retries= 0;
+
+--connection master
+update t1 set b=b+10 where a=1;
+--source include/save_master_gtid.inc
+
+--connection slave1
+BEGIN;
+--eval SELECT * FROM t1 WHERE a=1 FOR UPDATE
+
+--connection slave
+--source include/start_slave.inc
+
+--let $slave_sql_errno= 1205
+--source include/wait_for_slave_sql_error.inc
+
+--connection slave1
+ROLLBACK;
+
+--connection slave
+set @save_dbug = @@global.debug_dbug;
+set @@global.debug_dbug= "+d,delay_sql_thread_after_release_run_lock";
+--source include/start_slave.inc
+set debug_sync= "now wait_for sql_thread_run_lock_released";
+
+--let $sql_running = query_get_value("SHOW SLAVE STATUS", Slave_SQL_Running, 1)
+--echo # Validating that the SQL thread is running..
+if (`SELECT strcmp("$sql_running", "YES") != 0`)
+{
+    --echo # ..failed
+    --echo # Slave_SQL_Running: $sql_running
+    --die Slave SQL thread is not running
+}
+--echo # ..success
+
+--let $last_error = query_get_value("SHOW SLAVE STATUS", Last_SQL_Errno, 1)
+--echo # Validating that Last_SQL_Errno is cleared..
+if ($last_error)
+{
+    --echo # ..failed
+    --echo # Last_SQL_Errno: $last_error
+    --die SHOW SLAVE STATUS shows the error from the last session on startup
+}
+--echo # ..success
+
+set debug_sync= "now signal sql_thread_continue";
+
+set @@global.debug_dbug= @saved_dbug;
+set debug_sync= "RESET";
+
+--echo # Cleanup
+--connection master
+drop table t1;
+
+--connection slave
+--source include/stop_slave.inc
+set @@global.innodb_lock_wait_timeout= @save_innodb_lock_wait_timeout;
+set @@global.slave_transaction_retries= @save_slave_trans_retries;
+--source include/start_slave.inc
+
+--source include/rpl_end.inc
+--echo # End of rpl_sql_thd_start_errno_cleared.test
