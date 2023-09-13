@@ -9,3 +9,6 @@ t	CREATE TABLE `t` (
 Warnings:
 Error	1429	Unable to connect to foreign data source: localhost
 Error	1429	Unable to connect to foreign data source: localhost
+#
+# end of test mdev_27233
+#
