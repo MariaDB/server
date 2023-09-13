@@ -33,6 +33,7 @@ SHOW CREATE TABLE t0;
 CREATE OR REPLACE TABLE t1 (c int);
 SHOW CREATE TABLE t1;
 drop TABLE t0, t1, t2;
+drop server srv;
 
 --disable_query_log
 --disable_result_log
