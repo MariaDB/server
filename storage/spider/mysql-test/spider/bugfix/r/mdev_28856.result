@@ -1,0 +1,180 @@
+#
+# MDEV-28856 Spider: Implement more engine-defined options
+#
+for master_1
+for child2
+for child3
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+# testing monitoring_*
+INSERT INTO mysql.spider_link_mon_servers
+(db_name, table_name, link_id, sid, server) VALUES
+('test', 't1', '0', 1, 'srv');
+create table t1 (c int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", monitoring_kind "2"';
+/* 1 */ insert into t1 values (42);
+ERROR HY000: Table 'test.t2' get a problem
+/* 2 */ insert into t1 values (42);
+ERROR HY000: All links of 'test.t1' are failed
+create table t2 (c int);
+/* 3 */ insert into t1 values (42);
+ERROR HY000: All links of 'test.t1' are failed
+drop table t1, t2;
+create table t1 (c int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", monitoring_bg_kind "2",
+         monitoring_bg_interval "500000"';
+/* 4 */ insert into t1 values (42);
+ERROR 42S02: Table 'test.t2' doesn't exist
+drop table t1;
+# testing query_cache_sync
+create table t1 (c int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", query_cache_sync "3"';
+create table t2 (c int);
+/* 5 */ insert into t1 values (42);
+select sql_cache * from t1;
+c
+42
+select sql_no_cache * from t1;
+c
+42
+drop table t1, t2;
+# testing tgt_pk_names
+create table t2 (c int);
+create table t1 (c int, primary key (c)) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+/* 6 */ insert ignore into t1 values (42), (42);
+select * from t1;
+c
+42
+42
+drop table t1, t2;
+create table t2 (c int, primary key (c));
+create table t1 (c int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+/* 7 */ insert ignore into t1 values (42), (42);
+Warnings:
+Warning	1022	Can't write; duplicate key in table 't1'
+select * from t1;
+c
+42
+drop table t1, t2;
+create table t2 (c int, primary key (c));
+create table t1 (c int, primary key (c)) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+/* 8 */ insert ignore into t1 values (42), (42);
+Warnings:
+Warning	1062	Duplicate entry '42' for key 'PRIMARY'
+select * from t1;
+c
+42
+drop table t1, t2;
+create table t2 (c int, primary key (c));
+create table t1 (c int, primary key (c)) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", pk_name "c"';
+/* 9 */ insert ignore into t1 values (42), (42);
+Warnings:
+Warning	1022	Can't write; duplicate key in table 't1'
+select * from t1;
+c
+42
+drop table t1, t2;
+create table t2 (c int, unique key (c));
+create table t1 (c int, primary key (c)) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", pk_name "c"';
+/* 9.1 */ insert ignore into t1 values (42), (42);
+Warnings:
+Warning	1062	Duplicate entry '42' for key 'PRIMARY'
+select * from t1;
+c
+42
+drop table t1, t2;
+create table t2 (c int, unique key (c));
+create table t1 (c int, key (c)) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", pk_name "f"';
+/* 10 */ insert ignore into t1 values (42), (42);
+Warnings:
+Warning	1062	Duplicate entry '42' for key 'c'
+select * from t1;
+c
+42
+drop table t1, t2;
+create table t2 (c int, primary key (c));
+create table t1 (c int, key (c)) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", pk_name "blah"';
+/* 11 */ insert ignore into t1 values (42), (42);
+Warnings:
+Warning	1022	Can't write; duplicate key in table 't1'
+select * from t1;
+c
+42
+drop table t1, t2;
+create table t2 (c int, d int, unique key (c), unique key (d));
+create table t1 (c int, d int, key (c), key (d)) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", pk_name "blah"';
+/* 12 */ insert ignore into t1 values (42, 43), (43, 43);
+Warnings:
+Warning	1062	Duplicate entry '43' for key 'd'
+select * from t1;
+c	d
+42	43
+drop table t1, t2;
+# Testing index hint
+create table t2 (c int, d int, primary key (c), key (d));
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` int(11) NOT NULL,
+  `d` int(11) DEFAULT NULL,
+  PRIMARY KEY (`c`),
+  KEY `d` (`d`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+create table t1 (c int, d int, primary key (c), key (d)) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", idx000 "f d"';
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) NOT NULL,
+  `d` int(11) DEFAULT NULL,
+  PRIMARY KEY (`c`),
+  KEY `d` (`d`)
+) ENGINE=SPIDER DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", idx000 "f d"'
+/* 13 */ insert into t1 values (42, 23), (37, 93);
+select max(d) from t1;
+max(d)
+93
+drop table t1, t2;
+create table t2 (c int, d int, e int, primary key (c), key (d), unique key (e));
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` int(11) NOT NULL,
+  `d` int(11) DEFAULT NULL,
+  `e` int(11) DEFAULT NULL,
+  PRIMARY KEY (`c`),
+  UNIQUE KEY `e` (`e`),
+  KEY `d` (`d`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+create table t1 (c int, d int, e int, primary key (c), key (d), unique key (e)) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", idx000 "f PRIMARY", idx001 "u d", idx002 "ig e"';
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) NOT NULL,
+  `d` int(11) DEFAULT NULL,
+  `e` int(11) DEFAULT NULL,
+  PRIMARY KEY (`c`),
+  UNIQUE KEY `e` (`e`),
+  KEY `d` (`d`)
+) ENGINE=SPIDER DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", idx000 "f PRIMARY", idx001 "u d", idx002 "ig e"'
+/* 14 */ insert into t1 values (42, 23, 89), (37, 93, 47);
+select max(d) from t1;
+max(d)
+93
+drop table t1, t2;
+drop server srv;
+for master_1
+for child2
+for child3
+#
+# end of test mdev_28856
+#
