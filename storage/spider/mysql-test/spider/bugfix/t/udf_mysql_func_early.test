@@ -17,7 +17,7 @@ USER 'root',
 PASSWORD '',
 SOCKET '$CHILD2_1_MYSOCK'
     );
- 
+
 --connect (master_1, localhost, root, , , $MASTER_1_MYPORT, $MASTER_1_MYSOCK)
 --connect (child2_1, localhost, root, , , $CHILD2_1_MYPORT, $CHILD2_1_MYSOCK)
 
@@ -29,7 +29,7 @@ eval CREATE TABLE tbl_a (
     a INT
 ) $CHILD2_1_ENGINE $CHILD2_1_CHARSET;
 insert into tbl_a values (42);
- 
+
 --connection master_1
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
@@ -43,6 +43,8 @@ select * from results;
 
 --connection master_1
 DROP DATABASE IF EXISTS auto_test_local;
- 
+drop server s_1;
+drop server s_2_1;
+
 --connection child2_1
 DROP DATABASE IF EXISTS auto_test_remote;
