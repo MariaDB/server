@@ -101,9 +101,6 @@ main.mdev375                          : MDEV-10607 - sporadic "can't connect"
 main.merge                            : MDEV-10607 - sporadic "can't connect"
 main.myisam                           : Modified in 10.4.18
 main.mysql                            : MDEV-20156 - Wrong result
-main.mysql_client_test                : MDEV-19369 - error: 5888, status: 23, errno: 2; MDEV-19511 - Big endian issue
-main.mysql_client_test_comp           : MDEV-16641 - Error in exec
-main.mysql_client_test_nonblock       : CONC-208 - Error on Power; MDEV-15096 - exec failed
 main.mysql_cp932                      : MDEV-21275 - Wrong result
 main.mysql_upgrade                    : MDEV-20161 - Wrong result; MDEV-20166 - FATAL ERROR: Upgrade failed; modified in 10.4.18
 main.mysql_upgrade-6984               : MDEV-22514 - Wrong result
