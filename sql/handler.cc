@@ -2566,6 +2566,7 @@ static void xarecover_do_commit_or_rollback(handlerton *hton,
   else
     x= *member->full_xid;
 
+  abort();
   rc= xarecover_decide_to_commit(member, ptr_commit_max) ?
     hton->commit_by_xid(hton, &x) : hton->rollback_by_xid(hton, &x);
 
