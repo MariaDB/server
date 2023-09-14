@@ -23,7 +23,12 @@ eval CREATE TABLE tbl_a (
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET COMMENT='table "tbl_a", srv "s_2_1"';
 
 --connection master_1
+set @old_spider_direct_aggregate=@@session.spider_direct_aggregate;
+set spider_direct_aggregate=1;
+SHOW STATUS LIKE 'Spider_direct_aggregate';
 SELECT IF(COUNT(id > 0),'Y','N') FROM tbl_a;
+SHOW STATUS LIKE 'Spider_direct_aggregate';
+set spider_direct_aggregate=@old_spider_direct_aggregate;
 
 --connection master_1
 DROP DATABASE IF EXISTS auto_test_local;
