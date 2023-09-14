@@ -142,7 +142,7 @@ public:
     Execute <code>open_and_lock_tables()</code> for this statement.
     Open and lock the tables used by this statement, as a pre-requisite
     to execute the core logic of this instruction with
-    <code>exec_core()</code>.
+    <code>exec_core;()</code>.
     @param thd the current thread
     @param tables the list of tables to open and lock
     @return zero on success, non zero on failure.
@@ -167,6 +167,13 @@ public:
   virtual int exec_core(THD *thd, uint *nextp);
 
   virtual void print(String *str) = 0;
+
+  void print_cmd_and_array_element(String *str,
+                                   const LEX_CSTRING &cmd,
+                                   const LEX_CSTRING &rcontext_name,
+                                   const LEX_CSTRING &array_name,
+                                   uint index_offset) const;
+  void print_fetch_into(String *str, List<sp_fetch_target> list);
 
   virtual void backpatch(uint dest, sp_pcontext *dst_ctx)
   {}
@@ -801,6 +808,41 @@ public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
 }; // class sp_instr_trigger_field : public sp_lex_instr
+
+
+/**
+  Destruct a variable in the end of a BEGIN.. END block
+*/
+class sp_instr_destruct_variable: public sp_instr,
+                                  public Type_handler_hybrid_field_type
+{
+public:
+  sp_instr_destruct_variable(uint ip, sp_pcontext *pctx, uint offset,
+                             const Type_handler *th)
+   :sp_instr(ip, pctx),
+    Type_handler_hybrid_field_type(th),
+    m_offset(offset)
+  {
+    DBUG_ASSERT(type_handler()->has_sp_variable_destructor());
+  }
+
+  virtual ~sp_instr_destruct_variable() = default;
+
+  int execute(THD *thd, uint *nextp) override
+  {
+    *nextp= m_ip + 1;
+    return type_handler()->sp_instr_destruct_variable_exec_core(thd, this);
+  }
+
+  void print(String *str) override;
+
+private:
+  uint m_offset;
+
+public:
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
+  static PSI_statement_info psi_info;
+};
 
 
 /**
@@ -1477,25 +1519,18 @@ public:
 }; // class sp_instr_cclose : public sp_instr
 
 
-class sp_instr_cfetch : public sp_instr
+class sp_instr_fetch_cursor: public sp_instr
 {
-  sp_instr_cfetch(const sp_instr_cfetch &); /**< Prevent use of these */
-  void operator=(sp_instr_cfetch &);
-
+  /**< Prevent use of these */
+  sp_instr_fetch_cursor(const sp_instr_fetch_cursor &) = delete;
+  void operator=(sp_instr_fetch_cursor &) = delete;
 public:
-  sp_instr_cfetch(uint ip, sp_pcontext *ctx, uint c, bool error_on_no_data)
-    : sp_instr(ip, ctx),
-      m_cursor(c),
-      m_error_on_no_data(error_on_no_data)
+  sp_instr_fetch_cursor(uint ip, sp_pcontext *ctx, bool error_on_no_data)
+   :sp_instr(ip, ctx),
+    m_error_on_no_data(error_on_no_data)
   {
     m_fetch_target_list.empty();
   }
-
-  virtual ~sp_instr_cfetch() = default;
-
-  int execute(THD *thd, uint *nextp) override;
-
-  void print(String *str) override;
 
   bool add_to_fetch_target_list(sp_fetch_target *target)
   {
@@ -1507,10 +1542,31 @@ public:
     m_fetch_target_list= *list;
   }
 
-private:
-  uint m_cursor;
+protected:
   List<sp_fetch_target> m_fetch_target_list;
   bool m_error_on_no_data;
+};
+
+
+class sp_instr_cfetch : public sp_instr_fetch_cursor
+{
+  sp_instr_cfetch(const sp_instr_cfetch &); /**< Prevent use of these */
+  void operator=(sp_instr_cfetch &);
+
+public:
+  sp_instr_cfetch(uint ip, sp_pcontext *ctx, uint c, bool error_on_no_data)
+   :sp_instr_fetch_cursor(ip, ctx, error_on_no_data),
+    m_cursor(c)
+  { }
+
+  virtual ~sp_instr_cfetch() = default;
+
+  int execute(THD *thd, uint *nextp) override;
+
+  void print(String *str) override;
+
+private:
+  uint m_cursor;
 
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
@@ -1544,6 +1600,125 @@ public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
 }; // class sp_instr_agg_cfetch : public sp_instr
+
+
+class sp_instr_copen_by_ref : public sp_lex_instr,
+                              public sp_rcontext_ref
+{
+  using SELF= sp_instr_copen_by_ref;
+  // Prevent use of these
+  sp_instr_copen_by_ref(const SELF &) = delete;
+  void operator=(SELF &) = delete;
+
+public:
+  sp_instr_copen_by_ref(uint ip, sp_pcontext *ctx,
+                        const sp_rcontext_ref &ref,
+                        sp_lex_cursor *lex)
+   :sp_lex_instr(ip, ctx, lex, true),
+    sp_rcontext_ref(ref),
+    m_metadata_changed(false),
+    m_cursor_stmt(lex->get_expr_str())
+  { }
+
+  virtual ~sp_instr_copen_by_ref() = default;
+
+  int execute(THD *thd, uint *nextp) override;
+  int exec_core(THD *thd, uint *nextp) override;
+
+  void print(String *str) override;
+
+  bool is_invalid() const override
+  {
+    return m_metadata_changed;
+  }
+
+  void invalidate() override
+  {
+    m_metadata_changed= true;
+  }
+
+  bool on_after_expr_parsing(THD *) override
+  {
+    m_metadata_changed= false;
+    return false;
+  }
+
+  LEX_CSTRING get_expr_query() const override
+  {
+    /*
+      Lexer on processing the clause CURSOR FOR / CURSOR IS doesn't
+      move a pointer on cpp_buf after the token FOR/IS so skip it explicitly
+      in order to get correct value of cursor's query string.
+    */
+    if (strncasecmp(m_cursor_stmt.str, "FOR ", 4) == 0)
+      return LEX_CSTRING{m_cursor_stmt.str + 4, m_cursor_stmt.length - 4};
+    if (strncasecmp(m_cursor_stmt.str, "IS ", 3) == 0)
+      return LEX_CSTRING{m_cursor_stmt.str + 3, m_cursor_stmt.length - 3};
+    return m_cursor_stmt;
+  }
+
+private:
+  bool m_metadata_changed;
+  LEX_CSTRING m_cursor_stmt;
+
+public:
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
+  static PSI_statement_info psi_info;
+};
+
+
+class sp_instr_cclose_by_ref : public sp_instr,
+                               public sp_rcontext_ref
+{
+  using SELF= sp_instr_cclose_by_ref;
+  // Prevent use of these
+  sp_instr_cclose_by_ref(const SELF &) = delete;
+  void operator=(SELF &) = delete;
+
+public:
+  sp_instr_cclose_by_ref(uint ip, sp_pcontext *ctx,
+                         const sp_rcontext_ref &ref)
+   :sp_instr(ip, ctx),
+    sp_rcontext_ref(ref)
+  { }
+
+  virtual ~sp_instr_cclose_by_ref() = default;
+
+  int execute(THD *thd, uint *nextp) override;
+
+  void print(String *str) override;
+
+public:
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
+  static PSI_statement_info psi_info;
+};
+
+
+class sp_instr_cfetch_by_ref : public sp_instr_fetch_cursor,
+                               public sp_rcontext_ref
+{
+  using SELF= sp_instr_cfetch_by_ref;
+  // Prevent use of these
+  sp_instr_cfetch_by_ref(const SELF &) = delete;
+  void operator=(SELF &) = delete;
+public:
+  sp_instr_cfetch_by_ref(uint ip, sp_pcontext *ctx,
+                         const sp_rcontext_ref &ref,
+                         bool error_on_no_data)
+   :sp_instr_fetch_cursor(ip, ctx, error_on_no_data),
+    sp_rcontext_ref(ref)
+  { }
+
+  virtual ~sp_instr_cfetch_by_ref() = default;
+
+  int execute(THD *thd, uint *nextp) override;
+
+  void print(String *str) override;
+
+public:
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
+  static PSI_statement_info psi_info;
+};
 
 
 class sp_instr_error : public sp_instr

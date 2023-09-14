@@ -705,6 +705,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    current_stmt_binlog_format(BINLOG_FORMAT_MIXED),
    bulk_param(0),
    table_map_for_update(0),
+   m_open_cursors_counter(0),
    m_sent_row_count(0),
    sent_row_count_for_statement(0),
    m_examined_row_count(0),
@@ -1573,6 +1574,7 @@ void THD::change_user(void)
                get_sequence_last_key, free_sequence_last,
                HASH_THREAD_SPECIFIC);
   sp_caches_clear();
+  cursors_free();
   opt_trace.delete_traces();
 }
 
@@ -1704,6 +1706,7 @@ void THD::cleanup(void)
   my_hash_free(&user_vars);
   my_hash_free(&sequences);
   sp_caches_clear();
+  cursors_free();
   auto_inc_intervals_forced.empty();
   auto_inc_intervals_in_cur_stmt_for_binlog.empty();
 
@@ -1852,6 +1855,9 @@ THD::~THD()
 #ifndef EMBEDDED_LIBRARY
   if (rgi_slave)
     rgi_slave->cleanup_after_session();
+
+  cursors_free();
+
   my_free(semisync_info);
 #endif
   main_lex.free_set_stmt_mem_root();
@@ -2387,6 +2393,14 @@ void THD::cleanup_after_query()
   DBUG_ENTER("THD::cleanup_after_query");
 
   thd_progress_end(this);
+
+  /*
+    Close all session wide cursors which
+    did not have explicit CLOSE in the SP code.
+    Reset the open cursors counter.
+  */
+  if (!spcont && !in_sub_stmt)
+    cursors_free();
 
   /*
     Reset RAND_USED so that detection of calls to rand() will save random
@@ -3167,6 +3181,20 @@ void Item_change_list::rollback_item_tree_changes()
 /*****************************************************************************
 ** Functions to provide a interface to select results
 *****************************************************************************/
+
+int select_result_sink::send_data_with_check(List<Item> &items,
+                                             SELECT_LEX_UNIT *u,
+                                             ha_rows sent)
+{
+  if (u->lim.check_offset(sent))
+    return 0;
+
+  if (u->thd->killed == ABORT_QUERY)
+    return 0;
+
+  return send_data(items);
+}
+
 
 void select_result::reset_for_next_ps_execution()
 {

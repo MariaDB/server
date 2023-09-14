@@ -262,6 +262,8 @@ public:
 
 class Item_func_truth : public Item_bool_func
 {
+  bool check_arguments() const override
+  { return check_argument_types_can_return_bool(0, 1); }
 public:
   bool val_bool() override;
   bool fix_length_and_dec(THD *thd) override;
@@ -657,6 +659,8 @@ public:
 
 class Item_func_not :public Item_bool_func
 {
+  bool check_arguments() const override
+  { return check_argument_types_can_return_bool(0, 1); }
 public:
   Item_func_not(THD *thd, Item *a): Item_bool_func(thd, a) {}
   bool val_bool() override;
@@ -1321,6 +1325,8 @@ public:
 
 class Item_func_if :public Item_func_case_abbreviation2_switch
 {
+  bool check_arguments() const override
+  { return check_argument_types_can_return_bool(0, 1); }
 protected:
   Item *find_item() const override
   { return args[0]->val_bool() ? args[1] : args[2]; }
@@ -2395,6 +2401,7 @@ class Item_func_case_searched: public Item_func_case
   bool with_else() const { return arg_count % 2; }
   Item **else_expr_addr() const override
   { return with_else() ? &args[arg_count - 1] : 0; }
+  bool check_arguments() const override;
 public:
   Item_func_case_searched(THD *thd, List<Item> &list)
    :Item_func_case(thd, list)
@@ -3700,10 +3707,19 @@ public:
 
 class Item_func_cursor_bool_attr: public Item_bool_func, public Cursor_ref
 {
+protected:
+  THD *m_thd;
 public:
-  Item_func_cursor_bool_attr(THD *thd, const LEX_CSTRING *name, uint offset)
-   :Item_bool_func(thd), Cursor_ref(name, offset)
+  Item_func_cursor_bool_attr(THD *thd, const Cursor_ref &ref)
+   :Item_bool_func(thd), Cursor_ref(ref), m_thd(nullptr)
   { }
+  bool fix_fields(THD *thd, Item **ref) override
+  {
+    if (Item_bool_func::fix_fields(thd, ref))
+      return true;
+    m_thd= thd;
+    return false;
+  }
   bool check_vcol_func_processor(void *arg) override
   {
     return mark_unsupported_function(func_name(), arg, VCOL_SESSION_FUNC);
@@ -3718,8 +3734,8 @@ public:
 class Item_func_cursor_isopen: public Item_func_cursor_bool_attr
 {
 public:
-  Item_func_cursor_isopen(THD *thd, const LEX_CSTRING *name, uint offset)
-   :Item_func_cursor_bool_attr(thd, name, offset) { }
+  Item_func_cursor_isopen(THD *thd, const Cursor_ref &ref)
+   :Item_func_cursor_bool_attr(thd, ref) { }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("%ISOPEN") };
@@ -3734,8 +3750,8 @@ public:
 class Item_func_cursor_found: public Item_func_cursor_bool_attr
 {
 public:
-  Item_func_cursor_found(THD *thd, const LEX_CSTRING *name, uint offset)
-   :Item_func_cursor_bool_attr(thd, name, offset)
+  Item_func_cursor_found(THD *thd, const Cursor_ref &ref)
+   :Item_func_cursor_bool_attr(thd, ref)
   {
     set_maybe_null();
   }
@@ -3753,8 +3769,8 @@ public:
 class Item_func_cursor_notfound: public Item_func_cursor_bool_attr
 {
 public:
-  Item_func_cursor_notfound(THD *thd, const LEX_CSTRING *name, uint offset)
-   :Item_func_cursor_bool_attr(thd, name, offset)
+  Item_func_cursor_notfound(THD *thd, const Cursor_ref &ref)
+   :Item_func_cursor_bool_attr(thd, ref)
   {
     set_maybe_null();
   }

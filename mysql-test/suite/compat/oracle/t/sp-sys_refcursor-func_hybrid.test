@@ -1,0 +1,92 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo #  MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+--echo #
+
+# Helper functions and packages
+--source dbms_output.inc
+--source bool_to_char.inc
+
+
+--echo #
+--echo # Hybrid functions
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p1 AS
+  c0 SYS_REFCURSOR;
+  c1 SYS_REFCURSOR;
+  c2 SYS_REFCURSOR;
+  v INT;
+BEGIN
+  OPEN c1 FOR SELECT 10 FROM DUAL;
+  c2:= CASE WHEN c0 IS NULL THEN c1 ELSE c0 END;
+  FETCH c2 INTO v;
+  DBMS_OUTPUT.PUT_LINE('v=' || v);
+END;
+/
+DELIMITER ;/
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER /;
+CREATE PROCEDURE p1 AS
+  c0 SYS_REFCURSOR;
+  c1 SYS_REFCURSOR;
+  c2 SYS_REFCURSOR;
+  v INT;
+BEGIN
+  OPEN c1 FOR SELECT 10 FROM DUAL;
+  c2:= COALESCE(c0,c1);
+  FETCH c2 INTO v;
+  DBMS_OUTPUT.PUT_LINE('v=' || v);
+END;
+/
+DELIMITER ;/
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER /;
+CREATE PROCEDURE p1 AS
+  c0 SYS_REFCURSOR;
+  c1 SYS_REFCURSOR;
+  c2 SYS_REFCURSOR;
+  v INT;
+BEGIN
+  OPEN c1 FOR SELECT 10 FROM DUAL;
+  c2:= IF(false, c0,c1);
+  FETCH c2 INTO v;
+  DBMS_OUTPUT.PUT_LINE('v=' || v);
+END;
+/
+DELIMITER ;/
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER /;
+CREATE PROCEDURE p1 AS
+  c0 SYS_REFCURSOR;
+  c1 SYS_REFCURSOR;
+  c2 SYS_REFCURSOR;
+  v INT;
+BEGIN
+  OPEN c1 FOR SELECT 10 FROM DUAL;
+  c2:= GREATEST(c0,c1);
+  FETCH c2 INTO v;
+  DBMS_OUTPUT.PUT_LINE('v=' || v);
+END;
+/
+DELIMITER ;/
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DROP PACKAGE dbms_output;
+DROP FUNCTION bool_to_char;
+
+SET sql_mode=DEFAULT;

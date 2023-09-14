@@ -2643,7 +2643,7 @@ public:
 };
 
 
-class Field_short final :public Field_int
+class Field_short :public Field_int
 {
   const Type_handler_general_purpose_int *type_handler_priv() const
   {

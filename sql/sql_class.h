@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2009, 2022, MariaDB Corporation.
+   Copyright (c) 2009, 2025, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -95,6 +95,7 @@ struct rpl_parallel_thread;
 class Rpl_filter;
 class Query_log_event;
 class Log_event_writer;
+class sp_cursor;
 class sp_rcontext;
 class sp_cache;
 class Lex_input_stream;
@@ -846,6 +847,7 @@ typedef struct system_variables
   uint column_compression_threshold;
   uint column_compression_zlib_level;
   uint in_subquery_conversion_threshold;
+  uint max_open_cursors;
   int max_user_connections;
 
   /**
@@ -1176,6 +1178,9 @@ struct THD_count
 
 #ifdef MYSQL_SERVER
 
+#include "select_result.h"
+#include "sp_cursor.h"
+
 void free_tmp_table(THD *thd, TABLE *entry);
 
 
@@ -1466,8 +1471,6 @@ public:
   }
 };
 
-
-class Server_side_cursor;
 
 /*
   Struct to catch changes in column metadata that is sent to client. 
@@ -2855,7 +2858,6 @@ enum class THD_WHERE
 };
 
 
-class THD;
 const char *thd_where(THD *thd);
 
 
@@ -2910,6 +2912,8 @@ public:
   MDL_ticket *mdl_backup_ticket, *mdl_backup_lock;
   /* Used to register that thread has a MDL_BACKUP_WAIT_COMMIT lock */
   MDL_request *backup_commit_lock;
+
+  sp_cursor_array m_session_cursors;
 
   void reset_for_next_command(bool do_clear_errors= 1);
 
@@ -3638,6 +3642,8 @@ private:
 
   longlong m_row_count_func;    /* For the ROW_COUNT() function */
 
+  uint m_open_cursors_counter;
+
 public:
   inline longlong get_row_count_func() const
   {
@@ -3648,6 +3654,31 @@ public:
   {
     m_row_count_func= row_count_func;
   }
+
+  uint open_cursors_counter() const
+  {
+    return m_open_cursors_counter;
+  }
+  void open_cursors_counter_increment()
+  {
+    m_open_cursors_counter++;
+  }
+  void open_cursors_counter_decrement()
+  {
+    DBUG_ASSERT(m_open_cursors_counter > 0);
+    m_open_cursors_counter--;
+  }
+  void open_cursors_counter_set(uint val)
+  {
+    m_open_cursors_counter= val;
+  }
+  void cursors_free()
+  {
+    m_session_cursors.free(this);
+    DBUG_ASSERT(open_cursors_counter() == 0);
+    open_cursors_counter_set(0); // Safety
+  }
+
   inline void set_affected_rows(longlong row_count_func)
   {
     /*
@@ -6079,144 +6110,6 @@ public:
 
 class JOIN;
 
-/* Pure interface for sending tabular data */
-class select_result_sink: public Sql_alloc
-{
-public:
-  THD *thd;
-  select_result_sink(THD *thd_arg): thd(thd_arg) {}
-  inline int send_data_with_check(List<Item> &items,
-                              SELECT_LEX_UNIT *u,
-                              ha_rows sent)
-  {
-    if (u->lim.check_offset(sent))
-      return 0;
-
-    if (u->thd->killed == ABORT_QUERY)
-      return 0;
-
-    return send_data(items);
-  }
-  /*
-    send_data returns 0 on ok, 1 on error and -1 if data was ignored, for
-    example for a duplicate row entry written to a temp table.
-  */
-  virtual int send_data(List<Item> &items)=0;
-  virtual ~select_result_sink() = default;
-  // Used in cursors to initialize and reset
-  void reinit(THD *thd_arg) { thd= thd_arg; }
-};
-
-class select_result_interceptor;
-
-/*
-  Interface for sending tabular data, together with some other stuff:
-
-  - Primary purpose seems to be seding typed tabular data:
-     = the DDL is sent with send_fields()
-     = the rows are sent with send_data()
-  Besides that,
-  - there seems to be an assumption that the sent data is a result of 
-    SELECT_LEX_UNIT *unit,
-  - nest_level is used by SQL parser
-*/
-
-class select_result :public select_result_sink 
-{
-protected:
-  /* 
-    All descendant classes have their send_data() skip the first 
-    unit->offset_limit_cnt rows sent.  Select_materialize
-    also uses unit->get_column_types().
-  */
-  SELECT_LEX_UNIT *unit;
-  /* Something used only by the parser: */
-public:
-  ha_rows est_records;  /* estimated number of records in the result */
-  select_result(THD *thd_arg): select_result_sink(thd_arg), est_records(0) {}
-  void set_unit(SELECT_LEX_UNIT *unit_arg) { unit= unit_arg; }
-  virtual ~select_result() = default;
-  /**
-    Change wrapped select_result.
-
-    Replace the wrapped result object with new_result and call
-    prepare() and prepare2() on new_result.
-
-    This base class implementation doesn't wrap other select_results.
-
-    @param new_result The new result object to wrap around
-
-    @retval false Success
-    @retval true  Error
-  */
-  virtual bool change_result(select_result *new_result)
-  {
-    return false;
-  }
-  virtual int prepare(List<Item> &list, SELECT_LEX_UNIT *u)
-  {
-    unit= u;
-    return 0;
-  }
-  virtual int prepare2(JOIN *join) { return 0; }
-  /*
-    Because of peculiarities of prepared statements protocol
-    we need to know number of columns in the result set (if
-    there is a result set) apart from sending columns metadata.
-  */
-  virtual uint field_count(List<Item> &fields) const
-  { return fields.elements; }
-  virtual bool send_result_set_metadata(List<Item> &list, uint flags)=0;
-  virtual bool initialize_tables (JOIN *join) { return 0; }
-  virtual bool send_eof()=0;
-  /**
-    Check if this query returns a result set and therefore is allowed in
-    cursors and set an error message if it is not the case.
-
-    @retval FALSE     success
-    @retval TRUE      error, an error message is set
-  */
-  virtual bool check_simple_select() const;
-  virtual void abort_result_set() {}
-  virtual void reset_for_next_ps_execution();
-  void set_thd(THD *thd_arg) { thd= thd_arg; }
-  void reinit(THD *thd_arg)
-  {
-    select_result_sink::reinit(thd_arg);
-    unit= NULL;
-  }
-#ifdef EMBEDDED_LIBRARY
-  virtual void begin_dataset() {}
-#else
-  void begin_dataset() {}
-#endif
-  virtual void update_used_tables() {}
-
-  /* this method is called just before the first row of the table can be read */
-  virtual void prepare_to_read_rows() {}
-
-  void remove_offset_limit()
-  {
-    unit->lim.remove_offset();
-  }
-
-  /*
-    This returns
-    - NULL if the class sends output row to the client
-    - this if the output is set elsewhere (a file, @variable, or table).
-  */
-  virtual select_result_interceptor *result_interceptor()=0;
-
-  /*
-    This method is used to distinguish an normal SELECT from the cursor
-    structure discovery for cursor%ROWTYPE routine variables.
-    If this method returns "true", then a SELECT execution performs only
-    all preparation stages, but does not fetch any rows.
-  */
-  virtual bool view_structure_only() const { return false; }
-};
-
-
 /*
   This is a select_result_sink which simply writes all data into a (temporary)
   table. Creation/deletion of the table is outside of the scope of the class
@@ -6260,145 +6153,6 @@ private:
 
   List<char*> rows;
   int n_columns;
-};
-
-
-/*
-  Base class for select_result descendands which intercept and
-  transform result set rows. As the rows are not sent to the client,
-  sending of result set metadata should be suppressed as well.
-*/
-
-class select_result_interceptor: public select_result
-{
-public:
-  select_result_interceptor(THD *thd_arg):
-    select_result(thd_arg), suppress_my_ok(false)
-  {
-    DBUG_ENTER("select_result_interceptor::select_result_interceptor");
-    DBUG_PRINT("enter", ("this %p", this));
-    DBUG_VOID_RETURN;
-  }              /* Remove gcc warning */
-  uint field_count(List<Item> &fields) const override { return 0; }
-  bool send_result_set_metadata(List<Item> &fields, uint flag) override { return FALSE; }
-  select_result_interceptor *result_interceptor() override { return this; }
-
-  /*
-    Instruct the object to not call my_ok(). Client output will be handled
-    elsewhere. (this is used by ANALYZE $stmt feature).
-  */
-  void disable_my_ok_calls() { suppress_my_ok= true; }
-  void reinit(THD *thd_arg)
-  {
-    select_result::reinit(thd_arg);
-    suppress_my_ok= false;
-  }
-protected:
-  bool suppress_my_ok;
-};
-
-
-class sp_cursor_statistics
-{
-protected:
-  ulonglong m_fetch_count; // Number of FETCH commands since last OPEN
-  ulonglong m_row_count;   // Number of successful FETCH since last OPEN
-  bool m_found;            // If last FETCH fetched a row
-public:
-  sp_cursor_statistics()
-   :m_fetch_count(0),
-    m_row_count(0),
-    m_found(false)
-  { }
-  bool found() const
-  { return m_found; }
-
-  ulonglong row_count() const
-  { return m_row_count; }
-
-  ulonglong fetch_count() const
-  { return m_fetch_count; }
-  void reset() { *this= sp_cursor_statistics(); }
-};
-
-
-class sp_instr_cpush;
-
-/* A mediator between stored procedures and server side cursors */
-class sp_lex_keeper;
-class sp_cursor: public sp_cursor_statistics
-{
-private:
-  /// An interceptor of cursor result set used to implement
-  /// FETCH <cname> INTO <varlist>.
-  class Select_fetch_into_spvars: public select_result_interceptor
-  {
-    List<sp_fetch_target> *m_fetch_target_list;
-    uint field_count;
-    bool m_view_structure_only;
-    bool send_data_to_variable_list(List<sp_fetch_target> &vars,
-                                    List<Item> &items);
-  public:
-    Select_fetch_into_spvars(THD *thd_arg, bool view_structure_only)
-     :select_result_interceptor(thd_arg),
-      m_view_structure_only(view_structure_only)
-    {}
-    void reset(THD *thd_arg)
-    {
-      select_result_interceptor::reinit(thd_arg);
-      m_fetch_target_list= NULL;
-      field_count= 0;
-    }
-    uint get_field_count() { return field_count; }
-    void set_spvar_list(List<sp_fetch_target> *vars)
-    {
-      m_fetch_target_list= vars;
-    }
-
-    bool send_eof() override { return FALSE; }
-    int send_data(List<Item> &items) override;
-    int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
-    bool view_structure_only() const override { return m_view_structure_only; }
-};
-
-public:
-  sp_cursor()
-   :result(NULL, false),
-    server_side_cursor(NULL)
-  { }
-  sp_cursor(THD *thd_arg, bool view_structure_only)
-   :result(thd_arg, view_structure_only),
-    server_side_cursor(NULL)
-  {}
-
-  virtual ~sp_cursor()
-  { destroy(); }
-
-  virtual sp_lex_keeper *get_lex_keeper() { return nullptr; }
-
-  int open(THD *thd);
-
-  int close(THD *thd);
-
-  my_bool is_open()
-  { return MY_TEST(server_side_cursor); }
-
-  int fetch(THD *, List<sp_fetch_target> *vars, bool error_on_no_data);
-
-  bool export_structure(THD *thd, Row_definition_list *list);
-
-  void reset(THD *thd_arg)
-  {
-    sp_cursor_statistics::reset();
-    result.reinit(thd_arg);
-    server_side_cursor= NULL;
-  }
-
-  virtual sp_instr_cpush *get_push_instr() { return nullptr; }
-private:
-  Select_fetch_into_spvars result;
-  Server_side_cursor *server_side_cursor;
-  void destroy();
 };
 
 

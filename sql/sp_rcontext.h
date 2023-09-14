@@ -23,6 +23,7 @@
 
 #include "sql_class.h"                    // select_result_interceptor
 #include "sp_pcontext.h"                  // sp_condition_value
+#include "sp_rcontext_handler.h"
 
 ///////////////////////////////////////////////////////////////////////////
 // sp_rcontext declaration.

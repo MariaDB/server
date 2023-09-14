@@ -87,6 +87,9 @@ class Type_handler_hybrid_field_type;
 class Sort_param;
 class Arg_comparator;
 class Spvar_definition;
+class sp_variable;
+class sp_instr_destruct_variable;
+class sp_pcontext;
 class st_value;
 class Protocol;
 class handler;
@@ -3957,6 +3960,17 @@ public:
   {
     return false;
   }
+  virtual bool has_sp_variable_destructor() const
+  {
+    return false;
+  }
+  virtual int sp_instr_destruct_variable_exec_core(THD *thd,
+                                           sp_instr_destruct_variable *spv)
+                                                                      const
+  {
+    DBUG_ASSERT(0);
+    return 0;
+  }
   Type_handler() : m_name(0,0) {}
   virtual ~Type_handler() = default;
   /**
@@ -3965,6 +3979,7 @@ public:
   */
   bool is_traditional_scalar_type() const;
   virtual bool is_scalar_type() const { return true; }
+  virtual bool can_return_bool() const { return can_return_int(); }
   virtual bool can_return_int() const { return true; }
   virtual bool can_return_decimal() const { return true; }
   virtual bool can_return_real() const { return true; }

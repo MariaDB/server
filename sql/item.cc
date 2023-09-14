@@ -1059,6 +1059,17 @@ bool Item::check_type_traditional_scalar(const LEX_CSTRING &opname) const
 }
 
 
+bool Item::check_type_can_return_bool(const LEX_CSTRING &opname) const
+{
+  const Type_handler *handler= type_handler();
+  if (handler->can_return_bool())
+    return false;
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           handler->name().ptr(), opname.str);
+  return true;
+}
+
+
 bool Item::check_type_can_return_int(const LEX_CSTRING &opname) const
 {
   const Type_handler *handler= type_handler();

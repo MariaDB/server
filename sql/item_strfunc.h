@@ -1996,6 +1996,10 @@ public:
 class Item_func_set_collation :public Item_str_func
 {
   Lex_extended_collation_st m_set_collation;
+  bool check_arguments() const override
+  {
+    return args[0]->check_type_can_return_str(func_name_cstring());
+  }
 public:
   Item_func_set_collation(THD *thd, Item *a,
                           const Lex_extended_collation_st &set_collation):
