@@ -68,9 +68,14 @@ TRUNCATE TABLE mysql.general_log;
 
 --connection master_1
 FLUSH TABLES;
+set @old_spider_direct_aggregate=@@session.spider_direct_aggregate;
+set spider_direct_aggregate=1;
+SHOW STATUS LIKE 'Spider_direct_aggregate';
 --disable_ps2_protocol
 SELECT count(pkey) cnt, skey FROM tbl_a;
 --enable_ps2_protocol
+SHOW STATUS LIKE 'Spider_direct_aggregate';
+set spider_direct_aggregate=@old_spider_direct_aggregate;
 
 --connection child2_1
 --disable_ps2_protocol

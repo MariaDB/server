@@ -2823,6 +2823,22 @@ static MYSQL_THDVAR_INT(
 
 SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(int, strict_group_by)
 
+/*
+ -1 : use table parameter
+  0 : do not strict
+  1 : do strict
+ */
+static MYSQL_THDVAR_BOOL(
+  direct_aggregate, /* name */
+  PLUGIN_VAR_RQCMDARG, /* opt */
+  "Whether to enable direct aggregate",
+  NULL, /* check */
+  NULL, /* update */
+  TRUE /* def */
+);
+
+SPIDER_THDVAR_VALUE_FUNC(bool, direct_aggregate)
+
 static struct st_mysql_storage_engine spider_storage_engine =
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
@@ -2978,6 +2994,7 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(wait_timeout),
   MYSQL_SYSVAR(sync_sql_mode),
   MYSQL_SYSVAR(strict_group_by),
+  MYSQL_SYSVAR(direct_aggregate),
   NULL
 };
 
