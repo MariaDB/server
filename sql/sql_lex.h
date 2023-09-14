@@ -294,7 +294,7 @@ class LEX_COLUMN;
 class sp_head;
 class sp_name;
 class sp_instr;
-class sp_instr_cfetch;
+class sp_instr_fetch_cursor;
 class sp_pcontext;
 class sp_variable;
 class sp_fetch_target;
@@ -3352,6 +3352,7 @@ private:
   MEM_ROOT *mem_root_for_set_stmt;
   bool sp_block_finalize(THD *thd, const Lex_spblock_st spblock,
                                    class sp_label **splabel);
+  bool sp_block_destruct_variables(THD *thd, sp_pcontext *pctx);
   bool sp_change_context(THD *thd, const sp_pcontext *ctx, bool exclusive);
   bool sp_exit_block(THD *thd, sp_label *lab);
   bool sp_exit_block(THD *thd, sp_label *lab, Item *when,
@@ -4000,6 +4001,14 @@ public:
     sp_pcontext *not_used_ctx;
     return find_variable(name, &not_used_ctx, rh);
   }
+  /*
+    Check if a variable can be used as a refcursor for a cursor statement:
+      OPEN name FOR stmt;
+      FETCH name ...;
+      CLOSE name;
+  */
+  bool check_variable_is_refcursor(const LEX_CSTRING &verb_clause,
+                                   const sp_variable *var) const;
   sp_fetch_target *make_fetch_target(THD *thd, const Lex_ident_sys_st &name);
   bool set_variable(const Lex_ident_sys_st *name, Item *item,
                     const LEX_CSTRING &expr_str);
@@ -4071,6 +4080,10 @@ public:
 
   bool sp_open_cursor(THD *thd, const LEX_CSTRING *name,
                       List<sp_assignment_lex> *parameters);
+  bool sp_open_cursor_for_stmt(THD *thd, const LEX_CSTRING *name,
+                               sp_lex_cursor *stmt);
+  bool sp_close(THD *thd, const Lex_ident_sys_st &name);
+
   Item_splocal *create_item_for_sp_var(const Lex_ident_cli_st *name,
                                        sp_variable *spvar);
 
@@ -4329,6 +4342,7 @@ public:
     // Unlabeled blocks get an empty label
     sp_block_init(thd, &empty_clex_str);
   }
+  void sp_block_init_package_body(THD *thd);
   bool sp_block_finalize(THD *thd, const Lex_spblock_st spblock)
   {
     class sp_label *tmp;
@@ -4618,7 +4632,8 @@ public:
     create_info.add(options);
     return check_create_options(create_info);
   }
-  sp_instr_cfetch *sp_add_instr_cfetch(THD *thd, const LEX_CSTRING *name);
+  sp_instr_fetch_cursor* sp_add_instr_fetch_cursor(THD *thd,
+                                                   const LEX_CSTRING *name);
   bool sp_add_agg_cfetch();
 
   bool set_command_with_check(enum_sql_command command,

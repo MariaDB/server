@@ -12820,7 +12820,14 @@ end:
 static JOIN_TAB *next_breadth_first_tab(JOIN_TAB *first_top_tab,
                                         uint n_top_tabs_count, JOIN_TAB *tab)
 {
-  n_top_tabs_count += tab->join->aggr_tables;
+  /*
+    tab->join == NULL means that we're performing JOIN::cleanup()
+    after a raised error: on EOM, or on an attempt to create a temporary table
+    with a column of a non allowed data type, such as SYS_REFCURSOR.
+  */
+  DBUG_ASSERT(tab->join || current_thd->is_error());
+  if (tab->join)
+    n_top_tabs_count += tab->join->aggr_tables;
   if (!tab->bush_root_tab)
   {
     /* We're at top level. Get the next top-level tab */
@@ -22081,7 +22088,7 @@ bool Create_tmp_table::add_fields(THD *thd,
                          param->force_copy_fields);
       if (unlikely(!new_field))
       {
-        if (unlikely(thd->is_fatal_error))
+        if (unlikely(thd->is_fatal_error || item->cols() == 1))
           goto err;                             // Got OOM
         continue;                               // Some kind of const item
       }
@@ -22832,6 +22839,11 @@ void Virtual_tmp_table::setup_field_pointers()
       }
     }
     cur_field->reset();
+    /*
+      SYS_REFCURSOR SP variables need NULL as the initial Field value
+      to watch sp_cursor_array_element::m_ref_count properly.
+    */
+    cur_field->set_null();
     field_pos+= cur_field->pack_length();
   }
 }

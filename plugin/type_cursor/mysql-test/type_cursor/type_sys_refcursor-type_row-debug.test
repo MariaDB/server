@@ -1,0 +1,82 @@
+--source include/have_debug.inc
+--disable_query_log
+--disable_result_log
+--source type_sys_refcursor-helper_routines-debug-create.inc
+--enable_result_log
+--enable_query_log
+
+--echo #
+--echo # MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+--echo #
+
+--echo #
+--echo # Make sure a ROW variable with SYS_REFCURSOR members destructs
+--echo # its members properly when leaving a BEGIN..END block.
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p1()
+BEGIN
+  BEGIN
+    DECLARE r0 ROW(m0 SYS_REFCURSOR, m1 SYS_REFCURSOR);
+    BEGIN
+      DECLARE c0 SYS_REFCURSOR;
+      DECLARE c1 SYS_REFCURSOR;
+      OPEN c0 FOR SELECT 10;
+      OPEN c1 FOR SELECT 11;
+      SET r0= ROW(c0, c1);
+    END; -- c0, c1 should be freed by a "destruct sys_refcursor" instruction
+    SELECT 'p1-1' AS stage, r0.m0, r0.m1, refs(0,4) AS refs;
+  END; -- r0.m0, r0.m1 should be freed here by a "destruct row" instruction
+  BEGIN
+    DECLARE v0 INT;
+    DECLARE v1 INT;
+    DECLARE c0 SYS_REFCURSOR;
+    DECLARE c1 SYS_REFCURSOR;
+    OPEN c0 FOR SELECT 20; -- Expect to reuse m_statement_cursors.at(0)
+    OPEN c1 FOR SELECT 21; -- Expect to reuse m_statement_cursors.at(1)
+    FETCH c0 INTO v0;
+    FETCH c1 INTO v1;
+    SELECT 'p1-2' AS stage, c0, c1, refs(0,4) AS refs, v0, v1;
+  END;
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p1;
+--disable_column_names
+CALL p1;
+--enable_column_names
+DROP PROCEDURE p1;
+
+
+DELIMITER /;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c0 SYS_REFCURSOR;
+  DECLARE c1 SYS_REFCURSOR;
+  OPEN c0 FOR SELECT 0;
+  OPEN c1 FOR SELECT 1;
+  BEGIN
+    DECLARE r0 ROW(m0 SYS_REFCURSOR, m1 SYS_REFCURSOR);
+    DECLARE r1 ROW(m0 SYS_REFCURSOR, m1 SYS_REFCURSOR);
+    SELECT 'p1-1' AS stage, refs(0,5) AS refs;
+    SET r0=ROW(c0, c1);
+    SELECT 'p1-2' AS stage, refs(0,5) AS refs;
+    SET r1=ROW(ff0(), ff0());
+    SELECT 'p1-3' AS stage, refs(0,5) AS refs;
+  END;
+  SELECT 'p1-4' AS stage, refs(0,5) AS refs;
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p1;
+--disable_column_names
+CALL p1;
+SELECT 'p1-e' AS stage, refs(0,5) AS refs;
+--enable_column_names
+DROP PROCEDURE p1;
+
+
+--disable_query_log
+--source type_sys_refcursor-helper_routines-debug-drop.inc
+--enable_query_log

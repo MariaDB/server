@@ -1167,6 +1167,7 @@ public:
 
   bool is_scalar_type() const override { return true; }
   bool is_val_native_ready() const override { return true; }
+  bool can_return_bool() const override { return true; }
   bool can_return_int() const override { return false; }
   bool can_return_decimal() const override { return false; }
   bool can_return_real() const override { return false; }

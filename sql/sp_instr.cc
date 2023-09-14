@@ -60,6 +60,48 @@ sp_lex_instr::put_back_item_params(THD *thd, LEX *lex,
 }
 
 
+static constexpr LEX_CSTRING cursor_str= {C_STRING_WITH_LEN("cursor")};
+
+/*
+  Print the instruction name with an array variable element:
+  @param str [OUT]     The destination string
+  @param cmd           The instruction name
+  @param rcontext_name The name of the array rcontext
+  @param array_name    The array name
+  @param index_offest  The offset of the index variable.
+
+  Example: "cclose SESSION.cursor[c@1]"
+  - cclose is the command name
+  - SESSION is the name of the cursor rcontext
+  - c@1 is the index variable name and offset
+*/
+void sp_instr::print_cmd_and_array_element(String *str,
+                                           const LEX_CSTRING &cmd,
+                                           const LEX_CSTRING &rcontext_name,
+                                           const LEX_CSTRING &array_name,
+                                           uint index_offset) const
+{
+  const sp_variable *pv= m_ctx->find_variable(index_offset);
+  size_t rsrv= cmd.length + 1/*space*/ +
+               rcontext_name.length +
+               array_name.length + 2/*[]*/ +
+               (pv ? pv->name.length + 1/*@*/ + SP_INSTR_UINT_MAXLEN : 0);
+  if (str->reserve(rsrv))
+    return;
+  str->qs_append(cmd.str, cmd.length);
+  str->qs_append(' ');
+  if (pv)
+  {
+    str->qs_append(&rcontext_name);
+    str->qs_append(&array_name);
+    str->qs_append('[');
+    str->qs_append(&pv->name);
+    str->qs_append('@');
+    str->qs_append(pv->offset);
+    str->qs_append(']');
+  }
+}
+
 /*
   StoredRoutinesBinlogging
   This paragraph applies only to statement-based binlogging. Row-based
@@ -573,6 +615,24 @@ int sp_lex_keeper::cursor_reset_lex_and_exec_core(THD *thd, uint *nextp,
 /*
   sp_instr class functions
 */
+
+void sp_instr::print_fetch_into(String *str, List<sp_fetch_target> varlist)
+{
+  List_iterator_fast<sp_fetch_target> li(varlist);
+  sp_fetch_target *pv;
+  while ((pv= li++))
+  {
+    const LEX_CSTRING *prefix= pv->rcontext_handler()->get_name_prefix();
+    if (str->reserve(pv->name.length + prefix->length + SP_INSTR_UINT_MAXLEN+2))
+      return;
+    str->qs_append(' ');
+    str->qs_append(prefix);
+    str->qs_append(&pv->name);
+    str->qs_append('@');
+    str->qs_append(pv->offset());
+  }
+}
+
 
 int sp_instr::exec_open_and_lock_tables(THD *thd, TABLE_LIST *tables)
 {
@@ -1440,6 +1500,44 @@ bool sp_instr_set_trigger_field::on_after_expr_parsing(THD *thd)
 
 
 /*
+  sp_instr_destruct_variable class
+*/
+PSI_statement_info sp_instr_destruct_variable::psi_info=
+{0, "destruct", 0};
+
+
+void sp_instr_destruct_variable::print(String *str)
+{
+  const LEX_CSTRING instr_name= {STRING_WITH_LEN("destruct")};
+  const sp_variable *spv= m_ctx->find_variable(m_offset);
+  const LEX_CSTRING data_type= spv->type_handler()->name().lex_cstring();
+  /* destruct datatype name@offset */
+  size_t rsrv= instr_name.length + 1 +
+               data_type.length + 1 +
+               spv->name.length + 1 +
+               SP_INSTR_UINT_MAXLEN;
+  if (str->reserve(rsrv))
+    return;
+  str->qs_append(&instr_name);
+  str->qs_append(' ');
+  str->qs_append(&data_type);
+  str->qs_append(' ');
+  str->qs_append(&spv->name);
+  str->qs_append('@');
+  str->qs_append(spv->offset);
+}
+
+
+int sp_instr_destruct_variable::execute(THD *thd, uint *nextp)
+{
+  *nextp= m_ip + 1;
+  thd->spcont->get_variable(m_offset)->
+    field->expr_event_handler(thd, expr_event_t::DESTRUCT_OUT_OF_SCOPE);
+  return 0;
+}
+
+
+/*
   sp_instr_jump_if_not class functions
 */
 
@@ -1462,7 +1560,7 @@ sp_instr_jump_if_not::exec_core(THD *thd, uint *nextp)
   int res;
 
   it= thd->sp_prepare_func_item(&m_expr, 1);
-  if (! it)
+  if (! it || it->check_type_can_return_bool({STRING_WITH_LEN("IF")}))
   {
     res= -1;
   }
@@ -1898,13 +1996,13 @@ PSI_statement_info sp_instr_copen::psi_info=
 int
 sp_instr_copen::execute(THD *thd, uint *nextp)
 {
+  DBUG_ENTER("sp_instr_copen::execute");
   /*
     We don't store a pointer to the cursor in the instruction to be
     able to reuse the same instruction among different threads in future.
   */
   sp_cursor *c= thd->spcont->get_cursor(m_cursor);
   int res;
-  DBUG_ENTER("sp_instr_copen::execute");
 
   if (! c)
     res= -1;
@@ -2026,7 +2124,6 @@ sp_instr_cfetch::execute(THD *thd, uint *nextp)
 {
   sp_cursor *c= thd->spcont->get_cursor(m_cursor);
   int res;
-  Query_arena backup_arena;
   DBUG_ENTER("sp_instr_cfetch::execute");
 
   res= c ? c->fetch(thd, &m_fetch_target_list, m_error_on_no_data) : -1;
@@ -2039,8 +2136,6 @@ sp_instr_cfetch::execute(THD *thd, uint *nextp)
 void
 sp_instr_cfetch::print(String *str)
 {
-  List_iterator_fast<sp_fetch_target> li(m_fetch_target_list);
-  sp_fetch_target *pv;
   const LEX_CSTRING *cursor_name= m_ctx->find_cursor(m_cursor);
 
   /* cfetch name@offset vars... */
@@ -2057,17 +2152,7 @@ sp_instr_cfetch::print(String *str)
     str->qs_append('@');
   }
   str->qs_append(m_cursor);
-  while ((pv= li++))
-  {
-    const LEX_CSTRING *prefix= pv->rcontext_handler()->get_name_prefix();
-    if (str->reserve(pv->name.length+prefix->length+SP_INSTR_UINT_MAXLEN+2))
-      return;
-    str->qs_append(' ');
-    str->qs_append(prefix);
-    str->qs_append(&pv->name);
-    str->qs_append('@');
-    str->qs_append(pv->offset());
-  }
+  print_fetch_into(str, m_fetch_target_list);
 }
 
 /*
@@ -2197,6 +2282,143 @@ sp_instr_cursor_copy_struct::print(String *str)
   str->append(&var->name);
   str->append('@');
   str->append_ulonglong(m_var);
+}
+
+
+/*
+  sp_instr_copen_by_ref class functions.
+  Handles the "OPEN sys_ref_cyrsor FOR stmt" statement.
+*/
+
+PSI_statement_info sp_instr_copen_by_ref::psi_info=
+{ 0, "copen_by_ref", 0};
+
+
+int
+sp_instr_copen_by_ref::execute(THD *thd, uint *nextp)
+{
+  DBUG_ENTER("sp_instr_copen_by_ref::execute");
+  m_lex_keeper.disable_query_cache();
+  int res= m_lex_keeper.cursor_reset_lex_and_exec_core(thd, nextp, false, this);
+  *nextp= m_ip + 1;
+  DBUG_RETURN(res);
+}
+
+
+int sp_instr_copen_by_ref::exec_core(THD *thd, uint *nextp)
+{
+  DBUG_ENTER("sp_instr_copen_by_ref::exec_core");
+  sp_cursor *cursor;
+  if (thd->open_cursors_counter() < thd->variables.max_open_cursors)
+  {
+    // The limit allows to open new cursors
+    if (!(cursor= m_deref_rcontext_handler->get_cursor_by_ref(thd,
+                                                              *this, true)))
+      DBUG_RETURN(-1); // EOM
+    /*
+      The sp_rcontext_addr part of "this" points to an initialized sp_cursor.
+      It can be a newly added cursor, or an old one (closed or open).
+      Two consequent OPEN (without a CLOSE in between) are allowed
+      for SYS_REFCURSORs (unlike for static CURSORs).
+      Close the first cursor automatically if it's open, e.g.:
+        OPEN c FOR SELECT 1;
+        OPEN c FOR SELECT 2; -- this closes "c" and opens it for the new query
+    */
+    cursor->reset_for_reopen(thd);
+    DBUG_RETURN(cursor->open(thd));
+  }
+
+  /*
+    The limit does not allow to create new open cursors.
+    Only an existing cursor pointed by the sp_rcontext_addr part of
+    "this" can be reused, and it must be open.
+  */
+  if (!(cursor= m_deref_rcontext_handler->get_cursor_by_ref(thd,
+                                                            *this, false)) ||
+      !cursor->is_open())
+  {
+    /*
+      - The SYS_REFCURSOR variable pointed by the sp_rcontext_addr
+        part of "this" is not linked to any session cursors.
+      - Or it is linked, but the referenced session cursor is not open.
+    */
+    my_error(ER_TOO_MANY_OPEN_CURSORS, MYF(0),
+             thd->variables.max_open_cursors);
+    DBUG_RETURN(-1);
+  }
+  cursor->reset_for_reopen(thd);
+  DBUG_RETURN(cursor->open(thd, false/*don't check max_open_cursors*/));
+}
+
+
+void
+sp_instr_copen_by_ref::print(String *str)
+{
+  static constexpr LEX_CSTRING instr{STRING_WITH_LEN("copen")};
+  print_cmd_and_array_element(str, instr,
+                              m_deref_rcontext_handler->get_name_prefix()[0],
+                              cursor_str, m_offset);
+}
+
+
+/*
+  sp_instr_cclose_by_ref class functions
+*/
+
+PSI_statement_info sp_instr_cclose_by_ref::psi_info
+{ 0, "cclose_by_ref", 0};
+
+int
+sp_instr_cclose_by_ref::execute(THD *thd, uint *nextp)
+{
+  DBUG_ENTER("sp_instr_cclose_by_ref::execute");
+  sp_cursor *cursor= Sp_rcontext_handler::get_open_cursor_or_error(thd, *this);
+  if (!cursor)
+    DBUG_RETURN(-1);
+  int res= cursor->close(thd);
+  *nextp= m_ip + 1;
+  DBUG_RETURN(res);
+}
+
+
+void
+sp_instr_cclose_by_ref::print(String *str)
+{
+  static constexpr LEX_CSTRING instr{STRING_WITH_LEN("cclose")};
+  print_cmd_and_array_element(str, instr,
+                              m_deref_rcontext_handler->get_name_prefix()[0],
+                              cursor_str, m_offset);
+}
+
+
+/*
+  sp_instr_cfetch_by_ref class functions
+*/
+
+PSI_statement_info sp_instr_cfetch_by_ref::psi_info=
+{ 0, "cfetch_by_ref", 0};
+
+int
+sp_instr_cfetch_by_ref::execute(THD *thd, uint *nextp)
+{
+  DBUG_ENTER("sp_instr_cfetch_by_ref::execute");
+  sp_cursor *cursor= Sp_rcontext_handler::get_open_cursor_or_error(thd, *this);
+  if (!cursor)
+    DBUG_RETURN(-1);
+  int res= cursor->fetch(thd, &m_fetch_target_list, m_error_on_no_data);
+  *nextp= m_ip + 1;
+  DBUG_RETURN(res);
+}
+
+
+void
+sp_instr_cfetch_by_ref::print(String *str)
+{
+  static constexpr LEX_CSTRING instr= LEX_CSTRING{STRING_WITH_LEN("cfetch")};
+  print_cmd_and_array_element(str, instr,
+                              m_deref_rcontext_handler->get_name_prefix()[0],
+                              cursor_str, m_offset);
+  print_fetch_into(str, m_fetch_target_list);
 }
 
 

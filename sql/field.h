@@ -986,6 +986,36 @@ public:
     reset();
     return 0;
   }
+
+  // Store a reference value (e.g. SYS_REFCURSOR) into the field.
+  virtual int store_ref(const Type_ref_null &ref, bool no_conversions)
+  {
+    return 0;
+  }
+
+  /*
+    expr_event_handler()
+
+    Handle an expression event, such as destruction, for the Field's value.
+    In case of SYS_REFCURSOR, the Field's value stores the offset
+    of the cursor in the array Statement_rcontext::m_statement_cursors.
+
+    Unlike set_null(), expr_event_handler(DESTRUCT*) can have a side effect
+    and can check the previous Field value. For example,
+    if the previous value of a Field_sys_refcursor field was not NULL,
+    Field_sys_refcursor::expr_event_handler(DESTRUCT*) decrements the cursor
+    reference counter and closes the cursor if the counter decremented
+    down to zero.
+
+    expr_event_handler() assumes that the Field is in a deterministic state,
+    e.g. set_null(), which has no side effects, was earlier called.
+
+    For details see the implementation of Field_sys_refcursor
+    in /plugin/type_cursor/.
+  */
+  virtual void expr_event_handler(THD *thd, expr_event_t event)
+  { }
+
   int store_time(const MYSQL_TIME *ltime)
   { return store_time_dec(ltime, TIME_SECOND_PART_DIGITS); }
   int store(const char *to, size_t length, CHARSET_INFO *cs,
@@ -1033,6 +1063,15 @@ public:
 #else
   void mark_unused_memory_as_defined() {}
 #endif
+
+  /*
+    Get a reference value of the Field.
+    Field_sys_refcursor in plugins/type_cursor overrides this.
+  */
+  virtual Type_ref_null val_ref(THD *thd)
+  {
+    return Type_ref_null(); // Return a NULL reference by default.
+  }
 
   virtual double val_real()=0;
   virtual longlong val_int()=0;
@@ -2649,7 +2688,7 @@ public:
 };
 
 
-class Field_short final :public Field_int
+class Field_short :public Field_int
 {
   const Type_handler_general_purpose_int *type_handler_priv() const
   {
@@ -5199,6 +5238,7 @@ public:
   }
   Virtual_tmp_table **virtual_tmp_table_addr() override { return &m_table; }
   bool sp_prepare_and_store_item(THD *thd, Item **value) override;
+  void expr_event_handler(THD *thd, expr_event_t event) override;
 };
 
 
