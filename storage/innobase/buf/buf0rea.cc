@@ -318,7 +318,8 @@ buf_read_page_low(
 	auto fio = space->io(IORequest(sync
 				       ? IORequest::READ_SYNC
 				       : IORequest::READ_ASYNC),
-			     page_id.page_no() * len, len, dst, bpage);
+			     os_offset_t{page_id.page_no()} * len, len,
+			     dst, bpage);
 
 	if (UNIV_UNLIKELY(fio.err != DB_SUCCESS)) {
 		buf_pool.corrupted_evict(bpage, buf_page_t::READ_FIX);
