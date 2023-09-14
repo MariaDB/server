@@ -1,0 +1,54 @@
+--echo
+--echo MDEV-26151 MDEV-31787
+--echo
+
+# This test exercises the code path where a nonzero casual_read takes
+# effect.
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+--let $srv=srv_mdev_26151
+set @old_spider_bgs_mode= @@spider_bgs_mode;
+set session spider_bgs_mode=1;
+evalp CREATE SERVER $srv FOREIGN DATA WRAPPER MYSQL OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+
+# casual_read != 0 && casual_read != 1
+create table td (a int, PRIMARY KEY (a));
+
+eval create table ts (a int, PRIMARY KEY (a)) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "$srv",TABLE "td", casual_read "3"';
+
+insert into td values (11), (42);
+
+select max(a) from ts;
+
+drop table td, ts;
+
+create table td (a int, PRIMARY KEY (a));
+
+# casual_read = 1
+eval create table ts (a int, PRIMARY KEY (a)) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "$srv",TABLE "td", casual_read "1"';
+
+insert into td values (11), (42);
+
+select max(a) from ts;
+
+select min(a) from ts;
+
+drop table td, ts;
+
+eval drop server $srv;
+set session spider_bgs_mode=@old_spider_bgs_mode;
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log
+
+--echo
+--echo end of test
+--echo
