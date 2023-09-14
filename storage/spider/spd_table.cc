@@ -7558,7 +7558,7 @@ bool spider_check_direct_order_limit(
       DBUG_PRINT("info",("spider with distinct"));
       spider->result_list.direct_distinct = TRUE;
     }
-    spider->result_list.direct_aggregate = TRUE;
+    spider->result_list.direct_aggregate = spider_param_direct_aggregate(thd);
     DBUG_PRINT("info",("spider select_limit=%lld", select_limit));
     DBUG_PRINT("info",("spider offset_limit=%lld", offset_limit));
     if (
