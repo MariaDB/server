@@ -4262,6 +4262,9 @@ Item_func_group_concat::fix_fields(THD *thd, Item **ref)
       return TRUE;
     /* We should ignore FIELD's in arguments to sum functions */
     with_flags|= (args[i]->with_flags & ~item_with_t::FIELD);
+    if (args[i]->check_type_can_return_str(
+                   Item_func_group_concat::func_name_cstring()))
+      return true;
   }
 
   /* skip charset aggregation for order columns */

@@ -1,0 +1,197 @@
+#
+# MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+#
+SET default_storage_engine=InnoDB;
+#
+# OPEN sys_ref_cursor FOR SELECT ... FOR UPDATE
+#
+SELECT @@autocommit;
+@@autocommit
+1
+SELECT @@transaction_isolation;
+@@transaction_isolation
+REPEATABLE-READ
+SELECT @@default_storage_engine;
+@@default_storage_engine
+InnoDB
+CREATE TABLE t1 (
+id INT PRIMARY KEY,
+worker VARCHAR(32) DEFAULT '',
+ts TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `worker` varchar(32) DEFAULT '',
+  `ts` timestamp(6) NOT NULL DEFAULT current_timestamp(6),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+CREATE TABLE t2 (a VARCHAR(128)) ENGINE=MEMORY;
+CREATE PROCEDURE p2(for_update BOOL, do_fetch BOOL)
+BEGIN
+DECLARE c SYS_REFCURSOR;
+DECLARE v INT;
+START TRANSACTION;
+IF for_update THEN
+OPEN c FOR SELECT id FROM t1 WHERE id=0 FOR UPDATE;
+ELSE
+OPEN c FOR SELECT id FROM t1 WHERE id=0;
+END IF;
+IF do_fetch THEN
+FETCH c INTO v;
+END IF;
+-- signal to the other thread that OPEN happened
+INSERT INTO t2 VALUES
+('The exact value does not matter in t2. Only COUNT(*) matters');
+IF NOT for_update THEN
+-- If FOR UPDATE is not specified then other thread is not locked
+-- Let the other thread finish INSERT.
+DO SLEEP(30); -- This query will be killed by the other thread
+END IF;
+INSERT INTO t1 VALUES (12, 'p2', SYSDATE(6));
+CLOSE c;
+COMMIT;
+END;
+/
+CREATE PROCEDURE p1(for_update BOOL)
+BEGIN
+DECLARE v INT;
+DECLARE session_id INT;
+START TRANSACTION;
+IF for_update THEN
+SET v=(SELECT id FROM t1 WHERE id=0 FOR UPDATE);
+ELSE
+SET v=(SELECT id FROM t1 WHERE id=0);
+END IF;
+INSERT INTO t1 VALUES (11, 'p1', SYSDATE(6));
+COMMIT;
+-- Check if the other thread is executing the SLEEP
+-- statement and kill it to avoid waiting
+SET session_id= (SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST
+WHERE INFO LIKE '%SLEEP(%)');
+SELECT CONCAT('p1: session_id IS NOT NULL:', session_id IS NOT NULL) AS msg;
+IF session_id IS NOT NULL
+THEN
+KILL QUERY session_id;
+END IF;
+END;
+/
+------------ for_update=0  do_fetch=0
+TRUNCATE TABLE t1;
+TRUNCATE TABLE t2;
+BEGIN;
+INSERT INTO t1 (id) VALUES (0),(1),(2),(3),(4),(5),(6),(7);
+COMMIT;
+connect con2,localhost,root;
+connection con2;
+CALL p2(0, 0);
+connection default;
+CALL p1(0);
+msg
+p1: session_id IS NOT NULL:1
+connection con2;
+disconnect con2;
+connection default;
+# Without FOR UPDATE: p1 inserted first
+SELECT id, worker FROM t1 WHERE worker<>'' ORDER BY ts;
+id	worker
+11	p1
+12	p2
+------------ for_update=0  do_fetch=1
+TRUNCATE TABLE t1;
+TRUNCATE TABLE t2;
+BEGIN;
+INSERT INTO t1 (id) VALUES (0),(1),(2),(3),(4),(5),(6),(7);
+COMMIT;
+connect con2,localhost,root;
+connection con2;
+CALL p2(0, 1);
+connection default;
+CALL p1(0);
+msg
+p1: session_id IS NOT NULL:1
+connection con2;
+disconnect con2;
+connection default;
+# Without FOR UPDATE: p1 inserted first
+SELECT id, worker FROM t1 WHERE worker<>'' ORDER BY ts;
+id	worker
+11	p1
+12	p2
+------------ for_update=1  do_fetch=0
+TRUNCATE TABLE t1;
+TRUNCATE TABLE t2;
+BEGIN;
+INSERT INTO t1 (id) VALUES (0),(1),(2),(3),(4),(5),(6),(7);
+COMMIT;
+connect con2,localhost,root;
+connection con2;
+CALL p2(1, 0);
+connection default;
+CALL p1(1);
+msg
+p1: session_id IS NOT NULL:0
+connection con2;
+disconnect con2;
+connection default;
+# With FOR UPDATE: p2 inserted first
+SELECT id, worker FROM t1 WHERE worker<>'' ORDER BY ts;
+id	worker
+12	p2
+11	p1
+------------ for_update=1  do_fetch=1
+TRUNCATE TABLE t1;
+TRUNCATE TABLE t2;
+BEGIN;
+INSERT INTO t1 (id) VALUES (0),(1),(2),(3),(4),(5),(6),(7);
+COMMIT;
+connect con2,localhost,root;
+connection con2;
+CALL p2(1, 1);
+connection default;
+CALL p1(1);
+msg
+p1: session_id IS NOT NULL:0
+connection con2;
+disconnect con2;
+connection default;
+# With FOR UPDATE: p2 inserted first
+SELECT id, worker FROM t1 WHERE worker<>'' ORDER BY ts;
+id	worker
+12	p2
+11	p1
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP TABLE t1;
+DROP TABLE t2;
+SET default_storage_engine=DEFAULT;
+#
+# MDEV-36377 Assertion `thd->lex == sp_instr_lex' failed in LEX *sp_lex_instr::parse_expr(THD *, sp_head *, LEX *)
+#
+CREATE TABLE t (a INT) ENGINE=INNODB;
+CREATE PROCEDURE p (OUT c sys_refcursor)
+BEGIN
+OPEN c FOR SELECT a FROM t ;
+END;
+$
+CREATE TEMPORARY TABLE t (c INT) ENGINE=INNODB;
+SET GLOBAL innodb_file_per_table=0;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
+SET innodb_compression_default=ON;
+CALL p (@a);
+ERROR 42S22: Unknown column 'a' in 'SELECT'
+CREATE OR REPLACE TEMPORARY TABLE t (c INT) ENGINE=INNODB;
+ERROR HY000: Can't create table `test`.`t` (errno: 140 "Wrong create options")
+PREPARE s FROM 'CALL p(?)';
+EXECUTE s USING @a;
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'SET user_variable'
+CALL p(@a);
+CALL p;
+ERROR 42000: Incorrect number of arguments for PROCEDURE test.p; expected 1, got 0
+DROP PROCEDURE p;
+DROP TABLE t;
+SET GLOBAL innodb_file_per_table=DEFAULT;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release

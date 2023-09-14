@@ -201,6 +201,20 @@ bool Item_func::check_argument_types_traditional_scalar(uint start,
 }
 
 
+bool Item_func::check_argument_types_can_return_bool(uint start,
+                                                     uint end) const
+{
+  const LEX_CSTRING fname= func_name_cstring();
+  for (uint i= start; i < end ; i++)
+  {
+    DBUG_ASSERT(i < arg_count);
+    if (args[i]->check_type_can_return_bool(fname))
+      return true;
+  }
+  return false;
+}
+
+
 bool Item_func::check_argument_types_can_return_int(uint start,
                                                     uint end) const
 {
@@ -383,6 +397,11 @@ Item_func::fix_fields(THD *thd, Item **ref)
     return TRUE;
   }
   base_flags|= item_base_t::FIXED;
+  if (type_handler()->is_complex())
+  {
+    with_flags|= item_with_t::COMPLEX_DATA_TYPE;
+    thd->stmt_arena->with_flags_bit_or_for_complex_data_types|= with_flags;
+  }
 
   return FALSE;
 }
@@ -5250,6 +5269,21 @@ Item_func_set_user_var::update()
                      unsigned_flag ? (Type_handler *) &type_handler_ulonglong :
                                      (Type_handler *) &type_handler_slonglong,
                      &my_charset_numeric);
+    if (with_complex_data_types())
+    {
+      /*
+        There are no user variable methods in Type_handler yet.
+        Also all INT-alike expresions do not preserve the exact data type on
+        a user variable assignment: they all get converted into BIGINT.
+        Let's disallow complex data types with side effects for now,
+        to avoid side effect resources leaking, e.g. m_statement_cursors
+        elements in case of SYS_REFCURSOR.
+      */
+      my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+               args[0]->type_handler()->name().lex_cstring().str,
+               "SET user_variable");
+      DBUG_RETURN(true);
+    }
     break;
   }
   case STRING_RESULT:
@@ -6945,17 +6979,22 @@ longlong Item_func_uuid_short::val_int()
   Last_value - return last argument.
 */
 
-void Item_func_last_value::evaluate_sideeffects()
+void Item_func_last_value::evaluate_sideeffects(THD *thd)
 {
   DBUG_ASSERT(fixed() && arg_count > 0);
   for (uint i= 0; i < arg_count-1 ; i++)
+  {
     args[i]->val_int();
+    if (with_complex_data_types())
+      args[i]->expr_event_handler(thd ? thd : current_thd,
+                                  expr_event_t::DESTRUCT_ROUTINE_ARG);
+  }
 }
 
 String *Item_func_last_value::val_str(String *str)
 {
   String *tmp;
-  evaluate_sideeffects();
+  evaluate_sideeffects(nullptr);
   tmp= last_value->val_str(str);
   null_value= last_value->null_value;
   return tmp;
@@ -6964,7 +7003,7 @@ String *Item_func_last_value::val_str(String *str)
 
 bool Item_func_last_value::val_native(THD *thd, Native *to)
 {
-  evaluate_sideeffects();
+  evaluate_sideeffects(thd);
   return val_native_from_item(thd, last_value, to);
 }
 
@@ -6972,7 +7011,7 @@ bool Item_func_last_value::val_native(THD *thd, Native *to)
 longlong Item_func_last_value::val_int()
 {
   longlong tmp;
-  evaluate_sideeffects();
+  evaluate_sideeffects(nullptr);
   tmp= last_value->val_int();
   null_value= last_value->null_value;
   return tmp;
@@ -6981,16 +7020,24 @@ longlong Item_func_last_value::val_int()
 double Item_func_last_value::val_real()
 {
   double tmp;
-  evaluate_sideeffects();
+  evaluate_sideeffects(nullptr);
   tmp= last_value->val_real();
   null_value= last_value->null_value;
   return tmp;
 }
 
+
+Type_ref_null Item_func_last_value::val_ref(THD *thd)
+{
+  evaluate_sideeffects(thd);
+  return last_value->val_ref(thd);
+}
+
+
 my_decimal *Item_func_last_value::val_decimal(my_decimal *decimal_value)
 {
   my_decimal *tmp;
-  evaluate_sideeffects();
+  evaluate_sideeffects(nullptr);
   tmp= last_value->val_decimal(decimal_value);
   null_value= last_value->null_value;
   return tmp;
@@ -6999,7 +7046,7 @@ my_decimal *Item_func_last_value::val_decimal(my_decimal *decimal_value)
 
 bool Item_func_last_value::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
-  evaluate_sideeffects();
+  evaluate_sideeffects(thd);
   bool tmp= last_value->get_date(thd, ltime, fuzzydate);
   null_value= last_value->null_value;
   return tmp;
@@ -7022,46 +7069,30 @@ void Cursor_ref::print_func(String *str, const LEX_CSTRING &func_name)
 }
 
 
-sp_cursor *Cursor_ref::get_open_cursor_or_error()
-{
-  THD *thd= current_thd;
-  sp_cursor *c= thd->spcont->get_cursor(m_cursor_offset);
-  DBUG_ASSERT(c);
-  if (!c/*safety*/ || !c->is_open())
-  {
-    my_message(ER_SP_CURSOR_NOT_OPEN, ER_THD(thd, ER_SP_CURSOR_NOT_OPEN),
-               MYF(0));
-    return NULL;
-  }
-  return c;
-}
-
-
 bool Item_func_cursor_isopen::val_bool()
 {
-  sp_cursor *c= current_thd->spcont->get_cursor(m_cursor_offset);
-  DBUG_ASSERT(c != NULL);
+  sp_cursor *c= Sp_rcontext_handler::get_cursor(m_thd, *this);
   return c ? c->is_open() : 0;
 }
 
 
 bool Item_func_cursor_found::val_bool()
 {
-  sp_cursor *c= get_open_cursor_or_error();
+  sp_cursor *c= Sp_rcontext_handler::get_open_cursor_or_error(m_thd, *this);
   return !(null_value= (!c || c->fetch_count() == 0)) && c->found();
 }
 
 
 bool Item_func_cursor_notfound::val_bool()
 {
-  sp_cursor *c= get_open_cursor_or_error();
+  sp_cursor *c= Sp_rcontext_handler::get_open_cursor_or_error(m_thd, *this);
   return !(null_value= (!c || c->fetch_count() == 0)) && !c->found();
 }
 
 
 longlong Item_func_cursor_rowcount::val_int()
 {
-  sp_cursor *c= get_open_cursor_or_error();
+  sp_cursor *c= Sp_rcontext_handler::get_open_cursor_or_error(m_thd, *this);
   return !(null_value= !c) ? c->row_count() : 0;
 }
 

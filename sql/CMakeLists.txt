@@ -123,7 +123,8 @@ SET (SQL_SOURCE
                session_tracker.cc
                set_var.cc
                slave.cc sp.cc sp_cache.cc sp_head.cc sp_pcontext.cc
-               sp_rcontext.cc spatial.cc sql_acl.cc sql_analyse.cc sql_base.cc
+               sp_rcontext.cc sp_cursor.cc
+               spatial.cc sql_acl.cc sql_analyse.cc sql_base.cc
                sql_cache.cc sql_class.cc sql_client.cc sql_crypt.cc
                sql_cursor.cc sql_db.cc sql_delete.cc sql_derived.cc
                sql_digest.cc sql_do.cc

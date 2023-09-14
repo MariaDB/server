@@ -1,0 +1,479 @@
+#
+# MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+#
+#
+# Error: SYS_REFCURSOR is not allowed in a table column
+#
+CREATE TABLE t1 (a SYS_REFCURSOR);
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'CREATE TABLE'
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+CREATE TABLE t1 AS SELECT c0;
+SHOW CREATE TABLE t1;
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'CREATE TABLE'
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+DECLARE c1 SYS_REFCURSOR;
+SELECT c0 UNION SELECT c1;
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'CREATE TABLE'
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+DECLARE c1 SYS_REFCURSOR;
+VALUES (c0), (c1);
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'CREATE TABLE'
+CREATE FUNCTION f1() RETURNS SYS_REFCURSOR
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+OPEN c0 FOR SELECT 1 AS c;
+RETURN c0;
+END;
+$$
+SELECT * FROM (SELECT COALESCE(f1()) FROM seq_1_to_5) dt1;
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'CREATE TABLE'
+DROP FUNCTION f1;
+#
+# ORDER BY, GROUP BY, DISTINCT
+#
+CREATE FUNCTION f1() RETURNS SYS_REFCURSOR
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+OPEN c0 FOR SELECT 1 AS c;
+RETURN c0;
+END;
+$$
+SELECT f1() FROM seq_1_to_5 ORDER BY f1();
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'CREATE TABLE'
+SELECT f1() FROM seq_1_to_5 ORDER BY COALESCE(f1());
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'CREATE TABLE'
+SELECT COALESCE(f1()) FROM seq_1_to_5 ORDER BY f1();
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'CREATE TABLE'
+SELECT COALESCE(f1()) FROM seq_1_to_5 ORDER BY COALESCE(f1());
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'CREATE TABLE'
+SELECT f1() FROM seq_1_to_5 GROUP BY f1();
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'CREATE TABLE'
+SELECT f1() FROM seq_1_to_5 GROUP BY COALESCE(f1());
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'CREATE TABLE'
+SELECT COALESCE(f1()) FROM seq_1_to_5 GROUP BY f1();
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'CREATE TABLE'
+SELECT COALESCE(f1()) FROM seq_1_to_5 GROUP BY COALESCE(f1());
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'CREATE TABLE'
+CREATE TABLE t1 (a INT, b TIMESTAMP);
+INSERT INTO t1 VALUES (1,'2018-06-19 00:00:00');
+SELECT f1() AS f, MAX(a) FROM t1 GROUP BY f;
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'GROUP BY'
+DROP TABLE t1;
+SELECT DISTINCT f1() FROM seq_1_to_5;
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'CREATE TABLE'
+SELECT DISTINCT COALESCE(f1()) FROM seq_1_to_5;
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'CREATE TABLE'
+DROP FUNCTION f1;
+#
+# Although SYS_REFCURSOR in a <select list> is not allowed in Oracle,
+# let's allow it in MariaDB. It's convenient for debug purposes.
+#
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+SELECT c0;
+OPEN c0 FOR SELECT 1;
+SELECT c0;
+END;
+$$
+c0
+NULL
+c0
+0
+#
+# Storing SYS_REFCURSOR expressions into user variables is not allowed
+#
+CREATE FUNCTION f0() RETURNS SYS_REFCURSOR
+BEGIN
+DECLARE f0c0 SYS_REFCURSOR;
+OPEN f0c0 FOR SELECT 1;
+RETURN f0c0;
+END;
+/
+SET @a=f0();
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'SET user_variable'
+DROP FUNCTION f0;
+BEGIN NOT ATOMIC
+DECLARE f0c0 SYS_REFCURSOR;
+SET @a= f0c0;
+END;
+/
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'SET user_variable'
+BEGIN NOT ATOMIC
+DECLARE f0c0 SYS_REFCURSOR;
+SELECT @a:= f0c0;
+END;
+/
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'SET user_variable'
+#
+# OUTFILE
+#
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+DECLARE c1 SYS_REFCURSOR;
+OPEN c0 FOR SELECT 1;
+OPEN c1 FOR SELECT 2;
+SELECT c0, c1 INTO OUTFILE "../../tmp/file1.txt";
+END;
+$$
+0	1
+#
+# SYS_REFCURSOR is not allowed when Item_cache is needed.
+#
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+OPEN c0 FOR SELECT 1;
+SELECT seq, c0 FROM seq_0_to_3
+WHERE (SELECT CASE WHEN c0 IS NOT NULL THEN c0 ELSE NULL END
+FROM seq_0_to_3 WHERE c0 IS NOT NULL) IS NOT NULL;
+SHOW WARNINGS;
+END;
+/
+CALL p2;
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'EXPRESSION CACHE (e.g. SUBSELECT)'
+DROP PROCEDURE p2;
+#
+# Error: Unknown cursors
+#
+BEGIN NOT ATOMIC
+OPEN c FOR SELECT 1;
+END;
+$$
+ERROR 42000: Undeclared variable: c
+BEGIN NOT ATOMIC
+CLOSE c;
+END;
+$$
+ERROR 42000: Undefined CURSOR: c
+BEGIN NOT ATOMIC
+DECLARE v INT;
+CLOSE c INTO v;
+END;
+$$
+ERROR 42000: Undefined CURSOR: c
+#
+# Error: Closing a not open cursor
+#
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+CLOSE c;
+END;
+$$
+ERROR 24000: Cursor is not open
+#
+# Error: Fetching from a not open cursor
+#
+BEGIN NOT ATOMIC
+DECLARE a INT;
+DECLARE c SYS_REFCURSOR;
+FETCH c INTO a;
+END;
+$$
+ERROR 24000: Cursor is not open
+#
+# Error: fetching beyond the available number of records
+#
+BEGIN NOT ATOMIC
+DECLARE a INT;
+DECLARE c SYS_REFCURSOR;
+OPEN c FOR SELECT 1;
+FETCH c INTO a;
+FETCH c INTO a;
+END;
+$$
+ERROR 02000: No data - zero rows fetched, selected, or processed
+#
+# sql_mode=ORACLE: fetching beyond the available number of records
+# sets the %NOTFOUND attribute.
+#
+SET sql_mode=ORACLE;
+DECLARE
+a INT;
+c SYS_REFCURSOR;
+BEGIN
+OPEN c FOR SELECT 1;
+FETCH c INTO a;
+SELECT a, c%NOTFOUND;
+FETCH c INTO a;
+SELECT a, c%NOTFOUND;
+END;
+$$
+a	c%NOTFOUND
+1	0
+a	c%NOTFOUND
+1	1
+SET sql_mode=DEFAULT;
+#
+# Store assignment
+#
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+SET c=1;
+END;
+$$
+ERROR HY000: Cannot cast 'int' as 'sys_refcursor' in assignment of `c`
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+DECLARE i INT;
+SET c=i;
+END;
+$$
+ERROR HY000: Cannot cast 'int' as 'sys_refcursor' in assignment of `c`
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+DECLARE i INT;
+SET i=c;
+END;
+$$
+ERROR HY000: Cannot cast 'sys_refcursor' as 'int' in assignment of `i`
+#
+# FETCH using a SYS_REFCURSOR as a *target* variable
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE p1c0 SYS_REFCURSOR;
+DECLARE p1c1 SYS_REFCURSOR;
+OPEN p1c0 FOR SELECT 0;
+OPEN p1c1 FOR SELECT 1;
+FETCH p1c0 INTO p1c1;
+END;
+/
+CALL p1;
+ERROR HY000: Cannot cast 'int' as 'sys_refcursor' in assignment of `p1c1`
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE p1c0 SYS_REFCURSOR;
+DECLARE p1c1 SYS_REFCURSOR;
+OPEN p1c0 FOR SELECT 1;
+FETCH p1c0 INTO p1c1;
+END;
+/
+CALL p1;
+ERROR HY000: Cannot cast 'int' as 'sys_refcursor' in assignment of `p1c1`
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE p1c0 SYS_REFCURSOR;
+DECLARE p1c1 SYS_REFCURSOR;
+DECLARE p1c2 SYS_REFCURSOR;
+OPEN p1c0 FOR SELECT 1;
+OPEN p1c1 FOR SELECT p1c0;
+FETCH p1c1 INTO p1c2;
+END;
+/
+CALL p1;
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'CREATE TABLE'
+DROP PROCEDURE p1;
+#
+# Aggregate functions
+#
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+SELECT MAX(c0);
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'max'
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+SELECT MIN(c0);
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'min'
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+SELECT SUM(c0);
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'sum'
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+SELECT AVG(c0);
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'avg'
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+SELECT VARIANCE(c0);
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'variance('
+#
+# Window functions
+#
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+OPEN c0 FOR SELECT 1;
+SELECT seq, FIRST_VALUE(c0) OVER (ORDER BY seq) AS fl FROM seq_1_to_5;
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'first_value'
+#
+# OPEN is not allowed for IN SYS_REFCURSOR parameters
+#
+SET sql_mode=ORACLE;
+CREATE PROCEDURE p1(p1c0 IN SYS_REFCURSOR) AS
+BEGIN
+OPEN p1c0 FOR SELECT 11 FROM DUAL UNION SELECT 12 FROM DUAL;
+END;
+/
+ERROR 42000: This version of MariaDB doesn't yet support 'OPEN IN_sp_parameter'
+SET sql_mode=DEFAULT;
+#
+# FETCH and CLOSE are allowed for IN SYS_REFCURSOR parameters
+#
+SET sql_mode=ORACLE;
+CREATE PROCEDURE p1(p1c0 IN SYS_REFCURSOR) AS
+p1c1 SYS_REFCURSOR DEFAULT p1c0;
+v0 INT;
+v1 INT;
+BEGIN
+FETCH p1c1 INTO v0;
+OPEN p1c1 FOR SELECT 11 FROM DUAL UNION SELECT 12 FROM DUAL;
+FETCH p1c1 INTO v1;
+DBMS_OUTPUT.PUT_LINE(v0 || ' ' || v1);
+CLOSE p1c0;
+END;
+/
+CREATE PROCEDURE p2 AS
+p2c0 SYS_REFCURSOR;
+BEGIN
+OPEN p2c0 FOR SELECT 21 FROM DUAL UNION SELECT 22 FROM DUAL;
+p1(p2c0);
+DBMS_OUTPUT.PUT_LINE('p2c0%ISOPEN' ||'='|| bool_to_char(p2c0%ISOPEN));
+END;
+/
+CALL p2;
+
+21 11
+
+p2c0%ISOPEN=false
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+SET sql_mode=DEFAULT;
+#
+# OPEN is allowed for an IN parameter alias
+#
+SET sql_mode=ORACLE;
+CREATE PROCEDURE p1(p1c0 IN SYS_REFCURSOR) AS
+p1c1 SYS_REFCURSOR DEFAULT p1c0;
+v0 INT;
+v1 INT;
+BEGIN
+FETCH p1c1 INTO v0;
+OPEN p1c1 FOR SELECT 11 FROM DUAL UNION SELECT 12 FROM DUAL;
+FETCH p1c1 INTO v1;
+DBMS_OUTPUT.PUT_LINE(v0 || ' ' || v1);
+CLOSE p1c0;
+END;
+/
+CREATE PROCEDURE p2 AS
+p2c0 SYS_REFCURSOR;
+BEGIN
+OPEN p2c0 FOR SELECT 21 FROM DUAL UNION SELECT 22 FROM DUAL;
+p1(p2c0);
+DBMS_OUTPUT.PUT_LINE('p2c0%ISOPEN' ||'='|| bool_to_char(p2c0%ISOPEN));
+END;
+/
+CALL p2;
+
+21 11
+
+p2c0%ISOPEN=false
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+SET sql_mode=DEFAULT;
+#
+# SYS_REFCURSOR SP variables are not constants. Expressions
+# with SYS_REFCURSOR variables in WHERE condition do not get cached.
+# 'WHERE c0 IS NOT NULL' is not replaced to 'WHERE 1'
+#
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+OPEN c0 FOR SELECT 1;
+EXPLAIN EXTENDED
+SELECT seq, c0 FROM seq_0_to_3 WHERE c0 IS NOT NULL;
+SHOW WARNINGS;
+SELECT seq, c0 FROM seq_0_to_3 WHERE c0 IS NOT NULL;
+END;
+/
+CALL p2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	seq_0_to_3	index	NULL	PRIMARY	8	NULL	4	100.00	Using index
+Level	Code	Message
+Note	1003	select `test`.`seq_0_to_3`.`seq` AS `seq`,c0@0 AS `c0` from `test`.`seq_0_to_3` where c0@0 is not null
+seq	c0
+0	0
+1	0
+2	0
+3	0
+DROP PROCEDURE p2;
+#
+# MDEV-36409 Server crashes when creating a table using function with a return type sys_refcursor
+#
+CREATE FUNCTION f1() RETURNS SYS_REFCURSOR 
+BEGIN 
+DECLARE c SYS_REFCURSOR;
+OPEN c FOR SELECT 1;
+RETURN c;
+END;
+/
+CREATE TABLE t1 AS SELECT f1();
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'CREATE TABLE'
+DROP FUNCTION f1;
+#
+# MDEV-36377 Assertion `thd->lex == sp_instr_lex' failed in LEX *sp_lex_instr::parse_expr(THD *, sp_head *, LEX *)
+#
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p1() 
+BEGIN 
+DECLARE c1 SYS_REFCURSOR; 
+OPEN c1 FOR SELECT * FROM t1; 
+END;
+$
+CALL p1;
+CREATE OR REPLACE TABLE t1(a INT);
+CALL p1;
+CALL p1;
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t (a INT);
+CREATE PROCEDURE p1 (OUT c sys_refcursor) 
+BEGIN 
+OPEN c FOR SELECT a FROM t ;
+END; 
+$
+CREATE PROCEDURE p2() 
+BEGIN 
+DECLARE c sys_refcursor;
+DECLARE v INT;
+EXECUTE IMMEDIATE 'CALL p1 (?)' USING c;
+FETCH c INTO v;
+SELECT c,v;
+END; 
+$
+CALL p2;
+ERROR 02000: No data - zero rows fetched, selected, or processed
+CREATE OR REPLACE TABLE t (a INT);
+CALL p2;
+ERROR 02000: No data - zero rows fetched, selected, or processed
+CALL p2;
+ERROR 02000: No data - zero rows fetched, selected, or processed
+CALL p1;
+ERROR 42000: Incorrect number of arguments for PROCEDURE test.p1; expected 1, got 0
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+DROP TABLE t;
+DROP PACKAGE dbms_output;
+DROP FUNCTION bool_to_char;

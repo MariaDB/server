@@ -34,6 +34,19 @@
 
 Sp_rcontext_handler_local sp_rcontext_handler_local;
 Sp_rcontext_handler_package_body sp_rcontext_handler_package_body;
+Sp_rcontext_handler_statement sp_rcontext_handler_statement;
+
+
+sp_cursor *Sp_rcontext_handler::get_open_cursor_or_error(THD *thd,
+                                                 const sp_rcontext_ref &ref)
+{
+  sp_cursor *cursor= get_cursor(thd, ref);
+  if (cursor && cursor->is_open())
+    return cursor;
+  my_error(ER_SP_CURSOR_NOT_OPEN, MYF(0));
+  return nullptr;
+}
+
 
 sp_rcontext *Sp_rcontext_handler_local::get_rcontext(sp_rcontext *ctx) const
 {
@@ -57,6 +70,45 @@ const LEX_CSTRING *Sp_rcontext_handler_package_body::get_name_prefix() const
   return &sp_package_body_variable_prefix_clex_str;
 }
 
+const LEX_CSTRING *Sp_rcontext_handler_statement::get_name_prefix() const
+{
+  static const LEX_CSTRING prefix= {STRING_WITH_LEN("STMT.")};
+  return &prefix;
+}
+
+
+Item_field *Sp_rcontext_handler_local::get_variable(THD *thd,
+                                                    uint offset) const
+{
+  return thd->spcont->get_variable(offset);
+}
+
+
+Item_field *Sp_rcontext_handler_package_body::get_variable(THD *thd,
+                                                           uint offset) const
+{
+  return Sp_rcontext_handler_package_body::get_rcontext(thd->spcont)->
+                                             get_variable(offset);
+}
+
+
+sp_cursor *Sp_rcontext_handler_local::get_cursor(THD *thd, uint offset) const
+{
+  return thd->spcont->get_cursor(offset);
+}
+
+sp_cursor *Sp_rcontext_handler_statement::get_cursor(THD *thd, uint offset) const
+{
+  return &thd->statement_cursors()->at(offset);
+}
+
+sp_cursor *Sp_rcontext_handler_statement::get_cursor_by_ref(THD *thd,
+                                            const sp_rcontext_addr &ref,
+                                            bool for_open) const
+{
+  Field *field= ref.rcontext_handler()->get_variable(thd, ref.offset())->field;
+  return thd->statement_cursors()->get_cursor_by_ref(thd, field, for_open);
+}
 
 ///////////////////////////////////////////////////////////////////////////
 // sp_rcontext implementation.
@@ -433,6 +485,14 @@ bool Item_field_row::row_create_items(THD *thd, List<Spvar_definition> *list)
 }
 
 
+void sp_rcontext::expr_event_handler(THD *thd, expr_event_t event,
+                                     uint start, uint end)
+{
+  if (m_var_table)
+    m_var_table->expr_event_handler(thd, event, start, end);
+}
+
+
 bool sp_rcontext::set_return_value(THD *thd, Item **return_value_item)
 {
   DBUG_ASSERT(m_return_value_fld);
@@ -725,8 +785,9 @@ bool sp_rcontext::set_case_expr(THD *thd, int case_expr_id,
       m_case_expr_holders[case_expr_id]->result_type() !=
         case_expr_item->result_type())
   {
-    m_case_expr_holders[case_expr_id]=
-      create_case_expr_holder(thd, case_expr_item);
+    if (!(m_case_expr_holders[case_expr_id]=
+          create_case_expr_holder(thd, case_expr_item)))
+      return true; // A data type not allowed in CASE WHEN, or EOM
   }
 
   m_case_expr_holders[case_expr_id]->store(case_expr_item);
@@ -752,7 +813,7 @@ bool sp_rcontext::set_case_expr(THD *thd, int case_expr_id,
    0 in case of success, -1 otherwise
 */
 
-int sp_cursor::open(THD *thd)
+int sp_cursor::open(THD *thd, bool check_open_cursor_counter)
 {
   if (server_side_cursor)
   {
@@ -761,8 +822,18 @@ int sp_cursor::open(THD *thd)
                MYF(0));
     return -1;
   }
+
+  if (check_open_cursor_counter &&
+      thd->open_cursors_counter() >= thd->variables.max_open_cursors)
+  {
+    my_error(ER_TOO_MANY_OPEN_CURSORS, MYF(0),
+             thd->variables.max_open_cursors);
+    return -1;
+  }
+
   if (mysql_open_cursor(thd, &result, &server_side_cursor))
     return -1;
+  thd->open_cursors_counter_increment();
   return 0;
 }
 
@@ -775,6 +846,7 @@ int sp_cursor::close(THD *thd)
                MYF(0));
     return -1;
   }
+  thd->open_cursors_counter_decrement();
   sp_cursor_statistics::reset();
   destroy();
   return 0;

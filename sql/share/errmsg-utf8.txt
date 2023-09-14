@@ -12292,3 +12292,13 @@ ER_VECTOR_FORMAT_INVALID
         eng "Invalid vector format at offset: %d for '%-.100s'. Must be a valid JSON array of numbers."
 ER_PSEUDO_THREAD_ID_OVERWRITE
         eng "Pseudo thread id should not be modified by the client as it will be overwritten"
+ER_VEC_DISTANCE_TYPE
+        eng "Reserved (11.8)"
+WARN_INDEX_HINTS_IGNORED
+        eng "Reserved (11.8)"
+ER_SIGNAL_SKIP_ROW_FROM_TRIGGER
+        eng "Reserved (11.8)"
+ER_TEMPORARY_TABLES_PREVENT_SWITCH_GTID_DOMAIN_ID
+	eng "Reserved (12.0)"
+ER_TOO_MANY_OPEN_CURSORS
+        eng "Too many open cursors; max %u cursors allowed"

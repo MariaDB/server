@@ -1,0 +1,127 @@
+#
+# MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+#
+#
+# Unary operations
+#
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+SELECT c0 IS NULL AS c0n1;
+OPEN c0 FOR SELECT 1;
+SELECT c0 IS NULL AS c0n2;
+CLOSE c0;
+SELECT c0 IS NULL AS c0n3;
+SET c0=NULL;
+SELECT c0 IS NULL AS c0n3;
+END;
+$$
+c0n1
+1
+c0n2
+0
+c0n3
+0
+c0n3
+1
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+SELECT ROUND(c0);
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'round'
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+SELECT FLOOR(c0);
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'floor'
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+SELECT ABS(c0);
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'abs'
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+SELECT -c0;
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation '-'
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+SELECT NOT c0;
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'not'
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+SELECT c0 COLLATE latin1_bin;
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'collate'
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+SELECT IF (c, 'TRUE', 'FALSE'); -- can_return_bool()
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'if'
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+SELECT CASE WHEN c THEN 'TRUE' ELSE 'FALSE' END;
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'case'
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+SELECT BIT_COUNT(c); -- can_return_int()
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'bit_count'
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+SELECT FROM_UNIXTIME(c); -- can_return_decimal
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'from_unixtime'
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+SELECT SEC_TO_TIME(c); -- can_return_decimal
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'sec_to_time'
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+SELECT LN(c); -- can_return_real
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'ln'
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+SELECT OCTET_LENGTH(c); -- can_return_str
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'octet_length'
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+SELECT COERCIBILITY(c); -- can_return_str
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'coercibility'
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+SELECT LAST_DAY(c); -- can_return_date
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'last_day'
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+SELECT SECOND(c); -- can_return_time
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'second'
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+SELECT EXTRACT(SECOND FROM c); -- can_return_extract_source
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'extract(second)'
