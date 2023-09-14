@@ -2762,13 +2762,26 @@ remove:
 			      not_full_n_used - descr_n_used);
 	}
 
+	std::vector<uint8_t> going_to_free;
+	static_assert(FSP_EXTENT_SIZE_MIN == 256, "compatibility");
+	static_assert(FSP_EXTENT_SIZE_MAX == 64, "compatibility");
+
 	for (uint32_t i = 0; i < FSP_EXTENT_SIZE; i++) {
 		if (!xdes_is_free(descr, i)) {
-			buf_page_free(space, first_page_in_extent + i, mtr);
+			going_to_free.emplace_back(uint8_t(i));
 		}
 	}
 
-	return fsp_free_extent(space, page, mtr);
+	if (dberr_t err = fsp_free_extent(space, page, mtr)) {
+		return err;
+	}
+
+	for (uint32_t i : going_to_free) {
+		mtr->free(*space, first_page_in_extent + i);
+		buf_page_free(space, first_page_in_extent + i, mtr);
+	}
+
+	return DB_SUCCESS;
 }
 
 /** Frees part of a segment. This function can be used to free
