@@ -1,0 +1,13 @@
+--echo #
+--echo # test cleanup of sys_var classes
+--echo #
+
+--let $long_string=`select repeat('.', 2001)`
+--error ER_WRONG_STRING_LENGTH
+eval set global init_connect="$long_string";
+--error ER_WRONG_STRING_LENGTH
+eval set global ft_boolean_syntax="$long_string";
+
+--echo #
+--echo # end of test mdev_15935
+--echo #
