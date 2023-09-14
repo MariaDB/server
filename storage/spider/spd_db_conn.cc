@@ -2091,6 +2091,17 @@ int spider_db_refetch_for_item_sum_funcs(
   DBUG_RETURN(0);
 }
 
+/**
+  Directly add field values in a row to aggregate items.
+
+  Iterate over the result row fields and aggregate items, and call
+  direct_add on the latter with the values from the former.
+
+  @param  row     The result row
+  @param  spider  The spider handler
+  @retval 0       Success
+  @retval nonzero Failure
+*/
 int spider_db_fetch_for_item_sum_funcs(
   SPIDER_DB_ROW *row,
   ha_spider *spider
@@ -2111,6 +2122,17 @@ int spider_db_fetch_for_item_sum_funcs(
   DBUG_RETURN(0);
 }
 
+/**
+  Directly add one field of a row to an item for direct aggregate.
+
+  Call direct_add on an Item_sum with the value stored in a field.
+
+  @param  row       A row whose `row` points to the field to be added
+  @param  item_sum  The Item_sum to be added the field
+  @param  ha_spider The spider handler
+  @retval 0         Success
+  @retval nonzero   Failure
+*/
 int spider_db_fetch_for_item_sum_func(
   SPIDER_DB_ROW *row,
   Item_sum *item_sum,
@@ -2239,6 +2261,7 @@ int spider_db_fetch_for_item_sum_func(
     default:
       DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
   }
+  spider->wide_handler->trx->direct_aggregate_count++;
   DBUG_RETURN(0);
 }
 

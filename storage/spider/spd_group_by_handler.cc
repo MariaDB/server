@@ -1231,6 +1231,8 @@ int spider_group_by_handler::init_scan()
   spider->init_index_handler = FALSE;
   spider->use_spatial_index = FALSE;
   result_list->check_direct_order_limit = FALSE;
+  /* Disable direct aggregate when GBH is on (MDEV-29502). */
+  result_list->direct_aggregate = FALSE;
   spider->select_column_mode = 0;
   spider->search_link_idx = fields->get_ok_link_idx();
   spider->result_link_idx = spider->search_link_idx;
