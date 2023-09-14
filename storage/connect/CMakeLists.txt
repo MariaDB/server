@@ -447,7 +447,9 @@ IF(CONNECT_WITH_JDBC AND JAVA_FOUND AND JNI_FOUND)
   get_target_property(_jarFile JdbcInterface JAR_FILE)
   INSTALL(FILES
     ${_jarFile} DESTINATION ${INSTALL_MYSQLSHAREDIR} COMPONENT connect-engine-jdbc)
-  SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} connect-engine-jdbc PARENT_SCOPE)
+  IF(CPACK_COMPONENTS_ALL)
+    SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} connect-engine-jdbc PARENT_SCOPE)
+  ENDIF()
   SET(CPACK_RPM_connect-engine-jdbc_PACKAGE_REQUIRES "jre-headless >= 1.8 MariaDB-connect-engine" PARENT_SCOPE)
   #how to make it meaningful? SUGGESTS? (mariadb-java-client or mysql-connector-java) ?
   #SET(CPACK_RPM_connect-engine-jdbc_PACKAGE_RECOMMENDS "mariadb-java-client postgresql-jdbc mysql-connector-java" PARENT_SCOPE)
