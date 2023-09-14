@@ -248,6 +248,7 @@ SYMBOL symbols[] = {
   { "FETCH",            SYM(FETCH_SYM)},
   { "FIELDS",		SYM(COLUMNS)},
   { "FILE",		SYM(FILE_SYM)},
+  { "FINGERPRINT",	SYM(FINGERPRINT_SYM)},
   { "FIRST",		SYM(FIRST_SYM)},
   { "FIXED",		SYM(FIXED_SYM)},
   { "FLOAT",		SYM(FLOAT_SYM)},

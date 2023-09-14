@@ -185,7 +185,7 @@ public:
   USER_RESOURCES user_resource;
   enum SSL_type ssl_type;
   uint password_errors;
-  const char *ssl_cipher, *x509_issuer, *x509_subject;
+  const char *ssl_cipher, *x509_issuer, *x509_subject, *x509_fingerprint;
   LEX_CSTRING default_rolename;
   struct AUTH { LEX_CSTRING plugin, auth_string, salt; } *auth;
   uint nauth;
@@ -223,6 +223,7 @@ public:
     dst->ssl_cipher= safe_strdup_root(root, ssl_cipher);
     dst->x509_issuer= safe_strdup_root(root, x509_issuer);
     dst->x509_subject= safe_strdup_root(root, x509_subject);
+    dst->x509_fingerprint= safe_strdup_root(root, x509_fingerprint);
     dst->auth= dauth;
     for (uint i=0; i < nauth; i++, dauth++)
     {
@@ -919,6 +920,8 @@ class User_table: public Grant_table_base
   virtual int set_x509_issuer (const char *s, size_t l) const = 0;
   virtual const char* get_x509_subject (MEM_ROOT *root) const = 0;
   virtual int set_x509_subject (const char *s, size_t l) const = 0;
+  virtual const char* get_x509_fingerprint (MEM_ROOT *root) const = 0;
+  virtual int set_x509_fingerprint (const char *s, size_t l) const = 0;
   virtual longlong get_max_questions () const = 0;
   virtual int set_max_questions (longlong x) const = 0;
   virtual longlong get_max_updates () const = 0;
@@ -1290,6 +1293,18 @@ class User_table_tabular: public User_table
     }
     return 1;
   }
+  const char* get_x509_fingerprint (MEM_ROOT *root) const
+  {
+    Field *f= get_field(end_priv_columns + 14, MYSQL_TYPE_BLOB);
+    return f ? ::get_field(root,f) : 0;
+  }
+  int set_x509_fingerprint (const char *s, size_t l) const
+  {
+    if (Field *f= get_field(end_priv_columns + 14, MYSQL_TYPE_BLOB))
+      return f->store(s, l, &my_charset_latin1);
+    else
+      return 1;
+  }
 
   virtual ~User_table_tabular() = default;
  private:
@@ -1642,6 +1657,10 @@ class User_table_json: public User_table
   { return unsafe_str(get_str_value(root, "x509_subject")); }
   int set_x509_subject (const char *s, size_t l) const
   { return set_str_value("x509_subject", s, l); }
+  const char* get_x509_fingerprint (MEM_ROOT *root) const
+  { return unsafe_str(get_str_value(root, "x509_fingerprint")); }
+  int set_x509_fingerprint (const char *s, size_t l) const
+  { return set_str_value("x509_fingerprint", s, l); }
   longlong get_max_questions () const
   { return get_int_value("max_questions"); }
   int set_max_questions (longlong x) const
@@ -2699,6 +2718,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
       user.ssl_cipher=   user_table.get_ssl_cipher(&acl_memroot);
       user.x509_issuer=  safe_str(user_table.get_x509_issuer(&acl_memroot));
       user.x509_subject= safe_str(user_table.get_x509_subject(&acl_memroot));
+      user.x509_fingerprint= safe_str(user_table.get_x509_fingerprint(&acl_memroot));
       user.user_resource.questions= (uint)user_table.get_max_questions();
       user.user_resource.updates= (uint)user_table.get_max_updates();
       user.user_resource.conn_per_hour= (uint)user_table.get_max_connections();
@@ -3520,6 +3540,8 @@ static int acl_user_update(THD *thd, ACL_USER *acl_user, uint nauth,
                                             safe_str(options.x509_issuer.str));
     acl_user->x509_subject= safe_strdup_root(&acl_memroot,
                                              safe_str(options.x509_subject.str));
+    acl_user->x509_fingerprint= safe_strdup_root(&acl_memroot,
+                                             safe_str(options.x509_fingerprint.str));
   }
   if (options.account_locked != ACCOUNTLOCK_UNSPECIFIED)
     acl_user->account_locked= options.account_locked == ACCOUNTLOCK_LOCKED;
@@ -4835,6 +4857,7 @@ static int replace_user_table(THD *thd, const User_table &user_table,
       user_table.set_ssl_cipher("", 0);
       user_table.set_x509_issuer("", 0);
       user_table.set_x509_subject("", 0);
+      user_table.set_x509_fingerprint("", 0);
       break;
     case SSL_TYPE_SPECIFIED:
       user_table.set_ssl_type(lex->account_options.ssl_type);
@@ -4853,6 +4876,11 @@ static int replace_user_table(THD *thd, const User_table &user_table,
                                     lex->account_options.x509_subject.length);
       else
         user_table.set_x509_subject("", 0);
+      if (lex->account_options.x509_fingerprint.str)
+        user_table.set_x509_fingerprint(lex->account_options.x509_fingerprint.str,
+                                    lex->account_options.x509_fingerprint.length);
+      else
+        user_table.set_x509_fingerprint("", 0);
       break;
     }
 
@@ -7106,6 +7134,7 @@ static bool has_auth(LEX_USER *user, LEX *lex)
          lex->account_options.ssl_cipher.str ||
          lex->account_options.x509_issuer.str ||
          lex->account_options.x509_subject.str ||
+         lex->account_options.x509_fingerprint.str ||
          lex->account_options.specified_limits;
 }
 
@@ -9200,6 +9229,15 @@ static void add_user_parameters(THD *thd, String *result, ACL_USER* acl_user,
         result->append(' ');
       result->append(STRING_WITH_LEN("CIPHER '"));
       result->append(acl_user->ssl_cipher,strlen(acl_user->ssl_cipher),
+                    system_charset_info);
+      result->append('\'');
+    }
+    if (acl_user->x509_fingerprint[0])
+    {
+      if (ssl_options++)
+        result->append(' ');
+      result->append(STRING_WITH_LEN("FINGERPRINT X'"));
+      result->append(acl_user->x509_fingerprint,strlen(acl_user->x509_fingerprint),
                     system_charset_info);
       result->append('\'');
     }
@@ -14223,12 +14261,65 @@ static bool acl_check_ssl(THD *thd, const ACL_USER *acl_user)
         return 1;
       }
     }
-    if (!acl_user->x509_issuer[0] && !acl_user->x509_subject[0])
+    if (!acl_user->x509_issuer[0] && !acl_user->x509_subject[0] &&
+        !acl_user->x509_fingerprint[0])
       return 0; // all done
 
     /* Prepare certificate (if exists) */
     if (!(cert= SSL_get_peer_certificate(ssl)))
       return 1;
+
+    /* Check client certificate finger print */
+    if (acl_user->x509_fingerprint[0])
+    {
+      char fp[EVP_MAX_MD_SIZE];
+      uint fp_len= EVP_MAX_MD_SIZE;
+      char *ofs= (char *)acl_user->x509_fingerprint;
+      uint hash_len= (uint)strlen(acl_user->x509_fingerprint);
+      const EVP_MD *hash_type;
+
+      /* Depending on the length of the fingerprint we need
+         to choose the right hash function. */
+      if (hash_len == 56)
+        hash_type= EVP_sha224();
+      else if (hash_len == 64)
+        hash_type= EVP_sha256();
+      else if (hash_len == 96)
+        hash_type= EVP_sha384();
+      else if (hash_len == 128)
+        hash_type= EVP_sha512();
+      else {
+        if (global_system_variables.log_warnings)
+          sql_print_information("X509 error: Invalid hash size for fingerprint");
+        X509_free(cert);
+        return 1;
+      }
+
+      if (!X509_digest(cert, hash_type, (unsigned char *)fp, &fp_len) ||
+          (fp_len * 2 != hash_len))
+      {
+        if (global_system_variables.log_warnings)
+          sql_print_information("X509 error: Couldn't get fingerprint "
+                                "from client certificate");
+        X509_free(cert);
+        return 1;
+      }
+
+      /* compare hashes */
+      for (char *tmp= &fp[0]; tmp < &fp[0] + fp_len; tmp++, ofs+= 2)
+      {
+        if ((char)((hexchar_to_int(ofs[0]) << 4) +
+            hexchar_to_int(ofs[1])) != tmp[0])
+        {
+          if (global_system_variables.log_warnings)
+            sql_print_information("X509 fingerprint mismatch.");
+          X509_free(cert);
+          return 1;
+        }
+      }
+    }
+
+
     /* If X509 issuer is specified, we check it... */
     if (acl_user->x509_issuer[0])
     {
