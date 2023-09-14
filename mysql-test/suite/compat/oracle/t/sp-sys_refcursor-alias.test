@@ -1,0 +1,192 @@
+SET sql_mode=ORACLE;
+
+# Helper functions and packages
+--disable_query_log
+--source include/dbms_output.inc
+--source include/bool_to_char.inc
+--enable_query_log
+
+--echo #
+--echo # MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+--echo #
+
+
+--echo #
+--echo # Aliasing
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p1(task VARCHAR) AS
+  c0 SYS_REFCURSOR;
+  c1 SYS_REFCURSOR;
+  v0 INT;
+  v1 INT;
+BEGIN
+  OPEN c0 FOR SELECT 100 FROM DUAL UNION SELECT 101 FROM DUAL;
+  c1:= c0;
+  FETCH c0 INTO v0; -- fetch 100
+  FETCH c1 INTO v1; -- fetch 101
+  DBMS_OUTPUT.PUT_LINE('actual=' || v0 || ' ' || v1 || ' ' || 'expected=100 101');
+  IF task LIKE '%close_c0%' THEN
+    CLOSE c0;
+  END IF;
+  DBMS_OUTPUT.PUT_LINE('c0%ISOPEN=' || bool_to_char(c0%ISOPEN) || ' ' ||
+                       'c1%ISOPEN=' || bool_to_char(c1%ISOPEN));
+  OPEN c1 FOR SELECT 200 FROM DUAL UNION SELECT 201 FROM DUAL;
+  FETCH c0 INTO v0; -- fetch 200 from the new OPEN c1
+  FETCH c1 INTO v1; -- fetch 201 from the new OPEN c1
+  DBMS_OUTPUT.PUT_LINE('actual=' || v0 || ' ' || v1 || ' ' || 'expected=200 201');
+  IF task LIKE '%close_c1%' THEN
+    CLOSE c1;
+  END IF;
+  DBMS_OUTPUT.PUT_LINE('c0%ISOPEN=' || bool_to_char(c0%ISOPEN) || ' ' ||
+                       'c1%ISOPEN=' || bool_to_char(c1%ISOPEN));
+END;
+/
+DELIMITER ;/
+CALL p1('');
+CALL p1('close_c0');
+CALL p1('close_c1');
+CALL p1('close_c0 close_c1');
+DROP PROCEDURE p1;
+
+
+DELIMITER /;
+CREATE PROCEDURE p1(task VARCHAR) AS
+  c0 SYS_REFCURSOR;
+  c1 SYS_REFCURSOR;
+  v INT;
+BEGIN
+  OPEN c0 FOR SELECT 1 FROM DUAL;
+  CLOSE c0;
+  CASE task
+    WHEN 'c0:=c1' THEN c0:=c1; -- Expect: Cursor is not open
+    WHEN 'c1:=c0' THEN c1:=c0; -- Expect: v is set to 2
+    ELSE NULL;                 -- Expect: Cursor is not open
+  END CASE;
+  OPEN c1 FOR SELECT 2 FROM DUAL;
+  FETCH c0 INTO v;
+  CLOSE c1;
+  DBMS_OUTPUT.PUT_LINE('v=' || v);
+END;
+/
+DELIMITER ;/
+--error ER_SP_CURSOR_NOT_OPEN
+CALL p1('');
+--error ER_SP_CURSOR_NOT_OPEN
+CALL p1('c0:=c1');
+CALL p1('c1:=c0');
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Aliasing: different variable scope
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p1 AS
+  c0 SYS_REFCURSOR;
+  v INT;
+BEGIN
+  DECLARE
+    c1 SYS_REFCURSOR;
+  BEGIN
+    OPEN c1 FOR SELECT 1 AS c FROM DUAL;
+    c0:= c1;
+  END;
+  -- Although c1 who opened the cursor goes out of the scope here,
+  -- the alias still works:
+  FETCH c0 INTO v;
+  DBMS_OUTPUT.PUT_LINE('v='||v);
+END;
+/
+DELIMITER ;/
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # A comprex script with many OPEN, FETCH, CLOSE statements
+--echo #
+
+DELIMITER /;
+
+CREATE OR REPLACE PROCEDURE p1 AS
+  c0 SYS_REFCURSOR;
+  c1 SYS_REFCURSOR;
+  v0 VARCHAR(32);
+  v1 VARCHAR(32);
+BEGIN
+  DBMS_OUTPUT.PUT_LINE('test1');
+  OPEN c0 FOR SELECT '10' FROM DUAL UNION SELECT '11' FROM DUAL;
+  c1:= c0;
+  DBMS_OUTPUT.PUT_LINE('c0%ISOPEN=' || bool_to_char(c0%ISOPEN) || ' ' || 'c1%ISOPEN=' || bool_to_char(c1%ISOPEN));
+
+  DBMS_OUTPUT.PUT_LINE('test1a');
+  CLOSE c1;
+  DBMS_OUTPUT.PUT_LINE('c0%ISOPEN=' || bool_to_char(c0%ISOPEN) || ' ' || 'c1%ISOPEN=' || bool_to_char(c1%ISOPEN));
+  BEGIN
+      FETCH c0 INTO v0;
+  EXCEPTION
+      WHEN OTHERS THEN v0:='<FETCH c0 FAILED>';
+  END;
+  BEGIN
+      FETCH c1 INTO v1;
+  EXCEPTION
+      WHEN OTHERS THEN v1:='<FETCH c1 FAILED>';
+  END;
+  DBMS_OUTPUT.PUT_LINE('v0=' || v0 || ' v1=' || v1);
+
+  DBMS_OUTPUT.PUT_LINE('test2:');
+  OPEN c1 FOR SELECT '20' FROM DUAL UNION SELECT '21' FROM DUAL UNION SELECT '22' FROM DUAL;
+  DBMS_OUTPUT.PUT_LINE('c0%ISOPEN=' || bool_to_char(c0%ISOPEN) || ' ' || 'c1%ISOPEN=' || bool_to_char(c1%ISOPEN));
+  BEGIN
+      FETCH c0 INTO v0;
+  EXCEPTION
+      WHEN OTHERS THEN v0:='<FETCH c0 FAILED>';
+  END;
+  BEGIN
+      FETCH c1 INTO v1;
+  EXCEPTION
+      WHEN OTHERS THEN v1:='<FETCH c1 FAILED>';
+  END;
+  DBMS_OUTPUT.PUT_LINE('v0=' || v0 || ' v1=' || v1);
+
+  DBMS_OUTPUT.PUT_LINE('test2a');
+  CLOSE c1;
+  DBMS_OUTPUT.PUT_LINE('c0%ISOPEN=' || bool_to_char(c0%ISOPEN) || ' ' || 'c1%ISOPEN=' ||bool_to_char(c1%ISOPEN));
+  BEGIN
+      FETCH c0 INTO v0;
+  EXCEPTION
+      WHEN OTHERS THEN v0:='<FETCH c0 FAILED>';
+  END;
+  BEGIN
+      FETCH c1 INTO v1;
+  EXCEPTION
+      WHEN OTHERS THEN v1:='<FETCH c1 FAILED>';
+  END;
+  DBMS_OUTPUT.PUT_LINE('v0=' || v0 || ' v1=' || v1);
+
+  DBMS_OUTPUT.PUT_LINE('test3');
+  OPEN c0 FOR SELECT '30' FROM DUAL UNION SELECT '31' FROM DUAL;
+  DBMS_OUTPUT.PUT_LINE('c0%ISOPEN=' || bool_to_char(c0%ISOPEN) || ' ' || 'c1%ISOPEN=' ||bool_to_char(c1%ISOPEN));
+  FETCH c0 INTO v0;
+  FETCH c1 INTO v1;
+  DBMS_OUTPUT.PUT_LINE('v0=' || v0 || ' v1=' || v1);
+
+  DBMS_OUTPUT.PUT_LINE('test4');
+  OPEN c0 FOR SELECT 'c0-40' FROM DUAL UNION SELECT 'c0-41' FROM DUAL;
+  OPEN c1 FOR SELECT 'c1-40' FROM DUAL UNION SELECT 'c1-41' FROM DUAL;
+  FETCH c0 INTO v0;
+  FETCH c1 INTO v1;
+  DBMS_OUTPUT.PUT_LINE('v0=' || v0 || ' v1=' || v1);
+
+END;
+/
+DELIMITER ;/
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DROP PACKAGE DBMS_OUTPUT;
+DROP FUNCTION bool_to_char;

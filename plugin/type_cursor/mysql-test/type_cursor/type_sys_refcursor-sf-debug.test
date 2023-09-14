@@ -1,0 +1,371 @@
+--source include/have_debug.inc
+
+--echo #
+--echo # MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+--echo #
+
+--disable_query_log
+--disable_result_log
+--source type_sys_refcursor-helper_routines-debug-create.inc
+--enable_result_log
+--enable_query_log
+
+
+--echo #
+--echo # LAST_VALUE() cleans ref counters
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE p2c0 SYS_REFCURSOR;
+  CALL show_cursor_and_refs('p2-0', CAST(p2c0 AS CHAR), 0, 5);
+  OPEN p2c0 FOR SELECT 1;
+  CALL show_cursor_and_refs('p2-1', CAST(p2c0 AS CHAR), 0, 5);
+  SET @log= '';
+  SELECT last_value(ff1(p2c0), ff1(p2c0), ff1(p2c0)) AS lv;
+  SELECT @log;
+  CALL show_cursor_and_refs('p2-2', CAST(p2c0 AS CHAR), 0, 5);
+END;
+/
+DELIMITER ;/
+CALL p2;
+CALL show_cursor_and_refs('/p2', '-', 0, 5);
+DROP PROCEDURE p2;
+
+
+--echo #
+--echo # A cursor on a SELECT returning a local SP variable works in the caller
+--echo #
+
+#
+# Although ff0's sp_rcontext is already destroyed when FETCH is executed in p2,
+# the cursor opened by `SELECT a` in ff0 still works
+# because the cursor was materialized into a temporary table.
+#
+
+DELIMITER /;
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE c0 SYS_REFCURSOR;
+  DECLARE v INT;
+  CALL show_cursor_and_refs('p2-0', CAST(c0 AS CHAR), 0, 5);
+  SET @log= '';
+  SET c0= ff0();
+  SELECT @log;
+  FETCH c0 INTO v;
+  SELECT v;
+  CALL show_cursor_and_refs('p2-1', CAST(c0 AS CHAR), 0, 5);
+END;
+/
+DELIMITER ;/
+CALL p2();
+DROP PROCEDURE p2;
+
+
+--echo #
+--echo # A function returning on error still clears ref counters
+--echo #
+
+--echo # RETURN
+
+DELIMITER /;
+CREATE FUNCTION f1() RETURNS SYS_REFCURSOR
+BEGIN
+  DECLARE c0 SYS_REFCURSOR;
+  DECLARE v INT;
+  OPEN c0 FOR SELECT 1;
+  FETCH c0 INTO v;
+  FETCH c0 INTO v; -- This raises 'No data' error
+  RETURN c0;
+END;
+/
+CREATE FUNCTION f2() RETURNS SYS_REFCURSOR
+BEGIN
+  DECLARE c0 SYS_REFCURSOR;
+  DECLARE CONTINUE HANDLER FOR SQLSTATE '02000' RETURN NULL; -- Handle 'No data'
+  SET c0= f1();
+  RETURN c0;
+END;
+/
+DELIMITER ;/
+# CURSOR_REF_COUNT(0) is expected to be 0
+CALL show_cursor_and_refs('/f2', CAST(f2() AS CHAR), 0, 4);
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+
+
+--echo # INOUT parameter
+DELIMITER /;
+CREATE FUNCTION f1(INOUT c0 SYS_REFCURSOR) RETURNS SYS_REFCURSOR
+BEGIN
+  DECLARE v INT;
+  OPEN c0 FOR SELECT 1;
+  FETCH c0 INTO v;
+  FETCH c0 INTO v; -- This raises 'No data' error
+  RETURN c0;
+END;
+/
+CREATE FUNCTION f2() RETURNS SYS_REFCURSOR
+BEGIN
+  DECLARE c0 SYS_REFCURSOR;
+  DECLARE CONTINUE HANDLER FOR SQLSTATE '02000' RETURN NULL; -- Handle 'No data'
+  DO f1(c0);
+  RETURN c0;
+END;
+/
+DELIMITER ;/
+# CURSOR_REF_COUNT(0) is expected to be 0
+CALL show_cursor_and_refs('/f2', CAST(f2() AS CHAR), 0, 4);
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+
+
+--echo # OUT parameter
+DELIMITER /;
+CREATE FUNCTION f1(OUT c0 SYS_REFCURSOR) RETURNS SYS_REFCURSOR
+BEGIN
+  DECLARE v INT;
+  OPEN c0 FOR SELECT 1;
+  FETCH c0 INTO v;
+  FETCH c0 INTO v; -- This raises 'No data' error
+  RETURN c0;
+END;
+/
+CREATE FUNCTION f2() RETURNS SYS_REFCURSOR
+BEGIN
+  DECLARE c0 SYS_REFCURSOR;
+  DECLARE CONTINUE HANDLER FOR SQLSTATE '02000' RETURN NULL; -- Handle 'No data'
+  DO f1(c0);
+  RETURN c0;
+END;
+/
+DELIMITER ;/
+# CURSOR_REF_COUNT(0) is expected to be 0
+CALL show_cursor_and_refs('/f2', CAST(f2() AS CHAR), 0, 4);
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+
+
+--echo #
+--echo # IN param + OPEN in p2 + multuple assignments
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE c SYS_REFCURSOR;
+  CALL show_cursor_and_refs('p2-1', CAST(c AS CHAR), 0, 1);
+  OPEN c FOR SELECT 1;
+  CALL show_cursor_and_refs('p2-2', CAST(c AS CHAR), 0, 1);
+
+  SET @log='';
+  SET c= ff1(c);
+  SELECT @log;
+  CALL show_cursor_and_refs('p2-3', CAST(c AS CHAR), 0, 1);
+
+  SET @log='';
+  SET c= ff1(c);
+  SELECT @log;
+  CALL show_cursor_and_refs('p2-4', CAST(c AS CHAR), 0, 1);
+
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p2;
+CALL p2;
+CALL show_cursor_and_refs('/p2','-', 0, 4);
+DROP PROCEDURE p2;
+
+
+--echo #
+--echo # SF + no-param + OPEN in f0
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p2(num INT)
+BEGIN
+  DECLARE c SYS_REFCURSOR;
+  CALL show_cursor_and_refs('p2-0', CAST(c AS CHAR), 0, 1);
+
+  FOR i IN 1..num
+  DO
+    SET @log= '';
+    SET c= ff0();
+    SELECT @log;
+    CALL show_cursor_and_refs('p2-1', CAST(c AS CHAR), 0, 4);
+
+  END FOR;
+
+  CALL show_cursor_and_refs('p2-e', CAST(c AS CHAR), 0, 4);
+END;
+/
+DELIMITER ;/
+CALL p2(1);
+CALL show_cursor_and_refs('/p2', '-', 0, 4);
+CALL p2(4);
+CALL show_cursor_and_refs('/p2', '-', 0, 4);
+DROP PROCEDURE p2;
+
+
+--echo #
+--echo # SF + no-param + OPEN in p2 + OPEN in f0
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE c SYS_REFCURSOR;
+  CALL show_cursor_and_refs('p2-0', CAST(c AS CHAR), 0, 2);
+
+  OPEN c FOR SELECT 1;
+  CALL show_cursor_and_refs('p2-1', CAST(c AS CHAR), 0, 2);
+
+  SET @log= '';
+  SET c= ff0();
+  SELECT @log;
+  CALL show_cursor_and_refs('p2-2', CAST(c AS CHAR), 0, 2);
+END;
+/
+DELIMITER ;/
+CALL p2();
+CALL show_cursor_and_refs('/p2', '-', 0, 4);
+DROP PROCEDURE p2;
+
+
+--echo #
+--echo # SF + IN param + OPEN in p2
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE c SYS_REFCURSOR;
+  CALL show_cursor_and_refs('p2-0', CAST(c AS CHAR), 0, 2);
+  OPEN c FOR SELECT 1;
+  CALL show_cursor_and_refs('p2-1', CAST(c AS CHAR), 0, 2);
+
+  SET @log= '';
+  SET c= ff1(c);
+  SELECT @log;
+  CALL show_cursor_and_refs('p2-2', CAST(c AS CHAR), 0, 2);
+END;
+/
+DELIMITER ;/
+CALL p2();
+CALL show_cursor_and_refs('/p2', '-', 0, 4);
+DROP PROCEDURE p2;
+
+
+DELIMITER /;
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE c SYS_REFCURSOR;
+  CALL show_cursor_and_refs('p2-0', CAST(c AS CHAR), 0, 2);
+  OPEN c FOR SELECT 1;
+  CALL show_cursor_and_refs('p2-1', CAST(c AS CHAR), 0, 2);
+
+  SET @log= '';
+  SET c= ff1(ff1(c));
+  SELECT @log;
+  CALL show_cursor_and_refs('p2-2', CAST(c AS CHAR), 0, 2);
+END;
+/
+DELIMITER ;/
+CALL p2();
+CALL show_cursor_and_refs('/p2', '-', 0, 4);
+DROP PROCEDURE p2;
+
+
+DELIMITER /;
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE c SYS_REFCURSOR;
+  CALL show_cursor_and_refs('p2-0', CAST(c AS CHAR), 0, 2);
+  OPEN c FOR SELECT 1;
+  CALL show_cursor_and_refs('p2-1', CAST(c AS CHAR), 0, 2);
+
+  SET @log= '';
+  SET c= ff1(ff1(ff1(ff1(ff1(c)))));
+  SELECT @log;
+  CALL show_cursor_and_refs('p2-2', CAST(c AS CHAR), 0, 2);
+END;
+/
+DELIMITER ;/
+CALL p2();
+CALL show_cursor_and_refs('/p2', '-', 0, 4);
+DROP PROCEDURE p2;
+
+
+--echo #
+--echo # COALESCE + OPEN in p2
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE c SYS_REFCURSOR;
+  CALL show_cursor_and_refs('p2-0', CAST(c AS CHAR), 0, 2);
+  OPEN c FOR SELECT 1;
+  CALL show_cursor_and_refs('p2-1', CAST(c AS CHAR), 0, 2);
+
+  SET @log= '';
+  SET c= COALESCE(COALESCE(COALESCE(COALESCE(COALESCE(c)))));
+  CALL show_cursor_and_refs('p2-2', CAST(c AS CHAR), 0, 2);
+END;
+/
+DELIMITER ;/
+CALL p2();
+CALL show_cursor_and_refs('/p2', '-', 0, 4);
+DROP PROCEDURE p2;
+
+
+--echo #
+--echo # SF-COALESCE-MIX + IN param + OPEN in p2
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE c SYS_REFCURSOR;
+  CALL show_cursor_and_refs('p2-0', CAST(c AS CHAR), 0, 5);
+  OPEN c FOR SELECT 1;
+  CALL show_cursor_and_refs('p2-1', CAST(c AS CHAR), 0, 5);
+
+  SET @log= '';
+  SET c= COALESCE(ff1(NULL), ff1(NULL), ff1(NULL), ff1(c));
+  SELECT @log;
+  CALL show_cursor_and_refs('p2-2', CAST(c AS CHAR), 0, 5);
+
+  SET @log= '';
+  SET c= ff1(COALESCE(NULL, ff1(NULL), ff1(NULL), ff1(NULL), ff1(c)));
+  SELECT @log;
+  CALL show_cursor_and_refs('p2-3', CAST(c AS CHAR), 0, 5);
+
+  SET @log= '';
+  SET c= ff1(COALESCE(COALESCE(COALESCE(NULL, ff1(c)))));
+  SELECT @log;
+  CALL show_cursor_and_refs('p2-4', CAST(c AS CHAR), 0, 5);
+
+  SET @log= '';
+  SET c= ff1(ff1(ff1(ff1(COALESCE(NULL, ff1(c))))));
+  SELECT @log;
+  CALL show_cursor_and_refs('p2-5', CAST(c AS CHAR), 0, 5);
+
+  SET @log= '';
+  SET c= ff1(COALESCE(ff1(COALESCE(ff1(COALESCE(NULL, ff1(c)))))));
+  SELECT @log;
+  CALL show_cursor_and_refs('p2-5', CAST(c AS CHAR), 0, 5);
+
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p2;
+CALL p2;
+CALL show_cursor_and_refs('/p2', '-', 0, 4);
+DROP PROCEDURE p2;
+
+
+--disable_query_log
+--source type_sys_refcursor-helper_routines-debug-drop.inc
+--enable_query_log

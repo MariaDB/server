@@ -3417,6 +3417,24 @@ bool Type_handler_bit::
 
 
 /*************************************************************************/
+bool Type_handler_row::Spvar_definition_with_complex_data_types(
+                                                 Spvar_definition *def) const
+{
+  if (def->row_field_definitions())
+  {
+    List_iterator<Spvar_definition> it(*(def->row_field_definitions()));
+    Spvar_definition *member;
+    while ((member= it++))
+    {
+      if (member->type_handler()->is_complex())
+        return true;
+    }
+  }
+  return false;
+}
+
+
+/*************************************************************************/
 bool Type_handler::Key_part_spec_init_primary(Key_part_spec *part,
                                               const Column_definition &def,
                                               const handler *file) const
@@ -5289,6 +5307,15 @@ bool Type_handler::Item_func_hybrid_field_type_get_date_with_warn(THD *thd,
                            item->field_name_or_null(), ltime, mode);
   Item_func_hybrid_field_type_get_date(thd, item, &warn, ltime, mode);
   return ltime->time_type < 0;
+}
+
+
+Type_ref_null
+Type_handler::Item_func_hybrid_field_type_val_ref(THD *thd,
+                                             Item_func_hybrid_field_type *item)
+                                                                          const
+{
+  return Type_ref_null();
 }
 
 

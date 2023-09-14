@@ -1,0 +1,10 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+--echo #
+
+SET default_storage_engine=InnoDB;
+--source type_sys_refcursor-select_for_update.inc
+SET default_storage_engine=DEFAULT;
+

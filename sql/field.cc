@@ -2860,6 +2860,13 @@ void Field_row::sql_type_for_sp_returns(String &res) const
 }
 
 
+void Field_row::expr_event_handler(THD *thd, expr_event_t event)
+{
+  if (m_table)
+    m_table->expr_event_handler(thd, event);
+}
+
+
 /****************************************************************************
   Functions for the Field_decimal class
   This is an number stored as a pre-space (or pre-zero) string

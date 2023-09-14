@@ -1,0 +1,143 @@
+SET sql_mode=ORACLE;
+
+# Helper functions and packages
+--disable_query_log
+--source include/dbms_output.inc
+--source include/bool_to_char.inc
+--enable_query_log
+
+
+--echo #
+--echo #  MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+--echo #
+
+--echo #
+--echo # Hybrid functions
+--echo #
+
+#
+# CASE
+#
+
+DELIMITER /;
+CREATE PROCEDURE p1 AS
+  c0 SYS_REFCURSOR;
+  c1 SYS_REFCURSOR;
+  c2 SYS_REFCURSOR;
+  v INT;
+BEGIN
+  OPEN c1 FOR SELECT 10 FROM DUAL;
+  c2:= CASE WHEN c0 IS NULL THEN c1 ELSE c0 END;
+  FETCH c2 INTO v;
+  DBMS_OUTPUT.PUT_LINE('v=' || v);
+END;
+/
+DELIMITER ;/
+CALL p1;
+DROP PROCEDURE p1;
+
+
+#
+# Oracle style DECODE(switch , when1 , then1 [, when2 , then2]... [, default] )
+#
+
+DELIMITER /;
+CREATE PROCEDURE p1(switch INT) AS
+  c0 SYS_REFCURSOR;
+  c1 SYS_REFCURSOR;
+  c2 SYS_REFCURSOR;
+  c3 SYS_REFCURSOR;
+  c4 SYS_REFCURSOR;
+  cx SYS_REFCURSOR;
+  v INT;
+BEGIN
+  OPEN c0 FOR SELECT 10 FROM DUAL;
+  OPEN c1 FOR SELECT 11 FROM DUAL;
+  OPEN c2 FOR SELECT 12 FROM DUAL;
+  OPEN c3 FOR SELECT 13 FROM DUAL;
+  OPEN c4 FOR SELECT 14 FROM DUAL;
+
+  cx:= DECODE(switch, 0, c0, 1, c1, 2, c2, 3, c3, c4);
+  FETCH cx INTO v;
+  DBMS_OUTPUT.PUT_LINE('v=' || v);
+END;
+/
+DELIMITER ;/
+CALL p1(0);
+CALL p1(1);
+CALL p1(2);
+CALL p1(3);
+CALL p1(4);
+CALL p1(5);
+DROP PROCEDURE p1;
+
+
+#
+# COALESCE
+#
+
+DELIMITER /;
+CREATE PROCEDURE p1 AS
+  c0 SYS_REFCURSOR;
+  c1 SYS_REFCURSOR;
+  c2 SYS_REFCURSOR;
+  v INT;
+BEGIN
+  OPEN c1 FOR SELECT 10 FROM DUAL;
+  c2:= COALESCE(c0,c1);
+  FETCH c2 INTO v;
+  DBMS_OUTPUT.PUT_LINE('v=' || v);
+END;
+/
+DELIMITER ;/
+CALL p1;
+DROP PROCEDURE p1;
+
+
+#
+# IF
+#
+
+DELIMITER /;
+CREATE PROCEDURE p1 AS
+  c0 SYS_REFCURSOR;
+  c1 SYS_REFCURSOR;
+  c2 SYS_REFCURSOR;
+  v INT;
+BEGIN
+  OPEN c1 FOR SELECT 10 FROM DUAL;
+  c2:= IF(false, c0,c1);
+  FETCH c2 INTO v;
+  DBMS_OUTPUT.PUT_LINE('v=' || v);
+END;
+/
+DELIMITER ;/
+CALL p1;
+DROP PROCEDURE p1;
+
+#
+# GREATEST
+#
+DELIMITER /;
+CREATE PROCEDURE p1 AS
+  c0 SYS_REFCURSOR;
+  c1 SYS_REFCURSOR;
+  c2 SYS_REFCURSOR;
+  v INT;
+BEGIN
+  OPEN c1 FOR SELECT 10 FROM DUAL;
+  c2:= GREATEST(c0,c1);
+  FETCH c2 INTO v;
+  DBMS_OUTPUT.PUT_LINE('v=' || v);
+END;
+/
+DELIMITER ;/
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DROP PACKAGE dbms_output;
+DROP FUNCTION bool_to_char;
+
+SET sql_mode=DEFAULT;

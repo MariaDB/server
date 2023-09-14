@@ -1071,6 +1071,17 @@ bool Item::check_type_traditional_scalar(const LEX_CSTRING &opname) const
 }
 
 
+bool Item::check_type_can_return_bool(const LEX_CSTRING &opname) const
+{
+  const Type_handler *handler= type_handler();
+  if (handler->can_return_bool())
+    return false;
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           handler->name().ptr(), opname.str);
+  return true;
+}
+
+
 bool Item::check_type_can_return_int(const LEX_CSTRING &opname) const
 {
   const Type_handler *handler= type_handler();
@@ -1708,6 +1719,8 @@ bool Item_sp_variable::fix_fields_from_item(THD *thd, Item **, const Item *it)
   unsigned_flag= it->unsigned_flag;
   base_flags|= item_base_t::FIXED;
   with_flags|= item_with_t::SP_VAR;
+  if (type_handler()->is_complex())
+    with_flags|= item_with_t::COMPLEX_DATA_TYPE;
   if (thd->lex->current_select && thd->lex->current_select->master_unit()->item)
     thd->lex->current_select->master_unit()->item->with_flags|= item_with_t::SP_VAR;
   collation.set(it->collation.collation, it->collation.derivation);
@@ -1733,6 +1746,14 @@ longlong Item_sp_variable::val_int()
   longlong ret= it->val_int();
   null_value= it->null_value;
   return ret;
+}
+
+
+Type_ref_null Item_sp_variable::val_ref(THD *thd)
+{
+  DBUG_ASSERT(fixed());
+  DBUG_ASSERT(!is_cond());
+  return this_item()->val_ref(thd);
 }
 
 
@@ -3167,6 +3188,7 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
 
   sp_result_field->null_ptr= (uchar *) null_value;
   sp_result_field->null_bit= 1;
+  sp_result_field->set_null(); // SYS_REFCURSOR needs NULL as the initial value
 
   DBUG_RETURN(FALSE);
 }
@@ -3515,6 +3537,14 @@ bool Item_field::val_bool()
   if ((null_value= field->is_null()))
     return 0;
   return field->val_bool();
+}
+
+
+Type_ref_null Item_field::val_ref(THD *thd)
+{
+  DBUG_ASSERT(fixed());
+  DBUG_ASSERT(!is_cond());
+  return field->val_ref(thd);
 }
 
 
@@ -5203,7 +5233,19 @@ Item_param::set_value(THD *thd, sp_rcontext *ctx, Item **it)
     to make sure the next mysql_stmt_execute()
     correctly fetches the value from the client-server protocol,
     using set_param_func().
+
+    We're here in statements like:
+       EXECUTE IMMEDIATE 'CALL proc(?)' USING ps_param;
+    where proc() is a procedure with an OUT/INOUT parameter.
+    At the end of EXECUTE the formal routine parameter (Item_splocal)
+    is copied back to the actual routine parameter, which is "this" and which
+    is later copied back to the prepared statement parameter ps_param.
   */
+  if (!is_null() && with_complex_data_types())
+  {
+    // Destruct the previous value
+    expr_event_handler(thd, expr_event_t::DESTRUCT_DYNAMIC_PARAM);
+  }
   if (arg->save_in_value(thd, &tmp) ||
       set_value(thd, arg, &tmp, arg->type_handler()))
   {

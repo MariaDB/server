@@ -1,0 +1,42 @@
+--source include/have_debug.inc
+
+--echo #
+--echo # MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+--echo #
+
+--echo #
+--echo # SYS_REFCURSOR in packages
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE pkg
+  PROCEDURE p1();
+  PROCEDURE show_body_items();
+END;
+$$
+CREATE PACKAGE BODY pkg
+  DECLARE a, b INT;
+  PROCEDURE p1()
+  BEGIN
+    DECLARE c SYS_REFCURSOR;
+    OPEN c FOR SELECT 1, 2;
+    FETCH c INTO a, b;
+    CLOSE c;
+  END;
+  PROCEDURE show_body_items()
+  BEGIN
+    SELECT a,b;
+  END;
+BEGIN
+  DECLARE c SYS_REFCURSOR;
+  OPEN c FOR SELECT 1, 2;
+  FETCH c INTO a, b;
+  CLOSE c;
+  END;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE pkg.p1;
+SHOW PACKAGE BODY CODE pkg;
+CALL pkg.show_body_items();
+DROP PACKAGE pkg;

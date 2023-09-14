@@ -12310,3 +12310,5 @@ ER_HINTS_INSIDE_VIEWS_NOT_SUPPORTED
         eng "Optimizer hints are not supported inside view definitions"
 ER_WARN_MALFORMED_HINT
         eng "Hint %s is ignored as malformed"
+ER_TOO_MANY_OPEN_CURSORS
+        eng "Too many open cursors; max %u cursors allowed"
