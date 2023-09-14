@@ -57,6 +57,8 @@ class Item_func_hex;
 class Item_hybrid_func;
 class Item_func_min_max;
 class Item_func_hybrid_field_type;
+class Item_func_last_value;
+class Item_func_sp;
 class Item_bool_func2;
 class Item_bool_rowready_func2;
 class Item_func_between;
@@ -160,6 +162,44 @@ scalar_comparison_op_to_lex_cstring(scalar_comparison_op op)
   DBUG_ASSERT(0);
   return LEX_CSTRING{STRING_WITH_LEN("<?>")};
 }
+
+
+enum class expr_event_t : uint32
+{
+  NONE=                          0,
+  RESULT_SET_ROW_FIELD_DESTRUCT= 1 << 0,
+  BUILT_IN_ROUTINE_ARG_DESTRUCT= 1 << 1,
+  SPVAR_RIGHT_HAND_DESTRUCT=     1 << 2,
+  DYNAMIC_PARAM_DESTRUCT=        1 << 3,
+  ALL= 255
+};
+
+static inline constexpr expr_event_t operator&(const expr_event_t a,
+                                               const expr_event_t b)
+{
+  return (expr_event_t) (((uint32) a) & ((uint32) b));
+}
+
+
+class Expr_side_effect_ref_cache
+{
+protected:
+  ULonglong_null m_side_effect_ref;
+public:
+  Expr_side_effect_ref_cache() { }
+  void side_effect_ref_set(const ULonglong_null &ref)
+  {
+    m_side_effect_ref= ref;
+  }
+  const ULonglong_null & side_effect_ref() const
+  {
+    return m_side_effect_ref;
+  }
+  void cleanup()
+  {
+    *this= Expr_side_effect_ref_cache();
+  }
+};
 
 
 class Hasher
@@ -3935,6 +3975,34 @@ public:
   {
     return this;
   }
+
+  /*
+    Returns true if the data type has side effects.
+    For example, SYS_REFCURSOR writes and reads thd->m_session_cursors
+  */
+  virtual bool has_side_effect() const
+  {
+    return false;
+  }
+  virtual void side_effect_attach(THD *thd, ulonglong offset) const
+  { }
+  virtual void side_effect_detach(THD *thd, ulonglong offset) const
+  { }
+  void side_effect_detach(THD *thd, ULonglong_null *ref) const
+  {
+    if (!ref->is_null())
+    {
+      side_effect_detach(thd, ref->value());
+      *ref= ULonglong_null();
+    }
+  }
+  virtual ULonglong_null Item_param_side_effect_ref(const Item_param *item)
+                                                                      const
+  {
+    return ULonglong_null();
+  }
+
+
   virtual bool partition_field_check(const LEX_CSTRING &field_name, Item *)
     const
   {
@@ -3965,6 +4033,7 @@ public:
   */
   bool is_traditional_scalar_type() const;
   virtual bool is_scalar_type() const { return true; }
+  virtual bool can_return_bool() const { return can_return_int(); }
   virtual bool can_return_int() const { return true; }
   virtual bool can_return_decimal() const { return true; }
   virtual bool can_return_real() const { return true; }

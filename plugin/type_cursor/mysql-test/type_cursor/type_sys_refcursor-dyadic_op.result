@@ -1,0 +1,63 @@
+#
+# MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+#
+#
+# Dyadic operations
+#
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+DECLARE i INT;
+SELECT c + i;
+END;
+$$
+ERROR HY000: Illegal parameter data types sys_refcursor and int for operation '+'
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+DECLARE i INT;
+SELECT c - i;
+END;
+$$
+ERROR HY000: Illegal parameter data types sys_refcursor and int for operation '-'
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+DECLARE i INT;
+SELECT c * i;
+END;
+$$
+ERROR HY000: Illegal parameter data types sys_refcursor and int for operation '*'
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+DECLARE i INT;
+SELECT c / i;
+END;
+$$
+ERROR HY000: Illegal parameter data types sys_refcursor and int for operation '/'
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+DECLARE i INT;
+SELECT c % i;
+END;
+$$
+ERROR HY000: Illegal parameter data types sys_refcursor and int for operation 'MOD'
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+IF c = TRUE THEN
+SELECT 'TRUE';
+ELSE
+SELECT 'NOT TRUE';
+END IF;
+END;
+$$
+ERROR HY000: Illegal parameter data types sys_refcursor and boolean for operation '='
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+SELECT STR_TO_DATE(c, '%W, %M %e, %Y');
+END;
+$$
+ERROR HY000: Illegal parameter data types sys_refcursor and varchar for operation 'str_to_date'
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+SELECT DATE_FORMAT('2009-10-04 22:23:00', c); -- can_return_text
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'date_format'

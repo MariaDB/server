@@ -1697,6 +1697,7 @@ bool Protocol_text::send_out_parameters(List<Item_param> *sp_params)
 
     DBUG_ASSERT(sparam->get_item_param() == NULL);
     sparam->set_value(thd, thd->spcont, reinterpret_cast<Item **>(&item_param));
+    item_param->side_effect_detach(thd, expr_event_t::DYNAMIC_PARAM_DESTRUCT);
   }
 
   return FALSE;
@@ -1947,6 +1948,7 @@ bool Protocol_binary::send_out_parameters(List<Item_param> *sp_params)
       if (!item_param->get_out_param_info())
         continue; // It's an IN-parameter.
 
+      item_param->side_effect_detach(thd, expr_event_t::DYNAMIC_PARAM_DESTRUCT);
       if (out_param_lst.push_back(item_param, thd->mem_root))
         return TRUE;
     }

@@ -1,0 +1,40 @@
+#
+# MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+#
+#
+# Using sys_refcursor operations on non-cursor variables
+#
+BEGIN NOT ATOMIC
+DECLARE cur INT;
+OPEN cur FOR SELECT 1 AS c FROM DUAL;
+END;
+$$
+ERROR HY000: Illegal parameter data type int for operation 'OPEN'
+BEGIN NOT ATOMIC
+DECLARE cur, var INT;
+FETCH cur INTO var;
+END;
+$$
+ERROR HY000: Illegal parameter data type int for operation 'FETCH'
+BEGIN NOT ATOMIC
+DECLARE cur INT;
+CLOSE cur;
+END;
+$$
+ERROR HY000: Illegal parameter data type int for operation 'CLOSE'
+BEGIN NOT ATOMIC
+DECLARE a INT;
+DECLARE c INT;
+FETCH c INTO a;
+END;
+$$
+ERROR HY000: Illegal parameter data type int for operation 'FETCH'
+SET sql_mode=ORACLE;
+DECLARE
+cur INT;
+BEGIN
+SELECT cur%isopen;
+END;
+$$
+ERROR HY000: Illegal parameter data type int for operation '%cursor_attr'
+SET sql_mode=DEFAULT;

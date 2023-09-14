@@ -201,6 +201,19 @@ bool Item_func::check_argument_types_traditional_scalar(uint start,
 }
 
 
+bool Item_func::check_argument_types_can_return_bool(uint start,
+                                                     uint end) const
+{
+  for (uint i= start; i < end ; i++)
+  {
+    DBUG_ASSERT(i < arg_count);
+    if (args[i]->check_type_can_return_bool(func_name_cstring()))
+      return true;
+  }
+  return false;
+}
+
+
 bool Item_func::check_argument_types_can_return_int(uint start,
                                                     uint end) const
 {
@@ -6880,6 +6893,9 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
     const_item_cache= FALSE;
   }
 
+  if (type_handler()->has_side_effect())
+    with_flags|= item_with_t::DATA_TYPE_WITH_SIDE_EFFECT;
+
   DBUG_RETURN(res);
 }
 
@@ -6943,13 +6959,22 @@ longlong Item_func_uuid_short::val_int()
 
 /**
   Last_value - return last argument.
+  "Side effect" is used in two meanings here:
+  - Side effect arguments 0..arg_count-1
+  - Side effect of the argument data types,
+    e.g. such as SYS_REFCURSOR.
 */
 
 void Item_func_last_value::evaluate_sideeffects()
 {
   DBUG_ASSERT(fixed() && arg_count > 0);
+  THD *thd= current_thd;
   for (uint i= 0; i < arg_count-1 ; i++)
+  {
     args[i]->val_int();
+    args[i]->side_effect_detach(thd,
+                                expr_event_t::BUILT_IN_ROUTINE_ARG_DESTRUCT);
+  }
 }
 
 String *Item_func_last_value::val_str(String *str)
@@ -6971,10 +6996,34 @@ bool Item_func_last_value::val_native(THD *thd, Native *to)
 
 longlong Item_func_last_value::val_int()
 {
+  THD *thd= current_thd;
   longlong tmp;
   evaluate_sideeffects();
   tmp= last_value->val_int();
   null_value= last_value->null_value;
+  // Move or copy a side effect reference from last_value to "this".
+  if (((bool) (with_flags & item_with_t::DATA_TYPE_WITH_SIDE_EFFECT)) &&
+      !(m_side_effect_ref= last_value->side_effect_ref()).is_null())
+  {
+    /*
+      Examples:
+      1. SELECT LAST_VALUE(COALESCE(cursor_ref)) FROM t1;
+         - LAST_VALUE attaches to cursor_ref
+         - COALESCE detaches from cursor_ref:
+           Its value will be evaluated again on the next row.
+         The total number of references does not change.
+
+      2. EXECUTE IMMEDIATE 'SELECT LAST_VALUE(?) FROM t1' USING cursor_ref;
+         - LAST_VALUE attaches to cursor_ref.
+         - ? does not detach from cursor_ref:
+           Its value will be reused on the next row.
+         The total number of references increments.
+    */
+    last_value->type_handler()->side_effect_attach(thd,
+                                                   m_side_effect_ref.value());
+    last_value->side_effect_detach(thd,
+                                   expr_event_t::BUILT_IN_ROUTINE_ARG_DESTRUCT);
+  }
   return tmp;
 }
 
@@ -7022,46 +7071,30 @@ void Cursor_ref::print_func(String *str, const LEX_CSTRING &func_name)
 }
 
 
-sp_cursor *Cursor_ref::get_open_cursor_or_error()
-{
-  THD *thd= current_thd;
-  sp_cursor *c= thd->spcont->get_cursor(m_cursor_offset);
-  DBUG_ASSERT(c);
-  if (!c/*safety*/ || !c->is_open())
-  {
-    my_message(ER_SP_CURSOR_NOT_OPEN, ER_THD(thd, ER_SP_CURSOR_NOT_OPEN),
-               MYF(0));
-    return NULL;
-  }
-  return c;
-}
-
-
 bool Item_func_cursor_isopen::val_bool()
 {
-  sp_cursor *c= current_thd->spcont->get_cursor(m_cursor_offset);
-  DBUG_ASSERT(c != NULL);
+  sp_cursor *c= Sp_rcontext_handler::get_cursor(m_thd, *this);
   return c ? c->is_open() : 0;
 }
 
 
 bool Item_func_cursor_found::val_bool()
 {
-  sp_cursor *c= get_open_cursor_or_error();
+  sp_cursor *c= Sp_rcontext_handler::get_open_cursor_or_error(m_thd, *this);
   return !(null_value= (!c || c->fetch_count() == 0)) && c->found();
 }
 
 
 bool Item_func_cursor_notfound::val_bool()
 {
-  sp_cursor *c= get_open_cursor_or_error();
+  sp_cursor *c= Sp_rcontext_handler::get_open_cursor_or_error(m_thd, *this);
   return !(null_value= (!c || c->fetch_count() == 0)) && !c->found();
 }
 
 
 longlong Item_func_cursor_rowcount::val_int()
 {
-  sp_cursor *c= get_open_cursor_or_error();
+  sp_cursor *c= Sp_rcontext_handler::get_open_cursor_or_error(m_thd, *this);
   return !(null_value= !c) ? c->row_count() : 0;
 }
 

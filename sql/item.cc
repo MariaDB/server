@@ -1059,6 +1059,17 @@ bool Item::check_type_traditional_scalar(const LEX_CSTRING &opname) const
 }
 
 
+bool Item::check_type_can_return_bool(const LEX_CSTRING &opname) const
+{
+  const Type_handler *handler= type_handler();
+  if (handler->can_return_bool())
+    return false;
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           handler->name().ptr(), opname.str);
+  return true;
+}
+
+
 bool Item::check_type_can_return_int(const LEX_CSTRING &opname) const
 {
   const Type_handler *handler= type_handler();
@@ -1696,6 +1707,8 @@ bool Item_sp_variable::fix_fields_from_item(THD *thd, Item **, const Item *it)
   unsigned_flag= it->unsigned_flag;
   base_flags|= item_base_t::FIXED;
   with_flags|= item_with_t::SP_VAR;
+  if (type_handler()->has_side_effect())
+    with_flags|= item_with_t::DATA_TYPE_WITH_SIDE_EFFECT;
   if (thd->lex->current_select && thd->lex->current_select->master_unit()->item)
     thd->lex->current_select->master_unit()->item->with_flags|= item_with_t::SP_VAR;
   collation.set(it->collation.collation, it->collation.derivation);
@@ -3099,6 +3112,7 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
 
   sp_result_field->null_ptr= (uchar *) null_value;
   sp_result_field->null_bit= 1;
+  sp_result_field->set_null(); // SYS_REFCURSOR needs NULL as the initial value
 
   DBUG_RETURN(FALSE);
 }

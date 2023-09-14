@@ -3100,6 +3100,17 @@ void Item_func_case::reorder_args(uint start)
 }
 
 
+bool Item_func_case_searched::check_arguments() const
+{
+  uint count= when_count();
+  for (uint i= 0 ; i < count ; i++)
+  {
+    if (args[i]->check_type_can_return_bool({STRING_WITH_LEN("CASE WHEN")}))
+      return true;
+  }
+  return false;
+}
+
 
 /**
     Find and return matching items for CASE or ELSE item if all compares

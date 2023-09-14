@@ -645,6 +645,8 @@ The following specify which files/extra groups are read (specified before remain
  max_join_size records return an error
  --max-length-for-sort-data=# 
  Max number of bytes in sorted records
+ --max-open-cursors=# 
+ The maximum number of open cursors allowed per session
  --max-password-errors=# 
  If there is more than this number of failed connect
  attempts due to invalid password, user will be blocked
@@ -1776,6 +1778,7 @@ max-error-count 64
 max-heap-table-size 16777216
 max-join-size 18446744073709551615
 max-length-for-sort-data 1024
+max-open-cursors 50
 max-password-errors 18446744073709551615
 max-prepared-stmt-count 16382
 max-recursive-iterations 1000
@@ -1885,7 +1888,7 @@ performance-schema-max-socket-classes 10
 performance-schema-max-socket-instances -1
 performance-schema-max-sql-text-length 1024
 performance-schema-max-stage-classes 160
-performance-schema-max-statement-classes 222
+performance-schema-max-statement-classes 226
 performance-schema-max-statement-stack 10
 performance-schema-max-table-handles -1
 performance-schema-max-table-instances -1

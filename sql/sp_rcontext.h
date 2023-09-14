@@ -23,6 +23,7 @@
 
 #include "sql_class.h"                    // select_result_interceptor
 #include "sp_pcontext.h"                  // sp_condition_value
+#include "sp_rcontext_handler.h"
 
 ///////////////////////////////////////////////////////////////////////////
 // sp_rcontext declaration.
@@ -210,6 +211,8 @@ public:
                                        const LEX_CSTRING &field_name);
 
   bool set_return_value(THD *thd, Item **return_value_item);
+
+  void sp_variable_destruct_all(THD *thd);
 
   bool is_return_value_set() const
   { return m_return_value_set; }

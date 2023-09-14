@@ -260,6 +260,18 @@ private:
   bool reprepare();
   bool validate_metadata(Prepared_statement  *copy);
   void swap_prepared_statement(Prepared_statement *copy);
+
+  void placeholders_side_effect_detach()
+  {
+    List_iterator_fast<Item_param> item_param_it(lex->param_list);
+    for (Item_param *item_param= item_param_it++;
+         item_param;
+         item_param= item_param_it++)
+    {
+      item_param->side_effect_detach(thd, expr_event_t::DYNAMIC_PARAM_DESTRUCT);
+    }
+  }
+
 };
 
 /**
@@ -5191,6 +5203,8 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
     else
       thd->protocol->send_out_parameters(&this->lex->param_list);
   }
+
+  placeholders_side_effect_detach();
 
 error:
   error|= thd->lex->restore_set_statement_var();

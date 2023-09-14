@@ -1,0 +1,20 @@
+#
+#  MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+#
+#
+# Hybrid functions
+#
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+DECLARE c1 SYS_REFCURSOR;
+SELECT LEAST(c0, c1);
+END;
+$$
+ERROR HY000: Illegal parameter data types sys_refcursor and sys_refcursor for operation 'least'
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+DECLARE c1 SYS_REFCURSOR;
+SELECT GREATEST(c0, c1);
+END;
+$$
+ERROR HY000: Illegal parameter data types sys_refcursor and sys_refcursor for operation 'greatest'
