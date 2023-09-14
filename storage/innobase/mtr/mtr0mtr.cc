@@ -34,6 +34,8 @@ Created 11/26/1995 Heikki Tuuri
 #include "my_cpu.h"
 #ifdef BTR_CUR_HASH_ADAPT
 # include "btr0sea.h"
+#else
+# include "btr0cur.h"
 #endif
 #include "srv0start.h"
 #include "log.h"
