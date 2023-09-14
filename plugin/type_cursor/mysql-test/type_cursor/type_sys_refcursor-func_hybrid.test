@@ -1,0 +1,55 @@
+--source include/have_debug.inc
+
+--echo #
+--echo #  MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+--echo #
+
+--echo #
+--echo # Hybrid functions
+--echo #
+
+DELIMITER /;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+BEGIN NOT ATOMIC
+  DECLARE c0 SYS_REFCURSOR;
+  DECLARE c1 SYS_REFCURSOR;
+  SELECT LEAST(c0, c1);
+END;
+/
+DELIMITER ;/
+
+DELIMITER /;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+BEGIN NOT ATOMIC
+  DECLARE c0 SYS_REFCURSOR;
+  DECLARE c1 SYS_REFCURSOR;
+  SELECT GREATEST(c0, c1);
+END;
+/
+DELIMITER ;/
+
+
+--echo #
+--echo # This test covers Item::val_ref_from_item() and its DBUG_ASSERT:
+--echo # A SYS_REFCURSOR expressions is allowed to be mixed only
+--echo # with another SYS_REFCURSOR expression, or with explicit NULL.
+--echo #
+
+DELIMITER /;
+CREATE FUNCTION f1(switch BOOLEAN, f1c0 SYS_REFCURSOR) RETURNS SYS_REFCURSOR
+BEGIN
+  RETURN IF(switch, NULL, f1c0);
+END;
+/
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE p1c0 SYS_REFCURSOR;
+  SELECT f1(FALSE, p1c0) AS c1, f1(TRUE, p1c0) AS c2;
+  OPEN p1c0 FOR SELECT 1;
+  SELECT f1(FALSE, p1c0) AS c1, f1(TRUE, p1c0) AS c2;
+END;
+/
+DELIMITER ;/
+CALL p1;
+DROP FUNCTION f1;
+DROP PROCEDURE p1;

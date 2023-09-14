@@ -1,0 +1,317 @@
+#
+# MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+#
+#
+# A small OPEN+FETCH+CLOSE example
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c SYS_REFCURSOR;
+DECLARE a, b INT;
+OPEN c FOR SELECT 1, 2;
+FETCH c INTO a, b;
+CLOSE c;
+SELECT c, CURSOR_REF_COUNT(c) AS cnt, a, b;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set c@0 NULL
+1	set a@1 NULL
+2	set b@2 NULL
+3	copen STMT.cursor[c@0]
+4	cfetch STMT.cursor[c@0] a@1 b@2
+5	cclose STMT.cursor[c@0]
+6	stmt 0 "SELECT c, CURSOR_REF_COUNT(c) AS cnt,..."
+7	destruct sys_refcursor c@0
+CALL p1;
+c	cnt	a	b
+0	1	1	2
+DROP PROCEDURE p1;
+#
+# Nested blocks
+#
+SET sql_mode=ORACLE;
+CREATE PROCEDURE p1 AS
+c0 SYS_REFCURSOR; 
+BEGIN
+OPEN c0 FOR SELECT 'c0';
+DECLARE
+c1 SYS_REFCURSOR;
+BEGIN
+OPEN c1 FOR SELECT 'c1';
+DECLARE
+c2 SYS_REFCURSOR;
+BEGIN
+OPEN c2 FOR SELECT 'c2';
+DECLARE
+c3 SYS_REFCURSOR;
+BEGIN
+OPEN c3 FOR SELECT 'c3';
+SELECT c3, c3%ISOPEN AS op, CURSOR_REF_COUNT(c3) AS cnt;
+END;
+SELECT c2, c2%ISOPEN AS op, CURSOR_REF_COUNT(c2) AS cnt;
+END;
+SELECT c1, c1%ISOPEN AS op, CURSOR_REF_COUNT(c1) AS cnt;
+END;
+SELECT c0, c0%ISOPEN AS op, CURSOR_REF_COUNT(c0) AS cnt;
+SELECT
+CURSOR_REF_COUNT(0) AS cnt0,
+CURSOR_REF_COUNT(1) AS cnt1,
+CURSOR_REF_COUNT(2) AS cnt2,
+CURSOR_REF_COUNT(3) AS cnt3;
+END;
+/
+CREATE PROCEDURE p2 AS
+c0 SYS_REFCURSOR;
+BEGIN
+OPEN c0 FOR SELECT 'p2-c0';
+CALL p1;
+END;
+/
+CREATE PROCEDURE p3 AS
+c0 SYS_REFCURSOR;
+BEGIN
+OPEN c0 FOR SELECT 'p3-c0';
+CALL p2;
+END;
+/
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set c0@0 NULL
+1	copen STMT.cursor[c0@0]
+2	set c1@1 NULL
+3	copen STMT.cursor[c1@1]
+4	set c2@2 NULL
+5	copen STMT.cursor[c2@2]
+6	set c3@3 NULL
+7	copen STMT.cursor[c3@3]
+8	stmt 0 "SELECT c3, c3%ISOPEN AS op, CURSOR_RE..."
+9	destruct sys_refcursor c3@3
+10	stmt 0 "SELECT c2, c2%ISOPEN AS op, CURSOR_RE..."
+11	destruct sys_refcursor c2@2
+12	stmt 0 "SELECT c1, c1%ISOPEN AS op, CURSOR_RE..."
+13	destruct sys_refcursor c1@1
+14	stmt 0 "SELECT c0, c0%ISOPEN AS op, CURSOR_RE..."
+15	stmt 0 "SELECT CURSOR_REF_COUNT(0) AS cnt0, C..."
+16	destruct sys_refcursor c0@0
+SHOW PROCEDURE CODE p2;
+Pos	Instruction
+0	set c0@0 NULL
+1	copen STMT.cursor[c0@0]
+2	stmt 88 "CALL p1"
+3	destruct sys_refcursor c0@0
+SHOW PROCEDURE CODE p3;
+Pos	Instruction
+0	set c0@0 NULL
+1	copen STMT.cursor[c0@0]
+2	stmt 88 "CALL p2"
+3	destruct sys_refcursor c0@0
+CALL p1;
+c3	op	cnt
+3	1	1
+c2	op	cnt
+2	1	1
+c1	op	cnt
+1	1	1
+c0	op	cnt
+0	1	1
+cnt0	cnt1	cnt2	cnt3
+1	0	0	0
+CALL p2;
+c3	op	cnt
+4	1	1
+c2	op	cnt
+3	1	1
+c1	op	cnt
+2	1	1
+c0	op	cnt
+1	1	1
+cnt0	cnt1	cnt2	cnt3
+1	1	0	0
+CALL p3;
+c3	op	cnt
+5	1	1
+c2	op	cnt
+4	1	1
+c1	op	cnt
+3	1	1
+c0	op	cnt
+2	1	1
+cnt0	cnt1	cnt2	cnt3
+1	1	1	0
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP PROCEDURE p3;
+SET sql_mode=DEFAULT;
+#
+# Setting a cursor variable to itself does not change ref count
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+OPEN c0 FOR SELECT 1;
+SELECT 'p1-1' AS stage, c0, CURSOR_REF_COUNT(c0) AS cnt_c0, CURSOR_REF_COUNT(0) AS cnt_0;
+SET c0 = c0; -- neither directly
+SELECT 'p1-2' AS stage, c0, CURSOR_REF_COUNT(c0) AS cnt_c0, CURSOR_REF_COUNT(0) AS cnt_0;
+SET c0 = COALESCE(c0); -- nor through an expression
+SELECT 'p1-3' AS stage, c0, CURSOR_REF_COUNT(c0) AS cnt_c0, CURSOR_REF_COUNT(0) AS cnt_0;
+END;
+/
+CALL p1;
+stage	c0	cnt_c0	cnt_0
+p1-1	0	1	1
+stage	c0	cnt_c0	cnt_0
+p1-2	0	1	1
+stage	c0	cnt_c0	cnt_0
+p1-3	0	1	1
+DROP PROCEDURE p1;
+#
+# Setting a cursor variable from not-NULL to NULL
+# decrements ref count at its old position
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+OPEN c0 FOR SELECT 1;
+SELECT 'p1-1' AS stage, c0, CURSOR_REF_COUNT(c0) AS cnt_c0, CURSOR_REF_COUNT(0) AS cnt_0;
+SET c0 = NULL;
+SELECT 'p1-2' AS stage, c0, CURSOR_REF_COUNT(c0) AS cnt_c0, CURSOR_REF_COUNT(0) AS cnt_0;
+END;
+/
+CALL p1;
+stage	c0	cnt_c0	cnt_0
+p1-1	0	1	1
+stage	c0	cnt_c0	cnt_0
+p1-2	NULL	NULL	0
+DROP PROCEDURE p1;
+#
+# Setting a cursor variable to a never opened cursor variable
+# decrements ref count at its old position
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+DECLARE c1 SYS_REFCURSOR;
+OPEN c0 FOR SELECT 1;
+SELECT 'p1-1' AS stage, c0, CURSOR_REF_COUNT(c0) AS cnt_c0, CURSOR_REF_COUNT(0) AS cnt_0;
+SET c0 = c1;
+SELECT 'p2-1' AS stage, c0, CURSOR_REF_COUNT(c0) AS cnt_c0, CURSOR_REF_COUNT(0) AS cnt_0;
+END;
+/
+CALL p1;
+stage	c0	cnt_c0	cnt_0
+p1-1	0	1	1
+stage	c0	cnt_c0	cnt_0
+p2-1	NULL	NULL	0
+DROP PROCEDURE p1;
+#
+# Multiple OPEN of the same cursor variable reuses
+# the cursor at the same offset. Ref count stays 1.
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+SELECT 'p1-1' AS stage, c0, CURSOR_REF_COUNT(c0) AS cnt_c0, CURSOR_REF_COUNT(0) AS cnt_0;
+OPEN c0 FOR SELECT 1;
+SELECT 'p1-2' AS stage, c0, CURSOR_REF_COUNT(c0) AS cnt_c0, CURSOR_REF_COUNT(0) AS cnt_0;
+OPEN c0 FOR SELECT 1;
+SELECT 'p1-3' AS stage, c0, CURSOR_REF_COUNT(c0) AS cnt_c0, CURSOR_REF_COUNT(0) AS cnt_0;
+OPEN c0 FOR SELECT 1;
+SELECT 'p1-4' AS stage, c0, CURSOR_REF_COUNT(c0) AS cnt_c0, CURSOR_REF_COUNT(0) AS cnt_0;
+OPEN c0 FOR SELECT 1;
+SELECT 'p1-5' AS stage, c0, CURSOR_REF_COUNT(c0) AS cnt_c0, CURSOR_REF_COUNT(0) AS cnt_0;
+OPEN c0 FOR SELECT 1;
+SELECT 'p1-6' AS stage, c0, CURSOR_REF_COUNT(c0) AS cnt_c0, CURSOR_REF_COUNT(0) AS cnt_0;
+SET c0= NULL;
+SELECT 'p1-7' AS stage, c0, CURSOR_REF_COUNT(c0) AS cnt_c0, CURSOR_REF_COUNT(0) AS cnt_0;
+END;
+/
+CALL p1;
+stage	c0	cnt_c0	cnt_0
+p1-1	NULL	NULL	NULL
+stage	c0	cnt_c0	cnt_0
+p1-2	0	1	1
+stage	c0	cnt_c0	cnt_0
+p1-3	0	1	1
+stage	c0	cnt_c0	cnt_0
+p1-4	0	1	1
+stage	c0	cnt_c0	cnt_0
+p1-5	0	1	1
+stage	c0	cnt_c0	cnt_0
+p1-6	0	1	1
+stage	c0	cnt_c0	cnt_0
+p1-7	NULL	NULL	0
+DROP PROCEDURE p1;
+#
+# Multiple assignment to the same variable does not increase ref count.
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+DECLARE v INT;
+BEGIN
+DECLARE c1 SYS_REFCURSOR;
+DECLARE c2 SYS_REFCURSOR;
+SELECT 'stage 0' AS ``;
+SELECT c0, CURSOR_REF_COUNT(c0) AS cnt0, c1, CURSOR_REF_COUNT(c1) AS cnt1;
+SELECT 'stage 1' AS ``;
+OPEN c1 FOR SELECT 1 AS c FROM DUAL;
+SELECT c0, CURSOR_REF_COUNT(c0) AS cnt0, c1, CURSOR_REF_COUNT(c1) AS cnt1;
+SELECT 'stage 2' AS ``;
+SET c0 = c1;
+SELECT c0, CURSOR_REF_COUNT(c0) AS cnt0, c1, CURSOR_REF_COUNT(c1) AS cnt1;
+SET c0= c1;
+SELECT c0, CURSOR_REF_COUNT(c0) AS cnt0, c1, CURSOR_REF_COUNT(c1) AS cnt1;
+SET c0= c1;
+SELECT c0, CURSOR_REF_COUNT(c0) AS cnt0, c1, CURSOR_REF_COUNT(c1) AS cnt1;
+SELECT 'stage 3' AS ``;
+SET c2= c1;
+SELECT c0, CURSOR_REF_COUNT(c0) AS cnt0, c1, CURSOR_REF_COUNT(c1) AS cnt1;
+SET c2= c1;
+SELECT c0, CURSOR_REF_COUNT(c0) AS cnt0, c1, CURSOR_REF_COUNT(c1) AS cnt1;
+SET c2= NULL;
+SELECT c0, CURSOR_REF_COUNT(c0) AS cnt0, c1, CURSOR_REF_COUNT(c1) AS cnt1; 
+END;
+SELECT 'stage 4' AS ``;
+SELECT c0, CURSOR_REF_COUNT(c0) AS cnt_c0;
+FETCH c0 INTO v;
+SELECT CONCAT('v=',v);
+SET c0=COALESCE(NULL); -- Reset c0 to NULL
+SELECT c0, CURSOR_REF_COUNT(c0) AS cnt_c0, CURSOR_REF_COUNT(0) AS cnt_0;
+END;
+/
+CALL p1;
+
+stage 0
+c0	cnt0	c1	cnt1
+NULL	NULL	NULL	NULL
+
+stage 1
+c0	cnt0	c1	cnt1
+NULL	NULL	0	1
+
+stage 2
+c0	cnt0	c1	cnt1
+0	2	0	2
+c0	cnt0	c1	cnt1
+0	2	0	2
+c0	cnt0	c1	cnt1
+0	2	0	2
+
+stage 3
+c0	cnt0	c1	cnt1
+0	3	0	3
+c0	cnt0	c1	cnt1
+0	3	0	3
+c0	cnt0	c1	cnt1
+0	2	0	2
+
+stage 4
+c0	cnt_c0
+0	1
+CONCAT('v=',v)
+v=1
+c0	cnt_c0	cnt_0
+NULL	NULL	0
+DROP PROCEDURE p1;

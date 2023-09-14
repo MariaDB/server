@@ -1,0 +1,223 @@
+--source include/have_debug.inc
+
+--disable_query_log
+--disable_result_log
+--source type_sys_refcursor-helper_routines-debug-create.inc
+--source include/dbms_output.inc
+--enable_result_log
+--enable_query_log
+
+--echo #
+--echo #  MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+--echo #
+
+--echo #
+--echo # sql_mode=DEFAULT: TYPE OF declaration for a single SYS_REFCURSOR:
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v00 INT;
+  DECLARE c10 SYS_REFCURSOR;
+  DECLARE c11 TYPE OF c10;
+  OPEN c11 FOR SELECT 1;
+  FETCH c11 INTO v00;
+  SELECT c10, c11, v00, refs(0,4) AS refs;
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p1;
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # sql_mode=ORACLE" %TYPE declaration for a single SYS_REFCURSOR:
+--echo #
+
+SET sql_mode=ORACLE;
+DELIMITER /;
+CREATE PROCEDURE p1 AS
+  c0 SYS_REFCURSOR;
+  c1 c0%TYPE;
+  v1 INT;
+  v2 INT;
+BEGIN
+  OPEN c0 FOR SELECT 1 AS c1, 2 AS c2 FROM DUAL;
+  c1:= c0;
+  FETCH c1 INTO v1, v2;
+  DBMS_OUTPUT.PUT_LINE(v1 ||' '|| v2);
+END;
+/
+DELIMITER ;/
+CALL p1;
+DROP PROCEDURE p1;
+SET sql_mode=DEFAULT;
+
+
+--echo #
+--echo # Anchored TYPE OF declarations for a ROW of SYS_REFCURSORs:
+--echo # DECLARE r00 ROW(c00 SYS_REFCURSOR, c01 SYS_REFCURSOR);
+--echo # DECLARE r11 TYPE OF r10;
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE open1(INOUT c00 SYS_REFCURSOR, value INT)
+BEGIN
+  OPEN c00 FOR SELECT value;
+END;
+/
+SHOW PROCEDURE CODE open1
+/
+CREATE PROCEDURE open2(INOUT r00 ROW(c00 SYS_REFCURSOR, c01 SYS_REFCURSOR))
+BEGIN
+  CALL open1(r00.c00, 20);
+  CALL open1(r00.c01, 21);
+END;
+/
+SHOW PROCEDURE CODE open2
+/
+CREATE PROCEDURE fetch1(c00 SYS_REFCURSOR, OUT v00 INT)
+BEGIN
+  FETCH c00 INTO v00;
+END;
+/
+SHOW PROCEDURE CODE fetch1
+/
+CREATE PROCEDURE fetch2(r00 ROW(c00 SYS_REFCURSOR, c01 SYS_REFCURSOR),
+                        OUT v00 ROW(i00 INT, i01 INT))
+BEGIN
+  CALL fetch1(r00.c00, v00.i00);
+  CALL fetch1(r00.c01, v00.i01);
+END;
+/
+SHOW PROCEDURE CODE fetch2
+/
+CREATE PROCEDURE close1(c00 SYS_REFCURSOR)
+BEGIN
+  CLOSE c00;
+END;
+/
+SHOW PROCEDURE CODE close1
+/
+CREATE PROCEDURE close2(r00 ROW(c00 SYS_REFCURSOR, c01 SYS_REFCURSOR))
+BEGIN
+  CALL close1(r00.c00);
+  CALL close1(r00.c01);
+END;
+/
+SHOW PROCEDURE CODE close2
+/
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v00 ROW(i00 INT, i01 iNT);
+  DECLARE r10 ROW(c00 SYS_REFCURSOR, c01 SYS_REFCURSOR);
+  DECLARE r11 TYPE OF r10;
+  CALL open2(r11);
+  CALL fetch2(r11, v00);
+  CALL close2(r11);
+  SELECT r11.c00, r11.c01, refs(0,3) AS refs, v00.i00, v00.i01;
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p1;
+CALL p1;
+DROP PROCEDURE p1;
+DROP PROCEDURE open1;
+DROP PROCEDURE open2;
+DROP PROCEDURE fetch1;
+DROP PROCEDURE fetch2;
+DROP PROCEDURE close1;
+DROP PROCEDURE close2;
+
+
+--echo #
+--echo # This declaration raises "Illegal parameter data type":
+--echo #   DECLARE r00 ROW TYPE OF static_cursor_with_refcursor_fields;
+--echo # But only of the execution really comes into its block.
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p1(declare_row_type_of BOOLEAN)
+BEGIN
+  DECLARE v00 INT;
+  DECLARE v01 INT;
+  DECLARE c00 SYS_REFCURSOR;
+  DECLARE c01 SYS_REFCURSOR;
+  DECLARE s00 CURSOR FOR SELECT c00, c01;
+  OPEN c00 FOR SELECT 10;
+  OPEN c01 FOR SELECT 11;
+  IF declare_row_type_of THEN
+    BEGIN
+      DECLARE r00 ROW TYPE OF s00;
+    END;
+  END IF;
+  FETCH c00 INTO v00;
+  FETCH c01 INTO v01;
+  SELECT c00, c01, refs(0,4) AS refs, v00, v01;
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p1;
+CALL p1(false);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+CALL p1(true);
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # sql_mode=ORACLE:
+--echo # static_cursor_with_refcursor_field%ROWTYPE
+--echo #
+
+SET sql_mode=ORACLE;
+DELIMITER /;
+CREATE PROCEDURE p1 AS
+  c0 SYS_REFCURSOR;
+BEGIN
+  OPEN c0 FOR SELECT 1 AS c1, 2 AS c2 FROM DUAL;
+  DECLARE
+    r c0%ROWTYPE; -- This is considered as a table c0.
+  BEGIN
+    CREATE TABLE t1 AS SELECT r.c1 AS c1, r.c2 AS c2;
+  END;
+END;
+/
+DELIMITER ;/
+--error ER_NO_SUCH_TABLE
+CALL p1;
+DROP PROCEDURE p1;
+SET sql_mode=DEFAULT;
+
+
+--echo #
+--echo # Fetching from a SYS_REFCURSOR into a %ROWTYPE variable
+--echo #
+
+SET sql_mode=ORACLE;
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (1, 'b1');
+DELIMITER /;
+CREATE PROCEDURE p1 AS
+  c0 SYS_REFCURSOR;
+  r0 t1%ROWTYPE;
+BEGIN
+  OPEN c0 FOR SELECT * FROM t1;
+  FETCH c0 INTO r0;
+  DBMS_OUTPUT.PUT_LINE(r0.a ||' '|| r0.b);
+END;
+/
+DELIMITER ;/
+CALL p1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+SET sql_mode=DEFAULT;
+
+
+--disable_query_log
+--disable_result_log
+--source type_sys_refcursor-helper_routines-debug-drop.inc
+DROP PACKAGE dbms_output;
+--enable_result_log
+--enable_query_log

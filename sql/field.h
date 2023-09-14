@@ -987,6 +987,27 @@ public:
     reset();
     return 0;
   }
+
+  /*
+    Unlike set_null(), expr_event_handler(DESTRUCT*) has a side effect:
+    it can check the previous Field value. For example,
+    if the previous value of a Field_sys_refcursor field was not NULL,
+    Field_sys_refcursor::expr_event_handler(DESTRUCT*) decrements the cursor
+    reference counter and closes the cursor if the counter decremented
+    down to zero.
+
+    expr_event_handler() assumes that the Field is in a deterministic state,
+    e.g. set_null(), which has no side effects, was earlier called.
+  */
+  virtual int expr_event_handler(THD *thd, expr_event_t event)
+  {
+    return 0;
+  }
+
+  virtual int store_ref(const Type_ref_null &ref, bool no_conversions)
+  {
+    return 0;
+  }
   int store_time(const MYSQL_TIME *ltime)
   { return store_time_dec(ltime, TIME_SECOND_PART_DIGITS); }
   int store(const char *to, size_t length, CHARSET_INFO *cs,
@@ -1034,6 +1055,30 @@ public:
 #else
   void mark_unused_memory_as_defined() {}
 #endif
+
+  /*
+    Get a reference value of the Field.
+    Field_sys_refcursor in plugins/type_cursor overrides this.
+  */
+  virtual Type_ref_null val_ref(THD *thd)
+  {
+    return Type_ref_null(); // Return a NULL reference by default.
+  }
+
+  /*
+    Get a reference value of the Field within the range [0..count-1].
+
+    @retval NULL Type_ref_null      if var_ref() returned a reference with
+                                    is_null()==true of with value()>=count
+    @retval not-NULL Type_ref_null  otherwise.
+  */
+  Type_ref_null val_ref_in_range(THD *thd, ulonglong count)
+  {
+    const Type_ref_null ref= val_ref(thd);
+    if (ref.is_null() || ref.value() >= count)
+      return Type_ref_null();
+    return ref;
+  }
 
   virtual double val_real()=0;
   virtual longlong val_int()=0;
@@ -2643,7 +2688,7 @@ public:
 };
 
 
-class Field_short final :public Field_int
+class Field_short :public Field_int
 {
   const Type_handler_general_purpose_int *type_handler_priv() const
   {
@@ -5191,6 +5236,7 @@ public:
   }
   Virtual_tmp_table **virtual_tmp_table_addr() override { return &m_table; }
   bool sp_prepare_and_store_item(THD *thd, Item **value) override;
+  int expr_event_handler(THD *thd, expr_event_t event) override;
 };
 
 

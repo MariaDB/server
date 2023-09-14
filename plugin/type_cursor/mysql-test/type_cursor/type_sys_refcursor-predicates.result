@@ -1,0 +1,146 @@
+#
+# MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+#
+CREATE FUNCTION f1(task VARCHAR(32)) RETURNS BOOLEAN
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+DECLARE c1 SYS_REFCURSOR;
+DECLARE c2 SYS_REFCURSOR;
+OPEN c0 FOR SELECT 1;
+OPEN c1 FOR SELECT 2;
+SET c2= c0;
+CASE task
+WHEN 'in'           THEN RETURN c0 IN (c1, c2);
+WHEN 'between'      THEN RETURN c0 BETWEEN c1 AND c2;
+WHEN 'is true'      THEN RETURN c0 IS TRUE;
+WHEN 'is false'     THEN RETURN c0 IS FALSE;
+WHEN 'is null'      THEN RETURN c0 IS NULL;
+WHEN 'is not true'  THEN RETURN c0 IS NOT TRUE;
+WHEN 'is not false' THEN RETURN c0 IS NOT FALSE;
+WHEN 'is not null'  THEN RETURN c0 IS NOT NULL;
+WHEN 'like'         THEN RETURN c0 LIKE c1;
+WHEN 'rlike'        THEN RETURN c0 RLIKE c1;
+WHEN '='            THEN RETURN c0 = c1;
+WHEN '<=>'          THEN RETURN c0 = c1;
+WHEN 'row ='        THEN RETURN (c0,c1) = (c1,c2);
+WHEN 'row <=>'      THEN RETURN (c0,c1) = (c1,c2);
+WHEN 'row in'       THEN RETURN (c0,c1) IN ((c1,c2),(c0,c2));
+END CASE;
+RETURN 'unknown';
+END;
+/
+SELECT f1('in');
+ERROR HY000: Illegal parameter data types sys_refcursor and sys_refcursor for operation 'in'
+SELECT f1('between');
+ERROR HY000: Illegal parameter data types sys_refcursor and sys_refcursor for operation 'between'
+SELECT f1('is true');
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'istrue'
+SELECT f1('is false');
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'isfalse'
+SELECT f1('is not true');
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'isnottrue'
+SELECT f1('is not false');
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'isnotfalse'
+SELECT f1('like');
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'like'
+SELECT f1('rlike');
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'regexp'
+SELECT f1('=');
+ERROR HY000: Illegal parameter data types sys_refcursor and sys_refcursor for operation '='
+SELECT f1('<=>');
+ERROR HY000: Illegal parameter data types sys_refcursor and sys_refcursor for operation '='
+SELECT f1('row =');
+ERROR HY000: Illegal parameter data types sys_refcursor and sys_refcursor for operation '='
+SELECT f1('row <=>');
+ERROR HY000: Illegal parameter data types sys_refcursor and sys_refcursor for operation '='
+SELECT f1('row in');
+ERROR HY000: Illegal parameter data types sys_refcursor and sys_refcursor for operation 'in'
+SELECT f1('is null');
+f1('is null')
+0
+SELECT f1('is not null');
+f1('is not null')
+1
+DROP FUNCTION f1;
+#
+# IS [NOT] NULL
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+DECLARE c1 SYS_REFCURSOR;
+OPEN c0 FOR SELECT 1;
+SELECT
+c0,
+c0 IS NULL AS nl_0,
+c0 IS NOT NULL AS nnl_0,
+c1,
+c1 IS NULL AS nl_1,
+c1 IS NOT NULL AS nnl_1
+FROM seq_1_to_5;
+END;
+/
+CALL p1;
+c0	nl_0	nnl_0	c1	nl_1	nnl_1
+0	0	1	NULL	1	0
+0	0	1	NULL	1	0
+0	0	1	NULL	1	0
+0	0	1	NULL	1	0
+0	0	1	NULL	1	0
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+DECLARE c1 SYS_REFCURSOR;
+OPEN c0 FOR SELECT 1;
+SELECT
+c0,
+COALESCE(c0) IS NULL AS nl_0,
+COALESCE(c0) IS NOT NULL AS nnl_0,
+c1,
+COALESCE(c1) IS NULL AS nl_1,
+COALESCE(c1) IS NOT NULL AS nnl_1
+FROM seq_1_to_5;
+END;
+/
+CALL p1;
+c0	nl_0	nnl_0	c1	nl_1	nnl_1
+0	0	1	NULL	1	0
+0	0	1	NULL	1	0
+0	0	1	NULL	1	0
+0	0	1	NULL	1	0
+0	0	1	NULL	1	0
+DROP PROCEDURE p1;
+CREATE FUNCTION f1() RETURNS SYS_REFCURSOR
+BEGIN
+DECLARE f1c0 SYS_REFCURSOR;
+OPEN f1c0 FOR SELECT 1;
+RETURN f1c0;
+END;
+/
+CREATE FUNCTION f2() RETURNS SYS_REFCURSOR
+BEGIN
+DECLARE f2c0 SYS_REFCURSOR;
+RETURN f2c0;
+END;
+/
+CREATE PROCEDURE p1()
+BEGIN
+SELECT
+f1() IS NULL AS nl_0,
+f1() IS NOT NULL AS nnl_0,
+f2() IS NULL AS nl_1,
+f2() IS NOT NULL AS nnl_1
+FROM seq_1_to_5;
+END;
+/
+CALL p1;
+nl_0	nnl_0	nl_1	nnl_1
+0	1	1	0
+0	1	1	0
+0	1	1	0
+0	1	1	0
+0	1	1	0
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP FUNCTION f2;

@@ -2772,6 +2772,14 @@ bool Field_row::sp_prepare_and_store_item(THD *thd, Item **value)
 }
 
 
+int Field_row::expr_event_handler(THD *thd, expr_event_t event)
+{
+  if (m_table)
+    m_table->expr_event_handler(thd, event);
+  return 0;
+}
+
+
 /****************************************************************************
   Functions for the Field_decimal class
   This is an number stored as a pre-space (or pre-zero) string

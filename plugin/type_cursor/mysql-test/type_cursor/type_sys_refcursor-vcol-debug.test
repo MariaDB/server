@@ -1,0 +1,54 @@
+--source include/have_debug.inc
+
+--echo #
+--echo # MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+--echo #
+
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1
+(
+  a INT,
+  b INT AS (CURSOR_REF_COUNT(a)) STORED
+);
+
+
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1
+(
+  a INT,
+  b BOOLEAN AS (CURSOR_REF_COUNT(a) IS NULL) STORED
+);
+
+
+CREATE TABLE t1
+(
+  a INT,
+  b INT AS (CURSOR_REF_COUNT(a)) VIRTUAL
+);
+INSERT INTO t1 (a) VALUES (0),(1),(2),(3),(4);
+
+DELIMITER /;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c0 SYS_REFCURSOR; -- uses m_statement_cursors.at(0) after OPEN c0
+  DECLARE c1 SYS_REFCURSOR; -- stays NULL
+  DECLARE c2 SYS_REFCURSOR; -- uses m_statement_cursors.at(1) after OPEN c2
+  DECLARE c3 SYS_REFCURSOR; -- uses m_statement_cursors.at(1) after c3=c2
+  OPEN c0 FOR SELECT 10;
+  OPEN c2 FOR SELECT 20;
+  SET c3= c2;
+  SELECT a, b FROM t1;
+  -- Make sure direct calls of CURSOR_REF_COUNT(n) return the same values
+  -- with the virtual column t1.b values in the previous SELECT.
+  SELECT
+    CURSOR_REF_COUNT(0) AS cnt0,
+    CURSOR_REF_COUNT(1) AS cnt1,
+    CURSOR_REF_COUNT(2) AS cnt2,
+    CURSOR_REF_COUNT(3) AS cnt3,
+    CURSOR_REF_COUNT(4) AS cnt4;
+END;
+/
+DELIMITER ;/
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;

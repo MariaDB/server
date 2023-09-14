@@ -30,6 +30,7 @@
 #include "sql_time.h"
 #include "sql_type_string.h"
 #include "sql_type_real.h"
+#include "sql_type_ref.h"
 #include "compat56.h"
 #include "log_event_data_type.h"
 
@@ -57,6 +58,8 @@ class Item_func_hex;
 class Item_hybrid_func;
 class Item_func_min_max;
 class Item_func_hybrid_field_type;
+class Item_func_last_value;
+class Item_func_sp;
 class Item_bool_func2;
 class Item_bool_rowready_func2;
 class Item_func_between;
@@ -159,6 +162,57 @@ scalar_comparison_op_to_lex_cstring(scalar_comparison_op op)
   }
   DBUG_ASSERT(0);
   return LEX_CSTRING{STRING_WITH_LEN("<?>")};
+}
+
+
+enum class expr_event_t : uint32
+{
+  NONE=                               0,
+
+  /*
+    A result set row has been sent to the result sink, e.g. to the client.
+    All values in the row are not needed any more.
+  */
+  DESTRUCT_RESULT_SET_ROW_FIELD= 1 << 0,
+
+  /*
+     An Item_func evaluated its result,
+     argument values are not needed any more.
+  */
+  DESTRUCT_BUILT_IN_ROUTINE_ARG= 1 << 1,
+
+  /*
+    A value has been assigned to an SP variable.
+  */
+  DESTRUCT_SPVAR_RIGHT_HAND=     1 << 2,
+
+  /*
+    Flow control has left a BEGIN..END block,
+    all variables declared in this block are not needed any more.
+  */
+  DESTRUCT_OUT_OF_SCOPE=         1 << 3,
+
+  /*
+    A prepared statement has finished.
+    The values of Item_param instances are not needed any more.
+  */
+  DESTRUCT_DYNAMIC_PARAM=        1 << 4,
+
+  /*
+    Any kind of destruction listed above.
+  */
+  DESTRUCT_ANY= (uint32) (DESTRUCT_RESULT_SET_ROW_FIELD |
+                          DESTRUCT_BUILT_IN_ROUTINE_ARG |
+                          DESTRUCT_SPVAR_RIGHT_HAND |
+                          DESTRUCT_OUT_OF_SCOPE |
+                          DESTRUCT_DYNAMIC_PARAM)
+};
+
+
+static inline constexpr expr_event_t operator&(const expr_event_t a,
+                                               const expr_event_t b)
+{
+  return (expr_event_t) (((uint32) a) & ((uint32) b));
 }
 
 
@@ -3935,6 +3989,78 @@ public:
   {
     return this;
   }
+
+  /*
+    Returns true if a value of this data type needs additional handling,
+    e.g. on destruction.
+    For example, SYS_REFCURSOR writes and reads thd->m_statement_cursors.
+  */
+  virtual bool is_complex() const
+  {
+    return false;
+  }
+
+  /*
+    expr_event_handler()
+
+    Handle an expression event, such as destruction, on a SQL value
+    using its abstract offset. Every data type can have its own meaning
+    of the offset. In case of SYS_REFCURSOR, the offset is the position
+    of the cursor in the array Statement_rcontext::m_statement_cursors.
+
+    In case of a *reference* SP data type this method is supposed to perform
+    some action, e.g. destruction of a reference variable when the SP
+    execution leaves the BEGIN..END block where the reference variable
+    is declared in.
+
+    Suppose m_statement_cursors.at(0..4) were opened earlier,
+    in the upper level BEGIN..END blocks.
+
+    BEGIN
+      DECLARE ref1 SYS_RECURSOR;
+      -- The OPEN statement below attaches the reference ref1 to
+      -- the next available cursor thd->m_statement_cursors.at(5)
+      OPEN ref1 FOR SELECT 1;
+      BEGIN
+        DECLARE ref2 DEFAULT ref1;   -- one more reference to the same cursor
+        BEGIN
+          DECLARE ref3 DEFAULT ref1; -- one more reference to the same cursor
+            -- Here we have these relationships between variables:
+            --    ref1==5  ---> +------------------------------------------+
+            --    ref2==5  ---> | m_statement_cursors.at(5).m_ref_count==3 |
+            --    ref3==5  ---> +------------------------------------------+
+          END;
+        END;
+      END;
+    END;
+
+    The referenced object m_statement_cursirs.at(5) is not necessarily
+    destructed/modified every time when a referece SP variable pointing
+    to the object is destructed, as every object can have more than one
+    references declared in different BEGIN..END blocks,
+    like in the chart above.
+
+    In the SYS_REFCURSOR implementation in plugins/type_cursor
+    a call for `expr_event_handler(thd, DESTRUCT*, 5)` detaches the
+    reference SP variable (e.g. ref3) from the referenced object
+    (e.g. m_statement_cursors.at(5)) by decrementing the reference
+    counter in sp_cursor_array_element::m_ref_count.
+    When m_ref_count gets down to zero, the sp_cursor_array_element
+    instance m_statement_cursors.at(5) gets closed and re-initialized
+    for possible new OPEN statements
+    (it does not get completely destroyed into a useless state).
+  */
+  virtual void expr_event_handler(THD *thd, expr_event_t event,
+                                  ulonglong abstract_object_offset) const
+  { }
+
+  virtual Type_ref_null Item_param_val_ref(THD *thd, const Item_param *item)
+                                                                       const
+  {
+    return Type_ref_null();
+  }
+
+
   virtual bool partition_field_check(const LEX_CSTRING &field_name, Item *)
     const
   {
@@ -3953,6 +4079,11 @@ public:
   type_handler_adjusted_to_max_octet_length(uint max_octet_length,
                                             CHARSET_INFO *cs) const
   { return this; }
+  virtual bool Spvar_definition_with_complex_data_types(Spvar_definition *def)
+                                                                         const
+  {
+    return false;
+  }
   virtual bool adjust_spparam_type(Spvar_definition *def, Item *from) const
   {
     return false;
@@ -3965,6 +4096,7 @@ public:
   */
   bool is_traditional_scalar_type() const;
   virtual bool is_scalar_type() const { return true; }
+  virtual bool can_return_bool() const { return can_return_int(); }
   virtual bool can_return_int() const { return true; }
   virtual bool can_return_decimal() const { return true; }
   virtual bool can_return_real() const { return true; }
@@ -4434,6 +4566,10 @@ public:
                                                 MYSQL_TIME *,
                                                 date_mode_t) const;
   virtual
+  Type_ref_null Item_func_hybrid_field_type_val_ref(THD *thd,
+                                            Item_func_hybrid_field_type *item)
+                                                                         const;
+  virtual
   String *Item_func_min_max_val_str(Item_func_min_max *, String *) const= 0;
   virtual
   double Item_func_min_max_val_real(Item_func_min_max *) const= 0;
@@ -4606,6 +4742,9 @@ public:
   {
     return false;
   }
+  bool Spvar_definition_with_complex_data_types(Spvar_definition *def)
+                                                       const override;
+
   Field *make_table_field(MEM_ROOT *, const LEX_CSTRING *, const Record_addr &,
                           const Type_all_attributes &, TABLE_SHARE *)
     const override
@@ -7755,7 +7894,7 @@ extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_long_ge0>    type_han
 extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_longlong>    type_handler_slonglong;
 
 extern Named_type_handler<Type_handler_utiny>       type_handler_utiny;
-extern Named_type_handler<Type_handler_ushort>      type_handler_ushort;
+extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_ushort>      type_handler_ushort;
 extern Named_type_handler<Type_handler_uint24>      type_handler_uint24;
 extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_ulong>       type_handler_ulong;
 extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_ulonglong>   type_handler_ulonglong;

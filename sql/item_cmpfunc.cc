@@ -2559,6 +2559,14 @@ bool Item_func_ifnull::time_op(THD *thd, MYSQL_TIME *ltime)
 }
 
 
+Type_ref_null Item_func_ifnull::ref_op(THD *thd)
+{
+  DBUG_ASSERT(fixed());
+  const Type_ref_null res= args[0]->val_ref(thd);
+  return !res.is_null() ? res : args[1]->val_ref(thd);
+}
+
+
 /**
   Perform context analysis of an IF item tree.
 
@@ -3100,6 +3108,17 @@ void Item_func_case::reorder_args(uint start)
 }
 
 
+bool Item_func_case_searched::check_arguments() const
+{
+  uint count= when_count();
+  for (uint i= 0 ; i < count ; i++)
+  {
+    if (args[i]->check_type_can_return_bool({STRING_WITH_LEN("CASE WHEN")}))
+      return true;
+  }
+  return false;
+}
+
 
 /**
     Find and return matching items for CASE or ELSE item if all compares
@@ -3255,6 +3274,13 @@ bool Item_func_case::native_op(THD *thd, Native *to)
   return val_native_with_conversion_from_item(thd, item, to, type_handler());
 }
 
+
+Type_ref_null Item_func_case::ref_op(THD *thd)
+{
+  DBUG_ASSERT(fixed());
+  Item *item= find_item();
+  return item ? item->val_ref(thd) : Type_ref_null();
+}
 
 bool Item_func_case::fix_fields(THD *thd, Item **ref)
 {
@@ -3645,6 +3671,20 @@ my_decimal *Item_func_coalesce::decimal_op(my_decimal *decimal_value)
   null_value=1;
   return 0;
 }
+
+
+Type_ref_null Item_func_coalesce::ref_op(THD *thd)
+{
+  DBUG_ASSERT(fixed());
+  for (uint i=0 ; i < arg_count ; i++)
+  {
+    const Type_ref_null res= args[i]->val_ref(thd);
+    if (!res.is_null())
+      return res;
+  }
+  return Type_ref_null();
+}
+
 
 
 /****************************************************************************

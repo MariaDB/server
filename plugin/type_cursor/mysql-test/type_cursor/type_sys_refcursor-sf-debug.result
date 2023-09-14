@@ -1,0 +1,487 @@
+#
+# MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+#
+#
+# Helper routines
+#
+#
+# LAST_VALUE() cleans ref counters
+#
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE p2c0 SYS_REFCURSOR;
+CALL show_cursor_and_refs('p2-0', CAST(p2c0 AS CHAR), 0, 5);
+OPEN p2c0 FOR SELECT 1;
+CALL show_cursor_and_refs('p2-1', CAST(p2c0 AS CHAR), 0, 5);
+SET @log= '';
+SELECT last_value(ff1(p2c0), ff1(p2c0), ff1(p2c0)) AS lv;
+SELECT @log;
+CALL show_cursor_and_refs('p2-2', CAST(p2c0 AS CHAR), 0, 5);
+END;
+/
+CALL p2;
+stage	curs	refs
+p2-0	NULL	[NULL	NULL	NULL	NULL	NULL	NULL]
+stage	curs	refs
+p2-1	0	[1	NULL	NULL	NULL	NULL	NULL]
+lv
+0
+@log
+ff1-0	0	[2	NULL	NULL	NULL	NULL	NULL]
+ff1-0	0	[2	NULL	NULL	NULL	NULL	NULL]
+ff1-0	0	[2	NULL	NULL	NULL	NULL	NULL]
+stage	curs	refs
+p2-2	0	[1	NULL	NULL	NULL	NULL	NULL]
+CALL show_cursor_and_refs('/p2', '-', 0, 5);
+stage	curs	refs
+/p2	-	[NULL	NULL	NULL	NULL	NULL	NULL]
+DROP PROCEDURE p2;
+#
+# A cursor on a SELECT returning a local SP variable works in the caller
+#
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+DECLARE v INT;
+CALL show_cursor_and_refs('p2-0', CAST(c0 AS CHAR), 0, 5);
+SET @log= '';
+SET c0= ff0();
+SELECT @log;
+FETCH c0 INTO v;
+SELECT v;
+CALL show_cursor_and_refs('p2-1', CAST(c0 AS CHAR), 0, 5);
+END;
+/
+CALL p2();
+stage	curs	refs
+p2-0	NULL	[NULL	NULL	NULL	NULL	NULL	NULL]
+@log
+ff0-0	NULL	[NULL	NULL	NULL	NULL	NULL	NULL]
+ff0-1	0	[1	NULL	NULL	NULL	NULL	NULL]
+v
+10
+stage	curs	refs
+p2-1	0	[1	NULL	NULL	NULL	NULL	NULL]
+DROP PROCEDURE p2;
+#
+# A function returning on error still clears ref counters
+#
+# RETURN
+CREATE FUNCTION f1() RETURNS SYS_REFCURSOR
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+DECLARE v INT;
+OPEN c0 FOR SELECT 1;
+FETCH c0 INTO v;
+FETCH c0 INTO v; -- This raises 'No data' error
+RETURN c0;
+END;
+/
+CREATE FUNCTION f2() RETURNS SYS_REFCURSOR
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+DECLARE CONTINUE HANDLER FOR SQLSTATE '02000' RETURN NULL; -- Handle 'No data'
+  SET c0= f1();
+RETURN c0;
+END;
+/
+CALL show_cursor_and_refs('/f2', CAST(f2() AS CHAR), 0, 4);
+stage	curs	refs
+/f2	NULL	[0	NULL	NULL	NULL	NULL]
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+# INOUT parameter
+CREATE FUNCTION f1(INOUT c0 SYS_REFCURSOR) RETURNS SYS_REFCURSOR
+BEGIN
+DECLARE v INT;
+OPEN c0 FOR SELECT 1;
+FETCH c0 INTO v;
+FETCH c0 INTO v; -- This raises 'No data' error
+RETURN c0;
+END;
+/
+CREATE FUNCTION f2() RETURNS SYS_REFCURSOR
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+DECLARE CONTINUE HANDLER FOR SQLSTATE '02000' RETURN NULL; -- Handle 'No data'
+  DO f1(c0);
+RETURN c0;
+END;
+/
+CALL show_cursor_and_refs('/f2', CAST(f2() AS CHAR), 0, 4);
+stage	curs	refs
+/f2	NULL	[0	NULL	NULL	NULL	NULL]
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+# OUT parameter
+CREATE FUNCTION f1(OUT c0 SYS_REFCURSOR) RETURNS SYS_REFCURSOR
+BEGIN
+DECLARE v INT;
+OPEN c0 FOR SELECT 1;
+FETCH c0 INTO v;
+FETCH c0 INTO v; -- This raises 'No data' error
+RETURN c0;
+END;
+/
+CREATE FUNCTION f2() RETURNS SYS_REFCURSOR
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+DECLARE CONTINUE HANDLER FOR SQLSTATE '02000' RETURN NULL; -- Handle 'No data'
+  DO f1(c0);
+RETURN c0;
+END;
+/
+CALL show_cursor_and_refs('/f2', CAST(f2() AS CHAR), 0, 4);
+stage	curs	refs
+/f2	NULL	[0	NULL	NULL	NULL	NULL]
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+#
+# IN param + OPEN in p2 + multuple assignments
+#
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE c SYS_REFCURSOR;
+CALL show_cursor_and_refs('p2-1', CAST(c AS CHAR), 0, 1);
+OPEN c FOR SELECT 1;
+CALL show_cursor_and_refs('p2-2', CAST(c AS CHAR), 0, 1);
+SET @log='';
+SET c= ff1(c);
+SELECT @log;
+CALL show_cursor_and_refs('p2-3', CAST(c AS CHAR), 0, 1);
+SET @log='';
+SET c= ff1(c);
+SELECT @log;
+CALL show_cursor_and_refs('p2-4', CAST(c AS CHAR), 0, 1);
+END;
+/
+SHOW PROCEDURE CODE p2;
+Pos	Instruction
+0	set c@0 NULL
+1	stmt 88 "CALL show_cursor_and_refs('p2-1', CAS..."
+2	copen STMT.cursor[c@0]
+3	stmt 88 "CALL show_cursor_and_refs('p2-2', CAS..."
+4	stmt 31 "SET @log=''"
+5	set c@0 `ff1`(c@0)
+6	stmt 0 "SELECT @log"
+7	stmt 88 "CALL show_cursor_and_refs('p2-3', CAS..."
+8	stmt 31 "SET @log=''"
+9	set c@0 `ff1`(c@0)
+10	stmt 0 "SELECT @log"
+11	stmt 88 "CALL show_cursor_and_refs('p2-4', CAS..."
+12	destruct sys_refcursor c@0
+CALL p2;
+stage	curs	refs
+p2-1	NULL	[NULL	NULL]
+stage	curs	refs
+p2-2	0	[1	NULL]
+@log
+ff1-0	0	[2	NULL	NULL	NULL	NULL	NULL]
+stage	curs	refs
+p2-3	0	[1	NULL]
+@log
+ff1-0	0	[2	NULL	NULL	NULL	NULL	NULL]
+stage	curs	refs
+p2-4	0	[1	NULL]
+CALL show_cursor_and_refs('/p2','-', 0, 4);
+stage	curs	refs
+/p2	-	[NULL	NULL	NULL	NULL	NULL]
+DROP PROCEDURE p2;
+#
+# SF + no-param + OPEN in f0
+#
+CREATE PROCEDURE p2(num INT)
+BEGIN
+DECLARE c SYS_REFCURSOR;
+CALL show_cursor_and_refs('p2-0', CAST(c AS CHAR), 0, 1);
+FOR i IN 1..num
+DO
+SET @log= '';
+SET c= ff0();
+SELECT @log;
+CALL show_cursor_and_refs('p2-1', CAST(c AS CHAR), 0, 4);
+END FOR;
+CALL show_cursor_and_refs('p2-e', CAST(c AS CHAR), 0, 4);
+END;
+/
+CALL p2(1);
+stage	curs	refs
+p2-0	NULL	[NULL	NULL]
+@log
+ff0-0	NULL	[NULL	NULL	NULL	NULL	NULL	NULL]
+ff0-1	0	[1	NULL	NULL	NULL	NULL	NULL]
+stage	curs	refs
+p2-1	0	[1	NULL	NULL	NULL	NULL]
+stage	curs	refs
+p2-e	0	[1	NULL	NULL	NULL	NULL]
+CALL show_cursor_and_refs('/p2', '-', 0, 4);
+stage	curs	refs
+/p2	-	[NULL	NULL	NULL	NULL	NULL]
+CALL p2(4);
+stage	curs	refs
+p2-0	NULL	[NULL	NULL]
+@log
+ff0-0	NULL	[NULL	NULL	NULL	NULL	NULL	NULL]
+ff0-1	0	[1	NULL	NULL	NULL	NULL	NULL]
+stage	curs	refs
+p2-1	0	[1	NULL	NULL	NULL	NULL]
+@log
+ff0-0	NULL	[1	NULL	NULL	NULL	NULL	NULL]
+ff0-1	1	[1	1	NULL	NULL	NULL	NULL]
+stage	curs	refs
+p2-1	1	[0	1	NULL	NULL	NULL]
+@log
+ff0-0	NULL	[0	1	NULL	NULL	NULL	NULL]
+ff0-1	0	[1	1	NULL	NULL	NULL	NULL]
+stage	curs	refs
+p2-1	0	[1	0	NULL	NULL	NULL]
+@log
+ff0-0	NULL	[1	0	NULL	NULL	NULL	NULL]
+ff0-1	1	[1	1	NULL	NULL	NULL	NULL]
+stage	curs	refs
+p2-1	1	[0	1	NULL	NULL	NULL]
+stage	curs	refs
+p2-e	1	[0	1	NULL	NULL	NULL]
+CALL show_cursor_and_refs('/p2', '-', 0, 4);
+stage	curs	refs
+/p2	-	[NULL	NULL	NULL	NULL	NULL]
+DROP PROCEDURE p2;
+#
+# SF + no-param + OPEN in p2 + OPEN in f0
+#
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE c SYS_REFCURSOR;
+CALL show_cursor_and_refs('p2-0', CAST(c AS CHAR), 0, 2);
+OPEN c FOR SELECT 1;
+CALL show_cursor_and_refs('p2-1', CAST(c AS CHAR), 0, 2);
+SET @log= '';
+SET c= ff0();
+SELECT @log;
+CALL show_cursor_and_refs('p2-2', CAST(c AS CHAR), 0, 2);
+END;
+/
+CALL p2();
+stage	curs	refs
+p2-0	NULL	[NULL	NULL	NULL]
+stage	curs	refs
+p2-1	0	[1	NULL	NULL]
+@log
+ff0-0	NULL	[1	NULL	NULL	NULL	NULL	NULL]
+ff0-1	1	[1	1	NULL	NULL	NULL	NULL]
+stage	curs	refs
+p2-2	1	[0	1	NULL]
+CALL show_cursor_and_refs('/p2', '-', 0, 4);
+stage	curs	refs
+/p2	-	[NULL	NULL	NULL	NULL	NULL]
+DROP PROCEDURE p2;
+#
+# SF + IN param + OPEN in p2
+#
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE c SYS_REFCURSOR;
+CALL show_cursor_and_refs('p2-0', CAST(c AS CHAR), 0, 2);
+OPEN c FOR SELECT 1;
+CALL show_cursor_and_refs('p2-1', CAST(c AS CHAR), 0, 2);
+SET @log= '';
+SET c= ff1(c);
+SELECT @log;
+CALL show_cursor_and_refs('p2-2', CAST(c AS CHAR), 0, 2);
+END;
+/
+CALL p2();
+stage	curs	refs
+p2-0	NULL	[NULL	NULL	NULL]
+stage	curs	refs
+p2-1	0	[1	NULL	NULL]
+@log
+ff1-0	0	[2	NULL	NULL	NULL	NULL	NULL]
+stage	curs	refs
+p2-2	0	[1	NULL	NULL]
+CALL show_cursor_and_refs('/p2', '-', 0, 4);
+stage	curs	refs
+/p2	-	[NULL	NULL	NULL	NULL	NULL]
+DROP PROCEDURE p2;
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE c SYS_REFCURSOR;
+CALL show_cursor_and_refs('p2-0', CAST(c AS CHAR), 0, 2);
+OPEN c FOR SELECT 1;
+CALL show_cursor_and_refs('p2-1', CAST(c AS CHAR), 0, 2);
+SET @log= '';
+SET c= ff1(ff1(c));
+SELECT @log;
+CALL show_cursor_and_refs('p2-2', CAST(c AS CHAR), 0, 2);
+END;
+/
+CALL p2();
+stage	curs	refs
+p2-0	NULL	[NULL	NULL	NULL]
+stage	curs	refs
+p2-1	0	[1	NULL	NULL]
+@log
+ff1-0	0	[2	NULL	NULL	NULL	NULL	NULL]
+ff1-0	0	[2	NULL	NULL	NULL	NULL	NULL]
+stage	curs	refs
+p2-2	0	[1	NULL	NULL]
+CALL show_cursor_and_refs('/p2', '-', 0, 4);
+stage	curs	refs
+/p2	-	[NULL	NULL	NULL	NULL	NULL]
+DROP PROCEDURE p2;
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE c SYS_REFCURSOR;
+CALL show_cursor_and_refs('p2-0', CAST(c AS CHAR), 0, 2);
+OPEN c FOR SELECT 1;
+CALL show_cursor_and_refs('p2-1', CAST(c AS CHAR), 0, 2);
+SET @log= '';
+SET c= ff1(ff1(ff1(ff1(ff1(c)))));
+SELECT @log;
+CALL show_cursor_and_refs('p2-2', CAST(c AS CHAR), 0, 2);
+END;
+/
+CALL p2();
+stage	curs	refs
+p2-0	NULL	[NULL	NULL	NULL]
+stage	curs	refs
+p2-1	0	[1	NULL	NULL]
+@log
+ff1-0	0	[2	NULL	NULL	NULL	NULL	NULL]
+ff1-0	0	[2	NULL	NULL	NULL	NULL	NULL]
+ff1-0	0	[2	NULL	NULL	NULL	NULL	NULL]
+ff1-0	0	[2	NULL	NULL	NULL	NULL	NULL]
+ff1-0	0	[2	NULL	NULL	NULL	NULL	NULL]
+stage	curs	refs
+p2-2	0	[1	NULL	NULL]
+CALL show_cursor_and_refs('/p2', '-', 0, 4);
+stage	curs	refs
+/p2	-	[NULL	NULL	NULL	NULL	NULL]
+DROP PROCEDURE p2;
+#
+# COALESCE + OPEN in p2
+#
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE c SYS_REFCURSOR;
+CALL show_cursor_and_refs('p2-0', CAST(c AS CHAR), 0, 2);
+OPEN c FOR SELECT 1;
+CALL show_cursor_and_refs('p2-1', CAST(c AS CHAR), 0, 2);
+SET @log= '';
+SET c= COALESCE(COALESCE(COALESCE(COALESCE(COALESCE(c)))));
+CALL show_cursor_and_refs('p2-2', CAST(c AS CHAR), 0, 2);
+END;
+/
+CALL p2();
+stage	curs	refs
+p2-0	NULL	[NULL	NULL	NULL]
+stage	curs	refs
+p2-1	0	[1	NULL	NULL]
+stage	curs	refs
+p2-2	0	[1	NULL	NULL]
+CALL show_cursor_and_refs('/p2', '-', 0, 4);
+stage	curs	refs
+/p2	-	[NULL	NULL	NULL	NULL	NULL]
+DROP PROCEDURE p2;
+#
+# SF-COALESCE-MIX + IN param + OPEN in p2
+#
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE c SYS_REFCURSOR;
+CALL show_cursor_and_refs('p2-0', CAST(c AS CHAR), 0, 5);
+OPEN c FOR SELECT 1;
+CALL show_cursor_and_refs('p2-1', CAST(c AS CHAR), 0, 5);
+SET @log= '';
+SET c= COALESCE(ff1(NULL), ff1(NULL), ff1(NULL), ff1(c));
+SELECT @log;
+CALL show_cursor_and_refs('p2-2', CAST(c AS CHAR), 0, 5);
+SET @log= '';
+SET c= ff1(COALESCE(NULL, ff1(NULL), ff1(NULL), ff1(NULL), ff1(c)));
+SELECT @log;
+CALL show_cursor_and_refs('p2-3', CAST(c AS CHAR), 0, 5);
+SET @log= '';
+SET c= ff1(COALESCE(COALESCE(COALESCE(NULL, ff1(c)))));
+SELECT @log;
+CALL show_cursor_and_refs('p2-4', CAST(c AS CHAR), 0, 5);
+SET @log= '';
+SET c= ff1(ff1(ff1(ff1(COALESCE(NULL, ff1(c))))));
+SELECT @log;
+CALL show_cursor_and_refs('p2-5', CAST(c AS CHAR), 0, 5);
+SET @log= '';
+SET c= ff1(COALESCE(ff1(COALESCE(ff1(COALESCE(NULL, ff1(c)))))));
+SELECT @log;
+CALL show_cursor_and_refs('p2-5', CAST(c AS CHAR), 0, 5);
+END;
+/
+SHOW PROCEDURE CODE p2;
+Pos	Instruction
+0	set c@0 NULL
+1	stmt 88 "CALL show_cursor_and_refs('p2-0', CAS..."
+2	copen STMT.cursor[c@0]
+3	stmt 88 "CALL show_cursor_and_refs('p2-1', CAS..."
+4	stmt 31 "SET @log= ''"
+5	set c@0 coalesce(`ff1`(NULL),`ff1`(NULL),`ff1`(NULL),`ff1`(c@0))
+6	stmt 0 "SELECT @log"
+7	stmt 88 "CALL show_cursor_and_refs('p2-2', CAS..."
+8	stmt 31 "SET @log= ''"
+9	set c@0 `ff1`(coalesce(NULL,`ff1`(NULL),`ff1`(NULL),`ff1`(NULL),`ff1`(c@0)))
+10	stmt 0 "SELECT @log"
+11	stmt 88 "CALL show_cursor_and_refs('p2-3', CAS..."
+12	stmt 31 "SET @log= ''"
+13	set c@0 `ff1`(coalesce(coalesce(coalesce(NULL,`ff1`(c@0)))))
+14	stmt 0 "SELECT @log"
+15	stmt 88 "CALL show_cursor_and_refs('p2-4', CAS..."
+16	stmt 31 "SET @log= ''"
+17	set c@0 `ff1`(`ff1`(`ff1`(`ff1`(coalesce(NULL,`ff1`(c@0))))))
+18	stmt 0 "SELECT @log"
+19	stmt 88 "CALL show_cursor_and_refs('p2-5', CAS..."
+20	stmt 31 "SET @log= ''"
+21	set c@0 `ff1`(coalesce(`ff1`(coalesce(`ff1`(coalesce(NULL,`ff1`(c@0)))))))
+22	stmt 0 "SELECT @log"
+23	stmt 88 "CALL show_cursor_and_refs('p2-5', CAS..."
+24	destruct sys_refcursor c@0
+CALL p2;
+stage	curs	refs
+p2-0	NULL	[NULL	NULL	NULL	NULL	NULL	NULL]
+stage	curs	refs
+p2-1	0	[1	NULL	NULL	NULL	NULL	NULL]
+@log
+ff1-0	NULL	[1	NULL	NULL	NULL	NULL	NULL]
+ff1-0	NULL	[1	NULL	NULL	NULL	NULL	NULL]
+ff1-0	NULL	[1	NULL	NULL	NULL	NULL	NULL]
+ff1-0	0	[2	NULL	NULL	NULL	NULL	NULL]
+stage	curs	refs
+p2-2	0	[1	NULL	NULL	NULL	NULL	NULL]
+@log
+ff1-0	NULL	[1	NULL	NULL	NULL	NULL	NULL]
+ff1-0	NULL	[1	NULL	NULL	NULL	NULL	NULL]
+ff1-0	NULL	[1	NULL	NULL	NULL	NULL	NULL]
+ff1-0	0	[2	NULL	NULL	NULL	NULL	NULL]
+ff1-0	0	[2	NULL	NULL	NULL	NULL	NULL]
+stage	curs	refs
+p2-3	0	[1	NULL	NULL	NULL	NULL	NULL]
+@log
+ff1-0	0	[2	NULL	NULL	NULL	NULL	NULL]
+ff1-0	0	[2	NULL	NULL	NULL	NULL	NULL]
+stage	curs	refs
+p2-4	0	[1	NULL	NULL	NULL	NULL	NULL]
+@log
+ff1-0	0	[2	NULL	NULL	NULL	NULL	NULL]
+ff1-0	0	[2	NULL	NULL	NULL	NULL	NULL]
+ff1-0	0	[2	NULL	NULL	NULL	NULL	NULL]
+ff1-0	0	[2	NULL	NULL	NULL	NULL	NULL]
+ff1-0	0	[2	NULL	NULL	NULL	NULL	NULL]
+stage	curs	refs
+p2-5	0	[1	NULL	NULL	NULL	NULL	NULL]
+@log
+ff1-0	0	[2	NULL	NULL	NULL	NULL	NULL]
+ff1-0	0	[2	NULL	NULL	NULL	NULL	NULL]
+ff1-0	0	[2	NULL	NULL	NULL	NULL	NULL]
+ff1-0	0	[2	NULL	NULL	NULL	NULL	NULL]
+stage	curs	refs
+p2-5	0	[1	NULL	NULL	NULL	NULL	NULL]
+CALL show_cursor_and_refs('/p2', '-', 0, 4);
+stage	curs	refs
+/p2	-	[NULL	NULL	NULL	NULL	NULL]
+DROP PROCEDURE p2;

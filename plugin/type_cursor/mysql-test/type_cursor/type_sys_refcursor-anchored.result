@@ -1,0 +1,241 @@
+#
+# Helper routines
+#
+#
+#  MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+#
+#
+# sql_mode=DEFAULT: TYPE OF declaration for a single SYS_REFCURSOR:
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v00 INT;
+DECLARE c10 SYS_REFCURSOR;
+DECLARE c11 TYPE OF c10;
+OPEN c11 FOR SELECT 1;
+FETCH c11 INTO v00;
+SELECT c10, c11, v00, refs(0,4) AS refs;
+END;
+/
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set v00@0 NULL
+1	set c10@1 NULL
+2	set c11@2 NULL
+3	copen STMT.cursor[c11@2]
+4	cfetch STMT.cursor[c11@2] v00@0
+5	stmt 0 "SELECT c10, c11, v00, refs(0,4) AS refs"
+6	destruct sys_refcursor c11@2
+7	destruct sys_refcursor c10@1
+CALL p1;
+c10	c11	v00	refs
+NULL	0	1	[1	NULL	NULL	NULL	NULL]
+DROP PROCEDURE p1;
+#
+# sql_mode=ORACLE" %TYPE declaration for a single SYS_REFCURSOR:
+#
+SET sql_mode=ORACLE;
+CREATE PROCEDURE p1 AS
+c0 SYS_REFCURSOR;
+c1 c0%TYPE;
+v1 INT;
+v2 INT;
+BEGIN
+OPEN c0 FOR SELECT 1 AS c1, 2 AS c2 FROM DUAL;
+c1:= c0;
+FETCH c1 INTO v1, v2;
+DBMS_OUTPUT.PUT_LINE(v1 ||' '|| v2);
+END;
+/
+CALL p1;
+
+1 2
+DROP PROCEDURE p1;
+SET sql_mode=DEFAULT;
+#
+# Anchored TYPE OF declarations for a ROW of SYS_REFCURSORs:
+# DECLARE r00 ROW(c00 SYS_REFCURSOR, c01 SYS_REFCURSOR);
+# DECLARE r11 TYPE OF r10;
+#
+CREATE PROCEDURE open1(INOUT c00 SYS_REFCURSOR, value INT)
+BEGIN
+OPEN c00 FOR SELECT value;
+END;
+/
+SHOW PROCEDURE CODE open1
+/
+Pos	Instruction
+0	copen STMT.cursor[c00@0]
+CREATE PROCEDURE open2(INOUT r00 ROW(c00 SYS_REFCURSOR, c01 SYS_REFCURSOR))
+BEGIN
+CALL open1(r00.c00, 20);
+CALL open1(r00.c01, 21);
+END;
+/
+SHOW PROCEDURE CODE open2
+/
+Pos	Instruction
+0	stmt 88 "CALL open1(r00.c00, 20)"
+1	stmt 88 "CALL open1(r00.c01, 21)"
+CREATE PROCEDURE fetch1(c00 SYS_REFCURSOR, OUT v00 INT)
+BEGIN
+FETCH c00 INTO v00;
+END;
+/
+SHOW PROCEDURE CODE fetch1
+/
+Pos	Instruction
+0	cfetch STMT.cursor[c00@0] v00@1
+CREATE PROCEDURE fetch2(r00 ROW(c00 SYS_REFCURSOR, c01 SYS_REFCURSOR),
+OUT v00 ROW(i00 INT, i01 INT))
+BEGIN
+CALL fetch1(r00.c00, v00.i00);
+CALL fetch1(r00.c01, v00.i01);
+END;
+/
+SHOW PROCEDURE CODE fetch2
+/
+Pos	Instruction
+0	stmt 88 "CALL fetch1(r00.c00, v00.i00)"
+1	stmt 88 "CALL fetch1(r00.c01, v00.i01)"
+CREATE PROCEDURE close1(c00 SYS_REFCURSOR)
+BEGIN
+CLOSE c00;
+END;
+/
+SHOW PROCEDURE CODE close1
+/
+Pos	Instruction
+0	cclose STMT.cursor[c00@0]
+CREATE PROCEDURE close2(r00 ROW(c00 SYS_REFCURSOR, c01 SYS_REFCURSOR))
+BEGIN
+CALL close1(r00.c00);
+CALL close1(r00.c01);
+END;
+/
+SHOW PROCEDURE CODE close2
+/
+Pos	Instruction
+0	stmt 88 "CALL close1(r00.c00)"
+1	stmt 88 "CALL close1(r00.c01)"
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v00 ROW(i00 INT, i01 iNT);
+DECLARE r10 ROW(c00 SYS_REFCURSOR, c01 SYS_REFCURSOR);
+DECLARE r11 TYPE OF r10;
+CALL open2(r11);
+CALL fetch2(r11, v00);
+CALL close2(r11);
+SELECT r11.c00, r11.c01, refs(0,3) AS refs, v00.i00, v00.i01;
+END;
+/
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set v00@0 NULL
+1	set r10@1 NULL
+2	set r11@2 NULL
+3	stmt 88 "CALL open2(r11)"
+4	stmt 88 "CALL fetch2(r11, v00)"
+5	stmt 88 "CALL close2(r11)"
+6	stmt 0 "SELECT r11.c00, r11.c01, refs(0,3) AS..."
+7	destruct row r11@2
+8	destruct row r10@1
+CALL p1;
+r11.c00	r11.c01	refs	v00.i00	v00.i01
+0	1	[1	1	NULL	NULL]	20	21
+DROP PROCEDURE p1;
+DROP PROCEDURE open1;
+DROP PROCEDURE open2;
+DROP PROCEDURE fetch1;
+DROP PROCEDURE fetch2;
+DROP PROCEDURE close1;
+DROP PROCEDURE close2;
+#
+# This declaration raises "Illegal parameter data type":
+#   DECLARE r00 ROW TYPE OF static_cursor_with_refcursor_fields;
+# But only of the execution really comes into its block.
+#
+CREATE PROCEDURE p1(declare_row_type_of BOOLEAN)
+BEGIN
+DECLARE v00 INT;
+DECLARE v01 INT;
+DECLARE c00 SYS_REFCURSOR;
+DECLARE c01 SYS_REFCURSOR;
+DECLARE s00 CURSOR FOR SELECT c00, c01;
+OPEN c00 FOR SELECT 10;
+OPEN c01 FOR SELECT 11;
+IF declare_row_type_of THEN
+BEGIN
+DECLARE r00 ROW TYPE OF s00;
+END;
+END IF;
+FETCH c00 INTO v00;
+FETCH c01 INTO v01;
+SELECT c00, c01, refs(0,4) AS refs, v00, v01;
+END;
+/
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set v00@1 NULL
+1	set v01@2 NULL
+2	set c00@3 NULL
+3	set c01@4 NULL
+4	cpush s00@0
+5	copen STMT.cursor[c00@3]
+6	copen STMT.cursor[c01@4]
+7	jump_if_not 10(10) declare_row_type_of@0
+8	cursor_copy_struct s00 r00@5
+9	set r00@5 NULL
+10	cfetch STMT.cursor[c00@3] v00@1
+11	cfetch STMT.cursor[c01@4] v01@2
+12	stmt 0 "SELECT c00, c01, refs(0,4) AS refs, v..."
+13	cpop 1
+14	destruct sys_refcursor c01@4
+15	destruct sys_refcursor c00@3
+CALL p1(false);
+c00	c01	refs	v00	v01
+0	1	[1	1	NULL	NULL	NULL]	10	11
+CALL p1(true);
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'CREATE TABLE'
+DROP PROCEDURE p1;
+#
+# sql_mode=ORACLE:
+# static_cursor_with_refcursor_field%ROWTYPE
+#
+SET sql_mode=ORACLE;
+CREATE PROCEDURE p1 AS
+c0 SYS_REFCURSOR;
+BEGIN
+OPEN c0 FOR SELECT 1 AS c1, 2 AS c2 FROM DUAL;
+DECLARE
+r c0%ROWTYPE; -- This is considered as a table c0.
+BEGIN
+CREATE TABLE t1 AS SELECT r.c1 AS c1, r.c2 AS c2;
+END;
+END;
+/
+CALL p1;
+ERROR 42S02: Table 'test.c0' doesn't exist
+DROP PROCEDURE p1;
+SET sql_mode=DEFAULT;
+#
+# Fetching from a SYS_REFCURSOR into a %ROWTYPE variable
+#
+SET sql_mode=ORACLE;
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (1, 'b1');
+CREATE PROCEDURE p1 AS
+c0 SYS_REFCURSOR;
+r0 t1%ROWTYPE;
+BEGIN
+OPEN c0 FOR SELECT * FROM t1;
+FETCH c0 INTO r0;
+DBMS_OUTPUT.PUT_LINE(r0.a ||' '|| r0.b);
+END;
+/
+CALL p1;
+
+1 b1
+DROP TABLE t1;
+DROP PROCEDURE p1;
+SET sql_mode=DEFAULT;
