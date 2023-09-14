@@ -3562,6 +3562,8 @@ String *Item_func_conv_charset::val_str(String *str)
     return null_value ? 0 : &str_value;
   String *arg= args[0]->val_str(&tmp_value);
   String_copier_for_item copier(current_thd);
+  if (do_narrowing)
+    copier.set_do_utf8_narrowing();
   return ((null_value= args[0]->null_value ||
                        copier.copy_with_warn(collation.collation, str,
                                              arg->charset(), arg->ptr(),
@@ -3578,7 +3580,10 @@ bool Item_func_conv_charset::fix_length_and_dec()
 
 void Item_func_conv_charset::print(String *str, enum_query_type query_type)
 {
-  str->append(STRING_WITH_LEN("convert("));
+  if (do_narrowing)
+    str->append(STRING_WITH_LEN("convert_narrow("));
+  else
+    str->append(STRING_WITH_LEN("convert("));
   args[0]->print(str, query_type);
   str->append(STRING_WITH_LEN(" using "));
   str->append(collation.collation->cs_name);

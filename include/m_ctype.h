@@ -1607,7 +1607,8 @@ uint32 my_convert_using_func(char *to, size_t to_length, CHARSET_INFO *to_cs,
   returned.
 */
 size_t my_convert_fix(CHARSET_INFO *dstcs, char *dst, size_t dst_length,
-                      CHARSET_INFO *srccs, const char *src, size_t src_length,
+                      CHARSET_INFO *srccs, my_charset_conv_mb_wc from_mb_wc,
+                      const char *src, size_t src_length,
                       size_t nchars,
                       MY_STRCOPY_STATUS *copy_status,
                       MY_STRCONV_STATUS *conv_status);
@@ -1704,6 +1705,14 @@ my_well_formed_length(CHARSET_INFO *cs, const char *b, const char *e,
 #define USE_TIS620
 #include "t_ctype.h"
 #endif
+
+/*
+  Utility function for UTF8MB4 -> MB3 conversion that maintains
+  equality comparison semantics for utf8mb{3,4}*general_ci
+*/
+int
+my_mb_wc_utf8mb4_bmp_only(CHARSET_INFO *cs __attribute__((unused)),
+                     my_wc_t * pwc, const uchar *s, const uchar *e);
 
 #ifdef	__cplusplus
 }

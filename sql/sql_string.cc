@@ -1145,8 +1145,19 @@ String_copier::well_formed_copy(CHARSET_INFO *to_cs,
     return (uint) to_cs->copy_fix(to, to_length, from, from_length,
                                   nchars, this);
   }
-  return (uint) my_convert_fix(to_cs, to, to_length, from_cs, from, from_length,
-                        nchars, this, this);
+  /*
+    psergey: it's tempting to use my_mb_wc_utf8mb4_bmp_only if we're converting
+    from utf8mb4 to mb3.
+
+    Unfortunately we can't do this as this function is used for all kinds of
+    conversions.
+  */
+  my_charset_conv_mb_wc mbwcfunc= nullptr;
+  if (do_utf8_narrowing)
+    mbwcfunc= my_mb_wc_utf8mb4_bmp_only;
+
+  return (uint) my_convert_fix(to_cs, to, to_length, from_cs, mbwcfunc, from, from_length,
+                               nchars, this, this);
 }
 
 

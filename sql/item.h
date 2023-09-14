@@ -772,8 +772,9 @@ enum class item_base_t : item_flags_t
   FIXED=                 (1<<2),   // Was fixed with fix_fields().
   IS_EXPLICIT_NAME=      (1<<3),   // The name of this Item was set by the user
                                    // (or was auto generated otherwise)
-  IS_IN_WITH_CYCLE=      (1<<4)    // This item is in CYCLE clause
+  IS_IN_WITH_CYCLE=      (1<<4),    // This item is in CYCLE clause
                                    // of WITH.
+  IS_EQUIVALENT_EXTRA=   (1<<5)
 };
 
 
@@ -1076,6 +1077,13 @@ public:
   inline bool is_in_with_cycle() const
   { return (bool) (base_flags & item_base_t::IS_IN_WITH_CYCLE); }
 
+  inline bool is_equivalent_extra() const
+  { return (bool) (base_flags & item_base_t::IS_EQUIVALENT_EXTRA); }
+
+  inline void set_equivalent_extra() 
+  {
+    base_flags|= item_base_t::IS_EQUIVALENT_EXTRA;
+  }
   inline bool with_sp_var() const
   { return (bool) (with_flags & item_with_t::SP_VAR); }
   inline bool with_window_func() const
@@ -2489,6 +2497,10 @@ public:
   { return this; }
   virtual Item *multiple_equality_transformer(THD *thd, uchar *arg)
   { return this; }
+
+  virtual Item *utf8narrow_transformer(THD *thd, uchar *arg)
+  { return this; }
+
   virtual bool expr_cache_is_needed(THD *) { return FALSE; }
   virtual Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
   bool needs_charset_converter(uint32 length, CHARSET_INFO *tocs) const

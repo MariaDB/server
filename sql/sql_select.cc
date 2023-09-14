@@ -2253,6 +2253,9 @@ JOIN::optimize_inner()
 
   transform_in_predicates_into_equalities(thd);
 
+  transform_all_conds_and_on_exprs(thd, 
+                                   &Item::utf8narrow_transformer);
+
   conds= optimize_cond(this, conds, join_list, ignore_on_expr,
                        &cond_value, &cond_equal, OPT_LINK_EQUAL_FIELDS);
 
@@ -23673,6 +23676,17 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
 
 {
   table_map rand_table_bit= (table_map) RAND_TABLE_BIT;
+  
+  if (cond->is_equivalent_extra())
+  {
+    /*
+      This condition was injected to allow the optimizer to generate
+      more access methods. 
+      The condition is a equivalent to some other condition so there's no need
+      to check it.
+    */
+    return NULL;
+  }
 
   if (used_table && !(cond->used_tables() & used_table))
     return (COND*) 0;				// Already checked

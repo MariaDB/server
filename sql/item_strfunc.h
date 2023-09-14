@@ -1695,16 +1695,19 @@ class Item_func_conv_charset :public Item_str_func
 {
   bool use_cached_value;
   String tmp_value;
+  bool do_narrowing;
 public:
   bool safe;
   Item_func_conv_charset(THD *thd, Item *a, CHARSET_INFO *cs):
-    Item_str_func(thd, a)
+    Item_str_func(thd, a), do_narrowing(false)
   {
     collation.set(cs, DERIVATION_IMPLICIT);
     use_cached_value= 0; safe= 0;
   }
-  Item_func_conv_charset(THD *thd, Item *a, CHARSET_INFO *cs, bool cache_if_const):
-    Item_str_func(thd, a)
+  Item_func_conv_charset(THD *thd, Item *a, CHARSET_INFO *cs, 
+                         bool cache_if_const, 
+                         bool do_narrowing_arg=false):
+    Item_str_func(thd, a), do_narrowing(do_narrowing_arg)
   {
     collation.set(cs, DERIVATION_IMPLICIT);
     if (cache_if_const && args[0]->can_eval_in_optimize())
@@ -1780,7 +1783,8 @@ public:
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("convert") };
-    return name;
+    static LEX_CSTRING name_narrow= {STRING_WITH_LEN("convert_narrow") };
+    return do_narrowing? name_narrow : name;
   }
   void print(String *str, enum_query_type query_type) override;
   Item *get_copy(THD *thd) override

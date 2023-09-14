@@ -100,7 +100,9 @@ public:
 class String_copier: public String_copy_status,
                      protected MY_STRCONV_STATUS
 {
+  bool do_utf8_narrowing= false;
 public:
+  void set_do_utf8_narrowing() { do_utf8_narrowing= true; }
   const char *cannot_convert_error_pos() const
   { return m_cannot_convert_error_pos; }
   const char *most_important_error_pos() const
@@ -117,7 +119,7 @@ public:
                      size_t nchars)
   {
     return my_convert_fix(dstcs, dst, dst_length,
-                          srccs, src, src_length, nchars, this, this);
+                          srccs, NULL, src, src_length, nchars, this, this);
   }
   /*
      Copy a string. Fix bad bytes/characters to '?'.
