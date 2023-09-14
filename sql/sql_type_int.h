@@ -152,8 +152,14 @@ public:
 class ULonglong_null: public ULonglong, public Null_flag
 {
 public:
+  ULonglong_null()
+   :ULonglong(0), Null_flag(true)
+  { }
   ULonglong_null(ulonglong nr, bool is_null)
    :ULonglong(nr), Null_flag(is_null)
+  { }
+  explicit ULonglong_null(ulonglong nr)
+   :ULonglong(nr), Null_flag(false)
   { }
 
   /*

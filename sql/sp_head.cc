@@ -80,6 +80,10 @@ void init_sp_psi_keys()
   PSI_server->register_statement(category, & sp_instr_cursor_copy_struct::psi_info, 1);
   PSI_server->register_statement(category, & sp_instr_error::psi_info, 1);
   PSI_server->register_statement(category, & sp_instr_set_case_expr::psi_info, 1);
+  PSI_server->register_statement(category, & sp_instr_copen_by_ref::psi_info, 1);
+  PSI_server->register_statement(category, & sp_instr_cclose_by_ref::psi_info, 1);
+  PSI_server->register_statement(category, & sp_instr_cfetch_by_ref::psi_info, 1);
+  PSI_server->register_statement(category, & sp_instr_destruct_variable::psi_info, 1);
 
   DBUG_ASSERT(SP_PSI_STATEMENT_INFO_COUNT == __LINE__ - num);
 }
@@ -1957,7 +1961,8 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
     /* Arguments must be fixed in Item_func_sp::fix_fields */
     DBUG_ASSERT(argp[arg_no]->fixed());
 
-    err_status= bind_input_param(thd, argp[arg_no], arg_no, *func_ctx, TRUE);
+    err_status= bind_input_param(thd, argp[arg_no], arg_no,
+                                 octx, *func_ctx, TRUE);
     if (err_status)
       goto err_with_cleanup;
   }
@@ -2101,6 +2106,16 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
 #endif
 
 err_with_cleanup:
+
+  /*
+    Call SP variable destructors both on success and error, to exit with a
+    clean state, as the caller can catch the error using a condition handler
+    and continue the execution.
+    E.g. SYS_REFCURSOR variables will decrement their cursor ref counters.
+  */
+  if (thd->spcont)
+    thd->spcont->sp_variable_destruct_all(thd);
+
   thd->spcont= octx;
 
   /*
@@ -2216,7 +2231,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
       if (!arg_item)
         break;
 
-      err_status= bind_input_param(thd, arg_item, i, nctx, FALSE);
+      err_status= bind_input_param(thd, arg_item, i, octx, nctx, FALSE);
       if (err_status)
         break;
     }
@@ -2334,6 +2349,9 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
     }
   }
 
+  if (thd->spcont)
+    thd->spcont->sp_variable_destruct_all(thd);
+
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (save_security_ctx)
     m_security_ctx.restore_security_context(thd, save_security_ctx);
@@ -2365,6 +2383,7 @@ bool
 sp_head::bind_input_param(THD *thd,
                           Item *arg_item,
                           uint arg_no,
+                          sp_rcontext *octx,
                           sp_rcontext *nctx,
                           bool is_function)
 {
@@ -2408,6 +2427,7 @@ sp_head::bind_input_param(THD *thd,
 
   if (spvar->mode == sp_variable::MODE_OUT)
   {
+    // Initialize formal parameters to NULL
     Item_null *null_item= new (thd->mem_root) Item_null(thd);
     Item *tmp_item= null_item;
 
@@ -2416,6 +2436,25 @@ sp_head::bind_input_param(THD *thd,
     {
       DBUG_PRINT("error", ("set variable failed"));
       DBUG_RETURN(TRUE);
+    }
+
+    /*
+      The old value of the actual OUT parameter will be overridden
+      in the end of the routine execution when copying its new value
+      from the formal parameter in bind_output_param().
+      Let's also call sp_variable_destruct() for the actual parameter
+      right now.
+    */
+    if (Item_splocal *spv= arg_item->get_item_splocal())
+    {
+      /*
+        In case of a SYS_REFCURSOR variable the call for sp_variable_destruct()
+        will decrease the ref count in the referenced cursor in sp_cursor_array.
+        See Field_sys_refcursor::sp_variable_destruct() for details.
+      */
+      sp_rcontext *octx1= spv->rcontext_handler()->get_rcontext(octx);
+      octx1->get_variable(spv->get_var_idx())->field->
+               sp_variable_destruct(thd);
     }
   }
   else
@@ -3887,6 +3926,31 @@ sp_head::add_set_for_loop_cursor_param_variables(THD *thd,
                            param_lex, last,
                            param_lex->get_expr_str()))
       return true;
+  }
+  return false;
+}
+
+
+/*
+  When the parser reaches the end of a BEGIN..END inner block
+  we need to add sp_instr_destruct_variable instructions
+  for variables declared in this block.
+*/
+bool sp_head::add_sp_block_destruct_variables(THD *thd, sp_pcontext *pctx)
+{
+  uint var_count= pctx->context_var_count();
+  for (uint i= 0; i < var_count; i++)
+  {
+    uint offset= var_count - i - 1;
+    const sp_variable *spv= pctx->get_context_variable(offset);
+    if (spv->type_handler()->has_side_effect())
+    {
+      sp_instr *instr= new (thd->mem_root) sp_instr_destruct_variable(
+                                                       instructions(),
+                                                       pctx, spv->offset);
+      if (!instr || add_instr(instr))
+        return true;
+    }
   }
   return false;
 }

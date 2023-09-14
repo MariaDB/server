@@ -50,6 +50,7 @@ protected:
   bool check_argument_types_traditional_scalar(uint start, uint end) const;
   bool check_argument_types_or_binary(const Type_handler *handler,
                                       uint start, uint end) const;
+  bool check_argument_types_can_return_bool(uint start, uint end) const;
   bool check_argument_types_can_return_int(uint start, uint end) const;
   bool check_argument_types_can_return_real(uint start, uint end) const;
   bool check_argument_types_can_return_str(uint start, uint end) const;
@@ -503,7 +504,8 @@ public:
   Functions whose returned field type is determined at fix_fields() time.
 */
 class Item_hybrid_func: public Item_func,
-                        public Type_handler_hybrid_field_type
+                        public Type_handler_hybrid_field_type,
+                        public Expr_side_effect_ref
 {
 protected:
   bool fix_attributes(Item **item, uint nitems);
@@ -536,6 +538,20 @@ public:
       set_handler(&type_handler_ulonglong);
     else
       set_handler(&type_handler_ulong);
+  }
+  void cleanup() override
+  {
+    Item_func::cleanup();
+    Expr_side_effect_ref::cleanup();
+  }
+  ULonglong_null side_effect_ref() const override
+  {
+    return m_side_effect_ref;
+  }
+  void side_effect_detach(THD *thd, expr_event_t event) override
+  {
+    Type_handler_hybrid_field_type::type_handler()->
+      Item_hybrid_func_side_effect_detach(thd, this, event);
   }
 };
 
@@ -1341,14 +1357,16 @@ public:
 };
 
 
-class Cursor_ref
+class Cursor_ref: public sp_rcontext_ref
 {
 protected:
   LEX_CSTRING m_cursor_name;
-  uint m_cursor_offset;
-  class sp_cursor *get_open_cursor_or_error();
-  Cursor_ref(const LEX_CSTRING *name, uint offset)
-   :m_cursor_name(*name), m_cursor_offset(offset)
+public:
+  Cursor_ref(const LEX_CSTRING *name,
+             const Sp_rcontext_handler *h, uint offset,
+             const Sp_rcontext_handler *deref_rcontext_handler)
+   :sp_rcontext_ref(sp_rcontext_addr(h, offset), deref_rcontext_handler),
+    m_cursor_name(*name)
   { }
   void print_func(String *str, const LEX_CSTRING &func_name);
 };
@@ -1358,11 +1376,20 @@ protected:
 class Item_func_cursor_rowcount: public Item_longlong_func,
                                  public Cursor_ref
 {
+protected:
+  THD *m_thd;
 public:
-  Item_func_cursor_rowcount(THD *thd, const LEX_CSTRING *name, uint offset)
-   :Item_longlong_func(thd), Cursor_ref(name, offset)
+  Item_func_cursor_rowcount(THD *thd, const Cursor_ref &ref)
+   :Item_longlong_func(thd), Cursor_ref(ref), m_thd(nullptr)
   {
     set_maybe_null();
+  }
+  bool fix_fields(THD *thd, Item **ref) override
+  {
+    if (Item_longlong_func::fix_fields(thd, ref))
+      return true;
+    m_thd= thd;
+    return false;
   }
   LEX_CSTRING func_name_cstring() const override
   {
@@ -3971,6 +3998,17 @@ public:
 
   virtual ~Item_func_sp() = default;
 
+  ULonglong_null side_effect_ref() const override
+  {
+    return sp_result_field ? sp_result_field->to_ulonglong_null() :
+                             ULonglong_null();
+  }
+  void side_effect_detach(THD *thd, expr_event_t event) override
+  {
+    Item_func_sp::type_handler()->Item_func_sp_side_effect_detach(thd, this,
+                                                                  event);
+  }
+
   void update_used_tables() override;
 
   void cleanup() override;
@@ -4191,7 +4229,8 @@ public:
 };
 
 
-class Item_func_last_value :public Item_func
+class Item_func_last_value :public Item_func,
+                            public Expr_side_effect_ref
 {
 protected:
   Item *last_value;
@@ -4227,6 +4266,21 @@ public:
     Item_func::update_used_tables();
     copy_flags(last_value, item_base_t::MAYBE_NULL);
   }
+  void cleanup() override
+  {
+    Item_func::cleanup();
+    Expr_side_effect_ref::cleanup();
+  }
+  ULonglong_null side_effect_ref() const override
+  {
+    return m_side_effect_ref;
+  }
+  void side_effect_detach(THD *thd, expr_event_t event) override
+  {
+    last_value->type_handler()->
+      Item_func_last_value_side_effect_detach(thd, this, event);
+  }
+
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_last_value>(thd, this); }
 };

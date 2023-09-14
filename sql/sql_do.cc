@@ -33,7 +33,10 @@ bool mysql_do(THD *thd, List<Item> &values)
                    THD_WHERE::DO_STATEMENT))
     DBUG_RETURN(TRUE);
   while ((value = li++))
+  {
     (void) value->is_null();
+    value->side_effect_detach(thd, expr_event_t::STMT_ENDED);
+  }
   free_underlaid_joins(thd, thd->lex->first_select_lex());
 
   if (unlikely(thd->is_error()))

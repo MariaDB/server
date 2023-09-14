@@ -54,9 +54,11 @@ class Item_sum_sum;
 class Item_sum_avg;
 class Item_sum_variance;
 class Item_func_hex;
+class Item_func_sp;
 class Item_hybrid_func;
 class Item_func_min_max;
 class Item_func_hybrid_field_type;
+class Item_func_last_value;
 class Item_bool_func2;
 class Item_bool_rowready_func2;
 class Item_func_between;
@@ -87,6 +89,8 @@ class Type_handler_hybrid_field_type;
 class Sort_param;
 class Arg_comparator;
 class Spvar_definition;
+class sp_variable;
+class sp_pcontext;
 class st_value;
 class Protocol;
 class handler;
@@ -160,6 +164,43 @@ scalar_comparison_op_to_lex_cstring(scalar_comparison_op op)
   DBUG_ASSERT(0);
   return LEX_CSTRING{STRING_WITH_LEN("<?>")};
 }
+
+
+enum class expr_event_t : uint32
+{
+  NONE=                         0,
+  ROW_ENDED=                    1 << 0,
+  STMT_ENDED=                   1 << 1,
+  BUILT_IN_FUNC_ARG_EVALUATED=  1 << 2,
+  SPVAR_RIGHT_HAND_EVALUATED=   1 << 3,
+  ALL= 255
+}
+;
+static inline expr_event_t operator&(const expr_event_t a,
+                                     const expr_event_t b)
+{
+  return (expr_event_t) (((uint32) a) & ((uint32) b));
+}
+
+class Expr_side_effect_ref
+{
+protected:
+  ULonglong_null m_side_effect_ref;
+public:
+  Expr_side_effect_ref() { }
+  void side_effect_ref_set(const ULonglong_null &ref)
+  {
+    m_side_effect_ref= ref;
+  }
+  const ULonglong_null & side_effect_ref() const
+  {
+    return m_side_effect_ref;
+  }
+  void cleanup()
+  {
+    *this= Expr_side_effect_ref();
+  }
+};
 
 
 class Hasher
@@ -3957,6 +3998,35 @@ public:
   {
     return false;
   }
+  /*
+    Returns true if the data type has side effects.
+    For example, SYS_REFCURSOR writes and reads thd->m_session_cursors
+  */
+  virtual bool has_side_effect() const
+  {
+    return false;
+  }
+  virtual void side_effect_join(THD *thd, ulonglong offset) const
+  { }
+  virtual void side_effect_detach(THD *thd, ulonglong offset) const
+  { }
+  virtual ULonglong_null Item_param_side_effect_ref(const Item_param *item)
+                                                                      const
+  {
+    return ULonglong_null();
+  }
+  virtual void Item_hybrid_func_side_effect_detach(THD *thd,
+                                              Item_hybrid_func *item,
+                                              expr_event_t event) const
+  { }
+  virtual void Item_func_sp_side_effect_detach(THD *thd,
+                                               Item_func_sp *item,
+                                               expr_event_t event) const
+  { }
+  virtual void Item_func_last_value_side_effect_detach(THD *thd,
+                                               Item_func_last_value *item,
+                                               expr_event_t event) const
+  { }
   Type_handler() : m_name(0,0) {}
   virtual ~Type_handler() = default;
   /**
@@ -3965,6 +4035,7 @@ public:
   */
   bool is_traditional_scalar_type() const;
   virtual bool is_scalar_type() const { return true; }
+  virtual bool can_return_bool() const { return can_return_int(); }
   virtual bool can_return_int() const { return true; }
   virtual bool can_return_decimal() const { return true; }
   virtual bool can_return_real() const { return true; }

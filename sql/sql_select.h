@@ -2415,6 +2415,13 @@ public:
     for (uint i= 0; i < s->fields; i++)
       field[i]->set_null();
   }
+
+  void sp_variable_destruct_all(THD *thd)
+  {
+    for (uint i= 0; i < s->fields; i++)
+      field[i]->sp_variable_destruct(thd);
+  }
+
   /**
     Set all fields from a compatible item list.
     The number of fields in "this" must be equal to the number

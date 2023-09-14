@@ -108,6 +108,7 @@ const char *dbug_print_item(Item *item);
 
 class Virtual_tmp_table;
 class sp_head;
+class sp_rcontext;
 class Protocol;
 struct TABLE_LIST;
 void item_init(void);			/* Init item functions */
@@ -418,68 +419,6 @@ typedef enum monotonicity_info
 } enum_monotonicity_info;
 
 /*************************************************************************/
-
-class sp_rcontext;
-
-/**
-  A helper class to collect different behavior of various kinds of SP variables:
-  - local SP variables and SP parameters
-  - PACKAGE BODY routine variables
-  - (there will be more kinds in the future)
-*/
-
-class Sp_rcontext_handler
-{
-public:
-  virtual ~Sp_rcontext_handler() = default;
-  /**
-    A prefix used for SP variable names in queries:
-    - EXPLAIN EXTENDED
-    - SHOW PROCEDURE CODE
-    Local variables and SP parameters have empty prefixes.
-    Package body variables are marked with a special prefix.
-    This improves readability of the output of these queries,
-    especially when a local variable or a parameter has the same
-    name with a package body variable.
-  */
-  virtual const LEX_CSTRING *get_name_prefix() const= 0;
-  /**
-    At execution time THD->spcont points to the run-time context (sp_rcontext)
-    of the currently executed routine.
-    Local variables store their data in the sp_rcontext pointed by thd->spcont.
-    Package body variables store data in separate sp_rcontext that belongs
-    to the package.
-    This method provides access to the proper sp_rcontext structure,
-    depending on the SP variable kind.
-  */
-  virtual sp_rcontext *get_rcontext(sp_rcontext *ctx) const= 0;
-};
-
-
-class Sp_rcontext_handler_local: public Sp_rcontext_handler
-{
-public:
-  const LEX_CSTRING *get_name_prefix() const override;
-  sp_rcontext *get_rcontext(sp_rcontext *ctx) const override;
-};
-
-
-class Sp_rcontext_handler_package_body: public Sp_rcontext_handler
-{
-public:
-  const LEX_CSTRING *get_name_prefix() const override;
-  sp_rcontext *get_rcontext(sp_rcontext *ctx) const override;
-};
-
-
-extern MYSQL_PLUGIN_IMPORT
-  Sp_rcontext_handler_local sp_rcontext_handler_local;
-
-
-extern MYSQL_PLUGIN_IMPORT
-  Sp_rcontext_handler_package_body sp_rcontext_handler_package_body;
-
-
 
 class Item_equal;
 
@@ -2519,6 +2458,7 @@ public:
   bool check_type_or_binary(const LEX_CSTRING &opname,
                             const Type_handler *handler) const;
   bool check_type_general_purpose_string(const LEX_CSTRING &opname) const;
+  bool check_type_can_return_bool(const LEX_CSTRING &opname) const;
   bool check_type_can_return_int(const LEX_CSTRING &opname) const;
   bool check_type_can_return_decimal(const LEX_CSTRING &opname) const;
   bool check_type_can_return_real(const LEX_CSTRING &opname) const;
@@ -2803,6 +2743,12 @@ public:
     return false;
   }
 
+  virtual ULonglong_null side_effect_ref() const
+  {
+    return ULonglong_null();
+  }
+  virtual void side_effect_detach(THD *thd, expr_event_t event)
+  { }
 protected:
   /*
     Service function for public method get_copy(). See comments for get_copy()
@@ -3185,7 +3131,14 @@ public:
 
 public:
   void make_send_field(THD *thd, Send_field *field) override;
-  bool const_item() const override { return true; }
+  bool const_item() const override
+  {
+    /*
+      SP variables of a tricky data type with side effects,
+      e.g. SYS_REFCURSOR, are not constants.
+    */
+    return !type_handler()->has_side_effect();
+  }
   Field *create_tmp_field_ex(MEM_ROOT *root,
                              TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param) override
@@ -3263,6 +3216,10 @@ public:
   { return this_item()->element_index(i); }
   Item** addr(uint i) override { return this_item()->addr(i); }
   bool check_cols(uint c) override;
+  const Sp_rcontext_handler *rcontext_handler() const
+  {
+    return m_rcontext_handler;
+  }
 
 private:
   bool set_value(THD *thd, sp_rcontext *ctx, Item **it) override;
@@ -4246,6 +4203,32 @@ public:
   {
     m_default_field= NULL;
     Item::cleanup();
+  }
+
+  ULonglong_null side_effect_ref_from_int() const
+  {
+    const longlong *addr;
+    if (has_no_value() || !(addr= const_ptr_longlong()))
+      return ULonglong_null();
+    return ULonglong_null((ulonglong) *addr);
+  }
+
+  ULonglong_null side_effect_ref() const override
+  {
+    return type_handler()->Item_param_side_effect_ref(this);
+  }
+
+  void side_effect_detach(THD *thd, expr_event_t event)
+  {
+    if ((uint32) (event & expr_event_t::STMT_ENDED))
+    {
+      const ULonglong_null ref= Item_param::side_effect_ref();
+      if (!ref.is_null())
+      {
+        type_handler()->side_effect_detach(thd, ref.value());
+        set_null();
+      }
+    }
   }
 
   Type type() const override

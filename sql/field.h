@@ -1035,6 +1035,26 @@ public:
   void mark_unused_memory_as_defined() {}
 #endif
 
+  ULonglong_null to_ulonglong_null()
+  {
+    return is_null() ? ULonglong_null() : ULonglong_null(val_int());
+  }
+  /*
+    Evaluate the offset of the referenced variable or cursor using val_int().
+
+    @retval  true  If is_null() returned true,
+                   or if val_int() greater than max_deref_offset.
+    @retval false  otherwise.
+  */
+  bool dereference(uint *deref_pos, uint max_deref_pos)
+  {
+    uint val;
+    if (is_null() || (val= (uint) val_int()) >= max_deref_pos)
+      return true;
+    *deref_pos= val;
+    return false;
+  }
+
   virtual double val_real()=0;
   virtual longlong val_int()=0;
   /*
@@ -1990,6 +2010,10 @@ public:
     return NULL;
   }
   virtual bool sp_prepare_and_store_item(THD *thd, Item **value);
+  virtual bool sp_variable_destruct(THD *thd)
+  {
+    return false;
+  }
 
   friend int cre_myisam(char * name, TABLE *form, uint options,
 			ulonglong auto_increment_value);
@@ -2643,7 +2667,7 @@ public:
 };
 
 
-class Field_short final :public Field_int
+class Field_short :public Field_int
 {
   const Type_handler_general_purpose_int *type_handler_priv() const
   {

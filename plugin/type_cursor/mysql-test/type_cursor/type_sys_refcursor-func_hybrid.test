@@ -1,0 +1,29 @@
+--source include/have_debug.inc
+
+--echo #
+--echo #  MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+--echo #
+
+--echo #
+--echo # Hybrid functions
+--echo #
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+BEGIN NOT ATOMIC
+  DECLARE c0 SYS_REFCURSOR;
+  DECLARE c1 SYS_REFCURSOR;
+  SELECT LEAST(c0, c1);
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+BEGIN NOT ATOMIC
+  DECLARE c0 SYS_REFCURSOR;
+  DECLARE c1 SYS_REFCURSOR;
+  SELECT GREATEST(c0, c1);
+END;
+$$
+DELIMITER ;$$
