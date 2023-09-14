@@ -1,0 +1,48 @@
+include/master-slave.inc
+[connection master]
+connection master;
+create table t1 (a int primary key, b int) engine=innodb;
+insert t1 values (1,1);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+set @save_innodb_lock_wait_timeout= @@global.innodb_lock_wait_timeout;
+set @save_slave_trans_retries= @@global.slave_transaction_retries;
+set @@global.innodb_lock_wait_timeout= 1;
+set @@global.slave_transaction_retries= 0;
+connection master;
+update t1 set b=b+10 where a=1;
+include/save_master_gtid.inc
+connection slave1;
+BEGIN;
+SELECT * FROM t1 WHERE a=1 FOR UPDATE;
+a	b
+1	1
+connection slave;
+include/start_slave.inc
+include/wait_for_slave_sql_error.inc [errno=1205]
+connection slave1;
+ROLLBACK;
+connection slave;
+set @save_dbug = @@global.debug_dbug;
+set @@global.debug_dbug= "+d,delay_sql_thread_after_release_run_lock";
+include/start_slave.inc
+set debug_sync= "now wait_for sql_thread_run_lock_released";
+# Validating that the SQL thread is running..
+# ..success
+# Validating that Last_SQL_Errno is cleared..
+# ..success
+set debug_sync= "now signal sql_thread_continue";
+set @@global.debug_dbug= @saved_dbug;
+set debug_sync= "RESET";
+# Cleanup
+connection master;
+drop table t1;
+connection slave;
+include/stop_slave.inc
+set @@global.innodb_lock_wait_timeout= @save_innodb_lock_wait_timeout;
+set @@global.slave_transaction_retries= @save_slave_trans_retries;
+include/start_slave.inc
+include/rpl_end.inc
+# End of rpl_sql_thd_start_errno_cleared.test

@@ -4176,6 +4176,8 @@ static int init_common_variables()
     return 1;
   }
 
+  if (tls_version & (VIO_TLSv1_0 + VIO_TLSv1_1))
+      sql_print_warning("TLSv1.0 and TLSv1.1 are insecure and should not be used for tls_version");
 
 #ifdef WITH_WSREP
   /*
