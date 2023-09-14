@@ -1,0 +1,68 @@
+#
+# MDEV-29502 ASAN: heap-buffer-overflow & stack-buffer-overflow in spider_db_mbase_row::append_to_str | SIGSEGV's in __memmove_avx_unaligned_erms from memcpy in Binary_string::q_append, in Static_binary_string::q_append and my_strntoull10rnd_8bit | Unknown error 12801
+#
+for master_1
+for child2
+for child3
+CREATE SERVER $srv FOREIGN DATA WRAPPER MYSQL OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (23),(48);
+set @old_spider_direct_aggregate=@@session.spider_direct_aggregate;
+set spider_direct_aggregate=1;
+CREATE TABLE t1 (a INT KEY) ENGINE=Spider COMMENT='WRAPPER "mysql",srv "srv_mdev_29502",TABLE "t"';
+SELECT MAX(a) FROM t1;
+MAX(a)
+48
+SELECT SUM(a) FROM t1;
+SUM(a)
+71
+SELECT COUNT(a) FROM t1;
+COUNT(a)
+2
+SELECT MAX(a), SUM(a) FROM t1;
+MAX(a)	SUM(a)
+48	71
+SELECT COUNT(a), MAX(a), SUM(a) FROM t1;
+COUNT(a)	MAX(a)	SUM(a)
+2	48	71
+SELECT MAX(a), COUNT(a), SUM(a) FROM t1;
+MAX(a)	COUNT(a)	SUM(a)
+48	2	71
+SELECT MAX(a), MAX(COALESCE(a)) FROM t1;
+MAX(a)	MAX(COALESCE(a))
+48	48
+SHOW STATUS LIKE 'Spider_direct_aggregate';
+Variable_name	Value
+Spider_direct_aggregate	0
+DROP TABLE t, t1;
+CREATE TABLE t (a INT, b INT);
+INSERT INTO t VALUES (23, -1),(48, 97);
+CREATE TABLE t1 (a INT, b INT) ENGINE=Spider COMMENT='WRAPPER "mysql",srv "srv_mdev_29502",TABLE "t"';
+SELECT MAX(a + b), SUM(a - b) FROM t1;
+MAX(a + b)	SUM(a - b)
+145	-25
+SHOW STATUS LIKE 'Spider_direct_aggregate';
+Variable_name	Value
+Spider_direct_aggregate	0
+DROP TABLE t, t1;
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (23),(97),(42);
+CREATE TABLE t1 (a INT) ENGINE=Spider COMMENT='WRAPPER "mysql",srv "srv_mdev_29502",TABLE "t"';
+SELECT IF(COUNT(a > 0),'Y','N'), MAX(a) FROM t1;
+IF(COUNT(a > 0),'Y','N')	MAX(a)
+Y	97
+SHOW STATUS LIKE 'Spider_direct_aggregate';
+Variable_name	Value
+Spider_direct_aggregate	2
+SELECT MAX(a), IF(COUNT(a > 0),'Y','N') FROM t1;
+MAX(a)	IF(COUNT(a > 0),'Y','N')
+97	Y
+SHOW STATUS LIKE 'Spider_direct_aggregate';
+Variable_name	Value
+Spider_direct_aggregate	4
+DROP TABLE t, t1;
+set spider_direct_aggregate=@old_spider_direct_aggregate;
+DROP SERVER srv_mdev_29502;
+for master_1
+for child2
+for child3
