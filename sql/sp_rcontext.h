@@ -292,6 +292,15 @@ public:
   sp_cursor *get_cursor(uint i) const
   { return m_cstack[i]; }
 
+  // Get the position of the session cursor corresponding to
+  // the SYS_REFCURSOR variable at frame offset "offset".
+  bool get_session_cursor_pos_by_refcursor(THD *thd, uint offset,
+                                           uint *pos) const;
+
+  // Get the pointer to the session cursor corresponding to
+  // the SYS_REFCURSOR variables at frame offset "offset".
+  sp_cursor *get_session_cursor_by_refcursor(THD *thd, uint offset) const;
+
   /////////////////////////////////////////////////////////////////////////
   // CASE expressions.
   /////////////////////////////////////////////////////////////////////////

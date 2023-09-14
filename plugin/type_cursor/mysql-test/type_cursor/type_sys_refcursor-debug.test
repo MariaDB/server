@@ -1,0 +1,17 @@
+--source include/have_debug_sync.inc
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c SYS_REFCURSOR;
+  DECLARE a, b INT;
+  OPEN c FOR SELECT 1, 2;
+  FETCH c INTO a, b;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;

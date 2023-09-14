@@ -12272,3 +12272,5 @@ ER_JSON_SCHEMA_KEYWORD_UNSUPPORTED
         sw "%s neno kuu halitumiki"
 ER_JSON_NO_VARIABLE_SCHEMA
         eng "Variable schema is not supported."
+ER_TOO_MANY_OPEN_CURSORS
+        eng "Too many open cursors; max %u cursors allowed"

@@ -1,0 +1,36 @@
+#
+# Error: SYS_REFCURSOR is not allowed in a table column
+#
+CREATE TABLE t1 (a SYS_REFCURSOR);
+ERROR HY000: Illegal parameter data type SYS_REFCURSOR for operation 'CREATE TABLE'
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+CREATE TABLE t1 AS SELECT c0;
+SHOW CREATE TABLE t1;
+END;
+$$
+ERROR HY000: Illegal parameter data type SYS_REFCURSOR for operation 'CREATE TABLE'
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+SELECT c0;
+END;
+$$
+c0
+NULL
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+DECLARE i INT;
+SELECT c + i;
+END;
+$$
+ERROR HY000: Illegal parameter data types sys_refcursor and int for operation '+'
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+IF c = TRUE THEN
+SELECT 'TRUE';
+ELSE
+SELECT 'NOT TRUE';
+END IF;
+END;
+$$
+ERROR HY000: Illegal parameter data types sys_refcursor and boolean for operation '='

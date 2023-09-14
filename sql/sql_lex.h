@@ -4022,6 +4022,10 @@ public:
 
   bool sp_open_cursor(THD *thd, const LEX_CSTRING *name,
                       List<sp_assignment_lex> *parameters);
+  bool sp_open_cursor_for_stmt(THD *thd, const LEX_CSTRING *name,
+                               sp_lex_cursor *stmt);
+  bool sp_close(THD *thd, const Lex_ident_sys_st &name);
+
   Item_splocal *create_item_for_sp_var(const Lex_ident_cli_st *name,
                                        sp_variable *spvar);
 
@@ -4536,6 +4540,7 @@ public:
     return check_create_options(create_info);
   }
   bool sp_add_cfetch(THD *thd, const LEX_CSTRING *name);
+  bool sp_add_fetch_target_var(THD *thd, const Lex_ident_sys_st &name);
   bool sp_add_agg_cfetch();
 
   bool set_command_with_check(enum_sql_command command,

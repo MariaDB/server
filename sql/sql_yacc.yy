@@ -4089,6 +4089,11 @@ sp_proc_stmt_open:
             if (unlikely(Lex->sp_open_cursor(thd, &$2, $3)))
               MYSQL_YYABORT;
           }
+        | OPEN_SYM ident FOR_SYM sp_cursor_stmt
+          {
+            if (Lex->sp_open_cursor_for_stmt(thd, &$2, $4))
+              MYSQL_YYABORT;
+          }
         ;
 
 sp_proc_stmt_fetch_head:
@@ -4121,17 +4126,7 @@ sp_proc_stmt_fetch:
 sp_proc_stmt_close:
           CLOSE_SYM ident
           {
-            LEX *lex= Lex;
-            sp_head *sp= lex->sphead;
-            uint offset;
-            sp_instr_cclose *i;
-
-            if (unlikely(!lex->spcont->find_cursor(&$2, &offset, false)))
-              my_yyabort_error((ER_SP_CURSOR_MISMATCH, MYF(0), $2.str));
-            i= new (thd->mem_root)
-              sp_instr_cclose(sp->instructions(), lex->spcont,  offset);
-            if (unlikely(i == NULL) ||
-                unlikely(sp->add_instr(i)))
+            if (Lex->sp_close(thd, $2))
               MYSQL_YYABORT;
           }
         ;
@@ -4139,35 +4134,13 @@ sp_proc_stmt_close:
 sp_fetch_list:
           ident
           {
-            LEX *lex= Lex;
-            sp_head *sp= lex->sphead;
-            sp_pcontext *spc= lex->spcont;
-            sp_variable *spv= likely(spc != NULL)
-              ? spc->find_variable(&$1, false)
-              : NULL;
-
-            if (unlikely(!spv))
-              my_yyabort_error((ER_SP_UNDECLARED_VAR, MYF(0), $1.str));
-
-            /* An SP local variable */
-            sp_instr_cfetch *i= (sp_instr_cfetch *)sp->last_instruction();
-            i->add_to_varlist(spv);
+            if (Lex->sp_add_fetch_target_var(thd, $1))
+              MYSQL_YYABORT;
           }
         | sp_fetch_list ',' ident
           {
-            LEX *lex= Lex;
-            sp_head *sp= lex->sphead;
-            sp_pcontext *spc= lex->spcont;
-            sp_variable *spv= likely(spc != NULL)
-              ? spc->find_variable(&$3, false)
-              : NULL;
-
-            if (unlikely(!spv))
-              my_yyabort_error((ER_SP_UNDECLARED_VAR, MYF(0), $3.str));
-
-            /* An SP local variable */
-            sp_instr_cfetch *i= (sp_instr_cfetch *)sp->last_instruction();
-            i->add_to_varlist(spv);
+            if (Lex->sp_add_fetch_target_var(thd, $3))
+              MYSQL_YYABORT;
           }
         ;
 

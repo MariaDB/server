@@ -6951,8 +6951,10 @@ bool LEX::sp_for_loop_cursor_condition_test(THD *thd,
   DBUG_ASSERT(cursor_name);
   if (unlikely(!(expr=
                  new (thd->mem_root)
-                 Item_func_cursor_found(thd, cursor_name,
-                                        loop.m_cursor_offset))))
+                 Item_func_cursor_found(thd,
+                                        Cursor_ref(cursor_name,
+                                                   NULL/*Static cursor*/,
+                                                   loop.m_cursor_offset)))))
     return true;
   if (thd->lex->sp_while_loop_expression(thd, expr, empty_clex_str))
     return true;
@@ -7204,6 +7206,66 @@ bool LEX::sp_open_cursor(THD *thd, const LEX_CSTRING *name,
          pcursor->check_param_count_with_error(param_count) ||
          sphead->add_open_cursor(thd, spcont, offset,
                                  pcursor->param_context(), parameters);
+}
+
+
+bool LEX::sp_open_cursor_for_stmt(THD *thd, const LEX_CSTRING *name,
+                                  sp_lex_cursor *stmt)
+{
+  const Sp_rcontext_handler *rh;
+  sp_variable *spv;
+  if (!(spv= find_variable(name, &rh)))
+  {
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0), name->str);
+    return true;
+  }
+  const LEX_CSTRING tname= spv->type_handler()->name().lex_cstring();
+  if (my_charset_latin1.strnncollsp(tname.str, tname.length,
+                                    STRING_WITH_LEN("sys_refcursor")))
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             tname.str, "OPEN");
+    return true;
+  }
+  sp_instr_refcursor_open *i= new (thd->mem_root)
+                              sp_instr_refcursor_open(sphead->instructions(),
+                                                      spcont, rh, spv->offset,
+                                                      stmt);
+  return i == NULL || sphead->add_instr(i);
+}
+
+
+bool LEX::sp_close(THD *thd, const Lex_ident_sys_st &name)
+{
+  uint offset;
+
+  if (spcont->find_cursor(&name, &offset, false))
+  {
+    sp_instr_cclose *i=
+      new (thd->mem_root) sp_instr_cclose(sphead->instructions(),
+                                          spcont, offset);
+    return i == NULL || sphead->add_instr(i);
+  }
+
+  const Sp_rcontext_handler *rh;
+  const sp_variable *spv= find_variable(&name, &rh);
+  if (spv)
+  {
+    const LEX_CSTRING tname= spv->type_handler()->name().lex_cstring();
+    if (my_charset_latin1.strnncollsp(tname.str, tname.length,
+                                      STRING_WITH_LEN("sys_refcursor")))
+    {
+      my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+               tname.str, "CLOSE");
+      return true;
+    }
+    sp_instr_refcursor_close *i= new (thd->mem_root)
+                              sp_instr_refcursor_close(sphead->instructions(),
+                                                       spcont, rh, spv->offset);
+    return i == NULL || sphead->add_instr(i);
+  }
+  my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name.str);
+  return true;
 }
 
 
@@ -7958,20 +8020,29 @@ Item *LEX::make_item_plsql_cursor_attr(THD *thd, const LEX_CSTRING *name,
                                        plsql_cursor_attr_t attr)
 {
   uint offset;
-  if (unlikely(!spcont || !spcont->find_cursor(name, &offset, false)))
+  const Sp_rcontext_handler *rh= NULL;
+  const sp_variable *spv= NULL;
+  if (spcont && spcont->find_cursor(name, &offset, false))
+  { }
+  else if (spcont && (spv= find_variable(name, &rh)))
+  {
+    offset= spv->offset;
+  }
+  else
   {
     my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name->str);
     return NULL;
   }
+  const Cursor_ref ref(name, rh, offset);
   switch (attr) {
   case PLSQL_CURSOR_ATTR_ISOPEN:
-    return new (thd->mem_root) Item_func_cursor_isopen(thd, name, offset);
+    return new (thd->mem_root) Item_func_cursor_isopen(thd, ref);
   case PLSQL_CURSOR_ATTR_FOUND:
-    return new (thd->mem_root) Item_func_cursor_found(thd, name, offset);
+    return new (thd->mem_root) Item_func_cursor_found(thd, ref);
   case PLSQL_CURSOR_ATTR_NOTFOUND:
-    return new (thd->mem_root) Item_func_cursor_notfound(thd, name, offset);
+    return new (thd->mem_root) Item_func_cursor_notfound(thd, ref);
   case PLSQL_CURSOR_ATTR_ROWCOUNT:
-    return new (thd->mem_root) Item_func_cursor_rowcount(thd, name, offset);
+    return new (thd->mem_root) Item_func_cursor_rowcount(thd, ref);
   }
   DBUG_ASSERT(0);
   return NULL;
@@ -9168,22 +9239,65 @@ int set_statement_var_if_exists(THD *thd, const char *var_name,
 }
 
 
+bool LEX::sp_add_fetch_target_var(THD *thd, const Lex_ident_sys_st &name)
+{
+  sp_variable *spv= spcont ? spcont->find_variable(&name, false) : NULL;
+  if (spv)
+  {
+    sp_instr *last= sphead->last_instruction();
+    DBUG_ASSERT(last); // sp_instr_{cfetch|refcursor_fetch}
+    sp_instr_cfetch *i0= dynamic_cast<sp_instr_cfetch *>(last);
+    if (i0)
+    {
+      i0->add_to_varlist(spv);
+      return false;
+    }
+    sp_instr_refcursor_fetch *i1= dynamic_cast<sp_instr_refcursor_fetch*>(last);
+    if (i1)
+    {
+      i1->add_to_varlist(spv);
+      return false;
+    }
+    DBUG_ASSERT(0); // Unexpected sp_instr_xxx type
+  }
+  my_error(ER_SP_UNDECLARED_VAR, MYF(0), name.str);
+  return true;
+}
+
+
 bool LEX::sp_add_cfetch(THD *thd, const LEX_CSTRING *name)
 {
   uint offset;
-  sp_instr_cfetch *i;
 
-  if (!spcont->find_cursor(name, &offset, false))
+  if (spcont->find_cursor(name, &offset, false))
   {
-    my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name->str);
-    return true;
-  }
-  i= new (thd->mem_root)
-    sp_instr_cfetch(sphead->instructions(), spcont, offset,
+    sp_instr_cfetch *i= new (thd->mem_root)
+                   sp_instr_cfetch(sphead->instructions(), spcont, offset,
                     !(thd->variables.sql_mode & MODE_ORACLE));
-  if (unlikely(i == NULL) || unlikely(sphead->add_instr(i)))
-    return true;
-  return false;
+    return i == NULL || sphead->add_instr(i);
+  }
+
+  const Sp_rcontext_handler *rh;
+  const sp_variable *spv= find_variable(name, &rh);
+  if (spv)
+  {
+    const LEX_CSTRING tname= spv->type_handler()->name().lex_cstring();
+    if (my_charset_latin1.strnncollsp(tname.str, tname.length,
+                                      STRING_WITH_LEN("sys_refcursor")))
+    {
+      my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+               tname.str, "FETCH");
+      return true;
+    }
+    sp_instr_refcursor_fetch *i= new (thd->mem_root)
+      sp_instr_refcursor_fetch(sphead->instructions(),
+                               spcont, rh, spv->offset,
+                               !(thd->variables.sql_mode & MODE_ORACLE));
+    return i == NULL || sphead->add_instr(i);
+  }
+
+  my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name->str);
+  return true;
 }
 
 

@@ -1,0 +1,329 @@
+--echo #
+--echo # Error: Unknown cursor and wrong variable data type in OPEN, FETCH, CLOSE
+--echo #
+
+DELIMITER $$;
+--error ER_SP_UNDECLARED_VAR
+BEGIN NOT ATOMIC
+  OPEN c FOR SELECT 1;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+BEGIN NOT ATOMIC
+  DECLARE c INT;
+  OPEN c FOR SELECT 1;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+BEGIN NOT ATOMIC
+  DECLARE c INT;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+BEGIN NOT ATOMIC
+  DECLARE a INT;
+  DECLARE c INT;
+  FETCH c INTO a;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Error: Closing a not opened cursor
+--echo #
+
+DELIMITER $$;
+--error ER_SP_CURSOR_NOT_OPEN
+BEGIN NOT ATOMIC
+  DECLARE c SYS_REFCURSOR;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Error: Fetching from a not opened cursor
+--echo #
+
+DELIMITER $$;
+--error ER_SP_CURSOR_NOT_OPEN
+BEGIN NOT ATOMIC
+  DECLARE a INT;
+  DECLARE c SYS_REFCURSOR;
+  FETCH c INTO a;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Error: fetching beyond the available number of records
+--echo #
+
+DELIMITER $$;
+--error ER_SP_FETCH_NO_DATA
+BEGIN NOT ATOMIC
+  DECLARE a INT;
+  DECLARE c SYS_REFCURSOR;
+  OPEN c FOR SELECT 1;
+  FETCH c INTO a;
+  FETCH c INTO a;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Error: the number of open cursors is limited
+--echo #
+
+DELIMITER $$;
+CREATE OR REPLACE FUNCTION f1() RETURNS SYS_REFCURSOR
+BEGIN
+  DECLARE c SYS_REFCURSOR;
+  OPEN c FOR SELECT 1 AS a FROM DUAL;
+  RETURN c;
+END;
+$$
+--error ER_TOO_MANY_OPEN_CURSORS
+BEGIN NOT ATOMIC
+  DECLARE c SYS_REFCURSOR;
+  DECLARE a INT;
+  FOR i IN 1..900
+  DO
+    SET c= f1();
+    FETCH c INTO a;
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+DROP FUNCTION f1;
+
+
+--echo #
+--echo # Two consequent OPEN (without a CLOSE in beetween) are allowed
+--echo #
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE a INT;
+  DECLARE c SYS_REFCURSOR;
+  OPEN c FOR SELECT 1;
+  OPEN c FOR SELECT 2;
+  FETCH c INTO a;
+  SELECT a;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Many consequent OPEN (without a CLOSE in between) are allowed
+--echo # and do not cause ER_TOO_MANY_OPEN_CURSORS.
+--echo #
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE c SYS_REFCURSOR;
+  FOR i IN 0..300
+  DO
+    OPEN c FOR SELECT 1 AS c FROM DUAL;
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Simple use example (OPEN, FETCH, CLOSE)
+--echo #
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE c SYS_REFCURSOR;
+  DECLARE a INT;
+  OPEN c FOR SELECT 1;
+  FETCH c INTO a;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Fetching from two parallel cursors
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+  DECLARE a0 INT;
+  DECLARE a1 INT;
+  DECLARE c0 SYS_REFCURSOR;
+  DECLARE c1 SYS_REFCURSOR;
+  OPEN c0  FOR SELECT a*10 FROM t1;
+  OPEN c1  FOR SELECT a*20 FROM t1;
+  FETCH c0 INTO a0;
+  FETCH c1 INTO a1;
+  SELECT a0, a1;
+  CLOSE c0;
+  CLOSE c1;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # SYS_REFCURSOR alasing
+--echo #
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE c0 SYS_REFCURSOR;
+  DECLARE c1 SYS_REFCURSOR;
+  DECLARE a INT;
+  OPEN c0 FOR SELECT 11 FROM DUAL UNION SELECT 12 FROM DUAL;
+  SET c1= c0;
+  FETCH c0 INTO a;
+  SELECT a;
+  OPEN c0 FOR SELECT 21 FROM DUAL UNION SELECT 22 FROM DUAL;
+  FETCH c1 INTO a; /* c1 now points to the new "OPEN c0" */
+  SELECT a;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Function returning SYS_REFCURSOR and mysql.proc
+--echo #
+
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS SYS_REFCURSOR
+BEGIN
+  DECLARE c0 SYS_REFCURSOR;
+  RETURN c0;
+END;
+$$
+DELIMITER ;$$
+SELECT returns FROM mysql.proc WHERE name='f1';
+SHOW CREATE FUNCTION f1;
+DROP FUNCTION f1;
+
+
+--echo #
+--echo # Procedure with a SYS_REFCURSOR parameter and mysql.proc
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1(OUT a0 SYS_REFCURSOR)
+BEGIN
+  DECLARE c0 SYS_REFCURSOR;
+  SET a0= c0;
+END;
+$$
+DELIMITER ;$$
+SELECT param_list FROM mysql.proc WHERE name='p1';
+SHOW CREATE PROCEDURE p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Returning a opened cursor from a function
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS SYS_REFCURSOR
+BEGIN
+  DECLARE c SYS_REFCURSOR;
+  OPEN c FOR SELECT a FROM t1 ORDER BY a;
+  RETURN c;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE done INT DEFAULT FALSE;
+  DECLARE a INT;
+  DECLARE c SYS_REFCURSOR DEFAULT f1();
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+fetch_loop:
+  LOOP
+    FETCH c INTO a;
+    IF done THEN
+      LEAVE fetch_loop;
+    END IF;
+    SELECT a;
+  END LOOP;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Returning an opened cursor as an OUT param
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+DELIMITER $$;
+CREATE PROCEDURE p1(OUT c SYS_REFCURSOR)
+BEGIN
+  OPEN c FOR SELECT a FROM t1 ORDER BY a;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE done INT DEFAULT FALSE;
+  DECLARE a INT;
+  DECLARE c SYS_REFCURSOR;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+  CALL p1(c);
+fetch_loop:
+  LOOP
+    FETCH c INTO a;
+    IF done THEN
+      LEAVE fetch_loop;
+    END IF;
+    SELECT a;
+  END LOOP;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+CALL p2;
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP TABLE t1;

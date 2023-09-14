@@ -537,6 +537,42 @@ int sp_lex_keeper::cursor_reset_lex_and_exec_core(THD *thd, uint *nextp,
   sp_instr class functions
 */
 
+void sp_instr::print_cmd_and_var(String *str,
+                                 const LEX_CSTRING &cmd,
+                                 uint offset) const
+{
+  const sp_variable *pv= m_ctx->find_variable(offset);
+  size_t rsrv= cmd.length + 1/*space*/ +
+               (pv ? pv->name.length + 1/*@*/ + SP_INSTR_UINT_MAXLEN : 0);
+  if (str->reserve(rsrv))
+    return;
+  str->qs_append(cmd.str, cmd.length);
+  str->qs_append(' ');
+  if (pv)
+  {
+    str->qs_append(pv->name.str, pv->name.length);
+    str->qs_append('@');
+    str->qs_append(pv->offset);
+  }
+}
+
+
+void sp_instr::print_fetch_into(String *str, List<sp_variable> varlist)
+{
+  List_iterator_fast<sp_variable> li(varlist);
+  sp_variable *pv;
+  while ((pv= li++))
+  {
+    if (str->reserve(pv->name.length+SP_INSTR_UINT_MAXLEN+2))
+      return;
+    str->qs_append(' ');
+    str->qs_append(&pv->name);
+    str->qs_append('@');
+    str->qs_append(pv->offset);
+  }
+}
+
+
 int sp_instr::exec_open_and_lock_tables(THD *thd, TABLE_LIST *tables)
 {
   int result;
@@ -1838,8 +1874,6 @@ sp_instr_cfetch::execute(THD *thd, uint *nextp)
 void
 sp_instr_cfetch::print(String *str)
 {
-  List_iterator_fast<sp_variable> li(m_varlist);
-  sp_variable *pv;
   const LEX_CSTRING *cursor_name= m_ctx->find_cursor(m_cursor);
 
   /* cfetch name@offset vars... */
@@ -1856,15 +1890,7 @@ sp_instr_cfetch::print(String *str)
     str->qs_append('@');
   }
   str->qs_append(m_cursor);
-  while ((pv= li++))
-  {
-    if (str->reserve(pv->name.length+SP_INSTR_UINT_MAXLEN+2))
-      return;
-    str->qs_append(' ');
-    str->qs_append(&pv->name);
-    str->qs_append('@');
-    str->qs_append(pv->offset);
-  }
+  print_fetch_into(str, m_varlist);
 }
 
 /*
@@ -1994,6 +2020,159 @@ sp_instr_cursor_copy_struct::print(String *str)
   str->append(&var->name);
   str->append('@');
   str->append_ulonglong(m_var);
+}
+
+
+/*
+  sp_instr_refcursor_open class functions
+*/
+
+PSI_statement_info sp_instr_refcursor_open::psi_info=
+{ 0, "refcursor_open", 0};
+
+
+int
+sp_instr_refcursor_open::execute(THD *thd, uint *nextp)
+{
+  DBUG_ENTER("sp_instr_refcursor_open::execute");
+
+  uint pos;
+  if (thd->m_session_cursors &&
+      !thd->get_session_cursor_pos_by_refcursor(*this, &pos))
+  {
+    /*
+      There is already an initialized sp_cursor behind the SYS_REFCURSOR.
+      It could be opened earlier.
+      Two consequent OPEN (without a CLOSE in between) are allowed
+      for SYS_REFCURSORs (unlike for static CURSORs).
+      Close the first cursor automatically if it's opened, e.g.:
+        OPEN c FOR SELECT 1;
+        OPEN c FOR SELECT 2;
+      Let's also reuse the same sp_cursor instance
+      to guarantee cursor aliasing works as expected:
+        OPEN c0 FOR SELECT 1;
+        SET c1= c0;           -- Creating an alias
+        OPEN c0 FOR SELECT 2; -- Reopening affects both c0 and c1
+        FETCH c1 INTO a;      -- Fetches "2", from the second "OPEN c0"
+    */
+    thd->m_session_cursors->at(pos).reset_for_reopen(thd);
+  }
+  else
+  {
+    /*
+      The SYS_REFCURSOR variable is not linked to any sp_cursor instances yet.
+      In case this is the very first "OPEN" command for a SYS_REFCURSOR
+      called during this SQL session, let's allocate a Session_cursors instance.
+      Then we search for an unused sp_cursor instance inside Session_cursors.
+      In case all are already used, raise ER_TOO_MANY_OPEN_CURSORS.
+    */
+    if ((!thd->m_session_cursors &&
+        (!(thd->m_session_cursors= new Session_cursors()))) ||
+         thd->m_session_cursors->find_unused(&pos))
+    {
+      my_error(ER_TOO_MANY_OPEN_CURSORS, MYF(0), Session_cursors::max_count());
+      DBUG_RETURN(-1);
+    }
+    /*
+      An unused sp_cursor instance has been found at position "pos".
+      Link it to the SYS_REFCURSOR variable.
+    */
+    Field *field= thd->get_variable(*this)->field;
+    field->set_notnull();
+    field->store(pos);
+    thd->m_session_cursors->at(pos).reset(thd);
+  }
+
+  m_lex_keeper.disable_query_cache();
+  int res= m_lex_keeper.cursor_reset_lex_and_exec_core(thd, nextp, false, this);
+  *nextp= m_ip + 1;
+  DBUG_RETURN(res);
+}
+
+
+int sp_instr_refcursor_open::exec_core(THD *thd, uint *nextp)
+{
+  DBUG_ASSERT(thd->m_session_cursors != nullptr);
+  sp_cursor *cursor= thd->get_session_cursor_by_refcursor(*this);
+  DBUG_ASSERT(cursor); // sp_instr_refcursor_open::execute() guarantees this
+  DBUG_ASSERT(!cursor->is_open()); // and this
+  return cursor->open(thd);
+}
+
+
+void
+sp_instr_refcursor_open::print(String *str)
+{
+  /* open_sys_refcursor name@offset */
+  static constexpr LEX_CSTRING instr{STRING_WITH_LEN("refcursor_open")};
+  print_cmd_and_var(str, instr, m_offset);
+}
+
+
+/*
+  sp_instr_refcursor_close class functions
+*/
+
+PSI_statement_info sp_instr_refcursor_close::psi_info=
+{ 0, "refcursor_close", 0};
+
+int
+sp_instr_refcursor_close::execute(THD *thd, uint *nextp)
+{
+  DBUG_ENTER("sp_instr_refcursor_close::execute");
+  sp_cursor *cursor= thd->get_session_cursor_by_refcursor(*this);
+  if (!cursor)
+  {
+    my_error(ER_SP_CURSOR_NOT_OPEN, MYF(0));
+    DBUG_RETURN(-1);
+  }
+  int res= cursor->close(thd);
+  *nextp= m_ip + 1;
+  DBUG_RETURN(res);
+}
+
+
+void
+sp_instr_refcursor_close::print(String *str)
+{
+  /* close_sys_refcursor name@offset */
+  static constexpr LEX_CSTRING instr{STRING_WITH_LEN("refcursor_close")};
+  print_cmd_and_var(str, instr, m_offset);
+}
+
+
+/*
+  sp_instr_refcursor_fetch class functions
+*/
+
+PSI_statement_info sp_instr_refcursor_fetch::psi_info=
+{ 0, "refcursor_fetch", 0};
+
+int
+sp_instr_refcursor_fetch::execute(THD *thd, uint *nextp)
+{
+  DBUG_ENTER("sp_instr_refcursor_fetch::execute");
+  sp_cursor *cursor= thd->get_session_cursor_by_refcursor(*this);
+  if (!cursor)
+  {
+    my_error(ER_SP_CURSOR_NOT_OPEN, MYF(0));
+    DBUG_RETURN(-1);
+  }
+  Query_arena backup_arena;
+  int res= cursor->fetch(thd, &m_varlist, m_error_on_no_data);
+  *nextp= m_ip + 1;
+  DBUG_RETURN(res);
+}
+
+
+void
+sp_instr_refcursor_fetch::print(String *str)
+{
+  /* fetch_from_sys_refcursor from_name@from_offset into_name@into_offset... */
+  static constexpr LEX_CSTRING instr=
+    LEX_CSTRING{STRING_WITH_LEN("refcursor_fetch")};
+  print_cmd_and_var(str, instr, m_offset);
+  print_fetch_into(str, m_varlist);
 }
 
 

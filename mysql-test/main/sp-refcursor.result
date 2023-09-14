@@ -1,0 +1,275 @@
+#
+# Error: Unknown cursor and wrong variable data type in OPEN, FETCH, CLOSE
+#
+BEGIN NOT ATOMIC
+OPEN c FOR SELECT 1;
+END;
+$$
+ERROR 42000: Undeclared variable: c
+BEGIN NOT ATOMIC
+DECLARE c INT;
+OPEN c FOR SELECT 1;
+END;
+$$
+ERROR HY000: Illegal parameter data type int for operation 'OPEN'
+BEGIN NOT ATOMIC
+DECLARE c INT;
+CLOSE c;
+END;
+$$
+ERROR HY000: Illegal parameter data type int for operation 'CLOSE'
+BEGIN NOT ATOMIC
+DECLARE a INT;
+DECLARE c INT;
+FETCH c INTO a;
+END;
+$$
+ERROR HY000: Illegal parameter data type int for operation 'FETCH'
+#
+# Error: Closing a not opened cursor
+#
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+CLOSE c;
+END;
+$$
+ERROR 24000: Cursor is not open
+#
+# Error: Fetching from a not opened cursor
+#
+BEGIN NOT ATOMIC
+DECLARE a INT;
+DECLARE c SYS_REFCURSOR;
+FETCH c INTO a;
+END;
+$$
+ERROR 24000: Cursor is not open
+#
+# Error: fetching beyond the available number of records
+#
+BEGIN NOT ATOMIC
+DECLARE a INT;
+DECLARE c SYS_REFCURSOR;
+OPEN c FOR SELECT 1;
+FETCH c INTO a;
+FETCH c INTO a;
+END;
+$$
+ERROR 02000: No data - zero rows fetched, selected, or processed
+#
+# Error: the number of open cursors is limited
+#
+CREATE OR REPLACE FUNCTION f1() RETURNS SYS_REFCURSOR
+BEGIN
+DECLARE c SYS_REFCURSOR;
+OPEN c FOR SELECT 1 AS a FROM DUAL;
+RETURN c;
+END;
+$$
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+DECLARE a INT;
+FOR i IN 1..900
+DO
+SET c= f1();
+FETCH c INTO a;
+END FOR;
+END;
+$$
+ERROR HY000: Too many open cursors; max 30 cursors allowed
+DROP FUNCTION f1;
+#
+# Two consequent OPEN (without a CLOSE in beetween) are allowed
+#
+BEGIN NOT ATOMIC
+DECLARE a INT;
+DECLARE c SYS_REFCURSOR;
+OPEN c FOR SELECT 1;
+OPEN c FOR SELECT 2;
+FETCH c INTO a;
+SELECT a;
+END;
+$$
+a
+2
+#
+# Many consequent OPEN (without a CLOSE in between) are allowed
+# and do not cause ER_TOO_MANY_OPEN_CURSORS.
+#
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+FOR i IN 0..300
+DO
+OPEN c FOR SELECT 1 AS c FROM DUAL;
+END FOR;
+END;
+$$
+#
+# Simple use example (OPEN, FETCH, CLOSE)
+#
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+DECLARE a INT;
+OPEN c FOR SELECT 1;
+FETCH c INTO a;
+CLOSE c;
+END;
+$$
+#
+# Fetching from two parallel cursors
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+DECLARE a0 INT;
+DECLARE a1 INT;
+DECLARE c0 SYS_REFCURSOR;
+DECLARE c1 SYS_REFCURSOR;
+OPEN c0  FOR SELECT a*10 FROM t1;
+OPEN c1  FOR SELECT a*20 FROM t1;
+FETCH c0 INTO a0;
+FETCH c1 INTO a1;
+SELECT a0, a1;
+CLOSE c0;
+CLOSE c1;
+END;
+$$
+CALL p1;
+a0	a1
+10	20
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# SYS_REFCURSOR alasing
+#
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+DECLARE c1 SYS_REFCURSOR;
+DECLARE a INT;
+OPEN c0 FOR SELECT 11 FROM DUAL UNION SELECT 12 FROM DUAL;
+SET c1= c0;
+FETCH c0 INTO a;
+SELECT a;
+OPEN c0 FOR SELECT 21 FROM DUAL UNION SELECT 22 FROM DUAL;
+FETCH c1 INTO a; /* c1 now points to the new "OPEN c0" */
+SELECT a;
+END;
+$$
+a
+11
+a
+21
+#
+# Function returning SYS_REFCURSOR and mysql.proc
+#
+CREATE FUNCTION f1() RETURNS SYS_REFCURSOR
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+RETURN c0;
+END;
+$$
+SELECT returns FROM mysql.proc WHERE name='f1';
+returns
+sys_refcursor
+SHOW CREATE FUNCTION f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS sys_refcursor
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+RETURN c0;
+END	latin1	latin1_swedish_ci	latin1_swedish_ci
+DROP FUNCTION f1;
+#
+# Procedure with a SYS_REFCURSOR parameter and mysql.proc
+#
+CREATE PROCEDURE p1(OUT a0 SYS_REFCURSOR)
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+SET a0= c0;
+END;
+$$
+SELECT param_list FROM mysql.proc WHERE name='p1';
+param_list
+OUT a0 SYS_REFCURSOR
+SHOW CREATE PROCEDURE p1;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+p1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`(OUT a0 SYS_REFCURSOR)
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+SET a0= c0;
+END	latin1	latin1_swedish_ci	latin1_swedish_ci
+DROP PROCEDURE p1;
+#
+# Returning a opened cursor from a function
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+CREATE FUNCTION f1() RETURNS SYS_REFCURSOR
+BEGIN
+DECLARE c SYS_REFCURSOR;
+OPEN c FOR SELECT a FROM t1 ORDER BY a;
+RETURN c;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE done INT DEFAULT FALSE;
+DECLARE a INT;
+DECLARE c SYS_REFCURSOR DEFAULT f1();
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+fetch_loop:
+LOOP
+FETCH c INTO a;
+IF done THEN
+LEAVE fetch_loop;
+END IF;
+SELECT a;
+END LOOP;
+CLOSE c;
+END;
+$$
+CALL p1;
+a
+10
+a
+20
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# Returning an opened cursor as an OUT param
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+CREATE PROCEDURE p1(OUT c SYS_REFCURSOR)
+BEGIN
+OPEN c FOR SELECT a FROM t1 ORDER BY a;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE done INT DEFAULT FALSE;
+DECLARE a INT;
+DECLARE c SYS_REFCURSOR;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+CALL p1(c);
+fetch_loop:
+LOOP
+FETCH c INTO a;
+IF done THEN
+LEAVE fetch_loop;
+END IF;
+SELECT a;
+END LOOP;
+CLOSE c;
+END;
+$$
+CALL p2;
+a
+10
+a
+20
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP TABLE t1;

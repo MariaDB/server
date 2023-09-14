@@ -634,6 +634,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
              /* statement id */ 0),
    rli_fake(0), rgi_fake(0), rgi_slave(NULL),
+   m_session_cursors(nullptr),
    protocol_text(this), protocol_binary(this), initial_status_var(0),
    m_current_stage_key(0), m_psi(0),
    in_sub_stmt(0), log_all_errors(0),
@@ -1400,6 +1401,20 @@ void THD::init_for_queries()
 }
 
 
+void THD::session_cursors_close()
+{
+  if (m_session_cursors)
+    m_session_cursors->close();
+}
+
+
+void THD::session_cursors_free()
+{
+  delete m_session_cursors;
+  m_session_cursors= nullptr;
+}
+
+
 /*
   Do what's needed when one invokes change user
 
@@ -1439,6 +1454,7 @@ void THD::change_user(void)
                get_sequence_last_key, (my_hash_free_key) free_sequence_last,
                HASH_THREAD_SPECIFIC);
   sp_caches_clear();
+  session_cursors_free();
   opt_trace.delete_traces();
 }
 
@@ -1570,6 +1586,7 @@ void THD::cleanup(void)
   my_hash_free(&user_vars);
   my_hash_free(&sequences);
   sp_caches_clear();
+  session_cursors_free();
   auto_inc_intervals_forced.empty();
   auto_inc_intervals_in_cur_stmt_for_binlog.empty();
 
@@ -1721,6 +1738,9 @@ THD::~THD()
   
   if (rgi_slave)
     rgi_slave->cleanup_after_session();
+
+  session_cursors_free();
+
   my_free(semisync_info);
 #endif
   main_lex.free_set_stmt_mem_root();
@@ -2261,6 +2281,13 @@ void THD::cleanup_after_query()
   DBUG_ENTER("THD::cleanup_after_query");
 
   thd_progress_end(this);
+
+  /*
+    This closes all SYS_REFCURSOR entries which
+    did not have explicit CLOSE in the SP code.
+  */
+  if (!lex->sphead && !in_sub_stmt)
+    session_cursors_close();
 
   /*
     Reset RAND_USED so that detection of calls to rand() will save random
@@ -4275,6 +4302,58 @@ bool my_var_user::set(THD *thd, Item *item)
   Item_func_set_user_var *suv= new (thd->mem_root) Item_func_set_user_var(thd, &name, item);
   suv->save_item_result(item);
   return suv->fix_fields(thd, 0) || suv->update();
+}
+
+
+Item_field *THD::get_variable(const sp_rcontext_addr &ref) const
+{
+  return ref.rcontext_handler()->
+           get_rcontext(spcont)->get_variable(ref.offset());
+}
+
+
+bool THD::get_session_cursor_pos_by_refcursor(const sp_rcontext_addr &ref,
+                                              uint *pos) const
+{
+  Field *field= get_variable(ref)->field;
+  longlong val;
+  if (field->is_null() ||
+      (val= field->val_int()) < 0 ||
+      val > m_session_cursors->max_count())
+    return true;
+  (*pos)= (uint) val;
+  return false;
+}
+
+
+sp_cursor *
+THD::get_session_cursor_by_refcursor(const sp_rcontext_addr &addr) const
+{
+  uint pos;
+  return get_session_cursor_pos_by_refcursor(addr, &pos) ?
+         NULL :
+         &m_session_cursors->at(pos);
+}
+
+
+sp_cursor* THD::get_cursor(const sp_rcontext_addr &addr) const
+{
+  DBUG_ASSERT(spcont);
+  if (addr.rcontext_handler()) // SYS_REFCURSOR
+    return get_session_cursor_by_refcursor(addr);
+  return spcont->get_cursor(addr.offset()); // Static CURSOR
+}
+
+
+sp_cursor* THD::get_open_cursor_or_error(const sp_rcontext_addr &addr) const
+{
+  sp_cursor *c= get_cursor(addr);
+  if (!c || !c->is_open())
+  {
+    my_error(ER_SP_CURSOR_NOT_OPEN, MYF(0));
+    return NULL;
+  }
+  return c;
 }
 
 

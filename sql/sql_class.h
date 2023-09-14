@@ -95,6 +95,7 @@ struct rpl_parallel_thread;
 class Rpl_filter;
 class Query_log_event;
 class Log_event_writer;
+class sp_cursor;
 class sp_rcontext;
 class sp_cache;
 class Lex_input_stream;
@@ -2851,6 +2852,10 @@ public:
   /* Used to register that thread has a MDL_BACKUP_WAIT_COMMIT lock */
   MDL_request *backup_commit_lock;
 
+  class Session_cursors *m_session_cursors;
+  void session_cursors_close();
+  void session_cursors_free();
+
   void reset_for_next_command(bool do_clear_errors= 1);
   /*
     Constant for THD::where initialization in the beginning of every query.
@@ -3893,6 +3898,15 @@ public:
   enum_sql_command last_sql_command;  // Last sql_command exceuted in mysql_execute_command()
 
   sp_rcontext *spcont;		// SP runtime context
+
+  Item_field *get_variable(const sp_rcontext_addr &ref) const;
+  bool get_session_cursor_pos_by_refcursor(const sp_rcontext_addr &addr,
+                                           uint *pos) const;
+  sp_cursor *get_session_cursor_by_refcursor(const sp_rcontext_addr &addr)
+                                             const;
+  // Get a static CURSOR or a one referenced by SYS_REFCURSOR
+  sp_cursor *get_cursor(const sp_rcontext_addr &addr) const;
+  sp_cursor *get_open_cursor_or_error(const sp_rcontext_addr &addr) const;
 
   /** number of name_const() substitutions, see sp_head.cc:subst_spvars() */
   uint       query_name_consts;
@@ -6245,11 +6259,68 @@ public:
     server_side_cursor= NULL;
   }
 
+  /*
+    Reset a cursor before reopening (two OPEN without CLOSE in between).
+    This method does not raise ER_SP_CURSOR_ALREADY_OPEN.
+    It's used to handle:
+      c SYS_REFCURSOR;
+      OPEN c FOR SELECT 1;
+      OPEN c FOR SELECT 2; -- This is allowed without closing the previous OPEN
+  */
+  void reset_for_reopen(THD *thd_arg)
+  {
+    if (is_open())
+      close(thd_arg);
+    reset(thd_arg);
+  }
+
   virtual sp_instr_cpush *get_push_instr() { return nullptr; }
 private:
   Select_fetch_into_spvars result;
   Server_side_cursor *server_side_cursor;
   void destroy();
+};
+
+
+class Session_cursors
+{
+  sp_cursor m_cursor[30];
+public:
+  static constexpr uint max_count()
+  {
+    return (uint) array_elements(m_cursor);
+  }
+public:
+  Session_cursors() = default;
+  ~Session_cursors()
+  {
+    close();
+  }
+  sp_cursor & at(size_t idx)
+  {
+    DBUG_ASSERT(idx < array_elements(m_cursor));
+    return m_cursor[idx];
+  }
+  bool find_unused(uint *pos)
+  {
+    for (size_t i= 0 ; i < array_elements(m_cursor); i++)
+    {
+      if (!m_cursor[i].is_open())
+      {
+        *pos= i;
+        return false;
+      }
+    }
+    return true;
+  }
+  void close()
+  {
+    for (size_t i= 0; i < array_elements(m_cursor); i++)
+    {
+      if (m_cursor[i].is_open())
+        m_cursor[i].close(NULL);
+    }
+  }
 };
 
 

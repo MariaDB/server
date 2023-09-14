@@ -6952,46 +6952,30 @@ void Cursor_ref::print_func(String *str, const LEX_CSTRING &func_name)
 }
 
 
-sp_cursor *Cursor_ref::get_open_cursor_or_error()
-{
-  THD *thd= current_thd;
-  sp_cursor *c= thd->spcont->get_cursor(m_cursor_offset);
-  DBUG_ASSERT(c);
-  if (!c/*safety*/ || !c->is_open())
-  {
-    my_message(ER_SP_CURSOR_NOT_OPEN, ER_THD(thd, ER_SP_CURSOR_NOT_OPEN),
-               MYF(0));
-    return NULL;
-  }
-  return c;
-}
-
-
 longlong Item_func_cursor_isopen::val_int()
 {
-  sp_cursor *c= current_thd->spcont->get_cursor(m_cursor_offset);
-  DBUG_ASSERT(c != NULL);
+  sp_cursor *c= current_thd->get_cursor(*this);
   return c ? c->is_open() : 0;
 }
 
 
 longlong Item_func_cursor_found::val_int()
 {
-  sp_cursor *c= get_open_cursor_or_error();
+  sp_cursor *c= current_thd->get_open_cursor_or_error(*this);
   return !(null_value= (!c || c->fetch_count() == 0)) && c->found();
 }
 
 
 longlong Item_func_cursor_notfound::val_int()
 {
-  sp_cursor *c= get_open_cursor_or_error();
+  sp_cursor *c= current_thd->get_open_cursor_or_error(*this);
   return !(null_value= (!c || c->fetch_count() == 0)) && !c->found();
 }
 
 
 longlong Item_func_cursor_rowcount::val_int()
 {
-  sp_cursor *c= get_open_cursor_or_error();
+  sp_cursor *c= current_thd->get_open_cursor_or_error(*this);
   return !(null_value= !c) ? c->row_count() : 0;
 }
 
