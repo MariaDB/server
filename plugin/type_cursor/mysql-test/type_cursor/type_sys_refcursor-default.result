@@ -1,0 +1,51 @@
+#
+# MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+#
+#
+# DEFAULT clause in SYS_REFCURSOR declarations
+#
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR DEFAULT NULL;
+END;
+$$
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR DEFAULT NULL;
+DECLARE c1 SYS_REFCURSOR DEFAULT c0;
+END;
+$$
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR DEFAULT NULL;
+OPEN c0 FOR SELECT 'c0-value';
+BEGIN
+DECLARE c1 SYS_REFCURSOR DEFAULT c0;
+DECLARE v VARCHAR(30);
+FETCH c1 INTO v;
+SELECT v;
+END;
+END;
+$$
+v
+c0-value
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR DEFAULT NULL;
+DECLARE c1 SYS_REFCURSOR DEFAULT DEFAULT(c0);
+END;
+$$
+ERROR 42000: Incorrect column name 'c0'
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR DEFAULT 0;
+END;
+$$
+ERROR HY000: Cannot cast 'int' as 'sys_refcursor' in assignment of `c`
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR DEFAULT IGNORE;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'IGNORE;
+END' at line 2
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR DEFAULT DEFAULT;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ';
+END' at line 2

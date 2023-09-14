@@ -1,0 +1,40 @@
+#
+# MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+#
+#
+# String functions
+#
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+SELECT CONCAT(c0);
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'concat'
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+SELECT CONCAT_WS(',', c0, c0);
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'concat_ws'
+SET sql_mode=ORACLE;
+DECLARE
+c0 SYS_REFCURSOR;
+BEGIN
+SELECT  c0 || ' ' || ' ' || c0;
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'concat'
+SET sql_mode=DEFAULT;
+#
+# String sum functions
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+OPEN c0 FOR SELECT 1;
+SELECT GROUP_CONCAT(c0) FROM seq_1_to_4;
+END;
+/
+CALL p1;
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'group_concat('
+DROP PROCEDURE p1;

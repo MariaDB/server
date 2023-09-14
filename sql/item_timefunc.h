@@ -1312,6 +1312,7 @@ public:
   }
   CHARSET_INFO *cast_charset() const { return cast_cs; }
   String *val_str_generic(String *a);
+  String *val_str_generic_finalize(String *res, String *str);
   String *val_str_binary_from_native(String *a);
   void fix_length_and_dec_generic();
   void fix_length_and_dec_numeric();
