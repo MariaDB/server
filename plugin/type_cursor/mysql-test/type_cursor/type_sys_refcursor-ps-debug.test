@@ -1,0 +1,42 @@
+--source include/have_debug.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+--echo #
+
+--echo #
+--echo # Testing a case when Item_param is the only Item
+--echo # with a side effect inside EXECUTE IMMEDIATE.
+--echo # It makes sure that the item_with_t::DATA_TYPE_SIDE_EFFECT flag
+--echo # gets properly added from Item_param
+--echo # to Query_arena::with_flags_bit_or_for_data_type_side_effect
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE p1c0 SYS_REFCURSOR;
+  OPEN p1c0 FOR SELECT 1;
+
+  SELECT 'p1-1' AS stage,
+    CURSOR_REF_COUNT(0) AS cnt_0,
+    CURSOR_REF_COUNT(1) AS cnt_1;
+
+  EXECUTE IMMEDIATE 'SELECT
+    ''stmt1'' AS stage,
+    CURSOR_REF_COUNT(0) AS cnt_0,
+    CURSOR_REF_COUNT(1) AS cnt_1
+  FROM seq_1_to_5
+  WHERE ? IS NOT NULL' USING p1c0;
+
+  SELECT 'p1-2' AS stage,
+    CURSOR_REF_COUNT(0) AS cnt_0,
+    CURSOR_REF_COUNT(1) AS cnt_1;
+END;
+/
+DELIMITER ;/
+--disable_column_names
+CALL p1;
+--enable_column_names
+DROP PROCEDURE p1;

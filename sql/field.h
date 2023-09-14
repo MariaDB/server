@@ -987,6 +987,27 @@ public:
     reset();
     return 0;
   }
+
+  /*
+    Unlike set_null(), expr_event_handler(DESTRUCT*) has a side effect:
+    it can check the previous Field value. For example,
+    if the previous value of a Field_sys_refcursor field was not NULL,
+    Field_sys_refcursor::expr_event_handler(DESTRUCT*) decrements the cursor
+    reference counter and closes the cursor if the counter decremented
+    down to zero.
+
+    expr_event_handler() assumes that the Field is in a deterministic state,
+    e.g. set_null(), which has no side effects, was earlier called.
+  */
+  virtual int expr_event_handler(THD *thd, expr_event_t event)
+  {
+    return 0;
+  }
+
+  virtual int store_ref(const Type_ref_null &ref, bool no_conversions)
+  {
+    return 0;
+  }
   int store_time(const MYSQL_TIME *ltime)
   { return store_time_dec(ltime, TIME_SECOND_PART_DIGITS); }
   int store(const char *to, size_t length, CHARSET_INFO *cs,
@@ -1034,6 +1055,27 @@ public:
 #else
   void mark_unused_memory_as_defined() {}
 #endif
+
+  virtual Type_ref_null val_ref(THD *thd)
+  {
+    return Type_ref_null();
+  }
+
+  /*
+    Evaluate the offset of the referenced variable or cursor using val_int().
+
+    @retval  true  If is_null() returned true,
+                   or if val_int() greater than max_deref_offset.
+    @retval false  otherwise.
+  */
+  bool dereference(uint *deref_pos, uint max_deref_pos)
+  {
+    uint val;
+    if (is_null() || (val= (uint) val_int()) >= max_deref_pos)
+      return true;
+    *deref_pos= val;
+    return false;
+  }
 
   virtual double val_real()=0;
   virtual longlong val_int()=0;
@@ -2643,7 +2685,7 @@ public:
 };
 
 
-class Field_short final :public Field_int
+class Field_short :public Field_int
 {
   const Type_handler_general_purpose_int *type_handler_priv() const
   {

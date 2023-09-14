@@ -5308,6 +5308,16 @@ bool Type_handler::Item_func_hybrid_field_type_get_date_with_warn(THD *thd,
 }
 
 
+Type_ref_null
+Type_handler::Item_func_hybrid_field_type_val_ref(THD *thd,
+                                             Item_func_hybrid_field_type *item)
+                                                                          const
+{
+  item->null_value= true;
+  return Type_ref_null();
+}
+
+
 /************************************************************************/
 void Type_handler_decimal_result::Item_get_date(THD *thd, Item *item,
                                                 Temporal::Warn *warn,

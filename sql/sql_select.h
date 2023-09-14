@@ -2415,6 +2415,15 @@ public:
     for (uint i= 0; i < s->fields; i++)
       field[i]->set_null();
   }
+
+  void expr_event_handler(THD *thd, expr_event_t event, uint start, uint end)
+  {
+    DBUG_ASSERT(start <= end);
+    DBUG_ASSERT(end <= s->fields);
+    for (uint i= start; i < end; i++)
+      field[i]->expr_event_handler(thd, event);
+  }
+
   /**
     Set all fields from a compatible item list.
     The number of fields in "this" must be equal to the number

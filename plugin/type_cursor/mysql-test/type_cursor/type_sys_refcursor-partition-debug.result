@@ -1,0 +1,19 @@
+#
+# MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+#
+CREATE PROCEDURE p1()
+BEGIN
+CREATE TABLE t1 (
+num TINYINT(1) NOT NULL
+)
+PARTITION BY LIST (num)
+(
+PARTITION p0 VALUES IN (CURSOR_REC_COUNT(1)),
+PARTITION px DEFAULT
+);
+END
+/
+ERROR 42000: Constant, random or timezone-dependent expressions in (sub)partitioning function are not allowed near '),
+PARTITION px DEFAULT
+);
+END' at line 8

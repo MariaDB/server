@@ -108,6 +108,7 @@ const char *dbug_print_item(Item *item);
 
 class Virtual_tmp_table;
 class sp_head;
+class sp_rcontext;
 class Protocol;
 struct TABLE_LIST;
 void item_init(void);			/* Init item functions */
@@ -418,68 +419,6 @@ typedef enum monotonicity_info
 } enum_monotonicity_info;
 
 /*************************************************************************/
-
-class sp_rcontext;
-
-/**
-  A helper class to collect different behavior of various kinds of SP variables:
-  - local SP variables and SP parameters
-  - PACKAGE BODY routine variables
-  - (there will be more kinds in the future)
-*/
-
-class Sp_rcontext_handler
-{
-public:
-  virtual ~Sp_rcontext_handler() = default;
-  /**
-    A prefix used for SP variable names in queries:
-    - EXPLAIN EXTENDED
-    - SHOW PROCEDURE CODE
-    Local variables and SP parameters have empty prefixes.
-    Package body variables are marked with a special prefix.
-    This improves readability of the output of these queries,
-    especially when a local variable or a parameter has the same
-    name with a package body variable.
-  */
-  virtual const LEX_CSTRING *get_name_prefix() const= 0;
-  /**
-    At execution time THD->spcont points to the run-time context (sp_rcontext)
-    of the currently executed routine.
-    Local variables store their data in the sp_rcontext pointed by thd->spcont.
-    Package body variables store data in separate sp_rcontext that belongs
-    to the package.
-    This method provides access to the proper sp_rcontext structure,
-    depending on the SP variable kind.
-  */
-  virtual sp_rcontext *get_rcontext(sp_rcontext *ctx) const= 0;
-};
-
-
-class Sp_rcontext_handler_local: public Sp_rcontext_handler
-{
-public:
-  const LEX_CSTRING *get_name_prefix() const override;
-  sp_rcontext *get_rcontext(sp_rcontext *ctx) const override;
-};
-
-
-class Sp_rcontext_handler_package_body: public Sp_rcontext_handler
-{
-public:
-  const LEX_CSTRING *get_name_prefix() const override;
-  sp_rcontext *get_rcontext(sp_rcontext *ctx) const override;
-};
-
-
-extern MYSQL_PLUGIN_IMPORT
-  Sp_rcontext_handler_local sp_rcontext_handler_local;
-
-
-extern MYSQL_PLUGIN_IMPORT
-  Sp_rcontext_handler_package_body sp_rcontext_handler_package_body;
-
-
 
 class Item_equal;
 
@@ -796,7 +735,9 @@ enum class item_with_t : item_flags_t
   SUM_FUNC=    (1<<3), // If item contains a sum func
   SUBQUERY=    (1<<4), // If item containts a sub query
   ROWNUM_FUNC= (1<<5), // If ROWNUM function was used
-  PARAM=       (1<<6)  // If user parameter was used
+  PARAM=       (1<<6), // If user parameter was used
+  COMPLEX_DATA_TYPE= (1<<7) // If the expression is of a complex data type which
+                            // requires special handling on destruction
 };
 
 
@@ -1014,6 +955,24 @@ protected:
     null_value= MY_TEST(rc || item->null_value);
     return rc;
   }
+  Type_ref_null val_ref_from_item(THD *thd, Item *item)
+  {
+    DBUG_ASSERT(fixed());
+    /*
+      Conversion to a ref data type is not implemented.
+      So far we have only one ref data type: SYS_REFCURSOR.
+      This may change in the future. For now check that item:
+      - is of exactly the same type with "this"
+          SELECT IF(switch_var, sys_refcursor_var1, sys_refcursor2);
+      - or is an explicitly typed NULL:
+          SELECT IF(switch_var, NULL, sys_refcursor_var);
+    */
+    DBUG_ASSERT(item->type_handler() == type_handler() ||
+                item->type_handler() == &type_handler_null);
+    const Type_ref_null res= item->val_ref(thd);
+    null_value= item->null_value;
+    return res;
+  }
 public:
 
   /*
@@ -1113,6 +1072,8 @@ public:
   { return (bool) (with_flags & item_with_t::ROWNUM_FUNC); }
   inline bool with_param() const
   { return (bool) (with_flags & item_with_t::PARAM); }
+  inline bool with_complex_data_types() const
+  { return (bool) (with_flags & item_with_t::COMPLEX_DATA_TYPE); }
   inline void copy_flags(const Item *org, item_base_t mask)
   {
     base_flags= (item_base_t) (((item_flags_t) base_flags &
@@ -2519,6 +2480,7 @@ public:
   bool check_type_or_binary(const LEX_CSTRING &opname,
                             const Type_handler *handler) const;
   bool check_type_general_purpose_string(const LEX_CSTRING &opname) const;
+  bool check_type_can_return_bool(const LEX_CSTRING &opname) const;
   bool check_type_can_return_int(const LEX_CSTRING &opname) const;
   bool check_type_can_return_decimal(const LEX_CSTRING &opname) const;
   bool check_type_can_return_real(const LEX_CSTRING &opname) const;
@@ -2803,6 +2765,12 @@ public:
     return false;
   }
 
+  virtual Type_ref_null val_ref(THD *thd)
+  {
+    return Type_ref_null();
+  }
+  virtual void expr_event_handler(THD *thd, expr_event_t event)
+  { }
 protected:
   /*
     Service function for public method get_copy(). See comments for get_copy()
@@ -2992,6 +2960,16 @@ public:
   inline uint argument_count() const { return arg_count; }
   inline void remove_arguments() { arg_count=0; }
   Sql_mode_dependency value_depends_on_sql_mode_bit_or() const;
+  void expr_event_handler_args(THD * thd, expr_event_t event, uint count)
+  {
+    DBUG_ASSERT(count <= arg_count);
+    for (uint i= 0; i < count; i++)
+      args[i]->expr_event_handler(thd, event);
+  }
+  void expr_event_handler_args(THD *thd, expr_event_t event)
+  {
+    expr_event_handler_args(thd, event, arg_count);
+  }
 };
 
 
@@ -3181,11 +3159,19 @@ public:
   my_decimal *val_decimal(my_decimal *decimal_value) override;
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
   bool val_native(THD *thd, Native *to) override;
+  Type_ref_null val_ref(THD *thd) override;
   bool is_null() override;
 
 public:
   void make_send_field(THD *thd, Send_field *field) override;
-  bool const_item() const override { return true; }
+  bool const_item() const override
+  {
+    /*
+      SP variables of a tricky data type with side effects,
+      e.g. SYS_REFCURSOR, are not constants.
+    */
+    return !type_handler()->is_complex();
+  }
   Field *create_tmp_field_ex(MEM_ROOT *root,
                              TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param) override
@@ -3263,6 +3249,10 @@ public:
   { return this_item()->element_index(i); }
   Item** addr(uint i) override { return this_item()->addr(i); }
   bool check_cols(uint c) override;
+  const Sp_rcontext_handler *rcontext_handler() const
+  {
+    return m_rcontext_handler;
+  }
 
 private:
   bool set_value(THD *thd, sp_rcontext *ctx, Item **it) override;
@@ -3738,6 +3728,7 @@ public:
   my_decimal *val_decimal_result(my_decimal *) override;
   bool val_bool_result() override;
   bool is_null_result() override;
+  Type_ref_null val_ref(THD *thd) override;
   bool send(Protocol *protocol, st_value *buffer) override;
   Load_data_outvar *get_load_data_outvar() override { return this; }
   bool load_data_set_null(THD *thd, const Load_data_param *param) override
@@ -4246,6 +4237,38 @@ public:
   {
     m_default_field= NULL;
     Item::cleanup();
+  }
+
+  Type_ref_null val_ref_from_int() const
+  {
+    const longlong *addr;
+    if (has_no_value() || !(addr= const_ptr_longlong()))
+      return Type_ref_null();
+    return Type_ref_null((ulonglong) *addr);
+  }
+
+  Type_ref_null val_ref(THD *thd) override
+  {
+    return type_handler()->Item_param_val_ref(thd, this);
+  }
+
+  void expr_event_handler(THD *thd, expr_event_t event) override
+  {
+    /*
+      Item_param detaches from its side effect when at the end of
+      a prepared statement the value of ? gets copied to the routine
+      actual OUT or INOUT parameter, e.g.:
+        EXECUTE IMMEDIATE 'CALL p1_with_out_or_inout_param(?)' USING spvar;
+    */
+    if ((bool) (event & expr_event_t::DESTRUCT_DYNAMIC_PARAM))
+    {
+      const Type_ref_null ref= Item_param::val_ref(thd);
+      if (!ref.is_null())
+      {
+        type_handler()->expr_event_handler(thd, event, ref.value());
+        set_null();
+      }
+    }
   }
 
   Type type() const override

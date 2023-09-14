@@ -201,6 +201,19 @@ bool Item_func::check_argument_types_traditional_scalar(uint start,
 }
 
 
+bool Item_func::check_argument_types_can_return_bool(uint start,
+                                                     uint end) const
+{
+  for (uint i= start; i < end ; i++)
+  {
+    DBUG_ASSERT(i < arg_count);
+    if (args[i]->check_type_can_return_bool(func_name_cstring()))
+      return true;
+  }
+  return false;
+}
+
+
 bool Item_func::check_argument_types_can_return_int(uint start,
                                                     uint end) const
 {
@@ -383,6 +396,7 @@ Item_func::fix_fields(THD *thd, Item **ref)
     return TRUE;
   }
   base_flags|= item_base_t::FIXED;
+  thd->stmt_arena->with_flags_bit_or_for_complex_data_types|= with_flags;
 
   return FALSE;
 }
@@ -5250,6 +5264,21 @@ Item_func_set_user_var::update()
                      unsigned_flag ? (Type_handler *) &type_handler_ulonglong :
                                      (Type_handler *) &type_handler_slonglong,
                      &my_charset_numeric);
+    if (with_complex_data_types())
+    {
+      /*
+        There are no user variable methods in Type_handler yet.
+        Also all INT-alike expresions do not preserve the exact data type on
+        a user variable assignment: they all get converted into BIGINT.
+        Let's disallow data types with side effect like SYS_REFCURSOR for now,
+        to avoid side effect resources leaking, like m_statement_cursors
+        elements in case of SYS_REFCURSOR.
+      */
+      my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+               args[0]->type_handler()->name().lex_cstring().str,
+               "SET user_variable");
+      DBUG_RETURN(true);
+    }
     break;
   }
   case STRING_RESULT:
@@ -6880,6 +6909,9 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
     const_item_cache= FALSE;
   }
 
+  if (type_handler()->is_complex())
+    with_flags|= item_with_t::COMPLEX_DATA_TYPE;
+
   DBUG_RETURN(res);
 }
 
@@ -6943,13 +6975,23 @@ longlong Item_func_uuid_short::val_int()
 
 /**
   Last_value - return last argument.
+  "Side effect" is used in two meanings here:
+  - Side effect arguments 0..arg_count-1
+  - Side effect of the argument data types,
+    e.g. such as SYS_REFCURSOR.
 */
 
 void Item_func_last_value::evaluate_sideeffects()
 {
   DBUG_ASSERT(fixed() && arg_count > 0);
+  THD *thd= current_thd;
   for (uint i= 0; i < arg_count-1 ; i++)
+  {
     args[i]->val_int();
+    if (with_complex_data_types())
+      args[i]->expr_event_handler(thd,
+                                  expr_event_t::DESTRUCT_BUILT_IN_ROUTINE_ARG);
+  }
 }
 
 String *Item_func_last_value::val_str(String *str)
@@ -6987,6 +7029,14 @@ double Item_func_last_value::val_real()
   return tmp;
 }
 
+
+Type_ref_null Item_func_last_value::val_ref(THD *thd)
+{
+  evaluate_sideeffects();
+  return val_ref_from_item(thd, last_value);
+}
+
+
 my_decimal *Item_func_last_value::val_decimal(my_decimal *decimal_value)
 {
   my_decimal *tmp;
@@ -7022,46 +7072,30 @@ void Cursor_ref::print_func(String *str, const LEX_CSTRING &func_name)
 }
 
 
-sp_cursor *Cursor_ref::get_open_cursor_or_error()
-{
-  THD *thd= current_thd;
-  sp_cursor *c= thd->spcont->get_cursor(m_cursor_offset);
-  DBUG_ASSERT(c);
-  if (!c/*safety*/ || !c->is_open())
-  {
-    my_message(ER_SP_CURSOR_NOT_OPEN, ER_THD(thd, ER_SP_CURSOR_NOT_OPEN),
-               MYF(0));
-    return NULL;
-  }
-  return c;
-}
-
-
 bool Item_func_cursor_isopen::val_bool()
 {
-  sp_cursor *c= current_thd->spcont->get_cursor(m_cursor_offset);
-  DBUG_ASSERT(c != NULL);
+  sp_cursor *c= Sp_rcontext_handler::get_cursor(m_thd, *this);
   return c ? c->is_open() : 0;
 }
 
 
 bool Item_func_cursor_found::val_bool()
 {
-  sp_cursor *c= get_open_cursor_or_error();
+  sp_cursor *c= Sp_rcontext_handler::get_open_cursor_or_error(m_thd, *this);
   return !(null_value= (!c || c->fetch_count() == 0)) && c->found();
 }
 
 
 bool Item_func_cursor_notfound::val_bool()
 {
-  sp_cursor *c= get_open_cursor_or_error();
+  sp_cursor *c= Sp_rcontext_handler::get_open_cursor_or_error(m_thd, *this);
   return !(null_value= (!c || c->fetch_count() == 0)) && !c->found();
 }
 
 
 longlong Item_func_cursor_rowcount::val_int()
 {
-  sp_cursor *c= get_open_cursor_or_error();
+  sp_cursor *c= Sp_rcontext_handler::get_open_cursor_or_error(m_thd, *this);
   return !(null_value= !c) ? c->row_count() : 0;
 }
 

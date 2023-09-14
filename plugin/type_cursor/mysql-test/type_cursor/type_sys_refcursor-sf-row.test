@@ -1,0 +1,38 @@
+--echo #
+--echo # MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+--echo #
+
+#
+# Cursor operations on a ROW field are not supported yet:
+# OPEN row_name.field_name;
+# FETCH row_name.field_name;
+# CLOSE row_name.field_name;
+#
+# But ROWs with SYS_REFCURSOR fields are supported:
+
+
+DELIMITER /;
+CREATE PROCEDURE p1(p1r0 ROW(c0 SYS_REFCURSOR, c1 SYS_REFCURSOR))
+BEGIN
+  DECLARE c0 SYS_REFCURSOR DEFAULT p1r0.c0;
+  DECLARE c1 SYS_REFCURSOR DEFAULT p1r0.c1;
+  DECLARE v0 INT;
+  DECLARE v1 INT;
+  FETCH c0 INTO v0;
+  FETCH c1 INTO v1;
+  SELECT v0, v1;
+END
+/
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE c0 SYS_REFCURSOR;
+  DECLARE c1 SYS_REFCURSOR;
+  OPEN c0 FOR SELECT 10;
+  OPEN c1 FOR SELECT 11;
+  CALL p1(ROW(c0, c1));
+END;
+/
+DELIMITER ;/
+CALL p2;
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;

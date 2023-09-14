@@ -414,6 +414,8 @@ public:
   bool
   add_instr_preturn(THD *thd, sp_pcontext *spcont);
 
+  bool add_sp_block_destruct_variables(THD *thd, sp_pcontext *pctx);
+
   Item *adjust_assignment_source(THD *thd, Item *val, Item *val2);
   /**
     @param thd                     - the current thd
@@ -520,6 +522,7 @@ private:
   bool bind_input_param(THD *thd,
                         Item *arg_item,
                         uint arg_no,
+                        sp_rcontext *octx,
                         sp_rcontext *nctx,
                         bool is_function);
 

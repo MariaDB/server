@@ -595,6 +595,22 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     goto err;
   }
 
+  // Disallow non-deterministic data types such as SYS_REFCURSOR
+  for (Item *item= thd->stmt_arena->free_list; item; item= item->next)
+  {
+    if (item->fixed())
+    {
+      const Type_handler *th= item->type_handler();
+      if (th->is_complex())
+      {
+        my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+                 th->name().ptr(), "CREATE VIEW");
+        res= true;
+        goto err;
+      }
+    }
+  }
+
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   /*
     Compare/check grants on view with grants of underlying tables

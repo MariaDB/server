@@ -50,6 +50,7 @@ protected:
   bool check_argument_types_traditional_scalar(uint start, uint end) const;
   bool check_argument_types_or_binary(const Type_handler *handler,
                                       uint start, uint end) const;
+  bool check_argument_types_can_return_bool(uint start, uint end) const;
   bool check_argument_types_can_return_int(uint start, uint end) const;
   bool check_argument_types_can_return_real(uint start, uint end) const;
   bool check_argument_types_can_return_str(uint start, uint end) const;
@@ -929,6 +930,10 @@ public:
   {
     return real_op();
   }
+  Type_ref_null val_ref_from_ref_op(THD *thd)
+  {
+    return ref_op(thd);
+  }
 
   // Value methods that involve conversion
   String *val_str_from_real_op(String *str);
@@ -981,6 +986,12 @@ public:
     DBUG_ASSERT(fixed());
     return Item_func_hybrid_field_type::type_handler()->
            Item_func_hybrid_field_type_val_int(this);
+  }
+  Type_ref_null val_ref(THD *thd) override
+  {
+    DBUG_ASSERT(fixed());
+    return Item_func_hybrid_field_type::type_handler()->
+           Item_func_hybrid_field_type_val_ref(thd, this);
   }
   my_decimal *val_decimal(my_decimal *dec) override
   {
@@ -1080,6 +1091,11 @@ public:
   virtual bool time_op(THD *thd, MYSQL_TIME *res)= 0;
 
   virtual bool native_op(THD *thd, Native *native)= 0;
+
+  virtual Type_ref_null ref_op(THD *thd)
+  {
+    return Type_ref_null();
+  }
 };
 
 
@@ -1341,14 +1357,16 @@ public:
 };
 
 
-class Cursor_ref
+class Cursor_ref: public sp_rcontext_ref
 {
 protected:
   LEX_CSTRING m_cursor_name;
-  uint m_cursor_offset;
-  class sp_cursor *get_open_cursor_or_error();
-  Cursor_ref(const LEX_CSTRING *name, uint offset)
-   :m_cursor_name(*name), m_cursor_offset(offset)
+public:
+  Cursor_ref(const LEX_CSTRING *name,
+             const Sp_rcontext_handler *h, uint offset,
+             const Sp_rcontext_handler *deref_rcontext_handler)
+   :sp_rcontext_ref(sp_rcontext_addr(h, offset), deref_rcontext_handler),
+    m_cursor_name(*name)
   { }
   void print_func(String *str, const LEX_CSTRING &func_name);
 };
@@ -1358,11 +1376,20 @@ protected:
 class Item_func_cursor_rowcount: public Item_longlong_func,
                                  public Cursor_ref
 {
+protected:
+  THD *m_thd;
 public:
-  Item_func_cursor_rowcount(THD *thd, const LEX_CSTRING *name, uint offset)
-   :Item_longlong_func(thd), Cursor_ref(name, offset)
+  Item_func_cursor_rowcount(THD *thd, const Cursor_ref &ref)
+   :Item_longlong_func(thd), Cursor_ref(ref), m_thd(nullptr)
   {
     set_maybe_null();
+  }
+  bool fix_fields(THD *thd, Item **ref) override
+  {
+    if (Item_longlong_func::fix_fields(thd, ref))
+      return true;
+    m_thd= thd;
+    return false;
   }
   LEX_CSTRING func_name_cstring() const override
   {
@@ -4043,6 +4070,20 @@ public:
     return (null_value= sp_result_field->val_native(to));
   }
 
+  Type_ref_null val_ref(THD *thd) override
+  {
+    const Type_ref_null ref= execute() ? Type_ref_null() :
+                                         sp_result_field->val_ref(thd);
+    if (with_complex_data_types())
+      expr_event_handler_args(thd, expr_event_t::DESTRUCT_BUILT_IN_ROUTINE_ARG);
+    return ref;
+  }
+  void expr_event_handler(THD *thd, expr_event_t event) override
+  {
+    if (with_complex_data_types())
+      sp_result_field->expr_event_handler(thd, event);
+  }
+
   void update_null_value() override
   { 
     execute();
@@ -4203,6 +4244,7 @@ public:
   my_decimal *val_decimal(my_decimal *) override;
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
   bool val_native(THD *thd, Native *) override;
+  Type_ref_null val_ref(THD *thd) override;
   bool fix_length_and_dec(THD *thd) override;
   LEX_CSTRING func_name_cstring() const override
   {

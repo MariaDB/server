@@ -387,7 +387,10 @@ public:
     REGULAR_SCOPE,
 
     /// HANDLER_SCOPE designates SQL-handler blocks.
-    HANDLER_SCOPE
+    HANDLER_SCOPE,
+
+    /// Declarations between CREATE PACKAGE and BEGIN
+    PACKAGE_BODY_SCOPE
   };
 
   class Lex_for_loop: public Lex_for_loop_st
@@ -727,6 +730,10 @@ public:
   const Lex_for_loop &for_loop()
   {
     return m_for_loop;
+  }
+  enum_scope scope() const
+  {
+    return m_scope;
   }
 
 private:

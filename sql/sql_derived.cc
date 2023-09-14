@@ -883,6 +883,14 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
                                                    0))
   { 
     thd->create_tmp_table_for_derived= FALSE;
+    if (thd->is_error())
+    {
+      /*
+        EOM error, or attempted to a create a table with a Field
+        of a not allowed data type, e.g. SYS_REFCURSOR.
+      */
+      res= true;
+    }
     goto exit;
   }
   thd->create_tmp_table_for_derived= FALSE;
