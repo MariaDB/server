@@ -2733,6 +2733,12 @@ static Sys_var_ulong Sys_max_sp_recursion_depth(
        VALID_RANGE(0, 255), DEFAULT(0), BLOCK_SIZE(1));
 
 
+static Sys_var_uint Sys_max_open_cursors(
+       "max_open_cursors",
+       "The maximum number of open cursors allowed per session",
+       SESSION_VAR(max_open_cursors), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, 64*1024), DEFAULT(50), BLOCK_SIZE(1));
+
 static bool if_checking_enabled(sys_var *self, THD *thd,  set_var *var)
 {
   if (session_readonly(self, thd, var))

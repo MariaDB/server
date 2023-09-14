@@ -6697,6 +6697,21 @@ LEX::find_variable(const LEX_CSTRING *name,
 }
 
 
+bool LEX::check_variable_is_refcursor(const LEX_CSTRING &verb_clause,
+                                      const sp_variable *var) const
+{
+  const LEX_CSTRING tname= var->type_handler()->name().lex_cstring();
+  if (my_charset_latin1.strnncollsp(tname.str, tname.length,
+                                    STRING_WITH_LEN("sys_refcursor")))
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             tname.str, verb_clause.str);
+    return true;
+  }
+  return false;
+}
+
+
 sp_fetch_target *LEX::make_fetch_target(THD *thd, const Lex_ident_sys_st &name)
 {
   sp_pcontext *spc;
@@ -7269,8 +7284,12 @@ bool LEX::sp_for_loop_cursor_condition_test(THD *thd,
   DBUG_ASSERT(cursor_name);
   if (unlikely(!(expr=
                  new (thd->mem_root)
-                 Item_func_cursor_found(thd, cursor_name,
-                                        loop.m_cursor_offset))))
+                 Item_func_cursor_found(thd,
+                                        Cursor_ref(cursor_name,
+                                                   // Static cursor
+                                                   &sp_rcontext_handler_local,
+                                                   loop.m_cursor_offset,
+                                                   NULL)))))
     return true;
   if (thd->lex->sp_while_loop_expression(thd, expr, empty_clex_str))
     return true;
@@ -7528,6 +7547,80 @@ bool LEX::sp_open_cursor(THD *thd, const LEX_CSTRING *name,
 }
 
 
+/*
+  Add instructions for "OPEN sys_ref_cursor FROM stmt".
+  This statement is only supported for SYS_REFCURSOR variables.
+  It's not supported for static cursors.
+*/
+bool LEX::sp_open_cursor_for_stmt(THD *thd, const LEX_CSTRING *name,
+                                  sp_lex_cursor *stmt)
+{
+  const Sp_rcontext_handler *rh;
+  sp_variable *spv;
+  if (!(spv= find_variable(name, &rh)))
+  {
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0), name->str);
+    return true;
+  }
+  if (spv->mode == sp_variable::MODE_IN &&
+      spv->offset < sphead->get_parse_context()->context_var_count())
+  {
+    /*
+      OPEN for IN SYS_REFCURSOR parameters is not supported in Oracle.
+      Let's also disallow this. The error message might be misleading
+      about "not supported *yet*". But we don't have a better message.
+    */
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0), "OPEN IN_sp_parameter");
+    return true;
+  }
+  if (check_variable_is_refcursor({STRING_WITH_LEN("OPEN")}, spv))
+    return true;
+  auto *i= new (thd->mem_root) sp_instr_copen_by_ref(
+                                 sphead->instructions(), spcont,
+                                 sp_rcontext_ref(
+                                   sp_rcontext_addr(rh, spv->offset),
+                                   &sp_rcontext_handler_statement),
+                                 stmt);
+  return i == NULL || sphead->add_instr(i);
+}
+
+
+/*
+  Add instructions for "CLOSE cur".
+  It handles both static cursors and SYS_REFCURORs.
+*/
+bool LEX::sp_close(THD *thd, const Lex_ident_sys_st &name)
+{
+  uint offset;
+
+  // Search for a static cursor with the given name first
+  if (spcont->find_cursor(&name, &offset, false))
+  {
+    sp_instr_cclose *i=
+      new (thd->mem_root) sp_instr_cclose(sphead->instructions(),
+                                          spcont, offset);
+    return i == nullptr || sphead->add_instr(i);
+  }
+
+  // Search for a SYS_REFCURSOR variable
+  const Sp_rcontext_handler *rh;
+  const sp_variable *spv= find_variable(&name, &rh);
+  if (spv)
+  {
+    if (check_variable_is_refcursor({STRING_WITH_LEN("CLOSE")}, spv))
+      return true;
+    auto *i= new (thd->mem_root) sp_instr_cclose_by_ref(
+                                   sphead->instructions(), spcont,
+                                   sp_rcontext_ref(
+                                     sp_rcontext_addr(rh, spv->offset),
+                                     &sp_rcontext_handler_statement));
+    return i == nullptr || sphead->add_instr(i);
+  }
+  my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name.str);
+  return true;
+}
+
+
 bool LEX::sp_handler_declaration_init(THD *thd, int type)
 {
   sp_handler *h= spcont->add_handler(thd, (sp_handler::enum_type) type);
@@ -7580,6 +7673,14 @@ bool LEX::sp_handler_declaration_finalize(THD *thd, int type)
 }
 
 
+void LEX::sp_block_init_package_body(THD *thd)
+{
+  spcont->push_label(thd, &empty_clex_str,
+                     sphead->instructions(), sp_label::BEGIN);
+  spcont= spcont->push_context(thd, sp_pcontext::PACKAGE_BODY_SCOPE);
+}
+
+
 void LEX::sp_block_init(THD *thd, const LEX_CSTRING *label)
 {
   spcont->push_label(thd, label, sphead->instructions(), sp_label::BEGIN);
@@ -7611,6 +7712,10 @@ bool LEX::sp_block_finalize(THD *thd, const Lex_spblock_st spblock,
         unlikely(sp->add_instr(i)))
       return true;
   }
+
+  if (sphead->add_sp_block_destruct_variables(thd, spcont))
+    return true;
+
   spcont= ctx->pop_context();
   *splabel= spcont->pop_label();
   return false;
@@ -8306,24 +8411,50 @@ Item *LEX::make_item_colon_ident_ident(THD *thd,
 }
 
 
+/*
+  Make an Item for Oracle style cursor attributes:
+    cur%ISOPEN
+    cur%FOUND
+    cur%NOTFOUND
+    cur%ROWCOUNT
+  Works for static cursors and SYS_REFCURSORs.
+*/
 Item *LEX::make_item_plsql_cursor_attr(THD *thd, const LEX_CSTRING *name,
                                        plsql_cursor_attr_t attr)
 {
   uint offset;
-  if (unlikely(!spcont || !spcont->find_cursor(name, &offset, false)))
+  const Sp_rcontext_handler *rh= nullptr;
+  const Sp_rcontext_handler *deref_rcontext_handler= nullptr;
+  const sp_variable *spv= nullptr;
+  if (spcont && spcont->find_cursor(name, &offset, false))
+  {
+    rh= &sp_rcontext_handler_local; // A static cursor found
+  }
+  else if (spcont && (spv= find_variable(name, &rh)))
+  {
+    static constexpr LEX_CSTRING cursor_attr=
+      {STRING_WITH_LEN("%cursor_attr")};
+    if (check_variable_is_refcursor(cursor_attr, spv))
+      return nullptr;
+     // A SYS_REFCURSOR variable found
+    offset= spv->offset;
+    deref_rcontext_handler= &sp_rcontext_handler_statement;
+  }
+  else
   {
     my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name->str);
     return NULL;
   }
+  const Cursor_ref ref(name, rh, offset, deref_rcontext_handler);
   switch (attr) {
   case PLSQL_CURSOR_ATTR_ISOPEN:
-    return new (thd->mem_root) Item_func_cursor_isopen(thd, name, offset);
+    return new (thd->mem_root) Item_func_cursor_isopen(thd, ref);
   case PLSQL_CURSOR_ATTR_FOUND:
-    return new (thd->mem_root) Item_func_cursor_found(thd, name, offset);
+    return new (thd->mem_root) Item_func_cursor_found(thd, ref);
   case PLSQL_CURSOR_ATTR_NOTFOUND:
-    return new (thd->mem_root) Item_func_cursor_notfound(thd, name, offset);
+    return new (thd->mem_root) Item_func_cursor_notfound(thd, ref);
   case PLSQL_CURSOR_ATTR_ROWCOUNT:
-    return new (thd->mem_root) Item_func_cursor_rowcount(thd, name, offset);
+    return new (thd->mem_root) Item_func_cursor_rowcount(thd, ref);
   }
   DBUG_ASSERT(0);
   return NULL;
@@ -9512,22 +9643,43 @@ int set_statement_var_if_exists(THD *thd, const char *var_name,
 }
 
 
-sp_instr_cfetch *LEX::sp_add_instr_cfetch(THD *thd, const LEX_CSTRING *name)
+/*
+  Add instructions to handle "FETCH cur INTO targets".
+  It covers both static cursors and SYS_REFCUSORs.
+*/
+sp_instr_fetch_cursor *
+LEX::sp_add_instr_fetch_cursor(THD *thd, const LEX_CSTRING *name)
 {
   uint offset;
-  sp_instr_cfetch *i;
 
-  if (!spcont->find_cursor(name, &offset, false))
+  // Search for a static cursor with the given name first
+  if (spcont->find_cursor(name, &offset, false))
   {
-    my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name->str);
-    return nullptr;
+    sp_instr_cfetch *i= new (thd->mem_root)
+      sp_instr_cfetch(sphead->instructions(),
+                      spcont, offset,
+                      !(thd->variables.sql_mode & MODE_ORACLE));
+    return i == nullptr || sphead->add_instr(i) ? nullptr : i;
   }
-  i= new (thd->mem_root)
-    sp_instr_cfetch(sphead->instructions(), spcont, offset,
-                    !(thd->variables.sql_mode & MODE_ORACLE));
-  if (unlikely(i == NULL) || unlikely(sphead->add_instr(i)))
-    return nullptr;
-  return i;
+
+  // Search for a SYS_REFCURSOR variable
+  const Sp_rcontext_handler *rh;
+  const sp_variable *spv= find_variable(name, &rh);
+  if (spv)
+  {
+    if (check_variable_is_refcursor({STRING_WITH_LEN("FETCH")}, spv))
+      return nullptr;
+    auto *i= new (thd->mem_root) sp_instr_cfetch_by_ref(
+                                   sphead->instructions(), spcont,
+                                   sp_rcontext_ref(
+                                     sp_rcontext_addr(rh, spv->offset),
+                                     &sp_rcontext_handler_statement),
+                                   !(thd->variables.sql_mode & MODE_ORACLE));
+    return i == nullptr || sphead->add_instr(i) ? nullptr : i;
+  }
+
+  my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name->str);
+  return nullptr;
 }
 
 

@@ -1573,6 +1573,7 @@ void THD::change_user(void)
                get_sequence_last_key, free_sequence_last,
                HASH_THREAD_SPECIFIC);
   sp_caches_clear();
+  statement_rcontext_reinit();
   opt_trace.delete_traces();
 }
 
@@ -1704,6 +1705,7 @@ void THD::cleanup(void)
   my_hash_free(&user_vars);
   my_hash_free(&sequences);
   sp_caches_clear();
+  statement_rcontext_reinit();
   auto_inc_intervals_forced.empty();
   auto_inc_intervals_in_cur_stmt_for_binlog.empty();
 
@@ -1859,6 +1861,9 @@ THD::~THD()
 #ifndef EMBEDDED_LIBRARY
   if (rgi_slave)
     rgi_slave->cleanup_after_session();
+
+  statement_rcontext_reinit();
+
   my_free(semisync_info);
 #endif
   main_lex.free_set_stmt_mem_root();
@@ -2417,6 +2422,15 @@ void THD::cleanup_after_query()
   DBUG_ENTER("THD::cleanup_after_query");
 
   thd_progress_end(this);
+
+  if (!spcont && !in_sub_stmt)
+  {
+    /*
+      We're at the end of the top level statement
+      (not just in the end of a stored routine individual statement).
+    */
+    statement_rcontext_reinit();
+  }
 
   /*
     Reset RAND_USED so that detection of calls to rand() will save random
@@ -3197,6 +3211,25 @@ void Item_change_list::rollback_item_tree_changes()
 /*****************************************************************************
 ** Functions to provide a interface to select results
 *****************************************************************************/
+
+int select_result_sink::send_data_with_check(List<Item> &items,
+                                             SELECT_LEX_UNIT *u,
+                                             ha_rows sent)
+{
+  if (u->lim.check_offset(sent))
+    return 0;
+
+  if (u->thd->killed == ABORT_QUERY)
+    return 0;
+
+  int rc= send_data(items);
+
+  if (thd->stmt_arena->with_complex_data_types())
+    thd->stmt_arena->expr_event_handler_for_free_list(thd,
+                                  expr_event_t::DESTRUCT_RESULT_SET_ROW_FIELD);
+  return rc;
+}
+
 
 void select_result::reset_for_next_ps_execution()
 {
@@ -4095,6 +4128,37 @@ void select_dumpvar::reset_for_next_ps_execution()
 Query_arena::Type Query_arena::type() const
 {
   return STATEMENT;
+}
+
+
+bool Query_arena::check_free_list_no_complex_data_types(const char *op)
+{
+  DBUG_ENTER("Query_arena::check_free_list_no_complex_data_types");
+  for (Item *item= free_list; item; item= item->next)
+  {
+    if (item->fixed())
+    {
+      const Type_handler *th= item->type_handler();
+      if (th->is_complex())
+      {
+        my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+                 th->name().ptr(), op);
+        DBUG_RETURN(true);
+      }
+    }
+  }
+  DBUG_RETURN(false);
+}
+
+
+void Query_arena::expr_event_handler_for_free_list(THD *thd,
+                                                   expr_event_t event)
+{
+  for (Item *item= free_list; item; item= item->next)
+  {
+    if (item->fixed())
+      item->expr_event_handler(thd, event);
+  }
 }
 
 
