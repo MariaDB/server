@@ -1615,6 +1615,11 @@ void spider_conn_set_timeout_from_direct_sql(
   DBUG_VOID_RETURN;
 }
 
+/**
+  Insert a connection to a binary tree ordered by priority
+
+  Starting from `top', find the correct spot for `conn' and insert it.
+*/
 void spider_tree_insert(
   SPIDER_CONN *top,
   SPIDER_CONN *conn
@@ -1652,6 +1657,7 @@ void spider_tree_insert(
   DBUG_VOID_RETURN;
 }
 
+/* Returns the connection with the smallest priority in a tree */
 SPIDER_CONN *spider_tree_first(
   SPIDER_CONN *top
 ) {
@@ -1667,6 +1673,7 @@ SPIDER_CONN *spider_tree_first(
   DBUG_RETURN(current);
 }
 
+/* Returns the connection with the biggest priority in a tree */
 SPIDER_CONN *spider_tree_last(
   SPIDER_CONN *top
 ) {
@@ -1682,6 +1689,12 @@ SPIDER_CONN *spider_tree_last(
   DBUG_RETURN(current);
 }
 
+/*
+  Returns the next connection
+
+  Find the connection in the tree with the smallest priority that is
+  bigger than that of the current connection.
+*/
 SPIDER_CONN *spider_tree_next(
   SPIDER_CONN *current
 ) {

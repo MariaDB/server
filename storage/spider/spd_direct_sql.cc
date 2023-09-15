@@ -976,20 +976,20 @@ error:
   DBUG_RETURN(error_num);
 }
 
-#define SPIDER_PARAM_STR_LEN(name) name ## _length
-#define SPIDER_PARAM_STR(title_name, param_name) \
-  if (!strncasecmp(parse.start_title, title_name, title_length)) \
-  { \
-    DBUG_PRINT("info",("spider " title_name " start")); \
-    if (!direct_sql->param_name) \
-    { \
+#define SPIDER_PARAM_LEN(name) name ## _length
+#define SPIDER_PARAM_STR(title_name, param_name)                        \
+  if (!strncasecmp(parse.start_title, title_name, title_length))        \
+  {                                                                     \
+    DBUG_PRINT("info",("spider " title_name " start"));                 \
+    if (!direct_sql->param_name)                                        \
+    {                                                                   \
       if ((direct_sql->param_name = spider_create_string(parse.start_value, \
                                                          value_length))) \
-        direct_sql->SPIDER_PARAM_STR_LEN(param_name) = strlen(direct_sql->param_name); \
-      else { \
-        error_num= parse.fail(true); \
-        goto error; \
-      } \
+        direct_sql->SPIDER_PARAM_LEN(param_name) = strlen(direct_sql->param_name); \
+      else {                                                            \
+        error_num= parse.fail(true);                                    \
+        goto error;                                                     \
+      }                                                                 \
       DBUG_PRINT("info",("spider " title_name "=%s", direct_sql->param_name)); \
     } \
     break; \
