@@ -15,6 +15,7 @@ CREATE TABLE ts (c BLOB) ENGINE=Spider COMMENT='WRAPPER "mysql",srv "srv",TABLE 
 SELECT TRIM(BOTH ' ' FROM c) FROM ts ORDER BY c;
 drop table t, ts;
 
+drop server srv;
 --disable_query_log
 --disable_result_log
 --source ../../t/test_deinit.inc
