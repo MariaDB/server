@@ -1658,42 +1658,42 @@ static int spider_set_ll_value(
   DBUG_RETURN(error_num);
 }
 
-#define SPIDER_PARAM_STR_LEN(name) name ## _length
-#define SPIDER_PARAM_STR(title_name, param_name) \
-  if (!strncasecmp(parse.start_title, title_name, title_length)) \
-  { \
-    DBUG_PRINT("info",("spider " title_name " start")); \
-    if (!share->param_name) \
-    { \
-      if ((share->param_name = spider_create_string(parse.start_value, \
-                                                    value_length))) \
-        share->SPIDER_PARAM_STR_LEN(param_name) = strlen(share->param_name); \
-      else { \
-        error_num= parse.fail(true); \
-        goto error; \
-      } \
+#define SPIDER_PARAM_LEN(name) name ## _length
+#define SPIDER_PARAM_LENS(name) name ## _lengths
+#define SPIDER_PARAM_CHARLEN(name) name ## _charlen
+#define SPIDER_PARAM_STR(title_name, param_name)                        \
+  if (!strncasecmp(parse.start_title, title_name, title_length))        \
+  {                                                                     \
+    DBUG_PRINT("info",("spider " title_name " start"));                 \
+    if (!share->param_name)                                             \
+    {                                                                   \
+      if ((share->param_name = spider_create_string(parse.start_value,  \
+                                                    value_length)))     \
+        share->SPIDER_PARAM_LEN(param_name) = strlen(share->param_name); \
+      else {                                                            \
+        error_num= parse.fail(true);                                    \
+        goto error;                                                     \
+      }                                                                 \
       DBUG_PRINT("info",("spider " title_name "=%s", share->param_name)); \
     } \
     break; \
   }
-#define SPIDER_PARAM_STR_LENS(name) name ## _lengths
-#define SPIDER_PARAM_STR_CHARLEN(name) name ## _charlen
-#define SPIDER_PARAM_STR_LIST(title_name, param_name) \
-  if (!strncasecmp(parse.start_title, title_name, title_length)) \
-  { \
-    DBUG_PRINT("info", ("spider " title_name " start")); \
-    if (!share->param_name) \
-    { \
-      share->SPIDER_PARAM_STR_CHARLEN(param_name)= value_length; \
-      if ((error_num= spider_create_string_list( \
-             &share->param_name, \
-             &share->SPIDER_PARAM_STR_LENS(param_name), \
-             &share->SPIDER_PARAM_STR_LEN(param_name), \
-             parse.start_value, \
-             share->SPIDER_PARAM_STR_CHARLEN(param_name)))) \
-        goto error; \
-    } \
-    break; \
+#define SPIDER_PARAM_STR_LIST(title_name, param_name)                   \
+  if (!strncasecmp(parse.start_title, title_name, title_length))        \
+  {                                                                     \
+    DBUG_PRINT("info", ("spider " title_name " start"));                \
+    if (!share->param_name)                                             \
+    {                                                                   \
+      share->SPIDER_PARAM_CHARLEN(param_name)= value_length;            \
+      if ((error_num= spider_create_string_list(                        \
+             &share->param_name,                                        \
+             &share->SPIDER_PARAM_LENS(param_name),                     \
+             &share->SPIDER_PARAM_LEN(param_name),                      \
+             parse.start_value,                                         \
+             share->SPIDER_PARAM_CHARLEN(param_name))))                 \
+        goto error;                                                     \
+    }                                                                   \
+    break;                                                              \
   }
 #define SPIDER_PARAM_HINT(title_name, param_name, check_length, max_size, append_method) \
   if (!strncasecmp(parse.start_title, title_name, check_length)) \
@@ -1750,41 +1750,39 @@ static int spider_set_ll_value(
     } \
     break; \
   }
-#define SPIDER_PARAM_LONG_LEN(name) name ## _length
-#define SPIDER_PARAM_LONG_LIST_WITH_MAX(title_name, param_name, \
-                                        min_val, max_val) \
-  if (!strncasecmp(parse.start_title, title_name, title_length)) \
-  { \
-    DBUG_PRINT("info",("spider " title_name " start")); \
-    if (!share->param_name) \
-    { \
-      if ((error_num = spider_create_long_list( \
-             &share->param_name, \
-             &share->SPIDER_PARAM_LONG_LEN(param_name), \
-             parse.start_value, \
-             value_length, \
-             min_val, max_val))) \
-        goto error; \
-    } \
-    break; \
+#define SPIDER_PARAM_LONG_LIST_WITH_MAX(title_name, param_name,   \
+                                        min_val, max_val)         \
+  if (!strncasecmp(parse.start_title, title_name, title_length))  \
+  {                                                               \
+    DBUG_PRINT("info",("spider " title_name " start"));           \
+    if (!share->param_name)                                       \
+    {                                                             \
+      if ((error_num = spider_create_long_list(                   \
+             &share->param_name,                                  \
+             &share->SPIDER_PARAM_LEN(param_name),                \
+             parse.start_value,                                   \
+             value_length,                                        \
+             min_val, max_val)))                                  \
+        goto error;                                               \
+    }                                                             \
+    break;                                                        \
   }
-#define SPIDER_PARAM_LONGLONG_LEN(name) name ## _length
 #define SPIDER_PARAM_LONGLONG_LIST_WITH_MAX(title_name, param_name, \
-                                            min_val, max_val) \
-  if (!strncasecmp(parse.start_title, title_name, title_length)) \
-  { \
-    DBUG_PRINT("info",("spider " title_name " start")); \
-    if (!share->param_name) \
-    { \
-      if ((error_num = spider_create_longlong_list( \
-             &share->param_name, \
-             &share->SPIDER_PARAM_LONGLONG_LEN(param_name), \
-             parse.start_value, \
-             value_length, \
-             min_val, max_val))) \
-        goto error; \
-    } \
-    break; \
+                                            min_val, max_val)       \
+  if (!strncasecmp(parse.start_title, title_name, title_length))    \
+  {                                                                 \
+    DBUG_PRINT("info",("spider " title_name " start"));             \
+    if (!share->param_name)                                         \
+    {                                                               \
+      if ((error_num = spider_create_longlong_list(                 \
+             &share->param_name,                                    \
+             &share->SPIDER_PARAM_LEN(param_name),                  \
+             parse.start_value,                                     \
+             value_length,                                          \
+             min_val, max_val)))                                    \
+        goto error;                                                 \
+    }                                                               \
+    break;                                                          \
   }
 #define SPIDER_PARAM_INT_WITH_MAX(title_name, param_name, min_val, max_val) \
   if (!strncasecmp(parse.start_title, title_name, title_length)) \
@@ -1842,6 +1840,10 @@ static int spider_set_ll_value(
     break; \
   }
 
+/**
+  Assign -1 to some `SPIDER_SHARE' numeric fields, to indicate they
+  have not been specified by the user yet.
+*/
 static void spider_minus_1(SPIDER_SHARE *share, TABLE_SHARE *table_share)
 {
 #ifndef WITHOUT_SPIDER_BG_SEARCH
@@ -2209,6 +2211,7 @@ int spider_parse_connect_info(
       connect_string = NULL;
     }
 
+    /* Get the correct connect info for the current level. */
     int error_num_1 = spider_get_connect_info(i, part_elem, sub_elem,
                                               table_share, connect_string);
     if (error_num_1 == 1)
@@ -3271,7 +3274,7 @@ int spider_parse_connect_info(
       {
         if (
           spider_dbton[roop_count2].wrapper &&
-          !strcmp(share->tgt_wrappers[roop_count],
+          !strcasecmp(share->tgt_wrappers[roop_count],
             spider_dbton[roop_count2].wrapper)
         ) {
           break;
@@ -4097,7 +4100,7 @@ int spider_create_conn_keys(
           spider_dbton[roop_count2].wrapper : "NULL"));
       if (
         spider_dbton[roop_count2].wrapper &&
-        !strcmp(share->tgt_wrappers[roop_count],
+        !strcasecmp(share->tgt_wrappers[roop_count],
           spider_dbton[roop_count2].wrapper)
       ) {
         spider_set_bit(share->dbton_bitmap, roop_count2);
