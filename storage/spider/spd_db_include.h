@@ -1665,9 +1665,6 @@ public:
     SPIDER_HS_STRING_REF &info
   ) = 0;
 #endif
-  virtual bool need_lock_before_set_sql_for_exec(
-    ulong sql_type
-  ) = 0;
 #ifdef SPIDER_HAS_GROUP_BY_HANDLER
   virtual int set_sql_for_exec(
     ulong sql_type,

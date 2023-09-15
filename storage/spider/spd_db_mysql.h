@@ -1487,9 +1487,6 @@ public:
     SPIDER_HS_STRING_REF &info
   );
 #endif
-  bool need_lock_before_set_sql_for_exec(
-    ulong sql_type
-  );
 #ifdef SPIDER_HAS_GROUP_BY_HANDLER
   int set_sql_for_exec(
     ulong sql_type,
