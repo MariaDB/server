@@ -1237,6 +1237,8 @@ int spider_group_by_handler::init_scan()
   spider->init_index_handler = FALSE;
   spider->use_spatial_index = FALSE;
   result_list->check_direct_order_limit = FALSE;
+  /* Disable direct aggregate when GBH is on (MDEV-29502). */
+  result_list->direct_aggregate = FALSE;
   spider->select_column_mode = 0;
   spider->search_link_idx = fields->get_ok_link_idx();
   spider->result_link_idx = spider->search_link_idx;
@@ -1412,30 +1414,14 @@ int spider_group_by_handler::init_scan()
     } else {
 #endif
       pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
-      if (dbton_hdl->need_lock_before_set_sql_for_exec(
-        SPIDER_SQL_TYPE_SELECT_SQL))
-      {
-        pthread_mutex_lock(&conn->mta_conn_mutex);
-        SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
-      }
       if ((error_num =
         dbton_hdl->set_sql_for_exec(SPIDER_SQL_TYPE_SELECT_SQL, link_idx,
         link_idx_chain)))
       {
-        if (dbton_hdl->need_lock_before_set_sql_for_exec(
-          SPIDER_SQL_TYPE_SELECT_SQL))
-        {
-          SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-          pthread_mutex_unlock(&conn->mta_conn_mutex);
-        }
         DBUG_RETURN(error_num);
       }
-      if (!dbton_hdl->need_lock_before_set_sql_for_exec(
-        SPIDER_SQL_TYPE_SELECT_SQL))
-      {
-        pthread_mutex_lock(&conn->mta_conn_mutex);
-        SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
-      }
+      pthread_mutex_lock(&conn->mta_conn_mutex);
+      SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
       conn->need_mon = &spider->need_mons[link_idx];
       DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
       DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);

@@ -1611,27 +1611,9 @@ int spider_check_and_set_autocommit(
   SPIDER_CONN *conn,
   int *need_mon
 ) {
-  bool autocommit;
   DBUG_ENTER("spider_check_and_set_autocommit");
-
-  autocommit = !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT);
-  if (autocommit)
-  {
-    spider_conn_queue_autocommit(conn, TRUE);
-  } else {
-    spider_conn_queue_autocommit(conn, FALSE);
-  }
-/*
-  if (autocommit && conn->autocommit != 1)
-  {
-    spider_conn_queue_autocommit(conn, TRUE);
-    conn->autocommit = 1;
-  } else if (!autocommit && conn->autocommit != 0)
-  {
-    spider_conn_queue_autocommit(conn, FALSE);
-    conn->autocommit = 0;
-  }
-*/
+  spider_conn_queue_autocommit(
+    conn, !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT));
   DBUG_RETURN(0);
 }
 
@@ -1653,17 +1635,6 @@ int spider_check_and_set_sql_log_off(
       spider_conn_queue_sql_log_off(conn, FALSE);
     }
   }
-/*
-  if (internal_sql_log_off && conn->sql_log_off != 1)
-  {
-    spider_conn_queue_sql_log_off(conn, TRUE);
-    conn->sql_log_off = 1;
-  } else if (!internal_sql_log_off && conn->sql_log_off != 0)
-  {
-    spider_conn_queue_sql_log_off(conn, FALSE);
-    conn->sql_log_off = 0;
-  }
-*/
   DBUG_RETURN(0);
 }
 

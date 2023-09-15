@@ -103,11 +103,9 @@ while ($_rpl_server)
 
 --connection default
 --let $_rpl_server= $rpl_server_count
---let $_rpl_one= _1
 while ($_rpl_server)
 {
   --disconnect server_$_rpl_server
-  --disconnect server_$_rpl_server$_rpl_one
   --dec $_rpl_server
 }
 
