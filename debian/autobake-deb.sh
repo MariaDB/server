@@ -29,6 +29,10 @@ remove_rocksdb_tools()
 {
   sed '/rocksdb-tools/d' -i debian/control
   sed '/sst_dump/d' -i debian/not-installed
+  if ! grep -q sst_dump debian/mariadb-plugin-rocksdb.install
+  then
+    echo "usr/bin/sst_dump" >> debian/mariadb-plugin-rocksdb.install
+  fi
 }
 
 add_lsb_base_depends()

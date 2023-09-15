@@ -72,22 +72,8 @@ insert into t values (4), (1);
 select * from t;
 rollback;
 
-# In repeatable read, rollbacks in write unprepared confuses the snapshot
-# validation logic into thinking that a write has happened, because it sees
-# the rollback writes in the DB.
-let $snapshot_conflict = `SELECT @@global.rocksdb_write_policy = 'write_unprepared' and @@session.tx_isolation = 'repeatable-read'`;
 connection con2;
---disable_result_log
-if ($snapshot_conflict)
-{
-  --error ER_LOCK_DEADLOCK
-  --reap
-}
-if (!$snapshot_conflict)
-{
-  --reap
-}
---enable_result_log
+--reap
 rollback;
 
 connection con1;
