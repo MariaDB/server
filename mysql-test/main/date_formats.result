@@ -556,9 +556,10 @@ select time_format('2001-01-01 02:02:02', '%T');
 time_format('2001-01-01 02:02:02', '%T')
 02:02:02
 #
-# Beginning of 11.3 test
+# End of 10.2 test
 #
-# MDEV-31684: Add timezone information to DATE_FORMAT
+#
+# MDEV-31684 Add timezone information to DATE_FORMAT
 #
 SET @old_timezone= @@time_zone;
 # Using named timezones
@@ -590,14 +591,7 @@ SET TIME_ZONE='UTC';
 SELECT DATE_FORMAT('2009-10-04 22:23:00', '%z %Z') AS current_timezone;
 current_timezone
 +0000 UTC
-# using system time
-#
-# output depends on system time information. Hence replacing
-# to avoid result diff test failures.
-#
-SET @@time_zone= default;
-SELECT DATE_FORMAT('2009-10+|-HH:MM ABC22:23:00', '%z %Z') AS current_timezone;
-current_timezone
-+|-HH:MM ABC
 SET @@time_zone= @old_timezone;
+#
 # End of 11.3 test
+#

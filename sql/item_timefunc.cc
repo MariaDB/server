@@ -482,15 +482,8 @@ static bool make_date_time(THD *thd, const String *format,
   uint weekday;
   ulong length;
   const char *ptr, *end;
-  int diff_hr=0, diff_min=0;
-  char abbrevation[8];
-  struct tz tmp;
-  tmp.is_inited= false;
-
-  Time_zone* curr_timezone= my_tz_find(thd,
-                               thd->variables.time_zone->get_name());
-  memset(abbrevation, 0, sizeof(abbrevation));
-
+  struct tz curr_tz;
+  Time_zone* curr_timezone= 0;
 
   str->length(0);
 
@@ -710,41 +703,29 @@ static bool make_date_time(THD *thd, const String *format,
 
       case 'z':
       {
-        if (!tmp.is_inited)
+        if (!curr_timezone)
         {
-          curr_timezone->get_timezone_information(&tmp, l_time);
-          tmp.is_inited= true;
+          curr_timezone= thd->variables.time_zone;
+          curr_timezone->get_timezone_information(&curr_tz, l_time);
         }
-        ulonglong seconds= abs(tmp.seconds_offset);
-        diff_hr= (int)(seconds/3600L);
-        int temp= (int)(seconds%3600L);
-        diff_min= temp/60L;
+        long minutes= labs(curr_tz.seconds_offset)/60, diff_hr, diff_min;
+        diff_hr= minutes/60;
+        diff_min= minutes%60;
 
-        if (tmp.is_behind)
-          str->append("-", 1);
-        else
-          str->append("+", 1);
-
-        if (diff_hr/10 == 0)
-          str->append("0", 1);
-        length= (uint) (int10_to_str(diff_hr, intbuff, 10) - intbuff);
-        str->append(intbuff, length);
-        if (diff_min/10 == 0)
-          str->append("0", 1);
-        length= (uint) (int10_to_str(diff_min, intbuff, 10) - intbuff);
-        str->append(intbuff, length);
-      }
+        str->append(curr_tz.seconds_offset < 0 ? '-' : '+');
+        str->append(static_cast<char>('0' + diff_hr/10));
+        str->append(static_cast<char>('0' + diff_hr%10));
+        str->append(static_cast<char>('0' + diff_min/10));
+        str->append(static_cast<char>('0' + diff_min%10));
         break;
-
-      case 'Z':
-      {
-        if (!tmp.is_inited)
-        {
-          curr_timezone->get_timezone_information(&tmp, l_time);
-          tmp.is_inited= true;
-        }
-        str->append(tmp.abbrevation, strlen(tmp.abbrevation));
       }
+      case 'Z':
+        if (!curr_timezone)
+        {
+          curr_timezone= thd->variables.time_zone;
+          curr_timezone->get_timezone_information(&curr_tz, l_time);
+        }
+        str->append(curr_tz.abbrevation, strlen(curr_tz.abbrevation));
         break;
       default:
 	str->append(*ptr);
@@ -1874,6 +1855,7 @@ uint Item_func_date_format::format_length(const String *format)
       case 'X': /* Year, used with 'v, where week starts with Monday' */
 	size += 4;
 	break;
+      case 'Z': /* time zone abbreviation */
       case 'a': /* locale's abbreviated weekday name (Sun..Sat) */
       case 'b': /* locale's abbreviated month name (Jan.Dec) */
 	size += 32; /* large for UTF8 locale data */
@@ -1912,6 +1894,9 @@ uint Item_func_date_format::format_length(const String *format)
       case 'f': /* microseconds */
 	size += 6;
 	break;
+      case 'z': /* time zone offset */
+        size += 5;
+        break;
       case 'w': /* day (of the week), numeric */
       case '%':
       default:
