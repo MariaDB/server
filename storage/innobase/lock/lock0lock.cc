@@ -932,6 +932,21 @@ lock_rec_other_has_expl_req(
 #ifdef WITH_WSREP
 void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id);
 
+#ifdef UNIV_DEBUG
+void wsrep_report_error(const lock_t* victim_lock, const trx_t *bf_trx)
+{
+  // We have conflicting BF-BF case, these threads
+  // should not execute concurrently
+  mtr_t mtr;
+  WSREP_ERROR("BF request is not compatible with victim");
+  WSREP_ERROR("BF requesting lock: ");
+  lock_rec_print(stderr, bf_trx->lock.wait_lock, mtr);
+  WSREP_ERROR("victim holding lock: ");
+  lock_rec_print(stderr, victim_lock, mtr);
+  wsrep_assert_no_bf_bf_wait(victim_lock, bf_trx);
+}
+#endif /* WITH_DEBUG */
+
 /** Kill the holders of conflicting locks.
 @param trx   brute-force applier transaction running in the current thread */
 ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
@@ -960,13 +975,26 @@ func_exit:
     dict_table_t *table= wait_lock->un_member.tab_lock.table;
     for (lock_t *lock= UT_LIST_GET_FIRST(table->locks); lock;
          lock= UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock))
+    {
       /* if victim has also BF status, but has earlier seqno, we have to wait */
       if (lock->trx != trx &&
           !(wsrep_thd_is_BF(lock->trx->mysql_thd, false) &&
             wsrep_thd_order_before(lock->trx->mysql_thd, trx->mysql_thd)))
       {
+        if (wsrep_thd_is_BF(lock->trx->mysql_thd, false))
+        {
+          // There is no need to kill victim with compatible lock
+          if (!lock_has_to_wait(trx->lock.wait_lock, lock))
+            continue;
+
+#ifdef UNIV_DEBUG
+          wsrep_report_error(lock, trx);
+#endif
+        }
+
         victims.emplace(lock->trx);
       }
+    }
   }
   else
   {
@@ -980,14 +1008,26 @@ func_exit:
       if (!lock_rec_get_nth_bit(lock, heap_no))
         lock= lock_rec_get_next(heap_no, lock);
       do
+      {
         /* if victim has also BF status, but has earlier seqno, we have to wait */
         if (lock->trx != trx &&
             !(wsrep_thd_is_BF(lock->trx->mysql_thd, false) &&
               wsrep_thd_order_before(lock->trx->mysql_thd, trx->mysql_thd)))
         {
+          if (wsrep_thd_is_BF(lock->trx->mysql_thd, false))
+          {
+            // There is no need to kill victim with compatible lock
+            if (!lock_has_to_wait(trx->lock.wait_lock, lock))
+              continue;
+
+#ifdef UNIV_DEBUG
+            wsrep_report_error(lock, trx);
+#endif
+          }
+
           victims.emplace(lock->trx);
         }
-      while ((lock= lock_rec_get_next(heap_no, lock)));
+      } while ((lock= lock_rec_get_next(heap_no, lock)));
     }
   }
 
