@@ -16,6 +16,7 @@ ERROR HY000: An infinite loop is detected when opening table test.t0
 select * from t2;
 ERROR HY000: An infinite loop is detected when opening table test.t0
 drop table t0, t1, t2;
+drop server srv_self_reference_multi;
 for master_1
 for child2
 for child3
