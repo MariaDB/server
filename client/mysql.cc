@@ -1292,6 +1292,7 @@ int main(int argc,char *argv[])
   glob_buffer.realloc(512);
   completion_hash_init(&ht, 128);
   init_alloc_root(PSI_NOT_INSTRUMENTED, &hash_mem_root, 16384, 0, MYF(0));
+
   if (sql_connect(current_host,current_db,current_user,opt_password,
 		  opt_silent))
   {
@@ -1496,7 +1497,7 @@ static bool do_connect(MYSQL *mysql, const char *host, const char *user,
 {
   if (opt_secure_auth)
     mysql_options(mysql, MYSQL_SECURE_AUTH, (char *) &opt_secure_auth);
-  SET_SSL_OPTS(mysql);
+  SET_SSL_OPTS_WITH_CHECK(mysql);
   if (opt_protocol)
     mysql_options(mysql,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
   if (opt_plugin_dir && *opt_plugin_dir)
@@ -1967,7 +1968,7 @@ get_one_option(const struct my_option *opt, const char *argument,
       MySQL might still have this option in their commands, and it will not work
       in MariaDB unless it is handled. Therefore output a warning and continue.
     */
-    printf("WARNING: option '--enable-cleartext-plugin' is obsolete.\n");
+    printf("WARNING: option --enable-cleartext-plugin is obsolete.\n");
     break;
   case 'A':
     opt_rehash= 0;

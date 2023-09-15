@@ -1992,7 +1992,7 @@ static MYSQL* connect_to_db(char *host, char *user,char *passwd)
   MYSQL* con = mysql_init(NULL);
   if (opt_compress)
     mysql_options(con,MYSQL_OPT_COMPRESS,NullS);
-  SET_SSL_OPTS(con);
+  SET_SSL_OPTS_WITH_CHECK(con);
   if (opt_protocol)
     mysql_options(con,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
   mysql_options(con, MYSQL_SET_CHARSET_NAME, default_charset);

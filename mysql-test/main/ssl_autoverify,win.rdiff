@@ -1,9 +1,9 @@
---- main/ssl_autoverify.reject
-+++ main/ssl_autoverify.result
-@@ -18,9 +18,9 @@
+--- a/mysql-test/main/ssl_autoverify.result
++++ b/mysql-test/main/ssl_autoverify.result
+@@ -22,9 +22,9 @@ ERROR 2026 (HY000): TLS/SSL error: Failed to verify the server certificate
+ WARNING: option --ssl-verify-server-cert is disabled, because of an insecure passwordless login.
+ test.have_ssl()
  yes
- # mysql -uroot --ssl-verify-server-cert -e "select test.have_ssl()"
- ERROR 2026 (HY000): TLS/SSL error: Failed to verify the server certificate
 -# mysql --protocol socket -uroot --ssl-verify-server-cert -e "select test.have_ssl()"
 +# mysql --protocol pipe -uroot --ssl-verify-server-cert -e "select test.have_ssl()"
  test.have_ssl()
@@ -12,7 +12,7 @@
  # mysql -unative -pfoo --ssl-verify-server-cert -e "select test.have_ssl()"
  test.have_ssl()
  yes
-@@ -38,16 +38,6 @@
+@@ -42,16 +42,6 @@ yes
  # mysql -umulti -ppw2 --ssl-verify-server-cert -e "select test.have_ssl()"
  test.have_ssl()
  yes

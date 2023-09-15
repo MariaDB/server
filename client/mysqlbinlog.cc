@@ -134,13 +134,13 @@ static ulong opt_stop_never_slave_server_id= 0;
 static my_bool opt_verify_binlog_checksum= 1;
 static ulonglong offset = 0;
 static char* host = 0;
-static int port= 0;
+static int opt_mysql_port= 0;
 static uint my_end_arg;
 static const char* sock= 0;
 static char *opt_plugindir= 0, *opt_default_auth= 0;
 
 static char* user = 0;
-static char* pass = 0;
+static char* opt_password = 0;
 static char *charset= 0;
 
 static uint verbose= 0;
@@ -1196,8 +1196,8 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
           int  tmp_sql_offset;
 
           conn = mysql_init(NULL);
-          if (!mysql_real_connect(conn, host, user, pass,
-                map->get_db_name(), port, sock, 0))
+          if (!mysql_real_connect(conn, host, user, opt_password,
+                map->get_db_name(), opt_mysql_port, sock, 0))
           {
             fprintf(stderr, "%s\n", mysql_error(conn));
             exit(1);
@@ -1502,7 +1502,7 @@ static struct my_option my_options[] =
    "/etc/services, "
 #endif
    "built-in default (" STRINGIFY_ARG(MYSQL_PORT) ").",
-   &port, &port, 0, GET_INT, REQUIRED_ARG,
+   &opt_mysql_port, &opt_mysql_port, 0, GET_INT, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0},
   {"protocol", OPT_MYSQL_PROTOCOL,
    "The protocol to use for connection (tcp, socket, pipe).",
@@ -1769,7 +1769,7 @@ static void warning(const char *format,...)
 static void cleanup()
 {
   DBUG_ENTER("cleanup");
-  my_free(pass);
+  my_free(opt_password);
   my_free(database);
   my_free(table);
   my_free(host);
@@ -2090,9 +2090,9 @@ get_one_option(const struct my_option *opt, const char *argument,
         One should not really change the argument, but we make an
         exception for passwords
       */
-      my_free(pass);
+      my_free(opt_password);
       char *start= (char*) argument;
-      pass= my_strdup(PSI_NOT_INSTRUMENTED, argument,MYF(MY_FAE));
+      opt_password= my_strdup(PSI_NOT_INSTRUMENTED, argument,MYF(MY_FAE));
       while (*argument)
         *(char*)argument++= 'x';		/* Destroy argument */
       if (*start)
@@ -2261,7 +2261,7 @@ get_one_option(const struct my_option *opt, const char *argument,
     break;
   }
   if (tty_password)
-    pass= my_get_tty_password(NullS);
+    opt_password= my_get_tty_password(NullS);
 
   return 0;
 }
@@ -2351,7 +2351,7 @@ static Exit_status safe_connect()
     return ERROR_STOP;
   }
 
-  SET_SSL_OPTS(mysql);
+  SET_SSL_OPTS_WITH_CHECK(mysql);
 
   if (opt_plugindir && *opt_plugindir)
     mysql_options(mysql, MYSQL_PLUGIN_DIR, opt_plugindir);
@@ -2364,7 +2364,7 @@ static Exit_status safe_connect()
   mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
                  "program_name", "mysqlbinlog");
-  if (!mysql_real_connect(mysql, host, user, pass, 0, port, sock, 0))
+  if (!mysql_real_connect(mysql, host, user, opt_password, 0, opt_mysql_port, sock, 0))
   {
     error("Failed on connect: %s", mysql_error(mysql));
     return ERROR_STOP;

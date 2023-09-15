@@ -34,7 +34,7 @@ SSL_STATIC char *opt_tls_version = 0;
 #ifdef MYSQL_CLIENT
 SSL_STATIC char *opt_ssl_fp      = 0;
 SSL_STATIC char *opt_ssl_fplist  = 0;
-SSL_STATIC my_bool opt_ssl_verify_server_cert= 1;
+SSL_STATIC my_bool opt_ssl_verify_server_cert= 2;
 
 #define SET_SSL_OPTS(M)                                                 \
   do {                                                                  \
@@ -51,8 +51,31 @@ SSL_STATIC my_bool opt_ssl_verify_server_cert= 1;
     mysql_options((M),MYSQL_OPT_SSL_VERIFY_SERVER_CERT,                 \
                   &opt_ssl_verify_server_cert);                         \
   } while(0)
+
+/*
+  let's disable opt_ssl_verify_server_cert if neither CA nor FP and
+  nor password were specified and the protocol is TCP.
+*/
+#define SET_SSL_OPTS_WITH_CHECK(M)                                      \
+  do {                                                                  \
+    if (opt_ssl_verify_server_cert==2 &&                                \
+        !(opt_ssl_ca && opt_ssl_ca[0]) &&                               \
+        !(opt_ssl_capath && opt_ssl_capath[0]) &&                       \
+        !(opt_ssl_fp && opt_ssl_fp[0]) &&                               \
+        !(opt_ssl_fplist && opt_ssl_fplist[0]) &&                       \
+        !(opt_password && opt_password[0]) &&                           \
+        opt_protocol == MYSQL_PROTOCOL_TCP)                             \
+    {                                                                   \
+      fprintf(stderr, "WARNING: option --ssl-verify-server-cert is "    \
+              "disabled, because of an insecure passwordless login.\n");\
+      opt_ssl_verify_server_cert= 0;                                    \
+    }                                                                   \
+    SET_SSL_OPTS(M);                                                    \
+  } while (0)
+
 #endif
 #else
 #define SET_SSL_OPTS(M) do { } while(0)
+#define SET_SSL_OPTS_WITH_CHECK(M) do { } while(0)
 #endif
 #endif /* SSLOPT_VARS_INCLUDED */

@@ -18,6 +18,10 @@ test.have_ssl()
 yes
 # mysql -uroot --ssl-verify-server-cert -e "select test.have_ssl()"
 ERROR 2026 (HY000): TLS/SSL error: Failed to verify the server certificate
+# mysql -uroot -e "select test.have_ssl()"
+WARNING: option --ssl-verify-server-cert is disabled, because of an insecure passwordless login.
+test.have_ssl()
+yes
 # mysql --protocol socket -uroot --ssl-verify-server-cert -e "select test.have_ssl()"
 test.have_ssl()
 yes
