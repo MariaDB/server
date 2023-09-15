@@ -4777,7 +4777,7 @@ int spider_db_seek_next(
                 DBUG_RETURN(error_num);
               }
               pthread_mutex_lock(&conn->mta_conn_mutex);
-                SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
+              SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
               conn->need_mon = &spider->need_mons[link_idx];
               DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
               DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
@@ -4872,7 +4872,7 @@ int spider_db_seek_next(
                 DBUG_RETURN(error_num);
               }
               pthread_mutex_lock(&conn->mta_conn_mutex);
-                SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
+              SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
               conn->need_mon = &spider->need_mons[roop_count];
               DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
               DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
