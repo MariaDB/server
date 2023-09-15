@@ -10,6 +10,7 @@ CREATE TABLE ts (c BLOB) ENGINE=Spider COMMENT='WRAPPER "mysql",srv "srv",TABLE 
 SELECT TRIM(BOTH ' ' FROM c) FROM ts ORDER BY c;
 TRIM(BOTH ' ' FROM c)
 drop table t, ts;
+drop server srv;
 for master_1
 for child2
 for child3
